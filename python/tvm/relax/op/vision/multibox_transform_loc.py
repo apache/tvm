@@ -21,7 +21,6 @@ import tvm_ffi
 from tvm.ir import Attrs
 from tvm.ir import Call as _Call
 from tvm.ir.attrs import make_node as _make_attrs
-from tvm.ir.base import UnknownLoc
 
 
 @tvm_ffi.register_object("relax.attrs.MultiboxTransformLocAttrs")
@@ -40,7 +39,7 @@ def multibox_transform_loc(
     apply_softmax=True,
     *,
     ty=None,
-    loc=UnknownLoc(),
+    loc=None,
 ):
     """SSD / TFLite-style decode: priors + offsets → boxes; prepare class scores.
 

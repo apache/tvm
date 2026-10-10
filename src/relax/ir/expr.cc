@@ -399,11 +399,11 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> FunctionMaybeInplaceMut
 
 TVM_FFI_STATIC_INIT_BLOCK() { BindingNode::RegisterReflection(); }
 
-IfExpr::IfExpr(Expr cond, Expr true_branch, Expr false_branch, Location loc)
+IfExpr::IfExpr(Expr cond, Expr true_branch, Expr false_branch, ffi::Optional<Location> loc)
     : Expr(ffi::UnsafeInit{}) {
   ffi::ObjectPtr<IfExprNode> n = ffi::make_object<IfExprNode>(
       std::move(cond), std::move(true_branch), std::move(false_branch));
-  n->loc = std::move(loc);
+  n->loc = loc.value_or(Location());
   data_ = std::move(n);
 }
 
@@ -416,13 +416,14 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&IfExprMaybeInplaceMutate>());
 
-  refl::GlobalDef().def("relax.IfExpr",
-                        [](Expr cond, Expr true_branch, Expr false_branch, Location loc) {
-                          return IfExpr(cond, true_branch, false_branch, loc);
-                        });
+  refl::GlobalDef().def("relax.IfExpr", [](Expr cond, Expr true_branch, Expr false_branch,
+                                           ffi::Optional<Location> loc) {
+    return IfExpr(cond, true_branch, false_branch, loc);
+  });
 }
 
-ShapeExpr::ShapeExpr(ffi::Array<PrimExpr> values, Location loc) : Expr(ffi::UnsafeInit{}) {
+ShapeExpr::ShapeExpr(ffi::Array<PrimExpr> values, ffi::Optional<Location> loc)
+    : Expr(ffi::UnsafeInit{}) {
   ffi::ObjectPtr<ShapeExprNode> n = ffi::make_object<ShapeExprNode>();
 
   n->values = values.Map([](PrimExpr value) {
@@ -433,7 +434,7 @@ ShapeExpr::ShapeExpr(ffi::Array<PrimExpr> values, Location loc) : Expr(ffi::Unsa
         << "the value in ShapeType can only have dtype of int64";
     return value;
   });
-  n->loc = loc;
+  n->loc = loc.value_or(Location());
   n->ty = ShapeType(values, loc);
   data_ = std::move(n);
 }
@@ -448,19 +449,21 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&ShapeExprMaybeInplaceMutate>());
 
-  refl::GlobalDef().def("relax.ShapeExpr", [](ffi::Array<PrimExpr> values, Location loc) {
-    return ShapeExpr(values, loc);
-  });
+  refl::GlobalDef().def("relax.ShapeExpr",
+                        [](ffi::Array<PrimExpr> values, ffi::Optional<Location> loc) {
+                          return ShapeExpr(values, loc);
+                        });
 }
 
-DataflowVar::DataflowVar(ffi::String name, ffi::Optional<Type> ty_annotation, Location loc)
+DataflowVar::DataflowVar(ffi::String name, ffi::Optional<Type> ty_annotation,
+                         ffi::Optional<Location> loc)
     : Var(ffi::UnsafeInit{}) {
   ffi::ObjectPtr<DataflowVarNode> n = ffi::make_object<DataflowVarNode>();
   n->name = std::move(name);
   if (ty_annotation.has_value()) {
     n->ty = ty_annotation.value();
   }
-  n->loc = std::move(loc);
+  n->loc = loc.value_or(Location());
   data_ = std::move(n);
 }
 
@@ -475,14 +478,14 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&DataflowVarMaybeInplaceMutate>());
 
-  refl::GlobalDef().def("relax.DataflowVar",
-                        [](ffi::String name, ffi::Optional<Type> ty_annotation, Location loc) {
-                          return DataflowVar(name, ty_annotation, loc);
-                        });
+  refl::GlobalDef().def("relax.DataflowVar", [](ffi::String name, ffi::Optional<Type> ty_annotation,
+                                                ffi::Optional<Location> loc) {
+    return DataflowVar(name, ty_annotation, loc);
+  });
 }
 
 GenericConst MakeTensorConst(runtime::Tensor data, ffi::Optional<Type> ty_annotation,
-                             Location loc) {
+                             ffi::Optional<Location> loc) {
   if (ty_annotation.has_value()) {
     return GenericConst(std::move(data), ty_annotation.value(), std::move(loc));
   }
@@ -498,12 +501,12 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::GlobalDef().def("relax.MakeTensorConst", MakeTensorConst);
 }
 
-MatchCast::MatchCast(Var var, Expr value, Type ty, Location loc) {
+MatchCast::MatchCast(Var var, Expr value, Type ty, ffi::Optional<Location> loc) {
   TVM_FFI_ICHECK(var.defined()) << "MatchCast requires var to be defined";
   ffi::ObjectPtr<MatchCastNode> n =
       ffi::make_object<MatchCastNode>(std::move(var), std::move(value));
   n->ty = std::move(ty);
-  n->loc = loc;
+  n->loc = loc.value_or(Location());
   data_ = std::move(n);
 }
 
@@ -511,15 +514,16 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   MatchCastNode::RegisterReflection();
 
-  refl::GlobalDef().def("relax.MatchCast", [](Var var, Expr value, Type ty, Location loc) {
-    return MatchCast(var, value, ty, loc);
-  });
+  refl::GlobalDef().def("relax.MatchCast",
+                        [](Var var, Expr value, Type ty, ffi::Optional<Location> loc) {
+                          return MatchCast(var, value, ty, loc);
+                        });
 }
 
-VarBinding::VarBinding(Var var, Expr value, Location loc) {
+VarBinding::VarBinding(Var var, Expr value, ffi::Optional<Location> loc) {
   ffi::ObjectPtr<VarBindingNode> n =
       ffi::make_object<VarBindingNode>(std::move(var), std::move(value));
-  n->loc = loc;
+  n->loc = loc.value_or(Location());
   data_ = std::move(n);
 }
 
@@ -555,15 +559,15 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   VarBindingNode::RegisterReflection();
 
-  refl::GlobalDef().def("relax.VarBinding", [](Var var, Expr value, Location loc) {
+  refl::GlobalDef().def("relax.VarBinding", [](Var var, Expr value, ffi::Optional<Location> loc) {
     return VarBinding(var, value, loc);
   });
 }
 
-BindingBlock::BindingBlock(ffi::Array<Binding> bindings, Location loc) {
+BindingBlock::BindingBlock(ffi::Array<Binding> bindings, ffi::Optional<Location> loc) {
   ffi::ObjectPtr<BindingBlockNode> n = ffi::make_object<BindingBlockNode>();
   n->bindings = std::move(bindings);
-  n->loc = loc;
+  n->loc = loc.value_or(Location());
   data_ = std::move(n);
 }
 
@@ -571,9 +575,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   BindingBlockNode::RegisterReflection();
 
-  refl::GlobalDef().def("relax.BindingBlock", [](ffi::Array<Binding> bindings, Location loc) {
-    return BindingBlock(bindings, loc);
-  });
+  refl::GlobalDef().def("relax.BindingBlock",
+                        [](ffi::Array<Binding> bindings, ffi::Optional<Location> loc) {
+                          return BindingBlock(bindings, loc);
+                        });
 }
 
 BindingBlockNode* BindingBlock::CopyOnWrite() {
@@ -595,10 +600,10 @@ BindingBlockNode* BindingBlock::CopyOnWrite() {
   return static_cast<BindingBlockNode*>(data_.get());
 }
 
-DataflowBlock::DataflowBlock(ffi::Array<Binding> bindings, Location loc) {
+DataflowBlock::DataflowBlock(ffi::Array<Binding> bindings, ffi::Optional<Location> loc) {
   ffi::ObjectPtr<DataflowBlockNode> n = ffi::make_object<DataflowBlockNode>();
   n->bindings = std::move(bindings);
-  n->loc = loc;
+  n->loc = loc.value_or(Location());
   data_ = std::move(n);
 }
 
@@ -606,9 +611,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   DataflowBlockNode::RegisterReflection();
 
-  refl::GlobalDef().def("relax.DataflowBlock", [](ffi::Array<Binding> bindings, Location loc) {
-    return DataflowBlock(bindings, loc);
-  });
+  refl::GlobalDef().def("relax.DataflowBlock",
+                        [](ffi::Array<Binding> bindings, ffi::Optional<Location> loc) {
+                          return DataflowBlock(bindings, loc);
+                        });
 }
 
 SeqExpr::SeqExpr(Expr body) : Expr(ffi::UnsafeInit{}) {
@@ -619,11 +625,11 @@ SeqExpr::SeqExpr(Expr body) : Expr(ffi::UnsafeInit{}) {
   }
 }
 
-SeqExpr::SeqExpr(ffi::Array<BindingBlock> blocks, Expr body, Location loc)
+SeqExpr::SeqExpr(ffi::Array<BindingBlock> blocks, Expr body, ffi::Optional<Location> loc)
     : Expr(ffi::UnsafeInit{}) {
   ffi::ObjectPtr<SeqExprNode> n = ffi::make_object<SeqExprNode>(std::move(body));
   n->blocks = std::move(blocks);
-  n->loc = loc;
+  n->loc = loc.value_or(Location());
   data_ = std::move(n);
 }
 
@@ -637,12 +643,14 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&SeqExprMaybeInplaceMutate>());
 
-  refl::GlobalDef().def("relax.SeqExpr", [](ffi::Array<BindingBlock> blocks, Expr body,
-                                            Location loc) { return SeqExpr(blocks, body, loc); });
+  refl::GlobalDef().def(
+      "relax.SeqExpr", [](ffi::Array<BindingBlock> blocks, Expr body, ffi::Optional<Location> loc) {
+        return SeqExpr(blocks, body, loc);
+      });
 }
 
 Function::Function(ffi::Array<Var> params, Expr body, ffi::Optional<Type> ret_ty, bool is_pure,
-                   DictAttrs attrs, Location loc)
+                   DictAttrs attrs, ffi::Optional<Location> loc)
     : BaseFunc(ffi::UnsafeInit{}) {
   // Set the function type.
   // For function, we take a conservative approach and require the function type
@@ -699,7 +707,7 @@ Function::Function(ffi::Array<Var> params, Expr body, ffi::Optional<Type> ret_ty
   n->is_pure = is_pure;
   n->ty = std::move(func_ty);
   n->attrs = std::move(attrs);
-  n->loc = std::move(loc);
+  n->loc = loc.value_or(Location());
   data_ = std::move(n);
 }
 
@@ -715,13 +723,13 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
   refl::GlobalDef().def("relax.Function",
                         [](ffi::Array<Var> params, Expr body, ffi::Optional<Type> ret_ty,
-                           bool is_pure, DictAttrs attrs, Location loc) {
+                           bool is_pure, DictAttrs attrs, ffi::Optional<Location> loc) {
                           return Function(params, body, ret_ty, is_pure, attrs, loc);
                         });
 }
 
 Function Function::CreateEmpty(ffi::Array<Var> params, Type ret_ty, bool is_pure, DictAttrs attrs,
-                               Location loc) {
+                               ffi::Optional<Location> loc) {
   ffi::Array<Type> param_ty;
   for (const Var& param : params) {
     TVM_FFI_ICHECK(!param->ty.as<MissingType>().has_value())
@@ -746,17 +754,17 @@ Function Function::CreateEmpty(ffi::Array<Var> params, Type ret_ty, bool is_pure
   n->ty = std::move(finfo);
   n->ret_ty = std::move(ret_ty);
   n->attrs = std::move(attrs);
-  n->loc = std::move(loc);
+  n->loc = loc.value_or(Location());
   return Function(std::move(n));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def(
-      "relax.FunctionCreateEmpty",
-      [](ffi::Array<Var> params, Type ret_ty, bool is_pure, DictAttrs attrs, Location loc) {
-        return Function::CreateEmpty(params, ret_ty, is_pure, attrs, loc);
-      });
+  refl::GlobalDef().def("relax.FunctionCreateEmpty",
+                        [](ffi::Array<Var> params, Type ret_ty, bool is_pure, DictAttrs attrs,
+                           ffi::Optional<Location> loc) {
+                          return Function::CreateEmpty(params, ret_ty, is_pure, attrs, loc);
+                        });
 }
 
 // Special opaque derivation function for ExternFunc
@@ -784,10 +792,10 @@ FuncType GetExternFuncType() {
   return FuncType::OpaqueFunc(derive);
 }
 
-ExternFunc::ExternFunc(ffi::String global_symbol, Location loc)
+ExternFunc::ExternFunc(ffi::String global_symbol, ffi::Optional<Location> loc)
     : ExternFunc(global_symbol, GetExternFuncType(), loc) {}
 
-ExternFunc::ExternFunc(ffi::String global_symbol, Type ty, Location loc)
+ExternFunc::ExternFunc(ffi::String global_symbol, Type ty, ffi::Optional<Location> loc)
     : BaseFunc(ffi::UnsafeInit{}) {
   TVM_FFI_ICHECK(ty.as<FuncTypeNode>())
       << "ExternFunc must have FuncType, "
@@ -795,7 +803,7 @@ ExternFunc::ExternFunc(ffi::String global_symbol, Type ty, Location loc)
 
   ffi::ObjectPtr<ExternFuncNode> n = ffi::make_object<ExternFuncNode>();
   n->global_symbol = std::move(global_symbol);
-  n->loc = loc;
+  n->loc = loc.value_or(Location());
   n->ty = ty;
   data_ = std::move(n);
 }
@@ -811,14 +819,14 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&TypeOnlyExprMaybeInplaceMutate<ExternFuncNode>>());
 
-  refl::GlobalDef().def("relax.ExternFunc",
-                        [](ffi::String global_symbol, ffi::Optional<Type> ty, Location loc) {
-                          if (ty.has_value()) {
-                            return ExternFunc(global_symbol, ty.value(), loc);
-                          } else {
-                            return ExternFunc(global_symbol, loc);
-                          }
-                        });
+  refl::GlobalDef().def("relax.ExternFunc", [](ffi::String global_symbol, ffi::Optional<Type> ty,
+                                               ffi::Optional<Location> loc) {
+    if (ty.has_value()) {
+      return ExternFunc(global_symbol, ty.value(), loc);
+    } else {
+      return ExternFunc(global_symbol, loc);
+    }
+  });
 }
 
 Expr GetShapeOf(const Expr& expr) {

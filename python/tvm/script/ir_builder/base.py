@@ -329,14 +329,15 @@ class LocationEntry:
         return with_at_group_(self.loc, thunk, attach_result=attach_result)
 
 
-def at(loc: LocationEntry | ir.Location, value: _T) -> _T:
+def at(loc: LocationEntry | ir.Location | None, value: _T) -> _T:
     """Attach source context to the same IR node, emission receipt, or frame.
 
     Parameters
     ----------
-    loc : LocationEntry, Location
+    loc : LocationEntry, Location or None, optional
         Source location to compose with the active construction context.
-        UnknownLoc leaves the value unchanged.
+        None leaves the value unchanged; stored locations remain non-nullable.
+        UnknownLoc adds no source context.
     value : Any
         Native object, :class:`AlreadyEmitted` receipt, or list/tuple of native
         objects to annotate. A receipt's contained object receives the loc.
@@ -353,6 +354,8 @@ def at(loc: LocationEntry | ir.Location, value: _T) -> _T:
     the original Python facade as well, including callable objects and frames.
     Unsupported objects and ordinary Python values pass through unchanged.
     """
+    if loc is None:
+        return value
     if isinstance(loc, LocationEntry):
         loc = loc.loc
     if not isinstance(loc, ir.Location):
@@ -368,7 +371,7 @@ def at(loc: LocationEntry | ir.Location, value: _T) -> _T:
 
 
 def with_at_group_(
-    location: LocationEntry | ir.Location,
+    location: LocationEntry | ir.Location | None,
     thunk: Callable[[], _T],
     *,
     attach_result: bool = True,
@@ -378,7 +381,7 @@ def with_at_group_(
     Parameters
     ----------
     location : LocationEntry, Location
-        Source context for the call. UnknownLoc, or the absence of an active builder,
+        Source context for the call. None, UnknownLoc, or no active builder
         leaves construction context unchanged.
     thunk : Callable[[], Any]
         Zero-argument callable evaluated exactly once inside that context.
@@ -399,11 +402,11 @@ def with_at_group_(
     construction locations regardless of ``attach_result``.
     """
     loc = location.loc if isinstance(location, LocationEntry) else location
-    if not isinstance(loc, ir.Location):
-        raise TypeError("loc must be a Location")
+    if loc is not None and not isinstance(loc, ir.Location):
+        raise TypeError("loc must be a Location or None")
     context = (
         IRBuilder.current().with_loc(loc)
-        if not isinstance(loc, UnknownLoc) and IRBuilder.is_in_scope()
+        if loc is not None and not isinstance(loc, UnknownLoc) and IRBuilder.is_in_scope()
         else nullcontext()
     )
     with context:

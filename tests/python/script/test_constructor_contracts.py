@@ -16,6 +16,8 @@
 # under the License.
 """Normal IR constructors retain their contracts in TVMScript."""
 
+import linecache
+
 import pytest
 
 import tvm
@@ -34,8 +36,10 @@ def test_call_type_and_validation_contract():
         assert isinstance(call, I.Call)
         assert call.ty == ir.PrimType("float32")
         assert call.loc.same_as(loc)
+        unlocated = constructor("prim.exp", [x], ty="float32", loc=None)
+        assert unlocated.loc.same_as(ir.UnknownLoc())
         ir.assert_structural_equal(
-            constructor("prim.exp", [x], ty="float32"),
+            unlocated,
             ir.Call("prim.exp", [x], ty=ir.PrimType("float32")),
         )
         with pytest.raises(TypeError):
@@ -101,7 +105,14 @@ def test_normal_constructors_in_parsed_function():
     ir.assert_structural_equal(
         call, ir.Call("prim.exp", [function.params[0]], ty=ir.PrimType("float32"))
     )
-    assert call.loc is not None
+    loc = call.loc
+    assert isinstance(loc, ir.SourceLoc)
+    assert loc.source_name.name == __file__
+    assert loc.start_line == loc.end_line
+    assert (
+        linecache.getline(__file__, loc.start_line)[loc.start_column - 1 : loc.end_column - 1]
+        == 'ir.Call("prim.exp", [x], ty="float32")'
+    )
 
     @R.function
     def identity(x: relax.TensorType([2], "float32")) -> relax.TensorType([2], "float32"):

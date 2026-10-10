@@ -22,12 +22,11 @@ import tvm_ffi
 from tvm.ir import Attrs
 from tvm.ir import Call as _Call
 from tvm.ir.attrs import make_node as _make_attrs
-from tvm.ir.base import UnknownLoc
 
 from ..expr import Expr
 
 
-def where(condition: Expr, x1: Expr, x2: Expr, *, ty=None, loc=UnknownLoc()) -> Expr:
+def where(condition: Expr, x1: Expr, x2: Expr, *, ty=None, loc=None) -> Expr:
     """Selecting elements from either the input tensors depending on the value of the
     condition.
 
@@ -68,7 +67,7 @@ def argmax(
     keepdims: bool = False,
     *,
     ty=None,
-    loc=UnknownLoc(),
+    loc=None,
 ) -> Expr:
     """Computes the argmax of tensor elements over given axis.
 
@@ -107,7 +106,7 @@ def argmin(
     keepdims: bool = False,
     *,
     ty=None,
-    loc=UnknownLoc(),
+    loc=None,
 ) -> Expr:
     """Computes the argmin of tensor elements over given axis.
 
@@ -147,7 +146,7 @@ def bucketize(
     right=False,
     *,
     ty=None,
-    loc=UnknownLoc(),
+    loc=None,
 ):
     """Returns the indices of the buckets to which each value in the input belongs.
 

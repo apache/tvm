@@ -21,7 +21,6 @@ import tvm_ffi
 from tvm.ir import Attrs
 from tvm.ir import Call as _Call
 from tvm.ir.attrs import make_node as _make_attrs
-from tvm.ir.base import UnknownLoc
 
 from ..base import Expr
 
@@ -39,7 +38,7 @@ def roi_pool(
     layout: str = "NCHW",
     *,
     ty=None,
-    loc=UnknownLoc(),
+    loc=None,
 ):
     """ROI Pool operator.
 

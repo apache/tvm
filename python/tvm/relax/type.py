@@ -54,7 +54,7 @@ class ShapeType(Type):
     loc: Location
 
     def __init__(
-        self, values: list[Expr] | None = None, ndim: int = -1, loc: Location = UnknownLoc()
+        self, values: list[Expr] | None = None, ndim: int = -1, loc: Location | None = None
     ) -> None:
         self.__init_handle_by_constructor__(
             _ffi_api.ShapeType,
@@ -99,7 +99,7 @@ class TensorType(Type):
         dtype: str | PrimType | None = "float32",
         vdevice: VDevice | None | str = None,
         ndim: int = -1,
-        loc: Location = UnknownLoc(),
+        loc: Location | None = None,
     ) -> None:
         if isinstance(shape, list | tuple | Array):
             shape = ShapeExpr(shape)
@@ -141,7 +141,7 @@ class FuncType(Type):
     loc: Location
 
     def __init__(
-        self, params: list[Type], ret: Type, purity: bool = True, loc: Location = UnknownLoc()
+        self, params: list[Type], ret: Type, purity: bool = True, loc: Location | None = None
     ) -> None:
         self.__init_handle_by_constructor__(
             _ffi_api.FuncType,
@@ -157,7 +157,7 @@ class FuncType(Type):
         ret: Type | None = None,
         derive_func: str | EnvFunc | None = None,
         purity: bool = False,
-        loc: Location = UnknownLoc(),
+        loc: Location | None = None,
     ) -> "FuncType":
         """
         Create an opaque FuncType.

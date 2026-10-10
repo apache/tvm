@@ -18,8 +18,6 @@
 
 from typing import Any
 
-from tvm.ir.base import UnknownLoc
-
 from ..base import Location
 from ..expr import Call, Expr
 from . import _ffi_api
@@ -31,7 +29,7 @@ def convert(expr) -> Expr:
     return _ffi_api.convert(expr)
 
 
-def min_value(dtype, loc=UnknownLoc()):
+def min_value(dtype, loc=None):
     """minimum value of dtype
 
     Parameters
@@ -39,7 +37,7 @@ def min_value(dtype, loc=UnknownLoc()):
     dtype : str
         The data type.
 
-    loc : Location
+    loc : Location or None, optional
         The location of this operator in the source code.
 
     Returns
@@ -50,7 +48,7 @@ def min_value(dtype, loc=UnknownLoc()):
     return _ffi_api.min_value(dtype, loc)  # type: ignore
 
 
-def max_value(dtype: str, loc: Location = UnknownLoc()) -> Any:
+def max_value(dtype: str, loc: Location | None = None) -> Any:
     """maximum value of dtype
 
     Parameters
@@ -58,7 +56,7 @@ def max_value(dtype: str, loc: Location = UnknownLoc()) -> Any:
     dtype : str
         The data type.
 
-    loc : Location
+    loc : Location or None, optional
         The location of this operator in the source code.
 
     Returns
@@ -86,7 +84,7 @@ def clz(x):
     return Call("prim.clz", [x], ty="int32")
 
 
-def any(*args, loc=UnknownLoc()):
+def any(*args, loc=None):
     """Create a new experssion of the union of all conditions in the arguments
 
     Parameters
@@ -94,7 +92,7 @@ def any(*args, loc=UnknownLoc()):
     args : list
         List of symbolic boolean expressions
 
-    loc : Location
+    loc : Location or None, optional
         The location of this operator in the source code.
 
     Returns
@@ -112,7 +110,7 @@ def any(*args, loc=UnknownLoc()):
     return val
 
 
-def all(*args, loc=UnknownLoc()):
+def all(*args, loc=None):
     """Create a new expression of the intersection of all conditions in the
       arguments
 
@@ -121,7 +119,7 @@ def all(*args, loc=UnknownLoc()):
     args : list
         List of symbolic boolean expressions
 
-    loc : Location
+    loc : Location or None, optional
         The location of this operator in the source code.
 
     Returns
@@ -139,7 +137,7 @@ def all(*args, loc=UnknownLoc()):
     return val
 
 
-def log2(x, *, ty=None, loc=UnknownLoc()):
+def log2(x, *, ty=None, loc=None):
     """Take log2 of input x.
 
     Parameters
@@ -156,7 +154,7 @@ def log2(x, *, ty=None, loc=UnknownLoc()):
     return Call("prim.log2", [x], ty=ty, loc=loc)
 
 
-def ceil(x, loc=UnknownLoc()):
+def ceil(x, loc=None):
     """Take ceil of float input x.
 
     Parameters
@@ -164,7 +162,7 @@ def ceil(x, loc=UnknownLoc()):
     x : Expr
         Input argument.
 
-    loc : Location
+    loc : Location or None, optional
         The location of this operator in the source code.
 
     Returns
@@ -175,7 +173,7 @@ def ceil(x, loc=UnknownLoc()):
     return _ffi_api.ceil(x, loc)  # type: ignore
 
 
-def bitwise_and(x, y, loc=UnknownLoc()):
+def bitwise_and(x, y, loc=None):
     """Take bitwise and of two values
 
     Parameters
@@ -186,7 +184,7 @@ def bitwise_and(x, y, loc=UnknownLoc()):
     y : Expr
         Right operand
 
-    loc : Location
+    loc : Location or None, optional
         The location of this operator in the source code.
 
     Returns
@@ -197,7 +195,7 @@ def bitwise_and(x, y, loc=UnknownLoc()):
     return _ffi_api.bitwise_and(x, y, loc)
 
 
-def bitwise_not(x, loc=UnknownLoc()):
+def bitwise_not(x, loc=None):
     """Take bitwise not of input value
 
     Parameters
@@ -205,7 +203,7 @@ def bitwise_not(x, loc=UnknownLoc()):
     x : Expr
         Input operand
 
-    loc : Location
+    loc : Location or None, optional
         The location of this operator in the source code.
 
     Returns
@@ -216,7 +214,7 @@ def bitwise_not(x, loc=UnknownLoc()):
     return _ffi_api.bitwise_not(x, loc)
 
 
-def bitwise_or(x, y, loc=UnknownLoc()):
+def bitwise_or(x, y, loc=None):
     """Take bitwise or of two values
 
     Parameters
@@ -227,7 +225,7 @@ def bitwise_or(x, y, loc=UnknownLoc()):
     y : Expr
         Right operand
 
-    loc : Location
+    loc : Location or None, optional
         The location of this operator in the source code.
 
     Returns
@@ -238,7 +236,7 @@ def bitwise_or(x, y, loc=UnknownLoc()):
     return _ffi_api.bitwise_or(x, y, loc)
 
 
-def bitwise_xor(x, y, loc=UnknownLoc()):
+def bitwise_xor(x, y, loc=None):
     """Take bitwise xor of two values
 
     Parameters
@@ -249,7 +247,7 @@ def bitwise_xor(x, y, loc=UnknownLoc()):
     y : Expr
         Right operand
 
-    loc : Location
+    loc : Location or None, optional
         The location of this operator in the source code.
 
     Returns
@@ -260,7 +258,7 @@ def bitwise_xor(x, y, loc=UnknownLoc()):
     return _ffi_api.bitwise_xor(x, y, loc)
 
 
-def likely(cond, loc=UnknownLoc()):
+def likely(cond, loc=None):
     """Mark condition as likely.
 
     Parameters
@@ -269,7 +267,7 @@ def likely(cond, loc=UnknownLoc()):
     cond : Expr
         Input argument.
 
-    loc : Location
+    loc : Location or None, optional
         The location of this operator in the source code.
 
     Returns
@@ -280,7 +278,7 @@ def likely(cond, loc=UnknownLoc()):
     return _ffi_api.likely(cond, loc)  # type: ignore
 
 
-def shift_left(x, y, loc=UnknownLoc()):
+def shift_left(x, y, loc=None):
     """Return the result of x left shifted by y bits.
 
     Parameters
@@ -299,7 +297,7 @@ def shift_left(x, y, loc=UnknownLoc()):
     return _ffi_api.left_shift(x, y, loc)
 
 
-def shift_right(x, y, loc=UnknownLoc()):
+def shift_right(x, y, loc=None):
     """Return the result of x right shifted by y bits.
 
     Parameters
@@ -318,7 +316,7 @@ def shift_right(x, y, loc=UnknownLoc()):
     return _ffi_api.right_shift(x, y, loc)
 
 
-def if_then_else(cond, t, f, loc=UnknownLoc()):
+def if_then_else(cond, t, f, loc=None):
     """Conditional selection expression.
 
     Parameters
@@ -332,7 +330,7 @@ def if_then_else(cond, t, f, loc=UnknownLoc()):
     f : Expr
         The result expression if cond is false.
 
-    loc : Location
+    loc : Location or None, optional
         The location of this operator in the source.
 
     Returns
@@ -351,7 +349,7 @@ def if_then_else(cond, t, f, loc=UnknownLoc()):
     return _ffi_api._OpIfThenElse(cond, t, f, loc)  # type: ignore
 
 
-def div(a, b, loc=UnknownLoc()):
+def div(a, b, loc=None):
     """Compute a / b as in C/C++ semantics.
 
     Parameters
@@ -362,7 +360,7 @@ def div(a, b, loc=UnknownLoc()):
     b : Expr
         The right hand operand, known to be non-negative.
 
-    loc : Location
+    loc : Location or None, optional
         The location of this operator in the source.
 
     Returns
@@ -376,7 +374,7 @@ def div(a, b, loc=UnknownLoc()):
     return _ffi_api._OpDiv(a, b, loc)  # type: ignore
 
 
-def indexdiv(a, b, loc=UnknownLoc()):
+def indexdiv(a, b, loc=None):
     """Compute floor(a / b) where a and b are non-negative.
 
     Parameters
@@ -387,7 +385,7 @@ def indexdiv(a, b, loc=UnknownLoc()):
     b : Expr
         The right hand operand, known to be non-negative.
 
-    loc : Location
+    loc : Location or None, optional
         The location of this operator in the source.
 
     Returns
@@ -404,7 +402,7 @@ def indexdiv(a, b, loc=UnknownLoc()):
     return _ffi_api._OpIndexDiv(a, b, loc)  # type: ignore
 
 
-def indexmod(a, b, loc=UnknownLoc()):
+def indexmod(a, b, loc=None):
     """Compute the remainder of indexdiv. a and b are non-negative.
 
     Parameters
@@ -415,7 +413,7 @@ def indexmod(a, b, loc=UnknownLoc()):
     b : Expr
         The right hand operand, known to be non-negative.
 
-    loc : Location
+    loc : Location or None, optional
         The location of this operator in the source.
 
     Returns
@@ -432,7 +430,7 @@ def indexmod(a, b, loc=UnknownLoc()):
     return _ffi_api._OpIndexMod(a, b, loc)  # type: ignore
 
 
-def truncdiv(a, b, loc=UnknownLoc()):
+def truncdiv(a, b, loc=None):
     """Compute the truncdiv of two expressions.
 
     Parameters
@@ -443,7 +441,7 @@ def truncdiv(a, b, loc=UnknownLoc()):
     b : Expr
         The right hand operand
 
-    loc : Location
+    loc : Location or None, optional
         The location of this operator in the source.
 
     Returns
@@ -458,7 +456,7 @@ def truncdiv(a, b, loc=UnknownLoc()):
     return _ffi_api._OpTruncDiv(a, b, loc)  # type: ignore
 
 
-def truncmod(a, b, loc=UnknownLoc()):
+def truncmod(a, b, loc=None):
     """Compute the truncmod of two expressions.
 
     Parameters
@@ -469,7 +467,7 @@ def truncmod(a, b, loc=UnknownLoc()):
     b : Expr
         The right hand operand
 
-    loc : Location
+    loc : Location or None, optional
         The location of this operator in the source.
 
     Returns
@@ -484,7 +482,7 @@ def truncmod(a, b, loc=UnknownLoc()):
     return _ffi_api._OpTruncMod(a, b, loc)  # type: ignore
 
 
-def floordiv(a, b, loc=UnknownLoc()):
+def floordiv(a, b, loc=None):
     """Compute the floordiv of two expressions.
 
     Parameters
@@ -495,7 +493,7 @@ def floordiv(a, b, loc=UnknownLoc()):
     b : Expr
         The right hand operand
 
-    loc : Location
+    loc : Location or None, optional
         The location of this operator in the source.
 
     Returns
@@ -506,7 +504,7 @@ def floordiv(a, b, loc=UnknownLoc()):
     return _ffi_api._OpFloorDiv(a, b, loc)  # type: ignore
 
 
-def floormod(a, b, loc=UnknownLoc()):
+def floormod(a, b, loc=None):
     """Compute the floormod of two expressions.
 
     Parameters
@@ -517,7 +515,7 @@ def floormod(a, b, loc=UnknownLoc()):
     b : Expr
         The right hand operand
 
-    loc : Location
+    loc : Location or None, optional
         The location of this operator in the source.
 
     Returns
@@ -528,7 +526,7 @@ def floormod(a, b, loc=UnknownLoc()):
     return _ffi_api._OpFloorMod(a, b, loc)  # type: ignore
 
 
-def ceildiv(lhs, rhs, loc=UnknownLoc()):
+def ceildiv(lhs, rhs, loc=None):
     """Generic ceildiv operator.
 
     Parameters
@@ -537,7 +535,7 @@ def ceildiv(lhs, rhs, loc=UnknownLoc()):
         The left operand.
     rhs : object
         The right operand.
-    loc : Location
+    loc : Location or None, optional
         The location of this operator in the source.
 
     Returns
@@ -548,7 +546,7 @@ def ceildiv(lhs, rhs, loc=UnknownLoc()):
     return _ffi_api._OpCeilDiv(lhs, rhs, loc)  # type: ignore
 
 
-def vscale(*, ty=None, loc=UnknownLoc()):
+def vscale(*, ty=None, loc=None):
     """Get the target's vscale value. It will be lowered to llvm.vscale intrinsic
     (https://llvm.org/docs/LangRef.html#llvm-vscale-intrinsic)
     Returns
@@ -559,17 +557,17 @@ def vscale(*, ty=None, loc=UnknownLoc()):
     return Call("prim.vscale", [], ty=ty, loc=loc)
 
 
-def min(a, b, loc=UnknownLoc()):
+def min(a, b, loc=None):
     """Elementwise minimum of two primitive expressions."""
     return _ffi_api._OpMin(a, b, loc)
 
 
-def max(a, b, loc=UnknownLoc()):
+def max(a, b, loc=None):
     """Elementwise maximum of two primitive expressions."""
     return _ffi_api._OpMax(a, b, loc)
 
 
-def _call_prim(ty, op, *args, loc=UnknownLoc()):
+def _call_prim(ty, op, *args, loc=None):
     return Call(op, args, ty=ty, loc=loc)
 
 
@@ -581,7 +579,7 @@ def _require_float_arg(op_name, x):
     return x
 
 
-def assume(cond=None, *, ty=None, loc=UnknownLoc()):
+def assume(cond=None, *, ty=None, loc=None):
     """Provide a true statement that can be used for simplifications
 
     Parameters
@@ -597,7 +595,7 @@ def assume(cond=None, *, ty=None, loc=UnknownLoc()):
     return _call_prim(ty, "prim.assume", cond, loc=loc)
 
 
-def infinity(dtype: str, loc: Location = UnknownLoc()) -> Any:
+def infinity(dtype: str, loc: Location | None = None) -> Any:
     """infinity value of dtype
 
     Parameters
@@ -605,7 +603,7 @@ def infinity(dtype: str, loc: Location = UnknownLoc()) -> Any:
     dtype : str
         The data type.
 
-    loc : Location
+    loc : Location or None, optional
         The location of this operator in the source code.
 
     Returns
@@ -616,7 +614,7 @@ def infinity(dtype: str, loc: Location = UnknownLoc()) -> Any:
     return _ffi_api.infinity(dtype, loc)  # type: ignore
 
 
-def exp(x, *, ty=None, loc=UnknownLoc()):
+def exp(x, *, ty=None, loc=None):
     """Take exponential of input x.
 
     Parameters
@@ -633,7 +631,7 @@ def exp(x, *, ty=None, loc=UnknownLoc()):
     return _call_prim(ty, "prim.exp", x, loc=loc)
 
 
-def exp2(x, *, ty=None, loc=UnknownLoc()):
+def exp2(x, *, ty=None, loc=None):
     """Calculate 2**x
 
     Parameters
@@ -650,7 +648,7 @@ def exp2(x, *, ty=None, loc=UnknownLoc()):
     return _call_prim(ty, "prim.exp2", x, loc=loc)
 
 
-def exp10(x, *, ty=None, loc=UnknownLoc()):
+def exp10(x, *, ty=None, loc=None):
     """Calculate 10**x
 
     Parameters
@@ -667,7 +665,7 @@ def exp10(x, *, ty=None, loc=UnknownLoc()):
     return _call_prim(ty, "prim.exp10", x, loc=loc)
 
 
-def fma(x, y, z, *, ty=None, loc=UnknownLoc()):
+def fma(x, y, z, *, ty=None, loc=None):
     """Take fused multiply-add of input x, y, z.
 
     Parameters
@@ -692,7 +690,7 @@ def fma(x, y, z, *, ty=None, loc=UnknownLoc()):
     return _call_prim(ty, "prim.fma", x, y, z, loc=loc)
 
 
-def erf(x, *, ty=None, loc=UnknownLoc()):
+def erf(x, *, ty=None, loc=None):
     """Take gauss error function of the input x.
 
     Parameters
@@ -709,7 +707,7 @@ def erf(x, *, ty=None, loc=UnknownLoc()):
     return _call_prim(ty, "prim.erf", x, loc=loc)
 
 
-def tanh(x, *, ty=None, loc=UnknownLoc()):
+def tanh(x, *, ty=None, loc=None):
     """Take hyperbolic tanh of input x.
 
     Parameters
@@ -726,7 +724,7 @@ def tanh(x, *, ty=None, loc=UnknownLoc()):
     return _call_prim(ty, "prim.tanh", x, loc=loc)
 
 
-def sigmoid(x, *, ty=None, loc=UnknownLoc()):
+def sigmoid(x, *, ty=None, loc=None):
     """Quick function to get sigmoid
 
     Parameters
@@ -743,7 +741,7 @@ def sigmoid(x, *, ty=None, loc=UnknownLoc()):
     return _call_prim(ty, "prim.sigmoid", x, loc=loc)
 
 
-def log(x, *, ty=None, loc=UnknownLoc()):
+def log(x, *, ty=None, loc=None):
     """Take log of input x.
 
     Parameters
@@ -760,7 +758,7 @@ def log(x, *, ty=None, loc=UnknownLoc()):
     return _call_prim(ty, "prim.log", x, loc=loc)
 
 
-def log10(x, *, ty=None, loc=UnknownLoc()):
+def log10(x, *, ty=None, loc=None):
     """Take log10 of input x.
 
     Parameters
@@ -777,7 +775,7 @@ def log10(x, *, ty=None, loc=UnknownLoc()):
     return _call_prim(ty, "prim.log10", x, loc=loc)
 
 
-def log1p(x, *, ty=None, loc=UnknownLoc()):
+def log1p(x, *, ty=None, loc=None):
     """Take log(x + 1) with respect to input x.
 
     Parameters
@@ -794,7 +792,7 @@ def log1p(x, *, ty=None, loc=UnknownLoc()):
     return _call_prim(ty, "prim.log1p", x, loc=loc)
 
 
-def tan(x, *, ty=None, loc=UnknownLoc()):
+def tan(x, *, ty=None, loc=None):
     """Take tan of input x.
 
     Parameters
@@ -811,7 +809,7 @@ def tan(x, *, ty=None, loc=UnknownLoc()):
     return _call_prim(ty, "prim.tan", x, loc=loc)
 
 
-def cos(x, *, ty=None, loc=UnknownLoc()):
+def cos(x, *, ty=None, loc=None):
     """Take cos of input x.
 
     Parameters
@@ -828,7 +826,7 @@ def cos(x, *, ty=None, loc=UnknownLoc()):
     return _call_prim(ty, "prim.cos", x, loc=loc)
 
 
-def cosh(x, *, ty=None, loc=UnknownLoc()):
+def cosh(x, *, ty=None, loc=None):
     """Take cosh of input x.
 
     Parameters
@@ -845,7 +843,7 @@ def cosh(x, *, ty=None, loc=UnknownLoc()):
     return _call_prim(ty, "prim.cosh", x, loc=loc)
 
 
-def acos(x, *, ty=None, loc=UnknownLoc()):
+def acos(x, *, ty=None, loc=None):
     """Take acos of input x.
 
     Parameters
@@ -862,7 +860,7 @@ def acos(x, *, ty=None, loc=UnknownLoc()):
     return _call_prim(ty, "prim.acos", x, loc=loc)
 
 
-def acosh(x, *, ty=None, loc=UnknownLoc()):
+def acosh(x, *, ty=None, loc=None):
     """Take acos of input x.
 
     Parameters
@@ -879,7 +877,7 @@ def acosh(x, *, ty=None, loc=UnknownLoc()):
     return _call_prim(ty, "prim.acosh", x, loc=loc)
 
 
-def sin(x, *, ty=None, loc=UnknownLoc()):
+def sin(x, *, ty=None, loc=None):
     """Take sin of input x.
 
     Parameters
@@ -896,7 +894,7 @@ def sin(x, *, ty=None, loc=UnknownLoc()):
     return _call_prim(ty, "prim.sin", x, loc=loc)
 
 
-def sinh(x, *, ty=None, loc=UnknownLoc()):
+def sinh(x, *, ty=None, loc=None):
     """Take sinh of input x.
 
     Parameters
@@ -913,7 +911,7 @@ def sinh(x, *, ty=None, loc=UnknownLoc()):
     return _call_prim(ty, "prim.sinh", x, loc=loc)
 
 
-def asin(x, *, ty=None, loc=UnknownLoc()):
+def asin(x, *, ty=None, loc=None):
     """Take asin of input x.
 
     Parameters
@@ -930,7 +928,7 @@ def asin(x, *, ty=None, loc=UnknownLoc()):
     return _call_prim(ty, "prim.asin", x, loc=loc)
 
 
-def asinh(x, *, ty=None, loc=UnknownLoc()):
+def asinh(x, *, ty=None, loc=None):
     """Take asinh of input x.
 
     Parameters
@@ -947,7 +945,7 @@ def asinh(x, *, ty=None, loc=UnknownLoc()):
     return _call_prim(ty, "prim.asinh", x, loc=loc)
 
 
-def atan(x, *, ty=None, loc=UnknownLoc()):
+def atan(x, *, ty=None, loc=None):
     """Take atan of input x.
 
     Parameters
@@ -964,7 +962,7 @@ def atan(x, *, ty=None, loc=UnknownLoc()):
     return _call_prim(ty, "prim.atan", x, loc=loc)
 
 
-def atanh(x, *, ty=None, loc=UnknownLoc()):
+def atanh(x, *, ty=None, loc=None):
     """Take atanh of input x.
 
     Parameters
@@ -981,7 +979,7 @@ def atanh(x, *, ty=None, loc=UnknownLoc()):
     return _call_prim(ty, "prim.atanh", x, loc=loc)
 
 
-def atan2(x1, x2, *, ty=None, loc=UnknownLoc()):
+def atan2(x1, x2, *, ty=None, loc=None):
     """Take arctan2(x1, x2).
 
     Parameters
@@ -1002,7 +1000,7 @@ def atan2(x1, x2, *, ty=None, loc=UnknownLoc()):
     return _call_prim(ty, "prim.atan2", x1, x2, loc=loc)
 
 
-def sqrt(x, *, ty=None, loc=UnknownLoc()):
+def sqrt(x, *, ty=None, loc=None):
     """Take square root of input x.
 
     Parameters
@@ -1019,7 +1017,7 @@ def sqrt(x, *, ty=None, loc=UnknownLoc()):
     return _call_prim(ty, "prim.sqrt", x, loc=loc)
 
 
-def rsqrt(x, *, ty=None, loc=UnknownLoc()):
+def rsqrt(x, *, ty=None, loc=None):
     """Take reciprocal of square root of input x.
 
     Parameters
@@ -1036,7 +1034,7 @@ def rsqrt(x, *, ty=None, loc=UnknownLoc()):
     return _call_prim(ty, "prim.rsqrt", x, loc=loc)
 
 
-def floor(x: ExprWithOp, loc=UnknownLoc()):
+def floor(x: ExprWithOp, loc=None):
     """Take floor of float input x.
 
     Parameters
@@ -1044,7 +1042,7 @@ def floor(x: ExprWithOp, loc=UnknownLoc()):
     x : Expr
         Input argument.
 
-    loc : Location
+    loc : Location or None, optional
         The location of this operator in the source code.
 
     Returns
@@ -1055,7 +1053,7 @@ def floor(x: ExprWithOp, loc=UnknownLoc()):
     return _ffi_api.floor(x, loc)  # type: ignore
 
 
-def trunc(x, loc=UnknownLoc()):
+def trunc(x, loc=None):
     """Get truncated value of the input.
 
     The truncated value of the scalar x is the
@@ -1066,7 +1064,7 @@ def trunc(x, loc=UnknownLoc()):
     x : Expr
         Input argument.
 
-    loc : Location
+    loc : Location or None, optional
         The location of this operator in the source code.
 
     Returns
@@ -1077,7 +1075,7 @@ def trunc(x, loc=UnknownLoc()):
     return _ffi_api.trunc(x, loc)  # type: ignore
 
 
-def abs(x, loc=UnknownLoc()):
+def abs(x, loc=None):
     """Get absolute value of the input element-wise.
 
     Parameters
@@ -1085,7 +1083,7 @@ def abs(x, loc=UnknownLoc()):
     x : Expr
         Input argument.
 
-    loc : Location
+    loc : Location or None, optional
         The location of this operator in the source code.
 
     Returns
@@ -1096,7 +1094,7 @@ def abs(x, loc=UnknownLoc()):
     return _ffi_api.abs(x, loc)  # type: ignore
 
 
-def round(x, loc=UnknownLoc()):
+def round(x, loc=None):
     """Round elements of the array to the nearest integer.
 
     Parameters
@@ -1104,7 +1102,7 @@ def round(x, loc=UnknownLoc()):
     x : Expr
         Input argument.
 
-    loc : Location
+    loc : Location or None, optional
         The location of this operator in the source code.
 
     Returns
@@ -1115,7 +1113,7 @@ def round(x, loc=UnknownLoc()):
     return _ffi_api.round(x, loc)  # type: ignore
 
 
-def nearbyint(x, loc=UnknownLoc()):
+def nearbyint(x, loc=None):
     """Round elements of the array to the nearest integer.
     This intrinsic uses llvm.nearbyint instead of llvm.round
     which is faster but will results different from te.round.
@@ -1130,7 +1128,7 @@ def nearbyint(x, loc=UnknownLoc()):
     x : Expr
         Input argument.
 
-    loc : Location
+    loc : Location or None, optional
         The location of this operator in the source code.
 
     Returns
@@ -1141,7 +1139,7 @@ def nearbyint(x, loc=UnknownLoc()):
     return _ffi_api.nearbyint(x, loc)  # type: ignore
 
 
-def nextafter(x1, x2, *, ty=None, loc=UnknownLoc()):
+def nextafter(x1, x2, *, ty=None, loc=None):
     """Return the next floating-point value after x1 towards x2.
 
     Parameters
@@ -1162,7 +1160,7 @@ def nextafter(x1, x2, *, ty=None, loc=UnknownLoc()):
     return _call_prim(ty, "prim.nextafter", x1, x2, loc=loc)  # type: ignore
 
 
-def hypot(x1, x2, *, ty=None, loc=UnknownLoc()):
+def hypot(x1, x2, *, ty=None, loc=None):
     """Equivalent to sqrt(x1**2 + x2**2), element-wise.
 
     Parameters
@@ -1183,7 +1181,7 @@ def hypot(x1, x2, *, ty=None, loc=UnknownLoc()):
     return _call_prim(ty, "prim.hypot", x1, x2, loc=loc)  # type: ignore
 
 
-def copysign(x1, x2, *, ty=None, loc=UnknownLoc()):
+def copysign(x1, x2, *, ty=None, loc=None):
     """Change the sign of x1 to that of x2, element-wise.
 
     Parameters
@@ -1204,7 +1202,7 @@ def copysign(x1, x2, *, ty=None, loc=UnknownLoc()):
     return _call_prim(ty, "prim.copysign", x1, x2, loc=loc)  # type: ignore
 
 
-def ldexp(x1, x2, *, ty=None, loc=UnknownLoc()):
+def ldexp(x1, x2, *, ty=None, loc=None):
     """Returns x1 * (2 ** x2).
 
     Parameters
@@ -1225,7 +1223,7 @@ def ldexp(x1, x2, *, ty=None, loc=UnknownLoc()):
     return _call_prim(ty, "prim.ldexp", x1, x2, loc=loc)  # type: ignore
 
 
-def isnan(x, loc=UnknownLoc(), *, ty=None):
+def isnan(x, loc=None, *, ty=None):
     """Check if input value is Nan.
 
     Parameters
@@ -1233,7 +1231,7 @@ def isnan(x, loc=UnknownLoc(), *, ty=None):
     x : Expr
         Input argument.
 
-    loc : Location
+    loc : Location or None, optional
         The location of this operator in the source code.
 
     Returns
@@ -1244,7 +1242,7 @@ def isnan(x, loc=UnknownLoc(), *, ty=None):
     return Call("prim.isnan", [x], ty=ty, loc=loc)
 
 
-def isfinite(x, loc=UnknownLoc()):
+def isfinite(x, loc=None):
     """Check if input value is finite.
 
     Parameters
@@ -1252,7 +1250,7 @@ def isfinite(x, loc=UnknownLoc()):
     x : Expr
         Input argument.
 
-    loc : Location
+    loc : Location or None, optional
         The location of this operator in the source code.
 
     Returns
@@ -1263,7 +1261,7 @@ def isfinite(x, loc=UnknownLoc()):
     return _ffi_api.isfinite(x, loc)  # type: ignore
 
 
-def isinf(x, loc=UnknownLoc()):
+def isinf(x, loc=None):
     """Check if input value is infinite.
 
     Parameters
@@ -1271,7 +1269,7 @@ def isinf(x, loc=UnknownLoc()):
     x : Expr
         Input argument.
 
-    loc : Location
+    loc : Location or None, optional
         The location of this operator in the source code.
 
     Returns
@@ -1282,7 +1280,7 @@ def isinf(x, loc=UnknownLoc()):
     return _ffi_api.isinf(x, loc)  # type: ignore
 
 
-def power(x, y, loc=UnknownLoc()):
+def power(x, y, loc=None):
     """x power y
 
     Parameters
@@ -1293,7 +1291,7 @@ def power(x, y, loc=UnknownLoc()):
     y : Expr
         The exponent
 
-    loc : Location
+    loc : Location or None, optional
         The location of this operator in the source code.
 
     Returns
@@ -1304,7 +1302,7 @@ def power(x, y, loc=UnknownLoc()):
     return _ffi_api._OpPow(x, y, loc)  # type: ignore
 
 
-def popcount(x, *, ty=None, loc=UnknownLoc()):
+def popcount(x, *, ty=None, loc=None):
     """Count the number of set bits in input x.
 
     Parameters
@@ -1321,7 +1319,7 @@ def popcount(x, *, ty=None, loc=UnknownLoc()):
     return _call_prim(ty, "prim.popcount", x, loc=loc)
 
 
-def fmod(x, y, *, ty=None, loc=UnknownLoc()):
+def fmod(x, y, *, ty=None, loc=None):
     """Return the remainder of x divided by y with the same sign as x.
 
     Parameters
@@ -1341,7 +1339,7 @@ def fmod(x, y, *, ty=None, loc=UnknownLoc()):
     return _call_prim(ty, "prim.fmod", x, y, loc=loc)
 
 
-def pow(x, y, loc=UnknownLoc()):
+def pow(x, y, loc=None):
     """x power y
 
     Parameters
@@ -1352,7 +1350,7 @@ def pow(x, y, loc=UnknownLoc()):
     y : Expr
         The exponent
 
-    loc : Location
+    loc : Location or None, optional
         The location of this operator in the source code.
 
     Returns

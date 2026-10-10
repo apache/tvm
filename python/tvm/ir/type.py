@@ -21,8 +21,6 @@ from typing import ClassVar
 
 import tvm_ffi
 
-from tvm.ir.base import UnknownLoc
-
 from . import _ffi_api
 from .base import Node, Scriptable
 
@@ -81,7 +79,7 @@ class MissingType(Type):
 class AnyType(Type):
     """The top type, which admits any value."""
 
-    def __init__(self, loc=UnknownLoc()) -> None:
+    def __init__(self, loc=None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.AnyType, loc)
 
 
@@ -179,7 +177,7 @@ class TupleType(Type):
         The fields in the tuple
     """
 
-    def __init__(self, fields, loc=UnknownLoc()):
+    def __init__(self, fields, loc=None):
         self.__init_handle_by_constructor__(_ffi_api.TupleType, fields, loc)
 
 

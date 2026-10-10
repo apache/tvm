@@ -22,7 +22,6 @@ import enum
 import tvm_ffi
 
 from tvm.ir import Location
-from tvm.ir.base import UnknownLoc
 from tvm.relax.type import TensorType, Type
 from tvm.runtime import Object
 
@@ -136,7 +135,7 @@ class DTensorType(Type):
         tensor_ty: TensorType,
         device_mesh: DeviceMesh,
         placement: Placement,
-        loc: Location = UnknownLoc(),
+        loc: Location | None = None,
     ) -> None:
         self.__init_handle_by_constructor__(
             _ffi_api.DTensorType,

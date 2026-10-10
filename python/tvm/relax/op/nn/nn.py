@@ -24,7 +24,6 @@ from tvm.ir import Attrs
 from tvm.ir import Call as _Call
 from tvm.ir import PrimType as _PrimType
 from tvm.ir.attrs import make_node as _make_attrs
-from tvm.ir.base import UnknownLoc
 from tvm.tirx import FloatImm
 
 from ...expr import Expr
@@ -49,7 +48,7 @@ def conv1d(
     *,
     ty_args=None,
     ty=None,
-    loc=UnknownLoc(),
+    loc=None,
 ) -> Expr:
     r"""1D convolution.
 
@@ -172,7 +171,7 @@ def conv2d(
     *,
     ty_args=None,
     ty=None,
-    loc=UnknownLoc(),
+    loc=None,
 ) -> Expr:
     r"""2D convolution.
 
@@ -299,7 +298,7 @@ def conv3d(
     *,
     ty_args=None,
     ty=None,
-    loc=UnknownLoc(),
+    loc=None,
 ) -> Expr:
     r"""3D convolution.
 
@@ -433,7 +432,7 @@ def conv1d_transpose(
     *,
     ty_args=None,
     ty=None,
-    loc=UnknownLoc(),
+    loc=None,
 ) -> Expr:
     r"""1D transposed convolution operator.
 
@@ -551,7 +550,7 @@ def conv2d_transpose(
     *,
     ty_args=None,
     ty=None,
-    loc=UnknownLoc(),
+    loc=None,
 ) -> Expr:
     r"""Two dimensional transposed convolution operator.
 
@@ -686,7 +685,7 @@ def conv3d_transpose(
     *,
     ty_args=None,
     ty=None,
-    loc=UnknownLoc(),
+    loc=None,
 ) -> Expr:
     r"""Three dimensional transposed convolution operator.
 
@@ -814,7 +813,7 @@ def pad(
     pad_value: float | None = 0.0,
     *,
     ty=None,
-    loc=UnknownLoc(),
+    loc=None,
 ):
     r"""Padding
 
@@ -859,7 +858,7 @@ class PixelShuffleAttrs(Attrs):
     """Attributes used in pixel_shuffle operator"""
 
 
-def pixel_shuffle(data: Expr, upscale_factor: int, *, ty=None, loc=UnknownLoc()):
+def pixel_shuffle(data: Expr, upscale_factor: int, *, ty=None, loc=None):
     r"""
     Pixel Shuffle Operator
 
@@ -915,7 +914,7 @@ def max_pool1d(
     out_layout: str | None = None,
     *,
     ty=None,
-    loc=UnknownLoc(),
+    loc=None,
 ) -> Expr:
     r"""1D maximum pooling operator.
 
@@ -1021,7 +1020,7 @@ def max_pool2d(
     *,
     ty_args=None,
     ty=None,
-    loc=UnknownLoc(),
+    loc=None,
 ) -> Expr:
     r"""2D maximum pooling operator.
 
@@ -1140,7 +1139,7 @@ def max_pool3d(
     out_layout: str | None = None,
     *,
     ty=None,
-    loc=UnknownLoc(),
+    loc=None,
 ) -> Expr:
     r"""3D maximum pooling operator.
 
@@ -1247,7 +1246,7 @@ def avg_pool1d(
     out_layout: str | None = None,
     *,
     ty=None,
-    loc=UnknownLoc(),
+    loc=None,
 ) -> Expr:
     r"""1D average pooling operator.
 
@@ -1346,7 +1345,7 @@ def avg_pool2d(
     out_layout: str | None = None,
     *,
     ty=None,
-    loc=UnknownLoc(),
+    loc=None,
 ) -> Expr:
     r"""2D average pooling operator.
 
@@ -1459,7 +1458,7 @@ def avg_pool3d(
     out_layout: str | None = None,
     *,
     ty=None,
-    loc=UnknownLoc(),
+    loc=None,
 ) -> Expr:
     r"""2D average pooling operator.
 
@@ -1566,7 +1565,7 @@ def adaptive_avg_pool1d(
     out_layout: str | None = None,
     *,
     ty=None,
-    loc=UnknownLoc(),
+    loc=None,
 ) -> Expr:
     r"""1D adaptive average pooling operator. This operator is experimental.
 
@@ -1641,7 +1640,7 @@ def adaptive_avg_pool2d(
     *,
     ty_args=None,
     ty=None,
-    loc=UnknownLoc(),
+    loc=None,
 ) -> Expr:
     r"""2D adaptive average pooling operator. This operator is experimental.
 
@@ -1719,7 +1718,7 @@ def adaptive_avg_pool3d(
     out_layout: str | None = None,
     *,
     ty=None,
-    loc=UnknownLoc(),
+    loc=None,
 ) -> Expr:
     r"""3D adaptive average pooling operator. This operator is experimental.
 
@@ -1784,7 +1783,7 @@ def adaptive_avg_pool3d(
     )  # type: ignore
 
 
-def relu(data: Expr, *, ty_args=None, ty=None, loc=UnknownLoc()) -> Expr:
+def relu(data: Expr, *, ty_args=None, ty=None, loc=None) -> Expr:
     r"""Rectified linear unit.
 
     .. math::
@@ -1827,7 +1826,7 @@ class LeakyReluAttrs(Attrs):
     """Attributes used in leaky_relu operator"""
 
 
-def leakyrelu(data: Expr, alpha: float = 0.01, *, ty_args=None, ty=None, loc=UnknownLoc()) -> Expr:
+def leakyrelu(data: Expr, alpha: float = 0.01, *, ty_args=None, ty=None, loc=None) -> Expr:
     """Rectified linear unit.
 
     .. math::
@@ -1857,7 +1856,7 @@ def leakyrelu(data: Expr, alpha: float = 0.01, *, ty_args=None, ty=None, loc=Unk
     )  # type: ignore
 
 
-def gelu(data: Expr, *, ty_args=None, ty=None, loc=UnknownLoc()) -> Expr:
+def gelu(data: Expr, *, ty_args=None, ty=None, loc=None) -> Expr:
     r"""Gaussian Error Linear Units function
 
     .. math::
@@ -1882,7 +1881,7 @@ def gelu(data: Expr, *, ty_args=None, ty=None, loc=UnknownLoc()) -> Expr:
     return _Call("relax.nn.gelu", [data], ty_args=ty_args, ty=ty, loc=loc)  # type: ignore
 
 
-def gelu_tanh(data: Expr, *, ty_args=None, ty=None, loc=UnknownLoc()) -> Expr:
+def gelu_tanh(data: Expr, *, ty_args=None, ty=None, loc=None) -> Expr:
     r"""Gaussian Error Linear Units function with tanh approximation
 
     .. math::
@@ -1905,7 +1904,7 @@ def gelu_tanh(data: Expr, *, ty_args=None, ty=None, loc=UnknownLoc()) -> Expr:
     return _Call("relax.nn.gelu_tanh", [data], ty_args=ty_args, ty=ty, loc=loc)  # type: ignore
 
 
-def selu(data: Expr, *, ty_args=None, ty=None, loc=UnknownLoc()) -> Expr:
+def selu(data: Expr, *, ty_args=None, ty=None, loc=None) -> Expr:
     r"""Scaled Exponential Linear Unit (SELU).
 
     .. math::
@@ -1929,7 +1928,7 @@ def selu(data: Expr, *, ty_args=None, ty=None, loc=UnknownLoc()) -> Expr:
     return _Call("relax.nn.selu", [data], ty_args=ty_args, ty=ty, loc=loc)
 
 
-def silu(data: Expr, *, ty_args=None, ty=None, loc=UnknownLoc()) -> Expr:
+def silu(data: Expr, *, ty_args=None, ty=None, loc=None) -> Expr:
     r"""Sigmoid Linear Unit function
 
     .. math::
@@ -1957,7 +1956,7 @@ class SoftmaxAttrs(Attrs):
     """Attributes for nn.softmax"""
 
 
-def softmax(data: Expr, axis: int = -1, *, ty=None, loc=UnknownLoc()) -> Expr:
+def softmax(data: Expr, axis: int = -1, *, ty=None, loc=None) -> Expr:
     r"""Computes softmax.
 
     .. math:: \text{softmax}(x)_i = \frac{\exp(x_i)}{\sum_j \exp(x_j)}
@@ -2002,7 +2001,7 @@ def softplus(
     *,
     ty_args=None,
     ty=None,
-    loc=UnknownLoc(),
+    loc=None,
 ) -> Expr:
     r"""Softplus activation function.
 
@@ -2035,7 +2034,7 @@ def softplus(
     )
 
 
-def log_softmax(data: Expr, axis: int = -1, *, ty=None, loc=UnknownLoc()) -> Expr:
+def log_softmax(data: Expr, axis: int = -1, *, ty=None, loc=None) -> Expr:
     r"""Computes log softmax.
 
     .. math::
@@ -2074,7 +2073,7 @@ class PReluAttrs(Attrs):
     """Attributes used in prelu operator"""
 
 
-def prelu(data: Expr, alpha: Expr, axis: int = 1, *, ty=None, loc=UnknownLoc()) -> Expr:
+def prelu(data: Expr, alpha: Expr, axis: int = 1, *, ty=None, loc=None) -> Expr:
     r"""Parametric Rectified Linear Unit (PReLU).
 
     .. math::
@@ -2125,7 +2124,7 @@ def batch_norm(
     training: bool = True,
     *,
     ty=None,
-    loc=UnknownLoc(),
+    loc=None,
 ) -> Expr:
     r"""
     Batch normalization layer (Ioffe and Szegedy, 2014).
@@ -2256,7 +2255,7 @@ def layer_norm(
     scale: bool = True,
     *,
     ty=None,
-    loc=UnknownLoc(),
+    loc=None,
 ) -> Expr:
     r"""
     Layer normalization (Lei Ba and et al., 2016).
@@ -2335,7 +2334,7 @@ def group_norm(
     scale: bool = True,
     *,
     ty=None,
-    loc=UnknownLoc(),
+    loc=None,
 ) -> Expr:
     r"""
     Group normalization (Yuxin Wu and et al., 2016).
@@ -2412,7 +2411,7 @@ def instance_norm(
     scale: bool = True,
     *,
     ty=None,
-    loc=UnknownLoc(),
+    loc=None,
 ) -> Expr:
     r"""
     Instance normalization
@@ -2475,7 +2474,7 @@ def rms_norm(
     epsilon: float = 1e-5,
     *,
     ty=None,
-    loc=UnknownLoc(),
+    loc=None,
 ) -> Expr:
     r"""
     Root mean square normalization (Biao Zhang and et al., 2019).
@@ -2522,7 +2521,7 @@ class DropoutAttrs(Attrs):
     """Attributes for dropout operator"""
 
 
-def dropout(data: Expr, rate: float = 0.5, *, ty=None, loc=UnknownLoc()) -> Expr:
+def dropout(data: Expr, rate: float = 0.5, *, ty=None, loc=None) -> Expr:
     """Applies the dropout operation to the input tensor.
 
     During training, each element of the input is set to zero with
@@ -2554,7 +2553,7 @@ def dropout(data: Expr, rate: float = 0.5, *, ty=None, loc=UnknownLoc()) -> Expr
 
 
 def cross_entropy_with_logits(
-    predictions: Expr, labels: Expr, *, ty_args=None, ty=None, loc=UnknownLoc()
+    predictions: Expr, labels: Expr, *, ty_args=None, ty=None, loc=None
 ) -> Expr:
     r"""CrossEntropy with logits between the predictions and labels.
 
@@ -2602,7 +2601,7 @@ def nll_loss(
     *,
     ty_args=None,
     ty=None,
-    loc=UnknownLoc(),
+    loc=None,
 ) -> Expr:
     """Negative log likelihood loss.
 
@@ -2668,7 +2667,7 @@ def attention(
     window_size: int | None = None,
     *,
     ty=None,
-    loc=UnknownLoc(),
+    loc=None,
 ) -> Expr:
     r"""Computes fused multi head attention.
 
@@ -2773,7 +2772,7 @@ def attention_bias(
     window_size: int | None = None,
     *,
     ty=None,
-    loc=UnknownLoc(),
+    loc=None,
 ) -> Expr:
     r"""Computes fused multi head attention.
 
@@ -2885,7 +2884,7 @@ def attention_var_len(
     window_size: int | None = None,
     *,
     ty=None,
-    loc=UnknownLoc(),
+    loc=None,
 ) -> Expr:
     """Computes fused multi head attention over batched sequences of variable lengths.
 
@@ -2990,7 +2989,7 @@ def attention_var_len(
     )  # type: ignore
 
 
-def batch_flatten(data: Expr, *, ty=None, loc=UnknownLoc()) -> Expr:
+def batch_flatten(data: Expr, *, ty=None, loc=None) -> Expr:
     """Flatten all dimensions except the first (batch) dimension.
 
     This operation flattens a tensor of shape `(N, C, H, W, ...)` into

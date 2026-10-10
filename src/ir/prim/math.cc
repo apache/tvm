@@ -240,7 +240,7 @@ const Op& assume_op() {
   return op;
 }
 
-PrimExpr infinity(PrimType value_ty, Location loc) {
+PrimExpr infinity(PrimType value_ty, ffi::Optional<Location> loc) {
   PrimType dtype = value_ty;
   TVM_FFI_ICHECK_EQ(dtype.lanes(), 1);
   if (dtype.MatchesCode(DLDataTypeCode::kDLFloat)) {
@@ -253,8 +253,8 @@ PrimExpr infinity(PrimType value_ty, Location loc) {
   TVM_FFI_THROW(InternalError) << "Cannot decide infinity for type " << dtype;
 }
 
-PrimExpr pow(PrimExpr x, PrimExpr y, Location loc) {
-  BinaryOpMatchTypes(x, y, loc);
+PrimExpr pow(PrimExpr x, PrimExpr y, ffi::Optional<Location> loc) {
+  BinaryOpMatchTypes(x, y, loc.value_or(Location()));
   TVM_FFI_ICHECK(x.ty().MatchesCode(DLDataTypeCode::kDLFloat)) << "power only applies to float";
 
   // If we detect pow(x, 3), suggest using x * x * x
@@ -284,7 +284,7 @@ PrimExpr pow(PrimExpr x, PrimExpr y, Location loc) {
   return Call(x.ty(), pow_op, {x, y}, {}, {}, loc).as_or_throw<PrimExpr>();
 }
 
-PrimExpr abs(PrimExpr x, Location loc) {
+PrimExpr abs(PrimExpr x, ffi::Optional<Location> loc) {
   if (x.ty().MatchesCode(DLDataTypeCode::kDLInt)) {
     return prim::IntegerAbs(x, loc);
   } else if (x.ty().MatchesCode(DLDataTypeCode::kDLFloat, DLDataTypeCode::kDLBfloat)) {
@@ -303,12 +303,12 @@ PrimExpr abs(PrimExpr x, Location loc) {
   }
 }
 
-PrimExpr isnan(PrimExpr x, Location loc) {
+PrimExpr isnan(PrimExpr x, ffi::Optional<Location> loc) {
   static const Op op = Op::Get("prim.isnan");
   return Call(std::nullopt, op, {std::move(x)}, {}, {}, loc).as_or_throw<PrimExpr>();
 }
 
-PrimExpr isinf(PrimExpr x, Location loc) {
+PrimExpr isinf(PrimExpr x, ffi::Optional<Location> loc) {
   PrimType t = PrimType::Bool(x.ty().lanes());
   if (x.ty().MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) {
     return MakeConst(t, false, loc);
@@ -321,16 +321,18 @@ PrimExpr isinf(PrimExpr x, Location loc) {
   }
 }
 
-PrimExpr isfinite(PrimExpr x, Location loc) { return !isinf(x, loc) && !isnan(x, loc); }
+PrimExpr isfinite(PrimExpr x, ffi::Optional<Location> loc) {
+  return !isinf(x, loc) && !isnan(x, loc);
+}
 
-PrimExpr fmod(PrimExpr x, PrimExpr y, Location loc) {
-  BinaryOpMatchTypes(x, y, loc);
+PrimExpr fmod(PrimExpr x, PrimExpr y, ffi::Optional<Location> loc) {
+  BinaryOpMatchTypes(x, y, loc.value_or(Location()));
   TVM_FFI_ICHECK(x.ty().MatchesCode(DLDataTypeCode::kDLFloat)) << "fmod only applies to float";
   static const Op fmod_op = Op::Get("prim.fmod");
   return Call(x.ty(), fmod_op, {x, y}, {}, {}, loc).as_or_throw<PrimExpr>();
 }
 
-PrimExpr floor(PrimExpr x, Location loc) {
+PrimExpr floor(PrimExpr x, ffi::Optional<Location> loc) {
   if (x.ty().MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt,
                          DLDataTypeCode::kDLBool)) {
     return x;
@@ -341,7 +343,7 @@ PrimExpr floor(PrimExpr x, Location loc) {
   return Call(x.ty(), floor_op, {x}, {}, {}, loc).as_or_throw<PrimExpr>();
 }
 
-PrimExpr round(PrimExpr x, Location loc) {
+PrimExpr round(PrimExpr x, ffi::Optional<Location> loc) {
   if (x.ty().MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt,
                          DLDataTypeCode::kDLBool)) {
     return x;
@@ -352,7 +354,7 @@ PrimExpr round(PrimExpr x, Location loc) {
   return Call(x.ty(), round_op, {x}, {}, {}, loc).as_or_throw<PrimExpr>();
 }
 
-PrimExpr nearbyint(PrimExpr x, Location loc) {
+PrimExpr nearbyint(PrimExpr x, ffi::Optional<Location> loc) {
   if (x.ty().MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt,
                          DLDataTypeCode::kDLBool)) {
     return x;
@@ -363,7 +365,7 @@ PrimExpr nearbyint(PrimExpr x, Location loc) {
   return Call(x.ty(), nearbyint_op, {x}, {}, {}, loc).as_or_throw<PrimExpr>();
 }
 
-PrimExpr trunc(PrimExpr x, Location loc) {
+PrimExpr trunc(PrimExpr x, ffi::Optional<Location> loc) {
   if (x.ty().MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt,
                          DLDataTypeCode::kDLBool)) {
     return x;
@@ -377,7 +379,7 @@ PrimExpr trunc(PrimExpr x, Location loc) {
   return Call(x.ty(), trunc_op, {x}, {}, {}, loc).as_or_throw<PrimExpr>();
 }
 
-PrimExpr assume(PrimExpr condition, Location loc) {
+PrimExpr assume(PrimExpr condition, ffi::Optional<Location> loc) {
   return Call(PrimType::Bool(), assume_op(), {condition}, {}, {}, loc).as_or_throw<PrimExpr>();
 }
 
@@ -686,7 +688,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("prim.nearbyint", prim::nearbyint)
       .def("prim.trunc", prim::trunc)
       .def("prim.assume", prim::assume)
-      .def("prim._OpPow", [](PrimExpr a, PrimExpr b, Location loc) { return pow(a, b, loc); });
+      .def("prim._OpPow",
+           [](PrimExpr a, PrimExpr b, ffi::Optional<Location> loc) { return pow(a, b, loc); });
 }
 
 }  // namespace prim

@@ -21,7 +21,6 @@ import tvm_ffi
 from tvm.ir import Attrs
 from tvm.ir import Call as _Call
 from tvm.ir.attrs import make_node as _make_attrs
-from tvm.ir.base import UnknownLoc
 
 from ...expr import Expr
 
@@ -31,7 +30,7 @@ class AllReduceAttrs(Attrs):
     """Attributes used in allreduce operator"""
 
 
-def allreduce(x, op_type: str = "sum", in_group: bool = True, *, ty=None, loc=UnknownLoc()):  # pylint: disable=invalid-name
+def allreduce(x, op_type: str = "sum", in_group: bool = True, *, ty=None, loc=None):  # pylint: disable=invalid-name
     """Allreduce operator
 
     Parameters
@@ -70,7 +69,7 @@ class AllGatherAttrs(Attrs):
     """Attributes used in allgather operator"""
 
 
-def allgather(x, num_workers: int, in_group: bool = True, *, ty=None, loc=UnknownLoc()):  # pylint: disable=invalid-name
+def allgather(x, num_workers: int, in_group: bool = True, *, ty=None, loc=None):  # pylint: disable=invalid-name
     """AllGather operator
 
     Parameters
@@ -98,7 +97,7 @@ def allgather(x, num_workers: int, in_group: bool = True, *, ty=None, loc=Unknow
     )  # type: ignore # pylint: disable=no-member
 
 
-def broadcast_from_worker0(x: Expr, *, ty=None, loc=UnknownLoc()) -> Expr:
+def broadcast_from_worker0(x: Expr, *, ty=None, loc=None) -> Expr:
     """Broadcast data from worker-0 to all other workers.
 
     Parameters
@@ -124,9 +123,7 @@ class ScatterCollectiveAttrs(Attrs):
     """Attributes used in scatter collective operators"""
 
 
-def scatter_from_worker0(
-    x: Expr, num_workers: int, axis: int = 0, *, ty=None, loc=UnknownLoc()
-) -> Expr:
+def scatter_from_worker0(x: Expr, num_workers: int, axis: int = 0, *, ty=None, loc=None) -> Expr:
     """Perform a scatter operation from worker-0, chunking the given buffer into equal parts.
 
     Parameters

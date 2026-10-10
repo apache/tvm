@@ -207,7 +207,7 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> ShuffleMaybeInplaceMuta
 
 }  // namespace
 // Ramp
-Ramp::Ramp(PrimExpr base, PrimExpr stride, PrimExpr lanes, Location loc)
+Ramp::Ramp(PrimExpr base, PrimExpr stride, PrimExpr lanes, ffi::Optional<Location> loc)
     : PrimExpr(ffi::UnsafeInit{}) {
   TVM_FFI_ICHECK(base.defined());
   TVM_FFI_ICHECK(stride.defined());
@@ -237,7 +237,7 @@ Ramp::Ramp(PrimExpr base, PrimExpr stride, PrimExpr lanes, Location loc)
                 vscale_factor.value());
     node->lanes = lanes;
   }
-  node->loc = std::move(loc);
+  node->loc = loc.value_or(Location());
   data_ = std::move(node);
 }
 
@@ -250,12 +250,15 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&RampMaybeInplaceMutate>());
 
-  refl::GlobalDef().def("prim.Ramp", [](PrimExpr base, PrimExpr stride, PrimExpr lanes,
-                                        Location loc) { return Ramp(base, stride, lanes, loc); });
+  refl::GlobalDef().def(
+      "prim.Ramp", [](PrimExpr base, PrimExpr stride, PrimExpr lanes, ffi::Optional<Location> loc) {
+        return Ramp(base, stride, lanes, loc);
+      });
 }
 
 // Broadcast
-Broadcast::Broadcast(PrimExpr value, PrimExpr lanes, Location loc) : PrimExpr(ffi::UnsafeInit{}) {
+Broadcast::Broadcast(PrimExpr value, PrimExpr lanes, ffi::Optional<Location> loc)
+    : PrimExpr(ffi::UnsafeInit{}) {
   TVM_FFI_ICHECK(value.defined());
   PrimType value_ty = value.ty();
   TVM_FFI_ICHECK(value_ty.IsScalar());
@@ -278,7 +281,7 @@ Broadcast::Broadcast(PrimExpr value, PrimExpr lanes, Location loc) : PrimExpr(ff
                 vscale_factor.value());
     node->lanes = lanes;
   }
-  node->loc = std::move(loc);
+  node->loc = loc.value_or(Location());
   data_ = node;
 }
 
@@ -292,13 +295,15 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&BroadcastMaybeInplaceMutate>());
 
-  refl::GlobalDef().def("prim.Broadcast", [](PrimExpr value, PrimExpr lanes, Location loc) {
-    return Broadcast(value, lanes, loc);
-  });
+  refl::GlobalDef().def("prim.Broadcast",
+                        [](PrimExpr value, PrimExpr lanes, ffi::Optional<Location> loc) {
+                          return Broadcast(value, lanes, loc);
+                        });
 }
 
 // Shuffle
-Shuffle::Shuffle(ffi::Array<PrimExpr> vectors, ffi::Array<PrimExpr> indices, Location loc)
+Shuffle::Shuffle(ffi::Array<PrimExpr> vectors, ffi::Array<PrimExpr> indices,
+                 ffi::Optional<Location> loc)
     : PrimExpr(ffi::UnsafeInit{}) {
   TVM_FFI_ICHECK_NE(vectors.size(), 0U);
   TVM_FFI_ICHECK_NE(indices.size(), 0U);
@@ -317,7 +322,7 @@ Shuffle::Shuffle(ffi::Array<PrimExpr> vectors, ffi::Array<PrimExpr> indices, Loc
   node->ExprNode::ty = base_type.WithLanes(static_cast<int>(indices.size()));
   node->vectors = std::move(vectors);
   node->indices = std::move(indices);
-  node->loc = std::move(loc);
+  node->loc = loc.value_or(Location());
   data_ = node;
 }
 
@@ -331,13 +336,12 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&ShuffleMaybeInplaceMutate>());
 
-  refl::GlobalDef().def(
-      "prim.Shuffle", [](ffi::Array<PrimExpr> vectors, ffi::Array<PrimExpr> indices, Location loc) {
-        return Shuffle(vectors, indices, loc);
-      });
+  refl::GlobalDef().def("prim.Shuffle",
+                        [](ffi::Array<PrimExpr> vectors, ffi::Array<PrimExpr> indices,
+                           ffi::Optional<Location> loc) { return Shuffle(vectors, indices, loc); });
 }
 
-PrimExpr Shuffle::Concat(ffi::Array<PrimExpr> vectors, Location loc) {
+PrimExpr Shuffle::Concat(ffi::Array<PrimExpr> vectors, ffi::Optional<Location> loc) {
   TVM_FFI_ICHECK_NE(vectors.size(), 0);
   if (vectors.size() == 1) {
     return vectors[0];
@@ -352,7 +356,7 @@ PrimExpr Shuffle::Concat(ffi::Array<PrimExpr> vectors, Location loc) {
   return Shuffle(vectors, indices, loc);
 }
 
-PrimExpr Shuffle::ExtractElement(PrimExpr vector, int index, Location loc) {
+PrimExpr Shuffle::ExtractElement(PrimExpr vector, int index, ffi::Optional<Location> loc) {
   return Shuffle({vector}, {IntImm::Int32(index)}, loc);
 }
 

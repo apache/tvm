@@ -25,7 +25,6 @@ import tvm
 import tvm.runtime
 from tvm.ir import Attrs, Call, Op
 from tvm.ir.attrs import make_node as _make_attrs
-from tvm.ir.base import UnknownLoc
 from tvm.ir.op import _make_op_api
 from tvm.runtime import Object, ObjectConvertible
 
@@ -64,7 +63,7 @@ def register_gradient(
     return tvm.ir.register_op_attr(op_name, "FPrimalGradient", fgradient, override)
 
 
-def null_value(*, ty=None, loc=UnknownLoc()) -> Call:
+def null_value(*, ty=None, loc=None) -> Call:
     """Create a call node that represents a null value object.
 
     Returns
@@ -100,7 +99,7 @@ def _wrap_inline_arg_tuple(args) -> Expr:
 _call_tir = _make_op_api(Op.get("relax.call_tir"), __name__)
 
 
-def call_tir(func, args, *, ty_args, attrs=None, ty=None, loc=UnknownLoc(), **kwargs) -> Call:
+def call_tir(func, args, *, ty_args, attrs=None, ty=None, loc=None, **kwargs) -> Call:
     """Call a destination-passing TIR function and allocate its output tensors.
 
     ``func`` is the function's GlobalVar and ``args`` contains its ordered inputs.
@@ -113,7 +112,7 @@ def call_tir(func, args, *, ty_args, attrs=None, ty=None, loc=UnknownLoc(), **kw
     )
 
 
-def call_tir_packed(gvar: GlobalVar, args: Expr, *, ty=None, loc=UnknownLoc()) -> Call:
+def call_tir_packed(gvar: GlobalVar, args: Expr, *, ty=None, loc=None) -> Call:
     """Call a TIRx Function through its native packed-call contract.
 
     Every native parameter is supplied explicitly, in order.  Unlike
@@ -197,9 +196,7 @@ class CallTIRWithGradAttrs(Attrs):
 _call_tir_with_grad = _make_op_api(Op.get("relax.call_tir_with_grad"), __name__)
 
 
-def call_tir_with_grad(
-    func, args, *, ty_args, attrs=None, ty=None, loc=UnknownLoc(), **kwargs
-) -> Call:
+def call_tir_with_grad(func, args, *, ty_args, attrs=None, ty=None, loc=None, **kwargs) -> Call:
     """Call a TIR function with a registered TE gradient rule.
 
     ``ty_args`` contains the single output type, including a TupleType for
@@ -222,9 +219,7 @@ class CallTIRInplaceAttrs(Attrs):
 _call_tir_inplace = _make_op_api(Op.get("relax.call_tir_inplace"), __name__)
 
 
-def call_tir_inplace(
-    func, args, *, ty_args, attrs=None, ty=None, loc=UnknownLoc(), **kwargs
-) -> Call:
+def call_tir_inplace(func, args, *, ty_args, attrs=None, ty=None, loc=None, **kwargs) -> Call:
     """Call a TIR function whose selected outputs alias its input tensors.
 
     ``ty_args`` contains one output type. In the ``inplace_indices`` attribute,
@@ -247,9 +242,7 @@ def call_tir_inplace(
 _call_dps_packed = _make_op_api(Op.get("relax.call_dps_packed"), __name__)
 
 
-def call_dps_packed(
-    func, args, *, ty_args, attrs=None, ty=None, loc=UnknownLoc(), **kwargs
-) -> Call:
+def call_dps_packed(func, args, *, ty_args, attrs=None, ty=None, loc=None, **kwargs) -> Call:
     """Call a destination-passing packed function and allocate its outputs.
 
     Python string callees become ExternFunc; explicit Expr callees retain
@@ -266,7 +259,7 @@ def call_dps_packed(
     )
 
 
-def call_py_func(func_name: str | Expr, args: Expr, *, ty_args, ty=None, loc=UnknownLoc()) -> Call:
+def call_py_func(func_name: str | Expr, args: Expr, *, ty_args, ty=None, loc=None) -> Call:
     """Call a Python function using canonical operands and one output type argument.
 
     ``func_name`` names a function in the IRModule's ``pyfuncs`` attribute.
@@ -283,7 +276,7 @@ def call_builtin_with_ctx(
     *,
     ty_args: Type | list[Type] | None = None,
     ty=None,
-    loc=UnknownLoc(),
+    loc=None,
 ) -> Call:
     """Call a builtin function func.
 
@@ -329,7 +322,7 @@ def call_builtin_with_ctx(
     )
 
 
-def make_closure(func: Expr, args: Expr, *, ty=None, loc=UnknownLoc()) -> Object:
+def make_closure(func: Expr, args: Expr, *, ty=None, loc=None) -> Object:
     """
     Create a closure with free variables and return the closure.
 
@@ -354,7 +347,7 @@ def make_closure(func: Expr, args: Expr, *, ty=None, loc=UnknownLoc()) -> Object
 
 
 def invoke_closure(
-    closure: Expr, args: Expr, ty_args: list[Type] | Type, *, ty=None, loc=UnknownLoc()
+    closure: Expr, args: Expr, ty_args: list[Type] | Type, *, ty=None, loc=None
 ) -> Call:
     """
     Invoke a closure.
@@ -450,7 +443,7 @@ def relax_print(format_str: str, *format_args: tvm.Object) -> None:
         py_print(format_str.format(*val_strs))
 
 
-def print(format: str | Expr, *values: Expr, ty=None, loc=UnknownLoc()) -> Expr:
+def print(format: str | Expr, *values: Expr, ty=None, loc=None) -> Expr:
     """Print values using the canonical leading format-string operand."""
     return Call("relax.print", [format, *values], ty=ty, loc=loc)
 
@@ -520,7 +513,7 @@ def assert_op(
     format: str | Expr = "",
     *values: Expr,
     ty=None,
-    loc=UnknownLoc(),
+    loc=None,
 ) -> Expr:
     """
     Create a call to Relax's assert_op operation (`assert` is reserved in Python,
@@ -547,7 +540,7 @@ def assert_op(
     return Call("relax.assert_op", [condition, format, *values], ty=ty, loc=loc)
 
 
-def shape_of(expr: Expr, *, ty=None, loc=UnknownLoc()) -> Expr:
+def shape_of(expr: Expr, *, ty=None, loc=None) -> Expr:
     """Get shape of a tensor.
 
     Parameters
@@ -563,7 +556,7 @@ def shape_of(expr: Expr, *, ty=None, loc=UnknownLoc()) -> Expr:
     return Call("relax.shape_of", [expr], ty=ty, loc=loc)  # type: ignore # pylint: disable=no-member
 
 
-def size(expr: Expr, *, ty=None, loc=UnknownLoc()) -> Expr:
+def size(expr: Expr, *, ty=None, loc=None) -> Expr:
     """Get the total number of elements in a tensor.
 
     Parameters
@@ -579,7 +572,7 @@ def size(expr: Expr, *, ty=None, loc=UnknownLoc()) -> Expr:
     return Call("relax.size", [expr], ty=ty, loc=loc)  # type: ignore # pylint: disable=no-member
 
 
-def tensor_to_shape(expr: Expr, *, ty=None, loc=UnknownLoc()) -> Expr:
+def tensor_to_shape(expr: Expr, *, ty=None, loc=None) -> Expr:
     """Convert tensor to shape expr.
     Parameters
     ----------
@@ -593,7 +586,7 @@ def tensor_to_shape(expr: Expr, *, ty=None, loc=UnknownLoc()) -> Expr:
     return Call("relax.tensor_to_shape", [expr], ty=ty, loc=loc)  # type: ignore # pylint: disable=no-member
 
 
-def shape_to_tensor(expr: Expr, *, ty=None, loc=UnknownLoc()) -> Expr:
+def shape_to_tensor(expr: Expr, *, ty=None, loc=None) -> Expr:
     """Convert shape to tensor expr.
     Parameters
     ----------
@@ -618,7 +611,7 @@ def call_inplace_packed(
     inplace_indices: int | list[int] | None = None,
     ty_args: Type | list[Type] | None = None,
     ty=None,
-    loc=UnknownLoc(),
+    loc=None,
 ) -> Expr:
     """
     Construct a call to a packed function that consumes some of its arguments "in-place"
@@ -689,7 +682,7 @@ def call_pure_packed(
     *args: Expr,
     ty_args: Type | list[Type] | None = None,
     ty=None,
-    loc=UnknownLoc(),
+    loc=None,
 ) -> Expr:
     """
     Construct a call to a packed function that should be treated as pure,
@@ -751,7 +744,7 @@ def call_pure_packed(
 
 
 def invoke_pure_closure(
-    closure: Expr, args: Expr, ty_args: list[Type] | Type, *, ty=None, loc=UnknownLoc()
+    closure: Expr, args: Expr, ty_args: list[Type] | Type, *, ty=None, loc=None
 ) -> Call:
     """
     Invoke a closure and indicate to the compiler that it is pure.
@@ -797,7 +790,7 @@ class ToVDeviceAttrs(Attrs):
     """Attributes used in to_vdevice operator"""
 
 
-def to_vdevice(data, dst_vdevice, *, ty=None, loc=UnknownLoc()) -> Expr:
+def to_vdevice(data, dst_vdevice, *, ty=None, loc=None) -> Expr:
     """Copy data to the destination device. This
     operator helps data transferring between difference devices for
     heterogeneous execution.
@@ -829,9 +822,7 @@ class HintOnDeviceAttrs(Attrs):
     """Attributes used in hint_on_device operator"""
 
 
-def hint_on_device(
-    data, device_type, index=0, memory_scope="global", *, ty=None, loc=UnknownLoc()
-) -> Expr:
+def hint_on_device(data, device_type, index=0, memory_scope="global", *, ty=None, loc=None) -> Expr:
     """Hint the device type, index and memory scope for executing ``data``."""
     attrs = _make_attrs(
         "relax.attrs.HintOnDeviceAttrs",

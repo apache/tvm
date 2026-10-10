@@ -24,7 +24,6 @@ from typing import Any
 from tvm import ir
 from tvm import tirx as tir
 from tvm.ir import TensorLoad, TensorRegion, is_prim_expr
-from tvm.ir.base import UnknownLoc
 from tvm.s_tir.iter_var import IterVar
 from tvm.s_tir.op import comm_reducer
 from tvm.script.ir_builder.base import MISSING
@@ -69,12 +68,12 @@ def async_copy_scope():
     return region("s_tir.async_copy_scope", [])
 
 
-def async_commit(queue_id, *, ty=None, loc=UnknownLoc()):
+def async_commit(queue_id, *, ty=None, loc=None):
     """Commit the preceding asynchronous copies to a queue."""
     return ir.Call("s_tir.async_commit", [queue_id], ty=ty, loc=loc)
 
 
-def async_wait(queue_id, inflight_count, *, ty=None, loc=UnknownLoc()):
+def async_wait(queue_id, inflight_count, *, ty=None, loc=None):
     """Wait until at most inflight_count committed groups remain in flight."""
     return ir.Call("s_tir.async_wait", [queue_id, inflight_count], ty=ty, loc=loc)
 

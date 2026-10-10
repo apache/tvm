@@ -181,7 +181,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 // DTensor
 DTensorType::DTensorType(TensorType tensor_ty, DeviceMesh device_mesh, Placement placement,
-                         Location loc)
+                         ffi::Optional<Location> loc)
     : Type(ffi::UnsafeInit{}) {
   TVM_FFI_CHECK(device_mesh.defined(), ValueError) << "device_mesh must be defined";
   TVM_FFI_CHECK(placement.defined(), ValueError) << "placement must be defined";
@@ -195,7 +195,7 @@ DTensorType::DTensorType(TensorType tensor_ty, DeviceMesh device_mesh, Placement
   }
   ffi::ObjectPtr<DTensorTypeNode> n = ffi::make_object<DTensorTypeNode>(
       std::move(tensor_ty), std::move(device_mesh), std::move(placement));
-  n->loc = loc;
+  n->loc = loc.value_or(Location());
   data_ = std::move(n);
 }
 
@@ -213,11 +213,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def(
-      "relax.distributed.DTensorType",
-      [](TensorType tensor_ty, DeviceMesh device_mesh, Placement placement, Location loc) {
-        return DTensorType(tensor_ty, device_mesh, placement, loc);
-      });
+  refl::GlobalDef().def("relax.distributed.DTensorType",
+                        [](TensorType tensor_ty, DeviceMesh device_mesh, Placement placement,
+                           ffi::Optional<Location> loc) {
+                          return DTensorType(tensor_ty, device_mesh, placement, loc);
+                        });
 }
 
 }  // namespace distributed

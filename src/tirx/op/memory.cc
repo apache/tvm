@@ -135,7 +135,7 @@ const Op& reinterpret_op() {
   return op;
 }
 
-Expr reinterpret(Type target_ty, Expr value, Location loc) {
+Expr reinterpret(Type target_ty, Expr value, ffi::Optional<Location> loc) {
   if (value.as<StringImmNode>()) {
     TVM_FFI_CHECK(target_ty.as<PointerTypeNode>(), TypeError)
         << "String reinterpret requires a pointer target, but got " << target_ty;
@@ -421,9 +421,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  ffi::reflection::GlobalDef().def("tirx.reinterpret", [](Type dtype, Expr value, Location loc) {
-    return reinterpret(dtype, value, loc);
-  });
+  ffi::reflection::GlobalDef().def("tirx.reinterpret",
+                                   [](Type dtype, Expr value, ffi::Optional<Location> loc) {
+                                     return reinterpret(dtype, value, loc);
+                                   });
 }
 
 }  // namespace tirx

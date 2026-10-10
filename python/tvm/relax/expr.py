@@ -149,7 +149,7 @@ class IfExpr(_CallableExprWithOp):
         return True
 
     def __init__(
-        self, cond: Expr, true_branch: Expr, false_branch: Expr, loc: Location = UnknownLoc()
+        self, cond: Expr, true_branch: Expr, false_branch: Expr, loc: Location | None = None
     ):
         self.__init_handle_by_constructor__(
             _ffi_api.IfExpr,
@@ -184,7 +184,7 @@ class ShapeExpr(_CallableExprWithOp):
     def __init__(
         self,
         values: list[Expr] | tuple[Expr, ...] | tvm_ffi.Array,
-        loc: Location = UnknownLoc(),
+        loc: Location | None = None,
     ) -> None:
         self.__init_handle_by_constructor__(_ffi_api.ShapeExpr, values, loc)  # type: ignore
 
@@ -238,7 +238,7 @@ class DataflowVar(Var):
         self,
         name: str | None = None,
         ty: Type | None = None,
-        loc: Location = UnknownLoc(),
+        loc: Location | None = None,
         *,
         name_hint: str | None = None,
     ) -> None:
@@ -294,7 +294,7 @@ class MatchCast(Binding):
     value: Expr
     loc: Location
 
-    def __init__(self, var: Var, value: Expr, ty: Type, loc: Location = UnknownLoc()) -> None:
+    def __init__(self, var: Var, value: Expr, ty: Type, loc: Location | None = None) -> None:
         self.__init_handle_by_constructor__(
             _ffi_api.MatchCast,
             var,
@@ -322,7 +322,7 @@ class VarBinding(Binding):
     value: Expr
     loc: Location
 
-    def __init__(self, var: Var, value: Expr, loc: Location = UnknownLoc()) -> None:
+    def __init__(self, var: Var, value: Expr, loc: Location | None = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.VarBinding, var, value, loc)  # type: ignore
 
 
@@ -334,7 +334,7 @@ class BindingBlock(Node, Scriptable):
     bindings: list[Binding]
     loc: Location
 
-    def __init__(self, bindings: list[Binding], loc: Location = UnknownLoc()) -> None:
+    def __init__(self, bindings: list[Binding], loc: Location | None = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.BindingBlock, bindings, loc)  # type: ignore
 
 
@@ -345,7 +345,7 @@ class DataflowBlock(BindingBlock):
     bindings: list[Binding]
     loc: Location
 
-    def __init__(self, bindings: list[Binding], loc: Location = UnknownLoc()) -> None:
+    def __init__(self, bindings: list[Binding], loc: Location | None = None) -> None:
         # pylint: disable=super-init-not-called
         self.__init_handle_by_constructor__(_ffi_api.DataflowBlock, bindings, loc)  # type: ignore
 
@@ -361,9 +361,7 @@ class SeqExpr(_CallableExprWithOp):
     def __bool__(self) -> bool:
         return True
 
-    def __init__(
-        self, blocks: list[BindingBlock], body: Expr, loc: Location = UnknownLoc()
-    ) -> None:
+    def __init__(self, blocks: list[BindingBlock], body: Expr, loc: Location | None = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.SeqExpr, blocks, body, loc)  # type: ignore
 
 
@@ -385,7 +383,7 @@ class Function(BaseFunc, Scriptable):
         ret_ty: Type | None = None,
         is_pure: bool | None = True,
         attrs: tvm.ir.DictAttrs | None = None,
-        loc: Location = UnknownLoc(),
+        loc: Location | None = None,
     ) -> None:
         if attrs is None:
             attrs = tvm.ir.DictAttrs({})
@@ -405,7 +403,7 @@ class Function(BaseFunc, Scriptable):
         ret_ty: Type,
         is_pure: bool | None = True,
         attrs: tvm.ir.DictAttrs | None = None,
-        loc: Location = UnknownLoc(),
+        loc: Location | None = None,
     ):
         """Construct a relax.Function but without body"""
         if attrs is None:
@@ -517,7 +515,7 @@ class ExternFunc(BaseFunc):
         self,
         global_symbol: String,
         ty: Type | None = None,
-        loc: Location = UnknownLoc(),
+        loc: Location | None = None,
     ) -> None:
         self.__init_handle_by_constructor__(
             _ffi_api.ExternFunc,
@@ -527,7 +525,7 @@ class ExternFunc(BaseFunc):
         )
 
 
-def extern(name: str, ty: Type | None = None, loc: Location = UnknownLoc()):
+def extern(name: str, ty: Type | None = None, loc: Location | None = None):
     """Create extern function."""
     return ExternFunc(name, ty, loc)
 
@@ -581,7 +579,7 @@ def const(
     if not isinstance(value, tvm.runtime.Tensor):
         raise ValueError("value has to be scalar or Tensor")
 
-    return _ffi_api.MakeTensorConst(value, None, UnknownLoc())
+    return _ffi_api.MakeTensorConst(value, None, None)
 
 
 @tvm_ffi.register_object("relax.TEPlaceholderOp")

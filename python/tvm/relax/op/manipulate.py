@@ -24,7 +24,6 @@ from tvm.error import InternalError as _InternalError
 from tvm.ir import Attrs, is_prim_expr
 from tvm.ir import Call as _Call
 from tvm.ir.attrs import make_node as _make_attrs
-from tvm.ir.base import UnknownLoc
 from tvm.runtime import DataTypeCode
 from tvm.tirx import FloatImm, IndexMap, IntImm
 
@@ -35,7 +34,7 @@ from . import _ffi_api
 PrimExprLike = int | Expr
 
 
-def broadcast_to(x: Expr, shape: tuple[PrimExprLike] | Expr, *, ty=None, loc=UnknownLoc()) -> Expr:
+def broadcast_to(x: Expr, shape: tuple[PrimExprLike] | Expr, *, ty=None, loc=None) -> Expr:
     """Broadcasts a tensor to a specified shape.
 
     Parameters
@@ -66,7 +65,7 @@ def concat(
     axis: int | None = 0,
     *,
     ty=None,
-    loc=UnknownLoc(),
+    loc=None,
 ) -> Expr:
     """Concatenate the input tensors along the given axis.
 
@@ -101,7 +100,7 @@ class ExpandDimsAttrs(Attrs):
     """Attributes for expand_dims operator"""
 
 
-def expand_dims(x: Expr, axis: int | list[int], *, ty=None, loc=UnknownLoc()) -> Expr:
+def expand_dims(x: Expr, axis: int | list[int], *, ty=None, loc=None) -> Expr:
     """Insert new axes at the positions given by `axis`.
 
     Parameters
@@ -130,7 +129,7 @@ def expand_dims(x: Expr, axis: int | list[int], *, ty=None, loc=UnknownLoc()) ->
     )  # type: ignore
 
 
-def flatten(x: Expr, *, ty=None, loc=UnknownLoc()) -> Expr:
+def flatten(x: Expr, *, ty=None, loc=None) -> Expr:
     """Flatten all the tensor dimensions into one.
 
     Parameters
@@ -157,7 +156,7 @@ def layout_transform(
     pad_value: int | float | Expr | None = None,
     *,
     ty=None,
-    loc=UnknownLoc(),
+    loc=None,
 ):
     """Modifies the layout of a tensor.
 
@@ -213,7 +212,7 @@ class PermuteDimsAttrs(Attrs):
     """Attributes for permute_dims operator"""
 
 
-def permute_dims(x: Expr, axes: list[int] | None = None, *, ty=None, loc=UnknownLoc()) -> Expr:
+def permute_dims(x: Expr, axes: list[int] | None = None, *, ty=None, loc=None) -> Expr:
     """Permutes the dimensions of an array.
 
     Parameters
@@ -238,7 +237,7 @@ def permute_dims(x: Expr, axes: list[int] | None = None, *, ty=None, loc=Unknown
     )  # type: ignore
 
 
-def reshape(x: Expr, shape: tuple[PrimExprLike] | Expr, *, ty=None, loc=UnknownLoc()) -> Expr:
+def reshape(x: Expr, shape: tuple[PrimExprLike] | Expr, *, ty=None, loc=None) -> Expr:
     """Reshape the input array.
 
     ``-1`` infers the dimension of the output shape by using the remainder of
@@ -287,7 +286,7 @@ def split(
     axis: int = 0,
     *,
     ty=None,
-    loc=UnknownLoc(),
+    loc=None,
 ) -> Expr:
     """Split input tensor along axis by sections or indices.
 
@@ -339,7 +338,7 @@ class SqueezeAttrs(Attrs):
     """Attributes for squeeze operator"""
 
 
-def squeeze(x: Expr, axis: int | list[int] | None = None, *, ty=None, loc=UnknownLoc()) -> Expr:
+def squeeze(x: Expr, axis: int | list[int] | None = None, *, ty=None, loc=None) -> Expr:
     """Squeeze axes in the array.
 
     Parameters
@@ -373,7 +372,7 @@ class StackAttrs(Attrs):
     """Attributes for concat operator"""
 
 
-def stack(tensors: Expr | list[Expr], axis: int = 0, *, ty=None, loc=UnknownLoc()) -> Expr:
+def stack(tensors: Expr | list[Expr], axis: int = 0, *, ty=None, loc=None) -> Expr:
     """Stack the input tensors along a new axis.
 
     Parameters
@@ -403,7 +402,7 @@ def stack(tensors: Expr | list[Expr], axis: int = 0, *, ty=None, loc=UnknownLoc(
     )  # type: ignore
 
 
-def collapse_sum_like(data: Expr, collapse_target: Expr, *, ty=None, loc=UnknownLoc()) -> Expr:
+def collapse_sum_like(data: Expr, collapse_target: Expr, *, ty=None, loc=None) -> Expr:
     """Return a summation of data to the shape of collapse_target.
 
     For details, please see relax.op.collapse_sum_to.
@@ -429,9 +428,7 @@ def collapse_sum_like(data: Expr, collapse_target: Expr, *, ty=None, loc=Unknown
     )  # type: ignore
 
 
-def collapse_sum_to(
-    data: Expr, shape: tuple[PrimExprLike] | Expr, *, ty=None, loc=UnknownLoc()
-) -> Expr:
+def collapse_sum_to(data: Expr, shape: tuple[PrimExprLike] | Expr, *, ty=None, loc=None) -> Expr:
     """Return a summation of data to the given shape.
 
     collapse_sum_to is intended as the backward operator of tvm.relax.op.broadcast_to and
@@ -479,7 +476,7 @@ def repeat(
     axis: int | None = None,
     *,
     ty=None,
-    loc=UnknownLoc(),
+    loc=None,
 ) -> Expr:
     """Repeats elements of an array.
 
@@ -529,7 +526,7 @@ def tile(
     repeats: int | tuple[int] | list[int],
     *,
     ty=None,
-    loc=UnknownLoc(),
+    loc=None,
 ) -> Expr:
     """Construct an array by repeating data the number of times given by repeats.
 
@@ -583,7 +580,7 @@ class FlipAttrs(Attrs):
     """Attributes for flip operator"""
 
 
-def flip(data, axis, *, ty=None, loc=UnknownLoc()):
+def flip(data, axis, *, ty=None, loc=None):
     """Reverses the order of elements along given axis while preserving array shape.
 
     Parameters
@@ -629,7 +626,7 @@ def reverse_sequence(
     batch_axis: int = 0,
     *,
     ty=None,
-    loc=UnknownLoc(),
+    loc=None,
 ) -> Expr:
     """Reverses variable length slices.
 
@@ -668,7 +665,7 @@ class GatherElementsAttrs(Attrs):
     """Attributes for gather_elements operator"""
 
 
-def gather_elements(data: Expr, indices: Expr, axis: int = 0, *, ty=None, loc=UnknownLoc()) -> Expr:
+def gather_elements(data: Expr, indices: Expr, axis: int = 0, *, ty=None, loc=None) -> Expr:
     """Gather elements from data according to indices along the specified axis.
 
     Parameters
@@ -715,7 +712,7 @@ class GatherNDAttrs(Attrs):
     """Attributes for gather_nd operator"""
 
 
-def gather_nd(data: Expr, indices: Expr, batch_dims: int = 0, *, ty=None, loc=UnknownLoc()) -> Expr:
+def gather_nd(data: Expr, indices: Expr, batch_dims: int = 0, *, ty=None, loc=None) -> Expr:
     """Update data at positions defined by indices with values in updates.
 
     Parameters
@@ -758,7 +755,7 @@ def gather_nd(data: Expr, indices: Expr, batch_dims: int = 0, *, ty=None, loc=Un
     )  # type: ignore
 
 
-def index_tensor(data: Expr, indices: Expr | list[Expr], *, ty=None, loc=UnknownLoc()) -> Expr:
+def index_tensor(data: Expr, indices: Expr | list[Expr], *, ty=None, loc=None) -> Expr:
     """Advanced-tensor indexing (NumPy/PyTorch-style).
 
     Given k index tensors ``indices = (I0, I1, …, Ik-1)`` this
@@ -838,7 +835,7 @@ def index_put(
     accumulate: bool = False,
     *,
     ty=None,
-    loc=UnknownLoc(),
+    loc=None,
 ) -> Expr:
     """This operation updates values in `data` at positions
     specified by `indices` with corresponding values from `values`. The `indices` is a tuple
@@ -902,7 +899,7 @@ def meshgrid(
     indexing: str | None = "ij",
     *,
     ty=None,
-    loc=UnknownLoc(),
+    loc=None,
 ) -> Expr:
     """Generate coordinate grids from input tensors.
 
@@ -945,7 +942,7 @@ def scatter_elements(
     reduction: str = "update",
     *,
     ty=None,
-    loc=UnknownLoc(),
+    loc=None,
 ):
     """ONNX style scatter elements. This operation updates its value in `data` to values
     specified by `updates` at specific index positions specified by `indices`.
@@ -1040,7 +1037,7 @@ def scatter_nd(
     reduction: str = "update",
     *,
     ty=None,
-    loc=UnknownLoc(),
+    loc=None,
 ) -> Expr:
     """Scatter updates into an array according to indices.
 
@@ -1100,7 +1097,7 @@ def slice_scatter(
     axis=0,
     *,
     ty=None,
-    loc=UnknownLoc(),
+    loc=None,
 ):
     """Embeds the values of the src tensor into input at the given dimension.
 
@@ -1158,7 +1155,7 @@ def one_hot(
     axis: int = -1,
     *,
     ty=None,
-    loc=UnknownLoc(),
+    loc=None,
 ) -> Expr:
     """Returns a one-hot tensor.
 

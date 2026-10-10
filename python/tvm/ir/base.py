@@ -56,7 +56,10 @@ class SourceName(Object):
 
 @register_object("ir.Location")
 class Location(Object):
-    """Non-null source-location metadata attached to IR nodes."""
+    """Non-null source-location metadata attached to IR nodes.
+
+    IR constructors accept ``loc=None`` and store the canonical :class:`UnknownLoc`.
+    """
 
 
 @register_object("ir.UnknownLoc")

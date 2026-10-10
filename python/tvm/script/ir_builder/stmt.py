@@ -34,14 +34,13 @@ import tvm
 from tvm import ir as _ir
 from tvm.ir import Expr, TensorRegion, Type, Var
 from tvm.ir import StringImm as _StringImm
-from tvm.ir.base import UnknownLoc
 from tvm.ir.prim import IntImm
 from tvm.script.ir_builder import base as _base
 from tvm.script.ir_builder.base import AlreadyEmitted
 
 from . import _ffi_api, frame
 
-_Loc = _base.LocationEntry | _ir.Location
+_Loc = _base.LocationEntry | _ir.Location | None
 
 
 def _as_expr(value):
@@ -138,31 +137,31 @@ def add_to_parent(stmt: tvm.ir.Stmt) -> None:
     _ffi_api.AddToParent(stmt)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-def if_(condition: Any, *, loc: _Loc = UnknownLoc()) -> frame.IfFrame:
+def if_(condition: Any, *, loc: _Loc = None) -> frame.IfFrame:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.if_`."""
     if isinstance(condition, _python.bool):
         condition = IntImm("bool", condition)
     return _base.at_(loc, _ffi_api.If(condition))
 
 
-def then_(*, loc: _Loc = UnknownLoc()) -> frame.ThenFrame:
+def then_(*, loc: _Loc = None) -> frame.ThenFrame:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.then_`."""
     return _base.at_(loc, _ffi_api.Then())
 
 
-def else_(*, loc: _Loc = UnknownLoc()) -> frame.ElseFrame:
+def else_(*, loc: _Loc = None) -> frame.ElseFrame:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.else_`."""
     return _base.at_(loc, _ffi_api.Else())
 
 
-def while_(condition: Any, *, loc: _Loc = UnknownLoc()) -> frame.WhileFrame:
+def while_(condition: Any, *, loc: _Loc = None) -> frame.WhileFrame:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.while_`."""
     if isinstance(condition, _python.bool):
         condition = IntImm("bool", condition)
     return _base.at_(loc, _ffi_api.While(condition))
 
 
-def break_(*, loc: _Loc = UnknownLoc()) -> _base.AlreadyEmitted[tvm.ir.Stmt]:
+def break_(*, loc: _Loc = None) -> _base.AlreadyEmitted[tvm.ir.Stmt]:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.break_`.
 
     Legality is checked on the completed function, across loop and function boundaries.
@@ -170,7 +169,7 @@ def break_(*, loc: _Loc = UnknownLoc()) -> _base.AlreadyEmitted[tvm.ir.Stmt]:
     return _base.with_at_group_(loc, lambda: _base.AlreadyEmitted(_ffi_api.Break()))
 
 
-def continue_(*, loc: _Loc = UnknownLoc()) -> _base.AlreadyEmitted[tvm.ir.Stmt]:
+def continue_(*, loc: _Loc = None) -> _base.AlreadyEmitted[tvm.ir.Stmt]:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.continue_`.
 
     Legality is checked on the completed function, across loop and function boundaries.
@@ -178,7 +177,7 @@ def continue_(*, loc: _Loc = UnknownLoc()) -> _base.AlreadyEmitted[tvm.ir.Stmt]:
     return _base.with_at_group_(loc, lambda: _base.AlreadyEmitted(_ffi_api.Continue()))
 
 
-def return_(value: Any = None, *, loc: _Loc = UnknownLoc()) -> _base.AlreadyEmitted[tvm.ir.Stmt]:
+def return_(value: Any = None, *, loc: _Loc = None) -> _base.AlreadyEmitted[tvm.ir.Stmt]:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.return_`."""
     if value is None:
         raise TypeError("A primitive function return requires an expression")
@@ -189,7 +188,7 @@ def assert_(
     condition: Any,
     message: str | tuple[str, Sequence[Any]] | Sequence[Any] = "",
     *,
-    loc: _Loc = UnknownLoc(),
+    loc: _Loc = None,
 ) -> None:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.assert_`."""
     kind = "RuntimeError"

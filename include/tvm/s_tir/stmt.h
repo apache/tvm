@@ -165,11 +165,11 @@ class SBlock : public Stmt {
       ffi::Array<tirx::TensorVar> alloc_buffers = ffi::Array<tirx::TensorVar>(),
       ffi::Array<MatchBufferRegion> match_buffers = ffi::Array<MatchBufferRegion>(),
       ffi::Map<ffi::String, ffi::Any> annotations = ffi::Map<ffi::String, ffi::Any>(),
-      Location loc = Location());
+      ffi::Optional<Location> loc = std::nullopt);
 
   TVM_DLL explicit SBlock(ffi::String name_hint, SeqStmt body,
                           ffi::Array<tirx::TensorVar> alloc_buffers = ffi::Array<tirx::TensorVar>(),
-                          Location loc = Location());
+                          ffi::Optional<Location> loc = std::nullopt);
 
   explicit SBlock(ffi::ObjectPtr<SBlockNode> node) : Stmt(std::move(node)) {}
 
@@ -214,7 +214,7 @@ class SBlockRealizeNode : public StmtNode {
 class SBlockRealize : public Stmt {
  public:
   TVM_DLL explicit SBlockRealize(ffi::Array<PrimExpr> iter_values, PrimExpr predicate, SBlock block,
-                                 Location loc = Location());
+                                 ffi::Optional<Location> loc = std::nullopt);
 
   explicit SBlockRealize(ffi::ObjectPtr<SBlockRealizeNode> node) : Stmt(std::move(node)) {}
 

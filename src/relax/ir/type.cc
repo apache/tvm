@@ -49,9 +49,9 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> PackedFuncTypeMaybeInpl
 
 }  // namespace
 
-PackedFuncType::PackedFuncType(Location loc) : Type(ffi::UnsafeInit{}) {
+PackedFuncType::PackedFuncType(ffi::Optional<Location> loc) : Type(ffi::UnsafeInit{}) {
   ffi::ObjectPtr<PackedFuncTypeNode> n = ffi::make_object<PackedFuncTypeNode>();
-  n->loc = loc;
+  n->loc = loc.value_or(Location());
   data_ = std::move(n);
 }
 
@@ -66,7 +66,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&PackedFuncTypeMaybeInplaceMutate>());
 
-  refl::GlobalDef().def("relax.PackedFuncType", [](Location loc) { return PackedFuncType(loc); });
+  refl::GlobalDef().def("relax.PackedFuncType",
+                        [](ffi::Optional<Location> loc) { return PackedFuncType(loc); });
 }
 
 }  // namespace relax

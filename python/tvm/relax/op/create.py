@@ -22,7 +22,6 @@ from tvm import DataType, DataTypeCode
 from tvm.ir import Attrs, PrimType, is_prim_expr
 from tvm.ir import Call as _Call
 from tvm.ir.attrs import make_node as _make_attrs
-from tvm.ir.base import UnknownLoc
 
 from ..expr import Expr, ShapeExpr, prim_value
 
@@ -52,7 +51,7 @@ def full(
     dtype: str | DataType | None = None,
     *,
     ty=None,
-    loc=UnknownLoc(),
+    loc=None,
 ) -> Expr:
     """Fill array with scalar value.
 
@@ -89,7 +88,7 @@ def full_like(
     dtype: str | DataType | None = None,
     *,
     ty=None,
-    loc=UnknownLoc(),
+    loc=None,
 ) -> Expr:
     """Construct a tensor such that
     - its shape is the same as the input data tensor's shape,
@@ -127,7 +126,7 @@ def ones(
     dtype: str | DataType,
     *,
     ty=None,
-    loc=UnknownLoc(),
+    loc=None,
 ) -> Expr:
     """Construct a tensor of all ones, with the input shape and dtype.
 
@@ -154,7 +153,7 @@ def ones(
     )  # type: ignore
 
 
-def ones_like(x: Expr, dtype: str | DataType | None = None, *, ty=None, loc=UnknownLoc()) -> Expr:
+def ones_like(x: Expr, dtype: str | DataType | None = None, *, ty=None, loc=None) -> Expr:
     """Construct a tensor with all ones, with shape of the input tensor shape.
 
     Parameters
@@ -186,7 +185,7 @@ def zeros(
     dtype: str | DataType,
     *,
     ty=None,
-    loc=UnknownLoc(),
+    loc=None,
 ) -> Expr:
     """Construct a tensor of all zeros, with the input shape and dtype.
 
@@ -213,7 +212,7 @@ def zeros(
     )  # type: ignore
 
 
-def zeros_like(x: Expr, dtype: str | DataType | None = None, *, ty=None, loc=UnknownLoc()) -> Expr:
+def zeros_like(x: Expr, dtype: str | DataType | None = None, *, ty=None, loc=None) -> Expr:
     """Construct a tensor with all zeros, with shape of the input tensor shape.
 
     Parameters
@@ -247,7 +246,7 @@ def eye(
     dtype: str | DataType = "float32",
     *,
     ty=None,
-    loc=UnknownLoc(),
+    loc=None,
 ) -> Expr:
     """Construct a 2-D tensor with ones on the diagonal and zeros elsewhere.
 
@@ -291,7 +290,7 @@ def eye_like(
     dtype: str | DataType | None = None,
     *,
     ty=None,
-    loc=UnknownLoc(),
+    loc=None,
 ) -> Expr:
     """Return a 2-D tensor with ones on the diagonal and zeros elsewhere,
     with the same shape as the input tensor.
@@ -333,7 +332,7 @@ def arange(
     dtype: str | DataType | PrimType | None = None,
     *,
     ty=None,
-    loc=UnknownLoc(),
+    loc=None,
 ) -> Expr:
     """Construct a tensor with evenly spaced elements.
 
@@ -385,7 +384,7 @@ def arange(
     )  # type: ignore
 
 
-def hamming_window(window_size, periodic, alpha, beta, dtype, *, ty=None, loc=UnknownLoc()):
+def hamming_window(window_size, periodic, alpha, beta, dtype, *, ty=None, loc=None):
     """Hamming window function.
 
     Parameters
@@ -431,7 +430,7 @@ class TriluAttrs(Attrs):
     """Attributes used in tril and triu operator"""
 
 
-def tril(x: Expr, k: int | Expr = 0, *, ty=None, loc=UnknownLoc()) -> Expr:
+def tril(x: Expr, k: int | Expr = 0, *, ty=None, loc=None) -> Expr:
     """Return the lower triangular part of a matrix or a batch of matrices.
 
     Parameters
@@ -457,7 +456,7 @@ def tril(x: Expr, k: int | Expr = 0, *, ty=None, loc=UnknownLoc()) -> Expr:
     return _Call("relax.tril", [x, k], ty=ty, loc=loc)  # type: ignore
 
 
-def triu(x: Expr, k: int | Expr = 0, *, ty=None, loc=UnknownLoc()) -> Expr:
+def triu(x: Expr, k: int | Expr = 0, *, ty=None, loc=None) -> Expr:
     """Return the upper triangular part of a matrix or a batch of matrices.
 
     Parameters

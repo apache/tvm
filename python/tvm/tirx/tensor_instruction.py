@@ -37,7 +37,6 @@ from tvm.ir import (
     StringImm,
     TensorRegion,
     Tuple,
-    UnknownLoc,
     const,
     make_node,
 )
@@ -122,7 +121,7 @@ class Instruction:
     def make(self, *values, **kw):
         if len(values) > len(self.operands):
             raise TypeError(f"{self.name} expects at most {len(self.operands)} operands")
-        loc = kw.pop("loc", UnknownLoc())
+        loc = kw.pop("loc", None)
         explicit_attrs = kw.pop("attrs", None)
         result_ty = kw.pop("ty", "void")
         if kw.pop("ty_args", ()):

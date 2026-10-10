@@ -37,7 +37,7 @@ namespace tirx {
  * \param loc The location of this operation in the source.
  * \return The result expression.
  */
-TVM_DLL PrimExpr logaddexp(PrimExpr a, PrimExpr b, Location loc = Location());
+TVM_DLL PrimExpr logaddexp(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc = std::nullopt);
 
 TVM_DEFINE_INT_OP_CONST_VAL_OVERLOAD_SPANNED(logaddexp);
 

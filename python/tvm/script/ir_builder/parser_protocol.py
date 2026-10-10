@@ -35,13 +35,12 @@ from typing import Any
 
 from tvm import ir as _ir
 from tvm.ir import BaseFunc, GlobalVar
-from tvm.ir.base import UnknownLoc
 
 from . import _ffi_api
 from .base import MISSING, AlreadyEmitted, IRBuilderFrame, LocationEntry
 from .frame import IRModuleFrame
 
-_Loc = LocationEntry | _ir.Location
+_Loc = LocationEntry | _ir.Location | None
 
 
 # --------------------------------------
@@ -93,7 +92,7 @@ def decl_function(func_name: str, func_signature: BaseFunc) -> GlobalVar:
     )
 
 
-def function_(*, decl: bool = False, loc: _Loc = UnknownLoc(), **options: Any) -> IRBuilderFrame:
+def function_(*, decl: bool = False, loc: _Loc = None, **options: Any) -> IRBuilderFrame:
     """Create the native function frame used for signature and body construction.
 
     Parameters
@@ -101,8 +100,8 @@ def function_(*, decl: bool = False, loc: _Loc = UnknownLoc(), **options: Any) -
     decl : bool, optional
         False (default) constructs a complete function on one entry. True collects a
         signature on the first entry and retains this frame for body re-entry.
-    loc : LocationEntry, Location, optional
-        Location for the constructed result. UnknownLoc (the default) leaves explicit location
+    loc : LocationEntry, Location or None, optional
+        Location for the constructed result. None (the default) leaves explicit location
         unspecified; active source-call provenance is composed by the builder. Frames
         retain their location until finalization.
     options : Any
@@ -138,12 +137,10 @@ def function_(*, decl: bool = False, loc: _Loc = UnknownLoc(), **options: Any) -
             a = X.arg_("a", X.int32)
             X.emit_(X.evaluate(a))
     """
-    if loc is None:
-        raise TypeError("Location arguments must not be None")
     raise NotImplementedError
 
 
-def arg_(name: str, annotation: Any, *, loc: _Loc = UnknownLoc()) -> _ir.Var:
+def arg_(name: str, annotation: Any, *, loc: _Loc = None) -> _ir.Var:
     """Add a parameter to the active native function signature.
 
     Parameters
@@ -153,8 +150,8 @@ def arg_(name: str, annotation: Any, *, loc: _Loc = UnknownLoc()) -> _ir.Var:
     annotation : Type, Var or callable
         Concrete rewritten annotation or existing native parameter. A callable
         annotation is evaluated; an existing variable retains identity.
-    loc : LocationEntry, Location, optional
-        Location for the constructed result. UnknownLoc (the default) leaves explicit location
+    loc : LocationEntry, Location or None, optional
+        Location for the constructed result. None (the default) leaves explicit location
         unspecified; active source-call provenance is composed by the builder. Frames
         retain their location until finalization.
 
@@ -178,8 +175,6 @@ def arg_(name: str, annotation: Any, *, loc: _Loc = UnknownLoc()) -> _ir.Var:
         # Generated builder, inside the signature frame
         a = X.arg_("a", X.int32)
     """
-    if loc is None:
-        raise TypeError("Location arguments must not be None")
     raise NotImplementedError
 
 
@@ -214,7 +209,7 @@ def func_name_(name: str) -> None:
     raise NotImplementedError
 
 
-def func_ret_type_(annotation: Any, *, loc: _Loc = UnknownLoc()) -> None:
+def func_ret_type_(annotation: Any, *, loc: _Loc = None) -> None:
     """Set the active native function's return annotation.
 
     Parameters
@@ -222,8 +217,8 @@ def func_ret_type_(annotation: Any, *, loc: _Loc = UnknownLoc()) -> None:
     annotation : Type, Expr or callable
         Rewritten return annotation; expression annotations supply their type. None
         denotes a void/empty tuple return as supported by the language variant.
-    loc : LocationEntry, Location, optional
-        Location for the constructed result. UnknownLoc (the default) leaves explicit location
+    loc : LocationEntry, Location or None, optional
+        Location for the constructed result. None (the default) leaves explicit location
         unspecified; active source-call provenance is composed by the builder. Frames
         retain their location until finalization.
 
@@ -246,8 +241,6 @@ def func_ret_type_(annotation: Any, *, loc: _Loc = UnknownLoc()) -> None:
         # Generated builder, inside the signature frame
         X.func_ret_type_(X.int32)
     """
-    if loc is None:
-        raise TypeError("Location arguments must not be None")
     raise NotImplementedError
 
 
@@ -417,9 +410,9 @@ def bind_(
     *,
     ty: Any = None,
     name: str | None = None,
-    loc: _Loc = UnknownLoc(),
-    value_loc: _Loc = UnknownLoc(),
-    name_loc: _Loc = UnknownLoc(),
+    loc: _Loc = None,
+    value_loc: _Loc = None,
+    name_loc: _Loc = None,
     frame_value: bool = False,
 ) -> Any:
     """Apply the language variant's ordinary assignment policy.
@@ -434,16 +427,16 @@ def bind_(
         the binding type.
     name : str, optional
         Source target name. None (the default) requests no source-derived name.
-    loc : LocationEntry, Location, optional
-        Binding-target location for a newly constructed binding. UnknownLoc (the default)
+    loc : LocationEntry, Location or None, optional
+        Binding-target location for a newly constructed binding. None (the default)
         leaves it unspecified; this is separate from the RHS location.
-    value_loc : LocationEntry, Location, optional
+    value_loc : LocationEntry, Location or None, optional
         RHS source location, passed separately without first stamping the returned value.
-        UnknownLoc (the default) leaves explicit RHS attribution unspecified. The language variant
+        None (the default) leaves explicit RHS attribution unspecified. The language variant
         applies it only when binding/conversion requires value attribution; TIRx
         variable and metadata passthrough retain producer names and locs.
-    name_loc : LocationEntry, Location, optional
-        Location of the target identifier. UnknownLoc (the default) uses loc; it can differ
+    name_loc : LocationEntry, Location or None, optional
+        Location of the target identifier. None (the default) uses loc; it can differ
         from the emitted statement location.
     frame_value : bool, optional
         False by default. True names an already-entered with-target without constructing
@@ -484,8 +477,6 @@ def bind_(
         # Generated builder
         tid = X.bind_(X.launch_thread("threadIdx.x", 128), name="tid")
     """
-    if loc is None or value_loc is None or name_loc is None:
-        raise TypeError("Location arguments must not be None")
     raise NotImplementedError
 
 
@@ -494,8 +485,8 @@ def decl_mutable_cell_(
     *,
     ty: Any = None,
     name: str | None = None,
-    loc: _Loc = UnknownLoc(),
-    name_loc: _Loc = UnknownLoc(),
+    loc: _Loc = None,
+    name_loc: _Loc = None,
 ) -> Any:
     """Introduce explicitly declared mutable storage.
 
@@ -509,12 +500,12 @@ def decl_mutable_cell_(
         created storage handle.
     name : str, optional
         Source target name. None (the default) requests no source-derived name.
-    loc : LocationEntry, Location, optional
-        Location for the constructed result. UnknownLoc (the default) leaves explicit location
+    loc : LocationEntry, Location or None, optional
+        Location for the constructed result. None (the default) leaves explicit location
         unspecified; active source-call provenance is composed by the builder. Frames
         retain their location until finalization.
-    name_loc : LocationEntry, Location, optional
-        Location of the target identifier. UnknownLoc (the default) uses loc; it can differ
+    name_loc : LocationEntry, Location or None, optional
+        Location of the target identifier. None (the default) uses loc; it can differ
         from the emitted statement location.
 
     Returns
@@ -537,12 +528,10 @@ def decl_mutable_cell_(
         # Generated builder
         x = X.decl_mutable_cell_(1, ty=X.int32, name="x")
     """
-    if loc is None or name_loc is None:
-        raise TypeError("Location arguments must not be None")
     raise NotImplementedError
 
 
-def set_mutable_cell_(target: Any, value: Any, *, loc: _Loc = UnknownLoc()) -> AlreadyEmitted[Any]:
+def set_mutable_cell_(target: Any, value: Any, *, loc: _Loc = None) -> AlreadyEmitted[Any]:
     """Emit an update through an existing mutable handle without rebinding it.
 
     Parameters
@@ -553,8 +542,8 @@ def set_mutable_cell_(target: Any, value: Any, *, loc: _Loc = UnknownLoc()) -> A
     value : Expr or scalar convertible to Expr
         Once-evaluated value to store. Native store checking validates its type and
         indices against the target.
-    loc : LocationEntry, Location, optional
-        Location of the emitted store. UnknownLoc (the default) leaves explicit location
+    loc : LocationEntry, Location or None, optional
+        Location of the emitted store. None (the default) leaves explicit location
         unspecified; existing source-call provenance is retained.
 
     Returns
@@ -579,8 +568,6 @@ def set_mutable_cell_(target: Any, value: Any, *, loc: _Loc = UnknownLoc()) -> A
         x = X.decl_mutable_cell_(0, ty=X.int32, name="x")
         X.set_mutable_cell_(x, value)
     """
-    if loc is None:
-        raise TypeError("Location arguments must not be None")
     raise NotImplementedError
 
 
@@ -617,7 +604,7 @@ def unpack_(value: Any) -> Any:
     raise NotImplementedError
 
 
-def emit_(value: Any, *, loc: _Loc = UnknownLoc()) -> None:
+def emit_(value: Any, *, loc: _Loc = None) -> None:
     """Consume a source expression statement.
 
     Parameters
@@ -625,7 +612,7 @@ def emit_(value: Any, *, loc: _Loc = UnknownLoc()) -> None:
     value : Any
         Once-evaluated expression result. AlreadyEmitted receipts and None produce no
         additional emission.
-    loc : LocationEntry, Location, optional
+    loc : LocationEntry, Location or None, optional
         Location of the emitted statement and expression, or the existing node in an
         AlreadyEmitted receipt. UnknownLoc leaves explicit attribution unspecified. Active
         caller provenance is composed without adding a construction context; native
@@ -654,12 +641,10 @@ def emit_(value: Any, *, loc: _Loc = UnknownLoc()) -> None:
         # Generated builder
         X.emit_(X.evaluate(1), loc=_L[0])
     """
-    if loc is None:
-        raise TypeError("Location arguments must not be None")
     raise NotImplementedError
 
 
-def setitem_(target: Any, key: Any, value: Any, *, loc: _Loc = UnknownLoc()) -> AlreadyEmitted[Any]:
+def setitem_(target: Any, key: Any, value: Any, *, loc: _Loc = None) -> AlreadyEmitted[Any]:
     """Apply an indexed assignment using already-evaluated operands.
 
     Parameters
@@ -670,8 +655,8 @@ def setitem_(target: Any, key: Any, value: Any, *, loc: _Loc = UnknownLoc()) -> 
         Indices in written order; native buffer-store rules validate supported forms.
     value : Expr or scalar
         Once-evaluated stored value.
-    loc : LocationEntry, Location, optional
-        Location for the constructed result. UnknownLoc (the default) leaves explicit location
+    loc : LocationEntry, Location or None, optional
+        Location for the constructed result. None (the default) leaves explicit location
         unspecified; active source-call provenance is composed by the builder. Frames
         retain their location until finalization.
 
@@ -693,14 +678,10 @@ def setitem_(target: Any, key: Any, value: Any, *, loc: _Loc = UnknownLoc()) -> 
         # Generated builder
         X.setitem_(A, i, value)
     """
-    if loc is None:
-        raise TypeError("Location arguments must not be None")
     raise NotImplementedError
 
 
-def setattr_(
-    target: Any, name: str, value: Any, *, loc: _Loc = UnknownLoc()
-) -> AlreadyEmitted[Any] | None:
+def setattr_(target: Any, name: str, value: Any, *, loc: _Loc = None) -> AlreadyEmitted[Any] | None:
     """Apply an attribute assignment using already-evaluated operands.
 
     Parameters
@@ -712,8 +693,8 @@ def setattr_(
         Attribute identifier, evaluated by source syntax before this hook.
     value : Any
         Once-evaluated replacement or stored value.
-    loc : LocationEntry, Location, optional
-        Location for the constructed result. UnknownLoc (the default) leaves explicit location
+    loc : LocationEntry, Location or None, optional
+        Location for the constructed result. None (the default) leaves explicit location
         unspecified; active source-call provenance is composed by the builder. Frames
         retain their location until finalization.
 
@@ -737,8 +718,6 @@ def setattr_(
         # Generated builder
         X.setattr_(state, "count", value)
     """
-    if loc is None:
-        raise TypeError("Location arguments must not be None")
     raise NotImplementedError
 
 
@@ -757,7 +736,7 @@ def setattr_(
 # --------------------------------------
 
 
-def if_(condition: Any, *, loc: _Loc = UnknownLoc()) -> IRBuilderFrame:
+def if_(condition: Any, *, loc: _Loc = None) -> IRBuilderFrame:
     """Create the native conditional frame for a source if statement.
 
     Parameters
@@ -765,8 +744,8 @@ def if_(condition: Any, *, loc: _Loc = UnknownLoc()) -> IRBuilderFrame:
     condition : Expr or bool
         Already-evaluated predicate; both branch bodies construct IR without testing it
         in Python.
-    loc : LocationEntry, Location, optional
-        Location for the constructed result. UnknownLoc (the default) leaves explicit location
+    loc : LocationEntry, Location or None, optional
+        Location for the constructed result. None (the default) leaves explicit location
         unspecified; active source-call provenance is composed by the builder. Frames
         retain their location until finalization.
 
@@ -796,18 +775,16 @@ def if_(condition: Any, *, loc: _Loc = UnknownLoc()) -> IRBuilderFrame:
                     X.emit_(X.evaluate(1))
                 branch()
     """
-    if loc is None:
-        raise TypeError("Location arguments must not be None")
     raise NotImplementedError
 
 
-def then_(*, loc: _Loc = UnknownLoc()) -> IRBuilderFrame:
+def then_(*, loc: _Loc = None) -> IRBuilderFrame:
     """Create the true branch of the active conditional.
 
     Parameters
     ----------
-    loc : LocationEntry, Location, optional
-        Location for the constructed result. UnknownLoc (the default) leaves explicit location
+    loc : LocationEntry, Location or None, optional
+        Location for the constructed result. None (the default) leaves explicit location
         unspecified; active source-call provenance is composed by the builder. Frames
         retain their location until finalization.
 
@@ -836,18 +813,16 @@ def then_(*, loc: _Loc = UnknownLoc()) -> IRBuilderFrame:
                 pass
             branch()
     """
-    if loc is None:
-        raise TypeError("Location arguments must not be None")
     raise NotImplementedError
 
 
-def else_(*, loc: _Loc = UnknownLoc()) -> IRBuilderFrame:
+def else_(*, loc: _Loc = None) -> IRBuilderFrame:
     """Create the false branch of the active conditional.
 
     Parameters
     ----------
-    loc : LocationEntry, Location, optional
-        Location for the constructed result. UnknownLoc (the default) leaves explicit location
+    loc : LocationEntry, Location or None, optional
+        Location for the constructed result. None (the default) leaves explicit location
         unspecified; active source-call provenance is composed by the builder. Frames
         retain their location until finalization.
 
@@ -876,13 +851,11 @@ def else_(*, loc: _Loc = UnknownLoc()) -> IRBuilderFrame:
                 pass
             branch()
     """
-    if loc is None:
-        raise TypeError("Location arguments must not be None")
     raise NotImplementedError
 
 
 def for_(
-    iterable: Any, *, names: str | Sequence[str] | None = None, loc: _Loc = UnknownLoc()
+    iterable: Any, *, names: str | Sequence[str] | None = None, loc: _Loc = None
 ) -> IRBuilderFrame:
     """Configure and return the native iteration frame for a source for loop.
 
@@ -895,8 +868,8 @@ def for_(
         Source target names, including at most one ``*starred`` group. None (the default)
         retains constructor defaults. Native configuration expands/validates them before
         entry; names never control the entry return shape.
-    loc : LocationEntry, Location, optional
-        Location for the constructed result. UnknownLoc (the default) leaves explicit location
+    loc : LocationEntry, Location or None, optional
+        Location for the constructed result. None (the default) leaves explicit location
         unspecified; active source-call provenance is composed by the builder. Frames
         retain their location until finalization.
 
@@ -923,20 +896,18 @@ def for_(
         with X.for_(X.range_(n), names=("i",)) as i:
             X.emit_(X.evaluate(i))
     """
-    if loc is None:
-        raise TypeError("Location arguments must not be None")
     raise NotImplementedError
 
 
-def while_(condition: Any, *, loc: _Loc = UnknownLoc()) -> IRBuilderFrame:
+def while_(condition: Any, *, loc: _Loc = None) -> IRBuilderFrame:
     """Create a native while-loop frame.
 
     Parameters
     ----------
     condition : Expr or bool
         Loop predicate expression, constructed once and evaluated by the IR at runtime.
-    loc : LocationEntry, Location, optional
-        Location for the constructed result. UnknownLoc (the default) leaves explicit location
+    loc : LocationEntry, Location or None, optional
+        Location for the constructed result. None (the default) leaves explicit location
         unspecified; active source-call provenance is composed by the builder. Frames
         retain their location until finalization.
 
@@ -960,8 +931,6 @@ def while_(condition: Any, *, loc: _Loc = UnknownLoc()) -> IRBuilderFrame:
         with X.while_(condition):
             X.emit_(X.evaluate(1))
     """
-    if loc is None:
-        raise TypeError("Location arguments must not be None")
     raise NotImplementedError
 
 
@@ -998,13 +967,13 @@ def range_(*args: Any, annotations: dict[str, Any] | None = None) -> IRBuilderFr
     raise NotImplementedError
 
 
-def break_(*, loc: _Loc = UnknownLoc()) -> AlreadyEmitted[Any]:
+def break_(*, loc: _Loc = None) -> AlreadyEmitted[Any]:
     """Emit break for the enclosing language variant loop.
 
     Parameters
     ----------
-    loc : LocationEntry, Location, optional
-        Location for the constructed result. UnknownLoc (the default) leaves explicit location
+    loc : LocationEntry, Location or None, optional
+        Location for the constructed result. None (the default) leaves explicit location
         unspecified; active source-call provenance is composed by the builder. Frames
         retain their location until finalization.
 
@@ -1026,18 +995,16 @@ def break_(*, loc: _Loc = UnknownLoc()) -> AlreadyEmitted[Any]:
         # Generated builder
         X.break_()
     """
-    if loc is None:
-        raise TypeError("Location arguments must not be None")
     raise NotImplementedError
 
 
-def continue_(*, loc: _Loc = UnknownLoc()) -> AlreadyEmitted[Any]:
+def continue_(*, loc: _Loc = None) -> AlreadyEmitted[Any]:
     """Emit continue for the enclosing language variant loop.
 
     Parameters
     ----------
-    loc : LocationEntry, Location, optional
-        Location for the constructed result. UnknownLoc (the default) leaves explicit location
+    loc : LocationEntry, Location or None, optional
+        Location for the constructed result. None (the default) leaves explicit location
         unspecified; active source-call provenance is composed by the builder. Frames
         retain their location until finalization.
 
@@ -1059,12 +1026,10 @@ def continue_(*, loc: _Loc = UnknownLoc()) -> AlreadyEmitted[Any]:
         # Generated builder
         X.continue_()
     """
-    if loc is None:
-        raise TypeError("Location arguments must not be None")
     raise NotImplementedError
 
 
-def return_(value: Any = None, *, loc: _Loc = UnknownLoc()) -> AlreadyEmitted[Any] | None:
+def return_(value: Any = None, *, loc: _Loc = None) -> AlreadyEmitted[Any] | None:
     """Record a language variant function return while continuing Python construction.
 
     Parameters
@@ -1072,8 +1037,8 @@ def return_(value: Any = None, *, loc: _Loc = UnknownLoc()) -> AlreadyEmitted[An
     value : Any, optional
         Return operand. None (the default) means an empty tuple in Relax; TIRx requires
         an expression.
-    loc : LocationEntry, Location, optional
-        Location for the constructed result. UnknownLoc (the default) leaves explicit location
+    loc : LocationEntry, Location or None, optional
+        Location for the constructed result. None (the default) leaves explicit location
         unspecified; active source-call provenance is composed by the builder. Frames
         retain their location until finalization.
 
@@ -1097,8 +1062,6 @@ def return_(value: Any = None, *, loc: _Loc = UnknownLoc()) -> AlreadyEmitted[An
         # Generated builder
         X.return_(value)
     """
-    if loc is None:
-        raise TypeError("Location arguments must not be None")
     raise NotImplementedError
 
 
@@ -1106,7 +1069,7 @@ def assert_(
     condition: Any,
     message: str | tuple[str, Sequence[Any]] | Sequence[Any] = "",
     *,
-    loc: _Loc = UnknownLoc(),
+    loc: _Loc = None,
 ) -> None:
     """Emit a runtime assertion.
 
@@ -1117,8 +1080,8 @@ def assert_(
     message : str or assertion metadata, optional
         Empty text by default. Relax requires construction-time text. TIRx also accepts
         message parts or an (error_kind, parts) pair.
-    loc : LocationEntry, Location, optional
-        Location for the constructed result. UnknownLoc (the default) leaves explicit location
+    loc : LocationEntry, Location or None, optional
+        Location for the constructed result. None (the default) leaves explicit location
         unspecified; active source-call provenance is composed by the builder. Frames
         retain their location until finalization.
 
@@ -1140,8 +1103,6 @@ def assert_(
         # Generated builder
         X.assert_(condition, "failed")
     """
-    if loc is None:
-        raise TypeError("Location arguments must not be None")
     raise NotImplementedError
 
 
@@ -1275,7 +1236,7 @@ def not_(value: Any) -> Any:
     raise NotImplementedError
 
 
-def lt_(lhs: Any, rhs: Any, *, loc: _Loc = UnknownLoc()) -> _ir.Expr:
+def lt_(lhs: Any, rhs: Any, *, loc: _Loc = None) -> _ir.Expr:
     """Construct the < comparison in written operand order.
 
     Parameters
@@ -1284,8 +1245,8 @@ def lt_(lhs: Any, rhs: Any, *, loc: _Loc = UnknownLoc()) -> _ir.Expr:
         Already-evaluated left operand.
     rhs : Expr or scalar
         Already-evaluated right operand.
-    loc : LocationEntry, Location, optional
-        Location for the constructed result. UnknownLoc (the default) leaves explicit location
+    loc : LocationEntry, Location or None, optional
+        Location for the constructed result. None (the default) leaves explicit location
         unspecified; active source-call provenance is composed by the builder. Frames
         retain their location until finalization.
 
@@ -1308,12 +1269,10 @@ def lt_(lhs: Any, rhs: Any, *, loc: _Loc = UnknownLoc()) -> _ir.Expr:
         # Generated builder
         X.lt_(lhs, rhs)
     """
-    if loc is None:
-        raise TypeError("Location arguments must not be None")
     raise NotImplementedError
 
 
-def le_(lhs: Any, rhs: Any, *, loc: _Loc = UnknownLoc()) -> _ir.Expr:
+def le_(lhs: Any, rhs: Any, *, loc: _Loc = None) -> _ir.Expr:
     """Construct the <= comparison in written operand order.
 
     Parameters
@@ -1322,8 +1281,8 @@ def le_(lhs: Any, rhs: Any, *, loc: _Loc = UnknownLoc()) -> _ir.Expr:
         Already-evaluated left operand.
     rhs : Expr or scalar
         Already-evaluated right operand.
-    loc : LocationEntry, Location, optional
-        Location for the constructed result. UnknownLoc (the default) leaves explicit location
+    loc : LocationEntry, Location or None, optional
+        Location for the constructed result. None (the default) leaves explicit location
         unspecified; active source-call provenance is composed by the builder. Frames
         retain their location until finalization.
 
@@ -1346,12 +1305,10 @@ def le_(lhs: Any, rhs: Any, *, loc: _Loc = UnknownLoc()) -> _ir.Expr:
         # Generated builder
         X.le_(lhs, rhs)
     """
-    if loc is None:
-        raise TypeError("Location arguments must not be None")
     raise NotImplementedError
 
 
-def gt_(lhs: Any, rhs: Any, *, loc: _Loc = UnknownLoc()) -> _ir.Expr:
+def gt_(lhs: Any, rhs: Any, *, loc: _Loc = None) -> _ir.Expr:
     """Construct the > comparison in written operand order.
 
     Parameters
@@ -1360,8 +1317,8 @@ def gt_(lhs: Any, rhs: Any, *, loc: _Loc = UnknownLoc()) -> _ir.Expr:
         Already-evaluated left operand.
     rhs : Expr or scalar
         Already-evaluated right operand.
-    loc : LocationEntry, Location, optional
-        Location for the constructed result. UnknownLoc (the default) leaves explicit location
+    loc : LocationEntry, Location or None, optional
+        Location for the constructed result. None (the default) leaves explicit location
         unspecified; active source-call provenance is composed by the builder. Frames
         retain their location until finalization.
 
@@ -1384,12 +1341,10 @@ def gt_(lhs: Any, rhs: Any, *, loc: _Loc = UnknownLoc()) -> _ir.Expr:
         # Generated builder
         X.gt_(lhs, rhs)
     """
-    if loc is None:
-        raise TypeError("Location arguments must not be None")
     raise NotImplementedError
 
 
-def ge_(lhs: Any, rhs: Any, *, loc: _Loc = UnknownLoc()) -> _ir.Expr:
+def ge_(lhs: Any, rhs: Any, *, loc: _Loc = None) -> _ir.Expr:
     """Construct the >= comparison in written operand order.
 
     Parameters
@@ -1398,8 +1353,8 @@ def ge_(lhs: Any, rhs: Any, *, loc: _Loc = UnknownLoc()) -> _ir.Expr:
         Already-evaluated left operand.
     rhs : Expr or scalar
         Already-evaluated right operand.
-    loc : LocationEntry, Location, optional
-        Location for the constructed result. UnknownLoc (the default) leaves explicit location
+    loc : LocationEntry, Location or None, optional
+        Location for the constructed result. None (the default) leaves explicit location
         unspecified; active source-call provenance is composed by the builder. Frames
         retain their location until finalization.
 
@@ -1422,12 +1377,10 @@ def ge_(lhs: Any, rhs: Any, *, loc: _Loc = UnknownLoc()) -> _ir.Expr:
         # Generated builder
         X.ge_(lhs, rhs)
     """
-    if loc is None:
-        raise TypeError("Location arguments must not be None")
     raise NotImplementedError
 
 
-def eq_(lhs: Any, rhs: Any, *, loc: _Loc = UnknownLoc()) -> _ir.Expr:
+def eq_(lhs: Any, rhs: Any, *, loc: _Loc = None) -> _ir.Expr:
     """Construct the == comparison in written operand order.
 
     Parameters
@@ -1436,8 +1389,8 @@ def eq_(lhs: Any, rhs: Any, *, loc: _Loc = UnknownLoc()) -> _ir.Expr:
         Already-evaluated left operand.
     rhs : Expr or scalar
         Already-evaluated right operand.
-    loc : LocationEntry, Location, optional
-        Location for the constructed result. UnknownLoc (the default) leaves explicit location
+    loc : LocationEntry, Location or None, optional
+        Location for the constructed result. None (the default) leaves explicit location
         unspecified; active source-call provenance is composed by the builder. Frames
         retain their location until finalization.
 
@@ -1460,12 +1413,10 @@ def eq_(lhs: Any, rhs: Any, *, loc: _Loc = UnknownLoc()) -> _ir.Expr:
         # Generated builder
         X.eq_(lhs, rhs)
     """
-    if loc is None:
-        raise TypeError("Location arguments must not be None")
     raise NotImplementedError
 
 
-def ne_(lhs: Any, rhs: Any, *, loc: _Loc = UnknownLoc()) -> _ir.Expr:
+def ne_(lhs: Any, rhs: Any, *, loc: _Loc = None) -> _ir.Expr:
     """Construct the != comparison in written operand order.
 
     Parameters
@@ -1474,8 +1425,8 @@ def ne_(lhs: Any, rhs: Any, *, loc: _Loc = UnknownLoc()) -> _ir.Expr:
         Already-evaluated left operand.
     rhs : Expr or scalar
         Already-evaluated right operand.
-    loc : LocationEntry, Location, optional
-        Location for the constructed result. UnknownLoc (the default) leaves explicit location
+    loc : LocationEntry, Location or None, optional
+        Location for the constructed result. None (the default) leaves explicit location
         unspecified; active source-call provenance is composed by the builder. Frames
         retain their location until finalization.
 
@@ -1498,6 +1449,4 @@ def ne_(lhs: Any, rhs: Any, *, loc: _Loc = UnknownLoc()) -> _ir.Expr:
         # Generated builder
         X.ne_(lhs, rhs)
     """
-    if loc is None:
-        raise TypeError("Location arguments must not be None")
     raise NotImplementedError

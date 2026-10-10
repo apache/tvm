@@ -44,7 +44,7 @@ const Op& gpu_thread_return_op() {
   return op;
 }
 
-PrimExpr gpu_thread_return(Location loc) {
+PrimExpr gpu_thread_return(ffi::Optional<Location> loc) {
   return Call(PrimType::Void(), tirx::gpu_thread_return_op(), {}, {}, {}, loc)
       .as_or_throw<PrimExpr>();
 }

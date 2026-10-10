@@ -184,7 +184,8 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> FuncTypeMaybeInplaceMut
 }  // namespace
 
 // Shape
-ShapeType::ShapeType(ffi::Array<PrimExpr> values, Location loc) : Type(ffi::UnsafeInit{}) {
+ShapeType::ShapeType(ffi::Array<PrimExpr> values, ffi::Optional<Location> loc)
+    : Type(ffi::UnsafeInit{}) {
   ffi::ObjectPtr<ShapeTypeNode> n = ffi::make_object<ShapeTypeNode>();
   n->ndim = static_cast<int>(values.size());
   n->values = values.Map([](PrimExpr value) {
@@ -195,15 +196,15 @@ ShapeType::ShapeType(ffi::Array<PrimExpr> values, Location loc) : Type(ffi::Unsa
         << "the value in ShapeType can only have dtype of int64";
     return value;
   });
-  n->loc = loc;
+  n->loc = loc.value_or(Location());
   data_ = std::move(n);
 }
 
-ShapeType::ShapeType(int ndim, Location loc) : Type(ffi::UnsafeInit{}) {
+ShapeType::ShapeType(int ndim, ffi::Optional<Location> loc) : Type(ffi::UnsafeInit{}) {
   ffi::ObjectPtr<ShapeTypeNode> n = ffi::make_object<ShapeTypeNode>();
   TVM_FFI_ICHECK(ndim >= -1) << "ndim of ShapeType must be >= -1, but got " << ndim;
   n->ndim = ndim;
-  n->loc = loc;
+  n->loc = loc.value_or(Location());
   data_ = std::move(n);
 }
 
@@ -220,20 +221,20 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def(
-      "relax.ShapeType", [](ffi::Optional<ffi::Array<PrimExpr>> values, int ndim, Location loc) {
-        if (values.has_value()) {
-          TVM_FFI_CHECK_EQ(ndim, kUnknownNDim, ValueError) << "Cannot both specify values and ndim";
-          return ShapeType(values.value(), loc);
-        } else {
-          return ShapeType(ndim, loc);
-        }
-      });
+  refl::GlobalDef().def("relax.ShapeType", [](ffi::Optional<ffi::Array<PrimExpr>> values, int ndim,
+                                              ffi::Optional<Location> loc) {
+    if (values.has_value()) {
+      TVM_FFI_CHECK_EQ(ndim, kUnknownNDim, ValueError) << "Cannot both specify values and ndim";
+      return ShapeType(values.value(), loc);
+    } else {
+      return ShapeType(ndim, loc);
+    }
+  });
 }
 
 // Tensor
 TensorType::TensorType(Expr shape, ffi::Optional<PrimType> dtype, ffi::Optional<VDevice> vdevice,
-                       Location loc)
+                       ffi::Optional<Location> loc)
     : Type(ffi::UnsafeInit{}) {
   ffi::ObjectPtr<TensorTypeNode> n = ffi::make_object<TensorTypeNode>();
   // assign ndim before move
@@ -247,19 +248,19 @@ TensorType::TensorType(Expr shape, ffi::Optional<PrimType> dtype, ffi::Optional<
   n->shape = std::move(shape);
   n->dtype = dtype;
   n->vdevice = vdevice;
-  n->loc = loc;
+  n->loc = loc.value_or(Location());
   data_ = std::move(n);
 }
 
 TensorType::TensorType(ffi::Optional<PrimType> dtype, int ndim, ffi::Optional<VDevice> vdevice,
-                       Location loc)
+                       ffi::Optional<Location> loc)
     : Type(ffi::UnsafeInit{}) {
   ffi::ObjectPtr<TensorTypeNode> n = ffi::make_object<TensorTypeNode>();
   TVM_FFI_ICHECK(ndim >= -1) << "ndim of TensorType must be >= -1, but got " << ndim;
   n->ndim = ndim;
   n->dtype = dtype;
   n->vdevice = vdevice;
-  n->loc = loc;
+  n->loc = loc.value_or(Location());
   data_ = std::move(n);
 }
 
@@ -279,7 +280,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                                                  ffi::Optional<PrimExpr>>,
                                       PrimExpr>>
                   slice,
-              Location loc) -> ffi::ObjectRef {
+              ffi::Optional<Location> loc) -> ffi::ObjectRef {
              TVM_FFI_CHECK_EQ(slice.size(), 1, IndexError)
                  << "A Relax expression requires exactly one index";
              auto index = slice[0].as<PrimExpr>();
@@ -296,7 +297,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
       "relax.TensorType", [](ffi::Optional<Expr> shape, ffi::Optional<PrimType> dtype, int ndim,
-                             VDevice vdevice, Location loc) {
+                             VDevice vdevice, ffi::Optional<Location> loc) {
         if (shape.has_value()) {
           TVM_FFI_CHECK_EQ(ndim, kUnknownNDim, ValueError) << "Cannot both specify shape and ndim";
           return TensorType(shape.value(), dtype, vdevice, loc);
@@ -307,13 +308,13 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // Func
-FuncType::FuncType(ffi::Array<Type> params, Type ret, bool purity, Location loc)
+FuncType::FuncType(ffi::Array<Type> params, Type ret, bool purity, ffi::Optional<Location> loc)
     : Type(ffi::UnsafeInit{}) {
   ffi::ObjectPtr<FuncTypeNode> n = ffi::make_object<FuncTypeNode>();
   n->params = std::move(params);
   n->ret = std::move(ret);
   n->purity = std::move(purity);
-  n->loc = loc;
+  n->loc = loc.value_or(Location());
   data_ = std::move(n);
 }
 
@@ -327,26 +328,27 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&FuncTypeMaybeInplaceMutate>());
 
-  refl::GlobalDef().def("relax.FuncType",
-                        [](ffi::Array<Type> params, Type ret, bool purity, Location loc) {
-                          return FuncType(params, ret, purity, loc);
-                        });
+  refl::GlobalDef().def("relax.FuncType", [](ffi::Array<Type> params, Type ret, bool purity,
+                                             ffi::Optional<Location> loc) {
+    return FuncType(params, ret, purity, loc);
+  });
 }
 
-FuncType FuncType::OpaqueFunc(TypeDeriveFunc derive_func, bool purity, Location loc) {
+FuncType FuncType::OpaqueFunc(TypeDeriveFunc derive_func, bool purity,
+                              ffi::Optional<Location> loc) {
   ffi::ObjectPtr<FuncTypeNode> n = ffi::make_object<FuncTypeNode>();
   n->derive_func = std::move(derive_func);
   n->ret = AnyType();
   n->purity = std::move(purity);
-  n->loc = loc;
+  n->loc = loc.value_or(Location());
   return FuncType(n);
 }
 
-FuncType FuncType::OpaqueFunc(Type ret, bool purity, Location loc) {
+FuncType FuncType::OpaqueFunc(Type ret, bool purity, ffi::Optional<Location> loc) {
   ffi::ObjectPtr<FuncTypeNode> n = ffi::make_object<FuncTypeNode>();
   n->ret = std::move(ret);
   n->purity = std::move(purity);
-  n->loc = loc;
+  n->loc = loc.value_or(Location());
   return FuncType(n);
 }
 
@@ -354,7 +356,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.FuncTypeOpaqueFunc", [](ffi::Optional<Type> ret,
                                                        ffi::Optional<TypeDeriveFunc> derive_func,
-                                                       bool purity, Location loc) {
+                                                       bool purity, ffi::Optional<Location> loc) {
     if (derive_func.has_value()) {
       TVM_FFI_CHECK(!ret.has_value(), ValueError) << "Cannot specify both ret and derive_func";
       return FuncType::OpaqueFunc(derive_func.value(), purity, loc);

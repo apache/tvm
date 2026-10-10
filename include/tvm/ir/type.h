@@ -52,7 +52,7 @@ class AnyTypeNode : public TypeNode {
  */
 class AnyType : public Type {
  public:
-  TVM_DLL AnyType(Location loc = Location());
+  TVM_DLL AnyType(ffi::Optional<Location> loc = std::nullopt);
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(AnyType, Type, AnyTypeNode);
 };
@@ -168,7 +168,7 @@ class TupleType : public Type {
    * \param fields Fields in the tuple.
    * \param loc The loc of the type.
    */
-  TVM_DLL explicit TupleType(ffi::Array<Type> fields, Location loc = Location());
+  TVM_DLL explicit TupleType(ffi::Array<Type> fields, ffi::Optional<Location> loc = std::nullopt);
 
   /*!
    * \brief Create an empty tuple type that constains nothing.
@@ -230,7 +230,8 @@ class FuncType : public Type {
    * \param loc The loc information.
    * \sa FuncTypeNode for more docs about these fields.
    */
-  TVM_DLL FuncType(ffi::Array<Type> arg_types, Type ret_type, Location loc = Location());
+  TVM_DLL FuncType(ffi::Array<Type> arg_types, Type ret_type,
+                   ffi::Optional<Location> loc = std::nullopt);
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(FuncType, Type, FuncTypeNode);
 };

@@ -18,7 +18,6 @@
 """Relax unary arithmetic operators."""
 
 from tvm.ir import Call as _Call
-from tvm.ir.base import UnknownLoc
 
 from ..expr import Expr
 from ..utils import convert_to_expr
@@ -26,7 +25,7 @@ from ..utils import convert_to_expr
 ###################### Arithmetic operators ######################
 
 
-def abs(x: Expr, *, ty_args=None, ty=None, loc=UnknownLoc()) -> Expr:
+def abs(x: Expr, *, ty_args=None, ty=None, loc=None) -> Expr:
     """Compute element-wise absolute value of the input data.
 
     Parameters
@@ -42,7 +41,7 @@ def abs(x: Expr, *, ty_args=None, ty=None, loc=UnknownLoc()) -> Expr:
     return _Call("relax.abs", [x], ty_args=ty_args, ty=ty, loc=loc)  # type: ignore
 
 
-def acos(x: Expr, *, ty_args=None, ty=None, loc=UnknownLoc()) -> Expr:
+def acos(x: Expr, *, ty_args=None, ty=None, loc=None) -> Expr:
     """Compute element-wise arc cos of the input data.
 
     Parameters
@@ -62,7 +61,7 @@ def acos(x: Expr, *, ty_args=None, ty=None, loc=UnknownLoc()) -> Expr:
     return _Call("relax.acos", [x], ty_args=ty_args, ty=ty, loc=loc)  # type: ignore
 
 
-def acosh(x: Expr, *, ty_args=None, ty=None, loc=UnknownLoc()) -> Expr:
+def acosh(x: Expr, *, ty_args=None, ty=None, loc=None) -> Expr:
     """Compute element-wise arc cosh of the input data.
 
     Parameters
@@ -82,7 +81,7 @@ def acosh(x: Expr, *, ty_args=None, ty=None, loc=UnknownLoc()) -> Expr:
     return _Call("relax.acosh", [x], ty_args=ty_args, ty=ty, loc=loc)  # type: ignore
 
 
-def asin(x: Expr, *, ty_args=None, ty=None, loc=UnknownLoc()) -> Expr:
+def asin(x: Expr, *, ty_args=None, ty=None, loc=None) -> Expr:
     """Compute element-wise arc sin of the input data.
 
     Parameters
@@ -102,7 +101,7 @@ def asin(x: Expr, *, ty_args=None, ty=None, loc=UnknownLoc()) -> Expr:
     return _Call("relax.asin", [x], ty_args=ty_args, ty=ty, loc=loc)  # type: ignore
 
 
-def asinh(x: Expr, *, ty_args=None, ty=None, loc=UnknownLoc()) -> Expr:
+def asinh(x: Expr, *, ty_args=None, ty=None, loc=None) -> Expr:
     """Compute element-wise arc sinh of the input data.
 
     Parameters
@@ -122,7 +121,7 @@ def asinh(x: Expr, *, ty_args=None, ty=None, loc=UnknownLoc()) -> Expr:
     return _Call("relax.asinh", [x], ty_args=ty_args, ty=ty, loc=loc)  # type: ignore
 
 
-def atan(x: Expr, *, ty_args=None, ty=None, loc=UnknownLoc()) -> Expr:
+def atan(x: Expr, *, ty_args=None, ty=None, loc=None) -> Expr:
     """Compute element-wise arc tan of the input data.
 
     Parameters
@@ -142,7 +141,7 @@ def atan(x: Expr, *, ty_args=None, ty=None, loc=UnknownLoc()) -> Expr:
     return _Call("relax.atan", [x], ty_args=ty_args, ty=ty, loc=loc)  # type: ignore
 
 
-def atanh(x: Expr, *, ty_args=None, ty=None, loc=UnknownLoc()) -> Expr:
+def atanh(x: Expr, *, ty_args=None, ty=None, loc=None) -> Expr:
     """Compute element-wise arc tanh of the input data.
 
     Parameters
@@ -162,7 +161,7 @@ def atanh(x: Expr, *, ty_args=None, ty=None, loc=UnknownLoc()) -> Expr:
     return _Call("relax.atanh", [x], ty_args=ty_args, ty=ty, loc=loc)  # type: ignore
 
 
-def bitwise_not(x: Expr, *, ty_args=None, ty=None, loc=UnknownLoc()) -> Expr:
+def bitwise_not(x: Expr, *, ty_args=None, ty=None, loc=None) -> Expr:
     """Compute bitwise NOT of the input data.
 
     Parameters
@@ -178,7 +177,7 @@ def bitwise_not(x: Expr, *, ty_args=None, ty=None, loc=UnknownLoc()) -> Expr:
     return _Call("relax.bitwise_not", [x], ty_args=ty_args, ty=ty, loc=loc)  # type: ignore
 
 
-def ceil(x: Expr, *, ty_args=None, ty=None, loc=UnknownLoc()) -> Expr:
+def ceil(x: Expr, *, ty_args=None, ty=None, loc=None) -> Expr:
     """Take ceil of input data.
 
     Parameters
@@ -194,7 +193,7 @@ def ceil(x: Expr, *, ty_args=None, ty=None, loc=UnknownLoc()) -> Expr:
     return _Call("relax.ceil", [x], ty_args=ty_args, ty=ty, loc=loc)  # type: ignore
 
 
-def cos(x: Expr, *, ty_args=None, ty=None, loc=UnknownLoc()) -> Expr:
+def cos(x: Expr, *, ty_args=None, ty=None, loc=None) -> Expr:
     """Compute element-wise cos of the input data.
 
     Parameters
@@ -214,7 +213,7 @@ def cos(x: Expr, *, ty_args=None, ty=None, loc=UnknownLoc()) -> Expr:
     return _Call("relax.cos", [x], ty_args=ty_args, ty=ty, loc=loc)  # type: ignore
 
 
-def cosh(x: Expr, *, ty_args=None, ty=None, loc=UnknownLoc()) -> Expr:
+def cosh(x: Expr, *, ty_args=None, ty=None, loc=None) -> Expr:
     """Compute element-wise cosh of the input data.
 
     Parameters
@@ -234,7 +233,7 @@ def cosh(x: Expr, *, ty_args=None, ty=None, loc=UnknownLoc()) -> Expr:
     return _Call("relax.cosh", [x], ty_args=ty_args, ty=ty, loc=loc)  # type: ignore
 
 
-def exp(x: Expr, *, ty_args=None, ty=None, loc=UnknownLoc()) -> Expr:
+def exp(x: Expr, *, ty_args=None, ty=None, loc=None) -> Expr:
     """Compute element-wise exp of data.
 
     Parameters
@@ -254,7 +253,7 @@ def exp(x: Expr, *, ty_args=None, ty=None, loc=UnknownLoc()) -> Expr:
     return _Call("relax.exp", [x], ty_args=ty_args, ty=ty, loc=loc)  # type: ignore
 
 
-def floor(x: Expr, *, ty_args=None, ty=None, loc=UnknownLoc()) -> Expr:
+def floor(x: Expr, *, ty_args=None, ty=None, loc=None) -> Expr:
     """Take floor of input data.
 
     Parameters
@@ -270,7 +269,7 @@ def floor(x: Expr, *, ty_args=None, ty=None, loc=UnknownLoc()) -> Expr:
     return _Call("relax.floor", [x], ty_args=ty_args, ty=ty, loc=loc)  # type: ignore
 
 
-def log(x: Expr, *, ty_args=None, ty=None, loc=UnknownLoc()) -> Expr:
+def log(x: Expr, *, ty_args=None, ty=None, loc=None) -> Expr:
     """Compute element-wise natural logarithm of the input data.
 
     Parameters
@@ -290,7 +289,7 @@ def log(x: Expr, *, ty_args=None, ty=None, loc=UnknownLoc()) -> Expr:
     return _Call("relax.log", [x], ty_args=ty_args, ty=ty, loc=loc)  # type: ignore
 
 
-def logical_not(x: Expr, *, ty_args=None, ty=None, loc=UnknownLoc()) -> Expr:
+def logical_not(x: Expr, *, ty_args=None, ty=None, loc=None) -> Expr:
     """Compute logical NOT of the input data.
 
     Parameters
@@ -306,7 +305,7 @@ def logical_not(x: Expr, *, ty_args=None, ty=None, loc=UnknownLoc()) -> Expr:
     return _Call("relax.logical_not", [x], ty_args=ty_args, ty=ty, loc=loc)  # type: ignore
 
 
-def negative(x: Expr, *, ty_args=None, ty=None, loc=UnknownLoc()) -> Expr:
+def negative(x: Expr, *, ty_args=None, ty=None, loc=None) -> Expr:
     """Compute element-wise negative of the input data.
 
     Parameters
@@ -322,7 +321,7 @@ def negative(x: Expr, *, ty_args=None, ty=None, loc=UnknownLoc()) -> Expr:
     return _Call("relax.negative", [x], ty_args=ty_args, ty=ty, loc=loc)  # type: ignore
 
 
-def round(x: Expr, *, ty_args=None, ty=None, loc=UnknownLoc()) -> Expr:
+def round(x: Expr, *, ty_args=None, ty=None, loc=None) -> Expr:
     """Rounds each element of the input data to nearest integer.
 
     Parameters
@@ -338,7 +337,7 @@ def round(x: Expr, *, ty_args=None, ty=None, loc=UnknownLoc()) -> Expr:
     return _Call("relax.round", [x], ty_args=ty_args, ty=ty, loc=loc)  # type: ignore
 
 
-def rsqrt(x: Expr, *, ty_args=None, ty=None, loc=UnknownLoc()) -> Expr:
+def rsqrt(x: Expr, *, ty_args=None, ty=None, loc=None) -> Expr:
     """Compute element-wise reciprocal square root of the input data.
 
     .. math::
@@ -362,7 +361,7 @@ def rsqrt(x: Expr, *, ty_args=None, ty=None, loc=UnknownLoc()) -> Expr:
     return _Call("relax.rsqrt", [x], ty_args=ty_args, ty=ty, loc=loc)  # type: ignore
 
 
-def sigmoid(x: Expr, *, ty_args=None, ty=None, loc=UnknownLoc()) -> Expr:
+def sigmoid(x: Expr, *, ty_args=None, ty=None, loc=None) -> Expr:
     """Compute element-wise sigmoid of the input data.
 
     Parameters
@@ -382,7 +381,7 @@ def sigmoid(x: Expr, *, ty_args=None, ty=None, loc=UnknownLoc()) -> Expr:
     return _Call("relax.sigmoid", [x], ty_args=ty_args, ty=ty, loc=loc)  # type: ignore
 
 
-def sign(x: Expr, *, ty_args=None, ty=None, loc=UnknownLoc()) -> Expr:
+def sign(x: Expr, *, ty_args=None, ty=None, loc=None) -> Expr:
     """Returns an indication of the sign of a number for each element of the input data.
 
     Parameters
@@ -398,7 +397,7 @@ def sign(x: Expr, *, ty_args=None, ty=None, loc=UnknownLoc()) -> Expr:
     return _Call("relax.sign", [x], ty_args=ty_args, ty=ty, loc=loc)  # type: ignore
 
 
-def sin(x: Expr, *, ty_args=None, ty=None, loc=UnknownLoc()) -> Expr:
+def sin(x: Expr, *, ty_args=None, ty=None, loc=None) -> Expr:
     """Compute element-wise sin of the input data.
 
     Parameters
@@ -418,7 +417,7 @@ def sin(x: Expr, *, ty_args=None, ty=None, loc=UnknownLoc()) -> Expr:
     return _Call("relax.sin", [x], ty_args=ty_args, ty=ty, loc=loc)  # type: ignore
 
 
-def sinh(x: Expr, *, ty_args=None, ty=None, loc=UnknownLoc()) -> Expr:
+def sinh(x: Expr, *, ty_args=None, ty=None, loc=None) -> Expr:
     """Compute element-wise sinh of the input data.
 
     Parameters
@@ -438,7 +437,7 @@ def sinh(x: Expr, *, ty_args=None, ty=None, loc=UnknownLoc()) -> Expr:
     return _Call("relax.sinh", [x], ty_args=ty_args, ty=ty, loc=loc)  # type: ignore
 
 
-def square(x: Expr, *, ty_args=None, ty=None, loc=UnknownLoc()) -> Expr:
+def square(x: Expr, *, ty_args=None, ty=None, loc=None) -> Expr:
     """Squares each element of the input data.
 
     Parameters
@@ -454,7 +453,7 @@ def square(x: Expr, *, ty_args=None, ty=None, loc=UnknownLoc()) -> Expr:
     return _Call("relax.square", [x], ty_args=ty_args, ty=ty, loc=loc)  # type: ignore
 
 
-def sqrt(x: Expr, *, ty_args=None, ty=None, loc=UnknownLoc()) -> Expr:
+def sqrt(x: Expr, *, ty_args=None, ty=None, loc=None) -> Expr:
     """Compute element-wise square root of the input data.
 
     Parameters
@@ -474,7 +473,7 @@ def sqrt(x: Expr, *, ty_args=None, ty=None, loc=UnknownLoc()) -> Expr:
     return _Call("relax.sqrt", [x], ty_args=ty_args, ty=ty, loc=loc)  # type: ignore
 
 
-def tan(x: Expr, *, ty_args=None, ty=None, loc=UnknownLoc()) -> Expr:
+def tan(x: Expr, *, ty_args=None, ty=None, loc=None) -> Expr:
     """Compute element-wise tan of the input data.
 
     Parameters
@@ -494,7 +493,7 @@ def tan(x: Expr, *, ty_args=None, ty=None, loc=UnknownLoc()) -> Expr:
     return _Call("relax.tan", [x], ty_args=ty_args, ty=ty, loc=loc)  # type: ignore
 
 
-def tanh(x: Expr, *, ty_args=None, ty=None, loc=UnknownLoc()) -> Expr:
+def tanh(x: Expr, *, ty_args=None, ty=None, loc=None) -> Expr:
     """Compute element-wise tanh of the input data.
 
     Parameters
@@ -514,7 +513,7 @@ def tanh(x: Expr, *, ty_args=None, ty=None, loc=UnknownLoc()) -> Expr:
     return _Call("relax.tanh", [x], ty_args=ty_args, ty=ty, loc=loc)  # type: ignore
 
 
-def trunc(x: Expr, *, ty_args=None, ty=None, loc=UnknownLoc()) -> Expr:
+def trunc(x: Expr, *, ty_args=None, ty=None, loc=None) -> Expr:
     """Take trunc of input data.
     Parameters
     ----------
@@ -528,7 +527,7 @@ def trunc(x: Expr, *, ty_args=None, ty=None, loc=UnknownLoc()) -> Expr:
     return _Call("relax.trunc", [x], ty_args=ty_args, ty=ty, loc=loc)  # type: ignore
 
 
-def clip(x: Expr, min: Expr, max: Expr, *, ty=None, loc=UnknownLoc()) -> Expr:
+def clip(x: Expr, min: Expr, max: Expr, *, ty=None, loc=None) -> Expr:
     """Clips tensor values to a specified min and max.
 
     Parameters
@@ -552,7 +551,7 @@ def clip(x: Expr, min: Expr, max: Expr, *, ty=None, loc=UnknownLoc()) -> Expr:
     return _Call("relax.clip", [x, min, max], ty=ty, loc=loc)  # type: ignore
 
 
-def erf(x: Expr, *, ty_args=None, ty=None, loc=UnknownLoc()) -> Expr:
+def erf(x: Expr, *, ty_args=None, ty=None, loc=None) -> Expr:
     """Computes the error function of the input.
 
     Parameters
@@ -571,7 +570,7 @@ def erf(x: Expr, *, ty_args=None, ty=None, loc=UnknownLoc()) -> Expr:
 ###################### Check operators ######################
 
 
-def isfinite(x: Expr, *, ty_args=None, ty=None, loc=UnknownLoc()) -> Expr:
+def isfinite(x: Expr, *, ty_args=None, ty=None, loc=None) -> Expr:
     """Check if input value is finite.
 
     Parameters
@@ -587,7 +586,7 @@ def isfinite(x: Expr, *, ty_args=None, ty=None, loc=UnknownLoc()) -> Expr:
     return _Call("relax.isfinite", [x], ty_args=ty_args, ty=ty, loc=loc)  # type: ignore
 
 
-def isinf(x: Expr, *, ty_args=None, ty=None, loc=UnknownLoc()) -> Expr:
+def isinf(x: Expr, *, ty_args=None, ty=None, loc=None) -> Expr:
     """Check if input value is infinite.
 
     Parameters
@@ -603,7 +602,7 @@ def isinf(x: Expr, *, ty_args=None, ty=None, loc=UnknownLoc()) -> Expr:
     return _Call("relax.isinf", [x], ty_args=ty_args, ty=ty, loc=loc)  # type: ignore
 
 
-def isnan(x: Expr, *, ty_args=None, ty=None, loc=UnknownLoc()) -> Expr:
+def isnan(x: Expr, *, ty_args=None, ty=None, loc=None) -> Expr:
     """Check if input value is Nan.
 
     Parameters

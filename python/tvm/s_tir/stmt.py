@@ -21,7 +21,6 @@ from collections.abc import Mapping, Sequence
 import tvm_ffi
 
 from tvm.ir import Expr, Location, Scriptable, SeqStmt, Stmt, TensorRegion, Var, const
-from tvm.ir.base import UnknownLoc
 from tvm.runtime import Object
 from tvm.s_tir import IterVar
 
@@ -85,7 +84,7 @@ class SBlock(Stmt):
     annotations: Optional[Mapping[str, Object]]
         Additional annotation hints.
 
-    loc : Location
+    loc : Location or None, optional
         The location of this block in the source code.
     """
 
@@ -111,7 +110,7 @@ class SBlock(Stmt):
         alloc_buffers: list[Var] | None = None,
         match_buffers: list[MatchBufferRegion] | None = None,
         annotations: Mapping[str, Object] | None = None,
-        loc: Location = UnknownLoc(),
+        loc: Location | None = None,
     ) -> None:
         if alloc_buffers is None:
             alloc_buffers = []
@@ -149,7 +148,7 @@ class SBlockRealize(Stmt):
     block : SBlock
         The block to realize
 
-    loc : Location
+    loc : Location or None, optional
         The location of this block_realize in the source code.
     """
 
@@ -163,7 +162,7 @@ class SBlockRealize(Stmt):
         iter_values: list[Expr],
         predicate: Expr | bool,
         block: SBlock,
-        loc: Location = UnknownLoc(),
+        loc: Location | None = None,
     ) -> None:
         if isinstance(predicate, bool):
             predicate = const(predicate, "bool")

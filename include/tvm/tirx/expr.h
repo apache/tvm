@@ -50,7 +50,8 @@ namespace tirx {
 class TensorVar : public Var {
  public:
   /*! \brief Construct a fresh buffer variable from an explicit TensorType. */
-  TVM_DLL explicit TensorVar(ffi::String name, TensorType type, Location loc = Location());
+  TVM_DLL explicit TensorVar(ffi::String name, TensorType type,
+                             ffi::Optional<Location> loc = std::nullopt);
 
   /*! \brief Create a checked buffer view over an existing ordinary Var. */
   explicit TensorVar(Var var) : Var(std::move(var)) {
@@ -140,7 +141,7 @@ inline TensorVar RebuildTensorVar(const TensorVar& var, ffi::ObjectPtr<TensorTyp
  */
 TVM_DLL TensorVar decl_tensor(ffi::Array<PrimExpr> shape, PrimType dtype = PrimType::Float(32),
                               ffi::String name = "buffer", ffi::String storage_scope = "",
-                              Location loc = Location());
+                              ffi::Optional<Location> loc = std::nullopt);
 
 /*!
  * \brief Creates a TIR buffer for the provided parameters.
@@ -166,11 +167,11 @@ TVM_DLL tirx::TensorVar TensorWithOffsetAlignment(ffi::Array<PrimExpr> shape, Pr
  * TensorLoad is required to have a TensorVar source.
  */
 TVM_DLL TensorLoad MakeTensorLoad(TensorVar buffer, ffi::Array<PrimExpr> indices,
-                                  Location loc = Location());
+                                  ffi::Optional<Location> loc = std::nullopt);
 
 /*! \brief Construct a region with buffer rank validation and TensorRegionType. */
 TVM_DLL TensorRegion BufferRegion(TensorVar buffer, ffi::Array<Range> region,
-                                  Location loc = Location());
+                                  ffi::Optional<Location> loc = std::nullopt);
 /*! \brief Select the entire buffer. */
 TVM_DLL TensorRegion FullBufferRegion(TensorVar buffer);
 /*! \brief Construct unit or vector-lane ranges from point indices. */

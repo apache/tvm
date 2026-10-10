@@ -19,7 +19,6 @@
 import tvm_ffi
 
 from tvm.ir import Type
-from tvm.ir.base import UnknownLoc
 
 from . import _ffi_api
 
@@ -34,7 +33,7 @@ class TensorMapType(Type):
         The loc information.
     """
 
-    def __init__(self, loc=UnknownLoc()):
+    def __init__(self, loc=None):
         self.__init_handle_by_constructor__(
             _ffi_api.TensorMapType,
             loc,  # pylint: disable=no-member

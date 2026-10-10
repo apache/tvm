@@ -19,6 +19,7 @@
 from __future__ import annotations
 
 import inspect
+import linecache
 
 import pytest
 
@@ -435,7 +436,14 @@ def test_symbolic_equality_reaches_typed_consumer_once_in_order(primitive_langua
     assert seen == [0, 1]
     assert len(comparisons) == 1
     assert comparisons[0].a.same_as(values[0]) and comparisons[0].b.same_as(values[1])
-    assert comparisons[0].loc is not None
+    loc = comparisons[0].loc
+    assert isinstance(loc, ir.SourceLoc)
+    assert loc.source_name.name == __file__
+    assert loc.start_line == loc.end_line
+    assert (
+        linecache.getline(__file__, loc.start_line)[loc.start_column - 1 : loc.end_column - 1]
+        == "operand(0) == operand(1)"
+    )
 
 
 def test_python_comparisons_remain_python_booleans(primitive_language):

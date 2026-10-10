@@ -17,7 +17,6 @@
 
 from tvm.ir import Call, DataTypeImm, GenericConst, StringImm
 from tvm.ir import Call as _Call
-from tvm.ir.base import UnknownLoc
 
 from ...expr import Expr, Tuple, prim_value
 from ...utils import convert_to_expr
@@ -30,7 +29,7 @@ def alloc_storage(
     storage_scope: str | StringImm = "global",
     *,
     ty=None,
-    loc=UnknownLoc(),
+    loc=None,
 ) -> Call:
     """Construct a Call to allocate a storage with specific size,
     runtime_device_index, and dtype.
@@ -78,7 +77,7 @@ def alloc_tensor(
     runtime_device_ind: int | Expr = prim_value(0),
     *,
     ty=None,
-    loc=UnknownLoc(),
+    loc=None,
 ) -> Call:
     """Construct a Call to allocate a tensor on a certain storage starting from the given offset.
 
@@ -120,7 +119,7 @@ def alloc_tensor(
     )  # type: ignore
 
 
-def kill_object(obj: Expr, *, ty=None, loc=UnknownLoc()) -> Call:
+def kill_object(obj: Expr, *, ty=None, loc=None) -> Call:
     """Construct a Call to set the register corresponding to the input object to
     null at runtime, in order to kill the input object.
 
@@ -137,7 +136,7 @@ def kill_object(obj: Expr, *, ty=None, loc=UnknownLoc()) -> Call:
     return _Call("relax.vm.kill_object", [obj], ty=ty, loc=loc)  # type: ignore
 
 
-def call_tir_dyn(func: Expr, args: Tuple, *, ty=None, loc=UnknownLoc()) -> Call:
+def call_tir_dyn(func: Expr, args: Tuple, *, ty=None, loc=None) -> Call:
     """Construct a Call to call_tir_dyn (invoke the given TIR Function)
     consisting of the input tensors and the shape of the result.
 

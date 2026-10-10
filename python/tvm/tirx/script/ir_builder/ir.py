@@ -26,7 +26,6 @@ from typing import TYPE_CHECKING, Any, TypeVar
 
 import tvm
 from tvm import ir as _ir
-from tvm.ir.base import UnknownLoc
 from tvm.script.ir_builder.base import annotation_constructor as _annotation_constructor
 from tvm.script.ir_builder.base import at as _at
 
@@ -222,7 +221,7 @@ def _tensor_type(
     offset_factor: int = 0,
     layout: str | Layout | None = MISSING,
     *,
-    loc=UnknownLoc(),
+    loc=None,
 ) -> tir.TensorType:
     """Construct a tensor type for annotations and explicit type-valued fields.
 
@@ -1405,7 +1404,7 @@ else:
         return _install_meta_class(cls)
 
 
-def Ptr(dtype, storage_scope="global", *, loc=UnknownLoc()):
+def Ptr(dtype, storage_scope="global", *, loc=None):
     """The pointer declaration function.
 
     Parameters
@@ -1416,7 +1415,7 @@ def Ptr(dtype, storage_scope="global", *, loc=UnknownLoc()):
     storage_scope : str
         The storage scope of the pointer.
 
-    loc : LocationEntry, Location, optional
+    loc : LocationEntry, Location or None, optional
         Source location attached to the constructed IR.
 
     Returns

@@ -21,7 +21,6 @@ import tvm_ffi
 from tvm.ir import Attrs
 from tvm.ir import Call as _Call
 from tvm.ir.attrs import make_node as _make_attrs
-from tvm.ir.base import UnknownLoc
 
 from ..expr import Expr
 
@@ -38,7 +37,7 @@ def multinomial_from_uniform(
     dtype: str = "int64",
     *,
     ty=None,
-    loc=UnknownLoc(),
+    loc=None,
 ) -> Expr:
     """Returns a tensor where each row contains the index sampled from the multinomial
     probability distribution located in the corresponding row of tensor prob.

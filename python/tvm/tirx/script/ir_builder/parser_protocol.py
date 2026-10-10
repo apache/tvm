@@ -36,7 +36,6 @@ from tvm import ir as _ir
 from tvm import tirx as _tir
 from tvm.ir import StringImm as _StringImm
 from tvm.ir import is_prim_expr
-from tvm.ir.base import UnknownLoc
 from tvm.script.ir_builder import base as _base
 from tvm.script.ir_builder.base import AlreadyEmitted
 from tvm.script.ir_builder.base import IRBuilder as _IRBuilder
@@ -104,7 +103,7 @@ from .op import ne_ as ne_
 from .op import not_ as not_
 from .op import or_ as or_
 
-_Loc = _base.LocationEntry | _ir.Location
+_Loc = _base.LocationEntry | _ir.Location | None
 
 # --------------------------------------
 # Function
@@ -143,15 +142,13 @@ def function_(
     private: bool = False,
     persistent: bool = False,
     decl: bool = False,
-    loc: _Loc = UnknownLoc(),
+    loc: _Loc = None,
 ) -> frame.FunctionFrame:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.function_`.
 
     Private/persistent options pass to the native TIRx function frame.
     The same frame supports declaration and body entry.
     """
-    if loc is None:
-        raise TypeError("Location arguments must not be None")
     native = (
         _ffi_api.DeclFunction(private, persistent)
         if decl
@@ -160,10 +157,8 @@ def function_(
     return _base.at_(loc, native)
 
 
-def arg_(name: str, annotation: Any, *, loc: _Loc = UnknownLoc()) -> _ir.Var:
+def arg_(name: str, annotation: Any, *, loc: _Loc = None) -> _ir.Var:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.arg_`."""
-    if loc is None:
-        raise TypeError("Location arguments must not be None")
     if getattr(annotation, "__tvm_optional_annotation__", None) is not None:
         raise TypeError("T.Optional is only supported by @T.jit")
     if callable(annotation) and not isinstance(annotation, _ir.Expr):
@@ -178,10 +173,8 @@ def func_name_(name: str) -> None:
     return _ffi_api.FuncName(name)
 
 
-def func_ret_type_(annotation: Any, *, loc: _Loc = UnknownLoc()) -> None:
+def func_ret_type_(annotation: Any, *, loc: _Loc = None) -> None:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.func_ret_type_`."""
-    if loc is None:
-        raise TypeError("Location arguments must not be None")
     annotation = _base._return_annotation(annotation)
     if callable(annotation) and not isinstance(annotation, _ir.Expr | _ir.Type):
         annotation = annotation()
@@ -238,8 +231,6 @@ def call_global_var_(function: _ir.GlobalVar, args: Sequence[Any]) -> _ir.Expr:
 
 
 def _name(value: Any, name: str | None, loc: _Loc) -> Any:
-    if loc is None:
-        raise TypeError("Location arguments must not be None")
     if name is not None:
         _IRBuilder.name(name, value)
     return _base.at_(loc, value)
@@ -250,9 +241,9 @@ def bind_(
     *,
     ty: Any = None,
     name: str | None = None,
-    loc: _Loc = UnknownLoc(),
-    value_loc: _Loc = UnknownLoc(),
-    name_loc: _Loc = UnknownLoc(),
+    loc: _Loc = None,
+    value_loc: _Loc = None,
+    name_loc: _Loc = None,
     frame_value: bool = False,
 ) -> Any:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.bind_`.
@@ -261,9 +252,7 @@ def bind_(
     Other expressions create native Bind nodes; value_loc belongs to the RHS.
     Explicit typed bindings and frame targets retain their separate contracts.
     """
-    if loc is None or value_loc is None or name_loc is None:
-        raise TypeError("Location arguments must not be None")
-    name_loc = loc if isinstance(name_loc, UnknownLoc) else name_loc
+    name_loc = loc if name_loc is None else name_loc
     if frame_value:
         if isinstance(value, _python.list | _python.tuple | _ir.Array):
             for index, item in enumerate(value):
@@ -301,7 +290,7 @@ def bind_(
     if isinstance(value, _base.AlreadyEmitted):
         return _base.at_(value_loc, value)
     if isinstance(value, _base.IRBuilderFrame):
-        frame_loc = value_loc if not isinstance(value_loc, UnknownLoc) else loc
+        frame_loc = value_loc if value_loc is not None else loc
         return _name(_enter_concise(_base.at_(frame_loc, value)), name, name_loc)
     # a = existing_var and a = producer() share the same runtime value rule.
     # A Var already owns its declaration, including a newly constructed buffer view.
@@ -320,17 +309,15 @@ def decl_mutable_cell_(
     *,
     ty: Any = None,
     name: str | None = None,
-    loc: _Loc = UnknownLoc(),
-    name_loc: _Loc = UnknownLoc(),
+    loc: _Loc = None,
+    name_loc: _Loc = None,
 ) -> Any:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.decl_mutable_cell_`.
 
     Primitive annotations allocate scalar local storage; vector annotations
     allocate their declared shape. Var declaration producers retain their own effects.
     """
-    if loc is None or name_loc is None:
-        raise TypeError("Location arguments must not be None")
-    name_loc = loc if isinstance(name_loc, UnknownLoc) else name_loc
+    name_loc = loc if name_loc is None else name_loc
     if isinstance(ty, _native.LocalVectorAnnotation):
         if value is not _base.MISSING:
             raise ValueError("Vector annotation does not support an initializer")
@@ -359,14 +346,12 @@ def decl_mutable_cell_(
 
 
 def set_mutable_cell_(
-    target: _ir.TensorLoad | _ir.Var, value: Any, *, loc: _Loc = UnknownLoc()
+    target: _ir.TensorLoad | _ir.Var, value: Any, *, loc: _Loc = None
 ) -> _base.AlreadyEmitted[tvm.ir.Stmt]:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.set_mutable_cell_`.
 
     Updates emit a scalar buffer store. Targets must denote scalar storage.
     """
-    if loc is None:
-        raise TypeError("Location arguments must not be None")
     if isinstance(target, _ir.TensorLoad):
         return _base.at_(loc, tensor_store(target.source, list(target.indices), value))
     elif (
@@ -380,7 +365,7 @@ def set_mutable_cell_(
         raise TypeError("A mutable assignment requires scalar storage")
 
 
-def emit_(value: Any, *, loc: _Loc = UnknownLoc()) -> None:
+def emit_(value: Any, *, loc: _Loc = None) -> None:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.emit_`.
 
     Native statements emit once; receipts are already emitted. Vars, layouts
@@ -388,8 +373,6 @@ def emit_(value: Any, *, loc: _Loc = UnknownLoc()) -> None:
     elementwise; concise frames close with their owning parent. Other values use
     native expression conversion, retaining its errors for unsupported host values.
     """
-    if loc is None:
-        raise TypeError("Location arguments must not be None")
     if isinstance(value, _base.AlreadyEmitted):
         _base.at_(loc, value)
         return None
@@ -419,20 +402,16 @@ def emit_(value: Any, *, loc: _Loc = UnknownLoc()) -> None:
 
 
 def setitem_(
-    target: Any, key: Any, value: Any, *, loc: _Loc = UnknownLoc()
+    target: Any, key: Any, value: Any, *, loc: _Loc = None
 ) -> _base.AlreadyEmitted[tvm.ir.Stmt]:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.setitem_`."""
-    if loc is None:
-        raise TypeError("Location arguments must not be None")
     return _base.at_(loc, tensor_store(target, key, value))
 
 
 def setattr_(
-    target: Any, name: str, value: Any, *, loc: _Loc = UnknownLoc()
+    target: Any, name: str, value: Any, *, loc: _Loc = None
 ) -> _base.AlreadyEmitted[tvm.ir.Stmt] | None:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.setattr_`."""
-    if loc is None:
-        raise TypeError("Location arguments must not be None")
     previous = getattr(target, name, _base.MISSING)
     buffer = previous.source if isinstance(previous, _ir.TensorLoad) else previous
     if _tir.is_tensor_var(buffer):
@@ -501,15 +480,13 @@ def tensor_store(
 
 
 def for_(
-    iterable: Any, *, names: str | Sequence[str] | None = None, loc: _Loc = UnknownLoc()
+    iterable: Any, *, names: str | Sequence[str] | None = None, loc: _Loc = None
 ) -> frame.ForFrame:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.for_`.
 
     A single native loop returns its scalar Var; multiple loops return their
     sequence. frame.vars remains the stable sequence for source unpacking.
     """
-    if loc is None:
-        raise TypeError("Location arguments must not be None")
     if isinstance(iterable, _python.range):
         iterable = serial(iterable.start, iterable.stop, step=iterable.step)
     if not isinstance(iterable, frame.ForFrame):

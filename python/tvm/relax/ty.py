@@ -20,7 +20,6 @@
 import tvm_ffi
 
 from tvm.ir import Location, Type
-from tvm.ir.base import UnknownLoc
 
 from . import _ffi_api
 
@@ -29,5 +28,5 @@ from . import _ffi_api
 class PackedFuncType(Type):
     """The type of ExternFunc in Relax."""
 
-    def __init__(self, loc: Location = UnknownLoc()) -> None:
+    def __init__(self, loc: Location | None = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.PackedFuncType, loc)  # type: ignore

@@ -19,7 +19,6 @@
 # pylint: disable=redefined-builtin,unused-argument
 import tvm
 from tvm import DataTypeCode, te
-from tvm.ir.base import UnknownLoc
 
 from . import cpp, tag
 
@@ -652,7 +651,7 @@ def clip(x, a_min, a_max):
     return te.compute(x.shape, _compute)
 
 
-def cast(x, dtype, loc=UnknownLoc()):
+def cast(x, dtype, loc=None):
     """Cast input to specified data type.
 
     Parameters
@@ -663,7 +662,7 @@ def cast(x, dtype, loc=UnknownLoc()):
     dtype : str
         Data type.
 
-    loc : Location
+    loc : Location or None, optional
         The location of the cast in the source.
 
     Returns

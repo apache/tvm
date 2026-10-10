@@ -19,7 +19,6 @@
 
 from tvm import ir as _ir
 from tvm import tirx as _tir
-from tvm.ir.base import UnknownLoc
 from tvm.script.ir_builder import base as _base
 from tvm.tirx.script.ir_builder.parser_protocol import arg_ as _shared_arg
 from tvm.tirx.script.ir_builder.parser_protocol import bind_ as _shared_bind
@@ -39,10 +38,8 @@ def function(is_private=False, persistent=False, *, private=None):
     return _ffi_api.Function(is_private if private is None else private, persistent)
 
 
-def function_(*, private=False, persistent=False, decl=False, loc=UnknownLoc()):
+def function_(*, private=False, persistent=False, decl=False, loc=None):
     """Enter an S-TIR declaration or definition frame."""
-    if loc is None:
-        raise TypeError("Location arguments must not be None")
     native = (
         _ffi_api.DeclFunction(private, persistent)
         if decl
@@ -51,14 +48,12 @@ def function_(*, private=False, persistent=False, decl=False, loc=UnknownLoc()):
     return _base.at_(loc, native)
 
 
-def arg_(name, annotation, *, loc=UnknownLoc()):
+def arg_(name, annotation, *, loc=None):
     """Preserve parameter annotations, including explicitly constructed layouts.
 
     Tensor annotations are evaluated inside the function frame, which already
     supplies the S-TIR default layout when the constructor omits it.
     """
-    if loc is None:
-        raise TypeError("Location arguments must not be None")
     return _shared_arg(name, annotation, loc=loc)
 
 

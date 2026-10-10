@@ -245,7 +245,7 @@ from .ir import _value, lookup_vdevice
 py_print = builtins.print
 py_tuple = tuple
 py_str = str
-_Loc = _base.LocationEntry | _ir.Location
+_Loc = _base.LocationEntry | _ir.Location | None
 
 
 def to_vdevice(
@@ -253,7 +253,7 @@ def to_vdevice(
     dst_vdevice: py_str | VDevice = None,
     *,
     ty=None,
-    loc=UnknownLoc(),
+    loc=None,
 ) -> Expr:
     """Copy data to the destination device.
 
@@ -362,7 +362,7 @@ def _logical_pair(lhs, rhs, operation, primitive, python_operation):
     return operation(_value(lhs), _value(rhs))
 
 
-def logical_and(*values, ty_args=None, ty=None, loc=UnknownLoc()):
+def logical_and(*values, ty_args=None, ty=None, loc=None):
     """Construct conjunction of host, primitive, or tensor values.
 
     Parameters
@@ -392,7 +392,7 @@ def logical_and(*values, ty_args=None, ty=None, loc=UnknownLoc()):
     return result
 
 
-def logical_or(*values, ty_args=None, ty=None, loc=UnknownLoc()):
+def logical_or(*values, ty_args=None, ty=None, loc=None):
     """Construct disjunction of host, primitive, or tensor values.
 
     Parameters
@@ -422,7 +422,7 @@ def logical_or(*values, ty_args=None, ty=None, loc=UnknownLoc()):
     return result
 
 
-def logical_not(value, *, ty_args=None, ty=None, loc=UnknownLoc()):
+def logical_not(value, *, ty_args=None, ty=None, loc=None):
     """Negate a host, primitive, or tensor condition.
 
     Parameters
@@ -511,7 +511,7 @@ def not_(value: Any) -> Any:
     return logical_not(value)
 
 
-def lt_(lhs: Any, rhs: Any, *, loc: _Loc = UnknownLoc()) -> _ir.Expr:
+def lt_(lhs: Any, rhs: Any, *, loc: _Loc = None) -> _ir.Expr:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.lt_`."""
     if any(isinstance(value, _ir.Expr) and not _ir.is_prim_expr(value) for value in (lhs, rhs)):
         lhs = _relax.const(lhs) if isinstance(lhs, _numbers.Number) else lhs
@@ -520,7 +520,7 @@ def lt_(lhs: Any, rhs: Any, *, loc: _Loc = UnknownLoc()) -> _ir.Expr:
     return _prim_ffi._OpLT(lhs, rhs, loc.loc if isinstance(loc, _base.LocationEntry) else loc)
 
 
-def le_(lhs: Any, rhs: Any, *, loc: _Loc = UnknownLoc()) -> _ir.Expr:
+def le_(lhs: Any, rhs: Any, *, loc: _Loc = None) -> _ir.Expr:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.le_`."""
     if any(isinstance(value, _ir.Expr) and not _ir.is_prim_expr(value) for value in (lhs, rhs)):
         lhs = _relax.const(lhs) if isinstance(lhs, _numbers.Number) else lhs
@@ -529,7 +529,7 @@ def le_(lhs: Any, rhs: Any, *, loc: _Loc = UnknownLoc()) -> _ir.Expr:
     return _prim_ffi._OpLE(lhs, rhs, loc.loc if isinstance(loc, _base.LocationEntry) else loc)
 
 
-def gt_(lhs: Any, rhs: Any, *, loc: _Loc = UnknownLoc()) -> _ir.Expr:
+def gt_(lhs: Any, rhs: Any, *, loc: _Loc = None) -> _ir.Expr:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.gt_`."""
     if any(isinstance(value, _ir.Expr) and not _ir.is_prim_expr(value) for value in (lhs, rhs)):
         lhs = _relax.const(lhs) if isinstance(lhs, _numbers.Number) else lhs
@@ -538,7 +538,7 @@ def gt_(lhs: Any, rhs: Any, *, loc: _Loc = UnknownLoc()) -> _ir.Expr:
     return _prim_ffi._OpGT(lhs, rhs, loc.loc if isinstance(loc, _base.LocationEntry) else loc)
 
 
-def ge_(lhs: Any, rhs: Any, *, loc: _Loc = UnknownLoc()) -> _ir.Expr:
+def ge_(lhs: Any, rhs: Any, *, loc: _Loc = None) -> _ir.Expr:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.ge_`."""
     if any(isinstance(value, _ir.Expr) and not _ir.is_prim_expr(value) for value in (lhs, rhs)):
         lhs = _relax.const(lhs) if isinstance(lhs, _numbers.Number) else lhs
@@ -547,7 +547,7 @@ def ge_(lhs: Any, rhs: Any, *, loc: _Loc = UnknownLoc()) -> _ir.Expr:
     return _prim_ffi._OpGE(lhs, rhs, loc.loc if isinstance(loc, _base.LocationEntry) else loc)
 
 
-def eq_(lhs: Any, rhs: Any, *, loc: _Loc = UnknownLoc()) -> _ir.Expr:
+def eq_(lhs: Any, rhs: Any, *, loc: _Loc = None) -> _ir.Expr:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.eq_`."""
     if any(isinstance(value, _ir.Expr) and not _ir.is_prim_expr(value) for value in (lhs, rhs)):
         lhs = _relax.const(lhs) if isinstance(lhs, _numbers.Number) else lhs
@@ -556,7 +556,7 @@ def eq_(lhs: Any, rhs: Any, *, loc: _Loc = UnknownLoc()) -> _ir.Expr:
     return _prim_ffi._OpEQ(lhs, rhs, loc.loc if isinstance(loc, _base.LocationEntry) else loc)
 
 
-def ne_(lhs: Any, rhs: Any, *, loc: _Loc = UnknownLoc()) -> _ir.Expr:
+def ne_(lhs: Any, rhs: Any, *, loc: _Loc = None) -> _ir.Expr:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.ne_`."""
     if any(isinstance(value, _ir.Expr) and not _ir.is_prim_expr(value) for value in (lhs, rhs)):
         lhs = _relax.const(lhs) if isinstance(lhs, _numbers.Number) else lhs
