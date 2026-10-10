@@ -160,7 +160,7 @@ class TensorType(Type):
             The shape of the local view for indexing.  Without ``layout=``,
             its product must equal the per-thread physical storage span.
             With an explicit layout, the shape is not constrained by the raw
-            loc.  If omitted, a matching 1D shape is computed automatically.
+            span.  If omitted, a matching 1D shape is computed automatically.
 
         layout : optional
             Override layout. If None, the default (identity) layout is used.
