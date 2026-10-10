@@ -93,7 +93,9 @@ ffi::Optional<ExprDoc> TensorRegionDocTranslate(DocTranslatorObj* d, ffi::AnyVie
         break;
       }
       ExprDoc start = d->Translate(range->min).value();
-      bool point = ffi::StructuralEqual()(range->extent, IntImm(range->min.ty(), 1));
+      const auto* extent = range->extent.as<IntImmNode>();
+      bool point =
+          extent && extent->value == 1 && ffi::StructuralEqual()(extent->ty, range->min.ty());
       if (point && (has_slice || i + 1 < region->region.size())) {
         slices.push_back(start);
         indices.push_back(range->min);

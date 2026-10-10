@@ -310,3 +310,13 @@ def test_relax_tir_call_preserves_primitive_tuple_types(op, dtype, value):
     source, restored = _roundtrip_expr(call, {"Module": SimpleNamespace(f=callee)})
     assert "I.Tuple(" not in source
     restored.validate()
+
+
+def test_region_floating_bounds_use_explicit_fallback():
+    region = ir.TensorRegion(
+        ir.Var("source", "handle"),
+        [ir.Range.from_min_extent(tirx.FloatImm("float32", 0), tirx.FloatImm("float32", 1))],
+        ty=ir.TensorRegionType(),
+    )
+    source, _ = _roundtrip_expr(region)
+    assert "I.TensorRegion(" in source
