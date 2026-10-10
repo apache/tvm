@@ -133,6 +133,17 @@ def RemoveNoOp():
     return _ffi_api.RemoveNoOp()  # type: ignore
 
 
+def HoistIf():
+    """Hoist loop-invariant If statements outside eligible loops.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass.
+    """
+    return _ffi_api.HoistIf()
+
+
 def RemoveAssume():
     """Remove all instances of prim::assume_op
 
