@@ -40,10 +40,10 @@ namespace relax {
 std::vector<size_t> GetUsedTensorArgIndices(const tirx::Function& fn, size_t num_args) {
   std::vector<size_t> indices;
   for (size_t i = 0; i < num_args; ++i) {
-    if (auto buffer = fn->params[i].as<tirx::TensorVar>()) {
-      auto buffer_var = buffer.value().var();
+    if (auto tensor = fn->params[i].as<tirx::TensorVar>()) {
+      auto tensor_var = tensor.value().var();
       auto walkfn = [=](const tvm::Var& var) -> ffi::Expected<ffi::WalkResult> {
-        return var.get() == buffer_var.get() ? ffi::WalkResult::Interrupt(ffi::VisitInterrupt(var))
+        return var.get() == tensor_var.get() ? ffi::WalkResult::Interrupt(ffi::VisitInterrupt(var))
                                              : ffi::WalkResult::Advance();
       };
       if (ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(fn->body, walkfn).has_value()) {
@@ -98,7 +98,7 @@ class DataflowReshapeRewriter : public ExprMutator {
     // The number of inputs to call_tir(reshape, (...)) might not be one, since FuseOps
     // can generate a fused TupleGetItem + reshape function whose input is a tuple. FuseTIR
     // then flattens the tuple input so that the fused TIR reshape function ends up having
-    // multiple input buffers. But only one of them should be accessed and reshaped.
+    // multiple input tensors. But only one of them should be accessed and reshaped.
     if (used_tensor_arg_indices.size() != 1) {
       return ffi::GetRef<Call>(call);
     }

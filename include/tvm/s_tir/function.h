@@ -29,8 +29,8 @@ namespace attr {
  */
 constexpr const char* kIsScheduled = "tirx.is_scheduled";
 
-/*! \brief Mark the buffers which is const access and can be transformed layout. */
-constexpr const char* kLayoutFreeBuffers = "layout_free_buffers";
+/*! \brief Mark the tensors which is const access and can be transformed layout. */
+constexpr const char* kLayoutFreeTensors = "layout_free_tensors";
 /*!
  * \brief Marks the layout transforms to be used for a tensor.
  *

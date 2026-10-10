@@ -26,7 +26,7 @@ from tvm.script import tirx as T
 from tvm.topi.math import cast
 
 
-def test_matmul_t_buffer():
+def test_matmul_t_tensor():
     """Shared allocations should be merged, preserving DeclTensor if present
 
     This test uses a matmul Function adapted from
@@ -34,7 +34,7 @@ def test_matmul_t_buffer():
     DeclTensor) for the replaced allocations.
     """
     transform = tvm.s_tir.transform.MergeSharedMemoryAllocations()
-    buffer_func = T.Tensor
+    tensor_func = T.Tensor
 
     @I.ir_module
     class Before:
@@ -127,7 +127,7 @@ def test_matmul_t_buffer():
 
     After = transform(Before)
     script = After["main"].script()
-    # Verify merged allocation: one shared.dyn buffer of 1024 bytes (256*2 float16 + 256 float32)
+    # Verify merged allocation: one shared.dyn tensor of 1024 bytes (256*2 float16 + 256 float32)
     assert "alloc_tensor((1024,)" in script
     assert '"uint8"' in script
     assert '"shared.dyn"' in script
@@ -137,7 +137,7 @@ def test_matmul_t_buffer():
     assert "+ 256" in script
 
 
-def test_matmul_decl_buffer():
+def test_matmul_decl_tensor():
     """Shared allocations should be merged, preserving DeclTensor if present
 
     This test uses a matmul Function adapted from
@@ -145,7 +145,7 @@ def test_matmul_decl_buffer():
     for the replaced allocations.
     """
     transform = tvm.s_tir.transform.MergeSharedMemoryAllocations()
-    buffer_func = T.decl_tensor
+    tensor_func = T.decl_tensor
 
     @I.ir_module
     class Before:
@@ -194,7 +194,7 @@ def test_matmul_decl_buffer():
 
     After = transform(Before)
     script = After["main"].script()
-    # Verify merged allocation: one shared.dyn buffer of 1024 bytes
+    # Verify merged allocation: one shared.dyn tensor of 1024 bytes
     assert "alloc_tensor((1024,)" in script
     assert '"uint8"' in script
     assert '"shared.dyn"' in script
@@ -290,7 +290,7 @@ def test_async_copy():
     )
 
 
-def test_decl_buffer_alias_extends_allocation_lifetime():
+def test_decl_tensor_alias_extends_allocation_lifetime():
     """Access through a typed view keeps its source allocation live."""
     transform = tvm.s_tir.transform.MergeSharedMemoryAllocations()
 
@@ -315,11 +315,11 @@ def test_decl_buffer_alias_extends_allocation_lifetime():
 
 
 def test_multi_thread_extent_blocks():
-    """Each launch_thread block must get its own merged buffer.
+    """Each launch_thread block must get its own merged tensor.
 
     Reproduces the scoping bug from PR #19605: a single Function
     with two sibling launch_thread regions, each containing its
-    own shared.dyn allocations. The merged buffer must be allocated
+    own shared.dyn allocations. The merged tensor must be allocated
     inside each kernel body — not just the first.
     """
     transform = tvm.s_tir.transform.MergeSharedMemoryAllocations()
@@ -342,7 +342,7 @@ def test_multi_thread_extent_blocks():
                 B_sh[tx0] = A_sh[tx0]
                 X_flat[tx0] = B_sh[tx0]
 
-            # Second kernel launch — must NOT see kernel #0's merged buffer.
+            # Second kernel launch — must NOT see kernel #0's merged tensor.
             with T.launch_thread("threadIdx.x", 128) as tx1:
                 C_sh = T.alloc_tensor((128,), "float32", scope="shared.dyn")
                 D_sh = T.alloc_tensor((128,), "float32", scope="shared.dyn")
@@ -354,7 +354,7 @@ def test_multi_thread_extent_blocks():
     script = After["main"].script()
 
     # Two merged allocations — one per launch_thread body.
-    # Each of the four original 128-float32 buffers (A_sh, B_sh, C_sh, D_sh)
+    # Each of the four original 128-float32 tensors (A_sh, B_sh, C_sh, D_sh)
     # gets merged within its own kernel scope.
     assert script.count("shared.dyn") >= 2, (
         "Expected at least two shared.dyn allocations (one per kernel)"
@@ -363,13 +363,13 @@ def test_multi_thread_extent_blocks():
         "Expected at least two alloc_tensor nodes (one merged buf per kernel)"
     )
 
-    # Both launch_thread blocks must contain their own merged buffer —
+    # Both launch_thread blocks must contain their own merged tensor —
     # they must NOT share the same buf_dyn_shmem variable.
     # Structurally verify that the first kernel's body accesses are
     # not rewritten to the second kernel's buf_dyn_shmem (and vice versa).
     first_block, second_block = script.split('with T.launch_thread("threadIdx.x", 128) as tx1:')
-    assert "buf_dyn_shmem" in first_block, "Kernel 1 must have a merged buffer"
-    assert "buf_dyn_shmem" in second_block, "Kernel 2 must have a merged buffer"
+    assert "buf_dyn_shmem" in first_block, "Kernel 1 must have a merged tensor"
+    assert "buf_dyn_shmem" in second_block, "Kernel 2 must have a merged tensor"
 
     # End-to-end: post-merge IR must remain well-formed through
     # the host/device split — this is the exact ordering from

@@ -27,25 +27,25 @@ using namespace tvm::prim;
 using namespace tvm::tirx;
 
 /*!
- * \brief Calculate the strides of the buffer
- * \param buffer The buffer
+ * \brief Calculate the strides of the tensor
+ * \param tensor The tensor
  * \return The strides
  */
-ffi::Array<PrimExpr> GetStrides(const TensorVar& buffer) {
-  if (!buffer->strides.empty()) {
-    TVM_FFI_ICHECK_EQ(buffer->strides.size(), buffer->shape.size());
-    return buffer->strides;
+ffi::Array<PrimExpr> GetStrides(const TensorVar& tensor) {
+  if (!tensor->strides.empty()) {
+    TVM_FFI_ICHECK_EQ(tensor->strides.size(), tensor->shape.size());
+    return tensor->strides;
   }
-  int ndim = buffer->shape.size();
+  int ndim = tensor->shape.size();
   if (ndim == 0) {
     return {};
   }
   std::vector<PrimExpr> strides;
   strides.reserve(ndim);
-  PrimExpr stride = IntImm(PrimType(buffer->DefaultIndexType()), 1);
+  PrimExpr stride = IntImm(PrimType(tensor->DefaultIndexType()), 1);
   for (int i = ndim - 1; i >= 0; --i) {
     strides.push_back(stride);
-    stride = stride * buffer->shape[i];
+    stride = stride * tensor->shape[i];
   }
   return ffi::Array<PrimExpr>(strides.rbegin(), strides.rend());
 }
@@ -133,11 +133,11 @@ class SplitExprCollector {
   std::vector<SplitExpr> exprs_;
 };
 
-ffi::Optional<IndexMap> SuggestIndexMap(const TensorVar& buffer,
+ffi::Optional<IndexMap> SuggestIndexMap(const TensorVar& tensor,
                                         const ffi::Array<PrimExpr>& indices,
                                         const ffi::Array<For>& loops, const PrimExpr& predicate,
                                         sym::AnalyzerObj* analyzer) {
-  int ndim = buffer->shape.size();
+  int ndim = tensor->shape.size();
   int n_loops = loops.size();
   // Step 1. Collect the domains and indices of loop variables
   ffi::Map<PrimVar, Range> input_iters;
@@ -149,7 +149,7 @@ ffi::Optional<IndexMap> SuggestIndexMap(const TensorVar& buffer,
     var2id.emplace(loop->loop_var.get(), i);
   }
   // Step 2. Calculate a functor that flattens a multi-dimensional index
-  auto f_flatten_index = [ndim, strides = GetStrides(buffer), dtype = buffer->DefaultIndexType()](
+  auto f_flatten_index = [ndim, strides = GetStrides(tensor), dtype = tensor->DefaultIndexType()](
                              const ffi::Array<PrimExpr>& indices) -> PrimExpr {
     PrimExpr flatten_index = IntImm(PrimType(dtype), 0);
     for (int i = 0; i < ndim; ++i) {
@@ -185,7 +185,7 @@ ffi::Optional<IndexMap> SuggestIndexMap(const TensorVar& buffer,
   auto f_alter_layout = [f_flatten_index = std::move(f_flatten_index),  //
                          &split_exprs,                                  //
                          &order,                                        //
-                             & shape = buffer->shape,                   //
+                             & shape = tensor->shape,                   //
                          analyzer                                       //
   ](ffi::Array<Var> indices) -> ffi::Array<PrimExpr> {
     TVM_FFI_ICHECK_EQ(indices.size(), shape.size());
@@ -215,7 +215,7 @@ ffi::Optional<IndexMap> SuggestIndexMap(const TensorVar& buffer,
     return results;
   };
   // Step 6: Create the inverse index mapping.
-  auto f_inverse = [&inverse_order, &split_exprs, &shape = buffer->shape,
+  auto f_inverse = [&inverse_order, &split_exprs, &shape = tensor->shape,
                     analyzer](ffi::Array<Var> indices) -> ffi::Array<PrimExpr> {
     TVM_FFI_ICHECK_EQ(indices.size(), split_exprs.size());
     // Step 6.1: Reorder the indices according to `inverse_order`. This is the inverse of Step 5.3.
@@ -253,10 +253,10 @@ ffi::Optional<IndexMap> SuggestIndexMap(const TensorVar& buffer,
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("s_tir.schedule.SuggestIndexMap",
-                        [](TensorVar buffer, ffi::Array<PrimExpr> indices, ffi::Array<For> loops,
+                        [](TensorVar tensor, ffi::Array<PrimExpr> indices, ffi::Array<For> loops,
                            PrimExpr predicate) {
                           sym::Analyzer analyzer;
-                          return SuggestIndexMap(buffer, indices, loops, predicate, analyzer.get());
+                          return SuggestIndexMap(tensor, indices, loops, predicate, analyzer.get());
                         });
 }
 

@@ -557,7 +557,7 @@ def test_unaligned_region_offset_must_clamp_vec_len():
     fp16) means the per-thread base offset starts at 3 elements = 6 bytes,
     which is not 16/8/4-byte aligned — vec_len must drop to 1."""
     shape = (4, 16)
-    g_layout = TileLayout(S[(4, 32)])  # full buffer is 4x32 fp16
+    g_layout = TileLayout(S[(4, 32)])  # full tensor is 4x32 fp16
     s_layout = TileLayout(S[(4, 16)])
     # Take cols [3, 19) — start offset 3 (odd for any vec_len > 1 in fp16).
     g_region = [(0, 4), (3, 19)]

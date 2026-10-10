@@ -50,7 +50,7 @@ def test_rewrite_Select():
         @Ts.function
         def main(i: T.int32):
             A = T.alloc_tensor((100,))
-            # Inline y and z to avoid Let bindings - outer Select condition is safe (no buffer access)
+            # Inline y and z to avoid Let bindings - outer Select condition is safe (no tensor access)
             T.evaluate(
                 T.Select(
                     T.floordiv(i, 4) > 10,

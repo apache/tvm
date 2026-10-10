@@ -269,7 +269,7 @@ def sparse_reshape(
         [new_sparse_indices_shape, new_shape_shape],
         [sparse_indices, prev_shape, new_shape],
         lambda ins, outs: gen_ir(ins[0], ins[1], ins[2], outs[0], outs[1]),
-        out_buffers=[new_sparse_indices_buf, new_shape_buf],
+        out_tensors=[new_sparse_indices_buf, new_shape_buf],
         name="sparse_reshape_cpu",
         tag="sparse_reshape_cpu",
     )

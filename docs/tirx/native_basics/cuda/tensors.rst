@@ -15,7 +15,7 @@
     specific language governing permissions and limitations
     under the License.
 
-Buffers and memory
+Tensors and memory
 ==================
 
 ``Tx.Tensor`` constructs a ``tirx.TensorType`` for a tensor parameter. Its
@@ -25,7 +25,7 @@ Scratch tensors are created in the body with the APIs below. Index a tensor with
 ``A[i, j]``, slice it with ``A[m0:m0+BM, 0:BK]`` (a ``TensorRegion``), and take a
 pointer with ``A.ptr_to([i, j])`` or the raw data pointer ``A.data``.
 
-Declaring buffers
+Declaring tensors
 -----------------
 
 The following APIs create a tensor variable:
@@ -100,14 +100,14 @@ The ``scope`` argument selects the memory space:
         acc = Tx.alloc_local((4,), "float32")  # per-thread accumulator
         view = Tx.decl_tensor((BM, BK), "float16", data=As.data)  # a view over As
 
-**A ptr-based buffer is just metadata over a pointer.** For any non-tmem buffer,
+**A ptr-based tensor is just metadata over a pointer.** For any non-tmem tensor,
 the declaration is a pointer plus a layout, and indexing resolves to an address::
 
-    addr(buffer[coord]) = buffer.data + elem_offset + layout.apply(coord, shape=shape)["m"]
+    addr(tensor[coord]) = tensor.data + elem_offset + layout.apply(coord, shape=shape)["m"]
 
 (``layout.apply`` returns the per-axis mapping; its ``"m"`` component is the
 element offset.) So the *same* logical access compiles to different address
-arithmetic depending purely on the buffer's metadata. Writing
+arithmetic depending purely on the tensor's metadata. Writing
 ``B[i, j] = A[i, j] + 1`` over a 4×8 region, with ``B`` annotated four ways in
 the function signature:
 
@@ -139,7 +139,7 @@ Shared memory comes in two flavors — **static** (fixed at compile time) and
 Static
 ~~~~~~
 
-The simplest shared buffer is a **static** one — ``Tx.alloc_shared`` (that is,
+The simplest shared tensor is a **static** one — ``Tx.alloc_shared`` (that is,
 ``scope="shared"``), sized at compile time. Stage data into it, ``cta_sync`` so the
 whole block sees the writes, then read it back:
 
@@ -175,7 +175,7 @@ Dynamic
 **Dynamic** shared memory (``scope="shared.dyn"``) is sized per launch (the
 ``sharedMemBytes`` launch parameter), not at compile time. A kernel may have **only
 one** dynamic-shared allocation — the *arena*. So you allocate it once and ``decl``
-each buffer as a view into it: ``Tx.decl_tensor`` with ``data=`` the arena pointer
+each tensor as a view into it: ``Tx.decl_tensor`` with ``data=`` the arena pointer
 and an ``elem_offset``:
 
 .. code-block:: python
@@ -218,7 +218,7 @@ Pool sugar
 
 ``Tx.SMEMPool`` automates that arena bookkeeping — it bump-allocates the offsets so
 you don't ``decl`` views by hand. Beyond ``alloc`` / ``commit``, it offers
-per-buffer ``align=``, an ``alloc_tcgen05_mma_AB`` helper that builds an MMA-compatible
+per-tensor ``align=``, an ``alloc_tcgen05_mma_AB`` helper that builds an MMA-compatible
 swizzle layout for you, and ``move_base_to`` to rewind the cursor and reuse space:
 
 .. code-block:: python
@@ -255,7 +255,7 @@ local array that nvcc/ptxas can promote to registers when its accesses permit.
 
 .. note::
 
-   The ``alignas(64)`` is the *default* buffer alignment — a buffer's
+   The ``alignas(64)`` is the *default* tensor alignment — a tensor's
    ``data_alignment`` defaults to ``runtime::kAllocAlignment`` (64 bytes), and the
    CUDA codegen stamps it onto every allocation, including per-thread ``local``
    arrays. Statically indexed locals are typically promoted to registers by
@@ -266,20 +266,20 @@ local array that nvcc/ptxas can promote to registers when its accesses permit.
 Scalar
 ~~~~~~
 
-A mutable scalar is represented by a ``local`` buffer with **one element** —
-strictly, you don't need a separate concept. You can allocate the buffer and
+A mutable scalar is represented by a ``local`` tensor with **one element** —
+strictly, you don't need a separate concept. You can allocate the tensor and
 index ``[0]``:
 
 .. code-block:: python
 
-    phase = Tx.alloc_local((1,), "int32")   # one-element local buffer
+    phase = Tx.alloc_local((1,), "int32")   # one-element local tensor
     phase[0] = 0
     while phase[0] < 4:
         acc = acc + A[tx, phase[0]]
         phase[0] += 1
 
 But writing ``phase[0]`` everywhere is clumsy, so a **scalar** is sugar for exactly
-this — a one-element local buffer you read and write **by name**:
+this — a one-element local tensor you read and write **by name**:
 
 .. code-block:: python
 
@@ -293,7 +293,7 @@ this — a one-element local buffer you read and write **by name**:
 
 The two are not just similar — they parse to **structurally identical TIRx**. The
 sugar is resolved entirely in the parser: ``phase: Tx.int32`` *is* that one-element
-``local`` buffer, and ``phase`` / ``phase += 1`` *are* ``phase[0]`` /
+``local`` tensor, and ``phase`` / ``phase += 1`` *are* ``phase[0]`` /
 ``phase[0] += 1``. ``tvm.ir.assert_structural_equal`` on the two kernels passes, and
 the printer even renders the explicit ``alloc_local`` + ``[0]`` form **back** as the
 scalar form — so once parsing is done there is no difference at all. Both therefore
@@ -306,20 +306,20 @@ the scope explicitly.)
    **Why not a** ``Var``\ **?** A TIRx ``Var`` is *immutable* — a single static
    binding (it is exactly what ``Tx.let`` produces, below). A scalar needs to be
    *mutable* — you reassign it in loops and accumulators — so it must be backed by a
-   one-element buffer you can store into repeatedly, not a ``Var``.
+   one-element tensor you can store into repeatedly, not a ``Var``.
 
 ``let``
 ~~~~~~~
 
 A ``Tx.let`` binding is **immutable** — a single TIRx ``Bind`` statement (a named
-value, not a buffer). Use it for derived constants:
+value, not a tensor). Use it for derived constants:
 
 .. code-block:: python
 
     n: Tx.let = M * K               # immutable Bind
     half: Tx.let[Tx.int32] = N // 2  # ... with an explicit type
 
-It lowers to a **plain scalar C variable** — not a buffer (no array, no ``[0]``).
+It lowers to a **plain scalar C variable** — not a tensor (no array, no ``[0]``).
 For ``half: Tx.let = m * 2`` (with a runtime ``m``):
 
 .. code-block:: c++
@@ -340,7 +340,7 @@ common-subexpression temporary) rather than a reference to ``half``.
    alignment/vectorization decisions. A *mutable* scalar is a memory load
    (``buf[0]``): the analyzer cannot assume it stays constant, so none of those
    properties carry through. A ``let`` is also a pure value — no allocation, and
-   free to inline / substitute / CSE — whereas a scalar is a one-element buffer with
+   free to inline / substitute / CSE — whereas a scalar is a one-element tensor with
    load/store semantics.
 
 Tensor memory
@@ -395,7 +395,7 @@ helpers when the MMA datapath determines the layout:
     tmem_addr = pool.alloc((1,), "uint32")          # pool = the kernel's smem pool
     tmem_pool = Tx.TMEMPool(pool, total_cols=512, cta_group=cta_group,
                            tmem_addr=tmem_addr)
-    # Choose the layout required by the instruction that consumes the buffer:
+    # Choose the layout required by the instruction that consumes the tensor:
     acc = tmem_pool.alloc((CTA_M, 512), "float32")  # Layout D when CTA_M=128
     # Layout B: PTX M=128, cta_group=2, 64 logical rows in this CTA.
     # acc = tmem_pool.alloc_tcgen05_mma_D(
@@ -410,7 +410,7 @@ Tensor variable APIs
 --------------------
 
 A tensor variable is an ``ir.Var`` carrying ``tirx.TensorType`` metadata
-(see *Declaring buffers* above), so most of
+(see *Declaring tensors* above), so most of
 its methods are *compile-time* reshapes/reinterprets that change index arithmetic
 or hand you a pointer — they emit no runtime op of their own.
 
@@ -446,7 +446,7 @@ The common methods and properties:
    * - ``B.view(*shape, layout=…)``
      - reinterpret the same storage under a new shape/layout (no copy)
    * - ``B.local(*shape, layout=…)``
-     - the calling thread's private storage slice of a ``local`` buffer,
+     - the calling thread's private storage slice of a ``local`` tensor,
        in physical storage order by default
    * - ``B.permute(*dims)``
      - a view with axes permuted (a transposed layout)
@@ -465,8 +465,8 @@ to an intrinsic or inline function; ``data`` is the base pointer:
 
     B_ptr[tx] = ld(&A_ptr[tx]);          // ptr_to([tx]) -> &A_ptr[tx];  A.data -> A_ptr
 
-The pointer returned by ``ptr_to`` has the buffer's element type and storage
-scope. This remains true when the buffer is a typed view over a byte-addressed
+The pointer returned by ``ptr_to`` has the tensor's element type and storage
+scope. This remains true when the tensor is a typed view over a byte-addressed
 allocation pool; the pool's raw backing-pointer type does not leak through the
 element address.
 
@@ -483,7 +483,7 @@ transfer (see also :doc:`data_types`):
 
 **Reshape / reinterpret — ``view`` / ``permute``.** Both are pure metadata; the
 data pointer is unchanged, only the index arithmetic differs. ``A.view(64, 4)``
-sees the 256-element buffer as ``64×4``; ``A.permute(1, 0)`` transposes the axes:
+sees the 256-element tensor as ``64×4``; ``A.permute(1, 0)`` transposes the axes:
 
 .. code-block:: python
 

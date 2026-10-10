@@ -18,21 +18,25 @@
 import pytest
 
 import tvm
-from tvm import ir, tirx
+import tvm.testing
+from tvm import s_tir, tirx
 
 
-def test_buffer_data_reinfer_type_from_rewritten_argument():
-    global_buffer = tirx.decl_tensor((8,), "float32", name="global_buffer", scope="global")
-    local_buffer = tirx.decl_tensor((8,), "float16", name="local_buffer", scope="local")
-    stale_type = global_buffer.data.ty
-    expected_type = local_buffer.data.ty
+@pytest.mark.parametrize(
+    "scope,shape", [("m16n8k8.matrixA", (32, 8)), ("m16n8k8.matrixB", (8, 32))]
+)
+@pytest.mark.parametrize("access_kind", ["load", "store"])
+def test_explicit_matrix_ab_access_is_rejected(scope, shape, access_kind):
+    tensor = tirx.decl_tensor(shape, "float32", scope=scope)
+    if access_kind == "load":
+        body = tvm.ir.Evaluate(tirx.TensorLoad(tensor, [0, 0]))
+    else:
+        body = tvm.ir.TensorStore(tensor, [0, 0], 0.0)
+    block = s_tir.SBlock([], [], [], "root", body, alloc_tensors=[tensor])
+    func = tirx.Function([], s_tir.SBlockRealize([], True, block))
 
-    call = ir.Call("tirx.tensor_data_ptr", [local_buffer], ty=stale_type)
-    ir.assert_structural_equal(ir.reinfer_type(call), expected_type)
-    ir.assert_structural_equal(call.ty, stale_type)
-
-    with pytest.raises(TypeError):
-        ir.reinfer_type(ir.Call("tirx.tensor_data_ptr", [ir.Var("not_a_buffer")]))
+    with pytest.raises(tvm.error.InternalError, match=f"{scope}.*explicit"):
+        s_tir.transform.TransformMmaTensorLayout()(tvm.IRModule.from_expr(func))
 
 
 if __name__ == "__main__":

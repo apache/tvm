@@ -87,26 +87,26 @@ class TracedScheduleNode : public ConcreteScheduleNode {
   void Bind(const LoopRV& loop_rv, const ffi::String& thread_axis) final;
   void Unroll(const LoopRV& loop_rv) final;
   /******** Schedule: Insert cache stages ********/
-  SBlockRV CacheRead(const SBlockRV& block_rv, int read_buffer_index,
+  SBlockRV CacheRead(const SBlockRV& block_rv, int read_tensor_index,
                      const ffi::String& storage_scope,
                      const ffi::Array<SBlockRV> consumer_blocks = {}) final;
-  SBlockRV CacheWrite(const SBlockRV& block_rv, int write_buffer_index,
+  SBlockRV CacheWrite(const SBlockRV& block_rv, int write_tensor_index,
                       const ffi::String& storage_scope,
                       const ffi::Array<SBlockRV> consumer_blocks = {}) final;
-  SBlockRV ReindexCacheRead(const SBlockRV& block_rv, int read_buffer_index,
+  SBlockRV ReindexCacheRead(const SBlockRV& block_rv, int read_tensor_index,
                             const ffi::String& storage_scope, const IndexMap& index_map) final;
-  SBlockRV ReindexCacheWrite(const SBlockRV& block_rv, int write_buffer_index,
+  SBlockRV ReindexCacheWrite(const SBlockRV& block_rv, int write_tensor_index,
                              const ffi::String& storage_scope, const IndexMap& index_map) final;
-  ffi::Array<SBlockRV> CacheInplace(const SBlockRV& block_rv, int read_buffer_index,
+  ffi::Array<SBlockRV> CacheInplace(const SBlockRV& block_rv, int read_tensor_index,
                                     const ffi::String& storage_scope) final;
-  SBlockRV ReIndex(const SBlockRV& block_rv, int buffer_index,
-                   BufferIndexType buffer_index_type) final;
+  SBlockRV ReIndex(const SBlockRV& block_rv, int tensor_index,
+                   TensorIndexType tensor_index_type) final;
   ffi::Array<SBlockRV> CacheIndex(const SBlockRV& block_rv, const ffi::String& storage_scope,
                                   int cse_thresh) final;
   /******** Schedule: Data movement ********/
-  SBlockRV ReadAt(const LoopRV& loop_rv, const SBlockRV& block_rv, int read_buffer_index,
+  SBlockRV ReadAt(const LoopRV& loop_rv, const SBlockRV& block_rv, int read_tensor_index,
                   const ffi::String& storage_scope) final;
-  SBlockRV WriteAt(const LoopRV& loop_rv, const SBlockRV& block_rv, int write_buffer_index,
+  SBlockRV WriteAt(const LoopRV& loop_rv, const SBlockRV& block_rv, int write_tensor_index,
                    const ffi::String& storage_scope) final;
   /******** Schedule: Compute location ********/
   void ComputeAt(const SBlockRV& block_rv, const LoopRV& loop_rv, bool preserve_unit_loops,
@@ -120,10 +120,10 @@ class TracedScheduleNode : public ConcreteScheduleNode {
   SBlockRV DecomposeReduction(const SBlockRV& block_rv, const LoopRV& loop_rv) final;
   SBlockRV RFactor(const LoopRV& loop_rv, int factor_axis) final;
   /******** Schedule: SBlock annotation ********/
-  void StorageAlign(const SBlockRV& block_rv, int buffer_index, int axis, int factor,
+  void StorageAlign(const SBlockRV& block_rv, int tensor_index, int axis, int factor,
                     int offset) final;
-  void SetScope(const SBlockRV& block_rv, int buffer_index, const ffi::String& storage_scope) final;
-  void UnsafeSetDType(const SBlockRV& block_rv, int buffer_index, const ffi::String& dtype) final;
+  void SetScope(const SBlockRV& block_rv, int tensor_index, const ffi::String& storage_scope) final;
+  void UnsafeSetDType(const SBlockRV& block_rv, int tensor_index, const ffi::String& dtype) final;
   /******** Schedule: Blockize & Tensorize ********/
   SBlockRV Blockize(const LoopRV& loop_rv, bool preserve_unit_iters) final;
   SBlockRV Blockize(const ffi::Array<SBlockRV>& blocks, bool preserve_unit_iters) final;
@@ -136,22 +136,22 @@ class TracedScheduleNode : public ConcreteScheduleNode {
   void Annotate(const SBlockRV& block_rv, const ffi::String& ann_key, const Any& ann_val) override;
   void Unannotate(const SBlockRV& block_rv, const ffi::String& ann_key) override;
   /******** Schedule: Layout transformation ********/
-  void TransformLayout(const SBlockRV& block_rv, int buffer_index,
-                       BufferIndexType buffer_index_type, const IndexMap& index_map,
+  void TransformLayout(const SBlockRV& block_rv, int tensor_index,
+                       TensorIndexType tensor_index_type, const IndexMap& index_map,
                        const ffi::Optional<IndexMap>& pad_value,
                        bool assume_injective_transform) override;
   void TransformBlockLayout(const SBlockRV& block_rv, const IndexMap& index_map) override;
   /******** Schedule: Padding ********/
   SBlockRV DecomposePadding(const SBlockRV& block_rv, const LoopRV& loop_rv) final;
   void PadEinsum(const SBlockRV& block_rv, const ffi::Array<int64_t>& padding) final;
-  /******** Schedule: Buffer transformation ********/
-  void RollingBuffer(const SBlockRV& block_rv, int write_buffer_index) final;
+  /******** Schedule: Tensor transformation ********/
+  void RollingBuffer(const SBlockRV& block_rv, int write_tensor_index) final;
   /******** Schedule: Misc ********/
   void EnterPostproc() final;
-  void UnsafeHideBufferAccess(const SBlockRV& block_rv, const ffi::String& buf_type,
-                              const ffi::Array<IntImm>& buf_index_array) final;
-  void AnnotateBufferAccess(const SBlockRV& block_rv, int buffer_index,
-                            BufferIndexType buffer_index_type, const IndexMap& index_map) final;
+  void UnsafeHideTensorAccess(const SBlockRV& block_rv, const ffi::String& tensor_type,
+                              const ffi::Array<IntImm>& tensor_index_array) final;
+  void AnnotateTensorAccess(const SBlockRV& block_rv, int tensor_index,
+                            TensorIndexType tensor_index_type, const IndexMap& index_map) final;
 };
 
 }  // namespace s_tir

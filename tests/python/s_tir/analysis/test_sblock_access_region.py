@@ -26,10 +26,10 @@ from tvm.script import tirx as T
 
 @Ts.function
 def func() -> None:
-    A = Ts.sblock_alloc_buffer((128, 128), "float32")
-    B = Ts.sblock_alloc_buffer((128, 128), "float32")
-    C = Ts.sblock_alloc_buffer((128, 128), "float32")
-    D = Ts.sblock_alloc_buffer((128, 128), "float32")
+    A = Ts.sblock_alloc_tensor((128, 128), "float32")
+    B = Ts.sblock_alloc_tensor((128, 128), "float32")
+    C = Ts.sblock_alloc_tensor((128, 128), "float32")
+    D = Ts.sblock_alloc_tensor((128, 128), "float32")
     with Ts.sblock():
         # Need add read/write region manually to avoid triggering block access region detector
         Ts.reads([B[0, 0], C[0:16, 0:16], A[4:12, 4:12]])
@@ -48,8 +48,8 @@ def func() -> None:
 
 @Ts.function
 def masked_access_func() -> None:
-    A = Ts.sblock_alloc_buffer((16,), "float32")
-    B = Ts.sblock_alloc_buffer((16,), "float32")
+    A = Ts.sblock_alloc_tensor((16,), "float32")
+    B = Ts.sblock_alloc_tensor((16,), "float32")
     with Ts.sblock():
         mask = T.meta_var(T.Broadcast(T.bool(True), 4))
         value = T.meta_var(T.masked_load(A, T.Ramp(4, 1, 4), mask, ty="float32x4"))
@@ -57,10 +57,10 @@ def masked_access_func() -> None:
 
 
 @Ts.function
-def match_buffer_func() -> None:
+def match_tensor_func() -> None:
     with Ts.sblock("root"):
-        A = Ts.sblock_alloc_buffer((128, 128), "float32")
-        B = Ts.sblock_alloc_buffer((128, 128), "float32")
+        A = Ts.sblock_alloc_tensor((128, 128), "float32")
+        B = Ts.sblock_alloc_tensor((128, 128), "float32")
         Ts.reads([])
         Ts.writes([])
         # Need add read/write region manually to avoid triggering block access region detector
@@ -69,11 +69,11 @@ def match_buffer_func() -> None:
                 vi, vj = Ts.axis.remap("SS", [i, j])
                 Ts.reads(B[vi * 16 + 2 : vi * 16 + 12, vj * 16 + 2 : vj * 16 + 16])
                 Ts.writes(A[vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16])
-                AA = Ts.match_buffer(A[vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16], (16, 16))
-                B0 = Ts.match_buffer(
+                AA = Ts.match_tensor(A[vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16], (16, 16))
+                B0 = Ts.match_tensor(
                     B[vi * 16 + 2 : vi * 16 + 6, vj * 16 + 2 : vj * 16 + 6], (4, 4)
                 )
-                B1 = Ts.match_buffer(
+                B1 = Ts.match_tensor(
                     B[vi * 16 + 8 : vi * 16 + 12, vj * 16 + 8 : vj * 16 + 16], (4, 8)
                 )
                 for ii, jj in T.grid(16, 16):
@@ -81,7 +81,7 @@ def match_buffer_func() -> None:
                         vii, vjj = Ts.axis.remap("SS", [ii, jj])
                         Ts.reads([])
                         Ts.writes(AA[vii, vjj])
-                        AAA = Ts.match_buffer(AA[vii, vjj], ())
+                        AAA = Ts.match_tensor(AA[vii, vjj], ())
                         AAA[()] = 1.0
                 T.evaluate(B0.data)
                 T.evaluate(B1.data)
@@ -90,8 +90,8 @@ def match_buffer_func() -> None:
 @Ts.function
 def opaque_block_func() -> None:
     with Ts.sblock("root"):
-        A = Ts.sblock_alloc_buffer((16, 16), "float32")
-        B = Ts.sblock_alloc_buffer((16, 16), "float32")
+        A = Ts.sblock_alloc_tensor((16, 16), "float32")
+        B = Ts.sblock_alloc_tensor((16, 16), "float32")
         Ts.reads([])
         Ts.writes([])
         # Need add read/write region manually to avoid triggering block access region detector
@@ -108,8 +108,8 @@ def opaque_block_func() -> None:
 
 @Ts.function
 def opaque_access_func() -> None:
-    A = Ts.sblock_alloc_buffer([1024])
-    B = Ts.sblock_alloc_buffer([1024])
+    A = Ts.sblock_alloc_tensor([1024])
+    B = Ts.sblock_alloc_tensor([1024])
     for i in T.serial(0, 8):
         with Ts.sblock():
             v = Ts.axis.S(8, i)
@@ -122,9 +122,9 @@ def opaque_access_func() -> None:
 
 @Ts.function
 def opaque_access_with_pointer_func() -> None:
-    A = Ts.sblock_alloc_buffer([1024])
-    B = Ts.sblock_alloc_buffer([1024])
-    C = Ts.sblock_alloc_buffer([1024])
+    A = Ts.sblock_alloc_tensor([1024])
+    B = Ts.sblock_alloc_tensor([1024])
+    C = Ts.sblock_alloc_tensor([1024])
     with Ts.sblock("opaque"):
         Ts.reads(A[0:1024], C[0:1024])
         Ts.writes(B[0:1024], C[0:1024])
@@ -134,7 +134,7 @@ def opaque_access_with_pointer_func() -> None:
 
 
 @Ts.function
-def decl_buffer_alias_func(
+def decl_tensor_alias_func(
     A: T.Tensor((16,), "float32"),
     B: T.Tensor((16,), "float32"),
 ) -> None:
@@ -147,8 +147,8 @@ def decl_buffer_alias_func(
 
 @Ts.function
 def access_in_if_then_else_func() -> None:
-    A = Ts.sblock_alloc_buffer([8])
-    B = Ts.sblock_alloc_buffer([8])
+    A = Ts.sblock_alloc_tensor([8])
+    B = Ts.sblock_alloc_tensor([8])
     with Ts.sblock():
         Ts.reads([A[0:5]])
         Ts.writes([B[0:8]])
@@ -158,8 +158,8 @@ def access_in_if_then_else_func() -> None:
 
 @Ts.function
 def access_in_branch_func() -> None:
-    A = Ts.sblock_alloc_buffer([8])
-    B = Ts.sblock_alloc_buffer([8])
+    A = Ts.sblock_alloc_tensor([8])
+    B = Ts.sblock_alloc_tensor([8])
     with Ts.sblock():
         Ts.reads([A[0:7]])
         Ts.writes([B[0:8]])
@@ -172,9 +172,9 @@ def access_in_branch_func() -> None:
 
 @Ts.function
 def gemm() -> None:
-    A = Ts.sblock_alloc_buffer([16, 16], "float32")
-    B = Ts.sblock_alloc_buffer([16, 16], "float32")
-    C = Ts.sblock_alloc_buffer([16, 16], "float32")
+    A = Ts.sblock_alloc_tensor([16, 16], "float32")
+    B = Ts.sblock_alloc_tensor([16, 16], "float32")
+    C = Ts.sblock_alloc_tensor([16, 16], "float32")
     for i, j, k, ii, jj in T.grid(4, 4, 16, 4, 4):
         with Ts.sblock("update"):
             vi = Ts.axis.S(16, i * 4 + ii)
@@ -189,9 +189,9 @@ def gemm() -> None:
 
 @Ts.function
 def decomposed_gemm() -> None:
-    A = Ts.sblock_alloc_buffer([16, 16], "float32")
-    B = Ts.sblock_alloc_buffer([16, 16], "float32")
-    C = Ts.sblock_alloc_buffer([16, 16], "float32")
+    A = Ts.sblock_alloc_tensor([16, 16], "float32")
+    B = Ts.sblock_alloc_tensor([16, 16], "float32")
+    C = Ts.sblock_alloc_tensor([16, 16], "float32")
     for i, j in T.grid(4, 4):
         for ii, jj in T.grid(4, 4):
             with Ts.sblock("init"):
@@ -212,9 +212,9 @@ def decomposed_gemm() -> None:
 
 @Ts.function
 def access_of_padding_pattern() -> None:
-    X = Ts.sblock_alloc_buffer([28, 28])
-    X_pad = Ts.sblock_alloc_buffer([32, 32])
-    Y = Ts.sblock_alloc_buffer([28, 28])
+    X = Ts.sblock_alloc_tensor([28, 28])
+    X_pad = Ts.sblock_alloc_tensor([32, 32])
+    Y = Ts.sblock_alloc_tensor([28, 28])
     for i, j in T.grid(32, 32):
         with Ts.sblock("padding"):
             vi, vj = Ts.axis.remap("SS", [i, j])
@@ -233,52 +233,54 @@ def access_of_padding_pattern() -> None:
 
 def test_block_access_region_detector():
     block = func.body[0].block.body[0].block
-    alloc_buffers = func.body[0].block.alloc_buffers
-    buffer_var_map = {buf: buf for buf in alloc_buffers}
-    ret = s_tir.analysis.get_sblock_access_region(block, buffer_var_map)
+    alloc_tensors = func.body[0].block.alloc_tensors
+    tensor_var_map = {buf: buf for buf in alloc_tensors}
+    ret = s_tir.analysis.get_sblock_access_region(block, tensor_var_map)
 
     tvm.ir.assert_structural_equal(block.reads, ret[0])
     tvm.ir.assert_structural_equal(block.writes, ret[1])
-    D = alloc_buffers[-1]
+    D = alloc_tensors[-1]
     tvm.ir.assert_structural_equal(
-        [tvm.tirx.BufferRegion(D, [Range(0, 128), Range(0, 128)])], ret[2]
+        [tvm.tirx.make_tensor_region(D, [Range(0, 128), Range(0, 128)])], ret[2]
     )
 
 
 def test_masked_access_is_not_opaque():
     root = masked_access_func.body[0].block
     block = root.body[0].block
-    A, B = root.alloc_buffers
+    A, B = root.alloc_tensors
     reads, writes, opaque = s_tir.analysis.get_sblock_access_region(block, {A: A, B: B})
-    tvm.ir.assert_structural_equal(reads, [tvm.tirx.BufferRegion(A, [Range.from_min_extent(4, 4)])])
     tvm.ir.assert_structural_equal(
-        writes, [tvm.tirx.BufferRegion(B, [Range.from_min_extent(8, 4)])]
+        reads, [tvm.tirx.make_tensor_region(A, [Range.from_min_extent(4, 4)])]
+    )
+    tvm.ir.assert_structural_equal(
+        writes, [tvm.tirx.make_tensor_region(B, [Range.from_min_extent(8, 4)])]
     )
     tvm.ir.assert_structural_equal(opaque, [])
 
 
 def test_opaque_block():
-    alloc_buffers = opaque_block_func.body[0].block.alloc_buffers
-    buffer_var_map = {buf: buf for buf in alloc_buffers}
+    alloc_tensors = opaque_block_func.body[0].block.alloc_tensors
+    tensor_var_map = {buf: buf for buf in alloc_tensors}
 
     block0 = opaque_block_func.body[0].block.body[0].body[0].block
-    ret = s_tir.analysis.get_sblock_access_region(block0, buffer_var_map)
+    ret = s_tir.analysis.get_sblock_access_region(block0, tensor_var_map)
     tvm.ir.assert_structural_equal(block0.reads, ret[0])
     tvm.ir.assert_structural_equal(block0.writes, ret[1])
 
     block1 = block0.body[0].body[0].block
-    ret = s_tir.analysis.get_sblock_access_region(block1, buffer_var_map)
+    ret = s_tir.analysis.get_sblock_access_region(block1, tensor_var_map)
     tvm.ir.assert_structural_equal(block1.reads, ret[0])
     tvm.ir.assert_structural_equal(block1.writes, ret[1])
 
 
 def test_opaque_access():
     block = opaque_access_func.body[0].block.body[0].body[0].block
-    alloc_buffers = opaque_access_func.body[0].block.alloc_buffers
-    buffer_var_map = {buf: buf for buf in alloc_buffers}
+    alloc_tensors = opaque_access_func.body[0].block.alloc_tensors
+    tensor_var_map = {buf: buf for buf in alloc_tensors}
 
-    ret0 = s_tir.analysis.get_sblock_read_write_region(block, buffer_var_map)
-    ret1 = s_tir.analysis.get_sblock_access_region(block, buffer_var_map)
+    ret0 = s_tir.analysis.get_sblock_read_write_region(block, tensor_var_map)
+    ret1 = s_tir.analysis.get_sblock_access_region(block, tensor_var_map)
     with pytest.raises(ValueError):
         tvm.ir.assert_structural_equal(ret0[0], ret1[0])
     with pytest.raises(ValueError):
@@ -287,12 +289,12 @@ def test_opaque_access():
 
 def test_opaque_access_with_pointer():
     block = opaque_access_with_pointer_func.body[0].block.body[0].block
-    alloc_buffers = opaque_access_with_pointer_func.body[0].block.alloc_buffers
-    buffer_var_map = {buf: buf for buf in alloc_buffers}
+    alloc_tensors = opaque_access_with_pointer_func.body[0].block.alloc_tensors
+    tensor_var_map = {buf: buf for buf in alloc_tensors}
 
-    reads, writes = s_tir.analysis.get_sblock_read_write_region(block, buffer_var_map)
+    reads, writes = s_tir.analysis.get_sblock_read_write_region(block, tensor_var_map)
     direct_reads, direct_writes, opaque = s_tir.analysis.get_sblock_access_region(
-        block, buffer_var_map
+        block, tensor_var_map
     )
     assert not direct_reads
     assert not direct_writes
@@ -301,72 +303,72 @@ def test_opaque_access_with_pointer():
     tvm.ir.assert_structural_equal(writes, opaque)
 
 
-def test_decl_buffer_alias_is_not_an_opaque_access():
-    block = decl_buffer_alias_func.body[0].block
-    buffer_var_map = {
-        buf: buf for buf in decl_buffer_alias_func.params if tvm.tirx.is_tensor_var(buf)
+def test_decl_tensor_alias_is_not_an_opaque_access():
+    block = decl_tensor_alias_func.body[0].block
+    tensor_var_map = {
+        buf: buf for buf in decl_tensor_alias_func.params if tvm.tirx.is_tensor_var(buf)
     }
 
-    reads, writes, opaque = s_tir.analysis.get_sblock_access_region(block, buffer_var_map)
+    reads, writes, opaque = s_tir.analysis.get_sblock_access_region(block, tensor_var_map)
     tvm.ir.assert_structural_equal(block.reads, reads)
     tvm.ir.assert_structural_equal(block.writes, writes)
     tvm.ir.assert_structural_equal([], opaque)
 
 
-def test_match_buffer():
-    root_block = match_buffer_func.body[0].block
+def test_match_tensor():
+    root_block = match_tensor_func.body[0].block
     block = root_block.body[0].body[0].body[0].block
     block_inner = block.body[0].body[0].body[0].block
-    alloc_buffers = match_buffer_func.body[0].block.alloc_buffers
-    buffer_var_map = {buf: buf for buf in alloc_buffers}
+    alloc_tensors = match_tensor_func.body[0].block.alloc_tensors
+    tensor_var_map = {buf: buf for buf in alloc_tensors}
 
     # Check block
-    ret = s_tir.analysis.get_sblock_access_region(block, buffer_var_map)
+    ret = s_tir.analysis.get_sblock_access_region(block, tensor_var_map)
     tvm.ir.assert_structural_equal(block.writes, ret[1])
     # B is opaque access
     tvm.ir.assert_structural_equal(block.reads, ret[2])
 
-    # Check inner block AAA without updating buffer_var_map
-    ret = s_tir.analysis.get_sblock_access_region(block_inner, buffer_var_map)
-    # Since AA is not in the buffer_var_map, region of AA will not be collected.
+    # Check inner block AAA without updating tensor_var_map
+    ret = s_tir.analysis.get_sblock_access_region(block_inner, tensor_var_map)
+    # Since AA is not in the tensor_var_map, region of AA will not be collected.
     tvm.ir.assert_structural_equal([], ret[1])
 
     # Check inner block AAA
-    for match_buffer in block.match_buffers:
-        target_buffer = match_buffer.buffer
-        buffer_var_map[target_buffer] = target_buffer
+    for match_tensor in block.match_tensors:
+        target_tensor = match_tensor.tensor
+        tensor_var_map[target_tensor] = target_tensor
 
-    ret = s_tir.analysis.get_sblock_access_region(block_inner, buffer_var_map)
+    ret = s_tir.analysis.get_sblock_access_region(block_inner, tensor_var_map)
     tvm.ir.assert_structural_equal(block_inner.reads, ret[0])
     tvm.ir.assert_structural_equal(block_inner.writes, ret[1])
 
 
 def test_access_in_if_then_else_func():
     block = access_in_if_then_else_func.body[0].block.body[0].block
-    alloc_buffers = access_in_if_then_else_func.body[0].block.alloc_buffers
-    buffer_var_map = {buf: buf for buf in alloc_buffers}
-    ret0 = s_tir.analysis.get_sblock_read_write_region(block, buffer_var_map)
-    ret1 = s_tir.analysis.get_sblock_access_region(block, buffer_var_map)
+    alloc_tensors = access_in_if_then_else_func.body[0].block.alloc_tensors
+    tensor_var_map = {buf: buf for buf in alloc_tensors}
+    ret0 = s_tir.analysis.get_sblock_read_write_region(block, tensor_var_map)
+    ret1 = s_tir.analysis.get_sblock_access_region(block, tensor_var_map)
     tvm.ir.assert_structural_equal(ret0[0], ret1[0])
     tvm.ir.assert_structural_equal(ret0[1], ret1[1])
 
 
 def test_access_in_branch_func():
     block = access_in_branch_func.body[0].block.body[0].block
-    alloc_buffers = access_in_branch_func.body[0].block.alloc_buffers
-    buffer_var_map = {buf: buf for buf in alloc_buffers}
-    ret0 = s_tir.analysis.get_sblock_read_write_region(block, buffer_var_map)
-    ret1 = s_tir.analysis.get_sblock_access_region(block, buffer_var_map)
+    alloc_tensors = access_in_branch_func.body[0].block.alloc_tensors
+    tensor_var_map = {buf: buf for buf in alloc_tensors}
+    ret0 = s_tir.analysis.get_sblock_read_write_region(block, tensor_var_map)
+    ret1 = s_tir.analysis.get_sblock_access_region(block, tensor_var_map)
     tvm.ir.assert_structural_equal(ret0[0], ret1[0])
     tvm.ir.assert_structural_equal(ret0[1], ret1[1])
 
 
 def test_access_of_padding_pattern():
     s = tvm.s_tir.schedule.Schedule(access_of_padding_pattern)
-    alloc_buffers = s.get_sref(s.get_sblock("root")).stmt.alloc_buffers
-    buffer_var_map = {buf: buf for buf in alloc_buffers}
+    alloc_tensors = s.get_sref(s.get_sblock("root")).stmt.alloc_tensors
+    tensor_var_map = {buf: buf for buf in alloc_tensors}
 
-    def do_compare_buffer_region(region, expect):
+    def do_compare_tensor_region(region, expect):
         assert region.source == expect.source
         analyzer = tvm.sym.Analyzer()
         for observed_range, expected_range in zip(region.region, expect.region):
@@ -377,11 +379,11 @@ def test_access_of_padding_pattern():
         block = s.get_sref(s.get_sblock(block_name)).stmt
         expect_reads = block.reads
         expect_writes = block.writes
-        ret = s_tir.analysis.get_sblock_access_region(block, buffer_var_map)
+        ret = s_tir.analysis.get_sblock_access_region(block, tensor_var_map)
         for i, read in enumerate(ret[0]):
-            do_compare_buffer_region(read, expect_reads[i])
+            do_compare_tensor_region(read, expect_reads[i])
         for i, write in enumerate(ret[1]):
-            do_compare_buffer_region(write, expect_writes[i])
+            do_compare_tensor_region(write, expect_writes[i])
 
     do_check_block("padding")
     do_check_block("padding_reverse")
@@ -389,9 +391,9 @@ def test_access_of_padding_pattern():
 
 def test_access_of_reduction():
     block = gemm.body[0].block.body[0].body[0].body[0].body[0].body[0].body[0].block
-    alloc_buffers = gemm.body[0].block.alloc_buffers
-    buffer_var_map = {buf: buf for buf in alloc_buffers}
-    ret = s_tir.analysis.get_sblock_access_region(block, buffer_var_map)
+    alloc_tensors = gemm.body[0].block.alloc_tensors
+    tensor_var_map = {buf: buf for buf in alloc_tensors}
+    ret = s_tir.analysis.get_sblock_access_region(block, tensor_var_map)
     tvm.ir.assert_structural_equal(block.reads, ret[0])
     tvm.ir.assert_structural_equal(block.writes, ret[1])
 
@@ -399,15 +401,15 @@ def test_access_of_reduction():
 def test_access_of_decompose_reduction():
     init = decomposed_gemm.body[0].block.body[0].body[0].body[0].body[0].body[0].block
     update = decomposed_gemm.body[0].block.body[0].body[0].body[1].body[0].body[0].body[0].block
-    alloc_buffers = decomposed_gemm.body[0].block.alloc_buffers
-    buffer_var_map = {buf: buf for buf in alloc_buffers}
+    alloc_tensors = decomposed_gemm.body[0].block.alloc_tensors
+    tensor_var_map = {buf: buf for buf in alloc_tensors}
     for block in [init, update]:
-        ret = s_tir.analysis.get_sblock_access_region(block, buffer_var_map)
+        ret = s_tir.analysis.get_sblock_access_region(block, tensor_var_map)
         tvm.ir.assert_structural_equal(block.reads, ret[0])
         tvm.ir.assert_structural_equal(block.writes, ret[1])
 
 
-def test_buffer_access_with_let_binding():
+def test_tensor_access_with_let_binding():
     @Ts.function
     def func(
         storage: T.Tensor((16, 16, 16), "float32"),
@@ -429,13 +431,13 @@ def test_buffer_access_with_let_binding():
                 output[vi, vs] = storage[seq_id, history_id, vs]
 
     block = func.body[0].block.body[0].body[0].body[0].block
-    buffer_var_map = {buf: buf for buf in func.params if tvm.tirx.is_tensor_var(buf)}
-    ret = s_tir.analysis.get_sblock_access_region(block, buffer_var_map)
+    tensor_var_map = {buf: buf for buf in func.params if tvm.tirx.is_tensor_var(buf)}
+    ret = s_tir.analysis.get_sblock_access_region(block, tensor_var_map)
     tvm.ir.assert_structural_equal(block.reads, ret[0])
     tvm.ir.assert_structural_equal(block.writes, ret[1])
 
 
-def test_buffer_access_with_nested_let_binding():
+def test_tensor_access_with_nested_let_binding():
     @Ts.function
     def func(
         A: T.Tensor((16, 16), "float32"),
@@ -455,8 +457,8 @@ def test_buffer_access_with_nested_let_binding():
                 C[vi, vs1] = A[vi1, vs2] + B[vi2, vs3]
 
     block = func.body[0].block.body[0].body[0].body[0].block
-    buffer_var_map = {buf: buf for buf in func.params if tvm.tirx.is_tensor_var(buf)}
-    ret = s_tir.analysis.get_sblock_access_region(block, buffer_var_map)
+    tensor_var_map = {buf: buf for buf in func.params if tvm.tirx.is_tensor_var(buf)}
+    ret = s_tir.analysis.get_sblock_access_region(block, tensor_var_map)
     tvm.ir.assert_structural_equal(block.reads, ret[0])
     tvm.ir.assert_structural_equal(block.writes, ret[1])
 
@@ -509,7 +511,7 @@ def test_conditional_inequality_access_regions(case):
     for var, (minimum, extent) in reversed(list(zip(variables, domains))):
         body = tvm.ir.For(var, minimum, extent, tvm.ir.ForKind.DEFAULT, body)
     block = s_tir.SBlock([], [], [], "conditional", body)
-    # Unbounded access sets conservatively cover the whole buffer.
+    # Unbounded access sets conservatively cover the whole tensor.
     outside_expected = [(0, 256)] if case == "unbounded" else domains
     reads, writes, opaque = s_tir.analysis.get_sblock_access_region(
         block, {inside: inside, outside: outside}
@@ -517,9 +519,11 @@ def test_conditional_inequality_access_regions(case):
     tvm.ir.assert_structural_equal(
         reads,
         [
-            tirx.BufferRegion(inside, [Range.from_min_extent(*bounds) for bounds in expected]),
+            tirx.make_tensor_region(
+                inside, [Range.from_min_extent(*bounds) for bounds in expected]
+            ),
             # Leaving the conditional scope must restore the original domains.
-            tirx.BufferRegion(
+            tirx.make_tensor_region(
                 outside, [Range.from_min_extent(*bounds) for bounds in outside_expected]
             ),
         ],

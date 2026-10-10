@@ -48,10 +48,10 @@ from .position_embedding import switch_rope_freq_func
 
 
 def _var(dtype):
-    return Ts.sblock_alloc_buffer((1,), dtype, scope="local")
+    return Ts.sblock_alloc_tensor((1,), dtype, scope="local")
 
 def _var_cpu(dtype):
-    return Ts.sblock_alloc_buffer((1,), dtype)
+    return Ts.sblock_alloc_tensor((1,), dtype)
 
 def get_max_num_threads_per_block(target: Target) -> int:
     """
@@ -164,30 +164,30 @@ def _alloc_softmax_state_buffers(tile_x, tile_z, bdx, num_warps):
 
     Returns ``(S_smem, S_local, m_smem, m_prev_smem, d_smem, m_new, m_prev, d_new)``.
     """
-    S_smem = Ts.sblock_alloc_buffer((tile_x, tile_z), "float32", scope="shared")
-    S_local = Ts.sblock_alloc_buffer((tile_x, tile_z), "float32", scope="local")
-    m_smem = Ts.sblock_alloc_buffer((tile_x,), "float32", scope="shared")
-    m_prev_smem = Ts.sblock_alloc_buffer((tile_x,), "float32", scope="shared")
-    d_smem = Ts.sblock_alloc_buffer((tile_x,), "float32", scope="shared")
+    S_smem = Ts.sblock_alloc_tensor((tile_x, tile_z), "float32", scope="shared")
+    S_local = Ts.sblock_alloc_tensor((tile_x, tile_z), "float32", scope="local")
+    m_smem = Ts.sblock_alloc_tensor((tile_x,), "float32", scope="shared")
+    m_prev_smem = Ts.sblock_alloc_tensor((tile_x,), "float32", scope="shared")
+    d_smem = Ts.sblock_alloc_tensor((tile_x,), "float32", scope="shared")
     md_shape = (math.ceil(tile_x / (bdx * num_warps)),)
-    m_new = Ts.sblock_alloc_buffer(md_shape, "float32", scope="local")
-    m_prev = Ts.sblock_alloc_buffer(md_shape, "float32", scope="local")
-    d_new = Ts.sblock_alloc_buffer(md_shape, "float32", scope="local")
+    m_new = Ts.sblock_alloc_tensor(md_shape, "float32", scope="local")
+    m_prev = Ts.sblock_alloc_tensor(md_shape, "float32", scope="local")
+    d_new = Ts.sblock_alloc_tensor(md_shape, "float32", scope="local")
     return S_smem, S_local, m_smem, m_prev_smem, d_smem, m_new, m_prev, d_new
 
 def _alloc_mha_qkvo_buffers(tile_x, tile_z, d_qk, d_v, dtype):
     """Allocate Q/K/V shared + O local buffers for standard MHA/GQA prefill kernels."""
-    Q_smem = Ts.sblock_alloc_buffer((tile_x, d_qk), dtype, scope="shared")
-    K_smem = Ts.sblock_alloc_buffer((tile_z, d_qk), dtype, scope="shared")
-    V_smem = Ts.sblock_alloc_buffer((tile_z, d_v), dtype, scope="shared")
-    O_local = Ts.sblock_alloc_buffer((tile_x, d_v), "float32", scope="local")
+    Q_smem = Ts.sblock_alloc_tensor((tile_x, d_qk), dtype, scope="shared")
+    K_smem = Ts.sblock_alloc_tensor((tile_z, d_qk), dtype, scope="shared")
+    V_smem = Ts.sblock_alloc_tensor((tile_z, d_v), dtype, scope="shared")
+    O_local = Ts.sblock_alloc_tensor((tile_x, d_v), "float32", scope="local")
     return Q_smem, K_smem, V_smem, O_local
 
 def _alloc_mla_qkvo_buffers(tile_x, tile_z, d_qk, d_latent, dtype):
     """Allocate Q + combined KV shared + O local for MLA prefill (V reuses the KV buffer)."""
-    Q_smem = Ts.sblock_alloc_buffer((tile_x, d_qk), dtype, scope="shared")
-    KV_smem = Ts.sblock_alloc_buffer((tile_z, d_qk), dtype, scope="shared")
-    O_local = Ts.sblock_alloc_buffer((tile_x, d_latent), "float32", scope="local")
+    Q_smem = Ts.sblock_alloc_tensor((tile_x, d_qk), dtype, scope="shared")
+    KV_smem = Ts.sblock_alloc_tensor((tile_z, d_qk), dtype, scope="shared")
+    O_local = Ts.sblock_alloc_tensor((tile_x, d_latent), "float32", scope="local")
     return Q_smem, KV_smem, O_local
 
 def _alloc_tile_walk_state():

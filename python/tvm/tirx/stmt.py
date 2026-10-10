@@ -14,22 +14,22 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""TIRx-specific statement nodes and buffer-region construction."""
+"""TIRx-specific statement nodes and tensor-region construction."""
 
 from tvm.ir import Range, TensorRegion, Var
 
 from . import _ffi_api
 
 
-def BufferRegion(buffer: Var, region: list[Range]) -> TensorRegion:
-    """Construct a buffer-backed tensor region with TIRX subscript semantics.
+def make_tensor_region(tensor: Var, region: list[Range]) -> TensorRegion:
+    """Construct a tensor-backed tensor region with TIRX subscript semantics.
 
     Parameters
     ----------
-    buffer : Var
-        The source buffer.
+    tensor : Var
+        The source tensor.
 
     region : List[Range]
-        The ranges, with one entry for each buffer dimension.
+        The ranges, with one entry for each tensor dimension.
     """
-    return _ffi_api.BufferRegion(buffer, region)
+    return _ffi_api.MakeTensorRegion(tensor, region)

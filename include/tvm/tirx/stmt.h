@@ -59,8 +59,8 @@ constexpr const char* kAutoUnrollMaxStep = "auto_unroll_max_step";
 constexpr const char* kUnrollExplicit = "unroll_explicit";
 /*! \brief Annotation key on AllocTensor marking the allocation as volatile. */
 constexpr const char* kVolatile = "tirx.volatile";
-/*! \brief Mark buffer initial addr alignment in bytes */
-constexpr const char* kBufferDataAlignment = "buffer_data_alignment";
+/*! \brief Mark tensor initial addr alignment in bytes */
+constexpr const char* kTensorDataAlignment = "tensor_data_alignment";
 
 }  // namespace attr
 

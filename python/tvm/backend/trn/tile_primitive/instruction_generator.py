@@ -30,7 +30,7 @@ from tvm.backend.trn.layout import is_trainium_layout
 from tvm.ir import Range, TensorRegion
 from tvm.script import tirx as T
 from tvm.sym.analyzer import Analyzer
-from tvm.tirx import BufferRegion, Expr, IntImm, Var, is_tensor_var
+from tvm.tirx import Expr, IntImm, Var, is_tensor_var, make_tensor_region
 from tvm.tirx.layout import Iter
 
 from .dim_utils import DimensionMapper, RangeInfo, normalize_and_group
@@ -64,19 +64,19 @@ def _replace_vars(expr: Expr, var_map: dict[Var, Expr]) -> Expr:
 
 @dataclass
 class InstructionRepr:
-    buffer_region: TensorRegion
+    tensor_region: TensorRegion
     size: int
     stride: int
     selected_data_iter_ids: list[int]
 
     def __init__(
         self,
-        buffer_region: TensorRegion,
+        tensor_region: TensorRegion,
         inst_size: int,
         inst_stride: int,
         selected_data_iter_ids: list[int],
     ):
-        self.buffer_region = buffer_region
+        self.tensor_region = tensor_region
         self.size = inst_size if inst_size is not None else 1
         self.stride = inst_stride if inst_stride is not None else 1
         self.selected_data_iter_ids = selected_data_iter_ids
@@ -96,8 +96,8 @@ class InstructionRepr:
 
 
 class InstructionGenerator:
-    def __init__(self, buffer_regions: tuple[TensorRegion], analyzer: Analyzer):
-        self.buffer_regions = []
+    def __init__(self, tensor_regions: tuple[TensorRegion], analyzer: Analyzer):
+        self.tensor_regions = []
         self.analyzer = analyzer
         self.split_shape_views = {}
         self.split_layout_views = {}
@@ -105,45 +105,45 @@ class InstructionGenerator:
         self.bound_regions = {}
         self.bind_iters: dict[TensorRegion, LogicalIterList] = None
         self.bind_maps: dict[TensorRegion, dict[Var, Expr]] = {}
-        for buffer_region in buffer_regions:
-            if not isinstance(buffer_region, TensorRegion):
+        for tensor_region in tensor_regions:
+            if not isinstance(tensor_region, TensorRegion):
                 continue
-            if not is_tensor_var(buffer_region.source):
+            if not is_tensor_var(tensor_region.source):
                 raise TypeError(
                     "Instruction operands require a TensorRegion with a TensorVar source"
                 )
-            self.buffer_regions.append(buffer_region)
-            bound_buffer_region = self._bound_buffer_region(buffer_region)
-            layout, seps = self._get_sub_layout(bound_buffer_region)
-            self.split_shape_views[buffer_region] = self._get_flattened_shape_view_from_layout_seps(
+            self.tensor_regions.append(tensor_region)
+            bound_tensor_region = self._bound_tensor_region(tensor_region)
+            layout, seps = self._get_sub_layout(bound_tensor_region)
+            self.split_shape_views[tensor_region] = self._get_flattened_shape_view_from_layout_seps(
                 layout, seps
             )
-            self.split_layout_views[buffer_region] = layout
-            self.seps[buffer_region] = seps
+            self.split_layout_views[tensor_region] = layout
+            self.seps[tensor_region] = seps
         self.dim_mapper = DimensionMapper()
 
-    def _bound_buffer_region(self, buffer_region: TensorRegion):
+    def _bound_tensor_region(self, tensor_region: TensorRegion):
         region = []
         changed = False
-        for r in buffer_region.region:
+        for r in tensor_region.region:
             bound = self.analyzer.const_int_bound(r.extent)
             if not self.analyzer.can_prove_equal(bound.max_value, r.extent):
                 changed = True
             region.append(Range.from_min_extent(r.min, bound.max_value))
         if changed:
-            bound_region = BufferRegion(buffer_region.source, region)
-            self.bound_regions[buffer_region] = bound_region
+            bound_region = make_tensor_region(tensor_region.source, region)
+            self.bound_regions[tensor_region] = bound_region
             return bound_region
-        return buffer_region
+        return tensor_region
 
-    def _get_sub_layout(self, buffer_region: TensorRegion):
-        layout = buffer_region.source.ty.layout
-        layout, seps = normalize_and_group(layout, buffer_region.source.ty.shape)
+    def _get_sub_layout(self, tensor_region: TensorRegion):
+        layout = tensor_region.source.ty.layout
+        layout, seps = normalize_and_group(layout, tensor_region.source.ty.shape)
         tiled_range_infos_per_dim = []
         new_shard = []
         new_seps = [0]
         for i in range(len(seps) - 1):
-            r = buffer_region.region[i]
+            r = tensor_region.region[i]
             st = r.min
             ext = r.extent
             reversed_shard = []
@@ -169,7 +169,7 @@ class InstructionGenerator:
                     tiled_range_infos_per_dim.append(RangeInfo(st, ext, j, i, layout.shard[j].axis))
                     reversed_shard.append(Iter(ext, layout.shard[j].stride, layout.shard[j].axis))
                     break
-                assert False, f"Cannot analyze physical tensor region for: {buffer_region}"
+                assert False, f"Cannot analyze physical tensor region for: {tensor_region}"
             new_shard += reversed(reversed_shard)
             new_seps.append(len(reversed_shard) + new_seps[-1])
         new_tile_layout = tvm.tirx.layout.TileLayout.from_iters(  # pylint: disable=no-member
@@ -179,24 +179,24 @@ class InstructionGenerator:
 
     def _init_bind_iters(self):
         self.bind_iters = {}
-        for buffer_region in self.buffer_regions:
-            seps = self.seps[buffer_region]
-            self.bind_iters[buffer_region] = [
-                [[] for _ in range(seps[i], seps[i + 1])] for i in range(len(buffer_region.region))
+        for tensor_region in self.tensor_regions:
+            seps = self.seps[tensor_region]
+            self.bind_iters[tensor_region] = [
+                [[] for _ in range(seps[i], seps[i + 1])] for i in range(len(tensor_region.region))
             ]
 
     def _normalize_bind_iters(self):
-        for buffer_region in self.buffer_regions:
-            seps = self.seps[buffer_region]
-            self.bind_iters[buffer_region] = [
+        for tensor_region in self.tensor_regions:
+            seps = self.seps[tensor_region]
+            self.bind_iters[tensor_region] = [
                 [
                     sorted(
-                        self.bind_iters[buffer_region][i][j - seps[i]],
+                        self.bind_iters[tensor_region][i][j - seps[i]],
                         key=lambda x: (x.logical_stride, x.extent),
                     )
                     for j in range(seps[i], seps[i + 1])
                 ]
-                for i in range(len(buffer_region.region))
+                for i in range(len(tensor_region.region))
             ]
 
     def _get_flattened_shape_view_from_layout_seps(self, layout, seps):
@@ -267,59 +267,59 @@ class InstructionGenerator:
 
         return tuple(out)
 
-    def _link_buffer_regions(
-        self, buffer_region: TensorRegion, to_link: TensorRegion, dim_map: dict[int, int]
+    def _link_tensor_regions(
+        self, tensor_region: TensorRegion, to_link: TensorRegion, dim_map: dict[int, int]
     ):
-        split_shape_view_1 = self.split_shape_views[buffer_region]
-        split_layout_view_1 = self.split_layout_views[buffer_region]
+        split_shape_view_1 = self.split_shape_views[tensor_region]
+        split_layout_view_1 = self.split_layout_views[tensor_region]
         split_shape_view_2 = self.split_shape_views[to_link]
 
-        # adapt to the shape view of the to_link buffer region
+        # adapt to the shape view of the to_link tensor region
         new_split_shape_view_1 = [
             (
                 self.common_factor(split_shape_view_2[dim_map[i]], split_shape_view_1[i])
                 if i in dim_map
                 else split_shape_view_1[i]
             )
-            for i in range(len(buffer_region.region))
+            for i in range(len(tensor_region.region))
         ]
         flattened_shape_view_1 = list(itertools.chain(*new_split_shape_view_1))
         layout, tiled_seps = normalize_and_group(split_layout_view_1, flattened_shape_view_1)
         actual_seps = [0]
         ptr = 0
-        for i in range(len(buffer_region.region)):
+        for i in range(len(tensor_region.region)):
             ptr += len(new_split_shape_view_1[i])
             actual_seps.append(tiled_seps[ptr])
-        self.split_shape_views[buffer_region] = self._get_flattened_shape_view_from_layout_seps(
+        self.split_shape_views[tensor_region] = self._get_flattened_shape_view_from_layout_seps(
             layout, actual_seps
         )
-        self.split_layout_views[buffer_region] = layout
-        self.seps[buffer_region] = actual_seps
+        self.split_layout_views[tensor_region] = layout
+        self.seps[tensor_region] = actual_seps
 
     def _get_reverse_dim_map(self, dim_map: dict[int, int]) -> dict[int, int]:
         return {dim_map[i]: i for i in dim_map}
 
-    def link_buffer_regions(
-        self, buffer_region: TensorRegion, to_link: TensorRegion, dim_map: dict[int, int]
+    def link_tensor_regions(
+        self, tensor_region: TensorRegion, to_link: TensorRegion, dim_map: dict[int, int]
     ):
-        self.dim_mapper.register_dim_map(buffer_region, to_link, dim_map)
-        for r in self.buffer_regions:
+        self.dim_mapper.register_dim_map(tensor_region, to_link, dim_map)
+        for r in self.tensor_regions:
             if r == to_link:
                 continue
             dim_map = self.dim_mapper.get_dim_map(r, to_link)
             reverse_dim_map = self._get_reverse_dim_map(dim_map)
-            self._link_buffer_regions(r, to_link, dim_map)
-            self._link_buffer_regions(to_link, r, reverse_dim_map)
+            self._link_tensor_regions(r, to_link, dim_map)
+            self._link_tensor_regions(to_link, r, reverse_dim_map)
             seps_1 = self.seps[r]
             seps_2 = self.seps[to_link]
             for i, j in dim_map.items():
                 assert seps_1[i + 1] - seps_1[i] == seps_2[j + 1] - seps_2[j], (
-                    f"The number of data iters at dim {i} of {buffer_region.source.name} is not equal to the number of data iters at dim {j} of {to_link.source.name}"  # noqa: E501
+                    f"The number of data iters at dim {i} of {tensor_region.source.name} is not equal to the number of data iters at dim {j} of {to_link.source.name}"  # noqa: E501
                 )
 
     def bind_inst_iter(
         self,
-        buffer_region: TensorRegion,
+        tensor_region: TensorRegion,
         bind: Var,
         inst_size: int,
         inst_stride: int,
@@ -327,18 +327,18 @@ class InstructionGenerator:
         no_propagate: bool = False,
     ):
         logical_iter_list = self._get_inst_logical_iter_list(
-            buffer_region, bind, inst_stride, inst_size, is_free_dim
+            tensor_region, bind, inst_stride, inst_size, is_free_dim
         )
-        self._add_bind_iter_list(buffer_region, logical_iter_list)
+        self._add_bind_iter_list(tensor_region, logical_iter_list)
         if no_propagate:
             return
-        self._propagate_bind_iter(buffer_region, logical_iter_list)
+        self._propagate_bind_iter(tensor_region, logical_iter_list)
 
-    def _propagate_bind_iter(self, buffer_region: TensorRegion, logical_iter_list: LogicalIterList):
-        for to_propagate in self.buffer_regions:
-            if to_propagate == buffer_region:
+    def _propagate_bind_iter(self, tensor_region: TensorRegion, logical_iter_list: LogicalIterList):
+        for to_propagate in self.tensor_regions:
+            if to_propagate == tensor_region:
                 continue
-            dim_map = self.dim_mapper.get_dim_map(buffer_region, to_propagate)
+            dim_map = self.dim_mapper.get_dim_map(tensor_region, to_propagate)
             reverse_dim_map = self._get_reverse_dim_map(dim_map)
             seps = self.seps[to_propagate]
             propagated_logical_iter = [
@@ -351,30 +351,30 @@ class InstructionGenerator:
             ]
             self._add_bind_iter_list(to_propagate, propagated_logical_iter)
 
-    def _add_bind_iter_list(self, buffer_region: TensorRegion, bind_iter_list: LogicalIterList):
+    def _add_bind_iter_list(self, tensor_region: TensorRegion, bind_iter_list: LogicalIterList):
         if self.bind_iters is None:
             self._init_bind_iters()
-        seps = self.seps[buffer_region]
-        for i in range(len(buffer_region.region)):
+        seps = self.seps[tensor_region]
+        for i in range(len(tensor_region.region)):
             for j in range(seps[i], seps[i + 1]):
-                self.bind_iters[buffer_region][i][j - seps[i]].extend(
+                self.bind_iters[tensor_region][i][j - seps[i]].extend(
                     bind_iter_list[i][j - seps[i]]
                 )
 
     def fill_in_block_dim(
-        self, buffer_region: TensorRegion, bind: Var, dims: list[int] | None = None
+        self, tensor_region: TensorRegion, bind: Var, dims: list[int] | None = None
     ):
-        # fixme: be cautious of the min of buffer region. This implementation is not correct.
+        # fixme: be cautious of the min of tensor region. This implementation is not correct.
         #        we need to first take a view of sub-layout (keep strides, but reduce the extent
         #        then we analyze the relationship between data iter of sub-layout
-        dims = dims or list(range(len(buffer_region.source.ty.shape)))
-        layout = self.split_layout_views[buffer_region]
+        dims = dims or list(range(len(tensor_region.source.ty.shape)))
+        layout = self.split_layout_views[tensor_region]
         shards = layout.shard
         self._normalize_bind_iters()
-        bind_iters = self.bind_iters[buffer_region]
-        seps = self.seps[buffer_region]
+        bind_iters = self.bind_iters[tensor_region]
+        seps = self.seps[tensor_region]
         logical_iter_list_block = [
-            [[] for _ in range(seps[i], seps[i + 1])] for i in range(len(buffer_region.region))
+            [[] for _ in range(seps[i], seps[i + 1])] for i in range(len(tensor_region.region))
         ]
         acc_block_ext = 1
         for i in reversed(dims):
@@ -394,12 +394,12 @@ class InstructionGenerator:
                         else 1
                     )
                     assert next_logical_stride % cur == 0, (
-                        f"Fail to infer block dim for {buffer_region.source.name} at dim {i}"
+                        f"Fail to infer block dim for {tensor_region.source.name} at dim {i}"
                     )
                     gap = next_logical_stride // cur
                     if is_partition:
                         assert gap == 1, (
-                            f"Fail to propagate partition dim. The propagated dim does not cover the whole partition on {buffer_region.source.name} at dim {i}"  # noqa: E501
+                            f"Fail to propagate partition dim. The propagated dim does not cover the whole partition on {tensor_region.source.name} at dim {i}"  # noqa: E501
                         )
                     elif gap > 1:
                         new_acc_block_ext = acc_block_ext * gap
@@ -407,16 +407,16 @@ class InstructionGenerator:
                             LogicalIterDim(cur, gap, bind % new_acc_block_ext // acc_block_ext)
                         )
                         acc_block_ext = new_acc_block_ext
-        self._add_bind_iter_list(buffer_region, logical_iter_list_block)
-        self._propagate_bind_iter(buffer_region, logical_iter_list_block)
+        self._add_bind_iter_list(tensor_region, logical_iter_list_block)
+        self._propagate_bind_iter(tensor_region, logical_iter_list_block)
         return acc_block_ext
 
-    def _check_bind_iter_coverage(self, buffer_region: TensorRegion):
+    def _check_bind_iter_coverage(self, tensor_region: TensorRegion):
         self._normalize_bind_iters()
-        seps = self.seps[buffer_region]
-        iters = self.split_layout_views[buffer_region].shard
-        bind_iters = self.bind_iters[buffer_region]
-        for i in range(len(buffer_region.region)):
+        seps = self.seps[tensor_region]
+        iters = self.split_layout_views[tensor_region].shard
+        bind_iters = self.bind_iters[tensor_region]
+        for i in range(len(tensor_region.region)):
             for j in range(seps[i], seps[i + 1]):
                 it = iters[j]
                 logical_iter_dims = bind_iters[i][j - seps[i]]
@@ -430,25 +430,25 @@ class InstructionGenerator:
                         next_logical_stride
                         % (logical_iter_dims[d].logical_stride * logical_iter_dims[d].extent)
                         == 0
-                    ), f"Fail to infer block dim for {buffer_region.source.name} at dim {i}"
+                    ), f"Fail to infer block dim for {tensor_region.source.name} at dim {i}"
                     gap = next_logical_stride // (
                         logical_iter_dims[d].logical_stride * logical_iter_dims[d].extent
                     )
                     assert gap == 1, "Call fill_in_block_dim() before calling generate_indices()"
 
-    def set_bind_map(self, buffer_region: TensorRegion, bind_map: dict[Var, Expr]):
-        self.bind_maps[buffer_region] = bind_map
+    def set_bind_map(self, tensor_region: TensorRegion, bind_map: dict[Var, Expr]):
+        self.bind_maps[tensor_region] = bind_map
 
     def set_bind_map_all(self, bind_map: dict[Var, Expr]):
-        for buffer_region in self.buffer_regions:
-            self.set_bind_map(buffer_region, bind_map)
+        for tensor_region in self.tensor_regions:
+            self.set_bind_map(tensor_region, bind_map)
 
-    def generate_axes(self, buffer_region: TensorRegion) -> list[Expr]:
-        self._check_bind_iter_coverage(buffer_region)
-        layout = self.split_layout_views[buffer_region]
+    def generate_axes(self, tensor_region: TensorRegion) -> list[Expr]:
+        self._check_bind_iter_coverage(tensor_region)
+        layout = self.split_layout_views[tensor_region]
         iters = layout.shard
-        bind_iters = self.bind_iters[buffer_region]
-        seps = self.seps[buffer_region]
+        bind_iters = self.bind_iters[tensor_region]
+        seps = self.seps[tensor_region]
         axes = []
         for i in range(len(bind_iters)):
             index = 0
@@ -460,33 +460,33 @@ class InstructionGenerator:
                         continue
                     index += (
                         d.logical_stride
-                        * _replace_vars(d.bind_expr, self.bind_maps[buffer_region])
+                        * _replace_vars(d.bind_expr, self.bind_maps[tensor_region])
                         * acc_logical_stride
                     )
                 acc_logical_stride *= iters[j].extent
             axes.append(index)
         return axes
 
-    def generate_indices(self, buffer_region: TensorRegion) -> list[Expr]:
-        axes = self.generate_axes(buffer_region)
-        return [axes[i] + r.min for i, r in enumerate(buffer_region.region)]
+    def generate_indices(self, tensor_region: TensorRegion) -> list[Expr]:
+        axes = self.generate_axes(tensor_region)
+        return [axes[i] + r.min for i, r in enumerate(tensor_region.region)]
 
     def _get_inst_logical_iter_list(
         self,
-        buffer_region: TensorRegion,
+        tensor_region: TensorRegion,
         bind: Var,
         stride: int,
         size: int,
         is_free_dim: bool = True,
     ) -> LogicalIterList:
-        layout = self.split_layout_views[buffer_region]
+        layout = self.split_layout_views[tensor_region]
         assert is_trainium_layout(layout), (
             " Cannot propagate instruction information from HBM tensor"
         )
         iters = layout.shard
-        seps = self.seps[buffer_region]
-        ret = [[[] for _ in range(seps[i], seps[i + 1])] for i in range(len(buffer_region.region))]
-        for i in range(len(buffer_region.region)):
+        seps = self.seps[tensor_region]
+        ret = [[[] for _ in range(seps[i], seps[i + 1])] for i in range(len(tensor_region.region))]
+        for i in range(len(tensor_region.region)):
             for j in range(seps[i], seps[i + 1]):
                 if (iters[j].axis.name in ["F", "Bank"]) ^ is_free_dim:
                     continue
@@ -524,19 +524,19 @@ class InstructionGenerator:
                     )
         return ret
 
-    def make_guard(self, buffer_region: TensorRegion):
-        if buffer_region not in self.bound_regions:
+    def make_guard(self, tensor_region: TensorRegion):
+        if tensor_region not in self.bound_regions:
             return True
-        bound_region = self.bound_regions[buffer_region]
+        bound_region = self.bound_regions[tensor_region]
         relaxed_dims = [
             i
-            for i, (r1, r2) in enumerate(zip(bound_region.region, buffer_region.region))
+            for i, (r1, r2) in enumerate(zip(bound_region.region, tensor_region.region))
             if not self.analyzer.can_prove(r1.extent == r2.extent)
         ]
-        axes = self.generate_axes(buffer_region)
+        axes = self.generate_axes(tensor_region)
         guard = reduce(
             T.And,
-            [axes[i] < r.extent for i, r in enumerate(buffer_region.region) if i in relaxed_dims],
+            [axes[i] < r.extent for i, r in enumerate(tensor_region.region) if i in relaxed_dims],
             True,
         )
         return guard
@@ -567,13 +567,13 @@ class InstructionGenerator:
 
     def find_max_inst_size_from_one_region(
         self,
-        buffer_region: TensorRegion,
+        tensor_region: TensorRegion,
         allowed_f_dim: tuple[int] | None = None,
         min_stride: int | None = None,
     ):
-        allowed_f_dim = allowed_f_dim or tuple(range(len(buffer_region.region)))
-        layout = self.split_layout_views[buffer_region]
-        seps = self.seps[buffer_region]
+        allowed_f_dim = allowed_f_dim or tuple(range(len(tensor_region.region)))
+        layout = self.split_layout_views[tensor_region]
+        seps = self.seps[tensor_region]
         allowed_data_iter_idx = itertools.chain.from_iterable(
             range(seps[dim], seps[dim + 1]) for dim in allowed_f_dim
         )
@@ -585,7 +585,7 @@ class InstructionGenerator:
         inst_size, inst_stride, idx_list = self._find_max_linear_inst(
             filtered_data_iters, min_stride
         )
-        return InstructionRepr(buffer_region, inst_size, inst_stride, idx_list)
+        return InstructionRepr(tensor_region, inst_size, inst_stride, idx_list)
 
     def fit_inst_tile_to_region(
         self,
@@ -595,7 +595,7 @@ class InstructionGenerator:
         broadcast: bool = False,
     ):
         allowed_to_f_dim = allowed_to_f_dim or tuple(range(len(to_region.region)))
-        from_region = inst_repr.buffer_region
+        from_region = inst_repr.tensor_region
         from_layout = self.split_layout_views[from_region]
         to_layout = self.split_layout_views[to_region]
         from_seps = self.seps[from_region]
@@ -647,15 +647,15 @@ class InstructionGenerator:
         return InstructionRepr(from_region, inst_size, inst_stride_from, idx_list)
 
     def check_partition_dim_match(
-        self, buffer_region_1: TensorRegion, buffer_region_2: TensorRegion
+        self, tensor_region_1: TensorRegion, tensor_region_2: TensorRegion
     ):
-        dim_map = self.dim_mapper.get_dim_map(buffer_region_1, buffer_region_2)
-        layout_1 = self.split_layout_views[buffer_region_1]
-        layout_2 = self.split_layout_views[buffer_region_2]
+        dim_map = self.dim_mapper.get_dim_map(tensor_region_1, tensor_region_2)
+        layout_1 = self.split_layout_views[tensor_region_1]
+        layout_2 = self.split_layout_views[tensor_region_2]
         if not is_trainium_layout(layout_1) or not is_trainium_layout(layout_2):
             return True
-        seps_1 = self.seps[buffer_region_1]
-        seps_2 = self.seps[buffer_region_2]
+        seps_1 = self.seps[tensor_region_1]
+        seps_2 = self.seps[tensor_region_2]
         for i, j in dim_map.items():
             for k in range(seps_1[i + 1] - seps_1[i]):
                 if (
@@ -672,15 +672,15 @@ class InstructionGenerator:
         return True
 
     def find_max_inst_size_transpose(
-        self, buffer_region_1: TensorRegion, buffer_region_2: TensorRegion
+        self, tensor_region_1: TensorRegion, tensor_region_2: TensorRegion
     ):
-        dim_map = self.dim_mapper.get_dim_map(buffer_region_1, buffer_region_2)
-        layout_1 = self.split_layout_views[buffer_region_1]
-        layout_2 = self.split_layout_views[buffer_region_2]
+        dim_map = self.dim_mapper.get_dim_map(tensor_region_1, tensor_region_2)
+        layout_1 = self.split_layout_views[tensor_region_1]
+        layout_2 = self.split_layout_views[tensor_region_2]
         iters_1 = layout_1.shard
         iters_2 = layout_2.shard
-        seps_1 = self.seps[buffer_region_1]
-        seps_2 = self.seps[buffer_region_2]
+        seps_1 = self.seps[tensor_region_1]
+        seps_2 = self.seps[tensor_region_2]
         indexed_iters_1 = []
         indexed_iters_2 = []
         print(iters_1, seps_1)
@@ -696,18 +696,18 @@ class InstructionGenerator:
                     indexed_iters_2.append((seps_2[j] + k, iters_2[seps_2[j] + k]))
                 else:
                     indexed_iters_1.append((seps_1[i] + k, iters_1[seps_1[i] + k]))
-        inst_repr_1 = InstructionRepr(buffer_region_1, *self._find_max_linear_inst(indexed_iters_1))
-        inst_repr_2 = InstructionRepr(buffer_region_2, *self._find_max_linear_inst(indexed_iters_2))
+        inst_repr_1 = InstructionRepr(tensor_region_1, *self._find_max_linear_inst(indexed_iters_1))
+        inst_repr_2 = InstructionRepr(tensor_region_2, *self._find_max_linear_inst(indexed_iters_2))
         assert inst_repr_1.size == layout_2.size("P"), (
-            f"The instruction size of {buffer_region_1.source.name} does not match the partition size of {buffer_region_2.source.name}"  # noqa: E501
+            f"The instruction size of {tensor_region_1.source.name} does not match the partition size of {tensor_region_2.source.name}"  # noqa: E501
         )
         assert inst_repr_2.size == layout_1.size("P"), (
-            f"The instruction size of {buffer_region_2.source.name} does not match the partition size of {buffer_region_1.source.name}"  # noqa: E501
+            f"The instruction size of {tensor_region_2.source.name} does not match the partition size of {tensor_region_1.source.name}"  # noqa: E501
         )
         return inst_repr_1, inst_repr_2
 
     def restrict_inst_to_one_dim(self, inst_repr: InstructionRepr):
-        region = inst_repr.buffer_region
+        region = inst_repr.tensor_region
         layout = self.split_layout_views[region]
         iters = layout.shard
         seps = self.seps[region]

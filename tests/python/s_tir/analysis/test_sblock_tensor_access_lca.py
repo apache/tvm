@@ -21,11 +21,11 @@ from tvm.script import tirx as T
 
 
 @Ts.function
-def buffer_load_store_func(
+def tensor_load_store_func(
     A: T.Tensor((128, 128), "float32"), B: T.Tensor((128, 128), "float32")
 ) -> None:
-    C = Ts.sblock_alloc_buffer((128, 128), "float32")
-    D = Ts.sblock_alloc_buffer((128, 128), "float32")
+    C = Ts.sblock_alloc_tensor((128, 128), "float32")
+    D = Ts.sblock_alloc_tensor((128, 128), "float32")
     for ii, jj in T.grid(128, 128):
         with Ts.sblock():
             i, j = Ts.axis.remap("SS", [ii, jj])
@@ -46,7 +46,7 @@ def buffer_load_store_func(
 
 
 @Ts.function
-def buffer_opaque_access(
+def tensor_opaque_access(
     B: T.Tensor([16, 16], "float32"), C: T.Tensor([16, 16], "float32")
 ) -> None:
     with Ts.sblock():
@@ -73,7 +73,7 @@ def lca_is_func_root(A: T.Tensor([0, 0], "float32")) -> None:
 
 
 @Ts.function
-def match_buffer_func(
+def match_tensor_func(
     A: T.Tensor((128, 128), "float32"), B: T.Tensor((128, 128), "float32")
 ) -> None:
     for i, j in T.grid(8, 8):
@@ -81,19 +81,19 @@ def match_buffer_func(
             vi, vj = Ts.axis.remap("SS", [i, j])
             Ts.reads(B[vi * 16 + 2 : vi * 16 + 12, vj * 16 + 2 : vj * 16 + 16])
             Ts.writes(A[vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16])
-            B0 = Ts.match_buffer(B[vi * 16 + 2 : vi * 16 + 6, vj * 16 + 2 : vj * 16 + 6], (4, 4))
-            B1 = Ts.match_buffer(B[vi * 16 + 8 : vi * 16 + 12, vj * 16 + 8 : vj * 16 + 16], (4, 8))
+            B0 = Ts.match_tensor(B[vi * 16 + 2 : vi * 16 + 6, vj * 16 + 2 : vj * 16 + 6], (4, 4))
+            B1 = Ts.match_tensor(B[vi * 16 + 8 : vi * 16 + 12, vj * 16 + 8 : vj * 16 + 16], (4, 8))
             for ii, jj in T.grid(16, 16):
                 with Ts.sblock("AAA"):
                     vii, vjj = Ts.axis.remap("SS", [ii, jj])
-                    AA = Ts.match_buffer(A[vii, vjj], ())
+                    AA = Ts.match_tensor(A[vii, vjj], ())
                     AA[()] = 1.0
             T.evaluate(B0.data)
             T.evaluate(B1.data)
 
 
 @Ts.function
-def global_buffer_with_blockidx(
+def global_tensor_with_blockidx(
     a: T.Tensor((1, 32), "int32"), b: T.Tensor((1, 32), "int32")
 ) -> None:
     for i0 in T.thread_binding(0, 1, thread="blockIdx.x"):
@@ -105,72 +105,72 @@ def global_buffer_with_blockidx(
                 b[i, j] = a[i, j]
 
 
-def test_buffer_load_store():
-    func = buffer_load_store_func
+def test_tensor_load_store():
+    func = tensor_load_store_func
     A, B = [x for x in func.params if tvm.tirx.is_tensor_var(x)]
-    C, D = func.body[0].block.alloc_buffers
-    lca = s_tir.analysis.detect_buffer_access_lca(func)
+    C, D = func.body[0].block.alloc_tensors
+    lca = s_tir.analysis.detect_tensor_access_lca(func)
 
-    # LCA of Buffer A is root
+    # LCA of Tensor A is root
     root_block = func.body[0].block
     assert lca[A] == func.body[0].block
 
-    # LCA of Buffer B is the loop dominate all reduction loop
+    # LCA of Tensor B is the loop dominate all reduction loop
     reduce_dom_loop = root_block.body[1].body[0]
     reduce_block = reduce_dom_loop.body[0].body[0].block
     assert lca[B] == reduce_dom_loop
 
-    # LCA of Buffer C is the second loop kk
+    # LCA of Tensor C is the second loop kk
     loop_jj = reduce_block.body[0].body[0]
     assert lca[C] == loop_jj
 
-    # LCA of Buffer D is loop jj
+    # LCA of Tensor D is loop jj
     loop_kk = loop_jj.body[1]
     assert lca[D] == loop_kk
 
 
 def test_opaque_access():
-    func = buffer_opaque_access
+    func = tensor_opaque_access
     B, C = [x for x in func.params if tvm.tirx.is_tensor_var(x)]
-    lca = s_tir.analysis.detect_buffer_access_lca(func)
+    lca = s_tir.analysis.detect_tensor_access_lca(func)
 
-    # Cannot detect buffer A since it is define by low-level Allocate
+    # Cannot detect tensor A since it is define by low-level Allocate
 
-    # LCA of Buffer B is root
+    # LCA of Tensor B is root
     root_block = func.body[0].block
     assert lca[B] == func.body[0].block
 
-    # LCA of Buffer C is the correspond block
+    # LCA of Tensor C is the correspond block
     assert lca[C] == root_block.body[1].body[0].body[0].block
 
 
 def test_lca_func_root():
     func = lca_is_func_root
     (A,) = [x for x in func.params if tvm.tirx.is_tensor_var(x)]
-    lca = s_tir.analysis.detect_buffer_access_lca(func)
+    lca = s_tir.analysis.detect_tensor_access_lca(func)
     assert lca[A] is None
 
 
-def test_match_buffer():
-    func = match_buffer_func
+def test_match_tensor():
+    func = match_tensor_func
     A, B = [x for x in func.params if tvm.tirx.is_tensor_var(x)]
-    lca = s_tir.analysis.detect_buffer_access_lca(func)
+    lca = s_tir.analysis.detect_tensor_access_lca(func)
 
     root_block = func.body[0].block
     block = root_block.body[0].body[0].body[0].block
     block_inner = block.body[0].body[0].body[0].block
 
-    # LCA of Buffer C is the inner block
+    # LCA of Tensor C is the inner block
     assert lca[A] == block_inner
 
-    # LCA of Buffer C is the main block
+    # LCA of Tensor C is the main block
     assert lca[B] == block
 
 
-def test_global_buffer_with_blockidx():
-    func = global_buffer_with_blockidx
+def test_global_tensor_with_blockidx():
+    func = global_tensor_with_blockidx
     A, B = [x for x in func.params if tvm.tirx.is_tensor_var(x)]
-    lca = s_tir.analysis.detect_buffer_access_lca(func)
+    lca = s_tir.analysis.detect_tensor_access_lca(func)
 
     root_block = func.body[0].block
     blockidx_loop = root_block.body[0]
@@ -180,8 +180,8 @@ def test_global_buffer_with_blockidx():
 
 
 if __name__ == "__main__":
-    test_buffer_load_store()
+    test_tensor_load_store()
     test_opaque_access()
     test_lca_func_root()
-    test_match_buffer()
-    test_global_buffer_with_blockidx()
+    test_match_tensor()
+    test_global_tensor_with_blockidx()

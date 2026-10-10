@@ -349,7 +349,7 @@ def test_gemm_tcgen05_cta_group_1(task):
 def test_gemm_tcgen05_cta_group_1_layout_f_m64():
     """M=64 MMA with C operand allocated as Layout F.
 
-    Exercises the new ``gemm_async`` path that accepts C buffers tagged
+    Exercises the new ``gemm_async`` path that accepts C tensors tagged
     Layout F — written by an M=64 MMA in their canonical scattered
     row->lane mapping (PTX ISA §9.7.16.10.5), read back via the
     ``.16x256b`` M=64 atom (one PTX issue covering all 64 logical rows
@@ -362,7 +362,7 @@ def test_gemm_tcgen05_cta_group_1_layout_f_m64():
     A_layout = mma_shared_layout(A_dtype, 3, A_shape)
     B_layout = mma_shared_layout(B_dtype, 3, B_shape)
 
-    # The C TMEM buffer carries Layout F over its full (64, N) shape; that's
+    # The C TMEM tensor carries Layout F over its full (64, N) shape; that's
     # what gemm_async structurally matches against to accept the M=64 write.
     from tvm.tirx.layout import tmem_datapath_layout
 
@@ -664,7 +664,7 @@ def test_gemm_tcgen05_cta_group_2_layout_b():
     """Test cta_group=2 with Layout B (2x2 datapath, M=128 total, 64 per CTA).
 
     TMEM uses the 2x2 layout: logical (64, N) with shard (64, 2, N//2):(1@TLane, 64@TLane, 1@TCol).
-    Physical readback via a (128, N//2) buffer aliasing the same TMEM allocation.
+    Physical readback via a (128, N//2) tensor aliasing the same TMEM allocation.
     """
     M_per_cta = 64
     N_logical = 128
@@ -839,7 +839,7 @@ def test_gemm_tcgen05_cta_group_2_layout_b():
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda_compute(10), reason="need cuda compute >= 10.0")
 def test_gemm_tcgen05_cta_group_2_datapath_b_readback():
-    """A cta_group=2 GEMM writes and reads a first-class datapath B buffer."""
+    """A cta_group=2 GEMM writes and reads a first-class datapath B tensor."""
     m_per_cta = 64
     n_logical = 128
     n_per_cta = n_logical // 2
@@ -2468,7 +2468,7 @@ def test_gemm_tcgen05_cta_group_2_accepts_replicated_tmem_a_codegen():
 
     FlashMLA head128 copies Qt with 64x128b.warpx2::02_13, which writes rows
     0..63 and mirrors them at lane +64.  The QK GEMM still addresses the anchor
-    tile, but the A buffer layout should be allowed to make that mirror explicit.
+    tile, but the A tensor layout should be allowed to make that mirror explicit.
     """
 
     M = 64
@@ -2708,9 +2708,9 @@ def test_gemm_tcgen05_contiguous_kslice_partial_k(k_lo, k_hi):
     """A slice on the *contiguous* (K) axis of a swizzled gemm_async operand must
     compute the correct partial-K product, not silently use full K.
 
-    The operand buffer is 128B-swizzled (contiguous atom = 64 elems for fp16) and
+    The operand tensor is 128B-swizzled (contiguous atom = 64 elems for fp16) and
     the gemm operand is sliced to K=[lo:hi] on that axis. The descriptor is
-    anchored on the buffer's physical swizzle while K_iters covers only the slice,
+    anchored on the tensor's physical swizzle while K_iters covers only the slice,
     so the MMA accumulates exactly k in [lo, hi) -- enabling fine K-major split-K.
     Any MMA_K(16)-aligned [lo:hi] is supported.
     """
@@ -3328,7 +3328,7 @@ def test_gemm_tcgen05_explicit_mma_tile_rejects_invalid_config(mma_config, messa
 
 @pytest.mark.parametrize("smem_desc", ["hoist", "local_hoist", "encode", "recompute"])
 def test_gemm_smem_desc_modes_codegen(smem_desc):
-    """Compile-only: the SMEM matrix descriptor is built per-MMA from the buffer
+    """Compile-only: the SMEM matrix descriptor is built per-MMA from the tensor
     base address, selected by the ``smem_desc`` config.
 
     - ``hoist`` (default): allocate + encode one descriptor per operand
@@ -3961,7 +3961,7 @@ def _resolve_dispatch_tmem_addresses(impl, addresses):
 
     if impl is None:
         return None
-    projections = [(_tmem_address(buffer), address) for buffer, address in addresses.items()]
+    projections = [(_tmem_address(tensor), address) for tensor, address in addresses.items()]
 
     def resolve(expr):
         for projection, address in projections:
@@ -3991,9 +3991,9 @@ def _make_gemm_tcgen05_call(
 ):
     """Construct a tcgen05.mma Call and run its lowerer.
 
-    Buffer-shape convention follows the dispatcher: transA=False -> A is
+    Tensor-shape convention follows the dispatcher: transA=False -> A is
     [M, K]; transB=True -> B is [K, N], transB=False -> B is [N, K].
-    C is a full-region (M, N) float32 TMEM buffer with the identity
+    C is a full-region (M, N) float32 TMEM tensor with the identity
     (1@TLane, 1@TCol) layout.
     """
     from tvm.backend.cuda.tile_primitive.gemm_async.tcgen05 import (
@@ -4001,11 +4001,11 @@ def _make_gemm_tcgen05_call(
     )
     from tvm.ir import Range
     from tvm.tirx.exec_scope import ExecScope
-    from tvm.tirx.stmt import BufferRegion
+    from tvm.tirx.stmt import make_tensor_region
     from tvm.tirx.tile_dispatch import DispatchContext
 
     def full_region(buf):
-        return BufferRegion(buf, [Range.from_min_extent(0, s) for s in buf.shape])
+        return make_tensor_region(buf, [Range.from_min_extent(0, s) for s in buf.shape])
 
     A_shape = (M, K) if not transA else (K, M)
     B_shape = (K, N) if transB else (N, K)
@@ -4080,11 +4080,11 @@ def test_gemm_tcgen05_preserves_block_scale_tmem_lane_bases():
     )
     from tvm.ir import Range
     from tvm.tirx.exec_scope import ExecScope
-    from tvm.tirx.stmt import BufferRegion
+    from tvm.tirx.stmt import make_tensor_region
     from tvm.tirx.tile_dispatch import DispatchContext
 
     def full_region(buf):
-        return BufferRegion(buf, [Range.from_min_extent(0, s) for s in buf.shape])
+        return make_tensor_region(buf, [Range.from_min_extent(0, s) for s in buf.shape])
 
     M, N, K = 128, 64, 64
     data_dtype = "float4_e2m1fn"
@@ -4171,7 +4171,7 @@ def test_gemm_tcgen05_hoisted_descriptor_uniformization(scope_kind, expect_unifo
         return_context=True,
     )
 
-    callback_text = str(sctx.callbacks["post_buffer_def_stmt"])
+    callback_text = str(sctx.callbacks["post_tensor_def_stmt"])
     assert "encode_matrix_descriptor" in callback_text
     assert ("T.ptx.shfl_sync" in callback_text) == expect_uniform
     assert ("elect_sync" in impl.script()) == expect_uniform

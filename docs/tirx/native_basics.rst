@@ -29,7 +29,7 @@ What "native level" means
 -------------------------
 
 A native-level TIRx kernel reads like a structured device kernel: you place
-threads yourself, allocate shared/per-thread local buffers, write loops and barriers, and
+threads yourself, allocate shared/per-thread local tensors, write loops and barriers, and
 call device intrinsics directly. You explicitly choose the orchestration and
 layouts; standard lowering still dispatches primitives, applies layouts, and
 vectorizes or unrolls marked loops. This is the foundation the tile primitives
@@ -43,7 +43,7 @@ The authoring model
 - ``@Tx.function`` (or ``@Tx.jit`` for compile-time-specialized) kernels, written
   with ``from tvm.script import tirx as Tx``;
 - ``Tx.device_entry(launch=Tx.cuda.LaunchConfig(grid=(1,), block=(32,)))`` plus *scope-id* intrinsics for thread binding;
-- ``Tx.Tensor`` parameter annotations and ``Tx.alloc_*`` scratch buffers;
+- ``Tx.Tensor`` parameter annotations and ``Tx.alloc_*`` scratch tensors;
 - ordinary loops, branches, and scalar math;
 - ``tvm.compile(mod, target=..., tir_pipeline="tirx")`` to build, then call the
   result directly.
@@ -71,7 +71,7 @@ Language guide
 
    native_basics/cuda/functions
    native_basics/cuda/data_types
-   native_basics/cuda/buffers
+   native_basics/cuda/tensors
    native_basics/cuda/control_flow
 
 CUDA execution and compilation

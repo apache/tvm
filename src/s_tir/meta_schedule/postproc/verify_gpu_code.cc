@@ -175,18 +175,18 @@ class VerifyGPUCodeNode : public PostprocNode {
           // Phase 1
           pass_list.push_back(s_tir::transform::LowerCrossThreadReduction());
           pass_list.push_back(s_tir::transform::LowerInitBlock());
-          pass_list.push_back(s_tir::transform::PlanAndUpdateBufferAllocationLocation());
+          pass_list.push_back(s_tir::transform::PlanAndUpdateTensorAllocationLocation());
           pass_list.push_back(s_tir::transform::ConvertBlocksToOpaque());
           pass_list.push_back(s_tir::transform::LiftThreadBinding());
           pass_list.push_back(s_tir::transform::ManifestSharedMemoryLocalStage());
-          pass_list.push_back(s_tir::transform::CompactBufferAllocation());
+          pass_list.push_back(s_tir::transform::CompactTensorAllocation());
           pass_list.push_back(s_tir::transform::StmtSimplify());
           pass_list.push_back(s_tir::transform::LowerAutoCopy());
-          pass_list.push_back(s_tir::transform::LowerMatchBuffer());
+          pass_list.push_back(s_tir::transform::LowerMatchTensor());
           pass_list.push_back(s_tir::transform::InjectSoftwarePipeline());
           pass_list.push_back(s_tir::transform::LowerOpaqueBlock());
           pass_list.push_back(s_tir::transform::LowerThreadBinding());
-          pass_list.push_back(tirx::transform::FlattenBuffer());
+          pass_list.push_back(tirx::transform::FlattenTensor());
           pass_list.push_back(tirx::transform::BF16ComputeLegalize());
           pass_list.push_back(tirx::transform::NarrowDataType(32));
           pass_list.push_back(tirx::transform::StmtSimplify());

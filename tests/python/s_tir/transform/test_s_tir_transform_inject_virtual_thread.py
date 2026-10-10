@@ -24,7 +24,7 @@ from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
-def _is_buffer_binding(node, *op_names):
+def _is_tensor_binding(node, *op_names):
     return (
         isinstance(node, tvm.ir.Bind)
         and isinstance(node.value, tvm.ir.Call)
@@ -62,7 +62,7 @@ def test_vthread():
     allocates = []
 
     def find_allocates(node):
-        if _is_buffer_binding(node, "tirx.alloc_tensor"):
+        if _is_tensor_binding(node, "tirx.alloc_tensor"):
             allocates.append(node)
 
     tvm_ffi.structural_walk(stmt.body, find_allocates)
@@ -100,7 +100,7 @@ def test_vthread_extern():
                 )
 
     # The opaque call may write through any pointer.  Without direction metadata,
-    # all three buffers conservatively depend on both virtual thread axes.
+    # all three tensors conservatively depend on both virtual thread axes.
     expected_alloc = m * nthread * nthread
 
     stmt = tvm.s_tir.transform.InjectVirtualThread()(Module)["main"]
@@ -109,7 +109,7 @@ def test_vthread_extern():
     allocates = []
 
     def find_allocates(node):
-        if _is_buffer_binding(node, "tirx.alloc_tensor"):
+        if _is_tensor_binding(node, "tirx.alloc_tensor"):
             allocates.append(node)
 
     tvm_ffi.structural_walk(stmt.body, find_allocates)
@@ -205,7 +205,7 @@ def test_vthread_vectorized():
 
     def visitor(op):
         nonlocal allocate_node
-        if _is_buffer_binding(op, "tirx.alloc_tensor") and "shared" in str(op.var.data.ty):
+        if _is_tensor_binding(op, "tirx.alloc_tensor") and "shared" in str(op.var.data.ty):
             allocate_node = op
 
     tvm_ffi.structural_walk(after_func.body, visitor)

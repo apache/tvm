@@ -31,7 +31,7 @@ using namespace tvm::prim;
 Function IndexDataTypeNormalizer::Rewrite(Function func) {
   // Keep this short setup local so its collector uses S-TIR block semantics
   // without adding a dialect-specific collector hook to the TIRX normalizer.
-  // Collect scalar dtype requirements without changing types.  Buffer definitions
+  // Collect scalar dtype requirements without changing types.  Tensor definitions
   // are rewritten only after every scalar replacement has been seeded.
   class IndexVarCollector : public IndexDataTypeNormalizer {
    public:
@@ -110,25 +110,25 @@ UnchangedOr<Stmt> IndexDataTypeNormalizer::Mutate_(const SBlockRealizeNode* op,
 }
 
 UnchangedOr<Stmt> IndexDataTypeNormalizer::Mutate_(const SBlockNode* op, InplaceMode inplace_mode) {
-  auto new_alloc_buffers = this->WithDefRegionKind(kTVMFFIDefRegionKindSimple, [&] {
-    return this->Mutate(op->alloc_buffers, inplace_mode)
+  auto new_alloc_tensors = this->WithDefRegionKind(kTVMFFIDefRegionKindSimple, [&] {
+    return this->Mutate(op->alloc_tensors, inplace_mode)
         .as_or_throw<UnchangedOr<ffi::Array<TensorVar>>>()
-        .ValueOrUnchanged(op->alloc_buffers);
+        .ValueOrUnchanged(op->alloc_tensors);
   });
-  auto new_match_buffers = op->match_buffers.Map([this](const MatchBufferRegion& match) {
-    TensorVar buffer = this->WithDefRegionKind(kTVMFFIDefRegionKindSimple, [&] {
-      return this->Mutate(match->buffer, InplaceMode::kDisallow)
+  auto new_match_tensors = op->match_tensors.Map([this](const MatchTensorRegion& match) {
+    TensorVar tensor = this->WithDefRegionKind(kTVMFFIDefRegionKindSimple, [&] {
+      return this->Mutate(match->tensor, InplaceMode::kDisallow)
           .as_or_throw<UnchangedOr<TensorVar>>()
-          .ValueOrUnchanged(match->buffer);
+          .ValueOrUnchanged(match->tensor);
     });
-    TensorRegion source = VisitBufferRegion(match->source);
-    if (buffer.same_as(match->buffer) && source.same_as(match->source)) return match;
-    return MatchBufferRegion(buffer, source);
+    TensorRegion source = VisitTensorRegion(match->source);
+    if (tensor.same_as(match->tensor) && source.same_as(match->source)) return match;
+    return MatchTensorRegion(tensor, source);
   });
   ffi::Array<TensorRegion> new_reads = op->reads.Map(
-      [this](const TensorRegion& buffer_region) { return VisitBufferRegion(buffer_region); });
+      [this](const TensorRegion& tensor_region) { return VisitTensorRegion(tensor_region); });
   ffi::Array<TensorRegion> new_writes = op->writes.Map(
-      [this](const TensorRegion& buffer_region) { return VisitBufferRegion(buffer_region); });
+      [this](const TensorRegion& tensor_region) { return VisitTensorRegion(tensor_region); });
   ffi::Array<IterVar> new_iter_vars =
       op->iter_vars.Map([this](const IterVar& iter_var) { return VisitIterVar(iter_var); });
   ffi::Optional<SeqStmt> new_init = std::nullopt;
@@ -141,14 +141,14 @@ UnchangedOr<Stmt> IndexDataTypeNormalizer::Mutate_(const SBlockNode* op, Inplace
   Stmt new_body = std::move(new_body_result).ValueOrUnchanged(op->body);
 
   if (!new_init.same_as(op->init) || !new_body_unchanged ||
-      !new_alloc_buffers.same_as(op->alloc_buffers) ||
-      !new_match_buffers.same_as(op->match_buffers) || !new_reads.same_as(op->reads) ||
+      !new_alloc_tensors.same_as(op->alloc_tensors) ||
+      !new_match_tensors.same_as(op->match_tensors) || !new_reads.same_as(op->reads) ||
       !new_writes.same_as(op->writes) || !new_iter_vars.same_as(op->iter_vars) ||
       !new_annotations.same_as(op->annotations)) {
     SBlock new_block = ffi::GetRef<SBlock>(op);
     SBlockNode* n = new_block.CopyOnWrite();
-    n->alloc_buffers = std::move(new_alloc_buffers);
-    n->match_buffers = std::move(new_match_buffers);
+    n->alloc_tensors = std::move(new_alloc_tensors);
+    n->match_tensors = std::move(new_match_tensors);
     n->reads = std::move(new_reads);
     n->writes = std::move(new_writes);
     n->iter_vars = std::move(new_iter_vars);
@@ -169,12 +169,12 @@ ffi::Map<ffi::String, ffi::Any> IndexDataTypeNormalizer::VisitBlockAnnotations(
       return obj;
     }
     if (auto var = obj.as<Var>(); var && var.value()->ty.as<TensorTypeNode>()) {
-      TensorVar buffer = var.value().as_or_throw<TensorVar>();
-      if (TensorVar new_buffer = this->Mutate(buffer, InplaceMode::kDisallow)
+      TensorVar tensor = var.value().as_or_throw<TensorVar>();
+      if (TensorVar new_tensor = this->Mutate(tensor, InplaceMode::kDisallow)
                                      .as_or_throw<UnchangedOr<TensorVar>>()
-                                     .ValueOrUnchanged(buffer);
-          !new_buffer.same_as(buffer)) {
-        return new_buffer;
+                                     .ValueOrUnchanged(tensor);
+          !new_tensor.same_as(tensor)) {
+        return new_tensor;
       }
     } else if (obj.as<ffi::ArrayObj>()) {
       return obj.as_or_throw<ffi::Array<Any>>().Map(f_mutate_obj);
@@ -215,26 +215,26 @@ IterVar IndexDataTypeNormalizer::VisitIterVar(const IterVar& iter_var) {
   return iter_var;
 }
 
-TensorRegion IndexDataTypeNormalizer::VisitBufferRegion(const TensorRegion& buffer_region) {
-  TensorVar remapped_buffer =
-      this->Mutate(buffer_region->source.as_or_throw<TensorVar>(), InplaceMode::kDisallow)
+TensorRegion IndexDataTypeNormalizer::VisitTensorRegion(const TensorRegion& tensor_region) {
+  TensorVar remapped_tensor =
+      this->Mutate(tensor_region->source.as_or_throw<TensorVar>(), InplaceMode::kDisallow)
           .as_or_throw<UnchangedOr<TensorVar>>()
-          .ValueOrUnchanged(buffer_region->source.as_or_throw<TensorVar>());
+          .ValueOrUnchanged(tensor_region->source.as_or_throw<TensorVar>());
 
   bool is_enabled = this->is_enabled_;
   this->is_enabled_ = true;
-  auto new_region = buffer_region->region.Map([&](const Range& range) {
+  auto new_region = tensor_region->region.Map([&](const Range& range) {
     return Range::FromMinExtent(
         this->Mutate(range->min, InplaceMode::kDisallow).ValueOrUnchanged(range->min),
         this->Mutate(range->extent, InplaceMode::kDisallow).ValueOrUnchanged(range->extent));
   });
   this->is_enabled_ = is_enabled;
 
-  if (!remapped_buffer.same_as(buffer_region->source.as_or_throw<TensorVar>()) ||
-      !new_region.same_as(buffer_region->region)) {
-    return BufferRegion(remapped_buffer, new_region);
+  if (!remapped_tensor.same_as(tensor_region->source.as_or_throw<TensorVar>()) ||
+      !new_region.same_as(tensor_region->region)) {
+    return MakeTensorRegion(remapped_tensor, new_region);
   } else {
-    return buffer_region;
+    return tensor_region;
   }
 }
 

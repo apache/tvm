@@ -106,21 +106,21 @@ class UndefinedVarVerifier : public Verifier<UndefinedVarVerifier<PathVisitor>, 
   std::unordered_map<Var, AccessPath> previously_defined_;
 };
 
-/*! \brief Verify that buffers with a declaration are not used outside their declared scope.
+/*! \brief Verify that tensors with a declaration are not used outside their declared scope.
  *
- * When a buffer is declared via one of the following sites:
+ * When a tensor is declared via one of the following sites:
  *   - TensorType-annotated Function parameters
  *   - DeclTensor statement
  *   - Dialect-specific definitions exposed by PathVisitor
  *
- * it must not appear in a TensorLoad, TensorStore, or BufferRegion outside that declaration's
+ * it must not appear in a TensorLoad, TensorStore, or TensorRegion outside that declaration's
  * scope.
  *
- * All buffers that appear in TensorLoad or TensorStore must have a prior declaration.
+ * All tensors that appear in TensorLoad or TensorStore must have a prior declaration.
  */
 template <typename PathVisitor>
-class UndefinedBufferVerifier : public Verifier<UndefinedBufferVerifier<PathVisitor>, PathVisitor> {
-  using Verifier = tirx::Verifier<UndefinedBufferVerifier<PathVisitor>, PathVisitor>;
+class UndefinedTensorVerifier : public Verifier<UndefinedTensorVerifier<PathVisitor>, PathVisitor> {
+  using Verifier = tirx::Verifier<UndefinedTensorVerifier<PathVisitor>, PathVisitor>;
 
  public:
   using Verifier::Verifier;
@@ -131,55 +131,55 @@ class UndefinedBufferVerifier : public Verifier<UndefinedBufferVerifier<PathVisi
 
   void Visit(const Function& function, AccessPath path) override {
     Verifier::Visit(function, path);
-    // Clear per-function state (buffers should not cross function boundaries).
+    // Clear per-function state (tensors should not cross function boundaries).
     currently_defined_.clear();
     previously_defined_.clear();
   }
 
   void EnterDef(const Var& var, AccessPath path) override {
-    if (auto buffer = var.as<TensorVar>()) {
-      currently_defined_.insert({buffer.value(), path});
+    if (auto tensor = var.as<TensorVar>()) {
+      currently_defined_.insert({tensor.value(), path});
     }
   }
 
   void ExitDef(const Var& var, AccessPath path) override {
     if (!var->ty.as<TensorTypeNode>()) return;
-    auto buffer = var.as_or_throw<TensorVar>();
-    auto active_def = currently_defined_.find(buffer);
+    auto tensor = var.as_or_throw<TensorVar>();
+    auto active_def = currently_defined_.find(tensor);
     if (active_def != currently_defined_.end()) {
       currently_defined_.erase(active_def);
     }
-    previously_defined_.insert({buffer, path});
+    previously_defined_.insert({tensor, path});
   }
 
-  void VisitBufferUse(const TensorVar& buffer, AccessPath path) override {
-    bool is_declared = currently_defined_.count(buffer);
-    bool was_declared = previously_defined_.count(buffer);
+  void VisitTensorUse(const TensorVar& tensor, AccessPath path) override {
+    bool is_declared = currently_defined_.count(tensor);
+    bool was_declared = previously_defined_.count(tensor);
 
     if (was_declared && !is_declared) {
       // TensorVar was previously declared but is now out of scope — always an error.
-      auto prev_def = previously_defined_.find(buffer);
-      Verify(false) << "TIR is ill-formed: buffer " << buffer.name() << " is used at " << path
+      auto prev_def = previously_defined_.find(tensor);
+      Verify(false) << "TIR is ill-formed: tensor " << tensor.name() << " is used at " << path
                     << " but its declaration is no longer in-scope. "
                     << "It was declared at " << prev_def->second << ".";
     } else if (!is_declared && !was_declared) {
       // TensorVar was never declared — error.
-      Verify(false) << "TIR is ill-formed: buffer " << buffer.name() << " is used at " << path
+      Verify(false) << "TIR is ill-formed: tensor " << tensor.name() << " is used at " << path
                     << " without a prior DeclTensor or other declaration.";
     }
     // TensorVar fields are visited at definition site (EnterDef), not here.
-    Verifier::VisitBufferUse(buffer, path);
+    Verifier::VisitTensorUse(tensor, path);
   }
 
-  // Buffers defined in the currently-visited scope.
+  // Tensors defined in the currently-visited scope.
   std::unordered_map<TensorVar, AccessPath, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
       currently_defined_;
-  // Buffers that were previously defined and are now out of scope.
+  // Tensors that were previously defined and are now out of scope.
   std::unordered_map<TensorVar, AccessPath, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
       previously_defined_;
 };
 
-/*! \brief Verify the asserted type of each tirx buffer load. */
+/*! \brief Verify the asserted type of each tirx tensor load. */
 template <typename PathVisitor>
 class TensorLoadTypeVerifier : public Verifier<TensorLoadTypeVerifier<PathVisitor>, PathVisitor> {
   using Verifier = tirx::Verifier<TensorLoadTypeVerifier<PathVisitor>, PathVisitor>;
@@ -191,19 +191,19 @@ class TensorLoadTypeVerifier : public Verifier<TensorLoadTypeVerifier<PathVisito
  private:
   using Verifier::Visit;
   void Dispatch_(const TensorLoadNode* op, AccessPath path) override {
-    auto buffer = op->source.as<TensorVar>();
-    auto valid_source = Verify(buffer.has_value());
+    auto tensor = op->source.as<TensorVar>();
+    auto valid_source = Verify(tensor.has_value());
     valid_source << "TypeError: TIR TensorLoad source at " << path->Attr("source")
                  << " must be a TensorVar.";
-    if (!buffer.has_value()) {
+    if (!tensor.has_value()) {
       Visit(op->indices, path->Attr("indices"));
       return;
     }
 
-    bool valid_indices = buffer.value()->shape.size() == op->indices.size();
+    bool valid_indices = tensor.value()->shape.size() == op->indices.size();
     auto valid_rank = Verify(valid_indices);
     valid_rank << "ValueError: TIR TensorLoad at " << path << " indexes "
-               << buffer.value()->shape.size() << "-dimensional buffer " << buffer.value().name()
+               << tensor.value()->shape.size() << "-dimensional tensor " << tensor.value().name()
                << " with " << op->indices.size() << " indices.";
     if (!valid_indices) {
       Visit(op->indices, path->Attr("indices"));
@@ -224,7 +224,7 @@ class TensorLoadTypeVerifier : public Verifier<TensorLoadTypeVerifier<PathVisito
     }
 
     ffi::Optional<PrimType> index_ty = op->indices.empty()
-                                           ? ffi::Optional<PrimType>(buffer.value()->dtype)
+                                           ? ffi::Optional<PrimType>(tensor.value()->dtype)
                                            : op->indices.back().ty().as<PrimType>();
     AccessPath final_index_path = op->indices.empty()
                                       ? path->Attr("indices")
@@ -237,17 +237,17 @@ class TensorLoadTypeVerifier : public Verifier<TensorLoadTypeVerifier<PathVisito
       return;
     }
 
-    bool scalable_compatible = op->indices.empty() || !(buffer.value()->dtype.IsScalableVector() &&
+    bool scalable_compatible = op->indices.empty() || !(tensor.value()->dtype.IsScalableVector() &&
                                                         index_ty.value().IsScalableVector());
     auto valid_scalability = Verify(scalable_compatible);
     valid_scalability << "TypeError: TIR TensorLoad at " << path
-                      << " cannot combine a scalable buffer dtype with a scalable index.";
+                      << " cannot combine a scalable tensor dtype with a scalable index.";
     if (!scalable_compatible) {
       Visit(op->indices, path->Attr("indices"));
       return;
     }
 
-    TensorLoad expected = MakeTensorLoad(buffer.value(), op->indices, op->loc);
+    TensorLoad expected = MakeTensorLoad(tensor.value(), op->indices, op->loc);
     ffi::Optional<PrimType> asserted_ty = op->ty.as<PrimType>();
     ffi::Optional<PrimType> expected_ty = expected->ty.as<PrimType>();
     auto valid_type = Verify(asserted_ty.has_value() && expected_ty.has_value() &&
@@ -309,7 +309,7 @@ class LoopControlVerifier : public Verifier<LoopControlVerifier<PathVisitor>, Pa
 template <typename PathVisitor, typename NodeRef>
 bool VerifyWellFormedCommon(const NodeRef& node, bool assert_mode) {
   return UndefinedVarVerifier<PathVisitor>::Verify(node, assert_mode) &&
-         UndefinedBufferVerifier<PathVisitor>::Verify(node, assert_mode) &&
+         UndefinedTensorVerifier<PathVisitor>::Verify(node, assert_mode) &&
          TensorLoadTypeVerifier<PathVisitor>::Verify(node, assert_mode) &&
          LoopControlVerifier<PathVisitor>::Verify(node, assert_mode);
 }

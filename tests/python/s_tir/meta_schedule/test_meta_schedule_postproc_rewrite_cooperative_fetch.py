@@ -60,9 +60,9 @@ class AfterRewrite0:
 
         # body
         # with Ts.sblock("root")
-        C_local = Ts.sblock_alloc_buffer([512, 512], dtype="float32", scope="local")
-        A_shared = Ts.sblock_alloc_buffer([512, 512], dtype="float32", scope="shared")
-        B_shared = Ts.sblock_alloc_buffer([512, 512], dtype="float32", scope="shared")
+        C_local = Ts.sblock_alloc_tensor([512, 512], dtype="float32", scope="local")
+        A_shared = Ts.sblock_alloc_tensor([512, 512], dtype="float32", scope="shared")
+        B_shared = Ts.sblock_alloc_tensor([512, 512], dtype="float32", scope="shared")
         for i0_0_i1_0_fused in T.thread_binding(0, 16, thread="blockIdx.x"):
             for i0_1_i1_1_fused in T.thread_binding(0, 16, thread="vthread.x"):
                 for i0_2_i1_2_fused in T.thread_binding(0, 8, thread="threadIdx.x"):
@@ -114,9 +114,9 @@ class WarpExecutionAfterRewrite:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         # body
         # with Ts.sblock("root")
-        C_local = Ts.sblock_alloc_buffer([512, 512], dtype="float32", scope="local")
-        A_shared = Ts.sblock_alloc_buffer([512, 512], dtype="float32", scope="shared")
-        B_shared = Ts.sblock_alloc_buffer([512, 512], dtype="float32", scope="shared")
+        C_local = Ts.sblock_alloc_tensor([512, 512], dtype="float32", scope="local")
+        A_shared = Ts.sblock_alloc_tensor([512, 512], dtype="float32", scope="shared")
+        B_shared = Ts.sblock_alloc_tensor([512, 512], dtype="float32", scope="shared")
         for i0_0_i1_0_fused in T.thread_binding(0, 16, thread="blockIdx.x"):
             for i0_1_i1_1_fused in T.thread_binding(0, 16, thread="vthread.x"):
                 for i0_2_i1_2_fused in T.thread_binding(0, 8, thread="threadIdx.y"):
@@ -216,7 +216,7 @@ def test_rewrite_cooperative_fetch():
     # fmt: off
     # pylint: disable=line-too-long,invalid-name
     b0 = sch.get_sblock(name="C", func_name="main")
-    b1 = sch.cache_write(block=b0, write_buffer_index=0, storage_scope="local")
+    b1 = sch.cache_write(block=b0, write_tensor_index=0, storage_scope="local")
     l2, l3, l4 = sch.get_loops(block=b0)
     v5, v6, v7, v8, v9 = sch.sample_perfect_tile(loop=l2, n=5, max_innermost_factor=64, decision=[1, 16, 1, 2, 16])
     l10, l11, l12, l13, l14 = sch.split(loop=l2, factors=[v5, v6, v7, v8, v9])
@@ -231,13 +231,13 @@ def test_rewrite_cooperative_fetch():
     sch.bind(loop=l32, thread_axis="vthread.x")
     l33 = sch.fuse(l12, l22)
     sch.bind(loop=l33, thread_axis="threadIdx.x")
-    b34 = sch.cache_read(block=b0, read_buffer_index=0, storage_scope="shared")
+    b34 = sch.cache_read(block=b0, read_tensor_index=0, storage_scope="shared")
     sch.compute_at(block=b34, loop=l28, preserve_unit_loops=True)
     _, _, _, _, l39, l40 = sch.get_loops(block=b34)
     l41 = sch.fuse(l39, l40)
     _, v43 = sch.sample_perfect_tile(loop=l41, n=2, max_innermost_factor=4, decision=[262144, 1])
     sch.annotate(block_or_loop=b34, ann_key="meta_schedule.cooperative_fetch", ann_val=v43)
-    b44 = sch.cache_read(block=b0, read_buffer_index=1, storage_scope="shared")
+    b44 = sch.cache_read(block=b0, read_tensor_index=1, storage_scope="shared")
     sch.compute_at(block=b44, loop=l28, preserve_unit_loops=True)
     _, _, _, _, l49, l50 = sch.get_loops(block=b44)
     l51 = sch.fuse(l49, l50)
@@ -260,7 +260,7 @@ def test_rewrite_warp_execution():
     # fmt: off
     # pylint: disable=line-too-long,invalid-name
     b0 = sch.get_sblock(name="C", func_name="main")
-    b1 = sch.cache_write(block=b0, write_buffer_index=0, storage_scope="local")
+    b1 = sch.cache_write(block=b0, write_tensor_index=0, storage_scope="local")
     l2, l3, l4 = sch.get_loops(block=b0)
     sch.annotate(b0, "warp_execution", 1)
     v5, v6, v7, v8, v9 = sch.sample_perfect_tile(loop=l2, n=5, max_innermost_factor=64, decision=[1, 16, 1, 2, 16])
@@ -276,13 +276,13 @@ def test_rewrite_warp_execution():
     sch.bind(loop=l32, thread_axis="vthread.x")
     l33 = sch.fuse(l12, l22)
     sch.bind(loop=l33, thread_axis="threadIdx.y")
-    b34 = sch.cache_read(block=b0, read_buffer_index=0, storage_scope="shared")
+    b34 = sch.cache_read(block=b0, read_tensor_index=0, storage_scope="shared")
     sch.compute_at(block=b34, loop=l28, preserve_unit_loops=True)
     _, _, _, _, l39, l40 = sch.get_loops(block=b34)
     l41 = sch.fuse(l39, l40)
     _, v43 = sch.sample_perfect_tile(loop=l41, n=2, max_innermost_factor=4, decision=[262144, 1])
     sch.annotate(block_or_loop=b34, ann_key="meta_schedule.cooperative_fetch", ann_val=v43)
-    b44 = sch.cache_read(block=b0, read_buffer_index=1, storage_scope="shared")
+    b44 = sch.cache_read(block=b0, read_tensor_index=1, storage_scope="shared")
     sch.compute_at(block=b44, loop=l28, preserve_unit_loops=True)
     _, _, _, _, l49, l50 = sch.get_loops(block=b44)
     l51 = sch.fuse(l49, l50)

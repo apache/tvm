@@ -35,7 +35,7 @@ def test_decode_gemv_1():
         def func(W: T.Tensor((4096, 512), "uint32"), S: T.Tensor((4096, 128), "float16"), V: T.Tensor((1, 1, 4096), "float16"), C: T.Tensor((1, 1, 4096), "float16")):
             T.func_attr({"global_symbol": "main", "tirx.noalias": True})
             # with Ts.sblock("root"):
-            B = Ts.sblock_alloc_buffer((4096, 4096), "float16")
+            B = Ts.sblock_alloc_tensor((4096, 4096), "float16")
             for i, j in T.grid(4096, 4096):
                 with Ts.sblock("decode"):
                     v_i, v_j = Ts.axis.remap("SS", [i, j])
@@ -60,7 +60,7 @@ def test_decode_gemv_1():
             with Ts.sblock("root"):
                 Ts.reads()
                 Ts.writes()
-                C_rf_local = Ts.sblock_alloc_buffer((512, 1, 1, 4096), "float16", scope="local")
+                C_rf_local = Ts.sblock_alloc_tensor((512, 1, 1, 4096), "float16", scope="local")
                 for ax0_fused in T.thread_binding(4096, thread="blockIdx.x"):
                     for ax1_0_fused_1 in T.thread_binding(512, thread="threadIdx.x", annotations={"auto_unroll_max_step": 256, "unroll_explicit": 1}):
                         with Ts.sblock("matmul_rf_init"):
@@ -106,7 +106,7 @@ def test_decode_gemv_2():
         def func(W: T.Tensor((512, 4096), "uint32"), S: T.Tensor((128, 4096), "float16"), V: T.Tensor((1, 1, 4096), "float16"), C: T.Tensor((1, 1, 4096), "float16")):
             T.func_attr({"global_symbol": "main", "tirx.noalias": True})
             # with Ts.sblock("root"):
-            B = Ts.sblock_alloc_buffer((4096, 4096), "float16")
+            B = Ts.sblock_alloc_tensor((4096, 4096), "float16")
             for i, j in T.grid(4096, 4096):
                 with Ts.sblock("decode"):
                     v_i, v_j = Ts.axis.remap("SS", [i, j])
@@ -128,7 +128,7 @@ def test_decode_gemv_2():
         def func(W: T.Tensor((512, 4096), "uint32"), S: T.Tensor((128, 4096), "float16"), V: T.Tensor((1, 1, 4096), "float16"), C: T.Tensor((1, 1, 4096), "float16")):
             T.func_attr({"global_symbol": "main", "tirx.is_scheduled": True, "tirx.noalias": True})
             # with Ts.sblock("root"):
-            C_rf_local = Ts.sblock_alloc_buffer((16, 1, 1, 4096), "float16", scope="local")
+            C_rf_local = Ts.sblock_alloc_tensor((16, 1, 1, 4096), "float16", scope="local")
             for i2_i0_i1_fused_0 in T.thread_binding(256, thread="blockIdx.x"):
                 for i2_i0_i1_fused_1 in T.thread_binding(16, thread="threadIdx.x"):
                     for k_0_fused_1 in T.thread_binding(16, thread="threadIdx.y"):
@@ -168,7 +168,7 @@ def test_decode_gemv_3():
         def func(W: T.Tensor((512, 4096), "uint32"), S: T.Tensor((128, 4096), "float16"), V: T.Tensor((1, 1, 4096), "float16"), C: T.Tensor((1, 1, 4096), "float16")):
             T.func_attr({"global_symbol": "main", "tirx.noalias": True})
             # with Ts.sblock("root"):
-            B = Ts.sblock_alloc_buffer((4096, 4096), "float16")
+            B = Ts.sblock_alloc_tensor((4096, 4096), "float16")
             for i, j in T.grid(4096, 4096):
                 with Ts.sblock("decode"):
                     v_i, v_j = Ts.axis.remap("SS", [i, j])
@@ -193,7 +193,7 @@ def test_decode_gemv_3():
             with Ts.sblock("root"):
                 Ts.reads()
                 Ts.writes()
-                C_rf_local = Ts.sblock_alloc_buffer((1024, 1, 1, 4096), "float16", scope="local")
+                C_rf_local = Ts.sblock_alloc_tensor((1024, 1, 1, 4096), "float16", scope="local")
                 for ax0_0_fused in T.thread_binding(512, thread="blockIdx.x"):
                     for ax1_fused_1 in T.thread_binding(1024, thread="threadIdx.x", annotations={"auto_unroll_max_step": 256, "unroll_explicit": 1}):
                         for ax0_1_init in range(8):
@@ -241,7 +241,7 @@ def test_decode_gemv_4():
         def func(W: T.Tensor((4096, 512), "uint32"), S: T.Tensor((4096, 128), "float16"), V: T.Tensor((1, 1, 4096), "float16"), C: T.Tensor((1, 1, 4096), "float16")):
             T.func_attr({"global_symbol": "main", "tirx.noalias": True})
             # with Ts.sblock("root"):
-            B = Ts.sblock_alloc_buffer((4096, 4096), "float16")
+            B = Ts.sblock_alloc_tensor((4096, 4096), "float16")
             for i, j in T.grid(4096, 4096):
                 with Ts.sblock("decode"):
                     v_i, v_j = Ts.axis.remap("SS", [i, j])
@@ -263,7 +263,7 @@ def test_decode_gemv_4():
         def func(W: T.Tensor((4096, 512), "uint32"), S: T.Tensor((4096, 128), "float16"), V: T.Tensor((1, 1, 4096), "float16"), C: T.Tensor((1, 1, 4096), "float16")):
             T.func_attr({"global_symbol": "main", "tirx.is_scheduled": True, "tirx.noalias": True})
             # with Ts.sblock("root"):
-            C_rf_local = Ts.sblock_alloc_buffer((16, 1, 1, 4096), "float16", scope="local")
+            C_rf_local = Ts.sblock_alloc_tensor((16, 1, 1, 4096), "float16", scope="local")
             for i2_0_i0_i1_fused_0 in T.thread_binding(32, thread="blockIdx.x"):
                 for i2_0_i0_i1_fused_1 in T.thread_binding(16, thread="threadIdx.x"):
                     for k_fused_1 in T.thread_binding(16, thread="threadIdx.y"):
@@ -305,8 +305,8 @@ def test_decode_gemv_sigmoid():
         def func(W: T.Tensor((4096, 512), "uint32"), S: T.Tensor((4096, 128), "float16"), V: T.Tensor((1, 1, 4096), "float16"), D: T.Tensor((1, 1, 4096), "float16")):
             T.func_attr({"global_symbol": "main", "tirx.noalias": True})
             # with Ts.sblock("root"):
-            B = Ts.sblock_alloc_buffer((4096, 4096), "float16")
-            C = Ts.sblock_alloc_buffer((1, 1, 4096), "float16")
+            B = Ts.sblock_alloc_tensor((4096, 4096), "float16")
+            C = Ts.sblock_alloc_tensor((1, 1, 4096), "float16")
             for i, j in T.grid(4096, 4096):
                 with Ts.sblock("decode"):
                     v_i, v_j = Ts.axis.remap("SS", [i, j])
@@ -337,8 +337,8 @@ def test_decode_gemv_sigmoid():
             with Ts.sblock("root"):
                 Ts.reads()
                 Ts.writes()
-                C_local = Ts.sblock_alloc_buffer((1, 1, 4096), "float16", scope="local")
-                C_rf_local = Ts.sblock_alloc_buffer((512, 1, 1, 4096), "float16", scope="local")
+                C_local = Ts.sblock_alloc_tensor((1, 1, 4096), "float16", scope="local")
+                C_rf_local = Ts.sblock_alloc_tensor((512, 1, 1, 4096), "float16", scope="local")
                 for ax0_fused in T.thread_binding(4096, thread="blockIdx.x"):
                     for ax1_0_fused_1 in T.thread_binding(512, thread="threadIdx.x", annotations={"auto_unroll_max_step": 256, "unroll_explicit": 1}):
                         with Ts.sblock("matmul_rf_init"):
@@ -391,8 +391,8 @@ def test_decode_gemv_1_fp32():
         def func(W: T.Tensor((4096, 512), "uint32"), S: T.Tensor((4096, 128), "float16"), V: T.Tensor((1, 1, 4096), "float16"), C: T.Tensor((1, 1, 4096), "float16")):
             T.func_attr({"global_symbol": "main", "tirx.noalias": True})
             # with Ts.sblock("root"):
-            B = Ts.sblock_alloc_buffer((4096, 4096), "float16")
-            C_fp32 = Ts.sblock_alloc_buffer((1, 1, 4096), "float32")
+            B = Ts.sblock_alloc_tensor((4096, 4096), "float16")
+            C_fp32 = Ts.sblock_alloc_tensor((1, 1, 4096), "float32")
             for i, j in T.grid(4096, 4096):
                 with Ts.sblock("decode"):
                     v_i, v_j = Ts.axis.remap("SS", [i, j])
@@ -423,8 +423,8 @@ def test_decode_gemv_1_fp32():
             with Ts.sblock("root"):
                 Ts.reads()
                 Ts.writes()
-                C_fp32_local = Ts.sblock_alloc_buffer((1, 1, 4096), scope="local")
-                C_fp32_rf_local = Ts.sblock_alloc_buffer((512, 1, 1, 4096), scope="local")
+                C_fp32_local = Ts.sblock_alloc_tensor((1, 1, 4096), scope="local")
+                C_fp32_rf_local = Ts.sblock_alloc_tensor((512, 1, 1, 4096), scope="local")
                 for ax0_fused in T.thread_binding(4096, thread="blockIdx.x"):
                     for ax1_0_fused_1 in T.thread_binding(512, thread="threadIdx.x", annotations={"auto_unroll_max_step": 256, "unroll_explicit": 1}):
                         with Ts.sblock("matmul_rf_init"):
@@ -475,7 +475,7 @@ def test_reduction_no_spatial():
         @Ts.function
         def main(A: T.Tensor((1, 1, 4096), "float16"), B: T.Tensor((4096,), "float16"), rms_norm: T.Tensor((1, 4096), "float16")):
             T.func_attr({"global_symbol": "main", "tirx.noalias": True})
-            Ared_temp = Ts.sblock_alloc_buffer((1, 1))
+            Ared_temp = Ts.sblock_alloc_tensor((1, 1))
             for ax0 in range(4096):
                 with Ts.sblock("Ared_temp"):
                     v0 = Ts.axis.reduce(4096, ax0)
@@ -496,8 +496,8 @@ def test_reduction_no_spatial():
             with Ts.sblock("root"):
                 Ts.reads()
                 Ts.writes()
-                Ared_temp_shared = Ts.sblock_alloc_buffer((1, 1), scope="shared")
-                Ared_temp_rf_local = Ts.sblock_alloc_buffer((1024, 1, 1), scope="local")
+                Ared_temp_shared = Ts.sblock_alloc_tensor((1, 1), scope="shared")
+                Ared_temp_rf_local = Ts.sblock_alloc_tensor((1024, 1, 1), scope="local")
                 for ax0_fused in T.thread_binding(T.int64(1), thread="blockIdx.x"):
                     for ax1_fused_1 in T.thread_binding(1024, thread="threadIdx.x", annotations={"auto_unroll_max_step": 256, "unroll_explicit": 1}):
                         with Ts.sblock("Ared_temp_rf_init"):
@@ -546,8 +546,8 @@ def test_spatial_inner_no_broadcasting():
         @Ts.function
         def main(lv575: T.Tensor((1376, 4096), "uint32"), lv576: T.Tensor((344, 4096), "float16"), lv574: T.Tensor((1, 1, 11008), "float16"), lv570: T.Tensor((1, 1, 4096), "float16"), p_output0_intermediate: T.Tensor((1, 1, 4096), "float16")):
             T.func_attr({"tirx.noalias": True})
-            p_output0_intermediate_1 = Ts.sblock_alloc_buffer((11008, 4096), "float16")
-            var_matmul_intermediate = Ts.sblock_alloc_buffer((1, 1, 4096), "float16")
+            p_output0_intermediate_1 = Ts.sblock_alloc_tensor((11008, 4096), "float16")
+            var_matmul_intermediate = Ts.sblock_alloc_tensor((1, 1, 4096), "float16")
             for i, j in T.grid(11008, 4096):
                 with Ts.sblock("decode"):
                     v_i, v_j = Ts.axis.remap("SS", [i, j])
@@ -574,8 +574,8 @@ def test_spatial_inner_no_broadcasting():
         @Ts.function
         def main(lv575: T.Tensor((1376, 4096), "uint32"), lv576: T.Tensor((344, 4096), "float16"), lv574: T.Tensor((1, 1, 11008), "float16"), lv570: T.Tensor((1, 1, 4096), "float16"), p_output0_intermediate: T.Tensor((1, 1, 4096), "float16")):
             T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
-            var_matmul_intermediate_local = Ts.sblock_alloc_buffer((1, 1, 4096), "float16", scope="local")
-            var_matmul_intermediate_rf_local = Ts.sblock_alloc_buffer((16, 1, 1, 4096), "float16", scope="local")
+            var_matmul_intermediate_local = Ts.sblock_alloc_tensor((1, 1, 4096), "float16", scope="local")
+            var_matmul_intermediate_rf_local = Ts.sblock_alloc_tensor((16, 1, 1, 4096), "float16", scope="local")
             for ax0_fused_0 in T.thread_binding(256, thread="blockIdx.x"):
                 for ax0_fused_1 in T.thread_binding(16, thread="threadIdx.x"):
                     for ax1_0_fused_1 in T.thread_binding(16, thread="threadIdx.y"):
@@ -625,7 +625,7 @@ def test_spatial_inner_broadcasting():
         @Ts.function
         def main(A: T.Tensor((256, 256), "float32"), B: T.Tensor((256, 256), "float32")):
             T.func_attr({"tirx.noalias": True})
-            temp_local = Ts.sblock_alloc_buffer((256,))
+            temp_local = Ts.sblock_alloc_tensor((256,))
             for j in T.serial(256):
                 for k in T.serial(256):
                     with Ts.sblock("sum"):
@@ -647,8 +647,8 @@ def test_spatial_inner_broadcasting():
         @Ts.function
         def main(A: T.Tensor((256, 256), "float32"), B: T.Tensor((256, 256), "float32")):
             T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
-            temp_local_shared = Ts.sblock_alloc_buffer((256,), scope="shared")
-            temp_local_rf_local = Ts.sblock_alloc_buffer((16, 256), scope="local")
+            temp_local_shared = Ts.sblock_alloc_tensor((256,), scope="shared")
+            temp_local_rf_local = Ts.sblock_alloc_tensor((16, 256), scope="local")
             for ax0_fused_0 in T.thread_binding(16, thread="blockIdx.x"):
                 for ax0_fused_1 in T.thread_binding(16, thread="threadIdx.x"):
                     for ax1_fused_1 in T.thread_binding(16, thread="threadIdx.y"):
@@ -700,7 +700,7 @@ def test_reduction_inner_no_broadcasting():
         @Ts.function
         def main(A: T.Tensor((256, 256), "float32"), B: T.Tensor((256,), "float32")):
             T.func_attr({"tirx.noalias": True})
-            temp_local = Ts.sblock_alloc_buffer((256,))
+            temp_local = Ts.sblock_alloc_tensor((256,))
             for i in T.serial(256):
                 for k in T.serial(256):
                     with Ts.sblock("sum"):
@@ -723,8 +723,8 @@ def test_reduction_inner_no_broadcasting():
         def main(A: T.Tensor((256, 256), "float32"), B: T.Tensor((256,), "float32")):
             T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
             # with Ts.sblock("root"):
-            temp_local_local = Ts.sblock_alloc_buffer((256,), scope="local")
-            temp_local_rf_local = Ts.sblock_alloc_buffer((256, 256), scope="local")
+            temp_local_local = Ts.sblock_alloc_tensor((256,), scope="local")
+            temp_local_rf_local = Ts.sblock_alloc_tensor((256, 256), scope="local")
             for ax0_fused in T.thread_binding(256, thread="blockIdx.x"):
                 for ax1_fused_1 in T.thread_binding(256, thread="threadIdx.x", annotations={"auto_unroll_max_step": 256, "unroll_explicit": 1}):
                     with Ts.sblock("sum_rf_init"):
@@ -769,8 +769,8 @@ def test_reduction_inner_no_broadcasting2():
         def main(lv9: T.Tensor((2560, 320), "uint32"), lv10: T.Tensor((2560, 80), "float16"), lv1: T.Tensor((1, 2560), "float16"), p_output0_intermediate: T.Tensor((1, 2560), "float32")):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
-            p_output0_intermediate_1 = Ts.sblock_alloc_buffer((2560, 2560), "float16")
-            var_matmul_intermediate = Ts.sblock_alloc_buffer((1, 2560), "float16")
+            p_output0_intermediate_1 = Ts.sblock_alloc_tensor((2560, 2560), "float16")
+            var_matmul_intermediate = Ts.sblock_alloc_tensor((1, 2560), "float16")
             for i, j in T.grid(2560, 2560):
                 with Ts.sblock("decode"):
                     v_i, v_j = Ts.axis.remap("SS", [i, j])
@@ -798,8 +798,8 @@ def test_reduction_inner_no_broadcasting2():
         def main(lv9: T.Tensor((2560, 320), "uint32"), lv10: T.Tensor((2560, 80), "float16"), lv1: T.Tensor((1, 2560), "float16"), p_output0_intermediate: T.Tensor((1, 2560), "float32")):
             T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
             # with Ts.sblock("root"):
-            var_matmul_intermediate_local = Ts.sblock_alloc_buffer((1, 2560), "float16", scope="local")
-            var_matmul_intermediate_rf_local = Ts.sblock_alloc_buffer((16, 1, 2560), "float16", scope="local")
+            var_matmul_intermediate_local = Ts.sblock_alloc_tensor((1, 2560), "float16", scope="local")
+            var_matmul_intermediate_rf_local = Ts.sblock_alloc_tensor((16, 1, 2560), "float16", scope="local")
             for ax0_0_fused_0 in T.thread_binding(20, thread="blockIdx.x"):
                 for ax0_0_fused_1 in T.thread_binding(16, thread="threadIdx.x"):
                     for ax1_fused_1 in T.thread_binding(16, thread="threadIdx.y"):
@@ -871,7 +871,7 @@ def test_reduction_inner_spatial_choose_perfect_factor():
             T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
 
             # with Ts.sblock("root"):
-            matmul_rf_local = Ts.sblock_alloc_buffer((T.int64(16), T.int64(1), T.int64(32), T.int64(1), T.int64(100)), "float16", scope="local")
+            matmul_rf_local = Ts.sblock_alloc_tensor((T.int64(16), T.int64(1), T.int64(32), T.int64(1), T.int64(100)), "float16", scope="local")
             for ax0_ax1_fused_0 in T.thread_binding(T.int64(320), thread="blockIdx.x"):
                 for ax0_ax1_fused_1 in T.thread_binding(T.int64(10), thread="threadIdx.x"):
                     for ax2_fused_1 in T.thread_binding(T.int64(16), thread="threadIdx.y"):
@@ -1092,8 +1092,8 @@ def test_repeat_transpose_gemv():
             T.func_attr({"tirx.noalias": True})
 
             # with Ts.sblock("root"):
-            var_T_repeat_intermediate = Ts.sblock_alloc_buffer((T.int64(1), kv_seq_len, T.int64(32), T.int64(128)), "float16")
-            var_T_transpose_intermediate = Ts.sblock_alloc_buffer((T.int64(1), T.int64(32), kv_seq_len, T.int64(128)), "float16")
+            var_T_repeat_intermediate = Ts.sblock_alloc_tensor((T.int64(1), kv_seq_len, T.int64(32), T.int64(128)), "float16")
+            var_T_transpose_intermediate = Ts.sblock_alloc_tensor((T.int64(1), T.int64(32), kv_seq_len, T.int64(128)), "float16")
             for ax0, ax1, ax2, ax3 in T.grid(T.int64(1), kv_seq_len, T.int64(32), T.int64(128)):
                 with Ts.sblock("T_repeat"):
                     v_ax0, v_ax1, v_ax2, v_ax3 = Ts.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
@@ -1123,7 +1123,7 @@ def test_repeat_transpose_gemv():
             T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
 
             # with Ts.sblock("root"):
-            var_matmul_intermediate_rf_local = Ts.sblock_alloc_buffer((T.int64(16), T.int64(1), T.int64(32), T.int64(1), T.int64(128)), "float16", scope="local")
+            var_matmul_intermediate_rf_local = Ts.sblock_alloc_tensor((T.int64(16), T.int64(1), T.int64(32), T.int64(1), T.int64(128)), "float16", scope="local")
             for ax0_0_ax1_fused_0 in T.thread_binding(T.int64(64), thread="blockIdx.x"):
                 for ax0_0_ax1_fused_1 in T.thread_binding(T.int64(16), thread="threadIdx.x"):
                     for ax2_fused_1 in T.thread_binding(T.int64(16), thread="threadIdx.y"):
@@ -1177,7 +1177,7 @@ def test_gemv_dyn_shape_epilogue():
         ):
             T.func_attr({"tirx.noalias": True})
 
-            C_temp = Ts.sblock_alloc_buffer((T.int64(1), T.int64(1), vocab_size), "float16")
+            C_temp = Ts.sblock_alloc_tensor((T.int64(1), T.int64(1), vocab_size), "float16")
             for i0, i1, i2, k in T.grid(T.int64(1), T.int64(1), vocab_size, T.int64(4096)):
                 with Ts.sblock("matmul"):
                     v_i0, v_i1, v_i2, v_k = Ts.axis.remap("SSSR", [i0, i1, i2, k])
@@ -1205,8 +1205,8 @@ def test_gemv_dyn_shape_epilogue():
             T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
 
             # with Ts.sblock("root"):
-            C_temp_local = Ts.sblock_alloc_buffer((T.int64(1), T.int64(1), vocab_size), "float16", scope="local")
-            C_temp_rf_local = Ts.sblock_alloc_buffer((T.int64(16), T.int64(1), T.int64(1), vocab_size), "float16", scope="local")
+            C_temp_local = Ts.sblock_alloc_tensor((T.int64(1), T.int64(1), vocab_size), "float16", scope="local")
+            C_temp_rf_local = Ts.sblock_alloc_tensor((T.int64(16), T.int64(1), T.int64(1), vocab_size), "float16", scope="local")
             for ax0_fused_0 in T.thread_binding(vocab_size, thread="blockIdx.x"):
                 for ax0_fused_1 in T.thread_binding(T.int64(1), thread="threadIdx.x"):
                     for ax1_fused_1 in T.thread_binding(T.int64(16), thread="threadIdx.y"):
@@ -1254,7 +1254,7 @@ def test_gemv_output_one_element():
         @Ts.function(private=True)
         def main(A: T.Tensor((T.int64(1), T.int64(2048)), "float16"), weight: T.Tensor((T.int64(1), T.int64(2048)), "float16"), out: T.Tensor((T.int64(1), T.int64(1)), "float16")):
             T.func_attr({"tirx.noalias": True})
-            NT_matmul_intermediate = Ts.sblock_alloc_buffer((T.int64(1), T.int64(1)), "float16")
+            NT_matmul_intermediate = Ts.sblock_alloc_tensor((T.int64(1), T.int64(1)), "float16")
             for i0, i1, k in T.grid(T.int64(1), T.int64(1), T.int64(2048)):
                 with Ts.sblock("NT_matmul"):
                     v_i0, v_i1, v_k = Ts.axis.remap("SSR", [i0, i1, k])
@@ -1271,8 +1271,8 @@ def test_gemv_output_one_element():
         @Ts.function(private=True)
         def main(A: T.Tensor((T.int64(1), T.int64(2048)), "float16"), weight: T.Tensor((T.int64(1), T.int64(2048)), "float16"), out: T.Tensor((T.int64(1), T.int64(1)), "float16")):
             T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
-            NT_matmul_intermediate_shared = Ts.sblock_alloc_buffer((T.int64(1), T.int64(1)), "float16", scope="shared")
-            NT_matmul_intermediate_rf_local = Ts.sblock_alloc_buffer((T.int64(1024), T.int64(1), T.int64(1)), "float16", scope="local")
+            NT_matmul_intermediate_shared = Ts.sblock_alloc_tensor((T.int64(1), T.int64(1)), "float16", scope="shared")
+            NT_matmul_intermediate_rf_local = Ts.sblock_alloc_tensor((T.int64(1024), T.int64(1), T.int64(1)), "float16", scope="local")
             for ax0_fused in T.thread_binding(T.int64(1), thread="blockIdx.x"):
                 for ax1_fused_1 in T.thread_binding(T.int64(1024), thread="threadIdx.x", annotations={"auto_unroll_max_step": 256, "unroll_explicit": 1}):
                     with Ts.sblock("NT_matmul_rf_init"):

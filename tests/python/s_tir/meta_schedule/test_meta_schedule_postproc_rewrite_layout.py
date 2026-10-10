@@ -73,7 +73,7 @@ def test_tir_matmul():
     """Main functionality test
 
     A new block should be inserted to transform the layout, with the
-    compute block operating on the temporary transformed buffer.
+    compute block operating on the temporary transformed tensor.
     """
 
     @Ts.function(private=True)
@@ -82,7 +82,7 @@ def test_tir_matmul():
         B: T.Tensor((16, 16), "float32"),
         C: T.Tensor((16, 16), "float32"),
     ) -> None:
-        T.func_attr({"layout_free_buffers": [1]})
+        T.func_attr({"layout_free_tensors": [1]})
         for i0, j, k0, i1, k1 in T.grid(4, 16, 4, 4, 4):
             with Ts.sblock("matmul"):
                 vi = Ts.axis.S(16, i0 * 4 + i1)
@@ -98,8 +98,8 @@ def test_tir_matmul():
         B: T.Tensor((16, 16), "float32"),
         C: T.Tensor((16, 16), "float32"),
     ) -> None:
-        T.func_attr({"layout_free_buffers": [1]})
-        B_reindex = Ts.sblock_alloc_buffer([16, 4, 4], dtype="float32")
+        T.func_attr({"layout_free_tensors": [1]})
+        B_reindex = Ts.sblock_alloc_tensor([16, 4, 4], dtype="float32")
         for ax0, ax1 in T.grid(16, 16):
             with Ts.sblock("layout_rewrite"):
                 i0, i1 = Ts.axis.remap("SS", [ax0, ax1])
@@ -119,14 +119,14 @@ def test_tir_matmul():
     tvm.ir.assert_structural_equal(mod["main"], expected)
 
 
-def test_rewritten_buffers_must_occur_within_block():
-    """Buffers must occur within a Block"""
+def test_rewritten_tensors_must_occur_within_block():
+    """Tensors must occur within a Block"""
 
     @Ts.function(private=True)
     def before(
         A: T.Tensor((16, 16), "float32"),
     ) -> None:
-        T.func_attr({"layout_free_buffers": [0]})
+        T.func_attr({"layout_free_tensors": [0]})
         for i, j in T.grid(16, 16):
             T.evaluate(A[i, j])
 
@@ -136,7 +136,7 @@ def test_rewritten_buffers_must_occur_within_block():
 
 
 def test_extent_one():
-    """Buffers with dimensions of extent 1 can be transformed
+    """Tensors with dimensions of extent 1 can be transformed
 
     Regression test for a previous bug, in which the removal of
     trivial variables resulted in an error in `IndexMap::Inverse`.
@@ -146,7 +146,7 @@ def test_extent_one():
     def before(
         A: T.Tensor((16, 1), "float32"),
     ) -> None:
-        T.func_attr({"layout_free_buffers": [0]})
+        T.func_attr({"layout_free_tensors": [0]})
         for i, j in T.grid(16, 1):
             with Ts.sblock("block"):
                 vi, vj = Ts.axis.remap("SS", [i, j])
@@ -154,9 +154,9 @@ def test_extent_one():
 
     @Ts.function(private=True)
     def expected(A: T.Tensor((16, 1), "float32")):
-        T.func_attr({"layout_free_buffers": [0]})
+        T.func_attr({"layout_free_tensors": [0]})
 
-        A_global = Ts.sblock_alloc_buffer([16], dtype="float32")
+        A_global = Ts.sblock_alloc_tensor([16], dtype="float32")
         for ax0, ax1 in T.grid(16, 1):
             with Ts.sblock("A_global"):
                 v0, v1 = Ts.axis.remap("SS", [ax0, ax1])
@@ -179,7 +179,7 @@ def tir_matmul(
     B: T.Tensor((16, 16), "float32"),
     C: T.Tensor((16, 16), "float32"),
 ) -> None:
-    T.func_attr({"layout_free_buffers": [1]})
+    T.func_attr({"layout_free_tensors": [1]})
     for i0, j, k0, i1, k1 in T.grid(4, 16, 4, 4, 4):
         with Ts.sblock("matmul"):
             vi = Ts.axis.S(16, i0 * 4 + i1)
@@ -196,8 +196,8 @@ def rewritten_tir_matmul(
     B: T.Tensor((16, 16), "float32"),
     C: T.Tensor((16, 16), "float32"),
 ) -> None:
-    T.func_attr({"layout_free_buffers": [1]})
-    B_reindex = Ts.sblock_alloc_buffer([16, 4, 4], dtype="float32")
+    T.func_attr({"layout_free_tensors": [1]})
+    B_reindex = Ts.sblock_alloc_tensor([16, 4, 4], dtype="float32")
     for ax0, ax1 in T.grid(16, 16):
         with Ts.sblock("layout_rewrite"):
             i0, i1 = Ts.axis.remap("SS", [ax0, ax1])
@@ -227,11 +227,11 @@ def test_layout_rewrite():
 class Conv2dCacheRead:
     @Ts.function
     def main(p0: T.Tensor((1, 56, 56, 64), "float32"), p1: T.Tensor((3, 3, 64, 64), "float32"), conv2d_nhwc: T.Tensor((1, 56, 56, 64), "float32")):
-        T.func_attr({"layout_free_buffers": [1], "tirx.noalias": True, "global_symbol": "main"})
-        pad_temp = Ts.sblock_alloc_buffer([1, 58, 58, 64], dtype="float32")
-        conv2d_nhwc_global = Ts.sblock_alloc_buffer([1, 56, 56, 64], dtype="float32")
-        pad_temp_global = Ts.sblock_alloc_buffer([1, 58, 58, 64], dtype="float32")
-        p1_global = Ts.sblock_alloc_buffer([3, 3, 64, 64], dtype="float32")
+        T.func_attr({"layout_free_tensors": [1], "tirx.noalias": True, "global_symbol": "main"})
+        pad_temp = Ts.sblock_alloc_tensor([1, 58, 58, 64], dtype="float32")
+        conv2d_nhwc_global = Ts.sblock_alloc_tensor([1, 56, 56, 64], dtype="float32")
+        pad_temp_global = Ts.sblock_alloc_tensor([1, 58, 58, 64], dtype="float32")
+        p1_global = Ts.sblock_alloc_tensor([3, 3, 64, 64], dtype="float32")
         for i0_0_i1_0_i2_0_fused in T.parallel(4, annotations={"auto_unroll_max_step":16, "unroll_explicit":1}):
             for ax0, ax1, ax2 in T.grid(1, 30, 30):
                 for ax3_fused in T.vectorized(64):
@@ -304,12 +304,12 @@ class Conv2dCacheRead:
 class Conv2dCacheReadRewritten:
     @Ts.function
     def main(p0: T.Tensor((1, 56, 56, 64), "float32"), p1: T.Tensor((3, 3, 64, 64), "float32"), conv2d_nhwc: T.Tensor((1, 56, 56, 64), "float32")):
-        T.func_attr({"layout_free_buffers": [1], "tirx.noalias": True, "global_symbol": "main"})
-        pad_temp = Ts.sblock_alloc_buffer([1, 58, 58, 64], dtype="float32")
-        conv2d_nhwc_global = Ts.sblock_alloc_buffer([1, 56, 56, 64], dtype="float32")
-        pad_temp_global = Ts.sblock_alloc_buffer([1, 58, 58, 64], dtype="float32")
-        p1_global = Ts.sblock_alloc_buffer([16, 2, 2, 3, 3, 32, 2], dtype="float32")
-        p1_global_1 = Ts.sblock_alloc_buffer([16, 2, 2, 3, 3, 32, 2], dtype="float32")
+        T.func_attr({"layout_free_tensors": [1], "tirx.noalias": True, "global_symbol": "main"})
+        pad_temp = Ts.sblock_alloc_tensor([1, 58, 58, 64], dtype="float32")
+        conv2d_nhwc_global = Ts.sblock_alloc_tensor([1, 56, 56, 64], dtype="float32")
+        pad_temp_global = Ts.sblock_alloc_tensor([1, 58, 58, 64], dtype="float32")
+        p1_global = Ts.sblock_alloc_tensor([16, 2, 2, 3, 3, 32, 2], dtype="float32")
+        p1_global_1 = Ts.sblock_alloc_tensor([16, 2, 2, 3, 3, 32, 2], dtype="float32")
         for ax0, ax1, ax2, ax3 in T.grid(3, 3, 64, 64):
             with Ts.sblock("p1_global"):
                 v0, v1, v2, v3 = Ts.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
@@ -389,13 +389,13 @@ class Conv2dCacheReadRewritten:
 class Conv2dCacheReadMultipleRewritten:
     @Ts.function
     def main(p0: T.Tensor((1, 56, 56, 64), "float32"), p1: T.Tensor((3, 3, 64, 64), "float32"), conv2d_nhwc: T.Tensor((1, 56, 56, 64), "float32")):
-        T.func_attr({"layout_free_buffers": [1], "tirx.noalias": True, "global_symbol": "main"})
-        pad_temp = Ts.sblock_alloc_buffer([1, 58, 58, 64], dtype="float32")
-        conv2d_nhwc_global = Ts.sblock_alloc_buffer([1, 56, 56, 64], dtype="float32")
-        pad_temp_global = Ts.sblock_alloc_buffer([1, 58, 58, 64], dtype="float32")
-        p1_global = Ts.sblock_alloc_buffer([16, 2, 2, 3, 3, 32, 2], dtype="float32")
-        p1_global2 = Ts.sblock_alloc_buffer([16, 2, 2, 3, 3, 32, 2], dtype="float32", scope="global2")
-        p1_global_1 = Ts.sblock_alloc_buffer([16, 2, 2, 3, 3, 32, 2], dtype="float32")
+        T.func_attr({"layout_free_tensors": [1], "tirx.noalias": True, "global_symbol": "main"})
+        pad_temp = Ts.sblock_alloc_tensor([1, 58, 58, 64], dtype="float32")
+        conv2d_nhwc_global = Ts.sblock_alloc_tensor([1, 56, 56, 64], dtype="float32")
+        pad_temp_global = Ts.sblock_alloc_tensor([1, 58, 58, 64], dtype="float32")
+        p1_global = Ts.sblock_alloc_tensor([16, 2, 2, 3, 3, 32, 2], dtype="float32")
+        p1_global2 = Ts.sblock_alloc_tensor([16, 2, 2, 3, 3, 32, 2], dtype="float32", scope="global2")
+        p1_global_1 = Ts.sblock_alloc_tensor([16, 2, 2, 3, 3, 32, 2], dtype="float32")
         for ax0, ax1, ax2, ax3 in T.grid(3, 3, 64, 64):
             with Ts.sblock("p1_global"):
                 v0, v1, v2, v3 = Ts.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
@@ -505,7 +505,7 @@ def test_layout_rewrite_int64_index():
         p1: T.Tensor((T.int64(12), T.int64(197), T.int64(64)), "int8"),
         T_batch_matmul_NT: T.Tensor((T.int64(12), T.int64(197), T.int64(197)), "int32"),
     ):
-        T.func_attr({"layout_free_buffers": [1], "tirx.noalias": True})
+        T.func_attr({"layout_free_tensors": [1], "tirx.noalias": True})
         for b_0_i_0_fused in T.parallel(T.int64(394)):
             for j_0 in T.serial(T.int64(1)):
                 for b_1, i_1, j_1 in T.grid(T.int64(1), T.int64(1), T.int64(1)):
@@ -566,8 +566,8 @@ def test_layout_rewrite_int64_index():
         p1: T.Tensor((T.int64(12), T.int64(197), T.int64(64)), "int8"),
         T_batch_matmul_NT: T.Tensor((T.int64(12), T.int64(197), T.int64(197)), "int32"),
     ):
-        T.func_attr({"tirx.noalias": True, "layout_free_buffers": [1]})
-        p1_global = Ts.sblock_alloc_buffer(
+        T.func_attr({"tirx.noalias": True, "layout_free_tensors": [1]})
+        p1_global = Ts.sblock_alloc_tensor(
             [T.int64(2), T.int64(64), T.int64(6), T.int64(197)], dtype="int8"
         )
         for ax0, ax1, ax2 in T.grid(T.int64(12), T.int64(197), T.int64(64)):

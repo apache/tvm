@@ -18,8 +18,8 @@
  */
 
 /*!
- * \file lower_match_buffer.cc
- * \brief The pass for lowering match_buffer.
+ * \file lower_match_tensor.cc
+ * \brief The pass for lowering match_tensor.
  */
 
 #include <tvm/ffi/cast.h>
@@ -41,12 +41,12 @@ namespace tvm {
 namespace s_tir {
 using namespace tvm::prim;
 using namespace tvm::tirx;
-class MatchBufferLower : public StmtExprMutator {
+class MatchTensorLower : public StmtExprMutator {
  public:
   using StmtExprMutator::Mutate;
   using StmtExprMutator::Mutate_;
 
-  explicit MatchBufferLower(const Function& func) {
+  explicit MatchTensorLower(const Function& func) {
     for (const Var& param : func->params) {
       // Mark input var as const variable.
       auto prim_type = param->ty.as<PrimType>();
@@ -58,55 +58,55 @@ class MatchBufferLower : public StmtExprMutator {
 
  private:
   UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) final {
-    for (const MatchBufferRegion& match_buffer : op->match_buffers) {
-      CheckAndUpdateVarMap(match_buffer);
+    for (const MatchTensorRegion& match_tensor : op->match_tensors) {
+      CheckAndUpdateVarMap(match_tensor);
     }
-    // Preserve match-buffer lookup keys when the inherited Var environment
-    // remaps their buffer type annotations.
-    std::vector<TensorVar> orig_buffers;
-    for (const auto& kv : match_buffers_) {
-      orig_buffers.push_back(kv.first);
+    // Preserve match-tensor lookup keys when the inherited Var environment
+    // remaps their tensor type annotations.
+    std::vector<TensorVar> orig_tensors;
+    for (const auto& kv : match_tensors_) {
+      orig_tensors.push_back(kv.first);
     }
     SBlock stmt = StmtExprMutator::Mutate_(op, inplace_mode)
                       .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
                       .as_or_throw<SBlock>();
-    // Add remapped buffer keys to match_buffers_
-    for (const TensorVar& orig_buf : orig_buffers) {
-      if (auto remapped = VarRemapGet(orig_buf).as<TensorVar>()) {
-        if (!match_buffers_.count(remapped.value())) {
-          match_buffers_.Set(remapped.value(), match_buffers_[orig_buf]);
+    // Add remapped tensor keys to match_tensors_
+    for (const TensorVar& orig_tensor : orig_tensors) {
+      if (auto remapped = VarRemapGet(orig_tensor).as<TensorVar>()) {
+        if (!match_tensors_.count(remapped.value())) {
+          match_tensors_.Set(remapped.value(), match_tensors_[orig_tensor]);
         }
       }
     }
     op = stmt.as<SBlockNode>();
     TVM_FFI_ICHECK(op != nullptr);
     ffi::Array<TensorRegion> reads =
-        op->reads.Map(std::bind(&MatchBufferLower::VisitBufferRegion, this, std::placeholders::_1));
+        op->reads.Map(std::bind(&MatchTensorLower::VisitTensorRegion, this, std::placeholders::_1));
     ffi::Array<TensorRegion> writes = op->writes.Map(
-        std::bind(&MatchBufferLower::VisitBufferRegion, this, std::placeholders::_1));
+        std::bind(&MatchTensorLower::VisitTensorRegion, this, std::placeholders::_1));
 
-    if (reads.same_as(op->reads) && writes.same_as(op->writes) && op->match_buffers.empty()) {
+    if (reads.same_as(op->reads) && writes.same_as(op->writes) && op->match_tensors.empty()) {
       return stmt;
     } else {
       auto* n = stmt.CopyOnWrite();
-      // Match buffers are aliases of their source region. Their placement belongs
-      // to that alias definition, which disappears along with the match buffer.
-      if (auto value = n->annotations.Get(tvm::s_tir::attr::kBufferAllocatedAddr)) {
-        BufferAllocatedAddresses addresses;
-        for (const auto& entry : value.value().cast<BufferAllocatedAddresses>()) {
+      // Match tensors are aliases of their source region. Their placement belongs
+      // to that alias definition, which disappears along with the match tensor.
+      if (auto value = n->annotations.Get(s_tir::attr::kTensorAllocatedAddr)) {
+        TensorAllocatedAddresses addresses;
+        for (const auto& entry : value.value().cast<TensorAllocatedAddresses>()) {
           bool is_alias = false;
-          for (const auto& match : n->match_buffers) {
-            is_alias |= entry.get<0>().same_as(match->buffer.var());
+          for (const auto& match : n->match_tensors) {
+            is_alias |= entry.get<0>().same_as(match->tensor.var());
           }
           if (!is_alias) addresses.push_back(entry);
         }
         if (addresses.empty()) {
-          n->annotations.erase(tvm::s_tir::attr::kBufferAllocatedAddr);
+          n->annotations.erase(s_tir::attr::kTensorAllocatedAddr);
         } else {
-          n->annotations.Set(tvm::s_tir::attr::kBufferAllocatedAddr, addresses);
+          n->annotations.Set(s_tir::attr::kTensorAllocatedAddr, addresses);
         }
       }
-      n->match_buffers = {};
+      n->match_tensors = {};
       n->reads = std::move(reads);
       n->writes = std::move(writes);
       return stmt;
@@ -122,16 +122,16 @@ class MatchBufferLower : public StmtExprMutator {
     if ((op->op.same_as(tirx::masked_load_op()) || op->op.same_as(tirx::masked_store_op())) &&
         !op->args.empty()) {
       if (auto var = op->args[0].as<Var>(); var && var.value()->ty.as<TensorTypeNode>()) {
-        TensorVar buffer = var.value().as_or_throw<TensorVar>();
-        TVM_FFI_ICHECK(!match_buffers_.count(buffer))
-            << "Predicated buffer access is not currently supported in lower match buffer pass.";
+        TensorVar tensor = var.value().as_or_throw<TensorVar>();
+        TVM_FFI_ICHECK(!match_tensors_.count(tensor))
+            << "Predicated tensor access is not currently supported in lower match tensor pass.";
       }
     }
     if (op->op.same_as(tirx::tensor_data_ptr_op()) && op->args.size() == 1) {
       if (auto var = op->args[0].as<Var>();
           var.has_value() && var.value()->ty.as<TensorTypeNode>()) {
-        auto it = match_buffers_.find(var.value().as_or_throw<TensorVar>());
-        if (it != match_buffers_.end()) {
+        auto it = match_tensors_.find(var.value().as_or_throw<TensorVar>());
+        if (it != match_tensors_.end()) {
           return (*it).second->source.as_or_throw<tvm::tirx::TensorVar>().data();
         }
       }
@@ -140,90 +140,91 @@ class MatchBufferLower : public StmtExprMutator {
   }
 
   UnchangedOr<Stmt> Mutate_(const TensorStoreNode* op, InplaceMode inplace_mode) final {
-    // Save the original buffer before base class mutation may remap it
-    TensorVar orig_buffer = op->dest.as_or_throw<TensorVar>();
+    // Save the original tensor before base class mutation may remap it
+    TensorVar orig_tensor = op->dest.as_or_throw<TensorVar>();
     TensorStore stmt = StmtExprMutator::Mutate_(op, inplace_mode)
                            .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
                            .as_or_throw<TensorStore>();
     op = stmt.as<TensorStoreNode>();
     TVM_FFI_ICHECK(op != nullptr);
 
-    // Look up using original buffer (before the inherited Var environment may have remapped it)
-    auto it = match_buffers_.find(orig_buffer);
-    if (it == match_buffers_.end()) {
+    // Look up using original tensor (before the inherited Var environment may have remapped it)
+    auto it = match_tensors_.find(orig_tensor);
+    if (it == match_tensors_.end()) {
       return stmt;
     } else {
-      const TensorVar& buffer = (*it).first;
+      const TensorVar& tensor = (*it).first;
       const TensorRegion& source = (*it).second;
 
       auto* n = stmt.CopyOnWrite();
-      n->indices = ConvertIndices(MatchBufferRegion(buffer, source), op->indices);
+      n->indices = ConvertIndices(MatchTensorRegion(tensor, source), op->indices);
       n->dest = source->source.as_or_throw<tvm::tirx::TensorVar>();
       return stmt;
     }
   }
 
   UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) final {
-    // Save the original buffer before base class mutation may remap it
-    TensorVar orig_buffer = op->source.as_or_throw<tvm::tirx::TensorVar>();
+    // Save the original tensor before base class mutation may remap it
+    TensorVar orig_tensor = op->source.as_or_throw<tvm::tirx::TensorVar>();
     PrimExpr expr =
         StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<PrimExpr>(op));
     op = expr.as<TensorLoadNode>();
     TVM_FFI_ICHECK(op != nullptr);
 
-    auto it = match_buffers_.find(orig_buffer);
-    if (it == match_buffers_.end()) {
+    auto it = match_tensors_.find(orig_tensor);
+    if (it == match_tensors_.end()) {
       return expr;
     } else {
-      const TensorVar& buffer = (*it).first;
+      const TensorVar& tensor = (*it).first;
       const TensorRegion& source = (*it).second;
-      ffi::Array<PrimExpr> indices = ConvertIndices(MatchBufferRegion(buffer, source), op->indices);
+      ffi::Array<PrimExpr> indices = ConvertIndices(MatchTensorRegion(tensor, source), op->indices);
       return MakeTensorLoad(source->source.as_or_throw<tvm::tirx::TensorVar>(), indices);
     }
   }
 
-  TensorRegion VisitBufferRegion(const TensorRegion& buffer_region) {
-    const TensorVar& buffer = buffer_region->source.as_or_throw<tvm::tirx::TensorVar>();
-    auto it = match_buffers_.find(buffer);
-    if (it == match_buffers_.end()) {
-      return buffer_region;
+  TensorRegion VisitTensorRegion(const TensorRegion& tensor_region) {
+    const TensorVar& tensor = tensor_region->source.as_or_throw<tvm::tirx::TensorVar>();
+    auto it = match_tensors_.find(tensor);
+    if (it == match_tensors_.end()) {
+      return tensor_region;
     } else {
       const TensorRegion& source = (*it).second;
       ffi::Array<Range> region =
-          ConvertRegion(MatchBufferRegion(buffer, source), buffer_region->region);
-      return BufferRegion(source->source.as_or_throw<tvm::tirx::TensorVar>(), std::move(region));
+          ConvertRegion(MatchTensorRegion(tensor, source), tensor_region->region);
+      return MakeTensorRegion(source->source.as_or_throw<tvm::tirx::TensorVar>(),
+                              std::move(region));
     }
   }
 
-  void CheckAndUpdateVarMap(const MatchBufferRegion& match_buffer) {
+  void CheckAndUpdateVarMap(const MatchTensorRegion& match_tensor) {
     // Step.1. Check
-    const TensorVar& buffer = match_buffer->buffer;
-    const TensorRegion& source = VisitBufferRegion(match_buffer->source);
-    const TensorVar& source_buffer = source->source.as_or_throw<tvm::tirx::TensorVar>();
+    const TensorVar& tensor = match_tensor->tensor;
+    const TensorRegion& source = VisitTensorRegion(match_tensor->source);
+    const TensorVar& source_tensor = source->source.as_or_throw<tvm::tirx::TensorVar>();
 
     // Step.1.1. Check scope & dtype
-    TVM_FFI_ICHECK_EQ(buffer.scope(), source_buffer.scope())
-        << "MatchBuffer " << buffer << " scope mismatch:" << buffer.scope() << "vs."
-        << source_buffer.scope();
-    TVM_FFI_ICHECK_EQ(buffer->dtype, source_buffer->dtype)
-        << "MatchBuffer " << buffer << " data type mismatch:" << buffer->dtype << "vs."
-        << source_buffer->dtype;
+    TVM_FFI_ICHECK_EQ(tensor.scope(), source_tensor.scope())
+        << "MatchTensor " << tensor << " scope mismatch:" << tensor.scope() << "vs."
+        << source_tensor.scope();
+    TVM_FFI_ICHECK_EQ(tensor->dtype, source_tensor->dtype)
+        << "MatchTensor " << tensor << " data type mismatch:" << tensor->dtype << "vs."
+        << source_tensor->dtype;
 
     // Step.1.2. Check data alignment
-    if (source_buffer->data_alignment % buffer->data_alignment != 0) {
-      LOG(WARNING) << "Trying to bind buffer to another one with lower alignment requirement "
-                   << " required alignment=" << buffer->data_alignment
-                   << ", provided alignment=" << source_buffer->data_alignment;
+    if (source_tensor->data_alignment % tensor->data_alignment != 0) {
+      LOG(WARNING) << "Trying to bind tensor to another one with lower alignment requirement "
+                   << " required alignment=" << tensor->data_alignment
+                   << ", provided alignment=" << source_tensor->data_alignment;
     }
-    if (IsZero(buffer->elem_offset)) {
-      TVM_FFI_ICHECK(IsZero(source_buffer->elem_offset))
+    if (IsZero(tensor->elem_offset)) {
+      TVM_FFI_ICHECK(IsZero(source_tensor->elem_offset))
           << "Trying to bind a TensorVar with offset into one without offset "
-          << " required elem_offset=" << buffer->elem_offset
-          << ", provided elem_offset=" << source_buffer->elem_offset;
+          << " required elem_offset=" << tensor->elem_offset
+          << ", provided elem_offset=" << source_tensor->elem_offset;
     }
 
     // Step.2. Update
-    match_buffers_.Set(buffer, source);
+    match_tensors_.Set(tensor, source);
     // Step.2.1. Update element offset
     // We use the ElemOffset method to avoid duplicating the index calculation.
     {
@@ -233,47 +234,47 @@ class MatchBufferLower : public StmtExprMutator {
         indices.push_back(range->min);
       }
 
-      ffi::Array<PrimExpr> buffer_start_indices = source_buffer->ElemOffset(indices);
-      if (buffer_start_indices.size() == 1) {
-        Bind(buffer->elem_offset, buffer_start_indices[0], buffer.name() + ".elem_offset");
+      ffi::Array<PrimExpr> tensor_start_indices = source_tensor->ElemOffset(indices);
+      if (tensor_start_indices.size() == 1) {
+        Bind(tensor->elem_offset, tensor_start_indices[0], tensor.name() + ".elem_offset");
         TVM_FFI_ICHECK(
-            analyzer_->CanProve(truncmod(buffer->elem_offset, buffer->offset_factor) == 0))
-            << "The source elem_offset " << buffer_start_indices[0]
-            << " does not satisfy the offset_factor " << buffer->offset_factor << ".";
+            analyzer_->CanProve(truncmod(tensor->elem_offset, tensor->offset_factor) == 0))
+            << "The source elem_offset " << tensor_start_indices[0]
+            << " does not satisfy the offset_factor " << tensor->offset_factor << ".";
       } else {
         // Non-zero elem_offset is ill-defined for non-flat memory.
         // If needed in the future, will require `ffi::Array<PrimExpr>
         // elem_offsets`, with one offset for each flattened index.
-        Bind(buffer->elem_offset, IntImm(buffer->elem_offset.ty(), 0));
+        Bind(tensor->elem_offset, IntImm(tensor->elem_offset.ty(), 0));
       }
     }
 
     // Step 2.3. Check and update strides
-    // Check if target buffer strides are defined
-    TVM_FFI_ICHECK(source->region.size() >= buffer->shape.size());
-    int offset = source->region.size() - buffer->shape.size();
-    if (!buffer->strides.empty()) {
-      TVM_FFI_ICHECK_EQ(buffer->strides.size(), buffer->shape.size());
-      if (source_buffer->strides.empty()) {
-        PrimExpr stride = prim::MakeConst(buffer->strides.back().ty(), 1);
-        for (size_t i = buffer->shape.size(); i > 0; --i) {
-          const PrimExpr& shape = source_buffer->shape[i - 1 + offset];
-          Bind(buffer->strides[i - 1], stride, buffer.name() + ".strides_" + std::to_string(i - 1));
+    // Check if target tensor strides are defined
+    TVM_FFI_ICHECK(source->region.size() >= tensor->shape.size());
+    int offset = source->region.size() - tensor->shape.size();
+    if (!tensor->strides.empty()) {
+      TVM_FFI_ICHECK_EQ(tensor->strides.size(), tensor->shape.size());
+      if (source_tensor->strides.empty()) {
+        PrimExpr stride = prim::MakeConst(tensor->strides.back().ty(), 1);
+        for (size_t i = tensor->shape.size(); i > 0; --i) {
+          const PrimExpr& shape = source_tensor->shape[i - 1 + offset];
+          Bind(tensor->strides[i - 1], stride, tensor.name() + ".strides_" + std::to_string(i - 1));
           stride *= shape;
         }
       } else {
-        TVM_FFI_ICHECK_EQ(buffer->shape.size() + offset, source_buffer->strides.size());
-        for (size_t i = buffer->shape.size(); i > 0; --i) {
-          const PrimExpr& stride = source_buffer->strides[i - 1 + offset];
-          Bind(buffer->strides[i - 1], stride, buffer.name() + ".strides_" + std::to_string(i - 1));
+        TVM_FFI_ICHECK_EQ(tensor->shape.size() + offset, source_tensor->strides.size());
+        for (size_t i = tensor->shape.size(); i > 0; --i) {
+          const PrimExpr& stride = source_tensor->strides[i - 1 + offset];
+          Bind(tensor->strides[i - 1], stride, tensor.name() + ".strides_" + std::to_string(i - 1));
         }
       }
     }
 
     // Step 2.4. Check and update shape
-    for (size_t i = 0; i < buffer->shape.size(); ++i) {
+    for (size_t i = 0; i < tensor->shape.size(); ++i) {
       const Range& range = source->region[i + offset];
-      Bind(buffer->shape[i], range->extent, buffer.name() + ".shape_" + std::to_string(i));
+      Bind(tensor->shape[i], range->extent, tensor.name() + ".shape_" + std::to_string(i));
     }
   }
 
@@ -319,37 +320,37 @@ class MatchBufferLower : public StmtExprMutator {
     if (auto lhs_prim = lhs.as<PrimExpr>()) {
       PrimExpr rhs_prim = rhs.as_or_throw<PrimExpr>();
       TVM_FFI_ICHECK(analyzer_->CanProve(lhs_prim.value() == rhs_prim))
-          << "The buffer match constraint for " << arg_name << " unmet: " << lhs << "==" << rhs
+          << "The tensor match constraint for " << arg_name << " unmet: " << lhs << "==" << rhs
           << ".";
     } else {
       TVM_FFI_ICHECK(ffi::StructuralEqual()(lhs, rhs))
-          << "The buffer match constraint for " << arg_name << " unmet: " << lhs << "==" << rhs
+          << "The tensor match constraint for " << arg_name << " unmet: " << lhs << "==" << rhs
           << ".";
     }
   }
 
   /*! \brief TensorVar region mapping. */
-  ffi::Map<TensorVar, TensorRegion> match_buffers_;
+  ffi::Map<TensorVar, TensorRegion> match_tensors_;
   /*! \brief The analyzer */
   sym::Analyzer analyzer_;
 };
 
 namespace transform {
 
-Pass LowerMatchBuffer() {
+Pass LowerMatchTensor() {
   auto pass_func = [](Function f, IRModule m, PassContext ctx) {
     auto fptr = f.CopyOnWrite();
-    fptr->body = ffi::make_object<MatchBufferLower>(f)
+    fptr->body = ffi::make_object<MatchTensorLower>(f)
                      ->Mutate(fptr->body, InplaceMode::kAllow)
                      .ValueOrUnchanged(std::move(fptr->body));
     return f;
   };
-  return CreateFunctionPass(pass_func, 0, "s_tir.LowerMatchBuffer");
+  return CreateFunctionPass(pass_func, 0, "s_tir.LowerMatchTensor");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("s_tir.transform.LowerMatchBuffer", LowerMatchBuffer);
+  refl::GlobalDef().def("s_tir.transform.LowerMatchTensor", LowerMatchTensor);
 }
 
 }  // namespace transform

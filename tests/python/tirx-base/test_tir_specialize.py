@@ -234,8 +234,8 @@ def test_specialize_with_const_folding():
     assert_structural_equal_ignore_global_symbol(expected, after)
 
 
-def test_specialize_decl_buffer():
-    """Buffers occurring in a DeclTensor statement should be updated"""
+def test_specialize_decl_tensor():
+    """Tensors occurring in a DeclTensor statement should be updated"""
 
     @T.function(private=True)
     def before(A_data: T.handle("float32"), A_size: T.int32):
@@ -255,7 +255,7 @@ def test_specialize_decl_buffer():
     tvm.ir.assert_structural_equal(expected, after)
 
 
-def test_specialize_preserves_decl_buffer_alias():
+def test_specialize_preserves_decl_tensor_alias():
     before_n = T.int32()
 
     @T.function(private=True)
@@ -273,11 +273,11 @@ def test_specialize_preserves_decl_buffer_alias():
     tvm.ir.assert_structural_equal(expected, after)
 
 
-def test_specialize_buffer_var_to_var():
-    """A buffer var may be remapped by specialization
+def test_specialize_tensor_var_to_var():
+    """A tensor var may be remapped by specialization
 
-    If a buffer variable is replaced by a specialization, then other
-    buffers using the same buffer var should also be updated.
+    If a tensor variable is replaced by a specialization, then other
+    tensors using the same tensor var should also be updated.
     """
 
     @T.function(private=True)
@@ -302,7 +302,7 @@ def test_specialize_buffer_var_to_var():
     tvm.ir.assert_structural_equal(expected, after)
 
 
-def test_specialize_buffer_var_to_expr():
+def test_specialize_tensor_var_to_expr():
     """A DeclTensor source expression may be specialized directly."""
 
     @T.function(private=True)

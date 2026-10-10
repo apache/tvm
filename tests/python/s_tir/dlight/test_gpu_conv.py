@@ -32,7 +32,7 @@ def test_conv3d():
         W: T.Tensor((1280, 3, 2, 14, 14), "float16"),
         C: T.Tensor((14308, 1280, 1, 1, 1), "float16"),
     ):
-        pad_A = Ts.sblock_alloc_buffer((14308, 3, 2, 14, 14), "float16")
+        pad_A = Ts.sblock_alloc_tensor((14308, 3, 2, 14, 14), "float16")
         for i0, i1, i2, i3, i4 in T.grid(14308, 3, 2, 14, 14):
             with Ts.sblock("pad_A"):
                 v_i0, v_i1, v_i2, v_i3, v_i4 = Ts.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
@@ -48,9 +48,9 @@ def test_conv3d():
     def expected(A: T.Tensor((14308, 3, 2, 14, 14), "float16"), W: T.Tensor((1280, 3, 2, 14, 14), "float16"), C: T.Tensor((14308, 1280, 1, 1, 1), "float16")):
         T.func_attr({"tirx.is_scheduled": True})
         # with Ts.sblock("root"):
-        C_reindex_pad_local = Ts.sblock_alloc_buffer((1, 14336, 1280), "float16", scope="local")
-        pad_A_reindex_pad_shared = Ts.sblock_alloc_buffer((1, 14336, 1184), "float16", scope="shared")
-        W_reindex_pad_shared = Ts.sblock_alloc_buffer((1, 1280, 1184), "float16", scope="shared")
+        C_reindex_pad_local = Ts.sblock_alloc_tensor((1, 14336, 1280), "float16", scope="local")
+        pad_A_reindex_pad_shared = Ts.sblock_alloc_tensor((1, 14336, 1184), "float16", scope="shared")
+        W_reindex_pad_shared = Ts.sblock_alloc_tensor((1, 1280, 1184), "float16", scope="shared")
         for ax0_ax2_0_fused in T.thread_binding(20, thread="blockIdx.y"):
             for ax1_0 in T.thread_binding(448, thread="blockIdx.x"):
                 for ax2_1 in T.thread_binding(1, thread="vthread.y"):
@@ -73,7 +73,7 @@ def test_conv3d():
                                                         v0 = Ts.axis.spatial(1, 0)
                                                         v1 = Ts.axis.spatial(14336, ax1_0 * 32 + (ax0_ax1_ax2_fused_0 * 32 + ax0_ax1_ax2_fused_1 * 4 + ax0_ax1_ax2_fused_2 * 2 + ax0_ax1_ax2_fused_3) // 16)
                                                         v2 = Ts.axis.spatial(1184, ax3_0 * 16 + (ax0_ax1_ax2_fused_0 * 32 + ax0_ax1_ax2_fused_1 * 4 + ax0_ax1_ax2_fused_2 * 2 + ax0_ax1_ax2_fused_3) % 16)
-                                                        Ts.sblock_attr({"buffer_dim_align": [[0, 1, 8, 2]]})
+                                                        Ts.sblock_attr({"tensor_dim_align": [[0, 1, 8, 2]]})
                                                         pad_A_reindex_pad_shared[v0, v1, v2] = T.if_then_else(v1 < 14308 and v2 < 1176, A[v1, v2 // 392, v2 // 196 % 2, v2 // 14 % 14, v2 % 14], T.float16(0.0))
                                     for ax0_ax1_ax2_fused_0 in T.thread_binding(16, thread="threadIdx.y"):
                                         for ax0_ax1_ax2_fused_1 in T.thread_binding(8, thread="threadIdx.x"):
@@ -83,7 +83,7 @@ def test_conv3d():
                                                         v0 = Ts.axis.spatial(1, 0)
                                                         v1 = Ts.axis.spatial(1280, ax0_ax2_0_fused * 64 + (ax0_ax1_ax2_fused_0 * 64 + ax0_ax1_ax2_fused_1 * 8 + ax0_ax1_ax2_fused_2 * 2 + ax0_ax1_ax2_fused_3) // 16)
                                                         v2 = Ts.axis.spatial(1184, ax3_0 * 16 + (ax0_ax1_ax2_fused_0 * 64 + ax0_ax1_ax2_fused_1 * 8 + ax0_ax1_ax2_fused_2 * 2 + ax0_ax1_ax2_fused_3) % 16)
-                                                        Ts.sblock_attr({"buffer_dim_align": [[0, 1, 8, 2]]})
+                                                        Ts.sblock_attr({"tensor_dim_align": [[0, 1, 8, 2]]})
                                                         W_reindex_pad_shared[v0, v1, v2] = T.if_then_else(v2 < 1176, W[v1, v2 // 392, v2 // 196 % 2, v2 // 14 % 14, v2 % 14], T.float16(0.0))
                                     for ax3_1, ax1_3, ax2_3_0 in T.grid(16, 4, 2):
                                         for ax2_3_1 in T.vectorized(2):

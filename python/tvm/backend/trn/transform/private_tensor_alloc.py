@@ -37,7 +37,7 @@ from tvm.tirx.transform.function_pass import function_pass
 def _collect_private_allocations(stmt: Stmt, target: Target):
     launch_params = {}
     var_range_map = {}
-    buffer_dict = {}
+    tensor_dict = {}
     private_buf_refs = {}
 
     def visit_region(op: RegionStmt):
@@ -71,7 +71,7 @@ def _collect_private_allocations(stmt: Stmt, target: Target):
             alloc_only=True,
             scope_kind=scope_kind,
         )
-        private_buf_refs[call] = op.get_private_buffers(buffer_dict, sctx)
+        private_buf_refs[call] = op.get_private_tensors(tensor_dict, sctx)
 
     def visit(node):
         tvm_ffi.structural_walk(
@@ -81,12 +81,12 @@ def _collect_private_allocations(stmt: Stmt, target: Target):
         )
 
     visit(stmt)
-    return buffer_dict, private_buf_refs
+    return tensor_dict, private_buf_refs
 
 
 def _inject_private_allocations(
     stmt: Stmt,
-    alloc_buffers: list[Bind],
+    alloc_tensors: list[Bind],
     init_stmts: list[Stmt],
     added_workspace: dict[Call, dict[str, Var]],
 ) -> Stmt:
@@ -95,7 +95,7 @@ def _inject_private_allocations(
     def visit_region(op: RegionStmt):
         nonlocal is_outer_block
         # The device-entry region marks the root: inject the
-        # collected init stmts + alloc_buffers into its body.
+        # collected init stmts + alloc_tensors into its body.
         if op.op.same_as(Op.get("tirx.device_entry")):
             is_outer = is_outer_block
             is_outer_block = False
@@ -103,7 +103,7 @@ def _inject_private_allocations(
                 body = op.body
                 for init_stmt in init_stmts:
                     body = seek_kernel_replace_point(init_stmt, body)
-                for allocation in reversed(alloc_buffers):
+                for allocation in reversed(alloc_tensors):
                     body = SeqStmt([allocation, body])
                 return RegionStmt(
                     op.op, op.args, op.body_params, op.attrs, body, op.result_vars, op.loc
@@ -125,21 +125,21 @@ def _inject_private_allocations(
 
 
 def private_alloc(stmt: Stmt, target: Target) -> Stmt:
-    buffer_dict, private_buf_refs = _collect_private_allocations(stmt, target)
+    tensor_dict, private_buf_refs = _collect_private_allocations(stmt, target)
 
-    alloc_buffers = [allocation for allocation, _ in buffer_dict.values()]
-    init_stmts = [stmt for _, stmt in buffer_dict.values() if stmt is not None]
+    alloc_tensors = [allocation for allocation, _ in tensor_dict.values()]
+    init_stmts = [stmt for _, stmt in tensor_dict.values() if stmt is not None]
     added_workspace = {
-        op: {name: buffer_dict[ref][0].var for name, ref in private_buf_refs[op].items()}
+        op: {name: tensor_dict[ref][0].var for name, ref in private_buf_refs[op].items()}
         for op in private_buf_refs
     }
 
-    return _inject_private_allocations(stmt, alloc_buffers, init_stmts, added_workspace)
+    return _inject_private_allocations(stmt, alloc_tensors, init_stmts, added_workspace)
 
 
-@function_pass(opt_level=0, name="TrnPrivateBufferAlloc")
-class TrnPrivateBufferAlloc:
-    """Generate private buffer allocations for each tensor instruction Call"""
+@function_pass(opt_level=0, name="TrnPrivateTensorAlloc")
+class TrnPrivateTensorAlloc:
+    """Generate private tensor allocations for each tensor instruction Call"""
 
     def transform_function(self, func, mod, ctx):
         target = func.attrs.get("target", None)

@@ -19,7 +19,7 @@
 
 /*!
  * \file update_pointer_storage_scope.cc
- * \brief A pass to update storage scopes for buffer variables.
+ * \brief A pass to update storage scopes for tensor and pointer variables.
  */
 #include "update_pointer_storage_scope.h"
 
@@ -51,10 +51,10 @@ UpdatePointerStorageScope::UpdatePointerStorageScope(
         new_storage_scopes) {
   for (auto& kv : new_storage_scopes) {
     if (kv.first->ty.as<TensorTypeNode>()) {
-      TensorVar buffer = GetTensorVar(kv.first.get());
-      auto type = CopyTensorType(buffer);
+      TensorVar tensor = GetTensorVar(kv.first.get());
+      auto type = CopyTensorType(tensor);
       type->storage_scope = kv.second;
-      TensorVar replacement = RebuildTensorVar(buffer, std::move(type));
+      TensorVar replacement = RebuildTensorVar(tensor, std::move(type));
       VarRemapSet(kv.first, replacement);
     } else {
       VarRemapSet(kv.first, WithStorageScope(kv.first.get(), kv.second));
@@ -67,9 +67,9 @@ UnchangedOr<Stmt> UpdatePointerStorageScope::Mutate_(const BindNode* op, Inplace
   if (call &&
       (call->op.same_as(tirx::alloc_tensor_op()) || call->op.same_as(tirx::decl_tensor_op()))) {
     if (auto mapped = VarRemapGet(op->var); mapped != nullptr) {
-      buffer_scopes_.emplace(call, mapped.as_or_throw<TensorVar>().scope());
+      tensor_scopes_.emplace(call, mapped.as_or_throw<TensorVar>().scope());
       auto result = StmtExprMutator::Mutate_(op, inplace_mode);
-      buffer_scopes_.erase(call);
+      tensor_scopes_.erase(call);
       return result;
     }
   }
@@ -78,7 +78,7 @@ UnchangedOr<Stmt> UpdatePointerStorageScope::Mutate_(const BindNode* op, Inplace
 
 UnchangedOr<Expr> UpdatePointerStorageScope::Mutate_(const CallNode* op, InplaceMode inplace_mode) {
   auto result = StmtExprMutator::Mutate_(op, inplace_mode);
-  if (auto it = buffer_scopes_.find(op); it != buffer_scopes_.end()) {
+  if (auto it = tensor_scopes_.find(op); it != tensor_scopes_.end()) {
     Expr value = std::move(result).ValueOrUnchanged(ffi::GetRef<Expr>(op));
     auto call = value.as_or_throw<Call>();
     size_t scope_index = call->op.same_as(tirx::alloc_tensor_op()) ? 2 : 3;

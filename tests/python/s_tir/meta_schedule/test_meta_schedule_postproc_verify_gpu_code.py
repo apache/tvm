@@ -101,7 +101,7 @@ class Conv2dCuda1:
         threadIdx_x = T.launch_thread("threadIdx.x", 8)
         for ff_c_init, nn_c_init in T.grid(8, 8):
             B_local[ff_c_init * 8 + nn_c_init] = T.float32(0)
-            # Access of the last element of B_local prevents buffer
+            # Access of the last element of B_local prevents tensor
             # compacting from reducing the amount of shared memory
             # used.
             B_local[6400000-1 + ff_c_init*8] = 0.0
@@ -149,7 +149,7 @@ class Conv2dCuda2:
 
                 )
                 # Access of the last element of Apad_shared prevents
-                # buffer compacting from reducing the amount of shared
+                # tensor compacting from reducing the amount of shared
                 # memory used.
                 Apad_shared[512000-1] = 0.0
             for rc_inner in T.serial(0, 8):
@@ -197,9 +197,9 @@ class Conv2dCuda3:
 
 @Ts.function
 def GmmCuda0(X: T.Tensor((1, 128, 128), "float32"), Y: T.Tensor((1, 128, 128), "float32"), Z: T.Tensor((1, 128, 128), "float32")) -> None:
-    Z_local = Ts.sblock_alloc_buffer([1, 128, 128], dtype="float32", scope="local")
-    X_shared = Ts.sblock_alloc_buffer([1, 128, 128], dtype="float32", scope="shared")
-    Y_shared = Ts.sblock_alloc_buffer([1, 128, 128], dtype="float32", scope="shared")
+    Z_local = Ts.sblock_alloc_tensor([1, 128, 128], dtype="float32", scope="local")
+    X_shared = Ts.sblock_alloc_tensor([1, 128, 128], dtype="float32", scope="shared")
+    Y_shared = Ts.sblock_alloc_tensor([1, 128, 128], dtype="float32", scope="shared")
     for i0_0_i1_0_i2_0_fused in T.thread_binding(16, thread="blockIdx.x"):
         for i0_1_i1_1_i2_1_fused in T.thread_binding(1, thread="vthread.x"):
             for i0_2_i1_2_i2_2_fused in T.thread_binding(128, thread="threadIdx.x"):
@@ -251,9 +251,9 @@ def GmmCuda0(X: T.Tensor((1, 128, 128), "float32"), Y: T.Tensor((1, 128, 128), "
 
 @Ts.function
 def GmmCuda1(X: T.Tensor((1, 128, 128), "float32"), Y: T.Tensor((1, 128, 128), "float32"), Z: T.Tensor((1, 128, 128), "float32")) -> None:
-    Z_local = Ts.sblock_alloc_buffer([1, 128, 128], dtype="float32", scope="local")
-    X_shared = Ts.sblock_alloc_buffer([1, 128, 128], dtype="float32", scope="shared")
-    Y_shared = Ts.sblock_alloc_buffer([1, 128, 128], dtype="float32", scope="shared")
+    Z_local = Ts.sblock_alloc_tensor([1, 128, 128], dtype="float32", scope="local")
+    X_shared = Ts.sblock_alloc_tensor([1, 128, 128], dtype="float32", scope="shared")
+    Y_shared = Ts.sblock_alloc_tensor([1, 128, 128], dtype="float32", scope="shared")
     for i0_0_i1_0_i2_0_fused in T.thread_binding(16, thread="blockIdx.x"):
         for i0_1_i1_1_i2_1_fused in T.thread_binding(1, thread="vthread.x"):
             for i0_2_i1_2_i2_2_fused in T.thread_binding(128, thread="threadIdx.x"):
@@ -309,9 +309,9 @@ def GmmCuda1(X: T.Tensor((1, 128, 128), "float32"), Y: T.Tensor((1, 128, 128), "
 
 @Ts.function
 def GmmCuda2(X: T.Tensor((1, 128, 128), "float32"), Y: T.Tensor((1, 128, 128), "float32"), Z: T.Tensor((1, 128, 128), "float32")) -> None:
-    Z_local = Ts.sblock_alloc_buffer([1, 128, 128], dtype="float32", scope="local")
-    X_shared = Ts.sblock_alloc_buffer([1, 128, 128], dtype="float32", scope="shared")
-    Y_shared = Ts.sblock_alloc_buffer([1, 128, 128], dtype="float32", scope="shared")
+    Z_local = Ts.sblock_alloc_tensor([1, 128, 128], dtype="float32", scope="local")
+    X_shared = Ts.sblock_alloc_tensor([1, 128, 128], dtype="float32", scope="shared")
+    Y_shared = Ts.sblock_alloc_tensor([1, 128, 128], dtype="float32", scope="shared")
     for i0_0_i1_0_i2_0_fused in T.thread_binding(16, thread="blockIdx.x"):
         for i0_1_i1_1_i2_1_fused in T.thread_binding(1, thread="vthread.x"):
             for i0_2_i1_2_i2_2_fused in T.thread_binding(128, thread="threadIdx.x"):

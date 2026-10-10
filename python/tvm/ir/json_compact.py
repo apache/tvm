@@ -38,7 +38,8 @@ _PRIM_TYPE_KEY_RENAMES = {
     "tirx.IterVar": "s_tir.IterVar",
     "tirx.SBlock": "s_tir.SBlock",
     "tirx.SBlockRealize": "s_tir.SBlockRealize",
-    "tirx.MatchBufferRegion": "s_tir.MatchBufferRegion",
+    "tirx.MatchBufferRegion": "s_tir.MatchTensorRegion",
+    "s_tir.MatchBufferRegion": "s_tir.MatchTensorRegion",
     "tirx.TensorIntrin": "s_tir.TensorIntrin",
     "tirx.Cast": "ir.prim.Cast",
     "tirx.Add": "ir.prim.Add",
@@ -156,6 +157,20 @@ def upgrade_json(json_str):
                     nodes.append({"type": "ir.TensorRegionType", "data": {}})
                 fields["ty"] = tensor_region_type
         node["type"] = _PRIM_TYPE_KEY_RENAMES.get(node.get("type"), node.get("type"))
+        # S-TIR tensor declarations keep their historical graph references while
+        # migrating the type key and tensor-valued fields together.
+        if node.get("type") == "s_tir.MatchTensorRegion":
+            fields = node.get("data", {})
+            if "buffer" in fields:
+                fields["tensor"] = fields.pop("buffer")
+        elif node.get("type") == "s_tir.SBlock":
+            fields = node.get("data", {})
+            for old, new in (
+                ("alloc_buffers", "alloc_tensors"),
+                ("match_buffers", "match_tensors"),
+            ):
+                if old in fields:
+                    fields[new] = fields.pop(old)
         if node.get("type") == "relax.expr.Var":
             node["type"] = "ir.Var"
         elif node.get("type") == "tirx.Var":

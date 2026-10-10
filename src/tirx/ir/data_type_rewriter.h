@@ -89,12 +89,12 @@ class DataTypeLegalizer : public StmtExprMutator {
 };
 
 /*!
- * \brief Data type rewriter for buffer indices.
+ * \brief Data type rewriter for tensor indices.
  *
- * Detect the components of buffer indices that should be considered for data type rewriting.
+ * Detect the components of tensor indices that should be considered for data type rewriting.
  * This class doesn't perform actual rewriting of data types. During recursive visiting, the
  * internal flags `is_enabled_` and `is_conditional_` are used to indicate whether the current
- * expression is a buffer index or a conditional expression, which can be used in the sub-classes to
+ * expression is a tensor index or a conditional expression, which can be used in the sub-classes to
  * implement different rewriting rules.
  */
 class IndexDataTypeRewriter : public DataTypeLegalizer {
@@ -131,10 +131,10 @@ class IndexDataTypeRewriter : public DataTypeLegalizer {
 };
 
 /*!
- * \brief Normalize the data types of buffer shapes and indices to the same data type.
+ * \brief Normalize the data types of tensor shapes and indices to the same data type.
  *
- * This pass rewrites the data types of buffer shapes and indices to the specified data type. It
- * assumes the specified data type is large enough to hold the original ranges of buffer shapes and
+ * This pass rewrites the data types of tensor shapes and indices to the specified data type. It
+ * assumes the specified data type is large enough to hold the original ranges of tensor shapes and
  * indices.
  */
 class IndexDataTypeNormalizer : public IndexDataTypeRewriter {

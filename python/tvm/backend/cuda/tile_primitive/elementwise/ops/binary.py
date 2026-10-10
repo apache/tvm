@@ -74,12 +74,14 @@ def _parse_binary_for(op_name: str):
                 _src1, _src2 = _src2, _src1
 
         srcs: list[SrcSpec] = [
-            SrcSpec(scalar=_src1) if s1_scalar and op_name == "fdiv" else SrcSpec(buf_region=_src1)
+            SrcSpec(scalar=_src1)
+            if s1_scalar and op_name == "fdiv"
+            else SrcSpec(tensor_region=_src1)
         ]
         if s2_scalar:
             srcs.append(SrcSpec(scalar=_src2))
         else:
-            srcs.append(SrcSpec(buf_region=_src2))
+            srcs.append(SrcSpec(tensor_region=_src2))
 
         extras: dict[str, Any] = {}
         rm = op.options.get("rounding_mode", None)

@@ -32,17 +32,17 @@ using namespace tvm::tirx;
 
 using support::NDIntSet;
 
-bool HasBuffer(const ffi::Array<TensorRegion>& buffer_regions, const TensorVar& buffer) {
-  for (const TensorRegion& buffer_region : buffer_regions) {
-    if (buffer_region->source.as_or_throw<tvm::tirx::TensorVar>().same_as(buffer)) {
+bool HasTensor(const ffi::Array<TensorRegion>& tensor_regions, const TensorVar& tensor) {
+  for (const TensorRegion& tensor_region : tensor_regions) {
+    if (tensor_region->source.as_or_throw<tvm::tirx::TensorVar>().same_as(tensor)) {
       return true;
     }
   }
   return false;
 }
 
-void RelaxBufferRegions(const ffi::Array<TensorRegion>& buffer_regions,
-                        const TensorVar& buffer,                    //
+void RelaxTensorRegions(const ffi::Array<TensorRegion>& tensor_regions,
+                        const TensorVar& tensor,                    //
                         const ffi::Map<Var, sym::IntSet>& var_dom,  //
                         const ffi::Map<Var, PrimExpr>& bindings,    //
                         std::vector<NDIntSet>* relaxed_regions) {
@@ -50,10 +50,10 @@ void RelaxBufferRegions(const ffi::Array<TensorRegion>& buffer_regions,
     if (auto repl = bindings.Get(var)) return ffi::Any(*std::move(repl));
     return ffi::Unchanged();
   };
-  for (const TensorRegion& buffer_region : buffer_regions) {
-    if (buffer_region->source.as_or_throw<tvm::tirx::TensorVar>().same_as(buffer)) {
+  for (const TensorRegion& tensor_region : tensor_regions) {
+    if (tensor_region->source.as_or_throw<tvm::tirx::TensorVar>().same_as(tensor)) {
       ffi::Array<Range> mapped_region =
-          buffer_region->region.Map([&f_substitute](const Range& range) {
+          tensor_region->region.Map([&f_substitute](const Range& range) {
             PrimExpr min = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(range->min, f_substitute)
                                .as_or_throw<PrimExpr>();
             PrimExpr extent =
@@ -78,7 +78,7 @@ class ScopeReplacer : public StmtExprMutator {
     new_scope_block->body = ffi::make_object<ScopeReplacer>(old_loop, new_loop)
                                 ->Mutate(new_scope_block->body, InplaceMode::kAllow)
                                 .ValueOrUnchanged(std::move(new_scope_block->body));
-    new_scope_block->alloc_buffers.push_back(dst);
+    new_scope_block->alloc_tensors.push_back(dst);
     return SBlock(new_scope_block);
   }
 
@@ -106,12 +106,12 @@ class ScopeReplacer : public StmtExprMutator {
   bool found_;
 };
 
-class ReadWriteAtBufferReplacer : public StmtExprMutator {
+class ReadWriteAtTensorReplacer : public StmtExprMutator {
  public:
   using StmtExprMutator::Mutate;
   using StmtExprMutator::Mutate_;
 
-  explicit ReadWriteAtBufferReplacer(const TensorVar& src, const TensorVar& dst,
+  explicit ReadWriteAtTensorReplacer(const TensorVar& src, const TensorVar& dst,
                                      ffi::Map<SBlock, SBlock>* block_sref_reuse)
       : src_(src), dst_(dst), block_sref_reuse_(block_sref_reuse) {}
 
@@ -144,8 +144,8 @@ class ReadWriteAtBufferReplacer : public StmtExprMutator {
                        .ValueOrUnchanged(ffi::GetRef<Stmt>(_block))
                        .as_or_throw<SBlock>();
     ffi::ObjectPtr<SBlockNode> new_block = ffi::make_object<SBlockNode>(*block.get());
-    new_block->reads = ReplaceBuffer(new_block->reads, src_, dst_);
-    new_block->writes = ReplaceBuffer(new_block->writes, src_, dst_);
+    new_block->reads = ReplaceTensor(new_block->reads, src_, dst_);
+    new_block->writes = ReplaceTensor(new_block->writes, src_, dst_);
     block_sref_reuse_->Set(old_block, SBlock(new_block));
     return SBlock(new_block);
   }
@@ -158,11 +158,11 @@ class ReadWriteAtBufferReplacer : public StmtExprMutator {
 struct ReadWriteAtImpl {
   template <bool is_read>
   static StmtSRef Main(ScheduleState self, const StmtSRef& loop_sref, const StmtSRef& block_sref,
-                       int buffer_index, const ffi::String& storage_scope,
+                       int tensor_index, const ffi::String& storage_scope,
                        ffi::Map<ffi::String, Any> annotations) {
     const SBlockNode* block = TVM_SREF_TO_SBLOCK(block_sref);
-    TensorVar src = GetNthAccessBuffer(self, ffi::GetRef<SBlock>(block), buffer_index,
-                                       is_read ? BufferIndexType::kRead : BufferIndexType::kWrite);
+    TensorVar src = GetNthAccessTensor(self, ffi::GetRef<SBlock>(block), tensor_index,
+                                       is_read ? TensorIndexType::kRead : TensorIndexType::kWrite);
     TensorVar dst = WithScope(src, storage_scope);
     ReadWriteAtImpl impl(self, loop_sref, src, dst, annotations);
     std::pair<For, SBlockRealize> new_loop_block =
@@ -218,14 +218,14 @@ struct ReadWriteAtImpl {
       auto f_visit = [this, &relaxed_regions, &r_visited, &w_visited,
                       &scope](const SBlockRealize& realize) -> ffi::Expected<ffi::WalkResult> {
         const SBlockNode* block = realize->block.get();
-        bool has_r = HasBuffer(block->reads, src_);
-        bool has_w = HasBuffer(block->writes, src_);
+        bool has_r = HasTensor(block->reads, src_);
+        bool has_w = HasTensor(block->writes, src_);
         r_visited = r_visited || has_r;
         w_visited = w_visited || has_w;
         if (is_read ? has_r : has_w) {
-          RelaxBufferRegions(
-              /*buffer_regions=*/is_read ? block->reads : block->writes,
-              /*buffer=*/src_,
+          RelaxTensorRegions(
+              /*tensor_regions=*/is_read ? block->reads : block->writes,
+              /*tensor=*/src_,
               /*var_dom=*/
               sym::AsIntSet(LoopDomainOfSRefTreePath(
                   /*low_inclusive=*/ffi::GetRef<StmtSRef>(self_->stmt2ref.at(block)->parent),
@@ -244,7 +244,7 @@ struct ReadWriteAtImpl {
         w_pos.push_back(i);
       }
     }
-    // Step 2. Calculate `insert_pos` and [st, ed) for buffer replacement
+    // Step 2. Calculate `insert_pos` and [st, ed) for tensor replacement
     int insert_pos = -1, st = -1, ed = -1;
     if (is_read) {
       TVM_FFI_ICHECK(!r_pos.empty());
@@ -264,7 +264,7 @@ struct ReadWriteAtImpl {
       st = 0;
       ed = insert_pos;
     }
-    // Step 3. Calculate `domain`, the domain of buffer access
+    // Step 3. Calculate `domain`, the domain of tensor access
     NDIntSet relaxed = support::NDIntSetUnion(relaxed_regions);
     int ndim = relaxed.size();
     ffi::Array<Range> domain;
@@ -275,8 +275,8 @@ struct ReadWriteAtImpl {
       PrimExpr extent = analyzer_->Simplify(int_set.max() + 1 - min);
       domain.push_back(Range::FromMinExtent(min, extent));
     }
-    // Step 4. Insert the auto copy block and replace buffers
-    auto replacer = ffi::make_object<ReadWriteAtBufferReplacer>(src_, dst_, &block_sref_reuse_);
+    // Step 4. Insert the auto copy block and replace tensors
+    auto replacer = ffi::make_object<ReadWriteAtTensorReplacer>(src_, dst_, &block_sref_reuse_);
     for (int i = st; i < ed; ++i) {
       Stmt stmt = subtrees[i];
       subtrees.Set(
@@ -343,13 +343,13 @@ struct ReadWriteAtImpl {
         /*values=*/iter_values,
         /*predicate=*/IntImm::Bool(true),
         SBlock(/*iter_vars=*/iter_vars,
-               /*reads=*/{BufferRegion(copy_from, domain)},
-               /*writes=*/{BufferRegion(copy_to, domain)},
+               /*reads=*/{MakeTensorRegion(copy_from, domain)},
+               /*writes=*/{MakeTensorRegion(copy_to, domain)},
                /*name_hint=*/name_hint,  //
                /*body=*/std::move(stmt),
                /*init=*/std::nullopt,
-               /*alloc_buffers=*/{},
-               /*match_buffers=*/{},
+               /*alloc_tensors=*/{},
+               /*match_tensors=*/{},
                /*annotations=*/annotations_));
   }
 
@@ -377,15 +377,15 @@ struct ReadWriteAtImpl {
 };
 
 StmtSRef ReadAt(ScheduleState self, const StmtSRef& loop_sref, const StmtSRef& block_sref,
-                int read_buffer_index, const ffi::String& storage_scope) {
-  return ReadWriteAtImpl::Main<true>(self, loop_sref, block_sref, read_buffer_index, storage_scope,
-                                     {{tvm::s_tir::attr::kAutoCopy, true}});
+                int read_tensor_index, const ffi::String& storage_scope) {
+  return ReadWriteAtImpl::Main<true>(self, loop_sref, block_sref, read_tensor_index, storage_scope,
+                                     {{s_tir::attr::kAutoCopy, true}});
 }
 
 StmtSRef WriteAt(ScheduleState self, const StmtSRef& loop_sref, const StmtSRef& block_sref,
-                 int write_buffer_index, const ffi::String& storage_scope) {
-  return ReadWriteAtImpl::Main<false>(self, loop_sref, block_sref, write_buffer_index,
-                                      storage_scope, {{tvm::s_tir::attr::kAutoCopy, true}});
+                 int write_tensor_index, const ffi::String& storage_scope) {
+  return ReadWriteAtImpl::Main<false>(self, loop_sref, block_sref, write_tensor_index,
+                                      storage_scope, {{s_tir::attr::kAutoCopy, true}});
 }
 
 /******** Instruction Registration ********/
@@ -400,19 +400,19 @@ struct ReadAtTraits : public UnpackedInstTraits<ReadAtTraits> {
   static constexpr size_t kNumDecisions = 0;
 
   StmtSRef ReadAt(ScheduleState self, const StmtSRef& loop_sref, const StmtSRef& block_sref,
-                  int buffer_index, const ffi::String& storage_scope);
+                  int tensor_index, const ffi::String& storage_scope);
   static SBlockRV UnpackedApplyToSchedule(Schedule sch, LoopRV loop, SBlockRV block,
-                                          IntImm read_buffer_index, ffi::String storage_scope) {
-    return sch->ReadAt(loop, block, read_buffer_index->value.as<int>().value(), storage_scope);
+                                          IntImm read_tensor_index, ffi::String storage_scope) {
+    return sch->ReadAt(loop, block, read_tensor_index->value.as<int>().value(), storage_scope);
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String loop,
-                                      ffi::String block, IntImm read_buffer_index,
+                                      ffi::String block, IntImm read_tensor_index,
                                       ffi::String storage_scope) {
     PythonAPICall py("read_at");
     py.Input("loop", loop);
     py.Input("block", block);
-    py.Input("read_buffer_index", read_buffer_index->value.as<int>().value());
+    py.Input("read_tensor_index", read_tensor_index->value.as<int>().value());
     py.Input("storage_scope", storage_scope);
     py.SingleOutput(outputs);
     return py.Str();
@@ -432,17 +432,17 @@ struct WriteAtTraits : public UnpackedInstTraits<WriteAtTraits> {
   static constexpr size_t kNumDecisions = 0;
 
   static SBlockRV UnpackedApplyToSchedule(Schedule sch, LoopRV loop, SBlockRV block,
-                                          IntImm write_buffer_index, ffi::String storage_scope) {
-    return sch->WriteAt(loop, block, write_buffer_index->value.as<int>().value(), storage_scope);
+                                          IntImm write_tensor_index, ffi::String storage_scope) {
+    return sch->WriteAt(loop, block, write_tensor_index->value.as<int>().value(), storage_scope);
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String loop,
-                                      ffi::String block, IntImm write_buffer_index,
+                                      ffi::String block, IntImm write_tensor_index,
                                       ffi::String storage_scope) {
     PythonAPICall py("write_at");
     py.Input("loop", loop);
     py.Input("block", block);
-    py.Input("write_buffer_index", write_buffer_index->value.as<int>().value());
+    py.Input("write_tensor_index", write_tensor_index->value.as<int>().value());
     py.Input("storage_scope", storage_scope);
     py.SingleOutput(outputs);
     return py.Str();

@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file buffer.cc
+ * \file tensor.cc
  */
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
@@ -64,26 +64,26 @@ PrimExpr SliceExtent(const PrimExpr& start, const PrimExpr& stop, const sym::Ana
   return analyzer->Simplify(stop - start);
 }
 
-ffi::ObjectRef RealizeBufferSubscript(
+ffi::ObjectRef RealizeTensorSubscript(
     Expr value,
     ffi::Array<ffi::Variant<
         ffi::Tuple<ffi::Optional<PrimExpr>, ffi::Optional<PrimExpr>, ffi::Optional<PrimExpr>>,
         PrimExpr>>
         slice,
     Location loc) {
-  TensorVar buffer = value.as_or_throw<TensorVar>();
-  TensorType buffer_ty = buffer.type();
-  TVM_FFI_CHECK_LE(slice.size(), buffer_ty->shape.size(), IndexError)
-      << "Too many indices for a " << buffer_ty->shape.size() << "-dimensional buffer";
+  TensorVar tensor = value.as_or_throw<TensorVar>();
+  TensorType tensor_ty = tensor.type();
+  TVM_FFI_CHECK_LE(slice.size(), tensor_ty->shape.size(), IndexError)
+      << "Too many indices for a " << tensor_ty->shape.size() << "-dimensional tensor";
 
-  bool all_points = slice.size() == buffer_ty->shape.size();
+  bool all_points = slice.size() == tensor_ty->shape.size();
   for (const auto& item : slice) {
     if (auto descriptor = item.as<ffi::Tuple<ffi::Optional<PrimExpr>, ffi::Optional<PrimExpr>,
                                              ffi::Optional<PrimExpr>>>()) {
       all_points = false;
       ffi::Optional<PrimExpr> step = descriptor.value().get<2>();
       TVM_FFI_CHECK(!step.has_value() || IsOne(step.value()), ValueError)
-          << "Buffer slices with a non-unit step are not supported";
+          << "Tensor slices with a non-unit step are not supported";
     }
   }
 
@@ -93,7 +93,7 @@ ffi::ObjectRef RealizeBufferSubscript(
     for (const auto& item : slice) {
       indices.push_back(item.as<PrimExpr>().value());
     }
-    return MakeTensorLoad(buffer, indices, loc);
+    return MakeTensorLoad(tensor, indices, loc);
   }
 
   // Any slice or omitted trailing dimension denotes a region.  Rejecting
@@ -101,7 +101,7 @@ ffi::ObjectRef RealizeBufferSubscript(
   // unrepresentable rather than giving it dimension-dependent semantics.
   sym::Analyzer analyzer;
   ffi::Array<Range> region;
-  region.reserve(buffer_ty->shape.size());
+  region.reserve(tensor_ty->shape.size());
   for (size_t i = 0; i < slice.size(); ++i) {
     if (auto point = slice[i].as<PrimExpr>()) {
       region.push_back(Range::FromMinExtent(point.value(), IntImm(point.value().ty(), 1)));
@@ -110,23 +110,23 @@ ffi::ObjectRef RealizeBufferSubscript(
                             .as<ffi::Tuple<ffi::Optional<PrimExpr>, ffi::Optional<PrimExpr>,
                                            ffi::Optional<PrimExpr>>>()
                             .value();
-      PrimExpr start = descriptor.get<0>().value_or(IntImm(buffer_ty->shape[i].ty(), 0));
-      PrimExpr stop = descriptor.get<1>().value_or(buffer_ty->shape[i]);
+      PrimExpr start = descriptor.get<0>().value_or(IntImm(tensor_ty->shape[i].ty(), 0));
+      PrimExpr stop = descriptor.get<1>().value_or(tensor_ty->shape[i]);
       // Retain an explicitly supplied extent before simplifying other endpoints.
       region.push_back(Range::FromMinExtent(start, SliceExtent(start, stop, analyzer)));
     }
   }
-  for (size_t i = slice.size(); i < buffer_ty->shape.size(); ++i) {
+  for (size_t i = slice.size(); i < tensor_ty->shape.size(); ++i) {
     region.push_back(
-        Range::FromMinExtent(IntImm(buffer_ty->shape[i].ty(), 0), buffer_ty->shape[i]));
+        Range::FromMinExtent(IntImm(tensor_ty->shape[i].ty(), 0), tensor_ty->shape[i]));
   }
-  return BufferRegion(buffer, region, loc);
+  return MakeTensorRegion(tensor, region, loc);
 }
 
-ffi::ObjectRef RealizeBufferRegionSubscript(Expr value, SubscriptSlice slice, Location loc) {
+ffi::ObjectRef RealizeTensorRegionSubscript(Expr value, SubscriptSlice slice, Location loc) {
   TensorRegion source = value.as_or_throw<TensorRegion>();
   TVM_FFI_CHECK_LE(slice.size(), source->region.size(), IndexError)
-      << "Too many indices for a " << source->region.size() << "-dimensional buffer region";
+      << "Too many indices for a " << source->region.size() << "-dimensional tensor region";
 
   bool all_points = slice.size() == source->region.size();
   for (const auto& item : slice) {
@@ -170,7 +170,7 @@ ffi::ObjectRef RealizeBufferRegionSubscript(Expr value, SubscriptSlice slice, Lo
   for (size_t i = slice.size(); i < source->region.size(); ++i) {
     region.push_back(source->region[i]);
   }
-  return BufferRegion(source->source.as_or_throw<TensorVar>(), region, loc);
+  return MakeTensorRegion(source->source.as_or_throw<TensorVar>(), region, loc);
 }
 
 }  // namespace
@@ -178,29 +178,29 @@ ffi::ObjectRef RealizeBufferRegionSubscript(Expr value, SubscriptSlice slice, Lo
 using IndexMod = prim::FloorModNode;
 using IndexDiv = prim::FloorDivNode;
 
-TensorRegion BufferRegion(TensorVar buffer, ffi::Array<Range> region, Location loc) {
-  TVM_FFI_ICHECK_EQ(buffer->shape.size(), region.size())
-      << "Buffer rank and region dimension mismatch";
-  return TensorRegion(std::move(buffer), std::move(region), TensorRegionType(), std::move(loc));
+TensorRegion MakeTensorRegion(TensorVar tensor, ffi::Array<Range> region, Location loc) {
+  TVM_FFI_ICHECK_EQ(tensor->shape.size(), region.size())
+      << "Tensor rank and region dimension mismatch";
+  return TensorRegion(std::move(tensor), std::move(region), TensorRegionType(), std::move(loc));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tirx.AsTensorRegion", [](TensorRegion region) { return region; });
-  refl::GlobalDef().def("tirx.BufferRegion", [](TensorVar buffer, ffi::Array<Range> region) {
-    return BufferRegion(buffer, region);
+  refl::GlobalDef().def("tirx.MakeTensorRegion", [](TensorVar tensor, ffi::Array<Range> region) {
+    return MakeTensorRegion(tensor, region);
   });
 }
 
-TensorRegion FullBufferRegion(TensorVar buffer) {
+TensorRegion FullTensorRegion(TensorVar tensor) {
   ffi::Array<Range> region;
-  for (PrimExpr extent : buffer->shape) {
+  for (PrimExpr extent : tensor->shape) {
     region.push_back(Range::FromMinExtent(0, extent));
   }
-  return BufferRegion(buffer, region);
+  return MakeTensorRegion(tensor, region);
 }
 
-TensorRegion BufferRegionFromPoint(TensorVar buffer, ffi::Array<PrimExpr> indices) {
+TensorRegion TensorRegionFromPoint(TensorVar tensor, ffi::Array<PrimExpr> indices) {
   ffi::Array<Range> region;
   for (const PrimExpr& index : indices) {
     if (const prim::RampNode* ramp_index = index.as<prim::RampNode>()) {
@@ -210,15 +210,15 @@ TensorRegion BufferRegionFromPoint(TensorVar buffer, ffi::Array<PrimExpr> indice
       region.push_back(Range::FromMinExtent(index, MakeConst(index.ty(), 1)));
     }
   }
-  return BufferRegion(buffer, region);
+  return MakeTensorRegion(tensor, region);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::TypeAttrDef<TensorTypeNode>().def(tvm::type_attr::kSubscriptExprRealize,
-                                          RealizeBufferSubscript);
+                                          RealizeTensorSubscript);
   refl::TypeAttrDef<TensorRegionTypeNode>().def(tvm::type_attr::kSubscriptExprRealize,
-                                                RealizeBufferRegionSubscript);
+                                                RealizeTensorRegionSubscript);
 }
 
 ffi::Array<PrimExpr> SimplifyArray(sym::AnalyzerObj* ana, ffi::Array<PrimExpr> array) {
@@ -427,7 +427,7 @@ inline PrimExpr MergeMulMod(sym::AnalyzerObj* analyzer, const PrimExpr& base) {
   return no_opt_sum.value();
 }
 
-// The buffer offset in convention of number of elements of
+// The tensor offset in convention of number of elements of
 // original data ignoring number of lanes.
 // We also perform optimization to simplify the indexing expression.
 ffi::Array<PrimExpr> TensorTypeNode::ElemOffset(ffi::Array<PrimExpr> input_indices,

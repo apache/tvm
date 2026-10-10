@@ -603,7 +603,7 @@ def gemm_async_tcgen05_impl(op_call: TensorCall, sctx: DispatchContext) -> Funct
     # Priority: MN-major atom match → definitively MN-major (column-major SMEM).
     # K-major atom match → use extent matching to determine semantic majorness,
     # since mma_shared_layout creates K-major layouts for both [M,K] and [K,M].
-    def compute_canonical_params(buf, buf_region, dtype, is_transposed):
+    def compute_canonical_params(buf, tensor_region, dtype, is_transposed):
         """Compute descriptor parameters from buffer layout.
 
         Uses is_transposed (from op's transA/transB) to determine which
@@ -620,7 +620,7 @@ def gemm_async_tcgen05_impl(op_call: TensorCall, sctx: DispatchContext) -> Funct
         Returns:
             Tuple of (swizzle_mode, ldo, sdo, is_mn_major).
         """
-        region = list(buf_region.region)
+        region = list(tensor_region.region)
 
         def _match(slice_layout, shape_2d):
             """Match ``slice_layout`` (of ``shape_2d``) against the swizzle atoms.
@@ -1169,7 +1169,7 @@ def gemm_async_tcgen05_impl(op_call: TensorCall, sctx: DispatchContext) -> Funct
             wrap_stmts.append(_make_lo_uniform(desc_buf))
         wrap_stmts.append(_krp)
         wrap = SeqStmt(wrap_stmts)
-        sctx.add_post_buffer_def_stmt(smem_buf, wrap)
+        sctx.add_post_tensor_def_stmt(smem_buf, wrap)
         return desc_buf
 
     def _uniform_desc(smem_buf, off16, ldo, sdo, swizzle):

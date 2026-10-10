@@ -78,17 +78,17 @@ bool IsTransformBijective(const Expr& expr, const IndexMap& transform) {
 /*!
  * \brief Replace each call_tir to tirx::Function which matches the kOperatorName attribute with the
  * provided replacement tirx::Function and mark it with kFrozenLayout attribute. Insert layout
- * transformations on i/o buffers as necessary for correctness.
+ * transformations on i/o tensors as necessary for correctness.
  */
 class AlterOpImplMutator : public ExprMutator {
  public:
   AlterOpImplMutator(
       const IRModule& mod, const ffi::Map<ffi::String, tirx::Function>& op_impl_map,
-      const ffi::Map<ffi::String, ffi::Array<ffi::Optional<IndexMap>>>& op_buffer_transforms_)
+      const ffi::Map<ffi::String, ffi::Array<ffi::Optional<IndexMap>>>& op_tensor_transforms_)
       : ExprMutator(mod),
         mod_(mod),
         op_impl_map_(op_impl_map),
-        op_buffer_transforms__(op_buffer_transforms_) {}
+        op_tensor_transforms__(op_tensor_transforms_) {}
 
   IRModule Run() {
     for (const auto& gv : mod_->GetGlobalVars()) {
@@ -128,29 +128,29 @@ class AlterOpImplMutator : public ExprMutator {
 
     const auto& replacement_func = op_impl_map_[op_kind];
 
-    ffi::Array<ffi::Optional<IndexMap>> buffer_transforms;
-    if (op_buffer_transforms__.count(op_kind)) buffer_transforms = op_buffer_transforms__[op_kind];
+    ffi::Array<ffi::Optional<IndexMap>> tensor_transforms;
+    if (op_tensor_transforms__.count(op_kind)) tensor_transforms = op_tensor_transforms__[op_kind];
 
-    TVM_FFI_ICHECK(buffer_transforms.empty() ||
-                   buffer_transforms.size() == replacement_func->params.size())
-        << "Either the i/o buffers do not require any transformations or transformations for each "
-           "buffer is provided.";
+    TVM_FFI_ICHECK(tensor_transforms.empty() ||
+                   tensor_transforms.size() == replacement_func->params.size())
+        << "Either the i/o tensors do not require any transformations or transformations for each "
+           "tensor is provided.";
     TVM_FFI_ICHECK_EQ(old_func->params.size(), replacement_func->params.size())
         << "Number of parameters of old and replacement tirx::Function must match";
 
     GlobalVar replacement_gv = GetOrCreateGlobalVarForFunc(replacement_func, op_kind);
 
     auto call_tir_inputs_tuple = ffi::GetRef<Tuple>(call->args[1].as<TupleNode>());
-    Tuple updated_inputs = UpdateInputs(call_tir_inputs_tuple, buffer_transforms);
+    Tuple updated_inputs = UpdateInputs(call_tir_inputs_tuple, tensor_transforms);
 
     TVM_FFI_ICHECK_EQ(call->ty_args.size(), 1) << "call_tir ty_args.size() is expected to be 1";
-    Type updated_ret_ty = UpdateOutputType(call->ty_args[0], buffer_transforms);
+    Type updated_ret_ty = UpdateOutputType(call->ty_args[0], tensor_transforms);
     auto updated_call =
         builder_->Normalize(Call(Type::Missing(), call_tir_op_, {replacement_gv, updated_inputs},
                                  call->attrs, {updated_ret_ty}));
 
     // Now transform each of the outputs to previous layout.
-    return TransformOutputs(updated_call, buffer_transforms, call->ty_args[0]);
+    return TransformOutputs(updated_call, tensor_transforms, call->ty_args[0]);
   }
 
   ffi::Array<TensorType> GetTensorTypePerOutput(const Type& output_ty) {
@@ -291,14 +291,14 @@ class AlterOpImplMutator : public ExprMutator {
     return Tuple(updated_inputs);
   }
 
-  /*! \brief Updates the call_tir output type after applying buffer transforms. */
+  /*! \brief Updates the call_tir output type after applying tensor transforms. */
   Type UpdateOutputType(const Type& out_ty,
-                        const ffi::Array<ffi::Optional<IndexMap>>& buffer_transforms) {
-    if (buffer_transforms.empty()) return out_ty;
+                        const ffi::Array<ffi::Optional<IndexMap>>& tensor_transforms) {
+    if (tensor_transforms.empty()) return out_ty;
 
     if (out_ty->IsInstance<TensorTypeNode>())
       return UpdateOutputType(out_ty.as_or_throw<TensorType>(),
-                              buffer_transforms[buffer_transforms.size() - 1]);
+                              tensor_transforms[tensor_transforms.size() - 1]);
 
     TVM_FFI_ICHECK(out_ty->IsInstance<TupleTypeNode>())
         << "Expect output type of call_tir to be either TupleType or "
@@ -307,7 +307,7 @@ class AlterOpImplMutator : public ExprMutator {
 
     const auto& tuple_ty = out_ty.as_or_throw<TupleType>();
     ffi::Array<Type> ty_fields;
-    size_t first_output_index = buffer_transforms.size() - tuple_ty->fields.size();
+    size_t first_output_index = tensor_transforms.size() - tuple_ty->fields.size();
     size_t i = 0;
     for (const auto& si : tuple_ty->fields) {
       TVM_FFI_ICHECK(si->IsInstance<TensorTypeNode>())
@@ -315,7 +315,7 @@ class AlterOpImplMutator : public ExprMutator {
              "output structinfo, but got "
           << si;
       ty_fields.push_back(UpdateOutputType(si.as_or_throw<TensorType>(),
-                                           buffer_transforms[first_output_index + i++]));
+                                           tensor_transforms[first_output_index + i++]));
     }
     return TupleType(ty_fields);
   }
@@ -333,27 +333,27 @@ class AlterOpImplMutator : public ExprMutator {
   }
 
   Expr TransformOutputs(const Expr& expr,
-                        const ffi::Array<ffi::Optional<IndexMap>>& buffer_transforms,
+                        const ffi::Array<ffi::Optional<IndexMap>>& tensor_transforms,
                         const Type& old_ty) {
-    if (buffer_transforms.empty()) return expr;
+    if (tensor_transforms.empty()) return expr;
 
     ffi::Array<TensorType> old_output_ty = GetTensorTypePerOutput(old_ty);
 
     size_t num_outputs = old_output_ty.size();
     if (num_outputs == 0) return expr;
 
-    size_t first_output_index = buffer_transforms.size() - num_outputs;
+    size_t first_output_index = tensor_transforms.size() - num_outputs;
     // If there is a single output, return the transformed output.
     if (num_outputs == 1) {
-      auto output_map = buffer_transforms[first_output_index];
+      auto output_map = tensor_transforms[first_output_index];
       return TransformLayoutInverse(expr, output_map, old_output_ty[0]);
     }
 
     // In case of more than one output, we would have to get each item of the output tuple,
     // transform it and return a tuple of all transformed outputs.
     ffi::Array<Expr> transformed_outputs;
-    for (size_t i = 0; i + first_output_index < buffer_transforms.size(); ++i) {
-      const auto& output_map = buffer_transforms[i + first_output_index];
+    for (size_t i = 0; i + first_output_index < tensor_transforms.size(); ++i) {
+      const auto& output_map = tensor_transforms[i + first_output_index];
       auto output = builder_->Normalize(TupleGetItem(expr, static_cast<int>(i)));
       transformed_outputs.push_back(TransformLayoutInverse(output, output_map, old_output_ty[i]));
     }
@@ -369,8 +369,8 @@ class AlterOpImplMutator : public ExprMutator {
   std::unordered_map<int, GlobalVar> remove_pad_map_;
   /*! \brief Map from kOperatorName attribute to the replacement tirx::Function */
   const ffi::Map<ffi::String, tirx::Function>& op_impl_map_;
-  /*! \brief Map from kOperatorName attribute to the layout transforms on i/o buffers */
-  const ffi::Map<ffi::String, ffi::Array<ffi::Optional<IndexMap>>>& op_buffer_transforms__;
+  /*! \brief Map from kOperatorName attribute to the layout transforms on i/o tensors */
+  const ffi::Map<ffi::String, ffi::Array<ffi::Optional<IndexMap>>>& op_tensor_transforms__;
 
   const Op call_tir_op_ = Op::Get("relax.call_tir");
   const Op layout_transform_op_ = Op::Get("relax.layout_transform");
@@ -380,9 +380,9 @@ namespace transform {
 
 Pass AlterOpImpl(
     const ffi::Map<ffi::String, tirx::Function>& op_impl_map,
-    const ffi::Map<ffi::String, ffi::Array<ffi::Optional<IndexMap>>>& op_buffer_transforms_) {
+    const ffi::Map<ffi::String, ffi::Array<ffi::Optional<IndexMap>>>& op_tensor_transforms_) {
   auto pass_func = [=](IRModule mod, PassContext pc) {
-    return AlterOpImplMutator(mod, op_impl_map, op_buffer_transforms_).Run();
+    return AlterOpImplMutator(mod, op_impl_map, op_tensor_transforms_).Run();
   };
   return CreateModulePass(/*pass_function=*/pass_func,  //
                           /*opt_level=*/0,              //

@@ -79,26 +79,26 @@ bool IsBoundToThreadIdx(const ForNode* loop) {
 
 /*!
  * \brief Check the dominant property of a block:
- * the block is the only writer of its output, dominating the reader of its output buffers
+ * the block is the only writer of its output, dominating the reader of its output tensors
  * \param scope_block The scope block of the block to be checked
  * \param block The block whose dominant property is to be checked
  * \return A boolean indicating if the block is a dominant block
  */
 bool IsDominantBlock(const SBlock& scope_block, const SBlock& block) {
-  // Step 1. Count the number of writers for each buffer written by the scope block.
-  std::unordered_map<const VarNode*, int> buffer_writer_cnt;
-  auto walk_fn = [&buffer_writer_cnt](const SBlock& block) -> ffi::Expected<ffi::WalkResult> {
-    for (const TensorRegion& buffer_region : block->writes) {
-      ++buffer_writer_cnt[buffer_region->source.as_or_throw<tvm::tirx::TensorVar>().get()];
+  // Step 1. Count the number of writers for each tensor written by the scope block.
+  std::unordered_map<const VarNode*, int> tensor_writer_cnt;
+  auto walk_fn = [&tensor_writer_cnt](const SBlock& block) -> ffi::Expected<ffi::WalkResult> {
+    for (const TensorRegion& tensor_region : block->writes) {
+      ++tensor_writer_cnt[tensor_region->source.as_or_throw<tvm::tirx::TensorVar>().get()];
     }
     return ffi::WalkResult::Skip();
   };
   ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(scope_block->body, walk_fn);
   // Step 2. Check whether `block` is the only writer of its outputs.
-  for (const TensorRegion& buffer_region : block->writes) {
+  for (const TensorRegion& tensor_region : block->writes) {
     TVM_FFI_ICHECK(
-        buffer_writer_cnt.count(buffer_region->source.as_or_throw<tvm::tirx::TensorVar>().get()));
-    if (buffer_writer_cnt[buffer_region->source.as_or_throw<tvm::tirx::TensorVar>().get()] != 1) {
+        tensor_writer_cnt.count(tensor_region->source.as_or_throw<tvm::tirx::TensorVar>().get()));
+    if (tensor_writer_cnt[tensor_region->source.as_or_throw<tvm::tirx::TensorVar>().get()] != 1) {
       return false;
     }
   }
@@ -133,62 +133,62 @@ bool IsReductionBlock(const SBlockRealize& realize, const ffi::Map<Var, Range>& 
     return false;
   }
   // Cond 4. Dominant: the block is the only writer of its output, dominating the reader of its
-  // output buffers.
+  // output tensors.
   if (!IsDominantBlock(scope_block, ffi::GetRef<SBlock>(block))) {
     return false;
   }
-  // Cond 5. The reduction block vars are not used to index the output buffers.
-  return ReductionIterNotIndexOutputBuffer(ffi::GetRef<SBlock>(block));
+  // Cond 5. The reduction block vars are not used to index the output tensors.
+  return ReductionIterNotIndexOutputTensor(ffi::GetRef<SBlock>(block));
 }
 
 /*!
- * \brief Create intermediate buffers according to the input buffers and buffer kind
- * \param reduction_buffers The old reduction buffers which provide the buffer names and data types
- * \param is_cross_thread_buffer A boolean indicating whether to create buffers for the cross-thread
- * computation results or not, which is used for determine the buffer name prefix
- * \return The created buffers
+ * \brief Create intermediate tensors according to the input tensors and tensor kind
+ * \param reduction_tensors The old reduction tensors which provide the tensor names and data types
+ * \param is_cross_thread_tensor A boolean indicating whether to create tensors for the cross-thread
+ * computation results or not, which is used for determine the tensor name prefix
+ * \return The created tensors
  */
-ffi::Array<TensorVar> MakeScratchpads(const ffi::Array<TensorVar>& reduction_buffers,
-                                      bool is_cross_thread_buffer) {
-  ffi::Array<TensorVar> new_buffers;
-  new_buffers.reserve(reduction_buffers.size());
-  for (const TensorVar& buffer : reduction_buffers) {
-    ffi::String name = is_cross_thread_buffer ? "cross" : "in";
-    name = name + "_thread_" + buffer.name();
-    new_buffers.push_back(TensorVar(name, TensorType(/*storage_scope=*/"local",
-                                                     /*dtype=*/buffer->dtype,
+ffi::Array<TensorVar> MakeScratchpads(const ffi::Array<TensorVar>& reduction_tensors,
+                                      bool is_cross_thread_tensor) {
+  ffi::Array<TensorVar> new_tensors;
+  new_tensors.reserve(reduction_tensors.size());
+  for (const TensorVar& tensor : reduction_tensors) {
+    ffi::String name = is_cross_thread_tensor ? "cross" : "in";
+    name = name + "_thread_" + tensor.name();
+    new_tensors.push_back(TensorVar(name, TensorType(/*storage_scope=*/"local",
+                                                     /*dtype=*/tensor->dtype,
                                                      /*shape=*/{IntImm::Int32(1)},
                                                      /*strides=*/{IntImm::Int32(1)},
                                                      /*elem_offset=*/std::nullopt,
                                                      /*data_alignment=*/0,
                                                      /*offset_factor=*/0)));
   }
-  return new_buffers;
+  return new_tensors;
 }
 
 /*!
- * \brief Substitute given source buffers with given target buffers respectively in the input
+ * \brief Substitute given source tensors with given target tensors respectively in the input
  * statement
  */
-class BufferReplacer : public StmtExprMutator {
+class TensorReplacer : public StmtExprMutator {
  public:
   using StmtExprMutator::Mutate;
   using StmtExprMutator::Mutate_;
 
-  static Stmt Run(ffi::Array<TensorVar> src_buffers, ffi::Array<TensorVar> tgt_buffers, Stmt stmt) {
-    ffi::Map<TensorVar, TensorVar> buffer_map;
-    TVM_FFI_ICHECK_EQ(src_buffers.size(), tgt_buffers.size());
-    int n_buffers = src_buffers.size();
-    for (int i = 0; i < n_buffers; ++i) {
-      buffer_map.Set(src_buffers[i], tgt_buffers[i]);
+  static Stmt Run(ffi::Array<TensorVar> src_tensors, ffi::Array<TensorVar> tgt_tensors, Stmt stmt) {
+    ffi::Map<TensorVar, TensorVar> tensor_map;
+    TVM_FFI_ICHECK_EQ(src_tensors.size(), tgt_tensors.size());
+    int n_tensors = src_tensors.size();
+    for (int i = 0; i < n_tensors; ++i) {
+      tensor_map.Set(src_tensors[i], tgt_tensors[i]);
     }
-    return ffi::make_object<BufferReplacer>(buffer_map)
+    return ffi::make_object<TensorReplacer>(tensor_map)
         ->Mutate(stmt, InplaceMode::kAllow)
         .ValueOrUnchanged(std::move(stmt));
   }
 
-  explicit BufferReplacer(ffi::Map<TensorVar, TensorVar> buffer_map) {
-    for (const auto& [buffer, replacement] : buffer_map) VarRemapSet(buffer, replacement);
+  explicit TensorReplacer(ffi::Map<TensorVar, TensorVar> tensor_map) {
+    for (const auto& [tensor, replacement] : tensor_map) VarRemapSet(tensor, replacement);
   }
 
  private:
@@ -331,61 +331,61 @@ class InThreadReducerMaker : public StmtExprMutator {
 /*!
  * \brief Create the lowered allreduce block transformed from the input reduction block
  * \param realize The block-realize which contains the old reduction block
- * \param it_buffers The buffers to store in-thread reduction results
- * \param ct_buffers The buffers to store cross-thread reduction results
- * \param wb_buffers The buffers to store the final reduction results
- * \param old_wb_indices The indices used to access the write-back buffers when storing the final
- * reduction results into the write-back buffers
+ * \param it_tensors The tensors to store in-thread reduction results
+ * \param ct_tensors The tensors to store cross-thread reduction results
+ * \param wb_tensors The tensors to store the final reduction results
+ * \param old_wb_indices The indices used to access the write-back tensors when storing the final
+ * reduction results into the write-back tensors
  * \param reducer The reduction function
  * \param combiner_rhs The RHS values of the combiner
  * \param reduction_loops The reduction loops
  */
 Stmt TransformReductionBlock(const SBlockRealizeNode* realize,                        //
-                             const ffi::Optional<ffi::Array<TensorVar>>& it_buffers,  //
-                             const ffi::Array<TensorVar>& ct_buffers,                 //
-                             const ffi::Array<TensorVar>& wb_buffers,                 //
+                             const ffi::Optional<ffi::Array<TensorVar>>& it_tensors,  //
+                             const ffi::Array<TensorVar>& ct_tensors,                 //
+                             const ffi::Array<TensorVar>& wb_tensors,                 //
                              const ffi::Array<PrimExpr>& old_wb_indices,              //
                              const te::CommReducer& reducer,                          //
                              const ffi::Array<PrimExpr>& combiner_rhs,                //
                              const std::vector<const ForNode*>& reduction_loops) {
-  int n_buffers = wb_buffers.size();
+  int n_tensors = wb_tensors.size();
   const SBlockNode* block = realize->block.get();
 
-  auto f_create_buffer_regions = [](ffi::Array<TensorVar> buffers) {
+  auto f_create_tensor_regions = [](ffi::Array<TensorVar> tensors) {
     ffi::Array<TensorRegion> regions;
-    regions.reserve(buffers.size());
-    for (const TensorVar& buffer : buffers) {
-      regions.push_back(BufferRegion(buffer, {Range::FromMinExtent(0, 1)}));
+    regions.reserve(tensors.size());
+    for (const TensorVar& tensor : tensors) {
+      regions.push_back(MakeTensorRegion(tensor, {Range::FromMinExtent(0, 1)}));
     }
     return regions;
   };
 
-  ffi::Array<TensorRegion> ct_buffer_regions = f_create_buffer_regions(ct_buffers);
-  ffi::Optional<ffi::Array<TensorRegion>> it_buffer_regions = std::nullopt;
-  if (it_buffers.has_value()) {
-    it_buffer_regions = f_create_buffer_regions(it_buffers.value());
+  ffi::Array<TensorRegion> ct_tensor_regions = f_create_tensor_regions(ct_tensors);
+  ffi::Optional<ffi::Array<TensorRegion>> it_tensor_regions = std::nullopt;
+  if (it_tensors.has_value()) {
+    it_tensor_regions = f_create_tensor_regions(it_tensors.value());
   }
   // In total, the block is transformed into at most 4 statements
-  // - Stmt 1: initialize the buffer for in-thread reduction
+  // - Stmt 1: initialize the tensor for in-thread reduction
   // - Stmt 2: do in-thread reduction
   // - Stmt 3: do cross-thread reduction
-  // - Stmt 4: write cross-thread reduction result to the original buffer
+  // - Stmt 4: write cross-thread reduction result to the original tensor
   ffi::Array<Stmt> stmts;
   stmts.reserve(4);
-  // Stmt 1: initialize the buffer for in-thread reduction
-  if (it_buffers.has_value()) {
+  // Stmt 1: initialize the tensor for in-thread reduction
+  if (it_tensors.has_value()) {
     ffi::Array<Stmt> inits;
-    inits.reserve(n_buffers);
-    for (int i = 0; i < n_buffers; ++i) {
+    inits.reserve(n_tensors);
+    for (int i = 0; i < n_tensors; ++i) {
       inits.push_back(
-          TensorStore(it_buffers.value()[i], {IntImm::Int32(0)}, reducer->identity_element[i]));
+          TensorStore(it_tensors.value()[i], {IntImm::Int32(0)}, reducer->identity_element[i]));
     }
     stmts.push_back(SBlockRealize(/*iter_values=*/{},
                                   /*predicate=*/IntImm::Bool(true),
                                   /*block=*/
                                   SBlock(/*iter_vars=*/{},
                                          /*reads=*/{},
-                                         /*writes=*/it_buffer_regions.value(),
+                                         /*writes=*/it_tensor_regions.value(),
                                          /*name_hint=*/block->name_hint + "_in_thread_init",
                                          /*body=*/SeqStmt(inits))));
   }
@@ -393,14 +393,14 @@ Stmt TransformReductionBlock(const SBlockRealizeNode* realize,                  
   {
     ffi::Optional<SBlockRealize> new_realize = std::nullopt;
     // If need to generate in-thread reduction,
-    // then replace `wb_buffers` with `it_buffers` accordingly in given BlockRealize
+    // then replace `wb_tensors` with `it_tensors` accordingly in given BlockRealize
     // otherwise, directly remove given BlockRealize
-    if (it_buffers.has_value()) {
+    if (it_tensors.has_value()) {
       ffi::ObjectPtr<SBlockNode> new_block = ffi::make_object<SBlockNode>(*block);
-      new_block->writes = it_buffer_regions.value();
+      new_block->writes = it_tensor_regions.value();
       new_block->name_hint = new_block->name_hint + "_in_thread";
       new_block->body =
-          BufferReplacer::Run(wb_buffers, it_buffers.value(), std::move(new_block->body));
+          TensorReplacer::Run(wb_tensors, it_tensors.value(), std::move(new_block->body));
       new_block->init = std::nullopt;
       ffi::ObjectPtr<SBlockRealizeNode> n = ffi::make_object<SBlockRealizeNode>(*realize);
       n->block = SBlock(new_block);
@@ -420,16 +420,16 @@ Stmt TransformReductionBlock(const SBlockRealizeNode* realize,                  
     for (const Var& var : reducer->rhs) combine_vars.push_back(var);
     LambdaExpr combine(combine_vars, tvm::Tuple(reducer->result));
     ffi::Array<PrimExpr> values;
-    if (it_buffers.has_value()) {
-      for (int i = 0; i < n_buffers; ++i) {
-        values.push_back(MakeTensorLoad(it_buffers.value()[i], {IntImm::Int32(0)}));
+    if (it_tensors.has_value()) {
+      for (int i = 0; i < n_tensors; ++i) {
+        values.push_back(MakeTensorLoad(it_tensors.value()[i], {IntImm::Int32(0)}));
       }
     } else {
       values = combiner_rhs;
     }
     ffi::Array<PrimExpr> destinations;
-    for (int i = 0; i < n_buffers; ++i) {
-      destinations.push_back(MakeTensorLoad(ct_buffers[i], {0}));
+    for (int i = 0; i < n_tensors; ++i) {
+      destinations.push_back(MakeTensorLoad(ct_tensors[i], {0}));
     }
     ffi::Array<PrimExpr> thread_axes;
     for (const ForNode* reduction_loop : reduction_loops) {
@@ -447,10 +447,10 @@ Stmt TransformReductionBlock(const SBlockRealizeNode* realize,                  
     ffi::Array<IterVar> iter_vars{nullptr};
     ffi::Array<PrimExpr> bindings{nullptr};
     ffi::Array<TensorRegion> reads{nullptr};
-    if (it_buffers.has_value()) {
+    if (it_tensors.has_value()) {
       iter_vars = ffi::Array<IterVar>{};
       bindings = ffi::Array<PrimExpr>{};
-      reads = it_buffer_regions.value();
+      reads = it_tensor_regions.value();
     } else {
       iter_vars = block->iter_vars;
       bindings = realize->iter_values;
@@ -462,7 +462,7 @@ Stmt TransformReductionBlock(const SBlockRealizeNode* realize,                  
         /*block=*/
         SBlock(/*iter_vars=*/std::move(iter_vars),
                /*reads=*/std::move(reads),
-               /*writes=*/ct_buffer_regions,
+               /*writes=*/ct_tensor_regions,
                /*name_hint=*/block->name_hint + "_cross_thread",
                /*body=*/
                Evaluate(Call(/*dtype=*/PrimType::Void(),
@@ -470,7 +470,7 @@ Stmt TransformReductionBlock(const SBlockRealizeNode* realize,                  
                              /*args=*/std::move(parameters))
                             .as_or_throw<PrimExpr>()))));
   }
-  // Stmt 4: write cross-thread reduction result to the original buffer
+  // Stmt 4: write cross-thread reduction result to the original tensor
   {
     TVM_FFI_ICHECK_EQ(block->iter_vars.size(), realize->iter_values.size());
     int n_iter = static_cast<int>(block->iter_vars.size());
@@ -497,8 +497,8 @@ Stmt TransformReductionBlock(const SBlockRealizeNode* realize,                  
     }
     ffi::Array<Stmt> wb_updates;
     ffi::Array<TensorRegion> wb_regions;
-    wb_updates.reserve(n_buffers);
-    wb_regions.reserve(n_buffers);
+    wb_updates.reserve(n_tensors);
+    wb_regions.reserve(n_tensors);
     int n_dim = static_cast<int>(old_wb_indices.size());
     auto map_var = [&var_map](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
       if (auto repl = var_map.Get(var)) {
@@ -519,15 +519,15 @@ Stmt TransformReductionBlock(const SBlockRealizeNode* realize,                  
       wb_indices.push_back(ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(old_wb_indices[d], map_var)
                                .as_or_throw<PrimExpr>());
     }
-    for (int i = 0; i < n_buffers; ++i) {
-      wb_updates.push_back(TensorStore(wb_buffers[i], wb_indices,
-                                       MakeTensorLoad(ct_buffers[i], {IntImm::Int32(0)})));
-      wb_regions.push_back(BufferRegion(wb_buffers[i], region));
+    for (int i = 0; i < n_tensors; ++i) {
+      wb_updates.push_back(TensorStore(wb_tensors[i], wb_indices,
+                                       MakeTensorLoad(ct_tensors[i], {IntImm::Int32(0)})));
+      wb_regions.push_back(MakeTensorRegion(wb_tensors[i], region));
     }
 
     // Construct the predicate of the write-back block. It is the conjunction of
     // - each predicate clause of the original block which contains spatial loop var, and
-    // - `t == 0` for each reduction thread dim when the write-back buffer is not local.
+    // - `t == 0` for each reduction thread dim when the write-back tensor is not local.
     PrimExpr wb_predicate = IntImm::Bool(true);
     std::unordered_set<const VarNode*> reduction_loop_vars;
     reduction_loop_vars.reserve(reduction_loops.size());
@@ -561,7 +561,7 @@ Stmt TransformReductionBlock(const SBlockRealizeNode* realize,                  
       return ffi::WalkResult::Advance();
     };
     ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(realize->predicate, walk_fn);
-    if (wb_buffers[0].scope() != "local") {
+    if (wb_tensors[0].scope() != "local") {
       for (const ForNode* loop : reduction_loops) {
         if (tvm::tirx::GetThreadBinding(loop).has_value()) {
           wb_predicate = wb_predicate &&
@@ -575,7 +575,7 @@ Stmt TransformReductionBlock(const SBlockRealizeNode* realize,                  
         /*predicate=*/wb_predicate,
         /*block=*/
         SBlock(/*iter_vars=*/std::move(iter_vars),
-               /*reads=*/std::move(ct_buffer_regions),
+               /*reads=*/std::move(ct_tensor_regions),
                /*writes=*/std::move(wb_regions),
                /*name_hint=*/block->name_hint + "_write_back",
                /*body=*/SeqStmt(wb_updates))));
@@ -641,7 +641,7 @@ class CrossThreadReductionTransformer : public StmtExprMutator {
 
   // Check if the input block needs thread broadcast rewrite.
   // One block needs broadcast rewrite when
-  // 1. it consumes a buffer produced by cross-thread reduction under
+  // 1. it consumes a tensor produced by cross-thread reduction under
   // the same kernel (i.e., same group of blockIdx),
   // 2. it writes to non-local memory,
   // 3. at least one of the reduction thread vars of the cross-thread reduction
@@ -657,16 +657,16 @@ class CrossThreadReductionTransformer : public StmtExprMutator {
       }
     }
 
-    // Find out the reduction threads for the read-buffers which are produced by
+    // Find out the reduction threads for the read-tensors which are produced by
     // cross-thread reduction.
     std::unordered_map<ThreadScope, Range, ThreadScopeHash, ThreadScopeEqual> thread2range;
     for (TensorRegion read_region : block->reads) {
-      auto buf_it =
-          crt_buf2threads_.find(read_region->source.as_or_throw<tvm::tirx::TensorVar>().get());
-      if (buf_it == crt_buf2threads_.end()) {
+      auto tensor_it =
+          crt_tensor2threads_.find(read_region->source.as_or_throw<tvm::tirx::TensorVar>().get());
+      if (tensor_it == crt_tensor2threads_.end()) {
         continue;
       }
-      for (auto [scope, range] : buf_it->second) {
+      for (auto [scope, range] : tensor_it->second) {
         thread2range.insert_or_assign(scope, range);
       }
     }
@@ -694,9 +694,9 @@ class CrossThreadReductionTransformer : public StmtExprMutator {
    * \return A tuple consisting of five elements:
    *  - an integer which indicates the number of reduction loops that are bound to thread axes,
    *  - the detected commutative reducer of the reduction,
-   *  - the reduction buffers which store the reduction results,
+   *  - the reduction tensors which store the reduction results,
    *  - the RHS values of the reduction updates,
-   *  - the indices which is used to access the reduction buffers when storing the reduction results
+   *  - the indices which is used to access the reduction tensors when storing the reduction results
    */
   std::tuple<int, te::CommReducer, ffi::Array<TensorVar>, ffi::Array<PrimExpr>,
              ffi::Array<PrimExpr>>
@@ -750,24 +750,24 @@ class CrossThreadReductionTransformer : public StmtExprMutator {
     std::tie(reducer, combiner_lhs, combiner_rhs) =
         GetReducerAndCombinerLhsRhs(std::nullopt, init_values, updates);
 
-    // Condition 4. All reduction buffers should be all local or all non-local.
-    int is_local_buf = -1;
-    ffi::Array<TensorVar> reduction_buffers;
-    reduction_buffers.reserve(updates.size());
-    for (const TensorStore& buf_store : updates) {
-      reduction_buffers.push_back(buf_store->dest.as_or_throw<TensorVar>());
-      if (buf_store->dest.as_or_throw<TensorVar>().scope() == "local") {
-        TVM_FFI_CHECK_NE(is_local_buf, 0, ValueError)
-            << "Cross-thread reduction requires all reduction buffers to be all "
-               "local or all non-local. However, here some buffer is local while some buffer is "
+    // Condition 4. All reduction tensors should be all local or all non-local.
+    int is_local_tensor = -1;
+    ffi::Array<TensorVar> reduction_tensors;
+    reduction_tensors.reserve(updates.size());
+    for (const TensorStore& tensor_store : updates) {
+      reduction_tensors.push_back(tensor_store->dest.as_or_throw<TensorVar>());
+      if (tensor_store->dest.as_or_throw<TensorVar>().scope() == "local") {
+        TVM_FFI_CHECK_NE(is_local_tensor, 0, ValueError)
+            << "Cross-thread reduction requires all reduction tensors to be all "
+               "local or all non-local. However, here some tensor is local while some tensor is "
                "shared or global.";
-        is_local_buf = 1;
+        is_local_tensor = 1;
       } else {
-        TVM_FFI_CHECK_NE(is_local_buf, 1, ValueError)
-            << "Cross-thread reduction requires all reduction buffers to be all "
-               "local or all non-local. However, here some buffer is local while some buffer is "
+        TVM_FFI_CHECK_NE(is_local_tensor, 1, ValueError)
+            << "Cross-thread reduction requires all reduction tensors to be all "
+               "local or all non-local. However, here some tensor is local while some tensor is "
                "shared or global.";
-        is_local_buf = 0;
+        is_local_tensor = 0;
       }
     }
 
@@ -785,7 +785,7 @@ class CrossThreadReductionTransformer : public StmtExprMutator {
     ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(ffi::GetRef<For>(reduction_loops[0]), walk_fn);
     return std::make_tuple(n_bound_reduction_loops,       //
                            std::move(reducer),            //
-                           std::move(reduction_buffers),  //
+                           std::move(reduction_tensors),  //
                            std::move(combiner_rhs),       //
                            updates[0]->indices);
   }
@@ -833,7 +833,7 @@ class CrossThreadReductionTransformer : public StmtExprMutator {
       --block_idx_depth;
     }
     if (is_block_idx || (is_thread_idx && thread_idx_depth == 0 && block_idx_depth == 0)) {
-      crt_buf2threads_.clear();
+      crt_tensor2threads_.clear();
     }
 
     // Replace `result` with the pre-stored result if `loop` appears as a key in `loop2new_stmt_`.
@@ -855,13 +855,13 @@ class CrossThreadReductionTransformer : public StmtExprMutator {
     block_stack_.pop_back();
     std::swap(old_loop_range_map, loop_range_map_);
 
-    // Insert the new allocated buffers into the block's `alloc_buffers` field.
-    auto it = block2new_buffers_.find(block);
-    if (it != block2new_buffers_.end()) {
+    // Insert the new allocated tensors into the block's `alloc_tensors` field.
+    auto it = block2new_tensors_.find(block);
+    if (it != block2new_tensors_.end()) {
       SBlockNode* p_new_block = new_block.CopyOnWrite();
-      for (const TensorVar& new_buffer : it->second) {
-        if (new_buffer.defined()) {
-          p_new_block->alloc_buffers.push_back(new_buffer);
+      for (const TensorVar& new_tensor : it->second) {
+        if (new_tensor.defined()) {
+          p_new_block->alloc_tensors.push_back(new_tensor);
         }
       }
     }
@@ -876,10 +876,10 @@ class CrossThreadReductionTransformer : public StmtExprMutator {
     // which condition the block violates.
     int n_bound_reduction_loops = 0;
     te::CommReducer reducer{ffi::UnsafeInit{}};
-    ffi::Array<TensorVar> reduction_buffers{nullptr};
+    ffi::Array<TensorVar> reduction_tensors{nullptr};
     ffi::Array<PrimExpr> combiner_rhs{nullptr};
     ffi::Array<PrimExpr> wb_indices{nullptr};
-    std::tie(n_bound_reduction_loops, reducer, reduction_buffers, combiner_rhs, wb_indices) =
+    std::tie(n_bound_reduction_loops, reducer, reduction_tensors, combiner_rhs, wb_indices) =
         CheckCanApplyCrossThreadReduction(block, reduction_loops);
     // Step 2. Before doing the cross-thread reduction, in-thread reduction is needed when
     //  - not all the reduction-related loops are bound to thread axes, or
@@ -887,24 +887,24 @@ class CrossThreadReductionTransformer : public StmtExprMutator {
     bool need_in_thread_reduction =
         n_bound_reduction_loops < static_cast<int>(reduction_loops.size()) ||
         !IsOne(realize->predicate);
-    // Step 3. Create intermediate buffers, storing them in `ct_buffers` and
-    // `it_buffers`. Let the scope block allocate these new buffers.
-    ffi::Array<TensorVar>& new_buffers = block2new_buffers_[block_stack_.back()];
-    ffi::Array<TensorVar> ct_buffers =
-        MakeScratchpads(reduction_buffers, /*is_cross_thread_buffer=*/true);
-    new_buffers.insert(new_buffers.end(), ct_buffers.begin(), ct_buffers.end());
-    ffi::Optional<ffi::Array<TensorVar>> it_buffers = std::nullopt;
+    // Step 3. Create intermediate tensors, storing them in `ct_tensors` and
+    // `it_tensors`. Let the scope block allocate these new tensors.
+    ffi::Array<TensorVar>& new_tensors = block2new_tensors_[block_stack_.back()];
+    ffi::Array<TensorVar> ct_tensors =
+        MakeScratchpads(reduction_tensors, /*is_cross_thread_tensor=*/true);
+    new_tensors.insert(new_tensors.end(), ct_tensors.begin(), ct_tensors.end());
+    ffi::Optional<ffi::Array<TensorVar>> it_tensors = std::nullopt;
     if (need_in_thread_reduction) {
-      it_buffers = MakeScratchpads(reduction_buffers, /*is_cross_thread_buffer=*/false);
-      new_buffers.insert(new_buffers.end(), it_buffers.value().begin(), it_buffers.value().end());
+      it_tensors = MakeScratchpads(reduction_tensors, /*is_cross_thread_tensor=*/false);
+      new_tensors.insert(new_tensors.end(), it_tensors.value().begin(), it_tensors.value().end());
     }
     // Step 4. Transform.
     loop2new_stmt_.insert_or_assign(
         reduction_loops[0],
-        TransformReductionBlock(realize, it_buffers, ct_buffers, reduction_buffers, wb_indices,
+        TransformReductionBlock(realize, it_tensors, ct_tensors, reduction_tensors, wb_indices,
                                 reducer, combiner_rhs, reduction_loops));
 
-    // Step 5. Record the reduction thread dims for the write-back buffers.
+    // Step 5. Record the reduction thread dims for the write-back tensors.
     // The information is used for consumer block broadcasting detection.
     std::vector<std::pair<ThreadScope, Range>> reduction_threads;
     reduction_threads.reserve(reduction_loops.size());
@@ -915,8 +915,8 @@ class CrossThreadReductionTransformer : public StmtExprMutator {
             Range::FromMinExtent(loop->min, loop->extent));
       }
     }
-    for (const TensorVar& reduction_buf : reduction_buffers) {
-      crt_buf2threads_[reduction_buf.get()] = reduction_threads;
+    for (const TensorVar& reduction_tensor : reduction_tensors) {
+      crt_tensor2threads_[reduction_tensor.get()] = reduction_threads;
     }
   }
 
@@ -986,14 +986,15 @@ class CrossThreadReductionTransformer : public StmtExprMutator {
   std::vector<const StmtNode*> statement_stack_;
   std::vector<const ForNode*> loop_stack_;
   std::vector<const SBlockNode*> block_stack_;
-  std::unordered_map<const SBlockNode*, ffi::Array<TensorVar>> block2new_buffers_;
+  std::unordered_map<const SBlockNode*, ffi::Array<TensorVar>> block2new_tensors_;
   std::unordered_map<const ForNode*, Stmt> loop2new_stmt_;
   ffi::Map<Var, Range> loop_range_map_;
   sym::Analyzer analyzer_;
 
   int block_idx_depth = 0;
   int thread_idx_depth = 0;
-  std::unordered_map<const VarNode*, std::vector<std::pair<ThreadScope, Range>>> crt_buf2threads_;
+  std::unordered_map<const VarNode*, std::vector<std::pair<ThreadScope, Range>>>
+      crt_tensor2threads_;
 };
 
 namespace transform {

@@ -54,51 +54,51 @@ void ValidateTensorStore(Expr dest, ffi::Array<PrimExpr> indices, PrimExpr value
 
   for (int i = 0; i < static_cast<int>(indices.size()) - 1; i++) {
     TVM_FFI_ICHECK(indices[i].ty().IsScalar())
-        << "Only the last index of a buffer access may be a vector type.";
+        << "Only the last index of a tensor access may be a vector type.";
   }
 
   bool is_index_scalable = indices.empty() ? false : indices.back().ty().IsScalableVector();
-  int16_t buffer_encoded_lanes = static_cast<int16_t>(type->dtype->dtype.lanes);
-  bool is_buffer_dtype_scalable = buffer_encoded_lanes < -1;
+  int16_t tensor_encoded_lanes = static_cast<int16_t>(type->dtype->dtype.lanes);
+  bool is_tensor_dtype_scalable = tensor_encoded_lanes < -1;
   PrimType value_ty = value.ty();
   bool is_value_dtype_scalable = value_ty.IsScalableVector();
 
-  TVM_FFI_ICHECK(!(is_index_scalable && is_buffer_dtype_scalable))
-      << "Index dtype and buffer dtype can't both be scalable.";
+  TVM_FFI_ICHECK(!(is_index_scalable && is_tensor_dtype_scalable))
+      << "Index dtype and tensor dtype can't both be scalable.";
 
-  if (is_index_scalable || is_buffer_dtype_scalable) {
-    TVM_FFI_ICHECK(is_value_dtype_scalable) << "Can't store non-scalable data into scalable buffer";
+  if (is_index_scalable || is_tensor_dtype_scalable) {
+    TVM_FFI_ICHECK(is_value_dtype_scalable) << "Can't store non-scalable data into scalable tensor";
   }
 
   int index_lanes = indices.empty() ? 1 : GetLanesOrVScaleFactor(indices.back().ty());
-  int buffer_lanes = is_buffer_dtype_scalable ? -buffer_encoded_lanes : buffer_encoded_lanes;
+  int tensor_lanes = is_tensor_dtype_scalable ? -tensor_encoded_lanes : tensor_encoded_lanes;
   int value_dtype_lanes = GetLanesOrVScaleFactor(value_ty);
 
-  TVM_FFI_ICHECK_EQ(index_lanes * buffer_lanes, value_dtype_lanes)
+  TVM_FFI_ICHECK_EQ(index_lanes * tensor_lanes, value_dtype_lanes)
       << "Cannot store value with " << value_dtype_lanes << ", expected value with "
-      << index_lanes * buffer_lanes << " (" << index_lanes << " index lanes * " << buffer_lanes
-      << " buffer element lanes)";
+      << index_lanes * tensor_lanes << " (" << index_lanes << " index lanes * " << tensor_lanes
+      << " tensor element lanes)";
 
-  PrimType buffer_dtype = PrimType::Void();
-  if (is_index_scalable || is_buffer_dtype_scalable) {
-    buffer_dtype = PrimType::ScalableVector(type->dtype.code(), type->dtype.bits(),
-                                            buffer_lanes * index_lanes);
+  PrimType tensor_dtype = PrimType::Void();
+  if (is_index_scalable || is_tensor_dtype_scalable) {
+    tensor_dtype = PrimType::ScalableVector(type->dtype.code(), type->dtype.bits(),
+                                            tensor_lanes * index_lanes);
   } else {
-    buffer_dtype = type->dtype.WithLanes(buffer_lanes * index_lanes);
+    tensor_dtype = type->dtype.WithLanes(tensor_lanes * index_lanes);
   }
-  if (buffer_dtype != value_ty) {
+  if (tensor_dtype != value_ty) {
     TVM_FFI_THROW(TypeError) << "dtype mismatch on TensorStore: "                 //
-                             << "buffer's dtype is `" << type->dtype              //
+                             << "tensor's dtype is `" << type->dtype              //
                              << "`, the lanes of indexing are: `" << index_lanes  //
-                             << "`, the scalability is: `" << buffer_dtype.IsScalableVector()
+                             << "`, the scalability is: `" << tensor_dtype.IsScalableVector()
                              << "`, but RHS's dtype is `" << value_ty << "`";
   }
 }
 
 void ValidateTensorEvaluate(Expr value) {
   TVM_FFI_ICHECK(!value->IsInstance<VarNode>())
-      << "A buffer variable cannot be used as a scalar Evaluate value; "
-      << "use buffer.data to evaluate its physical pointer";
+      << "A tensor variable cannot be used as a scalar Evaluate value; "
+      << "use tensor.data to evaluate its physical pointer";
 }
 }  // namespace
 

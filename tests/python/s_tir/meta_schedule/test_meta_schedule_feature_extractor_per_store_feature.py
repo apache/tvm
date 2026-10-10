@@ -91,7 +91,7 @@ def _make_candidate(f_sch: Callable[[], s_tir.Schedule]) -> ms.MeasureCandidate:
 
 
 def _feature_names(  # pylint: disable=invalid-name
-    buffers_per_store: int = 5,
+    tensors_per_store: int = 5,
     arith_intensity_curve_num_samples: int = 10,
 ) -> list[str]:
     result = [
@@ -153,7 +153,7 @@ def _feature_names(  # pylint: disable=invalid-name
         "threadIdx_z_len",
         "vthread_len",
     ]
-    for i in range(buffers_per_store):
+    for i in range(tensors_per_store):
         result.extend(
             f"B{i}.{s}"
             for s in [
@@ -285,7 +285,7 @@ def test_cpu_matmul():
         rtol=1e-5,
         atol=1e-5,
     )
-    # Group 2.1: Buffer A
+    # Group 2.1: Tensor A
     assert_allclose(
         actual=f[57:75],
         desired=[
@@ -311,7 +311,7 @@ def test_cpu_matmul():
         rtol=1e-5,
         atol=1e-5,
     )
-    # Group 2.2: Buffer C
+    # Group 2.2: Tensor C
     assert_allclose(
         actual=f[75:93],
         desired=[
@@ -337,7 +337,7 @@ def test_cpu_matmul():
         rtol=1e-5,
         atol=1e-5,
     )
-    # Group 2.3: Buffer B
+    # Group 2.3: Tensor B
     assert_allclose(
         actual=f[93:111],
         desired=[
@@ -485,7 +485,7 @@ def test_cpu_fusion():
         rtol=1e-5,
         atol=1e-5,
     )
-    # Group 2.1: Buffer A
+    # Group 2.1: Tensor A
     assert_allclose(
         actual=f[57:75],
         desired=[
@@ -511,7 +511,7 @@ def test_cpu_fusion():
         rtol=1e-5,
         atol=1e-5,
     )
-    # Group 2.2: Buffer B
+    # Group 2.2: Tensor B
     assert_allclose(
         actual=f[75:93],
         desired=[
@@ -617,7 +617,7 @@ def test_cpu_fusion():
         rtol=1e-5,
         atol=1e-5,
     )
-    # Group 2.1: Buffer B
+    # Group 2.1: Tensor B
     assert_allclose(
         actual=f[57:75],
         desired=[
@@ -643,7 +643,7 @@ def test_cpu_fusion():
         rtol=1e-5,
         atol=1e-5,
     )
-    # Group 2.2: Buffer C
+    # Group 2.2: Tensor C
     assert_allclose(
         actual=f[75:93],
         desired=[
@@ -849,7 +849,7 @@ def test_gpu():
         rtol=1e-5,
         atol=1e-5,
     )
-    # Group 2.1: Buffer A
+    # Group 2.1: Tensor A
     assert_allclose(
         actual=f[57:75],
         desired=[
@@ -875,7 +875,7 @@ def test_gpu():
         rtol=1e-5,
         atol=1e-5,
     )
-    # Group 2.2: Buffer A.shared
+    # Group 2.2: Tensor A.shared
     assert_allclose(
         actual=f[75:93],
         desired=[
@@ -1055,7 +1055,7 @@ def test_gpu():
         rtol=1e-5,
         atol=1e-5,
     )
-    # Group 2.1: Buffer B
+    # Group 2.1: Tensor B
     assert_allclose(
         actual=f[57:75],
         desired=[
@@ -1081,7 +1081,7 @@ def test_gpu():
         rtol=1e-5,
         atol=1e-5,
     )
-    # Group 2.2: Buffer B.shared
+    # Group 2.2: Tensor B.shared
     assert_allclose(
         actual=f[75:93],
         desired=[
@@ -1261,7 +1261,7 @@ def test_gpu():
         rtol=1e-5,
         atol=1e-5,
     )
-    # Group 2.1: Buffer B.shared
+    # Group 2.1: Tensor B.shared
     assert_allclose(
         actual=f[57:75],
         desired=[
@@ -1287,7 +1287,7 @@ def test_gpu():
         rtol=1e-5,
         atol=1e-5,
     )
-    # Group 2.2: Buffer C.local
+    # Group 2.2: Tensor C.local
     assert_allclose(
         actual=f[75:93],
         desired=[
@@ -1313,7 +1313,7 @@ def test_gpu():
         rtol=1e-5,
         atol=1e-5,
     )
-    # Group 2.3: Buffer A.shared
+    # Group 2.3: Tensor A.shared
     assert_allclose(
         actual=f[93:111],
         desired=[
@@ -1393,7 +1393,7 @@ def test_gpu():
     )
     # Group 3: Arithmetic intensity
     # Arithmetic intensity is high here because of repeated use of a shared
-    # buffer. Multiple accesses to the same memory location are counted as a
+    # tensor. Multiple accesses to the same memory location are counted as a
     # single byte, skewing these numbers towards higher intensity.
     assert_allclose(
         actual=f[147:157],
@@ -1464,7 +1464,7 @@ def test_gpu():
         rtol=1e-5,
         atol=1e-5,
     )
-    # Group 2.1: Buffer C
+    # Group 2.1: Tensor C
     assert_allclose(
         actual=f[57:75],
         desired=[
@@ -1490,7 +1490,7 @@ def test_gpu():
         rtol=1e-5,
         atol=1e-5,
     )
-    # Group 2.2: Buffer C.local
+    # Group 2.2: Tensor C.local
     assert_allclose(
         actual=f[75:93],
         desired=[

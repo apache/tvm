@@ -44,10 +44,10 @@ def test_mlp():
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
-            T_multiply_1 = Ts.sblock_alloc_buffer((T.int64(128), T.int64(128)))
-            compute = Ts.sblock_alloc_buffer((T.int64(128), T.int64(128)))
-            T_multiply_2 = Ts.sblock_alloc_buffer((T.int64(128), T.int64(128)))
-            T_add = Ts.sblock_alloc_buffer((T.int64(128), T.int64(128)))
+            T_multiply_1 = Ts.sblock_alloc_tensor((T.int64(128), T.int64(128)))
+            compute = Ts.sblock_alloc_tensor((T.int64(128), T.int64(128)))
+            T_multiply_2 = Ts.sblock_alloc_tensor((T.int64(128), T.int64(128)))
+            T_add = Ts.sblock_alloc_tensor((T.int64(128), T.int64(128)))
             for ax0, ax1 in T.grid(T.int64(128), T.int64(128)):
                 with Ts.sblock("T_multiply"):
                     v_ax0, v_ax1 = Ts.axis.remap("SS", [ax0, ax1])
@@ -133,10 +133,10 @@ def test_mlp():
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
-            T_multiply_1 = Ts.sblock_alloc_buffer((T.int64(128), T.int64(64)))
-            compute = Ts.sblock_alloc_buffer((T.int64(128), T.int64(64)))
-            T_multiply_2 = Ts.sblock_alloc_buffer((T.int64(128), T.int64(64)))
-            T_add = Ts.sblock_alloc_buffer((T.int64(128), T.int64(64)))
+            T_multiply_1 = Ts.sblock_alloc_tensor((T.int64(128), T.int64(64)))
+            compute = Ts.sblock_alloc_tensor((T.int64(128), T.int64(64)))
+            T_multiply_2 = Ts.sblock_alloc_tensor((T.int64(128), T.int64(64)))
+            T_add = Ts.sblock_alloc_tensor((T.int64(128), T.int64(64)))
             for ax0, ax1 in T.grid(T.int64(128), T.int64(64)):
                 with Ts.sblock("T_multiply"):
                     v_ax0, v_ax1 = Ts.axis.remap("SS", [ax0, ax1])
@@ -480,7 +480,7 @@ def test_llama_attention():
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
-            Ared_temp = Ts.sblock_alloc_buffer((T.int64(1), 256))
+            Ared_temp = Ts.sblock_alloc_tensor((T.int64(1), 256))
             for bsz, i, k in T.grid(T.int64(1), 256, T.int64(4096)):
                 with Ts.sblock("Ared_temp"):
                     v_bsz, v_i, v_k = Ts.axis.remap("SSR", [bsz, i, k])
@@ -543,13 +543,13 @@ def test_llama_attention():
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
-            T_softmax_maxelem = Ts.sblock_alloc_buffer(
+            T_softmax_maxelem = Ts.sblock_alloc_tensor(
                 (T.int64(1), T.int64(32), T.int64(256)), "float16"
             )
-            T_softmax_exp = Ts.sblock_alloc_buffer(
+            T_softmax_exp = Ts.sblock_alloc_tensor(
                 (T.int64(1), T.int64(32), T.int64(256), T.int64(256)), "float16"
             )
-            T_softmax_expsum = Ts.sblock_alloc_buffer(
+            T_softmax_expsum = Ts.sblock_alloc_tensor(
                 (T.int64(1), T.int64(32), T.int64(256)), "float16"
             )
             for i0, i1, i2, k in T.grid(T.int64(1), T.int64(32), T.int64(256), T.int64(256)):
@@ -1112,7 +1112,7 @@ def test_llama_attention():
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
-            Ared_temp = Ts.sblock_alloc_buffer((T.int64(1), 256))
+            Ared_temp = Ts.sblock_alloc_tensor((T.int64(1), 256))
             for bsz, i, k in T.grid(T.int64(1), 256, T.int64(4096)):
                 with Ts.sblock("Ared_temp"):
                     v_bsz, v_i, v_k = Ts.axis.remap("SSR", [bsz, i, k])
@@ -1201,13 +1201,13 @@ def test_llama_attention():
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
-            T_softmax_maxelem = Ts.sblock_alloc_buffer(
+            T_softmax_maxelem = Ts.sblock_alloc_tensor(
                 (T.int64(1), T.int64(16), T.int64(256)), "float16"
             )
-            T_softmax_exp = Ts.sblock_alloc_buffer(
+            T_softmax_exp = Ts.sblock_alloc_tensor(
                 (T.int64(1), T.int64(16), T.int64(256), T.int64(256)), "float16"
             )
-            T_softmax_expsum = Ts.sblock_alloc_buffer(
+            T_softmax_expsum = Ts.sblock_alloc_tensor(
                 (T.int64(1), T.int64(16), T.int64(256)), "float16"
             )
             for i0, i1, i2, k in T.grid(T.int64(1), T.int64(16), T.int64(256), T.int64(256)):

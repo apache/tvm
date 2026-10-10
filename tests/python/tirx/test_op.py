@@ -24,7 +24,7 @@ from tvm.ir import Call, Evaluate, assert_structural_equal, load_json, save_json
 from tvm.script import tirx as T
 from tvm.tirx import Var, decl_tensor
 from tvm.tirx.analysis import undefined_vars
-from tvm.tirx.transform.common import BufferReplacer
+from tvm.tirx.transform.common import TensorReplacer
 
 
 def test_instruction_is_a_void_call():
@@ -85,7 +85,7 @@ def test_runtime_operands_are_seen_and_replaced():
     for value in [src, dst, alternative, mbar, row, mask, policy]:
         assert any(v.same_as(value) for v in free)
     new_row = Var("new_row", "int32")
-    replacement = BufferReplacer(var_map={row: new_row})(Evaluate(call))
+    replacement = TensorReplacer(var_map={row: new_row})(Evaluate(call))
     new_free = undefined_vars(replacement)
     assert not any(v.same_as(row) for v in new_free)
     assert any(v.same_as(new_row) for v in new_free)
@@ -150,16 +150,16 @@ def test_block_scale_requires_both_scales():
         T.cuda.tile.tcgen05.mma(a, a, a, SFA=a)
 
 
-def test_buffer_replacer_no_shared_default():
-    r1, r2 = BufferReplacer(), BufferReplacer()
+def test_tensor_replacer_no_shared_default():
+    r1, r2 = TensorReplacer(), TensorReplacer()
     a, b = decl_tensor((64,), "float32"), decl_tensor((64,), "float32")
-    r1.buffer_map[a] = b
-    assert not r2.buffer_map
+    r1.tensor_map[a] = b
+    assert not r2.tensor_map
 
 
-def test_buffer_replacer_replaces_strides_and_elem_offset():
+def test_tensor_replacer_replaces_strides_and_elem_offset():
     n, m = Var("n", "int32"), Var("m", "int32")
     a = decl_tensor((64,), "float32", strides=[n], elem_offset=n)
-    new = BufferReplacer(var_map={n: m})(tvm.ir.TensorStore(a, [0], 1.0))
+    new = TensorReplacer(var_map={n: m})(tvm.ir.TensorStore(a, [0], 1.0))
     assert new.dest.strides[0].same_as(m)
     assert new.dest.elem_offset.same_as(m)

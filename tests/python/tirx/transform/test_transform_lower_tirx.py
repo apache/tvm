@@ -861,7 +861,7 @@ def test_lower_opcall_fail():
         LowerTIRx()(tvm.IRModule({"main": test}))
 
 
-def test_lower_decl_buffer_pointer():
+def test_lower_decl_tensor_pointer():
     @T.function(private=True)
     def before():
         T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(128,)))
@@ -1675,7 +1675,7 @@ def test_lower_remaps_tensor_memory_address_metadata(offset):
     tvm.ir.assert_structural_equal(tensor.var.ty, tensor.value.ty)
 
 
-def test_lower_buffer_offset():
+def test_lower_tensor_offset():
     @T.function(private=True)
     def before():
         T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(128,)))
@@ -1714,7 +1714,7 @@ def test_lower_buffer_offset():
     compare(before, after, LowerTIRx)
 
 
-def test_lower_alloc_decl_buffer_outside_of_parser():
+def test_lower_alloc_decl_tensor_outside_of_parser():
     @T.meta_class
     class State:
         def __init__(self, smem):
@@ -1782,8 +1782,8 @@ def test_lower_alloc_decl_buffer_outside_of_parser():
     compare(before, after, LowerTIRx)
 
 
-def test_alloc_buffer_with_thread_axis_layout():
-    """alloc_tensor with thread-axis layout should lower to 1D physical buffer with memory-axis span."""  # noqa: E501
+def test_alloc_tensor_with_thread_axis_layout():
+    """alloc_tensor with thread-axis layout should lower to 1D physical tensor with memory-axis span."""  # noqa: E501
 
     @T.function(private=True)
     def before(out: T.Tensor((128, 4), "float32")) -> None:

@@ -69,7 +69,7 @@ class DispatchContext(Object, Scriptable):
     kPrivateAlloc = "private_alloc"
     kDeviceInitStmt = "device_init_stmt"
     kHostInitStmt = "host_init_stmt"
-    kPostBufferDefStmt = "post_buffer_def_stmt"
+    kPostTensorDefStmt = "post_tensor_def_stmt"
 
     def __init__(
         self,
@@ -98,24 +98,24 @@ class DispatchContext(Object, Scriptable):
             scope_kind,
         )
 
-    def add_alloc_buffer(
-        self, buffer: Var, allocated_addr=None, annotations: dict | None = None
+    def add_alloc_tensor(
+        self, tensor: Var, allocated_addr=None, annotations: dict | None = None
     ) -> None:
-        """Add an allocated buffer to the dispatch context.
+        """Add an allocated tensor to the dispatch context.
            Can be called only if alloc_only is True.
-           The buffer will be added to the workspace of operator (the key in the workspace is the buffer name).
+           The tensor will be added to the workspace of operator (the key in the workspace is the tensor name).
 
         Parameters
         ----------
-        buffer : Var
-            The buffer to be added.
+        tensor : Var
+            The tensor to be added.
         allocated_addr : Sequence[PrimExpr], optional
             Physical placement operands on the producing allocation call.
         annotations : dict, optional
             Annotations on the producing allocation call.
         """  # noqa: E501
-        _ffi_api.DispatchContextAddAllocBuffer(
-            self, buffer, allocated_addr or [], annotations or {}
+        _ffi_api.DispatchContextAddAllocTensor(
+            self, tensor, allocated_addr or [], annotations or {}
         )
 
     def add_init_stmt(self, stmt: Stmt, host: bool = False) -> None:
@@ -135,17 +135,17 @@ class DispatchContext(Object, Scriptable):
         """  # noqa: E501
         _ffi_api.DispatchContextAddInitStmt(self, stmt, host)  # pylint: disable=no-member
 
-    def add_post_buffer_def_stmt(self, buffer: Var, stmt: Stmt) -> None:
-        """Add a statement to be inserted after a buffer's definition (DeclTensor/AllocTensor).
+    def add_post_tensor_def_stmt(self, tensor: Var, stmt: Stmt) -> None:
+        """Add a statement to be inserted after a tensor's definition (DeclTensor/AllocTensor).
 
         Parameters
         ----------
-        buffer : Var
-            The buffer whose definition scope the statement should appear in.
+        tensor : Var
+            The tensor whose definition scope the statement should appear in.
         stmt : Stmt
             The statement to be inserted.
         """
-        _ffi_api.DispatchContextAddPostBufferDefStmt(self, buffer, stmt)  # pylint: disable=no-member
+        _ffi_api.DispatchContextAddPostTensorDefStmt(self, tensor, stmt)  # pylint: disable=no-member
 
     def cache_get(self, key: str) -> Object | None:
         """Look up a cached value by key.

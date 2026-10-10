@@ -65,11 +65,11 @@ tvm::tirx::TensorType TensorTypeDecl(ffi::Array<PrimExpr> shape, PrimType dtype,
 
 }  // namespace
 
-TensorVar TensorDecl(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String buffer_name,
+TensorVar TensorDecl(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String tensor_name,
                      ffi::Optional<Expr> data, ffi::Optional<ffi::Array<PrimExpr>> strides,
                      ffi::Optional<PrimExpr> elem_offset, ffi::String storage_scope, int align,
                      int offset_factor, ffi::Optional<Layout> layout) {
-  return TensorVar(buffer_name, TensorTypeDecl(shape, dtype, data, strides, elem_offset,
+  return TensorVar(tensor_name, TensorTypeDecl(shape, dtype, data, strides, elem_offset,
                                                storage_scope, align, offset_factor, layout));
 }
 
@@ -97,9 +97,9 @@ Var Arg(ffi::String name, Var var) {
   return var;
 }
 
-TensorVar Arg(ffi::String name, TensorVar buffer) {
-  Arg(std::move(name), buffer.var());
-  return buffer;
+TensorVar Arg(ffi::String name, TensorVar tensor) {
+  Arg(std::move(name), tensor.var());
+  return tensor;
 }
 
 void FuncName(ffi::String name) {
@@ -215,13 +215,13 @@ ForFrame ThreadBinding(PrimExpr start, PrimExpr stop, ffi::String thread,
 
 tvm::Stmt TensorStore(Expr dest, ffi::Array<PrimExpr> indices, PrimExpr value) {
   auto tensor_type = dest->ty.as_or_throw<tvm::tirx::TensorType>();
-  PrimType buffer_dtype = tensor_type->dtype;
+  PrimType tensor_dtype = tensor_type->dtype;
   PrimType index_ty = indices.empty() ? PrimType::Int(32) : indices.back().ty();
   bool is_index_scalable = !indices.empty() && index_ty.IsScalableVector();
-  bool is_buffer_dtype_scalable = buffer_dtype.IsScalableVector();
+  bool is_tensor_dtype_scalable = tensor_dtype.IsScalableVector();
 
-  TVM_FFI_ICHECK(!(is_index_scalable && is_buffer_dtype_scalable))
-      << "Index dtype and buffer dtype can't both be scalable.";
+  TVM_FFI_ICHECK(!(is_index_scalable && is_tensor_dtype_scalable))
+      << "Index dtype and tensor dtype can't both be scalable.";
 
   int index_lanes;
   if (indices.empty()) {
@@ -232,14 +232,14 @@ tvm::Stmt TensorStore(Expr dest, ffi::Array<PrimExpr> indices, PrimExpr value) {
     index_lanes = index_ty.lanes();
   }
 
-  int buffer_lanes = is_buffer_dtype_scalable ? buffer_dtype.VScaleFactor() : buffer_dtype.lanes();
+  int tensor_lanes = is_tensor_dtype_scalable ? tensor_dtype.VScaleFactor() : tensor_dtype.lanes();
 
-  PrimType lhs_dtype = buffer_dtype;
-  if (is_buffer_dtype_scalable || is_index_scalable) {
-    lhs_dtype = PrimType::ScalableVector(buffer_dtype.code(), buffer_dtype.bits(),
-                                         buffer_lanes * index_lanes);
+  PrimType lhs_dtype = tensor_dtype;
+  if (is_tensor_dtype_scalable || is_index_scalable) {
+    lhs_dtype = PrimType::ScalableVector(tensor_dtype.code(), tensor_dtype.bits(),
+                                         tensor_lanes * index_lanes);
   } else {
-    lhs_dtype = buffer_dtype.WithLanes(buffer_dtype.lanes() * index_lanes);
+    lhs_dtype = tensor_dtype.WithLanes(tensor_dtype.lanes() * index_lanes);
   }
 
   PrimType rhs_dtype = value.ty();
@@ -284,7 +284,7 @@ tvm::Stmt TensorStore(Expr dest, ffi::Array<PrimExpr> indices, PrimExpr value) {
   return store;
 }
 
-TensorVar DeclTensor(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String buffer_name,
+TensorVar DeclTensor(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String tensor_name,
                      ffi::Optional<Expr> data, ffi::Optional<ffi::Array<PrimExpr>> strides,
                      ffi::Optional<PrimExpr> elem_offset, ffi::String storage_scope, int align,
                      int offset_factor, ffi::Optional<Layout> layout,
@@ -294,17 +294,17 @@ TensorVar DeclTensor(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String buf
     scope = "global";
   }
 
-  TensorVar buffer = TensorDecl(shape, dtype, buffer_name, data, strides, elem_offset,
+  TensorVar tensor = TensorDecl(shape, dtype, tensor_name, data, strides, elem_offset,
                                 storage_scope, align, offset_factor, layout);
   if (scope == "tmem" && allocated_addr.has_value()) {
     TVM_FFI_CHECK(!data.has_value(), ValueError)
         << "A TMEM declaration cannot have both data and an address";
     Location loc = IRBuilder::Current()->GetCurrentLoc();
-    AddToParent(tvm::Bind(buffer.var(),
+    AddToParent(tvm::Bind(tensor.var(),
                           Call(std::nullopt, Op::Get("tirx.cuda.decl_tmem"),
-                               {allocated_addr.value()}, {}, {buffer.type()}, loc),
+                               {allocated_addr.value()}, {}, {tensor.type()}, loc),
                           loc));
-    return buffer;
+    return tensor;
   }
   TVM_FFI_CHECK(!allocated_addr.has_value() || !data.has_value(), ValueError)
       << "Placement addresses apply to allocations, not pointer-backed declarations";
@@ -314,38 +314,38 @@ TensorVar DeclTensor(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String buf
       << "This storage scope does not support allocation placement";
   Location loc = IRBuilder::Current()->GetCurrentLoc();
   if (data.has_value()) {
-    AddToParent(tvm::Bind(buffer.var(),
-                          Call(buffer.type(), tvm::tirx::decl_tensor_op(),
-                               {data.value(), tvm::Tuple(buffer->shape),
-                                DataTypeImm(buffer->dtype->dtype), StringImm(buffer.scope())},
+    AddToParent(tvm::Bind(tensor.var(),
+                          Call(tensor.type(), tvm::tirx::decl_tensor_op(),
+                               {data.value(), tvm::Tuple(tensor->shape),
+                                DataTypeImm(tensor->dtype->dtype), StringImm(tensor.scope())},
                                {}, {}, loc),
                           loc));
   } else {
     // Without a backing pointer, declare and allocate the tensor together.
-    ffi::Array<Expr> args{tvm::Tuple(buffer->shape), DataTypeImm(buffer->dtype->dtype),
-                          StringImm(buffer.scope())};
+    ffi::Array<Expr> args{tvm::Tuple(tensor->shape), DataTypeImm(tensor->dtype->dtype),
+                          StringImm(tensor.scope())};
     if (allocated_addr.has_value()) args.push_back(tvm::Tuple({allocated_addr.value()}));
     AddToParent(tvm::Bind(
-        buffer.var(), Call(buffer.type(), tvm::tirx::alloc_tensor_op(), args, DictAttrs(), {}, loc),
-        loc));
+        tensor.var(),
+        Call(tensor.type(), tvm::tirx::alloc_tensor_op(), args, DictAttrs(), {}, loc), loc));
   }
-  return buffer;
+  return tensor;
 }
 
 TensorVar AllocTensor(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String storage_scope,
                       ffi::Optional<ffi::Map<ffi::String, ffi::Any>> annotations) {
-  TensorVar buffer = TensorDecl(shape, dtype, "", std::nullopt, std::nullopt, std::nullopt,
+  TensorVar tensor = TensorDecl(shape, dtype, "", std::nullopt, std::nullopt, std::nullopt,
                                 storage_scope, 0, 0, std::nullopt);
-  ffi::Array<Expr> args{tvm::Tuple(buffer->shape), DataTypeImm(buffer->dtype->dtype),
-                        StringImm(buffer.scope())};
+  ffi::Array<Expr> args{tvm::Tuple(tensor->shape), DataTypeImm(tensor->dtype->dtype),
+                        StringImm(tensor.scope())};
   auto attrs = annotations.value_or(ffi::Map<ffi::String, ffi::Any>());
-  if (auto placement = attrs.Get("buffer_allocated_addr")) {
+  if (auto placement = attrs.Get("tensor_allocated_addr")) {
     args.push_back(tvm::Tuple(placement.value().as_or_throw<ffi::Array<PrimExpr>>()));
-    attrs.erase("buffer_allocated_addr");
+    attrs.erase("tensor_allocated_addr");
   }
-  AddToParent(tvm::Bind(buffer.var(), Call(buffer.type(), tvm::tirx::alloc_tensor_op(), args,
+  AddToParent(tvm::Bind(tensor.var(), Call(tensor.type(), tvm::tirx::alloc_tensor_op(), args,
                                            DictAttrs(std::move(attrs)))));
-  return buffer;
+  return tensor;
 }
 
 Var Ptr(PrimType dtype, ffi::String storage_scope = "global") {
@@ -359,8 +359,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   Namer::vtable().SetDispatch<TensorLoadNode>(
       [](const ffi::ObjectRef& node, ffi::String name) -> void {
         using namespace tvm::tirx;
-        TensorLoadNode* buffer = const_cast<TensorLoadNode*>(node.as<TensorLoadNode>());
-        Namer::Name(buffer->source.as_or_throw<tvm::tirx::TensorVar>(), name);
+        TensorLoadNode* tensor = const_cast<TensorLoadNode*>(node.as<TensorLoadNode>());
+        Namer::Name(tensor->source.as_or_throw<tvm::tirx::TensorVar>(), name);
       });
 }
 

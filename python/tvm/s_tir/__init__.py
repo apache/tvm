@@ -24,7 +24,7 @@ tvm.script.register_dialect("s_tir", "tvm.s_tir.script", builder_path="tvm.s_tir
 
 from .iter_var import IterVar
 from ._tensor_intrin import TensorIntrin
-from .stmt import MatchBufferRegion, SBlock, SBlockRealize
+from .stmt import MatchTensorRegion, SBlock, SBlockRealize
 
 # dlight depends on compiler-only C++ functions (e.g. s_tir.schedule.GetSBlockRealize),
 # so skip it in runtime-only builds.

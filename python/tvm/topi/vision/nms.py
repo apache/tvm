@@ -147,8 +147,8 @@ def get_valid_counts(data, score_threshold=0, id_index=0, score_index=1):
                 outs[2],
             ),
             dtype=["int32", data.dtype, "int32"],
-            out_buffers=[valid_count_buf, out_tensor_buf, out_indices_buf],
-            in_buffers=[
+            out_tensors=[valid_count_buf, out_tensor_buf, out_indices_buf],
+            in_tensors=[
                 tvm.tirx.decl_tensor(data.shape, data.dtype, "data", layout=None),
                 score_thresh_buf,
             ],
@@ -173,8 +173,8 @@ def get_valid_counts(data, score_threshold=0, id_index=0, score_index=1):
             [data],
             _ir_with_const_threshold,
             dtype=["int32", data.dtype, "int32"],
-            out_buffers=[valid_count_buf, out_tensor_buf, out_indices_buf],
-            in_buffers=[tvm.tirx.decl_tensor(data.shape, data.dtype, "data", layout=None)],
+            out_tensors=[valid_count_buf, out_tensor_buf, out_indices_buf],
+            in_tensors=[tvm.tirx.decl_tensor(data.shape, data.dtype, "data", layout=None)],
             name="get_valid_counts",
             tag="get_valid_counts",
         )
@@ -791,8 +791,8 @@ def non_max_suppression(
                 score_threshold,
             ),
             dtype=[data.dtype, "int32", "int32"],
-            out_buffers=[out_data_buf, out_box_indices_buf, out_valid_box_count_buf],
-            in_buffers=[data_buf, sort_buf, valid_count_buf, indices_buf],
+            out_tensors=[out_data_buf, out_box_indices_buf, out_valid_box_count_buf],
+            in_tensors=[data_buf, sort_buf, valid_count_buf, indices_buf],
             name="non_max_suppression",
             tag="non_max_suppression",
         )
@@ -826,8 +826,8 @@ def non_max_suppression(
             score_threshold,
         ),
         dtype=[data.dtype, "int32"],
-        out_buffers=[out_data_buf, out_box_indices_buf],
-        in_buffers=[data_buf, sort_buf, valid_count_buf, indices_buf],
+        out_tensors=[out_data_buf, out_box_indices_buf],
+        in_tensors=[data_buf, sort_buf, valid_count_buf, indices_buf],
         name="non_max_suppression",
         tag="non_max_suppression",
     )
@@ -889,7 +889,7 @@ def _rearrange_out(data, batch_size, num_anchors, box_data_length, score_index):
         [data],
         _rearrange_ir,
         dtype=[data.dtype],
-        out_buffers=[out_buf],
+        out_tensors=[out_buf],
         name="rearrange_out",
         tag="rearrange_out",
     )
@@ -1017,8 +1017,8 @@ def _get_valid_box_count(scores, score_threshold):
             [scores, score_threshold],
             lambda ins, outs: searchsorted_ir(ins[0], ins[1], outs[0]),
             dtype=["int32"],
-            in_buffers=[scores_buf, score_thresh_buf],
-            out_buffers=[searchsorted_buf],
+            in_tensors=[scores_buf, score_thresh_buf],
+            out_tensors=[searchsorted_buf],
             name="searchsorted",
             tag="searchsorted",
         )
@@ -1045,8 +1045,8 @@ def _get_valid_box_count(scores, score_threshold):
             [scores],
             lambda ins, outs: searchsorted_ir_scalar(ins[0], outs[0]),
             dtype=["int32"],
-            in_buffers=[scores_buf],
-            out_buffers=[searchsorted_buf],
+            in_tensors=[scores_buf],
+            out_tensors=[searchsorted_buf],
             name="searchsorted",
             tag="searchsorted",
         )

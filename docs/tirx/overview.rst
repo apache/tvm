@@ -76,7 +76,7 @@ new accelerator generations arrive.
 The Programming Model
 ---------------------
 
-A TIRx program reads as a structured native kernel: loops, branches, buffers,
+A TIRx program reads as a structured native kernel: loops, branches, tensors,
 synchronization, pipeline state, backend intrinsics, and hardware roles are
 written directly. Tile primitives appear exactly where a repeated hardware-level
 operation should become reusable and dispatchable.
@@ -100,7 +100,7 @@ program, but enter the compiler at different levels:
      - Representation and lowering
    * - Core language
      - ``Tx.*``
-     - Creates TIRx statements, expressions, buffers, and control flow.
+     - Creates TIRx statements, expressions, tensors, and control flow.
    * - Tile primitives
      - ``Tx.cuda.tile.*`` / ``Tx.trn.tile.*``
      - Creates an ordinary void ``Call`` that is replaced by its backend instruction

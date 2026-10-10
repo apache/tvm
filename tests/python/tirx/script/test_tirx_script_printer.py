@@ -129,7 +129,7 @@ def test_ir_prefix_rendering_imports_and_reservations(config, alias, comment_imp
     assert_structural_equal(mod, tvm.script.from_source(script, extra_vars={alias: I}))
 
 
-def test_buffer():
+def test_tensor():
     a = tirx.decl_tensor((128, 128), "float16", name="A")
     _assert_print(
         a,
@@ -142,9 +142,9 @@ def _assert_print(obj, expected):
     assert obj.script(verbose_expr=True).strip() == expected.strip()
 
 
-def test_buffer_region():
+def test_tensor_region():
     src = tirx.decl_tensor((128, 128), "float32", name="src")
-    obj = tirx.BufferRegion(
+    obj = tirx.make_tensor_region(
         src,
         [
             Range(64, 128),
@@ -160,7 +160,7 @@ src[64:128, 64:128]
     )
 
 
-def test_buffer_load():
+def test_tensor_load():
     a = tirx.decl_tensor((128, 128), "float16", name="A")
     obj = tirx.TensorLoad(a, [128, 128])
     _assert_print(
@@ -251,7 +251,7 @@ T.evaluate(1)
     )
 
 
-def test_allocate_with_decl_buffer_sugar():
+def test_allocate_with_decl_tensor_sugar():
     # AllocTensor and DeclTensor are flat siblings
     with IRBuilder() as ib:
         with TB.function():
@@ -270,7 +270,7 @@ T.evaluate(1)
     )
 
 
-def test_allocate_with_decl_buffer_sugar_multi_usage():
+def test_allocate_with_decl_tensor_sugar_multi_usage():
     # AllocTensor and DeclTensor are flat siblings
     with IRBuilder() as ib:
         with TB.function():
@@ -289,7 +289,7 @@ T.evaluate(v.data)
     )
 
 
-def test_allocate_with_decl_buffer_no_sugar_mismatch():
+def test_allocate_with_decl_tensor_no_sugar_mismatch():
     with IRBuilder() as ib:
         with TB.function():
             TB.func_name_("test")
@@ -307,7 +307,7 @@ T.evaluate(v.data)
     )
 
 
-def test_decl_buffer():
+def test_decl_tensor():
     # DeclTensor is flat: we need a frame to hold multiple stmts
     with IRBuilder() as ib:
         with TB.function():

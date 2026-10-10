@@ -33,7 +33,7 @@ from tvm.script import tirx as T
 
 @Ts.function
 def elementwise(A: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "float32")) -> None:
-    B = Ts.sblock_alloc_buffer((128, 128), "float32")
+    B = Ts.sblock_alloc_tensor((128, 128), "float32")
     for i, j in T.grid(128, 128):
         with Ts.sblock("B"):
             vi, vj = Ts.axis.remap("SS", [i, j])

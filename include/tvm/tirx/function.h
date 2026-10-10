@@ -157,7 +157,7 @@ TVM_DLL Function RenewDef(Function func);
  *              B[vi, vj] = A[vi, vj]
  * \endcode
  *
- * Then we can make it specialized with given shapes or buffers.
+ * Then we can make it specialized with given shapes or tensors.
  *
  * \code{.py}
  *  a, _, m, n = mem_copy.params

@@ -19,7 +19,7 @@
 
 /*!
  * \file domain_touched.cc
- * \brief Analyze buffer domains touched by a statement
+ * \brief Analyze tensor domains touched by a statement
  */
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
@@ -44,44 +44,44 @@ using sym::IntSet;
 
 namespace {
 
-using BufferTouches = std::vector<std::vector<IntSet>>;
+using TensorTouches = std::vector<std::vector<IntSet>>;
 
 struct LoadAccess {
-  BufferTouches set;
+  TensorTouches set;
 };
 
 struct StoreAccess {
-  BufferTouches set;
+  TensorTouches set;
 };
 
 struct CombinedAccess {
-  BufferTouches set;
+  TensorTouches set;
 };
 
-using BufferDomainAccess = std::tuple<LoadAccess, StoreAccess, CombinedAccess>;
+using TensorDomainAccess = std::tuple<LoadAccess, StoreAccess, CombinedAccess>;
 
 }  // namespace
 
 // Find Read region of the tensor in the stmt.
-class BufferTouchedDomain final : public s_tir::IRVisitorWithAnalyzer {
+class TensorTouchedDomain final : public s_tir::IRVisitorWithAnalyzer {
  public:
   using s_tir::IRVisitorWithAnalyzer::Visit_;
 
-  std::unordered_map<const VarNode*, BufferDomainAccess>& GetAccessedBufferRegions() {
-    return buffer_access_map_;
+  std::unordered_map<const VarNode*, TensorDomainAccess>& GetAccessedTensorRegions() {
+    return tensor_access_map_;
   }
 
-  ffi::Array<ffi::Optional<Range>> FindUnion(const TensorVar& buffer, bool consider_loads,
+  ffi::Array<ffi::Optional<Range>> FindUnion(const TensorVar& tensor, bool consider_loads,
                                              bool consider_stores) {
     ffi::Array<ffi::Optional<Range>> ret;
-    auto kv = buffer_access_map_.find(buffer.get());
-    if (kv == buffer_access_map_.end()) {
-      LOG(WARNING) << "[s_tir::BufferDomainTouched] "
-                   << "The requested buffer is not contained in the provided stmt body: " << buffer;
+    auto kv = tensor_access_map_.find(tensor.get());
+    if (kv == tensor_access_map_.end()) {
+      LOG(WARNING) << "[s_tir::TensorDomainTouched] "
+                   << "The requested tensor is not contained in the provided stmt body: " << tensor;
       return ret;
     }
 
-    BufferTouches bounds;
+    TensorTouches bounds;
     if (consider_loads && consider_stores) {
       bounds = std::get<CombinedAccess>(kv->second).set;
     } else if (consider_loads) {
@@ -102,26 +102,26 @@ class BufferTouchedDomain final : public s_tir::IRVisitorWithAnalyzer {
   using Parent = s_tir::IRVisitorWithAnalyzer;
 
   ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* op) final {
-    TensorVar buffer = op->source.as_or_throw<tvm::tirx::TensorVar>();
-    // Record load-exclusive buffer access
-    Touch(&std::get<LoadAccess>(buffer_access_map_[buffer.get()]).set, op->indices);
-    // Record load-store inclusive buffer access
-    Touch(&std::get<CombinedAccess>(buffer_access_map_[buffer.get()]).set, op->indices);
+    TensorVar tensor = op->source.as_or_throw<tvm::tirx::TensorVar>();
+    // Record load-exclusive tensor access
+    Touch(&std::get<LoadAccess>(tensor_access_map_[tensor.get()]).set, op->indices);
+    // Record load-store inclusive tensor access
+    Touch(&std::get<CombinedAccess>(tensor_access_map_[tensor.get()]).set, op->indices);
     return Parent::Visit_(op);
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const TensorStoreNode* op) final {
-    // Record store-exclusive buffer access
-    Touch(&std::get<StoreAccess>(buffer_access_map_[op->dest.as_or_throw<TensorVar>().get()]).set,
+    // Record store-exclusive tensor access
+    Touch(&std::get<StoreAccess>(tensor_access_map_[op->dest.as_or_throw<TensorVar>().get()]).set,
           op->indices);
-    // Record load-store inclusive buffer access
+    // Record load-store inclusive tensor access
     Touch(
-        &std::get<CombinedAccess>(buffer_access_map_[op->dest.as_or_throw<TensorVar>().get()]).set,
+        &std::get<CombinedAccess>(tensor_access_map_[op->dest.as_or_throw<TensorVar>().get()]).set,
         op->indices);
     return Parent::Visit_(op);
   }
 
-  void Touch(BufferTouches* bounds, const ffi::Array<PrimExpr>& args) {
+  void Touch(TensorTouches* bounds, const ffi::Array<PrimExpr>& args) {
     if (args.size() > bounds->size()) {
       bounds->resize(args.size());
     }
@@ -134,27 +134,27 @@ class BufferTouchedDomain final : public s_tir::IRVisitorWithAnalyzer {
     }
   }
 
-  std::unordered_map<const VarNode*, BufferDomainAccess> buffer_access_map_;
+  std::unordered_map<const VarNode*, TensorDomainAccess> tensor_access_map_;
 };
 
-ffi::Array<ffi::Optional<Range>> DomainTouched(const Stmt& stmt, const TensorVar& buffer,
+ffi::Array<ffi::Optional<Range>> DomainTouched(const Stmt& stmt, const TensorVar& tensor,
                                                bool consider_loads, bool consider_stores) {
-  auto visitor = ffi::make_object<BufferTouchedDomain>();
+  auto visitor = ffi::make_object<TensorTouchedDomain>();
   visitor->Visit(stmt);
-  return visitor->FindUnion(buffer, consider_loads, consider_stores);
+  return visitor->FindUnion(tensor, consider_loads, consider_stores);
 }
 
 ffi::Map<TensorVar, ffi::Array<ffi::ObjectRef>> DomainTouchedAccessMap(const Function& func) {
-  auto visitor = ffi::make_object<BufferTouchedDomain>();
+  auto visitor = ffi::make_object<TensorTouchedDomain>();
   visitor->Visit(func->body);
-  auto buffer_access_map = visitor->GetAccessedBufferRegions();
+  auto tensor_access_map = visitor->GetAccessedTensorRegions();
   ffi::Map<TensorVar, ffi::Array<ffi::ObjectRef>> ret;
   for (auto& var : func->params) {
     if (!var->ty.as<TensorTypeNode>()) {
       continue;
     }
-    TensorVar buffer = var.as_or_throw<TensorVar>();
-    auto& access = buffer_access_map[buffer.get()];
+    TensorVar tensor = var.as_or_throw<TensorVar>();
+    auto& access = tensor_access_map[tensor.get()];
     ffi::Array<ffi::Array<IntSet>> loads, stores, combined;
     for (std::vector<IntSet>& touch : std::get<LoadAccess>(access).set) {
       loads.push_back(ffi::Array<IntSet>(touch));
@@ -170,7 +170,7 @@ ffi::Map<TensorVar, ffi::Array<ffi::ObjectRef>> DomainTouchedAccessMap(const Fun
     fields.push_back(loads);
     fields.push_back(stores);
     fields.push_back(combined);
-    ret.Set(buffer, fields);
+    ret.Set(tensor, fields);
   }
   return ret;
 }

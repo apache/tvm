@@ -99,7 +99,7 @@ class PaddingInfoAnalyzer {
     const TensorStoreNode* store =
         block->body->size() == 1 ? block->body->seq[0].as<TensorStoreNode>() : nullptr;
     if (!store) {
-      SetError("Block body expect a TensorStore to the write buffer");
+      SetError("Block body expect a TensorStore to the write tensor");
       return false;
     }
     const CallNode* if_then_else = store->value.as<CallNode>();
@@ -240,10 +240,10 @@ static std::pair<Stmt, SBlockRealize> CreateConstBlock(const SBlockRealizeNode* 
   // create new write region
   TVM_FFI_ICHECK_EQ(block->writes.size(), 1U);
   TensorRegion write_region =
-      BufferRegion(block->writes[0]->source.as_or_throw<tvm::tirx::TensorVar>(),
-                   block->writes[0]->region.Map([rewrite_expr](const Range& r) {
-                     return Range::FromMinExtent(rewrite_expr(r->min), rewrite_expr(r->extent));
-                   }));
+      MakeTensorRegion(block->writes[0]->source.as_or_throw<tvm::tirx::TensorVar>(),
+                       block->writes[0]->region.Map([rewrite_expr](const Range& r) {
+                         return Range::FromMinExtent(rewrite_expr(r->min), rewrite_expr(r->extent));
+                       }));
 
   // create block to fill const pad values
   TVM_FFI_ICHECK_EQ(block->body->size(), 1);
@@ -349,12 +349,12 @@ static std::pair<Stmt, SBlockRealize> CreateInBoundBlock(const SBlockRealizeNode
   // create new read/write region for in-bound accesses
   ffi::Array<TensorRegion> reads, writes;
   for (const TensorRegion& read : block->reads) {
-    reads.push_back(BufferRegion(read->source.as_or_throw<tvm::tirx::TensorVar>(),
-                                 rewrite_region(read->region)));
+    reads.push_back(MakeTensorRegion(read->source.as_or_throw<tvm::tirx::TensorVar>(),
+                                     rewrite_region(read->region)));
   }
   for (const TensorRegion& write : block->writes) {
-    writes.push_back(BufferRegion(write->source.as_or_throw<tvm::tirx::TensorVar>(),
-                                  rewrite_region(write->region)));
+    writes.push_back(MakeTensorRegion(write->source.as_or_throw<tvm::tirx::TensorVar>(),
+                                      rewrite_region(write->region)));
   }
 
   // create new block realize node

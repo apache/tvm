@@ -32,7 +32,7 @@ if TYPE_CHECKING:
 def _redecl(buf: Var, shape, layout, *, dtype=None, elem_offset=None, addr_offset=None):
     """Re-declare a derived view over ``buf`` storage.
 
-    Routes the buffer identity by storage kind: a ``tmem`` buffer aliases by
+    Routes the tensor identity by storage kind: a ``tmem`` tensor aliases by
     column address, while every other scope carries
     ``data``/``strides``/``elem_offset`` through.
     """
@@ -84,7 +84,7 @@ def view(buf: Var, *args, **kwargs) -> Var:
                 assert functools.reduce(lambda x, y: x * y, shape) == functools.reduce(
                     lambda x, y: x * y, buf.shape
                 ), (
-                    "The shape of the buffer "
+                    "The shape of the tensor "
                     + str(buf.shape)
                     + " and the new shape "
                     + str(shape)
@@ -128,7 +128,7 @@ def local(buf: Var, *shape, layout=None) -> Var:
     if not shape:
         if buf.layout is None:
             raise ValueError(
-                "Var.local cannot infer a shape because the parent buffer has layout=None; "
+                "Var.local cannot infer a shape because the parent tensor has layout=None; "
                 "pass an explicit shape together with layout=..."
             )
         storage_layout = buf.layout.storage()
@@ -138,14 +138,14 @@ def local(buf: Var, *shape, layout=None) -> Var:
         if buf.layout is None:
             raise ValueError(
                 "Var.local without layout= cannot validate the physical storage span "
-                "because the parent buffer has layout=None; pass an explicit layout=..."
+                "because the parent tensor has layout=None; pass an explicit layout=..."
             )
         local_extent = buf.layout.storage().span()
         shape_total = functools.reduce(lambda x, y: x * y, shape, 1)
         if not tvm.sym.Analyzer().can_prove_equal(shape_total, local_extent):
             raise ValueError(
                 f"Local view shape {shape} has {shape_total} elements, "
-                f"but the buffer has physical storage span {local_extent} per thread"
+                f"but the tensor has physical storage span {local_extent} per thread"
             )
     return _redecl(buf, shape, "default" if layout is None else layout)
 
@@ -176,7 +176,7 @@ def rearrange(buf: Var, pattern: str, /, **sizes) -> Var:
     lhs_groups, rhs_groups = _groups(lhs_s), _groups(rhs_s)
     if len(lhs_groups) != len(buf.shape):
         raise ValueError(
-            f"rearrange: lhs has {len(lhs_groups)} groups but buffer has "
+            f"rearrange: lhs has {len(lhs_groups)} groups but tensor has "
             f"{len(buf.shape)} dims (pattern {pattern!r}, shape {list(buf.shape)})"
         )
     axis_size: dict = {}
@@ -251,7 +251,7 @@ def chunk(buf: Var, spec) -> ChunkIndexer:
     if not isinstance(spec, tuple | list):
         raise ValueError(f"chunk: spec must be a per-dim tuple, got {spec!r}")
     if len(spec) != len(buf.shape):
-        raise ValueError(f"chunk: spec length {len(spec)} != buffer rank {len(buf.shape)}")
+        raise ValueError(f"chunk: spec length {len(spec)} != tensor rank {len(buf.shape)}")
     for dim, count in enumerate(spec):
         if count is not None and (not isinstance(count, Integral) or int(count) < 1):
             raise ValueError(f"chunk: spec[{dim}] must be None or a positive int, got {count!r}")
@@ -263,7 +263,7 @@ def _normalized_dim(buf: Var, dim, name):
     if dim < 0:
         dim += ndim
     if not 0 <= dim < ndim:
-        raise ValueError(f"{name}: dim {dim} out of range for buffer of rank {ndim}")
+        raise ValueError(f"{name}: dim {dim} out of range for tensor of rank {ndim}")
     return dim
 
 
@@ -497,15 +497,15 @@ def _view_narrow(buf: Var, dim, start, length):
 class SubIndexer:
     """Indexer returned by ``expr.sub``."""
 
-    def __init__(self, buffer: Var):
-        self._buffer = buffer
+    def __init__(self, tensor: Var):
+        self._tensor = tensor
 
     def __getitem__(self, indices) -> Var:
         if not isinstance(indices, tuple):
             indices = (indices,)
-        buf = self._buffer
+        buf = self._tensor
         if len(indices) > len(buf.shape):
-            raise ValueError(f"sub: {len(indices)} indices for buffer of rank {len(buf.shape)}")
+            raise ValueError(f"sub: {len(indices)} indices for tensor of rank {len(buf.shape)}")
         dim = 0
         for item in indices:
             if isinstance(item, slice):
@@ -548,14 +548,14 @@ class SubIndexer:
 class ChunkIndexer:
     """Indexer returned by :meth:`TensorType.chunk`."""
 
-    def __init__(self, buffer: Var, spec):
-        self._buffer = buffer
+    def __init__(self, tensor: Var, spec):
+        self._tensor = tensor
         self._spec = spec
 
     def __getitem__(self, picks):
         if not isinstance(picks, tuple):
             picks = (picks,)
-        buf = self._buffer
+        buf = self._tensor
         if len(picks) > len(self._spec):
             raise ValueError(f"chunk: {len(picks)} indices for a rank-{len(self._spec)} spec")
         translated = []
@@ -576,8 +576,8 @@ class ChunkIndexer:
 class TileIndexer:
     """Indexer returned by :meth:`TensorType.tile`."""
 
-    def __init__(self, buffer: Var, specs):
-        self._buffer = buffer
+    def __init__(self, tensor: Var, specs):
+        self._tensor = tensor
         self._specs = specs
 
     def __getitem__(self, picks) -> Var:
@@ -593,7 +593,7 @@ class TileIndexer:
         for dim, factors in self._specs:
             groups.append((dim, factors, picks[pos : pos + len(factors)]))
             pos += len(factors)
-        buf = self._buffer
+        buf = self._tensor
         for dim, factors, dim_picks in sorted(groups, key=lambda group: group[0], reverse=True):
             buf = self._apply(buf, dim, factors, dim_picks)
         return buf

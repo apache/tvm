@@ -28,7 +28,7 @@ from tvm.script import tirx as T
 
 def _check(original, transformed):
     mod = tvm.IRModule.from_expr(original.with_attr("global_symbol", "main"))
-    mod = tvm.s_tir.transform.LowerMatchBuffer()(mod)
+    mod = tvm.s_tir.transform.LowerMatchTensor()(mod)
     mod = tvm.s_tir.transform.StmtSimplify()(mod)
     tvm.ir.assert_structural_equal(mod["main"], transformed.with_attr("global_symbol", "main"))
 
@@ -36,19 +36,19 @@ def _check(original, transformed):
 def _check_fail(original):
     mod = tvm.IRModule.from_expr(original)
     with pytest.raises(RuntimeError):
-        mod = tvm.s_tir.transform.LowerMatchBuffer()(mod)
+        mod = tvm.s_tir.transform.LowerMatchTensor()(mod)
 
 
 @Ts.function
-def buffer_load_store(A: T.Tensor((16, 16, 16)), C: T.Tensor((16, 16))) -> None:
+def tensor_load_store(A: T.Tensor((16, 16, 16)), C: T.Tensor((16, 16))) -> None:
     for i, j, k in T.grid(4, 16, 8):
         with Ts.sblock():
             Ts.reads(C[i * 4 : i * 4 + 4, k * 2 : k * 2 + 2])
             Ts.writes(A[i * 4 : i * 4 + 4, j, k * 2 : k * 2 + 2])
-            sub_A = Ts.match_buffer(
+            sub_A = Ts.match_tensor(
                 A[i * 4 : i * 4 + 4, j, k * 2 : k * 2 + 2], (4, 1, 2), offset_factor=1
             )
-            sub_C = Ts.match_buffer(
+            sub_C = Ts.match_tensor(
                 C[i * 4 : i * 4 + 4, k * 2 : k * 2 + 2], (4, 2), offset_factor=1
             )
             for ii, kk in T.grid(4, 2):
@@ -56,7 +56,7 @@ def buffer_load_store(A: T.Tensor((16, 16, 16)), C: T.Tensor((16, 16))) -> None:
 
 
 @Ts.function
-def transformed_buffer_load_store(A: T.Tensor((16, 16, 16)), C: T.Tensor((16, 16))) -> None:
+def transformed_tensor_load_store(A: T.Tensor((16, 16, 16)), C: T.Tensor((16, 16))) -> None:
     for i, j, k in T.grid(4, 16, 8):
         with Ts.sblock():
             Ts.reads(C[i * 4 : i * 4 + 4, k * 2 : k * 2 + 2])
@@ -65,7 +65,7 @@ def transformed_buffer_load_store(A: T.Tensor((16, 16, 16)), C: T.Tensor((16, 16
                 A[i * 4 + ii, j, k * 2 + kk] += C[i * 4 + ii, k * 2 + kk]
 
 
-# Dummy intrinsic whose arguments exercise match_buffer fields.  TVMScript
+# Dummy intrinsic whose arguments exercise match_tensor fields.  TVMScript
 # evaluates the call eagerly (to 0), so it must NOT be registered as an op:
 # registering "tirx.intrin_test" only leaves a category-less op in the tirx
 # registry, breaking the exactly-one-category invariant for later tests.
@@ -83,7 +83,7 @@ def opaque_access(A: T.Tensor((32, 64, 128)), B: T.Tensor((64, 64, 64))) -> None
         with Ts.sblock():
             Ts.reads([])
             Ts.writes(A[i * 16 : i * 16 + 16, j, k * 16 : k * 16 + 16])
-            sub_A = Ts.match_buffer(
+            sub_A = Ts.match_tensor(
                 A[i * 16 : i * 16 + 16, j, k * 16 : k * 16 + 16],
                 (16, 1, 16),
                 strides=[8192, 128, 1],
@@ -103,7 +103,7 @@ def opaque_access(A: T.Tensor((32, 64, 128)), B: T.Tensor((64, 64, 64))) -> None
         with Ts.sblock():
             Ts.reads([])
             Ts.writes(B[i, j * 32 : j * 32 + 32, k * 8 : k * 8 + 8])
-            sub_B = Ts.match_buffer(
+            sub_B = Ts.match_tensor(
                 B[i, j * 32 : j * 32 + 32, k * 8 : k * 8 + 8],
                 (32, 8),
                 strides=[Bs_0, Bs_1],
@@ -154,16 +154,16 @@ def transformed_opaque_access(A: T.Tensor((32, 64, 128)), B: T.Tensor((64, 64, 6
 
 
 @Ts.function
-def opaque_buffer_data_projection(A: T.Tensor((16,))) -> None:
+def opaque_tensor_data_projection(A: T.Tensor((16,))) -> None:
     with Ts.sblock():
         Ts.reads([])
         Ts.writes(A[4:8])
-        sub_A = Ts.match_buffer(A[4:8], (4,), offset_factor=1)
+        sub_A = Ts.match_tensor(A[4:8], (4,), offset_factor=1)
         T.evaluate(T.call_extern("consume", sub_A.data, sub_A.elem_offset, ty="int32"))
 
 
 @Ts.function
-def transformed_opaque_buffer_data_projection(A: T.Tensor((16,))) -> None:
+def transformed_opaque_tensor_data_projection(A: T.Tensor((16,))) -> None:
     with Ts.sblock():
         Ts.reads([])
         Ts.writes(A[4:8])
@@ -180,7 +180,7 @@ def high_dim_opaque_access(A: T.Tensor((16, 32, 64))) -> None:
         with Ts.sblock():
             Ts.reads([])
             Ts.writes(A[i, j * 16 : j * 16 + 16, k * 16 : k * 16 + 16])
-            sub_A = Ts.match_buffer(
+            sub_A = Ts.match_tensor(
                 A[i, j * 16 : j * 16 + 16, k * 16 : k * 16 + 16],
                 (16, 16),
                 strides=[As_0, As_1],
@@ -228,7 +228,7 @@ def high_dim_opaque_access_with_source_strides(
         with Ts.sblock():
             Ts.reads([])
             Ts.writes(A[i, j * 16 : j * 16 + 16, k * 16 : k * 16 + 16])
-            sub_A = Ts.match_buffer(
+            sub_A = Ts.match_tensor(
                 A[i, j * 16 : j * 16 + 16, k * 16 : k * 16 + 16],
                 (16, 16),
                 strides=[As_0, As_1],
@@ -283,13 +283,13 @@ def recursive_match(A: T.Tensor((64, 64, 64)), B: T.Tensor((64, 64, 64))) -> Non
                     B[i, j * 16 : j * 16 + 16, k * 16 : k * 16 + 16],
                 ]
             )
-            sub_A = Ts.match_buffer(
+            sub_A = Ts.match_tensor(
                 A[i, j * 16 : j * 16 + 16, k * 16 : k * 16 + 16],
                 (16, 16),
                 strides=[As_0, As_1],
                 offset_factor=1,
             )
-            sub_B = Ts.match_buffer(
+            sub_B = Ts.match_tensor(
                 B[i, j * 16 : j * 16 + 16, k * 16 : k * 16 + 16],
                 (16, 16),
                 offset_factor=1,
@@ -303,13 +303,13 @@ def recursive_match(A: T.Tensor((64, 64, 64)), B: T.Tensor((64, 64, 64))) -> Non
                             sub_B[jj * 4 : jj * 4 + 4, kk * 4 : kk * 4 + 4],
                         ]
                     )
-                    sub_sub_A = Ts.match_buffer(
+                    sub_sub_A = Ts.match_tensor(
                         sub_A[jj * 4 : jj * 4 + 4, kk * 4 : kk * 4 + 4],
                         (4, 4),
                         strides=[Ass_0, Ass_1],
                         offset_factor=1,
                     )
-                    sub_sub_B = Ts.match_buffer(
+                    sub_sub_B = Ts.match_tensor(
                         sub_B[jj * 4 : jj * 4 + 4, kk * 4 : kk * 4 + 4],
                         (4, 4),
                         offset_factor=1,
@@ -385,8 +385,8 @@ def symbolic_match(
         with Ts.sblock():
             Ts.reads([])
             Ts.writes([A[i * m : i * m + n, 0:m], B[i * n : i * n + 2, 0 : m * 4]])
-            sub_A = Ts.match_buffer(A[i * m : i * m + m, 0:m], (m, m), offset_factor=1)
-            sub_B = Ts.match_buffer(
+            sub_A = Ts.match_tensor(A[i * m : i * m + m, 0:m], (m, m), offset_factor=1)
+            sub_B = Ts.match_tensor(
                 B[i * n : i * n + 2, 0 : m * 4], (2, m * 4), strides=[Bs_0, Bs_1], offset_factor=1
             )
             for ii, jj in T.grid(m, m):
@@ -431,13 +431,13 @@ def transformed_symbolic_match(
 
 
 @Ts.function
-def rank0_buffer(A: T.Tensor((8, 8)), B: T.Tensor((8, 8))) -> None:
+def rank0_tensor(A: T.Tensor((8, 8)), B: T.Tensor((8, 8))) -> None:
     for i, j in T.grid(8, 8):
         with Ts.sblock():
             Ts.reads([])
             Ts.writes([A[i, j], B[i, j]])
-            sub_A = Ts.match_buffer(A[i, j], (), offset_factor=1)
-            sub_B = Ts.match_buffer(B[i, j], (), offset_factor=1)
+            sub_A = Ts.match_tensor(A[i, j], (), offset_factor=1)
+            sub_B = Ts.match_tensor(B[i, j], (), offset_factor=1)
             sub_A[()] = 1
             T.evaluate(
                 intrin_test(
@@ -452,7 +452,7 @@ def rank0_buffer(A: T.Tensor((8, 8)), B: T.Tensor((8, 8))) -> None:
 
 
 @Ts.function
-def transformed_rank0_buffer(A: T.Tensor((8, 8)), B: T.Tensor((8, 8))) -> None:
+def transformed_rank0_tensor(A: T.Tensor((8, 8)), B: T.Tensor((8, 8))) -> None:
     for i, j in T.grid(8, 8):
         with Ts.sblock():
             Ts.reads([])
@@ -476,7 +476,7 @@ def fail_match_load(A: T.Tensor((8, 8))) -> None:
         with Ts.sblock():
             Ts.reads(A[i, j])
             Ts.writes([])
-            sub_A = Ts.match_buffer(A[i, j], (), elem_offset=0)
+            sub_A = Ts.match_tensor(A[i, j], (), elem_offset=0)
             T.evaluate(sub_A[()])
 
 
@@ -486,7 +486,7 @@ def fail_match_store(A: T.Tensor((8, 8))) -> None:
         with Ts.sblock():
             Ts.reads([])
             Ts.writes(A[i, j])
-            sub_A = Ts.match_buffer(A[i, j], (), elem_offset=0)
+            sub_A = Ts.match_tensor(A[i, j], (), elem_offset=0)
             sub_A[()] = 1
 
 
@@ -495,10 +495,10 @@ stride = T.dynamic("stride", "int32")
 
 
 @Ts.function(check_well_formed=False)
-def fail_buffer_bind(A: T.Tensor((8, 8))) -> None:
+def fail_tensor_bind(A: T.Tensor((8, 8))) -> None:
     for i, j in T.grid(8, 2):
         with Ts.sblock():
-            sub_A = Ts.match_buffer(
+            sub_A = Ts.match_tensor(
                 A[i, j * 4 : j * 4 + 4], (1, 4), strides=[stride, stride], offset_factor=1
             )
             for jj in range(0, 4):
@@ -510,20 +510,20 @@ def fail_buffer_bind(A: T.Tensor((8, 8))) -> None:
 def fail_match_func_param(A: T.Tensor((8, 8)), m: T.int32, n: T.int32) -> None:
     for i, j in T.grid(8, 2):
         with Ts.sblock():
-            sub_A = Ts.match_buffer(
+            sub_A = Ts.match_tensor(
                 A[i, j * 4 : j * 4 + 4], (1, 4), strides=[m, n], offset_factor=1
             )
             for jj in range(0, 4):
                 sub_A[i, j * 4 + jj] = 1
 
 
-def test_buffer_load_store():
-    _check(buffer_load_store, transformed_buffer_load_store)
+def test_tensor_load_store():
+    _check(tensor_load_store, transformed_tensor_load_store)
 
 
 def test_opaque_access():
     _check(opaque_access, transformed_opaque_access)
-    _check(opaque_buffer_data_projection, transformed_opaque_buffer_data_projection)
+    _check(opaque_tensor_data_projection, transformed_opaque_tensor_data_projection)
 
 
 def test_high_dim_opaque_access():
@@ -542,8 +542,8 @@ def test_symbolic_match():
     _check(symbolic_match, transformed_symbolic_match)
 
 
-def test_rank0_buffer():
-    _check(rank0_buffer, transformed_rank0_buffer)
+def test_rank0_tensor():
+    _check(rank0_tensor, transformed_rank0_tensor)
 
 
 def test_fail_load_store():
@@ -551,8 +551,8 @@ def test_fail_load_store():
     _check_fail(fail_match_store)
 
 
-def test_fail_buffer_bind():
-    _check_fail(fail_buffer_bind)
+def test_fail_tensor_bind():
+    _check_fail(fail_tensor_bind)
 
 
 def test_fail_match_func_param():
@@ -560,47 +560,47 @@ def test_fail_match_func_param():
 
 
 @Ts.function
-def scalar_match_buffer_type_coercion(A: T.Tensor((8, 8))) -> None:
+def scalar_match_tensor_type_coercion(A: T.Tensor((8, 8))) -> None:
     for i, j in T.grid(8, 8):
         with Ts.sblock(""):
             vi = Ts.axis.spatial(8, i)
             vj = Ts.axis.spatial(8, j)
             Ts.reads()
             Ts.writes(A[vi, vj])
-            # Create scalar match buffer from single element - this triggers type coercion
-            scalar_buf = Ts.match_buffer(A[vi, vj], (), offset_factor=1)
+            # Create scalar match tensor from single element - this triggers type coercion
+            scalar_buf = Ts.match_tensor(A[vi, vj], (), offset_factor=1)
             scalar_buf[()] = T.float32(1.0)
 
 
 @Ts.function
-def transformed_scalar_match_buffer_type_coercion(A: T.Tensor((8, 8))) -> None:
+def transformed_scalar_match_tensor_type_coercion(A: T.Tensor((8, 8))) -> None:
     for i, j in T.grid(8, 8):
         with Ts.sblock(""):
             vi = Ts.axis.spatial(8, i)
             vj = Ts.axis.spatial(8, j)
             Ts.reads()
             Ts.writes(A[vi, vj])
-            # Scalar match_buffer eliminated, direct assignment
+            # Scalar match_tensor eliminated, direct assignment
             A[vi, vj] = T.float32(1.0)
 
 
-def test_scalar_match_buffer_type_coercion():
-    _check(scalar_match_buffer_type_coercion, transformed_scalar_match_buffer_type_coercion)
+def test_scalar_match_tensor_type_coercion():
+    _check(scalar_match_tensor_type_coercion, transformed_scalar_match_tensor_type_coercion)
 
 
 @Ts.function
-def masked_match_buffer(A: T.Tensor((8,), "float32")) -> None:
+def masked_match_tensor(A: T.Tensor((8,), "float32")) -> None:
     with Ts.sblock():
         Ts.reads(A[2:6])
-        sub_A = Ts.match_buffer(A[2:6], (4,), offset_factor=1)
+        sub_A = Ts.match_tensor(A[2:6], (4,), offset_factor=1)
         mask = T.meta_var(T.Broadcast(T.bool(True), 4))
         T.evaluate(T.masked_load(sub_A, T.Ramp(0, 1, 4), mask, ty="float32x4"))
 
 
-def test_masked_match_buffer_fails_explicitly():
-    mod = tvm.IRModule.from_expr(masked_match_buffer)
-    with pytest.raises(RuntimeError, match="Predicated buffer access is not currently supported"):
-        tvm.s_tir.transform.LowerMatchBuffer()(mod)
+def test_masked_match_tensor_fails_explicitly():
+    mod = tvm.IRModule.from_expr(masked_match_tensor)
+    with pytest.raises(RuntimeError, match="Predicated tensor access is not currently supported"):
+        tvm.s_tir.transform.LowerMatchTensor()(mod)
 
 
 if __name__ == "__main__":

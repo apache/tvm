@@ -50,7 +50,7 @@ def test_block():
 
 
 def test_block_iters_used_only_in_regions():
-    """Blockized blocks use their iterators only in access and match_buffer regions."""
+    """Blockized blocks use their iterators only in access and match_tensor regions."""
 
     @Ts.function(private=True)
     def before(
@@ -72,7 +72,7 @@ def test_block_iters_used_only_in_regions():
                         vj_o * T.int64(8) : vj_o * T.int64(8) + T.int64(8),
                     ]
                 )
-                A_tile = Ts.match_buffer(
+                A_tile = Ts.match_tensor(
                     A[
                         vi_o * T.int64(8) : vi_o * T.int64(8) + T.int64(8),
                         vj_o * T.int64(8) : vj_o * T.int64(8) + T.int64(8),
@@ -80,7 +80,7 @@ def test_block_iters_used_only_in_regions():
                     (T.int64(8), T.int64(8)),
                     offset_factor=1,
                 )
-                B_tile = Ts.match_buffer(
+                B_tile = Ts.match_tensor(
                     B[
                         vi_o * T.int64(8) : vi_o * T.int64(8) + T.int64(8),
                         vj_o * T.int64(8) : vj_o * T.int64(8) + T.int64(8),
@@ -100,10 +100,10 @@ def test_block_iters_used_only_in_regions():
                 vi_o, vj_o = Ts.axis.remap("SS", [i_o, j_o])
                 Ts.reads(A[vi_o * 8 : vi_o * 8 + 8, vj_o * 8 : vj_o * 8 + 8])
                 Ts.writes(B[vi_o * 8 : vi_o * 8 + 8, vj_o * 8 : vj_o * 8 + 8])
-                A_tile = Ts.match_buffer(
+                A_tile = Ts.match_tensor(
                     A[vi_o * 8 : vi_o * 8 + 8, vj_o * 8 : vj_o * 8 + 8], (8, 8), offset_factor=1
                 )
-                B_tile = Ts.match_buffer(
+                B_tile = Ts.match_tensor(
                     B[vi_o * 8 : vi_o * 8 + 8, vj_o * 8 : vj_o * 8 + 8], (8, 8), offset_factor=1
                 )
                 for i_i, j_i in T.grid(8, 8):
@@ -114,7 +114,7 @@ def test_block_iters_used_only_in_regions():
     tvm.ir.assert_structural_equal(_narrow(before), expected)
 
 
-def test_fail_on_buffer_param():
+def test_fail_on_tensor_param():
     @Ts.function(private=True)
     def func(A: T.Tensor((128,), "int64"), B: T.Tensor((128,), "int64")):
         for i in T.serial(0, 16):
@@ -127,10 +127,10 @@ def test_fail_on_buffer_param():
         _narrow(func)
 
 
-def test_fail_on_block_alloc_buffer():
+def test_fail_on_block_alloc_tensor():
     @Ts.function(private=True)
     def func(A: T.Tensor((128,), "int32"), B: T.Tensor((128,), "int32")):
-        C = Ts.sblock_alloc_buffer((128,), "int64")
+        C = Ts.sblock_alloc_tensor((128,), "int64")
         for i in T.serial(0, 16):
             for j in T.serial(0, 8):
                 with Ts.sblock():

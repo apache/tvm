@@ -363,18 +363,18 @@ class ScopeReconstructor : public StmtExprMutator {
 };
 
 /*!
- * \brief Calculate a list of accessed buffer regions under a path of loops
+ * \brief Calculate a list of accessed tensor regions under a path of loops
  * \tparam relax_storage_scope Whether to relax beyond the path according to the storage and
  * execution scope
- * \param binding The block binding, used to unbind the buffer regions
- * \param buffer_regions The buffer regions to be calculated
+ * \param binding The block binding, used to unbind the tensor regions
+ * \param tensor_regions The tensor regions to be calculated
  * \param relax_path_low_inclusive The lowest point in the loop path, inclusive
  * \param relax_path_high_exclusive The highest point in the loop path, exclusive
  * \param relaxed Where the calculation result is stored
  */
 template <bool relax_storage_scope>
-void RelaxBufferRegions(const ffi::Map<Var, PrimExpr>& binding,
-                        const ffi::Array<TensorRegion>& buffer_regions,
+void RelaxTensorRegions(const ffi::Map<Var, PrimExpr>& binding,
+                        const ffi::Array<TensorRegion>& tensor_regions,
                         const StmtSRef& relax_path_low_inclusive,
                         const StmtSRef& relax_path_high_exclusive,
                         std::unordered_map<const VarNode*, std::vector<NDIntSet>>* relaxed) {
@@ -386,19 +386,19 @@ void RelaxBufferRegions(const ffi::Map<Var, PrimExpr>& binding,
     if (auto repl = binding.Get(var)) return ffi::Any(*std::move(repl));
     return ffi::Unchanged();
   };
-  // Enumerate every buffer region
-  for (const TensorRegion& buffer_region : buffer_regions) {
-    const TensorVar& buffer = buffer_region->source.as_or_throw<tvm::tirx::TensorVar>();
-    const ffi::Array<Range>& region = buffer_region->region;
-    // Skip the buffer regions we are not interested in
-    auto it = relaxed->find(buffer.get());
+  // Enumerate every tensor region
+  for (const TensorRegion& tensor_region : tensor_regions) {
+    const TensorVar& tensor = tensor_region->source.as_or_throw<tvm::tirx::TensorVar>();
+    const ffi::Array<Range>& region = tensor_region->region;
+    // Skip the tensor regions we are not interested in
+    auto it = relaxed->find(tensor.get());
     if (it == relaxed->end()) {
       continue;
     }
     std::vector<NDIntSet>& relaxed_regions = it->second;
     // Check and update the cached `var_dom`
     runtime::StorageScope scope =
-        relax_storage_scope ? runtime::StorageScope::Create(buffer.scope()) : global_scope;
+        relax_storage_scope ? runtime::StorageScope::Create(tensor.scope()) : global_scope;
     runtime::StorageRank rank = scope.rank;
     if (rank != previous_rank || !var_dom.has_value()) {
       previous_rank = rank;
@@ -425,7 +425,7 @@ void RelaxBufferRegions(const ffi::Map<Var, PrimExpr>& binding,
  * domain
  * \param provided The provided integer set to cover the required domain
  * \param required The required domain to be covered
- * \param dim_max The maximum index bound by the buffer shape
+ * \param dim_max The maximum index bound by the tensor shape
  * \param analyzer The arithmetic analyzer
  */
 std::pair<Var, BlockVarDomainInfo> SolveBlockVarDomain(const sym::IntSet& provided,
@@ -498,21 +498,21 @@ std::pair<Var, BlockVarDomainInfo> SolveBlockVarDomain(const sym::IntSet& provid
 
 /*!
  * \brief Calculate and update the iteration domain info to fully cover the required domain in
- * dimension-wise fashion. The region relation on each buffer dimension is independently estimated.
- * \param buffer The accessed buffer
+ * dimension-wise fashion. The region relation on each tensor dimension is independently estimated.
+ * \param tensor The accessed tensor
  * \param provided_region The provided NDIntSet to cover the required domain
  * \param required_region The required NDIntSet domain to be covered
  * \param analyzer The arithmetic analyzer
  * \param iter_doms The result iteration domains to be updated
  */
 void UpdateBlockVarDomainDimwise(
-    const VarNode* buffer, const NDIntSet& provided_region, const NDIntSet& required_region,
+    const VarNode* tensor, const NDIntSet& provided_region, const NDIntSet& required_region,
     sym::AnalyzerObj* analyzer, std::unordered_map<const VarNode*, BlockVarDomainInfo>* iter_doms) {
-  size_t ndim = GetTensorVar(buffer)->shape.size();
+  size_t ndim = GetTensorVar(tensor)->shape.size();
   for (size_t i = 0; i < ndim; ++i) {
     sym::IntSet provided = provided_region[i];
     sym::IntSet required = required_region[i];
-    PrimExpr dim_max = max(GetTensorVar(buffer)->shape[i] - 1, 0);
+    PrimExpr dim_max = max(GetTensorVar(tensor)->shape[i] - 1, 0);
     sym::Analyzer analyzer_ref = ffi::GetRef<sym::Analyzer>(analyzer);
 
     if (provided.CanProveSinglePoint(analyzer_ref) && IsConstInt(provided.min())) {
@@ -562,7 +562,7 @@ ffi::Map<Var, sym::IntSet> InverseAffineIterMap(const ffi::Array<sym::IterSumExp
 /*!
  * \brief Calculate and update the iteration domain info to fully cover the required domain
  * with affine analysis. It requires bijective mapping of block var to provided region points.
- * \param buffer The accessed buffer
+ * \param tensor The accessed tensor
  * \param iter_vars The list of block vars to cover the required region
  * \param provided_region The provided NDIntSet to cover the required domain
  * \param required_region The required NDIntSet domain to be covered
@@ -570,7 +570,7 @@ ffi::Map<Var, sym::IntSet> InverseAffineIterMap(const ffi::Array<sym::IterSumExp
  * \param iter_doms The result iteration domains to be updated
  * \returns bool. Denotes whether update success
  */
-bool UpdateBlockVarDomainAffine(const VarNode* buffer, const ffi::Array<IterVar>& iter_vars,
+bool UpdateBlockVarDomainAffine(const VarNode* tensor, const ffi::Array<IterVar>& iter_vars,
                                 const NDIntSet& provided_region, const NDIntSet& required_region,
                                 sym::AnalyzerObj* analyzer,
                                 std::unordered_map<const VarNode*, BlockVarDomainInfo>* iter_doms) {
@@ -584,7 +584,7 @@ bool UpdateBlockVarDomainAffine(const VarNode* buffer, const ffi::Array<IterVar>
   for (const IterVar& iter_var : iter_vars) {
     dom_map.Set(iter_var->var, iter_var->dom.value());
   }
-  size_t ndim = GetTensorVar(buffer)->shape.size();
+  size_t ndim = GetTensorVar(tensor)->shape.size();
   ffi::Array<PrimExpr> provide_indices;
   provide_indices.reserve(ndim);
   for (size_t i = 0; i < ndim; ++i) {
@@ -598,8 +598,8 @@ bool UpdateBlockVarDomainAffine(const VarNode* buffer, const ffi::Array<IterVar>
   // calculate backward mapping (required region point -> block vars)
   NDIntSet required_bound;
   for (size_t i = 0; i < ndim; ++i) {
-    required_bound.push_back(sym::IntSet::Interval(IntImm(GetTensorVar(buffer)->shape[i].ty(), 0),
-                                                   max(GetTensorVar(buffer)->shape[i] - 1, 0)));
+    required_bound.push_back(sym::IntSet::Interval(IntImm(GetTensorVar(tensor)->shape[i].ty(), 0),
+                                                   max(GetTensorVar(tensor)->shape[i] - 1, 0)));
   }
   ffi::Map<Var, sym::IntSet> var_dom =
       InverseAffineIterMap(res->indices, required_region, analyzer);
@@ -634,23 +634,23 @@ std::vector<BlockVarDomainInfo> CalculateBlockVarDomain(
   for (const IterVar& iter_var : iter_vars) {
     iter_doms[iter_var->var.get()] = BlockVarDomainInfo();
   }
-  // Step 2. For each buffer, update the domain according to the provided and required regions
+  // Step 2. For each tensor, update the domain according to the provided and required regions
   for (const auto& kv : provided_regions) {
-    const VarNode* buffer = kv.first;
+    const VarNode* tensor = kv.first;
     const std::vector<NDIntSet>& many_provided_regions = kv.second;
     // Calculate `provided_region` and `required_region`
-    auto it = required_regions.find(buffer);
+    auto it = required_regions.find(tensor);
     if (it == required_regions.end() || it->second.empty()) {
       continue;
     }
     NDIntSet required_region = support::NDIntSetUnion(it->second);
     NDIntSet provided_region = support::NDIntSetUnion(many_provided_regions);
-    TVM_FFI_ICHECK_EQ(provided_region.size(), GetTensorVar(buffer)->shape.size());
-    TVM_FFI_ICHECK_EQ(required_region.size(), GetTensorVar(buffer)->shape.size());
+    TVM_FFI_ICHECK_EQ(provided_region.size(), GetTensorVar(tensor)->shape.size());
+    TVM_FFI_ICHECK_EQ(required_region.size(), GetTensorVar(tensor)->shape.size());
     // Try update iter var domains with current required and provided region pair.
-    if (!UpdateBlockVarDomainAffine(buffer, iter_vars, provided_region, required_region, analyzer,
+    if (!UpdateBlockVarDomainAffine(tensor, iter_vars, provided_region, required_region, analyzer,
                                     &iter_doms)) {
-      UpdateBlockVarDomainDimwise(buffer, provided_region, required_region, analyzer, &iter_doms);
+      UpdateBlockVarDomainDimwise(tensor, provided_region, required_region, analyzer, &iter_doms);
     }
   }
   // Union the iter var domains, put them in the same order of block vars, and return
@@ -672,9 +672,9 @@ std::vector<BlockVarDomainInfo> CalculateBlockVarDomain(
 
 /*!
  * \brief Calculate the provided region of the given block by one single of its execution instance,
- * as well as the required buffer regions relaxed to the given loop
+ * as well as the required tensor regions relaxed to the given loop
  * \tparam is_compute_at Indicates if the operation is compute-at or reverse-compute-at
- * \param block The given block that provides buffer regions
+ * \param block The given block that provides tensor regions
  * \param loop_sref The given loop under which the block is going to be moved to
  * \param block2realize Maps a block to its corresponding BlockRealize
  * \param producer_srefs The producers of the given block
@@ -691,23 +691,23 @@ void CalculateProvidedRequiredRegions(
     std::unordered_map<const VarNode*, std::vector<NDIntSet>>* provided_regions,
     std::unordered_map<const VarNode*, std::vector<NDIntSet>>* required_regions) {
   // Step 1. Calculate the region provided by a single execution instance of `block`
-  const ffi::Array<TensorRegion>& provided_buffers = is_compute_at ? block->writes : block->reads;
-  provided_regions->reserve(provided_buffers.size());
-  required_regions->reserve(provided_buffers.size());
-  for (const TensorRegion& provided_buffer_region : provided_buffers) {
-    const VarNode* buffer =
-        provided_buffer_region->source.as_or_throw<tvm::tirx::TensorVar>().get();
-    const ffi::Array<Range>& region = provided_buffer_region->region;
-    (*provided_regions)[buffer].push_back(support::NDIntSetFromRegion(region));
-    (*required_regions)[buffer].clear();
+  const ffi::Array<TensorRegion>& provided_tensors = is_compute_at ? block->writes : block->reads;
+  provided_regions->reserve(provided_tensors.size());
+  required_regions->reserve(provided_tensors.size());
+  for (const TensorRegion& provided_tensor_region : provided_tensors) {
+    const VarNode* tensor =
+        provided_tensor_region->source.as_or_throw<tvm::tirx::TensorVar>().get();
+    const ffi::Array<Range>& region = provided_tensor_region->region;
+    (*provided_regions)[tensor].push_back(support::NDIntSetFromRegion(region));
+    (*required_regions)[tensor].clear();
   }
   // Step 2. Calculate the region required by dependent blocks under `loop`
   for (const StmtSRef& required_block_sref : is_compute_at ? consumer_srefs : producer_srefs) {
     const SBlockNode* required_block = TVM_SREF_TO_SBLOCK(required_block_sref);
     TVM_FFI_ICHECK(block2realize.count(required_block));
-    RelaxBufferRegions</*relax_storage_scope=*/is_compute_at>(
+    RelaxTensorRegions</*relax_storage_scope=*/is_compute_at>(
         /*binding=*/GetBindings(ffi::GetRef<SBlockRealize>(block2realize.at(required_block))),
-        /*buffer_regions=*/is_compute_at ? required_block->reads : required_block->writes,
+        /*tensor_regions=*/is_compute_at ? required_block->reads : required_block->writes,
         /*relax_path_low_inclusive=*/ffi::GetRef<StmtSRef>(required_block_sref->parent),
         /*relax_path_high_exclusive=*/loop_sref, /*relaxed=*/required_regions);
   }

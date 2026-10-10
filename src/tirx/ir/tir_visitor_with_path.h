@@ -83,8 +83,8 @@ class TIRVisitorWithPath : protected ExprFunctor<void(const Expr&, ffi::reflecti
       Dispatch_(tuple, path);
     } else if (auto* tuple_get_item = obj.as<TupleGetItemNode>()) {
       Dispatch_(tuple_get_item, path);
-    } else if (auto* buffer_region = obj.as<TensorRegionNode>()) {
-      Dispatch_(buffer_region, path);
+    } else if (auto* tensor_region = obj.as<TensorRegionNode>()) {
+      Dispatch_(tensor_region, path);
     } else if (auto* lambda = obj.as<LambdaExprNode>()) {
       VisitLambda(lambda, path);
     } else if (obj.as<OpaqueExprNode>()) {
@@ -98,10 +98,10 @@ class TIRVisitorWithPath : protected ExprFunctor<void(const Expr&, ffi::reflecti
     Dispatch(obj, path);
   }
 
-  // Visit a buffer at a use site (TensorLoad, TensorStore, reads/writes).
-  // By default, does not re-visit buffer fields (shape, strides, elem_offset),
+  // Visit a tensor at a use site (TensorLoad, TensorStore, reads/writes).
+  // By default, does not re-visit tensor fields (shape, strides, elem_offset),
   // as those are visited at the definition site via EnterDef.
-  virtual void VisitBufferUse(const TensorVar& obj, ffi::reflection::AccessPath path);
+  virtual void VisitTensorUse(const TensorVar& obj, ffi::reflection::AccessPath path);
 
   // Visit type metadata through its reflected fields, preserving source access paths.
   virtual void Visit(const Type& obj, ffi::reflection::AccessPath path);
@@ -265,7 +265,7 @@ class TIRVisitorWithPath : protected ExprFunctor<void(const Expr&, ffi::reflecti
     }
   }
 
-  std::vector<DefContext<Var>> WithMatchBufferDefs(TensorVar buf,
+  std::vector<DefContext<Var>> WithMatchTensorDefs(TensorVar buf,
                                                    ffi::reflection::AccessPath path) {
     std::vector<DefContext<Var>> context;
 
@@ -279,7 +279,7 @@ class TIRVisitorWithPath : protected ExprFunctor<void(const Expr&, ffi::reflecti
       }
     };
 
-    // A Buffer shape is a match scope.  The first shape expression that
+    // A Tensor shape is a match scope.  The first shape expression that
     // contains an undefined Var defines it, even when the expression is
     // compound (for example, `n + 1`).  Later expressions then see the same
     // Var in `in_scope_definitions_` and reuse it.

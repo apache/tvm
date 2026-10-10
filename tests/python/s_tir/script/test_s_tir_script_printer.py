@@ -40,7 +40,7 @@ def _assert_print(obj, expected):
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="PEP 695 requires Python 3.12")
-def test_function_symbolic_buffer_param_roundtrip():
+def test_function_symbolic_tensor_param_roundtrip():
     n = tirx.Var("n", "int32")
     A = tirx.decl_tensor(shape=[n + 1, n], dtype="float32", name="A", layout=None)
     func = (
@@ -61,7 +61,7 @@ def test_function_symbolic_buffer_param_roundtrip():
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="PEP 695 requires Python 3.12")
-def test_function_compound_buffer_shape_first_use_roundtrip():
+def test_function_compound_tensor_shape_first_use_roundtrip():
     n = tirx.Var("n", "int32")
     A = tirx.decl_tensor(shape=[tirx.max(n, 1)], dtype="float32", name="A", layout=None)
     func = (
@@ -81,7 +81,7 @@ def test_function_compound_buffer_shape_first_use_roundtrip():
     )
 
 
-def test_function_symbolic_alloc_buffer_roundtrip():
+def test_function_symbolic_alloc_tensor_roundtrip():
     size = tirx.Var("size", "int32")
     buf = tirx.decl_tensor(shape=[size], dtype="float32", name="buf", layout=None)
     func = tirx.Function(
@@ -145,7 +145,7 @@ def main(A: T.Tensor((128, 128), "float32", layout="default"), B: T.Tensor((256,
     )
 
 
-def test_function_buffer_data_use():
+def test_function_tensor_data_use():
     A = tirx.decl_tensor(shape=[128, 128], dtype="float32", name="A")
     B = tirx.decl_tensor(shape=[256, 256], dtype="float32", name="B")
     func = (
@@ -173,7 +173,7 @@ def main(A: T.Tensor((128, 128), "float32", layout="default"), B: T.Tensor((256,
     )
 
 
-def test_function_buffer_data_argument_is_scope_hint():
+def test_function_tensor_data_argument_is_scope_hint():
     buffer_data = tirx.decl_tensor(shape=[128, 128], dtype="float32", name="A").data
     A = tirx.decl_tensor(shape=[128, 128], dtype="float32", name="A", data=buffer_data)
     B = tirx.decl_tensor(shape=[256, 256], dtype="float32", name="B", data=buffer_data)
@@ -256,12 +256,12 @@ with Ts.sblock("block", no_realize=True):
     )
 
 
-def test_match_buffer_region():
+def test_match_tensor_region():
     src = tirx.decl_tensor((128, 128), "float32", name="src")
     tgt = tirx.decl_tensor((64, 64), "float32", name="tgt")
-    obj = s_tir.MatchBufferRegion(
+    obj = s_tir.MatchTensorRegion(
         tgt,
-        tirx.BufferRegion(
+        tirx.make_tensor_region(
             src,
             [
                 Range(64, 128),
@@ -273,7 +273,7 @@ def test_match_buffer_region():
         obj,
         """
 src = T.Var("src", T.Tensor((128, 128), "float32", layout="default"))
-tgt = Ts.match_buffer(src[64:128, 64:128], (64, 64), "float32", layout="default")
+tgt = Ts.match_tensor(src[64:128, 64:128], (64, 64), "float32", layout="default")
 """,
     )
 
@@ -358,7 +358,7 @@ def test_root_block():
 
     @Ts.function
     def root_block_implicitly():
-        a = Ts.sblock_alloc_buffer([128, 128])
+        a = Ts.sblock_alloc_tensor([128, 128])
         for i, j in TB.grid(128, 128):
             with Ts.sblock():
                 TB.evaluate(0)
@@ -366,7 +366,7 @@ def test_root_block():
     @Ts.function
     def root_block_explicitly():
         with Ts.sblock("root"):
-            a = Ts.sblock_alloc_buffer([128, 128])
+            a = Ts.sblock_alloc_tensor([128, 128])
             for i, j in TB.grid(128, 128):
                 with Ts.sblock():
                     TB.evaluate(0)
@@ -381,7 +381,7 @@ def main():
     with Ts.sblock("root"):
         Ts.reads()
         Ts.writes()
-        v = Ts.sblock_alloc_buffer((128, 128), "float32", layout=None)
+        v = Ts.sblock_alloc_tensor((128, 128), "float32", layout=None)
         for i in range(128):
             for j in range(128):
                 with Ts.sblock(""):
@@ -537,17 +537,17 @@ def func(A: T.Tensor((128, 128), "float32", layout=None), B: T.Tensor((256, 256)
     _assert_print(main, expected_output)
 
 
-def test_predicated_buffer_load_store():
+def test_predicated_tensor_load_store():
     a = tirx.Var("a", "handle")
     b = tirx.Var("b", "handle")
-    buffers = {
+    tensors = {
         a: tirx.decl_tensor(shape=[128, 128], dtype="float32", name="A"),
         b: tirx.decl_tensor(shape=[256, 256], dtype="float32", name="B"),
     }
-    buffer_load = tirx.call_intrin(
+    tensor_load = tirx.call_intrin(
         "float32x4",
         "tirx.masked_load",
-        buffers[b],
+        tensors[b],
         0,
         tirx.Ramp(0, 4, 4),
         tirx.Broadcast(tirx.IntImm("bool", 0), 4),
@@ -556,15 +556,15 @@ def test_predicated_buffer_load_store():
         tirx.call_intrin(
             "void",
             "tirx.masked_store",
-            buffers[a],
-            buffer_load,
+            tensors[a],
+            tensor_load,
             0,
             tirx.Ramp(0, 2, 4),
             tirx.Broadcast(tirx.IntImm("bool", 0), 4),
         )
     )
     func = tirx.Function(
-        params=[buffers[a], buffers[b]],
+        params=[tensors[a], tensors[b]],
         ret_type=None,
         body=body,
     ).with_attr({"s_tir": True, "script.namespace": "s_tir"})
@@ -1506,22 +1506,22 @@ def func_T_ptr_let_statement():
         args: T.handle, arg_type_ids_handle: T.handle("int32"), num_args: T.int32
     ) -> None:
         # The T.Ptr declaration in the parameter list should parse
-        # correctly, and should be usable as the data pointer in a buffer.
+        # correctly, and should be usable as the data pointer in a tensor.
         arg_type_ids = T.decl_tensor([2], dtype="int32", data=arg_type_ids_handle)
 
         arg0: T.let[T.handle] = T.abi_field_get(args, 0, 12, ty="handle")
         arg1: T.let[T.handle] = T.abi_field_get(args, 1, 12, ty="handle")
 
         # The ABI field is an opaque pointer.  Retag it explicitly before
-        # binding it to the buffer's exact element pointer type.
+        # binding it to the tensor's exact element pointer type.
         A_data: T.let[T.handle("float32")] = T.reinterpret(
             T.abi_field_get(arg0, 0, 1, ty="handle"), ty=T.handle("float32").ty
         )
 
-        # The buffer declaration has a data pointer defined earlier in
+        # The tensor declaration has a data pointer defined earlier in
         # this function.  It should only be defined after the data pointer
         # has been defined, and should not be hoisted into the header of
-        # the function as other buffer_decl statements can be.
+        # the function as other tensor_decl statements can be.
         A = T.decl_tensor([1024], dtype="float32", data=A_data)
         B_data: T.let[T.handle("float32")] = T.reinterpret(
             T.abi_field_get(arg1, 0, 1, ty="handle"), ty=T.handle("float32").ty
@@ -1592,9 +1592,9 @@ def pointer_type():
     return func_with_ptr_type_annotations
 
 
-def buffer_ramp_access_as_slice_index():
+def tensor_ramp_access_as_slice_index():
     @Ts.function
-    def buffer_ramp_access(
+    def tensor_ramp_access(
         A: T.Tensor((128,), "float32"),
         B: T.Tensor((128,), "float32"),
         C: T.Tensor((128,), "float32"),
@@ -1606,7 +1606,7 @@ def buffer_ramp_access_as_slice_index():
         for i in range(4):
             C[i : i + 128 : 4] = B[T.Ramp(i, 4, 32)] + T.broadcast(1.0, 32)
 
-    return buffer_ramp_access
+    return tensor_ramp_access
 
 
 def ramp_int64():
@@ -1625,7 +1625,7 @@ def scalable_vectors():
     return func
 
 
-def predicated_buffer_load_store():
+def predicated_tensor_load_store():
     @Ts.function
     def func(A: T.Tensor((4,), "float32"), B: T.Tensor((8,), "float32")):
         for i_0 in range(4):
@@ -1733,7 +1733,7 @@ def decl_tensor():
     return func
 
 
-def allocate_and_decl_buffer():
+def allocate_and_decl_tensor():
     @Ts.function
     def func(A: T.Tensor((16,), "float32"), B: T.Tensor((16,), "float32")) -> None:
         D = T.alloc_tensor((16,))
@@ -1749,7 +1749,7 @@ def allocate_and_decl_buffer():
     return func
 
 
-def alloc_buffer_example():
+def alloc_tensor_example():
     @Ts.function
     def func(A: T.Tensor((128,), "float32"), C: T.Tensor((128,), "float32")):
         B = T.alloc_tensor((128,), "float32")
@@ -1849,7 +1849,7 @@ def nested_boolean_expressions():
 def multi_env_threads():
     @Ts.function
     def func(A: T.Tensor(128, "float32"), C: T.Tensor(128, "float32")):
-        B = Ts.sblock_alloc_buffer([128], dtype="float32")
+        B = Ts.sblock_alloc_tensor([128], dtype="float32")
         for i in T.thread_binding(128, thread="threadIdx.x"):
             B[i] = A[i] + 1.0
         for i in T.thread_binding(128, thread="threadIdx.x"):
@@ -1959,7 +1959,7 @@ def tvm_struct_set_generated_in_cpp():
     return tvm.tirx.transform.LowerTVMBuiltin()(Module)
 
 
-def undefined_data_ptr_in_decl_buffer():
+def undefined_data_ptr_in_decl_tensor():
     """The T.decl_tensor syntax should not introduce an Allocate
 
     While T.decl_tensor can be used to represent an
@@ -2025,7 +2025,7 @@ def op_of_literal():
         yield make_ir_generator(op, arg)
 
 
-def test_address_of_buffer():
+def test_address_of_tensor():
     @Ts.function
     def func(A: T.Tensor((128, 128), "float32")):
         T.evaluate(T.address_of(A))
@@ -2255,18 +2255,18 @@ def test_roundtrip_expressions(ir_generator):
         func_T_ptr_let_statement,
         func_T_ptr_allocate,
         pointer_type,
-        buffer_ramp_access_as_slice_index,
+        tensor_ramp_access_as_slice_index,
         scalable_vectors,
-        predicated_buffer_load_store,
+        predicated_tensor_load_store,
         void_ptr,
         decl_tensor,
-        allocate_and_decl_buffer,
-        alloc_buffer_example,
-        undefined_data_ptr_in_decl_buffer,
+        allocate_and_decl_tensor,
+        alloc_tensor_example,
+        undefined_data_ptr_in_decl_tensor,
     ],
     ids=lambda factory: factory.__name__,
 )
-def test_roundtrip_buffers(ir_generator):
+def test_roundtrip_tensors(ir_generator):
     original = ir_generator()
     after_roundtrip = tvm.script.from_source(
         original.script(show_meta=True),
@@ -2311,8 +2311,8 @@ def test_roundtrip_metadata(ir_generator):
 def lowered_loop_split(
     A: T.Tensor([128, 128], dtype="float32"), B: T.Tensor([128], dtype="float32")
 ) -> None:
-    reduce_temp0 = Ts.sblock_alloc_buffer([1], dtype="float32", strides=[1], scope="local")
-    normal_reduce_temp0 = Ts.sblock_alloc_buffer([1], dtype="float32", strides=[1], scope="local")
+    reduce_temp0 = Ts.sblock_alloc_tensor([1], dtype="float32", strides=[1], scope="local")
+    normal_reduce_temp0 = Ts.sblock_alloc_tensor([1], dtype="float32", strides=[1], scope="local")
     for i in T.serial(0, 128):
         for ki in T.thread_binding(0, 32, thread="threadIdx.x"):
             normal_reduce_temp0[0] = T.float32(0)

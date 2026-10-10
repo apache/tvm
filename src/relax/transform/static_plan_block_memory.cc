@@ -526,7 +526,7 @@ bool IsStaticShape(ffi::Array<PrimExpr> shape) {
  * used by each Expr. After the initialization, we
  * - know the tokens that each Expr is using,
  * - know the number of references for each token,
- * - rule out the builtin alloc_buffers to which the planning does not apply.
+ * - rule out the builtin alloc_tensors to which the planning does not apply.
  */
 class StorageAllocatorInit : public StorageAllocatorBaseVisitor {
  public:

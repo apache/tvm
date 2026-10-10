@@ -197,7 +197,7 @@ def test_tir_inline_late_binding():
 def test_tir_macro_in_class():
     class Object:
         def __init__(self, x: T.Tensor):
-            self.local_x = Ts.sblock_alloc_buffer(x.shape, x.dtype)
+            self.local_x = Ts.sblock_alloc_tensor(x.shape, x.dtype)
 
         @T.inline
         def load(self, x: T.Tensor):
@@ -216,13 +216,13 @@ def test_tir_macro_in_class():
 
     @Ts.function(private=True)
     def func_no_macro(A: T.Tensor([128, 128])):
-        local_a = Ts.sblock_alloc_buffer([128, 128])
+        local_a = Ts.sblock_alloc_tensor([128, 128])
         N, M = local_a.shape
         for i, j in T.grid(N, M):
             with Ts.sblock("update"):
                 vi, vj = Ts.axis.remap("SS", [i, j])
                 local_a[vi, vj] = A[vi, vj]
-        local_b = Ts.sblock_alloc_buffer([128, 128])
+        local_b = Ts.sblock_alloc_tensor([128, 128])
         N, M = local_b.shape
         for i, j in T.grid(N, M):
             with Ts.sblock("update"):
@@ -362,7 +362,7 @@ def _normalize(func):
 
 
 def test_function_closure_shape():
-    """Closure variable used in Buffer shape annotation."""
+    """Closure variable used in Tensor shape annotation."""
 
     def f(M=16):
         @Ts.function
@@ -384,7 +384,7 @@ def test_function_closure_shape():
 
 
 def test_function_closure_dtype():
-    """Closure variable used as Buffer dtype."""
+    """Closure variable used as Tensor dtype."""
 
     def f(dtype="float32"):
         @Ts.function

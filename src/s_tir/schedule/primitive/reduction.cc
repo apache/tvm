@@ -86,13 +86,13 @@ class DecomposeReductionBlockReplacer : public StmtExprMutator {
       p_new_block->init = std::nullopt;
       // Add write regions back to read regions in update block.
       ffi::Array<TensorRegion> new_reads;
-      std::unordered_set<const VarNode*> read_bufs;
+      std::unordered_set<const VarNode*> read_tensors;
       for (const TensorRegion& read_access : block->reads) {
-        read_bufs.insert(read_access->source.as_or_throw<tvm::tirx::TensorVar>().get());
+        read_tensors.insert(read_access->source.as_or_throw<tvm::tirx::TensorVar>().get());
       }
       for (const TensorRegion& write_access : block->writes) {
-        if (read_bufs.find(write_access->source.as_or_throw<tvm::tirx::TensorVar>().get()) ==
-            read_bufs.end()) {
+        if (read_tensors.find(write_access->source.as_or_throw<tvm::tirx::TensorVar>().get()) ==
+            read_tensors.end()) {
           new_reads.push_back(write_access);
         }
       }
@@ -267,7 +267,7 @@ StmtSRef DecomposeReduction(ScheduleState self, const StmtSRef& block_sref,
       return Range::FromMinExtent(min, extent);
     });
     init_block->writes.push_back(
-        BufferRegion(write->source.as_or_throw<tvm::tirx::TensorVar>(), mapped_region));
+        MakeTensorRegion(write->source.as_or_throw<tvm::tirx::TensorVar>(), mapped_region));
   }
   // Step 3. Scan loops not higher than the specified loop above the reduction block.
   //         If the loop is used in the init block binding, then it is chosen.
@@ -351,7 +351,7 @@ struct ReducerRegistry {
   ReducerRegistry()
       : reducer_getters{
             CreateReducerGetter(
-                /*n_buffers=*/1,
+                /*n_tensors=*/1,
                 [](const ffi::Array<Var>& x, const ffi::Array<Var>& y) {
                   return ffi::Array<PrimExpr>{x[0].as_or_throw<PrimExpr>() +
                                               y[0].as_or_throw<PrimExpr>()};
@@ -360,7 +360,7 @@ struct ReducerRegistry {
                   return ffi::Array<PrimExpr>{prim::MakeConst(values[0].ty(), 0)};
                 }),
             CreateReducerGetter(
-                /*n_buffers=*/1,
+                /*n_tensors=*/1,
                 [](const ffi::Array<Var>& x, const ffi::Array<Var>& y) {
                   return ffi::Array<PrimExpr>{x[0].as_or_throw<PrimExpr>() *
                                               y[0].as_or_throw<PrimExpr>()};
@@ -369,7 +369,7 @@ struct ReducerRegistry {
                   return ffi::Array<PrimExpr>{prim::MakeConst(values[0].ty(), 1)};
                 }),
             CreateReducerGetter(
-                /*n_buffers=*/1,
+                /*n_tensors=*/1,
                 [](const ffi::Array<Var>& x, const ffi::Array<Var>& y) {
                   return ffi::Array<PrimExpr>{
                       min(x[0].as_or_throw<PrimExpr>(), y[0].as_or_throw<PrimExpr>())};
@@ -378,7 +378,7 @@ struct ReducerRegistry {
                   return ffi::Array<PrimExpr>{max_value(values[0].ty())};
                 }),
             CreateReducerGetter(
-                /*n_buffers=*/1,
+                /*n_tensors=*/1,
                 [](const ffi::Array<Var>& x, const ffi::Array<Var>& y) {
                   return ffi::Array<PrimExpr>{
                       max(x[0].as_or_throw<PrimExpr>(), y[0].as_or_throw<PrimExpr>())};
@@ -387,7 +387,7 @@ struct ReducerRegistry {
                   return ffi::Array<PrimExpr>{min_value(values[0].ty())};
                 }),
             CreateReducerGetter(
-                /*n_buffers=*/2,
+                /*n_tensors=*/2,
                 [](const ffi::Array<Var>& x, const ffi::Array<Var>& y) {
                   return ffi::Array<PrimExpr>{
                       x[0].as_or_throw<PrimExpr>() + y[0].as_or_throw<PrimExpr>(),
@@ -398,7 +398,7 @@ struct ReducerRegistry {
                                               prim::MakeConst(values[1].ty(), 0)};
                 }),
             CreateReducerGetter(
-                /*n_buffers=*/2,
+                /*n_tensors=*/2,
                 [](const ffi::Array<Var>& x, const ffi::Array<Var>& y) {
                   PrimExpr idx =
                       Select(x[1].as_or_throw<PrimExpr>() >= y[1].as_or_throw<PrimExpr>(),
@@ -413,7 +413,7 @@ struct ReducerRegistry {
                                               min_value(values[1].ty())};
                 }),
             CreateReducerGetter(
-                /*n_buffers=*/2,
+                /*n_tensors=*/2,
                 [](const ffi::Array<Var>& x, const ffi::Array<Var>& y) {
                   PrimExpr idx = Select(
                       Or(greater(x[1].as_or_throw<PrimExpr>(), y[1].as_or_throw<PrimExpr>()),
@@ -430,7 +430,7 @@ struct ReducerRegistry {
                                               min_value(values[1].ty())};
                 }),
             CreateReducerGetter(
-                /*n_buffers=*/2,
+                /*n_tensors=*/2,
                 [](const ffi::Array<Var>& x, const ffi::Array<Var>& y) {
                   PrimExpr idx =
                       Select(x[1].as_or_throw<PrimExpr>() <= y[1].as_or_throw<PrimExpr>(),
@@ -445,7 +445,7 @@ struct ReducerRegistry {
                                               max_value(values[1].ty())};
                 }),
             CreateReducerGetter(
-                /*n_buffers=*/2,
+                /*n_tensors=*/2,
                 [](const ffi::Array<Var>& x, const ffi::Array<Var>& y) {
                   PrimExpr idx = Select(
                       Or(less(x[1].as_or_throw<PrimExpr>(), y[1].as_or_throw<PrimExpr>()),
@@ -464,7 +464,7 @@ struct ReducerRegistry {
             // argmax with `lhs_val > rhs_val` and tie-break `lhs_idx > rhs_idx`, which corresponds
             // to topi.argmax with `select_last_index=True` (preferring the last occurrence).
             CreateReducerGetter(
-                /*n_buffers=*/2,
+                /*n_tensors=*/2,
                 [](const ffi::Array<Var>& x, const ffi::Array<Var>& y) {
                   PrimExpr idx = Select(
                       Or(greater(x[1].as_or_throw<PrimExpr>(), y[1].as_or_throw<PrimExpr>()),
@@ -483,7 +483,7 @@ struct ReducerRegistry {
             // argmin with `lhs_val < rhs_val` and tie-break `lhs_idx > rhs_idx`, which corresponds
             // to topi.argmin with `select_last_index=True` (preferring the last occurrence).
             CreateReducerGetter(
-                /*n_buffers=*/2,
+                /*n_tensors=*/2,
                 [](const ffi::Array<Var>& x, const ffi::Array<Var>& y) {
                   PrimExpr idx = Select(
                       Or(less(x[1].as_or_throw<PrimExpr>(), y[1].as_or_throw<PrimExpr>()),
@@ -501,30 +501,30 @@ struct ReducerRegistry {
                 })} {}
 
   static void RegisterReducer(
-      int n_buffers,
+      int n_tensors,
       ffi::TypedFunction<ffi::Array<PrimExpr>(ffi::Array<Var>, ffi::Array<Var>)> combiner_getter,
       ffi::TypedFunction<ffi::Array<PrimExpr>(ffi::Array<PrimExpr>)> identity_getter) {
     ReducerRegistry::Global()->reducer_getters.push_back(ReducerRegistry::CreateReducerGetter(
-        n_buffers, std::move(combiner_getter), std::move(identity_getter)));
+        n_tensors, std::move(combiner_getter), std::move(identity_getter)));
   }
 
   static ffi::TypedFunction<ffi::Optional<te::CommReducer>(ffi::Array<PrimExpr>)>
   CreateReducerGetter(
-      int n_buffers,
+      int n_tensors,
       ffi::TypedFunction<ffi::Array<PrimExpr>(ffi::Array<Var>, ffi::Array<Var>)> combiner_getter,
       ffi::TypedFunction<ffi::Array<PrimExpr>(ffi::Array<PrimExpr>)> identity_getter) {
-    return [n_buffers,                                     //
+    return [n_tensors,                                     //
             combiner_getter = std::move(combiner_getter),  //
             identity_getter = std::move(identity_getter)   //
     ](ffi::Array<PrimExpr> values) -> ffi::Optional<te::CommReducer> {
-      if (static_cast<int>(values.size()) != n_buffers) {
+      if (static_cast<int>(values.size()) != n_tensors) {
         return std::nullopt;
       }
       ffi::Array<PrimVar> lhs;
       ffi::Array<PrimVar> rhs;
       ffi::Array<Var> callback_lhs;
       ffi::Array<Var> callback_rhs;
-      for (int i = 0; i < n_buffers; ++i) {
+      for (int i = 0; i < n_tensors; ++i) {
         PrimVar lhs_var("x" + std::to_string(i), values[i].ty());
         PrimVar rhs_var("y" + std::to_string(i), values[i].ty());
         lhs.push_back(lhs_var);
@@ -578,18 +578,18 @@ class NotSerialLoopKindError : public ScheduleErrorContextObj {
 
 class FactorAxisOutOfRangeError : public ScheduleErrorContextObj {
  public:
-  explicit FactorAxisOutOfRangeError(IRModule mod, TensorVar buffer, int factor_axis)
-      : mod_(std::move(mod)), buffer_(std::move(buffer)), factor_axis_(factor_axis) {}
+  explicit FactorAxisOutOfRangeError(IRModule mod, TensorVar tensor, int factor_axis)
+      : mod_(std::move(mod)), tensor_(std::move(tensor)), factor_axis_(factor_axis) {}
 
   ffi::String FastErrorString() const final {
     return "ScheduleError: The input `factor_axis` is out of range. It is required to be in range "
-           "[-(ndim + 1), ndim] where `ndim` is the number of dimensions of the write buffer";
+           "[-(ndim + 1), ndim] where `ndim` is the number of dimensions of the write tensor";
   }
 
   ffi::String DetailRenderTemplate() const final {
     std::ostringstream os;
-    int ndim = static_cast<int>(buffer_->shape.size());
-    os << "The write buffer " << buffer_.name() << " has " << ndim
+    int ndim = static_cast<int>(tensor_->shape.size());
+    os << "The write tensor " << tensor_.name() << " has " << ndim
        << " dimension(s), so `factor_axis` is required to be in [" << -(ndim + 1) << ", " << ndim
        << "] for rfactor. However, the input `factor_axis` is " << factor_axis_
        << ", which is out of the expected range";
@@ -599,10 +599,10 @@ class FactorAxisOutOfRangeError : public ScheduleErrorContextObj {
   IRModule mod() const final { return mod_; }
   ffi::Array<ffi::ObjectRef> LocationsOfInterest() const final { return {}; }
 
-  static int CheckAndUpdate(const IRModule& mod, const TensorVar& buffer, int factor_axis) {
-    int ndim = static_cast<int>(buffer->shape.size());
+  static int CheckAndUpdate(const IRModule& mod, const TensorVar& tensor, int factor_axis) {
+    int ndim = static_cast<int>(tensor->shape.size());
     if (factor_axis < -(ndim + 1) || factor_axis > ndim) {
-      throw MakeScheduleError<FactorAxisOutOfRangeError>(mod, buffer, factor_axis);
+      throw MakeScheduleError<FactorAxisOutOfRangeError>(mod, tensor, factor_axis);
     }
     // If factor_axis is negative, convert it to a non-negative one.
     if (factor_axis < 0) {
@@ -612,7 +612,7 @@ class FactorAxisOutOfRangeError : public ScheduleErrorContextObj {
   }
 
   IRModule mod_;
-  TensorVar buffer_;
+  TensorVar tensor_;
   int factor_axis_;
 };
 
@@ -726,28 +726,28 @@ std::unordered_map<const VarNode*, For> GetLoopVar2LoopMap(const ffi::Array<For>
 }
 
 /*!
- * \brief Create the intermediate rfactor buffers, which the rfactor block writes to and the
+ * \brief Create the intermediate rfactor tensors, which the rfactor block writes to and the
  * write-back block reads from
- * \param buf_stores The TensorStores of the original block, where the rfactor buffers will be
+ * \param tensor_stores The TensorStores of the original block, where the rfactor tensors will be
  * created from
  * \param factor_axis The `factor_axis` parameter of rfactor
  * \param rf_loop The rfactor loop
- * \return The new created intermediate rfactor buffer
+ * \return The new created intermediate rfactor tensor
  */
-ffi::Array<TensorVar> CreateRFactorBuffers(const ffi::Array<TensorStore>& buf_stores,
+ffi::Array<TensorVar> CreateRFactorTensors(const ffi::Array<TensorStore>& tensor_stores,
                                            int factor_axis, const ForNode* rf_loop) {
-  ffi::Array<TensorVar> rf_buffers;
-  rf_buffers.reserve(buf_stores.size());
-  for (const TensorStore& buf_store : buf_stores) {
-    TensorVar buffer = buf_store->dest.as_or_throw<TensorVar>();
-    ffi::Array<PrimExpr> rf_shape = buffer->shape;
+  ffi::Array<TensorVar> rf_tensors;
+  rf_tensors.reserve(tensor_stores.size());
+  for (const TensorStore& tensor_store : tensor_stores) {
+    TensorVar tensor = tensor_store->dest.as_or_throw<TensorVar>();
+    ffi::Array<PrimExpr> rf_shape = tensor->shape;
     rf_shape.insert(rf_shape.begin() + factor_axis, rf_loop->extent);
 
-    ffi::ObjectPtr<TensorTypeNode> n = CopyTensorType(buffer);
+    ffi::ObjectPtr<TensorTypeNode> n = CopyTensorType(tensor);
     n->shape = rf_shape;
-    rf_buffers.push_back(RebuildTensorVar(buffer, std::move(n), buffer.name() + ".rf"));
+    rf_tensors.push_back(RebuildTensorVar(tensor, std::move(n), tensor.name() + ".rf"));
   }
-  return rf_buffers;
+  return rf_tensors;
 }
 
 /*!
@@ -762,19 +762,19 @@ class BaseBlockCreator {
  public:
   explicit BaseBlockCreator(SBlockRealize old_block_realize, For rf_loop,
                             ffi::Array<TensorStore> old_reduction_updates, te::CommReducer reducer,
-                            ffi::Array<TensorVar> rf_buffers, bool is_rf_block)
+                            ffi::Array<TensorVar> rf_tensors, bool is_rf_block)
       : old_block_realize_(std::move(old_block_realize)),
         rf_loop_(std::move(rf_loop)),
         old_reduction_updates_(std::move(old_reduction_updates)),
         reducer_(std::move(reducer)),
-        rf_buffers_(std::move(rf_buffers)),
-        n_buffers_(static_cast<int>(rf_buffers_.size())),
+        rf_tensors_(std::move(rf_tensors)),
+        n_tensors_(static_cast<int>(rf_tensors_.size())),
         is_rf_block_(is_rf_block) {
     n_block_iters_ = static_cast<int>(old_block_realize_->iter_values.size());
-    update_buffers_.reserve(n_buffers_);
-    update_indices_.reserve(n_buffers_);
-    update_lhs_.reserve(n_buffers_);
-    update_rhs_.reserve(n_buffers_);
+    update_tensors_.reserve(n_tensors_);
+    update_indices_.reserve(n_tensors_);
+    update_lhs_.reserve(n_tensors_);
+    update_rhs_.reserve(n_tensors_);
   }
 
   void CreateBlock() {
@@ -790,7 +790,7 @@ class BaseBlockCreator {
       }
     }
 
-    // The pre-processing finds out the buffers written in the block, the indices of the buffer
+    // The pre-processing finds out the tensors written in the block, the indices of the tensor
     // accesses, and the reduction LHS and RHS of the stored values.
     PreProcess();
     auto map_block_var = [this](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
@@ -821,8 +821,8 @@ class BaseBlockCreator {
         /*name_hint=*/new_block_name,
         /*body=*/std::move(block_body),
         /*init=*/std::move(block_init),
-        /*alloc_buffers=*/{},
-        /*match_buffers=*/{},
+        /*alloc_tensors=*/{},
+        /*match_tensors=*/{},
         /*annotations=*/old_block_realize_->block->annotations);
     new_block_realize_ = SBlockRealize(iter_values_, predicate, new_block_);
   }
@@ -834,39 +834,40 @@ class BaseBlockCreator {
   virtual void CreateReadWriteRegions() = 0;
 
   SeqStmt CreateBlockBody(bool has_reduce_iter) {
-    ffi::Array<Stmt> buf_stores;
-    buf_stores.reserve(n_buffers_);
+    ffi::Array<Stmt> tensor_stores;
+    tensor_stores.reserve(n_tensors_);
 
     // Case 1. If the block has no reduction iterator, we just store the RHS values into the
-    // buffers.
+    // tensors.
     if (!has_reduce_iter) {
-      for (int i = 0; i < n_buffers_; ++i) {
-        buf_stores.push_back(TensorStore(update_buffers_[i], update_indices_[i], update_rhs_[i]));
+      for (int i = 0; i < n_tensors_; ++i) {
+        tensor_stores.push_back(
+            TensorStore(update_tensors_[i], update_indices_[i], update_rhs_[i]));
       }
-      return SeqStmt(buf_stores);
+      return SeqStmt(tensor_stores);
     }
 
-    // Case 2. If the reduction is for single buffer, the block body is a single TensorStore.
+    // Case 2. If the reduction is for single tensor, the block body is a single TensorStore.
     ffi::Array<PrimExpr> stored_values = (*reducer_.get())(update_lhs_, update_rhs_);
-    if (n_buffers_ == 1) {
-      return TensorStore(update_buffers_[0], update_indices_[0], stored_values[0]);
+    if (n_tensors_ == 1) {
+      return TensorStore(update_tensors_[0], update_indices_[0], stored_values[0]);
     }
 
-    // Case 3. In case the reduction is for multiple buffers, we should create the reduction with
+    // Case 3. In case the reduction is for multiple tensors, we should create the reduction with
     // Bind nodes so that the reduction execution generates correct results.
     ffi::Array<Var> let_vars;
-    let_vars.reserve(n_buffers_);
-    for (int i = 0; i < n_buffers_; ++i) {
-      Var var("v_" + update_buffers_[i].name(), stored_values[i].ty());
+    let_vars.reserve(n_tensors_);
+    for (int i = 0; i < n_tensors_; ++i) {
+      Var var("v_" + update_tensors_[i].name(), stored_values[i].ty());
       let_vars.push_back(var);
-      buf_stores.push_back(
-          TensorStore(update_buffers_[i], update_indices_[i], var.as_or_throw<PrimExpr>()));
+      tensor_stores.push_back(
+          TensorStore(update_tensors_[i], update_indices_[i], var.as_or_throw<PrimExpr>()));
     }
     ffi::Array<Stmt> stmts;
-    for (int i = 0; i < n_buffers_; ++i) {
+    for (int i = 0; i < n_tensors_; ++i) {
       stmts.push_back(tvm::Bind(let_vars[i], stored_values[i]));
     }
-    for (const auto& store : buf_stores) {
+    for (const auto& store : tensor_stores) {
       stmts.push_back(store);
     }
     return SeqStmt(stmts);
@@ -878,10 +879,10 @@ class BaseBlockCreator {
     }
 
     ffi::Array<Stmt> inits;
-    inits.reserve(n_buffers_);
-    for (int i = 0; i < n_buffers_; ++i) {
+    inits.reserve(n_tensors_);
+    for (int i = 0; i < n_tensors_; ++i) {
       inits.push_back(
-          TensorStore(update_buffers_[i], update_indices_[i], reducer_->identity_element[i]));
+          TensorStore(update_tensors_[i], update_indices_[i], reducer_->identity_element[i]));
     }
     return SeqStmt(inits);
   }
@@ -891,8 +892,8 @@ class BaseBlockCreator {
   SBlock new_block_{ffi::UnsafeInit{}};
   /*! \brief The new created block-realize */
   SBlockRealize new_block_realize_{ffi::UnsafeInit{}};
-  /*! \brief The indices used to access the intermediate rfactor buffer */
-  ffi::Array<PrimExpr> rf_buf_access_indices_;
+  /*! \brief The indices used to access the intermediate rfactor tensor */
+  ffi::Array<PrimExpr> rf_tensor_access_indices_;
 
  protected:
   /*! \brief The old block-realize */
@@ -905,10 +906,10 @@ class BaseBlockCreator {
   ffi::Array<TensorStore> old_reduction_updates_;
   /*! \brief The matched commutative reducer */
   te::CommReducer reducer_;
-  /*! \brief The intermediate rfactor buffers */
-  ffi::Array<TensorVar> rf_buffers_;
-  /*! \brief The number of rfactor buffers. */
-  const int n_buffers_;
+  /*! \brief The intermediate rfactor tensors */
+  ffi::Array<TensorVar> rf_tensors_;
+  /*! \brief The number of rfactor tensors. */
+  const int n_tensors_;
   /*!
    * \brief A mapping which maps old block iters to new expressions. The old iters will be replaced
    * by the expressions in future substitution for the two blocks
@@ -921,9 +922,9 @@ class BaseBlockCreator {
   std::vector<IterVar> iter_vars_;
   /*! \brief The new block iter bindings of the new created block-realize */
   std::vector<PrimExpr> iter_values_;
-  /*! \brief The buffers updated in this block */
-  ffi::Array<TensorVar> update_buffers_;
-  /*! \brief The indices of the buffers updated in this block, respectively */
+  /*! \brief The tensors updated in this block */
+  ffi::Array<TensorVar> update_tensors_;
+  /*! \brief The indices of the tensors updated in this block, respectively */
   ffi::Array<ffi::Array<PrimExpr>> update_indices_;
   /*! \brief The LHS values of the reduction in this block */
   ffi::Array<PrimExpr> update_lhs_;
@@ -961,12 +962,12 @@ class RFactorBlockCreator : public BaseBlockCreator {
  public:
   explicit RFactorBlockCreator(SBlockRealize old_block_realize, For rf_loop,
                                ffi::Array<TensorStore> old_reduction_updates,
-                               te::CommReducer reducer, ffi::Array<TensorVar> rf_buffers,
+                               te::CommReducer reducer, ffi::Array<TensorVar> rf_tensors,
                                std::unordered_map<const VarNode*, For> loop_vars2loop,
                                int factor_axis, ffi::Array<PrimExpr> combiner_rhs)
       : BaseBlockCreator(std::move(old_block_realize), std::move(rf_loop),
                          std::move(old_reduction_updates), std::move(reducer),
-                         std::move(rf_buffers), true),
+                         std::move(rf_tensors), true),
         loop_vars2loop_(std::move(loop_vars2loop)),
         factor_axis_(factor_axis),
         combiner_rhs_(std::move(combiner_rhs)) {}
@@ -1032,22 +1033,22 @@ class RFactorBlockCreator : public BaseBlockCreator {
   }
 
   void PreProcess() final {
-    // The accessed indices for all reduction buffers are the same.
-    rf_buf_access_indices_ = old_reduction_updates_[0]->indices;
-    rf_buf_access_indices_.insert(rf_buf_access_indices_.begin() + factor_axis_,
-                                  additional_iter_->var);
-    for (int i = 0; i < n_buffers_; ++i) {
-      update_buffers_.push_back(rf_buffers_[i]);
-      update_indices_.push_back(rf_buf_access_indices_);
-      update_lhs_.push_back(MakeTensorLoad(update_buffers_[i], rf_buf_access_indices_));
+    // The accessed indices for all reduction tensors are the same.
+    rf_tensor_access_indices_ = old_reduction_updates_[0]->indices;
+    rf_tensor_access_indices_.insert(rf_tensor_access_indices_.begin() + factor_axis_,
+                                     additional_iter_->var);
+    for (int i = 0; i < n_tensors_; ++i) {
+      update_tensors_.push_back(rf_tensors_[i]);
+      update_indices_.push_back(rf_tensor_access_indices_);
+      update_lhs_.push_back(MakeTensorLoad(update_tensors_[i], rf_tensor_access_indices_));
       update_rhs_.push_back(combiner_rhs_[i]);
     }
   }
 
   void CreateReadWriteRegions() final {
-    ffi::Map<TensorVar, TensorVar> buffer_map;
-    for (int i = 0; i < n_buffers_; ++i) {
-      buffer_map.Set(old_reduction_updates_[i]->dest.as_or_throw<TensorVar>(), rf_buffers_[i]);
+    ffi::Map<TensorVar, TensorVar> tensor_map;
+    for (int i = 0; i < n_tensors_; ++i) {
+      tensor_map.Set(old_reduction_updates_[i]->dest.as_or_throw<TensorVar>(), rf_tensors_[i]);
     }
     const SBlock& old_block = old_block_realize_->block;
     auto map_block_var = [this](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
@@ -1065,7 +1066,7 @@ class RFactorBlockCreator : public BaseBlockCreator {
         return Range::FromMinExtent(min, extent);
       });
       read_regions_.push_back(
-          BufferRegion(read_region->source.as_or_throw<tvm::tirx::TensorVar>(), region));
+          MakeTensorRegion(read_region->source.as_or_throw<tvm::tirx::TensorVar>(), region));
     }
     write_regions_.reserve(old_block->writes.size());
     for (const TensorRegion& write_region : old_block->writes) {
@@ -1073,9 +1074,9 @@ class RFactorBlockCreator : public BaseBlockCreator {
       region.insert(
           region.begin() + factor_axis_,
           Range::FromMinExtent(additional_iter_->var, IntImm(additional_iter_->var.ty(), 1)));
-      ffi::Optional<TensorVar> rf_buffer =
-          buffer_map.Get(write_region->source.as_or_throw<tvm::tirx::TensorVar>());
-      TVM_FFI_ICHECK(rf_buffer.has_value());
+      ffi::Optional<TensorVar> rf_tensor =
+          tensor_map.Get(write_region->source.as_or_throw<tvm::tirx::TensorVar>());
+      TVM_FFI_ICHECK(rf_tensor.has_value());
       region.MutateByApply([&map_block_var](const Range& range) {
         PrimExpr min = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(range->min, map_block_var)
                            .as_or_throw<PrimExpr>();
@@ -1084,7 +1085,7 @@ class RFactorBlockCreator : public BaseBlockCreator {
                 .as_or_throw<PrimExpr>();
         return Range::FromMinExtent(min, extent);
       });
-      write_regions_.push_back(BufferRegion(rf_buffer.value(), region));
+      write_regions_.push_back(MakeTensorRegion(rf_tensor.value(), region));
     }
   }
 
@@ -1118,17 +1119,17 @@ class WriteBackBlockCreator : public BaseBlockCreator {
  public:
   explicit WriteBackBlockCreator(SBlockRealize old_block_realize, For rf_loop,
                                  ffi::Array<TensorStore> old_reduction_updates,
-                                 te::CommReducer reducer, ffi::Array<TensorVar> rf_buffers,
+                                 te::CommReducer reducer, ffi::Array<TensorVar> rf_tensors,
                                  IterVar rf_additional_iter, ffi::Array<PrimExpr> combiner_lhs,
-                                 ffi::Array<PrimExpr> rf_buf_access_indices)
+                                 ffi::Array<PrimExpr> rf_tensor_access_indices)
       : BaseBlockCreator(std::move(old_block_realize), std::move(rf_loop),
                          std::move(old_reduction_updates), std::move(reducer),
-                         std::move(rf_buffers), false),
+                         std::move(rf_tensors), false),
         rf_additional_iter_(std::move(rf_additional_iter)),
         combiner_lhs_(std::move(combiner_lhs)) {
     iter_vars_.reserve(n_block_iters_);
     iter_values_.reserve(n_block_iters_);
-    rf_buf_access_indices_ = std::move(rf_buf_access_indices);
+    rf_tensor_access_indices_ = std::move(rf_tensor_access_indices);
   }
 
  private:
@@ -1156,9 +1157,9 @@ class WriteBackBlockCreator : public BaseBlockCreator {
       if (auto repl = var_map_.Get(var)) return ffi::Any(*std::move(repl));
       return ffi::Unchanged();
     };
-    for (int i = 0; i < n_buffers_; ++i) {
-      PrimExpr rhs = MakeTensorLoad(rf_buffers_[i], rf_buf_access_indices_);
-      update_buffers_.push_back(old_reduction_updates_[i]->dest.as_or_throw<TensorVar>());
+    for (int i = 0; i < n_tensors_; ++i) {
+      PrimExpr rhs = MakeTensorLoad(rf_tensors_[i], rf_tensor_access_indices_);
+      update_tensors_.push_back(old_reduction_updates_[i]->dest.as_or_throw<TensorVar>());
       update_indices_.push_back(old_reduction_updates_[i]->indices);
       update_lhs_.push_back(
           ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(combiner_lhs_[i], map_block_var)
@@ -1174,18 +1175,18 @@ class WriteBackBlockCreator : public BaseBlockCreator {
     CreateRegion(update_lhs_, false);
   }
 
-  void CreateRegion(const ffi::Array<PrimExpr>& buf_loads, bool is_read) {
-    ffi::Array<TensorRegion>& buf_regions = is_read ? read_regions_ : write_regions_;
-    for (const PrimExpr& expr : buf_loads) {
-      const auto* buf_load = expr.as<TensorLoadNode>();
-      TVM_FFI_ICHECK(buf_load != nullptr);
+  void CreateRegion(const ffi::Array<PrimExpr>& tensor_loads, bool is_read) {
+    ffi::Array<TensorRegion>& tensor_regions = is_read ? read_regions_ : write_regions_;
+    for (const PrimExpr& expr : tensor_loads) {
+      const auto* tensor_load = expr.as<TensorLoadNode>();
+      TVM_FFI_ICHECK(tensor_load != nullptr);
       ffi::Array<Range> region;
-      region.reserve(buf_load->indices.size());
-      for (const PrimExpr& index : buf_load->indices) {
+      region.reserve(tensor_load->indices.size());
+      for (const PrimExpr& index : tensor_load->indices) {
         region.push_back(Range::FromMinExtent(index, prim::MakeConst(index.ty(), 1)));
       }
-      buf_regions.push_back(
-          BufferRegion(buf_load->source.as_or_throw<tvm::tirx::TensorVar>(), std::move(region)));
+      tensor_regions.push_back(MakeTensorRegion(
+          tensor_load->source.as_or_throw<tvm::tirx::TensorVar>(), std::move(region)));
     }
   }
 
@@ -1266,7 +1267,7 @@ class BlockReplacer : public StmtExprMutator {
    *  for the rfactor loop
    *  3) combine the rfactor block (wrapped with outer loops) and the transformed outermost loop
    *  into a SeqStmt, and
-   *  4) insert the rfactor buffer into the scope root block's `alloc_buffers`
+   *  4) insert the rfactor tensor into the scope root block's `alloc_tensors`
    * After transformation, the function returns the new scope root block
    * \param scope_root_block The old scope root block
    * \param rf_body The rfactor block, which is already wrapped with outer loops
@@ -1278,14 +1279,14 @@ class BlockReplacer : public StmtExprMutator {
    * loops outside the write-back block
    * \param loop_vars2loop The mapping from loop vars to loops that are outside the reduction block,
    * which is used to reduce redundant recursive visits
-   * \param rf_buffer The rfactor buffer to be added into the scope root's `alloc_buffers`
+   * \param rf_tensor The rfactor tensor to be added into the scope root's `alloc_tensors`
    * \return The transformed new scope root block
    */
   static SBlock Replace(SBlock scope_root_block, Stmt rf_body, For outermost_loop,
                         SBlockRealize wb_block_realize, SBlockRealize old_block_realize,
                         For rf_loop, std::unordered_set<const VarNode*> reduce_loop_vars,
                         std::unordered_map<const VarNode*, For> loop_vars2loop,
-                        const ffi::Array<TensorVar>& rf_buffers) {
+                        const ffi::Array<TensorVar>& rf_tensors) {
     auto replacer = ffi::make_object<BlockReplacer>(
         std::move(rf_body), std::move(outermost_loop), std::move(wb_block_realize),
         std::move(old_block_realize), std::move(rf_loop), std::move(reduce_loop_vars),
@@ -1294,8 +1295,8 @@ class BlockReplacer : public StmtExprMutator {
                                 .ValueOrUnchanged(std::move(scope_root_block))
                                 .as_or_throw<SBlock>();
     SBlockNode* p = new_scope_root.CopyOnWrite();
-    for (const TensorVar& rf_buffer : rf_buffers) {
-      p->alloc_buffers.push_back(rf_buffer);
+    for (const TensorVar& rf_tensor : rf_tensors) {
+      p->alloc_tensors.push_back(rf_tensor);
     }
     return new_scope_root;
   }
@@ -1424,23 +1425,23 @@ StmtSRef RFactor(ScheduleState self, const StmtSRef& rf_loop_sref, int factor_ax
   // *                 IR Manipulation                   *
   // *****************************************************
   // Since rfactor splits the reduction block into two, we call the first one "rfactor block", and
-  // the latter one "write-back block", and the intermediate buffer is called "rfactor buffer".
+  // the latter one "write-back block", and the intermediate tensor is called "rfactor tensor".
 
-  // Step 1. Create the intermediate buffer (a.k.a. rfactor buffer), which has an additional
+  // Step 1. Create the intermediate tensor (a.k.a. rfactor tensor), which has an additional
   // dimension that specified by `factor_axis` and `rf_loop`.
-  ffi::Array<TensorVar> rf_buffers = CreateRFactorBuffers(updates, factor_axis, rf_loop);
+  ffi::Array<TensorVar> rf_tensors = CreateRFactorTensors(updates, factor_axis, rf_loop);
 
   // Step 2. Create the rfactor block.
   RFactorBlockCreator rf_block_creator(block_realize, ffi::GetRef<For>(rf_loop), updates, reducer,
-                                       rf_buffers, loop_vars2loop, factor_axis,
+                                       rf_tensors, loop_vars2loop, factor_axis,
                                        std::move(combiner_rhs));
   rf_block_creator.CreateBlock();
 
   // Step 3. Create the write-back block.
   WriteBackBlockCreator wb_block_creator(block_realize, ffi::GetRef<For>(rf_loop), updates, reducer,
-                                         rf_buffers, std::move(rf_block_creator.additional_iter_),
+                                         rf_tensors, std::move(rf_block_creator.additional_iter_),
                                          std::move(combiner_lhs),
-                                         std::move(rf_block_creator.rf_buf_access_indices_));
+                                         std::move(rf_block_creator.rf_tensor_access_indices_));
   wb_block_creator.CreateBlock();
 
   // Step 4. Wrap the rfactor block with loops.
@@ -1454,7 +1455,7 @@ StmtSRef RFactor(ScheduleState self, const StmtSRef& rf_loop_sref, int factor_ax
   SBlock old_scope_root_block = ffi::GetRef<SBlock>(scope_root->StmtAs<SBlockNode>());
   SBlock new_scope_root_block = BlockReplacer::Replace(
       old_scope_root_block, rf_body, loops[0], wb_block_creator.new_block_realize_, block_realize,
-      ffi::GetRef<For>(rf_loop), reduce_loop_vars, loop_vars2loop, rf_buffers);
+      ffi::GetRef<For>(rf_loop), reduce_loop_vars, loop_vars2loop, rf_tensors);
   self->Replace(
       scope_root, new_scope_root_block,
       {{old_scope_root_block, new_scope_root_block}, {block, wb_block_creator.new_block_}});
@@ -1536,8 +1537,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
       "s_tir.schedule.RegisterReducer",
-      [](int n_buffers, ffi::Function combiner_getter, ffi::Function identity_getter) {
-        ReducerRegistry::RegisterReducer(n_buffers, std::move(combiner_getter),
+      [](int n_tensors, ffi::Function combiner_getter, ffi::Function identity_getter) {
+        ReducerRegistry::RegisterReducer(n_tensors, std::move(combiner_getter),
                                          std::move(identity_getter));
       });
 }

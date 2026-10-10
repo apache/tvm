@@ -26,7 +26,7 @@ from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
-def _is_buffer_binding(node, *op_names):
+def _is_tensor_binding(node, *op_names):
     return (
         isinstance(node, tvm.ir.Bind)
         and isinstance(node.value, tvm.ir.Call)
@@ -35,12 +35,12 @@ def _is_buffer_binding(node, *op_names):
     )
 
 
-def _has_volatile_alloc_buffer(mod):
+def _has_volatile_alloc_tensor(mod):
     has_volatile_alloc = False
 
     def visit(node):
         nonlocal has_volatile_alloc
-        if _is_buffer_binding(node, "tirx.alloc_tensor") and "tirx.volatile" in node.value.attrs:
+        if _is_tensor_binding(node, "tirx.alloc_tensor") and "tirx.volatile" in node.value.attrs:
             has_volatile_alloc = has_volatile_alloc or node.value.attrs["tirx.volatile"] is True
 
     tvm_ffi.structural_walk(mod["main"].body, visit)
@@ -83,7 +83,7 @@ def test_basic():
     assert "gpu_warp_shuffle" in After_script
 
 
-def test_basic_with_decl_buffer():
+def test_basic_with_decl_tensor():
     transform = tvm.s_tir.transform.LowerThreadAllreduce()
 
     @I.ir_module
@@ -562,7 +562,7 @@ def test_webgpu_multi_warp_reduce():
     After_script = After.script()
     assert "gpu_warp_shuffle_down" in After_script
     assert "gpu_storage_sync" in After_script
-    assert _has_volatile_alloc_buffer(After)
+    assert _has_volatile_alloc_tensor(After)
     assert "T.uint32(" not in After_script
 
 

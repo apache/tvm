@@ -50,8 +50,8 @@ def buffer_regions(plan) -> list[TensorRegion]:
     """All TensorRegion args (dst + buffer-region srcs), in plan order."""
     out: list[TensorRegion] = [plan.dst]
     for s in plan.srcs:
-        if s.buf_region is not None:
-            out.append(s.buf_region)
+        if s.tensor_region is not None:
+            out.append(s.tensor_region)
     return out
 
 
@@ -70,8 +70,8 @@ def compute_dtype_of(plan) -> str:
     """Widest dtype in bits across dst + buffer/scalar srcs (dst breaks ties)."""
     candidates = [dtype_name(plan.dst.source.dtype)]
     for s in plan.srcs:
-        if s.buf_region is not None:
-            candidates.append(dtype_name(s.buf_region.source.dtype))
+        if s.tensor_region is not None:
+            candidates.append(dtype_name(s.tensor_region.source.dtype))
         elif s.scalar is not None:
             candidates.append(scalar_dtype(s.scalar))
     widest = candidates[0]
@@ -96,8 +96,8 @@ def scalar_dtype(scalar) -> str:
     return str(dtype)
 
 
-def n_elements(buf_region: TensorRegion) -> int:
-    _, ext = get_st_extent(buf_region)
+def n_elements(tensor_region: TensorRegion) -> int:
+    _, ext = get_st_extent(tensor_region)
     return functools.reduce(operator.mul, ext, 1)
 
 
@@ -362,7 +362,7 @@ def fetch_src_value(src, fused, dst_indices, dst_start, dst_extent):
     """Per-element load Expr for one src. Handles buffer / scalar / broadcast srcs."""
     if src.is_scalar:
         return src.scalar
-    region = src.buf_region
+    region = src.tensor_region
     src_st, src_ext = get_st_extent(region)
     if src.index_fn is not None:
         idx = src.index_fn(dst_indices, dst_start, dst_extent, src_st, src_ext)

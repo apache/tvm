@@ -19,7 +19,7 @@
 
 /*!
  * \file tvm/tirx/expr.h
- * \brief TIRx buffer expressions and construction helpers.
+ * \brief TIRx tensor expressions and construction helpers.
  */
 #ifndef TVM_TIRX_EXPR_H_
 #define TVM_TIRX_EXPR_H_
@@ -49,10 +49,10 @@ namespace tirx {
  */
 class TensorVar : public Var {
  public:
-  /*! \brief Construct a fresh buffer variable from an explicit TensorType. */
+  /*! \brief Construct a fresh tensor variable from an explicit TensorType. */
   TVM_DLL explicit TensorVar(ffi::String name, TensorType type, Location loc = UnknownLoc());
 
-  /*! \brief Create a checked buffer view over an existing ordinary Var. */
+  /*! \brief Create a checked tensor view over an existing ordinary Var. */
   explicit TensorVar(Var var) : Var(std::move(var)) {
     TVM_FFI_ICHECK(get() != nullptr && get()->ty.as<TensorTypeNode>())
         << "Expected a non-null Var with TensorType";
@@ -61,10 +61,10 @@ class TensorVar : public Var {
   /*! \brief Return the ordinary variable view over the same identity. */
   Var var() const { return ffi::GetRef<Var>(get()); }
 
-  /*! \brief Return the buffer type carried by the ordinary variable. */
+  /*! \brief Return the tensor type carried by the ordinary variable. */
   TensorType type() const { return get()->ty.as_or_throw<TensorType>(); }
 
-  /*! \brief Return the buffer's diagnostic name. */
+  /*! \brief Return the tensor's diagnostic name. */
   const ffi::String& name() const { return get()->name; }
 
   /*! \brief Return the source location carried by the ordinary Var. */
@@ -73,15 +73,15 @@ class TensorVar : public Var {
   /*! \brief Project the physical pointer established by the definition site. */
   Expr data() const { return Call(type()->DataPtrType(), tensor_data_ptr_op(), {var()}); }
 
-  /*! \brief Return the storage scope associated with this buffer. */
+  /*! \brief Return the storage scope associated with this tensor. */
   ffi::String scope() const { return (*this)->storage_scope; }
 
   /*!
-   * \brief Return a new buffer with the allocated address.
+   * \brief Return a new tensor with the allocated address.
    */
 
   /*!
-   * \brief Return true if the buffer is a scalar.
+   * \brief Return true if the tensor is a scalar.
    * \param alloc_or_decl Whether to consider alloc_scalar and decl_scalar as scalar. True for
    * alloc_scalar, False for decl_scalar.
    */
@@ -116,7 +116,7 @@ inline bool operator==(const TensorVar& lhs, const TensorVar& rhs) { return lhs.
 
 inline bool operator!=(const TensorVar& lhs, const TensorVar& rhs) { return !lhs.same_as(rhs); }
 
-/*! \brief Recover a checked buffer view from an ordinary VarNode pointer. */
+/*! \brief Recover a checked tensor view from an ordinary VarNode pointer. */
 inline TensorVar GetTensorVar(const VarNode* var) { return TensorVar(ffi::GetRef<Var>(var)); }
 
 inline ffi::ObjectPtr<TensorTypeNode> CopyTensorType(const TensorVar& var) {
@@ -129,30 +129,30 @@ inline TensorVar RebuildTensorVar(const TensorVar& var, ffi::ObjectPtr<TensorTyp
 }
 
 /*!
- * \brief Construct a new buffer given shape, and dtype.
- * \param shape The shape of the buffer,
+ * \brief Construct a new tensor given shape, and dtype.
+ * \param shape The shape of the tensor,
  * \param dtype The content data type.
- * \param name The name of the buffer
- * \param storage_scope The storage scope associated with this buffer
+ * \param name The name of the tensor
+ * \param storage_scope The storage scope associated with this tensor
  * \param loc The location of this object in the source code.
- * \return The created buffer.
+ * \return The created tensor.
  * \sa TensorVar for complete constructor.
  */
 TVM_DLL TensorVar decl_tensor(ffi::Array<PrimExpr> shape, PrimType dtype = PrimType::Float(32),
-                              ffi::String name = "buffer", ffi::String storage_scope = "",
+                              ffi::String name = "tensor", ffi::String storage_scope = "",
                               Location loc = UnknownLoc());
 
 /*!
- * \brief Creates a TIR buffer for the provided parameters.
- * \param shape shape of the buffer
+ * \brief Creates a TIR tensor for the provided parameters.
+ * \param shape shape of the tensor
  * \param dtype data type
- * \param name buffer name
+ * \param name tensor name
  * \param data_alignment alignment requirement of data pointer in bytes
  * \param offset_factor Factor of elem_offset field, elem_offset is guaranteed to be
  *                      multiple of offset_factor
                         User can specify data_alignment and offset_factor to be 0
  *                      A default value will be picked.
- * \param memory_scope memory scope of the buffer
+ * \param memory_scope memory scope of the tensor
  */
 TVM_DLL tirx::TensorVar TensorWithOffsetAlignment(ffi::Array<PrimExpr> shape, PrimType dtype,
                                                   std::string name, int data_alignment,
@@ -162,19 +162,19 @@ TVM_DLL tirx::TensorVar TensorWithOffsetAlignment(ffi::Array<PrimExpr> shape, Pr
  * \brief Construct a TensorLoad from a TensorVar.
  *
  * This is the sole typed construction path for tirx loads.  The result type
- * is derived from the buffer element type and index lanes, and every tirx
+ * is derived from the tensor element type and index lanes, and every tirx
  * TensorLoad is required to have a TensorVar source.
  */
-TVM_DLL TensorLoad MakeTensorLoad(TensorVar buffer, ffi::Array<PrimExpr> indices,
+TVM_DLL TensorLoad MakeTensorLoad(TensorVar tensor, ffi::Array<PrimExpr> indices,
                                   Location loc = UnknownLoc());
 
-/*! \brief Construct a region with buffer rank validation and TensorRegionType. */
-TVM_DLL TensorRegion BufferRegion(TensorVar buffer, ffi::Array<Range> region,
-                                  Location loc = UnknownLoc());
-/*! \brief Select the entire buffer. */
-TVM_DLL TensorRegion FullBufferRegion(TensorVar buffer);
+/*! \brief Construct a region with tensor rank validation and TensorRegionType. */
+TVM_DLL TensorRegion MakeTensorRegion(TensorVar tensor, ffi::Array<Range> region,
+                                      Location loc = UnknownLoc());
+/*! \brief Select the entire tensor. */
+TVM_DLL TensorRegion FullTensorRegion(TensorVar tensor);
 /*! \brief Construct unit or vector-lane ranges from point indices. */
-TVM_DLL TensorRegion BufferRegionFromPoint(TensorVar buffer, ffi::Array<PrimExpr> indices);
+TVM_DLL TensorRegion TensorRegionFromPoint(TensorVar tensor, ffi::Array<PrimExpr> indices);
 
 }  // namespace tirx
 }  // namespace tvm

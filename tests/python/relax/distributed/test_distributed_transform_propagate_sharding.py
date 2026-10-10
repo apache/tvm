@@ -389,7 +389,7 @@ def test_decoder_layer():
             T.func_attr({"tirx.noalias": True})
 
             # with Ts.sblock("root"):
-            Ared_temp = Ts.sblock_alloc_buffer((T.int64(1), 256))
+            Ared_temp = Ts.sblock_alloc_tensor((T.int64(1), 256))
             for bsz, i, k in T.grid(T.int64(1), 256, T.int64(4096)):
                 with Ts.sblock("Ared_temp"):
                     v_bsz, v_i, v_k = Ts.axis.remap("SSR", [bsz, i, k])
@@ -585,7 +585,7 @@ def test_decoder_layer():
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
-            Ared_temp = Ts.sblock_alloc_buffer((T.int64(1), 256))
+            Ared_temp = Ts.sblock_alloc_tensor((T.int64(1), 256))
             for bsz, i, k in T.grid(T.int64(1), 256, T.int64(4096)):
                 with Ts.sblock("Ared_temp"):
                     v_bsz, v_i, v_k = Ts.axis.remap("SSR", [bsz, i, k])
@@ -992,7 +992,7 @@ def test_decoder_layer_tir():
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
-            Ared_temp = Ts.sblock_alloc_buffer((T.int64(1), 256))
+            Ared_temp = Ts.sblock_alloc_tensor((T.int64(1), 256))
             for bsz, i, k in T.grid(T.int64(1), 256, T.int64(4096)):
                 with Ts.sblock("Ared_temp"):
                     v_bsz = Ts.axis.spatial(T.int64(1), T.int64(0))
@@ -1063,13 +1063,13 @@ def test_decoder_layer_tir():
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
-            T_softmax_maxelem = Ts.sblock_alloc_buffer(
+            T_softmax_maxelem = Ts.sblock_alloc_tensor(
                 (T.int64(1), T.int64(32), T.int64(256)), "float16"
             )
-            T_softmax_exp = Ts.sblock_alloc_buffer(
+            T_softmax_exp = Ts.sblock_alloc_tensor(
                 (T.int64(1), T.int64(32), T.int64(256), T.int64(256)), "float16"
             )
-            T_softmax_expsum = Ts.sblock_alloc_buffer(
+            T_softmax_expsum = Ts.sblock_alloc_tensor(
                 (T.int64(1), T.int64(32), T.int64(256)), "float16"
             )
             for i0, i1, i2, k in T.grid(T.int64(1), T.int64(32), T.int64(256), T.int64(256)):
@@ -1581,7 +1581,7 @@ def test_decoder_layer_dynamic_shape():
             T.func_attr({"tirx.noalias": True})
 
             # with Ts.sblock("root"):
-            Ared_temp = Ts.sblock_alloc_buffer((T.int64(1), rms_norm_n))
+            Ared_temp = Ts.sblock_alloc_tensor((T.int64(1), rms_norm_n))
             for bsz, i, k in T.grid(T.int64(1), rms_norm_n, T.int64(4096)):
                 with Ts.sblock("Ared_temp"):
                     v_bsz, v_i, v_k = Ts.axis.remap("SSR", [bsz, i, k])
@@ -1788,7 +1788,7 @@ def test_decoder_layer_dynamic_shape():
             T.func_attr({"tirx.noalias": True})
 
             # with Ts.sblock("root"):
-            Ared_temp = Ts.sblock_alloc_buffer((T.int64(1), rms_norm_n))
+            Ared_temp = Ts.sblock_alloc_tensor((T.int64(1), rms_norm_n))
             for bsz, i, k in T.grid(T.int64(1), rms_norm_n, T.int64(4096)):
                 with Ts.sblock("Ared_temp"):
                     v_bsz, v_i, v_k = Ts.axis.remap("SSR", [bsz, i, k])

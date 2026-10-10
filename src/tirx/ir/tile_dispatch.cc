@@ -42,15 +42,15 @@ Value getOrSetDefault(ffi::Map<ffi::String, ffi::ObjectRef>& m, const Key& key,
   return (*it).second.template as_or_throw<Value>();
 }
 
-void DispatchContextNode::AddAllocBuffer(TensorVar buffer, ffi::Array<PrimExpr> allocated_addr,
+void DispatchContextNode::AddAllocTensor(TensorVar tensor, ffi::Array<PrimExpr> allocated_addr,
                                          ffi::Map<ffi::String, ffi::Any> annotations) {
-  auto buffers = getOrSetDefault(callbacks, callback::kPrivateAlloc, ffi::Array<Bind>());
-  ffi::Array<Expr> args{tvm::Tuple(buffer->shape), DataTypeImm(buffer->dtype->dtype),
-                        StringImm(buffer.scope())};
+  auto tensors = getOrSetDefault(callbacks, callback::kPrivateAlloc, ffi::Array<Bind>());
+  ffi::Array<Expr> args{tvm::Tuple(tensor->shape), DataTypeImm(tensor->dtype->dtype),
+                        StringImm(tensor.scope())};
   if (!allocated_addr.empty()) args.push_back(tvm::Tuple(allocated_addr));
-  buffers.push_back(
-      Bind(buffer.var(), Call(buffer.type(), alloc_tensor_op(), args, DictAttrs(annotations))));
-  callbacks.Set(callback::kPrivateAlloc, buffers);
+  tensors.push_back(
+      Bind(tensor.var(), Call(tensor.type(), alloc_tensor_op(), args, DictAttrs(annotations))));
+  callbacks.Set(callback::kPrivateAlloc, tensors);
 }
 
 void DispatchContextNode::AddInitStmt(Stmt stmt, bool host) {
@@ -60,17 +60,17 @@ void DispatchContextNode::AddInitStmt(Stmt stmt, bool host) {
   callbacks.Set(tag, stmts);
 }
 
-void DispatchContextNode::AddPostBufferDefStmt(TensorVar buffer, Stmt stmt) {
-  auto mapping = getOrSetDefault(callbacks, callback::kPostBufferDefStmt,
+void DispatchContextNode::AddPostTensorDefStmt(TensorVar tensor, Stmt stmt) {
+  auto mapping = getOrSetDefault(callbacks, callback::kPostTensorDefStmt,
                                  ffi::Map<TensorVar, ffi::Array<Stmt>>());
-  auto it = mapping.find(buffer);
+  auto it = mapping.find(tensor);
   ffi::Array<Stmt> stmts;
   if (it != mapping.end()) {
     stmts = (*it).second;
   }
   stmts.push_back(stmt);
-  mapping.Set(buffer, stmts);
-  callbacks.Set(callback::kPostBufferDefStmt, mapping);
+  mapping.Set(tensor, stmts);
+  callbacks.Set(callback::kPostTensorDefStmt, mapping);
 }
 
 void DispatchContextNode::SharedStateSet(ffi::String key, ffi::ObjectRef value) {
@@ -125,10 +125,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
              return DispatchContext(target, exec_scope, launch_params, var_range_map, alloc_only,
                                     callbacks, shared_state, inter, intra, scope_kind);
            })
-      .def_method("tirx.DispatchContextAddAllocBuffer", &DispatchContextNode::AddAllocBuffer)
+      .def_method("tirx.DispatchContextAddAllocTensor", &DispatchContextNode::AddAllocTensor)
       .def_method("tirx.DispatchContextAddInitStmt", &DispatchContextNode::AddInitStmt)
-      .def_method("tirx.DispatchContextAddPostBufferDefStmt",
-                  &DispatchContextNode::AddPostBufferDefStmt)
+      .def_method("tirx.DispatchContextAddPostTensorDefStmt",
+                  &DispatchContextNode::AddPostTensorDefStmt)
       .def_method("tirx.DispatchContextSharedStateSet", &DispatchContextNode::SharedStateSet)
       .def_method("tirx.DispatchContextSharedStateGet", &DispatchContextNode::SharedStateGet);
 }

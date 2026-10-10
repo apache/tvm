@@ -85,9 +85,9 @@ def is_smem_ewise(spec):
         # must be shape-compatible with anchor (extent matches or is 1).
         anchor_tshape = _tensor_shape_of(plan.dst.region)
         for s in plan.srcs:
-            if s.buf_region is None:
+            if s.tensor_region is None:
                 continue
-            src_tshape = _tensor_shape_of(s.buf_region.region)
+            src_tshape = _tensor_shape_of(s.tensor_region.region)
             ok_b, reason_b = shape_broadcast_compat(src_tshape, anchor_tshape)
             if not ok_b:
                 return False, f"shape incompat: {reason_b}"
@@ -104,17 +104,17 @@ def _max_layout_vec(plan, total: int, thread_cnt: int) -> int:
     ``total / thread_cnt``, within dtype-bit candidates ``{128,64,32,16,8}``."""
     max_bits = dtype_bits(plan.dst.source.dtype)
     for s in plan.srcs:
-        if s.buf_region is not None:
-            max_bits = max(max_bits, dtype_bits(s.buf_region.source.dtype))
+        if s.tensor_region is not None:
+            max_bits = max(max_bits, dtype_bits(s.tensor_region.source.dtype))
     per_thread = total // thread_cnt if thread_cnt > 0 else total
     if total % thread_cnt != 0:
         return 1
 
     inners = [int(plan.dst.region[-1].extent)]
     for s in plan.srcs:
-        if s.buf_region is None or s.index_fn is not None:
+        if s.tensor_region is None or s.index_fn is not None:
             continue
-        inners.append(int(s.buf_region.region[-1].extent))
+        inners.append(int(s.tensor_region.region[-1].extent))
 
     for cand_bits in (128, 64, 32, 16, 8):
         n = cand_bits // max_bits
@@ -216,9 +216,9 @@ def _emit_packed(plan, vec_impl, vec_chunk, total, thread_cnt, sctx) -> Function
                         srcs[i].scalar
                         if T.constexpr(srcs[i].is_scalar)
                         else (
-                            srcs[i].buf_region.source,
+                            srcs[i].tensor_region.source,
                             _src_lane_indices(
-                                srcs[i].buf_region,
+                                srcs[i].tensor_region,
                                 dst_lane_indices,
                                 dst_st,
                                 dst_ext,

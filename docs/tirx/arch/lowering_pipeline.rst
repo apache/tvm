@@ -20,7 +20,7 @@ TIRx lowering pipeline
 
 ``tvm.compile(mod, target, tir_pipeline="tirx")`` runs an authored TIRx module
 through the **tirx pipeline** — an ordered sequence of IR passes that turns the
-high-level constructs you write (tile primitives, ``TileLayout``-typed buffers,
+high-level constructs you write (tile primitives, ``TileLayout``-typed tensors,
 CUDA index calls) into split **host** + **device** functions, which the CUDA
 backend then renders to source. The pipeline is defined in
 ``python/tvm/tirx/compilation_pipeline.py`` (``tirx_pipeline``); this page walks the
@@ -63,7 +63,7 @@ The ``tirx_pipeline`` module pass applies this exact sequence (a few are gated b
      - ``LowerTIRxOpaque``
      - lowers remaining opaque constructs to lower-level TIRx forms
    * - 4
-     - ``FlattenBuffer``
+     - ``FlattenTensor``
      - flattens multi-dimensional ``TensorLoad`` / ``TensorStore`` to 1-D
    * - 5
      - ``BF16ComputeLegalize``
@@ -116,7 +116,7 @@ The ``tirx_pipeline`` module pass applies this exact sequence (a few are gated b
 
 - **host**: ``LowerTVMBuiltin`` (lower ``tvm_*`` builtins), ``LowerIntrin``
   (target-specific intrinsics)
-- **device**: ``LowerWarpMemory`` (warp-scoped buffers → shuffles), ``StmtSimplify``,
+- **device**: ``LowerWarpMemory`` (warp-scoped tensors → shuffles), ``StmtSimplify``,
   ``LowerIntrin``
 
 Inside LowerTIRx
@@ -134,9 +134,9 @@ Inside LowerTIRx
   ``device_scope`` region retaining launch values as operands, and lowers the
   finite CUDA index calls inside ordinary ``Bind`` statements.
 - **``LowerTIRxCleanup``** then runs the ``LayoutApplier``: it resolves every
-  ``TileLayout``-typed buffer access into concrete physical address arithmetic
-  (``addr = data + elem_offset + layout.apply(coord)``), flattens the buffers,
-  and removes buffer offsets that have been folded into the resulting views.
+  ``TileLayout``-typed tensor access into concrete physical address arithmetic
+  (``addr = data + elem_offset + layout.apply(coord)``), flattens the tensors,
+  and removes tensor offsets that have been folded into the resulting views.
 
 After ``LowerTIRx`` the module remains a ``tvm.tirx.Function``, but contains no
 tile primitives or ``TileLayout`` indirection, and CUDA indices read hardware coordinates.  Later TIRx passes lower the remaining opaque constructs and

@@ -146,7 +146,7 @@ def test_load_store_noop():
 def test_load_store_noop_after_simplify():
     """As test_load_store_noop, but requiring simplification to identify.
 
-    Previously, a bug caused the self-assignment of a buffer to
+    Previously, a bug caused the self-assignment of a tensor to
     checked based on the pre-simplification assignment, not the
     post-simplification.  This test is to identify any similar
     regression.
@@ -237,7 +237,7 @@ def test_nested_var_condition():
     tvm.ir.assert_structural_equal(after, expected)
 
 
-def test_altered_buffer_contents():
+def test_altered_tensor_contents():
     """No simplification of data-dependent conditionals.
 
     A literal constraint must not be propagated if the values
@@ -1155,8 +1155,8 @@ def test_most_restrictive_conditional():
         tvm.ir.assert_structural_equal(after, expected_func)
 
 
-def test_simplify_trivial_let_buffer_var():
-    """A Bind used in a buffer definition should be retained"""
+def test_simplify_trivial_let_tensor_var():
+    """A Bind used in a tensor definition should be retained"""
 
     @T.function(private=True)
     def before(A_ptr: T.handle("float32")):
@@ -1171,7 +1171,7 @@ def test_simplify_trivial_let_buffer_var():
 
 
 def test_simplify_trivial_let_elem_offset():
-    """A Bind used in a buffer definition should be retained"""
+    """A Bind used in a tensor definition should be retained"""
 
     @T.function(private=True)
     def before(A_ptr: T.handle("float32"), A_offset: T.int32):
@@ -1190,7 +1190,7 @@ def test_simplify_trivial_let_elem_offset():
 
 
 def test_simplify_trivial_let_shape():
-    """A Bind used in a buffer definition should be retained"""
+    """A Bind used in a tensor definition should be retained"""
 
     @T.function(private=True)
     def before(A_ptr: T.handle("float32"), A_size: T.int32):
@@ -1209,7 +1209,7 @@ def test_simplify_trivial_let_shape():
 
 
 def test_simplify_trivial_let_stride():
-    """A Bind used in a buffer definition should be retained"""
+    """A Bind used in a tensor definition should be retained"""
 
     @T.function(private=True)
     def before(A_ptr: T.handle("float32"), A_stride: T.int32):
@@ -1227,14 +1227,14 @@ def test_simplify_trivial_let_stride():
     tvm.ir.assert_structural_equal(after, expected)
 
 
-def test_simplify_buffer_identity_well_formed():
-    """Regression: Simplify must not diverge buffer identity between DeclTensor and TensorLoad.
+def test_simplify_tensor_identity_well_formed():
+    """Regression: Simplify must not diverge tensor identity between DeclTensor and TensorLoad.
 
     The simplifier's Dispatch calls analyzer_->Simplify() directly, bypassing
-    normal ExprMutator dispatch.  If VisitBufferDef remaps a buffer at a DeclTensor
+    normal ExprMutator dispatch.  If VisitTensorDef remaps a tensor at a DeclTensor
     site (e.g. inlining n_val -> n in the shape), TensorLoad inside a TensorStore
-    value would NOT pick up the remap because VisitBufferUse is never called.
-    This causes DeclTensor/TensorLoad buffer identity divergence.
+    value would NOT pick up the remap because VisitTensorUse is never called.
+    This causes DeclTensor/TensorLoad tensor identity divergence.
     """
 
     @T.function(private=True)
@@ -1248,7 +1248,7 @@ def test_simplify_buffer_identity_well_formed():
     tvm.tirx.analysis.verify_well_formed(after)
 
 
-def test_buffer_shape_constraint():
+def test_tensor_shape_constraint():
     n = T.dynamic("n")
 
     @I.ir_module(check_well_formed=False)
@@ -1269,7 +1269,7 @@ def test_buffer_shape_constraint():
     tvm.ir.assert_structural_equal(after["main"], Expected["main"])
 
 
-def test_buffer_shape_constraint_with_offset():
+def test_tensor_shape_constraint_with_offset():
     n = T.dynamic("n")
 
     @I.ir_module(check_well_formed=False)

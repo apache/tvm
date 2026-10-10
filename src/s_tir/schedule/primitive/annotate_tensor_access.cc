@@ -30,12 +30,12 @@ class AnnotateRegionRewriter : public StmtExprMutator {
   using StmtExprMutator::Mutate;
   using StmtExprMutator::Mutate_;
 
-  AnnotateRegionRewriter(TensorVar buffer, int buffer_index, TensorRegion new_region,
-                         BufferIndexType buffer_index_type)
-      : buffer_(buffer),
-        buffer_index_(buffer_index),
+  AnnotateRegionRewriter(TensorVar tensor, int tensor_index, TensorRegion new_region,
+                         TensorIndexType tensor_index_type)
+      : tensor_(tensor),
+        tensor_index_(tensor_index),
         new_region_(new_region),
-        buffer_index_type_(buffer_index_type) {}
+        tensor_index_type_(tensor_index_type) {}
 
   UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) final {
     SBlock block = StmtExprMutator::Mutate_(op, inplace_mode)
@@ -43,14 +43,14 @@ class AnnotateRegionRewriter : public StmtExprMutator {
                        .as_or_throw<SBlock>();
 
     ffi::Array<TensorRegion> regions =
-        buffer_index_type_ == BufferIndexType::kWrite ? block->writes : block->reads;
-    TVM_FFI_ICHECK_GE(buffer_index_, 0) << "Buffer index must be non-negative";
-    TVM_FFI_ICHECK_LT(buffer_index_, static_cast<int>(regions.size()))
-        << "Buffer index out of range";
-    regions.Set(buffer_index_, new_region_);
+        tensor_index_type_ == TensorIndexType::kWrite ? block->writes : block->reads;
+    TVM_FFI_ICHECK_GE(tensor_index_, 0) << "Tensor index must be non-negative";
+    TVM_FFI_ICHECK_LT(tensor_index_, static_cast<int>(regions.size()))
+        << "Tensor index out of range";
+    regions.Set(tensor_index_, new_region_);
 
     SBlockNode* n = block.CopyOnWrite();
-    if (buffer_index_type_ == BufferIndexType::kWrite) {
+    if (tensor_index_type_ == TensorIndexType::kWrite) {
       n->writes = std::move(regions);
     } else {
       n->reads = std::move(regions);
@@ -58,25 +58,25 @@ class AnnotateRegionRewriter : public StmtExprMutator {
 
     // Annotate the block with explicit_read_region or explicit_write_region
     ffi::Map<ffi::String, ffi::Any> new_annotations = n->annotations;
-    ffi::String annotation_key = buffer_index_type_ == BufferIndexType::kWrite
-                                     ? tvm::s_tir::attr::kExplicitWriteRegion
-                                     : tvm::s_tir::attr::kExplicitReadRegion;
+    ffi::String annotation_key = tensor_index_type_ == TensorIndexType::kWrite
+                                     ? s_tir::attr::kExplicitWriteRegion
+                                     : s_tir::attr::kExplicitReadRegion;
     if (new_annotations.count(annotation_key)) {
-      ffi::Array<int64_t> buffer_indices =
+      ffi::Array<int64_t> tensor_indices =
           new_annotations[annotation_key].as_or_throw<ffi::Array<int64_t>>();
       bool found = false;
-      for (int64_t index : buffer_indices) {
-        if (index == buffer_index_) {
+      for (int64_t index : tensor_indices) {
+        if (index == tensor_index_) {
           found = true;
           break;
         }
       }
       if (!found) {
-        buffer_indices.push_back(static_cast<int64_t>(buffer_index_));
-        new_annotations.Set(annotation_key, buffer_indices);
+        tensor_indices.push_back(static_cast<int64_t>(tensor_index_));
+        new_annotations.Set(annotation_key, tensor_indices);
       }
     } else {
-      new_annotations.Set(annotation_key, ffi::Array<int64_t>{static_cast<int64_t>(buffer_index_)});
+      new_annotations.Set(annotation_key, ffi::Array<int64_t>{static_cast<int64_t>(tensor_index_)});
     }
     n->annotations = std::move(new_annotations);
 
@@ -84,17 +84,17 @@ class AnnotateRegionRewriter : public StmtExprMutator {
   }
 
  private:
-  TensorVar buffer_;
-  int buffer_index_;
+  TensorVar tensor_;
+  int tensor_index_;
   TensorRegion new_region_;
-  BufferIndexType buffer_index_type_;
+  TensorIndexType tensor_index_type_;
 };
 
-void AnnotateBufferAccess(ScheduleState self, const StmtSRef& block_sref, int buffer_index,
-                          BufferIndexType buffer_index_type, const IndexMap& index_map) {
+void AnnotateTensorAccess(ScheduleState self, const StmtSRef& block_sref, int tensor_index,
+                          TensorIndexType tensor_index_type, const IndexMap& index_map) {
   const SBlockNode* block = TVM_SREF_TO_SBLOCK(block_sref);
-  TensorVar buffer =
-      GetNthAccessBuffer(self, ffi::GetRef<SBlock>(block), buffer_index, buffer_index_type);
+  TensorVar tensor =
+      GetNthAccessTensor(self, ffi::GetRef<SBlock>(block), tensor_index, tensor_index_type);
 
   sym::Analyzer analyzer;
   ffi::Array<PrimExpr> block_iter_vars;
@@ -110,10 +110,10 @@ void AnnotateBufferAccess(ScheduleState self, const StmtSRef& block_sref, int bu
         new_indices[i], analyzer->Simplify(new_indices[i + 1] - new_indices[i])));
   }
 
-  TensorRegion new_region = BufferRegion(buffer, new_ranges);
+  TensorRegion new_region = MakeTensorRegion(tensor, new_ranges);
 
   auto mutator =
-      ffi::make_object<AnnotateRegionRewriter>(buffer, buffer_index, new_region, buffer_index_type);
+      ffi::make_object<AnnotateRegionRewriter>(tensor, tensor_index, new_region, tensor_index_type);
   Stmt new_stmt = mutator->Mutate(ffi::GetRef<Stmt>(block_sref->stmt))
                       .ValueOrUnchanged(ffi::GetRef<Stmt>(block_sref->stmt));
 
@@ -121,8 +121,8 @@ void AnnotateBufferAccess(ScheduleState self, const StmtSRef& block_sref, int bu
                 {{ffi::GetRef<SBlock>(block), new_stmt.as_or_throw<SBlock>()}});
 }
 
-struct AnnotateBufferAccessTraits : public UnpackedInstTraits<AnnotateBufferAccessTraits> {
-  static constexpr const char* kName = "AnnotateBufferAccess";
+struct AnnotateTensorAccessTraits : public UnpackedInstTraits<AnnotateTensorAccessTraits> {
+  static constexpr const char* kName = "AnnotateTensorAccess";
   static constexpr bool kIsPure = false;
 
  private:
@@ -130,11 +130,11 @@ struct AnnotateBufferAccessTraits : public UnpackedInstTraits<AnnotateBufferAcce
   static constexpr size_t kNumAttrs = 0;
   static constexpr size_t kNumDecisions = 0;
 
-  static void UnpackedApplyToSchedule(Schedule sch, SBlockRV block, IntImm buffer_index,
-                                      IntImm buffer_index_type, IndexMap index_map) {
-    return sch->AnnotateBufferAccess(
-        block, buffer_index->value.as<int>().value(),
-        static_cast<BufferIndexType>(buffer_index_type->value.as<int>().value()), index_map);
+  static void UnpackedApplyToSchedule(Schedule sch, SBlockRV block, IntImm tensor_index,
+                                      IntImm tensor_index_type, IndexMap index_map) {
+    return sch->AnnotateTensorAccess(
+        block, tensor_index->value.as<int>().value(),
+        static_cast<TensorIndexType>(tensor_index_type->value.as<int>().value()), index_map);
   }
 
   static ffi::String IndexMap2GenNewRangesLambda(const IndexMap& index_map) {
@@ -169,18 +169,18 @@ struct AnnotateBufferAccessTraits : public UnpackedInstTraits<AnnotateBufferAcce
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String block,
-                                      IntImm buffer_index, IntImm buffer_index_type,
+                                      IntImm tensor_index, IntImm tensor_index_type,
                                       IndexMap index_map) {
-    PythonAPICall py("annotate_buffer_access");
+    PythonAPICall py("annotate_tensor_access");
     py.Input("block", block);
-    py.Input("buffer_index", buffer_index->value.as<int>().value());
+    py.Input("tensor_index", tensor_index->value.as<int>().value());
 
     std::ostringstream os;
     os << "\""
-       << BufferIndexType2Str(
-              static_cast<BufferIndexType>(buffer_index_type->value.as<int>().value()))
+       << TensorIndexType2Str(
+              static_cast<TensorIndexType>(tensor_index_type->value.as<int>().value()))
        << "\"";
-    py.Input("buf_type", ffi::String(os.str()));
+    py.Input("tensor_type", ffi::String(os.str()));
 
     py.Input("gen_new_ranges", IndexMap2GenNewRangesLambda(index_map));
     return py.Str();
@@ -190,7 +190,7 @@ struct AnnotateBufferAccessTraits : public UnpackedInstTraits<AnnotateBufferAcce
   friend struct ::tvm::s_tir::UnpackedInstTraits;
 };
 
-TVM_FFI_STATIC_INIT_BLOCK() { RegisterInstructionKind<AnnotateBufferAccessTraits>(); }
+TVM_FFI_STATIC_INIT_BLOCK() { RegisterInstructionKind<AnnotateTensorAccessTraits>(); }
 
 }  // namespace s_tir
 }  // namespace tvm

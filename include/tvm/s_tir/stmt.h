@@ -34,58 +34,58 @@
 namespace tvm {
 namespace s_tir {
 
-/*! \brief Placement entries owned by a block, traversable with their buffer references. */
-using BufferAllocatedAddresses = ffi::Array<ffi::Tuple<Var, ffi::Array<PrimExpr>>>;
+/*! \brief Placement entries owned by a block, traversable with their tensor references. */
+using TensorAllocatedAddresses = ffi::Array<ffi::Tuple<Var, ffi::Array<PrimExpr>>>;
 
 /*!
- * \brief Match introduces a constraint that the source buffer region can be remapped to the data
- * layout specified by the buffer field. The constraint can be checked in later part of lowering (or
+ * \brief Match introduces a constraint that the source tensor region can be remapped to the data
+ * layout specified by the tensor field. The constraint can be checked in later part of lowering (or
  * optionally during runtime).
  *
- * MatchBufferRegion provides a mechanism to represent data layout and compactness constraints in
+ * MatchTensorRegion provides a mechanism to represent data layout and compactness constraints in
  * low-level hardware primitives in the IR and defer the check after the sequence of
  * transformations.
  */
-class MatchBufferRegionNode : public ffi::Object {
+class MatchTensorRegionNode : public ffi::Object {
  public:
-  explicit MatchBufferRegionNode(ffi::UnsafeInit tag) : buffer(tag), source(tag) {}
+  explicit MatchTensorRegionNode(ffi::UnsafeInit tag) : tensor(tag), source(tag) {}
 
-  MatchBufferRegionNode(tirx::TensorVar buffer, TensorRegion source)
-      : buffer(std::move(buffer)), source(std::move(source)) {}
+  MatchTensorRegionNode(tirx::TensorVar tensor, TensorRegion source)
+      : tensor(std::move(tensor)), source(std::move(source)) {}
 
-  /*! \brief The target buffer. */
-  tirx::TensorVar buffer;
-  /*! \brief The source buffer region. */
+  /*! \brief The target tensor. */
+  tirx::TensorVar tensor;
+  /*! \brief The source tensor region. */
   TensorRegion source;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<MatchBufferRegionNode>()
-        .def_ro("buffer", &MatchBufferRegionNode::buffer,
+    refl::ObjectDef<MatchTensorRegionNode>()
+        .def_ro("tensor", &MatchTensorRegionNode::tensor,
                 refl::AttachFieldFlag::SEqHashDefPattern())
-        .def_ro("source", &MatchBufferRegionNode::source);
+        .def_ro("source", &MatchTensorRegionNode::source);
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.MatchBufferRegion", MatchBufferRegionNode, ffi::Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.MatchTensorRegion", MatchTensorRegionNode, ffi::Object);
 };
 
 /*!
- * \brief Managed reference to MatchBufferRegionNode.
- * \sa MatchBufferRegionNode
+ * \brief Managed reference to MatchTensorRegionNode.
+ * \sa MatchTensorRegionNode
  */
-class MatchBufferRegion : public ffi::ObjectRef {
+class MatchTensorRegion : public ffi::ObjectRef {
  public:
-  explicit MatchBufferRegion(ffi::UnsafeInit tag, ffi::ObjectPtr<MatchBufferRegionNode> data)
+  explicit MatchTensorRegion(ffi::UnsafeInit tag, ffi::ObjectPtr<MatchTensorRegionNode> data)
       : ffi::ObjectRef(tag) {
     data_ = std::move(data);
   }
 
-  TVM_DLL explicit MatchBufferRegion(tirx::TensorVar buffer, TensorRegion source);
+  TVM_DLL explicit MatchTensorRegion(tirx::TensorVar tensor, TensorRegion source);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(MatchBufferRegion, ffi::ObjectRef,
-                                                MatchBufferRegionNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(MatchBufferRegionNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(MatchTensorRegion, ffi::ObjectRef,
+                                                MatchTensorRegionNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(MatchTensorRegionNode);
 };
 
 /*!
@@ -97,11 +97,11 @@ class MatchBufferRegion : public ffi::ObjectRef {
  *      v0 = T.axis.S(domain, value0)
  *      v1 = T.axis.R(domain, value1)
  *      ...
- *      T.reads([buffer0[start:end, ...], ...])
- *      T.writes([buffer1[start:end, ...], ...])
+ *      T.reads([tensor0[start:end, ...], ...])
+ *      T.writes([tensor1[start:end, ...], ...])
  *      T.where(predicate)
- *      buffer2 = T.alloc_tensor(shape, dtype)
- *      buffer3 = Ts.match_buffer(source_buffer[start:end, ...])
+ *      tensor2 = T.alloc_tensor(shape, dtype)
+ *      tensor3 = Ts.match_tensor(source_tensor[start:end, ...])
  *      Ts.sblock_attr({attr_key: attr_value, ...})
  *      with T.init():
  *          // init body
@@ -117,16 +117,16 @@ class SBlockNode : public StmtNode {
 
   /*! \brief The variables of the block. */
   ffi::Array<s_tir::IterVar> iter_vars;
-  /*! \brief The read buffer regions of the block. */
+  /*! \brief The read tensor regions of the block. */
   ffi::Array<TensorRegion> reads;
-  /*! \brief The write buffer regions of the block. */
+  /*! \brief The write tensor regions of the block. */
   ffi::Array<TensorRegion> writes;
   /*! \brief The name_hint of the block. */
   ffi::String name_hint;
-  /*! \brief The buffer allocated in the block. */
-  ffi::Array<tirx::TensorVar> alloc_buffers;
-  /*! \brief The match buffer regions. */
-  ffi::Array<MatchBufferRegion> match_buffers;
+  /*! \brief The tensor allocated in the block. */
+  ffi::Array<tirx::TensorVar> alloc_tensors;
+  /*! \brief The match tensor regions. */
+  ffi::Array<MatchTensorRegion> match_tensors;
   /*! \brief The annotation of the block. */
   ffi::Map<ffi::String, ffi::Any> annotations;
   /*!
@@ -147,9 +147,9 @@ class SBlockNode : public StmtNode {
         .def_ro("reads", &SBlockNode::reads)
         .def_ro("writes", &SBlockNode::writes)
         .def_ro("name_hint", &SBlockNode::name_hint, refl::AttachFieldFlag::SEqHashIgnore())
-        .def_ro("alloc_buffers", &SBlockNode::alloc_buffers,
+        .def_ro("alloc_tensors", &SBlockNode::alloc_tensors,
                 refl::AttachFieldFlag::SEqHashDefSimple())
-        .def_ro("match_buffers", &SBlockNode::match_buffers)
+        .def_ro("match_tensors", &SBlockNode::match_tensors)
         .def_ro("annotations", &SBlockNode::annotations)
         .def_ro("init", &SBlockNode::init)
         .def_ro("body", &SBlockNode::body);
@@ -167,13 +167,13 @@ class SBlock : public Stmt {
       ffi::Array<s_tir::IterVar> iter_vars, ffi::Array<TensorRegion> reads,
       ffi::Array<TensorRegion> writes, ffi::String name_hint, SeqStmt body,
       ffi::Optional<SeqStmt> init = std::nullopt,
-      ffi::Array<tirx::TensorVar> alloc_buffers = ffi::Array<tirx::TensorVar>(),
-      ffi::Array<MatchBufferRegion> match_buffers = ffi::Array<MatchBufferRegion>(),
+      ffi::Array<tirx::TensorVar> alloc_tensors = ffi::Array<tirx::TensorVar>(),
+      ffi::Array<MatchTensorRegion> match_tensors = ffi::Array<MatchTensorRegion>(),
       ffi::Map<ffi::String, ffi::Any> annotations = ffi::Map<ffi::String, ffi::Any>(),
       Location loc = UnknownLoc());
 
   TVM_DLL explicit SBlock(ffi::String name_hint, SeqStmt body,
-                          ffi::Array<tirx::TensorVar> alloc_buffers = ffi::Array<tirx::TensorVar>(),
+                          ffi::Array<tirx::TensorVar> alloc_tensors = ffi::Array<tirx::TensorVar>(),
                           Location loc = UnknownLoc());
 
   explicit SBlock(ffi::ObjectPtr<SBlockNode> node) : Stmt(std::move(node)) {}
@@ -239,7 +239,7 @@ TVM_DLL const Op& manual_sync();
 namespace attr {
 
 /*!
- * \brief SBlock annotation selecting a write-buffer index for double buffering in
+ * \brief SBlock annotation selecting a write-tensor index for double buffering in
  * InjectSoftwarePipeline.
  */
 constexpr const char* kDoubleBufferScope = "double_buffer_scope";
@@ -313,8 +313,8 @@ constexpr const char* kMetaScheduleInlineRule = "meta_schedule.inline_rule";
 // Schedule primitive / SBlock annotations
 // -----------------------------------------------------------------------
 
-/*! \brief BufferAllocatedAddresses for block-owned allocations and match buffers. */
-constexpr const char* kBufferAllocatedAddr = "s_tir.buffer_allocated_addr";
+/*! \brief TensorAllocatedAddresses for block-owned allocations and match tensors. */
+constexpr const char* kTensorAllocatedAddr = "s_tir.tensor_allocated_addr";
 
 /*!
  * \brief Mark whether the script-completer need to fill in missing access region
@@ -346,12 +346,12 @@ constexpr const char* kSoftwarePipelineAsyncStages = "software_pipeline_async_st
 constexpr const char* kManifestSharedMemoryLocalStage = "tirx.manifest_shared_memory_local_stage";
 
 /*!
- * \brief Mark alignment of buffer dimension
+ * \brief Mark alignment of tensor dimension
  *  The annotation value is an array of explicit tuples
- *  (buffer_index, axis, factor, offset).
+ *  (tensor_index, axis, factor, offset).
  *  This requires the stride of an axis to be k * factor + offset.
  */
-constexpr const char* kBufferDimAlign = "buffer_dim_align";
+constexpr const char* kTensorDimAlign = "tensor_dim_align";
 
 /*! \brief Mark that a block has an explicitly specified read region.
  * This is used to override the default read region inference in TIR.

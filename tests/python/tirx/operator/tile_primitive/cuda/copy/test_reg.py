@@ -18,10 +18,10 @@
 """Round-trip tests for the ``vec_auto`` register copy path.
 
 R = per-thread local (register). The dispatch handles round-trips between R
-and any non-R buffer (``shared*`` or ``global``); ``non_r_scope`` parametrize
+and any non-R tensor (``shared*`` or ``global``); ``non_r_scope`` parametrize
 toggles which side is exercised.
 
-Self-contained: each thread direct-stores its row into the non-R buffer (no
+Self-contained: each thread direct-stores its row into the non-R tensor (no
 G2S / G2L dispatch needed because each thread writes its own address), the
 dispatch does the inbound copy into R and the outbound copy back, then each
 thread reads its row into ``B``. Round-trip mismatch ⇒ at least one direction

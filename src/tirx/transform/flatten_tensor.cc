@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file flatten_buffer.cc
+ * \file flatten_tensor.cc
  */
 
 #include <tvm/ffi/cast.h>
@@ -42,49 +42,49 @@ namespace tirx {
 using namespace tvm::prim;
 
 /*!
- * \brief Flatten each n-d buffer ``buf`` into a 1-d storage view ``buf'``,
+ * \brief Flatten each n-d tensor ``buf`` into a 1-d storage view ``buf'``,
  *        rewriting every access ``buf[x]`` into ``buf'[f(x)]``.
  *
  *  The invariant: ``f(x) = layout.apply(x, shape) + elem_offset`` is fully
  *  determined by ``buf``'s geometry, and ``buf'`` is only a storage husk —
  *  same data origin, dtype, alignment and scope; no layout, no elem_offset.
  *
- *  The pass walks the AST top-down. At each buffer definition point
+ *  The pass walks the AST top-down. At each tensor definition point
  *  (AllocTensor/DeclTensor; Function params are seeded up front) it derives,
  *  exactly once:
  *    - the fold view: the original geometry with its expression fields
  *      (runtime elem_offset, symbolic shapes/strides, layout iters) rewritten
  *      by the pass — the folded indices live in the rewritten program, so
- *      ``f``'s coefficients must reference rebuilt buffers; and
+ *      ``f``'s coefficients must reference rebuilt tensors; and
  *    - ``buf'``, the flattened storage husk.
  *  Every use site then only looks the pair up; a use before its definition is
  *  a hard error instead of a silently stale reference.
  */
-class BufferFlattener : public IRMutatorWithAnalyzer {
+class TensorFlattener : public IRMutatorWithAnalyzer {
  public:
   using IRMutatorWithAnalyzer::Mutate;
   using IRMutatorWithAnalyzer::Mutate_;
   static Function Flatten(Function func) {
     if (!func->body.has_value()) return func;
     sym::Analyzer ana;
-    auto pass = ffi::make_object<BufferFlattener>(ana);
-    pass->MarkBufferParamShapes(func);
+    auto pass = ffi::make_object<TensorFlattener>(ana);
+    pass->MarkTensorParamShapes(func);
     for (const Var& param : func->params) {
-      if (auto buffer = param.as<TensorVar>()) {
-        pass->extern_buffers_.insert(buffer.value());
-        pass->Define(buffer.value());
+      if (auto tensor = param.as<TensorVar>()) {
+        pass->extern_tensors_.insert(tensor.value());
+        pass->Define(tensor.value());
       }
     }
     auto body_result = pass->Mutate(func->body, InplaceMode::kDisallow);
     bool body_unchanged = body_result.UnchangedOrSameAs(func->body);
     auto body = std::move(body_result).ValueOrUnchanged(func->body);
 
-    // Buffer parameters are deliberately left unflattened, as they are used
-    // for validation of user-provided arguments.  The flattened buffers used
-    // in the updated function body alias the argument buffers.
+    // Tensor parameters are deliberately left unflattened, as they are used
+    // for validation of user-provided arguments.  The flattened tensors used
+    // in the updated function body alias the argument tensors.
     for (size_t i = func->params.size(); i > 0; i--) {
       if (auto old_buf = func->params[i - 1].as<TensorVar>()) {
-        if (pass->buffers_used_.count(old_buf.value())) {
+        if (pass->tensors_used_.count(old_buf.value())) {
           auto new_buf = pass->Lookup(old_buf.value()).flattened;
           if (!old_buf.value().same_as(new_buf)) {
             body = SeqStmt({Bind(new_buf, Call(new_buf.type(), decl_tensor_op(),
@@ -106,7 +106,7 @@ class BufferFlattener : public IRMutatorWithAnalyzer {
   }
 
  public:
-  explicit BufferFlattener(const sym::Analyzer& ana) : IRMutatorWithAnalyzer(ana) {}
+  explicit TensorFlattener(const sym::Analyzer& ana) : IRMutatorWithAnalyzer(ana) {}
 
  private:
   struct FlatInfo {
@@ -163,16 +163,16 @@ class BufferFlattener : public IRMutatorWithAnalyzer {
     if (type->elem_offset.defined() && !IsZero(type->elem_offset)) {
       type->elem_offset = IntImm(type->elem_offset.ty().as_or_throw<PrimType>(), 0);
     }
-    // Body-local buffers keep their identity when flattening changes nothing.
-    // Function-parameter buffers always rebuild: the epilogue aliases the
-    // rebuilt view onto the argument buffer with an explicit DeclTensor, and
+    // Body-local tensors keep their identity when flattening changes nothing.
+    // Function-parameter tensors always rebuild: the epilogue aliases the
+    // rebuilt view onto the argument tensor with an explicit DeclTensor, and
     // downstream s_tir passes pin that shape.
     TensorVar flattened =
-        (!extern_buffers_.count(buf) && ffi::StructuralEqual()(TensorType(type), buf.type()))
+        (!extern_tensors_.count(buf) && ffi::StructuralEqual()(TensorType(type), buf.type()))
             ? buf
             : RebuildTensorVar(buf, std::move(type));
 
-    // Feed the base mutator's remap so stray buffer-var expressions follow.
+    // Feed the base mutator's remap so stray tensor-var expressions follow.
     VarRemapSet(buf, flattened);
     auto [it, inserted] = flat_map_.emplace(buf.var(), FlatInfo{fold_view, flattened});
     return it->second;
@@ -181,7 +181,7 @@ class BufferFlattener : public IRMutatorWithAnalyzer {
   const FlatInfo& Lookup(const TensorVar& buf) {
     auto it = flat_map_.find(buf.var());
     TVM_FFI_ICHECK(it != flat_map_.end())
-        << "Buffer " << buf.name()
+        << "Tensor " << buf.name()
         << " is used before its definition (AllocTensor/DeclTensor/Function param)";
     return it->second;
   }
@@ -194,55 +194,55 @@ class BufferFlattener : public IRMutatorWithAnalyzer {
     return IRMutatorWithAnalyzer::Mutate_(op, inplace_mode);
   }
 
-  UnchangedOr<Stmt> MutateAllocTensor(const BindNode* op, const CallNode* buffer_call,
+  UnchangedOr<Stmt> MutateAllocTensor(const BindNode* op, const CallNode* tensor_call,
                                       InplaceMode inplace_mode) {
     const FlatInfo& info = Define(op->var.as_or_throw<TensorVar>());
-    ffi::Array<Expr> args = buffer_call->args;
+    ffi::Array<Expr> args = tensor_call->args;
     if (args.size() == 4) {
       args.Set(3, Mutate(args[3], inplace_mode).ValueOrUnchanged(args[3]));
     }
     if (info.flattened.same_as(op->var.as_or_throw<TensorVar>()) &&
-        args.same_as(buffer_call->args)) {
+        args.same_as(tensor_call->args)) {
       return ffi::Unchanged();
     }
-    args.Set(0, tvm::Tuple(info.flattened->shape, buffer_call->args[0]->loc));
-    args.Set(1, DataTypeImm(info.flattened->dtype->dtype, buffer_call->args[1]->loc));
-    args.Set(2, StringImm(info.flattened.scope(), buffer_call->args[2]->loc));
+    args.Set(0, tvm::Tuple(info.flattened->shape, tensor_call->args[0]->loc));
+    args.Set(1, DataTypeImm(info.flattened->dtype->dtype, tensor_call->args[1]->loc));
+    args.Set(2, StringImm(info.flattened.scope(), tensor_call->args[2]->loc));
     return Bind(info.flattened.var(),
-                Call(info.flattened.type(), tirx::alloc_tensor_op(), args, buffer_call->attrs,
-                     buffer_call->ty_args, buffer_call->loc),
+                Call(info.flattened.type(), tirx::alloc_tensor_op(), args, tensor_call->attrs,
+                     tensor_call->ty_args, tensor_call->loc),
                 op->loc);
   }
 
-  UnchangedOr<Stmt> MutateDeclTensor(const BindNode* op, const CallNode* buffer_call,
+  UnchangedOr<Stmt> MutateDeclTensor(const BindNode* op, const CallNode* tensor_call,
                                      InplaceMode inplace_mode) {
-    Expr data = buffer_call->args[0];
-    bool is_extern_buffer_source = false;
-    if (const auto* call = buffer_call->args[0].as<CallNode>();
+    Expr data = tensor_call->args[0];
+    bool is_extern_tensor_source = false;
+    if (const auto* call = tensor_call->args[0].as<CallNode>();
         call && call->op.same_as(tensor_data_ptr_op()) && call->args.size() == 1) {
       if (const auto* var = call->args[0].as<VarNode>(); var && var->ty.as<TensorTypeNode>()) {
-        is_extern_buffer_source =
-            extern_buffers_.count(ffi::GetRef<Var>(var).as_or_throw<TensorVar>());
+        is_extern_tensor_source =
+            extern_tensors_.count(ffi::GetRef<Var>(var).as_or_throw<TensorVar>());
       }
     }
-    if (!is_extern_buffer_source) {
-      data = Mutate(buffer_call->args[0], inplace_mode).ValueOrUnchanged(buffer_call->args[0]);
+    if (!is_extern_tensor_source) {
+      data = Mutate(tensor_call->args[0], inplace_mode).ValueOrUnchanged(tensor_call->args[0]);
     }
     const FlatInfo& info = Define(op->var.as_or_throw<TensorVar>());
     if (info.flattened.same_as(op->var.as_or_throw<TensorVar>()) &&
-        data.same_as(buffer_call->args[0])) {
+        data.same_as(tensor_call->args[0])) {
       return ffi::Unchanged();
     }
     return Bind(info.flattened,
                 Call(info.flattened.type(), decl_tensor_op(),
                      {std::move(data), tvm::Tuple(info.flattened->shape),
                       DataTypeImm(info.flattened->dtype->dtype), StringImm(info.flattened.scope())},
-                     buffer_call->attrs, buffer_call->ty_args, buffer_call->loc),
+                     tensor_call->attrs, tensor_call->ty_args, tensor_call->loc),
                 op->loc);
   }
 
   UnchangedOr<Stmt> Mutate_(const TensorStoreNode* op, InplaceMode inplace_mode) final {
-    // The buffer and its indices must be flattened together by VisitBufferAccess.
+    // The tensor and its indices must be flattened together by VisitTensorAccess.
     auto value = Mutate(op->value, inplace_mode);
     auto indices =
         Mutate(op->indices, inplace_mode).as_or_throw<UnchangedOr<ffi::Array<PrimExpr>>>();
@@ -252,7 +252,7 @@ class BufferFlattener : public IRMutatorWithAnalyzer {
       n->value = std::move(value).ValueOrUnchanged(op->value);
       n->indices = std::move(indices).ValueOrUnchanged(op->indices);
     }
-    return VisitBufferAccess(std::move(store), op->dest.as_or_throw<TensorVar>());
+    return VisitTensorAccess(std::move(store), op->dest.as_or_throw<TensorVar>());
   }
 
   UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) final {
@@ -262,7 +262,7 @@ class BufferFlattener : public IRMutatorWithAnalyzer {
     if (!indices.UnchangedOrSameAs(op->indices)) {
       load.CopyOnWrite()->indices = std::move(indices).ValueUnchecked();
     }
-    return VisitBufferAccess(std::move(load), op->source.as_or_throw<TensorVar>());
+    return VisitTensorAccess(std::move(load), op->source.as_or_throw<TensorVar>());
   }
 
   UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) final {
@@ -274,7 +274,7 @@ class BufferFlattener : public IRMutatorWithAnalyzer {
         indices.push_back(
             this->Mutate(op->args[i]).ValueOrUnchanged(op->args[i]).as_or_throw<PrimExpr>());
       }
-      buffers_used_.insert(original);
+      tensors_used_.insert(original);
       const FlatInfo& info = Lookup(original);
       ffi::Array<Expr> args{info.flattened.var()};
       if (!is_load)
@@ -289,7 +289,7 @@ class BufferFlattener : public IRMutatorWithAnalyzer {
       if (auto var = op->args[0].as<Var>()) {
         if (var.value()->ty.as<TensorTypeNode>()) {
           TensorVar original = var.value().as_or_throw<TensorVar>();
-          buffers_used_.insert(original);
+          tensors_used_.insert(original);
           return Lookup(original).flattened.data();
         }
       }
@@ -303,10 +303,10 @@ class BufferFlattener : public IRMutatorWithAnalyzer {
   }
 
   template <typename Node>
-  Node VisitBufferAccess(Node node, const TensorVar& original_buffer) {
+  Node VisitTensorAccess(Node node, const TensorVar& original_tensor) {
     TVM_FFI_ICHECK(node->dest.template as_or_throw<TensorVar>().defined());
-    buffers_used_.insert(original_buffer);
-    const FlatInfo& info = Lookup(original_buffer);
+    tensors_used_.insert(original_tensor);
+    const FlatInfo& info = Lookup(original_tensor);
     auto flattened_indices = FoldIndices(info, node->indices);
 
     auto writer = node.CopyOnWrite();
@@ -315,37 +315,37 @@ class BufferFlattener : public IRMutatorWithAnalyzer {
     return node;
   }
 
-  TensorLoad VisitBufferAccess(TensorLoad node, const TensorVar& original_buffer) {
-    buffers_used_.insert(original_buffer);
-    const FlatInfo& info = Lookup(original_buffer);
+  TensorLoad VisitTensorAccess(TensorLoad node, const TensorVar& original_tensor) {
+    tensors_used_.insert(original_tensor);
+    const FlatInfo& info = Lookup(original_tensor);
     return MakeTensorLoad(info.flattened, FoldIndices(info, node->indices), node->loc);
   }
 
-  /*! \brief Set of buffers accessed during visitation (used to emit DeclTensor for param buffers).
+  /*! \brief Set of tensors accessed during visitation (used to emit DeclTensor for param tensors).
    */
-  std::unordered_set<TensorVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> buffers_used_;
+  std::unordered_set<TensorVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> tensors_used_;
 
-  /*! \brief Buffers whose storage is supplied by a Function parameter. */
-  std::unordered_set<TensorVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> extern_buffers_;
+  /*! \brief Tensors whose storage is supplied by a Function parameter. */
+  std::unordered_set<TensorVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> extern_tensors_;
 
-  /*! \brief Per-buffer {fold view, flattened husk}, derived at definition points. */
+  /*! \brief Per-tensor {fold view, flattened husk}, derived at definition points. */
   std::unordered_map<Var, FlatInfo, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> flat_map_;
 };
 
-Function FlattenBuffer(Function f) { return BufferFlattener::Flatten(f); }
+Function FlattenTensor(Function f) { return TensorFlattener::Flatten(f); }
 
 namespace transform {
 
-Pass FlattenBuffer() {
+Pass FlattenTensor() {
   auto pass_func = [=](Function f, IRModule m, PassContext ctx) {
-    return FlattenBuffer(std::move(f));
+    return FlattenTensor(std::move(f));
   };
-  return CreateFunctionPass(pass_func, 0, "tirx.FlattenBuffer");
+  return CreateFunctionPass(pass_func, 0, "tirx.FlattenTensor");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tirx.transform.FlattenBuffer", FlattenBuffer);
+  refl::GlobalDef().def("tirx.transform.FlattenTensor", FlattenTensor);
 }
 }  // namespace transform
 

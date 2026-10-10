@@ -54,7 +54,7 @@ class MyModule:
         with Ts.sblock("root"):
             Ts.reads()
             Ts.writes()
-            Y = Ts.sblock_alloc_buffer((128, 128))
+            Y = Ts.sblock_alloc_tensor((128, 128))
             for i, j, k in T.grid(128, 128, 128):
                 with Ts.sblock("Y"):
                     vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])

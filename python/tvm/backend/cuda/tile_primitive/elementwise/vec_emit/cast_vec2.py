@@ -61,7 +61,7 @@ def _cast_vec2_applies(op_call, sctx, plan):
     src = plan.srcs[0]
     if src.index_fn is not None:
         return False, "broadcasting src not supported by cast vec2"
-    src_dtype = dtype_name(src.buf_region.source.dtype)
+    src_dtype = dtype_name(src.tensor_region.source.dtype)
     dst_dtype = dtype_name(plan.dst.source.dtype)
     if (src_dtype, dst_dtype) not in _VEC2_CAST_INTRINSICS:
         return False, f"no vec2 intrinsic for {src_dtype}->{dst_dtype}"

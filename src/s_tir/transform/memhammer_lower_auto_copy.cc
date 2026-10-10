@@ -91,27 +91,27 @@ static MmaToGlobal mma_to_global;
 class AutoPadder {
  public:
   /**
-   * \brief Do padding to the given buffers in shard memory
-   * \param buffers the given buffers
-   * \return the list of new padded buffers
+   * \brief Do padding to the given tensors in shard memory
+   * \param tensors the given tensors
+   * \return the list of new padded tensors
    */
-  ffi::Array<TensorVar> PadSharedMemory(const ffi::Array<TensorVar>& buffers) {
+  ffi::Array<TensorVar> PadSharedMemory(const ffi::Array<TensorVar>& tensors) {
     ffi::Array<TensorVar> result;
 
-    for (const TensorVar& buffer : buffers) {
-      runtime::StorageScope scope = runtime::StorageScope::Create(buffer.scope());
+    for (const TensorVar& tensor : tensors) {
+      runtime::StorageScope scope = runtime::StorageScope::Create(tensor.scope());
       if (scope.rank == runtime::StorageRank::kShared) {
-        auto iter_spaces = iter_spaces_[buffer.get()];
+        auto iter_spaces = iter_spaces_[tensor.get()];
         if (iter_spaces.empty()) {
-          result.push_back(buffer);
+          result.push_back(tensor);
           continue;
         }
         // The access index represented by points in the cartesian product of lower dimension
         // iteration spaces
         std::vector<std::vector<int>> low_dim_iter_space(iter_spaces.size(), std::vector<int>());
 
-        int n = buffer->shape.size();
-        int data_bits = buffer->dtype.bits();
+        int n = tensor->shape.size();
+        int data_bits = tensor->dtype.bits();
         // Step 1. initialize `low_dim_iter_space` with the iteration space of the last dim
         for (int i = 0; i < static_cast<int>(iter_spaces.size()); i++) {
           auto last_dim_iter_space = iter_spaces[i][n - 1];
@@ -119,17 +119,17 @@ class AutoPadder {
         }
         PrimExpr stride = 1;
         ffi::Array<PrimExpr> reverse_strides;
-        int pad_min = static_cast<int>(padding_min_.Get(buffer).value_or(1));
+        int pad_min = static_cast<int>(padding_min_.Get(tensor).value_or(1));
         // Step 2. For each dimension, select a padding that has minimal bank conflict
         for (int k = n - 2; k >= 0; k--) {  // dims
           int max_pad_size = static_cast<int>(std::min(
               max_pad_factor_ *
-                  static_cast<double>((stride * buffer->shape[k + 1]).as<IntImmNode>()->value),
+                  static_cast<double>((stride * tensor->shape[k + 1]).as<IntImmNode>()->value),
               static_cast<double>(32 * 32 / data_bits)));
           int min_conflict = INT32_MAX;
           int min_conflict_pad = -1;
           for (int pad = 0; pad <= max_pad_size; pad += pad_min) {  // select padding
-            int padded_stride = (((stride * buffer->shape[k + 1]).as<IntImmNode>()->value + pad) %
+            int padded_stride = (((stride * tensor->shape[k + 1]).as<IntImmNode>()->value + pad) %
                                  (32 * 32 / data_bits))
                                     .as<int>()
                                     .value();
@@ -157,7 +157,7 @@ class AutoPadder {
             auto iter_space = iter_spaces[i][k];
             if (!iter_space.empty()) {
               int padded_stride =
-                  (((stride * buffer->shape[k + 1]).as<IntImmNode>()->value + min_conflict_pad) %
+                  (((stride * tensor->shape[k + 1]).as<IntImmNode>()->value + min_conflict_pad) %
                    (32 * 32 / data_bits))
                       .as<int>()
                       .value();
@@ -170,40 +170,40 @@ class AutoPadder {
               low_dim_iter_space[i] = loc;
             }
           }
-          stride = stride * buffer->shape[k + 1] + min_conflict_pad;
+          stride = stride * tensor->shape[k + 1] + min_conflict_pad;
           reverse_strides.push_back(stride);
         }
-        // Step 3. create the new padded buffer
-        ffi::ObjectPtr<TensorTypeNode> b = CopyTensorType(buffer);
+        // Step 3. create the new padded tensor
+        ffi::ObjectPtr<TensorTypeNode> b = CopyTensorType(tensor);
         ffi::Array<PrimExpr> strides;
         for (int i = static_cast<int>(reverse_strides.size()) - 1; i >= 0; i--) {
           strides.push_back(reverse_strides[i]);
         }
         strides.push_back(1);
         b->strides = strides;
-        TensorVar new_buffer = RebuildTensorVar(buffer, std::move(b));
-        result.push_back(new_buffer);
-        padded_buffer_map_.Set(buffer, new_buffer);
+        TensorVar new_tensor = RebuildTensorVar(tensor, std::move(b));
+        result.push_back(new_tensor);
+        padded_tensor_map_.Set(tensor, new_tensor);
       } else {
-        result.push_back(buffer);
+        result.push_back(tensor);
       }
     }
     return result;
   }
 
   /**
-   * \brief Replace all occurrence of the old buffer with the new buffer in the stmt
+   * \brief Replace all occurrence of the old tensor with the new tensor in the stmt
    * \param stmt the stmt to do replacement
    * \return the stmt after replacement
    */
-  Stmt RewriteBufferAccess(const Stmt& stmt) {
+  Stmt RewriteTensorAccess(const Stmt& stmt) {
     class Rewriter : public StmtExprMutator {
      public:
       using StmtExprMutator::Mutate;
       using StmtExprMutator::Mutate_;
 
-      explicit Rewriter(const ffi::Map<TensorVar, TensorVar>& buffer_map) {
-        for (const auto& [buffer, replacement] : buffer_map) VarRemapSet(buffer, replacement);
+      explicit Rewriter(const ffi::Map<TensorVar, TensorVar>& tensor_map) {
+        for (const auto& [tensor, replacement] : tensor_map) VarRemapSet(tensor, replacement);
       }
 
      private:
@@ -211,8 +211,8 @@ class AutoPadder {
         TensorLoad load = StmtExprMutator::Mutate_(_op, inplace_mode)
                               .ValueOrUnchanged(ffi::GetRef<PrimExpr>(_op))
                               .as_or_throw<TensorLoad>();
-        TensorVar buffer = load->source.as_or_throw<tvm::tirx::TensorVar>();
-        if (auto replacement = VarRemapGet(buffer).as<TensorVar>()) {
+        TensorVar tensor = load->source.as_or_throw<tvm::tirx::TensorVar>();
+        if (auto replacement = VarRemapGet(tensor).as<TensorVar>()) {
           return MakeTensorLoad(replacement.value(), load->indices, load->loc);
         }
         return load;
@@ -231,7 +231,7 @@ class AutoPadder {
 
       UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) final {
         // To reduce the number of blocks in block sref reuse map, we check whether the block is
-        // really mutated (i.e., the old buffer appears in the block). If so, we return the block
+        // really mutated (i.e., the old tensor appears in the block). If so, we return the block
         // after mutation. Otherwise we just return the original block.
         bool changed = false;
         // Step 1. Mutate the read region.
@@ -240,7 +240,7 @@ class AutoPadder {
           if (auto replacement =
                   VarRemapGet(read->source.as_or_throw<tvm::tirx::TensorVar>()).as<TensorVar>()) {
             changed = true;
-            reads.push_back(BufferRegion(replacement.value(), read->region));
+            reads.push_back(MakeTensorRegion(replacement.value(), read->region));
           } else {
             reads.push_back(read);
           }
@@ -251,24 +251,24 @@ class AutoPadder {
           if (auto replacement =
                   VarRemapGet(write->source.as_or_throw<tvm::tirx::TensorVar>()).as<TensorVar>()) {
             changed = true;
-            writes.push_back(BufferRegion(replacement.value(), write->region));
+            writes.push_back(MakeTensorRegion(replacement.value(), write->region));
           } else {
             writes.push_back(write);
           }
         }
-        // Step 4. Mutate `match_buffers`. If an old buffer appears as a source of
-        // MatchBufferRegion, the storage scope of the target buffer also needs to be set.
-        ffi::Array<MatchBufferRegion> match_buffers;
-        for (const MatchBufferRegion& match_buffer : op->match_buffers) {
+        // Step 4. Mutate `match_tensors`. If an old tensor appears as a source of
+        // MatchTensorRegion, the storage scope of the target tensor also needs to be set.
+        ffi::Array<MatchTensorRegion> match_tensors;
+        for (const MatchTensorRegion& match_tensor : op->match_tensors) {
           if (auto replacement =
-                  VarRemapGet(match_buffer->source->source.as_or_throw<tvm::tirx::TensorVar>())
+                  VarRemapGet(match_tensor->source->source.as_or_throw<tvm::tirx::TensorVar>())
                       .as<TensorVar>()) {
             changed = true;
-            TensorVar new_buffer = replacement.value();
-            match_buffers.push_back(MatchBufferRegion(
-                match_buffer->buffer, BufferRegion(new_buffer, match_buffer->source->region)));
+            TensorVar new_tensor = replacement.value();
+            match_tensors.push_back(MatchTensorRegion(
+                match_tensor->tensor, MakeTensorRegion(new_tensor, match_tensor->source->region)));
           } else {
-            match_buffers.push_back(match_buffer);
+            match_tensors.push_back(match_tensor);
           }
         }
         // Step 5. Recursively mutate the block.
@@ -283,14 +283,14 @@ class AutoPadder {
           SBlockNode* n = block.CopyOnWrite();
           n->reads = std::move(reads);
           n->writes = std::move(writes);
-          n->match_buffers = std::move(match_buffers);
+          n->match_tensors = std::move(match_tensors);
           return block;
         } else {
           return ffi::Unchanged();
         }
       }
     };
-    auto rewriter = ffi::make_object<Rewriter>(padded_buffer_map_);
+    auto rewriter = ffi::make_object<Rewriter>(padded_tensor_map_);
     return rewriter->Mutate(stmt).ValueOrUnchanged(stmt);
   }
 
@@ -480,7 +480,7 @@ class AutoPadder {
     bool success_ = true;
   };
 
-  /*! A utility class for calling CollectIterationSpace to each buffer access*/
+  /*! A utility class for calling CollectIterationSpace to each tensor access*/
   class IterSpaceAnalyzer : public StmtExprVisitor {
    public:
     using StmtExprVisitor::Visit_;
@@ -537,11 +537,11 @@ class AutoPadder {
       return std::nullopt;
     }
     /*!
-     * \brief Take a typical warp and collect the iteration space for buffer store
+     * \brief Take a typical warp and collect the iteration space for tensor store
      * For example, the access is A[outer*2+ty, tx*4+vec] = xxx, where tx is threadIdx.x, and ty is
      * threadIdx.y. tx is in [0, 16), and ty is in [0, 2).
      * The iteration space would be {{0, 1}, {0, 4, ..., 60}}.
-     * \param op the buffer store
+     * \param op the tensor store
      */
     ffi::Optional<VisitInterrupt> Visit_(const TensorStoreNode* op) final {
       runtime::StorageScope scope =
@@ -573,15 +573,15 @@ class AutoPadder {
       return StmtExprVisitor::Visit_(op);
     }
     /*!
-     * \brief Take a typical warp and collect the iteration space for buffer load
+     * \brief Take a typical warp and collect the iteration space for tensor load
      * For example, the access is xxx = A[outer*2+ty, tx*4+vec], where tx is threadIdx.x, and ty is
      * threadIdx.y. tx is in [0, 16), and ty is in [0, 2).
      * The iteration space would be {{0, 1}, {0, 4, ..., 60}}.
-     * \param op the buffer load
+     * \param op the tensor load
      */
     ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* op) final {
-      TensorVar buffer = op->source.as_or_throw<tvm::tirx::TensorVar>();
-      runtime::StorageScope scope = runtime::StorageScope::Create(buffer.scope());
+      TensorVar tensor = op->source.as_or_throw<tvm::tirx::TensorVar>();
+      runtime::StorageScope scope = runtime::StorageScope::Create(tensor.scope());
       if (scope.rank == runtime::StorageRank::kShared) {
         ffi::Array<PrimExpr> substitued_indices;
         sym::Analyzer analyzer;
@@ -597,12 +597,12 @@ class AutoPadder {
         std::vector<std::vector<int>> iter_space =
             PatternCollector::CollectIterationSpace(substitued_indices, var_range_, data_bits_);
         if (!iter_space.empty()) {
-          self->iter_spaces_[buffer.get()].push_back(iter_space);
+          self->iter_spaces_[tensor.get()].push_back(iter_space);
         }
         if (vector_length_ != -1 &&
             CheckVarContiguous(substitued_indices.back(), vector_var.value(), substitute_map_)) {
-          int64_t m = self->padding_min_.Get(buffer).value_or(1);
-          self->padding_min_.Set(buffer, std::max(static_cast<int64_t>(vector_length_), m));
+          int64_t m = self->padding_min_.Get(tensor).value_or(1);
+          self->padding_min_.Set(tensor, std::max(static_cast<int64_t>(vector_length_), m));
         }
       }
       return StmtExprVisitor::Visit_(op);
@@ -623,9 +623,9 @@ class AutoPadder {
           static const Op gpu_store_matrix_sync_op = Op::Get("tirx.gpu_store_matrix_sync");
           if (call->op.same_as(gpu_load_matrix_sync_op) ||
               call->op.same_as(gpu_store_matrix_sync_op)) {
-            for (const MatchBufferRegion& r : op->match_buffers) {
-              TensorVar src_buffer = r->source->source.as_or_throw<tvm::tirx::TensorVar>();
-              runtime::StorageScope scope = runtime::StorageScope::Create(src_buffer.scope());
+            for (const MatchTensorRegion& r : op->match_tensors) {
+              TensorVar src_tensor = r->source->source.as_or_throw<tvm::tirx::TensorVar>();
+              runtime::StorageScope scope = runtime::StorageScope::Create(src_tensor.scope());
               if (scope.rank == runtime::StorageRank::kShared) {
                 ffi::Array<Range> region = r->source->region;
                 ffi::Array<PrimExpr> indices;
@@ -649,7 +649,7 @@ class AutoPadder {
                 std::vector<std::vector<int>> iter_space = PatternCollector::CollectIterationSpace(
                     substitued_indices, var_range_, data_bits_);
                 if (!iter_space.empty()) {
-                  self->iter_spaces_[src_buffer.get()].push_back(iter_space);
+                  self->iter_spaces_[src_tensor.get()].push_back(iter_space);
                 }
               }
             }
@@ -703,11 +703,11 @@ class AutoPadder {
   }
 
  private:
-  /*! \brief A map from the old buffers to the new padded buffers */
-  ffi::Map<TensorVar, TensorVar> padded_buffer_map_;
-  /*! \brief A map from each buffer to the iteration spaces of the accesses*/
+  /*! \brief A map from the old tensors to the new padded tensors */
+  ffi::Map<TensorVar, TensorVar> padded_tensor_map_;
+  /*! \brief A map from each tensor to the iteration spaces of the accesses*/
   std::unordered_map<const VarNode*, std::vector<std::vector<std::vector<int>>>> iter_spaces_;
-  /*! \brief A map from each buffer to their minimal padding size */
+  /*! \brief A map from each tensor to their minimal padding size */
   ffi::Map<TensorVar, int64_t> padding_min_;
   /*! \brief max padding size in relative to the original shape*/
   const double max_pad_factor_ = 0.25;
@@ -723,11 +723,11 @@ class AutoCopyMutator : public StmtExprMutator {
   explicit AutoCopyMutator(ffi::Map<ffi::String, int64_t> thread_extent)
       : thread_extent_(thread_extent) {}
   /**
-   * \brief Replace old buffers with padded buffers in the stmt
+   * \brief Replace old tensors with padded tensors in the stmt
    * \param stmt The stmt to rewrite
    * \return The stmt after rewrite
    */
-  Stmt RewritePaddingBody(const Stmt& stmt) { return padder.RewriteBufferAccess(stmt); }
+  Stmt RewritePaddingBody(const Stmt& stmt) { return padder.RewriteTensorAccess(stmt); }
 
  private:
   UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) final {
@@ -737,7 +737,7 @@ class AutoCopyMutator : public StmtExprMutator {
     // only rewrite the block annotated with "auto_copy"
     if (!GetAnn<bool>(op, tvm::s_tir::attr::kAutoCopy).value_or(false)) {
       SBlockNode* n = block.CopyOnWrite();
-      n->alloc_buffers = padder.PadSharedMemory(std::move(n->alloc_buffers));
+      n->alloc_tensors = padder.PadSharedMemory(std::move(n->alloc_tensors));
       return block;
     }
     TVM_FFI_ICHECK_EQ(block->writes.size(), 1);
@@ -753,7 +753,7 @@ class AutoCopyMutator : public StmtExprMutator {
           target_read = block->reads[i];
         }
       }
-      TVM_FFI_ICHECK(found) << "Multiple buffer read";
+      TVM_FFI_ICHECK(found) << "Multiple tensor read";
     }
 
     int data_bits = target_read->source.as_or_throw<tvm::tirx::TensorVar>()->dtype.bits();
@@ -771,15 +771,15 @@ class AutoCopyMutator : public StmtExprMutator {
       rewritten = rule->Apply(rewritten, constraints, &outputs);
     }
     n->body = SeqStmt(rewritten, n->body->loc);
-    for (const TensorVar& buffer : outputs.alloc_tensor) {
-      n->alloc_buffers.push_back(buffer);
+    for (const TensorVar& tensor : outputs.alloc_tensor) {
+      n->alloc_tensors.push_back(tensor);
     }
     for (const auto& p : outputs.padding_min) {
       int64_t m = padder.padding_min_.Get(p.first).value_or(1);
       padder.padding_min_.Set(p.first, std::max(p.second, m));
     }
     padder.AnalyzeSharedMemoryAccess(block->body, outer_loops_, data_bits, thread_extent_);
-    n->alloc_buffers = padder.PadSharedMemory(std::move(n->alloc_buffers));
+    n->alloc_tensors = padder.PadSharedMemory(std::move(n->alloc_tensors));
     return block;
   }
 

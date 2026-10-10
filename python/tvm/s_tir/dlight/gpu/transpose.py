@@ -114,7 +114,7 @@ class Transpose(GPUScheduleRule):
         if len_vec > 1:
             sch.vectorize(vi)
 
-        cache_read = sch.cache_read(transpose_block, read_buffer_index=0, storage_scope="shared")
+        cache_read = sch.cache_read(transpose_block, read_tensor_index=0, storage_scope="shared")
         sch.compute_at(cache_read, bj)
         loops = sch.get_loops(cache_read)[2:]
         fused = sch.fuse(*loops)
@@ -122,7 +122,7 @@ class Transpose(GPUScheduleRule):
         sch.bind(ty, "threadIdx.y")
         sch.bind(tx, "threadIdx.x")
         sch.unroll(v)
-        sch.storage_align(block=cache_read, buffer_index=0, axis=0, factor=32, offset=1)
+        sch.storage_align(block=cache_read, tensor_index=0, axis=0, factor=32, offset=1)
 
         sch.annotate(bi, ann_key="auto_unroll_max_step", ann_val=unroll_depth)
         sch.annotate(bi, ann_key="unroll_explicit", ann_val=1)

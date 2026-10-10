@@ -23,7 +23,7 @@ from tvm.ir import TensorRegion
 from tvm.script import tirx as T
 from tvm.sym.analyzer import Analyzer
 
-# Represents the part of data iter covered by the buffer region
+# Represents the part of data iter covered by the tensor region
 RangeInfo = namedtuple(
     "RangeInfo", ["start", "extent", "dim_in_data_iter", "dim_in_shape", "dim_type"]
 )
@@ -56,31 +56,31 @@ def normalize_and_group(layout, shape):
 
 
 def get_ewise_dim_map(
-    buffer_region: TensorRegion, second_buffer_region: TensorRegion, analyzer: Analyzer
+    tensor_region: TensorRegion, second_tensor_region: TensorRegion, analyzer: Analyzer
 ):
-    """Get the dimension map between two elementwise buffer regions.
+    """Get the dimension map between two elementwise tensor regions.
 
     Parameters
     ----------
-    buffer_region : TensorRegion
-        The first buffer region
-    second_buffer_region : TensorRegion
-        The second buffer region
+    tensor_region : TensorRegion
+        The first tensor region
+    second_tensor_region : TensorRegion
+        The second tensor region
     analyzer : Analyzer
         The analyzer to use
 
     Returns
     -------
     Dict[int, int] :
-        A dimension map from first to second buffer region
+        A dimension map from first to second tensor region
 
     Raises
     ------
     AssertionError :
         If dimensions do not match
     """
-    extent_1 = [r.extent for r in buffer_region.region]
-    extent_2 = [r.extent for r in second_buffer_region.region]
+    extent_1 = [r.extent for r in tensor_region.region]
+    extent_2 = [r.extent for r in second_tensor_region.region]
     extent_1_non_unit = [e for e in extent_1 if e != 1]
     extent_2_non_unit = [e for e in extent_2 if e != 1]
     assert all(
@@ -108,19 +108,19 @@ def get_ewise_dim_map(
 
 
 def get_reduction_dim_map(
-    src_buffer_region: TensorRegion,
-    dst_buffer_region: TensorRegion,
+    src_tensor_region: TensorRegion,
+    dst_tensor_region: TensorRegion,
     axes: tuple[int],
     analyzer: Analyzer,
 ):
-    """Get the dimension map between source and destination buffer regions for reduction.
+    """Get the dimension map between source and destination tensor regions for reduction.
 
     Parameters
     ----------
-    src_buffer_region : TensorRegion
-        The source buffer region
-    dst_buffer_region : TensorRegion
-        The destination buffer region
+    src_tensor_region : TensorRegion
+        The source tensor region
+    dst_tensor_region : TensorRegion
+        The destination tensor region
     axes : Tuple[int]
         The reduction axes
     analyzer : Analyzer
@@ -129,17 +129,17 @@ def get_reduction_dim_map(
     Returns
     -------
     Dict[int, int] :
-        A dimension map from source to destination buffer region
+        A dimension map from source to destination tensor region
 
     Raises
     ------
     AssertionError :
         If dimensions do not match
     """
-    dst_region = dst_buffer_region.region
+    dst_region = dst_tensor_region.region
     dst_extent = [r.extent for r in dst_region]
     dst_non_unit_extent_ = [(i, e) for i, e in enumerate(dst_extent) if e != 1]
-    src_region = src_buffer_region.region
+    src_region = src_tensor_region.region
     src_extent = [r.extent for r in src_region]
     src_non_unit_extent_ = [(i, e) for i, e in enumerate(src_extent) if e != 1]
     src_non_reduction_extents = [(i, e) for i, e in src_non_unit_extent_ if i not in axes]

@@ -36,7 +36,7 @@ class PrinterConfig(Object):
     ``ir.int_dtype`` and ``ir.float_dtype`` entries in ``extra_config``.
     Explicit entries in ``extra_config`` override those arguments.
 
-    ``tirx.scalar_buffer_as_mutable_var`` in ``extra_config`` defaults to true.
+    ``tirx.scalar_tensor_as_mutable_var`` in ``extra_config`` defaults to true.
     It prints eligible local scalar buffers as typed mutable variables. Set it
     to false to retain explicit buffer allocations and indexed loads/stores.
     """

@@ -39,32 +39,32 @@ void TIRVisitorWithPath::Dispatch_(const SBlockNode* op, AccessPath path) {
     }
   }
 
-  // Define alloc_buffers before visiting reads/writes, since reads/writes
-  // may reference buffers from alloc_buffers (e.g. after transform_layout).
+  // Define alloc_tensors before visiting reads/writes, since reads/writes
+  // may reference tensors from alloc_tensors (e.g. after transform_layout).
   {
-    auto alloc_path = path->Attr("alloc_buffers");
-    for (size_t i = 0; i < op->alloc_buffers.size(); i++) {
-      auto buffer_path = alloc_path->ArrayItem(i);
-      auto buf = op->alloc_buffers[i];
-      context.push_back(WithDef(buf.var(), buffer_path));
+    auto alloc_path = path->Attr("alloc_tensors");
+    for (size_t i = 0; i < op->alloc_tensors.size(); i++) {
+      auto tensor_path = alloc_path->ArrayItem(i);
+      auto tensor = op->alloc_tensors[i];
+      context.push_back(WithDef(tensor.var(), tensor_path));
     }
   }
 
   {
-    auto match_path = path->Attr("match_buffers");
-    for (size_t i = 0; i < op->match_buffers.size(); i++) {
-      Visit(op->match_buffers[i]->source, match_path->ArrayItem(i)->Attr("source"));
-      auto buf = op->match_buffers[i]->buffer;
-      auto buffer_path = match_path->ArrayItem(i)->Attr("buffer");
+    auto match_path = path->Attr("match_tensors");
+    for (size_t i = 0; i < op->match_tensors.size(); i++) {
+      Visit(op->match_tensors[i]->source, match_path->ArrayItem(i)->Attr("source"));
+      auto tensor = op->match_tensors[i]->tensor;
+      auto tensor_path = match_path->ArrayItem(i)->Attr("tensor");
 
-      for (auto& def : WithMatchBufferDefs(buf, buffer_path->Attr("ty"))) {
+      for (auto& def : WithMatchTensorDefs(tensor, tensor_path->Attr("ty"))) {
         context.push_back(std::move(def));
       }
-      context.push_back(WithDef(buf.var(), buffer_path));
+      context.push_back(WithDef(tensor.var(), tensor_path));
     }
   }
 
-  // Regions may use allocation and match-buffer definitions in this block.
+  // Regions may use allocation and match-tensor definitions in this block.
   Visit(op->reads, path->Attr("reads"));
   Visit(op->writes, path->Attr("writes"));
 

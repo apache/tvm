@@ -215,8 +215,8 @@ def extern(
     fcompute,
     name="extern",
     dtype=None,
-    in_buffers=None,
-    out_buffers=None,
+    in_tensors=None,
+    out_tensors=None,
     tag="",
     attrs=None,
 ):
@@ -252,11 +252,11 @@ def extern(
         The data types of outputs,
         by default dtype will be same as inputs.
 
-    in_buffers: tvm.ir.Var or list of tvm.ir.Var, optional
-        Input buffers.
+    in_tensors: tvm.ir.Var or list of tvm.ir.Var, optional
+        Input tensors.
 
-    out_buffers: tvm.ir.Var or list of tvm.ir.Var, optional
-        Output buffers.
+    out_tensors: tvm.ir.Var or list of tvm.ir.Var, optional
+        Output tensors.
 
 
     tag: str, optional
@@ -291,25 +291,25 @@ def extern(
     shape = (shape,) if is_prim_expr(shape) or isinstance(shape, _Integral) else shape
     if shape == () or is_prim_expr(shape[0]) or isinstance(shape[0], _Integral):
         shape = [shape]
-    if in_buffers is not None:
-        in_buffers = [in_buffers] if not isinstance(in_buffers, list) else in_buffers
-        if len(inputs) != len(in_buffers):
+    if in_tensors is not None:
+        in_tensors = [in_tensors] if not isinstance(in_tensors, list) else in_tensors
+        if len(inputs) != len(in_tensors):
             raise RuntimeError(
-                f"Number of inputs and in_buffers mismatch: {len(inputs)} vs {len(in_buffers)}."
+                f"Number of inputs and in_tensors mismatch: {len(inputs)} vs {len(in_tensors)}."
             )
-    if out_buffers is not None:
-        out_buffers = [out_buffers] if not isinstance(out_buffers, list) else out_buffers
-        if len(shape) != len(out_buffers):
+    if out_tensors is not None:
+        out_tensors = [out_tensors] if not isinstance(out_tensors, list) else out_tensors
+        if len(shape) != len(out_tensors):
             raise RuntimeError(
-                f"Number of outputs and out_buffers mismatch: {len(shape)} vs {len(out_buffers)}."
+                f"Number of outputs and out_tensors mismatch: {len(shape)} vs {len(out_tensors)}."
             )
-    input_placeholders = in_buffers or []
-    output_placeholders = out_buffers or []
+    input_placeholders = in_tensors or []
+    output_placeholders = out_tensors or []
     types = set()
     for t in inputs:
         if not isinstance(t, _tensor.Tensor):
             raise ValueError("expect inputs to be tensor")
-        if in_buffers is None:
+        if in_tensors is None:
             input_placeholders.append(
                 tvm.tirx.decl_tensor(
                     t.shape,
@@ -321,7 +321,7 @@ def extern(
             )
         types.add(t.dtype)
 
-    if out_buffers is None:
+    if out_tensors is None:
         if dtype is None:
             if len(types) != 1:
                 raise ValueError("Cannot infer output type, please provide dtype argument")
@@ -395,36 +395,36 @@ def extern_function(input_tensors: list[_tensor.Tensor], function: tvm.tirx.Func
 
     # Preserve the function parameter order while selecting TensorType annotations.
     dt_access_map = tvm.s_tir._ffi_api.DomainTouchedAccessMap(function)
-    ordered_buffers = [param for param in function.params if tvm.tirx.is_tensor_var(param)]
-    in_buffers = [buf for buf in ordered_buffers if len(dt_access_map[buf][0])]
-    out_buffers = [buf for buf in ordered_buffers if len(dt_access_map[buf][1])]
-    assert in_buffers, "Function has no input buffers"
-    assert out_buffers, "Function has no output buffers"
+    ordered_tensors = [param for param in function.params if tvm.tirx.is_tensor_var(param)]
+    in_tensors = [buf for buf in ordered_tensors if len(dt_access_map[buf][0])]
+    out_tensors = [buf for buf in ordered_tensors if len(dt_access_map[buf][1])]
+    assert in_tensors, "Function has no input tensors"
+    assert out_tensors, "Function has no output tensors"
 
     outputs = []
     inplace = []
-    input_buffers = in_buffers
-    for obuf in out_buffers:
-        if obuf in in_buffers:
+    input_tir_tensors = in_tensors
+    for obuf in out_tensors:
+        if obuf in in_tensors:
             inplace.append(obuf)
         else:
             outputs.append(obuf)
 
     if not outputs:
         iobuf = inplace.pop()
-        input_buffers.remove(iobuf)
+        input_tir_tensors.remove(iobuf)
         outputs = [iobuf]
 
-    assert len(input_buffers) == len(input_tensors), (
+    assert len(input_tir_tensors) == len(input_tensors), (
         "The number of provided input input_tensors does not match the number of ",
-        "input buffers in the function",
+        "input tensors in the function",
     )
-    for tensor, buffer in zip(input_tensors, input_buffers):
-        # TODO(csullivan): Can a stronger comparison between Tensor<>Buffer be made?
-        assert len(tensor.shape) == len(buffer.shape)
-        for d1, d2 in zip(tensor.shape, buffer.shape):
+    for tensor, tir_tensor in zip(input_tensors, input_tir_tensors):
+        # TODO(csullivan): Can a stronger comparison between Tensor<>TensorVar be made?
+        assert len(tensor.shape) == len(tir_tensor.shape)
+        for d1, d2 in zip(tensor.shape, tir_tensor.shape):
             assert d1 == d2, (
-                "The input input_tensors provided do not match the input buffers in the ",
+                "The input input_tensors provided do not match the input tensors in the ",
                 "function. Please check that the order of input te.Input_Tensors and the ",
                 "order of the function variables in the params list agree.",
             )
@@ -432,8 +432,8 @@ def extern_function(input_tensors: list[_tensor.Tensor], function: tvm.tirx.Func
         [buf.shape for buf in outputs],
         input_tensors,
         lambda ins, outs: function.body,
-        in_buffers=input_buffers,
-        out_buffers=outputs,
+        in_tensors=input_tir_tensors,
+        out_tensors=outputs,
         **kwargs,
     )
     return output

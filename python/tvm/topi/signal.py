@@ -150,7 +150,7 @@ def stft(
             ins[0], n_fft, hop_length, win_length, ins[1], normalized, onesided, outs[0], loop_kind
         ),
         dtype=[data.dtype],
-        out_buffers=[output_buf],
+        out_tensors=[output_buf],
         name="stft_cpu",
         tag="stft_cpu",
     )

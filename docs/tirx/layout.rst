@@ -254,7 +254,7 @@ scale-factor group feeds all four warps. The atom is then direct-summed with an
 outer over ``(M rows, K scale-factor groups)``, packing ``epc = 32 / SF_bits``
 scale factors into each 32-bit ``TCol`` cell (e.g. four fp8 ``e8m0`` SFs per cell);
 optional stride-0 ``reuse`` and outer ``pipe_depth`` iters express SF reuse across
-MMAs and double-buffering. So the one ``TileLayout`` model expresses both the
+MMAs and double-tensoring. So the one ``TileLayout`` model expresses both the
 accumulator (a pure placement, no replica) and its scale factors (a replicated,
 routed placement) in the same tensor-memory address space.
 
@@ -475,7 +475,7 @@ Design rationale
 ----------------
 
 - **General shape support.** Non-power-of-two shapes are common — in global
-  tensors, multi-stage shared-memory buffers, and capacity-limited on-chip
+  tensors, multi-stage shared-memory tensors, and capacity-limited on-chip
   scratchpads — so the layout supports general shapes directly rather than as a
   special case.
 - **Logical-to-physical mapping.** The map goes from logical coordinates to a set

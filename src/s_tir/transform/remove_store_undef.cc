@@ -66,7 +66,7 @@ class StoreUndefLocator : public StmtExprVisitor {
       undef_stores_.insert(op);
     }
 
-    // Check indices for undef.  Undef in buffer indices is always an
+    // Check indices for undef.  Undef in tensor indices is always an
     // error (there is no valid lowering).  With flat Bind, we must
     // check indices eagerly because the Bind node is a sibling rather
     // than an ancestor and may be removed before post-validation.
@@ -76,19 +76,19 @@ class StoreUndefLocator : public StmtExprVisitor {
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit(idx));
     }
     std::swap(has_undef_, idx_undef);
-    TVM_FFI_ICHECK(!idx_undef) << "Error: T.undef() may not be used in buffer indices";
+    TVM_FFI_ICHECK(!idx_undef) << "Error: T.undef() may not be used in tensor indices";
     return std::nullopt;
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* op) final {
-    // Check indices for undef.  Undef in buffer indices is always an error.
+    // Check indices for undef.  Undef in tensor indices is always an error.
     bool idx_undef = false;
     std::swap(has_undef_, idx_undef);
     for (const auto& idx : op->indices) {
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit(idx));
     }
     std::swap(has_undef_, idx_undef);
-    TVM_FFI_ICHECK(!idx_undef) << "Error: T.undef() may not be used in buffer indices";
+    TVM_FFI_ICHECK(!idx_undef) << "Error: T.undef() may not be used in tensor indices";
     return std::nullopt;
   }
 
@@ -128,7 +128,7 @@ class StoreUndefLocator : public StmtExprVisitor {
 };
 
 // Remove TensorStores whose value depends on T.undef, and also
-// remove Bind nodes whose value contains undef.  Undef in buffer
+// remove Bind nodes whose value contains undef.  Undef in tensor
 // indices is already caught eagerly in the locator phase.
 class StoreUndefRemover : public StmtExprMutator {
  public:

@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-"""TIRx script buffers."""
+"""TIRx script tensors."""
 
 import math
 import sys
@@ -108,7 +108,7 @@ def test_roundtrip_layout_replica_and_offset():
     assert_structural_equal(test, from_source(code))
 
 
-def test_roundtrip_buffer_view_get1():
+def test_roundtrip_tensor_view_get1():
     # fmt: off
     @T.function
     def test() -> None:
@@ -129,7 +129,7 @@ def test_roundtrip_buffer_view_get1():
 L_LANE = T.TileLayout(T.S[32 : 1 @ laneid])
 
 
-def test_roundtrip_buffer_view_get2():
+def test_roundtrip_tensor_view_get2():
     # fmt: off
     @T.function
     def test(out: T.Tensor(2, 'float32', scope='global')) -> None:
@@ -151,7 +151,7 @@ def test_roundtrip_buffer_view_get2():
     assert_structural_equal(test, from_source(code))
 
 
-def test_roundtrip_buffer_view_get3():
+def test_roundtrip_tensor_view_get3():
     # fmt: off
     @T.function
     def test() -> None:
@@ -184,7 +184,7 @@ def test_roundtrip_allocated_addr():
     assert_structural_equal(test, from_source(code))
 
 
-def test_roundtrip_implicit_buffer_region():
+def test_roundtrip_implicit_tensor_region():
     # fmt: off
     @T.function
     def test(A: T.Tensor((10, 10, 10), 'float32', layout=T.TileLayout(T.S[10, 10, 10]))):
@@ -240,16 +240,16 @@ def test_alloc_apis():
     @T.function
     def test():
         T.device_entry()
-                # normal buffer
+                # normal tensor
         A = T.alloc_shared([10], "float16")
         B = T.alloc_local([10], "float16")
-                # scalar buffer (alloc)
+                # scalar tensor (alloc)
         C = T.shared_scalar("float16")
         D: T.float16
         pool = T.alloc_tensor([10], "uint8", scope="shared.dyn")
-                # scalar buffer (decl)
+                # scalar tensor (decl)
         E = T.decl_scalar("float16", pool.data, "shared.dyn", 0)
-                # normal 1-dim buffer with shape (1,)
+                # normal 1-dim tensor with shape (1,)
         F = T.alloc_local((1,), "float16")
         Ta: T.float16
         inner_pool = T.decl_tensor(shape=[10], data=pool.data, dtype="uint8", scope="shared.dyn")
@@ -263,7 +263,7 @@ def test_alloc_apis():
         C = D
         T.evaluate(E)
         E = E + T.float16(1)
-                # normal 1-dim buffer with shape (1,) can be assigned directly,
+                # normal 1-dim tensor with shape (1,) can be assigned directly,
                 # but not loaded directly
         F = F[0] + T.float16(1)
         C += D
@@ -277,7 +277,7 @@ def test_alloc_apis():
 
     code = test.script()
     print(code)
-    assert ".buffer" not in code
+    assert ".tensor" not in code
     assert from_source(code).script() == code
 
 
@@ -289,7 +289,7 @@ def test_alloc_apis_reject_name_argument():
         T.local_scalar("int32", name="idx")
 
 
-def test_buffer():
+def test_tensor():
     # fmt: off
     @T.function(private=True)
     def test(
@@ -320,17 +320,17 @@ def test_buffer():
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="PEP 695 requires Python 3.12")
-def test_buffer_shape_repeated_var_prints_out_of_line():
+def test_tensor_shape_repeated_var_prints_out_of_line():
     n = tvm.tirx.Var("n", "int32")
-    buffer = tvm.tirx.decl_tensor((n + n,), name="A")
-    func = tvm.tirx.Function([buffer], tvm.ir.Evaluate(0))
+    tensor = tvm.tirx.decl_tensor((n + n,), name="A")
+    func = tvm.tirx.Function([tensor], tvm.ir.Evaluate(0))
 
     code = func.script()
     assert "def main[n: T.int32](" in code
     assert_structural_equal(func, from_source(code))
 
 
-def test_scalar_allocbuffer_annotation_and_init_merge():
+def test_scalar_alloctensor_annotation_and_init_merge():
     # fmt: off
     @T.function
     def test():
@@ -350,7 +350,7 @@ def test_scalar_allocbuffer_annotation_and_init_merge():
     assert_structural_equal(test, from_source(code))
 
 
-def test_scalar_allocbuffer_layout_none_keeps_alloc_local():
+def test_scalar_alloctensor_layout_none_keeps_alloc_local():
     # fmt: off
     @T.function
     def test():
@@ -367,7 +367,7 @@ def test_scalar_allocbuffer_layout_none_keeps_alloc_local():
     assert_structural_equal(test, from_source(code))
 
 
-def test_scalar_allocbuffer_annotation_sugar():
+def test_scalar_alloctensor_annotation_sugar():
     # fmt: off
     @T.function
     def test():
@@ -383,7 +383,7 @@ def test_scalar_allocbuffer_annotation_sugar():
     assert_structural_equal(test, from_source(code))
 
 
-def test_roundtrip_buffer_permute():
+def test_roundtrip_tensor_permute():
     # fmt: off
     @T.function
     def test() -> None:
@@ -398,7 +398,7 @@ def test_roundtrip_buffer_permute():
     assert_structural_equal(test, from_source(code))
 
 
-def test_roundtrip_buffer_local_auto():
+def test_roundtrip_tensor_local_auto():
     # fmt: off
     @T.function
     def test() -> None:
@@ -414,7 +414,7 @@ def test_roundtrip_buffer_local_auto():
     assert_structural_equal(test, from_source(code))
 
 
-def test_buffer_local_ir():
+def test_tensor_local_ir():
     """Verify .local() infers the physical span and uses an identity layout."""
 
     # fmt: off
@@ -428,10 +428,10 @@ def test_buffer_local_ir():
         B_local[0] = T.float16(0)
         # fmt: on
 
-    _, b_buf, b_local = _collect_buffers(func)
+    _, b_buf, b_local = _collect_tensors(func)
 
     # Shared data pointer
-    assert_structural_equal(_buffer_source(func, b_local), b_buf.data)
+    assert_structural_equal(_tensor_source(func, b_local), b_buf.data)
     # Shape: single dim matching the raw physical storage span
     assert len(b_local.ty.shape) == 1
     storage = b_buf.ty.layout.storage()
@@ -449,7 +449,7 @@ def test_buffer_local_ir():
     assert_structural_equal(func, from_source(code))
 
 
-def _is_buffer_binding(node, *op_names):
+def _is_tensor_binding(node, *op_names):
     return (
         isinstance(node, tvm.ir.Bind)
         and isinstance(node.value, tvm.ir.Call)
@@ -458,24 +458,24 @@ def _is_buffer_binding(node, *op_names):
     )
 
 
-def _collect_buffers(func):
-    """Collect native buffers in declaration order, including anonymous views."""
-    buffers = []
+def _collect_tensors(func):
+    """Collect native tensors in declaration order, including anonymous views."""
+    tensors = []
 
     def visit(node):
-        if _is_buffer_binding(node, "tirx.alloc_tensor", "tirx.decl_tensor", "tirx.cuda.decl_tmem"):
-            buffers.append(node.var)
+        if _is_tensor_binding(node, "tirx.alloc_tensor", "tirx.decl_tensor", "tirx.cuda.decl_tmem"):
+            tensors.append(node.var)
 
     tvm_ffi.structural_walk(func.body, visit)
-    return buffers
+    return tensors
 
 
-def _buffer_source(func, buffer):
-    """Find the unique declaration source by native buffer identity."""
+def _tensor_source(func, tensor):
+    """Find the unique declaration source by native tensor identity."""
     sources = []
 
     def visit(node):
-        if _is_buffer_binding(node, "tirx.decl_tensor") and node.var.same_as(buffer):
+        if _is_tensor_binding(node, "tirx.decl_tensor") and node.var.same_as(tensor):
             sources.append(node.value.args[0])
 
     tvm_ffi.structural_walk(func.body, visit)
@@ -483,7 +483,7 @@ def _buffer_source(func, buffer):
     return sources[0]
 
 
-def test_buffer_local_physical_order():
+def test_tensor_local_physical_order():
     """Both inferred and explicit shapes map a non-trivial fragment physically."""
     from tvm.tirx.layout import tcgen05_atom_layout
 
@@ -499,14 +499,14 @@ def test_buffer_local_physical_order():
         B_2d[0, 2] = T.float32(2)
         # fmt: on
 
-    _, b_buf, b_flat, b_2d = _collect_buffers(func)
+    _, b_buf, b_flat, b_2d = _collect_tensors(func)
 
     # The parent storage view enumerates storage iters in a different order
     # from their physical strides, so inheriting it would permute registers.
     assert not b_buf.ty.layout.storage().is_trivial()
 
     for local in [b_flat, b_2d]:
-        assert_structural_equal(_buffer_source(func, local), b_buf.data)
+        assert_structural_equal(_tensor_source(func, local), b_buf.data)
         assert local.ty.layout.is_trivial()
     assert [int(dim) for dim in b_flat.ty.shape] == [32]
     assert [int(dim) for dim in b_2d.ty.shape] == [4, 8]
@@ -529,7 +529,7 @@ def test_buffer_local_physical_order():
     assert_structural_equal(func, from_source(code))
 
 
-def test_buffer_local_layout_overrides_roundtrip():
+def test_tensor_local_layout_overrides_roundtrip():
     """Storage and arbitrary mediated layouts remain explicit overrides."""
     from tvm.tirx.layout import tcgen05_atom_layout
 
@@ -547,7 +547,7 @@ def test_buffer_local_layout_overrides_roundtrip():
         B_custom[0, 0] = T.float32(2)
         # fmt: on
 
-    _, b_buf, b_storage, b_custom = _collect_buffers(func)
+    _, b_buf, b_storage, b_custom = _collect_tensors(func)
     assert_structural_equal(b_storage.ty.layout, b_buf.ty.layout.storage())
     assert not b_storage.ty.layout.is_trivial()
     assert not b_custom.ty.layout.is_trivial()
@@ -566,7 +566,7 @@ def test_buffer_local_layout_overrides_roundtrip():
     assert from_source(code).script() == code
 
 
-def test_buffer_local_explicit_layout_without_parent_layout():
+def test_tensor_local_explicit_layout_without_parent_layout():
     """An explicit shape and layout do not inspect the parent's absent layout."""
 
     # fmt: off
@@ -578,7 +578,7 @@ def test_buffer_local_explicit_layout_without_parent_layout():
         B[0] = T.float32(1)
         # fmt: on
 
-    a_buf, b_buf = _collect_buffers(func)
+    a_buf, b_buf = _collect_tensors(func)
     assert a_buf.ty.layout is None
     assert b_buf.ty.layout.is_trivial()
     code = func.script()
@@ -587,7 +587,7 @@ def test_buffer_local_explicit_layout_without_parent_layout():
     assert parsed.script() == code
 
 
-def test_buffer_local_compose_layout_printer_roundtrip():
+def test_tensor_local_compose_layout_printer_roundtrip():
     """Generic view sugar keeps a physical local view's identity layout."""
 
     # fmt: off
@@ -604,7 +604,7 @@ def test_buffer_local_compose_layout_printer_roundtrip():
         B[0] = T.float32(1)
         # fmt: on
 
-    _, b_buf = _collect_buffers(func)
+    _, b_buf = _collect_tensors(func)
     assert [int(dim) for dim in b_buf.ty.shape] == [64]
     assert b_buf.ty.layout.is_trivial()
     code = func.script()
@@ -615,10 +615,10 @@ def test_buffer_local_compose_layout_printer_roundtrip():
     assert parsed.script() == code
 
 
-def test_buffer_local_inference_without_parent_layout_has_clear_diagnostic():
+def test_tensor_local_inference_without_parent_layout_has_clear_diagnostic():
     """Shape inference requires a parent storage layout."""
 
-    with pytest.raises(ValueError, match="parent buffer has layout=None"):
+    with pytest.raises(ValueError, match="parent tensor has layout=None"):
         # fmt: off
         @T.function
         def func() -> None:
@@ -628,7 +628,7 @@ def test_buffer_local_inference_without_parent_layout_has_clear_diagnostic():
             B[0] = T.float32(1)
 
 
-def test_buffer_local_physical_span_includes_gaps_and_offset():
+def test_tensor_local_physical_span_includes_gaps_and_offset():
     """The raw local view includes every slot up to the storage span."""
 
     # fmt: off
@@ -645,7 +645,7 @@ def test_buffer_local_physical_span_includes_gaps_and_offset():
         B_storage[1] = T.float32(3)
         # fmt: on
 
-    _, b_buf, b_flat, b_2d, b_storage = _collect_buffers(func)
+    _, b_buf, b_flat, b_2d, b_storage = _collect_tensors(func)
     assert int(b_buf.ty.layout.storage().span()) == 6
     assert int(b_buf.ty.layout.storage().size()) == 2
     assert [int(dim) for dim in b_flat.ty.shape] == [6]
@@ -667,7 +667,7 @@ def test_buffer_local_physical_span_includes_gaps_and_offset():
     assert from_source(code).script() == code
 
 
-def test_buffer_local_printer_is_stable_with_multiple_aliases():
+def test_tensor_local_printer_is_stable_with_multiple_aliases():
     """Thread-layout parents win deterministically over sibling aliases."""
     from tvm.tirx.layout import tcgen05_atom_layout
 
@@ -702,8 +702,8 @@ def test_buffer_local_printer_is_stable_with_multiple_aliases():
         assert_structural_equal(func, parsed)
 
 
-def test_buffer_local_printer_preserves_inherited_metadata():
-    """Local sugar falls back when it would discard Buffer metadata."""
+def test_tensor_local_printer_preserves_inherited_metadata():
+    """Local sugar falls back when it would discard Tensor metadata."""
 
     # fmt: off
     @T.function
@@ -747,7 +747,7 @@ def test_buffer_local_printer_preserves_inherited_metadata():
     assert parsed.script() == code
 
 
-def test_buffer_local_rejects_shape_that_does_not_match_physical_span():
+def test_tensor_local_rejects_shape_that_does_not_match_physical_span():
     """An explicit local shape product must preserve the physical span."""
 
     with pytest.raises(ValueError, match="physical storage span 6 per thread"):
@@ -761,7 +761,7 @@ def test_buffer_local_rejects_shape_that_does_not_match_physical_span():
             B_local[0] = T.float32(0)
 
 
-def test_buffer_permute_ir():
+def test_tensor_permute_ir():
     """Verify .permute(1, 0): shape swapped, layout permuted, shared data."""
 
     # fmt: off
@@ -774,10 +774,10 @@ def test_buffer_permute_ir():
         B[0, 0] = T.float16(0)
         # fmt: on
 
-    a_buf, b_buf = _collect_buffers(func)
+    a_buf, b_buf = _collect_tensors(func)
 
     # Shared data pointer
-    assert_structural_equal(_buffer_source(func, b_buf), a_buf.data)
+    assert_structural_equal(_tensor_source(func, b_buf), a_buf.data)
     # Shape: [4, 8] from [8, 4]
     assert int(b_buf.ty.shape[0]) == 4
     assert int(b_buf.ty.shape[1]) == 8
@@ -788,7 +788,7 @@ def test_buffer_permute_ir():
     assert from_source(code).script() == code
 
 
-def test_buffer_rearrange_allows_arbitrary_axis_names():
+def test_tensor_rearrange_allows_arbitrary_axis_names():
     @T.function
     def ordinary_axis() -> None:
         T.device_entry()
@@ -849,14 +849,14 @@ def test_buffer_rearrange_allows_arbitrary_axis_names():
         B = A.rearrange(pattern="(outer inner) tail -> outer tail inner", outer=2)
         B[0, 0, 0] = T.float16(0)
 
-    _, _, _, expected = _collect_buffers(ordinary_axis)
+    _, _, _, expected = _collect_tensors(ordinary_axis)
     for func in (buf_axis, self_axis, pattern_axis, keyword_pattern):
-        _, _, _, actual = _collect_buffers(func)
+        _, _, _, actual = _collect_tensors(func)
         assert_structural_equal(actual.shape, expected.shape)
         assert_structural_equal(actual.layout, expected.layout)
 
 
-def test_buffer_permute_compose_layout_ir():
+def test_tensor_permute_compose_layout_ir():
     """Verify .permute on a swizzle-composed layout: the swizzle is preserved
     and the inner tile layout's dim groups are permuted (the reshape-permute-
     reshape idiom used to refactor gather views without restating strides)."""
@@ -873,9 +873,9 @@ def test_buffer_permute_compose_layout_ir():
         B[0, 0, 0, 0] = T.bfloat16(0)
         # fmt: on
 
-    a_buf, b_buf = _collect_buffers(func)
+    a_buf, b_buf = _collect_tensors(func)
 
-    assert_structural_equal(_buffer_source(func, b_buf), a_buf.data)
+    assert_structural_equal(_tensor_source(func, b_buf), a_buf.data)
     assert [int(s) for s in b_buf.shape] == [4, 4, 4, 64]
     expected = tvm.tirx.layout.ComposeLayout(
         a_buf.layout.per_element,
@@ -890,7 +890,7 @@ def test_buffer_permute_compose_layout_ir():
     assert from_source(code).script() == code
 
 
-def test_buffer_sub_multi_iter_dim_ir():
+def test_tensor_sub_multi_iter_dim_ir():
     """sub with an int index on a dim carried by several layout iters
     decomposes the index mixed-radix across the iters' strides."""
 
@@ -904,7 +904,7 @@ def test_buffer_sub_multi_iter_dim_ir():
         B[0] = T.float16(0)
         # fmt: on
 
-    a_buf, b_buf = _collect_buffers(func)
+    a_buf, b_buf = _collect_tensors(func)
     # 5 -> (5 // 4, 5 % 4) = (1, 1) -> 1 * 1024 + 1 * 64
     assert int(tvm.sym.Analyzer().simplify(b_buf.elem_offset - a_buf.elem_offset)) == 1088
     assert [int(s) for s in b_buf.shape] == [16]
@@ -914,7 +914,7 @@ def test_buffer_sub_multi_iter_dim_ir():
     assert from_source(code).script() == code
 
 
-def test_buffer_sub_multi_iter_misaligned_rejected():
+def test_tensor_sub_multi_iter_misaligned_rejected():
     buf = tvm.tirx.decl_tensor(
         (8, 16), "float16", layout=tvm.tirx.layout.TileLayout(T.S[(2, 4, 16) : (1024, 64, 1)])
     )
@@ -923,7 +923,7 @@ def test_buffer_sub_multi_iter_misaligned_rejected():
         buf.sub[2:6]
 
 
-def test_buffer_sub_ir():
+def test_tensor_sub_ir():
     """buf.sub follows numpy basic indexing as a view constructor: int drops
     the dim, a:b narrows, a::s strides. Offsets fold into elem_offset through
     the dim's layout iter strides; the derived layout carries the survivors."""
@@ -940,7 +940,7 @@ def test_buffer_sub_ir():
         C[0, 0, 0] = T.float16(0)
         # fmt: on
 
-    a_buf, _, b_buf, _, c_buf = _collect_buffers(func)
+    a_buf, _, b_buf, _, c_buf = _collect_tensors(func)
     # sub[1, 2:6]: drop dim 0 at 1 (1 * 256) then narrow dim 1 to [2, 6) (2 * 16)
     assert [int(s) for s in b_buf.shape] == [4, 16]
     assert int(tvm.sym.Analyzer().simplify(b_buf.elem_offset - a_buf.elem_offset)) == 288
@@ -956,7 +956,7 @@ def test_buffer_sub_ir():
     assert from_source(code).script() == code
 
 
-def test_buffer_view_surgery_static_bounds_rejected():
+def test_tensor_view_surgery_static_bounds_rejected():
     """Statically-known out-of-range sub arguments must be rejected loudly
     (review finding: OOB offsets were silent)."""
     buf = tvm.tirx.decl_tensor(
@@ -986,7 +986,7 @@ def test_buffer_view_surgery_static_bounds_rejected():
         grid.sub[:, -1::2]
 
 
-def test_buffer_sub_swizzle_commutation():
+def test_tensor_sub_swizzle_commutation():
     """A folded view offset moves into elem_offset only when it commutes
     with the swizzle, i.e. is a multiple of the swizzle period
     2^(per_element + atom_len + swizzle_len). Sub-period offsets stay inside
@@ -1018,7 +1018,7 @@ def test_buffer_sub_swizzle_commutation():
         C[0, 0] = T.bfloat16(0)
         # fmt: on
 
-    a_buf, b_buf, c_buf = _collect_buffers(func)
+    a_buf, b_buf, c_buf = _collect_tensors(func)
     base = a_buf.elem_offset
     assert int(analyzer.simplify(b_buf.elem_offset - base)) == 1024
     for j in (0, 1, 63, 511, 1023):
@@ -1051,7 +1051,7 @@ def test_buffer_sub_swizzle_commutation():
             F[0, 0] = T.float16(0)
         # fmt: on
 
-    a2, b2, c2, d2, e2, _ = _collect_buffers(func2)
+    a2, b2, c2, d2, e2, _ = _collect_tensors(func2)
     base2 = a2.elem_offset
     shape2 = [2, 16, 8]
     for name, child, to_parent in [
@@ -1089,12 +1089,12 @@ def test_buffer_sub_swizzle_commutation():
         B[0] = T.bfloat16(0)
         # fmt: on
 
-    a3, b3 = _collect_buffers(func3)
+    a3, b3 = _collect_tensors(func3)
     for j in range(8):
         assert addr(a3, a3.elem_offset, 8 + j) == addr(b3, a3.elem_offset, j) == 8 + j
 
 
-def test_buffer_tile_ir():
+def test_tensor_tile_ir():
     """buf.tile((dim, factors))[picks] splits dims into factors and picks
     chunks in one call: int/Expr picks a factor, ':' keeps it, kept
     factors merge back. Equivalent to the view (reshape) + sub chain."""
@@ -1145,16 +1145,16 @@ def test_buffer_tile_ir():
                 L[0, 0] = T.float16(0)
     # fmt: on
 
-    # Tile/view chains also declare intermediate reshaped and selected buffers.
-    _, _, _, b, _, _, c, _, d, _, e, _, f, g = _collect_buffers(func)
+    # Tile/view chains also declare intermediate reshaped and selected tensors.
+    _, _, _, b, _, _, c, _, d, _, e, _, f, g = _collect_tensors(func)
     assert [int(s) for s in b.shape] == [3, 16, 512]
     assert_structural_equal(b.layout, c.layout)
     assert_structural_equal(d.layout, e.layout)
     assert_structural_equal(f.layout, g.layout)
-    _, _, _, _, _, _, h, _, _, _, _, _, j = _collect_buffers(func_multi)
+    _, _, _, _, _, _, h, _, _, _, _, _, j = _collect_tensors(func_multi)
     assert [int(s) for s in h.shape] == [16, 64]
     assert_structural_equal(h.layout, j.layout)
-    _, _, _, k, _, _, l_buf = _collect_buffers(func_multipick)
+    _, _, _, k, _, _, l_buf = _collect_tensors(func_multipick)
     assert [int(s) for s in k.shape] == [16, 16]
     assert_structural_equal(k.layout, l_buf.layout)
 
@@ -1162,7 +1162,7 @@ def test_buffer_tile_ir():
     assert from_source(code).script() == code
 
 
-def test_buffer_tile_rejected():
+def test_tensor_tile_rejected():
     buf = tvm.tirx.decl_tensor(
         (3, 64, 512),
         "float16",
@@ -1184,11 +1184,11 @@ def test_buffer_tile_rejected():
         buf.tile((1, (-1, 4)))[:, 1:3]  # sub-slice on a factor
 
 
-def test_buffer_chunk_ir():
+def test_tensor_chunk_ir():
     """buf.chunk(spec)[picks] narrows each chunked dim to its picked chunk's
     contiguous [c*k : (c+1)*k) range (k = E // n), rank-preserving: a per-dim
     tuple where None passes the pick straight through and n divides that dim
-    into n equal chunks. chunk(spec)[picks] is the exact same BufferRegion as
+    into n equal chunks. chunk(spec)[picks] is the exact same make_tensor_region as
     the hand-written a*k:(a+1)*k slice — no reshape, no extra dim."""
 
     compose = T.ComposeLayout(3, 3, 3, T.TileLayout(T.S[(4, 512) : (512, 1)]))
@@ -1233,7 +1233,7 @@ def test_buffer_chunk_ir():
         A.chunk((None, None, 2))[0, 0, 0, 0]  # too many indices
 
 
-def test_buffer_view_dtype_ir():
+def test_tensor_view_dtype_ir():
     """Verify .view('float32') on float16: dtype correct, last dim halved, shared data."""
 
     # fmt: off
@@ -1245,10 +1245,10 @@ def test_buffer_view_dtype_ir():
         B[0, 0] = T.float32(0)
         # fmt: on
 
-    a_buf, b_buf = _collect_buffers(func)
+    a_buf, b_buf = _collect_tensors(func)
 
     # Shared data pointer
-    assert_structural_equal(_buffer_source(func, b_buf), a_buf.data)
+    assert_structural_equal(_tensor_source(func, b_buf), a_buf.data)
     # dtype
     assert str(b_buf.ty.dtype) == "float32"
     # Shape: [8, 4] (last dim halved since float32 is 2x float16)
@@ -1259,8 +1259,8 @@ def test_buffer_view_dtype_ir():
     assert from_source(code).script() == code
 
 
-def test_buffer_slice_region():
-    """Verify A[slice] returns BufferRegion (not DeclTensor)."""
+def test_tensor_slice_region():
+    """Verify A[slice] returns make_tensor_region (not DeclTensor)."""
 
     buf = tvm.tirx.decl_tensor((128, 64), "float16")
     br = buf[32:64, 0:32]
@@ -1299,7 +1299,7 @@ def test_buffer_slice_region():
         _ = br[::2]
 
 
-def test_global_call_realizes_buffer_elements():
+def test_global_call_realizes_tensor_elements():
     @I.ir_module
     class Module:
         @T.function(private=True)
@@ -1318,7 +1318,7 @@ def test_global_call_realizes_buffer_elements():
     assert isinstance(Module["main"], tvm.tirx.Function)
 
 
-def test_buffer_sub_tmem_offset_uses_physical_columns():
+def test_tensor_sub_tmem_offset_uses_physical_columns():
     """A tmem layout measures TCol in elements, but allocated_addr measures
     physical 32-bit columns.  Folding a sub-view offset must scale by dtype
     width exactly once (the FlashMLA Q-tail view is the bf16 regression)."""
@@ -1347,7 +1347,7 @@ def test_buffer_sub_tmem_offset_uses_physical_columns():
         T.evaluate(F32_tail[0, 0])
         # fmt: on
 
-    _, q_tail, _, f8_tail, _, f32_tail = _collect_buffers(func)
+    _, q_tail, _, f8_tail, _, f32_tail = _collect_tensors(func)
     bindings = []
     tvm_ffi.structural_walk(func.body, (tvm.ir.Bind, bindings.append))
     producers = {binding.var: binding.value for binding in bindings}
@@ -1357,15 +1357,15 @@ def test_buffer_sub_tmem_offset_uses_physical_columns():
         address = producers[tensor].args[0]
         assert int(address.b) == expected
         assert isinstance(address.a, tvm.tirx.Cast)
-    for buffer in (q_tail, f8_tail, f32_tail):
-        assert int(buffer.layout.offset.get(TCol, 0)) == 0
+    for tensor in (q_tail, f8_tail, f32_tail):
+        assert int(tensor.layout.offset.get(TCol, 0)) == 0
 
     code = func.script()
     assert from_source(code).script() == code
     assert_structural_equal(func, from_source(code))
 
 
-def test_buffer_sub_tmem_rejects_partial_column_offset():
+def test_tensor_sub_tmem_rejects_partial_column_offset():
     buf_layout = tvm.tirx.layout.TileLayout(T.S[(64, 16) : (1 @ TLane, 1 @ TCol)])
 
     def build():
@@ -1385,7 +1385,7 @@ def test_buffer_sub_tmem_rejects_partial_column_offset():
         build()
 
 
-def test_roundtrip_tmem_decl_buffer():
+def test_roundtrip_tmem_decl_tensor():
     """TMEM declarations print their address and tensor type through generic Calls."""
 
     # fmt: off

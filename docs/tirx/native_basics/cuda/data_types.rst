@@ -27,7 +27,7 @@ A ``PrimExpr``'s ``.dtype`` is its scalar (or vector) element type — ``float32
 ``float16``, ``bfloat16``, ``int32``, ``uint8``, ``bool``, the low-precision
 ``float8_e4m3fn`` / ``float4_e2m1fn`` …, ``handle`` (a pointer), and vector forms
 such as ``float32x4``. Each prints to the matching CUDA type. Allocating local and
-shared buffers across several dtypes, plus a vectorized ``float32x4`` load/store:
+shared tensors across several dtypes, plus a vectorized ``float32x4`` load/store:
 
 .. code-block:: python
 
@@ -62,10 +62,10 @@ lowers to (generated CUDA, elided):
     v_ptr[0]                  = *(float4*)(A_ptr + tx * 4);   // vectorized load
     *(float4*)(O_ptr + tx * 4) = v_ptr[0];                   // vectorized store
 
-A buffer's dtype can itself be a **vector type**: ``Tx.alloc_local((1,), "float32x4")``
+A tensor's dtype can itself be a **vector type**: ``Tx.alloc_local((1,), "float32x4")``
 declares a per-thread ``float4`` value (you index it as ``v[0]``), and a
-Indexing a scalar buffer with a four-lane ``Ramp`` moves the vector as one
-16-byte access. Any buffer or scalar can carry a vector dtype.
+Indexing a scalar tensor with a four-lane ``Ramp`` moves the vector as one
+16-byte access. Any tensor or scalar can carry a vector dtype.
 
 The dtype → CUDA mapping is:
 
@@ -97,13 +97,13 @@ high-level **type**: ``PrimType(dtype)`` for a scalar, or
 Pointers (``handle``)
 ---------------------
 
-A buffer's ``data`` — its pointer — is a ``Var`` of pointer type, and it is
+A tensor's ``data`` — its pointer — is a ``Var`` of pointer type, and it is
 **immutable** (a pointer is never reassigned). That shapes how you obtain one:
 
 - ``Tx.alloc_tensor(...)`` allocates storage **and** defines its ``data`` pointer.
-- ``Tx.decl_tensor(..., data=ptr)`` declares a buffer over an existing pointer
+- ``Tx.decl_tensor(..., data=ptr)`` declares a tensor over an existing pointer
   ``Var`` ``ptr``.
-- To back a buffer with a pointer **expression** — e.g. ``Tx.ptx.mapa`` giving
+- To back a tensor with a pointer **expression** — e.g. ``Tx.ptx.mapa`` giving
   another cluster CTA's shared address — convert the ``uint64`` address the
   instruction wrote to a pointer with the intended element type and storage
   scope.  Assigning that pointer expression to an unannotated name

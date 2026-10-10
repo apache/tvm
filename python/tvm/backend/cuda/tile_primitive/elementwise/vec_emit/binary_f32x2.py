@@ -60,7 +60,7 @@ def _f32x2_applies(op_name):
                 if scalar_dtype(s.scalar) != "float32":
                     return False, "scalar src dtype not f32"
             else:
-                if dtype_name(s.buf_region.source.dtype) != "float32":
+                if dtype_name(s.tensor_region.source.dtype) != "float32":
                     return False, "buffer src dtype not f32"
                 if s.index_fn is not None:
                     return False, "broadcasting src not supported by f32x2 packed"

@@ -34,14 +34,14 @@ namespace tvm {
 namespace s_tir {
 using namespace tvm::tirx;
 /*!
- * \brief Get the buffer dimensions for all the read buffers of a block, but marks the reduction
- * buffers' dimensions as -1
+ * \brief Get the tensor dimensions for all the read tensors of a block, but marks the reduction
+ * tensors' dimensions as -1
  * \param block_sref The block to be processed
- * \return The buffer dimensions for all the read buffers of a block, except for reduction buffers
+ * \return The tensor dimensions for all the read tensors of a block, except for reduction tensors
  * \note The method is not designed for generic analysis and relies on assumptions in the scenario
  * of multi-level tiling, so it's intentionally kept inside this file not in the analysis header
  */
-std::vector<int> GetReadBufferNDims(const StmtSRef& block_sref);
+std::vector<int> GetReadTensorNDims(const StmtSRef& block_sref);
 
 }  // namespace s_tir
 }  // namespace tvm
@@ -122,9 +122,9 @@ class StateNode : public ffi::Object {
   ffi::Array<ffi::Array<s_tir::LoopRV>> tiles;
   /*! \brief The factors of the loop tiles. */
   ffi::Array<ffi::Array<ffi::Optional<s_tir::ExprRV>>> tile_factors;
-  /*! \brief The mapping from buffer index to read cache block. */
+  /*! \brief The mapping from tensor index to read cache block. */
   std::unordered_map<int, s_tir::SBlockRV> read_reuse;
-  /*! \brief The mapping from buffer index to write cache block. */
+  /*! \brief The mapping from tensor index to write cache block. */
   std::unordered_map<int, s_tir::SBlockRV> write_reuse;
 
   /*!

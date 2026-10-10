@@ -27,13 +27,13 @@ from tvm.tirx import Expr, Function, Var
 ######## simdgroup matrix intrinsics ########
 
 
-def get_simdgroup_index(buffer: Var, stride: Expr, col: int, row: int):
-    """Compute simdgroup index using elem_offset of the buffer"""
+def get_simdgroup_index(tensor: Var, stride: Expr, col: int, row: int):
+    """Compute simdgroup index using elem_offset of the tensor"""
 
     # NOTE: Need further check the usage between `col`` and `row`
     # Currently, Metal only supports 8x8, which means the values of `col` and `row` are the same
-    frag_index_m = buffer.elem_offset // stride // col
-    frag_index_n = buffer.elem_offset % stride // row
+    frag_index_m = tensor.elem_offset // stride // col
+    frag_index_n = tensor.elem_offset % stride // row
 
     num_fragments_per_row = stride // row
     return frag_index_m * num_fragments_per_row + frag_index_n
@@ -309,13 +309,13 @@ def get_simdgroup_intrin_group(
     Parameters
     ----------
     load_scope : Literal["shared"]
-        The memory scope of the input buffer.
+        The memory scope of the input tensor.
 
     store_scope : Literal["global", "shared"]
-        The memory scope of the result buffer.
+        The memory scope of the result tensor.
 
     dtype : str
-        The data type of the input and output buffers.
+        The data type of the input and output tensors.
 
     trans_a : bool
         Whether the input matrix A is transposed.

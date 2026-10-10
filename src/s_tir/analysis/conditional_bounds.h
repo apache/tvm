@@ -19,7 +19,7 @@
 
 /*!
  * \file s_tir/analysis/conditional_bounds.h
- * \brief Scoped conditional bounds for S-TIR buffer analysis.
+ * \brief Scoped conditional bounds for S-TIR tensor analysis.
  */
 #ifndef TVM_S_TIR_ANALYSIS_CONDITIONAL_BOUNDS_H_
 #define TVM_S_TIR_ANALYSIS_CONDITIONAL_BOUNDS_H_

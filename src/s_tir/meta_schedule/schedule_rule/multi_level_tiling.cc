@@ -33,15 +33,15 @@ namespace tvm {
 namespace s_tir {
 using namespace tvm::tirx;
 
-std::vector<int> GetReadBufferNDims(const StmtSRef& block_sref) {
+std::vector<int> GetReadTensorNDims(const StmtSRef& block_sref) {
   const SBlockNode* block = TVM_SREF_TO_SBLOCK(block_sref);
-  const VarNode* write_buffer = block->writes[0]->source.as_or_throw<tvm::tirx::TensorVar>().get();
+  const VarNode* write_tensor = block->writes[0]->source.as_or_throw<tvm::tirx::TensorVar>().get();
   int n = block->reads.size();
   std::vector<int> results(n, -1);
   for (int i = 0; i < n; ++i) {
-    const VarNode* read_buffer = block->reads[i]->source.as_or_throw<tvm::tirx::TensorVar>().get();
-    if (read_buffer != write_buffer) {
-      results[i] = GetTensorVar(read_buffer)->shape.size();
+    const VarNode* read_tensor = block->reads[i]->source.as_or_throw<tvm::tirx::TensorVar>().get();
+    if (read_tensor != write_tensor) {
+      results[i] = GetTensorVar(read_tensor)->shape.size();
     }
   }
   return results;
@@ -175,7 +175,7 @@ std::vector<State> MultiLevelTilingNode::AddWriteReuse(State state) const {
 
   // Case 3. Add one write cache
   SBlockRV write_cache =
-      state->sch->CacheWrite(/*block_rv=*/state->block_rv, /*read_buffer_index=*/0,
+      state->sch->CacheWrite(/*block_rv=*/state->block_rv, /*read_tensor_index=*/0,
                              /*storage_scope=*/config.scope);
   state->write_reuse.emplace(0, write_cache);
   for (int level : levels) {
@@ -306,11 +306,11 @@ std::vector<State> MultiLevelTilingNode::AddReadReuse(State state) const {
     State new_state = state->Copy();
     Schedule& sch = new_state->sch;
     const LoopRV& loop_rv = state->tiles[level - 1].back();
-    // Enumerate all buffers that are read but not written
-    std::vector<int> read_buffer_ndims = s_tir::GetReadBufferNDims(sch->GetSRef(block_rv));
-    for (int i = 0, n_reads = read_buffer_ndims.size(); i < n_reads; ++i) {
-      int buffer_ndim = read_buffer_ndims[i];
-      if (buffer_ndim == -1) {
+    // Enumerate all tensors that are read but not written
+    std::vector<int> read_tensor_ndims = s_tir::GetReadTensorNDims(sch->GetSRef(block_rv));
+    for (int i = 0, n_reads = read_tensor_ndims.size(); i < n_reads; ++i) {
+      int tensor_ndim = read_tensor_ndims[i];
+      if (tensor_ndim == -1) {
         continue;
       }
       // Do cache_read
@@ -318,9 +318,9 @@ std::vector<State> MultiLevelTilingNode::AddReadReuse(State state) const {
       // Insert cache_read block to the proper place
       sch->ComputeAt(cache_read_block, loop_rv, true);
       // Fuse the iterators of the cache_read
-      ffi::Array<LoopRV> buffer_loops = sch->GetLoops(cache_read_block);
-      sch->Fuse(ffi::Array<LoopRV>{buffer_loops.end() - buffer_ndim,  //
-                                   buffer_loops.end()});
+      ffi::Array<LoopRV> tensor_loops = sch->GetLoops(cache_read_block);
+      sch->Fuse(ffi::Array<LoopRV>{tensor_loops.end() - tensor_ndim,  //
+                                   tensor_loops.end()});
       AnnotateCooperativeFetching(&sch, cache_read_block);
       new_state->read_reuse.emplace(i, cache_read_block);
     }

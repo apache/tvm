@@ -122,7 +122,7 @@ address). For ``8`` contiguous ``float32`` that is ``vec = 4``, so ``outer = 2``
 
 **3. Per-thread base offset + serial loop.** The shared-side base offset is built
 from thread-axis placeholders (substituted with the real ``Tx.cuda.lane_id()`` etc.),
-and the register side is a flat per-thread ``local`` buffer. The emit is a serial
+and the register side is a flat per-thread ``local`` tensor. The emit is a serial
 loop to limit generated code size:
 
 .. code-block:: python

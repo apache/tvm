@@ -35,10 +35,10 @@ using SMap = std::unordered_map<K, V, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>;
 /**************** Utility functions ****************/
 
 /*!
- * \brief Analyze the buffer region under the sref tree path [dom_low_inclusive, dom_high_exclusive)
+ * \brief Analyze the tensor region under the sref tree path [dom_low_inclusive, dom_high_exclusive)
  * Relaxation of the region may be used in upper-bound analysis, i.e. some extra region may be added
  * to the result.
- * \param region The buffer region to be analyzed
+ * \param region The tensor region to be analyzed
  * \param dom_low_inclusive The lowest node in the sref tree path
  * \param dom_high_exclusive The highest node in the sref tree path
  * \return An n-dimensional integer set
@@ -62,10 +62,10 @@ ffi::Array<sym::IntSet> AnalyzeRegionUpperBound(
 }
 
 /*!
- * \brief Analyze the buffer region under the sref tree path [dom_low_inclusive, dom_high_exclusive)
+ * \brief Analyze the tensor region under the sref tree path [dom_low_inclusive, dom_high_exclusive)
  * Some subregion may be discarded during the lower-bound analysis.
- * \param realize The block realize that touches the buffer region
- * \param region The buffer region to be analyzed
+ * \param realize The block realize that touches the tensor region
+ * \param region The tensor region to be analyzed
  * \param dom_low_inclusive The lowest node in the sref tree path
  * \param dom_high_exclusive The highest node in the sref tree path
  * \param analyzer The analyzer
@@ -95,21 +95,21 @@ ffi::Array<sym::IntSet> AnalyzeRegionLowerBound(
 
 /*!
  * \brief Checks if the produced region can cover the consumed region
- * \param buffer_shape The shape of the buffer
+ * \param tensor_shape The shape of the tensor
  * \param produced_region The N-dimensional produced region
  * \param consumed_region The N-dimensional consumed region
  * \param analyzer The analyzer
  * \return A boolean indicating if the produced region could cover the consumed region
  */
-bool ProducerCoversConsumer(const ffi::Array<PrimExpr>& buffer_shape,
+bool ProducerCoversConsumer(const ffi::Array<PrimExpr>& tensor_shape,
                             const ffi::Array<sym::IntSet>& produced_region,
                             const ffi::Array<sym::IntSet>& consumed_region,
                             sym::AnalyzerObj* analyzer) {
-  TVM_FFI_ICHECK_EQ(buffer_shape.size(), consumed_region.size());
+  TVM_FFI_ICHECK_EQ(tensor_shape.size(), consumed_region.size());
   TVM_FFI_ICHECK_EQ(produced_region.size(), consumed_region.size());
   int ndim = produced_region.size();
   for (int i = 0; i < ndim; ++i) {
-    sym::IntSet buffer_size = sym::IntSet::FromMinExtent(0, buffer_shape[i]);
+    sym::IntSet tensor_size = sym::IntSet::FromMinExtent(0, tensor_shape[i]);
     if (produced_region[i].IsNothing()) {
       return false;
     }
@@ -122,8 +122,8 @@ bool ProducerCoversConsumer(const ffi::Array<PrimExpr>& buffer_shape,
     sym::IntSet consumed =
         sym::IntSet::Interval(analyzer->canonical_simplify(consumed_region[i].min()),
                               analyzer->canonical_simplify(consumed_region[i].max()));
-    produced = sym::Intersect({produced, buffer_size});
-    consumed = sym::Intersect({consumed, buffer_size});
+    produced = sym::Intersect({produced, tensor_size});
+    consumed = sym::Intersect({consumed, tensor_size});
 
     produced = sym::IntSet::Interval(analyzer->Simplify(produced.min()),
                                      analyzer->Simplify(produced.max()));
@@ -244,7 +244,7 @@ class SBlockInfoCollector : public StmtExprVisitor {
           return Range::FromMinExtent(min, extent);
         });
         reads.push_back(
-            BufferRegion(region->source.as_or_throw<tvm::tirx::TensorVar>(), mapped_region));
+            MakeTensorRegion(region->source.as_or_throw<tvm::tirx::TensorVar>(), mapped_region));
       }
       block_reads_unbound.emplace(block_sref.get(), std::move(reads));
       // Step 1.2. Unbind write regions
@@ -260,7 +260,7 @@ class SBlockInfoCollector : public StmtExprVisitor {
           return Range::FromMinExtent(min, extent);
         });
         writes.push_back(
-            BufferRegion(region->source.as_or_throw<tvm::tirx::TensorVar>(), mapped_region));
+            MakeTensorRegion(region->source.as_or_throw<tvm::tirx::TensorVar>(), mapped_region));
       }
       block_writes_unbound.emplace(block_sref.get(), std::move(writes));
     }
@@ -308,22 +308,22 @@ class SBlockInfoCollector : public StmtExprVisitor {
         if (producer_block_srefs.empty()) {
           continue;
         }
-        // For each buffer, record the regions generated under this loop
+        // For each tensor, record the regions generated under this loop
         std::unordered_map<TensorVar, std::vector<ffi::Array<sym::IntSet>>, ffi::ObjectPtrHash,
                            ffi::ObjectPtrEqual>
             touched_regions;
         // Step 2.3.1. Find all the regions read by the consumer that we care about
         for (const TensorRegion& region : block_reads_unbound.at(consumer_block_sref.get())) {
-          TensorVar buffer = region->source.as_or_throw<tvm::tirx::TensorVar>();
-          touched_regions[buffer] = {};
+          TensorVar tensor = region->source.as_or_throw<tvm::tirx::TensorVar>();
+          touched_regions[tensor] = {};
         }
         // Step 2.3.2. Find all the regions written by each producer
         for (const StmtSRefNode* producer_block_sref : producer_block_srefs) {
           const SBlockRealize& producer_realize = block2realize_.at(producer_block_sref->stmt);
           StmtSRef parent_sref = ffi::GetRef<StmtSRef>(producer_block_sref->parent);
           for (const TensorRegion& region : block_writes_unbound.at(producer_block_sref)) {
-            TensorVar buffer = region->source.as_or_throw<tvm::tirx::TensorVar>();
-            auto it = touched_regions.find(buffer);
+            TensorVar tensor = region->source.as_or_throw<tvm::tirx::TensorVar>();
+            auto it = touched_regions.find(tensor);
             // Skip the regions that is not read by the consumer
             if (it != touched_regions.end()) {
               std::vector<ffi::Array<sym::IntSet>>& touched_region = it->second;
@@ -340,12 +340,12 @@ class SBlockInfoCollector : public StmtExprVisitor {
             }
           }
         }
-        // Step 2.3.3. For each buffer, check the region cover property
+        // Step 2.3.3. For each tensor, check the region cover property
         {
           StmtSRef parent_sref = ffi::GetRef<StmtSRef>(consumer_block_sref->parent);
           for (const TensorRegion& region : block_reads_unbound.at(consumer_block_sref.get())) {
-            TensorVar buffer = region->source.as_or_throw<tvm::tirx::TensorVar>();
-            const std::vector<ffi::Array<sym::IntSet>>& touched_region = touched_regions.at(buffer);
+            TensorVar tensor = region->source.as_or_throw<tvm::tirx::TensorVar>();
+            const std::vector<ffi::Array<sym::IntSet>>& touched_region = touched_regions.at(tensor);
             if (!touched_region.empty()) {
               ffi::Array<sym::IntSet> produced_region =
                   sym::UnionRegionLowerBound({touched_region.begin(), touched_region.end()});
@@ -355,7 +355,7 @@ class SBlockInfoCollector : public StmtExprVisitor {
                   /*dom_low_inclusive=*/parent_sref,
                   /*dom_high_exclusive=*/lca,
                   /*analyzer=*/analyzer_.get());
-              if (!ProducerCoversConsumer(buffer->shape, produced_region, consumed_region,
+              if (!ProducerCoversConsumer(tensor->shape, produced_region, consumed_region,
                                           analyzer_.get())) {
                 region_cover = false;
                 self_->block_info.at(consumer_block_sref).region_cover = region_cover;

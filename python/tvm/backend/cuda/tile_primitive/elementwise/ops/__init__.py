@@ -45,7 +45,7 @@ class SrcSpec:
     Default is the standard ``get_indices`` over the src's own region.
     """
 
-    buf_region: TensorRegion | None = None
+    tensor_region: TensorRegion | None = None
     scalar: Expr | None = None
     index_fn: Callable | None = None
 
@@ -55,7 +55,7 @@ class SrcSpec:
 
     @property
     def buffer(self):
-        return self.buf_region.source if self.buf_region is not None else None
+        return self.tensor_region.source if self.tensor_region is not None else None
 
 
 @dataclass

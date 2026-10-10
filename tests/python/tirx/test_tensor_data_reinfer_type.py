@@ -14,18 +14,26 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Compatibility imports for the tensor module."""
 
-from .tensor import (
-    TensorType,
-    decl_tensor,
-    is_tensor_var,
-    tensor_data_ptr,
-)
+import pytest
 
-__all__ = [
-    "TensorType",
-    "decl_tensor",
-    "is_tensor_var",
-    "tensor_data_ptr",
-]
+import tvm
+from tvm import ir, tirx
+
+
+def test_tensor_data_reinfer_type_from_rewritten_argument():
+    global_tensor = tirx.decl_tensor((8,), "float32", name="global_tensor", scope="global")
+    local_tensor = tirx.decl_tensor((8,), "float16", name="local_tensor", scope="local")
+    stale_type = global_tensor.data.ty
+    expected_type = local_tensor.data.ty
+
+    call = ir.Call("tirx.tensor_data_ptr", [local_tensor], ty=stale_type)
+    ir.assert_structural_equal(ir.reinfer_type(call), expected_type)
+    ir.assert_structural_equal(call.ty, stale_type)
+
+    with pytest.raises(TypeError):
+        ir.reinfer_type(ir.Call("tirx.tensor_data_ptr", [ir.Var("not_a_tensor")]))
+
+
+if __name__ == "__main__":
+    tvm.testing.main()

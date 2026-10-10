@@ -80,7 +80,7 @@ TVM_DLL size_t CalculateWorkspaceBytes(const Function& func, int64_t workspace_b
  *
  * - Each variable has a single point of definition.
  *
- * - Buffer loads have consistent source, indices, and result types.
+ * - Tensor loads have consistent source, indices, and result types.
  *
  * - Loop control, tile-operation categories, and scope IDs are valid.
  *

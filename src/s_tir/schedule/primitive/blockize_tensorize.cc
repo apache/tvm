@@ -457,17 +457,17 @@ ffi::Array<TensorRegion> EvalSetRegions(const ffi::Array<TensorRegion>& regions,
                                         const ffi::Map<Var, sym::IntSet>& dom_map) {
   ffi::Array<TensorRegion> results;
   results.reserve(regions.size());
-  for (const TensorRegion& buffer_region : regions) {
-    const TensorVar& buffer = buffer_region->source.as_or_throw<tvm::tirx::TensorVar>();
-    ffi::Array<sym::IntSet> relaxed = sym::EvalSet(buffer_region->region, dom_map);
-    TVM_FFI_ICHECK_EQ(relaxed.size(), buffer->shape.size());
-    int ndim = buffer->shape.size();
+  for (const TensorRegion& tensor_region : regions) {
+    const TensorVar& tensor = tensor_region->source.as_or_throw<tvm::tirx::TensorVar>();
+    ffi::Array<sym::IntSet> relaxed = sym::EvalSet(tensor_region->region, dom_map);
+    TVM_FFI_ICHECK_EQ(relaxed.size(), tensor->shape.size());
+    int ndim = tensor->shape.size();
     ffi::Array<Range> new_region;
     new_region.reserve(ndim);
     for (int i = 0; i < ndim; ++i) {
-      new_region.push_back(relaxed[i].CoverRange(RangeFromExtent(buffer->shape[i])).value());
+      new_region.push_back(relaxed[i].CoverRange(RangeFromExtent(tensor->shape[i])).value());
     }
-    results.push_back(BufferRegion(buffer, new_region));
+    results.push_back(MakeTensorRegion(tensor, new_region));
   }
   return results;
 }
@@ -480,25 +480,25 @@ ffi::Array<TensorRegion> EvalSetRegions(const ffi::Array<TensorRegion>& regions,
 ffi::Array<TensorRegion> UnionRegions(const ffi::Array<TensorRegion>& regions) {
   typedef std::vector<ffi::Array<sym::IntSet>> ranges_t;
   std::unordered_map<TensorVar, ranges_t, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> intset_map;
-  for (const TensorRegion& buffer_region : regions) {
-    const TensorVar& buffer = buffer_region->source.as_or_throw<tvm::tirx::TensorVar>();
-    if (intset_map.find(buffer) == intset_map.end()) {
-      intset_map[buffer] = {buffer->shape.size(), ffi::Array<sym::IntSet>()};
+  for (const TensorRegion& tensor_region : regions) {
+    const TensorVar& tensor = tensor_region->source.as_or_throw<tvm::tirx::TensorVar>();
+    if (intset_map.find(tensor) == intset_map.end()) {
+      intset_map[tensor] = {tensor->shape.size(), ffi::Array<sym::IntSet>()};
     }
-    std::vector<ffi::Array<sym::IntSet>> dim_range(buffer->shape.size(), ffi::Array<sym::IntSet>());
-    for (size_t dim = 0; dim < buffer->shape.size(); ++dim) {
-      intset_map[buffer][dim].push_back(sym::IntSet::FromRange(buffer_region->region[dim]));
+    std::vector<ffi::Array<sym::IntSet>> dim_range(tensor->shape.size(), ffi::Array<sym::IntSet>());
+    for (size_t dim = 0; dim < tensor->shape.size(); ++dim) {
+      intset_map[tensor][dim].push_back(sym::IntSet::FromRange(tensor_region->region[dim]));
     }
   }
   ffi::Array<TensorRegion> results;
   for (const auto& it : intset_map) {
-    const TensorVar& buffer = it.first;
+    const TensorVar& tensor = it.first;
     ffi::Array<Range> regions;
-    for (size_t dim = 0; dim < buffer->shape.size(); ++dim) {
+    for (size_t dim = 0; dim < tensor->shape.size(); ++dim) {
       const sym::IntSet intset = sym::Union(it.second[dim]);
       regions.push_back({intset.min(), intset.max() + 1});
     }
-    results.push_back(BufferRegion(buffer, regions));
+    results.push_back(MakeTensorRegion(tensor, regions));
   }
   return results;
 }
@@ -770,8 +770,8 @@ class BlockizeRewriter : public StmtExprMutator {
   UnchangedOr<Stmt> Mutate_(const SBlockNode* block, InplaceMode inplace_mode) final {
     if (block == lca_->stmt) {
       return SBlock(block->iter_vars, block->reads, block->writes, block->name_hint,
-                    RewriteSeq(block->body), block->init, block->alloc_buffers,
-                    block->match_buffers, block->annotations, block->loc);
+                    RewriteSeq(block->body), block->init, block->alloc_tensors,
+                    block->match_tensors, block->annotations, block->loc);
     }
     for (const StmtSRef& block_sref : blocks_) {
       if (block_sref->stmt == block) {
@@ -827,9 +827,9 @@ void Tensorize(ScheduleState self, const StmtSRef& sref, const TensorIntrin& int
   Function intrin_impl = DeepCopy(intrin->impl);
 
   int index_dtype_bits = -1;
-  auto f_update_max_dtype_bits_from_region = [&](const ffi::Array<TensorRegion>& buffer_regions) {
-    for (const TensorRegion& buffer_region : buffer_regions) {
-      for (const auto& range : buffer_region->region) {
+  auto f_update_max_dtype_bits_from_region = [&](const ffi::Array<TensorRegion>& tensor_regions) {
+    for (const TensorRegion& tensor_region : tensor_regions) {
+      for (const auto& range : tensor_region->region) {
         index_dtype_bits = std::max(index_dtype_bits, range->min.ty().bits());
       }
     }
@@ -847,9 +847,9 @@ void Tensorize(ScheduleState self, const StmtSRef& sref, const TensorIntrin& int
       << "A tensor intrinsic description must contain a single root block";
   comparator.Dispatch(block_realize, intrin_desc->body.value()->seq[0]);
   // Step 3: Prepare necessary mapping
-  // 1) TensorVar mapping from intrin impl buffers to intrin desc buffers.
-  // 2) TensorVar mapping from intrin impl buffers to buffers in the current AST.
-  // 3) Mapping impl buffers to their accessed regions.
+  // 1) TensorVar mapping from intrin impl tensors to intrin desc tensors.
+  // 2) TensorVar mapping from intrin impl tensors to tensors in the current AST.
+  // 3) Mapping impl tensors to their accessed regions.
   std::unordered_map<TensorVar, TensorVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> impl2desc;
   TVM_FFI_ICHECK_EQ(intrin_desc->params.size(), intrin_impl->params.size());
   for (int i = 0, n = intrin_desc->params.size(); i < n; ++i) {
@@ -861,8 +861,8 @@ void Tensorize(ScheduleState self, const StmtSRef& sref, const TensorIntrin& int
   for (const auto& pair : impl2desc) {
     const TensorVar& impl = pair.first;
     const TensorVar& desc = pair.second;
-    TVM_FFI_ICHECK(comparator.rhs_buffer_map_.count(desc));
-    impl2cur.insert_or_assign(impl, comparator.rhs_buffer_map_.at(desc));
+    TVM_FFI_ICHECK(comparator.rhs_tensor_map_.count(desc));
+    impl2cur.insert_or_assign(impl, comparator.rhs_tensor_map_.at(desc));
   }
   std::unordered_map<TensorVar, ffi::Array<Range>, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
       impl2region;
@@ -875,15 +875,15 @@ void Tensorize(ScheduleState self, const StmtSRef& sref, const TensorIntrin& int
   for (const TensorRegion& write : impl_block->writes) {
     impl2region.emplace(write->source.as_or_throw<tvm::tirx::TensorVar>(), write->region);
   }
-  // Step 4: Create MatchBufferRegion for the params of the impl function of the tensor
-  // intrin to make them subregions of the buffer in the original IR.
-  ffi::Array<MatchBufferRegion> match_buffer_regions;
-  match_buffer_regions.reserve(intrin_impl->params.size());
+  // Step 4: Create MatchTensorRegion for the params of the impl function of the tensor
+  // intrin to make them subregions of the tensor in the original IR.
+  ffi::Array<MatchTensorRegion> match_tensor_regions;
+  match_tensor_regions.reserve(intrin_impl->params.size());
   for (int i = 0, n = intrin_impl->params.size(); i < n; ++i) {
     TensorVar impl = intrin_impl->params[i].as_or_throw<tvm::tirx::TensorVar>();
     const TensorVar& cur = impl2cur.at(impl);
     const ffi::Array<Range>& old_region = impl2region.at(impl);
-    const std::vector<PrimExpr>& indices_base = comparator.buffer_indices_.at(cur);
+    const std::vector<PrimExpr>& indices_base = comparator.tensor_indices_.at(cur);
     int offset = static_cast<int>(indices_base.size()) - static_cast<int>(old_region.size());
     TVM_FFI_ICHECK(offset >= 0);
     ffi::Array<Range> new_region;
@@ -898,13 +898,13 @@ void Tensorize(ScheduleState self, const StmtSRef& sref, const TensorIntrin& int
       PrimExpr extent = cast(min.ty(), old_region[i]->extent);
       new_region.push_back(Range::FromMinExtent(min, extent));
     }
-    match_buffer_regions.push_back(MatchBufferRegion(impl, BufferRegion(cur, new_region)));
+    match_tensor_regions.push_back(MatchTensorRegion(impl, MakeTensorRegion(cur, new_region)));
   }
   // Step 5: Replace the subtree in the original IR with the tensor intrin impl.
   {
     SBlockNode* block = block_realize.CopyOnWrite()->block.CopyOnWrite();
     block->body = impl_block->body;
-    block->match_buffers = std::move(match_buffer_regions);
+    block->match_tensors = std::move(match_tensor_regions);
     for (const auto& [key, val] : impl_block->annotations) {
       if (block->annotations.count(key) && !ffi::AnyEqual()(block->annotations[key], val)) {
         LOG(WARNING) << "Conflict of annotation \"" << key << "\". Tensor intrinsic and schedule "

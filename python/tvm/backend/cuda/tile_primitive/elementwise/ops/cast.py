@@ -33,7 +33,7 @@ def _parse_cast(op: TensorCall) -> tuple[Plan | None, str | None]:
     _src = op.args[1]
     if not isinstance(_src, TensorRegion):
         return None, "cast src must be a buffer region"
-    return Plan(dst=_dst, srcs=[SrcSpec(buf_region=_src)], extras={}), None
+    return Plan(dst=_dst, srcs=[SrcSpec(tensor_region=_src)], extras={}), None
 
 
 def _compute_cast(src_vals, extras, dt):

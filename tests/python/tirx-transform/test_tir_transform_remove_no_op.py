@@ -392,7 +392,7 @@ def test_remove_empty_temporary():
 
 
 @pytest.mark.xfail(reason="Dead alloc removal not yet implemented for flat AllocTensor")
-def test_remove_empty_temporary_with_decl_buffer():
+def test_remove_empty_temporary_with_decl_tensor():
     """Remove DeclTensor alongside Allocate
 
     If an unused allocation is removed, any DeclTensor instances that

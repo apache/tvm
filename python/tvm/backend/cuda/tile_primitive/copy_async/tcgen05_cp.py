@@ -100,7 +100,7 @@ G. Alignment checks:
 H. middle 1-1 correspondence (simple-mode): t_middle and s_middle have same
    iter count and matching extents per position.
 I. Emit:
-   - SmemDescriptor encoded once at SMEM base (hoisted via post_buffer_def_stmt).
+   - SmemDescriptor encoded once at SMEM base (hoisted via post_tensor_def_stmt).
    - Loop over middle iters; each cp uses ``desc.add_16B_offset(init + loop)``
      and writes to ``tmem_addr + t_addr_off + Σ i_j * t_step_j``.
 """
@@ -669,7 +669,7 @@ def _plan_for_shape(op_call: TensorCall, shape: str, multicast: str):
 # -----------------------------------------------------------------------------
 # Descriptor caching: one (smem_buf, ldo, sdo, swizzle) → one desc_buf,
 # encoded once at SMEM base, hoisted to right after SMEM alloc via
-# add_post_buffer_def_stmt.
+# add_post_tensor_def_stmt.
 # -----------------------------------------------------------------------------
 def _get_or_create_desc(sctx, s_buf, ldo, sdo, swizzle):
     # Cache descriptor template at SMEM 0; patch addr per cp.
@@ -700,7 +700,7 @@ def _get_or_create_desc(sctx, s_buf, ldo, sdo, swizzle):
             Evaluate(encode_call),
         ]
     )
-    sctx.add_post_buffer_def_stmt(s_buf, wrap)
+    sctx.add_post_tensor_def_stmt(s_buf, wrap)
     sctx.cache_set(cache_key, desc_buf)
     return desc_buf
 
