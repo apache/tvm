@@ -24,6 +24,7 @@
 #ifndef TVM_TARGET_BUILD_COMMON_H_
 #define TVM_TARGET_BUILD_COMMON_H_
 
+#include <tvm/backend/cuda/attr.h>
 #include <tvm/ffi/container/map.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ir/function.h>
@@ -79,13 +80,15 @@ inline ffi::Map<ffi::String, runtime::FunctionInfo> ExtractFuncInfo(const IRModu
     }
     auto global_symbol = f->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol);
     if (global_symbol) {
-      fmap.Set(global_symbol.value(),
-               runtime::FunctionInfo(global_symbol.value(), std::move(arg_types),
-                                     std::move(launch_param_tags), std::move(arg_extra_tags),
-                                     f->GetAttr<ffi::Array<ffi::String>>("cuda.launch_fields")
-                                         .value_or(ffi::Array<ffi::String>()),
-                                     f->GetAttr<ffi::Map<ffi::String, int64_t>>("cuda.kernel_attrs")
-                                         .value_or(ffi::Map<ffi::String, int64_t>())));
+      fmap.Set(
+          global_symbol.value(),
+          runtime::FunctionInfo(
+              global_symbol.value(), std::move(arg_types), std::move(launch_param_tags),
+              std::move(arg_extra_tags),
+              f->GetAttr<ffi::Array<ffi::String>>(tvm::backend::cuda::attr::kLaunchFields)
+                  .value_or(ffi::Array<ffi::String>()),
+              f->GetAttr<ffi::Map<ffi::String, int64_t>>(tvm::backend::cuda::attr::kKernelAttrs)
+                  .value_or(ffi::Map<ffi::String, int64_t>())));
     }
   }
   return fmap;

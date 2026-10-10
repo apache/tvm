@@ -22,6 +22,7 @@
  * \brief Lower tensor instructions and CUDA index calls using independent launch configuration.
  */
 
+#include <tvm/backend/cuda/attr.h>
 #include <tvm/ir/function.h>
 #include <tvm/ir/op.h>
 #include <tvm/ir/prim/op.h>
@@ -333,7 +334,7 @@ class TileDispatcher : public StmtExprMutator {
     scope_aliases_.clear();
     cluster_bounds_.clear();
     variable_cluster_ = false;
-    native_launch_ = entry_node->attrs->dict.count("cuda.launch_fields");
+    native_launch_ = entry_node->attrs->dict.count(tvm::backend::cuda::attr::kLaunchFields);
     TVM_FFI_CHECK(is_first_block || !native_launch_, ValueError)
         << "Nested CUDA device_entry regions are not supported";
     if (native_launch_) PrepareCudaLaunchParams(entry_node);
@@ -647,8 +648,8 @@ class TileDispatcher : public StmtExprMutator {
   void PrepareCudaLaunchParams(const RegionStmtNode* entry) {
     TVM_FFI_CHECK(target_->kind->name == "cuda", ValueError)
         << "CUDA LaunchConfig requires a CUDA target";
-    auto fields =
-        entry->attrs->dict.at("cuda.launch_fields").as_or_throw<ffi::Array<ffi::String>>();
+    auto fields = entry->attrs->dict.at(tvm::backend::cuda::attr::kLaunchFields)
+                      .as_or_throw<ffi::Array<ffi::String>>();
     TVM_FFI_ICHECK_EQ(fields.size(), entry->args.size());
     for (size_t i = 0; i < fields.size(); ++i) {
       std::string field(fields[i]);

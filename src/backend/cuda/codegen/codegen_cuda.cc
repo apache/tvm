@@ -23,6 +23,7 @@
 
 #include "codegen_cuda.h"
 
+#include <tvm/backend/cuda/attr.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/function.h>
@@ -261,12 +262,14 @@ void CodeGenCUDA::InitFuncState(const Function& func) {
   launch_dimensions_ = {extractor->threadIdx_x_ext,     extractor->threadIdx_y_ext,
                         extractor->threadIdx_z_ext,     extractor->clusterCtaIdx_x_ext,
                         extractor->clusterCtaIdx_y_ext, extractor->clusterCtaIdx_z_ext};
-  if (auto dimensions = func->GetAttr<ffi::Array<PrimExpr>>("cuda.launch_dimensions")) {
+  if (auto dimensions =
+          func->GetAttr<ffi::Array<PrimExpr>>(tvm::backend::cuda::attr::kLaunchDimensions)) {
     TVM_FFI_ICHECK_EQ(dimensions.value().size(), launch_dimensions_.size());
     for (size_t i = 0; i < launch_dimensions_.size(); ++i)
       launch_dimensions_[i] = dimensions.value()[i];
   }
-  if (auto kernel_attrs = func->GetAttr<ffi::Map<ffi::String, int64_t>>("cuda.kernel_attrs")) {
+  if (auto kernel_attrs =
+          func->GetAttr<ffi::Map<ffi::String, int64_t>>(tvm::backend::cuda::attr::kKernelAttrs)) {
     if (auto value = kernel_attrs.value().Get("min_blocks_per_sm")) min_blocks_per_sm_ = *value;
     if (auto value = kernel_attrs.value().Get("max_blocks_per_cluster"))
       max_blocks_per_cluster_ = *value;

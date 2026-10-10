@@ -21,6 +21,7 @@
  * \file tirx/op/region.cc
  * \brief TIRx region operations.
  */
+#include <tvm/backend/cuda/attr.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/ir/stmt.h>
@@ -70,7 +71,7 @@ const Op& device_entry_op() {
 void ValidateDeviceEntry(const RegionStmtNode* region) {
   TVM_FFI_CHECK(region->result_vars.empty() && region->body_params.empty(), ValueError)
       << "device_entry expects no results or body parameters";
-  if (auto fields = region->attrs->dict.Get("cuda.launch_fields")) {
+  if (auto fields = region->attrs->dict.Get(tvm::backend::cuda::attr::kLaunchFields)) {
     TVM_FFI_CHECK_EQ(fields->as_or_throw<ffi::Array<ffi::String>>().size(), region->args.size(),
                      ValueError)
         << "device_entry launch fields must describe every configuration operand";

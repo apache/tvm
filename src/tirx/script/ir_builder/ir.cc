@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/backend/cuda/attr.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/container/variant.h>
@@ -381,9 +382,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                if (auto region = (*it).as<RegionFrame>();
                    region && region.value()->op->name == "tirx.device_entry") {
                  auto attrs = region.value()->attrs->dict;
-                 int64_t previous =
-                     attrs.Get("cuda.smem_required").value_or(int64_t{0}).cast<int64_t>();
-                 attrs.Set("cuda.smem_required", std::max(previous, bytes));
+                 int64_t previous = attrs.Get(tvm::backend::cuda::attr::kSmemRequired)
+                                        .value_or(int64_t{0})
+                                        .cast<int64_t>();
+                 attrs.Set(tvm::backend::cuda::attr::kSmemRequired, std::max(previous, bytes));
                  region.value()->attrs = DictAttrs(attrs);
                  return;
                }

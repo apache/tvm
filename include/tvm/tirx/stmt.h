@@ -29,7 +29,6 @@
 namespace tvm {
 namespace tirx {
 
-
 /*! \brief Whether stmt is undefined, an integer Evaluate, or an empty sequence. */
 inline bool IsNoOp(const Stmt& stmt) {
   if (!stmt.defined()) return true;

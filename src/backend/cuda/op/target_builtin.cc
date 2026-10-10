@@ -254,7 +254,8 @@ void RegisterDeviceIntrinsics() {
                            "block_dim", "cluster_dim"}) {
     RegisterDeviceIntrinsic(OpDef(std::string("tirx.cuda.") + name), "cuda", CallEffectKind::kPure,
                             sig::arg<StringImm>("axis"))
-        .set_attr<FInferType>(tvm::op_attr::kInferType, FInferType::FromNative<&InferTypeCudaAxis>());
+        .set_attr<FInferType>(tvm::op_attr::kInferType,
+                              FInferType::FromNative<&InferTypeCudaAxis>());
   }
   for (const char* name : {"linear_thread_id", "warp_id", "lane_id", "warpgroup_id",
                            "warp_in_warpgroup", "thread_in_warpgroup", "cta_pair_id"}) {

@@ -21,6 +21,7 @@
  * \file split_host_device.cc
  * \brief Annotate and split device functions from host, then lower kernel launches.
  */
+#include <tvm/backend/cuda/attr.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/function.h>
@@ -270,7 +271,7 @@ class HostDeviceSplitter : public StmtExprMutator {
       device_func = WithAttr(std::move(device_func), tvm::attr::kNumInputs, num_inputs);
     }
     GlobalVar kernel_symbol_global = var_supply_();
-    if (region->attrs->dict.count("cuda.launch_fields")) {
+    if (region->attrs->dict.count(tvm::backend::cuda::attr::kLaunchFields)) {
       Stmt launch = MakeCudaKernelLaunch(kernel_symbol_global, &device_func, call_args, region);
       (*device_mod_)->Add(kernel_symbol_global, device_func);
       return launch;
@@ -353,7 +354,7 @@ class DeviceInfoCollector : public StmtExprVisitor {
     auto collector = ffi::make_object<DeviceInfoCollector>();
     collector->info_.target = func->GetAttr<Target>(tvm::attr::kTarget).value().WithoutHost();
     collector->info_.params = func->params;
-    if (func->GetAttr<ffi::Array<ffi::String>>("cuda.launch_fields")) {
+    if (func->GetAttr<ffi::Array<ffi::String>>(tvm::backend::cuda::attr::kLaunchFields)) {
       collector->info_.global_symbol =
           func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol).value_or(gvar->name_hint);
       return collector->info_;
@@ -578,14 +579,15 @@ class GlobalVarCallCollector : public StmtExprVisitor {
 
 Stmt MakeCudaKernelLaunch(const GlobalVar& symbol, Function* func, ffi::Array<Expr> args,
                           const RegionStmtNode* region) {
-  auto fields = region->attrs->dict.at("cuda.launch_fields").as_or_throw<ffi::Array<ffi::String>>();
+  auto fields = region->attrs->dict.at(tvm::backend::cuda::attr::kLaunchFields)
+                    .as_or_throw<ffi::Array<ffi::String>>();
   ffi::Array<Expr> values = region->args;
-  auto kernel_attrs =
-      region->attrs->dict.at("cuda.kernel_attrs").as_or_throw<ffi::Map<ffi::String, int64_t>>();
+  auto kernel_attrs = region->attrs->dict.at(tvm::backend::cuda::attr::kKernelAttrs)
+                          .as_or_throw<ffi::Map<ffi::String, int64_t>>();
   auto info = DeviceInfoCollector::Collect(symbol, *func, true);
   ffi::Array<Stmt> host_stmts;
   auto required_bytes = info.dynamic_smem_requirement;
-  if (auto pool_bytes = region->attrs->dict.Get("cuda.smem_required")) {
+  if (auto pool_bytes = region->attrs->dict.Get(tvm::backend::cuda::attr::kSmemRequired)) {
     PrimExpr pool = IntImm::Int64(pool_bytes->cast<int64_t>());
     required_bytes = required_bytes ? prim::Max(required_bytes.value(), pool) : pool;
   }
@@ -597,7 +599,8 @@ Stmt MakeCudaKernelLaunch(const GlobalVar& symbol, Function* func, ffi::Array<Ex
       if (fields[i] == "dynamic_smem_bytes") index = i;
     }
     if (index < 0) {
-      TVM_FFI_CHECK(!prim::IsZero(bytes) || region->attrs->dict.count("cuda.smem_required"),
+      TVM_FFI_CHECK(!prim::IsZero(bytes) ||
+                        region->attrs->dict.count(tvm::backend::cuda::attr::kSmemRequired),
                     ValueError)
           << "A shared.dyn placeholder requires LaunchConfig.dynamic_smem_bytes or "
              "SMEMPool.commit()";
@@ -635,9 +638,9 @@ Stmt MakeCudaKernelLaunch(const GlobalVar& symbol, Function* func, ffi::Array<Ex
   *func =
       WithAttrs(std::move(*func), {{tvm::attr::kCallingConv, tvm::CallingConv::kDeviceKernelLaunch},
                                    {tvm::attr::kGlobalSymbol, symbol->name_hint},
-                                   {"cuda.launch_fields", fields},
-                                   {"cuda.kernel_attrs", kernel_attrs},
-                                   {"cuda.launch_dimensions", dimensions}});
+                                   {tvm::backend::cuda::attr::kLaunchFields, fields},
+                                   {tvm::backend::cuda::attr::kKernelAttrs, kernel_attrs},
+                                   {tvm::backend::cuda::attr::kLaunchDimensions, dimensions}});
   auto attrs = ffi::make_object<CallFFIKernelAttr>();
   attrs->launch_fields = fields;
   attrs->kernel_attrs = kernel_attrs;
