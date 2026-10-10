@@ -1099,6 +1099,14 @@ TVM_DLL CallEffectKind SideEffect(const Expr& expr);
 namespace ffi {
 
 template <>
+inline constexpr bool use_default_type_traits_v<TensorRegion> = false;
+
+template <>
+struct TypeTraits<TensorRegion> : public ObjectRefWithFallbackTraitsBase<TensorRegion, TensorLoad> {
+  TVM_DLL static TensorRegion ConvertFallbackValue(TensorLoad value);
+};
+
+template <>
 inline constexpr bool use_default_type_traits_v<PrimVar> = false;
 
 template <>

@@ -94,13 +94,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                                                FDocTranslate::FromNative<&VarDocTranslate>());
 }
 
-bool CanTranslateExplicitResultCall(const CallNode* call) {
-  return !call->attrs.defined() && call->ty_args.empty() && call->ty.as<PrimType>() &&
-         std::all_of(call->args.begin(), call->args.end(), [](const Expr& arg) {
-           return !arg->ty.as<MissingType>().has_value() && !arg.as<TensorRegionNode>();
-         });
-}
-
 namespace {
 
 ffi::Optional<ExprDoc> IndexMapDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
@@ -139,6 +132,12 @@ ffi::Optional<ExprDoc> LLVMIntrinsicDocTranslate(DocTranslatorObj* d, ffi::AnyVi
       !call->ty.as<PrimType>()) {
     return RawCall(d, call);
   }
+  // The LLVM convenience builders reject direct region operands. Keep their
+  // raw Call representation while ordinary tuple operands recurse normally.
+  if (std::any_of(call->args.begin(), call->args.end(),
+                  [](const Expr& arg) { return arg.as<TensorRegionNode>() != nullptr; })) {
+    return RawCall(d, call);
+  }
   const auto* id = call->args[0].as<IntImmNode>();
   // The named constructor uses an int32 intrinsic identifier. Other stored
   // representations retain their exact operand type through the full Call.
@@ -159,7 +158,7 @@ ffi::Optional<ExprDoc> LLVMIntrinsicDocTranslate(DocTranslatorObj* d, ffi::AnyVi
   d->RecordOrigin(name_doc, call->args[0]);
   ffi::Array<ExprDoc> args = {name_doc};
   for (size_t i = 1; i < call->args.size(); ++i) {
-    args.push_back(MaterializeCallArgument(d, call->args[i], d->Translate(call->args[i]).value()));
+    args.push_back(d->Translate(call->args[i]).value());
   }
   return NamespaceDoc("tirx")
       ->Attr(call->op.same_as(tirx::call_llvm_intrin_op()) ? "call_llvm_intrin"

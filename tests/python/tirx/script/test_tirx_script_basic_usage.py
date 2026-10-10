@@ -334,6 +334,14 @@ def func() -> None:
     assert_structural_equal(func, from_source(func.script()))
 
 
+def test_tensor_region_roundtrip():
+    @T.function
+    def func(A: T.Tensor((4, 4), "float32")):
+        T.cuda.tile.sqrt(A[0, 1:2], A[1, 2:3])
+
+    assert_structural_equal(func, from_source(func.script()))
+
+
 def test_roundtrip_unary_inplace():
     """Single-arg unary ops (in-place) should round-trip."""
 
