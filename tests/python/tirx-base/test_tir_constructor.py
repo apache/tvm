@@ -39,9 +39,13 @@ def test_expr_constructor():
     assert isinstance(x, tvm.tirx.Var)
     assert x.name == "xx"
 
-    x = tvm.te.Reduce(None, [1], [tvm.s_tir.IterVar((0, 1), "x", 2)], None, 0)
+    lhs, rhs = tvm.tirx.Var("lhs", "int32"), tvm.tirx.Var("rhs", "int32")
+    combiner = tvm.te.CommReducer([lhs], [rhs], [lhs + rhs], [tvm.tirx.const(0, "int32")])
+    with pytest.raises(TypeError, match="te.CommReducer"):
+        tvm.te.Reduce(None, [1], [tvm.s_tir.IterVar((0, 1), "x", 2)], None, 0)
+    x = tvm.te.Reduce(combiner, [1], [tvm.s_tir.IterVar((0, 1), "x", 2)], None, 0)
     assert isinstance(x, tvm.te.Reduce)
-    assert x.combiner is None
+    assert x.combiner.same_as(combiner)
     assert x.value_index == 0
 
     x = tvm.tirx.FloatImm("float32", 1.0)
@@ -262,13 +266,15 @@ def test_buffer_region_is_not_arithmetic_operand():
 def test_operator_base_categories_have_primitive_type():
     var = tvm.tirx.Var("x", "int32")
     buffer = tvm.tirx.decl_tensor([4], "float32")
+    lhs, rhs = tvm.tirx.Var("lhs", "int32"), tvm.tirx.Var("rhs", "int32")
+    combiner = tvm.te.CommReducer([lhs], [rhs], [lhs + rhs], [tvm.tirx.const(0, "int32")])
     expressions = [
         tvm.tirx.IntImm("int32", 1),
         tvm.tirx.Add(var, 1),
         tvm.tirx.LT(var, 1),
         tvm.tirx.And(var < 1, var < 2),
         tvm.te.Reduce(
-            None,
+            combiner,
             [1],
             [tvm.s_tir.IterVar((0, 1), "i", tvm.s_tir.IterVar.CommReduce)],
             None,

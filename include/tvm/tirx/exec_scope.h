@@ -134,7 +134,7 @@ class ExecScope : public ffi::ObjectRef {
   /*! \brief Construct from a name string (FATALs on unknown name). */
   TVM_DLL explicit ExecScope(const ffi::String& name) : ExecScope(StringToScopeKind(name)) {}
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(ExecScope, ffi::ObjectRef, ExecScopeNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ExecScope, ffi::ObjectRef, ExecScopeNode);
 };
 
 }  // namespace tirx

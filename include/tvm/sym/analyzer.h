@@ -125,7 +125,7 @@ class ConstIntBound : public ffi::ObjectRef {
 
   static const constexpr int64_t kPosInf = ConstIntBoundNode::kPosInf;
   static const constexpr int64_t kNegInf = ConstIntBoundNode::kNegInf;
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(ConstIntBound, ffi::ObjectRef, ConstIntBoundNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ConstIntBound, ffi::ObjectRef, ConstIntBoundNode);
 };
 
 /*!
@@ -232,7 +232,7 @@ class ModularSet : public ffi::ObjectRef {
  public:
   TVM_DLL ModularSet(int64_t coeff, int64_t base);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(ModularSet, ffi::ObjectRef, ModularSetNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ModularSet, ffi::ObjectRef, ModularSetNode);
 };
 
 /*!

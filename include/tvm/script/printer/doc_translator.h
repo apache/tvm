@@ -364,7 +364,6 @@ class DocTranslator : public ffi::ObjectRef {
    * \brief Retain a translation context.
    * \param n The context object.
    */
-  explicit DocTranslator(ffi::ObjectPtr<DocTranslatorObj> n) : ObjectRef(std::move(n)) {}
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(DocTranslator, ffi::ObjectRef, DocTranslatorObj);
 };
 

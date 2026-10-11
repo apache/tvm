@@ -61,7 +61,7 @@ class PassContextNode;
  */
 class PassContext : public ffi::ObjectRef {
  public:
-  PassContext() {}
+  static constexpr bool _type_is_nullable = false;
   /*!
    * \brief constructor with UnsafeInit
    */
@@ -69,7 +69,7 @@ class PassContext : public ffi::ObjectRef {
   /*!
    * \brief constructor with ffi::ObjectPtr
    */
-  explicit PassContext(ffi::ObjectPtr<PassContextNode> n);
+  explicit PassContext(ffi::UnsafeInit tag, ffi::ObjectPtr<PassContextNode> n);
   /*!
    * \brief const accessor.
    * \return const access pointer.
@@ -257,7 +257,7 @@ class PassInfo : public ffi::ObjectRef {
    */
   TVM_DLL PassInfo(int opt_level, ffi::String name);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(PassInfo, ffi::ObjectRef, PassInfoNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(PassInfo, ffi::ObjectRef, PassInfoNode);
 };
 
 /*!
@@ -324,7 +324,7 @@ class Pass : public ffi::ObjectRef {
    */
   IRModule operator()(IRModule mod, const PassContext& pass_ctx) const;
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Pass, ffi::ObjectRef, PassNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Pass, ffi::ObjectRef, PassNode);
 
  private:
   IRModule static AssertImmutableModule(const IRModule& mod, const PassNode* node,
@@ -341,6 +341,8 @@ class Pass : public ffi::ObjectRef {
  */
 class SequentialNode : public PassNode {
  public:
+  explicit SequentialNode(PassInfo pass_info) : pass_info(std::move(pass_info)) {}
+  explicit SequentialNode(ffi::UnsafeInit tag) : pass_info(tag) {}
   /* \brief The pass meta data.*/
   PassInfo pass_info;
 
@@ -394,8 +396,7 @@ class Sequential : public Pass {
    */
   TVM_DLL Sequential(ffi::Array<Pass> passes, ffi::String name = "sequential");
 
-  Sequential() = default;
-  explicit Sequential(ffi::ObjectPtr<SequentialNode> n) : Pass(n) {}
+  explicit Sequential(ffi::UnsafeInit tag) : Pass(tag) {}
 
   const SequentialNode* operator->() const;
   using ContainerType = SequentialNode;
@@ -551,7 +552,7 @@ class PassInstrumentNode : public ffi::Object {
  */
 class PassInstrument : public ffi::ObjectRef {
  public:
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(PassInstrument, ffi::ObjectRef, PassInstrumentNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(PassInstrument, ffi::ObjectRef, PassInstrumentNode);
 };
 
 /*!
@@ -620,7 +621,10 @@ class PassContextNode : public ffi::Object {
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("transform.PassContext", PassContextNode, ffi::Object);
 };
 
-inline PassContext::PassContext(ffi::ObjectPtr<PassContextNode> n) : ffi::ObjectRef(n) {}
+inline PassContext::PassContext(ffi::UnsafeInit tag, ffi::ObjectPtr<PassContextNode> n)
+    : ffi::ObjectRef(tag) {
+  data_ = std::move(n);
+}
 
 inline const PassContextNode* PassContext::operator->() const {
   TVM_FFI_ICHECK(get() != nullptr);

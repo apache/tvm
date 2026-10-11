@@ -63,7 +63,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 IterSplitExpr::IterSplitExpr(IterMark source) : IterMapExpr(ffi::UnsafeInit{}) {
   auto one = prim::MakeConst(source->source.ty(), 1);
-  auto n = ffi::make_object<IterSplitExprNode>(one, source->extent, one);
+  auto n = ffi::make_object<IterSplitExprNode>(source, one, source->extent, one);
   n->ExprNode::ty = source->source.ty();
   n->source = std::move(source);
   data_ = std::move(n);
@@ -71,7 +71,7 @@ IterSplitExpr::IterSplitExpr(IterMark source) : IterMapExpr(ffi::UnsafeInit{}) {
 
 IterSplitExpr::IterSplitExpr(IterMark source, PrimExpr scale) : IterMapExpr(ffi::UnsafeInit{}) {
   auto one = prim::MakeConst(source->source.ty(), 1);
-  auto n = ffi::make_object<IterSplitExprNode>(one, source->extent, std::move(scale));
+  auto n = ffi::make_object<IterSplitExprNode>(source, one, source->extent, std::move(scale));
   n->ExprNode::ty = source->source.ty();
   n->source = std::move(source);
   data_ = std::move(n);
@@ -80,7 +80,7 @@ IterSplitExpr::IterSplitExpr(IterMark source, PrimExpr scale) : IterMapExpr(ffi:
 IterSplitExpr::IterSplitExpr(IterMark source, PrimExpr lower_factor, PrimExpr extent,
                              PrimExpr scale)
     : IterMapExpr(ffi::UnsafeInit{}) {
-  auto n = ffi::make_object<IterSplitExprNode>(std::move(lower_factor), std::move(extent),
+  auto n = ffi::make_object<IterSplitExprNode>(source, std::move(lower_factor), std::move(extent),
                                                std::move(scale));
   n->ExprNode::ty = source->source.ty();
   n->source = std::move(source);
@@ -155,7 +155,6 @@ class IterMarkSplitCollector {
 struct IterMarkWithOffset {
   IterMark mark;
   PrimExpr offset{0};
-  IterMarkWithOffset() {}
   IterMarkWithOffset(IterMark mark, PrimExpr offset) : mark(mark), offset(offset) {}
 };
 
@@ -406,7 +405,7 @@ class IterMapRewriter : public tvm::ExprMutator {
     PrimExpr right_pad{0};
 
     // Padded form of original iter mark
-    IterMark padded;
+    ffi::Optional<IterMark> padded;
   };
 
   // temp hash for de-duplication purposes.
@@ -1921,7 +1920,7 @@ std::optional<std::pair<IterSplitExpr, PrimExpr>> IterMapRewriter::PadDividendTo
     PrimExpr padded_extent = analyzer_->Simplify(right_edge + mark_right_pad);
     info.right_pad = mark_right_pad;
     info.padded = IterMark(IterSumExpr({IterSplitExpr(mark)}, mark_left_pad), padded_extent);
-    padded_origin_map_[info.padded] = mark;
+    padded_origin_map_.insert_or_assign(info.padded.value(), mark);
 
     auto left_padding_introduced = (mark_left_pad != 0);
 
@@ -1929,21 +1928,21 @@ std::optional<std::pair<IterSplitExpr, PrimExpr>> IterMapRewriter::PadDividendTo
     // terms of the transformed variables.
     auto left_padding_predicate =
         left_padding_introduced &&
-        (floordiv(info.padded->source, info.padding_factor) == 0 &&
-         floormod(info.padded->source, info.padding_factor) < mark_left_pad);
+        (floordiv(info.padded.value()->source, info.padding_factor) == 0 &&
+         floormod(info.padded.value()->source, info.padding_factor) < mark_left_pad);
     auto right_padding_introduced = (mark_right_pad != 0);
 
     // Equivalent to (right_edge <= split < right_edge + right_pad), but
     // easier to simplify in terms of the transformed variables.
     auto right_padding_predicate =
-        right_padding_introduced && (floordiv(info.padded->source, info.padding_factor) ==
+        right_padding_introduced && (floordiv(info.padded.value()->source, info.padding_factor) ==
                                          floordiv(right_edge, info.padding_factor) &&
-                                     floormod(info.padded->source, info.padding_factor) >=
+                                     floormod(info.padded.value()->source, info.padding_factor) >=
                                          floormod(right_edge, info.padding_factor));
     padding_predicate_ = padding_predicate_ || (left_padding_predicate || right_padding_predicate);
   }
-  split.CopyOnWrite()->source = info.padded;
-  split.CopyOnWrite()->extent = floordiv(info.padded->extent, split->lower_factor);
+  split.CopyOnWrite()->source = info.padded.value();
+  split.CopyOnWrite()->extent = floordiv(info.padded.value()->extent, split->lower_factor);
   return std::make_pair(split, left_pad);
 }
 

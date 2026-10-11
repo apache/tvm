@@ -363,8 +363,9 @@ class CUDATimerNode : public TimerNode {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("runtime.timer.cuda",
-                        [](Device dev) { return Timer(ffi::make_object<CUDATimerNode>()); });
+  refl::GlobalDef().def("runtime.timer.cuda", [](Device dev) {
+    return Timer(ffi::UnsafeInit{}, ffi::make_object<CUDATimerNode>());
+  });
 }
 
 TVM_RUNTIME_DLL ffi::String GetCudaFreeMemory() {

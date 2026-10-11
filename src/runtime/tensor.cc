@@ -284,7 +284,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
         tvm::support::BytesInStream mstrm(blob);
         tvm::support::Base64InStream b64strm(&mstrm);
         b64strm.InitPosition();
-        tvm::runtime::Tensor temp;
+        tvm::runtime::Tensor temp(tvm::ffi::UnsafeInit{});
         TVM_FFI_ICHECK(temp.Load(&b64strm));
         return temp;
       });

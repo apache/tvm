@@ -428,14 +428,14 @@ std::vector<int64_t> EvenSeparatorIndices(std::vector<int64_t> seps) {
 
 // Split axes according to a split scope on the target.
 TileLayout SplitAxesByScope(TileLayout layout, const ffi::String& split_scope) {
-  Target target = Target::Current();
+  ffi::Optional<Target> target = Target::Current();
   if (!target.defined()) {
     return layout;
   }
   auto split_iter = [&](const Iter& iter) -> ffi::Array<Iter> {
     const auto& splitter = iter->axis->GetSplitter();
     if (splitter.has_value()) {
-      return splitter.value()(target, split_scope, iter);
+      return splitter.value()(target.value(), split_scope, iter);
     }
     return {iter};
   };

@@ -116,8 +116,8 @@ class BasePassInstrument : public PassInstrument {
       ffi::TypedFunction<void(const IRModule&, const PassInfo&)> run_before_pass_callback,
       ffi::TypedFunction<void(const IRModule&, const PassInfo&)> run_after_pass_callback);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(BasePassInstrument, PassInstrument,
-                                             BasePassInstrumentNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(BasePassInstrument, PassInstrument,
+                                                BasePassInstrumentNode);
 };
 
 BasePassInstrument::BasePassInstrument(
@@ -125,7 +125,8 @@ BasePassInstrument::BasePassInstrument(
     ffi::TypedFunction<void()> exit_pass_ctx_callback,
     ffi::TypedFunction<bool(const IRModule&, const PassInfo&)> should_run_callback,
     ffi::TypedFunction<void(const IRModule&, const PassInfo&)> run_before_pass_callback,
-    ffi::TypedFunction<void(const IRModule&, const PassInfo&)> run_after_pass_callback) {
+    ffi::TypedFunction<void(const IRModule&, const PassInfo&)> run_after_pass_callback)
+    : PassInstrument(ffi::UnsafeInit{}) {
   auto pi = ffi::make_object<BasePassInstrumentNode>();
   pi->name = std::move(name);
 

@@ -812,8 +812,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("runtime.timer.opencl",
-                        [](Device dev) { return Timer(ffi::make_object<OpenCLTimerNode>(dev)); });
+  refl::GlobalDef().def("runtime.timer.opencl", [](Device dev) {
+    return Timer(ffi::UnsafeInit{}, ffi::make_object<OpenCLTimerNode>(dev));
+  });
 }
 
 class OpenCLPooledAllocator final : public memory::PooledAllocator {

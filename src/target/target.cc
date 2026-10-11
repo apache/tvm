@@ -49,10 +49,10 @@ class TargetInternal {
   static ffi::ObjectPtr<TargetNode> FromConfigString(const ffi::String& config_str);
   static ffi::ObjectPtr<TargetNode> FromConfig(ffi::Map<ffi::String, ffi::Any> config);
   static void ConstructorDispatcher(ffi::PackedArgs args, ffi::Any* rv);
-  static Target WithHost(const Target& target, const Target& target_host) {
+  static Target WithHost(const Target& target, const ffi::Optional<Target>& target_host) {
     ffi::ObjectPtr<TargetNode> n = ffi::make_object<TargetNode>(*target.get());
     n->host = target_host;
-    return (Target)n;
+    return Target(ffi::UnsafeInit{}, std::move(n));
   }
 
  private:
@@ -62,7 +62,7 @@ class TargetInternal {
 
 /**********  Helper functions  **********/
 
-Target Target::WithHost(const Target& target, const Target& host) {
+Target Target::WithHost(const Target& target, const ffi::Optional<Target>& host) {
   return TargetInternal::WithHost(target, host);
 }
 
@@ -124,7 +124,7 @@ Target::Target(const ffi::Map<ffi::String, ffi::Any>& config) {
   data_ = std::move(target);
 }
 
-Target::Target(Target target, Target host) {
+Target::Target(Target target, ffi::Optional<Target> host) {
   ffi::ObjectPtr<TargetNode> n = ffi::make_object<TargetNode>(*target.get());
   n->host = std::move(host);
   data_ = std::move(n);
@@ -132,8 +132,7 @@ Target::Target(Target target, Target host) {
 
 Target::Target(TargetKind kind, ffi::Optional<ffi::ObjectRef> host, ffi::String tag,
                ffi::Array<ffi::String> keys, ffi::Map<ffi::String, ffi::Any> attrs) {
-  auto data = ffi::make_object<TargetNode>();
-  data->kind = std::move(kind);
+  auto data = ffi::make_object<TargetNode>(std::move(kind));
   data->host = std::move(host);
   data->tag = std::move(tag);
   data->keys = std::move(keys);
@@ -157,7 +156,7 @@ ffi::Map<ffi::String, ffi::Any> TargetNode::ToConfig() const {
       {"keys", this->keys},
   };
   if (this->host.has_value()) {
-    result.Set("host", this->GetHost().value_or(Target())->ToConfig());
+    result.Set("host", this->GetHost().value()->ToConfig());
   }
   for (const auto& kv : attrs) {
     result.Set(kv.first, kv.second);
@@ -171,7 +170,7 @@ Target Target::WithoutHost() const {
   if ((*this)->GetHost()) {
     auto output = ffi::make_object<TargetNode>(*get());
     output->host = std::nullopt;
-    return Target(output);
+    return Target(ffi::UnsafeInit{}, std::move(output));
   } else {
     return *this;
   }
@@ -213,7 +212,7 @@ void Target::ExitWithScope() {
   entry->context_stack.pop();
 }
 
-Target Target::Current(bool allow_not_defined) {
+ffi::Optional<Target> Target::Current(bool allow_not_defined) {
   TVMTargetThreadLocalEntry* entry = TVMTargetThreadLocalStoreGet();
   if (entry->context_stack.size() > 0) {
     return entry->context_stack.top();
@@ -221,7 +220,7 @@ Target Target::Current(bool allow_not_defined) {
   TVM_FFI_ICHECK(allow_not_defined)
       << "Target context required. Please set it by constructing a TargetContext";
 
-  return Target();
+  return std::nullopt;
 }
 
 /**********  Creation  **********/
@@ -294,7 +293,7 @@ ffi::ObjectPtr<TargetNode> TargetInternal::FromConfig(ffi::Map<ffi::String, ffi:
   const ffi::String kDeviceName = "device";
   const ffi::String kHost = "host";
   const ffi::String kFromDevice = "from_device";
-  ffi::ObjectPtr<TargetNode> target = ffi::make_object<TargetNode>();
+  ffi::ObjectPtr<TargetNode> target;
 
   // Step 0: If "tag" is present without "kind", look up the tag config and merge overrides on top
   if (!config.count(kKind) && config.count(kTag)) {
@@ -317,7 +316,7 @@ ffi::ObjectPtr<TargetNode> TargetInternal::FromConfig(ffi::Map<ffi::String, ffi:
   // Step 1: Parse 'kind' (needed to look up the schema, but kept in config for canonicalizer)
   if (config.count(kKind)) {
     if (auto kind = config[kKind].try_cast<ffi::String>()) {
-      target->kind = GetTargetKind(kind.value());
+      target = ffi::make_object<TargetNode>(GetTargetKind(kind.value()));
     } else {
       TVM_FFI_THROW(TypeError) << "Expect type of field \"kind\" is String, but get type: "
                                << config[kKind].GetTypeKey();

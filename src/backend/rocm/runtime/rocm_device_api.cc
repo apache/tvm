@@ -298,7 +298,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("runtime.timer.rocm",
-           [](Device dev) { return Timer(ffi::make_object<ROCMTimerNode>()); })
+           [](Device dev) { return Timer(ffi::UnsafeInit{}, ffi::make_object<ROCMTimerNode>()); })
       .def("runtime.get_rocm_stream", []() {
         int device_id;
         ROCM_CALL(hipGetDevice(&device_id));

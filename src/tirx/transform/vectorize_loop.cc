@@ -66,7 +66,7 @@ bool IsVScaleCall(const PrimExpr& expr) {
   return false;
 }
 
-bool TargetHasRVV(Target target) {
+bool TargetHasRVV(ffi::Optional<Target> target) {
   if (!target.defined()) return false;
   static auto target_has_feature_fn = tvm::ffi::Function::GetGlobal("target.target_has_feature");
   return target_has_feature_fn.has_value() && (*target_has_feature_fn)("v", target).cast<bool>();
@@ -74,11 +74,11 @@ bool TargetHasRVV(Target target) {
 
 // File-local helper: true if the target supports Variable-Length Array extensions
 // (AArch64 SVE or RISC-V V).
-bool TargetHasVLA(Target target) {
+bool TargetHasVLA(ffi::Optional<Target> target) {
   if (!target.defined()) return false;
-  bool has_vla = target->GetAttr<bool>("feature.has_sve").value_or(false);
+  bool has_vla = target.value()->GetAttr<bool>("feature.has_sve").value_or(false);
   if (!has_vla) {
-    if (auto mattr = target->GetAttr<ffi::Array<ffi::String>>("mattr")) {
+    if (auto mattr = target.value()->GetAttr<ffi::Array<ffi::String>>("mattr")) {
       for (const ffi::String& attr : mattr.value()) {
         if (attr == "+sve") {
           has_vla = true;
@@ -140,7 +140,7 @@ inline PrimExpr BroadcastTo(PrimExpr e, int lanes, bool is_scalable) {
   return prim::Broadcast(e, CreateNewLanes(is_scalable, lanes));
 }
 
-bool EnableBufferLevelPredication(Target target) {
+bool EnableBufferLevelPredication(ffi::Optional<Target> target) {
   transform::PassContext pass_ctx = transform::PassContext::Current();
   ffi::Optional<bool> enable_buffer_predication =
       pass_ctx->GetConfig<bool>("tirx.enable_buffer_level_predication");
@@ -465,7 +465,7 @@ class Vectorizer : public StmtExprMutator {
   using StmtExprMutator::Mutate;
   using StmtExprMutator::Mutate_;
 
-  Vectorizer(Var var, PrimExpr var_lanes, Target target)
+  Vectorizer(Var var, PrimExpr var_lanes, ffi::Optional<Target> target)
       : var_(var), var_lanes_(var_lanes), target_(target) {
     PrimType var_ty = var->ty.as_or_throw<PrimType>();
     ramp_ = prim::Ramp(IntImm(var_ty, 0), IntImm(var_ty, 1), var_lanes);
@@ -1191,7 +1191,7 @@ class Vectorizer : public StmtExprMutator {
   OpAttrMap<TVectorizable> op_vectorizable_ =
       Op::GetAttrMap<TVectorizable>(tvm::tirx::op_attr::kVectorizable);
   /*! \brief The current target context. */
-  Target target_;
+  ffi::Optional<Target> target_;
 
   // mutate array, with given lane requirement
   // when finished, p_lane updates the lane requirement.
@@ -1313,8 +1313,7 @@ class LoopVectorizer : public StmtExprMutator {
     return StmtExprMutator::Mutate(value, inplace_mode);
   }
 
-  explicit LoopVectorizer(DictAttrs attrs)
-      : target_(attrs.GetAttr<Target>(tvm::attr::kTarget).value_or(Target(nullptr))) {}
+  explicit LoopVectorizer(DictAttrs attrs) : target_(attrs.GetAttr<Target>(tvm::attr::kTarget)) {}
 
   UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
     if (op->kind == ForKind::kVectorized) {
@@ -1384,7 +1383,7 @@ class LoopVectorizer : public StmtExprMutator {
     return this->Mutate(loop, InplaceMode::kDisallow).ValueOrUnchanged(loop);
   }
 
-  Target target_;
+  ffi::Optional<Target> target_;
 };
 
 class VectorizeSkipper : public StmtExprMutator {

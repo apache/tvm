@@ -228,12 +228,9 @@ Function MakePackedAPI(Function func) {
   int target_device_type = target->GetTargetDeviceType();
 
   // A function without a host target has already been lowered.
-  Target target_host;
-  if (auto opt = target->GetHost()) {
-    target_host = opt.value();
-  } else {
-    return func;
-  }
+  auto opt_target_host = target->GetHost();
+  if (!opt_target_host) return func;
+  Target target_host = opt_target_host.value();
 
   auto* func_ptr = func.CopyOnWrite();
 
