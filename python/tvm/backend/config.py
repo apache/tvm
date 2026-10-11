@@ -62,9 +62,6 @@ def prepare_target(target, config=None, mod=None):
 
     from tvm.target import Target
 
-    from .cuda.backend_config import reject_legacy_compile_environment
-
-    reject_legacy_compile_environment()
     config = copy_backend_config(config)
     active = Target.current() if target is None else target
     if isinstance(active, Target) and active.kind.name == "cuda" and "arch" not in active.attrs:

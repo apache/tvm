@@ -600,14 +600,6 @@ def test_legacy_payloads():
             load(malformed)
 
 
-def test_removed_compile_environment(monkeypatch):
-    from tvm.backend.cuda.backend_config import reject_legacy_compile_environment
-
-    monkeypatch.setenv("TVM_CUDA_COMPILE_MODE", "nvcc")
-    with pytest.raises(ValueError, match="backend_config.*compiler"):
-        reject_legacy_compile_environment()
-
-
 def test_generic_cuda_target_without_gpu(tmp_path):
     script = """
 import tvm

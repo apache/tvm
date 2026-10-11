@@ -16,7 +16,6 @@
 # under the License.
 """CUDA toolchain selection and native argument lists."""
 
-import os
 import re
 from collections.abc import Mapping, Sequence
 from typing import Literal, TypedDict
@@ -112,7 +111,6 @@ def resolve_backend_config(config=None, target=None):
 
     from ..config import copy_backend_config
 
-    reject_legacy_compile_environment()
     overrides = validate_backend_config(config or {})
     if target is None:
         target = Target.current()
@@ -160,22 +158,3 @@ def _resolve_entry(local, defaults, target):
     attrs = dict(target.export())
     attrs["arch"] = config["arch"]
     return [Target(attrs), backend_config_json({"cuda": config})]
-
-
-def reject_legacy_compile_environment():
-    """Keep removed process-wide compiler policies from silently changing a build."""
-    legacy = {
-        "TVM_CUDA_COMPILE_MODE": "compiler",
-        "TVM_CUDA_NVCC_NO_FAST_MATH": "nvcc",
-        "TVM_CUDA_NVRTC_EXTRA_OPTS": "nvrtc",
-        "TVM_CUDA_PTXAS_REG_LEVEL": "ptxas",
-        "TVM_CUDA_PTXAS_EXTRA_OPTS": "ptxas",
-        "TIRX_PREPARE_CUDA_ARCH": "arch",
-        "FA4_REG_LEVEL": "ptxas",
-        "FA4FP4_REG_LEVEL": "ptxas",
-    }
-    for name, field in legacy.items():
-        if name in os.environ:
-            raise ValueError(
-                f"{name} was removed; set backend_config['cuda']['{field}'] explicitly"
-            )
