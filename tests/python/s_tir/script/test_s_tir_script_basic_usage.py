@@ -242,7 +242,7 @@ def test_inferred_ty_with_internal_allocation():
 
     @Ts.function
     def func(A: T.Tensor([16, 16], "float32")) -> T.float32:
-        Sum = T.decl_tensor([], "float32")
+        Sum = T.alloc_tensor(ty_args=[T.Tensor([], "float32")])
         Sum[()] = 0.0
         for i, j in T.grid(16, 16):
             Sum[()] = Sum[()] + A[i, j]
@@ -432,7 +432,7 @@ def vthread_func():
         i0 = T.launch_thread("blockIdx.x", 4)
         i1 = T.launch_thread("threadIdx.x", 2)
         i2 = T.launch_thread("vthread", 2)
-        B = T.alloc_tensor((16,), scope="local")
+        B = T.alloc_tensor(ty_args=[T.Tensor((16,), scope="local")])
         for j in range(16):
             B[j] = A[i0 * 64 + i1 * 32 + i2 * 16 + j] + T.float32(1)
         for j in range(16):

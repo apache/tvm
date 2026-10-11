@@ -100,7 +100,7 @@ class MatchTensorRegion : public ffi::ObjectRef {
  *      T.reads([tensor0[start:end, ...], ...])
  *      T.writes([tensor1[start:end, ...], ...])
  *      T.where(predicate)
- *      tensor2 = T.alloc_tensor(shape, dtype)
+ *      tensor2 = T.alloc_tensor(ty_args=[T.Tensor(shape, dtype)])
  *      tensor3 = Ts.match_tensor(source_tensor[start:end, ...])
  *      Ts.sblock_attr({attr_key: attr_value, ...})
  *      with T.init():

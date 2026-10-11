@@ -57,9 +57,9 @@ class Conv2dCuda0:
 
         # body
         blockIdx_z = T.launch_thread("blockIdx.z", 196)
-        B_local = T.decl_tensor([64], "float32", scope="local")
-        Apad_shared = T.decl_tensor([512], "float32", scope="shared")
-        Apad_shared_local = T.decl_tensor([8], "float32", scope="local")
+        B_local = T.alloc_tensor(ty_args=[T.Tensor([64], "float32", scope="local")])
+        Apad_shared = T.alloc_tensor(ty_args=[T.Tensor([512], "float32", scope="shared")])
+        Apad_shared_local = T.alloc_tensor(ty_args=[T.Tensor([8], "float32", scope="local")])
         blockIdx_y = T.launch_thread("blockIdx.y", 8)
         blockIdx_x = T.launch_thread("blockIdx.x", 4)
         threadIdx_y = T.launch_thread("threadIdx.y", 8)
@@ -92,9 +92,9 @@ class Conv2dCuda1:
 
         # body
         blockIdx_z = T.launch_thread("blockIdx.z", 196)
-        B_local = T.decl_tensor([6400000], "float32", scope="local")
-        Apad_shared = T.decl_tensor([512], "float32", scope="shared")
-        Apad_shared_local = T.decl_tensor([8], "float32", scope="local")
+        B_local = T.alloc_tensor(ty_args=[T.Tensor([6400000], "float32", scope="local")])
+        Apad_shared = T.alloc_tensor(ty_args=[T.Tensor([512], "float32", scope="shared")])
+        Apad_shared_local = T.alloc_tensor(ty_args=[T.Tensor([8], "float32", scope="local")])
         blockIdx_y = T.launch_thread("blockIdx.y", 8)
         blockIdx_x = T.launch_thread("blockIdx.x", 4)
         threadIdx_y = T.launch_thread("threadIdx.y", 8)
@@ -131,9 +131,9 @@ class Conv2dCuda2:
 
         # body
         blockIdx_z = T.launch_thread("blockIdx.z", 196)
-        B_local = T.decl_tensor([64], "float32", scope="local")
-        Apad_shared = T.decl_tensor([512000], "float32", scope="shared")
-        Apad_shared_local = T.decl_tensor([8], "float32", scope="local")
+        B_local = T.alloc_tensor(ty_args=[T.Tensor([64], "float32", scope="local")])
+        Apad_shared = T.alloc_tensor(ty_args=[T.Tensor([512000], "float32", scope="shared")])
+        Apad_shared_local = T.alloc_tensor(ty_args=[T.Tensor([8], "float32", scope="local")])
         blockIdx_y = T.launch_thread("blockIdx.y", 8)
         blockIdx_x = T.launch_thread("blockIdx.x", 4)
         threadIdx_y = T.launch_thread("threadIdx.y", 8)
@@ -170,9 +170,9 @@ class Conv2dCuda3:
 
         # body
         blockIdx_z = T.launch_thread("blockIdx.z", 196)
-        B_local = T.decl_tensor([64], "float32", scope="local")
-        Apad_shared = T.decl_tensor([512], "float32", scope="shared")
-        Apad_shared_local = T.decl_tensor([8], "float32", scope="local")
+        B_local = T.alloc_tensor(ty_args=[T.Tensor([64], "float32", scope="local")])
+        Apad_shared = T.alloc_tensor(ty_args=[T.Tensor([512], "float32", scope="shared")])
+        Apad_shared_local = T.alloc_tensor(ty_args=[T.Tensor([8], "float32", scope="local")])
         blockIdx_y = T.launch_thread("blockIdx.y", 8)
         blockIdx_x = T.launch_thread("blockIdx.x", 4)
         threadIdx_y = T.launch_thread("threadIdx.y", 8)

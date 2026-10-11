@@ -63,8 +63,8 @@ def test_basic():
 
             @T.function
             def func(A: T.handle("float32"), B: T.handle("float32"), m: T.int32, n: T.int32):
-                A_buf = T.decl_tensor((m * n,), "float32", data=A)
-                B_buf = T.decl_tensor((m * n,), "float32", data=B)
+                A_buf = T.decl_tensor(A, ty_args=[T.Tensor((m * n,), "float32", data=A)])
+                B_buf = T.decl_tensor(B, ty_args=[T.Tensor((m * n,), "float32", data=B)])
                 for i in T.serial(m):
                     for j in T.serial(n):
                         B_buf[i * n + j] = A_buf[i * n + j] + T.float32(1)
@@ -73,8 +73,8 @@ def test_basic():
 
             @T.function
             def func(A: T.handle("float32"), B: T.handle("float32"), m: T.int64, n: T.int64):
-                A_buf = T.decl_tensor((m * n,), "float32", data=A)
-                B_buf = T.decl_tensor((m * n,), "float32", data=B)
+                A_buf = T.decl_tensor(A, ty_args=[T.Tensor((m * n,), "float32", data=A)])
+                B_buf = T.decl_tensor(B, ty_args=[T.Tensor((m * n,), "float32", data=B)])
                 for i in T.serial(m):
                     for j in T.serial(n):
                         B_buf[i * n + j] = A_buf[i * n + j] + T.float32(1)

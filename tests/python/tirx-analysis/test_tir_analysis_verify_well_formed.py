@@ -34,7 +34,7 @@ def test_pass_simple():
         A: T.Tensor((128, 128), "float32"),
         C: T.Tensor((128, 128), "float32"),
     ):
-        B = T.alloc_tensor((128, 128), "float32")
+        B = T.alloc_tensor(ty_args=[T.Tensor((128, 128), "float32")])
         for i, j in T.grid(128, 128):
             B[i, j] = A[i, j] * 2.0
         for i, j in T.grid(128, 128):
@@ -303,7 +303,7 @@ def test_decl_tensor_is_well_formed():
 
     @T.function
     def func(A: T.Tensor((128,), "float32")):
-        B = T.alloc_tensor((128,), "float32")
+        B = T.alloc_tensor(ty_args=[T.Tensor((128,), "float32")])
         for i in T.grid(128):
             B[i] = A[i] * 2.0
 
@@ -317,7 +317,7 @@ def test_alloc_tensor_is_well_formed():
     class mod:
         @T.function
         def func(A: T.Tensor((128,), "float32")):
-            B = T.alloc_tensor([128], "float32")
+            B = T.alloc_tensor(ty_args=[T.Tensor([128], "float32")])
             for i in T.grid(128):
                 B[i] = A[i] * 2.0
 
@@ -327,7 +327,7 @@ def test_alloc_tensor_is_well_formed():
 def test_tensor_load_asserted_type_matches_source_and_indices():
     @T.function
     def func():
-        tensor = T.alloc_tensor((4,), "float32")
+        tensor = T.alloc_tensor(ty_args=[T.Tensor((4,), "float32")])
         T.evaluate(tensor[0])
 
     serialized = tvm.ir.save_json(func)

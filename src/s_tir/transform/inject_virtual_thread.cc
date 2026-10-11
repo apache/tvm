@@ -196,7 +196,7 @@ class VarTouchedAnalysis : public StmtExprVisitor {
   }
   ffi::Optional<VisitInterrupt> DispatchAllocTensor(const BindNode* op, const CallNode* call) {
     expr_touched_->Reset(false);
-    tvm::Tuple shape = call->args[0].as_or_throw<tvm::Tuple>();
+    tvm::Tuple shape = tvm::Tuple(call->ty_args[0].as_or_throw<tirx::TensorType>()->shape);
     for (const Expr& extent : shape->fields) {
       expr_touched_->Visit(extent);
     }
@@ -583,7 +583,7 @@ class VTInjector : public s_tir::IRMutatorWithAnalyzer {
   // AllocTensor
   UnchangedOr<Stmt> Mutate_AllocTensor(const BindNode* op, const CallNode* call,
                                        InplaceMode inplace_mode) {
-    tvm::Tuple shape = call->args[0].as_or_throw<tvm::Tuple>();
+    tvm::Tuple shape = tvm::Tuple(call->ty_args[0].as_or_throw<tirx::TensorType>()->shape);
     ffi::Array<PrimExpr> original_shape = shape->fields.as_or_throw<ffi::Array<PrimExpr>>();
     ffi::Array<PrimExpr> new_shape = original_shape.Map([this](const PrimExpr& s) {
       // Keep the retained allocation and its tensor type unchanged.
@@ -591,8 +591,8 @@ class VTInjector : public s_tir::IRMutatorWithAnalyzer {
     });
 
     ffi::Array<Expr> args = call->args;
-    if (args.size() == 4) {
-      args.Set(3, Mutate(args[3], InplaceMode::kDisallow).ValueOrUnchanged(args[3]));
+    if (!args.empty()) {
+      args.Set(0, Mutate(args[0], InplaceMode::kDisallow).ValueOrUnchanged(args[0]));
     }
     if (visit_touched_var_ && !vt_loop_injected_) {
       return InjectVTLoop(ffi::GetRef<Stmt>(op), true);
@@ -615,12 +615,10 @@ class VTInjector : public s_tir::IRMutatorWithAnalyzer {
       type->shape = new_shape;
       TensorVar new_tensor = RebuildTensorVar(op->var.as_or_throw<TensorVar>(), std::move(type));
       VarRemapSet(op->var.as_or_throw<TensorVar>(), new_tensor);
-      args.Set(0, tvm::Tuple(new_tensor->shape, call->args[0]->loc));
-      args.Set(1, DataTypeImm(new_tensor->dtype->dtype, call->args[1]->loc));
-      args.Set(2, StringImm(new_tensor.scope(), call->args[2]->loc));
+
       return Bind(new_tensor.var(),
-                  Call(new_tensor.type(), tirx::alloc_tensor_op(), args, call->attrs, call->ty_args,
-                       call->loc),
+                  Call(new_tensor.type(), tirx::alloc_tensor_op(), args, call->attrs,
+                       {new_tensor.type()}, call->loc),
                   op->loc);
     }
   }

@@ -279,7 +279,7 @@ def test_fail_on_tensor_param():
 def test_fail_on_internal_tensor():
     @T.function(private=True)
     def func(A: T.Tensor((128,), "int32"), B: T.Tensor((128,), "int32")):
-        C = T.alloc_tensor((128,), "int64")
+        C = T.alloc_tensor(ty_args=[T.Tensor((128,), "int64")])
         for i in T.serial(0, 16):
             for j in T.serial(0, 8):
                 C[i * 8 + j] = T.cast(A[i * 8 + j], "int64") + T.int64(1)

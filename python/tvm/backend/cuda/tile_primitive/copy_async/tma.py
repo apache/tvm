@@ -2190,12 +2190,15 @@ def _emit_plan(
         # elem_offset.  The latter is part of a flat DeclTensor definition;
         # after loop unrolling, CSE may otherwise lift an offset containing a
         # locally bound coordinate above that coordinate's Bind statement.
-        smem_view = T.decl_tensor(
-            (1,),
-            spec.smem_buffer.dtype,
-            spec.smem_buffer.data,
-            elem_offset=0,
-            scope=spec.smem_buffer.scope(),
+        smem_view = T.bind(
+            T.decl_tensor(
+                spec.smem_buffer.data,
+                ty_args=[
+                    T.Tensor(
+                        (1,), spec.smem_buffer.dtype, elem_offset=0, scope=spec.smem_buffer.scope()
+                    )
+                ],
+            )
         )
         return smem_view.ptr_to([spec.smem_base_offset + element_offset])
 

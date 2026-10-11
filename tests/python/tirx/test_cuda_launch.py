@@ -299,7 +299,7 @@ def test_increasing_dynamic_shared_memory(host, tmp_path):
     @T.function
     def shared(A: T.Tensor((1,), "int32"), n: T.int32, bytes_: T.int32):
         T.device_entry(launch=T.cuda.LaunchConfig(grid=1, block=32, dynamic_smem_bytes=bytes_))
-        scratch = T.alloc_tensor((n,), "int32", scope="shared.dyn")
+        scratch = T.alloc_tensor(ty_args=[T.Tensor((n,), "int32", scope="shared.dyn")])
         if T.cuda.thread_idx("x") == 0:
             scratch[n - 1] = n
             A[0] = scratch[n - 1]
@@ -323,7 +323,7 @@ def test_static_shared_memory_override_cannot_shrink_allocation():
     @T.function
     def kernel():
         T.device_entry(launch=T.cuda.LaunchConfig(grid=1, block=32, dynamic_smem_bytes=64))
-        scratch = T.alloc_tensor((128,), "int32", scope="shared.dyn")
+        scratch = T.alloc_tensor(ty_args=[T.Tensor((128,), "int32", scope="shared.dyn")])
         scratch[0] = T.cuda.thread_idx("x")
 
     with pytest.raises(ValueError, match="smaller than"):

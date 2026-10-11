@@ -18,7 +18,7 @@
 from typing import Any
 
 from tvm.backend.trn.tile_primitive.common import nki_dim
-from tvm.ir import Bind, Call, DataTypeImm, DictAttrs, Stmt, StringImm, Tuple
+from tvm.ir import Bind, Call, DictAttrs, Stmt, Tuple
 from tvm.script import tirx as T
 from tvm.tirx import DispatchContext, FloatImm, IntImm, Var
 from tvm.tirx.op.tile import (
@@ -36,8 +36,8 @@ from tvm.tirx.tensor_instruction import TensorCall
 
 def _allocation(tensor: Var, allocated_addr=None) -> Bind:
     """Keep private workspace placement on its producing allocation."""
-    args = [Tuple(tensor.ty.shape), DataTypeImm(tensor.ty.dtype.dtype), StringImm(tensor.scope())]
-    if allocated_addr:
+    args = []
+    if allocated_addr is not None:
         args.append(Tuple(allocated_addr))
     return Bind(
         tensor,
@@ -45,7 +45,7 @@ def _allocation(tensor: Var, allocated_addr=None) -> Bind:
             "tirx.alloc_tensor",
             args,
             attrs=DictAttrs({}),
-            ty=tensor.ty,
+            ty_args=[tensor.ty],
         ),
     )
 

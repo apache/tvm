@@ -29,7 +29,7 @@ def ptx_cp_async(A: T.Tensor((32, 128), "float16"), B: T.Tensor((32, 128), "floa
     T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
     T.launch_thread("blockIdx.x", 1)
     tx = T.launch_thread("threadIdx.x", 32)
-    A_shared = T.alloc_tensor([32, 128], "float16", scope="shared")
+    A_shared = T.alloc_tensor(ty_args=[T.Tensor([32, 128], "float16", scope="shared")])
     for i in range(16):
         T.evaluate(
             T.s_tir.cp_async_raw.legacy(

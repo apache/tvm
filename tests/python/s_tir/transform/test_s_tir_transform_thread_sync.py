@@ -58,13 +58,13 @@ def test_sync_read_thread_id_independent_location():
         result_local[0] = result_local[0] + temp_shared[0] * p1[1]
 
     mod = run_passes(func)
-    assert 'T.gpu_storage_sync("shared", ty="int32")' in str(mod)
+    assert 'T.gpu_storage_sync("shared")' in str(mod)
 
 
 def test_sync_inside_condition():
     @Ts.function
     def func1(A: T.Tensor((4, 4), "float32")) -> None:
-        A_shared = T.alloc_tensor((4, 4), "float32", scope="shared")
+        A_shared = T.alloc_tensor(ty_args=[T.Tensor((4, 4), "float32", scope="shared")])
         bx = T.launch_thread("blockIdx.x", 1)
         tx = T.launch_thread("threadIdx.x", 32)
         if A[0, 0] > 1.0:
@@ -75,7 +75,7 @@ def test_sync_inside_condition():
 
     @Ts.function
     def func2(A: T.Tensor((4, 4), "float32")) -> None:
-        A_shared = T.alloc_tensor((4, 4), "float32", scope="shared")
+        A_shared = T.alloc_tensor(ty_args=[T.Tensor((4, 4), "float32", scope="shared")])
         bx = T.launch_thread("blockIdx.x", 1)
         tx = T.launch_thread("threadIdx.x", 32)
         if T.gpu_thread_invariant(A[0, 0] > 1.0):
@@ -86,7 +86,7 @@ def test_sync_inside_condition():
 
     @Ts.function
     def func3(A: T.Tensor((4, 4), "float32")) -> None:
-        A_shared = T.alloc_tensor((4, 4), "float32", scope="shared")
+        A_shared = T.alloc_tensor(ty_args=[T.Tensor((4, 4), "float32", scope="shared")])
         bx = T.launch_thread("blockIdx.x", 1)
         tx = T.launch_thread("threadIdx.x", 32)
         while T.gpu_thread_invariant(A[0, 0] > 1.0):
@@ -100,43 +100,43 @@ def test_sync_inside_condition():
 
     for func in (func2, func3):
         mod = s_tir.transform.ThreadSync("shared")(tvm.IRModule.from_expr(func))
-        assert 'T.gpu_storage_sync("shared", ty="int32")' in mod.script()
+        assert 'T.gpu_storage_sync("shared")' in mod.script()
 
 
 def test_sync_shared_dyn():
     @Ts.function(private=True)
     def func(A: T.Tensor((4, 4), "float32"), E: T.Tensor((4, 4), "float32")):
         blockIdx_x = T.launch_thread("blockIdx.x", 1)
-        B = T.alloc_tensor((24,), "float32", scope="shared.dyn")
-        C = T.alloc_tensor((1,), "float32", scope="local")
-        D = T.alloc_tensor((16,), "float32", scope="shared.dyn")
+        B = T.alloc_tensor(ty_args=[T.Tensor((24,), "float32", scope="shared.dyn")])
+        C = T.alloc_tensor(ty_args=[T.Tensor((1,), "float32", scope="local")])
+        D = T.alloc_tensor(ty_args=[T.Tensor((16,), "float32", scope="shared.dyn")])
         threadIdx_x = T.launch_thread("threadIdx.x", 16)
-        B_1 = T.decl_tensor((24,), data=B.data, scope="shared.dyn")
-        A_1 = T.decl_tensor((16,), data=A.data)
+        B_1 = T.decl_tensor(B.data, ty_args=[T.Tensor((24,), scope="shared.dyn")])
+        A_1 = T.decl_tensor(A.data, ty_args=[T.Tensor((16,), data=A.data)])
         B_1[threadIdx_x // 4 * 6 + threadIdx_x % 4] = A_1[threadIdx_x]
-        C_1 = T.decl_tensor((1,), data=C.data, scope="local")
+        C_1 = T.decl_tensor(C.data, ty_args=[T.Tensor((1,), scope="local")])
         C_1[0] = B_1[threadIdx_x // 4 * 6 + threadIdx_x % 4]
-        D_1 = T.decl_tensor((16,), data=D.data, scope="shared.dyn")
+        D_1 = T.decl_tensor(D.data, ty_args=[T.Tensor((16,), scope="shared.dyn")])
         D_1[threadIdx_x] = C_1[0]
-        E_1 = T.decl_tensor((16,), data=E.data)
+        E_1 = T.decl_tensor(E.data, ty_args=[T.Tensor((16,), data=E.data)])
         E_1[threadIdx_x] = D_1[threadIdx_x]
 
     @Ts.function(private=True)
     def expected(A: T.Tensor((4, 4), "float32"), E: T.Tensor((4, 4), "float32")):
         blockIdx_x = T.launch_thread("blockIdx.x", 1)
-        B_1 = T.alloc_tensor((24,), "float32", scope="shared.dyn")
-        C_1 = T.alloc_tensor((1,), "float32", scope="local")
-        D_1 = T.alloc_tensor((16,), "float32", scope="shared.dyn")
+        B_1 = T.alloc_tensor(ty_args=[T.Tensor((24,), "float32", scope="shared.dyn")])
+        C_1 = T.alloc_tensor(ty_args=[T.Tensor((1,), "float32", scope="local")])
+        D_1 = T.alloc_tensor(ty_args=[T.Tensor((16,), "float32", scope="shared.dyn")])
         threadIdx_x = T.launch_thread("threadIdx.x", 16)
-        B_1_1 = T.decl_tensor((24,), data=B_1.data, scope="shared.dyn")
-        A_1 = T.decl_tensor((16,), data=A.data)
+        B_1_1 = T.decl_tensor(B_1.data, ty_args=[T.Tensor((24,), scope="shared.dyn")])
+        A_1 = T.decl_tensor(A.data, ty_args=[T.Tensor((16,), data=A.data)])
         B_1_1[threadIdx_x // 4 * 6 + threadIdx_x % 4] = A_1[threadIdx_x]
-        C_1_1 = T.decl_tensor((1,), data=C_1.data, scope="local")
+        C_1_1 = T.decl_tensor(C_1.data, ty_args=[T.Tensor((1,), scope="local")])
         C_1_1[0] = B_1_1[threadIdx_x // 4 * 6 + threadIdx_x % 4]
-        D_1_1 = T.decl_tensor((16,), data=D_1.data, scope="shared.dyn")
+        D_1_1 = T.decl_tensor(D_1.data, ty_args=[T.Tensor((16,), scope="shared.dyn")])
         T.evaluate(T.call_intrin("tirx.gpu_storage_sync", "shared.dyn", ty="int32"))
         D_1_1[threadIdx_x] = C_1_1[0]
-        E_1 = T.decl_tensor((16,), data=E.data)
+        E_1 = T.decl_tensor(E.data, ty_args=[T.Tensor((16,), data=E.data)])
         E_1[threadIdx_x] = D_1_1[threadIdx_x]
 
     mod = tvm.IRModule({"main": func})
@@ -148,11 +148,15 @@ def test_sync_shared_aliasing_tensor_views():
     @Ts.function(private=True)
     def func(A: T.Tensor((64,), "float32")):
         blockIdx_x = T.launch_thread("blockIdx.x", 1)
-        shared_storage = T.alloc_tensor((32,), "float16", scope="shared")
-        local = T.alloc_tensor((1,), "float32", scope="local")
+        shared_storage = T.alloc_tensor(ty_args=[T.Tensor((32,), "float16", scope="shared")])
+        local = T.alloc_tensor(ty_args=[T.Tensor((1,), "float32", scope="local")])
         threadIdx_x = T.launch_thread("threadIdx.x", 32)
-        shared_half = T.decl_tensor((32,), "float16", data=shared_storage.data, scope="shared")
-        shared_float = T.decl_tensor((16,), "float32", data=shared_storage.data, scope="shared")
+        shared_half = T.decl_tensor(
+            shared_storage.data, ty_args=[T.Tensor((32,), "float16", scope="shared")]
+        )
+        shared_float = T.decl_tensor(
+            shared_storage.data, ty_args=[T.Tensor((16,), "float32", scope="shared")]
+        )
         for i in range(2):
             shared_half[threadIdx_x] = T.Cast("float16", A[i * 32 + threadIdx_x])
             T.gpu_storage_sync("shared")
@@ -173,14 +177,16 @@ def test_sync_bind():
     @Ts.function(private=True)
     def func(A: T.Tensor((16 * 512), "float32")):
         blockIdx_x = T.launch_thread("blockIdx.x", 16)
-        A_shared = T.alloc_tensor((512,), "float32", scope="shared")
-        in_thread_A_temp = T.alloc_tensor((1,), "float32", scope="local")
-        cross_thread_A_temp = T.alloc_tensor((1,), "float32", scope="local")
+        A_shared = T.alloc_tensor(ty_args=[T.Tensor((512,), "float32", scope="shared")])
+        in_thread_A_temp = T.alloc_tensor(ty_args=[T.Tensor((1,), "float32", scope="local")])
+        cross_thread_A_temp = T.alloc_tensor(ty_args=[T.Tensor((1,), "float32", scope="local")])
         threadIdx_x = T.launch_thread("threadIdx.x", 128)
-        A_shared_1 = T.decl_tensor((512,), data=A_shared.data, scope="shared")
+        A_shared_1 = T.decl_tensor(A_shared.data, ty_args=[T.Tensor((512,), scope="shared")])
         for ax0 in range(512):
             A_shared_1[ax0] = A[blockIdx_x * 512 + ax0]
-        in_thread_A_temp_1 = T.decl_tensor((1,), data=in_thread_A_temp.data, scope="local")
+        in_thread_A_temp_1 = T.decl_tensor(
+            in_thread_A_temp.data, ty_args=[T.Tensor((1,), scope="local")]
+        )
         in_thread_A_temp_1[0] = T.float32(0)
         A_temp_1 = T.bind(in_thread_A_temp_1[0] + A_shared_1[threadIdx_x])
         in_thread_A_temp_1[0] = A_temp_1
@@ -190,7 +196,9 @@ def test_sync_bind():
         in_thread_A_temp_1[0] = A_temp_3
         A_temp_4 = T.bind(in_thread_A_temp_1[0] + A_shared_1[threadIdx_x + 384])
         in_thread_A_temp_1[0] = A_temp_4
-        cross_thread_A_temp_1 = T.decl_tensor((1,), data=cross_thread_A_temp.data, scope="local")
+        cross_thread_A_temp_1 = T.decl_tensor(
+            cross_thread_A_temp.data, ty_args=[T.Tensor((1,), scope="local")]
+        )
         T.gpu_thread_allreduce(
             T.Lambda([T.float32, T.float32], lambda x0, y0: (x0 + y0,)),
             (T.float32(0),),
@@ -203,14 +211,16 @@ def test_sync_bind():
     @Ts.function(private=True)
     def expected(A: T.Tensor((8192,), "float32")):
         blockIdx_x = T.launch_thread("blockIdx.x", 16)
-        A_shared_1 = T.alloc_tensor((512,), "float32", scope="shared")
-        in_thread_A_temp_1 = T.alloc_tensor((1,), "float32", scope="local")
-        cross_thread_A_temp_1 = T.alloc_tensor((1,), "float32", scope="local")
+        A_shared_1 = T.alloc_tensor(ty_args=[T.Tensor((512,), "float32", scope="shared")])
+        in_thread_A_temp_1 = T.alloc_tensor(ty_args=[T.Tensor((1,), "float32", scope="local")])
+        cross_thread_A_temp_1 = T.alloc_tensor(ty_args=[T.Tensor((1,), "float32", scope="local")])
         threadIdx_x = T.launch_thread("threadIdx.x", 128)
-        A_shared_1_1 = T.decl_tensor((512,), data=A_shared_1.data, scope="shared")
+        A_shared_1_1 = T.decl_tensor(A_shared_1.data, ty_args=[T.Tensor((512,), scope="shared")])
         for ax0 in range(512):
             A_shared_1_1[ax0] = A[blockIdx_x * 512 + ax0]
-        in_thread_A_temp_1_1 = T.decl_tensor((1,), data=in_thread_A_temp_1.data, scope="local")
+        in_thread_A_temp_1_1 = T.decl_tensor(
+            in_thread_A_temp_1.data, ty_args=[T.Tensor((1,), scope="local")]
+        )
         in_thread_A_temp_1_1[0] = T.float32(0)
         T.evaluate(T.call_intrin("tirx.gpu_storage_sync", "shared", ty="int32"))
         A_temp_1 = T.bind(in_thread_A_temp_1_1[0] + A_shared_1_1[threadIdx_x])
@@ -222,7 +232,7 @@ def test_sync_bind():
         A_temp_4 = T.bind(in_thread_A_temp_1_1[0] + A_shared_1_1[threadIdx_x + 384])
         in_thread_A_temp_1_1[0] = A_temp_4
         cross_thread_A_temp_1_1 = T.decl_tensor(
-            (1,), data=cross_thread_A_temp_1.data, scope="local"
+            cross_thread_A_temp_1.data, ty_args=[T.Tensor((1,), scope="local")]
         )
         T.gpu_thread_allreduce(
             T.Lambda([T.float32, T.float32], lambda x0, y0: (x0 + y0,)),
@@ -244,7 +254,7 @@ def test_hoist_if_preserves_sync_placement(loop):
     class Before:
         @T.function
         def main(A: T.Tensor((4,), "int32")):
-            B = T.alloc_tensor((4,), "int32", scope="shared")
+            B = T.alloc_tensor(ty_args=[T.Tensor((4,), "int32", scope="shared")])
             tx = T.launch_thread("threadIdx.x", 4)
             B[tx] = A[tx]
             for i in loop(1, 4):

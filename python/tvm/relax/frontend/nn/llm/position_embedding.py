@@ -578,12 +578,20 @@ def llama_rope_with_position_map(  # pylint: disable=too-many-arguments
         )
 
         # long factors is the first half, short factors is the second half
-        long_factors = T.decl_tensor((rotary_dim // 2,), "float32", data=ext_factors.data)
+        long_factors = T.decl_tensor(
+            ext_factors.data,
+            ty_args=[T.Tensor((rotary_dim // 2,), "float32", data=ext_factors.data)],
+        )
         short_factors = T.decl_tensor(
-            (rotary_dim // 2,),
-            "float32",
-            data=ext_factors.data,
-            elem_offset=(rotary_dim // 2),
+            ext_factors.data,
+            ty_args=[
+                T.Tensor(
+                    (rotary_dim // 2,),
+                    "float32",
+                    elem_offset=rotary_dim // 2,
+                    data=ext_factors.data,
+                )
+            ],
         )
 
         if seq_len > original_max_position_embeddings:
@@ -795,12 +803,20 @@ def llama4_rope_with_position_map(  # pylint: disable=too-many-arguments
         )
 
         # long factors is the first half, short factors is the second half
-        long_factors = T.decl_tensor((rotary_dim // 2,), "float32", data=ext_factors.data)
+        long_factors = T.decl_tensor(
+            ext_factors.data,
+            ty_args=[T.Tensor((rotary_dim // 2,), "float32", data=ext_factors.data)],
+        )
         short_factors = T.decl_tensor(
-            (rotary_dim // 2,),
-            "float32",
-            data=ext_factors.data,
-            elem_offset=(rotary_dim // 2),
+            ext_factors.data,
+            ty_args=[
+                T.Tensor(
+                    (rotary_dim // 2,),
+                    "float32",
+                    elem_offset=rotary_dim // 2,
+                    data=ext_factors.data,
+                )
+            ],
         )
 
         if seq_len > original_max_position_embeddings:

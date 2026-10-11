@@ -144,7 +144,7 @@ UnchangedOr<Stmt> StmtSimplifier::Mutate_(const ForNode* op, InplaceMode inplace
 
 UnchangedOr<Stmt> StmtSimplifier::Mutate_(const BindNode* op, InplaceMode inplace_mode) {
   if (const auto* call = op->value.as<CallNode>()) {
-    // Preserve tensor metadata and shape operands; only declaration data is simplified.
+    // Preserve tensor type metadata; only declaration data is simplified.
     if (call->op.same_as(tirx::alloc_tensor_op())) return ffi::Unchanged();
     if (call->op.same_as(tirx::decl_tensor_op())) {
       // The Call and its arguments may be shared even when the Bind is writable.

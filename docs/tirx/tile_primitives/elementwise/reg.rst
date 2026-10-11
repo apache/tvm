@@ -91,12 +91,14 @@ A warp takes the elementwise ``sqrt`` of a ``32×8`` ``float32`` local tile
         _index = Tx.cuda.block_idx("x")
         _lane = Tx.cuda.lane_id()
         tid = Tx.cuda.thread_idx("x")
-        A_smem = Tx.alloc_tensor((32, 8), "float32", scope="shared", layout=TileLayout(S[(32, 8)]))
+        A_smem = Tx.alloc_tensor(
+            ty_args=[Tx.Tensor((32, 8), "float32", scope="shared", layout=TileLayout(S[(32, 8)]))]
+        )
         for k in Tx.serial(8):
             value = A[tid, k]
             A_smem[tid, k] = value
         Tx.cuda.cta_sync()
-        R = Tx.alloc_tensor((32, 8), "float32", scope="local", layout=r_layout)
+        R = Tx.alloc_tensor(ty_args=[Tx.Tensor((32, 8), "float32", scope="local", layout=r_layout)])
         Tx.cuda.tile.ld(R[fs], A_smem[fs], scope="warp")
         Tx.cuda.tile.sqrt(R[fs], R[fs], scope="warp")  # elementwise reg dispatch
         Tx.cuda.tile.st(A_smem[fs], R[fs], scope="warp")

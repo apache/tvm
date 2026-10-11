@@ -63,15 +63,19 @@ def test_simple_reduction(op_type):
     @T.function
     def reduction() -> None:
         T.device_entry()
-        A_sbuf = T.alloc_tensor(src_shape, "float32", scope="trn.sbuf", layout=src_layout)
-        B_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
+        A_sbuf = T.alloc_tensor(
+            ty_args=[T.Tensor(src_shape, "float32", scope="trn.sbuf", layout=src_layout)]
+        )
+        B_sbuf = T.alloc_tensor(
+            ty_args=[T.Tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)]
+        )
         T.trn.tile.tensorreduce(B_sbuf, A_sbuf, axes=-1, reduce_op=op_type)
 
     @T.function
     def expected():
         T.func_attr({"global_symbol": "reduction"})
-        A_sbuf = T.alloc_tensor((128, 512), scope="trn.sbuf")
-        B_sbuf = T.alloc_tensor((128, 1), scope="trn.sbuf")
+        A_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 512), scope="trn.sbuf")])
+        B_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 1), scope="trn.sbuf")])
         for b_loop in range(1):
             T.nki.tensorized_instruction()
             for p_loop in T.serial(0, 128, annotations={"nki_dim":"P"}):
@@ -95,15 +99,19 @@ def test_reduction_with_multiple_axes():
     @T.function
     def reduction():
         T.device_entry()
-        A_sbuf = T.alloc_tensor(src_shape, "float32", scope="trn.sbuf", layout=src_layout)
-        B_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
+        A_sbuf = T.alloc_tensor(
+            ty_args=[T.Tensor(src_shape, "float32", scope="trn.sbuf", layout=src_layout)]
+        )
+        B_sbuf = T.alloc_tensor(
+            ty_args=[T.Tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)]
+        )
         T.trn.tile.tensorreduce(B_sbuf, A_sbuf, axes=(1, 2), max_inst_size=2048, reduce_op='sum')
 
     @T.function
     def expected():
         T.func_attr({"global_symbol": "reduction"})
-        A_sbuf = T.alloc_tensor((128, 2048), scope="trn.sbuf")
-        B_sbuf = T.alloc_tensor((128, 1), scope="trn.sbuf")
+        A_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 2048), scope="trn.sbuf")])
+        B_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 1), scope="trn.sbuf")])
         for b_loop in range(1):
             T.nki.tensorized_instruction()
             for p_loop in T.serial(0, 128, annotations={"nki_dim":"P"}):
@@ -127,16 +135,20 @@ def test_reduction_in_loop():
     @T.function
     def reduction():
         T.device_entry()
-        A_sbuf = T.alloc_tensor(src_shape, "float32", scope="trn.sbuf", layout=src_layout)
-        B_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
+        A_sbuf = T.alloc_tensor(
+            ty_args=[T.Tensor(src_shape, "float32", scope="trn.sbuf", layout=src_layout)]
+        )
+        B_sbuf = T.alloc_tensor(
+            ty_args=[T.Tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)]
+        )
         for i in range(4):
             T.trn.tile.tensorreduce(B_sbuf[:, i], A_sbuf[:, :, i], axes=-2, reduce_op='sum')
 
     @T.function
     def expected():
         T.func_attr({"global_symbol": "reduction"})
-        A_sbuf = T.alloc_tensor((128, 2048), scope="trn.sbuf")
-        B_sbuf = T.alloc_tensor((128, 4), scope="trn.sbuf")
+        A_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 2048), scope="trn.sbuf")])
+        B_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 4), scope="trn.sbuf")])
         for i, b_loop in T.grid(4, 1):
             T.nki.tensorized_instruction()
             for p_loop in T.serial(0, 128, annotations={"nki_dim":"P"}):
@@ -159,16 +171,20 @@ def test_reduction_two_stage():
     @T.function
     def reduction():
         T.device_entry()
-        A_sbuf = T.alloc_tensor(src_shape, "float32", scope="trn.sbuf", layout=src_layout)
-        B_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
+        A_sbuf = T.alloc_tensor(
+            ty_args=[T.Tensor(src_shape, "float32", scope="trn.sbuf", layout=src_layout)]
+        )
+        B_sbuf = T.alloc_tensor(
+            ty_args=[T.Tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)]
+        )
         T.trn.tile.tensorreduce(B_sbuf, A_sbuf, axes=(1, 3), reduce_op='sum')
 
     @T.function
     def expected():
         T.func_attr({"global_symbol": "reduction"})
-        intermediate_tensor = T.alloc_tensor((128, 32), scope="trn.sbuf")
-        A_sbuf = T.alloc_tensor((128, 4096), scope="trn.sbuf")
-        B_sbuf = T.alloc_tensor((128, 4), scope="trn.sbuf")
+        intermediate_tensor = T.alloc_tensor(ty_args=[T.Tensor((128, 32), scope="trn.sbuf")])
+        A_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 4096), scope="trn.sbuf")])
+        B_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 4), scope="trn.sbuf")])
         for b_loop in range(4):
             for reduction_b_loop in range(32):
                 T.nki.tensorized_instruction()
@@ -198,8 +214,12 @@ def test_reduction_with_guard():
     @T.function
     def reduction() -> None:
         T.device_entry()
-        A_sbuf = T.alloc_tensor(src_shape, "float32", scope="trn.sbuf", layout=src_layout)
-        B_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
+        A_sbuf = T.alloc_tensor(
+            ty_args=[T.Tensor(src_shape, "float32", scope="trn.sbuf", layout=src_layout)]
+        )
+        B_sbuf = T.alloc_tensor(
+            ty_args=[T.Tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)]
+        )
         for i in range(4):
             for j in range(4):
                 T.trn.tile.tensorreduce(B_sbuf[0: (i+1) * 128, 0], A_sbuf[0: (i+1) * 128, 0: (j+1) * 256], max_inst_size=512, reduce_op='sum')  # noqa: E501
@@ -207,9 +227,9 @@ def test_reduction_with_guard():
     @T.function
     def expected():
         T.func_attr({"global_symbol": "reduction"})
-        intermediate_tensor = T.alloc_tensor((128, 2), scope="trn.sbuf")
-        A_sbuf = T.alloc_tensor((128, 8192), scope="trn.sbuf")
-        B_sbuf = T.alloc_tensor((128, 4), scope="trn.sbuf")
+        intermediate_tensor = T.alloc_tensor(ty_args=[T.Tensor((128, 2), scope="trn.sbuf")])
+        A_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 8192), scope="trn.sbuf")])
+        B_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 4), scope="trn.sbuf")])
         for i, j in T.grid(4, 4):
             for b_loop in range(4):
                 for reduction_b_loop in range(2):
@@ -245,9 +265,13 @@ def test_reduction_two_stage_workspace():
     @T.function
     def reduction():
         T.device_entry()
-        intermediate_tensor = T.alloc_tensor((128, 64), scope="trn.sbuf")
-        A_sbuf = T.alloc_tensor(src_shape, "float32", scope="trn.sbuf", layout=src_layout)
-        B_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
+        intermediate_tensor = T.alloc_tensor(ty_args=[T.Tensor((128, 64), scope="trn.sbuf")])
+        A_sbuf = T.alloc_tensor(
+            ty_args=[T.Tensor(src_shape, "float32", scope="trn.sbuf", layout=src_layout)]
+        )
+        B_sbuf = T.alloc_tensor(
+            ty_args=[T.Tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)]
+        )
         T.trn.tile.tensorreduce(
             B_sbuf, A_sbuf, axes=(1, 3), partial_reduce=intermediate_tensor, reduce_op="sum"
         )
@@ -255,9 +279,9 @@ def test_reduction_two_stage_workspace():
     @T.function
     def expected():
         T.func_attr({"global_symbol": "reduction"})
-        intermediate_tensor = T.alloc_tensor((128, 64), scope="trn.sbuf")
-        A_sbuf = T.alloc_tensor((128, 4096), scope="trn.sbuf")
-        B_sbuf = T.alloc_tensor((128, 4), scope="trn.sbuf")
+        intermediate_tensor = T.alloc_tensor(ty_args=[T.Tensor((128, 64), scope="trn.sbuf")])
+        A_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 4096), scope="trn.sbuf")])
+        B_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 4), scope="trn.sbuf")])
         for b_loop in range(4):
             for reduction_b_loop in range(32):
                 T.nki.tensorized_instruction()

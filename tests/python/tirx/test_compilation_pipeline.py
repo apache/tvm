@@ -30,7 +30,7 @@ from tvm.script import tirx as T
 def test_default_pipeline_allocations(pipeline):
     @T.function
     def add_one(A: T.Tensor((16,), "float32"), B: T.Tensor((16,), "float32")):
-        temp = T.alloc_tensor((16,), "float32")
+        temp = T.alloc_tensor(ty_args=[T.Tensor((16,), "float32")])
         for i in range(16):
             temp[i] = A[i] + T.float32(1)
         for i in range(16):

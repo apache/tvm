@@ -181,7 +181,7 @@ def gpu_2d_continuous_cumsum(
     def cumsum(A: T.Tensor([m, n], dtype=in_dtype), Out: T.Tensor([m, n], dtype=out_dtype)):
         T.func_attr({"tirx.is_scheduled": True})  # prevent further scheduling
 
-        Tmp = T.alloc_tensor([m, n], dtype=out_dtype)
+        Tmp = T.alloc_tensor(ty_args=[T.Tensor([m, n], out_dtype)])
         # LowerIntrin may implement signed FloorDiv using a sign-bit shift.  Keep
         # hierarchy counting division-free so WebGPU can narrow indices to int32.
         total_rounds: T.let[T.int64] = _get_total_rounds(n, log_block_n, index_bits)

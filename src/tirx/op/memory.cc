@@ -82,52 +82,37 @@ ffi::Expected<Type> InferTypeTensorDataPtr(const CallNode* call) noexcept try {
   return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
-// Essential tensor properties follow operands; the supplied result type retains layout metadata.
-template <int shape_index>
-ffi::Expected<Type> InferTypeTensor(const CallNode* call) noexcept try {
-  if constexpr (shape_index == 0) {
-    TVM_FFI_CHECK(call->args.size() == 3 || call->args.size() == 4, ValueError);
-    if (call->args.size() == 4) {
-      auto placement = call->args[3].as_or_throw<tvm::Tuple>();
+// Allocation and declaration share the complete, explicit tensor type argument.
+template <bool is_alloc>
+Type InferTypeTensor(const CallNode* call) {
+  TVM_FFI_CHECK_EQ(call->ty_args.size(), 1U, ValueError)
+      << "Tensor allocation and declaration require exactly one TensorType argument";
+  auto type = call->ty_args[0].as_or_throw<TensorType>();
+  if constexpr (is_alloc) {
+    TVM_FFI_CHECK_LE(call->args.size(), 1U, ValueError)
+        << "alloc_tensor accepts at most one placement tuple";
+    if (!call->args.empty()) {
+      auto placement = call->args[0].as_or_throw<tvm::Tuple>();
       for (const Expr& address : placement->fields) address.as_or_throw<PrimExpr>();
     }
   } else {
-    TVM_FFI_CHECK_EQ(call->args.size(), 4U, ValueError);
+    TVM_FFI_CHECK_EQ(call->args.size(), 1U, ValueError)
+        << "decl_tensor requires one backing data operand";
   }
-  tvm::Tuple shape = call->args[shape_index].as_or_throw<tvm::Tuple>();
-  DLDataType dtype = call->args[shape_index + 1].as_or_throw<DataTypeImm>()->value;
-  ffi::String scope = call->args[shape_index + 2].as_or_throw<StringImm>()->value;
-  auto original = call->ty.as_or_throw<TensorType>();
-  if (ffi::StructuralEqual()(shape->fields, original->shape) && dtype == original->dtype->dtype &&
-      scope == original->storage_scope) {
-    return original;
-  }
-  auto inferred = ffi::make_object<TensorTypeNode>(*original.get());
-  inferred->shape =
-      shape->fields.Map([](const Expr& extent) { return extent.as_or_throw<PrimExpr>(); });
-  inferred->dtype = PrimType(dtype);
-  inferred->storage_scope = scope;
-  return TensorType(std::move(inferred));
-} catch (const ffi::Error& error) {
-  return ffi::Unexpected(error);
-} catch (const std::exception& error) {
-  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
+  return type;
 }
 
-ffi::Expected<void> ValidateAllocTensor(const CallNode* call) noexcept {
-  auto inferred = InferTypeTensor<0>(call);
-  if (!inferred.has_value()) return ffi::Unexpected(inferred.error());
-  return {};
-}
-
-ffi::Expected<void> ValidateDeclTensor(const CallNode* call) noexcept try {
-  TVM_FFI_CHECK_EQ(call->args.size(), 4U, ValueError);
-  call->ty.as_or_throw<TensorType>();
-  return {};
-} catch (const ffi::Error& error) {
-  return ffi::Unexpected(error);
-} catch (const std::exception& error) {
-  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
+template <bool is_alloc>
+void ValidateTensorProducer(const CallNode* call) {
+  Type inferred = InferTypeTensor<is_alloc>(call);
+  TVM_FFI_CHECK(ffi::StructuralEqual()(call->ty, inferred), TypeError)
+      << "Tensor producer result must match its TensorType argument";
+  if constexpr (is_alloc) {
+    TVM_FFI_CHECK(!call->attrs.defined() || call->attrs.as<DictAttrsNode>(), ValueError)
+        << "alloc_tensor annotations must be DictAttrs";
+  } else {
+    TVM_FFI_CHECK(!call->attrs.defined(), ValueError) << "decl_tensor does not accept attributes";
+  }
 }
 
 const Op& reinterpret_op() {
@@ -376,12 +361,16 @@ const Op& alloc_tensor_op() {
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("tirx.alloc_tensor")
       .set_attr<TIRxOpCategory>(tvm::tirx::op_attr::kOpCategory, ffi::String("builtin"))
-      .set_attr<FInferType>(tvm::op_attr::kInferType, FInferType::FromNative<&InferTypeTensor<0>>())
+      .set_attr<FInferType>(tvm::op_attr::kInferType,
+                            FInferType::FromNative<&InferTypeTensor<true>>())
       .set_validator(ffi::reflection::NativeFunctionView<void(
-                         const CallNode*)>::FromNative<&ValidateAllocTensor>())
-      .add_arg("shape", "The tuple of tensor extents.")
-      .add_arg("dtype", "The tensor data type.")
-      .add_arg("scope", "The storage scope.")
+                         const CallNode*)>::FromNative<&ValidateTensorProducer<true>>(),
+                     true)
+      .signature(sig::var_args<tvm::Tuple>("placement", "Optional producer-owned placement."),
+                 sig::ty_arg<TensorType>("tensor_type"))
+      .set_attrs_type_key(DictAttrsNode::_type_key)
+      .set_attr<TScriptPrinterName>(tvm::script::printer::op_attr::kScriptPrinterName,
+                                    ffi::String("tirx.alloc_tensor"))
       .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
                                  static_cast<int64_t>(CallEffectKind::kOpaque));
 }
@@ -394,13 +383,15 @@ const Op& decl_tensor_op() {
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("tirx.decl_tensor")
       .set_attr<TIRxOpCategory>(tvm::tirx::op_attr::kOpCategory, ffi::String("builtin"))
-      .set_attr<FInferType>(tvm::op_attr::kInferType, FInferType::FromNative<&InferTypeTensor<1>>())
+      .set_attr<FInferType>(tvm::op_attr::kInferType,
+                            FInferType::FromNative<&InferTypeTensor<false>>())
       .set_validator(ffi::reflection::NativeFunctionView<void(
-                         const CallNode*)>::FromNative<&ValidateDeclTensor>())
-      .add_arg("data", "The existing data pointer.")
-      .add_arg("shape", "The tuple of tensor extents.")
-      .add_arg("dtype", "The tensor data type.")
-      .add_arg("scope", "The storage scope.")
+                         const CallNode*)>::FromNative<&ValidateTensorProducer<false>>(),
+                     true)
+      .signature(sig::arg("data", "The existing data pointer."),
+                 sig::ty_arg<TensorType>("tensor_type"))
+      .set_attr<TScriptPrinterName>(tvm::script::printer::op_attr::kScriptPrinterName,
+                                    ffi::String("tirx.decl_tensor"))
       .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
                                  static_cast<int64_t>(CallEffectKind::kPure));
 }

@@ -25,13 +25,10 @@ from tvm.backend.cuda.op import _tmem_address
 from tvm.ir import (
     Bind,
     Call,
-    DataTypeImm,
     DictAttrs,
     Evaluate,
     SeqStmt,
-    StringImm,
     TensorRegion,
-    Tuple,
 )
 from tvm.runtime import DataType
 from tvm.script import tirx as T
@@ -1106,26 +1103,18 @@ def gemm_async_tcgen05_impl(op_call: TensorCall, sctx: DispatchContext) -> Funct
                     desc_lo,
                     Call(
                         "tirx.alloc_tensor",
-                        [
-                            Tuple(desc_lo.ty.shape),
-                            DataTypeImm(desc_lo.ty.dtype.dtype),
-                            StringImm(desc_lo.scope()),
-                        ],
+                        [],
                         attrs=DictAttrs({}),
-                        ty=desc_lo.ty,
+                        ty_args=[desc_lo.ty],
                     ),
                 ),
                 Bind(
                     desc_hi,
                     Call(
                         "tirx.alloc_tensor",
-                        [
-                            Tuple(desc_hi.ty.shape),
-                            DataTypeImm(desc_hi.ty.dtype.dtype),
-                            StringImm(desc_hi.scope()),
-                        ],
+                        [],
                         attrs=DictAttrs({}),
-                        ty=desc_hi.ty,
+                        ty_args=[desc_hi.ty],
                     ),
                 ),
                 Evaluate(unpack),
@@ -1154,13 +1143,9 @@ def gemm_async_tcgen05_impl(op_call: TensorCall, sctx: DispatchContext) -> Funct
                 desc_buf,
                 Call(
                     "tirx.alloc_tensor",
-                    [
-                        Tuple(desc_buf.ty.shape),
-                        DataTypeImm(desc_buf.ty.dtype.dtype),
-                        StringImm(desc_buf.scope()),
-                    ],
+                    [],
                     attrs=DictAttrs({}),
-                    ty=desc_buf.ty,
+                    ty_args=[desc_buf.ty],
                 ),
             ),
             Evaluate(encode_call),

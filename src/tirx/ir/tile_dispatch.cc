@@ -45,11 +45,10 @@ Value getOrSetDefault(ffi::Map<ffi::String, ffi::ObjectRef>& m, const Key& key,
 void DispatchContextNode::AddAllocTensor(TensorVar tensor, ffi::Array<PrimExpr> allocated_addr,
                                          ffi::Map<ffi::String, ffi::Any> annotations) {
   auto tensors = getOrSetDefault(callbacks, callback::kPrivateAlloc, ffi::Array<Bind>());
-  ffi::Array<Expr> args{tvm::Tuple(tensor->shape), DataTypeImm(tensor->dtype->dtype),
-                        StringImm(tensor.scope())};
+  ffi::Array<Expr> args;
   if (!allocated_addr.empty()) args.push_back(tvm::Tuple(allocated_addr));
-  tensors.push_back(
-      Bind(tensor.var(), Call(tensor.type(), alloc_tensor_op(), args, DictAttrs(annotations))));
+  tensors.push_back(Bind(tensor.var(), Call(tensor.type(), alloc_tensor_op(), args,
+                                            DictAttrs(annotations), {tensor.type()})));
   callbacks.Set(callback::kPrivateAlloc, tensors);
 }
 

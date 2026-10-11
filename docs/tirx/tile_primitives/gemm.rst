@@ -89,9 +89,11 @@ accumulate) — one ``m16n8k16`` atom (from ``test_gemm_mma_m16n8k_.py``):
         _index = Tx.cuda.block_idx("x")
         _index = Tx.cuda.warp_id()
         lane = Tx.cuda.lane_id()
-        A_f = Tx.alloc_tensor((16, 16), "float16", scope="local", layout=A_FRAG)
-        B_f = Tx.alloc_tensor((16, 8), "float16", scope="local", layout=B_FRAG)
-        D_f = Tx.alloc_tensor((16, 8), "float32", scope="local", layout=D_FRAG)
+        A_f = Tx.alloc_tensor(
+            ty_args=[Tx.Tensor((16, 16), "float16", scope="local", layout=A_FRAG)]
+        )
+        B_f = Tx.alloc_tensor(ty_args=[Tx.Tensor((16, 8), "float16", scope="local", layout=B_FRAG)])
+        D_f = Tx.alloc_tensor(ty_args=[Tx.Tensor((16, 8), "float32", scope="local", layout=D_FRAG)])
         A_reg = A_f.local(8)  # stage A into the lane's 8 regs
         for s in Tx.unroll(8):
             kp, rM, kHi = s % 2, (s // 2) % 2, s // 4

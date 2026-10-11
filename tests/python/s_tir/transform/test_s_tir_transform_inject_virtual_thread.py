@@ -43,12 +43,12 @@ def test_vthread():
     class Module:
         @Ts.function
         def main(A: T.handle("float32"), C: T.handle("float32")):
-            A_buf = T.decl_tensor((n * nthread,), "float32", data=A)
-            C_buf = T.decl_tensor((n * nthread,), "float32", data=C)
+            A_buf = T.decl_tensor(A, ty_args=[T.Tensor((n * nthread,), "float32", data=A)])
+            C_buf = T.decl_tensor(C, ty_args=[T.Tensor((n * nthread,), "float32", data=C)])
             for i in range(n):
                 vt_x = T.launch_thread("vthread", nthread)
                 vt_y = T.launch_thread("vthread", nthread)
-                B = T.alloc_tensor((m,), scope="shared")
+                B = T.alloc_tensor(ty_args=[T.Tensor((m,), scope="shared")])
                 B[i] = A_buf[i * nthread + vt_x]
                 T.evaluate(T.call_extern("Run", B.ptr_to([0] * len(B.shape)), vt_x, ty="int32"))
                 C_buf[i * nthread + vt_x] = B[i] + T.float32(1)
@@ -84,9 +84,9 @@ def test_vthread_extern():
             for i in range(n):
                 vt_x = T.launch_thread("vthread", nthread)
                 vt_y = T.launch_thread("vthread", nthread)
-                A = T.alloc_tensor((m,), scope="shared")
-                B = T.alloc_tensor((m,), scope="shared")
-                C = T.alloc_tensor((m,), scope="shared")
+                A = T.alloc_tensor(ty_args=[T.Tensor((m,), scope="shared")])
+                B = T.alloc_tensor(ty_args=[T.Tensor((m,), scope="shared")])
+                C = T.alloc_tensor(ty_args=[T.Tensor((m,), scope="shared")])
                 A[vt_x] = T.Cast("float32", vt_x) + T.float32(1)
                 B[vt_y] = T.Cast("float32", vt_y) + T.float32(1)
                 T.evaluate(
@@ -128,10 +128,10 @@ def test_vthread_if_then_else():
         @Ts.function
         def main(A: T.handle("float32")):
             T.func_attr({"global_symbol": "main"})
-            A_buf = T.decl_tensor((100 * nthread,), "float32", data=A)
+            A_buf = T.decl_tensor(A, ty_args=[T.Tensor((100 * nthread,), "float32", data=A)])
             for i in range(100):
                 vt = T.launch_thread("vthread", nthread)
-                B = T.alloc_tensor((128,), scope="shared")
+                B = T.alloc_tensor(ty_args=[T.Tensor((128,), scope="shared")])
                 if i == 0:
                     B[i] = A_buf[i * nthread + vt]
                 else:
@@ -166,12 +166,12 @@ def test_vthread_simplified():
     @Ts.function
     def before_func():
         vthread = T.launch_thread("vthread", 4)
-        B = T.alloc_tensor((4,), "int32", scope="shared")
+        B = T.alloc_tensor(ty_args=[T.Tensor((4,), "int32", scope="shared")])
         B[T.ramp(0, 1, 4)] = T.broadcast(vthread, 4)
 
     @Ts.function
     def expected_func():
-        B = T.alloc_tensor((16,), "int32", scope="shared")
+        B = T.alloc_tensor(ty_args=[T.Tensor((16,), "int32", scope="shared")])
         # The indices for B should each be a single Ramp node, and
         # should not be the sum of a Ramp and Broadcast node.
         B[T.ramp(T.Mul(0, 4), 1, 4)] = T.broadcast(0, 4)
@@ -192,7 +192,7 @@ def test_vthread_vectorized():
     @Ts.function
     def before_func():
         vthread = T.launch_thread("vthread", 4)
-        B = T.alloc_tensor((4,), "int32", scope="shared")
+        B = T.alloc_tensor(ty_args=[T.Tensor((4,), "int32", scope="shared")])
         B[T.ramp(0, 1, 4)] = T.broadcast(vthread, 4)
 
     before_mod = tvm.IRModule.from_expr(before_func.with_attr("global_symbol", "main"))
@@ -218,7 +218,7 @@ def test_vthread_rewrites_masked_accesses():
     @Ts.function
     def before_func():
         vthread = T.launch_thread("vthread", 2)
-        B = T.alloc_tensor((4,), "float32", scope="shared")
+        B = T.alloc_tensor(ty_args=[T.Tensor((4,), "float32", scope="shared")])
         mask = T.meta_var(T.Broadcast(T.bool(True), 4))
         loaded = T.meta_var(T.masked_load(B, T.Ramp(0, 1, 4), mask, ty="float32x4"))
         value = T.meta_var(loaded + T.Broadcast(T.Cast("float32", vthread), 4))

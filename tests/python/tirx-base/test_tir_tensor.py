@@ -90,13 +90,8 @@ def test_decl_tensor_physical_data_binding():
         tensor,
         tvm.ir.Call(
             "tirx.decl_tensor",
-            [
-                data,
-                tvm.ir.Tuple(tensor.shape),
-                tvm.ir.DataTypeImm(tvm.DataType(tensor.dtype)),
-                tvm.ir.StringImm(tensor.scope()),
-            ],
-            ty=tensor.ty,
+            [data],
+            ty_args=[tensor.ty],
         ),
     )
     assert decl.var.same_as(tensor)

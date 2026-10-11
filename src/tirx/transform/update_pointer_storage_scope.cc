@@ -81,10 +81,12 @@ UnchangedOr<Expr> UpdatePointerStorageScope::Mutate_(const CallNode* op, Inplace
   if (auto it = tensor_scopes_.find(op); it != tensor_scopes_.end()) {
     Expr value = std::move(result).ValueOrUnchanged(ffi::GetRef<Expr>(op));
     auto call = value.as_or_throw<Call>();
-    size_t scope_index = call->op.same_as(tirx::alloc_tensor_op()) ? 2 : 3;
-    if (call->args[scope_index].as_or_throw<StringImm>()->value != it->second) {
+    auto type = call->ty_args[0].as_or_throw<TensorType>();
+    if (type->storage_scope != it->second) {
+      auto updated = ffi::make_object<TensorTypeNode>(*type.get());
+      updated->storage_scope = it->second;
       auto copy = ffi::make_object<CallNode>(*call.get());
-      copy->args.Set(scope_index, StringImm(it->second, call->args[scope_index]->loc));
+      copy->ty_args.Set(0, TensorType(std::move(updated)));
       return ReinferMutatedCallType(Expr(std::move(copy)), op, inplace_mode);
     }
     return value;

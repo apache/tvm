@@ -141,7 +141,7 @@ def decl_tensor_alias_func(
     with Ts.sblock("alias"):
         Ts.reads(A[0])
         Ts.writes(B[0])
-        A_view = T.decl_tensor((16,), "float32", data=A.data)
+        A_view = T.decl_tensor(A.data, ty_args=[T.Tensor((16,), "float32", data=A.data)])
         B[0] = A[0] + A_view[0]
 
 

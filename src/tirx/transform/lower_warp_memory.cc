@@ -343,8 +343,8 @@ class WarpAccessRewriter : public StmtExprMutator {
   // \param tensor_call The matched allocation Call.
   // \param body The remaining statements (siblings) that use this tensor.
   Stmt Rewrite(const BindNode* op, const CallNode* tensor_call, Stmt body) {
-    tvm::Tuple shape = tensor_call->args[0].as_or_throw<tvm::Tuple>();
-    DLDataType dtype = tensor_call->args[1].as_or_throw<DataTypeImm>()->value;
+    tvm::Tuple shape = tvm::Tuple(tensor_call->ty_args[0].as_or_throw<TensorType>()->shape);
+    DLDataType dtype = tensor_call->ty_args[0].as_or_throw<TensorType>()->dtype->dtype;
     PrimType element_type(dtype);
     tensor_ = op->var.get();
     int64_t alloc_size = 1;
@@ -379,15 +379,13 @@ class WarpAccessRewriter : public StmtExprMutator {
     new_tensor_ = new_buf;
     Stmt rewritten_body = this->Mutate(body, InplaceMode::kDisallow).ValueOrUnchanged(body);
     ffi::Array<Expr> args = tensor_call->args;
-    if (args.size() == 4) {
-      args.Set(3, Mutate(args[3], InplaceMode::kDisallow).ValueOrUnchanged(args[3]));
+    if (!args.empty()) {
+      args.Set(0, Mutate(args[0], InplaceMode::kDisallow).ValueOrUnchanged(args[0]));
     }
-    args.Set(0, tvm::Tuple(new_buf->shape, tensor_call->args[0]->loc));
-    args.Set(1, DataTypeImm(new_buf->dtype->dtype, tensor_call->args[1]->loc));
-    args.Set(2, StringImm(new_buf.scope(), tensor_call->args[2]->loc));
+
     return SeqStmt({Bind(new_buf.var(),
                          Call(new_buf.type(), tirx::alloc_tensor_op(), args, tensor_call->attrs,
-                              tensor_call->ty_args, tensor_call->loc),
+                              {new_buf.type()}, tensor_call->loc),
                          op->loc),
                     rewritten_body});
   }
@@ -672,7 +670,7 @@ class WarpMemoryRewriter : public StmtExprMutator {
       const auto* alloc = op->seq[i].as<BindNode>();
       if (const auto* call = alloc ? alloc->value.as<CallNode>() : nullptr;
           call && call->op.same_as(alloc_tensor_op()) &&
-          call->args[2].as_or_throw<StringImm>()->value == "warp") {
+          call->ty_args[0].as_or_throw<TensorType>()->storage_scope == "warp") {
         new_storage_scopes_[alloc->var] = "local";
         // Gather remaining siblings as the "body" for rewriting.
         ffi::Array<Stmt> remaining;

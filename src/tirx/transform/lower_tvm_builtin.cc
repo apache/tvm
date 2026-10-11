@@ -198,11 +198,8 @@ class BuiltinLower : public StmtExprMutator {
         stmt = SeqStmt({Bind(scope.stack_shape.value(),
                              Call(scope.stack_shape.value().type(), decl_tensor_op(),
                                   {StackAlloca(scope.stack_shape.value().type()->DataPtrType(),
-                                               "shape", scope.max_sizes.shape_stack),
-                                   tvm::Tuple(scope.stack_shape.value()->shape),
-                                   DataTypeImm(scope.stack_shape.value()->dtype->dtype),
-                                   StringImm(scope.stack_shape.value().scope())},
-                                  {})),
+                                               "shape", scope.max_sizes.shape_stack)},
+                                  {}, {scope.stack_shape.value().type()})),
                         stmt});
       }
 
@@ -274,10 +271,10 @@ class BuiltinLower : public StmtExprMutator {
     Stmt stmt = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     op = stmt.as<BindNode>();
     const auto* tensor_call = op->value.as<CallNode>();
-    tvm::Tuple shape = tensor_call->args[0].as_or_throw<tvm::Tuple>();
-    DLDataType dtype = tensor_call->args[1].as_or_throw<DataTypeImm>()->value;
+    tvm::Tuple shape = tvm::Tuple(tensor_call->ty_args[0].as_or_throw<TensorType>()->shape);
+    DLDataType dtype = tensor_call->ty_args[0].as_or_throw<TensorType>()->dtype->dtype;
     PrimType element_type(dtype);
-    ffi::String scope = tensor_call->args[2].as_or_throw<StringImm>()->value;
+    ffi::String scope = tensor_call->ty_args[0].as_or_throw<TensorType>()->storage_scope;
     DictAttrs annotations = tensor_call->attrs.value().as_or_throw<DictAttrs>();
     if (annotations->dict.count(transform::kDisableLowerTVMBuiltin)) {
       if (annotations->dict[transform::kDisableLowerTVMBuiltin].as_or_throw<IntImm>()->value) {
@@ -330,11 +327,8 @@ class BuiltinLower : public StmtExprMutator {
                   {Call(op->var.as_or_throw<TensorVar>().type()->DataPtrType(), alloc_workspace_op,
                         {prim::cast(PrimType::Int(32), device_type_.value()),
                          prim::cast(PrimType::Int(32), device_id_.value()), total_bytes,
-                         IntImm::Int32(element_type.code()), IntImm::Int32(element_type.bits())}),
-                   tvm::Tuple(op->var.as_or_throw<TensorVar>()->shape),
-                   DataTypeImm(op->var.as_or_throw<TensorVar>()->dtype->dtype),
-                   StringImm(op->var.as_or_throw<TensorVar>().scope())},
-                  {}, tensor_call->ty_args, tensor_call->loc),
+                         IntImm::Int32(element_type.code()), IntImm::Int32(element_type.bits())})},
+                  {}, {op->var.as_or_throw<TensorVar>().type()}, tensor_call->loc),
              op->loc);
 
     return SeqStmt({alloc_bind, alloc_nullptr_check});

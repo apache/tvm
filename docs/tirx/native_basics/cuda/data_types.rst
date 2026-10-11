@@ -101,7 +101,7 @@ A tensor's ``data`` — its pointer — is a ``Var`` of pointer type, and it is
 **immutable** (a pointer is never reassigned). That shapes how you obtain one:
 
 - ``Tx.alloc_tensor(...)`` allocates storage **and** defines its ``data`` pointer.
-- ``Tx.decl_tensor(..., data=ptr)`` declares a tensor over an existing pointer
+- ``Tx.decl_tensor(ptr, ty_args=[Tx.Tensor(...)])`` declares a tensor over an existing pointer
   ``Var`` ``ptr``.
 - To back a tensor with a pointer **expression** — e.g. ``Tx.ptx.mapa`` giving
   another cluster CTA's shared address — convert the ``uint64`` address the
@@ -118,7 +118,7 @@ A tensor's ``data`` — its pointer — is a ``Var`` of pointer type, and it is
       Tx.ptx.mapa.u64(mapped[0], mbar.ptr_to([0]), Tx.uint32(0))
       ptr_ty = PtrType(PrimType("uint64"), "shared")
       ptr = Tx.reinterpret(ptr_ty, mapped[0])
-      remote_mbar = Tx.decl_tensor([1], "uint64", data=ptr, scope="shared")
+      remote_mbar = Tx.decl_tensor(ptr, ty_args=[Tx.Tensor([1], "uint64", scope="shared")])
 
   Pointer bindings cannot be reassigned; use a new name for a different
   pointer value.

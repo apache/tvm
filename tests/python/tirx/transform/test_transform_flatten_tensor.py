@@ -100,8 +100,8 @@ def test_flatten_remaps_loads_in_view_shape():
     def before():
         n = T.alloc_local([1], "int32")
         n[0] = 8
-        data = T.alloc_tensor([64], "float16", scope="shared")
-        view = T.decl_tensor((n[0],), "float16", data.data, scope="shared")
+        data = T.alloc_tensor(ty_args=[T.Tensor([64], "float16", scope="shared")])
+        view = T.decl_tensor(data.data, ty_args=[T.Tensor((n[0],), "float16", scope="shared")])
         view[0] = T.float16(0)
 
     _assert_loads_reference_defined_tensors(_flatten(before))
@@ -116,8 +116,10 @@ def test_flatten_remaps_loads_in_folded_elem_offset():
     def before():
         n = T.alloc_local([1], "int32")
         n[0] = 4
-        base = T.alloc_tensor([128], "uint64", scope="shared")
-        mbar = T.decl_tensor((1,), "uint64", base.data, elem_offset=n[0], scope="shared")
+        base = T.alloc_tensor(ty_args=[T.Tensor([128], "uint64", scope="shared")])
+        mbar = T.decl_tensor(
+            base.data, ty_args=[T.Tensor((1,), "uint64", elem_offset=n[0], scope="shared")]
+        )
         mbar[0] = T.uint64(1)
 
     after = _flatten(before)
@@ -145,7 +147,7 @@ def test_flatten_keeps_identity_of_already_flat_tensors():
 
     @T.function(private=True)
     def before():
-        flat = T.alloc_tensor([32], "float32", scope="shared", layout=None)
+        flat = T.alloc_tensor(ty_args=[T.Tensor([32], "float32", scope="shared", layout=None)])
         flat[0] = T.float32(0)
 
     before_allocs = {}

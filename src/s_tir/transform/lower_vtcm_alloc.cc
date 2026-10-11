@@ -51,9 +51,9 @@ class VtcmAllocator : public StmtExprMutator {
 
   UnchangedOr<Stmt> Mutate_AllocTensor(const BindNode* op, const CallNode* call,
                                        InplaceMode inplace_mode) {
-    ffi::String scope = call->args[2].as_or_throw<StringImm>()->value;
+    ffi::String scope = call->ty_args[0].as_or_throw<TensorType>()->storage_scope;
     if (IsVtcmStorage(scope)) {
-      tvm::Tuple shape = call->args[0].as_or_throw<tvm::Tuple>();
+      tvm::Tuple shape = tvm::Tuple(call->ty_args[0].as_or_throw<TensorType>()->shape);
       ffi::Array<Expr> args;
       args.push_back(StringImm(scope));
       args.push_back(IntImm::Int64(shape->fields.size()));
@@ -62,10 +62,8 @@ class VtcmAllocator : public StmtExprMutator {
       return Bind(tensor,
                   Call(tensor.type(), tirx::decl_tensor_op(),
                        {Call(tensor.type()->DataPtrType(),
-                             tvm::backend::opencl::nd_mem_alloc_with_scope_op(), args),
-                        tvm::Tuple(tensor->shape), DataTypeImm(tensor->dtype->dtype),
-                        StringImm(tensor.scope())},
-                       {}, call->ty_args, call->loc),
+                             tvm::backend::opencl::nd_mem_alloc_with_scope_op(), args)},
+                       {}, {tensor.type()}, call->loc),
                   op->loc);
     }
     return StmtExprMutator::Mutate_(op, inplace_mode);

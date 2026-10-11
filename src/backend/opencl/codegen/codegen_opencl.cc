@@ -464,8 +464,8 @@ void CodeGenOpenCL::Dispatch_(const BindNode* op) {
 }
 
 void CodeGenOpenCL::DispatchAllocTensor(const BindNode* op, const CallNode* buffer_call) {
-  tvm::Tuple shape = buffer_call->args[0].as_or_throw<tvm::Tuple>();
-  DLDataType dtype = buffer_call->args[1].as_or_throw<DataTypeImm>()->value;
+  tvm::Tuple shape = tvm::Tuple(buffer_call->ty_args[0].as_or_throw<tirx::TensorType>()->shape);
+  DLDataType dtype = buffer_call->ty_args[0].as_or_throw<tirx::TensorType>()->dtype->dtype;
   TensorVar buffer = op->var.as_or_throw<TensorVar>();
   // Compute constant_size from buffer shape
   size_t constant_size = 1;

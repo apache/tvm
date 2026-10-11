@@ -73,9 +73,9 @@ def _tensor_stride_i(bb: BlockBuilder, call: Call) -> Expr:
             shape_ptr: T.let[T.handle("int64")] = T.abi_field_get(
                 dlpack_handle, 0, int(TVMStructFieldKind.kDLTensorShape), ty=T.handle("int64").ty
             )
-            shape = T.decl_tensor(ndim, "int64", data=shape_ptr)
+            shape = T.decl_tensor(shape_ptr, ty_args=[T.Tensor(ndim, "int64", data=shape_ptr)])
 
-            product = T.decl_tensor([], "int64")
+            product = T.alloc_tensor(ty_args=[T.Tensor([], "int64")])
             product[()] = 1
 
             # TODO(Lunderberg): Add a TIR lowering pass to allow
@@ -87,7 +87,7 @@ def _tensor_stride_i(bb: BlockBuilder, call: Call) -> Expr:
 
             return product[()]
         else:
-            strides = T.decl_tensor(ndim, "int64", data=stride_ptr)
+            strides = T.decl_tensor(stride_ptr, ty_args=[T.Tensor(ndim, "int64", data=stride_ptr)])
             stride: T.let[T.int64] = strides[axis]
             return stride
 

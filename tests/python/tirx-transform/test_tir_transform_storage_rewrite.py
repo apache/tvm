@@ -42,10 +42,10 @@ def test_alloc_seq():
     def func(n: T.int32):
         for i in T.serial(n):
             for j in range(10):
-                A = T.alloc_tensor((200,), scope=scope_tb)
+                A = T.alloc_tensor(ty_args=[T.Tensor((200,), scope=scope_tb)])
                 A[j] = T.float32(1.2)
             for j in range(10):
-                B = T.alloc_tensor((200,), scope=scope_tb)
+                B = T.alloc_tensor(ty_args=[T.Tensor((200,), scope=scope_tb)])
                 B[j] = T.float32(1.3)
 
     mod = tvm.IRModule.from_expr(func)
@@ -70,11 +70,11 @@ def test_alloc_different_dtypes():
         @T.function
         def func():
             # Allocate all tensors in parent scope (before any loops)
-            A = T.alloc_tensor((length,), dtype_list[0], scope="local.L0A")
-            B = T.alloc_tensor((length,), dtype_list[1], scope="local.L0A")
-            C = T.alloc_tensor((length,), dtype_list[2], scope="local.L0A")
-            D = T.alloc_tensor((length,), dtype_list[3], scope="local.L0A")
-            E = T.alloc_tensor((length,), "int8", scope="local.L0A")
+            A = T.alloc_tensor(ty_args=[T.Tensor((length,), dtype_list[0], scope="local.L0A")])
+            B = T.alloc_tensor(ty_args=[T.Tensor((length,), dtype_list[1], scope="local.L0A")])
+            C = T.alloc_tensor(ty_args=[T.Tensor((length,), dtype_list[2], scope="local.L0A")])
+            D = T.alloc_tensor(ty_args=[T.Tensor((length,), dtype_list[3], scope="local.L0A")])
+            E = T.alloc_tensor(ty_args=[T.Tensor((length,), "int8", scope="local.L0A")])
 
             for j in range(length):
                 A[j] = T.Cast(dtype_list[0], 1)
@@ -137,21 +137,21 @@ def test_address_of():
     # combine tensors B and D, but not C
     @T.function
     def before(A: T.Tensor(8, "float32"), E: T.Tensor(8, "float32")):
-        B = T.alloc_tensor((8,))
+        B = T.alloc_tensor(ty_args=[T.Tensor((8,))])
         for i in range(8):
             B[i] = (
                 T.call_extern("deref", T.address_of(A[i]), ty="float32")
                 + T.call_extern("deref", T.address_of(A[0]), ty="float32")
                 + T.float32(1)
             )
-        C = T.alloc_tensor((8,))
+        C = T.alloc_tensor(ty_args=[T.Tensor((8,))])
         for i in range(8):
             C[i] = (
                 T.call_extern("deref", T.address_of(B[i]), ty="float32")
                 + T.call_extern("deref", T.address_of(B[0]), ty="float32")
                 + T.float32(2)
             )
-        D = T.alloc_tensor((8,))
+        D = T.alloc_tensor(ty_args=[T.Tensor((8,))])
         for i in range(8):
             D[i] = (
                 T.call_extern("deref", T.address_of(C[i]), ty="float32")
@@ -185,7 +185,7 @@ def test_parallel_alloc():
     def func1(n: T.int32):
         for i in T.parallel(n):
             for j in range(10):
-                A = T.alloc_tensor((n,))
+                A = T.alloc_tensor(ty_args=[T.Tensor((n,))])
                 A[j] = A[j] + T.float32(2)
 
     mod = tvm.IRModule.from_expr(func1)
@@ -200,7 +200,7 @@ def test_parallel_alloc():
             with T.parallel_launch():
                 for i in T.parallel(n):
                     for j in range(10):
-                        A = T.alloc_tensor((n,))
+                        A = T.alloc_tensor(ty_args=[T.Tensor((n,))])
                         A[j] = A[j] + T.float32(2)
 
     mod = tvm.IRModule.from_expr(func2)
@@ -214,20 +214,20 @@ def test_while_alloc():
     @T.function
     def func_parallel(n: T.int32):
         for i in T.parallel(n):
-            j = T.alloc_tensor((1,), "int32")
+            j = T.alloc_tensor(ty_args=[T.Tensor((1,), "int32")])
             j[0] = 0
             while j[0] < 10:
-                A = T.alloc_tensor((n,))
+                A = T.alloc_tensor(ty_args=[T.Tensor((n,))])
                 A[j[0]] = A[j[0]] + T.float32(2)
                 j[0] = j[0] + j[0] + 1
 
     @T.function
     def func_serial(n: T.int32):
         for i in T.serial(n):
-            j = T.alloc_tensor((1,), "int32")
+            j = T.alloc_tensor(ty_args=[T.Tensor((1,), "int32")])
             j[0] = 0
             while j[0] < 10:
-                A = T.alloc_tensor((n,))
+                A = T.alloc_tensor(ty_args=[T.Tensor((n,))])
                 A[j[0]] = A[j[0]] + T.float32(2)
                 j[0] = j[0] + j[0] + 1
 
@@ -270,17 +270,17 @@ def test_alloc_seq_type():
     def func(n: T.int32):
         for i in T.serial(n):
             for j in range(10):
-                A = T.alloc_tensor((200,), scope="local.L0A")
-                A1 = T.alloc_tensor((200,), scope="local.L0A")
+                A = T.alloc_tensor(ty_args=[T.Tensor((200,), scope="local.L0A")])
+                A1 = T.alloc_tensor(ty_args=[T.Tensor((200,), scope="local.L0A")])
                 A[j] = T.float32(1.2)
                 A1[j] = T.float32(1.3)
-                B = T.alloc_tensor((200,), "int16", scope="local.L0A")
+                B = T.alloc_tensor(ty_args=[T.Tensor((200,), "int16", scope="local.L0A")])
                 B[j] = T.int16(1)
-                C = T.alloc_tensor((200,), "int16", scope="local.L0A")
+                C = T.alloc_tensor(ty_args=[T.Tensor((200,), "int16", scope="local.L0A")])
                 C[j] = T.int16(1)
-                D = T.alloc_tensor((200,), "int16", scope="local.L0A")
+                D = T.alloc_tensor(ty_args=[T.Tensor((200,), "int16", scope="local.L0A")])
                 D[j] = B[j] + C[j]
-                A2 = T.alloc_tensor((200,), scope="local.L0A")
+                A2 = T.alloc_tensor(ty_args=[T.Tensor((200,), scope="local.L0A")])
                 A2[j] = A[j]
 
     mod = tvm.IRModule.from_expr(func)
@@ -304,13 +304,13 @@ def test_alloc_seq_type2():
     def func(n: T.int32):
         for i in T.serial(n):
             for j in range(10):
-                A = T.alloc_tensor((200,), scope=scope_tb)
+                A = T.alloc_tensor(ty_args=[T.Tensor((200,), scope=scope_tb)])
                 A[j] = T.float32(1.2)
             for j in range(20):
-                B = T.alloc_tensor((400,), "int16", scope=scope_tb)
+                B = T.alloc_tensor(ty_args=[T.Tensor((400,), "int16", scope=scope_tb)])
                 B[j] = T.int16(1)
             for j in range(10):
-                C = T.alloc_tensor((200,), scope=scope_tb)
+                C = T.alloc_tensor(ty_args=[T.Tensor((200,), scope=scope_tb)])
                 C[j] = T.float32(1.2)
 
     mod = tvm.IRModule.from_expr(func)
@@ -332,17 +332,17 @@ def test_reuse_small_tensor():
     def func(n: T.int32):
         for i in T.serial(n):
             for j in range(10):
-                A = T.alloc_tensor((200,), "int16", scope="local.L0A")
+                A = T.alloc_tensor(ty_args=[T.Tensor((200,), "int16", scope="local.L0A")])
                 A[j] = T.int16(1)
-                B = T.alloc_tensor((200,), "int16", scope="local.L0A")
+                B = T.alloc_tensor(ty_args=[T.Tensor((200,), "int16", scope="local.L0A")])
                 B[j] = T.int16(1)
-                B1 = T.alloc_tensor((200,), "int16", scope="local.L0A")
+                B1 = T.alloc_tensor(ty_args=[T.Tensor((200,), "int16", scope="local.L0A")])
                 B1[j] = A[j] + B[j]
-                C = T.alloc_tensor((400,), "int16", scope="local.L0A")
+                C = T.alloc_tensor(ty_args=[T.Tensor((400,), "int16", scope="local.L0A")])
                 C[j] = T.int16(1)
-                D = T.alloc_tensor((400,), "int16", scope="local.L0A")
+                D = T.alloc_tensor(ty_args=[T.Tensor((400,), "int16", scope="local.L0A")])
                 D[j] = T.int16(1)
-                E = T.alloc_tensor((400,), "int16", scope="local.L0A")
+                E = T.alloc_tensor(ty_args=[T.Tensor((400,), "int16", scope="local.L0A")])
                 E[j] = C[j]
 
     mod = tvm.IRModule.from_expr(func)
@@ -363,14 +363,14 @@ def test_access_in_let_value():
     @T.function
     def func(A: T.Tensor((8,), "float32")):
         for i in range(8):
-            B = T.alloc_tensor((1,))
+            B = T.alloc_tensor(ty_args=[T.Tensor((1,))])
             B[0] = 3.14
             x: T.let[T.float32] = T.exp(B[0])
             A[i] = (x + 1.0) / (x - 1.0)
 
     @T.function
     def func_rewritten(A: T.Tensor((8,), "float32")) -> None:
-        B = T.alloc_tensor((1,))
+        B = T.alloc_tensor(ty_args=[T.Tensor((1,))])
         for i in range(8):
             B[0] = 3.14
             x: T.let[T.float32] = T.exp(B[0])
@@ -394,7 +394,7 @@ def test_decl_tensor_is_not_vectorized():
         @T.function
         def main() -> None:
             A_data: T.let[T.handle("int32")] = T.call_extern("dummy_func", ty=T.handle("int32").ty)
-            A = T.decl_tensor([8], "int32", data=A_data)
+            A = T.decl_tensor(A_data, ty_args=[T.Tensor([8], "int32", data=A_data)])
             A[T.ramp(0, 1, 8)] = T.broadcast(42, 8)
 
     After = tvm.tirx.transform.StorageRewrite()(Before)
@@ -408,8 +408,8 @@ def test_rewrite_decl_tensor():
     class Before:
         @T.function
         def main(A: T.Tensor(16, "float32"), D: T.Tensor(16, "float32")):
-            B = T.decl_tensor(16, dtype="float32")
-            C = T.decl_tensor(16, dtype="float32")
+            B = T.alloc_tensor(ty_args=[T.Tensor(16, "float32")])
+            C = T.alloc_tensor(ty_args=[T.Tensor(16, "float32")])
 
             for i in range(16):
                 B[i] = A[i]
@@ -424,8 +424,8 @@ def test_rewrite_decl_tensor():
     class Expected:
         @T.function
         def main(A: T.Tensor(16, "float32"), D: T.Tensor(16, "float32")):
-            B = T.decl_tensor(16, dtype="float32")
-            C = T.decl_tensor(16, dtype="float32", data=B.data)
+            B = T.alloc_tensor(ty_args=[T.Tensor(16, "float32")])
+            C = T.decl_tensor(B.data, ty_args=[T.Tensor(16, "float32", data=B.data)])
 
             for i in range(16):
                 B[i] = A[i]
@@ -448,9 +448,9 @@ def test_decl_tensor_alias_chain_uses_flat_root():
     class Before:
         @T.function
         def main(D: T.Tensor(1, "float32")):
-            A = T.decl_tensor(16, dtype="float32")
-            B = T.decl_tensor(16, dtype="float32", data=A.data)
-            C = T.decl_tensor(16, dtype="float32", data=B.data)
+            A = T.alloc_tensor(ty_args=[T.Tensor(16, "float32")])
+            B = T.decl_tensor(A.data, ty_args=[T.Tensor(16, "float32", data=A.data)])
+            C = T.decl_tensor(B.data, ty_args=[T.Tensor(16, "float32", data=B.data)])
             A[0] = 1.0
             D[0] = C[0]
 
@@ -458,9 +458,9 @@ def test_decl_tensor_alias_chain_uses_flat_root():
     class Expected:
         @T.function
         def main(D: T.Tensor(1, "float32")):
-            A = T.decl_tensor(16, dtype="float32")
-            B = T.decl_tensor(16, dtype="float32", data=A.data)
-            C = T.decl_tensor(16, dtype="float32", data=A.data)
+            A = T.alloc_tensor(ty_args=[T.Tensor(16, "float32")])
+            B = T.decl_tensor(A.data, ty_args=[T.Tensor(16, "float32", data=A.data)])
+            C = T.decl_tensor(A.data, ty_args=[T.Tensor(16, "float32", data=A.data)])
             A[0] = 1.0
             D[0] = C[0]
 
@@ -474,11 +474,11 @@ def test_decl_tensor_alias_extends_source_lifetime():
 
     @T.function
     def func(D: T.Tensor(1, "float32")):
-        A = T.decl_tensor(16, dtype="float32")
-        B = T.decl_tensor(16, dtype="float32", data=A.data)
+        A = T.alloc_tensor(ty_args=[T.Tensor(16, "float32")])
+        B = T.decl_tensor(A.data, ty_args=[T.Tensor(16, "float32", data=A.data)])
         A[0] = 1.0
 
-        C = T.decl_tensor(16, dtype="float32")
+        C = T.alloc_tensor(ty_args=[T.Tensor(16, "float32")])
         C[0] = 2.0
         D[0] = B[0] + C[0]
 
@@ -505,9 +505,9 @@ def test_no_orphaned_decl_tensor():
     class Before:
         @T.function
         def main(A: T.Tensor(16, "float32"), D: T.Tensor(16, "float32")):
-            B = T.decl_tensor(16, dtype="float32")
-            C = T.decl_tensor(16, dtype="float32")
-            Unused = T.decl_tensor(16, dtype="float32")
+            B = T.alloc_tensor(ty_args=[T.Tensor(16, "float32")])
+            C = T.alloc_tensor(ty_args=[T.Tensor(16, "float32")])
+            Unused = T.alloc_tensor(ty_args=[T.Tensor(16, "float32")])
 
             for i in range(16):
                 B[i] = A[i]
@@ -522,8 +522,8 @@ def test_no_orphaned_decl_tensor():
     class Expected:
         @T.function
         def main(A: T.Tensor(16, "float32"), D: T.Tensor(16, "float32")):
-            B = T.decl_tensor(16, dtype="float32")
-            C = T.decl_tensor(16, dtype="float32", data=B.data)
+            B = T.alloc_tensor(ty_args=[T.Tensor(16, "float32")])
+            C = T.decl_tensor(B.data, ty_args=[T.Tensor(16, "float32", data=B.data)])
 
             for i in range(16):
                 B[i] = A[i]

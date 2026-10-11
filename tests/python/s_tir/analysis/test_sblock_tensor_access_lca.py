@@ -52,7 +52,7 @@ def tensor_opaque_access(
     with Ts.sblock():
         Ts.reads([])
         Ts.writes(B[0:16, 0:16])
-        A = T.decl_tensor([256], "float32")
+        A = T.alloc_tensor(ty_args=[T.Tensor([256], "float32")])
         for i, j in T.grid(16, 16):
             A[i * 16 + j] = 1
         for i in range(0, 16):

@@ -29,7 +29,6 @@ namespace ir_builder {
 namespace s_tir {
 
 using ir::ForFrameNode;
-using tirx::TensorDecl;
 using tvm::s_tir::IterVar;
 using tvm::s_tir::IterVarType;
 
@@ -52,8 +51,15 @@ TensorVar MatchTensor(ffi::ObjectRef param, ffi::Array<PrimExpr> shape, PrimType
                       ffi::Optional<PrimExpr> elem_offset, ffi::String storage_scope, int align,
                       int offset_factor, ffi::Optional<Layout> layout,
                       ffi::Array<PrimExpr> allocated_addr) {
-  TensorVar tensor = TensorDecl(shape, dtype, "", data, strides, elem_offset, storage_scope, align,
-                                offset_factor, layout);
+  if (data.has_value()) {
+    storage_scope = data.value()->ty.as_or_throw<PtrType>()->storage_scope;
+  }
+  if (!elem_offset.has_value() && offset_factor) {
+    PrimType shape_dtype = shape.empty() ? PrimType::Int(32) : shape[0].ty();
+    elem_offset = tvm::PrimVar("elem_offset", shape_dtype);
+  }
+  TensorVar tensor("", tvm::tirx::TensorType(storage_scope, dtype, shape, strides, elem_offset,
+                                             align, offset_factor, layout));
   tvm::TensorRegion region{ffi::UnsafeInit{}};
   if (auto load = param.as<TensorLoad>()) {
     region = TensorRegionFromLoad(load.value());
@@ -210,8 +216,12 @@ TensorVar SBlockAllocTensor(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::Opt
         << "ValueError: For `" << scope
         << "` scope, Ts.alloc_tensor does not accept `allocated_addr`";
   }
-  TensorVar tensor = TensorDecl(shape, dtype, "", std::nullopt, strides, elem_offset, storage_scope,
-                                align, offset_factor, layout);
+  if (!elem_offset.has_value() && offset_factor) {
+    PrimType shape_dtype = shape.empty() ? PrimType::Int(32) : shape[0].ty();
+    elem_offset = tvm::PrimVar("elem_offset", shape_dtype);
+  }
+  TensorVar tensor("", tvm::tirx::TensorType(storage_scope, dtype, shape, strides, elem_offset,
+                                             align, offset_factor, layout));
   IRBuilder builder = IRBuilder::Current();
   auto opt_func_frame = builder->FindFrame<tirx::FunctionFrame>();
   if (opt_func_frame.has_value()) {

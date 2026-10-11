@@ -47,11 +47,6 @@ ffi::Optional<ExprDoc> StandardCallDocTranslate(DocTranslatorObj* d, const CallN
                             : !op->attrs_type_key.empty()) {
     return RawCall(d, call);
   }
-  try {
-    op.Validate(call);
-  } catch (const ffi::Error&) {
-    return RawCall(d, call);
-  }
   ffi::Array<ExprDoc> args;
   for (const Expr& arg : call->args) {
     args.push_back(d->Translate(arg).value());
@@ -65,7 +60,13 @@ ffi::Optional<ExprDoc> StandardCallDocTranslate(DocTranslatorObj* d, const CallN
     values.push_back(ListDoc(types));
   }
   bool default_attrs = false;
-  if (call->attrs.defined()) {
+  if (call->attrs.defined() && call->attrs.value().as<DictAttrsNode>()) {
+    default_attrs = call->attrs.value().as_or_throw<DictAttrs>()->dict.empty();
+    if (!default_attrs) {
+      keys.push_back("attrs");
+      values.push_back(d->Translate(call->attrs.value()).value());
+    }
+  } else if (call->attrs.defined()) {
     std::vector<std::pair<ffi::String, ffi::Any>> fields;
     ffi::reflection::ForEachFieldInfo(
         TVMFFIGetTypeInfo(call->attrs->type_index()), [&](const TVMFFIFieldInfo* field) {
@@ -94,14 +95,13 @@ ffi::Optional<ExprDoc> StandardCallDocTranslate(DocTranslatorObj* d, const CallN
       values.push_back(AnyValue(d, value));
     }
   }
-  bool omit_result = false;
-  try {
-    // Match construction without ty, rather than let inference read the stored result.
-    Call inferred(std::nullopt, op, call->args, call->attrs, call->ty_args);
-    omit_result = ffi::StructuralEqual()(inferred->ty, call->ty);
-  } catch (const ffi::Error&) {
-    // Missing information, unavailable inference, or errors require the exact stored type.
-  }
+  // Well-formed calls reconstruct their result from registered inference or a fixed type.
+  // Builder-only inference is deliberately excluded: named construction cannot run it.
+  bool omit_result = call->ty.as<MissingType>().has_value() ||
+                     (Op::HasAttrMap(tvm::op_attr::kInferType) &&
+                      Op::GetAttrMap<FInferType>(tvm::op_attr::kInferType).count(op)) ||
+                     (Op::HasAttrMap(tvm::op_attr::kFixedReturnType) &&
+                      Op::GetAttrMap<TFixedReturnType>(tvm::op_attr::kFixedReturnType).count(op));
   if (!omit_result) {
     if (default_attrs) return RawCall(d, call);
     keys.push_back("ty");

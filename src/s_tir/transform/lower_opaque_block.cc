@@ -98,13 +98,12 @@ class OpaqueBlockLower : public StmtExprMutator {
         }
         allocate_annotations.Set(s_tir::attr::kTensorDimAlign, allocate_aligns);
       }
-      allocate_annotations.Set(tirx::attr::kTensorDataAlignment,
+      allocate_annotations.Set(tvm::tirx::attr::kTensorDataAlignment,
                                IntImm::Int32(tensor->data_alignment));
-      ffi::Array<Expr> args{tvm::Tuple(tensor->shape), DataTypeImm(tensor->dtype->dtype),
-                            StringImm(tensor.scope())};
+      ffi::Array<Expr> args;
       if (auto address = addresses.Get(tensor.var())) args.push_back(tvm::Tuple(address.value()));
       body = SeqStmt({Bind(tensor.var(), Call(tensor.type(), tirx::alloc_tensor_op(), args,
-                                              DictAttrs(allocate_annotations))),
+                                              DictAttrs(allocate_annotations), {tensor.type()})),
                       std::move(body)});
     }
     return body;

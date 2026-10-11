@@ -357,7 +357,7 @@ def test_tensor_conditional_lowering():
     def before(A: T.handle("float32")):
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         for i in range(1):
-            A_1 = T.decl_tensor((1,), data=A)
+            A_1 = T.decl_tensor(A, ty_args=[T.Tensor((1,), data=A)])
             A_1[i] = 0
 
     after = before
@@ -383,14 +383,14 @@ def test_dltensor_tensor_is_unlowered():
             shape_ptr: T.let[T.handle("int64")] = T.abi_field_get(
                 dlpack_handle, 0, 3, ty=T.handle("int64").ty
             )
-            shape = T.decl_tensor(ndim, "int64", data=shape_ptr)
-            product = T.decl_tensor([], "int64")
+            shape = T.decl_tensor(shape_ptr, ty_args=[T.Tensor(ndim, "int64", data=shape_ptr)])
+            product = T.alloc_tensor(ty_args=[T.Tensor([], "int64")])
             product[()] = 1
             for dim in range(axis + 1, ndim):
                 product[()] = product[()] * shape[dim]
             return product[()]
         else:
-            strides = T.decl_tensor(ndim, "int64", data=stride_ptr)
+            strides = T.decl_tensor(stride_ptr, ty_args=[T.Tensor(ndim, "int64", data=stride_ptr)])
             stride: T.int64 = strides[axis]
             return stride
 

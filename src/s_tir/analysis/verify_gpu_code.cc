@@ -82,9 +82,9 @@ class GPUCodeVerifier : public StmtExprVisitor {
 
   ffi::Optional<VisitInterrupt> DispatchAllocTensor(const BindNode* op, const CallNode* call) {
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
-    tvm::Tuple shape = call->args[0].as_or_throw<tvm::Tuple>();
-    DLDataType dtype = call->args[1].as_or_throw<DataTypeImm>()->value;
-    ffi::String scope = call->args[2].as_or_throw<StringImm>()->value;
+    tvm::Tuple shape = tvm::Tuple(call->ty_args[0].as_or_throw<TensorType>()->shape);
+    DLDataType dtype = call->ty_args[0].as_or_throw<TensorType>()->dtype->dtype;
+    ffi::String scope = call->ty_args[0].as_or_throw<TensorType>()->storage_scope;
     runtime::StorageScope storage_scope = runtime::StorageScope::Create(scope);
     int64_t const_size = 1;
     for (const Expr& e : shape->fields) {

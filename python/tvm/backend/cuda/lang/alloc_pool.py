@@ -411,7 +411,7 @@ class SMEMPool:
     Parameters
     ----------
     ptr : Var or None, optional
-        If omitted, an ``alloc_tensor([0], "uint8", scope="shared.dyn")`` is
+        If omitted, an ``alloc_tensor(ty_args=[Tensor([0], "uint8", scope="shared.dyn")])`` is
         created automatically and ``commit()`` must be called after all
         allocations to emit the size annotation.
         If a ``Var`` is provided, the caller manages the backing buffer and
@@ -421,7 +421,9 @@ class SMEMPool:
     def __init__(self, ptr=_POOL_UNSET):
         ir = _get_ir()
         if ptr is _POOL_UNSET:
-            self.buf = ir.alloc_tensor([0], "uint8", scope="shared.dyn")
+            self.buf = ir._bind_tensor(
+                ir.alloc_tensor(ty_args=[ir.Tensor([0], "uint8", scope="shared.dyn")])
+            )
             self.ptr = self.buf.data
             self._owns_buffer = True
         else:
@@ -443,15 +445,21 @@ class SMEMPool:
         ir = _get_ir()
         if align > 0:
             self.offset = (self.offset + align - 1) // align * align
-        res = ir.decl_tensor(
-            shape,
-            dtype,
-            data=self.ptr,
-            strides=strides,
-            byte_offset=self.offset,
-            scope=scope,
-            align=align,
-            layout=layout,
+        res = ir._bind_tensor(
+            ir.decl_tensor(
+                self.ptr,
+                ty_args=[
+                    ir.Tensor(
+                        shape,
+                        dtype,
+                        strides=strides,
+                        byte_offset=self.offset,
+                        scope=scope,
+                        align=align,
+                        layout=layout,
+                    )
+                ],
+            )
         )
         # Advance in bits then round up to bytes so sub-byte dtypes (e.g.
         # float4_e2m1fn = 4 bits) still bump the cursor instead of leaving it

@@ -379,7 +379,7 @@ def test_remove_empty_temporary():
 
     @T.function(private=True)
     def before():
-        A = T.alloc_tensor((16,), "int32", scope="local")
+        A = T.alloc_tensor(ty_args=[T.Tensor((16,), "int32", scope="local")])
         T.evaluate(0)
 
     @T.function(private=True)
@@ -401,8 +401,8 @@ def test_remove_empty_temporary_with_decl_tensor():
 
     @T.function(private=True)
     def before():
-        A = T.decl_tensor([4, 4], "int32", scope="local")
-        A_flat = T.decl_tensor(16, "int32", scope="local", data=A.data)
+        A = T.alloc_tensor(ty_args=[T.Tensor([4, 4], "int32", scope="local")])
+        A_flat = T.decl_tensor(A.data, ty_args=[T.Tensor(16, "int32", scope="local")])
         T.evaluate(0)
 
     @T.function(private=True)
@@ -420,7 +420,7 @@ def test_remove_unused_temporary():
 
     @T.function(private=True)
     def before(A: T.Tensor(16, "int32")):
-        B = T.alloc_tensor((16,), "int32", scope="local")
+        B = T.alloc_tensor(ty_args=[T.Tensor((16,), "int32", scope="local")])
         for i in T.serial(16):
             A[i] = 1
 
@@ -440,7 +440,7 @@ def test_remove_unused_write_into_temporary():
 
     @T.function(private=True)
     def before():
-        A = T.decl_tensor([16], "int32", scope="local")
+        A = T.alloc_tensor(ty_args=[T.Tensor([16], "int32", scope="local")])
         for i in T.serial(16):
             A[i] = 0
 
@@ -458,7 +458,7 @@ def test_keep_used_write_into_temporary():
 
     @T.function(private=True)
     def before(B: T.Tensor(16, "int32")):
-        A = T.decl_tensor([16], "int32", scope="local")
+        A = T.alloc_tensor(ty_args=[T.Tensor([16], "int32", scope="local")])
         for i in T.serial(16):
             A[i] = 0
 
@@ -476,7 +476,7 @@ def test_remove_write_into_temporary():
 
     @T.function(private=True)
     def before(A: T.Tensor(16, "int32"), C: T.Tensor(1, "int32")):
-        B = T.decl_tensor([16], "int32", scope="local")
+        B = T.alloc_tensor(ty_args=[T.Tensor([16], "int32", scope="local")])
         for i in T.serial(16):
             B[i] = A[i]
 
@@ -489,7 +489,7 @@ def test_remove_write_into_temporary():
 
     @T.function(private=True)
     def expected(A: T.Tensor(16, "int32"), C: T.Tensor(1, "int32")):
-        B = T.decl_tensor([16], "int32", scope="local")
+        B = T.alloc_tensor(ty_args=[T.Tensor([16], "int32", scope="local")])
         for i in T.serial(16):
             B[i] = A[i]
 

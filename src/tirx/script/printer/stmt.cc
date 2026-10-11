@@ -33,7 +33,6 @@
 #include <vector>
 
 #include "../../../script/printer/ir/utils.h"
-#include "utils.h"
 
 namespace tvm {
 namespace script {
@@ -71,40 +70,8 @@ ffi::Optional<ExprDoc> SeqStmtDocTranslate(DocTranslatorObj* d, ffi::AnyView inp
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const SeqStmtNode>(input);
   TVM_FFI_CHECK(destination == nullptr, TypeError)
       << "printer statement-only node cannot fulfill a destination";
-  for (size_t i = 0; i < stmt->seq.size(); ++i) {
-    d->Translate(stmt->seq[i]);
-    if (i + 1 == stmt->seq.size()) continue;
-    const auto* alloc = stmt->seq[i].as<BindNode>();
-    const auto* allocation = alloc ? alloc->value.as<CallNode>() : nullptr;
-    const auto* store = stmt->seq[i + 1].as<TensorStoreNode>();
-    auto docs = d->CurrentScopeDocs();
-    if (!allocation || !allocation->op.same_as(tirx::alloc_tensor_op()) || !store ||
-        !alloc->var.same_as(store->dest) || docs.empty())
-      continue;
-    auto scalar = docs.back().as<AssignDoc>();
-    if (!IsScalarTensor(d, alloc->var) || !scalar.has_value() ||
-        !std::all_of(store->indices.begin(), store->indices.end(), tvm::prim::IsZero))
-      continue;
-    bool reads_allocation = false;
-    ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(
-        store->value, [&](const Var& var) -> ffi::Expected<ffi::WalkResult> {
-          reads_allocation |= var.same_as(alloc->var);
-          return ffi::WalkResult::Advance();
-        });
-    if (reads_allocation) continue;
-    size_t before = docs.size();
-    d->Translate(stmt->seq[++i]);
-    // Only combine a plain adjacent store. Translation may emit prerequisites.
-    if (docs.size() == before + 1) {
-      if (auto initialization = docs.back().as<AssignDoc>()) {
-        scalar.value()->rhs = initialization.value()->rhs;
-        // Preserve both statement origins using ordinary annotation/assignment
-        // occurrences while retaining the value's more precise child origin.
-        d->RecordOrigin(scalar.value()->annotation.value(), ffi::GetRef<Bind>(alloc));
-        d->RecordOrigin(scalar.value(), ffi::GetRef<TensorStore>(store));
-        docs.pop_back();
-      }
-    }
+  for (const Stmt& child : stmt->seq) {
+    d->Translate(child);
   }
   return std::nullopt;
 }

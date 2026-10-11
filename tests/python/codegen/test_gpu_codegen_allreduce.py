@@ -40,7 +40,9 @@ def _reduce_module(d1, d2, d3, is_max=False):
                 for j in T.thread_binding(d1, thread="threadIdx.z"):
                     for k in T.thread_binding(d2, thread="threadIdx.y"):
                         for l in T.thread_binding(d3, thread="threadIdx.x"):
-                            reduced = T.alloc_tensor((1,), "float32", scope="local")
+                            reduced = T.alloc_tensor(
+                                ty_args=[T.Tensor((1,), "float32", scope="local")]
+                            )
                             T.gpu_thread_allreduce(
                                 combine,
                                 (T.float32(-3.4028234663852886e38 if is_max else 0),),

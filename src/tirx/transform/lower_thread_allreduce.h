@@ -137,12 +137,10 @@ class ThreadAllreduceBuilder final : public DialectMutator {
       annotations.CopyOnWrite()->dict.Set(tvm::tirx::attr::kVolatile, true);
     }
     ffi::Array<Expr> args = call->args;
-    args.Set(0, tvm::Tuple(replacement->shape, call->args[0]->loc));
-    args.Set(1, DataTypeImm(replacement->dtype->dtype, call->args[1]->loc));
-    args.Set(2, StringImm(replacement.scope(), call->args[2]->loc));
+
     return Bind(replacement.var(),
-                Call(replacement.type(), tirx::alloc_tensor_op(), args, annotations, call->ty_args,
-                     call->loc),
+                Call(replacement.type(), tirx::alloc_tensor_op(), args, annotations,
+                     {replacement.type()}, call->loc),
                 node->loc);
   }
 
@@ -530,10 +528,7 @@ class ThreadAllreduceBuilder final : public DialectMutator {
     ffi::Array<Stmt> alloc_stmts;
     for (TensorVar buf : new_alloc_bufs) {
       alloc_stmts.push_back(Bind(
-          buf.var(),
-          Call(buf.type(), tirx::alloc_tensor_op(),
-               {tvm::Tuple(buf->shape), DataTypeImm(buf->dtype->dtype), StringImm(buf.scope())},
-               DictAttrs())));
+          buf.var(), Call(buf.type(), tirx::alloc_tensor_op(), {}, DictAttrs(), {buf.type()})));
     }
     // Prepend allocations before the sequence
     for (const auto& s : seq) {
@@ -993,12 +988,10 @@ class DeferredRemapper : public DialectMutator {
           annotations.CopyOnWrite()->dict.Set(tvm::tirx::attr::kVolatile, true);
         }
         ffi::Array<Expr> args = call->args;
-        args.Set(0, tvm::Tuple(replacement->shape, call->args[0]->loc));
-        args.Set(1, DataTypeImm(replacement->dtype->dtype, call->args[1]->loc));
-        args.Set(2, StringImm(replacement.scope(), call->args[2]->loc));
+
         return Bind(replacement.var(),
                     Call(replacement.type(), tirx::alloc_tensor_op(), args, annotations,
-                         call->ty_args, call->loc),
+                         {replacement.type()}, call->loc),
                     node->loc);
       }
     }
@@ -1015,13 +1008,10 @@ class DeferredRemapper : public DialectMutator {
                     .template as_or_throw<Bind>();
     if (auto new_buf = GetRemappedTensor(node->var.template as_or_throw<TensorVar>())) {
       const CallNode* call = node->value.template as<CallNode>();
-      return Bind(
-          new_buf.value(),
-          Call(new_buf.value().type(), tirx::decl_tensor_op(),
-               {call->args[0], tvm::Tuple(new_buf.value()->shape),
-                DataTypeImm(new_buf.value()->dtype->dtype), StringImm(new_buf.value().scope())},
-               call->attrs, call->ty_args, call->loc),
-          node->loc);
+      return Bind(new_buf.value(),
+                  Call(new_buf.value().type(), tirx::decl_tensor_op(), {call->args[0]}, call->attrs,
+                       {new_buf.value().type()}, call->loc),
+                  node->loc);
     }
     return node;
   }

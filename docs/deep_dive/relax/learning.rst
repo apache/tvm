@@ -139,7 +139,7 @@ for the end-to-end model execution. The code block below shows a TVMScript imple
 
 
 
-            Y = T.alloc_tensor((M, N), "float32")
+            Y = T.alloc_tensor(ty_args=[T.Tensor((M, N), "float32")])
             for i, j, k in T.grid(M, N, K):
                 with Ts.sblock("Y"):
                     v_i, v_j, v_k = Ts.axis.remap("SSR", [i, j, k])

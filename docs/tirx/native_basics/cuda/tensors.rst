@@ -28,22 +28,20 @@ pointer with ``A.ptr_to([i, j])`` or the raw data pointer ``A.data``.
 Declaring tensors
 -----------------
 
-The following APIs create a tensor variable:
+The following calls bind tensor variables when assigned in a script function:
 
-- ``Tx.alloc_tensor(shape, dtype, scope=..., ...)`` — **allocates new storage**
-  (binds a ``tirx.alloc_tensor`` call) and returns an ``ir.Var``. ``Tx.alloc_shared`` /
-  ``Tx.alloc_local`` are just ``alloc_tensor`` with ``scope="shared"`` /
-  ``scope="local"``.
-- ``Tx.decl_tensor(shape, dtype, data=..., ...)`` — **declares a view** over an
-  existing pointer ``data`` (no allocation); use it to alias or reinterpret
-  storage — for example, a sub-region of a pool. With ``data=None`` it allocates,
-  like ``alloc_tensor``.
+- ``Tx.alloc_tensor(ty_args=[Tx.Tensor(shape, dtype, scope=scope)])``
+  **allocates new storage**. ``Tx.alloc_shared`` and ``Tx.alloc_local`` remain
+  conveniences for constructing a tensor type with shared or local storage.
+- ``Tx.decl_tensor(data, ty_args=[Tx.Tensor(shape, dtype, scope=scope)])``
+  **declares a view** over an existing pointer ``data`` (no allocation); use it
+  to alias or reinterpret storage, for example a sub-region of a pool.
 - ``Tx.cuda.decl_tmem(addr, ty_args=[Tx.Tensor(...)])`` — declares a tensor over
   externally allocated tensor memory. The address is a value operand; the tensor
   type supplies shape, dtype, scope and layout.
 
 ``A.data`` projects the physical pointer from the tensor variable.
-``alloc_tensor`` supplies new storage; ``decl_tensor`` with ``data`` binds an
+``alloc_tensor`` supplies new storage; ``decl_tensor`` binds an
 existing pointer expression. See :doc:`data_types`.
 
 The tensor descriptors share these parameters:
@@ -98,7 +96,9 @@ The ``scope`` argument selects the memory space:
     def kernel(A: Tx.Tensor((M, K), "float16", align=16)):
         As = Tx.alloc_shared((BM, BK), "float16")  # new shared tile
         acc = Tx.alloc_local((4,), "float32")  # per-thread accumulator
-        view = Tx.decl_tensor((BM, BK), "float16", data=As.data)  # a view over As
+        view = Tx.decl_tensor(
+            As.data, ty_args=[Tx.Tensor((BM, BK), "float16", scope="shared")]
+        )  # a view over As
 
 **A ptr-based tensor is just metadata over a pointer.** For any non-tmem tensor,
 the declaration is a pointer plus a layout, and indexing resolves to an address::
@@ -175,14 +175,20 @@ Dynamic
 **Dynamic** shared memory (``scope="shared.dyn"``) is sized per launch (the
 ``sharedMemBytes`` launch parameter), not at compile time. A kernel may have **only
 one** dynamic-shared allocation — the *arena*. So you allocate it once and ``decl``
-each tensor as a view into it: ``Tx.decl_tensor`` with ``data=`` the arena pointer
-and an ``elem_offset``:
+each tensor as a view into it: ``Tx.decl_tensor`` with the arena pointer as its
+first argument and an ``elem_offset``:
 
 .. code-block:: python
 
-    arena = Tx.alloc_tensor((128,), "float32", scope="shared.dyn")   # the one arena
-    As = Tx.decl_tensor((64,), "float32", data=arena.data, scope="shared.dyn")                 # offset 0
-    Bs = Tx.decl_tensor((64,), "float32", data=arena.data, elem_offset=64, scope="shared.dyn") # offset 64
+    arena = Tx.alloc_tensor(
+        ty_args=[Tx.Tensor((128,), "float32", scope="shared.dyn")]
+    )  # the one arena
+    As = Tx.decl_tensor(
+        arena.data, ty_args=[Tx.Tensor((64,), "float32", scope="shared.dyn")]
+    )  # offset 0
+    Bs = Tx.decl_tensor(
+        arena.data, ty_args=[Tx.Tensor((64,), "float32", elem_offset=64, scope="shared.dyn")]
+    )  # offset 64
     As[tx] = A[tx]
     Bs[tx] = B[tx]
     Tx.cuda.cta_sync()
@@ -199,8 +205,8 @@ boilerplate elided; arena named ``smem`` for clarity):
     __syncthreads();
     C_ptr[tx] = smem[tx] + smem[tx + 64];
 
-(Two separate ``alloc_tensor(scope="shared.dyn")`` is an error — *only one dynamic
-shared memory allocation is allowed*.) So static shared memory is sized at compile
+(Two separate ``alloc_tensor`` calls with ``scope="shared.dyn"`` tensor types
+are an error — *only one dynamic shared memory allocation is allowed*.) So static shared memory is sized at compile
 time (``__shared__ T x[N];``); dynamic shared memory is this one launch-sized arena
 with views decl'd at offsets inside it.
 
@@ -509,7 +515,13 @@ no shape infers a one-dimensional shape from the logical storage size:
 
 .. code-block:: python
 
-    R  = Tx.alloc_tensor((32, 8), "float32", scope="local", layout=TileLayout(S[(32, 8) : (1 @ laneid, 1)]))
+    R = Tx.alloc_tensor(
+        ty_args=[
+            Tx.Tensor(
+                (32, 8), "float32", scope="local", layout=TileLayout(S[(32, 8) : (1 @ laneid, 1)])
+            )
+        ]
+    )
     R_flat = R.local()       # this lane's 8 local elements, physical order
     R_2d = R.local(2, 4)     # the same elements, row-major 2x4 reshape
 

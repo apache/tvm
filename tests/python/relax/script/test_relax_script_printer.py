@@ -723,7 +723,7 @@ def test_call():
         """
 x = I.dynamic("x", dtype="int64")
 a = I.Var("a", R.Tensor((1, x, 3), dtype="float32"))
-I.Call("relax.call_tir", [Module.tir_func, (a, x)], ty_args=[R.Tensor((1, x, 3), dtype="float32")], ty=R.Tensor((1, x, 3), dtype="float32"))
+R.call_tir(Module.tir_func, (a, x), ty_args=[R.Tensor((1, x, 3), dtype="float32")])
 """,
     )
     _assert_print_lines(
@@ -752,7 +752,7 @@ def test_call_tir_with_grad():
         """
 v0 = I.Var("v0", R.Tensor((54, 96), dtype="float32"))
 x = I.dynamic("x", dtype="int64")
-I.Call("relax.call_tir_with_grad", [Module.tir_func, (v0,)], attrs=I.make_node("relax.attrs.CallTIRWithGradAttrs", te_grad_kwargs={"k": 1.0, "x": x}, te_grad_name="grad_func"), ty_args=[R.Tensor((54, 96), dtype="float32")], ty=R.Tensor((54, 96), dtype="float32"))
+R.call_tir_with_grad(Module.tir_func, (v0,), ty_args=[R.Tensor((54, 96), dtype="float32")], te_grad_kwargs={"k": 1.0, "x": x}, te_grad_name="grad_func")
 """,
     )
 
@@ -779,7 +779,7 @@ def test_call_tir_inplace():
 x = I.Var("x", R.Tensor((32, 32), dtype="int32"))
 y = I.Var("y", R.Tensor((32, 32), dtype="int32"))
 t = I.dynamic("t", dtype="int64")
-I.Call("relax.call_tir_inplace", [Module.tir_func, (x, y, t)], attrs=I.make_node("relax.attrs.CallTIRInplaceAttrs", inplace_indices=[-1, 0]), ty_args=[R.Tuple(R.Tensor((32, 32), dtype="int32"), R.Tensor((32, 32), dtype="int32"))], ty=R.Tuple(R.Tensor((32, 32), dtype="int32"), R.Tensor((32, 32), dtype="int32")))
+R.call_tir_inplace(Module.tir_func, (x, y, t), ty_args=[R.Tuple(R.Tensor((32, 32), dtype="int32"), R.Tensor((32, 32), dtype="int32"))], inplace_indices=[-1, 0])
 """,
     )
 

@@ -77,11 +77,9 @@ class LayoutApplier : public IRMutatorWithAnalyzer {
     }
     auto new_stmt = storage_lower->Mutate(stmt, InplaceMode::kAllow).ValueOrUnchanged(stmt);
     for (const auto& [buf, source] : param_flattened_tensors) {
-      new_stmt = SeqStmt({Bind(buf, Call(buf.type(), decl_tensor_op(),
-                                         {source.data(), tvm::Tuple(buf->shape),
-                                          DataTypeImm(buf->dtype->dtype), StringImm(buf.scope())},
-                                         {})),
-                          std::move(new_stmt)});
+      new_stmt =
+          SeqStmt({Bind(buf, Call(buf.type(), decl_tensor_op(), {source.data()}, {}, {buf.type()})),
+                   std::move(new_stmt)});
     }
     return std::make_pair(new_stmt, new_params);
   }
@@ -127,9 +125,8 @@ class LayoutApplier : public IRMutatorWithAnalyzer {
   UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final {
     if (auto source = op->value.as<TensorVar>(); source.has_value()) {
       auto tensor = op->var.as_or_throw<TensorVar>();
-      Call declaration(tensor.type(), decl_tensor_op(),
-                       {source.value().data(), tvm::Tuple(tensor->shape),
-                        DataTypeImm(tensor->dtype->dtype), StringImm(tensor.scope())});
+      Call declaration(tensor.type(), decl_tensor_op(), {source.value().data()}, {},
+                       {tensor.type()});
       Bind binding(op->var, declaration, op->loc);
       return MutateDeclTensor(binding.get(), declaration.get(), inplace_mode)
           .ValueOrUnchanged(binding);
@@ -142,9 +139,8 @@ class LayoutApplier : public IRMutatorWithAnalyzer {
         // TMEM is already allocated by the pool.  Retain an explicit backing pointer so
         // ordinary data projections also work for views and function parameters.
         Call declaration(tensor.type(), decl_tensor_op(),
-                         {Call(tensor->DataPtrType(), reinterpret_op(), {call->args[0]}),
-                          tvm::Tuple(tensor->shape), DataTypeImm(tensor->dtype->dtype),
-                          StringImm(tensor.scope())});
+                         {Call(tensor->DataPtrType(), reinterpret_op(), {call->args[0]})}, {},
+                         {tensor.type()});
         Bind binding(op->var, declaration, op->loc);
         return MutateDeclTensor(binding.get(), declaration.get(), inplace_mode)
             .ValueOrUnchanged(binding);
@@ -164,15 +160,13 @@ class LayoutApplier : public IRMutatorWithAnalyzer {
     };
     auto tensor = mutate(op->var.as_or_throw<TensorVar>());
     ffi::Array<Expr> args = tensor_call->args;
-    args.Set(0, tvm::Tuple(tensor->shape, tensor_call->args[0]->loc));
-    args.Set(1, DataTypeImm(tensor->dtype->dtype, tensor_call->args[1]->loc));
-    args.Set(2, StringImm(tensor.scope(), tensor_call->args[2]->loc));
-    if (args.size() == 4) {
-      args.Set(3, Mutate(args[3], inplace_mode).ValueOrUnchanged(args[3]));
+
+    if (!args.empty()) {
+      args.Set(0, Mutate(args[0], inplace_mode).ValueOrUnchanged(args[0]));
     }
     return Bind(tensor.var(),
                 Call(tensor.type(), tirx::alloc_tensor_op(), args, tensor_call->attrs,
-                     tensor_call->ty_args, tensor_call->loc),
+                     {tensor.type()}, tensor_call->loc),
                 op->loc);
   }
 
@@ -187,10 +181,8 @@ class LayoutApplier : public IRMutatorWithAnalyzer {
       return ffi::Unchanged();
     }
     return Bind(tensor,
-                Call(tensor.type(), decl_tensor_op(),
-                     {std::move(data), tvm::Tuple(tensor->shape), DataTypeImm(tensor->dtype->dtype),
-                      StringImm(tensor.scope())},
-                     tensor_call->attrs, tensor_call->ty_args, tensor_call->loc),
+                Call(tensor.type(), decl_tensor_op(), {std::move(data)}, tensor_call->attrs,
+                     {tensor.type()}, tensor_call->loc),
                 op->loc);
   }
 

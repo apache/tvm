@@ -74,7 +74,7 @@ class TestWriteToTensorArgument(CheckImpureFunction):
 class TestWriteToInternalAllocation(CheckPureFunction):
     @Ts.function
     def func(A: T.Tensor([16, 16], "float32")) -> T.float32:
-        Sum = T.decl_tensor([], "float32")
+        Sum = T.alloc_tensor(ty_args=[T.Tensor([], "float32")])
         Sum[()] = 0.0
         for i, j in T.grid(16, 16):
             Sum[()] = Sum[()] + A[i, j]
