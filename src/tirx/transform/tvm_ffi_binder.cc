@@ -626,7 +626,8 @@ void TVMFFIABIBuilder::DecodeAllParams() {
           Evaluate(Call(PrimType::Void(), tirx::assume_aligned_op(),
                         {tensor.value(), IntImm::Int32(tensor.value()->data_alignment)}));
       // Empty tensors and opaque device handles carry no data-address alignment promise.
-      PrimExpr device_type = TVMStructGet(PrimType::Int(32), handle, 0, tirx::kDLTensorDeviceType);
+      // DecodeParamDLTensor has already checked or bound the expected device type.
+      PrimExpr device_type = device_type_;
       PrimExpr direct_address = device_type <= IntImm::Int32(kDLCUDAHost) ||
                                 device_type == IntImm::Int32(kDLCUDAManaged) ||
                                 device_type == IntImm::Int32(kDLROCM) ||
@@ -866,8 +867,8 @@ Expr TVMFFIABIBuilder::DecodeParamDLTensor(const TensorVar& tensor, const PrimEx
       {
         // Only direct-address devices expose the data address in DLTensor::data.
         // Opaque device handles (such as OpenCL buffer descriptors) have no such alignment.
-        PrimExpr device_type =
-            TVMStructGet(PrimType::Int(32), handle, 0, tirx::kDLTensorDeviceType);
+        // Reuse the checked device type so fixed-target guards simplify statically.
+        PrimExpr device_type = device_type_;
         PrimExpr direct_address = device_type <= IntImm::Int32(kDLCUDAHost) ||
                                   device_type == IntImm::Int32(kDLCUDAManaged) ||
                                   device_type == IntImm::Int32(kDLROCM) ||
