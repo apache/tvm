@@ -264,10 +264,10 @@ def _attention_prefill(
         #   denoting the "last_page_len".
 
         # kernel code
-        for lbx in T.thread_binding(NUM_BLKS, thread="blockIdx.x"):
-            for lby in T.thread_binding(h_kv, thread="blockIdx.y"):
-                for lty in T.thread_binding(num_warps, thread="threadIdx.y"):
-                    for ltx in T.thread_binding(bdx, thread="threadIdx.x"):
+        for lbx in T.parallel(NUM_BLKS, annotations={"thread_binding": "blockIdx.x"}):
+            for lby in T.parallel(h_kv, annotations={"thread_binding": "blockIdx.y"}):
+                for lty in T.parallel(num_warps, annotations={"thread_binding": "threadIdx.y"}):
+                    for ltx in T.parallel(bdx, annotations={"thread_binding": "threadIdx.x"}):
                         with Ts.sblock("attn"):
                             bx, by, ty, tx = Ts.axis.remap("SSSS", [lbx, lby, lty, ltx])
                             Ts.reads()
@@ -390,10 +390,10 @@ def _attention_sequence_prefill(h_kv, h_q, d, dtype, target: Target, causal=0, s
         batch_tiles: T.let[T.int32] = T.ceildiv(qo_len * group_size, tile_x)
 
         # kernel code
-        for lbx in T.thread_binding(T.cast(batch_size, "int32") * batch_tiles, thread="blockIdx.x"):
-            for lby in T.thread_binding(h_kv, thread="blockIdx.y"):
-                for lty in T.thread_binding(num_warps, thread="threadIdx.y"):
-                    for ltx in T.thread_binding(bdx, thread="threadIdx.x"):
+        for lbx in T.parallel(T.cast(batch_size, "int32") * batch_tiles, annotations={"thread_binding": "blockIdx.x"}):
+            for lby in T.parallel(h_kv, annotations={"thread_binding": "blockIdx.y"}):
+                for lty in T.parallel(num_warps, annotations={"thread_binding": "threadIdx.y"}):
+                    for ltx in T.parallel(bdx, annotations={"thread_binding": "threadIdx.x"}):
                         with Ts.sblock("attn"):
                             vbx, by, ty, tx = Ts.axis.remap("SSSS", [lbx, lby, lty, ltx])
                             Ts.reads()
@@ -550,10 +550,10 @@ def _attention_sequence_prefill_with_mask(
 
         batch_tiles: T.let[T.int32] = T.ceildiv(qo_len * group_size, tile_x)
 
-        for lbx in T.thread_binding(T.cast(batch_size, "int32") * batch_tiles, thread="blockIdx.x"):
-            for lby in T.thread_binding(h_kv, thread="blockIdx.y"):
-                for lty in T.thread_binding(num_warps, thread="threadIdx.y"):
-                    for ltx in T.thread_binding(bdx, thread="threadIdx.x"):
+        for lbx in T.parallel(T.cast(batch_size, "int32") * batch_tiles, annotations={"thread_binding": "blockIdx.x"}):
+            for lby in T.parallel(h_kv, annotations={"thread_binding": "blockIdx.y"}):
+                for lty in T.parallel(num_warps, annotations={"thread_binding": "threadIdx.y"}):
+                    for ltx in T.parallel(bdx, annotations={"thread_binding": "threadIdx.x"}):
                         with Ts.sblock("attn"):
                             vbx, by, ty, tx = Ts.axis.remap("SSSS", [lbx, lby, lty, ltx])
                             Ts.reads()
@@ -778,10 +778,10 @@ def _attention_prefill_ragged(h_kv, h_q, d_qk, d_v, dtype, rope_scaling: dict[st
           # pylint: disable=unused-variable
 
         # kernel code
-        for lbx in T.thread_binding(NUM_BLKS, thread="blockIdx.x"):
-            for lby in T.thread_binding(h_kv, thread="blockIdx.y"):
-                for lty in T.thread_binding(num_warps, thread="threadIdx.y"):
-                    for ltx in T.thread_binding(bdx, thread="threadIdx.x"):
+        for lbx in T.parallel(NUM_BLKS, annotations={"thread_binding": "blockIdx.x"}):
+            for lby in T.parallel(h_kv, annotations={"thread_binding": "blockIdx.y"}):
+                for lty in T.parallel(num_warps, annotations={"thread_binding": "threadIdx.y"}):
+                    for ltx in T.parallel(bdx, annotations={"thread_binding": "threadIdx.x"}):
                         with Ts.sblock("attn"):
                             bx, by, ty, tx = Ts.axis.remap("SSSS", [lbx, lby, lty, ltx])
                             Ts.reads()
@@ -913,9 +913,9 @@ def _attention_prefill_mla(h_q, d_latent, d_rope, dtype, sliding_window: bool, t
         #   denoting the "last_page_len".
 
         # kernel code
-        for lbx in T.thread_binding(NUM_BLKS, thread="blockIdx.x"):
-            for lty in T.thread_binding(num_warps, thread="threadIdx.y"):
-                for ltx in T.thread_binding(bdx, thread="threadIdx.x"):
+        for lbx in T.parallel(NUM_BLKS, annotations={"thread_binding": "blockIdx.x"}):
+            for lty in T.parallel(num_warps, annotations={"thread_binding": "threadIdx.y"}):
+                for ltx in T.parallel(bdx, annotations={"thread_binding": "threadIdx.x"}):
                     with Ts.sblock("attn"):
                         bx, ty, tx = Ts.axis.remap("SSS", [lbx, lty, ltx])
                         Ts.reads()

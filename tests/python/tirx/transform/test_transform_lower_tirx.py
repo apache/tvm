@@ -76,7 +76,7 @@ def _launch_thread_extents(func):
 L_LANE = T.TileLayout(T.S[32 : 1 @ laneid])
 
 
-def test_lower_tirx_opaque_optional_pragma_annotations():
+def test_unroll_loop_optional_annotations():
     @T.function(private=True)
     def before(
         A: T.Tensor(8, "float32", layout="default"), B: T.Tensor(8, "float32", layout="default")
@@ -87,23 +87,23 @@ def test_lower_tirx_opaque_optional_pragma_annotations():
             B[i] = A[i] + 2.0
         for i in T.serial(8, annotations={"pragma_unroll": False}):
             B[i] = A[i] + 3.0
-        for i in T.serial(8, annotations={"unroll_explicit": 0}):
+        for i in T.serial(8, annotations={"auto_unroll_max_step": 16, "unroll_explicit": 0}):
             B[i] = A[i] + 4.0
 
     @T.function(private=True)
     def after(
         A: T.Tensor(8, "float32", layout="default"), B: T.Tensor(8, "float32", layout="default")
     ):
-        for i in T.serial(8):
+        for i in T.serial(8, annotations={"pragma_unroll": None}):
             B[i] = A[i] + 1.0
         for i in T.serial(8):
             B[i] = A[i] + 2.0
         for i in T.serial(8, annotations={"pragma_unroll": False}):
             B[i] = A[i] + 3.0
-        for i in T.serial(8, annotations={"unroll_explicit": 0}):
+        for i in T.unroll(8):
             B[i] = A[i] + 4.0
 
-    lowered = tvm.tirx.transform.LowerTIRxOpaque()(tvm.IRModule({"main": before}))
+    lowered = tvm.tirx.transform.UnrollLoop()(tvm.IRModule({"main": before}))
     tvm.ir.assert_structural_equal(lowered["main"], after, map_free_vars=True)
 
 

@@ -96,8 +96,8 @@ def match_tensor_func(
 def global_tensor_with_blockidx(
     a: T.Tensor((1, 32), "int32"), b: T.Tensor((1, 32), "int32")
 ) -> None:
-    for i0 in T.thread_binding(0, 1, thread="blockIdx.x"):
-        for i1 in T.thread_binding(0, 32, thread="threadIdx.x"):
+    for i0 in T.parallel(0, 1, annotations={"thread_binding": "blockIdx.x"}):
+        for i1 in T.parallel(0, 32, annotations={"thread_binding": "threadIdx.x"}):
             with Ts.sblock("copy"):
                 i, j = Ts.axis.remap("SS", [i0, i1])
                 Ts.reads(a[i, j])

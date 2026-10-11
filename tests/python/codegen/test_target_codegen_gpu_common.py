@@ -56,7 +56,7 @@ def test_int_intrin(target, dtype):
                 B: T.Tensor((n,), dtype),
             ):
                 T.func_attr({"tirx.noalias": True})
-                for i0 in T.thread_binding(n, thread="threadIdx.x"):
+                with T.launch_thread("threadIdx.x", n) as i0:
                     B[i0] = tvm_intrin(A[i0])
 
         f = tvm.compile(Module, target=target)

@@ -314,8 +314,8 @@ Pass SimplifyForFeatureExtraction(bool normalize_thread_bindings = false) {
       if (!normalize_thread_bindings_ && IsZero(loop->extent)) {
         return Evaluate(0);
       }
-      if (normalize_thread_bindings_ && tvm::tirx::GetThreadBinding(loop).has_value()) {
-        const auto tag = tvm::tirx::GetThreadBinding(loop).value();
+      if (normalize_thread_bindings_ && tvm::s_tir::GetThreadBinding(loop).has_value()) {
+        const auto tag = tvm::s_tir::GetThreadBinding(loop).value();
         if (support::StartsWith(tag, "vthread")) {
           // Virtual axes are independent iterations and isolate hardware aliases.
           thread_bindings_.push_back(nullptr);
@@ -325,7 +325,7 @@ Pass SimplifyForFeatureExtraction(bool normalize_thread_bindings = false) {
         }
         for (auto it = thread_bindings_.rbegin(); it != thread_bindings_.rend() && *it; ++it) {
           const ForNode* outer = *it;
-          if (tvm::tirx::GetThreadBinding(outer).value() != tag) continue;
+          if (tvm::s_tir::GetThreadBinding(outer).value() != tag) continue;
           // Feature counts describe hardware work, not repeated lexical names
           // for one axis. Normalize only nested aliases in this analysis input.
           sym::Analyzer analyzer;
@@ -340,7 +340,7 @@ Pass SimplifyForFeatureExtraction(bool normalize_thread_bindings = false) {
                                  .ValueOrUnchanged(loop->annotations);
           Stmt body = Mutate(loop->body, inplace_mode).ValueOrUnchanged(loop->body);
           VarRemapSet(loop->loop_var, previous_remap);
-          annotations.erase(tvm::tirx::attr::kThreadBinding);
+          annotations.erase(tvm::s_tir::attr::kThreadBinding);
           if (!annotations.empty()) {
             PrimType ty = loop->loop_var.ty();
             body = For(PrimVar("annotation", ty), IntImm(ty, 0), IntImm(ty, 1), ForKind::kDefault,
@@ -449,14 +449,14 @@ struct LoopNest {
       this->auto_unroll.push_back(*auto_unroll_attr);
     }
     ForVec* ref_loops = nullptr;
-    if (loop->kind == ForKind::kParallel && !tvm::tirx::GetThreadBinding(loop).has_value()) {
+    if (loop->kind == ForKind::kParallel && !tvm::s_tir::GetThreadBinding(loop).has_value()) {
       ref_loops = &parallel;
     } else if (loop->kind == ForKind::kVectorized) {
       ref_loops = &vectorize;
     } else if (loop->kind == ForKind::kUnrolled) {
       ref_loops = &unroll;
-    } else if (tvm::tirx::GetThreadBinding(loop).has_value()) {
-      std::string thread_tag = tvm::tirx::GetThreadBinding(loop).value();
+    } else if (tvm::s_tir::GetThreadBinding(loop).has_value()) {
+      std::string thread_tag = tvm::s_tir::GetThreadBinding(loop).value();
       if (thread_tag == "blockIdx.x") {
         ref_loops = &blockIdx_x;
       } else if (thread_tag == "blockIdx.y") {

@@ -931,9 +931,16 @@ def test_loop_var_dtype_rejects_unsupported(dtype):
         T.serial(4, dtype=dtype)
 
 
-def test_thread_binding_has_no_dtype_parameter():
-    with pytest.raises(TypeError):
-        T.thread_binding(0, 128, "threadIdx.x", dtype="uint32")
+def test_annotated_parallel_loop_var_dtype_uint32():
+    @T.function
+    def func(A: T.Tensor((128,), "float32")):
+        for i in T.parallel(128, dtype="uint32", annotations={"thread_binding": "threadIdx.x"}):
+            A[i] = T.float32(1)
+
+    loop = func.body[0]
+    assert loop.loop_var.ty == PrimType("uint32")
+    assert loop.annotations["thread_binding"] == "threadIdx.x"
+    _assert_roundtrip(func)
 
 
 def test_hand_built_for_promotes_int_literal_bounds_to_uint32():

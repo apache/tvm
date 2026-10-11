@@ -57,7 +57,7 @@ def _check_error(func):
 
 @Ts.function
 def trivial_pipeline(A: T.Tensor((16, 1), "float32"), C: T.Tensor((16, 1), "float32")):
-    for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
+    for tx in T.parallel(0, 16, annotations={"thread_binding": "threadIdx.x"}):
         for i in T.serial(
             0, 1, annotations={"software_pipeline_stage": [0, 1], "software_pipeline_order": [0, 1]}
         ):
@@ -79,7 +79,7 @@ def trivial_pipeline(A: T.Tensor((16, 1), "float32"), C: T.Tensor((16, 1), "floa
 def transformed_trivial_pipeline(
     A: T.Tensor((16, 1), "float32"), C: T.Tensor((16, 1), "float32")
 ) -> None:
-    for tx in T.thread_binding(16, thread="threadIdx.x"):
+    for tx in T.parallel(16, annotations={"thread_binding": "threadIdx.x"}):
         with Ts.sblock():
             Ts.reads(A[tx, 0])
             Ts.writes(C[tx, 0])
@@ -101,7 +101,7 @@ def transformed_trivial_pipeline(
 def gen_simple_compute(num_stages):
     @Ts.function
     def simple_compute(A: T.Tensor((16, 16), "float32"), C: T.Tensor((16, 16), "float32")):
-        for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
+        for tx in T.parallel(0, 16, annotations={"thread_binding": "threadIdx.x"}):
             for i in T.serial(
                 0,
                 16,
@@ -130,7 +130,7 @@ def gen_simple_compute(num_stages):
 def transformed_simple_compute(
     A: T.Tensor((16, 16), "float32"), C: T.Tensor((16, 16), "float32")
 ) -> None:
-    for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
+    for tx in T.parallel(0, 16, annotations={"thread_binding": "threadIdx.x"}):
         with Ts.sblock():
             Ts.reads([A[tx, 0:16]])
             Ts.writes([C[tx, 0:16]])
@@ -162,7 +162,7 @@ k = T.dynamic("k", "int32")
 
 @Ts.function
 def dynamic_compute(A: T.Tensor((16, k), "float32"), C: T.Tensor((16, k), "float32")):
-    for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
+    for tx in T.parallel(0, 16, annotations={"thread_binding": "threadIdx.x"}):
         for i in T.serial(
             0,
             k,
@@ -190,7 +190,7 @@ k = T.dynamic("k", "int32")
 
 @Ts.function
 def transformed_dynamic_compute(A: T.Tensor((16, k), "float32"), C: T.Tensor((16, k), "float32")):
-    for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
+    for tx in T.parallel(0, 16, annotations={"thread_binding": "threadIdx.x"}):
         with Ts.sblock():
             Ts.reads(A[tx, 0 : T.max(1, k)])
             Ts.writes(C[tx, T.min(0, k - 1) : T.min(0, k - 1) + T.max(k, 1)])
@@ -229,7 +229,7 @@ def transformed_dynamic_compute(A: T.Tensor((16, k), "float32"), C: T.Tensor((16
 def simple_compute_with_other_annotation(
     A: T.Tensor((16, 16), "float32"), C: T.Tensor((16, 16), "float32")
 ):
-    for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
+    for tx in T.parallel(0, 16, annotations={"thread_binding": "threadIdx.x"}):
         for i in T.serial(
             0,
             16,
@@ -257,7 +257,7 @@ def simple_compute_with_other_annotation(
 def transformed_simple_compute_with_other_annotation(
     A: T.Tensor((16, 16), "float32"), C: T.Tensor((16, 16), "float32")
 ) -> None:
-    for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
+    for tx in T.parallel(0, 16, annotations={"thread_binding": "threadIdx.x"}):
         with Ts.sblock():
             Ts.reads([A[tx, 0:16]])
             Ts.writes([C[tx, 0:16]])
@@ -290,7 +290,7 @@ def transformed_simple_compute_with_other_annotation(
 
 @Ts.function
 def three_stage_compute(A: T.Tensor((16, 16), "float32"), D: T.Tensor((16, 16), "float32")):
-    for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
+    for tx in T.parallel(0, 16, annotations={"thread_binding": "threadIdx.x"}):
         for i in T.serial(
             0,
             16,
@@ -322,7 +322,7 @@ def three_stage_compute(A: T.Tensor((16, 16), "float32"), D: T.Tensor((16, 16), 
 def transformed_three_stage_compute(
     A: T.Tensor((16, 16), "float32"), D: T.Tensor((16, 16), "float32")
 ) -> None:
-    for tx in T.thread_binding(16, thread="threadIdx.x"):
+    for tx in T.parallel(16, annotations={"thread_binding": "threadIdx.x"}):
         with Ts.sblock():
             Ts.reads(A[tx, 0:16])
             Ts.writes(D[tx, 0:16])
@@ -378,7 +378,7 @@ def dag_interleaving(
     B: T.Tensor((16, 16), "float32"),
     C: T.Tensor((16, 16), "float32"),
 ) -> None:
-    for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
+    for tx in T.parallel(0, 16, annotations={"thread_binding": "threadIdx.x"}):
         for i in T.serial(
             0,
             16,
@@ -422,7 +422,7 @@ def transformed_dag_interleaving(
     B: T.Tensor((16, 16), "float32"),
     C: T.Tensor((16, 16), "float32"),
 ) -> None:
-    for tx in T.thread_binding(16, thread="threadIdx.x"):
+    for tx in T.parallel(16, annotations={"thread_binding": "threadIdx.x"}):
         with Ts.sblock():
             Ts.reads(A[tx, 0:16], B[tx, 0:16])
             Ts.writes(C[tx, 0:16])
@@ -485,7 +485,7 @@ def transformed_dag_interleaving(
 def nested_pipeline_simple(
     A: T.Tensor((16, 16, 16), "float32"), C: T.Tensor((16, 16, 16), "float32")
 ):
-    for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
+    for tx in T.parallel(0, 16, annotations={"thread_binding": "threadIdx.x"}):
         for i in T.serial(
             0,
             16,
@@ -529,7 +529,7 @@ def nested_pipeline_simple(
 def transformed_nested_pipeline_simple(
     A: T.Tensor((16, 16, 16), "float32"), C: T.Tensor((16, 16, 16), "float32")
 ) -> None:
-    for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
+    for tx in T.parallel(0, 16, annotations={"thread_binding": "threadIdx.x"}):
         with Ts.sblock():
             Ts.reads([A[tx, 0:16, 0:16]])
             Ts.writes([C[tx, 0:16, 0:16]])
@@ -606,7 +606,7 @@ def transformed_nested_pipeline_simple(
 def nested_pipeline_prefetch_inner(
     A: T.Tensor((16, 16, 16), "float32"), C: T.Tensor((16, 16, 16), "float32")
 ):
-    for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
+    for tx in T.parallel(0, 16, annotations={"thread_binding": "threadIdx.x"}):
         for i in T.serial(
             0,
             16,
@@ -650,7 +650,7 @@ def nested_pipeline_prefetch_inner(
 def transformed_nested_pipeline_prefetch_inner(
     A: T.Tensor((16, 16, 16), "float32"), C: T.Tensor((16, 16, 16), "float32")
 ) -> None:
-    for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
+    for tx in T.parallel(0, 16, annotations={"thread_binding": "threadIdx.x"}):
         with Ts.sblock():
             Ts.reads([A[tx, 0:16, 0:16]])
             Ts.writes([C[tx, 0:16, 0:16]])
@@ -730,7 +730,7 @@ def transformed_nested_pipeline_prefetch_inner(
 def nested_pipeline_interleaving(
     A: T.Tensor((16, 16, 16), "float32"), C: T.Tensor((16, 16, 16), "float32")
 ):
-    for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
+    for tx in T.parallel(0, 16, annotations={"thread_binding": "threadIdx.x"}):
         for i in T.serial(
             0,
             16,
@@ -780,7 +780,7 @@ def nested_pipeline_interleaving(
 def transformed_nested_pipeline_interleaving(
     A: T.Tensor((16, 16, 16), "float32"), C: T.Tensor((16, 16, 16), "float32")
 ) -> None:
-    for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
+    for tx in T.parallel(0, 16, annotations={"thread_binding": "threadIdx.x"}):
         with Ts.sblock():
             Ts.reads([A[tx, 0:16, 0:16]])
             Ts.writes([C[tx, 0:16, 0:16]])
@@ -889,7 +889,7 @@ def transformed_nested_pipeline_interleaving(
 def nested_pipeline_double_buffer(
     A: T.Tensor((16, 16, 16), "float32"), C: T.Tensor((16, 16, 16), "float32")
 ):
-    for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
+    for tx in T.parallel(0, 16, annotations={"thread_binding": "threadIdx.x"}):
         for i in T.serial(
             0,
             16,
@@ -940,7 +940,7 @@ def nested_pipeline_double_buffer(
 def transformed_nested_pipeline_double_buffer(
     A: T.Tensor((16, 16, 16), "float32"), C: T.Tensor((16, 16, 16), "float32")
 ) -> None:
-    for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
+    for tx in T.parallel(0, 16, annotations={"thread_binding": "threadIdx.x"}):
         with Ts.sblock():
             Ts.reads([A[tx, 0:16, 0:16]])
             Ts.writes([C[tx, 0:16, 0:16]])
@@ -1053,7 +1053,7 @@ def transformed_nested_pipeline_double_buffer(
 def simple_compute_incorrect_reorder(
     A: T.Tensor((16, 16), "float32"), D: T.Tensor((16, 16), "float32")
 ):
-    for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
+    for tx in T.parallel(0, 16, annotations={"thread_binding": "threadIdx.x"}):
         for i in T.serial(
             0,
             16,
@@ -1085,7 +1085,7 @@ def simple_compute_incorrect_reorder(
 def simple_compute_conflicting_order(
     A: T.Tensor((16, 16), "float32"), D: T.Tensor((16, 16), "float32")
 ):
-    for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
+    for tx in T.parallel(0, 16, annotations={"thread_binding": "threadIdx.x"}):
         for i in T.serial(
             0,
             16,
@@ -1117,7 +1117,7 @@ def simple_compute_conflicting_order(
 def simple_compute_missing_annotation(
     A: T.Tensor((16, 16), "float32"), C: T.Tensor((16, 16), "float32")
 ):
-    for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
+    for tx in T.parallel(0, 16, annotations={"thread_binding": "threadIdx.x"}):
         for i in T.serial(0, 16, annotations={"software_pipeline_stage": [0, 1]}):
             with Ts.sblock():
                 Ts.reads(A[tx, i])
@@ -1195,7 +1195,7 @@ def test_simple_compute_async():
 
     @Ts.function
     def ref(A: T.Tensor((16, 16), "float32"), C: T.Tensor((16, 16), "float32")):
-        for tx in T.thread_binding(16, thread="threadIdx.x"):
+        for tx in T.parallel(16, annotations={"thread_binding": "threadIdx.x"}):
             with Ts.sblock():
                 Ts.reads(A[tx, 0:16])
                 Ts.writes(C[tx, 0:16])
@@ -1240,7 +1240,7 @@ def test_simple_compute_async():
 
     @Ts.function
     def ref(A: T.Tensor((16, 16), "float32"), C: T.Tensor((16, 16), "float32")) -> None:
-        for tx in T.thread_binding(16, thread="threadIdx.x"):
+        for tx in T.parallel(16, annotations={"thread_binding": "threadIdx.x"}):
             with Ts.sblock():
                 Ts.reads(A[tx, 0:16])
                 Ts.writes(C[tx, 0:16])
@@ -1294,7 +1294,7 @@ def test_async_producer_interleaving():
         B: T.Tensor((16, 16), "float32"),
         C: T.Tensor((16, 16), "float32"),
     ):
-        for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
+        for tx in T.parallel(0, 16, annotations={"thread_binding": "threadIdx.x"}):
             for i in range(16):
                 with Ts.sblock("compute"):
                     Ts.reads(A[tx, i])
@@ -1329,7 +1329,7 @@ def test_async_producer_interleaving():
         B: T.Tensor((16, 16), "float32"),
         C: T.Tensor((16, 16), "float32"),
     ) -> None:
-        for tx in T.thread_binding(16, thread="threadIdx.x"):
+        for tx in T.parallel(16, annotations={"thread_binding": "threadIdx.x"}):
             with Ts.sblock():
                 Ts.reads(A[tx, 0:16], B[tx, 0:16])
                 Ts.writes(C[tx, 0:16])
@@ -1402,7 +1402,7 @@ def test_three_stage_compute_two_stage_async():
 
     @Ts.function
     def ref(A: T.Tensor((16, 16), "float32"), D: T.Tensor((16, 16), "float32")) -> None:
-        for tx in T.thread_binding(16, thread="threadIdx.x"):
+        for tx in T.parallel(16, annotations={"thread_binding": "threadIdx.x"}):
             with Ts.sblock():
                 Ts.reads(A[tx, 0:16])
                 Ts.writes(D[tx, 0:16])

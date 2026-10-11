@@ -237,6 +237,8 @@ TVM_DLL const Op& async_wait();
 TVM_DLL const Op& manual_sync();
 
 namespace attr {
+/*! \brief Hardware thread axis bound to a parallel loop during S-TIR scheduling. */
+constexpr const char* kThreadBinding = "thread_binding";
 
 /*!
  * \brief SBlock annotation selecting a write-tensor index for double buffering in
@@ -388,6 +390,23 @@ constexpr const char* kScheduleRule = "schedule_rule";
 constexpr const char* kMetaScheduleWriteCacheLevel = "s_tir.meta_schedule.write_cache_level";
 
 }  // namespace attr
+
+/*! \brief Interpret and validate S-TIR thread placement on a shared loop. */
+inline ffi::Optional<ffi::String> GetThreadBinding(const ForNode* loop) {
+  if (auto tag = loop->annotations.Get(tvm::s_tir::attr::kThreadBinding)) {
+    TVM_FFI_CHECK(loop->kind == ForKind::kParallel, ValueError)
+        << "thread_binding requires a parallel loop";
+    TVM_FFI_CHECK(tag->as<ffi::String>().has_value(), TypeError)
+        << "thread_binding annotation must be a string";
+    TVM_FFI_CHECK(loop->HasTrivialStep(), ValueError) << "Thread binding loops require a unit step";
+    return tag->cast<ffi::String>();
+  }
+  return std::nullopt;
+}
+inline ffi::Optional<ffi::String> GetThreadBinding(const For& loop) {
+  return GetThreadBinding(loop.get());
+}
+
 }  // namespace s_tir
 }  // namespace tvm
 #endif  // TVM_S_TIR_STMT_H_

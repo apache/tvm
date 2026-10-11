@@ -288,6 +288,8 @@ TVM_DLL Pass CommonSubexprElim();
 
 /*!
  * \brief Annotate a Function with a given target.
+ * \note Device calls must be enclosed in explicit launch_thread or device_entry regions.
+ *       Lower dialect-specific thread bindings before classifying host/device calls.
  * \return The pass.
  */
 TVM_DLL Pass BindTarget(Target target);
@@ -318,15 +320,6 @@ TVM_DLL Pass TileDispatch();
  * \return The pass.
  */
 TVM_DLL Pass LowerTIRxCleanup();
-
-/*!
- * \brief Lower opaque constructs in TIRX programs: allocation calls, For(thread_binding),
- *        unit loop elimination. This is the tirx-specific counterpart of
- *        s_tir::LowerOpaqueBlock and LowerThreadBinding, without any SBlock handling.
- * Run LoopPartition first when thread-binding loops carry loop_partition_hint.
- * \return The pass.
- */
-TVM_DLL Pass LowerTIRxOpaque();
 
 /*!
  * \brief Lower the TIR to a lower level IR for the given target.

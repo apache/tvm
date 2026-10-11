@@ -41,14 +41,14 @@ def test_texture_scope():
 
             B = Ts.sblock_alloc_tensor((128, 128, 4), dtype="float32", scope="global.texture")
 
-            for block_idx in T.thread_binding(0, 128, thread="blockIdx.x"):
-                for thread_idx in T.thread_binding(0, 128, thread="threadIdx.x"):
+            for block_idx in T.parallel(0, 128, annotations={"thread_binding": "blockIdx.x"}):
+                for thread_idx in T.parallel(0, 128, annotations={"thread_binding": "threadIdx.x"}):
                     for k in T.serial(4):
                         with Ts.sblock("B"):
                             vb, vt, vk = Ts.axis.remap("SSS", [block_idx, thread_idx, k])
                             B[vb, vt, vk] = A[vb, vt, vk] + T.float32(1)
-            for block_idx in T.thread_binding(0, 128, thread="blockIdx.x"):
-                for thread_idx in T.thread_binding(0, 128, thread="threadIdx.x"):
+            for block_idx in T.parallel(0, 128, annotations={"thread_binding": "blockIdx.x"}):
+                for thread_idx in T.parallel(0, 128, annotations={"thread_binding": "threadIdx.x"}):
                     for k in T.serial(4):
                         with Ts.sblock("C"):
                             vb, vt, vk = Ts.axis.remap("SSS", [block_idx, thread_idx, k])

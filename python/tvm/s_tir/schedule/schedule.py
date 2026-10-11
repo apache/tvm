@@ -1295,8 +1295,8 @@ class Schedule(Object):
             def after_bind(A: T.Tensor((128, 128)), B: T.Tensor((128, 128))) -> None:
 
 
-                for i in T.thread_binding(0, 128, thread = "blockIdx.x"):
-                    for j in T.thread_binding(0, 128, thread = "threadIdx.x"):
+                for i in T.parallel(0, 128, annotations={"thread_binding": "blockIdx.x"}):
+                    for j in T.parallel(0, 128, annotations={"thread_binding": "threadIdx.x"}):
                         with Ts.sblock("B"):
                             vi, vj = Ts.axis.remap("SS", [i, j])
                             B[vi, vj] = A[vi, vj] * 2.0

@@ -230,13 +230,9 @@ class DenseAdd_scheduled_gpu:
         T_matmul_NT_local = Ts.sblock_alloc_tensor([128, 128], dtype="float32", scope="local")
         p0_shared = Ts.sblock_alloc_tensor([128, 128], dtype="float32", scope="shared")
         p1_shared = Ts.sblock_alloc_tensor([128, 128], dtype="float32", scope="shared")
-        for i0_0_i1_0_fused in T.thread_binding(
-            32,
-            thread="blockIdx.x",
-            annotations={"auto_unroll_max_step": 64, "unroll_explicit": 1},
-        ):
-            for i0_1_i1_1_fused in T.thread_binding(1, thread="vthread.x"):
-                for i0_2_i1_2_fused in T.thread_binding(128, thread="threadIdx.x"):
+        for i0_0_i1_0_fused in T.parallel(32, annotations={"thread_binding": "blockIdx.x", "auto_unroll_max_step": 64, "unroll_explicit": 1}):
+            for i0_1_i1_1_fused in T.parallel(1, annotations={"thread_binding": "vthread.x"}):
+                for i0_2_i1_2_fused in T.parallel(128, annotations={"thread_binding": "threadIdx.x"}):
                     for i0_3_init, i1_3_init, i0_4_init, i1_4_init in T.grid(1, 4, 1, 1):
                         with Ts.sblock("T_matmul_NT_init"):
                             i = Ts.axis.spatial(
@@ -266,7 +262,7 @@ class DenseAdd_scheduled_gpu:
                             T_matmul_NT_local[i, j] = T.float32(0)
                     for i2_0 in T.serial(32):
                         for ax0_ax1_fused_0 in T.serial(1):
-                            for ax0_ax1_fused_1 in T.thread_binding(128, thread="threadIdx.x"):
+                            for ax0_ax1_fused_1 in T.parallel(128, annotations={"thread_binding": "threadIdx.x"}):
                                 for ax0_ax1_fused_2 in T.vectorized(2):
                                     with Ts.sblock("p0_shared"):
                                         Ts.where(
@@ -298,7 +294,7 @@ class DenseAdd_scheduled_gpu:
                                         Ts.writes(p0_shared[v0, v1])
                                         p0_shared[v0, v1] = p0[v0, v1]
                         for ax0_ax1_fused_0 in T.serial(1):
-                            for ax0_ax1_fused_1 in T.thread_binding(128, thread="threadIdx.x"):
+                            for ax0_ax1_fused_1 in T.parallel(128, annotations={"thread_binding": "threadIdx.x"}):
                                 for ax0_ax1_fused_2 in T.vectorized(4):
                                     with Ts.sblock("p1_shared"):
                                         Ts.where(
@@ -1293,8 +1289,8 @@ class Conv2dWinogradAddResidualRelu_scheduled:
         bgemm_local = Ts.sblock_alloc_tensor([6, 6, 196, 64], dtype="float32", scope="local")
         data_pack_shared = Ts.sblock_alloc_tensor([6, 6, 196, 64], dtype="float32", scope="shared")
         p1_shared = Ts.sblock_alloc_tensor([6, 6, 64, 64], dtype="float32", scope="shared")
-        for i2_0_i3_0_i2_1_i3_1_fused_0 in T.thread_binding(98, thread="blockIdx.x", annotations={"auto_unroll_max_step":1024, "unroll_explicit":1}):
-            for i2_0_i3_0_i2_1_i3_1_fused_1 in T.thread_binding(128, thread="threadIdx.x"):
+        for i2_0_i3_0_i2_1_i3_1_fused_0 in T.parallel(98, annotations={"thread_binding": "blockIdx.x", "auto_unroll_max_step":1024, "unroll_explicit":1}):
+            for i2_0_i3_0_i2_1_i3_1_fused_1 in T.parallel(128, annotations={"thread_binding": "threadIdx.x"}):
                 for ax0, ax1, ax2, ax3 in T.grid(6, 6, 1, 1):
                     with Ts.sblock("input_tile"):
                         eps, nu = Ts.axis.remap("SS", [ax0, ax1])
@@ -1325,9 +1321,9 @@ class Conv2dWinogradAddResidualRelu_scheduled:
                                     Ts.writes(data_pack[eps, nu, p, ci])
                                     Ts.sblock_attr({"auto_scheduler_simplify_const_tensor_indices":["eps", "nu", "r_a", "r_b"], "schedule_rule":"meta_schedule.winograd_data_pack.cuda"})
                                     data_pack[eps, nu, p, ci] = data_pack[eps, nu, p, ci] + input_tile_local[r_a, r_b, p, ci] * T.Select(r_a % 6 == 5 and eps % 6 == 5, T.float32(1), T.Select(r_a % 6 == 5 and eps % 6 == 4, T.float32(0), T.Select(r_a % 6 == 5 and eps % 6 == 3, T.float32(0), T.Select(r_a % 6 == 5 and eps % 6 == 2, T.float32(0), T.Select(r_a % 6 == 5 and eps % 6 == 1, T.float32(0), T.Select(r_a % 6 == 5 and eps % 6 == 0, T.float32(0), T.Select(r_a % 6 == 4 and eps % 6 == 5, T.float32(1.5), T.Select(r_a % 6 == 4 and eps % 6 == 4, T.float32(1), T.Select(r_a % 6 == 4 and eps % 6 == 3, T.float32(1), T.Select(r_a % 6 == 4 and eps % 6 == 2, T.float32(1), T.Select(r_a % 6 == 4 and eps % 6 == 1, T.float32(1), T.Select(r_a % 6 == 4 and eps % 6 == 0, T.float32(1), T.Select(r_a % 6 == 3 and eps % 6 == 5, T.float32(-2), T.Select(r_a % 6 == 3 and eps % 6 == 4, T.float32(-0.5), T.Select(r_a % 6 == 3 and eps % 6 == 3, T.float32(2), T.Select(r_a % 6 == 3 and eps % 6 == 2, T.float32(2.5), T.Select(r_a % 6 == 3 and eps % 6 == 1, T.float32(0.5), T.Select(r_a % 6 == 3 and eps % 6 == 0, T.float32(1.5), T.Select(r_a % 6 == 2 and eps % 6 == 5, T.float32(-1.5), T.Select(r_a % 6 == 2 and eps % 6 == 4, T.float32(-1), T.Select(r_a % 6 == 2 and eps % 6 == 3, T.float32(-1), T.Select(r_a % 6 == 2 and eps % 6 == 2, T.float32(0.5), T.Select(r_a % 6 == 2 and eps % 6 == 1, T.float32(-2.5), T.Select(r_a % 6 == 2 and eps % 6 == 0, T.float32(-2), T.Select(r_a % 6 == 1 and eps % 6 == 5, T.float32(1), T.Select(r_a % 6 == 1 and eps % 6 == 4, T.float32(0.5), T.Select(r_a % 6 == 1 and eps % 6 == 3, T.float32(-2), T.Select(r_a % 6 == 1 and eps % 6 == 2, T.float32(-1), T.Select(r_a % 6 == 1 and eps % 6 == 1, T.float32(1), T.Select(r_a % 6 == 1 and eps % 6 == 0, T.float32(-1.5), T.Select(r_a % 6 == 0 and eps % 6 == 5, T.float32(0), T.Select(r_a % 6 == 0 and eps % 6 == 4, T.float32(0), T.Select(r_a % 6 == 0 and eps % 6 == 3, T.float32(0), T.Select(r_a % 6 == 0 and eps % 6 == 2, T.float32(0), T.Select(r_a % 6 == 0 and eps % 6 == 1, T.float32(0), T.Select(r_a % 6 == 0 and eps % 6 == 0, T.float32(1), T.float32(0))))))))))))))))))))))))))))))))))))) * T.Select(r_b % 6 == 5 and nu % 6 == 5, T.float32(1), T.Select(r_b % 6 == 5 and nu % 6 == 4, T.float32(0), T.Select(r_b % 6 == 5 and nu % 6 == 3, T.float32(0), T.Select(r_b % 6 == 5 and nu % 6 == 2, T.float32(0), T.Select(r_b % 6 == 5 and nu % 6 == 1, T.float32(0), T.Select(r_b % 6 == 5 and nu % 6 == 0, T.float32(0), T.Select(r_b % 6 == 4 and nu % 6 == 5, T.float32(1.5), T.Select(r_b % 6 == 4 and nu % 6 == 4, T.float32(1), T.Select(r_b % 6 == 4 and nu % 6 == 3, T.float32(1), T.Select(r_b % 6 == 4 and nu % 6 == 2, T.float32(1), T.Select(r_b % 6 == 4 and nu % 6 == 1, T.float32(1), T.Select(r_b % 6 == 4 and nu % 6 == 0, T.float32(1), T.Select(r_b % 6 == 3 and nu % 6 == 5, T.float32(-2), T.Select(r_b % 6 == 3 and nu % 6 == 4, T.float32(-0.5), T.Select(r_b % 6 == 3 and nu % 6 == 3, T.float32(2), T.Select(r_b % 6 == 3 and nu % 6 == 2, T.float32(2.5), T.Select(r_b % 6 == 3 and nu % 6 == 1, T.float32(0.5), T.Select(r_b % 6 == 3 and nu % 6 == 0, T.float32(1.5), T.Select(r_b % 6 == 2 and nu % 6 == 5, T.float32(-1.5), T.Select(r_b % 6 == 2 and nu % 6 == 4, T.float32(-1), T.Select(r_b % 6 == 2 and nu % 6 == 3, T.float32(-1), T.Select(r_b % 6 == 2 and nu % 6 == 2, T.float32(0.5), T.Select(r_b % 6 == 2 and nu % 6 == 1, T.float32(-2.5), T.Select(r_b % 6 == 2 and nu % 6 == 0, T.float32(-2), T.Select(r_b % 6 == 1 and nu % 6 == 5, T.float32(1), T.Select(r_b % 6 == 1 and nu % 6 == 4, T.float32(0.5), T.Select(r_b % 6 == 1 and nu % 6 == 3, T.float32(-2), T.Select(r_b % 6 == 1 and nu % 6 == 2, T.float32(-1), T.Select(r_b % 6 == 1 and nu % 6 == 1, T.float32(1), T.Select(r_b % 6 == 1 and nu % 6 == 0, T.float32(-1.5), T.Select(r_b % 6 == 0 and nu % 6 == 5, T.float32(0), T.Select(r_b % 6 == 0 and nu % 6 == 4, T.float32(0), T.Select(r_b % 6 == 0 and nu % 6 == 3, T.float32(0), T.Select(r_b % 6 == 0 and nu % 6 == 2, T.float32(0), T.Select(r_b % 6 == 0 and nu % 6 == 1, T.float32(0), T.Select(r_b % 6 == 0 and nu % 6 == 0, T.float32(1), T.float32(0)))))))))))))))))))))))))))))))))))))
-        for i0_0_i1_0_i2_0_i3_0_fused in T.thread_binding(168, thread="blockIdx.x", annotations={"auto_unroll_max_step":1024, "unroll_explicit":1}):
-            for i0_1_i1_1_i2_1_i3_1_fused in T.thread_binding(4, thread="vthread.x"):
-                for i0_2_i1_2_i2_2_i3_2_fused in T.thread_binding(48, thread="threadIdx.x"):
+        for i0_0_i1_0_i2_0_i3_0_fused in T.parallel(168, annotations={"thread_binding": "blockIdx.x", "auto_unroll_max_step":1024, "unroll_explicit":1}):
+            for i0_1_i1_1_i2_1_i3_1_fused in T.parallel(4, annotations={"thread_binding": "vthread.x"}):
+                for i0_2_i1_2_i2_2_i3_2_fused in T.parallel(48, annotations={"thread_binding": "threadIdx.x"}):
                     for i0_3_init, i1_3_init, i2_3_init, i3_3_init, i0_4_init, i1_4_init, i2_4_init, i3_4_init in T.grid(1, 1, 14, 1, 1, 1, 1, 1):
                         with Ts.sblock("bgemm_init"):
                             eps = Ts.axis.spatial(6, i0_1_i1_1_i2_1_i3_1_fused // 2 * 3 + i0_2_i1_2_i2_2_i3_2_fused // 16 + i0_3_init + i0_4_init)
@@ -1340,7 +1336,7 @@ class Conv2dWinogradAddResidualRelu_scheduled:
                             bgemm_local[eps, nu, p, co] = T.float32(0)
                     for i4_0 in T.serial(2):
                         for ax0_ax1_ax2_ax3_fused_0 in T.serial(28):
-                            for ax0_ax1_ax2_ax3_fused_1 in T.thread_binding(48, thread="threadIdx.x"):
+                            for ax0_ax1_ax2_ax3_fused_1 in T.parallel(48, annotations={"thread_binding": "threadIdx.x"}):
                                 for ax0_ax1_ax2_ax3_fused_2 in T.vectorized(4):
                                     with Ts.sblock("data_pack_shared"):
                                         v0 = Ts.axis.spatial(6, (ax0_ax1_ax2_ax3_fused_0 * 192 + ax0_ax1_ax2_ax3_fused_1 * 4 + ax0_ax1_ax2_ax3_fused_2) // 896)
@@ -1351,7 +1347,7 @@ class Conv2dWinogradAddResidualRelu_scheduled:
                                         Ts.writes(data_pack_shared[v0, v1, v2, v3])
                                         data_pack_shared[v0, v1, v2, v3] = data_pack[v0, v1, v2, v3]
                         for ax0_ax1_ax2_ax3_fused_0 in T.serial(16):
-                            for ax0_ax1_ax2_ax3_fused_1 in T.thread_binding(48, thread="threadIdx.x"):
+                            for ax0_ax1_ax2_ax3_fused_1 in T.parallel(48, annotations={"thread_binding": "threadIdx.x"}):
                                 for ax0_ax1_ax2_ax3_fused_2 in T.vectorized(4):
                                     with Ts.sblock("p1_shared"):
                                         v0 = Ts.axis.spatial(6, (ax0_ax1_ax2_ax3_fused_0 * 192 + ax0_ax1_ax2_ax3_fused_1 * 4 + ax0_ax1_ax2_ax3_fused_2) // 512)
@@ -1381,8 +1377,8 @@ class Conv2dWinogradAddResidualRelu_scheduled:
                             Ts.reads(bgemm_local[v0, v1, v2, v3])
                             Ts.writes(bgemm[v0, v1, v2, v3])
                             bgemm[v0, v1, v2, v3] = bgemm_local[v0, v1, v2, v3]
-        for i2_0_i3_0_i2_1_i3_1_fused_0 in T.thread_binding(25, thread="blockIdx.x", annotations={"auto_unroll_max_step":1024, "unroll_explicit":1}):
-            for i2_0_i3_0_i2_1_i3_1_fused_1 in T.thread_binding(512, thread="threadIdx.x"):
+        for i2_0_i3_0_i2_1_i3_1_fused_0 in T.parallel(25, annotations={"thread_binding": "blockIdx.x", "auto_unroll_max_step":1024, "unroll_explicit":1}):
+            for i2_0_i3_0_i2_1_i3_1_fused_1 in T.parallel(512, annotations={"thread_binding": "threadIdx.x"}):
                 for i0 in T.unroll(4):
                     for i1 in T.unroll(4):
                         with Ts.sblock("inverse_init"):
@@ -1406,8 +1402,8 @@ class Conv2dWinogradAddResidualRelu_scheduled:
                                     Ts.writes(inverse[vh, vw, p, co])
                                     Ts.sblock_attr({"auto_scheduler_simplify_const_tensor_indices":["vh", "vw", "r_a", "r_b"], "schedule_rule":"meta_schedule.winograd_inverse.cuda"})
                                     inverse[vh, vw, p, co] = inverse[vh, vw, p, co] + bgemm[r_a, r_b, p, co] * T.Select(r_a % 6 == 5 and vh % 4 == 3, T.float32(1), T.Select(r_a % 6 == 5 and vh % 4 == 2, T.float32(0), T.Select(r_a % 6 == 5 and vh % 4 == 1, T.float32(0), T.Select(r_a % 6 == 5 and vh % 4 == 0, T.float32(0), T.Select(r_a % 6 == 4 and vh % 4 == 3, T.float32(-8), T.Select(r_a % 6 == 4 and vh % 4 == 2, T.float32(4), T.Select(r_a % 6 == 4 and vh % 4 == 1, T.float32(-2), T.Select(r_a % 6 == 4 and vh % 4 == 0, T.float32(1), T.Select(r_a % 6 == 3 and vh % 4 == 3, T.float32(0.125), T.Select(r_a % 6 == 3 and vh % 4 == 2, T.float32(0.25), T.Select(r_a % 6 == 3 and vh % 4 == 1, T.float32(0.5), T.Select(r_a % 6 == 3 and vh % 4 == 0, T.float32(1), T.Select(r_a % 6 == 2 and vh % 4 == 3, T.float32(1), T.Select(r_a % 6 == 2 and vh % 4 == 2, T.float32(1), T.Select(r_a % 6 == 2 and vh % 4 == 1, T.float32(1), T.Select(r_a % 6 == 2 and vh % 4 == 0, T.float32(1), T.Select(r_a % 6 == 1 and vh % 4 == 3, T.float32(-1), T.Select(r_a % 6 == 1 and vh % 4 == 2, T.float32(1), T.Select(r_a % 6 == 1 and vh % 4 == 1, T.float32(-1), T.Select(r_a % 6 == 1 and vh % 4 == 0, T.float32(1), T.Select(r_a % 6 == 0 and vh % 4 == 3, T.float32(0), T.Select(r_a % 6 == 0 and vh % 4 == 2, T.float32(0), T.Select(r_a % 6 == 0 and vh % 4 == 1, T.float32(0), T.Select(r_a % 6 == 0 and vh % 4 == 0, T.float32(1), T.float32(0))))))))))))))))))))))))) * T.Select(r_b % 6 == 5 and vw % 4 == 3, T.float32(1), T.Select(r_b % 6 == 5 and vw % 4 == 2, T.float32(0), T.Select(r_b % 6 == 5 and vw % 4 == 1, T.float32(0), T.Select(r_b % 6 == 5 and vw % 4 == 0, T.float32(0), T.Select(r_b % 6 == 4 and vw % 4 == 3, T.float32(-8), T.Select(r_b % 6 == 4 and vw % 4 == 2, T.float32(4), T.Select(r_b % 6 == 4 and vw % 4 == 1, T.float32(-2), T.Select(r_b % 6 == 4 and vw % 4 == 0, T.float32(1), T.Select(r_b % 6 == 3 and vw % 4 == 3, T.float32(0.125), T.Select(r_b % 6 == 3 and vw % 4 == 2, T.float32(0.25), T.Select(r_b % 6 == 3 and vw % 4 == 1, T.float32(0.5), T.Select(r_b % 6 == 3 and vw % 4 == 0, T.float32(1), T.Select(r_b % 6 == 2 and vw % 4 == 3, T.float32(1), T.Select(r_b % 6 == 2 and vw % 4 == 2, T.float32(1), T.Select(r_b % 6 == 2 and vw % 4 == 1, T.float32(1), T.Select(r_b % 6 == 2 and vw % 4 == 0, T.float32(1), T.Select(r_b % 6 == 1 and vw % 4 == 3, T.float32(-1), T.Select(r_b % 6 == 1 and vw % 4 == 2, T.float32(1), T.Select(r_b % 6 == 1 and vw % 4 == 1, T.float32(-1), T.Select(r_b % 6 == 1 and vw % 4 == 0, T.float32(1), T.Select(r_b % 6 == 0 and vw % 4 == 3, T.float32(0), T.Select(r_b % 6 == 0 and vw % 4 == 2, T.float32(0), T.Select(r_b % 6 == 0 and vw % 4 == 1, T.float32(0), T.Select(r_b % 6 == 0 and vw % 4 == 0, T.float32(1), T.float32(0)))))))))))))))))))))))))
-        for i0_i1_i2_i3_fused_0 in T.thread_binding(1568, thread="blockIdx.x", annotations={"auto_unroll_max_step":1024, "unroll_explicit":1}):
-            for i0_i1_i2_i3_fused_1 in T.thread_binding(128, thread="threadIdx.x"):
+        for i0_i1_i2_i3_fused_0 in T.parallel(1568, annotations={"thread_binding": "blockIdx.x", "auto_unroll_max_step":1024, "unroll_explicit":1}):
+            for i0_i1_i2_i3_fused_1 in T.parallel(128, annotations={"thread_binding": "threadIdx.x"}):
                 with Ts.sblock("conv2d_winograd"):
                     n = Ts.axis.spatial(1, 0)
                     h = Ts.axis.spatial(56, (i0_i1_i2_i3_fused_0 * 128 + i0_i1_i2_i3_fused_1) // 3584)
@@ -1599,9 +1595,9 @@ class Conv2dInt8_with_predicate_scheduled:
             p1_reindex_shared = Ts.sblock_alloc_tensor((1, 1, 256, 64), "int8", scope="shared")
             pad_temp_reindex_shared_wmma_matrix_a = Ts.sblock_alloc_tensor((50176, 64), "int8", scope="wmma.matrix_a")
             p1_reindex_shared_wmma_matrix_b = Ts.sblock_alloc_tensor((1, 1, 256, 64), "int8", scope="wmma.matrix_b")
-            for ax2_0_0_ax3_0_0_fused in T.thread_binding(32, thread="blockIdx.y"):
-                for ax2_0_1_ax3_0_1_fused in T.thread_binding(196, thread="blockIdx.x"):
-                    for ax2_0_2_ax3_0_2_fused in T.thread_binding(4, thread="threadIdx.y"):
+            for ax2_0_0_ax3_0_0_fused in T.parallel(32, annotations={"thread_binding": "blockIdx.y"}):
+                for ax2_0_1_ax3_0_1_fused in T.parallel(196, annotations={"thread_binding": "blockIdx.x"}):
+                    for ax2_0_2_ax3_0_2_fused in T.parallel(4, annotations={"thread_binding": "threadIdx.y"}):
                         for ax0_0, ax1_0, ax4_0_0 in T.grid(1, 1, 2):
                             for ax0_ax1_fused in range(1024):
                                 with Ts.sblock("pad_temp_reindex_shared"):

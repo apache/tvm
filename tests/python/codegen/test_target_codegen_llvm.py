@@ -154,6 +154,17 @@ def test_llvm_large_uintimm():
 
 
 @pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
+def test_return_from_unit_parallel_loop():
+    @T.function
+    def main() -> T.int32:
+        for i in T.parallel(1):
+            return i + 7
+        return 0
+
+    assert tvm.compile(main, target="llvm")() == 7
+
+
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_llvm_multi_parallel():
     @I.ir_module
     class Module:

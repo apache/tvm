@@ -96,10 +96,10 @@ def test_dispatch_multinomial_from_uniform_gpu():
             aggregate = Ts.sblock_alloc_tensor((), scope="local")
             sample_id_local = Ts.sblock_alloc_tensor((), "int64", scope="local")
             step_iter = Ts.sblock_alloc_tensor((), "int32", scope="local")
-            for bx in T.thread_binding(batch_size, thread="blockIdx.x"):
+            for bx in T.parallel(batch_size, annotations={"thread_binding": "blockIdx.x"}):
                 row_idx: T.let[T.int64] = T.Cast("int64", row_indices[bx, 0])
-                for ty in T.thread_binding(T.int64(4), thread="threadIdx.y"):
-                    for tx in T.thread_binding(T.int64(32), thread="threadIdx.x"):
+                for ty in T.parallel(T.int64(4), annotations={"thread_binding": "threadIdx.y"}):
+                    for tx in T.parallel(T.int64(32), annotations={"thread_binding": "threadIdx.x"}):
                         u: T.let[T.float32] = uniform_samples[bx, 0]
                         aggregate[()] = T.Cast("float32", 0)
                         step_iter[()] = 0

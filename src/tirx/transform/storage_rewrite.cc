@@ -1164,7 +1164,7 @@ class StoragePlanRewriter : public StmtExprMutator {
         PlanNewScope(s.stmt);
       } else if (s.stmt->IsInstance<ForNode>()) {
         const auto* op = static_cast<const ForNode*>(s.stmt);
-        if (op->kind == ForKind::kParallel && !tvm::tirx::GetThreadBinding(op).has_value()) {
+        if (op->kind == ForKind::kParallel) {
           if (thread_scope_ == nullptr || thread_scope_ == op) {
             PlanNewScope(op);
           }

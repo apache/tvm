@@ -51,7 +51,7 @@ std::pair<Stmt, ffi::Optional<For>> LiftThreadBindingLoops(Stmt stmt) {
   std::vector<const ForNode*> thread_binding_loops;
   Stmt body = stmt;
   while (const ForNode* loop = body.as<ForNode>()) {
-    if (tvm::tirx::GetThreadBinding(loop).has_value()) {
+    if (tvm::s_tir::GetThreadBinding(loop).has_value()) {
       thread_binding_loops.push_back(loop);
     } else {
       normal_loops.push_back(loop);
@@ -275,8 +275,8 @@ std::pair<Stmt, SeqStmt> InsertCacheStage(Stmt stmt, bool is_write_cache, ffi::S
     body = op->then_case->seq[0];
   }
   for (const For& loop : outer_loops) {
-    if (tvm::tirx::GetThreadBinding(loop).has_value()) {
-      const ffi::String thread_tag = tvm::tirx::GetThreadBinding(loop).value();
+    if (tvm::s_tir::GetThreadBinding(loop).has_value()) {
+      const ffi::String thread_tag = tvm::s_tir::GetThreadBinding(loop).value();
       auto thread_scope = runtime::ThreadScope::Create(thread_tag);
       if (CanRelaxStorageUnderThread(runtime::StorageScope::Create(storage_scope), thread_scope)) {
         if (is_write_cache && thread_scope.dim_index == 0) {

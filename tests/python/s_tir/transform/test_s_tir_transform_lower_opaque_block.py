@@ -72,9 +72,9 @@ def transformed_elementwise_func(
 
 @Ts.function
 def compacted_gpu_func(A: T.Tensor((16, 16), "float32"), C: T.Tensor((16, 16), "float32")) -> None:
-    for i0 in T.thread_binding(0, 4, thread="blockIdx.x"):
-        for i1 in T.thread_binding(0, 2, thread="threadIdx.x"):
-            for i2 in T.thread_binding(0, 2, thread="vthread"):
+    for i0 in T.parallel(0, 4, annotations={"thread_binding": "blockIdx.x"}):
+        for i1 in T.parallel(0, 2, annotations={"thread_binding": "threadIdx.x"}):
+            for i2 in T.parallel(0, 2, annotations={"thread_binding": "vthread"}):
                 with Ts.sblock():
                     Ts.reads(A[i0 * 4 + i1 * 2 + i2, 0:16])
                     Ts.writes(C[i0 * 4 + i1 * 2 + i2, 0:16])
@@ -359,7 +359,7 @@ def test_preserved_annotations():
     tvm.ir.assert_structural_equal(mod["main"], after.with_attr("global_symbol", "main"))
 
 
-def test_none_pragma_annotation():
+def test_preserved_none_pragma_annotation():
     @Ts.function
     def before(A: T.Tensor(8, "float32"), B: T.Tensor(8, "float32")):
         for i in T.serial(8, annotations={"unroll_explicit": None}):
@@ -368,7 +368,7 @@ def test_none_pragma_annotation():
 
     @Ts.function
     def after(A: T.Tensor(8, "float32"), B: T.Tensor(8, "float32")):
-        for i in T.serial(8):
+        for i in T.serial(8, annotations={"unroll_explicit": None}):
             B[i] = A[i] + 1.0
 
     mod = tvm.IRModule.from_expr(before.with_attr("global_symbol", "main"))

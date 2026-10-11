@@ -107,13 +107,13 @@ def gpu_2d_continuous_cumsum(
         src_offset: T.int64,
         tmp_offset: T.int64,
     ):
-        for by in T.thread_binding(batch, thread="blockIdx.y"):
-            for bx in T.thread_binding(num_blocks, thread="blockIdx.x"):
+        for by in T.parallel(batch, annotations={"thread_binding": "blockIdx.y"}):
+            for bx in T.parallel(num_blocks, annotations={"thread_binding": "blockIdx.x"}):
                 with Ts.sblock():
                     local_buf = Ts.sblock_alloc_tensor((thread_elem,), out_dtype, scope="local")
                     shared_buf = Ts.sblock_alloc_tensor((block_elem,), out_dtype, scope="shared")
-                    for ty in T.thread_binding(TY, thread="threadIdx.y"):
-                        for tx in T.thread_binding(TX, thread="threadIdx.x"):
+                    for ty in T.parallel(TY, annotations={"thread_binding": "threadIdx.y"}):
+                        for tx in T.parallel(TX, annotations={"thread_binding": "threadIdx.x"}):
                             tx_idx: T.let[T.int64] = (
                                 bx * block_elem + ty * warp_elem + tx * thread_elem
                             )
@@ -163,10 +163,10 @@ def gpu_2d_continuous_cumsum(
         src_offset: T.int64,
         out_offset: T.int64,
     ):
-        for by in T.thread_binding(batch, thread="blockIdx.y"):
-            for bx in T.thread_binding(num_blocks, thread="blockIdx.x"):
-                for ty in T.thread_binding(TY, thread="threadIdx.y"):
-                    for tx in T.thread_binding(TX, thread="threadIdx.x"):
+        for by in T.parallel(batch, annotations={"thread_binding": "blockIdx.y"}):
+            for bx in T.parallel(num_blocks, annotations={"thread_binding": "blockIdx.x"}):
+                for ty in T.parallel(TY, annotations={"thread_binding": "threadIdx.y"}):
+                    for tx in T.parallel(TX, annotations={"thread_binding": "threadIdx.x"}):
                         for i in T.serial(N):
                             idx: T.let[T.int64] = bx * block_elem + ty * warp_elem + i * TX + tx
                             if idx < cur_len:
@@ -265,8 +265,10 @@ def gpu_3d_axis_1_cumsum(
     ):
         T.func_attr({"tirx.is_scheduled": True})
 
-        for bx in T.thread_binding(T.ceildiv(outer * inner, TX), thread="blockIdx.x"):
-            for tx in T.thread_binding(TX, thread="threadIdx.x"):
+        for bx in T.parallel(
+            T.ceildiv(outer * inner, TX), annotations={"thread_binding": "blockIdx.x"}
+        ):
+            for tx in T.parallel(TX, annotations={"thread_binding": "threadIdx.x"}):
                 row: T.let[T.int64] = bx * TX + tx
                 with Ts.sblock():
                     accumulator = Ts.sblock_alloc_tensor((), out_dtype, scope="local")

@@ -112,13 +112,13 @@ def cuda_workload(inp0: T.Tensor((T.int64(1), m, T.int64(4096))), inp1: T.Tensor
     matmul_reindex_pad_local = Ts.sblock_alloc_tensor((T.int64(1), (m + T.int64(31)) // T.int64(32) * T.int64(32), T.int64(4096)), scope="local")
     inp0_reindex_pad_shared = Ts.sblock_alloc_tensor((T.int64(1), (m + T.int64(31)) // T.int64(32) * T.int64(32), T.int64(4096)), scope="shared")
     inp1_reindex_shared = Ts.sblock_alloc_tensor((T.int64(1), T.int64(4096), T.int64(4096)), scope="shared")
-    for ax0 in T.thread_binding(T.int64(1), thread="blockIdx.z"):
-        for ax1_0 in T.thread_binding((m + T.int64(31)) // T.int64(32), thread="blockIdx.x"):
-            for ax2_0 in T.thread_binding(T.int64(64), thread="blockIdx.y"):
-                for ax2_1 in T.thread_binding(T.int64(1), thread="vthread.y"):
-                    for ax1_1 in T.thread_binding(T.int64(1), thread="vthread.x"):
-                        for ax2_2 in T.thread_binding(T.int64(16), thread="threadIdx.y"):
-                            for ax1_2 in T.thread_binding(T.int64(8), thread="threadIdx.x", annotations={"auto_unroll_max_step": 256, "unroll_explicit": 1}):
+    for ax0 in T.parallel(T.int64(1), annotations={"thread_binding": "blockIdx.z"}):
+        for ax1_0 in T.parallel((m + T.int64(31)) // T.int64(32), annotations={"thread_binding": "blockIdx.x"}):
+            for ax2_0 in T.parallel(T.int64(64), annotations={"thread_binding": "blockIdx.y"}):
+                for ax2_1 in T.parallel(T.int64(1), annotations={"thread_binding": "vthread.y"}):
+                    for ax1_1 in T.parallel(T.int64(1), annotations={"thread_binding": "vthread.x"}):
+                        for ax2_2 in T.parallel(T.int64(16), annotations={"thread_binding": "threadIdx.y"}):
+                            for ax1_2 in T.parallel(T.int64(8), annotations={"thread_binding": "threadIdx.x", "auto_unroll_max_step": 256, "unroll_explicit": 1}):
                                 for ax2_3_init, ax1_3_init in T.grid(T.int64(4), T.int64(4)):
                                     with Ts.sblock("matmul_init"):
                                         v0 = Ts.axis.spatial(T.int64(1), ax0)
@@ -128,8 +128,8 @@ def cuda_workload(inp0: T.Tensor((T.int64(1), m, T.int64(4096))), inp1: T.Tensor
                                         Ts.writes(matmul_reindex_pad_local[T.int64(0), v1, v2])
                                         matmul_reindex_pad_local[T.int64(0), v1, v2] = T.float32(0)
                                 for ax3_0 in range(T.int64(256)):
-                                    for ax0_ax1_ax2_fused_0 in T.thread_binding(T.int64(16), thread="threadIdx.y"):
-                                        for ax0_ax1_ax2_fused_1 in T.thread_binding(T.int64(8), thread="threadIdx.x"):
+                                    for ax0_ax1_ax2_fused_0 in T.parallel(T.int64(16), annotations={"thread_binding": "threadIdx.y"}):
+                                        for ax0_ax1_ax2_fused_1 in T.parallel(T.int64(8), annotations={"thread_binding": "threadIdx.x"}):
                                             for ax0_ax1_ax2_fused_2 in range(T.int64(2)):
                                                 for ax0_ax1_ax2_fused_3 in T.vectorized(T.int64(2)):
                                                     with Ts.sblock("inp0_reindex_pad_shared"):
@@ -140,8 +140,8 @@ def cuda_workload(inp0: T.Tensor((T.int64(1), m, T.int64(4096))), inp1: T.Tensor
                                                         Ts.writes(inp0_reindex_pad_shared[v0, v1, v2])
                                                         Ts.sblock_attr({"tensor_dim_align": [[0, 1, 8, 2]]})
                                                         inp0_reindex_pad_shared[v0, v1, v2] = T.if_then_else(v1 < m, inp0[v0, v1, v2], T.float32(0))
-                                    for ax0_ax1_ax2_fused_0 in T.thread_binding(T.int64(16), thread="threadIdx.y"):
-                                        for ax0_ax1_ax2_fused_1 in T.thread_binding(T.int64(8), thread="threadIdx.x"):
+                                    for ax0_ax1_ax2_fused_0 in T.parallel(T.int64(16), annotations={"thread_binding": "threadIdx.y"}):
+                                        for ax0_ax1_ax2_fused_1 in T.parallel(T.int64(8), annotations={"thread_binding": "threadIdx.x"}):
                                             for ax0_ax1_ax2_fused_2 in range(T.int64(4)):
                                                 for ax0_ax1_ax2_fused_3 in T.vectorized(T.int64(2)):
                                                     with Ts.sblock("inp1_reindex_shared"):

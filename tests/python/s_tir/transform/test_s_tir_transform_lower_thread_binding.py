@@ -49,12 +49,12 @@ def _check_fail(original):
 def element_wise_thread_x(
     A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 128])
 ) -> None:
-    for i in T.thread_binding(0, 128, "blockIdx.x"):
-        for j0_0 in T.thread_binding(0, 4, "threadIdx.x"):
+    for i in T.parallel(0, 128, annotations={"thread_binding": "blockIdx.x"}):
+        for j0_0 in T.parallel(0, 4, annotations={"thread_binding": "threadIdx.x"}):
             for j0_1 in T.serial(0, 32):
                 with Ts.sblock(""):
                     B[i, j0_0 * 32 + j0_1] = A[i, j0_0 * 32 + j0_1] * 2.0
-        for j1_0 in T.thread_binding(0, 4, "threadIdx.x"):
+        for j1_0 in T.parallel(0, 4, annotations={"thread_binding": "threadIdx.x"}):
             for j1_1 in T.serial(0, 32):
                 with Ts.sblock(""):
                     C[i, j1_0 * 32 + j1_1] = B[i, j1_0 * 32 + j1_1] + 1.0
@@ -81,12 +81,12 @@ def element_wise_thread_x_different_dtype(
     B: T.Tensor((128, 128), "float32"),
     C: T.Tensor((128, 128), "float32"),
 ) -> None:
-    for i in T.thread_binding(128, "blockIdx.x"):
-        for j0_0 in T.thread_binding(4, "threadIdx.x"):
+    for i in T.parallel(128, annotations={"thread_binding": "blockIdx.x"}):
+        for j0_0 in T.parallel(4, annotations={"thread_binding": "threadIdx.x"}):
             for j0_1 in T.serial(0, 32):
                 with Ts.sblock(""):
                     B[i, j0_0 * 32 + j0_1] = A[i, j0_0 * 32 + j0_1] * 2.0
-        for j1_0 in T.thread_binding(T.int64(4), "threadIdx.x"):
+        for j1_0 in T.parallel(T.int64(4), annotations={"thread_binding": "threadIdx.x"}):
             for j1_1 in T.serial(T.int64(32)):
                 with Ts.sblock(""):
                     C[i, j1_0 * T.int64(32) + j1_1] = B[i, j1_0 * T.int64(32) + j1_1] + 1.0
@@ -143,9 +143,9 @@ def lowered_element_wise_launch_thread_x(
 
 @Ts.function
 def element_wise_vthread_x(A: T.Tensor([128, 128]), B: T.Tensor([128, 128])) -> None:
-    for i_0 in T.thread_binding(0, 2, "vthread.x"):
-        for i_1 in T.thread_binding(0, 64, "threadIdx.x"):
-            for j_0 in T.thread_binding(0, 2, "vthread.x"):
+    for i_0 in T.parallel(0, 2, annotations={"thread_binding": "vthread.x"}):
+        for i_1 in T.parallel(0, 64, annotations={"thread_binding": "threadIdx.x"}):
+            for j_0 in T.parallel(0, 2, annotations={"thread_binding": "vthread.x"}):
                 for j_1 in T.serial(0, 64):
                     with Ts.sblock(""):
                         B[i_0 * 64 + i_1, j_0 * 64 + j_1] = A[i_0 * 64 + i_1, j_0 * 64 + j_1] * 2.0
@@ -165,10 +165,10 @@ def lowered_element_wise_vthread_x(A: T.Tensor([128, 128]), B: T.Tensor([128, 12
 def element_wise_two_thread_x_in_same_kernel_not_equal(
     A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 64])
 ) -> None:
-    for i in T.thread_binding(0, 128, "blockIdx.x"):
-        for j0 in T.thread_binding(0, 128, "threadIdx.x"):
+    for i in T.parallel(0, 128, annotations={"thread_binding": "blockIdx.x"}):
+        for j0 in T.parallel(0, 128, annotations={"thread_binding": "threadIdx.x"}):
             B[i, j0] = A[i, j0] * 2.0
-        for j1 in T.thread_binding(0, 64, "threadIdx.x"):
+        for j1 in T.parallel(0, 64, annotations={"thread_binding": "threadIdx.x"}):
             C[i, j1] = A[i, j1] + 1.0
 
 
@@ -179,11 +179,11 @@ def element_wise_kernels_with_different_size(
     C: T.Tensor([256, 256]),
     D: T.Tensor([256, 256]),
 ) -> None:
-    for i0 in T.thread_binding(0, 128, "blockIdx.x"):
-        for j0 in T.thread_binding(0, 128, "threadIdx.x"):
+    for i0 in T.parallel(0, 128, annotations={"thread_binding": "blockIdx.x"}):
+        for j0 in T.parallel(0, 128, annotations={"thread_binding": "threadIdx.x"}):
             B[i0, j0] = A[i0, j0] * 2.0
-    for i1 in T.thread_binding(0, 256, "blockIdx.x"):
-        for j1 in T.thread_binding(0, 256, "threadIdx.x"):
+    for i1 in T.parallel(0, 256, annotations={"thread_binding": "blockIdx.x"}):
+        for j1 in T.parallel(0, 256, annotations={"thread_binding": "threadIdx.x"}):
             D[i1, j1] = C[i1, j1] + 1.0
 
 
@@ -206,12 +206,12 @@ def lowered_element_wise_kernels_with_different_size(
 def element_wise_implicit_block(
     A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 128])
 ) -> None:
-    for i in T.thread_binding(0, 128, "threadIdx.y"):
-        for j0_0 in T.thread_binding(0, 4, "threadIdx.x"):
+    for i in T.parallel(0, 128, annotations={"thread_binding": "threadIdx.y"}):
+        for j0_0 in T.parallel(0, 4, annotations={"thread_binding": "threadIdx.x"}):
             for j0_1 in T.serial(0, 32):
                 with Ts.sblock(""):
                     B[i, j0_0 * 32 + j0_1] = A[i, j0_0 * 32 + j0_1] * 2.0
-        for j1_0 in T.thread_binding(0, 4, "threadIdx.x"):
+        for j1_0 in T.parallel(0, 4, annotations={"thread_binding": "threadIdx.x"}):
             for j1_1 in T.serial(0, 32):
                 with Ts.sblock(""):
                     C[i, j1_0 * 32 + j1_1] = B[i, j1_0 * 32 + j1_1] + 1.0
@@ -265,8 +265,10 @@ def test_implicit_block():
 def test_inner_binding_with_annotation():
     @Ts.function
     def inner_binding_with_annotation(A: T.Tensor((64,), "float32"), B: T.Tensor((64,), "float32")):
-        for bx in T.thread_binding(32, "blockIdx.x"):
-            for tx in T.thread_binding(2, "threadIdx.x", annotations={"my_annotation": 1}):
+        for bx in T.parallel(32, annotations={"thread_binding": "blockIdx.x"}):
+            for tx in T.parallel(
+                2, annotations={"thread_binding": "threadIdx.x", "my_annotation": 1}
+            ):
                 with Ts.sblock("block"):
                     v = Ts.axis.spatial(64, bx * 2 + tx)
                     B[v] = A[v]
@@ -285,6 +287,54 @@ def test_inner_binding_with_annotation():
                         B[v] = A[v]
 
     _check(inner_binding_with_annotation, lowered_inner_binding_with_annotation)
+
+
+def test_inherited_unroll_policy_after_binding_lowering():
+    import tvm_ffi
+
+    @Ts.function
+    def before(A: T.Tensor((32,), "int32")):
+        for tx in T.parallel(
+            4,
+            annotations={
+                "thread_binding": "threadIdx.x",
+                "auto_unroll_max_step": 16,
+                "unroll_explicit": 0,
+            },
+        ):
+            for inherited in T.serial(4):
+                A[tx * 4 + inherited] = inherited
+            for overridden in T.serial(
+                4, annotations={"auto_unroll_max_step": 0, "unroll_explicit": 1}
+            ):
+                A[tx * 4 + overridden] = overridden + 1
+        for sibling in T.serial(4):
+            A[sibling] = 0
+
+    lowered = tvm.transform.Sequential(
+        [
+            s_tir.transform.LowerOpaqueBlock(),
+            s_tir.transform.LowerThreadBinding(),
+            tvm.tirx.transform.UnrollLoop(),
+        ]
+    )(tvm.IRModule({"main": before}))
+    loops = {}
+    launches = []
+
+    def collect(node):
+        if isinstance(node, tvm.ir.For):
+            loops[node.loop_var.name] = node
+            assert "thread_binding" not in node.annotations
+            assert "auto_unroll_max_step" not in node.annotations
+            assert "unroll_explicit" not in node.annotations
+        elif isinstance(node, tvm.ir.RegionStmt) and node.op.name == "tirx.launch_thread":
+            launches.append(node)
+
+    tvm_ffi.structural_walk(lowered["main"].body, collect)
+    assert len(launches) == 1
+    assert loops["inherited"].kind == tvm.ir.ForKind.UNROLLED
+    assert loops["overridden"].kind == tvm.ir.ForKind.DEFAULT
+    assert loops["sibling"].kind == tvm.ir.ForKind.DEFAULT
 
 
 if __name__ == "__main__":

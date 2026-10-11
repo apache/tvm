@@ -26,7 +26,6 @@
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/sym/analyzer.h>
 #include <tvm/tirx/layout.h>
 #include <tvm/tirx/script/ir_builder/ir.h>
 #include <tvm/tirx/stmt.h>
@@ -133,75 +132,6 @@ tvm::Type FuncRet(tvm::Type ret_type) {
   }
   frame->ret_type = ret_type;
   return ret_type;
-}
-
-namespace {
-ForFrame WithThreadBindingValidation(ForFrame frame) {
-  auto make_loop = frame->f_make_for_loop;
-  frame->f_make_for_loop = [make_loop](ffi::Array<Var> vars, ffi::Array<Range> doms,
-                                       ffi::Array<ffi::Optional<PrimExpr>> steps, tvm::SeqStmt body,
-                                       Location loc) {
-    auto loop = make_loop(vars, doms, steps, body, loc).as_or_throw<tvm::For>();
-    tvm::tirx::GetThreadBinding(loop);
-    return loop;
-  };
-  return frame;
-}
-}  // namespace
-
-ForFrame Serial(PrimExpr start, PrimExpr stop,
-                ffi::Optional<ffi::Map<ffi::String, Any>> annotations, ffi::Optional<PrimExpr> step,
-                ffi::Optional<PrimType> dtype) {
-  return WithThreadBindingValidation(ir::Serial(start, stop, annotations, step, dtype));
-}
-
-ForFrame Parallel(PrimExpr start, PrimExpr stop,
-                  ffi::Optional<ffi::Map<ffi::String, Any>> annotations,
-                  ffi::Optional<PrimExpr> step, ffi::Optional<PrimType> dtype) {
-  return WithThreadBindingValidation(ir::Parallel(start, stop, annotations, step, dtype));
-}
-
-ForFrame Vectorized(PrimExpr start, PrimExpr stop,
-                    ffi::Optional<ffi::Map<ffi::String, Any>> annotations,
-                    ffi::Optional<PrimExpr> step, ffi::Optional<PrimType> dtype) {
-  return WithThreadBindingValidation(ir::Vectorized(start, stop, annotations, step, dtype));
-}
-
-ForFrame Unroll(PrimExpr start, PrimExpr stop,
-                ffi::Optional<ffi::Map<ffi::String, Any>> annotations, ffi::Optional<PrimExpr> step,
-                ffi::Optional<PrimType> dtype) {
-  return WithThreadBindingValidation(ir::Unroll(start, stop, annotations, step, dtype));
-}
-
-ForFrame ThreadBinding(PrimExpr start, PrimExpr stop, ffi::String thread,
-                       ffi::Optional<ffi::Map<ffi::String, Any>> annotations) {
-  using namespace tvm::tirx;
-  PrimExpr min = start;
-  PrimExpr extent = sym::Analyzer()->Simplify(stop - start);
-  ffi::ObjectPtr<ForFrameNode> n = ffi::make_object<ForFrameNode>();
-  PrimType min_ty = min.ty();
-  PrimType extent_ty = extent.ty();
-  int bits = std::max(min_ty.bits(), extent_ty.bits());
-  PrimType dtype = min_ty.WithBits(bits).WithLanes(1);
-  n->vars = {Var("v", dtype)};
-  n->doms = {Range::FromMinExtent(min, extent)};
-  n->steps = {std::nullopt};
-  n->f_make_for_loop = [annotations, thread, dtype](ffi::Array<Var> vars, ffi::Array<Range> doms,
-                                                    ffi::Array<ffi::Optional<PrimExpr>> steps,
-                                                    SeqStmt body, Location loc) -> For {
-    TVM_FFI_ICHECK_EQ(vars.size(), 1);
-    TVM_FFI_ICHECK_EQ(doms.size(), 1);
-    TVM_FFI_ICHECK(steps.size() == 1 && (!steps[0].has_value() || IsOne(*steps[0])));
-    auto loop_annotations = annotations.value_or(ffi::Map<ffi::String, ffi::Any>());
-    if (auto existing = loop_annotations.Get(tvm::tirx::attr::kThreadBinding)) {
-      TVM_FFI_CHECK(existing->cast<ffi::String>() == thread, ValueError)
-          << "Conflicting thread_binding annotation and thread argument";
-    }
-    loop_annotations.Set(tvm::tirx::attr::kThreadBinding, thread);
-    return For(vars[0].as_or_throw<tvm::PrimVar>(), doms[0]->min, doms[0]->extent,
-               ForKind::kParallel, body, std::move(loop_annotations), std::nullopt, loc);
-  };
-  return ForFrame(n);
 }
 
 tvm::Stmt TensorStore(Expr dest, ffi::Array<PrimExpr> indices, PrimExpr value) {
@@ -335,11 +265,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("script.ir_builder.tirx.FuncName", FuncName)
       .def("script.ir_builder.tirx.FuncAttrs", FuncAttrs)
       .def("script.ir_builder.tirx.FuncRet", FuncRet)
-      .def("script.ir_builder.tirx.Serial", Serial)
-      .def("script.ir_builder.tirx.Parallel", Parallel)
-      .def("script.ir_builder.tirx.Vectorized", Vectorized)
-      .def("script.ir_builder.tirx.Unroll", Unroll)
-      .def("script.ir_builder.tirx.ThreadBinding", ThreadBinding)
       .def("script.ir_builder.tirx.TensorStore", TensorStore)
       .def("script.ir_builder.tirx.Ptr", Ptr);
 }

@@ -188,7 +188,6 @@ def build(
         assert isinstance(mod, tvm.IRModule)
 
     from tvm.backend.config import prepare_target
-    from tvm.backend.cuda.transforms import BindBackendConfig, SpecializeEntryHelpers
 
     target = prepare_target(target, mod)
 
@@ -221,27 +220,25 @@ def build(
     target_host = Target(target_host)
     target_to_bind = target_to_bind.with_host(target_host)
 
-    # Step 3: Bind the target to the input module
-    mod = tvm.tirx.transform.BindTarget(target_to_bind)(mod)
-    mod = BindBackendConfig()(mod)
-    mod = SpecializeEntryHelpers()(mod)
-
-    # Step 4: Apply the tirx pipeline
+    # Step 3: Select a pipeline that binds targets after lowering thread launches.
+    # Classification and helper specialization require the complete mixed module.
     if pipeline not in (None, "default"):
         # custom pipeline
         assert isinstance(pipeline, str)
-        pipeline, finalize_host_passes, finalize_device_passes = tvm.tirx.get_tir_pipeline(pipeline)
+        pipeline, finalize_host_passes, finalize_device_passes = tvm.tirx.get_tir_pipeline(
+            pipeline, target=target_to_bind
+        )
     else:
         # default pipeline depends on the target
         pipeline, finalize_host_passes, finalize_device_passes = tvm.tirx.get_default_tir_pipeline(
-            target, mod
+            target, mod, target_to_bind=target_to_bind
         )
     mod = pipeline(mod)
 
-    # Step 5: Get host and device modules
+    # Step 4: Get host and device modules
     host_mod, device_mod_dict = split_host_device_mods(mod)
 
-    # Step 6: Apply finalization passes
+    # Step 5: Apply finalization passes
     host_mod = finalize_host_passes()(host_mod)
     device_mod_dict = {
         target: finalize_device_passes()(device_mod)

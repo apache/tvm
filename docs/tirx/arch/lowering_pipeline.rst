@@ -43,7 +43,15 @@ generator:
 The passes
 ----------
 
-The ``tirx_pipeline`` module pass applies this exact sequence (a few are gated by
+S-TIR represents scheduled thread placement with ordinary ``T.parallel`` loops
+and a visible ``thread_binding`` annotation. S-TIR normalization removes
+unannotated extent-one loops, and ``LowerThreadBinding`` converts thread-bound
+loops to explicit ``T.launch_thread`` regions before generic TIRx transforms.
+TIRx source can construct these regions directly. The generic pipeline uses
+``StmtSimplify`` for arithmetic simplification and ``UnrollLoop`` for inherited
+loop unroll policies.
+
+The ``tirx_pipeline`` module pass applies this sequence (a few passes are gated by
 ``PassContext`` config):
 
 .. list-table::
@@ -60,55 +68,52 @@ The ``tirx_pipeline`` module pass applies this exact sequence (a few are gated b
      - ``StmtSimplify``
      - statement-level arithmetic simplification (the sym analyzer)
    * - 3
-     - ``LowerTIRxOpaque``
-     - lowers remaining opaque constructs to lower-level TIRx forms
-   * - 4
      - ``FlattenTensor``
      - flattens multi-dimensional ``TensorLoad`` / ``TensorStore`` to 1-D
-   * - 5
+   * - 4
      - ``BF16ComputeLegalize``
      - rewrites ``bfloat16`` compute to a legal (f32-up-cast) form
-   * - 6
+   * - 5
      - ``NarrowDataType(32)``
      - narrows index/loop ``PrimExpr`` dtypes to 32-bit where provably safe
-   * - 7
+   * - 6
      - ``VectorizeLoop``
      - turns ``Tx.vectorized`` loops into vector ops (skipped if
        ``tir.disable_vectorize``)
-   * - 8
+   * - 7
      - ``UnrollLoop``
      - unrolls loops marked ``Tx.unroll`` (and small constant loops)
-   * - 9
+   * - 8
      - ``StmtSimplify``
      - simplify again, now that vectorize/unroll exposed constants
-   * - 10
+   * - 9
      - ``CommonSubexprElim``
      - hoists repeated subexpressions into temporaries (skipped if
        ``tir.disable_cse_tir``)
-   * - 11
+   * - 10
      - ``FP8ComputeLegalize``
      - rewrites ``float8`` compute to a legal form
-   * - 12
+   * - 11
      - ``VerifyMemory``
      - checks no host-side code directly dereferences device memory (a safety gate)
-   * - 13
+   * - 12
      - ``AnnotateEntryFunc``
      - marks the single Function as the module entry point
-   * - 14
+   * - 13
      - ``SplitHostDevice``
      - extracts target-annotated device regions into **device** functions and
        leaves launch calls in the **host** function; the regions originate from
        the explicit ``LaunchConfig`` attached to ``Tx.device_entry``
-   * - 15
+   * - 14
      - ``LowerIket``
      - lowers CUDA IKET instrumentation after host/device splitting
-   * - 16
+   * - 15
      - ``MakePackedAPI``
      - rewrites the host function to the packed-func ABI (the launcher TVM calls)
-   * - 17
+   * - 16
      - ``FP8StorageLegalize``
      - legalizes ``float8`` storage (packing into supported container types)
-   * - 18
+   * - 17
      - ``BF16StorageLegalize``
      - legalizes ``bfloat16`` storage
 

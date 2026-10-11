@@ -18,6 +18,8 @@
 # pylint: disable=invalid-name
 """The S-TIR backend compilation pipeline."""
 
+import tvm_ffi
+
 import tvm
 from tvm import s_tir, tirx
 from tvm.tirx import compilation_pipeline as tir_pipeline
@@ -25,15 +27,17 @@ from tvm.tirx import compilation_pipeline as tir_pipeline
 tir = tirx  # alias for backward compat
 
 
-def default_s_tir_pipeline(*, prepare_only=False):
-    """The default tirx pipeline used in tvm.tirx.build"""
+def default_s_tir_pipeline(*, prepare_only=False, target=None):
+    """Lower S-TIR, binding targets after thread launches become explicit."""
+    return _s_tir_pipeline(prepare_only=prepare_only, target=target)
 
-    @tvm.transform.module_pass(opt_level=0)
-    def _pipeline(mod: tvm.ir.IRModule, _ctx: tvm.transform.PassContext) -> tvm.ir.IRModule:
-        """The default lowering passes for TIR backend."""
-        pass_ctx = tvm.transform.PassContext.current()
-        config = pass_ctx.config
-        passes = [
+
+def _lower_s_tir(*, adreno=False):
+    passes = []
+    if adreno:
+        passes.append(s_tir.backend.adreno.transform.TextureFlatten())
+    passes.extend(
+        [
             s_tir.transform.CanonicalizeLoop(),
             s_tir.transform.LowerCrossThreadReduction(),
             s_tir.transform.LowerInitBlock(),
@@ -52,12 +56,27 @@ def default_s_tir_pipeline(*, prepare_only=False):
             s_tir.transform.LoopPartition(),
             s_tir.transform.LowerOpaqueBlock(),
             s_tir.transform.LowerThreadBinding(),
-            tirx.transform.FlattenTensor(),
-            tirx.transform.BF16ComputeLegalize(),
-            tirx.transform.NarrowDataType(32),
-            tirx.transform.VectorizeLoop(not bool(config.get("tirx.disable_vectorize", False))),
-            s_tir.transform.InjectVirtualThread(),
         ]
+    )
+    return tvm.transform.Sequential(passes)
+
+
+def _lower_s_tir_tail(*, adreno=False):
+    @tvm.transform.module_pass(opt_level=0)
+    def _pipeline(mod, _ctx):
+        config = tvm.transform.PassContext.current().config
+        passes = []
+        if adreno:
+            passes.append(s_tir.backend.adreno.transform.InjectTextureAlloc())
+        passes.extend(
+            [
+                tirx.transform.FlattenTensor(),
+                tirx.transform.BF16ComputeLegalize(),
+                tirx.transform.NarrowDataType(32),
+                tirx.transform.VectorizeLoop(not bool(config.get("tirx.disable_vectorize", False))),
+                s_tir.transform.InjectVirtualThread(),
+            ]
+        )
         if not bool(config.get("tirx.disable_storage_rewrite", False)):
             passes.append(tirx.transform.StorageRewrite())
         passes.extend(
@@ -96,20 +115,114 @@ def default_s_tir_pipeline(*, prepare_only=False):
             passes.append(s_tir.transform.InjectPTXAsyncCopy())
         passes.append(s_tir.transform.LowerSynchronization())
         passes.append(s_tir.transform.MergeSharedMemoryAllocations())
-        if not prepare_only:
-            passes.extend(
-                [
-                    tirx.transform.AnnotateEntryFunc(),
-                    tirx.transform.SplitHostDevice(),
-                    tirx.transform.MakePackedAPI(),
-                    tirx.transform.FP8StorageLegalize(),
-                    tirx.transform.BF16StorageLegalize(),
-                ]
+        return tvm.transform.Sequential(passes)(mod)
+
+    return _pipeline
+
+
+def _partition_dialects(mod):
+    scheduled = {}
+    native = {}
+    for gv, func in mod.functions.items():
+        group = scheduled if isinstance(func, tirx.Function) and not func.is_tirx else native
+        group[gv] = func
+    return scheduled, native
+
+
+def _submodule(mod, functions):
+    return tvm.IRModule(functions, attrs=mod.attrs, global_infos=mod.global_infos)
+
+
+def _s_tir_pipeline(*, prepare_only=False, target=None, adreno=False):
+    @tvm.transform.module_pass(opt_level=0)
+    def _pipeline(mod, _ctx):
+        scheduled, native = _partition_dialects(mod)
+        prepared = _submodule(mod, {})
+        if scheduled:
+            prepared.update(_lower_s_tir(adreno=adreno)(_submodule(mod, scheduled)))
+        if native:
+            prepared.update(tir_pipeline._lower_thread_binding()(_submodule(mod, native)))
+
+        # Classification sees every caller after each dialect has explicit launches.
+        prepared = tir_pipeline._bind_target(prepared, target)
+        # Target binding and specialization can clone helpers. Select their tails
+        # from the current function dialect, not from the original GlobalVars.
+        scheduled, native = _partition_dialects(prepared)
+        lowered = _submodule(prepared, {})
+        if scheduled:
+            lowered.update(_lower_s_tir_tail(adreno=adreno)(_submodule(prepared, scheduled)))
+        if native:
+            lower_native, _, _ = tir_pipeline.tirx_pipeline(
+                prepare_only=True, _bindings_lowered=True
             )
-        mod = tvm.transform.Sequential(passes)(mod)
-        return mod
+            lowered.update(lower_native(_submodule(prepared, native)))
+        if prepare_only:
+            return lowered
+        if native:
+            return tir_pipeline.finalize_tir_pipeline()(lowered)
+        return tvm.transform.Sequential(
+            [
+                tirx.transform.AnnotateEntryFunc(),
+                tirx.transform.SplitHostDevice(),
+                tirx.transform.MakePackedAPI(),
+                tirx.transform.FP8StorageLegalize(),
+                tirx.transform.BF16StorageLegalize(),
+            ]
+        )(lowered)
 
     return _pipeline, finalize_host_passes, finalize_device_passes
+
+
+def _prepare_legacy_target_binding(mod):
+    """Keep custom scheduling pipelines intact when prebinding is unambiguous."""
+    scheduled, native = _partition_dialects(mod)
+    in_binding = False
+    in_device_region = False
+
+    def visit_loop(loop, visitor):
+        nonlocal in_binding
+        visitor.visit(loop.min)
+        visitor.visit(loop.extent)
+        visitor.visit(loop.step)
+        visitor.visit(loop.annotations)
+        previous = in_binding
+        in_binding = previous or loop.annotations.get("thread_binding") is not None
+        visitor.visit(loop.body)
+        in_binding = previous
+
+    def visit_region(region, visitor):
+        nonlocal in_device_region
+        visitor.visit(region.args)
+        visitor.visit(region.attrs)
+        previous = in_device_region
+        in_device_region = previous or region.op.name in ("tirx.launch_thread", "tirx.device_entry")
+        visitor.visit(region.body)
+        in_device_region = previous
+
+    def visit_call(call, visitor):
+        if in_binding and not in_device_region and isinstance(call.op, tvm.ir.GlobalVar):
+            raise ValueError(
+                "A custom pipeline with calls inside S-TIR thread bindings must accept "
+                "an explicit target keyword and bind it after LowerThreadBinding. "
+                'Delegate to get_tir_pipeline("s_tir", target=target) or lower the '
+                "complete mixed module before BindTarget."
+            )
+        return visitor.default_visit(call)
+
+    for func in scheduled.values():
+        tvm_ffi.structural_visit(
+            func.body,
+            [
+                (tvm.ir.For, visit_loop),
+                (tvm.ir.RegionStmt, visit_region),
+                (tvm.ir.Call, visit_call),
+            ],
+        )
+    if native:
+        prepared = _submodule(mod, scheduled)
+        prepared.update(tir_pipeline._lower_thread_binding()(_submodule(mod, native)))
+        return prepared
+    return mod
 
 
 def finalize_host_passes():  # pylint: disable=unused-argument
@@ -134,37 +247,15 @@ def finalize_device_passes():  # pylint: disable=unused-argument
 tir_pipeline.PIPELINE_MAP["s_tir"] = default_s_tir_pipeline
 
 
-def _select_default_pipeline(mod, target):
+def _select_default_pipeline(mod, target, *, target_to_bind=None):
     """Select S-TIR lowering only for functions constructed in this dialect."""
-    scheduled = {
-        gv: func
-        for gv, func in mod.functions.items()
-        if isinstance(func, tirx.Function) and not func.is_tirx
-    }
+    scheduled, _ = _partition_dialects(mod)
     if not scheduled:
         return None
-    mixed = len(scheduled) != len(mod.functions)
     name = "s_tir"
     if target is not None and target.kind.name == "opencl" and "adreno" in target.keys:
         name = "adreno"
-    s_pipeline = tir_pipeline.get_tir_pipeline(name, prepare_only=mixed)
-    if not mixed:
-        return s_pipeline
-
-    lower_s_tir, finalize_host, finalize_device = s_pipeline
-    lower_tirx, _, _ = tir_pipeline.get_tir_pipeline("tirx", prepare_only=True)
-
-    @tvm.transform.module_pass(opt_level=0)
-    def _lower_mixed(input_mod, _ctx):
-        s_funcs = {gv: func for gv, func in input_mod.functions.items() if gv in scheduled}
-        t_funcs = {gv: func for gv, func in input_mod.functions.items() if gv not in scheduled}
-        lowered = tvm.IRModule(attrs=input_mod.attrs, global_infos=input_mod.global_infos)
-        for funcs, lowering in ((s_funcs, lower_s_tir), (t_funcs, lower_tirx)):
-            group = tvm.IRModule(funcs, attrs=input_mod.attrs, global_infos=input_mod.global_infos)
-            lowered.update(lowering(group))
-        return tir_pipeline.finalize_tir_pipeline()(lowered)
-
-    return _lower_mixed, finalize_host, finalize_device
+    return tir_pipeline.get_tir_pipeline(name, target=target_to_bind)
 
 
 tir_pipeline.register_default_tir_pipeline_selector(_select_default_pipeline)

@@ -278,10 +278,10 @@ def gpu_multinomial_from_uniform(
         sample_id_local = Ts.sblock_alloc_tensor((), dtype, scope="local")
         step_iter = Ts.sblock_alloc_tensor((), "int32", scope="local")
 
-        for bx in T.thread_binding(batch_size, thread="blockIdx.x"):
+        for bx in T.parallel(batch_size, annotations={"thread_binding": "blockIdx.x"}):
             row_idx: T.let[T.int64] = T.Cast("int64", row_indices[bx, 0])
-            for ty in T.thread_binding(TY, thread="threadIdx.y"):
-                for tx in T.thread_binding(TX, thread="threadIdx.x"):
+            for ty in T.parallel(TY, annotations={"thread_binding": "threadIdx.y"}):
+                for tx in T.parallel(TX, annotations={"thread_binding": "threadIdx.x"}):
                     u: T.let[T.float32] = uniform_samples[bx, 0]
                     aggregate[()] = T.Cast(prob_dtype, 0)
                     step_iter[()] = T.int32(0)
