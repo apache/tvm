@@ -77,7 +77,6 @@ namespace op_attr {
 inline constexpr const char* kGlobalSymbol = "TGlobalSymbol";
 inline constexpr const char* kVectorizable = "TVectorizable";
 inline constexpr const char* kOpCategory = "TIRxOpCategory";
-inline constexpr const char* kTensorCallValidate = "FTensorCallValidate";
 inline constexpr const char* kDeviceIntrinsicNamespace = "TDeviceIntrinsicNamespace";
 }  // namespace op_attr
 

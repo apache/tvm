@@ -1675,13 +1675,3 @@ def gpu_store_matrix_sync(
 def gpu_thread_return(*, ty=None, loc: Location = UNKNOWN_LOC):
     """Return from the current GPU thread without a function value."""
     return call_intrin(ty, "tirx.gpu_thread_return", loc=loc)
-
-
-def __getattr__(name):
-    # Tile classes resolve registered Ops at import time. Load the family only
-    # when requested, after the core TIRx types are available.
-    if name == "tile":
-        from importlib import import_module  # pylint: disable=import-outside-toplevel
-
-        return import_module(".tile", __name__)
-    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

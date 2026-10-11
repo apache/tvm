@@ -22,9 +22,9 @@
 
 #include <tvm/ir/prim/op.h>
 #include <tvm/tirx/analysis.h>
-#include <tvm/tirx/exec_scope.h>
 #include <tvm/tirx/op/region.h>
 #include <tvm/tirx/op_attr_types.h>
+#include <tvm/tirx/tile/exec_scope.h>
 
 #include <utility>
 

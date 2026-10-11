@@ -317,7 +317,7 @@ def decl_tensor(
     data_alignment=-1,
     offset_factor=0,
     loc: Location = UNKNOWN_LOC,
-    layout="default",
+    layout=None,
 ):
     # pylint: disable=import-outside-toplevel
     from .expr import Var

@@ -42,8 +42,6 @@ from .expr import Select, TensorLoad, Ramp, Broadcast, Shuffle
 from .expr import CallEffectKind, Let
 
 
-from .tile_dispatch import DispatchContext
-
 from .function import Function, IndexMap, renew_def
 
 from .op import call_packed_lowered, call_cpacked_lowered, register_intrin_lowering
@@ -123,3 +121,11 @@ def _initialize_script_namespace() -> None:
 from tvm.script.parser import register_namespace_initializer as _register_namespace_initializer
 
 _register_namespace_initializer(_initialize_script_namespace, aliases=("tirx", "Tx", "Axis"))
+
+
+def __getattr__(name):
+    if name == "tile":
+        from importlib import import_module
+
+        return import_module(__name__ + ".tile")
+    raise AttributeError(name)

@@ -22,7 +22,8 @@ import functools
 import operator
 
 from tvm import DataType
-from tvm.tirx.layout import S, TCol, TileLayout, TLane
+from tvm.backend.cuda.axis import TCol, TLane
+from tvm.tirx.layout import S, TileLayout
 
 # ---------------------------------------------------------------------------
 # ir_builder helpers — imported lazily to avoid circular deps at module level
@@ -52,7 +53,7 @@ def _default_tmem_layout(rows, cols):
     # tcgen05 copy dispatch recognizes default-allocated accumulators by that
     # structure, so single-source the named datapath instead of duplicating it.
     if rows == 128:
-        from tvm.tirx.layout import tmem_datapath_layout
+        from tvm.backend.cuda.layout import tmem_datapath_layout
 
         return tmem_datapath_layout("D", rows, cols)
     return TileLayout(S[(rows, cols) : (1 @ TLane, 1 @ TCol)])
@@ -70,7 +71,7 @@ def _shape_product(shape):
 
 def _auto_swizzle_mode(dtype):
     """Select the default MMA swizzle mode for a shared-memory allocation."""
-    from tvm.backend.cuda.tile_primitive.tma_utils import SwizzleMode
+    from tvm.backend.cuda.tile.tma_utils import SwizzleMode
 
     del dtype
     return SwizzleMode.SWIZZLE_128B_ATOM
@@ -78,7 +79,7 @@ def _auto_swizzle_mode(dtype):
 
 def _swizzle_atom_bytes(swizzle_mode):
     """Return the row width (in bytes) of one swizzle atom for *swizzle_mode*."""
-    from tvm.backend.cuda.tile_primitive.tma_utils import SwizzleMode
+    from tvm.backend.cuda.tile.tma_utils import SwizzleMode
 
     return {
         SwizzleMode.SWIZZLE_NONE: 0,
@@ -113,7 +114,7 @@ def _validate_mma_alloc_shape(shape, dtype, swizzle_mode):
 
     Validation skipped when *swizzle_mode* is ``SWIZZLE_NONE`` (no atom).
     """
-    from tvm.backend.cuda.tile_primitive.tma_utils import SwizzleMode
+    from tvm.backend.cuda.tile.tma_utils import SwizzleMode
 
     if swizzle_mode == SwizzleMode.SWIZZLE_NONE:
         return
@@ -313,7 +314,7 @@ class TMEMPool:
         what gemm dispatch iterates over). When ``shape`` has 3 dims, the first
         is treated as a pipe-depth outer.
         """
-        from tvm.backend.cuda.tile_primitive.gemm_async.tcgen05 import sf_tmem_layout
+        from tvm.backend.cuda.tile.gemm_async.tcgen05 import sf_tmem_layout
 
         if len(shape) == 2:
             pipe_depth, rows, last = None, shape[0], shape[1]
@@ -339,7 +340,7 @@ class TMEMPool:
         """Allocate a TMEM A operand (A-in-TMEM); layout resolved from MMA
         instruction params. ``M`` is the PTX tcgen05.mma instruction M (256/128/
         64), NOT per-CTA rows. See ``localdoc/claude_plan.txt`` S3a."""
-        from tvm.tirx.layout import tmem_mma_operand_layout
+        from tvm.backend.cuda.layout import tmem_mma_operand_layout
 
         layout = tmem_mma_operand_layout(
             "A", shape, dtype, M=M, cta_group=cta_group, ws=ws, sparse=sparse
@@ -351,7 +352,7 @@ class TMEMPool:
     ):
         """Allocate a TMEM D/C accumulator operand. ``M`` = PTX instruction M.
         ``group=(s,2,n)`` gives a flat (m,N) buffer a grouped column layout."""
-        from tvm.tirx.layout import tmem_mma_operand_layout
+        from tvm.backend.cuda.layout import tmem_mma_operand_layout
 
         layout = tmem_mma_operand_layout(
             "D", shape, dtype, M=M, cta_group=cta_group, ws=ws, sparse=sparse, group=group
@@ -471,7 +472,7 @@ class SMEMPool:
 
     def alloc_tcgen05_mma_AB(self, shape, dtype="float16", swizzle_mode="auto", align=1024):
         """Allocate MMA-compatible shared memory with an inferred swizzle layout."""
-        from tvm.backend.cuda.tile_primitive.tma_utils import (
+        from tvm.backend.cuda.tile.tma_utils import (
             SwizzleMode,
             mma_shared_layout,
         )

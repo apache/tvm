@@ -480,11 +480,11 @@ ffi::Optional<TileLayout> TileLayoutNode::IsTileInner(
   auto tiled_scope = tiled->GetScope();
   auto inner_scope = layout->GetScope();
   if (tiled_scope.has_value() && inner_scope.has_value()) {
-    if (tiled_scope.value().get<0>()->kind != inner_scope.value().get<0>()->kind ||
-        ScopeKindHigher(inner_scope.value().get<1>()->kind, tiled_scope.value().get<1>()->kind)) {
+    if (!ffi::StructuralEqual()(tiled_scope.value().get<0>(), inner_scope.value().get<0>()) ||
+        ScopeHigher(inner_scope.value().get<1>(), tiled_scope.value().get<1>())) {
       return std::nullopt;
     }
-    if (ScopeKindHigher(tiled_scope.value().get<1>()->kind, inner_scope.value().get<1>()->kind)) {
+    if (ScopeHigher(tiled_scope.value().get<1>(), inner_scope.value().get<1>())) {
       tiled = SplitAxesByScope(tiled, inner_scope.value().get<1>()->name());
     }
   }
@@ -586,11 +586,11 @@ ffi::Optional<Layout> TileLayoutNode::IsTileOuter(const Layout& tile_layout,
   auto tiled_scope = tiled->GetScope();
   auto outer_scope = layout->GetScope();
   if (tiled_scope.has_value() && outer_scope.has_value()) {
-    if (tiled_scope.value().get<1>()->kind != outer_scope.value().get<1>()->kind ||
-        ScopeKindHigher(tiled_scope.value().get<0>()->kind, outer_scope.value().get<0>()->kind)) {
+    if (!ffi::StructuralEqual()(tiled_scope.value().get<1>(), outer_scope.value().get<1>()) ||
+        ScopeHigher(tiled_scope.value().get<0>(), outer_scope.value().get<0>())) {
       return std::nullopt;
     }
-    if (ScopeKindHigher(outer_scope.value().get<0>()->kind, tiled_scope.value().get<0>()->kind)) {
+    if (ScopeHigher(outer_scope.value().get<0>(), tiled_scope.value().get<0>())) {
       tiled = SplitAxesByScope(tiled, outer_scope.value().get<0>()->name());
     }
   }

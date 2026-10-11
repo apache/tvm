@@ -27,10 +27,10 @@
 #include <tvm/ir/prim/op.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/sym/analyzer.h>
-#include <tvm/tirx/exec_scope.h>
 #include <tvm/tirx/layout.h>
 #include <tvm/tirx/script/ir_builder/ir.h>
 #include <tvm/tirx/stmt.h>
+#include <tvm/tirx/tile/exec_scope.h>
 
 #include "./utils.h"
 

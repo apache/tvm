@@ -64,16 +64,17 @@ class LayoutApplier : public IRMutatorWithAnalyzer {
         continue;
       }
       storage_lower->tensor_aliases_.Set(tensor.value().var(), tensor.value().var());
-      if (tensor.value()->layout.has_value()) {
-        TensorVar flattened = storage_lower->GetFlattenedTensor(tensor.value());
-        auto type = CopyTensorType(tensor.value());
+      TensorVar flattened = storage_lower->GetFlattenedTensor(tensor.value());
+      TensorVar source = tensor.value();
+      if (source->layout.has_value()) {
+        auto type = CopyTensorType(source);
         type->layout = std::nullopt;
-        TensorVar source = RebuildTensorVar(tensor.value(), std::move(type));
-        param_flattened_tensors.emplace_back(flattened, source);
-        new_params.push_back(source.var());
-      } else {
-        new_params.push_back(tensor.value().var());
+        source = RebuildTensorVar(source, std::move(type));
       }
+      if (!flattened.same_as(source)) {
+        param_flattened_tensors.emplace_back(flattened, source);
+      }
+      new_params.push_back(source.var());
     }
     auto new_stmt = storage_lower->Mutate(stmt, InplaceMode::kAllow).ValueOrUnchanged(stmt);
     for (const auto& [buf, source] : param_flattened_tensors) {
@@ -152,12 +153,7 @@ class LayoutApplier : public IRMutatorWithAnalyzer {
   UnchangedOr<Stmt> MutateAllocTensor(const BindNode* op, const CallNode* tensor_call,
                                       InplaceMode inplace_mode) {
     tensor_aliases_.Set(op->var, op->var);
-    auto mutate = [this](TensorVar buf) {
-      if (target_->kind->name == "trn" && !buf->layout.has_value()) {
-        return buf;
-      }
-      return GetFlattenedTensor(buf, /*is_alloc=*/true);
-    };
+    auto mutate = [this](TensorVar buf) { return GetFlattenedTensor(buf, /*is_alloc=*/true); };
     auto tensor = mutate(op->var.as_or_throw<TensorVar>());
     ffi::Array<Expr> args = tensor_call->args;
 
@@ -190,21 +186,9 @@ class LayoutApplier : public IRMutatorWithAnalyzer {
     if (auto mapped = VarRemapGet(buf); mapped != nullptr) {
       return mapped.as_or_throw<TensorVar>();
     }
-    auto trn_layout = buf->layout.as<TileLayoutNode>();
     TensorVar flattened = buf;
     ffi::ObjectPtr<TensorTypeNode> type;
-    if (trn_layout && trn_layout->IsTrainium()) {
-      ffi::Array<PrimExpr> new_shape =
-          buf.scope() == "trn.psum" ? ffi::Array<PrimExpr>{trn_layout->GetSpan(ffi::String("Bank")),
-                                                           trn_layout->GetSize(ffi::String("P")),
-                                                           trn_layout->GetSpan(ffi::String("F"))}
-                                    : ffi::Array<PrimExpr>{trn_layout->GetSize(ffi::String("P")),
-                                                           trn_layout->GetSpan(ffi::String("F"))};
-      flattened = buf;
-      type = CopyTensorType(flattened);
-      type->shape = new_shape;
-      type->strides = {};
-    } else if (is_alloc) {
+    if (is_alloc) {
       if (auto tile_layout = buf->layout.as<TileLayoutNode>();
           tile_layout && tile_layout->HasThreadAxis()) {
         // Logical alloc_tensor with thread axes: physical shape = memory-axis span
@@ -293,22 +277,6 @@ class LayoutApplier : public IRMutatorWithAnalyzer {
   ffi::Array<PrimExpr> GetSimplifiedElemOffset(const TensorVar& tensor,
                                                const ffi::Array<PrimExpr>& indices) {
     if (tensor->layout.has_value()) {
-      auto tile_layout = tensor->layout.value().as<TileLayoutNode>();
-      if (tile_layout && tile_layout->IsTrainium()) {
-        auto coord = tensor->layout.value()->Apply(indices, tensor->shape);
-        std::vector<PrimExpr> res;
-        for (const auto& axis : tensor.scope() == "trn.psum"
-                                    ? ffi::Array<ffi::String>{"Bank", "P", "F"}
-                                    : ffi::Array<ffi::String>{"P", "F"}) {
-          auto it = coord.find(ffi::String(axis));
-          if (it != coord.end()) {
-            res.push_back(analyzer_->Simplify((*it).second));
-          } else {
-            res.push_back(0);
-          }
-        }
-        return res;
-      }
       if (auto tile = tensor->layout.value().as<TileLayoutNode>(); tile && tile->HasThreadAxis()) {
         LOG(FATAL) << "Cannot lower direct TensorLoad/TensorStore on a tensor with thread-axis "
                    << "layout: unable to verify that the coordinate matches the current thread. "
@@ -326,10 +294,6 @@ class LayoutApplier : public IRMutatorWithAnalyzer {
   template <typename Node>
   Node VisitTensorAccess(Node node) {
     TVM_FFI_ICHECK(node->dest.template as_or_throw<TensorVar>().defined());
-    if (target_->kind->name == "trn" &&
-        !node->dest.template as_or_throw<TensorVar>()->layout.has_value()) {
-      return node;
-    }
     auto flattened_indices =
         GetSimplifiedElemOffset(node->dest.template as_or_throw<TensorVar>(), node->indices);
     TensorVar flattened_tensor = GetFlattenedTensor(node->dest.template as_or_throw<TensorVar>());
@@ -342,7 +306,6 @@ class LayoutApplier : public IRMutatorWithAnalyzer {
   TensorLoad VisitTensorAccess(TensorLoad node) {
     TensorVar tensor = node->source.as_or_throw<tvm::tirx::TensorVar>();
     TVM_FFI_ICHECK(tensor.defined());
-    if (target_->kind->name == "trn" && !tensor->layout.has_value()) return node;
     return MakeTensorLoad(GetFlattenedTensor(tensor),
                           GetSimplifiedElemOffset(tensor, node->indices), node->loc);
   }

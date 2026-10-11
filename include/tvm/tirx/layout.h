@@ -31,7 +31,7 @@
 #include <tvm/ir/expr.h>
 #include <tvm/ir/module.h>
 #include <tvm/target/target.h>
-#include <tvm/tirx/exec_scope.h>
+#include <tvm/tirx/tile/exec_scope.h>
 
 namespace tvm {
 
@@ -147,6 +147,9 @@ class AxisNode : public ffi::EnumObj {
 
   /*! \brief Check if the axis is a memory axis. */
   bool IsMemoryAxis() const;
+
+  /*! \brief The backend owning this axis, if any. */
+  ffi::Optional<ffi::String> GetBackend() const;
 
   /*! \brief Get the scope of the (thread) axis. */
   ffi::Optional<ExecScope> GetScope() const;
@@ -280,9 +283,6 @@ class TileLayoutNode : public LayoutNode {
 
   /*! \brief Is the layout trivial (pure memory, identical mapping) */
   bool IsTrivial() const;
-
-  /*! \brief Check if the layout is trainium layout */
-  bool IsTrainium() const;
 
   /*! \brief Has Memory Axis */
   bool HasMemoryAxis() const;

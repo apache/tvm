@@ -24,9 +24,9 @@
 #include <tvm/ir/prim/op.h>
 #include <tvm/runtime/tensor.h>
 #include <tvm/script/ir_builder/ir.h>
-#include <tvm/tirx/exec_scope.h>
 #include <tvm/tirx/script/ir_builder/frame.h>
 #include <tvm/tirx/stmt.h>
+#include <tvm/tirx/tile/exec_scope.h>
 #include <tvm/tirx/type.h>
 
 namespace tvm {

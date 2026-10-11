@@ -22,7 +22,7 @@ import pytest
 import tvm
 from tvm.script import tirx as T
 from tvm.testing import env
-from tvm.tirx.cuda.tile_primitive.copy._common import copy_ptx_form
+from tvm.tirx.cuda.tile.copy._common import copy_ptx_form
 
 TARGET = tvm.target.Target({"kind": "cuda", "arch": env.cuda_arch() or "sm_90"})
 
@@ -113,7 +113,7 @@ def test_ptx_ld_st_codegen_emits_shared_asm():
         T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=4 * 32))
         tid_in_wg = T.cuda.thread_in_warpgroup()
         smem = T.alloc_tensor(ty_args=[T.Tensor((4,), "uint32", scope="shared")])
-        reg = T.alloc_local((4,), "uint32")
+        reg = T.alloc_local((4,), "uint32", layout="default")
         if tid_in_wg == 0:
             T.ptx.st.shared.v4.u32(smem.ptr_to([0]), reg[0], reg[1], reg[2], reg[3])
         T.cuda.cta_sync()

@@ -115,10 +115,6 @@ ffi::Optional<ExprDoc> TensorTypeDocTranslate(DocTranslatorObj* d, ffi::AnyView 
       values.push_back(d->Translate(tensor->layout.value()).value());
     }
   }
-  if (!tensor->layout.has_value()) {
-    keys.push_back("layout");
-    values.push_back(LiteralDoc::None(std::nullopt));
-  }
   return NamespaceDoc("tirx")->Attr("Tensor")->Call(
       {TupleDoc(shape), LiteralDoc::DataType(tensor->dtype->dtype, std::nullopt)}, keys, values);
 }
