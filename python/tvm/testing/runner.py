@@ -29,7 +29,7 @@ if TYPE_CHECKING:
 # pylint: disable=import-outside-toplevel,protected-access
 
 
-def _args_to_device(args, device):
+def _args_to_device(args, device, f_alloc=None):
     import numpy as np
 
     from tvm.runtime import Tensor, empty
@@ -37,7 +37,12 @@ def _args_to_device(args, device):
     uploaded_args = []
     for arg in args:
         if isinstance(arg, np.ndarray | Tensor):
-            uploaded_args.append(empty(arg.shape, dtype=arg.dtype, device=device).copyfrom(arg))
+            allocated = (
+                f_alloc(arg.shape, arg.dtype)
+                if f_alloc
+                else empty(arg.shape, dtype=arg.dtype, device=device)
+            )
+            uploaded_args.append(allocated.copyfrom(arg))
         elif isinstance(arg, int | float):
             uploaded_args.append(arg)
         else:
@@ -46,11 +51,12 @@ def _args_to_device(args, device):
 
 
 def _args_to_numpy(args):
+    from tvm.rpc import RemoteTensor
     from tvm.runtime import Tensor
 
     downloaded_args = []
     for arg in args:
-        if isinstance(arg, Tensor):
+        if isinstance(arg, Tensor | RemoteTensor):
             downloaded_args.append(arg.numpy())
         else:
             downloaded_args.append(arg)
@@ -210,7 +216,7 @@ def rpc_run(  # pylint: disable=too-many-arguments,too-many-locals
         export_func(mod, artifact_path)
         try:
             session.upload(artifact_path, remote_path)
-            args = _args_to_device(args, device)
+            args = _args_to_device(args, device, device.empty)
             remote_mod = session.load_module(remote_path)
             profile_result = remote_mod.time_evaluator(
                 func_name=remote_mod.entry_name,

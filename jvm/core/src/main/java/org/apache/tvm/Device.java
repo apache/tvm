@@ -19,7 +19,6 @@ package org.apache.tvm;
 
 import java.util.HashMap;
 import java.util.Map;
-import org.apache.tvm.rpc.RPC;
 
 public class Device {
   /**
@@ -228,11 +227,6 @@ public class Device {
 
   @Override
   public String toString() {
-    if (deviceType >= RPC.RPC_SESS_MASK) {
-      int tblId = deviceType / RPC.RPC_SESS_MASK - 1;
-      int devType = deviceType % RPC.RPC_SESS_MASK;
-      return String.format("remote[%d]:%s(%d)", tblId, DEVICE_TYPE_TO_NAME.get(devType), deviceId);
-    }
     return String.format("%s(%d)", DEVICE_TYPE_TO_NAME.get(deviceType), deviceId);
   }
 }

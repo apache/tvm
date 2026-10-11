@@ -67,7 +67,9 @@ pytestmark = pytest.mark.skipif(
 # to ensure all the remote resources destructs before the server terminates
 
 
-@pytest.mark.skipif(not env.build_flag_enabled("USE_RPC"), reason="need rpc")
+@pytest.mark.skipif(
+    tvm.get_global_func("rpc.LocalSession", allow_missing=True) is None, reason="need rpc"
+)
 def test_bigendian_rpc():
     """Test big endian rpc when there is a PowerPC RPC server available"""
     host = os.environ.get("TVM_POWERPC_TEST_HOST", None)
@@ -81,8 +83,8 @@ def test_bigendian_rpc():
         f = tvm.compile(te.create_function([A, B]), target=target)
 
         dev = remote.cpu(0)
-        a = tvm.runtime.tensor(np.random.randint(0, 256, size=shape).astype(A.dtype), device=dev)
-        b = tvm.runtime.tensor(np.zeros(shape).astype(A.dtype), device=dev)
+        a = dev.tensor(np.random.randint(0, 256, size=shape).astype(str(A.dtype)))
+        b = dev.tensor(np.zeros(shape).astype(str(A.dtype)))
         temp = utils.tempdir()
         path_dso = temp.relpath("dev_lib.o")
         f.write_to_file(path_dso)
@@ -98,7 +100,9 @@ def test_bigendian_rpc():
         verify_rpc(remote, target, (10,), dtype)
 
 
-@pytest.mark.skipif(not env.build_flag_enabled("USE_RPC"), reason="need rpc")
+@pytest.mark.skipif(
+    tvm.get_global_func("rpc.LocalSession", allow_missing=True) is None, reason="need rpc"
+)
 def test_rpc_simple():
     server = rpc.Server(key="x1")
     client = rpc.connect("127.0.0.1", server.port, key="x1")
@@ -117,7 +121,9 @@ def test_rpc_simple():
     check_remote()
 
 
-@pytest.mark.skipif(not env.build_flag_enabled("USE_RPC"), reason="need rpc")
+@pytest.mark.skipif(
+    tvm.get_global_func("rpc.LocalSession", allow_missing=True) is None, reason="need rpc"
+)
 def test_rpc_runtime_string():
     server = rpc.Server(key="x1")
     client = rpc.connect("127.0.0.1", server.port, key="x1")
@@ -131,15 +137,18 @@ def test_rpc_runtime_string():
     check_remote()
 
 
-@pytest.mark.skipif(not env.build_flag_enabled("USE_RPC"), reason="need rpc")
+@pytest.mark.skipif(
+    tvm.get_global_func("rpc.LocalSession", allow_missing=True) is None, reason="need rpc"
+)
 def test_rpc_array():
     server = rpc.Server()
     remote = rpc.connect("127.0.0.1", server.port)
 
     def check_remote():
         x = np.ones((3, 4))
-        r_cpu = tvm.runtime.tensor(x, remote.cpu(0))
-        assert str(r_cpu.device).startswith("remote")
+        r_cpu = remote.cpu(0).tensor(x)
+        assert isinstance(r_cpu, rpc.RemoteTensor)
+        assert isinstance(r_cpu.device, rpc.RemoteDevice)
         np.testing.assert_equal(r_cpu.numpy(), x)
         fremote = remote.get_function("rpc.test.remote_tensor_func")
         fremote(r_cpu)
@@ -147,7 +156,9 @@ def test_rpc_array():
     check_remote()
 
 
-@pytest.mark.skipif(not env.build_flag_enabled("USE_RPC"), reason="need rpc")
+@pytest.mark.skipif(
+    tvm.get_global_func("rpc.LocalSession", allow_missing=True) is None, reason="need rpc"
+)
 def test_rpc_large_array():
     # testcase of large array creation
     server = rpc.Server()
@@ -157,8 +168,8 @@ def test_rpc_large_array():
         dev = remote.cpu(0)
         a_np = np.ones((5041, 720)).astype("float32")
         b_np = np.ones((720, 192)).astype("float32")
-        a = tvm.runtime.tensor(a_np, dev)
-        b = tvm.runtime.tensor(b_np, dev)
+        a = dev.tensor(a_np)
+        b = dev.tensor(b_np)
         np.testing.assert_equal(a.numpy(), a_np)
         np.testing.assert_equal(b.numpy(), b_np)
 
@@ -166,7 +177,9 @@ def test_rpc_large_array():
 
 
 @tvm.testing.skip_if_32bit(reason="skipping test for i386.")
-@pytest.mark.skipif(not env.build_flag_enabled("USE_RPC"), reason="need rpc")
+@pytest.mark.skipif(
+    tvm.get_global_func("rpc.LocalSession", allow_missing=True) is None, reason="need rpc"
+)
 def test_rpc_echo():
     def check(remote, local_session):
         fecho = remote.get_function("testing.echo")
@@ -215,7 +228,9 @@ def test_rpc_echo():
     # check_minrpc()
 
 
-@pytest.mark.skipif(not env.build_flag_enabled("USE_RPC"), reason="need rpc")
+@pytest.mark.skipif(
+    tvm.get_global_func("rpc.LocalSession", allow_missing=True) is None, reason="need rpc"
+)
 def test_rpc_file_exchange():
     server = rpc.Server()
     remote = rpc.connect("127.0.0.1", server.port)
@@ -229,7 +244,9 @@ def test_rpc_file_exchange():
     check_remote()
 
 
-@pytest.mark.skipif(not env.build_flag_enabled("USE_RPC"), reason="need rpc")
+@pytest.mark.skipif(
+    tvm.get_global_func("rpc.LocalSession", allow_missing=True) is None, reason="need rpc"
+)
 @pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_rpc_remote_module():
     # graph
@@ -256,9 +273,9 @@ def test_rpc_remote_module():
         f.export_library(path_dso)
         remote.upload(path_dso)
         f1 = remote.load_module("dev_lib.so")
-        a = tvm.runtime.tensor(np.random.uniform(size=102).astype(A.dtype), dev)
-        b = tvm.runtime.tensor(np.zeros(102, dtype=A.dtype), dev)
-        time_f = f1.time_evaluator(f1.entry_name, remote.cpu(0), number=10)
+        a = dev.tensor(np.random.uniform(size=102).astype(str(A.dtype)))
+        b = dev.tensor(np.zeros(102, dtype=str(A.dtype)))
+        time_f = rpc.time_evaluator(f1, f1.entry_name, remote.cpu(0), number=10)
         cost = time_f(a, b).mean
         print(f"{cost:g} secs/op")
         np.testing.assert_equal(b.numpy(), a.numpy() + 1)
@@ -271,8 +288,8 @@ def test_rpc_remote_module():
         with open(local_download_path, "wb") as fo:
             fo.write(remote.download_linked_module("dev_lib.tar"))
         fupdated = tvm.runtime.load_module(local_download_path)
-        a = tvm.runtime.tensor(np.random.uniform(size=102).astype(A.dtype), tvm.cpu(0))
-        b = tvm.runtime.tensor(np.zeros(102, dtype=A.dtype), tvm.cpu(0))
+        a = tvm.runtime.tensor(np.random.uniform(size=102).astype(str(A.dtype)), tvm.cpu(0))
+        b = tvm.runtime.tensor(np.zeros(102, dtype=str(A.dtype)), tvm.cpu(0))
         fupdated(a, b)
         np.testing.assert_equal(b.numpy(), a.numpy() + 1)
 
@@ -294,9 +311,9 @@ def test_rpc_remote_module():
         dev = remote.cpu(0)
         f1 = remote.system_lib()
 
-        a = tvm.runtime.tensor(np.random.uniform(size=102).astype(A.dtype), dev)
-        b = tvm.runtime.tensor(np.zeros(102, dtype=A.dtype), dev)
-        time_f = f1.time_evaluator("myadd", remote.cpu(0), number=1)
+        a = dev.tensor(np.random.uniform(size=102).astype(str(A.dtype)))
+        b = dev.tensor(np.zeros(102, dtype=str(A.dtype)))
+        time_f = rpc.time_evaluator(f1, "myadd", remote.cpu(0), number=1)
         cost = time_f(a, b).mean
         np.testing.assert_equal(b.numpy(), a.numpy() + 1)
 
@@ -330,8 +347,8 @@ def test_rpc_remote_module():
         f.export_library(path_tar)
         remote.upload(path_tar)
         fhost = remote.load_module("myadd.tar")
-        a = tvm.runtime.tensor(np.random.uniform(size=102).astype(A.dtype), dev)
-        b = tvm.runtime.tensor(np.zeros(102, dtype=A.dtype), dev)
+        a = dev.tensor(np.random.uniform(size=102).astype(str(A.dtype)))
+        b = dev.tensor(np.zeros(102, dtype=str(A.dtype)))
         fhost(a, b)
         np.testing.assert_equal(b.numpy(), a.numpy() + 1)
 
@@ -340,7 +357,9 @@ def test_rpc_remote_module():
     check_minrpc()
 
 
-@pytest.mark.skipif(not env.build_flag_enabled("USE_RPC"), reason="need rpc")
+@pytest.mark.skipif(
+    tvm.get_global_func("rpc.LocalSession", allow_missing=True) is None, reason="need rpc"
+)
 def test_rpc_return_func():
     server = rpc.Server(key="x1")
     client = rpc.connect("127.0.0.1", server.port, key="x1")
@@ -353,7 +372,9 @@ def test_rpc_return_func():
     check_remote()
 
 
-@pytest.mark.skipif(not env.build_flag_enabled("USE_RPC"), reason="need rpc")
+@pytest.mark.skipif(
+    tvm.get_global_func("rpc.LocalSession", allow_missing=True) is None, reason="need rpc"
+)
 def test_rpc_session_constructor_args():
     # start server
     server0 = rpc.Server(key="x0")
@@ -374,7 +395,7 @@ def test_rpc_session_constructor_args():
         assert fecho("xyz") == "xyz"
         assert bytes(fecho(bytearray(b"123"))) == b"123"
 
-        nd = tvm.runtime.tensor([1, 2, 3], device=client.cpu(0))
+        nd = client.cpu(0).tensor([1, 2, 3])
         assert nd.numpy()[1] == 2
 
     def check_error_handling():
@@ -390,7 +411,9 @@ def test_rpc_session_constructor_args():
     check_error_handling()
 
 
-@pytest.mark.skipif(not env.build_flag_enabled("USE_RPC"), reason="need rpc")
+@pytest.mark.skipif(
+    tvm.get_global_func("rpc.LocalSession", allow_missing=True) is None, reason="need rpc"
+)
 def test_rpc_return_tensor():
     def run_arr_test():
         server = rpc.Server(key="x1")
@@ -411,7 +434,9 @@ def test_rpc_return_tensor():
     run_arr_test()
 
 
-@pytest.mark.skipif(not env.build_flag_enabled("USE_RPC"), reason="need rpc")
+@pytest.mark.skipif(
+    tvm.get_global_func("rpc.LocalSession", allow_missing=True) is None, reason="need rpc"
+)
 def test_rpc_return_remote_object():
     def check(client, is_local):
         make_shape = client.get_function("ffi.Shape")
@@ -457,7 +482,9 @@ def test_rpc_return_remote_object():
     check_minrpc()
 
 
-@pytest.mark.skipif(not env.build_flag_enabled("USE_RPC"), reason="need rpc")
+@pytest.mark.skipif(
+    tvm.get_global_func("rpc.LocalSession", allow_missing=True) is None, reason="need rpc"
+)
 def test_local_func():
     client = rpc.LocalSession()
 
@@ -474,7 +501,9 @@ def test_local_func():
     check_remote()
 
 
-@pytest.mark.skipif(not env.build_flag_enabled("USE_RPC"), reason="need rpc")
+@pytest.mark.skipif(
+    tvm.get_global_func("rpc.LocalSession", allow_missing=True) is None, reason="need rpc"
+)
 @pytest.mark.parametrize("device_key", ["test_device", "127.0.0.1:5555"])
 def test_rpc_tracker_register(device_key):
     # test registration
@@ -547,7 +576,9 @@ def _target(host, port, device_key, timeout):
     remote.cpu()
 
 
-@pytest.mark.skipif(not env.build_flag_enabled("USE_RPC"), reason="need rpc")
+@pytest.mark.skipif(
+    tvm.get_global_func("rpc.LocalSession", allow_missing=True) is None, reason="need rpc"
+)
 @pytest.mark.parametrize("device_key", ["test_device", "127.0.0.1:5555"])
 def test_rpc_tracker_request(device_key):
     # test concurrent request
@@ -588,7 +619,9 @@ def test_rpc_tracker_request(device_key):
     tracker.terminate()
 
 
-@pytest.mark.skipif(not env.build_flag_enabled("USE_RPC"), reason="need rpc")
+@pytest.mark.skipif(
+    tvm.get_global_func("rpc.LocalSession", allow_missing=True) is None, reason="need rpc"
+)
 @pytest.mark.parametrize("device_key", ["test_device", "127.0.0.1:5555"])
 def test_rpc_tracker_via_proxy(device_key):
     """
@@ -630,7 +663,9 @@ def test_rpc_tracker_via_proxy(device_key):
     tracker_server.terminate()
 
 
-@pytest.mark.skipif(not env.build_flag_enabled("USE_RPC"), reason="need rpc")
+@pytest.mark.skipif(
+    tvm.get_global_func("rpc.LocalSession", allow_missing=True) is None, reason="need rpc"
+)
 @pytest.mark.parametrize("with_proxy", (True, False))
 def test_rpc_session_timeout_error(with_proxy):
     port = 9000

@@ -42,6 +42,7 @@ namespace runtime {
  */
 class LocalSession : public RPCSession {
  public:
+  ~LocalSession() override { ReleaseStreams(); }
   // function overrides
   PackedFuncHandle GetFunction(const std::string& name) override;
 

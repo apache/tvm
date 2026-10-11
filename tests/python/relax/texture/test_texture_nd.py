@@ -184,8 +184,12 @@ def test_texture_copy(backend, dtype, channel_size, read_width):
             device_arr = [dev for _ in range(len(mod.global_infos["vdevice"]))]
         else:
             device_arr = [dev]
-        vm = relax.VirtualMachine(rexec, device_arr)
-        inps = [tvm.runtime.tensor(inp, dev) for inp in inputs]
+        if remote_session is not None:
+            vm = tvm.rpc.virtual_machine(rexec, device_arr)
+            inps = [dev.tensor(inp) for inp in inputs]
+        else:
+            vm = relax.VirtualMachine(rexec, device_arr)
+            inps = [tvm.runtime.tensor(inp, dev) for inp in inputs]
         vm["main"](*inps)
         np.testing.assert_equal(inps[-1].numpy(), inps[0].numpy())
 

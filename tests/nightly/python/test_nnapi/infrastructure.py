@@ -100,9 +100,9 @@ def _run(remote, tracker, ex, inputs):
     try:
         # Execute the model on the remote.
         remote_ex = remote.load_module(so_name)
-        vm = tvm.relax.VirtualMachine(remote_ex, device=dev)
+        vm = tvm.rpc.virtual_machine(remote_ex, dev)
 
-        inputs = [x.copyto(dev) for x in inputs]
+        inputs = [dev.tensor(x) for x in inputs]
 
         vm.set_input("main", *inputs)
         vm.invoke_stateful("main")

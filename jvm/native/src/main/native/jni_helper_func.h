@@ -168,7 +168,14 @@ jobject newTVMNull(JNIEnv* env) {
 }
 
 jobject newTVMObject(JNIEnv* env, jlong handle, jint type_index) {
-  jclass cls = env->FindClass("org/apache/tvm/TVMObject");
+  const char* class_name = "org/apache/tvm/TVMObject";
+  const char* type_key = reinterpret_cast<tvm::ffi::Object*>(handle)->GetTypeKey();
+  if (std::strcmp(type_key, "rpc.RemoteDevice") == 0) {
+    class_name = "org/apache/tvm/rpc/TVMRemoteDevice";
+  } else if (std::strcmp(type_key, "rpc.RemoteTensor") == 0) {
+    class_name = "org/apache/tvm/rpc/RemoteTensor";
+  }
+  jclass cls = env->FindClass(class_name);
   jmethodID constructor = env->GetMethodID(cls, "<init>", "(JI)V");
   jobject object = env->NewObject(cls, constructor, handle, type_index);
   env->DeleteLocalRef(cls);

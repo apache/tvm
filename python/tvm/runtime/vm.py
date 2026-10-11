@@ -29,8 +29,6 @@ from tvm_ffi import Function, register_global_func
 import tvm
 from tvm.runtime import Device, Object
 
-from ..rpc.base import RPC_SESS_MASK
-
 
 class VMInstrumentReturnKind(IntEnum):
     NO_OP = 0
@@ -96,7 +94,7 @@ class VirtualMachine:
             devs = [dev]
 
         # CPU is required for executing shape functions
-        if devs[-1].dlpack_device_type() % RPC_SESS_MASK != tvm.cpu().dlpack_device_type():
+        if devs[-1].dlpack_device_type() != tvm.cpu().dlpack_device_type():
             devs.append(tvm.cpu())
 
         default_alloc_type = VirtualMachine.POOLED_ALLOCATOR
@@ -114,7 +112,7 @@ class VirtualMachine:
             )
         init_args = []
         for device in devs:
-            init_args.append(device.dlpack_device_type() % RPC_SESS_MASK)
+            init_args.append(device.dlpack_device_type())
             init_args.append(device.index)
             alloc_type = memory_cfg[device] if device in memory_cfg else default_alloc_type
             init_args.append(alloc_type)

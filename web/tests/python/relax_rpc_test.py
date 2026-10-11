@@ -75,11 +75,11 @@ def test_rpc():
     def check(remote):
         dev = remote.webgpu(0)
         # invoke the function
-        vm = relax.VirtualMachine(remote.system_lib(), device=dev)
+        vm = rpc.virtual_machine(remote.system_lib(), dev)
         adata = np.random.uniform(size=n).astype(dtype)
         bdata = np.random.uniform(size=n).astype(dtype)
-        a = tvm.runtime.tensor(adata, dev)
-        b = tvm.runtime.tensor(bdata, dev)
+        a = dev.tensor(adata)
+        b = dev.tensor(bdata)
         vm.set_input("main", a, b)
         vm.invoke_stateful("main")
         c = vm.get_outputs("main")
