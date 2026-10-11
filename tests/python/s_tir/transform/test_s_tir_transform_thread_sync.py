@@ -58,7 +58,7 @@ def test_sync_read_thread_id_independent_location():
         result_local[0] = result_local[0] + temp_shared[0] * p1[1]
 
     mod = run_passes(func)
-    assert 'T.gpu_storage_sync("shared", ty="int32")' in str(mod)
+    assert 'T.gpu_storage_sync("shared")' in str(mod)
 
 
 def test_sync_inside_condition():
@@ -100,7 +100,7 @@ def test_sync_inside_condition():
 
     for func in (func2, func3):
         mod = s_tir.transform.ThreadSync("shared")(tvm.IRModule.from_expr(func))
-        assert 'T.gpu_storage_sync("shared", ty="int32")' in mod.script()
+        assert 'T.gpu_storage_sync("shared")' in mod.script()
 
 
 def test_sync_shared_dyn():
