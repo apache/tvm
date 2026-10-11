@@ -74,4 +74,4 @@ compiler arguments are not modeled as separate Python fields.
 
 See :doc:`../native_basics/cuda/compiling` for target-tag defaults, inheritance,
 per-entry compilation, and artifact behavior. See :doc:`cuda_compile_options`
-for the documentary NVCC/NVRTC/ptxas option inventory.
+for native NVCC/NVRTC/ptxas argument usage and official compiler references.
