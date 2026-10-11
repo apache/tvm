@@ -17,7 +17,8 @@
 CUDA backend configuration
 ==========================
 
-Pass a nested mapping directly to ``tvm.compile(..., backend_config=...)`` or
+Set the nested mapping on ``Target.backend_config`` and pass that Target to
+``tvm.compile``. Individual kernels can override it with
 ``T.device_entry(..., backend_config=...)``. Each backend owns its configuration;
 CUDA currently provides these fixed keys:
 
@@ -58,10 +59,14 @@ compiler arguments are not modeled as separate Python fields.
     from tvm.backend.cuda import BackendConfig
 
     cuda_config = BackendConfig(
-        arch="sm_100a", compiler="nvrtc",
+        compiler="nvrtc",
         nvrtc=["--use_fast_math", "--ftz=false"],
     )
-    executable = tvm.compile(func, backend_config={"cuda": cuda_config})
+    target = tvm.target.Target({
+        "kind": "cuda", "arch": "sm_100a",
+        "backend_config": {"cuda": cuda_config},
+    })
+    executable = tvm.compile(func, target=target)
 
 .. autoclass:: tvm.backend.cuda.BackendConfig
    :members:
