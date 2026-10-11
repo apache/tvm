@@ -90,7 +90,7 @@ class DataflowVar : public Var {
 };
 
 /*! \brief Construct a tensor constant, inferring shape and dtype when type is omitted. */
-TVM_DLL GenericConst MakeTensorConst(runtime::Tensor data,
+TVM_DLL GenericConst MakeTensorConst(ffi::Tensor data,
                                      ffi::Optional<Type> ty_annotation = std::nullopt,
                                      Location loc = UnknownLoc());
 

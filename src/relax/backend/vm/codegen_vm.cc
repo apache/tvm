@@ -478,7 +478,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
  * \return The created module.
  */
 void LinkModules(ffi::ObjectPtr<VMExecutable> exec,
-                 const ffi::Map<ffi::String, runtime::Tensor>& params, const tvm::ffi::Module& lib,
+                 const ffi::Map<ffi::String, ffi::Tensor>& params, const tvm::ffi::Module& lib,
                  const ffi::Array<ffi::Module>& ext_libs) {
   // query if we need const loader for ext_modules
   // Wrap all submodules in the initialization wrapper.
@@ -515,7 +515,7 @@ void LinkModules(ffi::ObjectPtr<VMExecutable> exec,
  */
 ffi::Module VMLink(ExecBuilder builder, ffi::Optional<Target> target,
                    ffi::Optional<ffi::Module> lib, ffi::Array<ffi::Module> ext_libs,
-                   ffi::Map<ffi::String, runtime::Tensor> params) {
+                   ffi::Map<ffi::String, ffi::Tensor> params) {
   ffi::ObjectPtr<VMExecutable> executable = builder->Get();
   if (!lib.has_value()) {
     lib = codegen::CSourceModuleCreate(";", "c", ffi::Array<ffi::String>{});

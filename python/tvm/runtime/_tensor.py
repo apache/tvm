@@ -46,19 +46,8 @@ def from_dlpack(ext_tensor):
     ext_tensor : object
         The external tensor to convert.
 
-    require_alignment : int
-        The minimum required alignment to check for the tensor.
-
-    require_contiguous : bool
-        Whether to check for contiguous memory.
     """
-    # TODO(tvm-team): change to require_alignment=0 and require_contiguous=False
-    # once we update the compiler generated code to guard against misaligned access.
-    return tvm_ffi.from_dlpack(
-        ext_tensor,
-        require_alignment=64,
-        require_contiguous=True,
-    )
+    return tvm_ffi.from_dlpack(ext_tensor)
 
 
 @tvm_ffi.register_object("ffi.Tensor")

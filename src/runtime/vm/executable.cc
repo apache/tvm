@@ -70,9 +70,9 @@ std::string VMExecutable::Stats() const {
   // If the constant is an DLDataType, get the data type of each of them.
   oss << "  Constant pool (# " << constants.size() << "): [";
   for (const auto& it : constants) {
-    if (auto opt_nd = it.as<runtime::Tensor>()) {
+    if (auto opt_nd = it.as<ffi::Tensor>(); opt_nd && opt_nd->defined()) {
       const auto ndarray = opt_nd.value();
-      const auto& shape = ndarray.Shape();
+      const auto& shape = ndarray.shape();
       // Scalar
       if (shape.empty()) {
         oss << "scalar, ";
@@ -284,9 +284,9 @@ void VMExecutable::SaveConstantSection(support::Stream* strm) const {
   // so the load/save is 32/64 bit compatible
   strm->Write(static_cast<uint64_t>(this->constants.size()));
   for (const auto& it : this->constants) {
-    if (auto opt_nd = it.as<runtime::Tensor>()) {
+    if (auto opt_nd = it.as<ffi::Tensor>(); opt_nd && opt_nd->defined()) {
       strm->Write<int32_t>(ffi::TypeIndex::kTVMFFITensor);
-      runtime::SaveDLTensor(strm, opt_nd.value().operator->());
+      runtime::SaveTensor(opt_nd.value(), strm);
     } else if (auto opt_shape = it.as<ffi::Shape>()) {
       ffi::Shape shape = opt_shape.value();
       strm->Write<int32_t>(ffi::TypeIndex::kTVMFFIShape);
@@ -354,8 +354,7 @@ void VMExecutable::LoadConstantSection(support::Stream* strm) {
     int constant_type;
     STREAM_CHECK(strm->Read(&constant_type, sizeof(constant_type)), "constant");
     if (constant_type == ffi::TypeIndex::kTVMFFITensor) {
-      runtime::Tensor ndarray(ffi::UnsafeInit{});
-      STREAM_CHECK(ndarray.Load(strm), "constant tensor");
+      ffi::Tensor ndarray = LoadTensor(strm);
       ffi::Any cell;
       cell = ndarray;
       this->constants.push_back(cell);

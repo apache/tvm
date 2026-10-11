@@ -109,25 +109,25 @@ constexpr uint64_t kTVMTensorListMagic = 0xF7E58D4F05049CB7;
  * \param param_blob Serialized string of parameters.
  * \return Map of parameter name to parameter value.
  */
-ffi::Map<ffi::String, Tensor> LoadParams(const std::string& param_blob);
+ffi::Map<ffi::String, ffi::Tensor> LoadParams(const std::string& param_blob);
 /*!
  * \brief Load parameters from a stream.
  * \param strm Stream to load parameters from.
  * \return Map of parameter name to parameter value.
  */
-ffi::Map<ffi::String, Tensor> LoadParams(support::Stream* strm);
+ffi::Map<ffi::String, ffi::Tensor> LoadParams(support::Stream* strm);
 /*!
  * \brief Serialize parameters to a byte array.
  * \param params Parameters to save.
  * \return ffi::String containing binary parameter data.
  */
-std::string SaveParams(const ffi::Map<ffi::String, Tensor>& params);
+std::string SaveParams(const ffi::Map<ffi::String, ffi::Tensor>& params);
 /*!
  * \brief Serialize parameters to a stream.
  * \param strm Stream to write to.
  * \param params Parameters to save.
  */
-void SaveParams(support::Stream* strm, const ffi::Map<ffi::String, Tensor>& params);
+void SaveParams(support::Stream* strm, const ffi::Map<ffi::String, ffi::Tensor>& params);
 
 /*!
  * \brief A dmlc stream which wraps standard file operations.

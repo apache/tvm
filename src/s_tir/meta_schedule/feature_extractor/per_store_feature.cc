@@ -241,15 +241,15 @@ int64_t GetVarStride(const std::vector<MultiIndex>& multi_indices, const IntVec&
  * (0, second_dim_size).
  * \return The converted TVM Tensor
  */
-runtime::Tensor AsTensor(const std::vector<std::vector<double>>& src, int second_dim_size = -1) {
+ffi::Tensor AsTensor(const std::vector<std::vector<double>>& src, int second_dim_size = -1) {
   int n = src.size();
   TVM_FFI_ICHECK(!src.empty() || second_dim_size != -1);
   int m = src.empty() ? second_dim_size : src[0].size();
-  runtime::Tensor tgt = runtime::Tensor::Empty(
+  ffi::Tensor tgt = runtime::Empty(
       /*shape=*/{n, m},
       /*dtype=*/DLDataType{kDLFloat, 64, 1},
       /*ctx=*/DLDevice{kDLCPU, 0});
-  double* data = static_cast<double*>(tgt->data);
+  double* data = static_cast<double*>(tgt.data_ptr());
   for (const std::vector<double>& row : src) {
     for (double v : row) {
       *data++ = v;
@@ -1546,11 +1546,11 @@ class PerStoreFeatureObj : public FeatureExtractorObj {
     }
   }
 
-  ffi::Array<runtime::Tensor> ExtractFrom(const TuneContext& tune_context,
-                                          const ffi::Array<MeasureCandidate>& candidates) {
+  ffi::Array<ffi::Tensor> ExtractFrom(const TuneContext& tune_context,
+                                      const ffi::Array<MeasureCandidate>& candidates) {
     auto& target_keys = tune_context->target.value()->keys;
     bool is_gpu = std::find(target_keys.begin(), target_keys.end(), "gpu") != target_keys.end();
-    std::vector<ffi::Optional<runtime::Tensor>> results;
+    std::vector<ffi::Optional<ffi::Tensor>> results;
     results.resize(candidates.size());
     std::unique_ptr<s_tir::group6::Feature> feature_group6 = nullptr;
     if (extract_workload) {
@@ -1568,7 +1568,7 @@ class PerStoreFeatureObj : public FeatureExtractorObj {
       results[task_id] = s_tir::utils::AsTensor(features, this->feature_vector_length);
     };
     support::parallel_for_dynamic(0, candidates.size(), tune_context->num_threads, f);
-    ffi::Array<runtime::Tensor> features;
+    ffi::Array<ffi::Tensor> features;
     features.reserve(results.size());
     for (auto& result : results) features.push_back(std::move(result).value());
     return features;

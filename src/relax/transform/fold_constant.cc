@@ -78,13 +78,12 @@ class ConstantFolder : public ExprMutator {
    * \brief Pattern match op to constant array arguments.
    * \return The constant array arguments, or nullopt if match fails.
    */
-  static ffi::Optional<ffi::Array<runtime::Tensor>> MatchConstArrayArgs(
-      const ffi::Array<Expr>& args) {
-    ffi::Array<runtime::Tensor> res;
+  static ffi::Optional<ffi::Array<ffi::Tensor>> MatchConstArrayArgs(const ffi::Array<Expr>& args) {
+    ffi::Array<ffi::Tensor> res;
     for (auto arg : args) {
       auto* ptr = arg.as<::tvm::GenericConstNode>();
-      if (!ptr || !ptr->value.as<runtime::Tensor>()) return std::nullopt;
-      res.push_back(ptr->value.cast<runtime::Tensor>());
+      if (!ptr || !ptr->value.as<ffi::TensorObj>()) return std::nullopt;
+      res.push_back(ptr->value.cast<ffi::Tensor>());
     }
     return res;
   }
@@ -200,7 +199,7 @@ class ConstantFolder : public ExprMutator {
   // Try constant evaluate a call_tir with a single tensor output.
   // Returns std::nullopt on failure.
   ffi::Optional<Expr> ConstEvaluateCallTIR(tirx::Function tir_func,
-                                           ffi::Array<runtime::Tensor> arr_args, ffi::Shape shape,
+                                           ffi::Array<ffi::Tensor> arr_args, ffi::Shape shape,
                                            DLDataType ret_type) {
     // obtain function from the cache.
     ffi::Optional<ffi::Function> func = GetCachedBuild(tir_func);
@@ -210,11 +209,11 @@ class ConstantFolder : public ExprMutator {
     std::vector<AnyView> packed_args(arr_args.size() + 1);
 
     DLDevice cpu_dev = {DLDeviceType::kDLCPU, 0};
-    runtime::Tensor ret_tensor = runtime::Tensor::Empty(shape, ret_type, cpu_dev);
+    ffi::Tensor ret_tensor = runtime::Empty(shape, ret_type, cpu_dev);
 
     // avoid set rvalue ref which get de-allocated later, store args in a vector
     // where temp_args[i] are lvalue ref that is stable
-    std::vector<runtime::Tensor> temp_args(arr_args.begin(), arr_args.end());
+    std::vector<ffi::Tensor> temp_args(arr_args.begin(), arr_args.end());
 
     size_t arg_offset = 0;
     for (; arg_offset < arr_args.size(); ++arg_offset) {
@@ -232,7 +231,7 @@ class ConstantFolder : public ExprMutator {
   // Try constant evaluate a call_tir with tuple outputs (multiple output tensors).
   // Returns std::nullopt on failure.
   ffi::Optional<Expr> ConstEvaluateCallTIRTuple(tirx::Function tir_func,
-                                                ffi::Array<runtime::Tensor> arr_args,
+                                                ffi::Array<ffi::Tensor> arr_args,
                                                 const TupleTypeNode* tuple_ty) {
     ffi::Optional<ffi::Function> func = GetCachedBuild(tir_func);
     if (!func) return std::nullopt;
@@ -241,18 +240,18 @@ class ConstantFolder : public ExprMutator {
     size_t num_outputs = tuple_ty->fields.size();
 
     // Match shapes and dtypes for all output fields.
-    std::vector<runtime::Tensor> ret_tensors;
+    std::vector<ffi::Tensor> ret_tensors;
     for (size_t i = 0; i < num_outputs; ++i) {
       ffi::Optional<ffi::Shape> shape = MatchConstShape(tuple_ty->fields[i]);
       if (!shape) return std::nullopt;
       auto tensor_ty = tuple_ty->fields[i].as_or_throw<TensorType>();
       if (tensor_ty->IsUnknownDtype()) return std::nullopt;
       ret_tensors.push_back(
-          runtime::Tensor::Empty(shape.value(), tensor_ty->dtype.value()->dtype, cpu_dev));
+          runtime::Empty(shape.value(), tensor_ty->dtype.value()->dtype, cpu_dev));
     }
 
     // Pack input args + all output tensors.
-    std::vector<runtime::Tensor> temp_args(arr_args.begin(), arr_args.end());
+    std::vector<ffi::Tensor> temp_args(arr_args.begin(), arr_args.end());
     std::vector<AnyView> packed_args;
     packed_args.reserve(temp_args.size() + num_outputs);
     for (const auto& arg : temp_args) {
@@ -278,7 +277,7 @@ class ConstantFolder : public ExprMutator {
     TVM_FFI_ICHECK_GE(call->args.size(), 2);
     ffi::Optional<tirx::Function> func = MatchFunction(call->args[0]);
     TVM_FFI_ICHECK(call->args[1].as<TupleNode>()) << "call_tir.args[1] must be Tuple";
-    ffi::Optional<ffi::Array<runtime::Tensor>> arr_args =
+    ffi::Optional<ffi::Array<ffi::Tensor>> arr_args =
         MatchConstArrayArgs(call->args[1].as<TupleNode>()->fields);
     TVM_FFI_ICHECK_EQ(call->ty_args.size(), 1) << "call_tir should have exactly one ty arg";
 
@@ -380,13 +379,14 @@ class ConstantFolder : public ExprMutator {
         Expr arg = post_call->args[0];
         if (arg->IsInstance<GenericConstNode>()) {
           GenericConst constant = arg.as_or_throw<GenericConst>();
-          runtime::Tensor ndarray = constant->value.cast<runtime::Tensor>();
-          TVM_FFI_ICHECK_EQ(ndarray->device.device_type, kDLCPU);
+          ffi::Tensor ndarray = constant->value.cast<ffi::Tensor>();
+          TVM_FFI_ICHECK(ndarray.defined());
+          TVM_FFI_ICHECK_EQ(ndarray.device().device_type, kDLCPU);
           TVM_FFI_ICHECK(ndarray.IsContiguous());
-          TVM_FFI_ICHECK_EQ(ndarray->byte_offset, 0);
-          TVM_FFI_ICHECK_EQ(ndarray->ndim, 1);
-          const int64_t* data = static_cast<const int64_t*>(ndarray->data);
-          int64_t num_elems = ndarray->shape[0];
+          TVM_FFI_ICHECK_EQ(ndarray.byte_offset(), 0);
+          TVM_FFI_ICHECK_EQ(ndarray.ndim(), 1);
+          const int64_t* data = static_cast<const int64_t*>(ndarray.data_ptr());
+          int64_t num_elems = ndarray.shape()[0];
           ffi::Array<PrimExpr> shape_values;
           for (int64_t i = 0; i < num_elems; i++) {
             shape_values.push_back(IntImm::Int64(data[i]));
@@ -411,7 +411,8 @@ class ConstantFolder : public ExprMutator {
         }
         if (is_known) {
           const auto func = tvm::ffi::Function::GetGlobalRequired("relax.run.shape_to_tensor");
-          runtime::Tensor vals = func(arr).cast<runtime::Tensor>();
+          ffi::Tensor vals = func(arr).cast<ffi::Tensor>();
+          TVM_FFI_ICHECK(vals.defined());
           return MakeTensorConst(vals);
         }
       }

@@ -51,7 +51,7 @@ class FeatureExtractorObj : public ffi::Object {
    * \param candidates The measure candidates to extract features from.
    * \return The feature tensor extracted.
    */
-  virtual ffi::Array<tvm::runtime::Tensor> ExtractFrom(
+  virtual ffi::Array<tvm::ffi::Tensor> ExtractFrom(
       const TuneContext& context, const ffi::Array<MeasureCandidate>& candidates) = 0;
   TVM_FFI_DECLARE_OBJECT_INFO("s_tir.meta_schedule.FeatureExtractor", FeatureExtractorObj,
                               ffi::Object);
@@ -66,7 +66,7 @@ class PyFeatureExtractorObj : public FeatureExtractorObj {
    * \param candidates The measure candidates to extract features from.
    * \return The feature tensor extracted.
    */
-  using FExtractFrom = ffi::TypedFunction<ffi::Array<tvm::runtime::Tensor>(
+  using FExtractFrom = ffi::TypedFunction<ffi::Array<tvm::ffi::Tensor>(
       const TuneContext& context, const ffi::Array<MeasureCandidate>& candidates)>;
   /*! \brief The packed function to the `ExtractFrom` function. */
   FExtractFrom f_extract_from;
@@ -77,8 +77,8 @@ class PyFeatureExtractorObj : public FeatureExtractorObj {
     refl::ObjectDef<PyFeatureExtractorObj>();
   }
 
-  ffi::Array<tvm::runtime::Tensor> ExtractFrom(
-      const TuneContext& context, const ffi::Array<MeasureCandidate>& candidates) final;
+  ffi::Array<tvm::ffi::Tensor> ExtractFrom(const TuneContext& context,
+                                           const ffi::Array<MeasureCandidate>& candidates) final;
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.meta_schedule.PyFeatureExtractor", PyFeatureExtractorObj,
                                     FeatureExtractorObj);
 };

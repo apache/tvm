@@ -149,12 +149,12 @@ void CopyFile(const std::string& src_file_name, const std::string& dest_file_nam
                        << " dest='" << dest_file_name << "'";
 }
 
-ffi::Map<ffi::String, Tensor> LoadParams(const std::string& param_blob) {
+ffi::Map<ffi::String, ffi::Tensor> LoadParams(const std::string& param_blob) {
   support::BytesInStream strm(param_blob);
   return LoadParams(&strm);
 }
-ffi::Map<ffi::String, Tensor> LoadParams(support::Stream* strm) {
-  ffi::Map<ffi::String, Tensor> params;
+ffi::Map<ffi::String, ffi::Tensor> LoadParams(support::Stream* strm) {
+  ffi::Map<ffi::String, ffi::Tensor> params;
   uint64_t header, reserved;
   TVM_FFI_ICHECK(strm->Read(&header)) << "Invalid parameters file format";
   TVM_FFI_ICHECK(header == kTVMTensorListMagic) << "Invalid parameters file format";
@@ -168,19 +168,21 @@ ffi::Map<ffi::String, Tensor> LoadParams(support::Stream* strm) {
   TVM_FFI_ICHECK(size == names.size()) << "Invalid parameters file format";
   for (size_t i = 0; i < size; ++i) {
     // The data_entry is allocated on device, Tensor.load always load the array into CPU.
-    Tensor temp(ffi::UnsafeInit{});
-    temp.Load(strm);
+    ffi::Tensor temp = LoadTensor(strm);
     params.Set(names[i], temp);
   }
   return params;
 }
 
-void SaveParams(support::Stream* strm, const ffi::Map<ffi::String, Tensor>& params) {
+void SaveParams(support::Stream* strm, const ffi::Map<ffi::String, ffi::Tensor>& params) {
+  for (const auto& entry : params) {
+    TVM_FFI_ICHECK(entry.second.defined());
+  }
   std::vector<std::string> names;
   std::vector<const DLTensor*> arrays;
   for (auto& p : params) {
     names.push_back(p.first);
-    arrays.push_back(p.second.operator->());
+    arrays.push_back(p.second.GetDLTensorPtr());
   }
 
   uint64_t header = kTVMTensorListMagic, reserved = 0;
@@ -191,12 +193,12 @@ void SaveParams(support::Stream* strm, const ffi::Map<ffi::String, Tensor>& para
     uint64_t sz = static_cast<uint64_t>(arrays.size());
     strm->Write(sz);
     for (size_t i = 0; i < sz; ++i) {
-      tvm::runtime::SaveDLTensor(strm, arrays[i]);
+      tvm::runtime::SaveTensor(arrays[i], strm);
     }
   }
 }
 
-std::string SaveParams(const ffi::Map<ffi::String, Tensor>& params) {
+std::string SaveParams(const ffi::Map<ffi::String, ffi::Tensor>& params) {
   std::string result;
   support::BytesOutStream strm(&result);
   SaveParams(&strm, params);
@@ -216,12 +218,15 @@ TVM_FFI_STATIC_INIT_BLOCK() {
               refl::DefaultValue(ffi::Map<ffi::String, int64_t>()));
   refl::GlobalDef()
       .def("runtime.SaveParams",
-           [](const ffi::Map<ffi::String, Tensor>& params) {
+           [](const ffi::Map<ffi::String, ffi::Tensor>& params) {
              std::string s = ::tvm::runtime::SaveParams(params);
              return ffi::Bytes(std::move(s));
            })
       .def("runtime.SaveParamsToFile",
-           [](const ffi::Map<ffi::String, Tensor>& params, const ffi::String& path) {
+           [](const ffi::Map<ffi::String, ffi::Tensor>& params, const ffi::String& path) {
+             for (const auto& entry : params) {
+               TVM_FFI_ICHECK(entry.second.defined());
+             }
              tvm::runtime::SimpleBinaryFileStream strm(path, "wb");
              SaveParams(&strm, params);
            })

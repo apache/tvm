@@ -343,10 +343,10 @@ ffi::Array<ffi::Module> TensorRTCompiler(ffi::Array<Function> functions,
   auto cfg = transform::PassContext::Current()->GetConfig<TensorRTCompilerConfig>(
       "relax.ext.tensorrt.options");
   bool build_at_compile_time = cfg.has_value() && cfg.value()->build_at_compile_time;
-  ffi::Map<ffi::String, runtime::Tensor> constant_tensors;
+  ffi::Map<ffi::String, ffi::Tensor> constant_tensors;
   if (build_at_compile_time) {
     for (const auto& entry : constant_names) {
-      constant_tensors.Set(entry.second, entry.first->value.cast<runtime::Tensor>());
+      constant_tensors.Set(entry.second, entry.first->value.cast<ffi::Tensor>());
     }
   }
 
@@ -387,7 +387,7 @@ ffi::Array<ffi::Module> TensorRTCompiler(ffi::Array<Function> functions,
       auto build_engine = module->GetFunction("build_engine");
       TVM_FFI_CHECK(build_engine.has_value(), RuntimeError)
           << "TensorRT compile-time engine building requires the TensorRT runtime";
-      ffi::Array<runtime::Tensor> ordered_constants;
+      ffi::Array<ffi::Tensor> ordered_constants;
       for (const auto& name : ordered_constant_names) {
         ordered_constants.push_back(constant_tensors[name]);
       }

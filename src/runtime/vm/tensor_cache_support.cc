@@ -126,34 +126,36 @@ TVM_RUNTIME_DLL TensorCacheMetadata TensorCacheMetadata::Load(const std::string&
   return result;
 }
 
-void CopyTensorFromBytes(Tensor param, const void* data, size_t nbytes,
-                         ffi::Optional<Tensor>* staging_buffer) {
-  Device device = param->device;
+void CopyTensorFromBytes(ffi::Tensor param, const void* data, size_t nbytes,
+                         ffi::Optional<ffi::Tensor>* staging_buffer) {
+  TVM_FFI_ICHECK(param.defined());
+  Device device = param.device();
   if (device.device_type != kDLOpenCL || staging_buffer == nullptr) {
-    param.CopyFromBytes(data, nbytes);
+    tvm::runtime::CopyFromBytes(param, data, nbytes);
     return;
   }
   // Special handle for OpenCL runtime.
   // It creates a host side memory mirror, for every cl_mem that tries to copy data from host
   // which can cause memory issue. Her we use a large staging buffer to postpone deallocation
   if (staging_buffer->has_value()) {
-    size_t curr_size = ffi::GetDataSize(*(staging_buffer->value().operator->()));
+    size_t curr_size = ffi::GetDataSize(*(staging_buffer->value().GetDLTensorPtr()));
     if (curr_size < nbytes) {
       *staging_buffer = std::nullopt;
     }
   }
   if (!staging_buffer->has_value()) {
-    *staging_buffer = Tensor::Empty(param.Shape(), param->dtype, param->device);
+    *staging_buffer = tvm::runtime::Empty(param.shape(), param.dtype(), param.device());
   }
-  Tensor staging_view = staging_buffer->value().CreateView(param.Shape(), param->dtype);
-  staging_view.CopyFromBytes(data, nbytes);
-  param.CopyFrom(staging_view);
+  ffi::Tensor staging_view =
+      tvm::runtime::CreateView(staging_buffer->value(), param.shape(), param.dtype());
+  tvm::runtime::CopyFromBytes(staging_view, data, nbytes);
+  tvm::runtime::CopyFromTo(staging_view, param);
   DeviceAPI::Get(device)->StreamSync(device, nullptr);
 }
 
-Tensor TensorCacheMetadata::FileRecord::ParamRecord::Load(
-    Device device, const std::string* raw_data, ffi::Optional<Tensor>* staging_buffer) const {
-  Tensor arr = Tensor::Empty(shape, dtype, device);
+ffi::Tensor TensorCacheMetadata::FileRecord::ParamRecord::Load(
+    Device device, const std::string* raw_data, ffi::Optional<ffi::Tensor>* staging_buffer) const {
+  ffi::Tensor arr = tvm::runtime::Empty(shape, dtype, device);
   if (dtype == DLDataType{kDLFloat, 32, 1} && format == "f32-to-bf16") {
     // decode bf16 to f32
     std::vector<uint16_t> buffer(nbytes / 2);
@@ -169,17 +171,17 @@ Tensor TensorCacheMetadata::FileRecord::ParamRecord::Load(
   return arr;
 }
 
-TVM_RUNTIME_DLL ffi::Array<Tensor> TensorCacheMetadata::FileRecord::Load(
+TVM_RUNTIME_DLL ffi::Array<ffi::Tensor> TensorCacheMetadata::FileRecord::Load(
     Device device,
     const std::string& path_prefix,  //
     std::string* raw_data_buffer,    //
-    ffi::Optional<Tensor>* staging_buffer) const {
+    ffi::Optional<ffi::Tensor>* staging_buffer) const {
   LoadBinaryFromFile(path_prefix + "/" + this->data_path, raw_data_buffer);
   TVM_FFI_CHECK_EQ(this->format, "raw-shard", ValueError) << "Only `raw-shard` format is supported";
   TVM_FFI_CHECK_EQ(this->nbytes, raw_data_buffer->length(), ValueError)
       << "Encountered an corrupted parameter shard. It means it is not downloaded "
          "completely or downloading is interrupted. Please try to download again.";
-  ffi::Array<Tensor> result;
+  ffi::Array<ffi::Tensor> result;
   result.reserve(this->records.size());
   for (const ParamRecord& nd_rec : this->records) {
     result.push_back(nd_rec.Load(device, raw_data_buffer, staging_buffer));
@@ -197,7 +199,8 @@ class TensorCache {
     return inst;
   }
 
-  static void Update(ffi::String name, Tensor arr, bool override) {
+  static void Update(ffi::String name, ffi::Tensor arr, bool override) {
+    TVM_FFI_ICHECK(arr.defined());
     TensorCache* pool = Global();
     if (!override) {
       TVM_FFI_ICHECK_EQ(pool->pool_.count(name), 0)
@@ -206,7 +209,7 @@ class TensorCache {
     pool->pool_.Set(name, arr);
   }
 
-  static ffi::Optional<Tensor> Get(ffi::String name) {
+  static ffi::Optional<ffi::Tensor> Get(ffi::String name) {
     TensorCache* pool = Global();
     auto it = pool->pool_.find(name);
     if (it != pool->pool_.end()) {
@@ -232,9 +235,9 @@ class TensorCache {
   static void Load(const std::string& cache_path, int device_type, int device_id) {
     DLDevice device{static_cast<DLDeviceType>(device_type), device_id};
     TensorCacheMetadata metadata = TensorCacheMetadata::Load(cache_path);
-    ffi::Optional<Tensor> staging_buffer;
+    ffi::Optional<ffi::Tensor> staging_buffer;
     std::string raw_data;
-    ffi::Array<Tensor> params;
+    ffi::Array<ffi::Tensor> params;
     for (const TensorCacheMetadata::FileRecord& shard_rec : metadata.records) {
       try {
         params = shard_rec.Load(device, cache_path, &raw_data, &staging_buffer);
@@ -250,7 +253,7 @@ class TensorCache {
   }
 
  private:
-  ffi::Map<ffi::String, Tensor> pool_;
+  ffi::Map<ffi::String, ffi::Tensor> pool_;
 };
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -263,8 +266,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                     ffi::String name = args[0].cast<ffi::String>();
                     bool is_override = args.size() == 2 ? false : args[2].cast<bool>();
 
-                    Tensor arr = [&]() {
-                      if (auto opt_nd = args[1].as<Tensor>()) {
+                    ffi::Tensor arr = [&]() {
+                      if (auto opt_nd = args[1].as<ffi::Tensor>(); opt_nd && opt_nd->defined()) {
                         return opt_nd.value();
                       } else {
                         // We support converting DLTensors to Tensors as RPC references are always
@@ -274,9 +277,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                         for (int64_t i = 0; i < tensor->ndim; i++) {
                           shape.push_back(tensor->shape[i]);
                         }
-                        Tensor arr = Tensor::Empty(shape, tensor->dtype, tensor->device);
-                        arr.CopyFrom(tensor);
-                        DeviceAPI::Get(arr->device)->StreamSync(arr->device, nullptr);
+                        ffi::Tensor arr = tvm::runtime::Empty(shape, tensor->dtype, tensor->device);
+                        tvm::runtime::CopyFromTo(tensor, arr);
+                        DeviceAPI::Get(arr.device())->StreamSync(arr.device(), nullptr);
                         return arr;
                       }
                     }();
@@ -303,8 +306,8 @@ class ParamModuleObj : public ffi::ModuleObj {
     }
   }
 
-  static ffi::Array<Tensor> GetParams(const ffi::String& prefix, int num_params) {
-    ffi::Array<Tensor> params;
+  static ffi::Array<ffi::Tensor> GetParams(const ffi::String& prefix, int num_params) {
+    ffi::Array<ffi::Tensor> params;
     for (int i = 0; i < num_params || num_params == -1; ++i) {
       std::string name = prefix + "_" + std::to_string(i);
       auto opt = TensorCache::Get(name);
@@ -318,11 +321,11 @@ class ParamModuleObj : public ffi::ModuleObj {
     return params;
   }
 
-  static ffi::Array<Tensor> GetParamByName(const ffi::Array<ffi::String>& names) {
-    ffi::Array<Tensor> result;
+  static ffi::Array<ffi::Tensor> GetParamByName(const ffi::Array<ffi::String>& names) {
+    ffi::Array<ffi::Tensor> result;
     result.reserve(names.size());
     for (const ffi::String& name : names) {
-      if (ffi::Optional<Tensor> opt = TensorCache::Get(name)) {
+      if (ffi::Optional<ffi::Tensor> opt = TensorCache::Get(name)) {
         result.push_back(opt.value());
       } else {
         TVM_FFI_THROW(ValueError) << "Cannot find parameter in cache: " << name;
@@ -344,7 +347,7 @@ class ParamModuleObj : public ffi::ModuleObj {
   }
 
  private:
-  ffi::Array<Tensor> params_;
+  ffi::Array<ffi::Tensor> params_;
 };
 
 TVM_FFI_STATIC_INIT_BLOCK() {

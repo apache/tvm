@@ -57,7 +57,7 @@ namespace runtime {
 class ConstLoaderModuleObj : public ffi::ModuleObj {
  public:
   ConstLoaderModuleObj(
-      const std::unordered_map<std::string, Tensor>& const_var_tensor,
+      const std::unordered_map<std::string, ffi::Tensor>& const_var_tensor,
       const std::unordered_map<std::string, std::vector<std::string>>& const_vars_by_symbol)
       : const_var_tensor_(const_var_tensor), const_vars_by_symbol_(const_vars_by_symbol) {
     VLOG(1) << "Creating ConstLoaderModule";
@@ -118,8 +118,8 @@ class ConstLoaderModuleObj : public ffi::ModuleObj {
    * \param symbol The symbol that is being queried.
    * \return The list of needed Tensor.
    */
-  ffi::Array<Tensor> GetRequiredConstants(const std::string& symbol) {
-    ffi::Array<Tensor> ret;
+  ffi::Array<ffi::Tensor> GetRequiredConstants(const std::string& symbol) {
+    ffi::Array<ffi::Tensor> ret;
     TVM_FFI_ICHECK_GT(const_vars_by_symbol_.count(symbol), 0U)
         << "No constants known for function '" << symbol << "'";
     std::vector<std::string> vars = const_vars_by_symbol_[symbol];
@@ -165,7 +165,7 @@ class ConstLoaderModuleObj : public ffi::ModuleObj {
     support::BytesOutStream stream(&result);
 
     std::vector<std::string> variables;
-    std::vector<Tensor> const_var_tensor;
+    std::vector<ffi::Tensor> const_var_tensor;
     for (const auto& it : const_var_tensor_) {
       ffi::String var_name = it.first;
       variables.push_back(var_name);
@@ -178,7 +178,7 @@ class ConstLoaderModuleObj : public ffi::ModuleObj {
     uint64_t sz = static_cast<uint64_t>(const_var_tensor.size());
     stream.Write(sz);
     for (uint64_t i = 0; i < sz; i++) {
-      const_var_tensor[i].Save(&stream);
+      SaveTensor(const_var_tensor[i], &stream);
     }
 
     // Save the symbol to list of required constant variables mapping
@@ -209,14 +209,13 @@ class ConstLoaderModuleObj : public ffi::ModuleObj {
     TVM_FFI_ICHECK_EQ(static_cast<size_t>(sz), variables.size())
         << "The number of variables and ndarray counts must match";
     // Load the list of ndarray.
-    std::vector<Tensor> arrays;
+    std::vector<ffi::Tensor> arrays;
     for (uint64_t i = 0; i < sz; i++) {
-      Tensor temp(ffi::UnsafeInit{});
-      temp.Load(&stream);
+      ffi::Tensor temp = LoadTensor(&stream);
       arrays.push_back(temp);
     }
 
-    std::unordered_map<std::string, Tensor> const_var_tensor;
+    std::unordered_map<std::string, ffi::Tensor> const_var_tensor;
     for (uint64_t i = 0; i < sz; i++) {
       TVM_FFI_ICHECK_EQ(const_var_tensor.count(variables[i]), 0U);
       const_var_tensor.emplace(variables[i], arrays[i]);
@@ -250,13 +249,13 @@ class ConstLoaderModuleObj : public ffi::ModuleObj {
    */
   std::unordered_map<std::string, bool> initialized_;
   /*! \brief Variable name to Tensor mapping. */
-  std::unordered_map<std::string, Tensor> const_var_tensor_;
+  std::unordered_map<std::string, ffi::Tensor> const_var_tensor_;
   /*! \brief Symbol name to required constant variables mapping. */
   std::unordered_map<std::string, std::vector<std::string>> const_vars_by_symbol_;
 };
 
 static ffi::Module ConstLoaderModuleCreateImpl(
-    const std::unordered_map<std::string, Tensor>& const_var_tensor,
+    const std::unordered_map<std::string, ffi::Tensor>& const_var_tensor,
     const std::unordered_map<std::string, std::vector<std::string>>& const_vars_by_symbol) {
   auto n = ffi::make_object<ConstLoaderModuleObj>(const_var_tensor, const_vars_by_symbol);
   return ffi::Module(n);
@@ -267,10 +266,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef()
       .def("ffi.Module.load_from_bytes.const_loader", ConstLoaderModuleObj::LoadFromBytes)
       .def("ffi.Module.create.const_loader",
-           [](ffi::Map<ffi::String, Tensor> const_var_tensor_ffi,
+           [](ffi::Map<ffi::String, ffi::Tensor> const_var_tensor_ffi,
               ffi::Map<ffi::String, ffi::Array<ffi::String>> const_vars_by_symbol_ffi) {
-             std::unordered_map<std::string, Tensor> const_var_tensor;
+             std::unordered_map<std::string, ffi::Tensor> const_var_tensor;
              for (const auto& kv : const_var_tensor_ffi) {
+               TVM_FFI_ICHECK(kv.second.defined());
                const_var_tensor.emplace(std::string(kv.first), kv.second);
              }
              std::unordered_map<std::string, std::vector<std::string>> const_vars_by_symbol;

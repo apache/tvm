@@ -358,8 +358,8 @@ class OpenCLWorkspace : public DeviceAPI {
                        ffi::Optional<ffi::String> mem_scope = std::nullopt) final;
   void* AllocDataSpace(Device dev, size_t width, size_t height, size_t depth, DLDataType type_hint,
                        ffi::Optional<ffi::String> mem_scope = std::nullopt);
-  void* GetNativePtr(const tvm::runtime::Tensor& narr);
-  void SetNativePtr(const tvm::runtime::Tensor& narr, void* host_ptr, size_t buf_size);
+  void* GetNativePtr(const tvm::ffi::Tensor& narr);
+  void SetNativePtr(const tvm::ffi::Tensor& narr, void* host_ptr, size_t buf_size);
   void SetPerfHint(Device dev, cl_uint perf_hint);
   void FreeDataSpace(Device dev, void* ptr) final;
   void StreamSync(Device dev, TVMStreamHandle stream) final;

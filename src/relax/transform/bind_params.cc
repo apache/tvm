@@ -79,7 +79,7 @@ ffi::Map<Var, Expr> NormalizeBindings(const Function& func,
   auto normalize_value = [&](ffi::Any obj) -> relax::Expr {
     if (auto opt = obj.as<relax::Expr>()) {
       return opt.value();
-    } else if (auto opt = obj.as<runtime::Tensor>()) {
+    } else if (auto opt = obj.as<ffi::Tensor>(); opt && opt->defined()) {
       return MakeTensorConst(opt.value());
     } else {
       TVM_FFI_THROW(InternalError)

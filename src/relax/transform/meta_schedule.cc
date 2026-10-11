@@ -41,7 +41,7 @@ class MetaScheduleTuner {
   explicit MetaScheduleTuner(Target target, ffi::String work_dir, int64_t max_trials_global,
                              int64_t max_trials_per_task,
                              ffi::Optional<ffi::Array<ffi::String>> op_names,
-                             ffi::Map<ffi::String, runtime::Tensor> params = {})
+                             ffi::Map<ffi::String, ffi::Tensor> params = {})
       : target_(target),
         work_dir_(work_dir),
         max_trials_global_(max_trials_global),
@@ -73,7 +73,7 @@ class MetaScheduleTuner {
   int64_t max_trials_global_;
   int64_t max_trials_per_task_;
   ffi::Optional<ffi::Array<ffi::String>> op_names_;
-  ffi::Map<ffi::String, runtime::Tensor> params_;
+  ffi::Map<ffi::String, ffi::Tensor> params_;
   tvm::ffi::Function normalize_mod_func_;
 };
 
@@ -149,7 +149,7 @@ Pass MetaScheduleApplyDatabase(ffi::Optional<ffi::String> work_dir, bool enable_
   return CreateModulePass(pass_func, 0, "MetaScheduleApplyDatabase");
 }
 
-Pass MetaScheduleTuneIRMod(ffi::Map<ffi::String, runtime::Tensor> params, ffi::String work_dir,
+Pass MetaScheduleTuneIRMod(ffi::Map<ffi::String, ffi::Tensor> params, ffi::String work_dir,
                            int64_t max_trials_global,
                            ffi::Optional<int64_t> max_trials_per_task = std::nullopt,
                            ffi::Optional<ffi::Array<ffi::String>> op_names = std::nullopt) {

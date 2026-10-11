@@ -600,7 +600,7 @@ bool DFPatternMatcher::VisitDFPattern_(const ConstantPatternNode* op, const Expr
   // constants can be binded to relax.Var as well.
   auto expr = UnwrapBindings(expr0, var2val_);
   auto* constant = expr.as<GenericConstNode>();
-  return constant && constant->value.as<runtime::Tensor>().has_value();
+  return constant && constant->value.as<ffi::TensorObj>();
 }
 
 bool DFPatternMatcher::VisitDFPattern_(const DataflowVarPatternNode* op, const Expr& expr) {

@@ -45,7 +45,7 @@ class BuilderInputObj : public ffi::Object {
   /*! \brief The target to be built for. */
   Target target;
   /*! \brief Parameters for Relax build module. */
-  ffi::Optional<ffi::Map<ffi::String, runtime::Tensor>> params;
+  ffi::Optional<ffi::Map<ffi::String, ffi::Tensor>> params;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -72,7 +72,7 @@ class BuilderInput : public ffi::ObjectRef {
    */
   TVM_DLL explicit BuilderInput(
       IRModule mod, Target target,
-      ffi::Optional<ffi::Map<ffi::String, runtime::Tensor>> params = std::nullopt);
+      ffi::Optional<ffi::Map<ffi::String, ffi::Tensor>> params = std::nullopt);
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(BuilderInput, ffi::ObjectRef, BuilderInputObj);
 };
 

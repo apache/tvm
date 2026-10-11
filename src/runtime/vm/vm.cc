@@ -87,21 +87,22 @@ ffi::Any IndexIntoNestedObject(ffi::Any obj, ffi::PackedArgs args, int starting_
   return obj;
 }
 
-Tensor ConvertTensorToDevice(Tensor src, const DLDevice& dev, Allocator* alloc,
-                             ffi::String scope = "global") {
-  if (src->device.device_type == dev.device_type && src->device.device_id == dev.device_id) {
+ffi::Tensor ConvertTensorToDevice(ffi::Tensor src, const DLDevice& dev, Allocator* alloc,
+                                  ffi::String scope = "global") {
+  TVM_FFI_ICHECK(src.defined());
+  if (src.device().device_type == dev.device_type && src.device().device_id == dev.device_id) {
     return src;
   } else {
-    auto res = alloc->Empty(src.Shape(), src->dtype, dev, scope);
-    res.CopyFrom(src);
+    auto res = alloc->Empty(src.shape(), src.dtype(), dev, scope);
+    tvm::runtime::CopyFromTo(src, res);
     return res;
   }
 }
 
 Any ConvertObjectToDevice(Any src, const Device& dev, Allocator* alloc,
                           ffi::String scope = "global") {
-  if (src.as<Tensor::ContainerType>()) {
-    return ConvertTensorToDevice(src.cast<Tensor>(), dev, alloc, scope);
+  if (src.as<ffi::Tensor::ContainerType>()) {
+    return ConvertTensorToDevice(src.cast<ffi::Tensor>(), dev, alloc, scope);
   } else if (src.as<ffi::ArrayObj>()) {
     std::vector<Any> ret;
     auto arr = src.cast<ffi::Array<Any>>();
@@ -126,7 +127,7 @@ ffi::Any ConvertArgToDevice(ffi::AnyView input, Device dev, Allocator* alloc) {
     DLTensor* tensor = opt_dltensor.value();
     std::vector<int64_t> shape(tensor->shape, tensor->shape + tensor->ndim);
     auto dst = alloc->Empty(shape, tensor->dtype, dev);
-    dst.CopyFrom(tensor);
+    tvm::runtime::CopyFromTo(tensor, dst);
     ret = dst;
   } else {
     ret = input;
@@ -476,7 +477,7 @@ void VirtualMachineImpl::Init(const std::vector<Device>& devices,
   // Setup constant sections.
   this->const_pool_.reserve(exec_->constants.size());
   for (size_t i = 0; i < exec_->constants.size(); ++i) {
-    if (auto opt_nd = exec_->constants[i].as<Tensor>()) {
+    if (auto opt_nd = exec_->constants[i].as<ffi::Tensor>(); opt_nd && opt_nd->defined()) {
       this->const_pool_.push_back(
           ConvertRegToDevice(opt_nd.value(), devices[0], allocators[0], exec_->memory_scopes[i]));
     } else {
