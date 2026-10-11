@@ -45,11 +45,10 @@ Value getOrSetDefault(ffi::Map<ffi::String, ffi::ObjectRef>& m, const Key& key,
 void DispatchContextNode::AddAllocBuffer(TensorVar buffer, ffi::Array<PrimExpr> allocated_addr,
                                          ffi::Map<ffi::String, ffi::Any> annotations) {
   auto buffers = getOrSetDefault(callbacks, callback::kPrivateAlloc, ffi::Array<Bind>());
-  ffi::Array<Expr> args{tvm::Tuple(buffer->shape), DataTypeImm(buffer->dtype->dtype),
-                        StringImm(buffer.scope())};
+  ffi::Array<Expr> args;
   if (!allocated_addr.empty()) args.push_back(tvm::Tuple(allocated_addr));
-  buffers.push_back(
-      Bind(buffer.var(), Call(buffer.type(), alloc_tensor_op(), args, DictAttrs(annotations))));
+  buffers.push_back(Bind(buffer.var(), Call(buffer.type(), alloc_tensor_op(), args,
+                                            DictAttrs(annotations), {buffer.type()})));
   callbacks.Set(callback::kPrivateAlloc, buffers);
 }
 

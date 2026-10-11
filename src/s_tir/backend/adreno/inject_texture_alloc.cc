@@ -75,7 +75,7 @@ class TextureAllocInjector : public s_tir::IRMutatorWithAnalyzer {
   UnchangedOr<Stmt> Mutate_AllocTensor(const BindNode* op, const CallNode* call,
                                        InplaceMode inplace_mode) {
     Stmt stmt = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
-    ffi::String scope = call->args[2].as_or_throw<StringImm>()->value;
+    ffi::String scope = call->ty_args[0].as_or_throw<TensorType>()->storage_scope;
     if (IsTextureStorage(scope)) {
       op = stmt.as<BindNode>();
       if (const auto* call = op ? op->value.as<CallNode>() : nullptr;
@@ -83,8 +83,8 @@ class TextureAllocInjector : public s_tir::IRMutatorWithAnalyzer {
         TVM_FFI_THROW(InternalError) << "Expected an allocation binding after buffer mutation";
       }
       const auto* allocation = op->value.as<CallNode>();
-      tvm::Tuple shape = allocation->args[0].as_or_throw<tvm::Tuple>();
-      DLDataType dtype = allocation->args[1].as_or_throw<DataTypeImm>()->value;
+      tvm::Tuple shape = tvm::Tuple(allocation->ty_args[0].as_or_throw<tirx::TensorType>()->shape);
+      DLDataType dtype = allocation->ty_args[0].as_or_throw<tirx::TensorType>()->dtype->dtype;
       ffi::Array<PrimExpr> extents =
           shape->fields.Map([](const Expr& e) { return e.as_or_throw<PrimExpr>(); });
       TVM_FFI_ICHECK(extents.size() >= 3) << "Only 2D Array RGBA texture is currently supported";
@@ -105,11 +105,8 @@ class TextureAllocInjector : public s_tir::IRMutatorWithAnalyzer {
       stmt = Bind(op->var.as_or_throw<TensorVar>(),
                   Call(op->var.as_or_throw<TensorVar>().type(), tirx::decl_tensor_op(),
                        {Call(op->var.as_or_throw<TensorVar>().type()->DataPtrType(),
-                             tvm::backend::opencl::nd_mem_alloc_with_scope_op(), args),
-                        tvm::Tuple(op->var.as_or_throw<TensorVar>()->shape),
-                        DataTypeImm(op->var.as_or_throw<TensorVar>()->dtype->dtype),
-                        StringImm(op->var.as_or_throw<TensorVar>().scope())},
-                       {}, allocation->ty_args, allocation->loc),
+                             tvm::backend::opencl::nd_mem_alloc_with_scope_op(), args)},
+                       {}, {op->var.as_or_throw<TensorVar>().type()}, allocation->loc),
                   op->loc);
     }
     return stmt;

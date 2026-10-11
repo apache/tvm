@@ -53,18 +53,21 @@ def _redecl(buf: Var, shape, layout, *, dtype=None, elem_offset=None, addr_offse
             layout=layout,
         )
         return bind_(tvm.ir.Call("tirx.cuda.decl_tmem", [addr], ty_args=[ty]))
-    return tvm.tirx.script.ir_builder.decl_tensor(
+    from tvm.tirx.script.ir_builder.parser_protocol import (  # pylint: disable=import-outside-toplevel
+        bind_,
+    )
+
+    tensor_type = tvm.tirx.script.ir_builder.Tensor(
         shape,
         buf.dtype if dtype is None else dtype,
-        buf.data,
-        buf.strides,
-        buf.elem_offset if elem_offset is None else elem_offset,
-        None,
-        buf.scope(),
-        buf.data_alignment,
-        buf.offset_factor,
-        layout,
+        strides=buf.strides,
+        elem_offset=buf.elem_offset if elem_offset is None else elem_offset,
+        scope=buf.scope(),
+        align=buf.data_alignment,
+        offset_factor=buf.offset_factor,
+        layout=layout,
     )
+    return bind_(tvm.tirx.script.ir_builder.decl_tensor(buf.data, ty_args=[tensor_type]))
 
 
 def view(buf: Var, *args, **kwargs) -> Var:

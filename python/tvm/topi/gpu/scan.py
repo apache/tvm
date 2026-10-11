@@ -132,9 +132,15 @@ def exclusive_scan_ir(data, output, reduction=None, binop=operator.add, identity
                     width = 2 << l2_width
 
                     blocks_per_batch = cast(ceil_div(scan_axis_size, max_threads * width), "int32")
-                    start_buf = T.decl_tensor([1], "int32", scope="local")
-                    middle_buf = T.decl_tensor([1], "int32", scope="local")
-                    end_buf = T.decl_tensor([1], "int32", scope="local")
+                    start_buf = T.bind(
+                        T.alloc_tensor(ty_args=[T.Tensor([1], "int32", scope="local")])
+                    )
+                    middle_buf = T.bind(
+                        T.alloc_tensor(ty_args=[T.Tensor([1], "int32", scope="local")])
+                    )
+                    end_buf = T.bind(
+                        T.alloc_tensor(ty_args=[T.Tensor([1], "int32", scope="local")])
+                    )
                     with T.frame_scope(
                         [
                             T.launch_thread("threadIdx.x", nthread_tx),
@@ -219,10 +225,18 @@ def exclusive_scan_ir(data, output, reduction=None, binop=operator.add, identity
                     width = 2 << (lim - l2_width - 1)
 
                     blocks_per_batch = cast(ceil_div(scan_axis_size, max_threads * width), "int32")
-                    start_buf = T.decl_tensor([1], "int32", scope="local")
-                    middle_buf = T.decl_tensor([1], "int32", scope="local")
-                    end_buf = T.decl_tensor([1], "int32", scope="local")
-                    tmp_buf = T.decl_tensor([1], out_dtype, scope="local")
+                    start_buf = T.bind(
+                        T.alloc_tensor(ty_args=[T.Tensor([1], "int32", scope="local")])
+                    )
+                    middle_buf = T.bind(
+                        T.alloc_tensor(ty_args=[T.Tensor([1], "int32", scope="local")])
+                    )
+                    end_buf = T.bind(
+                        T.alloc_tensor(ty_args=[T.Tensor([1], "int32", scope="local")])
+                    )
+                    tmp_buf = T.bind(
+                        T.alloc_tensor(ty_args=[T.Tensor([1], out_dtype, scope="local")])
+                    )
                     with T.frame_scope(
                         [
                             T.launch_thread("threadIdx.x", nthread_tx),

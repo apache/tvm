@@ -94,11 +94,11 @@ contiguous elements). From ``test_reg.py``:
         _index = Tx.cuda.block_idx("x")
         _lane = Tx.cuda.lane_id()
         tid = Tx.cuda.thread_idx("x")
-        A_smem = Tx.alloc_tensor(shape, dtype, scope="shared", layout=s_layout)
+        A_smem = Tx.alloc_tensor(ty_args=[Tx.Tensor(shape, dtype, scope="shared", layout=s_layout)])
         for kk in range(8):
             A_smem[tid, kk] = Tx.cast(tid * 100 + kk + 1, dtype)
         Tx.cuda.cta_sync()
-        R = Tx.alloc_tensor(shape, dtype, scope="local", layout=r_layout)
+        R = Tx.alloc_tensor(ty_args=[Tx.Tensor(shape, dtype, scope="local", layout=r_layout)])
         Tx.cuda.tile.ld(R[fs], A_smem[fs], scope="warp")  # shared -> register  (this dispatch)
         # ... clear A_smem, cta_sync ...
         Tx.cuda.tile.st(A_smem[fs], R[fs], scope="warp")  # register -> shared  (this dispatch)
@@ -151,7 +151,9 @@ Generated TIRx IR
 
 .. code-block:: python
 
-    r_local = Tx.decl_tensor((8,), data=R.data, scope="local")   # 8 fp32 elements / lane
+    r_local = Tx.decl_tensor(
+        R.data, ty_args=[Tx.Tensor((8,), scope="local")]
+    )  # 8 fp32 elements / lane
     r_words = r_local.view("uint32")
     for f in range(2):                                           # outer = 8 / vec 4
         s_ptr = pointer_offset(A_smem, ...)                      # this lane's row

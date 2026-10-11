@@ -110,7 +110,7 @@ import operator
 
 import tvm
 from tvm.backend.cuda.op import _tmem_address
-from tvm.ir import Bind, Call, DataTypeImm, DictAttrs, Evaluate, SeqStmt, StringImm, Tuple
+from tvm.ir import Bind, Call, DictAttrs, Evaluate, SeqStmt, StringImm
 from tvm.runtime import DataType
 from tvm.script import tirx as T
 from tvm.sym import Analyzer
@@ -688,13 +688,9 @@ def _get_or_create_desc(sctx, s_buf, ldo, sdo, swizzle):
                 desc_buf,
                 Call(
                     "tirx.alloc_tensor",
-                    [
-                        Tuple(desc_buf.ty.shape),
-                        DataTypeImm(desc_buf.ty.dtype.dtype),
-                        StringImm(desc_buf.scope()),
-                    ],
+                    [],
                     attrs=DictAttrs({}),
-                    ty=desc_buf.ty,
+                    ty_args=[desc_buf.ty],
                 ),
             ),
             Evaluate(encode_call),

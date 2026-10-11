@@ -129,11 +129,11 @@ def test_evaluate():
 def test_allocate():
     @T.function
     def func1():
-        a = T.alloc_tensor((128, 128), dtype="float32")
+        a = T.alloc_tensor(ty_args=[T.Tensor((128, 128), "float32")])
 
     @T.function
     def func2():
-        a = T.alloc_tensor((256, 128), dtype="float32")
+        a = T.alloc_tensor(ty_args=[T.Tensor((256, 128), "float32")])
 
     func1 = func1.with_attr("global_symbol", "main")
     func2 = func2.with_attr("global_symbol", "main")

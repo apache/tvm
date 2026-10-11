@@ -247,10 +247,7 @@ class HostDeviceSplitter : public StmtExprMutator {
       body = SeqStmt(
           {Bind(kernel_buffer.as_or_throw<TensorVar>(),
                 Call(kernel_buffer.as_or_throw<TensorVar>().type(), decl_tensor_op(),
-                     {data_param.value(), tvm::Tuple(kernel_buffer.as_or_throw<TensorVar>()->shape),
-                      DataTypeImm(kernel_buffer.as_or_throw<TensorVar>()->dtype->dtype),
-                      StringImm(kernel_buffer.as_or_throw<TensorVar>().scope())},
-                     {})),
+                     {data_param.value()}, {}, {kernel_buffer.as_or_throw<TensorVar>().type()})),
            std::move(body)});
     }
     Function device_func(kernel_params, SeqStmt(body), kernel_ret_type);
@@ -491,7 +488,7 @@ class DeviceInfoCollector : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> DispatchAllocTensor(const BindNode* op, const CallNode* call) {
-    ffi::String scope = call->args[2].as_or_throw<StringImm>()->value;
+    ffi::String scope = call->ty_args[0].as_or_throw<TensorType>()->storage_scope;
     auto storage_scope = runtime::StorageScope::Create(scope);
     if (storage_scope.rank == runtime::StorageRank::kShared && storage_scope.tag == ".dyn") {
       TVM_FFI_ICHECK(!saw_dyn_shared_alloc_)
@@ -500,8 +497,8 @@ class DeviceInfoCollector : public StmtExprVisitor {
 
       // A zero extent is an extern placeholder; native launch regions supply
       // its resource requirement independently of the backing allocation.
-      tvm::Tuple shape = call->args[0].as_or_throw<tvm::Tuple>();
-      DLDataType dtype = call->args[1].as_or_throw<DataTypeImm>()->value;
+      tvm::Tuple shape = tvm::Tuple(call->ty_args[0].as_or_throw<TensorType>()->shape);
+      DLDataType dtype = call->ty_args[0].as_or_throw<TensorType>()->dtype->dtype;
       PrimType element_type(dtype);
       TVM_FFI_ICHECK_GT(shape->fields.size(), 0);
       PrimExpr dyn_size = IntImm::Int32(1);

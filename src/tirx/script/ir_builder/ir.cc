@@ -314,19 +314,17 @@ TensorVar DeclTensor(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String buf
       << "This storage scope does not support allocation placement";
   Location loc = IRBuilder::Current()->GetCurrentLoc();
   if (data.has_value()) {
-    AddToParent(tvm::Bind(buffer.var(),
-                          Call(buffer.type(), tvm::tirx::decl_tensor_op(),
-                               {data.value(), tvm::Tuple(buffer->shape),
-                                DataTypeImm(buffer->dtype->dtype), StringImm(buffer.scope())},
-                               {}, {}, loc),
-                          loc));
+    AddToParent(tvm::Bind(
+        buffer.var(),
+        Call(buffer.type(), tvm::tirx::decl_tensor_op(), {data.value()}, {}, {buffer.type()}, loc),
+        loc));
   } else {
     // Without a backing pointer, declare and allocate the tensor together.
-    ffi::Array<Expr> args{tvm::Tuple(buffer->shape), DataTypeImm(buffer->dtype->dtype),
-                          StringImm(buffer.scope())};
+    ffi::Array<Expr> args;
     if (allocated_addr.has_value()) args.push_back(tvm::Tuple({allocated_addr.value()}));
     AddToParent(tvm::Bind(
-        buffer.var(), Call(buffer.type(), tvm::tirx::alloc_tensor_op(), args, DictAttrs(), {}, loc),
+        buffer.var(),
+        Call(buffer.type(), tvm::tirx::alloc_tensor_op(), args, DictAttrs(), {buffer.type()}, loc),
         loc));
   }
   return buffer;
@@ -336,15 +334,14 @@ TensorVar AllocTensor(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String st
                       ffi::Optional<ffi::Map<ffi::String, ffi::Any>> annotations) {
   TensorVar buffer = TensorDecl(shape, dtype, "", std::nullopt, std::nullopt, std::nullopt,
                                 storage_scope, 0, 0, std::nullopt);
-  ffi::Array<Expr> args{tvm::Tuple(buffer->shape), DataTypeImm(buffer->dtype->dtype),
-                        StringImm(buffer.scope())};
+  ffi::Array<Expr> args;
   auto attrs = annotations.value_or(ffi::Map<ffi::String, ffi::Any>());
   if (auto placement = attrs.Get("buffer_allocated_addr")) {
     args.push_back(tvm::Tuple(placement.value().as_or_throw<ffi::Array<PrimExpr>>()));
     attrs.erase("buffer_allocated_addr");
   }
   AddToParent(tvm::Bind(buffer.var(), Call(buffer.type(), tvm::tirx::alloc_tensor_op(), args,
-                                           DictAttrs(std::move(attrs)))));
+                                           DictAttrs(std::move(attrs)), {buffer.type()})));
   return buffer;
 }
 

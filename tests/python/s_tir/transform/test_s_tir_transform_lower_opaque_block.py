@@ -62,9 +62,7 @@ def transformed_elementwise_func(
 ) -> None:
     for i in T.serial(0, 16):
         B_new = T.alloc_tensor(
-            [1, 16],
-            "float32",
-            annotations={"buffer_data_alignment": 64},
+            ty_args=[T.Tensor([1, 16], "float32")], annotations={"buffer_data_alignment": 64}
         )
         for j in T.serial(0, 16):
             B_new[0, j] = A[i, j] + 1.0
@@ -101,9 +99,7 @@ def transformed_gpu_func(
     i1 = T.launch_thread("threadIdx.x", 2)
     i2 = T.launch_thread("vthread", 2)
     B = T.alloc_tensor(
-        [1, 16],
-        "float32",
-        scope="local",
+        ty_args=[T.Tensor([1, 16], "float32", scope="local")],
         annotations={"buffer_data_alignment": 64},
     )
     for j in range(0, 16):
@@ -145,9 +141,7 @@ def transformed_symbolic_func(
 ) -> None:
     for i in range(0, n):
         B = T.alloc_tensor(
-            [m],
-            "float32",
-            annotations={"buffer_data_alignment": 64},
+            ty_args=[T.Tensor([m], "float32")], annotations={"buffer_data_alignment": 64}
         )
         for j in range(0, m):
             B[j] = A[i, j] + 1.0
@@ -204,14 +198,10 @@ def compacted_multi_alloc_func(A: T.Tensor(32, "float32"), D: T.Tensor(32, "floa
 def transformed_multi_alloc_func(A: T.Tensor(32, "float32"), D: T.Tensor(32, "float32")) -> None:
     for i in range(0, 32):
         B = T.alloc_tensor(
-            (32,),
-            "float32",
-            annotations={"buffer_data_alignment": 64},
+            ty_args=[T.Tensor((32,), "float32")], annotations={"buffer_data_alignment": 64}
         )
         C = T.alloc_tensor(
-            (32,),
-            "float32",
-            annotations={"buffer_data_alignment": 64},
+            ty_args=[T.Tensor((32,), "float32")], annotations={"buffer_data_alignment": 64}
         )
         B[i] = A[i] + 1.0
         C[i] = A[i] + B[i]
@@ -248,9 +238,7 @@ def transformed_strided_buffer_func(
     # body
     for i0 in T.serial(4):
         B = T.alloc_tensor(
-            [4, 16],
-            "float32",
-            strides=[17, 1],
+            ty_args=[T.Tensor([4, 16], "float32", strides=[17, 1])],
             annotations={"buffer_data_alignment": 64},
         )
         for i1, j in T.grid(4, 16):
@@ -289,9 +277,11 @@ def transformed_symbolic_strided_buffer_func(A: T.Tensor((1, n, 10240))):
     padded_size = T.min((n + 63) // 64 * 64, 96)
     for i, j, k in T.grid(((n + 63) // 64 * 4 + 7) // 8, 2, 160):
         A_pad_shared_dyn = T.alloc_tensor(
-            (1, padded_size, 64),
-            strides=(72 * padded_size, 72, 1),
-            scope="shared.dyn",
+            ty_args=[
+                T.Tensor(
+                    (1, padded_size, 64), strides=(72 * padded_size, 72, 1), scope="shared.dyn"
+                )
+            ],
             annotations={"buffer_data_alignment": 64},
         )
         for ax0, ax1 in T.grid(96, 64):

@@ -116,8 +116,17 @@ dealloc tail elided):
 
     from tvm.tirx.layout import R, S, TCol, TileLayout, TLane
 
-    A_smem = Tx.alloc_tensor([32, 16], "uint8", scope="shared",
-                            layout=TileLayout(S[(32, 16) : (16, 1)]), align=1024)
+    A_smem = Tx.alloc_tensor(
+        ty_args=[
+            Tx.Tensor(
+                [32, 16],
+                "uint8",
+                scope="shared",
+                layout=TileLayout(S[(32, 16) : (16, 1)]),
+                align=1024,
+            )
+        ]
+    )
     tmem_addr = Tx.alloc_shared([1], "uint32")
     cp_mbar   = Tx.alloc_shared([1], "uint64")
     if warp_id == 0:

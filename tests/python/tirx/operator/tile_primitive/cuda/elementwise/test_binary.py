@@ -97,8 +97,8 @@ def test_binary_op_shared(input, op_type, operands_type, dtype):
         T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(thread_cnt,)))
         cta_id = T.cuda.block_idx('x')
         tid = T.cuda.thread_idx('x')
-        A_smem = T.alloc_tensor(g_shape, dtype, scope="shared", layout=s_layout)
-        B_smem = T.alloc_tensor(g_shape, dtype, scope="shared", layout=s_layout)
+        A_smem = T.alloc_tensor(ty_args=[T.Tensor(g_shape, dtype, scope="shared", layout=s_layout)])
+        B_smem = T.alloc_tensor(ty_args=[T.Tensor(g_shape, dtype, scope="shared", layout=s_layout)])
 
         copy_src_1 = T.meta_var(A[tuple(copy_slice)])
 
@@ -236,7 +236,7 @@ def test_binary_op_shared(input, op_type, operands_type, dtype):
         T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(thread_cnt,)))
         cta_id = T.cuda.block_idx('x')
         tid = T.cuda.thread_idx('x')
-        A_smem = T.alloc_tensor(g_shape, dtype, scope="shared", layout=s_layout)
+        A_smem = T.alloc_tensor(ty_args=[T.Tensor(g_shape, dtype, scope="shared", layout=s_layout)])
 
         copy_src_4 = T.meta_var(A[tuple(copy_slice)])
 
@@ -410,7 +410,7 @@ def test_binary_non_commutative_const_lhs_rejected(op_type):
             T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(64,)))
             _bx = T.cuda.block_idx("x")
             _tid = T.cuda.thread_idx("x")
-            A_smem = T.alloc_tensor(shape, dtype, scope="shared", layout=layout)
+            A_smem = T.alloc_tensor(ty_args=[T.Tensor(shape, dtype, scope="shared", layout=layout)])
             if T.constexpr(op_type == "sub"):
                 T.cuda.tile.sub(A_smem, const, A_smem, scope="cta")
             elif T.constexpr(op_type == "fdiv"):
@@ -443,8 +443,12 @@ def test_binary_op_shared_subcta_scope(exec_scope, op_type):
         wg_id = T.cuda.warpgroup_id()
         _bx = T.cuda.block_idx("x")
         _tid = T.cuda.thread_idx("x")
-        A_smem = T.alloc_tensor(g_shape, dtype, scope="shared", layout=TileLayout(S[g_shape]))
-        B_smem = T.alloc_tensor(g_shape, dtype, scope="shared", layout=TileLayout(S[g_shape]))
+        A_smem = T.alloc_tensor(
+            ty_args=[T.Tensor(g_shape, dtype, scope="shared", layout=TileLayout(S[g_shape]))]
+        )
+        B_smem = T.alloc_tensor(
+            ty_args=[T.Tensor(g_shape, dtype, scope="shared", layout=TileLayout(S[g_shape]))]
+        )
         copy_src_6 = T.meta_var(A[tuple(slice(None) for _ in A.shape)])
         copy_src_tensor_6 = T.meta_var(copy_src_6.source)
         copy_dst_6 = T.meta_var(A_smem[tuple(slice(None) for _ in A_smem.shape)])
@@ -610,9 +614,15 @@ def test_binary_op_local_subcta_trivial(exec_scope, rhs_kind, op_type):
         _bx = T.cuda.block_idx("x")
         _tid = T.cuda.thread_idx("x")
         tid_in_scope = tid_in_scope_fn()
-        A_local = T.alloc_tensor((m, n), dtype, scope="local", layout=TileLayout(S[(m, n)]))
-        C_local = T.alloc_tensor((m, n), dtype, scope="local", layout=TileLayout(S[(m, n)]))
-        B_local = T.alloc_tensor((m, b_n), dtype, scope="local", layout=TileLayout(S[(m, b_n)]))
+        A_local = T.alloc_tensor(
+            ty_args=[T.Tensor((m, n), dtype, scope="local", layout=TileLayout(S[(m, n)]))]
+        )
+        C_local = T.alloc_tensor(
+            ty_args=[T.Tensor((m, n), dtype, scope="local", layout=TileLayout(S[(m, n)]))]
+        )
+        B_local = T.alloc_tensor(
+            ty_args=[T.Tensor((m, b_n), dtype, scope="local", layout=TileLayout(S[(m, b_n)]))]
+        )
 
         if thr_str <= _tid and _tid < thr_str + n_threads:
             for i in T.serial(m):
@@ -723,8 +733,12 @@ def test_binary_op_vectorized(input, storage_scope, exec_scope, op_type, dtype):
         _bx = T.cuda.block_idx('x')
         tx = T.cuda.thread_idx('x')
         if T.constexpr(storage_scope == "shared"):
-            A_smem = T.alloc_tensor(a_shape, dtype, scope="shared", layout=TileLayout(S[a_shape]))
-            B_smem = T.alloc_tensor(b_shape, dtype, scope="shared", layout=TileLayout(S[b_shape]))
+            A_smem = T.alloc_tensor(
+                ty_args=[T.Tensor(a_shape, dtype, scope="shared", layout=TileLayout(S[a_shape]))]
+            )
+            B_smem = T.alloc_tensor(
+                ty_args=[T.Tensor(b_shape, dtype, scope="shared", layout=TileLayout(S[b_shape]))]
+            )
             copy_src_9 = T.meta_var(A[tuple(slice(None) for _ in A.shape)])
             copy_src_tensor_9 = T.meta_var(copy_src_9.source)
             copy_dst_9 = T.meta_var(A_smem[tuple(slice(None) for _ in A_smem.shape)])
@@ -826,10 +840,14 @@ def test_binary_op_vectorized(input, storage_scope, exec_scope, op_type, dtype):
                     copy_dst_tensor_11[copy_dst_index_11] = copy_value_11
         if T.constexpr(storage_scope == "local"):
             A_local = T.alloc_tensor(
-                a_shape[1:], dtype, scope="local", layout=TileLayout(S[a_shape[1:]])
+                ty_args=[
+                    T.Tensor(a_shape[1:], dtype, scope="local", layout=TileLayout(S[a_shape[1:]]))
+                ]
             )
             B_local = T.alloc_tensor(
-                b_shape[1:], dtype, scope="local", layout=TileLayout(S[b_shape[1:]])
+                ty_args=[
+                    T.Tensor(b_shape[1:], dtype, scope="local", layout=TileLayout(S[b_shape[1:]]))
+                ]
             )
             T.cuda.tile.ld(A_local, A[tx])
             T.cuda.tile.ld(B_local, B[tx])
@@ -846,8 +864,12 @@ def test_binary_op_vectorized(input, storage_scope, exec_scope, op_type, dtype):
         _bx = T.cuda.block_idx('x')
         tx = T.cuda.thread_idx('x')
         if T.constexpr(storage_scope == "shared"):
-            A_smem = T.alloc_tensor(a_shape, dtype, scope="shared", layout=TileLayout(S[a_shape]))
-            B_smem = T.alloc_tensor(b_shape, dtype, scope="shared", layout=TileLayout(S[b_shape]))
+            A_smem = T.alloc_tensor(
+                ty_args=[T.Tensor(a_shape, dtype, scope="shared", layout=TileLayout(S[a_shape]))]
+            )
+            B_smem = T.alloc_tensor(
+                ty_args=[T.Tensor(b_shape, dtype, scope="shared", layout=TileLayout(S[b_shape]))]
+            )
             copy_src_12 = T.meta_var(A[tuple(slice(None) for _ in A.shape)])
             copy_src_tensor_12 = T.meta_var(copy_src_12.source)
             copy_dst_12 = T.meta_var(A_smem[tuple(slice(None) for _ in A_smem.shape)])
@@ -949,10 +971,14 @@ def test_binary_op_vectorized(input, storage_scope, exec_scope, op_type, dtype):
                     copy_dst_tensor_14[copy_dst_index_14] = copy_value_14
         elif T.constexpr(storage_scope == "local"):
             A_local = T.alloc_tensor(
-                a_shape[1:], dtype, scope="local", layout=TileLayout(S[a_shape[1:]])
+                ty_args=[
+                    T.Tensor(a_shape[1:], dtype, scope="local", layout=TileLayout(S[a_shape[1:]]))
+                ]
             )
             B_local = T.alloc_tensor(
-                b_shape[1:], dtype, scope="local", layout=TileLayout(S[b_shape[1:]])
+                ty_args=[
+                    T.Tensor(b_shape[1:], dtype, scope="local", layout=TileLayout(S[b_shape[1:]]))
+                ]
             )
             T.cuda.tile.ld(A_local, A[tx])
             T.cuda.tile.ld(B_local, B[tx])
@@ -1017,10 +1043,10 @@ def test_binary_op_packed_f32x2_auto_dispatch(op_type):
         _bx = T.cuda.block_idx("x")
         tx = T.cuda.thread_idx("x")
         A_local = T.alloc_tensor(
-            a_shape[1:], dtype, scope="local", layout=TileLayout(S[a_shape[1:]])
+            ty_args=[T.Tensor(a_shape[1:], dtype, scope="local", layout=TileLayout(S[a_shape[1:]]))]
         )
         B_local = T.alloc_tensor(
-            b_shape[1:], dtype, scope="local", layout=TileLayout(S[b_shape[1:]])
+            ty_args=[T.Tensor(b_shape[1:], dtype, scope="local", layout=TileLayout(S[b_shape[1:]]))]
         )
         T.cuda.tile.ld(A_local, A[tx])
         T.cuda.tile.ld(B_local, B[tx])
@@ -1081,9 +1107,15 @@ def test_binary_op_warpgroup_wg_local_layout(op_name):
         wg_id = T.cuda.warpgroup_id()
         tid = T.cuda.thread_in_warpgroup()
 
-        lhs = T.alloc_tensor((rows, cols), dtype, scope="local", layout=wg_local_layout(cols))
-        rhs = T.alloc_tensor((rows, cols), dtype, scope="local", layout=wg_local_layout(cols))
-        out = T.alloc_tensor((rows, cols), dtype, scope="local", layout=wg_local_layout(cols))
+        lhs = T.alloc_tensor(
+            ty_args=[T.Tensor((rows, cols), dtype, scope="local", layout=wg_local_layout(cols))]
+        )
+        rhs = T.alloc_tensor(
+            ty_args=[T.Tensor((rows, cols), dtype, scope="local", layout=wg_local_layout(cols))]
+        )
+        out = T.alloc_tensor(
+            ty_args=[T.Tensor((rows, cols), dtype, scope="local", layout=wg_local_layout(cols))]
+        )
         lhs_row = lhs.local(cols)
         rhs_row = rhs.local(cols)
         out_row = out.local(cols)
@@ -1158,9 +1190,15 @@ def test_binary_op_warpgroup_wg_local_emits_packed_f32x2(op_name, ptx_op):
         _wg_id = T.cuda.warpgroup_id()
         tid = T.cuda.thread_in_warpgroup()
 
-        lhs = T.alloc_tensor((rows, cols), dtype, scope="local", layout=wg_local_layout(cols))
-        rhs = T.alloc_tensor((rows, cols), dtype, scope="local", layout=wg_local_layout(cols))
-        out = T.alloc_tensor((rows, cols), dtype, scope="local", layout=wg_local_layout(cols))
+        lhs = T.alloc_tensor(
+            ty_args=[T.Tensor((rows, cols), dtype, scope="local", layout=wg_local_layout(cols))]
+        )
+        rhs = T.alloc_tensor(
+            ty_args=[T.Tensor((rows, cols), dtype, scope="local", layout=wg_local_layout(cols))]
+        )
+        out = T.alloc_tensor(
+            ty_args=[T.Tensor((rows, cols), dtype, scope="local", layout=wg_local_layout(cols))]
+        )
         lhs_row = lhs.local(cols)
         rhs_row = rhs.local(cols)
         out_row = out.local(cols)
@@ -1212,7 +1250,9 @@ def test_fma_warpgroup_wg_local_emits_packed_f32x2():
         _wg_id = T.cuda.warpgroup_id()
         tid = T.cuda.thread_in_warpgroup()
 
-        buf = T.alloc_tensor((rows, cols), dtype, scope="local", layout=wg_local_layout(cols))
+        buf = T.alloc_tensor(
+            ty_args=[T.Tensor((rows, cols), dtype, scope="local", layout=wg_local_layout(cols))]
+        )
         buf_row = buf.local(cols)
         for i in T.serial(cols):
             buf_row[i] = A[tid, i]
@@ -1249,8 +1289,12 @@ def test_binary_add_f32_sm100_packed_f32x2_dispatch():
         T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(64,)))
         _bx = T.cuda.block_idx("x")
         tx = T.cuda.thread_idx("x")
-        ra = T.alloc_tensor(shape[1:], "float32", scope="local", layout=TileLayout(S[shape[1:]]))
-        rb = T.alloc_tensor(shape[1:], "float32", scope="local", layout=TileLayout(S[shape[1:]]))
+        ra = T.alloc_tensor(
+            ty_args=[T.Tensor(shape[1:], "float32", scope="local", layout=TileLayout(S[shape[1:]]))]
+        )
+        rb = T.alloc_tensor(
+            ty_args=[T.Tensor(shape[1:], "float32", scope="local", layout=TileLayout(S[shape[1:]]))]
+        )
         T.cuda.tile.ld(ra, A[tx])
         T.cuda.tile.ld(rb, B[tx])
         T.cuda.tile.add(ra, ra, rb)
@@ -1313,8 +1357,12 @@ def test_binary_add_f16_scalar_fallback_dispatch():
         T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(64,)))
         _bx = T.cuda.block_idx("x")
         tx = T.cuda.thread_idx("x")
-        ra = T.alloc_tensor(shape[1:], "float16", scope="local", layout=TileLayout(S[shape[1:]]))
-        rb = T.alloc_tensor(shape[1:], "float16", scope="local", layout=TileLayout(S[shape[1:]]))
+        ra = T.alloc_tensor(
+            ty_args=[T.Tensor(shape[1:], "float16", scope="local", layout=TileLayout(S[shape[1:]]))]
+        )
+        rb = T.alloc_tensor(
+            ty_args=[T.Tensor(shape[1:], "float16", scope="local", layout=TileLayout(S[shape[1:]]))]
+        )
         T.cuda.tile.ld(ra, A[tx])
         T.cuda.tile.ld(rb, B[tx])
         T.cuda.tile.add(ra, ra, rb)
@@ -1345,8 +1393,12 @@ def test_mul_tcgen05_16x256b_atom_warpgroup_dispatch():
         T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=1 * 128))
         _lane = T.cuda.lane_id()
         tid = T.cuda.thread_in_warpgroup()
-        src = T.alloc_tensor((rows, cols), "float32", scope="local", layout=atom_layout)
-        dst = T.alloc_tensor((rows, cols), "float32", scope="local", layout=atom_layout)
+        src = T.alloc_tensor(
+            ty_args=[T.Tensor((rows, cols), "float32", scope="local", layout=atom_layout)]
+        )
+        dst = T.alloc_tensor(
+            ty_args=[T.Tensor((rows, cols), "float32", scope="local", layout=atom_layout)]
+        )
         src_local = src.local(regs_per_thread)
         dst_local = dst.local(regs_per_thread)
         for i in T.serial(regs_per_thread):

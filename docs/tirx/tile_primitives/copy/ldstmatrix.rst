@@ -117,10 +117,14 @@ register, from ``test_ld_stmatrix.py`` (register layout = the m8n8 fragment,
         _index = Tx.cuda.block_idx("x")
         _lane = Tx.cuda.lane_id()
         tid = Tx.cuda.thread_idx("x")
-        A_smem = Tx.alloc_tensor((8, 4, num, 2), "float16", scope="shared", layout=s_layout)
+        A_smem = Tx.alloc_tensor(
+            ty_args=[Tx.Tensor((8, 4, num, 2), "float16", scope="shared", layout=s_layout)]
+        )
         # ... stage A into A_smem (row = tid//4, cp = tid%4) ...
         Tx.cuda.cta_sync()
-        R = Tx.alloc_tensor((8, 4, num, 2), "float16", scope="local", layout=r_layout)
+        R = Tx.alloc_tensor(
+            ty_args=[Tx.Tensor((8, 4, num, 2), "float16", scope="local", layout=r_layout)]
+        )
         Tx.cuda.tile.ldmatrix(R[full], A_smem[full], scope="warp")  # shared -> register  (ldmatrix)
         # ... write R back out to B ...
 

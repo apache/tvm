@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/extra/structural_equal.h>
 #include <tvm/ir/stmt.h>
 #include <tvm/script/printer/doc_translator.h>
 
@@ -46,7 +47,11 @@ ffi::Optional<ExprDoc> BindDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
   // an RHS, so this binding owns the one remaining assignment.
   if (!rhs.has_value()) return std::nullopt;
   ffi::Optional<ExprDoc> annotation = std::nullopt;
-  if (!existing) {
+  // An explicit result type argument already exposes the binding type.
+  const auto* call = stmt->value.as<CallNode>();
+  bool explicit_type =
+      call && call->ty_args.size() == 1 && ffi::StructuralEqual()(stmt->var->ty, call->ty_args[0]);
+  if (!existing && !explicit_type) {
     ExprDoc type = d->Translate(stmt->var->ty).value();
     if (auto primitive = stmt->var->ty.as<PrimType>();
         primitive && primitive.value().IsScalableVector()) {

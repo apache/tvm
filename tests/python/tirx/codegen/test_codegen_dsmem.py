@@ -118,7 +118,7 @@ def test_mapa_pointer_bind_codegen():
         mapped = T.alloc_local([1], "uint64")
         T.ptx.mapa.u64(mapped[0], mbar.ptr_to([0]), T.uint32(0))
         remote_ptr = T.reinterpret( mapped[0], ty=ptr_ty)
-        remote_mbar = T.decl_tensor([1], "uint64", data=remote_ptr, scope="shared")
+        remote_mbar = T.decl_tensor(remote_ptr, ty_args=[T.Tensor([1], "uint64", scope="shared")])
         A[0] = remote_mbar[0]
         # fmt: on
 

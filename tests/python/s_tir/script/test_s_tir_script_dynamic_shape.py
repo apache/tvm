@@ -218,7 +218,7 @@ def undefined_shape_in_decl_buffer():
 
     @Ts.function(check_well_formed=False)
     def func():
-        buf = T.decl_tensor(shape=[size], dtype="float32")
+        buf = T.alloc_tensor(ty_args=[T.Tensor([size], "float32")])
         T.evaluate(buf[0])
 
     return func
@@ -231,7 +231,9 @@ def undefined_stride_in_decl_buffer():
     @Ts.function(check_well_formed=False)
     def func():
         data_ptr = T.handle("float32")
-        buf = T.decl_tensor(shape=[1], dtype="float32", data=data_ptr, strides=[stride])
+        buf = T.decl_tensor(
+            data_ptr, ty_args=[T.Tensor([1], "float32", strides=[stride], data=data_ptr)]
+        )
         T.evaluate(buf[0])
 
     return func
@@ -244,7 +246,9 @@ def undefined_elem_offset_in_decl_buffer():
     @Ts.function(check_well_formed=False)
     def func():
         data_ptr = T.handle("float32")
-        buf = T.decl_tensor(shape=[1], dtype="float32", data=data_ptr, elem_offset=elem_offset)
+        buf = T.decl_tensor(
+            data_ptr, ty_args=[T.Tensor([1], "float32", elem_offset=elem_offset, data=data_ptr)]
+        )
         T.evaluate(buf[0])
 
     return func

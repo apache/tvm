@@ -1130,10 +1130,14 @@ def bind_coordinate(D: T.Tensor((33360, 6144), 'bfloat16')):
     tid = T.cuda.thread_idx("x")
     tile_index = T.alloc_local((1,), "int32")
     D_smem = T.alloc_tensor(
-        (2, 16, 128),
-        "bfloat16",
-        scope="shared.dyn",
-        layout=T.TileLayout(T.S[(2, 16, 2, 64) : (2048, 64, 1024, 1)]),
+        ty_args=[
+            T.Tensor(
+                (2, 16, 128),
+                "bfloat16",
+                scope="shared.dyn",
+                layout=T.TileLayout(T.S[(2, 16, 2, 64) : (2048, 64, 1024, 1)]),
+            )
+        ]
     )
     tile_index[0] = block
     d_n: T.let = tile_index[0] * 128
@@ -1535,9 +1539,13 @@ def rank_change(A: T.Tensor((8, 8), 'float16')):
 
     T.device_entry(launch=T.cuda.LaunchConfig(grid=1, block=1))
     tid = T.cuda.thread_idx("x")
-    dyn = T.alloc_tensor((65,), "uint64", scope="shared.dyn")
-    A_smem = T.decl_tensor((64,), "float16", dyn.data, layout=T.TileLayout(T.S[64]))
-    mbar = T.decl_tensor((1,), "uint64", dyn.data, elem_offset=16)
+    dyn = T.alloc_tensor(ty_args=[T.Tensor((65,), "uint64", scope="shared.dyn")])
+    A_smem = T.decl_tensor(
+        dyn.data, ty_args=[T.Tensor((64,), "float16", layout=T.TileLayout(T.S[64]), data=dyn.data)]
+    )
+    mbar = T.decl_tensor(
+        dyn.data, ty_args=[T.Tensor((1,), "uint64", elem_offset=16, data=dyn.data)]
+    )
     if tid == 0:
         T.cuda.tile.cp_async_bulk_tensor_load(
             A_smem[:], A[:, :], descriptor_mode="explicit", mbar=mbar.ptr_to([0])
@@ -1560,11 +1568,14 @@ def selector_gather(
     B_view = B.sub[16:512, 8:72]
     T.device_entry(launch=T.cuda.LaunchConfig(grid=1, block=128))
     tid = T.cuda.thread_idx("x")
-    dyn = T.alloc_tensor((520,), "uint64", scope="shared.dyn")
+    dyn = T.alloc_tensor(ty_args=[T.Tensor((520,), "uint64", scope="shared.dyn")])
     A_smem = T.decl_tensor(
-        (4, 64), "bfloat16", dyn.data, layout=T.TileLayout(T.S[4, 64])
+        dyn.data,
+        ty_args=[T.Tensor((4, 64), "bfloat16", layout=T.TileLayout(T.S[4, 64]), data=dyn.data)],
     )
-    mbar = T.decl_tensor((1,), "uint64", dyn.data, elem_offset=64)
+    mbar = T.decl_tensor(
+        dyn.data, ty_args=[T.Tensor((1,), "uint64", elem_offset=64, data=dyn.data)]
+    )
     if tid == 0:
         T.ptx.mbarrier.init.shared.b64(mbar.ptr_to([0]), T.uint32(1))
         T.cuda.tile.cp_async_bulk_tensor_load(
@@ -1731,28 +1742,37 @@ def _build_sparse_decode_qo_tma_regression():
             launch=T.cuda.LaunchConfig(grid=(1,), block=(128,), dynamic_smem_bytes=shared_bytes + 8)
         )
         tid = T.cuda.thread_idx('x')
-        dyn = T.alloc_tensor((shared_bytes + 8,), "uint8", scope="shared.dyn")
+        dyn = T.alloc_tensor(ty_args=[T.Tensor((shared_bytes + 8,), "uint8", scope="shared.dyn")])
         q_smem = T.decl_tensor(
-            (64, 512), "bfloat16", dyn.data, scope="shared.dyn", layout=q_layout
+            dyn.data, ty_args=[T.Tensor((64, 512), "bfloat16", scope="shared.dyn", layout=q_layout)]
         )
         q_tail_smem = T.decl_tensor(
-            (64, 64),
-            "bfloat16",
             dyn.data,
-            elem_offset=q_elements,
-            scope="shared.dyn",
-            layout=q_tail_layout,
+            ty_args=[
+                T.Tensor(
+                    (64, 64),
+                    "bfloat16",
+                    elem_offset=q_elements,
+                    scope="shared.dyn",
+                    layout=q_tail_layout,
+                )
+            ],
         )
         o_smem = T.decl_tensor(
-            (64, 512),
-            "bfloat16",
             dyn.data,
-            elem_offset=q_elements + q_tail_elements,
-            scope="shared.dyn",
-            layout=o_layout,
+            ty_args=[
+                T.Tensor(
+                    (64, 512),
+                    "bfloat16",
+                    elem_offset=q_elements + q_tail_elements,
+                    scope="shared.dyn",
+                    layout=o_layout,
+                )
+            ],
         )
         mbar = T.decl_tensor(
-            (1,), "uint64", dyn.data, elem_offset=shared_bytes // 8, scope="shared.dyn"
+            dyn.data,
+            ty_args=[T.Tensor((1,), "uint64", elem_offset=shared_bytes // 8, scope="shared.dyn")],
         )
         q_tail_smem_tma = q_tail_smem.view(64, 2, 32).permute(1, 0, 2)
         q_tail_gmem_tma = Q.sub[0, 0, :, 512:576].view(64, 2, 32).permute(1, 0, 2)
@@ -2007,11 +2027,15 @@ def _build_selector_gather_gpu_kernel(dtype="float16"):
             )
         )
         tid = T.cuda.thread_idx('x')
-        dyn = T.alloc_tensor((shared_bytes + 64,), "uint8", scope="shared.dyn")
+        dyn = T.alloc_tensor(ty_args=[T.Tensor((shared_bytes + 64,), "uint8", scope="shared.dyn")])
         A_smem = T.decl_tensor(
-            (4, cols), dtype, dyn.data, layout=T.TileLayout(T.S[4, cols])
+            dyn.data,
+            ty_args=[T.Tensor((4, cols), dtype, layout=T.TileLayout(T.S[4, cols]), data=dyn.data)],
         )
-        mbar = T.decl_tensor((1,), "uint64", dyn.data, elem_offset=shared_bytes // 8)
+        mbar = T.decl_tensor(
+            dyn.data,
+            ty_args=[T.Tensor((1,), "uint64", elem_offset=shared_bytes // 8, data=dyn.data)],
+        )
         mbar_ptr = T.meta_var(mbar.ptr_to([0]))
         if tid == 0:
             T.ptx.mbarrier.init.shared.b64(mbar_ptr, T.uint32(1))

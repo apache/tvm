@@ -582,10 +582,19 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> CallMutate(
   // skips: attrs, constant metadata left untouched like the classic Expr functors.
   const CallNode* self =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const CallNode>(value);
+  // Preserve result types shared with an explicit type argument, visiting them only once.
+  size_t original_ty_args_size = self->ty_args.size();
+  size_t result_type_arg = 0;
+  while (result_type_arg < original_ty_args_size &&
+         !self->ty.same_as(self->ty_args[result_type_arg])) {
+    ++result_type_arg;
+  }
+  bool result_from_type_arg =
+      !self->ty.as<PrimTypeNode>() && result_type_arg < original_ty_args_size;
   // A PrimType carries only a dtype, so it has nothing to substitute.  Broad callbacks do not see
   // this skipped field; dynamically typed Call results still descend through the Type value.
   ffi::UnchangedOr<Type> mapped_ty_u = ffi::Unchanged();
-  if (!self->ty.as<PrimTypeNode>()) {
+  if (!result_from_type_arg && !self->ty.as<PrimTypeNode>()) {
     TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Type>, descended_ty_u,
                                       mutator->MutateExpected(self->ty));
     mapped_ty_u = std::move(descended_ty_u);
@@ -608,6 +617,18 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> CallMutate(
                                       mutator->MutateExpected(self->ty_args));
     mapped_ty_args_u = std::move(descended_ty_args_u);
   }
+  if (result_from_type_arg) {
+    auto ty_args = std::move(mapped_ty_args_u).ValueOrUnchanged(self->ty_args);
+    if (ty_args.size() == original_ty_args_size) {
+      mapped_ty_u = ty_args[result_type_arg];
+    } else if (!self->ty.as<PrimTypeNode>()) {
+      // A container rewrite may remove the corresponding argument.
+      TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Type>, descended_ty_u,
+                                        mutator->MutateExpected(self->ty));
+      mapped_ty_u = std::move(descended_ty_u);
+    }
+    mapped_ty_args_u = std::move(ty_args);
+  }
   if (mapped_ty_u.UnchangedOrSameAs(self->ty) && mapped_op_u.UnchangedOrSameAs(self->op) &&
       mapped_args_u.UnchangedOrSameAs(self->args) &&
       mapped_ty_args_u.UnchangedOrSameAs(self->ty_args)) {
@@ -626,10 +647,19 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> CallMaybeInplaceMutate(
   // skips: attrs, constant metadata left untouched like the classic Expr functors.
   CallNode* self = const_cast<CallNode*>(
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const CallNode>(value));
+  // Preserve result types shared with an explicit type argument, visiting them only once.
+  size_t original_ty_args_size = self->ty_args.size();
+  size_t result_type_arg = 0;
+  while (result_type_arg < original_ty_args_size &&
+         !self->ty.same_as(self->ty_args[result_type_arg])) {
+    ++result_type_arg;
+  }
+  bool result_from_type_arg =
+      !self->ty.as<PrimTypeNode>() && result_type_arg < original_ty_args_size;
   // A PrimType carries only a dtype, so it has nothing to substitute.  Broad callbacks do not see
   // this skipped field; dynamically typed Call results still descend through the Type value.
   ffi::UnchangedOr<Type> mapped_ty_u = ffi::Unchanged();
-  if (!self->ty.as<PrimTypeNode>()) {
+  if (!result_from_type_arg && !self->ty.as<PrimTypeNode>()) {
     TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Type>, descended_ty_u,
                                       mutator->MutateExpected(self->ty, ffi::InplaceMode::kAllow));
     mapped_ty_u = std::move(descended_ty_u);
@@ -652,6 +682,19 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> CallMaybeInplaceMutate(
         ffi::UnchangedOr<ffi::Array<Type>>, descended_ty_args_u,
         mutator->MutateExpected(self->ty_args, ffi::InplaceMode::kAllow));
     mapped_ty_args_u = std::move(descended_ty_args_u);
+  }
+  if (result_from_type_arg) {
+    auto ty_args = std::move(mapped_ty_args_u).ValueOrUnchanged(self->ty_args);
+    if (ty_args.size() == original_ty_args_size) {
+      mapped_ty_u = ty_args[result_type_arg];
+    } else if (!self->ty.as<PrimTypeNode>()) {
+      // A container rewrite may remove the corresponding argument.
+      TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
+          ffi::UnchangedOr<Type>, descended_ty_u,
+          mutator->MutateExpected(self->ty, ffi::InplaceMode::kAllow));
+      mapped_ty_u = std::move(descended_ty_u);
+    }
+    mapped_ty_args_u = std::move(ty_args);
   }
   if (mapped_ty_u.UnchangedOrSameAs(self->ty) && mapped_op_u.UnchangedOrSameAs(self->op) &&
       mapped_args_u.UnchangedOrSameAs(self->args) &&

@@ -198,7 +198,7 @@ def test_continue_statement():
                 if (i * 10 + j) % 3 != 0:
                     continue
                 Out[0] = Out[0] + 1
-        k = T.decl_tensor([], "int32")
+        k = T.alloc_tensor(ty_args=[T.Tensor([], "int32")])
         k[()] = 0
         while k[()] < Out[0]:
             k[()] = k[()] + 1

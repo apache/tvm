@@ -95,8 +95,26 @@ into shared (from
     from tvm.tirx.layout import S, TCol, TLane, TileLayout, tid_in_wg as axis_tid_in_wg
     from tvm.backend.cuda.tile_primitive.tma_utils import mma_shared_layout
 
-    A_smem = Tx.alloc_tensor((3,128,64), "float16", scope="shared", layout=mma_shared_layout("float16", 3, (3,128,64)))
-    B_smem = Tx.alloc_tensor((3,128,64), "float16", scope="shared", layout=mma_shared_layout("float16", 3, (3,128,64)))
+    A_smem = Tx.alloc_tensor(
+        ty_args=[
+            Tx.Tensor(
+                (3, 128, 64),
+                "float16",
+                scope="shared",
+                layout=mma_shared_layout("float16", 3, (3, 128, 64)),
+            )
+        ]
+    )
+    B_smem = Tx.alloc_tensor(
+        ty_args=[
+            Tx.Tensor(
+                (3, 128, 64),
+                "float16",
+                scope="shared",
+                layout=mma_shared_layout("float16", 3, (3, 128, 64)),
+            )
+        ]
+    )
     tmem_addr = Tx.alloc_shared([1], "uint32"); mma_mbar = Tx.alloc_shared([1], "uint64")
     # ... mbarrier.init, cta_sync ...
     if warp_id == 0:

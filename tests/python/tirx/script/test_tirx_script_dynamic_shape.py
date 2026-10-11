@@ -120,7 +120,7 @@ def test_tir_return_annotation_does_not_define_symbolic_var():
 
         @T.function
         def main() -> T.Tensor((n,), "float32"):  # noqa: F821
-            A = T.alloc_tensor((n,), "float32")  # noqa: F821
+            A = T.alloc_tensor(ty_args=[T.Tensor((n,), "float32")])  # noqa: F821
             return A
 
 

@@ -118,9 +118,9 @@ def test_rocm_warp_shuffle():
     ):
         for bx in T.thread_binding(1, thread="blockIdx.x"):
             for tx in T.thread_binding(32, thread="threadIdx.x"):
-                A_local = T.alloc_tensor((1,), "float32", scope="local")
-                mask = T.alloc_tensor((1,), "uint32", scope="local")
-                t0 = T.alloc_tensor((1,), "float32", scope="local")
+                A_local = T.alloc_tensor(ty_args=[T.Tensor((1,), "float32", scope="local")])
+                mask = T.alloc_tensor(ty_args=[T.Tensor((1,), "uint32", scope="local")])
+                t0 = T.alloc_tensor(ty_args=[T.Tensor((1,), "float32", scope="local")])
                 A_local[0] = A[tx]
                 A_local[0] = T.gpu_warp_shuffle(mask[0], A_local[0], 0, 32, 32)
                 A[tx] = A_local[0]

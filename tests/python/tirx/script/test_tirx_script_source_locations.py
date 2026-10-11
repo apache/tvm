@@ -43,7 +43,7 @@ def test_parser_attaches_loc_to_direct_call():
     @_capture_source(sources)
     def direct_call():
         T.device_entry()
-        barriers = T.alloc_tensor((1,), "uint64", scope="shared")
+        barriers = T.alloc_tensor(ty_args=[T.Tensor((1,), "uint64", scope="shared")])
         T.cuda.mbarrier_wait(
             T.address_of(barriers[0]),
             0,
@@ -96,8 +96,8 @@ def test_parser_attaches_loc_to_nested_tensor_load():
     @T.function
     @_capture_source(sources)
     def nested_load():
-        source_buffer = T.alloc_tensor((1,), "int32")
-        output = T.alloc_tensor((1,), "int32")
+        source_buffer = T.alloc_tensor(ty_args=[T.Tensor((1,), "int32")])
+        output = T.alloc_tensor(ty_args=[T.Tensor((1,), "int32")])
         output[0] = source_buffer[0] + 1
 
     source = sources[0]
@@ -128,7 +128,7 @@ def test_parser_retains_inline_call_site_and_definition_locs():
     @_capture_source(sources)
     def inline_call():
         T.device_entry()
-        barriers = T.alloc_tensor((1,), "uint64", scope="shared")
+        barriers = T.alloc_tensor(ty_args=[T.Tensor((1,), "uint64", scope="shared")])
         wait(T.address_of(barriers[0]))
 
     caller_source = sources[0]
@@ -154,7 +154,7 @@ def test_parser_attaches_loc_to_tile_primitive_call():
     @T.function
     @_capture_source(sources)
     def tile_call():
-        A = T.alloc_tensor((16,), "float32")
+        A = T.alloc_tensor(ty_args=[T.Tensor((16,), "float32")])
         T.cuda.tile.mov(A[0:16], T.float32(0))
 
     source = sources[0]

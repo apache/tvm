@@ -171,7 +171,7 @@ def test_reused_buffer_obj():
 
     @T.function(private=True)
     def func(a: T.handle("float32")):
-        A = T.decl_tensor(shape=1, dtype="float32", data=a)
+        A = T.decl_tensor(a, ty_args=[T.Tensor(1, "float32", data=a)])
         T.evaluate(A[0])
 
     before = tvm.IRModule(
@@ -185,12 +185,12 @@ def test_reused_buffer_obj():
     class expected:
         @T.function
         def func_a(a: T.handle("float32")):
-            A = T.decl_tensor(shape=1, dtype="float32", data=a)
+            A = T.decl_tensor(a, ty_args=[T.Tensor(1, "float32", data=a)])
             T.evaluate(A[0])
 
         @T.function
         def func_b(a: T.handle("float32")):
-            A = T.decl_tensor(shape=1, dtype="float32", data=a)
+            A = T.decl_tensor(a, ty_args=[T.Tensor(1, "float32", data=a)])
             T.evaluate(A[0])
 
     after = tvm.tirx.transform.ConvertSSA()(before)
@@ -474,13 +474,9 @@ def test_shared_shape_var_in_buffer_params_and_alloc_buffer():
                 C,
                 tvm.ir.Call(
                     "tirx.alloc_tensor",
-                    [
-                        tvm.ir.Tuple(C.shape),
-                        tvm.ir.DataTypeImm(tvm.DataType(C.dtype)),
-                        tvm.ir.StringImm(C.scope()),
-                    ],
+                    [],
                     attrs=tvm.ir.DictAttrs({}),
-                    ty=C.ty,
+                    ty_args=[C.ty],
                 ),
             ),
             tvm.ir.Evaluate(1),
@@ -517,13 +513,8 @@ def test_reused_loop_var_in_decl_buffer_elem_offset():
                     buffer,
                     tvm.ir.Call(
                         "tirx.decl_tensor",
-                        [
-                            buffer_data,
-                            tvm.ir.Tuple(buffer.shape),
-                            tvm.ir.DataTypeImm(tvm.DataType(buffer.dtype)),
-                            tvm.ir.StringImm(buffer.scope()),
-                        ],
-                        ty=buffer.ty,
+                        [buffer_data],
+                        ty_args=[buffer.ty],
                     ),
                 ),
                 tvm.ir.Evaluate(tirx.TensorLoad(buffer, [0])),

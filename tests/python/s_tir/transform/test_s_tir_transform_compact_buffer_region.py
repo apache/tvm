@@ -661,9 +661,9 @@ class TestDataDependentRegion(BaseCompactTest):
         p1: T.Tensor((1,), "int32"),
         hybrid_nms: T.Tensor((30,), "float32"),
     ):
-        argsort_nms_cpu = T.decl_tensor([5], "int32", scope="global")
+        argsort_nms_cpu = T.alloc_tensor(ty_args=[T.Tensor([5], "int32", scope="global")])
         for i in range(1):
-            nkeep = T.decl_tensor([1], "int32", scope="global")
+            nkeep = T.alloc_tensor(ty_args=[T.Tensor([1], "int32", scope="global")])
             if 0 < p1[i]:
                 nkeep[0] = p1[i]
                 if 2 < nkeep[0]:
@@ -1005,9 +1005,9 @@ class TestTileAwareCompaction(BaseCompactTest):
         ):
             for i_0 in range(5, annotations={"loop_partition_hint": 1}):
                 for j_0 in range(5, annotations={"loop_partition_hint": 1}):
-                    A_local = T.decl_tensor((26, 128), scope="local")
-                    B_local = T.decl_tensor((128, 26), scope="local")
-                    C_local = T.decl_tensor((26, 26), scope="local")
+                    A_local = T.alloc_tensor(ty_args=[T.Tensor((26, 128), scope="local")])
+                    B_local = T.alloc_tensor(ty_args=[T.Tensor((128, 26), scope="local")])
+                    C_local = T.alloc_tensor(ty_args=[T.Tensor((26, 26), scope="local")])
                     for ax0, ax1 in T.grid(26, 128):
                         if i_0 * 26 + ax0 < 128:
                             A_local[ax0, ax1] = A[i_0 * 26 + ax0, ax1]
@@ -1043,9 +1043,9 @@ class TestTileAwareCompaction(BaseCompactTest):
     ):
         for i_0 in range(4):
             for j_0 in range(4):
-                A_local_tile0 = T.decl_tensor((26, 128), scope="local")
-                B_local_tile0 = T.decl_tensor((128, 26), scope="local")
-                C_local_tile0 = T.decl_tensor((26, 26), scope="local")
+                A_local_tile0 = T.alloc_tensor(ty_args=[T.Tensor((26, 128), scope="local")])
+                B_local_tile0 = T.alloc_tensor(ty_args=[T.Tensor((128, 26), scope="local")])
+                C_local_tile0 = T.alloc_tensor(ty_args=[T.Tensor((26, 26), scope="local")])
                 for ax0, ax1 in T.grid(26, 128):
                     A_local_tile0[ax0, ax1] = A[i_0 * 26 + ax0, ax1]
                 for ax0, ax1 in T.grid(128, 26):
@@ -1059,9 +1059,9 @@ class TestTileAwareCompaction(BaseCompactTest):
                 for ax0, ax1 in T.grid(26, 26):
                     C[i_0 * 26 + ax0, j_0 * 26 + ax1] = C_local_tile0[ax0, ax1]
 
-            A_local_tile1 = T.decl_tensor((26, 128), scope="local")
-            B_local_tile1 = T.decl_tensor((128, 24), scope="local")
-            C_local_tile1 = T.decl_tensor((26, 24), scope="local")
+            A_local_tile1 = T.alloc_tensor(ty_args=[T.Tensor((26, 128), scope="local")])
+            B_local_tile1 = T.alloc_tensor(ty_args=[T.Tensor((128, 24), scope="local")])
+            C_local_tile1 = T.alloc_tensor(ty_args=[T.Tensor((26, 24), scope="local")])
             for ax0, ax1 in T.grid(26, 128):
                 A_local_tile1[ax0, ax1] = A[i_0 * 26 + ax0, ax1]
             for ax0, ax1 in T.grid(128, 26):
@@ -1079,9 +1079,9 @@ class TestTileAwareCompaction(BaseCompactTest):
                     C[i_0 * 26 + ax0, ax1 + 104] = C_local_tile1[ax0, ax1]
 
         for j_0 in range(4):
-            A_local_tile2 = T.decl_tensor((24, 128), scope="local")
-            B_local_tile2 = T.decl_tensor((128, 26), scope="local")
-            C_local_tile2 = T.decl_tensor((24, 26), scope="local")
+            A_local_tile2 = T.alloc_tensor(ty_args=[T.Tensor((24, 128), scope="local")])
+            B_local_tile2 = T.alloc_tensor(ty_args=[T.Tensor((128, 26), scope="local")])
+            C_local_tile2 = T.alloc_tensor(ty_args=[T.Tensor((24, 26), scope="local")])
             for ax0, ax1 in T.grid(26, 128):
                 if ax0 < 24:
                     A_local_tile2[ax0, ax1] = A[ax0 + 104, ax1]
@@ -1098,9 +1098,9 @@ class TestTileAwareCompaction(BaseCompactTest):
                 if ax0 < 24:
                     C[ax0 + 104, j_0 * 26 + ax1] = C_local_tile2[ax0, ax1]
 
-        A_local_tile3 = T.decl_tensor((24, 128), scope="local")
-        B_local_tile3 = T.decl_tensor((128, 24), scope="local")
-        C_local_tile3 = T.decl_tensor((24, 24), scope="local")
+        A_local_tile3 = T.alloc_tensor(ty_args=[T.Tensor((24, 128), scope="local")])
+        B_local_tile3 = T.alloc_tensor(ty_args=[T.Tensor((128, 24), scope="local")])
+        C_local_tile3 = T.alloc_tensor(ty_args=[T.Tensor((24, 24), scope="local")])
         for ax0, ax1 in T.grid(26, 128):
             if ax0 < 24:
                 A_local_tile3[ax0, ax1] = A[ax0 + 104, ax1]
@@ -1203,9 +1203,9 @@ class TestNotCompactAliasBuffer(BaseCompactTest):
     def before():
         """Partially accessed buffer, but should not compact
         because existence of aliasing buffer B."""
-        data = T.alloc_tensor((1024,), "int8")
-        A = T.decl_tensor([1024], "int8", data=data.data)
-        B = T.decl_tensor([512], "float16", data=data.data)
+        data = T.alloc_tensor(ty_args=[T.Tensor((1024,), "int8")])
+        A = T.decl_tensor(data.data, ty_args=[T.Tensor([1024], "int8", data=data.data)])
+        B = T.decl_tensor(data.data, ty_args=[T.Tensor([512], "float16", data=data.data)])
         for i in range(10):
             A[i] = A[i] + T.int8(1)
         for i in range(10):
@@ -1222,8 +1222,8 @@ class TestNotCompactBufferWithDifferentDtype(BaseCompactTest):
     def before():
         """Partially accessed buffer, but should not compact
         because existence of aliasing buffer B."""
-        data = T.alloc_tensor((1024,), "int8")
-        A = T.decl_tensor([256], "int32", data=data.data)
+        data = T.alloc_tensor(ty_args=[T.Tensor((1024,), "int8")])
+        A = T.decl_tensor(data.data, ty_args=[T.Tensor([256], "int32", data=data.data)])
         for i in range(10):
             A[i] = A[i] + 1
 
@@ -1236,14 +1236,14 @@ class TestNonBoolCondition(BaseCompactTest):
 
     @Ts.function
     def before():
-        A = T.decl_tensor([12], "int32")
+        A = T.alloc_tensor(ty_args=[T.Tensor([12], "int32")])
         for i in range(10):
             if i:
                 A[i] = A[i] + 1
 
     @Ts.function
     def expected():
-        A = T.decl_tensor((9,), "int32")
+        A = T.alloc_tensor(ty_args=[T.Tensor((9,), "int32")])
         for i in range(10):
             if i:
                 A[i - 1] = A[i - 1] + 1
@@ -1254,7 +1254,7 @@ def test_loop_var_does_not_escape_compacted_buffer_extent():
 
     @Ts.function(private=True)
     def before(A: T.Tensor((n,), "int32")):
-        tmp = T.alloc_tensor((n,), "int32")
+        tmp = T.alloc_tensor(ty_args=[T.Tensor((n,), "int32")])
         for i in range(n):
             length: T.let[T.int64] = T.ceildiv(n, T.shift_left(T.int64(1), i + 1))
             for j in range(length):

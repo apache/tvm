@@ -85,7 +85,9 @@ round):
         _index = Tx.cuda.warp_id()
         _lane = Tx.cuda.lane_id()
         tid = Tx.cuda.thread_idx("x")
-        A_smem = Tx.alloc_tensor((32, 32), "float32", scope="shared", layout=s_layout)
+        A_smem = Tx.alloc_tensor(
+            ty_args=[Tx.Tensor((32, 32), "float32", scope="shared", layout=s_layout)]
+        )
         for k in Tx.serial(4):
             index = tid + k * 256
             value = A[index // 32, index % 32]

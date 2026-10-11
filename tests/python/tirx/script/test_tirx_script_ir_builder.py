@@ -450,7 +450,7 @@ def test_concrete_mutable_scalar(declare):
     with IRBuilder() as ib:
         with T.function():
             if declare:
-                owner = T.alloc_tensor((4,), "int32", scope="local")
+                owner = T.bind(T.alloc_tensor(ty_args=[T.Tensor((4,), "int32", scope="local")]))
                 scalar = T.decl_scalar("int32", owner.data, "local", elem_offset=2)
             else:
                 scalar = T.alloc_scalar("int32", "local")

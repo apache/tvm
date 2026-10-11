@@ -139,7 +139,7 @@ def test_undefined_buffer():
     @Ts.function
     def access_alloc():
         # Var A should be remapped
-        A = T.alloc_tensor((128,), "float16")
+        A = T.alloc_tensor(ty_args=[T.Tensor((128,), "float16")])
         T.evaluate(A.data)
         for i in range(128):
             A[i] = A[i] + T.float16(1.0)

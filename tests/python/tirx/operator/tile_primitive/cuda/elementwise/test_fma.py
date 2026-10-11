@@ -60,7 +60,9 @@ def test_fma_scalar_scalar():
         T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(N,)))
         _bx = T.cuda.block_idx("x")
         tx = T.cuda.thread_idx("x")
-        buf = T.alloc_tensor((1,), dtype, scope="local", layout=TileLayout(S[1]))
+        buf = T.alloc_tensor(
+            ty_args=[T.Tensor((1,), dtype, scope="local", layout=TileLayout(S[1]))]
+        )
         T.cuda.tile.ld(buf, A[tx : tx + 1])
         T.cuda.tile.fma(buf, buf, T.float32(scale_val), T.float32(bias_val))
         T.cuda.tile.st(A[tx : tx + 1], buf)
@@ -104,8 +106,12 @@ def test_fma_buffer_scale_scalar_bias():
         T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(1,)))
         _bx = T.cuda.block_idx("x")
         _tx = T.cuda.thread_idx("x")
-        acc = T.alloc_tensor((N,), dtype, scope="local", layout=TileLayout(S[N]))
-        frac = T.alloc_tensor((N,), dtype, scope="local", layout=TileLayout(S[N]))
+        acc = T.alloc_tensor(
+            ty_args=[T.Tensor((N,), dtype, scope="local", layout=TileLayout(S[N]))]
+        )
+        frac = T.alloc_tensor(
+            ty_args=[T.Tensor((N,), dtype, scope="local", layout=TileLayout(S[N]))]
+        )
         T.cuda.tile.ld(acc, A[0:N])
         T.cuda.tile.ld(frac, B[0:N])
         T.cuda.tile.fma(acc, acc, frac, T.float32(coeff))
@@ -150,8 +156,12 @@ def test_mul_scalar_broadcast():
         T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(1,)))
         _bx = T.cuda.block_idx("x")
         _tx = T.cuda.thread_idx("x")
-        a_local = T.alloc_tensor((N,), dtype, scope="local", layout=TileLayout(S[N]))
-        s_local = T.alloc_tensor((1,), dtype, scope="local", layout=TileLayout(S[1]))
+        a_local = T.alloc_tensor(
+            ty_args=[T.Tensor((N,), dtype, scope="local", layout=TileLayout(S[N]))]
+        )
+        s_local = T.alloc_tensor(
+            ty_args=[T.Tensor((1,), dtype, scope="local", layout=TileLayout(S[1]))]
+        )
         T.cuda.tile.ld(a_local, A[0:N])
         T.cuda.tile.ld(s_local, Scale[0:1])
         T.cuda.tile.mul(a_local, a_local, s_local[0])
@@ -195,7 +205,9 @@ def test_add_rounding_mode():
         T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(1,)))
         _bx = T.cuda.block_idx("x")
         _tx = T.cuda.thread_idx("x")
-        buf = T.alloc_tensor((N,), dtype, scope="local", layout=TileLayout(S[N]))
+        buf = T.alloc_tensor(
+            ty_args=[T.Tensor((N,), dtype, scope="local", layout=TileLayout(S[N]))]
+        )
         T.cuda.tile.ld(buf, A[0:N])
         T.cuda.tile.add(buf, buf, T.float32(round_const), rounding_mode="rm")
         T.cuda.tile.st(A[0:N], buf)
@@ -286,8 +298,12 @@ def test_sub_buffer_buffer_rounding():
         T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(1,)))
         _bx = T.cuda.block_idx("x")
         _tx = T.cuda.thread_idx("x")
-        a_buf = T.alloc_tensor((N,), dtype, scope="local", layout=TileLayout(S[N]))
-        b_buf = T.alloc_tensor((N,), dtype, scope="local", layout=TileLayout(S[N]))
+        a_buf = T.alloc_tensor(
+            ty_args=[T.Tensor((N,), dtype, scope="local", layout=TileLayout(S[N]))]
+        )
+        b_buf = T.alloc_tensor(
+            ty_args=[T.Tensor((N,), dtype, scope="local", layout=TileLayout(S[N]))]
+        )
         T.cuda.tile.ld(a_buf, A[0:N])
         T.cuda.tile.ld(b_buf, B[0:N])
         T.cuda.tile.sub(a_buf, a_buf, b_buf, rounding_mode="rn")
@@ -333,7 +349,9 @@ def test_fma_warpgroup_wg_local_layout():
         wg_id = T.cuda.warpgroup_id()
         tid = T.cuda.thread_in_warpgroup()
 
-        reg = T.alloc_tensor((rows, cols), dtype, scope="local", layout=wg_local_layout(cols))
+        reg = T.alloc_tensor(
+            ty_args=[T.Tensor((rows, cols), dtype, scope="local", layout=wg_local_layout(cols))]
+        )
         reg_row = reg.local(cols)
         for i in T.serial(cols):
             reg_row[i] = A[tid, i]
@@ -380,10 +398,18 @@ def test_fma_f32_sm100_packed_f32x2_dispatch():
         T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(64,)))
         _bx = T.cuda.block_idx("x")
         tx = T.cuda.thread_idx("x")
-        ra = T.alloc_tensor(shape[1:], "float32", scope="local", layout=TileLayout(S[shape[1:]]))
-        rb = T.alloc_tensor(shape[1:], "float32", scope="local", layout=TileLayout(S[shape[1:]]))
-        rc = T.alloc_tensor(shape[1:], "float32", scope="local", layout=TileLayout(S[shape[1:]]))
-        rd = T.alloc_tensor(shape[1:], "float32", scope="local", layout=TileLayout(S[shape[1:]]))
+        ra = T.alloc_tensor(
+            ty_args=[T.Tensor(shape[1:], "float32", scope="local", layout=TileLayout(S[shape[1:]]))]
+        )
+        rb = T.alloc_tensor(
+            ty_args=[T.Tensor(shape[1:], "float32", scope="local", layout=TileLayout(S[shape[1:]]))]
+        )
+        rc = T.alloc_tensor(
+            ty_args=[T.Tensor(shape[1:], "float32", scope="local", layout=TileLayout(S[shape[1:]]))]
+        )
+        rd = T.alloc_tensor(
+            ty_args=[T.Tensor(shape[1:], "float32", scope="local", layout=TileLayout(S[shape[1:]]))]
+        )
         T.cuda.tile.ld(ra, A[tx])
         T.cuda.tile.ld(rb, B[tx])
         T.cuda.tile.ld(rc, C[tx])

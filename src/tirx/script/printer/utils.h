@@ -27,16 +27,4 @@
 
 #include "../../../script/printer/ir/utils.h"
 
-namespace tvm {
-namespace script {
-namespace printer {
-namespace details {
-
-bool IsScalarBuffer(DocTranslatorObj* d, const Expr& source);
-
-}  // namespace details
-}  // namespace printer
-}  // namespace script
-}  // namespace tvm
-
 #endif  // SRC_TIRX_SCRIPT_PRINTER_UTILS_H_

@@ -124,7 +124,7 @@ class AllocateCollector : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> DispatchAllocTensor(const BindNode* op, const CallNode* call) {
-    ffi::String scope = call->args[2].as_or_throw<StringImm>()->value;
+    ffi::String scope = call->ty_args[0].as_or_throw<TensorType>()->storage_scope;
     StorageScope storage_scope = StorageScope::Create(scope);
     if (is_dynamic_ && storage_scope.rank == runtime::StorageRank::kShared &&
         storage_scope.tag == ".dyn") {
@@ -497,9 +497,7 @@ class SharedMemoryRewriter : public StmtExprMutator {
         // typed views; target codegen emits the required pointer cast.
         visited_body = SeqStmt(
             {Bind(remapped, Call(remapped.type(), tirx::decl_tensor_op(),
-                                 {scope.merged_buffer.value().data(), tvm::Tuple(remapped->shape),
-                                  DataTypeImm(remapped->dtype->dtype), StringImm(remapped.scope())},
-                                 {})),
+                                 {scope.merged_buffer.value().data()}, {}, {remapped.type()})),
              visited_body});
       }
 
@@ -517,11 +515,8 @@ class SharedMemoryRewriter : public StmtExprMutator {
         annotations.Set(tvm::tirx::attr::kVolatile, true);
       }
       Stmt alloc_stmt = Bind(scope.merged_buffer.value().var(),
-                             Call(scope.merged_buffer.value().type(), tirx::alloc_tensor_op(),
-                                  {tvm::Tuple(scope.merged_buffer.value()->shape),
-                                   DataTypeImm(scope.merged_buffer.value()->dtype->dtype),
-                                   StringImm(scope.merged_buffer.value().scope())},
-                                  DictAttrs(annotations)));
+                             Call(scope.merged_buffer.value().type(), tirx::alloc_tensor_op(), {},
+                                  DictAttrs(annotations), {scope.merged_buffer.value().type()}));
       Stmt new_body = SeqStmt({alloc_stmt, visited_body});
 
       // 8. Pop the scope.
@@ -535,7 +530,7 @@ class SharedMemoryRewriter : public StmtExprMutator {
 
   UnchangedOr<Stmt> Mutate_AllocTensor(const BindNode* op, const CallNode* call,
                                        InplaceMode inplace_mode) {
-    ffi::String scope = call->args[2].as_or_throw<StringImm>()->value;
+    ffi::String scope = call->ty_args[0].as_or_throw<TensorType>()->storage_scope;
     StorageScope storage_scope = StorageScope::Create(scope);
     if (storage_scope.rank == runtime::StorageRank::kShared &&
         storage_scope.tag == (is_dynamic_ ? ".dyn" : "")) {
@@ -585,10 +580,8 @@ class SharedMemoryRewriter : public StmtExprMutator {
         !new_buf.same_as(node->var)) {
       const auto* new_call = node->value.as<CallNode>();
       return Bind(new_buf,
-                  Call(new_buf.type(), tirx::decl_tensor_op(),
-                       {new_call->args[0], tvm::Tuple(new_buf->shape),
-                        DataTypeImm(new_buf->dtype->dtype), StringImm(new_buf.scope())},
-                       new_call->attrs, new_call->ty_args, new_call->loc),
+                  Call(new_buf.type(), tirx::decl_tensor_op(), {new_call->args[0]}, new_call->attrs,
+                       {new_buf.type()}, new_call->loc),
                   node->loc);
     }
     return node;

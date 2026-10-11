@@ -24,7 +24,6 @@ from collections.abc import Callable
 from numbers import Integral
 from typing import TYPE_CHECKING, Any, TypeVar
 
-import tvm
 from tvm import ir as _ir
 from tvm.script.ir_builder.base import annotation_constructor as _annotation_constructor
 from tvm.script.ir_builder.base import at as _at
@@ -310,92 +309,72 @@ def elected():
     )
 
 
-@_register_mutable_decl("tirx.alloc_tensor")
 def alloc_tensor(
-    shape: list[Expr] | tuple[Expr] | Expr | Integral,
-    dtype: str = "float32",
-    data: Var | None = None,
-    strides: list[Expr] | None = None,
-    elem_offset: Expr | None = None,
-    byte_offset: Expr | None = None,
-    scope: str = "global",
-    align: int = -1,
-    offset_factor: int = 0,
-    layout: str | Layout | None = MISSING,
-    allocated_addr: int | tuple[int, ...] | None = None,
+    placement=None,
+    *,
+    ty_args,
+    attrs=None,
     annotations: dict[str, Any] | None = None,
-) -> Var:
-    """Allocate a tensor and return its variable.
+    loc: Location = UNKNOWN_LOC,
+    ty=None,
+) -> ir.Call:
+    """Allocate the tensor described by one explicit ``Tensor`` type argument.
 
-    Emits a Bind statement with a ``tirx.alloc_tensor`` Call::
-
-        buf = T.alloc_tensor((128, 128))
-
-    Parameters
-    ----------
-    shape : Union[List[Expr], Tuple[Expr], Expr, Integral]
-        The shape of the buffer to allocate.
-    dtype : str
-        The data type of the buffer elements.
-    scope : str
-        The storage scope of the buffer (e.g., "global", "shared").
-    data : Optional[Var]
-        Optional explicit data pointer.
-    strides : Optional[List[Expr]]
-        Optional strides.
-    elem_offset : Optional[Expr]
-        Optional element offset.
-    byte_offset : Optional[Expr]
-        Optional byte offset.
-    align : int
-        Alignment requirement in bytes.
-    offset_factor : int
-        Offset factor.
-    layout : Optional[Union[str, Layout]]
-        Optional layout.
-    allocated_addr : Optional[Union[int, Tuple[int, ...]]]
-        Optional pre-allocated address metadata.
-    annotations : Optional[Dict[str, Any]]
-        Optional annotations for the allocation.
-
-    Returns
-    -------
-    res : Var
-        The allocated buffer.
+    Optional placement is an ordinary tuple operand. Allocation annotations
+    belong to ``attrs``; ``annotations`` accepts a Python dictionary whose
+    scalar values are normalized to typed IR constants.
     """
-    shape = (shape,) if is_prim_expr(shape) or isinstance(shape, Integral) else shape
-    buf = Var(
-        "",
-        _tensor_type(
-            shape=shape,
-            dtype=dtype,
-            data=data,
-            strides=strides,
-            elem_offset=elem_offset,
-            byte_offset=byte_offset,
-            scope=scope,
-            align=align,
-            offset_factor=offset_factor,
-            layout=layout,
-        ),
-    )
-    _record_meta_resource(buf, skip_frames=2)
+    if attrs is not None and annotations is not None:
+        raise TypeError("alloc_tensor cannot mix attrs and annotations")
 
-    # The allocation call annotations hold typed IR values. The C++ side stores
-    # alignment / shape-like ints as ``IntImm(int32, ...)``; if the user
-    # (or a parsed-source round-trip) passes a bare Python int, normalize
-    # it so structural equality is preserved against the LowerOpaqueBlock
-    # output. Booleans must stay as IntImm("bool", ...).
-    def _normalize_ann_value(v):
-        if isinstance(v, bool):
-            return tir.IntImm("bool", int(v))
-        if isinstance(v, int):
-            return tir.IntImm("int32", v)
-        if isinstance(v, float):
-            return tir.FloatImm("float32", v)
-        return v
+    def normalize(value):
+        if isinstance(value, bool):
+            return tir.IntImm("bool", int(value))
+        if isinstance(value, int):
+            return tir.IntImm("int32", value)
+        if isinstance(value, float):
+            return tir.FloatImm("float32", value)
+        return value
 
-    norm_annotations = {k: _normalize_ann_value(v) for k, v in (annotations or {}).items()}
+    if attrs is None:
+        normalized = {key: normalize(value) for key, value in (annotations or {}).items()}
+        if "buffer_allocated_addr" in normalized:
+            if placement is not None:
+                raise ValueError("Allocation placement was specified twice")
+            placement = normalized.pop("buffer_allocated_addr")
+        attrs = ir.DictAttrs(normalized)
+    args = []
+    if placement is not None:
+        if not isinstance(placement, ir.Tuple):
+            placement = placement if isinstance(placement, list | tuple | ir.Array) else [placement]
+            placement = ir.Tuple([normalize(value) for value in placement])
+        args.append(placement)
+    return ir.Call("tirx.alloc_tensor", args, attrs=attrs, ty_args=ty_args, loc=loc, ty=ty)
+
+
+def _bind_tensor(value):
+    from tvm.script.ir_builder.stmt import bind  # pylint: disable=import-outside-toplevel
+
+    buffer = bind(value)
+    _record_meta_resource(buffer, skip_frames=2)
+    return buffer
+
+
+def _alloc_tensor(
+    shape,
+    dtype="float32",
+    data=None,
+    strides=None,
+    elem_offset=None,
+    byte_offset=None,
+    scope="global",
+    align=-1,
+    offset_factor=0,
+    layout=MISSING,
+    allocated_addr=None,
+    annotations=None,
+):
+    """Implement separately named allocation conveniences using the canonical Op."""
     if allocated_addr is not None:
         if scope in ("", "global", "shared", "shared.dyn", "local"):
             raise ValueError(f"{scope} does not support allocation placement")
@@ -403,24 +382,12 @@ def alloc_tensor(
             raise ValueError(
                 "Allocation placement cannot be combined with pointer or offset metadata"
             )
-        addresses = allocated_addr if isinstance(allocated_addr, list | tuple) else [allocated_addr]
-        allocated_addr = [_normalize_ann_value(v) for v in addresses]
-    # Normalize the historical annotation spelling at the construction boundary.
-    if "buffer_allocated_addr" in norm_annotations:
-        if allocated_addr is not None:
-            raise ValueError("Allocation placement was specified twice")
-        allocated_addr = norm_annotations.pop("buffer_allocated_addr")
-    args = [ir.Tuple(buf.shape), ir.DataTypeImm(DataType(buf.dtype)), ir.StringImm(buf.scope())]
-    if allocated_addr is not None:
-        args.append(ir.Tuple(allocated_addr))
-    allocation = ir.Call(
-        "tirx.alloc_tensor",
-        args,
-        attrs=ir.DictAttrs(norm_annotations),
-        ty=buf.ty,
+    tensor_type = _tensor_type(
+        shape, dtype, data, strides, elem_offset, byte_offset, scope, align, offset_factor, layout
     )
-    _ffi_api.AddToParent(tvm.ir.Bind(buf, allocation))
-    return buf
+    return _bind_tensor(
+        alloc_tensor(allocated_addr, ty_args=[tensor_type], annotations=annotations)
+    )
 
 
 def wg_reg_tile(elem_per_thread: int, dtype: str = "float32") -> Var:
@@ -428,16 +395,15 @@ def wg_reg_tile(elem_per_thread: int, dtype: str = "float32") -> Var:
 
     Sugar for the recurring pattern::
 
-        T.alloc_tensor(
+        T.alloc_tensor(ty_args=[T.Tensor(
             (128, elem_per_thread), dtype,
-            layout=wg_local_layout(elem_per_thread),
-            scope="local",
-        )
+            layout=wg_local_layout(elem_per_thread), scope="local",
+        )])
 
     Used to stage a tcgen05 load: each of the 128 threads in a warpgroup
     owns one row of ``elem_per_thread`` contiguous elements.
     """
-    return alloc_tensor(
+    return _alloc_tensor(
         (128, elem_per_thread),
         dtype,
         layout=wg_local_layout(elem_per_thread),
@@ -532,96 +498,29 @@ class DtypeConstructor:
         return f"DtypeConstructor({self._dtype_str!r})"
 
 
-@_register_mutable_decl("tirx.decl_tensor")
 def decl_tensor(
-    shape,
-    dtype="float32",
-    data=None,
-    strides=None,
-    elem_offset=None,
-    byte_offset=None,
-    scope="global",
-    align=0,
-    offset_factor=0,
-    layout=MISSING,
-    allocated_addr=None,
-) -> Var:
-    """Declare a tensor backed by a pointer, or allocate its storage.
-
-    With ``data``, bind a ``tirx.decl_tensor`` Call to the tensor variable.
-    Without ``data``, bind a ``tirx.alloc_tensor`` Call instead. The ``tmem``
-    scope uses ``allocated_addr`` to declare externally allocated tensor memory.
-
-    Parameters
-    ----------
-    shape : Union[List[Expr], Tuple[Expr], Expr, Integral]
-        The type of the buffer prior to flattening.
-
-    dtype : str
-        The data type in the content of the buffer.
-
-    data : Var
-        The pointer to the head of the data.
-
-    strides : List[Expr]
-        The strides of each dimension.
-
-    elem_offset : Expr
-        The offset in terms of number of dtype elements (including lanes).
-
-    byte_offset : Expr
-        The offset in terms of number of bytes.
-
-    scope : str
-        The optional storage scope of buffer data pointer.
-
-    align : int
-        The alignment requirement of data pointer in bytes.
-
-    offset_factor : int
-        The factor of elem_offset field.
-
-    layout : Layout
-        The layout of the buffer.
-
-    Returns
-    -------
-    res : Var
-        The declared buffer.
-    """
-    shape = (shape,) if is_prim_expr(shape) or isinstance(shape, Integral) else shape
-    shape = tuple(shape)
-    if strides is None:
-        strides = []
-    dtype = _normalize_prim_type(dtype)
-    buf = _ffi_api.DeclTensor(  # type: ignore[attr-defined] # pylint: disable=no-member
-        shape,
-        dtype,
-        "",
-        data,
-        strides,
-        _get_elem_offset(elem_offset, byte_offset, dtype),
-        scope,
-        align,
-        offset_factor,
-        _get_layout(layout, shape, scope),
-        allocated_addr,
-    )
-    _record_meta_resource(buf, skip_frames=2)
-    return buf
+    data,
+    *,
+    ty_args,
+    attrs=None,
+    loc: Location = UNKNOWN_LOC,
+    ty=None,
+) -> ir.Call:
+    """Declare a pointer-backed tensor with one explicit ``Tensor`` type argument."""
+    return ir.Call("tirx.decl_tensor", [data], attrs=attrs, ty_args=ty_args, loc=loc, ty=ty)
 
 
-alloc_shared = functools.partial(alloc_tensor, scope="shared")
+alloc_shared = functools.partial(_alloc_tensor, scope="shared")
 
 _register_mutable_decl("tirx.alloc_shared")(alloc_shared)
 
-alloc_local = functools.partial(alloc_tensor, scope="local")
+alloc_local = functools.partial(_alloc_tensor, scope="local")
 
 _register_mutable_decl("tirx.alloc_local")(alloc_local)
 
 smem = _register_mutable_decl("tirx.smem")(alloc_shared)
 
-tmem = functools.partial(alloc_tensor, scope="tmem")
+tmem = functools.partial(_alloc_tensor, scope="tmem")
 
 
 def alloc_tcgen05_ldst_frag(instr_shape, tensor_shape, dtype):
@@ -721,7 +620,7 @@ def alloc_scalar(
     annotations: dict[str, Any] | None = None,
 ) -> _ir.TensorLoad:
     """Allocate a zero-dimensional buffer (scalar), with optional allocation annotations."""
-    buf = alloc_tensor(
+    buf = _alloc_tensor(
         shape=(1,), dtype=dtype, scope=scope, layout=TileLayout(S[1]), annotations=annotations
     )
     assert is_tensor_var(buf)
@@ -732,16 +631,20 @@ def alloc_scalar(
 @_register_mutable_decl("tirx.decl_scalar")
 def decl_scalar(dtype, data, scope, elem_offset=None, byte_offset=None) -> _ir.TensorLoad:
     """Declare a zero-dimensional buffer (scalar) from a pointer."""
-    buf = decl_tensor(
-        shape=(1,),
-        dtype=dtype,
-        data=data,
-        scope=scope,
-        elem_offset=_get_elem_offset(elem_offset, byte_offset, dtype),
-        strides=None,
-        align=-1,
-        offset_factor=0,
-        layout=TileLayout(S[1]),
+    buf = _bind_tensor(
+        decl_tensor(
+            data,
+            ty_args=[
+                _tensor_type(
+                    (1,),
+                    dtype,
+                    scope=scope,
+                    elem_offset=_get_elem_offset(elem_offset, byte_offset, dtype),
+                    align=-1,
+                    layout=TileLayout(S[1]),
+                )
+            ],
+        )
     )
     assert is_tensor_var(buf)
     scalar = buf[0]

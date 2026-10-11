@@ -92,7 +92,7 @@ class ComputeLegalizePlanner : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> DispatchAllocTensor(const BindNode* op, const CallNode* call) {
-    DLDataType dtype = call->args[1].as_or_throw<DataTypeImm>()->value;
+    DLDataType dtype = call->ty_args[0].as_or_throw<TensorType>()->dtype->dtype;
     PrimType alloc_dtype(dtype);
     // Select intermediate buffers with an unsupported element type.
     if (MatchType(alloc_dtype)) {
@@ -239,11 +239,10 @@ class ComputeLegalizer : public StmtExprMutator {
                       .ValueOrUnchanged(ffi::GetRef<Expr>(op))
                       .as_or_throw<Call>();
       if (op == allocation_to_promote_) {
-        auto dtype = call->args[1].as_or_throw<DataTypeImm>();
-        auto* node = call.CopyOnWrite();
-        node->args.Set(1,
-                       DataTypeImm(promote_dtype_.WithLanes(PrimType(dtype->value).lanes())->dtype,
-                                   dtype->loc));
+        auto type = call->ty_args[0].as_or_throw<TensorType>();
+        auto updated = ffi::make_object<TensorTypeNode>(*type.get());
+        updated->dtype = promote_dtype_.WithLanes(type->dtype.lanes());
+        call.CopyOnWrite()->ty_args.Set(0, TensorType(std::move(updated)));
       }
       return ReinferMutatedCallType(call, op, inplace_mode);
     }
@@ -603,12 +602,11 @@ class StorageLegalizer : public StmtExprMutator {
       Call call = StmtExprMutator::Mutate_(op, inplace_mode)
                       .ValueOrUnchanged(ffi::GetRef<Expr>(op))
                       .as_or_throw<Call>();
-      int dtype_index = op->op.same_as(tirx::alloc_tensor_op()) ? 1 : 2;
-      auto dtype = call->args[dtype_index].as_or_throw<DataTypeImm>();
-      if (MatchType(PrimType(dtype->value))) {
-        call.CopyOnWrite()->args.Set(
-            dtype_index,
-            DataTypeImm(GetStorageUIntDType(PrimType(dtype->value))->dtype, dtype->loc));
+      auto type = call->ty_args[0].as_or_throw<TensorType>();
+      if (MatchType(type->dtype)) {
+        auto updated = ffi::make_object<TensorTypeNode>(*type.get());
+        updated->dtype = GetStorageUIntDType(type->dtype);
+        call.CopyOnWrite()->ty_args.Set(0, TensorType(std::move(updated)));
       }
       return ReinferMutatedCallType(call, op, inplace_mode);
     }

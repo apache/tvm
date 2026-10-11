@@ -333,13 +333,9 @@ def test_stmt_constructor():
         buf,
         tvm.ir.Call(
             "tirx.alloc_tensor",
-            [
-                tvm.ir.Tuple(buf.shape),
-                tvm.ir.DataTypeImm(tvm.DataType(buf.dtype)),
-                tvm.ir.StringImm(buf.scope()),
-            ],
+            [],
             attrs=tvm.ir.DictAttrs({}),
-            ty=buf.ty,
+            ty_args=[buf.ty],
         ),
     )
     assert _is_buffer_binding(x, "tirx.alloc_tensor")

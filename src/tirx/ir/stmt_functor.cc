@@ -104,6 +104,9 @@ ffi::Optional<VisitInterrupt> StmtExprVisitor::Visit_(const CallNode* op) {
   for (const auto& child : op->args) {
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(child));
   }
+  for (const auto& type : op->ty_args) {
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(type));
+  }
   return std::nullopt;
 }
 

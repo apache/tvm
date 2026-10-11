@@ -80,21 +80,29 @@ mbarrier and writes the result out (from ``test_dsmem.py``):
         pool = Tx.SMEMPool()
         src_raw = pool.alloc([8192], dtype, align=128)
         src_smem = Tx.decl_tensor(
-            list(shape),
-            dtype,
             src_raw.data,
-            byte_offset=src_raw.byte_offset,
-            scope="shared.dyn",
-            layout=src_layout,
+            ty_args=[
+                Tx.Tensor(
+                    list(shape),
+                    dtype,
+                    byte_offset=src_raw.byte_offset,
+                    scope="shared.dyn",
+                    layout=src_layout,
+                )
+            ],
         )
         dst_raw = pool.alloc([8192], dtype, align=128)
         dst_smem = Tx.decl_tensor(
-            list(shape),
-            dtype,
             dst_raw.data,
-            byte_offset=dst_raw.byte_offset,
-            scope="shared.dyn",
-            layout=dst_layout,
+            ty_args=[
+                Tx.Tensor(
+                    list(shape),
+                    dtype,
+                    byte_offset=dst_raw.byte_offset,
+                    scope="shared.dyn",
+                    layout=dst_layout,
+                )
+            ],
         )
         mbar = MBarrier(pool, 1)
         pool.commit()

@@ -88,10 +88,7 @@ class BufferFlattener : public IRMutatorWithAnalyzer {
           auto new_buf = pass->Lookup(old_buf.value()).flattened;
           if (!old_buf.value().same_as(new_buf)) {
             body = SeqStmt({Bind(new_buf, Call(new_buf.type(), decl_tensor_op(),
-                                               {old_buf.value().data(), tvm::Tuple(new_buf->shape),
-                                                DataTypeImm(new_buf->dtype->dtype),
-                                                StringImm(new_buf.scope())},
-                                               {})),
+                                               {old_buf.value().data()}, {}, {new_buf.type()})),
                             std::move(body).value()});
             body_unchanged = false;
           }
@@ -198,19 +195,17 @@ class BufferFlattener : public IRMutatorWithAnalyzer {
                                       InplaceMode inplace_mode) {
     const FlatInfo& info = Define(op->var.as_or_throw<TensorVar>());
     ffi::Array<Expr> args = buffer_call->args;
-    if (args.size() == 4) {
-      args.Set(3, Mutate(args[3], inplace_mode).ValueOrUnchanged(args[3]));
+    if (!args.empty()) {
+      args.Set(0, Mutate(args[0], inplace_mode).ValueOrUnchanged(args[0]));
     }
     if (info.flattened.same_as(op->var.as_or_throw<TensorVar>()) &&
         args.same_as(buffer_call->args)) {
       return ffi::Unchanged();
     }
-    args.Set(0, tvm::Tuple(info.flattened->shape, buffer_call->args[0]->loc));
-    args.Set(1, DataTypeImm(info.flattened->dtype->dtype, buffer_call->args[1]->loc));
-    args.Set(2, StringImm(info.flattened.scope(), buffer_call->args[2]->loc));
+
     return Bind(info.flattened.var(),
                 Call(info.flattened.type(), tirx::alloc_tensor_op(), args, buffer_call->attrs,
-                     buffer_call->ty_args, buffer_call->loc),
+                     {info.flattened.type()}, buffer_call->loc),
                 op->loc);
   }
 
@@ -234,10 +229,8 @@ class BufferFlattener : public IRMutatorWithAnalyzer {
       return ffi::Unchanged();
     }
     return Bind(info.flattened,
-                Call(info.flattened.type(), decl_tensor_op(),
-                     {std::move(data), tvm::Tuple(info.flattened->shape),
-                      DataTypeImm(info.flattened->dtype->dtype), StringImm(info.flattened.scope())},
-                     buffer_call->attrs, buffer_call->ty_args, buffer_call->loc),
+                Call(info.flattened.type(), decl_tensor_op(), {std::move(data)}, buffer_call->attrs,
+                     {info.flattened.type()}, buffer_call->loc),
                 op->loc);
   }
 

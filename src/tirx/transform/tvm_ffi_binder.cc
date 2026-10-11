@@ -618,11 +618,8 @@ void TVMFFIABIBuilder::DecodeAllParams() {
       Expr data = DecodeParamDLTensor(buffer.value(), device_type_, device_id_, handle,
                                       func_name_ + "." + param->name, param_path);
       decl_buffers_.push_back(
-          Bind(buffer.value(),
-               Call(buffer.value().type(), tirx::decl_tensor_op(),
-                    {data, tvm::Tuple(buffer.value()->shape),
-                     DataTypeImm(buffer.value()->dtype->dtype), StringImm(buffer.value().scope())},
-                    {})));
+          Bind(buffer.value(), Call(buffer.value().type(), tirx::decl_tensor_op(), {data}, {},
+                                    {buffer.value().type()})));
       PrimExpr size = IntImm(PrimType(buffer.value()->DefaultIndexType()), 1);
       for (const auto& extent : buffer.value()->shape) size *= extent;
       Stmt alignment =

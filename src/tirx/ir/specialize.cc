@@ -175,8 +175,9 @@ class FunctionSpecializer : public StmtExprMutator {
           (call->op.same_as(tirx::alloc_tensor_op()) || call->op.same_as(tirx::decl_tensor_op()))) {
         TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->WithDefRegionKind(
             kTVMFFIDefRegionKindSimple, [&]() { return this->Visit(op->var); }));
-        if (call->op.same_as(tirx::decl_tensor_op())) return Visit(call->args[0]);
-        return std::nullopt;
+        // The definition above owns traversal of the complete tensor type.
+        // Value operands include declaration data or allocation placement.
+        return Visit(call->args);
       }
       return StmtExprVisitor::Visit_(op);
     }

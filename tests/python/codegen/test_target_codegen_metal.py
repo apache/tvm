@@ -331,10 +331,10 @@ def test_codegen_simdgroup_buffer_data():
                     "tirx.kernel_launch_params": [],
                 }
             )
-            A = T.alloc_tensor((64,), "float16", scope="shared")
-            A_frag = T.alloc_tensor((64,), "float16", scope="metal.simdgroup")
-            B_frag = T.alloc_tensor((64,), "float16", scope="metal.simdgroup")
-            C_frag = T.alloc_tensor((64,), "float16", scope="metal.simdgroup")
+            A = T.alloc_tensor(ty_args=[T.Tensor((64,), "float16", scope="shared")])
+            A_frag = T.alloc_tensor(ty_args=[T.Tensor((64,), "float16", scope="metal.simdgroup")])
+            B_frag = T.alloc_tensor(ty_args=[T.Tensor((64,), "float16", scope="metal.simdgroup")])
+            C_frag = T.alloc_tensor(ty_args=[T.Tensor((64,), "float16", scope="metal.simdgroup")])
             T.metal.make_filled_simdgroup_matrix(C_frag.data, 0, T.float32(0), 8, 8)
             T.metal.simdgroup_load(A_frag.data, 0, A.data, 8, 8, 8, T.bool(False))
             T.metal.simdgroup_store(C_frag.data, 0, A.data, 8, 8, 8, T.bool(False))
@@ -371,7 +371,9 @@ def test_bounded_symbolic_stack_allocation():
                     "tirx.is_global_func": True,
                 }
             )
-            scratch = T.alloc_tensor((T.min(n, 64), 2), "float32", scope="local")
+            scratch = T.alloc_tensor(
+                ty_args=[T.Tensor((T.min(n, 64), 2), "float32", scope="local")]
+            )
             T.evaluate(scratch.data)
 
     source = _build_metal(Module).inspect_source()
@@ -398,7 +400,7 @@ def test_bound_symbolic_stack_allocation(bounded):
             # Common subexpression elimination can hoist the bounded extent.
             extent: T.let[T.int32] = T.min(n, limit)
             elements: T.let[T.int32] = extent * 2
-            scratch = T.alloc_tensor((elements,), "float32", scope="local")
+            scratch = T.alloc_tensor(ty_args=[T.Tensor((elements,), "float32", scope="local")])
             T.evaluate(scratch.data)
 
     if bounded:
@@ -428,7 +430,7 @@ def test_allocation_bound_does_not_substitute_buffer_load(scope, bounded):
                     "tirx.is_global_func": True,
                 }
             )
-            state = T.alloc_tensor((1,), "int32", scope="local")
+            state = T.alloc_tensor(ty_args=[T.Tensor((1,), "int32", scope="local")])
             state[0] = 0
             snapshot: T.let[T.int32] = state[0]
             state[0] = 32
@@ -436,9 +438,13 @@ def test_allocation_bound_does_not_substitute_buffer_load(scope, bounded):
             # The snapshot is immutable, but the buffer it read has changed.
             # Substituting the load would incorrectly reduce this extent to 1.
             scratch = T.alloc_tensor(
-                (T.min(T.max(difference, 1), 32 if bounded else 2147483647),),
-                "float32",
-                scope=scope,
+                ty_args=[
+                    T.Tensor(
+                        (T.min(T.max(difference, 1), 32 if bounded else 2147483647),),
+                        "float32",
+                        scope=scope,
+                    )
+                ]
             )
             scratch[31] = 1.0
 
@@ -469,7 +475,9 @@ def test_bounded_uint64_symbolic_stack_allocation():
                     "tirx.is_global_func": True,
                 }
             )
-            scratch = T.alloc_tensor((T.min(n, T.uint64(64)),), "float32", scope="local")
+            scratch = T.alloc_tensor(
+                ty_args=[T.Tensor((T.min(n, T.uint64(64)),), "float32", scope="local")]
+            )
             T.evaluate(scratch.data)
 
     source = _build_metal(Module).inspect_source()
@@ -490,7 +498,7 @@ def test_unbounded_symbolic_stack_allocation_rejected():
                     "tirx.is_global_func": True,
                 }
             )
-            scratch = T.alloc_tensor((n,), "float32", scope="local")
+            scratch = T.alloc_tensor(ty_args=[T.Tensor((n,), "float32", scope="local")])
             scratch[0] = 1.0
             T.evaluate(scratch[0])
 
@@ -515,7 +523,7 @@ def test_unbounded_uint64_symbolic_stack_allocation_rejected():
                     "tirx.is_global_func": True,
                 }
             )
-            scratch = T.alloc_tensor((n,), "float32", scope="local")
+            scratch = T.alloc_tensor(ty_args=[T.Tensor((n,), "float32", scope="local")])
             scratch[0] = 1.0
             T.evaluate(scratch[0])
 
@@ -541,7 +549,7 @@ def test_nonpositive_stack_allocation_rejected(extent):
                     "tirx.is_global_func": True,
                 }
             )
-            scratch = T.alloc_tensor((extent,), "float32", scope="local")
+            scratch = T.alloc_tensor(ty_args=[T.Tensor((extent,), "float32", scope="local")])
             T.evaluate(scratch.data)
 
     with pytest.raises(
@@ -566,9 +574,13 @@ def test_stack_allocation_element_count_overflow_rejected():
                 }
             )
             scratch = T.alloc_tensor(
-                (T.min(n, 1 << 30), T.min(m, 1 << 30), T.min(k, 1 << 30)),
-                "uint8",
-                scope="local",
+                ty_args=[
+                    T.Tensor(
+                        (T.min(n, 1 << 30), T.min(m, 1 << 30), T.min(k, 1 << 30)),
+                        "uint8",
+                        scope="local",
+                    )
+                ]
             )
             T.evaluate(scratch.data)
 
@@ -592,11 +604,15 @@ def test_codegen_pointer_byte_offsets_preserve_storage_scope():
                     "tirx.kernel_launch_params": [],
                 }
             )
-            shared = T.alloc_tensor((16,), "float16", scope="shared")
+            shared = T.alloc_tensor(ty_args=[T.Tensor((16,), "float16", scope="shared")])
             typed_alias = T.ptr_byte_offset(shared.data, 4, ty=shared.data.ty)
-            typed_buffer = T.decl_tensor((14,), "float16", data=typed_alias, scope="shared")
+            typed_buffer = T.decl_tensor(
+                typed_alias, ty_args=[T.Tensor((14,), "float16", scope="shared")]
+            )
             void_alias = T.handle_add_byte_offset(shared.data, 8)
-            void_buffer = T.decl_tensor((12,), "float16", data=void_alias, scope="shared")
+            void_buffer = T.decl_tensor(
+                void_alias, ty_args=[T.Tensor((12,), "float16", scope="shared")]
+            )
             typed_buffer[0] = T.float16(1)
             void_buffer[0] = T.float16(2)
 
@@ -620,11 +636,15 @@ def test_pointer_byte_offsets_execute_in_threadgroup_memory():
         def main(A: T.Tensor((16,), "float32"), B: T.Tensor((16,), "float32")):
             for bx in T.thread_binding(1, thread="blockIdx.x"):
                 for tx in T.thread_binding(1, thread="threadIdx.x"):
-                    shared = T.alloc_tensor((16,), "float32", scope="shared")
+                    shared = T.alloc_tensor(ty_args=[T.Tensor((16,), "float32", scope="shared")])
                     typed_alias = T.ptr_byte_offset(shared.data, 4, ty=shared.data.ty)
-                    typed_buffer = T.decl_tensor((15,), "float32", data=typed_alias, scope="shared")
+                    typed_buffer = T.decl_tensor(
+                        typed_alias, ty_args=[T.Tensor((15,), "float32", scope="shared")]
+                    )
                     void_alias = T.handle_add_byte_offset(shared.data, 8)
-                    void_buffer = T.decl_tensor((14,), "float32", data=void_alias, scope="shared")
+                    void_buffer = T.decl_tensor(
+                        void_alias, ty_args=[T.Tensor((14,), "float32", scope="shared")]
+                    )
                     shared[0] = A[0]
                     typed_buffer[0] = A[1]
                     void_buffer[0] = A[2]

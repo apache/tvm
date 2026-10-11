@@ -31,31 +31,19 @@ namespace tvm {
 namespace tirx {
 
 /*!
- * \brief Allocate a buffer: alloc_tensor(shape, dtype, scope) -> TensorType.
+ * \brief Allocate a tensor with exactly one TensorType in ty_args.
  *
- * Arguments, in order:
- * - args[0]: shape, Tuple of integer extents (IntImm or symbolic integer expressions).
- * - args[1]: dtype, DataTypeImm with a DLDataType payload for the element type.
- * - args[2]: scope, StringImm naming the storage scope.
- *
- * DictAttrs directly holds the allocation annotations, defaulting to an empty dictionary.
- * The TensorType result agrees with the operands and retains buffer access/storage metadata.
- *
+ * The optional args[0] is a Tuple of producer-owned placement coordinates.
+ * DictAttrs directly holds allocation annotations. The TensorType owns all
+ * shape, dtype, storage scope and access/layout metadata, and is the result type.
  */
 TVM_DLL const Op& alloc_tensor_op();
 
 /*!
- * \brief Declare a buffer view: decl_tensor(data, shape, dtype, scope) -> TensorType.
+ * \brief Declare a tensor view with exactly one TensorType in ty_args.
  *
- * Arguments, in order:
- * - args[0]: data, Expr for the existing physical pointer backing the buffer view.
- * - args[1]: shape, Tuple of integer extents (IntImm or symbolic integer expressions).
- * - args[2]: dtype, DataTypeImm with a DLDataType payload for the element type.
- * - args[3]: scope, StringImm naming the storage scope.
- *
- * There are no attributes. The TensorType result agrees with the operands and retains
- * buffer access/storage metadata. The operation binds a view without allocating memory.
- *
+ * args[0] is the existing physical pointer backing the view. There are no
+ * attributes. The TensorType is the result type; no memory is allocated.
  */
 TVM_DLL const Op& decl_tensor_op();
 
