@@ -97,7 +97,7 @@ def test_vectorize_vector_scalable_error2():
             for j in T.vectorized(4):
                 A[j] = T.Broadcast(T.float32(1), T.vscale() * 4)
 
-    error_msg = "Vectorizing over scalable buffer elements is not supported in vectorizer."
+    error_msg = "Vectorizing over scalable tensor elements is not supported in vectorizer."
     with pytest.raises(tvm.error.InternalError, match=error_msg):
         tvm.tirx.transform.VectorizeLoop()(Module)
 
@@ -534,7 +534,7 @@ def test_illegal_vscale_in_non_sve_compilation():
         tvm.tirx.transform.VectorizeLoop()(Mod)
 
 
-def test_vectorize_and_predicate_all_buffer_loads_stores():
+def test_vectorize_and_predicate_all_tensor_loads_stores():
     @T.function
     def before(A: T.Tensor((16,), "float32"), B: T.Tensor((16,), "float32")):
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
@@ -568,12 +568,12 @@ def test_vectorize_and_predicate_all_buffer_loads_stores():
             )
 
     mod = tvm.IRModule.from_expr(before)
-    with tvm.transform.PassContext(config={"tirx.enable_buffer_level_predication": True}):
+    with tvm.transform.PassContext(config={"tirx.enable_tensor_level_predication": True}):
         after = tvm.tirx.transform.VectorizeLoop()(mod)["main"]
     tvm.ir.assert_structural_equal(after, expected)
 
 
-def test_vectorize_and_predicate_some_buffer_loads_stores():
+def test_vectorize_and_predicate_some_tensor_loads_stores():
     # Currently revert to scalarizing the block if not all accesses
     # have been predicated, otherwise incorrect code is generated.
     @T.function
@@ -592,7 +592,7 @@ def test_vectorize_and_predicate_some_buffer_loads_stores():
                 B[i_0 * 4 + i_1_s] = A[i_0] + T.float32(1)
 
     mod = tvm.IRModule.from_expr(before)
-    with tvm.transform.PassContext(config={"tirx.enable_buffer_level_predication": True}):
+    with tvm.transform.PassContext(config={"tirx.enable_tensor_level_predication": True}):
         after = tvm.tirx.transform.VectorizeLoop()(mod)["main"]
     tvm.ir.assert_structural_equal(after, expected)
 
@@ -633,7 +633,7 @@ def test_vectorize_and_predicate_multiple_access_statements():
             )
 
     before_mod = tvm.IRModule.from_expr(before)
-    with tvm.transform.PassContext(config={"tirx.enable_buffer_level_predication": True}):
+    with tvm.transform.PassContext(config={"tirx.enable_tensor_level_predication": True}):
         after = tvm.tirx.transform.VectorizeLoop()(before_mod)["main"]
     tvm.ir.assert_structural_equal(after, expected)
 
@@ -694,15 +694,15 @@ def test_vectorize_and_predicate_invalid_conditions():
                     A[i_0 * 4 + i_1_s] = T.float32(2)
 
     before_mod = tvm.IRModule.from_expr(before)
-    with tvm.transform.PassContext(config={"tirx.enable_buffer_level_predication": True}):
+    with tvm.transform.PassContext(config={"tirx.enable_tensor_level_predication": True}):
         after = tvm.tirx.transform.VectorizeLoop()(before_mod)["main"]
     tvm.ir.assert_structural_equal(after, expected)
 
 
-def test_vectorize_with_explicitly_disabled_buffer_level_predication():
-    # Since the target has the VLA feature, buffer level predication is enabled
+def test_vectorize_with_explicitly_disabled_tensor_level_predication():
+    # Since the target has the VLA feature, tensor level predication is enabled
     # by default. However, it has been explicitly disabled by the pass context
-    # option, so no buffer-level predicates should be added.
+    # option, so no tensor-level predicates should be added.
     @T.function
     def before(A: T.Tensor((16,), "float32"), B: T.Tensor((16,), "float32")):
         T.func_attr({"target": sve_target, "global_symbol": "main", "tirx.noalias": True})
@@ -719,12 +719,12 @@ def test_vectorize_with_explicitly_disabled_buffer_level_predication():
                 B[i_0 * 4 + i_1_s] = A[i_0 * 4 + i_1_s] + T.float32(1)
 
     mod = tvm.IRModule.from_expr(before)
-    with tvm.transform.PassContext(config={"tirx.enable_buffer_level_predication": False}):
+    with tvm.transform.PassContext(config={"tirx.enable_tensor_level_predication": False}):
         after = tvm.tirx.transform.VectorizeLoop()(mod)["main"]
     tvm.ir.assert_structural_equal(after, expected)
 
 
-def test_vectorize_and_predicate_buffer_load_stores_with_sve_func_attr_target():
+def test_vectorize_and_predicate_tensor_load_stores_with_sve_func_attr_target():
     @T.function
     def before(A: T.Tensor((16,), "float32"), B: T.Tensor((16,), "float32")):
         T.func_attr({"global_symbol": "main", "tirx.noalias": True, "target": sve_target})

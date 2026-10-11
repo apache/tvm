@@ -95,7 +95,7 @@ Function StmtSimplifier::Apply(Function func, const sym::Analyzer& analyzer,
 
 Function StmtSimplifier::Run(Function func) {
   analyzer_->rewrite_simplify.SetEnabledExtensions(config_->GetEnabledExtensions());
-  MarkBufferParamShapes(func);
+  MarkTensorParamShapes(func);
   auto* n = func.CopyOnWrite();
   // Shared string literals no longer enter the primitive analyzer.  Inline their
   // SSA bindings so existing literal arguments remain constants during lowering.
@@ -144,7 +144,7 @@ UnchangedOr<Stmt> StmtSimplifier::Mutate_(const ForNode* op, InplaceMode inplace
 
 UnchangedOr<Stmt> StmtSimplifier::Mutate_(const BindNode* op, InplaceMode inplace_mode) {
   if (const auto* call = op->value.as<CallNode>()) {
-    // Preserve buffer metadata and shape operands; only declaration data is simplified.
+    // Preserve tensor metadata and shape operands; only declaration data is simplified.
     if (call->op.same_as(tirx::alloc_tensor_op())) return ffi::Unchanged();
     if (call->op.same_as(tirx::decl_tensor_op())) {
       // The Call and its arguments may be shared even when the Bind is writable.
@@ -216,13 +216,13 @@ UnchangedOr<Stmt> StmtSimplifier::Mutate_(const TensorStoreNode* op, InplaceMode
                           .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
                           .as_or_throw<TensorStore>();
   if (const TensorLoadNode* load = store->value.as<TensorLoadNode>()) {
-    TensorVar buffer = load->source.as_or_throw<tvm::tirx::TensorVar>();
-    if (buffer.same_as(store->dest.as_or_throw<TensorVar>()) &&
+    TensorVar tensor = load->source.as_or_throw<tvm::tirx::TensorVar>();
+    if (tensor.same_as(store->dest.as_or_throw<TensorVar>()) &&
         ArrayDeepEqual(load->indices, store->indices) &&
-        prim::ExprDeepEqual()(buffer->elem_offset,
+        prim::ExprDeepEqual()(tensor->elem_offset,
                               store->dest.as_or_throw<TensorVar>()->elem_offset) &&
-        ArrayDeepEqual(buffer->shape, store->dest.as_or_throw<TensorVar>()->shape) &&
-        ArrayDeepEqual(buffer->strides, store->dest.as_or_throw<TensorVar>()->strides)) {
+        ArrayDeepEqual(tensor->shape, store->dest.as_or_throw<TensorVar>()->shape) &&
+        ArrayDeepEqual(tensor->strides, store->dest.as_or_throw<TensorVar>()->strides)) {
       return Evaluate(0);
     }
   }

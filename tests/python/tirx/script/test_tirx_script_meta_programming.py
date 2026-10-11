@@ -251,7 +251,7 @@ def test_scalar_assign_in_macro():
 
 
 def test_function_closure_shape():
-    """Closure variable used in Buffer shape annotation."""
+    """Closure variable used in Tensor shape annotation."""
 
     def f(M=16):
         @T.function
@@ -278,7 +278,7 @@ def _normalize(func):
 
 
 def test_function_closure_dtype():
-    """Closure variable used as Buffer dtype."""
+    """Closure variable used as Tensor dtype."""
 
     def f(dtype="float32"):
         @T.function

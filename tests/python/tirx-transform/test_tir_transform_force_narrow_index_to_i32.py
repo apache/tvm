@@ -246,7 +246,7 @@ def test_block():
     tvm.ir.assert_structural_equal(func, expected)
 
 
-def test_i16_buffer():
+def test_i16_tensor():
     @T.function(private=True)
     def before(A: T.Tensor((128,), "int16"), B: T.Tensor((128,), "int16")):
         for i in T.serial(0, T.int64(16)):
@@ -264,7 +264,7 @@ def test_i16_buffer():
     tvm.ir.assert_structural_equal(after, expected)
 
 
-def test_fail_on_buffer_param():
+def test_fail_on_tensor_param():
     @T.function(private=True)
     def func(A: T.Tensor((128,), "int64"), B: T.Tensor((128,), "int64")):
         for i in T.serial(0, 16):
@@ -276,7 +276,7 @@ def test_fail_on_buffer_param():
         tvm.tirx.transform.ForceNarrowIndexToInt32()(mod)["main"]
 
 
-def test_fail_on_internal_buffer():
+def test_fail_on_internal_tensor():
     @T.function(private=True)
     def func(A: T.Tensor((128,), "int32"), B: T.Tensor((128,), "int32")):
         C = T.alloc_tensor((128,), "int64")

@@ -85,7 +85,7 @@ def test_ptx_prefetch_codegen():
         T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(32,)))
         tx = T.cuda.thread_idx("x")
         T.ptx.prefetch.global_.L2(A.ptr_to([0]))
-        A[tx] = T.float32(0)  # keep-alive store so the buffer is not elided
+        A[tx] = T.float32(0)  # keep-alive store so the tensor is not elided
 
     src = _cuda_source(kernel)
     assert "prefetch.global.L2 [%0];" in src
@@ -1511,13 +1511,13 @@ def test_ptx_comparison_selection_dispatch():
         q = T.local_scalar("uint32")
         d = T.local_scalar("uint32")
         f = T.local_scalar("float32")
-        p_buffer = T.alloc_local((1,), "uint32")
-        T.ptx.setp.lt.s32(p_buffer[0], A[0], A[1])  # one destination
+        p_tensor = T.alloc_local((1,), "uint32")
+        T.ptx.setp.lt.s32(p_tensor[0], A[0], A[1])  # one destination
         T.ptx.setp.lt.s32(p, q, A[0], A[1])  # ... two: `p|q`, chosen by arity
         T.ptx.setp.lt.and_.s32(p, A[0], A[1], T.ptx.pred(q))  # ... plus a BoolOp
         T.ptx.setp.gt.or_.s32(p, q, A[2], A[3], T.ptx.pred(d))  # ... and both
         T.ptx.set.lt.u32.f32(d, f, f)  # writes a value, not a predicate
-        T.ptx.selp.b32(d, d, p, T.ptx.pred(p_buffer[0]))  # predicate selects
+        T.ptx.selp.b32(d, d, p, T.ptx.pred(p_tensor[0]))  # predicate selects
         T.ptx.slct.ftz.b32.f32(d, d, p, f)  # a sign selects
         # slct treats d/a/b independently as bit-size values. This mixes all
         # three 32-bit carrier classes while c remains exactly .s32.
@@ -2118,7 +2118,7 @@ def test_ptx_parallel_sync_dispatch():
 
 
 def test_ptx_lazy_subscript_operands_realize():
-    """Raw buffer elements realize before PTX predicate operand validation."""
+    """Raw tensor elements realize before PTX predicate operand validation."""
 
     @T.function
     def kernel(A: T.Tensor((1,), "uint32")):
@@ -2314,7 +2314,7 @@ def test_ptx_tcgen05_mma_ws_collector_dispatch(form, collector):
 
 @requires_nvcc
 def test_ptx_tcgen05_mma_ws_collectors_certify_sm100a():
-    """All WS kinds, B buffers/operations, and predication assemble on SM100a."""
+    """All WS kinds, B tensors/operations, and predication assemble on SM100a."""
     from tvm.backend.cuda.ptx.render import render_variant
     from tvm.backend.cuda.ptx.table import TABLE, renderings
 
@@ -3796,7 +3796,7 @@ def test_ptx_coercion_ir_forms():
     ]
 
     # A shared-space slot converts whatever pointer it is given: TIRx pointer
-    # scopes are not a reliable discriminator (a shared buffer's ptr_to()
+    # scopes are not a reliable discriminator (a shared tensor's ptr_to()
     # reports 'global'), and the legacy helpers converted unconditionally too.
     call = T.ptx.st.shared__cta.b32(global_ptr, val)
     assert call.args[0].op.name == "tirx.cuda.cvta_generic_to_shared"

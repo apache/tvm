@@ -129,7 +129,7 @@ class TritonKernel(BaseKernel):
             kernel_args.append(arg)
 
         # TODO: Support default argument in the kernel
-        # TODO: Add specialization for aligned buffer pointers
+        # TODO: Add specialization for aligned tensor pointers
         source = triton.compiler.ASTSource(fn=func, signature=signature, constexprs=constants)
         compiled = triton.compiler.compile(source, options=kwargs)
         # Triton appends scratch pointers after the non-constexpr arguments.

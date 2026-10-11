@@ -45,7 +45,7 @@ def test_tir_starred_shape_expression():
     tvm.ir.assert_structural_equal(starred, non_starred)
 
 
-def test_inferred_ty_with_dynamic_buffer():
+def test_inferred_ty_with_dynamic_tensor():
     """The inferred Type may contain dynamic shapes"""
 
     M = T.dynamic("M", "int64")
@@ -68,7 +68,7 @@ def test_inferred_ty_with_dynamic_buffer():
     tvm.ir.assert_structural_equal(func.ty, expected)
 
 
-def test_tir_buffer_region_extent_correct_dtype():
+def test_tir_tensor_region_extent_correct_dtype():
     @Ts.function
     def func(A: T.Tensor((T.int64(16), T.int64(1)), "float32")):
         for i in T.grid(T.int64(16)):
@@ -111,11 +111,11 @@ def test_dynamic_shape_gemm():
 
 
 @Ts.function
-def buffer_int64(
+def tensor_int64(
     A: T.Tensor((T.int64(128), T.int64(128)), dtype="float32"),
     C: T.Tensor((T.int64(128), T.int64(128)), dtype="float32"),
 ) -> None:
-    B = Ts.sblock_alloc_buffer((T.int64(128), T.int64(128)), dtype="float32")
+    B = Ts.sblock_alloc_tensor((T.int64(128), T.int64(128)), dtype="float32")
 
     for i, j in T.grid(128, 128):
         with Ts.sblock("B"):
@@ -128,11 +128,11 @@ def buffer_int64(
 
 
 @Ts.function
-def buffer_int64_after_roundtrip(
+def tensor_int64_after_roundtrip(
     A: T.Tensor((T.int64(128), T.int64(128)), "float32"),
     C: T.Tensor((T.int64(128), T.int64(128)), "float32"),
 ) -> None:
-    B = Ts.sblock_alloc_buffer((T.int64(128), T.int64(128)), dtype="float32")
+    B = Ts.sblock_alloc_tensor((T.int64(128), T.int64(128)), dtype="float32")
     for i, j in T.grid(128, 128):
         with Ts.sblock("B"):
             vi, vj = Ts.axis.remap("SS", [i, j])
@@ -143,9 +143,9 @@ def buffer_int64_after_roundtrip(
             C[vi, vj] = B[vi, vj] + 1.0
 
 
-def test_buffer_int64():
-    original = buffer_int64
-    after_roundtrip = buffer_int64_after_roundtrip
+def test_tensor_int64():
+    original = tensor_int64
+    after_roundtrip = tensor_int64_after_roundtrip
     assert_structural_equal_ignore_global_symbol(original, after_roundtrip, True)
 
 
@@ -185,7 +185,7 @@ def loop_extent_dependent():
     return loop_extent_dependent
 
 
-def parse_bufferslice_as_range_bound():
+def parse_tensorslice_as_range_bound():
     # apparently the use of i in the "outer" block when it is defined outside of a block is wrong
     @Ts.function(check_well_formed=False)
     def segment_sum(
@@ -212,7 +212,7 @@ def parse_bufferslice_as_range_bound():
     return segment_sum
 
 
-def undefined_shape_in_decl_buffer():
+def undefined_shape_in_decl_tensor():
     # uninitialized var
     size = T.dynamic("size", "int32")
 
@@ -224,7 +224,7 @@ def undefined_shape_in_decl_buffer():
     return func
 
 
-def undefined_stride_in_decl_buffer():
+def undefined_stride_in_decl_tensor():
     # uninitialized var
     stride = T.dynamic("stride", "int32")
 
@@ -237,7 +237,7 @@ def undefined_stride_in_decl_buffer():
     return func
 
 
-def undefined_elem_offset_in_decl_buffer():
+def undefined_elem_offset_in_decl_tensor():
     # uninitialized var
     elem_offset = T.dynamic("elem_offset", "int32")
 
@@ -254,10 +254,10 @@ def undefined_elem_offset_in_decl_buffer():
     "ir_generator",
     [
         loop_extent_dependent,
-        parse_bufferslice_as_range_bound,
-        undefined_shape_in_decl_buffer,
-        undefined_stride_in_decl_buffer,
-        undefined_elem_offset_in_decl_buffer,
+        parse_tensorslice_as_range_bound,
+        undefined_shape_in_decl_tensor,
+        undefined_stride_in_decl_tensor,
+        undefined_elem_offset_in_decl_tensor,
     ],
     ids=lambda factory: factory.__name__,
 )

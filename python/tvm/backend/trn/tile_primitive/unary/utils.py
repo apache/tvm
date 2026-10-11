@@ -27,7 +27,7 @@ from tvm.tirx.operator.tile_primitive.common import MapOpType
 from ..common import nki_dim
 from ..dim_utils import get_ewise_dim_map
 from ..instruction_generator import InstructionGenerator
-from ..workspace_utils import check_workspace_buffer
+from ..workspace_utils import check_workspace_tensor
 
 # Operation type classifications
 non_activation_unary_map_ops = [MapOpType.RECIPROCAL, MapOpType.FILL]
@@ -41,18 +41,18 @@ const_input_ops = [MapOpType.FILL]
 
 
 def try_find_inst_unary(
-    dst_buffer_region: TensorRegion,
-    src_buffer_region: TensorRegion,
+    dst_tensor_region: TensorRegion,
+    src_tensor_region: TensorRegion,
     analyzer: Analyzer,
     inst_gen: InstructionGenerator,
     allowed_f_dim_dst: tuple[int] | None = None,
     allowed_f_dim_src: tuple[int] | None = None,
 ):
     """Find instruction parameters for a unary operation."""
-    dst = dst_buffer_region.source
-    src = src_buffer_region.source
+    dst = dst_tensor_region.source
+    src = src_tensor_region.source
 
-    # Validate buffer layouts and scopes
+    # Validate tensor layouts and scopes
     valid_layout_scope = all(
         [
             src.ty.layout and dst.ty.layout,
@@ -65,12 +65,12 @@ def try_find_inst_unary(
 
     if not valid_layout_scope:
         assert False, (
-            f"scope or layout mismatch, src: {src_buffer_region}, dst: {dst_buffer_region}"
+            f"scope or layout mismatch, src: {src_tensor_region}, dst: {dst_tensor_region}"
         )
 
     # Extract and validate dimensions
-    dst_region = dst_buffer_region.region
-    src_region = src_buffer_region.region
+    dst_region = dst_tensor_region.region
+    src_region = src_tensor_region.region
 
     dst_extent = [r.extent for r in dst_region]
     src_extent = [r.extent for r in src_region]
@@ -85,13 +85,13 @@ def try_find_inst_unary(
 
     if not dims_match:
         assert False, (
-            f"shape or dimension mismatch, src: {src_buffer_region}, dst: {dst_buffer_region}"
+            f"shape or dimension mismatch, src: {src_tensor_region}, dst: {dst_tensor_region}"
         )
-    dim_map = get_ewise_dim_map(src_buffer_region, dst_buffer_region, analyzer)
-    inst_gen.link_buffer_regions(src_buffer_region, dst_buffer_region, dim_map)
+    dim_map = get_ewise_dim_map(src_tensor_region, dst_tensor_region, analyzer)
+    inst_gen.link_tensor_regions(src_tensor_region, dst_tensor_region, dim_map)
     # Find optimal instruction parameters
-    inst_repr = inst_gen.find_max_inst_size_from_one_region(dst_buffer_region, allowed_f_dim_dst)
-    inst_repr = inst_gen.fit_inst_tile_to_region(inst_repr, src_buffer_region, allowed_f_dim_src)
+    inst_repr = inst_gen.find_max_inst_size_from_one_region(dst_tensor_region, allowed_f_dim_dst)
+    inst_repr = inst_gen.fit_inst_tile_to_region(inst_repr, src_tensor_region, allowed_f_dim_src)
     return inst_repr
 
 
@@ -99,32 +99,32 @@ def get_const_bias_tensor(bias, shape, dtype, workspace, sctx):
     """Create or retrieve a constant bias tensor."""
     if "const_bias" not in workspace:
         assert sctx.alloc_only, (
-            "Constant bias tensor must be specified in workspace. Run tvm.tirx.trn.transform.TrnPrivateBufferAlloc first."  # noqa: E501
+            "Constant bias tensor must be specified in workspace. Run tvm.tirx.trn.transform.TrnPrivateTensorAlloc first."  # noqa: E501
         )
-        # Create new bias buffer
-        bias_buffer = T.Var("const_bias", T.Tensor(shape, dtype, scope="trn.sbuf"))
-        sctx.add_alloc_buffer(bias_buffer)
+        # Create new bias tensor
+        bias_tensor = T.Var("const_bias", T.Tensor(shape, dtype, scope="trn.sbuf"))
+        sctx.add_alloc_tensor(bias_tensor)
 
-        # This fragment captures buffers and indices from its insertion scope.
+        # This fragment captures tensors and indices from its insertion scope.
         @T.function(check_well_formed=False)
         def const_bias_init():
             with T.nki.tensorized_instruction():
                 for p_loop in T.serial(0, shape[0], annotations={nki_dim: "P"}):
                     for f_loop in T.serial(0, shape[1], annotations={nki_dim: "F"}):
-                        T.evaluate(T.nki.memset(bias_buffer[p_loop, f_loop], bias))
+                        T.evaluate(T.nki.memset(bias_tensor[p_loop, f_loop], bias))
             T.kernel_replace_point()
 
         sctx.add_init_stmt(const_bias_init.body)
     else:
-        # Use existing bias buffer
-        bias_buffer = workspace["const_bias"]
-        check_workspace_buffer(bias_buffer, shape, "trn.sbuf")
+        # Use existing bias tensor
+        bias_tensor = workspace["const_bias"]
+        check_workspace_tensor(bias_tensor, shape, "trn.sbuf")
 
-    return bias_buffer
+    return bias_tensor
 
 
 def generate_unary_func(
-    dst_buffer_region,
+    dst_tensor_region,
     _src,
     inst_gen: InstructionGenerator,
     inst_repr,
@@ -138,7 +138,7 @@ def generate_unary_func(
 ):
     """Generate a function that implements a unary operation."""
     # Prepare parameters
-    p_size = dst_buffer_region.source.ty.layout.size("P")
+    p_size = dst_tensor_region.source.ty.layout.size("P")
 
     # Apply instruction size limits if specified
     inst_size_limit = config.get("max_inst_size", 512)
@@ -147,27 +147,27 @@ def generate_unary_func(
     f_var = T.Var("F", "int32")
     p_var = T.Var("P", "int32")
     b_var = T.Var("B", "int32")
-    inst_gen.bind_inst_iter(dst_buffer_region, f_var, inst_repr.size, inst_repr.stride, True)
-    inst_gen.bind_inst_iter(dst_buffer_region, p_var, p_size, 1, False)
-    b_extent = inst_gen.fill_in_block_dim(dst_buffer_region, b_var)
+    inst_gen.bind_inst_iter(dst_tensor_region, f_var, inst_repr.size, inst_repr.stride, True)
+    inst_gen.bind_inst_iter(dst_tensor_region, p_var, p_size, 1, False)
+    b_extent = inst_gen.fill_in_block_dim(dst_tensor_region, b_var)
 
     # Get operation code if available
     opcode = opcode_table.get(unary_op, None)
 
-    # Extract buffers
-    dst = dst_buffer_region.source
+    # Extract tensors
+    dst = dst_tensor_region.source
     src = _src.source if isinstance(_src, TensorRegion) else None
 
     # Handle bias tensor
     if isinstance(bias, FloatImm | float):
-        bias_buffer = get_const_bias_tensor(
+        bias_tensor = get_const_bias_tensor(
             bias, (p_size, inst_repr.size), dst.ty.dtype, workspace, sctx
         )
     elif isinstance(bias, TensorRegion):
-        bias_buffer = bias.source
+        bias_tensor = bias.source
 
     # fmt: off
-    # This fragment captures buffers and indices from its insertion scope.
+    # This fragment captures tensors and indices from its insertion scope.
     @T.function(check_well_formed=False)
     def impl():
         for b_loop in T.serial(0, b_extent):
@@ -175,8 +175,8 @@ def generate_unary_func(
                 for p_loop in T.serial(0, p_size, annotations={nki_dim: "P"}):
                     for f_loop in T.serial(0, inst_repr.size, annotations={nki_dim: "F"}):
                         inst_gen.set_bind_map_all({p_var: p_loop, f_var: f_loop, b_var: b_loop})
-                        dst_indices = T.meta_var(inst_gen.generate_indices(dst_buffer_region))
-                        if inst_gen.make_guard(dst_buffer_region):
+                        dst_indices = T.meta_var(inst_gen.generate_indices(dst_tensor_region))
+                        if inst_gen.make_guard(dst_tensor_region):
                             if T.constexpr(unary_op == MapOpType.FILL):
                                 T.evaluate(T.nki.memset(dst[tuple(dst_indices)], _src))
                             else:
@@ -185,9 +185,9 @@ def generate_unary_func(
                                     T.evaluate(T.nki.reciprocal(dst[tuple(dst_indices)], src[tuple(src_indices)]))  # noqa: E501
                                 elif T.constexpr(isinstance(bias, TensorRegion)):
                                     bias_indices = T.meta_var(inst_gen.generate_indices(bias))
-                                    T.evaluate(T.nki.activation(dst[tuple(dst_indices)], src[tuple(src_indices)], opcode, scale=scale, bias=bias_buffer[tuple(bias_indices)]))  # noqa: E501
+                                    T.evaluate(T.nki.activation(dst[tuple(dst_indices)], src[tuple(src_indices)], opcode, scale=scale, bias=bias_tensor[tuple(bias_indices)]))  # noqa: E501
                                 else:
-                                    T.evaluate(T.nki.activation(dst[tuple(dst_indices)], src[tuple(src_indices)], opcode, scale=scale, bias=bias_buffer[p_loop, f_loop]))  # noqa: E501
+                                    T.evaluate(T.nki.activation(dst[tuple(dst_indices)], src[tuple(src_indices)], opcode, scale=scale, bias=bias_tensor[p_loop, f_loop]))  # noqa: E501
     # fmt: on
 
     return impl

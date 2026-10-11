@@ -180,12 +180,12 @@ class NoOpRemover : public IRMutatorWithAnalyzer {
     // If the stored value is a load from the same location, the
     // statement is a no-op, regardless of contextual information.
     if (const TensorLoadNode* load = store->value.as<TensorLoadNode>()) {
-      TensorVar buffer = load->source.as_or_throw<tvm::tirx::TensorVar>();
-      if (buffer.same_as(store->dest.as_or_throw<TensorVar>()) &&
-          analyzer_->CanProveEqual(buffer->elem_offset,
+      TensorVar tensor = load->source.as_or_throw<tvm::tirx::TensorVar>();
+      if (tensor.same_as(store->dest.as_or_throw<TensorVar>()) &&
+          analyzer_->CanProveEqual(tensor->elem_offset,
                                    store->dest.as_or_throw<TensorVar>()->elem_offset) &&
-          ArrayValueEqual(buffer->shape, store->dest.as_or_throw<TensorVar>()->shape) &&
-          ArrayValueEqual(buffer->strides, store->dest.as_or_throw<TensorVar>()->strides) &&
+          ArrayValueEqual(tensor->shape, store->dest.as_or_throw<TensorVar>()->shape) &&
+          ArrayValueEqual(tensor->strides, store->dest.as_or_throw<TensorVar>()->strides) &&
           ArrayValueEqual(load->indices, store->indices)) {
         return only_side_effects();
       }

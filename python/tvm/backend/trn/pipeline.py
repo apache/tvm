@@ -30,7 +30,7 @@ def trn_pipeline():
     def _pipeline(mod: tvm.ir.IRModule, _ctx: tvm.transform.PassContext) -> tvm.ir.IRModule:
         """Lower TIRx for the Trainium backend."""
         passes = [
-            trn_transform.TrnPrivateBufferAlloc(),
+            trn_transform.TrnPrivateTensorAlloc(),
             trn_transform.TrnNaiveAllocator(),
             tirx.transform.TileDispatch(),
             trn_transform.LowerTrainiumLayout(),

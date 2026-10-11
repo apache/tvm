@@ -42,7 +42,6 @@ from .expr import Select, TensorLoad, Ramp, Broadcast, Shuffle
 from .expr import CallEffectKind, Let
 
 
-from .stmt import BufferRegion
 from .tile_dispatch import DispatchContext
 
 from .function import Function, IndexMap, renew_def

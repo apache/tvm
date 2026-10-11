@@ -21,11 +21,11 @@ Covers ``.32x32b`` tmem<->reg / smem<->tmem copy_async and bit-exact
 ``.16x{64,128,256}b`` atom verification. For each ``(shape, rep, dtype,
 direction)`` in the ``.16x*`` sweeps we:
 
-1. Fill a (128, FULL_W) host buffer ``A`` with random values.
+1. Fill a (128, FULL_W) host tensor ``A`` with random values.
 2. Stage ``A`` into TMEM via the existing ``.32x32b`` ld/st round-trip.
 3. Issue the new ``.16x*b`` atom via ``T.copy_async`` to read a (64, K_cols)
    fragment from TMEM into a register tile shaped by ``tcgen05_atom_layout``.
-4. Dump the register tile to a ``(128, regs_per_thread)`` global buffer indexed
+4. Dump the register tile to a ``(128, regs_per_thread)`` global tensor indexed
    ``B[tid_in_wg, r]``.
 5. Reconstruct the expected ``B[t, r]`` on the host from the per-(lane, reg) →
    (frag_row, frag_col) formula. The M=64 fragment occupies TMEM lanes
@@ -34,7 +34,7 @@ direction)`` in the ``.16x*`` sweeps we:
 
 For the store direction we run the inverse: prefill the register tile via host →
 ``B`` → ``.32x32b.ld``-staged read, write to TMEM via the new ``.16x*b.st``,
-then read TMEM back via ``.32x32b.ld`` into a (128, FULL_W) buffer and check
+then read TMEM back via ``.32x32b.ld`` into a (128, FULL_W) tensor and check
 that the M=64 fragment's row positions hold the expected register data.
 """
 
@@ -221,7 +221,7 @@ def test_tcgen05_16xnb_roundtrip_16b_M128(shape, rep, dtype):
     _run_roundtrip_16b(shape, rep, dtype, frag_rows_override=128)
 
 
-# Layout F (M=64 non-``.ws``, scattered) round-trip: the buffer is declared
+# Layout F (M=64 non-``.ws``, scattered) round-trip: the tensor is declared
 # with the scatter-encoded TileLayout that ``tmem_datapath_layout("F", ...)``
 # produces. ``.16x*b`` M=64 PTX has the matching scatter built in, so the
 # round-trip is bit-exact in the same way as Layout D + M=64.
@@ -605,7 +605,7 @@ def test_tcgen05_16xnb_sub_slab_view_read(shape, rep):
 
 
 # Negative tests: the datapath/atom pairing matrix in ``tcgen05_ldst.py``
-# must reject mismatched combinations. We construct a Layout F TMEM buffer
+# must reject mismatched combinations. We construct a Layout F TMEM tensor
 # (64 rows, scattered) and try to read it with a ``.16x*b`` M=128 atom,
 # which would interpret the second slab (lanes 16..31 of each warp) as
 # meaningful data — but Layout F leaves that slab undefined. Compilation
@@ -902,7 +902,7 @@ def _run_load_test(shape: str, rep: int, dtype: str):
                 ],
             )
 
-            # Per-thread chunk staging buffer (CHUNK_FP32 fp32 worth).
+            # Per-thread chunk staging tensor (CHUNK_FP32 fp32 worth).
             stage_reg = T.alloc_local((chunk_width_elem,), dtype)
             stage_local = stage_reg.view(128, chunk_width_elem, layout=chunk_view)
 
@@ -1173,7 +1173,7 @@ def test_tcgen05_st_16xnb_store(shape, rep, dtype):
 )
 @pytest.mark.gpu
 def test_alloc_tcgen05_frag_wrapper_compiles(shape, frag_rows, K_cols):
-    """Ensure T.alloc_tcgen05_ldst_frag yields a buffer that ``T.copy_async`` accepts
+    """Ensure T.alloc_tcgen05_ldst_frag yields a tensor that ``T.copy_async`` accepts
     and lowers to the correct tcgen05 atom for each supported instr_shape."""
 
     @T.function
@@ -1694,7 +1694,7 @@ def test_copy_tmem2reg(dtype, width_32b, offset_32b):
 @pytest.mark.parametrize("width_32b", [4, 8, 16, 32])
 @pytest.mark.parametrize("local_offset_32b", [0, 2, 4])
 def test_copy_tmem2reg_sliced_local(dtype, width_32b, local_offset_32b):
-    """tmem<->local copy with a sliced local buffer region."""
+    """tmem<->local copy with a sliced local tensor region."""
 
     def next_power_of_2(x):
         if x <= 1:

@@ -282,14 +282,14 @@ def MakePackedAPI():
     and `TensorType::elem_offset` fields are used to
     generate runtime checks on the corresponding member variables in
     the user-provided `DLTensor*` or `tvm.runtime.tensor` argument.  (e.g. A
-    Function that accepts a buffer of shape `[16,32]` validates that
+    Function that accepts a tensor of shape `[16,32]` validates that
     the `DLTensor::shape` array is `[16,32]`.)
 
-    For dynamic Buffers, in which one or more of these `TensorType` fields
+    For dynamic Tensors, in which one or more of these `TensorType` fields
     use `tirx.Var` that are not defined by other Function
     parameters, these are instead used to define the variables based on
     the corresponding `DLTensor` members.  (e.g. A Function that accepts a
-    buffer of shape `[tirx.Var("n", "int64"), tirx.Var("m", "int64")]`,
+    tensor of shape `[tirx.Var("n", "int64"), tirx.Var("m", "int64")]`,
     when passed a `DLTensor` of shape `[16, 32]`, will define `n = 16` and
     `m = 32`, based on the argument's shape.
 
@@ -375,13 +375,13 @@ def NarrowDataType(target_bits: int):
 
     Note
     ----
-    Run this pass after FlattenBuffer.
+    Run this pass after FlattenTensor.
     """
     return _ffi_api.NarrowDataType(target_bits)  # type: ignore
 
 
 def ForceNarrowIndexToInt32():
-    """Force narrow down indexing expressions and integer buffers to int32 dtype.
+    """Force narrow down indexing expressions and integer tensors to int32 dtype.
 
     The function must not contain S-TIR blocks. Use
     :py:func:`tvm.s_tir.transform.ForceNarrowIndexToInt32` before block lowering.
@@ -409,7 +409,7 @@ def VerifyMemory():
     return _ffi_api.VerifyMemory()  # type: ignore
 
 
-def FlattenBuffer():
+def FlattenTensor():
     """Flatten the multi-dimensional TensorLoad and TensorStore to single dimensional
     TensorLoad/TensorStore for the TIR not contains opaque block.
 
@@ -418,7 +418,7 @@ def FlattenBuffer():
     fpass : tvm.transform.Pass
         The result pass
     """
-    return _ffi_api.FlattenBuffer()  # type: ignore
+    return _ffi_api.FlattenTensor()  # type: ignore
 
 
 def BindTarget(target):

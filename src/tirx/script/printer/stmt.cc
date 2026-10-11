@@ -82,7 +82,7 @@ ffi::Optional<ExprDoc> SeqStmtDocTranslate(DocTranslatorObj* d, ffi::AnyView inp
         !alloc->var.same_as(store->dest) || docs.empty())
       continue;
     auto scalar = docs.back().as<AssignDoc>();
-    if (!IsScalarBuffer(d, alloc->var) || !scalar.has_value() ||
+    if (!IsScalarTensor(d, alloc->var) || !scalar.has_value() ||
         !std::all_of(store->indices.begin(), store->indices.end(), tvm::prim::IsZero))
       continue;
     bool reads_allocation = false;

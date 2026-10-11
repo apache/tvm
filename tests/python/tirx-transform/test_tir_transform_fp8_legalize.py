@@ -216,11 +216,11 @@ def test_fp8_compute_legalize(dtype, promote_dtype):
     tvm.ir.assert_structural_equal(after, expected)
 
 
-def test_fp8_compute_legalize_preserves_opaque_buffer_access(dtype, promote_dtype):
+def test_fp8_compute_legalize_preserves_opaque_tensor_access(dtype, promote_dtype):
     @T.function
     def before():
-        buffer = T.alloc_tensor((16,), dtype)
-        T.evaluate(T.call_extern("consume", buffer.data, ty="void"))
+        tensor = T.alloc_tensor((16,), dtype)
+        T.evaluate(T.call_extern("consume", tensor.data, ty="void"))
 
     before_mod = tvm.IRModule.from_expr(before)
     after = tvm.tirx.transform.FP8ComputeLegalize(promote_dtype)(before_mod)

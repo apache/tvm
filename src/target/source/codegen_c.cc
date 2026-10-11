@@ -40,7 +40,7 @@
 #include <limits>
 
 #include "../../sym/pattern_match.h"
-#include "../../tirx/ir/buffer_common.h"
+#include "../../tirx/ir/pointer_type.h"
 #include "codegen_params.h"
 
 namespace tvm {

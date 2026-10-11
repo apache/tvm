@@ -57,7 +57,7 @@ using ir::WhileFrameNode;
 class TIRFrameNode : public ir::StmtFrameNode {
  public:
   /*! \brief Bind a view in frames that support region aliases. */
-  virtual void BindBufferRegion(tvm::tirx::TensorVar buffer, tvm::TensorRegion region);
+  virtual void BindTensorRegion(tvm::tirx::TensorVar tensor, tvm::TensorRegion region);
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;

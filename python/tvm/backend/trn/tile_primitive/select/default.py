@@ -47,25 +47,25 @@ def select_trn(op: TensorCall, sctx: DispatchContext) -> Function | None:
         f"{op} expects one of the source to be a float"
     )
 
-    # Ensure true_value is the buffer and false_value is the float immediate
+    # Ensure true_value is the tensor and false_value is the float immediate
     if isinstance(true_value, FloatImm):
         pred = not pred
         true_value, false_value = false_value, true_value
 
-    assert isinstance(true_value, TensorRegion), f"{op} expects one of the source to be a buffer"
+    assert isinstance(true_value, TensorRegion), f"{op} expects one of the source to be a tensor"
 
-    # Initialize analyzer and validate buffers
+    # Initialize analyzer and validate tensors
     analyzer = init_analyzer(sctx)
 
-    # Validate buffer layout and scope
-    buffer_conditions = [
+    # Validate tensor layout and scope
+    tensor_conditions = [
         dst.source.ty.layout and true_value.source.ty.layout,
         dst.source.scope() == "trn.sbuf" and true_value.source.scope() == "trn.sbuf",
         is_trainium_layout(true_value.source.ty.layout),
         is_trainium_layout(dst.source.ty.layout),
     ]
 
-    if not all(buffer_conditions):
+    if not all(tensor_conditions):
         assert False, f"scope or layout mismatch, {dst} vs {true_value}"
 
     # Extract regions and validate dimensions
@@ -83,10 +83,10 @@ def select_trn(op: TensorCall, sctx: DispatchContext) -> Function | None:
     if not dims_match:
         assert False, f"shape or dimension mismatch, {dst} vs {true_value}"
 
-    # Bound buffer regions and find instruction size
+    # Bound tensor regions and find instruction size
     inst_gen = InstructionGenerator([dst, true_value], analyzer)
     dim_map = get_ewise_dim_map(dst, true_value, analyzer)
-    inst_gen.link_buffer_regions(dst, true_value, dim_map)
+    inst_gen.link_tensor_regions(dst, true_value, dim_map)
     inst_repr = inst_gen.find_max_inst_size_from_one_region(dst)
     inst_repr = inst_gen.fit_inst_tile_to_region(inst_repr, true_value)
     inst_repr = inst_gen.restrict_inst_to_one_dim(inst_repr)
@@ -100,12 +100,12 @@ def select_trn(op: TensorCall, sctx: DispatchContext) -> Function | None:
     inst_gen.bind_inst_iter(dst, p_var, p_size, 1, False)
     b_extent = inst_gen.fill_in_block_dim(dst, b_var)
 
-    # Get buffer references and guard function
-    dst_buffer = dst.source
-    true_value_buffer = true_value.source
+    # Get tensor references and guard function
+    dst_tensor = dst.source
+    true_value_tensor = true_value.source
 
     # fmt: off
-    # This fragment captures buffers and indices from its insertion scope.
+    # This fragment captures tensors and indices from its insertion scope.
     @T.function(check_well_formed=False)
     def impl():
         for b_loop in T.serial(0, b_extent):
@@ -116,7 +116,7 @@ def select_trn(op: TensorCall, sctx: DispatchContext) -> Function | None:
                         if inst_gen.make_guard(dst):
                             dst_indices = T.meta_var(inst_gen.generate_indices(dst))
                             true_value_indices = T.meta_var(inst_gen.generate_indices(true_value))
-                            T.evaluate(T.nki.affine_select(dst_buffer[tuple(dst_indices)], analyzer.simplify(op.predicate.apply(inst_gen.generate_axes(dst))), true_value_buffer[tuple(true_value_indices)], false_value))  # noqa: E501
+                            T.evaluate(T.nki.affine_select(dst_tensor[tuple(dst_indices)], analyzer.simplify(op.predicate.apply(inst_gen.generate_axes(dst))), true_value_tensor[tuple(true_value_indices)], false_value))  # noqa: E501
     # fmt: on
 
     return impl

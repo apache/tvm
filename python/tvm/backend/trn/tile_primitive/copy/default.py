@@ -37,7 +37,7 @@ def copy_trn(op: TensorCall, sctx: DispatchContext) -> Function | None:
     dst_region, src_region = op.args
     src, dst = src_region.source, dst_region.source
 
-    # Check for valid buffer configurations
+    # Check for valid tensor configurations
     valid_config = all(
         [
             src.ty.layout and dst.ty.layout,
@@ -52,7 +52,7 @@ def copy_trn(op: TensorCall, sctx: DispatchContext) -> Function | None:
     )
 
     if not valid_config:
-        raise ValueError("Invalid buffer layout/scope for copy operation.")
+        raise ValueError("Invalid tensor layout/scope for copy operation.")
 
     analyzer = init_analyzer(sctx)
     src_extent = [r.extent for r in src_region.region]
@@ -70,7 +70,7 @@ def copy_trn(op: TensorCall, sctx: DispatchContext) -> Function | None:
 
     dim_map = get_ewise_dim_map(src_region, dst_region, analyzer)
     inst_gen = InstructionGenerator([src_region, dst_region], analyzer)
-    inst_gen.link_buffer_regions(src_region, dst_region, dim_map)
+    inst_gen.link_tensor_regions(src_region, dst_region, dim_map)
 
     if not inst_gen.check_partition_dim_match(src_region, dst_region):
         raise ValueError(
@@ -113,7 +113,7 @@ def copy_trn(op: TensorCall, sctx: DispatchContext) -> Function | None:
     b_extent = inst_gen.fill_in_block_dim(from_region, b_var)
 
     # fmt: off
-    # This fragment captures buffers and indices from its insertion scope.
+    # This fragment captures tensors and indices from its insertion scope.
     @T.function(check_well_formed=False)
     def impl():
         # the additional b loop is to satisfy hardware instuction size limit

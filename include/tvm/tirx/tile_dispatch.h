@@ -37,10 +37,10 @@ constexpr const char* kDeviceInitStmt = "device_init_stmt";
  *  which will be inserted at the beginning of the kernel
  */
 constexpr const char* kHostInitStmt = "host_init_stmt";
-/*! \brief Statements to be inserted after a specific buffer's definition (DeclTensor/AllocTensor).
+/*! \brief Statements to be inserted after a specific tensor's definition (DeclTensor/AllocTensor).
  *  Stored as Map<TensorVar, ffi::Array<Stmt>>.
  */
-constexpr const char* kPostBufferDefStmt = "post_buffer_def_stmt";
+constexpr const char* kPostTensorDefStmt = "post_tensor_def_stmt";
 }  // namespace callback
 
 /*!
@@ -61,7 +61,7 @@ class DispatchContextNode : public ffi::Object {
   ffi::Map<ffi::String, ffi::Tuple<PrimVar, PrimExpr>> launch_params;
   /*! \brief A map from loop variables to their ranges. */
   ffi::Map<Var, Range> var_range_map;
-  /*! \brief Whether the dispatch context is only used for buffer allocation. */
+  /*! \brief Whether the dispatch context is only used for tensor allocation. */
   bool alloc_only;
   /*! \brief Callback to be handled when the operator is scheduled. */
   ffi::Map<ffi::String, ffi::ObjectRef> callbacks;
@@ -97,15 +97,15 @@ class DispatchContextNode : public ffi::Object {
         .def_ro("scope_kind", &DispatchContextNode::scope_kind);
   }
 
-  /*! \brief Add a buffer to be allocated in the kernel. */
-  void AddAllocBuffer(TensorVar buffer, ffi::Array<PrimExpr> allocated_addr = {},
+  /*! \brief Add a tensor to be allocated in the kernel. */
+  void AddAllocTensor(TensorVar tensor, ffi::Array<PrimExpr> allocated_addr = {},
                       ffi::Map<ffi::String, ffi::Any> annotations = {});
 
   /*! \brief Add an initialization statement to be inserted. */
   void AddInitStmt(Stmt stmt, bool host = false);
 
-  /*! \brief Add a statement to be inserted after a buffer's definition. */
-  void AddPostBufferDefStmt(TensorVar buffer, Stmt stmt);
+  /*! \brief Add a statement to be inserted after a tensor's definition. */
+  void AddPostTensorDefStmt(TensorVar tensor, Stmt stmt);
 
   /*! \brief Set a value in the shared state cache. */
   void SharedStateSet(ffi::String key, ffi::ObjectRef value);

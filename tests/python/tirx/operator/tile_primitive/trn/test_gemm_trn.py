@@ -19,7 +19,7 @@ import tvm_ffi
 
 import tvm
 import tvm.testing
-from tvm.backend.trn.transform import TrnPrivateBufferAlloc
+from tvm.backend.trn.transform import TrnPrivateTensorAlloc
 from tvm.ir import assert_structural_equal as _assert_structural_equal
 from tvm.script import tirx as T
 from tvm.tirx.layout import F, P, S, TileLayout
@@ -265,7 +265,7 @@ def test_gemm_with_sbuf_output():
     @T.function
     def expected():
         T.func_attr({"global_symbol": "gemm"})
-        buffer = T.alloc_tensor((8, 128, 512), scope="trn.psum", allocated_addr=[0, 0])
+        tensor = T.alloc_tensor((8, 128, 512), scope="trn.psum", allocated_addr=[0, 0])
         A_sbuf = T.alloc_tensor((128, 4096), scope="trn.sbuf")
         B_sbuf = T.alloc_tensor((128, 2048), scope="trn.sbuf")
         C_sbuf = T.alloc_tensor((128, 1024), scope="trn.sbuf")
@@ -275,15 +275,15 @@ def test_gemm_with_sbuf_output():
                 for p_loop in T.serial(0, 128, annotations={"nki_dim":"P"}):
                   for lhs_f_loop in T.serial(0, 128, annotations={"nki_dim":"lhs_F"}):
                     for rhs_f_loop in T.serial(0, 128, annotations={"nki_dim":"rhs_F"}):
-                        T.nki.matmul(buffer[lhs_b_loop * 2 + rhs_b_loop, lhs_f_loop, rhs_f_loop], B_sbuf[p_loop, k * 1024 + reduction_b_loop * 256 + lhs_b_loop * 128 + lhs_f_loop], A_sbuf[p_loop, i * 2048 + rhs_b_loop * 1024 + k * 512 + reduction_b_loop * 128 + rhs_f_loop], True)  # noqa: E501
+                        T.nki.matmul(tensor[lhs_b_loop * 2 + rhs_b_loop, lhs_f_loop, rhs_f_loop], B_sbuf[p_loop, k * 1024 + reduction_b_loop * 256 + lhs_b_loop * 128 + lhs_f_loop], A_sbuf[p_loop, i * 2048 + rhs_b_loop * 1024 + k * 512 + reduction_b_loop * 128 + rhs_f_loop], True)  # noqa: E501
             T.nki.tensorized_instruction()
             for lhs_f_loop in T.serial(0, 128, annotations={"nki_dim":"P"}):
               for rhs_f_loop in T.serial(0, 128, annotations={"nki_dim":"F"}):
-                T.nki.tensor_copy(C_sbuf[lhs_f_loop, i * 512 + rhs_b_loop * 256 + lhs_b_loop * 128 + rhs_f_loop], buffer[lhs_b_loop * 2 + rhs_b_loop, lhs_f_loop, rhs_f_loop])  # noqa: E501
+                T.nki.tensor_copy(C_sbuf[lhs_f_loop, i * 512 + rhs_b_loop * 256 + lhs_b_loop * 128 + rhs_f_loop], tensor[lhs_b_loop * 2 + rhs_b_loop, lhs_f_loop, rhs_f_loop])  # noqa: E501
             # fmt: on
     with target:
         mod = tvm.IRModule({"main": gemm})
-        mod = TrnPrivateBufferAlloc()(mod)
+        mod = TrnPrivateTensorAlloc()(mod)
         mod = tvm.tirx.transform.LowerTIRx()(mod)
         mod = tvm.tirx.transform.StmtSimplify()(mod)
         assert_structural_equal(mod["main"], expected)
@@ -532,7 +532,7 @@ def test_gemm_guard():
             # fmt: on
     with target:
         mod = tvm.IRModule({"main": gemm})
-        mod = TrnPrivateBufferAlloc()(mod)
+        mod = TrnPrivateTensorAlloc()(mod)
         mod = tvm.tirx.transform.LowerTIRx()(mod)
         mod = tvm.tirx.transform.StmtSimplify()(mod)
         assert_structural_equal(mod["main"], expected)

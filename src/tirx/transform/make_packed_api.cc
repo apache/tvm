@@ -282,8 +282,8 @@ Function MakePackedAPI(Function func) {
 
   // Tensor declarations and alignment assumptions are ordinary statements,
   // not scopes with a body hole for MergeNest to fill.
-  result.decl_buffers.push_back(body);
-  body = SeqStmt(result.decl_buffers);
+  result.decl_tensors.push_back(body);
+  body = SeqStmt(result.decl_tensors);
   body = MergeNest(std::move(result.asserts), body);
   if (need_set_device) {
     body = RegionStmt(tirx::device_context_op(), {device_type, device_id}, {}, DictAttrs(), body);

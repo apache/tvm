@@ -108,23 +108,23 @@ class IntImmEnum(ObjectConvertible):
 Var = ir.Var
 
 
-def TensorLoad(buffer: Var, indices: list[Expr], loc: Location = UNKNOWN_LOC) -> ir.TensorLoad:
-    """Construct a validated buffer load.
+def TensorLoad(tensor: Var, indices: list[Expr], loc: Location = UNKNOWN_LOC) -> ir.TensorLoad:
+    """Construct a validated tensor load.
 
     Parameters
     ----------
-    buffer : Var
-        The buffer to be loaded.
+    tensor : Var
+        The tensor to be loaded.
 
     indices : List[Expr]
-        The buffer indices to load values from.
+        The tensor indices to load values from.
 
     loc : Location, optional
         The location of this expression in the source code.
 
     """
 
-    return _ffi_api.TensorLoad(buffer, indices, loc)
+    return _ffi_api.TensorLoad(tensor, indices, loc)
 
 
 class CallEffectKind:

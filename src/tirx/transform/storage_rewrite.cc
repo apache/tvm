@@ -47,7 +47,7 @@
 
 #include "../../runtime/thread_storage_scope.h"
 #include "../../sym/int_operator.h"
-#include "../ir/buffer_common.h"
+#include "../ir/pointer_type.h"
 #include "ir_utils.h"
 
 namespace tvm {
@@ -102,8 +102,8 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
  public:
   explicit LinearAccessPatternFinder(const ffi::Array<Var>& params) {
     for (const Var& param : params) {
-      if (auto buffer = param.as<TensorVar>()) {
-        buffer_aliases_.Set(buffer.value().var(), buffer.value().var());
+      if (auto tensor = param.as<TensorVar>()) {
+        tensor_aliases_.Set(tensor.value().var(), tensor.value().var());
       }
     }
   }
@@ -134,7 +134,7 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
     tvm::Tuple shape = call->args[0].as_or_throw<tvm::Tuple>();
     size_t level = scope_.size();
     const VarNode* buf = op->var.get();
-    buffer_aliases_.Set(op->var, op->var);
+    tensor_aliases_.Set(op->var, op->var);
 
     AllocEntry entry;
     entry.alloc = op;
@@ -146,8 +146,8 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> DispatchDeclTensor(const BindNode* op,
-                                                   const CallNode* buffer_call) {
-    RegisterBufferAlias(op->var.as_or_throw<TensorVar>(), buffer_call->args[0]);
+                                                   const CallNode* tensor_call) {
+    RegisterTensorAlias(op->var.as_or_throw<TensorVar>(), tensor_call->args[0]);
     return VisitBindingValue(op);
   }
 
@@ -206,7 +206,7 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
     // Directly reference to the variable count as a read.
     if (buf->ty.as<TensorTypeNode>()) {
       Var var = ffi::GetRef<Var>(buf);
-      buf = buffer_aliases_.Get(var).value_or(var).get();
+      buf = tensor_aliases_.Get(var).value_or(var).get();
     }
     auto it = alloc_info_.find(buf);
     if (it != alloc_info_.end() && it->second.alloc) {
@@ -287,15 +287,15 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
     return std::nullopt;
   }
 
-  void RecordAccess(const TensorVar& buffer) {
-    const VarNode* buffer_var = buffer_aliases_.Get(buffer.var()).value_or(buffer.var()).get();
-    auto it = alloc_info_.find(buffer_var);
+  void RecordAccess(const TensorVar& tensor) {
+    const VarNode* tensor_var = tensor_aliases_.Get(tensor.var()).value_or(tensor.var()).get();
+    auto it = alloc_info_.find(tensor_var);
     if (it == alloc_info_.end() || !it->second.alloc) return;
     TVM_FFI_ICHECK_LT(it->second.level, scope_.size())
-        << "Buffer access occurs outside a statement scope.";
-    scope_[it->second.level].touched.push_back(buffer_var);
+        << "Tensor access occurs outside a statement scope.";
+    scope_[it->second.level].touched.push_back(tensor_var);
     TVM_FFI_ICHECK_EQ(1, it->second.num_physical_dimensions)
-        << "TensorVar " << buffer.name() << " is allocated with "
+        << "TensorVar " << tensor.name() << " is allocated with "
         << it->second.num_physical_dimensions << " physical dimensions, but is accessed as having "
         << "1 physical dimension" << std::endl;
   }
@@ -304,20 +304,20 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
   std::vector<StmtEntry> linear_seq_;
   // The storage scope of each buffer
   std::unordered_map<const VarNode*, AllocEntry> alloc_info_;
-  // Physical roots of buffer aliases, flattened when each DeclTensor is visited.
-  ffi::Map<Var, Var> buffer_aliases_;
+  // Physical roots of tensor aliases, flattened when each DeclTensor is visited.
+  ffi::Map<Var, Var> tensor_aliases_;
 
  private:
-  void RegisterBufferAlias(TensorVar buffer, const Expr& data) {
-    Var root = buffer.var();
+  void RegisterTensorAlias(TensorVar tensor, const Expr& data) {
+    Var root = tensor.var();
     if (auto source = GetBufferDataVar(data);
         source.has_value() && source.value()->ty.as<TensorTypeNode>()) {
-      auto source_root = buffer_aliases_.Get(source.value());
-      TVM_FFI_ICHECK(source_root.has_value()) << "Buffer alias source " << source.value()->name
+      auto source_root = tensor_aliases_.Get(source.value());
+      TVM_FFI_ICHECK(source_root.has_value()) << "Tensor alias source " << source.value()->name
                                               << " must be registered before its DeclTensor alias";
       root = source_root.value();
     }
-    buffer_aliases_.Set(buffer.var(), root);
+    tensor_aliases_.Set(tensor.var(), root);
   }
 
   // Whether already in thread env.
@@ -413,9 +413,9 @@ class InplaceOpVerifier : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> DispatchAllocTensor(const BindNode* op,
-                                                    const CallNode* buffer_call) {
+                                                    const CallNode* tensor_call) {
     // reject inplace for volatile buffers
-    if ((buffer_call->attrs.has_value() ? buffer_call->attrs.value().as<DictAttrsNode>() : nullptr)
+    if ((tensor_call->attrs.has_value() ? tensor_call->attrs.value().as<DictAttrsNode>() : nullptr)
             ->dict.count(tvm::tirx::attr::kVolatile)) {
       result_ = false;
       return std::nullopt;
@@ -496,14 +496,14 @@ class StoragePlanRewriter : public StmtExprMutator {
     this->LivenessAnalysis(finder->linear_seq_);
     this->PlanMemory(finder->linear_seq_, finder->alloc_info_, enable_reuse,
                      reuse_require_exact_matched_dtype);
-    buffer_aliases_ = std::move(finder->buffer_aliases_);
+    tensor_aliases_ = std::move(finder->tensor_aliases_);
     this->PrepareNewAlloc();
     for (const auto& [var, entry] : alloc_map_) {
-      RemapBuffer(ffi::GetRef<Var>(var).as_or_throw<TensorVar>(), entry->alloc_var);
+      RemapTensor(ffi::GetRef<Var>(var).as_or_throw<TensorVar>(), entry->alloc_var);
     }
-    for (const auto& [var, root] : buffer_aliases_) {
+    for (const auto& [var, root] : tensor_aliases_) {
       if (auto it = alloc_map_.find(root.get()); it != alloc_map_.end()) {
-        RemapBuffer(var.as_or_throw<TensorVar>(), it->second->alloc_var);
+        RemapTensor(var.as_or_throw<TensorVar>(), it->second->alloc_var);
       }
     }
     // start rewrite
@@ -515,14 +515,14 @@ class StoragePlanRewriter : public StmtExprMutator {
   }
 
   template <typename Node>
-  Node VisitBufferAccess(Node node) {
-    const VarNode* root = buffer_aliases_.Get(node->dest.template as_or_throw<TensorVar>().var())
+  Node VisitTensorAccess(Node node) {
+    const VarNode* root = tensor_aliases_.Get(node->dest.template as_or_throw<TensorVar>().var())
                               .value_or(node->dest.template as_or_throw<TensorVar>().var())
                               .get();
     auto it = alloc_map_.find(root);
     if (it != alloc_map_.end()) {
       TensorVar buf =
-          RemapBuffer(node->dest.template as_or_throw<TensorVar>(), it->second->alloc_var);
+          RemapTensor(node->dest.template as_or_throw<TensorVar>(), it->second->alloc_var);
 
       ffi::Array<PrimExpr> indices = node->indices;
       indices.Set(indices.size() - 1,
@@ -536,26 +536,26 @@ class StoragePlanRewriter : public StmtExprMutator {
     return node;
   }
 
-  TensorLoad VisitBufferAccess(TensorLoad node) {
-    TensorVar buffer = node->source.as_or_throw<TensorVar>();
-    const VarNode* root = buffer_aliases_.Get(buffer.var()).value_or(buffer.var()).get();
+  TensorLoad VisitTensorAccess(TensorLoad node) {
+    TensorVar tensor = node->source.as_or_throw<TensorVar>();
+    const VarNode* root = tensor_aliases_.Get(tensor.var()).value_or(tensor.var()).get();
     auto it = alloc_map_.find(root);
     if (it == alloc_map_.end()) {
       return node;
     }
 
-    TensorVar remapped = RemapBuffer(buffer, it->second->alloc_var);
+    TensorVar remapped = RemapTensor(tensor, it->second->alloc_var);
     ffi::Array<PrimExpr> indices = node->indices;
-    indices.Set(indices.size() - 1, RemapIndex(buffer->dtype, indices.back(), it->second));
+    indices.Set(indices.size() - 1, RemapIndex(tensor->dtype, indices.back(), it->second));
     return MakeTensorLoad(remapped, indices, node->loc);
   }
 
-  TensorVar RemapBuffer(TensorVar buf, Var new_backing_array) {
+  TensorVar RemapTensor(TensorVar buf, Var new_backing_array) {
     auto mapped = VarRemapGet(buf);
     if (mapped != nullptr) {
       TensorVar remapped = mapped.as_or_throw<TensorVar>();
       TVM_FFI_ICHECK_EQ(remapped_backing_.at(remapped.get()).get(), new_backing_array.get())
-          << "Cannot remap buffer " << buf.name() << " to use backing array "
+          << "Cannot remap tensor " << buf.name() << " to use backing array "
           << new_backing_array->name << ", previously used backing array "
           << remapped_backing_.at(remapped.get()).name();
       return remapped;
@@ -571,7 +571,7 @@ class StoragePlanRewriter : public StmtExprMutator {
   }
 
   UnchangedOr<Stmt> Mutate_(const TensorStoreNode* op, InplaceMode inplace_mode) final {
-    // Access remapping needs the original buffer to preserve its view and element offset.
+    // Access remapping needs the original tensor to preserve its view and element offset.
     auto value = Mutate(op->value, inplace_mode);
     auto indices =
         Mutate(op->indices, inplace_mode).as_or_throw<UnchangedOr<ffi::Array<PrimExpr>>>();
@@ -580,7 +580,7 @@ class StoragePlanRewriter : public StmtExprMutator {
                            : TensorStore(op->dest.as_or_throw<TensorVar>(),
                                          std::move(indices).ValueOrUnchanged(op->indices),
                                          std::move(value).ValueOrUnchanged(op->value), op->loc);
-    return VisitBufferAccess(std::move(node));
+    return VisitTensorAccess(std::move(node));
   }
 
   UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) final {
@@ -590,7 +590,7 @@ class StoragePlanRewriter : public StmtExprMutator {
                           ? ffi::GetRef<TensorLoad>(op)
                           : MakeTensorLoad(op->source.as_or_throw<TensorVar>(),
                                            std::move(indices).ValueUnchecked(), op->loc);
-    return VisitBufferAccess(std::move(node));
+    return VisitTensorAccess(std::move(node));
   }
 
   UnchangedOr<Expr> Mutate_(const VarNode* op, InplaceMode inplace_mode) final {
@@ -598,7 +598,7 @@ class StoragePlanRewriter : public StmtExprMutator {
       const VarNode* root = op;
       if (op->ty.as<TensorTypeNode>()) {
         Var var = ffi::GetRef<Var>(op);
-        root = buffer_aliases_.Get(var).value_or(var).get();
+        root = tensor_aliases_.Get(var).value_or(var).get();
       }
       auto it = alloc_map_.find(root);
       if (it != alloc_map_.end() && it->second->bits_offset != 0) {
@@ -623,7 +623,7 @@ class StoragePlanRewriter : public StmtExprMutator {
     }
     if (op->op.same_as(tirx::tensor_data_ptr_op()) && op->args.size() == 1) {
       if (auto var = op->args[0].as<Var>()) {
-        Var root = buffer_aliases_.Get(var.value()).value_or(var.value());
+        Var root = tensor_aliases_.Get(var.value()).value_or(var.value());
         if (auto it = alloc_map_.find(root.get()); it != alloc_map_.end()) {
           const StorageEntry* entry = it->second;
           TVM_FFI_ICHECK_EQ(entry->bits_offset % 8, 0U);
@@ -640,7 +640,7 @@ class StoragePlanRewriter : public StmtExprMutator {
     }
     if (op->op.same_as(tirx::masked_load_op()) || op->op.same_as(tirx::masked_store_op())) {
       bool is_load = op->op.same_as(tirx::masked_load_op());
-      TensorVar buffer = op->args[0].as_or_throw<TensorVar>();
+      TensorVar tensor = op->args[0].as_or_throw<TensorVar>();
       ffi::Optional<PrimExpr> value;
       if (!is_load)
         value = this->Mutate(op->args[1]).ValueOrUnchanged(op->args[1]).as_or_throw<PrimExpr>();
@@ -650,8 +650,8 @@ class StoragePlanRewriter : public StmtExprMutator {
             this->Mutate(op->args[i]).ValueOrUnchanged(op->args[i]).as_or_throw<PrimExpr>());
       }
       if (is_load) {
-        TensorLoad access = MakeTensorLoad(buffer, indices, op->loc);
-        access = VisitBufferAccess(std::move(access));
+        TensorLoad access = MakeTensorLoad(tensor, indices, op->loc);
+        access = VisitTensorAccess(std::move(access));
         ffi::Array<Expr> args{access->source.as_or_throw<TensorVar>().var()};
         for (const PrimExpr& index : access->indices) args.push_back(index);
         args.push_back(this->Mutate(op->args[op->args.size() - 1])
@@ -659,8 +659,8 @@ class StoragePlanRewriter : public StmtExprMutator {
                            .as_or_throw<Expr>());
         return Call(access->ty, op->op, args, op->attrs, op->ty_args, op->loc);
       } else {
-        TensorStore access(buffer, indices, value.value(), op->loc);
-        access = VisitBufferAccess(std::move(access));
+        TensorStore access(tensor, indices, value.value(), op->loc);
+        access = VisitTensorAccess(std::move(access));
         ffi::Array<Expr> args{access->dest.as_or_throw<TensorVar>().var(), access->value};
         for (const PrimExpr& index : access->indices) args.push_back(index);
         args.push_back(this->Mutate(op->args[op->args.size() - 1])
@@ -708,14 +708,14 @@ class StoragePlanRewriter : public StmtExprMutator {
     return StmtExprMutator::Mutate_(op, inplace_mode);
   }
 
-  UnchangedOr<Stmt> MutateAllocTensor(const BindNode* op, const CallNode* buffer_call,
+  UnchangedOr<Stmt> MutateAllocTensor(const BindNode* op, const CallNode* tensor_call,
                                       InplaceMode inplace_mode) {
     // Placement and opaque metadata can depend on the original definition site.
     // Preserve that binding while remapping storage reads in its operands and attrs.
-    if (RequiresExactAllocation(buffer_call)) {
+    if (RequiresExactAllocation(tensor_call)) {
       return StmtExprMutator::Mutate_(op, inplace_mode);
     }
-    // AllocTensor combines allocation and buffer declaration.
+    // AllocTensor combines allocation and tensor declaration.
     // Storage rewrite may merge this allocation with others.
     if (auto it = alloc_map_.find(op->var.get()); it != alloc_map_.end()) {
       if (it->second->alloc_var.get() == op->var.get()) {
@@ -725,34 +725,34 @@ class StoragePlanRewriter : public StmtExprMutator {
       }
       // This allocation was merged into another.  Emit a DeclTensor
       // aliasing the winner's data variable.
-      TensorVar buf = RemapBuffer(op->var.as_or_throw<TensorVar>(), it->second->alloc_var);
+      TensorVar buf = RemapTensor(op->var.as_or_throw<TensorVar>(), it->second->alloc_var);
       return Bind(
           buf,
           Call(buf.type(), tirx::decl_tensor_op(),
                {it->second->alloc_var.as_or_throw<TensorVar>().data(), tvm::Tuple(buf->shape),
                 DataTypeImm(buf->dtype->dtype), StringImm(buf.scope())},
-               {}, buffer_call->ty_args, buffer_call->loc),
+               {}, tensor_call->ty_args, tensor_call->loc),
           op->loc);
     }
     // If not in alloc_map (e.g. unused), strip entirely.
     return Evaluate(0);
   }
 
-  UnchangedOr<Stmt> MutateDeclTensor(const BindNode* op, const CallNode* buffer_call,
+  UnchangedOr<Stmt> MutateDeclTensor(const BindNode* op, const CallNode* tensor_call,
                                      InplaceMode inplace_mode) {
-    const VarNode* root = buffer_aliases_.Get(op->var).value_or(op->var).get();
+    const VarNode* root = tensor_aliases_.Get(op->var).value_or(op->var).get();
     auto it = alloc_map_.find(root);
     if (it != alloc_map_.end()) {
-      TensorVar buffer = RemapBuffer(op->var.as_or_throw<TensorVar>(), it->second->alloc_var);
-      auto attrs = Mutate(buffer_call->attrs, InplaceMode::kDisallow)
+      TensorVar tensor = RemapTensor(op->var.as_or_throw<TensorVar>(), it->second->alloc_var);
+      auto attrs = Mutate(tensor_call->attrs, InplaceMode::kDisallow)
                        .as_or_throw<UnchangedOr<ffi::Optional<Attrs>>>()
-                       .ValueOrUnchanged(buffer_call->attrs);
+                       .ValueOrUnchanged(tensor_call->attrs);
       return Bind(
-          buffer,
-          Call(buffer.type(), tirx::decl_tensor_op(),
-               {it->second->alloc_var.as_or_throw<TensorVar>().data(), tvm::Tuple(buffer->shape),
-                DataTypeImm(buffer->dtype->dtype), StringImm(buffer.scope())},
-               attrs, buffer_call->ty_args, buffer_call->loc),
+          tensor,
+          Call(tensor.type(), tirx::decl_tensor_op(),
+               {it->second->alloc_var.as_or_throw<TensorVar>().data(), tvm::Tuple(tensor->shape),
+                DataTypeImm(tensor->dtype->dtype), StringImm(tensor.scope())},
+               attrs, tensor_call->ty_args, tensor_call->loc),
           op->loc);
     }
     return StmtExprMutator::Mutate_(op, inplace_mode);
@@ -769,7 +769,7 @@ class StoragePlanRewriter : public StmtExprMutator {
     // The storage scope.
     StorageScope scope;
     // The physical dimensionality of the allocations.  Since
-    // StorageRewrite is applied after FlattenBuffer,
+    // StorageRewrite is applied after FlattenTensor,
     // this is the number of extent dimensions.
     size_t ndim;
     // Allocs that shares this entry.
@@ -886,7 +886,7 @@ class StoragePlanRewriter : public StmtExprMutator {
           // Scalable vector lanes are runtime-dependent.  Keep these allocations exact rather
           // than trying to compare or merge their compile-time bit size.
           e->alloc_var = e->allocs[0]->var;
-          TensorVar buf = RemapBuffer(e->allocs[0]->var.as_or_throw<TensorVar>(), e->alloc_var);
+          TensorVar buf = RemapTensor(e->allocs[0]->var.as_or_throw<TensorVar>(), e->alloc_var);
           ffi::Map<ffi::String, ffi::Any> annotations;
           if (e->is_volatile) {
             annotations.Set(tvm::tirx::attr::kVolatile, true);
@@ -934,7 +934,7 @@ class StoragePlanRewriter : public StmtExprMutator {
 
         if (all_allocs_identical) {
           // Emit AllocTensor for the hoisted allocation.
-          TensorVar buf = RemapBuffer(e->allocs[0]->var.as_or_throw<TensorVar>(), e->alloc_var);
+          TensorVar buf = RemapTensor(e->allocs[0]->var.as_or_throw<TensorVar>(), e->alloc_var);
           ffi::Map<ffi::String, ffi::Any> annotations;
           if (e->is_volatile) {
             annotations.Set(tvm::tirx::attr::kVolatile, true);
@@ -1345,10 +1345,10 @@ class StoragePlanRewriter : public StmtExprMutator {
   std::unordered_map<const VarNode*, StorageEntry*> alloc_map_;
   // The allocations
   std::vector<std::unique_ptr<StorageEntry>> alloc_vec_;
-  // Physical backing chosen for each remapped buffer view.
+  // Physical backing chosen for each remapped tensor view.
   std::unordered_map<const VarNode*, TensorVar> remapped_backing_;
-  // Physical roots of buffer aliases, flattened by LinearAccessPatternFinder.
-  ffi::Map<Var, Var> buffer_aliases_;
+  // Physical roots of tensor aliases, flattened by LinearAccessPatternFinder.
+  ffi::Map<Var, Var> tensor_aliases_;
   // analyzer
   sym::Analyzer analyzer_;
 };
@@ -1358,7 +1358,7 @@ class StoragePlanRewriter : public StmtExprMutator {
  */
 struct BufferVarInfo {
   enum DeclarationLocation {
-    kFunctionBufferParam = (1 << 0),
+    kFunctionTensorParam = (1 << 0),
     kFunctionPointerParam = (1 << 1),
     kAllocTensorCall = (1 << 2),
     kLetNode = (1 << 3),
@@ -1456,13 +1456,13 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
       : allow_untyped_pointers_(allow_untyped_pointers),
         detect_scalar_read_patterns_(detect_scalar_read_patterns) {
     for (Var buffer_var : params) {
-      if (auto buffer = buffer_var.as<TensorVar>()) {
-        buffer_aliases_.Set(buffer_var, buffer_var);
-        PrimExpr extent = buffer.value()->shape.size()
-                              ? buffer.value()->shape[buffer.value()->shape.size() - 1]
+      if (auto tensor = buffer_var.as<TensorVar>()) {
+        tensor_aliases_.Set(buffer_var, buffer_var);
+        PrimExpr extent = tensor.value()->shape.size()
+                              ? tensor.value()->shape[tensor.value()->shape.size() - 1]
                               : PrimExpr(0);
-        OnArrayDeclaration(buffer_var, buffer.value()->dtype, extent,
-                           BufferVarInfo::kFunctionBufferParam);
+        OnArrayDeclaration(buffer_var, tensor.value()->dtype, extent,
+                           BufferVarInfo::kFunctionTensorParam);
         continue;
       }
       auto pointer_type = GetPtrElementType(buffer_var->ty);
@@ -1479,32 +1479,32 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
   ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* op) final {
     OnArrayAccess(op->ty.as_or_throw<PrimType>(),
                   op->source.as_or_throw<tvm::tirx::TensorVar>().get(), op->indices,
-                  /*is_buffer_load=*/true);
+                  /*is_tensor_load=*/true);
     return StmtExprVisitor::Visit_(op);
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const TensorStoreNode* op) final {
     OnArrayAccess(op->value.ty(), op->dest.as_or_throw<TensorVar>().get(), op->indices,
-                  /*is_buffer_load=*/false);
+                  /*is_tensor_load=*/false);
     return StmtExprVisitor::Visit_(op);
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const CallNode* op) final {
     if (op->op.same_as(tirx::masked_load_op()) || op->op.same_as(tirx::masked_store_op())) {
       bool is_load = op->op.same_as(tirx::masked_load_op());
-      TensorVar buffer = op->args[0].as_or_throw<TensorVar>();
+      TensorVar tensor = op->args[0].as_or_throw<TensorVar>();
       PrimType dtype =
           is_load ? op->ty.as_or_throw<PrimType>() : op->args[1].as_or_throw<PrimExpr>().ty();
       ffi::Array<PrimExpr> indices;
       for (size_t i = is_load ? 1 : 2; i + 1 < op->args.size(); ++i) {
         indices.push_back(op->args[i].as_or_throw<PrimExpr>());
       }
-      OnArrayAccess(dtype, buffer.get(), indices, is_load);
+      OnArrayAccess(dtype, tensor.get(), indices, is_load);
     } else if (op->op.same_as(tirx::address_of_op())) {
       if (const auto* load = op->args[0].as<TensorLoadNode>()) {
         OnArrayAccess(load->ty.as_or_throw<PrimType>(),
                       load->source.as_or_throw<tvm::tirx::TensorVar>().get(), load->indices,
-                      /*is_buffer_load=*/false);
+                      /*is_tensor_load=*/false);
         // Preserve the address use without treating its operand as a value load.
         return StmtExprVisitor::Visit_(load);
       }
@@ -1516,7 +1516,7 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
     tvm::Tuple shape = call->args[0].as_or_throw<tvm::Tuple>();
     DLDataType dtype = call->args[1].as_or_throw<DataTypeImm>()->value;
     PrimType element_type(dtype);
-    buffer_aliases_.Set(op->var, op->var);
+    tensor_aliases_.Set(op->var, op->var);
     PrimExpr extent =
         shape->fields.size() ? shape->fields.back().as_or_throw<PrimExpr>() : PrimExpr(0);
     OnArrayDeclaration(op->var, element_type, extent, BufferVarInfo::kAllocTensorCall);
@@ -1525,10 +1525,10 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> DispatchDeclTensor(const BindNode* op,
-                                                   const CallNode* buffer_call) {
-    RegisterBufferAlias(op->var.as_or_throw<TensorVar>(), buffer_call->args[0]);
-    tvm::Tuple shape = buffer_call->args[1].as_or_throw<tvm::Tuple>();
-    DLDataType dtype = buffer_call->args[2].as_or_throw<DataTypeImm>()->value;
+                                                   const CallNode* tensor_call) {
+    RegisterTensorAlias(op->var.as_or_throw<TensorVar>(), tensor_call->args[0]);
+    tvm::Tuple shape = tensor_call->args[1].as_or_throw<tvm::Tuple>();
+    DLDataType dtype = tensor_call->args[2].as_or_throw<DataTypeImm>()->value;
     PrimType element_type(dtype);
     PrimExpr extent =
         shape->fields.size() ? shape->fields.back().as_or_throw<PrimExpr>() : PrimExpr(0);
@@ -1596,12 +1596,12 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
    *
    * @param indices The index at which the value is being stored/loaded.
    *
-   * @param is_buffer_load Whether the access is TensorLoad
+   * @param is_tensor_load Whether the access is TensorLoad
    */
   void OnArrayAccess(PrimType value_dtype, const VarNode* buffer,
-                     const ffi::Array<PrimExpr>& indices, bool is_buffer_load) {
+                     const ffi::Array<PrimExpr>& indices, bool is_tensor_load) {
     Var buffer_var = ffi::GetRef<Var>(buffer);
-    const VarNode* root = buffer_aliases_.Get(buffer_var).value_or(buffer_var).get();
+    const VarNode* root = tensor_aliases_.Get(buffer_var).value_or(buffer_var).get();
     if (info_map_.count(root)) {
       buffer = root;
     }
@@ -1677,7 +1677,7 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
       }
     }
 
-    if (detect_scalar_read_patterns_ && is_buffer_load && indices.size()) {
+    if (detect_scalar_read_patterns_ && is_tensor_load && indices.size()) {
       const PrimExpr last_dim_index = indices[indices.size() - 1];
       if (last_dim_index.ty().lanes() == 1) {
         sym::ModularSet me = analyzer_->modular_set(last_dim_index);
@@ -1693,23 +1693,23 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
   }
 
  private:
-  void RegisterBufferAlias(TensorVar buffer, const Expr& data) {
-    Var root = buffer.var();
+  void RegisterTensorAlias(TensorVar tensor, const Expr& data) {
+    Var root = tensor.var();
     if (auto source = GetBufferDataVar(data);
         source.has_value() && source.value()->ty.as<TensorTypeNode>()) {
-      auto source_root = buffer_aliases_.Get(source.value());
-      TVM_FFI_ICHECK(source_root.has_value()) << "Buffer alias source " << source.value()->name
+      auto source_root = tensor_aliases_.Get(source.value());
+      TVM_FFI_ICHECK(source_root.has_value()) << "Tensor alias source " << source.value()->name
                                               << " must be registered before its DeclTensor alias";
       root = source_root.value();
     }
-    buffer_aliases_.Set(buffer.var(), root);
+    tensor_aliases_.Set(tensor.var(), root);
   }
 
  public:
   // Map of buffer variable information determined
   std::unordered_map<const VarNode*, BufferVarInfo> info_map_;
-  // Physical roots of buffer aliases, flattened at each declaration.
-  ffi::Map<Var, Var> buffer_aliases_;
+  // Physical roots of tensor aliases, flattened at each declaration.
+  ffi::Map<Var, Var> tensor_aliases_;
 
  public:
   //
@@ -1754,13 +1754,13 @@ class VectorTypeRewriter : public StmtExprMutator {
    * @param checker The VectorTypeAccessChecker that has previously read out
    * information from the Function
    *
-   * @param rewrite_buffer_params Whether TensorType-annotated parameters should
+   * @param rewrite_tensor_params Whether TensorType-annotated parameters should
    * be rewritten from scalar element types to vectorized element types.
    *
    * @param rewrite_pointer_params Whether pointer-typed parameters should be
    * rewritten from scalar types to vectorized types.
    *
-   * @param rewrite_alloc_buffer_node Whether the buffer variable associated with
+   * @param rewrite_alloc_tensor_node Whether the buffer variable associated with
    * BindNodes should be rewritten from scalar types to vectorized types.
    *
    * @param rewrite_indices Whether the indices to the Load and Store nodes
@@ -1770,19 +1770,19 @@ class VectorTypeRewriter : public StmtExprMutator {
    * should be re-written.
    */
   VectorTypeRewriter(const std::unordered_map<const VarNode*, BufferVarInfo>& info_map,
-                     const ffi::Map<Var, Var>& buffer_aliases, bool rewrite_buffer_params = true,
-                     bool rewrite_pointer_params = true, bool rewrite_alloc_buffer_node = true,
+                     const ffi::Map<Var, Var>& tensor_aliases, bool rewrite_tensor_params = true,
+                     bool rewrite_pointer_params = true, bool rewrite_alloc_tensor_node = true,
                      bool rewrite_indices = true, bool rewrite_let_node = true,
                      bool rewrite_scalar_read_to_vector_shuffle = true)
-      : rewrite_indices_(rewrite_indices), buffer_aliases_(buffer_aliases) {
+      : rewrite_indices_(rewrite_indices), tensor_aliases_(tensor_aliases) {
     int rewrite_mask = 0;
-    if (rewrite_buffer_params) {
-      rewrite_mask |= BufferVarInfo::kFunctionBufferParam;
+    if (rewrite_tensor_params) {
+      rewrite_mask |= BufferVarInfo::kFunctionTensorParam;
     }
     if (rewrite_pointer_params) {
       rewrite_mask |= BufferVarInfo::kFunctionPointerParam;
     }
-    if (rewrite_alloc_buffer_node) {
+    if (rewrite_alloc_tensor_node) {
       rewrite_mask |= BufferVarInfo::kAllocTensorCall;
     }
     if (rewrite_let_node) {
@@ -1793,11 +1793,11 @@ class VectorTypeRewriter : public StmtExprMutator {
       const auto& var_info = pair.second;
       PrimType preferred = var_info.get_preferred_dtype();
       if (preferred != var_info.element_dtype && (rewrite_mask & var_info.declaration_location)) {
-        Var old_buffer_var = var_info.var;
-        Var new_buffer_var = [&]() -> Var {
-          if (old_buffer_var->ty.as<TensorTypeNode>()) {
-            TensorVar old_buffer = old_buffer_var.as_or_throw<TensorVar>();
-            auto type = CopyTensorType(old_buffer);
+        Var old_tensor_var = var_info.var;
+        Var new_tensor_var = [&]() -> Var {
+          if (old_tensor_var->ty.as<TensorTypeNode>()) {
+            TensorVar old_tensor = old_tensor_var.as_or_throw<TensorVar>();
+            auto type = CopyTensorType(old_tensor);
             type->dtype = preferred;
             if (!type->shape.empty()) {
               PrimExpr last_dim = type->shape.back();
@@ -1805,15 +1805,15 @@ class VectorTypeRewriter : public StmtExprMutator {
               type->shape.Set(type->shape.size() - 1, last_dim / MakeConst(last_dim.ty(), factor));
             }
             type->layout = std::nullopt;
-            return RebuildTensorVar(old_buffer, std::move(type)).var();
+            return RebuildTensorVar(old_tensor, std::move(type)).var();
           }
-          return Var(old_buffer_var->name, PtrType(preferred, GetPtrStorageScope(old_buffer_var)),
-                     old_buffer_var->loc);
+          return Var(old_tensor_var->name, PtrType(preferred, GetPtrStorageScope(old_tensor_var)),
+                     old_tensor_var->loc);
         }();
 
         rewrite_map_.insert_or_assign(
             var_info.var.get(),
-            RewriteInfo{var_info.var, new_buffer_var, var_info.element_dtype, preferred});
+            RewriteInfo{var_info.var, new_tensor_var, var_info.element_dtype, preferred});
       }
     }
   }
@@ -1824,13 +1824,13 @@ class VectorTypeRewriter : public StmtExprMutator {
    * is non-negative, the caller should generate Shuffle to extract the element from the vector.
    */
   template <typename Node>
-  std::pair<Node, int> VisitBufferAccess(Node node) {
+  std::pair<Node, int> VisitTensorAccess(Node node) {
     int shuffle_index = -1;
     if (!rewrite_indices_) {
       return {node, shuffle_index};
     }
 
-    Var root = buffer_aliases_.Get(node->dest.template as_or_throw<TensorVar>().var())
+    Var root = tensor_aliases_.Get(node->dest.template as_or_throw<TensorVar>().var())
                    .value_or(node->dest.template as_or_throw<TensorVar>().var());
     auto it = rewrite_map_.find(root.get());
     if (it == rewrite_map_.end()) {
@@ -1868,19 +1868,19 @@ class VectorTypeRewriter : public StmtExprMutator {
     }
 
     auto writer = node.CopyOnWrite();
-    writer->dest = RemapBuffer(node->dest.template as_or_throw<TensorVar>());
+    writer->dest = RemapTensor(node->dest.template as_or_throw<TensorVar>());
     writer->indices = indices;
     return {node, shuffle_index};
   }
 
-  std::pair<TensorLoad, int> VisitBufferAccess(TensorLoad node) {
+  std::pair<TensorLoad, int> VisitTensorAccess(TensorLoad node) {
     int shuffle_index = -1;
     if (!rewrite_indices_) {
       return {node, shuffle_index};
     }
 
-    TensorVar buffer = node->source.as_or_throw<TensorVar>();
-    Var root = buffer_aliases_.Get(buffer.var()).value_or(buffer.var());
+    TensorVar tensor = node->source.as_or_throw<TensorVar>();
+    Var root = tensor_aliases_.Get(tensor.var()).value_or(tensor.var());
     auto it = rewrite_map_.find(root.get());
     if (it == rewrite_map_.end()) {
       return {node, shuffle_index};
@@ -1890,7 +1890,7 @@ class VectorTypeRewriter : public StmtExprMutator {
     ffi::Array<PrimExpr> indices = node->indices;
     const PrimExpr& last_dim_index = indices.back();
     const prim::RampNode* ramp_index = last_dim_index.as<prim::RampNode>();
-    if (buffer->dtype.IsScalableVector() || last_dim_index.ty().IsScalableVector()) {
+    if (tensor->dtype.IsScalableVector() || last_dim_index.ty().IsScalableVector()) {
       return {node, shuffle_index};
     }
 
@@ -1912,7 +1912,7 @@ class VectorTypeRewriter : public StmtExprMutator {
       indices.Set(indices.size() - 1, new_index);
     }
 
-    return {MakeTensorLoad(RemapBuffer(buffer), indices, node->loc), shuffle_index};
+    return {MakeTensorLoad(RemapTensor(tensor), indices, node->loc), shuffle_index};
   }
 
   UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) final {
@@ -1922,10 +1922,10 @@ class VectorTypeRewriter : public StmtExprMutator {
                           ? ffi::GetRef<TensorLoad>(op)
                           : MakeTensorLoad(op->source.as_or_throw<TensorVar>(),
                                            std::move(indices).ValueUnchecked(), op->loc);
-    auto [modified, shuffle_index] = VisitBufferAccess(node);
+    auto [modified, shuffle_index] = VisitTensorAccess(node);
 
     // Not needed for TensorStoreNode, so we can't just call
-    // LegalizeDtype() in VisitBufferAccess.
+    // LegalizeDtype() in VisitTensorAccess.
     if (node.same_as(modified)) {
       return node;
 
@@ -1946,21 +1946,21 @@ class VectorTypeRewriter : public StmtExprMutator {
                            : TensorStore(op->dest.as_or_throw<TensorVar>(),
                                          std::move(indices).ValueOrUnchanged(op->indices),
                                          std::move(value).ValueOrUnchanged(op->value), op->loc);
-    auto [modified, shuffle_index] = VisitBufferAccess(std::move(node));
+    auto [modified, shuffle_index] = VisitTensorAccess(std::move(node));
     TVM_FFI_ICHECK(shuffle_index < 0);
     return modified;
   }
 
   ffi::Optional<Expr> RewriteMaskedCall(const CallNode* op) {
     if (op->op.same_as(tirx::masked_load_op())) {
-      TensorVar buffer = op->args[0].as_or_throw<TensorVar>();
+      TensorVar tensor = op->args[0].as_or_throw<TensorVar>();
       ffi::Array<PrimExpr> indices;
       for (size_t i = 1; i + 1 < op->args.size(); ++i) {
         indices.push_back(this->Mutate(op->args[i].as_or_throw<PrimExpr>())
                               .ValueOrUnchanged(op->args[i].as_or_throw<PrimExpr>()));
       }
-      TensorLoad access = MakeTensorLoad(buffer, indices, op->loc);
-      auto [modified, shuffle_index] = VisitBufferAccess(access);
+      TensorLoad access = MakeTensorLoad(tensor, indices, op->loc);
+      auto [modified, shuffle_index] = VisitTensorAccess(access);
       TVM_FFI_ICHECK_LT(shuffle_index, 0)
           << "A masked vector load cannot be rewritten into a scalar shuffle.";
       ffi::Array<Expr> args{modified->source.as_or_throw<TensorVar>().var()};
@@ -1969,7 +1969,7 @@ class VectorTypeRewriter : public StmtExprMutator {
       return Call(modified->ty, op->op, args, op->attrs, op->ty_args, op->loc);
     }
     if (op->op.same_as(tirx::masked_store_op())) {
-      TensorVar buffer = op->args[0].as_or_throw<TensorVar>();
+      TensorVar tensor = op->args[0].as_or_throw<TensorVar>();
       PrimExpr value = this->Mutate(op->args[1].as_or_throw<PrimExpr>())
                            .ValueOrUnchanged(op->args[1].as_or_throw<PrimExpr>());
       ffi::Array<PrimExpr> indices;
@@ -1977,8 +1977,8 @@ class VectorTypeRewriter : public StmtExprMutator {
         indices.push_back(this->Mutate(op->args[i].as_or_throw<PrimExpr>())
                               .ValueOrUnchanged(op->args[i].as_or_throw<PrimExpr>()));
       }
-      TensorStore access(buffer, indices, value, op->loc);
-      auto [modified, shuffle_index] = VisitBufferAccess(std::move(access));
+      TensorStore access(tensor, indices, value, op->loc);
+      auto [modified, shuffle_index] = VisitTensorAccess(std::move(access));
       TVM_FFI_ICHECK_LT(shuffle_index, 0)
           << "A masked vector store cannot be rewritten into a scalar shuffle.";
       ffi::Array<Expr> args{modified->dest.template as_or_throw<TensorVar>().var(),
@@ -2000,7 +2000,7 @@ class VectorTypeRewriter : public StmtExprMutator {
     auto value_result = this->Mutate(op->value, inplace_mode);
     bool value_unchanged = value_result.UnchangedOrSameAs(op->value);
     Expr value = std::move(value_result).ValueOrUnchanged(op->value);
-    Var var = (it == rewrite_map_.end()) ? op->var : it->second.new_buffer_var;
+    Var var = (it == rewrite_map_.end()) ? op->var : it->second.new_tensor_var;
     if (!ffi::StructuralEqual()(value->ty, var->ty)) {
       auto call = value.as_or_throw<Call>();
       value = Call(var->ty, call->op, call->args, call->attrs, call->ty_args, call->loc);
@@ -2012,58 +2012,58 @@ class VectorTypeRewriter : public StmtExprMutator {
     return Bind(var, value);
   }
 
-  UnchangedOr<Stmt> MutateAllocTensor(const BindNode* op, const CallNode* buffer_call,
+  UnchangedOr<Stmt> MutateAllocTensor(const BindNode* op, const CallNode* tensor_call,
                                       InplaceMode inplace_mode) {
-    TensorVar new_buf = RemapBuffer(op->var.as_or_throw<TensorVar>());
-    ffi::Array<Expr> args = buffer_call->args;
+    TensorVar new_buf = RemapTensor(op->var.as_or_throw<TensorVar>());
+    ffi::Array<Expr> args = tensor_call->args;
     if (args.size() == 4) {
       args.Set(3, Mutate(args[3], inplace_mode).ValueOrUnchanged(args[3]));
     }
-    auto attrs = Mutate(buffer_call->attrs, InplaceMode::kDisallow)
+    auto attrs = Mutate(tensor_call->attrs, InplaceMode::kDisallow)
                      .as_or_throw<UnchangedOr<ffi::Optional<Attrs>>>()
-                     .ValueOrUnchanged(buffer_call->attrs);
-    if (new_buf.same_as(op->var.as_or_throw<TensorVar>()) && args.same_as(buffer_call->args) &&
-        attrs.same_as(buffer_call->attrs)) {
+                     .ValueOrUnchanged(tensor_call->attrs);
+    if (new_buf.same_as(op->var.as_or_throw<TensorVar>()) && args.same_as(tensor_call->args) &&
+        attrs.same_as(tensor_call->attrs)) {
       return ffi::Unchanged();
     }
-    args.Set(0, tvm::Tuple(new_buf->shape, buffer_call->args[0]->loc));
-    args.Set(1, DataTypeImm(new_buf->dtype->dtype, buffer_call->args[1]->loc));
-    args.Set(2, StringImm(new_buf.scope(), buffer_call->args[2]->loc));
+    args.Set(0, tvm::Tuple(new_buf->shape, tensor_call->args[0]->loc));
+    args.Set(1, DataTypeImm(new_buf->dtype->dtype, tensor_call->args[1]->loc));
+    args.Set(2, StringImm(new_buf.scope(), tensor_call->args[2]->loc));
     return Bind(new_buf.var(),
-                Call(new_buf.type(), tirx::alloc_tensor_op(), args, attrs, buffer_call->ty_args,
-                     buffer_call->loc),
+                Call(new_buf.type(), tirx::alloc_tensor_op(), args, attrs, tensor_call->ty_args,
+                     tensor_call->loc),
                 op->loc);
   }
 
-  UnchangedOr<Stmt> MutateDeclTensor(const BindNode* op, const CallNode* buffer_call,
+  UnchangedOr<Stmt> MutateDeclTensor(const BindNode* op, const CallNode* tensor_call,
                                      InplaceMode inplace_mode) {
-    Expr data = Mutate(buffer_call->args[0], inplace_mode).ValueOrUnchanged(buffer_call->args[0]);
-    TensorVar buffer = RemapBuffer(op->var.as_or_throw<TensorVar>());
-    auto attrs = Mutate(buffer_call->attrs, InplaceMode::kDisallow)
+    Expr data = Mutate(tensor_call->args[0], inplace_mode).ValueOrUnchanged(tensor_call->args[0]);
+    TensorVar tensor = RemapTensor(op->var.as_or_throw<TensorVar>());
+    auto attrs = Mutate(tensor_call->attrs, InplaceMode::kDisallow)
                      .as_or_throw<UnchangedOr<ffi::Optional<Attrs>>>()
-                     .ValueOrUnchanged(buffer_call->attrs);
-    if (buffer.same_as(op->var.as_or_throw<TensorVar>()) && data.same_as(buffer_call->args[0]) &&
-        attrs.same_as(buffer_call->attrs))
+                     .ValueOrUnchanged(tensor_call->attrs);
+    if (tensor.same_as(op->var.as_or_throw<TensorVar>()) && data.same_as(tensor_call->args[0]) &&
+        attrs.same_as(tensor_call->attrs))
       return ffi::Unchanged();
-    return Bind(buffer,
-                Call(buffer.type(), tirx::decl_tensor_op(),
-                     {data, tvm::Tuple(buffer->shape), DataTypeImm(buffer->dtype->dtype),
-                      StringImm(buffer.scope())},
-                     attrs, buffer_call->ty_args, buffer_call->loc),
+    return Bind(tensor,
+                Call(tensor.type(), tirx::decl_tensor_op(),
+                     {data, tvm::Tuple(tensor->shape), DataTypeImm(tensor->dtype->dtype),
+                      StringImm(tensor.scope())},
+                     attrs, tensor_call->ty_args, tensor_call->loc),
                 op->loc);
   }
 
-  TensorVar RemapBuffer(TensorVar buf) {
+  TensorVar RemapTensor(TensorVar buf) {
     TensorVar original = buf;
     auto mapped = VarRemapGet(buf);
     if (mapped != nullptr) return mapped.as_or_throw<TensorVar>();
 
-    Var root = buffer_aliases_.Get(buf.var()).value_or(buf.var());
+    Var root = tensor_aliases_.Get(buf.var()).value_or(buf.var());
     auto info_it = rewrite_map_.find(root.get());
     if (info_it != rewrite_map_.end()) {
       auto& info = info_it->second;
       if (root.same_as(buf.var())) {
-        buf = info.new_buffer_var.as_or_throw<TensorVar>();
+        buf = info.new_tensor_var.as_or_throw<TensorVar>();
       } else {
         auto type = CopyTensorType(buf);
         type->dtype = info.new_element_dtype;
@@ -2088,7 +2088,7 @@ class VectorTypeRewriter : public StmtExprMutator {
     if (op->op.same_as(tirx::tensor_data_ptr_op()) && op->args.size() == 1) {
       if (auto var = op->args[0].as<Var>();
           var.has_value() && var.value()->ty.as<TensorTypeNode>()) {
-        return RemapBuffer(var.value().as_or_throw<TensorVar>()).data();
+        return RemapTensor(var.value().as_or_throw<TensorVar>()).data();
       }
     }
     return StmtExprMutator::Mutate_(op, inplace_mode);
@@ -2131,7 +2131,7 @@ class VectorTypeRewriter : public StmtExprMutator {
     };
     auto substituter = ffi::make_object<PointerVarSubstituter>();
     for (const auto& [_, info] : rewrite_map_) {
-      substituter->VarRemapSet(info.old_buffer_var, info.new_buffer_var);
+      substituter->VarRemapSet(info.old_tensor_var, info.new_tensor_var);
     }
     n->body = substituter->Mutate(n->body, InplaceMode::kAllow).ValueOrUnchanged(n->body);
 
@@ -2143,7 +2143,7 @@ class VectorTypeRewriter : public StmtExprMutator {
         new_params.push_back(old_param);
       } else {
         const auto& info = it->second;
-        new_params.push_back(info.new_buffer_var);
+        new_params.push_back(info.new_tensor_var);
       }
     }
     n->params = new_params;
@@ -2151,8 +2151,8 @@ class VectorTypeRewriter : public StmtExprMutator {
 
  private:
   struct RewriteInfo {
-    Var old_buffer_var;
-    Var new_buffer_var;
+    Var old_tensor_var;
+    Var new_tensor_var;
     PrimType old_element_dtype;
     PrimType new_element_dtype;
 
@@ -2166,16 +2166,16 @@ class VectorTypeRewriter : public StmtExprMutator {
 
   bool rewrite_indices_{true};
   std::unordered_map<const VarNode*, RewriteInfo> rewrite_map_;
-  const ffi::Map<Var, Var>& buffer_aliases_;
+  const ffi::Map<Var, Var>& tensor_aliases_;
   sym::Analyzer analyzer_;
 };
 
 // Rewrite allocates, pointer parameters, and buffer parameters into vectorized versions
 // if each access into a buffer is the same vector type.
 Function PointerValueTypeRewrite(Function f, bool allow_untyped_pointers = false,
-                                 bool rewrite_buffer_params = true,
+                                 bool rewrite_tensor_params = true,
                                  bool rewrite_pointer_params = true,
-                                 bool rewrite_alloc_buffer_node = true, bool rewrite_indices = true,
+                                 bool rewrite_alloc_tensor_node = true, bool rewrite_indices = true,
                                  bool rewrite_let_node = true,
                                  bool rewrite_scalar_read_to_vector_shuffle = true) {
   auto checker = ffi::make_object<VectorTypeAccessChecker>(f->params, allow_untyped_pointers,
@@ -2183,8 +2183,8 @@ Function PointerValueTypeRewrite(Function f, bool allow_untyped_pointers = false
   checker->Visit(f->body);
 
   auto rewriter = ffi::make_object<VectorTypeRewriter>(
-      checker->info_map_, checker->buffer_aliases_, rewrite_buffer_params, rewrite_pointer_params,
-      rewrite_alloc_buffer_node, rewrite_indices, rewrite_let_node,
+      checker->info_map_, checker->tensor_aliases_, rewrite_tensor_params, rewrite_pointer_params,
+      rewrite_alloc_tensor_node, rewrite_indices, rewrite_let_node,
       rewrite_scalar_read_to_vector_shuffle);
   FunctionNode* n = f.CopyOnWrite();
   n->body = rewriter->Mutate(n->body, InplaceMode::kAllow).ValueOrUnchanged(n->body);

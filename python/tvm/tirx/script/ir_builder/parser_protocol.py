@@ -247,7 +247,7 @@ def bind_(
 ) -> Any:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.bind_`.
 
-    Returned Vars, including buffers, and metadata retain identity, names and locs.
+    Returned Vars, including tensors, and metadata retain identity, names and locs.
     Other expressions create native Bind nodes; value_loc belongs to the RHS.
     Explicit typed bindings and frame targets retain their separate contracts.
     """
@@ -292,7 +292,7 @@ def bind_(
         frame_loc = value_loc if value_loc is not None else loc
         return _name(_enter_concise(_base.at_(frame_loc, value)), name, name_loc)
     # a = existing_var and a = producer() share the same runtime value rule.
-    # A Var already owns its declaration, including a newly constructed buffer view.
+    # A Var already owns its declaration, including a newly constructed tensor view.
     if isinstance(value, _ir.Var):
         return value
     if isinstance(value, _ir.TensorRegion):
@@ -349,7 +349,7 @@ def set_mutable_cell_(
 ) -> _base.AlreadyEmitted[tvm.ir.Stmt]:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.set_mutable_cell_`.
 
-    Updates emit a scalar buffer store. Targets must denote scalar storage.
+    Updates emit a scalar tensor store. Targets must denote scalar storage.
     """
     if isinstance(target, _ir.TensorLoad):
         return _base.at_(loc, tensor_store(target.source, list(target.indices), value))
@@ -412,9 +412,9 @@ def setattr_(
 ) -> _base.AlreadyEmitted[tvm.ir.Stmt] | None:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.setattr_`."""
     previous = getattr(target, name, _base.MISSING)
-    buffer = previous.source if isinstance(previous, _ir.TensorLoad) else previous
-    if _tir.is_tensor_var(buffer):
-        shape = buffer.ty.shape
+    tensor = previous.source if isinstance(previous, _ir.TensorLoad) else previous
+    if _tir.is_tensor_var(tensor):
+        shape = tensor.ty.shape
         if len(shape) == 1 and _python.bool(shape[0] == 1):
             return set_mutable_cell_(previous, value, loc=loc)
     _python.setattr(target, name, value)
@@ -425,7 +425,7 @@ def tensor_store(
     indices: list[Expr | slice],
     value: Expr,
 ) -> AlreadyEmitted[tvm.ir.Stmt]:
-    """Emit a buffer store and return a receipt for the stored statement.
+    """Emit a tensor store and return a receipt for the stored statement.
 
     Parameters
     ----------

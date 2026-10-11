@@ -84,7 +84,7 @@ def test_simple_activation_reduce():
             # fmt: on
     with target:
         mod = tvm.IRModule({"main": activation_reduce})
-        mod = tvm.tirx.trn.transform.TrnPrivateBufferAlloc()(mod)
+        mod = tvm.tirx.trn.transform.TrnPrivateTensorAlloc()(mod)
         mod = tvm.tirx.transform.LowerTIRx()(mod)
         assert_structural_equal(mod["main"], expected)
 
@@ -128,7 +128,7 @@ def test_activation_reduce_in_loop():
             # fmt: off
     with target:
         mod = tvm.IRModule({"main": activation_reduce})
-        mod = tvm.tirx.trn.transform.TrnPrivateBufferAlloc()(mod)
+        mod = tvm.tirx.trn.transform.TrnPrivateTensorAlloc()(mod)
         mod = tvm.tirx.transform.LowerTIRx()(mod)
         assert_structural_equal(mod["main"], expected)
 
@@ -172,7 +172,7 @@ def test_activation_reduce_in_loop2():
             # fmt: off
     with target:
         mod = tvm.IRModule({"main": activation_reduce})
-        mod = tvm.tirx.trn.transform.TrnPrivateBufferAlloc()(mod)
+        mod = tvm.tirx.trn.transform.TrnPrivateTensorAlloc()(mod)
         mod = tvm.tirx.transform.LowerTIRx()(mod)
         assert_structural_equal(mod["main"], expected)
 
@@ -222,7 +222,7 @@ def test_activation_reduce_two_stage():
             # fmt: off
     with target:
         mod = tvm.IRModule({"main": activation_reduce})
-        mod = tvm.tirx.trn.transform.TrnPrivateBufferAlloc()(mod)
+        mod = tvm.tirx.trn.transform.TrnPrivateTensorAlloc()(mod)
         mod = tvm.tirx.transform.LowerTIRx()(mod)
         assert_structural_equal(mod["main"], expected)
 
@@ -409,7 +409,7 @@ def test_tensor_scalar_reduce_two_stage():
             # fmt: on
     with target:
         mod = tvm.IRModule({"main": tensor_scalar_reduce})
-        mod = tvm.tirx.trn.transform.TrnPrivateBufferAlloc()(mod)
+        mod = tvm.tirx.trn.transform.TrnPrivateTensorAlloc()(mod)
         mod = tvm.tirx.transform.LowerTIRx()(mod)
         assert_structural_equal(mod["main"], expected)
 
@@ -615,7 +615,7 @@ def test_unary_reduce_guard():
             # fmt: on
     with target:
         mod = tvm.IRModule({"main": unary_reduce})
-        mod = tvm.tirx.trn.transform.TrnPrivateBufferAlloc()(mod)
+        mod = tvm.tirx.trn.transform.TrnPrivateTensorAlloc()(mod)
         mod = tvm.tirx.transform.LowerTIRx()(mod)
         mod = tvm.tirx.transform.StmtSimplify()(mod)
         assert_structural_equal(mod["main"], expected)
@@ -671,12 +671,12 @@ def test_activation_reduce_two_stage_workspace():
     @T.function
     def activation_reduce():
         T.device_entry()
-        intermediate_buffer = T.alloc_tensor((128, 16), scope="trn.sbuf")
+        intermediate_tensor = T.alloc_tensor((128, 16), scope="trn.sbuf")
         A = T.alloc_tensor(A_shape, dtype="float32", scope="trn.sbuf", layout=A_layout)
         B = T.alloc_tensor(B_shape, dtype="float32", scope="trn.sbuf", layout=B_layout)
         C = T.alloc_tensor(C_shape, dtype="float32", scope="trn.sbuf", layout=C_layout)
         for i in range(2):
-            T.trn.tile.activation_reduce(B, C, A[i*16:i*16+16], partial_reduce=intermediate_buffer, opcode="sqrt", reduce_op="sum", axes=(0,1))  # noqa: E501
+            T.trn.tile.activation_reduce(B, C, A[i*16:i*16+16], partial_reduce=intermediate_tensor, opcode="sqrt", reduce_op="sum", axes=(0,1))  # noqa: E501
 
     @T.function
     def expected():
@@ -686,7 +686,7 @@ def test_activation_reduce_two_stage_workspace():
             for p_loop in T.serial(128, annotations={"nki_dim": "P"}):
                 for f_loop in T.serial(1024, annotations={"nki_dim": "F"}):
                     T.nki.memset(const_bias[p_loop, f_loop], T.float32(0.0))
-        intermediate_buffer = T.alloc_tensor((128, 16), scope="trn.sbuf")
+        intermediate_tensor = T.alloc_tensor((128, 16), scope="trn.sbuf")
         A = T.alloc_tensor((128, 16384), scope="trn.sbuf")
         B = T.alloc_tensor((128, 8192), scope="trn.sbuf")
         C = T.alloc_tensor((128, 1), scope="trn.sbuf")
@@ -695,16 +695,16 @@ def test_activation_reduce_two_stage_workspace():
                 T.nki.tensorized_instruction()
                 for p_loop in T.serial(128, annotations={"nki_dim": "P"}):
                     for f_loop in T.serial(1024, annotations={"nki_dim": "F"}):
-                        T.nki.activation_reduce(intermediate_buffer[p_loop, reduction_b_loop], B[p_loop, reduction_b_loop % 4 * 2048 + reduction_b_loop // 4 * 1024 + f_loop], A[p_loop, i * 8192 + reduction_b_loop * 1024 + f_loop], "sqrt", "add", const_bias[p_loop, f_loop], T.float32(1.0))  # noqa: E501
+                        T.nki.activation_reduce(intermediate_tensor[p_loop, reduction_b_loop], B[p_loop, reduction_b_loop % 4 * 2048 + reduction_b_loop // 4 * 1024 + f_loop], A[p_loop, i * 8192 + reduction_b_loop * 1024 + f_loop], "sqrt", "add", const_bias[p_loop, f_loop], T.float32(1.0))  # noqa: E501
             T.nki.tensorized_instruction()
             for p_loop in T.serial(128, annotations={"nki_dim": "P"}):
                 for f_loop in T.serial(8, annotations={"nki_dim": "F"}):
-                    T.nki.tensorreduce(C[p_loop, 0], intermediate_buffer[p_loop, f_loop], "add", T.bool(False), -1)  # noqa: E501
+                    T.nki.tensorreduce(C[p_loop, 0], intermediate_tensor[p_loop, f_loop], "add", T.bool(False), -1)  # noqa: E501
 
             # fmt: on
     with target:
         mod = tvm.IRModule({"main": activation_reduce})
-        mod = tvm.tirx.trn.transform.TrnPrivateBufferAlloc()(mod)
+        mod = tvm.tirx.trn.transform.TrnPrivateTensorAlloc()(mod)
         mod = tvm.tirx.transform.LowerTIRx()(mod)
         assert_structural_equal(mod["main"], expected)
 
@@ -721,16 +721,16 @@ def test_tensor_scalar_reduce_two_stage_workspace():
     @T.function
     def tensor_scalar_reduce() -> None:
         T.device_entry()
-        intermediate_buffer = T.alloc_tensor((128, 8), scope="trn.sbuf")
+        intermediate_tensor = T.alloc_tensor((128, 8), scope="trn.sbuf")
         A_sbuf = T.alloc_tensor(src1_shape, "float32", scope="trn.sbuf", layout=src1_layout)
         B_sbuf = T.alloc_tensor(dst1_shape, "float32", scope="trn.sbuf", layout=dst1_layout)
         C_sbuf = T.alloc_tensor(reduce_dst_shape, "float32", scope="trn.sbuf", layout=reduce_dst_layout)  # noqa: E501
-        T.trn.tile.tensorscalar_reduce(B_sbuf, C_sbuf, A_sbuf, 1.0, partial_reduce=intermediate_buffer, opcode="add", reduce_op="sum", axes=(1, 2))  # noqa: E501
+        T.trn.tile.tensorscalar_reduce(B_sbuf, C_sbuf, A_sbuf, 1.0, partial_reduce=intermediate_tensor, opcode="add", reduce_op="sum", axes=(1, 2))  # noqa: E501
 
     @T.function
     def expected():
         T.func_attr({"global_symbol": "tensor_scalar_reduce"})
-        intermediate_buffer = T.alloc_tensor((128, 8), scope="trn.sbuf")
+        intermediate_tensor = T.alloc_tensor((128, 8), scope="trn.sbuf")
         A_sbuf = T.alloc_tensor((128, 16384), scope="trn.sbuf")
         B_sbuf = T.alloc_tensor((128, 16384), scope="trn.sbuf")
         C_sbuf = T.alloc_tensor((128, 4), scope="trn.sbuf")
@@ -739,11 +739,11 @@ def test_tensor_scalar_reduce_two_stage_workspace():
                 T.nki.tensorized_instruction()
                 for p_loop in T.serial(128, annotations={"nki_dim": "P"}):
                     for f_loop in T.serial(1024, annotations={"nki_dim": "F"}):
-                        T.nki.tensorscalar_reduce(intermediate_buffer[p_loop, reduction_b_loop], B_sbuf[p_loop, reduction_b_loop * 4096 + b_loop * 1024 + f_loop], A_sbuf[p_loop, reduction_b_loop * 4096 + b_loop * 1024 + f_loop], T.float32(1.0), "add", "add", T.bool(False))  # noqa: E501
+                        T.nki.tensorscalar_reduce(intermediate_tensor[p_loop, reduction_b_loop], B_sbuf[p_loop, reduction_b_loop * 4096 + b_loop * 1024 + f_loop], A_sbuf[p_loop, reduction_b_loop * 4096 + b_loop * 1024 + f_loop], T.float32(1.0), "add", "add", T.bool(False))  # noqa: E501
             T.nki.tensorized_instruction()
             for p_loop in T.serial(128, annotations={"nki_dim": "P"}):
                 for f_loop in T.serial(4, annotations={"nki_dim": "F"}):
-                    T.nki.tensorreduce(C_sbuf[p_loop, b_loop], intermediate_buffer[p_loop, f_loop], "add", T.bool(False), -1)  # noqa: E501
+                    T.nki.tensorreduce(C_sbuf[p_loop, b_loop], intermediate_tensor[p_loop, f_loop], "add", T.bool(False), -1)  # noqa: E501
             # fmt: on
     with target:
         mod = tvm.IRModule({"main": tensor_scalar_reduce})
