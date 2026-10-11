@@ -27,9 +27,6 @@ namespace script {
 namespace ir_builder {
 namespace s_tir {
 
-using tirx::TIRFrame;
-using tirx::TIRFrameNode;
-
 /*! \brief Function frame owning schedulable TIR construction. */
 class FunctionFrameNode : public tirx::FunctionFrameNode {
  public:
@@ -46,6 +43,9 @@ class FunctionFrameNode : public tirx::FunctionFrameNode {
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.s_tir.FunctionFrame", FunctionFrameNode,
                                     tirx::FunctionFrameNode);
+  /*! \brief Register an alias in the current block, including standalone block construction. */
+  static void BindTensorRegion(tvm::tirx::TensorVar tensor, tvm::TensorRegion region,
+                               ffi::Array<PrimExpr> allocated_addr);
   tvm::tirx::Function FinalizeFunction(tvm::tirx::Function func) final;
 };
 
@@ -62,7 +62,7 @@ class FunctionFrame : public tirx::FunctionFrame {
  *
  * \sa SBlockFrame
  */
-class SBlockFrameNode : public TIRFrameNode {
+class SBlockFrameNode : public ir::StmtFrameNode {
  public:
   /*! \brief The name of the block. */
   ffi::String name;
@@ -109,14 +109,13 @@ class SBlockFrameNode : public TIRFrameNode {
         .def_ro("no_realize", &SBlockFrameNode::no_realize);
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.s_tir.SBlockFrame", SBlockFrameNode,
-                                    TIRFrameNode);
+                                    ir::StmtFrameNode);
 
  public:
   /*!
    * \brief The method called when exiting RAII scope.
    * \sa tvm::support::With
    */
-  void BindTensorRegion(tvm::tirx::TensorVar tensor, tvm::TensorRegion region) final;
   void ExitWithScope() final;
 };
 
@@ -126,13 +125,13 @@ class SBlockFrameNode : public TIRFrameNode {
  * \sa SBlockFrameNode
  */
 
-class SBlockFrame : public TIRFrame {
+class SBlockFrame : public ir::StmtFrame {
  public:
-  explicit SBlockFrame(ffi::ObjectPtr<SBlockFrameNode> data) : TIRFrame(ffi::UnsafeInit{}) {
+  explicit SBlockFrame(ffi::ObjectPtr<SBlockFrameNode> data) : ir::StmtFrame(ffi::UnsafeInit{}) {
     TVM_FFI_ICHECK(data != nullptr);
     data_ = std::move(data);
   }
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(SBlockFrame, TIRFrame, SBlockFrameNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(SBlockFrame, ir::StmtFrame, SBlockFrameNode);
 };
 
 /*!
@@ -140,14 +139,14 @@ class SBlockFrame : public TIRFrame {
  *
  * \sa BlockInitFrame
  */
-class BlockInitFrameNode : public TIRFrameNode {
+class BlockInitFrameNode : public ir::StmtFrameNode {
  public:
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<BlockInitFrameNode>();
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.s_tir.BlockInitFrame", BlockInitFrameNode,
-                                    TIRFrameNode);
+                                    ir::StmtFrameNode);
 
  public:
   /*!
@@ -167,13 +166,14 @@ class BlockInitFrameNode : public TIRFrameNode {
  *
  * \sa BlockInitFrameNode
  */
-class BlockInitFrame : public TIRFrame {
+class BlockInitFrame : public ir::StmtFrame {
  public:
-  explicit BlockInitFrame(ffi::ObjectPtr<BlockInitFrameNode> data) : TIRFrame(ffi::UnsafeInit{}) {
+  explicit BlockInitFrame(ffi::ObjectPtr<BlockInitFrameNode> data)
+      : ir::StmtFrame(ffi::UnsafeInit{}) {
     TVM_FFI_ICHECK(data != nullptr);
     data_ = std::move(data);
   }
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(BlockInitFrame, TIRFrame, BlockInitFrameNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(BlockInitFrame, ir::StmtFrame, BlockInitFrameNode);
 };
 
 }  // namespace s_tir

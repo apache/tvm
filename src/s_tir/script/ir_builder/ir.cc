@@ -68,21 +68,7 @@ TensorVar MatchTensor(ffi::ObjectRef param, ffi::Array<PrimExpr> shape, PrimType
   } else {
     TVM_FFI_THROW(ValueError) << "Unexpected type for MatchTensor";
   }
-  auto frame = IRBuilder::Current()->GetLastFrame<ir::StmtFrame>();
-  TVM_FFI_CHECK(frame.has_value(), ValueError) << "match_tensor requires a statement frame";
-  if (auto* alias_frame = frame.value().as<tirx::TIRFrameNode>()) {
-    ffi::GetRef<tirx::TIRFrame>(alias_frame)->BindTensorRegion(tensor, region);
-  } else {
-    TVM_FFI_THROW(ValueError) << "match_tensor requires a frame that supports region aliases";
-  }
-  if (!allocated_addr.empty()) {
-    auto* block_frame = frame.value().as<SBlockFrameNode>();
-    TVM_FFI_CHECK(block_frame != nullptr, ValueError)
-        << "match_tensor placement requires an S-TIR block";
-    ffi::GetRef<SBlockFrame>(block_frame)
-        ->allocated_addresses.push_back(
-            ffi::Tuple<Var, ffi::Array<PrimExpr>>(tensor.var(), allocated_addr));
-  }
+  FunctionFrameNode::BindTensorRegion(tensor, std::move(region), std::move(allocated_addr));
   return tensor;
 }
 
