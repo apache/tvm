@@ -83,6 +83,33 @@ class TensorType(Type):
         "sub": lambda ty, expr: ty._sub(expr),
     }
 
+    def effective_layout(self):
+        """Return the explicit layout or infer a compact global layout.
+
+        Inference uses the full tensor shape before a region is sliced and
+        leaves this type unchanged. Other storage scopes and noncompact global
+        tensors require an explicit layout.
+        """
+        if self.layout is not None:
+            return self.layout
+        if self.storage_scope != "global":
+            raise ValueError(f"An explicit layout is required for {self.storage_scope} tensors")
+
+        from tvm.sym import Analyzer
+
+        from .layout import S, TileLayout
+
+        analyzer = Analyzer()
+        expected = 1
+        if self.strides:
+            for extent, stride in reversed(list(zip(self.shape, self.strides))):
+                if not analyzer.can_prove_equal(extent, 1) and not analyzer.can_prove_equal(
+                    stride, expected
+                ):
+                    raise ValueError("An explicit layout is required for noncompact global tensors")
+                expected = analyzer.simplify(expected * extent)
+        return TileLayout(S[tuple(self.shape)])
+
     def scope(self, expr):
         """Return the storage scope associated with this tensor.
         Returns

@@ -24,7 +24,6 @@ from tvm.ir import TensorRegion
 from tvm.sym.analyzer import Analyzer
 from tvm.tirx import FloatImm
 from tvm.tirx.tile.common import MapOpType
-from tvm.tirx.tile.layout_utils import effective_layout
 
 from ..dim_utils import get_ewise_dim_map
 from ..instruction_generator import InstructionGenerator
@@ -74,9 +73,10 @@ def try_find_inst_nary(
 
     valid_tensors = all(
         [
-            effective_layout(dst) and all(effective_layout(src) for src in srcs if src is not None),
-            is_trainium_layout(effective_layout(dst)),
-            all(is_trainium_layout(effective_layout(src)) for src in srcs if src is not None),
+            dst.ty.effective_layout()
+            and all(src.ty.effective_layout() for src in srcs if src is not None),
+            is_trainium_layout(dst.ty.effective_layout()),
+            all(is_trainium_layout(src.ty.effective_layout()) for src in srcs if src is not None),
             dst.scope() == "trn.sbuf",
             all(src.scope() in ["trn.sbuf", "trn.psum"] for src in srcs if src is not None),
         ]

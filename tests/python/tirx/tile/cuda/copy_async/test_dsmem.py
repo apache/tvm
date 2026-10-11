@@ -30,6 +30,7 @@ import tvm_ffi
 
 import tvm
 import tvm.testing
+from tvm.backend.cuda.lang import SMEMPool
 from tvm.ir import TensorRegion, TensorRegionType
 from tvm.script import tirx as T
 from tvm.testing import env
@@ -134,7 +135,7 @@ def test_dsmem(shape, dtype, src_spec, dst_spec, expected):
     For non-fail cases: also runs a 2-CTA cluster kernel via T.copy_async
     dispatch (using src_spec as layout for both CTAs) and verifies correctness.
     """
-    from tvm.tirx.lang.pipeline import MBarrier
+    from tvm.backend.cuda.lang.pipeline import MBarrier
 
     src_layout = TileLayout(src_spec)
     dst_layout = TileLayout(dst_spec)
@@ -169,7 +170,7 @@ def test_dsmem(shape, dtype, src_spec, dst_spec, expected):
         )
         cbx = T.cuda.cluster_cta_id('x')
         tid = T.cuda.thread_idx('x')
-        pool = T.SMEMPool()
+        pool = SMEMPool()
                 # src_smem: CTA 0 writes here, dispatch reads from here
         src_raw = pool.alloc([src_phys], dtype, align=128)
         src_smem = T.decl_tensor(
