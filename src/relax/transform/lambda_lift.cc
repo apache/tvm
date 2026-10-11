@@ -369,7 +369,7 @@ class LambdaLifter : public ExprMutator {
       // Call "relax.invoke_closure" to invoke closure
 
       auto bound_value = LookupBinding(var);
-      if (IsClosure(var) && bound_value.as<CallNode>()) {
+      if (IsClosure(var) && ffi::AnyView(bound_value).as<CallNode>()) {
         // if the original op was pure, we should use invoke_pure_closure
         Call orig_call = bound_value.value().as_or_throw<Call>();
         bool is_pure = [&]() -> bool {

@@ -116,11 +116,11 @@ Type InferTypeShapeOf(const CallNode* call_node) {
     return ShapeType(kUnknownNDim);
   }
   // if the tensor shape is a Relax var or omitted, do not try to construct a shape expr from it
-  if (!tensor_ty->shape.has_value() || tensor_ty->shape.as<VarNode>()) {
+  if (!tensor_ty->shape.has_value() || ffi::AnyView(tensor_ty->shape).as<VarNode>()) {
     return ShapeType(tensor_ty->ndim);
   }
   // otherwise, copy over the values from the tensor shape
-  auto* tensor_shape = tensor_ty->shape.as<ShapeExprNode>();
+  auto* tensor_shape = ffi::AnyView(tensor_ty->shape).as<ShapeExprNode>();
   TVM_FFI_ICHECK(tensor_shape);
   return ShapeType(tensor_shape->values);
 }
@@ -252,7 +252,7 @@ Type InferTypeCallInplacePacked(const Call& call, const BlockBuilder& ctx) {
       << " is not opaque";
 
   // check the range for inplace indices, make sure at least one is not -1, ensure they're unique
-  const auto* attrs = call->attrs.as<CallInplacePackedAttrs>();
+  const auto* attrs = ffi::AnyView(call->attrs).as<CallInplacePackedAttrs>();
   size_t num_args = call->args.size() - 1;
   std::unordered_set<int> encountered;
   for (size_t i = 0; i < attrs->inplace_indices.size(); i++) {
@@ -851,7 +851,7 @@ Expr NormalizeCallTIR(const BlockBuilder& ctx, Call call) {
 
   tvm::FuncType signature = ContextualTIRxSignature(ctx, callee, new_arg_tuple);
   ffi::Optional<ffi::Array<int64_t>> inplace_indices;
-  if (const auto* attrs = call->attrs.as<CallTIRInplaceAttrs>()) {
+  if (const auto* attrs = ffi::AnyView(call->attrs).as<CallTIRInplaceAttrs>()) {
     inplace_indices = attrs->inplace_indices;
   }
   CheckTIRxDestinations(signature, new_arg_tuple->ty, call->ty_args[0], inplace_indices);
@@ -882,7 +882,7 @@ void ValidateCallTIR(const CallNode* call) {
   Expr arg_tuple = call->args[1];
 
   auto opt_inplace_indices = [&]() -> ffi::Optional<ffi::Array<int64_t>> {
-    if (const auto* attrs = call->attrs.as<CallTIRInplaceAttrs>()) {
+    if (const auto* attrs = ffi::AnyView(call->attrs).as<CallTIRInplaceAttrs>()) {
       return attrs->inplace_indices;
     } else {
       return std::nullopt;
@@ -916,7 +916,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 Expr MakeCallTIR(Expr func, Tuple args, ffi::Array<TensorType> out_ty_list) {
   for (const TensorType& ty : out_ty_list) {
-    const auto* shape = ty->shape.as<ShapeExprNode>();
+    const auto* shape = ffi::AnyView(ty->shape).as<ShapeExprNode>();
     TVM_FFI_ICHECK(shape != nullptr)
         << "out_ty of call_tir should have defined ShapeExpr as shape. "
            "However, one given type information is "
@@ -955,7 +955,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 Expr MakeCallTIRWithGrad(Expr func, Tuple args, ffi::Array<TensorType> out_ty_list,
                          ffi::String te_grad_name, ffi::Map<ffi::String, ffi::Any> te_grad_kwargs) {
   for (const TensorType& ty : out_ty_list) {
-    const auto* shape = ty->shape.as<ShapeExprNode>();
+    const auto* shape = ffi::AnyView(ty->shape).as<ShapeExprNode>();
     TVM_FFI_ICHECK(shape != nullptr)
         << "out_ty of call_tir_with_grad should have defined ShapeExpr as shape. "
            "However, one given type information is "
@@ -1000,7 +1000,7 @@ Expr NormalizeCallTIRInPlace(const BlockBuilder& ctx, Call call) {
   }();
 
   // there must be an inplace index for each output
-  const auto* attrs = call->attrs.as<CallTIRInplaceAttrs>();
+  const auto* attrs = ffi::AnyView(call->attrs).as<CallTIRInplaceAttrs>();
   TVM_FFI_ICHECK(attrs);
   if (attrs->inplace_indices.size() != ty_outputs.size()) {
     TVM_FFI_VISIT_THROW(ValueError, call)
@@ -1090,7 +1090,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 Expr MakeCallTIRInplace(Expr func, Tuple args, ffi::Array<int64_t> inplace_indices,
                         ffi::Array<TensorType> out_ty_list) {
   for (const TensorType& ty : out_ty_list) {
-    const auto* shape = ty->shape.as<ShapeExprNode>();
+    const auto* shape = ffi::AnyView(ty->shape).as<ShapeExprNode>();
     TVM_FFI_ICHECK(shape != nullptr)
         << "out_ty of call_tir should have defined ShapeExpr as shape. "
            "However, one given type information is "
@@ -1140,7 +1140,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 Expr MakeCallDPSPacked(Expr func, Tuple args, ffi::Array<TensorType> out_ty_list) {
   for (const TensorType& ty : out_ty_list) {
-    const auto* shape = ty->shape.as<ShapeExprNode>();
+    const auto* shape = ffi::AnyView(ty->shape).as<ShapeExprNode>();
     TVM_FFI_ICHECK(shape != nullptr)
         << "out_ty of call_dps_packed should have defined ShapeExpr as shape. "
            "However, one given type information is "
@@ -1207,7 +1207,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 Expr MakeCallPyFunc(StringImm func_name, Tuple args, ffi::Array<TensorType> out_ty_list) {
   for (const TensorType& ty : out_ty_list) {
-    const auto* shape = ty->shape.as<ShapeExprNode>();
+    const auto* shape = ffi::AnyView(ty->shape).as<ShapeExprNode>();
     TVM_FFI_ICHECK(shape != nullptr)
         << "out_ty of call_py_func should have defined ShapeExpr as shape. "
            "However, one given type information is "
@@ -1863,7 +1863,7 @@ Type InferToVDeviceType(const CallNode* call_node) {
   TVM_FFI_ICHECK(call->args.size() == 1);
   TVM_FFI_ICHECK(!call->args[0]->ty.as<MissingType>().has_value());
   TensorType data_ty = GetUnaryInputTensorType(call);
-  auto attrs = call->attrs.as<ToVDeviceAttrs>();
+  auto attrs = ffi::AnyView(call->attrs).as<ToVDeviceAttrs>();
   VDevice vdev = attrs->dst_vdevice;
   if (data_ty->shape.has_value()) {
     return TensorType(data_ty->shape.value(), data_ty->dtype, vdev, data_ty->loc);

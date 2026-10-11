@@ -1375,7 +1375,7 @@ void PythonDocPrinter::PrintAssignment(const ExprDoc& lhs, const ffi::Optional<E
   }
   if (rhs) {
     output_ << " = ";
-    if (const auto* tuple = rhs.as<TupleDocNode>(); tuple && tuple->elements.size() > 1) {
+    if (const auto* tuple = ffi::AnyView(rhs).as<TupleDocNode>(); tuple && tuple->elements.size() > 1) {
       unparenthesized_tuple_ = tuple;
     }
     PrintDoc(rhs.value());

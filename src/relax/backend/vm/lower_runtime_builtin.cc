@@ -172,7 +172,7 @@ class LowerRuntimeBuiltinMutator : public ExprMutator {
     // TODO(yongwww): replace ToVDeviceAttrs with related Expr
     TVM_FFI_ICHECK(call_node->args.size() == 1);
     TVM_FFI_ICHECK(!call_node->ty.as<MissingType>().has_value());
-    auto attrs = call_node->attrs.as<ToVDeviceAttrs>();
+    auto attrs = ffi::AnyView(call_node->attrs).as<ToVDeviceAttrs>();
     ffi::Array<Expr> args;
     args.push_back(call_node->args[0]);
     // Get the DLDeviceType and device_id from VDevice

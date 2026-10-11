@@ -35,7 +35,7 @@ Type InferDistTypePermuteDims(const Call& call, const BlockBuilder& ctx) {
   ffi::Array<distributed::DTensorType> input_dtensor_tys = GetInputDTensorType(call, ctx);
   TensorType data_ty = input_dtensor_tys[0]->tensor_ty;
 
-  const auto* attrs = call->attrs.as<PermuteDimsAttrs>();
+  const auto* attrs = ffi::AnyView(call->attrs).as<PermuteDimsAttrs>();
 
   // Todo(relax-team): revisit here for better check on if the input tensor has
   // ndim same as the number of input axes.
@@ -65,7 +65,7 @@ Type InferDistTypePermuteDims(const Call& call, const BlockBuilder& ctx) {
     return input_dtensor_tys[0];
   }
 
-  const auto* data_shape = data_ty->shape.as<ShapeExprNode>();
+  const auto* data_shape = ffi::AnyView(data_ty->shape).as<ShapeExprNode>();
   if (data_shape == nullptr) {
     TVM_FFI_VISIT_THROW(ValueError, call) << "Input of distributed operator must have known shape";
   }

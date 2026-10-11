@@ -126,7 +126,7 @@ Type InferTypeAllGather(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
   TensorType input_ty = GetUnaryInputTensorType(call);
 
-  const auto* attrs = call->attrs.as<AllGatherAttrs>();
+  const auto* attrs = ffi::AnyView(call->attrs).as<AllGatherAttrs>();
   int num_workers = attrs->num_workers;
 
   ffi::Optional<PrimType> output_dtype = input_ty->dtype;
@@ -194,7 +194,7 @@ Type InferTypeScatter(const Call& call, const BlockBuilder& ctx) {
   TensorType input_ty = GetUnaryInputTensorType(call, ctx);
   ffi::Optional<PrimType> output_dtype = input_ty->dtype;
 
-  const auto* attrs = call->attrs.as<ScatterCollectiveAttrs>();
+  const auto* attrs = ffi::AnyView(call->attrs).as<ScatterCollectiveAttrs>();
   int num_workers = attrs->num_workers;
 
   sym::Analyzer analyzer = ctx->GetAnalyzer();

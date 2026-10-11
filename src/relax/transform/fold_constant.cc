@@ -60,7 +60,7 @@ class ConstantFolder : public ExprMutator {
       return std::nullopt;
     }
 
-    const auto* shape = tensor_ty->shape.as<ShapeExprNode>();
+    const auto* shape = ffi::AnyView(tensor_ty->shape).as<ShapeExprNode>();
     TVM_FFI_ICHECK(shape != nullptr) << "type given by call_tir should have ShapeExpr shape";
 
     std::vector<int64_t> shape_values;
@@ -97,7 +97,7 @@ class ConstantFolder : public ExprMutator {
     const GlobalVar& global_var = op.as_or_throw<GlobalVar>();
     // NOTE: as check works for nullptr(returns null)
     ffi::Optional<BaseFunc> base_func = builder_->GetContextIRModule()->functions.Get(global_var);
-    if (auto* pfunc = base_func.as<tirx::FunctionNode>()) {
+    if (auto* pfunc = ffi::AnyView(base_func).as<tirx::FunctionNode>()) {
       return ffi::GetRef<tirx::Function>(pfunc);
     }
     return std::nullopt;
@@ -423,7 +423,7 @@ class ConstantFolder : public ExprMutator {
   Expr VisitExpr_(const VarNode* op) final {
     ffi::Optional<Expr> opt = LookupBinding(ffi::GetRef<Var>(op));
     // `as` check checks if opt is not null and is instance of constant
-    if (opt.as<::tvm::GenericConstNode>()) {
+    if (ffi::AnyView(opt).as<::tvm::GenericConstNode>()) {
       return opt.value();
     }
     return ExprMutator::VisitExpr_(op);

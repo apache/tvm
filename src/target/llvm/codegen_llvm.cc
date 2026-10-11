@@ -2201,7 +2201,7 @@ void CodeGenLLVM::DispatchAllocTensor(const BindNode* op, const CallNode* buffer
   tvm::Tuple shape = tvm::Tuple(buffer_call->ty_args[0].as_or_throw<tirx::TensorType>()->shape);
   DLDataType dtype = buffer_call->ty_args[0].as_or_throw<tirx::TensorType>()->dtype->dtype;
   TensorVar buffer = op->var.as_or_throw<TensorVar>();
-  DictAttrs annotations = buffer_call->attrs.as_or_throw<DictAttrs>();
+  DictAttrs annotations = ffi::AnyView(buffer_call->attrs).cast<DictAttrs>();
   EmitDebugLocation(op);
   TVM_FFI_ICHECK_EQ(shape->fields.size(), 1)
       << "LLVM codegen only supports flat 1-d buffer allocation, but allocation of "

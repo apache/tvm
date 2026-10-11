@@ -537,7 +537,7 @@ class SharedMemoryRewriter : public StmtExprMutator {
       if (!scope_stack_.empty()) {
         KernelScope& scope = scope_stack_.back();
         if (scope.shmem_allocs.count(op->var.as_or_throw<TensorVar>().get())) {
-          if (call->attrs.as<DictAttrsNode>()->dict.count(tvm::tirx::attr::kVolatile)) {
+          if (ffi::AnyView(call->attrs).as<DictAttrsNode>()->dict.count(tvm::tirx::attr::kVolatile)) {
             scope.has_volatile_alloc = true;
           }
           return Evaluate(0);

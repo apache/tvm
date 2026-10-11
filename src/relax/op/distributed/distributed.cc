@@ -98,7 +98,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 Type InferDistTypeRedistribute(const Call& call, const BlockBuilder& ctx) {
-  const auto* attrs = call->attrs.as<DistributionAttrs>();
+  const auto* attrs = ffi::AnyView(call->attrs).as<DistributionAttrs>();
   const auto* ty = GetTypeAs<distributed::DTensorTypeNode>(call->args[0]);
   TVM_FFI_ICHECK(ty);
   return distributed::DTensorType(ty->tensor_ty, attrs->device_mesh, attrs->placement);
@@ -135,7 +135,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 Expr MakeCallTIRLocalView(Expr func, Tuple args, ffi::Array<distributed::DTensorType> out_ty_list) {
   for (const distributed::DTensorType& ty : out_ty_list) {
-    const auto* shape = ty->tensor_ty->shape.as<ShapeExprNode>();
+    const auto* shape = ffi::AnyView(ty->tensor_ty->shape).as<ShapeExprNode>();
     TVM_FFI_ICHECK(shape != nullptr)
         << "out_ty of call_tir_local_view should have defined ShapeExpr as shape. "
            "However, one given type information is "
@@ -162,7 +162,7 @@ Type InferTypeRtoS(const Call& call, const BlockBuilder& ctx) {
   TensorType input_ty = GetUnaryInputTensorType(call, ctx);
   ffi::Optional<PrimType> output_dtype = input_ty->dtype;
 
-  const auto* attrs = call->attrs.as<ScatterCollectiveAttrs>();
+  const auto* attrs = ffi::AnyView(call->attrs).as<ScatterCollectiveAttrs>();
   int num_workers = attrs->num_workers;
 
   sym::Analyzer analyzer = ctx->GetAnalyzer();
@@ -191,7 +191,7 @@ Type InferDistTypeRtoS(const Call& call, const BlockBuilder& ctx) {
   TVM_FFI_ICHECK(input_dtensor_tys.size() == 1);
   DTensorType input_dtensor_ty = input_dtensor_tys[0];
   TensorType tensor_ty = input_dtensor_ty->tensor_ty;
-  const auto* attrs = call->attrs.as<ScatterCollectiveAttrs>();
+  const auto* attrs = ffi::AnyView(call->attrs).as<ScatterCollectiveAttrs>();
   int num_workers = attrs->num_workers;
   sym::Analyzer analyzer = ctx->GetAnalyzer();
   auto input_shape = tensor_ty->GetShape();

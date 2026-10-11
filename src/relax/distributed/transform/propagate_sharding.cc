@@ -227,7 +227,7 @@ class ShardingAnnotationCollector : public ExprVisitor {
   void VisitBinding_(const VarBindingNode* binding, const CallNode* val) {
     static const Op annotate_sharding_op = Op::Get("relax.dist.annotate_sharding");
     if (val->op.same_as(annotate_sharding_op)) {
-      const auto* attrs = val->attrs.as<DistributionAttrs>();
+      const auto* attrs = ffi::AnyView(val->attrs).as<DistributionAttrs>();
       TVM_FFI_ICHECK(attrs);
 
       for (int i = 0; i < static_cast<int>(attrs->placement->dim_specs.size()); i++) {
@@ -269,7 +269,7 @@ class ShardingConflictHandler : public ExprVisitor {
   void CheckTensorShardingCompatible(Var var) {
     const auto* tensor_ty = GetTypeAs<TensorTypeNode>(var);
     TVM_FFI_ICHECK(tensor_ty);
-    const auto* shape = tensor_ty->shape.as<ShapeExprNode>();
+    const auto* shape = ffi::AnyView(tensor_ty->shape).as<ShapeExprNode>();
     TVM_FFI_ICHECK(shape);
     int ndim = tensor_ty->ndim;
     std::unordered_set<int> sharded_mesh_dim;

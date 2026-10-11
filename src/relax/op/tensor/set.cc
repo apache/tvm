@@ -65,9 +65,9 @@ Type InferTypeUnique(const CallNode* call_node) {
       axis = prim_value.value();
     }
   }
-  if (!data_ty->IsUnknownNdim() && axis.defined()) {
+  if (!data_ty->IsUnknownNdim() && axis.has_value()) {
     // Normalize the axis for sanity check purpose.
-    if (const auto* axis_int = axis.as<IntImmNode>()) {
+    if (const auto* axis_int = ffi::AnyView(axis).as<IntImmNode>()) {
       NormalizeAxis(call, data_ty->ndim, axis_int->value.as<int>().value());
     }
   }
@@ -97,7 +97,7 @@ Type InferTypeUnique(const CallNode* call_node) {
   if (data_ty->ndim == 0) {
     output_ty.push_back(
         TensorType(ShapeExpr({IntImm::Int64(/*value=*/1)}), data_ty->dtype, data_ty->vdevice));
-  } else if (axis.defined()) {
+  } else if (axis.has_value()) {
     output_ty.push_back(TensorType(data_ty->dtype, data_ty->ndim, data_ty->vdevice));
   } else {
     output_ty.push_back(TensorType(data_ty->dtype, /*ndim=*/1, data_ty->vdevice));

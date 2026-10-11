@@ -79,7 +79,7 @@ ffi::Optional<ExprDoc> LLVMIntrinsicDocTranslate(DocTranslatorObj* d, ffi::AnyVi
                                                  const ffi::Object*) {
   const auto* call =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const CallNode>(input);
-  if (call->attrs.defined() || !call->ty_args.empty() || call->args.empty() ||
+  if (call->attrs.has_value() || !call->ty_args.empty() || call->args.empty() ||
       !call->ty.as<PrimType>()) {
     return RawCall(d, call);
   }
@@ -130,7 +130,7 @@ bool IsPTXAddressCall(const CallNode* call) {
 }
 
 ffi::Optional<ExprDoc> ConsumedPTXAddressDocTranslate(DocTranslatorObj* d, const CallNode* call) {
-  if (call->args.size() != 2 || call->attrs.defined() || !call->ty_args.empty())
+  if (call->args.size() != 2 || call->attrs.has_value() || !call->ty_args.empty())
     return std::nullopt;
   const Expr& base = call->args[0];
   const Expr& offset = call->args[1];
@@ -168,7 +168,7 @@ ffi::Optional<ExprDoc> TensorDataPtrDocTranslate(DocTranslatorObj* d, ffi::AnyVi
                                                  const ffi::Object*) {
   const auto* call =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const CallNode>(input);
-  if (call->attrs.defined() || !call->ty_args.empty() || call->args.size() != 1)
+  if (call->attrs.has_value() || !call->ty_args.empty() || call->args.size() != 1)
     return RawCall(d, call);
   try {
     if (!ffi::StructuralEqual()(Call::ReinferType(call), call->ty)) return RawCall(d, call);
@@ -184,7 +184,7 @@ ffi::Optional<ExprDoc> PTXCallDocTranslate(DocTranslatorObj* d, ffi::AnyView inp
                                            const ffi::Object*) {
   const auto* call =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const CallNode>(input);
-  if (IsPTXAddressCall(call) || call->attrs.defined() || !call->ty_args.empty() ||
+  if (IsPTXAddressCall(call) || call->attrs.has_value() || !call->ty_args.empty() ||
       !ffi::StructuralEqual()(call->ty, PrimType::Void()))
     return RawCall(d, call);
   const Op& op = call->op.as_or_throw<Op>();

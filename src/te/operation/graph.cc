@@ -53,7 +53,7 @@ ReadGraph CreateReadGraph(const ffi::Array<Operation>& roots) {
     ffi::Array<Tensor> deps = op->InputTensors();
     rmap.Set(op, deps);
     for (Tensor t : deps) {
-      if (t->op.defined() && visited.count(t->op.value().get()) == 0) {
+      if (t->op.has_value() && visited.count(t->op.value().get()) == 0) {
         visited.insert(t->op.value().get());
         stack.push_back(t->op.value());
       }

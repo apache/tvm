@@ -64,7 +64,7 @@ std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, ffi::Map<DFPattern, Expr>)>>
                                       << "but instead produces " << matches[pattern_out]
                                       << " with type " << matches[pattern_out]->GetTypeKey();
 
-    const auto* vdev_attrs = out->attrs.as<ToVDeviceAttrs>();
+    const auto* vdev_attrs = ffi::AnyView(out->attrs).as<ToVDeviceAttrs>();
     TVM_FFI_CHECK(vdev_attrs, InternalError)
         << "Attributes for relax.to_vdevice operator should be ToVDeviceAttrs, "
         << "but were instead " << out->attrs << " with type " << out->GetTypeKey();

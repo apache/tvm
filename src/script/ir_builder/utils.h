@@ -73,11 +73,11 @@ inline void AddToParent(tvm::Stmt stmt, Location loc) {
       }
       return;
     }
-    TVM_FFI_CHECK(builder->result.as<tvm::StmtNode>(), ValueError)
+    TVM_FFI_CHECK(ffi::AnyView(builder->result).as<tvm::StmtNode>(), ValueError)
         << "Builder.result has already been set";
     ffi::Array<tvm::Stmt> incoming = tvm::SeqStmt(stmt)->seq;
     if (incoming.empty()) return;
-    if (builder->result.as<tvm::SeqStmtNode>()) {
+    if (ffi::AnyView(builder->result).as<tvm::SeqStmtNode>()) {
       // Move the builder's ownership so unobserved results can grow in place.
       // Copy-on-write preserves sequences and arrays retained by callers.
       auto sequence = std::move(builder->result).value().as_or_throw<tvm::SeqStmt>();

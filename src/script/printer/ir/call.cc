@@ -43,7 +43,7 @@ ffi::Optional<ExprDoc> StandardCallDocTranslate(DocTranslatorObj* d, const CallN
   static const auto& names =
       Op::GetAttrMap<TScriptPrinterName>(tvm::script::printer::op_attr::kScriptPrinterName);
   if (!names.count(op) || names[op].empty()) return std::nullopt;
-  if (call->attrs.defined() ? op->attrs_type_key != call->attrs->GetTypeKey()
+  if (call->attrs.has_value() ? op->attrs_type_key != call->attrs->GetTypeKey()
                             : !op->attrs_type_key.empty()) {
     return RawCall(d, call);
   }
@@ -60,17 +60,17 @@ ffi::Optional<ExprDoc> StandardCallDocTranslate(DocTranslatorObj* d, const CallN
     values.push_back(ListDoc(types));
   }
   bool default_attrs = false;
-  if (call->attrs.defined() && call->attrs.value().as<DictAttrsNode>()) {
+  if (call->attrs.has_value() && call->attrs.value().as<DictAttrsNode>()) {
     default_attrs = call->attrs.value().as_or_throw<DictAttrs>()->dict.empty();
     if (!default_attrs) {
       keys.push_back("attrs");
       values.push_back(d->Translate(call->attrs.value()).value());
     }
-  } else if (call->attrs.defined()) {
+  } else if (call->attrs.has_value()) {
     std::vector<std::pair<ffi::String, ffi::Any>> fields;
     ffi::reflection::ForEachFieldInfo(
         TVMFFIGetTypeInfo(call->attrs->type_index()), [&](const TVMFFIFieldInfo* field) {
-          ffi::Any value = ffi::reflection::FieldGetter(field)(call->attrs);
+          ffi::Any value = ffi::reflection::FieldGetter(field)(call->attrs.value());
           // Factory defaults can have effects or change between constructions.
           // Only a reflected literal default is safe to omit here.
           if ((field->flags & kTVMFFIFieldFlagBitMaskHasDefault) &&

@@ -135,7 +135,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 Type InferTypeArgsort(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
   TensorType data_ty = GetUnaryInputTensorType(call);
-  const auto* attrs = call->attrs.as<ArgsortAttrs>();
+  const auto* attrs = ffi::AnyView(call->attrs).as<ArgsortAttrs>();
   ffi::Optional<PrimType> out_type = attrs->dtype.has_value()
                                          ? ffi::Optional<PrimType>(PrimType(attrs->dtype.value()))
                                          : data_ty->dtype;
@@ -176,8 +176,8 @@ Type InferTypeTopK(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
   if (RequiresTensorInputNormalization(call)) return Type::Missing();
   TensorType data_ty = GetUnaryInputTensorType(call);
-  const auto* data_shape = data_ty->shape.as<ShapeExprNode>();
-  const auto* attrs = call->attrs.as<TopKAttrs>();
+  const auto* data_shape = ffi::AnyView(data_ty->shape).as<ShapeExprNode>();
+  const auto* attrs = ffi::AnyView(call->attrs).as<TopKAttrs>();
   ffi::Optional<PrimType> indices_type =
       attrs->dtype.has_value() ? ffi::Optional<PrimType>(PrimType(attrs->dtype.value()))
                                : data_ty->dtype;

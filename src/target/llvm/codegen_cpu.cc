@@ -1178,8 +1178,8 @@ void CodeGenCPU::Dispatch_(const ForNode* op) {
                            std::string("loop_parallel_") + op->loop_var->name.c_str());
     } else {
       // already in parallel env.
-      TVM_FFI_ICHECK(parallel_env_.task_id.defined());
-      TVM_FFI_ICHECK(parallel_env_.num_task.defined());
+      TVM_FFI_ICHECK(parallel_env_.task_id.has_value());
+      TVM_FFI_ICHECK(parallel_env_.num_task.has_value());
       TVM_FFI_ICHECK(parallel_env_.penv != nullptr);
       PrimType t(op->extent.ty()->dtype);
       PrimExpr num_task = cast(t, parallel_env_.num_task.value().as_or_throw<PrimExpr>());

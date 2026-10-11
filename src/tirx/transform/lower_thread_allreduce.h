@@ -1036,7 +1036,7 @@ Function LowerThreadAllreduce(Function f) {
   auto* n = f.CopyOnWrite();
   auto target = f->GetAttr<Target>(tvm::attr::kTarget);
   TVM_FFI_ICHECK(target.has_value()) << "LowerThreadAllreduce: Require the target attribute";
-  const TargetObj* target_node = target.as<TargetObj>();
+  const TargetObj* target_node = ffi::AnyView(target).as<TargetObj>();
   auto thread_all_reduce =
       ffi::make_object<ThreadAllreduceBuilder<DialectMutator>>(target_node, f->params);
   n->body = thread_all_reduce->Mutate(n->body).ValueOrUnchanged(n->body);

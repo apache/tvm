@@ -32,7 +32,7 @@ bool IsScalarTensor(const Type& ty) {
   if (!tensor_ty->shape.has_value() || !tensor_ty->shape.value()->IsInstance<ShapeExprNode>()) {
     return false;
   }
-  return tensor_ty->shape.as<ShapeExprNode>()->values.size() == 0;
+  return ffi::AnyView(tensor_ty->shape).as<ShapeExprNode>()->values.size() == 0;
 }
 
 bool IsScalarTensor(const Expr& expr) { return IsScalarTensor(GetType(expr)); }

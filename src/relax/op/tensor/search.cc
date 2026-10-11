@@ -90,13 +90,13 @@ Type InferTypeBucketize(const CallNode* call_node) {
         << "Bucketize requires boundary to be 1-D array but got " << boundaries_info->ndim;
   }
 
-  auto attrs = call->attrs.as<BucketizeAttrs>();
+  auto attrs = ffi::AnyView(call->attrs).as<BucketizeAttrs>();
   PrimType out_dtype = PrimType::Int(64);
   if (attrs->out_int32) {
     out_dtype = PrimType::Int(32);
   }
 
-  const auto* data_shape = input_tensor_info->shape.as<ShapeExprNode>();
+  const auto* data_shape = ffi::AnyView(input_tensor_info->shape).as<ShapeExprNode>();
   if (data_shape) {
     return TensorType(ShapeExpr(data_shape->values), out_dtype, input_tensor_info->vdevice);
   }
@@ -165,9 +165,9 @@ Type InferTypeWhere(const Call& call, const BlockBuilder& ctx) {
     output_ndim = std::max(cond_ty->ndim, std::max(x1_ty->ndim, x2_ty->ndim));
   }
 
-  const auto* cond_shape = cond_ty->shape.as<ShapeExprNode>();
-  const auto* x1_shape = x1_ty->shape.as<ShapeExprNode>();
-  const auto* x2_shape = x2_ty->shape.as<ShapeExprNode>();
+  const auto* cond_shape = ffi::AnyView(cond_ty->shape).as<ShapeExprNode>();
+  const auto* x1_shape = ffi::AnyView(x1_ty->shape).as<ShapeExprNode>();
+  const auto* x2_shape = ffi::AnyView(x2_ty->shape).as<ShapeExprNode>();
   if (cond_shape && x1_shape && x2_shape) {
     // Step 1. Compute the broadcasted shape of x1's and x2's
     ffi::Optional<ffi::Array<PrimExpr>> broadcasted_shape =
@@ -223,7 +223,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 Type InferTypeArgmaxArgmin(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
   TensorType data_ty = GetUnaryInputTensorType(call);
-  const auto* attrs = call->attrs.as<ArgmaxArgminAttrs>();
+  const auto* attrs = ffi::AnyView(call->attrs).as<ArgmaxArgminAttrs>();
 
   int axis = -1;
   if (!data_ty->IsUnknownNdim() && attrs->axis.has_value()) {
@@ -250,7 +250,7 @@ Type InferTypeArgmaxArgmin(const CallNode* call_node) {
   // - axes is not None, keepdims is false -> the returned shape does not contain the input axes.
   // - axes is not None, keepdims is true -> the returned shape has value 1 at the positions of the
   // input axes
-  const auto* data_shape = data_ty->shape.as<ShapeExprNode>();
+  const auto* data_shape = ffi::AnyView(data_ty->shape).as<ShapeExprNode>();
   if (data_shape == nullptr) {
     if (!attrs->axis.has_value() && attrs->keepdims && out_ndim != kUnknownNDim) {
       return TensorType(ShapeExpr(ffi::Array<PrimExpr>(out_ndim, IntImm(out_dtype, /*value=*/1))),

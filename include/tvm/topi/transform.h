@@ -1852,7 +1852,7 @@ inline Tensor layout_transform(const Tensor& src, const std::string& src_layout,
       << "cannot convert from/to undefined layout";
 
   auto layout_converter = tirx::SBijectiveLayout::Create(src_layout_struct, dst_layout_struct);
-  TVM_FFI_ICHECK(layout_converter.defined())
+  TVM_FFI_ICHECK(layout_converter.has_value())
       << "cannot convert from " << src_layout << " to " << dst_layout;
 
   ffi::Array<PrimExpr> dst_shape = layout_converter.value().ForwardShape(src->shape);

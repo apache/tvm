@@ -492,7 +492,7 @@ static bool ShapeEqual(AnalyzerObj* analyzer, const ffi::Array<PrimExpr>& lhs,
 bool DFPatternMatcher::VisitDFPattern_(const ShapePatternNode* op, const Expr& expr) {
   // no need to jump, as var.shape == value.shape
   if (const auto* tinfo = GetTypeAs<TensorTypeNode>(expr)) {
-    if (const ShapeExprNode* shape_expr = tinfo->shape.as<ShapeExprNode>()) {
+    if (const ShapeExprNode* shape_expr = ffi::AnyView(tinfo->shape).as<ShapeExprNode>()) {
       return ShapeEqual(analyzer_.get(), op->shape, shape_expr->values) &&
              VisitDFPattern(op->pattern, expr);
     }

@@ -170,7 +170,7 @@ class StorageAlignCollector : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> DispatchAllocTensor(const BindNode* op, const CallNode* call) {
-    DictAttrs annotations = call->attrs.as_or_throw<DictAttrs>();
+    DictAttrs annotations = ffi::AnyView(call->attrs).cast<DictAttrs>();
     auto it = annotations->dict.find(attr::kTensorDimAlign);
     if (it != annotations->dict.end()) {
       auto storage_align_annotation = (*it).second.as_or_throw<StorageAlignAnnotation>();

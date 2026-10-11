@@ -24,6 +24,7 @@
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/native_function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/type.h>
 
@@ -93,11 +94,11 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> OpaqueTypeMaybeInplaceM
   return ffi::Unchanged();
 }
 
-int64_t PrimTypeAnyHash(const ffi::Any& src) {
+TVM_FFI_INLINE int64_t PrimTypeAnyHash(const ffi::Any& src) {
   return static_cast<int64_t>(PackDataTypeKey(src.cast<PrimType>()->dtype));
 }
 
-bool PrimTypeAnyEqual(const ffi::Any& lhs, const ffi::Any& rhs) {
+TVM_FFI_INLINE bool PrimTypeAnyEqual(const ffi::Any& lhs, const ffi::Any& rhs) {
   return lhs.cast<PrimType>()->dtype == rhs.cast<PrimType>()->dtype;
 }
 
@@ -341,8 +342,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   PrimTypeNode::RegisterReflection();
   refl::TypeAttrDef<PrimTypeNode>()
-      .attr(refl::type_attr::kAnyHash, reinterpret_cast<void*>(&PrimTypeAnyHash))
-      .attr(refl::type_attr::kAnyEqual, reinterpret_cast<void*>(&PrimTypeAnyEqual))
+      .attr(refl::type_attr::kAnyHash,
+            refl::NativeFunction<int64_t(const ffi::Any&)>::FromNative<&PrimTypeAnyHash>())
+      .attr(refl::type_attr::kAnyEqual,
+            refl::NativeFunction<bool(const ffi::Any&, const ffi::Any&)>::FromNative<
+                &PrimTypeAnyEqual>())
       .attr(refl::type_attr::kStructuralVisit, ffi::FStructuralVisit::FromNative<&PrimTypeVisit>())
       .attr(refl::type_attr::kStructuralMutate,
             ffi::FStructuralMutate::FromNative<&PrimTypeMutate>())

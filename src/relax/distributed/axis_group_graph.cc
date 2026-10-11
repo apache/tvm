@@ -125,8 +125,8 @@ void BuildAxisGraphBinary(const Var& output_var, const Call& call,
   const auto* x2_ty = GetTensorType(tensor_list[1]);
   int x1_ndim = x1_ty->ndim;
   int x2_ndim = x2_ty->ndim;
-  const auto* x1_shape = x1_ty->shape.as<ShapeExprNode>();
-  const auto* x2_shape = x2_ty->shape.as<ShapeExprNode>();
+  const auto* x1_shape = ffi::AnyView(x1_ty->shape).as<ShapeExprNode>();
+  const auto* x2_shape = ffi::AnyView(x2_ty->shape).as<ShapeExprNode>();
   TVM_FFI_ICHECK(x1_shape && x2_shape);
   sym::Analyzer analyzer;
   for (int i = 1; i <= std::min(x1_ndim, x2_ndim); ++i) {
@@ -170,12 +170,12 @@ void BuildAxisGraphReduce(const Var& output_var, const Call& call,
   Expr input_tensor = call->args[0];
   ffi::Array<int64_t> axes;
   bool keepdims;
-  if (const auto* attrs = call->attrs.as<StatisticalAttrs>()) {
+  if (const auto* attrs = ffi::AnyView(call->attrs).as<StatisticalAttrs>()) {
     if (attrs->axis.has_value()) {
       axes = attrs->axis.value();
     }
     keepdims = attrs->keepdims;
-  } else if (const auto* attrs = call->attrs.as<SoftmaxAttrs>()) {
+  } else if (const auto* attrs = ffi::AnyView(call->attrs).as<SoftmaxAttrs>()) {
     axes = {attrs->axis};
     keepdims = true;
   } else {
@@ -231,8 +231,8 @@ void BuildAxisGraphMatmul(const Var& output_var, const Call& call,
     x2_ndim = 2;
     x2_appended = 1;
   }
-  const auto* x1_shape = x1_ty->shape.as<ShapeExprNode>();
-  const auto* x2_shape = x2_ty->shape.as<ShapeExprNode>();
+  const auto* x1_shape = ffi::AnyView(x1_ty->shape).as<ShapeExprNode>();
+  const auto* x2_shape = ffi::AnyView(x2_ty->shape).as<ShapeExprNode>();
   TVM_FFI_ICHECK(x1_shape && x2_shape);
   ffi::Array<PrimExpr> x1_shape_prefix{x1_shape->values.begin(),
                                        x1_shape->values.end() - 2 + x1_prepended};
@@ -288,7 +288,7 @@ void BuildAxisGraphMatmul(const Var& output_var, const Call& call,
 void BuildAxisGraphPermuteDims(const Var& output_var, const Call& call,
                                distributed::AxisGroupGraph* axis_group_graph) {
   Expr input_tensor = call->args[0];
-  const auto* attrs = call->attrs.as<PermuteDimsAttrs>();
+  const auto* attrs = ffi::AnyView(call->attrs).as<PermuteDimsAttrs>();
   TVM_FFI_ICHECK(attrs);
   int ndim = GetTensorType(input_tensor)->ndim;
   std::vector<int> normalized_axes;

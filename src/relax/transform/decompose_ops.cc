@@ -56,7 +56,7 @@ Expr ExpandToMatchInput(Expr data, int ndim, ffi::Array<int64_t> axes) {
 }
 
 Tuple DecomposeBatchNorm(const Call& call) {
-  auto attrs = call->attrs.as<BatchNormAttrs>();
+  auto attrs = ffi::AnyView(call->attrs).as<BatchNormAttrs>();
   TVM_FFI_ICHECK_NOTNULL(attrs);
 
   Expr data = call->args[0];
@@ -83,7 +83,7 @@ Tuple DecomposeBatchNorm(const Call& call) {
 }
 
 Expr MutateBatchNormForTraining(Call call) {
-  auto attrs = call->attrs.as<BatchNormAttrs>();
+  auto attrs = ffi::AnyView(call->attrs).as<BatchNormAttrs>();
   TVM_FFI_ICHECK_NOTNULL(attrs);
 
   TVM_FFI_ICHECK_EQ(call->args.size(), 5);
@@ -118,7 +118,7 @@ Expr MutateBatchNormForTraining(Call call) {
 }
 
 Expr DecomposeLayerNorm(const Call& call) {
-  auto attrs = call->attrs.as<LayerNormAttrs>();
+  auto attrs = ffi::AnyView(call->attrs).as<LayerNormAttrs>();
   TVM_FFI_ICHECK_NOTNULL(attrs);
 
   Expr data = call->args[0];

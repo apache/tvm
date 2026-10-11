@@ -238,7 +238,7 @@ class WellDefinedEraser : public TypeMutator, public ExprMutatorBase {
 
     has_undefined_ = has_undefined_ || !ret.has_value();
     if (ret.has_value()) {
-      TVM_FFI_ICHECK((ret.as<VarNode>() && !ret.as<DataflowVarNode>()) || ret.as<ShapeExprNode>())
+      TVM_FFI_ICHECK((ffi::AnyView(ret).as<VarNode>() && !ffi::AnyView(ret).as<DataflowVarNode>()) || ffi::AnyView(ret).as<ShapeExprNode>())
           << "Only allow Expr in Type to be ShapeExpr or Var";
     }
     return ret.value_or(ffi::GetRef<Expr>(var));
@@ -734,8 +734,8 @@ class TypeBasePreconditionCollector : public TypeFunctor<PrimExpr(const Type&, c
       return IntImm::Bool(false);
     }
 
-    auto* lhs_shape = lhs->shape.as<ShapeExprNode>();
-    auto* rhs_shape = rhs->shape.as<ShapeExprNode>();
+    auto* lhs_shape = ffi::AnyView(lhs->shape).as<ShapeExprNode>();
+    auto* rhs_shape = ffi::AnyView(rhs->shape).as<ShapeExprNode>();
     if (lhs_shape && rhs_shape) {
       return ArrayCheck(lhs_shape->values, rhs_shape->values);
     } else if (lhs_shape && !rhs_shape) {

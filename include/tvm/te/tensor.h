@@ -238,7 +238,7 @@ inline size_t Tensor::ndim() const { return (*this)->shape.size(); }
 inline bool Tensor::operator==(const Tensor& other) const {
   if (get() == other.get()) return true;
   if (get() == nullptr || other.get() == nullptr) return false;
-  if ((*this)->op.defined() || other->op.defined()) {
+  if ((*this)->op.has_value() || other->op.has_value()) {
     return (*this)->op == other->op && (*this)->value_index == other->value_index;
   } else {
     return false;
@@ -291,8 +291,8 @@ template <>
 struct hash<::tvm::te::Tensor> {
   std::size_t operator()(const ::tvm::te::Tensor& k) const {
     ::tvm::ffi::ObjectPtrHash hasher;
-    if (k.defined() && k->op.defined()) {
-      return hasher(k->op);
+    if (k.defined() && k->op.has_value()) {
+      return hasher(k->op.value());
     } else {
       return hasher(k);
     }

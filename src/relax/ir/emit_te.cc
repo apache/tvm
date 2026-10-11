@@ -58,7 +58,7 @@ te::Tensor TETensor(Expr value, ffi::Map<tvm::Var, PrimExpr> tir_var_map, std::s
       << "value must be normalized and contain Type";
   auto* tensor_ty = GetTypeAs<TensorTypeNode>(value);
   TVM_FFI_ICHECK(tensor_ty) << "Value must be a tensor";
-  auto* shape_expr = tensor_ty->shape.as<ShapeExprNode>();
+  auto* shape_expr = ffi::AnyView(tensor_ty->shape).as<ShapeExprNode>();
   TVM_FFI_CHECK(shape_expr, ValueError)
       << "Expression does not have an known symbolic shape, please consider use "
          "match_cast "
