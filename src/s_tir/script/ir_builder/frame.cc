@@ -61,7 +61,7 @@ tvm::tirx::Function FunctionFrameObj::FinalizeFunction(tvm::tirx::Function func)
 }
 
 void FunctionFrameObj::BindTensorRegion(tvm::tirx::TensorVar tensor, tvm::TensorRegion region,
-                                         ffi::Array<PrimExpr> allocated_addr) {
+                                        ffi::Array<PrimExpr> allocated_addr) {
   if (auto function = IRBuilder::Current()->FindFrame<tirx::FunctionFrame>()) {
     TVM_FFI_CHECK(function.value().as<FunctionFrameObj>() != nullptr, ValueError)
         << "match_tensor requires Ts.function; T.function only accepts TIRx";

@@ -44,15 +44,15 @@ namespace tvm {
 namespace tirx {
 using namespace tvm::prim;
 
-class IntrinInjecterObj : public IRMutatorWithAnalyzerObj {
+class IntrinInjecter : public IRMutatorWithAnalyzer {
  public:
-  using IRMutatorWithAnalyzerObj::Mutate;
-  using IRMutatorWithAnalyzerObj::Mutate_;
+  using IRMutatorWithAnalyzer::Mutate;
+  using IRMutatorWithAnalyzer::Mutate_;
 
   using FLowerGeneral = ffi::TypedFunction<PrimExpr(PrimExpr)>;
 
-  IntrinInjecterObj(const sym::Analyzer& analyzer, const Target& tgt, bool enable_fast_math)
-      : IRMutatorWithAnalyzerObj(analyzer) {
+  IntrinInjecter(const sym::Analyzer& analyzer, const Target& tgt, bool enable_fast_math)
+      : IRMutatorWithAnalyzer(analyzer) {
     std::string target = tgt->kind->name;
     ffi::String mtriple = tgt->GetAttr<ffi::String>("mtriple").value_or("");
 
@@ -104,7 +104,7 @@ class IntrinInjecterObj : public IRMutatorWithAnalyzerObj {
         }
       }
     }
-    return IRMutatorWithAnalyzerObj::Mutate_(op, inplace_mode);
+    return IRMutatorWithAnalyzer::Mutate_(op, inplace_mode);
   }
 
   UnchangedOr<PrimExpr> Mutate_(const prim::AddNode* op, InplaceMode inplace_mode) final {
@@ -113,14 +113,14 @@ class IntrinInjecterObj : public IRMutatorWithAnalyzerObj {
     } else if (const prim::MulNode* ma = op->a.as<prim::MulNode>()) {
       return MakeFMA(ma->a, ma->b, op->b, op);
     }
-    return IRMutatorWithAnalyzerObj::Mutate_(op, inplace_mode);
+    return IRMutatorWithAnalyzer::Mutate_(op, inplace_mode);
   }
 
   // We use floordiv for integer analysis,
   // but will need to lower them to native truncdiv instructions
   UnchangedOr<PrimExpr> Mutate_(const prim::FloorDivNode* op, InplaceMode inplace_mode) final {
     auto e = ffi::GetRef<PrimExpr>(op);
-    PrimExpr ret = IRMutatorWithAnalyzerObj::Mutate_(op, inplace_mode)
+    PrimExpr ret = IRMutatorWithAnalyzer::Mutate_(op, inplace_mode)
                        .ValueOrUnchanged(ffi::GetRef<PrimExpr>(op));
     op = ret.as<prim::FloorDivNode>();
     if (op == nullptr) return ret;
@@ -184,7 +184,7 @@ class IntrinInjecterObj : public IRMutatorWithAnalyzerObj {
   }
 
   UnchangedOr<PrimExpr> Mutate_(const prim::FloorModNode* op, InplaceMode inplace_mode) final {
-    PrimExpr ret = IRMutatorWithAnalyzerObj::Mutate_(op, inplace_mode)
+    PrimExpr ret = IRMutatorWithAnalyzer::Mutate_(op, inplace_mode)
                        .ValueOrUnchanged(ffi::GetRef<PrimExpr>(op));
     op = ret.as<prim::FloorModNode>();
     if (op == nullptr) return ret;
@@ -258,7 +258,7 @@ class IntrinInjecterObj : public IRMutatorWithAnalyzerObj {
       PrimExpr input = truncdiv(x, y).Eval();
       return max(Mutate(input, inplace_mode).ValueOrUnchanged(input), c.Eval());
     }
-    return IRMutatorWithAnalyzerObj::Mutate_(op, inplace_mode);
+    return IRMutatorWithAnalyzer::Mutate_(op, inplace_mode);
   }
 
   UnchangedOr<PrimExpr> Mutate_(const prim::EQNode* op, InplaceMode inplace_mode) final {
@@ -269,7 +269,7 @@ class IntrinInjecterObj : public IRMutatorWithAnalyzerObj {
       PrimExpr input = (truncmod(x, y) == 0).Eval();
       return Mutate(input, inplace_mode).ValueOrUnchanged(input);
     }
-    return IRMutatorWithAnalyzerObj::Mutate_(op, inplace_mode);
+    return IRMutatorWithAnalyzer::Mutate_(op, inplace_mode);
   }
 
   UnchangedOr<PrimExpr> Mutate_(const prim::NENode* op, InplaceMode inplace_mode) final {
@@ -280,7 +280,7 @@ class IntrinInjecterObj : public IRMutatorWithAnalyzerObj {
       PrimExpr input = (truncmod(x, y) != 0).Eval();
       return Mutate(input, inplace_mode).ValueOrUnchanged(input);
     }
-    return IRMutatorWithAnalyzerObj::Mutate_(op, inplace_mode);
+    return IRMutatorWithAnalyzer::Mutate_(op, inplace_mode);
   }
 
  private:
@@ -337,7 +337,7 @@ class IntrinInjecterObj : public IRMutatorWithAnalyzerObj {
         return prim::Add(mul, this->Mutate(c, InplaceMode::kDisallow).ValueOrUnchanged(c));
       }
     }
-    return IRMutatorWithAnalyzerObj::Mutate_(op, InplaceMode::kDisallow)
+    return IRMutatorWithAnalyzer::Mutate_(op, InplaceMode::kDisallow)
         .ValueOrUnchanged(ffi::GetRef<PrimExpr>(op));
   }
 
@@ -398,8 +398,7 @@ Stmt LowerIntrinStmt(Stmt stmt, const std::string& target) {
   sym::Analyzer analyzer;
   bool enable_fast_math =
       transform::PassContext::Current()->GetConfig<bool>("tirx.enable_fast_math").value_or(false);
-  return ffi::make_object<IntrinInjecterObj>(analyzer, Target(ffi::String(target)),
-                                             enable_fast_math)
+  return ffi::make_object<IntrinInjecter>(analyzer, Target(ffi::String(target)), enable_fast_math)
       ->Mutate(stmt, InplaceMode::kAllow)
       .ValueOrUnchanged(stmt);
 }
@@ -413,7 +412,7 @@ Pass LowerIntrin() {
     TVM_FFI_ICHECK(target.has_value()) << "LowerIntrin: Require the target attribute";
     sym::Analyzer analyzer;
     bool enable_fast_math = ctx->GetConfig<bool>("tirx.enable_fast_math").value_or(false);
-    n->body = ffi::make_object<IntrinInjecterObj>(analyzer, target.value(), enable_fast_math)
+    n->body = ffi::make_object<IntrinInjecter>(analyzer, target.value(), enable_fast_math)
                   ->Mutate(n->body, InplaceMode::kAllow)
                   .ValueOrUnchanged(n->body);
     return f;

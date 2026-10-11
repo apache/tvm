@@ -38,9 +38,9 @@ inline bool HasAnnOrBinding(const ForNode* loop) {
 }
 
 /*! \brief The visitor for extracting the stride of a var in a PrimExpr. */
-class StrideExtractorObj : public StmtExprVisitorObj {
+class StrideExtractor : public StmtExprVisitor {
  public:
-  using StmtExprVisitorObj::Visit_;
+  using StmtExprVisitor::Visit_;
 
   /*!
    * \brief Extracting the stride of a var in a PrimExpr.
@@ -50,16 +50,16 @@ class StrideExtractorObj : public StmtExprVisitorObj {
    * \return The stride of the var.
    */
   static int64_t Extract(const PrimExpr& expr, const Var& var) {
-    auto extractor = ffi::make_object<StrideExtractorObj>(var);
+    auto extractor = ffi::make_object<StrideExtractor>(var);
     extractor->Visit(expr);
     return extractor->strides_[expr.get()];
   }
 
-  explicit StrideExtractorObj(const Var& var) : var_(var) {}
+  explicit StrideExtractor(const Var& var) : var_(var) {}
 
  private:
   ffi::Optional<VisitInterrupt> Visit_(const MulNode* node) final {
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitorObj::Visit_(node));
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(node));
 
     if (const auto* a = node->a.as<IntImmNode>()) {
       if (strides_.count(node->b.get())) {
@@ -74,7 +74,7 @@ class StrideExtractorObj : public StmtExprVisitorObj {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const AddNode* node) final {
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitorObj::Visit_(node));
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(node));
     int64_t stride_a, stride_b;
     if (strides_.count(node->a.get())) {
       stride_a = strides_[node->a.get()];
@@ -239,7 +239,7 @@ void AdjustParallelVectorize(const Schedule& sch, const SBlockRV& block_rv,
         PrimExpr idx = analyzer->Simplify(
             ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(access->region[i]->min, f_substitute)
                 .as_or_throw<PrimExpr>());
-        int64_t coef = StrideExtractorObj::Extract(idx, var->loop_var);
+        int64_t coef = StrideExtractor::Extract(idx, var->loop_var);
         if (coef != 0) {
           stride = coef * tensor_stride;
           break;

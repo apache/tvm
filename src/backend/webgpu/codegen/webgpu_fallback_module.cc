@@ -57,7 +57,7 @@ class WebGPUFallbackModuleObj : public ffi::ModuleObj {
 
   // The canonical C++-side WebGPU module — kind matches what the wasm
   // runtime registers (`web/emcc/webgpu_runtime.cc`).  Saved bytes load
-  // back as a real `WebGPUModuleNode` on the wasm side.
+  // back as a real `WebGPUModuleObj` on the wasm side.
   const char* kind() const final { return "webgpu"; }
 
   int GetPropertyMask() const final { return ffi::Module::kBinarySerializable; }

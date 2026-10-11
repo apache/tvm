@@ -38,17 +38,17 @@ using namespace tvm::prim;
 
 using namespace tvm::tirx;
 
-class LoopCanonicalizerObj : public StmtExprMutatorObj {
+class LoopCanonicalizer : public StmtExprMutator {
  public:
-  using StmtExprMutatorObj::Mutate;
-  using StmtExprMutatorObj::Mutate_;
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
 
-  LoopCanonicalizerObj() = default;
+  LoopCanonicalizer() = default;
 
  private:
   UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
     if (IsZero(op->min) && op->HasTrivialStep()) {
-      return StmtExprMutatorObj::Mutate_(op, inplace_mode);
+      return StmtExprMutator::Mutate_(op, inplace_mode);
     }
     const auto* loop_var = op->loop_var.get();
     PrimType loop_var_ty = loop_var->ty.as_or_throw<PrimType>();
@@ -90,7 +90,7 @@ namespace transform {
 Pass CanonicalizeLoop() {
   auto pass_func = [=](Function func, IRModule m, PassContext ctx) {
     FunctionNode* fptr = func.CopyOnWrite();
-    fptr->body = ffi::make_object<LoopCanonicalizerObj>()
+    fptr->body = ffi::make_object<LoopCanonicalizer>()
                      ->Mutate(fptr->body, InplaceMode::kAllow)
                      .ValueOrUnchanged(std::move(fptr->body));
     return func;

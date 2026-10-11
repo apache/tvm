@@ -39,9 +39,9 @@ using namespace tvm::tirx;
 
 /******** Error Classes ********/
 
-class NotSingleWriteBlockObj : public ScheduleErrorContextObj {
+class NotSingleWriteBlock : public ScheduleErrorContextObj {
  public:
-  explicit NotSingleWriteBlockObj(IRModule mod, TensorVar tensor, ffi::Array<StmtSRef> write_blocks)
+  explicit NotSingleWriteBlock(IRModule mod, TensorVar tensor, ffi::Array<StmtSRef> write_blocks)
       : mod_(std::move(mod)), tensor_(std::move(tensor)) {
     TVM_FFI_ICHECK_GT(write_blocks.size(), 1);
     write_blocks_.reserve(write_blocks.size());
@@ -122,10 +122,10 @@ struct ReindexCacheStageInfo : CacheStageInfo {
 
 /* \brief The schedule error that accessed tensor region is not a single point for
  * reindex_cache_read/write. */
-class NotSinglePointAccessObj : public ScheduleErrorContextObj {
+class NotSinglePointAccess : public ScheduleErrorContextObj {
  public:
-  explicit NotSinglePointAccessObj(IRModule mod, SBlock block, TensorRegion cache_region,
-                                   bool is_cache_read)
+  explicit NotSinglePointAccess(IRModule mod, SBlock block, TensorRegion cache_region,
+                                bool is_cache_read)
       : mod_(std::move(mod)), block_(std::move(block)), cache_region_(cache_region) {
     primitive_name_ = is_cache_read ? "reindex_cache_read" : "reindex_cache_write";
   }
@@ -519,7 +519,7 @@ Stmt InsertCacheStage(const Stmt& stmt, int pos, const Stmt& stage) {
  * \param tensor The queried tensor
  * \return The sref of the only writer of the input tensor in the given scope,
  *         or `std::nullopt` if no block writes it in the scope.
- * \throw NotSingleWriteBlockObj if there are more than one interested block.
+ * \throw NotSingleWriteBlock if there are more than one interested block.
  */
 ffi::Optional<StmtSRef> GetOnlyWriteBlock(ScheduleState self, const StmtSRef& scope_sref,
                                           const TensorVar& tensor) {
@@ -531,7 +531,7 @@ ffi::Optional<StmtSRef> GetOnlyWriteBlock(ScheduleState self, const StmtSRef& sc
     const ffi::Array<StmtSRef>& block_srefs = it->second;
     TVM_FFI_ICHECK(!block_srefs.empty());
     if (block_srefs.size() > 1) {
-      throw MakeScheduleError<NotSingleWriteBlockObj>(self->mod, tensor, block_srefs);
+      throw MakeScheduleError<NotSingleWriteBlock>(self->mod, tensor, block_srefs);
     }
     return block_srefs[0];
   }
@@ -588,15 +588,15 @@ bool AllConsumersUnderStmt(ScheduleState self, TensorVar tensor, StmtSRef scope_
  */
 static PrimExpr CollectNestedBlockPredicates(const Stmt& body, const TensorVar& tensor,
                                              TensorIndexType index_type) {
-  struct CollectorObj : public StmtExprVisitorObj {
-    using StmtExprVisitorObj::Visit_;
+  struct Collector : public StmtExprVisitor {
+    using StmtExprVisitor::Visit_;
 
     ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
       if (value.as<ExprNode>()) return std::nullopt;
-      return StmtExprVisitorObj::Visit(value);
+      return StmtExprVisitor::Visit(value);
     }
 
-    CollectorObj(const TensorVar& tensor, TensorIndexType idx_type)
+    Collector(const TensorVar& tensor, TensorIndexType idx_type)
         : tensor_(tensor), index_type_(idx_type), result_(IntImm::Bool(false)), found_(false) {}
 
     ffi::Optional<VisitInterrupt> Visit_(const SBlockRealizeNode* realize) final {
@@ -633,7 +633,7 @@ static PrimExpr CollectNestedBlockPredicates(const Stmt& body, const TensorVar& 
         found_ = true;
       }
       // Continue recursing into deeper nested blocks.
-      return StmtExprVisitorObj::Visit_(realize);
+      return StmtExprVisitor::Visit_(realize);
     }
 
     const TensorVar& tensor_;
@@ -642,7 +642,7 @@ static PrimExpr CollectNestedBlockPredicates(const Stmt& body, const TensorVar& 
     bool found_;
   };
 
-  auto collector = ffi::make_object<CollectorObj>(tensor, index_type);
+  auto collector = ffi::make_object<Collector>(tensor, index_type);
   collector->Visit(body);
   // If no nested block accessed the tensor, return true (no restriction — the caller
   // will fall back to the original scope-block reads / FullRegion path).
@@ -700,13 +700,13 @@ TensorRegion RelaxTensorRegion(ScheduleState self, const TensorRegion& tensor_re
 }
 
 /*! \brief Detect the insertion position of the new cache stage */
-class CacheLocDetectorObj : public StmtExprVisitorObj {
+class CacheLocDetector : public StmtExprVisitor {
  public:
-  using StmtExprVisitorObj::Visit_;
+  using StmtExprVisitor::Visit_;
 
   ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
     if (value.as<ExprNode>()) return std::nullopt;
-    return StmtExprVisitorObj::Visit(value);
+    return StmtExprVisitor::Visit(value);
   }
 
   /*!
@@ -748,7 +748,7 @@ class CacheLocDetectorObj : public StmtExprVisitorObj {
 
     if (!related_blocks.empty()) {
       auto detector =
-          ffi::make_object<CacheLocDetectorObj>(self, block_sref, scope_sref, related_blocks);
+          ffi::make_object<CacheLocDetector>(self, block_sref, scope_sref, related_blocks);
       detector->Visit(ffi::GetRef<Stmt>(scope_sref->stmt));
       info->loc_sref = detector->loc_sref_;
       info->loc_pos = detector->loc_pos_;
@@ -767,8 +767,8 @@ class CacheLocDetectorObj : public StmtExprVisitorObj {
    * \param scope_sref The sref of the scope block of the cached block
    * \param related_blocks Producer blocks for cache_write, or consumer blocks for cache_read
    */
-  CacheLocDetectorObj(const ScheduleState self, const StmtSRef& block_sref,
-                      const StmtSRef& scope_sref, const std::vector<StmtSRef>& related_blocks)
+  CacheLocDetector(const ScheduleState self, const StmtSRef& block_sref, const StmtSRef& scope_sref,
+                   const std::vector<StmtSRef>& related_blocks)
       : self_(self),
         block_sref_(block_sref),
         scope_sref_(scope_sref),
@@ -802,7 +802,7 @@ class CacheLocDetectorObj : public StmtExprVisitorObj {
     // Only visit the current scope under tensor writer's parent block
     if (block == scope_sref_->stmt) {
       // The block visited is the current parent scope
-      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitorObj::Visit_(block));
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(block));
       // Handling cases when insert outside any loop or cache_read for input tensor
       if (visited_related_ && !loc_sref_.has_value()) {
         loc_sref_ = self_->stmt2ref.at(block);
@@ -829,7 +829,7 @@ class CacheLocDetectorObj : public StmtExprVisitorObj {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const ForNode* loop) final {
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitorObj::Visit_(loop));
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(loop));
     if (visited_block_ && visited_related_ && !loc_sref_.has_value() && loc_pos_ != -1) {
       loc_sref_ = self_->stmt2ref.at(loop);
     }
@@ -855,13 +855,13 @@ class CacheLocDetectorObj : public StmtExprVisitorObj {
 };
 
 /*! \brief Detect the insertion position of the new cache stage */
-class CacheInplaceLocDetectorObj : public StmtExprVisitorObj {
+class CacheInplaceLocDetector : public StmtExprVisitor {
  public:
-  using StmtExprVisitorObj::Visit_;
+  using StmtExprVisitor::Visit_;
 
   ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
     if (value.as<ExprNode>()) return std::nullopt;
-    return StmtExprVisitorObj::Visit(value);
+    return StmtExprVisitor::Visit(value);
   }
 
   /*!
@@ -874,7 +874,7 @@ class CacheInplaceLocDetectorObj : public StmtExprVisitorObj {
    */
   static void Detect(const ScheduleState& self, const StmtSRef& block_sref,
                      const StmtSRef& scope_sref, CacheStageInfo* info) {
-    auto detector = ffi::make_object<CacheInplaceLocDetectorObj>(self, block_sref, scope_sref);
+    auto detector = ffi::make_object<CacheInplaceLocDetector>(self, block_sref, scope_sref);
     detector->Visit(ffi::GetRef<Stmt>(scope_sref->stmt));
     info->loc_sref = detector->loc_sref_;
     info->loc_pos = detector->loc_pos_;
@@ -886,8 +886,8 @@ class CacheInplaceLocDetectorObj : public StmtExprVisitorObj {
    * \param block_sref The sref of the unique writer block of the tensor being applied cache_inplace
    * \param scope_sref The sref of the scope block of the cached block
    */
-  CacheInplaceLocDetectorObj(const ScheduleState self, const StmtSRef& block_sref,
-                             const StmtSRef& scope_sref)
+  CacheInplaceLocDetector(const ScheduleState self, const StmtSRef& block_sref,
+                          const StmtSRef& scope_sref)
       : self_(self), block_sref_(block_sref), scope_sref_(scope_sref) {}
 
  private:
@@ -911,7 +911,7 @@ class CacheInplaceLocDetectorObj : public StmtExprVisitorObj {
     // Only visit the current scope under tensor writer's parent block
     if (block == scope_sref_->stmt) {
       // The block visited is the current parent scope
-      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitorObj::Visit_(block));
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(block));
       // Handling cases when insert outside any loop
       if (visited_block_ && !loc_sref_.has_value()) {
         loc_sref_ = self_->stmt2ref.at(block);
@@ -927,7 +927,7 @@ class CacheInplaceLocDetectorObj : public StmtExprVisitorObj {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const ForNode* loop) final {
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitorObj::Visit_(loop));
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(loop));
     if (visited_block_ && !loc_sref_.has_value()) {
       loc_sref_ = self_->stmt2ref.at(loop);
       if (loc_pos_ == -1) {
@@ -951,13 +951,13 @@ class CacheInplaceLocDetectorObj : public StmtExprVisitorObj {
   int loc_pos_{-1};
 };
 
-class ReindexCacheReadRewriterObj;
+class ReindexCacheReadRewriter;
 
 /*! \brief Mutator for CacheRead. */
-class CacheReadRewriterObj : public StmtExprMutatorObj {
+class CacheReadRewriter : public StmtExprMutator {
  public:
-  using StmtExprMutatorObj::Mutate;
-  using StmtExprMutatorObj::Mutate_;
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
 
   /*!
    * \brief Rewrite the AST and add a cache_read stage with the information provided
@@ -969,13 +969,13 @@ class CacheReadRewriterObj : public StmtExprMutatorObj {
    */
   static Stmt Rewrite(const StmtSRef& scope_sref, CacheStageInfo* info,
                       bool cache_full_region = true) {
-    auto rewriter = ffi::make_object<CacheReadRewriterObj>(scope_sref, info, cache_full_region);
+    auto rewriter = ffi::make_object<CacheReadRewriter>(scope_sref, info, cache_full_region);
     return rewriter->Mutate(ffi::GetRef<Stmt>(scope_sref->stmt))
         .ValueOrUnchanged(ffi::GetRef<Stmt>(scope_sref->stmt));
   }
 
-  explicit CacheReadRewriterObj(const StmtSRef& scope_sref, CacheStageInfo* info,
-                                bool cache_full_region = true)
+  explicit CacheReadRewriter(const StmtSRef& scope_sref, CacheStageInfo* info,
+                             bool cache_full_region = true)
       : scope_sref_(scope_sref), info_(info), cache_full_region_(cache_full_region) {
     VarRemapSet(info_->read_tensor, info_->write_tensor);
     auto update_region = [this](const ffi::Array<Range>& region,
@@ -1031,7 +1031,7 @@ class CacheReadRewriterObj : public StmtExprMutatorObj {
  private:
   UnchangedOr<Stmt> Mutate_(const ForNode* loop, InplaceMode inplace_mode) final {
     Stmt stmt =
-        StmtExprMutatorObj::Mutate_(loop, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(loop));
+        StmtExprMutator::Mutate_(loop, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(loop));
     // Check the insertion point
     if (loop == info_->loc_sref.value()->stmt) {
       // Insert cache stage into the loop if it is the right place
@@ -1067,7 +1067,7 @@ class CacheReadRewriterObj : public StmtExprMutatorObj {
     auto input_node = ffi::make_object<SBlockNode>(*block);
     input_node->alloc_tensors.clear();
     SBlock input(std::move(input_node));
-    SBlock stmt = StmtExprMutatorObj::Mutate_(input.get(), InplaceMode::kDisallow)
+    SBlock stmt = StmtExprMutator::Mutate_(input.get(), InplaceMode::kDisallow)
                       .ValueOrUnchanged(input)
                       .as_or_throw<SBlock>();
     stmt.CopyOnWrite()->alloc_tensors = block->alloc_tensors;
@@ -1115,7 +1115,7 @@ class CacheReadRewriterObj : public StmtExprMutatorObj {
   }
 
   UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) override {
-    auto result = StmtExprMutatorObj::Mutate_(op, inplace_mode);
+    auto result = StmtExprMutator::Mutate_(op, inplace_mode);
     if (!result.IsUnchanged()) {
       op = ffi::AnyView(result).as<CallNode>();
       if (!op->unique()) inplace_mode = InplaceMode::kDisallow;
@@ -1156,7 +1156,7 @@ class CacheReadRewriterObj : public StmtExprMutatorObj {
 
   UnchangedOr<Expr> Mutate_(const TensorRegionNode* op, InplaceMode inplace_mode) final {
     if (!op->source.as<TensorVar>()) {
-      return StmtExprMutatorObj::Mutate_(op, inplace_mode);
+      return StmtExprMutator::Mutate_(op, inplace_mode);
     }
     auto region = Mutate(op->region).as_or_throw<UnchangedOr<ffi::Array<Range>>>();
     if (region.UnchangedOrSameAs(op->region)) return ffi::Unchanged();
@@ -1183,14 +1183,14 @@ class CacheReadRewriterObj : public StmtExprMutatorObj {
   /*! \brief Arithmetic analyzer. */
   sym::Analyzer ana_;
 
-  friend ReindexCacheReadRewriterObj;
+  friend ReindexCacheReadRewriter;
 };
 
 /*! \brief Mutator for ReindexCacheRead. */
-class ReindexCacheReadRewriterObj : public CacheReadRewriterObj {
+class ReindexCacheReadRewriter : public CacheReadRewriter {
  public:
-  using CacheReadRewriterObj::Mutate;
-  using CacheReadRewriterObj::Mutate_;
+  using CacheReadRewriter::Mutate;
+  using CacheReadRewriter::Mutate_;
 
   /*!
    * \brief Rewrite the AST and add a cache_read stage with the information provided.
@@ -1199,13 +1199,13 @@ class ReindexCacheReadRewriterObj : public CacheReadRewriterObj {
    * \return The new AST rooting at the original parent scope.
    */
   static Stmt Rewrite(const StmtSRef& scope_sref, ReindexCacheStageInfo* info) {
-    auto rewriter = ffi::make_object<ReindexCacheReadRewriterObj>(scope_sref, info);
+    auto rewriter = ffi::make_object<ReindexCacheReadRewriter>(scope_sref, info);
     return rewriter->Mutate(ffi::GetRef<Stmt>(scope_sref->stmt))
         .ValueOrUnchanged(ffi::GetRef<Stmt>(scope_sref->stmt));
   }
 
-  explicit ReindexCacheReadRewriterObj(const StmtSRef& scope_sref, ReindexCacheStageInfo* info)
-      : CacheReadRewriterObj(scope_sref, info) {
+  explicit ReindexCacheReadRewriter(const StmtSRef& scope_sref, ReindexCacheStageInfo* info)
+      : CacheReadRewriter(scope_sref, info) {
     new_indices_ = info->indices;
     update_access_regions = [&](ffi::Array<TensorRegion> reads) {
       ffi::Array<TensorRegion> new_reads;
@@ -1252,20 +1252,20 @@ class ReindexCacheReadRewriterObj : public CacheReadRewriterObj {
       n->indices = new_indices_;
       return node;
     }
-    return CacheReadRewriterObj::Mutate_(load, inplace_mode);
+    return CacheReadRewriter::Mutate_(load, inplace_mode);
   }
 
   /*! \brief The indices to use for new tensor. */
   ffi::Array<PrimExpr> new_indices_;
 };
 
-class ReindexCacheWriteRewriterObj;
+class ReindexCacheWriteRewriter;
 
 /*! \brief Mutator for CacheWrite */
-class CacheWriteRewriterObj : public StmtExprMutatorObj {
+class CacheWriteRewriter : public StmtExprMutator {
  public:
-  using StmtExprMutatorObj::Mutate;
-  using StmtExprMutatorObj::Mutate_;
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
 
   /*!
    * \brief Rewrite the AST and add a cache_write stage with the information provided.
@@ -1278,14 +1278,14 @@ class CacheWriteRewriterObj : public StmtExprMutatorObj {
    */
   static Stmt Rewrite(const StmtSRef& scope_sref, const StmtSRef& writer_block_sref,
                       CacheStageInfo* info, bool cache_full_region = true) {
-    auto rewriter = ffi::make_object<CacheWriteRewriterObj>(scope_sref, writer_block_sref, info,
-                                                            cache_full_region);
+    auto rewriter = ffi::make_object<CacheWriteRewriter>(scope_sref, writer_block_sref, info,
+                                                         cache_full_region);
     return rewriter->Mutate(ffi::GetRef<Stmt>(scope_sref->stmt))
         .ValueOrUnchanged(ffi::GetRef<Stmt>(scope_sref->stmt));
   }
 
-  explicit CacheWriteRewriterObj(const StmtSRef& scope_sref, const StmtSRef& writer_block_sref,
-                                 CacheStageInfo* info, bool cache_full_region = true)
+  explicit CacheWriteRewriter(const StmtSRef& scope_sref, const StmtSRef& writer_block_sref,
+                              CacheStageInfo* info, bool cache_full_region = true)
       : scope_sref_(scope_sref),
         writer_block_sref_(writer_block_sref),
         info_(info),
@@ -1344,7 +1344,7 @@ class CacheWriteRewriterObj : public StmtExprMutatorObj {
  private:
   UnchangedOr<Stmt> Mutate_(const ForNode* loop, InplaceMode inplace_mode) final {
     Stmt stmt =
-        StmtExprMutatorObj::Mutate_(loop, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(loop));
+        StmtExprMutator::Mutate_(loop, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(loop));
     // Check the insertion point
     if (loop == info_->loc_sref.value()->stmt) {
       // Insert cache stage into the loop if it is the right place
@@ -1394,7 +1394,7 @@ class CacheWriteRewriterObj : public StmtExprMutatorObj {
     auto input_node = ffi::make_object<SBlockNode>(*block);
     input_node->alloc_tensors.clear();
     SBlock input(std::move(input_node));
-    SBlock stmt = StmtExprMutatorObj::Mutate_(input.get(), InplaceMode::kDisallow)
+    SBlock stmt = StmtExprMutator::Mutate_(input.get(), InplaceMode::kDisallow)
                       .ValueOrUnchanged(input)
                       .as_or_throw<SBlock>();
     stmt.CopyOnWrite()->alloc_tensors = block->alloc_tensors;
@@ -1463,7 +1463,7 @@ class CacheWriteRewriterObj : public StmtExprMutatorObj {
   }
 
   UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) override {
-    auto result = StmtExprMutatorObj::Mutate_(op, inplace_mode);
+    auto result = StmtExprMutator::Mutate_(op, inplace_mode);
     if (!result.IsUnchanged()) {
       op = ffi::AnyView(result).as<CallNode>();
       if (!op->unique()) inplace_mode = InplaceMode::kDisallow;
@@ -1503,7 +1503,7 @@ class CacheWriteRewriterObj : public StmtExprMutatorObj {
 
   UnchangedOr<Expr> Mutate_(const TensorRegionNode* op, InplaceMode inplace_mode) final {
     if (!op->source.as<TensorVar>()) {
-      return StmtExprMutatorObj::Mutate_(op, inplace_mode);
+      return StmtExprMutator::Mutate_(op, inplace_mode);
     }
     auto region = Mutate(op->region).as_or_throw<UnchangedOr<ffi::Array<Range>>>();
     if (region.UnchangedOrSameAs(op->region)) return ffi::Unchanged();
@@ -1532,14 +1532,14 @@ class CacheWriteRewriterObj : public StmtExprMutatorObj {
   /*! \brief Arithmetic analyzer. */
   sym::Analyzer ana_;
 
-  friend ReindexCacheWriteRewriterObj;
+  friend ReindexCacheWriteRewriter;
 };
 
 /*! \brief Mutator for ReindexCacheWrite. */
-class ReindexCacheWriteRewriterObj : public CacheWriteRewriterObj {
+class ReindexCacheWriteRewriter : public CacheWriteRewriter {
  public:
-  using CacheWriteRewriterObj::Mutate;
-  using CacheWriteRewriterObj::Mutate_;
+  using CacheWriteRewriter::Mutate;
+  using CacheWriteRewriter::Mutate_;
 
   /*!
    * \brief Rewrite the AST and add a cache_write stage with the information provided.
@@ -1551,15 +1551,14 @@ class ReindexCacheWriteRewriterObj : public CacheWriteRewriterObj {
   static Stmt Rewrite(const StmtSRef& scope_sref, const StmtSRef& writer_block_sref,
                       ReindexCacheStageInfo* info) {
     auto rewriter =
-        ffi::make_object<ReindexCacheWriteRewriterObj>(scope_sref, writer_block_sref, info);
+        ffi::make_object<ReindexCacheWriteRewriter>(scope_sref, writer_block_sref, info);
     return rewriter->Mutate(ffi::GetRef<Stmt>(scope_sref->stmt))
         .ValueOrUnchanged(ffi::GetRef<Stmt>(scope_sref->stmt));
   }
 
-  explicit ReindexCacheWriteRewriterObj(const StmtSRef& scope_sref,
-                                        const StmtSRef& writer_block_sref,
-                                        ReindexCacheStageInfo* info)
-      : CacheWriteRewriterObj(scope_sref, writer_block_sref, info) {
+  explicit ReindexCacheWriteRewriter(const StmtSRef& scope_sref, const StmtSRef& writer_block_sref,
+                                     ReindexCacheStageInfo* info)
+      : CacheWriteRewriter(scope_sref, writer_block_sref, info) {
     new_indices_ = info->indices;
     update_access_regions = [&](ffi::Array<TensorRegion> reads) {
       ffi::Array<TensorRegion> new_reads;
@@ -1664,10 +1663,9 @@ TensorVar CreateReindexTensor(const TensorVar& tensor, const ffi::Array<IterVar>
 /*!
  * \brief The schedule error that the target is not a leaf block.
  */
-class NotLeafBlockErrorObj : public ScheduleErrorContextObj {
+class NotLeafBlockError : public ScheduleErrorContextObj {
  public:
-  NotLeafBlockErrorObj(IRModule mod, SBlock block)
-      : mod_(std::move(mod)), block_(std::move(block)) {}
+  NotLeafBlockError(IRModule mod, SBlock block) : mod_(std::move(mod)), block_(std::move(block)) {}
   ffi::String FastErrorString() const final {
     return "ScheduleError: The target block is not a leaf block.";
   }
@@ -1683,7 +1681,7 @@ class NotLeafBlockErrorObj : public ScheduleErrorContextObj {
 };
 
 /*! \brief The schedule error that the tensor access is invalid for reindex. */
-class InvalidTensorAccessErrorObj : public ScheduleErrorContextObj {
+class InvalidTensorAccessError : public ScheduleErrorContextObj {
  public:
   enum class ErrorKind {
     kNoAccess,         // tensor access not found
@@ -1691,7 +1689,7 @@ class InvalidTensorAccessErrorObj : public ScheduleErrorContextObj {
     kOpaqueAccess,     // opaque access to the tensor
   };
 
-  InvalidTensorAccessErrorObj(IRModule mod, TensorVar tensor, SBlock block, ErrorKind kind)
+  InvalidTensorAccessError(IRModule mod, TensorVar tensor, SBlock block, ErrorKind kind)
       : mod_(std::move(mod)), tensor_(std::move(tensor)), block_(std::move(block)), kind_(kind) {}
   ffi::String FastErrorString() const final {
     return "ScheduleError: The target tensor should be accessed via TensorLoad or TensorStore. The "
@@ -1723,22 +1721,22 @@ class InvalidTensorAccessErrorObj : public ScheduleErrorContextObj {
 };
 
 /*! \brief Collect the related Load/Store to reindex */
-class ReIndexCollectorObj : public StmtExprVisitorObj {
+class ReIndexCollector : public StmtExprVisitor {
  public:
-  using StmtExprVisitorObj::Visit_;
+  using StmtExprVisitor::Visit_;
 
   static ffi::Array<PrimExpr> Collect(const IRModule& mod, const TensorVar& tensor,
                                       const SBlock& block) {
-    auto collector = ffi::make_object<ReIndexCollectorObj>(mod, tensor, block);
+    auto collector = ffi::make_object<ReIndexCollector>(mod, tensor, block);
     collector->Visit(block->body);
     if (!collector->tensor_access_indices_.has_value()) {
-      throw MakeScheduleError<InvalidTensorAccessErrorObj>(
-          mod, tensor, block, InvalidTensorAccessErrorObj::ErrorKind::kNoAccess);
+      throw MakeScheduleError<InvalidTensorAccessError>(
+          mod, tensor, block, InvalidTensorAccessError::ErrorKind::kNoAccess);
     }
     return collector->tensor_access_indices_.value();
   }
 
-  explicit ReIndexCollectorObj(const IRModule& mod, const TensorVar& tensor, const SBlock& block)
+  explicit ReIndexCollector(const IRModule& mod, const TensorVar& tensor, const SBlock& block)
       : mod_(mod), tensor_(tensor), block_(block) {}
 
  private:
@@ -1754,7 +1752,7 @@ class ReIndexCollectorObj : public StmtExprVisitorObj {
 
   ffi::Optional<VisitInterrupt> Visit_(const SBlockNode* block) final {
     // no sub-blocks under this block
-    throw MakeScheduleError<NotLeafBlockErrorObj>(mod_, block_);
+    throw MakeScheduleError<NotLeafBlockError>(mod_, block_);
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const TensorStoreNode* store) final {
@@ -1775,16 +1773,16 @@ class ReIndexCollectorObj : public StmtExprVisitorObj {
     } else if (!std::equal(tensor_access_indices_.value().begin(),
                            tensor_access_indices_.value().end(), indices.begin(), indices.end(),
                            prim::ExprDeepEqual())) {
-      throw MakeScheduleError<InvalidTensorAccessErrorObj>(
-          mod_, tensor_, block_, InvalidTensorAccessErrorObj::ErrorKind::kNonUniqueAccess);
+      throw MakeScheduleError<InvalidTensorAccessError>(
+          mod_, tensor_, block_, InvalidTensorAccessError::ErrorKind::kNonUniqueAccess);
     }
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const VarNode* var) final {
-    if (def_region_kind() != kTVMFFIDefRegionKindNone) return StmtExprVisitorObj::Visit_(var);
+    if (def_region_kind() != kTVMFFIDefRegionKindNone) return StmtExprVisitor::Visit_(var);
     if (var == tensor_.get()) {
-      throw MakeScheduleError<InvalidTensorAccessErrorObj>(
-          mod_, tensor_, block_, InvalidTensorAccessErrorObj::ErrorKind::kOpaqueAccess);
+      throw MakeScheduleError<InvalidTensorAccessError>(
+          mod_, tensor_, block_, InvalidTensorAccessError::ErrorKind::kOpaqueAccess);
     }
     return std::nullopt;
   }
@@ -1799,20 +1797,20 @@ class ReIndexCollectorObj : public StmtExprVisitorObj {
 };
 
 /*! \brief Mutator of ReIndex */
-class ReIndexRewriterObj : public StmtExprMutatorObj {
+class ReIndexRewriter : public StmtExprMutator {
  public:
-  using StmtExprMutatorObj::Mutate;
-  using StmtExprMutatorObj::Mutate_;
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
 
   static Stmt Rewrite(const StmtSRef& scope_sref, const StmtSRef& block_sref, CacheStageInfo* info,
                       const std::unordered_set<Var>& covered) {
-    auto rewriter = ffi::make_object<ReIndexRewriterObj>(block_sref, info, covered);
+    auto rewriter = ffi::make_object<ReIndexRewriter>(block_sref, info, covered);
     return rewriter->Mutate(ffi::GetRef<Stmt>(scope_sref->stmt))
         .ValueOrUnchanged(ffi::GetRef<Stmt>(scope_sref->stmt));
   }
 
-  explicit ReIndexRewriterObj(const StmtSRef& block_sref, CacheStageInfo* info,
-                              const std::unordered_set<Var>& covered)
+  explicit ReIndexRewriter(const StmtSRef& block_sref, CacheStageInfo* info,
+                           const std::unordered_set<Var>& covered)
       : block_sref_(block_sref),
         info_(info),
         covered_(covered),
@@ -1825,7 +1823,7 @@ class ReIndexRewriterObj : public StmtExprMutatorObj {
     SBlock old_stmt = ffi::GetRef<SBlock>(block);
     if (is_scope_) {
       is_scope_ = false;
-      SBlock stmt = StmtExprMutatorObj::Mutate_(block, inplace_mode)
+      SBlock stmt = StmtExprMutator::Mutate_(block, inplace_mode)
                         .ValueOrUnchanged(ffi::GetRef<Stmt>(block))
                         .as_or_throw<SBlock>();
       // Insert cache stage into the loop
@@ -1846,7 +1844,7 @@ class ReIndexRewriterObj : public StmtExprMutatorObj {
           region_.push_back(Range::FromMinExtent(iter->var, IntImm(iter->var.ty(), 1)));
         }
       }
-      SBlock stmt = StmtExprMutatorObj::Mutate_(block, inplace_mode)
+      SBlock stmt = StmtExprMutator::Mutate_(block, inplace_mode)
                         .ValueOrUnchanged(ffi::GetRef<Stmt>(block))
                         .as_or_throw<SBlock>();
       // Update block reads/writes to use the intermediate reindex tensor
@@ -1927,9 +1925,9 @@ class ReIndexRewriterObj : public StmtExprMutatorObj {
 };
 
 void CheckRegionCover(const ScheduleState& self, StmtSRef scope_root, TensorVar read_tensor) {
-  class NotRegionCoverErrorObj : public ScheduleErrorContextObj {
+  class NotRegionCoverError : public ScheduleErrorContextObj {
    public:
-    explicit NotRegionCoverErrorObj(IRModule mod, SBlock block) : mod_(mod), block_(block) {}
+    explicit NotRegionCoverError(IRModule mod, SBlock block) : mod_(mod), block_(block) {}
     IRModule mod() const final { return mod_; }
     ffi::String FastErrorString() const final {
       return "ScheduleError: The scope root's region cover is not complete.";
@@ -1950,7 +1948,7 @@ The region cover property require to hold for every of its child blocks
       if (region->source.as_or_throw<tvm::tirx::TensorVar>().same_as(read_tensor)) {
         if (!self->block_info.at(child_block_sref).region_cover) {
           const SBlockNode* block = TVM_SREF_TO_SBLOCK(scope_root);
-          throw MakeScheduleError<NotRegionCoverErrorObj>(self->mod, ffi::GetRef<SBlock>(block));
+          throw MakeScheduleError<NotRegionCoverError>(self->mod, ffi::GetRef<SBlock>(block));
         }
       }
     }
@@ -2008,8 +2006,7 @@ StmtSRef CacheRead(ScheduleState self, const StmtSRef& block_sref, int read_tens
       StmtSRef parent_sref = ffi::GetRef<StmtSRef>(write_block_sref->parent);
 
       // Detect insert position
-      CacheLocDetectorObj::Detect</*is_cache_read=*/true>(self, write_block_sref, scope_sref,
-                                                          &info);
+      CacheLocDetector::Detect</*is_cache_read=*/true>(self, write_block_sref, scope_sref, &info);
       return RelaxTensorRegion(self, region, write_block_sref, parent_sref, info.loc_sref);
     } else {
       // Case 2. The tensor is the input block for the scope.
@@ -2059,8 +2056,8 @@ StmtSRef CacheRead(ScheduleState self, const StmtSRef& block_sref, int read_tens
   SBlock cache_read_stage =
       MakeCacheStage(/*cache_region=*/cache_region, /*info=*/&info,
                      /*storage_scope=*/storage_scope, /*cache_full_region=*/cache_full_region);
-  Stmt new_scope = CacheReadRewriterObj::Rewrite(/*scope_sref=*/scope_sref, /*info=*/&info,
-                                                 /*cache_full_region=*/cache_full_region);
+  Stmt new_scope = CacheReadRewriter::Rewrite(/*scope_sref=*/scope_sref, /*info=*/&info,
+                                              /*cache_full_region=*/cache_full_region);
 
   // Step 5. Replacing and updating flags.
   self->Replace(scope_sref, new_scope, info.block_reuse);
@@ -2115,7 +2112,7 @@ StmtSRef CacheWrite(ScheduleState self, const StmtSRef& block_sref, int write_te
   // Step 4. Find the producing region and insert position
   TensorRegion region = GetTensorRegionFromTensor(block->writes, write_tensor).value();
   // Detect insert position
-  CacheLocDetectorObj::Detect</*is_cache_read=*/false>(self, block_sref, scope_sref, &info);
+  CacheLocDetector::Detect</*is_cache_read=*/false>(self, block_sref, scope_sref, &info);
   // Collect predicates from any nested blocks that gate the actual write (e.g. T.where on an
   // inner block). The outer block's own predicate may be trivially true even though the write
   // is restricted by a nested predicate, so we OR them together for a tighter region estimate.
@@ -2151,9 +2148,9 @@ StmtSRef CacheWrite(ScheduleState self, const StmtSRef& block_sref, int write_te
   SBlock cache_write_stage =
       MakeCacheStage(/*cache_region=*/cache_region, /*info=*/&info,
                      /*storage_scope=*/storage_scope, /*cache_full_region=*/cache_full_region);
-  Stmt new_scope = CacheWriteRewriterObj::Rewrite(/*scope_sref=*/scope_sref,
-                                                  /*writer_block_sref=*/block_sref, /*info=*/&info,
-                                                  /*cache_full_region=*/cache_full_region);
+  Stmt new_scope = CacheWriteRewriter::Rewrite(/*scope_sref=*/scope_sref,
+                                               /*writer_block_sref=*/block_sref, /*info=*/&info,
+                                               /*cache_full_region=*/cache_full_region);
 
   // Step 6. Replacing and updating flags.
   self->Replace(scope_sref, new_scope, info.block_reuse);
@@ -2180,12 +2177,12 @@ ffi::Array<StmtSRef> GetLoopsUnderScope(const StmtSRef& block_sref,
  * \brief The schedule error that block iter vars appears in old tensor and new
  * allocated cache tensor does not match.
  */
-class ReindexCacheReadWriteNotMatchErrorObj : public ScheduleErrorContextObj {
+class ReindexCacheReadWriteNotMatchError : public ScheduleErrorContextObj {
  public:
-  ReindexCacheReadWriteNotMatchErrorObj(IRModule mod, SBlock block, Var var,
-                                        ffi::Array<PrimExpr> old_indices,
-                                        ffi::Array<PrimExpr> new_indices, bool is_cache_read,
-                                        bool appears_in_old)
+  ReindexCacheReadWriteNotMatchError(IRModule mod, SBlock block, Var var,
+                                     ffi::Array<PrimExpr> old_indices,
+                                     ffi::Array<PrimExpr> new_indices, bool is_cache_read,
+                                     bool appears_in_old)
       : mod_(std::move(mod)), block_(std::move(block)), var_(std::move(var)) {
     primitive_name_ = is_cache_read ? "reindex_cache_read" : "reindex_cache_write";
     if (appears_in_old) {
@@ -2263,7 +2260,7 @@ void CollectReindexCacheStageInfoAndCreateTensor(
     bool appears_in_new = new_vars.count(block_iter_var->var);
     bool appears_in_old = old_vars.count(block_iter_var->var);
     if (appears_in_new != appears_in_old) {
-      throw MakeScheduleError<ReindexCacheReadWriteNotMatchErrorObj>(
+      throw MakeScheduleError<ReindexCacheReadWriteNotMatchError>(
           mod, block, block_iter_var->var, old_indices, new_indices, is_cache_read, appears_in_old);
     }
     if (appears_in_new) {
@@ -2308,7 +2305,7 @@ void CheckSinglePoint(ScheduleState self, const SBlock& block, const TensorRegio
     }
   }
   if (!single_point) {
-    throw MakeScheduleError<NotSinglePointAccessObj>(self->mod, block, cache_region, is_cache_read);
+    throw MakeScheduleError<NotSinglePointAccess>(self->mod, block, cache_region, is_cache_read);
   }
 }
 
@@ -2352,7 +2349,7 @@ StmtSRef ReindexCacheRead(ScheduleState self, const StmtSRef& block_sref, int re
     // Find the producing region
     StmtSRef parent_sref = ffi::GetRef<StmtSRef>(write_block_sref->parent);
     // Detect insert position
-    CacheLocDetectorObj::Detect</*is_cache_read=*/true>(self, write_block_sref, scope_sref, &info);
+    CacheLocDetector::Detect</*is_cache_read=*/true>(self, write_block_sref, scope_sref, &info);
   } else {
     // Case 2. The tensor is the input block for the scope.
     info.loc_sref = scope_sref;
@@ -2372,7 +2369,7 @@ StmtSRef ReindexCacheRead(ScheduleState self, const StmtSRef& block_sref, int re
       MakeReindexCacheStage</*is_cache_read=*/true>(/*cache_region=*/cache_region,
                                                     /*info=*/&info,
                                                     /*storage_scope=*/storage_scope);
-  Stmt new_scope = ReindexCacheReadRewriterObj::Rewrite(/*scope_sref=*/scope_sref, /*info=*/&info);
+  Stmt new_scope = ReindexCacheReadRewriter::Rewrite(/*scope_sref=*/scope_sref, /*info=*/&info);
 
   // Step 7. Replacing and updating flags.
   self->Replace(scope_sref, new_scope, info.block_reuse);
@@ -2422,7 +2419,7 @@ StmtSRef ReindexCacheWrite(ScheduleState self, const StmtSRef& block_sref, int w
       << write_tensor << " should appear in the block's write region";
   StmtSRef parent_sref = ffi::GetRef<StmtSRef>(block_sref->parent);
   // Detect insert position
-  CacheLocDetectorObj::Detect</*is_cache_read=*/false>(self, block_sref, scope_sref, &info);
+  CacheLocDetector::Detect</*is_cache_read=*/false>(self, block_sref, scope_sref, &info);
   TensorRegion cache_region = maybe_region.value();
 
   CollectReindexCacheStageInfoAndCreateTensor</*is_cache_read=*/false>(
@@ -2437,7 +2434,7 @@ StmtSRef ReindexCacheWrite(ScheduleState self, const StmtSRef& block_sref, int w
       MakeReindexCacheStage</*is_cache_read=*/false>(/*cache_region=*/cache_region,
                                                      /*info=*/&info,
                                                      /*storage_scope=*/storage_scope);
-  Stmt new_scope = ReindexCacheWriteRewriterObj::Rewrite(
+  Stmt new_scope = ReindexCacheWriteRewriter::Rewrite(
       /*scope_sref=*/scope_sref,
       /*writer_block_sref=*/block_sref, /*info=*/&info);
 
@@ -2452,9 +2449,9 @@ StmtSRef ReindexCacheWrite(ScheduleState self, const StmtSRef& block_sref, int w
 }
 
 /*! \brief The schedule error that the target block doesn't both read&write target tensor. */
-class NotReadWriteErrorObj : public ScheduleErrorContextObj {
+class NotReadWriteError : public ScheduleErrorContextObj {
  public:
-  NotReadWriteErrorObj(IRModule mod, SBlock block, TensorVar tensor)
+  NotReadWriteError(IRModule mod, SBlock block, TensorVar tensor)
       : mod_(std::move(mod)), block_(std::move(block)), tensor_(std::move(tensor)) {}
   ffi::String FastErrorString() const final {
     return "ScheduleError: The target block does not both read & write target tensor.";
@@ -2494,7 +2491,7 @@ ffi::Array<StmtSRef> CacheInplace(ScheduleState self, const StmtSRef& block_sref
   ffi::Optional<TensorRegion> read_region = GetTensorRegionFromTensor(rw_block->reads, tensor);
   ffi::Optional<TensorRegion> write_region = GetTensorRegionFromTensor(rw_block->writes, tensor);
   if (!read_region.has_value() || !write_region.has_value()) {
-    throw MakeScheduleError<NotReadWriteErrorObj>(self->mod, ffi::GetRef<SBlock>(rw_block), tensor);
+    throw MakeScheduleError<NotReadWriteError>(self->mod, ffi::GetRef<SBlock>(rw_block), tensor);
   }
 
   ffi::Array<StmtSRef> results_block_sref;
@@ -2512,12 +2509,12 @@ ffi::Array<StmtSRef> CacheInplace(ScheduleState self, const StmtSRef& block_sref
   info.consumer_blocks.insert(block_sref);
 
   // Cache read step 1. Detect insert position
-  CacheInplaceLocDetectorObj::Detect(self, block_sref, scope_sref, &info);
+  CacheInplaceLocDetector::Detect(self, block_sref, scope_sref, &info);
 
   // Cache read step 2. Making new cache stage block and rewrite readers.
   SBlock cache_read_stage = MakeCacheStage(/*cache_region=*/read_region.value(), /*info=*/&info,
                                            /*storage_scope=*/storage_scope);
-  Stmt new_scope = CacheReadRewriterObj::Rewrite(/*scope_sref=*/scope_sref, /*info=*/&info);
+  Stmt new_scope = CacheReadRewriter::Rewrite(/*scope_sref=*/scope_sref, /*info=*/&info);
 
   // Cache read step 3. Replacing and updating flags for cache read.
   self->Replace(scope_sref, new_scope, info.block_reuse);
@@ -2538,15 +2535,15 @@ ffi::Array<StmtSRef> CacheInplace(ScheduleState self, const StmtSRef& block_sref
   info.consumer_blocks.clear();
 
   // Cache write step 1. Detect insert position
-  CacheInplaceLocDetectorObj::Detect(self, block_sref, scope_sref, &info);
+  CacheInplaceLocDetector::Detect(self, block_sref, scope_sref, &info);
   // insert after target block for cache write
   info.loc_pos += 1;
 
   // Cache write step 2. Making new cache stage block and rewrite readers.
   SBlock cache_write_stage = MakeCacheStage(/*cache_region=*/write_region.value(), /*info=*/&info,
                                             /*storage_scope=*/storage_scope);
-  new_scope = CacheWriteRewriterObj::Rewrite(/*scope_sref=*/scope_sref,
-                                             /*writer_block_sref=*/block_sref, /*info=*/&info);
+  new_scope = CacheWriteRewriter::Rewrite(/*scope_sref=*/scope_sref,
+                                          /*writer_block_sref=*/block_sref, /*info=*/&info);
 
   // Cache write step 4. Replacing and updating flags for cache write.
   self->Replace(scope_sref, new_scope, info.block_reuse);
@@ -2570,7 +2567,7 @@ StmtSRef ReIndex(ScheduleState self, const StmtSRef& block_sref, int tensor_inde
 
   // Step 1. Collect the original indices and check there's only single pattern of related
   // Load/Store and the tensor is not accessed opaquely
-  ffi::Array<PrimExpr> original_indices = ReIndexCollectorObj::Collect(self->mod, tensor, block);
+  ffi::Array<PrimExpr> original_indices = ReIndexCollector::Collect(self->mod, tensor, block);
   // Simplify the indices if possible
   for (const IterVar& iter : block->iter_vars) {
     analyzer->Bind(iter->var, iter->dom.value());
@@ -2620,7 +2617,7 @@ StmtSRef ReIndex(ScheduleState self, const StmtSRef& block_sref, int tensor_inde
   // Step 4. Making new reindex stage block and rewrite
   SBlock reindex_stage =
       MakeReIndexStage(block, &info, covered, original_indices, tensor_index, tensor_index_type);
-  Stmt new_scope = ReIndexRewriterObj::Rewrite(scope_sref, block_sref, &info, covered);
+  Stmt new_scope = ReIndexRewriter::Rewrite(scope_sref, block_sref, &info, covered);
 
   // Step 5. Replacing and updating flags
   self->Replace(scope_sref, new_scope, info.block_reuse);

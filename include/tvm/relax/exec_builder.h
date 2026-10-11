@@ -135,12 +135,12 @@ class ExecBuilderObj : public ffi::Object {
   /*!
    * \brief Raw access to underlying executable build in progress.
    */
-  vm::VMExecutableObj* exec() const;
+  vm::VMExecutable* exec() const;
   /*!
    * \brief Finalize the build, run formalize and get the final result.
    * \note This function should not be called during construction.
    */
-  ffi::ObjectPtr<vm::VMExecutableObj> Get();
+  ffi::ObjectPtr<vm::VMExecutable> Get();
   /*!
    * \brief Create an ExecBuilder.
    * \return The ExecBuilder.
@@ -177,7 +177,7 @@ class ExecBuilderObj : public ffi::Object {
   void Formalize();
 
   /*! \brief The mutable internal executable. */
-  ffi::ObjectPtr<vm::VMExecutableObj> exec_;  // mutable
+  ffi::ObjectPtr<vm::VMExecutable> exec_;  // mutable
   /*! \brief internal dedup map when creating index for a new constant */
   std::unordered_map<ffi::Any, vm::Index, ffi::StructuralHash, ffi::StructuralEqual>
       const_dedup_map_;

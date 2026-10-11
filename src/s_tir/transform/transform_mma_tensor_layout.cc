@@ -45,10 +45,10 @@ using namespace tvm::tirx;
  *   supported for sm90 or higher. Therefore, writeback of matrixC is limited to the
  *   transparent way.
  */
-class MmaTensorLayoutTransformerObj : public StmtExprMutatorObj {
+class MmaTensorLayoutTransformer : public StmtExprMutator {
  public:
-  using StmtExprMutatorObj::Mutate;
-  using StmtExprMutatorObj::Mutate_;
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
 
   UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) {
     SBlock block = ffi::GetRef<SBlock>(op);
@@ -196,7 +196,7 @@ namespace transform {
 Pass TransformMmaTensorLayout() {
   auto pass_func = [=](Function f, IRModule m, PassContext ctx) {
     auto* n = f.CopyOnWrite();
-    n->body = ffi::make_object<MmaTensorLayoutTransformerObj>()
+    n->body = ffi::make_object<MmaTensorLayoutTransformer>()
                   ->Mutate(n->body, InplaceMode::kAllow)
                   .ValueOrUnchanged(std::move(n->body));
     return f;

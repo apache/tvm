@@ -27,17 +27,17 @@ namespace s_tir {
 using namespace tvm::tirx;
 
 /*! \brief Find all the blocks that are not bound */
-class UnboundBlockFinderObj : public StmtExprVisitorObj {
+class UnboundBlockFinder : public StmtExprVisitor {
  public:
-  using StmtExprVisitorObj::Visit_;
+  using StmtExprVisitor::Visit_;
 
   ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
     if (value.as<ExprNode>()) return std::nullopt;
-    return StmtExprVisitorObj::Visit(value);
+    return StmtExprVisitor::Visit(value);
   }
 
   static std::vector<std::pair<StmtSRef, ffi::String>> Find(const ScheduleState& self) {
-    auto finder = ffi::make_object<UnboundBlockFinderObj>(self);
+    auto finder = ffi::make_object<UnboundBlockFinder>(self);
     for (const auto& kv : self->mod->functions) {
       GlobalVar g_var = kv.first;
       BaseFunc base_func = kv.second;
@@ -60,7 +60,7 @@ class UnboundBlockFinderObj : public StmtExprVisitorObj {
       ++n_thread_idx_;
     }
     if (n_block_idx_ == 0 || n_thread_idx_ == 0) {
-      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitorObj::Visit_(loop));
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(loop));
     }
     if (IsBlockIdx(thread_scope)) {
       --n_block_idx_;
@@ -76,7 +76,7 @@ class UnboundBlockFinderObj : public StmtExprVisitorObj {
   }
 
  public:
-  explicit UnboundBlockFinderObj(const ScheduleState& self)
+  explicit UnboundBlockFinder(const ScheduleState& self)
       : self_{self}, blocks_{}, n_block_idx_{0}, n_thread_idx_{0} {}
 
  private:
@@ -144,7 +144,7 @@ bool RewriteUnboundBlockObj::Apply(const s_tir::Schedule& sch) {
     return IntImm::Int32(std::min(t, max_extent));
   };
   std::vector<std::pair<tirx::StmtSRef, ffi::String>> unbound_blocks =
-      s_tir::UnboundBlockFinderObj::Find(sch->state());
+      s_tir::UnboundBlockFinder::Find(sch->state());
   for (const auto& kv : unbound_blocks) {
     tirx::StmtSRef block_sref = kv.first;
     ffi::String global_var_name = kv.second;

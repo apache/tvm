@@ -34,25 +34,25 @@
 namespace tvm {
 namespace relax {
 
-void ROIAlignAttrsNode::RegisterReflection() {
+void ROIAlignAttrs::RegisterReflection() {
   namespace refl = tvm::ffi::reflection;
-  refl::ObjectDef<ROIAlignAttrsNode>()
-      .def_ro("pooled_size", &ROIAlignAttrsNode::pooled_size, "Output size of roi align.")
-      .def_ro("spatial_scale", &ROIAlignAttrsNode::spatial_scale,
+  refl::ObjectDef<ROIAlignAttrs>()
+      .def_ro("pooled_size", &ROIAlignAttrs::pooled_size, "Output size of roi align.")
+      .def_ro("spatial_scale", &ROIAlignAttrs::spatial_scale,
               "Ratio of input feature map height (or width) to raw image height (or width).")
-      .def_ro("sample_ratio", &ROIAlignAttrsNode::sample_ratio,
+      .def_ro("sample_ratio", &ROIAlignAttrs::sample_ratio,
               "Optional sampling ratio of ROI align, using adaptive size by default.",
               refl::DefaultValue(-1))
-      .def_ro("aligned", &ROIAlignAttrsNode::aligned,
+      .def_ro("aligned", &ROIAlignAttrs::aligned,
               "Whether to use the aligned ROIAlign semantics without the legacy 1-pixel clamp.",
               refl::DefaultValue(false))
-      .def_ro("layout", &ROIAlignAttrsNode::layout, "Dimension ordering of the input data.",
+      .def_ro("layout", &ROIAlignAttrs::layout, "Dimension ordering of the input data.",
               refl::DefaultValue(ffi::String("NCHW")))
-      .def_ro("mode", &ROIAlignAttrsNode::mode, "Mode for ROI Align. Can be 'avg' or 'max'.",
+      .def_ro("mode", &ROIAlignAttrs::mode, "Mode for ROI Align. Can be 'avg' or 'max'.",
               refl::DefaultValue(ffi::String("avg")));
 }
 
-TVM_FFI_STATIC_INIT_BLOCK() { ROIAlignAttrsNode::RegisterReflection(); }
+TVM_FFI_STATIC_INIT_BLOCK() { ROIAlignAttrs::RegisterReflection(); }
 
 Expr roi_align(Expr data, Expr rois, ffi::Array<int64_t> pooled_size, double spatial_scale,
                int sample_ratio, bool aligned, ffi::String layout, ffi::String mode) {
@@ -63,7 +63,7 @@ Expr roi_align(Expr data, Expr rois, ffi::Array<int64_t> pooled_size, double spa
       << "The input pooled_size length is expected to be 2. However, the given pooled_size is "
       << pooled_size;
 
-  auto attrs = ffi::make_object<ROIAlignAttrsNode>();
+  auto attrs = ffi::make_object<ROIAlignAttrs>();
   attrs->pooled_size = std::move(pooled_size);
   attrs->spatial_scale = spatial_scale;
   attrs->sample_ratio = sample_ratio;
@@ -112,7 +112,7 @@ Type InferTypeROIAlign(const CallNode* call_node) {
         << rois_ty->ndim;
   }
 
-  const auto* attrs = call->attrs.as<ROIAlignAttrsNode>();
+  const auto* attrs = call->attrs.as<ROIAlignAttrs>();
   TVM_FFI_ICHECK(attrs != nullptr) << "Invalid ROIAlign attrs";
   if (attrs->layout != "NCHW" && attrs->layout != "NHWC") {
     TVM_FFI_VISIT_THROW(ValueError, call)
@@ -156,7 +156,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
           sig::arg("data", "The input tensor."),
           sig::arg("rois",
                    "The input rois with shape (num_roi, 5) in [batch_idx, x1, y1, x2, y2] format."),
-          sig::call_attrs<ROIAlignAttrsNode>())
+          sig::call_attrs<ROIAlignAttrs>())
       .set_attr<FInferType>(tvm::op_attr::kInferType, FInferType::FromNative<&InferTypeROIAlign>())
       .set_attr<TMixedPrecisionPolicy>(tvm::relax::op_attr::kMixedPrecisionPolicy,
                                        MixedPrecisionPolicyKind::kFollow)

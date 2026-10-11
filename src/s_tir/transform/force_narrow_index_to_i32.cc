@@ -36,21 +36,21 @@ namespace tvm {
 namespace s_tir {
 using namespace tvm::tirx;
 
-class Int32DTypeNarrowerObj : public Int32DTypeNarrowerBaseObj<IndexDataTypeNormalizerObj> {
+class Int32DTypeNarrower : public Int32DTypeNarrowerBase<IndexDataTypeNormalizer> {
  public:
-  using Int32DTypeNarrowerBaseObj::Mutate;
-  using Int32DTypeNarrowerBaseObj::Mutate_;
+  using Int32DTypeNarrowerBase::Mutate;
+  using Int32DTypeNarrowerBase::Mutate_;
   static Function RewriteDataType(Function func) {
     CheckTensorParams(func);
-    auto narrower = ffi::make_object<Int32DTypeNarrowerObj>(func);
+    auto narrower = ffi::make_object<Int32DTypeNarrower>(func);
     return narrower->Rewrite(func);
   }
 
-  explicit Int32DTypeNarrowerObj(Function func) : Int32DTypeNarrowerBaseObj(std::move(func)) {}
+  explicit Int32DTypeNarrower(Function func) : Int32DTypeNarrowerBase(std::move(func)) {}
 
  private:
   UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) final {
-    auto result = IndexDataTypeNormalizerObj::Mutate_(op, inplace_mode);
+    auto result = IndexDataTypeNormalizer::Mutate_(op, inplace_mode);
     auto block = std::move(result).ValueOrUnchanged(ffi::GetRef<Stmt>(op)).as_or_throw<SBlock>();
     for (const TensorVar& tensor : block->alloc_tensors) {
       CheckAllocatedTensor(tensor);
@@ -63,7 +63,7 @@ namespace transform {
 
 Pass ForceNarrowIndexToInt32() {
   auto pass_func = [](Function f, IRModule m, PassContext ctx) {
-    return Int32DTypeNarrowerObj::RewriteDataType(std::move(f));
+    return Int32DTypeNarrower::RewriteDataType(std::move(f));
   };
   return CreateFunctionPass(pass_func, 0, "s_tir.ForceNarrowIndexToInt32");
 }

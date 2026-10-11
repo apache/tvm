@@ -35,26 +35,26 @@
 namespace tvm {
 namespace relax {
 
-void MultiboxTransformLocAttrsNode::RegisterReflection() {
+void MultiboxTransformLocAttrs::RegisterReflection() {
   namespace refl = tvm::ffi::reflection;
-  refl::ObjectDef<MultiboxTransformLocAttrsNode>()
-      .def_ro("clip", &MultiboxTransformLocAttrsNode::clip,
+  refl::ObjectDef<MultiboxTransformLocAttrs>()
+      .def_ro("clip", &MultiboxTransformLocAttrs::clip,
               "Clip decoded ymin,xmin,ymax,xmax to [0,1].", refl::DefaultValue(false))
-      .def_ro("threshold", &MultiboxTransformLocAttrsNode::threshold,
+      .def_ro("threshold", &MultiboxTransformLocAttrs::threshold,
               "After softmax, zero scores strictly below this value.", refl::DefaultValue(0.0))
-      .def_ro("variances", &MultiboxTransformLocAttrsNode::variances,
+      .def_ro("variances", &MultiboxTransformLocAttrs::variances,
               "(x,y,w,h) scales = TFLite 1/x_scale,1/y_scale,1/w_scale,1/h_scale on "
               "encodings. Very large w/h scales can overflow exp in decode.",
               refl::DefaultValue(ffi::Array<double>{1.0, 1.0, 1.0, 1.0}))
-      .def_ro("keep_background", &MultiboxTransformLocAttrsNode::keep_background,
+      .def_ro("keep_background", &MultiboxTransformLocAttrs::keep_background,
               "If false, force output scores[:,0,:] to 0 (background class).",
               refl::DefaultValue(true))
-      .def_ro("apply_softmax", &MultiboxTransformLocAttrsNode::apply_softmax,
+      .def_ro("apply_softmax", &MultiboxTransformLocAttrs::apply_softmax,
               "Whether to apply softmax to class predictions before thresholding.",
               refl::DefaultValue(true));
 }
 
-TVM_FFI_STATIC_INIT_BLOCK() { MultiboxTransformLocAttrsNode::RegisterReflection(); }
+TVM_FFI_STATIC_INIT_BLOCK() { MultiboxTransformLocAttrs::RegisterReflection(); }
 
 Expr multibox_transform_loc(Expr cls_pred, Expr loc_pred, Expr anchor, bool clip, double threshold,
                             ffi::Array<double> variances, bool keep_background,
@@ -62,7 +62,7 @@ Expr multibox_transform_loc(Expr cls_pred, Expr loc_pred, Expr anchor, bool clip
   TVM_FFI_ICHECK_EQ(variances.size(), 4)
       << "multibox_transform_loc: variances must be length 4 (x,y,w,h), got " << variances.size();
 
-  auto attrs = ffi::make_object<MultiboxTransformLocAttrsNode>();
+  auto attrs = ffi::make_object<MultiboxTransformLocAttrs>();
   attrs->clip = clip;
   attrs->threshold = threshold;
   attrs->variances = std::move(variances);
@@ -218,7 +218,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                  sig::arg("loc_pred",
                           "[B,4*N] box encodings (x,y,w,h); TFLite yxhw order remapped to xywh."),
                  sig::arg("anchor", "[1,N,4] priors as ltrb (left,top,right,bottom)."),
-                 sig::call_attrs<MultiboxTransformLocAttrsNode>())
+                 sig::call_attrs<MultiboxTransformLocAttrs>())
       .set_attr<FInferType>(tvm::op_attr::kInferType,
                             FInferType::FromNative<&InferTypeMultiboxTransformLoc>())
       .set_attr<bool>(tvm::relax::op_attr::kPurity, true);

@@ -40,15 +40,15 @@ namespace s_tir {
 using namespace tvm::tirx;
 
 /*! \brief Generate surrounding loops automatically */
-class ScriptCompleterObj : public s_tir::StmtExprMutatorObj {
+class ScriptCompleter : public s_tir::StmtExprMutator {
  public:
-  using s_tir::StmtExprMutatorObj::Mutate;
+  using s_tir::StmtExprMutator::Mutate;
   UnchangedOr<ffi::Any> Mutate(ffi::AnyView value, InplaceMode inplace_mode) final {
     if (value.as<ExprNode>()) return ffi::Unchanged();
-    return s_tir::StmtExprMutatorObj::Mutate(value, inplace_mode);
+    return s_tir::StmtExprMutator::Mutate(value, inplace_mode);
   }
 
-  explicit ScriptCompleterObj(ffi::Map<Var, TensorVar>* tensor_var_map)
+  explicit ScriptCompleter(ffi::Map<Var, TensorVar>* tensor_var_map)
       : tensor_var_map_(tensor_var_map) {}
 
  private:
@@ -65,7 +65,7 @@ class ScriptCompleterObj : public s_tir::StmtExprMutatorObj {
       TVM_FFI_ICHECK(value_ty.code() == DLDataTypeCode::kDLInt)
           << "BlockRealize iter_value expected a IntImm, but got " << value_ty->dtype;
     }
-    return s_tir::StmtExprMutatorObj::Mutate_(op, inplace_mode);
+    return s_tir::StmtExprMutator::Mutate_(op, inplace_mode);
   }
 
   UnchangedOr<Stmt> Mutate_(const s_tir::SBlockNode* op, InplaceMode inplace_mode) final {
@@ -80,7 +80,7 @@ class ScriptCompleterObj : public s_tir::StmtExprMutatorObj {
 
     bool is_root_block = this->is_root_block_;
     this->is_root_block_ = false;
-    s_tir::SBlock block = s_tir::StmtExprMutatorObj::Mutate_(op, inplace_mode)
+    s_tir::SBlock block = s_tir::StmtExprMutator::Mutate_(op, inplace_mode)
                               .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
                               .as_or_throw<s_tir::SBlock>();
     this->is_root_block_ = is_root_block;
@@ -123,8 +123,8 @@ class ScriptCompleterObj : public s_tir::StmtExprMutatorObj {
   }
 
   UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final {
-    Stmt stmt = s_tir::StmtExprMutatorObj::Mutate_(op, inplace_mode)
-                    .ValueOrUnchanged(ffi::GetRef<Stmt>(op));
+    Stmt stmt =
+        s_tir::StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     const Var& var = stmt.as<BindNode>()->var;
     // A flat definition registers its tensor for access detection in subsequent siblings.
     if (auto tensor = var.as<TensorVar>(); tensor && !tensor_var_map_->count(var)) {
@@ -153,7 +153,7 @@ Function ScriptComplete(Function func, const ffi::Array<TensorVar>& root_allocat
   Stmt res = func->body.value();
 
   // Generate root block automatically.  This is done before
-  // ScriptCompleterObj, in order to fill the root block's Ts.reads() and
+  // ScriptCompleter, in order to fill the root block's Ts.reads() and
   // Ts.writes() annotations, as if it had been explicitly written.
   bool should_insert_root = [&]() -> bool {
     if (root_allocates.size()) {
@@ -182,7 +182,7 @@ Function ScriptComplete(Function func, const ffi::Array<TensorVar>& root_allocat
   }
 
   // generate surrounding loops automatically
-  auto script_completer = ffi::make_object<ScriptCompleterObj>(&tensor_var_map);
+  auto script_completer = ffi::make_object<ScriptCompleter>(&tensor_var_map);
   res = script_completer->Mutate(res, InplaceMode::kAllow).ValueOrUnchanged(std::move(res));
 
   if (func->body.same_as(res)) {

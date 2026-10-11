@@ -30,31 +30,29 @@ namespace tvm {
 namespace relax {
 
 /*! \brief Attributes used in take operator */
-struct TakeAttrsNode : public AttrsNode {
+struct TakeAttrs : public AttrsNode {
   ffi::Optional<int64_t> axis;
   ffi::String mode;
 
   static void RegisterReflection();
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.TakeAttrs", TakeAttrsNode, AttrsNode);
-};  // struct TakeAttrsNode
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.TakeAttrs", TakeAttrs, AttrsNode);
+};  // struct TakeAttrs
 
 /*! \brief Attributes used in take_backward operator */
-struct TakeBackwardAttrsNode : public AttrsNode {
+struct TakeBackwardAttrs : public AttrsNode {
   ffi::Optional<int64_t> axis;
 
   static void RegisterReflection();
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.TakeBackwardAttrs", TakeBackwardAttrsNode,
-                                    AttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.TakeBackwardAttrs", TakeBackwardAttrs, AttrsNode);
 };
 
 /*! \brief Attributes used in strided_slice operator */
-struct StridedSliceAttrsNode : public AttrsNode {
+struct StridedSliceAttrs : public AttrsNode {
   bool assume_inbound;
 
   static void RegisterReflection();
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.StridedSliceAttrs", StridedSliceAttrsNode,
-                                    AttrsNode);
-};  // struct StridedSliceAttrsNode
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.StridedSliceAttrs", StridedSliceAttrs, AttrsNode);
+};  // struct StridedSliceAttrs
 
 }  // namespace relax
 }  // namespace tvm

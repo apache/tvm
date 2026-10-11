@@ -197,18 +197,18 @@ class AutoPadder {
    * \return the stmt after replacement
    */
   Stmt RewriteTensorAccess(const Stmt& stmt) {
-    class RewriterObj : public StmtExprMutatorObj {
+    class Rewriter : public StmtExprMutator {
      public:
-      using StmtExprMutatorObj::Mutate;
-      using StmtExprMutatorObj::Mutate_;
+      using StmtExprMutator::Mutate;
+      using StmtExprMutator::Mutate_;
 
-      explicit RewriterObj(const ffi::Map<TensorVar, TensorVar>& tensor_map) {
+      explicit Rewriter(const ffi::Map<TensorVar, TensorVar>& tensor_map) {
         for (const auto& [tensor, replacement] : tensor_map) VarRemapSet(tensor, replacement);
       }
 
      private:
       UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* _op, InplaceMode inplace_mode) final {
-        TensorLoad load = StmtExprMutatorObj::Mutate_(_op, inplace_mode)
+        TensorLoad load = StmtExprMutator::Mutate_(_op, inplace_mode)
                               .ValueOrUnchanged(ffi::GetRef<PrimExpr>(_op))
                               .as_or_throw<TensorLoad>();
         TensorVar tensor = load->source.as_or_throw<tvm::tirx::TensorVar>();
@@ -219,7 +219,7 @@ class AutoPadder {
       }
 
       UnchangedOr<Stmt> Mutate_(const TensorStoreNode* _op, InplaceMode inplace_mode) final {
-        TensorStore store = StmtExprMutatorObj::Mutate_(_op, inplace_mode)
+        TensorStore store = StmtExprMutator::Mutate_(_op, inplace_mode)
                                 .ValueOrUnchanged(ffi::GetRef<Stmt>(_op))
                                 .as_or_throw<TensorStore>();
         TensorStoreNode* op = store.CopyOnWrite();
@@ -274,7 +274,7 @@ class AutoPadder {
         }
         // Step 5. Recursively mutate the block.
         Stmt res =
-            StmtExprMutatorObj::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
+            StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
         if (res.get() != op) {
           changed = true;
         }
@@ -291,7 +291,7 @@ class AutoPadder {
         }
       }
     };
-    auto rewriter = ffi::make_object<RewriterObj>(padded_tensor_map_);
+    auto rewriter = ffi::make_object<Rewriter>(padded_tensor_map_);
     return rewriter->Mutate(stmt).ValueOrUnchanged(stmt);
   }
 
@@ -306,9 +306,9 @@ class AutoPadder {
   /**
    * \brief Collect pattern from indices
    */
-  class PatternCollectorObj : public StmtExprVisitorObj {
+  class PatternCollector : public StmtExprVisitor {
    public:
-    using StmtExprVisitorObj::Visit_;
+    using StmtExprVisitor::Visit_;
 
    private:
     ffi::Optional<VisitInterrupt> Visit_(const VarNode* op) final {
@@ -326,7 +326,7 @@ class AutoPadder {
     }
 
     ffi::Optional<VisitInterrupt> Visit_(const AddNode* op) final {
-      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitorObj::Visit_(op));
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
       if (!success_) {
         return std::nullopt;
       }
@@ -360,7 +360,7 @@ class AutoPadder {
     }
 
     ffi::Optional<VisitInterrupt> Visit_(const FloorDivNode* op) final {
-      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitorObj::Visit_(op));
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
       if (!success_) {
         return std::nullopt;
       }
@@ -388,7 +388,7 @@ class AutoPadder {
     }
 
     ffi::Optional<VisitInterrupt> Visit_(const FloorModNode* op) final {
-      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitorObj::Visit_(op));
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
       if (!success_) {
         return std::nullopt;
       }
@@ -414,7 +414,7 @@ class AutoPadder {
     }
 
     ffi::Optional<VisitInterrupt> Visit_(const MulNode* op) final {
-      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitorObj::Visit_(op));
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
       if (!success_) {
         return std::nullopt;
       }
@@ -430,7 +430,7 @@ class AutoPadder {
     }
 
    public:
-    explicit PatternCollectorObj(const ffi::Map<Var, Range>& var_range) : var_range_(var_range) {}
+    explicit PatternCollector(const ffi::Map<Var, Range>& var_range) : var_range_(var_range) {}
 
     /*!
      * \brief Collect the iteration space for given indices. The iteration space is the possible
@@ -445,7 +445,7 @@ class AutoPadder {
      */
     static std::vector<std::vector<int>> CollectIterationSpace(
         const ffi::Array<PrimExpr>& indices, const ffi::Map<Var, Range>& var_range, int data_bits) {
-      auto collector = ffi::make_object<PatternCollectorObj>(var_range);
+      auto collector = ffi::make_object<PatternCollector>(var_range);
       std::vector<std::vector<int>> ret;
       for (int i = 0; i < static_cast<int>(indices.size()); i++) {
         collector->Visit(indices[i]);
@@ -482,11 +482,11 @@ class AutoPadder {
   };
 
   /*! A utility class for calling CollectIterationSpace to each tensor access*/
-  class IterSpaceAnalyzerObj : public StmtExprVisitorObj {
+  class IterSpaceAnalyzer : public StmtExprVisitor {
    public:
-    using StmtExprVisitorObj::Visit_;
-    IterSpaceAnalyzerObj(const ffi::Map<Var, PrimExpr>& substitute_map, AutoPadder* self,
-                         int data_bits, const ffi::Map<ffi::String, int64_t> warp_thread_extent)
+    using StmtExprVisitor::Visit_;
+    IterSpaceAnalyzer(const ffi::Map<Var, PrimExpr>& substitute_map, AutoPadder* self,
+                      int data_bits, const ffi::Map<ffi::String, int64_t> warp_thread_extent)
         : substitute_map_(substitute_map),
           self(self),
           data_bits_(data_bits),
@@ -528,7 +528,7 @@ class AutoPadder {
         vector_var = op->loop_var;
         vector_length_ = op->extent.as<IntImmNode>()->value.as<int>().value();
       }
-      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitorObj::Visit_(op));
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
       if (op->kind == ForKind::kVectorized) {
         vector_length_ = -1;
       }
@@ -560,7 +560,7 @@ class AutoPadder {
                                      .as_or_throw<PrimExpr>()));
         }
         std::vector<std::vector<int>> iter_space =
-            PatternCollectorObj::CollectIterationSpace(substitued_indices, var_range_, data_bits_);
+            PatternCollector::CollectIterationSpace(substitued_indices, var_range_, data_bits_);
         if (!iter_space.empty()) {
           self->iter_spaces_[op->dest.as_or_throw<TensorVar>().get()].push_back(iter_space);
         }
@@ -571,7 +571,7 @@ class AutoPadder {
                                  std::max(static_cast<int64_t>(vector_length_), m));
         }
       }
-      return StmtExprVisitorObj::Visit_(op);
+      return StmtExprVisitor::Visit_(op);
     }
     /*!
      * \brief Take a typical warp and collect the iteration space for tensor load
@@ -596,7 +596,7 @@ class AutoPadder {
                                      .as_or_throw<PrimExpr>()));
         }
         std::vector<std::vector<int>> iter_space =
-            PatternCollectorObj::CollectIterationSpace(substitued_indices, var_range_, data_bits_);
+            PatternCollector::CollectIterationSpace(substitued_indices, var_range_, data_bits_);
         if (!iter_space.empty()) {
           self->iter_spaces_[tensor.get()].push_back(iter_space);
         }
@@ -606,7 +606,7 @@ class AutoPadder {
           self->padding_min_.Set(tensor, std::max(static_cast<int64_t>(vector_length_), m));
         }
       }
-      return StmtExprVisitorObj::Visit_(op);
+      return StmtExprVisitor::Visit_(op);
     }
 
     /*!
@@ -647,9 +647,8 @@ class AutoPadder {
                       ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(e, f_substitute)
                           .as_or_throw<PrimExpr>()));
                 }
-                std::vector<std::vector<int>> iter_space =
-                    PatternCollectorObj::CollectIterationSpace(substitued_indices, var_range_,
-                                                               data_bits_);
+                std::vector<std::vector<int>> iter_space = PatternCollector::CollectIterationSpace(
+                    substitued_indices, var_range_, data_bits_);
                 if (!iter_space.empty()) {
                   self->iter_spaces_[src_tensor.get()].push_back(iter_space);
                 }
@@ -700,7 +699,7 @@ class AutoPadder {
       substitute_map.Set(loop->loop_var, loop->min);
     }
     auto iter_space_analyzer =
-        ffi::make_object<IterSpaceAnalyzerObj>(substitute_map, this, data_bits, warp_thread_extent);
+        ffi::make_object<IterSpaceAnalyzer>(substitute_map, this, data_bits, warp_thread_extent);
     iter_space_analyzer->Visit(stmt);
   }
 
@@ -714,15 +713,15 @@ class AutoPadder {
   /*! \brief max padding size in relative to the original shape*/
   const double max_pad_factor_ = 0.25;
 
-  friend class AutoCopyMutatorObj;
+  friend class AutoCopyMutator;
 };
 
-class AutoCopyMutatorObj : public StmtExprMutatorObj {
+class AutoCopyMutator : public StmtExprMutator {
  public:
-  using StmtExprMutatorObj::Mutate;
-  using StmtExprMutatorObj::Mutate_;
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
 
-  explicit AutoCopyMutatorObj(ffi::Map<ffi::String, int64_t> thread_extent)
+  explicit AutoCopyMutator(ffi::Map<ffi::String, int64_t> thread_extent)
       : thread_extent_(thread_extent) {}
   /**
    * \brief Replace old tensors with padded tensors in the stmt
@@ -733,7 +732,7 @@ class AutoCopyMutatorObj : public StmtExprMutatorObj {
 
  private:
   UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) final {
-    SBlock block = StmtExprMutatorObj::Mutate_(op, inplace_mode)
+    SBlock block = StmtExprMutator::Mutate_(op, inplace_mode)
                        .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
                        .as_or_throw<SBlock>();
     // only rewrite the block annotated with "auto_copy"
@@ -787,7 +786,7 @@ class AutoCopyMutatorObj : public StmtExprMutatorObj {
 
   UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
     outer_loops_.push_back(ffi::GetRef<For>(op));
-    Stmt stmt = StmtExprMutatorObj::Mutate_(op, InplaceMode::kDisallow)
+    Stmt stmt = StmtExprMutator::Mutate_(op, InplaceMode::kDisallow)
                     .ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     outer_loops_.pop_back();
     return stmt;
@@ -813,15 +812,15 @@ class AutoCopyMutatorObj : public StmtExprMutatorObj {
 /*!
  * \brief Collect the extent for all thread binding loops.
  */
-class ThreadExtentCollectorObj : public StmtExprVisitorObj {
+class ThreadExtentCollector : public StmtExprVisitor {
  public:
-  using StmtExprVisitorObj::Visit_;
+  using StmtExprVisitor::Visit_;
   ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
     if (value.as<ExprNode>()) return std::nullopt;
-    return StmtExprVisitorObj::Visit(value);
+    return StmtExprVisitor::Visit(value);
   }
   static ffi::Map<ffi::String, int64_t> CollectThreadExtent(const Stmt& stmt) {
-    auto collector = ffi::make_object<ThreadExtentCollectorObj>();
+    auto collector = ffi::make_object<ThreadExtentCollector>();
     collector->Visit(stmt);
     return collector->thread_extent_;
   }
@@ -834,7 +833,7 @@ class ThreadExtentCollectorObj : public StmtExprVisitorObj {
         thread_extent_.Set("threadIdx.x", 32);
       }
     }
-    return StmtExprVisitorObj::Visit_(op);
+    return StmtExprVisitor::Visit_(op);
   }
   ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) final {
     if (tvm::s_tir::GetThreadBinding(op).has_value()) {
@@ -843,7 +842,7 @@ class ThreadExtentCollectorObj : public StmtExprVisitorObj {
                            static_cast<int64_t>(extent->value));
       }
     }
-    return StmtExprVisitorObj::Visit_(op);
+    return StmtExprVisitor::Visit_(op);
   }
 
   /*! \brief the map from thread tag to its extent */
@@ -856,8 +855,8 @@ Pass LowerAutoCopy() {
   auto pass_func = [](Function f, IRModule m, PassContext ctx) {
     if (!f->body.has_value()) return f;
     auto* n = f.CopyOnWrite();
-    auto mutator = ffi::make_object<AutoCopyMutatorObj>(
-        ThreadExtentCollectorObj::CollectThreadExtent(n->body.value()));
+    auto mutator = ffi::make_object<AutoCopyMutator>(
+        ThreadExtentCollector::CollectThreadExtent(n->body.value()));
     n->body = mutator->Mutate(n->body.value(), InplaceMode::kAllow)
                   .ValueOrUnchanged(std::move(n->body).value());
     n->body = mutator->RewritePaddingBody(n->body.value());

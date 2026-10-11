@@ -463,16 +463,16 @@ struct BufferDescriptor {
 // To make the call thread-safe, we create a thread-local kernel table
 // and lazily install new kernels into the kernel table when the kernel is called.
 // The kernels are recycled when the module get destructed.
-class OpenCLModuleBaseObj : public ffi::ModuleObj {
+class OpenCLModuleNodeBase : public ffi::ModuleObj {
  public:
   // Kernel table reference entry.
   struct KTRefEntry {
     size_t kernel_id;
     size_t version;
   };
-  explicit OpenCLModuleBaseObj(ffi::Map<ffi::String, FunctionInfo> fmap) : fmap_(fmap) {}
+  explicit OpenCLModuleNodeBase(ffi::Map<ffi::String, FunctionInfo> fmap) : fmap_(fmap) {}
   // destructor
-  ~OpenCLModuleBaseObj();
+  ~OpenCLModuleNodeBase();
 
   /*!
    * \brief Get the global workspace
@@ -510,12 +510,12 @@ class OpenCLModuleBaseObj : public ffi::ModuleObj {
   std::vector<cl_kernel> kernels_;
 };
 
-class OpenCLModuleObj : public OpenCLModuleBaseObj {
+class OpenCLModuleObj : public OpenCLModuleNodeBase {
  public:
   explicit OpenCLModuleObj(ffi::Bytes code, ffi::String fmt,
                            ffi::Map<ffi::String, FunctionInfo> fmap,
                            ffi::Map<ffi::String, ffi::String> source)
-      : OpenCLModuleBaseObj(fmap),
+      : OpenCLModuleNodeBase(fmap),
         code_(std::move(code)),
         fmt_(std::move(fmt)),
         source_(std::move(source)) {}

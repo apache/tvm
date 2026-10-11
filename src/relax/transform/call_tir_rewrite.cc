@@ -74,7 +74,7 @@ class CallTIRMutator : public ExprMutator {
     if (call->op.same_as(call_tir_op) || call->op.same_as(call_tir_inplace_op) ||
         call->op.same_as(call_dps_packed_op)) {
       bool is_inplace = call->op.same_as(call_tir_inplace_op);
-      const auto* inplace_attrs = call->attrs.as<CallTIRInplaceAttrsNode>();
+      const auto* inplace_attrs = call->attrs.as<CallTIRInplaceAttrs>();
       ffi::Array<Expr> outs;
       ffi::Optional<TupleType> tuple_output_type;
       if (const auto& tensor_ty = MatchType<TensorType>(expr)) {

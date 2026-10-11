@@ -19,14 +19,14 @@
 
 /*!
  * \file hexagon_module.cc
- * \brief HexagonModuleObj — runtime-side, plugin-only.  Reachable from C++
+ * \brief HexagonModuleNode — runtime-side, plugin-only.  Reachable from C++
  *        only through the FFI registry keys "ffi.Module.create.hexagon" and
  *        "ffi.Module.load_from_bytes.hexagon".  No exported header —
  *        codegen-side construction goes through
  *        src/backend/hexagon/codegen/hexagon_fallback_module.h.
  *
  *        This carrier holds the linked Hexagon `.so` blob in memory.  The
- *        existing HexagonModuleObj does not perform `dlopen` (Hexagon
+ *        existing HexagonModuleNode does not perform `dlopen` (Hexagon
  *        execution happens via a separate RPC-based runtime path); kernel
  *        launches via `GetFunction` are unimplemented.  The module exists
  *        primarily for cross-compile shipment (SaveToBytes) and source

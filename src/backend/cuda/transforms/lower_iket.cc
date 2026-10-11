@@ -273,7 +273,7 @@ struct Declaration {
   uint32_t event_id{0};
 };
 
-class AnnotationCollectorObj : public StmtExprVisitorObj {
+class AnnotationCollector : public StmtExprVisitor {
  public:
   std::map<DeclarationKey, Declaration> declarations;
   bool has_annotations{false};
@@ -311,7 +311,7 @@ class AnnotationCollectorObj : public StmtExprVisitorObj {
 
   ffi::Optional<VisitInterrupt> Visit_(const CallNode* call) final {
     if (!IsIketOp(call->op)) {
-      return StmtExprVisitorObj::Visit_(call);
+      return StmtExprVisitor::Visit_(call);
     }
     has_annotations = true;
     if (call->op.same_as(backend::cuda::iket_mark_op())) {
@@ -357,9 +357,9 @@ class AnnotationCollectorObj : public StmtExprVisitorObj {
 
 using TokenTensorSet = std::unordered_set<const VarNode*>;
 
-class TokenTensorCollectorObj : public StmtExprVisitorObj {
+class TokenTensorCollector : public StmtExprVisitor {
  public:
-  explicit TokenTensorCollectorObj(TokenTensorSet* tensors) : tensors_(tensors) {}
+  explicit TokenTensorCollector(TokenTensorSet* tensors) : tensors_(tensors) {}
 
   bool changed{false};
 
@@ -373,7 +373,7 @@ class TokenTensorCollectorObj : public StmtExprVisitorObj {
     }
     if (is_token_value && tensors_->insert(store->dest.as_or_throw<TensorVar>().get()).second)
       changed = true;
-    return StmtExprVisitorObj::Visit_(store);
+    return StmtExprVisitor::Visit_(store);
   }
 
   TokenTensorSet* tensors_;
@@ -383,7 +383,7 @@ TokenTensorSet CollectTokenTensors(const Stmt& body) {
   TokenTensorSet tensors;
   bool changed = true;
   while (changed) {
-    auto collector = ffi::make_object<TokenTensorCollectorObj>(&tensors);
+    auto collector = ffi::make_object<TokenTensorCollector>(&tensors);
     collector->Visit(body);
     changed = collector->changed;
   }
@@ -392,9 +392,9 @@ TokenTensorSet CollectTokenTensors(const Stmt& body) {
 
 using TokenDeclarationMap = std::unordered_map<const VarNode*, std::set<DeclarationKey>>;
 
-class TokenDeclarationCollectorObj : public StmtExprVisitorObj {
+class TokenDeclarationCollector : public StmtExprVisitor {
  public:
-  explicit TokenDeclarationCollectorObj(TokenDeclarationMap* declarations)
+  explicit TokenDeclarationCollector(TokenDeclarationMap* declarations)
       : declarations_(declarations) {}
 
   bool changed{false};
@@ -414,7 +414,7 @@ class TokenDeclarationCollectorObj : public StmtExprVisitorObj {
       target.insert(possible.begin(), possible.end());
       changed = changed || target.size() != old_size;
     }
-    return StmtExprVisitorObj::Visit_(store);
+    return StmtExprVisitor::Visit_(store);
   }
 
   TokenDeclarationMap* declarations_;
@@ -424,23 +424,23 @@ TokenDeclarationMap CollectTokenDeclarations(const Stmt& body) {
   TokenDeclarationMap declarations;
   bool changed = true;
   while (changed) {
-    auto collector = ffi::make_object<TokenDeclarationCollectorObj>(&declarations);
+    auto collector = ffi::make_object<TokenDeclarationCollector>(&declarations);
     collector->Visit(body);
     changed = collector->changed;
   }
   return declarations;
 }
 
-class RangeEndSchemaVerifierObj : public StmtExprVisitorObj {
+class RangeEndSchemaVerifier : public StmtExprVisitor {
  public:
-  RangeEndSchemaVerifierObj(const TokenDeclarationMap& token_declarations,
-                            std::map<DeclarationKey, Declaration>* declarations)
+  RangeEndSchemaVerifier(const TokenDeclarationMap& token_declarations,
+                         std::map<DeclarationKey, Declaration>* declarations)
       : token_declarations_(token_declarations), declarations_(declarations) {}
 
  private:
   ffi::Optional<VisitInterrupt> Visit_(const CallNode* call) final {
     if (!call->op.same_as(backend::cuda::iket_range_end_op())) {
-      return StmtExprVisitorObj::Visit_(call);
+      return StmtExprVisitor::Visit_(call);
     }
     const auto* token = call->args[0].as<TensorLoadNode>();
     TVM_FFI_ICHECK(token != nullptr);
@@ -468,7 +468,7 @@ class RangeEndSchemaVerifierObj : public StmtExprVisitorObj {
         declaration.end_payload_type = payload_type;
       }
     }
-    return StmtExprVisitorObj::Visit_(call);
+    return StmtExprVisitor::Visit_(call);
   }
 
   const TokenDeclarationMap& token_declarations_;
@@ -488,14 +488,14 @@ void ValidateRangeSchemas(const std::map<DeclarationKey, Declaration>& declarati
   }
 }
 
-class TokenVerifierObj : public StmtExprVisitorObj {
+class TokenVerifier : public StmtExprVisitor {
  public:
-  explicit TokenVerifierObj(const TokenTensorSet& token_tensors) : token_tensors_(token_tensors) {}
+  explicit TokenVerifier(const TokenTensorSet& token_tensors) : token_tensors_(token_tensors) {}
 
  private:
   ffi::Optional<VisitInterrupt> Visit_(const TensorStoreNode* store) final {
     if (!token_tensors_.count(store->dest.as_or_throw<TensorVar>().get())) {
-      return StmtExprVisitorObj::Visit_(store);
+      return StmtExprVisitor::Visit_(store);
     }
     TVM_FFI_CHECK(store->dest.as_or_throw<TensorVar>()->dtype->dtype.code == kDLUInt &&
                       store->dest.as_or_throw<TensorVar>()->dtype->dtype.bits == 32 &&
@@ -531,7 +531,7 @@ class TokenVerifierObj : public StmtExprVisitorObj {
       TVM_FFI_CHECK(allow_token_load_, ValueError)
           << "RangeToken may only be assigned or passed directly to range_end";
     }
-    return StmtExprVisitorObj::Visit_(load);
+    return StmtExprVisitor::Visit_(load);
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const CallNode* call) final {
@@ -561,7 +561,7 @@ class TokenVerifierObj : public StmtExprVisitorObj {
       }
       return std::nullopt;
     }
-    return StmtExprVisitorObj::Visit_(call);
+    return StmtExprVisitor::Visit_(call);
   }
 
   const TokenTensorSet& token_tensors_;
@@ -569,9 +569,9 @@ class TokenVerifierObj : public StmtExprVisitorObj {
   bool allow_producer_{false};
 };
 
-class StripIketObj : public StmtExprMutatorObj {
+class StripIket : public StmtExprMutator {
  public:
-  explicit StripIketObj(TokenTensorSet token_tensors) : token_tensors_(std::move(token_tensors)) {}
+  explicit StripIket(TokenTensorSet token_tensors) : token_tensors_(std::move(token_tensors)) {}
 
  private:
   UnchangedOr<Stmt> Mutate_(const BindNode* alloc, InplaceMode inplace_mode) final {
@@ -580,19 +580,19 @@ class StripIketObj : public StmtExprMutatorObj {
                                                         token_tensors_.count(alloc->var.get())) {
       return Evaluate(0);
     }
-    return StmtExprMutatorObj::Mutate_(alloc, inplace_mode);
+    return StmtExprMutator::Mutate_(alloc, inplace_mode);
   }
 
   UnchangedOr<Stmt> Mutate_(const TensorStoreNode* store, InplaceMode inplace_mode) final {
     if (token_tensors_.count(store->dest.as_or_throw<TensorVar>().get())) return Evaluate(0);
-    return StmtExprMutatorObj::Mutate_(store, inplace_mode);
+    return StmtExprMutator::Mutate_(store, inplace_mode);
   }
 
   UnchangedOr<Stmt> Mutate_(const EvaluateNode* evaluate, InplaceMode inplace_mode) final {
     if (const auto* call = evaluate->value.as<CallNode>(); call && IsIketOp(call->op)) {
       return Evaluate(0);
     }
-    return StmtExprMutatorObj::Mutate_(evaluate, inplace_mode);
+    return StmtExprMutator::Mutate_(evaluate, inplace_mode);
   }
 
   UnchangedOr<Expr> Mutate_(const CallNode* call, InplaceMode inplace_mode) final {
@@ -600,34 +600,34 @@ class StripIketObj : public StmtExprMutatorObj {
         call->op.same_as(backend::cuda::iket_sentinel_token_op())) {
       return IntImm(PrimType::UInt(32), 0);
     }
-    return StmtExprMutatorObj::Mutate_(call, inplace_mode);
+    return StmtExprMutator::Mutate_(call, inplace_mode);
   }
 
   TokenTensorSet token_tensors_;
 };
 
-class RemoveStrippedIketNoOpsObj : public StmtExprMutatorObj {
+class RemoveStrippedIketNoOps : public StmtExprMutator {
  private:
   Stmt PreserveConditionEffects(const PrimExpr& condition) {
     return SideEffect(condition) > CallEffectKind::kReadState ? Evaluate(condition) : Evaluate(0);
   }
 
   UnchangedOr<Stmt> Mutate_(const ForNode* loop, InplaceMode inplace_mode) final {
-    auto result = StmtExprMutatorObj::Mutate_(loop, inplace_mode);
+    auto result = StmtExprMutator::Mutate_(loop, inplace_mode);
     if (!result.IsUnchanged()) loop = ffi::AnyView(result).as<ForNode>();
     if (loop->body->seq.empty()) return loop->body;
     return result;
   }
 
   UnchangedOr<Stmt> Mutate_(const WhileNode* loop, InplaceMode inplace_mode) final {
-    auto result = StmtExprMutatorObj::Mutate_(loop, inplace_mode);
+    auto result = StmtExprMutator::Mutate_(loop, inplace_mode);
     if (!result.IsUnchanged()) loop = ffi::AnyView(result).as<WhileNode>();
     if (loop->body->seq.empty()) return loop->body;
     return result;
   }
 
   UnchangedOr<Stmt> Mutate_(const IfNode* branch, InplaceMode inplace_mode) final {
-    auto result = StmtExprMutatorObj::Mutate_(branch, inplace_mode);
+    auto result = StmtExprMutator::Mutate_(branch, inplace_mode);
     if (!result.IsUnchanged()) branch = ffi::AnyView(result).as<IfNode>();
     if (!branch->else_case.has_value()) {
       if (branch->then_case->seq.empty()) return PreserveConditionEffects(branch->condition);
@@ -1067,9 +1067,9 @@ __forceinline__ __device__ unsigned int tvm_builtin_iket_official_event(
   return os.str();
 }
 
-class InstrumentOfficialKernelObj : public StmtExprMutatorObj {
+class InstrumentOfficialKernel : public StmtExprMutator {
  public:
-  InstrumentOfficialKernelObj(const KernelIketInfo& info, std::string device_source)
+  InstrumentOfficialKernel(const KernelIketInfo& info, std::string device_source)
       : info_(info), device_source_(std::move(device_source)) {}
 
   Function Run() {
@@ -1119,7 +1119,7 @@ class InstrumentOfficialKernelObj : public StmtExprMutatorObj {
       }
       return Evaluate(Event(token));
     }
-    return StmtExprMutatorObj::Mutate_(evaluate, inplace_mode);
+    return StmtExprMutator::Mutate_(evaluate, inplace_mode);
   }
 
   UnchangedOr<Expr> Mutate_(const CallNode* call, InplaceMode inplace_mode) final {
@@ -1167,7 +1167,7 @@ class InstrumentOfficialKernelObj : public StmtExprMutatorObj {
     if (call->op.same_as(backend::cuda::iket_range_end_op())) {
       TVM_FFI_THROW(ValueError) << "range_end must be emitted in statement position";
     }
-    return StmtExprMutatorObj::Mutate_(call, inplace_mode);
+    return StmtExprMutator::Mutate_(call, inplace_mode);
   }
 
   const KernelIketInfo& info_;
@@ -1192,24 +1192,24 @@ IRModule LowerIketImpl(IRModule module) {
       const auto* function_node = base_function.as<FunctionNode>();
       if (!function_node || !function_node->body.has_value()) continue;
       Function function = ffi::GetRef<Function>(function_node);
-      auto collector = ffi::make_object<AnnotationCollectorObj>();
+      auto collector = ffi::make_object<AnnotationCollector>();
       collector->Visit(function->body);
       TokenTensorSet tokens = CollectTokenTensors(function->body.value());
       if (!collector->has_annotations && tokens.empty()) continue;
       if (collector->has_annotations) {
-        auto verifier = ffi::make_object<TokenVerifierObj>(tokens);
+        auto verifier = ffi::make_object<TokenVerifier>(tokens);
         verifier->Visit(function->body);
         TokenDeclarationMap token_declarations = CollectTokenDeclarations(function->body.value());
-        auto schema_verifier = ffi::make_object<RangeEndSchemaVerifierObj>(
-            token_declarations, &collector->declarations);
+        auto schema_verifier =
+            ffi::make_object<RangeEndSchemaVerifier>(token_declarations, &collector->declarations);
         schema_verifier->Visit(function->body);
         ValidateRangeSchemas(collector->declarations);
       }
-      auto strip = ffi::make_object<StripIketObj>(std::move(tokens));
+      auto strip = ffi::make_object<StripIket>(std::move(tokens));
       Stmt stripped =
           strip->Mutate(function->body.value()).ValueOrUnchanged(function->body.value());
-      Stmt body = ffi::make_object<RemoveStrippedIketNoOpsObj>()->Mutate(stripped).ValueOrUnchanged(
-          stripped);
+      Stmt body =
+          ffi::make_object<RemoveStrippedIketNoOps>()->Mutate(stripped).ValueOrUnchanged(stripped);
       if (!body.same_as(function->body)) {
         function.CopyOnWrite()->body = body;
         module->Update(global_var, function);
@@ -1223,7 +1223,7 @@ IRModule LowerIketImpl(IRModule module) {
     const auto* function_node = base_function.as<FunctionNode>();
     if (!function_node || !function_node->body.has_value()) continue;
     Function function = ffi::GetRef<Function>(function_node);
-    auto collector = ffi::make_object<AnnotationCollectorObj>();
+    auto collector = ffi::make_object<AnnotationCollector>();
     collector->Visit(function->body);
     if (!collector->has_annotations) continue;
 
@@ -1232,11 +1232,11 @@ IRModule LowerIketImpl(IRModule module) {
         << "IKET annotations are only valid in a split CUDA device kernel";
 
     TokenTensorSet tokens = CollectTokenTensors(function->body.value());
-    auto verifier = ffi::make_object<TokenVerifierObj>(tokens);
+    auto verifier = ffi::make_object<TokenVerifier>(tokens);
     verifier->Visit(function->body);
     TokenDeclarationMap token_declarations = CollectTokenDeclarations(function->body.value());
     auto schema_verifier =
-        ffi::make_object<RangeEndSchemaVerifierObj>(token_declarations, &collector->declarations);
+        ffi::make_object<RangeEndSchemaVerifier>(token_declarations, &collector->declarations);
     schema_verifier->Visit(function->body);
     ValidateRangeSchemas(collector->declarations);
     TVM_FFI_CHECK(IsSm90OrNewer(function), ValueError)
@@ -1301,7 +1301,7 @@ IRModule LowerIketImpl(IRModule module) {
   std::string device_source = BuildOfficialDeviceSource(kernels, mode);
   for (const KernelIketInfo& kernel : kernels) {
     module->Update(kernel.global_var,
-                   ffi::make_object<InstrumentOfficialKernelObj>(kernel, device_source)->Run());
+                   ffi::make_object<InstrumentOfficialKernel>(kernel, device_source)->Run());
   }
   return module;
 }

@@ -25,20 +25,20 @@ namespace tvm {
 namespace s_tir {
 using namespace tvm::tirx;
 
-class AnnotateRegionRewriterObj : public StmtExprMutatorObj {
+class AnnotateRegionRewriter : public StmtExprMutator {
  public:
-  using StmtExprMutatorObj::Mutate;
-  using StmtExprMutatorObj::Mutate_;
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
 
-  AnnotateRegionRewriterObj(TensorVar tensor, int tensor_index, TensorRegion new_region,
-                            TensorIndexType tensor_index_type)
+  AnnotateRegionRewriter(TensorVar tensor, int tensor_index, TensorRegion new_region,
+                         TensorIndexType tensor_index_type)
       : tensor_(tensor),
         tensor_index_(tensor_index),
         new_region_(new_region),
         tensor_index_type_(tensor_index_type) {}
 
   UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) final {
-    SBlock block = StmtExprMutatorObj::Mutate_(op, inplace_mode)
+    SBlock block = StmtExprMutator::Mutate_(op, inplace_mode)
                        .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
                        .as_or_throw<SBlock>();
 
@@ -112,8 +112,8 @@ void AnnotateTensorAccess(ScheduleState self, const StmtSRef& block_sref, int te
 
   TensorRegion new_region = TensorRegion(tensor, new_ranges, TensorRegionType());
 
-  auto mutator = ffi::make_object<AnnotateRegionRewriterObj>(tensor, tensor_index, new_region,
-                                                             tensor_index_type);
+  auto mutator =
+      ffi::make_object<AnnotateRegionRewriter>(tensor, tensor_index, new_region, tensor_index_type);
   Stmt new_stmt = mutator->Mutate(ffi::GetRef<Stmt>(block_sref->stmt))
                       .ValueOrUnchanged(ffi::GetRef<Stmt>(block_sref->stmt));
 

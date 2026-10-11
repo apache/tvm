@@ -30,7 +30,7 @@
 #include <tvm/ffi/string.h>
 #include <tvm/ir/expr_functor.h>
 #include <tvm/ir/prim/expr.h>
-#include <tvm/s_tir/stmt_functor.h>  // For the class s_tir::StmtExprVisitorObj
+#include <tvm/s_tir/stmt_functor.h>  // For the class s_tir::StmtExprVisitor
 #include <tvm/tirx/stmt.h>
 
 #include <unordered_map>
@@ -77,9 +77,9 @@ struct ComputationCache {
  * \note Computations here are considered syntactically, meaning that semantically equivalent
           computations that are not syntactically the same are not merged together.
  */
-class ComputationsDoneByObj : public s_tir::StmtExprVisitorObj {
+class ComputationsDoneBy : public s_tir::StmtExprVisitor {
  public:
-  using s_tir::StmtExprVisitorObj::Visit_;
+  using s_tir::StmtExprVisitor::Visit_;
 
   // Toplevel (static) methods
   static ComputationTable GetComputationsDoneBy(
@@ -90,8 +90,8 @@ class ComputationsDoneByObj : public s_tir::StmtExprVisitorObj {
       std::function<bool(const PrimExpr&)> can_contain_computations);
 
   // Constructor
-  ComputationsDoneByObj(std::function<bool(const PrimExpr&)> is_eligible_computation,
-                        std::function<bool(const PrimExpr&)> can_contain_computations);
+  ComputationsDoneBy(std::function<bool(const PrimExpr&)> is_eligible_computation,
+                     std::function<bool(const PrimExpr&)> can_contain_computations);
 
  protected:
   ffi::Optional<VisitInterrupt> Visit(ffi::AnyView expr) override;
@@ -124,9 +124,9 @@ class ComputationsDoneByObj : public s_tir::StmtExprVisitorObj {
           So for instance, for (A+(B+C)) it will return A and (B+C) if they are eligible,
           but not B and C.
  */
-class DirectSubexprObj : public s_tir::StmtExprVisitorObj {
+class DirectSubexpr : public s_tir::StmtExprVisitor {
  public:
-  using s_tir::StmtExprVisitorObj::Visit_;
+  using s_tir::StmtExprVisitor::Visit_;
 
   // Toplevel (static) function
   static std::vector<PrimExpr> GetDirectSubexpressions(
@@ -134,8 +134,8 @@ class DirectSubexprObj : public s_tir::StmtExprVisitorObj {
       std::function<bool(const PrimExpr&)> can_contain_computations);
 
   // Constructor
-  DirectSubexprObj(std::function<bool(const PrimExpr&)> is_eligible_computation,
-                   std::function<bool(const PrimExpr&)> can_contain_computations);
+  DirectSubexpr(std::function<bool(const PrimExpr&)> is_eligible_computation,
+                std::function<bool(const PrimExpr&)> can_contain_computations);
 
  protected:
   ffi::Optional<VisitInterrupt> Visit(ffi::AnyView expr) override;

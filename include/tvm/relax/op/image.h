@@ -30,7 +30,7 @@ namespace tvm {
 namespace relax {
 
 /*! \brief Attributes used in image resize2d operator */
-struct Resize2DAttrsNode : public AttrsNode {
+struct Resize2DAttrs : public AttrsNode {
   ffi::Array<FloatImm> roi;
   ffi::String layout;
   ffi::String method;
@@ -42,11 +42,11 @@ struct Resize2DAttrsNode : public AttrsNode {
   ffi::Optional<DLDataType> out_dtype;
 
   static void RegisterReflection();
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.Resize2DAttrs", Resize2DAttrsNode, AttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.Resize2DAttrs", Resize2DAttrs, AttrsNode);
 };  // struct Resize2dAttrs
 
 /*! \brief Attributes used in image resize3d operator */
-struct Resize3DAttrsNode : public AttrsNode {
+struct Resize3DAttrs : public AttrsNode {
   ffi::Array<FloatImm> roi;
   ffi::String layout;
   ffi::String method;
@@ -58,27 +58,27 @@ struct Resize3DAttrsNode : public AttrsNode {
   ffi::Optional<DLDataType> out_dtype;
 
   static void RegisterReflection();
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.Resize3DAttrs", Resize3DAttrsNode, AttrsNode);
-};  // struct Resize3DAttrsNode
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.Resize3DAttrs", Resize3DAttrs, AttrsNode);
+};  // struct Resize3DAttrs
 
 /*! \brief Attributes used in image grid_sample operator */
-struct GridSampleAttrsNode : public AttrsNode {
+struct GridSampleAttrs : public AttrsNode {
   ffi::String method;
   ffi::String layout;
   ffi::String padding_mode;
   bool align_corners;
 
   static void RegisterReflection();
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.GridSampleAttrs", GridSampleAttrsNode, AttrsNode);
-};  // struct GridSampleAttrsNode
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.GridSampleAttrs", GridSampleAttrs, AttrsNode);
+};  // struct GridSampleAttrs
 
 /*! \brief Attributes used in image affine_grid operator */
-struct AffineGridAttrsNode : public AttrsNode {
+struct AffineGridAttrs : public AttrsNode {
   bool align_corners;
 
   static void RegisterReflection();
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.AffineGridAttrs", AffineGridAttrsNode, AttrsNode);
-};  // struct AffineGridAttrsNode
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.AffineGridAttrs", AffineGridAttrs, AttrsNode);
+};  // struct AffineGridAttrs
 
 }  // namespace relax
 }  // namespace tvm

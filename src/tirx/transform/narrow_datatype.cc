@@ -57,7 +57,7 @@ using namespace tvm::prim;
 // - Cast
 //
 // Algorithm:
-// - Use DataTypeVisitorObj to determine whether a Var can be narrowed or not.
+// - Use DataTypeVisitor to determine whether a Var can be narrowed or not.
 // - Use DataTypeRewritter to rewrite the components of an indexing expression.
 
 using sym::Analyzer;
@@ -73,15 +73,15 @@ using sym::ConstIntBound;
 // then we narrow `var` into `target_bits_`. That is,
 // `vmap[var] = min(target_bits_, var.dtype.bits())`
 // Otherwise, `var` is not narrowed, that is, `vmap[var] = var.dtype.bits()`
-class DataTypeVisitorObj final : public StmtExprVisitorObj {
+class DataTypeVisitor final : public StmtExprVisitor {
  public:
-  explicit DataTypeVisitorObj(int target_bits) : bits_(target_bits), target_bits_(target_bits) {}
+  explicit DataTypeVisitor(int target_bits) : bits_(target_bits), target_bits_(target_bits) {}
 
   ffi::Optional<VisitInterrupt> Visit(ffi::AnyView expr) final {
     if (expr == nullptr) return std::nullopt;
     auto prim_expr = expr.as<PrimExpr>();
     if (!prim_expr) {
-      return StmtExprVisitorObj::Visit(expr);
+      return StmtExprVisitor::Visit(expr);
     }
     PrimExpr e = prim_expr.value();
     PrimType e_ty = e.ty();
@@ -101,10 +101,10 @@ class DataTypeVisitorObj final : public StmtExprVisitorObj {
       }
       int tmp = bits > bits_ ? bits : bits_;
       std::swap(bits_, tmp);
-      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitorObj::Visit(expr));
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit(expr));
       std::swap(bits_, tmp);
     } else {
-      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitorObj::Visit(expr));
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit(expr));
     }
     return std::nullopt;
   }
@@ -112,7 +112,7 @@ class DataTypeVisitorObj final : public StmtExprVisitorObj {
   ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* op) {
     int tmp = bits_;
     bits_ = target_bits_;
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitorObj::Visit_(op));
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     bits_ = tmp;
     return std::nullopt;
   }
@@ -120,7 +120,7 @@ class DataTypeVisitorObj final : public StmtExprVisitorObj {
   ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) {
     analyzer_->Bind(op->loop_var, Range::FromMinExtent(op->min, op->extent));
     vextent_.insert_or_assign(op->loop_var.as<VarNode>(), op->extent.ty());
-    return StmtExprVisitorObj::Visit_(op);
+    return StmtExprVisitor::Visit_(op);
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const RegionStmtNode* op) {
@@ -130,7 +130,7 @@ class DataTypeVisitorObj final : public StmtExprVisitorObj {
       analyzer_->Bind(var, Range::FromMinExtent(IntImm(extent.ty(), 0), extent));
       vextent_.insert_or_assign(var.get(), extent.ty());
     }
-    return StmtExprVisitorObj::Visit_(op);
+    return StmtExprVisitor::Visit_(op);
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const VarNode* op) {
@@ -146,7 +146,7 @@ class DataTypeVisitorObj final : public StmtExprVisitorObj {
         it->second = op_ty.WithBits(std::max(it->second.bits(), bits));
       }
     }
-    return StmtExprVisitorObj::Visit_(op);
+    return StmtExprVisitor::Visit_(op);
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const IntImmNode* op) {
@@ -176,7 +176,7 @@ class DataTypeVisitorObj final : public StmtExprVisitorObj {
         it->second = op_ty.WithBits(std::max(it->second.bits(), bits));
       }
     }
-    return StmtExprVisitorObj::Visit_(op);
+    return StmtExprVisitor::Visit_(op);
   }
 
   // the narrowed datatype of Var and IntImm
@@ -199,13 +199,13 @@ class DataTypeVisitorObj final : public StmtExprVisitorObj {
   sym::ConstIntBoundAnalyzer::BoundMapType bound_;
 };
 
-class NarrowDataTypeRewriterObj : public IndexDataTypeRewriterObj {
+class NarrowDataTypeRewriter : public IndexDataTypeRewriter {
  public:
-  using IndexDataTypeRewriterObj::Mutate;
-  using IndexDataTypeRewriterObj::Mutate_;
-  using Parent = IndexDataTypeRewriterObj;
-  explicit NarrowDataTypeRewriterObj(int target_bits)
-      : visitor_(ffi::make_object<DataTypeVisitorObj>(target_bits)) {}
+  using IndexDataTypeRewriter::Mutate;
+  using IndexDataTypeRewriter::Mutate_;
+  using Parent = IndexDataTypeRewriter;
+  explicit NarrowDataTypeRewriter(int target_bits)
+      : visitor_(ffi::make_object<DataTypeVisitor>(target_bits)) {}
 
   Stmt Rewrite(Stmt s) {
     visitor_->Visit(s);
@@ -299,11 +299,11 @@ class NarrowDataTypeRewriterObj : public IndexDataTypeRewriterObj {
 
  private:
   // the internal visitor to deduce the narrowed dtype
-  ffi::ObjectPtr<DataTypeVisitorObj> visitor_;
+  ffi::ObjectPtr<DataTypeVisitor> visitor_;
 };
 
 Stmt NarrowDataType(Stmt stmt, int target_bits) {
-  return ffi::make_object<NarrowDataTypeRewriterObj>(target_bits)->Rewrite(stmt);
+  return ffi::make_object<NarrowDataTypeRewriter>(target_bits)->Rewrite(stmt);
 }
 
 namespace transform {
@@ -312,7 +312,7 @@ Pass NarrowDataType(int target_bits) {
   auto pass_func = [target_bits](Function f, IRModule m, PassContext ctx) {
     if (!f->body.has_value()) return f;
     auto* n = f.CopyOnWrite();
-    n->body = ffi::make_object<NarrowDataTypeRewriterObj>(target_bits)->Rewrite(n->body.value());
+    n->body = ffi::make_object<NarrowDataTypeRewriter>(target_bits)->Rewrite(n->body.value());
     return f;
   };
   return CreateFunctionPass(pass_func, 0, "tirx.NarrowDataType");

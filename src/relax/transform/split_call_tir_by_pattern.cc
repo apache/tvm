@@ -464,9 +464,9 @@ class TIRPatternMatcher {
 
 /*! \brief helper class to partition a function into 2 parts. Return function information which we
  * can use to construct the two partitioned parts.*/
-class FunctionPartitionerObj : public s_tir::StmtExprVisitorObj {
+class FunctionPartitioner : public s_tir::StmtExprVisitor {
  public:
-  explicit FunctionPartitionerObj(int num_matched_ops) : num_matched_ops_(num_matched_ops) {}
+  explicit FunctionPartitioner(int num_matched_ops) : num_matched_ops_(num_matched_ops) {}
   /*! \brief alloc_tensors for the first function */
   std::unordered_set<TensorVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> allocs1;
   /*! \brief alloc_tensors for the second function */
@@ -523,25 +523,24 @@ class FunctionPartitionerObj : public s_tir::StmtExprVisitorObj {
 };
 
 /*! \brief remove parts according to block partition, and update the alloc_tensors for blocks */
-class BlockRemoverObj : public s_tir::StmtExprMutatorObj {
+class BlockRemover : public s_tir::StmtExprMutator {
  public:
   static Stmt RemoveBlockByPartition(
       Stmt stmt, const ffi::Map<s_tir::SBlock, bool>& block_partition,
       const std::unordered_set<TensorVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>& allocs,
       bool is_library_part) {
-    auto remover = ffi::make_object<BlockRemoverObj>(block_partition, allocs, is_library_part);
+    auto remover = ffi::make_object<BlockRemover>(block_partition, allocs, is_library_part);
     return remover->Mutate(stmt, InplaceMode::kDisallow).ValueOrUnchanged(stmt);
   }
 
-  BlockRemoverObj(
-      const ffi::Map<s_tir::SBlock, bool>& block_partition,
-      const std::unordered_set<TensorVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>& allocs,
-      bool is_library_part)
+  BlockRemover(const ffi::Map<s_tir::SBlock, bool>& block_partition,
+               const std::unordered_set<TensorVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>& allocs,
+               bool is_library_part)
       : block_partition(block_partition), allocs_(allocs), is_library_part_(is_library_part) {}
 
  private:
   UnchangedOr<Stmt> Mutate_(const s_tir::SBlockNode* op, InplaceMode inplace_mode) final {
-    s_tir::SBlock block = s_tir::StmtExprMutatorObj::Mutate_(op, inplace_mode)
+    s_tir::SBlock block = s_tir::StmtExprMutator::Mutate_(op, inplace_mode)
                               .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
                               .as_or_throw<s_tir::SBlock>();
     ffi::ObjectPtr<s_tir::SBlockNode> n = ffi::make_object<s_tir::SBlockNode>(*block.operator->());
@@ -619,7 +618,7 @@ std::pair<tirx::Function, ffi::Optional<tirx::Function>> SplitFunctions(
   if (num_matched_ops == 0) {
     return {func, std::nullopt};
   }
-  auto partitioner = ffi::make_object<FunctionPartitionerObj>(num_matched_ops);
+  auto partitioner = ffi::make_object<FunctionPartitioner>(num_matched_ops);
   partitioner->Visit(body);
   if (partitioner->fail || !partitioner->intermediate_tensor.has_value()) {
     return {func, std::nullopt};
@@ -636,9 +635,9 @@ std::pair<tirx::Function, ffi::Optional<tirx::Function>> SplitFunctions(
     return {WithAttr(func, tvm::relax::attr::kLibraryKernel, library_code), std::nullopt};
   }
   // Step 2. Split the function into two functions.
-  Stmt body1 = BlockRemoverObj::RemoveBlockByPartition(
+  Stmt body1 = BlockRemover::RemoveBlockByPartition(
       func->body.value(), partitioner->block_partition, partitioner->allocs1, true);
-  Stmt body2 = BlockRemoverObj::RemoveBlockByPartition(
+  Stmt body2 = BlockRemover::RemoveBlockByPartition(
       func->body.value(), partitioner->block_partition, partitioner->allocs2, false);
   // Step 3. Craft the first function.
   ffi::Array<Var> new_params1;

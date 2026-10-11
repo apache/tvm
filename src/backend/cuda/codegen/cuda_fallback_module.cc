@@ -20,7 +20,7 @@
 /*!
  * \file cuda_fallback_module.cc
  * \brief CUDAFallbackModuleObj — codegen-time placeholder used when the CUDA
- *        runtime is not linked.  Mirrors `CUDAModuleNode`'s save/load format
+ *        runtime is not linked.  Mirrors `CUDAModuleObj`'s save/load format
  *        byte-for-byte, including the backend configuration string.
  *        Always compiled (independent of USE_CUDA); never registered as an
  *        FFI factory or loader.
@@ -52,7 +52,7 @@ class CUDAFallbackModuleObj : public ffi::ModuleObj {
         backend_config_(source_.Get("backend_config").value_or("{}")) {}
 
   // Mirror the real module's kind so consumers cannot distinguish at the
-  // kind/api layer.  Saved bytes load back as a real CUDAModuleNode on a
+  // kind/api layer.  Saved bytes load back as a real CUDAModuleObj on a
   // CUDA-equipped receiver.
   const char* kind() const final { return "cuda"; }
 

@@ -84,37 +84,35 @@ inline std::pair<ffi::Optional<Var>, Call> ExtractEncodeKey(const CallNode* call
 }  // namespace
 
 // First pass: Analyze encode calls and decide canonical tensormap per-parameter set
-class CuTensorMapDedupAnalyzerObj : public StmtExprVisitorObj {
+class CuTensorMapDedupAnalyzer : public StmtExprVisitor {
  public:
-  CuTensorMapDedupAnalyzerObj() {
-    canonical_list_.emplace_back(std::vector<std::pair<Call, Var>>());
-  }
+  CuTensorMapDedupAnalyzer() { canonical_list_.emplace_back(std::vector<std::pair<Call, Var>>()); }
 
   ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) final {
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitorObj::Visit(op->min));
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitorObj::Visit(op->extent));
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit(op->min));
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit(op->extent));
     canonical_list_.emplace_back(std::vector<std::pair<Call, Var>>());
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitorObj::Visit(op->body));
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit(op->body));
     canonical_list_.pop_back();
     return std::nullopt;
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const WhileNode* op) final {
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitorObj::Visit(op->condition));
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit(op->condition));
     canonical_list_.emplace_back(std::vector<std::pair<Call, Var>>());
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitorObj::Visit(op->body));
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit(op->body));
     canonical_list_.pop_back();
     return std::nullopt;
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const IfNode* op) final {
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitorObj::Visit(op->condition));
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit(op->condition));
     canonical_list_.emplace_back(std::vector<std::pair<Call, Var>>());
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitorObj::Visit(op->then_case));
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit(op->then_case));
     canonical_list_.pop_back();
     if (op->else_case) {
       canonical_list_.emplace_back(std::vector<std::pair<Call, Var>>());
-      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitorObj::Visit(op->else_case.value()));
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit(op->else_case.value()));
       canonical_list_.pop_back();
     }
     return std::nullopt;
@@ -143,7 +141,7 @@ class CuTensorMapDedupAnalyzerObj : public StmtExprVisitorObj {
         if (!found) canonical_list_.back().emplace_back(std::move(key), v);
       }
     }
-    return StmtExprVisitorObj::Visit_(op);
+    return StmtExprVisitor::Visit_(op);
   }
 
   const std::unordered_map<Var, Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>& var_remap() const {
@@ -156,11 +154,11 @@ class CuTensorMapDedupAnalyzerObj : public StmtExprVisitorObj {
 };
 
 // Second pass: Rewrite vars to canonical, remove duplicate allocas and duplicate encode calls
-class CuTensorMapDedupRewriterObj : public StmtExprMutatorObj {
+class CuTensorMapDedupRewriter : public StmtExprMutator {
  public:
-  using StmtExprMutatorObj::Mutate;
-  using StmtExprMutatorObj::Mutate_;
-  CuTensorMapDedupRewriterObj(
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
+  CuTensorMapDedupRewriter(
       std::unordered_map<Var, Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> var_remap) {
     for (const auto& [source, target] : var_remap) VarRemapSet(source, target);
     emitted_keys_.emplace_back(std::vector<Call>());
@@ -261,12 +259,12 @@ class CuTensorMapDedupRewriterObj : public StmtExprMutatorObj {
     if (IsTensorMapAlloca(op) && VarRemapGet(op->var) != nullptr) {
       return Evaluate(0);
     }
-    return StmtExprMutatorObj::Mutate_(op, inplace_mode);
+    return StmtExprMutator::Mutate_(op, inplace_mode);
   }
 
   UnchangedOr<Stmt> Mutate_(const EvaluateNode* op, InplaceMode inplace_mode) final {
     // Default mutation
-    Evaluate eval = StmtExprMutatorObj::Mutate_(op, inplace_mode)
+    Evaluate eval = StmtExprMutator::Mutate_(op, inplace_mode)
                         .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
                         .as_or_throw<Evaluate>();
     if (const CallNode* call = AsCuTensorMapEncode(eval.get())) {
@@ -295,13 +293,13 @@ namespace transform {
 Pass LowerTIRxDedupCuTensorMaps() {
   auto pass_func = [](Function f, IRModule m, PassContext ctx) {
     // Analyze usage to find duplicates
-    auto analyzer = ffi::make_object<CuTensorMapDedupAnalyzerObj>();
+    auto analyzer = ffi::make_object<CuTensorMapDedupAnalyzer>();
     analyzer->Visit(f->body);
     if (analyzer->var_remap().empty()) {
       return f;
     }
     auto* n = f.CopyOnWrite();
-    n->body = ffi::make_object<CuTensorMapDedupRewriterObj>(analyzer->var_remap())
+    n->body = ffi::make_object<CuTensorMapDedupRewriter>(analyzer->var_remap())
                   ->Mutate(n->body, InplaceMode::kAllow)
                   .ValueOrUnchanged(n->body);
     return f;

@@ -31,7 +31,7 @@ namespace backend {
 namespace cuda {
 
 /*! \brief Static options for the dense tcgen05 instruction descriptor. */
-struct TCGen05InstrDescriptorAttrsNode : public AttrsNode {
+struct TCGen05InstrDescriptorAttrs : public AttrsNode {
   ffi::String d_dtype;
   ffi::String a_dtype;
   ffi::String b_dtype;
@@ -48,11 +48,11 @@ struct TCGen05InstrDescriptorAttrsNode : public AttrsNode {
 
   static void RegisterReflection();
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.cuda.TCGen05InstrDescriptorAttrs",
-                                    TCGen05InstrDescriptorAttrsNode, AttrsNode);
+                                    TCGen05InstrDescriptorAttrs, AttrsNode);
 };
 
 /*! \brief Static options for the block-scaled tcgen05 instruction descriptor. */
-struct TCGen05InstrDescriptorBlockScaledAttrsNode : public AttrsNode {
+struct TCGen05InstrDescriptorBlockScaledAttrs : public AttrsNode {
   ffi::String d_dtype;
   ffi::String a_dtype;
   ffi::String b_dtype;
@@ -70,7 +70,7 @@ struct TCGen05InstrDescriptorBlockScaledAttrsNode : public AttrsNode {
 
   static void RegisterReflection();
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.cuda.TCGen05InstrDescriptorBlockScaledAttrs",
-                                    TCGen05InstrDescriptorBlockScaledAttrsNode, AttrsNode);
+                                    TCGen05InstrDescriptorBlockScaledAttrs, AttrsNode);
 };
 
 }  // namespace cuda

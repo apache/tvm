@@ -28,12 +28,12 @@ namespace tvm {
 namespace tirx {
 
 /*! \brief Count the size of the PrimExpr. */
-class PrimExprSizeCounterObj : public StmtExprVisitorObj {
+class PrimExprSizeCounter : public StmtExprVisitor {
  public:
-  PrimExprSizeCounterObj() = default;
+  PrimExprSizeCounter() = default;
 
   static size_t Count(const PrimExpr& expr) {
-    auto prim_expr_size_counter = ffi::make_object<PrimExprSizeCounterObj>();
+    auto prim_expr_size_counter = ffi::make_object<PrimExprSizeCounter>();
     prim_expr_size_counter->Visit(expr);
     return prim_expr_size_counter->counter_;
   }
@@ -41,13 +41,13 @@ class PrimExprSizeCounterObj : public StmtExprVisitorObj {
  private:
   ffi::Optional<VisitInterrupt> Visit(ffi::AnyView expr) final {
     if (expr.as<ExprNode>()) counter_++;
-    return StmtExprVisitorObj::Visit(expr);
+    return StmtExprVisitor::Visit(expr);
   }
 
   size_t counter_{0};
 };
 
-size_t CalculateExprComplexity(const PrimExpr& expr) { return PrimExprSizeCounterObj::Count(expr); }
+size_t CalculateExprComplexity(const PrimExpr& expr) { return PrimExprSizeCounter::Count(expr); }
 
 }  // namespace tirx
 }  // namespace tvm

@@ -29,7 +29,7 @@ namespace sym {
 
 using detail::EnterConstraintFacts;
 
-UnchangedOr<Expr> SimplifierBaseObj::Mutate_(const TupleNode* op, InplaceMode inplace_mode) {
+UnchangedOr<Expr> SimplifierBase::Mutate_(const TupleNode* op, InplaceMode inplace_mode) {
   auto fields_u = Mutate(op->fields, inplace_mode).as_or_throw<UnchangedOr<ffi::Array<Expr>>>();
   if (fields_u.UnchangedOrSameAs(op->fields)) return ffi::Unchanged();
   if (inplace_mode == InplaceMode::kAllow) {
@@ -41,7 +41,7 @@ UnchangedOr<Expr> SimplifierBaseObj::Mutate_(const TupleNode* op, InplaceMode in
   return Tuple(std::move(copy));
 }
 
-UnchangedOr<Expr> SimplifierBaseObj::Mutate_(const TupleGetItemNode* op, InplaceMode inplace_mode) {
+UnchangedOr<Expr> SimplifierBase::Mutate_(const TupleGetItemNode* op, InplaceMode inplace_mode) {
   auto tuple_u = Mutate(op->tuple, inplace_mode);
   if (tuple_u.UnchangedOrSameAs(op->tuple)) return ffi::Unchanged();
   if (inplace_mode == InplaceMode::kAllow) {
@@ -53,8 +53,7 @@ UnchangedOr<Expr> SimplifierBaseObj::Mutate_(const TupleGetItemNode* op, Inplace
   return TupleGetItem(std::move(copy));
 }
 
-UnchangedOr<PrimExpr> SimplifierBaseObj::Mutate_(const TensorLoadNode* op,
-                                                 InplaceMode inplace_mode) {
+UnchangedOr<PrimExpr> SimplifierBase::Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) {
   auto source_u = Mutate(op->source, inplace_mode);
   auto indices_u =
       Mutate(op->indices, inplace_mode).as_or_throw<UnchangedOr<ffi::Array<PrimExpr>>>();
@@ -73,7 +72,7 @@ UnchangedOr<PrimExpr> SimplifierBaseObj::Mutate_(const TensorLoadNode* op,
   return TensorLoad(std::move(copy));
 }
 
-UnchangedOr<Expr> SimplifierBaseObj::Mutate_(const CallNode* op, InplaceMode inplace_mode) {
+UnchangedOr<Expr> SimplifierBase::Mutate_(const CallNode* op, InplaceMode inplace_mode) {
   if (op->op.same_as(prim::if_then_else_op())) {
     InplaceMode inplace_mode_args = inplace_mode;
     // Ensure uniqueness along op -> args -> args[i].
@@ -120,8 +119,7 @@ UnchangedOr<Expr> SimplifierBaseObj::Mutate_(const CallNode* op, InplaceMode inp
   return Call(std::move(copy));
 }
 
-UnchangedOr<PrimExpr> SimplifierBaseObj::Mutate_(const prim::LetNode* op,
-                                                 InplaceMode inplace_mode) {
+UnchangedOr<PrimExpr> SimplifierBase::Mutate_(const prim::LetNode* op, InplaceMode inplace_mode) {
   PrimExpr value = Mutate(op->value, inplace_mode).ValueOrUnchanged(op->value);
   if (SideEffect(value) <= CallEffectKind::kPure) {
     analyzer_->Bind(op->var, value);
@@ -134,8 +132,8 @@ UnchangedOr<PrimExpr> SimplifierBaseObj::Mutate_(const prim::LetNode* op,
   return prim::Let(op->var, value, body, op->loc);
 }
 
-UnchangedOr<PrimExpr> SimplifierBaseObj::Mutate_(const prim::SelectNode* op,
-                                                 InplaceMode inplace_mode) {
+UnchangedOr<PrimExpr> SimplifierBase::Mutate_(const prim::SelectNode* op,
+                                              InplaceMode inplace_mode) {
   PrimExpr cond = Mutate(op->condition, inplace_mode).ValueOrUnchanged(op->condition);
   PrimExpr true_value = constraint_scope_
                             .WithNewScope([&]() {

@@ -227,7 +227,7 @@ class ShardingAnnotationCollector : public ExprVisitor {
   void VisitBinding_(const VarBindingNode* binding, const CallNode* val) {
     static const Op annotate_sharding_op = Op::Get("relax.dist.annotate_sharding");
     if (val->op.same_as(annotate_sharding_op)) {
-      const auto* attrs = val->attrs.as<DistributionAttrsNode>();
+      const auto* attrs = val->attrs.as<DistributionAttrs>();
       TVM_FFI_ICHECK(attrs);
 
       for (int i = 0; i < static_cast<int>(attrs->placement->dim_specs.size()); i++) {

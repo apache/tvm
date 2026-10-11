@@ -53,14 +53,14 @@ struct RelaxGvarMutator : ExprMutator {
 };
 
 // File-local mutator: replace GlobalVar references inside a tirx::Function.
-struct TirxGvarMutatorObj : tirx::StmtExprMutatorObj {
+struct TirxGvarMutator : tirx::StmtExprMutator {
   ffi::Map<GlobalVar, GlobalVar> replacements;
-  explicit TirxGvarMutatorObj(ffi::Map<GlobalVar, GlobalVar> replacements)
+  explicit TirxGvarMutator(ffi::Map<GlobalVar, GlobalVar> replacements)
       : replacements(replacements) {}
 
-  using tirx::StmtExprMutatorObj::Mutate_;
+  using tirx::StmtExprMutator::Mutate_;
   UnchangedOr<Expr> Mutate_(const CallNode* node, InplaceMode inplace_mode) override {
-    auto call = tirx::StmtExprMutatorObj::Mutate_(node, inplace_mode)
+    auto call = tirx::StmtExprMutator::Mutate_(node, inplace_mode)
                     .ValueOrUnchanged(ffi::GetRef<Expr>(node))
                     .as_or_throw<tvm::Call>();
     if (auto old_gvar = call->op.as<GlobalVar>()) {
@@ -89,7 +89,7 @@ IRModule ReplaceGlobalVarsInModule(IRModule mod, ffi::Map<GlobalVar, GlobalVar> 
 
     if (auto* function_node = old_func.as<tirx::FunctionNode>()) {
       auto func = ffi::GetRef<tirx::Function>(function_node);
-      auto mutator = ffi::make_object<TirxGvarMutatorObj>(replacements);
+      auto mutator = ffi::make_object<TirxGvarMutator>(replacements);
       auto new_body =
           mutator->Mutate(func->body, InplaceMode::kDisallow).ValueOrUnchanged(func->body);
       if (!new_body.same_as(func->body)) {

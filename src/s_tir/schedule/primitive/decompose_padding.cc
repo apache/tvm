@@ -41,9 +41,9 @@ struct PaddingSBlockInfo {
   PrimExpr pad_value;
 };
 
-class PaddingPatternMatchErrorObj : public ScheduleErrorContextObj {
+class PaddingPatternMatchError : public ScheduleErrorContextObj {
  public:
-  PaddingPatternMatchErrorObj(IRModule mod, SBlock block, const std::string& error_msg)
+  PaddingPatternMatchError(IRModule mod, SBlock block, const std::string& error_msg)
       : mod_(std::move(mod)), block_(std::move(block)), error_msg_(error_msg) {}
 
   ffi::String FastErrorString() const final {
@@ -77,8 +77,8 @@ class PaddingInfoAnalyzer {
                                                   sym::AnalyzerObj* analyzer) {
     PaddingInfoAnalyzer padding_analyzer(analyzer);
     if (!padding_analyzer.MatchPadding(realize, dom_map)) {
-      throw MakeScheduleError<PaddingPatternMatchErrorObj>(mod, realize->block,
-                                                           padding_analyzer.error_msg_);
+      throw MakeScheduleError<PaddingPatternMatchError>(mod, realize->block,
+                                                        padding_analyzer.error_msg_);
     }
     return padding_analyzer.info_.value();
   }
@@ -387,13 +387,13 @@ static std::pair<Stmt, SBlockRealize> CreateInBoundBlock(const SBlockRealizeNode
 /*!
  * \brief A helper class to create a new scope that contains decomposed padding blocks.
  */
-class DecomposePaddingBlockReplacerObj : public StmtExprMutatorObj {
+class DecomposePaddingBlockReplacer : public StmtExprMutator {
  public:
-  using StmtExprMutatorObj::Mutate;
-  using StmtExprMutatorObj::Mutate_;
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
   UnchangedOr<ffi::Any> Mutate(ffi::AnyView value, InplaceMode inplace_mode) override {
     if (value.as<ExprNode>()) return ffi::Unchanged();
-    return StmtExprMutatorObj::Mutate(value, inplace_mode);
+    return StmtExprMutator::Mutate(value, inplace_mode);
   }
 
   /*! \brief Replacement information */
@@ -413,13 +413,13 @@ class DecomposePaddingBlockReplacerObj : public StmtExprMutatorObj {
   };
 
   static SBlock Replace(SBlock scope_root, const ReplaceDesc& desc) {
-    auto replacer = ffi::make_object<DecomposePaddingBlockReplacerObj>(desc);
+    auto replacer = ffi::make_object<DecomposePaddingBlockReplacer>(desc);
     return replacer->Mutate(scope_root, InplaceMode::kAllow)
         .ValueOrUnchanged(std::move(scope_root))
         .as_or_throw<SBlock>();
   }
 
-  explicit DecomposePaddingBlockReplacerObj(const ReplaceDesc& desc) : desc_(desc) {}
+  explicit DecomposePaddingBlockReplacer(const ReplaceDesc& desc) : desc_(desc) {}
 
  private:
   UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
@@ -428,8 +428,7 @@ class DecomposePaddingBlockReplacerObj : public StmtExprMutatorObj {
       // position to rewrite inbound filling code
       new_loop = desc_.in_bound_filling_loop;
     } else {
-      new_loop =
-          StmtExprMutatorObj::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
+      new_loop = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     }
     if (op == desc_.const_filling_pos.get()) {
       // position to insert pad value filling code
@@ -497,8 +496,8 @@ StmtSRef DecomposePaddingImpl(ScheduleState self, const StmtSRef& block_sref,
   }
   TVM_FFI_ICHECK(in_bound_filling_pos.has_value());
   if (!found_const_filling_pos) {
-    throw MakeScheduleError<LoopPositionErrorObj>(self->mod, const_filling_pos,
-                                                  ffi::GetRef<SBlock>(block), "decompose_padding");
+    throw MakeScheduleError<LoopPositionError>(self->mod, const_filling_pos,
+                                               ffi::GetRef<SBlock>(block), "decompose_padding");
   }
 
   // Check 3. match padding pattern and return padding operation info.
@@ -511,14 +510,14 @@ StmtSRef DecomposePaddingImpl(ScheduleState self, const StmtSRef& block_sref,
       CreateConstBlock(realize, info, loops, const_filling_pos, analyzer.get());
   auto [in_bound_loop, in_bound_block] =
       CreateInBoundBlock(realize, info, loops, in_bound_filling_pos.value(), analyzer.get());
-  DecomposePaddingBlockReplacerObj::ReplaceDesc replace_desc{
+  DecomposePaddingBlockReplacer::ReplaceDesc replace_desc{
       const_filling_pos, in_bound_filling_pos.value(), const_loop, in_bound_loop, const_block,
       in_bound_block};
 
   // Step 2. Execute IR replacement.
   SBlock old_scope_root_block = ffi::GetRef<SBlock>(scope_root_sref->StmtAs<SBlockNode>());
   SBlock new_scope_root =
-      DecomposePaddingBlockReplacerObj::Replace(old_scope_root_block, replace_desc);
+      DecomposePaddingBlockReplacer::Replace(old_scope_root_block, replace_desc);
   if (check_only) {
     return block_sref;
   }

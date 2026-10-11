@@ -137,13 +137,13 @@ class WellFormedChecker : public relax::ExprVisitor, public relax::TypeVisitor {
     kMatchVarDef
   };
 
-  class PrimitiveExprCheckerObj : public tirx::StmtExprVisitorObj {
+  class PrimitiveExprChecker : public tirx::StmtExprVisitor {
    public:
-    explicit PrimitiveExprCheckerObj(WellFormedChecker* parent)
-        : tirx::StmtExprVisitorObj([] {
+    explicit PrimitiveExprChecker(WellFormedChecker* parent)
+        : tirx::StmtExprVisitor([] {
             static const VTable table = [] {
               VTable table;
-              PrimitiveExprCheckerObj::InitVTable(&table);
+              PrimitiveExprChecker::InitVTable(&table);
               table.Finalize();
               return table;
             }();
@@ -158,8 +158,8 @@ class WellFormedChecker : public relax::ExprVisitor, public relax::TypeVisitor {
     }
 
     static void InitVTable(VTable* table) {
-      tirx::StmtExprVisitorObj::InitVTable(table);
-      SetDispatch<tirx::StmtExprVisitorObj, DataflowVarNode>(table);
+      tirx::StmtExprVisitor::InitVTable(table);
+      SetDispatch<tirx::StmtExprVisitor, DataflowVarNode>(table);
     }
 
     WellFormedChecker* parent_{nullptr};
@@ -673,7 +673,7 @@ class WellFormedChecker : public relax::ExprVisitor, public relax::TypeVisitor {
   }
 
   void VisitPrimitiveExpr(const PrimExpr& expr) {
-    ffi::make_object<PrimitiveExprCheckerObj>(this)->Visit(expr);
+    ffi::make_object<PrimitiveExprChecker>(this)->Visit(expr);
   }
 
   void MarkTypeVarDefinition(const Var& var) {

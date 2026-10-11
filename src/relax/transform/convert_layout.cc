@@ -135,7 +135,7 @@ class LayoutConvertMutator : public ExprMutator {
         auto index_map = LayoutIndexMap(
             (from.LeafValue()->layout.has_value() ? from.LeafValue()->layout.value().ndim() : 0),
             from.LeafValue()->layout.value(), to.LeafValue()->layout.value());
-        ffi::ObjectPtr<LayoutTransformAttrsNode> attrs = ffi::make_object<LayoutTransformAttrsNode>(
+        ffi::ObjectPtr<LayoutTransformAttrs> attrs = ffi::make_object<LayoutTransformAttrs>(
             ffi::FromJSONGraph(ffi::ToJSONGraph(index_map)).as_or_throw<IndexMap>());
         const Op layout_transform_op_ = Op::Get("relax.layout_transform");
         auto ret_expr =

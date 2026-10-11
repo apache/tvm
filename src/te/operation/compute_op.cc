@@ -224,15 +224,15 @@ namespace {
  *      must be Reduce as well; and their inputs should have the
  *      same attribute except value_index.
  */
-class ComputeVerifierObj final : public tirx::StmtExprVisitorObj {
+class ComputeVerifier final : public tirx::StmtExprVisitor {
  public:
   /// Special member functions
   //@{
-  explicit ComputeVerifierObj(const ComputeOpNode* compute)
-      : tirx::StmtExprVisitorObj([] {
+  explicit ComputeVerifier(const ComputeOpNode* compute)
+      : tirx::StmtExprVisitor([] {
           static const VTable table = [] {
             VTable table;
-            ComputeVerifierObj::InitVTable(&table);
+            ComputeVerifier::InitVTable(&table);
             table.Finalize();
             return table;
           }();
@@ -240,11 +240,11 @@ class ComputeVerifierObj final : public tirx::StmtExprVisitorObj {
         }()),
         compute_(compute),
         reduce_(compute->body[0].as<te::ReduceNode>()) {}
-  ~ComputeVerifierObj() = default;
-  ComputeVerifierObj(const ComputeVerifierObj&) = delete;
-  ComputeVerifierObj(ComputeVerifierObj&&) = delete;
-  ComputeVerifierObj& operator=(const ComputeVerifierObj&) = delete;
-  ComputeVerifierObj& operator=(ComputeVerifierObj&&) = delete;
+  ~ComputeVerifier() = default;
+  ComputeVerifier(const ComputeVerifier&) = delete;
+  ComputeVerifier(ComputeVerifier&&) = delete;
+  ComputeVerifier& operator=(const ComputeVerifier&) = delete;
+  ComputeVerifier& operator=(ComputeVerifier&&) = delete;
   //@}
 
   /// Interface to perform compute verification
@@ -261,19 +261,19 @@ class ComputeVerifierObj final : public tirx::StmtExprVisitorObj {
       }
 
       level_ = 0;
-      tirx::StmtExprVisitorObj::Visit(e);
+      tirx::StmtExprVisitor::Visit(e);
     }
   }
 
   ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) final {
-    if (!value.as<tvm::ExprNode>()) return tirx::StmtExprVisitorObj::Visit(value);
+    if (!value.as<tvm::ExprNode>()) return tirx::StmtExprVisitor::Visit(value);
     ++level_;
-    auto interrupt = tirx::StmtExprVisitorObj::Visit(value);
+    auto interrupt = tirx::StmtExprVisitor::Visit(value);
     --level_;
     return interrupt;
   }
 
-  using tirx::StmtExprVisitorObj::Visit_;
+  using tirx::StmtExprVisitor::Visit_;
   ffi::Optional<VisitInterrupt> Visit_(const IterVarNode*) { return std::nullopt; }
   ffi::Optional<VisitInterrupt> Visit_(const te::ReduceNode* reduce) {
     TVM_FFI_ICHECK(0 == level_) << "Reductions are only allowed at the top level of compute. "
@@ -295,9 +295,9 @@ class ComputeVerifierObj final : public tirx::StmtExprVisitorObj {
 
  protected:
   static void InitVTable(VTable* table) {
-    tirx::StmtExprVisitorObj::InitVTable(table);
-    SetDispatch<ComputeVerifierObj, te::ReduceNode>(table);
-    SetDispatch<ComputeVerifierObj, IterVarNode>(table);
+    tirx::StmtExprVisitor::InitVTable(table);
+    SetDispatch<ComputeVerifier, te::ReduceNode>(table);
+    SetDispatch<ComputeVerifier, IterVarNode>(table);
   }
 
  private:
@@ -309,7 +309,7 @@ class ComputeVerifierObj final : public tirx::StmtExprVisitorObj {
 
 /// Verify if ComputeOp is valid with respect to Reduce operations.
 static void VerifyComputeOp(const ComputeOpNode* op) {
-  ffi::make_object<ComputeVerifierObj>(op)->Run();
+  ffi::make_object<ComputeVerifier>(op)->Run();
 }
 
 }  // namespace te

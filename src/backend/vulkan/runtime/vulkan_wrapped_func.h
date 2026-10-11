@@ -112,7 +112,7 @@ class VulkanModuleObj final : public ffi::ModuleObj {
   // Deserialized SPIRV shaders, used by GetPipeline at runtime.
   std::unordered_map<std::string, SPIRVShader> internal_smap_;
   // Per-kernel serialized SPIRVShader bytes, kept for byte-identical
-  // SaveToBytes vs target::VulkanFallbackModuleNode.  Both forms carry
+  // SaveToBytes vs target::VulkanFallbackModuleObj.  Both forms carry
   // the same shaders; internal_smap_ is the deserialized cache.
   ffi::Map<ffi::String, ffi::Bytes> smap_;
   // The format identifier — always "vulkan" today.

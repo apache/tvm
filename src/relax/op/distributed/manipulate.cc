@@ -35,7 +35,7 @@ Type InferDistTypePermuteDims(const Call& call, const BlockBuilder& ctx) {
   ffi::Array<distributed::DTensorType> input_dtensor_tys = GetInputDTensorType(call, ctx);
   TensorType data_ty = input_dtensor_tys[0]->tensor_ty;
 
-  const auto* attrs = call->attrs.as<PermuteDimsAttrsNode>();
+  const auto* attrs = call->attrs.as<PermuteDimsAttrs>();
 
   // Todo(relax-team): revisit here for better check on if the input tensor has
   // ndim same as the number of input axes.

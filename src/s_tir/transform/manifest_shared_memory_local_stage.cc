@@ -186,18 +186,18 @@ class IntermediateStageRewriter {
   const std::vector<Stmt>& ancestor_loop_or_blocks_;
 };
 
-class SharedMemoryLocalStageInserterObj : public StmtExprMutatorObj {
+class SharedMemoryLocalStageInserter : public StmtExprMutator {
  public:
-  using StmtExprMutatorObj::Mutate;
-  using StmtExprMutatorObj::Mutate_;
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
   UnchangedOr<ffi::Any> Mutate(ffi::AnyView value, InplaceMode inplace_mode) override {
     if (value.as<ExprNode>()) return ffi::Unchanged();
-    return StmtExprMutatorObj::Mutate(value, inplace_mode);
+    return StmtExprMutator::Mutate(value, inplace_mode);
   }
 
   UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
     ancestor_loop_or_blocks_.push_back(ffi::GetRef<Stmt>(op));
-    Stmt new_stmt = StmtExprMutatorObj::Mutate_(op, InplaceMode::kDisallow)
+    Stmt new_stmt = StmtExprMutator::Mutate_(op, InplaceMode::kDisallow)
                         .ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     ancestor_loop_or_blocks_.pop_back();
     return new_stmt;
@@ -205,7 +205,7 @@ class SharedMemoryLocalStageInserterObj : public StmtExprMutatorObj {
 
   UnchangedOr<Stmt> Mutate_(const SBlockRealizeNode* op, InplaceMode inplace_mode) final {
     ancestor_loop_or_blocks_.push_back(ffi::GetRef<Stmt>(op));
-    Stmt new_stmt = StmtExprMutatorObj::Mutate_(op, InplaceMode::kDisallow)
+    Stmt new_stmt = StmtExprMutator::Mutate_(op, InplaceMode::kDisallow)
                         .ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     ancestor_loop_or_blocks_.pop_back();
     return new_stmt;
@@ -287,7 +287,7 @@ namespace transform {
 Pass ManifestSharedMemoryLocalStage() {
   auto pass_func = [=](Function f, IRModule m, PassContext ctx) {
     auto* n = f.CopyOnWrite();
-    n->body = ffi::make_object<SharedMemoryLocalStageInserterObj>()
+    n->body = ffi::make_object<SharedMemoryLocalStageInserter>()
                   ->Mutate(n->body, InplaceMode::kAllow)
                   .ValueOrUnchanged(std::move(n->body));
     return f;

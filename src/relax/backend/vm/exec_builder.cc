@@ -35,13 +35,13 @@ TVM_FFI_STATIC_INIT_BLOCK() { ExecBuilderObj::RegisterReflection(); }
 
 ExecBuilder ExecBuilderObj::Create() {
   ExecBuilder ret(ffi::UnsafeInit{}, ffi::make_object<ExecBuilderObj>());
-  ret->exec_ = ffi::make_object<VMExecutableObj>();
+  ret->exec_ = ffi::make_object<VMExecutable>();
   return ret;
 }
 
-VMExecutableObj* ExecBuilderObj::exec() const { return exec_.get(); }
+VMExecutable* ExecBuilderObj::exec() const { return exec_.get(); }
 
-ffi::ObjectPtr<VMExecutableObj> ExecBuilderObj::Get() {
+ffi::ObjectPtr<VMExecutable> ExecBuilderObj::Get() {
   this->Formalize();
   this->CheckExecutable();
   return exec_;
@@ -259,7 +259,7 @@ void ExecBuilderObj::CheckExecutable() {
 
 void ExecBuilderObj::Formalize() {
   // a pass to formalize user-specified register indexes in the order of use
-  // and decide the number of registers to allocate for each VMFunction in the VMExecutableObj
+  // and decide the number of registers to allocate for each VMFunction in the VMExecutable
   for (auto it = this->exec_->func_table.begin(); it != this->exec_->func_table.end(); ++it) {
     if (it->kind == VMFuncInfo::FuncKind::kPackedFunc) continue;
 
@@ -375,7 +375,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
           "relax.ExecBuilderF",
           [](ExecBuilder builder, ffi::String value) { return builder->GetFunction(value).data(); })
       .def("relax.ExecBuilderGet", [](ExecBuilder builder) {
-        ffi::ObjectPtr<VMExecutableObj> p_exec = builder->Get();
+        ffi::ObjectPtr<VMExecutable> p_exec = builder->Get();
         return ffi::Module(p_exec);
       });
 }

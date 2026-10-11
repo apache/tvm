@@ -34,11 +34,11 @@ namespace tvm {
 namespace tirx {
 
 // Remove any prim::assume_op calls
-class AssumeRemoverObj : public StmtExprMutatorObj {
+class AssumeRemover : public StmtExprMutator {
  public:
-  using StmtExprMutatorObj::Mutate;
-  using StmtExprMutatorObj::Mutate_;
-  using Parent = StmtExprMutatorObj;
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
+  using Parent = StmtExprMutator;
 
   UnchangedOr<Stmt> Mutate_(const EvaluateNode* op, InplaceMode inplace_mode) final {
     if (auto* call = op->value.as<CallNode>()) {
@@ -46,7 +46,7 @@ class AssumeRemoverObj : public StmtExprMutatorObj {
         return Evaluate(0);
       }
     }
-    return StmtExprMutatorObj::Mutate_(op, inplace_mode);
+    return StmtExprMutator::Mutate_(op, inplace_mode);
   }
 };
 
@@ -54,7 +54,7 @@ namespace transform {
 Pass RemoveAssumeInternal() {
   auto pass_func = [](Function f, IRModule m, PassContext ctx) {
     auto* n = f.CopyOnWrite();
-    n->body = ffi::make_object<AssumeRemoverObj>()
+    n->body = ffi::make_object<AssumeRemover>()
                   ->Mutate(n->body, InplaceMode::kAllow)
                   .ValueOrUnchanged(n->body);
     return f;

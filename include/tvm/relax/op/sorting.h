@@ -31,26 +31,26 @@ namespace tvm {
 namespace relax {
 
 /*! \brief Attributes used in sort operator */
-struct SortAttrsNode : public AttrsNode {
+struct SortAttrs : public AttrsNode {
   int axis;
   bool descending;
 
   static void RegisterReflection();
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.SortAttrs", SortAttrsNode, AttrsNode);
-};  // struct SortAttrsNode
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.SortAttrs", SortAttrs, AttrsNode);
+};  // struct SortAttrs
 
 /*! \brief Attributes used in argsort operator */
-struct ArgsortAttrsNode : public AttrsNode {
+struct ArgsortAttrs : public AttrsNode {
   int axis;
   bool descending;
   ffi::Optional<DLDataType> dtype;
 
   static void RegisterReflection();
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.ArgsortAttrs", ArgsortAttrsNode, AttrsNode);
-};  // struct ArgsortAttrsNode
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.ArgsortAttrs", ArgsortAttrs, AttrsNode);
+};  // struct ArgsortAttrs
 
 /*! \brief Attributes used in topk operator */
-struct TopKAttrsNode : public AttrsNode {
+struct TopKAttrs : public AttrsNode {
   int k;
   int axis;
   bool largest;
@@ -58,8 +58,8 @@ struct TopKAttrsNode : public AttrsNode {
   ffi::Optional<DLDataType> dtype;
 
   static void RegisterReflection();
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.TopKAttrs", TopKAttrsNode, AttrsNode);
-};  // struct TopKAttrsNode
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.TopKAttrs", TopKAttrs, AttrsNode);
+};  // struct TopKAttrs
 
 }  // namespace relax
 }  // namespace tvm

@@ -107,15 +107,15 @@ class Timer : public ffi::ObjectRef {
    *
    * For example, this is how the CPU timer is implemented:
    * \code{.cpp}
-   *  class CPUTimerNode : public TimerObj {
+   *  class CPUTimerObj : public TimerObj {
    *   public:
    *    virtual void Start() { start_ = std::chrono::high_resolution_clock::now(); }
    *    virtual void Stop() { duration_ = std::chrono::high_resolution_clock::now() - start_; }
    *    virtual int64_t SyncAndGetElapsedNanos() { return duration_.count(); }
-   *    virtual ~CPUTimerNode() {}
+   *    virtual ~CPUTimerObj() {}
    *
-   *    static constexpr const char* _type_key = "runtime.CPUTimerNode";
-   *    TVM_FFI_DECLARE_OBJECT_INFO_FINAL(CPUTimerNode, TimerObj);
+   *    static constexpr const char* _type_key = "runtime.CPUTimerObj";
+   *    TVM_FFI_DECLARE_OBJECT_INFO_FINAL(CPUTimerObj, TimerObj);
    *
    *   private:
    *    std::chrono::high_resolution_clock::time_point start_;
@@ -126,7 +126,7 @@ class Timer : public ffi::ObjectRef {
    *  TVM_FFI_STATIC_INIT_BLOCK() {
    *    namespace refl = tvm::ffi::reflection;
    *    refl::GlobalDef().def("runtime.timer.cpu", [](Device dev) {
-   *      return Timer(ffi::UnsafeInit{}, ffi::make_object<CPUTimerNode>());
+   *      return Timer(ffi::UnsafeInit{}, ffi::make_object<CPUTimerObj>());
    *    });
    *  }
    * \endcode

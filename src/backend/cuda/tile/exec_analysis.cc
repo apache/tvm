@@ -50,16 +50,16 @@
 namespace tvm::backend::cuda {
 using namespace tvm::tirx;
 namespace {
-class ElectSyncFinderObj : public StmtExprVisitorObj {
+class ElectSyncFinder : public StmtExprVisitor {
  public:
   static bool Contains(const PrimExpr& expr) {
-    auto finder = ffi::make_object<ElectSyncFinderObj>();
+    auto finder = ffi::make_object<ElectSyncFinder>();
     finder->Visit(expr);
     return finder->found_;
   }
 
  private:
-  using StmtExprVisitorObj::Visit_;
+  using StmtExprVisitor::Visit_;
 
   ffi::Optional<VisitInterrupt> Visit_(const CallNode* op) final {
     auto is_canonical_elect_sync = [&]() {
@@ -70,24 +70,24 @@ class ElectSyncFinderObj : public StmtExprVisitorObj {
       found_ = true;
       return std::nullopt;
     }
-    return StmtExprVisitorObj::Visit_(op);
+    return StmtExprVisitor::Visit_(op);
   }
 
   bool found_{false};
 };
 
-class ScopeIdVarFinderObj : public StmtExprVisitorObj {
+class ScopeIdVarFinder : public StmtExprVisitor {
  public:
   static bool Contains(const PrimExpr& expr, const std::vector<PrimVar>& vars) {
-    auto finder = ffi::make_object<ScopeIdVarFinderObj>(vars);
+    auto finder = ffi::make_object<ScopeIdVarFinder>(vars);
     finder->Visit(expr);
     return finder->found_;
   }
 
-  explicit ScopeIdVarFinderObj(const std::vector<PrimVar>& vars) : vars_(vars) {}
+  explicit ScopeIdVarFinder(const std::vector<PrimVar>& vars) : vars_(vars) {}
 
  private:
-  using StmtExprVisitorObj::Visit_;
+  using StmtExprVisitor::Visit_;
 
   ffi::Optional<VisitInterrupt> Visit_(const VarNode* op) final {
     for (const PrimVar& candidate : vars_) {
@@ -107,11 +107,11 @@ using CudaLaunchParams = std::unordered_map<ffi::String, ffi::Tuple<PrimVar, Pri
 
 // CUDA indices are ordinary pure calls. Lower them after instruction dispatch so
 // implementations can introduce indices without changing the launch configuration.
-class CudaIndexLowererObj : public StmtExprMutatorObj {
+class CudaIndexLowerer : public StmtExprMutator {
  public:
-  using StmtExprMutatorObj::Mutate;
-  using StmtExprMutatorObj::Mutate_;
-  explicit CudaIndexLowererObj(CudaLaunchParams params) : params_(std::move(params)) {}
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
+  explicit CudaIndexLowerer(CudaLaunchParams params) : params_(std::move(params)) {}
 
   static PrimExpr Register(const std::string& name) {
     std::string operation;
@@ -130,7 +130,7 @@ class CudaIndexLowererObj : public StmtExprMutatorObj {
   }
 
   static Stmt Lower(const Stmt& body, const CudaLaunchParams& params) {
-    auto lowerer = ffi::make_object<CudaIndexLowererObj>(params);
+    auto lowerer = ffi::make_object<CudaIndexLowerer>(params);
     for (const auto& [tag, iv] : params) {
       std::string name(tag);
       std::string reg;
@@ -188,9 +188,9 @@ class CudaIndexLowererObj : public StmtExprMutatorObj {
   }
   UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) final {
     const auto* name_op = op->op.as<OpNode>();
-    if (!name_op) return StmtExprMutatorObj::Mutate_(op, inplace_mode);
+    if (!name_op) return StmtExprMutator::Mutate_(op, inplace_mode);
     std::string name(name_op->name);
-    if (name.rfind("tirx.cuda.", 0) != 0) return StmtExprMutatorObj::Mutate_(op, inplace_mode);
+    if (name.rfind("tirx.cuda.", 0) != 0) return StmtExprMutator::Mutate_(op, inplace_mode);
     name = name.substr(10);
     auto axis = [&]() { return op->args[0].as_or_throw<StringImm>()->value.c_str()[0] - 'x'; };
     if (name == "block_idx") return Axis("blockIdx.", axis());
@@ -230,7 +230,7 @@ class CudaIndexLowererObj : public StmtExprMutatorObj {
                                      Register("cluster_nctaid.y") * Axis("clusterCtaIdx.", 2)),
                             2);
     }
-    return StmtExprMutatorObj::Mutate_(op, inplace_mode);
+    return StmtExprMutator::Mutate_(op, inplace_mode);
   }
   CudaLaunchParams params_;
   PrimVar warp_{"warp_id_in_cta", PrimType::Int(32)};
@@ -537,7 +537,7 @@ struct ExecAnalysis::Impl {
   }
 
   bool ContainsScopeIdVar(const PrimExpr& pred) const {
-    return ScopeIdVarFinderObj::Contains(pred, ScopeIdVars());
+    return ScopeIdVarFinder::Contains(pred, ScopeIdVars());
   }
 
   bool TryExtractLinearScopeDiff(const PrimExpr& diff, ScopeIdTarget* target, int64_t* coeff,
@@ -719,7 +719,7 @@ struct ExecAnalysis::Impl {
     PrimExpr var = call->args[0].as_or_throw<PrimExpr>();
     PrimExpr cond = call->args[1].as_or_throw<PrimExpr>();
     auto target = ResolveScopeIdTarget(var);
-    if (target && ElectSyncFinderObj::Contains(cond)) {
+    if (target && ElectSyncFinder::Contains(cond)) {
       PrimExpr selector = Call(var.ty(), tirx::gpu_active_thread_selector_op(), {var, cond})
                               .as_or_throw<PrimExpr>();
       int pushed = TryPushSelectorForTarget(*target, selector) ? 1 : 0;
@@ -828,7 +828,7 @@ struct ExecAnalysis::Impl {
       // still a lane-scope thread filter. Push the predicate as an opaque
       // selector so downstream code-gen can reuse the existing selector
       // narrowing logic.
-      if (ElectSyncFinderObj::Contains(cond)) {
+      if (ElectSyncFinder::Contains(cond)) {
         auto lane = FindLaneScopeVar();
         if (!lane) return -1;
         ScopeIdTarget target{ScopeBinding::kWarpThread, 0, 1};
@@ -1050,6 +1050,6 @@ std::pair<SplitMap, SplitMap> ExecAnalysis::Split(const tirx::ExecScope& scope) 
   return {};
 }
 Stmt LowerIndices(const Stmt& stmt, const LaunchParams& params) {
-  return CudaIndexLowererObj::Lower(stmt, params);
+  return CudaIndexLowerer::Lower(stmt, params);
 }
 }  // namespace tvm::backend::cuda

@@ -358,23 +358,23 @@ inline ffi::String TensorIndexType2Str(TensorIndexType tensor_index_type) {
 
 /*! \brief Returns the names of the blocks in the provided module. */
 inline std::unordered_set<std::string> GetSBlockNames(const IRModule& mod) {
-  struct BlockNameCollectorObj : public s_tir::StmtExprVisitorObj {
-    using s_tir::StmtExprVisitorObj::Visit_;
+  struct BlockNameCollector : public s_tir::StmtExprVisitor {
+    using s_tir::StmtExprVisitor::Visit_;
 
     ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
       if (value.as<ExprNode>()) return std::nullopt;
-      return s_tir::StmtExprVisitorObj::Visit(value);
+      return s_tir::StmtExprVisitor::Visit(value);
     }
 
     ffi::Optional<VisitInterrupt> Visit_(const s_tir::SBlockNode* block) override {
       block_names.insert(block->name_hint);
-      return StmtExprVisitorObj::Visit(block->body);
+      return StmtExprVisitor::Visit(block->body);
     }
     std::unordered_set<std::string> block_names;
   };
 
   if (auto function = tirx::FindEntryFunc(mod, nullptr)) {
-    auto collector = ffi::make_object<BlockNameCollectorObj>();
+    auto collector = ffi::make_object<BlockNameCollector>();
     collector->Visit(function->body);
     return collector->block_names;
   }

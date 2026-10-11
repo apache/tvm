@@ -149,7 +149,7 @@ ffi::Array<Dependency> SBlockScopeObj::GetDepsByDst(const StmtSRef& block_sref) 
  * \brief Add a new statement to the stack, which becomes the current scope
  * \param stmt A for-loop statement or a block statement
  */
-void SRefTreeCreatorObj::PushSRef(const StmtNode* stmt) {
+void SRefTreeCreator::PushSRef(const StmtNode* stmt) {
   if (srefs_.empty()) {
     srefs_.push_back(
         StmtSRef(stmt,
@@ -164,13 +164,13 @@ void SRefTreeCreatorObj::PushSRef(const StmtNode* stmt) {
 }
 
 /*! \brief Pop the top of the scope and record it in stmt2ref map */
-void SRefTreeCreatorObj::PopAndRecordSRef() {
+void SRefTreeCreator::PopAndRecordSRef() {
   StmtSRef sref = std::move(srefs_.back());
   stmt2ref_.insert_or_assign(sref->stmt, sref);
   srefs_.pop_back();
 }
 
-ffi::Optional<VisitInterrupt> SRefTreeCreatorObj::Visit_(const ForNode* loop) {
+ffi::Optional<VisitInterrupt> SRefTreeCreator::Visit_(const ForNode* loop) {
   if (!include_loops_) {
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(loop->body));
   } else {
@@ -181,7 +181,7 @@ ffi::Optional<VisitInterrupt> SRefTreeCreatorObj::Visit_(const ForNode* loop) {
   return std::nullopt;
 }
 
-ffi::Optional<VisitInterrupt> SRefTreeCreatorObj::Visit_(const s_tir::SBlockRealizeNode* realize) {
+ffi::Optional<VisitInterrupt> SRefTreeCreator::Visit_(const s_tir::SBlockRealizeNode* realize) {
   const s_tir::SBlockNode* block = realize->block.get();
   PushSRef(block);
   TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(block->body));  // `block->init` is not visited
@@ -189,9 +189,9 @@ ffi::Optional<VisitInterrupt> SRefTreeCreatorObj::Visit_(const s_tir::SBlockReal
   return std::nullopt;
 }
 
-ffi::Optional<VisitInterrupt> SRefTreeCreatorObj::Visit_(const SeqStmtNode* seq_stmt) {
+ffi::Optional<VisitInterrupt> SRefTreeCreator::Visit_(const SeqStmtNode* seq_stmt) {
   // Set `seq_index` information for SeqStmtNode
-  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(s_tir::StmtExprVisitorObj::Visit_(seq_stmt));
+  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(s_tir::StmtExprVisitor::Visit_(seq_stmt));
   SetSeqIndexInChildren(stmt2ref_, seq_stmt, include_loops_);
   return std::nullopt;
 }

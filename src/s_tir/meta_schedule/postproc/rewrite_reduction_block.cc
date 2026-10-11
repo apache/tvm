@@ -27,12 +27,12 @@ namespace s_tir {
 using namespace tvm::tirx;
 
 /*! \brief The visitor that finds all the reduction block to be decomposed */
-struct ReductionBlockFinderObj : public StmtExprVisitorObj {
-  using StmtExprVisitorObj::Visit_;
+struct ReductionBlockFinder : public StmtExprVisitor {
+  using StmtExprVisitor::Visit_;
 
   ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
     if (value.as<ExprNode>()) return std::nullopt;
-    return StmtExprVisitorObj::Visit(value);
+    return StmtExprVisitor::Visit(value);
   }
 
   /*! \brief Find all the reduction blocks that should be decomposed */
@@ -42,7 +42,7 @@ struct ReductionBlockFinderObj : public StmtExprVisitorObj {
       GlobalVar g_var = kv.first;
       BaseFunc base_func = kv.second;
       if (const auto* function = base_func.as<FunctionNode>()) {
-        auto finder = ffi::make_object<ReductionBlockFinderObj>();
+        auto finder = ffi::make_object<ReductionBlockFinder>();
         finder->Visit(function->body);
         for (const SBlockNode* block : finder->results_) {
           results.emplace_back(self->stmt2ref.at(block), g_var->name_hint);
@@ -58,14 +58,14 @@ struct ReductionBlockFinderObj : public StmtExprVisitorObj {
     if (IsThreadIdx(thread_scope) || IsBlockIdx(thread_scope)) {
       thread_bound_loop_vars_.insert(loop->loop_var.get());
     }
-    return StmtExprVisitorObj::Visit_(loop);
+    return StmtExprVisitor::Visit_(loop);
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const SBlockRealizeNode* realize) final {
     if (realize->block->init.has_value() && AllReductionIterVarAreUnbound(realize)) {
       results_.push_back(realize->block.get());
     }
-    return StmtExprVisitorObj::Visit_(realize);
+    return StmtExprVisitor::Visit_(realize);
   }
 
   bool AllReductionIterVarAreUnbound(const SBlockRealizeNode* realize) const {
@@ -147,7 +147,7 @@ class RewriteReductionBlockObj : public PostprocObj {
 bool RewriteReductionBlockObj::Apply(const s_tir::Schedule& sch) {
   for (;;) {
     std::vector<std::pair<tirx::StmtSRef, ffi::String>> results =
-        s_tir::ReductionBlockFinderObj::Find(sch->state());
+        s_tir::ReductionBlockFinder::Find(sch->state());
     int rewritten = 0;
     for (const auto& kv : results) {
       const tirx::StmtSRef& block_sref = kv.first;

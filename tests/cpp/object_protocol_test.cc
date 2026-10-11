@@ -26,28 +26,28 @@ namespace test {
 
 using namespace tvm::runtime;
 
-class BaseObj : public ffi::Object {
+class ObjBase : public ffi::Object {
  public:
   // dynamically allocate slow
   static constexpr const uint32_t _type_child_slots = 1;
-  TVM_FFI_DECLARE_OBJECT_INFO("test.ObjBase", BaseObj, ffi::Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("test.ObjBase", ObjBase, ffi::Object);
 };
 
-class AObj : public BaseObj {
+class ObjA : public ObjBase {
  public:
   static constexpr const uint32_t _type_child_slots = 0;
-  TVM_FFI_DECLARE_OBJECT_INFO("test.ObjA", AObj, BaseObj);
+  TVM_FFI_DECLARE_OBJECT_INFO("test.ObjA", ObjA, ObjBase);
 };
 
-class BObj : public BaseObj {
+class ObjB : public ObjBase {
  public:
   static constexpr const uint32_t _type_child_slots = 0;
-  TVM_FFI_DECLARE_OBJECT_INFO("test.ObjB", BObj, BaseObj);
+  TVM_FFI_DECLARE_OBJECT_INFO("test.ObjB", ObjB, ObjBase);
 };
 
-class AAObj : public AObj {
+class ObjAA : public ObjA {
  public:
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("test.ObjAA", AAObj, AObj);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("test.ObjAA", ObjAA, ObjA);
 };
 
 }  // namespace test
@@ -59,27 +59,27 @@ TEST(ObjectHierachy, Basic) {
   using namespace tvm::test;
   using namespace tvm::ffi;
 
-  ffi::ObjectRef refA(ffi::make_object<AObj>());
-  TVM_FFI_ICHECK_EQ(refA->type_index(), AObj::RuntimeTypeIndex());
+  ffi::ObjectRef refA(ffi::make_object<ObjA>());
+  TVM_FFI_ICHECK_EQ(refA->type_index(), ObjA::RuntimeTypeIndex());
   TVM_FFI_ICHECK(refA.as<ffi::Object>() != nullptr);
-  TVM_FFI_ICHECK(refA.as<AObj>() != nullptr);
-  TVM_FFI_ICHECK(refA.as<BaseObj>() != nullptr);
-  TVM_FFI_ICHECK(refA.as<BObj>() == nullptr);
-  TVM_FFI_ICHECK(refA.as<AAObj>() == nullptr);
+  TVM_FFI_ICHECK(refA.as<ObjA>() != nullptr);
+  TVM_FFI_ICHECK(refA.as<ObjBase>() != nullptr);
+  TVM_FFI_ICHECK(refA.as<ObjB>() == nullptr);
+  TVM_FFI_ICHECK(refA.as<ObjAA>() == nullptr);
 
-  ffi::ObjectRef refAA(ffi::make_object<AAObj>());
-  TVM_FFI_ICHECK_EQ(refAA->type_index(), AAObj::RuntimeTypeIndex());
+  ffi::ObjectRef refAA(ffi::make_object<ObjAA>());
+  TVM_FFI_ICHECK_EQ(refAA->type_index(), ObjAA::RuntimeTypeIndex());
   TVM_FFI_ICHECK(refAA.as<ffi::Object>() != nullptr);
-  TVM_FFI_ICHECK(refAA.as<BaseObj>() != nullptr);
-  TVM_FFI_ICHECK(refAA.as<AObj>() != nullptr);
-  TVM_FFI_ICHECK(refAA.as<AAObj>() != nullptr);
-  TVM_FFI_ICHECK(refAA.as<BObj>() == nullptr);
+  TVM_FFI_ICHECK(refAA.as<ObjBase>() != nullptr);
+  TVM_FFI_ICHECK(refAA.as<ObjA>() != nullptr);
+  TVM_FFI_ICHECK(refAA.as<ObjAA>() != nullptr);
+  TVM_FFI_ICHECK(refAA.as<ObjB>() == nullptr);
 
-  ffi::ObjectRef refB(ffi::make_object<BObj>());
-  TVM_FFI_ICHECK_EQ(refB->type_index(), BObj::RuntimeTypeIndex());
+  ffi::ObjectRef refB(ffi::make_object<ObjB>());
+  TVM_FFI_ICHECK_EQ(refB->type_index(), ObjB::RuntimeTypeIndex());
   TVM_FFI_ICHECK(refB.as<ffi::Object>() != nullptr);
-  TVM_FFI_ICHECK(refB.as<BaseObj>() != nullptr);
-  TVM_FFI_ICHECK(refB.as<AObj>() == nullptr);
-  TVM_FFI_ICHECK(refB.as<AAObj>() == nullptr);
-  TVM_FFI_ICHECK(refB.as<BObj>() != nullptr);
+  TVM_FFI_ICHECK(refB.as<ObjBase>() != nullptr);
+  TVM_FFI_ICHECK(refB.as<ObjA>() == nullptr);
+  TVM_FFI_ICHECK(refB.as<ObjAA>() == nullptr);
+  TVM_FFI_ICHECK(refB.as<ObjB>() != nullptr);
 }

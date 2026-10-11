@@ -30,10 +30,10 @@ namespace s_tir {
 using namespace tirx;
 
 // Reuse ordinary TIRX simplification, adding scoped constraints for S-TIR blocks.
-class StmtSimplifierObj final : public tirx::StmtSimplifierObj {
+class StmtSimplifier final : public tirx::StmtSimplifier {
  public:
-  using Parent = tirx::StmtSimplifierObj;
-  StmtSimplifierObj(const sym::Analyzer& analyzer, tirx::StmtSimplifyConfig config)
+  using Parent = tirx::StmtSimplifier;
+  StmtSimplifier(const sym::Analyzer& analyzer, tirx::StmtSimplifyConfig config)
       : Parent(GlobalVTable(), analyzer, config) {}
   using Parent::Mutate_;
   using Parent::Run;
@@ -47,11 +47,11 @@ class StmtSimplifierObj final : public tirx::StmtSimplifierObj {
         analyzer_->Bind(iter_var->var, iter_var->dom.value());
         iter_vars_.Set(iter_var->var, iter_var->dom.value());
       }
-      return s_tir::StmtExprMutatorObj::MutateBlock(this, op, inplace_mode);
+      return s_tir::StmtExprMutator::MutateBlock(this, op, inplace_mode);
     });
   }
   UnchangedOr<Stmt> Mutate_(const SBlockRealizeNode* op, InplaceMode inplace_mode) {
-    return s_tir::StmtExprMutatorObj::MutateBlockRealize(this, op, inplace_mode);
+    return s_tir::StmtExprMutator::MutateBlockRealize(this, op, inplace_mode);
   }
 
   UnchangedOr<Stmt> Mutate_(const EvaluateNode* op, InplaceMode inplace_mode) final {
@@ -70,8 +70,8 @@ class StmtSimplifierObj final : public tirx::StmtSimplifierObj {
  protected:
   static void InitVTable(VTable* vtable) {
     Parent::InitVTable(vtable);
-    SetDispatch<StmtSimplifierObj, SBlockNode>(vtable);
-    SetDispatch<StmtSimplifierObj, SBlockRealizeNode>(vtable);
+    SetDispatch<StmtSimplifier, SBlockNode>(vtable);
+    SetDispatch<StmtSimplifier, SBlockRealizeNode>(vtable);
   }
   static const VTable* GlobalVTable() {
     static const VTable table = [] {
@@ -86,7 +86,7 @@ class StmtSimplifierObj final : public tirx::StmtSimplifierObj {
 
 Function StmtSimplify(Function func, const sym::Analyzer& analyzer) {
   auto config = tvm::transform::PassConfigWithDefaults<tirx::StmtSimplifyConfig>();
-  return ffi::make_object<StmtSimplifierObj>(analyzer, config)->Run(std::move(func));
+  return ffi::make_object<StmtSimplifier>(analyzer, config)->Run(std::move(func));
 }
 
 namespace transform {
@@ -94,7 +94,7 @@ Pass StmtSimplify() {
   auto pass_func = [](Function func, IRModule, tvm::transform::PassContext ctx) {
     sym::Analyzer analyzer;
     auto config = ctx->GetConfigOrDefault<tirx::StmtSimplifyConfig>("tirx.StmtSimplify");
-    return ffi::make_object<s_tir::StmtSimplifierObj>(analyzer, config)->Run(std::move(func));
+    return ffi::make_object<s_tir::StmtSimplifier>(analyzer, config)->Run(std::move(func));
   };
   return tirx::transform::CreateFunctionPass(pass_func, 0, "s_tir.StmtSimplify");
 }

@@ -30,24 +30,23 @@ namespace tvm {
 namespace relax {
 
 /*! \brief Attributes for statistical operators */
-struct StatisticalAttrsNode : public AttrsNode {
+struct StatisticalAttrs : public AttrsNode {
   ffi::Optional<ffi::Array<int64_t>> axis;
   bool keepdims;
 
   static void RegisterReflection();
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.StatisticalAttrs", StatisticalAttrsNode,
-                                    AttrsNode);
-};  // struct StatisticalAttrsNode
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.StatisticalAttrs", StatisticalAttrs, AttrsNode);
+};  // struct StatisticalAttrs
 
 /*! \brief Attributes used in scan operators like cumsum, cumprod */
-struct ScanopAttrsNode : public AttrsNode {
+struct ScanopAttrs : public AttrsNode {
   ffi::Optional<int64_t> axis;
   ffi::Optional<DLDataType> dtype;
   bool exclusive = false;
 
   static void RegisterReflection();
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.ScanopAttrs", ScanopAttrsNode, AttrsNode);
-};  // struct ScanopAttrsNode
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.ScanopAttrs", ScanopAttrs, AttrsNode);
+};  // struct ScanopAttrs
 
 }  // namespace relax
 }  // namespace tvm

@@ -45,14 +45,14 @@ namespace tirx {
  * inconsistency may happen as a result of IR mutation in some passes. This class can be used as
  * base class of such passes to ensure the consistency of data types.
  */
-class DataTypeLegalizerObj : public StmtExprMutatorObj {
+class DataTypeLegalizer : public StmtExprMutator {
  public:
-  TVM_DEFINE_OBJECT_FUNCTOR_DEFAULT_CONSTRUCTOR(DataTypeLegalizerObj, StmtExprMutatorObj)
-  using StmtExprMutatorObj::Mutate;
-  using StmtExprMutatorObj::Mutate_;
+  TVM_DEFINE_OBJECT_FUNCTOR_DEFAULT_CONSTRUCTOR(DataTypeLegalizer, StmtExprMutator)
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
 
  protected:
-  explicit DataTypeLegalizerObj(const VTable* vtable) : StmtExprMutatorObj(vtable) {}
+  explicit DataTypeLegalizer(const VTable* vtable) : StmtExprMutator(vtable) {}
   UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) override;
   UnchangedOr<Stmt> Mutate_(const RegionStmtNode* op, InplaceMode inplace_mode) override;
   UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) override;
@@ -97,15 +97,15 @@ class DataTypeLegalizerObj : public StmtExprMutatorObj {
  * expression is a tensor index or a conditional expression, which can be used in the sub-classes to
  * implement different rewriting rules.
  */
-class IndexDataTypeRewriterObj : public DataTypeLegalizerObj {
+class IndexDataTypeRewriter : public DataTypeLegalizer {
  public:
-  TVM_DEFINE_OBJECT_FUNCTOR_DEFAULT_CONSTRUCTOR(IndexDataTypeRewriterObj, DataTypeLegalizerObj)
-  using DataTypeLegalizerObj::Mutate;
-  using DataTypeLegalizerObj::Mutate_;
+  TVM_DEFINE_OBJECT_FUNCTOR_DEFAULT_CONSTRUCTOR(IndexDataTypeRewriter, DataTypeLegalizer)
+  using DataTypeLegalizer::Mutate;
+  using DataTypeLegalizer::Mutate_;
 
  protected:
-  explicit IndexDataTypeRewriterObj(const VTable* vtable) : DataTypeLegalizerObj(vtable) {}
-  using Parent = DataTypeLegalizerObj;
+  explicit IndexDataTypeRewriter(const VTable* vtable) : DataTypeLegalizer(vtable) {}
+  using Parent = DataTypeLegalizer;
   UnchangedOr<ffi::Any> Mutate(ffi::AnyView value, InplaceMode inplace_mode) override;
   UnchangedOr<Stmt> Mutate_(const TensorStoreNode* op, InplaceMode inplace_mode) override;
   UnchangedOr<Stmt> Mutate_(const RegionStmtNode* op, InplaceMode inplace_mode) override;
@@ -137,16 +137,16 @@ class IndexDataTypeRewriterObj : public DataTypeLegalizerObj {
  * assumes the specified data type is large enough to hold the original ranges of tensor shapes and
  * indices.
  */
-class IndexDataTypeNormalizerObj : public IndexDataTypeRewriterObj {
+class IndexDataTypeNormalizer : public IndexDataTypeRewriter {
  public:
-  using IndexDataTypeRewriterObj::Mutate;
-  using IndexDataTypeRewriterObj::Mutate_;
-  explicit IndexDataTypeNormalizerObj(PrimType target_data_type);
+  using IndexDataTypeRewriter::Mutate;
+  using IndexDataTypeRewriter::Mutate_;
+  explicit IndexDataTypeNormalizer(PrimType target_data_type);
   Function Rewrite(Function func);
 
  protected:
-  IndexDataTypeNormalizerObj(PrimType target_data_type, const VTable* vtable);
-  using Parent = IndexDataTypeRewriterObj;
+  IndexDataTypeNormalizer(PrimType target_data_type, const VTable* vtable);
+  using Parent = IndexDataTypeRewriter;
 
   UnchangedOr<PrimExpr> Mutate_(const IntImmNode* op, InplaceMode inplace_mode) override;
 

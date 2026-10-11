@@ -407,7 +407,7 @@ std::shared_ptr<VulkanPipeline> VulkanModuleObj::GetPipeline(size_t device_id,
 
 ffi::Bytes VulkanModuleObj::SaveToBytes() const {
   // NOTE: serialization format MUST remain byte-identical to
-  // target::VulkanFallbackModuleNode::SaveToBytes in
+  // target::VulkanFallbackModuleObj::SaveToBytes in
   // src/backend/vulkan/codegen/vulkan_fallback_module.cc.  This file is the
   // source of truth; the fallback follows.
   // 3 fields only — the source map is in-memory inspection material and

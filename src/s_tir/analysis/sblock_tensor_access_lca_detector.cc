@@ -46,12 +46,12 @@ namespace tirx {
  * global memory will have its tensor access LCA outside all launch sites of `blockIdx`, in order to
  * prevent conflicts between tensor memory scopes and CUDA hierarchy.
  */
-class LCADetectorObj : public s_tir::StmtExprVisitorObj {
+class LCADetector : public s_tir::StmtExprVisitor {
  public:
-  using s_tir::StmtExprVisitorObj::Visit_;
+  using s_tir::StmtExprVisitor::Visit_;
 
   static ffi::Map<TensorVar, ffi::Optional<Stmt>> Detect(const Function& func) {
-    auto detector = ffi::make_object<LCADetectorObj>();
+    auto detector = ffi::make_object<LCADetector>();
     for (const Var& param : func->params) {
       if (auto tensor = param.as<TensorVar>()) {
         detector->tensor_var_map_.emplace(tensor.value().get(), tensor.value().get());
@@ -111,7 +111,7 @@ class LCADetectorObj : public s_tir::StmtExprVisitorObj {
 
     ancestor_scopes_.push_back(current_scope);
     loop_scope_map_.insert({op->loop_var.get(), current_scope});
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(s_tir::StmtExprVisitorObj::Visit_(op));
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(s_tir::StmtExprVisitor::Visit_(op));
     ancestor_scopes_.pop_back();
     loop_scope_map_.erase(op->loop_var.get());
     return std::nullopt;
@@ -144,7 +144,7 @@ class LCADetectorObj : public s_tir::StmtExprVisitorObj {
       match_tensors_.insert(match_tensor->tensor.get());
     }
 
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(s_tir::StmtExprVisitorObj::Visit_(op));
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(s_tir::StmtExprVisitor::Visit_(op));
     ancestor_scopes_.pop_back();
     return std::nullopt;
   }
@@ -279,7 +279,7 @@ class LCADetectorObj : public s_tir::StmtExprVisitorObj {
 
   // Declared regions carry bounds, not opaque runtime accesses.
   ffi::Optional<VisitInterrupt> Visit_(const TensorRegionNode* op) final {
-    if (!op->source.as<TensorVar>()) return s_tir::StmtExprVisitorObj::Visit_(op);
+    if (!op->source.as<TensorVar>()) return s_tir::StmtExprVisitor::Visit_(op);
     for (const Range& range : op->region) {
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(range->min));
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(range->extent));
@@ -306,7 +306,7 @@ class LCADetectorObj : public s_tir::StmtExprVisitorObj {
 
   // Works for Load/Store and opaque access.
   ffi::Optional<VisitInterrupt> Visit_(const VarNode* op) final {
-    if (def_region_kind() != kTVMFFIDefRegionKindNone) return StmtExprVisitorObj::Visit_(op);
+    if (def_region_kind() != kTVMFFIDefRegionKindNone) return StmtExprVisitor::Visit_(op);
     VisitTensorVar(op);
     return std::nullopt;
   }
@@ -366,7 +366,7 @@ class LCADetectorObj : public s_tir::StmtExprVisitorObj {
   }
 
   /*! \brief The ancestor scope stacks info (s_tir::SBlock and For).  The
-   *  first element is initialized in LCADetectorObj::Detect to represent
+   *  first element is initialized in LCADetector::Detect to represent
    *  the root scope.
    */
   std::vector<const ScopeInfo*> ancestor_scopes_ = {};
@@ -385,7 +385,7 @@ class LCADetectorObj : public s_tir::StmtExprVisitorObj {
 };
 
 ffi::Map<TensorVar, ffi::Optional<Stmt>> DetectTensorAccessLCA(const Function& func) {
-  return LCADetectorObj::Detect(func);
+  return LCADetector::Detect(func);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

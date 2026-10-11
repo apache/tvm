@@ -33,8 +33,8 @@ The end-to-end flow from model to execution is:
 2. **Compilation** — ``tvm.compile()`` applies the Relax transformation pipeline, then invokes
    ``VMCodeGen`` to translate each Relax function into bytecode instructions.
 3. **Linking** — TIR functions are compiled to native kernels (via LLVM, CUDA, etc.); the bytecode,
-   constant pool, and compiled kernels are packaged together into a ``VMExecutableObj``.
-4. **Execution** — at runtime, a ``VirtualMachineObj`` loads the executable, initializes devices and
+   constant pool, and compiled kernels are packaged together into a ``VMExecutable``.
+4. **Execution** — at runtime, a ``VirtualMachine`` loads the executable, initializes devices and
    memory allocators, and runs the bytecode.
 
 .. code-block:: text
@@ -51,7 +51,7 @@ The end-to-end flow from model to execution is:
         │                   runtime.Module (native kernels)
         │                        │
         ▼  VMLink               ▼
-   VMExecutableObj ◄───────── linked together
+   VMExecutable ◄───────── linked together
         │
         ▼  VirtualMachine(exec, device)
    Runtime execution
@@ -89,7 +89,7 @@ Internally, ``relax.build()`` performs these steps:
    removed from the IRModule; only TIR functions remain.
 3. Compile the remaining TIR functions to native code via ``tirx.build()``.
 4. **Link** the bytecode executable with the compiled native module using ``VMLink``, producing
-   a ``VMExecutableObj``.
+   a ``VMExecutable``.
 
 Relax functions execute through the VM bytecode dispatch loop.
 
@@ -161,7 +161,7 @@ table (``instr_offset``) for random access.
 Executable
 ----------
 
-A ``VMExecutableObj`` (``include/tvm/runtime/vm/executable.h``) bundles everything needed for
+A ``VMExecutable`` (``include/tvm/runtime/vm/executable.h``) bundles everything needed for
 execution:
 
 - **Function table** (``func_table``): a ``vector<VMFuncInfo>`` describing every function. Each
@@ -224,7 +224,7 @@ At runtime, a ``VirtualMachine`` is created and initialized:
 
 Under the hood:
 
-1. **LoadExecutable**: the bytecode and metadata are loaded from the ``VMExecutableObj``.
+1. **LoadExecutable**: the bytecode and metadata are loaded from the ``VMExecutable``.
 2. **Init**: devices and memory allocators are set up. Each device gets an ``Allocator``
    (either ``NAIVE_ALLOCATOR`` or ``POOLED_ALLOCATOR``, defaulting to pooled). A CPU device
    is always added for shape computations.
@@ -259,7 +259,7 @@ When a ``kVMFunc`` is invoked, the VM enters ``InvokeBytecode()``:
    - **If**: check the condition register; if nonzero, fall through; otherwise jump by
      ``false_offset``.
 
-The dispatch loop is implemented in ``src/runtime/vm/vm.cc`` (``VirtualMachineImplObj::RunLoop``).
+The dispatch loop is implemented in ``src/runtime/vm/vm.cc`` (``VirtualMachineImpl::RunLoop``).
 
 .. code-block:: text
 
@@ -398,11 +398,11 @@ Source Code Map
    * - ``include/tvm/runtime/vm/bytecode.h``
      - Instruction, Opcode, and Arg definitions
    * - ``include/tvm/runtime/vm/executable.h``
-     - VMExecutableObj, VMFuncInfo, serialization
+     - VMExecutable, VMFuncInfo, serialization
    * - ``include/tvm/runtime/vm/vm.h``
-     - VirtualMachineObj base class, VMClosure
+     - VirtualMachine base class, VMClosure
    * - ``src/runtime/vm/vm.cc``
-     - VirtualMachineImplObj, RunLoop, InvokeBytecode
+     - VirtualMachineImpl, RunLoop, InvokeBytecode
    * - ``src/runtime/vm/executable.cc``
      - Serialization/deserialization, text output
    * - ``src/runtime/vm/builtin.cc``
@@ -412,4 +412,4 @@ Source Code Map
    * - ``python/tvm/runtime/vm.py``
      - Python VirtualMachine wrapper
    * - ``python/tvm/relax/vm_build.py``
-     - ``relax.build()`` and Executable Python class
+     - ``relax.build()`` and VMExecutable Python class

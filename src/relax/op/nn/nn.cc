@@ -31,169 +31,166 @@
 namespace tvm {
 namespace relax {
 
-void SoftmaxAttrsNode::RegisterReflection() {
+void SoftmaxAttrs::RegisterReflection() {
   namespace refl = tvm::ffi::reflection;
-  refl::ObjectDef<SoftmaxAttrsNode>().def_ro("axis", &SoftmaxAttrsNode::axis,
-                                             "The axis to sum over when computing softmax.",
-                                             refl::DefaultValue(-1));
+  refl::ObjectDef<SoftmaxAttrs>().def_ro("axis", &SoftmaxAttrs::axis,
+                                         "The axis to sum over when computing softmax.",
+                                         refl::DefaultValue(-1));
 }
 
-void LeakyReluAttrsNode::RegisterReflection() {
+void LeakyReluAttrs::RegisterReflection() {
   namespace refl = tvm::ffi::reflection;
-  refl::ObjectDef<LeakyReluAttrsNode>().def_ro("alpha", &LeakyReluAttrsNode::alpha,
-                                               "The slope of the negative part.",
-                                               refl::DefaultValue(0.01));
+  refl::ObjectDef<LeakyReluAttrs>().def_ro(
+      "alpha", &LeakyReluAttrs::alpha, "The slope of the negative part.", refl::DefaultValue(0.01));
 }
 
-void SoftplusAttrsNode::RegisterReflection() {
+void SoftplusAttrs::RegisterReflection() {
   namespace refl = tvm::ffi::reflection;
-  refl::ObjectDef<SoftplusAttrsNode>()
-      .def_ro("beta", &SoftplusAttrsNode::beta,
+  refl::ObjectDef<SoftplusAttrs>()
+      .def_ro("beta", &SoftplusAttrs::beta,
               "Scaling factor controlling the sharpness of the Softplus transition.",
               refl::DefaultValue(1.0))
-      .def_ro("threshold", &SoftplusAttrsNode::threshold,
+      .def_ro("threshold", &SoftplusAttrs::threshold,
               "Value determining when to use linear approximation for numerical stability.",
               refl::DefaultValue(20.0));
 }
 
-void PReluAttrsNode::RegisterReflection() {
+void PReluAttrs::RegisterReflection() {
   namespace refl = tvm::ffi::reflection;
-  refl::ObjectDef<PReluAttrsNode>().def_ro("axis", &PReluAttrsNode::axis,
-                                           "The axis along which the alpha values are applied.",
-                                           refl::DefaultValue(1));
+  refl::ObjectDef<PReluAttrs>().def_ro("axis", &PReluAttrs::axis,
+                                       "The axis along which the alpha values are applied.",
+                                       refl::DefaultValue(1));
 }
 
-void BatchNormAttrsNode::RegisterReflection() {
+void BatchNormAttrs::RegisterReflection() {
   namespace refl = tvm::ffi::reflection;
-  refl::ObjectDef<BatchNormAttrsNode>()
-      .def_ro("axis", &BatchNormAttrsNode::axis,
-              "The axis along which the normalization is applied.")
-      .def_ro("epsilon", &BatchNormAttrsNode::epsilon,
+  refl::ObjectDef<BatchNormAttrs>()
+      .def_ro("axis", &BatchNormAttrs::axis, "The axis along which the normalization is applied.")
+      .def_ro("epsilon", &BatchNormAttrs::epsilon,
               "Small float added to variance to avoid dividing by zero", refl::DefaultValue(1e-05))
-      .def_ro("center", &BatchNormAttrsNode::center,
+      .def_ro("center", &BatchNormAttrs::center,
               "Indicating if the beta offset will be added to the normalized tensor.",
               refl::DefaultValue(true))
-      .def_ro("scale", &BatchNormAttrsNode::scale,
-              "Indicating if the gamma scale will be multiplied.", refl::DefaultValue(true))
-      .def_ro("momentum", &BatchNormAttrsNode::momentum,
+      .def_ro("scale", &BatchNormAttrs::scale, "Indicating if the gamma scale will be multiplied.",
+              refl::DefaultValue(true))
+      .def_ro("momentum", &BatchNormAttrs::momentum,
               "The value used for the moving_mean and moving_var update.", refl::DefaultValue(0.1))
-      .def_ro("training", &BatchNormAttrsNode::training,
+      .def_ro("training", &BatchNormAttrs::training,
               "Whether we are training (i.e., not in eval mode).", refl::DefaultValue(true));
 }
 
-void LayerNormAttrsNode::RegisterReflection() {
+void LayerNormAttrs::RegisterReflection() {
   namespace refl = tvm::ffi::reflection;
-  refl::ObjectDef<LayerNormAttrsNode>()
-      .def_ro("axes", &LayerNormAttrsNode::axes,
+  refl::ObjectDef<LayerNormAttrs>()
+      .def_ro("axes", &LayerNormAttrs::axes,
               "The axes that along which the normalization is applied.")
-      .def_ro("epsilon", &LayerNormAttrsNode::epsilon,
+      .def_ro("epsilon", &LayerNormAttrs::epsilon,
               "Small float added to variance to avoid dividing by zero", refl::DefaultValue(1e-05))
-      .def_ro("center", &LayerNormAttrsNode::center,
+      .def_ro("center", &LayerNormAttrs::center,
               "Indicating if the beta offset will be added to the normalized tensor.",
               refl::DefaultValue(true))
-      .def_ro("scale", &LayerNormAttrsNode::scale,
-              "Indicating if the gamma scale will be multiplied.", refl::DefaultValue(true));
+      .def_ro("scale", &LayerNormAttrs::scale, "Indicating if the gamma scale will be multiplied.",
+              refl::DefaultValue(true));
 }
 
-void GroupNormAttrsNode::RegisterReflection() {
+void GroupNormAttrs::RegisterReflection() {
   namespace refl = tvm::ffi::reflection;
-  refl::ObjectDef<GroupNormAttrsNode>()
-      .def_ro("num_groups", &GroupNormAttrsNode::num_groups,
+  refl::ObjectDef<GroupNormAttrs>()
+      .def_ro("num_groups", &GroupNormAttrs::num_groups,
               "The number of groups to separate the channels into.")
-      .def_ro("channel_axis", &GroupNormAttrsNode::channel_axis,
+      .def_ro("channel_axis", &GroupNormAttrs::channel_axis,
               "The axis that represents the channel.")
       .def_ro(
-          "axes", &GroupNormAttrsNode::axes,
+          "axes", &GroupNormAttrs::axes,
           "The axes that along which the normalization is applied (excluding the channel axis).")
-      .def_ro("epsilon", &GroupNormAttrsNode::epsilon,
+      .def_ro("epsilon", &GroupNormAttrs::epsilon,
               "Small float added to variance to avoid dividing by zero", refl::DefaultValue(1e-05))
-      .def_ro("center", &GroupNormAttrsNode::center,
+      .def_ro("center", &GroupNormAttrs::center,
               "Indicating if the beta offset will be added to the normalized tensor.",
               refl::DefaultValue(true))
-      .def_ro("scale", &GroupNormAttrsNode::scale,
-              "Indicating if the gamma scale will be multiplied.", refl::DefaultValue(true));
+      .def_ro("scale", &GroupNormAttrs::scale, "Indicating if the gamma scale will be multiplied.",
+              refl::DefaultValue(true));
 }
 
-void InstanceNormAttrsNode::RegisterReflection() {
+void InstanceNormAttrs::RegisterReflection() {
   namespace refl = tvm::ffi::reflection;
-  refl::ObjectDef<InstanceNormAttrsNode>()
-      .def_ro("channel_axis", &InstanceNormAttrsNode::channel_axis,
+  refl::ObjectDef<InstanceNormAttrs>()
+      .def_ro("channel_axis", &InstanceNormAttrs::channel_axis,
               "The axis that represents the channel.")
-      .def_ro("axes", &InstanceNormAttrsNode::axes,
+      .def_ro("axes", &InstanceNormAttrs::axes,
               "The axes that along which the normalization is applied.")
-      .def_ro("epsilon", &InstanceNormAttrsNode::epsilon,
+      .def_ro("epsilon", &InstanceNormAttrs::epsilon,
               "Small float added to variance to avoid dividing by zero", refl::DefaultValue(1e-05))
-      .def_ro("center", &InstanceNormAttrsNode::center,
+      .def_ro("center", &InstanceNormAttrs::center,
               "Indicating if the beta offset will be added to the normalized tensor.",
               refl::DefaultValue(true))
-      .def_ro("scale", &InstanceNormAttrsNode::scale,
+      .def_ro("scale", &InstanceNormAttrs::scale,
               "Indicating if the gamma scale will be multiplied.", refl::DefaultValue(true));
 }
 
-void RMSNormAttrsNode::RegisterReflection() {
+void RMSNormAttrs::RegisterReflection() {
   namespace refl = tvm::ffi::reflection;
-  refl::ObjectDef<RMSNormAttrsNode>()
-      .def_ro("axes", &RMSNormAttrsNode::axes,
+  refl::ObjectDef<RMSNormAttrs>()
+      .def_ro("axes", &RMSNormAttrs::axes,
               "The axes that along which the normalization is applied.",
               refl::DefaultValue(ffi::Array<int64_t>{-1}))
-      .def_ro("epsilon", &RMSNormAttrsNode::epsilon,
+      .def_ro("epsilon", &RMSNormAttrs::epsilon,
               "Small float added to variance to avoid dividing by zero", refl::DefaultValue(1e-05));
 }
 
-void NLLLossAttrsNode::RegisterReflection() {
+void NLLLossAttrs::RegisterReflection() {
   namespace refl = tvm::ffi::reflection;
-  refl::ObjectDef<NLLLossAttrsNode>()
-      .def_ro("reduction", &NLLLossAttrsNode::reduction,
+  refl::ObjectDef<NLLLossAttrs>()
+      .def_ro("reduction", &NLLLossAttrs::reduction,
               "The reduction method to apply to the output. Can be"
               "'none', 'mean' or 'sum'.",
               refl::DefaultValue("mean"))
-      .def_ro("ignore_index", &NLLLossAttrsNode::ignore_index, "The target value to ignore.",
+      .def_ro("ignore_index", &NLLLossAttrs::ignore_index, "The target value to ignore.",
               refl::DefaultValue(-100));
 }
 
-void DropoutAttrsNode::RegisterReflection() {
+void DropoutAttrs::RegisterReflection() {
   namespace refl = tvm::ffi::reflection;
-  refl::ObjectDef<DropoutAttrsNode>().def_ro(
-      "rate", &DropoutAttrsNode::rate,
+  refl::ObjectDef<DropoutAttrs>().def_ro(
+      "rate", &DropoutAttrs::rate,
       "Fraction of the input that gets dropped out during training time", refl::DefaultValue(0.5));
 }
 
-void PadAttrsNode::RegisterReflection() {
+void PadAttrs::RegisterReflection() {
   namespace refl = tvm::ffi::reflection;
-  refl::ObjectDef<PadAttrsNode>()
-      .def_ro("pad_width", &PadAttrsNode::pad_width,
+  refl::ObjectDef<PadAttrs>()
+      .def_ro("pad_width", &PadAttrs::pad_width,
               "Number of values padded to the edges of each axis, "
               "in the format of (before_1, after_1, ..., before_N, after_N)")
-      .def_ro("pad_value", &PadAttrsNode::pad_value, "The value to fill in padded area with",
+      .def_ro("pad_value", &PadAttrs::pad_value, "The value to fill in padded area with",
               refl::DefaultValue(0.0))
-      .def_ro("pad_mode", &PadAttrsNode::pad_mode,
+      .def_ro("pad_mode", &PadAttrs::pad_mode,
               "Padding type to use. \"constant\" pads with constant_value, "
               "\"edge\" pads using the edge values of the input array, "
               "\"reflect\" pads by reflecting values with respect to the edges.",
               refl::DefaultValue("constant"));
 }
 
-void PixelShuffleAttrsNode::RegisterReflection() {
+void PixelShuffleAttrs::RegisterReflection() {
   namespace refl = tvm::ffi::reflection;
-  refl::ObjectDef<PixelShuffleAttrsNode>().def_ro("upscale_factor",
-                                                  &PixelShuffleAttrsNode::upscale_factor,
-                                                  "Scale factor for spatial upsampling.");
+  refl::ObjectDef<PixelShuffleAttrs>().def_ro("upscale_factor", &PixelShuffleAttrs::upscale_factor,
+                                              "Scale factor for spatial upsampling.");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  SoftmaxAttrsNode::RegisterReflection();
-  LeakyReluAttrsNode::RegisterReflection();
-  SoftplusAttrsNode::RegisterReflection();
-  PReluAttrsNode::RegisterReflection();
-  BatchNormAttrsNode::RegisterReflection();
-  LayerNormAttrsNode::RegisterReflection();
-  GroupNormAttrsNode::RegisterReflection();
-  InstanceNormAttrsNode::RegisterReflection();
-  RMSNormAttrsNode::RegisterReflection();
-  NLLLossAttrsNode::RegisterReflection();
-  DropoutAttrsNode::RegisterReflection();
-  PadAttrsNode::RegisterReflection();
-  PixelShuffleAttrsNode::RegisterReflection();
+  SoftmaxAttrs::RegisterReflection();
+  LeakyReluAttrs::RegisterReflection();
+  SoftplusAttrs::RegisterReflection();
+  PReluAttrs::RegisterReflection();
+  BatchNormAttrs::RegisterReflection();
+  LayerNormAttrs::RegisterReflection();
+  GroupNormAttrs::RegisterReflection();
+  InstanceNormAttrs::RegisterReflection();
+  RMSNormAttrs::RegisterReflection();
+  NLLLossAttrs::RegisterReflection();
+  DropoutAttrs::RegisterReflection();
+  PadAttrs::RegisterReflection();
+  PixelShuffleAttrs::RegisterReflection();
 }
 
 /* relax.nn.relu */
@@ -300,7 +297,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 /* relax.nn.leakyrelu */
 
 Expr leakyrelu(Expr data, double alpha) {
-  auto attrs = ffi::make_object<LeakyReluAttrsNode>();
+  auto attrs = ffi::make_object<LeakyReluAttrs>();
   attrs->alpha = alpha;
   static const Op op = Op::Get("relax.nn.leakyrelu");
   return Call(Type::Missing(), op, {data}, Attrs(attrs), {});
@@ -314,7 +311,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .signature(
           sig::arg("data", "The input tensor."),
           sig::var_ty_args("out_type", "Optional output tensor type carrying the virtual device."),
-          sig::call_attrs<LeakyReluAttrsNode>())
+          sig::call_attrs<LeakyReluAttrs>())
       .set_attr<FInferType>(
           tvm::op_attr::kInferType,
           FInferType::FromNative<&InferTypeUnaryArithContextFree</*require_float_dtype=*/true>>())
@@ -324,7 +321,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 /* relax.nn.softplus */
 
 Expr softplus(Expr data, double beta, double threshold) {
-  auto attrs = ffi::make_object<SoftplusAttrsNode>();
+  auto attrs = ffi::make_object<SoftplusAttrs>();
   attrs->beta = beta;
   attrs->threshold = threshold;
   static const Op op = Op::Get("relax.nn.softplus");
@@ -339,7 +336,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .signature(
           sig::arg("data", "The input tensor."),
           sig::var_ty_args("out_type", "Optional output tensor type carrying the virtual device."),
-          sig::call_attrs<SoftplusAttrsNode>())
+          sig::call_attrs<SoftplusAttrs>())
       .set_attr<FInferType>(
           tvm::op_attr::kInferType,
           FInferType::FromNative<&InferTypeUnaryArithContextFree</*require_float_dtype=*/true>>())
@@ -349,7 +346,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 /* relax.nn.prelu */
 
 Expr prelu(Expr data, Expr alpha, int axis = 1) {
-  auto attrs = ffi::make_object<PReluAttrsNode>();
+  auto attrs = ffi::make_object<PReluAttrs>();
   attrs->axis = axis;
   static const Op op = Op::Get("relax.nn.prelu");
   return Call(Type::Missing(), op, {data, alpha}, Attrs(attrs), {});
@@ -373,7 +370,7 @@ Type InferTypePRelu(const CallNode* call_node) {
                                             "dtype. However, the given input dtype is "
                                          << data_ty->dtype;
   }
-  const auto* attrs = call->attrs.as<PReluAttrsNode>();
+  const auto* attrs = call->attrs.as<PReluAttrs>();
   NormalizeAxis(call, data_ty->ndim, attrs->axis);
 
   return data_ty;
@@ -383,7 +380,7 @@ InferLayoutOutput InferLayoutPRelu(
     const Call& call, const ffi::Map<ffi::String, ffi::Array<ffi::String>>& desired_layouts,
     const VarLayoutMap& var_layout_map) {
   TVM_FFI_ICHECK(NoDesiredLayout(call, desired_layouts));
-  const auto* attrs = call->attrs.as<PReluAttrsNode>();
+  const auto* attrs = call->attrs.as<PReluAttrs>();
   TVM_FFI_ICHECK(attrs) << "Invalid Call";
 
   LayoutDecision layout = GetLayoutDecision(var_layout_map, call->args[0]);
@@ -398,7 +395,7 @@ InferLayoutOutput InferLayoutPRelu(
     layout = LayoutDecision(InitialLayout(ndim));
   }
 
-  ffi::ObjectPtr<PReluAttrsNode> new_attrs = ffi::make_object<PReluAttrsNode>(*attrs);
+  ffi::ObjectPtr<PReluAttrs> new_attrs = ffi::make_object<PReluAttrs>(*attrs);
   new_attrs->axis = FindAxis(layout->layout.value(), attrs->axis);
 
   LayoutDecision alpha_layout = GetLayoutDecision(var_layout_map, call->args[1]);
@@ -409,7 +406,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.nn.prelu")
       .signature(sig::arg("data", "The input tensor."),
                  sig::arg("alpha", "The channel-wise learnable slope."),
-                 sig::call_attrs<PReluAttrsNode>())
+                 sig::call_attrs<PReluAttrs>())
       .set_attr<FInferType>(tvm::op_attr::kInferType, FInferType::FromNative<&InferTypePRelu>())
       .set_attr<FRelaxInferLayout>(tvm::relax::op_attr::kInferLayout, InferLayoutPRelu)
       .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
@@ -418,7 +415,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 /* relax.nn.softmax */
 
 Expr softmax(Expr data, int axis) {
-  auto attrs = ffi::make_object<SoftmaxAttrsNode>();
+  auto attrs = ffi::make_object<SoftmaxAttrs>();
   attrs->axis = axis;
   static const Op op = Op::Get("relax.nn.softmax");
   return Call(Type::Missing(), op, {data}, Attrs(attrs), {});
@@ -445,7 +442,7 @@ Type InferTypeSoftmax(const CallNode* call_node) {
                                            << data_ty->dtype;
     }
   }
-  const auto* attrs = call->attrs.as<SoftmaxAttrsNode>();
+  const auto* attrs = call->attrs.as<SoftmaxAttrs>();
   NormalizeAxis(call, data_ty->ndim, attrs->axis);
 
   return data_ty;
@@ -455,7 +452,7 @@ InferLayoutOutput InferLayoutSoftmax(
     const Call& call, const ffi::Map<ffi::String, ffi::Array<ffi::String>>& desired_layouts,
     const VarLayoutMap& var_layout_map) {
   TVM_FFI_ICHECK(NoDesiredLayout(call, desired_layouts));
-  const auto* attrs = call->attrs.as<SoftmaxAttrsNode>();
+  const auto* attrs = call->attrs.as<SoftmaxAttrs>();
   TVM_FFI_ICHECK(attrs) << "Invalid Call";
 
   LayoutDecision layout = GetLayoutDecision(var_layout_map, call->args[0]);
@@ -470,14 +467,14 @@ InferLayoutOutput InferLayoutSoftmax(
     layout = LayoutDecision(InitialLayout(ndim));
   }
 
-  ffi::ObjectPtr<SoftmaxAttrsNode> new_attrs = ffi::make_object<SoftmaxAttrsNode>(*attrs);
+  ffi::ObjectPtr<SoftmaxAttrs> new_attrs = ffi::make_object<SoftmaxAttrs>(*attrs);
   new_attrs->axis = FindAxis(layout->layout.value(), attrs->axis);
   return InferLayoutOutput({layout}, {layout}, Attrs(new_attrs));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.nn.softmax")
-      .signature(sig::arg("data", "The input tensor."), sig::call_attrs<SoftmaxAttrsNode>())
+      .signature(sig::arg("data", "The input tensor."), sig::call_attrs<SoftmaxAttrs>())
       .set_attr<FInferType>(tvm::op_attr::kInferType, FInferType::FromNative<&InferTypeSoftmax>())
       .set_attr<FRelaxInferLayout>(tvm::relax::op_attr::kInferLayout, InferLayoutSoftmax)
       .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
@@ -485,7 +482,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 /* relax.nn.log_softmax */
 Expr log_softmax(Expr data, int axis) {
-  auto attrs = ffi::make_object<SoftmaxAttrsNode>();
+  auto attrs = ffi::make_object<SoftmaxAttrs>();
   attrs->axis = axis;
   static const Op op = Op::Get("relax.nn.log_softmax");
   return Call(Type::Missing(), op, {data}, Attrs(attrs), {});
@@ -496,7 +493,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.nn.log_softmax", log_softmax);
 
   OpDef("relax.nn.log_softmax")
-      .signature(sig::arg("data", "The input tensor."), sig::call_attrs<SoftmaxAttrsNode>())
+      .signature(sig::arg("data", "The input tensor."), sig::call_attrs<SoftmaxAttrs>())
       .set_attr<FInferType>(tvm::op_attr::kInferType, FInferType::FromNative<&InferTypeSoftmax>())
       .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
 }
@@ -504,7 +501,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 /* relax.nn.pad */
 
 Expr pad(Expr data, ffi::Array<int64_t> pad_width, ffi::String pad_mode, double pad_value) {
-  auto attrs = ffi::make_object<PadAttrsNode>();
+  auto attrs = ffi::make_object<PadAttrs>();
   attrs->pad_width = std::move(pad_width);
   attrs->pad_mode = std::move(pad_mode);
   attrs->pad_value = pad_value;
@@ -520,7 +517,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 Type InferTypePad(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
   ffi::Array<TensorType> input_ty = GetInputTensorType(call);
-  const auto* attrs = call->attrs.as<PadAttrsNode>();
+  const auto* attrs = call->attrs.as<PadAttrs>();
   int ndim = input_ty[0]->ndim;
   ffi::Array<int64_t> pad_width = attrs->pad_width;
   TVM_FFI_ICHECK(static_cast<int>(pad_width.size()) == 2 * ndim) << "Illegal pad_width";
@@ -544,7 +541,7 @@ Type InferTypePad(const CallNode* call_node) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.nn.pad")
-      .signature(sig::arg("data", "The input tensor."), sig::call_attrs<PadAttrsNode>())
+      .signature(sig::arg("data", "The input tensor."), sig::call_attrs<PadAttrs>())
       .set_attr<FInferType>(tvm::op_attr::kInferType, FInferType::FromNative<&InferTypePad>())
       .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
 }
@@ -552,7 +549,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 /* relax.nn.pixel_shuffle */
 
 Expr pixel_shuffle(Expr data, int upscale_factor) {
-  auto attrs = ffi::make_object<PixelShuffleAttrsNode>();
+  auto attrs = ffi::make_object<PixelShuffleAttrs>();
   attrs->upscale_factor = upscale_factor;
   static const Op op = Op::Get("relax.nn.pixel_shuffle");
   return Call(Type::Missing(), op, {data}, Attrs(attrs), {});
@@ -566,7 +563,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 Type InferTypePixelShuffle(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
   ffi::Array<TensorType> input_ty = GetInputTensorType(call);
-  const auto* attrs = call->attrs.as<PixelShuffleAttrsNode>();
+  const auto* attrs = call->attrs.as<PixelShuffleAttrs>();
   int r = attrs->upscale_factor;
   TVM_FFI_ICHECK_GT(r, 0) << "Upscale factor must be positive";
 
@@ -617,7 +614,7 @@ Type InferTypePixelShuffle(const CallNode* call_node) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.nn.pixel_shuffle")
-      .signature(sig::arg("data", "The input tensor."), sig::call_attrs<PixelShuffleAttrsNode>())
+      .signature(sig::arg("data", "The input tensor."), sig::call_attrs<PixelShuffleAttrs>())
       .set_attr<FInferType>(tvm::op_attr::kInferType,
                             FInferType::FromNative<&InferTypePixelShuffle>())
       .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
@@ -697,7 +694,7 @@ bool NormCheckDtypeAndShape(const Call& call, const BlockBuilder& ctx,
 
 Expr batch_norm(Expr data, Expr gamma, Expr beta, Expr moving_mean, Expr moving_var,  //
                 int axis, double epsilon, bool center, bool scale, double momentum, bool training) {
-  ffi::ObjectPtr<BatchNormAttrsNode> attrs = ffi::make_object<BatchNormAttrsNode>();
+  ffi::ObjectPtr<BatchNormAttrs> attrs = ffi::make_object<BatchNormAttrs>();
   attrs->axis = axis;
   attrs->epsilon = epsilon;
   attrs->center = center;
@@ -719,7 +716,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 Type InferTypeBatchNorm(const Call& call, const BlockBuilder& ctx) {
   ffi::Array<TensorType> input_ty = GetInputTensorType(call, ctx);
 
-  const auto* attrs = call->attrs.as<BatchNormAttrsNode>();
+  const auto* attrs = call->attrs.as<BatchNormAttrs>();
   bool unknown_shape = NormCheckDtypeAndShape(call, ctx, input_ty, {attrs->axis});
 
   ffi::Optional<PrimType> dtype = input_ty[0]->dtype;
@@ -743,7 +740,7 @@ InferLayoutOutput InferLayoutBatchNorm(
     TVM_FFI_ICHECK(!tensor_ty->IsUnknownNdim()) << "Only support known ndim";
     initial_layouts.push_back(InitialLayoutDecision(tensor_ty->ndim));
   }
-  const auto* attrs = call->attrs.as<BatchNormAttrsNode>();
+  const auto* attrs = call->attrs.as<BatchNormAttrs>();
   TVM_FFI_ICHECK(attrs) << "Invalid Call";
   LayoutDecision layout = GetLayoutDecision(var_layout_map, call->args[0]);
 
@@ -757,7 +754,7 @@ InferLayoutOutput InferLayoutBatchNorm(
     layout = LayoutDecision(InitialLayout(ndim));
   }
 
-  ffi::ObjectPtr<BatchNormAttrsNode> new_attrs = ffi::make_object<BatchNormAttrsNode>(*attrs);
+  ffi::ObjectPtr<BatchNormAttrs> new_attrs = ffi::make_object<BatchNormAttrs>(*attrs);
   new_attrs->axis = FindAxis(layout->layout.value(), (attrs->axis + ndim) % ndim);
   return InferLayoutOutput(
       {layout, initial_layouts[1], initial_layouts[2], initial_layouts[3], initial_layouts[4]},
@@ -766,12 +763,11 @@ InferLayoutOutput InferLayoutBatchNorm(
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.nn.batch_norm")
-      .signature(sig::arg("data", "Input to which batch_norm will be applied."),
-                 sig::arg("gamma", "The gamma scale factor."),
-                 sig::arg("beta", "The beta offset factor."),
-                 sig::arg("moving_mean", "Running mean of input."),
-                 sig::arg("moving_var", "Running variance of input."),
-                 sig::call_attrs<BatchNormAttrsNode>())
+      .signature(
+          sig::arg("data", "Input to which batch_norm will be applied."),
+          sig::arg("gamma", "The gamma scale factor."), sig::arg("beta", "The beta offset factor."),
+          sig::arg("moving_mean", "Running mean of input."),
+          sig::arg("moving_var", "Running variance of input."), sig::call_attrs<BatchNormAttrs>())
       .set_attr<FInferTypeWithBuilder>(tvm::relax::op_attr::kInferTypeWithBuilder,
                                        InferTypeBatchNorm)
       .set_attr<FRelaxInferLayout>(tvm::relax::op_attr::kInferLayout, InferLayoutBatchNorm)
@@ -782,7 +778,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 Expr layer_norm(Expr data, Expr gamma, Expr beta, ffi::Array<int64_t> axes, double epsilon,
                 bool center, bool scale) {
-  ffi::ObjectPtr<LayerNormAttrsNode> attrs = ffi::make_object<LayerNormAttrsNode>();
+  ffi::ObjectPtr<LayerNormAttrs> attrs = ffi::make_object<LayerNormAttrs>();
   attrs->axes = std::move(axes);
   attrs->epsilon = epsilon;
   attrs->center = center;
@@ -801,7 +797,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 Type InferTypeLayerNorm(const Call& call, const BlockBuilder& ctx) {
   ffi::Array<TensorType> input_ty = GetInputTensorType(call, ctx);
 
-  const auto* attrs = call->attrs.as<LayerNormAttrsNode>();
+  const auto* attrs = call->attrs.as<LayerNormAttrs>();
   bool unknown_shape = NormCheckDtypeAndShape(call, ctx, input_ty, attrs->axes);
 
   return unknown_shape ? TensorType(input_ty[0]->dtype, input_ty[0]->ndim, input_ty[0]->vdevice)
@@ -819,11 +815,11 @@ InferLayoutOutput InferLayoutLayerNorm(
     TVM_FFI_ICHECK(!tensor_ty->IsUnknownNdim()) << "Only support known ndim";
     initial_layouts.push_back(InitialLayoutDecision(tensor_ty->ndim));
   }
-  const auto* attrs = call->attrs.as<LayerNormAttrsNode>();
+  const auto* attrs = call->attrs.as<LayerNormAttrs>();
   TVM_FFI_ICHECK(attrs) << "Invalid Call";
 
   LayoutDecision layout = GetLayoutDecision(var_layout_map, call->args[0]);
-  ffi::ObjectPtr<LayerNormAttrsNode> new_attrs = ffi::make_object<LayerNormAttrsNode>(*attrs);
+  ffi::ObjectPtr<LayerNormAttrs> new_attrs = ffi::make_object<LayerNormAttrs>(*attrs);
   const auto* input_ty = GetTypeAs<TensorTypeNode>(call->args[0]);
   int ndim = input_ty->ndim;
   std::vector<int64_t> new_axis;
@@ -839,7 +835,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.nn.layer_norm")
       .signature(sig::arg("data", "Input to which layer_norm will be applied."),
                  sig::arg("gamma", "The gamma scale factor."),
-                 sig::arg("beta", "The beta offset factor."), sig::call_attrs<LayerNormAttrsNode>())
+                 sig::arg("beta", "The beta offset factor."), sig::call_attrs<LayerNormAttrs>())
       .set_attr<FInferTypeWithBuilder>(tvm::relax::op_attr::kInferTypeWithBuilder,
                                        InferTypeLayerNorm)
       .set_attr<FRelaxInferLayout>(tvm::relax::op_attr::kInferLayout, InferLayoutLayerNorm)
@@ -852,7 +848,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 Expr group_norm(Expr data, Expr gamma, Expr beta, int num_groups, int channel_axis,
                 ffi::Array<int64_t> axes, double epsilon, bool center, bool scale) {
-  ffi::ObjectPtr<GroupNormAttrsNode> attrs = ffi::make_object<GroupNormAttrsNode>();
+  ffi::ObjectPtr<GroupNormAttrs> attrs = ffi::make_object<GroupNormAttrs>();
   attrs->num_groups = num_groups;
   attrs->channel_axis = channel_axis;
   attrs->axes = std::move(axes);
@@ -873,7 +869,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 Type InferTypeGroupNorm(const Call& call, const BlockBuilder& ctx) {
   Op op = call->op.as_or_throw<Op>();
   ffi::Array<TensorType> input_ty = GetInputTensorType(call, ctx);
-  const auto* attrs = call->attrs.as<GroupNormAttrsNode>();
+  const auto* attrs = call->attrs.as<GroupNormAttrs>();
 
   TensorType data_ty = input_ty[0];
   int channel_axis = -1;
@@ -936,11 +932,11 @@ InferLayoutOutput InferLayoutGroupNorm(
     TVM_FFI_ICHECK(!tensor_ty->IsUnknownNdim()) << "Only support known ndim";
     initial_layouts.push_back(InitialLayoutDecision(tensor_ty->ndim));
   }
-  const auto* attrs = call->attrs.as<GroupNormAttrsNode>();
+  const auto* attrs = call->attrs.as<GroupNormAttrs>();
   TVM_FFI_ICHECK(attrs) << "Invalid Call";
 
   LayoutDecision layout = GetLayoutDecision(var_layout_map, call->args[0]);
-  ffi::ObjectPtr<GroupNormAttrsNode> new_attrs = ffi::make_object<GroupNormAttrsNode>(*attrs);
+  ffi::ObjectPtr<GroupNormAttrs> new_attrs = ffi::make_object<GroupNormAttrs>(*attrs);
   std::vector<int64_t> new_axes;
   for (int64_t axis : attrs->axes) {
     new_axes.push_back(FindAxis(layout->layout.value(), axis));
@@ -955,7 +951,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.nn.group_norm")
       .signature(sig::arg("data", "Input to which group_norm will be applied."),
                  sig::arg("gamma", "The gamma scale factor."),
-                 sig::arg("beta", "The beta offset factor."), sig::call_attrs<GroupNormAttrsNode>())
+                 sig::arg("beta", "The beta offset factor."), sig::call_attrs<GroupNormAttrs>())
       .set_attr<FInferTypeWithBuilder>(tvm::relax::op_attr::kInferTypeWithBuilder,
                                        InferTypeGroupNorm)
       .set_attr<FRelaxInferLayout>(tvm::relax::op_attr::kInferLayout, InferLayoutGroupNorm)
@@ -968,7 +964,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 Expr instance_norm(Expr data, Expr gamma, Expr beta, int channel_axis, ffi::Array<int64_t> axes,
                    double epsilon, bool center, bool scale) {
-  ffi::ObjectPtr<InstanceNormAttrsNode> attrs = ffi::make_object<InstanceNormAttrsNode>();
+  ffi::ObjectPtr<InstanceNormAttrs> attrs = ffi::make_object<InstanceNormAttrs>();
   attrs->channel_axis = std::move(channel_axis);
   attrs->axes = std::move(axes);
   attrs->epsilon = epsilon;
@@ -988,7 +984,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 Type InferTypeInstanceNorm(const Call& call, const BlockBuilder& ctx) {
   Op op = call->op.as_or_throw<Op>();
   ffi::Array<TensorType> input_ty = GetInputTensorType(call, ctx);
-  const auto* attrs = call->attrs.as<InstanceNormAttrsNode>();
+  const auto* attrs = call->attrs.as<InstanceNormAttrs>();
   TVM_FFI_ICHECK(attrs) << "Invalid Call";
   TensorType data_ty = input_ty[0];
 
@@ -1040,11 +1036,11 @@ InferLayoutOutput InferLayoutInstanceNorm(
     TVM_FFI_ICHECK(!tensor_ty->IsUnknownNdim()) << "Only support known ndim";
     initial_layouts.push_back(InitialLayoutDecision(tensor_ty->ndim));
   }
-  const auto* attrs = call->attrs.as<InstanceNormAttrsNode>();
+  const auto* attrs = call->attrs.as<InstanceNormAttrs>();
   TVM_FFI_ICHECK(attrs) << "Invalid Call";
 
   LayoutDecision layout = GetLayoutDecision(var_layout_map, call->args[0]);
-  ffi::ObjectPtr<InstanceNormAttrsNode> new_attrs = ffi::make_object<InstanceNormAttrsNode>(*attrs);
+  ffi::ObjectPtr<InstanceNormAttrs> new_attrs = ffi::make_object<InstanceNormAttrs>(*attrs);
   std::vector<int64_t> new_axes;
   for (int64_t axis : attrs->axes) {
     new_axes.push_back(FindAxis(layout->layout.value(), axis));
@@ -1059,8 +1055,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.nn.instance_norm")
       .signature(sig::arg("data", "Input to which instance_norm will be applied."),
                  sig::arg("gamma", "The gamma scale factor."),
-                 sig::arg("beta", "The beta offset factor."),
-                 sig::call_attrs<InstanceNormAttrsNode>())
+                 sig::arg("beta", "The beta offset factor."), sig::call_attrs<InstanceNormAttrs>())
       .set_attr<FInferTypeWithBuilder>(tvm::relax::op_attr::kInferTypeWithBuilder,
                                        InferTypeInstanceNorm)
       .set_attr<FRelaxInferLayout>(tvm::relax::op_attr::kInferLayout, InferLayoutInstanceNorm)
@@ -1071,7 +1066,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 /* relax.nn.rms_norm */
 
 Expr rms_norm(Expr data, Expr weight, ffi::Array<int64_t> axes, double epsilon) {
-  ffi::ObjectPtr<RMSNormAttrsNode> attrs = ffi::make_object<RMSNormAttrsNode>();
+  ffi::ObjectPtr<RMSNormAttrs> attrs = ffi::make_object<RMSNormAttrs>();
   attrs->axes = std::move(axes);
   attrs->epsilon = epsilon;
 
@@ -1087,7 +1082,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 Type InferTypeRMSNorm(const Call& call, const BlockBuilder& ctx) {
   ffi::Array<TensorType> input_ty = GetInputTensorType(call, ctx);
 
-  const auto* attrs = call->attrs.as<RMSNormAttrsNode>();
+  const auto* attrs = call->attrs.as<RMSNormAttrs>();
   bool unknown_shape = NormCheckDtypeAndShape(call, ctx, input_ty, attrs->axes);
 
   return unknown_shape ? TensorType(input_ty[0]->dtype, input_ty[0]->ndim, input_ty[0]->vdevice)
@@ -1105,11 +1100,11 @@ InferLayoutOutput InferLayoutRMSNorm(
     TVM_FFI_ICHECK(!tensor_ty->IsUnknownNdim()) << "Only support known ndim";
     initial_layouts.push_back(InitialLayoutDecision(tensor_ty->ndim));
   }
-  const auto* attrs = call->attrs.as<RMSNormAttrsNode>();
+  const auto* attrs = call->attrs.as<RMSNormAttrs>();
   TVM_FFI_ICHECK(attrs) << "Invalid Call";
 
   LayoutDecision layout = GetLayoutDecision(var_layout_map, call->args[0]);
-  ffi::ObjectPtr<RMSNormAttrsNode> new_attrs = ffi::make_object<RMSNormAttrsNode>(*attrs);
+  ffi::ObjectPtr<RMSNormAttrs> new_attrs = ffi::make_object<RMSNormAttrs>(*attrs);
   std::vector<int64_t> new_axes;
   for (int64_t axis : attrs->axes) {
     new_axes.push_back(FindAxis(layout->layout.value(), axis));
@@ -1121,7 +1116,7 @@ InferLayoutOutput InferLayoutRMSNorm(
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.nn.rms_norm")
       .signature(sig::arg("data", "Input to which rms_norm will be applied."),
-                 sig::arg("weight", "The scale factor."), sig::call_attrs<RMSNormAttrsNode>())
+                 sig::arg("weight", "The scale factor."), sig::call_attrs<RMSNormAttrs>())
       .set_attr<FInferTypeWithBuilder>(tvm::relax::op_attr::kInferTypeWithBuilder, InferTypeRMSNorm)
       .set_attr<FRelaxInferLayout>(tvm::relax::op_attr::kInferLayout, InferLayoutRMSNorm)
       .set_attr<TMixedPrecisionPolicy>(tvm::relax::op_attr::kMixedPrecisionPolicy,
@@ -1132,7 +1127,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 /* relax.nn.dropout */
 
 Expr dropout(Expr data, double rate) {
-  ffi::ObjectPtr<DropoutAttrsNode> attrs = ffi::make_object<DropoutAttrsNode>();
+  ffi::ObjectPtr<DropoutAttrs> attrs = ffi::make_object<DropoutAttrs>();
   attrs->rate = rate;
 
   static const Op op = Op::Get("relax.nn.dropout");
@@ -1153,7 +1148,7 @@ Type InferTypeDropout(const CallNode* call_node) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.nn.dropout")
       .signature(sig::arg("data", "Input to which dropout will be applied."),
-                 sig::call_attrs<DropoutAttrsNode>())
+                 sig::call_attrs<DropoutAttrs>())
       .set_attr<FInferType>(tvm::op_attr::kInferType, FInferType::FromNative<&InferTypeDropout>())
       .set_attr<FRelaxInferLayout>(tvm::relax::op_attr::kInferLayout, InferLayoutUnaryEwise)
       .set_attr<TMixedPrecisionPolicy>(tvm::relax::op_attr::kMixedPrecisionPolicy,
@@ -1228,7 +1223,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 Expr nll_loss(Expr predictions, Expr targets, ffi::Optional<Expr> weights, ffi::String reduction,
               int ignore_index) {
-  ffi::ObjectPtr<NLLLossAttrsNode> attrs = ffi::make_object<NLLLossAttrsNode>();
+  ffi::ObjectPtr<NLLLossAttrs> attrs = ffi::make_object<NLLLossAttrs>();
 
   TVM_FFI_ICHECK(reduction == "none" || reduction == "sum" || reduction == "mean")
       << "The argument reduction of NLLLoss should be one of the following "
@@ -1426,7 +1421,7 @@ Type InferTypeNLLLoss(const Call& call, const BlockBuilder& ctx) {
     }
   }
 
-  const auto* attrs = call->attrs.as<NLLLossAttrsNode>();
+  const auto* attrs = call->attrs.as<NLLLossAttrs>();
   ffi::String reduction = attrs->reduction;
 
   if (reduction == "none") {
@@ -1449,7 +1444,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
           sig::arg("predictions", "The prediction tensor."),
           sig::arg("targets", "The target tensor."), sig::var_args("args"),
           sig::var_ty_args("out_type", "Optional output tensor type carrying the virtual device."),
-          sig::call_attrs<NLLLossAttrsNode>())
+          sig::call_attrs<NLLLossAttrs>())
       .set_attr<FInferTypeWithBuilder>(tvm::relax::op_attr::kInferTypeWithBuilder, InferTypeNLLLoss)
       .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
 }

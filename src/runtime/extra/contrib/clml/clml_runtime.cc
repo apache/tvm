@@ -145,7 +145,7 @@ CLMLThreadEntry* CLMLThreadEntry::ThreadLocal() {
 }
 #endif
 
-class CLMLRuntimeObj : public JSONRuntimeBaseObj {
+class CLMLRuntime : public JSONRuntimeBase {
  public:
   /*!
    * \brief The CLML runtime module. Deserialize the provided functions
@@ -155,11 +155,11 @@ class CLMLRuntimeObj : public JSONRuntimeBaseObj {
    * \param graph_json serialized JSON representation of a sub-graph.
    * \param const_names The names of each constant in the sub-graph.
    */
-  explicit CLMLRuntimeObj(const std::string& symbol_name, const std::string& graph_json,
-                          const ffi::Array<ffi::String>& const_names)
-      : JSONRuntimeBaseObj(symbol_name, graph_json, const_names), clml_symbol(symbol_name) {}
+  explicit CLMLRuntime(const std::string& symbol_name, const std::string& graph_json,
+                       const ffi::Array<ffi::String>& const_names)
+      : JSONRuntimeBase(symbol_name, graph_json, const_names), clml_symbol(symbol_name) {}
 
-  ~CLMLRuntimeObj() {
+  ~CLMLRuntime() {
 #ifdef TVM_GRAPH_EXECUTOR_CLML
     cl_int result = 0;
     if (this->layer_.tuning_cache) {
@@ -1962,7 +1962,7 @@ class CLMLRuntimeObj : public JSONRuntimeBaseObj {
 
 ffi::Module CLMLRuntimeCreate(const ffi::String& symbol_name, const ffi::String& graph_json,
                               const ffi::Array<ffi::String>& const_names) {
-  auto n = ffi::make_object<CLMLRuntimeObj>(symbol_name, graph_json, const_names);
+  auto n = ffi::make_object<CLMLRuntime>(symbol_name, graph_json, const_names);
   return ffi::Module(n);
 }
 
@@ -1970,7 +1970,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("runtime.clml_runtime_create", CLMLRuntimeCreate)
-      .def("ffi.Module.load_from_bytes.clml", JSONRuntimeBaseObj::LoadFromBytes<CLMLRuntimeObj>);
+      .def("ffi.Module.load_from_bytes.clml", JSONRuntimeBase::LoadFromBytes<CLMLRuntime>);
 }
 }  //  namespace contrib
 }  //  namespace runtime

@@ -28,20 +28,20 @@ namespace s_tir {
 using namespace tvm::tirx;
 using namespace tvm::prim;
 
-Function IndexDataTypeNormalizerObj::Rewrite(Function func) {
+Function IndexDataTypeNormalizer::Rewrite(Function func) {
   // Keep this short setup local so its collector uses S-TIR block semantics
   // without adding a dialect-specific collector hook to the TIRX normalizer.
   // Collect scalar dtype requirements without changing types.  Tensor definitions
   // are rewritten only after every scalar replacement has been seeded.
-  class IndexVarCollectorObj : public IndexDataTypeNormalizerObj {
+  class IndexVarCollector : public IndexDataTypeNormalizer {
    public:
-    explicit IndexVarCollectorObj(std::function<void(const VarNode*)> collect)
-        : IndexDataTypeNormalizerObj(PrimType::Int(64)), collect_(std::move(collect)) {}
-    using IndexDataTypeNormalizerObj::Mutate;
-    using IndexDataTypeNormalizerObj::Mutate_;
+    explicit IndexVarCollector(std::function<void(const VarNode*)> collect)
+        : IndexDataTypeNormalizer(PrimType::Int(64)), collect_(std::move(collect)) {}
+    using IndexDataTypeNormalizer::Mutate;
+    using IndexDataTypeNormalizer::Mutate_;
     UnchangedOr<Expr> Mutate_(const VarNode* op, InplaceMode mode) final {
       if (def_region_kind() == kTVMFFIDefRegionKindNone && is_enabled_) collect_(op);
-      return IndexDataTypeNormalizerObj::Mutate_(op, mode);
+      return IndexDataTypeNormalizer::Mutate_(op, mode);
     }
 
    protected:
@@ -57,7 +57,7 @@ Function IndexDataTypeNormalizerObj::Rewrite(Function func) {
       VarRemapSet(ffi::AnyView(var), ffi::GetRef<Var>(var).CopyWithDType(target_data_type_));
     }
   };
-  auto collector = ffi::make_object<IndexVarCollectorObj>(seed);
+  auto collector = ffi::make_object<IndexVarCollector>(seed);
   collector->Mutate(func->body);
   for (const Var& param : func->params) {
     if (param.as<TensorVar>()) {
@@ -78,8 +78,8 @@ Function IndexDataTypeNormalizerObj::Rewrite(Function func) {
   return func;
 }
 
-UnchangedOr<Stmt> IndexDataTypeNormalizerObj::Mutate_(const SBlockRealizeNode* op,
-                                                      InplaceMode inplace_mode) {
+UnchangedOr<Stmt> IndexDataTypeNormalizer::Mutate_(const SBlockRealizeNode* op,
+                                                   InplaceMode inplace_mode) {
   bool is_condition = this->is_condition_;
   this->is_condition_ = true;
   auto new_predicate_result = this->Mutate(op->predicate, inplace_mode);
@@ -109,8 +109,7 @@ UnchangedOr<Stmt> IndexDataTypeNormalizerObj::Mutate_(const SBlockRealizeNode* o
   }
 }
 
-UnchangedOr<Stmt> IndexDataTypeNormalizerObj::Mutate_(const SBlockNode* op,
-                                                      InplaceMode inplace_mode) {
+UnchangedOr<Stmt> IndexDataTypeNormalizer::Mutate_(const SBlockNode* op, InplaceMode inplace_mode) {
   auto new_alloc_tensors = this->WithDefRegionKind(kTVMFFIDefRegionKindSimple, [&] {
     return this->Mutate(op->alloc_tensors, inplace_mode)
         .as_or_throw<UnchangedOr<ffi::Array<TensorVar>>>()
@@ -161,7 +160,7 @@ UnchangedOr<Stmt> IndexDataTypeNormalizerObj::Mutate_(const SBlockNode* op,
   return ffi::Unchanged();
 }
 
-ffi::Map<ffi::String, ffi::Any> IndexDataTypeNormalizerObj::VisitBlockAnnotations(
+ffi::Map<ffi::String, ffi::Any> IndexDataTypeNormalizer::VisitBlockAnnotations(
     const ffi::Map<ffi::String, ffi::Any>& annotations) {
   auto new_annotations = annotations;
 
@@ -193,7 +192,7 @@ ffi::Map<ffi::String, ffi::Any> IndexDataTypeNormalizerObj::VisitBlockAnnotation
   return new_annotations;
 }
 
-IterVar IndexDataTypeNormalizerObj::VisitIterVar(const IterVar& iter_var) {
+IterVar IndexDataTypeNormalizer::VisitIterVar(const IterVar& iter_var) {
   bool is_enabled = this->is_enabled_;
   this->is_enabled_ = true;
   PrimVar new_var = this->Mutate(iter_var->var, InplaceMode::kDisallow)
@@ -216,7 +215,7 @@ IterVar IndexDataTypeNormalizerObj::VisitIterVar(const IterVar& iter_var) {
   return iter_var;
 }
 
-TensorRegion IndexDataTypeNormalizerObj::VisitTensorRegion(const TensorRegion& tensor_region) {
+TensorRegion IndexDataTypeNormalizer::VisitTensorRegion(const TensorRegion& tensor_region) {
   TensorVar remapped_tensor =
       this->Mutate(tensor_region->source.as_or_throw<TensorVar>(), InplaceMode::kDisallow)
           .as_or_throw<UnchangedOr<TensorVar>>()

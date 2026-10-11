@@ -70,7 +70,7 @@ bool MatchPrimType(const Type& type, F f) {
 // Remap internal fp8/bf16 allocations without raw pointer access to the promoted dtype.
 //
 // Select allocation calls before opaque-access filtering.
-class ComputeLegalizePlannerObj : public StmtExprVisitorObj {
+class ComputeLegalizePlanner : public StmtExprVisitor {
  public:
   void Plan(Function func) {
     this->Visit(func->body);
@@ -88,7 +88,7 @@ class ComputeLegalizePlannerObj : public StmtExprVisitorObj {
     if (const auto* call = op->value.as<CallNode>();
         call && call->op.same_as(tirx::alloc_tensor_op()))
       return DispatchAllocTensor(op, call);
-    return StmtExprVisitorObj::Visit_(op);
+    return StmtExprVisitor::Visit_(op);
   }
 
   ffi::Optional<VisitInterrupt> DispatchAllocTensor(const BindNode* op, const CallNode* call) {
@@ -98,7 +98,7 @@ class ComputeLegalizePlannerObj : public StmtExprVisitorObj {
     if (MatchType(alloc_dtype)) {
       candidates_.insert(op->var);
     }
-    return StmtExprVisitorObj::Visit_(op);
+    return StmtExprVisitor::Visit_(op);
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const CallNode* op) final {
@@ -107,14 +107,14 @@ class ComputeLegalizePlannerObj : public StmtExprVisitorObj {
         opaque_var_access_.insert(tensor.value());
       }
     }
-    return StmtExprVisitorObj::Visit_(op);
+    return StmtExprVisitor::Visit_(op);
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const VarNode* op) final {
     if (op->ty.as<PtrTypeNode>()) {
       opaque_var_access_.insert(ffi::GetRef<Var>(op));
     }
-    return StmtExprVisitorObj::Visit_(op);
+    return StmtExprVisitor::Visit_(op);
   }
 
  private:
@@ -122,17 +122,17 @@ class ComputeLegalizePlannerObj : public StmtExprVisitorObj {
   std::unordered_set<Var> opaque_var_access_;
 };
 
-class BF16ComputeLegalizePlannerObj : public ComputeLegalizePlannerObj {
+class BF16ComputeLegalizePlanner : public ComputeLegalizePlanner {
  public:
-  using ComputeLegalizePlannerObj::ComputeLegalizePlannerObj;
+  using ComputeLegalizePlanner::ComputeLegalizePlanner;
   bool MatchType(const Type& type) const {
     return MatchPrimType(type, [](const PrimType& prim_type) { return IsBFloat16Type(prim_type); });
   }
 };
 
-class FP8ComputeLegalizePlannerObj : public ComputeLegalizePlannerObj {
+class FP8ComputeLegalizePlanner : public ComputeLegalizePlanner {
  public:
-  using ComputeLegalizePlannerObj::ComputeLegalizePlannerObj;
+  using ComputeLegalizePlanner::ComputeLegalizePlanner;
   bool MatchType(const Type& type) const {
     return MatchPrimType(type, [](const PrimType& prim_type) { return IsFloat8Type(prim_type); });
   }
@@ -154,16 +154,16 @@ class FP8ComputeLegalizePlannerObj : public ComputeLegalizePlannerObj {
 
 // NOTE: Legalize the FP8/BF16 computations
 // to floating point computations and only keeps the
-// fp8/bf16 storage which can further be legalized by FP8/BF16StorageLegalizerObj
-// FP8/BF16StorageLegalizerObj will be called at a much later time
+// fp8/bf16 storage which can further be legalized by FP8/BF16StorageLegalizer
+// FP8/BF16StorageLegalizer will be called at a much later time
 // point in the TIR lowering phases.
-class ComputeLegalizerObj : public StmtExprMutatorObj {
+class ComputeLegalizer : public StmtExprMutator {
  public:
-  using StmtExprMutatorObj::Mutate;
-  using StmtExprMutatorObj::Mutate_;
-  explicit ComputeLegalizerObj(PrimType promote_dtype) : promote_dtype_(promote_dtype) {}
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
+  explicit ComputeLegalizer(PrimType promote_dtype) : promote_dtype_(promote_dtype) {}
 
-  Function LegalizeWithPlanner(Function func, ComputeLegalizePlannerObj* planner) {
+  Function LegalizeWithPlanner(Function func, ComputeLegalizePlanner* planner) {
     planner->Plan(func);
     promoted_tensors_ = planner->Allocations();
     auto* n = func.CopyOnWrite();
@@ -235,7 +235,7 @@ class ComputeLegalizerObj : public StmtExprMutatorObj {
       return LegalizeThreadAllreduce(op);
     }
     if (op->op.same_as(tirx::alloc_tensor_op()) || op->op.same_as(tirx::decl_tensor_op())) {
-      Call call = StmtExprMutatorObj::Mutate_(op, inplace_mode)
+      Call call = StmtExprMutator::Mutate_(op, inplace_mode)
                       .ValueOrUnchanged(ffi::GetRef<Expr>(op))
                       .as_or_throw<Call>();
       if (op == allocation_to_promote_) {
@@ -283,11 +283,11 @@ class ComputeLegalizerObj : public StmtExprMutatorObj {
       return Call(PrimType::Void(), op->op, args, op->attrs, op->ty_args, op->loc);
     }
     if (!op->ty.as<PrimTypeNode>()) {
-      return StmtExprMutatorObj::Mutate_(op, inplace_mode);
+      return StmtExprMutator::Mutate_(op, inplace_mode);
     }
     // presertve reinterpret<bf16>() behavior.
     if (op->op.same_as(tirx::reinterpret_op())) {
-      return StmtExprMutatorObj::Mutate_(op, inplace_mode);
+      return StmtExprMutator::Mutate_(op, inplace_mode);
     }
     // update normal computations to return f32 instead.
     auto args = op->args.Map([this](const Expr& before) {
@@ -354,7 +354,7 @@ class ComputeLegalizerObj : public StmtExprMutatorObj {
       const CallNode* previous = allocation_to_promote_;
       allocation_to_promote_ =
           promoted_tensors_.count(op->var) ? op->value.as<CallNode>() : nullptr;
-      auto result = StmtExprMutatorObj::Mutate_(op, inplace_mode);
+      auto result = StmtExprMutator::Mutate_(op, inplace_mode);
       allocation_to_promote_ = previous;
       return result;
     }
@@ -485,13 +485,13 @@ class ComputeLegalizerObj : public StmtExprMutatorObj {
   PrimType promote_dtype_;
 };
 
-class BF16ComputeLegalizerObj : public ComputeLegalizerObj {
+class BF16ComputeLegalizer : public ComputeLegalizer {
  public:
-  using ComputeLegalizerObj::Mutate;
-  using ComputeLegalizerObj::Mutate_;
-  BF16ComputeLegalizerObj() : ComputeLegalizerObj(PrimType::Float(32)) {}
+  using ComputeLegalizer::Mutate;
+  using ComputeLegalizer::Mutate_;
+  BF16ComputeLegalizer() : ComputeLegalizer(PrimType::Float(32)) {}
   Function Legalize(Function func) {
-    auto planner = ffi::make_object<BF16ComputeLegalizePlannerObj>();
+    auto planner = ffi::make_object<BF16ComputeLegalizePlanner>();
     return LegalizeWithPlanner(func, planner.get());
   }
   bool MatchType(const Type& type) const {
@@ -499,13 +499,13 @@ class BF16ComputeLegalizerObj : public ComputeLegalizerObj {
   }
 };
 
-class FP8ComputeLegalizerObj : public ComputeLegalizerObj {
+class FP8ComputeLegalizer : public ComputeLegalizer {
  public:
-  using ComputeLegalizerObj::Mutate;
-  using ComputeLegalizerObj::Mutate_;
-  explicit FP8ComputeLegalizerObj(PrimType promote_dtype) : ComputeLegalizerObj(promote_dtype) {}
+  using ComputeLegalizer::Mutate;
+  using ComputeLegalizer::Mutate_;
+  explicit FP8ComputeLegalizer(PrimType promote_dtype) : ComputeLegalizer(promote_dtype) {}
   Function Legalize(Function func) {
-    auto planner = ffi::make_object<FP8ComputeLegalizePlannerObj>();
+    auto planner = ffi::make_object<FP8ComputeLegalizePlanner>();
     return LegalizeWithPlanner(func, planner.get());
   }
   bool MatchType(const Type& type) const {
@@ -517,13 +517,13 @@ class FP8ComputeLegalizerObj : public ComputeLegalizerObj {
  * \brief This Pass legalizes remaining FP8/BF16 storages to unsigned integers with equal number of
  * bits.
  *
- * This pass needs to happens after FP8/BF16ComputeLegalizerObj and serves
+ * This pass needs to happens after FP8/BF16ComputeLegalizer and serves
  * as a way to support FP8/BF16 on platforms that do not have native support.
  */
-class StorageLegalizerObj : public StmtExprMutatorObj {
+class StorageLegalizer : public StmtExprMutator {
  public:
-  using StmtExprMutatorObj::Mutate;
-  using StmtExprMutatorObj::Mutate_;
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
   Function Legalize(Function func) {
     for (const Var& param : func->params) {
       TVM_FFI_ICHECK(!param->ty.as<TensorTypeNode>())
@@ -554,7 +554,7 @@ class StorageLegalizerObj : public StmtExprMutatorObj {
 
   UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final {
     if (op->value->ty.as<TensorTypeNode>()) {
-      return StmtExprMutatorObj::Mutate_(op, inplace_mode);
+      return StmtExprMutator::Mutate_(op, inplace_mode);
     }
     auto value_result = Mutate(op->value, inplace_mode);
     bool value_unchanged = value_result.UnchangedOrSameAs(op->value);
@@ -599,7 +599,7 @@ class StorageLegalizerObj : public StmtExprMutatorObj {
 
   UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) final {
     if (op->op.same_as(tirx::alloc_tensor_op()) || op->op.same_as(tirx::decl_tensor_op())) {
-      Call call = StmtExprMutatorObj::Mutate_(op, inplace_mode)
+      Call call = StmtExprMutator::Mutate_(op, inplace_mode)
                       .ValueOrUnchanged(ffi::GetRef<Expr>(op))
                       .as_or_throw<Call>();
       auto type = call->ty_args[0].as_or_throw<TensorType>();
@@ -641,8 +641,7 @@ class StorageLegalizerObj : public StmtExprMutatorObj {
       }
     }
     if (const auto* pointer_type = op->ty.as<PtrTypeNode>()) {
-      Expr ret =
-          StmtExprMutatorObj::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Expr>(op));
+      Expr ret = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Expr>(op));
       const auto* element_type = pointer_type->element_type.as<PrimTypeNode>();
       if (!element_type || !MatchType(ffi::GetRef<PrimType>(element_type))) {
         return ret;
@@ -653,7 +652,7 @@ class StorageLegalizerObj : public StmtExprMutatorObj {
                   call->attrs, call->ty_args, call->loc);
     }
     if (!op->ty.as<PrimTypeNode>()) {
-      return StmtExprMutatorObj::Mutate_(op, inplace_mode);
+      return StmtExprMutator::Mutate_(op, inplace_mode);
     }
     // remap re-interpret so un-necessary reinterpret can be skipped.
     if (op->op.same_as(tirx::reinterpret_op())) {
@@ -670,7 +669,7 @@ class StorageLegalizerObj : public StmtExprMutatorObj {
         return tirx::reinterpret(op_dtype, value);
       }
     }
-    return StmtExprMutatorObj::Mutate_(op, inplace_mode);
+    return StmtExprMutator::Mutate_(op, inplace_mode);
   }
 
   virtual bool MatchType(const Type& type) const = 0;
@@ -717,19 +716,19 @@ class StorageLegalizerObj : public StmtExprMutatorObj {
   }
 };
 
-class BF16StorageLegalizerObj : public StorageLegalizerObj {
+class BF16StorageLegalizer : public StorageLegalizer {
  public:
-  using StmtExprMutatorObj::Mutate_;
-  using StorageLegalizerObj::Mutate;
+  using StmtExprMutator::Mutate_;
+  using StorageLegalizer::Mutate;
   bool MatchType(const Type& type) const {
     return MatchPrimType(type, [](const PrimType& prim_type) { return IsBFloat16Type(prim_type); });
   }
 };
 
-class FP8StorageLegalizerObj : public StorageLegalizerObj {
+class FP8StorageLegalizer : public StorageLegalizer {
  public:
-  using StmtExprMutatorObj::Mutate_;
-  using StorageLegalizerObj::Mutate;
+  using StmtExprMutator::Mutate_;
+  using StorageLegalizer::Mutate;
   bool MatchType(const Type& type) const {
     return MatchPrimType(type, [](const PrimType& prim_type) { return IsFloat8Type(prim_type); });
   }
@@ -757,7 +756,7 @@ Pass BF16ComputeLegalize() {
         CheckDataTypeSupport(opt_target.value(), "tvm.support.nvcc.supports_bf16")) {
       return f;
     }
-    return ffi::make_object<BF16ComputeLegalizerObj>()->Legalize(f);
+    return ffi::make_object<BF16ComputeLegalizer>()->Legalize(f);
   };
   return CreateFunctionPass(pass_func, 0, "tirx.BF16ComputeLegalize");
 }
@@ -774,7 +773,7 @@ Pass BF16StorageLegalize() {
         CheckDataTypeSupport(opt_target.value(), "tvm.support.nvcc.supports_bf16")) {
       return f;
     }
-    return ffi::make_object<BF16StorageLegalizerObj>()->Legalize(f);
+    return ffi::make_object<BF16StorageLegalizer>()->Legalize(f);
   };
   return CreateFunctionPass(pass_func, 0, "tirx.BF16StorageLegalize");
 }
@@ -791,8 +790,7 @@ Pass FP8ComputeLegalize(ffi::String promote_dtype) {
         CheckDataTypeSupport(opt_target.value(), "tvm.support.nvcc.supports_fp8")) {
       return f;
     }
-    return ffi::make_object<FP8ComputeLegalizerObj>(
-               PrimType(ffi::StringToDLDataType(promote_dtype)))
+    return ffi::make_object<FP8ComputeLegalizer>(PrimType(ffi::StringToDLDataType(promote_dtype)))
         ->Legalize(f);
   };
   return CreateFunctionPass(pass_func, 0, "tirx.FP8ComputeLegalize");
@@ -810,7 +808,7 @@ Pass FP8StorageLegalize() {
         CheckDataTypeSupport(opt_target.value(), "tvm.support.nvcc.supports_fp8")) {
       return f;
     }
-    return ffi::make_object<FP8StorageLegalizerObj>()->Legalize(f);
+    return ffi::make_object<FP8StorageLegalizer>()->Legalize(f);
   };
   return CreateFunctionPass(pass_func, 0, "tirx.FP8StorageLegalize");
 }

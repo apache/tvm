@@ -28,54 +28,51 @@ namespace cuda {
 
 using namespace tirx;
 
-void TCGen05InstrDescriptorAttrsNode::RegisterReflection() {
+void TCGen05InstrDescriptorAttrs::RegisterReflection() {
   namespace refl = ffi::reflection;
-  refl::ObjectDef<TCGen05InstrDescriptorAttrsNode>()
-      .def_ro("d_dtype", &TCGen05InstrDescriptorAttrsNode::d_dtype)
-      .def_ro("a_dtype", &TCGen05InstrDescriptorAttrsNode::a_dtype)
-      .def_ro("b_dtype", &TCGen05InstrDescriptorAttrsNode::b_dtype)
-      .def_ro("M", &TCGen05InstrDescriptorAttrsNode::M)
-      .def_ro("N", &TCGen05InstrDescriptorAttrsNode::N)
-      .def_ro("K", &TCGen05InstrDescriptorAttrsNode::K)
-      .def_ro("trans_a", &TCGen05InstrDescriptorAttrsNode::trans_a)
-      .def_ro("trans_b", &TCGen05InstrDescriptorAttrsNode::trans_b)
-      .def_ro("n_cta_groups", &TCGen05InstrDescriptorAttrsNode::n_cta_groups, refl::DefaultValue(1))
-      .def_ro("neg_a", &TCGen05InstrDescriptorAttrsNode::neg_a, refl::DefaultValue(false))
-      .def_ro("neg_b", &TCGen05InstrDescriptorAttrsNode::neg_b, refl::DefaultValue(false))
-      .def_ro("sat_d", &TCGen05InstrDescriptorAttrsNode::sat_d, refl::DefaultValue(false))
-      .def_ro("is_sparse", &TCGen05InstrDescriptorAttrsNode::is_sparse, refl::DefaultValue(false));
+  refl::ObjectDef<TCGen05InstrDescriptorAttrs>()
+      .def_ro("d_dtype", &TCGen05InstrDescriptorAttrs::d_dtype)
+      .def_ro("a_dtype", &TCGen05InstrDescriptorAttrs::a_dtype)
+      .def_ro("b_dtype", &TCGen05InstrDescriptorAttrs::b_dtype)
+      .def_ro("M", &TCGen05InstrDescriptorAttrs::M)
+      .def_ro("N", &TCGen05InstrDescriptorAttrs::N)
+      .def_ro("K", &TCGen05InstrDescriptorAttrs::K)
+      .def_ro("trans_a", &TCGen05InstrDescriptorAttrs::trans_a)
+      .def_ro("trans_b", &TCGen05InstrDescriptorAttrs::trans_b)
+      .def_ro("n_cta_groups", &TCGen05InstrDescriptorAttrs::n_cta_groups, refl::DefaultValue(1))
+      .def_ro("neg_a", &TCGen05InstrDescriptorAttrs::neg_a, refl::DefaultValue(false))
+      .def_ro("neg_b", &TCGen05InstrDescriptorAttrs::neg_b, refl::DefaultValue(false))
+      .def_ro("sat_d", &TCGen05InstrDescriptorAttrs::sat_d, refl::DefaultValue(false))
+      .def_ro("is_sparse", &TCGen05InstrDescriptorAttrs::is_sparse, refl::DefaultValue(false));
 }
 
-void TCGen05InstrDescriptorBlockScaledAttrsNode::RegisterReflection() {
+void TCGen05InstrDescriptorBlockScaledAttrs::RegisterReflection() {
   namespace refl = ffi::reflection;
-  refl::ObjectDef<TCGen05InstrDescriptorBlockScaledAttrsNode>()
-      .def_ro("d_dtype", &TCGen05InstrDescriptorBlockScaledAttrsNode::d_dtype)
-      .def_ro("a_dtype", &TCGen05InstrDescriptorBlockScaledAttrsNode::a_dtype)
-      .def_ro("b_dtype", &TCGen05InstrDescriptorBlockScaledAttrsNode::b_dtype)
-      .def_ro("sfa_dtype", &TCGen05InstrDescriptorBlockScaledAttrsNode::sfa_dtype)
-      .def_ro("sfb_dtype", &TCGen05InstrDescriptorBlockScaledAttrsNode::sfb_dtype)
-      .def_ro("M", &TCGen05InstrDescriptorBlockScaledAttrsNode::M)
-      .def_ro("N", &TCGen05InstrDescriptorBlockScaledAttrsNode::N)
-      .def_ro("K", &TCGen05InstrDescriptorBlockScaledAttrsNode::K)
-      .def_ro("trans_a", &TCGen05InstrDescriptorBlockScaledAttrsNode::trans_a)
-      .def_ro("trans_b", &TCGen05InstrDescriptorBlockScaledAttrsNode::trans_b)
-      .def_ro("n_cta_groups", &TCGen05InstrDescriptorBlockScaledAttrsNode::n_cta_groups,
+  refl::ObjectDef<TCGen05InstrDescriptorBlockScaledAttrs>()
+      .def_ro("d_dtype", &TCGen05InstrDescriptorBlockScaledAttrs::d_dtype)
+      .def_ro("a_dtype", &TCGen05InstrDescriptorBlockScaledAttrs::a_dtype)
+      .def_ro("b_dtype", &TCGen05InstrDescriptorBlockScaledAttrs::b_dtype)
+      .def_ro("sfa_dtype", &TCGen05InstrDescriptorBlockScaledAttrs::sfa_dtype)
+      .def_ro("sfb_dtype", &TCGen05InstrDescriptorBlockScaledAttrs::sfb_dtype)
+      .def_ro("M", &TCGen05InstrDescriptorBlockScaledAttrs::M)
+      .def_ro("N", &TCGen05InstrDescriptorBlockScaledAttrs::N)
+      .def_ro("K", &TCGen05InstrDescriptorBlockScaledAttrs::K)
+      .def_ro("trans_a", &TCGen05InstrDescriptorBlockScaledAttrs::trans_a)
+      .def_ro("trans_b", &TCGen05InstrDescriptorBlockScaledAttrs::trans_b)
+      .def_ro("n_cta_groups", &TCGen05InstrDescriptorBlockScaledAttrs::n_cta_groups,
               refl::DefaultValue(1))
-      .def_ro("neg_a", &TCGen05InstrDescriptorBlockScaledAttrsNode::neg_a,
-              refl::DefaultValue(false))
-      .def_ro("neg_b", &TCGen05InstrDescriptorBlockScaledAttrsNode::neg_b,
-              refl::DefaultValue(false))
-      .def_ro("is_sparse", &TCGen05InstrDescriptorBlockScaledAttrsNode::is_sparse,
+      .def_ro("neg_a", &TCGen05InstrDescriptorBlockScaledAttrs::neg_a, refl::DefaultValue(false))
+      .def_ro("neg_b", &TCGen05InstrDescriptorBlockScaledAttrs::neg_b, refl::DefaultValue(false))
+      .def_ro("is_sparse", &TCGen05InstrDescriptorBlockScaledAttrs::is_sparse,
               refl::DefaultValue(false));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  TCGen05InstrDescriptorAttrsNode::RegisterReflection();
-  TCGen05InstrDescriptorBlockScaledAttrsNode::RegisterReflection();
+  TCGen05InstrDescriptorAttrs::RegisterReflection();
+  TCGen05InstrDescriptorBlockScaledAttrs::RegisterReflection();
 
   OpDef("tirx.cuda.tcgen05_encode_instr_descriptor")
-      .signature(sig::arg("desc"),
-                 sig::call_attrs<backend::cuda::TCGen05InstrDescriptorAttrsNode>())
+      .signature(sig::arg("desc"), sig::call_attrs<backend::cuda::TCGen05InstrDescriptorAttrs>())
       .set_attr<TIRxOpCategory>(tvm::tirx::op_attr::kOpCategory, ffi::String("device_intrin"))
       .set_attr<TDeviceIntrinsicNamespace>(tvm::tirx::op_attr::kDeviceIntrinsicNamespace,
                                            ffi::String("cuda"))
@@ -84,7 +81,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<TFixedReturnType>(tvm::op_attr::kFixedReturnType, PrimType::Void());
   OpDef("tirx.cuda.tcgen05_encode_instr_descriptor_block_scaled")
       .signature(sig::arg("desc"),
-                 sig::call_attrs<backend::cuda::TCGen05InstrDescriptorBlockScaledAttrsNode>())
+                 sig::call_attrs<backend::cuda::TCGen05InstrDescriptorBlockScaledAttrs>())
       .set_attr<TIRxOpCategory>(tvm::tirx::op_attr::kOpCategory, ffi::String("device_intrin"))
       .set_attr<TDeviceIntrinsicNamespace>(tvm::tirx::op_attr::kDeviceIntrinsicNamespace,
                                            ffi::String("cuda"))

@@ -153,11 +153,11 @@ PrimExpr NormalizeWarpIndex(const PrimExpr& index, const WarpThreadBindings& act
       });
 }
 
-class WarpStoreCoeffFinderObj : public StmtExprVisitorObj {
+class WarpStoreCoeffFinder : public StmtExprVisitor {
  public:
-  WarpStoreCoeffFinderObj(const VarNode* tensor, const WarpThreadBindings& bindings,
-                          WarpThreadBindings active_bindings, Var warp_index,
-                          sym::AnalyzerObj* analyzer, const WarpIndexAliases& aliases)
+  WarpStoreCoeffFinder(const VarNode* tensor, const WarpThreadBindings& bindings,
+                       WarpThreadBindings active_bindings, Var warp_index,
+                       sym::AnalyzerObj* analyzer, const WarpIndexAliases& aliases)
       : tensor_(tensor),
         bindings_(bindings),
         active_bindings_(std::move(active_bindings)),
@@ -216,15 +216,15 @@ class WarpStoreCoeffFinderObj : public StmtExprVisitorObj {
       UpdatePattern(op->args[4].as_or_throw<PrimExpr>());
     }
     // mma_store/ptx_mma_legacy only *use* the warp tensor
-    // (read+rewrite); WarpStoreCoeffFinderObj relies on ldmatrix/mma_fill
+    // (read+rewrite); WarpStoreCoeffFinder relies on ldmatrix/mma_fill
     // (the actual stores) for the warp coefficient.
 
-    return StmtExprVisitorObj::Visit_(op);
+    return StmtExprVisitor::Visit_(op);
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const TensorStoreNode* op) final {
     if (op->dest.as_or_throw<TensorVar>().get() != tensor_) {
-      return StmtExprVisitorObj::Visit_(op);
+      return StmtExprVisitor::Visit_(op);
     }
 
     TVM_FFI_ICHECK_EQ(op->indices.size(), 1) << "Expected flat memory to use as warp memory.  "
@@ -281,9 +281,9 @@ class WarpStoreCoeffFinderObj : public StmtExprVisitorObj {
 };
 
 // Collect each lexical launch definition and validate compatible hardware widths.
-class WarpIndexFinderObj : public StmtExprVisitorObj {
+class WarpIndexFinder : public StmtExprVisitor {
  public:
-  explicit WarpIndexFinderObj(int warp_size, WarpThreadBindings enclosing_bindings)
+  explicit WarpIndexFinder(int warp_size, WarpThreadBindings enclosing_bindings)
       : warp_size_(warp_size), bindings_(std::move(enclosing_bindings)) {
     for (const auto& [var, binding] : bindings_) CheckWidth(binding);
   }
@@ -303,7 +303,7 @@ class WarpIndexFinderObj : public StmtExprVisitorObj {
       bindings_.insert_or_assign(op->body_params[0].as_or_throw<PrimVar>().get(),
                                  std::move(binding));
     }
-    return StmtExprVisitorObj::Visit_(op);
+    return StmtExprVisitor::Visit_(op);
   }
 
   void CheckWidth(const WarpThreadBinding& binding) {
@@ -324,13 +324,13 @@ class WarpIndexFinderObj : public StmtExprVisitorObj {
   WarpThreadBindings bindings_;
 };
 // Mutator to change the read pattern
-class WarpAccessRewriterObj : public StmtExprMutatorObj {
+class WarpAccessRewriter : public StmtExprMutator {
  public:
-  using StmtExprMutatorObj::Mutate;
-  using StmtExprMutatorObj::Mutate_;
-  explicit WarpAccessRewriterObj(int warp_size, sym::AnalyzerObj* analyzer,
-                                 WarpThreadBindings enclosing_bindings, Var warp_index,
-                                 const WarpIndexAliases& aliases)
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
+  explicit WarpAccessRewriter(int warp_size, sym::AnalyzerObj* analyzer,
+                              WarpThreadBindings enclosing_bindings, Var warp_index,
+                              const WarpIndexAliases& aliases)
       : warp_size_(warp_size),
         warp_index_(warp_index),
         analyzer_(analyzer),
@@ -358,9 +358,9 @@ class WarpAccessRewriterObj : public StmtExprMutatorObj {
     TVM_FFI_ICHECK_GT(alloc_size, 0) << "warp memory only support constant alloc size";
     alloc_size *= element_type.lanes();
     std::tie(bindings_, width_) =
-        ffi::make_object<WarpIndexFinderObj>(warp_size_, bindings_)->Find(body);
-    warp_coeff_ = ffi::make_object<WarpStoreCoeffFinderObj>(tensor_, bindings_, active_bindings_,
-                                                            warp_index_, analyzer_, aliases_)
+        ffi::make_object<WarpIndexFinder>(warp_size_, bindings_)->Find(body);
+    warp_coeff_ = ffi::make_object<WarpStoreCoeffFinder>(tensor_, bindings_, active_bindings_,
+                                                         warp_index_, analyzer_, aliases_)
                       ->Find(body);
 
     // Align the local memory size. The number of elements may not
@@ -393,7 +393,7 @@ class WarpAccessRewriterObj : public StmtExprMutatorObj {
  protected:
   UnchangedOr<Stmt> Mutate_(const RegionStmtNode* op, InplaceMode inplace_mode) final {
     if (!op->op.same_as(tirx::launch_thread_op()))
-      return StmtExprMutatorObj::Mutate_(op, inplace_mode);
+      return StmtExprMutator::Mutate_(op, inplace_mode);
     PrimExpr old_extent = op->args[1].as_or_throw<PrimExpr>();
     PrimExpr extent = Mutate(old_extent, inplace_mode).ValueOrUnchanged(old_extent);
     PrimVar var = op->body_params[0].as_or_throw<PrimVar>();
@@ -446,14 +446,14 @@ class WarpAccessRewriterObj : public StmtExprMutatorObj {
       return RewriteIndicesAt(op, {3});
     }
 
-    return StmtExprMutatorObj::Mutate_(op, inplace_mode);
+    return StmtExprMutator::Mutate_(op, inplace_mode);
   }
 
   UnchangedOr<Expr> Mutate_(const VarNode* op, InplaceMode inplace_mode) override {
     if (def_region_kind() == kTVMFFIDefRegionKindNone) {
       TVM_FFI_ICHECK(op != tensor_) << "Cannot access address of warp memory directly";
     }
-    return StmtExprMutatorObj::Mutate_(op, inplace_mode);
+    return StmtExprMutator::Mutate_(op, inplace_mode);
   }
 
   UnchangedOr<Stmt> Mutate_(const TensorStoreNode* op, InplaceMode inplace_mode) override {
@@ -580,13 +580,13 @@ class WarpAccessRewriterObj : public StmtExprMutatorObj {
 // Bind bound information of variables to make analyzer more effective
 // TODO(tqchen): consider a pass to inline the bound info into the expr
 // so analysis can be context independent.
-class BindVarBoundInfoObj : public StmtExprVisitorObj {
+class BindVarBoundInfo : public StmtExprVisitor {
  public:
   ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
     if (value.as<ExprNode>()) return std::nullopt;
-    return StmtExprVisitorObj::Visit(value);
+    return StmtExprVisitor::Visit(value);
   }
-  explicit BindVarBoundInfoObj(sym::AnalyzerObj* analyzer, WarpIndexAliases* aliases)
+  explicit BindVarBoundInfo(sym::AnalyzerObj* analyzer, WarpIndexAliases* aliases)
       : analyzer_(analyzer), aliases_(aliases) {}
 
   ffi::Optional<VisitInterrupt> Visit_(const BindNode* op) final {
@@ -598,13 +598,13 @@ class BindVarBoundInfoObj : public StmtExprVisitorObj {
       // simplification would erase that dependence before coefficient matching.
       aliases_->insert_or_assign(op->var.get(), ExpandWarpIndexAliases(*value, *aliases_));
     }
-    return StmtExprVisitorObj::Visit_(op);
+    return StmtExprVisitor::Visit_(op);
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) final {
     const Var& loop_var = op->loop_var;
     analyzer_->Bind(loop_var, Range::FromMinExtent(op->min, op->extent));
-    return StmtExprVisitorObj::Visit_(op);
+    return StmtExprVisitor::Visit_(op);
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const RegionStmtNode* op) final {
@@ -614,7 +614,7 @@ class BindVarBoundInfoObj : public StmtExprVisitorObj {
       Range dom = Range::FromMinExtent(IntImm(extent.ty(), 0), extent);
       analyzer_->Bind(var, dom);
     }
-    return StmtExprVisitorObj::Visit_(op);
+    return StmtExprVisitor::Visit_(op);
   }
 
  protected:
@@ -624,31 +624,31 @@ class BindVarBoundInfoObj : public StmtExprVisitorObj {
 };
 
 // Mutator to change the read pattern
-class WarpMemoryRewriterObj : public StmtExprMutatorObj {
+class WarpMemoryRewriter : public StmtExprMutator {
  public:
-  using StmtExprMutatorObj::Mutate;
-  using StmtExprMutatorObj::Mutate_;
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
   UnchangedOr<ffi::Any> Mutate(ffi::AnyView input, InplaceMode inplace_mode) override {
     if (input.as<ExprNode>()) return ffi::Unchanged();
-    return StmtExprMutatorObj::Mutate(input, inplace_mode);
+    return StmtExprMutator::Mutate(input, inplace_mode);
   }
-  explicit WarpMemoryRewriterObj(int warp_size) : warp_size_(warp_size) {}
+  explicit WarpMemoryRewriter(int warp_size) : warp_size_(warp_size) {}
 
   Stmt Rewrite(Stmt stmt) {
     if (warp_size_ == 1) return stmt;
-    auto binder = ffi::make_object<BindVarBoundInfoObj>(analyzer_.get(), &aliases_);
+    auto binder = ffi::make_object<BindVarBoundInfo>(analyzer_.get(), &aliases_);
     binder->Visit(stmt);
     stmt = Mutate(stmt, InplaceMode::kAllow).ValueOrUnchanged(stmt);
     return stmt;
   }
 
-  // Keep the old variables alive until UpdatePointerStorageScopeObj reads their types.
+  // Keep the old variables alive until UpdatePointerStorageScope reads their types.
   std::unordered_map<Var, ffi::String, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> new_storage_scopes_;
 
  private:
   UnchangedOr<Stmt> Mutate_(const RegionStmtNode* op, InplaceMode inplace_mode) final {
     if (!op->op.same_as(tirx::launch_thread_op()))
-      return StmtExprMutatorObj::Mutate_(op, inplace_mode);
+      return StmtExprMutator::Mutate_(op, inplace_mode);
     PrimVar var = op->body_params[0].as_or_throw<PrimVar>();
     auto previous_bindings = active_bindings_;
     Var previous_index = warp_index_;
@@ -678,7 +678,7 @@ class WarpMemoryRewriterObj : public StmtExprMutatorObj {
           remaining.push_back(op->seq[j]);
         }
         Stmt body = SeqStmt(remaining);
-        auto rewriter = ffi::make_object<WarpAccessRewriterObj>(
+        auto rewriter = ffi::make_object<WarpAccessRewriter>(
             warp_size_, analyzer_.get(), active_bindings_, warp_index_, aliases_);
         Stmt rewritten = rewriter->Rewrite(alloc, call, body);
         // Continue through the remaining allocation bindings in the same scope.
@@ -711,12 +711,11 @@ Pass LowerWarpMemory() {
     auto target = f->GetAttr<Target>(tvm::attr::kTarget);
     TVM_FFI_ICHECK(target.has_value()) << "LowerWarpMemory: Require the target attribute";
     int warp_size = target.value()->GetAttr<int64_t>("thread_warp_size", 1).value();
-    auto warp_memory_rewriter = ffi::make_object<WarpMemoryRewriterObj>(warp_size);
+    auto warp_memory_rewriter = ffi::make_object<WarpMemoryRewriter>(warp_size);
     auto stmt = warp_memory_rewriter->Rewrite(std::move(n->body).value());
-    n->body =
-        ffi::make_object<UpdatePointerStorageScopeObj>(warp_memory_rewriter->new_storage_scopes_)
-            ->Mutate(stmt, InplaceMode::kAllow)
-            .ValueOrUnchanged(stmt);
+    n->body = ffi::make_object<UpdatePointerStorageScope>(warp_memory_rewriter->new_storage_scopes_)
+                  ->Mutate(stmt, InplaceMode::kAllow)
+                  .ValueOrUnchanged(stmt);
     return f;
   };
   return CreateFunctionPass(pass_func, 0, "tirx.LowerWarpMemory");

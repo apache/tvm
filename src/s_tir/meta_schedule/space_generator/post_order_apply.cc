@@ -59,7 +59,7 @@ class PostOrderApplyObj : public SpaceGeneratorObj {
 
     std::vector<ScheduleAndUnvisitedBlocks> stack;
     ffi::Array<s_tir::Schedule> result{sch};
-    ffi::Array<s_tir::SBlockRV> all_blocks = SBlockCollectorObj::Collect(sch, f_block_filter_);
+    ffi::Array<s_tir::SBlockRV> all_blocks = SBlockCollector::Collect(sch, f_block_filter_);
 
     for (ScheduleRule sch_rule : sch_rules.value()) {
       for (const s_tir::Schedule& sch : result) {

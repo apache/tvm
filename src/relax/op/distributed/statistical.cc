@@ -30,7 +30,7 @@ Type InferDistTypeStatistical(const Call& call, const BlockBuilder& ctx) {
   ffi::Array<distributed::DTensorType> input_dtensor_tys = GetInputDTensorType(call, ctx);
   TensorType data_ty = input_dtensor_tys[0]->tensor_ty;
 
-  const auto* attrs = call->attrs.as<StatisticalAttrsNode>();
+  const auto* attrs = call->attrs.as<StatisticalAttrs>();
 
   std::vector<int> axes;
   if (!data_ty->IsUnknownNdim() && attrs->axis.has_value()) {

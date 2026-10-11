@@ -47,21 +47,21 @@ using runtime::IsTextureStorage;
 /*!
  * \brief Inject Texture Alloc Intrinsic right after tensor allocations are realized.
  */
-class TextureAllocInjectorObj : public s_tir::IRMutatorWithAnalyzerObj {
+class TextureAllocInjector : public s_tir::IRMutatorWithAnalyzer {
  public:
-  using s_tir::IRMutatorWithAnalyzerObj::Mutate;
-  using s_tir::IRMutatorWithAnalyzerObj::Mutate_;
+  using s_tir::IRMutatorWithAnalyzer::Mutate;
+  using s_tir::IRMutatorWithAnalyzer::Mutate_;
 
   static Function Inject(Function func) {
     sym::Analyzer ana;
-    auto pass = ffi::make_object<TextureAllocInjectorObj>(ana);
+    auto pass = ffi::make_object<TextureAllocInjector>(ana);
     auto writer = func.CopyOnWrite();
     pass->MarkTensorParamShapes(func);
     writer->body = pass->Mutate(func->body).ValueOrUnchanged(func->body);
     return func;
   }
 
-  explicit TextureAllocInjectorObj(const sym::Analyzer& ana) : IRMutatorWithAnalyzerObj(ana) {}
+  explicit TextureAllocInjector(const sym::Analyzer& ana) : IRMutatorWithAnalyzer(ana) {}
 
  private:
   UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final {
@@ -69,13 +69,12 @@ class TextureAllocInjectorObj : public s_tir::IRMutatorWithAnalyzerObj {
         call && call->op.same_as(tirx::alloc_tensor_op())) {
       return Mutate_AllocTensor(op, call, inplace_mode);
     }
-    return StmtExprMutatorObj::Mutate_(op, inplace_mode);
+    return StmtExprMutator::Mutate_(op, inplace_mode);
   }
 
   UnchangedOr<Stmt> Mutate_AllocTensor(const BindNode* op, const CallNode* call,
                                        InplaceMode inplace_mode) {
-    Stmt stmt =
-        StmtExprMutatorObj::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
+    Stmt stmt = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     ffi::String scope = call->ty_args[0].as_or_throw<TensorType>()->storage_scope;
     if (IsTextureStorage(scope)) {
       op = stmt.as<BindNode>();
@@ -125,7 +124,7 @@ namespace transform {
 
 Pass InjectTextureAlloc() {
   auto pass_func = [=](Function f, IRModule m, PassContext ctx) {
-    return TextureAllocInjectorObj::Inject(std::move(f));
+    return TextureAllocInjector::Inject(std::move(f));
   };
   return tirx::transform::CreateFunctionPass(pass_func, 0,
                                              "s_tir.backend.adreno.InjectTextureAlloc");

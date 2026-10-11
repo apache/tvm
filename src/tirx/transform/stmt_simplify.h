@@ -50,19 +50,19 @@ class StmtSimplifyConfig : public ffi::ObjectRef {
                                                 StmtSimplifyConfigObj);
 };
 
-class StmtSimplifierObj : public IRMutatorWithAnalyzerObj {
+class StmtSimplifier : public IRMutatorWithAnalyzer {
  public:
-  using IRMutatorWithAnalyzerObj::Mutate;
-  using IRMutatorWithAnalyzerObj::Mutate_;
+  using IRMutatorWithAnalyzer::Mutate;
+  using IRMutatorWithAnalyzer::Mutate_;
   static Function Apply(Function func, const sym::Analyzer& analyzer,
                         ffi::Optional<StmtSimplifyConfig> config_opt = std::nullopt);
 
-  explicit StmtSimplifierObj(const sym::Analyzer& analyzer, StmtSimplifyConfig config)
-      : IRMutatorWithAnalyzerObj(analyzer), config_(config) {}
+  explicit StmtSimplifier(const sym::Analyzer& analyzer, StmtSimplifyConfig config)
+      : IRMutatorWithAnalyzer(analyzer), config_(config) {}
 
  protected:
-  using Parent = IRMutatorWithAnalyzerObj;
-  StmtSimplifierObj(const VTable* vtable, const sym::Analyzer& analyzer, StmtSimplifyConfig config)
+  using Parent = IRMutatorWithAnalyzer;
+  StmtSimplifier(const VTable* vtable, const sym::Analyzer& analyzer, StmtSimplifyConfig config)
       : Parent(analyzer.get(), vtable), config_(config) {}
   Function Run(Function func);
 

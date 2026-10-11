@@ -170,12 +170,12 @@ void BuildAxisGraphReduce(const Var& output_var, const Call& call,
   Expr input_tensor = call->args[0];
   ffi::Array<int64_t> axes;
   bool keepdims;
-  if (const auto* attrs = call->attrs.as<StatisticalAttrsNode>()) {
+  if (const auto* attrs = call->attrs.as<StatisticalAttrs>()) {
     if (attrs->axis.has_value()) {
       axes = attrs->axis.value();
     }
     keepdims = attrs->keepdims;
-  } else if (const auto* attrs = call->attrs.as<SoftmaxAttrsNode>()) {
+  } else if (const auto* attrs = call->attrs.as<SoftmaxAttrs>()) {
     axes = {attrs->axis};
     keepdims = true;
   } else {
@@ -288,7 +288,7 @@ void BuildAxisGraphMatmul(const Var& output_var, const Call& call,
 void BuildAxisGraphPermuteDims(const Var& output_var, const Call& call,
                                distributed::AxisGroupGraph* axis_group_graph) {
   Expr input_tensor = call->args[0];
-  const auto* attrs = call->attrs.as<PermuteDimsAttrsNode>();
+  const auto* attrs = call->attrs.as<PermuteDimsAttrs>();
   TVM_FFI_ICHECK(attrs);
   int ndim = GetTensorType(input_tensor)->ndim;
   std::vector<int> normalized_axes;
@@ -354,7 +354,7 @@ inline int GetNumOutput(Call call) {
 
 void BuildAxisGraphCallTIR(const Var& output_var, const Call& call, const tirx::Function& func,
                            distributed::AxisGroupGraph* axis_group_graph) {
-  auto tir_var_axis_group_list = tirx::TensorAxisGraphExtractorObj::GetTIRVarAxisGraph(func);
+  auto tir_var_axis_group_list = tirx::TensorAxisGraphExtractor::GetTIRVarAxisGraph(func);
   ffi::Map<tvm::Var, Expr> input_var_to_relax_expr;
   ffi::Array<Expr> input_list = call->args[1].as_or_throw<Tuple>()->fields;
   input_list.push_back(output_var);

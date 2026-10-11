@@ -35,116 +35,116 @@
 namespace tvm {
 namespace relax {
 
-void Resize2DAttrsNode::RegisterReflection() {
+void Resize2DAttrs::RegisterReflection() {
   namespace refl = tvm::ffi::reflection;
-  refl::ObjectDef<Resize2DAttrsNode>()
-      .def_ro("roi", &Resize2DAttrsNode::roi,
+  refl::ObjectDef<Resize2DAttrs>()
+      .def_ro("roi", &Resize2DAttrs::roi,
               "Region of Interest for coordinate transformation mode 'tf_crop_and_resize'")
-      .def_ro("layout", &Resize2DAttrsNode::layout,
+      .def_ro("layout", &Resize2DAttrs::layout,
               "Dimension ordering of input data. Can be 'NCHW', 'NHWC', etc."
               "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"
               "dimensions respectively. Resize is applied on the 'H' and"
               "'W' dimensions.",
               refl::DefaultValue(ffi::String("NCHW")))
-      .def_ro("method", &Resize2DAttrsNode::method,
+      .def_ro("method", &Resize2DAttrs::method,
               "Specify the mode to use for scaling."
               "nearest_neighbor -  Nearest Neighbor"
               "linear - Bilinear Interpolation"
               "cubic - Bicubic Interpolation",
               refl::DefaultValue(ffi::String("linear")))
-      .def_ro("coordinate_transformation_mode", &Resize2DAttrsNode::coordinate_transformation_mode,
+      .def_ro("coordinate_transformation_mode", &Resize2DAttrs::coordinate_transformation_mode,
               "Describes how to transform the coordinate in the resized tensor"
               "to the coordinate in the original tensor."
               "Refer to the ONNX Resize operator specification for details"
               "Available options are half_pixel, align_corners and asymmetric",
               refl::DefaultValue(ffi::String("half_pixel")))
-      .def_ro("rounding_method", &Resize2DAttrsNode::rounding_method,
+      .def_ro("rounding_method", &Resize2DAttrs::rounding_method,
               "indicates how to find the \"nearest\" pixel in nearest_neighbor method"
               "Available options are round, floor, and ceil.",
               refl::DefaultValue(ffi::String("round")))
-      .def_ro("cubic_alpha", &Resize2DAttrsNode::cubic_alpha,
+      .def_ro("cubic_alpha", &Resize2DAttrs::cubic_alpha,
               "Spline Coefficient for Bicubic Interpolation", refl::DefaultValue(-0.75))
-      .def_ro("cubic_exclude", &Resize2DAttrsNode::cubic_exclude,
+      .def_ro("cubic_exclude", &Resize2DAttrs::cubic_exclude,
               "Flag to exclude exterior of the image during bicubic interpolation",
               refl::DefaultValue(0))
-      .def_ro("extrapolation_value", &Resize2DAttrsNode::extrapolation_value,
+      .def_ro("extrapolation_value", &Resize2DAttrs::extrapolation_value,
               "Value to return when roi is outside of the image", refl::DefaultValue(0.0))
       .def_ro(
-          "out_dtype", &Resize2DAttrsNode::out_dtype,
+          "out_dtype", &Resize2DAttrs::out_dtype,
           "The dtype of the output tensor. It it is not specified, the output will have the same "
           "dtype as input if not specified.",
           refl::DefaultValue(ffi::Optional<DLDataType>{}));
 }
 
-void Resize3DAttrsNode::RegisterReflection() {
+void Resize3DAttrs::RegisterReflection() {
   namespace refl = tvm::ffi::reflection;
-  refl::ObjectDef<Resize3DAttrsNode>()
-      .def_ro("roi", &Resize3DAttrsNode::roi,
+  refl::ObjectDef<Resize3DAttrs>()
+      .def_ro("roi", &Resize3DAttrs::roi,
               "Region of Interest for coordinate transformation mode 'tf_crop_and_resize'")
-      .def_ro("layout", &Resize3DAttrsNode::layout,
+      .def_ro("layout", &Resize3DAttrs::layout,
               "Dimension ordering of input data. Can be 'NCDHW', 'NDHWC', etc."
               "'N', 'C', 'D', 'H', 'W' stands for batch, channel, depth, height, and width"
               "dimensions respectively. Resize is applied on the 'D', 'H' and"
               "'W' dimensions.",
               refl::DefaultValue(ffi::String("NCDHW")))
-      .def_ro("method", &Resize3DAttrsNode::method,
+      .def_ro("method", &Resize3DAttrs::method,
               "Specify the mode to use for scaling."
               "nearest_neighbor -  Nearest Neighbor"
               "linear - Trilinear Interpolation"
               "cubic - Tricubic Interpolation",
               refl::DefaultValue(ffi::String("linear")))
-      .def_ro("coordinate_transformation_mode", &Resize3DAttrsNode::coordinate_transformation_mode,
+      .def_ro("coordinate_transformation_mode", &Resize3DAttrs::coordinate_transformation_mode,
               "Describes how to transform the coordinate in the resized tensor"
               "to the coordinate in the original tensor."
               "Refer to the ONNX Resize operator specification for details"
               "Available options are half_pixel, align_corners and asymmetric",
               refl::DefaultValue(ffi::String("half_pixel")))
-      .def_ro("rounding_method", &Resize3DAttrsNode::rounding_method,
+      .def_ro("rounding_method", &Resize3DAttrs::rounding_method,
               "indicates how to find the \"nearest\" pixel in nearest_neighbor method"
               "Available options are round, floor, and ceil.",
               refl::DefaultValue(ffi::String("")))
-      .def_ro("cubic_alpha", &Resize3DAttrsNode::cubic_alpha,
+      .def_ro("cubic_alpha", &Resize3DAttrs::cubic_alpha,
               "Spline Coefficient for Tricubic Interpolation", refl::DefaultValue(-0.75))
-      .def_ro("cubic_exclude", &Resize3DAttrsNode::cubic_exclude,
+      .def_ro("cubic_exclude", &Resize3DAttrs::cubic_exclude,
               "Flag to exclude exterior of the image during tricubic interpolation",
               refl::DefaultValue(0))
-      .def_ro("extrapolation_value", &Resize3DAttrsNode::extrapolation_value,
+      .def_ro("extrapolation_value", &Resize3DAttrs::extrapolation_value,
               "Value to return when roi is outside of the image", refl::DefaultValue(0.0))
       .def_ro(
-          "out_dtype", &Resize3DAttrsNode::out_dtype,
+          "out_dtype", &Resize3DAttrs::out_dtype,
           "The dtype of the output tensor. It it is not specified, the output will have the same "
           "dtype as input if not specified.",
           refl::DefaultValue(ffi::Optional<DLDataType>{}));
 }
 
-void GridSampleAttrsNode::RegisterReflection() {
+void GridSampleAttrs::RegisterReflection() {
   namespace refl = tvm::ffi::reflection;
-  refl::ObjectDef<GridSampleAttrsNode>()
-      .def_ro("method", &GridSampleAttrsNode::method,
+  refl::ObjectDef<GridSampleAttrs>()
+      .def_ro("method", &GridSampleAttrs::method,
               "Interpolation method. Can be 'nearest', 'bilinear', or 'bicubic'.",
               refl::DefaultValue(ffi::String("bilinear")))
-      .def_ro("layout", &GridSampleAttrsNode::layout,
+      .def_ro("layout", &GridSampleAttrs::layout,
               "Dimension ordering of input data. Can be 'NCHW', 'NHWC', etc.",
               refl::DefaultValue(ffi::String("NCHW")))
-      .def_ro("padding_mode", &GridSampleAttrsNode::padding_mode,
+      .def_ro("padding_mode", &GridSampleAttrs::padding_mode,
               "Padding mode for outside grid values. Can be 'zeros', 'border', or 'reflection'.",
               refl::DefaultValue(ffi::String("zeros")))
-      .def_ro("align_corners", &GridSampleAttrsNode::align_corners,
+      .def_ro("align_corners", &GridSampleAttrs::align_corners,
               "If True, the corner pixels of the input and output tensors are aligned.",
               refl::DefaultValue(false));
 }
 
-void AffineGridAttrsNode::RegisterReflection() {
+void AffineGridAttrs::RegisterReflection() {
   namespace refl = tvm::ffi::reflection;
-  refl::ObjectDef<AffineGridAttrsNode>().def_ro(
-      "align_corners", &AffineGridAttrsNode::align_corners,
+  refl::ObjectDef<AffineGridAttrs>().def_ro(
+      "align_corners", &AffineGridAttrs::align_corners,
       "If True, normalized grid coordinates map to corner pixels; otherwise to pixel centers.",
       refl::DefaultValue(true));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  Resize2DAttrsNode::RegisterReflection();
-  Resize3DAttrsNode::RegisterReflection();
+  Resize2DAttrs::RegisterReflection();
+  Resize3DAttrs::RegisterReflection();
 }
 
 /* relax.resize2d */
@@ -153,7 +153,7 @@ Expr resize2d(Expr data, Expr size, ffi::Array<FloatImm> roi, ffi::String layout
               ffi::String method, ffi::String coordinate_transformation_mode,
               ffi::String rounding_method, double cubic_alpha, int cubic_exclude,
               double extrapolation_value, ffi::Optional<DLDataType> out_dtype) {
-  ffi::ObjectPtr<Resize2DAttrsNode> attrs = ffi::make_object<Resize2DAttrsNode>();
+  ffi::ObjectPtr<Resize2DAttrs> attrs = ffi::make_object<Resize2DAttrs>();
   attrs->roi = std::move(roi);
   attrs->layout = std::move(layout);
   attrs->method = std::move(method);
@@ -200,7 +200,7 @@ Type InferTypeResize2D(const CallNode* call_node) {
                                           << size_ty->ndim;
   }
 
-  const auto* attrs = call->attrs.as<Resize2DAttrsNode>();
+  const auto* attrs = call->attrs.as<Resize2DAttrs>();
   auto [data_layout, data2NCHW] = CheckTensorLayout(call, attrs->layout,    //
                                                     /*tgt_layout=*/"NCHW",  //
                                                     /*tensor_name=*/"data");
@@ -228,11 +228,11 @@ InferLayoutOutput InferLayoutResize2d(
     const Call& call, const ffi::Map<ffi::String, ffi::Array<ffi::String>>& desired_layouts,
     const VarLayoutMap& var_layout_map) {
   const auto& it = desired_layouts.find("relax.image.resize2d");
-  const auto* attrs = call->attrs.as<Resize2DAttrsNode>();
+  const auto* attrs = call->attrs.as<Resize2DAttrs>();
   TVM_FFI_ICHECK(attrs) << "Invalid Call";
 
   LayoutDecision data_layout(ffi::UnsafeInit{});
-  ffi::ObjectPtr<Resize2DAttrsNode> new_attrs = ffi::make_object<Resize2DAttrsNode>(*attrs);
+  ffi::ObjectPtr<Resize2DAttrs> new_attrs = ffi::make_object<Resize2DAttrs>(*attrs);
 
   if (it != desired_layouts.end()) {
     // We have a desired layout for resize2d.
@@ -260,7 +260,7 @@ InferLayoutOutput InferLayoutResize2d(
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.image.resize2d")
       .signature(sig::arg("data", "The input tensor."), sig::arg("size", "The output image shape."),
-                 sig::call_attrs<Resize2DAttrsNode>())
+                 sig::call_attrs<Resize2DAttrs>())
       .set_attr<FInferType>(tvm::op_attr::kInferType, FInferType::FromNative<&InferTypeResize2D>())
       .set_attr<FRelaxInferLayout>(tvm::relax::op_attr::kInferLayout, InferLayoutResize2d)
       .set_attr<TMixedPrecisionPolicy>(tvm::relax::op_attr::kMixedPrecisionPolicy,
@@ -274,7 +274,7 @@ Expr resize3d(Expr data, Expr size, ffi::Array<FloatImm> roi, ffi::String layout
               ffi::String method, ffi::String coordinate_transformation_mode,
               ffi::String rounding_method, double cubic_alpha, int cubic_exclude,
               double extrapolation_value, ffi::Optional<DLDataType> out_dtype) {
-  ffi::ObjectPtr<Resize3DAttrsNode> attrs = ffi::make_object<Resize3DAttrsNode>();
+  ffi::ObjectPtr<Resize3DAttrs> attrs = ffi::make_object<Resize3DAttrs>();
   attrs->roi = std::move(roi);
   attrs->layout = std::move(layout);
   attrs->method = std::move(method);
@@ -321,7 +321,7 @@ Type InferTypeResize3D(const CallNode* call_node) {
                                           << size_ty->ndim;
   }
 
-  const auto* attrs = call->attrs.as<Resize3DAttrsNode>();
+  const auto* attrs = call->attrs.as<Resize3DAttrs>();
   auto [data_layout, data2NCDHW] = CheckTensorLayout(call, attrs->layout,     //
                                                      /*tgt_layout=*/"NCDHW",  //
                                                      /*tensor_name=*/"data");
@@ -350,11 +350,11 @@ InferLayoutOutput InferLayoutResize3d(
     const Call& call, const ffi::Map<ffi::String, ffi::Array<ffi::String>>& desired_layouts,
     const VarLayoutMap& var_layout_map) {
   const auto& it = desired_layouts.find("relax.image.resize3d");
-  const auto* attrs = call->attrs.as<Resize3DAttrsNode>();
+  const auto* attrs = call->attrs.as<Resize3DAttrs>();
   TVM_FFI_ICHECK(attrs) << "Invalid Call";
 
   LayoutDecision data_layout(ffi::UnsafeInit{});
-  ffi::ObjectPtr<Resize3DAttrsNode> new_attrs = ffi::make_object<Resize3DAttrsNode>(*attrs);
+  ffi::ObjectPtr<Resize3DAttrs> new_attrs = ffi::make_object<Resize3DAttrs>(*attrs);
 
   if (it != desired_layouts.end()) {
     SLayout desired_data_layout = (*it).second[0];
@@ -379,7 +379,7 @@ InferLayoutOutput InferLayoutResize3d(
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.image.resize3d")
       .signature(sig::arg("data", "The input tensor."), sig::arg("size", "The output image shape."),
-                 sig::call_attrs<Resize3DAttrsNode>())
+                 sig::call_attrs<Resize3DAttrs>())
       .set_attr<FInferType>(tvm::op_attr::kInferType, FInferType::FromNative<&InferTypeResize3D>())
       .set_attr<FRelaxInferLayout>(tvm::relax::op_attr::kInferLayout, InferLayoutResize3d)
       .set_attr<TMixedPrecisionPolicy>(tvm::relax::op_attr::kMixedPrecisionPolicy,
@@ -388,12 +388,12 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
   /* relax.grid_sample */
 
-  GridSampleAttrsNode::RegisterReflection();
+  GridSampleAttrs::RegisterReflection();
 }
 
 Expr grid_sample(Expr data, Expr grid, ffi::String method, ffi::String layout,
                  ffi::String padding_mode, bool align_corners) {
-  ffi::ObjectPtr<GridSampleAttrsNode> attrs = ffi::make_object<GridSampleAttrsNode>();
+  ffi::ObjectPtr<GridSampleAttrs> attrs = ffi::make_object<GridSampleAttrs>();
   attrs->method = std::move(method);
   attrs->layout = std::move(layout);
   attrs->padding_mode = std::move(padding_mode);
@@ -430,7 +430,7 @@ Type InferTypeGridSample(const CallNode* call_node) {
         << call->args[1]->GetTypeKey();
   }
 
-  const auto* attrs = call->attrs.as<GridSampleAttrsNode>();
+  const auto* attrs = call->attrs.as<GridSampleAttrs>();
 
   // grid_sample supports both 2D (NCHW) and 3D (NCDHW) sampling. The frontend
   // sets attrs->layout to "NCDHW" for the volumetric case; everything else is
@@ -473,7 +473,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.image.grid_sample")
       .signature(sig::arg("data", "The input tensor."),
                  sig::arg("grid", "The grid tensor for sampling."),
-                 sig::call_attrs<GridSampleAttrsNode>())
+                 sig::call_attrs<GridSampleAttrs>())
       .set_attr<FInferType>(tvm::op_attr::kInferType,
                             FInferType::FromNative<&InferTypeGridSample>())
       .set_attr<TMixedPrecisionPolicy>(tvm::relax::op_attr::kMixedPrecisionPolicy,
@@ -484,14 +484,14 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 /* relax.image.affine_grid */
 
 Expr affine_grid(Expr data, Expr size, bool align_corners) {
-  ffi::ObjectPtr<AffineGridAttrsNode> attrs = ffi::make_object<AffineGridAttrsNode>();
+  ffi::ObjectPtr<AffineGridAttrs> attrs = ffi::make_object<AffineGridAttrs>();
   attrs->align_corners = align_corners;
   static const Op op = Op::Get("relax.image.affine_grid");
   return Call(Type::Missing(), op, {std::move(data), std::move(size)}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  AffineGridAttrsNode::RegisterReflection();
+  AffineGridAttrs::RegisterReflection();
 
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.op.image.affine_grid", affine_grid);
@@ -576,7 +576,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.image.affine_grid")
       .signature(sig::arg("data", "The input affine matrix tensor."),
                  sig::arg("size", "The target output shape (H, W)."),
-                 sig::call_attrs<AffineGridAttrsNode>())
+                 sig::call_attrs<AffineGridAttrs>())
       .set_attr<FInferType>(tvm::op_attr::kInferType,
                             FInferType::FromNative<&InferTypeAffineGrid>())
       .set_attr<TMixedPrecisionPolicy>(tvm::relax::op_attr::kMixedPrecisionPolicy,

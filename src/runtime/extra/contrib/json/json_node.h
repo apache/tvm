@@ -345,7 +345,7 @@ class JSONGraphNode {
   /*! \brief Cached dtype for fast access (also stored in attrs_ as strings). */
   ffi::Array<DLDataType> dtype_;
 
-  friend class JSONRuntimeBaseObj;
+  friend class JSONRuntimeBase;
 };
 
 }  // namespace json

@@ -145,13 +145,13 @@ class StmtSRef : public ffi::ObjectRef {
   TVM_DLL static StmtSRef RootMark();
 };
 
-class SRefTreeCreatorObj : public s_tir::StmtExprVisitorObj {
+class SRefTreeCreator : public s_tir::StmtExprVisitor {
  public:
-  using s_tir::StmtExprVisitorObj::Visit_;
+  using s_tir::StmtExprVisitor::Visit_;
 
   ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
     if (value.as<ExprNode>()) return std::nullopt;
-    return s_tir::StmtExprVisitorObj::Visit(value);
+    return s_tir::StmtExprVisitor::Visit(value);
   }
 
   /*!
@@ -161,7 +161,7 @@ class SRefTreeCreatorObj : public s_tir::StmtExprVisitorObj {
    */
   static std::unordered_map<const StmtNode*, StmtSRef> Create(IRModule mod,
                                                               bool include_loops = true) {
-    auto creator = ffi::make_object<SRefTreeCreatorObj>(include_loops);
+    auto creator = ffi::make_object<SRefTreeCreator>(include_loops);
     for (const auto& kv : mod->functions) {
       const BaseFunc& base_func = kv.second;
       if (auto opt = base_func.as<Function>()) {
@@ -172,7 +172,7 @@ class SRefTreeCreatorObj : public s_tir::StmtExprVisitorObj {
     return std::move(creator->stmt2ref_);
   }
 
-  explicit SRefTreeCreatorObj(bool include_loops) : include_loops_(include_loops) {}
+  explicit SRefTreeCreator(bool include_loops) : include_loops_(include_loops) {}
 
  private:
   /*!

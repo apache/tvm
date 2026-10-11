@@ -228,13 +228,13 @@ class PipelineOpaqueAccessRewriter {
  * \brief Rewriter for the body of the software pipeline. This pass inserts `floormod` to indices
  * of the remapped tensor to select the version corresponding to the pipeline stage.
  */
-class PipelineBodyRewriterObj : public StmtExprMutatorObj {
+class PipelineBodyRewriter : public StmtExprMutator {
  public:
-  using StmtExprMutatorObj::Mutate;
-  using StmtExprMutatorObj::Mutate_;
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
 
   /*!
-   * \brief Constructor of PipelineBodyRewriterObj.
+   * \brief Constructor of PipelineBodyRewriter.
    * \param tensor_data_to_tensor The map from tensor data to tensor.
    * \param tensor_remap The map from original tensor to the tensor with updated shape for
    *        multi-versioning in the software pipeline.
@@ -244,10 +244,10 @@ class PipelineBodyRewriterObj : public StmtExprMutatorObj {
    *        of a two-stage software pipeline, only one version of these tensors are accessed.
    * \param fragment_info Information about tensor core fragment
    */
-  PipelineBodyRewriterObj(const ffi::Map<Var, TensorVar>& tensor_data_to_tensor,
-                          const ffi::Map<TensorVar, TensorVar>& tensor_remap, For pipeline_loop,
-                          bool access_all_versions,
-                          const std::unordered_map<const VarNode*, FragmentInfo>& fragment_info)
+  PipelineBodyRewriter(const ffi::Map<Var, TensorVar>& tensor_data_to_tensor,
+                       const ffi::Map<TensorVar, TensorVar>& tensor_remap, For pipeline_loop,
+                       bool access_all_versions,
+                       const std::unordered_map<const VarNode*, FragmentInfo>& fragment_info)
       : tensor_data_to_tensor_(tensor_data_to_tensor),
         pipeline_loop_(pipeline_loop),
         access_all_versions_(access_all_versions),
@@ -283,7 +283,7 @@ class PipelineBodyRewriterObj : public StmtExprMutatorObj {
     for (const TensorVar& alloc_tensor : op->alloc_tensors) {
       tensor_data_to_tensor_.Set(alloc_tensor.var(), alloc_tensor);
     }
-    SBlock block = StmtExprMutatorObj::Mutate_(op, inplace_mode)
+    SBlock block = StmtExprMutator::Mutate_(op, inplace_mode)
                        .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
                        .as_or_throw<SBlock>();
     for (const TensorVar& alloc_tensor : op->alloc_tensors) {
@@ -294,16 +294,15 @@ class PipelineBodyRewriterObj : public StmtExprMutatorObj {
 
   UnchangedOr<Expr> Mutate_(const TensorRegionNode* op, InplaceMode inplace_mode) final {
     if (!op->source.as<TensorVar>()) {
-      return StmtExprMutatorObj::Mutate_(op, inplace_mode);
+      return StmtExprMutator::Mutate_(op, inplace_mode);
     }
     TensorRegion region = RewritePipelineTensorRegion(ffi::GetRef<TensorRegion>(op));
-    return StmtExprMutatorObj::Mutate_(region.get(), InplaceMode::kDisallow)
-        .ValueOrUnchanged(region);
+    return StmtExprMutator::Mutate_(region.get(), InplaceMode::kDisallow).ValueOrUnchanged(region);
   }
 
   UnchangedOr<Stmt> Mutate_(const TensorStoreNode* op, InplaceMode inplace_mode) final {
     auto replacement = VarRemapGet(op->dest.as_or_throw<TensorVar>()).as<TensorVar>();
-    TensorStore store = StmtExprMutatorObj::Mutate_(op, inplace_mode)
+    TensorStore store = StmtExprMutator::Mutate_(op, inplace_mode)
                             .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
                             .as_or_throw<TensorStore>();
     if (!replacement) {
@@ -320,7 +319,7 @@ class PipelineBodyRewriterObj : public StmtExprMutatorObj {
 
   UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) final {
     auto replacement = VarRemapGet(op->source).as<TensorVar>();
-    if (!replacement) return StmtExprMutatorObj::Mutate_(op, inplace_mode);
+    if (!replacement) return StmtExprMutator::Mutate_(op, inplace_mode);
     auto indices = Mutate(op->indices, inplace_mode)
                        .ValueOrUnchanged(op->indices)
                        .as_or_throw<ffi::Array<PrimExpr>>();
@@ -354,7 +353,7 @@ class PipelineBodyRewriterObj : public StmtExprMutatorObj {
       }
     }
     Call call = opaque_access_rewriter_.Rewrite(ffi::GetRef<Call>(op)).as_or_throw<Call>();
-    return StmtExprMutatorObj::Mutate_(call.get(), InplaceMode::kDisallow).ValueOrUnchanged(call);
+    return StmtExprMutator::Mutate_(call.get(), InplaceMode::kDisallow).ValueOrUnchanged(call);
   }
 
   ffi::Map<Var, TensorVar> tensor_data_to_tensor_;
@@ -366,10 +365,10 @@ class PipelineBodyRewriterObj : public StmtExprMutatorObj {
 /*!
  * \brief Rewriter for the software pipeline that rewrite a loop into a pipelined one.
  */
-class PipelineRewriterObj : public StmtExprMutatorObj {
+class PipelineRewriter : public StmtExprMutator {
  public:
-  using StmtExprMutatorObj::Mutate;
-  using StmtExprMutatorObj::Mutate_;
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
 
   static Stmt Rewrite(
       ffi::Map<Var, TensorVar> tensor_data_to_tensor,
@@ -378,13 +377,13 @@ class PipelineRewriterObj : public StmtExprMutatorObj {
       const PipelineInfo& pipeline_info,
       const std::unordered_map<const VarNode*, FragmentInfo>& fragment_info,
       const ffi::Map<ffi::String, ffi::Any> preserved_annotations) {
-    auto rewriter = ffi::make_object<PipelineRewriterObj>(
+    auto rewriter = ffi::make_object<PipelineRewriter>(
         tensor_data_to_tensor, double_buffers, pipeline_allocs, pipeline_loop, pipeline_info,
         fragment_info, preserved_annotations);
     return rewriter->BuildPipeline();
   }
 
-  PipelineRewriterObj(
+  PipelineRewriter(
       ffi::Map<Var, TensorVar> tensor_data_to_tensor,
       const std::unordered_set<TensorVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>& double_buffers,
       const ffi::Array<TensorVar>& pipeline_allocs, const For& pipeline_loop,
@@ -924,8 +923,8 @@ class PipelineRewriterObj : public StmtExprMutatorObj {
         continue;
       }
       SBlock new_block =
-          ffi::make_object<PipelineBodyRewriterObj>(tensor_data_to_tensor_, tensor_remap_,
-                                                    pipeline_loop_, max_stage_ != 1, fragment_info_)
+          ffi::make_object<PipelineBodyRewriter>(tensor_data_to_tensor_, tensor_remap_,
+                                                 pipeline_loop_, max_stage_ != 1, fragment_info_)
               ->Mutate(block)
               .ValueOrUnchanged(block)
               .as_or_throw<SBlock>();
@@ -1103,14 +1102,14 @@ void BuildDependencyGraph(const ffi::Array<SBlock>& blocks,
   }
 }
 
-class PipelineInjectorObj : public StmtExprMutatorObj {
+class PipelineInjector : public StmtExprMutator {
  public:
-  using StmtExprMutatorObj::Mutate;
-  using StmtExprMutatorObj::Mutate_;
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
 
   static Stmt Inject(const Function& func) {
     auto global_symbol = func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol);
-    auto injector = ffi::make_object<PipelineInjectorObj>(global_symbol);
+    auto injector = ffi::make_object<PipelineInjector>(global_symbol);
     for (const Var& param : func->params) {
       if (auto tensor = param.as<TensorVar>()) {
         injector->tensor_data_to_tensor_.Set(tensor.value().var(), tensor.value());
@@ -1120,7 +1119,7 @@ class PipelineInjectorObj : public StmtExprMutatorObj {
     return injector->Mutate(func->body.value()).ValueOrUnchanged(func->body.value());
   }
 
-  explicit PipelineInjectorObj(ffi::Optional<ffi::String> global_symbol)
+  explicit PipelineInjector(ffi::Optional<ffi::String> global_symbol)
       : global_symbol_(global_symbol) {}
 
  private:
@@ -1171,7 +1170,7 @@ class PipelineInjectorObj : public StmtExprMutatorObj {
 
   UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
     // Step 1: Recursively rewrite the children first.
-    For for_node = StmtExprMutatorObj::Mutate_(op, inplace_mode)
+    For for_node = StmtExprMutator::Mutate_(op, inplace_mode)
                        .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
                        .as_or_throw<For>();
     if (!HasPipelineAnnotation(op)) {
@@ -1267,9 +1266,9 @@ class PipelineInjectorObj : public StmtExprMutatorObj {
     ValidatePipelineBody(pipeline_info, original_order);
 
     // Step 4: Rewrite the pipeline body.
-    Stmt pipeline = PipelineRewriterObj::Rewrite(
-        tensor_data_to_tensor_, double_buffers, pipeline_allocs, ffi::GetRef<For>(op),
-        pipeline_info, fragment_info_, preserved_annotations);
+    Stmt pipeline = PipelineRewriter::Rewrite(tensor_data_to_tensor_, double_buffers,
+                                              pipeline_allocs, ffi::GetRef<For>(op), pipeline_info,
+                                              fragment_info_, preserved_annotations);
 
     if (const auto* realize =
             op->body->size() == 1 ? op->body->seq[0].as<SBlockRealizeNode>() : nullptr) {
@@ -1312,7 +1311,7 @@ class PipelineInjectorObj : public StmtExprMutatorObj {
           << tensor_index << " vs. " << op->writes.size() << ")";
       double_buffers.insert(op->writes[tensor_index]->source.as_or_throw<tvm::tirx::TensorVar>());
     }
-    SBlock block = StmtExprMutatorObj::Mutate_(op, inplace_mode)
+    SBlock block = StmtExprMutator::Mutate_(op, inplace_mode)
                        .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
                        .as_or_throw<SBlock>();
 
@@ -1357,7 +1356,7 @@ Pass InjectSoftwarePipeline() {
   auto pass_func = [=](Function f, IRModule m, PassContext ctx) {
     if (!f->body.has_value()) return f;
     auto* fptr = f.CopyOnWrite();
-    fptr->body = software_pipeline::PipelineInjectorObj::Inject(f);
+    fptr->body = software_pipeline::PipelineInjector::Inject(f);
     fptr->body = s_tir::ConvertSSA(std::move(fptr->body).value());
     return f;
   };

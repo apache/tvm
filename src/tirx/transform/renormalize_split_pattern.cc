@@ -47,13 +47,12 @@ using namespace sym;
     return RecursiveRewrite((ResExpr).Eval());               \
   }
 
-class SplitPatternReNormalizerObj : public IRMutatorWithAnalyzerObj {
+class SplitPatternReNormalizer : public IRMutatorWithAnalyzer {
  public:
-  using IRMutatorWithAnalyzerObj::Mutate;
-  using IRMutatorWithAnalyzerObj::Mutate_;
+  using IRMutatorWithAnalyzer::Mutate;
+  using IRMutatorWithAnalyzer::Mutate_;
 
-  explicit SplitPatternReNormalizerObj(const Analyzer& analyzer)
-      : IRMutatorWithAnalyzerObj(analyzer) {}
+  explicit SplitPatternReNormalizer(const Analyzer& analyzer) : IRMutatorWithAnalyzer(analyzer) {}
 
   UnchangedOr<PrimExpr> Mutate_(const prim::FloorDivNode* op, InplaceMode inplace_mode) final {
     PrimExpr a = Mutate(op->a, inplace_mode).ValueOrUnchanged(op->a);
@@ -173,7 +172,7 @@ class SplitPatternReNormalizerObj : public IRMutatorWithAnalyzerObj {
   }
 
   UnchangedOr<PrimExpr> Mutate_(const prim::NotNode* op, InplaceMode inplace_mode) {
-    PrimExpr ret = IRMutatorWithAnalyzerObj::Mutate_(op, inplace_mode)
+    PrimExpr ret = IRMutatorWithAnalyzer::Mutate_(op, inplace_mode)
                        .ValueOrUnchanged(ffi::GetRef<PrimExpr>(op));
     // Pattern var to match any expression
     PVar<PrimExpr> x, y;
@@ -190,7 +189,7 @@ class SplitPatternReNormalizerObj : public IRMutatorWithAnalyzerObj {
     With<ConstraintContext> ctx1(analyzer_, op->loop_var >= op->min);
     With<ConstraintContext> ctx2(analyzer_,
                                  static_cast<PrimExpr>(op->loop_var) < op->min + op->extent);
-    return IRMutatorWithAnalyzerObj::Mutate_(op, inplace_mode);
+    return IRMutatorWithAnalyzer::Mutate_(op, inplace_mode);
   }
 
   // Recursive rewrite x
@@ -217,7 +216,7 @@ Pass RenormalizeSplitPattern() {
   auto pass_func = [](Function f, IRModule m, PassContext ctx) {
     auto* n = f.CopyOnWrite();
     sym::Analyzer analyzer;
-    n->body = ffi::make_object<SplitPatternReNormalizerObj>(analyzer)
+    n->body = ffi::make_object<SplitPatternReNormalizer>(analyzer)
                   ->Mutate(n->body, InplaceMode::kAllow)
                   .ValueOrUnchanged(std::move(n->body));
     return f;

@@ -244,7 +244,7 @@ class OpenCLMLJSONSerializer : public JSONSerializer {
     SetCallNodeAttribute(json_node, nodes.conv);
 
     if (nodes.bn) {
-      const auto* bn_attr = nodes.bn->attrs.as<BatchNormAttrsNode>();
+      const auto* bn_attr = nodes.bn->attrs.as<BatchNormAttrs>();
       json_node->SetAttr(
           "batchnorm",
           ffi::Array<ffi::String>{std::to_string(bn_attr->axis), std::to_string(bn_attr->epsilon),
@@ -253,7 +253,7 @@ class OpenCLMLJSONSerializer : public JSONSerializer {
 
     // Override attributes
     if (nodes.pad) {
-      const auto* pad_attr = nodes.pad->attrs.as<PadAttrsNode>();
+      const auto* pad_attr = nodes.pad->attrs.as<PadAttrs>();
       TVM_FFI_ICHECK(pad_attr);
       auto p = pad_attr->pad_width;
       // Pad layout for TVM: dimension wise pre and post padding.

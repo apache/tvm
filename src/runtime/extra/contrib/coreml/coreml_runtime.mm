@@ -116,7 +116,7 @@ int CoreMLModel::GetNumOutputs() const {
   return [[model_desc outputDescriptionsByName] count];
 }
 
-void CoreMLRuntimeObj::Init(const std::string& symbol, const std::string& _model_path) {
+void CoreMLRuntime::Init(const std::string& symbol, const std::string& _model_path) {
   symbol_ = symbol;
 
   NSString* model_path = [NSString stringWithUTF8String:(_model_path).c_str()];
@@ -131,7 +131,7 @@ void CoreMLRuntimeObj::Init(const std::string& symbol, const std::string& _model
   model_ = std::unique_ptr<CoreMLModel>(new CoreMLModel(url));
 }
 
-ffi::Optional<ffi::Function> CoreMLRuntimeObj::GetFunction(const ffi::String& name) {
+ffi::Optional<ffi::Function> CoreMLRuntime::GetFunction(const ffi::String& name) {
   // Return member functions during query.
   if (name == "invoke" || name == "run") {
     return ffi::Function([this](ffi::PackedArgs args, ffi::Any* rv) { model_->Invoke(); });
@@ -176,7 +176,7 @@ ffi::Optional<ffi::Function> CoreMLRuntimeObj::GetFunction(const ffi::String& na
 }
 
 ffi::Module CoreMLRuntimeCreate(const std::string& symbol, const std::string& model_path) {
-  auto exec = ffi::make_object<CoreMLRuntimeObj>();
+  auto exec = ffi::make_object<CoreMLRuntime>();
   exec->Init(symbol, model_path);
   return ffi::Module(exec);
 }
@@ -188,7 +188,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   });
 }
 
-ffi::Bytes CoreMLRuntimeObj::SaveToBytes() const {
+ffi::Bytes CoreMLRuntime::SaveToBytes() const {
   std::string result;
   support::BytesOutStream stream(&result);
   NSURL* url = model_->url_;
@@ -238,7 +238,7 @@ ffi::Module CoreMLRuntimeLoadFromBytes(const ffi::Bytes& bytes) {
   BOOL res = [dirWrapper writeToURL:url options:0 originalContentsURL:nil error:nil];
   TVM_FFI_ICHECK(res) << "Failed to create model directory " << [model_path UTF8String];
 
-  auto exec = ffi::make_object<CoreMLRuntimeObj>();
+  auto exec = ffi::make_object<CoreMLRuntime>();
   exec->Init(symbol, [model_path UTF8String]);
   return ffi::Module(exec);
 }

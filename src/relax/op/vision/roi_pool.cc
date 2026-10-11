@@ -34,17 +34,17 @@
 namespace tvm {
 namespace relax {
 
-void ROIPoolAttrsNode::RegisterReflection() {
+void ROIPoolAttrs::RegisterReflection() {
   namespace refl = tvm::ffi::reflection;
-  refl::ObjectDef<ROIPoolAttrsNode>()
-      .def_ro("pooled_size", &ROIPoolAttrsNode::pooled_size, "Output size of roi pool.")
-      .def_ro("spatial_scale", &ROIPoolAttrsNode::spatial_scale,
+  refl::ObjectDef<ROIPoolAttrs>()
+      .def_ro("pooled_size", &ROIPoolAttrs::pooled_size, "Output size of roi pool.")
+      .def_ro("spatial_scale", &ROIPoolAttrs::spatial_scale,
               "Ratio of input feature map height (or width) to raw image height (or width).")
-      .def_ro("layout", &ROIPoolAttrsNode::layout, "Dimension ordering of the input data.",
+      .def_ro("layout", &ROIPoolAttrs::layout, "Dimension ordering of the input data.",
               refl::DefaultValue(ffi::String("NCHW")));
 }
 
-TVM_FFI_STATIC_INIT_BLOCK() { ROIPoolAttrsNode::RegisterReflection(); }
+TVM_FFI_STATIC_INIT_BLOCK() { ROIPoolAttrs::RegisterReflection(); }
 
 Expr roi_pool(Expr data, Expr rois, ffi::Array<int64_t> pooled_size, double spatial_scale,
               ffi::String layout) {
@@ -55,7 +55,7 @@ Expr roi_pool(Expr data, Expr rois, ffi::Array<int64_t> pooled_size, double spat
       << "The input pooled_size length is expected to be 2. However, the given pooled_size is "
       << pooled_size;
 
-  auto attrs = ffi::make_object<ROIPoolAttrsNode>();
+  auto attrs = ffi::make_object<ROIPoolAttrs>();
   attrs->pooled_size = std::move(pooled_size);
   attrs->spatial_scale = spatial_scale;
   attrs->layout = layout;
@@ -100,7 +100,7 @@ Type InferTypeROIPool(const CallNode* call_node) {
         << rois_ty->ndim;
   }
 
-  const auto* attrs = call->attrs.as<ROIPoolAttrsNode>();
+  const auto* attrs = call->attrs.as<ROIPoolAttrs>();
   TVM_FFI_ICHECK(attrs != nullptr) << "Invalid ROIPool attrs";
   if (attrs->layout != "NCHW") {
     TVM_FFI_VISIT_THROW(ValueError, call)
@@ -135,7 +135,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
           sig::arg("data", "The input tensor."),
           sig::arg("rois",
                    "The input rois with shape (num_roi, 5) in [batch_idx, x1, y1, x2, y2] format."),
-          sig::call_attrs<ROIPoolAttrsNode>())
+          sig::call_attrs<ROIPoolAttrs>())
       .set_attr<FInferType>(tvm::op_attr::kInferType, FInferType::FromNative<&InferTypeROIPool>())
       .set_attr<TMixedPrecisionPolicy>(tvm::relax::op_attr::kMixedPrecisionPolicy,
                                        MixedPrecisionPolicyKind::kFollow)

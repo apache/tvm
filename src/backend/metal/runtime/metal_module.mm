@@ -94,7 +94,7 @@ class MetalModuleObj final : public ffi::ModuleObj {
   ffi::Bytes SaveToBytes() const final {
     // 3 fields [fmt][fmap][smap].  Source map is in-memory inspection only
     // and is NEVER serialized — matches the cross-backend rule.
-    // MetalFallbackModuleNode::SaveToBytes (in
+    // MetalFallbackModuleObj::SaveToBytes (in
     // src/target/metal/metal_fallback_module.cc) MUST mirror this format
     // byte-for-byte; see one-way comment there.
     std::string result;

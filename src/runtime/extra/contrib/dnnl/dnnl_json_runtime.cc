@@ -58,11 +58,11 @@ inline bool contains_any(const std::string& s, const Args&... args) {
 }
 }  // namespace
 
-class DNNLJSONRuntimeObj : public JSONRuntimeBaseObj {
+class DNNLJSONRuntime : public JSONRuntimeBase {
  public:
-  DNNLJSONRuntimeObj(const std::string& symbol_name, const std::string& graph_json,
-                     const ffi::Array<ffi::String> const_names)
-      : JSONRuntimeBaseObj(symbol_name, graph_json, const_names),
+  DNNLJSONRuntime(const std::string& symbol_name, const std::string& graph_json,
+                  const ffi::Array<ffi::String> const_names)
+      : JSONRuntimeBase(symbol_name, graph_json, const_names),
         next_unique_eid_offset_(data_entry_.size()),
         run_arg_eid_(input_var_eid_) {
     for (const auto e : outputs_) run_arg_eid_.push_back(EntryID(e));
@@ -122,7 +122,7 @@ class DNNLJSONRuntimeObj : public JSONRuntimeBaseObj {
         Run(args);
       });
     } else {
-      return JSONRuntimeBaseObj::GetFunction(name);
+      return JSONRuntimeBase::GetFunction(name);
     }
   }
 
@@ -909,7 +909,7 @@ class DNNLJSONRuntimeObj : public JSONRuntimeBaseObj {
 
 ffi::Module DNNLJSONRuntimeCreate(ffi::String symbol_name, ffi::String graph_json,
                                   const ffi::Array<ffi::String>& const_names) {
-  auto n = ffi::make_object<DNNLJSONRuntimeObj>(symbol_name, graph_json, const_names);
+  auto n = ffi::make_object<DNNLJSONRuntime>(symbol_name, graph_json, const_names);
   return ffi::Module(n);
 }
 
@@ -917,8 +917,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("runtime.DNNLJSONRuntimeCreate", DNNLJSONRuntimeCreate)
-      .def("ffi.Module.load_from_bytes.dnnl_json",
-           JSONRuntimeBaseObj::LoadFromBytes<DNNLJSONRuntimeObj>);
+      .def("ffi.Module.load_from_bytes.dnnl_json", JSONRuntimeBase::LoadFromBytes<DNNLJSONRuntime>);
 }
 
 }  // namespace contrib

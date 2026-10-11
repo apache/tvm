@@ -48,9 +48,9 @@ class PairExpr : public Expr {
 };
 TVM_FFI_STATIC_INIT_BLOCK() { PairExprNode::RegisterReflection(); }
 
-class CollectObj : public ExprVisitorObj {
+class Collect : public ExprVisitor {
  public:
-  using ExprVisitorObj::Visit_;
+  using ExprVisitor::Visit_;
   std::vector<int64_t> values;
   ffi::Optional<VisitInterrupt> Visit_(const IntImmNode* node) override {
     values.push_back(node->value.as<int64_t>().value());
@@ -58,8 +58,8 @@ class CollectObj : public ExprVisitorObj {
   }
 };
 
-TEST(ExprVisitorObj, StructuralFallback) {
-  auto visitor = ffi::make_object<CollectObj>();
+TEST(ExprVisitor, StructuralFallback) {
+  auto visitor = ffi::make_object<Collect>();
   PairExpr pair(IntImm::Int32(1), IntImm::Int32(2));
   auto result = visitor->VisitExpected(pair);
   ASSERT_TRUE(result.is_ok());
@@ -69,16 +69,16 @@ TEST(ExprVisitorObj, StructuralFallback) {
   EXPECT_EQ(pair->right.as<IntImmNode>()->value, 2);
 }
 
-class RewriteObj : public ExprMutatorObj {
+class Rewrite : public ExprMutator {
  public:
-  using ExprMutatorObj::Mutate_;
+  using ExprMutator::Mutate_;
   UnchangedOr<PrimExpr> Mutate_(const IntImmNode* node, InplaceMode inplace_mode) override {
     return IntImm::Int32(node->value + 1);
   }
 };
 
-TEST(ExprMutatorObj, StructuralFallback) {
-  auto mutator = ffi::make_object<RewriteObj>();
+TEST(ExprMutator, StructuralFallback) {
+  auto mutator = ffi::make_object<Rewrite>();
   PairExpr pair(IntImm::Int32(1), IntImm::Int32(2));
   auto result = mutator->MutateExpected(pair).value();
   ASSERT_FALSE(result.IsUnchanged());
@@ -91,15 +91,15 @@ TEST(ExprMutatorObj, StructuralFallback) {
   EXPECT_EQ(pair->right.as<IntImmNode>()->value, 2);
 }
 
-class ThrowNativeErrorObj : public ExprMutatorObj {
+class ThrowNativeError : public ExprMutator {
  public:
-  using ExprMutatorObj::Mutate_;
+  using ExprMutator::Mutate_;
   ffi::Error error{"ValueError", "native mutation error", ""};
   UnchangedOr<PrimExpr> Mutate_(const IntImmNode*, InplaceMode) override { throw error; }
 };
 
-TEST(ExprMutatorObj, NativeErrorContextThroughStructuralFallback) {
-  auto mutator = ffi::make_object<ThrowNativeErrorObj>();
+TEST(ExprMutator, NativeErrorContextThroughStructuralFallback) {
+  auto mutator = ffi::make_object<ThrowNativeError>();
   PrimExpr sum = prim::Add(IntImm::Int32(1), IntImm::Int32(2));
   PairExpr pair(sum, IntImm::Int32(3));
   auto result = mutator->MutateExpected(pair);

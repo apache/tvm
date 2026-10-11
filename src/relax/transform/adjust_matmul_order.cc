@@ -61,7 +61,7 @@ bool IsLastTwoDimsSwap(const Expr& expr) {
   const auto* call = expr.as<CallNode>();
   if (call == nullptr) return false;
 
-  const auto* attrs = call->attrs.as<PermuteDimsAttrsNode>();
+  const auto* attrs = call->attrs.as<PermuteDimsAttrs>();
   const auto* input_type = GetTypeAs<TensorTypeNode>(call->args[0]);
   if (attrs == nullptr || input_type == nullptr || input_type->ndim < 2) return false;
 
@@ -171,7 +171,7 @@ std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, ffi::Map<DFPattern, Expr>)>>
     auto expr_a = matches[pat_a];
     auto expr_b = matches[pat_b];
     auto expr_c = matches[pat_c];
-    auto out_dtype = expr.as<CallNode>()->attrs.as<MatmulAttrsNode>()->out_dtype;
+    auto out_dtype = expr.as<CallNode>()->attrs.as<MatmulAttrs>()->out_dtype;
 
     // If all three components are compile-time, the order doesn't
     // matter as the entire expression can be lifted out and

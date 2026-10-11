@@ -32,16 +32,16 @@ namespace tvm {
 namespace relax {
 
 /*! \brief Attributes used in AllClassNonMaximumSuppression operator */
-struct AllClassNonMaximumSuppressionAttrsNode : public AttrsNode {
+struct AllClassNonMaximumSuppressionAttrs : public AttrsNode {
   ffi::String output_format;
 
   static void RegisterReflection();
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.AllClassNonMaximumSuppressionAttrs",
-                                    AllClassNonMaximumSuppressionAttrsNode, AttrsNode);
-};  // struct AllClassNonMaximumSuppressionAttrsNode
+                                    AllClassNonMaximumSuppressionAttrs, AttrsNode);
+};  // struct AllClassNonMaximumSuppressionAttrs
 
 /*! \brief Attributes used in ROIAlign operator */
-struct ROIAlignAttrsNode : public AttrsNode {
+struct ROIAlignAttrs : public AttrsNode {
   ffi::Array<int64_t> pooled_size;
   double spatial_scale;
   int sample_ratio;
@@ -50,32 +50,32 @@ struct ROIAlignAttrsNode : public AttrsNode {
   ffi::String mode;
 
   static void RegisterReflection();
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.ROIAlignAttrs", ROIAlignAttrsNode, AttrsNode);
-};  // struct ROIAlignAttrsNode
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.ROIAlignAttrs", ROIAlignAttrs, AttrsNode);
+};  // struct ROIAlignAttrs
 
 /*! \brief Attributes used in ROIPool operator */
-struct ROIPoolAttrsNode : public AttrsNode {
+struct ROIPoolAttrs : public AttrsNode {
   ffi::Array<int64_t> pooled_size;
   double spatial_scale;
   ffi::String layout;
 
   static void RegisterReflection();
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.ROIPoolAttrs", ROIPoolAttrsNode, AttrsNode);
-};  // struct ROIPoolAttrsNode
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.ROIPoolAttrs", ROIPoolAttrs, AttrsNode);
+};  // struct ROIPoolAttrs
 
 /*! \brief Attributes used in GetValidCounts operator */
-struct GetValidCountsAttrsNode : public AttrsNode {
+struct GetValidCountsAttrs : public AttrsNode {
   double score_threshold;
   int id_index;
   int score_index;
 
   static void RegisterReflection();
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.GetValidCountsAttrs", GetValidCountsAttrsNode,
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.GetValidCountsAttrs", GetValidCountsAttrs,
                                     AttrsNode);
-};  // struct GetValidCountsAttrsNode
+};  // struct GetValidCountsAttrs
 
 /*! \brief Attributes used in NonMaximumSuppression operator */
-struct NonMaximumSuppressionAttrsNode : public AttrsNode {
+struct NonMaximumSuppressionAttrs : public AttrsNode {
   int max_output_size;
   double iou_threshold;
   bool force_suppress;
@@ -90,11 +90,11 @@ struct NonMaximumSuppressionAttrsNode : public AttrsNode {
 
   static void RegisterReflection();
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.NonMaximumSuppressionAttrs",
-                                    NonMaximumSuppressionAttrsNode, AttrsNode);
-};  // struct NonMaximumSuppressionAttrsNode
+                                    NonMaximumSuppressionAttrs, AttrsNode);
+};  // struct NonMaximumSuppressionAttrs
 
 /*! \brief Attributes for multibox_transform_loc (SSD / TFLite-style box decode). */
-struct MultiboxTransformLocAttrsNode : public AttrsNode {
+struct MultiboxTransformLocAttrs : public AttrsNode {
   bool clip;
   double threshold;
   ffi::Array<double> variances;
@@ -103,8 +103,8 @@ struct MultiboxTransformLocAttrsNode : public AttrsNode {
 
   static void RegisterReflection();
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.MultiboxTransformLocAttrs",
-                                    MultiboxTransformLocAttrsNode, AttrsNode);
-};  // struct MultiboxTransformLocAttrsNode
+                                    MultiboxTransformLocAttrs, AttrsNode);
+};  // struct MultiboxTransformLocAttrs
 
 }  // namespace relax
 }  // namespace tvm

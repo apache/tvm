@@ -25,21 +25,21 @@ namespace tvm {
 namespace s_tir {
 using namespace tvm::tirx;
 
-class SRefTreeVerifierObj : public StmtExprVisitorObj {
+class SRefTreeVerifier : public StmtExprVisitor {
  public:
-  using StmtExprVisitorObj::Visit_;
+  using StmtExprVisitor::Visit_;
 
   ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
     if (value.as<ExprNode>()) return std::nullopt;
-    return StmtExprVisitorObj::Visit(value);
+    return StmtExprVisitor::Visit(value);
   }
 
   static void Verify(const ScheduleStateObj* self) {
-    ffi::make_object<SRefTreeVerifierObj>(self)->Verify();
+    ffi::make_object<SRefTreeVerifier>(self)->Verify();
   }
 
   /*! \brief Constructor */
-  explicit SRefTreeVerifierObj(const ScheduleStateObj* self) : self_(self) {}
+  explicit SRefTreeVerifier(const ScheduleStateObj* self) : self_(self) {}
 
  private:
   void Verify() {
@@ -69,7 +69,7 @@ class SRefTreeVerifierObj : public StmtExprVisitorObj {
       TVM_FFI_CHECK(!self_->stmt2ref.count(block), InternalError)
           << "A block inside init block has its "
              "corresponding sref, which is not allowed";
-      return StmtExprVisitorObj::Visit_(block);
+      return StmtExprVisitor::Visit_(block);
     }
     TVM_FFI_CHECK(self_->stmt2ref.count(block), InternalError)
         << "A BlockNode should appear in sref map, but it didn't\n"
@@ -103,7 +103,7 @@ class SRefTreeVerifierObj : public StmtExprVisitorObj {
       TVM_FFI_CHECK(!self_->stmt2ref.count(loop), InternalError)
           << "A loop inside init block has its "
              "corresponding sref, which is not allowed";
-      return StmtExprVisitorObj::Visit_(loop);
+      return StmtExprVisitor::Visit_(loop);
     }
     TVM_FFI_CHECK(self_->stmt2ref.count(loop), InternalError)
         << "A ForNode should appear in sref map, but it didn't\n"
@@ -119,7 +119,7 @@ class SRefTreeVerifierObj : public StmtExprVisitorObj {
         << (sref->parent ? ffi::Optional<Stmt>(ffi::GetRef<Stmt>(sref->parent->stmt))
                          : ffi::Optional<Stmt>(std::nullopt));
     ancestors_.push_back(sref.operator->());
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitorObj::Visit_(loop));
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(loop));
     ancestors_.pop_back();
     return std::nullopt;
   }
@@ -127,7 +127,7 @@ class SRefTreeVerifierObj : public StmtExprVisitorObj {
   ffi::Optional<VisitInterrupt> Visit_(const SeqStmtNode* seq_stmt) final {
     // Verify seq_index
     if (init_block_depth_) {
-      return StmtExprVisitorObj::Visit_(seq_stmt);
+      return StmtExprVisitor::Visit_(seq_stmt);
     }
     int n = static_cast<int>(seq_stmt->seq.size());
     for (int i = 0; i < n; ++i) {
@@ -145,7 +145,7 @@ class SRefTreeVerifierObj : public StmtExprVisitorObj {
       }
       TVM_FFI_CHECK_EQ(sref->seq_index, i, InternalError) << "A StmtSRef has incorrect seq_index";
     }
-    return StmtExprVisitorObj::Visit_(seq_stmt);
+    return StmtExprVisitor::Visit_(seq_stmt);
   }
 
   /*! \brief The schedule it belongs to */
@@ -160,7 +160,7 @@ class SRefTreeVerifierObj : public StmtExprVisitorObj {
   int n_block_sref_visited_ = 0;
 };
 
-void VerifySRefTree(const ScheduleState& self) { SRefTreeVerifierObj::Verify(self.get()); }
+void VerifySRefTree(const ScheduleState& self) { SRefTreeVerifier::Verify(self.get()); }
 
 void VerifyCachedFlags(const ScheduleState& self) {
   std::vector<StmtSRef> block_info_not_found;

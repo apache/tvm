@@ -29,12 +29,12 @@ namespace s_tir {
 
 // Explicit normalization for schedulable TE functions and tensor intrinsic bodies.
 // Ordinary TIRX dtype passes run after block lowering.
-class IndexDataTypeNormalizerObj : public tirx::IndexDataTypeNormalizerObj {
+class IndexDataTypeNormalizer : public tirx::IndexDataTypeNormalizer {
  public:
-  using Parent = tirx::IndexDataTypeNormalizerObj;
+  using Parent = tirx::IndexDataTypeNormalizer;
   using Parent::Mutate;
   using Parent::Mutate_;
-  explicit IndexDataTypeNormalizerObj(PrimType target_data_type)
+  explicit IndexDataTypeNormalizer(PrimType target_data_type)
       : Parent(std::move(target_data_type), GlobalVTable()) {}
   tirx::Function Rewrite(tirx::Function func);
 
@@ -44,8 +44,8 @@ class IndexDataTypeNormalizerObj : public tirx::IndexDataTypeNormalizerObj {
  protected:
   static void InitVTable(VTable* table) {
     Parent::InitVTable(table);
-    SetDispatch<IndexDataTypeNormalizerObj, SBlockNode>(table);
-    SetDispatch<IndexDataTypeNormalizerObj, SBlockRealizeNode>(table);
+    SetDispatch<IndexDataTypeNormalizer, SBlockNode>(table);
+    SetDispatch<IndexDataTypeNormalizer, SBlockRealizeNode>(table);
   }
   static const VTable* GlobalVTable() {
     static const VTable table = [] {

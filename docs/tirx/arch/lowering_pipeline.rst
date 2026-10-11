@@ -138,7 +138,7 @@ Inside LowerTIRx
   :doc:`tile_dispatch`. In the same pass it converts ``device_entry`` to a
   ``device_scope`` region retaining launch values as operands, and lowers the
   finite CUDA index calls inside ordinary ``Bind`` statements.
-- **``LowerTIRxCleanup``** then runs the ``LayoutApplierObj``: it resolves every
+- **``LowerTIRxCleanup``** then runs the ``LayoutApplier``: it resolves every
   ``TileLayout``-typed tensor access into concrete physical address arithmetic
   (``addr = data + elem_offset + layout.apply(coord)``), flattens the tensors,
   and removes tensor offsets that have been folded into the resulting views.

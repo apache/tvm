@@ -45,9 +45,9 @@ namespace runtime {
 /*!
  * \brief A wrapped remote function as a ffi::Function.
  */
-class RPCWrappedFuncObj : public ffi::Object {
+class RPCWrappedFunc : public ffi::Object {
  public:
-  RPCWrappedFuncObj(void* handle, std::shared_ptr<RPCSession> sess) : handle_(handle), sess_(sess) {}
+  RPCWrappedFunc(void* handle, std::shared_ptr<RPCSession> sess) : handle_(handle), sess_(sess) {}
 
   void operator()(ffi::PackedArgs args, ffi::Any* rv) const {
     sess_->EnsureOpen();
@@ -114,7 +114,7 @@ class RPCWrappedFuncObj : public ffi::Object {
     sess_->CallFunc(handle_, ffi::PackedArgs(packed_args.data(), packed_args.size()), set_return);
   }
 
-  ~RPCWrappedFuncObj() {
+  ~RPCWrappedFunc() {
     try {
       sess_->FreeHandle(handle_);
     } catch (const ffi::Error& e) {
@@ -213,7 +213,7 @@ class RPCModuleObj final : public ffi::ModuleObj {
 
   ffi::Function WrapRemoteFunc(RPCSession::PackedFuncHandle handle) {
     if (handle == nullptr) return ffi::Function();
-    auto wf = std::make_shared<RPCWrappedFuncObj>(handle, sess_);
+    auto wf = std::make_shared<RPCWrappedFunc>(handle, sess_);
     return ffi::Function(
         [wf](ffi::PackedArgs args, ffi::Any* rv) { return wf->operator()(args, rv); });
   }
@@ -234,7 +234,7 @@ class RPCModuleObj final : public ffi::ModuleObj {
   ffi::TypedFunction<void(ffi::Module, ffi::Module)> remote_import_module_;
 };
 
-void* RPCWrappedFuncObj::UnwrapRemoteValueToHandle(const AnyView& arg) const {
+void* RPCWrappedFunc::UnwrapRemoteValueToHandle(const AnyView& arg) const {
   // TODO(tqchen): only support Module unwrapping for now.
   if (arg.type_index() == ffi::TypeIndex::kTVMFFIModule) {
     ffi::Module mod = arg.cast<ffi::Module>();
@@ -251,7 +251,7 @@ void* RPCWrappedFuncObj::UnwrapRemoteValueToHandle(const AnyView& arg) const {
   }
 }
 
-void RPCWrappedFuncObj::WrapRemoteReturnToValue(ffi::PackedArgs args, ffi::Any* rv) const {
+void RPCWrappedFunc::WrapRemoteReturnToValue(ffi::PackedArgs args, ffi::Any* rv) const {
   int type_index = args[0].cast<int>();
   if (type_index == ffi::TypeIndex::kTVMFFINone) {
     *rv = nullptr;
@@ -261,7 +261,7 @@ void RPCWrappedFuncObj::WrapRemoteReturnToValue(ffi::PackedArgs args, ffi::Any* 
   } else if (type_index == ffi::TypeIndex::kTVMFFIFunction) {
     TVM_FFI_ICHECK_EQ(args.size(), 2);
     void* handle = args[1].cast<void*>();
-    auto wf = std::make_shared<RPCWrappedFuncObj>(handle, sess_);
+    auto wf = std::make_shared<RPCWrappedFunc>(handle, sess_);
     *rv = ffi::Function(
         [wf](ffi::PackedArgs args, ffi::Any* rv) { return wf->operator()(args, rv); });
   } else if (type_index == ffi::TypeIndex::kTVMFFIModule) {

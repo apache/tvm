@@ -148,7 +148,7 @@ class CollectFromCompositeFunctionBody : public ExprVisitor {
   // Relax reduce axis is optional; materialize the all-axes default (it otherwise serializes as
   // "").
   void MaybeFillReduceAxes(const CallNode* call_node) {
-    const auto* attrs = call_node->attrs.as<StatisticalAttrsNode>();
+    const auto* attrs = call_node->attrs.as<StatisticalAttrs>();
     if (attrs == nullptr || attrs->axis.has_value()) return;
     const auto* tensor_ty = GetType(call_node->args[0]).as<TensorTypeNode>();
     if (tensor_ty == nullptr || !tensor_ty->shape.has_value()) return;
@@ -194,7 +194,7 @@ class CollectFromCompositeFunctionBody : public ExprVisitor {
   bool TrySetLayoutTransformAttributes(const CallNode* call_node) {
     const auto* op_node = call_node->op.as<OpNode>();
     if (op_node == nullptr || op_node->name != "relax.layout_transform") return false;
-    const auto* attrs = call_node->attrs.as<LayoutTransformAttrsNode>();
+    const auto* attrs = call_node->attrs.as<LayoutTransformAttrs>();
     if (attrs == nullptr) return true;
     auto index_map = attrs->index_map;
     const auto& initial = index_map->initial_indices;

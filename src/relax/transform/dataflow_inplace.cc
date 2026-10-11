@@ -767,16 +767,16 @@ FindInplaceOpportunities(const DataflowBlock& block, const ffi::Array<Var>& inpu
 // Replace tensors in a tirx::Function according to the mapping.
 tvm::Stmt RemapTensors(const tvm::Stmt& stmt,
                        const ffi::Map<tirx::TensorVar, tirx::TensorVar>& tensor_map) {
-  class TensorMapperObj : public tirx::StmtExprMutatorObj {
+  class TensorMapper : public tirx::StmtExprMutator {
    public:
-    explicit TensorMapperObj(const ffi::Map<tirx::TensorVar, tirx::TensorVar>& tensor_map) {
+    explicit TensorMapper(const ffi::Map<tirx::TensorVar, tirx::TensorVar>& tensor_map) {
       for (const auto& [source, target] : tensor_map) {
         VarRemapSet(source, target);
       }
     }
   };
 
-  return ffi::make_object<TensorMapperObj>(tensor_map)->Mutate(stmt).ValueOrUnchanged(stmt);
+  return ffi::make_object<TensorMapper>(tensor_map)->Mutate(stmt).ValueOrUnchanged(stmt);
 }
 
 class ModuleInplaceTransformer : public ExprMutator {
@@ -938,7 +938,7 @@ class ModuleInplaceTransformer : public ExprMutator {
     new_args.Set(0, new_gv);
     legalized_call_cow->args = new_args;
 
-    ffi::ObjectPtr<CallTIRInplaceAttrsNode> attrs = ffi::make_object<CallTIRInplaceAttrsNode>();
+    ffi::ObjectPtr<CallTIRInplaceAttrs> attrs = ffi::make_object<CallTIRInplaceAttrs>();
     attrs->inplace_indices = inplace_indices;
     legalized_call_cow->attrs = Attrs(attrs);
 

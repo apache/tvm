@@ -82,12 +82,12 @@ struct RewriteSimplifierStats : ffi::ObjectRef {
  *
  * This class can be inheritated for other simplifiers.
  */
-class RewriteSimplifier::ImplObj : public SimplifierBaseObj {
+class RewriteSimplifier::Impl : public SimplifierBase {
  public:
-  using SimplifierBaseObj::Mutate;
-  using SimplifierBaseObj::Mutate_;
+  using SimplifierBase::Mutate;
+  using SimplifierBase::Mutate_;
 
-  explicit ImplObj(AnalyzerObj* parent) : SimplifierBaseObj(parent) {}
+  explicit Impl(AnalyzerObj* parent) : SimplifierBase(parent) {}
 
   UnchangedOr<ffi::Any> Mutate(ffi::AnyView value,
                                InplaceMode inplace_mode = InplaceMode::kDisallow) override;
@@ -137,7 +137,7 @@ class RewriteSimplifier::ImplObj : public SimplifierBaseObj {
 
   void SetMaximumRewriteSteps(int64_t maximum) { maximum_rewrite_steps_ = maximum; }
 
-  void CopyFrom(const ImplObj& other) {
+  void CopyFrom(const Impl& other) {
     var_map_ = other.var_map_;
     literal_constraints_ = other.literal_constraints_;
     enabled_extensions_ = other.enabled_extensions_;

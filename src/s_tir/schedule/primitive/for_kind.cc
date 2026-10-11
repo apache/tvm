@@ -27,10 +27,10 @@ namespace tvm {
 namespace s_tir {
 using namespace tvm::tirx;
 
-class WrongBlockIterTypeErrorObj : public ScheduleErrorContextObj {
+class WrongBlockIterTypeError : public ScheduleErrorContextObj {
  public:
-  explicit WrongBlockIterTypeErrorObj(IRModule mod, ForKind for_kind, Var loop_var, SBlock block,
-                                      bool is_binding)
+  explicit WrongBlockIterTypeError(IRModule mod, ForKind for_kind, Var loop_var, SBlock block,
+                                   bool is_binding)
       : mod_(std::move(mod)), loop_var_(std::move(loop_var)), block_(std::move(block)) {
     op_str_ = is_binding ? "bind"
               : for_kind == ForKind::kParallel
@@ -115,8 +115,8 @@ void CheckLoopParallelizableInBlock(const ScheduleState& self, ForKind for_kind,
     IterVarType iter_type = iter_var->iter_type;
     if (!(iter_type == kDataPar ||
           (iter_type == kCommReduce && thread_scope.rank == 1 && thread_scope.dim_index != -1))) {
-      throw MakeScheduleError<WrongBlockIterTypeErrorObj>(self->mod, for_kind, loop_var, block,
-                                                          thread_scope.rank != -1);
+      throw MakeScheduleError<WrongBlockIterTypeError>(self->mod, for_kind, loop_var, block,
+                                                       thread_scope.rank != -1);
     }
   }
 }

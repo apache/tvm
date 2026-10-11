@@ -66,7 +66,7 @@ struct PairHash {
 
 using namespace tvm::runtime::json;
 
-class TensorRTRuntimeObj : public JSONRuntimeBaseObj {
+class TensorRTRuntime : public JSONRuntimeBase {
  public:
   /*!
    * \brief The TensorRT runtime module. Deserialize the provided functions
@@ -76,9 +76,9 @@ class TensorRTRuntimeObj : public JSONRuntimeBaseObj {
    * \param graph_json serialized JSON representation of a sub-graph.
    * \param const_names The names of each constant in the sub-graph.
    */
-  explicit TensorRTRuntimeObj(const std::string& symbol_name, const std::string& graph_json,
-                              const ffi::Array<ffi::String>& const_names)
-      : JSONRuntimeBaseObj(symbol_name, graph_json, const_names),
+  explicit TensorRTRuntime(const std::string& symbol_name, const std::string& graph_json,
+                           const ffi::Array<ffi::String>& const_names)
+      : JSONRuntimeBase(symbol_name, graph_json, const_names),
         use_implicit_batch_(true),
         max_workspace_size_(size_t(1) << 30),
         max_batch_size_(-1),
@@ -123,11 +123,11 @@ class TensorRTRuntimeObj : public JSONRuntimeBaseObj {
         *rv = 0;
       });
     }
-    return JSONRuntimeBaseObj::GetFunction(name);
+    return JSONRuntimeBase::GetFunction(name);
   }
 
   ffi::Bytes SaveToBytes() const override {
-    auto graph_bytes = JSONRuntimeBaseObj::SaveToBytes();
+    auto graph_bytes = JSONRuntimeBase::SaveToBytes();
     if (serialized_engine_.empty()) return graph_bytes;
 
     // Keep the JSON runtime prefix unchanged. Only opt-in, prebuilt modules have this trailer.
@@ -151,7 +151,7 @@ class TensorRTRuntimeObj : public JSONRuntimeBaseObj {
     TVM_FFI_ICHECK(stream.Read(&consts)) << "Loading the const name list failed";
     ffi::Array<ffi::String> const_names;
     for (const auto& name : consts) const_names.push_back(name);
-    auto n = ffi::make_object<TensorRTRuntimeObj>(symbol, graph_json, const_names);
+    auto n = ffi::make_object<TensorRTRuntime>(symbol, graph_json, const_names);
 
     uint64_t magic;
     size_t nread = stream.Read(&magic, sizeof(magic));
@@ -250,7 +250,7 @@ class TensorRTRuntimeObj : public JSONRuntimeBaseObj {
     trt_engine_cache_.clear();
   }
 
-  ~TensorRTRuntimeObj() {
+  ~TensorRTRuntime() {
     // FFI can retain imported modules until process shutdown, after CUDA has already unloaded.
     // TensorRT destructors and CUDADeviceGuard cannot run then; the process reclaims the resources.
     int current_device;
@@ -803,7 +803,7 @@ class TensorRTRuntimeObj : public JSONRuntimeBaseObj {
 
 ffi::Module TensorRTRuntimeCreate(const ffi::String& symbol_name, const ffi::String& graph_json,
                                   const ffi::Array<ffi::String>& const_names) {
-  auto n = ffi::make_object<TensorRTRuntimeObj>(symbol_name, graph_json, const_names);
+  auto n = ffi::make_object<TensorRTRuntime>(symbol_name, graph_json, const_names);
   return ffi::Module(n);
 }
 
@@ -811,7 +811,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("runtime.tensorrt_runtime_create", TensorRTRuntimeCreate)
-      .def("ffi.Module.load_from_bytes.tensorrt", TensorRTRuntimeObj::LoadFromBytes);
+      .def("ffi.Module.load_from_bytes.tensorrt", TensorRTRuntime::LoadFromBytes);
 }
 
 }  // namespace contrib

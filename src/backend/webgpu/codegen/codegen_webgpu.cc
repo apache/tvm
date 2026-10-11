@@ -85,10 +85,10 @@ struct WebGPUWorkGroupInfo {
   std::unordered_set<Var> write_access_set;
 };
 
-class WebGPUWorkgroupInfoCollectorObj : public StmtExprVisitorObj {
+class WebGPUWorkgroupInfoCollector : public StmtExprVisitor {
  public:
   static WebGPUWorkGroupInfo Collect(const Stmt& stmt) {
-    auto collector = ffi::make_object<WebGPUWorkgroupInfoCollectorObj>();
+    auto collector = ffi::make_object<WebGPUWorkgroupInfoCollector>();
     collector->Visit(stmt);
     return collector->info_;
   }
@@ -111,7 +111,7 @@ class WebGPUWorkgroupInfoCollectorObj : public StmtExprVisitorObj {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const VarNode* op) final {
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitorObj::Visit_(op));
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     Var buffer_var = ffi::GetRef<Var>(op);
     if (buffer_var->ty.as<PtrTypeNode>()) {
       info_.write_access_set.insert(buffer_var);
@@ -121,7 +121,7 @@ class WebGPUWorkgroupInfoCollectorObj : public StmtExprVisitorObj {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const TensorStoreNode* op) final {
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitorObj::Visit_(op));
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     info_.write_access_set.insert(ResolveBuffer(op->dest.as_or_throw<TensorVar>().var()));
 
     return std::nullopt;
@@ -135,7 +135,7 @@ class WebGPUWorkgroupInfoCollectorObj : public StmtExprVisitorObj {
         return std::nullopt;
       }
     }
-    return StmtExprVisitorObj::Visit_(op);
+    return StmtExprVisitor::Visit_(op);
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const RegionStmtNode* op) final {
@@ -164,7 +164,7 @@ class WebGPUWorkgroupInfoCollectorObj : public StmtExprVisitorObj {
           info_.has_block_index_z = true;
         }
       }
-      return StmtExprVisitorObj::Visit_(op);
+      return StmtExprVisitor::Visit_(op);
     } else {
       TVM_FFI_THROW(ValueError) << "Unsupported region op " << op->op;
     }
@@ -243,7 +243,7 @@ runtime::FunctionInfo CodeGenWebGPU::AddFunction(const Function& f, bool skip_re
   // runtime classifies storage-buffer arguments by the serialized "handle" dtype.
   constexpr DLDataType kRuntimeOpaqueHandleType{kDLOpaqueHandle, 64, 1};
 
-  WebGPUWorkGroupInfo info = WebGPUWorkgroupInfoCollectorObj::Collect(f->body.value());
+  WebGPUWorkGroupInfo info = WebGPUWorkgroupInfoCollector::Collect(f->body.value());
 
   std::vector<Var> pod_args;
   int num_buffer = 0;
@@ -905,7 +905,7 @@ void CodeGenWebGPU::Dispatch_(const ContinueNode* op) {
 // Build logic.
 //-------------------------------------------------
 //
-// The "C++ side" canonical WebGPU module is `WebGPUFallbackModuleNode` in
+// The "C++ side" canonical WebGPU module is `WebGPUFallbackModuleObj` in
 // src/backend/webgpu/codegen/webgpu_fallback_module.{h,cc} — there is no native
 // WebGPU runtime in the C++ tree (the real receiver is the wasm runtime
 // in web/emcc/webgpu_runtime.cc).

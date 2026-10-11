@@ -229,7 +229,7 @@ Pass DefaultGPUSchedule() {
 
             sch->WorkOn(gv->name_hint);
             ffi::Array<s_tir::SBlockRV> blocks =
-                s_tir::meta_schedule::SBlockCollectorObj::Collect(sch);
+                s_tir::meta_schedule::SBlockCollector::Collect(sch);
             for (const s_tir::SBlockRV& block : blocks) {
               auto childs = sch->GetChildBlocks(block);
               if (!childs.empty()) {

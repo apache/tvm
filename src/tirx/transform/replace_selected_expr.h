@@ -30,7 +30,7 @@
 #include <tvm/ir/expr_functor.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/tirx/stmt.h>
-#include <tvm/tirx/stmt_functor.h>  // For the class StmtExprMutatorObj
+#include <tvm/tirx/stmt_functor.h>  // For the class StmtExprMutator
 
 namespace tvm {
 namespace tirx {
@@ -40,10 +40,10 @@ namespace tirx {
           in an expression, which only replace inside of nodes in which it is allowed to perform
           replacecements (given by a second predicate)
  */
-class ReplaceSelectedExprObj : public StmtExprMutatorObj {
+class ReplaceSelectedExpr : public StmtExprMutator {
  public:
-  using StmtExprMutatorObj::Mutate;
-  using StmtExprMutatorObj::Mutate_;
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
   // Toplevel (static) functions
   static PrimExpr ReplaceSelectedExprInExpr(
       const PrimExpr& expr, std::function<bool(const PrimExpr&)> predicate_selector,
@@ -52,9 +52,9 @@ class ReplaceSelectedExprObj : public StmtExprMutatorObj {
                                         std::function<bool(const PrimExpr&)> predicate_selector,
                                         const PrimExpr& new_expr,
                                         std::function<bool(const PrimExpr&)> can_replace_inside);
-  ReplaceSelectedExprObj(std::function<bool(const PrimExpr&)> predicate_selector,
-                         const PrimExpr& new_expr,
-                         std::function<bool(const PrimExpr&)> can_replace_inside);
+  ReplaceSelectedExpr(std::function<bool(const PrimExpr&)> predicate_selector,
+                      const PrimExpr& new_expr,
+                      std::function<bool(const PrimExpr&)> can_replace_inside);
 
  protected:
   UnchangedOr<ffi::Any> Mutate(ffi::AnyView input, InplaceMode inplace_mode) override;

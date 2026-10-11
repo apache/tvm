@@ -26,13 +26,13 @@
 namespace tvm {
 namespace tirx {
 
-class AssertSkipperObj : public StmtExprMutatorObj {
+class AssertSkipper : public StmtExprMutator {
  public:
-  using StmtExprMutatorObj::Mutate;
-  using StmtExprMutatorObj::Mutate_;
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
   UnchangedOr<ffi::Any> Mutate(ffi::AnyView input, InplaceMode inplace_mode) override {
     if (input.as<ExprNode>()) return ffi::Unchanged();
-    return StmtExprMutatorObj::Mutate(input, inplace_mode);
+    return StmtExprMutator::Mutate(input, inplace_mode);
   }
   UnchangedOr<Stmt> Mutate_(const AssertStmtNode* op, InplaceMode inplace_mode) final {
     // AssertStmt is a leaf — just remove it.
@@ -41,7 +41,7 @@ class AssertSkipperObj : public StmtExprMutatorObj {
 };
 
 Stmt SkipAssert(Stmt stmt) {
-  return ffi::make_object<AssertSkipperObj>()
+  return ffi::make_object<AssertSkipper>()
       ->Mutate(stmt, InplaceMode::kAllow)
       .ValueOrUnchanged(stmt);
 }
@@ -51,7 +51,7 @@ namespace transform {
 Pass SkipAssert() {
   auto pass_func = [](Function f, IRModule m, PassContext ctx) {
     auto* n = f.CopyOnWrite();
-    n->body = ffi::make_object<AssertSkipperObj>()
+    n->body = ffi::make_object<AssertSkipper>()
                   ->Mutate(n->body, InplaceMode::kAllow)
                   .ValueOrUnchanged(n->body);
     return f;

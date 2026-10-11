@@ -53,11 +53,11 @@ static bool IsTrainiumLayout(const TileLayoutNode* layout) {
   });
 }
 
-class TrainiumLayoutApplierObj : public tirx::IRMutatorWithAnalyzerObj {
+class TrainiumLayoutApplier : public tirx::IRMutatorWithAnalyzer {
  public:
   static std::pair<Stmt, ffi::Array<Var>> Lower(const Stmt& stmt, const ffi::Array<Var>& params) {
     sym::Analyzer ana;
-    auto storage_lower = ffi::make_object<TrainiumLayoutApplierObj>(ana);
+    auto storage_lower = ffi::make_object<TrainiumLayoutApplier>(ana);
     ffi::Array<Var> new_params;
     new_params.reserve(params.size());
     std::vector<std::pair<TensorVar, TensorVar>> param_flattened_tensors;
@@ -87,11 +87,11 @@ class TrainiumLayoutApplierObj : public tirx::IRMutatorWithAnalyzerObj {
     return std::make_pair(new_stmt, new_params);
   }
 
-  explicit TrainiumLayoutApplierObj(const sym::Analyzer& analyzer)
-      : tirx::IRMutatorWithAnalyzerObj(analyzer) {}
+  explicit TrainiumLayoutApplier(const sym::Analyzer& analyzer)
+      : tirx::IRMutatorWithAnalyzer(analyzer) {}
 
  protected:
-  using IRMutatorWithAnalyzerObj::Mutate_;
+  using IRMutatorWithAnalyzer::Mutate_;
 
   ffi::Any MutateTileArgument(const ffi::Any& any) {
     if (auto tensor = any.as<TensorVar>()) {
@@ -142,7 +142,7 @@ class TrainiumLayoutApplierObj : public tirx::IRMutatorWithAnalyzerObj {
                        {tensor.type()}, call->loc),
                   op->loc);
     }
-    return IRMutatorWithAnalyzerObj::Mutate_(op, inplace_mode);
+    return IRMutatorWithAnalyzer::Mutate_(op, inplace_mode);
   }
 
   TensorVar GetFlattenedTensor(TensorVar buf, bool is_alloc = false) {
@@ -203,7 +203,7 @@ class TrainiumLayoutApplierObj : public tirx::IRMutatorWithAnalyzerObj {
       type->shape.Set(i, analyzer_->canonical_simplify(type->shape[i]));
     }
     type->layout = std::nullopt;
-    type->elem_offset = StmtExprMutatorObj::Mutate(buf->elem_offset, InplaceMode::kDisallow)
+    type->elem_offset = StmtExprMutator::Mutate(buf->elem_offset, InplaceMode::kDisallow)
                             .ValueOrUnchanged(buf->elem_offset);
     flattened = RebuildTensorVar(flattened, std::move(type));
 
@@ -214,7 +214,7 @@ class TrainiumLayoutApplierObj : public tirx::IRMutatorWithAnalyzerObj {
   UnchangedOr<Stmt> Mutate_(const TensorStoreNode* op, InplaceMode inplace_mode) final {
     // Index conversion needs the original logical layout after the parent remaps the tensor.
     TensorVar logical_tensor = op->dest.as_or_throw<TensorVar>();
-    TensorStore store = StmtExprMutatorObj::Mutate_(op, inplace_mode)
+    TensorStore store = StmtExprMutator::Mutate_(op, inplace_mode)
                             .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
                             .as_or_throw<TensorStore>();
     PrimType store_value_ty = op->value.ty();
@@ -236,7 +236,7 @@ class TrainiumLayoutApplierObj : public tirx::IRMutatorWithAnalyzerObj {
     TensorVar logical_tensor = op->source.as_or_throw<TensorVar>();
     PrimType load_ty = op->ty.as_or_throw<PrimType>();
     bool load_returns_bool = load_ty.MatchesCode(DLDataTypeCode::kDLBool);
-    TensorLoad load = StmtExprMutatorObj::Mutate_(op, inplace_mode)
+    TensorLoad load = StmtExprMutator::Mutate_(op, inplace_mode)
                           .ValueOrUnchanged(ffi::GetRef<PrimExpr>(op))
                           .as_or_throw<TensorLoad>();
     load = VisitTensorAccess(load, logical_tensor);
@@ -314,7 +314,7 @@ Pass LowerTrainiumLayout() {
   auto pass_func = [](Function f, IRModule m, PassContext ctx) {
     if (!f->body.has_value()) return f;
     auto* n = f.CopyOnWrite();
-    auto [body, params] = TrainiumLayoutApplierObj::Lower(n->body.value(), n->params);
+    auto [body, params] = TrainiumLayoutApplier::Lower(n->body.value(), n->params);
     n->body = std::move(body);
     n->params = std::move(params);
     return f;

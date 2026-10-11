@@ -75,14 +75,14 @@ TextureArgument UnwrapTextureArgument(const Expr& texture) {
 
 }  // namespace
 
-class InferTextureAccessObj : public StmtExprVisitorObj {
+class InferTextureAccess : public StmtExprVisitor {
  public:
   static constexpr const uint8_t kReadAccess = 1;
   static constexpr const uint8_t kWriteAccess = 2;
 
-  InferTextureAccessObj() {}
+  InferTextureAccess() {}
   std::unordered_map<const VarNode*, std::string> Infer(const Stmt& n) {
-    StmtExprVisitorObj::Visit(n);
+    StmtExprVisitor::Visit(n);
     std::unordered_map<const VarNode*, std::string> storage_scope_qualifiers;
     for (auto& texture : var_access_map_) {
       if (texture.second == kReadAccess) {
@@ -103,7 +103,7 @@ class InferTextureAccessObj : public StmtExprVisitorObj {
         buffer_data_map_[op->var.get()] = it == buffer_data_map_.end() ? source : it->second;
       }
     }
-    return StmtExprVisitorObj::Visit_(op);
+    return StmtExprVisitor::Visit_(op);
   }
   ffi::Optional<VisitInterrupt> Visit_(const CallNode* op) final {
     if (op->op.same_as(backend::opencl::texture2d_load_op())) {
@@ -115,7 +115,7 @@ class InferTextureAccessObj : public StmtExprVisitorObj {
       auto it = buffer_data_map_.find(texture);
       var_access_map_[it == buffer_data_map_.end() ? texture : it->second] |= kWriteAccess;
     }
-    return StmtExprVisitorObj::Visit_(op);
+    return StmtExprVisitor::Visit_(op);
   }
 
  private:
@@ -131,7 +131,7 @@ CodeGenOpenCL::CodeGenOpenCL() {
 void CodeGenOpenCL::InitFuncState(const Function& f) {
   CodeGenC::InitFuncState(f);
   if (f->body.has_value()) {
-    this->SetTextureScope(ffi::make_object<InferTextureAccessObj>()->Infer(f->body.value()));
+    this->SetTextureScope(ffi::make_object<InferTextureAccess>()->Infer(f->body.value()));
   }
   for (Var arg : f->params) {
     auto ptr_type = arg->ty.as<PtrTypeNode>();

@@ -25,7 +25,7 @@
  * ---------------------
  * The pass is structured as two cooperating phases (single plan, single rewrite):
  *
- *   Phase 1 — **CSEPlannerObj** (analysis, no mutation)
+ *   Phase 1 — **CSEPlanner** (analysis, no mutation)
  *     Walks the TIR tree bottom-up and builds:
  *       - A *scope tree* that mirrors the nesting structure of For/If/While/RegionStmt.
  *       - An *expression DAG* mapping each structurally-unique eligible expression
@@ -36,7 +36,7 @@
  *     and what to replace (ExprRemapTable). Shallower-first processing with
  *     repr propagation resolves all CSE opportunities without a cascade loop.
  *
- *   Phase 2 — **CSERewriterObj** (mechanical mutation)
+ *   Phase 2 — **CSERewriter** (mechanical mutation)
  *     Consumes the plan and performs two kinds of edits:
  *       - Inserts `Bind(cse_var, expr)` statements at the planned insertion points.
  *       - Replaces every occurrence of a CSE'd expression with its variable.
@@ -99,7 +99,7 @@ namespace tirx {
 /*!
  * \brief Map from expression to CSE variable, keyed by structural equality.
  *
- * Used by CSERewriterObj to look up whether a visited expression should be
+ * Used by CSERewriter to look up whether a visited expression should be
  * replaced by a previously-introduced CSE variable.
  */
 using ExprRemapTable = std::unordered_map<PrimExpr, Var, ffi::StructuralHash, prim::ExprDeepEqual>;
@@ -116,13 +116,13 @@ using InsertBeforeTable =
     std::unordered_map<Stmt, std::vector<Stmt>, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>;
 
 // ============================================================================
-// CSEPlannerObj: Phase 1 — scan tree, build scope tree + expression table
+// CSEPlanner: Phase 1 — scan tree, build scope tree + expression table
 // ============================================================================
 
 /*!
  * \brief Phase 1 of the two-phase CSE pass.
  *
- * CSEPlannerObj is a read-only visitor that scans the TIR tree bottom-up and builds:
+ * CSEPlanner is a read-only visitor that scans the TIR tree bottom-up and builds:
  *   1. A **scope tree** (vector of ScopeEntry) reflecting For/If/While/RegionStmt nesting.
  *   2. An **expression DAG** (ExprTable) where each node is an eligible expression
  *      with occurrence count, expr_depth, LCA scope, first-use location, and
@@ -136,10 +136,10 @@ using InsertBeforeTable =
  *
  * Usage:
  * \code
- *   auto [insert_before, expr_remap] = CSEPlannerObj::Plan(body, params);
+ *   auto [insert_before, expr_remap] = CSEPlanner::Plan(body, params);
  * \endcode
  */
-class CSEPlannerObj : public StmtExprVisitorObj {
+class CSEPlanner : public StmtExprVisitor {
  public:
   /*!
    * \brief Run the planner on a function body (static entry point).
@@ -152,7 +152,7 @@ class CSEPlannerObj : public StmtExprVisitorObj {
    *         planned CSE transformations.
    */
   static std::pair<InsertBeforeTable, ExprRemapTable> Plan(const Stmt& body) {
-    auto planner = ffi::make_object<CSEPlannerObj>();
+    auto planner = ffi::make_object<CSEPlanner>();
     // Root scope (no parent, depth 0, no creator statement)
     planner->scopes_.push_back({-1, 0, std::nullopt});
     planner->current_scope_ = 0;
@@ -302,15 +302,15 @@ class CSEPlannerObj : public StmtExprVisitorObj {
     // (LT/LE/GT/GE/EQ/NE/And/Or/Not/Cast-to-bool/Select-of-bool).
     PrimType expr_ty = expr.ty();
     if (expr_ty.MatchesCode(DLDataTypeCode::kDLBool)) return false;
-    struct ForbiddenNodeFinderObj : StmtExprVisitorObj {
+    struct ForbiddenNodeFinder : StmtExprVisitor {
       ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) final {
         if (auto expr = value.as<PrimExpr>(); expr && IsForbiddenNode(*expr)) {
           return VisitInterrupt();
         }
-        return StmtExprVisitorObj::Visit(value);
+        return StmtExprVisitor::Visit(value);
       }
     };
-    return !ffi::make_object<ForbiddenNodeFinderObj>()->Visit(expr).has_value();
+    return !ffi::make_object<ForbiddenNodeFinder>()->Visit(expr).has_value();
   }
 
   // ------------------------------------------------------------------
@@ -330,17 +330,17 @@ class CSEPlannerObj : public StmtExprVisitorObj {
    */
   static PrimExpr SubstituteSubexpr(const PrimExpr& body, const PrimExpr& target,
                                     const PrimExpr& replacement) {
-    struct ReplacerObj : public StmtExprMutatorObj {
-      using StmtExprMutatorObj::Mutate;
-      using StmtExprMutatorObj::Mutate_;
+    struct Replacer : public StmtExprMutator {
+      using StmtExprMutator::Mutate;
+      using StmtExprMutator::Mutate_;
       prim::ExprDeepEqual eq;
       PrimExpr target{ffi::UnsafeInit{}}, replacement{ffi::UnsafeInit{}};
       UnchangedOr<ffi::Any> Mutate(ffi::AnyView input, InplaceMode inplace_mode) final {
         if (auto prim = input.as<PrimExpr>(); prim && eq(prim.value(), target)) return replacement;
-        return StmtExprMutatorObj::Mutate(input, inplace_mode);
+        return StmtExprMutator::Mutate(input, inplace_mode);
       }
     };
-    auto r = ffi::make_object<ReplacerObj>();
+    auto r = ffi::make_object<Replacer>();
     r->target = target;
     r->replacement = replacement;
     return r->Mutate(body, InplaceMode::kDisallow).ValueOrUnchanged(body);
@@ -481,14 +481,14 @@ class CSEPlannerObj : public StmtExprVisitorObj {
   // recorded before their parents.
   // ------------------------------------------------------------------
 
-  using StmtExprVisitorObj::Visit_;
+  using StmtExprVisitor::Visit_;
 
   // Binary arithmetic operators (op->a, op->b)
-#define CSE_VISIT_BINARY(NodeType)                                      \
-  ffi::Optional<VisitInterrupt> Visit_(const NodeType* op) override {   \
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitorObj::Visit_(op)); \
-    RecordExpr(ffi::GetRef<PrimExpr>(op), {op->a, op->b});              \
-    return std::nullopt;                                                \
+#define CSE_VISIT_BINARY(NodeType)                                    \
+  ffi::Optional<VisitInterrupt> Visit_(const NodeType* op) override { \
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));  \
+    RecordExpr(ffi::GetRef<PrimExpr>(op), {op->a, op->b});            \
+    return std::nullopt;                                              \
   }
   CSE_VISIT_BINARY(prim::AddNode)
   CSE_VISIT_BINARY(prim::SubNode)
@@ -515,22 +515,22 @@ class CSEPlannerObj : public StmtExprVisitorObj {
 #undef CSE_VISIT_BINARY
 
   ffi::Optional<VisitInterrupt> Visit_(const prim::BitwiseNotNode* op) override {
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitorObj::Visit_(op));
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     RecordExpr(ffi::GetRef<PrimExpr>(op), {op->a});
     return std::nullopt;
   }
   ffi::Optional<VisitInterrupt> Visit_(const prim::NotNode* op) override {
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitorObj::Visit_(op));
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     RecordExpr(ffi::GetRef<PrimExpr>(op), {op->a});
     return std::nullopt;
   }
   ffi::Optional<VisitInterrupt> Visit_(const prim::CastNode* op) override {
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitorObj::Visit_(op));
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     RecordExpr(ffi::GetRef<PrimExpr>(op), {op->value});
     return std::nullopt;
   }
   ffi::Optional<VisitInterrupt> Visit_(const prim::SelectNode* op) override {
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitorObj::Visit_(op));
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     RecordExpr(ffi::GetRef<PrimExpr>(op), {op->condition, op->true_value, op->false_value});
     return std::nullopt;
   }
@@ -564,9 +564,9 @@ class CSEPlannerObj : public StmtExprVisitorObj {
    */
   ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
     auto stmt = value.as<Stmt>();
-    if (!stmt) return StmtExprVisitorObj::Visit(value);
+    if (!stmt) return StmtExprVisitor::Visit(value);
     current_stmt_ = stmt.value();
-    return StmtExprVisitorObj::Visit(value);
+    return StmtExprVisitor::Visit(value);
   }
 
   /*! \brief For loops: bounds in parent scope, body in child scope. */
@@ -733,14 +733,14 @@ class CSEPlannerObj : public StmtExprVisitorObj {
 };
 
 // ============================================================================
-// CSERewriterObj: Phase 2 — mechanical insertion + substitution
+// CSERewriter: Phase 2 — mechanical insertion + substitution
 // ============================================================================
 
 /*!
  * \brief Phase 2 of the two-phase CSE pass.
  *
- * CSERewriterObj is a StmtExprMutatorObj that consumes the plan produced by
- * CSEPlannerObj and performs two kinds of edits:
+ * CSERewriter is a StmtExprMutator that consumes the plan produced by
+ * CSEPlanner and performs two kinds of edits:
  *   - **Insertion**: Before each statement listed in InsertBeforeTable,
  *     insert the planned `Bind(cse_var, expr)` statements.
  *   - **Substitution**: Replace every expression listed in ExprRemapTable
@@ -752,16 +752,16 @@ class CSEPlannerObj : public StmtExprVisitorObj {
  * flattens nested SeqStmts, so this works correctly for both SeqStmt
  * children and direct bodies of scope-creating statements (For, If, etc.).
  */
-class CSERewriterObj : public StmtExprMutatorObj {
+class CSERewriter : public StmtExprMutator {
  public:
-  using StmtExprMutatorObj::Mutate;
-  using StmtExprMutatorObj::Mutate_;
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
   /*!
    * \brief Construct a rewriter from the plan tables.
    * \param insert_before Map from stmt → list of Bind stmts to insert before it.
    * \param expr_remap Map from expression → CSE variable to substitute.
    */
-  CSERewriterObj(InsertBeforeTable insert_before, ExprRemapTable expr_remap)
+  CSERewriter(InsertBeforeTable insert_before, ExprRemapTable expr_remap)
       : insert_before_(std::move(insert_before)), expr_remap_(std::move(expr_remap)) {}
 
   /*!
@@ -793,15 +793,15 @@ class CSERewriterObj : public StmtExprMutatorObj {
    * values and their copy of the subtree.
    */
   UnchangedOr<ffi::Any> Mutate(ffi::AnyView input, InplaceMode inplace_mode) override {
-    if (opaque_body_) return StmtExprMutatorObj::Mutate(input, inplace_mode);
+    if (opaque_body_) return StmtExprMutator::Mutate(input, inplace_mode);
     if (auto prim_expr = input.as<PrimExpr>()) {
       auto it = expr_remap_.find(prim_expr.value());
       if (it != expr_remap_.end()) return it->second;
     }
     auto* stmt_node = input.as<StmtNode>();
-    if (!stmt_node) return StmtExprMutatorObj::Mutate(input, inplace_mode);
+    if (!stmt_node) return StmtExprMutator::Mutate(input, inplace_mode);
     auto it = insert_before_.find(ffi::GetRef<Stmt>(stmt_node));
-    auto result = StmtExprMutatorObj::Mutate(input, inplace_mode);
+    auto result = StmtExprMutator::Mutate(input, inplace_mode);
     if (it == insert_before_.end()) return result;
     Stmt visited = std::move(result).ValueOrUnchanged(input).as_or_throw<Stmt>();
     ffi::Array<Stmt> new_stmts;
@@ -836,7 +836,7 @@ class CSERewriterObj : public StmtExprMutatorObj {
 
   UnchangedOr<Stmt> Mutate_(const RegionStmtNode* op, InplaceMode inplace_mode) override {
     if (opaque_body_ || op->op.same_as(tirx::launch_thread_op()))
-      return StmtExprMutatorObj::Mutate_(op, inplace_mode);
+      return StmtExprMutator::Mutate_(op, inplace_mode);
     // Match the planner's opaque boundary: only operands outside the body
     // participate in this plan and may reference its CSE bindings.
     auto args = Mutate(op->args, inplace_mode).as_or_throw<UnchangedOr<ffi::Array<Expr>>>();
@@ -850,7 +850,7 @@ class CSERewriterObj : public StmtExprMutatorObj {
     // Definitions outside the region may have been rebuilt, including tensor
     // variables whose shapes changed. Remap their uses without applying CSE.
     opaque_body_ = true;
-    auto result = StmtExprMutatorObj::Mutate_(region.get(), inplace_mode).ValueOrUnchanged(region);
+    auto result = StmtExprMutator::Mutate_(region.get(), inplace_mode).ValueOrUnchanged(region);
     opaque_body_ = false;
     return result;
   }
@@ -883,10 +883,10 @@ namespace transform {
 Pass CommonSubexprElim() {
   auto pass_func = [](Function f, IRModule m, PassContext ctx) {
     if (!f->body.has_value()) return f;
-    auto [insert_before, expr_remap] = CSEPlannerObj::Plan(f->body.value());
+    auto [insert_before, expr_remap] = CSEPlanner::Plan(f->body.value());
     if (!insert_before.empty()) {
       auto* n = f.CopyOnWrite();
-      n->body = ffi::make_object<CSERewriterObj>(std::move(insert_before), std::move(expr_remap))
+      n->body = ffi::make_object<CSERewriter>(std::move(insert_before), std::move(expr_remap))
                     ->Rewrite(f->body.value());
     }
     return f;

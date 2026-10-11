@@ -193,7 +193,7 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
     builder_->EmitCall("vm.builtin.read_if_cond", {cond_value}, cond_reg);
 
     // obtain the temp exec in progress.
-    vm::VMExecutableObj* exec = builder_->exec();
+    vm::VMExecutable* exec = builder_->exec();
 
     // Record the offset of If instruction
     size_t if_offset = exec->instr_offset.size();
@@ -477,7 +477,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
  * module(s).
  * \return The created module.
  */
-void LinkModules(ffi::ObjectPtr<VMExecutableObj> exec,
+void LinkModules(ffi::ObjectPtr<VMExecutable> exec,
                  const ffi::Map<ffi::String, runtime::Tensor>& params, const tvm::ffi::Module& lib,
                  const ffi::Array<ffi::Module>& ext_libs) {
   // query if we need const loader for ext_modules
@@ -516,7 +516,7 @@ void LinkModules(ffi::ObjectPtr<VMExecutableObj> exec,
 ffi::Module VMLink(ExecBuilder builder, ffi::Optional<Target> target,
                    ffi::Optional<ffi::Module> lib, ffi::Array<ffi::Module> ext_libs,
                    ffi::Map<ffi::String, runtime::Tensor> params) {
-  ffi::ObjectPtr<VMExecutableObj> executable = builder->Get();
+  ffi::ObjectPtr<VMExecutable> executable = builder->Get();
   if (!lib.has_value()) {
     lib = codegen::CSourceModuleCreate(";", "c", ffi::Array<ffi::String>{});
   }

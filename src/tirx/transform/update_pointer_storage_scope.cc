@@ -46,7 +46,7 @@ Var WithStorageScope(const VarNode* buffer_var, ffi::String storage_scope) {
   return Var(buffer_var->name, PtrType(ptr_type->element_type, storage_scope), buffer_var->loc);
 }
 
-UpdatePointerStorageScopeObj::UpdatePointerStorageScopeObj(
+UpdatePointerStorageScope::UpdatePointerStorageScope(
     const std::unordered_map<Var, ffi::String, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>&
         new_storage_scopes) {
   for (auto& kv : new_storage_scopes) {
@@ -62,24 +62,22 @@ UpdatePointerStorageScopeObj::UpdatePointerStorageScopeObj(
   }
 }
 
-UnchangedOr<Stmt> UpdatePointerStorageScopeObj::Mutate_(const BindNode* op,
-                                                        InplaceMode inplace_mode) {
+UnchangedOr<Stmt> UpdatePointerStorageScope::Mutate_(const BindNode* op, InplaceMode inplace_mode) {
   const auto* call = op->value.as<CallNode>();
   if (call &&
       (call->op.same_as(tirx::alloc_tensor_op()) || call->op.same_as(tirx::decl_tensor_op()))) {
     if (auto mapped = VarRemapGet(op->var); mapped != nullptr) {
       tensor_scopes_.emplace(call, mapped.as_or_throw<TensorVar>().scope());
-      auto result = StmtExprMutatorObj::Mutate_(op, inplace_mode);
+      auto result = StmtExprMutator::Mutate_(op, inplace_mode);
       tensor_scopes_.erase(call);
       return result;
     }
   }
-  return StmtExprMutatorObj::Mutate_(op, inplace_mode);
+  return StmtExprMutator::Mutate_(op, inplace_mode);
 }
 
-UnchangedOr<Expr> UpdatePointerStorageScopeObj::Mutate_(const CallNode* op,
-                                                        InplaceMode inplace_mode) {
-  auto result = StmtExprMutatorObj::Mutate_(op, inplace_mode);
+UnchangedOr<Expr> UpdatePointerStorageScope::Mutate_(const CallNode* op, InplaceMode inplace_mode) {
+  auto result = StmtExprMutator::Mutate_(op, inplace_mode);
   if (auto it = tensor_scopes_.find(op); it != tensor_scopes_.end()) {
     Expr value = std::move(result).ValueOrUnchanged(ffi::GetRef<Expr>(op));
     auto call = value.as_or_throw<Call>();

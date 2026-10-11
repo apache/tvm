@@ -30,16 +30,16 @@ namespace s_tir {
 using namespace tvm::prim;
 using namespace tvm::tirx;
 
-class ThreadBindingLowererObj : public StmtExprMutatorObj {
+class ThreadBindingLowerer : public StmtExprMutator {
  public:
-  using StmtExprMutatorObj::Mutate;
-  using StmtExprMutatorObj::Mutate_;
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
 
  private:
   UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) final {
     auto annotations = Mutate(op->annotations, inplace_mode)
                            .as_or_throw<UnchangedOr<ffi::Map<ffi::String, ffi::Any>>>();
-    auto result = StmtExprMutatorObj::Mutate_(op, inplace_mode);
+    auto result = StmtExprMutator::Mutate_(op, inplace_mode);
     if (annotations.UnchangedOrSameAs(op->annotations)) return result;
     SBlock block = std::move(result).ValueOrUnchanged(ffi::GetRef<Stmt>(op)).as_or_throw<SBlock>();
     block.CopyOnWrite()->annotations = std::move(annotations).ValueUnchecked();
@@ -50,7 +50,7 @@ class ThreadBindingLowererObj : public StmtExprMutatorObj {
     if (!tvm::s_tir::GetThreadBinding(op).has_value()) {
       auto annotations = Mutate(op->annotations, inplace_mode)
                              .as_or_throw<UnchangedOr<ffi::Map<ffi::String, ffi::Any>>>();
-      auto result = StmtExprMutatorObj::Mutate_(op, inplace_mode);
+      auto result = StmtExprMutator::Mutate_(op, inplace_mode);
       if (annotations.UnchangedOrSameAs(op->annotations)) return result;
       For loop = std::move(result).ValueOrUnchanged(ffi::GetRef<Stmt>(op)).as_or_throw<For>();
       loop.CopyOnWrite()->annotations = std::move(annotations).ValueUnchecked();
@@ -88,7 +88,7 @@ namespace transform {
 Pass LowerThreadBinding() {
   auto pass_func = [](Function f, IRModule m, PassContext ctx) {
     if (!f->body.has_value()) return f;
-    auto lower = ffi::make_object<ThreadBindingLowererObj>();
+    auto lower = ffi::make_object<ThreadBindingLowerer>();
     auto fptr = f.CopyOnWrite();
     fptr->body = lower->Mutate(fptr->body.value(), InplaceMode::kAllow)
                      .ValueOrUnchanged(std::move(fptr->body).value());

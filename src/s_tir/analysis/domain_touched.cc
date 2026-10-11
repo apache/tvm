@@ -63,9 +63,9 @@ using TensorDomainAccess = std::tuple<LoadAccess, StoreAccess, CombinedAccess>;
 }  // namespace
 
 // Find Read region of the tensor in the stmt.
-class TensorTouchedDomainObj final : public s_tir::IRVisitorWithAnalyzerObj {
+class TensorTouchedDomain final : public s_tir::IRVisitorWithAnalyzer {
  public:
-  using s_tir::IRVisitorWithAnalyzerObj::Visit_;
+  using s_tir::IRVisitorWithAnalyzer::Visit_;
 
   std::unordered_map<const VarNode*, TensorDomainAccess>& GetAccessedTensorRegions() {
     return tensor_access_map_;
@@ -99,7 +99,7 @@ class TensorTouchedDomainObj final : public s_tir::IRVisitorWithAnalyzerObj {
   }
 
  private:
-  using Parent = s_tir::IRVisitorWithAnalyzerObj;
+  using Parent = s_tir::IRVisitorWithAnalyzer;
 
   ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* op) final {
     TensorVar tensor = op->source.as_or_throw<tvm::tirx::TensorVar>();
@@ -139,13 +139,13 @@ class TensorTouchedDomainObj final : public s_tir::IRVisitorWithAnalyzerObj {
 
 ffi::Array<ffi::Optional<Range>> DomainTouched(const Stmt& stmt, const TensorVar& tensor,
                                                bool consider_loads, bool consider_stores) {
-  auto visitor = ffi::make_object<TensorTouchedDomainObj>();
+  auto visitor = ffi::make_object<TensorTouchedDomain>();
   visitor->Visit(stmt);
   return visitor->FindUnion(tensor, consider_loads, consider_stores);
 }
 
 ffi::Map<TensorVar, ffi::Array<ffi::ObjectRef>> DomainTouchedAccessMap(const Function& func) {
-  auto visitor = ffi::make_object<TensorTouchedDomainObj>();
+  auto visitor = ffi::make_object<TensorTouchedDomain>();
   visitor->Visit(func->body);
   auto tensor_access_map = visitor->GetAccessedTensorRegions();
   ffi::Map<TensorVar, ffi::Array<ffi::ObjectRef>> ret;

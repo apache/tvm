@@ -74,20 +74,20 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // Mark the statement of each stage.
-class NoOpRemoverObj : public IRMutatorWithAnalyzerObj {
+class NoOpRemover : public IRMutatorWithAnalyzer {
  public:
-  using IRMutatorWithAnalyzerObj::Mutate;
-  using IRMutatorWithAnalyzerObj::Mutate_;
+  using IRMutatorWithAnalyzer::Mutate;
+  using IRMutatorWithAnalyzer::Mutate_;
   static Stmt Apply(Stmt stmt, const sym::Analyzer& analyzer, bool ignore_profiler_call = false) {
-    auto visitor = ffi::make_object<NoOpRemoverObj>(analyzer, ignore_profiler_call);
+    auto visitor = ffi::make_object<NoOpRemover>(analyzer, ignore_profiler_call);
     return visitor->Mutate(stmt, InplaceMode::kAllow).ValueOrUnchanged(stmt);
   }
 
  private:
-  using Parent = IRMutatorWithAnalyzerObj;
+  using Parent = IRMutatorWithAnalyzer;
 
  public:
-  NoOpRemoverObj(const sym::Analyzer& analyzer, bool ignore_profiler_call = false)
+  NoOpRemover(const sym::Analyzer& analyzer, bool ignore_profiler_call = false)
       : Parent(analyzer), ignore_profiler_call_(ignore_profiler_call) {}
 
  private:
@@ -245,7 +245,7 @@ class NoOpRemoverObj : public IRMutatorWithAnalyzerObj {
 };
 
 Stmt RemoveNoOp(Stmt stmt, const sym::Analyzer& analyzer, bool ignore_profiler_call) {
-  return NoOpRemoverObj::Apply(std::move(stmt), analyzer, ignore_profiler_call);
+  return NoOpRemover::Apply(std::move(stmt), analyzer, ignore_profiler_call);
 }
 
 namespace transform {
@@ -263,7 +263,7 @@ Pass RemoveNoOp() {
     {
       auto* write_ptr = f.CopyOnWrite();
       write_ptr->body =
-          NoOpRemoverObj::Apply(std::move(write_ptr->body).value(), analyzer, ignore_profiler_call);
+          NoOpRemover::Apply(std::move(write_ptr->body).value(), analyzer, ignore_profiler_call);
     }
     return f;
   };

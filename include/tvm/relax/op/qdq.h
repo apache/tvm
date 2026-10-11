@@ -30,13 +30,13 @@ namespace tvm {
 namespace relax {
 
 /*! \brief Attributes for relax.quantize/relax.dequantize operator */
-struct QuantizeAttrsNode : public AttrsNode {
+struct QuantizeAttrs : public AttrsNode {
   DLDataType out_dtype;
   int axis;
 
   static void RegisterReflection();
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.QuantizeAttrs", QuantizeAttrsNode, AttrsNode);
-};  // QuantizeAttrsNode
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.QuantizeAttrs", QuantizeAttrs, AttrsNode);
+};  // QuantizeAttrs
 
 }  // namespace relax
 }  // namespace tvm

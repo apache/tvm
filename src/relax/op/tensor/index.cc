@@ -42,33 +42,33 @@ namespace tvm {
 namespace relax {
 using namespace tvm::prim;
 
-void TakeAttrsNode::RegisterReflection() {
+void TakeAttrs::RegisterReflection() {
   namespace refl = tvm::ffi::reflection;
-  refl::ObjectDef<TakeAttrsNode>()
-      .def_ro("axis", &TakeAttrsNode::axis, "The axis over which to select values.",
+  refl::ObjectDef<TakeAttrs>()
+      .def_ro("axis", &TakeAttrs::axis, "The axis over which to select values.",
               refl::DefaultValue(ffi::Optional<int64_t>{}))
-      .def_ro("mode", &TakeAttrsNode::mode, "The mode for handling out-of-bounds indices.",
+      .def_ro("mode", &TakeAttrs::mode, "The mode for handling out-of-bounds indices.",
               refl::DefaultValue("fast"));
 }
 
-void StridedSliceAttrsNode::RegisterReflection() {
+void StridedSliceAttrs::RegisterReflection() {
   namespace refl = tvm::ffi::reflection;
-  refl::ObjectDef<StridedSliceAttrsNode>().def_ro(
-      "assume_inbound", &StridedSliceAttrsNode::assume_inbound,
+  refl::ObjectDef<StridedSliceAttrs>().def_ro(
+      "assume_inbound", &StridedSliceAttrs::assume_inbound,
       "Whether to assume the indices are in bound. If it is set to false, "
       "out of bound indices will be clipped to the bound.",
       refl::DefaultValue(true));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  TakeAttrsNode::RegisterReflection();
-  StridedSliceAttrsNode::RegisterReflection();
+  TakeAttrs::RegisterReflection();
+  StridedSliceAttrs::RegisterReflection();
 }
 
 /* relax.take */
 
 Expr take(Expr x, Expr indices, ffi::Optional<int64_t> axis, ffi::String mode) {
-  ffi::ObjectPtr<TakeAttrsNode> attrs = ffi::make_object<TakeAttrsNode>();
+  ffi::ObjectPtr<TakeAttrs> attrs = ffi::make_object<TakeAttrs>();
   attrs->axis = std::move(axis);
   attrs->mode = std::move(mode);
 
@@ -117,7 +117,7 @@ Type InferTypeTake(const CallNode* call_node) {
     }
   }
 
-  const auto* attrs = call->attrs.as<TakeAttrsNode>();
+  const auto* attrs = call->attrs.as<TakeAttrs>();
   if (!attrs->axis.has_value() && data_ty->ndim != 1) {
     TVM_FFI_VISIT_THROW(ValueError, call)
         << "Take op expects the input data to be 1-dimensional tensor when the axis "
@@ -153,7 +153,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.take")
       .signature(sig::arg("x", "The source tensor."),
                  sig::arg("indices", "The indices of the values to extract."),
-                 sig::call_attrs<TakeAttrsNode>())
+                 sig::call_attrs<TakeAttrs>())
       .set_attr<FInferType>(tvm::op_attr::kInferType, FInferType::FromNative<&InferTypeTake>())
       .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
 }
@@ -188,7 +188,7 @@ Expr strided_slice(Expr x, Expr axes, Expr begin, Expr end, ffi::Optional<Expr> 
   check_tuple("end", end);
   if (strides.has_value()) check_tuple("strides", strides.value());
 
-  ffi::ObjectPtr<StridedSliceAttrsNode> attrs = ffi::make_object<StridedSliceAttrsNode>();
+  ffi::ObjectPtr<StridedSliceAttrs> attrs = ffi::make_object<StridedSliceAttrs>();
   attrs->assume_inbound = assume_inbound;
 
   ffi::Array<Expr> args = {x, axes, begin, end};
@@ -440,7 +440,7 @@ Type InferTypeStridedSlice(const Call& call, const BlockBuilder& ctx) {
     axes_tuple_i64.reserve(axes_tuple.size());
     for (const IntImm& v : axes_tuple) axes_tuple_i64.push_back(static_cast<int64_t>(v->value));
     std::vector<int> axes = NormalizeAxes(call, ctx, data_ty->ndim, axes_tuple_i64);
-    auto attrs = call->attrs.as<StridedSliceAttrsNode>();
+    auto attrs = call->attrs.as<StridedSliceAttrs>();
 
     ffi::Array<PrimExpr> output_shape = data_ty->GetShape().value();
     for (size_t i = 0; i < axes.size(); i++) {
@@ -477,7 +477,7 @@ InferLayoutOutput InferLayoutStridedSlice(
     const VarLayoutMap& var_layout_map) {
   TVM_FFI_ICHECK(NoDesiredLayout(call, desired_layouts));
 
-  const auto* attrs = call->attrs.as<StridedSliceAttrsNode>();
+  const auto* attrs = call->attrs.as<StridedSliceAttrs>();
   TVM_FFI_ICHECK(attrs != nullptr) << "Invalid Call";
 
   const auto* tensor_ty = GetTypeAs<TensorTypeNode>(call->args[0]);
@@ -514,7 +514,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.strided_slice")
       .signature(sig::arg("x", "The source tensor to be sliced."), sig::arg("axes", "The axes."),
                  sig::arg("begin", "The start index."), sig::arg("end", "The end index."),
-                 sig::var_args("args"), sig::call_attrs<StridedSliceAttrsNode>())
+                 sig::var_args("args"), sig::call_attrs<StridedSliceAttrs>())
       .set_attr<FInferTypeWithBuilder>(tvm::relax::op_attr::kInferTypeWithBuilder,
                                        InferTypeStridedSlice)
       .set_attr<FRelaxInferLayout>(tvm::relax::op_attr::kInferLayout, InferLayoutStridedSlice)

@@ -45,7 +45,7 @@ namespace runtime {
 class OpenCLWrappedFunc {
  public:
   // initialize the OpenCL function.
-  void Init(OpenCLModuleBaseObj* m, ffi::ObjectPtr<ffi::Object> sptr,
+  void Init(OpenCLModuleNodeBase* m, ffi::ObjectPtr<ffi::Object> sptr,
             OpenCLModuleObj::KTRefEntry entry, std::string func_name, std::vector<size_t> arg_size,
             const ffi::Array<ffi::String>& launch_param_tags) {
     w_ = m->GetGlobalWorkspace();
@@ -102,7 +102,7 @@ class OpenCLWrappedFunc {
   // global workspace.
   cl::OpenCLWorkspace* w_;
   // The module
-  OpenCLModuleBaseObj* m_;
+  OpenCLModuleNodeBase* m_;
   // resource handle
   ffi::ObjectPtr<ffi::Object> sptr_;
   // global kernel id in the kernel table.
@@ -115,7 +115,7 @@ class OpenCLWrappedFunc {
   LaunchParamConfig launch_param_config_;
 };
 
-OpenCLModuleBaseObj::~OpenCLModuleBaseObj() {
+OpenCLModuleNodeBase::~OpenCLModuleNodeBase() {
   {
     // free the kernel ids in global table.
     std::lock_guard<std::mutex> lock(workspace_->mu);
@@ -137,11 +137,11 @@ OpenCLModuleBaseObj::~OpenCLModuleBaseObj() {
   }
 }
 
-cl::OpenCLWorkspace* OpenCLModuleBaseObj::GetGlobalWorkspace() {
+cl::OpenCLWorkspace* OpenCLModuleNodeBase::GetGlobalWorkspace() {
   return cl::OpenCLWorkspace::Global();
 }
 
-ffi::Optional<ffi::Function> OpenCLModuleBaseObj::GetFunction(const ffi::String& name) {
+ffi::Optional<ffi::Function> OpenCLModuleNodeBase::GetFunction(const ffi::String& name) {
   ffi::ObjectPtr<ffi::Object> sptr_to_self = ffi::GetObjectPtr<ffi::Object>(this);
   TVM_FFI_ICHECK_EQ(sptr_to_self.get(), this);
   auto opt_info = fmap_.Get(name);
@@ -168,7 +168,7 @@ ffi::Optional<ffi::Function> OpenCLModuleBaseObj::GetFunction(const ffi::String&
 
 ffi::Bytes OpenCLModuleObj::SaveToBytes() const {
   // NOTE: serialization format MUST remain byte-identical to
-  // target::OpenCLFallbackModuleNode::SaveToBytes in
+  // target::OpenCLFallbackModuleObj::SaveToBytes in
   // src/backend/opencl/codegen/opencl_fallback_module.cc.  This file is the
   // source of truth; the fallback follows.
   // 3 fields only — the source map is in-memory inspection material
@@ -374,7 +374,7 @@ ffi::Optional<ffi::Function> OpenCLModuleObj::GetFunction(const ffi::String& nam
       this->SetPreCompiledPrograms(args[0].cast<std::string>());
     });
   }
-  return OpenCLModuleBaseObj::GetFunction(name);
+  return OpenCLModuleNodeBase::GetFunction(name);
 }
 
 static ffi::Module OpenCLModuleCreateImpl(ffi::Bytes code, ffi::String fmt,

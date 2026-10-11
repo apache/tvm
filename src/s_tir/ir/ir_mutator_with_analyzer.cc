@@ -22,14 +22,13 @@
 namespace tvm {
 namespace s_tir {
 using namespace tirx;
-UnchangedOr<Stmt> IRMutatorWithAnalyzerObj::Mutate_(const SBlockNode* op,
-                                                    InplaceMode inplace_mode) {
+UnchangedOr<Stmt> IRMutatorWithAnalyzer::Mutate_(const SBlockNode* op, InplaceMode inplace_mode) {
   return constraint_scope_.WithNewScope([&]() -> UnchangedOr<Stmt> {
     for (const auto& iter_var : op->iter_vars) {
       analyzer_->Bind(iter_var->var, iter_var->dom.value());
       iter_vars_.Set(iter_var->var, iter_var->dom.value());
     }
-    return s_tir::StmtExprMutatorObj::MutateBlock(this, op, inplace_mode);
+    return s_tir::StmtExprMutator::MutateBlock(this, op, inplace_mode);
   });
 }
 

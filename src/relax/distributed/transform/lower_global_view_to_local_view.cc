@@ -39,30 +39,30 @@ using namespace tvm::prim;
 
 using namespace tvm::relax::distributed;
 
-class DistTensorReplacerObj : public s_tir::StmtExprMutatorObj {
+class DistTensorReplacer : public s_tir::StmtExprMutator {
  public:
   static Stmt TensorReplace(Stmt stmt, ffi::Map<TensorVar, TensorVar> tensor_map) {
-    auto replacer = ffi::make_object<DistTensorReplacerObj>(tensor_map);
+    auto replacer = ffi::make_object<DistTensorReplacer>(tensor_map);
     return replacer->Mutate(stmt, InplaceMode::kDisallow).ValueOrUnchanged(stmt);
   }
 
-  explicit DistTensorReplacerObj(const ffi::Map<TensorVar, TensorVar>& tensor_map) {
+  explicit DistTensorReplacer(const ffi::Map<TensorVar, TensorVar>& tensor_map) {
     for (const auto& [source, target] : tensor_map) {
       VarRemapSet(source, target);
     }
   }
 };
 
-class DistSBlockInfoCollectorObj : public s_tir::StmtExprVisitorObj {
+class DistSBlockInfoCollector : public s_tir::StmtExprVisitor {
  private:
   ffi::Optional<VisitInterrupt> Visit_(const TensorStoreNode* op) final {
     tensor_access_indices[op->dest.as_or_throw<tvm::tirx::TensorVar>()].push_back(op->indices);
-    return s_tir::StmtExprVisitorObj::Visit_(op);
+    return s_tir::StmtExprVisitor::Visit_(op);
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* op) final {
     tensor_access_indices[op->source.as_or_throw<tvm::tirx::TensorVar>()].push_back(op->indices);
-    return s_tir::StmtExprVisitorObj::Visit_(op);
+    return s_tir::StmtExprVisitor::Visit_(op);
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const s_tir::SBlockNode* op) final {
@@ -72,7 +72,7 @@ class DistSBlockInfoCollectorObj : public s_tir::StmtExprVisitorObj {
         reduce_tensor_ = op->writes[0]->source.as_or_throw<tvm::tirx::TensorVar>();
       }
     }
-    return s_tir::StmtExprVisitorObj::Visit_(op);
+    return s_tir::StmtExprVisitor::Visit_(op);
   }
 
   bool IsReduceTensorAccess(const PrimExpr& expr) {
@@ -88,28 +88,28 @@ class DistSBlockInfoCollectorObj : public s_tir::StmtExprVisitorObj {
     if (IsReduceTensorAccess(op->a) || IsReduceTensorAccess(op->b)) {
       reduce_kind = "sum";
     }
-    return s_tir::StmtExprVisitorObj::Visit_(op);
+    return s_tir::StmtExprVisitor::Visit_(op);
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const prim::MulNode* op) final {
     if (IsReduceTensorAccess(op->a) || IsReduceTensorAccess(op->b)) {
       reduce_kind = "prod";
     }
-    return s_tir::StmtExprVisitorObj::Visit_(op);
+    return s_tir::StmtExprVisitor::Visit_(op);
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const prim::MinNode* op) final {
     if (IsReduceTensorAccess(op->a) || IsReduceTensorAccess(op->b)) {
       reduce_kind = "min";
     }
-    return s_tir::StmtExprVisitorObj::Visit_(op);
+    return s_tir::StmtExprVisitor::Visit_(op);
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const prim::MaxNode* op) final {
     if (IsReduceTensorAccess(op->a) || IsReduceTensorAccess(op->b)) {
       reduce_kind = "max";
     }
-    return s_tir::StmtExprVisitorObj::Visit_(op);
+    return s_tir::StmtExprVisitor::Visit_(op);
   }
 
   ffi::Optional<TensorVar> reduce_tensor_;
@@ -121,7 +121,7 @@ class DistSBlockInfoCollectorObj : public s_tir::StmtExprVisitorObj {
   std::string reduce_kind;
 };
 
-class DistributedTensorCompactorObj : public s_tir::StmtExprMutatorObj {
+class DistributedTensorCompactor : public s_tir::StmtExprMutator {
   // FIXME: change to use unordered_map<int, AxisShardingSpec> (represent dim and sharding spec)
   // Currently we assume device mesh is only 1d, but when we support 2d, we need to change this
   using DimShard = std::unordered_map<int, int>;
@@ -130,7 +130,7 @@ class DistributedTensorCompactorObj : public s_tir::StmtExprMutatorObj {
   static std::tuple<tirx::Function, std::string> DistTensorCompact(
       const std::vector<ShardingSpec>& sharding_specs, tirx::Function function) {
     function = tirx::RenewDef(function);
-    auto compactor = ffi::make_object<DistributedTensorCompactorObj>(sharding_specs, function);
+    auto compactor = ffi::make_object<DistributedTensorCompactor>(sharding_specs, function);
     ffi::Array<Var> new_params;
     ffi::Map<TensorVar, TensorVar> replace_tensor_map;
     for (const Var& param : function->params) {
@@ -148,15 +148,15 @@ class DistributedTensorCompactorObj : public s_tir::StmtExprMutatorObj {
     auto new_body =
         compactor->Mutate(function->body, InplaceMode::kDisallow).ValueOrUnchanged(function->body);
     if (new_body.has_value()) {
-      new_body = DistTensorReplacerObj::TensorReplace(new_body.value(), replace_tensor_map);
+      new_body = DistTensorReplacer::TensorReplace(new_body.value(), replace_tensor_map);
     }
     tirx::Function new_func(new_params, new_body, function->ret_type, function->attrs,
                             function->loc);
     return std::make_tuple(new_func, compactor->add_allreduce_kind_);
   }
 
-  DistributedTensorCompactorObj(const std::vector<ShardingSpec>& sharding_specs,
-                                tirx::Function function)
+  DistributedTensorCompactor(const std::vector<ShardingSpec>& sharding_specs,
+                             tirx::Function function)
       : sharding_specs_(sharding_specs) {
     PropagateShardingSpecOnBlock(function);
   }
@@ -267,10 +267,10 @@ class DistributedTensorCompactorObj : public s_tir::StmtExprMutatorObj {
   }
 
   UnchangedOr<Stmt> Mutate_(const s_tir::SBlockNode* op, InplaceMode inplace_mode) final {
-    s_tir::SBlock block = s_tir::StmtExprMutatorObj::Mutate_(op, inplace_mode)
+    s_tir::SBlock block = s_tir::StmtExprMutator::Mutate_(op, inplace_mode)
                               .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
                               .as_or_throw<s_tir::SBlock>();
-    auto collector = ffi::make_object<DistSBlockInfoCollectorObj>();
+    auto collector = ffi::make_object<DistSBlockInfoCollector>();
     collector->Visit(block);
     ffi::Array<s_tir::IterVar> new_iter_vars =
         ShardIterVar(block, collector->tensor_access_indices);
@@ -301,14 +301,14 @@ class DistributedTensorCompactorObj : public s_tir::StmtExprMutatorObj {
                                       allocated_tensor_under_root.begin(),
                                       allocated_tensor_under_root.end());
     }
-    new_block->body = DistTensorReplacerObj::TensorReplace(block->body, tensor_map);
+    new_block->body = DistTensorReplacer::TensorReplace(block->body, tensor_map);
     return s_tir::SBlock(new_block);
   }
 
   void AddAllReduceBlock(std::string reduce_kind) { add_allreduce_kind_ = reduce_kind; }
 
   UnchangedOr<Stmt> Mutate_(const s_tir::SBlockRealizeNode* op, InplaceMode inplace_mode) final {
-    s_tir::SBlockRealize realize = s_tir::StmtExprMutatorObj::Mutate_(op, inplace_mode)
+    s_tir::SBlockRealize realize = s_tir::StmtExprMutator::Mutate_(op, inplace_mode)
                                        .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
                                        .as_or_throw<s_tir::SBlockRealize>();
 
@@ -326,7 +326,7 @@ class DistributedTensorCompactorObj : public s_tir::StmtExprMutatorObj {
   }
 
   UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
-    For new_loop = s_tir::StmtExprMutatorObj::Mutate_(op, inplace_mode)
+    For new_loop = s_tir::StmtExprMutator::Mutate_(op, inplace_mode)
                        .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
                        .as_or_throw<For>();
     if (loop_var_shards_.count(op->loop_var)) {
@@ -344,8 +344,8 @@ class DistributedTensorCompactorObj : public s_tir::StmtExprMutatorObj {
   std::unordered_map<Var, int> iter_var_shards_;
   std::unordered_map<Var, int> loop_var_shards_;
   ffi::Array<TensorVar> allocated_tensor_under_root;
-  ffi::ObjectPtr<TensorAxisGraphExtractorObj> extractor_ =
-      ffi::make_object<TensorAxisGraphExtractorObj>();
+  ffi::ObjectPtr<TensorAxisGraphExtractor> extractor_ =
+      ffi::make_object<TensorAxisGraphExtractor>();
   std::vector<ShardingSpec> sharding_specs_;
   std::unordered_map<TensorVar, DimShard, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> tensor_shards_;
   std::string add_allreduce_kind_;
@@ -426,7 +426,7 @@ class LowerTIRToLocalView : public ExprMutator {
       sharding_specs.push_back(ShardingSpec(ty->device_mesh, ty->placement));
     }
     auto [new_function, allreduce_kind] =
-        tirx::DistributedTensorCompactorObj::DistTensorCompact(sharding_specs, function);
+        tirx::DistributedTensorCompactor::DistTensorCompact(sharding_specs, function);
     auto new_gvar = builder_->AddFunction(new_function, gvar->name_hint);
     Call call = this->VisitExpr(binding->value).as_or_throw<Call>();
     ffi::ObjectPtr<CallNode> new_call_node = ffi::make_object<CallNode>(*call.get());
@@ -434,7 +434,7 @@ class LowerTIRToLocalView : public ExprMutator {
     new_call_node->args.Set(0, new_gvar);
     Call new_call(new_call_node);
     if (allreduce_kind != "") {
-      ffi::ObjectPtr<AllReduceAttrsNode> attrs = ffi::make_object<AllReduceAttrsNode>();
+      ffi::ObjectPtr<AllReduceAttrs> attrs = ffi::make_object<AllReduceAttrs>();
       attrs->op_type = allreduce_kind;
       new_call =
           Call(Type::Missing(), Op::Get("relax.ccl.allreduce"), {new_call}, Attrs(attrs), {});

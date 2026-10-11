@@ -34,11 +34,9 @@
 
 namespace tvm {
 namespace tirx {
-void IRMutatorWithAnalyzerObj::InitVTable(VTable* vtable) {
-  StmtExprMutatorObj::InitVTable(vtable);
-}
+void IRMutatorWithAnalyzer::InitVTable(VTable* vtable) { StmtExprMutator::InitVTable(vtable); }
 
-const IRMutatorWithAnalyzerObj::VTable* IRMutatorWithAnalyzerObj::GlobalVTable() {
+const IRMutatorWithAnalyzer::VTable* IRMutatorWithAnalyzer::GlobalVTable() {
   static const VTable table = [] {
     VTable table;
     InitVTable(&table);
@@ -52,7 +50,7 @@ using namespace tvm::prim;
 
 using sym::detail::EnterConstraintFacts;
 
-void IRMutatorWithAnalyzerObj::MarkTensorParamShapes(const tirx::Function& func) {
+void IRMutatorWithAnalyzer::MarkTensorParamShapes(const tirx::Function& func) {
   // Mark all symbolic tensor-parameter shape values as positive.
   for (const tvm::Var& param : func->params) {
     if (!param->ty.as<tirx::TensorTypeNode>()) {
@@ -65,7 +63,7 @@ void IRMutatorWithAnalyzerObj::MarkTensorParamShapes(const tirx::Function& func)
   }
 }
 
-ffi::Array<PrimExpr> IRMutatorWithAnalyzerObj::IterMapSimplifyWithContext(
+ffi::Array<PrimExpr> IRMutatorWithAnalyzer::IterMapSimplifyWithContext(
     const ffi::Array<PrimExpr>& indices, bool non_trivial_only) {
   PrimExpr pred = IntImm::Bool(true);
   for (PrimExpr val : iter_predicates_) {
@@ -85,7 +83,7 @@ ffi::Array<PrimExpr> IRMutatorWithAnalyzerObj::IterMapSimplifyWithContext(
   return simplified;
 }
 
-UnchangedOr<Stmt> IRMutatorWithAnalyzerObj::Mutate_(const ForNode* op, InplaceMode inplace_mode) {
+UnchangedOr<Stmt> IRMutatorWithAnalyzer::Mutate_(const ForNode* op, InplaceMode inplace_mode) {
   return constraint_scope_.WithNewScope([&]() -> UnchangedOr<Stmt> {
     // record the loop variable as iterators
     Range dom = Range::FromMinExtent(op->min, op->extent);
@@ -127,9 +125,9 @@ UnchangedOr<Stmt> IRMutatorWithAnalyzerObj::Mutate_(const ForNode* op, InplaceMo
   });
 }
 
-UnchangedOr<Stmt> IRMutatorWithAnalyzerObj::Mutate_(const BindNode* op, InplaceMode inplace_mode) {
+UnchangedOr<Stmt> IRMutatorWithAnalyzer::Mutate_(const BindNode* op, InplaceMode inplace_mode) {
   if (!op->value.as<PrimExpr>()) {
-    return StmtExprMutatorObj::Mutate_(op, inplace_mode);
+    return StmtExprMutator::Mutate_(op, inplace_mode);
   }
   auto value_result = this->Mutate(op->value, inplace_mode);
   bool value_unchanged = value_result.UnchangedOrSameAs(op->value);
@@ -150,7 +148,7 @@ UnchangedOr<Stmt> IRMutatorWithAnalyzerObj::Mutate_(const BindNode* op, InplaceM
   return Stmt(n);
 }
 
-UnchangedOr<Stmt> IRMutatorWithAnalyzerObj::Mutate_(const IfNode* op, InplaceMode inplace_mode) {
+UnchangedOr<Stmt> IRMutatorWithAnalyzer::Mutate_(const IfNode* op, InplaceMode inplace_mode) {
   return constraint_scope_.WithNewScope([&]() -> UnchangedOr<Stmt> {
     auto condition_result = this->Mutate(op->condition, inplace_mode);
     bool condition_unchanged = condition_result.UnchangedOrSameAs(op->condition);
@@ -213,8 +211,8 @@ UnchangedOr<Stmt> IRMutatorWithAnalyzerObj::Mutate_(const IfNode* op, InplaceMod
   });
 }
 
-UnchangedOr<Stmt> IRMutatorWithAnalyzerObj::Mutate_(const RegionStmtNode* op,
-                                                    InplaceMode inplace_mode) {
+UnchangedOr<Stmt> IRMutatorWithAnalyzer::Mutate_(const RegionStmtNode* op,
+                                                 InplaceMode inplace_mode) {
   return constraint_scope_.WithNewScope([&]() -> UnchangedOr<Stmt> {
     if (op->op.same_as(tirx::launch_thread_op())) {
       PrimVar var = op->body_params[0].as_or_throw<PrimVar>();
@@ -239,12 +237,12 @@ UnchangedOr<Stmt> IRMutatorWithAnalyzerObj::Mutate_(const RegionStmtNode* op,
         constraint_scope_.Current().Emplace(analyzer_, index < op->args[i].as_or_throw<PrimExpr>());
       }
     }
-    return StmtExprMutatorObj::Mutate_(op, inplace_mode);
+    return StmtExprMutator::Mutate_(op, inplace_mode);
   });
 }
 
-UnchangedOr<Stmt> IRMutatorWithAnalyzerObj::Mutate_(const AssertStmtNode* op,
-                                                    InplaceMode inplace_mode) {
+UnchangedOr<Stmt> IRMutatorWithAnalyzer::Mutate_(const AssertStmtNode* op,
+                                                 InplaceMode inplace_mode) {
   auto condition_result = this->Mutate(op->condition, inplace_mode);
   bool condition_unchanged = condition_result.UnchangedOrSameAs(op->condition);
   PrimExpr condition = std::move(condition_result).ValueOrUnchanged(op->condition);
@@ -267,7 +265,7 @@ UnchangedOr<Stmt> IRMutatorWithAnalyzerObj::Mutate_(const AssertStmtNode* op,
   }
 }
 
-UnchangedOr<Expr> IRMutatorWithAnalyzerObj::Mutate_(const CallNode* op, InplaceMode inplace_mode) {
+UnchangedOr<Expr> IRMutatorWithAnalyzer::Mutate_(const CallNode* op, InplaceMode inplace_mode) {
   // add condition context to if_then_else
   static const Op if_then_else_op = Op::Get("prim.if_then_else");
   if (op->op.same_as(if_then_else_op)) {
@@ -301,11 +299,11 @@ UnchangedOr<Expr> IRMutatorWithAnalyzerObj::Mutate_(const CallNode* op, InplaceM
       return Call(op->ty, op->op, {cond, true_value, false_value}, op->attrs, {}, op->loc);
     }
   }
-  return StmtExprMutatorObj::Mutate_(op, inplace_mode);
+  return StmtExprMutator::Mutate_(op, inplace_mode);
 }
 
-UnchangedOr<PrimExpr> IRMutatorWithAnalyzerObj::Mutate_(const prim::LetNode* op,
-                                                        InplaceMode inplace_mode) {
+UnchangedOr<PrimExpr> IRMutatorWithAnalyzer::Mutate_(const prim::LetNode* op,
+                                                     InplaceMode inplace_mode) {
   auto value_result = this->Mutate(op->value, inplace_mode);
   bool value_unchanged = value_result.UnchangedOrSameAs(op->value);
   PrimExpr value = std::move(value_result).ValueOrUnchanged(op->value);
@@ -324,8 +322,8 @@ UnchangedOr<PrimExpr> IRMutatorWithAnalyzerObj::Mutate_(const prim::LetNode* op,
   }
 }
 
-UnchangedOr<PrimExpr> IRMutatorWithAnalyzerObj::Mutate_(const prim::SelectNode* op,
-                                                        InplaceMode inplace_mode) {
+UnchangedOr<PrimExpr> IRMutatorWithAnalyzer::Mutate_(const prim::SelectNode* op,
+                                                     InplaceMode inplace_mode) {
   auto cond_result = this->Mutate(op->condition, inplace_mode);
   bool cond_unchanged = cond_result.UnchangedOrSameAs(op->condition);
   PrimExpr cond = std::move(cond_result).ValueOrUnchanged(op->condition);

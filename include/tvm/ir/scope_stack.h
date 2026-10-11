@@ -45,7 +45,7 @@ namespace tvm {
  *   // In VisitStmt_(ForNode):
  *   return constraints.WithNewScope([&]() -> Stmt {
  *     constraints.Current().Emplace(analyzer, condition);
- *     return StmtExprMutatorObj::VisitStmt_(op);
+ *     return StmtExprMutator::VisitStmt_(op);
  *   });
  * \endcode
  *

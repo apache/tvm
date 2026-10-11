@@ -51,10 +51,10 @@ namespace json {
  * \brief A json runtime that executes the serialized JSON format. This runtime
  * can be extended by user defined runtime for execution.
  */
-class JSONRuntimeBaseObj : public ffi::ModuleObj {
+class JSONRuntimeBase : public ffi::ModuleObj {
  public:
-  JSONRuntimeBaseObj(const std::string& symbol_name, const std::string& graph_json,
-                     const ffi::Array<ffi::String> const_names)
+  JSONRuntimeBase(const std::string& symbol_name, const std::string& graph_json,
+                  const ffi::Array<ffi::String> const_names)
       : symbol_name_(symbol_name), graph_json_(graph_json), const_names_(const_names) {
     LoadGraph(graph_json_);
   }
@@ -138,7 +138,7 @@ class JSONRuntimeBaseObj : public ffi::ModuleObj {
   }
 
   template <typename T,
-            typename = typename std::enable_if<std::is_base_of<JSONRuntimeBaseObj, T>::value>::type>
+            typename = typename std::enable_if<std::is_base_of<JSONRuntimeBase, T>::value>::type>
   static ffi::Module LoadFromBytes(const ffi::Bytes& bytes) {
     support::BytesInStream stream(bytes);
     std::string symbol;

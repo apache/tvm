@@ -47,8 +47,8 @@
 // The logics are somewhat interdependent with each other.
 // To help us implement a block builder in two parts:
 //
-// - BlockBuilderImplObj: implements ctx and scope management, with no normalization.
-// - BlockBuilderImplWithNormalize: subclasses BlockBuilderImplObj and implements normalization.
+// - BlockBuilderImpl: implements ctx and scope management, with no normalization.
+// - BlockBuilderImplWithNormalize: subclasses BlockBuilderImpl and implements normalization.
 //
 // The final blockbuilder create will be backed by BlockBuilderWithNormalize
 
@@ -59,11 +59,11 @@ using namespace tvm::prim;
 //---------------------------------------
 // ctx and scope management.
 //---------------------------------------
-class BlockBuilderImplObj : public BlockBuilderObj {
+class BlockBuilderImpl : public BlockBuilderObj {
  public:
-  explicit BlockBuilderImplObj(IRModule context_mod) : context_mod_(std::move(context_mod)) {}
+  explicit BlockBuilderImpl(IRModule context_mod) : context_mod_(std::move(context_mod)) {}
 
-  ~BlockBuilderImplObj() {
+  ~BlockBuilderImpl() {
     if (!block_stack_.empty()) {
       LOG(WARNING) << "BlockBuilder destroyed with remaining blocks!";
     }
@@ -515,12 +515,12 @@ class BlockBuilderImplObj : public BlockBuilderObj {
 // - If an expr appears in Type, then it is already normalized.
 //   As a result, we do not need to peek into Type in Normalization.
 // - GenericConst, ShapeExpr, already have their Type populated in constructing time.
-class NormalizerObj : public BlockBuilderImplObj, private ExprFunctor<Expr(const Expr&)> {
+class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&)> {
  public:
-  explicit NormalizerObj(IRModule context_mod) : BlockBuilderImplObj(context_mod) {}
-  explicit NormalizerObj(IRModule context_mod,
-                         BlockBuilder::DisableOperatorSpecificNormalizationForTVMScript)
-      : BlockBuilderImplObj(context_mod), apply_f_normalize_(false) {}
+  explicit Normalizer(IRModule context_mod) : BlockBuilderImpl(context_mod) {}
+  explicit Normalizer(IRModule context_mod,
+                      BlockBuilder::DisableOperatorSpecificNormalizationForTVMScript)
+      : BlockBuilderImpl(context_mod), apply_f_normalize_(false) {}
 
   Expr Normalize(const Expr& expr) final {
     Expr normalized = this->VisitExpr(expr);
@@ -1064,13 +1064,13 @@ class NormalizerObj : public BlockBuilderImplObj, private ExprFunctor<Expr(const
 };
 
 BlockBuilder BlockBuilder::Create(ffi::Optional<IRModule> mod) {
-  ffi::ObjectPtr<BlockBuilderObj> n = ffi::make_object<NormalizerObj>(mod.value_or(IRModule()));
+  ffi::ObjectPtr<BlockBuilderObj> n = ffi::make_object<Normalizer>(mod.value_or(IRModule()));
   return BlockBuilder(ffi::UnsafeInit{}, std::move(n));
 }
 
 BlockBuilder BlockBuilder::Create(ffi::Optional<IRModule> mod,
                                   BlockBuilder::DisableOperatorSpecificNormalizationForTVMScript) {
-  ffi::ObjectPtr<BlockBuilderObj> n = ffi::make_object<NormalizerObj>(
+  ffi::ObjectPtr<BlockBuilderObj> n = ffi::make_object<Normalizer>(
       mod.value_or(IRModule()), BlockBuilder::DisableOperatorSpecificNormalizationForTVMScript());
   return BlockBuilder(ffi::UnsafeInit{}, std::move(n));
 }

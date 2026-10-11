@@ -225,12 +225,12 @@ using ffi::VisitInterrupt;
  * interrupts and errors own their values. A hook controls descent into its node.
  * One visitor must not be shared by overlapping traversals.
  */
-class TVM_DLL ObjectVisitorObj : public ffi::StructuralVisitorObj {
+class TVM_DLL ObjectVisitor : public ffi::StructuralVisitorObj {
  public:
   /*! \brief Construct a visitor using structural fallback for every value. */
-  ObjectVisitorObj() : ObjectVisitorObj(GlobalVTable()) {}
-  ObjectVisitorObj(const ObjectVisitorObj& other) = delete;
-  ObjectVisitorObj& operator=(const ObjectVisitorObj& other) = delete;
+  ObjectVisitor() : ObjectVisitor(GlobalVTable()) {}
+  ObjectVisitor(const ObjectVisitor& other) = delete;
+  ObjectVisitor& operator=(const ObjectVisitor& other) = delete;
 
   /*!
    * \brief Visit a borrowed object or inline value, throwing on failure.
@@ -272,14 +272,13 @@ class TVM_DLL ObjectVisitorObj : public ffi::StructuralVisitorObj {
 
  protected:
   /*! \brief Exact native dispatch table with owning interrupt results. */
-  using VTable =
-      ObjectFunctor<ffi::Optional<VisitInterrupt>(const ffi::Object*, ObjectVisitorObj*)>;
+  using VTable = ObjectFunctor<ffi::Optional<VisitInterrupt>(const ffi::Object*, ObjectVisitor*)>;
 
   /*!
    * \brief Construct a visitor with a finalized native dispatch table.
    * \param vtable The immutable table, which must outlive this visitor.
    */
-  explicit ObjectVisitorObj(const VTable* vtable)
+  explicit ObjectVisitor(const VTable* vtable)
       : ffi::StructuralVisitorObj(StructuralVTable()), native_vtable_(vtable) {}
   /*!
    * \brief Initialize the base registrations in a fresh mutable table.
@@ -302,8 +301,7 @@ class TVM_DLL ObjectVisitorObj : public ffi::StructuralVisitorObj {
  private:
   // Native table callback; core instantiations may be shared by the library.
   template <typename Self, typename Node>
-  static ffi::Optional<VisitInterrupt> DispatchNode(const ffi::Object* node,
-                                                    ObjectVisitorObj* self) {
+  static ffi::Optional<VisitInterrupt> DispatchNode(const ffi::Object* node, ObjectVisitor* self) {
     return static_cast<Self*>(self)->Visit_(static_cast<const Node*>(node));
   }
 
@@ -332,7 +330,7 @@ class TVM_DLL ObjectVisitorObj : public ffi::StructuralVisitorObj {
   static TVMFFIAny StructuralVTableVisitImpl(ffi::StructuralVisitorObj* self,
                                              ffi::AnyView value) noexcept {
     return ffi::details::ExpectedUnsafe::MoveToTVMFFIAny(
-        static_cast<ObjectVisitorObj*>(self)->VisitExpected(value));
+        static_cast<ObjectVisitor*>(self)->VisitExpected(value));
   }
 
   const VTable* const native_vtable_;
@@ -345,12 +343,12 @@ class TVM_DLL ObjectVisitorObj : public ffi::StructuralVisitorObj {
  * replacements and errors own their values. Overrides forward inplace_mode
  * to child calls, following the structural mutation ownership contract.
  */
-class TVM_DLL ObjectMutatorObj : public ffi::StructuralMapEngineBase {
+class TVM_DLL ObjectMutator : public ffi::StructuralMapEngineBase {
  public:
   /*! \brief Construct a mutator using structural fallback for every object. */
-  ObjectMutatorObj() : ObjectMutatorObj(GlobalVTable()) {}
-  ObjectMutatorObj(const ObjectMutatorObj& other) = delete;
-  ObjectMutatorObj& operator=(const ObjectMutatorObj& other) = delete;
+  ObjectMutator() : ObjectMutator(GlobalVTable()) {}
+  ObjectMutator(const ObjectMutator& other) = delete;
+  ObjectMutator& operator=(const ObjectMutator& other) = delete;
 
   /*!
    * \brief Mutate a borrowed value, throwing on failure.
@@ -444,13 +442,13 @@ class TVM_DLL ObjectMutatorObj : public ffi::StructuralMapEngineBase {
  protected:
   /*! \brief Exact native dispatch table with owning replacement results. */
   using VTable =
-      ObjectFunctor<UnchangedOr<ffi::Any>(const ffi::Object*, ObjectMutatorObj*, InplaceMode)>;
+      ObjectFunctor<UnchangedOr<ffi::Any>(const ffi::Object*, ObjectMutator*, InplaceMode)>;
 
   /*!
    * \brief Construct a mutator with a finalized native dispatch table.
    * \param vtable The immutable table, which must outlive this mutator.
    */
-  explicit ObjectMutatorObj(const VTable* vtable)
+  explicit ObjectMutator(const VTable* vtable)
       : ffi::StructuralMapEngineBase(StructuralVTable()), native_vtable_(vtable) {}
   /*!
    * \brief Initialize the base registrations in a fresh mutable table.
@@ -473,7 +471,7 @@ class TVM_DLL ObjectMutatorObj : public ffi::StructuralMapEngineBase {
  private:
   // Native table callback; core instantiations may be shared by the library.
   template <typename Self, typename Node>
-  static UnchangedOr<ffi::Any> DispatchNode(const ffi::Object* node, ObjectMutatorObj* self,
+  static UnchangedOr<ffi::Any> DispatchNode(const ffi::Object* node, ObjectMutator* self,
                                             InplaceMode inplace_mode) {
     return ffi::details::UnchangedOrUnsafe::MoveFromTVMFFIAny<ffi::Any>(
         ffi::details::UnchangedOrUnsafe::MoveToTVMFFIAny(
@@ -500,22 +498,22 @@ class TVM_DLL ObjectMutatorObj : public ffi::StructuralMapEngineBase {
   static TVMFFIAny StructuralVTableMutateImpl(ffi::StructuralMutatorObj* self,
                                               ffi::AnyView value) noexcept {
     return ffi::details::ExpectedUnsafe::MoveToTVMFFIAny(
-        static_cast<ObjectMutatorObj*>(self)->MutateExpected(value, InplaceMode::kDisallow));
+        static_cast<ObjectMutator*>(self)->MutateExpected(value, InplaceMode::kDisallow));
   }
   static TVMFFIAny StructuralVTableMaybeInplaceMutateImpl(ffi::StructuralMutatorObj* self,
                                                           ffi::AnyView value) noexcept {
     return ffi::details::ExpectedUnsafe::MoveToTVMFFIAny(
-        static_cast<ObjectMutatorObj*>(self)->MutateExpected(value, InplaceMode::kAllow));
+        static_cast<ObjectMutator*>(self)->MutateExpected(value, InplaceMode::kAllow));
   }
   static TVMFFIAny StructuralVTableVarRemapGetImpl(ffi::StructuralMutatorObj* self,
                                                    ffi::AnyView key) noexcept {
     return ffi::details::ExpectedUnsafe::MoveToTVMFFIAny(
-        static_cast<ObjectMutatorObj*>(self)->VarRemapGetImpl(key));
+        static_cast<ObjectMutator*>(self)->VarRemapGetImpl(key));
   }
   static TVMFFIAny StructuralVTableVarRemapSetImpl(ffi::StructuralMutatorObj* self,
                                                    ffi::AnyView key, ffi::AnyView value) noexcept {
     return ffi::details::ExpectedUnsafe::MoveToTVMFFIAny(
-        static_cast<ObjectMutatorObj*>(self)->VarRemapSetImpl(key, value));
+        static_cast<ObjectMutator*>(self)->VarRemapSetImpl(key, value));
   }
 
   const VTable* const native_vtable_;

@@ -51,15 +51,15 @@ using s_tir::meta_schedule::ModuleHash;
  *   Then we will have a ExtractedTask for all three functions, whose weight
  *   is 5 + 3 + 2 = 10.
  */
-class BlockCounterObj : public s_tir::StmtExprVisitorObj {
+class BlockCounter : public s_tir::StmtExprVisitor {
  public:
   ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
     if (value.as<tvm::ExprNode>()) return std::nullopt;
-    return s_tir::StmtExprVisitorObj::Visit(value);
+    return s_tir::StmtExprVisitor::Visit(value);
   }
 
   static size_t GetSBlockCount(const tirx::Function& func) {
-    auto counter = ffi::make_object<BlockCounterObj>();
+    auto counter = ffi::make_object<BlockCounter>();
     counter->Visit(func->body);
     return counter->count;
   }
@@ -67,7 +67,7 @@ class BlockCounterObj : public s_tir::StmtExprVisitorObj {
  private:
   ffi::Optional<VisitInterrupt> Visit_(const s_tir::SBlockNode* op) final {
     ++count;
-    return s_tir::StmtExprVisitorObj::Visit_(op);
+    return s_tir::StmtExprVisitor::Visit_(op);
   }
   size_t count{0};
 };
@@ -127,7 +127,7 @@ class TaskExtractor : public ExprVisitor {
       // count the PrinFunc number of blocks and leave only the function with the smallest number of
       // blocks. This way, "nn_conv2d_add_nn_relu" will have a smaller number of blocks than
       // "nn_conv2d_add_add_nn_relu" and will be selected to tune.
-      if (BlockCounterObj::GetSBlockCount(func) < BlockCounterObj::GetSBlockCount(alt_func)) {
+      if (BlockCounter::GetSBlockCount(func) < BlockCounter::GetSBlockCount(alt_func)) {
         weight += it->second->weight;
         func2task_.erase(it->first);
       }

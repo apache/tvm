@@ -124,7 +124,7 @@ class SocketSessionObj : public BcastSessionObj {
     } else {
       ffi::ObjectRef wrapped{nullptr};
       if (auto opt_obj = value.as<ffi::ObjectRef>()) {
-        wrapped = DiscoDebugObj::Wrap(value);
+        wrapped = DiscoDebugObject::Wrap(value);
         value = wrapped;
       }
       {

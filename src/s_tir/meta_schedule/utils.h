@@ -613,18 +613,18 @@ inline double Sum(const ffi::Array<FloatImm>& arr) {
 }
 
 /*! \brief Collecting all the blocks */
-class SBlockCollectorObj : public s_tir::StmtExprVisitorObj {
+class SBlockCollector : public s_tir::StmtExprVisitor {
  public:
-  using s_tir::StmtExprVisitorObj::Visit_;
+  using s_tir::StmtExprVisitor::Visit_;
 
   ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
     if (value.as<ExprNode>()) return std::nullopt;
-    return s_tir::StmtExprVisitorObj::Visit(value);
+    return s_tir::StmtExprVisitor::Visit(value);
   }
 
   static ffi::Array<s_tir::SBlockRV> Collect(const s_tir::Schedule& sch,
                                              const ffi::Function f_block_filter = nullptr) {  //
-    return ffi::make_object<SBlockCollectorObj>(sch, f_block_filter)->Run();
+    return ffi::make_object<SBlockCollector>(sch, f_block_filter)->Run();
   }
 
  private:
@@ -658,14 +658,13 @@ class SBlockCollectorObj : public s_tir::StmtExprVisitorObj {
   }
   /*! \brief Constructor */
  public:
-  explicit SBlockCollectorObj(const s_tir::Schedule& sch,
-                              const ffi::Function f_block_filter = nullptr)
+  explicit SBlockCollector(const s_tir::Schedule& sch, const ffi::Function f_block_filter = nullptr)
       : sch_(sch), f_block_filter_(f_block_filter) {}
 
  private:
   /*! \brief Override the Stmt visiting behaviour */
   ffi::Optional<VisitInterrupt> Visit_(const s_tir::SBlockNode* block) override {
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(s_tir::StmtExprVisitorObj::Visit_(block));
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(s_tir::StmtExprVisitor::Visit_(block));
     TVM_FFI_ICHECK(block_names_.count(block->name_hint) == 0)
         << "Duplicated block name " << block->name_hint << " in function " << func_name_
         << " not supported!";

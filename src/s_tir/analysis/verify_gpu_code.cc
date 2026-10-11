@@ -46,9 +46,9 @@ namespace s_tir {
 using namespace tvm::prim;
 using namespace tvm::tirx;
 
-class GPUCodeVerifierObj : public StmtExprVisitorObj {
+class GPUCodeVerifier : public StmtExprVisitor {
  public:
-  using StmtExprVisitorObj::Visit_;
+  using StmtExprVisitor::Visit_;
 
   std::vector<ffi::String> Verify(Stmt stmt, int64_t max_local_memory_per_block,
                                   int64_t max_shared_memory_per_block,
@@ -77,11 +77,11 @@ class GPUCodeVerifierObj : public StmtExprVisitorObj {
         call && call->op.same_as(tirx::alloc_tensor_op())) {
       return DispatchAllocTensor(op, call);
     }
-    return StmtExprVisitorObj::Visit_(op);
+    return StmtExprVisitor::Visit_(op);
   }
 
   ffi::Optional<VisitInterrupt> DispatchAllocTensor(const BindNode* op, const CallNode* call) {
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitorObj::Visit_(op));
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     tvm::Tuple shape = tvm::Tuple(call->ty_args[0].as_or_throw<TensorType>()->shape);
     DLDataType dtype = call->ty_args[0].as_or_throw<TensorType>()->dtype->dtype;
     ffi::String scope = call->ty_args[0].as_or_throw<TensorType>()->storage_scope;
@@ -182,7 +182,7 @@ class GPUCodeVerifierObj : public StmtExprVisitorObj {
       }
 
       nest_level_++;
-      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitorObj::Visit_(op));
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
       nest_level_--;
       active_virtual_extent_ = previous_virtual_extent;
 
@@ -208,7 +208,7 @@ class GPUCodeVerifierObj : public StmtExprVisitorObj {
         }
       }
     } else {
-      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitorObj::Visit_(op));
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     }
     return std::nullopt;
   }
@@ -227,7 +227,7 @@ class GPUCodeVerifierObj : public StmtExprVisitorObj {
       }
     }
 
-    return StmtExprVisitorObj::Visit_(op);
+    return StmtExprVisitor::Visit_(op);
   }
 
   void CheckTensorIndicesVectorizable(const ffi::Array<PrimExpr> indices) {
@@ -257,7 +257,7 @@ class GPUCodeVerifierObj : public StmtExprVisitorObj {
         errors_.push_back(s.str());
       }
     }
-    return StmtExprVisitorObj::Visit_(op);
+    return StmtExprVisitor::Visit_(op);
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* op) {
@@ -272,7 +272,7 @@ class GPUCodeVerifierObj : public StmtExprVisitorObj {
       }
       CheckTensorIndicesVectorizable(op->indices);
     }
-    return StmtExprVisitorObj::Visit_(op);
+    return StmtExprVisitor::Visit_(op);
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const TensorStoreNode* op) {
@@ -287,7 +287,7 @@ class GPUCodeVerifierObj : public StmtExprVisitorObj {
       }
       CheckTensorIndicesVectorizable(op->indices);
     }
-    return StmtExprVisitorObj::Visit_(op);
+    return StmtExprVisitor::Visit_(op);
   }
 
  private:
@@ -329,7 +329,7 @@ class GPUCodeVerifierObj : public StmtExprVisitorObj {
 
 std::vector<ffi::String> VerifyGPUCode_(const Function& func,
                                         ffi::Map<ffi::String, PrimExpr> constraints) {
-  auto verifier = ffi::make_object<GPUCodeVerifierObj>();
+  auto verifier = ffi::make_object<GPUCodeVerifier>();
 
   int64_t max_local_memory_per_block = INT64_MAX;
   int64_t max_shared_memory_per_block = INT64_MAX;

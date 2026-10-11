@@ -25,11 +25,11 @@ namespace s_tir {
 using namespace tvm::tirx;
 
 /*! \brief Check if an IRModule has any dynamic loop. */
-struct DynamicExtentFinderObj : public StmtExprVisitorObj {
-  using StmtExprVisitorObj::Visit_;
+struct DynamicExtentFinder : public StmtExprVisitor {
+  using StmtExprVisitor::Visit_;
 
   static bool Find(const IRModule& mod) {
-    auto finder = ffi::make_object<DynamicExtentFinderObj>();
+    auto finder = ffi::make_object<DynamicExtentFinder>();
     for (const auto& kv : mod->functions) {
       const BaseFunc& func = kv.second;
       if (const auto* function = func.as<FunctionNode>()) {
@@ -47,7 +47,7 @@ struct DynamicExtentFinderObj : public StmtExprVisitorObj {
     if (!loop->extent->IsInstance<IntImmNode>()) {
       found_ = true;
     } else {
-      return StmtExprVisitorObj::Visit_(loop);
+      return StmtExprVisitor::Visit_(loop);
     }
     return std::nullopt;
   }
@@ -55,7 +55,7 @@ struct DynamicExtentFinderObj : public StmtExprVisitorObj {
   ffi::Optional<VisitInterrupt> Visit(ffi::AnyView stmt) final {
     if (stmt.as<ExprNode>()) return std::nullopt;
     if (!found_) {
-      return StmtExprVisitorObj::Visit(stmt);
+      return StmtExprVisitor::Visit(stmt);
     }
     return std::nullopt;
   }
@@ -75,7 +75,7 @@ class DisallowDynamicLoopObj : public PostprocObj {
   void InitializeWithTuneContext(const TuneContext& context) final {}
   // Inherited from PostprocObj
   bool Apply(const s_tir::Schedule& sch) final {
-    return !s_tir::DynamicExtentFinderObj::Find(sch->mod());
+    return !s_tir::DynamicExtentFinder::Find(sch->mod());
   }
   // Inherited from PostprocObj
   Postproc Clone() const {

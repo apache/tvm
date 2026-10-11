@@ -267,14 +267,13 @@ class NPUQuantizationEngine {
 /*!
  * \brief Example NPU runtime implementation with architectural concepts
  */
-class ExampleNPURuntimeObj : public JSONRuntimeBaseObj {
+class ExampleNPURuntime : public JSONRuntimeBase {
  public:
-  ExampleNPURuntimeObj(const std::string& symbol_name, const std::string& graph_json,
-                       const ffi::Array<ffi::String> const_names)
-      : JSONRuntimeBaseObj(symbol_name, graph_json, const_names),
-        power_mode_(PowerMode::BALANCED) {}
+  ExampleNPURuntime(const std::string& symbol_name, const std::string& graph_json,
+                    const ffi::Array<ffi::String> const_names)
+      : JSONRuntimeBase(symbol_name, graph_json, const_names), power_mode_(PowerMode::BALANCED) {}
 
-  ~ExampleNPURuntimeObj() = default;
+  ~ExampleNPURuntime() = default;
 
   const char* kind() const override { return "example_npu_json"; }
 
@@ -642,7 +641,7 @@ class ExampleNPURuntimeObj : public JSONRuntimeBaseObj {
  */
 ffi::Module ExampleNPURuntimeCreate(const ffi::String& symbol_name, const ffi::String& graph_json,
                                     const ffi::Array<ffi::String>& const_names) {
-  auto n = tvm::ffi::make_object<ExampleNPURuntimeObj>(symbol_name, graph_json, const_names);
+  auto n = tvm::ffi::make_object<ExampleNPURuntime>(symbol_name, graph_json, const_names);
   return ffi::Module(n);
 }
 
@@ -651,7 +650,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef()
       .def("runtime.ExampleNPUJSONRuntimeCreate", ExampleNPURuntimeCreate)
       .def("ffi.Module.load_from_bytes.example_npu_json",
-           JSONRuntimeBaseObj::LoadFromBytes<ExampleNPURuntimeObj>);
+           JSONRuntimeBase::LoadFromBytes<ExampleNPURuntime>);
 }
 
 }  // namespace contrib

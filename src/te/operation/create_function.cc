@@ -55,7 +55,7 @@ namespace {
 
 // Only SBlock.iter_vars entries have the retained axis-metadata role. Walk their
 // fields explicitly so opaque values in domains, types or annotations remain errors.
-class OpaqueArtifactVerifierObj : public ObjectVisitorObj {
+class OpaqueArtifactVerifier : public ObjectVisitor {
  public:
   ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) final {
     if (const auto* block = value.as<s_tir::SBlockNode>()) {
@@ -83,24 +83,24 @@ class OpaqueArtifactVerifierObj : public ObjectVisitorObj {
       TVM_FFI_THROW(InternalError)
           << "CreateFunction produced construction-only opaque artifact ir.OpaqueType";
     }
-    return ObjectVisitorObj::Visit(value);
+    return ObjectVisitor::Visit(value);
   }
 };
 
 void VerifyNoOpaqueArtifacts(const Function& func) {
-  ffi::make_object<OpaqueArtifactVerifierObj>()->Visit(func);
+  ffi::make_object<OpaqueArtifactVerifier>()->Visit(func);
 }
 
 }  // namespace
 
 /*! \brief The helper mutator that transforms Tensor-callee Calls to TensorLoad. */
-class TensorLoadToTensorTransformerObj : public s_tir::StmtExprMutatorObj {
+class TensorLoadToTensorTransformer : public s_tir::StmtExprMutator {
  public:
-  using s_tir::StmtExprMutatorObj::Mutate_;
+  using s_tir::StmtExprMutator::Mutate_;
 
-  explicit TensorLoadToTensorTransformerObj(
+  explicit TensorLoadToTensorTransformer(
       const std::unordered_map<te::Tensor, TensorVar>& tensor2tensors)
-      : s_tir::StmtExprMutatorObj(VTableInstance()), tensor2tensors_(tensor2tensors) {}
+      : s_tir::StmtExprMutator(VTableInstance()), tensor2tensors_(tensor2tensors) {}
 
   TensorVar NormalizeTensorType(const TensorVar& tensor) {
     auto type = Mutate(tensor.var()->ty).ValueOrUnchanged(tensor.var()->ty).cast<TensorType>();
@@ -127,7 +127,7 @@ class TensorLoadToTensorTransformerObj : public s_tir::StmtExprMutatorObj {
     const auto* reduce =
         op->IsInstance<te::ReduceNode>() ? static_cast<const te::ReduceNode*>(op) : nullptr;
     if (reduce == nullptr) {
-      return s_tir::StmtExprMutatorObj::Mutate_(op, inplace_mode);
+      return s_tir::StmtExprMutator::Mutate_(op, inplace_mode);
     }
 
     auto axis =
@@ -154,7 +154,7 @@ class TensorLoadToTensorTransformerObj : public s_tir::StmtExprMutatorObj {
   }
 
   UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) final {
-    Call call = s_tir::StmtExprMutatorObj::Mutate_(op, inplace_mode)
+    Call call = s_tir::StmtExprMutator::Mutate_(op, inplace_mode)
                     .ValueOrUnchanged(ffi::GetRef<Expr>(op))
                     .as_or_throw<Call>();
     if (!te::IsTensorLoad(call)) {
@@ -171,9 +171,9 @@ class TensorLoadToTensorTransformerObj : public s_tir::StmtExprMutatorObj {
   static const VTable* VTableInstance() {
     static const VTable table = [] {
       VTable table;
-      s_tir::StmtExprMutatorObj::InitVTable(&table);
-      SetDispatch<TensorLoadToTensorTransformerObj, s_tir::IterVarNode>(&table);
-      SetDispatch<TensorLoadToTensorTransformerObj, te::ReduceNode>(&table);
+      s_tir::StmtExprMutator::InitVTable(&table);
+      SetDispatch<TensorLoadToTensorTransformer, s_tir::IterVarNode>(&table);
+      SetDispatch<TensorLoadToTensorTransformer, te::ReduceNode>(&table);
       table.Finalize();
       return table;
     }();
@@ -184,10 +184,10 @@ class TensorLoadToTensorTransformerObj : public s_tir::StmtExprMutatorObj {
 };
 
 /*! \brief The helper mutator to rewrite tensor and tensor var accessed by block body */
-class TensorSubstituterObj : public s_tir::StmtExprMutatorObj {
+class TensorSubstituter : public s_tir::StmtExprMutator {
  public:
-  explicit TensorSubstituterObj(const std::unordered_map<const VarNode*, Expr>& var_map,
-                                const std::unordered_map<const VarNode*, TensorVar>& tensor_map) {
+  explicit TensorSubstituter(const std::unordered_map<const VarNode*, Expr>& var_map,
+                             const std::unordered_map<const VarNode*, TensorVar>& tensor_map) {
     for (const auto& [source, target] : tensor_map) {
       VarRemapSet(ffi::AnyView(source), target);
     }
@@ -204,7 +204,7 @@ struct CreateFuncInfo {
   /*! \brief The map from each Tensor to its corresponding tensor. */
   std::unordered_map<te::Tensor, TensorVar> tensor2tensors;
   /*! \brief The transformer from Tensor-callee Calls to TensorLoad. */
-  ffi::ObjectPtr<TensorLoadToTensorTransformerObj> transformer;
+  ffi::ObjectPtr<TensorLoadToTensorTransformer> transformer;
   /*! \brief The tensors should be allocated at function root. */
   ffi::Array<TensorVar> root_alloc;
   /*! \brief The unique name supply to make block name unique. */
@@ -214,7 +214,7 @@ struct CreateFuncInfo {
 
   explicit CreateFuncInfo(ffi::Array<te::Tensor> arg_list)
       : arg_list(std::move(arg_list)),
-        transformer(ffi::make_object<TensorLoadToTensorTransformerObj>(tensor2tensors)) {}
+        transformer(ffi::make_object<TensorLoadToTensorTransformer>(tensor2tensors)) {}
 
   bool IsArg(const te::Tensor& tensor) const {
     return std::any_of(arg_list.begin(), arg_list.end(),
@@ -222,12 +222,12 @@ struct CreateFuncInfo {
   }
 };
 
-class LayoutFreePlaceholdersNormalizerObj : public s_tir::StmtExprMutatorObj {
+class LayoutFreePlaceholdersNormalizer : public s_tir::StmtExprMutator {
  public:
-  using s_tir::StmtExprMutatorObj::Mutate;
+  using s_tir::StmtExprMutator::Mutate;
   UnchangedOr<ffi::Any> Mutate(ffi::AnyView value, InplaceMode inplace_mode) final {
     if (value.as<ExprNode>()) return ffi::Unchanged();
-    return s_tir::StmtExprMutatorObj::Mutate(value, inplace_mode);
+    return s_tir::StmtExprMutator::Mutate(value, inplace_mode);
   }
 
   Function Process(Function func) {
@@ -250,7 +250,7 @@ class LayoutFreePlaceholdersNormalizerObj : public s_tir::StmtExprMutatorObj {
   }
 
   UnchangedOr<Stmt> Mutate_(const s_tir::SBlockNode* _block, InplaceMode inplace_mode) final {
-    s_tir::SBlock block = s_tir::StmtExprMutatorObj::Mutate_(_block, inplace_mode)
+    s_tir::SBlock block = s_tir::StmtExprMutator::Mutate_(_block, inplace_mode)
                               .ValueOrUnchanged(ffi::GetRef<Stmt>(_block))
                               .as_or_throw<s_tir::SBlock>();
     s_tir::SBlockNode* n = block.CopyOnWrite();
@@ -796,12 +796,12 @@ Stmt GenerateStmtFromExternOp(const te::ExternOp& extern_op, CreateFuncInfo* inf
   // becomes the root s_tir::SBlock of the function, and should not have
   // reads/writes filled in.
 
-  auto substituter = ffi::make_object<TensorSubstituterObj>(var_map, input_tensor_map);
+  auto substituter = ffi::make_object<TensorSubstituter>(var_map, input_tensor_map);
   Stmt lowered_body = info->transformer->Mutate(extern_op->body).ValueOrUnchanged(extern_op->body);
   Stmt substituted_body =
       substituter->Mutate(lowered_body, InplaceMode::kDisallow).ValueOrUnchanged(lowered_body);
 
-  auto transformer = ffi::make_object<TensorLoadToTensorTransformerObj>(info->tensor2tensors);
+  auto transformer = ffi::make_object<TensorLoadToTensorTransformer>(info->tensor2tensors);
   Stmt body = transformer->Mutate(substituted_body, InplaceMode::kDisallow)
                   .ValueOrUnchanged(substituted_body);
 
@@ -934,10 +934,10 @@ Function CreateFunction(const ffi::Array<te::Tensor>& arg_list,
   // Step 4. Create and complete the function.
   auto func = GenerateAndCompleteFunction(arg_list, root_stmts, &info);
   if (index_dtype_override.has_value()) {
-    func = ffi::make_object<s_tir::IndexDataTypeNormalizerObj>(index_dtype_override.value())
+    func = ffi::make_object<s_tir::IndexDataTypeNormalizer>(index_dtype_override.value())
                ->Rewrite(std::move(func));
   }
-  auto result = ffi::make_object<LayoutFreePlaceholdersNormalizerObj>()->Process(std::move(func));
+  auto result = ffi::make_object<LayoutFreePlaceholdersNormalizer>()->Process(std::move(func));
   VerifyNoOpaqueArtifacts(result);
   return result;
 }
@@ -1011,10 +1011,10 @@ Function CreateFunction(const ffi::Array<ffi::ObjectRef>& arg_list,
   }
   auto func = GenerateAndCompleteFunction(arg_list, root_stmts, &info);
   if (index_dtype_override.has_value()) {
-    func = ffi::make_object<s_tir::IndexDataTypeNormalizerObj>(index_dtype_override.value())
+    func = ffi::make_object<s_tir::IndexDataTypeNormalizer>(index_dtype_override.value())
                ->Rewrite(std::move(func));
   }
-  auto result = ffi::make_object<LayoutFreePlaceholdersNormalizerObj>()->Process(std::move(func));
+  auto result = ffi::make_object<LayoutFreePlaceholdersNormalizer>()->Process(std::move(func));
   VerifyNoOpaqueArtifacts(result);
   return result;
 }

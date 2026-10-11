@@ -30,21 +30,21 @@ TVM_FFI_STATIC_INIT_BLOCK() { SBlockDependenceInfoObj::RegisterReflection(); }
 /**
  * @brief A helper class to collect and build s_tir::SBlock Dependences using SBlockScope class
  */
-class SBlockDependenceInfoCollectorObj : public s_tir::StmtExprVisitorObj {
+class SBlockDependenceInfoCollector : public s_tir::StmtExprVisitor {
  public:
-  using s_tir::StmtExprVisitorObj::Visit_;
+  using s_tir::StmtExprVisitor::Visit_;
 
   ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
     if (value.as<ExprNode>()) return std::nullopt;
-    return s_tir::StmtExprVisitorObj::Visit(value);
+    return s_tir::StmtExprVisitor::Visit(value);
   }
 
   static void Collect(SBlockDependenceInfoObj* self, const Stmt& stmt) {
-    auto collector = ffi::make_object<SBlockDependenceInfoCollectorObj>(self);
+    auto collector = ffi::make_object<SBlockDependenceInfoCollector>(self);
     collector->Visit(stmt);
   }
 
-  explicit SBlockDependenceInfoCollectorObj(SBlockDependenceInfoObj* self)
+  explicit SBlockDependenceInfoCollector(SBlockDependenceInfoObj* self)
       : self_(self), block_frames_{} {
     block_frames_.emplace_back();
   }
@@ -70,7 +70,7 @@ class SBlockDependenceInfoCollectorObj : public s_tir::StmtExprVisitorObj {
 
   ffi::Optional<VisitInterrupt> Visit_(const SeqStmtNode* seq_stmt) final {
     // Set `seq_index` information for SeqStmtNode
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(s_tir::StmtExprVisitorObj::Visit_(seq_stmt));
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(s_tir::StmtExprVisitor::Visit_(seq_stmt));
     SetSeqIndexInChildren(self_->stmt2ref, seq_stmt, false);
     return std::nullopt;
   }
@@ -87,14 +87,14 @@ SBlockDependenceInfo::SBlockDependenceInfo() {
 SBlockDependenceInfo::SBlockDependenceInfo(IRModule mod) {
   ffi::ObjectPtr<SBlockDependenceInfoObj> n = ffi::make_object<SBlockDependenceInfoObj>();
   SBlockDependenceInfoObj* self = n.get();
-  n->stmt2ref = SRefTreeCreatorObj::Create(mod, /* include_loops */ false);
+  n->stmt2ref = SRefTreeCreator::Create(mod, /* include_loops */ false);
 
   for (const auto& kv : mod->functions) {
     const BaseFunc& base_func = kv.second;
     if (auto opt = base_func.as<Function>()) {
       auto func = opt.value();
       if (func->body.has_value()) {
-        SBlockDependenceInfoCollectorObj::Collect(self, func->body.value());
+        SBlockDependenceInfoCollector::Collect(self, func->body.value());
       }
     }
   }

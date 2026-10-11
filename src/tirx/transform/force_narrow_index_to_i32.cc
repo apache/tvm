@@ -33,19 +33,19 @@
 namespace tvm {
 namespace tirx {
 
-class Int32DTypeNarrowerObj : public Int32DTypeNarrowerBaseObj<IndexDataTypeNormalizerObj> {
+class Int32DTypeNarrower : public Int32DTypeNarrowerBase<IndexDataTypeNormalizer> {
  public:
   static Function RewriteDataType(Function func) {
     CheckTensorParams(func);
-    auto narrower = ffi::make_object<Int32DTypeNarrowerObj>(func);
+    auto narrower = ffi::make_object<Int32DTypeNarrower>(func);
     return narrower->Rewrite(func);
   }
 
-  explicit Int32DTypeNarrowerObj(Function func) : Int32DTypeNarrowerBaseObj(std::move(func)) {}
+  explicit Int32DTypeNarrower(Function func) : Int32DTypeNarrowerBase(std::move(func)) {}
 };
 
 Function ForceNarrowIndexToInt32(Function func) {
-  return Int32DTypeNarrowerObj::RewriteDataType(func);
+  return Int32DTypeNarrower::RewriteDataType(func);
 }
 
 namespace transform {

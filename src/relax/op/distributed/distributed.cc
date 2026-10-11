@@ -40,23 +40,23 @@ namespace tvm {
 namespace relax {
 using namespace tvm::prim;
 
-void DistributionAttrsNode::RegisterReflection() {
+void DistributionAttrs::RegisterReflection() {
   namespace refl = tvm::ffi::reflection;
-  refl::ObjectDef<DistributionAttrsNode>()
-      .def_ro("device_mesh", &DistributionAttrsNode::device_mesh,
+  refl::ObjectDef<DistributionAttrs>()
+      .def_ro("device_mesh", &DistributionAttrs::device_mesh,
               "The device mesh of a tensor's distribution plan")
-      .def_ro("placement", &DistributionAttrsNode::placement,
+      .def_ro("placement", &DistributionAttrs::placement,
               "The placement of a tensor's distribution plan");
 }
 
-TVM_FFI_STATIC_INIT_BLOCK() { DistributionAttrsNode::RegisterReflection(); }
+TVM_FFI_STATIC_INIT_BLOCK() { DistributionAttrs::RegisterReflection(); }
 
 /* relax.dist.annotate_sharding */
 
 Expr annotate_sharding(Expr input, distributed::DeviceMesh device_mesh,
                        distributed::Placement placement) {
-  ffi::ObjectPtr<DistributionAttrsNode> attrs =
-      ffi::make_object<DistributionAttrsNode>(device_mesh, placement);
+  ffi::ObjectPtr<DistributionAttrs> attrs =
+      ffi::make_object<DistributionAttrs>(device_mesh, placement);
 
   static const Op op = Op::Get("relax.dist.annotate_sharding");
   return Call(Type::Missing(), op, {std::move(input)}, Attrs(attrs), {});
@@ -73,7 +73,7 @@ Type InferTypeAnnotateSharding(const Call& call, const BlockBuilder& ctx) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.dist.annotate_sharding")
-      .signature(sig::arg("input", "The input tensor."), sig::call_attrs<DistributionAttrsNode>())
+      .signature(sig::arg("input", "The input tensor."), sig::call_attrs<DistributionAttrs>())
       .set_attr<FInferTypeWithBuilder>(tvm::relax::op_attr::kInferTypeWithBuilder,
                                        InferTypeAnnotateSharding)
       .set_attr<FInferTypeWithBuilder>(tvm::relax::distributed::op_attr::kInferTypeWithBuilder,
@@ -85,8 +85,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 Expr redistribute(Expr input, distributed::DeviceMesh device_mesh,
                   distributed::Placement placement) {
-  ffi::ObjectPtr<DistributionAttrsNode> attrs =
-      ffi::make_object<DistributionAttrsNode>(device_mesh, placement);
+  ffi::ObjectPtr<DistributionAttrs> attrs =
+      ffi::make_object<DistributionAttrs>(device_mesh, placement);
 
   static const Op op = Op::Get("relax.dist.redistribute");
   return Call(Type::Missing(), op, {std::move(input)}, Attrs(attrs), {});
@@ -98,7 +98,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 Type InferDistTypeRedistribute(const Call& call, const BlockBuilder& ctx) {
-  const auto* attrs = call->attrs.as<DistributionAttrsNode>();
+  const auto* attrs = call->attrs.as<DistributionAttrs>();
   const auto* ty = GetTypeAs<distributed::DTensorTypeNode>(call->args[0]);
   TVM_FFI_ICHECK(ty);
   return distributed::DTensorType(ty->tensor_ty, attrs->device_mesh, attrs->placement);
@@ -106,7 +106,7 @@ Type InferDistTypeRedistribute(const Call& call, const BlockBuilder& ctx) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.dist.redistribute")
-      .signature(sig::arg("input", "The input tensor."), sig::call_attrs<DistributionAttrsNode>())
+      .signature(sig::arg("input", "The input tensor."), sig::call_attrs<DistributionAttrs>())
       .set_attr<FInferTypeWithBuilder>(tvm::relax::distributed::op_attr::kInferTypeWithBuilder,
                                        InferDistTypeRedistribute)
       .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
@@ -162,7 +162,7 @@ Type InferTypeRtoS(const Call& call, const BlockBuilder& ctx) {
   TensorType input_ty = GetUnaryInputTensorType(call, ctx);
   ffi::Optional<PrimType> output_dtype = input_ty->dtype;
 
-  const auto* attrs = call->attrs.as<ScatterCollectiveAttrsNode>();
+  const auto* attrs = call->attrs.as<ScatterCollectiveAttrs>();
   int num_workers = attrs->num_workers;
 
   sym::Analyzer analyzer = ctx->GetAnalyzer();
@@ -191,7 +191,7 @@ Type InferDistTypeRtoS(const Call& call, const BlockBuilder& ctx) {
   TVM_FFI_ICHECK(input_dtensor_tys.size() == 1);
   DTensorType input_dtensor_ty = input_dtensor_tys[0];
   TensorType tensor_ty = input_dtensor_ty->tensor_ty;
-  const auto* attrs = call->attrs.as<ScatterCollectiveAttrsNode>();
+  const auto* attrs = call->attrs.as<ScatterCollectiveAttrs>();
   int num_workers = attrs->num_workers;
   sym::Analyzer analyzer = ctx->GetAnalyzer();
   auto input_shape = tensor_ty->GetShape();
@@ -217,7 +217,7 @@ Type InferDistTypeRtoS(const Call& call, const BlockBuilder& ctx) {
 }
 
 Expr redistribute_replica_to_shard(Expr input, int num_workers, int axis) {
-  ffi::ObjectPtr<ScatterCollectiveAttrsNode> attrs = ffi::make_object<ScatterCollectiveAttrsNode>();
+  ffi::ObjectPtr<ScatterCollectiveAttrs> attrs = ffi::make_object<ScatterCollectiveAttrs>();
   attrs->num_workers = std::move(num_workers);
   attrs->axis = std::move(axis);
   static const Op op = Op::Get("relax.dist.redistribute_replica_to_shard");
@@ -232,7 +232,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
   OpDef("relax.dist.redistribute_replica_to_shard")
       .signature(sig::arg("input", "The buffer to be sliced."),
-                 sig::call_attrs<ScatterCollectiveAttrsNode>())
+                 sig::call_attrs<ScatterCollectiveAttrs>())
       .set_attr<FInferTypeWithBuilder>(tvm::relax::op_attr::kInferTypeWithBuilder, InferTypeRtoS)
       .set_attr<FInferTypeWithBuilder>(tvm::relax::distributed::op_attr::kInferTypeWithBuilder,
                                        InferDistTypeRtoS)

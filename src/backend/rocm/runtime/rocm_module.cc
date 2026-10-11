@@ -79,7 +79,7 @@ class ROCMModuleObj : public ffi::ModuleObj {
     // Format: [fmt][fmap][code].  Source map is in-memory inspection only and
     // is NEVER serialized — it is lost on save/load round-trip (matches
     // upstream behavior; the receiver rebuilds source from code bytes if
-    // possible).  ROCmFallbackModuleNode::SaveToBytes (in
+    // possible).  ROCmFallbackModuleObj::SaveToBytes (in
     // src/target/rocm/rocm_fallback_module.cc) MUST mirror this format
     // byte-for-byte; see one-way comment there.
     std::string result;

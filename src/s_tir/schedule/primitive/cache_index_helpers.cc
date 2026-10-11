@@ -42,11 +42,11 @@
 namespace tvm {
 namespace tirx {
 
-// cache_ is a static variable of the class ComputationsDoneByObj, and C++ requires to define here
+// cache_ is a static variable of the class ComputationsDoneBy, and C++ requires to define here
 // such static attribute, otherwise it causes a linking error.
-ComputationCache ComputationsDoneByObj::cache_;
+ComputationCache ComputationsDoneBy::cache_;
 
-/* ********************************** Class ComputationsDoneByObj **********************************
+/* ********************************** Class ComputationsDoneBy **********************************
 *********************************************************************************************** */
 
 /*!
@@ -147,7 +147,7 @@ ComputationTable BuildTableForThreeChildrenNode(const ComputationTable& table_ch
 /*!
  * \brief Toplevel (static) method for a PrimExpr
  */
-ComputationTable ComputationsDoneByObj::GetComputationsDoneBy(
+ComputationTable ComputationsDoneBy::GetComputationsDoneBy(
     const PrimExpr& expr, std::function<bool(const PrimExpr&)> is_eligible_computation,
     std::function<bool(const PrimExpr&)> can_contain_computations) {
   if (expr.as<IntImmNode>() != nullptr || expr.as<FloatImmNode>() != nullptr ||
@@ -161,7 +161,7 @@ ComputationTable ComputationsDoneByObj::GetComputationsDoneBy(
   }
 
   auto computations_done_by =
-      ffi::make_object<ComputationsDoneByObj>(is_eligible_computation, can_contain_computations);
+      ffi::make_object<ComputationsDoneBy>(is_eligible_computation, can_contain_computations);
   computations_done_by->Visit(expr);
   cache_.cache_expr_table_computations_[expr] = computations_done_by->table_of_computations_;
 
@@ -171,7 +171,7 @@ ComputationTable ComputationsDoneByObj::GetComputationsDoneBy(
 /*!
  * \brief Toplevel (static) method for a Stmt
  */
-ComputationTable ComputationsDoneByObj::GetComputationsDoneBy(
+ComputationTable ComputationsDoneBy::GetComputationsDoneBy(
     const Stmt& stmt, std::function<bool(const PrimExpr&)> is_eligible_computation,
     std::function<bool(const PrimExpr&)> can_contain_computations) {
   auto it_table_stmt = cache_.cache_stmt_table_computations_.find(stmt);
@@ -180,7 +180,7 @@ ComputationTable ComputationsDoneByObj::GetComputationsDoneBy(
   }
 
   auto computations_done_by =
-      ffi::make_object<ComputationsDoneByObj>(is_eligible_computation, can_contain_computations);
+      ffi::make_object<ComputationsDoneBy>(is_eligible_computation, can_contain_computations);
   computations_done_by->Visit(stmt);
   cache_.cache_stmt_table_computations_[stmt] = computations_done_by->table_of_computations_;
 
@@ -188,9 +188,9 @@ ComputationTable ComputationsDoneByObj::GetComputationsDoneBy(
 }
 
 /*!
- * \brief Constructor of ComputationsDoneByObj.
+ * \brief Constructor of ComputationsDoneBy.
  */
-ComputationsDoneByObj::ComputationsDoneByObj(
+ComputationsDoneBy::ComputationsDoneBy(
     std::function<bool(const PrimExpr&)> is_eligible_computation,
     std::function<bool(const PrimExpr&)> can_contain_computations)
     : is_eligible_computation_(is_eligible_computation),
@@ -199,7 +199,7 @@ ComputationsDoneByObj::ComputationsDoneByObj(
 /*!
  * \brief Dispatch expressions and statements through one intercepted entry
  */
-ffi::Optional<VisitInterrupt> ComputationsDoneByObj::Visit(ffi::AnyView expr_value) {
+ffi::Optional<VisitInterrupt> ComputationsDoneBy::Visit(ffi::AnyView expr_value) {
   if (auto stmt = expr_value.as<Stmt>()) {
     auto it_table_stmt = cache_.cache_stmt_table_computations_.find(stmt.value());
     if (it_table_stmt != cache_.cache_stmt_table_computations_.end()) {
@@ -215,7 +215,7 @@ ffi::Optional<VisitInterrupt> ComputationsDoneByObj::Visit(ffi::AnyView expr_val
 
   auto opt_expr = expr_value.as<PrimExpr>();
   if (!opt_expr) {
-    return s_tir::StmtExprVisitorObj::Visit(expr_value);
+    return s_tir::StmtExprVisitor::Visit(expr_value);
   }
   PrimExpr expr = opt_expr.value();
   if (expr.as<IntImmNode>() != nullptr || expr.as<FloatImmNode>() != nullptr ||
@@ -246,7 +246,7 @@ ffi::Optional<VisitInterrupt> ComputationsDoneByObj::Visit(ffi::AnyView expr_val
 /*!
  * \brief The method which overrides the specific treatment for an IfNode
  */
-ffi::Optional<VisitInterrupt> ComputationsDoneByObj::Visit_(const IfNode* op) {
+ffi::Optional<VisitInterrupt> ComputationsDoneBy::Visit_(const IfNode* op) {
   TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->condition));
   ComputationTable computations_done_by_cond = table_of_computations_;
   table_of_computations_.clear();
@@ -273,7 +273,7 @@ ffi::Optional<VisitInterrupt> ComputationsDoneByObj::Visit_(const IfNode* op) {
 /*!
  * \brief The method which overrides the specific treatment for a ForNode
  */
-ffi::Optional<VisitInterrupt> ComputationsDoneByObj::Visit_(const ForNode* op) {
+ffi::Optional<VisitInterrupt> ComputationsDoneBy::Visit_(const ForNode* op) {
   TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->min));
   ComputationTable computations_done_by_min = table_of_computations_;
   table_of_computations_.clear();
@@ -298,7 +298,7 @@ ffi::Optional<VisitInterrupt> ComputationsDoneByObj::Visit_(const ForNode* op) {
 /*!
  * \brief The method which overrides the specific treatment for a WhileNode
  */
-ffi::Optional<VisitInterrupt> ComputationsDoneByObj::Visit_(const WhileNode* op) {
+ffi::Optional<VisitInterrupt> ComputationsDoneBy::Visit_(const WhileNode* op) {
   TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->condition));
   ComputationTable computations_done_by_condition = table_of_computations_;
   table_of_computations_.clear();
@@ -318,12 +318,12 @@ ffi::Optional<VisitInterrupt> ComputationsDoneByObj::Visit_(const WhileNode* op)
 /*!
  * \brief Static method that returns the computations done by the children of an expression.
  */
-ComputationTable ComputationsDoneByObj::ComputationsDoneByChildrenOf(
+ComputationTable ComputationsDoneBy::ComputationsDoneByChildrenOf(
     const PrimExpr& expr, std::function<bool(const PrimExpr&)> is_eligible_computation,
     std::function<bool(const PrimExpr&)> can_contain_computations) {
   auto computations_done_by =
-      ffi::make_object<ComputationsDoneByObj>(is_eligible_computation, can_contain_computations);
-  computations_done_by->s_tir::StmtExprVisitorObj::Visit(expr);
+      ffi::make_object<ComputationsDoneBy>(is_eligible_computation, can_contain_computations);
+  computations_done_by->s_tir::StmtExprVisitor::Visit(expr);
   cache_.cache_expr_table_computations_[expr] = computations_done_by->table_of_computations_;
 
   return computations_done_by->table_of_computations_;
@@ -332,47 +332,47 @@ ComputationTable ComputationsDoneByObj::ComputationsDoneByChildrenOf(
 /*!
  * \brief Static method that returns the computations done by the children of a statement.
  */
-ComputationTable ComputationsDoneByObj::ComputationsDoneByChildrenOf(
+ComputationTable ComputationsDoneBy::ComputationsDoneByChildrenOf(
     const Stmt& stmt, std::function<bool(const PrimExpr&)> is_eligible_computation,
     std::function<bool(const PrimExpr&)> can_contain_computations) {
   auto computations_done_by =
-      ffi::make_object<ComputationsDoneByObj>(is_eligible_computation, can_contain_computations);
-  computations_done_by->s_tir::StmtExprVisitorObj::Visit(stmt);
+      ffi::make_object<ComputationsDoneBy>(is_eligible_computation, can_contain_computations);
+  computations_done_by->s_tir::StmtExprVisitor::Visit(stmt);
   cache_.cache_stmt_table_computations_[stmt] = computations_done_by->table_of_computations_;
 
   return computations_done_by->table_of_computations_;
 }
 
-/* *********************************** Class DirectSubexprObj **************************************
+/* *********************************** Class DirectSubexpr **************************************
 *********************************************************************************************** */
 
 /*!
  * \brief Toplevel (static) function that returns the direct subexpressions of a given expression
  */
-std::vector<PrimExpr> DirectSubexprObj::GetDirectSubexpressions(
+std::vector<PrimExpr> DirectSubexpr::GetDirectSubexpressions(
     const PrimExpr& expr, std::function<bool(const PrimExpr&)> is_eligible_computation,
     std::function<bool(const PrimExpr&)> can_contain_computations) {
   auto direct_subexpr =
-      ffi::make_object<DirectSubexprObj>(is_eligible_computation, can_contain_computations);
+      ffi::make_object<DirectSubexpr>(is_eligible_computation, can_contain_computations);
   direct_subexpr->Visit(expr);
 
   return direct_subexpr->direct_subexpr_;
 }
 
 /*!
- * \brief Constructor of DirectSubexprObj.
+ * \brief Constructor of DirectSubexpr.
  */
-DirectSubexprObj::DirectSubexprObj(std::function<bool(const PrimExpr&)> is_eligible_computation,
-                                   std::function<bool(const PrimExpr&)> can_contain_computations)
+DirectSubexpr::DirectSubexpr(std::function<bool(const PrimExpr&)> is_eligible_computation,
+                             std::function<bool(const PrimExpr&)> can_contain_computations)
     : is_eligible_computation_(is_eligible_computation),
       can_contain_computations_(can_contain_computations) {}
 
 /*!
  * \brief Find direct eligible subexpressions through the generic entry
  */
-ffi::Optional<VisitInterrupt> DirectSubexprObj::Visit(ffi::AnyView expr_value) {
+ffi::Optional<VisitInterrupt> DirectSubexpr::Visit(ffi::AnyView expr_value) {
   auto opt_expr = expr_value.as<PrimExpr>();
-  if (!opt_expr) return s_tir::StmtExprVisitorObj::Visit(expr_value);
+  if (!opt_expr) return s_tir::StmtExprVisitor::Visit(expr_value);
   PrimExpr expr = opt_expr.value();
   if (entered_) {
     if (is_eligible_computation_(expr)) {
@@ -380,7 +380,7 @@ ffi::Optional<VisitInterrupt> DirectSubexprObj::Visit(ffi::AnyView expr_value) {
       return std::nullopt;
     } else {
       if (can_contain_computations_(expr)) {
-        TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(s_tir::StmtExprVisitorObj::Visit(expr));
+        TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(s_tir::StmtExprVisitor::Visit(expr));
       }
       return std::nullopt;
     }
@@ -388,7 +388,7 @@ ffi::Optional<VisitInterrupt> DirectSubexprObj::Visit(ffi::AnyView expr_value) {
 
   if (can_contain_computations_(expr)) {
     entered_ = true;
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(s_tir::StmtExprVisitorObj::Visit(expr));
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(s_tir::StmtExprVisitor::Visit(expr));
   }
   return std::nullopt;
 }

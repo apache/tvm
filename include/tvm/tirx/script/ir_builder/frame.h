@@ -113,8 +113,7 @@ class FunctionFrameObj : public ir::StmtFrameObj {
  */
 class FunctionFrame : public ir::StmtFrame {
  public:
-  explicit FunctionFrame(ffi::ObjectPtr<FunctionFrameObj> data)
-      : ir::StmtFrame(ffi::UnsafeInit{}) {
+  explicit FunctionFrame(ffi::ObjectPtr<FunctionFrameObj> data) : ir::StmtFrame(ffi::UnsafeInit{}) {
     TVM_FFI_ICHECK(data != nullptr);
     data_ = std::move(data);
   }

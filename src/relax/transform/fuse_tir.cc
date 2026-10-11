@@ -173,10 +173,10 @@ class SymbolicMatcher : ExprFunctor<void(const Expr& n, const PrimExpr& other)> 
 /*!
  * \brief Substitute a given source tensor with a given target tensor in statements or expressions.
  */
-class FuseTIRTensorSubstitutorObj : public s_tir::StmtExprMutatorObj {
+class FuseTIRTensorSubstitutor : public s_tir::StmtExprMutator {
  public:
-  explicit FuseTIRTensorSubstitutorObj(const ffi::Map<TensorVar, TensorVar>& tensor_map,
-                                       const ffi::Map<Var, PrimExpr>& var_map) {
+  explicit FuseTIRTensorSubstitutor(const ffi::Map<TensorVar, TensorVar>& tensor_map,
+                                    const ffi::Map<Var, PrimExpr>& var_map) {
     for (const auto& [var, value] : var_map) {
       VarRemapSet(var, value);
     }
@@ -194,7 +194,7 @@ class FuseTIRTensorSubstitutorObj : public s_tir::StmtExprMutatorObj {
 
  private:
   UnchangedOr<Stmt> Mutate_(const s_tir::SBlockNode* op, InplaceMode inplace_mode) final {
-    s_tir::SBlock block = s_tir::StmtExprMutatorObj::Mutate_(op, inplace_mode)
+    s_tir::SBlock block = s_tir::StmtExprMutator::Mutate_(op, inplace_mode)
                               .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
                               .as_or_throw<s_tir::SBlock>();
     ffi::Array<TensorRegion> reads = UnionAccessRegion(block->reads);
@@ -233,17 +233,17 @@ class FuseTIRTensorSubstitutorObj : public s_tir::StmtExprMutatorObj {
 };
 
 /*! \brief A mutator which detect block name duplication and deduplicate the names. */
-class SBlockNameDeduplicatorObj : public s_tir::StmtExprMutatorObj {
+class SBlockNameDeduplicator : public s_tir::StmtExprMutator {
  public:
-  using s_tir::StmtExprMutatorObj::Mutate;
+  using s_tir::StmtExprMutator::Mutate;
   UnchangedOr<ffi::Any> Mutate(ffi::AnyView value, InplaceMode inplace_mode) final {
     if (value.as<ExprNode>()) return ffi::Unchanged();
-    return s_tir::StmtExprMutatorObj::Mutate(value, inplace_mode);
+    return s_tir::StmtExprMutator::Mutate(value, inplace_mode);
   }
 
  private:
   UnchangedOr<Stmt> Mutate_(const s_tir::SBlockNode* op, InplaceMode inplace_mode) final {
-    s_tir::SBlock block = s_tir::StmtExprMutatorObj::Mutate_(op, inplace_mode)
+    s_tir::SBlock block = s_tir::StmtExprMutator::Mutate_(op, inplace_mode)
                               .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
                               .as_or_throw<s_tir::SBlock>();
 
@@ -378,7 +378,7 @@ class RelaxToTIRVarMapCollector : public ExprVisitor {
 
     ffi::Array<int64_t> output_idxs;
     if (in_place) {
-      const auto* attrs = call->attrs.as<CallTIRInplaceAttrsNode>();
+      const auto* attrs = call->attrs.as<CallTIRInplaceAttrs>();
       TVM_FFI_ICHECK(attrs) << "Must have CallTIRInplaceAttrs for an in-place call";
       output_idxs = GetInplaceOutputIndices(attrs->inplace_indices, num_inputs);
     } else {
@@ -759,7 +759,7 @@ class FusedTIRConstructor : public ExprVisitor {
     ffi::Array<tirx::TensorVar> output_tensors;
     ffi::Array<int64_t> output_idxs;
     if (is_inplace) {
-      const auto* attrs = call->attrs.as<CallTIRInplaceAttrsNode>();
+      const auto* attrs = call->attrs.as<CallTIRInplaceAttrs>();
       TVM_FFI_ICHECK(attrs) << "Must have CallTIRInplaceAttrs for an in-place call";
       output_idxs = GetInplaceOutputIndices(attrs->inplace_indices, num_inputs);
     } else {
@@ -867,8 +867,8 @@ class FusedTIRConstructor : public ExprVisitor {
     attr_map.Set(tvm::tirx::attr::kNoAlias, true);
     attr_map.Set(tvm::attr::kSTir, true);
     attr_map.Set(tvm::attr::kScriptNamespace, ffi::String("s_tir"));
-    auto subst = ffi::make_object<tirx::FuseTIRTensorSubstitutorObj>(func_info_.tensor_subst_map,
-                                                                     func_info_.symbolic_var_remap);
+    auto subst = ffi::make_object<tirx::FuseTIRTensorSubstitutor>(func_info_.tensor_subst_map,
+                                                                  func_info_.symbolic_var_remap);
     TVM_FFI_ICHECK(func_info_.global_name != "fused");
     // Remove output tensors from func_info_.alloc_tensors
     ffi::Array<tirx::TensorVar> alloc_tensors;
@@ -878,7 +878,7 @@ class FusedTIRConstructor : public ExprVisitor {
       }
     }
     tvm::Stmt body = tvm::SeqStmt(func_info_.bodies);
-    body = ffi::make_object<tirx::SBlockNameDeduplicatorObj>()->Mutate(body).ValueOrUnchanged(body);
+    body = ffi::make_object<tirx::SBlockNameDeduplicator>()->Mutate(body).ValueOrUnchanged(body);
 
     body = subst->Mutate(body).ValueOrUnchanged(body);
     body = s_tir::SBlock({}, {}, {}, "root", std::move(body), std::nullopt, alloc_tensors);
@@ -1142,7 +1142,7 @@ class TIRFuseMutator : public ExprMutator {
     ffi::Optional<Attrs> call_attrs = call->attrs;
     if (replacement.inplace_indices.size()) {
       call_op = call_tir_inplace_op_;
-      auto inplace_attrs = ffi::make_object<CallTIRInplaceAttrsNode>();
+      auto inplace_attrs = ffi::make_object<CallTIRInplaceAttrs>();
       inplace_attrs->inplace_indices = replacement.inplace_indices;
       call_attrs = Attrs(inplace_attrs);
     }

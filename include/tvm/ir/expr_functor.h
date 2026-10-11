@@ -310,7 +310,7 @@ class ExprFunctor<R(const Expr&, Args...)> {
 /*!
  * \brief Structural Expr visitor with native overrides for core expressions.
  *
- * Prefer StructuralVisit or StructuralWalk for common cases; use ExprVisitorObj
+ * Prefer StructuralVisit or StructuralWalk for common cases; use ExprVisitor
  * for extensive per-kind customization or optimization. Default hooks follow
  * the registered structural child order and skip primitive metadata.
  * Native hooks match exact node types; derived node types use structural fallback
@@ -318,27 +318,27 @@ class ExprFunctor<R(const Expr&, Args...)> {
  * Existing hooks only require overriding. For an extra MyExprNode derived from
  * ExprNode, initialize an inherited table and register the new virtual hook:
  * \code
- * class MyExprVisitorObj : public ExprVisitorObj {
+ * class MyExprVisitor : public ExprVisitor {
  *  public:
- *   TVM_DEFINE_OBJECT_FUNCTOR_DEFAULT_CONSTRUCTOR(MyExprVisitorObj, ExprVisitorObj)
- *   using ExprVisitorObj::Visit_;
+ *   TVM_DEFINE_OBJECT_FUNCTOR_DEFAULT_CONSTRUCTOR(MyExprVisitor, ExprVisitor)
+ *   using ExprVisitor::Visit_;
  *   virtual ffi::Optional<VisitInterrupt> Visit_(const MyExprNode* node);
  *
  *  protected:
  *   static void InitVTable(VTable* vtable) {
- *     ExprVisitorObj::InitVTable(vtable);
- *     SetDispatch<MyExprVisitorObj, MyExprNode>(vtable);
+ *     ExprVisitor::InitVTable(vtable);
+ *     SetDispatch<MyExprVisitor, MyExprNode>(vtable);
  *   }
  * };
  * \endcode
- * Use tvm::ExprVisitorObj explicitly when dialect visitors are also in scope.
+ * Use tvm::ExprVisitor explicitly when dialect visitors are also in scope.
  */
-class TVM_DLL ExprVisitorObj : public ObjectVisitorObj {
+class TVM_DLL ExprVisitor : public ObjectVisitor {
  public:
   /*! \brief Construct a visitor with the core expression hooks. */
-  TVM_DEFINE_OBJECT_FUNCTOR_DEFAULT_CONSTRUCTOR(ExprVisitorObj, ObjectVisitorObj)
+  TVM_DEFINE_OBJECT_FUNCTOR_DEFAULT_CONSTRUCTOR(ExprVisitor, ObjectVisitor)
 
-  using ObjectVisitorObj::Visit;
+  using ObjectVisitor::Visit;
 
   // Override existing hooks directly. Extra types need a fresh inherited table.
   // Hooks borrow the node and return None or an owning interrupt, and throw on failure.
@@ -392,7 +392,7 @@ class TVM_DLL ExprVisitorObj : public ObjectVisitorObj {
    * \brief Construct a visitor with an extended native dispatch table.
    * \param vtable The finalized table, which must outlive this visitor.
    */
-  explicit ExprVisitorObj(const VTable* vtable) : ObjectVisitorObj(vtable) {}
+  explicit ExprVisitor(const VTable* vtable) : ObjectVisitor(vtable) {}
   /*!
    * \brief Register core expression hooks in a fresh mutable table.
    * \param vtable The table to initialize before adding derived registrations.
@@ -404,7 +404,7 @@ class TVM_DLL ExprVisitorObj : public ObjectVisitorObj {
  * \brief Structural Expr mutator with native overrides for core expressions
  * and structural fallback for other objects.
  *
- * Prefer StructuralMap for common cases; use ExprMutatorObj for extensive per-kind
+ * Prefer StructuralMap for common cases; use ExprMutator for extensive per-kind
  * customization or optimization.
  * The default Var hook consults the inherited remap before visiting definition types.
  *
@@ -412,28 +412,28 @@ class TVM_DLL ExprVisitorObj : public ObjectVisitorObj {
  * Existing hooks only require overriding. For an extra MyExprNode derived from
  * ExprNode, initialize an inherited table and register the new virtual hook:
  * \code
- * class MyExprMutator : public ExprMutatorObj {
+ * class MyExprMutator : public ExprMutator {
  *  public:
- *   TVM_DEFINE_OBJECT_FUNCTOR_DEFAULT_CONSTRUCTOR(MyExprMutator, ExprMutatorObj)
- *   using ExprMutatorObj::Mutate_;
+ *   TVM_DEFINE_OBJECT_FUNCTOR_DEFAULT_CONSTRUCTOR(MyExprMutator, ExprMutator)
+ *   using ExprMutator::Mutate_;
  *   virtual UnchangedOr<Expr> Mutate_(const MyExprNode* node, InplaceMode
  * inplace_mode);
  *
  *  protected:
  *   static void InitVTable(VTable* vtable) {
- *     ExprMutatorObj::InitVTable(vtable);
+ *     ExprMutator::InitVTable(vtable);
  *     SetDispatch<MyExprMutator, MyExprNode>(vtable);
  *   }
  * };
  * \endcode
- * Use tvm::ExprMutatorObj explicitly when dialect mutators are also in scope.
+ * Use tvm::ExprMutator explicitly when dialect mutators are also in scope.
  */
-class TVM_DLL ExprMutatorObj : public ObjectMutatorObj {
+class TVM_DLL ExprMutator : public ObjectMutator {
  public:
   /*! \brief Construct a mutator with the core expression hooks. */
-  TVM_DEFINE_OBJECT_FUNCTOR_DEFAULT_CONSTRUCTOR(ExprMutatorObj, ObjectMutatorObj)
+  TVM_DEFINE_OBJECT_FUNCTOR_DEFAULT_CONSTRUCTOR(ExprMutator, ObjectMutator)
 
-  using ObjectMutatorObj::Mutate;
+  using ObjectMutator::Mutate;
 
   /*!
    * \brief Mutate a primitive expression, preserving its expression category.
@@ -531,7 +531,7 @@ class TVM_DLL ExprMutatorObj : public ObjectMutatorObj {
    * \brief Construct a mutator with an extended native dispatch table.
    * \param vtable The finalized table, which must outlive this mutator.
    */
-  explicit ExprMutatorObj(const VTable* vtable) : ObjectMutatorObj(vtable) {}
+  explicit ExprMutator(const VTable* vtable) : ObjectMutator(vtable) {}
   /*!
    * \brief Register core expression hooks in a fresh mutable table.
    * \param vtable The table to initialize before adding derived registrations.

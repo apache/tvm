@@ -58,12 +58,12 @@ struct RelaxCalleeCollector : relax::ExprVisitor {
   }
 };
 
-struct TIRxCalleeCollectorObj : tirx::StmtExprVisitorObj {
+struct TIRxCalleeCollector : tirx::StmtExprVisitor {
   std::vector<GlobalVar>* callees;
-  explicit TIRxCalleeCollectorObj(std::vector<GlobalVar>* out) : callees(out) {}
-  using tirx::StmtExprVisitorObj::Visit_;
+  explicit TIRxCalleeCollector(std::vector<GlobalVar>* out) : callees(out) {}
+  using tirx::StmtExprVisitor::Visit_;
   ffi::Optional<VisitInterrupt> Visit_(const CallNode* node) final {
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(tirx::StmtExprVisitorObj::Visit_(node));
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(tirx::StmtExprVisitor::Visit_(node));
     if (auto opt_gvar = node->op.as<GlobalVar>()) {
       callees->push_back(opt_gvar.value());
     }
@@ -82,7 +82,7 @@ ffi::Array<GlobalVar> CollectCallees(const BaseFunc& func) {
   } else if (func.as<relax::ExternFunc>()) {
     // no callees
   } else if (auto opt = func.as<tirx::Function>()) {
-    ffi::make_object<TIRxCalleeCollectorObj>(&raw)->Visit(opt.value()->body);
+    ffi::make_object<TIRxCalleeCollector>(&raw)->Visit(opt.value()->body);
   }
   // dedup preserving order
   ffi::Array<GlobalVar> result;

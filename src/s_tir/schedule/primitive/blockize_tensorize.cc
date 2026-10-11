@@ -49,9 +49,9 @@ T DeepCopy(const T& stmt) {
  * \brief ScheduleError that the bindings of the inner block are not divisible by the subspace
  * represented by the outer loops.
  */
-class SubspaceNotDivisibleErrorObj : public ScheduleErrorContextObj {
+class SubspaceNotDivisibleError : public ScheduleErrorContextObj {
  public:
-  explicit SubspaceNotDivisibleErrorObj(IRModule mod, For scope_loop, SBlock inner_block)
+  explicit SubspaceNotDivisibleError(IRModule mod, For scope_loop, SBlock inner_block)
       : mod_(std::move(mod)),
         scope_loop_(std::move(scope_loop)),
         inner_block_(std::move(inner_block)) {}
@@ -407,19 +407,19 @@ Stmt GenerateOuterInit(const Stmt& block_init, const SBlockRealize& inner_realiz
  */
 Stmt ReplaceAndSimplify(const Stmt& stmt, const ffi::Map<Var, PrimExpr>& sub,
                         ffi::Map<SBlock, SBlock>* block_sref_reuse, sym::AnalyzerObj* analyzer) {
-  struct ReplacerObj : public StmtExprMutatorObj {
+  struct Replacer : public StmtExprMutator {
    public:
-    using StmtExprMutatorObj::Mutate;
-    using StmtExprMutatorObj::Mutate_;
+    using StmtExprMutator::Mutate;
+    using StmtExprMutator::Mutate_;
 
-    explicit ReplacerObj(const ffi::Map<Var, PrimExpr>& sub,
-                         ffi::Map<SBlock, SBlock>* block_sref_reuse, sym::AnalyzerObj* analyzer)
+    explicit Replacer(const ffi::Map<Var, PrimExpr>& sub,
+                      ffi::Map<SBlock, SBlock>* block_sref_reuse, sym::AnalyzerObj* analyzer)
         : block_sref_reuse_(block_sref_reuse), analyzer_(analyzer) {
       for (const auto& [var, replacement] : sub) VarRemapSet(var, replacement);
     }
 
     UnchangedOr<ffi::Any> Mutate(ffi::AnyView value, InplaceMode inplace_mode) final {
-      auto result = StmtExprMutatorObj::Mutate(value, inplace_mode);
+      auto result = StmtExprMutator::Mutate(value, inplace_mode);
       if (!value.as<ExprNode>() || result.UnchangedOrSameAs(value)) return result;
       auto replacement = std::move(result).ValueOrUnchanged(value);
       if (auto prim_result = replacement.as<PrimExpr>()) {
@@ -430,7 +430,7 @@ Stmt ReplaceAndSimplify(const Stmt& stmt, const ffi::Map<Var, PrimExpr>& sub,
 
     UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) final {
       SBlock src = ffi::GetRef<SBlock>(op);
-      SBlock tgt = StmtExprMutatorObj::Mutate_(op, inplace_mode)
+      SBlock tgt = StmtExprMutator::Mutate_(op, inplace_mode)
                        .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
                        .as_or_throw<SBlock>();
       if (!src.same_as(tgt)) {
@@ -442,7 +442,7 @@ Stmt ReplaceAndSimplify(const Stmt& stmt, const ffi::Map<Var, PrimExpr>& sub,
     ffi::Map<SBlock, SBlock>* block_sref_reuse_;
     sym::AnalyzerObj* analyzer_;
   };
-  return ffi::make_object<ReplacerObj>(sub, block_sref_reuse, analyzer)
+  return ffi::make_object<Replacer>(sub, block_sref_reuse, analyzer)
       ->Mutate(stmt)
       .ValueOrUnchanged(stmt);
 }
@@ -531,8 +531,8 @@ SBlockRealize BlockizeImpl(const ScheduleState& self, const StmtSRef& loop_sref,
   ffi::Array<ffi::Array<sym::IterMark>> division =
       SubspaceDivide(block_realize, block_sref, loop_sref, &loops, analyzer, preserve_unit_iters);
   if (division.empty()) {
-    throw MakeScheduleError<SubspaceNotDivisibleErrorObj>(self->mod, ffi::GetRef<For>(loops.back()),
-                                                          block);
+    throw MakeScheduleError<SubspaceNotDivisibleError>(self->mod, ffi::GetRef<For>(loops.back()),
+                                                       block);
   }
   PrimExpr outer_predicate = division.back()[0]->extent;
   PrimExpr inner_predicate = division.back()[1]->extent;
@@ -624,8 +624,8 @@ SBlockRealize BlockizeBlocks(const ScheduleState& self, const ffi::Array<StmtSRe
     ffi::Array<ffi::Array<sym::IterMark>> division = SubspaceDivide(
         block_realize, block_sref, lca, &loops, analyzer.get(), preserve_unit_iters, true);
     if (division.empty()) {
-      throw MakeScheduleError<SubspaceNotDivisibleErrorObj>(self->mod,
-                                                            ffi::GetRef<For>(loops.back()), block);
+      throw MakeScheduleError<SubspaceNotDivisibleError>(self->mod, ffi::GetRef<For>(loops.back()),
+                                                         block);
     }
     outer_predicate = division.back()[0]->extent;
     PrimExpr inner_predicate = division.back()[1]->extent;
@@ -710,24 +710,24 @@ SBlockRealize BlockizeBlocks(const ScheduleState& self, const ffi::Array<StmtSRe
              /*init=*/std::nullopt));
 }
 
-class BlockizeRewriterObj : public StmtExprMutatorObj {
+class BlockizeRewriter : public StmtExprMutator {
  public:
-  using StmtExprMutatorObj::Mutate;
-  using StmtExprMutatorObj::Mutate_;
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
   UnchangedOr<ffi::Any> Mutate(ffi::AnyView value, InplaceMode inplace_mode) override {
     if (value.as<ExprNode>()) return ffi::Unchanged();
-    return StmtExprMutatorObj::Mutate(value, inplace_mode);
+    return StmtExprMutator::Mutate(value, inplace_mode);
   }
 
   static Stmt Rewrite(const StmtSRef& lca, const ffi::Array<StmtSRef>& blocks,
                       const SBlockRealize& blockized) {
-    auto rewriter = ffi::make_object<BlockizeRewriterObj>(lca, blocks, blockized);
+    auto rewriter = ffi::make_object<BlockizeRewriter>(lca, blocks, blockized);
     return rewriter->Mutate(ffi::GetRef<Stmt>(lca->stmt))
         .ValueOrUnchanged(ffi::GetRef<Stmt>(lca->stmt));
   }
 
-  explicit BlockizeRewriterObj(const StmtSRef& lca, const ffi::Array<StmtSRef>& blocks,
-                               const SBlockRealize& blockized)
+  explicit BlockizeRewriter(const StmtSRef& lca, const ffi::Array<StmtSRef>& blocks,
+                            const SBlockRealize& blockized)
       : lca_(lca), blocks_(blocks), blockized_(blockized) {}
 
  private:
@@ -740,7 +740,7 @@ class BlockizeRewriterObj : public StmtExprMutatorObj {
     ffi::Array<Stmt> new_seq;
     for (const Stmt& it : seq->seq) {
       target_in_ = false;
-      Stmt stmt = StmtExprMutatorObj::Mutate(ffi::AnyView(it), InplaceMode::kDisallow)
+      Stmt stmt = StmtExprMutator::Mutate(ffi::AnyView(it), InplaceMode::kDisallow)
                       .ValueOrUnchanged(it)
                       .as_or_throw<Stmt>();
       if (target_in_) {
@@ -764,7 +764,7 @@ class BlockizeRewriterObj : public StmtExprMutatorObj {
       return For(loop->loop_var, loop->min, loop->extent, loop->kind, RewriteSeq(loop->body),
                  loop->annotations, loop->step, loop->loc);
     }
-    return StmtExprMutatorObj::Mutate_(loop, inplace_mode);
+    return StmtExprMutator::Mutate_(loop, inplace_mode);
   }
 
   UnchangedOr<Stmt> Mutate_(const SBlockNode* block, InplaceMode inplace_mode) final {
@@ -794,7 +794,7 @@ StmtSRef Blockize(ScheduleState self, const ffi::Array<StmtSRef>& blocks,
   auto lca = GetSRefLowestCommonAncestor(blocks);
   SBlockRealize blockized =
       BlockizeBlocks(self, blocks, lca, &block_sref_reuse, preserve_unit_iters);
-  auto new_root = BlockizeRewriterObj::Rewrite(lca, blocks, blockized);
+  auto new_root = BlockizeRewriter::Rewrite(lca, blocks, blockized);
   self->Replace(lca, new_root, block_sref_reuse);
   StmtSRef result = self->stmt2ref.at(blockized->block.get());
   StmtSRef scope_root = GetScopeRoot(self, result, /*require_stage_pipeline=*/false);
@@ -837,7 +837,7 @@ void Tensorize(ScheduleState self, const StmtSRef& sref, const TensorIntrin& int
   f_update_max_dtype_bits_from_region(block_realize->block->reads);
   f_update_max_dtype_bits_from_region(block_realize->block->writes);
   TVM_FFI_ICHECK(index_dtype_bits > 0);
-  intrin_impl = ffi::make_object<IndexDataTypeNormalizerObj>(PrimType::Int(index_dtype_bits))
+  intrin_impl = ffi::make_object<IndexDataTypeNormalizer>(PrimType::Int(index_dtype_bits))
                     ->Rewrite(intrin_impl);
   // Step 2: Structural pattern matching
   TensorizeComparator comparator(self->mod, /*assert_mode=*/true);

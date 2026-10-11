@@ -31,32 +31,32 @@ namespace tvm {
 namespace relax {
 
 /*! \brief Attributes used in allreduce operators */
-struct AllReduceAttrsNode : public tvm::AttrsNode {
+struct AllReduceAttrs : public tvm::AttrsNode {
   ffi::String op_type;
   bool in_group;
 
   static void RegisterReflection();
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.AllReduceAttrs", AllReduceAttrsNode, AttrsNode);
-};  // struct AllReduceAttrsNode
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.AllReduceAttrs", AllReduceAttrs, AttrsNode);
+};  // struct AllReduceAttrs
 
 /*! \brief Attributes used in allgather operators */
-struct AllGatherAttrsNode : public tvm::AttrsNode {
+struct AllGatherAttrs : public tvm::AttrsNode {
   int num_workers;
   bool in_group;
 
   static void RegisterReflection();
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.AllGatherAttrs", AllGatherAttrsNode, AttrsNode);
-};  // struct AllGatherAttrsNode
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.AllGatherAttrs", AllGatherAttrs, AttrsNode);
+};  // struct AllGatherAttrs
 
 /*! \brief Attributes used in scatter operators */
-struct ScatterCollectiveAttrsNode : public tvm::AttrsNode {
+struct ScatterCollectiveAttrs : public tvm::AttrsNode {
   int num_workers;
   int axis;
 
   static void RegisterReflection();
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.ScatterCollectiveAttrs",
-                                    ScatterCollectiveAttrsNode, AttrsNode);
-};  // struct ScatterCollectiveAttrsNode
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.ScatterCollectiveAttrs", ScatterCollectiveAttrs,
+                                    AttrsNode);
+};  // struct ScatterCollectiveAttrs
 
 }  // namespace relax
 }  // namespace tvm

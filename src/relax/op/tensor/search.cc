@@ -35,38 +35,38 @@
 namespace tvm {
 namespace relax {
 
-void ArgmaxArgminAttrsNode::RegisterReflection() {
+void ArgmaxArgminAttrs::RegisterReflection() {
   namespace refl = tvm::ffi::reflection;
-  refl::ObjectDef<ArgmaxArgminAttrsNode>()
-      .def_ro("axis", &ArgmaxArgminAttrsNode::axis,
+  refl::ObjectDef<ArgmaxArgminAttrs>()
+      .def_ro("axis", &ArgmaxArgminAttrs::axis,
               "The axis along which to perform the argmin/argmax.",
               refl::DefaultValue(ffi::Optional<int64_t>{}))
-      .def_ro("keepdims", &ArgmaxArgminAttrsNode::keepdims,
+      .def_ro("keepdims", &ArgmaxArgminAttrs::keepdims,
               "If this is set to `True`, the reduced axis is left in the result as dimension "
               "with size "
               "one.",
               refl::DefaultValue(false));
 }
 
-void BucketizeAttrsNode::RegisterReflection() {
+void BucketizeAttrs::RegisterReflection() {
   namespace refl = tvm::ffi::reflection;
-  refl::ObjectDef<BucketizeAttrsNode>()
-      .def_ro("out_int32", &BucketizeAttrsNode::out_int32,
+  refl::ObjectDef<BucketizeAttrs>()
+      .def_ro("out_int32", &BucketizeAttrs::out_int32,
               "Indicate the output datatype, int32 if True, int64 otherwise.",
               refl::DefaultValue(false))
-      .def_ro("right", &BucketizeAttrsNode::right,
-              "Determines the behavior for values in boundaries", refl::DefaultValue(false));
+      .def_ro("right", &BucketizeAttrs::right, "Determines the behavior for values in boundaries",
+              refl::DefaultValue(false));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  ArgmaxArgminAttrsNode::RegisterReflection();
-  BucketizeAttrsNode::RegisterReflection();
+  ArgmaxArgminAttrs::RegisterReflection();
+  BucketizeAttrs::RegisterReflection();
 }
 
 /* relax.bucketize */
 
 Expr bucketize(Expr input_tensor, Expr boundaries, bool out_int32, bool right) {
-  auto attrs = ffi::make_object<BucketizeAttrsNode>();
+  auto attrs = ffi::make_object<BucketizeAttrs>();
   attrs->out_int32 = std::move(out_int32);
   attrs->right = std::move(right);
   static const Op op = Op::Get("relax.bucketize");
@@ -90,7 +90,7 @@ Type InferTypeBucketize(const CallNode* call_node) {
         << "Bucketize requires boundary to be 1-D array but got " << boundaries_info->ndim;
   }
 
-  auto attrs = call->attrs.as<BucketizeAttrsNode>();
+  auto attrs = call->attrs.as<BucketizeAttrs>();
   PrimType out_dtype = PrimType::Int(64);
   if (attrs->out_int32) {
     out_dtype = PrimType::Int(32);
@@ -111,7 +111,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
               "boundaries",
               "1-D tensor, must contain a strictly increasing sequence, or the return value is "
               "undefined."),
-          sig::call_attrs<BucketizeAttrsNode>())
+          sig::call_attrs<BucketizeAttrs>())
       .set_attr<FInferType>(tvm::op_attr::kInferType, FInferType::FromNative<&InferTypeBucketize>())
       .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
 }
@@ -223,7 +223,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 Type InferTypeArgmaxArgmin(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
   TensorType data_ty = GetUnaryInputTensorType(call);
-  const auto* attrs = call->attrs.as<ArgmaxArgminAttrsNode>();
+  const auto* attrs = call->attrs.as<ArgmaxArgminAttrs>();
 
   int axis = -1;
   if (!data_ty->IsUnknownNdim() && attrs->axis.has_value()) {
@@ -280,7 +280,7 @@ Type InferTypeArgmaxArgmin(const CallNode* call_node) {
 }
 
 Expr argmax(Expr x, ffi::Optional<int64_t> axis, bool keepdims) {
-  ffi::ObjectPtr<ArgmaxArgminAttrsNode> attrs = ffi::make_object<ArgmaxArgminAttrsNode>();
+  ffi::ObjectPtr<ArgmaxArgminAttrs> attrs = ffi::make_object<ArgmaxArgminAttrs>();
   attrs->axis = std::move(axis);
   attrs->keepdims = std::move(keepdims);
   static const Op op = Op::Get("relax.argmax");
@@ -288,7 +288,7 @@ Expr argmax(Expr x, ffi::Optional<int64_t> axis, bool keepdims) {
 }
 
 Expr argmin(Expr x, ffi::Optional<int64_t> axis, bool keepdims) {
-  ffi::ObjectPtr<ArgmaxArgminAttrsNode> attrs = ffi::make_object<ArgmaxArgminAttrsNode>();
+  ffi::ObjectPtr<ArgmaxArgminAttrs> attrs = ffi::make_object<ArgmaxArgminAttrs>();
   attrs->axis = std::move(axis);
   attrs->keepdims = std::move(keepdims);
   static const Op op = Op::Get("relax.argmin");
@@ -299,7 +299,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   tvm::ffi::reflection::GlobalDef().def("relax.op.argmax", argmax);
 
   OpDef("relax.argmax")
-      .signature(sig::arg("x", "The input data tensor"), sig::call_attrs<ArgmaxArgminAttrsNode>())
+      .signature(sig::arg("x", "The input data tensor"), sig::call_attrs<ArgmaxArgminAttrs>())
       .set_attr<FInferType>(tvm::op_attr::kInferType,
                             FInferType::FromNative<&InferTypeArgmaxArgmin>())
       .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
@@ -309,7 +309,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   tvm::ffi::reflection::GlobalDef().def("relax.op.argmin", argmin);
 
   OpDef("relax.argmin")
-      .signature(sig::arg("x", "The input data tensor"), sig::call_attrs<ArgmaxArgminAttrsNode>())
+      .signature(sig::arg("x", "The input data tensor"), sig::call_attrs<ArgmaxArgminAttrs>())
       .set_attr<FInferType>(tvm::op_attr::kInferType,
                             FInferType::FromNative<&InferTypeArgmaxArgmin>())
       .set_attr<bool>(tvm::relax::op_attr::kPurity, true);

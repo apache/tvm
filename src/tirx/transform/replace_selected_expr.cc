@@ -47,11 +47,11 @@ namespace tirx {
                               for pursuing further replacements.
  * \return A new expression where the replacements have been done
  */
-PrimExpr ReplaceSelectedExprObj::ReplaceSelectedExprInExpr(
+PrimExpr ReplaceSelectedExpr::ReplaceSelectedExprInExpr(
     const PrimExpr& expr, std::function<bool(const PrimExpr&)> predicate_selector,
     const PrimExpr& new_expr, std::function<bool(const PrimExpr&)> can_replace_inside) {
   auto replace_expr_selected =
-      ffi::make_object<ReplaceSelectedExprObj>(predicate_selector, new_expr, can_replace_inside);
+      ffi::make_object<ReplaceSelectedExpr>(predicate_selector, new_expr, can_replace_inside);
   return replace_expr_selected->Mutate(expr, InplaceMode::kDisallow).ValueOrUnchanged(expr);
 }
 
@@ -64,38 +64,38 @@ PrimExpr ReplaceSelectedExprObj::ReplaceSelectedExprInExpr(
                               for pursuing further replacements
  * \return A new statement where the replacements have been done
  */
-Stmt ReplaceSelectedExprObj::ReplaceSelectedExprInStmt(
+Stmt ReplaceSelectedExpr::ReplaceSelectedExprInStmt(
     const Stmt& stmt, std::function<bool(const PrimExpr&)> predicate_selector,
     const PrimExpr& new_expr, std::function<bool(const PrimExpr&)> can_replace_inside) {
   auto replace_expr_selected =
-      ffi::make_object<ReplaceSelectedExprObj>(predicate_selector, new_expr, can_replace_inside);
+      ffi::make_object<ReplaceSelectedExpr>(predicate_selector, new_expr, can_replace_inside);
   return replace_expr_selected->Mutate(stmt, InplaceMode::kDisallow).ValueOrUnchanged(stmt);
 }
 
 /*!
- * \brief Protected constructor of ReplaceSelectedExprObj.
+ * \brief Protected constructor of ReplaceSelectedExpr.
  * \param predicate_selector The predicate which tells what to replace
  * \param new_expr The new expression that will replace everything that's selected by the predicate
  * \param can_replace_inside The predicate which tells in which nodes we are allowed to recurse
                               for pursuing further replacements
  */
-ReplaceSelectedExprObj::ReplaceSelectedExprObj(
-    std::function<bool(const PrimExpr&)> predicate_selector, const PrimExpr& new_expr,
-    std::function<bool(const PrimExpr&)> can_replace_inside)
+ReplaceSelectedExpr::ReplaceSelectedExpr(std::function<bool(const PrimExpr&)> predicate_selector,
+                                         const PrimExpr& new_expr,
+                                         std::function<bool(const PrimExpr&)> can_replace_inside)
     : predicate_selector_(predicate_selector),
       new_expr_(new_expr),
       can_replace_inside_(can_replace_inside) {}
 
 /*!
- * \brief The method which overrides the generic dispatcher of StmtExprMutatorObj
+ * \brief The method which overrides the generic dispatcher of StmtExprMutator
  * \param expr The expression to mutate
  */
-UnchangedOr<ffi::Any> ReplaceSelectedExprObj::Mutate(ffi::AnyView input, InplaceMode inplace_mode) {
+UnchangedOr<ffi::Any> ReplaceSelectedExpr::Mutate(ffi::AnyView input, InplaceMode inplace_mode) {
   if (auto prim_expr = input.as<PrimExpr>()) {
     if (predicate_selector_(prim_expr.value())) return new_expr_;
     if (!can_replace_inside_(prim_expr.value())) return ffi::Unchanged();
   }
-  return StmtExprMutatorObj::Mutate(input, inplace_mode);
+  return StmtExprMutator::Mutate(input, inplace_mode);
 }
 
 }  // namespace tirx

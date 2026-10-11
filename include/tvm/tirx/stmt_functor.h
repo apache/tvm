@@ -173,12 +173,12 @@ class StmtFunctor<R(const Stmt&, Args...)> {
  * Native hooks match exact types. Unregistered OpaqueExprNode subclasses use
  * structural traversal; leaf types register non-descending structural hooks.
  */
-class TVM_DLL StmtExprVisitorObj : public tvm::ExprVisitorObj {
+class TVM_DLL StmtExprVisitor : public tvm::ExprVisitor {
  public:
-  TVM_DEFINE_OBJECT_FUNCTOR_DEFAULT_CONSTRUCTOR(StmtExprVisitorObj, tvm::ExprVisitorObj)
+  TVM_DEFINE_OBJECT_FUNCTOR_DEFAULT_CONSTRUCTOR(StmtExprVisitor, tvm::ExprVisitor)
 
-  using tvm::ExprVisitorObj::Visit;
-  using tvm::ExprVisitorObj::Visit_;
+  using tvm::ExprVisitor::Visit;
+  using tvm::ExprVisitor::Visit_;
 
   virtual ffi::Optional<VisitInterrupt> Visit_(const BindNode* op);
   virtual ffi::Optional<VisitInterrupt> Visit_(const RegionStmtNode* op);
@@ -206,7 +206,7 @@ class TVM_DLL StmtExprVisitorObj : public tvm::ExprVisitorObj {
   ffi::Optional<VisitInterrupt> Visit_(const prim::ShuffleNode* op) override;
 
  protected:
-  explicit StmtExprVisitorObj(const VTable* vtable) : tvm::ExprVisitorObj(vtable) {}
+  explicit StmtExprVisitor(const VTable* vtable) : tvm::ExprVisitor(vtable) {}
   static void InitVTable(VTable* vtable);
 };
 
@@ -218,11 +218,11 @@ class TVM_DLL StmtExprVisitorObj : public tvm::ExprVisitorObj {
  * including on in-place writes. Passes that change dtypes or index lanes must
  * provide the corresponding TensorLoad, TensorStore, or TensorRegion inference.
  */
-class TVM_DLL StmtExprMutatorObj : public tvm::ExprMutatorObj {
+class TVM_DLL StmtExprMutator : public tvm::ExprMutator {
  public:
-  TVM_DEFINE_OBJECT_FUNCTOR_DEFAULT_CONSTRUCTOR(StmtExprMutatorObj, tvm::ExprMutatorObj)
-  using tvm::ExprMutatorObj::Mutate;
-  using tvm::ExprMutatorObj::Mutate_;
+  TVM_DEFINE_OBJECT_FUNCTOR_DEFAULT_CONSTRUCTOR(StmtExprMutator, tvm::ExprMutator)
+  using tvm::ExprMutator::Mutate;
+  using tvm::ExprMutator::Mutate_;
 
   /*! \brief Mutate a borrowed statement through the virtual generic entry.
    * \param stmt The borrowed statement.
@@ -276,7 +276,7 @@ class TVM_DLL StmtExprMutatorObj : public tvm::ExprMutatorObj {
   virtual UnchangedOr<Stmt> Mutate_(const EvaluateNode* op, InplaceMode inplace_mode);
 
  protected:
-  explicit StmtExprMutatorObj(const VTable* vtable) : tvm::ExprMutatorObj(vtable) {}
+  explicit StmtExprMutator(const VTable* vtable) : tvm::ExprMutator(vtable) {}
   static void InitVTable(VTable* vtable);
 };
 
@@ -320,7 +320,7 @@ TVM_DLL PrimExpr SubstituteWithDataTypeLegalization(
  */
 template <typename Node, typename = std::enable_if_t<std::is_base_of_v<StmtNode, Node>>>
 bool ContainsNode(const Stmt& stmt) {
-  struct VisitorObj : StmtExprVisitorObj {
+  struct Visitor : StmtExprVisitor {
     // Early bail-out, if we already found the node. Skip expression operands.
     ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) final {
       if (contains_node || value.as<ExprNode>()) {
@@ -330,13 +330,13 @@ bool ContainsNode(const Stmt& stmt) {
         contains_node = true;
         return std::nullopt;
       }
-      return StmtExprVisitorObj::Visit(value);
+      return StmtExprVisitor::Visit(value);
     }
 
     bool contains_node{false};
   };
 
-  auto visitor = ffi::make_object<VisitorObj>();
+  auto visitor = ffi::make_object<Visitor>();
   visitor->Visit(stmt);
   return visitor->contains_node;
 }

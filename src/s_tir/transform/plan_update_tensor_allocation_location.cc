@@ -36,9 +36,9 @@ namespace tvm {
 namespace s_tir {
 using namespace tvm::tirx;
 
-class CollectManagedAllocationsObj : public StmtExprVisitorObj {
+class CollectManagedAllocations : public StmtExprVisitor {
  public:
-  using StmtExprVisitorObj::Visit_;
+  using StmtExprVisitor::Visit_;
   ffi::Optional<VisitInterrupt> Visit_(const SBlockNode* op) final {
     for (const auto& tensor : op->alloc_tensors) {
       managed_allocations.insert(tensor.get());
@@ -46,20 +46,20 @@ class CollectManagedAllocationsObj : public StmtExprVisitorObj {
     for (const auto& tensor : op->match_tensors) {
       managed_allocations.insert(tensor->tensor.get());
     }
-    return StmtExprVisitorObj::Visit_(op);
+    return StmtExprVisitor::Visit_(op);
   }
 
   /*! \brief Tensors that are allocated outside of the BlockNode, and should not be moved by
-   * TensorAllocationLocatorObj. */
+   * TensorAllocationLocator. */
   std::unordered_set<const VarNode*> managed_allocations;
 };
 
 /*! \brief Collect the allocate tensor order. */
-class TensorAllocateOrderCollectorObj : public StmtExprVisitorObj {
+class TensorAllocateOrderCollector : public StmtExprVisitor {
  public:
-  using StmtExprVisitorObj::Visit_;
+  using StmtExprVisitor::Visit_;
   static ffi::Array<TensorVar> Collect(const Function& func) {
-    auto collector = ffi::make_object<TensorAllocateOrderCollectorObj>();
+    auto collector = ffi::make_object<TensorAllocateOrderCollector>();
     for (const Var& param : func->params) {
       if (auto tensor = param.as<TensorVar>()) {
         collector->tensor_alloc_recorder_.push_back(tensor.value());
@@ -88,39 +88,39 @@ class TensorAllocateOrderCollectorObj : public StmtExprVisitorObj {
       }
     }
 
-    return StmtExprVisitorObj::Visit_(op);
+    return StmtExprVisitor::Visit_(op);
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* op) final {
     if (!find(op->source.as_or_throw<tvm::tirx::TensorVar>())) {
       tensor_alloc_recorder_.push_back(op->source.as_or_throw<tvm::tirx::TensorVar>());
     }
-    return StmtExprVisitorObj::Visit_(op);
+    return StmtExprVisitor::Visit_(op);
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const TensorStoreNode* op) final {
     if (!find(op->dest.as_or_throw<TensorVar>())) {
       tensor_alloc_recorder_.push_back(op->dest.as_or_throw<TensorVar>());
     }
-    return StmtExprVisitorObj::Visit_(op);
+    return StmtExprVisitor::Visit_(op);
   }
 
   /*! \brief The tensor allocated order recorder. */
   ffi::Array<TensorVar> tensor_alloc_recorder_;
 };
 
-class TensorAllocationLocatorObj : public StmtExprMutatorObj {
+class TensorAllocationLocator : public StmtExprMutator {
  public:
-  using StmtExprMutatorObj::Mutate;
-  using StmtExprMutatorObj::Mutate_;
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
 
-  explicit TensorAllocationLocatorObj(const Function& func) {
+  explicit TensorAllocationLocator(const Function& func) {
     ffi::Map<TensorVar, ffi::Optional<Stmt>> tensor_lca = DetectTensorAccessLCA(func);
     // The tensor_alloc_recorder Array is used to keep the tensor allocation order
     // since the tensor_lca Map is unordered.
-    ffi::Array<TensorVar> tensor_alloc_recorder = TensorAllocateOrderCollectorObj::Collect(func);
+    ffi::Array<TensorVar> tensor_alloc_recorder = TensorAllocateOrderCollector::Collect(func);
     std::unordered_set<const VarNode*> arg_tensor_vars;
-    auto collector = ffi::make_object<CollectManagedAllocationsObj>();
+    auto collector = ffi::make_object<CollectManagedAllocations>();
     collector->Visit(func->body);
     managed_allocations_ = collector->managed_allocations;
 
@@ -150,12 +150,12 @@ class TensorAllocationLocatorObj : public StmtExprMutatorObj {
   UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
     auto it = alloc_tensors_.find(op);
     if (it == alloc_tensors_.end()) {
-      return StmtExprMutatorObj::Mutate_(op, inplace_mode);
+      return StmtExprMutator::Mutate_(op, inplace_mode);
     }
     for (const TensorVar& tensor : it->second) {
       tensor_data_to_tensor_.Set(tensor.var(), tensor);
     }
-    auto node = StmtExprMutatorObj::Mutate_(op, inplace_mode)
+    auto node = StmtExprMutator::Mutate_(op, inplace_mode)
                     .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
                     .as_or_throw<For>();
 
@@ -177,12 +177,12 @@ class TensorAllocationLocatorObj : public StmtExprMutatorObj {
   UnchangedOr<Stmt> Mutate_(const RegionStmtNode* op, InplaceMode inplace_mode) final {
     auto it = alloc_tensors_.find(op);
     if (it == alloc_tensors_.end()) {
-      return StmtExprMutatorObj::Mutate_(op, inplace_mode);
+      return StmtExprMutator::Mutate_(op, inplace_mode);
     }
     for (const TensorVar& tensor : it->second) {
       tensor_data_to_tensor_.Set(tensor.var(), tensor);
     }
-    auto node = StmtExprMutatorObj::Mutate_(op, inplace_mode)
+    auto node = StmtExprMutator::Mutate_(op, inplace_mode)
                     .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
                     .as_or_throw<RegionStmt>();
 
@@ -217,7 +217,7 @@ class TensorAllocationLocatorObj : public StmtExprMutatorObj {
       TVM_FFI_ICHECK(tensor_data_to_tensor_.count(source_var));
       tensor_data_to_tensor_.Set(target_var, match_tensor->tensor);
     }
-    SBlock stmt = StmtExprMutatorObj::Mutate_(op, inplace_mode)
+    SBlock stmt = StmtExprMutator::Mutate_(op, inplace_mode)
                       .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
                       .as_or_throw<SBlock>();
     op = stmt.as<SBlockNode>();
@@ -287,7 +287,7 @@ namespace transform {
 Pass PlanAndUpdateTensorAllocationLocation() {
   auto pass_func = [=](Function f, IRModule m, PassContext ctx) {
     auto fptr = f.CopyOnWrite();
-    auto locator = ffi::make_object<TensorAllocationLocatorObj>(f);
+    auto locator = ffi::make_object<TensorAllocationLocator>(f);
     fptr->body = locator->Mutate(fptr->body).ValueOrUnchanged(fptr->body);
     return f;
   };

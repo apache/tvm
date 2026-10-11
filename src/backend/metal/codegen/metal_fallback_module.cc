@@ -20,7 +20,7 @@
 /*!
  * \file metal_fallback_module.cc
  * \brief MetalFallbackModuleObj — codegen-time placeholder used when the
- *        Metal runtime is not linked.  Mirrors `MetalModuleNode`'s save/load
+ *        Metal runtime is not linked.  Mirrors `MetalModuleObj`'s save/load
  *        format byte-for-byte; see one-way comment in `SaveToBytes` below.
  *        Always compiled (independent of USE_METAL); never registered as an
  *        FFI factory or loader.  Plain C++ — no Metal/Cocoa types.
@@ -49,7 +49,7 @@ class MetalFallbackModuleObj : public ffi::ModuleObj {
         source_(std::move(source)) {}
 
   // Mirror the real module's kind so consumers cannot distinguish at the
-  // kind/api layer.  Saved bytes load back as a real MetalModuleNode on a
+  // kind/api layer.  Saved bytes load back as a real MetalModuleObj on a
   // Metal-equipped (macOS, USE_METAL=ON) receiver.
   const char* kind() const final { return "metal"; }
 
@@ -65,7 +65,7 @@ class MetalFallbackModuleObj : public ffi::ModuleObj {
 
   ffi::Bytes SaveToBytes() const final {
     // NOTE: serialization format MUST remain byte-identical to
-    // MetalModuleNode::SaveToBytes in src/runtime/metal/metal_module.mm
+    // MetalModuleObj::SaveToBytes in src/runtime/metal/metal_module.mm
     // (the source of truth).  Both produce a kind="metal" artifact that
     // the loader (ffi.Module.load_from_bytes.metal, registered only when
     // USE_METAL=ON) deserializes.  If the real impl's format changes,

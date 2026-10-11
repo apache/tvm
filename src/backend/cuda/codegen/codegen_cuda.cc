@@ -197,11 +197,11 @@ void CodeGenCUDA::PrintFunctionPrefix(const Function& func, std::ostream& os) {
   }
 }
 
-class ThreadIdxExtractorObj : public tirx::StmtExprVisitorObj {
+class ThreadIdxExtractor : public tirx::StmtExprVisitor {
  public:
   ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
     if (value.as<tvm::ExprNode>()) return std::nullopt;
-    return StmtExprVisitorObj::Visit(value);
+    return StmtExprVisitor::Visit(value);
   }
 
  private:
@@ -229,7 +229,7 @@ class ThreadIdxExtractorObj : public tirx::StmtExprVisitorObj {
       } else if (tag == "clusterCtaIdx.z") {
         clusterCtaIdx_z_ext = extent;
       }
-      return StmtExprVisitorObj::Visit_(op);
+      return StmtExprVisitor::Visit_(op);
     } else {
       TVM_FFI_THROW(ValueError) << "Unsupported region op " << op->op;
     }
@@ -257,7 +257,7 @@ void CodeGenCUDA::InitFuncState(const Function& func) {
       func->GetAttr<CallingConv>(tvm::attr::kCallingConv, CallingConv::kDefault).value() ==
       CallingConv::kDeviceKernelLaunch;
   // Thread metadata is also needed while emitting cluster index accesses.
-  auto extractor = ffi::make_object<ThreadIdxExtractorObj>();
+  auto extractor = ffi::make_object<ThreadIdxExtractor>();
   extractor->Visit(func->body);
   launch_dimensions_ = {extractor->threadIdx_x_ext,     extractor->threadIdx_y_ext,
                         extractor->threadIdx_z_ext,     extractor->clusterCtaIdx_x_ext,
@@ -1162,7 +1162,7 @@ void CodeGenCUDA::Dispatch_(const CallNode* op, std::ostream& os) {
     // "//" and "%" in the index map are translated to FloorDiv/Mod, but the plain Div/Mod are fine.
     // FloorDiv/Mod are supposed to be lowered before they reach codegen, so manually replace them
     // to the plain ones here.
-    class LowerFloorDivModObj : public tirx::StmtExprMutatorObj {
+    class LowerFloorDivMod : public tirx::StmtExprMutator {
      public:
       UnchangedOr<PrimExpr> Mutate_(const prim::FloorDivNode* op, InplaceMode inplace_mode) {
         return prim::Div(this->Mutate(op->a, inplace_mode).ValueOrUnchanged(op->a),
@@ -1176,7 +1176,7 @@ void CodeGenCUDA::Dispatch_(const CallNode* op, std::ostream& os) {
 
     PrimExpr dst_expr = indices_16x16[0] * stride + indices_16x16[1];
     auto dst_ind =
-        ffi::make_object<LowerFloorDivModObj>()->Mutate(dst_expr).ValueOrUnchanged(dst_expr);
+        ffi::make_object<LowerFloorDivMod>()->Mutate(dst_expr).ValueOrUnchanged(dst_expr);
 
     var_idmap_[inverse_index_map->initial_indices[0].get()] = "threadIdx.x";
     var_idmap_[inverse_index_map->initial_indices[1].get()] = "local_id";
@@ -1777,7 +1777,7 @@ void CodeGenCUDA::PrintVecElemLoadExpr(const PrimType& t, int i, const std::stri
 // fallback-aware module factory.  The factory may JIT to PTX/cubin via
 // `tvm_callback_cuda_compile` when
 // USE_CUDA=ON; on USE_CUDA=OFF builds (or when TVM_COMPILE_FORCE_FALLBACK is
-// set), it returns a `CUDAFallbackModuleNode` carrying the raw source for
+// set), it returns a `CUDAFallbackModuleObj` carrying the raw source for
 // later cross-compile.
 ffi::Module BuildCUDA(IRModule mod, Target target) {
   bool output_ssa = false;
@@ -1813,8 +1813,8 @@ ffi::Module BuildCUDA(IRModule mod, Target target) {
   // Hand off raw CUDA source to the fallback-aware factory.  When the real
   // CUDA runtime is registered (USE_CUDA=ON and not forced-fallback) the
   // factory invokes tvm_callback_cuda_compile and
-  // builds a real CUDAModuleNode.  Otherwise it stores the source in a
-  // CUDAFallbackModuleNode for later cross-compile.
+  // builds a real CUDAModuleObj.  Otherwise it stores the source in a
+  // CUDAFallbackModuleObj for later cross-compile.
   ffi::Map<ffi::String, ffi::String> source_map;
   auto config = mod->GetAttr<ffi::String>("backend_config");
   if (!config.has_value()) {

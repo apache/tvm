@@ -52,9 +52,9 @@ std::string GetStorageScope(const Var& var) {
 /*!
  * \brief Allocation calculator for tensor allocation bindings.
  */
-class AllocTensorCalculatorObj : public StmtExprVisitorObj {
+class AllocTensorCalculator : public StmtExprVisitor {
  public:
-  using StmtExprVisitorObj::Visit_;
+  using StmtExprVisitor::Visit_;
 
   tvm::ffi::Map<ffi::String, int64_t> operator()(const Function& func) {
     this->Visit(func->body);
@@ -71,7 +71,7 @@ class AllocTensorCalculatorObj : public StmtExprVisitorObj {
         call && call->op.same_as(tirx::alloc_tensor_op())) {
       return DispatchAllocTensor(op, call);
     }
-    return StmtExprVisitorObj::Visit_(op);
+    return StmtExprVisitor::Visit_(op);
   }
 
   ffi::Optional<VisitInterrupt> DispatchAllocTensor(const BindNode* op, const CallNode* call) {
@@ -95,23 +95,23 @@ class AllocTensorCalculatorObj : public StmtExprVisitorObj {
     size *= static_cast<int64_t>(PrimType(dtype).StorageBytes());
     _current_size[scope] += size;
     _max_size[scope] = std::max(_current_size[scope], _max_size[scope]);
-    return StmtExprVisitorObj::Visit_(op);
+    return StmtExprVisitor::Visit_(op);
   }
   ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) override {
     auto snapshot = _current_size;
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitorObj::Visit_(op));
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     _current_size = snapshot;
     return std::nullopt;
   }
   ffi::Optional<VisitInterrupt> Visit_(const IfNode* op) override {
     auto snapshot = _current_size;
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitorObj::Visit_(op));
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     _current_size = snapshot;
     return std::nullopt;
   }
   ffi::Optional<VisitInterrupt> Visit_(const RegionStmtNode* op) override {
     auto snapshot = _current_size;
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitorObj::Visit_(op));
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     _current_size = snapshot;
     return std::nullopt;
   }
@@ -122,7 +122,7 @@ class AllocTensorCalculatorObj : public StmtExprVisitorObj {
 tvm::ffi::Map<ffi::String, tvm::ffi::Map<ffi::String, int64_t> > CalculateAllocatedBytes(
     const Function& func) {
   tvm::ffi::Map<ffi::String, tvm::ffi::Map<ffi::String, int64_t> > results;
-  auto alloc_tensor_result = ffi::make_object<AllocTensorCalculatorObj>()->operator()(func);
+  auto alloc_tensor_result = ffi::make_object<AllocTensorCalculator>()->operator()(func);
   results.Set("main", alloc_tensor_result);
   return results;
 }
@@ -134,7 +134,7 @@ tvm::ffi::Map<ffi::String, tvm::ffi::Map<ffi::String, int64_t> > CalculateAlloca
     if (auto function = kv.second.as<tirx::Function>()) {
       ffi::String func_name = kv.first->name_hint;
       auto alloc_tensor_result =
-          ffi::make_object<AllocTensorCalculatorObj>()->operator()(function.value());
+          ffi::make_object<AllocTensorCalculator>()->operator()(function.value());
       results.Set(func_name, alloc_tensor_result);
     }
   }

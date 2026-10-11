@@ -85,15 +85,15 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   ::tvm::transform::PassContext::RegisterConfigOption<StmtSimplifyConfig>("tirx.StmtSimplify");
 }
 
-Function StmtSimplifierObj::Apply(Function func, const sym::Analyzer& analyzer,
-                                  ffi::Optional<StmtSimplifyConfig> config_opt) {
+Function StmtSimplifier::Apply(Function func, const sym::Analyzer& analyzer,
+                               ffi::Optional<StmtSimplifyConfig> config_opt) {
   auto config = config_opt.has_value() ? config_opt.value() : MakeDefaultStmtSimplifyConfig();
 
-  auto simplifier = ffi::make_object<StmtSimplifierObj>(analyzer, config);
+  auto simplifier = ffi::make_object<StmtSimplifier>(analyzer, config);
   return simplifier->Run(std::move(func));
 }
 
-Function StmtSimplifierObj::Run(Function func) {
+Function StmtSimplifier::Run(Function func) {
   analyzer_->rewrite_simplify.SetEnabledExtensions(config_->GetEnabledExtensions());
   MarkTensorParamShapes(func);
   auto* n = func.CopyOnWrite();
@@ -119,7 +119,7 @@ Function StmtSimplifierObj::Run(Function func) {
   return func;
 }
 
-UnchangedOr<ffi::Any> StmtSimplifierObj::Mutate(ffi::AnyView input, InplaceMode inplace_mode) {
+UnchangedOr<ffi::Any> StmtSimplifier::Mutate(ffi::AnyView input, InplaceMode inplace_mode) {
   if (input.as<TensorType>()) {
     return ffi::Unchanged();
   }
@@ -134,7 +134,7 @@ UnchangedOr<ffi::Any> StmtSimplifierObj::Mutate(ffi::AnyView input, InplaceMode 
   return Parent::Mutate(input, inplace_mode);
 }
 
-UnchangedOr<Stmt> StmtSimplifierObj::Mutate_(const ForNode* op, InplaceMode inplace_mode) {
+UnchangedOr<Stmt> StmtSimplifier::Mutate_(const ForNode* op, InplaceMode inplace_mode) {
   analyzer_->Bind(op->loop_var, Range::FromMinExtent(op->min, op->extent));
   With<sym::ConstraintContext> ctx1(analyzer_, op->loop_var >= op->min);
   With<sym::ConstraintContext> ctx2(analyzer_,
@@ -142,7 +142,7 @@ UnchangedOr<Stmt> StmtSimplifierObj::Mutate_(const ForNode* op, InplaceMode inpl
   return Parent::Mutate_(op, inplace_mode);
 }
 
-UnchangedOr<Stmt> StmtSimplifierObj::Mutate_(const BindNode* op, InplaceMode inplace_mode) {
+UnchangedOr<Stmt> StmtSimplifier::Mutate_(const BindNode* op, InplaceMode inplace_mode) {
   if (const auto* call = op->value.as<CallNode>()) {
     // Preserve tensor type metadata; only declaration data is simplified.
     if (call->op.same_as(tirx::alloc_tensor_op())) return ffi::Unchanged();
@@ -196,7 +196,7 @@ UnchangedOr<Stmt> StmtSimplifierObj::Mutate_(const BindNode* op, InplaceMode inp
   }
 }
 
-UnchangedOr<Stmt> StmtSimplifierObj::Mutate_(const IfNode* op, InplaceMode inplace_mode) {
+UnchangedOr<Stmt> StmtSimplifier::Mutate_(const IfNode* op, InplaceMode inplace_mode) {
   if (ffi::Optional<bool> cond = ProveCondition(op->condition)) {
     if (cond.value()) {
       return this->Mutate(op->then_case, inplace_mode).ValueOrUnchanged(op->then_case);
@@ -211,7 +211,7 @@ UnchangedOr<Stmt> StmtSimplifierObj::Mutate_(const IfNode* op, InplaceMode inpla
   }
 }
 
-UnchangedOr<Stmt> StmtSimplifierObj::Mutate_(const TensorStoreNode* op, InplaceMode inplace_mode) {
+UnchangedOr<Stmt> StmtSimplifier::Mutate_(const TensorStoreNode* op, InplaceMode inplace_mode) {
   TensorStore store = Parent::Mutate_(op, inplace_mode)
                           .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
                           .as_or_throw<TensorStore>();
@@ -229,8 +229,8 @@ UnchangedOr<Stmt> StmtSimplifierObj::Mutate_(const TensorStoreNode* op, InplaceM
   return store;
 }
 
-bool StmtSimplifierObj::ArrayDeepEqual(const ffi::Array<PrimExpr>& lhs,
-                                       const ffi::Array<PrimExpr>& rhs) {
+bool StmtSimplifier::ArrayDeepEqual(const ffi::Array<PrimExpr>& lhs,
+                                    const ffi::Array<PrimExpr>& rhs) {
   if (lhs.size() != rhs.size()) {
     return false;
   }
@@ -242,7 +242,7 @@ bool StmtSimplifierObj::ArrayDeepEqual(const ffi::Array<PrimExpr>& lhs,
   return true;
 }
 
-ffi::Optional<bool> StmtSimplifierObj::ProveCondition(PrimExpr condition) const {
+ffi::Optional<bool> StmtSimplifier::ProveCondition(PrimExpr condition) const {
   auto f_substitute = [this](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
     if (auto repl = non_inlined_bindings_.Get(var)) return ffi::Any(*std::move(repl));
     return ffi::Unchanged();
@@ -258,7 +258,7 @@ ffi::Optional<bool> StmtSimplifierObj::ProveCondition(PrimExpr condition) const 
 }
 
 Function StmtSimplify(Function func, const sym::Analyzer& analyzer) {
-  return StmtSimplifierObj::Apply(std::move(func), analyzer);
+  return StmtSimplifier::Apply(std::move(func), analyzer);
 }
 
 namespace transform {
@@ -268,7 +268,7 @@ Pass StmtSimplify() {
     sym::Analyzer analyzer;
     auto cfg = ctx->GetConfigOrDefault<StmtSimplifyConfig>("tirx.StmtSimplify");
 
-    return StmtSimplifierObj::Apply(f, analyzer, cfg);
+    return StmtSimplifier::Apply(f, analyzer, cfg);
   };
   return CreateFunctionPass(pass_func, 0, "tirx.StmtSimplify");
 }

@@ -388,7 +388,7 @@ IRModule Pass::operator()(IRModule mod, const PassContext& pass_ctx) const {
   }
   IRModule ret;
   // Error enrichment happens in the leaf pass executors (ModulePassObj /
-  // FunctionPassNode), not here — guarding the generic funnel (which also wraps
+  // FunctionPassObj), not here — guarding the generic funnel (which also wraps
   // Sequential) would re-resolve FindAccessPaths against a mutated post-pass
   // module and double-wrap the message.
   if (pass_ctx->GetConfig<bool>("testing.immutable_module").value_or(false)) {

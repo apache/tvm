@@ -60,12 +60,12 @@ inline ffi::Optional<Var> GetBufferDataVar(const ffi::Any& data) {
 }
 
 template <typename DialectMutator>
-class ThreadAllreduceBuilderObj final : public DialectMutator {
+class ThreadAllreduceBuilder final : public DialectMutator {
  public:
   using DialectMutator::Mutate;
   using DialectMutator::Mutate_;
 
-  explicit ThreadAllreduceBuilderObj(const TargetObj* target, const ffi::Array<Var>& params)
+  explicit ThreadAllreduceBuilder(const TargetObj* target, const ffi::Array<Var>& params)
       : target_(target),
         warp_size_(target->GetAttr<int64_t>("thread_warp_size", 1).value()),
         max_num_threads_(target->GetAttr<int64_t>("max_num_threads", -1).value()) {
@@ -922,7 +922,7 @@ class ThreadAllreduceBuilderObj final : public DialectMutator {
     return tensor;
   }
 
-  // These members are public for post-processing by DeferredRemapperObj.
+  // These members are public for post-processing by DeferredRemapper.
   // Allocate remap
   std::unordered_map<const VarNode*, TensorVar> alloc_remap_;
   // TensorVar remap
@@ -942,15 +942,15 @@ class ThreadAllreduceBuilderObj final : public DialectMutator {
  * were not available during the main traversal.
  */
 template <typename DialectMutator>
-class DeferredRemapperObj : public DialectMutator {
+class DeferredRemapper : public DialectMutator {
  public:
   using DialectMutator::Mutate;
   using DialectMutator::Mutate_;
 
-  DeferredRemapperObj(const std::unordered_map<const VarNode*, TensorVar>& alloc_remap,
-                      const std::unordered_map<const VarNode*, Var>& var_remap,
-                      const ffi::Map<Var, Var>& tensor_aliases,
-                      const std::vector<const VarNode*>& pending)
+  DeferredRemapper(const std::unordered_map<const VarNode*, TensorVar>& alloc_remap,
+                   const std::unordered_map<const VarNode*, Var>& var_remap,
+                   const ffi::Map<Var, Var>& tensor_aliases,
+                   const std::vector<const VarNode*>& pending)
       : alloc_remap_(alloc_remap),
         allreduce_var_remap_(var_remap),
         tensor_aliases_(tensor_aliases) {
@@ -1038,10 +1038,10 @@ Function LowerThreadAllreduce(Function f) {
   TVM_FFI_ICHECK(target.has_value()) << "LowerThreadAllreduce: Require the target attribute";
   const TargetObj* target_node = target.as<TargetObj>();
   auto thread_all_reduce =
-      ffi::make_object<ThreadAllreduceBuilderObj<DialectMutator>>(target_node, f->params);
+      ffi::make_object<ThreadAllreduceBuilder<DialectMutator>>(target_node, f->params);
   n->body = thread_all_reduce->Mutate(n->body).ValueOrUnchanged(n->body);
   // Post-process: apply deferred remappings for flat IR
-  auto remapper = ffi::make_object<DeferredRemapperObj<DialectMutator>>(
+  auto remapper = ffi::make_object<DeferredRemapper<DialectMutator>>(
       thread_all_reduce->alloc_remap_, thread_all_reduce->allreduce_var_remap_,
       thread_all_reduce->tensor_aliases_, thread_all_reduce->pending_alloc_tensors_);
   if (remapper->HasPendingRemaps()) {

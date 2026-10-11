@@ -29,11 +29,11 @@ namespace s_tir {
 using namespace tvm::tirx;
 
 /*! \brief Check if an IRModule has any async strided mem copies. */
-struct AsyncStridedMemCopyFinderObj : public StmtExprVisitorObj {
-  using StmtExprVisitorObj::Visit_;
+struct AsyncStridedMemCopyFinder : public StmtExprVisitor {
+  using StmtExprVisitor::Visit_;
 
   static bool Find(const IRModule& mod) {
-    auto finder = ffi::make_object<AsyncStridedMemCopyFinderObj>();
+    auto finder = ffi::make_object<AsyncStridedMemCopyFinder>();
     for (const auto& kv : mod->functions) {
       if (const auto* function = kv.second.as<FunctionNode>()) {
         finder->Visit(function->body);
@@ -49,7 +49,7 @@ struct AsyncStridedMemCopyFinderObj : public StmtExprVisitorObj {
   ffi::Optional<VisitInterrupt> Visit_(const ForNode* loop) final {
     if (!found_) {
       input_iters.Set(loop->loop_var, Range(loop->min, loop->extent));
-      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitorObj::Visit_(loop));
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(loop));
     }
     return std::nullopt;
   }
@@ -57,7 +57,7 @@ struct AsyncStridedMemCopyFinderObj : public StmtExprVisitorObj {
   ffi::Optional<VisitInterrupt> Visit_(const RegionStmtNode* op) final {
     bool previous = in_async_copy_;
     in_async_copy_ |= op->op.same_as(s_tir::async_copy_scope());
-    auto result = StmtExprVisitorObj::Visit_(op);
+    auto result = StmtExprVisitor::Visit_(op);
     in_async_copy_ = previous;
     return result;
   }
@@ -130,7 +130,7 @@ class DisallowAsyncStridedMemCopyObj : public PostprocObj {
         } catch (const std::runtime_error& e) {
           return false;
         }
-        if (s_tir::AsyncStridedMemCopyFinderObj::Find(lowered)) {
+        if (s_tir::AsyncStridedMemCopyFinder::Find(lowered)) {
           return false;
         }
       }

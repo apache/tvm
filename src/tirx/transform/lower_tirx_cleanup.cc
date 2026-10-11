@@ -46,14 +46,14 @@
 namespace tvm {
 namespace tirx {
 
-class LayoutApplierObj : public IRMutatorWithAnalyzerObj {
+class LayoutApplier : public IRMutatorWithAnalyzer {
  public:
-  using IRMutatorWithAnalyzerObj::Mutate;
-  using IRMutatorWithAnalyzerObj::Mutate_;
+  using IRMutatorWithAnalyzer::Mutate;
+  using IRMutatorWithAnalyzer::Mutate_;
   static std::pair<Stmt, ffi::Array<Var>> Flatten(const Stmt& stmt, const ffi::Array<Var>& params,
                                                   const Target& target) {
     sym::Analyzer ana;
-    auto storage_lower = ffi::make_object<LayoutApplierObj>(ana, target);
+    auto storage_lower = ffi::make_object<LayoutApplier>(ana, target);
     ffi::Array<Var> new_params;
     new_params.reserve(params.size());
     std::vector<std::pair<TensorVar, TensorVar>> param_flattened_tensors;
@@ -86,8 +86,8 @@ class LayoutApplierObj : public IRMutatorWithAnalyzerObj {
   }
 
  public:
-  explicit LayoutApplierObj(const sym::Analyzer& analyzer, const Target& target)
-      : IRMutatorWithAnalyzerObj(analyzer), target_(target) {}
+  explicit LayoutApplier(const sym::Analyzer& analyzer, const Target& target)
+      : IRMutatorWithAnalyzer(analyzer), target_(target) {}
 
  protected:
   ffi::Any VisitAny(const ffi::Any& any) {
@@ -120,7 +120,7 @@ class LayoutApplierObj : public IRMutatorWithAnalyzerObj {
         return root.as_or_throw<TensorVar>().data();
       }
     }
-    return IRMutatorWithAnalyzerObj::Mutate_(op, inplace_mode);
+    return IRMutatorWithAnalyzer::Mutate_(op, inplace_mode);
   }
 
   UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final {
@@ -147,7 +147,7 @@ class LayoutApplierObj : public IRMutatorWithAnalyzerObj {
             .ValueOrUnchanged(binding);
       }
     }
-    return IRMutatorWithAnalyzerObj::Mutate_(op, inplace_mode);
+    return IRMutatorWithAnalyzer::Mutate_(op, inplace_mode);
   }
 
   UnchangedOr<Stmt> MutateAllocTensor(const BindNode* op, const CallNode* tensor_call,
@@ -226,19 +226,19 @@ class LayoutApplierObj : public IRMutatorWithAnalyzerObj {
     for (size_t i = 0; i < type->shape.size(); ++i) {
       type->shape.Set(
           i, analyzer_->canonical_simplify(
-                 StmtExprMutatorObj::Mutate(ffi::AnyView(type->shape[i]), InplaceMode::kDisallow)
+                 StmtExprMutator::Mutate(ffi::AnyView(type->shape[i]), InplaceMode::kDisallow)
                      .ValueOrUnchanged(type->shape[i])
                      .as_or_throw<PrimExpr>()));
     }
     for (size_t i = 0; i < type->strides.size(); ++i) {
       type->strides.Set(
-          i, StmtExprMutatorObj::Mutate(ffi::AnyView(type->strides[i]), InplaceMode::kDisallow)
+          i, StmtExprMutator::Mutate(ffi::AnyView(type->strides[i]), InplaceMode::kDisallow)
                  .ValueOrUnchanged(type->strides[i])
                  .as_or_throw<PrimExpr>());
     }
     type->layout = std::nullopt;
     type->elem_offset =
-        StmtExprMutatorObj::Mutate(ffi::AnyView(buf->elem_offset), InplaceMode::kDisallow)
+        StmtExprMutator::Mutate(ffi::AnyView(buf->elem_offset), InplaceMode::kDisallow)
             .ValueOrUnchanged(buf->elem_offset)
             .as_or_throw<PrimExpr>();
     if (ffi::StructuralEqual()(buf.type(), TensorType(type))) {
@@ -351,7 +351,7 @@ Pass LowerTIRxCleanup() {
     if (!f->body.has_value()) return f;
     Target target = ResolveTarget(f);
     auto* n = f.CopyOnWrite();
-    auto [body, params] = LayoutApplierObj::Flatten(n->body.value(), n->params, target);
+    auto [body, params] = LayoutApplier::Flatten(n->body.value(), n->params, target);
     n->body = std::move(body);
     n->params = std::move(params);
     return f;

@@ -31,9 +31,9 @@ using namespace tvm::tirx;
 /******** Error Classes ********/
 
 namespace {
-class TensorTypeErrorObj : public ScheduleErrorContextObj {
+class TensorTypeError : public ScheduleErrorContextObj {
  public:
-  explicit TensorTypeErrorObj(IRModule mod, const ffi::String& tensor_type)
+  explicit TensorTypeError(IRModule mod, const ffi::String& tensor_type)
       : mod_(std::move(mod)), tensor_type_(tensor_type) {}
 
   ffi::String FastErrorString() const final {
@@ -54,9 +54,9 @@ class TensorTypeErrorObj : public ScheduleErrorContextObj {
   ffi::String tensor_type_;
 };
 
-class InvalidIndexErrorObj : public ScheduleErrorContextObj {
+class InvalidIndexError : public ScheduleErrorContextObj {
  public:
-  explicit InvalidIndexErrorObj(IRModule mod, int num_access_regions, int tensor_idx)
+  explicit InvalidIndexError(IRModule mod, int num_access_regions, int tensor_idx)
       : mod_(std::move(mod)), num_access_regions_(num_access_regions), tensor_idx_(tensor_idx) {}
 
   ffi::String FastErrorString() const final {
@@ -99,7 +99,7 @@ void UnsafeHideTensorAccess(ScheduleState self, const StmtSRef& block_sref,
   } else if (tensor_type == "write") {
     num_access_regions = block->writes.size();
   } else {
-    throw MakeScheduleError<TensorTypeErrorObj>(self->mod, tensor_type);
+    throw MakeScheduleError<TensorTypeError>(self->mod, tensor_type);
   }
 
   std::set<int> tensor_indices;
@@ -108,7 +108,7 @@ void UnsafeHideTensorAccess(ScheduleState self, const StmtSRef& block_sref,
     if (tensor_idx_val >= 0 && tensor_idx_val < num_access_regions) {
       tensor_indices.insert(tensor_idx_val);
     } else {
-      throw MakeScheduleError<InvalidIndexErrorObj>(self->mod, num_access_regions, tensor_idx_val);
+      throw MakeScheduleError<InvalidIndexError>(self->mod, num_access_regions, tensor_idx_val);
     }
   }
 

@@ -42,10 +42,10 @@ namespace sym {
  * ordinary expression mutation retains full traversal. Extension nodes retain
  * the inherited structural fallback.
  */
-class SimplifierBaseObj : public tvm::ExprMutatorObj {
+class SimplifierBase : public tvm::ExprMutator {
  public:
-  using Parent = tvm::ExprMutatorObj;
-  explicit SimplifierBaseObj(AnalyzerObj* analyzer) : analyzer_(analyzer) {}
+  using Parent = tvm::ExprMutator;
+  explicit SimplifierBase(AnalyzerObj* analyzer) : analyzer_(analyzer) {}
 
   using Parent::Mutate_;
 

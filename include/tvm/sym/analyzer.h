@@ -417,9 +417,9 @@ class RewriteSimplifier {
   explicit RewriteSimplifier(AnalyzerObj* parent);
   TVM_DLL ~RewriteSimplifier();
   void CopyFrom(const RewriteSimplifier& other);
-  class ImplObj;
+  class Impl;
   /*! \brief Internal impl */
-  ffi::ObjectPtr<ImplObj> impl_;
+  ffi::ObjectPtr<Impl> impl_;
 };
 
 /*!
@@ -449,9 +449,9 @@ class CanonicalSimplifier {
   explicit CanonicalSimplifier(AnalyzerObj* parent);
   TVM_DLL ~CanonicalSimplifier();
   void CopyFrom(const CanonicalSimplifier& other);
-  class ImplObj;
+  class Impl;
   /*! \brief Internal impl */
-  ffi::ObjectPtr<ImplObj> impl_;
+  ffi::ObjectPtr<Impl> impl_;
 };
 
 /*! \brief Structure for representing result of known
