@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/ffi/extra/structural_equal.h>
+#include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/ir/prim/vector_expr.h>
 #include <tvm/script/printer/doc_translator.h>
@@ -31,6 +32,56 @@ namespace tvm {
 namespace script {
 namespace printer {
 namespace details {
+
+void EmitVarDefinition(DocTranslatorObj* d, const Var& var, ExprDoc rhs) {
+  // Only this type's referenced Vars must precede its declaration.
+  ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(
+      var->ty, [&](const Var& dependency) -> ffi::Expected<ffi::WalkResult> {
+        if (d->GetImplicitDefs().count(dependency)) {
+          if (auto rhs = d->Translate(dependency, dependency)) {
+            d->Emit(AssignDoc(VarDoc(d, dependency), rhs.value(), std::nullopt), dependency);
+          }
+        }
+        return ffi::WalkResult::Skip();
+      });
+  d->Emit(AssignDoc(VarDoc(d, var), rhs, std::nullopt), var);
+}
+
+ffi::Optional<ExprDoc> VarDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                       const ffi::Object* destination) {
+  const auto* node =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const VarNode>(input);
+  static ffi::reflection::TypeAttrColumn column(type_attr::kDocTranslateVarByTy);
+  if (auto hook = column[node->ty->type_index()]; hook != nullptr) {
+    return InvokeDocHook(hook, d, input, destination);
+  }
+  Var var = ffi::GetRef<Var>(node);
+  IdDoc id = d->VarGetOrAllocId(var, false);
+  if (destination == node && d->GetImplicitDefs().count(var)) {
+    // Promote before translating the type, which may refer back to this Var.
+    VarDoc(d, var);
+    ExprDoc rhs(ffi::UnsafeInit{});
+    if (auto primitive = var->ty.as<PrimType>()) {
+      rhs = NamespaceDoc("ir")->Attr("dynamic")->Call(
+          {LiteralDoc::Str(var->name, std::nullopt)}, {"dtype"},
+          {LiteralDoc::DataType(primitive.value()->dtype, std::nullopt)});
+    } else {
+      // A type expression or annotation alone does not construct a free Var.
+      rhs = NamespaceDoc("ir")->Attr("Var")->Call(
+          {LiteralDoc::Str(var->name, std::nullopt), TypeValue(d, var->ty, false)});
+    }
+    EmitVarDefinition(d, var, rhs);
+    return std::nullopt;
+  }
+  return IdDoc(id->name);
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  ffi::reflection::EnsureTypeAttrColumn(type_attr::kDocTranslateVarByTy);
+  ffi::reflection::EnsureTypeAttrColumn(type_attr::kDocTranslateTensorLoadBySourceTy);
+  ffi::reflection::TypeAttrDef<VarNode>().attr(tvm::script::printer::type_attr::kDocTranslate,
+                                               FDocTranslate::FromNative<&VarDocTranslate>());
+}
 
 ffi::Optional<ExprDoc> LambdaExprDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
                                               const ffi::Object*) {
@@ -125,7 +176,7 @@ ffi::Optional<ExprDoc> TensorRegionDocTranslate(DocTranslatorObj* d, ffi::AnyVie
       // Ask the existing type-directed subscription owner whether this syntax
       // reconstructs the exact region, without depending on a dialect type.
       static const auto realize = ffi::Function::GetGlobalRequired("ir.SubscriptExprRealize");
-      auto restored = realize(region->source, indices, region->loc).cast<TensorRegion>();
+      ffi::Any restored = realize(region->source, indices, region->loc);
       if (ffi::StructuralEqual()(restored, ffi::GetRef<TensorRegion>(region))) {
         return d->Translate(region->source).value()[slices];
       }
@@ -159,23 +210,10 @@ ffi::Optional<ExprDoc> TensorLoadDocTranslate(DocTranslatorObj* d, ffi::AnyView 
   const auto* load =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const TensorLoadNode>(input);
   static ffi::reflection::TypeAttrColumn column(
-      tvm::script::printer::type_attr::kTensorLoadDocTranslate);
+      tvm::script::printer::type_attr::kDocTranslateTensorLoadBySourceTy);
   ffi::AnyView hook = column[load->source->ty->type_index()];
   ffi::Any value = ffi::GetRef<TensorLoad>(load);
-  if (hook.type_index() == ffi::TypeIndex::kTVMFFIOpaquePtr) {
-    return ffi::details::ExpectedUnsafe::MoveFromTVMFFIAny<ffi::Optional<ExprDoc>>(
-               reinterpret_cast<decltype(DocTranslatorVTable::translate)>(hook.cast<void*>())(
-                   d, value, destination))
-        .value();
-  }
-  if (hook.type_index() == ffi::TypeIndex::kTVMFFIFunction) {
-    ffi::Any binder = destination ? ffi::Any(ffi::GetRef<ffi::ObjectRef>(destination)) : nullptr;
-    return hook.cast<ffi::Function>()
-        .CallExpected<ffi::Optional<ExprDoc>>(d, value, binder)
-        .value();
-  }
-  TVM_FFI_CHECK(hook.type_index() == ffi::TypeIndex::kTVMFFINone, TypeError)
-      << "TensorLoad type hook must be a native pointer or ffi.Function";
+  if (hook != nullptr) return InvokeDocHook(hook, d, value, destination);
   return IndexDoc(d->Translate(load->source).value(), TensorIndices(d, load->indices));
 }
 

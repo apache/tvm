@@ -160,7 +160,7 @@ SType IRBuilder::GetPointerType(const SType& value_type, spv::StorageClass stora
   }
   SType t;
   t.id = id_counter_++;
-  t.type = PointerType::VoidPointerTy();
+  t.type = PtrType::VoidPointerTy();
   t.element_type_id = value_type.id;
   t.storage_class = storage_class;
   ib_.Begin(spv::OpTypePointer).AddSeq(t, storage_class, value_type).Commit(&global_);
@@ -178,7 +178,7 @@ SType IRBuilder::GetStructArrayType(const SType& value_type, uint32_t num_elems,
 
   SType arr_type;
   arr_type.id = id_counter_++;
-  arr_type.type = PointerType::VoidPointerTy();
+  arr_type.type = PtrType::VoidPointerTy();
   arr_type.element_type_id = value_type.id;
 
   if (num_elems != 0) {
@@ -198,7 +198,7 @@ SType IRBuilder::GetStructArrayType(const SType& value_type, uint32_t num_elems,
   // declare struct of array
   SType struct_type;
   struct_type.id = id_counter_++;
-  struct_type.type = PointerType::VoidPointerTy();
+  struct_type.type = PtrType::VoidPointerTy();
   struct_type.element_type_id = value_type.id;
   ib_.Begin(spv::OpTypeStruct).AddSeq(struct_type, arr_type).Commit(&global_);
 
@@ -282,7 +282,7 @@ Value IRBuilder::DeclareStorageVariable(const std::vector<SType>& value_types,
                                         spv::StorageClass storage_class, ValueKind kind) {
   SType struct_type;
   struct_type.id = id_counter_++;
-  struct_type.type = PointerType::VoidPointerTy();
+  struct_type.type = PtrType::VoidPointerTy();
   ib_.Begin(spv::OpTypeStruct).Add(struct_type);
   for (const SType& vtype : value_types) {
     ib_.Add(vtype);

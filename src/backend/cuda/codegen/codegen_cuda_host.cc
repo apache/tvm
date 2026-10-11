@@ -145,7 +145,7 @@ class CodeGenCUDAHost : public CodeGenCHost {
   void Dispatch_(const BindNode* op) override {
     // C accepts the implicit void* conversion emitted for descriptor handles;
     // the CUDA translation unit is C++, which requires an explicit cast.
-    auto* ptr = op->var->ty.as<PointerTypeNode>();
+    auto* ptr = op->var->ty.as<PtrTypeNode>();
     if (print_ssa_form_ || !ptr || !ptr->element_type.as<tirx::TensorMapTypeNode>()) {
       CodeGenC::Dispatch_(op);
       return;
@@ -236,7 +236,7 @@ class CodeGenCUDAHost : public CodeGenCHost {
     for (size_t i = 1; i < op->args.size(); ++i) {
       std::string value = PrintExpr(op->args[i]);
       if (i < launch_begin) {
-        if (auto* ptr = op->args[i]->ty.as<PointerTypeNode>()) {
+        if (auto* ptr = op->args[i]->ty.as<PtrTypeNode>()) {
           if (ptr->element_type.as<tirx::TensorMapTypeNode>()) value = "*(" + value + ")";
         }
       }
@@ -275,7 +275,7 @@ class CodeGenCUDAHost : public CodeGenCHost {
             setter = "SetFloat";
             break;
           case tvm_cuda_launch::ValueKind::kHandle:
-            TVM_FFI_CHECK(type.as<PointerTypeNode>(), ValueError)
+            TVM_FFI_CHECK(type.as<PtrTypeNode>(), ValueError)
                 << "CUDA launch field " << info.name << " requires a host pointer/handle";
             setter = "SetHandle";
             value = "const_cast<void*>(static_cast<const void*>(" + value + "))";

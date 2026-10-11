@@ -111,7 +111,7 @@ class ComputeLegalizePlanner : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const VarNode* op) final {
-    if (op->ty.as<PointerTypeNode>()) {
+    if (op->ty.as<PtrTypeNode>()) {
       opaque_var_access_.insert(ffi::GetRef<Var>(op));
     }
     return StmtExprVisitor::Visit_(op);
@@ -641,7 +641,7 @@ class StorageLegalizer : public StmtExprMutator {
         return Call(PrimType::Void(), op->op, args, op->attrs, op->ty_args, op->loc);
       }
     }
-    if (const auto* pointer_type = op->ty.as<PointerTypeNode>()) {
+    if (const auto* pointer_type = op->ty.as<PtrTypeNode>()) {
       Expr ret = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Expr>(op));
       const auto* element_type = pointer_type->element_type.as<PrimTypeNode>();
       if (!element_type || !MatchType(ffi::GetRef<PrimType>(element_type))) {
@@ -649,7 +649,7 @@ class StorageLegalizer : public StmtExprMutator {
       }
       Call call = ret.as_or_throw<Call>();
       Type new_element_type = GetStorageUIntDType(ffi::GetRef<PrimType>(element_type));
-      return Call(PointerType(new_element_type, pointer_type->storage_scope), call->op, call->args,
+      return Call(PtrType(new_element_type, pointer_type->storage_scope), call->op, call->args,
                   call->attrs, call->ty_args, call->loc);
     }
     if (!op->ty.as<PrimTypeNode>()) {
@@ -695,12 +695,12 @@ class StorageLegalizer : public StmtExprMutator {
 
   Var RemapVarDef(Var var) {
     // remap the var
-    if (auto* ptr_type = var->ty.as<PointerTypeNode>()) {
+    if (auto* ptr_type = var->ty.as<PtrTypeNode>()) {
       if (auto* elem_type = ptr_type->element_type.as<PrimTypeNode>()) {
         PrimType elem_prim_type = ffi::GetRef<PrimType>(elem_type);
         if (MatchType(elem_prim_type)) {
-          Var new_var = Var(
-              var->name, PointerType(GetStorageUIntDType(elem_prim_type), ptr_type->storage_scope));
+          Var new_var =
+              Var(var->name, PtrType(GetStorageUIntDType(elem_prim_type), ptr_type->storage_scope));
           VarRemapSet(var, new_var);
           return new_var;
         }

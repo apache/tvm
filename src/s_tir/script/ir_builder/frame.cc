@@ -49,6 +49,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 tvm::tirx::Function FunctionFrameNode::FinalizeFunction(tvm::tirx::Function func) {
+  func = WithAttr(std::move(func), tvm::attr::kScriptNamespace, ffi::String("s_tir"));
   TVM_FFI_CHECK(!is_declaration || root_alloc_buffers.empty(), ValueError)
       << "A function declaration cannot allocate buffers";
   if (!is_declaration) {

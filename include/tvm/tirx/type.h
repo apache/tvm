@@ -118,7 +118,7 @@ class TensorTypeNode : public TypeNode {
   PrimType ElementType() const { return dtype; }
 
   /*! \return type of the physical pointer projected by tensor_data_ptr. */
-  PointerType DataPointerType() const { return PointerType(dtype, storage_scope); }
+  PtrType DataPointerType() const { return PtrType(dtype, storage_scope); }
 
   /*! \brief Whether this type supports scalar buffer syntax. */
   TVM_DLL bool IsScalar(bool alloc_or_decl = true) const;

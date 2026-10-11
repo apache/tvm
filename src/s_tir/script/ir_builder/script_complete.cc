@@ -132,6 +132,7 @@ class ScriptCompleter : public s_tir::StmtExprMutator {
 
 Function ScriptComplete(Function func, const ffi::Array<TensorVar>& root_allocates,
                         const BufferAllocatedAddresses& root_addresses) {
+  func = WithAttr(std::move(func), tvm::attr::kScriptNamespace, ffi::String("s_tir"));
   if (!func->body.has_value()) return func;
   ffi::Map<Var, TensorVar> buffer_var_map;
   for (const Var& param : func->params) {

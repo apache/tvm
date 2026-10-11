@@ -48,6 +48,26 @@ bool IsScalarBuffer(DocTranslatorObj* d, const Expr& source) {
 
 namespace {
 
+ffi::Optional<ExprDoc> TensorVarDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                             const ffi::Object* destination) {
+  Var var = input.cast<Var>();
+  IdDoc id = d->VarGetOrAllocId(var, false);
+  if (destination == var.get() && d->GetImplicitDefs().count(var)) {
+    VarDoc(d, var);
+    ExprDoc rhs = NamespaceDoc("tirx")->Attr("Var")->Call(
+        {LiteralDoc::Str(var->name, std::nullopt), d->Translate(var->ty).value()});
+    EmitVarDefinition(d, var, rhs);
+    return std::nullopt;
+  }
+  // Mutable scalar syntax binds a TensorLoad; resource uses need its allocation.
+  return IsScalarBuffer(d, var) ? IdDoc(id->name)->Attr("source") : ExprDoc(IdDoc(id->name));
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  ffi::reflection::TypeAttrDef<tirx::TensorTypeNode>().attr(
+      type_attr::kDocTranslateVarByTy, FDocTranslate::FromNative<&TensorVarDocTranslate>());
+}
+
 ffi::Optional<ExprDoc> BufferOperationDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
                                                    const ffi::Object* destination) {
   const auto* call =
@@ -87,7 +107,7 @@ ffi::Optional<ExprDoc> BufferOperationDocTranslate(DocTranslatorObj* d, ffi::Any
   }
   ffi::Optional<Expr> data = is_alloc ? std::nullopt : ffi::Optional<Expr>(call->args[0]);
   if (!is_alloc) {
-    const auto* pointer = data.value()->ty.as<PointerTypeNode>();
+    const auto* pointer = data.value()->ty.as<PtrTypeNode>();
     if (!pointer || pointer->storage_scope != scope->value) return RawCall(d, call);
   }
   CallDoc rhs = d->Translate(buffer.value()).value().as_or_throw<CallDoc>();
@@ -203,13 +223,8 @@ ffi::Optional<ExprDoc> TensorTypeDocTranslate(DocTranslatorObj* d, ffi::AnyView 
     }
   }
   if (!buffer->layout.has_value()) {
-    bool defaults_to_none = d->GetOrCreateExtraState<bool>("tirx.buffer_default_layout_none") ||
-                            buffer->storage_scope == "trn.sbuf" ||
-                            buffer->storage_scope == "trn.psum";
-    if (!defaults_to_none) {
-      keys.push_back("layout");
-      values.push_back(LiteralDoc::None(std::nullopt));
-    }
+    keys.push_back("layout");
+    values.push_back(LiteralDoc::None(std::nullopt));
   }
   return NamespaceDoc("tirx")->Attr("Tensor")->Call(
       {TupleDoc(shape), LiteralDoc::DataType(buffer->dtype->dtype, std::nullopt)}, keys, values);
@@ -260,7 +275,7 @@ ffi::Optional<ExprDoc> TIRxTensorLoadDocTranslate(DocTranslatorObj* d, ffi::AnyV
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<tirx::TensorTypeNode>().attr(
-      tvm::script::printer::type_attr::kTensorLoadDocTranslate,
+      tvm::script::printer::type_attr::kDocTranslateTensorLoadBySourceTy,
       FDocTranslate::FromNative<&TIRxTensorLoadDocTranslate>());
 }
 

@@ -384,9 +384,15 @@ namespace type_attr {
  */
 inline constexpr const char* kDocTranslate = "__tvm_doc_translate__";
 /*!
- * \brief Source-Type hook receiving the original TensorLoad and optional binder.
+ * \brief Optional hook dispatched by load->source->ty, receiving the TensorLoad and binder.
  */
-inline constexpr const char* kTensorLoadDocTranslate = "__tvm_doc_translate_tensor_load__";
+inline constexpr const char* kDocTranslateTensorLoadBySourceTy =
+    "__tvm_doc_translate_tensor_load_by_source_ty__";
+/*!
+ * \brief Optional hook dispatched by var->ty, receiving the Var and binder.
+ * Types without an override use the generic Var reference and definition syntax.
+ */
+inline constexpr const char* kDocTranslateVarByTy = "__tvm_doc_translate_var_by_ty__";
 }  // namespace type_attr
 
 namespace op_attr {

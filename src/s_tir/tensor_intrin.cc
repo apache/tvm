@@ -47,7 +47,7 @@ TensorIntrin::TensorIntrin(Function desc, Function impl) {
       << "The number of parameters of the description and the implementation of the "
          "tensor intrinsic doesn't match.";
   auto is_handle = [](const Var& param) {
-    return param->ty.as<PointerTypeNode>() != nullptr || param->ty.as<TensorTypeNode>() != nullptr;
+    return param->ty.as<PtrTypeNode>() != nullptr || param->ty.as<TensorTypeNode>() != nullptr;
   };
   for (size_t i = 0; i < desc->params.size(); i++) {
     TVM_FFI_CHECK(is_handle(desc->params[i]), ValueError)

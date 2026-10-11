@@ -31,7 +31,6 @@
 
 #include "../../../script/printer/ir/utils.h"
 #include "../../../script/printer/utils.h"
-#include "../../../tirx/script/printer/utils.h"
 #include "utils.h"
 
 namespace tvm {

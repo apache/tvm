@@ -36,7 +36,7 @@
 #include <unordered_set>
 
 #include "../../runtime/thread_storage_scope.h"
-#include "../../tirx/transform/ir_utils.h"
+#include "ir_utils.h"
 #include "storage_access.h"
 
 namespace tvm {
@@ -134,17 +134,11 @@ class FragmentGetter : public s_tir::StmtExprVisitor {
   std::unordered_map<const VarNode*, FragmentInfo> fragments;
 };
 
-}  // namespace s_tir
-
-namespace tirx {
 std::unordered_map<const VarNode*, FragmentInfo> GetTensorCoreFragmentInfo(const Stmt& stmt) {
   auto getter = ffi::make_object<s_tir::FragmentGetter>();
   getter->Visit(stmt);
   return std::move(getter->fragments);
 }
-}  // namespace tirx
-
-namespace s_tir {
 
 // Check shape of fragment making sure it is a valid shape for gpu_mma_sync
 class FragmentChecker : public s_tir::StmtExprVisitor {

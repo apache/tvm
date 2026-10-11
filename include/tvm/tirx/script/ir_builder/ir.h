@@ -234,12 +234,12 @@ tvm::Stmt TensorStore(Expr dest, ffi::Array<PrimExpr> indices, PrimExpr value);
  */
 inline Var Handle(ffi::Optional<PrimType> dtype = std::nullopt,
                   ffi::String storage_scope = "global") {
-  Type type_annotation = dtype.has_value() ? Type(PointerType(dtype.value(), storage_scope))
-                                           : Type(PointerType::VoidPointerTy(storage_scope));
+  Type type_annotation = dtype.has_value() ? Type(PtrType(dtype.value(), storage_scope))
+                                           : Type(PtrType::VoidPointerTy(storage_scope));
   return tvm::Var("", type_annotation);
 }
 
-inline Var TensorMap() { return tvm::Var("", PointerType(tvm::tirx::TensorMapType())); }
+inline Var TensorMap() { return tvm::Var("", PtrType(tvm::tirx::TensorMapType())); }
 
 #define TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(FuncName, DType)                \
   inline PrimExpr FuncName(ffi::Optional<PrimExpr> expr = std::nullopt) {  \

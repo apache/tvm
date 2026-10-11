@@ -51,7 +51,7 @@ def test_ir_builder_tir_function_base():
         params=[],
         body=tvm.ir.Evaluate(0),
         ret_type=None,
-        attrs=tvm.ir.make_node("ir.DictAttrs", **{"s_tir": True}),
+        attrs=tvm.ir.make_node("ir.DictAttrs", **{"s_tir": True, "script.namespace": "s_tir"}),
     )
 
     # Check if the generated ir is expected
@@ -97,7 +97,7 @@ def test_ir_builder_tir_function_complete():
     e_buffer = tirx.decl_tensor((1024,), "int8", name="e", layout=None)
     function_expected = tirx.Function(
         params=[
-            tirx.Var("a", tvm.ir.PointerType(tvm.ir.PrimType("void"))),
+            tirx.Var("a", tvm.ir.PtrType(tvm.ir.PrimType("void"))),
             tirx.Var("b", "int64"),
             c_buffer,
             d_buffer,
@@ -105,7 +105,9 @@ def test_ir_builder_tir_function_complete():
         ],
         body=tvm.ir.Evaluate(0),
         ret_type=tvm.ir.PrimType("int64"),
-        attrs=tvm.ir.make_node("ir.DictAttrs", **{"key": "value", "s_tir": True}),
+        attrs=tvm.ir.make_node(
+            "ir.DictAttrs", **{"key": "value", "s_tir": True, "script.namespace": "s_tir"}
+        ),
     )
 
     # Check if the generated ir is expected
@@ -253,7 +255,7 @@ def test_ir_builder_tir_thread():
         {},
         tvm.ir.Evaluate(0),
     )
-    func = tirx.Function([], launch).with_attr("s_tir", True)
+    func = tirx.Function([], launch).with_attr({"s_tir": True, "script.namespace": "s_tir"})
 
     # Check if the generated ir is expected
     assert_structural_equal(ir_actual, func, map_free_vars=True)

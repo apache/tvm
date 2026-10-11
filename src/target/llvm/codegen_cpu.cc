@@ -380,7 +380,7 @@ CodeGenLLVM::TypedPointer CodeGenCPU::CreateStructRefPtr(Type type, llvm::Value*
       buf = builder_->CreatePointerCast(buf, llvmGetPointerTo(t_tvm_ffi_any_, 0));
       // field 2 is the union value
       buf = builder_->CreateInBoundsGEP(t_tvm_ffi_any_, buf, {index, ConstInt32(2)});
-      if (type.as<PointerTypeNode>()) {
+      if (type.as<PtrTypeNode>()) {
         buf = builder_->CreatePointerCast(buf, llvmGetPointerTo(t_void_p_, 0));
         return TypedPointer(t_void_p_, buf);
       }
@@ -583,7 +583,7 @@ void CodeGenCPU::CreateComputeScope(const RegionStmtNode* op) {
     llvm::Argument* v = &(*it);
     const Var& var = vargs[idx];
     var_map_[var.get()] = v;
-    if ((var->ty.as<PointerTypeNode>() || var->ty.as<TensorTypeNode>()) &&
+    if ((var->ty.as<PtrTypeNode>() || var->ty.as<TensorTypeNode>()) &&
         !alias_var_set_.count(var.get())) {
       // set non alias.
       fcompute->addParamAttr(idx, llvm::Attribute::NoAlias);
@@ -841,7 +841,7 @@ CodeGenCPU::PackedCall CodeGenCPU::MakeCallPackedLowered(const ffi::Array<Expr>&
       if (prim_r_type) {
         return DTypeToLLVMType(tirx::APIType(prim_r_type.value()));
       }
-      TVM_FFI_ICHECK(r_type.as<PointerTypeNode>())
+      TVM_FFI_ICHECK(r_type.as<PtrTypeNode>())
           << "Packed calls may return only primitive or pointer types, but got " << r_type;
       return t_void_p_;
     }();
@@ -1033,7 +1033,7 @@ llvm::Value* CodeGenCPU::CreateIntrinsic(const CallNode* op) {
     Type op_type = op->ty;
     TypedPointer ref = CreateStructRefPtr(op_type, MakeValue(args[0]), MakeValue(args[1]), kind);
     if (kind == tirx::kDLTensorAddr) {
-      TVM_FFI_ICHECK(op_type.as<PointerTypeNode>())
+      TVM_FFI_ICHECK(op_type.as<PtrTypeNode>())
           << "The address of a DLTensor must have pointer type, but got " << op_type;
       return builder_->CreatePointerCast(ref.addr, GetLLVMType(op_type));
     }
@@ -1045,7 +1045,7 @@ llvm::Value* CodeGenCPU::CreateIntrinsic(const CallNode* op) {
         struct_value = CreateCast(PrimType::Int(64), prim_type.value(), struct_value);
       }
     } else {
-      TVM_FFI_ICHECK(op_type.as<PointerTypeNode>())
+      TVM_FFI_ICHECK(op_type.as<PtrTypeNode>())
           << "Struct fields must have primitive or pointer type, but got " << op_type;
       llvm::Type* target = GetLLVMType(op_type);
       TVM_FFI_ICHECK(struct_value->getType()->isPointerTy());

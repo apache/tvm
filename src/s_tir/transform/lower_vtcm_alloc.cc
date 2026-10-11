@@ -57,8 +57,7 @@ class VtcmAllocator : public StmtExprMutator {
       ffi::Array<Expr> args;
       args.push_back(StringImm(scope));
       args.push_back(IntImm::Int64(shape->fields.size()));
-      args.push_back(
-          Call(PointerType(PrimType::Int(64)), tirx::stack_make_shape_op(), shape->fields));
+      args.push_back(Call(PtrType(PrimType::Int(64)), tirx::stack_make_shape_op(), shape->fields));
       TensorVar buffer = op->var.as_or_throw<TensorVar>();
       return Bind(buffer,
                   Call(buffer.type(), tirx::decl_tensor_op(),
@@ -74,8 +73,8 @@ class VtcmAllocator : public StmtExprMutator {
 
  protected:
   std::string GetStorageScope(const Var& var) {
-    auto* ptr = var->ty.as<PointerTypeNode>();
-    TVM_FFI_ICHECK(ptr) << "Buffer Var's type annotation must be of PointerType";
+    auto* ptr = var->ty.as<PtrTypeNode>();
+    TVM_FFI_ICHECK(ptr) << "Buffer Var's type annotation must be of PtrType";
     return ptr->storage_scope;
   }
 };

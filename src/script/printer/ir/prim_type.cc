@@ -32,8 +32,9 @@ namespace details {
 
 namespace {
 
-ffi::Optional<ExprDoc> AnyTypeDocTranslate(DocTranslatorObj*, ffi::AnyView, const ffi::Object*) {
-  return NamespaceDoc("relax")->Attr("Any");
+ffi::Optional<ExprDoc> AnyTypeDocTranslate(DocTranslatorObj* d, ffi::AnyView, const ffi::Object*) {
+  ExprDoc doc = NamespaceDoc("relax")->Attr("Any");
+  return d->GetOrCreateExtraState<bool>("ir.type_value") ? doc->Call({}) : doc;
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -121,6 +122,24 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       FDocTranslate::FromNative<&PrimTypeDocTranslate>());
 }
 
+ffi::Optional<ExprDoc> PtrTypeDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                           const ffi::Object*) {
+  const auto* ty =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const PtrTypeNode>(input);
+  ExtraStateScope<bool> annotations(d, "ir.type_value", false);
+  ffi::Array<ExprDoc> args{d->Translate(ty->element_type).value()};
+  if (ty->storage_scope != "global") {
+    args.push_back(LiteralDoc::Str(ty->storage_scope, std::nullopt));
+  }
+  return NamespaceDoc("tirx")->Attr("Ptr")->Call(args);
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  ffi::reflection::TypeAttrDef<PtrTypeNode>().attr(
+      tvm::script::printer::type_attr::kDocTranslate,
+      FDocTranslate::FromNative<&PtrTypeDocTranslate>());
+}
+
 ffi::Optional<ExprDoc> StringTypeDocTranslate(DocTranslatorObj*, ffi::AnyView, const ffi::Object*) {
   return NamespaceDoc("ir")->Attr("StringType")->Call({});
 }
@@ -146,11 +165,15 @@ ffi::Optional<ExprDoc> TupleTypeDocTranslate(DocTranslatorObj* d, ffi::AnyView i
                                              const ffi::Object*) {
   const auto* ty =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const TupleTypeNode>(input);
-  if (ty->fields.empty()) return NamespaceDoc("relax")->Attr("Tuple");
+  if (ty->fields.empty()) {
+    ExprDoc doc = NamespaceDoc("relax")->Attr("Tuple");
+    return d->GetOrCreateExtraState<bool>("ir.type_value") ? doc->Call({}) : doc;
+  }
+  ExtraStateScope<bool> annotations(d, "ir.type_value", false);
   ffi::Array<ExprDoc> fields;
   for (const Type& field : ty->fields) fields.push_back(d->Translate(field).value());
   std::function<bool(const Type&)> is_primitive = [&](const Type& field) {
-    if (field.as<PrimType>() || field.as<PointerType>()) return true;
+    if (field.as<PrimType>() || field.as<PtrType>()) return true;
     if (const auto* tuple = field.as<TupleTypeNode>()) {
       return std::all_of(tuple->fields.begin(), tuple->fields.end(), is_primitive);
     }

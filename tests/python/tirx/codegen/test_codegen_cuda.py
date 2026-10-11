@@ -739,7 +739,7 @@ def test_ptx_mbarrier_arrive_new_forms_codegen():
 
 def test_tensor_map_param_codegen():
     @T.function
-    def main(A_map: T.TensorMap()):
+    def main(A_map: T.Ptr(T.TensorMap, "")):
         T.device_entry(launch=T.cuda.LaunchConfig(grid=1, block=(32,)))
         tx = T.cuda.thread_idx("x")
         if tx == 0:

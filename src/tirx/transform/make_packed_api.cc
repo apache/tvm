@@ -85,7 +85,7 @@ class ReturnRewriter : public StmtExprMutator {
     ConvertedInfo info{-1, val};
 
     // convert val's data type to FFI data type, return type code
-    if (val->ty.as<PointerTypeNode>()) {
+    if (val->ty.as<PtrTypeNode>()) {
       info.type_index = ffi::TypeIndex::kTVMFFIOpaquePtr;
       info.expr = val;
       return info;
@@ -238,10 +238,10 @@ Function MakePackedAPI(Function func) {
   auto* func_ptr = func.CopyOnWrite();
 
   // Data field definitions
-  Var v_self_handle("self_handle", PointerType::VoidPointerTy());
-  Var v_packed_args("args", PointerType::VoidPointerTy());
+  Var v_self_handle("self_handle", PtrType::VoidPointerTy());
+  Var v_packed_args("args", PtrType::VoidPointerTy());
   Var v_num_packed_args("num_args", PrimType::Int(32));
-  Var v_result("result", PointerType::VoidPointerTy());
+  Var v_result("result", PtrType::VoidPointerTy());
 
   // The device context
   PrimVar device_id("dev_id");

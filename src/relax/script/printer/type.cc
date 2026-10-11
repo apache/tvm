@@ -29,9 +29,10 @@ namespace details {
 
 namespace {
 
-ffi::Optional<ExprDoc> PackedFuncTypeDocTranslate(DocTranslatorObj*, ffi::AnyView,
+ffi::Optional<ExprDoc> PackedFuncTypeDocTranslate(DocTranslatorObj* d, ffi::AnyView,
                                                   const ffi::Object*) {
-  return NamespaceDoc("relax")->Attr("PackedFunc");
+  ExprDoc doc = NamespaceDoc("relax")->Attr("PackedFunc");
+  return d->GetOrCreateExtraState<bool>("ir.type_value") ? doc->Call({}) : doc;
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

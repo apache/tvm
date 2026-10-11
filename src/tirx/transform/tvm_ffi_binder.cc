@@ -487,7 +487,7 @@ Expr TVMFFIABIBuilder::LoadTVMFFIAnyUnionValue(const Var& v_packed_args, int par
     }
     return res;
   }
-  TVM_FFI_CHECK(arg_type.as<PointerTypeNode>(), TypeError)
+  TVM_FFI_CHECK(arg_type.as<PtrTypeNode>(), TypeError)
       << "Packed union values must have primitive or pointer type, but got " << arg_type;
   return Call(std::move(arg_type), tirx::abi_field_get_op(), call_args);
 }
@@ -505,11 +505,10 @@ Expr TVMFFIABIBuilder::DecodeParamOpaqueHandle(int param_index, const PrimExpr& 
   // ── Load value and apply tensor offset ─────────────────────
   const int64_t object_cell_offset = sizeof(TVMFFIObject);
   static_assert(sizeof(TVMFFIObject) == 24);
-  Expr arg_value =
-      LoadTVMFFIAnyUnionValue(v_packed_args_, param_index, PointerType::VoidPointerTy());
-  Expr handle_from_tensor = Call(PointerType::VoidPointerTy(), tirx::handle_add_byte_offset_op(),
+  Expr arg_value = LoadTVMFFIAnyUnionValue(v_packed_args_, param_index, PtrType::VoidPointerTy());
+  Expr handle_from_tensor = Call(PtrType::VoidPointerTy(), tirx::handle_add_byte_offset_op(),
                                  {arg_value, IntImm::Int32(object_cell_offset)});
-  return Call(PointerType::VoidPointerTy(), prim::if_then_else_op(),
+  return Call(PtrType::VoidPointerTy(), prim::if_then_else_op(),
               {type_index == ffi::TypeIndex::kTVMFFITensor, handle_from_tensor, arg_value});
 }
 
@@ -565,14 +564,14 @@ void TVMFFIABIBuilder::DecodeParam(int param_index) {
       ffi::reflection::AccessPath::Root()->Extend(AccessStep::ArrayItem(param_index));
 
   if (param->ty.as<TensorTypeNode>()) {
-    Var handle(param->name + ".handle", PointerType::VoidPointerTy());
+    Var handle(param->name + ".handle", PtrType::VoidPointerTy());
     Expr handle_value = DecodeParamOpaqueHandle(param_index, type_index.as_or_throw<PrimExpr>());
     BindPointer(handle, handle_value, param_path, true);
     buffer_handles_.emplace(param.get(), handle);
     return;
   }
 
-  if (param->ty.as<PointerTypeNode>()) {
+  if (param->ty.as<PtrTypeNode>()) {
     Expr handle_value = DecodeParamOpaqueHandle(param_index, type_index.as_or_throw<PrimExpr>());
     Expr pointer_value = Call(param->ty, tirx::reinterpret_op(), {handle_value});
     BindPointer(param, pointer_value, param_path, true);
@@ -646,7 +645,7 @@ void TVMFFIABIBuilder::DecodeAllParams() {
 
 Var TVMFFIABIBuilder::DLTensorGetFieldPtr(const Var& handle, int field_kind,
                                           const std::string& var_name) {
-  Type pointer_type = PointerType(DefaultIndexPrimType());
+  Type pointer_type = PtrType(DefaultIndexPrimType());
   Var ptr(var_name, pointer_type);
   init_nest_.emplace_back(Bind(
       ptr,
@@ -834,7 +833,7 @@ Expr TVMFFIABIBuilder::DecodeParamDLTensor(const TensorVar& buffer, const PrimEx
   // ── Section: data pointer ────────────────────────────────────
   {
     ffi::reflection::AccessPath data_path = param_path->Attr(ffi::String("data"));
-    Expr raw_data = TVMStructGet(PointerType::VoidPointerTy(), handle, 0, tirx::kDLTensorData);
+    Expr raw_data = TVMStructGet(PtrType::VoidPointerTy(), handle, 0, tirx::kDLTensorData);
     Expr typed_data = Call(buffer.type()->DataPointerType(), tirx::reinterpret_op(), {raw_data});
     {
       Expr vptr = typed_data;
@@ -862,7 +861,7 @@ Expr TVMFFIABIBuilder::DecodeParamDLTensor(const TensorVar& buffer, const PrimEx
         // Check data pointer alignment
         if (buffer->data_alignment > 1) {
           Expr handle =
-              Call(PointerType::VoidPointerTy(), tirx::reinterpret_op(), ffi::Array<Expr>{vptr});
+              Call(PtrType::VoidPointerTy(), tirx::reinterpret_op(), ffi::Array<Expr>{vptr});
           PrimExpr ptr_as_int =
               Call(PrimType::UInt(64), tirx::reinterpret_op(), ffi::Array<Expr>{handle})
                   .as_or_throw<PrimExpr>();

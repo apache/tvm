@@ -31,7 +31,6 @@
 #include <tvm/ir/prim/op.h>
 #include <tvm/ir/type.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/s_tir/stmt.h>
 #include <tvm/sym/analyzer.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/layout.h>
@@ -271,6 +270,12 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
 
   ffi::Optional<VisitInterrupt> VisitBindingValue(const BindNode* op) {
     scope_.push_back(StmtEntry());
+    // Retained storage metadata can be the only use of an earlier allocation.
+    if (const auto* call = op->value.as<CallNode>();
+        call &&
+        (call->op.same_as(tirx::alloc_tensor_op()) || call->op.same_as(tirx::decl_tensor_op()))) {
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(call->attrs));
+    }
     // visit subexpr (the value may contain TensorLoad)
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     StmtEntry e = scope_.back();
@@ -602,6 +607,18 @@ class StoragePlanRewriter : public StmtExprMutator {
     return StmtExprMutator::Mutate_(op, inplace_mode);
   }
   UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) final {
+    if (op->op.same_as(tirx::alloc_tensor_op()) || op->op.same_as(tirx::decl_tensor_op())) {
+      // Call attrs are opaque to the generic mutator, but retained storage metadata
+      // can refer to earlier bindings that this pass has remapped.
+      auto attrs = Mutate(op->attrs, InplaceMode::kDisallow).as_or_throw<UnchangedOr<Attrs>>();
+      auto call = StmtExprMutator::Mutate_(op, inplace_mode)
+                      .ValueOrUnchanged(ffi::GetRef<Expr>(op))
+                      .as_or_throw<Call>();
+      if (!attrs.UnchangedOrSameAs(op->attrs)) {
+        call.CopyOnWrite()->attrs = std::move(attrs).ValueUnchecked();
+      }
+      return call;
+    }
     if (op->op.same_as(tirx::tensor_data_ptr_op()) && op->args.size() == 1) {
       if (auto var = op->args[0].as<Var>()) {
         Var root = buffer_aliases_.Get(var.value()).value_or(var.value());
@@ -691,9 +708,9 @@ class StoragePlanRewriter : public StmtExprMutator {
 
   UnchangedOr<Stmt> MutateAllocTensor(const BindNode* op, const CallNode* buffer_call,
                                       InplaceMode inplace_mode) {
-    // Placement is evaluated at the allocation's original definition site.
-    // Preserve that binding while remapping any storage reads in its operands.
-    if (buffer_call->args.size() == 4) {
+    // Placement and opaque metadata can depend on the original definition site.
+    // Preserve that binding while remapping storage reads in its operands and attrs.
+    if (RequiresExactAllocation(buffer_call)) {
       return StmtExprMutator::Mutate_(op, inplace_mode);
     }
     // AllocTensor combines allocation and buffer declaration.
@@ -725,12 +742,15 @@ class StoragePlanRewriter : public StmtExprMutator {
     auto it = alloc_map_.find(root);
     if (it != alloc_map_.end()) {
       TensorVar buffer = RemapBuffer(op->var.as_or_throw<TensorVar>(), it->second->alloc_var);
+      auto attrs = Mutate(buffer_call->attrs, InplaceMode::kDisallow)
+                       .as_or_throw<UnchangedOr<Attrs>>()
+                       .ValueOrUnchanged(buffer_call->attrs);
       return Bind(
           buffer,
           Call(buffer.type(), tirx::decl_tensor_op(),
                {it->second->alloc_var.as_or_throw<TensorVar>().data(), tvm::Tuple(buffer->shape),
                 DataTypeImm(buffer->dtype->dtype), StringImm(buffer.scope())},
-               buffer_call->attrs, buffer_call->ty_args, buffer_call->loc),
+               attrs, buffer_call->ty_args, buffer_call->loc),
           op->loc);
     }
     return StmtExprMutator::Mutate_(op, inplace_mode);
@@ -762,7 +782,7 @@ class StoragePlanRewriter : public StmtExprMutator {
     PrimType elem_type = PrimType::Void();
     // Whether any constituent allocation was marked volatile.
     bool is_volatile{false};
-    // Explicit placement and fragment metadata belong to this exact allocation.
+    // Explicit placement and opaque metadata belong to this exact allocation.
     bool requires_exact_allocation{false};
     // This is non-zero if this alloc_tensor is folded into another one
     // the address(in bits) becomes alloc_var + bits_offset;
@@ -781,8 +801,12 @@ class StoragePlanRewriter : public StmtExprMutator {
   static bool RequiresExactAllocation(const CallNode* call) {
     if (call->args.size() == 4) return true;
     const auto& annotations = call->attrs.as_or_throw<DictAttrs>()->dict;
-    return annotations.count(tvm::s_tir::attr::kFragmentShape) ||
-           annotations.count(tvm::s_tir::attr::kFragmentLayout);
+    // Rebuilt allocations only preserve volatile metadata.  Other owners may attach
+    // constraints that cannot be transferred to merged or resized storage.
+    for (const auto& [key, value] : annotations) {
+      if (key != tvm::tirx::attr::kVolatile) return true;
+    }
+    return false;
   }
 
   // Checks whether the storage_scope is especially tagged for a specific memory.
@@ -844,9 +868,7 @@ class StoragePlanRewriter : public StmtExprMutator {
           TVM_FFI_ICHECK_EQ(e->allocs.size(), 1U);
           TVM_FFI_ICHECK(e->merged_children.empty());
           e->alloc_var = e->allocs[0]->var;
-          if (e->allocs[0]->value.as_or_throw<Call>()->args.size() != 4) {
-            e->alloc_nest.push_back(ffi::GetRef<Bind>(e->allocs[0]));
-          }
+          // The original binding stays in place, including metadata dependencies.
           continue;
         }
         // already merged
@@ -1783,8 +1805,7 @@ class VectorTypeRewriter : public StmtExprMutator {
             type->layout = std::nullopt;
             return RebuildTensorVar(old_buffer, std::move(type)).var();
           }
-          return Var(old_buffer_var->name,
-                     PointerType(preferred, GetPtrStorageScope(old_buffer_var)),
+          return Var(old_buffer_var->name, PtrType(preferred, GetPtrStorageScope(old_buffer_var)),
                      old_buffer_var->loc);
         }();
 
@@ -1996,15 +2017,19 @@ class VectorTypeRewriter : public StmtExprMutator {
     if (args.size() == 4) {
       args.Set(3, Mutate(args[3], inplace_mode).ValueOrUnchanged(args[3]));
     }
-    if (new_buf.same_as(op->var.as_or_throw<TensorVar>()) && args.same_as(buffer_call->args)) {
+    auto attrs = Mutate(buffer_call->attrs, InplaceMode::kDisallow)
+                     .as_or_throw<UnchangedOr<Attrs>>()
+                     .ValueOrUnchanged(buffer_call->attrs);
+    if (new_buf.same_as(op->var.as_or_throw<TensorVar>()) && args.same_as(buffer_call->args) &&
+        attrs.same_as(buffer_call->attrs)) {
       return ffi::Unchanged();
     }
     args.Set(0, tvm::Tuple(new_buf->shape, buffer_call->args[0]->loc));
     args.Set(1, DataTypeImm(new_buf->dtype->dtype, buffer_call->args[1]->loc));
     args.Set(2, StringImm(new_buf.scope(), buffer_call->args[2]->loc));
     return Bind(new_buf.var(),
-                Call(new_buf.type(), tirx::alloc_tensor_op(), args, buffer_call->attrs,
-                     buffer_call->ty_args, buffer_call->loc),
+                Call(new_buf.type(), tirx::alloc_tensor_op(), args, attrs, buffer_call->ty_args,
+                     buffer_call->loc),
                 op->loc);
   }
 
@@ -2012,13 +2037,17 @@ class VectorTypeRewriter : public StmtExprMutator {
                                      InplaceMode inplace_mode) {
     Expr data = Mutate(buffer_call->args[0], inplace_mode).ValueOrUnchanged(buffer_call->args[0]);
     TensorVar buffer = RemapBuffer(op->var.as_or_throw<TensorVar>());
-    if (buffer.same_as(op->var.as_or_throw<TensorVar>()) && data.same_as(buffer_call->args[0]))
+    auto attrs = Mutate(buffer_call->attrs, InplaceMode::kDisallow)
+                     .as_or_throw<UnchangedOr<Attrs>>()
+                     .ValueOrUnchanged(buffer_call->attrs);
+    if (buffer.same_as(op->var.as_or_throw<TensorVar>()) && data.same_as(buffer_call->args[0]) &&
+        attrs.same_as(buffer_call->attrs))
       return ffi::Unchanged();
     return Bind(buffer,
                 Call(buffer.type(), tirx::decl_tensor_op(),
                      {data, tvm::Tuple(buffer->shape), DataTypeImm(buffer->dtype->dtype),
                       StringImm(buffer.scope())},
-                     buffer_call->attrs, buffer_call->ty_args, buffer_call->loc),
+                     attrs, buffer_call->ty_args, buffer_call->loc),
                 op->loc);
   }
 
@@ -2087,7 +2116,7 @@ class VectorTypeRewriter : public StmtExprMutator {
           if (!op->unique()) inplace_mode = InplaceMode::kDisallow;
         }
         if (!op->op.same_as(tirx::tensor_data_ptr_op()) || op->args.size() != 1) return result;
-        PointerType type = op->args[0].as_or_throw<TensorVar>().type()->DataPointerType();
+        PtrType type = op->args[0].as_or_throw<TensorVar>().type()->DataPointerType();
         if (ffi::StructuralEqual()(op->ty, type)) return result;
         if (inplace_mode == InplaceMode::kAllow) {
           const_cast<CallNode*>(op)->ty = std::move(type);

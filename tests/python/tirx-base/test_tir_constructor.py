@@ -103,7 +103,7 @@ def test_expr_constructor():
     assert x.false_value == b
     assert x.condition == a
 
-    buffer_var = tvm.tirx.Var("buf", tvm.ir.PointerType(tvm.ir.PrimType("float32")))
+    buffer_var = tvm.tirx.Var("buf", tvm.ir.PtrType(tvm.ir.PrimType("float32")))
     buffer = tvm.tirx.decl_tensor([16], "float32", data=buffer_var)
     x = tvm.tirx.TensorLoad(buffer, [1])
     assert isinstance(x, tvm.ir.TensorLoad)
@@ -312,7 +312,7 @@ def test_stmt_constructor():
     assert x.extent.value == 10
     assert len(x.body) == 1 and x.body[0] == nop
 
-    buffer_var = tvm.tirx.Var("buf", tvm.ir.PointerType(tvm.ir.PrimType("bool")))
+    buffer_var = tvm.tirx.Var("buf", tvm.ir.PtrType(tvm.ir.PrimType("bool")))
     buffer = tvm.tirx.decl_tensor([16], "bool", data=buffer_var)
     x = tvm.ir.TensorStore(buffer, [10], tvm.tirx.IntImm("bool", 1))
     assert isinstance(x, tvm.ir.TensorStore)

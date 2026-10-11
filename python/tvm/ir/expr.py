@@ -597,14 +597,14 @@ class Call(_CallableExprWithOp):
         # pylint: disable=import-outside-toplevel
         from .attrs import DictAttrs
         from .op import Op
-        from .type import PointerType, PrimType, Type
+        from .type import PrimType, PtrType, Type
 
         if isinstance(op, str):
             op = Op.get(op)
         if attrs is not None and isinstance(attrs, dict):
             attrs = DictAttrs(attrs)
         if isinstance(ty, str) and ty == "handle":
-            ty = PointerType(PrimType("void"))
+            ty = PtrType(PrimType("void"))
         elif ty is not None and not isinstance(ty, Type):
             ty = PrimType(ty)
         if ty_args is None:
@@ -693,10 +693,10 @@ class Var(_CallableExprWithOp):
             raise TypeError("name must be a str")
 
         # pylint: disable=import-outside-toplevel
-        from .type import PointerType, PrimType, Type
+        from .type import PrimType, PtrType, Type
 
         if isinstance(ty, str):
-            ty = PointerType(PrimType("void")) if ty == "handle" else PrimType(ty)
+            ty = PtrType(PrimType("void")) if ty == "handle" else PrimType(ty)
         elif ty is not None:
             ty = tvm.runtime.convert(ty)
             if not isinstance(ty, Type):

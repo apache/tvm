@@ -75,7 +75,7 @@ void CodeGenMetal::InitFuncState(const Function& f) {
   analyzer_ = sym::Analyzer();
   // analyze the data;
   for (Var arg : f->params) {
-    if (arg->ty.as<PointerTypeNode>()) {
+    if (arg->ty.as<PtrTypeNode>()) {
       alloc_storage_scope_[arg.get()] = "global";
     }
   }
@@ -128,7 +128,7 @@ void CodeGenMetal::AddFunction(const GlobalVar& gvar, const Function& func) {
   }
   for (size_t i = 0; i < func->params.size(); ++i, ++num_buffer) {
     Var v = func->params[i];
-    if (!v->ty.as<PointerTypeNode>()) break;
+    if (!v->ty.as<PtrTypeNode>()) break;
     this->stream << "  ";
     std::string vid = AllocVarID(v.get());
     auto it = alloc_storage_scope_.find(v.get());
@@ -139,7 +139,7 @@ void CodeGenMetal::AddFunction(const GlobalVar& gvar, const Function& func) {
     // Register handle data type
     // TODO(tvm-team): consider simply keep type info in the
     // type annotation(via a normalizing rewriting).
-    if (auto* ptr = v->ty.as<PointerTypeNode>()) {
+    if (auto* ptr = v->ty.as<PtrTypeNode>()) {
       if (auto* prim = ptr->element_type.as<PrimTypeNode>()) {
         RegisterHandleType(v.get(), ffi::GetRef<PrimType>(prim));
       }
@@ -352,7 +352,7 @@ void CodeGenMetal::Dispatch_(const BindNode* op) {
       prim_value && SideEffect(prim_value.value()) <= CallEffectKind::kPure) {
     analyzer_->Bind(op->var, prim_value.value());
   }
-  const auto* pointer_type = op->var->ty.as<PointerTypeNode>();
+  const auto* pointer_type = op->var->ty.as<PtrTypeNode>();
   if (pointer_type == nullptr || pointer_type->storage_scope.empty()) {
     return CodeGenC::Dispatch_(op);
   }
@@ -519,7 +519,7 @@ void CodeGenMetal::Dispatch_(const CallNode* op, std::ostream& os) {  // NOLINT(
   } else if (op->op.same_as(tirx::ptr_byte_offset_op()) ||
              op->op.same_as(tirx::handle_add_byte_offset_op())) {
     TVM_FFI_ICHECK_EQ(op->args.size(), 2U);
-    const auto* pointer_type = op->ty.as<PointerTypeNode>();
+    const auto* pointer_type = op->ty.as<PtrTypeNode>();
     TVM_FFI_ICHECK(pointer_type)
         << "Metal pointer byte offsets must have a pointer result type, but got " << op->ty;
     if (pointer_type->storage_scope.empty()) {

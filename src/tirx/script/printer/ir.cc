@@ -32,31 +32,15 @@ namespace details {
 
 namespace {
 
-ffi::Optional<ExprDoc> PointerTypeDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
-                                               const ffi::Object*) {
-  const auto* ty =
-      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const PointerTypeNode>(input);
-  if (auto primitive = ty->element_type.as<PrimType>()) {
-    if (primitive.value().IsVoid()) {
-      if (ty->storage_scope == "global") return NamespaceDoc("tirx")->Attr("handle");
-      return NamespaceDoc("tirx")->Attr("handle")->Call(
-          {}, {"storage_scope"}, {LiteralDoc::Str(ty->storage_scope, std::nullopt)});
-    }
-    ExprDoc element = LiteralDoc::DataType(primitive.value()->dtype, std::nullopt);
-    if (ty->storage_scope.empty()) return NamespaceDoc("tirx")->Attr("handle")->Call({element});
-    return NamespaceDoc("tirx")->Attr("handle")->Call(
-        {element, LiteralDoc::Str(ty->storage_scope, std::nullopt)});
-  }
-  if (ty->element_type.as<tirx::TensorMapTypeNode>())
-    return NamespaceDoc("tirx")->Attr("TensorMap")->Call({});
-  return NamespaceDoc("tirx")->Attr("handle")->Call(
-      {d->Translate(ty->element_type).value(), LiteralDoc::Str(ty->storage_scope, std::nullopt)});
+ffi::Optional<ExprDoc> TensorMapTypeDocTranslate(DocTranslatorObj* d, ffi::AnyView,
+                                                 const ffi::Object*) {
+  ExprDoc doc = NamespaceDoc("tirx")->Attr("TensorMap");
+  return d->GetOrCreateExtraState<bool>("ir.type_value") ? doc->Call({}) : doc;
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  ffi::reflection::TypeAttrDef<PointerTypeNode>().attr(
-      tvm::script::printer::type_attr::kDocTranslate,
-      FDocTranslate::FromNative<&PointerTypeDocTranslate>());
+  ffi::reflection::TypeAttrDef<tirx::TensorMapTypeNode>().attr(
+      type_attr::kDocTranslate, FDocTranslate::FromNative<&TensorMapTypeDocTranslate>());
 }
 
 ffi::Optional<ExprDoc> TargetDocTranslate(DocTranslatorObj* d, ffi::AnyView input,

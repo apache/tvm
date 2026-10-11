@@ -1271,14 +1271,8 @@ def handle(
     )
 
 
-def TensorMap() -> Var:  # pylint: disable=invalid-name
-    """Create a TIRx var that represents a CUDA tensor-map descriptor.
-
-    The host/runtime ABI passes a handle to descriptor storage. CUDA kernel
-    codegen lowers this type to ``const __grid_constant__ CUtensorMap`` when it
-    appears as a kernel parameter.
-    """
-    return _ffi_api.TensorMap()  # type: ignore[attr-defined] # pylint: disable=no-member
+# TensorMap denotes the descriptor element type; Ptr supplies its pointer wrapper.
+TensorMap = tir.TensorMapType
 
 
 def void(expr: Expr | None = None) -> Expr:
@@ -1406,32 +1400,20 @@ else:
         return _install_meta_class(cls)
 
 
-def Ptr(dtype, storage_scope="global", *, loc: _LocationEntry | Location = UNKNOWN_LOC):
-    """The pointer declaration function.
+def Ptr(element_type, storage_scope="global", *, loc: _LocationEntry | Location = UNKNOWN_LOC):
+    """Construct a pointer type from an element type or its annotation constructor.
 
-    Parameters
-    ----------
-    dtype : str, Type or callable
-        The data type of the pointer.
-
-    storage_scope : str
-        The storage scope of the pointer.
-
-    loc : LocationEntry or Location, optional
-        Source location attached to the constructed IR.
-
-    Returns
-    -------
-    res : Var
-        The pointer.
+    For example, ``Ptr(int32)`` and ``Ptr(TensorMap)`` construct pointers
+    in global scope; ``Ptr(int32, "shared")`` selects shared scope. Use ``I.Var(name, ty)`` to construct a variable of this type.
+    String element dtypes remain accepted, as in ``Ptr("float32", "shared")``.
     """
-    if callable(dtype) and not isinstance(dtype, _ir.Expr):
-        dtype = dtype()
-    if isinstance(dtype, _ir.Expr):
-        dtype = dtype.ty
-    if isinstance(dtype, _ir.PrimType):
-        dtype = dtype.dtype
-    return _at(loc, ptr(dtype, storage_scope))
+    if callable(element_type) and not isinstance(element_type, Type):
+        element_type = element_type()
+    if isinstance(element_type, Expr):
+        element_type = element_type.ty
+    if isinstance(element_type, str):
+        element_type = ir.PrimType(element_type)
+    return _at(loc, ir.PtrType(element_type, storage_scope))
 
 
 Tensor = _tensor_type

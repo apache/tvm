@@ -99,7 +99,7 @@ class TextureAllocInjector : public s_tir::IRMutatorWithAnalyzer {
       ffi::Array<Expr> args;
       args.push_back(StringImm(scope));
       args.push_back(IntImm::Int64(3));
-      args.push_back(Call(PointerType(PrimType::Int(64)), tirx::stack_make_shape_op(),
+      args.push_back(Call(PtrType(PrimType::Int(64)), tirx::stack_make_shape_op(),
                           {texture.width, texture.height, texture.depth}));
       args.push_back(IntImm::Int64(channel_size));
       stmt = Bind(op->var.as_or_throw<TensorVar>(),
@@ -117,8 +117,8 @@ class TextureAllocInjector : public s_tir::IRMutatorWithAnalyzer {
 
  protected:
   std::string GetStorageScope(const Var& buffer_var) {
-    auto* ptr = buffer_var->ty.as<PointerTypeNode>();
-    TVM_FFI_ICHECK(ptr) << "Buffer Var's type annotation must be of PointerType";
+    auto* ptr = buffer_var->ty.as<PtrTypeNode>();
+    TVM_FFI_ICHECK(ptr) << "Buffer Var's type annotation must be of PtrType";
     return ptr->storage_scope;
   }
 };

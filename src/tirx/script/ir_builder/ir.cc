@@ -52,7 +52,7 @@ tvm::tirx::TensorType TensorTypeDecl(ffi::Array<PrimExpr> shape, PrimType dtype,
                                      ffi::Optional<PrimExpr> elem_offset, ffi::String storage_scope,
                                      int align, int offset_factor, ffi::Optional<Layout> layout) {
   if (data.has_value()) {
-    storage_scope = data.value()->ty.as_or_throw<PointerType>()->storage_scope;
+    storage_scope = data.value()->ty.as_or_throw<PtrType>()->storage_scope;
   }
   if (!elem_offset.has_value() && offset_factor) {
     PrimType shape_dtype = shape.empty() ? PrimType::Int(32) : shape[0].ty();
@@ -349,7 +349,7 @@ TensorVar AllocTensor(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String st
 }
 
 Var Ptr(PrimType dtype, ffi::String storage_scope = "global") {
-  PointerType type_annotation(dtype, storage_scope);
+  PtrType type_annotation(dtype, storage_scope);
   return tvm::Var("", type_annotation);
 }
 

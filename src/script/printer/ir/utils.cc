@@ -21,8 +21,6 @@
 #include <tvm/ffi/reflection/accessor.h>
 #include <tvm/ir/module.h>
 #include <tvm/ir/op.h>
-#include <tvm/relax/expr.h>
-#include <tvm/relax/type.h>
 
 #include <algorithm>
 #include <optional>
@@ -33,6 +31,20 @@ namespace tvm {
 namespace script {
 namespace printer {
 namespace details {
+
+ffi::Optional<ExprDoc> InvokeDocHook(ffi::AnyView hook, DocTranslatorObj* d, ffi::AnyView input,
+                                     const ffi::Object* destination) {
+  if (hook.type_index() == ffi::TypeIndex::kTVMFFIOpaquePtr) {
+    return ffi::details::ExpectedUnsafe::MoveFromTVMFFIAny<ffi::Optional<ExprDoc>>(
+               reinterpret_cast<decltype(DocTranslatorVTable::translate)>(hook.cast<void*>())(
+                   d, input, destination))
+        .value();
+  }
+  TVM_FFI_CHECK(hook.type_index() == ffi::TypeIndex::kTVMFFIFunction, TypeError)
+      << "printer type hook must be a native pointer or ffi.Function";
+  ffi::Any binder = destination ? ffi::Any(ffi::GetRef<ffi::ObjectRef>(destination)) : nullptr;
+  return hook.cast<ffi::Function>().CallExpected<ffi::Optional<ExprDoc>>(d, input, binder).value();
+}
 
 ExprDoc AddMetadata(DocTranslatorObj* d, ffi::Any value) {
   TVM_FFI_CHECK(value != nullptr, TypeError) << "Metadata cannot contain None";
@@ -86,16 +98,6 @@ ExprDoc GlobalReference(DocTranslatorObj* d, const ffi::String& name) {
 namespace {
 
 ExprDoc TypeValueImpl(DocTranslatorObj* d, const Type& type, bool dtype_literal) {
-  if (type.as<relax::PackedFuncTypeNode>())
-    return NamespaceDoc("relax")->Attr("PackedFunc")->Call({});
-  if (type.as<AnyTypeNode>()) return NamespaceDoc("relax")->Attr("Any")->Call({});
-  if (auto tuple = type.as<TupleTypeNode>(); tuple && tuple->fields.empty()) {
-    return NamespaceDoc("relax")->Attr("Tuple")->Call({});
-  }
-  if (auto function = type.as<relax::FuncTypeNode>(); function && !function->params.has_value()) {
-    ExprDoc doc = d->Translate(type).value();
-    return doc.as<AttrAccessDocNode>() ? doc->Call({}) : doc;
-  }
   if (auto primitive = type.as<PrimType>()) {
     ExprDoc dtype = LiteralDoc::DataType(primitive.value()->dtype, std::nullopt);
     return dtype_literal ? dtype : NamespaceDoc("ir")->Attr("PrimType")->Call({dtype});
@@ -110,16 +112,8 @@ ExprDoc TypeValueImpl(DocTranslatorObj* d, const Type& type, bool dtype_literal)
   if (type.as<MissingType>().has_value()) {
     return NamespaceDoc("ir")->Attr("MissingType")->Call({});
   }
-  if (auto pointer = type.as<PointerTypeNode>()) {
-    if (auto primitive = pointer->element_type.as<PrimType>();
-        primitive.has_value() && primitive.value().IsVoid() && pointer->storage_scope == "global") {
-      return NamespaceDoc("tirx")->Attr("handle")->Call({})->Attr("ty");
-    }
-    return d->Translate(type).value()->Attr("ty");
-  }
-  ExprDoc doc = d->Translate(type).value();
-  if (type.as<relax::TensorTypeNode>() && doc.as<AttrAccessDocNode>()) return doc->Call({});
-  return doc;
+  ExtraStateScope<bool> type_value(d, "ir.type_value", true);
+  return d->Translate(type).value();
 }
 
 }  // namespace

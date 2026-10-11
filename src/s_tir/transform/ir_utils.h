@@ -23,6 +23,7 @@
 #include <tvm/ffi/container/tuple.h>
 #include <tvm/s_tir/stmt.h>
 
+#include <string>
 #include <unordered_map>
 
 #include "../../tirx/transform/ir_utils.h"
@@ -49,6 +50,39 @@ ffi::Array<PrimExpr> ConvertIndices(const MatchBufferRegion& match_buffer,
  */
 ffi::Array<Range> ConvertRegion(const MatchBufferRegion& match_buffer,
                                 const ffi::Array<Range>& region);
+
+// Information of tensor core fragment.
+struct FragmentInfo {
+  // fragment shape
+  int m, n, k;
+  // fragment layout (row-major or column-major)
+  std::string layout;
+  // scope of the fragment (wmma.matrix_a, wmma.matrix_b, or wmma.accumulator)
+  std::string scope;
+  FragmentInfo() = default;
+  FragmentInfo(int _m, int _n, int _k, const std::string& _layout, const std::string& _scope)
+      : m(_m), n(_n), k(_k), layout(_layout), scope(_scope) {}
+
+  int GetSize() const {
+    if (scope == "wmma.matrix_a") {
+      return m * k;
+    } else if (scope == "wmma.matrix_b") {
+      return n * k;
+    } else if (scope == "wmma.accumulator") {
+      return m * n;
+    } else {
+      TVM_FFI_ICHECK(0);
+      throw;
+    }
+  }
+};
+
+/*!
+ * \brief Extract information of tensor core fragment from the IR.
+ * \param stmt The stmt to visit.
+ * \return Map from buffer variables to the fragment info.
+ */
+std::unordered_map<const VarNode*, FragmentInfo> GetTensorCoreFragmentInfo(const Stmt& stmt);
 
 /*! \brief The quad used by StorageAlign for (buffer_idx, axis, factor, offset) */
 using StorageAlignTuple = ffi::Tuple<int32_t, int32_t, int32_t, int32_t>;

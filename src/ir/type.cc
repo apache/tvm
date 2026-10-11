@@ -122,36 +122,36 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> PrimTypeMaybeInplaceMut
   return ffi::Unchanged();
 }
 
-TVM_FFI_INLINE ffi::Expected<ffi::Optional<ffi::VisitInterrupt>> PointerTypeVisit(
+TVM_FFI_INLINE ffi::Expected<ffi::Optional<ffi::VisitInterrupt>> PtrTypeVisit(
     ffi::StructuralVisitorObj* visitor, ffi::AnyView value) noexcept {
   // skips: storage_scope (scalar)
-  const PointerTypeNode* self =
-      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const PointerTypeNode>(value);
+  const PtrTypeNode* self =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const PtrTypeNode>(value);
   TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->element_type));
   return std::nullopt;
 }
 
-TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> PointerTypeMutate(
+TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> PtrTypeMutate(
     ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
   // skips: storage_scope (scalar)
-  const PointerTypeNode* self =
-      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const PointerTypeNode>(value);
+  const PtrTypeNode* self =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const PtrTypeNode>(value);
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Type>, mapped_element_type_u,
                                     mutator->MutateExpected(self->element_type));
   if (mapped_element_type_u.UnchangedOrSameAs(self->element_type)) {
     return ffi::Unchanged();
   }
-  ffi::ObjectPtr<PointerTypeNode> copy = ffi::make_object<PointerTypeNode>(*self);
+  ffi::ObjectPtr<PtrTypeNode> copy = ffi::make_object<PtrTypeNode>(*self);
   if (!mapped_element_type_u.IsUnchanged())
     copy->element_type = std::move(mapped_element_type_u).ValueUnchecked();
   return ffi::Any(std::move(copy));
 }
 
-TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> PointerTypeMaybeInplaceMutate(
+TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> PtrTypeMaybeInplaceMutate(
     ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
   // skips: storage_scope (scalar)
-  PointerTypeNode* self = const_cast<PointerTypeNode*>(
-      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const PointerTypeNode>(value));
+  PtrTypeNode* self = const_cast<PtrTypeNode*>(
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const PtrTypeNode>(value));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
       ffi::UnchangedOr<Type>, mapped_element_type_u,
       mutator->MutateExpected(self->element_type, ffi::InplaceMode::kAllow));
@@ -329,7 +329,7 @@ PrimType::PrimType(DLDataType dtype) : Type(ffi::UnsafeInit{}) {
   bool is_opaque_handle = dtype.code == static_cast<uint8_t>(DLDataTypeCode::kDLOpaqueHandle);
   bool is_void = is_opaque_handle && dtype.bits == 0 && dtype.lanes == 0;
   TVM_FFI_CHECK(!is_opaque_handle || is_void, TypeError)
-      << "PrimType cannot represent an opaque pointer; use PointerType::VoidPointerTy()";
+      << "PrimType cannot represent an opaque pointer; use PtrType::VoidPointerTy()";
   data_ = GetCachedPrimTypeNode(dtype);
 }
 
@@ -409,11 +409,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("ir.StringType", []() { return StringType(); });
 }
 
-// PointerType
-PointerType::PointerType(Type element_type, ffi::String storage_scope) : Type(ffi::UnsafeInit{}) {
+// PtrType
+PtrType::PtrType(Type element_type, ffi::String storage_scope) : Type(ffi::UnsafeInit{}) {
   TVM_FFI_ICHECK(!element_type.as<MissingType>().has_value())
-      << "PointerType element_type cannot be Type::Missing()";
-  ffi::ObjectPtr<PointerTypeNode> n = ffi::make_object<PointerTypeNode>();
+      << "PtrType element_type cannot be Type::Missing()";
+  ffi::ObjectPtr<PtrTypeNode> n = ffi::make_object<PtrTypeNode>();
   if (storage_scope.empty()) {
     n->storage_scope = "global";
   } else {
@@ -425,22 +425,21 @@ PointerType::PointerType(Type element_type, ffi::String storage_scope) : Type(ff
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  PointerTypeNode::RegisterReflection();
-  refl::TypeAttrDef<PointerTypeNode>()
-      .attr(refl::type_attr::kStructuralVisit,
-            ffi::FStructuralVisit::FromNative<&PointerTypeVisit>())
+  PtrTypeNode::RegisterReflection();
+  refl::TypeAttrDef<PtrTypeNode>()
+      .attr(refl::type_attr::kStructuralVisit, ffi::FStructuralVisit::FromNative<&PtrTypeVisit>())
       .attr(refl::type_attr::kStructuralMutate,
-            ffi::FStructuralMutate::FromNative<&PointerTypeMutate>())
+            ffi::FStructuralMutate::FromNative<&PtrTypeMutate>())
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
-            ffi::FStructuralMutate::FromNative<&PointerTypeMaybeInplaceMutate>());
+            ffi::FStructuralMutate::FromNative<&PtrTypeMaybeInplaceMutate>());
 
-  refl::GlobalDef().def("ir.PointerType", [](Type element_type, ffi::String storage_scope = "") {
-    return PointerType(element_type, storage_scope);
+  refl::GlobalDef().def("ir.PtrType", [](Type element_type, ffi::String storage_scope = "") {
+    return PtrType(element_type, storage_scope);
   });
 }
 
-PointerType PointerType::VoidPointerTy(ffi::String storage_scope) {
-  return PointerType(PrimType::Void(), std::move(storage_scope));
+PtrType PtrType::VoidPointerTy(ffi::String storage_scope) {
+  return PtrType(PrimType::Void(), std::move(storage_scope));
 }
 
 FuncType::FuncType(tvm::ffi::Array<Type> arg_types, Type ret_type, Location loc)

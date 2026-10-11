@@ -179,7 +179,7 @@ def test_provisional_call_constructor():
     assert call.loc.same_as(loc)
     assert isinstance(call.attrs, tvm.ir.DictAttrs)
     assert len(call.ty_args) == 0
-    assert isinstance(tvm.ir.Call(op, [x], ty="handle").ty, tvm.ir.PointerType)
+    assert isinstance(tvm.ir.Call(op, [x], ty="handle").ty, tvm.ir.PtrType)
     with pytest.raises(TypeError, match="skip_validate"):
         tvm.ir.Call(op, [x], skip_validate=True)
 
@@ -716,7 +716,7 @@ def test_pass_dltensor_arg_to_tir():
 
     In TIR, a `DLTensor*` argument with unknown shape and dtype is
     represented as a `tirx.Var` with
-    `tvm::PointerType::VoidPointerTy()`, rather than a buffer-typed
+    `tvm::PtrType::VoidPointerTy()`, rather than a buffer-typed
     parameter.  In Relax, this is represented as `R.Tensor`.  Calls
     from Relax to TIR that pass a tensor of unknown rank/shape are
     well-formed.
