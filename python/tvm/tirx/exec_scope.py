@@ -28,7 +28,7 @@ from . import _ffi_api
 
 @register_object("tirx.ExecScope")
 class ExecScope(Object, Scriptable):
-    """A registered execution scope belonging to one backend."""
+    """A node in one backend's registered execution hierarchy."""
 
     backend: str
     name: str
@@ -36,16 +36,10 @@ class ExecScope(Object, Scriptable):
     def __init__(self, backend: str, name: str):
         self.__init_handle_by_constructor__(_ffi_api.ExecScope, backend, name)
 
-    @property
-    def is_execution_scope(self) -> bool:
-        return _ffi_api.ExecScopeIsExecutable(self)
 
-
-def register_exec_scope(backend: str, name: str, rank: int, *, executable: bool = True):
+def register_exec_scope(backend: str, name: str, rank: int):
     """Register a backend's finite scope hierarchy, from outer to inner ranks.
 
     Backend load hooks register scopes before registering their layout axes.
-    A structural root can participate in axis relationships without being an
-    instruction execution scope.
     """
-    _ffi_api.RegisterExecScope(backend, name, rank, executable)
+    _ffi_api.RegisterExecScope(backend, name, rank)

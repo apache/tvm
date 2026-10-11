@@ -80,13 +80,14 @@ def test_backend_axis_and_scope_identity():
     assert not tvm_ffi.structural_equal(cuda, trn)
     assert_structural_equal(cuda, load_json(save_json(cuda)))
     assert_structural_equal(trn, load_json(save_json(trn)))
-    for factory in (T.cuda.ExecScope, T.trn.ExecScope):
-        with pytest.raises(ValueError, match="structural"):
-            factory("kernel")
+    for backend, factory in (("cuda", T.cuda.ExecScope), ("trn", T.trn.ExecScope)):
+        root = factory("kernel")
+        assert_structural_equal(root, ExecScope(backend, "kernel"))
+        assert_structural_equal(root, load_json(save_json(root)))
+        assert f'T.{backend}.ExecScope("kernel")' in root.script()
+    assert_structural_equal(T.cuda.Axis.bx.get_scope(), T.cuda.ExecScope("kernel"))
     with pytest.raises(ValueError, match="Unknown execution scope"):
         T.trn.ExecScope("warp")
-    assert not ExecScope("cuda", "kernel").is_execution_scope
-    assert 'T.ExecScope("cuda", "kernel")' in ExecScope("cuda", "kernel").script()
 
 
 @pytest.mark.parametrize(

@@ -56,11 +56,24 @@ def test_backend_mismatch_is_rejected():
 def test_single_thread_instructions_reject_collective_scope(instruction):
     a = decl_tensor((16, 16), "float32", scope="global")
     b = decl_tensor((16, 16), "float32", scope="shared", layout="default")
-    call = (
-        T.cuda.tile.cp_async_bulk_tensor_load(b, a, 0, scope="warp")
-        if instruction == "cp_async_bulk_tensor_load"
-        else T.cuda.tile.tcgen05.cp(b, a, scope="warp")
-    )
-    context = SimpleNamespace(target=tvm.target.Target("cuda"), scope_kind="warp", is_thread=False)
-    with pytest.raises(RuntimeError, match="require[s]? thread scope"):
-        run_dispatch(call, context)
+    with pytest.raises(ValueError, match="unsupported scope 'warp'"):
+        if instruction == "cp_async_bulk_tensor_load":
+            T.cuda.tile.cp_async_bulk_tensor_load(b, a, 0, scope="warp")
+        else:
+            T.cuda.tile.tcgen05.cp(b, a, scope="warp")
+
+
+@pytest.mark.parametrize("backend", ["cuda", "trn"])
+@pytest.mark.parametrize("scope", ["kernel", "unknown"])
+def test_instruction_scope_contract(backend, scope):
+    tensor = decl_tensor((16,), "float32", scope="local", layout="default")
+    instruction = T.cuda.tile.add if backend == "cuda" else T.trn.tile.tensortensor
+    with pytest.raises(ValueError, match=f"unsupported scope '{scope}'"):
+        instruction(tensor, tensor, tensor, scope=scope)
+
+    # Raw Calls obey the same instruction contract through Op validation.
+    call = instruction(tensor, tensor, tensor)
+    attrs = tvm.ir.make_node("tirx.tensor." + SPECS[call.op.name].schema, scope=scope)
+    raw = tvm.ir.Call(call.op, call.args, attrs=attrs, ty=call.ty)
+    with pytest.raises(ValueError, match=f"unsupported scope '{scope}'"):
+        raw.validate()

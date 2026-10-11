@@ -62,6 +62,7 @@ class Instruction:
     name: str
     kind: str
     operands: tuple[Operand, ...]
+    scopes: tuple[str, ...]
     schema: str = "ScopeAttrs"
     options: dict = field(default_factory=dict)
     workspaces: tuple[str, ...] = ()
@@ -182,8 +183,10 @@ class Instruction:
     def validate(self, call):
         if len(call.args) != len(self.operands):
             raise TypeError(f"{self.name}: invalid operand count")
-        if not ExecScope(self.backend, str(call.attrs.scope)).is_execution_scope:
-            raise ValueError(f"{self.name}: invalid scope {call.attrs.scope!r}")
+        if str(call.attrs.scope) not in self.scopes:
+            raise ValueError(
+                f"{self.name}: unsupported scope {call.attrs.scope!r}; expected {self.scopes}"
+            )
         for arg, value in zip(self.operands, call.args):
             if _is_absent(value):
                 if arg.default is not None:

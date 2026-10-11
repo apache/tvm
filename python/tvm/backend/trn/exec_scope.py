@@ -16,23 +16,19 @@
 # under the License.
 # pylint: disable=no-member, super-init-not-called
 
-"""TRN execution granularity."""
+"""TRN execution hierarchy."""
 
 from tvm.tirx.exec_scope import ExecScope as _ExecScope
 from tvm.tirx.exec_scope import register_exec_scope
 
-SCOPES = ("thread",)
+SCOPES = ("kernel", "thread")
 
 
 def register():
-    register_exec_scope("trn", "kernel", -1, executable=False)
-    for rank, name in enumerate(SCOPES):
+    for rank, name in enumerate(SCOPES, start=-1):
         register_exec_scope("trn", name, rank)
 
 
 def ExecScope(name: str) -> _ExecScope:
     """Construct a TRN execution scope."""
-    scope = _ExecScope("trn", name)
-    if not scope.is_execution_scope:
-        raise ValueError(f"{name!r} is a structural root, not an instruction execution scope")
-    return scope
+    return _ExecScope("trn", name)

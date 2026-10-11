@@ -107,6 +107,7 @@ def make_namespace():
             "tirx.trn.tile." + name,
             kind,
             tuple(operands) + tuple(Operand(w, "tensor", None) for w in workspaces),
+            ("thread",),
             "TrnAttrs",
             options or {},
             workspaces,

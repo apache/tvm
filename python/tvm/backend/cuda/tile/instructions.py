@@ -109,10 +109,8 @@ def _dsmem(view, sctx):
     from .copy_async.dsmem import copy_dsmem_impl
 
     _check(validate_copy_op(view, sctx))
-    if not sctx.is_thread or any(
-        not region.source.scope().startswith("shared") for region in view.args
-    ):
-        raise ValueError("cp_async_bulk requires shared -> shared operands at thread scope")
+    if any(not region.source.scope().startswith("shared") for region in view.args):
+        raise ValueError("cp_async_bulk requires shared -> shared operands")
     return copy_dsmem_impl(view, sctx)
 
 
@@ -123,8 +121,6 @@ def _tma(view, sctx):
         copy_tma_explicit_impl,
     )
 
-    if not sctx.is_thread:
-        raise ValueError("TMA tensor instructions require thread scope")
     name = view.op.name.rsplit(".", 1)[-1]
     dst, src = view.args
     load = name == "cp_async_bulk_tensor_load"
@@ -155,8 +151,6 @@ def _tma(view, sctx):
 def _tc_cp(view, sctx):
     from .copy_async.tcgen05_cp import _validate_smem_tmem_copy, copy_smem_tmem_impl
 
-    if not sctx.is_thread:
-        raise ValueError("tcgen05.cp requires thread scope")
     _check(_validate_smem_tmem_copy(view, sctx))
     return copy_smem_tmem_impl(view, sctx)
 
@@ -172,8 +166,6 @@ def _tc_ldst(view, sctx):
         ("local", "tmem") if load else ("tmem", "local")
     ):
         raise ValueError("tcgen05.ld/st requires the named TMEM transfer direction")
-    if not sctx.is_warpgroup:
-        raise ValueError("tcgen05.ld/st requires warpgroup scope")
     return copy_tmem_local_impl(view, sctx)
 
 
@@ -192,17 +184,26 @@ def _mma(view, sctx):
 def _tc_mma(view, sctx):
     from .gemm_async.tcgen05 import gemm_async_tcgen05_impl
 
-    if not (sctx.is_thread or sctx.is_warp):
-        raise ValueError("tcgen05.mma requires thread or warp scope")
     return gemm_async_tcgen05_impl(view, sctx)
 
 
 def make_namespace():
-    def spec(name, kind, operands, schema="ScopeAttrs", options=None, project=None, lower=None):
+    def spec(
+        name,
+        kind,
+        operands,
+        schema="ScopeAttrs",
+        options=None,
+        project=None,
+        lower=None,
+        *,
+        scopes=("cluster", "cta", "warpgroup", "warp", "thread"),
+    ):
         return Instruction(
             "tirx.cuda.tile." + name,
             kind,
             tuple(operands),
+            scopes,
             schema,
             options or {},
             project=project,
@@ -246,6 +247,7 @@ def make_namespace():
             [*pair, Operand("mbar", "address"), Operand("remote_cta_id", "scalar")],
             project=_async_project,
             lower=_dsmem,
+            scopes=("thread",),
         )
     ]
     tma_options = dict(
@@ -279,7 +281,16 @@ def make_namespace():
             + [Operand("cache_policy", "scalar", None)]
         )
         result.append(
-            spec(name, "copy_async", operands, "TMAAttrs", tma_options, _async_project, _tma)
+            spec(
+                name,
+                "copy_async",
+                operands,
+                "TMAAttrs",
+                tma_options,
+                _async_project,
+                _tma,
+                scopes=("thread",),
+            )
         )
     result += [
         spec(
@@ -290,10 +301,18 @@ def make_namespace():
             dict(shape=None, multicast=None, cta_group=1, decompress=None),
             _async_project,
             _tc_cp,
+            scopes=("thread",),
         )
     ]
     result += [
-        spec("tcgen05." + n, "copy_async", pair, project=_async_project, lower=_tc_ldst)
+        spec(
+            "tcgen05." + n,
+            "copy_async",
+            pair,
+            project=_async_project,
+            lower=_tc_ldst,
+            scopes=("warpgroup",),
+        )
         for n in ("ld", "st")
     ]
     result += [
@@ -346,6 +365,7 @@ def make_namespace():
                 mma_options,
                 project,
                 _tc_mma,
+                scopes=("thread", "warp"),
             )
         ]
     for name, kind in {

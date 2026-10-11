@@ -1996,6 +1996,7 @@ def _register_probe(name):
             "tirx.cuda.tile." + name,
             "copy",
             (Operand("dst", "region"), Operand("src", "region")),
+            scopes=("cluster", "cta", "warpgroup", "warp", "thread"),
             lower=lower,
         )
         factory = spec.register()

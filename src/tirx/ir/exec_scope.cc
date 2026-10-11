@@ -26,16 +26,12 @@
 
 namespace tvm::tirx {
 namespace {
-struct ScopeInfo {
-  int rank;
-  bool executable;
-};
 using ScopeKey = std::pair<std::string, std::string>;
-std::map<ScopeKey, ScopeInfo>& Scopes() {
-  static std::map<ScopeKey, ScopeInfo> scopes;
+std::map<ScopeKey, int>& Scopes() {
+  static std::map<ScopeKey, int> scopes;
   return scopes;
 }
-const ScopeInfo& Lookup(const ffi::String& backend, const ffi::String& name) {
+int Lookup(const ffi::String& backend, const ffi::String& name) {
   auto it = Scopes().find({std::string(backend), std::string(name)});
   TVM_FFI_CHECK(it != Scopes().end(), ValueError)
       << "Unknown execution scope: " << backend << "." << name;
@@ -43,12 +39,10 @@ const ScopeInfo& Lookup(const ffi::String& backend, const ffi::String& name) {
 }
 }  // namespace
 
-void RegisterExecScope(const ffi::String& backend, const ffi::String& name, int rank,
-                       bool executable) {
-  Scopes().insert_or_assign({std::string(backend), std::string(name)}, ScopeInfo{rank, executable});
+void RegisterExecScope(const ffi::String& backend, const ffi::String& name, int rank) {
+  Scopes().insert_or_assign({std::string(backend), std::string(name)}, rank);
 }
-int ExecScopeNode::rank() const { return Lookup(backend, scope_name).rank; }
-bool ExecScopeNode::executable() const { return Lookup(backend, scope_name).executable; }
+int ExecScopeNode::rank() const { return Lookup(backend, scope_name); }
 ExecScope::ExecScope(ffi::String backend, ffi::String name) {
   Lookup(backend, name);
   auto n = ffi::make_object<ExecScopeNode>();
@@ -69,7 +63,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
            [](ffi::String backend, ffi::String name) {
              return ExecScope(std::move(backend), std::move(name));
            })
-      .def("tirx.RegisterExecScope", RegisterExecScope)
-      .def("tirx.ExecScopeIsExecutable", [](ExecScope scope) { return scope->executable(); });
+      .def("tirx.RegisterExecScope", RegisterExecScope);
 }
 }  // namespace tvm::tirx

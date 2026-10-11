@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-/*! \brief Backend-defined execution scopes shared by tensor layouts and tile calls. */
+/*! \brief Backend-defined execution hierarchy nodes shared by layouts and tile calls. */
 #ifndef TVM_TIRX_EXEC_SCOPE_H_
 #define TVM_TIRX_EXEC_SCOPE_H_
 #include <tvm/ffi/object.h>
@@ -25,8 +25,7 @@
 namespace tvm::tirx {
 
 /*! \brief Register a backend's execution hierarchy. Smaller rank means wider scope. */
-TVM_DLL void RegisterExecScope(const ffi::String& backend, const ffi::String& name, int rank,
-                               bool executable = true);
+TVM_DLL void RegisterExecScope(const ffi::String& backend, const ffi::String& name, int rank);
 
 class ExecScopeNode : public ffi::Object {
  public:
@@ -34,7 +33,6 @@ class ExecScopeNode : public ffi::Object {
   ffi::String scope_name;
   ffi::String name() const { return scope_name; }
   int rank() const;
-  bool executable() const;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;

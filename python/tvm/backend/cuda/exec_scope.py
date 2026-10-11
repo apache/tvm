@@ -16,23 +16,19 @@
 # under the License.
 # pylint: disable=no-member, super-init-not-called
 
-"""CUDA execution granularity."""
+"""CUDA execution hierarchy."""
 
 from tvm.tirx.exec_scope import ExecScope as _ExecScope
 from tvm.tirx.exec_scope import register_exec_scope
 
-SCOPES = ("cluster", "cta", "warpgroup", "warp", "thread")
+SCOPES = ("kernel", "cluster", "cta", "warpgroup", "warp", "thread")
 
 
 def register():
-    register_exec_scope("cuda", "kernel", -1, executable=False)
-    for rank, name in enumerate(SCOPES):
+    for rank, name in enumerate(SCOPES, start=-1):
         register_exec_scope("cuda", name, rank)
 
 
 def ExecScope(name: str) -> _ExecScope:
     """Construct a CUDA execution scope."""
-    scope = _ExecScope("cuda", name)
-    if not scope.is_execution_scope:
-        raise ValueError(f"{name!r} is a structural root, not an instruction execution scope")
-    return scope
+    return _ExecScope("cuda", name)

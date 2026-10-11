@@ -240,8 +240,6 @@ def run_dispatch(call, sctx):
         raise ValueError(
             f"{view.op.name}: target {sctx.target.kind.name} does not match {view.spec.backend}"
         )
-    if view.spec.backend == "trn" and sctx.scope_kind != "thread":
-        raise ValueError(f"{view.op.name}: Trainium tensor instructions require thread scope")
     try:
         result = view.spec.lower(view, sctx)
         if result is None:
