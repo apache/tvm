@@ -29,15 +29,6 @@ from tvm.ir.location import UNKNOWN_LOC, Location
 from tvm.ir.op import _init_op_api, _make_op_api
 from tvm.ir.type import PrimType, PtrType
 from tvm.tirx.op import bitwise_and, call_intrin, ptr_byte_offset
-from tvm.tirx.operator.intrinsics._common import (
-    CP_ASYNC_BULK_CACHE_HINT as _CP_ASYNC_BULK_CACHE_HINT,
-)
-from tvm.tirx.operator.intrinsics._common import MBARRIER_ARRIVE_SCOPE as _MBARRIER_ARRIVE_SCOPE
-from tvm.tirx.operator.intrinsics._common import MBARRIER_ARRIVE_SEM as _MBARRIER_ARRIVE_SEM
-from tvm.tirx.operator.intrinsics._common import MBARRIER_ARRIVE_SPACE as _MBARRIER_ARRIVE_SPACE
-from tvm.tirx.operator.intrinsics._common import NVSHMEM_CMP as _NVSHMEM_CMP
-from tvm.tirx.operator.intrinsics._common import NVSHMEM_SIG_OP as _NVSHMEM_SIG_OP
-from tvm.tirx.operator.intrinsics._common import TCGEN05_CTA_GROUP as _TCGEN05_CTA_GROUP
 
 tir = tirx
 
@@ -344,6 +335,11 @@ def cuda_wait_until(
     )
 
 
+_MBARRIER_ARRIVE_SEM = ("", "release", "relaxed")
+_MBARRIER_ARRIVE_SCOPE = ("", "cta", "cluster")
+_MBARRIER_ARRIVE_SPACE = ("shared", "shared::cta", "shared::cluster")
+
+
 def _validate_mbarrier_arrive_attrs(sem, scope, space, remote):
     if (sem == "") != (scope == ""):
         raise ValueError("mbarrier.arrive sem and scope must be specified together")
@@ -590,6 +586,9 @@ def ptx_legacy_ldmatrix(
     )
 
 
+_TCGEN05_CTA_GROUP = (1, 2)
+
+
 @tvm_ffi.register_object("tirx.cuda.TCGen05InstrDescriptorAttrs")
 class TCGen05InstrDescriptorAttrs(Attrs):
     """Static options for the dense tcgen05 instruction descriptor."""
@@ -808,11 +807,6 @@ def _static_str(value):
     if isinstance(value, StringImm):
         return value.value
     return None
-
-
-# See top-of-file imports for `_FENCE_SEM` etc. (re-exported from _common).
-# Note: TCGEN05_LDST_SHAPES values must stay in sync with the tcgen05.ld/.st
-# shape tokens in backend/cuda/ptx/table.py.
 
 
 def timer_init(
@@ -1107,6 +1101,8 @@ _PTX_CVT_RETURN_TYPE = {
     "e3m2x4": "uint32",
 }
 
+
+_CP_ASYNC_BULK_CACHE_HINT = ("", "evict_last", "evict_first", "evict_normal", "evict_last_use")
 
 _PTX_CACHE_POLICY = {
     "evict_normal": 0x1000000000000000,
@@ -1405,6 +1401,10 @@ def nvshmem_putmem_nbi_block(dst, src, nelems, pe, *, ty=None, loc: Location = U
         ty=ty,
         loc=loc,
     )
+
+
+_NVSHMEM_CMP = ("eq", "ne", "gt", "ge", "lt", "le")
+_NVSHMEM_SIG_OP = ("set", "add")
 
 
 def nvshmem_signal_op(sig_addr, signal, sig_op, pe, *, ty=None, loc: Location = UNKNOWN_LOC):

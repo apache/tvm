@@ -25,7 +25,6 @@ from tvm.script import tirx as T
 from tvm.tirx import Function, Var
 from tvm.tirx.tile import DispatchContext, fail
 from tvm.tirx.tile.instruction import TensorCall
-from tvm.tirx.tile.layout_utils import effective_layout
 
 from .utils import find_contiguous_region, to_tile_layout
 
@@ -73,8 +72,8 @@ def copy_dsmem_impl(op_call: TensorCall, sctx: DispatchContext) -> Function:
     dtype_bytes = tvm.DataType(src_buf.dtype).bits // 8
 
     # Get tile layouts for both buffers
-    src_tile_layout = to_tile_layout(effective_layout(src_buf), src_buf.shape)
-    dst_tile_layout = to_tile_layout(effective_layout(dst_buf), dst_buf.shape)
+    src_tile_layout = to_tile_layout(src_buf.ty.effective_layout(), src_buf.shape)
+    dst_tile_layout = to_tile_layout(dst_buf.ty.effective_layout(), dst_buf.shape)
 
     # Slice layouts to copy region
     src_region_tuples = [(src_st[i], src_st[i] + src_ext[i]) for i in range(len(src_st))]
@@ -137,8 +136,8 @@ def copy_dsmem_impl(op_call: TensorCall, sctx: DispatchContext) -> Function:
             dst_off = dst_off + v * outer_dst_strides[j]
         return src_off, dst_off
 
-    src_tile = to_tile_layout(effective_layout(src_buf), src_buf.shape)
-    dst_tile = to_tile_layout(effective_layout(dst_buf), dst_buf.shape)
+    src_tile = to_tile_layout(src_buf.ty.effective_layout(), src_buf.shape)
+    dst_tile = to_tile_layout(dst_buf.ty.effective_layout(), dst_buf.shape)
 
     # fmt: off
     @T.function(check_well_formed=False)

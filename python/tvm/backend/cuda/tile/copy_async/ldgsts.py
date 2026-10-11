@@ -47,7 +47,6 @@ from tvm.tirx import Function, Var
 from tvm.tirx.expr import IntImm as _IntImm
 from tvm.tirx.tile.dispatch import DispatchContext
 from tvm.tirx.tile.instruction import TensorCall
-from tvm.tirx.tile.layout_utils import effective_layout
 
 from ..copy._common import (
     _TID_AXIS_FOR_SCOPE,
@@ -190,17 +189,17 @@ def _emit_ldgsts(op_call: TensorCall, sctx: DispatchContext) -> Function:
 
     with sctx.target:
         g_p, s_p, vec_len = align_layouts_gs(
-            effective_layout(g_buf),
+            g_buf.ty.effective_layout(),
             g_buf.shape,
             g_region,
-            effective_layout(s_buf),
+            s_buf.ty.effective_layout(),
             s_buf.shape,
             s_region,
             elem_bits,
             thread_cnt,
             vec_bits_candidates=_LDGSTS_VEC_BITS,
         )
-        s_apply_layout = recompose_swizzle(effective_layout(s_buf), s_p)
+        s_apply_layout = recompose_swizzle(s_buf.ty.effective_layout(), s_p)
 
     vec_bits = vec_len * elem_bits
     cp_size = vec_bits // 8  # cp.async cp_size is in bytes

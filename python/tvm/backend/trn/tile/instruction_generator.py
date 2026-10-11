@@ -25,14 +25,12 @@ from operator import mul
 
 import tvm_ffi
 
-import tvm
 from tvm.backend.trn.layout import is_trainium_layout
 from tvm.ir import Range, TensorRegion, TensorRegionType
 from tvm.script import tirx as T
 from tvm.sym.analyzer import Analyzer
 from tvm.tirx import Expr, IntImm, Var, is_tensor_var
-from tvm.tirx.layout import Iter
-from tvm.tirx.tile.layout_utils import effective_layout
+from tvm.tirx.layout import Iter, TileLayout
 
 from .dim_utils import DimensionMapper, RangeInfo, normalize_and_group
 
@@ -138,7 +136,7 @@ class InstructionGenerator:
         return tensor_region
 
     def _get_sub_layout(self, tensor_region: TensorRegion):
-        layout = effective_layout(tensor_region.source)
+        layout = tensor_region.source.ty.effective_layout()
         layout, seps = normalize_and_group(layout, tensor_region.source.ty.shape)
         tiled_range_infos_per_dim = []
         new_shard = []
@@ -173,9 +171,7 @@ class InstructionGenerator:
                 assert False, f"Cannot analyze physical tensor region for: {tensor_region}"
             new_shard += reversed(reversed_shard)
             new_seps.append(len(reversed_shard) + new_seps[-1])
-        new_tile_layout = effective_layout(tvm.tirx).TileLayout.from_iters(  # pylint: disable=no-member
-            new_shard, [], dict()
-        )
+        new_tile_layout = TileLayout.from_iters(new_shard, [], dict())
         return new_tile_layout, new_seps
 
     def _init_bind_iters(self):

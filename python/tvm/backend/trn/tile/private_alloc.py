@@ -24,7 +24,6 @@ from tvm.tirx import FloatImm, IntImm, Var
 from tvm.tirx.tile import DispatchContext
 from tvm.tirx.tile.dispatch import f_op_dispatcher
 from tvm.tirx.tile.instruction import TensorCall
-from tvm.tirx.tile.layout_utils import effective_layout
 from tvm.tirx.tile.views import (
     BinaryReduce,
     Exp,
@@ -72,7 +71,7 @@ def alloc_const_bias_trn(
     if not isinstance(bias, (FloatImm)):
         return {}
     bias_key = ("const_bias", _scalar_dtype(bias), float(bias.value).hex())
-    par_size = effective_layout(op.dsts[0].source).size("P")
+    par_size = op.dsts[0].source.ty.effective_layout().size("P")
     max_inst_size = op.options.get("max_inst_size", 512)
     if isinstance(max_inst_size, int | IntImm) and int(max_inst_size) == -1:
         raise ValueError("Constant bias workspace allocation requires a finite max_inst_size")
@@ -126,7 +125,7 @@ def alloc_acc_psum_trn(
 ) -> dict[str, Any]:
     if "acc_psum" in op.workspaces or op.dsts[0].source.scope() == "trn.psum":
         return {}
-    par_size = effective_layout(op.dsts[0].source).size("P")
+    par_size = op.dsts[0].source.ty.effective_layout().size("P")
     acc_psum = T.Var("acc_psum", T.Tensor((8, par_size, 512), "float32", scope="trn.psum"))
     # no reuse opportunity
     tensor_dict[acc_psum] = (

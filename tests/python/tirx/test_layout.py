@@ -24,13 +24,13 @@ import pytest
 import tvm
 from tvm.backend.cuda.axis import Axis as CUDAAxis
 from tvm.backend.cuda.axis import TCol, TLane, laneid, tid_in_wg, tx, warpid, wgid, wid_in_wg
+from tvm.backend.cuda.lang import SMEMPool
 from tvm.backend.cuda.layout import tmem_mma_operand_layout, wg_local_layout
 from tvm.backend.trn.axis import Axis as TRNAxis
 from tvm.backend.trn.axis import F, P
 from tvm.backend.trn.layout import to_psum_layout, trainium_layout
 from tvm.ir import assert_structural_equal
 from tvm.ir.type import PrimType, PtrType
-from tvm.script import tirx as T
 from tvm.script.ir_builder import IRBuilder
 from tvm.sym import Analyzer
 from tvm.tirx import Var
@@ -1478,7 +1478,7 @@ def test_pool_allocator_alloc_mma():
     def alloc_layout(shape, dtype, swizzle_mode="auto"):
         with IRBuilder():
             with Tx_builder.function():
-                pool = T.SMEMPool(Var("smem_ptr", PtrType(PrimType("uint8"))))
+                pool = SMEMPool(Var("smem_ptr", PtrType(PrimType("uint8"))))
                 buf = pool.alloc_tcgen05_mma_AB(shape, dtype, swizzle_mode=swizzle_mode)
         return buf.layout
 

@@ -39,7 +39,6 @@ from tvm.tirx import Function, IntImm, Var, is_tensor_var
 from tvm.tirx.layout import Layout, TileLayout
 from tvm.tirx.tile import DispatchContext, fail
 from tvm.tirx.tile.instruction import TensorCall
-from tvm.tirx.tile.layout_utils import effective_layout
 
 from ...op import _is_static_unicast_cta_mask, _resolve_cache_policy
 from ..layout_utils import strip_swizzle_to_tile
@@ -274,7 +273,7 @@ def _layout_offset(layout: TileLayout):
 
 
 def _slice_layout(buffer: Var, starts, extents, label: str) -> tuple[TileLayout, TileLayout]:
-    tile = _to_tile_layout(effective_layout(buffer), buffer.shape)
+    tile = _to_tile_layout(buffer.ty.effective_layout(), buffer.shape)
     _assert_plain_memory_layout(tile, label)
     region = [(start, start + extent) for start, extent in zip(starts, extents)]
     sliced = tile.slice(list(buffer.shape), region)
@@ -300,7 +299,7 @@ def _slice_global_layout(buffer: Var, starts, extents) -> tuple[TileLayout, Tile
     """
 
     analyzer = Analyzer()
-    tile = _to_tile_layout(effective_layout(buffer), buffer.shape)
+    tile = _to_tile_layout(buffer.ty.effective_layout(), buffer.shape)
     _assert_plain_memory_layout(tile, "global")
     try:
         grouped, separators = tile.group(list(buffer.shape))
@@ -433,7 +432,7 @@ def _elements_to_bytes(
 
 def _buffer_base(buffer: Var, *, auto: bool, stage: str):
     analyzer = Analyzer()
-    layout = _to_tile_layout(effective_layout(buffer), buffer.shape)
+    layout = _to_tile_layout(buffer.ty.effective_layout(), buffer.shape)
     layout_offset = _layout_offset(layout)
     element_offset = analyzer.simplify(buffer.elem_offset + layout_offset)
     byte_offset = _elements_to_bytes(
@@ -1180,7 +1179,7 @@ def _auto_spec_for_prefix(
     return TMAPlan(
         spec=spec,
         issue_axes=tuple(issue_axes),
-        shared_layout=_to_tile_layout(effective_layout(s_buf), s_buf.shape),
+        shared_layout=_to_tile_layout(s_buf.ty.effective_layout(), s_buf.shape),
     )
 
 
@@ -1664,11 +1663,13 @@ def _build_auto_plan(op_call: TensorCall, sctx: DispatchContext) -> TMAPlan:
     s_starts, s_extents = _copy_region_parts(shared_region.region)
     g_starts, g_extents = _copy_region_parts(global_region.region)
     try:
-        swizzle = get_swizzle_mode_from_layout(effective_layout(s_buf))
+        swizzle = get_swizzle_mode_from_layout(s_buf.ty.effective_layout())
     except ValueError as error:
         _auto_fail("shared-swizzle", str(error))
     if swizzle is None:
-        _auto_fail("shared-layout", f"cannot recognize shared swizzle in {effective_layout(s_buf)}")
+        _auto_fail(
+            "shared-layout", f"cannot recognize shared swizzle in {s_buf.ty.effective_layout()}"
+        )
     try:
         _, sliced_smem_with_offset = _slice_layout(s_buf, s_starts, s_extents, "shared")
     except ValueError as error:
@@ -1763,13 +1764,13 @@ def _explicit_smem_layout(s_buf: Var, starts, extents, swizzle: SwizzleMode):
             f"{byte_offset}B violates {atom_alignment}B swizzle/base alignment"
         )
     return (
-        _to_tile_layout(effective_layout(s_buf), s_buf.shape),
+        _to_tile_layout(s_buf.ty.effective_layout(), s_buf.shape),
         analyzer.simplify(s_buf.elem_offset + offset),
     )
 
 
 def _direct_global_layout(g_buf: Var):
-    layout = effective_layout(g_buf)
+    layout = g_buf.ty.effective_layout()
     if not isinstance(layout, TileLayout):
         fail(
             "tma_explicit stage=global-layout: global Var/view layout must be "
@@ -1995,11 +1996,11 @@ def _build_explicit_plan(op_call: TensorCall, sctx: DispatchContext):
             fail("tma_explicit gather4 shared public axis 0 must describe four rows")
 
     try:
-        swizzle = get_swizzle_mode_from_layout(effective_layout(s_buf))
+        swizzle = get_swizzle_mode_from_layout(s_buf.ty.effective_layout())
     except ValueError as error:
         fail(f"tma_explicit stage=shared-swizzle: {error}")
     if swizzle is None:
-        fail(f"tma_explicit cannot recognize shared swizzle in {effective_layout(s_buf)}")
+        fail(f"tma_explicit cannot recognize shared swizzle in {s_buf.ty.effective_layout()}")
     shared_layout, smem_base_offset = _explicit_smem_layout(s_buf, s_starts, s_extents, swizzle)
     main_spec = _explicit_spec_for_gmem(
         g_buf=g_buf,
@@ -2270,7 +2271,7 @@ def _validate_tma_copy_op(op_call: TensorCall, _sctx: DispatchContext) -> bool:
     dst_region, src_region = op_call.args[:2]
     src = src_region.source
     dst = dst_region.source
-    if effective_layout(src) is None or effective_layout(dst) is None:
+    if src.ty.effective_layout() is None or dst.ty.effective_layout() is None:
         return False
     src_scope, dst_scope = src.scope(), dst.scope()
     return (src_scope == "global" and dst_scope.startswith("shared")) or (

@@ -62,7 +62,7 @@ mbarrier and writes the result out (from ``test_dsmem.py``):
 
 .. code-block:: python
 
-    from tvm.backend.cuda.lang import MBarrier
+    from tvm.backend.cuda.lang import MBarrier, SMEMPool
 
     shape, dtype, CLUSTER_N = (128, 64), "float16", 2
     src_layout = dst_layout = TileLayout(S[128, 64])
@@ -77,7 +77,7 @@ mbarrier and writes the result out (from ``test_dsmem.py``):
         cbx = Tx.cuda.cluster_cta_id("x")
         _index = Tx.cuda.block_idx("x")
         tid = Tx.cuda.thread_idx("x")
-        pool = Tx.SMEMPool()
+        pool = SMEMPool()
         src_raw = pool.alloc([8192], dtype, align=128)
         src_smem = Tx.decl_tensor(
             src_raw.data,

@@ -33,7 +33,6 @@ from tvm.tirx import Function, Var
 from tvm.tirx.layout import S, TileLayout
 from tvm.tirx.tile import DispatchContext
 from tvm.tirx.tile.instruction import TensorCall
-from tvm.tirx.tile.layout_utils import effective_layout
 
 from ..common import get_st_extent
 
@@ -58,7 +57,7 @@ def _match_tcgen05_atom_layout(buf):
     if rows not in (64, 128):
         return None
     dtype = buf.dtype
-    layout_c = effective_layout(buf).canonicalize()
+    layout_c = buf.ty.effective_layout().canonicalize()
     for shape in _TCGEN05_COL_FACTOR_FP32:
         try:
             cand = tcgen05_atom_layout(shape, (rows, cols), dtype).canonicalize()
@@ -116,20 +115,18 @@ def _classify_tmem_datapath(tmem_buf):
     """Return ``(datapath, sub_slab)`` if ``tmem_buf.layout`` matches a known
     tcgen05 datapath (PTX ISA §9.7.16.10.5), else ``None``.
 
-    Layout D (M=128, identity row→lane) is the default returned by
-    ``_default_tmem_layout``. Layout F (M=64 non-``.ws``, scattered) is the
-    explicit opt-in produced by ``tmem_pool.alloc(..., datapath="F")``.
-    Layout B is the per-CTA M=64, ``.cta_group::2`` "2x2" placement produced
-    by ``tmem_pool.alloc(..., datapath="B")``.
+    ``tmem_datapath_layout`` constructs the supported layouts: Layout D
+    (M=128, identity row→lane), Layout F (M=64 non-``.ws``, scattered),
+    and Layout B (per-CTA M=64, ``.cta_group::2`` "2x2" placement).
     The dispatch uses this to pair each ``.16x*b`` / ``.32x32b`` atom with a
     compatible layout — see ``_check_tmem_layout_for_atom``.
 
     ``sub_slab`` is always 0 for Layout D and B. For Layout F it selects the
     lower (0) or upper (1) 16-lane half of each warp's 32-lane partition.
     """
-    if effective_layout(tmem_buf) is None:
+    if tmem_buf.ty.effective_layout() is None:
         return None
-    buf_layout = effective_layout(tmem_buf).canonicalize()
+    buf_layout = tmem_buf.ty.effective_layout().canonicalize()
     rows = int(tmem_buf.shape[0])
     if rows == 128:
         cand = tmem_datapath_layout("D", 128, tmem_buf.shape[1]).canonicalize()
@@ -196,7 +193,7 @@ def _tmem_window(tmem_buf, tmem_region, atom_kind, frag_rows, analyzer):
             f"incompatible with atom={atom_kind!r} (frag_rows={frag_rows}). "
             f"See PTX ISA §9.7.16.10.5 for datapath/atom pairings."
         )
-    window = effective_layout(tmem_buf).slice(tmem_buf.shape, tmem_region.region).canonicalize()
+    window = tmem_buf.ty.effective_layout().slice(tmem_buf.shape, tmem_region.region).canonicalize()
     if datapath == "D":
         base = TileLayout(S[(frag_rows, width) : (1 @ TLane, 1 @ TCol)])
     else:
@@ -234,8 +231,8 @@ def copy_tmem_local_impl(op_call: TensorCall, sctx: DispatchContext) -> Function
 
     tmem_buf, local_buf = tmem_region.source, local_region.source
 
-    assert effective_layout(tmem_buf) is not None
-    assert effective_layout(local_buf) is not None
+    assert tmem_buf.ty.effective_layout() is not None
+    assert local_buf.ty.effective_layout() is not None
     assert tmem_buf.dtype == local_buf.dtype
 
     analyzer = Analyzer()
@@ -521,7 +518,9 @@ def _emit_datapath_b_path(
     n_half = n_cols // 2
     expected_local = tcgen05_atom_layout("32x32b", (64, n_cols), local_buf.dtype).canonicalize()
     try:
-        tvm.ir.assert_structural_equal(effective_layout(local_buf).canonicalize(), expected_local)
+        tvm.ir.assert_structural_equal(
+            local_buf.ty.effective_layout().canonicalize(), expected_local
+        )
     except (AssertionError, ValueError) as err:
         raise ValueError(
             "datapath B (.cta_group::2 M=64) requires a matching Layout B "

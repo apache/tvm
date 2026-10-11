@@ -39,7 +39,6 @@ from tvm.tirx.expr import IntImm as _IntImm
 from tvm.tirx.layout import ComposeLayout, Iter, TileLayout
 from tvm.tirx.tile.dispatch import DispatchContext
 from tvm.tirx.tile.instruction import TensorCall
-from tvm.tirx.tile.layout_utils import effective_layout
 
 from ..layout_utils import recompose_swizzle, strip_swizzle_to_tile
 from ._common import _alignment_ok, copy_ptx_form, copy_ptx_ld_chain
@@ -96,7 +95,7 @@ def _r_side_layout_valid(op_call: TensorCall, sctx: DispatchContext) -> tuple[bo
     src: Var = op_call.src.source
     dst: Var = op_call.dst.source
     r_buf = src if src.scope() == "local" else dst
-    layout = effective_layout(r_buf)
+    layout = r_buf.ty.effective_layout()
     if layout is None:
         return False, "R has no layout"
     if layout.is_swizzle():
@@ -139,7 +138,7 @@ def _s_side_slice_ok(op_call: TensorCall) -> tuple[bool, str | None]:
     dst_br = op_call.dst
     s_br = dst_br if src_br.source.scope() == "local" else src_br
     s_buf: Var = s_br.source
-    layout = effective_layout(s_buf)
+    layout = s_buf.ty.effective_layout()
     if layout is None:
         return False, "S has no layout"
     region = [(r.min, r.min + r.extent) for r in s_br.region]
@@ -278,8 +277,8 @@ def _align_layouts(op_call: TensorCall, sctx: DispatchContext):
     r_region = [(r.min, r.min + r.extent) for r in r_br.region]
     s_region = [(r.min, r.min + r.extent) for r in s_br.region]
     with sctx.target:
-        r_sliced = effective_layout(r_buf).slice(list(r_buf.shape), r_region)
-        s_sliced = effective_layout(s_buf).slice(list(s_buf.shape), s_region)
+        r_sliced = r_buf.ty.effective_layout().slice(list(r_buf.shape), r_region)
+        s_sliced = s_buf.ty.effective_layout().slice(list(s_buf.shape), s_region)
         return align_layouts_raw(r_sliced, s_sliced, s_region)
 
 
@@ -526,17 +525,17 @@ def _emit_reg(op_call: TensorCall, sctx: DispatchContext) -> Function:
     elem_bits = DataType(src.dtype).bits
     max_vec_len = None
     if (
-        isinstance(effective_layout(s_buf), ComposeLayout)
-        and int(effective_layout(s_buf).swizzle_len) > 0
+        isinstance(s_buf.ty.effective_layout(), ComposeLayout)
+        and int(s_buf.ty.effective_layout().swizzle_len) > 0
     ):
-        max_vec_len = 1 << int(effective_layout(s_buf).per_element)
+        max_vec_len = 1 << int(s_buf.ty.effective_layout().per_element)
     vec_len = _choose_vec_len(elem_bits, atoms, r_p, s_p, max_vec_len)
     vec_bits = vec_len * elem_bits
     outer = _split_atoms_for_vec(atoms, vec_len)
 
     placeholders = _make_thread_placeholders(r_p)
     s_apply_layout, thread_coords, s_apply_shape = _build_s_apply_layout(
-        effective_layout(s_buf), r_p, s_p, outer, placeholders, sctx
+        s_buf.ty.effective_layout(), r_p, s_p, outer, placeholders, sctx
     )
     # A plain TileLayout is additive, so keep its loop-invariant thread base
     # outside the serial copy loop. A real swizzle must still apply to the

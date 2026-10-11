@@ -22,7 +22,6 @@ from tvm.tirx import FloatImm, Function
 from tvm.tirx.tile import DispatchContext, fail
 from tvm.tirx.tile.common import MapOpType
 from tvm.tirx.tile.instruction import TensorCall
-from tvm.tirx.tile.layout_utils import effective_layout
 
 from ..common import init_analyzer, nki_dim
 from ..instruction_generator import InstructionGenerator
@@ -55,7 +54,7 @@ def binary_trn(op: TensorCall, binary_op: MapOpType, sctx: DispatchContext) -> F
     p_var = T.Var("P", "int32")
     b_var = T.Var("B", "int32")
     f_var = T.Var("F", "int32")
-    p_size = effective_layout(dst).size("P")
+    p_size = dst.ty.effective_layout().size("P")
     inst_size_limit = op.options.get("max_inst_size", 512)
     inst_repr.bound_inst_size(inst_size_limit, analyzer)
     inst_gen.bind_inst_iter(_dst, p_var, p_size, 1, False)

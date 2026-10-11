@@ -22,7 +22,6 @@ from tvm.script import tirx as T
 from tvm.tirx import Function
 from tvm.tirx.tile import DispatchContext, fail
 from tvm.tirx.tile.instruction import TensorCall
-from tvm.tirx.tile.layout_utils import effective_layout
 
 from ..common import init_analyzer, nki_dim
 from ..dim_utils import get_ewise_dim_map
@@ -41,19 +40,19 @@ def copy_trn(op: TensorCall, sctx: DispatchContext) -> Function | None:
     # Check for valid tensor configurations
     valid_config = all(
         [
-            effective_layout(src) and effective_layout(dst),
+            src.ty.effective_layout() and dst.ty.effective_layout(),
             src.scope() in ["global", "trn.sbuf", "trn.psum"],
             dst.scope() in ["global", "trn.sbuf", "trn.psum"],
             src.scope() != "global" or dst.scope() != "global",
-            (src.scope() == "global" and isinstance(effective_layout(src), T.TileLayout))
+            (src.scope() == "global" and isinstance(src.ty.effective_layout(), T.TileLayout))
             or (
                 src.scope() in ["trn.sbuf", "trn.psum"]
-                and is_trainium_layout(effective_layout(src))
+                and is_trainium_layout(src.ty.effective_layout())
             ),
-            (dst.scope() == "global" and isinstance(effective_layout(dst), T.TileLayout))
+            (dst.scope() == "global" and isinstance(dst.ty.effective_layout(), T.TileLayout))
             or (
                 dst.scope() in ["trn.sbuf", "trn.psum"]
-                and is_trainium_layout(effective_layout(dst))
+                and is_trainium_layout(dst.ty.effective_layout())
             ),
         ]
     )
@@ -85,7 +84,7 @@ def copy_trn(op: TensorCall, sctx: DispatchContext) -> Function | None:
             "prepare identity and use matmul explicitly"
         )
 
-    if is_trainium_layout(effective_layout(src)):
+    if is_trainium_layout(src.ty.effective_layout()):
         inst = inst_gen.find_max_inst_size_from_one_region(src_region)
         inst = inst_gen.fit_inst_tile_to_region(inst, dst_region)
         src_to_dst = True
@@ -114,7 +113,7 @@ def copy_trn(op: TensorCall, sctx: DispatchContext) -> Function | None:
         from_region, _to_region = src_region, dst_region
     else:
         from_region, _to_region = dst_region, src_region
-    p_size = effective_layout(from_region.source).size("P")
+    p_size = from_region.source.ty.effective_layout().size("P")
     inst_gen.bind_inst_iter(from_region, p_var, p_size, 1, is_free_dim=False)
     inst_gen.bind_inst_iter(from_region, f_var, inst.size, inst.stride, is_free_dim=True)
     b_extent = inst_gen.fill_in_block_dim(from_region, b_var)
