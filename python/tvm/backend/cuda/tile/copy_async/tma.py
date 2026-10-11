@@ -91,7 +91,7 @@ class TensorMapSpec:
     target_arch: str
     coordinates: tuple
     gather4: tuple
-    smem_buffer: Var
+    smem_tensor: Var
     smem_start: tuple
     smem_base_offset: object
     mbar: object | None
@@ -1164,7 +1164,7 @@ def _auto_spec_for_prefix(
         target_arch=sctx.target.arch,
         coordinates=coordinates,
         gather4=(),
-        smem_buffer=s_buf,
+        smem_tensor=s_buf,
         smem_start=tuple(s_starts),
         smem_base_offset=analyzer.simplify(s_buf.elem_offset + smem_layout_offset),
         mbar=runtime["mbar"],
@@ -1196,7 +1196,7 @@ def _validate_auto_shared_mapping(
     for var, value in sctx.var_range_map.items():
         analyzer.bind(var, value)
     spec = plan.spec
-    shared_bits = tvm.DataType(spec.smem_buffer.dtype).bits
+    shared_bits = tvm.DataType(spec.smem_tensor.dtype).bits
     start_elements = spec.smem_base_offset
     start_bytes = _elements_to_bytes(
         start_elements,
@@ -1861,7 +1861,7 @@ def _explicit_spec_for_gmem(
         target_arch=sctx.target.arch,
         coordinates=coordinates,
         gather4=tuple(gather4),
-        smem_buffer=s_buf,
+        smem_tensor=s_buf,
         smem_start=tuple(s_starts),
         smem_base_offset=smem_base_offset,
         mbar=runtime["mbar"],
@@ -2193,10 +2193,10 @@ def _emit_plan(
         # locally bound coordinate above that coordinate's Bind statement.
         smem_view = T.bind(
             T.decl_tensor(
-                spec.smem_buffer.data,
+                spec.smem_tensor.data,
                 ty_args=[
                     T.Tensor(
-                        (1,), spec.smem_buffer.dtype, elem_offset=0, scope=spec.smem_buffer.scope()
+                        (1,), spec.smem_tensor.dtype, elem_offset=0, scope=spec.smem_tensor.scope()
                     )
                 ],
             )
