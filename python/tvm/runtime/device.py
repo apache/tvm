@@ -260,6 +260,16 @@ class Device(tvm_ffi.core.Device):
         return self.get_attr("total_global_memory")
 
     @property
+    def max_registers_per_block(self):
+        """Return the block register limit, or None when unsupported."""
+        return self.get_attr("max_registers_per_block")
+
+    @property
+    def gcn_arch(self):
+        """Return the ROCm architecture name, or None when unsupported."""
+        return self.get_attr("gcn_arch")
+
+    @property
     def available_global_memory(self):
         """Return size of the available global memory.
 
