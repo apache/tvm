@@ -198,7 +198,7 @@ def test_subroutine_call():
 
         @T.function(private=True)
         def subroutine(A_data: T.handle("float32")):
-            A = T.decl_tensor(1, dtype="float32", data=A_data)
+            A = T.decl_tensor(A_data, ty_args=[T.Tensor(1, "float32", data=A_data)])
             A[0] = 42.0
 
     built = tvm.tirx.build(Module, target="c")
@@ -220,7 +220,7 @@ def test_workspace_allocation_cast():
     class Module:
         @T.function
         def main(A: T.Tensor((256,), "float32")):
-            workspace = T.alloc_tensor((256,), "float32", scope="global")
+            workspace = T.alloc_tensor(ty_args=[T.Tensor((256,), "float32", scope="global")])
             for i in range(256):
                 workspace[i] = A[i]
             for i in range(256):
@@ -238,7 +238,7 @@ def test_local_alloc_buffer_uses_plain_c_pointer():
     class Module:
         @T.function
         def main(A: T.Tensor((1,), "float32")):
-            B = T.alloc_tensor((1,), "float32", scope="local")
+            B = T.alloc_tensor(ty_args=[T.Tensor((1,), "float32", scope="local")])
             for i in range(1):
                 B[i] = A[i] + T.float32(1)
                 A[i] = B[i]

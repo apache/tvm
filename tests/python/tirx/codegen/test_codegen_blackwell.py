@@ -101,7 +101,7 @@ def test_tmem_alloc_dealloc_relinquish():
         warp_id = T.cuda.warp_id()
         lane_id = T.cuda.lane_id()
         tid = T.cuda.thread_idx('x')
-        # tmem_addr = T.alloc_tensor((1,), "uint32", scope="shared", align=8)
+        # tmem_addr = T.alloc_tensor(ty_args=[T.Tensor((1,), "uint32", scope="shared", align=8)])
         tmem_addr = T.shared_scalar("uint32")
 
         # alloc TMEM
@@ -341,8 +341,8 @@ def test_tcgen05_ld_st_roundtrip():
         warp_id = T.cuda.warp_id()
         lane_id = T.cuda.lane_id()
         tx = T.cuda.thread_idx('x')
-        reg = T.alloc_tensor((WIDTH,), "float32", scope="local")
-        # tmem_addr = T.alloc_tensor((1,), "uint32", scope="shared", align=8)
+        reg = T.alloc_tensor(ty_args=[T.Tensor((WIDTH,), "float32", scope="local")])
+        # tmem_addr = T.alloc_tensor(ty_args=[T.Tensor((1,), "uint32", scope="shared", align=8)])
         tmem_addr = T.shared_scalar("uint32")
 
         # alloc TMEM
@@ -421,13 +421,15 @@ def test_tcgen05_cp_ld_roundtrip():
         warp_id = T.cuda.warp_id()
         lane_id = T.cuda.lane_id()
         tx = T.cuda.thread_idx('x')
-        A_smem = T.alloc_tensor((HEIGHT, WIDTH), dtype, scope="shared", layout=A_layout)
-        reg = T.alloc_tensor((WIDTH,), dtype, scope="local")
-        # tmem_addr = T.alloc_tensor((1,), "uint32", scope="shared", align=8)
+        A_smem = T.alloc_tensor(
+            ty_args=[T.Tensor((HEIGHT, WIDTH), dtype, scope="shared", layout=A_layout)]
+        )
+        reg = T.alloc_tensor(ty_args=[T.Tensor((WIDTH,), dtype, scope="local")])
+        # tmem_addr = T.alloc_tensor(ty_args=[T.Tensor((1,), "uint32", scope="shared", align=8)])
         tmem_addr = T.shared_scalar("uint32")
-        descA = T.alloc_tensor((1,), "uint64", scope="local")
-        bar = T.alloc_tensor((1,), "uint64", scope="shared", align=8)
-        phase = T.alloc_tensor((1,), "int32", scope="local")
+        descA = T.alloc_tensor(ty_args=[T.Tensor((1,), "uint64", scope="local")])
+        bar = T.alloc_tensor(ty_args=[T.Tensor((1,), "uint64", scope="shared", align=8)])
+        phase = T.alloc_tensor(ty_args=[T.Tensor((1,), "int32", scope="local")])
 
         # alloc TMEM
         if warp_id == 0:
@@ -565,17 +567,27 @@ def test_tcgen05_mma_ss_no_tma(swizzle):
         warp_id = T.cuda.warp_id()
         lane_id = T.cuda.lane_id()
         tx = T.cuda.thread_idx('x')
-        dyn = T.alloc_tensor((dyn_smem_bytes,), "uint8", scope="shared")
+        dyn = T.alloc_tensor(ty_args=[T.Tensor((dyn_smem_bytes,), "uint8", scope="shared")])
         tmem_addr = T.decl_scalar("uint32", dyn.data, scope="shared", elem_offset=0)
-        A_smem = T.decl_tensor((M, K), a_type, dyn.data, elem_offset=256, layout=A_layout)
-        B_smem = T.decl_tensor((N, K), b_type, dyn.data, elem_offset=256 + M*K, layout=B_layout)
-        bar = T.decl_tensor((1,), "uint64", dyn.data, scope="shared", elem_offset=8)
+        A_smem = T.decl_tensor(
+            dyn.data,
+            ty_args=[T.Tensor((M, K), a_type, elem_offset=256, layout=A_layout, data=dyn.data)],
+        )
+        B_smem = T.decl_tensor(
+            dyn.data,
+            ty_args=[
+                T.Tensor((N, K), b_type, elem_offset=256 + M * K, layout=B_layout, data=dyn.data)
+            ],
+        )
+        bar = T.decl_tensor(
+            dyn.data, ty_args=[T.Tensor((1,), "uint64", scope="shared", elem_offset=8)]
+        )
 
-        reg = T.alloc_tensor((N,), d_type, scope="local")
-        descA = T.alloc_tensor((1,), "uint64", scope="local")
-        descB = T.alloc_tensor((1,), "uint64", scope="local")
-        descI = T.alloc_tensor((1,), "uint32", scope="local")
-        phase = T.alloc_tensor((1,), "int32", scope="local")
+        reg = T.alloc_tensor(ty_args=[T.Tensor((N,), d_type, scope="local")])
+        descA = T.alloc_tensor(ty_args=[T.Tensor((1,), "uint64", scope="local")])
+        descB = T.alloc_tensor(ty_args=[T.Tensor((1,), "uint64", scope="local")])
+        descI = T.alloc_tensor(ty_args=[T.Tensor((1,), "uint32", scope="local")])
+        phase = T.alloc_tensor(ty_args=[T.Tensor((1,), "int32", scope="local")])
 
         # alloc TMEM
         if warp_id == 0:
@@ -719,11 +731,11 @@ def test_tcgen05_mma_pred_codegen():
     @T.function
     def test_mma_pred():
         T.device_entry(launch=T.cuda.LaunchConfig(grid=1, block=(1,)))
-        tmem_addr = T.alloc_tensor((1,), "uint32", scope="local")
-        desc_a = T.alloc_tensor((1,), "uint64", scope="local")
-        desc_b = T.alloc_tensor((1,), "uint64", scope="local")
-        desc_i = T.alloc_tensor((1,), "uint32", scope="local")
-        pred = T.alloc_tensor((1,), "uint32", scope="local")
+        tmem_addr = T.alloc_tensor(ty_args=[T.Tensor((1,), "uint32", scope="local")])
+        desc_a = T.alloc_tensor(ty_args=[T.Tensor((1,), "uint64", scope="local")])
+        desc_b = T.alloc_tensor(ty_args=[T.Tensor((1,), "uint64", scope="local")])
+        desc_i = T.alloc_tensor(ty_args=[T.Tensor((1,), "uint32", scope="local")])
+        pred = T.alloc_tensor(ty_args=[T.Tensor((1,), "uint32", scope="local")])
 
         tmem_addr[0] = T.uint32(0)
         desc_a[0] = T.uint64(0)

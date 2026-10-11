@@ -146,8 +146,10 @@ def test_decl_buffer_offset_preserves_storage_scope(target, qualifier):
                 "tirx.noalias": True,
             }
         )
-        A = T.decl_tensor((8,), "float32", data=A_ptr)
-        B = T.decl_tensor((4,), "float32", data=T.address_of(A[4]))
+        A = T.decl_tensor(A_ptr, ty_args=[T.Tensor((8,), "float32", data=A_ptr)])
+        B = T.decl_tensor(
+            T.address_of(A[4]), ty_args=[T.Tensor((4,), "float32", data=T.address_of(A[4]))]
+        )
         B[0] = T.float32(1)
 
     mod = tvm.IRModule({"kernel": kernel})

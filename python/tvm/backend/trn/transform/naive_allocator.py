@@ -58,12 +58,13 @@ def _get_alloc_pool_start(stmt) -> int:
         if not isinstance(op.value, Call) or op.value.op != Op.get("tirx.alloc_tensor"):
             return
         tensor = op.var
-        allocated_addr = op.value.args[3].fields if len(op.value.args) == 4 else []
+        allocated_addr = op.value.args[0].fields if op.value.args else []
         if len(allocated_addr) == 0:
             return
-        shape = op.value.args[0].fields
-        dtype = op.value.args[1].value
-        scope = op.value.args[2].value
+        tensor_type = op.value.ty_args[0]
+        shape = tensor_type.shape
+        dtype = tensor_type.dtype.dtype
+        scope = tensor_type.storage_scope
         tensor_size = get_tensor_size(tensor, shape, dtype, scope)
         if tensor_size is None:
             return
@@ -81,14 +82,14 @@ def _allocate_missing_tensors(stmt, alloc_pool_start: int):
         if not isinstance(op.value, Call) or op.value.op != Op.get("tirx.alloc_tensor"):
             return op
         tensor = op.var
-        shape = op.value.args[0].fields
-        dtype = op.value.args[1].value
-        scope = op.value.args[2].value
+        tensor_type = op.value.ty_args[0]
+        shape = tensor_type.shape
+        dtype = tensor_type.dtype.dtype
+        scope = tensor_type.storage_scope
         tensor_size = get_tensor_size(tensor, shape, dtype, scope)
-        allocated_addr = op.value.args[3].fields if len(op.value.args) == 4 else []
+        allocated_addr = op.value.args[0].fields if op.value.args else []
         if len(allocated_addr) == 0 and tensor_size is not None:
-            args = list(op.value.args[:3])
-            args.append(Tuple([IntImm("int32", int(alloc_offset))]))
+            args = [Tuple([IntImm("int32", int(alloc_offset))])]
             alloc_offset += tensor_size
             return Bind(
                 tensor,

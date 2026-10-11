@@ -258,7 +258,7 @@ def test_pointer_expression_assignment_uses_bind():
     @T.function
     def func() -> None:
         T.device_entry()
-        buf = T.alloc_tensor((4,), "uint32", scope="shared")
+        buf = T.alloc_tensor(ty_args=[T.Tensor((4,), "uint32", scope="shared")])
         ptr = buf.ptr_to([1])
         T.evaluate(T.reinterpret( ptr, ty="uint64"))
     # fmt: on
@@ -288,7 +288,7 @@ def test_pointer_expression_rebinding_creates_distinct_native_bindings():
     @T.function
     def func() -> None:
         T.device_entry()
-        buf = T.alloc_tensor((4,), "uint32", scope="shared")
+        buf = T.alloc_tensor(ty_args=[T.Tensor((4,), "uint32", scope="shared")])
         ptr = buf.ptr_to([0])
         ptr = buf.ptr_to([1])
         T.evaluate(T.reinterpret( ptr, ty="uint64"))
@@ -316,9 +316,9 @@ def test_pointer_expression_assignment_can_shadow_extra_var():
 @T.function
 def func() -> None:
     T.device_entry()
-    buf = T.alloc_tensor((4,), "uint32", scope="shared")
+    buf = T.alloc_tensor(ty_args=[T.Tensor((4,), "uint32", scope="shared")])
     ptr = buf.ptr_to([1])
-    view = T.decl_tensor((3,), "uint32", data=ptr, scope="shared")
+    view = T.decl_tensor(ptr, ty_args=[T.Tensor((3,), "uint32", scope="shared")])
     view[0] = T.uint32(0)
 """
     func = tvm.script.from_source(source, extra_vars={"T": T, "ptr": object()})
@@ -446,7 +446,7 @@ def test_vector_annotation_syntax_multidim():
         # fmt: on
 
     code = func.script()
-    assert "alloc_local((4, 8)" in code or "float32[4, 8]" in code
+    assert 'alloc_tensor(ty_args=[T.Tensor((4, 8), "float32", scope="local"' in code
     assert from_source(code).script() == code
     assert_structural_equal(func, from_source(code))
 
@@ -601,7 +601,7 @@ def test_roundtrip_break_while():
     def test(A: T.Tensor((10,), 'int32')):
 
         T.device_entry()
-        i = T.alloc_tensor((1,), "int32", scope="local")
+        i = T.alloc_tensor(ty_args=[T.Tensor((1,), "int32", scope="local")])
         i[0] = 0
         while i[0] < 10:
             A[i[0]] = i[0] * 2
@@ -620,7 +620,7 @@ def test_roundtrip_break_nested():
     def test(A: T.Tensor((9,), 'int32')):
 
         T.device_entry()
-        idx = T.alloc_tensor((1,), "int32", scope="local")
+        idx = T.alloc_tensor(ty_args=[T.Tensor((1,), "int32", scope="local")])
         idx[0] = 0
         for i in T.serial(3):
             for j in T.serial(3):
@@ -656,7 +656,7 @@ def test_roundtrip_continue_while():
     def test(A: T.Tensor((10,), 'int32')):
 
         T.device_entry()
-        i = T.alloc_tensor((1,), "int32", scope="local")
+        i = T.alloc_tensor(ty_args=[T.Tensor((1,), "int32", scope="local")])
         i[0] = 0
         while i[0] < 10:
             if (i[0] % 2) == 1:
@@ -676,7 +676,7 @@ def test_roundtrip_continue_nested():
     def test(A: T.Tensor((9,), 'int32')):
 
         T.device_entry()
-        idx = T.alloc_tensor((1,), dtype="int32", scope="local")
+        idx = T.alloc_tensor(ty_args=[T.Tensor((1,), "int32", scope="local")])
         idx[0] = 0
         for i in T.serial(3):
             for j in T.serial(3):

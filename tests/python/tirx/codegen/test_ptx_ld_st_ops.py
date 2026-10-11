@@ -78,8 +78,8 @@ def _shared_scratch_copy_kernel(num_bytes: int):
     def func(out: T.Tensor((nelems,), smem_dtype)):
         T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=1 * 32))
         lane = T.cuda.lane_id()
-        src_buf = T.alloc_tensor((nelems,), smem_dtype, scope="shared")
-        dst_buf = T.alloc_tensor((nelems,), smem_dtype, scope="shared")
+        src_buf = T.alloc_tensor(ty_args=[T.Tensor((nelems,), smem_dtype, scope="shared")])
+        dst_buf = T.alloc_tensor(ty_args=[T.Tensor((nelems,), smem_dtype, scope="shared")])
         tmp = T.alloc_local((lanes,), reg_dtype)
         if T.constexpr(fill_offset is not None):
             if lane < nelems:
@@ -112,7 +112,7 @@ def test_ptx_ld_st_codegen_emits_shared_asm():
 
         T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=4 * 32))
         tid_in_wg = T.cuda.thread_in_warpgroup()
-        smem = T.alloc_tensor((4,), "uint32", scope="shared")
+        smem = T.alloc_tensor(ty_args=[T.Tensor((4,), "uint32", scope="shared")])
         reg = T.alloc_local((4,), "uint32")
         if tid_in_wg == 0:
             T.ptx.st.shared.v4.u32(smem.ptr_to([0]), reg[0], reg[1], reg[2], reg[3])
@@ -137,7 +137,7 @@ def test_ptx_ld_st_raw_shared_address_codegen():
     def main(out: T.Tensor((2,), "uint64")):
         T.device_entry(launch=T.cuda.LaunchConfig(grid=1, block=(32,)))
         tx = T.cuda.thread_idx("x")
-        smem = T.alloc_tensor((2,), "uint64", scope="shared")
+        smem = T.alloc_tensor(ty_args=[T.Tensor((2,), "uint64", scope="shared")])
         values = T.alloc_local((4,), "uint32")
         if tx == 0:
             raw_addr: T.uint32 = T.cuda.cvta_generic_to_shared(smem.data)

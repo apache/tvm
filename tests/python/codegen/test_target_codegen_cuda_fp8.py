@@ -347,7 +347,7 @@ class BaseFP8E4M3QuantScaleOnly:
         ):
             for row in T.thread_binding(rows, thread="blockIdx.x"):
                 for group in T.thread_binding(groups, thread="threadIdx.x"):
-                    maximum = T.alloc_tensor((1,), model_dtype, scope="local")
+                    maximum = T.alloc_tensor(ty_args=[T.Tensor((1,), model_dtype, scope="local")])
                     maximum[0] = T.Cast(model_dtype, 0)
                     for k in range(group_size):
                         if group * group_size + k < columns:
@@ -498,7 +498,7 @@ class TestFP8e4x4QuantDequantScale(BaseFP8E4M3QuantScaleOnly):
 def test_const(dtype):
     @T.function
     def func(A: T.Tensor((4,), dtype)) -> None:
-        A_local = T.alloc_tensor((4,), dtype=dtype, scope="local")
+        A_local = T.alloc_tensor(ty_args=[T.Tensor((4,), dtype, scope="local")])
         for tx in T.thread_binding(0, 4, "threadIdx.x"):
             for i in T.vectorized(4):
                 A_local[i] = T.float32(1.0).astype(dtype)
@@ -563,8 +563,8 @@ def test_moe_gemv_shfl_down_illegal_instr():
             for block in T.thread_binding(spatial_size // 4, thread="blockIdx.x"):
                 for spatial in T.thread_binding(4, thread="threadIdx.y"):
                     for reduction in T.thread_binding(64, thread="threadIdx.x"):
-                        partial = T.alloc_tensor((1,), "float16", scope="local")
-                        reduced = T.alloc_tensor((1,), "float16", scope="local")
+                        partial = T.alloc_tensor(ty_args=[T.Tensor((1,), "float16", scope="local")])
+                        reduced = T.alloc_tensor(ty_args=[T.Tensor((1,), "float16", scope="local")])
                         partial[0] = T.float16(0)
                         for k in range(reduce_size // 64):
                             partial[0] = partial[0] + x[0, k * 64 + reduction] * (

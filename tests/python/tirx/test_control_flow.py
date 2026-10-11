@@ -70,7 +70,7 @@ def test_break_continue2():
         T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(32,)))
         cta_id = T.cuda.block_idx('x')
         tid = T.cuda.thread_idx('x')
-        idx = T.alloc_tensor((1,), "int32", scope="local")
+        idx = T.alloc_tensor(ty_args=[T.Tensor((1,), "int32", scope="local")])
         idx[0] = 0
         for i in T.serial(3):
             if i == 0:
@@ -97,7 +97,7 @@ def test_break_continue3():
         T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(32,)))
         cta_id = T.cuda.block_idx('x')
         tid = T.cuda.thread_idx('x')
-        i = T.alloc_tensor((1,), "int32", scope="local")
+        i = T.alloc_tensor(ty_args=[T.Tensor((1,), "int32", scope="local")])
         i[0] = 0
         while i[0] < 10:
             if (i[0] % 2) == 1:

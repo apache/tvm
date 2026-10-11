@@ -156,13 +156,13 @@ def test_typed_buffer_bindings(monkeypatch):
     @T.function
     def main(data: T.handle("float32"), output: T.handle):
         T.func_attr({"global_symbol": "main", "calling_conv": 2, "tirx.kernel_launch_params": []})
-        A = T.decl_tensor((1,), "float32", data=data)
-        B = T.decl_tensor((1,), "float32", data=output)
-        storage = T.alloc_tensor((1,), "uint32", scope="shared")
-        S = T.decl_tensor((1,), "float32", data=storage.data, scope="shared")
-        pool = T.alloc_tensor((4,), "uint8", scope="shared.dyn")
-        D = T.decl_tensor((1,), "float32", data=pool.data, scope="shared.dyn")
-        alias = T.decl_tensor((1,), "float32", data=D.data, scope="shared.dyn")
+        A = T.decl_tensor(data, ty_args=[T.Tensor((1,), "float32")])
+        B = T.decl_tensor(output, ty_args=[T.Tensor((1,), "float32")])
+        storage = T.alloc_tensor(ty_args=[T.Tensor((1,), "uint32", scope="shared")])
+        S = T.decl_tensor(storage.data, ty_args=[T.Tensor((1,), "float32", scope="shared")])
+        pool = T.alloc_tensor(ty_args=[T.Tensor((4,), "uint8", scope="shared.dyn")])
+        D = T.decl_tensor(pool.data, ty_args=[T.Tensor((1,), "float32", scope="shared.dyn")])
+        alias = T.decl_tensor(D.data, ty_args=[T.Tensor((1,), "float32", scope="shared.dyn")])
         S[0] = A[0]
         D[0] = S[0]
         B[0] = alias[0]
@@ -195,13 +195,8 @@ def test_vector_pointer_preserves_packed_offset(monkeypatch):
                 tensor,
                 tvm.ir.Call(
                     "tirx.decl_tensor",
-                    [
-                        data,
-                        tvm.ir.Tuple(tensor.shape),
-                        tvm.ir.DataTypeImm(tvm.DataType(tensor.dtype)),
-                        tvm.ir.StringImm(tensor.scope()),
-                    ],
-                    ty=tensor.ty,
+                    [data],
+                    ty_args=[tensor.ty],
                 ),
             ),
             tvm.ir.Evaluate(tvm.tirx.call_extern("void", "consume", pointer)),
@@ -682,8 +677,8 @@ def test_ptx_sync_and_clc_codegen():
         T.device_entry(launch=T.cuda.LaunchConfig(grid=1, block=(32,)))
         tx = T.cuda.thread_idx("x")
         if tx == 0:
-            bar = T.alloc_tensor((5,), "uint64", scope="shared", align=16)
-            response = T.alloc_tensor((4,), "uint32", scope="shared", align=16)
+            bar = T.alloc_tensor(ty_args=[T.Tensor((5,), "uint64", scope="shared", align=16)])
+            response = T.alloc_tensor(ty_args=[T.Tensor((4,), "uint32", scope="shared", align=16)])
             T.ptx.cp.async_.mbarrier.arrive.shared.b64(bar.ptr_to([0]))
             T.ptx.cp.async_.mbarrier.arrive.noinc.shared__cta.b64(bar.ptr_to([0]))
             T.cuda.mbarrier_wait(bar.ptr_to([0]), T.int32(0))
@@ -754,7 +749,7 @@ def test_ptx_mbarrier_arrive_new_forms_codegen():
         T.device_entry(launch=T.cuda.LaunchConfig(grid=1, block=(32,)))
         tx = T.cuda.thread_idx("x")
         if tx == 0:
-            bar = T.alloc_tensor((6,), "uint64", scope="shared", align=16)
+            bar = T.alloc_tensor(ty_args=[T.Tensor((6,), "uint64", scope="shared", align=16)])
             state = T.local_scalar("uint64")
             T.ptx.mbarrier.arrive.relaxed.cta.shared__cta.b64(bar.ptr_to([0]))
             T.ptx.mbarrier.arrive.relaxed.cluster.shared__cluster.b64(bar.ptr_to([1]))
@@ -820,7 +815,7 @@ def test_tma_cache_policy_operand_codegen():
         T.device_entry(launch=T.cuda.LaunchConfig(grid=1, block=(32,)))
         tx = T.cuda.thread_idx("x")
         if tx == 0:
-            smem = T.alloc_tensor((128,), "float32", scope="shared", align=128)
+            smem = T.alloc_tensor(ty_args=[T.Tensor((128,), "float32", scope="shared", align=128)])
             bar = T.shared_scalar("uint64")
             T.ptx[_TMA_G2S_CG2_CACHE](
                 smem.data, T.address_of(A_map), 0, 0, T.address_of(bar), Cache[0]
@@ -973,8 +968,8 @@ def test_warp_shuffle_xor_sync():
         warp_id = T.cuda.warp_id()
         lane_id = T.cuda.lane_id()
 
-        A_local = T.alloc_tensor([1], "float32", scope="local")
-        i = T.alloc_tensor([1], "int32", scope="local")
+        A_local = T.alloc_tensor(ty_args=[T.Tensor([1], "float32", scope="local")])
+        i = T.alloc_tensor(ty_args=[T.Tensor([1], "int32", scope="local")])
 
         A_local[0] = T.float32(31 - lane_id)
         i[0] = 16
@@ -1172,7 +1167,7 @@ def test_uint32_loop_var_runs_correctly():
         T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(128,)))
         _ = T.cuda.block_idx("x")
         tx = T.cast(T.cuda.thread_idx("x"), "uint32")
-        acc = T.alloc_tensor((1,), "int32", scope="local")
+        acc = T.alloc_tensor(ty_args=[T.Tensor((1,), "int32", scope="local")])
         acc[0] = 0
         for k in T.serial(4, dtype="uint32"):
             acc[0] = acc[0] + A[tx] + T.int32(k)

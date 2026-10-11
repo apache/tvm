@@ -39,13 +39,8 @@ def test_decl_tensor_data_is_use():
         buf,
         tvm.ir.Call(
             "tirx.decl_tensor",
-            [
-                data_ptr,
-                tvm.ir.Tuple(buf.shape),
-                tvm.ir.DataTypeImm(tvm.DataType(buf.dtype)),
-                tvm.ir.StringImm(buf.scope()),
-            ],
-            ty=buf.ty,
+            [data_ptr],
+            ty_args=[buf.ty],
         ),
     )
     stmt = tvm.ir.SeqStmt([decl, body])
@@ -74,13 +69,8 @@ def test_decl_tensor_elem_offset_is_use():
         buf,
         tvm.ir.Call(
             "tirx.decl_tensor",
-            [
-                data_ptr,
-                tvm.ir.Tuple(buf.shape),
-                tvm.ir.DataTypeImm(tvm.DataType(buf.dtype)),
-                tvm.ir.StringImm(buf.scope()),
-            ],
-            ty=buf.ty,
+            [data_ptr],
+            ty_args=[buf.ty],
         ),
     )
     stmt = tvm.ir.SeqStmt([decl, body])
@@ -107,13 +97,9 @@ def test_alloc_tensor_data_is_def():
         buf,
         tvm.ir.Call(
             "tirx.alloc_tensor",
-            [
-                tvm.ir.Tuple(buf.shape),
-                tvm.ir.DataTypeImm(tvm.DataType(buf.dtype)),
-                tvm.ir.StringImm(buf.scope()),
-            ],
+            [],
             attrs=tvm.ir.DictAttrs({}),
-            ty=buf.ty,
+            ty_args=[buf.ty],
         ),
     )
     stmt = tvm.ir.SeqStmt([alloc, body])

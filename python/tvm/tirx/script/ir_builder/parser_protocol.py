@@ -48,7 +48,7 @@ from tvm.script.ir_builder.stmt import (
     assert_ as assert_,
 )
 from tvm.script.ir_builder.stmt import (
-    bind as bind,
+    bind as _bind,
 )
 from tvm.script.ir_builder.stmt import (
     break_ as break_,
@@ -233,6 +233,14 @@ def _name(value: Any, name: str | None, loc: _Loc) -> Any:
     if name is not None:
         _IRBuilder.name(name, value)
     return _base.at_(loc, value)
+
+
+def bind(value, type_annotation=None, *, var=None):
+    """Bind an expression and track tensor resources created in meta classes."""
+    result = _bind(value, type_annotation, var=var)
+    if _tir.is_tensor_var(result):
+        _native._record_meta_resource(result)
+    return result
 
 
 def bind_(

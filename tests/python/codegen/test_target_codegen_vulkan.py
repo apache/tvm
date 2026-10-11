@@ -278,7 +278,7 @@ def test_vulkan_while_if():
     @T.function
     def while_if_gpu(A: T.Tensor((1,), "int32"), B: T.Tensor((1,), "int32")):
         for bx in T.thread_binding(1, thread="blockIdx.x"):
-            iterations = T.decl_tensor((1,), "int32", scope="local")
+            iterations = T.alloc_tensor(ty_args=[T.Tensor((1,), "int32", scope="local")])
             iterations[0] = 0
             B[0] = 0
             while iterations[0] < T.if_then_else(A[0] > 0, 10, 20):
@@ -465,11 +465,11 @@ def test_cooperative_matrix(out_dtype):
         @T.function
         def main(X: T.Tensor((16, 32), "float16"), W: T.Tensor((32, 16), "float16"), compute: T.Tensor((16, 16), out_dtype)):
             T.func_attr({"tirx.noalias": True})
-            X_shared = T.alloc_tensor((16, 32), "float16", scope="shared")
-            W_shared = T.alloc_tensor((32, 16), "float16", scope="shared")
-            X_shared_wmma_matrix_a = T.alloc_tensor((16, 32), "float16", scope="wmma.matrix_a")
-            W_shared_wmma_matrix_b = T.alloc_tensor((32, 16), "float16", scope="wmma.matrix_b")
-            compute_wmma_accumulator = T.alloc_tensor((16, 16), out_dtype, scope="wmma.accumulator")
+            X_shared = T.alloc_tensor(ty_args=[T.Tensor((16, 32), "float16", scope="shared")])
+            W_shared = T.alloc_tensor(ty_args=[T.Tensor((32, 16), "float16", scope="shared")])
+            X_shared_wmma_matrix_a = T.alloc_tensor(ty_args=[T.Tensor((16, 32), "float16", scope="wmma.matrix_a")])
+            W_shared_wmma_matrix_b = T.alloc_tensor(ty_args=[T.Tensor((32, 16), "float16", scope="wmma.matrix_b")])
+            compute_wmma_accumulator = T.alloc_tensor(ty_args=[T.Tensor((16, 16), out_dtype, scope="wmma.accumulator")])
             for i_0_j_0_fused in T.thread_binding(1, thread="blockIdx.x"):
                 T.gpu_fill_fragment(compute_wmma_accumulator.data, 16, 16, 16, 0, T.float32(0.0))
                 for k_0 in range(2):
@@ -521,8 +521,8 @@ def test_codegen_decl_buffer():
         @T.function
         def kernel():
             T.func_attr({"calling_conv": 2, "global_symbol": "kernel", "tirx.noalias": True})
-            A = T.alloc_tensor((256,), dtype="float32", scope="local")
-            A_buf = T.decl_tensor([256], dtype="float32", scope="local", data=A.data)
+            A = T.alloc_tensor(ty_args=[T.Tensor((256,), "float32", scope="local")])
+            A_buf = T.decl_tensor(A.data, ty_args=[T.Tensor([256], "float32", scope="local")])
             A_buf[0] = T.float32(1)
             T.evaluate(A_buf[0])
 
@@ -534,8 +534,8 @@ def test_codegen_decl_buffer():
     class ParameterBacked:
         @T.function
         def main(A: T.Tensor((1,), "float32"), B: T.Tensor((1,), "float32")):
-            A_buf = T.decl_tensor([1], dtype="float32", data=A.data)
-            B_buf = T.decl_tensor([1], dtype="float32", data=B.data)
+            A_buf = T.decl_tensor(A.data, ty_args=[T.Tensor([1], "float32", data=A.data)])
+            B_buf = T.decl_tensor(B.data, ty_args=[T.Tensor([1], "float32", data=B.data)])
             for tx in T.thread_binding(1, thread="threadIdx.x"):
                 B_buf[tx] = A_buf[tx]
 
@@ -551,7 +551,7 @@ def test_codegen_static_shared_memory():
     class Module:
         @T.function
         def main(A: T.Tensor((128,), "float32"), B: T.Tensor((128,), "float32")):
-            A_shared = T.alloc_tensor((128,), dtype="float32", scope="shared")
+            A_shared = T.alloc_tensor(ty_args=[T.Tensor((128,), "float32", scope="shared")])
 
             for bx in T.thread_binding(1, thread="blockIdx.x"):
                 for tx in T.thread_binding(128, thread="threadIdx.x"):

@@ -137,7 +137,7 @@ def test_ptx_st_shared_coercion():
     def kernel(out: T.Tensor((1,), "uint32")):
         T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(32,)))
         tx = T.cuda.thread_idx("x")
-        smem = T.alloc_tensor((4,), "uint32", scope="shared")
+        smem = T.alloc_tensor(ty_args=[T.Tensor((4,), "uint32", scope="shared")])
         if tx == 0:
             # Shared-space slot fed a shared-scope pointer: engine must
             # auto-wrap with cvta_generic_to_shared.
@@ -155,7 +155,7 @@ def test_ptx_explicit_cvta():
     def kernel(out: T.Tensor((1,), "uint64")):
         T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(32,)))
         tx = T.cuda.thread_idx("x")
-        smem = T.alloc_tensor((4,), "uint32", scope="shared")
+        smem = T.alloc_tensor(ty_args=[T.Tensor((4,), "uint32", scope="shared")])
         smem[tx % 4] = T.uint32(0)
         if tx == 0:
             T.ptx.cvta.to.shared.u64(out[0], smem.data)
@@ -626,8 +626,8 @@ def test_ptx_92_cp_bulk_roundtrip():
     @T.function
     def kernel(src: T.Tensor((64,), "uint32"), dst: T.Tensor((64,), "uint32")):
         T.device_entry()
-        smem = T.alloc_tensor((64,), "uint32", scope="shared")
-        mbar = T.alloc_tensor((2,), "uint64", scope="shared")
+        smem = T.alloc_tensor(ty_args=[T.Tensor((64,), "uint32", scope="shared")])
+        mbar = T.alloc_tensor(ty_args=[T.Tensor((2,), "uint64", scope="shared")])
         T.ptx[
             "cp.async.bulk.shared::cta.global."
             "mbarrier::complete_tx::bytes.L2::cache_hint.ignore_oob"
@@ -839,7 +839,7 @@ def test_ptx_optional_operand_arity_dispatch():
     def kernel(A: T.Tensor((4,), "uint32")):
         T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(32,)))
         tx = T.cuda.thread_idx("x")
-        bar = T.alloc_tensor((2,), "uint64", scope="shared")
+        bar = T.alloc_tensor(ty_args=[T.Tensor((2,), "uint64", scope="shared")])
         T.ptx.bar.sync(T.uint32(0))
         T.ptx.bar.sync(T.uint32(0), T.uint32(64))
         T.ptx.mbarrier.arrive.shared.b64(bar.ptr_to([0]))
@@ -870,7 +870,7 @@ def test_ptx_mbarrier_92_shapes_render_and_roundtrip():
     def kernel(out: T.Tensor((4,), "uint32")):
         T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(32,)))
         tx = T.cuda.thread_idx("x")
-        bar = T.alloc_tensor((2,), "uint64", scope="shared")
+        bar = T.alloc_tensor(ty_args=[T.Tensor((2,), "uint64", scope="shared")])
         state = T.local_scalar("uint64")
         pending = T.local_scalar("uint32")
         wait_complete = T.local_scalar("uint32")
@@ -1906,7 +1906,7 @@ def test_ptx_data_movement_dispatch():
     def kernel(A: T.Tensor((8,), "uint32")):
         T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(32,)))
         tx = T.cuda.thread_idx("x")
-        smem = T.alloc_tensor((4,), "uint32", scope="shared")
+        smem = T.alloc_tensor(ty_args=[T.Tensor((4,), "uint32", scope="shared")])
         d = T.local_scalar("uint32")
         p = T.local_scalar("uint32")
         v = T.local_scalar("uint32")
@@ -2123,7 +2123,7 @@ def test_ptx_lazy_subscript_operands_realize():
     @T.function
     def kernel(A: T.Tensor((1,), "uint32")):
         T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(32,)))
-        regs = T.alloc_tensor((2,), "uint32", scope="local")
+        regs = T.alloc_tensor(ty_args=[T.Tensor((2,), "uint32", scope="local")])
         full = T.uint32(0xFFFFFFFF)
         T.ptx.elect_sync(regs[0], regs[1], full)
         T.ptx.vote_sync.all.pred(regs[0], T.ptx.pred(regs[1]), full)
@@ -2143,7 +2143,7 @@ def test_ptx_parser_roundtrip():
     def kernel(A: T.Tensor((32,), "uint32"), B: T.Tensor((32,), "uint32")):
         T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(32,)))
         tx = T.cuda.thread_idx("x")
-        smem = T.alloc_tensor((4,), "uint32", scope="shared")
+        smem = T.alloc_tensor(ty_args=[T.Tensor((4,), "uint32", scope="shared")])
         if tx == 0:
             val = T.local_scalar("uint32")
             smem_addr = T.local_scalar("uint64")
@@ -2938,8 +2938,8 @@ def test_ptx_94_cp_bulk_semantics_roundtrip():
     @T.function
     def kernel(src: T.Tensor((64,), "uint32")):
         T.device_entry()
-        smem = T.alloc_tensor((64,), "uint32", scope="shared")
-        mbar = T.alloc_tensor((2,), "uint64", scope="shared")
+        smem = T.alloc_tensor(ty_args=[T.Tensor((64,), "uint32", scope="shared")])
+        mbar = T.alloc_tensor(ty_args=[T.Tensor((2,), "uint64", scope="shared")])
         T.ptx[
             "cp.async.bulk.relaxed.sys.shared::cta.global."
             "mbarrier::complete_tx::bytes."
@@ -4515,7 +4515,7 @@ def test_ptx_nvcc_smoke():
     def kernel(A: T.Tensor((32,), "uint32"), B: T.Tensor((32,), "uint32")):
         T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(32,)))
         tx = T.cuda.thread_idx("x")
-        smem = T.alloc_tensor((4,), "uint32", scope="shared")
+        smem = T.alloc_tensor(ty_args=[T.Tensor((4,), "uint32", scope="shared")])
         if tx == 0:
             val = T.local_scalar("uint32")
             T.ptx.ld.global_.acquire.gpu.b32(val, A.ptr_to([0]))

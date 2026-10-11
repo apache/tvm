@@ -353,7 +353,7 @@ def test_vectorize_while_fail():
                 C[j] = T.float32(0)
 
             # While loop inside vectorized loop (should fail)
-            i = T.decl_tensor((1,), "int32", scope="local")
+            i = T.alloc_tensor(ty_args=[T.Tensor((1,), "int32", scope="local")])
             i[0] = 0
             for j in T.vectorized(64):
                 while i[0] < 10:

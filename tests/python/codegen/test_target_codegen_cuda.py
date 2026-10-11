@@ -530,8 +530,8 @@ def test_crossthread_reduction1(target, *, backend_config):
 
                 for i in T.thread_binding(n, thread="blockIdx.x"):
                     for m_0 in T.thread_binding(nthd, thread="threadIdx.x"):
-                        partial = T.alloc_tensor((1,), "float32", scope="local")
-                        reduced = T.alloc_tensor((1,), "float32", scope="local")
+                        partial = T.alloc_tensor(ty_args=[T.Tensor((1,), "float32", scope="local")])
+                        reduced = T.alloc_tensor(ty_args=[T.Tensor((1,), "float32", scope="local")])
                         partial[0] = T.float32(0)
                         for m_1 in range((m + nthd - 1) // nthd):
                             if m_0 * ((m + nthd - 1) // nthd) + m_1 < m:
@@ -602,8 +602,12 @@ def test_crossthread_reduction2(target, *, backend_config):
                 for i in T.thread_binding(n, thread="blockIdx.x"):
                     for k0_0 in T.thread_binding(nthdx, thread="threadIdx.x"):
                         for k1_0 in T.thread_binding(nthdy, thread="threadIdx.y"):
-                            partial = T.alloc_tensor((1,), "float32", scope="local")
-                            reduced = T.alloc_tensor((1,), "float32", scope="local")
+                            partial = T.alloc_tensor(
+                                ty_args=[T.Tensor((1,), "float32", scope="local")]
+                            )
+                            reduced = T.alloc_tensor(
+                                ty_args=[T.Tensor((1,), "float32", scope="local")]
+                            )
                             partial[0] = T.float32(0)
                             for k0_1, k1_1 in T.grid(
                                 (k0 + nthdx - 1) // nthdx, (k1 + nthdy - 1) // nthdy
@@ -1147,7 +1151,7 @@ def test_try_unaligned_vector_load(*, backend_config):
 def test_cuda_thread_sync_inside_condition(*, backend_config):
     @T.function
     def func2(A: T.Tensor((4, 4), "float32")) -> None:
-        A_shared = T.alloc_tensor((4, 4), "float32", scope="shared")
+        A_shared = T.alloc_tensor(ty_args=[T.Tensor((4, 4), "float32", scope="shared")])
         for bx in T.thread_binding(1, "blockIdx.x"):
             for tx in T.thread_binding(32, "threadIdx.x"):
                 if T.gpu_thread_invariant(A[0, 0] > 1.0):
@@ -1159,7 +1163,7 @@ def test_cuda_thread_sync_inside_condition(*, backend_config):
 
     @T.function
     def func3(A: T.Tensor((4, 4), "float32")) -> None:
-        A_shared = T.alloc_tensor((4, 4), "float32", scope="shared")
+        A_shared = T.alloc_tensor(ty_args=[T.Tensor((4, 4), "float32", scope="shared")])
         for bx in T.thread_binding(1, "blockIdx.x"):
             for tx in T.thread_binding(32, "threadIdx.x"):
                 while T.gpu_thread_invariant(A[0, 0] > 1.0):
