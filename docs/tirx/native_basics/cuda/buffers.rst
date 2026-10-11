@@ -297,11 +297,13 @@ An immutable binding captures a value, so later writes cannot change it:
     saved: Tx.let = value
     value = 8                         # saved is still 3
 
-``MutableCellType(element_type, scope=None)`` accepts primitive numeric and
+``MutableCellType(element_type, scope="local")`` accepts primitive numeric and
 boolean scalars and fixed-length vectors. The target must support the particular
-element type. Omitted scope means one cell per execution thread;
-``ExecScope("thread")`` is also accepted. Wider scopes, scalable vectors,
-pointers, tensors, and nested cells are unsupported. Cells in vectorized loops
+element type. ``scope`` is a Buffer-style storage-scope string, rather than an
+execution scope. It defaults to ``"local"``, the only supported tag, with one
+cell per execution thread. Other storage scopes (including ``"shared"`` and
+``"global"``), scalable vectors, pointers, tensors, and nested cells are
+unsupported. Cells in vectorized loops
 are rejected; ordinary serial and unrolled loops are supported. A parallel body
 may declare its own cells, but cannot capture a cell from outside that body.
 

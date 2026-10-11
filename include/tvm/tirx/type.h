@@ -26,7 +26,6 @@
 
 #include <tvm/ir/expr.h>
 #include <tvm/ir/type.h>
-#include <tvm/tirx/exec_scope.h>
 #include <tvm/tirx/layout.h>
 
 #include <optional>
@@ -60,17 +59,17 @@ inline DLDataType DefaultIndexType() {
  * A Var with this type identifies storage allocated by mutable_cell_alloc.
  * Its handle cannot be copied, passed to a function, returned, or addressed.
  * Each execution of the allocation creates fresh storage, lasting until the
- * enclosing lexical scope exits.  Omitted scope means the current execution
- * thread, exactly like an explicit thread ExecScope.  Wider scopes are not
- * supported.  Elements are primitive numeric or boolean scalars/fixed vectors;
+ * enclosing lexical scope exits.  Scope is a Buffer-style storage-scope tag;
+ * only "local" is currently supported, and is the default.  Elements are
+ * primitive numeric or boolean scalars/fixed vectors;
  * the target remains responsible for supporting the particular primitive type.
  */
 class MutableCellTypeNode : public TypeNode {
  public:
   PrimType element_type = PrimType::Void();
-  ffi::Optional<ExecScope> scope;
+  ffi::String scope = "local";
 
-  /*! \brief Check the element and execution-scope contract, including raw types. */
+  /*! \brief Check the element and storage-scope contract, including raw types. */
   TVM_DLL void Validate() const;
 
   static void RegisterReflection() {
@@ -84,8 +83,7 @@ class MutableCellTypeNode : public TypeNode {
 /*! \brief Managed reference to a mutable local cell type. */
 class MutableCellType : public Type {
  public:
-  TVM_DLL explicit MutableCellType(PrimType element_type,
-                                   ffi::Optional<ExecScope> scope = std::nullopt,
+  TVM_DLL explicit MutableCellType(PrimType element_type, ffi::String scope = "local",
                                    Location loc = UnknownLoc());
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(MutableCellType, Type, MutableCellTypeNode);
 };

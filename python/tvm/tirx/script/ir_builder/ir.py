@@ -770,11 +770,12 @@ def _cell_value(value, element_type):
 
 
 @_register_mutable_decl("tirx.alloc_cell")
-def alloc_cell(dtype="float32", value=0, *, scope: ExecScope | None = None) -> _ir.Call:
+def alloc_cell(dtype="float32", value=0, *, scope: str = "local") -> _ir.Call:
     """Allocate an initialized local cell and return its readable contents.
 
     The cell is fresh whenever its declaration executes, and lives in the
-    enclosing lexical scope. Omitted scope denotes the current execution thread.
+    enclosing lexical scope. The Buffer-style storage scope defaults to "local";
+    other storage-scope tags are not currently supported.
     A declaration without an initializer starts at typed zero.
     """
     from tvm.script.ir_builder.stmt import bind  # pylint: disable=import-outside-toplevel

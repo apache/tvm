@@ -43,7 +43,7 @@ def test_mutable_cell_control_flow(target, tmp_path):
             x -= 2
         out[1] = x
         for i in range(3):
-            local: T.int32 = i + 10
+            local = T.alloc_cell("int32", i + 10, scope="local")
             local += x
             out[i + 2] = local
             x += 1
@@ -133,6 +133,26 @@ def test_cuda_mutable_cell_uint128_zero(monkeypatch):
     snapshot = re.search(r"__uint128_t (\w+) = cell;", source)
     assert snapshot is not None
     assert f"return {snapshot.group(1)};" in source
+
+
+@pytest.mark.parametrize("backend", ["c", "llvm", "cuda"])
+def test_codegen_rejects_raw_unsupported_cell_scope(backend, monkeypatch):
+    if backend == "llvm" and not tvm.runtime.enabled("llvm"):
+        pytest.skip("LLVM is not enabled")
+    cell_type = tvm.ir.make_node(
+        "tirx.MutableCellType", element_type=tvm.ir.PrimType("int32"), scope="shared"
+    )
+    cell = tvm.ir.Var("cell", cell_type)
+    allocation = tvm.ir.Call("tirx.mutable_cell_alloc", [tvm.ir.const(0, "int32")], ty=cell_type)
+    function = tvm.tirx.Function([], [tvm.ir.Bind(cell, allocation)]).with_attr(
+        "global_symbol", "invalid_scope"
+    )
+    target = tvm.target.Target({"kind": "cuda", "arch": "sm_80"} if backend == "cuda" else backend)
+    monkeypatch.setenv("TVM_COMPILE_FORCE_FALLBACK", "1")
+    with pytest.raises(tvm.error.InternalError, match="local storage scope"):
+        tvm.get_global_func(f"target.build.{backend}")(
+            tvm.IRModule({"invalid_scope": function}), target
+        )
 
 
 @pytest.mark.parametrize("attrs", [{"mutable_cell_writes": [0]}, {"mutable_cell_condition": 0}])

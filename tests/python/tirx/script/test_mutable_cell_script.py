@@ -43,13 +43,16 @@ def test_mutable_cell_script_roundtrip():
             else:
                 value = captured
             enabled = not enabled
-        explicit = T.alloc_cell("int32", 7, scope=T.ExecScope("thread"))
+        explicit = T.alloc_cell("int32", 7, scope="local")
+        vector = T.alloc_cell("int32x2", T.broadcast(2, 2), scope="local")
+        T.evaluate(vector)
         return value + explicit
 
     code = function.script()
     assert "value: T.int32 = 0" in code
     assert "enabled: T.bool = T.bool(True)" in code
-    assert "alloc_cell" in code
+    assert "explicit: T.int32 = 7" in code
+    assert 'vector = T.alloc_cell("int32x2"' in code
     assert "alloc_tensor" not in code
     assert ".source" not in code
     parsed = tvm.script.from_source(code, extra_vars={"T": T})
@@ -58,6 +61,19 @@ def test_mutable_cell_script_roundtrip():
     calls = _calls(function)
     assert any(call.op.name == "tirx.mutable_cell_alloc" for call in calls)
     assert any(call.op.name == "tirx.mutable_cell_store" for call in calls)
+    assert all(
+        call.ty.scope == "local" for call in calls if call.op.name == "tirx.mutable_cell_alloc"
+    )
+
+
+def test_free_cell_variable_type_roundtrip():
+    cell = tvm.ir.Var("cell", tvm.tirx.MutableCellType("int32", "local"))
+    source = cell.script(verbose_expr=True)
+    assert "MutableCellType" in source
+    assert "ExecScope" not in source
+    namespace = {"I": tvm.script.ir, "T": T}
+    exec(source, namespace)
+    tvm.ir.assert_structural_equal(cell, namespace["cell"], map_free_vars=True)
 
 
 def test_single_element_tensor_keeps_tensor_syntax():

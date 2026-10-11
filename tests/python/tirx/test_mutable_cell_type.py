@@ -46,12 +46,12 @@ def _valid(function):
 
 
 @pytest.mark.parametrize("dtype", ["bool", "int32", "uint128", "float32", "float32x4"])
-@pytest.mark.parametrize("scope", [None, "thread"])
-def test_cell_type_roundtrip(dtype, scope):
-    scope = tirx.ExecScope(scope) if scope is not None else None
-    ty = tirx.MutableCellType(dtype, scope)
+@pytest.mark.parametrize("scope_kwargs", [{}, {"scope": "local"}])
+def test_cell_type_roundtrip(dtype, scope_kwargs):
+    ty = tirx.MutableCellType(dtype, **scope_kwargs)
     assert ty.element_type.dtype == dtype
-    assert ty.scope is None if scope is None else ty.scope.name == "thread"
+    assert ty.scope == "local"
+    ir.assert_structural_equal(ty, tirx.MutableCellType(dtype, "local"))
     ir.assert_structural_equal(ty, ir.load_json(ir.save_json(ty)))
     visited = []
     tvm_ffi.structural_walk(ty, lambda node: visited.append(node))
@@ -60,6 +60,7 @@ def test_cell_type_roundtrip(dtype, scope):
         ty, (ir.PrimType, lambda _node, _mutator: ir.PrimType("float64"))
     )
     assert mapped.element_type.dtype == "float64"
+    assert mapped.scope == "local"
     assert ty.element_type.dtype == dtype
 
 
@@ -69,13 +70,30 @@ def test_cell_rejects_unsupported_elements(dtype):
         tirx.MutableCellType(dtype)
 
 
-def test_cell_rejects_nonprimitive_and_wider_scope():
+def test_cell_rejects_nonprimitive_elements():
     with pytest.raises(TypeError):
         tirx.MutableCellType(ir.PtrType(ir.PrimType("int32")))
     with pytest.raises(TypeError):
         tirx.MutableCellType(tirx.MutableCellType("int32"))
-    with pytest.raises(ValueError, match="thread"):
-        tirx.MutableCellType("int32", tirx.ExecScope("warp"))
+
+
+@pytest.mark.parametrize(
+    "scope", ["", "global", "shared", "shared.dyn", "local.tag", "thread", "warp"]
+)
+def test_cell_rejects_unsupported_storage_scopes(scope):
+    with pytest.raises(ValueError, match="local storage scope"):
+        tirx.MutableCellType("int32", scope)
+    raw_type = ir.make_node("tirx.MutableCellType", element_type=ir.PrimType("int32"), scope=scope)
+    cell = ir.Var("cell", raw_type)
+    with pytest.raises(ValueError, match="local storage scope"):
+        _alloc(cell).validate()
+    assert not _valid(_function(ir.Bind(cell, _alloc(cell))))
+
+
+@pytest.mark.parametrize("scope", [None, 0, tirx.ExecScope("thread")])
+def test_cell_requires_string_storage_scope(scope):
+    with pytest.raises(TypeError):
+        tirx.MutableCellType("int32", scope)
 
 
 def test_cell_op_types_effects_and_validation():

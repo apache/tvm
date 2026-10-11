@@ -44,7 +44,7 @@ def test_mutable_cell_cuda_values_and_ptx_outputs():
         if flag:
             value += 3
         out[4] = value
-        vector = T.alloc_cell("int32x2", T.broadcast(2, 2))
+        vector = T.alloc_cell("int32x2", T.broadcast(2, 2), scope="local")
         old: T.let = vector
         vector = vector + T.broadcast(5, 2)
         out[T.ramp(2, 1, 2)] = old + vector

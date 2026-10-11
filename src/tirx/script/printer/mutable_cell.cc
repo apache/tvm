@@ -33,7 +33,7 @@ ffi::Optional<ExprDoc> MutableCellTypeDocTranslate(DocTranslatorObj* d, ffi::Any
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const tirx::MutableCellTypeNode>(
           input);
   ffi::Array<ExprDoc> args{LiteralDoc::DataType(type->element_type->dtype, std::nullopt)};
-  if (type->scope) args.push_back(d->Translate(type->scope.value()).value());
+  if (type->scope != "local") args.push_back(LiteralDoc::Str(type->scope, std::nullopt));
   return NamespaceDoc("tirx")->Attr("MutableCellType")->Call(args);
 }
 
@@ -50,14 +50,15 @@ ffi::Optional<ExprDoc> MutableCellAllocDocTranslate(DocTranslatorObj* d, ffi::An
   ExprDoc initial = d->Translate(call->args[0]).value();
   ExprDoc annotation = d->Translate(type.value()->element_type).value();
   IdDoc lhs = VarDoc(d, var);
-  if (!type.value()->scope && annotation.as<AttrAccessDoc>()) {
+  if (type.value()->scope == "local" && type.value()->element_type.IsScalar() &&
+      annotation.as<AttrAccessDoc>()) {
     d->Emit(AssignDoc(lhs, initial, annotation), ffi::GetRef<Call>(call));
   } else {
     ffi::Array<ffi::String> keys{"value"};
     ffi::Array<ExprDoc> values{initial};
-    if (type.value()->scope) {
+    if (type.value()->scope != "local") {
       keys.push_back("scope");
-      values.push_back(d->Translate(type.value()->scope.value()).value());
+      values.push_back(LiteralDoc::Str(type.value()->scope, std::nullopt));
     }
     ExprDoc rhs =
         NamespaceDoc("tirx")

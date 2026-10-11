@@ -17,8 +17,8 @@
 """Nonescaping, initialized local mutable cells.
 
 A cell handle identifies one lexical allocation. Only load and store consume
-handles; loads are values, and copying a value never aliases its cell. Omitted
-scope means a local cell per execution thread. Wider scopes are unsupported.
+handles; loads are values, and copying a value never aliases its cell. The
+storage-scope string defaults to "local"; other tags are unsupported.
 """
 
 from tvm.ir import Call, Expr, Var, const
@@ -33,7 +33,7 @@ def _element_value(value, element_type):
     return value
 
 
-def mutable_cell_alloc(element_type, value=0, scope=None, *, loc=UNKNOWN_LOC):
+def mutable_cell_alloc(element_type, value=0, scope="local", *, loc=UNKNOWN_LOC):
     """Create a fresh initialized cell allocation expression, to be bound once.
 
     Primitive literals are converted to the element type. Expression initializers

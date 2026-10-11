@@ -22,7 +22,6 @@ from tvm.ir import PrimType, Type
 from tvm.ir.location import UNKNOWN_LOC, Location
 
 from . import _ffi_api
-from .exec_scope import ExecScope
 
 
 @tvm_ffi.register_object("tirx.MutableCellType")
@@ -30,17 +29,17 @@ class MutableCellType(Type):
     """The type of an initialized, non-aliasing local mutable cell.
 
     ``element_type`` is a numeric or boolean primitive scalar/fixed vector.
-    Omitted ``scope`` and ``ExecScope("thread")`` both denote one local cell
-    per execution thread. Wider scopes and cell-handle escape are unsupported.
+    ``scope`` is a Buffer-style storage-scope string, defaulting to ``"local"``.
+    Only local storage is supported; cell handles cannot escape or alias.
     """
 
     element_type: PrimType
-    scope: ExecScope | None
+    scope: str
 
     def __init__(
         self,
         element_type: str | PrimType,
-        scope: ExecScope | None = None,
+        scope: str = "local",
         loc: Location = UNKNOWN_LOC,
     ):
         if isinstance(element_type, str):

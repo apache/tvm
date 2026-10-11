@@ -41,12 +41,11 @@ void MutableCellTypeNode::Validate() const {
   TVM_FFI_CHECK(numeric && !type.IsScalableVector() && type.bits() > 0 && type.lanes() > 0,
                 TypeError)
       << "MutableCellType requires a numeric or boolean scalar or fixed-vector element type";
-  TVM_FFI_CHECK(!scope || scope.value()->kind == ScopeKind::kThread, ValueError)
-      << "MutableCellType only supports the thread execution scope";
+  TVM_FFI_CHECK(scope == "local", ValueError)
+      << "MutableCellType only supports the local storage scope";
 }
 
-MutableCellType::MutableCellType(PrimType element_type, ffi::Optional<ExecScope> scope,
-                                 Location loc)
+MutableCellType::MutableCellType(PrimType element_type, ffi::String scope, Location loc)
     : Type(ffi::UnsafeInit{}) {
   auto node = ffi::make_object<MutableCellTypeNode>();
   node->element_type = std::move(element_type);
@@ -93,7 +92,7 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> MutableCellTypeMutate(
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const MutableCellTypeNode>(value);
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<PrimType>, element_type,
                                     mutator->MutateExpected(self->element_type));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Optional<ExecScope>>, scope,
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::String>, scope,
                                     mutator->MutateExpected(self->scope));
   if (element_type.UnchangedOrSameAs(self->element_type) && scope.UnchangedOrSameAs(self->scope)) {
     return ffi::Unchanged();
@@ -111,7 +110,7 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> MutableCellTypeMaybeInp
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
       ffi::UnchangedOr<PrimType>, element_type,
       mutator->MutateExpected(self->element_type, ffi::InplaceMode::kAllow));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Optional<ExecScope>>, scope,
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::String>, scope,
                                     mutator->MutateExpected(self->scope, ffi::InplaceMode::kAllow));
   if (!element_type.IsUnchanged()) self->element_type = std::move(element_type).ValueUnchecked();
   if (!scope.IsUnchanged()) self->scope = std::move(scope).ValueUnchecked();
@@ -237,10 +236,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
             ffi::FStructuralMutate::FromNative<&MutableCellTypeMutate>())
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&MutableCellTypeMaybeInplaceMutate>());
-  refl::GlobalDef().def("tirx.MutableCellType", [](PrimType element_type,
-                                                   ffi::Optional<ExecScope> scope, Location loc) {
-    return MutableCellType(std::move(element_type), std::move(scope), std::move(loc));
-  });
+  refl::GlobalDef().def(
+      "tirx.MutableCellType", [](PrimType element_type, ffi::String scope, Location loc) {
+        return MutableCellType(std::move(element_type), std::move(scope), std::move(loc));
+      });
 }
 
 TensorType::TensorType(ffi::String storage_scope, PrimType dtype, ffi::Array<PrimExpr> shape,
