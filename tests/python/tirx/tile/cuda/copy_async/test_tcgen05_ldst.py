@@ -45,7 +45,6 @@ import tvm
 import tvm.testing
 from tvm.backend.cuda.axis import TCol, TLane
 from tvm.backend.cuda.axis import tid_in_wg as axis_tid_in_wg
-from tvm.backend.cuda.lang.alloc_pool import _default_tmem_layout
 from tvm.backend.cuda.layout import tcgen05_atom_layout, tmem_datapath_layout
 from tvm.script import tirx as T
 from tvm.testing import env
@@ -389,13 +388,6 @@ def test_tmem_datapath_layout_rejects_invalid_sub_slab():
         tmem_datapath_layout("F", 64, 8, sub_slab=2)
     with pytest.raises(ValueError, match="already spans both sub-slabs"):
         tmem_datapath_layout("D", 128, 8, sub_slab=1)
-
-
-def test_default_tmem_layout_M128_matches_datapath_D():
-    """The default accumulator layout and named Layout D must not drift."""
-    tvm.ir.assert_structural_equal(
-        _default_tmem_layout(128, 32), tmem_datapath_layout("D", 128, 32)
-    )
 
 
 @pytest.mark.parametrize("shape", ["16x64b", "16x128b", "16x256b"])

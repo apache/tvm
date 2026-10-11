@@ -21,7 +21,6 @@ from tvm.sym.analyzer import Analyzer
 from tvm.tirx import Var
 from tvm.tirx.tile import DispatchContext
 from tvm.tirx.tile.instruction import TensorCall
-from tvm.tirx.tile.layout_utils import effective_layout
 
 
 def validate_gemm_op(op_call: TensorCall, sctx: DispatchContext) -> bool:
@@ -31,7 +30,10 @@ def validate_gemm_op(op_call: TensorCall, sctx: DispatchContext) -> bool:
     A: Var = A_buffer_region.source
     B: Var = B_buffer_region.source
     if not (
-        effective_layout(C) and effective_layout(A) and effective_layout(B) and A.dtype == B.dtype
+        C.ty.effective_layout()
+        and A.ty.effective_layout()
+        and B.ty.effective_layout()
+        and A.dtype == B.dtype
     ):
         return False
     # Extract regions and validate dimensions

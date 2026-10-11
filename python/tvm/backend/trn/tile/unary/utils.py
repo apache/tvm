@@ -23,7 +23,6 @@ from tvm.script import tirx as T
 from tvm.sym.analyzer import Analyzer
 from tvm.tirx import FloatImm
 from tvm.tirx.tile.common import MapOpType
-from tvm.tirx.tile.layout_utils import effective_layout
 
 from ..common import nki_dim
 from ..dim_utils import get_ewise_dim_map
@@ -56,11 +55,11 @@ def try_find_inst_unary(
     # Validate tensor layouts and scopes
     valid_layout_scope = all(
         [
-            effective_layout(src) and effective_layout(dst),
+            src.ty.effective_layout() and dst.ty.effective_layout(),
             src.scope() in ("trn.sbuf", "trn.psum"),
             dst.scope() == "trn.sbuf",
-            is_trainium_layout(effective_layout(src)),
-            is_trainium_layout(effective_layout(dst)),
+            is_trainium_layout(src.ty.effective_layout()),
+            is_trainium_layout(dst.ty.effective_layout()),
         ]
     )
 
@@ -139,7 +138,7 @@ def generate_unary_func(
 ):
     """Generate a function that implements a unary operation."""
     # Prepare parameters
-    p_size = effective_layout(dst_tensor_region.source).size("P")
+    p_size = dst_tensor_region.source.ty.effective_layout().size("P")
 
     # Apply instruction size limits if specified
     inst_size_limit = config.get("max_inst_size", 512)

@@ -22,7 +22,6 @@ from tvm.script import tirx as T
 from tvm.tirx import Function
 from tvm.tirx.tile import DispatchContext
 from tvm.tirx.tile.instruction import TensorCall
-from tvm.tirx.tile.layout_utils import effective_layout
 from tvm.tirx.tile.views import BinaryReduce
 
 from ..binary.utils import InstType, try_find_inst_nary
@@ -82,7 +81,7 @@ def binary_reduce_trn(op: TensorCall, sctx: DispatchContext) -> Function | None:
     f_var = T.Var("F", "int32")
     reduction_b_var = T.Var("rB", "int32")
     spatial_b_var = T.Var("sB", "int32")
-    p_size = effective_layout(binary_output.source).size("P")
+    p_size = binary_output.source.ty.effective_layout().size("P")
     inst_gen.bind_inst_iter(binary_output, p_var, p_size, 1, False)
     inst_gen.bind_inst_iter(binary_output, f_var, inst_repr.size, inst_repr.stride, True)
     reduction_b_extent = inst_gen.fill_in_block_dim(binary_output, reduction_b_var, reduce_axes)

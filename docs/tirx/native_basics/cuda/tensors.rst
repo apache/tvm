@@ -222,21 +222,22 @@ with views decl'd at offsets inside it.
 Pool sugar
 ~~~~~~~~~~
 
-``Tx.SMEMPool`` automates that arena bookkeeping — it bump-allocates the offsets so
-you don't ``decl`` views by hand. Beyond ``alloc`` / ``commit``, it offers
+``tvm.backend.cuda.lang.SMEMPool`` automates that arena bookkeeping — it
+bump-allocates the offsets so you don't ``decl`` views by hand. Beyond
+``alloc`` / ``commit``, it offers
 per-tensor ``align=``, an ``alloc_tcgen05_mma_AB`` helper that builds an MMA-compatible
 swizzle layout for you, and ``move_base_to`` to rewind the cursor and reuse space:
 
 .. code-block:: python
 
-    pool = Tx.SMEMPool()                          # bump allocator over shared.dyn
+    from tvm.backend.cuda.lang import SMEMPool
+
+    pool = SMEMPool()                             # bump allocator over shared.dyn
     As = pool.alloc((BM, BK), "float16", align=128)   # carve a tile
     Bs = pool.alloc((BK, BN), "float16", align=128)
     Cs = pool.alloc_tcgen05_mma_AB((BM, BN), "float16")  # MMA-compatible, swizzle inferred
     pool.commit()                                 # finalize the pool's size
     # pool.move_base_to(offset) rewinds the cursor to reuse space
-
-The TMEM pool (`Tensor memory`_, below) is layered on top of an ``SMEMPool``.
 
 Per-thread local storage
 ------------------------
@@ -387,28 +388,7 @@ tensor as a view at a column offset, and one warp frees it at the end:
             addr[0], Tx.uint32(512))
 
 You add any column offsets to ``addr[0]`` and manage the ``tmem_layout`` (the
-matching datapath A–G layout) yourself. This is the sequence the pool below emits.
-
-Pool
-~~~~
-
-``Tx.TMEMPool`` wraps the warp-uniform alloc/dealloc and column bump-allocation.
-Pass an explicit layout to ``alloc``, or use its operand-specific allocation
-helpers when the MMA datapath determines the layout:
-
-.. code-block:: python
-
-    tmem_addr = pool.alloc((1,), "uint32")          # pool = the kernel's smem pool
-    tmem_pool = Tx.TMEMPool(pool, total_cols=512, cta_group=cta_group,
-                           tmem_addr=tmem_addr)
-    # Choose the layout required by the instruction that consumes the tensor:
-    acc = tmem_pool.alloc((CTA_M, 512), "float32")  # Layout D when CTA_M=128
-    # Layout B: PTX M=128, cta_group=2, 64 logical rows in this CTA.
-    # acc = tmem_pool.alloc_tcgen05_mma_D(
-    #     (64, N), "float32", M=128, cta_group=2)
-    tmem_pool.commit()                               # emits tcgen05.alloc (one warp)
-    # ... use acc ...
-    tmem_pool.dealloc()                              # emits tcgen05.dealloc (one warp)
+matching datapath A–G layout) yourself.
 
 See the :doc:`../../tile_primitives` walkthroughs for full examples.
 

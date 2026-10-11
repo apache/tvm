@@ -23,7 +23,6 @@ from tvm.tirx import Function
 from tvm.tirx.tile import DispatchContext, fail
 from tvm.tirx.tile.common import ReduceOpType
 from tvm.tirx.tile.instruction import TensorCall
-from tvm.tirx.tile.layout_utils import effective_layout
 
 from ..common import init_analyzer, nki_dim
 from ..dim_utils import get_reduction_dim_map
@@ -41,7 +40,7 @@ def generate_intermediate_tensor(
     Returns:
         Tuple[Optional[tensor], int]: The intermediate tensor and reduction factor size.
     """
-    intermediate_shape = [effective_layout(dst_tensor_region.source).size("P"), rfactor_size]
+    intermediate_shape = [dst_tensor_region.source.ty.effective_layout().size("P"), rfactor_size]
 
     if "partial_reduce" in workspace:
         intermediate_tensor = workspace["partial_reduce"]
@@ -92,12 +91,12 @@ def reduction_trn(
     # Layout validation
     assert all(
         [
-            effective_layout(src) and effective_layout(dst),
+            src.ty.effective_layout() and dst.ty.effective_layout(),
             src.scope() == "trn.sbuf" or src.scope() == "trn.psum",
             dst.scope() == "trn.sbuf",
-            is_trainium_layout(effective_layout(src)),
-            is_trainium_layout(effective_layout(dst)),
-            effective_layout(src).size("P") == effective_layout(dst).size("P"),
+            is_trainium_layout(src.ty.effective_layout()),
+            is_trainium_layout(dst.ty.effective_layout()),
+            src.ty.effective_layout().size("P") == dst.ty.effective_layout().size("P"),
         ]
     ), "Invalid layout"
 
@@ -110,7 +109,7 @@ def reduction_trn(
     assert analyzer.can_prove(inst_repr.size > 1), "Instruction size must be greater than 1"
 
     # Get partition size and extents
-    p_size = effective_layout(src).size("P")
+    p_size = src.ty.effective_layout().size("P")
     f_var = T.Var("F", "int32")
     p_var = T.Var("P", "int32")
     spatial_b_var = T.Var("sB", "int32")

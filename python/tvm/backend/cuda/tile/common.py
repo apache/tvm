@@ -29,7 +29,6 @@ from tvm.sym.analyzer import Analyzer
 from tvm.tirx import Function, Var
 from tvm.tirx.tile import DispatchContext, fail
 from tvm.tirx.tile.instruction import TensorCall
-from tvm.tirx.tile.layout_utils import effective_layout
 
 
 def next_power_of_2(x: int) -> int:
@@ -90,7 +89,7 @@ def validate_copy_op(
     dst_buffer_region, src_buffer_region = op_call.args[:2]
     src: Var = src_buffer_region.source
     dst: Var = dst_buffer_region.source
-    if not (effective_layout(src) and effective_layout(dst) and src.dtype == dst.dtype):
+    if not (src.ty.effective_layout() and dst.ty.effective_layout() and src.dtype == dst.dtype):
         return False
     # Extract regions and validate dimensions
     analyzer = Analyzer()
@@ -117,8 +116,8 @@ def get_vec_len(
     src: Var = src_buffer_region.source
     # layout=None (flat local buffer) is treated as trivial for vectorization purposes
     if not (
-        (effective_layout(dst) is None or effective_layout(dst).is_trivial())
-        and (effective_layout(src) is None or effective_layout(src).is_trivial())
+        (dst.ty.effective_layout() is None or dst.ty.effective_layout().is_trivial())
+        and (src.ty.effective_layout() is None or src.ty.effective_layout().is_trivial())
     ):
         return None
 

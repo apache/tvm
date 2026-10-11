@@ -22,7 +22,6 @@ from tvm.script import tirx as T
 from tvm.tirx import Function
 from tvm.tirx.tile import DispatchContext
 from tvm.tirx.tile.instruction import TensorCall
-from tvm.tirx.tile.layout_utils import effective_layout
 from tvm.tirx.tile.views import BinaryChain
 
 from ..binary.utils import InstType, try_find_inst_nary
@@ -62,7 +61,7 @@ def binary_chain_trn(op: TensorCall, sctx: DispatchContext) -> Function | None:
     p_var = T.Var("P", "int32")
     b_var = T.Var("B", "int32")
     f_var = T.Var("F", "int32")
-    p_size = effective_layout(output.source).size("P")
+    p_size = output.source.ty.effective_layout().size("P")
     inst_size_limit = op.options.get("max_inst_size", 512)
     inst_repr.bound_inst_size(inst_size_limit, analyzer)
     inst_gen.bind_inst_iter(output, p_var, p_size, 1, False)

@@ -27,9 +27,8 @@ from tvm.tirx.layout import Axis, Iter, R, S, TileLayout
 # ``tcgen05.mma`` writes its output matrix C into TMEM using one of several
 # **datapath layouts** depending on the MMA's M dimension and ``.ws`` mode.
 # Each layout determines *which* physical TMEM lanes (rows) the matrix
-# occupies; the leak in the original ``_default_tmem_layout`` was that it
-# always used the identity ``(rows, cols) : (1@TLane, 1@TCol)`` mapping,
-# which is correct only for Layout D (M=128 full datapath). For Layout F
+# occupies. The identity ``(rows, cols) : (1@TLane, 1@TCol)`` mapping
+# is correct only for Layout D (M=128 full datapath). For Layout F
 # (M=64 non-``.ws``) the MMA writes scattered lanes
 # ``{0..15, 32..47, 64..79, 96..111}`` — half of each warp's 32-lane
 # partition — and the readback path (``.16x*b`` M=64 atom) has the matching

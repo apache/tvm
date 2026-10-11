@@ -25,7 +25,6 @@ from tvm.tirx import Function
 from tvm.tirx.layout import TileLayout
 from tvm.tirx.tile import DispatchContext, fail
 from tvm.tirx.tile.instruction import TensorCall
-from tvm.tirx.tile.layout_utils import effective_layout
 
 
 @dataclass(frozen=True)
@@ -248,8 +247,8 @@ def _full_active_lanes(op: TensorCall, sctx: DispatchContext):
 def _no_replica(op: TensorCall, sctx: DispatchContext):
     """All operand layouts must have no replica (no broadcast/duplicated axes)."""
     for region, name in zip(op.args[:4], ("D", "A", "B", "C")):
-        if effective_layout(region.source).replica:
-            return False, f"{name} layout has replica {effective_layout(region.source).replica}"
+        if region.source.ty.effective_layout().replica:
+            return False, f"{name} layout has replica {region.source.ty.effective_layout().replica}"
     return True
 
 
@@ -335,7 +334,7 @@ def gemm_cuda_mma_dispatch(op: TensorCall, sctx: DispatchContext) -> Function:
         # ICHECK when the layout can't be tiled as shape2d -- guard both.
         canon = None
         try:
-            sliced = effective_layout(buf).slice(buf.shape, region.region)
+            sliced = buf.ty.effective_layout().slice(buf.shape, region.region)
             if sliced is not None:
                 canon = sliced.canonicalize()
         except Exception as e:  # ICHECK failure -> layout not tileable as shape2d
