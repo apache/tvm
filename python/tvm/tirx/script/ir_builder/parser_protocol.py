@@ -755,34 +755,39 @@ def thread_binding(
 
 
 def device_entry(
-    *launch_values, launch=None, kernel_attrs=None, attrs=None, body_params=None
+    *launch_values,
+    launch=None,
+    kernel_attrs=None,
+    backend_config=None,
+    attrs=None,
+    body_params=None,
 ) -> frame.RegionFrame:
-    """Enter a device kernel with an independent CUDA launch configuration.
+    """Enter a device kernel with independent CUDA launch and compile settings.
 
-    CUDA entries use ``LaunchConfig(grid=..., block=...)`` and optional
-    ``KernelAttributes``. Configuration values are ordinary region operands, so
-    host expressions remain visible to substitution and free-variable analysis.
-    Canonical operands and attributes are also accepted for IR reconstruction.
-    Other backends may use the argument-free device entry.
+    LaunchConfig values are ordinary region operands. BackendConfig supplies
+    static per-entry overrides. Canonical operands and attributes are accepted
+    for IR reconstruction. Other backends may use the argument-free entry.
     """
+    if launch is not None and (launch_values or attrs is not None):
+        raise ValueError("device_entry launch cannot be combined with canonical operands or attrs")
+    attributes = dict(attrs) if attrs is not None else {}
+    if backend_config is not None:
+        from tvm.backend.config import backend_config_json
+
+        if "backend_config" in attributes:
+            raise ValueError("device_entry backend_config cannot duplicate canonical attrs")
+        attributes["backend_config"] = backend_config_json(backend_config)
     if launch is None:
         if kernel_attrs is not None:
             raise ValueError("device_entry kernel_attrs require a launch configuration")
-        return region("tirx.device_entry", launch_values, attrs=attrs, body_params=body_params)
-    if launch_values or attrs is not None:
-        raise ValueError("device_entry launch cannot be combined with canonical operands or attrs")
+        return region("tirx.device_entry", launch_values, attrs=attributes, body_params=body_params)
     from tvm.backend.cuda.launch._impl import pack_kernel_attrs, pack_launch
 
     names, values = pack_launch(launch)
-    return region(
-        "tirx.device_entry",
-        values,
-        attrs={
-            "cuda.launch_fields": names,
-            "cuda.kernel_attrs": pack_kernel_attrs(kernel_attrs, launch),
-        },
-        body_params=body_params,
+    attributes.update(
+        {"cuda.launch_fields": names, "cuda.kernel_attrs": pack_kernel_attrs(kernel_attrs, launch)}
     )
+    return region("tirx.device_entry", values, attrs=attributes, body_params=body_params)
 
 
 def device_context(

@@ -56,7 +56,8 @@ class CodeGenCUDAHost : public CodeGenCHost {
                 << "#include <tvm/ffi/extra/c_env_api.h>\n"
                 << "#include <tvm/ffi/extra/cuda/device_guard.h>\n"
                 << "#include <tvm/ffi/function.h>\n"
-                << "#include <cuda.h>\n#include <cuda_runtime.h>\n#include <math.h>\n"
+                << "#include <cuda.h>\n#include <cuda_runtime.h>\n#include <cuda_fp16.h>\n#include "
+                   "<cuda_bf16.h>\n#include <math.h>\n"
                 << "#define TVM_DLL TVM_FFI_DLL_EXPORT\n";
     InitGlobalContext();
     check_error_ = name_supply_->FreshName("tvm_cuda_host_check");
@@ -70,41 +71,65 @@ class CodeGenCUDAHost : public CodeGenCHost {
                 << "  return -1;\n}\n";
     decl_stream << tvm_cuda_launch::kSupportSource;
     decl_stream << "\n#include <map>\n#include <memory>\n";
-    // Convert host ABI spellings (e.g. uint16_t for bfloat16) to device types.
+    decl_stream << "static CUkernel tvm_cuda_host_get_kernel(const char* name);\n";
     launch_ = name_supply_->FreshName("tvm_cuda_host_launch");
-    decl_stream << "template <typename... Params, typename... Args>\n"
-                << "static cudaError_t " << launch_ << R"CUDA((
-    void (*kernel)(Params...), tvm_cuda_launch::LaunchValues values,
+    decl_stream << "template <typename... Args>\n"
+                << "static void " << launch_ << R"CUDA((
+    const char* name, tvm_cuda_launch::LaunchValues values,
     const tvm_cuda_launch::KernelRequirements& requirements, Args... args) {
-  static_assert(sizeof...(Params) == sizeof...(Args), "kernel argument count mismatch");
   using namespace tvm_cuda_launch;
   int device;
   Check(cudaGetDevice(&device));
+  CUkernel kernel = tvm_cuda_host_get_kernel(name);
+  CUfunction function;
+  Check(cuKernelGetFunction(&function, kernel));
+  CUcontext context;
+  unsigned long long context_id;
+  Check(cuCtxGetCurrent(&context));
+  Check(cuCtxGetId(context, &context_id));
   static std::mutex resource_mutex;
-  static std::map<std::pair<const void*, int>, std::unique_ptr<ResourceState>> resource_states;
+  static std::map<std::pair<CUkernel, unsigned long long>, std::unique_ptr<ResourceState>> states;
   ResourceState* state;
   {
     std::lock_guard<std::mutex> lock(resource_mutex);
-    auto& slot = resource_states[{reinterpret_cast<const void*>(kernel), device}];
+    auto& slot = states[{kernel, context_id}];
     if (!slot) slot = std::make_unique<ResourceState>();
     state = slot.get();
   }
   values = Normalize(values, requirements);
-  PrepareResources<RuntimeAPI>(reinterpret_cast<const void*>(kernel), device, &values, state);
-  cudaLaunchConfig_t config{};
-  std::array<cudaLaunchAttribute, kMaxAttributes> attributes{};
-  auto stream = static_cast<cudaStream_t>(TVMFFIEnvGetStream(kDLCUDA, device));
-  EncodeRuntime(values, requirements, stream, &config, &attributes);
-  return cudaLaunchKernelEx(&config, kernel, ((Params)args)...);
+  PrepareResources<DriverAPI>(function, device, &values, state);
+  CUlaunchConfig config{};
+  std::array<CUlaunchAttribute, kMaxAttributes> attributes{};
+  auto stream = static_cast<CUstream>(TVMFFIEnvGetStream(kDLCUDA, device));
+  EncodeDriver(values, requirements, stream, &config, &attributes);
+  // Host locals have the device ABI types. In particular FP16/BF16 values
+  // retain their 16 bits, pointers remain pointers, and tensor maps are copied
+  // into aligned by-value objects before their addresses are packed.
+  std::array<void*, sizeof...(Args)> parameters{{static_cast<void*>(&args)...}};
+  Check(cuLaunchKernelEx(&config, function, parameters.data(), nullptr));
 }
 )CUDA";
   }
 
   using CodeGenCHost::PrintType;
 
+  void PrintType(const PrimType& type, std::ostream& os) override {
+    if (type.IsScalar() && type.MatchesElementType(kDLBfloat, 16)) {
+      os << "__nv_bfloat16";
+    } else {
+      CodeGenCHost::PrintType(type, os);
+    }
+  }
+
   void PrintType(const Type& type, std::ostream& os) override {
     if (type.as<tirx::TensorMapTypeNode>()) {
       os << "CUtensorMap";
+    } else if (auto prim = type.as<PrimType>();
+               prim && prim->IsScalar() && prim->MatchesElementType(kDLBfloat, 16)) {
+      os << "__nv_bfloat16";
+    } else if (auto prim = type.as<PrimType>();
+               prim && prim->IsScalar() && prim->MatchesElementType(kDLFloat, 16)) {
+      os << "half";
     } else {
       CodeGenCHost::PrintType(type, os);
     }
@@ -242,7 +267,14 @@ class CodeGenCUDAHost : public CodeGenCHost {
       }
       std::string name = name_supply_->FreshName("cuda_arg");
       PrintIndent();
-      stream << "auto " << name << " = " << value << ";\n";
+      Type type = op->args[i]->ty;
+      if (i < launch_begin) {
+        if (auto* ptr = type.as<PointerTypeNode>()) {
+          if (ptr->element_type.as<tirx::TensorMapTypeNode>()) type = ptr->element_type;
+        }
+      }
+      PrintType(type, stream);
+      stream << " " << name << " = " << value << ";\n";
       arguments.push_back(name);
     }
     std::string values = name_supply_->FreshName("cuda_launch_values");
@@ -305,9 +337,10 @@ class CodeGenCUDAHost : public CodeGenCHost {
     }
     stream << "}};\n";
     std::string launch =
-        launch_ + "(::" + std::string(symbol) + ", " + values + ", " + requirements;
+        launch_ + "(\"" + std::string(symbol) + "\", " + values + ", " + requirements;
     for (size_t i = 0; i + 1 < launch_begin; ++i) launch += ", " + arguments[i];
-    CheckError(launch + ")", true);
+    PrintIndent();
+    stream << launch << ");\n";
     os << "0";
   }
 

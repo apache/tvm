@@ -58,8 +58,8 @@ class CodeGenCHost : public CodeGenC {
   void DefineModuleName();
 
   using CodeGenC::PrintType;
-  void PrintType(const PrimType& t, std::ostream& os) final;  // NOLINT(*)
-  void PrintFuncPrefix(std::ostream& os) final;               // NOLINT(*)
+  void PrintType(const PrimType& t, std::ostream& os) override;  // NOLINT(*)
+  void PrintFuncPrefix(std::ostream& os) final;                  // NOLINT(*)
 
   // overload visitor functions
   void Dispatch_(const prim::BroadcastNode* op, std::ostream& os) final;  // NOLINT(*)

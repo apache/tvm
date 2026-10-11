@@ -19,8 +19,6 @@
 
 import json
 import logging
-import os
-import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -28,9 +26,9 @@ import tvm_ffi
 
 from tvm import __version__ as tvm_version
 from tvm import libinfo, tirx
+from tvm.backend.config import backend_config_json, merge_backend_configs
 from tvm.ir import Expr, PointerType, const, is_prim_expr
 from tvm.runtime import Module
-from tvm.support import nvcc
 
 
 class BaseKernel:  # pylint: disable=too-few-public-methods
@@ -64,7 +62,13 @@ class BaseKernel:  # pylint: disable=too-few-public-methods
         return tvm_metadata
 
     def _create_cuda_module(
-        self, binary_data, kernel_arg_types, launch_param_tags, kernel_name, fmt="ptx"
+        self,
+        binary_data,
+        kernel_arg_types,
+        launch_param_tags,
+        kernel_name,
+        fmt="ptx",
+        backend_config=None,
     ):
         """
         Create a CUDA module from compiled binary (PTX or cubin) and metadata.
@@ -104,7 +108,8 @@ class BaseKernel:  # pylint: disable=too-few-public-methods
         load_meta = tvm_ffi.get_global_func("runtime.LoadMetaDataFromJSON")
         fmap = load_meta(tvm_metadata)
         create_cuda = tvm_ffi.get_global_func("ffi.Module.create.cuda")
-        kernel_module = create_cuda(binary_bytes, fmt, fmap, {})
+        source = {"backend_config": backend_config_json(backend_config)} if backend_config else {}
+        kernel_module = create_cuda(binary_bytes, fmt, fmap, source)
         return kernel_module
 
 
@@ -148,12 +153,9 @@ class SourceKernel(BaseKernel):  # pylint: disable=too-few-public-methods
             Path(tvm_ffi.libinfo.find_include_path()),
             Path(tvm_ffi.libinfo.find_dlpack_include_path()),
         ]
-        compile_options = []
         for include_path in dict.fromkeys(include_paths):
-            assert include_path.exists(), f"Not found: {include_path!s}"
-            assert include_path.is_dir(), f"Not a directory: {include_path!s}"
-            compile_options += ["-I", str(include_path)]
-        compile_options += ["-c", "-O3", "-std=c++17", "-Xcompiler=-fPIC"]
+            if not include_path.is_dir():
+                raise ValueError(f"Not an include directory: {include_path}")
         source_code = self.source_code
         try:
             source_path = Path(source_code)
@@ -163,33 +165,25 @@ class SourceKernel(BaseKernel):  # pylint: disable=too-few-public-methods
         except:  # pylint: disable=bare-except
             pass
 
-        with tempfile.TemporaryDirectory() as temp_dir:
-            # Check if NVSHMEM is used - requires cubin output for device library linking
-            use_nvshmem = (
-                "#include <nvshmem.h>" in source_code or "#include <nvshmemx.h>" in source_code
-            )
-            target_format = "cubin" if use_nvshmem else "ptx"
-            output_path = f"{temp_dir}/{kernel_name}.{target_format}"
+        from tvm.backend.cuda.compiler import compile_source
 
-            compiler = os.environ.get("TVM_CUDA_COMPILE_MODE", "nvrtc")
-            nvcc.compile_cuda(
-                source_code,
-                target_format=target_format,
-                options=compile_options,
-                path_target=output_path,
-                compiler=compiler,
-            )
-
-            if target_format == "ptx":
-                with open(output_path) as f:
-                    binary_data = f.read()
-            else:
-                with open(output_path, "rb") as f:
-                    binary_data = f.read()
-
-            kernel_module = self._create_cuda_module(
-                binary_data, kernel_arg_types, launch_param_tags, kernel_name, fmt=target_format
-            )
+        flags = ["--use_fast_math", "--std=c++17"]
+        config = merge_backend_configs(
+            {"cuda": {"nvcc": flags, "nvrtc": flags}}, kwargs.get("backend_config")
+        )
+        # These headers are part of the external-kernel adapter, independent of
+        # whether the caller replaces the native toolchain argument lists.
+        for compiler in ("nvcc", "nvrtc"):
+            config["cuda"][compiler].extend(f"-I{p}" for p in include_paths)
+        result = compile_source(source_code, config)
+        kernel_module = self._create_cuda_module(
+            result.binary,
+            kernel_arg_types,
+            launch_param_tags,
+            kernel_name,
+            fmt=result.target_format,
+            backend_config=result.config,
+        )
 
         return kernel_name, kernel_module, runtime_args
 

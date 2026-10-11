@@ -257,6 +257,11 @@ class HostDeviceSplitter : public StmtExprMutator {
     device_func = WithAttrs(std::move(device_func), {{tvm::attr::kTarget, device_target},
                                                      {tvm::tirx::attr::kNoAlias, true},
                                                      {tvm::tirx::attr::kIsGlobalFunc, true}});
+    if (auto config = region->attrs->dict.Get("backend_config")) {
+      device_func = WithAttr(std::move(device_func), "backend_config", config.value());
+    } else if (auto config = cur_func_->GetAttr<ffi::String>("backend_config")) {
+      device_func = WithAttr(std::move(device_func), "backend_config", config.value());
+    }
     bool is_stir = cur_func_->attrs->dict.count(tvm::attr::kSTir);
     if (is_stir) {
       device_func = WithAttr(std::move(device_func), tvm::attr::kSTir, true);
@@ -776,6 +781,14 @@ class DeviceKernelMutator : public StmtExprMutator {
     // through the kernel-launch ABI, regardless of any same-target /
     // same-device-type coincidence.
     bool force_kernel_launch = callee_is_kernel && caller_is_host;
+
+    // CUDA helpers are specialized per device compilation group after splitting.
+    // Keep their GlobalVar edge even when entry architectures differ, so the
+    // helper's transitive closure can be cloned and lowered for each caller.
+    if (!caller_is_host && !callee_is_kernel && caller_target->kind->name == "cuda" &&
+        callee_target->kind->name == "cuda") {
+      return node;
+    }
 
     if (!force_kernel_launch) {
       bool same_target = caller_target->str() == callee_target->str();
