@@ -274,14 +274,14 @@ std::variant<MemCpyDetails, std::string> IdentifyMemCpyImpl(const For& loop,
     }
   }
 
-  TensorRegion src_region =
-      MakeTensorRegion(load->source.as_or_throw<tvm::tirx::TensorVar>(),
-                   DomainTouched(loop, load->source.as_or_throw<tvm::tirx::TensorVar>(), true, true)
-                       .Map([](const ffi::Optional<Range>& range) { return range.value(); }));
+  TensorRegion src_region = MakeTensorRegion(
+      load->source.as_or_throw<tvm::tirx::TensorVar>(),
+      DomainTouched(loop, load->source.as_or_throw<tvm::tirx::TensorVar>(), true, true)
+          .Map([](const ffi::Optional<Range>& range) { return range.value(); }));
   TensorRegion dst_region =
       MakeTensorRegion(store->dest.as_or_throw<TensorVar>(),
-                   DomainTouched(loop, store->dest.as_or_throw<TensorVar>(), true, true)
-                       .Map([](const ffi::Optional<Range>& range) { return range.value(); }));
+                       DomainTouched(loop, store->dest.as_or_throw<TensorVar>(), true, true)
+                           .Map([](const ffi::Optional<Range>& range) { return range.value(); }));
 
   return MemCpyDetails{src_region, dst_region};
 }
