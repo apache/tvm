@@ -53,9 +53,14 @@ constexpr int32_t kRuntimeRPCObjectRef = TVMFFITypeIndex::kTVMFFIDynObjectBegin 
 
 /*! \brief Stream ownership and alias state, retained until release or session teardown. */
 struct RPCStreamState {
+  /*! \brief Ordinary endpoint device that created or selected this stream. */
   Device device;
+  /*! \brief Opaque handle interpreted only by that endpoint's DeviceAPI. */
   TVMStreamHandle handle;
+  /*! \brief Created by this session and freed on release; borrowed current streams are not freed.
+   */
   bool owned;
+  /*! \brief Shared invalidation flag observed by every wrapper alias before handle use. */
   std::atomic<bool> closed{false};
   RPCStreamState(Device device, TVMStreamHandle handle, bool owned)
       : device(device), handle(handle), owned(owned) {}

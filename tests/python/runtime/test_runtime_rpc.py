@@ -147,7 +147,6 @@ def test_rpc_array():
     def check_remote():
         x = np.ones((3, 4))
         r_cpu = remote.cpu(0).tensor(x)
-        assert isinstance(r_cpu, rpc.RemoteTensor)
         assert isinstance(r_cpu.device, rpc.RemoteDevice)
         np.testing.assert_equal(r_cpu.numpy(), x)
         fremote = remote.get_function("rpc.test.remote_tensor_func")

@@ -91,8 +91,12 @@ TVM_FFI_STATIC_INIT_BLOCK() {
              dev->sess->EnsureOpen();
              auto kind = static_cast<DeviceAttrKind>(attr);
              auto* api = dev->sess->GetDeviceAPI(dev->endpoint_device, kind == kExist);
-             ffi::Any rv = 0;
-             if (api != nullptr) api->GetAttr(dev->endpoint_device, kind, &rv);
+             ffi::Any rv;
+             if (api != nullptr) {
+               api->GetAttr(dev->endpoint_device, kind, &rv);
+             } else {
+               rv = 0;
+             }
              return rv;
            })
       .def("rpc.DeviceSetDevice",

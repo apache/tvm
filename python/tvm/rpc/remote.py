@@ -35,9 +35,35 @@ def _register_remote_object(type_key):
     return tvm_ffi.register_object(type_key)
 
 
+class _RemoteDeviceAttributeQuery:
+    """Bind Device's shared property definitions to an RPC-owned query hook.
+
+    This is only a property receiver, never a local Device or tensor factory
+    argument. Keeping conversions in Device avoids a second attribute catalog.
+    """
+
+    def __init__(self, remote):
+        self.remote = remote
+        self.index = remote.index
+
+    def dlpack_device_type(self):
+        return self.remote.endpoint_device.dlpack_device_type()
+
+    def _GetDeviceAttr(self, device_type, device_id, attr):
+        return self.remote.get_attr(attr)
+
+
 @_register_remote_object("rpc.RemoteDevice")
 class RemoteDevice(tvm_ffi.Object):
-    """A session and a device descriptor in that session's execution endpoint."""
+    """A device descriptor interpreted in one RPC session's execution endpoint.
+
+    ``endpoint_device`` is a read-only ordinary Device containing only the device
+    type and index. The native object retains its session; the descriptor alone
+    does not identify that session and must not be used for local allocation.
+    Device capability attributes use the same definitions and conversions as
+    :class:`tvm.runtime.Device`, with queries dispatched by the owning session.
+    Explicit session closure invalidates allocation, queries and stream calls.
+    """
 
     @property
     def index(self):
@@ -51,77 +77,27 @@ class RemoteDevice(tvm_ffi.Object):
         return f"RemoteDevice({self.endpoint_device})"
 
     def get_attr(self, attr):
-        """Query a DeviceAttrKind in the owning session."""
+        """Query the shared DeviceAttrKind API through the owning session.
+
+        Results and backend errors are those of DeviceAPI.GetAttr; named Python
+        capabilities additionally use Device's existing result conversions.
+        """
         return _ffi_api.DeviceGetAttr(self, attr)
 
-    @property
-    def exist(self):
-        return bool(self.get_attr(0))
-
-    @property
-    def max_threads_per_block(self):
-        return self.get_attr(1)
-
-    @property
-    def warp_size(self):
-        return self.get_attr(2)
-
-    @property
-    def max_shared_memory_per_block(self):
-        return self.get_attr(3)
-
-    @property
-    def compute_version(self):
-        return self.get_attr(4)
-
-    @property
-    def device_name(self):
-        return self.get_attr(5)
-
-    @property
-    def max_clock_rate(self):
-        return self.get_attr(6)
-
-    @property
-    def multi_processor_count(self):
-        return self.get_attr(7)
-
-    @property
-    def max_thread_dimensions(self):
-        import json
-
-        return json.loads(self.get_attr(8))
-
-    @property
-    def max_registers_per_block(self):
-        return self.get_attr(9)
-
-    @property
-    def gcn_arch(self):
-        return self.get_attr(10)
-
-    @property
-    def available_global_memory(self):
-        return self.get_attr(15)
+    def __getattr__(self, name):
+        # FFI reflection owns fields such as endpoint_device. Only missing fields
+        # fall through to the ordinary Device's shared attribute definitions.
+        try:
+            return super().__getattr__(name)
+        except AttributeError:
+            attribute = getattr(tvm.runtime.Device, name, None)
+            if not isinstance(attribute, property):
+                raise AttributeError(f"RemoteDevice has no attribute {name!r}") from None
+            return attribute.__get__(_RemoteDeviceAttributeQuery(self))
 
     def texture_spatial_limit(self):
-        return self.get_attr(12)
-
-    @property
-    def api_version(self):
-        return self.get_attr(11)
-
-    @property
-    def driver_version(self):
-        return self.get_attr(12)
-
-    @property
-    def l2_cache_size_bytes(self):
-        return self.get_attr(13)
-
-    @property
-    def total_global_memory(self):
-        return self.get_attr(14)
+        """Query the shared texture limit convenience through this session."""
+        return tvm.runtime.Device.texture_spatial_limit(_RemoteDeviceAttributeQuery(self))
 
     def empty(self, shape, dtype="float32", mem_scope=None):
         """Allocate a remote tensor through this device's session."""
@@ -162,12 +138,26 @@ class RemoteDevice(tvm_ffi.Object):
 
 @_register_remote_object("rpc.RemoteStream")
 class RemoteStream(tvm_ffi.Object):
-    """A session-owned stream. Release it with the owning device's ``free_stream``."""
+    """An opaque stream tied to one remote device and its session.
+
+    The session retains created streams until ``device.free_stream`` or session
+    teardown, including streams selected using a temporary Python wrapper.
+    Current-stream aliases share closure state; releasing one invalidates them
+    all. Stream operations reject a different device or session before use.
+    """
 
 
 @_register_remote_object("rpc.RemoteTensor")
 class RemoteTensor(tvm_ffi.Object):
-    """Remote storage with explicit metadata and session-bound transfer operations."""
+    """Contiguous remote storage with explicit metadata and transfer operations.
+
+    Read-only ``device`` identifies the owning RemoteDevice; ``shape`` and
+    ``dtype`` describe the logical tensor independently of remote metadata.
+    Views retain shared backing storage, and returned tensors retain the remote
+    object handle until the last local owner disappears. The backing owner also
+    retains the session. No data pointer is exposed for local use or DLPack;
+    ``numpy`` and ``copyto`` explicitly materialize data in client memory.
+    """
 
     @property
     def ndim(self):
