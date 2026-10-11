@@ -26,10 +26,10 @@ import tvm_ffi
 import tvm
 import tvm.script
 import tvm.testing
+from tvm.backend.cuda.axis import TCol, TLane, laneid, warpid
 from tvm.ir import TensorRegion, assert_structural_equal
 from tvm.script import ir as I
 from tvm.script import tirx as T
-from tvm.tirx.layout import TCol, TLane, laneid, warpid
 
 
 def test_roundtrip_layout():
@@ -311,7 +311,7 @@ def test_tensor():
     def test(
         A: T.Tensor((10, 11), "float32", layout=None),
         B: T.Tensor((10, 11), "float32", scope="global"),
-        C: T.Tensor((10, 11), "float32", layout="default"),
+        C: T.Tensor((10, 11), "float32"),
         D: T.Tensor((10, 11), "float32", layout=T.TileLayout(T.S[(10, 11) : (1, 10)])),
         _E: T.Tensor([10, 11], 'float16', layout=None),
         _F: T.Tensor([10, 11], 'float16', scope='global'),
@@ -325,12 +325,12 @@ def test_tensor():
         )
         _B0 = T.decl_tensor(B.data, ty_args=[T.Tensor((10, 11), "float32", scope="global")])
         _C0 = T.decl_tensor(
-            C.data, ty_args=[T.Tensor((10, 11), "float32", layout="default", data=C.data)]
+            C.data, ty_args=[T.Tensor((10, 11), "float32", data=C.data)]
         )
         _D0 = T.decl_tensor(D.data, ty_args=[T.Tensor((10, 11), "float32", layout=T.TileLayout(T.S[(10, 11) : (1, 10)]), data=D.data)])  # noqa: E501
         _A1 = T.alloc_tensor(ty_args=[T.Tensor((10, 11), "float32", layout=None)])
         _B1 = T.alloc_tensor(ty_args=[T.Tensor((10, 11), "float32", scope="global")])
-        _C1 = T.alloc_tensor(ty_args=[T.Tensor((10, 11), "float32", layout="default")])
+        _C1 = T.alloc_tensor(ty_args=[T.Tensor((10, 11), "float32")])
         _D1 = T.alloc_tensor(
             ty_args=[T.Tensor((10, 11), "float32", layout=T.TileLayout(T.S[(10, 11) : (1, 10)]))]
         )
@@ -366,13 +366,13 @@ def test_scalar_alloctensor_annotation_and_init_merge():
     code = test.script()
     assert (
         'phase_mma = T.alloc_tensor(ty_args=[T.Tensor((1,), "int32", '
-        'scope="local", layout="default")])'
+        'scope="local")])'
         in code
     )
     assert "phase_mma[0] = 0" in code
     assert (
         'phase_aux = T.alloc_tensor(ty_args=[T.Tensor((1,), "int32", '
-        'scope="local", layout="default")])'
+        'scope="local")])'
         in code
     )
     assert "phase_mma = T.alloc_local" not in code
@@ -381,7 +381,7 @@ def test_scalar_alloctensor_annotation_and_init_merge():
     assert_structural_equal(test, from_source(code))
 
 
-def test_scalar_alloctensor_layout_none_keeps_alloc_local():
+def test_scalar_alloctensor_layout_none_roundtrips_as_scalar():
     # fmt: off
     @T.function
     def test():
@@ -393,7 +393,7 @@ def test_scalar_alloctensor_layout_none_keeps_alloc_local():
 
     code = test.script()
     assert (
-        'phase_mma = T.alloc_tensor(ty_args=[T.Tensor((1,), "int32", scope="local", layout=None)])'
+        'phase_mma = T.alloc_tensor(ty_args=[T.Tensor((1,), "int32", scope="local")])'
         in code
     )
     assert "phase_mma: T.int32" not in code
@@ -412,7 +412,7 @@ def test_scalar_alloctensor_annotation_sugar():
 
     code = test.script()
     assert (
-        'x = T.alloc_tensor(ty_args=[T.Tensor((1,), "int32", scope="local", layout="default")])'
+        'x = T.alloc_tensor(ty_args=[T.Tensor((1,), "int32", scope="local")])'
         in code
     )
     assert "x[0] = 0" in code
@@ -486,7 +486,7 @@ def test_tensor_local_ir():
     code = func.script()
     assert (
         'v_1 = T.decl_tensor(v.data, ty_args=[T.Tensor((2,), "float16", '
-        'scope="local", layout="default")])'
+        'scope="local")])'
     ) in code
     assert from_source(code).script() == code
     assert_structural_equal(func, from_source(code))
@@ -528,7 +528,7 @@ def _tensor_source(func, tensor):
 
 def test_tensor_local_physical_order():
     """Both inferred and explicit shapes map a non-trivial fragment physically."""
-    from tvm.tirx.layout import tcgen05_atom_layout
+    from tvm.backend.cuda.layout import tcgen05_atom_layout
 
     # fmt: off
     @T.function
@@ -562,11 +562,11 @@ def test_tensor_local_physical_order():
     code = func.script()
     assert (
         'v_1 = T.decl_tensor(v.data, ty_args=[T.Tensor((32,), "float32", '
-        'scope="local", layout="default")])'
+        'scope="local")])'
     ) in code
     assert (
         'v_2 = T.decl_tensor(v.data, ty_args=[T.Tensor((4, 8), "float32", '
-        'scope="local", layout="default")])'
+        'scope="local")])'
     ) in code
     assert from_source(code).script() == code
     assert_structural_equal(func, from_source(code))
@@ -574,7 +574,7 @@ def test_tensor_local_physical_order():
 
 def test_tensor_local_layout_overrides_roundtrip():
     """Storage and arbitrary mediated layouts remain explicit overrides."""
-    from tvm.tirx.layout import tcgen05_atom_layout
+    from tvm.backend.cuda.layout import tcgen05_atom_layout
 
     # fmt: off
     @T.function
@@ -721,7 +721,7 @@ def test_tensor_local_physical_span_includes_gaps_and_offset():
 
 def test_tensor_local_printer_is_stable_with_multiple_aliases():
     """Thread-layout parents win deterministically over sibling aliases."""
-    from tvm.tirx.layout import tcgen05_atom_layout
+    from tvm.backend.cuda.layout import tcgen05_atom_layout
 
     # fmt: off
     @T.function
@@ -738,11 +738,11 @@ def test_tensor_local_printer_is_stable_with_multiple_aliases():
     expected = func.script()
     assert (
         'v_1 = T.decl_tensor(v.data, ty_args=[T.Tensor((32,), "float32", '
-        'scope="local", layout="default")])'
+        'scope="local")])'
     ) in expected
     assert (
         'v_2 = T.decl_tensor(v.data, ty_args=[T.Tensor((4, 8), "float32", '
-        'scope="local", layout="default")])'
+        'scope="local")])'
     ) in expected
     storage_line = next(line for line in expected.splitlines() if "v_3 =" in line)
     assert (
@@ -1519,11 +1519,13 @@ def test_roundtrip_tmem_decl_tensor():
     decls = []
     tvm_ffi.structural_walk(
         func.body,
-        lambda node: decls.append(node)
-        if isinstance(node, tvm.ir.Bind)
-        and isinstance(node.value, tvm.ir.Call)
-        and node.value.op.name in ("tirx.decl_tensor", "tirx.cuda.decl_tmem")
-        else None,
+        lambda node: (
+            decls.append(node)
+            if isinstance(node, tvm.ir.Bind)
+            and isinstance(node.value, tvm.ir.Call)
+            and node.value.op.name in ("tirx.decl_tensor", "tirx.cuda.decl_tmem")
+            else None
+        ),
     )
     # The shared alias has an explicit definition before the tensor-memory use.
     assert len(decls) == 2

@@ -31,12 +31,15 @@ _LAZY_SUBMODULES = {
     "cpp",
     "iket",
     "lang",
+    "layout",
+    "axis",
+    "exec_scope",
     "launch",
     "op",
     "ptx",
     "script",
     "target_tags",
-    "tile_primitive",
+    "tile",
     "transforms",
 }
 
@@ -57,6 +60,10 @@ def _detect_target_from_device(dev):
 
 def register_backend():
     """Register CUDA-owned Python semantics."""
+    from . import axis, exec_scope
+
+    exec_scope.register()
+    axis.register()
     from tvm.target.detect_target import register_device_target_detector
     from tvm.tirx.script.ir_builder import (
         op as builder_op,  # pylint: disable=import-outside-toplevel
@@ -81,7 +88,7 @@ def register_backend():
     # codegen layer -- not the device-helper modules. This import is the sole
     # trigger that registers their codegens for codegen_cuda.cc to find.
     import_module(f"{__name__}.cpp")
-    import_module(f"{__name__}.tile_primitive")
+    import_module(f"{__name__}.tile")
     import_module(f"{__name__}.target_tags")
 
 
@@ -117,12 +124,15 @@ def __getattr__(name: str):
 
 __all__ = [
     "BackendConfig",
+    "axis",
     "codegen",
     "cpp",
+    "exec_scope",
     "export_cuda_host",
     "iket",
     "lang",
     "launch",
+    "layout",
     "op",
     "ptx",
     "register_backend",
@@ -130,6 +140,6 @@ __all__ = [
     "script_namespace",
     "script_namespaces",
     "target_tags",
-    "tile_primitive",
+    "tile",
     "transforms",
 ]

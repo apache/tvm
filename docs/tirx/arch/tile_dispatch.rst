@@ -20,8 +20,8 @@ Tensor Instruction Lowering
 
 Backend tensor operations are ordinary ``tvm.ir.Call`` nodes with opaque
 side effects and void return types. CUDA and Trainium register their contracts
-in ``python/tvm/backend/{cuda,trn}/tensor_instructions.py`` using the shared
-``python/tvm/tirx/tensor_instruction.py`` machinery. C++ reflected attribute
+in ``python/tvm/backend/{cuda,trn}/tile/instructions.py`` using the shared
+``python/tvm/tirx/tile/instruction.py`` machinery. C++ reflected attribute
 types and the native Call validator are in ``src/tirx/op/tile.cc``.
 
 ``tirx.TileDispatch`` remains the first phase of ``LowerTIRx``.

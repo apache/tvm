@@ -46,7 +46,23 @@ module:
 
 ``S[...]`` and ``R[...]`` build shard and replica layout specifications,
 respectively.  Named axes such as ``laneid``, ``warpid``, ``tid_in_wg``,
-``TLane``, and ``TCol`` are resolved lazily by this module.
+``TLane``, and ``TCol`` belong to CUDA. Use ``T.cuda.Axis.laneid`` or
+import axes from ``tvm.backend.cuda.axis``. Trainium's ``P``, ``F``, and
+``Bank`` belong to ``T.trn.Axis``. The generic memory axis remains ``T.Axis.m``.
+
+CUDA memory/instruction layout factories are defined in
+``tvm.backend.cuda.layout`` and exposed as ``T.cuda.layout``. Trainium PF
+annotations are explicit factories, for example
+``T.trn.layout.trainium_layout("PF", shape)``; annotation strings are not
+accepted by generic tensor constructors.
+
+Omitting ``layout`` or passing ``layout=None`` leaves every storage scope
+without a layout. ``layout="default"`` explicitly requests a compact
+``TileLayout``. Ordinary views preserve shape, strides and element offsets
+without creating a layout. A tile instruction can infer a temporary layout
+for a compact global tensor, using the full tensor shape before slicing its
+operand region. Noncompact global tensors and other storage scopes require
+an explicit layout when the instruction uses one.
 
 .. automodule:: tvm.tirx.layout
    :members:

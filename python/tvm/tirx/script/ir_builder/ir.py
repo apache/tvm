@@ -37,7 +37,7 @@ from tvm import DataType, ir
 from tvm import tirx as tir
 from tvm.ir import Range, Type, is_prim_expr
 from tvm.ir.location import UNKNOWN_LOC, Location
-from tvm.script.ir_builder.base import MISSING, IRBuilder
+from tvm.script.ir_builder.base import MISSING
 from tvm.script.ir_builder.base import LocationEntry as _LocationEntry
 from tvm.script.ir_builder.ir import Lambda, meta_var
 from tvm.script.parser.protocol_registry import (
@@ -49,7 +49,7 @@ from tvm.script.parser.protocol_registry import (
 from tvm.target import Target
 
 # pylint: disable=unused-import
-from tvm.tirx import Expr, IndexMap, Var, is_tensor_var
+from tvm.tirx import Expr, IndexMap, Var, is_tensor_var, tile
 from tvm.tirx.exec_scope import ExecScope
 
 # import tirx.expr for direct ir construction to pass structural_equal comparison
@@ -58,45 +58,21 @@ from tvm.tirx.expr import (
     IntImm,
     TensorLoad,
 )
-from tvm.tirx.layout import (
-    ComposeLayout,
-    Iter,
-    Layout,
-    R,
-    S,
-    TileLayout,
-    wg_local_layout,
-)
+from tvm.tirx.layout import Axis, ComposeLayout, Iter, Layout, R, S, TileLayout
 
-from . import _ffi_api, frame
+from . import _ffi_api
 
 # pylint: enable=unused-import
 
 
 def _get_layout(layout: str | Layout | None, shape: list[Expr], scope: str) -> Layout | None:
-    if layout is MISSING:
-        if IRBuilder.is_in_scope():
-            for function_frame in reversed(list(IRBuilder.current().frames)):
-                if isinstance(function_frame, frame.FunctionFrame):
-                    return function_frame.default_tensor_layout(shape, scope)
-        if scope in ["trn.sbuf", "trn.psum"]:
-            return None
-        return TileLayout(S[tuple(shape)])
-    if layout is None:
+    if layout is MISSING or layout is None:
         return None
     if isinstance(layout, Layout):
         return layout
-    assert isinstance(layout, str)
     if layout == "default":
-        # An explicit default denotes the same TileLayout in every dialect.
-        # Only an omitted argument consults the enclosing function's policy.
         return TileLayout(S[tuple(shape)])
-    shape = tuple(shape)
-    if scope == "trn.sbuf":
-        layout = TileLayout.trainium(layout, shape)
-    elif scope == "trn.psum":
-        layout = TileLayout.trainium(layout, shape).to_psum()
-    return layout
+    raise TypeError("layout must be a Layout, None, or 'default'")
 
 
 def _normalize_prim_type(dtype) -> ir.PrimType:
@@ -257,7 +233,7 @@ def _tensor_type(
 
     layout : str or Layout, optional
         The tensor layout. "default" constructs the shape's default TileLayout;
-        omission uses the enclosing dialect and scope default. None omits a layout.
+        omission and None both omit a layout.
 
     Returns
     -------
@@ -403,6 +379,8 @@ def wg_reg_tile(elem_per_thread: int, dtype: str = "float32") -> Var:
     Used to stage a tcgen05 load: each of the 128 threads in a warpgroup
     owns one row of ``elem_per_thread`` contiguous elements.
     """
+    from tvm.backend.cuda.layout import wg_local_layout
+
     return _alloc_tensor(
         (128, elem_per_thread),
         dtype,
@@ -566,7 +544,7 @@ def alloc_tcgen05_ldst_frag(instr_shape, tensor_shape, dtype):
         ``frag = T.alloc_tcgen05_ldst_frag("32x32b", (64, 128), "float32")``
         ``Tx.wg.copy_async(frag[:, :], C[:, :])``
     """
-    from tvm.tirx.layout import tcgen05_atom_layout  # local import to avoid cycle
+    from tvm.backend.cuda.layout import tcgen05_atom_layout  # local import to avoid cycle
 
     rows, cols = tensor_shape
     bits = DataType(dtype).bits
@@ -621,7 +599,7 @@ def alloc_scalar(
 ) -> _ir.TensorLoad:
     """Allocate a zero-dimensional tensor (scalar), with optional allocation annotations."""
     buf = _alloc_tensor(
-        shape=(1,), dtype=dtype, scope=scope, layout=TileLayout(S[1]), annotations=annotations
+        shape=(1,), dtype=dtype, scope=scope, layout=None, annotations=annotations
     )
     assert is_tensor_var(buf)
     scalar = buf[0]
@@ -641,7 +619,7 @@ def decl_scalar(dtype, data, scope, elem_offset=None, byte_offset=None) -> _ir.T
                     scope=scope,
                     elem_offset=_get_elem_offset(elem_offset, byte_offset, dtype),
                     align=-1,
-                    layout=TileLayout(S[1]),
+                    layout=None,
                 )
             ],
         )
@@ -1323,6 +1301,7 @@ def Ptr(element_type, storage_scope="global", *, loc: _LocationEntry | Location 
 Tensor = _tensor_type
 
 __all__ = [
+    "Axis",
     "ComposeLayout",
     "DtypeConstructor",
     "ExecScope",
@@ -1498,6 +1477,7 @@ __all__ = [
     "smem",
     "static_assert",
     "target",
+    "tile",
     "tmem",
     "u8",
     "u16",

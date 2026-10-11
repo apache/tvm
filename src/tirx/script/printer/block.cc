@@ -36,7 +36,14 @@ ffi::Optional<ExprDoc> ExecScopeDocTranslate(DocTranslatorObj*, ffi::AnyView inp
                                              const ffi::Object*) {
   const auto* scope =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const tirx::ExecScopeNode>(input);
+  if (!scope->executable()) {
+    return NamespaceDoc("tirx")
+        ->Attr("ExecScope")
+        ->Call({LiteralDoc::Str(scope->backend, std::nullopt),
+                LiteralDoc::Str(scope->name(), std::nullopt)});
+  }
   return NamespaceDoc("tirx")
+      ->Attr(scope->backend)
       ->Attr("ExecScope")
       ->Call({LiteralDoc::Str(scope->name(), std::nullopt)});
 }

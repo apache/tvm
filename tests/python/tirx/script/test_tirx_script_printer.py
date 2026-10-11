@@ -133,7 +133,7 @@ def test_tensor():
     a = tirx.decl_tensor((128, 128), "float16", name="A")
     _assert_print(
         a,
-        """A = T.Var("A", T.Tensor((128, 128), "float16", layout="default"))
+        """A = T.Var("A", T.Tensor((128, 128), "float16"))
 A""",
     )
 
@@ -155,7 +155,7 @@ def test_tensor_region():
     _assert_print(
         obj,
         """
-src = T.Var("src", T.Tensor((128, 128), "float32", layout="default"))
+src = T.Var("src", T.Tensor((128, 128), "float32"))
 src[64:128, 64:128]
 """,
     )
@@ -167,7 +167,7 @@ def test_tensor_load():
     _assert_print(
         obj,
         """
-A = T.Var("A", T.Tensor((128, 128), "float16", layout="default"))
+A = T.Var("A", T.Tensor((128, 128), "float16"))
 A[128, 128]
 """,
     )
@@ -181,7 +181,7 @@ def test_tensor_store():
     _assert_print(
         obj,
         """
-A = T.Var("A", T.Tensor((128, 128), "float16", layout="default"))
+A = T.Var("A", T.Tensor((128, 128), "float16"))
 A[128, 128] = A[128, 128] + T.float16(1.0)
 """,
     )
@@ -251,10 +251,10 @@ def test_allocate(declare):
         obj.body,
         (
             'v_1 = I.Var("", T.Ptr(T.float32))\n'
-            'v = T.decl_tensor(v_1, ty_args=[T.Tensor((128, 128), "float32", layout="default")])\n'
+            'v = T.decl_tensor(v_1, ty_args=[T.Tensor((128, 128), "float32")])\n'
             "T.evaluate(1)\n"
             if declare is TB.decl_tensor
-            else 'v = T.alloc_tensor(ty_args=[T.Tensor((128, 128), "float32", layout="default")])\n'
+            else 'v = T.alloc_tensor(ty_args=[T.Tensor((128, 128), "float32")])\n'
             "T.evaluate(1)\n"
         ),
     )
@@ -274,8 +274,8 @@ def test_allocate_with_decl_tensor_sugar():
     _assert_print(
         obj.body,
         """
-v = T.alloc_tensor(ty_args=[T.Tensor((128, 128), "float32", layout="default")])
-v_1 = T.decl_tensor(v.data, ty_args=[T.Tensor((128, 128), "float32", layout="default")])
+v = T.alloc_tensor(ty_args=[T.Tensor((128, 128), "float32")])
+v_1 = T.decl_tensor(v.data, ty_args=[T.Tensor((128, 128), "float32")])
 T.evaluate(1)
 """,
     )
@@ -295,8 +295,8 @@ def test_allocate_with_decl_tensor_sugar_multi_usage():
     _assert_print(
         obj.body,
         """
-v = T.alloc_tensor(ty_args=[T.Tensor((128, 128), "float32", layout="default")])
-v_1 = T.decl_tensor(v.data, ty_args=[T.Tensor((128, 128), "float32", layout="default")])
+v = T.alloc_tensor(ty_args=[T.Tensor((128, 128), "float32")])
+v_1 = T.decl_tensor(v.data, ty_args=[T.Tensor((128, 128), "float32")])
 T.evaluate(v.data)
 """,
     )
@@ -315,8 +315,8 @@ def test_allocate_with_decl_tensor_no_sugar_mismatch():
     _assert_print(
         obj.body,
         """
-v = T.alloc_tensor(ty_args=[T.Tensor((128, 128), "float32", layout="default")])
-v_1 = T.decl_tensor(v.data, ty_args=[T.Tensor((256, 256), "float32", layout="default")])
+v = T.alloc_tensor(ty_args=[T.Tensor((128, 128), "float32")])
+v_1 = T.decl_tensor(v.data, ty_args=[T.Tensor((256, 256), "float32")])
 T.evaluate(v.data)
 """,
     )
@@ -339,7 +339,7 @@ def test_decl_tensor():
         obj.body,
         """
 v_1 = I.Var("", T.Ptr(T.float32))
-v = T.decl_tensor(v_1, ty_args=[T.Tensor((10, 10), "float32", layout="default")])
+v = T.decl_tensor(v_1, ty_args=[T.Tensor((10, 10), "float32")])
 T.evaluate(1)
 """,
     )
@@ -708,7 +708,7 @@ def test_print_kwargs_schedule_op_full_code():
         "\n"
         "@T.function\n"
         "def test():\n"
-        '    A = T.alloc_tensor(ty_args=[T.Tensor((16,), "float32", layout="default")])\n'
+        '    A = T.alloc_tensor(ty_args=[T.Tensor((16,), "float32")])\n'
         '    T.cuda.tile.mov(A[0:16], T.float32(1.25), scope="warp")'
     )
     code = test.script()
@@ -997,94 +997,94 @@ def test_printer_nki_namespace():
     b0 = B[0]
     _assert_namespace_print(
         trn_op.nki_load(a0, b0),
-        'A = T.Var("A", T.Tensor((1,), "float16", layout="default"))\n'
-        'B = T.Var("B", T.Tensor((1,), "float16", layout="default"))\n'
+        'A = T.Var("A", T.Tensor((1,), "float16"))\n'
+        'B = T.Var("B", T.Tensor((1,), "float16"))\n'
         "T.nki.load(A[0], B[0])",
     )
     _assert_namespace_print(
         trn_op.nki_store(a0, b0),
-        'A = T.Var("A", T.Tensor((1,), "float16", layout="default"))\n'
-        'B = T.Var("B", T.Tensor((1,), "float16", layout="default"))\n'
+        'A = T.Var("A", T.Tensor((1,), "float16"))\n'
+        'B = T.Var("B", T.Tensor((1,), "float16"))\n'
         "T.nki.store(A[0], B[0])",
     )
     _assert_namespace_print(
         trn_op.nki_tensor_copy(a0, b0),
-        'A = T.Var("A", T.Tensor((1,), "float16", layout="default"))\n'
-        'B = T.Var("B", T.Tensor((1,), "float16", layout="default"))\n'
+        'A = T.Var("A", T.Tensor((1,), "float16"))\n'
+        'B = T.Var("B", T.Tensor((1,), "float16"))\n'
         "T.nki.tensor_copy(A[0], B[0])",
     )
     _assert_namespace_print(
         trn_op.nki_matmul(a0, a0, b0),
-        'A = T.Var("A", T.Tensor((1,), "float16", layout="default"))\n'
-        'B = T.Var("B", T.Tensor((1,), "float16", layout="default"))\n'
+        'A = T.Var("A", T.Tensor((1,), "float16"))\n'
+        'B = T.Var("B", T.Tensor((1,), "float16"))\n'
         "T.nki.matmul(A[0], A[0], B[0], T.bool(True))",
     )
     _assert_namespace_print(
         trn_op.nki_activation(a0, b0, "relu", 0.0, 1.0),
-        'A = T.Var("A", T.Tensor((1,), "float16", layout="default"))\n'
-        'B = T.Var("B", T.Tensor((1,), "float16", layout="default"))\n'
+        'A = T.Var("A", T.Tensor((1,), "float16"))\n'
+        'B = T.Var("B", T.Tensor((1,), "float16"))\n'
         'T.nki.activation(A[0], B[0], "relu", '
         "T.float32(0.0), T.float32(1.0))",
     )
     _assert_namespace_print(
         trn_op.nki_memset(a0, 0),
-        'A = T.Var("A", T.Tensor((1,), "float16", layout="default"))\nT.nki.memset(A[0], 0)',
+        'A = T.Var("A", T.Tensor((1,), "float16"))\nT.nki.memset(A[0], 0)',
     )
     _assert_namespace_print(
         trn_op.nki_identity(a0, 1),
-        'A = T.Var("A", T.Tensor((1,), "float16", layout="default"))\nT.nki.identity(A[0], 1)',
+        'A = T.Var("A", T.Tensor((1,), "float16"))\nT.nki.identity(A[0], 1)',
     )
     _assert_namespace_print(
         trn_op.nki_reciprocal(a0, b0),
-        'A = T.Var("A", T.Tensor((1,), "float16", layout="default"))\n'
-        'B = T.Var("B", T.Tensor((1,), "float16", layout="default"))\n'
+        'A = T.Var("A", T.Tensor((1,), "float16"))\n'
+        'B = T.Var("B", T.Tensor((1,), "float16"))\n'
         "T.nki.reciprocal(A[0], B[0])",
     )
     _assert_namespace_print(
         trn_op.nki_tensorreduce(a0, b0, "sum", False, 0),
-        'A = T.Var("A", T.Tensor((1,), "float16", layout="default"))\n'
-        'B = T.Var("B", T.Tensor((1,), "float16", layout="default"))\n'
+        'A = T.Var("A", T.Tensor((1,), "float16"))\n'
+        'B = T.Var("B", T.Tensor((1,), "float16"))\n'
         'T.nki.tensorreduce(A[0], B[0], "sum", '
         "T.bool(False), 0)",
     )
     _assert_namespace_print(
         trn_op.nki_tensortensor(a0, a0, b0, "add"),
-        'A = T.Var("A", T.Tensor((1,), "float16", layout="default"))\n'
-        'B = T.Var("B", T.Tensor((1,), "float16", layout="default"))\n'
+        'A = T.Var("A", T.Tensor((1,), "float16"))\n'
+        'B = T.Var("B", T.Tensor((1,), "float16"))\n'
         'T.nki.tensortensor(A[0], A[0], B[0], "add")',
     )
     _assert_namespace_print(
         trn_op.nki_tensorscalar(a0, a0, 1.0, "mul", False),
-        'A = T.Var("A", T.Tensor((1,), "float16", layout="default"))\n'
+        'A = T.Var("A", T.Tensor((1,), "float16"))\n'
         "T.nki.tensorscalar(A[0], A[0], T.float32(1.0), "
         '"mul", T.bool(False))',
     )
     _assert_namespace_print(
         trn_op.nki_tensorscalar_reduce(a0, a0, 1.0, "mul", "sum", False),
-        'A = T.Var("A", T.Tensor((1,), "float16", layout="default"))\n'
+        'A = T.Var("A", T.Tensor((1,), "float16"))\n'
         'T.nki.tensorscalar_reduce(A[0], A[0], T.float32(1.0), "mul", "sum", T.bool(False), T.bool(False))',  # noqa: E501
     )
     _assert_namespace_print(
         trn_op.nki_scalar_tensor_tensor(a0, a0, 1.0, a0, "add", "add"),
-        'A = T.Var("A", T.Tensor((1,), "float16", layout="default"))\n'
+        'A = T.Var("A", T.Tensor((1,), "float16"))\n'
         'T.nki.scalar_tensor_tensor(A[0], A[0], T.float32(1.0), A[0], "add", "add", T.bool(False), T.bool(False))',  # noqa: E501
     )
     _assert_namespace_print(
         trn_op.nki_scalar_tensor_scalar(a0, a0, 1.0, 1.0, "add", "add"),
-        'A = T.Var("A", T.Tensor((1,), "float16", layout="default"))\n'
+        'A = T.Var("A", T.Tensor((1,), "float16"))\n'
         'T.nki.scalar_tensor_scalar(A[0], A[0], T.float32(1.0), T.float32(1.0), "add", "add", T.bool(False), T.bool(False))',  # noqa: E501
     )
     _assert_namespace_print(
         trn_op.nki_activation_reduce(a0, a0, b0, "relu", "sum", 0.0, 1.0),
-        'A = T.Var("A", T.Tensor((1,), "float16", layout="default"))\n'
-        'B = T.Var("B", T.Tensor((1,), "float16", layout="default"))\n'
+        'A = T.Var("A", T.Tensor((1,), "float16"))\n'
+        'B = T.Var("B", T.Tensor((1,), "float16"))\n'
         "T.nki.activation_reduce(A[0], A[0], B[0], "
         '"relu", "sum", T.float32(0.0), '
         "T.float32(1.0))",
     )
     _assert_namespace_print(
         trn_op.nki_affine_select(a0, a0, a0, 1.0),
-        'A = T.Var("A", T.Tensor((1,), "float16", layout="default"))\n'
+        'A = T.Var("A", T.Tensor((1,), "float16"))\n'
         "T.nki.affine_select(A[0], A[0], A[0], T.float32(1.0))",
     )
 

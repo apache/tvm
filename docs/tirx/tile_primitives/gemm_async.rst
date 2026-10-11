@@ -28,7 +28,7 @@ single-thread call site has already selected that issuer; a warp-scoped call use
 against an mbarrier. It also
 provides ``Tx.cuda.tile.tcgen05.mma_block_scale`` for block-scaled low precision (fp8 / fp4 with per-block scale factors
 ``SFA`` / ``SFB`` in tensor memory). Source:
-``python/tvm/backend/cuda/tile_primitive/gemm_async/tcgen05.py``. (For the
+``python/tvm/backend/cuda/tile/gemm_async/tcgen05.py``. (For the
 synchronous warp-register path see :doc:`gemm`.)
 
 What it accepts
@@ -92,8 +92,9 @@ into shared (from
 
 .. code-block:: python
 
-    from tvm.tirx.layout import S, TCol, TLane, TileLayout, tid_in_wg as axis_tid_in_wg
-    from tvm.backend.cuda.tile_primitive.tma_utils import mma_shared_layout
+    from tvm.tirx.layout import S, TileLayout
+    from tvm.backend.cuda.axis import TCol, TLane, tid_in_wg as axis_tid_in_wg
+    from tvm.backend.cuda.tile.tma_utils import mma_shared_layout
 
     A_smem = Tx.alloc_tensor(
         ty_args=[

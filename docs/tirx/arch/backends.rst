@@ -53,7 +53,7 @@ CUDA ownership
        namespaces.
    * - ``op``
      - Define IR builders used by the CUDA script namespaces.
-   * - ``tile_primitive``
+   * - ``tile``
      - Register named ``Tx.cuda.tile`` instruction contracts and lowerers.
    * - ``codegen`` and ``cpp``
      - Register source-generation callbacks and CUDA C++ helpers.

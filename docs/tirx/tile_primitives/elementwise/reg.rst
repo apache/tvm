@@ -26,7 +26,7 @@ local-tensor layout — the thread axes are dropped, leaving each thread its
 private bundle — and the op is applied to every element in that bundle. The
 lowering path uses local operands; final register allocation
 remains a CUDA compiler decision. Source:
-``python/tvm/backend/cuda/tile_primitive/elementwise/reg.py``.
+``python/tvm/backend/cuda/tile/elementwise/reg.py``.
 
 What it accepts
 ---------------
@@ -78,7 +78,8 @@ A warp takes the elementwise ``sqrt`` of a ``32×8`` ``float32`` local tile
 
 .. code-block:: python
 
-    from tvm.tirx.layout import S, TileLayout, laneid
+    from tvm.tirx.layout import S, TileLayout
+    from tvm.backend.cuda.axis import laneid
 
     r_layout = TileLayout(S[(32, 8) : (1 @ laneid, 1)])
     fs = (slice(0, 32), slice(0, 8))

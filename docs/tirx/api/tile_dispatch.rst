@@ -20,8 +20,8 @@ Tensor Instruction Registration
 
 Backend authors define an ``Instruction`` with its canonical operator name,
 ordered ``Operand`` list, reflected static attribute schema, and one lowerer.
-The shared implementation is ``tvm.tirx.tensor_instruction``; CUDA and
-Trainium's ``tensor_instructions.py`` files contain the concrete contracts.
+The shared implementation is ``tvm.tirx.tile.instruction``; CUDA and
+Trainium's ``tile/instructions.py`` files contain the concrete contracts.
 
 Registration installs the fixed argument count, void return type, opaque
 side effects, category, printer name, and native Call validator on the Op.
@@ -38,3 +38,19 @@ Named workspace operands have fixed optional slots. Declare a workspace policy
 only for instructions that own such scratch storage; do not use it to hide
 caller-owned algorithms. See :doc:`../arch/tile_dispatch` for callbacks and
 the statement replacement boundary.
+
+
+The common Python API is under ``tvm.tirx.tile`` (also ``T.tile``):
+``Instruction``, ``Operand``, ``TensorCall``, and ``DispatchContext``. Backend
+implementations live under ``tvm.backend.cuda.tile`` and
+``tvm.backend.trn.tile``. Their user-facing instruction paths remain
+``T.cuda.tile`` and ``T.trn.tile``. Operator names and serialized type keys
+remain unchanged.
+
+Execution scopes are generic backend/name identities. Backend load hooks
+register their supported scopes and ordering; CUDA exposes
+``T.cuda.ExecScope("warp")`` and Trainium exposes
+``T.trn.ExecScope("thread")``. A string instruction scope is resolved by the
+instruction's backend. CUDA predicate analysis, index bindings, and active
+thread sets live in its private tile implementation; Trainium does not use
+CUDA's execution-context model.

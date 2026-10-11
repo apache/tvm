@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import pytest
 
-from tvm.tirx.exec_context import (
+from tvm.backend.cuda.tile.exec_context import (
     CLUSTER,
     CTA,
     LANE_CTA_THREAD,

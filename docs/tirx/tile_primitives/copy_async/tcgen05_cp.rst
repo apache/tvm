@@ -24,7 +24,7 @@ memory (Blackwell ``tmem``) through the ``tcgen05_cp`` planner, which covers eve
 descriptor fields (ldo/sdo/swizzle) and the cp issue sequence are derived from
 the two tensor layouts. The lowerer issues only the copy; the caller signals
 completion with ``tcgen05.commit``. Source:
-``python/tvm/backend/cuda/tile_primitive/copy_async/tcgen05_cp.py``.
+``python/tvm/backend/cuda/tile/copy_async/tcgen05_cp.py``.
 
 Shape selection
 ---------------
@@ -114,7 +114,8 @@ dealloc tail elided):
 
 .. code-block:: python
 
-    from tvm.tirx.layout import R, S, TCol, TileLayout, TLane
+    from tvm.tirx.layout import R, S, TileLayout
+    from tvm.backend.cuda.axis import TCol, TLane
 
     A_smem = Tx.alloc_tensor(
         ty_args=[

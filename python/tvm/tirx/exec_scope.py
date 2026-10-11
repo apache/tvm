@@ -16,34 +16,36 @@
 # under the License.
 # pylint: disable=no-member, super-init-not-called
 
-"""Definition of execution scope."""
+"""Backend-defined execution scope identities."""
 
 from tvm_ffi import register_object
 
+from tvm.ir import Scriptable
 from tvm.runtime import Object
 
 from . import _ffi_api
 
-_SCOPE_KIND_TO_NAME = {
-    2: "cluster",
-    3: "cta",
-    4: "warpgroup",
-    5: "warp",
-    6: "thread",
-}
-
 
 @register_object("tirx.ExecScope")
-class ExecScope(Object):
-    """An execution scope, identified by one of {cluster, cta, warpgroup, warp,
-    thread}. The ctor FATALs on any other name."""
+class ExecScope(Object, Scriptable):
+    """A registered execution scope belonging to one backend."""
 
-    kind: int
+    backend: str
+    name: str
 
-    def __init__(self, name: str):
-        self.__init_handle_by_constructor__(_ffi_api.ExecScope, name)
+    def __init__(self, backend: str, name: str):
+        self.__init_handle_by_constructor__(_ffi_api.ExecScope, backend, name)
 
     @property
-    def name(self) -> str:
-        """Human-readable name of this scope (derived from ``kind``)."""
-        return _SCOPE_KIND_TO_NAME[self.kind]
+    def is_execution_scope(self) -> bool:
+        return _ffi_api.ExecScopeIsExecutable(self)
+
+
+def register_exec_scope(backend: str, name: str, rank: int, *, executable: bool = True):
+    """Register a backend's finite scope hierarchy, from outer to inner ranks.
+
+    Backend load hooks register scopes before registering their layout axes.
+    A structural root can participate in axis relationships without being an
+    instruction execution scope.
+    """
+    _ffi_api.RegisterExecScope(backend, name, rank, executable)

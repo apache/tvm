@@ -25,7 +25,7 @@ warp's registers, with the hardware performing the lane↔element shuffle that a
 MMA fragment needs. It only applies when the register and shared **layouts match
 the m8n8 fragment geometry**. An incompatible layout is rejected; use
 :doc:`reg` for ordinary memory instructions. Source:
-``python/tvm/backend/cuda/tile_primitive/copy/ld_stmatrix.py``.
+``python/tvm/backend/cuda/tile/copy/ld_stmatrix.py``.
 
 What it accepts
 ---------------
@@ -101,7 +101,8 @@ register, from ``test_ld_stmatrix.py`` (register layout = the m8n8 fragment,
 
 .. code-block:: python
 
-    from tvm.tirx.layout import S, TileLayout, laneid
+    from tvm.tirx.layout import S, TileLayout
+    from tvm.backend.cuda.axis import laneid
 
     num = 2
     M, N = 8, num * 8

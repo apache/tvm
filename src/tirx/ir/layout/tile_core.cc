@@ -359,19 +359,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   });
 }
 
-bool TileLayoutNode::IsTrainium() const {
-  return !std::any_of(shard.begin(), shard.end(), [](const Iter& iter) {
-    return iter->axis->IsMemoryAxis() && !iter->axis.same_as(Axis::Get("F")) &&
-           !iter->axis.same_as(Axis::Get("P")) && !iter->axis.same_as(Axis::Get("Bank"));
-  });
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tirx.TileLayoutIsTrainium",
-                        [](const TileLayout& layout) { return layout->IsTrainium(); });
-}
-
 bool TileLayoutNode::HasMemoryAxis() const {
   return std::any_of(shard.begin(), shard.end(),
                      [](const Iter& iter) { return iter->axis->IsMemoryAxis(); });
@@ -387,6 +374,7 @@ ffi::Optional<ffi::Tuple<ExecScope, ExecScope>> TileLayoutNode::GetScope() const
 
   std::unordered_map<ffi::String, ffi::String> scope_map;
   ffi::Optional<ffi::String> inner_most;
+  ffi::Optional<ffi::String> backend;
 
   auto check_axis = [&](const Axis& axis) {
     if (!axis->IsThreadAxis()) return;
@@ -396,10 +384,17 @@ ffi::Optional<ffi::Tuple<ExecScope, ExecScope>> TileLayoutNode::GetScope() const
     TVM_FFI_ICHECK(subtile_primitivet.has_value() && tile_primitivet.has_value())
         << "Thread axis " << axis.name() << " has no subscope or scope";
 
+    if (backend.has_value()) {
+      TVM_FFI_CHECK(backend.value() == subtile_primitivet.value()->backend, ValueError)
+          << "Layout contains thread axes from different backends";
+    } else {
+      backend = subtile_primitivet.value()->backend;
+    }
     ffi::String subscope = subtile_primitivet.value()->name();
     ffi::String scope = tile_primitivet.value()->name();
 
-    if (!inner_most.has_value() || ScopeNameHigher(inner_most.value(), subscope))
+    if (!inner_most.has_value() ||
+        ScopeHigher(ExecScope(backend.value(), inner_most.value()), subtile_primitivet.value()))
       inner_most = subscope;
 
     auto it = scope_map.find(subscope);
@@ -423,7 +418,8 @@ ffi::Optional<ffi::Tuple<ExecScope, ExecScope>> TileLayoutNode::GetScope() const
   }
 
   TVM_FFI_ICHECK_EQ(count, scope_map.size()) << "Ill-formed tile layout: disconnected scope chain";
-  return Tuple<ExecScope, ExecScope>{ExecScope(inner_most.value()), ExecScope(outer_most)};
+  return Tuple<ExecScope, ExecScope>{ExecScope(backend.value(), inner_most.value()),
+                                     ExecScope(backend.value(), outer_most)};
 }
 
 TileLayout TileLayoutNode::DefaultLayout(ffi::Array<PrimExpr> shape) {

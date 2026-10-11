@@ -67,7 +67,7 @@ class TrainiumLayoutApplier : public tirx::IRMutatorWithAnalyzer {
         new_params.push_back(param);
         continue;
       }
-      if (tensor.value()->layout.has_value()) {
+      if (tensor.value()->layout.has_value() || tensor.value().scope() == "global") {
         TensorVar flattened = storage_lower->GetFlattenedTensor(tensor.value());
         auto type = CopyTensorType(tensor.value());
         type->layout = std::nullopt;
@@ -114,7 +114,7 @@ class TrainiumLayoutApplier : public tirx::IRMutatorWithAnalyzer {
       if (!args.empty()) {
         args.Set(0, Mutate(args[0], inplace_mode).ValueOrUnchanged(args[0]));
       }
-      auto tensor = original_tensor->layout.has_value()
+      auto tensor = (original_tensor->layout.has_value() || original_tensor.scope() == "global")
                         ? GetFlattenedTensor(original_tensor, /*is_alloc=*/true)
                         : original_tensor;
       if (tensor.same_as(original_tensor) && args.same_as(call->args)) {
@@ -199,8 +199,8 @@ class TrainiumLayoutApplier : public tirx::IRMutatorWithAnalyzer {
     if (flattened->dtype->dtype == DLDataType{kDLBool, 8, 1}) {
       type->dtype = PrimType::Int(8);
     }
-    for (size_t i = 0; i < flattened->shape.size(); ++i) {
-      type->shape.Set(i, analyzer_->canonical_simplify(flattened->shape[i]));
+    for (size_t i = 0; i < type->shape.size(); ++i) {
+      type->shape.Set(i, analyzer_->canonical_simplify(type->shape[i]));
     }
     type->layout = std::nullopt;
     type->elem_offset = StmtExprMutator::Mutate(buf->elem_offset, InplaceMode::kDisallow)
@@ -286,7 +286,7 @@ class TrainiumLayoutApplier : public tirx::IRMutatorWithAnalyzer {
 
   TensorStore VisitTensorAccess(TensorStore node, const TensorVar& logical_tensor) {
     TVM_FFI_ICHECK(logical_tensor.defined());
-    if (!logical_tensor->layout.has_value()) {
+    if (!logical_tensor->layout.has_value() && logical_tensor.scope() != "global") {
       return node;
     }
     auto flattened_indices = GetSimplifiedElemOffset(logical_tensor, node->indices);
@@ -299,7 +299,7 @@ class TrainiumLayoutApplier : public tirx::IRMutatorWithAnalyzer {
 
   TensorLoad VisitTensorAccess(TensorLoad node, const TensorVar& logical_tensor) {
     TVM_FFI_ICHECK(logical_tensor.defined());
-    if (!logical_tensor->layout.has_value()) {
+    if (!logical_tensor->layout.has_value() && logical_tensor.scope() != "global") {
       if (node->source.same_as(logical_tensor.var())) return node;
       return MakeTensorLoad(node->source.as_or_throw<TensorVar>(), node->indices, node->loc);
     }

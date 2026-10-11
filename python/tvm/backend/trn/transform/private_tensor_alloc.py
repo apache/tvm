@@ -28,8 +28,8 @@ from tvm.ir import (
     Var,
 )
 from tvm.target import Target
-from tvm.tirx.tensor_instruction import SPECS, TensorCall
-from tvm.tirx.tile_dispatch import DispatchContext
+from tvm.tirx.tile.dispatch import DispatchContext
+from tvm.tirx.tile.instruction import SPECS, TensorCall
 from tvm.tirx.transform.common import seek_kernel_replace_point
 from tvm.tirx.transform.function_pass import function_pass
 
