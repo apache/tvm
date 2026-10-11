@@ -20,12 +20,14 @@ import json
 
 from tvm_ffi import Module
 
+from tvm.backend.config import parse_backend_config
+
 
 def export_cuda_host(mod: Module) -> str:
     """Return C++ host source with embedded device binaries.
 
     Build with a CUDA Target whose host is ``cuda_host``. Each device import
-    retains its own architecture and CompileConfig. This export preserves those
+    retains its own architecture and BackendConfig. This export preserves those
     binary boundaries; compiling the returned host source does not invoke a
     device compiler. Link the result with tvm-ffi, cudart and the CUDA driver.
     The resulting library needs only those libraries at runtime.
@@ -53,13 +55,15 @@ def export_cuda_host(mod: Module) -> str:
             collect(imported)
         binary, fmt, names = device_mod["__tvm_cuda_binary"]()
         if fmt == "cuda":
-            from .compile_config import CompileConfig
             from .compiler import compile_source
 
-            config = device_mod.inspect_source("cuda.compile_config")
+            config = device_mod.inspect_source("backend_config")
             if not config:
-                raise ValueError("CUDA source artifact has no CompileConfig; regenerate it")
-            result = compile_source(bytes(binary).decode(), CompileConfig.from_json(config))
+                config = "{}"
+            config = parse_backend_config(config)
+            arch = config.get("cuda", {}).get("arch")
+            target = {"kind": "cuda", "arch": arch} if arch is not None else None
+            result = compile_source(bytes(binary).decode(), config, target=target)
             binary, fmt = result.binary, result.target_format
         if fmt not in ("cubin", "fatbin", "ptx"):
             raise ValueError(f"Cannot embed CUDA format {fmt!r}")

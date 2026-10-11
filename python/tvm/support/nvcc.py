@@ -26,23 +26,21 @@ import warnings
 import tvm_ffi
 
 import tvm
+from tvm.backend.config import parse_backend_config
 from tvm.target import Target
 
 from . import utils
 
 
-def compile_cuda(code, *, compile_config=None, path_target=None):
-    """Compile source using an explicit CUDA CompileConfig and return its bytes.
+def compile_cuda(code, *, backend_config=None, path_target=None):
+    """Compile source using the nested backend_config mapping and return its bytes.
 
-    For the binary format, resolved configuration and compiler diagnostics, use
+    For the binary format and resolved configuration, use
     :func:`tvm.backend.cuda.compiler.compile_source` directly.
     """
-    from tvm.backend.cuda.compile_config import CompileConfig
     from tvm.backend.cuda.compiler import compile_source
 
-    config = compile_config if compile_config is not None else CompileConfig()
-    config = config.resolved(Target.current())
-    result = compile_source(code, config)
+    result = compile_source(code, backend_config)
     if path_target:
         with open(path_target, "wb") as output:
             output.write(result.binary)
@@ -385,8 +383,8 @@ namespace std {
 
     # CUDA 12.9+ enables a driver-backed cache and calls cuInit implicitly.
     # Keep compilation driver-independent. Its cubin cache also reused an
-    # artifact across FTZ changes in CUDA 13.2; our service exposes an explicit
-    # source/options/toolchain identity for callers that cache results.
+    # artifact across FTZ changes in CUDA 13.2. Keep different compiler
+    # configurations independent of that cache.
     status, major, minor = nvrtc.nvrtcVersion()
     if status == nvrtc.nvrtcResult.NVRTC_SUCCESS and (major, minor) >= (12, 9):
         compile_opts.append(b"--no-cache")
@@ -764,11 +762,15 @@ def find_nvshmem_paths() -> tuple[str, str]:
 @tvm_ffi.register_global_func
 def tvm_callback_cuda_compile(code, config_json):
     """Compile one device group using its serialized, resolved configuration."""
-    from tvm.backend.cuda.compile_config import CompileConfig
     from tvm.backend.cuda.compiler import compile_source
 
-    result = compile_source(code, CompileConfig.from_json(config_json))
-    return [bytearray(result.binary), result.target_format, result.config.to_json(), result.log]
+    config = parse_backend_config(config_json)
+    arch = config.get("cuda", {}).get("arch")
+    # A saved device group already contains its resolved defaults. Do not let
+    # an unrelated Target scope supply new defaults when replaying its source.
+    target = {"kind": "cuda", "arch": arch} if arch is not None else None
+    result = compile_source(code, config, target=target)
+    return [bytearray(result.binary), result.target_format]
 
 
 @tvm_ffi.register_global_func("tvm_callback_libdevice_path")

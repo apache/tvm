@@ -288,9 +288,8 @@ extern "C" __global__ void nvshmem_query_kernel(int* my_pe_out, int* n_pes_out) 
 
 def _kernel_compile(compile_mode):
     """Compile and run a kernel with an explicit NVSHMEM compiler configuration."""
-    from tvm.backend.cuda import CompileConfig
 
-    compile_config = CompileConfig(compiler=compile_mode)
+    backend_config = {"cuda": {"compiler": compile_mode}}
 
     num_workers = 2
     sess = di.ProcessSession(num_workers=num_workers)
@@ -319,7 +318,7 @@ def _kernel_compile(compile_mode):
                         my_pe_out.data,
                         n_pes_out.data,
                         kernel_name="nvshmem_query_kernel",
-                        compile_config=compile_config,
+                        backend_config=backend_config,
                     )
 
             @R.function
@@ -340,7 +339,7 @@ def _kernel_compile(compile_mode):
 
             target = tvm.target.Target("cuda")
             tvm.compile(
-                NvshmemQueryModule, target=target, compile_config=compile_config
+                NvshmemQueryModule, target=target, backend_config=backend_config
             ).export_library(path)
             mod = sess.load_vm_module(path)
             result = mod["main"]()

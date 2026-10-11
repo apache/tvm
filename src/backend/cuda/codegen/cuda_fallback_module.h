@@ -40,7 +40,6 @@
 
 #include "../../../runtime/metadata.h"
 #include "../../../support/env.h"
-#include "../module_metadata.h"
 
 namespace tvm {
 namespace target {
@@ -72,7 +71,6 @@ inline ffi::Module CUDAModuleCreateWithFallback(ffi::Bytes code, ffi::String fmt
     return CUDAFallbackModuleCreate(std::move(code), std::move(fmt), std::move(fmap),
                                     std::move(source));
   }
-  backend::cuda::CompileSource(&code, &fmt, &source);
   // Registry: "ffi.Module.create.cuda" — real CUDA runtime factory.
   // Grep hint: grep -rn 'ffi.Module.create.cuda' src/
   auto fcreate = ffi::Function::GetGlobal("ffi.Module.create.cuda");

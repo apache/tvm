@@ -257,10 +257,10 @@ class HostDeviceSplitter : public StmtExprMutator {
     device_func = WithAttrs(std::move(device_func), {{tvm::attr::kTarget, device_target},
                                                      {tvm::tirx::attr::kNoAlias, true},
                                                      {tvm::tirx::attr::kIsGlobalFunc, true}});
-    if (auto config = region->attrs->dict.Get("cuda.compile_config")) {
-      device_func = WithAttr(std::move(device_func), "cuda.compile_config", config.value());
-    } else if (auto config = cur_func_->GetAttr<ffi::String>("cuda.compile_config")) {
-      device_func = WithAttr(std::move(device_func), "cuda.compile_config", config.value());
+    if (auto config = region->attrs->dict.Get("backend_config")) {
+      device_func = WithAttr(std::move(device_func), "backend_config", config.value());
+    } else if (auto config = cur_func_->GetAttr<ffi::String>("backend_config")) {
+      device_func = WithAttr(std::move(device_func), "backend_config", config.value());
     }
     bool is_stir = cur_func_->attrs->dict.count(tvm::attr::kSTir);
     if (is_stir) {

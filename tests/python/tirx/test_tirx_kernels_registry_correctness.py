@@ -189,9 +189,7 @@ def test_manifest_tirx_kernel_correctness(kernel_name, config):
     with _registry_gpu_lock(kernel_name, config):
         import torch
 
-        from tvm.backend.cuda import CompileConfig
-
-        compile_config = CompileConfig(arch=env.cuda_arch(torch.cuda.current_device()))
+        backend_config = {"cuda": {"arch": env.cuda_arch(torch.cuda.current_device())}}
         kernel_runner.run_kernel_test(
-            kernel_name, config, registry=_KERNELS, compile_config=compile_config
+            kernel_name, config, registry=_KERNELS, backend_config=backend_config
         )

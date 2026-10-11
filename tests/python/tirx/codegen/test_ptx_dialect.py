@@ -52,12 +52,14 @@ def _assert_ptxas_ok(src: str, rdc: bool = False, arch: str = PTX_ARCH) -> None:
     """Assemble through ptxas (cubin) — `-ptx` alone never validates inline asm."""
     from tvm.support import nvcc
 
-    options = ["-rdc=true"] if rdc else None
+    options = ["--use_fast_math"] + (["-rdc=true"] if rdc else [])
     nvcc.compile_cuda(
         src,
-        compile_config=T.cuda.CompileConfig(
-            arch=arch, target_format="cubin", compiler="nvcc", nvcc_options=options
-        ),
+        backend_config={
+            "cuda": T.cuda.BackendConfig(
+                arch=arch, target_format="cubin", compiler="nvcc", nvcc=options
+            )
+        },
     )
 
 

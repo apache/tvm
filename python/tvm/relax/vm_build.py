@@ -103,7 +103,7 @@ def _vmlink(
     params: dict[str, list] | None = None,
     *,
     system_lib: bool | None = None,
-    compile_config=None,
+    backend_config=None,
 ):
     """
     Internal codegen function to make executable.
@@ -148,7 +148,7 @@ def _vmlink(
     if tir_mod is not None and len(tir_mod.get_global_vars()) > 0:
         tir_mod = _auto_attach_system_lib_prefix(tir_mod, target, system_lib)
         lib = tvm.tirx.build(
-            tir_mod, target=target, pipeline=tir_pipeline, compile_config=compile_config
+            tir_mod, target=target, pipeline=tir_pipeline, backend_config=backend_config
         )
     for ext_mod in ext_libs:
         if _is_device_module(ext_mod):
@@ -172,7 +172,7 @@ def build(
     tir_pipeline: None | str | tvm.transform.Pass = "default",
     *,
     system_lib: bool | None = None,
-    compile_config=None,
+    backend_config=None,
 ) -> Executable:
     """
     Build an IRModule to VM executable.
@@ -206,7 +206,7 @@ def build(
         auto registers generated functions to the system.
         By default auto detects based on the target.
 
-    compile_config : Optional[tvm.backend.cuda.CompileConfig]
+    backend_config : Optional[dict[str, dict]]
         CUDA compiler defaults forwarded to the generated TIRx functions.
 
     Returns
@@ -236,9 +236,10 @@ def build(
         constants = attrs.get("const_name_to_constant", {})
         return ext_libs, constants
 
-    from tvm.backend.cuda.compile_config import prepare_target
+    from tvm.backend.config import copy_backend_config, prepare_target
 
-    target = prepare_target(target, compile_config)
+    backend_config = copy_backend_config(backend_config)
+    target = prepare_target(target, backend_config, mod)
     if isinstance(target, str):
         target = tvm.target.Target(target)
     if not params:
@@ -279,7 +280,7 @@ def build(
         ext_libs=ext_libs,
         params=params,
         system_lib=system_lib,
-        compile_config=compile_config,
+        backend_config=backend_config,
     )
 
 

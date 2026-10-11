@@ -359,9 +359,7 @@ def _nvrtc_disassemble(source, tmp_path):
     tmp_path.mkdir(parents=True, exist_ok=True)
     cubin = compile_cuda(
         source,
-        compile_config=T.cuda.CompileConfig(
-            arch="sm_100a", target_format="cubin", compiler="nvrtc"
-        ),
+        backend_config={"cuda": {"arch": "sm_100a", "compiler": "nvrtc", "target_format": "cubin"}},
     )
     cubin_path = tmp_path / "kernel.cubin"
     cubin_path.write_bytes(cubin)

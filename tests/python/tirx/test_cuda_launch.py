@@ -326,4 +326,4 @@ def test_static_shared_memory_override_cannot_shrink_allocation():
         scratch[0] = T.cuda.thread_idx("x")
 
     with pytest.raises(ValueError, match="smaller than"):
-        tvm.compile(kernel, compile_config=T.cuda.CompileConfig(arch="sm_80"))
+        tvm.compile(kernel, backend_config={"cuda": {"arch": "sm_80"}})

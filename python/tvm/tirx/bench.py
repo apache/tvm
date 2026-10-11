@@ -36,6 +36,7 @@ import torch
 import triton.profiler as proton
 
 import tvm
+from tvm.backend.config import merge_backend_configs
 from tvm.script import tirx as T
 
 _DISTRIBUTED_KINETO_WARMUP_ITERATIONS = 5
@@ -79,26 +80,25 @@ def is_running_under_pytest():
 
 def setup():
     """Parse benchmark compile settings for explicit forwarding by the caller."""
-    from tvm.backend.cuda import CompileConfig
-
     parser = argparse.ArgumentParser()
     parser.add_argument("--arch", help="CUDA architecture, for example sm_100a")
     parser.add_argument("--compiler", choices=("nvcc", "nvrtc"))
     parser.add_argument("--target-format", choices=("ptx", "cubin", "fatbin"))
-    parser.add_argument("--dump-dir", help="Directory for source, binary and compiler diagnostics")
     parser.add_argument("--dump-source", action="store_true", help="Print generated source")
-    from tvm.backend.cuda.compile_config import add_compile_config_argument
+    from tvm.backend.config import add_backend_config_argument
 
-    add_compile_config_argument(parser)
+    add_backend_config_argument(parser)
     args = parser.parse_args()
-    args.compile_config = (args.compile_config or CompileConfig()).overlay(
-        CompileConfig(
-            arch=args.arch,
-            compiler=args.compiler,
-            target_format=args.target_format,
-            dump_dir=args.dump_dir,
-        )
-    )
+    overrides = {
+        key: value
+        for key, value in {
+            "arch": args.arch,
+            "compiler": args.compiler,
+            "target_format": args.target_format,
+        }.items()
+        if value is not None
+    }
+    args.backend_config = merge_backend_configs(args.backend_config, {"cuda": overrides})
     return args
 
 

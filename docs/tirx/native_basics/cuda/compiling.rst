@@ -18,95 +18,124 @@
 Compiling and inspecting
 ========================
 
-CUDA compilation uses one immutable ``CompileConfig``. It is available as
-``tvm.backend.cuda.CompileConfig``, ``T.cuda.CompileConfig`` and
-``txl.cuda.CompileConfig``. Build settings provide defaults; a device entry
-can override individual fields:
+CUDA compilation accepts a lightweight ``backend_config`` mapping. The same
+nested structure is accepted by ``tvm.compile``, ``T.device_entry``, and
+``txl.Kernel.compile``. ``tvm.backend.cuda.BackendConfig`` is an optional
+``TypedDict`` helper, also available as ``T.cuda.BackendConfig`` and
+``txl.cuda.BackendConfig``:
 
 .. code-block:: python
 
-    from tvm.backend.cuda import CompileConfig
+    from tvm.backend.cuda import BackendConfig
 
     @T.function
     def pipeline(A: T.Tensor((32,), "float32"), B: T.Tensor((32,), "float32")):
         with T.device_entry(
             launch=T.cuda.LaunchConfig(grid=1, block=32),
-            compile_config=T.cuda.CompileConfig(ftz=False),
+            backend_config={"cuda": {"nvrtc": ["--use_fast_math", "--ftz=false"]}},
         ):
             x = T.cuda.thread_idx("x")
             B[x] = A[x] * T.float32(0.5)
         with T.device_entry(
             launch=T.cuda.LaunchConfig(grid=1, block=32),
-            compile_config=T.cuda.CompileConfig(compiler="nvcc", lineinfo=True),
+            backend_config={"cuda": {
+                "compiler": "nvcc",
+                "nvcc": ["--use_fast_math", "--generate-line-info"],
+            }},
         ):
             y = T.cuda.thread_idx("x")
             A[y] = B[y] + T.float32(1)
 
-    exe = tvm.compile(pipeline, compile_config=CompileConfig(arch="sm_100a"))
+    cuda_config = BackendConfig(arch="sm_100a")
+    exe = tvm.compile(pipeline, backend_config={"cuda": cuda_config})
 
 Each entry resolves its configuration before architecture-sensitive lowering.
 Entries with different resolved targets or options compile as separate CUDA
-modules; their shared device helpers are copied into each group. A single
-function can therefore contain kernels with different architectures and
-compiler settings. Such kernels must still be compatible with the device on
-which the function is executed.
+modules; their shared device helpers are copied into each group. The existing
+host module imports these device modules and launches them in program order.
+Kernels must be compatible with the device on which they execute.
 
-``None`` means unspecified. Explicit ``False``, ``0`` and empty sequences
-replace inherited settings. Sequences replace rather than append. Use
-``config.with_overrides(ftz=False)`` to derive another immutable configuration.
-An explicit ``Target.arch`` and a conflicting build-level ``CompileConfig.arch``
-are rejected. Entry-level architecture overrides are allowed.
+Defaults and overrides
+----------------------
+
+Precedence, from lowest to highest, is backend defaults, Target/tag defaults,
+compile-call overrides, then device-entry overrides. ``None`` and ``{}`` add no
+overrides. Toolchain lists replace inherited lists in full, and ``[]`` clears a
+list. To keep fast math while changing FTZ, include both arguments as above.
+Configuration boundaries snapshot dictionaries and lists, so later mutation of
+the input cannot change an already constructed entry or a factory cache key.
+
+Target tags use the existing target registry and carry defaults in Target attrs:
+
+.. code-block:: python
+
+    tvm.target.tag.register_tag("local/blackwell", {
+        "kind": "cuda", "arch": "sm_100a",
+        "backend_config": {"cuda": {
+            "compiler": "nvcc", "nvcc": ["--use_fast_math", "--generate-line-info"],
+        }},
+    })
+    exe = tvm.compile(pipeline, target="local/blackwell")
+
+Both ``Target("local/blackwell")`` and ``Target({"tag": "local/blackwell"})``
+preserve these defaults in their expanded attributes. There is no separate
+backend tag registry. An explicit ``Target.arch`` conflicting with build-level
+``backend_config["cuda"]["arch"]`` is rejected. An entry can override the arch.
 
 Online builds can detect the GPU architecture. Offline builds require an
-explicit architecture, either in the build configuration or in every device
-entry. No fallback architecture is guessed. A generic ``Target("cuda")`` may
-remain without an architecture for backend discovery and IR construction;
-compilation resolves or validates its architecture before lowering.
-Architecture-dependent Python
-factories must receive the configuration before tracing and record the chosen
-architecture on their entry; later build defaults cannot change that choice.
+explicit architecture in the Target, build configuration, or every device entry.
+A generic ``Target("cuda")`` may remain without an architecture for backend
+discovery and IR construction; compilation validates it before lowering.
+Architecture-dependent Python factories resolve and record their architecture
+before tracing. Other backend defaults remain overridable at compilation.
 
 The default compiler is NVRTC, with fast math enabled and ptxas register usage
 level 10. NVRTC produces cubin by default, NVCC produces fatbin, and NVSHMEM
-requires cubin. Individual ``ftz``, ``prec_div``, ``prec_sqrt`` and ``fmad``
-settings override the fast-math preset. Raw ``nvcc_options``, ``nvrtc_options``
-and ``ptxas_options`` are escape hatches for options without a structured field;
-repeating a structured option there is an error.
+requires cubin. Native options go into ``nvcc``, ``nvrtc``, or ``ptxas`` as
+individual argv strings; the compiler validates their values and availability.
+TVM reserves only routing, architecture, and output controls that it manages.
+Adding a compiler flag does not require adding a Python field or updating TVM.
 
-``LaunchConfig`` controls each runtime launch (grid, block, cluster, stream).
+``LaunchConfig`` supplies runtime grid, block, cluster, and stream settings.
 ``KernelAttributes`` describes CUDA kernel declaration attributes.
-``CompileConfig`` controls the CUDA compiler. The three objects have separate
-lifetimes and all are accepted explicitly where they apply.
+``backend_config`` controls device compilation. PassContext still controls TVM
+passes independently; there is no wrapper combining these APIs. Only CUDA
+backend configuration is implemented currently; unsupported backend keys raise
+an explicit error.
 
 Artifacts and standalone hosts
 ------------------------------
 
-Compiled CUDA modules save the effective configuration, source and diagnostics.
-Source-only fallback artifacts also save their configuration, so replay does
-not depend on the producing process's environment. Old binary artifacts remain
-loadable; old source-only artifacts without configuration must be regenerated.
-
-``CompileConfig(dump_dir="...")`` writes source, binary, resolved JSON and the
-compiler log under a content-derived name. The identity includes source,
-effective compiler options and toolchain version; the dump directory is excluded.
-Dumping never enables debug or line information implicitly.
+CUDA modules retain the resolved configuration as one opaque JSON string,
+available through ``module.inspect_source("backend_config")``. Serialization
+keeps the existing format, function map, and code fields, then appends this string.
+It does not persist compiler logs or the complete source map. Source fallback
+artifacts retain source and configuration and compile on loading with a CUDA
+runtime. Replay uses the saved defaults independently of the loader's Target scope. Producing a source fallback does not require NVCC or NVRTC.
+Old binary artifacts remain loadable; old source artifacts without configuration
+use the default compiler settings when compiled.
 
 For ``target=Target({"kind": "cuda", "arch": "sm_100a"}, host="cuda_host")``,
 ``tvm.backend.cuda.export_cuda_host(exe.mod)`` returns ordinary C++ host source
 with embedded independently compiled device binaries. Compile it with a C++
 compiler and CUDA headers, and link with tvm-ffi, cudart and the CUDA driver.
-The exported library uses ``cuLaunchKernelEx`` and requires no TVM installation
-or device compiler at runtime. Compiling the host does not recompile kernels.
+The exported library requires no TVM installation or device compiler at runtime.
+Compiling the host does not recompile kernels.
 
 Migration
 ---------
 
-Replace ``@txl.kernel(arch=...)``, ``Kernel.arch`` and ``tirx.cuda_arch`` with
-``compile_config=CompileConfig(arch=...)`` on ``device_entry`` or ``compile``.
-Replace compiler/math/ptxas environment variables with the corresponding fields.
-``TIRX_PREPARE_CUDA_ARCH`` is removed; CPU benchmark preparation receives an
-explicit configuration and defaults to NVCC. Removed environment options raise
-an error with the replacement field, instead of being silently ignored.
+Replace the former compilation dataclass with the nested mapping above. Convert
+math, debugging, include, and assembler options to native argument strings.
+Replace ``@txl.kernel(arch=...)`` and ``tirx.cuda_arch`` with an entry or compile
+``backend_config={"cuda": {"arch": ...}}``.
+
+Compiler/math/ptxas environment policies remain removed. CPU benchmark
+preparation receives an explicit architecture through ``backend_config`` and
+defaults to NVCC. The runner, benchmark, and test CLIs accept
+``--backend-config '{"cuda":{"arch":"sm_100a","compiler":"nvcc"}}'``.
+Factory caches use canonical configuration snapshots; dictionary key order is
+ignored while argument order remains significant.
 
 See :doc:`../../api/cuda_compile` for the complete configuration API.
 

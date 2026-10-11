@@ -382,7 +382,7 @@ class TileDispatcher : public StmtExprMutator {
 
     Stmt res = body;
     if (native_launch_) res = CudaIndexLowerer::Lower(res, launch_params_);
-    if (native_launch_ || entry_node->attrs->dict.count("cuda.compile_config")) {
+    if (native_launch_ || entry_node->attrs->dict.count("backend_config")) {
       res = RegionStmt(Op::Get("tirx.device_scope"), entry_node->args, {}, entry_node->attrs, res);
     }
 

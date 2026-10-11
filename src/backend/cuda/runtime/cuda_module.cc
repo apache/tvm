@@ -27,6 +27,7 @@
 #include <cuda.h>
 #include <cuda_runtime.h>
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/container/array.h>
 #include <tvm/ffi/extra/c_env_api.h>
 #include <tvm/ffi/extra/cuda/base.h>
 #include <tvm/ffi/extra/module.h>
@@ -46,7 +47,6 @@
 #include "../../../support/bytes_io.h"
 #include "../launch/launch_config.h"
 #include "../launch/launch_plan.h"
-#include "../module_metadata.h"
 
 namespace tvm {
 namespace runtime {
@@ -74,7 +74,11 @@ class CUDAModuleNode : public ffi::ModuleObj {
  public:
   CUDAModuleNode(ffi::Bytes code, ffi::String fmt, ffi::Map<ffi::String, FunctionInfo> fmap,
                  ffi::Map<ffi::String, ffi::String> source)
-      : code_(code), fmt_(fmt), fmap_(fmap), source_(source) {
+      : code_(code),
+        fmt_(fmt),
+        fmap_(fmap),
+        source_(source),
+        backend_config_(source.Get("backend_config").value_or("{}")) {
     std::fill(module_.begin(), module_.end(), nullptr);
   }
   // destructor
@@ -108,10 +112,18 @@ class CUDAModuleNode : public ffi::ModuleObj {
   ffi::Optional<ffi::Function> GetFunction(const ffi::String& name) final;
 
   ffi::Bytes SaveToBytes() const final {
-    return backend::cuda::SaveModule(fmt_, fmap_, code_, source_);
+    // Keep the existing prefix; only compilation settings are appended.
+    std::string buffer;
+    support::BytesOutStream stream(&buffer);
+    stream.Write(fmt_);
+    stream.Write(fmap_);
+    stream.Write(code_);
+    stream.Write(backend_config_);
+    return ffi::Bytes(std::move(buffer));
   }
 
   ffi::String InspectSource(const ffi::String& format) const final {
+    if (format == "backend_config") return backend_config_;
     // For known compiled formats, return code as string when format matches.
     if (format == fmt_) {
       return ffi::String(code_.data(), code_.size());
@@ -171,8 +183,9 @@ class CUDAModuleNode : public ffi::ModuleObj {
   ffi::String fmt_;
   // function information table.
   ffi::Map<ffi::String, FunctionInfo> fmap_;
-  // Versioned source, resolved configuration and compilation diagnostics.
+  // In-memory source for inspection; not serialized.
   ffi::Map<ffi::String, ffi::String> source_;
+  ffi::String backend_config_;  // Serialized JSON; interpreted only by the compilation backend.
   // the internal modules per GPU, to be lazily initialized.
   std::array<CUmodule, kMaxNumGPUs> module_;
   // All packed wrappers for one CUfunction share monotonically increasing
@@ -275,7 +288,17 @@ ffi::Optional<ffi::Function> CUDAModuleNode::GetFunction(const ffi::String& name
 static ffi::Module CUDAModuleCreateImpl(ffi::Bytes code, ffi::String fmt,
                                         ffi::Map<ffi::String, FunctionInfo> fmap,
                                         ffi::Map<ffi::String, ffi::String> source) {
-  backend::cuda::CompileSource(&code, &fmt, &source);
+  if (fmt == "cuda") {
+    ffi::String text(code.data(), code.size());
+    auto compile = ffi::Function::GetGlobalRequired("tvm_callback_cuda_compile");
+    auto result =
+        compile(text, source.Get("backend_config").value_or("{}")).cast<ffi::Array<ffi::Any>>();
+    source.Set("cuda", text);
+    code = result[0].cast<ffi::Bytes>();
+    fmt = result[1].cast<ffi::String>();
+    TVM_FFI_CHECK(fmt == "ptx" || fmt == "cubin" || fmt == "fatbin", ValueError)
+        << "Unsupported CUDA compilation output: " << fmt;
+  }
   auto n = ffi::make_object<CUDAModuleNode>(code, fmt, fmap, source);
   return ffi::Module(n);
 }
@@ -285,7 +308,22 @@ static ffi::Module CUDAModuleLoadFromBytes(const ffi::Bytes& bytes) {
   ffi::Map<ffi::String, FunctionInfo> fmap;
   ffi::Bytes code;
   ffi::Map<ffi::String, ffi::String> source;
-  backend::cuda::LoadModule(bytes, &fmt, &fmap, &code, &source);
+  support::BytesInStream stream(bytes);
+  TVM_FFI_ICHECK(stream.Read(&fmt));
+  TVM_FFI_ICHECK(stream.Read(&fmap));
+  TVM_FFI_ICHECK(stream.Read(&code));
+  // Upstream artifacts end after code. Accept that form, but reject a partial
+  // trailing string rather than silently treating corrupt metadata as absent.
+  uint64_t length = 0;
+  size_t count = stream.Read(&length, sizeof(length));
+  if (count != 0) {
+    TVM_FFI_ICHECK(count == sizeof(length) && length <= bytes.size());
+    std::string config(length, '\0');
+    TVM_FFI_ICHECK_EQ(stream.Read(config.data(), length), length);
+    source.Set("backend_config", ffi::String(config));
+    char trailing;
+    TVM_FFI_ICHECK_EQ(stream.Read(&trailing, 1), 0);
+  }
   return CUDAModuleCreateImpl(std::move(code), std::move(fmt), std::move(fmap), std::move(source));
 }
 

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-/*! \file bind_compile_config.cc
+/*! \file bind_backend_config.cc
  *  \brief Resolve CUDA configuration before any target-sensitive lowering.
  */
 #include <tvm/ffi/reflection/registry.h>
@@ -34,18 +34,19 @@ namespace tvm {
 namespace tirx {
 namespace transform {
 
-class CompileConfigBinder : public StmtExprMutator {
+class BackendConfigBinder : public StmtExprMutator {
  public:
-  CompileConfigBinder(Target target, ffi::String defaults)
+  BackendConfigBinder(Target target, ffi::String defaults)
       : target_(target),
         defaults_(defaults),
-        resolve_(ffi::Function::GetGlobalRequired("cuda.resolve_compile_config")) {}
+        resolve_(ffi::Function::GetGlobalRequired("cuda.resolve_backend_config")) {}
 
   Function Apply(Function func) {
     TVM_FFI_CHECK(!func->GetAttr<ffi::String>("tirx.cuda_arch").has_value(), ValueError)
-        << "tirx.cuda_arch was removed; use CompileConfig(arch=...) on device_entry or tvm.compile";
+        << "tirx.cuda_arch was removed; set backend_config['cuda']['arch'] on device_entry or "
+           "tvm.compile";
     auto resolved =
-        resolve_(func->GetAttr<ffi::String>("cuda.compile_config").value_or(""), defaults_, target_)
+        resolve_(func->GetAttr<ffi::String>("backend_config").value_or(""), defaults_, target_)
             .cast<ffi::Array<ffi::Any>>();
     target_ = resolved[0].cast<Target>();
     defaults_ = resolved[1].cast<ffi::String>();
@@ -53,7 +54,7 @@ class CompileConfigBinder : public StmtExprMutator {
     auto body =
         Mutate(func->body.value(), InplaceMode::kDisallow).ValueOrUnchanged(func->body.value());
     func.CopyOnWrite()->body = body;
-    return WithAttrs(func, {{tvm::attr::kTarget, target_}, {"cuda.compile_config", defaults_}});
+    return WithAttrs(func, {{tvm::attr::kTarget, target_}, {"backend_config", defaults_}});
   }
 
  private:
@@ -61,13 +62,13 @@ class CompileConfigBinder : public StmtExprMutator {
     if (op->op->name != "tirx.device_entry" && op->op->name != "tirx.device_scope") {
       return StmtExprMutator::Mutate_(op, inplace_mode);
     }
-    auto local = op->attrs->dict.Get("cuda.compile_config");
+    auto local = op->attrs->dict.Get("backend_config");
     auto resolved = resolve_(local.has_value() ? local.value().cast<ffi::String>() : ffi::String(),
                              defaults_, target_)
                         .cast<ffi::Array<ffi::Any>>();
     auto attrs = op->attrs->dict;
     attrs.Set(tvm::attr::kTarget, resolved[0]);
-    attrs.Set("cuda.compile_config", resolved[1]);
+    attrs.Set("backend_config", resolved[1]);
     auto body = Mutate(op->body, InplaceMode::kDisallow).ValueOrUnchanged(op->body);
     return RegionStmt(op->op, op->args, op->body_params, DictAttrs(attrs), body, op->result_vars,
                       op->loc);
@@ -77,13 +78,13 @@ class CompileConfigBinder : public StmtExprMutator {
   ffi::Function resolve_;
 };
 
-Pass BindCompileConfig(ffi::String defaults) {
+Pass BindBackendConfig(ffi::String defaults) {
   auto transform = [defaults](Function func, IRModule mod, PassContext ctx) -> Function {
     auto target = func->GetAttr<Target>(tvm::attr::kTarget);
     if (!target.has_value() || target.value()->kind->name != "cuda") return func;
-    return CompileConfigBinder(target.value(), defaults).Apply(func);
+    return BackendConfigBinder(target.value(), defaults).Apply(func);
   };
-  return CreateFunctionPass(transform, 0, "cuda.BindCompileConfig");
+  return CreateFunctionPass(transform, 0, "cuda.BindBackendConfig");
 }
 
 // Private device helpers belong to a compilation group. Specialize their
@@ -124,7 +125,7 @@ class DeviceHelperSpecializer : public StmtExprMutator {
     auto saved_replacements = replacements_;
     bool saved_active = active_;
     target_ = entry_target.value().cast<Target>().WithoutHost();
-    config_ = op->attrs->dict.at("cuda.compile_config").cast<ffi::String>();
+    config_ = op->attrs->dict.at("backend_config").cast<ffi::String>();
     replacements_ = {};
     active_ = true;
     auto result = StmtExprMutator::Mutate_(op, inplace_mode);
@@ -156,15 +157,14 @@ class DeviceHelperSpecializer : public StmtExprMutator {
     if (auto existing = replacements_.Get(callee.value())) {
       replacement = existing.value();
     } else {
-      bool same_group =
-          original_target.value()->str() == target_->str() &&
-          original->GetAttr<ffi::String>("cuda.compile_config").value_or("") == config_;
+      bool same_group = original_target.value()->str() == target_->str() &&
+                        original->GetAttr<ffi::String>("backend_config").value_or("") == config_;
       replacement = same_group
                         ? callee.value()
                         : GlobalVar(names_->FreshName(callee.value()->name_hint + "_cuda", false));
       replacements_.Set(callee.value(), replacement);
       auto helper =
-          WithAttrs(original, {{tvm::attr::kTarget, target_}, {"cuda.compile_config", config_}});
+          WithAttrs(original, {{tvm::attr::kTarget, target_}, {"backend_config", config_}});
       helper = Rewrite(helper);
       output_->Add(replacement, helper);
     }
@@ -257,7 +257,7 @@ Pass SpecializeDeviceHelpers() {
         if (target.value()->host.has_value()) result->Add(gv, base);
         continue;
       }
-      auto config = func.value()->GetAttr<ffi::String>("cuda.compile_config").value_or("");
+      auto config = func.value()->GetAttr<ffi::String>("backend_config").value_or("");
       std::string key = std::string(target.value()->str()) + "\n" + std::string(config);
       auto& group = groups[key];
       if (!group)
@@ -272,7 +272,7 @@ Pass SpecializeDeviceHelpers() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::GlobalDef()
-      .def("tirx.backend.cuda.transforms.BindCompileConfig", BindCompileConfig)
+      .def("tirx.backend.cuda.transforms.BindBackendConfig", BindBackendConfig)
       .def("tirx.backend.cuda.transforms.SpecializeDeviceHelpers", SpecializeDeviceHelpers)
       .def("tirx.backend.cuda.transforms.SpecializeEntryHelpers", SpecializeEntryHelpers);
 }

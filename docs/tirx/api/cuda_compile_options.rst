@@ -18,17 +18,17 @@
 CUDA compiler option coverage
 =============================
 
-``CompileConfig`` currently exposes a selected set of CUDA compilation controls.
-The three raw-option sequences provide additional arguments; accepting an argument
-does not establish that its compilation phase, artifact type, or compiler version
-is supported by TIRx.
+CUDA uses a fixed set of configuration keys and native toolchain argument lists.
+This inventory is documentation, not a registry of accepted flags. Compiler
+upgrades do not require updating the Python API or this inventory before new
+options can be used.
 
 Audit baseline
 --------------
 
 This inventory was checked on 2026-10-10 against the CUDA 13.2 manuals,
 NVCC 13.2.51, NVRTC 13.2, and the installed CUDA 13.2 ``ptxas --help``.
-The current implementation was inspected in ``backend/cuda/compile_config.py``,
+The current implementation was inspected in ``backend/cuda/backend_config.py``,
 ``backend/cuda/compiler.py``, and ``support/nvcc.py``.
 
 The :download:`complete option inventory <../../_static/tirx/cuda_compile_options.json>` contains
@@ -48,61 +48,32 @@ toolkit baseline; it is not a second runtime registry.
 Sources: `NVCC 13.2 manual`_, `NVRTC 13.2 manual`_, and local tool help. The
 `NVCC 13.4 manual`_ and `NVRTC 13.4 manual`_ were compared separately below.
 
-Current structured fields
--------------------------
+API routes
+----------
 
-.. list-table:: Mapping to compiler controls
-   :header-rows: 1
-   :widths: 24 38 38
+``arch``, ``compiler``, and ``target_format`` select the architecture, frontend,
+and artifact. Other options go directly into the selected toolchain list:
 
-   * - Field
-     - NVCC / NVRTC route
-     - Current boundary
-   * - ``arch``
-     - GPU architecture
-     - One real ``sm_*`` architecture per compilation group. NVRTC PTX output
-       translates it to the corresponding ``compute_*`` spelling.
-   * - ``compiler``
-     - Select the frontend
-     - ``nvcc`` or ``nvrtc``; default is NVRTC.
-   * - ``target_format``
-     - NVCC phase flag / NVRTC output API
-     - PTX, cubin, or NVCC fatbin. No general object, LTO IR, or OptiX IR path.
-   * - ``fast_math``
-     - ``--use_fast_math``
-     - Defaults to true in TIRx. Individual math fields follow the preset.
-   * - ``ftz``, ``prec_div``, ``prec_sqrt``, ``fmad``
-     - Corresponding frontend flags
-     - Explicit true/false values override the preset.
-   * - ``cxx_standard``
-     - ``--std``
-     - C++11, C++14, C++17, C++20. No toolchain-version capability check.
-   * - ``device_debug``, ``lineinfo``
-     - Device debug and line-info flags
-     - Both default to false. Device debug can affect optimization as well as
-       debug information; there is no structured ``dopt`` field.
-   * - ``ptxas_opt_level``
-     - ptxas ``--opt-level`` via frontend forwarding
-     - Integer 0 through 3. This is not NVCC host optimization.
-   * - ``ptxas_reg_usage_level``
-     - ptxas ``--register-usage-level``
-     - Integer 0 through 10; TIRx defaults to 10. This is an optimization
-       heuristic, not a register-count cap.
-   * - ``include_dirs``, ``defines``
-     - Include search paths and macro definitions
-     - Tuples replace inherited tuples. Driver-required CUDA includes are added
-       separately.
-   * - ``nvcc_options``, ``nvrtc_options``, ``ptxas_options``
-     - Backend-specific forwarding
-     - No comprehensive option schema, version validation, or workflow validation.
-   * - ``dump_dir``
-     - TIRx source, artifact, metadata, and log output
-     - Diagnostics only; excluded from the compilation cache identity.
+.. code-block:: python
 
-Configuration inheritance applies to these fields, not to the contents of raw
-argument lists. For example, an entry's ``nvrtc_options`` replaces the inherited
-sequence. A raw sequence containing flags for an inactive frontend is currently
-retained in metadata but is not used by the selected frontend.
+    backend_config = {"cuda": {
+        "arch": "sm_100a",
+        "compiler": "nvcc",
+        "nvcc": ["--use_fast_math", "--ftz=false", "--std=c++20", "-I/include"],
+        "nvrtc": ["--use_fast_math", "--ftz=false", "--std=c++20", "-I/include"],
+        "ptxas": ["-O3", "--register-usage-level=10"],
+    }}
+
+These lists are argv items, without shell parsing. The selected frontend receives
+its own list and the forwarded ``ptxas`` list; the other frontend list is retained
+but unused. Each list replaces the inherited list completely. For example,
+``nvrtc=[]`` removes the default fast-math flag and ``ptxas=[]`` removes the
+default assembler arguments. See :doc:`cuda_compile` for all six fixed keys.
+
+TVM checks key names and types and reserves a small set of architecture, output,
+and tool-routing flags. General optimization, math, preprocessing, debug, and
+assembler flags are passed through. Their versions, values, and combinations
+are validated by the actual compiler, not a TVM option schema.
 
 Controls requiring separate treatment
 -------------------------------------
@@ -117,8 +88,8 @@ Controls requiring separate treatment
    * - Device optimization
      - ``--dopt``, ``--Ofast-compile``,
        ``--extra-device-vectorization``, ``--jump-table-density``
-     - Mostly raw arguments. Add explicit validation of frontend availability,
-       accepted values, and interactions with debug settings.
+     - Native arguments; the selected compiler validates availability, accepted
+       values, and interactions with debug settings.
    * - Compilation time and determinism
      - ``--split-compile``, NVCC ``--threads`` and
        ``--split-compile-extended``, ``--frandom-seed``
@@ -127,7 +98,7 @@ Controls requiring separate treatment
    * - Register and occupancy constraints
      - ``--maxrregcount``; ptxas ``--device-function-maxrregcount``,
        ``--maxntid``, ``--minnctapersm``, ``--override-directive-values``
-     - Need precedence rules with ``KernelAttributes`` and ``LaunchConfig``.
+     - Native arguments; CUDA defines interaction with declaration attributes.
        A compilation-wide register cap also concerns device helpers; it is not
        equivalent to the kernel-only ``__maxnreg__`` declaration attribute.
    * - Memory code generation
@@ -150,7 +121,7 @@ Controls requiring separate treatment
    * - NVRTC precompiled headers
      - ``--pch``, ``--create-pch``, ``--use-pch``, ``--pch-dir`` and related flags
      - Raw acceptance is not artifact management. PCH files, compatibility,
-       lifetime, and cache dependencies are not represented by CompileConfig.
+       lifetime, and cache dependencies are not represented by BackendConfig.
    * - Relocatable code and device linking
      - ``--device-c``, ``--device-w``, ``--relocatable-device-code``,
        ``--extensible-whole-program``, ``--device-link``
@@ -179,44 +150,32 @@ Controls requiring separate treatment
 Driver settings that are currently implicit
 -------------------------------------------
 
-The driver still inserts settings outside the dataclass field registry:
+The driver inserts integration settings separately from the user argument lists:
 
 * NVCC receives ``-O3``. This controls its host optimization level, while
-  ``ptxas_opt_level`` is forwarded to the GPU assembler.
+  ``ptxas=["-O..."]`` controls the GPU assembler.
 * NVRTC receives default-device execution-space and device-int128 flags, CUDA
   header search paths, and ``--no-cache`` on NVRTC 12.9 or later. The cache flag
   avoids implicit CUDA-driver initialization and an observed CUDA 13.2 cubin
   cache collision across FTZ settings.
-* Both frontends receive ptxas verbosity and local-memory-use warnings.
+* The default ``ptxas`` list enables verbosity and local-memory-use warnings;
+  overriding the list replaces these defaults.
 * NVSHMEM compilation adds its include paths, relocatable-code settings, and
   link inputs. Output is constrained to cubin.
 
-The source/options/toolchain identity currently includes configuration values
-and the reported frontend version. It does not hash included-header contents,
-PCH files, or arbitrary external libraries named by raw arguments. An option
-inventory must not be mistaken for a fully reproducible external-input model.
+Scope and limitations
+---------------------
 
-Confirmed validation gaps
--------------------------
+The configuration snapshot records option strings. It does not hash included
+headers, PCH files, or external libraries. Process-local factory caches assume
+those inputs and the installed toolchain stay unchanged for the cache lifetime.
+Source artifacts replay the saved options using the toolchain available at load
+time; they do not bundle a compiler.
 
-These are observations of the current implementation, not supported alternatives:
-
-* The shared prefix rule rejects ``-Ofc`` although its long spelling
-  ``--Ofast-compile`` is accepted. It also blocks NVCC ``-O`` while allowing
-  ``--optimize`` to reach a command that already contains ``-O3``.
-* ptxas ``-regUsageLevel`` is accepted although ``--register-usage-level`` is
-  reserved for ``ptxas_reg_usage_level``. Similarly, ``--gpu-name`` is accepted
-  while its ``-arch`` alias is blocked. Alias normalization must be stage-specific.
-* ``--maxrregcount`` is rejected as though it duplicates a CompileConfig field,
-  but there is no such field. KernelAttributes provides a declaration-level
-  alternative, with different scope. The diagnostic and precedence policy need
-  to state that distinction.
-* Several phase-changing, entry-filtering, and forwarded linker arguments are
-  accepted without the corresponding artifact workflow. Unknown raw arguments
-  are delegated to the compiler, so accepted does not mean supported.
-* Structured fields have type/range checks but no general compiler-version or
-  architecture capability matrix. C++23 cannot be selected even with a compiler
-  that supports it, and version-dependent raw options are checked only by the tool.
+Accepting an argument does not add a new artifact or linking workflow. General
+RDC/LTO linking, PCH lifecycle management, alternative output formats, and host
+compiler configuration need their own integration. Only PTX, cubin, and NVCC
+fatbin are supported by this compilation path.
 
 Version comparison
 ------------------
@@ -236,24 +195,13 @@ does not establish the exact release in which each option first appeared.
 Verify an option against the deployed compiler, output format, and architecture;
 do not accept it merely because it appears in the newest manual.
 
-Follow-up implementation order
-------------------------------
+Maintaining this inventory
+--------------------------
 
-1. Give each registered option a frontend/stage, canonical name, exact aliases,
-   value type, scope, known version requirements, and interaction rules. Generate
-   documentation and raw-option ownership checks from that metadata.
-2. Fix the confirmed alias/ownership holes and misleading diagnostics. Explicitly
-   reject unsupported phase changes. Test both long and short spellings.
-3. Add structured controls for common device optimization, compilation-time,
-   diagnostics, and preprocessing settings. Retain an explicit backend-specific
-   escape hatch for options outside the portable subset.
-4. Decide the semantics of compilation-wide resource defaults separately from
-   per-kernel declaration attributes, including how they apply to shared helpers.
-5. Add RDC/LTO, new artifact types, PCH management, and independent host-build
-   configuration only together with their required compile/link/load workflows.
-
-This audit adds documentation and an inventory. It does not claim that these
-follow-up changes or every option in the inventory are implemented.
+Update the documentary snapshot when reviewing a toolkit upgrade. Do not add
+per-option runtime fields or generate a validator from this inventory. New
+artifact or linking workflows require explicit adapter and runtime support;
+ordinary compiler flags can already be passed through the toolchain lists.
 
 .. _NVCC 13.2 manual: https://docs.nvidia.com/cuda/archive/13.2.0/cuda-compiler-driver-nvcc/index.html
 .. _NVRTC 13.2 manual: https://docs.nvidia.com/cuda/archive/13.2.0/nvrtc/index.html

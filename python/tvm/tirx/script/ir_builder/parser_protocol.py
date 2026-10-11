@@ -758,25 +758,25 @@ def device_entry(
     *launch_values,
     launch=None,
     kernel_attrs=None,
-    compile_config=None,
+    backend_config=None,
     attrs=None,
     body_params=None,
 ) -> frame.RegionFrame:
     """Enter a device kernel with independent CUDA launch and compile settings.
 
-    LaunchConfig values are ordinary region operands. CompileConfig supplies
+    LaunchConfig values are ordinary region operands. BackendConfig supplies
     static per-entry overrides. Canonical operands and attributes are accepted
     for IR reconstruction. Other backends may use the argument-free entry.
     """
     if launch is not None and (launch_values or attrs is not None):
         raise ValueError("device_entry launch cannot be combined with canonical operands or attrs")
     attributes = dict(attrs) if attrs is not None else {}
-    if compile_config is not None:
-        from tvm.backend.cuda.compile_config import pack_compile_config
+    if backend_config is not None:
+        from tvm.backend.config import backend_config_json
 
-        if "cuda.compile_config" in attributes:
-            raise ValueError("device_entry compile_config cannot duplicate canonical attrs")
-        attributes["cuda.compile_config"] = pack_compile_config(compile_config)
+        if "backend_config" in attributes:
+            raise ValueError("device_entry backend_config cannot duplicate canonical attrs")
+        attributes["backend_config"] = backend_config_json(backend_config)
     if launch is None:
         if kernel_attrs is not None:
             raise ValueError("device_entry kernel_attrs require a launch configuration")

@@ -26,6 +26,7 @@ import tvm_ffi
 
 from tvm import __version__ as tvm_version
 from tvm import libinfo, tirx
+from tvm.backend.config import backend_config_json, merge_backend_configs
 from tvm.ir import Expr, PointerType, const, is_prim_expr
 from tvm.runtime import Module
 
@@ -67,7 +68,7 @@ class BaseKernel:  # pylint: disable=too-few-public-methods
         launch_param_tags,
         kernel_name,
         fmt="ptx",
-        compile_config=None,
+        backend_config=None,
     ):
         """
         Create a CUDA module from compiled binary (PTX or cubin) and metadata.
@@ -107,7 +108,7 @@ class BaseKernel:  # pylint: disable=too-few-public-methods
         load_meta = tvm_ffi.get_global_func("runtime.LoadMetaDataFromJSON")
         fmap = load_meta(tvm_metadata)
         create_cuda = tvm_ffi.get_global_func("ffi.Module.create.cuda")
-        source = {"cuda.compile_config": compile_config.to_json()} if compile_config else {}
+        source = {"backend_config": backend_config_json(backend_config)} if backend_config else {}
         kernel_module = create_cuda(binary_bytes, fmt, fmap, source)
         return kernel_module
 
@@ -164,13 +165,16 @@ class SourceKernel(BaseKernel):  # pylint: disable=too-few-public-methods
         except:  # pylint: disable=bare-except
             pass
 
-        from tvm.backend.cuda import CompileConfig
-        from tvm.backend.cuda.compile_config import prepare_target
         from tvm.backend.cuda.compiler import compile_source
 
-        config = CompileConfig(cxx_standard="c++17", include_dirs=[str(p) for p in include_paths])
-        config = config.overlay(kwargs.get("compile_config") or CompileConfig())
-        config = config.resolved(prepare_target(None, config))
+        flags = ["--use_fast_math", "--std=c++17"]
+        config = merge_backend_configs(
+            {"cuda": {"nvcc": flags, "nvrtc": flags}}, kwargs.get("backend_config")
+        )
+        # These headers are part of the external-kernel adapter, independent of
+        # whether the caller replaces the native toolchain argument lists.
+        for compiler in ("nvcc", "nvrtc"):
+            config["cuda"][compiler].extend(f"-I{p}" for p in include_paths)
         result = compile_source(source_code, config)
         kernel_module = self._create_cuda_module(
             result.binary,
@@ -178,7 +182,7 @@ class SourceKernel(BaseKernel):  # pylint: disable=too-few-public-methods
             launch_param_tags,
             kernel_name,
             fmt=result.target_format,
-            compile_config=result.config,
+            backend_config=result.config,
         )
 
         return kernel_name, kernel_module, runtime_args

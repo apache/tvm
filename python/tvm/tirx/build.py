@@ -110,7 +110,7 @@ def split_host_device_mods(mod: IRModule) -> tuple[IRModule, dict[tuple[Target, 
     groups = {}
     for gv, func in device_mod.functions.items():
         target = func.attrs["target"]
-        config = func.attrs.get("cuda.compile_config", "")
+        config = func.attrs.get("backend_config", "")
         key = (str(target), config)
         if key not in groups:
             groups[key] = (target, {})
@@ -121,7 +121,7 @@ def split_host_device_mods(mod: IRModule) -> tuple[IRModule, dict[tuple[Target, 
             functions, attrs=device_mod.attrs, global_infos=device_mod.global_infos
         )
         if config:
-            group = group.with_attr("cuda.compile_config", config)
+            group = group.with_attr("backend_config", config)
         device_mod_dict[(target, config)] = group
     return host_mod, device_mod_dict
 
@@ -164,7 +164,7 @@ def build(
     target: str | Target | None = None,
     pipeline: str | tvm.transform.Pass | None = "default",
     *,
-    compile_config=None,
+    backend_config=None,
 ):
     """Build a function with a signature, generating code for devices
     coupled with target information.
@@ -177,8 +177,8 @@ def build(
         The target for compilation.
     pipeline : Union[None, str, tvm.transform.Pass]
         The pipeline to use for compilation.
-    compile_config : Optional[tvm.backend.cuda.CompileConfig]
-        CUDA compiler defaults, overridden field by field by each device entry.
+    backend_config : Optional[dict[str, dict]]
+        Per-backend compiler defaults, overridden by each device entry.
 
     Returns
     -------
@@ -191,10 +191,11 @@ def build(
     else:
         assert isinstance(mod, tvm.IRModule)
 
-    from tvm.backend.cuda.compile_config import prepare_target
-    from tvm.backend.cuda.transforms import BindCompileConfig, SpecializeEntryHelpers
+    from tvm.backend.config import copy_backend_config, prepare_target
+    from tvm.backend.cuda.transforms import BindBackendConfig, SpecializeEntryHelpers
 
-    target = prepare_target(target, compile_config, mod)
+    backend_config = copy_backend_config(backend_config)
+    target = prepare_target(target, backend_config, mod)
 
     # Step 0: Determine the target in environment
     # It's used to bind the Function without target attr to serve as a default target
@@ -227,7 +228,7 @@ def build(
 
     # Step 3: Bind the target to the input module
     mod = tvm.tirx.transform.BindTarget(target_to_bind)(mod)
-    mod = BindCompileConfig(compile_config)(mod)
+    mod = BindBackendConfig(backend_config)(mod)
     mod = SpecializeEntryHelpers()(mod)
 
     # Step 4: Apply the tirx pipeline
