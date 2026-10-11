@@ -1759,6 +1759,28 @@ inline void PrintConst(const FloatImmNode* op, std::ostream& os, CodeGenCUDA* p)
   }
 }
 
+void CodeGenCUDA::Dispatch_(const IntImmNode* op, std::ostream& os) {  // NOLINT(*)
+  PrimType dtype = op->ty.as_or_throw<PrimType>();
+  if (!dtype.IsScalar() || dtype.bits() != 128 ||
+      !dtype.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) {
+    return CodeGenC::Dispatch_(op, os);
+  }
+  bool is_signed = dtype.MatchesCode(DLDataTypeCode::kDLInt);
+  ffi::BigInt bound = ffi::BigInt(1) << (is_signed ? 127 : 128);
+  TVM_FFI_ICHECK(op->value >= (is_signed ? -bound : ffi::BigInt(0)) && op->value < bound)
+      << "Integer immediate does not fit " << dtype;
+  // C++ has no 128-bit integer literal suffix. Assemble two unsigned words,
+  // then apply the sign without ever negating the minimum signed value.
+  bool negative = op->value < 0;
+  ffi::BigInt magnitude = negative ? -op->value - 1 : op->value;
+  uint64_t low = (magnitude & ((ffi::BigInt(1) << 64) - 1)).as<uint64_t>().value();
+  uint64_t high = (magnitude >> 64).as<uint64_t>().value();
+  os << (negative ? "(-(" : "(");
+  PrintType(dtype, os);
+  os << ")(((__uint128_t)" << high << "ULL << 64) | " << low << "ULL)";
+  if (negative) os << " - 1)";
+}
+
 void CodeGenCUDA::Dispatch_(const FloatImmNode* op, std::ostream& os) {  // NOLINT(*)
   PrintConst(op, os, this);
 }

@@ -93,3 +93,41 @@ def test_wait_until_cell_condition_remains_live():
         np.testing.assert_array_equal(output.numpy(), [42])
 
     tvm.testing.run_with_gpu_lock(run)
+
+
+@pytest.mark.skipif(not tvm.cuda().exist, reason="CUDA device is unavailable")
+@pytest.mark.parametrize(
+    "dtype,value",
+    [
+        ("uint128", 0),
+        ("uint128", (1 << 64) + 7),
+        ("uint128", (1 << 128) - 1),
+        ("int128", 0),
+        ("int128", -1),
+        ("int128", -(1 << 127)),
+        ("int128", (1 << 127) - 1),
+    ],
+)
+def test_mutable_cell_cuda_wide_integer_initialization(dtype, value):
+    @T.function
+    def kernel(out: T.Tensor((4,), "uint64")):
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(1,)))
+        cell = T.alloc_cell(dtype, value)
+        captured: T.let = cell
+        cell = T.cast(1, dtype)
+        out[0] = T.cast(captured, "uint64")
+        out[1] = T.cast(T.shift_right(T.cast(captured, "uint128"), 64), "uint64")
+        out[2] = T.cast(cell, "uint64")
+        out[3] = T.cast(T.shift_right(T.cast(cell, "uint128"), 64), "uint64")
+
+    target = tvm.target.Target({"kind": "cuda", "arch": env.cuda_arch() or "sm_90"})
+    module = tvm.compile(kernel, target=target, tir_pipeline="tirx")
+
+    def run():
+        output = tvm.runtime.tensor(np.zeros(4, dtype="uint64"), device=tvm.cuda(0))
+        module(output)
+        mask = (1 << 64) - 1
+        expected = np.array([value & mask, (value >> 64) & mask, 1, 0], dtype="uint64")
+        np.testing.assert_array_equal(output.numpy(), expected)
+
+    tvm.testing.run_with_gpu_lock(run)

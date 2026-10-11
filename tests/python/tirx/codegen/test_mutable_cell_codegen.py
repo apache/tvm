@@ -113,6 +113,28 @@ def test_cuda_mutable_cell_return_and_snapshot(monkeypatch):
     assert re.search(r"return \(captured \+ cell_value_\d+\);", source)
 
 
+def test_cuda_mutable_cell_uint128_zero(monkeypatch):
+    from tvm.tirx.mutable_cell import mutable_cell_alloc, mutable_cell_load
+
+    allocation = mutable_cell_alloc("uint128")
+    cell = tvm.ir.Var("cell", allocation.ty)
+    function = tvm.tirx.Function(
+        [],
+        [tvm.ir.Bind(cell, allocation), tvm.ir.Return(mutable_cell_load(cell))],
+        ret_type=tvm.ir.PrimType("uint128"),
+    ).with_attr("global_symbol", "cell_value")
+    monkeypatch.setenv("TVM_COMPILE_FORCE_FALLBACK", "1")
+    source = tvm.get_global_func("target.build.cuda")(
+        tvm.IRModule({"cell_value": function}),
+        tvm.target.Target({"kind": "cuda", "arch": "sm_80"}),
+    ).inspect_source()
+    assert re.search(r"__uint128_t cell\s*=\s*[^;]+;", source)
+    assert not re.search(r"cell\s*\[", source)
+    snapshot = re.search(r"__uint128_t (\w+) = cell;", source)
+    assert snapshot is not None
+    assert f"return {snapshot.group(1)};" in source
+
+
 @pytest.mark.parametrize("attrs", [{"mutable_cell_writes": [0]}, {"mutable_cell_condition": 0}])
 def test_cuda_rejects_malformed_cell_operand_metadata(attrs, monkeypatch):
     from tvm.tirx.mutable_cell import mutable_cell_alloc, mutable_cell_load

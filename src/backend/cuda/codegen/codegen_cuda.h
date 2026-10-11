@@ -79,6 +79,7 @@ class CodeGenCUDA final : public CodeGenC {
   void Dispatch_(const prim::RampNode* op, std::ostream& os) final;       // NOLINT(*)
   void Dispatch_(const prim::SelectNode* op, std::ostream& os) final;     // NOLINT(*)
   void Dispatch_(const prim::BroadcastNode* op, std::ostream& os) final;  // NOLINT(*)
+  void Dispatch_(const IntImmNode* op, std::ostream& os) final;
   void Dispatch_(const FloatImmNode* op, std::ostream& os) final;
   void Dispatch_(const CallNode* op, std::ostream& os) final;
   void Dispatch_(const prim::CastNode* op, std::ostream& os) final;
