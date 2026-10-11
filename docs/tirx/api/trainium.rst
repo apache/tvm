@@ -56,6 +56,6 @@ Transforms
    :members:
    :no-index:
 
-.. autoclass:: tvm.backend.trn.transform.TrnPrivateBufferAlloc
+.. autoclass:: tvm.backend.trn.transform.TrnPrivateTensorAlloc
    :members:
    :no-index:

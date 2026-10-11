@@ -36,19 +36,19 @@ Stmt ConvertSSA(Stmt stmt);
 IRModule ConvertSSA(IRModule mod);
 
 /*!
- * \brief Convert match buffer target buffer access indices to original one.
- * \param indices The indices of the target buffer
- * \return The indices of source buffer.
+ * \brief Convert match tensor target tensor access indices to original one.
+ * \param indices The indices of the target tensor
+ * \return The indices of source tensor.
  */
-ffi::Array<PrimExpr> ConvertIndices(const MatchBufferRegion& match_buffer,
+ffi::Array<PrimExpr> ConvertIndices(const MatchTensorRegion& match_tensor,
                                     const ffi::Array<PrimExpr>& indices);
 
 /*!
- * \brief Convert match buffer target buffer region to original one.
- * \param region The sub-region of the target buffer
- * \return The region of source buffer.
+ * \brief Convert match tensor target tensor region to original one.
+ * \param region The sub-region of the target tensor
+ * \return The region of source tensor.
  */
-ffi::Array<Range> ConvertRegion(const MatchBufferRegion& match_buffer,
+ffi::Array<Range> ConvertRegion(const MatchTensorRegion& match_tensor,
                                 const ffi::Array<Range>& region);
 
 // Information of tensor core fragment.
@@ -80,18 +80,18 @@ struct FragmentInfo {
 /*!
  * \brief Extract information of tensor core fragment from the IR.
  * \param stmt The stmt to visit.
- * \return Map from buffer variables to the fragment info.
+ * \return Map from tensor variables to the fragment info.
  */
 std::unordered_map<const VarNode*, FragmentInfo> GetTensorCoreFragmentInfo(const Stmt& stmt);
 
-/*! \brief The quad used by StorageAlign for (buffer_idx, axis, factor, offset) */
+/*! \brief The quad used by StorageAlign for (tensor_idx, axis, factor, offset) */
 using StorageAlignTuple = ffi::Tuple<int32_t, int32_t, int32_t, int32_t>;
 /*! \brief A list of StorageAlignTuple, used by StorageAlign */
 using StorageAlignAnnotation = ffi::Array<StorageAlignTuple>;
 /*!
- * \brief Collect storage alignment annotations for all buffer vars within body.
+ * \brief Collect storage alignment annotations for all tensor vars within body.
  * \param body The stmt to collect.
- * \return The result dict from buffer var to storage align annotations.
+ * \return The result dict from tensor var to storage align annotations.
  */
 std::unordered_map<tvm::Var, StorageAlignAnnotation> CollectStorageAlignAnnotation(
     const Stmt& body);

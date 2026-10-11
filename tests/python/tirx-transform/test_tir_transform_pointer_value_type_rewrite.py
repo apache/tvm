@@ -24,7 +24,7 @@ from tvm.script import ir as I
 from tvm.script import tirx as T
 
 
-def _is_buffer_binding(node, *op_names):
+def _is_tensor_binding(node, *op_names):
     return (
         isinstance(node, tvm.ir.Bind)
         and isinstance(node.value, tvm.ir.Call)
@@ -153,7 +153,7 @@ def test_scalar_read_without_write():
     tvm.ir.assert_structural_equal(After, Expected)
 
 
-def test_decl_buffer_alias_chain_uses_flat_root_map():
+def test_decl_tensor_alias_chain_uses_flat_root_map():
     transform = tvm.tirx.transform.PointerValueTypeRewrite()
 
     @I.ir_module
@@ -170,20 +170,20 @@ def test_decl_buffer_alias_chain_uses_flat_root_map():
     func = After["main"]
     assert func.params[0].ty.dtype == tvm.ir.PrimType("float32x4")
 
-    decl_buffers = []
+    decl_tensors = []
     tensor_stores = []
     tvm_ffi.structural_walk(
         func.body,
         lambda node: (
-            decl_buffers.append(node)
-            if _is_buffer_binding(node, "tirx.decl_tensor")
+            decl_tensors.append(node)
+            if _is_tensor_binding(node, "tirx.decl_tensor")
             else tensor_stores.append(node)
             if isinstance(node, tvm.ir.TensorStore)
             else None
         ),
     )
-    assert len(decl_buffers) == 2
-    assert all(decl.var.ty.dtype == tvm.ir.PrimType("float32x4") for decl in decl_buffers)
+    assert len(decl_tensors) == 2
+    assert all(decl.var.ty.dtype == tvm.ir.PrimType("float32x4") for decl in decl_tensors)
     assert len(tensor_stores) == 1
     assert tensor_stores[0].dest.ty.dtype == tvm.ir.PrimType("float32x4")
 

@@ -71,7 +71,7 @@ class ThreadAllreduceBuilder final : public DialectMutator {
         max_num_threads_(target->GetAttr<int64_t>("max_num_threads", -1).value()) {
     for (const Var& param : params) {
       if (param->ty.as<TensorTypeNode>()) {
-        buffer_aliases_.Set(param, param);
+        tensor_aliases_.Set(param, param);
       }
     }
   }
@@ -106,7 +106,7 @@ class ThreadAllreduceBuilder final : public DialectMutator {
   }
 
   UnchangedOr<Stmt> MutateAllocTensor(const BindNode* op, InplaceMode inplace_mode) {
-    buffer_aliases_.Set(op->var, op->var);
+    tensor_aliases_.Set(op->var, op->var);
     // In flat IR, alloc_remap_ may not yet be populated when this AllocTensor is visited
     // (the remap is set up by MakeAllreduce which runs during Evaluate visit
     // that appears later in the sequence). We record the original data pointer and
@@ -120,14 +120,14 @@ class ThreadAllreduceBuilder final : public DialectMutator {
       return RemapAllocTensor(node, it->second);
     }
     // Record for deferred remapping (flat IR case)
-    pending_alloc_buffers_.emplace_back(orig_data_ptr);
+    pending_alloc_tensors_.emplace_back(orig_data_ptr);
     return node;
   }
 
   /*!
-   * \brief Remap an AllocTensor node to use the replacement buffer.
+   * \brief Remap an AllocTensor node to use the replacement tensor.
    * \param node The original AllocTensor node.
-   * \param replacement The replacement buffer.
+   * \param replacement The replacement tensor.
    * \return The remapped statement(s).
    */
   Stmt RemapAllocTensor(Bind node, const TensorVar& replacement) {
@@ -146,8 +146,8 @@ class ThreadAllreduceBuilder final : public DialectMutator {
                 node->loc);
   }
 
-  ffi::Optional<TensorVar> GetRemappedBuffer(const TensorVar& buf) {
-    Var root = buffer_aliases_.Get(buf.var()).value_or(buf.var());
+  ffi::Optional<TensorVar> GetRemappedTensor(const TensorVar& buf) {
+    Var root = tensor_aliases_.Get(buf.var()).value_or(buf.var());
     if (auto it = allreduce_var_remap_.find(root.get()); it != allreduce_var_remap_.end()) {
       return it->second.template as_or_throw<TensorVar>();
     }
@@ -155,12 +155,12 @@ class ThreadAllreduceBuilder final : public DialectMutator {
     return std::nullopt;
   }
 
-  UnchangedOr<Stmt> MutateDeclTensor(const BindNode* op, const CallNode* buffer_call,
+  UnchangedOr<Stmt> MutateDeclTensor(const BindNode* op, const CallNode* tensor_call,
                                      InplaceMode inplace_mode) {
-    RegisterBufferAlias(op->var.as_or_throw<TensorVar>(), buffer_call->args[0]);
+    RegisterTensorAlias(op->var.as_or_throw<TensorVar>(), tensor_call->args[0]);
     // Remap declarations only after the complete traversal has populated the
     // physical-root maps.  Eagerly replacing an alias declared after its
-    // allreduce would retain the old source pointer on the new buffer.
+    // allreduce would retain the old source pointer on the new tensor.
     return DialectMutator::Mutate_(op, inplace_mode);
   }
 
@@ -179,7 +179,7 @@ class ThreadAllreduceBuilder final : public DialectMutator {
                           .template as_or_throw<TensorLoad>();
     op = load.get();
 
-    if (auto opt = GetRemappedBuffer(load->source.as_or_throw<tvm::tirx::TensorVar>())) {
+    if (auto opt = GetRemappedTensor(load->source.as_or_throw<tvm::tirx::TensorVar>())) {
       return MakeTensorLoad(opt.value(), load->indices, load->loc);
     }
     return load;
@@ -200,7 +200,7 @@ class ThreadAllreduceBuilder final : public DialectMutator {
       auto* writer = store.CopyOnWrite();
       writer->dest = replacement->source.template as_or_throw<tvm::tirx::TensorVar>();
       writer->indices = replacement->indices;
-    } else if (auto opt = GetRemappedBuffer(store->dest.as_or_throw<TensorVar>())) {
+    } else if (auto opt = GetRemappedTensor(store->dest.as_or_throw<TensorVar>())) {
       store.CopyOnWrite()->dest = opt.value();
     }
     return store;
@@ -256,16 +256,16 @@ class ThreadAllreduceBuilder final : public DialectMutator {
       }
       dtypes.push_back(values[idx].ty());
     }
-    std::vector<TensorVar> buffers;
-    buffers.reserve(size);
+    std::vector<TensorVar> tensors;
+    tensors.reserve(size);
     for (size_t idx = 0; idx < size; ++idx) {
       PrimExpr arg = destinations[idx].as_or_throw<PrimExpr>();
-      // Loads from boolean buffers may have cast nodes inserted by
+      // Loads from boolean tensors may have cast nodes inserted by
       // earlier passes.
       if (auto cast = arg.as<CastNode>()) {
         arg = cast->value;
       }
-      buffers.push_back(arg.as_or_throw<TensorLoad>()->source.as_or_throw<tvm::tirx::TensorVar>());
+      tensors.push_back(arg.as_or_throw<TensorLoad>()->source.as_or_throw<tvm::tirx::TensorVar>());
     }
 
     std::unordered_set<const VarNode*> reduce_set;
@@ -409,13 +409,13 @@ class ThreadAllreduceBuilder final : public DialectMutator {
         int n_warps = reduce_extent / warp_size_;
         std::vector<TensorVar> local_bufs;
 
-        // 1. Create the staging buffer in shared memory.
+        // 1. Create the staging tensor in shared memory.
         std::vector<TensorVar> staging_shared_bufs;
         staging_shared_bufs.reserve(size);
         for (size_t i = 0; i < size; ++i) {
           TensorVar staging_shared_buf = decl_tensor(
               /*shape=*/{IntImm(reduce_index.ty(), n_warps * group_extent)},
-              /*dtype=*/buffers[i]->dtype, /*name=*/"red_buf_staging", /*storage_scope=*/"shared");
+              /*dtype=*/tensors[i]->dtype, /*name=*/"red_buf_staging", /*storage_scope=*/"shared");
           staging_shared_bufs.push_back(staging_shared_buf);
           new_alloc_bufs.push_back(staging_shared_buf);
         }
@@ -426,7 +426,7 @@ class ThreadAllreduceBuilder final : public DialectMutator {
                               std::nullopt, &seq);
         new_alloc_bufs.insert(new_alloc_bufs.end(), local_bufs.begin(), local_bufs.end());
 
-        // 3. Write allreduce results to staging buffer.
+        // 3. Write allreduce results to staging tensor.
         std::vector<Stmt> write_staging_buf;
         write_staging_buf.reserve(size);
         for (size_t i = 0; i < size; ++i) {
@@ -434,7 +434,7 @@ class ThreadAllreduceBuilder final : public DialectMutator {
                                        .as_or_throw<TensorLoad>()
                                        ->source.as_or_throw<tvm::tirx::TensorVar>());
           write_staging_buf.push_back(TensorStore(
-              /*buffer=*/staging_shared_bufs[i],
+              /*tensor=*/staging_shared_bufs[i],
               /*indices=*/{group_index * n_warps + floordiv(reduce_index, warp_size_)},
               /*value=*/reduce_results[i]));
         }
@@ -442,10 +442,10 @@ class ThreadAllreduceBuilder final : public DialectMutator {
         seq.push_back(If(cond, SeqStmt(write_staging_buf)));
         seq.push_back(SyncThread("shared"));
 
-        // 4. Load staging buffer.
+        // 4. Load staging tensor.
         //    Second round of allreduce.
         for (size_t i = 0; i < size; ++i) {
-          values[i] = MakeTensorLoad(/*buffer=*/staging_shared_bufs[i],
+          values[i] = MakeTensorLoad(/*tensor=*/staging_shared_bufs[i],
                                      /*indices=*/{group_index * n_warps + reduce_index});
         }
         std::tie(reduce_results, local_bufs) = MakeWarpAllreduce(
@@ -453,7 +453,7 @@ class ThreadAllreduceBuilder final : public DialectMutator {
             /*predicate=*/reduce_index < IntImm(reduce_index.ty(), n_warps), &seq);
         new_alloc_bufs.insert(new_alloc_bufs.end(), local_bufs.begin(), local_bufs.end());
 
-        // 5. Create shared memory buffer(s) of `group_extent` elements, storing
+        // 5. Create shared memory tensor(s) of `group_extent` elements, storing
         // the allreduce results so each thread can access.
         std::vector<Stmt> write_result;
         write_result.reserve(size);
@@ -463,10 +463,10 @@ class ThreadAllreduceBuilder final : public DialectMutator {
                                        ->source.as_or_throw<tvm::tirx::TensorVar>());
           TensorVar broadcast_shared_buf = decl_tensor(
               /*shape=*/{IntImm(reduce_index.ty(), group_extent)},
-              /*dtype=*/buffers[i]->dtype, /*name=*/"red_result", /*storage_scope=*/"shared");
+              /*dtype=*/tensors[i]->dtype, /*name=*/"red_result", /*storage_scope=*/"shared");
           write_result.push_back(
               TensorStore(broadcast_shared_buf, {group_index}, reduce_results[i]));
-          // Update `reduce_results`, pointing to the value loaded from the shared memory buffer.
+          // Update `reduce_results`, pointing to the value loaded from the shared memory tensor.
           reduce_results[i] = MakeTensorLoad(broadcast_shared_buf, {group_index});
         }
         seq.push_back(If(reduce_index == zero_index, SeqStmt(write_result)));
@@ -475,7 +475,7 @@ class ThreadAllreduceBuilder final : public DialectMutator {
 
       // Write back allreduce results and update existing allocations.
       for (size_t i = 0; i < size; ++i) {
-        const VarNode* alloc_key = GetAllocationKey(buffers[i].get());
+        const VarNode* alloc_key = GetAllocationKey(tensors[i].get());
         TVM_FFI_ICHECK(!load_remap_.count(alloc_key));
         TensorVar buf =
             reduce_results[i].as_or_throw<TensorLoad>()->source.as_or_throw<tvm::tirx::TensorVar>();
@@ -486,7 +486,7 @@ class ThreadAllreduceBuilder final : public DialectMutator {
         // will cause the existing allocation to be rewritten in MutateAllocTensor.
         alloc_remap_.insert_or_assign(alloc_key, buf);
         allreduce_var_remap_.insert_or_assign(alloc_key, buf.var());
-        allreduce_var_remap_.insert_or_assign(buffers[i].get(), buf.var());
+        allreduce_var_remap_.insert_or_assign(tensors[i].get(), buf.var());
       }
     } else {
       std::vector<TensorVar> shared_bufs;
@@ -495,12 +495,12 @@ class ThreadAllreduceBuilder final : public DialectMutator {
         // special case, no reduction is needed.
         std::vector<Stmt> stores;
         for (size_t i = 0; i < size; ++i) {
-          stores.push_back(TensorStore(buffers[i], {0}, values[i]));
+          stores.push_back(TensorStore(tensors[i], {0}, values[i]));
         }
         return SeqStmt(stores);
       }
       // This sync is necessary because there might be incomplete read of
-      // previous iteration on the same buffer.
+      // previous iteration on the same tensor.
       seq.emplace_back(SyncThread("shared"));
       for (size_t idx = 0; idx < size; ++idx) {
         shared_bufs.push_back(decl_tensor({IntImm(group_index.ty(), group_extent * reduce_extent)},
@@ -512,7 +512,7 @@ class ThreadAllreduceBuilder final : public DialectMutator {
       seq.emplace_back(MakeBufAllreduce(combiner, dtypes, shared_bufs, reduce_index, group_index,
                                         reduce_extent, group_extent, contiguous_reduce_extent));
       for (size_t idx = 0; idx < size; ++idx) {
-        const VarNode* alloc_key = GetAllocationKey(buffers[idx].get());
+        const VarNode* alloc_key = GetAllocationKey(tensors[idx].get());
         TVM_FFI_ICHECK(!load_remap_.count(alloc_key));
         PrimExpr pred =
             prim::MakeConst(PrimType::Bool(static_cast<int16_t>(dtypes[idx].lanes())), true);
@@ -522,7 +522,7 @@ class ThreadAllreduceBuilder final : public DialectMutator {
         load_remap_.insert_or_assign(alloc_key, load);
         alloc_remap_.insert_or_assign(alloc_key, shared_bufs[idx]);
         allreduce_var_remap_.insert_or_assign(alloc_key, shared_bufs[idx].var());
-        allreduce_var_remap_.insert_or_assign(buffers[idx].get(), shared_bufs[idx].var());
+        allreduce_var_remap_.insert_or_assign(tensors[idx].get(), shared_bufs[idx].var());
       }
     }
 
@@ -552,11 +552,11 @@ class ThreadAllreduceBuilder final : public DialectMutator {
       PrimExpr group_index,                              //
       PrimExpr mask, ffi::Optional<PrimExpr> predicate,  //
       std::vector<Stmt>* seq) {
-    int n_buffers = src_values.size();
+    int n_tensors = src_values.size();
 
     std::vector<TensorVar> shared_bufs;
     std::vector<TensorVar> local_bufs;
-    shared_bufs.reserve(n_buffers);
+    shared_bufs.reserve(n_tensors);
 
     // This is the index to the reduction variable, one reduction
     // variable per warp. Local scope seems easier to reason without
@@ -565,8 +565,8 @@ class ThreadAllreduceBuilder final : public DialectMutator {
     ffi::Array<PrimExpr> shape = {1};
 
     std::vector<Stmt> load_values;
-    load_values.reserve(n_buffers);
-    for (int idx = 0; idx < n_buffers; ++idx) {
+    load_values.reserve(n_tensors);
+    for (int idx = 0; idx < n_tensors; ++idx) {
       shared_bufs.push_back(
           decl_tensor(shape, dtypes[idx], "red_buf" + std::to_string(idx), "local"));
       load_values.push_back(TensorStore(shared_bufs[idx], zero_indices, src_values[idx]));
@@ -585,13 +585,13 @@ class ThreadAllreduceBuilder final : public DialectMutator {
     // The mask for this reducer, as this reducer may sit inside
     // a divergent control flow. Here it uses a variable to cache the current
     // active channels.
-    ffi::Optional<TensorVar> mask_buffer;
+    ffi::Optional<TensorVar> mask_tensor;
     if (need_warp_shuffle_mask_) {
-      mask_buffer = decl_tensor(shape, mask.ty(), "mask", "local");
-      seq->emplace_back(TensorStore(mask_buffer.value(), zero_indices, mask));
-      // Push the buffer description.  Later this will have an
+      mask_tensor = decl_tensor(shape, mask.ty(), "mask", "local");
+      seq->emplace_back(TensorStore(mask_tensor.value(), zero_indices, mask));
+      // Push the tensor description.  Later this will have an
       // allocation built for it.
-      local_bufs.push_back(mask_buffer.value());
+      local_bufs.push_back(mask_tensor.value());
     }
 
     // Emit reductions within a warp.
@@ -602,7 +602,7 @@ class ThreadAllreduceBuilder final : public DialectMutator {
     for (int offset = start_offset; offset > 0; offset /= 2) {
       // Load reduction values, no synchronization needed.
       ffi::Array<PrimExpr> a, b;
-      for (int i = 0; i < n_buffers; ++i) {
+      for (int i = 0; i < n_tensors; ++i) {
         TensorVar shared_buf = shared_bufs[i];
         TensorLoad val = MakeTensorLoad(shared_buf, zero_indices);
         TVM_FFI_ICHECK_EQ(val.ty(), dtypes[i]);
@@ -620,7 +620,7 @@ class ThreadAllreduceBuilder final : public DialectMutator {
         //
         // The former may cause dead lock as there is a divergent
         // branch with a warp sync call inside.
-        PrimExpr other = WarpShuffle(tirx::gpu_warp_shuffle_down_op(), mask_buffer, val, offset);
+        PrimExpr other = WarpShuffle(tirx::gpu_warp_shuffle_down_op(), mask_tensor, val, offset);
         TensorVar local_buf = local_bufs[i];
         Stmt s = TensorStore(local_buf, zero_indices, other);
         seq->push_back(s);
@@ -635,8 +635,8 @@ class ThreadAllreduceBuilder final : public DialectMutator {
 
       // Store the reduction result to itself.
       std::vector<Stmt> stores;
-      stores.reserve(n_buffers);
-      for (int i = 0; i < n_buffers; ++i) {
+      stores.reserve(n_tensors);
+      for (int i = 0; i < n_tensors; ++i) {
         TensorVar buf = shared_bufs[i];
         stores.push_back(TensorStore(buf, zero_indices, ret[i]));
       }
@@ -656,8 +656,8 @@ class ThreadAllreduceBuilder final : public DialectMutator {
     }
 
     std::vector<PrimExpr> reduce_results;
-    reduce_results.reserve(n_buffers);
-    for (int i = 0; i < n_buffers; ++i) {
+    reduce_results.reserve(n_tensors);
+    for (int i = 0; i < n_tensors; ++i) {
       reduce_results.push_back(MakeTensorLoad(shared_bufs[i], zero_indices));
     }
 
@@ -797,7 +797,7 @@ class ThreadAllreduceBuilder final : public DialectMutator {
     }
     return ret;
   }
-  // The local buffer index.
+  // The local tensor index.
   PrimExpr BufIndex(PrimExpr reduce_index, PrimExpr group_index, int reduce_extent) {
     if (!IsZero(group_index)) {
       return analyzer_->Simplify(group_index * reduce_extent + reduce_index);
@@ -812,12 +812,12 @@ class ThreadAllreduceBuilder final : public DialectMutator {
   }
 
   // Emit warp shuffle  calls.
-  PrimExpr WarpShuffle(const Op& op, ffi::Optional<TensorVar> mask_buffer, PrimExpr val,
+  PrimExpr WarpShuffle(const Op& op, ffi::Optional<TensorVar> mask_tensor, PrimExpr val,
                        PrimExpr delta_or_lane) {
     ffi::Array<PrimExpr> indices = {0};
     PrimExpr mask{ffi::UnsafeInit{}};
-    if (need_warp_shuffle_mask_ && mask_buffer.has_value()) {
-      mask = MakeTensorLoad(mask_buffer.value(), indices);
+    if (need_warp_shuffle_mask_ && mask_tensor.has_value()) {
+      mask = MakeTensorLoad(mask_tensor.value(), indices);
     } else {
       mask = IntImm::Int32(0);
     }
@@ -889,16 +889,16 @@ class ThreadAllreduceBuilder final : public DialectMutator {
     }
   }
 
-  void RegisterBufferAlias(TensorVar buffer, const Expr& data) {
-    Var root = buffer.var();
+  void RegisterTensorAlias(TensorVar tensor, const Expr& data) {
+    Var root = tensor.var();
     if (auto source = GetBufferDataVar(data);
         source.has_value() && source.value()->ty.as<TensorTypeNode>()) {
-      auto source_root = buffer_aliases_.Get(source.value());
-      TVM_FFI_ICHECK(source_root.has_value()) << "Buffer alias source " << source.value()->name
+      auto source_root = tensor_aliases_.Get(source.value());
+      TVM_FFI_ICHECK(source_root.has_value()) << "Tensor alias source " << source.value()->name
                                               << " must be registered before its DeclTensor alias";
       root = source_root.value();
     }
-    buffer_aliases_.Set(buffer.var(), root);
+    tensor_aliases_.Set(tensor.var(), root);
   }
 
   // The target.
@@ -919,12 +919,12 @@ class ThreadAllreduceBuilder final : public DialectMutator {
   sym::Analyzer analyzer_;
 
  public:
-  const VarNode* GetAllocationKey(const VarNode* buffer) const {
-    if (buffer->ty.as<TensorTypeNode>()) {
-      Var var = ffi::GetRef<Var>(buffer);
-      return buffer_aliases_.Get(var).value_or(var).get();
+  const VarNode* GetAllocationKey(const VarNode* tensor) const {
+    if (tensor->ty.as<TensorTypeNode>()) {
+      Var var = ffi::GetRef<Var>(tensor);
+      return tensor_aliases_.Get(var).value_or(var).get();
     }
-    return buffer;
+    return tensor;
   }
 
   // These members are public for post-processing by DeferredRemapper.
@@ -933,9 +933,9 @@ class ThreadAllreduceBuilder final : public DialectMutator {
   // TensorVar remap
   std::unordered_map<const VarNode*, Var> allreduce_var_remap_;
   // Pending AllocTensor original data pointers (for flat IR deferred remapping)
-  std::vector<const VarNode*> pending_alloc_buffers_;
-  // Physical roots of buffer aliases, flattened at each declaration.
-  ffi::Map<Var, Var> buffer_aliases_;
+  std::vector<const VarNode*> pending_alloc_tensors_;
+  // Physical roots of tensor aliases, flattened at each declaration.
+  ffi::Map<Var, Var> tensor_aliases_;
 };
 
 /*!
@@ -954,11 +954,11 @@ class DeferredRemapper : public DialectMutator {
 
   DeferredRemapper(const std::unordered_map<const VarNode*, TensorVar>& alloc_remap,
                    const std::unordered_map<const VarNode*, Var>& var_remap,
-                   const ffi::Map<Var, Var>& buffer_aliases,
+                   const ffi::Map<Var, Var>& tensor_aliases,
                    const std::vector<const VarNode*>& pending)
       : alloc_remap_(alloc_remap),
         allreduce_var_remap_(var_remap),
-        buffer_aliases_(buffer_aliases) {
+        tensor_aliases_(tensor_aliases) {
     for (const VarNode* ptr : pending) {
       pending_set_.insert(ptr);
     }
@@ -1006,14 +1006,14 @@ class DeferredRemapper : public DialectMutator {
   }
 
   UnchangedOr<Stmt> MutateDeclTensor(const BindNode* op, InplaceMode inplace_mode) {
-    const VarNode* root = buffer_aliases_.Get(op->var).value_or(op->var).get();
+    const VarNode* root = tensor_aliases_.Get(op->var).value_or(op->var).get();
     if (pending_set_.count(root) && alloc_remap_.count(root)) {
       return Evaluate(0);
     }
     auto node = DialectMutator::Mutate_(op, inplace_mode)
                     .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
                     .template as_or_throw<Bind>();
-    if (auto new_buf = GetRemappedBuffer(node->var.template as_or_throw<TensorVar>())) {
+    if (auto new_buf = GetRemappedTensor(node->var.template as_or_throw<TensorVar>())) {
       const CallNode* call = node->value.template as<CallNode>();
       return Bind(
           new_buf.value(),
@@ -1027,8 +1027,8 @@ class DeferredRemapper : public DialectMutator {
   }
 
  private:
-  ffi::Optional<TensorVar> GetRemappedBuffer(const TensorVar& buf) {
-    Var root = buffer_aliases_.Get(buf.var()).value_or(buf.var());
+  ffi::Optional<TensorVar> GetRemappedTensor(const TensorVar& buf) {
+    Var root = tensor_aliases_.Get(buf.var()).value_or(buf.var());
     if (auto it = allreduce_var_remap_.find(root.get()); it != allreduce_var_remap_.end()) {
       return it->second.template as_or_throw<TensorVar>();
     }
@@ -1037,7 +1037,7 @@ class DeferredRemapper : public DialectMutator {
 
   const std::unordered_map<const VarNode*, TensorVar>& alloc_remap_;
   const std::unordered_map<const VarNode*, Var>& allreduce_var_remap_;
-  const ffi::Map<Var, Var>& buffer_aliases_;
+  const ffi::Map<Var, Var>& tensor_aliases_;
   std::unordered_set<const VarNode*> pending_set_;
 };
 
@@ -1053,7 +1053,7 @@ Function LowerThreadAllreduce(Function f) {
   // Post-process: apply deferred remappings for flat IR
   auto remapper = ffi::make_object<DeferredRemapper<DialectMutator>>(
       thread_all_reduce->alloc_remap_, thread_all_reduce->allreduce_var_remap_,
-      thread_all_reduce->buffer_aliases_, thread_all_reduce->pending_alloc_buffers_);
+      thread_all_reduce->tensor_aliases_, thread_all_reduce->pending_alloc_tensors_);
   if (remapper->HasPendingRemaps()) {
     n->body = remapper->Mutate(n->body).ValueOrUnchanged(n->body);
   }

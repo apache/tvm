@@ -31,7 +31,7 @@ namespace tvm {
 namespace tirx {
 
 /*!
- * \brief Allocate a buffer: alloc_tensor(shape, dtype, scope) -> TensorType.
+ * \brief Allocate a tensor: alloc_tensor(shape, dtype, scope) -> TensorType.
  *
  * Arguments, in order:
  * - args[0]: shape, Tuple of integer extents (IntImm or symbolic integer expressions).
@@ -39,22 +39,22 @@ namespace tirx {
  * - args[2]: scope, StringImm naming the storage scope.
  *
  * DictAttrs directly holds the allocation annotations, defaulting to an empty dictionary.
- * The TensorType result agrees with the operands and retains buffer access/storage metadata.
+ * The TensorType result agrees with the operands and retains tensor access/storage metadata.
  *
  */
 TVM_DLL const Op& alloc_tensor_op();
 
 /*!
- * \brief Declare a buffer view: decl_tensor(data, shape, dtype, scope) -> TensorType.
+ * \brief Declare a tensor view: decl_tensor(data, shape, dtype, scope) -> TensorType.
  *
  * Arguments, in order:
- * - args[0]: data, Expr for the existing physical pointer backing the buffer view.
+ * - args[0]: data, Expr for the existing physical pointer backing the tensor view.
  * - args[1]: shape, Tuple of integer extents (IntImm or symbolic integer expressions).
  * - args[2]: dtype, DataTypeImm with a DLDataType payload for the element type.
  * - args[3]: scope, StringImm naming the storage scope.
  *
  * There are no attributes. The TensorType result agrees with the operands and retains
- * buffer access/storage metadata. The operation binds a view without allocating memory.
+ * tensor access/storage metadata. The operation binds a view without allocating memory.
  *
  */
 TVM_DLL const Op& decl_tensor_op();
@@ -162,20 +162,20 @@ TVM_DLL const Op& assume_aligned_op();
 TVM_DLL const Op& undef_op();
 
 /*!
- * \brief Masked buffer load.
+ * \brief Masked tensor load.
  *
  * Arguments, in order:
- * - args[0]: buffer, The buffer.
+ * - args[0]: tensor, The tensor.
  * - args[1]: index, The index.
  * - args[2...]: args, trailing PrimExpr operands.
  */
 TVM_DLL const Op& masked_load_op();
 
 /*!
- * \brief Masked buffer store.
+ * \brief Masked tensor store.
  *
  * Arguments, in order:
- * - args[0]: buffer, The buffer.
+ * - args[0]: tensor, The tensor.
  * - args[1]: value, The value to use.
  * - args[2]: index, The index.
  * - args[3...]: args, trailing PrimExpr operands.

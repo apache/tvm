@@ -41,8 +41,8 @@ class MatmulBefore:
                             with Ts.sblock():
                                 Ts.reads(A[blockIdx_y * 32 : blockIdx_y * 32 + 32, k_0 * 32 : k_0 * 32 + 32], B[k_0 * 32 : k_0 * 32 + 32, blockIdx_x * 32 : blockIdx_x * 32 + 32])
                                 Ts.writes(C[blockIdx_y * 32 : blockIdx_y * 32 + 32, blockIdx_x * 32 : blockIdx_x * 32 + 32])
-                                A_shared = Ts.sblock_alloc_buffer([1024, 1024], dtype="float32", scope="shared")
-                                B_shared = Ts.sblock_alloc_buffer([1024, 1024], dtype="float32", scope="shared")
+                                A_shared = Ts.sblock_alloc_tensor([1024, 1024], dtype="float32", scope="shared")
+                                B_shared = Ts.sblock_alloc_tensor([1024, 1024], dtype="float32", scope="shared")
                                 for ax0_ax1_fused_0 in T.serial(64):
                                     for ax0_ax1_fused_3 in T.vectorized(4):
                                         with Ts.sblock("A_shared"):
@@ -82,10 +82,10 @@ class MatmulAfter:
                             with Ts.sblock():
                                 Ts.reads(A[blockIdx_y * 32 : blockIdx_y * 32 + 32, k_0 * 32 : k_0 * 32 + 32], B[k_0 * 32 : k_0 * 32 + 32, blockIdx_x * 32 : blockIdx_x * 32 + 32])
                                 Ts.writes(C[blockIdx_y * 32 : blockIdx_y * 32 + 32, blockIdx_x * 32 : blockIdx_x * 32 + 32])
-                                A_shared = Ts.sblock_alloc_buffer([1024, 1024], dtype="float32", scope="shared")
-                                B_shared = Ts.sblock_alloc_buffer([1024, 1024], dtype="float32", scope="shared")
-                                A_shared_local = Ts.sblock_alloc_buffer([64, 4], dtype="float32", scope="local")
-                                B_shared_local = Ts.sblock_alloc_buffer([64, 4], dtype="float32", scope="local")
+                                A_shared = Ts.sblock_alloc_tensor([1024, 1024], dtype="float32", scope="shared")
+                                B_shared = Ts.sblock_alloc_tensor([1024, 1024], dtype="float32", scope="shared")
+                                A_shared_local = Ts.sblock_alloc_tensor([64, 4], dtype="float32", scope="local")
+                                B_shared_local = Ts.sblock_alloc_tensor([64, 4], dtype="float32", scope="local")
                                 for ax0_ax1_fused_0 in T.serial(64):
                                     for ax0_ax1_fused_3 in T.vectorized(4):
                                         with Ts.sblock():

@@ -180,12 +180,12 @@ using TRandState = LinearCongruentialEngine::TRandState;
  * \return The base64 encoded string.
  */
 inline std::string Base64Encode(std::string str) {
-  std::string m_buffer;
-  support::BytesOutStream m_stream(&m_buffer);
+  std::string m_tensor;
+  support::BytesOutStream m_stream(&m_tensor);
   support::Base64OutStream b64stream(&m_stream);
   static_cast<support::Stream*>(&b64stream)->Write(str);
   b64stream.Finish();
-  return m_buffer;
+  return m_tensor;
 }
 
 /*!

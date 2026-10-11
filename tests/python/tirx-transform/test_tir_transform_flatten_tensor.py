@@ -25,14 +25,14 @@ from tvm.script import tirx as T
 def _transform():
     return tvm.transform.Sequential(
         [
-            tvm.tirx.transform.FlattenBuffer(),
+            tvm.tirx.transform.FlattenTensor(),
             tvm.tirx.transform.StmtSimplify(),
         ]
     )
 
 
 def test_elementwise():
-    """2-d buffers are flattened to 1-d"""
+    """2-d tensors are flattened to 1-d"""
 
     @I.ir_module
     class Before:
@@ -62,8 +62,8 @@ def test_elementwise():
     tvm.ir.assert_structural_equal(After, Expected)
 
 
-def test_elementwise_without_decl_buffer():
-    """2-d buffers are flattened to 1-d
+def test_elementwise_without_decl_tensor():
+    """2-d tensors are flattened to 1-d
 
     Like test_elementwise, but the TIR doesn't have the DeclTensor
     node.  The T.Tensor declaration applies only during the
@@ -103,7 +103,7 @@ def test_elementwise_without_decl_buffer():
 
 
 def test_gpu():
-    """Buffer flattening may have indices based on GPU thread vars"""
+    """Tensor flattening may have indices based on GPU thread vars"""
 
     @I.ir_module
     class Before:
@@ -289,7 +289,7 @@ def test_multi_alloc():
 
 
 def test_strided():
-    """Indices for flattened buffers use the specified striding."""
+    """Indices for flattened tensors use the specified striding."""
 
     @I.ir_module
     class Before:
@@ -324,7 +324,7 @@ def test_strided():
 
 
 def test_boolean():
-    """Boolean buffers are flattened but kept as bool (no int8 backing array)"""
+    """Boolean tensors are flattened but kept as bool (no int8 backing array)"""
 
     @I.ir_module
     class Before:

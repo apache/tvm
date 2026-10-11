@@ -203,7 +203,7 @@ class MultiLevelTilingTensorCore(ScheduleRule):
 @register_object("s_tir.meta_schedule.MultiLevelTilingWideVector")
 class MultiLevelTilingWideVector(ScheduleRule):
     """Extension of MultiLevelTiling for backends with wide vectors. The loop over the innermost
-    spatial axis of the output buffer is always vectorized with the maximum vector length.
+    spatial axis of the output tensor is always vectorized with the maximum vector length.
 
     Parameters
     ----------

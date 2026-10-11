@@ -341,15 +341,15 @@ inline void ReorderAndFuseReductionLoops(const s_tir::Schedule& sch,
 /******** Helper functions for enum conversion ********/
 
 /*!
- * \brief Convert BufferIndexType to String
- * \param buffer_index_type The BufferIndexType value to convert
- * \return The string representation of BufferIndexType
+ * \brief Convert TensorIndexType to String
+ * \param tensor_index_type The TensorIndexType value to convert
+ * \return The string representation of TensorIndexType
  */
-inline ffi::String BufferIndexType2Str(BufferIndexType buffer_index_type) {
-  if (buffer_index_type == BufferIndexType::kRead) {
+inline ffi::String TensorIndexType2Str(TensorIndexType tensor_index_type) {
+  if (tensor_index_type == TensorIndexType::kRead) {
     return "read";
   } else {
-    TVM_FFI_ICHECK(buffer_index_type == BufferIndexType::kWrite);
+    TVM_FFI_ICHECK(tensor_index_type == TensorIndexType::kWrite);
     return "write";
   }
 }

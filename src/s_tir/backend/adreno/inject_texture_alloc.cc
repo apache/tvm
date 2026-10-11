@@ -45,7 +45,7 @@ using runtime::DefaultTextureLayoutSeparator;
 using runtime::IsTextureStorage;
 
 /*!
- * \brief Inject Texture Alloc Intrinsic right after buffer allocations are realized.
+ * \brief Inject Texture Alloc Intrinsic right after tensor allocations are realized.
  */
 class TextureAllocInjector : public s_tir::IRMutatorWithAnalyzer {
  public:
@@ -56,7 +56,7 @@ class TextureAllocInjector : public s_tir::IRMutatorWithAnalyzer {
     sym::Analyzer ana;
     auto pass = ffi::make_object<TextureAllocInjector>(ana);
     auto writer = func.CopyOnWrite();
-    pass->MarkBufferParamShapes(func);
+    pass->MarkTensorParamShapes(func);
     writer->body = pass->Mutate(func->body).ValueOrUnchanged(func->body);
     return func;
   }
@@ -80,7 +80,7 @@ class TextureAllocInjector : public s_tir::IRMutatorWithAnalyzer {
       op = stmt.as<BindNode>();
       if (const auto* call = op ? op->value.as<CallNode>() : nullptr;
           !call || !call->op.same_as(tirx::alloc_tensor_op())) {
-        TVM_FFI_THROW(InternalError) << "Expected an allocation binding after buffer mutation";
+        TVM_FFI_THROW(InternalError) << "Expected an allocation binding after tensor mutation";
       }
       const auto* allocation = op->value.as<CallNode>();
       tvm::Tuple shape = allocation->args[0].as_or_throw<tvm::Tuple>();

@@ -34,7 +34,7 @@ from ..analysis import (
     is_broadcast_epilogue,
     normalize_function,
 )
-from ..analysis.common_analysis import _buffer_region_offset
+from ..analysis.common_analysis import _tensor_region_offset
 from ..base import auto_vectorize, get_bytes, get_extent, try_inline_contiguous_spatial
 from .base import GPUScheduleRule
 
@@ -84,7 +84,7 @@ def is_gemv(sch: s_tir.Schedule, block_info: SBlockInfo) -> list[tirx.Var] | Non
     Returns
     -------
     ret : Optional[List[tirx.Var]]
-        The vector-like buffers used in the low batch GEMM if it is a low batch GEMM,
+        The vector-like tensors used in the low batch GEMM if it is a low batch GEMM,
         otherwise None.
     """
     block = block_info.block_rv
@@ -134,16 +134,16 @@ def detect_dominant_read(block: s_tir.SBlock, const_iter_vars: set[tirx.Var]) ->
     """Detect the dominant read indices in the block."""
     dominant_read = None
     num_read_iters = -1
-    for buffer_region in block.reads:
+    for tensor_region in block.reads:
         tir_vars = (
-            collect_block_iter_vars_used_in_access_region(block, buffer_region.region)
+            collect_block_iter_vars_used_in_access_region(block, tensor_region.region)
             & const_iter_vars
         )
         if num_read_iters < len(tir_vars):
             num_read_iters = len(tir_vars)
-            dominant_read = buffer_region
+            dominant_read = tensor_region
     assert dominant_read is not None
-    return _buffer_region_offset(dominant_read)
+    return _tensor_region_offset(dominant_read)
 
 
 def normalize(
@@ -164,14 +164,14 @@ def normalize(
         detect_dominant_read(block_stmt, const_iter_vars),
         input_iters={i.var: i.dom for i in block_stmt.iter_vars},
     )
-    buffers_use_vars = [
-        collect_block_iter_vars_used_in_access_region(block_stmt, buf.region)
-        for buf in block_stmt.writes
+    tensors_use_vars = [
+        collect_block_iter_vars_used_in_access_region(block_stmt, tensor.region)
+        for tensor in block_stmt.writes
     ]
-    buffers_use_vars.extend(
+    tensors_use_vars.extend(
         [
-            collect_block_iter_vars_used_in_access_region(block_stmt, buf.region)
-            for buf in block_stmt.reads
+            collect_block_iter_vars_used_in_access_region(block_stmt, tensor.region)
+            for tensor in block_stmt.reads
         ]
     )
     if collect_vars_used_in_prim_expr(access.base) & set(
@@ -191,7 +191,7 @@ def normalize(
         # No C loops as we do not compute_inline weights into main block
         if is_reduction:
             r_loops.append(loop)
-        elif all([var in buf_vars for buf_vars in buffers_use_vars]):
+        elif all([var in tensor_vars for tensor_vars in tensors_use_vars]):
             batch_loops.append(loop)
         else:
             s_loops.append(loop)
@@ -230,8 +230,8 @@ class LowBatchGEMV(GPUScheduleRule):
         if len(reduction_block_infos) != 1:
             return None
         reduction_block_info = reduction_block_infos[0]
-        vector_input_buffers = is_gemv(sch, reduction_block_info)
-        if vector_input_buffers is None:
+        vector_input_tensors = is_gemv(sch, reduction_block_info)
+        if vector_input_tensors is None:
             return None
         batch_pad = self.bucket
         pad_value = [
@@ -268,8 +268,8 @@ class LowBatchGEMV(GPUScheduleRule):
             # or [S, R] = [S, R] * [R]
             return None
         block = block_info.block_rv
-        vector_input_buffers = is_gemv(sch, block_info)
-        if vector_input_buffers is None:
+        vector_input_tensors = is_gemv(sch, block_info)
+        if vector_input_tensors is None:
             return None
 
         # Step 1. Normalize the block, merge spatial and reduction iters
@@ -284,7 +284,7 @@ class LowBatchGEMV(GPUScheduleRule):
                 block,
                 dequantize_block,
                 pad_input_block,
-                vector_input_buffers,
+                vector_input_tensors,
                 epilogue,
                 batch_pad,
             )
@@ -296,7 +296,7 @@ class LowBatchGEMV(GPUScheduleRule):
                 block,
                 dequantize_block,
                 pad_input_block,
-                vector_input_buffers,
+                vector_input_tensors,
                 epilogue,
                 batch_pad,
             )
@@ -311,7 +311,7 @@ class LowBatchGEMV(GPUScheduleRule):
         block: s_tir.schedule.SBlockRV,
         dequantize_block: s_tir.schedule.SBlockRV | None,
         pad_input_block: s_tir.schedule.SBlockRV | None,
-        vector_input_buffers: list[tirx.Var],
+        vector_input_tensors: list[tirx.Var],
         epilogue_info: SBlockInfo | None,
         batch_pad: int,
     ):
@@ -367,11 +367,11 @@ class LowBatchGEMV(GPUScheduleRule):
             sch.reorder(bx, ts, tr, r, batch)
 
             shared_mem_usage = 0
-            for buf in vector_input_buffers:
-                buf_size = reduce(
-                    lambda x, y: x * y, buf.shape, tirx.IntImm(buf.shape[0].ty, 1)
-                ) * get_bytes(buf.dtype)
-                shared_mem_usage += buf_size
+            for tensor in vector_input_tensors:
+                tensor_size = reduce(
+                    lambda x, y: x * y, tensor.shape, tirx.IntImm(tensor.shape[0].ty, 1)
+                ) * get_bytes(tensor.dtype)
+                shared_mem_usage += tensor_size
             max_smem = get_max_shared_memory_per_block(target)
             LOAD_V_SHARED = (
                 LOAD_V_SHARED
@@ -395,8 +395,8 @@ class LowBatchGEMV(GPUScheduleRule):
 
             # load vector into shared memory, shape should be the whole vector
             if LOAD_V_SHARED:
-                assert len(vector_input_buffers) == 1
-                V_shared = sch.cache_read(rf, read_buffer_index=0, storage_scope="shared")
+                assert len(vector_input_tensors) == 1
+                V_shared = sch.cache_read(rf, read_tensor_index=0, storage_scope="shared")
                 sch.compute_at(V_shared, tr, preserve_unit_loops=True)
                 l = sch.get_loops(block=V_shared)[-1]
                 loop: tvm.ir.For = sch.get(l)
@@ -466,8 +466,8 @@ class LowBatchGEMV(GPUScheduleRule):
             sch.decompose_reduction(rf, loop=sch.get_loops(block=rf)[4])
             sch.decompose_reduction(rf2, loop=sch.get_loops(block=rf2)[-1])
 
-            sch.set_scope(rf, buffer_index=0, storage_scope="local")
-            sch.set_scope(rf2, buffer_index=0, storage_scope="local")
+            sch.set_scope(rf, tensor_index=0, storage_scope="local")
+            sch.set_scope(rf2, tensor_index=0, storage_scope="local")
 
             unroll_factor = UNROLL
 
@@ -617,7 +617,7 @@ class LowBatchGEMV(GPUScheduleRule):
         block: s_tir.schedule.SBlockRV,
         dequantize_block: s_tir.schedule.SBlockRV | None,
         pad_input_block: s_tir.schedule.SBlockRV | None,
-        vector_input_buffers: list[tirx.Var],
+        vector_input_tensors: list[tirx.Var],
         epilogue_info: SBlockInfo | None,
         batch_pad: int,
     ):
@@ -709,8 +709,8 @@ class LowBatchGEMV(GPUScheduleRule):
             sch.decompose_reduction(rf, loop=sch.get_loops(block=rf)[4])
             sch.decompose_reduction(rf2, loop=sch.get_loops(block=rf2)[4])
 
-            sch.set_scope(rf, buffer_index=0, storage_scope="local")
-            sch.set_scope(rf2, buffer_index=0, storage_scope="local")
+            sch.set_scope(rf, tensor_index=0, storage_scope="local")
+            sch.set_scope(rf2, tensor_index=0, storage_scope="local")
 
             epilogue = sch.get_consumers(main_block)
             # Schedule epilogue

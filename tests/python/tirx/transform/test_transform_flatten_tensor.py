@@ -14,10 +14,10 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""FlattenBuffer must keep buffer identity coherent across rebuilds.
+"""FlattenTensor must keep tensor identity coherent across rebuilds.
 
-Rebuilding a buffer mints a fresh typed variable, so every remaining
-reference — including loads embedded in another buffer's type fields and
+Rebuilding a tensor mints a fresh typed variable, so every remaining
+reference — including loads embedded in another tensor's type fields and
 loads spliced into indices by the elem_offset fold — must be remapped to
 the rebuilt identity, or SplitHostDevice later sees them as undefined
 and hoists dead variables into the kernel ABI.
@@ -28,10 +28,10 @@ import tvm_ffi
 import tvm
 import tvm.testing
 from tvm.script import tirx as T
-from tvm.tirx.transform import FlattenBuffer
+from tvm.tirx.transform import FlattenTensor
 
 
-def _is_buffer_binding(node, *op_names):
+def _is_tensor_binding(node, *op_names):
     return (
         isinstance(node, tvm.ir.Bind)
         and isinstance(node.value, tvm.ir.Call)
@@ -40,22 +40,22 @@ def _is_buffer_binding(node, *op_names):
     )
 
 
-def _collect_defined_buffers(func):
+def _collect_defined_tensors(func):
     defined = set()
 
     def visit(node):
-        if _is_buffer_binding(node, "tirx.alloc_tensor", "tirx.decl_tensor"):
+        if _is_tensor_binding(node, "tirx.alloc_tensor", "tirx.decl_tensor"):
             defined.add(node.var)
 
     tvm_ffi.structural_walk(func.body, visit)
     return defined
 
 
-def _assert_loads_reference_defined_buffers(func):
-    """Every TensorLoad — direct, or embedded in a buffer's type fields —
-    must reference a buffer defined by an AllocTensor/DeclTensor in the
+def _assert_loads_reference_defined_tensors(func):
+    """Every TensorLoad — direct, or embedded in a tensor's type fields —
+    must reference a tensor defined by an AllocTensor/DeclTensor in the
     function."""
-    defined = _collect_defined_buffers(func)
+    defined = _collect_defined_tensors(func)
 
     def is_defined(buf):
         return any(buf.same_as(d) for d in defined)
@@ -71,25 +71,25 @@ def _assert_loads_reference_defined_buffers(func):
 
     def visit(node):
         if isinstance(node, tvm.ir.TensorLoad | tvm.ir.TensorStore):
-            buffer = node.source if isinstance(node, tvm.ir.TensorLoad) else node.dest
-            if not is_defined(buffer):
-                stale.append(f"access of {buffer.name}")
+            tensor = node.source if isinstance(node, tvm.ir.TensorLoad) else node.dest
+            if not is_defined(tensor):
+                stale.append(f"access of {tensor.name}")
             for index in node.indices:
-                check_expr(index, f"index of {buffer.name}")
-        if _is_buffer_binding(node, "tirx.alloc_tensor", "tirx.decl_tensor"):
+                check_expr(index, f"index of {tensor.name}")
+        if _is_tensor_binding(node, "tirx.alloc_tensor", "tirx.decl_tensor"):
             for extent in node.var.shape:
                 check_expr(extent, f"shape of {node.var.name}")
             if node.var.elem_offset is not None:
                 check_expr(node.var.elem_offset, f"elem_offset of {node.var.name}")
 
     tvm_ffi.structural_walk(func.body, visit)
-    assert not stale, f"stale buffer references after FlattenBuffer: {stale}"
+    assert not stale, f"stale tensor references after FlattenTensor: {stale}"
 
 
 def _flatten(func):
     mod = tvm.IRModule({"main": func})
     with tvm.target.Target("cuda"):
-        return next(iter(FlattenBuffer()(mod).functions_items()))[1]
+        return next(iter(FlattenTensor()(mod).functions_items()))[1]
 
 
 def test_flatten_remaps_loads_in_view_shape():
@@ -104,7 +104,7 @@ def test_flatten_remaps_loads_in_view_shape():
         view = T.decl_tensor((n[0],), "float16", data.data, scope="shared")
         view[0] = T.float16(0)
 
-    _assert_loads_reference_defined_buffers(_flatten(before))
+    _assert_loads_reference_defined_tensors(_flatten(before))
 
 
 def test_flatten_remaps_loads_in_folded_elem_offset():
@@ -121,7 +121,7 @@ def test_flatten_remaps_loads_in_folded_elem_offset():
         mbar[0] = T.uint64(1)
 
     after = _flatten(before)
-    _assert_loads_reference_defined_buffers(after)
+    _assert_loads_reference_defined_tensors(after)
 
     # The fold must actually have spliced the offset into the store index.
     found = []
@@ -139,8 +139,8 @@ def test_flatten_remaps_loads_in_folded_elem_offset():
     assert found, "expected the folded elem_offset load in the mbar store index"
 
 
-def test_flatten_keeps_identity_of_already_flat_buffers():
-    """A flat buffer whose type is unchanged by flattening must keep its
+def test_flatten_keeps_identity_of_already_flat_tensors():
+    """A flat tensor whose type is unchanged by flattening must keep its
     identity (no gratuitous rebuild)."""
 
     @T.function(private=True)
@@ -151,7 +151,7 @@ def test_flatten_keeps_identity_of_already_flat_buffers():
     before_allocs = {}
 
     def collect_before(node):
-        if _is_buffer_binding(node, "tirx.alloc_tensor"):
+        if _is_tensor_binding(node, "tirx.alloc_tensor"):
             before_allocs[node.var.name] = node.var
 
     tvm_ffi.structural_walk(before.body, collect_before)
@@ -160,11 +160,11 @@ def test_flatten_keeps_identity_of_already_flat_buffers():
     preserved = []
 
     def visit(node):
-        if _is_buffer_binding(node, "tirx.alloc_tensor") and node.var.name in before_allocs:
+        if _is_tensor_binding(node, "tirx.alloc_tensor") and node.var.name in before_allocs:
             preserved.append(node.var.same_as(before_allocs[node.var.name]))
 
     tvm_ffi.structural_walk(after.body, visit)
-    assert preserved and all(preserved), "already-flat buffer identity was not preserved"
+    assert preserved and all(preserved), "already-flat tensor identity was not preserved"
 
 
 if __name__ == "__main__":

@@ -59,7 +59,7 @@ inline DLDataType DefaultIndexType() {
  * A tensor value is an ordinary VarNode whose ExprNode::ty is TensorType.
  * TensorType owns the immutable access contract.  The physical pointer is
  * deliberately not stored here; it is obtained with tensor_data_ptr(TensorVar)
- * and is bound by the surrounding buffer definition.
+ * and is bound by the surrounding tensor definition.
  */
 class TensorTypeNode : public TypeNode {
  public:
@@ -69,9 +69,9 @@ class TensorTypeNode : public TypeNode {
 
   /*! \brief dtype in the content of the tensor */
   PrimType dtype = PrimType::Void();
-  /*! \brief Storage scope/address space of the buffer. */
+  /*! \brief Storage scope/address space of the tensor. */
   ffi::String storage_scope;
-  /*! \brief The type of the buffer prior to flattening
+  /*! \brief The type of the tensor prior to flattening
    *
    * This contains the shape as it is accessed by
    * TensorLoad/TensorStore nodes, and used by the low-level code
@@ -92,7 +92,7 @@ class TensorTypeNode : public TypeNode {
    *  elem_offset is guaranteed to be multiple of offset_factor.
    */
   int offset_factor;
-  /*! \brief The layout of the buffer */
+  /*! \brief The layout of the tensor */
   ffi::Optional<Layout> layout;
 
   static void RegisterReflection() {
@@ -109,7 +109,7 @@ class TensorTypeNode : public TypeNode {
         .def_ro("layout", &TensorTypeNode::layout);
   }
 
-  /*! \return preferred index type for this buffer node */
+  /*! \return preferred index type for this tensor node */
   DLDataType DefaultIndexType() const {
     return shape.size() != 0 ? shape[0].ty()->dtype : tvm::tirx::DefaultIndexType();
   }
@@ -120,17 +120,17 @@ class TensorTypeNode : public TypeNode {
   /*! \return type of the physical pointer projected by tensor_data_ptr. */
   PtrType DataPtrType() const { return PtrType(dtype, storage_scope); }
 
-  /*! \brief Whether this type supports scalar buffer syntax. */
+  /*! \brief Whether this type supports scalar tensor syntax. */
   TVM_DLL bool IsScalar(bool alloc_or_decl = true) const;
 
   /*! \brief Return the constant element count, or nullopt for symbolic extents or overflow. */
   TVM_DLL std::optional<int64_t> ConstantAllocationSize() const;
 
-  /*! \brief Determine the offset in the buffer of the given index.
+  /*! \brief Determine the offset in the tensor of the given index.
    *
-   * Returns the buffer offset, in number of elements of type dtype,
+   * Returns the tensor offset, in number of elements of type dtype,
    * without adjusting for number of lanes.  (e.g. The number of
-   * float16x4 elements in a buffer of type float16x4.)
+   * float16x4 elements in a tensor of type float16x4.)
    *
    * \param index The index to be accessed.
    * \param inner Ignore the elem_offset, return inner offset only

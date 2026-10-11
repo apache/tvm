@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Concrete TIRx types, buffers, allocations and construction metadata."""
+"""Concrete TIRx types, tensors, allocations and construction metadata."""
 
 import contextlib
 import functools
@@ -79,7 +79,7 @@ def _get_layout(layout: str | Layout | None, shape: list[Expr], scope: str) -> L
         if IRBuilder.is_in_scope():
             for function_frame in reversed(list(IRBuilder.current().frames)):
                 if isinstance(function_frame, frame.FunctionFrame):
-                    return function_frame.default_buffer_layout(shape, scope)
+                    return function_frame.default_tensor_layout(shape, scope)
         if scope in ["trn.sbuf", "trn.psum"]:
             return None
         return TileLayout(S[tuple(shape)])
@@ -230,13 +230,13 @@ def _tensor_type(
     Parameters
     ----------
     shape : Union[List[Expr], Tuple[Expr], Expr, Integral]
-        The shape of the buffer prior to flattening.
+        The shape of the tensor prior to flattening.
 
     dtype : str
-        The data type in the content of the buffer.
+        The data type in the content of the tensor.
 
     data : Var
-        An optional pointer whose storage scope determines the buffer type scope.
+        An optional pointer whose storage scope determines the tensor type scope.
 
     strides : List[Expr]
         The strides of each dimension.
@@ -248,7 +248,7 @@ def _tensor_type(
         The offset in bytes, as an alternative to elem_offset.
 
     scope : str
-        The optional storage scope of buffer data pointer.
+        The optional storage scope of tensor data pointer.
 
     align : int
         The alignment requirement of data pointer in bytes.
@@ -257,7 +257,7 @@ def _tensor_type(
         The factor of elem_offset field.
 
     layout : str or Layout, optional
-        The buffer layout. "default" constructs the shape's default TileLayout;
+        The tensor layout. "default" constructs the shape's default TileLayout;
         omission uses the enclosing dialect and scope default. None omits a layout.
 
     Returns
@@ -334,11 +334,11 @@ def alloc_tensor(
     Parameters
     ----------
     shape : Union[List[Expr], Tuple[Expr], Expr, Integral]
-        The shape of the buffer to allocate.
+        The shape of the tensor to allocate.
     dtype : str
-        The data type of the buffer elements.
+        The data type of the tensor elements.
     scope : str
-        The storage scope of the buffer (e.g., "global", "shared").
+        The storage scope of the tensor (e.g., "global", "shared").
     data : Optional[Var]
         Optional explicit data pointer.
     strides : Optional[List[Expr]]
@@ -361,7 +361,7 @@ def alloc_tensor(
     Returns
     -------
     res : Var
-        The allocated buffer.
+        The allocated tensor.
     """
     shape = (shape,) if is_prim_expr(shape) or isinstance(shape, Integral) else shape
     buf = Var(
@@ -406,10 +406,10 @@ def alloc_tensor(
         addresses = allocated_addr if isinstance(allocated_addr, list | tuple) else [allocated_addr]
         allocated_addr = [_normalize_ann_value(v) for v in addresses]
     # Normalize the historical annotation spelling at the construction boundary.
-    if "buffer_allocated_addr" in norm_annotations:
+    if "tensor_allocated_addr" in norm_annotations:
         if allocated_addr is not None:
             raise ValueError("Allocation placement was specified twice")
-        allocated_addr = norm_annotations.pop("buffer_allocated_addr")
+        allocated_addr = norm_annotations.pop("tensor_allocated_addr")
     args = [ir.Tuple(buf.shape), ir.DataTypeImm(DataType(buf.dtype)), ir.StringImm(buf.scope())]
     if allocated_addr is not None:
         args.append(ir.Tuple(allocated_addr))
@@ -555,10 +555,10 @@ def decl_tensor(
     Parameters
     ----------
     shape : Union[List[Expr], Tuple[Expr], Expr, Integral]
-        The type of the buffer prior to flattening.
+        The type of the tensor prior to flattening.
 
     dtype : str
-        The data type in the content of the buffer.
+        The data type in the content of the tensor.
 
     data : Var
         The pointer to the head of the data.
@@ -573,7 +573,7 @@ def decl_tensor(
         The offset in terms of number of bytes.
 
     scope : str
-        The optional storage scope of buffer data pointer.
+        The optional storage scope of tensor data pointer.
 
     align : int
         The alignment requirement of data pointer in bytes.
@@ -582,12 +582,12 @@ def decl_tensor(
         The factor of elem_offset field.
 
     layout : Layout
-        The layout of the buffer.
+        The layout of the tensor.
 
     Returns
     -------
     res : Var
-        The declared buffer.
+        The declared tensor.
     """
     shape = (shape,) if is_prim_expr(shape) or isinstance(shape, Integral) else shape
     shape = tuple(shape)
@@ -630,7 +630,7 @@ def alloc_tcgen05_ldst_frag(instr_shape, tensor_shape, dtype):
     Sizes the per-thread storage, allocates ``local`` scope memory, and returns
     a 2-D view of shape ``tensor_shape`` with a matching ``tcgen05_atom_layout``.
     Pass the result to ``Tx.wg.copy_async`` (with a matching TMEM
-    buffer) to trigger the corresponding dispatch path.
+    tensor) to trigger the corresponding dispatch path.
 
     Parameters
     ----------
@@ -720,7 +720,7 @@ def alloc_scalar(
     *,
     annotations: dict[str, Any] | None = None,
 ) -> _ir.TensorLoad:
-    """Allocate a zero-dimensional buffer (scalar), with optional allocation annotations."""
+    """Allocate a zero-dimensional tensor (scalar), with optional allocation annotations."""
     buf = alloc_tensor(
         shape=(1,), dtype=dtype, scope=scope, layout=TileLayout(S[1]), annotations=annotations
     )
@@ -731,7 +731,7 @@ def alloc_scalar(
 
 @_register_mutable_decl("tirx.decl_scalar")
 def decl_scalar(dtype, data, scope, elem_offset=None, byte_offset=None) -> _ir.TensorLoad:
-    """Declare a zero-dimensional buffer (scalar) from a pointer."""
+    """Declare a zero-dimensional tensor (scalar) from a pointer."""
     buf = decl_tensor(
         shape=(1,),
         dtype=dtype,
@@ -752,7 +752,7 @@ def decl_scalar(dtype, data, scope, elem_offset=None, byte_offset=None) -> _ir.T
 def shared_scalar(
     dtype: str = "float32", *, annotations: dict[str, Any] | None = None
 ) -> _ir.TensorLoad:
-    """Allocate a zero-dimensional buffer in shared memory."""
+    """Allocate a zero-dimensional tensor in shared memory."""
     return alloc_scalar(dtype=dtype, scope="shared", annotations=annotations)
 
 
@@ -760,7 +760,7 @@ def shared_scalar(
 def local_scalar(
     dtype: str = "float32", *, annotations: dict[str, Any] | None = None
 ) -> _ir.TensorLoad:
-    """Allocate a zero-dimensional buffer in local memory."""
+    """Allocate a zero-dimensional tensor in local memory."""
     return alloc_scalar(dtype=dtype, scope="local", annotations=annotations)
 
 

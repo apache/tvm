@@ -257,16 +257,16 @@ TVM_DLL Pass LegalizeOps(ffi::Optional<ffi::Map<ffi::String, ffi::Function>> cma
 TVM_DLL Pass RealizeVDevice();
 
 /*!
- * \brief Attach layout free buffers to the tirx::Function.
+ * \brief Attach layout free tensors to the tirx::Function.
  *
- * This pass is used to attach layout free buffers to the tirx::Function according to
- * the function usage in the relax function. Currently, the layout free buffers are the model
+ * This pass is used to attach layout free tensors to the tirx::Function according to
+ * the function usage in the relax function. Currently, the layout free tensors are the model
  * weights and relax constants.
  *
  * \note We recommend applying CanonicalizeBindings before this pass.
  * \return The Pass.
  */
-TVM_DLL Pass AttachAttrLayoutFreeBuffers();
+TVM_DLL Pass AttachAttrLayoutFreeTensors();
 
 /*!
  * \brief Split the layout rewrite preproc block to a separate tirx::Function.
@@ -588,18 +588,18 @@ TVM_DLL Pass DecomposeOpsForTraining(ffi::Optional<ffi::String> func_name);
 /*!
  * \brief Returns a pass which replaces Functions which have matching kOperatorName attribute in \p
  * op_impl_map, with replacement tirx::Function that could possibly have different layouts on i/o
- * buffers. The layout transformations on i/o buffers is present in the \p op_buffer_transforms. The
+ * tensors. The layout transformations on i/o tensors is present in the \p op_tensor_transforms. The
  * pass inserts the layout transformations in the call sites of Functions being replaced to
- * transform i/o buffers into expected layout.
+ * transform i/o tensors into expected layout.
  *
  * \param op_impl_map Map from kOperatorName attr (e.g., relax.conv2d) to replacement tirx::Function
- * \param op_buffer_transforms Map from kOperatorName attr to layout transformations on each of the
- * tirx::Function i/o buffers.
+ * \param op_tensor_transforms Map from kOperatorName attr to layout transformations on each of the
+ * tirx::Function i/o tensors.
  * \return The Pass.
  */
 TVM_DLL Pass AlterOpImpl(
     const ffi::Map<ffi::String, tirx::Function>& op_impl_map,
-    const ffi::Map<ffi::String, ffi::Array<ffi::Optional<tirx::IndexMap>>>& op_buffer_transforms);
+    const ffi::Map<ffi::String, ffi::Array<ffi::Optional<tirx::IndexMap>>>& op_tensor_transforms);
 
 /*!
  * \brief Layout conversion pass.
@@ -670,9 +670,9 @@ TVM_DLL Pass ToMixedPrecision(
 TVM_DLL Pass RewriteCUDAGraph();
 
 /*!
- * \brief This pass updates the var_buffer mapping of Functiontions from the call_tir info.
+ * \brief This pass updates the var_tensor mapping of Functiontions from the call_tir info.
  * Primarily used to update the VDevice information if any changes occurred from the caller.
- * This pass recreates the buffers and updates the map.
+ * This pass recreates the tensors and updates the map.
  */
 TVM_DLL Pass SpecializeFunctionBasedOnCallSite();
 

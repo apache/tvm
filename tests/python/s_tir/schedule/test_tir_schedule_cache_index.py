@@ -44,8 +44,8 @@ def resize(A: T.Tensor((1, 3, 40, 40)), B: T.Tensor((1, 3, 80, 80))) -> None:
 def resize_cache_index(
     A: T.Tensor((1, 3, 40, 40), "float32"), B: T.Tensor((1, 3, 80, 80), "float32")
 ) -> None:
-    index_var_0 = Ts.sblock_alloc_buffer([80, 80], dtype="int32", strides=[1])
-    index_var_1 = Ts.sblock_alloc_buffer([80], dtype="int32", strides=[1])
+    index_var_0 = Ts.sblock_alloc_tensor([80, 80], dtype="int32", strides=[1])
+    index_var_1 = Ts.sblock_alloc_tensor([80], dtype="int32", strides=[1])
     for ax0, ax1 in T.grid(80, 80):
         with Ts.sblock("index_0"):
             v0, v1 = Ts.axis.remap("SS", [ax0, ax1])
@@ -325,9 +325,9 @@ def bilinear_resize(
 def cached_bilinear_resize(
     x: T.Tensor((1, 3, 40, 40), "float16"), resize: T.Tensor((1, 3, 80, 80), "float16")
 ):
-    index_var_0 = Ts.sblock_alloc_buffer([80], dtype="float32", strides=[1])
-    index_var_1 = Ts.sblock_alloc_buffer([80], dtype="int32", strides=[1])
-    index_var_2 = Ts.sblock_alloc_buffer([80], dtype="int32", strides=[1])
+    index_var_0 = Ts.sblock_alloc_tensor([80], dtype="float32", strides=[1])
+    index_var_1 = Ts.sblock_alloc_tensor([80], dtype="int32", strides=[1])
+    index_var_2 = Ts.sblock_alloc_tensor([80], dtype="int32", strides=[1])
     for ax0 in T.serial(80):
         with Ts.sblock("index_0"):
             v0 = Ts.axis.spatial(80, ax0)

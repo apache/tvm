@@ -53,9 +53,9 @@ class Matmul_before_rewrite:
     @Ts.function
     def main(A: T.Tensor([512, 512], dtype='float32'), B: T.Tensor([512, 512], dtype='float32'), C: T.Tensor([512, 512], dtype='float32')) -> None:
 
-        C_local = Ts.sblock_alloc_buffer([512, 512], dtype="float32", scope="local")
-        A_shared = Ts.sblock_alloc_buffer([512, 512], dtype="float32", scope="shared")
-        B_shared = Ts.sblock_alloc_buffer([512, 512], dtype="float32", scope="shared")
+        C_local = Ts.sblock_alloc_tensor([512, 512], dtype="float32", scope="local")
+        A_shared = Ts.sblock_alloc_tensor([512, 512], dtype="float32", scope="shared")
+        B_shared = Ts.sblock_alloc_tensor([512, 512], dtype="float32", scope="shared")
         for i0_0_i1_0_fused in T.thread_binding(0, 16, thread="blockIdx.x"):
             for i0_1_i1_1_fused in T.thread_binding(0, 16, thread="vthread.x"):
                 for i0_2_i1_2_fused in T.thread_binding(0, 8, thread="threadIdx.x"):
@@ -102,9 +102,9 @@ class Matmul_after_rewrite:
     @Ts.function
     def main(A: T.Tensor([512, 512], dtype='float32'), B: T.Tensor([512, 512], dtype='float32'), C: T.Tensor([512, 512], dtype='float32')) -> None:
 
-        C_local = Ts.sblock_alloc_buffer([512, 512], dtype="float32", scope="local")
-        A_shared = Ts.sblock_alloc_buffer([512, 512], dtype="float32", scope="shared")
-        B_shared = Ts.sblock_alloc_buffer([512, 512], dtype="float32", scope="shared")
+        C_local = Ts.sblock_alloc_tensor([512, 512], dtype="float32", scope="local")
+        A_shared = Ts.sblock_alloc_tensor([512, 512], dtype="float32", scope="shared")
+        B_shared = Ts.sblock_alloc_tensor([512, 512], dtype="float32", scope="shared")
         for i0_0_i1_0_fused in T.thread_binding(0, 16, thread="blockIdx.x"):
             for i0_1_i1_1_fused in T.thread_binding(0, 16, thread="vthread.x"):
                 for i0_2_i1_2_fused in T.thread_binding(0, 8, thread="threadIdx.x"):
@@ -155,8 +155,8 @@ class Matmul_after_rewrite:
 class Softmax_cross_thread_reduction:
     @Ts.function
     def main(A: T.Tensor((256, 256), "float32"), T_softmax_norm: T.Tensor((256, 256), "float32")) -> None:
-        T_softmax_maxelem_shared = Ts.sblock_alloc_buffer([256], dtype="float32", scope="shared")
-        T_softmax_expsum_shared = Ts.sblock_alloc_buffer([256], dtype="float32", scope="shared")
+        T_softmax_maxelem_shared = Ts.sblock_alloc_tensor([256], dtype="float32", scope="shared")
+        T_softmax_expsum_shared = Ts.sblock_alloc_tensor([256], dtype="float32", scope="shared")
         for i0 in T.serial(256):
             for ax0, ax1_0 in T.grid(1, 8):
                 for ax1_1 in T.thread_binding(32, thread="threadIdx.x"):

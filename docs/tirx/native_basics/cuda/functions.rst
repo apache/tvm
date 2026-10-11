@@ -20,10 +20,10 @@ Defining a function
 
 A kernel is a ``@Tx.function`` (like ``scale`` in :doc:`first_kernel`), or a
 ``@Tx.jit`` when it has compile-time parameters (see the last section). This
-chapter covers the parameter list — how to declare buffers, what types you can
+chapter covers the parameter list — how to declare tensors, what types you can
 pass, symbolic shapes, and the ``function`` / ``jit`` distinction.
 
-Declaring buffer parameters
+Declaring tensor parameters
 ---------------------------
 
 Declare tensor parameters with ``Tx.Tensor`` annotations. The annotation accepts
@@ -34,7 +34,7 @@ shape, dtype, layout, offset, scope, and alignment metadata:
     @Tx.function
     def f(A: Tx.Tensor((256,), "float32", align=16), B: Tx.Tensor((256,), "float32")): ...
 
-The parameters are buffers that you index with ``A[i]`` or ``A[i, j]``.
+The parameters are tensors that you index with ``A[i]`` or ``A[i, j]``.
 Annotations also support :ref:`symbolic shapes <symbolic-shapes>`.
 
 What the parameter list accepts
@@ -85,7 +85,7 @@ Symbolic shapes
 ---------------
 
 For a size that varies at run time, declare a free symbolic extent with
-``Tx.int32()`` and use it in the buffer shape. Its value is **inferred from the
+``Tx.int32()`` and use it in the tensor shape. Its value is **inferred from the
 passed tensor** at run time, so a *single compiled kernel* handles any size:
 
 .. code-block:: python
@@ -108,7 +108,7 @@ passed tensor** at run time, so a *single compiled kernel* handles any size:
     exe(torch.rand(100, device="cuda"), torch.empty(100, device="cuda"))  # n = 100
     exe(torch.rand(200, device="cuda"), torch.empty(200, device="cuda"))  # n = 200, same kernel
 
-Both buffer annotations share ``n``, so the two shapes are constrained equal;
+Both tensor annotations share ``n``, so the two shapes are constrained equal;
 ``n`` is never passed explicitly — it comes from the tensor.
 
 In the generated CUDA, ``n`` is just a runtime kernel argument; the host launcher

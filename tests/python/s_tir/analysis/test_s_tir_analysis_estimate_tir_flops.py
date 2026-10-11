@@ -104,21 +104,21 @@ def test_estimate_flops_forloop_as_expression():
     assert flops == 32
 
 
-def test_estimate_flops_with_decl_buffer():
-    def make_func(use_decl_buffer):
-        buffer_func = T.decl_tensor if use_decl_buffer else T.Tensor
+def test_estimate_flops_with_decl_tensor():
+    def make_func(use_decl_tensor):
+        tensor_func = T.decl_tensor if use_decl_tensor else T.Tensor
 
         @Ts.function
         def func(A_data: T.handle("float32")):
-            A = buffer_func(16, "float32", data=A_data)
+            A = tensor_func(16, "float32", data=A_data)
             for i in range(16):
                 A[0] = A[0] + 1
 
         return func
 
-    flops_with_decl_buffer = estimate_tir_flops(IRModule.from_expr(make_func(True)))
-    flops_without_decl_buffer = estimate_tir_flops(IRModule.from_expr(make_func(True)))
-    assert flops_with_decl_buffer == flops_without_decl_buffer
+    flops_with_decl_tensor = estimate_tir_flops(IRModule.from_expr(make_func(True)))
+    flops_without_decl_tensor = estimate_tir_flops(IRModule.from_expr(make_func(True)))
+    assert flops_with_decl_tensor == flops_without_decl_tensor
 
 
 @Ts.function

@@ -109,9 +109,9 @@ def cuda_workload(inp0: T.Tensor((T.int64(1), m, T.int64(4096))), inp1: T.Tensor
     T.func_attr({"tirx.is_scheduled": True})
 
     # with Ts.sblock("root"):
-    matmul_reindex_pad_local = Ts.sblock_alloc_buffer((T.int64(1), (m + T.int64(31)) // T.int64(32) * T.int64(32), T.int64(4096)), scope="local")
-    inp0_reindex_pad_shared = Ts.sblock_alloc_buffer((T.int64(1), (m + T.int64(31)) // T.int64(32) * T.int64(32), T.int64(4096)), scope="shared")
-    inp1_reindex_shared = Ts.sblock_alloc_buffer((T.int64(1), T.int64(4096), T.int64(4096)), scope="shared")
+    matmul_reindex_pad_local = Ts.sblock_alloc_tensor((T.int64(1), (m + T.int64(31)) // T.int64(32) * T.int64(32), T.int64(4096)), scope="local")
+    inp0_reindex_pad_shared = Ts.sblock_alloc_tensor((T.int64(1), (m + T.int64(31)) // T.int64(32) * T.int64(32), T.int64(4096)), scope="shared")
+    inp1_reindex_shared = Ts.sblock_alloc_tensor((T.int64(1), T.int64(4096), T.int64(4096)), scope="shared")
     for ax0 in T.thread_binding(T.int64(1), thread="blockIdx.z"):
         for ax1_0 in T.thread_binding((m + T.int64(31)) // T.int64(32), thread="blockIdx.x"):
             for ax2_0 in T.thread_binding(T.int64(64), thread="blockIdx.y"):
@@ -138,7 +138,7 @@ def cuda_workload(inp0: T.Tensor((T.int64(1), m, T.int64(4096))), inp1: T.Tensor
                                                         v2 = Ts.axis.spatial(T.int64(4096), ax3_0 * T.int64(16) + (ax0_ax1_ax2_fused_0 * T.int64(32) + ax0_ax1_ax2_fused_1 * T.int64(4) + ax0_ax1_ax2_fused_2 * T.int64(2) + ax0_ax1_ax2_fused_3) % T.int64(16))
                                                         Ts.reads(inp0[v0, v1, v2])
                                                         Ts.writes(inp0_reindex_pad_shared[v0, v1, v2])
-                                                        Ts.sblock_attr({"buffer_dim_align": [[0, 1, 8, 2]]})
+                                                        Ts.sblock_attr({"tensor_dim_align": [[0, 1, 8, 2]]})
                                                         inp0_reindex_pad_shared[v0, v1, v2] = T.if_then_else(v1 < m, inp0[v0, v1, v2], T.float32(0))
                                     for ax0_ax1_ax2_fused_0 in T.thread_binding(T.int64(16), thread="threadIdx.y"):
                                         for ax0_ax1_ax2_fused_1 in T.thread_binding(T.int64(8), thread="threadIdx.x"):
@@ -150,7 +150,7 @@ def cuda_workload(inp0: T.Tensor((T.int64(1), m, T.int64(4096))), inp1: T.Tensor
                                                         v2 = Ts.axis.spatial(T.int64(4096), ax3_0 * T.int64(16) + (ax0_ax1_ax2_fused_0 * T.int64(64) + ax0_ax1_ax2_fused_1 * T.int64(8) + ax0_ax1_ax2_fused_2 * T.int64(2) + ax0_ax1_ax2_fused_3) % T.int64(16))
                                                         Ts.reads(inp1[v2, v1])
                                                         Ts.writes(inp1_reindex_shared[v0, v1, v2])
-                                                        Ts.sblock_attr({"buffer_dim_align": [[0, 1, 8, 2]]})
+                                                        Ts.sblock_attr({"tensor_dim_align": [[0, 1, 8, 2]]})
                                                         inp1_reindex_shared[v0, v1, v2] = inp1[v2, v1]
                                     for ax3_1, ax2_3, ax1_3 in T.grid(T.int64(16), T.int64(4), T.int64(4)):
                                         with Ts.sblock("matmul_update"):

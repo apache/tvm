@@ -235,7 +235,7 @@ bool TensorizeComparator::Dispatch_(const SeqStmtNode* op, const Stmt& other) {
 
 bool TensorizeComparator::Dispatch_(const TensorStoreNode* op, const Stmt& other) {
   const auto* rhs = other.as<TensorStoreNode>();
-  return CompareBufferAccess(op, rhs) && Dispatch(op->value, rhs->value);
+  return CompareTensorAccess(op, rhs) && Dispatch(op->value, rhs->value);
 }
 
 bool TensorizeComparator::Dispatch_(const SBlockRealizeNode* op, const Stmt& other) {
@@ -262,41 +262,41 @@ bool TensorizeComparator::Dispatch_(const SBlockNode* op, const Stmt& other) {
     lhs_analyzer_->Bind(iter->var, iter->dom.value());
   }
   // Check block equality.
-  // All iter vars and buffer regions including the order should match.
+  // All iter vars and tensor regions including the order should match.
   // When checking iter vars, DefEqual is used to remap variables.
   if (!is_scope_block) {
     if (!CompareArray(op->iter_vars, rhs->iter_vars, &TensorizeComparator::CompareIterVar)) {
       if (assert_mode_) {
         std::ostringstream os;
-        os << "BlockNode iter_vars do not match: op->alloc_buffers=" << op->iter_vars
-           << " vs rhs->alloc_buffers=" << rhs->iter_vars;
+        os << "BlockNode iter_vars do not match: op->alloc_tensors=" << op->iter_vars
+           << " vs rhs->alloc_tensors=" << rhs->iter_vars;
         EmitError(os.str());
       }
       return false;
     }
-    if (!CompareArray(op->alloc_buffers, rhs->alloc_buffers, &TensorizeComparator::CompareBuffer)) {
+    if (!CompareArray(op->alloc_tensors, rhs->alloc_tensors, &TensorizeComparator::CompareTensor)) {
       if (assert_mode_) {
         std::ostringstream os;
-        os << "BlockNode alloc_buffers do not match: op->alloc_buffers=" << op->alloc_buffers
-           << " vs rhs->alloc_buffers=" << rhs->alloc_buffers;
+        os << "BlockNode alloc_tensors do not match: op->alloc_tensors=" << op->alloc_tensors
+           << " vs rhs->alloc_tensors=" << rhs->alloc_tensors;
         EmitError(os.str());
       }
       return false;
     }
   }
-  if (!CompareArray(op->writes, rhs->writes, &TensorizeComparator::CompareBufferRegion)) {
+  if (!CompareArray(op->writes, rhs->writes, &TensorizeComparator::CompareTensorRegion)) {
     if (assert_mode_) {
       std::ostringstream os;
-      os << "BlockNode write buffers do not match: op->writes=" << op->writes
+      os << "BlockNode write tensors do not match: op->writes=" << op->writes
          << " vs rhs->writes=" << rhs->writes;
       EmitError(os.str());
     }
     return false;
   }
-  if (!CompareArray(op->reads, rhs->reads, &TensorizeComparator::CompareBufferRegion)) {
+  if (!CompareArray(op->reads, rhs->reads, &TensorizeComparator::CompareTensorRegion)) {
     if (assert_mode_) {
       std::ostringstream os;
-      os << "BlockNode read buffers regions do not match: op->reads=" << op->reads
+      os << "BlockNode read tensors regions do not match: op->reads=" << op->reads
          << " vs rhs->reads=" << rhs->reads;
       EmitError(os.str());
     }
@@ -398,7 +398,7 @@ bool TensorizeComparator::Dispatch_(const VarNode* op, const PrimExpr& other) {
 
 bool TensorizeComparator::Dispatch_(const TensorLoadNode* op, const PrimExpr& other) {
   const auto* rhs = other.as<TensorLoadNode>();
-  return CompareBufferAccess(op, rhs);
+  return CompareTensorAccess(op, rhs);
 }
 
 bool TensorizeComparator::Dispatch_(const SelectNode* op, const PrimExpr& other) {
@@ -491,16 +491,16 @@ bool TensorizeComparator::CompareAnnotationMap(const ffi::Map<ffi::String, ffi::
   return true;
 }
 
-bool TensorizeComparator::CompareBuffer(const TensorVar& lhs, const TensorVar& rhs) {
+bool TensorizeComparator::CompareTensor(const TensorVar& lhs, const TensorVar& rhs) {
   if (lhs.same_as(rhs)) return true;
-  auto it = rhs_buffer_map_.find(rhs);
+  auto it = rhs_tensor_map_.find(rhs);
   bool equal;
-  if (it != rhs_buffer_map_.end()) {
+  if (it != rhs_tensor_map_.end()) {
     equal = (*it).second.same_as(lhs);
   } else {
-    // Remap the buffer variable definition without recursively comparing its
+    // Remap the tensor variable definition without recursively comparing its
     // TensorType.  Tensorization intentionally matches a region of a larger
-    // workload buffer against the intrinsic's smaller descriptor buffer.
+    // workload tensor against the intrinsic's smaller descriptor tensor.
     auto data_it = equal_map_.find(lhs.var());
     if (data_it != equal_map_.end()) {
       equal = data_it->second.same_as(rhs.var());
@@ -511,11 +511,11 @@ bool TensorizeComparator::CompareBuffer(const TensorVar& lhs, const TensorVar& r
       }
     }
     if (equal) {
-      rhs_buffer_map_.insert_or_assign(rhs, lhs);
+      rhs_tensor_map_.insert_or_assign(rhs, lhs);
     } else {
       if (assert_mode_) {
         std::ostringstream os;
-        os << "CompareBuffer buffer mismatch: " << lhs << " vs " << rhs
+        os << "CompareTensor tensor mismatch: " << lhs << " vs " << rhs
            << ", dtypes: " << lhs->dtype << " vs " << rhs->dtype << ", scope(): " << lhs.scope()
            << " vs " << rhs.scope();
         EmitError(os.str());
@@ -525,12 +525,12 @@ bool TensorizeComparator::CompareBuffer(const TensorVar& lhs, const TensorVar& r
   return equal;
 }
 
-bool TensorizeComparator::CompareBufferRegion(const TensorRegion& lhs, const TensorRegion& rhs) {
-  if (!CompareBuffer(lhs->source.as_or_throw<tvm::tirx::TensorVar>(),
+bool TensorizeComparator::CompareTensorRegion(const TensorRegion& lhs, const TensorRegion& rhs) {
+  if (!CompareTensor(lhs->source.as_or_throw<tvm::tirx::TensorVar>(),
                      rhs->source.as_or_throw<tvm::tirx::TensorVar>())) {
     if (assert_mode_) {
       std::ostringstream os;
-      os << "CompareBufferRegion returning false due to buffer mismatch: lhs->source="
+      os << "CompareTensorRegion returning false due to tensor mismatch: lhs->source="
          << lhs->source.as_or_throw<tvm::tirx::TensorVar>()
          << " vs rhs->source=" << rhs->source.as_or_throw<tvm::tirx::TensorVar>();
       EmitError(os.str());
@@ -542,7 +542,7 @@ bool TensorizeComparator::CompareBufferRegion(const TensorRegion& lhs, const Ten
   if (offset < 0) {
     if (assert_mode_) {
       std::ostringstream os;
-      os << "CompareBufferRegion returning false because buffer region sizes do not match: "
+      os << "CompareTensorRegion returning false because tensor region sizes do not match: "
             "lhs->region.size()="
          << lhs->region.size() << " vs rhs->region.size()=" << rhs->region.size();
       EmitError(os.str());
@@ -550,9 +550,9 @@ bool TensorizeComparator::CompareBufferRegion(const TensorRegion& lhs, const Ten
     return false;
   }
 
-  auto it = buffer_indices_.find(lhs->source.as_or_throw<tvm::tirx::TensorVar>());
-  if (it == buffer_indices_.end()) {
-    // Update base indices for the buffer, this can only happen if it is visiting the scope block.
+  auto it = tensor_indices_.find(lhs->source.as_or_throw<tvm::tirx::TensorVar>());
+  if (it == tensor_indices_.end()) {
+    // Update base indices for the tensor, this can only happen if it is visiting the scope block.
     TVM_FFI_ICHECK(is_scope_block);
     std::vector<PrimExpr> indices_base;
     indices_base.reserve(lhs->region.size());
@@ -561,7 +561,7 @@ bool TensorizeComparator::CompareBufferRegion(const TensorRegion& lhs, const Ten
       if (!IsOne(lhs->region[i]->extent)) {
         if (assert_mode_) {
           std::ostringstream os;
-          os << "CompareBufferRegion returning false because buffer extent high-dim region must be "
+          os << "CompareTensorRegion returning false because tensor extent high-dim region must be "
                 "element-wise. lhs->region[i]->extent="
              << lhs->region[i]->extent;
           EmitError(os.str());
@@ -577,14 +577,14 @@ bool TensorizeComparator::CompareBufferRegion(const TensorRegion& lhs, const Ten
       if (!analyzer_->CanProveEqual(lhs->region[i + offset]->extent, rhs->region[i]->extent)) {
         if (assert_mode_) {
           std::ostringstream os;
-          os << "CompareBufferRegion buffer extent mismatch: lhs->region[i + offset]="
+          os << "CompareTensorRegion tensor extent mismatch: lhs->region[i + offset]="
              << lhs->region[i + offset] << " vs rhs->region[i]=" << rhs->region[i];
           EmitError(os.str());
         }
         return false;
       }
     }
-    buffer_indices_.emplace(lhs->source.as_or_throw<tvm::tirx::TensorVar>(),
+    tensor_indices_.emplace(lhs->source.as_or_throw<tvm::tirx::TensorVar>(),
                             std::move(indices_base));
   } else {
     // Check the base indices are consistent.
@@ -594,7 +594,7 @@ bool TensorizeComparator::CompareBufferRegion(const TensorRegion& lhs, const Ten
       if (!IsOne(lhs->region[i]->extent)) {
         if (assert_mode_) {
           std::ostringstream os;
-          os << "CompareBufferRegion returning false because buffer extent high-dim region must be "
+          os << "CompareTensorRegion returning false because tensor extent high-dim region must be "
                 "element-wise. lhs->region[i]->extent="
              << lhs->region[i]->extent;
           EmitError(os.str());
@@ -617,7 +617,7 @@ bool TensorizeComparator::CompareBufferRegion(const TensorRegion& lhs, const Ten
       if (!analyzer_->CanProveEqual(lhs->region[i + offset]->extent, rhs->region[i]->extent)) {
         if (assert_mode_) {
           std::ostringstream os;
-          os << "CompareBufferRegion buffer region extent mismatch. lhs->region[i + offset]="
+          os << "CompareTensorRegion tensor region extent mismatch. lhs->region[i + offset]="
              << lhs->region[i + offset] << " vs rhs->region[i]=" << rhs->region[i];
           EmitError(os.str());
         }
@@ -628,7 +628,7 @@ bool TensorizeComparator::CompareBufferRegion(const TensorRegion& lhs, const Ten
       if (!analyzer_->CanProveEqual(normalized_lhs_min, rhs->region[i]->min)) {
         if (assert_mode_) {
           std::ostringstream os;
-          os << "CompareBufferRegion buffer region min mismatch. lhs->region[i + offset]="
+          os << "CompareTensorRegion tensor region min mismatch. lhs->region[i + offset]="
              << lhs->region[i + offset] << " vs rhs->region[i]=" << rhs->region[i];
           EmitError(os.str());
         }
@@ -640,31 +640,31 @@ bool TensorizeComparator::CompareBufferRegion(const TensorRegion& lhs, const Ten
 }
 
 // Comparator for TensorStoreNode and TensorLoadNode
-inline TensorVar GetBufferAccessBuffer(const TensorStoreNode* op) {
+inline TensorVar GetTensorAccessTensor(const TensorStoreNode* op) {
   return op->dest.as_or_throw<TensorVar>();
 }
-inline TensorVar GetBufferAccessBuffer(const TensorLoadNode* op) {
+inline TensorVar GetTensorAccessTensor(const TensorLoadNode* op) {
   return op->source.as_or_throw<tvm::tirx::TensorVar>();
 }
 
 template <typename T>
-bool TensorizeComparator::CompareBufferAccess(const T* lhs, const T* rhs) {
-  TensorVar lhs_buffer = GetBufferAccessBuffer(lhs);
-  TensorVar rhs_buffer = GetBufferAccessBuffer(rhs);
-  if (!CompareBuffer(lhs_buffer, rhs_buffer)) return false;
+bool TensorizeComparator::CompareTensorAccess(const T* lhs, const T* rhs) {
+  TensorVar lhs_tensor = GetTensorAccessTensor(lhs);
+  TensorVar rhs_tensor = GetTensorAccessTensor(rhs);
+  if (!CompareTensor(lhs_tensor, rhs_tensor)) return false;
   int offset = static_cast<int>(lhs->indices.size()) - static_cast<int>(rhs->indices.size());
   if (offset < 0) {
     if (assert_mode_) {
       std::ostringstream os;
-      os << "CompareBufferAccess returning false because buffer indices sizes do not match: "
+      os << "CompareTensorAccess returning false because tensor indices sizes do not match: "
             "lhs->indices.size()="
          << lhs->indices.size() << " vs rhs->indices.size()=" << rhs->indices.size();
       EmitError(os.str());
     }
     return false;
   }
-  auto it = buffer_indices_.find(lhs_buffer);
-  TVM_FFI_ICHECK(it != buffer_indices_.end());
+  auto it = tensor_indices_.find(lhs_tensor);
+  TVM_FFI_ICHECK(it != tensor_indices_.end());
   const std::vector<PrimExpr>& indices_base = (*it).second;
   TVM_FFI_ICHECK_EQ(indices_base.size(), rhs->indices.size() + offset);
   for (size_t i = 0; i < rhs->indices.size(); i++) {
@@ -672,7 +672,7 @@ bool TensorizeComparator::CompareBufferAccess(const T* lhs, const T* rhs) {
     if (!analyzer_->CanProveEqual(normalized_lhs_index, rhs->indices[i])) {
       if (assert_mode_) {
         std::ostringstream os;
-        os << "CompareBufferAccess buffer indices mismatch. lhs->indices[i + offset]="
+        os << "CompareTensorAccess tensor indices mismatch. lhs->indices[i + offset]="
            << lhs->indices[i + offset] << " vs rhs->indices[i]=" << rhs->indices[i];
         EmitError(os.str());
       }
@@ -726,7 +726,7 @@ bool AutoTensorizeComparator::DispatchDefault_(const ffi::Object* op, const Stmt
 bool AutoTensorizeComparator::Dispatch_(const SBlockNode* op, const Stmt& other) {
   const auto* rhs = other.as<SBlockNode>();
   // Check block equality.
-  // All iter vars and buffer regions including the order should match.
+  // All iter vars and tensor regions including the order should match.
   // When checking iter vars, DefEqual is used to remap variables.
   if (!is_scope_block) {
     if (!CompareArray(op->iter_vars, rhs->iter_vars, &AutoTensorizeComparator::CompareIterVar)) {
@@ -735,8 +735,8 @@ bool AutoTensorizeComparator::Dispatch_(const SBlockNode* op, const Stmt& other)
     if (!CompareAnnotationMap(op->annotations, rhs->annotations)) {
       return false;
     }
-    if (!CompareArray(op->alloc_buffers, rhs->alloc_buffers,
-                      &AutoTensorizeComparator::CompareBuffer)) {
+    if (!CompareArray(op->alloc_tensors, rhs->alloc_tensors,
+                      &AutoTensorizeComparator::CompareTensor)) {
       return false;
     }
     for (const IterVar& block_iter : op->iter_vars) {
@@ -766,15 +766,15 @@ bool AutoTensorizeComparator::Dispatch_(const SBlockNode* op, const Stmt& other)
   return Dispatch(op->body, rhs->body);
 }
 
-bool AutoTensorizeComparator::CompareBuffer(const TensorVar& lhs, const TensorVar& rhs) {
+bool AutoTensorizeComparator::CompareTensor(const TensorVar& lhs, const TensorVar& rhs) {
   if (lhs.same_as(rhs)) return true;
-  auto it = rhs_buffer_map_.find(rhs);
+  auto it = rhs_tensor_map_.find(rhs);
   bool equal;
-  if (it != rhs_buffer_map_.end()) {
+  if (it != rhs_tensor_map_.end()) {
     equal = (*it).second.same_as(lhs);
   } else {
-    // Remap the buffer itself, skipping buffer shape and storage scope.  Auto
-    // tensorization inserts the cache stages that move workload buffers into
+    // Remap the tensor itself, skipping tensor shape and storage scope.  Auto
+    // tensorization inserts the cache stages that move workload tensors into
     // an intrinsic's required scope, while the element dtype must still agree.
     auto data_it = equal_map_.find(lhs.var());
     if (data_it != equal_map_.end()) {
@@ -786,8 +786,8 @@ bool AutoTensorizeComparator::CompareBuffer(const TensorVar& lhs, const TensorVa
       }
     }
     if (equal) {
-      rhs_buffer_map_.insert_or_assign(rhs, lhs);
-      lhs_buffer_map_.insert_or_assign(lhs, rhs);
+      rhs_tensor_map_.insert_or_assign(rhs, lhs);
+      lhs_tensor_map_.insert_or_assign(lhs, rhs);
     }
   }
   return equal;
@@ -795,22 +795,22 @@ bool AutoTensorizeComparator::CompareBuffer(const TensorVar& lhs, const TensorVa
 
 bool AutoTensorizeComparator::Dispatch_(const TensorStoreNode* op, const Stmt& other) {
   const auto* rhs = other.as<TensorStoreNode>();
-  return CompareBufferAccess(op, rhs) && Dispatch(op->value, rhs->value);
+  return CompareTensorAccess(op, rhs) && Dispatch(op->value, rhs->value);
 }
 
 bool AutoTensorizeComparator::Dispatch_(const TensorLoadNode* op, const PrimExpr& other) {
   const auto* rhs = other.as<TensorLoadNode>();
-  return CompareBufferAccess(op, rhs);
+  return CompareTensorAccess(op, rhs);
 }
 
 template <typename T>
-bool AutoTensorizeComparator::CompareBufferAccess(const T* lhs, const T* rhs) {
-  TensorVar lhs_buffer = GetBufferAccessBuffer(lhs);
-  TensorVar rhs_buffer = GetBufferAccessBuffer(rhs);
-  if (!CompareBuffer(lhs_buffer, rhs_buffer)) return false;
-  auto it_lhs = lhs_buffer_indices_map_.find(lhs_buffer);
-  if (it_lhs == lhs_buffer_indices_map_.end()) {
-    if (rhs_buffer_indices_map_.find(rhs_buffer) != rhs_buffer_indices_map_.end()) {
+bool AutoTensorizeComparator::CompareTensorAccess(const T* lhs, const T* rhs) {
+  TensorVar lhs_tensor = GetTensorAccessTensor(lhs);
+  TensorVar rhs_tensor = GetTensorAccessTensor(rhs);
+  if (!CompareTensor(lhs_tensor, rhs_tensor)) return false;
+  auto it_lhs = lhs_tensor_indices_map_.find(lhs_tensor);
+  if (it_lhs == lhs_tensor_indices_map_.end()) {
+    if (rhs_tensor_indices_map_.find(rhs_tensor) != rhs_tensor_indices_map_.end()) {
       return false;
     }
     std::vector<PrimExpr> lhs_indices;
@@ -829,11 +829,11 @@ bool AutoTensorizeComparator::CompareBufferAccess(const T* lhs, const T* rhs) {
     for (const auto& index : rhs->indices) {
       if (!index.template as<PrimVar>() && !is_scalar_access(rhs->indices, index)) return false;
     }
-    lhs_buffer_indices_map_[lhs_buffer] = lhs_indices;
-    rhs_buffer_indices_map_[rhs_buffer] = rhs->indices;
+    lhs_tensor_indices_map_[lhs_tensor] = lhs_indices;
+    rhs_tensor_indices_map_[rhs_tensor] = rhs->indices;
   } else {
-    auto it_rhs = rhs_buffer_indices_map_.find(rhs_buffer);
-    if (it_rhs == rhs_buffer_indices_map_.end()) {
+    auto it_rhs = rhs_tensor_indices_map_.find(rhs_tensor);
+    if (it_rhs == rhs_tensor_indices_map_.end()) {
       return false;
     }
     auto indices_check = [&](const ffi::Array<PrimExpr>& indices,

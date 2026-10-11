@@ -406,7 +406,7 @@ def test_inplace_single_call():
     @Ts.function(private=True)
     def expected_silu(A: T.Tensor((T.int64(2), T.int64(3)), "float32")):
         T.func_attr({"tirx.noalias": True})
-        compute = Ts.sblock_alloc_buffer((T.int64(2), T.int64(3)))
+        compute = Ts.sblock_alloc_tensor((T.int64(2), T.int64(3)))
         for i0, i1 in T.grid(T.int64(2), T.int64(3)):
             with Ts.sblock("compute"):
                 v_i0, v_i1 = Ts.axis.remap("SS", [i0, i1])

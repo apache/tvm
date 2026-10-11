@@ -103,8 +103,8 @@ class CrossThreadReductionNode : public ScheduleRuleNode {
       }
       // Step 3.2. Do the compute-at.
       tmp_sch->ComputeAt(block_rv, target_loop, /*preserve_unit_loops=*/true);
-      // Step 3.3. Set the storage scope of the output buffer to shared memory.
-      tmp_sch->SetScope(block_rv, /*buffer_index=*/0, /*storage_scope=*/"shared");
+      // Step 3.3. Set the storage scope of the output tensor to shared memory.
+      tmp_sch->SetScope(block_rv, /*tensor_index=*/0, /*storage_scope=*/"shared");
     }
 
     // Step 4. Reorder the loop axes if reduction loops are not innermost. After the reordering,

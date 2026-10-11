@@ -227,7 +227,7 @@ def partition_from_scheduled_tir(function, pass_cfg, do_flatten=True):
         mod = tvm.s_tir.transform.LowerOpaqueBlock()(mod)
         mod = tvm.s_tir.transform.LowerThreadBinding()(mod)
         if do_flatten:
-            mod = tvm.tirx.transform.FlattenBuffer()(mod)
+            mod = tvm.tirx.transform.FlattenTensor()(mod)
         mod = tvm.tirx.transform.StmtSimplify()(mod)
         mod = tvm.tirx.transform.RemoveNoOp()(mod)
         return mod
@@ -644,51 +644,51 @@ def concat_func_edge_equalities_expected(
 
 
 @Ts.function
-def concat_five_buffers_with_equalities(
-    buffer_a: T.Tensor((28, 1), "int8"),  # Used for i1 == 0
-    buffer_b: T.Tensor((28, 63), "int8"),  # Fills i1 from 1 to 63
-    buffer_c: T.Tensor((28, 1), "int8"),  # Used for i1 == 64
-    buffer_d: T.Tensor((28, 63), "int8"),  # Fills i1 from 65 to 128
-    buffer_e: T.Tensor((28, 1), "int8"),  # Used for i1 == 129
+def concat_five_tensors_with_equalities(
+    tensor_a: T.Tensor((28, 1), "int8"),  # Used for i1 == 0
+    tensor_b: T.Tensor((28, 63), "int8"),  # Fills i1 from 1 to 63
+    tensor_c: T.Tensor((28, 1), "int8"),  # Used for i1 == 64
+    tensor_d: T.Tensor((28, 63), "int8"),  # Fills i1 from 65 to 128
+    tensor_e: T.Tensor((28, 1), "int8"),  # Used for i1 == 129
     T_concat: T.Tensor((28, 129), "int8"),
 ) -> None:
     for i0 in range(28):
         for i1 in range(130, annotations={"loop_partition_hint": 1}):
             if i1 == 0:
-                T_concat[i0, i1] = buffer_a[i0, 0]
+                T_concat[i0, i1] = tensor_a[i0, 0]
             elif i1 == 64:
-                T_concat[i0, i1] = buffer_c[i0, 0]
+                T_concat[i0, i1] = tensor_c[i0, 0]
             elif i1 == 129:
-                T_concat[i0, i1] = buffer_e[i0, 0]
+                T_concat[i0, i1] = tensor_e[i0, 0]
             elif i1 < 64:
-                T_concat[i0, i1] = buffer_b[i0, i1 - 1]
+                T_concat[i0, i1] = tensor_b[i0, i1 - 1]
             else:  # i1 > 64 and i1 < 128
-                T_concat[i0, i1] = buffer_d[i0, i1 - 65]
+                T_concat[i0, i1] = tensor_d[i0, i1 - 65]
 
 
 @Ts.function
-def concat_five_buffers_with_equalities_expected(
-    buffer_a: T.Tensor((28, 1), "int8"),  # Used for i1 == 0
-    buffer_b: T.Tensor((28, 63), "int8"),  # Fills i1 from 1 to 63
-    buffer_c: T.Tensor((28, 1), "int8"),  # Used for i1 == 64
-    buffer_d: T.Tensor((28, 63), "int8"),  # Fills i1 from 65 to 128
-    buffer_e: T.Tensor((28, 1), "int8"),  # Used for i1 == 129
+def concat_five_tensors_with_equalities_expected(
+    tensor_a: T.Tensor((28, 1), "int8"),  # Used for i1 == 0
+    tensor_b: T.Tensor((28, 63), "int8"),  # Fills i1 from 1 to 63
+    tensor_c: T.Tensor((28, 1), "int8"),  # Used for i1 == 64
+    tensor_d: T.Tensor((28, 63), "int8"),  # Fills i1 from 65 to 128
+    tensor_e: T.Tensor((28, 1), "int8"),  # Used for i1 == 129
     T_concat: T.Tensor((28, 129), "int8"),
 ):
-    buffer_a_1 = T.decl_tensor((28,), "int8", data=buffer_a.data)
-    buffer_b_1 = T.decl_tensor((1764,), "int8", data=buffer_b.data)
-    buffer_c_1 = T.decl_tensor((28,), "int8", data=buffer_c.data)
-    buffer_d_1 = T.decl_tensor((1764,), "int8", data=buffer_d.data)
-    buffer_e_1 = T.decl_tensor((28,), "int8", data=buffer_e.data)
+    tensor_a_1 = T.decl_tensor((28,), "int8", data=tensor_a.data)
+    tensor_b_1 = T.decl_tensor((1764,), "int8", data=tensor_b.data)
+    tensor_c_1 = T.decl_tensor((28,), "int8", data=tensor_c.data)
+    tensor_d_1 = T.decl_tensor((1764,), "int8", data=tensor_d.data)
+    tensor_e_1 = T.decl_tensor((28,), "int8", data=tensor_e.data)
     T_concat_1 = T.decl_tensor((3612,), "int8", data=T_concat.data)
     for i0 in range(28):
-        T_concat_1[i0 * 129] = buffer_a_1[i0]
+        T_concat_1[i0 * 129] = tensor_a_1[i0]
         for i1 in range(63):
-            T_concat_1[i0 * 129 + i1 + 1] = buffer_b_1[i0 * 63 + i1]
-        T_concat_1[i0 * 129 + 64] = buffer_c_1[i0]
+            T_concat_1[i0 * 129 + i1 + 1] = tensor_b_1[i0 * 63 + i1]
+        T_concat_1[i0 * 129 + 64] = tensor_c_1[i0]
         for i1 in range(64):
-            T_concat_1[i0 * 129 + i1 + 65] = buffer_d_1[i0 * 63 + i1]
-        T_concat_1[i0 * 129 + 129] = buffer_e_1[i0]
+            T_concat_1[i0 * 129 + i1 + 65] = tensor_d_1[i0 * 63 + i1]
+        T_concat_1[i0 * 129 + 129] = tensor_e_1[i0]
 
 
 @Ts.function
@@ -722,7 +722,7 @@ def nested_partition_with_single_points_expected(A: T.Tensor((25,), "int32")):
         (concat_func_start_point_equality, concat_func_start_point_equality_expected),
         (concat_func_end_point_equality, concat_func_end_point_equality_expected),
         (concat_func_edge_equalities, concat_func_edge_equalities_expected),
-        (concat_five_buffers_with_equalities, concat_five_buffers_with_equalities_expected),
+        (concat_five_tensors_with_equalities, concat_five_tensors_with_equalities_expected),
         (nested_partition_with_single_points, nested_partition_with_single_points_expected),
     ],
 )

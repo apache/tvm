@@ -33,8 +33,8 @@ namespace tirx {
 
 // A changed type requires a fresh variable. Callers bind that variable to a
 // decl_tensor over the source's physical pointer when using it as a view.
-TVM_FFI_INLINE TensorVar FlattenedTensor(const TensorVar& buffer) {
-  auto self = buffer.operator->();
+TVM_FFI_INLINE TensorVar FlattenedTensor(const TensorVar& tensor) {
+  auto self = tensor.operator->();
 
   ffi::Array<PrimExpr> output_shape{1};
   if (self->strides.size()) {
@@ -44,21 +44,21 @@ TVM_FFI_INLINE TensorVar FlattenedTensor(const TensorVar& buffer) {
     output_shape.Set(0, self->strides[0] * self->shape[0]);
   } else {
     // Otherwise, the flattened extent is the product of the input extents.
-    // This also flattens rank-0 tensors to a rank-1 buffer of shape [1].
+    // This also flattens rank-0 tensors to a rank-1 tensor of shape [1].
     for (size_t i = 0; i < self->shape.size(); i++) {
       output_shape.Set(0, output_shape[0] * self->shape[i]);
     }
   }
 
   if (output_shape.size() == self->shape.size() && self->strides.empty()) {
-    return buffer;
+    return tensor;
   } else {
     // The original layout describes the old rank; reset it for the flattened shape.
-    return TensorVar(buffer.name(),
+    return TensorVar(tensor.name(),
                      TensorType(self->storage_scope, self->dtype, output_shape, {},
                                 self->elem_offset, self->data_alignment, self->offset_factor,
                                 TileLayoutNode::DefaultLayout(output_shape)),
-                     buffer.loc());
+                     tensor.loc());
   }
 }
 

@@ -27,10 +27,10 @@ from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
-def test_annotate_read_buffer_access():
+def test_annotate_read_tensor_access():
     @Ts.function
     def before(A: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "float32")):
-        B = Ts.sblock_alloc_buffer((128, 128), "float32")
+        B = Ts.sblock_alloc_tensor((128, 128), "float32")
         for i, j in T.grid(128, 128):
             with Ts.sblock("B"):
                 vi, vj = Ts.axis.remap("SS", [i, j])
@@ -42,7 +42,7 @@ def test_annotate_read_buffer_access():
 
     @Ts.function
     def expected(A: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "float32")):
-        B = Ts.sblock_alloc_buffer((128, 128), "float32")
+        B = Ts.sblock_alloc_tensor((128, 128), "float32")
         for i, j in T.grid(128, 128):
             with Ts.sblock("B"):
                 vi, vj = Ts.axis.remap("SS", [i, j])
@@ -57,17 +57,17 @@ def test_annotate_read_buffer_access():
 
     sch = tvm.s_tir.Schedule(before, debug_mask="all")
     block = sch.get_sblock("B")
-    sch.annotate_buffer_access(
+    sch.annotate_tensor_access(
         block, 0, "read", lambda vi, vj: ((vi - 1, vi + 1), (vj - 1, vj + 1))
     )
     assert_structural_equal_ignore_global_symbol(sch.mod["main"], expected)
     verify_trace_roundtrip(sch=sch, mod=before)
 
 
-def test_annotate_write_buffer_access():
+def test_annotate_write_tensor_access():
     @Ts.function
     def before(A: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "float32")):
-        B = Ts.sblock_alloc_buffer((128, 128), "float32")
+        B = Ts.sblock_alloc_tensor((128, 128), "float32")
         for i, j in T.grid(128, 128):
             with Ts.sblock("B"):
                 vi, vj = Ts.axis.remap("SS", [i, j])
@@ -79,7 +79,7 @@ def test_annotate_write_buffer_access():
 
     @Ts.function
     def expected(A: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "float32")):
-        B = Ts.sblock_alloc_buffer((128, 128), "float32")
+        B = Ts.sblock_alloc_tensor((128, 128), "float32")
         for i, j in T.grid(128, 128):
             with Ts.sblock("B"):
                 vi, vj = Ts.axis.remap("SS", [i, j])
@@ -94,12 +94,12 @@ def test_annotate_write_buffer_access():
 
     sch = tvm.s_tir.Schedule(before, debug_mask="all")
     block = sch.get_sblock("B")
-    sch.annotate_buffer_access(block, 0, "write", lambda vi, vj: ((vi, vi + 2), (vj, vj + 2)))
+    sch.annotate_tensor_access(block, 0, "write", lambda vi, vj: ((vi, vi + 2), (vj, vj + 2)))
     assert_structural_equal_ignore_global_symbol(sch.mod["main"], expected)
     verify_trace_roundtrip(sch=sch, mod=before)
 
 
-def test_annotate_buffer_access_for_resize():
+def test_annotate_tensor_access_for_resize():
     # fmt: off
     @Ts.function
     def resize_before(x: T.Tensor((1, 1, 32, 32), "float16"), resize: T.Tensor((1, 1, 16, 16), "float16")):
@@ -122,7 +122,7 @@ def test_annotate_buffer_access_for_resize():
     # fmt: on
     sch = tvm.s_tir.Schedule(resize_before, debug_mask="all")
     block = sch.get_sblock("resize")
-    sch.annotate_buffer_access(
+    sch.annotate_tensor_access(
         block,
         0,
         "read",
@@ -137,10 +137,10 @@ def test_annotate_buffer_access_for_resize():
     verify_trace_roundtrip(sch=sch, mod=resize_before)
 
 
-def test_annotate_buffer_access_read_and_write():
+def test_annotate_tensor_access_read_and_write():
     @Ts.function
     def before(A: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "float32")):
-        B = Ts.sblock_alloc_buffer((128, 128), "float32")
+        B = Ts.sblock_alloc_tensor((128, 128), "float32")
         for i, j in T.grid(128, 128):
             with Ts.sblock("B"):
                 vi, vj = Ts.axis.remap("SS", [i, j])
@@ -156,7 +156,7 @@ def test_annotate_buffer_access_read_and_write():
 
     @Ts.function
     def expected(A: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "float32")):
-        B = Ts.sblock_alloc_buffer((128, 128), "float32")
+        B = Ts.sblock_alloc_tensor((128, 128), "float32")
         for i, j in T.grid(128, 128):
             with Ts.sblock("B"):
                 vi, vj = Ts.axis.remap("SS", [i, j])
@@ -174,20 +174,20 @@ def test_annotate_buffer_access_read_and_write():
     sch = tvm.s_tir.Schedule(before, debug_mask="all")
     block = sch.get_sblock("B")
 
-    sch.annotate_buffer_access(
+    sch.annotate_tensor_access(
         block, 0, "read", lambda vi, vj: ((vi - 1, vi + 2), (vj - 1, vj + 2))
     )
 
-    sch.annotate_buffer_access(block, 0, "write", lambda vi, vj: ((vi, vi + 2), (vj, vj + 2)))
+    sch.annotate_tensor_access(block, 0, "write", lambda vi, vj: ((vi, vi + 2), (vj, vj + 2)))
 
     assert_structural_equal_ignore_global_symbol(sch.mod["main"], expected)
     verify_trace_roundtrip(sch=sch, mod=before)
 
 
-def test_double_annotate_buffer_access_read():
+def test_double_annotate_tensor_access_read():
     @Ts.function
     def before(A: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "float32")):
-        B = Ts.sblock_alloc_buffer((128, 128), "float32")
+        B = Ts.sblock_alloc_tensor((128, 128), "float32")
         for i, j in T.grid(128, 128):
             with Ts.sblock("B"):
                 vi, vj = Ts.axis.remap("SS", [i, j])
@@ -203,7 +203,7 @@ def test_double_annotate_buffer_access_read():
 
     @Ts.function
     def expected(A: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "float32")):
-        B = Ts.sblock_alloc_buffer((128, 128), "float32")
+        B = Ts.sblock_alloc_tensor((128, 128), "float32")
         for i, j in T.grid(128, 128):
             with Ts.sblock("B"):
                 vi, vj = Ts.axis.remap("SS", [i, j])
@@ -221,11 +221,11 @@ def test_double_annotate_buffer_access_read():
     sch = tvm.s_tir.Schedule(before, debug_mask="all")
     block = sch.get_sblock("B")
 
-    sch.annotate_buffer_access(
+    sch.annotate_tensor_access(
         block, 0, "read", lambda vi, vj: ((vi - 1, vi + 2), (vj - 1, vj + 2))
     )
 
-    sch.annotate_buffer_access(
+    sch.annotate_tensor_access(
         block, 0, "read", lambda vi, vj: ((vi - 2, vi + 3), (vj - 2, vj + 3))
     )
 
@@ -233,11 +233,11 @@ def test_double_annotate_buffer_access_read():
     verify_trace_roundtrip(sch=sch, mod=before)
 
 
-def test_annotate_buffer_access_with_compute_at_for_resize():
+def test_annotate_tensor_access_with_compute_at_for_resize():
     # fmt: off
     @Ts.function
     def before(x: T.Tensor((1, 3, 200, 200), "float32"), y: T.Tensor((1, 3, 100, 100), "float32")):
-        x_global = Ts.sblock_alloc_buffer([1, 3, 200, 200], dtype="float32")
+        x_global = Ts.sblock_alloc_tensor([1, 3, 200, 200], dtype="float32")
         for ax0, ax1, ax2, ax3 in T.grid(1, 3, 200, 200):
             with Ts.sblock("cache"):
                 v0, v1, v2, v3 = Ts.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
@@ -249,7 +249,7 @@ def test_annotate_buffer_access_with_compute_at_for_resize():
 
     @Ts.function
     def after(x: T.Tensor((1, 3, 200, 200), "float32"), y: T.Tensor((1, 3, 100, 100), "float32")):
-        x_global = Ts.sblock_alloc_buffer((1, 3, 200, 200))
+        x_global = Ts.sblock_alloc_tensor((1, 3, 200, 200))
         for i0, i1, i2_0, i3_0 in T.grid(1, 3, 10, 10):
             for ax0, ax1 in T.grid(24, 24):
                 with Ts.sblock("cache"):
@@ -272,8 +272,8 @@ def test_annotate_buffer_access_with_compute_at_for_resize():
                     y[v_i0, v_i1, v_i2, v_i3] = x_global[v_i0, v_i1, T.Cast("int32", T.floor(T.Cast("float32", v_i2 * 2) + T.float32(0.5))), T.Cast("int32", T.floor(T.Cast("float32", v_i3 * 2) + T.float32(0.5)))]
 
     @Ts.function
-    def after_without_annotate_buffer_access(x: T.Tensor((1, 3, 200, 200), "float32"), y: T.Tensor((1, 3, 100, 100), "float32")):
-        x_global = Ts.sblock_alloc_buffer((1, 3, 200, 200))
+    def after_without_annotate_tensor_access(x: T.Tensor((1, 3, 200, 200), "float32"), y: T.Tensor((1, 3, 100, 100), "float32")):
+        x_global = Ts.sblock_alloc_tensor((1, 3, 200, 200))
         for i0, i1, i2_0, i3_0 in T.grid(1, 3, 10, 10):
             for ax0, ax1 in T.grid(200, 200):
                 with Ts.sblock("cache"):
@@ -292,13 +292,13 @@ def test_annotate_buffer_access_with_compute_at_for_resize():
                     y[v_i0, v_i1, v_i2, v_i3] = x_global[v_i0, v_i1, T.Cast("int32", T.floor(T.Cast("float32", v_i2 * 2) + T.float32(0.5))), T.Cast("int32", T.floor(T.Cast("float32", v_i3 * 2) + T.float32(0.5)))]
     # fmt: on
 
-    # Schedule with annotate_buffer_access
+    # Schedule with annotate_tensor_access
     sch = tvm.s_tir.Schedule(before, debug_mask="all")
     block = sch.get_sblock("resize")
     cache_block = sch.get_sblock("cache")
 
-    # Annotate buffer access
-    sch.annotate_buffer_access(
+    # Annotate tensor access
+    sch.annotate_tensor_access(
         block,
         0,
         "read",
@@ -314,7 +314,7 @@ def test_annotate_buffer_access_with_compute_at_for_resize():
     assert_structural_equal_ignore_global_symbol(sch.mod["main"], after)
     verify_trace_roundtrip(sch=sch, mod=before)
 
-    # Schedule without annotate_buffer_access
+    # Schedule without annotate_tensor_access
     sch_without_annotate = tvm.s_tir.Schedule(before, debug_mask="all")
     block_without_annotate = sch_without_annotate.get_sblock("resize")
     cache_block_without_annotate = sch_without_annotate.get_sblock("cache")
@@ -326,7 +326,7 @@ def test_annotate_buffer_access_with_compute_at_for_resize():
     sch_without_annotate.compute_at(cache_block_without_annotate, wo)
 
     assert_structural_equal_ignore_global_symbol(
-        sch_without_annotate.mod["main"], after_without_annotate_buffer_access
+        sch_without_annotate.mod["main"], after_without_annotate_tensor_access
     )
 
 

@@ -175,7 +175,7 @@ def scatter_elements(data, indices, updates, axis=0, reduction="update"):
         [data, indices, updates],
         lambda ins, outs: gen_ir(ins[0], ins[1], ins[2], outs[0], reduce_func),
         dtype=data.dtype,
-        out_buffers=[out_buf],
+        out_tensors=[out_buf],
         name="scatter_elements.gpu",
         tag="scatter_elements.gpu",
     )

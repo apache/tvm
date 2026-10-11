@@ -31,19 +31,19 @@ using namespace tvm::tirx;
 /******** Error Classes ********/
 
 namespace {
-class BufTypeError : public ScheduleErrorContextObj {
+class TensorTypeError : public ScheduleErrorContextObj {
  public:
-  explicit BufTypeError(IRModule mod, const ffi::String& buf_type)
-      : mod_(std::move(mod)), buf_type_(buf_type) {}
+  explicit TensorTypeError(IRModule mod, const ffi::String& tensor_type)
+      : mod_(std::move(mod)), tensor_type_(tensor_type) {}
 
   ffi::String FastErrorString() const final {
-    return "ScheduleError: Invalid buffer type for hide_buffer_access schedule.";
+    return "ScheduleError: Invalid tensor type for hide_tensor_access schedule.";
   }
 
   ffi::String DetailRenderTemplate() const final {
-    return "The buffer type for hide_buffer_access schedule should either be 'read'"
+    return "The tensor type for hide_tensor_access schedule should either be 'read'"
            " or 'write', got " +
-           buf_type_ + " instead.";
+           tensor_type_ + " instead.";
   }
 
   IRModule mod() const final { return mod_; }
@@ -51,22 +51,22 @@ class BufTypeError : public ScheduleErrorContextObj {
 
  private:
   IRModule mod_;
-  ffi::String buf_type_;
+  ffi::String tensor_type_;
 };
 
 class InvalidIndexError : public ScheduleErrorContextObj {
  public:
-  explicit InvalidIndexError(IRModule mod, int num_access_regions, int buf_idx)
-      : mod_(std::move(mod)), num_access_regions_(num_access_regions), buf_idx_(buf_idx) {}
+  explicit InvalidIndexError(IRModule mod, int num_access_regions, int tensor_idx)
+      : mod_(std::move(mod)), num_access_regions_(num_access_regions), tensor_idx_(tensor_idx) {}
 
   ffi::String FastErrorString() const final {
-    return "ScheduleError: Invalid buffer index array for hide_buffer_access schedule.";
+    return "ScheduleError: Invalid tensor index array for hide_tensor_access schedule.";
   }
 
   ffi::String DetailRenderTemplate() const final {
-    return "The buffer index array for hide_buffer_access schedule should be a list of integers"
+    return "The tensor index array for hide_tensor_access schedule should be a list of integers"
            " between 0 and " +
-           std::to_string(num_access_regions_ - 1) + ", got " + std::to_string(buf_idx_) +
+           std::to_string(num_access_regions_ - 1) + ", got " + std::to_string(tensor_idx_) +
            " instead.";
   }
 
@@ -77,61 +77,62 @@ class InvalidIndexError : public ScheduleErrorContextObj {
  private:
   IRModule mod_;
   int num_access_regions_;
-  int buf_idx_;
+  int tensor_idx_;
 };
 
 }  // namespace
 
 /******** Implementation ********/
 
-void UnsafeHideBufferAccess(ScheduleState self, const StmtSRef& block_sref,
-                            const ffi::String& buf_type,
-                            const ffi::Array<IntImm>& buf_index_array) {
+void UnsafeHideTensorAccess(ScheduleState self, const StmtSRef& block_sref,
+                            const ffi::String& tensor_type,
+                            const ffi::Array<IntImm>& tensor_index_array) {
   /*!
    * Check:
-   *   - validity of buf_index_array
-   *   - validity of buf_type
+   *   - validity of tensor_index_array
+   *   - validity of tensor_type
    */
   const SBlockNode* block = TVM_SREF_TO_SBLOCK(block_sref);
   int num_access_regions = 0;
-  if (buf_type == "read") {
+  if (tensor_type == "read") {
     num_access_regions = block->reads.size();
-  } else if (buf_type == "write") {
+  } else if (tensor_type == "write") {
     num_access_regions = block->writes.size();
   } else {
-    throw MakeScheduleError<BufTypeError>(self->mod, buf_type);
+    throw MakeScheduleError<TensorTypeError>(self->mod, tensor_type);
   }
 
-  std::set<int> buf_indices;
-  for (const IntImm& buf_idx : buf_index_array) {
-    int buf_idx_val = buf_idx->value.as<int>().value();
-    if (buf_idx_val >= 0 && buf_idx_val < num_access_regions) {
-      buf_indices.insert(buf_idx_val);
+  std::set<int> tensor_indices;
+  for (const IntImm& tensor_idx : tensor_index_array) {
+    int tensor_idx_val = tensor_idx->value.as<int>().value();
+    if (tensor_idx_val >= 0 && tensor_idx_val < num_access_regions) {
+      tensor_indices.insert(tensor_idx_val);
     } else {
-      throw MakeScheduleError<InvalidIndexError>(self->mod, num_access_regions, buf_idx_val);
+      throw MakeScheduleError<InvalidIndexError>(self->mod, num_access_regions, tensor_idx_val);
     }
   }
 
-  /* Step 0: Collect new buffer access regions. */
+  /* Step 0: Collect new tensor access regions. */
 
   ffi::Array<TensorRegion> reads, writes;
 
-  if (buf_type == "read") {
+  if (tensor_type == "read") {
     for (size_t i = 0; i < block->reads.size(); ++i) {
-      if (!buf_indices.count(i)) {
+      if (!tensor_indices.count(i)) {
         reads.push_back(block->reads[i]);
       }
     }
     writes = block->writes;
-  } else if (buf_type == "write") {
+  } else if (tensor_type == "write") {
     for (size_t i = 0; i < block->writes.size(); ++i) {
-      if (!buf_indices.count(i)) {
+      if (!tensor_indices.count(i)) {
         writes.push_back(block->writes[i]);
       }
     }
     reads = block->reads;
   } else {
-    TVM_FFI_ICHECK(false) << "Unrecognized buffer type " << buf_type << ", only support read/write";
+    TVM_FFI_ICHECK(false) << "Unrecognized tensor type " << tensor_type
+                          << ", only support read/write";
   }
 
   /* Step 1: Replace old block with the new block */
@@ -145,8 +146,8 @@ void UnsafeHideBufferAccess(ScheduleState self, const StmtSRef& block_sref,
   self->Replace(block_sref, new_block, blk_map);
 }
 
-struct UnsafeHideBufferAccessTraits : public UnpackedInstTraits<UnsafeHideBufferAccessTraits> {
-  static constexpr const char* kName = "UnsafeHideBufferAccess";
+struct UnsafeHideTensorAccessTraits : public UnpackedInstTraits<UnsafeHideTensorAccessTraits> {
+  static constexpr const char* kName = "UnsafeHideTensorAccess";
   static constexpr bool kIsPure = false;
 
  private:
@@ -154,17 +155,18 @@ struct UnsafeHideBufferAccessTraits : public UnpackedInstTraits<UnsafeHideBuffer
   static constexpr size_t kNumAttrs = 0;
   static constexpr size_t kNumDecisions = 0;
 
-  static void UnpackedApplyToSchedule(Schedule sch, SBlockRV block, ffi::String buf_type,
-                                      ffi::Array<IntImm> buf_index_array) {
-    sch->UnsafeHideBufferAccess(block, buf_type, buf_index_array);
+  static void UnpackedApplyToSchedule(Schedule sch, SBlockRV block, ffi::String tensor_type,
+                                      ffi::Array<IntImm> tensor_index_array) {
+    sch->UnsafeHideTensorAccess(block, tensor_type, tensor_index_array);
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String block,
-                                      ffi::String buf_type, ffi::Array<IntImm> buf_index_array) {
-    PythonAPICall py("unsafe_hide_buffer_access");
+                                      ffi::String tensor_type,
+                                      ffi::Array<IntImm> tensor_index_array) {
+    PythonAPICall py("unsafe_hide_tensor_access");
     py.Input("block", block);
-    py.Input("buf_type", buf_type);
-    py.Input("buf_index_array", buf_index_array);
+    py.Input("tensor_type", tensor_type);
+    py.Input("tensor_index_array", tensor_index_array);
     return py.Str();
   }
 
@@ -172,7 +174,7 @@ struct UnsafeHideBufferAccessTraits : public UnpackedInstTraits<UnsafeHideBuffer
   friend struct ::tvm::s_tir::UnpackedInstTraits;
 };
 
-TVM_FFI_STATIC_INIT_BLOCK() { RegisterInstructionKind<UnsafeHideBufferAccessTraits>(); }
+TVM_FFI_STATIC_INIT_BLOCK() { RegisterInstructionKind<UnsafeHideTensorAccessTraits>(); }
 
 }  // namespace s_tir
 }  // namespace tvm

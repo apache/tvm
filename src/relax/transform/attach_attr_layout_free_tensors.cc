@@ -17,8 +17,8 @@
  * under the License.
  */
 /*!
- * \file src/relax/transform/attach_attr_layout_free_buffers.cc
- * \brief Attach layout_free_buffers for layout-free buffers.
+ * \file src/relax/transform/attach_attr_layout_free_tensors.cc
+ * \brief Attach layout_free_tensors for layout-free tensors.
  */
 
 #include <tvm/ffi/reflection/registry.h>
@@ -75,16 +75,16 @@ class AttrAttacher : public ExprMutator {
     }
     GlobalVar gv = call->args[0].as_or_throw<GlobalVar>();
     ffi::Array<Expr> call_tir_args = call->args[1].as_or_throw<Tuple>()->fields;
-    // Compute the layout free buffers
-    ffi::Array<int64_t> layout_free_buffers;
+    // Compute the layout free tensors
+    ffi::Array<int64_t> layout_free_tensors;
     for (size_t i = 0; i < call_tir_args.size(); i++) {
       if (layout_free_exprs_.count(call_tir_args[i].get())) {
-        layout_free_buffers.push_back(i);
+        layout_free_tensors.push_back(i);
       }
     }
-    // Attach the layout free buffers to the tirx::Function
+    // Attach the layout free tensors to the tirx::Function
     tirx::Function func = WithAttr(mod_->Lookup(gv).as_or_throw<tirx::Function>(),
-                                   tvm::s_tir::attr::kLayoutFreeBuffers, layout_free_buffers);
+                                   tvm::s_tir::attr::kLayoutFreeTensors, layout_free_tensors);
     // Renew defs
     func = tirx::RenewDef(func);
     // Add the updated tirx::Function in the IRModule
@@ -103,16 +103,16 @@ class AttrAttacher : public ExprMutator {
 };
 namespace transform {
 
-Pass AttachAttrLayoutFreeBuffers() {
+Pass AttachAttrLayoutFreeTensors() {
   auto pass_func = [=](IRModule mod, PassContext pc) { return AttrAttacher::Transform(mod); };
-  auto pass = CreateModulePass(pass_func, 0, "_AttachAttrLayoutFreeBuffers");
+  auto pass = CreateModulePass(pass_func, 0, "_AttachAttrLayoutFreeTensors");
   // Apply DeadCodeElimination to remove unused tirx::Function
-  return tvm::transform::Sequential({pass, DeadCodeElimination()}, "AttachAttrLayoutFreeBuffers");
+  return tvm::transform::Sequential({pass, DeadCodeElimination()}, "AttachAttrLayoutFreeTensors");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.transform.AttachAttrLayoutFreeBuffers", AttachAttrLayoutFreeBuffers);
+  refl::GlobalDef().def("relax.transform.AttachAttrLayoutFreeTensors", AttachAttrLayoutFreeTensors);
 }
 }  // namespace transform
 }  // namespace relax

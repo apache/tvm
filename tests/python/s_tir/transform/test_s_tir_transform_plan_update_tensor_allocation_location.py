@@ -28,13 +28,13 @@ from tvm.script import tirx as T
 def _check(original, transformed):
     func = original
     mod = tvm.IRModule.from_expr(func.with_attr("global_symbol", "main"))
-    mod = tvm.s_tir.transform.PlanAndUpdateBufferAllocationLocation()(mod)
+    mod = tvm.s_tir.transform.PlanAndUpdateTensorAllocationLocation()(mod)
     tvm.ir.assert_structural_equal(mod["main"], transformed.with_attr("global_symbol", "main"))
 
 
 @Ts.function
 def element_func(A: T.Tensor((16, 16)), C: T.Tensor((16, 16))) -> None:
-    B = Ts.sblock_alloc_buffer((16, 16))
+    B = Ts.sblock_alloc_tensor((16, 16))
     for i0 in range(0, 16):
         for j0 in range(0, 16):
             with Ts.sblock():
@@ -52,7 +52,7 @@ def transformed_element_func(A: T.Tensor([16, 16]), C: T.Tensor([16, 16])) -> No
         with Ts.sblock():
             Ts.reads([A[i_0, 0:16]])
             Ts.writes([C[i_0, 0:16]])
-            B = Ts.sblock_alloc_buffer([16, 16])
+            B = Ts.sblock_alloc_tensor([16, 16])
             for j_0 in T.serial(0, 16):
                 with Ts.sblock():
                     i, j = Ts.axis.remap("SS", [i_0, j_0])
@@ -65,7 +65,7 @@ def transformed_element_func(A: T.Tensor([16, 16]), C: T.Tensor([16, 16])) -> No
 
 @Ts.function
 def original_func() -> None:
-    A = Ts.sblock_alloc_buffer((128, 128), "float32")
+    A = Ts.sblock_alloc_tensor((128, 128), "float32")
     for i0, j0 in T.grid(128, 128):
         with Ts.sblock():
             i, j = Ts.axis.remap("SS", [i0, j0])
@@ -73,9 +73,9 @@ def original_func() -> None:
     for i0, j0, k0 in T.grid(32, 32, 32):
         with Ts.sblock():
             i, j, k = Ts.axis.remap("SSR", [i0, j0, k0])
-            B = Ts.sblock_alloc_buffer((128, 128), "float32")
-            C = Ts.sblock_alloc_buffer((128, 128), "float32")
-            D = Ts.sblock_alloc_buffer((128, 128), "float32")
+            B = Ts.sblock_alloc_tensor((128, 128), "float32")
+            C = Ts.sblock_alloc_tensor((128, 128), "float32")
+            D = Ts.sblock_alloc_tensor((128, 128), "float32")
             if k == 0:
                 for ii, jj in T.grid(4, 4):
                     B[i * 4 + ii, j * 4 + jj] = A[i * 4 + ii, j * 4 + jj]
@@ -90,7 +90,7 @@ def original_func() -> None:
 
 @Ts.function
 def transformed_func() -> None:
-    A = Ts.sblock_alloc_buffer([128, 128])
+    A = Ts.sblock_alloc_tensor([128, 128])
     for i0, j0 in T.grid(128, 128):
         with Ts.sblock():
             i, j = Ts.axis.remap("SS", [i0, j0])
@@ -98,7 +98,7 @@ def transformed_func() -> None:
     for i0, j0, k0 in T.grid(32, 32, 32):
         with Ts.sblock():
             i, j, k = Ts.axis.remap("SSR", [i0, j0, k0])
-            B = Ts.sblock_alloc_buffer([128, 128])
+            B = Ts.sblock_alloc_tensor([128, 128])
             if k == 0:
                 for ii, jj in T.grid(4, 4):
                     B[i * 4 + ii, j * 4 + jj] = A[i * 4 + ii, j * 4 + jj]
@@ -106,7 +106,7 @@ def transformed_func() -> None:
                 with Ts.sblock(""):
                     Ts.reads([B[((i * 4) + ii), ((j * 4) + jj)]])
                     Ts.writes([B[((i * 4) + ii), ((j * 4) + jj)]])
-                    C = Ts.sblock_alloc_buffer([128, 128])
+                    C = Ts.sblock_alloc_tensor([128, 128])
                     for kk in T.serial(0, 4):
                         B[((i * 4) + ii), ((j * 4) + jj)] = (
                             B[((i * 4) + ii), ((j * 4) + jj)] + C[((i * 4) + ii), ((k * 4) + kk)]
@@ -120,7 +120,7 @@ def transformed_func() -> None:
                                 ]
                             )
                             Ts.writes([B[((i * 4) + ii), ((j * 4) + jj)]])
-                            D = Ts.sblock_alloc_buffer([128, 128])
+                            D = Ts.sblock_alloc_tensor([128, 128])
                             B[((i * 4) + ii), ((j * 4) + jj)] = B[
                                 ((i * 4) + ii), ((j * 4) + jj)
                             ] + (
@@ -130,36 +130,36 @@ def transformed_func() -> None:
 
 
 @Ts.function
-def match_buffer_func() -> None:
-    C = Ts.sblock_alloc_buffer((128, 128))
+def match_tensor_func() -> None:
+    C = Ts.sblock_alloc_tensor((128, 128))
     for i in range(128):
         with Ts.sblock():
             vi = Ts.axis.S(128, i)
-            C0 = Ts.match_buffer(C[vi, 0:128], (128))
+            C0 = Ts.match_tensor(C[vi, 0:128], (128))
             for j in range(128):
                 with Ts.sblock():
                     jj = Ts.axis.S(128, j)
-                    C1 = Ts.match_buffer(C0[jj], ())
+                    C1 = Ts.match_tensor(C0[jj], ())
                     C1[()] = 0
 
 
 @Ts.function
-def transformed_match_buffer_func() -> None:
+def transformed_match_tensor_func() -> None:
     for i in range(0, 128):
         with Ts.sblock():
             vi = Ts.axis.S(128, i)
-            C = Ts.sblock_alloc_buffer((128, 128))
-            C0 = Ts.match_buffer(C[vi, 0:128], (128))
+            C = Ts.sblock_alloc_tensor((128, 128))
+            C0 = Ts.match_tensor(C[vi, 0:128], (128))
             for j in range(128):
                 with Ts.sblock():
                     jj = Ts.axis.S(128, j)
-                    C1 = Ts.match_buffer(C0[jj], ())
+                    C1 = Ts.match_tensor(C0[jj], ())
                     C1[()] = 0
 
 
 @Ts.function
 def opaque_access(A: T.Tensor([1024]), B: T.Tensor([1024])) -> None:
-    A_cache = Ts.sblock_alloc_buffer([1024])
+    A_cache = Ts.sblock_alloc_tensor([1024])
     for i in T.serial(0, 8):
         with Ts.sblock():
             vi = Ts.axis.S(8, i)
@@ -194,7 +194,7 @@ def transformed_opaque_access(A: T.Tensor([1024]), B: T.Tensor([1024])) -> None:
             vi = Ts.axis.S(8, i)
             Ts.reads(A[vi * 128 : vi * 128 + 128])
             Ts.writes(B[vi * 128 : vi * 128 + 128])
-            A_cache = Ts.sblock_alloc_buffer([1024])
+            A_cache = Ts.sblock_alloc_tensor([1024])
             with Ts.sblock():
                 v = Ts.axis.S(8, vi)
                 Ts.reads([A[v * 128 : v * 128 + 128]])
@@ -216,12 +216,12 @@ def test_elementwise():
     _check(element_func, transformed_element_func)
 
 
-def test_locate_buffer_allocation():
+def test_locate_tensor_allocation():
     _check(original_func, transformed_func)
 
 
-def test_match_buffer_allocation():
-    _check(match_buffer_func, transformed_match_buffer_func)
+def test_match_tensor_allocation():
+    _check(match_tensor_func, transformed_match_tensor_func)
 
 
 def test_opaque_access():
@@ -229,14 +229,14 @@ def test_opaque_access():
 
 
 def test_loop_carried_dependency():
-    """The buffer allocation should be above opaque iter var's loop scopes
-    such that buffer accesses with loop carried dependencies are covered,
-    and the allocate buffer should keep the order."""
+    """The tensor allocation should be above opaque iter var's loop scopes
+    such that tensor accesses with loop carried dependencies are covered,
+    and the allocate tensor should keep the order."""
 
     @Ts.function
     def before(A: T.Tensor((8, 8, 8), "int32"), B: T.Tensor((8, 8, 8), "int32")):
-        C = Ts.sblock_alloc_buffer([8, 8, 8], dtype="int32")
-        D = Ts.sblock_alloc_buffer([8, 8, 8], dtype="int32")
+        C = Ts.sblock_alloc_tensor([8, 8, 8], dtype="int32")
+        D = Ts.sblock_alloc_tensor([8, 8, 8], dtype="int32")
         for i in T.serial(8):
             for j in T.serial(8):
                 for k in T.serial(8):
@@ -263,8 +263,8 @@ def test_loop_carried_dependency():
             with Ts.sblock():
                 Ts.reads(A[i, 0:8, 0:8])
                 Ts.writes(B[i, 0:8, 0:8])
-                C = Ts.sblock_alloc_buffer([8, 8, 8], dtype="int32")
-                D = Ts.sblock_alloc_buffer([8, 8, 8], dtype="int32")
+                C = Ts.sblock_alloc_tensor([8, 8, 8], dtype="int32")
+                D = Ts.sblock_alloc_tensor([8, 8, 8], dtype="int32")
                 for j in T.serial(8):
                     for k in T.serial(8):
                         with Ts.sblock("b0"):
@@ -288,12 +288,12 @@ def test_loop_carried_dependency():
 
 
 def test_1D_cascade_op_rolling_buffer():
-    """The intermediate buffer must be allocated above rolling buffer's rolling loop,
+    """The intermediate tensor must be allocated above rolling tensor's rolling loop,
     which is marked as opaque in consumer block's iter mappings."""
 
     @Ts.function
     def before(A: T.Tensor((4, 16), "int32"), C: T.Tensor((4, 8), "int32")):
-        B = Ts.sblock_alloc_buffer((4, 6), "int32")
+        B = Ts.sblock_alloc_tensor((4, 6), "int32")
         for c in T.serial(4):
             for i in T.serial(0, 2):
                 for j in T.serial(0, 6):
@@ -323,7 +323,7 @@ def test_1D_cascade_op_rolling_buffer():
             with Ts.sblock():
                 Ts.reads(A[c, 0:12], C[c, 0:8])
                 Ts.writes(C[c, 0:8])
-                B = Ts.sblock_alloc_buffer([4, 6], dtype="int32")
+                B = Ts.sblock_alloc_tensor([4, 6], dtype="int32")
                 for i in T.serial(2):
                     for j, k in T.grid(6, 3):
                         with Ts.sblock("P1"):
@@ -345,11 +345,11 @@ def test_1D_cascade_op_rolling_buffer():
     _check(before, after)
 
 
-def test_buffer_conditional_lowering():
-    """Buffers passed as pointer arguments are unmodified
+def test_tensor_conditional_lowering():
+    """Tensors passed as pointer arguments are unmodified
 
-    Confirm that the `tirx.PlanAndUpdateBufferAllocationLocation` pass
-    leaves (Buffer nodes corresponding to pointer-typed Function arguments)
+    Confirm that the `tirx.PlanAndUpdateTensorAllocationLocation` pass
+    leaves (Tensor nodes corresponding to pointer-typed Function arguments)
     unchanged, rather than lowering them to `reads`, `writes`, and `alloc_tensor` nodes.
     """
 
@@ -364,11 +364,11 @@ def test_buffer_conditional_lowering():
     _check(before, after)
 
 
-def test_dltensor_buffer_is_unlowered():
-    """Buffers allocated with a Bind are unmodified
+def test_dltensor_tensor_is_unlowered():
+    """Tensors allocated with a Bind are unmodified
 
-    Confirm that the `tirx.PlanAndUpdateBufferAllocationLocation` pass
-    leaves (Buffer nodes corresponding to Function DLTensor arguments)
+    Confirm that the `tirx.PlanAndUpdateTensorAllocationLocation` pass
+    leaves (Tensor nodes corresponding to Function DLTensor arguments)
     unchanged, rather than lowering them to `reads`, `writes`, and
     `alloc_tensor` nodes.
     """
@@ -398,12 +398,12 @@ def test_dltensor_buffer_is_unlowered():
     _check(before, after)
 
 
-def test_reduce_buffer_dominate_reduce_loops():
-    """Reduction write buffer allocation should dominate all reduce loops"""
+def test_reduce_tensor_dominate_reduce_loops():
+    """Reduction write tensor allocation should dominate all reduce loops"""
 
     @Ts.function
     def before(x: T.Tensor((256, 256, 256), "float32"), x_red: T.Tensor((256, 256), "float32")):
-        x_red_ = Ts.sblock_alloc_buffer((256, 256))
+        x_red_ = Ts.sblock_alloc_tensor((256, 256))
         for ax0_0, k1_0, ax1_0 in T.grid(4, 4, 4):
             for ax0_1, k1_1, ax1_1 in T.grid(64, 64, 64):
                 with Ts.sblock("x_red"):
@@ -425,7 +425,7 @@ def test_reduce_buffer_dominate_reduce_loops():
             with Ts.sblock(""):
                 Ts.reads(x[ax0_0 * 64 : ax0_0 * 64 + 64, 0:256, 0:256])
                 Ts.writes(x_red[ax0_0 * 64 : ax0_0 * 64 + 64, 0:256])
-                x_red_ = Ts.sblock_alloc_buffer((256, 256))
+                x_red_ = Ts.sblock_alloc_tensor((256, 256))
                 for k1_0, ax1_0 in T.grid(4, 4):
                     for ax0_1, k1_1, ax1_1 in T.grid(64, 64, 64):
                         with Ts.sblock("x_red"):

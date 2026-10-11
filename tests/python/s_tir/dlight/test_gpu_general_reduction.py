@@ -42,8 +42,8 @@ def _make_scalar_argmin(length):
         @Ts.function
         def main(x: T.Tensor((T.int64(length),), "float32"), x_red: T.Tensor((), "int64")):
             T.func_attr({"tirx.noalias": True})
-            x_red_temp_v0 = Ts.sblock_alloc_buffer((), "int64")
-            x_red_temp_v1 = Ts.sblock_alloc_buffer(())
+            x_red_temp_v0 = Ts.sblock_alloc_tensor((), "int64")
+            x_red_temp_v1 = Ts.sblock_alloc_tensor(())
             for k in range(T.int64(length)):
                 with Ts.sblock("x_red_temp"):
                     v_k = Ts.axis.reduce(T.int64(length), k)
@@ -84,7 +84,7 @@ def test_scalar_argmin_reduction_value_scope():
                 dl.gpu.GeneralReduction(),
             )(_make_scalar_argmin(length))
 
-        index_temp, value_temp = mod["main"].body[0].block.alloc_buffers
+        index_temp, value_temp = mod["main"].body[0].block.alloc_tensors
         assert index_temp.scope() == "global"
         assert value_temp.scope() == expected_scope
 
@@ -101,10 +101,10 @@ def test_softmax_1():
             T.func_attr({"tirx.noalias": True})
 
             # with Ts.sblock("root"):
-            T_softmax_maxelem = Ts.sblock_alloc_buffer((T.int64(1), T.int64(32), n))
-            T_softmax_exp = Ts.sblock_alloc_buffer((T.int64(1), T.int64(32), n, m))
-            T_softmax_expsum = Ts.sblock_alloc_buffer((T.int64(1), T.int64(32), n))
-            var_T_softmax_norm_intermediate = Ts.sblock_alloc_buffer((T.int64(1), T.int64(32), n, m))
+            T_softmax_maxelem = Ts.sblock_alloc_tensor((T.int64(1), T.int64(32), n))
+            T_softmax_exp = Ts.sblock_alloc_tensor((T.int64(1), T.int64(32), n, m))
+            T_softmax_expsum = Ts.sblock_alloc_tensor((T.int64(1), T.int64(32), n))
+            var_T_softmax_norm_intermediate = Ts.sblock_alloc_tensor((T.int64(1), T.int64(32), n, m))
             for i0, i1, i2, k in T.grid(T.int64(1), T.int64(32), n, m):
                 with Ts.sblock("T_softmax_maxelem"):
                     v_i0, v_i1, v_i2, v_k = Ts.axis.remap("SSSR", [i0, i1, i2, k])
@@ -151,8 +151,8 @@ def test_softmax_1():
             T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
 
             # with Ts.sblock("root"):
-            T_softmax_maxelem_shared = Ts.sblock_alloc_buffer((T.int64(1), T.int64(32), n), scope="shared")
-            T_softmax_expsum_shared = Ts.sblock_alloc_buffer((T.int64(1), T.int64(32), n), scope="shared")
+            T_softmax_maxelem_shared = Ts.sblock_alloc_tensor((T.int64(1), T.int64(32), n), scope="shared")
+            T_softmax_expsum_shared = Ts.sblock_alloc_tensor((T.int64(1), T.int64(32), n), scope="shared")
             for ax0_ax1_fused in T.thread_binding(n * T.int64(32), thread="blockIdx.x"):
                 for ax0, ax1 in T.grid(T.int64(1), T.int64(1)):
                     for ax2_fused_1 in T.thread_binding(T.int64(256), thread="threadIdx.x"):
@@ -201,9 +201,9 @@ def test_softmax_2():
         @Ts.function
         def main(A: T.Tensor((T.int64(1), T.int64(1), T.int64(32000)), "float32"), T_softmax_norm: T.Tensor((T.int64(1), T.int64(1), T.int64(32000)), "float32")):
             # with Ts.sblock("root"):
-            T_softmax_maxelem = Ts.sblock_alloc_buffer((T.int64(1), T.int64(1)))
-            T_softmax_exp = Ts.sblock_alloc_buffer((T.int64(1), T.int64(1), T.int64(32000)))
-            T_softmax_expsum = Ts.sblock_alloc_buffer((T.int64(1), T.int64(1)))
+            T_softmax_maxelem = Ts.sblock_alloc_tensor((T.int64(1), T.int64(1)))
+            T_softmax_exp = Ts.sblock_alloc_tensor((T.int64(1), T.int64(1), T.int64(32000)))
+            T_softmax_expsum = Ts.sblock_alloc_tensor((T.int64(1), T.int64(1)))
             for i0, i1, k in T.grid(T.int64(1), T.int64(1), T.int64(32000)):
                 with Ts.sblock("T_softmax_maxelem"):
                     v_i0, v_i1, v_k = Ts.axis.remap("SSR", [i0, i1, k])
@@ -240,8 +240,8 @@ def test_softmax_2():
         def main(A: T.Tensor((T.int64(1), T.int64(1), T.int64(32000)), "float32"), T_softmax_norm: T.Tensor((T.int64(1), T.int64(1), T.int64(32000)), "float32")):
             T.func_attr({"tirx.is_scheduled": True})
             # with Ts.sblock("root"):
-            T_softmax_maxelem_shared = Ts.sblock_alloc_buffer((T.int64(1), T.int64(1)), scope="shared")
-            T_softmax_expsum_shared = Ts.sblock_alloc_buffer((T.int64(1), T.int64(1)), scope="shared")
+            T_softmax_maxelem_shared = Ts.sblock_alloc_tensor((T.int64(1), T.int64(1)), scope="shared")
+            T_softmax_expsum_shared = Ts.sblock_alloc_tensor((T.int64(1), T.int64(1)), scope="shared")
             for ax0_fused in T.thread_binding(T.int64(1), thread="blockIdx.x"):
                 for ax0 in T.serial(T.int64(0), T.int64(1)):
                     for ax1_fused_1 in T.thread_binding(T.int64(256), thread="threadIdx.x"):
@@ -286,9 +286,9 @@ def test_softmax_3():
         @Ts.function
         def main(input: T.Tensor((T.int64(1), T.int64(4), T.int64(32), T.int64(8192)), "float32"), T_softmax_norm: T.Tensor((T.int64(1), T.int64(4), T.int64(32), T.int64(8192)), "float32")):
             # with Ts.sblock("root"):
-            T_softmax_maxelem = Ts.sblock_alloc_buffer((T.int64(1), T.int64(4), T.int64(8192)))
-            T_softmax_exp = Ts.sblock_alloc_buffer((T.int64(1), T.int64(4), T.int64(32), T.int64(8192)))
-            T_softmax_expsum = Ts.sblock_alloc_buffer((T.int64(1), T.int64(4), T.int64(8192)))
+            T_softmax_maxelem = Ts.sblock_alloc_tensor((T.int64(1), T.int64(4), T.int64(8192)))
+            T_softmax_exp = Ts.sblock_alloc_tensor((T.int64(1), T.int64(4), T.int64(32), T.int64(8192)))
+            T_softmax_expsum = Ts.sblock_alloc_tensor((T.int64(1), T.int64(4), T.int64(8192)))
             for i0, i1, i2, k in T.grid(T.int64(1), T.int64(4), T.int64(8192), T.int64(32)):
                 with Ts.sblock("T_softmax_maxelem"):
                     v_i0, v_i1, v_i2, v_k = Ts.axis.remap("SSSR", [i0, i1, i2, k])
@@ -325,8 +325,8 @@ def test_softmax_3():
         def main(input: T.Tensor((T.int64(1), T.int64(4), T.int64(32), T.int64(8192)), "float32"), T_softmax_norm: T.Tensor((T.int64(1), T.int64(4), T.int64(32), T.int64(8192)), "float32")):
             T.func_attr({"tirx.is_scheduled": True})
             # with Ts.sblock("root"):
-            T_softmax_maxelem_shared = Ts.sblock_alloc_buffer((T.int64(1), T.int64(4), T.int64(8192)), scope="shared")
-            T_softmax_expsum_shared = Ts.sblock_alloc_buffer((T.int64(1), T.int64(4), T.int64(8192)), scope="shared")
+            T_softmax_maxelem_shared = Ts.sblock_alloc_tensor((T.int64(1), T.int64(4), T.int64(8192)), scope="shared")
+            T_softmax_expsum_shared = Ts.sblock_alloc_tensor((T.int64(1), T.int64(4), T.int64(8192)), scope="shared")
             for ax0_ax2_fused in T.thread_binding(T.int64(32768), thread="blockIdx.x"):
                 for ax0, ax1 in T.grid(T.int64(1), T.int64(1)):
                     for ax2_fused_1 in T.thread_binding(T.int64(256), thread="threadIdx.x"):
@@ -380,9 +380,9 @@ def test_layer_norm():
             T.func_attr({"tirx.noalias": True})
 
             # with Ts.sblock("root"):
-            A_red_temp_v0 = Ts.sblock_alloc_buffer((T.int64(1), n))
-            A_red_temp_v1 = Ts.sblock_alloc_buffer((T.int64(1), n))
-            var_T_layer_norm_intermediate = Ts.sblock_alloc_buffer((T.int64(1), n, T.int64(2560)))
+            A_red_temp_v0 = Ts.sblock_alloc_tensor((T.int64(1), n))
+            A_red_temp_v1 = Ts.sblock_alloc_tensor((T.int64(1), n))
+            var_T_layer_norm_intermediate = Ts.sblock_alloc_tensor((T.int64(1), n, T.int64(2560)))
             for ax0, ax1, k2 in T.grid(T.int64(1), n, T.int64(2560)):
                 with Ts.sblock("A_red_temp"):
                     v_ax0, v_ax1, v_k2 = Ts.axis.remap("SSR", [ax0, ax1, k2])
@@ -417,8 +417,8 @@ def test_layer_norm():
             T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
 
             # with Ts.sblock("root"):
-            A_red_temp_v0_shared = Ts.sblock_alloc_buffer((T.int64(1), n), scope="shared")
-            A_red_temp_v1_shared = Ts.sblock_alloc_buffer((T.int64(1), n), scope="shared")
+            A_red_temp_v0_shared = Ts.sblock_alloc_tensor((T.int64(1), n), scope="shared")
+            A_red_temp_v1_shared = Ts.sblock_alloc_tensor((T.int64(1), n), scope="shared")
             for ax0_fused in T.thread_binding(n, thread="blockIdx.x"):
                 for ax0 in T.serial(T.int64(0), T.int64(1)):
                     for ax1_fused_1 in T.thread_binding(T.int64(256), thread="threadIdx.x"):
@@ -458,7 +458,7 @@ def test_rms_norm():
             T.func_attr({"op_pattern": 4, "tirx.noalias": True})
 
             # with Ts.sblock("root"):
-            Ared_temp = Ts.sblock_alloc_buffer((T.int64(1), n))
+            Ared_temp = Ts.sblock_alloc_tensor((T.int64(1), n))
             for bsz, i, k in T.grid(T.int64(1), n, T.int64(4096)):
                 with Ts.sblock("Ared_temp"):
                     v_bsz, v_i, v_k = Ts.axis.remap("SSR", [bsz, i, k])
@@ -483,7 +483,7 @@ def test_rms_norm():
             T.func_attr({"op_pattern": 4, "tirx.is_scheduled": True, "tirx.noalias": True})
 
             # with Ts.sblock("root"):
-            Ared_temp_shared = Ts.sblock_alloc_buffer((T.int64(1), n), scope="shared")
+            Ared_temp_shared = Ts.sblock_alloc_tensor((T.int64(1), n), scope="shared")
             for ax0_fused in T.thread_binding(n, thread="blockIdx.x"):
                 for ax0 in T.serial(T.int64(0), T.int64(1)):
                     for ax1_fused_1 in T.thread_binding(T.int64(256), thread="threadIdx.x"):
@@ -515,12 +515,12 @@ def test_group_norm():
         @Ts.function
         def main(A: T.Tensor((1, 2048), "float32"), B: T.Tensor((2048,), "float32"), C: T.Tensor((2048,), "float32"), T_reshape: T.Tensor((1, 2048), "float32")):
             T.func_attr({"tirx.noalias": True})
-            T_reshape_1 = Ts.sblock_alloc_buffer((1, 32, 64))
-            A_red_temp_v0 = Ts.sblock_alloc_buffer((1, 32))
-            A_red_temp_v1 = Ts.sblock_alloc_buffer((1, 32))
-            T_reshape_2 = Ts.sblock_alloc_buffer((32, 64))
-            T_reshape_3 = Ts.sblock_alloc_buffer((32, 64))
-            T_group_norm = Ts.sblock_alloc_buffer((1, 32, 64))
+            T_reshape_1 = Ts.sblock_alloc_tensor((1, 32, 64))
+            A_red_temp_v0 = Ts.sblock_alloc_tensor((1, 32))
+            A_red_temp_v1 = Ts.sblock_alloc_tensor((1, 32))
+            T_reshape_2 = Ts.sblock_alloc_tensor((32, 64))
+            T_reshape_3 = Ts.sblock_alloc_tensor((32, 64))
+            T_group_norm = Ts.sblock_alloc_tensor((1, 32, 64))
             for ax0, ax1, ax2 in T.grid(1, 32, 64):
                 with Ts.sblock("T_reshape"):
                     v_ax0, v_ax1, v_ax2 = Ts.axis.remap("SSS", [ax0, ax1, ax2])
@@ -570,8 +570,8 @@ def test_group_norm():
         def main(A: T.Tensor((1, 2048), "float32"), B: T.Tensor((2048,), "float32"), C: T.Tensor((2048,), "float32"), T_reshape: T.Tensor((1, 2048), "float32")):
             T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
             # with Ts.sblock("root"):
-            A_red_temp_v0_shared = Ts.sblock_alloc_buffer((1, 32), scope="shared")
-            A_red_temp_v1_shared = Ts.sblock_alloc_buffer((1, 32), scope="shared")
+            A_red_temp_v0_shared = Ts.sblock_alloc_tensor((1, 32), scope="shared")
+            A_red_temp_v1_shared = Ts.sblock_alloc_tensor((1, 32), scope="shared")
             for ax0_fused in T.thread_binding(T.int64(1), thread="blockIdx.x"):
                 for ax0 in range(32):
                     for ax1_fused_1 in T.thread_binding(256, thread="threadIdx.x"):
@@ -614,9 +614,9 @@ def test_logsumexp():
         ):
             T.func_attr({"tirx.noalias": True})
 
-            A_pad = Ts.sblock_alloc_buffer((batch_size, num_chunks, T.int64(4096)), dtype="float32")
-            temp_max = Ts.sblock_alloc_buffer((batch_size, num_chunks), dtype="float32")
-            temp_sum = Ts.sblock_alloc_buffer((batch_size, num_chunks), dtype="float32")
+            A_pad = Ts.sblock_alloc_tensor((batch_size, num_chunks, T.int64(4096)), dtype="float32")
+            temp_max = Ts.sblock_alloc_tensor((batch_size, num_chunks), dtype="float32")
+            temp_sum = Ts.sblock_alloc_tensor((batch_size, num_chunks), dtype="float32")
 
             for l0, l1, l2 in T.grid(batch_size, num_chunks, T.int64(4096)):
                 with Ts.sblock("pad"):
@@ -662,8 +662,8 @@ def test_logsumexp():
         ):
             T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
 
-            temp_max_shared = Ts.sblock_alloc_buffer((batch_size, num_chunks), scope="shared")
-            temp_sum_shared = Ts.sblock_alloc_buffer((batch_size, num_chunks), scope="shared")
+            temp_max_shared = Ts.sblock_alloc_tensor((batch_size, num_chunks), scope="shared")
+            temp_sum_shared = Ts.sblock_alloc_tensor((batch_size, num_chunks), scope="shared")
             for ax0_ax1_fused in T.thread_binding(batch_size * num_chunks, thread="blockIdx.x"):
                 for ax0, ax1 in T.grid(T.int64(1), T.int64(1)):
                     for ax2_fused_1 in T.thread_binding(T.int64(256), thread="threadIdx.x"):

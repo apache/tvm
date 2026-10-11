@@ -99,8 +99,8 @@ class TrinityMatmul:
     def main(A: T.Tensor((1024, 1024), 'float32'), D: T.Tensor((1024, 1024), 'float32')) -> None:
         T.func_attr({"global_symbol": "main"})
 
-        B = Ts.sblock_alloc_buffer((1024, 1024), "float32")
-        C = Ts.sblock_alloc_buffer((1024, 1024), "float32")
+        B = Ts.sblock_alloc_tensor((1024, 1024), "float32")
+        C = Ts.sblock_alloc_tensor((1024, 1024), "float32")
 
         for i, j in T.grid(1024, 1024):
             with Ts.sblock("A"):
@@ -126,7 +126,7 @@ class TrinityMatmulProcessedForReference:
 
         # body
         # with tirx.block("root")
-        B = Ts.sblock_alloc_buffer([1024, 1024], dtype="float32")
+        B = Ts.sblock_alloc_tensor([1024, 1024], dtype="float32")
         for i0_0, i1_0, i0_1, i1_1 in T.grid(16, 64, 64, 16):
             with Ts.sblock("A"):
                 vi = Ts.axis.S(1024, i0_0 * 64 + i0_1)

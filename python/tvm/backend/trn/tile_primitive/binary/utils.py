@@ -64,14 +64,14 @@ def try_find_inst_nary(
     else:
         reverse = [False] * (len(_srcs) - 1)
 
-    # Extract buffers and validate properties
+    # Extract tensors and validate properties
     dst, srcs = (
         _dst.source,
         [_src.source if isinstance(_src, TensorRegion) else None for _src in _srcs],
     )
     dst_region = _dst.region
 
-    valid_buffers = all(
+    valid_tensors = all(
         [
             dst.ty.layout and all(src.ty.layout for src in srcs if src is not None),
             is_trainium_layout(dst.ty.layout),
@@ -81,8 +81,8 @@ def try_find_inst_nary(
         ]
     )
 
-    if not valid_buffers:
-        raise ValueError(f"Invalid buffer region: dst: {_dst}, srcs: {_srcs}")
+    if not valid_tensors:
+        raise ValueError(f"Invalid tensor region: dst: {_dst}, srcs: {_srcs}")
 
     # Check non-unit extents
     dst_non_unit_extent = [r.extent for r in dst_region if r.extent != 1]
@@ -140,7 +140,7 @@ def try_find_inst_nary(
     # Identify broadcast dimensions for each source after src0
     src0_extent = [r.extent for r in _srcs[0].region]
     dst_to_src0_dim_map = get_ewise_dim_map(_dst, _srcs[0], analyzer)
-    inst_gen.link_buffer_regions(_dst, _srcs[0], dst_to_src0_dim_map)
+    inst_gen.link_tensor_regions(_dst, _srcs[0], dst_to_src0_dim_map)
 
     for src in _srcs[1:]:
         if isinstance(src, FloatImm):
@@ -173,7 +173,7 @@ def try_find_inst_nary(
             for i in range(len(src0_extent))
             if i not in broadcast_dims
         }
-        inst_gen.link_buffer_regions(_srcs[0], src, src0_to_src_dim_map)
+        inst_gen.link_tensor_regions(_srcs[0], src, src0_to_src_dim_map)
         assert inst_gen.check_partition_dim_match(_srcs[0], src), (
             f"partition dimension mismatch: src0: {_srcs[0]}, src: {src}"
         )

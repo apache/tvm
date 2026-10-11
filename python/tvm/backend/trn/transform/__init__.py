@@ -24,12 +24,12 @@ from tvm import tirx
 
 _LAZY_TRANSFORMS = {
     "TrnNaiveAllocator": ".naive_allocator",
-    "TrnPrivateBufferAlloc": ".private_buffer_alloc",
+    "TrnPrivateTensorAlloc": ".private_tensor_alloc",
 }
 
 
 def LowerTrainiumLayout():
-    """Lower Trainium layouts to backend physical buffer shapes and indices."""
+    """Lower Trainium layouts to backend physical tensor shapes and indices."""
     return get_global_func("tirx.backend.trn.transform.LowerTrainiumLayout")()
 
 
@@ -50,4 +50,4 @@ def __getattr__(name):
     return getattr(import_module(target, __name__), name)
 
 
-__all__ = ["LowerTIRx", "LowerTrainiumLayout", "TrnNaiveAllocator", "TrnPrivateBufferAlloc"]
+__all__ = ["LowerTIRx", "LowerTrainiumLayout", "TrnNaiveAllocator", "TrnPrivateTensorAlloc"]

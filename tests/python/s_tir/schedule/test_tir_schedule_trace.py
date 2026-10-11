@@ -34,7 +34,7 @@ from tvm.script import tirx as T
 
 @Ts.function
 def elementwise(A: T.Tensor((128, 128)), C: T.Tensor((128, 128))) -> None:
-    B = Ts.sblock_alloc_buffer((128, 128))
+    B = Ts.sblock_alloc_tensor((128, 128))
 
     for i, j in T.grid(128, 128):
         with Ts.sblock("B"):
@@ -363,7 +363,7 @@ def _test_apply_annotation_trace_from_json(annotation: str):
 
     @Ts.function
     def elementwise_expected(A: T.Tensor((128, 128)), C: T.Tensor((128, 128))) -> None:
-        B = Ts.sblock_alloc_buffer((128, 128))
+        B = Ts.sblock_alloc_tensor((128, 128))
 
         for i, j in T.grid(128, 128):
             with Ts.sblock("B"):

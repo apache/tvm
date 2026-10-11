@@ -35,7 +35,7 @@ def binary_trn(op: TensorCall, binary_op: MapOpType, sctx: DispatchContext) -> F
 
     assert binary_op in binary_map_ops, f"Unsupported binary operation {binary_op}"
 
-    # Initialize analyzer and buffer regions
+    # Initialize analyzer and tensor regions
     analyzer = init_analyzer(sctx)
     _dst, _src1, _src2 = op.args
 
@@ -46,7 +46,7 @@ def binary_trn(op: TensorCall, binary_op: MapOpType, sctx: DispatchContext) -> F
     if reverse[0]:
         _src1, _src2 = _src2, _src1
 
-    # Extract buffers and constants
+    # Extract tensors and constants
     CONST = _src2 if isinstance(_src2, FloatImm) else None
     dst, src1 = _dst.source, _src1.source
     src2 = None if CONST is not None else _src2.source
@@ -73,7 +73,7 @@ def binary_trn(op: TensorCall, binary_op: MapOpType, sctx: DispatchContext) -> F
         return _func(*args, reverse[0]) if inst_types[0] == InstType.TENSOR_SCALAR else _func(*args)
 
     # Define the implementation function
-    # This fragment captures buffers and indices from its insertion scope.
+    # This fragment captures tensors and indices from its insertion scope.
     @T.function(check_well_formed=False)
     def impl():
         for b_loop in T.serial(0, b_extent):

@@ -19,7 +19,7 @@
 
 /*!
  * \file inject_permuted_layout.cc
- * \brief The pass injects permuted layout for shared memory buffers to avoid bank conflicts.
+ * \brief The pass injects permuted layout for shared memory tensors to avoid bank conflicts.
  */
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/op.h>
@@ -77,8 +77,8 @@ class PermutedLayoutInjector : public IRMutatorWithAnalyzer {
   explicit PermutedLayoutInjector(Function func, const Analyzer& analyzer)
       : IRMutatorWithAnalyzer(analyzer) {
     for (const Var& param : func->params) {
-      if (auto buffer = param.as<TensorVar>()) {
-        buffer_map_.insert({buffer.value().var(), buffer.value()});
+      if (auto tensor = param.as<TensorVar>()) {
+        tensor_map_.insert({tensor.value().var(), tensor.value()});
       }
     }
   }
@@ -142,12 +142,12 @@ class PermutedLayoutInjector : public IRMutatorWithAnalyzer {
   }
 
   UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) final {
-    // Record the mapping from buffer identity to buffer for later lookup.
-    for (auto buffer : op->alloc_buffers) {
-      buffer_map_.insert({buffer.var(), buffer});
+    // Record the mapping from tensor identity to tensor for later lookup.
+    for (auto tensor : op->alloc_tensors) {
+      tensor_map_.insert({tensor.var(), tensor});
     }
-    for (auto match_buffer : op->match_buffers) {
-      buffer_map_.insert({match_buffer->buffer.var(), match_buffer->buffer});
+    for (auto match_tensor : op->match_tensors) {
+      tensor_map_.insert({match_tensor->tensor.var(), match_tensor->tensor});
     }
 
     if (op->annotations.count(tvm::s_tir::attr::kPermutedLayout) == 0 ||
@@ -170,37 +170,37 @@ class PermutedLayoutInjector : public IRMutatorWithAnalyzer {
     return block;
   }
 
-  int CheckAndGetBufferRowSize(TensorVar buffer) {
-    TVM_FFI_ICHECK(buffer->shape.size() >= 2)
-        << "The dimension of TensorVar \"" << buffer.name() << "\" with shape " << buffer->shape
+  int CheckAndGetTensorRowSize(TensorVar tensor) {
+    TVM_FFI_ICHECK(tensor->shape.size() >= 2)
+        << "The dimension of TensorVar \"" << tensor.name() << "\" with shape " << tensor->shape
         << " should be at least 2";
 
-    auto dim = buffer->shape.size();
-    auto buffer_row_size = buffer->shape[dim - 1].as<IntImmNode>()->value;
-    auto buffer_col_size = buffer->shape[dim - 2].as<IntImmNode>()->value;
+    auto dim = tensor->shape.size();
+    auto tensor_row_size = tensor->shape[dim - 1].as<IntImmNode>()->value;
+    auto tensor_col_size = tensor->shape[dim - 2].as<IntImmNode>()->value;
 
-    if (buffer_row_size % 64 != 0) {
-      TVM_FFI_ICHECK(buffer_row_size % 32 == 0)
-          << "Permuted SLayout for TensorVar \"" << buffer.name() << "\" with shape "
-          << buffer->shape << " is not supported since its second dimension is not divisible by 32";
-      TVM_FFI_ICHECK(buffer_col_size % 2 == 0)
-          << "Permuted SLayout for TensorVar \"" << buffer.name() << "\" with shape "
-          << buffer->shape
+    if (tensor_row_size % 64 != 0) {
+      TVM_FFI_ICHECK(tensor_row_size % 32 == 0)
+          << "Permuted SLayout for TensorVar \"" << tensor.name() << "\" with shape "
+          << tensor->shape << " is not supported since its second dimension is not divisible by 32";
+      TVM_FFI_ICHECK(tensor_col_size % 2 == 0)
+          << "Permuted SLayout for TensorVar \"" << tensor.name() << "\" with shape "
+          << tensor->shape
           << " is not supported since its first dimension is not divisible by 2 and second "
              "dimension is not divisible by 64";
     }
 
-    return buffer_row_size.as<int>().value();
+    return tensor_row_size.as<int>().value();
   }
 
-  ffi::Array<PrimExpr> HandleTensorIndices(TensorVar buffer, ffi::Array<PrimExpr> indices) {
-    auto buffer_row_size = CheckAndGetBufferRowSize(buffer);
+  ffi::Array<PrimExpr> HandleTensorIndices(TensorVar tensor, ffi::Array<PrimExpr> indices) {
+    auto tensor_row_size = CheckAndGetTensorRowSize(tensor);
 
     // Mutate the last two indices
     auto indices_size = indices.size();
     PrimExpr row_idx = indices[indices_size - 2];
     PrimExpr col_idx = indices[indices_size - 1];
-    auto new_indices = PermuteIndices(row_idx, col_idx, buffer_row_size);
+    auto new_indices = PermuteIndices(row_idx, col_idx, tensor_row_size);
     indices.Set(indices_size - 2, new_indices[0]);
     indices.Set(indices_size - 1, new_indices[1]);
     return indices;
@@ -267,33 +267,33 @@ class PermutedLayoutInjector : public IRMutatorWithAnalyzer {
       if (call->op.same_as(tirx::address_of_op())) {
         const auto* load = call->args[0].as<TensorLoadNode>();
         TVM_FFI_ICHECK(load) << "Expected a tensor address for permuted layout";
-        TensorVar buffer = load->source.as_or_throw<TensorVar>();
+        TensorVar tensor = load->source.as_or_throw<TensorVar>();
         auto indices = Mutate(load->indices)
                            .ValueOrUnchanged(load->indices)
                            .as_or_throw<ffi::Array<PrimExpr>>();
-        auto flat_indices = buffer->ElemOffset(indices);
+        auto flat_indices = tensor->ElemOffset(indices);
         // S-TIR flattening uses ElemOffset, including explicit strides and the
         // element offset, even when the tensor carries a default layout.
         TVM_FFI_ICHECK_EQ(flat_indices.size(), 1U);
-        PrimType dtype = buffer->dtype;
+        PrimType dtype = tensor->dtype;
         int bytes = (dtype.bits() * dtype.lanes() + 7) / 8;
         *byte_offset = *byte_offset + flat_indices[0] * bytes;
-        return buffer;
+        return tensor;
       }
     }
     auto data_var = GetBufferDataVar(pointer);
     TVM_FFI_ICHECK(data_var.has_value()) << "Expected a tensor pointer, received " << pointer;
-    auto it = buffer_map_.find(data_var.value());
-    TVM_FFI_ICHECK(it != buffer_map_.end()) << "Unknown tensor pointer: " << pointer;
+    auto it = tensor_map_.find(data_var.value());
+    TVM_FFI_ICHECK(it != tensor_map_.end()) << "Unknown tensor pointer: " << pointer;
     return it->second;
   }
 
   Expr PermutePointer(Expr pointer, ffi::Optional<PrimExpr> offset = std::nullopt) {
     PrimExpr byte_offset = PrimExpr(0);
-    TensorVar buffer = DecodePointer(pointer, &byte_offset);
-    PrimType dtype = buffer->dtype;
+    TensorVar tensor = DecodePointer(pointer, &byte_offset);
+    PrimType dtype = tensor->dtype;
     int bytes = (dtype.bits() * dtype.lanes() + 7) / 8;
-    int row_size = CheckAndGetBufferRowSize(buffer);
+    int row_size = CheckAndGetTensorRowSize(tensor);
     PrimExpr smem_offset = floordiv(byte_offset, bytes) + offset.value_or(PrimExpr(0));
     auto indices =
         PermuteIndices(floordiv(smem_offset, row_size), floormod(smem_offset, row_size), row_size);
@@ -301,7 +301,7 @@ class PermutedLayoutInjector : public IRMutatorWithAnalyzer {
     PrimExpr new_bytes = new_offset * bytes;
     PrimExpr remainder = analyzer_->Simplify(floormod(byte_offset, bytes));
     if (!prim::IsZero(remainder)) new_bytes = new_bytes + remainder;
-    return Call(pointer->ty, tirx::ptr_byte_offset_op(), {buffer.data(), new_bytes});
+    return Call(pointer->ty, tirx::ptr_byte_offset_op(), {tensor.data(), new_bytes});
   }
 
   UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) final {
@@ -331,7 +331,7 @@ class PermutedLayoutInjector : public IRMutatorWithAnalyzer {
   static constexpr size_t BANK_SIZE_BYTES = 128;
 
   // Mapping from data Var of a TensorVar to TensorVar, for lookup
-  std::unordered_map<Var, TensorVar> buffer_map_;
+  std::unordered_map<Var, TensorVar> tensor_map_;
   bool permute_ = false;
 };
 

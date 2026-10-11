@@ -346,23 +346,23 @@ UnchangedOr<Stmt> IndexDataTypeRewriter::Mutate_(const TensorStoreNode* op,
                                                  InplaceMode inplace_mode) {
   TensorStore store = ffi::GetRef<TensorStore>(op);
 
-  TensorVar new_buffer = Mutate(op->dest.as_or_throw<TensorVar>(), inplace_mode)
+  TensorVar new_tensor = Mutate(op->dest.as_or_throw<TensorVar>(), inplace_mode)
                              .as_or_throw<UnchangedOr<TensorVar>>()
                              .ValueOrUnchanged(op->dest.as_or_throw<TensorVar>());
   auto value_result = this->Mutate(op->value, inplace_mode);
   bool value_unchanged = value_result.UnchangedOrSameAs(op->value);
   auto value = std::move(value_result).ValueOrUnchanged(op->value);
   PrimType value_dtype = value.ty();
-  if (new_buffer->dtype != value_dtype && value_dtype.IsScalar()) {
-    value = prim::cast(new_buffer->dtype, value);
+  if (new_tensor->dtype != value_dtype && value_dtype.IsScalar()) {
+    value = prim::cast(new_tensor->dtype, value);
     value_unchanged = false;
   }
   auto indices = VisitIndices(op->indices, inplace_mode);
 
-  if (!new_buffer.same_as(op->dest.as_or_throw<TensorVar>()) || !value_unchanged ||
+  if (!new_tensor.same_as(op->dest.as_or_throw<TensorVar>()) || !value_unchanged ||
       !indices.same_as(op->indices)) {
     auto writer = store.CopyOnWrite();
-    writer->dest = new_buffer;
+    writer->dest = new_tensor;
     writer->value = value;
     writer->indices = indices;
   }
@@ -374,13 +374,13 @@ UnchangedOr<PrimExpr> IndexDataTypeRewriter::Mutate_(const TensorLoadNode* op,
                                                      InplaceMode inplace_mode) {
   TensorLoad load = ffi::GetRef<TensorLoad>(op);
 
-  TensorVar new_buffer =
+  TensorVar new_tensor =
       Mutate(op->source, inplace_mode).ValueOrUnchanged(op->source).as_or_throw<TensorVar>();
   auto indices = VisitIndices(op->indices, inplace_mode);
 
-  if (!new_buffer.same_as(op->source.as_or_throw<tvm::tirx::TensorVar>()) ||
+  if (!new_tensor.same_as(op->source.as_or_throw<tvm::tirx::TensorVar>()) ||
       !indices.same_as(op->indices)) {
-    return MakeTensorLoad(new_buffer, indices, op->loc);
+    return MakeTensorLoad(new_tensor, indices, op->loc);
   }
 
   return load;
@@ -548,7 +548,7 @@ IndexDataTypeNormalizer::IndexDataTypeNormalizer(PrimType target_data_type, cons
     : IndexDataTypeRewriter(vtable), target_data_type_(std::move(target_data_type)) {}
 
 Function IndexDataTypeNormalizer::Rewrite(Function func) {
-  // Collect scalar dtype requirements without changing types.  Buffer definitions
+  // Collect scalar dtype requirements without changing types.  Tensor definitions
   // are rewritten only after every scalar replacement has been seeded.
   class IndexVarCollector : public IndexDataTypeRewriter {
    public:

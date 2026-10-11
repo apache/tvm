@@ -62,7 +62,7 @@ class OpaqueBlockLower : public StmtExprMutator {
   UnchangedOr<Stmt> Mutate_(const SBlockRealizeNode* op, InplaceMode inplace_mode) final {
     // We have convert blocks into opaque blocks in previous passes.
     TVM_FFI_ICHECK(op->iter_values.empty())
-        << "Non-opaque blocks are not allowed in FlattenBuffer. Please "
+        << "Non-opaque blocks are not allowed in FlattenTensor. Please "
            "call pass ConvertBlocksToOpaque before.";
     // Block policy belongs to the loops inside the block after opaque lowering.
     auto parent_policy = unroll_policy_.Current();
@@ -81,29 +81,29 @@ class OpaqueBlockLower : public StmtExprMutator {
     }
     // Step 3. Handle allocations in reverse order
     ffi::Map<Var, ffi::Array<PrimExpr>> addresses;
-    if (auto value = new_block->annotations.Get(tvm::s_tir::attr::kBufferAllocatedAddr)) {
-      for (const auto& entry : value.value().cast<BufferAllocatedAddresses>()) {
+    if (auto value = new_block->annotations.Get(s_tir::attr::kTensorAllocatedAddr)) {
+      for (const auto& entry : value.value().cast<TensorAllocatedAddresses>()) {
         addresses.Set(entry.get<0>(), entry.get<1>());
       }
     }
-    for (size_t i = new_block->alloc_buffers.size(); i > 0; --i) {
-      const TensorVar& buffer = new_block->alloc_buffers[i - 1];
+    for (size_t i = new_block->alloc_tensors.size(); i > 0; --i) {
+      const TensorVar& tensor = new_block->alloc_tensors[i - 1];
       ffi::Map<ffi::String, ffi::Any> allocate_annotations;
-      auto it = storage_align_.find(buffer.var());
+      auto it = storage_align_.find(tensor.var());
       if (it != storage_align_.end()) {
         StorageAlignAnnotation allocate_aligns;
         for (auto tuple : it->second) {
           tuple.Set<0>(-1);
           allocate_aligns.push_back(tuple);
         }
-        allocate_annotations.Set(tvm::s_tir::attr::kBufferDimAlign, allocate_aligns);
+        allocate_annotations.Set(s_tir::attr::kTensorDimAlign, allocate_aligns);
       }
-      allocate_annotations.Set(tvm::tirx::attr::kBufferDataAlignment,
-                               IntImm::Int32(buffer->data_alignment));
-      ffi::Array<Expr> args{tvm::Tuple(buffer->shape), DataTypeImm(buffer->dtype->dtype),
-                            StringImm(buffer.scope())};
-      if (auto address = addresses.Get(buffer.var())) args.push_back(tvm::Tuple(address.value()));
-      body = SeqStmt({Bind(buffer.var(), Call(buffer.type(), tirx::alloc_tensor_op(), args,
+      allocate_annotations.Set(tirx::attr::kTensorDataAlignment,
+                               IntImm::Int32(tensor->data_alignment));
+      ffi::Array<Expr> args{tvm::Tuple(tensor->shape), DataTypeImm(tensor->dtype->dtype),
+                            StringImm(tensor.scope())};
+      if (auto address = addresses.Get(tensor.var())) args.push_back(tvm::Tuple(address.value()));
+      body = SeqStmt({Bind(tensor.var(), Call(tensor.type(), tirx::alloc_tensor_op(), args,
                                               DictAttrs(allocate_annotations))),
                       std::move(body)});
     }
@@ -183,7 +183,7 @@ class OpaqueBlockLower : public StmtExprMutator {
     return preserved;
   }
 
-  /*! \brief The map from buffer var to its storage alignment information. */
+  /*! \brief The map from tensor var to its storage alignment information. */
   std::unordered_map<Var, StorageAlignAnnotation> storage_align_;
 };
 

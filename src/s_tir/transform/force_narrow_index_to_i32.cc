@@ -19,7 +19,7 @@
 
 /*!
  * \file force_narrow_index_to_i32.cc
- * \brief Force narrow down indexing expressions and integer buffers to int32 dtype in functions
+ * \brief Force narrow down indexing expressions and integer tensors to int32 dtype in functions
  *        that still contain S-TIR blocks.
  * \note This pass is not used in default cases.
  */
@@ -41,7 +41,7 @@ class Int32DTypeNarrower : public Int32DTypeNarrowerBase<IndexDataTypeNormalizer
   using Int32DTypeNarrowerBase::Mutate;
   using Int32DTypeNarrowerBase::Mutate_;
   static Function RewriteDataType(Function func) {
-    CheckBufferParams(func);
+    CheckTensorParams(func);
     auto narrower = ffi::make_object<Int32DTypeNarrower>(func);
     return narrower->Rewrite(func);
   }
@@ -52,8 +52,8 @@ class Int32DTypeNarrower : public Int32DTypeNarrowerBase<IndexDataTypeNormalizer
   UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) final {
     auto result = IndexDataTypeNormalizer::Mutate_(op, inplace_mode);
     auto block = std::move(result).ValueOrUnchanged(ffi::GetRef<Stmt>(op)).as_or_throw<SBlock>();
-    for (const TensorVar& buf : block->alloc_buffers) {
-      CheckAllocatedBuffer(buf);
+    for (const TensorVar& tensor : block->alloc_tensors) {
+      CheckAllocatedTensor(tensor);
     }
     return block;
   }

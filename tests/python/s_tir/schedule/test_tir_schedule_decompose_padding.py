@@ -32,13 +32,13 @@ from tvm.script import tirx as T
 def check_decompose_padding(origin, scheduled, expected, check_run=False):
     assert_structural_equal_ignore_global_symbol(scheduled, expected)
     if check_run:
-        in_buffer = origin.params[0]
-        out_buffer = origin.params[1]
-        in_shape = [int(_) for _ in in_buffer.shape]
-        out_shape = [int(_) for _ in out_buffer.shape]
-        x = tvm.runtime.tensor(np.random.uniform(0, 64, in_shape).astype(in_buffer.dtype))
-        y0 = tvm.runtime.tensor(np.zeros(out_shape).astype(out_buffer.dtype))
-        y1 = tvm.runtime.tensor(np.zeros(out_shape).astype(out_buffer.dtype))
+        in_tensor = origin.params[0]
+        out_tensor = origin.params[1]
+        in_shape = [int(_) for _ in in_tensor.shape]
+        out_shape = [int(_) for _ in out_tensor.shape]
+        x = tvm.runtime.tensor(np.random.uniform(0, 64, in_shape).astype(in_tensor.dtype))
+        y0 = tvm.runtime.tensor(np.zeros(out_shape).astype(out_tensor.dtype))
+        y1 = tvm.runtime.tensor(np.zeros(out_shape).astype(out_tensor.dtype))
         f_origin = tvm.compile(origin)
         f_scheduled = tvm.compile(scheduled)
         f_origin(x, y0)
@@ -122,7 +122,7 @@ def test_1d_decompose_padding():
 def sum_pool_2d(
     x: T.Tensor((1, 16, 225, 225), "int8"), tensor: T.Tensor((1, 16, 225, 225), "int8")
 ):
-    pad_temp = Ts.sblock_alloc_buffer([1, 16, 231, 231], dtype="int8")
+    pad_temp = Ts.sblock_alloc_tensor([1, 16, 231, 231], dtype="int8")
     for i0, i1, i2, i3 in T.grid(1, 16, 231, 231):
         with Ts.sblock("pad_temp"):
             ax0, ax1, ax2, ax3 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
@@ -148,7 +148,7 @@ def test_decompose_hw_padding_direct():
     def pooling_decompose_0(
         x: T.Tensor((1, 16, 225, 225), "int8"), tensor: T.Tensor((1, 16, 225, 225), "int8")
     ):
-        pad_temp = Ts.sblock_alloc_buffer([1, 16, 231, 231], dtype="int8")
+        pad_temp = Ts.sblock_alloc_tensor([1, 16, 231, 231], dtype="int8")
         for i0, i1, i2, i3 in T.grid(1, 16, 231, 231):
             with Ts.sblock("pad_temp_pad_const"):
                 ax0, ax1, ax2, ax3 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
@@ -179,7 +179,7 @@ def test_decompose_hw_padding_tiled():
     def pooling_decompose_1(
         x: T.Tensor((1, 16, 225, 225), "int8"), tensor: T.Tensor((1, 16, 225, 225), "int8")
     ) -> None:
-        pad_temp = Ts.sblock_alloc_buffer([1, 16, 231, 231], dtype="int8")
+        pad_temp = Ts.sblock_alloc_tensor([1, 16, 231, 231], dtype="int8")
         for i0, i2_0, i3_0 in T.grid(1, 3, 3):
             for ax0, ax1, ax2 in T.grid(16, 81, 81):
                 with Ts.sblock("pad_temp_pad_const"):
@@ -239,7 +239,7 @@ def test_decompose_hw_padding_tiled_and_lift_pad():
     def pooling_decompose_2(
         x: T.Tensor((1, 16, 225, 225), "int8"), tensor: T.Tensor((1, 16, 225, 225), "int8")
     ) -> None:
-        pad_temp = Ts.sblock_alloc_buffer([1, 16, 231, 231], dtype="int8")
+        pad_temp = Ts.sblock_alloc_tensor([1, 16, 231, 231], dtype="int8")
         for i0, i2_0, i3_0, ax0, ax1, ax2 in T.grid(1, 3, 3, 16, 81, 81):
             with Ts.sblock("pad_temp_pad_const"):
                 ax0_1 = Ts.axis.spatial(1, 0)
@@ -299,7 +299,7 @@ def test_decompose_hw_padding_non_perfect_tiled():
     def pooling_decompose_3(
         x: T.Tensor((1, 16, 225, 225), "int8"), tensor: T.Tensor((1, 16, 225, 225), "int8")
     ) -> None:
-        pad_temp = Ts.sblock_alloc_buffer([1, 16, 231, 231], dtype="int8")
+        pad_temp = Ts.sblock_alloc_tensor([1, 16, 231, 231], dtype="int8")
         for i0, i2_0, i3_0 in T.grid(1, 3, 3):
             for ax0, ax1, ax2 in T.grid(16, 86, 86):
                 with Ts.sblock("pad_temp_pad_const"):

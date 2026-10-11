@@ -1235,7 +1235,7 @@ def test_unary_op_vectorized(shape, op_type, exec_scope, storage_scope):
 @pytest.mark.parametrize("op_type", ["zero", "sqrt", "reciprocal", "exp", "silu"])
 @pytest.mark.parametrize("dtype", ["float16"])
 def test_unary_op_local_thread_wise(op_type, dtype):
-    """Test unary ops in thread scope with local buffers (trivial layout)."""
+    """Test unary ops in thread scope with local tensors (trivial layout)."""
     shape = (64, 32)
     local_shape = shape[1:]
 

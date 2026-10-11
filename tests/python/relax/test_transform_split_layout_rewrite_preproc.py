@@ -33,8 +33,8 @@ def test_single_buffer():
             W: T.Tensor((224, 224), "float32"),
             Out: T.Tensor((224, 224), "float32"),
         ):
-            T.func_attr({"layout_free_buffers": [1]})
-            W_rewrite = Ts.sblock_alloc_buffer((4, 4, 56, 56))
+            T.func_attr({"layout_free_tensors": [1]})
+            W_rewrite = Ts.sblock_alloc_tensor((4, 4, 56, 56))
             for i, j in T.grid(224, 224):
                 with Ts.sblock("W_rewrite"):
                     vi, vj = Ts.axis.remap("SS", [i, j])
@@ -116,8 +116,8 @@ def test_multiple_buffers():
             W2: T.Tensor((224, 224), "float32"),
             Out: T.Tensor((224, 224), "float32"),
         ):
-            W1_rewrite = Ts.sblock_alloc_buffer((4, 4, 56, 56))
-            W2_rewrite = Ts.sblock_alloc_buffer((4, 4, 56, 56))
+            W1_rewrite = Ts.sblock_alloc_tensor((4, 4, 56, 56))
+            W2_rewrite = Ts.sblock_alloc_tensor((4, 4, 56, 56))
             for i, j in T.grid(224, 224):
                 with Ts.sblock("W1_rewrite"):
                     vi, vj = Ts.axis.remap("SS", [i, j])
@@ -231,8 +231,8 @@ def test_attr_inheritance():
             W: T.Tensor((224, 224), "float32"),
             Out: T.Tensor((224, 224), "float32"),
         ):
-            T.func_attr({"layout_free_buffers": [1], "tirx.noalias": True})
-            W_rewrite = Ts.sblock_alloc_buffer((4, 4, 56, 56))
+            T.func_attr({"layout_free_tensors": [1], "tirx.noalias": True})
+            W_rewrite = Ts.sblock_alloc_tensor((4, 4, 56, 56))
             for i, j in T.grid(224, 224):
                 with Ts.sblock("W_rewrite"):
                     vi, vj = Ts.axis.remap("SS", [i, j])

@@ -211,7 +211,7 @@ class Conv2dNCHWcVNNIModuleTensorized:
                         placeholder_1[oc_chunk, ic_outer, kh, kw, ic_f_inner, 0:16, 0:4],
                     )
                     Ts.writes(conv2d_NCHWc_int8[n, oc_chunk, oh, ow, 0:16])
-                    A = Ts.match_buffer(
+                    A = Ts.match_tensor(
                         placeholder[
                             n, ic_outer, oh + kh, ow + kw, ic_f_inner * 4 : ic_f_inner * 4 + 4
                         ],
@@ -219,13 +219,13 @@ class Conv2dNCHWcVNNIModuleTensorized:
                         dtype="uint8",
                         offset_factor=1,
                     )
-                    B = Ts.match_buffer(
+                    B = Ts.match_tensor(
                         placeholder_1[oc_chunk, ic_outer, kh, kw, ic_f_inner, 0:16, 0:4],
                         [16, 4],
                         dtype="int8",
                         offset_factor=1,
                     )
-                    C = Ts.match_buffer(
+                    C = Ts.match_tensor(
                         conv2d_NCHWc_int8[n, oc_chunk, oh, ow, 0:16],
                         [16],
                         dtype="int32",
@@ -254,9 +254,9 @@ class DenseDP4ATiled:
         compute: T.Tensor((128, 128), "int32"),
     ) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
-        compute_local = Ts.sblock_alloc_buffer([128, 128], dtype="int32", scope="local")
-        X_shared = Ts.sblock_alloc_buffer([128, 128], dtype="int8", scope="shared")
-        W_shared = Ts.sblock_alloc_buffer([128, 128], dtype="int8", scope="shared")
+        compute_local = Ts.sblock_alloc_tensor([128, 128], dtype="int32", scope="local")
+        X_shared = Ts.sblock_alloc_tensor([128, 128], dtype="int8", scope="shared")
+        W_shared = Ts.sblock_alloc_tensor([128, 128], dtype="int8", scope="shared")
         for i0_0_i1_0_fused in T.thread_binding(16, thread="blockIdx.x"):
             for i0_1_i1_1_fused in T.thread_binding(2, thread="vthread.x"):
                 for i0_2_i1_2_fused in T.thread_binding(2, thread="threadIdx.x"):
@@ -347,9 +347,9 @@ class DenseDP4ATensorized:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         # body
         # with Ts.sblock("root")
-        compute_local = Ts.sblock_alloc_buffer([128, 128], dtype="int32", scope="local")
-        X_shared = Ts.sblock_alloc_buffer([128, 128], dtype="int8", scope="shared")
-        W_shared = Ts.sblock_alloc_buffer([128, 128], dtype="int8", scope="shared")
+        compute_local = Ts.sblock_alloc_tensor([128, 128], dtype="int32", scope="local")
+        X_shared = Ts.sblock_alloc_tensor([128, 128], dtype="int8", scope="shared")
+        W_shared = Ts.sblock_alloc_tensor([128, 128], dtype="int8", scope="shared")
         for i0_0_i1_0_fused in T.thread_binding(16, thread="blockIdx.x"):
             for i0_1_i1_1_fused in T.thread_binding(2, thread="vthread.x"):
                 for i0_2_i1_2_fused in T.thread_binding(2, thread="threadIdx.x"):
@@ -412,7 +412,7 @@ class DenseDP4ATensorized:
                                     W_shared[j, k_o * 4 : k_o * 4 + 4],
                                 )
                                 Ts.writes(compute_local[i, j])
-                                A = Ts.match_buffer(
+                                A = Ts.match_tensor(
                                     X_shared[i, k_o * 4 : k_o * 4 + 4],
                                     [4],
                                     dtype="int8",
@@ -420,7 +420,7 @@ class DenseDP4ATensorized:
                                     align=4,
                                     offset_factor=1,
                                 )
-                                B = Ts.match_buffer(
+                                B = Ts.match_tensor(
                                     W_shared[j, k_o * 4 : k_o * 4 + 4],
                                     [4],
                                     dtype="int8",
@@ -428,7 +428,7 @@ class DenseDP4ATensorized:
                                     align=4,
                                     offset_factor=1,
                                 )
-                                C = Ts.match_buffer(
+                                C = Ts.match_tensor(
                                     compute_local[i, j],
                                     [1],
                                     dtype="int32",

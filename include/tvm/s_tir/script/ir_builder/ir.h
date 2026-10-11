@@ -35,21 +35,21 @@ FunctionFrame Function(bool is_private = false, bool persistent = false);
 FunctionFrame DeclFunction(bool is_private = false, bool persistent = false);
 
 /*!
- * \brief Bind a buffer subregion in an S-TIR block.
- * \param param The buffer subregion to match.
- * \param shape The type of the buffer prior to flattening.
- * \param dtype The data type in the content of the buffer.
+ * \brief Bind a tensor subregion in an S-TIR block.
+ * \param param The tensor subregion to match.
+ * \param shape The type of the tensor prior to flattening.
+ * \param dtype The data type in the content of the tensor.
  * \param data The pointer to the head of the data.
  * \param strides The strides of each dimension.
  * \param elem_offset The offset in terms of number of dtype elements (including lanes).
- * \param storage_scope The optional storage scope of buffer data pointer.
+ * \param storage_scope The optional storage scope of tensor data pointer.
  * \param align The alignment requirement of data pointer in bytes.
  * \param offset_factor The factor of elem_offset field.
- * \param layout The buffer layout.
- * \param allocated_addr Addresses assigned to the buffer allocation.
- * \return The matched buffer.
+ * \param layout The tensor layout.
+ * \param allocated_addr Addresses assigned to the tensor allocation.
+ * \return The matched tensor.
  */
-TensorVar MatchBuffer(ffi::ObjectRef param, ffi::Array<PrimExpr> shape,
+TensorVar MatchTensor(ffi::ObjectRef param, ffi::Array<PrimExpr> shape,
                       PrimType dtype = PrimType::Float(32), ffi::Optional<Expr> data = std::nullopt,
                       ffi::Array<PrimExpr> strides = {},
                       ffi::Optional<PrimExpr> elem_offset = std::nullopt,
@@ -78,16 +78,16 @@ BlockInitFrame Init();
 void Where(PrimExpr predicate);
 
 /*!
- * \brief The block buffer region reading statement.
- * \param buffer_slices The array of buffer regions to read.
+ * \brief The block tensor region reading statement.
+ * \param tensor_slices The array of tensor regions to read.
  */
-void Reads(ffi::Array<ffi::ObjectRef> buffer_slices);
+void Reads(ffi::Array<ffi::ObjectRef> tensor_slices);
 
 /*!
- * \brief The block buffer region writing statement.
- * \param buffer_slices The array of buffer regions to write.
+ * \brief The block tensor region writing statement.
+ * \param tensor_slices The array of tensor regions to write.
  */
-void Writes(ffi::Array<ffi::ObjectRef> buffer_slices);
+void Writes(ffi::Array<ffi::ObjectRef> tensor_slices);
 
 /*!
  * \brief The block annotation statement.
@@ -96,20 +96,20 @@ void Writes(ffi::Array<ffi::ObjectRef> buffer_slices);
 void BlockAttrs(ffi::Map<ffi::String, ffi::Any> attrs);
 
 /*!
- * \brief The buffer allocation function.
- * \param shape The type of the buffer prior to flattening.
- * \param dtype The data type in the content of the buffer.
+ * \brief The tensor allocation function.
+ * \param shape The type of the tensor prior to flattening.
+ * \param dtype The data type in the content of the tensor.
  * \param data The pointer to the head of the data.
  * \param strides The strides of each dimension.
  * \param elem_offset The offset in terms of number of dtype elements (including lanes).
- * \param storage_scope The optional storage scope of buffer data pointer.
+ * \param storage_scope The optional storage scope of tensor data pointer.
  * \param align The alignment requirement of data pointer in bytes.
  * \param offset_factor The factor of elem_offset field.
- * \param layout The layout of the buffer.
- * \param allocated_addr The allocated address of the buffer. Might be multi-dimensional.
- * \return The buffer attached to its enclosing block or function allocation list.
+ * \param layout The layout of the tensor.
+ * \param allocated_addr The allocated address of the tensor. Might be multi-dimensional.
+ * \return The tensor attached to its enclosing block or function allocation list.
  */
-TensorVar SBlockAllocBuffer(ffi::Array<PrimExpr> shape, PrimType dtype = PrimType::Float(32),
+TensorVar SBlockAllocTensor(ffi::Array<PrimExpr> shape, PrimType dtype = PrimType::Float(32),
                             ffi::Optional<Expr> data = std::nullopt,
                             ffi::Array<PrimExpr> strides = {},
                             ffi::Optional<PrimExpr> elem_offset = std::nullopt,

@@ -270,15 +270,15 @@ class BuiltinLower : public StmtExprMutator {
 
   UnchangedOr<Stmt> MutateAllocTensor(const BindNode* op, InplaceMode inplace_mode) {
     // Lower AllocTensor to device allocate when needed.
-    // AllocTensor is flat (no body). Visit buffer fields via base class.
+    // AllocTensor is flat (no body). Visit tensor fields via base class.
     Stmt stmt = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     op = stmt.as<BindNode>();
-    const auto* buffer_call = op->value.as<CallNode>();
-    tvm::Tuple shape = buffer_call->args[0].as_or_throw<tvm::Tuple>();
-    DLDataType dtype = buffer_call->args[1].as_or_throw<DataTypeImm>()->value;
+    const auto* tensor_call = op->value.as<CallNode>();
+    tvm::Tuple shape = tensor_call->args[0].as_or_throw<tvm::Tuple>();
+    DLDataType dtype = tensor_call->args[1].as_or_throw<DataTypeImm>()->value;
     PrimType element_type(dtype);
-    ffi::String scope = buffer_call->args[2].as_or_throw<StringImm>()->value;
-    DictAttrs annotations = buffer_call->attrs.value().as_or_throw<DictAttrs>();
+    ffi::String scope = tensor_call->args[2].as_or_throw<StringImm>()->value;
+    DictAttrs annotations = tensor_call->attrs.value().as_or_throw<DictAttrs>();
     if (annotations->dict.count(transform::kDisableLowerTVMBuiltin)) {
       if (annotations->dict[transform::kDisableLowerTVMBuiltin].as_or_throw<IntImm>()->value) {
         return stmt;
@@ -334,7 +334,7 @@ class BuiltinLower : public StmtExprMutator {
                    tvm::Tuple(op->var.as_or_throw<TensorVar>()->shape),
                    DataTypeImm(op->var.as_or_throw<TensorVar>()->dtype->dtype),
                    StringImm(op->var.as_or_throw<TensorVar>().scope())},
-                  {}, buffer_call->ty_args, buffer_call->loc),
+                  {}, tensor_call->ty_args, tensor_call->loc),
              op->loc);
 
     return SeqStmt({alloc_bind, alloc_nullptr_check});
@@ -623,7 +623,7 @@ class BuiltinLower : public StmtExprMutator {
 
     // The extra one slot is for return value.
     scope.run_sizes.arg_stack += num_args + 1;
-    // Specially handle the buffer packed intrinsic
+    // Specially handle the tensor packed intrinsic
     Expr expr = StmtExprMutator::Mutate_(op, InplaceMode::kDisallow)
                     .ValueOrUnchanged(ffi::GetRef<Expr>(op));
     op = expr.as<CallNode>();

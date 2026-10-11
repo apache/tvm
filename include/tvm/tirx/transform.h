@@ -171,7 +171,7 @@ TVM_DLL Pass MakePackedAPI();
  * The resulting host-side function will keep the same
  * `tvm::attr::kTarget` attribute (e.g. `T.target("cuda",
  * host=T.target("llvm"))`).  This ensures that `MakePackedAPI` knows
- * which device type should be used for the input buffers.
+ * which device type should be used for the input tensors.
  *
  * The resulting device-side function will
  * have the host stripped from its target attribute
@@ -223,7 +223,7 @@ TVM_DLL Pass LowerWarpMemory();
 TVM_DLL Pass NarrowDataType(int target_bits);
 
 /*!
- * \brief Force to narrow down indexing expressions and integer buffers to int32 dtype.
+ * \brief Force to narrow down indexing expressions and integer tensors to int32 dtype.
  *
  * The function must not contain S-TIR blocks. Use s_tir::transform::ForceNarrowIndexToInt32
  * before block lowering.
@@ -277,7 +277,7 @@ TVM_DLL Pass PointerValueTypeRewrite();
  *        TensorLoad/TensorStore for the TIR not contains opaque block.
  * \return The pass.
  */
-TVM_DLL Pass FlattenBuffer();
+TVM_DLL Pass FlattenTensor();
 
 /*!
  * \brief Implements Common Subexpression Elimination (CSE) for TIR

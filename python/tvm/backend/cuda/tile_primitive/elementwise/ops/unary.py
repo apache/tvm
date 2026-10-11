@@ -47,7 +47,7 @@ def _parse_unary(op: TensorCall) -> tuple[Plan | None, str | None]:
 
     srcs: list[SrcSpec] = []
     if isinstance(_src, TensorRegion):
-        srcs.append(SrcSpec(buf_region=_src))
+        srcs.append(SrcSpec(tensor_region=_src))
     elif is_prim_expr(_src):
         srcs.append(SrcSpec(scalar=_src))
     else:
@@ -58,7 +58,7 @@ def _parse_unary(op: TensorCall) -> tuple[Plan | None, str | None]:
         "bias_const": _bias if is_prim_expr(_bias) else None,
     }
     if isinstance(_bias, TensorRegion):
-        srcs.append(SrcSpec(buf_region=_bias))
+        srcs.append(SrcSpec(tensor_region=_bias))
         extras["has_bias_buf"] = True
     else:
         extras["has_bias_buf"] = False

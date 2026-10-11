@@ -94,7 +94,7 @@ class BlockVarAccessVerifier : public StmtExprVisitor {
     // Step 0. Skip block iter var's domain
 
     // Step 1. Visit read/write regions
-    auto fvisit_buffer_region = [this](const TensorRegion& s) -> ffi::Optional<VisitInterrupt> {
+    auto fvisit_tensor_region = [this](const TensorRegion& s) -> ffi::Optional<VisitInterrupt> {
       for (const auto& range : s->region) {
         TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(range->min));
         TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(range->extent));
@@ -102,15 +102,15 @@ class BlockVarAccessVerifier : public StmtExprVisitor {
       return std::nullopt;
     };
     for (const auto& region : op->reads) {
-      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(fvisit_buffer_region(region));
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(fvisit_tensor_region(region));
     }
     for (const auto& region : op->writes) {
-      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(fvisit_buffer_region(region));
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(fvisit_tensor_region(region));
     }
 
-    // Step 2. Visit match buffers
-    for (const auto& match_buffer_region : op->match_buffers) {
-      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(fvisit_buffer_region(match_buffer_region->source));
+    // Step 2. Visit match tensors
+    for (const auto& match_tensor_region : op->match_tensors) {
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(fvisit_tensor_region(match_tensor_region->source));
     }
 
     // Step 3. Visit init and body

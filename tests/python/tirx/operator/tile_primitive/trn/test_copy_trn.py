@@ -626,7 +626,7 @@ def test_explicit_transpose_prepares_identity_and_psum(columns, copy_to_sbuf):
 
     mod = tvm.IRModule({"main": transpose})
     with target:
-        allocated = tvm.tirx.trn.transform.TrnPrivateBufferAlloc()(mod)
+        allocated = tvm.tirx.trn.transform.TrnPrivateTensorAlloc()(mod)
         # No hidden identity or PSUM workspace is needed by either instruction.
         _assert_structural_equal(mod, allocated)
         lowered = tvm.tirx.transform.LowerTIRx()(allocated)

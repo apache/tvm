@@ -26,7 +26,7 @@ from tvm.script import ir as I
 from tvm.script import tirx as T
 
 
-def _is_buffer_binding(node, *op_names):
+def _is_tensor_binding(node, *op_names):
     return (
         isinstance(node, tvm.ir.Bind)
         and isinstance(node.value, tvm.ir.Call)
@@ -54,7 +54,7 @@ def test_alloc_seq():
     num_alloc = [0]
 
     def verify(n):
-        if _is_buffer_binding(n, "tirx.alloc_tensor"):
+        if _is_tensor_binding(n, "tirx.alloc_tensor"):
             num_alloc[0] += 1
             assert n.var.ty.shape[0].value == 200
 
@@ -63,13 +63,13 @@ def test_alloc_seq():
 
 
 def test_alloc_different_dtypes():
-    # Test cross-loop buffer access with buffers allocated in parent scope
+    # Test cross-loop tensor access with tensors allocated in parent scope
     def make_mod(dtype_list, length):
         assert len(dtype_list) == 4
 
         @T.function
         def func():
-            # Allocate all buffers in parent scope (before any loops)
+            # Allocate all tensors in parent scope (before any loops)
             A = T.alloc_tensor((length,), dtype_list[0], scope="local.L0A")
             B = T.alloc_tensor((length,), dtype_list[1], scope="local.L0A")
             C = T.alloc_tensor((length,), dtype_list[2], scope="local.L0A")
@@ -109,7 +109,7 @@ def test_alloc_different_dtypes():
 
     def dtype_test(dtype_list, length):
         def verify(n):
-            if _is_buffer_binding(n, "tirx.alloc_tensor"):
+            if _is_tensor_binding(n, "tirx.alloc_tensor"):
                 assert n.var.ty.shape[0].value == offset
 
         mod = make_mod(dtype_list, length)
@@ -134,7 +134,7 @@ def test_alloc_different_dtypes():
 
 def test_address_of():
     # In this test, the storage rewrite pass is allowed to
-    # combine buffers B and D, but not C
+    # combine tensors B and D, but not C
     @T.function
     def before(A: T.Tensor(8, "float32"), E: T.Tensor(8, "float32")):
         B = T.alloc_tensor((8,))
@@ -166,7 +166,7 @@ def test_address_of():
             )
 
     def verify(n):
-        if _is_buffer_binding(n, "tirx.alloc_tensor"):
+        if _is_tensor_binding(n, "tirx.alloc_tensor"):
             total_alloc[0] += n.var.ty.shape[0].value
 
     total_alloc = [0]
@@ -192,7 +192,7 @@ def test_parallel_alloc():
     body = tvm.tirx.transform.StorageRewrite()(mod)["func1"]
 
     # With flat AllocTensor, the for body is a SeqStmt; first element is AllocTensor
-    assert _is_buffer_binding(body.body[0].body[0], "tirx.alloc_tensor")
+    assert _is_tensor_binding(body.body[0].body[0], "tirx.alloc_tensor")
 
     @T.function
     def func2(n: T.int32):
@@ -207,7 +207,7 @@ def test_parallel_alloc():
     body = tvm.tirx.transform.StorageRewrite()(mod)["func2"]
 
     # The launch body owns the allocation executed by each worker.
-    assert _is_buffer_binding(body.body[0].body[0].body[0], "tirx.alloc_tensor")
+    assert _is_tensor_binding(body.body[0].body[0].body[0], "tirx.alloc_tensor")
 
 
 def test_while_alloc():
@@ -252,7 +252,7 @@ def test_while_alloc():
     num_alloc = [0]
 
     def count_alloc(n):
-        if _is_buffer_binding(n, "tirx.alloc_tensor"):
+        if _is_tensor_binding(n, "tirx.alloc_tensor"):
             num_alloc[0] += 1
 
     tvm_ffi.structural_walk(inner, count_alloc)
@@ -289,7 +289,7 @@ def test_alloc_seq_type():
     num_alloc = [0]
 
     def verify(n):
-        if _is_buffer_binding(n, "tirx.alloc_tensor"):
+        if _is_tensor_binding(n, "tirx.alloc_tensor"):
             num_alloc[0] += 1
             assert n.var.ty.shape[0].value == 500
 
@@ -319,7 +319,7 @@ def test_alloc_seq_type2():
     num_alloc = [0]
 
     def verify(n):
-        if _is_buffer_binding(n, "tirx.alloc_tensor"):
+        if _is_tensor_binding(n, "tirx.alloc_tensor"):
             num_alloc[0] += 1
             assert n.var.ty.shape[0].value == 200
 
@@ -327,7 +327,7 @@ def test_alloc_seq_type2():
     assert num_alloc[0] == 1
 
 
-def test_reuse_small_buffer():
+def test_reuse_small_tensor():
     @T.function
     def func(n: T.int32):
         for i in T.serial(n):
@@ -351,7 +351,7 @@ def test_reuse_small_buffer():
     num_alloc = [0]
 
     def verify(n):
-        if _is_buffer_binding(n, "tirx.alloc_tensor"):
+        if _is_tensor_binding(n, "tirx.alloc_tensor"):
             num_alloc[0] += 1
             assert n.var.ty.shape[0].value == 800
 
@@ -382,7 +382,7 @@ def test_access_in_let_value():
     tvm.ir.assert_structural_equal(mod["main"], func_rewritten.with_attr("global_symbol", "main"))
 
 
-def test_decl_buffer_is_not_vectorized():
+def test_decl_tensor_is_not_vectorized():
     """StorageRewrite leaves explicit DeclTensor views unchanged.
 
     Vectorization of DeclTensor views was dropped because the rewritten result
@@ -401,7 +401,7 @@ def test_decl_buffer_is_not_vectorized():
     tvm.ir.assert_structural_equal(After, Before)
 
 
-def test_rewrite_decl_buffer():
+def test_rewrite_decl_tensor():
     """A DeclTensor node may appear in StorageRewrite's input"""
 
     @I.ir_module
@@ -441,7 +441,7 @@ def test_rewrite_decl_buffer():
     tvm.ir.assert_structural_equal(After, Expected)
 
 
-def test_decl_buffer_alias_chain_uses_flat_root():
+def test_decl_tensor_alias_chain_uses_flat_root():
     """StorageRewrite resolves every alias in a chain to the same flat root."""
 
     @I.ir_module
@@ -469,7 +469,7 @@ def test_decl_buffer_alias_chain_uses_flat_root():
     tvm.ir.assert_structural_equal(After, Expected)
 
 
-def test_decl_buffer_alias_extends_source_lifetime():
+def test_decl_tensor_alias_extends_source_lifetime():
     """An access through an alias prevents reuse of its source allocation."""
 
     @T.function
@@ -487,13 +487,13 @@ def test_decl_buffer_alias_extends_source_lifetime():
     tvm_ffi.structural_walk(
         after.body,
         lambda node: (
-            allocations.append(node) if _is_buffer_binding(node, "tirx.alloc_tensor") else None
+            allocations.append(node) if _is_tensor_binding(node, "tirx.alloc_tensor") else None
         ),
     )
     assert len(allocations) == 2
 
 
-def test_no_orphaned_decl_buffer():
+def test_no_orphaned_decl_tensor():
     """A DeclTensor of an unused Allocate should be removed
 
     StorageRewrite removes any allocations that are unused.  When it

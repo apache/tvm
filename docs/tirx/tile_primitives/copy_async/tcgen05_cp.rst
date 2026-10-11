@@ -22,7 +22,7 @@ tcgen05.cp
 memory (Blackwell ``tmem``) through the ``tcgen05_cp`` planner, which covers every
 ``tcgen05.cp`` shape. A shared **matrix descriptor** names the source tile; all
 descriptor fields (ldo/sdo/swizzle) and the cp issue sequence are derived from
-the two buffer layouts. The lowerer issues only the copy; the caller signals
+the two tensor layouts. The lowerer issues only the copy; the caller signals
 completion with ``tcgen05.commit``. Source:
 ``python/tvm/backend/cuda/tile_primitive/copy_async/tcgen05_cp.py``.
 
@@ -95,14 +95,14 @@ shape/layout validation happens in the planner with readable errors:
        instruction
    * - memory pair
      - source ``shared*`` → destination ``tmem`` (with its backing address supplied by
-       a prior ``tcgen05.alloc``); both buffers carry layouts and their element
+       a prior ``tcgen05.alloc``); both tensors carry layouts and their element
        bit widths match. Equal-width reinterpretation is allowed
    * - tmem layout
      - must slice to one shape's (lane, replica) pattern from the table above
    * - smem layout
      - rows in 8-row descriptor core-matrix groups; the atom row width derives
        the swizzle mode (K-byte ∈ {16, 32, 64, 128} → sw 0..3) and must match
-       the buffer's swizzle (if any)
+       the tensor's swizzle (if any)
 
 Demonstration program
 ---------------------
@@ -155,7 +155,7 @@ descriptor fields: 8-row group strides → sdo + swizzle mode, 16B-unit stride �
 ldo (256b atoms).
 
 **3. Encode the matrix descriptor once.** A 64-bit shared descriptor is encoded
-at the smem buffer base right after its allocation, cached per
+at the smem tensor base right after its allocation, cached per
 ``(smem_buf, ldo, sdo, swizzle)``; each cp patches only the 14-bit address
 field.
 

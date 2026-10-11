@@ -62,7 +62,7 @@ def undefined_vars(node: Stmt | Expr, defs: list[Var] | None = None) -> list[Var
 
 
 def verify_well_formed(obj: Function | IRModule, assert_mode: bool = True) -> bool:
-    """Verify definitions, buffer-load types, loop control, tile ops, and scope IDs.
+    """Verify definitions, tensor-load types, loop control, tile ops, and scope IDs.
 
     Use ``tvm.s_tir.analysis.verify_well_formed`` for schedulable blocks.
 

@@ -59,7 +59,7 @@ def _transpose_frag(layout, shape):
 
     The transposed input orientations (A as [K, M], B as [N, K]) hold the exact
     same per-lane/per-register element distribution as the K-major fragments --
-    only the buffer's logical axes are swapped. So instead of writing them out
+    only the tensor's logical axes are swapped. So instead of writing them out
     by hand, derive them: ``group`` the shard into the logical dims, then
     ``permute_by_groups`` to exchange the two groups.
     """
@@ -94,7 +94,7 @@ def _frag(Mt, Nt, Kt, kinst):
 def _build_tiled(Mt, Nt, Kt, kinst, *, beta=0.0, dtype="float16", store=False):
     """A single-warp kernel issuing one ``T.gemm`` over an Mt x Nt x Kt tiling.
 
-    With ``store=True`` the result is written back to a global buffer (a full
+    With ``store=True`` the result is written back to a global tensor (a full
     kernel for codegen); otherwise only the ``T.gemm`` is emitted (for
     ``LowerTIRx`` dispatch checks).
     """
@@ -315,7 +315,7 @@ def _build_transpose_numeric(transpose_A, transpose_B, dtype="float16"):
     """End-to-end single-tile ``T.gemm`` for one A/B input orientation.
 
     The transposed and K-major A fragments share the physical register order
-    [kHi, rM, kp]; only their logical buffer axes differ.  B's physical order
+    [kHi, rM, kp]; only their logical tensor axes differ.  B's physical order
     [kHi, kp] is likewise unchanged by orientation.
     """
     Al = A_KM_FRAG if transpose_A else A_FRAG
@@ -338,16 +338,16 @@ def _build_transpose_numeric(transpose_A, transpose_B, dtype="float16"):
         D_f = T.alloc_tensor((16, 8), "float32", scope="local", layout=D_FRAG)
         A_reg = A_f.local(2, 2, 2)
         if T.constexpr(transpose_A):
-            # A_KM_FRAG: buffer is [K, M].
+            # A_KM_FRAG: tensor is [K, M].
             for kHi, rM, kp in T.grid(2, 2, 2):
                 A_reg[kHi, rM, kp] = A_g[2 * (lane % 4) + kp + 8 * kHi, lane // 4 + 8 * rM]
         else:
-            # A_FRAG: buffer is [M, K].
+            # A_FRAG: tensor is [M, K].
             for kHi, rM, kp in T.grid(2, 2, 2):
                 A_reg[kHi, rM, kp] = A_g[lane // 4 + 8 * rM, 2 * (lane % 4) + kp + 8 * kHi]
         B_reg = B_f.local(2, 2)
         if T.constexpr(transpose_B):
-            # B_NK_FRAG buffer is [N, K].
+            # B_NK_FRAG tensor is [N, K].
             for kHi, kp in T.grid(2, 2):
                 B_reg[kHi, kp] = B_g[lane // 4, 2 * (lane % 4) + kp + 8 * kHi]
         else:

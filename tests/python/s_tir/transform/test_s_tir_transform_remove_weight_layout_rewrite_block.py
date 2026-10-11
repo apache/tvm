@@ -41,8 +41,8 @@ def test_matmul():
         B: T.Tensor((16, 16), "float32"),
         C: T.Tensor((16, 16), "float32"),
     ) -> None:
-        T.func_attr({"layout_free_buffers": [1]})
-        B_ = Ts.sblock_alloc_buffer([16, 4, 4], dtype="float32")
+        T.func_attr({"layout_free_tensors": [1]})
+        B_ = Ts.sblock_alloc_tensor([16, 4, 4], dtype="float32")
         for i0_o, i1_o in T.grid(16, 16):
             with Ts.sblock("layout_rewrite"):
                 i0, i1 = Ts.axis.remap("SS", [i0_o, i1_o])
@@ -67,7 +67,7 @@ def test_matmul():
         B: T.Tensor((16, 4, 4), "float32"),
         C: T.Tensor((16, 16), "float32"),
     ) -> None:
-        T.func_attr({"layout_free_buffers": [1]})
+        T.func_attr({"layout_free_tensors": [1]})
         for i0_o, i1_o in T.grid(16, 16):
             with Ts.sblock("layout_rewrite"):
                 i0, i1 = Ts.axis.remap("SS", [i0_o, i1_o])

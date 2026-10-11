@@ -79,7 +79,7 @@ void TIRVisitorWithPath::Visit(const IRModule& mod, AccessPath path) {
 
 void TIRVisitorWithPath::Visit(const Function& func, AccessPath path) {
   // TensorType metadata may introduce symbolic dimensions.  Define those
-  // symbols before entering the buffer parameter itself.
+  // symbols before entering the tensor parameter itself.
   std::vector<DefContext<Var>> context;
 
   auto ppath = path->Attr("params");
@@ -95,14 +95,14 @@ void TIRVisitorWithPath::Visit(const Function& func, AccessPath path) {
       auto buf = opt.value();
       auto buf_path = ppath->ArrayItem(i)->Attr("ty");
 
-      for (auto& def : WithMatchBufferDefs(buf, buf_path)) {
+      for (auto& def : WithMatchTensorDefs(buf, buf_path)) {
         context.push_back(std::move(def));
       }
     }
   }
 
   // Only after all the implicit definitions have been visited can we
-  // visit the buffer definition itself.
+  // visit the tensor definition itself.
   for (size_t i = 0; i < func->params.size(); i++) {
     if (auto opt = func->params[i].as<TensorVar>()) {
       context.push_back(WithDef(opt.value().var(), ppath->ArrayItem(i)));
@@ -140,11 +140,11 @@ void TIRVisitorWithPath::Visit(ffi::AnyView obj, AccessPath path) {
 }
 
 // Uses retain their definition's identity without revisiting its type metadata.
-void TIRVisitorWithPath::VisitBufferUse(const TensorVar& buffer, AccessPath path) {}
+void TIRVisitorWithPath::VisitTensorUse(const TensorVar& tensor, AccessPath path) {}
 
 void TIRVisitorWithPath::Visit(const TensorRegion& region, AccessPath path) {
-  if (auto buffer = region->source.as<TensorVar>()) {
-    VisitBufferUse(buffer.value(), path->Attr("source"));
+  if (auto tensor = region->source.as<TensorVar>()) {
+    VisitTensorUse(tensor.value(), path->Attr("source"));
   } else {
     Visit(region->source, path->Attr("source"));
   }
@@ -207,7 +207,7 @@ void TIRVisitorWithPath::Dispatch_(const ContinueNode* op, AccessPath path) {}
 
 void TIRVisitorWithPath::Dispatch_(const TensorStoreNode* op, AccessPath path) {
   Visit(op->value, path->Attr("value"));
-  VisitBufferUse(op->dest.as_or_throw<TensorVar>(), path->Attr("buffer"));
+  VisitTensorUse(op->dest.as_or_throw<TensorVar>(), path->Attr("dest"));
   Visit(op->indices, path->Attr("indices"));
 }
 
@@ -237,7 +237,7 @@ void TIRVisitorWithPath::Dispatch_(const EvaluateNode* op, AccessPath path) {
 void TIRVisitorWithPath::Dispatch_(const VarNode* op, AccessPath path) {}
 
 void TIRVisitorWithPath::Dispatch_(const TensorLoadNode* op, AccessPath path) {
-  VisitBufferUse(op->source.as_or_throw<tvm::tirx::TensorVar>(), path->Attr("source"));
+  VisitTensorUse(op->source.as_or_throw<tvm::tirx::TensorVar>(), path->Attr("source"));
   Visit(op->indices, path->Attr("indices"));
 }
 

@@ -28,39 +28,39 @@ namespace tvm {
 namespace tirx {
 
 // TensorLoad
-TensorLoad MakeTensorLoad(TensorVar buffer, ffi::Array<PrimExpr> indices, Location loc) {
-  TVM_FFI_ICHECK_EQ(buffer->shape.size(), indices.size())
-      << "TensorVar " << buffer.name() << " is " << buffer->shape.size()
+TensorLoad MakeTensorLoad(TensorVar tensor, ffi::Array<PrimExpr> indices, Location loc) {
+  TVM_FFI_ICHECK_EQ(tensor->shape.size(), indices.size())
+      << "TensorVar " << tensor.name() << " is " << tensor->shape.size()
       << "-dimensional, cannot be indexed with the " << indices.size()
       << "-dimensional indices provided.";
 
   for (int i = 0; i < static_cast<int>(indices.size()) - 1; i++) {
     TVM_FFI_ICHECK(indices[i].ty().IsScalar())
-        << "Only the last index of a buffer access may be a vector type.";
+        << "Only the last index of a tensor access may be a vector type.";
   }
 
-  PrimType result_ty = buffer->dtype;
+  PrimType result_ty = tensor->dtype;
   if (!indices.empty()) {
     PrimType index_ty = indices.back().ty();
-    int16_t buffer_encoded_lanes = static_cast<int16_t>(buffer->dtype->dtype.lanes);
-    bool is_buffer_dtype_scalable = buffer_encoded_lanes < -1;
+    int16_t tensor_encoded_lanes = static_cast<int16_t>(tensor->dtype->dtype.lanes);
+    bool is_tensor_dtype_scalable = tensor_encoded_lanes < -1;
     bool is_index_scalable = index_ty.IsScalableVector();
 
-    TVM_FFI_ICHECK(!(is_index_scalable && is_buffer_dtype_scalable))
-        << "Index dtype and buffer dtype can't both be scalable.";
+    TVM_FFI_ICHECK(!(is_index_scalable && is_tensor_dtype_scalable))
+        << "Index dtype and tensor dtype can't both be scalable.";
 
     if (is_index_scalable) {
-      result_ty = PrimType::ScalableVector(buffer->dtype.code(), buffer->dtype.bits(),
-                                           index_ty.VScaleFactor() * buffer->dtype.lanes());
-    } else if (is_buffer_dtype_scalable) {
-      result_ty = PrimType::ScalableVector(buffer->dtype.code(), buffer->dtype.bits(),
-                                           -buffer_encoded_lanes * index_ty.lanes());
+      result_ty = PrimType::ScalableVector(tensor->dtype.code(), tensor->dtype.bits(),
+                                           index_ty.VScaleFactor() * tensor->dtype.lanes());
+    } else if (is_tensor_dtype_scalable) {
+      result_ty = PrimType::ScalableVector(tensor->dtype.code(), tensor->dtype.bits(),
+                                           -tensor_encoded_lanes * index_ty.lanes());
     } else {
-      result_ty = buffer->dtype.WithLanes(index_ty.lanes() * buffer->dtype.lanes());
+      result_ty = tensor->dtype.WithLanes(index_ty.lanes() * tensor->dtype.lanes());
     }
   }
 
-  ffi::ObjectPtr<TensorLoadNode> node = ffi::make_object<TensorLoadNode>(std::move(buffer));
+  ffi::ObjectPtr<TensorLoadNode> node = ffi::make_object<TensorLoadNode>(std::move(tensor));
   node->ty = std::move(result_ty);
   node->indices = std::move(indices);
   node->loc = loc;
@@ -70,8 +70,8 @@ TensorLoad MakeTensorLoad(TensorVar buffer, ffi::Array<PrimExpr> indices, Locati
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tirx.TensorLoad",
-                        [](TensorVar buffer, ffi::Array<PrimExpr> indices, Location loc) {
-                          return MakeTensorLoad(buffer, indices, loc);
+                        [](TensorVar tensor, ffi::Array<PrimExpr> indices, Location loc) {
+                          return MakeTensorLoad(tensor, indices, loc);
                         });
 }
 

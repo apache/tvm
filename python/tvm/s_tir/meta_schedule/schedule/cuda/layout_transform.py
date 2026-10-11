@@ -28,11 +28,11 @@ from tvm.s_tir.schedule import ExprRV, LoopRV, SBlockRV, Schedule
 # Assume we have an input shape of [A, B, C, D] and want to layout transform
 # ABCD --> DBAC so the output shape would be [D, B, A, C].
 #
-# Consider reading from the input buffer in a cache-friendly fashion on CPU. We would
+# Consider reading from the input tensor in a cache-friendly fashion on CPU. We would
 # expect a loop structure like:
 # lAr, lBr, lCr, lDr = T.grid(A, B, C, D)
 #
-# Meanwhile consider writing to the output buffer in a cache-friendly fashion on CPU:
+# Meanwhile consider writing to the output tensor in a cache-friendly fashion on CPU:
 # lDw, lBw, lAw, lCw = T.grid(D, B, A, C)
 #
 # Clearly in many scenarios it is impossible to guarantee contiguous writes and reads
@@ -103,10 +103,10 @@ def tile_layout_transform(
         block_read's initial loops to follow
 
     block_read:
-        The block which reads from global memory and writes to shared memory buffer.
+        The block which reads from global memory and writes to shared memory tensor.
 
     block_write:
-        The block which writes to global memory and reads from shared memory buffer.
+        The block which writes to global memory and reads from shared memory tensor.
 
     src_layout :
         The src_layout, each character should appear once and also appear in dst_layout.
@@ -359,10 +359,10 @@ def create_cached_read(
         block_read's initial loops to follow the original input shape.
 
     block_read:
-        The block which reads from global memory and writes to shared memory buffer.
+        The block which reads from global memory and writes to shared memory tensor.
 
     orig_input_shape:
-        The input shape of the input buffer to the function.
+        The input shape of the input tensor to the function.
 
     orig_src_layout:
         The original src_layout string.
@@ -373,7 +373,7 @@ def create_cached_read(
     Returns
     -------
     ret:
-        A tuple of the cached read block, new input shape of shared memory buffer,
+        A tuple of the cached read block, new input shape of shared memory tensor,
         the new src_layout, and new dst_layout string.
     """
     # Figure out split dimensions, entries are (loop index in src_layout, split amount)
@@ -429,7 +429,7 @@ def create_cached_read(
     dst_to_src_map = [new_dst_layout_str.index(dim) for dim in new_src_layout_str]
     block_read = sch.reindex_cache_read(
         block_write,
-        read_buffer_index=0,
+        read_tensor_index=0,
         index_map=tvm.tirx.IndexMap.from_func(
             lambda *loops: [loops[dst_to_src_map[i]] for i, _ in enumerate(loops)],
             ndim=len(new_src_layout_str),

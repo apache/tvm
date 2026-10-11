@@ -19,7 +19,7 @@ elementwise → smem
 ==================
 
 The shared-memory lowerer expands an elementwise instruction (``sqrt``, ``exp``, ``add``,
-``fma``, …) when **all buffer operands are in shared memory**. Scalar inputs are
+``fma``, …) when **all tensor operands are in shared memory**. Scalar inputs are
 also accepted where the instruction permits them. It synthesizes an
 ``[outer, threads, vec]``
 partition from the execution scope, then applies the op to each (vectorized)
@@ -38,10 +38,10 @@ What it accepts
         if sctx.scope_kind not in ("thread", "warp", "warpgroup", "cta"): ...
         ok, reason = _all_threads_active(sctx)              # full scope
         plan, msg = spec.parse(op_call)                     # parse the op's operands
-        for br in buffer_regions(plan):
-            if not br.buffer.scope().startswith("shared"):  # every buffer operand shared*
-                return False, f"operand scope {br.buffer.scope()} != shared*"
-            if br.buffer.layout is None: ...
+        for br in tensor_regions(plan):
+            if not br.tensor.scope().startswith("shared"):  # every tensor operand shared*
+                return False, f"operand scope {br.tensor.scope()} != shared*"
+            if br.tensor.layout is None: ...
         # + spec.check_extras (dtype rules) and anchor-layout validation
 
 .. list-table::
@@ -53,7 +53,7 @@ What it accepts
    * - target / scope
      - ``cuda``; ``thread`` / ``warp`` / ``warpgroup`` / ``cta`` (all active)
    * - operands
-     - **every buffer operand** (including the output) in ``shared*``; scalar
+     - **every tensor operand** (including the output) in ``shared*``; scalar
        sources are allowed by ``fill``, the binary ops, and ``fma``
    * - op
      - any CUDA elementwise ``OpSpec`` listed on the parent page (unary
@@ -102,7 +102,7 @@ Algorithm
 ---------
 
 **1. Parse the op and check operands.** ``spec.parse`` turns the call into a plan
-(inputs, output, the op); the predicate confirms every buffer operand is shared.
+(inputs, output, the op); the predicate confirms every tensor operand is shared.
 
 **2. Synthesize the partition** from the scope's **thread count** (as
 the cooperative transfer planner does): split the region into ``[outer, threads, vec]``.

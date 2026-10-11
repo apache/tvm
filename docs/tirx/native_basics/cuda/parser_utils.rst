@@ -55,7 +55,7 @@ scoping with late binding, so a parameter shadows an enclosing variable:
 ----------------------------------------------
 
 ``@Tx.meta_class`` marks a plain Python class whose **instances are parser meta
-values**: their fields can hold buffers and scalars, so you can bundle related
+values**: their fields can hold tensors and scalars, so you can bundle related
 allocations and state into one object and use it in the kernel body.
 
 .. code-block:: python
@@ -67,7 +67,7 @@ allocations and state into one object and use it in the kernel body.
             self.buf = Tx.decl_tensor([64], "float16", smem, scope="shared.dyn")
 
     s = State(smem.data)
-    s.acc[0] = Tx.float32(0.0)     # use its fields like ordinary buffers
+    s.acc[0] = Tx.float32(0.0)     # use its fields like ordinary tensors
     # ... s.buf[i] ...
 
 This is handy for grouping a kernel's pipeline state (barriers, accumulators,

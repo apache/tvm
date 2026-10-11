@@ -32,7 +32,7 @@ namespace script {
 namespace printer {
 namespace details {
 
-bool IsScalarBuffer(DocTranslatorObj* d, const Expr& source);
+bool IsScalarTensor(DocTranslatorObj* d, const Expr& source);
 
 }  // namespace details
 }  // namespace printer

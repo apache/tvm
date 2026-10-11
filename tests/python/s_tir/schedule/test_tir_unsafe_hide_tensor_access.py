@@ -74,34 +74,34 @@ def indirect_mem_access_hide_ib(
             B[IB[vi]] = A[IA[vi]]
 
 
-def test_hide_buffer_access_read():
+def test_hide_tensor_access_read():
     sch = tvm.s_tir.Schedule(indirect_mem_access, debug_mask="all")
     block_b = sch.get_sblock("B")
-    sch.unsafe_hide_buffer_access(block_b, "read", [1])
+    sch.unsafe_hide_tensor_access(block_b, "read", [1])
     assert_structural_equal_ignore_global_symbol(indirect_mem_access_hide_ia, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=indirect_mem_access)
 
 
-def test_hide_buffer_access_write():
+def test_hide_tensor_access_write():
     sch = tvm.s_tir.Schedule(indirect_mem_access, debug_mask="all")
     block_b = sch.get_sblock("B")
-    sch.unsafe_hide_buffer_access(block_b, "write", [1])
+    sch.unsafe_hide_tensor_access(block_b, "write", [1])
     assert_structural_equal_ignore_global_symbol(indirect_mem_access_hide_ib, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=indirect_mem_access)
 
 
-def test_hide_buffer_access_fail_buffer_type():
+def test_hide_tensor_access_fail_tensor_type():
     sch = tvm.s_tir.Schedule(indirect_mem_access, debug_mask="all")
     block_b = sch.get_sblock("B")
     with pytest.raises(RuntimeError):
-        sch.unsafe_hide_buffer_access(block_b, "opaque", [0])
+        sch.unsafe_hide_tensor_access(block_b, "opaque", [0])
 
 
-def test_hide_buffer_access_fail_buffer_index():
+def test_hide_tensor_access_fail_tensor_index():
     sch = tvm.s_tir.Schedule(indirect_mem_access, debug_mask="all")
     block_b = sch.get_sblock("B")
     with pytest.raises(RuntimeError):
-        sch.unsafe_hide_buffer_access(block_b, "read", [2])
+        sch.unsafe_hide_tensor_access(block_b, "read", [2])
 
 
 if __name__ == "__main__":

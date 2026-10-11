@@ -147,7 +147,7 @@ def test_other_scope_alloc():
     assert_structural_equal(mod["copy"], expected)
 
 
-def test_buffer_views():
+def test_tensor_views():
     # fmt: off
     @T.function
     def copy(A_ptr: T.handle) -> None:

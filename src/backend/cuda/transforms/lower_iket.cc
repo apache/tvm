@@ -234,9 +234,9 @@ bool Is64BitPayload(PayloadType type) {
   return type == PayloadType::kI64 || type == PayloadType::kUI64 || type == PayloadType::kFP64;
 }
 
-bool IsScalarBufferAccess(const TensorVar& buffer, const ffi::Array<PrimExpr>& indices) {
-  if (buffer->shape.size() != 1 || indices.size() != 1) return false;
-  const auto* extent = buffer->shape[0].as<IntImmNode>();
+bool IsScalarTensorAccess(const TensorVar& tensor, const ffi::Array<PrimExpr>& indices) {
+  if (tensor->shape.size() != 1 || indices.size() != 1) return false;
+  const auto* extent = tensor->shape[0].as<IntImmNode>();
   const auto* index = indices[0].as<IntImmNode>();
   return extent && extent->value == 1 && index && index->value == 0;
 }
@@ -355,11 +355,11 @@ class AnnotationCollector : public StmtExprVisitor {
   std::unordered_map<std::string, DeclarationKind> declaration_kinds_;
 };
 
-using TokenBufferSet = std::unordered_set<const VarNode*>;
+using TokenTensorSet = std::unordered_set<const VarNode*>;
 
-class TokenBufferCollector : public StmtExprVisitor {
+class TokenTensorCollector : public StmtExprVisitor {
  public:
-  explicit TokenBufferCollector(TokenBufferSet* buffers) : buffers_(buffers) {}
+  explicit TokenTensorCollector(TokenTensorSet* tensors) : tensors_(tensors) {}
 
   bool changed{false};
 
@@ -369,25 +369,25 @@ class TokenBufferCollector : public StmtExprVisitor {
     if (const auto* call = store->value.as<CallNode>()) {
       is_token_value = IsTokenProducer(call);
     } else if (const auto* load = store->value.as<TensorLoadNode>()) {
-      is_token_value = buffers_->count(load->source.as_or_throw<tvm::tirx::TensorVar>().get());
+      is_token_value = tensors_->count(load->source.as_or_throw<tvm::tirx::TensorVar>().get());
     }
-    if (is_token_value && buffers_->insert(store->dest.as_or_throw<TensorVar>().get()).second)
+    if (is_token_value && tensors_->insert(store->dest.as_or_throw<TensorVar>().get()).second)
       changed = true;
     return StmtExprVisitor::Visit_(store);
   }
 
-  TokenBufferSet* buffers_;
+  TokenTensorSet* tensors_;
 };
 
-TokenBufferSet CollectTokenBuffers(const Stmt& body) {
-  TokenBufferSet buffers;
+TokenTensorSet CollectTokenTensors(const Stmt& body) {
+  TokenTensorSet tensors;
   bool changed = true;
   while (changed) {
-    auto collector = ffi::make_object<TokenBufferCollector>(&buffers);
+    auto collector = ffi::make_object<TokenTensorCollector>(&tensors);
     collector->Visit(body);
     changed = collector->changed;
   }
-  return buffers;
+  return tensors;
 }
 
 using TokenDeclarationMap = std::unordered_map<const VarNode*, std::set<DeclarationKey>>;
@@ -490,11 +490,11 @@ void ValidateRangeSchemas(const std::map<DeclarationKey, Declaration>& declarati
 
 class TokenVerifier : public StmtExprVisitor {
  public:
-  explicit TokenVerifier(const TokenBufferSet& token_buffers) : token_buffers_(token_buffers) {}
+  explicit TokenVerifier(const TokenTensorSet& token_tensors) : token_tensors_(token_tensors) {}
 
  private:
   ffi::Optional<VisitInterrupt> Visit_(const TensorStoreNode* store) final {
-    if (!token_buffers_.count(store->dest.as_or_throw<TensorVar>().get())) {
+    if (!token_tensors_.count(store->dest.as_or_throw<TensorVar>().get())) {
       return StmtExprVisitor::Visit_(store);
     }
     TVM_FFI_CHECK(store->dest.as_or_throw<TensorVar>()->dtype->dtype.code == kDLUInt &&
@@ -503,9 +503,9 @@ class TokenVerifier : public StmtExprVisitor {
                   TypeError)
         << "IKET RangeToken storage must have dtype uint32";
     TVM_FFI_CHECK(store->dest.as_or_throw<TensorVar>().scope() == "local" &&
-                      IsScalarBufferAccess(store->dest.as_or_throw<TensorVar>(), store->indices),
+                      IsScalarTensorAccess(store->dest.as_or_throw<TensorVar>(), store->indices),
                   ValueError)
-        << "IKET RangeToken must use element zero of a local uint32[1] buffer";
+        << "IKET RangeToken must use element zero of a local uint32[1] tensor";
     bool valid_value = false;
     if (const auto* call = store->value.as<CallNode>()) {
       valid_value = IsTokenProducer(call);
@@ -513,7 +513,7 @@ class TokenVerifier : public StmtExprVisitor {
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(store->value));
       allow_producer_ = false;
     } else if (const auto* load = store->value.as<TensorLoadNode>()) {
-      valid_value = token_buffers_.count(load->source.as_or_throw<tvm::tirx::TensorVar>().get());
+      valid_value = token_tensors_.count(load->source.as_or_throw<tvm::tirx::TensorVar>().get());
       allow_token_load_ = valid_value;
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(store->value));
       allow_token_load_ = false;
@@ -527,7 +527,7 @@ class TokenVerifier : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* load) final {
-    if (token_buffers_.count(load->source.as_or_throw<tvm::tirx::TensorVar>().get())) {
+    if (token_tensors_.count(load->source.as_or_throw<tvm::tirx::TensorVar>().get())) {
       TVM_FFI_CHECK(allow_token_load_, ValueError)
           << "RangeToken may only be assigned or passed directly to range_end";
     }
@@ -550,7 +550,7 @@ class TokenVerifier : public StmtExprVisitor {
       TVM_FFI_CHECK_GE(call->args.size(), 1, TypeError) << "range_end requires a RangeToken";
       const auto* token = call->args[0].as<TensorLoadNode>();
       TVM_FFI_CHECK(
-          token != nullptr && token_buffers_.count(token->source.as_or_throw<TensorVar>().get()),
+          token != nullptr && token_tensors_.count(token->source.as_or_throw<TensorVar>().get()),
           ValueError)
           << "range_end requires a directly loaded RangeToken";
       allow_token_load_ = true;
@@ -564,27 +564,27 @@ class TokenVerifier : public StmtExprVisitor {
     return StmtExprVisitor::Visit_(call);
   }
 
-  const TokenBufferSet& token_buffers_;
+  const TokenTensorSet& token_tensors_;
   bool allow_token_load_{false};
   bool allow_producer_{false};
 };
 
 class StripIket : public StmtExprMutator {
  public:
-  explicit StripIket(TokenBufferSet token_buffers) : token_buffers_(std::move(token_buffers)) {}
+  explicit StripIket(TokenTensorSet token_tensors) : token_tensors_(std::move(token_tensors)) {}
 
  private:
   UnchangedOr<Stmt> Mutate_(const BindNode* alloc, InplaceMode inplace_mode) final {
     if (const auto* call = alloc->value.as<CallNode>(); call &&
                                                         call->op.same_as(tirx::alloc_tensor_op()) &&
-                                                        token_buffers_.count(alloc->var.get())) {
+                                                        token_tensors_.count(alloc->var.get())) {
       return Evaluate(0);
     }
     return StmtExprMutator::Mutate_(alloc, inplace_mode);
   }
 
   UnchangedOr<Stmt> Mutate_(const TensorStoreNode* store, InplaceMode inplace_mode) final {
-    if (token_buffers_.count(store->dest.as_or_throw<TensorVar>().get())) return Evaluate(0);
+    if (token_tensors_.count(store->dest.as_or_throw<TensorVar>().get())) return Evaluate(0);
     return StmtExprMutator::Mutate_(store, inplace_mode);
   }
 
@@ -603,7 +603,7 @@ class StripIket : public StmtExprMutator {
     return StmtExprMutator::Mutate_(call, inplace_mode);
   }
 
-  TokenBufferSet token_buffers_;
+  TokenTensorSet token_tensors_;
 };
 
 class RemoveStrippedIketNoOps : public StmtExprMutator {
@@ -1194,7 +1194,7 @@ IRModule LowerIketImpl(IRModule module) {
       Function function = ffi::GetRef<Function>(function_node);
       auto collector = ffi::make_object<AnnotationCollector>();
       collector->Visit(function->body);
-      TokenBufferSet tokens = CollectTokenBuffers(function->body.value());
+      TokenTensorSet tokens = CollectTokenTensors(function->body.value());
       if (!collector->has_annotations && tokens.empty()) continue;
       if (collector->has_annotations) {
         auto verifier = ffi::make_object<TokenVerifier>(tokens);
@@ -1231,7 +1231,7 @@ IRModule LowerIketImpl(IRModule module) {
     TVM_FFI_CHECK(IsCudaDeviceFunction(function), ValueError)
         << "IKET annotations are only valid in a split CUDA device kernel";
 
-    TokenBufferSet tokens = CollectTokenBuffers(function->body.value());
+    TokenTensorSet tokens = CollectTokenTensors(function->body.value());
     auto verifier = ffi::make_object<TokenVerifier>(tokens);
     verifier->Visit(function->body);
     TokenDeclarationMap token_declarations = CollectTokenDeclarations(function->body.value());

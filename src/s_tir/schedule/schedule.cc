@@ -213,9 +213,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def_method("s_tir.schedule.ScheduleCacheInplace", &ScheduleNode::CacheInplace)
       .def_method("s_tir.schedule.ScheduleCacheIndex", &ScheduleNode::CacheIndex)
       .def("s_tir.schedule.ScheduleReIndex",
-           [](Schedule self, const SBlockRV& block_rv, int buffer_index, int buffer_index_type) {
-             return self->ReIndex(block_rv, buffer_index,
-                                  static_cast<BufferIndexType>(buffer_index_type));
+           [](Schedule self, const SBlockRV& block_rv, int tensor_index, int tensor_index_type) {
+             return self->ReIndex(block_rv, tensor_index,
+                                  static_cast<TensorIndexType>(tensor_index_type));
            });
 }
 /******** (FFI) Data movement ********/
@@ -316,11 +316,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("s_tir.schedule.ScheduleTransformLayout",
-           [](Schedule self, const SBlockRV& block_rv, int buffer_index, int buffer_index_type,
+           [](Schedule self, const SBlockRV& block_rv, int tensor_index, int tensor_index_type,
               const IndexMap& index_map, const ffi::Optional<IndexMap>& pad_value,
               bool assume_injective_transform) {
-             return self->TransformLayout(block_rv, buffer_index,
-                                          static_cast<BufferIndexType>(buffer_index_type),
+             return self->TransformLayout(block_rv, tensor_index,
+                                          static_cast<TensorIndexType>(tensor_index_type),
                                           index_map, pad_value, assume_injective_transform);
            })
       .def_method("s_tir.schedule.ScheduleTransformBlockLayout",
@@ -334,7 +334,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def_method("s_tir.schedule.ScheduleDecomposePadding", &ScheduleNode::DecomposePadding)
       .def_method("s_tir.schedule.SchedulePadEinsum", &ScheduleNode::PadEinsum);
 }
-/******** (FFI) Buffer transformation ********/
+/******** (FFI) Tensor transformation ********/
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def_method("s_tir.schedule.ScheduleRollingBuffer",
@@ -345,18 +345,18 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def_method("s_tir.schedule.ScheduleEnterPostproc", &ScheduleNode::EnterPostproc)
-      .def_method("s_tir.schedule.ScheduleUnsafeHideBufferAccess",
-                  &ScheduleNode::UnsafeHideBufferAccess);
+      .def_method("s_tir.schedule.ScheduleUnsafeHideTensorAccess",
+                  &ScheduleNode::UnsafeHideTensorAccess);
 }
-/******** (FFI) Annotate buffer access ********/
+/******** (FFI) Annotate tensor access ********/
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("s_tir.schedule.ScheduleAnnotateBufferAccess",
-                        [](Schedule self, const SBlockRV& block_rv, int buffer_index,
-                           int buffer_index_type, const IndexMap& index_map) {
-                          return self->AnnotateBufferAccess(
-                              block_rv, buffer_index,
-                              static_cast<BufferIndexType>(buffer_index_type), index_map);
+  refl::GlobalDef().def("s_tir.schedule.ScheduleAnnotateTensorAccess",
+                        [](Schedule self, const SBlockRV& block_rv, int tensor_index,
+                           int tensor_index_type, const IndexMap& index_map) {
+                          return self->AnnotateTensorAccess(
+                              block_rv, tensor_index,
+                              static_cast<TensorIndexType>(tensor_index_type), index_map);
                         });
 }
 

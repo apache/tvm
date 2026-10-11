@@ -52,21 +52,21 @@ ffi::Optional<VisitInterrupt> StmtExprVisitor::VisitBlock(tirx::StmtExprVisitor*
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->Visit(iter_var->dom.value()->min));
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->Visit(iter_var->dom.value()->extent));
   }
-  for (const TensorVar& buf : op->alloc_buffers) {
+  for (const TensorVar& tensor : op->alloc_tensors) {
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->WithDefRegionKind(
-        kTVMFFIDefRegionKindSimple, [&]() { return visitor->Visit(buf); }));
+        kTVMFFIDefRegionKindSimple, [&]() { return visitor->Visit(tensor); }));
   }
-  // Define match-buffer targets before visiting reads/writes that may use them.
+  // Define match-tensor targets before visiting reads/writes that may use them.
   // This differs from the old TIRX native order (reads/writes before matches)
   // and agrees with structural traversal's definition-before-use contract.
-  for (const MatchBufferRegion& match_buffer_region : op->match_buffers) {
+  for (const MatchTensorRegion& match_tensor_region : op->match_tensors) {
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->WithDefRegionKind(
-        kTVMFFIDefRegionKindSimple, [&]() { return visitor->Visit(match_buffer_region->buffer); }));
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->Visit(match_buffer_region->source));
+        kTVMFFIDefRegionKindSimple, [&]() { return visitor->Visit(match_tensor_region->tensor); }));
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->Visit(match_tensor_region->source));
   }
-  if (auto addresses = op->annotations.Get(tvm::s_tir::attr::kBufferAllocatedAddr)) {
+  if (auto addresses = op->annotations.Get(attr::kTensorAllocatedAddr)) {
     // The owner reference identifies the allocation; it is not a data access.
-    for (const auto& entry : addresses.value().cast<BufferAllocatedAddresses>()) {
+    for (const auto& entry : addresses.value().cast<TensorAllocatedAddresses>()) {
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->Visit(entry.get<1>()));
     }
   }
@@ -131,18 +131,18 @@ UnchangedOr<Stmt> StmtExprMutator::MutateBlock(tirx::StmtExprMutator* mutator, c
       iter_vars = std::move(updated);
     }
   }
-  auto alloc_buffers =
+  auto alloc_tensors =
       mutator
           ->WithDefRegionKind(kTVMFFIDefRegionKindSimple,
-                              [&] { return mutator->Mutate(op->alloc_buffers, inplace_mode); })
+                              [&] { return mutator->Mutate(op->alloc_tensors, inplace_mode); })
           .as_or_throw<UnchangedOr<ffi::Array<TensorVar>>>();
-  auto match_buffers = mutator->Mutate(op->match_buffers, inplace_mode)
-                           .as_or_throw<UnchangedOr<ffi::Array<MatchBufferRegion>>>();
+  auto match_tensors = mutator->Mutate(op->match_tensors, inplace_mode)
+                           .as_or_throw<UnchangedOr<ffi::Array<MatchTensorRegion>>>();
   auto annotations = op->annotations;
-  if (auto addresses = annotations.Get(tvm::s_tir::attr::kBufferAllocatedAddr)) {
+  if (auto addresses = annotations.Get(attr::kTensorAllocatedAddr)) {
     auto updated = mutator->Mutate(addresses.value(), InplaceMode::kDisallow);
     if (!updated.IsUnchanged()) {
-      annotations.Set(tvm::s_tir::attr::kBufferAllocatedAddr, std::move(updated).ValueUnchecked());
+      annotations.Set(attr::kTensorAllocatedAddr, std::move(updated).ValueUnchecked());
     }
   }
   auto reads =
@@ -152,8 +152,8 @@ UnchangedOr<Stmt> StmtExprMutator::MutateBlock(tirx::StmtExprMutator* mutator, c
   auto init = mutator->Mutate(op->init, inplace_mode);
   auto body = mutator->Mutate(op->body, inplace_mode);
   if (iter_vars.UnchangedOrSameAs(op->iter_vars) &&
-      alloc_buffers.UnchangedOrSameAs(op->alloc_buffers) && reads.UnchangedOrSameAs(op->reads) &&
-      writes.UnchangedOrSameAs(op->writes) && match_buffers.UnchangedOrSameAs(op->match_buffers) &&
+      alloc_tensors.UnchangedOrSameAs(op->alloc_tensors) && reads.UnchangedOrSameAs(op->reads) &&
+      writes.UnchangedOrSameAs(op->writes) && match_tensors.UnchangedOrSameAs(op->match_tensors) &&
       init.UnchangedOrSameAs(op->init) && body.UnchangedOrSameAs(op->body) &&
       annotations.same_as(op->annotations))
     return ffi::Unchanged();
@@ -161,12 +161,12 @@ UnchangedOr<Stmt> StmtExprMutator::MutateBlock(tirx::StmtExprMutator* mutator, c
     auto* writable = const_cast<SBlockNode*>(op);
     writable->annotations = std::move(annotations);
     if (!iter_vars.IsUnchanged()) writable->iter_vars = std::move(iter_vars).ValueUnchecked();
-    if (!alloc_buffers.IsUnchanged())
-      writable->alloc_buffers = std::move(alloc_buffers).ValueUnchecked();
+    if (!alloc_tensors.IsUnchanged())
+      writable->alloc_tensors = std::move(alloc_tensors).ValueUnchecked();
     if (!reads.IsUnchanged()) writable->reads = std::move(reads).ValueUnchecked();
     if (!writes.IsUnchanged()) writable->writes = std::move(writes).ValueUnchecked();
-    if (!match_buffers.IsUnchanged())
-      writable->match_buffers = std::move(match_buffers).ValueUnchecked();
+    if (!match_tensors.IsUnchanged())
+      writable->match_tensors = std::move(match_tensors).ValueUnchecked();
     if (!init.IsUnchanged()) writable->init = std::move(init).ValueUnchecked();
     if (!body.IsUnchanged()) writable->body = std::move(body).ValueUnchecked();
     return ffi::Unchanged();
@@ -174,10 +174,10 @@ UnchangedOr<Stmt> StmtExprMutator::MutateBlock(tirx::StmtExprMutator* mutator, c
   auto copy = ffi::make_object<SBlockNode>(*op);
   copy->annotations = std::move(annotations);
   if (!iter_vars.IsUnchanged()) copy->iter_vars = std::move(iter_vars).ValueUnchecked();
-  if (!alloc_buffers.IsUnchanged()) copy->alloc_buffers = std::move(alloc_buffers).ValueUnchecked();
+  if (!alloc_tensors.IsUnchanged()) copy->alloc_tensors = std::move(alloc_tensors).ValueUnchecked();
   if (!reads.IsUnchanged()) copy->reads = std::move(reads).ValueUnchecked();
   if (!writes.IsUnchanged()) copy->writes = std::move(writes).ValueUnchecked();
-  if (!match_buffers.IsUnchanged()) copy->match_buffers = std::move(match_buffers).ValueUnchecked();
+  if (!match_tensors.IsUnchanged()) copy->match_tensors = std::move(match_tensors).ValueUnchecked();
   if (!init.IsUnchanged()) copy->init = std::move(init).ValueUnchecked();
   if (!body.IsUnchanged()) copy->body = std::move(body).ValueUnchecked();
   return Stmt(std::move(copy));

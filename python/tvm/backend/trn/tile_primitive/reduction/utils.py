@@ -27,35 +27,35 @@ from tvm.tirx.tensor_instruction import TensorCall
 from ..common import init_analyzer, nki_dim
 from ..dim_utils import get_reduction_dim_map
 from ..instruction_generator import InstructionGenerator
-from ..workspace_utils import check_workspace_buffer
+from ..workspace_utils import check_workspace_tensor
 
 reduce_ops = {ReduceOpType.SUM: "add", ReduceOpType.MAX: "max", ReduceOpType.MIN: "min"}
 
 
-def generate_intermediate_buffer(
-    dst_buffer_region: int, rfactor_size: int, workspace, sctx: DispatchContext
+def generate_intermediate_tensor(
+    dst_tensor_region: int, rfactor_size: int, workspace, sctx: DispatchContext
 ):
-    """Generate an intermediate buffer for two-stage reduction if needed.
+    """Generate an intermediate tensor for two-stage reduction if needed.
 
     Returns:
-        Tuple[Optional[buffer], int]: The intermediate buffer and reduction factor size.
+        Tuple[Optional[tensor], int]: The intermediate tensor and reduction factor size.
     """
-    intermediate_shape = [dst_buffer_region.source.ty.layout.size("P"), rfactor_size]
+    intermediate_shape = [dst_tensor_region.source.ty.layout.size("P"), rfactor_size]
 
     if "partial_reduce" in workspace:
-        intermediate_buffer = workspace["partial_reduce"]
-        check_workspace_buffer(intermediate_buffer, intermediate_shape, "trn.sbuf")
+        intermediate_tensor = workspace["partial_reduce"]
+        check_workspace_tensor(intermediate_tensor, intermediate_shape, "trn.sbuf")
     else:
         assert sctx.alloc_only, (
-            "Partial reduce buffer must be specified in workspace. Run tvm.tirx.trn.transform.TrnPrivateBufferAlloc first."  # noqa: E501
+            "Partial reduce tensor must be specified in workspace. Run tvm.tirx.trn.transform.TrnPrivateTensorAlloc first."  # noqa: E501
         )
-        intermediate_buffer = T.Var(
+        intermediate_tensor = T.Var(
             "partial_reduce",
-            T.Tensor(intermediate_shape, dtype=dst_buffer_region.source.ty.dtype, scope="trn.sbuf"),
+            T.Tensor(intermediate_shape, dtype=dst_tensor_region.source.ty.dtype, scope="trn.sbuf"),
         )
-        sctx.add_alloc_buffer(intermediate_buffer)
+        sctx.add_alloc_tensor(intermediate_tensor)
 
-    return intermediate_buffer
+    return intermediate_tensor
 
 
 def reduction_trn(
@@ -76,17 +76,17 @@ def reduction_trn(
         fail("requires Trainium target and thread exec_scope")
 
     op = TensorCall.decode(op)
-    dst_buffer_region, src_buffer_region = op.output, op.input
+    dst_tensor_region, src_tensor_region = op.output, op.input
     axes, accum = op.reduce_axes, op.accum
     assert not accum, "Accumulation is not supported for reduction on Trainium"
     analyzer = init_analyzer(sctx)
     assert reduce_op in reduce_ops, f"Unsupported reduce operation {reduce_op}"
 
-    # Extract buffers
-    dst = dst_buffer_region.source
-    src = src_buffer_region.source
+    # Extract tensors
+    dst = dst_tensor_region.source
+    src = src_tensor_region.source
     axes = [int(i) if int(i) >= 0 else len(src.ty.shape) + int(i) for i in axes]
-    dim_map = get_reduction_dim_map(src_buffer_region, dst_buffer_region, axes, analyzer)
+    dim_map = get_reduction_dim_map(src_tensor_region, dst_tensor_region, axes, analyzer)
 
     # Layout validation
     assert all(
@@ -101,9 +101,9 @@ def reduction_trn(
     ), "Invalid layout"
 
     # Find maximum instruction size
-    inst_gen = InstructionGenerator([src_buffer_region, dst_buffer_region], analyzer)
-    inst_gen.link_buffer_regions(src_buffer_region, dst_buffer_region, dim_map)
-    inst_repr = inst_gen.find_max_inst_size_from_one_region(src_buffer_region, axes)
+    inst_gen = InstructionGenerator([src_tensor_region, dst_tensor_region], analyzer)
+    inst_gen.link_tensor_regions(src_tensor_region, dst_tensor_region, dim_map)
+    inst_repr = inst_gen.find_max_inst_size_from_one_region(src_tensor_region, axes)
     inst_size_limit = op.options.get("max_inst_size", None)
     inst_repr.bound_inst_size(inst_size_limit, analyzer)
     assert analyzer.can_prove(inst_repr.size > 1), "Instruction size must be greater than 1"
@@ -114,23 +114,23 @@ def reduction_trn(
     p_var = T.Var("P", "int32")
     spatial_b_var = T.Var("sB", "int32")
     reduction_b_var = T.Var("rB", "int32")
-    inst_gen.bind_inst_iter(src_buffer_region, f_var, inst_repr.size, inst_repr.stride, True)
-    inst_gen.bind_inst_iter(src_buffer_region, p_var, p_size, 1, False)
-    reduction_b_extent = inst_gen.fill_in_block_dim(src_buffer_region, reduction_b_var, axes)
-    spatial_b_extent = inst_gen.fill_in_block_dim(src_buffer_region, spatial_b_var)
+    inst_gen.bind_inst_iter(src_tensor_region, f_var, inst_repr.size, inst_repr.stride, True)
+    inst_gen.bind_inst_iter(src_tensor_region, p_var, p_size, 1, False)
+    reduction_b_extent = inst_gen.fill_in_block_dim(src_tensor_region, reduction_b_var, axes)
+    spatial_b_extent = inst_gen.fill_in_block_dim(src_tensor_region, spatial_b_var)
     # Get reduction operation code
     opcode = reduce_ops[reduce_op]
 
-    # Generate intermediate buffer if needed
+    # Generate intermediate tensor if needed
     if reduction_b_extent != 1:
-        intermediate_buffer = generate_intermediate_buffer(
-            dst_buffer_region, reduction_b_extent, op.workspaces, sctx
+        intermediate_tensor = generate_intermediate_tensor(
+            dst_tensor_region, reduction_b_extent, op.workspaces, sctx
         )
 
     # fmt: off
     # Single-stage reduction implementation
     if reduction_b_extent == 1:
-        # This fragment captures buffers and indices from its insertion scope.
+        # This fragment captures tensors and indices from its insertion scope.
         @T.function(check_well_formed=False)
         def impl():
             for b_loop in T.serial(0, spatial_b_extent):
@@ -138,14 +138,14 @@ def reduction_trn(
                     for p_loop in T.serial(0, p_size, annotations={nki_dim: "P"}):
                         for f_loop in T.serial(0, inst_repr.size, annotations={nki_dim: "F"}):
                             inst_gen.set_bind_map_all({p_var: p_loop, f_var: f_loop, spatial_b_var: b_loop})  # noqa: E501
-                            if inst_gen.make_guard(src_buffer_region):
-                                src_indices = T.meta_var(inst_gen.generate_indices(src_buffer_region))  # noqa: E501
-                                dst_indices = T.meta_var(inst_gen.generate_indices(dst_buffer_region))  # noqa: E501
+                            if inst_gen.make_guard(src_tensor_region):
+                                src_indices = T.meta_var(inst_gen.generate_indices(src_tensor_region))  # noqa: E501
+                                dst_indices = T.meta_var(inst_gen.generate_indices(dst_tensor_region))  # noqa: E501
                                 T.evaluate(T.nki.tensorreduce(dst[tuple(dst_indices)], src[tuple(src_indices)], opcode, negate, -1))  # noqa: E501
         return impl
     # Two-stage reduction implementation
     else:
-        # This fragment captures buffers and indices from its insertion scope.
+        # This fragment captures tensors and indices from its insertion scope.
         @T.function(check_well_formed=False)
         def two_stage_reduction():
             for b_loop in T.serial(0, spatial_b_extent):
@@ -154,16 +154,16 @@ def reduction_trn(
                         for p_loop in T.serial(0, p_size, annotations={nki_dim: "P"}):
                             for f_loop in T.serial(0, inst_repr.size, annotations={nki_dim: "F"}):
                                 inst_gen.set_bind_map_all({p_var: p_loop, f_var: f_loop, spatial_b_var: b_loop, reduction_b_var: reduction_b_loop})  # noqa: E501
-                                if inst_gen.make_guard(src_buffer_region):
-                                    src_indices = T.meta_var(inst_gen.generate_indices(src_buffer_region))  # noqa: E501
-                                    T.evaluate(T.nki.tensorreduce(intermediate_buffer[p_loop, reduction_b_loop], src[src_indices], opcode, False, -1))  # noqa: E501
+                                if inst_gen.make_guard(src_tensor_region):
+                                    src_indices = T.meta_var(inst_gen.generate_indices(src_tensor_region))  # noqa: E501
+                                    T.evaluate(T.nki.tensorreduce(intermediate_tensor[p_loop, reduction_b_loop], src[src_indices], opcode, False, -1))  # noqa: E501
                 with T.nki.tensorized_instruction():
                     for p_loop in T.serial(0, p_size, annotations={nki_dim: "P"}):
                         for f_loop in T.serial(0, reduction_b_extent, annotations={nki_dim: "F"}):
-                            inst_gen.set_bind_map(src_buffer_region, {p_var: p_loop, f_var: 0, spatial_b_var: b_loop, reduction_b_var: f_loop})  # noqa: E501
-                            inst_gen.set_bind_map(dst_buffer_region, {p_var: p_loop, spatial_b_var: b_loop})  # noqa: E501
-                            if inst_gen.make_guard(src_buffer_region):
-                                dst_indices = T.meta_var(inst_gen.generate_indices(dst_buffer_region))  # noqa: E501
-                                T.evaluate(T.nki.tensorreduce(dst[dst_indices], intermediate_buffer[p_loop, f_loop], opcode, negate, -1))  # noqa: E501
+                            inst_gen.set_bind_map(src_tensor_region, {p_var: p_loop, f_var: 0, spatial_b_var: b_loop, reduction_b_var: f_loop})  # noqa: E501
+                            inst_gen.set_bind_map(dst_tensor_region, {p_var: p_loop, spatial_b_var: b_loop})  # noqa: E501
+                            if inst_gen.make_guard(src_tensor_region):
+                                dst_indices = T.meta_var(inst_gen.generate_indices(dst_tensor_region))  # noqa: E501
+                                T.evaluate(T.nki.tensorreduce(dst[dst_indices], intermediate_tensor[p_loop, f_loop], opcode, negate, -1))  # noqa: E501
         return two_stage_reduction
     # fmt: on

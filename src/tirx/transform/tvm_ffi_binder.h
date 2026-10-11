@@ -48,21 +48,21 @@ namespace tirx {
  * TVMFFIABIBuilder consolidates all binding logic, type checking, and error message
  * generation for packed function parameters. The primary public method is
  * DecodeAllParams(), which handles everything: type index extraction,
- * type checking (TypeError), value loading, scalar binding, buffer
+ * type checking (TypeError), value loading, scalar binding, tensor
  * binding, and rich error message generation with ffi::reflection::AccessPath.
  *
  * ## Generated statement ordering
  *
  * Statements are separated into three sequences to ensure correct variable
  * scoping.  Symbolic shape variables (e.g. batch_size) may appear in an
- * earlier buffer's shape expression (batch_size + 1) before being defined
- * by a later buffer's shape (batch_size).  Separating definitions from
+ * earlier tensor's shape expression (batch_size + 1) before being defined
+ * by a later tensor's shape (batch_size).  Separating definitions from
  * checks guarantees all variables are in scope when assertions reference them.
  *
  * - init_nest: Binds, DeclTensors for shape/strides arrays —
  *   all value-loading code that defines variables.
  * - asserts: AssertStmts — all validation checks.
- * - decl_buffers: DeclTensor for buffer-typed parameters — buffer declarations.
+ * - decl_tensors: DeclTensor for tensor-typed parameters — tensor declarations.
  *
  * ## Calling Protocol
  *
@@ -70,18 +70,18 @@ namespace tirx {
  *    v_num_packed_args). The constructor emits arg count and null-pointer checks.
  * 2. Call DecodeAllParams(device_type, device_id)
  *    - Decodes, type-checks, and binds all packed arguments
- *    - Binds DLTensor buffers (shape, strides, dtype, device checks)
+ *    - Binds DLTensor tensors (shape, strides, dtype, device checks)
  * 3. Call Finalize() to get the three statement sequences and definition map.
  *
  * \note Consider a function f(tA(shape=var(n)), tB(shape=3), tC(shape=(n+2)).
  *  Here n is an undefined variable decided by the outside, tB imposes
  *  a constraint such that it can only take tensor with shape 3, tC imposes
  *  another constraint that its shape must equal n + 2.
- *  So if we call it with f(bufferA, bufferB, bufferC), we need to generate
+ *  So if we call it with f(tensorA, tensorB, tensorC), we need to generate
  *  the following binding sequence:
- *  - define n = bufferA.shape[0]
- *  - assert bufferB.shape[0] == 3
- *  - assert bufferB.shape[1] == n + 3
+ *  - define n = tensorA.shape[0]
+ *  - assert tensorB.shape[0] == 3
+ *  - assert tensorB.shape[1] == n + 3
  */
 class TVMFFIABIBuilder {
  public:
@@ -100,8 +100,8 @@ class TVMFFIABIBuilder {
     std::vector<Stmt> init_nest;
     /*! \brief Validation checks (all AssertStmts). */
     std::vector<Stmt> asserts;
-    /*! \brief TensorVar declarations for buffer-typed parameters. */
-    std::vector<Stmt> decl_buffers;
+    /*! \brief TensorVar declarations for tensor-typed parameters. */
+    std::vector<Stmt> decl_tensors;
   };
 
   /*!
@@ -115,21 +115,21 @@ class TVMFFIABIBuilder {
    * \param v_packed_args The packed args variable (used for struct_get calls).
    * \param v_num_packed_args The variable holding the actual number of packed args.
    * \param device_type The expected device type expression.
-   * \param device_id The device id variable (may be defined during buffer binding).
+   * \param device_id The device id variable (may be defined during tensor binding).
    */
   TVMFFIABIBuilder(const ffi::String& func_name, const ffi::Array<Var>& params,
                    const Var& v_packed_args, const Var& v_num_packed_args,
                    const PrimExpr& device_type, const PrimExpr& device_id);
 
   /*!
-   * \brief Decode all packed arguments: type-check, load values, bind buffers.
+   * \brief Decode all packed arguments: type-check, load values, bind tensors.
    *
    * This is the primary public method after construction. It:
    * 1. Calls DecodeParam(i) for each parameter to type-check, load values,
    *    and bind scalar params
-   * 2. Binds DLTensor buffers to handles (shape, strides, dtype, device checks)
+   * 2. Binds DLTensor tensors to handles (shape, strides, dtype, device checks)
    *
-   * Statements are routed to init_nest_, asserts_, or decl_buffers_.
+   * Statements are routed to init_nest_, asserts_, or decl_tensors_.
    */
   void DecodeAllParams();
 
@@ -140,7 +140,7 @@ class TVMFFIABIBuilder {
    * human-readable error messages), then moves all data out of the binder.
    * The binder should not be used after this call.
    *
-   * \return A Result containing def_map, init_nest, asserts, decl_buffers.
+   * \return A Result containing def_map, init_nest, asserts, decl_tensors.
    */
   Result Finalize();
 
@@ -261,30 +261,30 @@ class TVMFFIABIBuilder {
                  const ffi::reflection::AccessPath& base_path);
 
   /*!
-   * \brief TensorVar-to-buffer bind with ffi::reflection::AccessPath.
+   * \brief TensorVar-to-tensor bind with ffi::reflection::AccessPath.
    *
    * Binds data, elem_offset, shape, and strides of \p arg against \p value,
    * emitting assertions for any mismatches.
    *
-   * \param arg The expected buffer definition.
-   * \param value The actual buffer to bind against.
-   * \param base_path Base ffi::reflection::AccessPath for the buffer parameter.
+   * \param arg The expected tensor definition.
+   * \param value The actual tensor to bind against.
+   * \param base_path Base ffi::reflection::AccessPath for the tensor parameter.
    * \param fuzzy_match If true, allow value to have more dimensions than arg.
    */
-  void BindBuffer(const TensorVar& arg, const TensorVar& value,
+  void BindTensor(const TensorVar& arg, const TensorVar& value,
                   ffi::reflection::AccessPath base_path, bool fuzzy_match);
 
   /*!
    * \brief DLTensor bind: ndim/dtype/shape/strides/data/device assertions.
    *
-   * \param buffer The buffer definition to bind against.
+   * \param tensor The tensor definition to bind against.
    * \param device_type The expected device type expression.
    * \param device_id The expected device id expression.
    * \param handle The variable holding the DLTensor handle.
    * \param arg_name Human-readable name for error messages.
    * \param base_path Base ffi::reflection::AccessPath for the tensor parameter.
    */
-  Expr DecodeParamDLTensor(const TensorVar& buffer, const PrimExpr& device_type,
+  Expr DecodeParamDLTensor(const TensorVar& tensor, const PrimExpr& device_type,
                            const PrimExpr& device_id, const Var& handle,
                            const std::string& arg_name, ffi::reflection::AccessPath base_path);
 
@@ -314,25 +314,25 @@ class TVMFFIABIBuilder {
   /*!
    * \brief Assert strides form a compact (C-contiguous) layout.
    *
-   * \param buffer The expected buffer definition.
+   * \param tensor The expected tensor definition.
    * \param strides_ptr The strides pointer variable.
    * \param v_strides_is_null Expression checking if strides pointer is NULL.
    * \param param_path ffi::reflection::AccessPath for the tensor parameter.
    */
-  void BindCompactStrides(const TensorVar& buffer, const Var& strides_ptr,
+  void BindCompactStrides(const TensorVar& tensor, const Var& strides_ptr,
                           const PrimExpr& v_strides_is_null,
                           const ffi::reflection::AccessPath& param_path);
 
   /*!
    * \brief Bind strides with C-contiguous fallback when strides pointer is NULL.
    *
-   * \param buffer The expected buffer definition.
+   * \param tensor The expected tensor definition.
    * \param strides_ptr The strides pointer variable.
    * \param shape_ptr The shape pointer variable (for computing C-contiguous strides).
    * \param v_strides_is_null Expression checking if strides pointer is NULL.
    * \param param_path ffi::reflection::AccessPath for the tensor parameter.
    */
-  void BindRegularStrides(const TensorVar& buffer, const Var& strides_ptr, const Var& shape_ptr,
+  void BindRegularStrides(const TensorVar& tensor, const Var& strides_ptr, const Var& shape_ptr,
                           const PrimExpr& v_strides_is_null,
                           const ffi::reflection::AccessPath& param_path);
 
@@ -389,8 +389,8 @@ class TVMFFIABIBuilder {
   std::vector<Stmt> init_nest_;
   /*! \brief Validation checks: all AssertStmts. */
   std::vector<Stmt> asserts_;
-  /*! \brief TensorVar declarations for buffer-typed parameters. */
-  std::vector<Stmt> decl_buffers_;
+  /*! \brief TensorVar declarations for tensor-typed parameters. */
+  std::vector<Stmt> decl_tensors_;
   /*! \brief Deferred constant-expression assertions for display-var substitution. */
   std::vector<PendingConstAssert> pending_const_asserts_;
   /*! \brief internal analyzer. */
@@ -403,8 +403,8 @@ class TVMFFIABIBuilder {
   std::string func_signature_;
   /*! \brief The function parameters. */
   ffi::Array<Var> params_;
-  /*! \brief Raw packed-ABI handles decoded for buffer-typed parameters. */
-  std::unordered_map<const VarNode*, Var> buffer_handles_;
+  /*! \brief Raw packed-ABI handles decoded for tensor-typed parameters. */
+  std::unordered_map<const VarNode*, Var> tensor_handles_;
   /*! \brief The packed args variable. */
   Var v_packed_args_;
   /*! \brief The expected device type expression. */

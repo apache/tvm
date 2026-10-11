@@ -571,8 +571,8 @@ TVM_DLL OpPatternKind AnalyzeOpPatternKind(const tirx::Function& func);
  * The reshape operation also includes expand_dims, squeeze, flatten, etc.
  * \details Here the allowed reshape pattern is: for example, assume the operation is
  *  `B[l_0, l_1, ..., l_b] = A[r_0, r_1, ..., r_a]`, we check if we can prove that the flattened
- * index of l_0, ..., l_b under buffer B equals to the flattened index of r_0, ..., r_a under
- * buffer A.
+ * index of l_0, ..., l_b under tensor B equals to the flattened index of r_0, ..., r_a under
+ * tensor A.
  * \param func The function to be examined.
  * \return A boolean indicating if the given tirx::Function is doing a reshape.
  * \note According to the description above, the returned result can only be false-negative and
@@ -639,16 +639,16 @@ TVM_DLL bool CheckWellFormed(ffi::Variant<IRModule, Function> obj, bool check_ty
 
 /*!
  * \brief Using the layout transforms on the outputs, suggest layout transformation on the blocks
- * and buffers for the tirx::Function.
+ * and tensors for the tirx::Function.
  *
  * \param fn The tirx::Function to be analyzed.
- * \param write_buffer_transformations Array of IndexMap transformations on tirx::Function outputs.
+ * \param write_tensor_transformations Array of IndexMap transformations on tirx::Function outputs.
  * \return Suggested transforms per block in `fn`. For each block the returned value is a map
- * from the object (block or buffer) to it's index map transformation.
+ * from the object (block or tensor) to it's index map transformation.
  */
 
 TVM_DLL ffi::Map<s_tir::SBlock, ffi::Map<ffi::ObjectRef, tirx::IndexMap>> SuggestLayoutTransforms(
-    const Function& fn, ffi::Array<tirx::IndexMap> write_buffer_transformations);
+    const Function& fn, ffi::Array<tirx::IndexMap> write_tensor_transformations);
 
 /* \brief Collect variables whose value can be computed at compile-time
  *

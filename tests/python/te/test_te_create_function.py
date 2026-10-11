@@ -116,7 +116,7 @@ def te_element_wise():
 def tir_element_wise(A: T.Tensor((128, 128)), C: T.Tensor((128, 128))) -> None:
     T.func_attr({"global_symbol": "main", "tirx.noalias": True})
 
-    B = Ts.sblock_alloc_buffer((128, 128))
+    B = Ts.sblock_alloc_tensor((128, 128))
 
     for i0, j0 in T.grid(128, 128):
         with Ts.sblock():
@@ -169,7 +169,7 @@ def tir_conv2d(
 ) -> None:
     T.func_attr({"global_symbol": "main", "tirx.noalias": True})
 
-    Apad = Ts.sblock_alloc_buffer([16, 16, 16, 16])
+    Apad = Ts.sblock_alloc_tensor([16, 16, 16, 16])
 
     for n, c, y, x in T.grid(16, 16, 16, 16):
         with Ts.sblock("Apad"):
@@ -312,7 +312,7 @@ def tir_extern_epilogue(
 ):
     T.func_attr({"global_symbol": "main", "tirx.noalias": True})
 
-    C = Ts.sblock_alloc_buffer((4, 2), elem_offset=0, offset_factor=1)
+    C = Ts.sblock_alloc_tensor((4, 2), elem_offset=0, offset_factor=1)
     with Ts.sblock("C"):
         Ts.reads()
         Ts.writes()
@@ -468,8 +468,8 @@ def expected_layout_attr(
     B: T.Tensor((128, 128), "float32"),
     D: T.Tensor((128, 128), "float32"),
 ) -> None:
-    T.func_attr({"global_symbol": "main", "tirx.noalias": True, "layout_free_buffers": [1]})
-    C = Ts.sblock_alloc_buffer([128, 128], dtype="float32")
+    T.func_attr({"global_symbol": "main", "tirx.noalias": True, "layout_free_tensors": [1]})
+    C = Ts.sblock_alloc_tensor([128, 128], dtype="float32")
     for i0, i1, i2 in T.grid(128, 128, 128):
         with Ts.sblock("C"):
             x, y, k = Ts.axis.remap("SSR", [i0, i1, i2])
@@ -489,8 +489,8 @@ def expected_layout_attr_int64(
     B: T.Tensor((T.int64(128), T.int64(128)), "float32"),
     D: T.Tensor((T.int64(128), T.int64(128)), "float32"),
 ):
-    T.func_attr({"global_symbol": "main", "tirx.noalias": True, "layout_free_buffers": [1]})
-    C = Ts.sblock_alloc_buffer([T.int64(128), T.int64(128)], dtype="float32")
+    T.func_attr({"global_symbol": "main", "tirx.noalias": True, "layout_free_tensors": [1]})
+    C = Ts.sblock_alloc_tensor([T.int64(128), T.int64(128)], dtype="float32")
     for x, y, k in T.grid(T.int64(128), T.int64(128), T.int64(128)):
         with Ts.sblock("C"):
             v_x, v_y, v_k = Ts.axis.remap("SSR", [x, y, k])
@@ -922,7 +922,7 @@ def test_adaptive_pooling_window():
     ):
         T.func_attr({"tirx.noalias": True, "global_symbol": "main"})
         # fmt: off
-        adaptive_pool_sum = Ts.sblock_alloc_buffer((1, 1024, 12, 30))
+        adaptive_pool_sum = Ts.sblock_alloc_tensor((1, 1024, 12, 30))
         for ax0, ax1, ax2, ax3 in T.grid(1, 1024, 12, 30):
             with Ts.sblock("adaptive_pool_sum_l1"):
                 v_ax0, v_ax1, v_ax2, v_ax3 = Ts.axis.remap("SSSS", [ax0, ax1, ax2, ax3])

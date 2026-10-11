@@ -51,7 +51,7 @@ def matmul(A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 1
 
 @Ts.function
 def two_step(A: T.Tensor((1024, 1024), "float32"), C: T.Tensor((1024, 1024), "float32")) -> None:
-    B = Ts.sblock_alloc_buffer((1024, 1024), "float32")
+    B = Ts.sblock_alloc_tensor((1024, 1024), "float32")
 
     for i, j in T.grid(1024, 1024):
         with Ts.sblock("A"):

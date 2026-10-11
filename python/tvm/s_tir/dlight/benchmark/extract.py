@@ -182,17 +182,17 @@ def extract_func_info_from_function(
     for param in func.params:
         if not tvm.tirx.is_tensor_var(param):
             continue
-        buffer = param
+        tensor = param
         shape = []
-        for dim in buffer.shape:
+        for dim in tensor.shape:
             if isinstance(dim, tvm.tirx.IntImm):
                 shape.append(dim.value)
             elif tvm.ir.is_prim_var(dim):
                 dym_var[dim.name] = str(dim.ty)
                 shape.append(dim)
             else:
-                raise ValueError(f"Unknown shape: {buffer.shape}")
-        func_args.append((tuple(shape), str(buffer.dtype)))
+                raise ValueError(f"Unknown shape: {tensor.shape}")
+        func_args.append((tuple(shape), str(tensor.dtype)))
     return func_args, dym_var
 
 

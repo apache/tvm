@@ -61,7 +61,7 @@ def _make_loops(loop_vars: list[Var], extents: list[int]) -> list[For]:
 def test_suggest_index_map_simple():
     i, j = _make_vars("i", "j")
     index_map = suggest_index_map(
-        buffer=decl_tensor(shape=[8, 256]),
+        tensor=decl_tensor(shape=[8, 256]),
         indices=[
             floordiv(i, 16) * 4 + floordiv(j, 16),
             floormod(i, 16) * 16 + floormod(j, 16),
@@ -86,7 +86,7 @@ def test_suggest_index_map_simple():
 def test_suggest_index_map_bijective():
     i, j = _make_vars("i", "j")
     index_map = suggest_index_map(
-        buffer=decl_tensor(shape=[8]),
+        tensor=decl_tensor(shape=[8]),
         indices=[floormod(j, 4) * 2 + i],
         loops=_make_loops(
             loop_vars=[i, j],
@@ -110,9 +110,9 @@ def test_suggest_index_map_winograd():
     nu = floordiv(floormod(fused_outer, 336), 112) * 2 + floordiv(floormod(fused_outer, 8), 4)
     co = floormod(fused_outer, 4) * 32 + i3_3_fused
     ci = (i4_0 * 32) + i4_1
-    buffer = decl_tensor(shape=[6, 6, 128, 128])
+    tensor = decl_tensor(shape=[6, 6, 128, 128])
     index_map = suggest_index_map(
-        buffer=buffer,
+        tensor=tensor,
         indices=[eps, nu, co, ci],
         loops=_make_loops(
             loop_vars=[fused_outer, i3_3_fused, i4_0, i4_1],
@@ -132,7 +132,7 @@ def test_suggest_index_map_winograd():
         )
     )
     assert index_map.is_equivalent_to(expected_index_map)
-    inverse_index_map = index_map.inverse(buffer.shape)
+    inverse_index_map = index_map.inverse(tensor.shape)
     expected_inverse_index_map = IndexMap.from_func(
         lambda i0, i1, i2, i3, i4, i5, i6: (
             ((i0 * 2) + i2),
@@ -392,7 +392,7 @@ def test_is_output_block():
     def two_elementwise(
         A: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "float32")
     ) -> None:
-        B = Ts.sblock_alloc_buffer((128, 128), "float32")
+        B = Ts.sblock_alloc_tensor((128, 128), "float32")
 
         for i, j in T.grid(128, 128):
             with Ts.sblock("B"):
@@ -411,7 +411,7 @@ def test_is_output_block():
 def test_empty_grid():
     @Ts.function
     def foo(out: T.Tensor((T.int64(1), T.int64(8), T.int64(8)), "int32")):
-        act = Ts.sblock_alloc_buffer((1, 8, 8), "int32")
+        act = Ts.sblock_alloc_tensor((1, 8, 8), "int32")
         for z2, y2, x2 in T.grid(1, 8, 8):
             with Ts.sblock("b0"):
                 az, ay, ax = Ts.axis.remap("SSS", [z2, y2, x2])
@@ -425,7 +425,7 @@ def test_empty_grid():
                 Ts.writes(out[az, ay, ax])
                 out[az, ay, ax] = act[az + 1, ay, ax]
         # The block below is not needed to show the bug, but the 'out'
-        # buffer would be undefined without it.
+        # tensor would be undefined without it.
         for z2, y2, x2 in T.grid(1, 8, 8):
             with Ts.sblock("b2"):
                 az, ay, ax = Ts.axis.remap("SSS", [z2, y2, x2])

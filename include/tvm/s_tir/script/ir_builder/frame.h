@@ -33,15 +33,15 @@ using tirx::TIRFrameNode;
 /*! \brief Function frame owning schedulable TIR construction. */
 class FunctionFrameNode : public tirx::FunctionFrameNode {
  public:
-  /*! \brief Buffers allocated in the implicit root block. */
-  ffi::Array<tvm::tirx::TensorVar> root_alloc_buffers;
+  /*! \brief Tensors allocated in the implicit root block. */
+  ffi::Array<tvm::tirx::TensorVar> root_alloc_tensors;
   /*! \brief Placement of allocations owned by the implicit root block. */
-  tvm::s_tir::BufferAllocatedAddresses root_allocated_addresses;
+  tvm::s_tir::TensorAllocatedAddresses root_allocated_addresses;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<FunctionFrameNode>()
-        .def_ro("root_alloc_buffers", &FunctionFrameNode::root_alloc_buffers)
+        .def_ro("root_alloc_tensors", &FunctionFrameNode::root_alloc_tensors)
         .def_ro("root_allocated_addresses", &FunctionFrameNode::root_allocated_addresses);
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.s_tir.FunctionFrame", FunctionFrameNode,
@@ -68,18 +68,18 @@ class SBlockFrameNode : public TIRFrameNode {
   ffi::String name;
   /*! \brief The variables of the block. */
   ffi::Array<tvm::s_tir::IterVar> iter_vars;
-  /*! \brief The read buffer regions of the block. */
+  /*! \brief The read tensor regions of the block. */
   ffi::Optional<ffi::Array<tvm::TensorRegion>> reads;
-  /*! \brief The write buffer regions of the block. */
+  /*! \brief The write tensor regions of the block. */
   ffi::Optional<ffi::Array<tvm::TensorRegion>> writes;
   /*! \brief The init statement of the bolck. */
   ffi::Optional<tvm::SeqStmt> init;
-  /*! \brief The buffer allocated in the block. */
-  ffi::Array<tvm::tirx::TensorVar> alloc_buffers;
-  /*! \brief The match buffer regions. */
-  ffi::Array<tvm::s_tir::MatchBufferRegion> match_buffers;
+  /*! \brief The tensor allocated in the block. */
+  ffi::Array<tvm::tirx::TensorVar> alloc_tensors;
+  /*! \brief The match tensor regions. */
+  ffi::Array<tvm::s_tir::MatchTensorRegion> match_tensors;
   /*! \brief Placement attached to the block's allocations and aliases. */
-  tvm::s_tir::BufferAllocatedAddresses allocated_addresses;
+  tvm::s_tir::TensorAllocatedAddresses allocated_addresses;
   /*! \brief The annotation of the block. */
   ffi::Optional<ffi::Map<ffi::String, Any>> annotations;
   /*! \brief The corresponding values of the iter vars. */
@@ -100,8 +100,8 @@ class SBlockFrameNode : public TIRFrameNode {
         .def_ro("reads", &SBlockFrameNode::reads)
         .def_ro("writes", &SBlockFrameNode::writes)
         .def_ro("init", &SBlockFrameNode::init)
-        .def_ro("alloc_buffers", &SBlockFrameNode::alloc_buffers)
-        .def_ro("match_buffers", &SBlockFrameNode::match_buffers)
+        .def_ro("alloc_tensors", &SBlockFrameNode::alloc_tensors)
+        .def_ro("match_tensors", &SBlockFrameNode::match_tensors)
         .def_ro("allocated_addresses", &SBlockFrameNode::allocated_addresses)
         .def_ro("annotations", &SBlockFrameNode::annotations)
         .def_ro("iter_values", &SBlockFrameNode::iter_values)
@@ -116,7 +116,7 @@ class SBlockFrameNode : public TIRFrameNode {
    * \brief The method called when exiting RAII scope.
    * \sa tvm::support::With
    */
-  void BindBufferRegion(tvm::tirx::TensorVar buffer, tvm::TensorRegion region) final;
+  void BindTensorRegion(tvm::tirx::TensorVar tensor, tvm::TensorRegion region) final;
   void ExitWithScope() final;
 };
 

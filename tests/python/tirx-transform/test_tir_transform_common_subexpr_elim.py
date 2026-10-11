@@ -305,9 +305,9 @@ def test_for_hoist():
 # =====================================================================
 # T9: Cannot-lift -- expressions containing TensorLoad
 # Expressions containing TensorLoad are ineligible even when duplicated,
-# because lifting them would change semantics (buffer may alias).
+# because lifting them would change semantics (tensor may alias).
 # =====================================================================
-def test_cannot_lift_bufferload():
+def test_cannot_lift_tensorload():
     @tvm.script.ir_module
     class Before:
         @T.function
@@ -787,7 +787,7 @@ if __name__ == "__main__":
     test_deterministic()
     test_for_loop()
     test_for_hoist()
-    test_cannot_lift_bufferload()
+    test_cannot_lift_tensorload()
     test_nested_if()
     test_multi_independent()
     test_if_condition()

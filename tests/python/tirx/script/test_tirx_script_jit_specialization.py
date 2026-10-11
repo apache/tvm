@@ -22,7 +22,7 @@ from tvm.ir import assert_structural_equal
 from tvm.script import tirx as T
 
 
-def test_jit_buffer_annotation():
+def test_jit_tensor_annotation():
     @T.jit(private=True)
     def kernel(output: T.Tensor((5,), "int32")):
         output[0] = 7
@@ -34,7 +34,7 @@ def test_jit_buffer_annotation():
     assert_structural_equal(kernel.specialize(), expected, map_free_vars=True)
 
 
-def test_jit_optional_buffer():
+def test_jit_optional_tensor():
     @T.jit(private=True)
     def kernel(value: T.Optional(T.Tensor((5,), "int32"))):
         if T.constexpr(value is not None):

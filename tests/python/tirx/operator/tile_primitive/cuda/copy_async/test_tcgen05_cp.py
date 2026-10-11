@@ -24,7 +24,7 @@ shared-descriptor emission) that predate the generalization.
 
 For each ``(shape, multicast, swizzle, dtype, tile size)`` combination we:
 
-1. Fill a host buffer ``A`` with random values and stage it into shared
+1. Fill a host tensor ``A`` with random values and stage it into shared
    memory with an MMA-style (optionally swizzled) layout.
 2. Issue a generic ``Tx.copy_async(tmem_region, smem_region, shape=...,
    multicast=...)`` — no ``desc_*`` fields, so the generic planner derives
@@ -91,7 +91,7 @@ def _shape_dims(shape):
 
 
 def _tmem_layout_for(shape, multicast, C):
-    """Destination TMEM layout + logical buffer shape for one cp footprint.
+    """Destination TMEM layout + logical tensor shape for one cp footprint.
 
     The layout encodes the hardware row→lane mapping of ONE copy; the
     multicast replicas are declared via ``R[...]`` so the planner can verify
@@ -112,7 +112,7 @@ def _tmem_layout_for(shape, multicast, C):
                 [64, C],
             )
         # 01_23: rows 0-31 at lanes 0-31, rows 32-63 at lanes 64-95; +32 mirror.
-        # Lane split lives in the iters; buffer stays the natural (64, C) tile.
+        # Lane split lives in the iters; tensor stays the natural (64, C) tile.
         return (
             TileLayout(S[(2, 32, C) : (64 @ TLane, 1 @ TLane, 1 @ TCol)] + R[2 : 32 @ TLane]),
             [64, C],
@@ -272,7 +272,7 @@ def _build_case(
     rows, atom_bits = _shape_dims(shape)
     epa = atom_bits // bits  # elems per lane per cp instruction
     C = epa * n_mid  # copied cols (elems)
-    t_C = C + t_col_off_e  # tmem buffer cols (elems)
+    t_C = C + t_col_off_e  # tmem tensor cols (elems)
     W32 = t_C * bits // 32
     n_tmem_cols = max(32, _next_pow2(W32))
 
@@ -424,7 +424,7 @@ def test_cp_shape_config_routes_to_generic_planner():
 @pytest.mark.skipif(not env.has_cuda_compute(10), reason="need cuda compute >= 10.0")
 @pytest.mark.parametrize("shape,multicast", [sm for sm in _SHAPE_MULTICAST if sm[0] != "128x128b"])
 def test_cp_shape_inferred_from_layouts_matches_explicit(shape, multicast):
-    """A bare copy_async infers (shape, multicast) from the buffer layouts and
+    """A bare copy_async infers (shape, multicast) from the tensor layouts and
     must lower byte-identically to the explicitly configured call. (128x128b
     is excluded: its layouts also fit the wider 128x256b atom, which inference
     prefers — covered by the dedicated test below.)"""
@@ -995,7 +995,7 @@ def test_cp_rejects_flipped_swizzle_inner():
 
 # Legacy 32x128b.warpx4 tests (predate the generic planner)
 
-# warpx4 requires the t buffer to declare the broadcast explicitly:
+# warpx4 requires the t tensor to declare the broadcast explicitly:
 # R[4 : 32@TLane] — t.shape[lane] = 32 with replica 4 → 128 physical lanes.
 T_LAY_BASIC = TileLayout(S[(32, 16) : (1 @ TLane, 1 @ TCol)] + R[4 : 32 @ TLane])
 
@@ -1463,7 +1463,7 @@ def test_multi_cp_encodes_descriptor_once_and_patches_addr():
     """Compile-only regression for the shared-descriptor cp path.
 
     A multi-tile smem->tmem copy encodes ONE SMEM matrix descriptor template at
-    SMEM base 0 (so the cache key no longer depends on the buffer identity) and
+    SMEM base 0 (so the cache key no longer depends on the tensor identity) and
     patches its 14-bit address field per cp via ``cvta(addr) >> 4 & 0x3FFF``,
     instead of re-encoding a descriptor per tile. Verifies the 4-tile copy emits
     a single ``encode_matrix_descriptor`` reused across four

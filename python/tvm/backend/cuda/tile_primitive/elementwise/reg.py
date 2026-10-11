@@ -392,7 +392,7 @@ def _emit_induced_packed(
                     src.scalar
                     if T.constexpr(src.is_scalar)
                     else (
-                        views[src.buf_region],
+                        views[src.tensor_region],
                         [[f * vec_len + k] for k in range(vec_len)],
                     )
                     for src in srcs
@@ -425,7 +425,7 @@ def _emit_induced_scalar(
             # buffer's layout maps to physical at access time.
             src_vals = T.meta_var(
                 [
-                    src.scalar if T.constexpr(src.is_scalar) else views[src.buf_region][f]
+                    src.scalar if T.constexpr(src.is_scalar) else views[src.tensor_region][f]
                     for src in srcs
                 ]
             )

@@ -28,26 +28,26 @@ from tvm.s_tir import IterVar
 from . import _ffi_api
 
 
-@tvm_ffi.register_object("s_tir.MatchBufferRegion")
-class MatchBufferRegion(Object, Scriptable):
-    """MatchBufferRegion node.
+@tvm_ffi.register_object("s_tir.MatchTensorRegion")
+class MatchTensorRegion(Object, Scriptable):
+    """MatchTensorRegion node.
 
     Parameters
     ----------
-    buffer : Var
-        The target buffer
+    tensor : Var
+        The target tensor
 
     source : TensorRegion
-        The region of source buffer
+        The region of source tensor
     """
 
-    buffer: Var
+    tensor: Var
     source: TensorRegion
 
-    def __init__(self, buffer: Var, source: TensorRegion) -> None:
+    def __init__(self, tensor: Var, source: TensorRegion) -> None:
         self.__init_handle_by_constructor__(
-            _ffi_api.MatchBufferRegion,
-            buffer,
+            _ffi_api.MatchTensorRegion,
+            tensor,
             source,  # type: ignore
         )
 
@@ -62,10 +62,10 @@ class SBlock(Stmt):
         The block Variable.
 
     reads : List[TensorRegion]
-        The read buffer regions of the block.
+        The read tensor regions of the block.
 
     writes: List[TensorRegion]
-        The write buffer regions of the block.
+        The write tensor regions of the block.
 
     name_hint: str
         the name_hint of the block.
@@ -76,11 +76,11 @@ class SBlock(Stmt):
     init: Stmt | Sequence[Stmt] | None
         The init block of the reduction block
 
-    alloc_buffers: Optional[list[Var]]
-        The buffer allocations
+    alloc_tensors: Optional[list[Var]]
+        The tensor allocations
 
-    match_buffers: Optional[List[MatchBufferRegion]]
-        The subregion buffer match
+    match_tensors: Optional[List[MatchTensorRegion]]
+        The subregion tensor match
 
     annotations: Optional[Mapping[str, Object]]
         Additional annotation hints.
@@ -95,8 +95,8 @@ class SBlock(Stmt):
     name_hint: str
     body: SeqStmt
     init: SeqStmt | None
-    alloc_buffers: list[Var]
-    match_buffers: list[MatchBufferRegion]
+    alloc_tensors: list[Var]
+    match_tensors: list[MatchTensorRegion]
     annotations: Mapping[str, Object]
     loc: Location
 
@@ -108,15 +108,15 @@ class SBlock(Stmt):
         name_hint: str,
         body: Stmt | Sequence[Stmt],
         init: Stmt | Sequence[Stmt] | None = None,
-        alloc_buffers: list[Var] | None = None,
-        match_buffers: list[MatchBufferRegion] | None = None,
+        alloc_tensors: list[Var] | None = None,
+        match_tensors: list[MatchTensorRegion] | None = None,
         annotations: Mapping[str, Object] | None = None,
         loc: Location = UNKNOWN_LOC,
     ) -> None:
-        if alloc_buffers is None:
-            alloc_buffers = []
-        if match_buffers is None:
-            match_buffers = []
+        if alloc_tensors is None:
+            alloc_tensors = []
+        if match_tensors is None:
+            match_tensors = []
         if annotations is None:
             annotations = {}
         self.__init_handle_by_constructor__(
@@ -127,8 +127,8 @@ class SBlock(Stmt):
             name_hint,
             body,
             init,
-            alloc_buffers,
-            match_buffers,
+            alloc_tensors,
+            match_tensors,
             annotations,
             loc,
         )  # type: ignore

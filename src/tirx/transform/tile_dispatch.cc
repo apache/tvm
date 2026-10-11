@@ -278,7 +278,7 @@ class TileDispatcher : public StmtExprMutator {
   }
 
  private:
-  class BufferRefRewriter : public StmtExprMutator {
+  class TensorRefRewriter : public StmtExprMutator {
    public:
     using StmtExprMutator::Mutate;
     using StmtExprMutator::Mutate_;
@@ -286,11 +286,11 @@ class TileDispatcher : public StmtExprMutator {
       if (src.same_as(dst)) {
         return stmt;
       }
-      return ffi::make_object<BufferRefRewriter>(src, dst)
+      return ffi::make_object<TensorRefRewriter>(src, dst)
           ->Mutate(stmt, InplaceMode::kAllow)
           .ValueOrUnchanged(stmt);
     }
-    BufferRefRewriter(const TensorVar& src, const TensorVar& dst) { VarRemapSet(src, dst); }
+    TensorRefRewriter(const TensorVar& src, const TensorVar& dst) { VarRemapSet(src, dst); }
   };
 
   class KernelReplacePointSearcher : public StmtExprMutator {
@@ -368,17 +368,17 @@ class TileDispatcher : public StmtExprMutator {
     for (auto it = device_init_stmts_.rbegin(); it != device_init_stmts_.rend(); ++it) {
       body = KernelReplacePointSearcher::Seek(*it, body);
     }
-    // Insert alloc buffers at the beginning of the kernel body.
-    if (!alloc_buffers_.empty()) {
+    // Insert alloc tensors at the beginning of the kernel body.
+    if (!alloc_tensors_.empty()) {
       std::vector<Stmt> seq;
-      seq.reserve(alloc_buffers_.size() + 1);
-      for (const auto& allocation : alloc_buffers_) {
+      seq.reserve(alloc_tensors_.size() + 1);
+      for (const auto& allocation : alloc_tensors_) {
         seq.push_back(allocation);
       }
       seq.push_back(std::move(body));
       body = SeqStmt(seq);
     }
-    alloc_buffers_.clear();
+    alloc_tensors_.clear();
 
     Stmt res = body;
     if (native_launch_) res = CudaIndexLowerer::Lower(res, launch_params_);
@@ -393,7 +393,7 @@ class TileDispatcher : public StmtExprMutator {
         // ``tensor_data_ptr`` projection of a device-local view cannot be
         // resolved.  Rewrite each projection onto its storage root, which is
         // a Function parameter and therefore visible on the host.
-        res = KernelReplacePointSearcher::Seek(StorageRootResolver::Apply(stmt, buffer_root_),
+        res = KernelReplacePointSearcher::Seek(StorageRootResolver::Apply(stmt, tensor_root_),
                                                std::move(res));
       }
       host_init_stmts_.clear();
@@ -405,13 +405,13 @@ class TileDispatcher : public StmtExprMutator {
 
   UnchangedOr<Stmt> Mutate_(const SeqStmtNode* op, InplaceMode inplace_mode) final {
     Stmt stmt = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
-    if (post_buffer_def_stmts_.empty()) {
+    if (post_tensor_def_stmts_.empty()) {
       return stmt;
     }
     const auto& seq = stmt.as_or_throw<SeqStmt>();
 
     std::vector<Stmt> rebuilt;
-    rebuilt.reserve(seq->seq.size() + post_buffer_def_stmts_.size());
+    rebuilt.reserve(seq->seq.size() + post_tensor_def_stmts_.size());
     bool changed = false;
     for (const Stmt& s : seq->seq) {
       rebuilt.push_back(s);
@@ -420,7 +420,7 @@ class TileDispatcher : public StmtExprMutator {
             call && (call->op.same_as(tirx::alloc_tensor_op()) ||
                      (call->op.same_as(tirx::decl_tensor_op()) ||
                       call->op.same_as(Op::Get("tirx.cuda.decl_tmem"))))) {
-          changed |= AppendPostBufferDefStmts(&rebuilt, bind->var.as_or_throw<TensorVar>(),
+          changed |= AppendPostTensorDefStmts(&rebuilt, bind->var.as_or_throw<TensorVar>(),
                                               bind->var.as_or_throw<TensorVar>());
         }
       }
@@ -463,11 +463,11 @@ class TileDispatcher : public StmtExprMutator {
   }
 
   /*!
-   * \brief Track the storage root of a buffer variable.
+   * \brief Track the storage root of a tensor variable.
    *
    * A ``DeclTensor`` whose data is ``tensor_data_ptr(src)`` is a view over
    * ``src``'s storage, so it inherits ``src``'s root; anything else owns its
-   * storage.  Buffers with no definition in the body (Function parameters)
+   * storage.  Tensors with no definition in the body (Function parameters)
    * are absent from the map and are their own root.
    */
   void RegisterStorageRoot(const Var& old_var, const Var& new_var,
@@ -482,15 +482,15 @@ class TileDispatcher : public StmtExprMutator {
         }
       }
     }
-    buffer_root_.insert_or_assign(new_var, root);
+    tensor_root_.insert_or_assign(new_var, root);
     if (!old_var.same_as(new_var)) {
-      buffer_root_.insert_or_assign(old_var, root);
+      tensor_root_.insert_or_assign(old_var, root);
     }
   }
 
   Var StorageRootOf(const Var& var) const {
-    auto it = buffer_root_.find(var);
-    return it == buffer_root_.end() ? var : it->second;
+    auto it = tensor_root_.find(var);
+    return it == tensor_root_.end() ? var : it->second;
   }
 
   /*! \brief Rewrite ``tensor_data_ptr(view)`` onto ``tensor_data_ptr(storage root)``. */
@@ -500,20 +500,20 @@ class TileDispatcher : public StmtExprMutator {
     using StmtExprMutator::Mutate_;
     static Stmt Apply(
         Stmt stmt,
-        const std::unordered_map<Var, Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>& buffer_root) {
-      auto resolver = ffi::make_object<StorageRootResolver>(buffer_root);
+        const std::unordered_map<Var, Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>& tensor_root) {
+      auto resolver = ffi::make_object<StorageRootResolver>(tensor_root);
       return resolver->Mutate(stmt, InplaceMode::kAllow).ValueOrUnchanged(stmt);
     }
     explicit StorageRootResolver(
-        const std::unordered_map<Var, Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>& buffer_root)
-        : buffer_root_(buffer_root) {}
+        const std::unordered_map<Var, Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>& tensor_root)
+        : tensor_root_(tensor_root) {}
 
     UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) final {
       if (op->op.same_as(tirx::tensor_data_ptr_op()) && op->args.size() == 1) {
         if (auto var = op->args[0].as<Var>();
             var.has_value() && var.value()->ty.as<TensorTypeNode>()) {
-          auto it = buffer_root_.find(var.value());
-          if (it != buffer_root_.end() && !it->second.same_as(var.value())) {
+          auto it = tensor_root_.find(var.value());
+          if (it != tensor_root_.end() && !it->second.same_as(var.value())) {
             return it->second.as_or_throw<TensorVar>().data();
           }
         }
@@ -521,31 +521,31 @@ class TileDispatcher : public StmtExprMutator {
       return StmtExprMutator::Mutate_(op, inplace_mode);
     }
 
-    const std::unordered_map<Var, Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>& buffer_root_;
+    const std::unordered_map<Var, Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>& tensor_root_;
   };
 
   UnchangedOr<Stmt> MutateAllocTensor(const BindNode* op, InplaceMode inplace_mode) {
-    TensorVar old_buffer = op->var.as_or_throw<TensorVar>();
+    TensorVar old_tensor = op->var.as_or_throw<TensorVar>();
     Stmt stmt = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     op = stmt.as<BindNode>();
     TVM_FFI_ICHECK(op);
-    RegisterStorageRoot(old_buffer.var(), op->var, std::nullopt);
+    RegisterStorageRoot(old_tensor.var(), op->var, std::nullopt);
 
     std::vector<Stmt> seq{stmt};
-    AppendPostBufferDefStmts(&seq, old_buffer, op->var.as_or_throw<TensorVar>());
+    AppendPostTensorDefStmts(&seq, old_tensor, op->var.as_or_throw<TensorVar>());
     return SeqStmt(seq);
   }
 
   UnchangedOr<Stmt> MutateDeclTensor(const BindNode* op, InplaceMode inplace_mode) {
-    TensorVar old_buffer = op->var.as_or_throw<TensorVar>();
+    TensorVar old_tensor = op->var.as_or_throw<TensorVar>();
     Stmt stmt = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     op = stmt.as<BindNode>();
     TVM_FFI_ICHECK(op);
-    const auto* buffer_call = op->value.as<CallNode>();
-    RegisterStorageRoot(old_buffer.var(), op->var, buffer_call->args[0]);
+    const auto* tensor_call = op->value.as<CallNode>();
+    RegisterStorageRoot(old_tensor.var(), op->var, tensor_call->args[0]);
 
     std::vector<Stmt> seq{stmt};
-    AppendPostBufferDefStmts(&seq, old_buffer, op->var.as_or_throw<TensorVar>());
+    AppendPostTensorDefStmts(&seq, old_tensor, op->var.as_or_throw<TensorVar>());
     return SeqStmt(seq);
   }
 
@@ -625,7 +625,7 @@ class TileDispatcher : public StmtExprMutator {
     // Implementation found, handle callbacks
     if (auto bufs = sctx->callbacks.Get(tirx::callback::kPrivateAlloc)) {
       auto buf_list = bufs.value().as<Array<Bind>>().value();
-      alloc_buffers_.insert(alloc_buffers_.end(), buf_list.begin(), buf_list.end());
+      alloc_tensors_.insert(alloc_tensors_.end(), buf_list.begin(), buf_list.end());
     }
     if (auto stmts = sctx->callbacks.Get(tirx::callback::kDeviceInitStmt)) {
       auto stmt_list = stmts.value().as<Array<Stmt>>().value();
@@ -635,10 +635,10 @@ class TileDispatcher : public StmtExprMutator {
       auto stmt_list = stmts.value().as<Array<Stmt>>().value();
       host_init_stmts_.insert(host_init_stmts_.end(), stmt_list.begin(), stmt_list.end());
     }
-    if (auto mapping = sctx->callbacks.Get(tirx::callback::kPostBufferDefStmt)) {
+    if (auto mapping = sctx->callbacks.Get(tirx::callback::kPostTensorDefStmt)) {
       auto map = mapping.value().as_or_throw<ffi::Map<TensorVar, Array<Stmt>>>();
-      for (const auto& [buffer, stmts] : map) {
-        auto& vec = post_buffer_def_stmts_[buffer];
+      for (const auto& [tensor, stmts] : map) {
+        auto& vec = post_tensor_def_stmts_[tensor];
         vec.insert(vec.end(), stmts.begin(), stmts.end());
       }
     }
@@ -1465,37 +1465,37 @@ class TileDispatcher : public StmtExprMutator {
   Target target_;
   std::vector<ExecContext> ctx_stack_;
   std::unordered_map<ffi::String, ffi::Tuple<PrimVar, PrimExpr>> launch_params_;
-  std::vector<Bind> alloc_buffers_;
+  std::vector<Bind> alloc_tensors_;
   std::vector<Stmt> device_init_stmts_;
   std::vector<Stmt> host_init_stmts_;
-  /*! \brief Storage root of each buffer variable defined in the body. */
-  std::unordered_map<Var, Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> buffer_root_;
+  /*! \brief Storage root of each tensor variable defined in the body. */
+  std::unordered_map<Var, Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> tensor_root_;
   std::unordered_map<TensorVar, std::vector<Stmt>, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
-      post_buffer_def_stmts_;
+      post_tensor_def_stmts_;
   ffi::Map<ffi::String, ffi::ObjectRef> shared_state_;
   std::vector<std::pair<std::string, int64_t>> cluster_cta_axis_extents_;
 
   bool is_first_block_{true};
   bool is_first_thread_attr_{true};
 
-  bool AppendPostBufferDefStmts(std::vector<Stmt>* seq, const TensorVar& old_buffer,
-                                const TensorVar& new_buffer) {
-    auto append_with_remap = [this, seq, &new_buffer](auto it) -> bool {
+  bool AppendPostTensorDefStmts(std::vector<Stmt>* seq, const TensorVar& old_tensor,
+                                const TensorVar& new_tensor) {
+    auto append_with_remap = [this, seq, &new_tensor](auto it) -> bool {
       TensorVar src = it->first;
       for (const auto& stmt : it->second) {
-        Stmt remapped = BufferRefRewriter::Rewrite(stmt, src, new_buffer);
+        Stmt remapped = TensorRefRewriter::Rewrite(stmt, src, new_tensor);
         seq->push_back(KernelReplacePointSearcher::Seek(remapped, Evaluate(0)));
       }
-      post_buffer_def_stmts_.erase(it);
+      post_tensor_def_stmts_.erase(it);
       return true;
     };
 
     bool changed = false;
-    if (auto it = post_buffer_def_stmts_.find(old_buffer); it != post_buffer_def_stmts_.end()) {
+    if (auto it = post_tensor_def_stmts_.find(old_tensor); it != post_tensor_def_stmts_.end()) {
       changed |= append_with_remap(it);
     }
-    if (!new_buffer.same_as(old_buffer)) {
-      if (auto it = post_buffer_def_stmts_.find(new_buffer); it != post_buffer_def_stmts_.end()) {
+    if (!new_tensor.same_as(old_tensor)) {
+      if (auto it = post_tensor_def_stmts_.find(new_tensor); it != post_tensor_def_stmts_.end()) {
         changed |= append_with_remap(it);
       }
     }

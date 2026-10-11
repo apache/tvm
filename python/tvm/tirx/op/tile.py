@@ -197,8 +197,8 @@ class Copy(TensorCall):
     """Copy all elements from src to dst.
 
     Args:
-        dst: Destination buffer region
-        src: Source buffer region
+        dst: Destination tensor region
+        src: Source tensor region
     """
 
     kind = "copy"
@@ -221,8 +221,8 @@ class CopyAsync(TensorCall):
     """Copy all elements from src to dst asynchronously.
 
     Args:
-        dst: Destination buffer region
-        src: Source buffer region
+        dst: Destination tensor region
+        src: Source tensor region
     """
 
     kind = "copy_async"
@@ -296,12 +296,12 @@ class GemmAsync(TensorCall):
 
     @property
     def sfa(self):
-        """Get the scale factor buffer for A (None for regular MMA)."""
+        """Get the scale factor tensor for A (None for regular MMA)."""
         return self.args[3] if self.is_block_scaled else None
 
     @property
     def sfb(self):
-        """Get the scale factor buffer for B (None for regular MMA)."""
+        """Get the scale factor tensor for B (None for regular MMA)."""
         return self.args[4] if self.is_block_scaled else None
 
     @property

@@ -29,7 +29,7 @@ from tvm.script import tirx as T
 
 # TODO(csullivan): Additional tests cases needed:
 # - Function with 1 arg, inplace update
-# - Function with buffer that uses custom storage_scope
+# - Function with tensor that uses custom storage_scope
 
 
 @Ts.function
@@ -39,7 +39,7 @@ def func_1(A: T.Tensor((16,), "float32"), C: T.Tensor((1,), "float32")):
         16,
     ):
         with Ts.sblock():
-            B = Ts.sblock_alloc_buffer((1,), dtype="float32")
+            B = Ts.sblock_alloc_tensor((1,), dtype="float32")
             with Ts.sblock():
                 B[0] = A[i] * T.float32(2)
             with Ts.sblock():
@@ -68,7 +68,7 @@ def func_2(
         16,
     ):
         with Ts.sblock():
-            B = Ts.sblock_alloc_buffer((1,), dtype="float32")
+            B = Ts.sblock_alloc_tensor((1,), dtype="float32")
             with Ts.sblock():
                 B[0] = A[i] * T.float32(2)
             with Ts.sblock():
@@ -102,7 +102,7 @@ def func_3(
         16,
     ):
         with Ts.sblock():
-            B = Ts.sblock_alloc_buffer((1,), dtype="float32")
+            B = Ts.sblock_alloc_tensor((1,), dtype="float32")
             with Ts.sblock():
                 B[0] = A[i] * T.float32(2)
             with Ts.sblock():
@@ -144,7 +144,7 @@ def func_4(
         16,
     ):
         with Ts.sblock():
-            B = Ts.sblock_alloc_buffer((1,), dtype="float32")
+            B = Ts.sblock_alloc_tensor((1,), dtype="float32")
             with Ts.sblock():
                 B[0] = A[i] * T.float32(2)
             with Ts.sblock():
@@ -208,20 +208,20 @@ def tensors_from_extern_op(extern, func):
         output_tensors = extern
     else:
         output_tensors = [extern]
-    output_buffers = []
-    input_buffers = []
+    output_tir_tensors = []
+    input_tir_tensors = []
     input_tensors = []
     for ext in output_tensors:
-        output_buffers.extend(ext.op.output_placeholders)
-        input_buffers.extend(ext.op.input_placeholders)
+        output_tir_tensors.extend(ext.op.output_placeholders)
+        input_tir_tensors.extend(ext.op.input_placeholders)
         input_tensors.extend(ext.op.input_tensors)
-    input_binds = dict(zip(input_buffers, input_tensors))
-    output_binds = dict(zip(output_buffers, output_tensors))
-    buffer_to_tensor = {**input_binds, **output_binds}
+    input_binds = dict(zip(input_tir_tensors, input_tensors))
+    output_binds = dict(zip(output_tir_tensors, output_tensors))
+    tir_to_te_tensor = {**input_binds, **output_binds}
     ordered_tensors = []
     for var in func.params:
         if tvm.tirx.is_tensor_var(var):
-            ordered_tensors.append(buffer_to_tensor[var])
+            ordered_tensors.append(tir_to_te_tensor[var])
     return ordered_tensors
 
 

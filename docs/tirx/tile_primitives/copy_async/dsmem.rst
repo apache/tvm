@@ -137,8 +137,8 @@ and a multiple of 16 (a ``cp.async.bulk`` constraint), else it declines:
 
 **2. Map the remote address.** ``Tx.ptx.mapa.u64`` translates a local shared
 pointer into the destination CTA's window — applied to both the destination
-buffer pointer and the mbarrier (``mapa`` writes into a declared register, so
-the mapped addresses live in a small local scratch buffer):
+tensor pointer and the mbarrier (``mapa`` writes into a declared register, so
+the mapped addresses live in a small local scratch tensor):
 
 .. code-block:: python
 

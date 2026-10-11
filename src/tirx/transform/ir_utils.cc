@@ -297,23 +297,23 @@ Stmt ConvertSSA(Stmt stmt) {
 }
 
 ffi::String GetPtrStorageScope(Var buffer_var) {
-  if (const auto* buffer_type = buffer_var->ty.as<TensorTypeNode>()) {
-    return buffer_type->storage_scope;
+  if (const auto* tensor_type = buffer_var->ty.as<TensorTypeNode>()) {
+    return tensor_type->storage_scope;
   }
   const auto* ptr_type = buffer_var->ty.as<PtrTypeNode>();
   TVM_FFI_ICHECK(ptr_type)
-      << "The provided variable is neither a pointer nor a buffer-typed variable";
+      << "The provided variable is neither a pointer nor a tensor-typed variable";
   return ptr_type->storage_scope;
 }
 
-ffi::Array<PrimExpr> GetBufferAllocationShape(const TensorVar& buffer) {
-  ffi::Array<PrimExpr> alloc_shape = buffer->shape;
-  if (buffer->strides.size()) {
-    TVM_FFI_ICHECK_EQ(buffer->shape.size(), buffer->strides.size());
-    for (size_t i = buffer->strides.size() - 1; i > 0; --i) {
+ffi::Array<PrimExpr> GetTensorAllocationShape(const TensorVar& tensor) {
+  ffi::Array<PrimExpr> alloc_shape = tensor->shape;
+  if (tensor->strides.size()) {
+    TVM_FFI_ICHECK_EQ(tensor->shape.size(), tensor->strides.size());
+    for (size_t i = tensor->strides.size() - 1; i > 0; --i) {
       TVM_FFI_ICHECK(
-          sym::Analyzer()->CanProveEqual(floormod(buffer->strides[i - 1], buffer->strides[i]), 0));
-      alloc_shape.Set(i, buffer->strides[i - 1] / buffer->strides[i]);
+          sym::Analyzer()->CanProveEqual(floormod(tensor->strides[i - 1], tensor->strides[i]), 0));
+      alloc_shape.Set(i, tensor->strides[i - 1] / tensor->strides[i]);
     }
   }
   return alloc_shape;

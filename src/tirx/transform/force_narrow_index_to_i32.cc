@@ -19,7 +19,7 @@
 
 /*!
  * \file force_narrow_index_to_i32.cc
- * \brief Force narrow down indexing expressions and integer buffers to int32 dtype.
+ * \brief Force narrow down indexing expressions and integer tensors to int32 dtype.
  * \note This pass is not used in default cases.
  */
 
@@ -36,7 +36,7 @@ namespace tirx {
 class Int32DTypeNarrower : public Int32DTypeNarrowerBase<IndexDataTypeNormalizer> {
  public:
   static Function RewriteDataType(Function func) {
-    CheckBufferParams(func);
+    CheckTensorParams(func);
     auto narrower = ffi::make_object<Int32DTypeNarrower>(func);
     return narrower->Rewrite(func);
   }

@@ -40,7 +40,7 @@ class Dense:
         T_matmul_NT: T.Tensor((128, 128), "float32"),
     ) -> None:
         # function attr dict
-        T.func_attr({"layout_free_buffers": [1], "tirx.noalias": True, "global_symbol": "main"})
+        T.func_attr({"layout_free_tensors": [1], "tirx.noalias": True, "global_symbol": "main"})
         # body
         # with Ts.sblock("root")
         for i0, i1, i2 in T.grid(128, 128, 128):
@@ -62,11 +62,11 @@ class DenseAdd:
         T_add: T.Tensor((128, 128), "float32"),
     ) -> None:
         # function attr dict
-        T.func_attr({"global_symbol": "main", "tirx.noalias": True, "layout_free_buffers": [1]})
+        T.func_attr({"global_symbol": "main", "tirx.noalias": True, "layout_free_tensors": [1]})
         # body
         # with Ts.sblock("root")
-        T_matmul_NT = Ts.sblock_alloc_buffer([128, 128], dtype="float32")
-        compile_engine_const = Ts.sblock_alloc_buffer([], dtype="float32")
+        T_matmul_NT = Ts.sblock_alloc_tensor([128, 128], dtype="float32")
+        compile_engine_const = Ts.sblock_alloc_tensor([], dtype="float32")
         for i0, i1, i2 in T.grid(128, 128, 128):
             with Ts.sblock("T_matmul_NT"):
                 i, j, k = Ts.axis.remap("SSR", [i0, i1, i2])
@@ -97,11 +97,11 @@ class DenseAdd_scheduled_cpu:
         T_add: T.Tensor((128, 128), "float32"),
     ) -> None:
         # function attr dict
-        T.func_attr({"global_symbol": "main", "tirx.noalias": True, "layout_free_buffers": [1]})
+        T.func_attr({"global_symbol": "main", "tirx.noalias": True, "layout_free_tensors": [1]})
         # body
         # with Ts.sblock("root")
-        T_matmul_NT_global = Ts.sblock_alloc_buffer([128, 128], dtype="float32")
-        p1_global = Ts.sblock_alloc_buffer([2, 128, 64], dtype="float32")
+        T_matmul_NT_global = Ts.sblock_alloc_tensor([128, 128], dtype="float32")
+        p1_global = Ts.sblock_alloc_tensor([2, 128, 64], dtype="float32")
         for ax0, ax1 in T.grid(128, 128):
             with Ts.sblock("p1_global"):
                 v0, v1 = Ts.axis.remap("SS", [ax0, ax1])
@@ -175,11 +175,11 @@ class DenseAdd_cpu_no_write_cache:
     @Ts.function
     def main(p0: T.Tensor((128, 128), "float32"), p1: T.Tensor((128, 128), "float32"), T_add: T.Tensor((128, 128), "float32")) -> None:
         # function attr dict
-        T.func_attr({"global_symbol": "main", "tirx.noalias": True, "layout_free_buffers": [1]})
+        T.func_attr({"global_symbol": "main", "tirx.noalias": True, "layout_free_tensors": [1]})
         # body
         # with Ts.sblock("root")
-        T_matmul_NT = Ts.sblock_alloc_buffer([128, 128], dtype="float32")
-        p1_global = Ts.sblock_alloc_buffer([8, 4, 16, 32], dtype="float32")
+        T_matmul_NT = Ts.sblock_alloc_tensor([128, 128], dtype="float32")
+        p1_global = Ts.sblock_alloc_tensor([8, 4, 16, 32], dtype="float32")
         for ax0, ax1 in T.grid(128, 128):
             with Ts.sblock("p1_global"):
                 v0, v1 = Ts.axis.remap("SS", [ax0, ax1])
@@ -224,12 +224,12 @@ class DenseAdd_scheduled_gpu:
         T_add: T.Tensor((128, 128), "float32"),
     ) -> None:
         # function attr dict
-        T.func_attr({"global_symbol": "main", "tirx.noalias": True, "layout_free_buffers": [1]})
+        T.func_attr({"global_symbol": "main", "tirx.noalias": True, "layout_free_tensors": [1]})
         # body
         # with Ts.sblock("root")
-        T_matmul_NT_local = Ts.sblock_alloc_buffer([128, 128], dtype="float32", scope="local")
-        p0_shared = Ts.sblock_alloc_buffer([128, 128], dtype="float32", scope="shared")
-        p1_shared = Ts.sblock_alloc_buffer([128, 128], dtype="float32", scope="shared")
+        T_matmul_NT_local = Ts.sblock_alloc_tensor([128, 128], dtype="float32", scope="local")
+        p0_shared = Ts.sblock_alloc_tensor([128, 128], dtype="float32", scope="shared")
+        p1_shared = Ts.sblock_alloc_tensor([128, 128], dtype="float32", scope="shared")
         for i0_0_i1_0_fused in T.thread_binding(
             32,
             thread="blockIdx.x",
@@ -376,20 +376,20 @@ class Conv2dInt8:
         T.func_attr({"tirx.noalias": True, "global_symbol": "main"})
         # body
         # with Ts.sblock("root")
-        pad_temp = Ts.sblock_alloc_buffer([16, 56, 56, 64], dtype="int8")
-        conv2d_nhwc = Ts.sblock_alloc_buffer([16, 56, 56, 256], dtype="int32")
-        T_subtract = Ts.sblock_alloc_buffer([16, 56, 56, 256], dtype="int32")
-        T_add = Ts.sblock_alloc_buffer([16, 56, 56, 256], dtype="int32")
-        T_cast = Ts.sblock_alloc_buffer([16, 56, 56, 256], dtype="int64")
-        T_multiply = Ts.sblock_alloc_buffer([16, 56, 56, 256], dtype="int64")
-        T_add_1 = Ts.sblock_alloc_buffer([16, 56, 56, 256], dtype="int64")
-        T_right_shift = Ts.sblock_alloc_buffer([16, 56, 56, 256], dtype="int64")
-        T_cast_1 = Ts.sblock_alloc_buffer([16, 56, 56, 256], dtype="int32")
-        T_add_2 = Ts.sblock_alloc_buffer([16, 56, 56, 256], dtype="int32")
-        compute_1 = Ts.sblock_alloc_buffer([16, 56, 56, 256], dtype="int32")
-        T_cast_2 = Ts.sblock_alloc_buffer([16, 56, 56, 256], dtype="uint8")
-        T_cast_3 = Ts.sblock_alloc_buffer([16, 56, 56, 256], dtype="int32")
-        T_subtract_1 = Ts.sblock_alloc_buffer([16, 56, 56, 256], dtype="int32")
+        pad_temp = Ts.sblock_alloc_tensor([16, 56, 56, 64], dtype="int8")
+        conv2d_nhwc = Ts.sblock_alloc_tensor([16, 56, 56, 256], dtype="int32")
+        T_subtract = Ts.sblock_alloc_tensor([16, 56, 56, 256], dtype="int32")
+        T_add = Ts.sblock_alloc_tensor([16, 56, 56, 256], dtype="int32")
+        T_cast = Ts.sblock_alloc_tensor([16, 56, 56, 256], dtype="int64")
+        T_multiply = Ts.sblock_alloc_tensor([16, 56, 56, 256], dtype="int64")
+        T_add_1 = Ts.sblock_alloc_tensor([16, 56, 56, 256], dtype="int64")
+        T_right_shift = Ts.sblock_alloc_tensor([16, 56, 56, 256], dtype="int64")
+        T_cast_1 = Ts.sblock_alloc_tensor([16, 56, 56, 256], dtype="int32")
+        T_add_2 = Ts.sblock_alloc_tensor([16, 56, 56, 256], dtype="int32")
+        compute_1 = Ts.sblock_alloc_tensor([16, 56, 56, 256], dtype="int32")
+        T_cast_2 = Ts.sblock_alloc_tensor([16, 56, 56, 256], dtype="uint8")
+        T_cast_3 = Ts.sblock_alloc_tensor([16, 56, 56, 256], dtype="int32")
+        T_subtract_1 = Ts.sblock_alloc_tensor([16, 56, 56, 256], dtype="int32")
         for i0, i1, i2, i3 in T.grid(16, 56, 56, 64):
             with Ts.sblock("pad_temp"):
                 i0_1, i1_1, i2_1, i3_1 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
@@ -491,24 +491,24 @@ class Conv2dInt8_target:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         # body
         # with Ts.sblock("root")
-        pad_temp = Ts.sblock_alloc_buffer([16, 56, 56, 64], dtype="int8")
-        conv2d_nhwc = Ts.sblock_alloc_buffer([16, 56, 56, 256], dtype="int32")
-        T_subtract = Ts.sblock_alloc_buffer([16, 56, 56, 256], dtype="int32")
-        T_add = Ts.sblock_alloc_buffer([16, 56, 56, 256], dtype="int32")
-        T_cast = Ts.sblock_alloc_buffer([16, 56, 56, 256], dtype="int64")
-        T_multiply = Ts.sblock_alloc_buffer([16, 56, 56, 256], dtype="int64")
-        T_add_1 = Ts.sblock_alloc_buffer([16, 56, 56, 256], dtype="int64")
-        T_right_shift = Ts.sblock_alloc_buffer([16, 56, 56, 256], dtype="int64")
-        T_cast_1 = Ts.sblock_alloc_buffer([16, 56, 56, 256], dtype="int32")
-        T_add_2 = Ts.sblock_alloc_buffer([16, 56, 56, 256], dtype="int32")
-        compute_1 = Ts.sblock_alloc_buffer([16, 56, 56, 256], dtype="int32")
-        T_cast_2 = Ts.sblock_alloc_buffer([16, 56, 56, 256], dtype="uint8")
-        T_cast_3 = Ts.sblock_alloc_buffer([16, 56, 56, 256], dtype="int32")
-        T_subtract_1 = Ts.sblock_alloc_buffer([16, 56, 56, 256], dtype="int32")
-        compute_2 = Ts.sblock_alloc_buffer([16, 56, 56, 256], dtype="int32")
-        T_add_3 = Ts.sblock_alloc_buffer([16, 56, 56, 256], dtype="int32")
-        compute_3 = Ts.sblock_alloc_buffer([16, 56, 56, 256], dtype="int32")
-        T_cast_4 = Ts.sblock_alloc_buffer([16, 56, 56, 256], dtype="uint8")
+        pad_temp = Ts.sblock_alloc_tensor([16, 56, 56, 64], dtype="int8")
+        conv2d_nhwc = Ts.sblock_alloc_tensor([16, 56, 56, 256], dtype="int32")
+        T_subtract = Ts.sblock_alloc_tensor([16, 56, 56, 256], dtype="int32")
+        T_add = Ts.sblock_alloc_tensor([16, 56, 56, 256], dtype="int32")
+        T_cast = Ts.sblock_alloc_tensor([16, 56, 56, 256], dtype="int64")
+        T_multiply = Ts.sblock_alloc_tensor([16, 56, 56, 256], dtype="int64")
+        T_add_1 = Ts.sblock_alloc_tensor([16, 56, 56, 256], dtype="int64")
+        T_right_shift = Ts.sblock_alloc_tensor([16, 56, 56, 256], dtype="int64")
+        T_cast_1 = Ts.sblock_alloc_tensor([16, 56, 56, 256], dtype="int32")
+        T_add_2 = Ts.sblock_alloc_tensor([16, 56, 56, 256], dtype="int32")
+        compute_1 = Ts.sblock_alloc_tensor([16, 56, 56, 256], dtype="int32")
+        T_cast_2 = Ts.sblock_alloc_tensor([16, 56, 56, 256], dtype="uint8")
+        T_cast_3 = Ts.sblock_alloc_tensor([16, 56, 56, 256], dtype="int32")
+        T_subtract_1 = Ts.sblock_alloc_tensor([16, 56, 56, 256], dtype="int32")
+        compute_2 = Ts.sblock_alloc_tensor([16, 56, 56, 256], dtype="int32")
+        T_add_3 = Ts.sblock_alloc_tensor([16, 56, 56, 256], dtype="int32")
+        compute_3 = Ts.sblock_alloc_tensor([16, 56, 56, 256], dtype="int32")
+        T_cast_4 = Ts.sblock_alloc_tensor([16, 56, 56, 256], dtype="uint8")
         for i0, i1, i2, i3 in T.grid(16, 56, 56, 64):
             with Ts.sblock("pad_temp"):
                 i0_1, i1_1, i2_1, i3_1 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
@@ -656,27 +656,27 @@ class Conv2dInt8_NCHWc:
         T.func_attr({"tirx.noalias": True, "global_symbol": "main"})
         # body
         # with Ts.sblock("root")
-        compile_engine_const = Ts.sblock_alloc_buffer([], dtype="float32")
-        conv2d_NCHWc_int8 = Ts.sblock_alloc_buffer([1, 128, 7, 7, 16], dtype="int32")
-        T_add = Ts.sblock_alloc_buffer([1, 128, 7, 7, 16], dtype="int32")
-        T_cast = Ts.sblock_alloc_buffer([1, 128, 7, 7, 16], dtype="float32")
-        T_multiply = Ts.sblock_alloc_buffer([1, 128, 7, 7, 16], dtype="float32")
-        compile_engine_const_1 = Ts.sblock_alloc_buffer([], dtype="float32")
-        T_add_1 = Ts.sblock_alloc_buffer([1, 128, 7, 7, 16], dtype="float32")
-        T_floor = Ts.sblock_alloc_buffer([1, 128, 7, 7, 16], dtype="float32")
-        T_cast_1 = Ts.sblock_alloc_buffer([1, 128, 7, 7, 16], dtype="int32")
-        compute_1 = Ts.sblock_alloc_buffer([1, 128, 7, 7, 16], dtype="int32")
-        T_cast_2 = Ts.sblock_alloc_buffer([1, 128, 7, 7, 16], dtype="uint8")
-        T_cast_3 = Ts.sblock_alloc_buffer([1, 128, 7, 7, 16], dtype="float32")
-        T_subtract = Ts.sblock_alloc_buffer([1, 128, 7, 7, 16], dtype="float32")
-        T_multiply_1 = Ts.sblock_alloc_buffer([1, 128, 7, 7, 16], dtype="float32")
-        compile_engine_const_2 = Ts.sblock_alloc_buffer([], dtype="float32")
-        T_add_2 = Ts.sblock_alloc_buffer([1, 128, 7, 7, 16], dtype="float32")
-        T_floor_1 = Ts.sblock_alloc_buffer([1, 128, 7, 7, 16], dtype="float32")
-        T_cast_4 = Ts.sblock_alloc_buffer([1, 128, 7, 7, 16], dtype="int32")
-        T_add_3 = Ts.sblock_alloc_buffer([1, 128, 7, 7, 16], dtype="int32")
-        compute_2 = Ts.sblock_alloc_buffer([1, 128, 7, 7, 16], dtype="int32")
-        T_cast_5 = Ts.sblock_alloc_buffer([1, 128, 7, 7, 16], dtype="uint8")
+        compile_engine_const = Ts.sblock_alloc_tensor([], dtype="float32")
+        conv2d_NCHWc_int8 = Ts.sblock_alloc_tensor([1, 128, 7, 7, 16], dtype="int32")
+        T_add = Ts.sblock_alloc_tensor([1, 128, 7, 7, 16], dtype="int32")
+        T_cast = Ts.sblock_alloc_tensor([1, 128, 7, 7, 16], dtype="float32")
+        T_multiply = Ts.sblock_alloc_tensor([1, 128, 7, 7, 16], dtype="float32")
+        compile_engine_const_1 = Ts.sblock_alloc_tensor([], dtype="float32")
+        T_add_1 = Ts.sblock_alloc_tensor([1, 128, 7, 7, 16], dtype="float32")
+        T_floor = Ts.sblock_alloc_tensor([1, 128, 7, 7, 16], dtype="float32")
+        T_cast_1 = Ts.sblock_alloc_tensor([1, 128, 7, 7, 16], dtype="int32")
+        compute_1 = Ts.sblock_alloc_tensor([1, 128, 7, 7, 16], dtype="int32")
+        T_cast_2 = Ts.sblock_alloc_tensor([1, 128, 7, 7, 16], dtype="uint8")
+        T_cast_3 = Ts.sblock_alloc_tensor([1, 128, 7, 7, 16], dtype="float32")
+        T_subtract = Ts.sblock_alloc_tensor([1, 128, 7, 7, 16], dtype="float32")
+        T_multiply_1 = Ts.sblock_alloc_tensor([1, 128, 7, 7, 16], dtype="float32")
+        compile_engine_const_2 = Ts.sblock_alloc_tensor([], dtype="float32")
+        T_add_2 = Ts.sblock_alloc_tensor([1, 128, 7, 7, 16], dtype="float32")
+        T_floor_1 = Ts.sblock_alloc_tensor([1, 128, 7, 7, 16], dtype="float32")
+        T_cast_4 = Ts.sblock_alloc_tensor([1, 128, 7, 7, 16], dtype="int32")
+        T_add_3 = Ts.sblock_alloc_tensor([1, 128, 7, 7, 16], dtype="int32")
+        compute_2 = Ts.sblock_alloc_tensor([1, 128, 7, 7, 16], dtype="int32")
+        T_cast_5 = Ts.sblock_alloc_tensor([1, 128, 7, 7, 16], dtype="uint8")
         with Ts.sblock("compile_engine_const"):
             vi = Ts.axis.spatial(1, 0)
             Ts.reads()
@@ -818,35 +818,35 @@ class Conv2dInt8_NCHWc_target:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         # body
         # with Ts.sblock("root")
-        compile_engine_const = Ts.sblock_alloc_buffer([], dtype="float32")
-        conv2d_NCHWc_int8 = Ts.sblock_alloc_buffer([1, 128, 7, 7, 16], dtype="int32")
-        T_add = Ts.sblock_alloc_buffer([1, 128, 7, 7, 16], dtype="int32")
-        T_cast_1 = Ts.sblock_alloc_buffer([1, 128, 7, 7, 16], dtype="float32")
-        T_multiply = Ts.sblock_alloc_buffer([1, 128, 7, 7, 16], dtype="float32")
-        compile_engine_const_1 = Ts.sblock_alloc_buffer([], dtype="float32")
-        T_add_1 = Ts.sblock_alloc_buffer([1, 128, 7, 7, 16], dtype="float32")
-        T_floor = Ts.sblock_alloc_buffer([1, 128, 7, 7, 16], dtype="float32")
-        T_cast_2 = Ts.sblock_alloc_buffer([1, 128, 7, 7, 16], dtype="int32")
-        compute = Ts.sblock_alloc_buffer([1, 128, 7, 7, 16], dtype="int32")
-        T_cast_3 = Ts.sblock_alloc_buffer([1, 128, 7, 7, 16], dtype="uint8")
-        T_cast_4 = Ts.sblock_alloc_buffer([1, 128, 7, 7, 16], dtype="float32")
-        T_subtract = Ts.sblock_alloc_buffer([1, 128, 7, 7, 16], dtype="float32")
-        T_multiply_1 = Ts.sblock_alloc_buffer([1, 128, 7, 7, 16], dtype="float32")
-        compile_engine_const_2 = Ts.sblock_alloc_buffer([], dtype="float32")
-        T_add_2 = Ts.sblock_alloc_buffer([1, 128, 7, 7, 16], dtype="float32")
-        T_floor_1 = Ts.sblock_alloc_buffer([1, 128, 7, 7, 16], dtype="float32")
-        T_cast_5 = Ts.sblock_alloc_buffer([1, 128, 7, 7, 16], dtype="int32")
-        compile_engine_const_3 = Ts.sblock_alloc_buffer([], dtype="float32")
-        T_cast_6 = Ts.sblock_alloc_buffer([1, 128, 7, 7, 16], dtype="float32")
-        T_multiply_2 = Ts.sblock_alloc_buffer([1, 128, 7, 7, 16], dtype="float32")
-        compile_engine_const_4 = Ts.sblock_alloc_buffer([], dtype="float32")
-        T_add_3 = Ts.sblock_alloc_buffer([1, 128, 7, 7, 16], dtype="float32")
-        T_floor_2 = Ts.sblock_alloc_buffer([1, 128, 7, 7, 16], dtype="float32")
-        T_cast_7 = Ts.sblock_alloc_buffer([1, 128, 7, 7, 16], dtype="int32")
-        T_add_4 = Ts.sblock_alloc_buffer([1, 128, 7, 7, 16], dtype="int32")
-        compute_1 = Ts.sblock_alloc_buffer([1, 128, 7, 7, 16], dtype="int32")
-        T_cast_8 = Ts.sblock_alloc_buffer([1, 128, 7, 7, 16], dtype="uint8")
-        compute_2 = Ts.sblock_alloc_buffer([1, 128, 7, 7, 16], dtype="uint8")
+        compile_engine_const = Ts.sblock_alloc_tensor([], dtype="float32")
+        conv2d_NCHWc_int8 = Ts.sblock_alloc_tensor([1, 128, 7, 7, 16], dtype="int32")
+        T_add = Ts.sblock_alloc_tensor([1, 128, 7, 7, 16], dtype="int32")
+        T_cast_1 = Ts.sblock_alloc_tensor([1, 128, 7, 7, 16], dtype="float32")
+        T_multiply = Ts.sblock_alloc_tensor([1, 128, 7, 7, 16], dtype="float32")
+        compile_engine_const_1 = Ts.sblock_alloc_tensor([], dtype="float32")
+        T_add_1 = Ts.sblock_alloc_tensor([1, 128, 7, 7, 16], dtype="float32")
+        T_floor = Ts.sblock_alloc_tensor([1, 128, 7, 7, 16], dtype="float32")
+        T_cast_2 = Ts.sblock_alloc_tensor([1, 128, 7, 7, 16], dtype="int32")
+        compute = Ts.sblock_alloc_tensor([1, 128, 7, 7, 16], dtype="int32")
+        T_cast_3 = Ts.sblock_alloc_tensor([1, 128, 7, 7, 16], dtype="uint8")
+        T_cast_4 = Ts.sblock_alloc_tensor([1, 128, 7, 7, 16], dtype="float32")
+        T_subtract = Ts.sblock_alloc_tensor([1, 128, 7, 7, 16], dtype="float32")
+        T_multiply_1 = Ts.sblock_alloc_tensor([1, 128, 7, 7, 16], dtype="float32")
+        compile_engine_const_2 = Ts.sblock_alloc_tensor([], dtype="float32")
+        T_add_2 = Ts.sblock_alloc_tensor([1, 128, 7, 7, 16], dtype="float32")
+        T_floor_1 = Ts.sblock_alloc_tensor([1, 128, 7, 7, 16], dtype="float32")
+        T_cast_5 = Ts.sblock_alloc_tensor([1, 128, 7, 7, 16], dtype="int32")
+        compile_engine_const_3 = Ts.sblock_alloc_tensor([], dtype="float32")
+        T_cast_6 = Ts.sblock_alloc_tensor([1, 128, 7, 7, 16], dtype="float32")
+        T_multiply_2 = Ts.sblock_alloc_tensor([1, 128, 7, 7, 16], dtype="float32")
+        compile_engine_const_4 = Ts.sblock_alloc_tensor([], dtype="float32")
+        T_add_3 = Ts.sblock_alloc_tensor([1, 128, 7, 7, 16], dtype="float32")
+        T_floor_2 = Ts.sblock_alloc_tensor([1, 128, 7, 7, 16], dtype="float32")
+        T_cast_7 = Ts.sblock_alloc_tensor([1, 128, 7, 7, 16], dtype="int32")
+        T_add_4 = Ts.sblock_alloc_tensor([1, 128, 7, 7, 16], dtype="int32")
+        compute_1 = Ts.sblock_alloc_tensor([1, 128, 7, 7, 16], dtype="int32")
+        T_cast_8 = Ts.sblock_alloc_tensor([1, 128, 7, 7, 16], dtype="uint8")
+        compute_2 = Ts.sblock_alloc_tensor([1, 128, 7, 7, 16], dtype="uint8")
         with Ts.sblock("compile_engine_const"):
             vi = Ts.axis.spatial(1, 0)
             Ts.reads()
@@ -1035,7 +1035,7 @@ def get_conv2d_vnni_mod(intrin_id):
             T.func_attr({"global_symbol": "main", "tirx.noalias": True})
             # body
             # with Ts.sblock("root")
-            conv2d_NCHWc_int8 = Ts.sblock_alloc_buffer([1, 128, 7, 7, 16], dtype="int32")
+            conv2d_NCHWc_int8 = Ts.sblock_alloc_tensor([1, 128, 7, 7, 16], dtype="int32")
             for i0_0_i1_0_i2_0_i3_0_i4_0_0_i0_1_i1_1_fused in T.parallel(128, annotations={"auto_unroll_max_step":64, "unroll_explicit":1}):
                 for i2_1, i3_1, i4_0_1 in T.grid(7, 1, 1):
                     for i0_2_init, i1_2_init, i2_2_init, i3_2_init, i4_0_2_init, i0_3_init, i1_3_init, i2_3_init, i3_3_init, i4_0_3_init in T.grid(1, 1, 1, 1, 1, 1, 1, 1, 7, 1):
@@ -1067,9 +1067,9 @@ def get_conv2d_vnni_mod(intrin_id):
                             ic_s_inner_o = Ts.axis.reduce(1, i9_0_0 + i9_0_1)
                             Ts.reads(conv2d_NCHWc_int8[n, oc_chunk, oh, ow, 0 : 16], p0[n, ic_outer, oh + kh, ow + kw, ic_f_inner * 4 : ic_f_inner * 4 + 4], p1[oc_chunk, ic_outer, kh, kw, ic_f_inner, 0 : 16, 0 : 4])
                             Ts.writes(conv2d_NCHWc_int8[n, oc_chunk, oh, ow, 0 : 16])
-                            A = Ts.match_buffer(p0[n, ic_outer, oh + kh, ow + kw, ic_f_inner * 4 : ic_f_inner * 4 + 4], [4], dtype="uint8", offset_factor=1)
-                            B = Ts.match_buffer(p1[oc_chunk, ic_outer, kh, kw, ic_f_inner, 0 : 16, 0 : 4], [16, 4], dtype="int8", offset_factor=1)
-                            C = Ts.match_buffer(conv2d_NCHWc_int8[n, oc_chunk, oh, ow, 0 : 16], [16], dtype="int32", offset_factor=1)
+                            A = Ts.match_tensor(p0[n, ic_outer, oh + kh, ow + kw, ic_f_inner * 4 : ic_f_inner * 4 + 4], [4], dtype="uint8", offset_factor=1)
+                            B = Ts.match_tensor(p1[oc_chunk, ic_outer, kh, kw, ic_f_inner, 0 : 16, 0 : 4], [16, 4], dtype="int8", offset_factor=1)
+                            C = Ts.match_tensor(conv2d_NCHWc_int8[n, oc_chunk, oh, ow, 0 : 16], [16], dtype="int32", offset_factor=1)
                             A_u8x4: T.uint8x4 = A[T.ramp(0, 1, 4)]
                             A_i32: T.int32 = T.reinterpret(A_u8x4, ty="int32")
                             B_i8x64: T.int8x64 = B[0, T.ramp(0, 1, 64)]
@@ -1094,18 +1094,18 @@ class Conv2dWinogradAddRelu:
     @Ts.function
     def main(p0: T.Tensor((1, 56, 56, 64), "float32"), p1: T.Tensor((6, 6, 64, 64), "float32"), p2: T.Tensor((1, 1, 1, 64), "float32"), T_relu: T.Tensor((1, 56, 56, 64), "float32")) -> None:
         # function attr dict
-        T.func_attr({"layout_free_buffers": [1], "tirx.noalias": True, "global_symbol": "main"})
+        T.func_attr({"layout_free_tensors": [1], "tirx.noalias": True, "global_symbol": "main"})
         # body
         # with Ts.sblock("root")
-        data_pad = Ts.sblock_alloc_buffer([1, 58, 58, 64], dtype="float32")
-        input_tile = Ts.sblock_alloc_buffer([6, 6, 196, 64], dtype="float32")
-        B = Ts.sblock_alloc_buffer([6, 6], dtype="float32")
-        data_pack = Ts.sblock_alloc_buffer([6, 6, 196, 64], dtype="float32")
-        bgemm = Ts.sblock_alloc_buffer([6, 6, 196, 64], dtype="float32")
-        A = Ts.sblock_alloc_buffer([6, 4], dtype="float32")
-        inverse = Ts.sblock_alloc_buffer([4, 4, 196, 64], dtype="float32")
-        conv2d_winograd = Ts.sblock_alloc_buffer([1, 56, 56, 64], dtype="float32")
-        T_add = Ts.sblock_alloc_buffer([1, 56, 56, 64], dtype="float32")
+        data_pad = Ts.sblock_alloc_tensor([1, 58, 58, 64], dtype="float32")
+        input_tile = Ts.sblock_alloc_tensor([6, 6, 196, 64], dtype="float32")
+        B = Ts.sblock_alloc_tensor([6, 6], dtype="float32")
+        data_pack = Ts.sblock_alloc_tensor([6, 6, 196, 64], dtype="float32")
+        bgemm = Ts.sblock_alloc_tensor([6, 6, 196, 64], dtype="float32")
+        A = Ts.sblock_alloc_tensor([6, 4], dtype="float32")
+        inverse = Ts.sblock_alloc_tensor([4, 4, 196, 64], dtype="float32")
+        conv2d_winograd = Ts.sblock_alloc_tensor([1, 56, 56, 64], dtype="float32")
+        T_add = Ts.sblock_alloc_tensor([1, 56, 56, 64], dtype="float32")
         for i0, i1, i2, i3 in T.grid(1, 58, 58, 64):
             with Ts.sblock("data_pad"):
                 i0_1, i1_1, i2_1, i3_1 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
@@ -1185,19 +1185,19 @@ class Conv2dWinogradAddResidualRelu:
     @Ts.function
     def main(p0: T.Tensor((1, 56, 56, 64), "float32"), p1: T.Tensor((6, 6, 64, 64), "float32"), p2: T.Tensor((1, 1, 1, 64), "float32"), p3: T.Tensor((1, 56, 56, 64), "float32"), T_relu: T.Tensor((1, 56, 56, 64), "float32")) -> None:
         # function attr dict
-        T.func_attr({"global_symbol": "main", "tirx.noalias": True, "layout_free_buffers": [1]})
+        T.func_attr({"global_symbol": "main", "tirx.noalias": True, "layout_free_tensors": [1]})
         # body
         # with Ts.sblock("root")
-        data_pad = Ts.sblock_alloc_buffer([1, 58, 58, 64], dtype="float32")
-        input_tile = Ts.sblock_alloc_buffer([6, 6, 196, 64], dtype="float32")
-        B = Ts.sblock_alloc_buffer([6, 6], dtype="float32")
-        data_pack = Ts.sblock_alloc_buffer([6, 6, 196, 64], dtype="float32")
-        bgemm = Ts.sblock_alloc_buffer([6, 6, 196, 64], dtype="float32")
-        A = Ts.sblock_alloc_buffer([6, 4], dtype="float32")
-        inverse = Ts.sblock_alloc_buffer([4, 4, 196, 64], dtype="float32")
-        conv2d_winograd = Ts.sblock_alloc_buffer([1, 56, 56, 64], dtype="float32")
-        T_add = Ts.sblock_alloc_buffer([1, 56, 56, 64], dtype="float32")
-        T_add_1 = Ts.sblock_alloc_buffer([1, 56, 56, 64], dtype="float32")
+        data_pad = Ts.sblock_alloc_tensor([1, 58, 58, 64], dtype="float32")
+        input_tile = Ts.sblock_alloc_tensor([6, 6, 196, 64], dtype="float32")
+        B = Ts.sblock_alloc_tensor([6, 6], dtype="float32")
+        data_pack = Ts.sblock_alloc_tensor([6, 6, 196, 64], dtype="float32")
+        bgemm = Ts.sblock_alloc_tensor([6, 6, 196, 64], dtype="float32")
+        A = Ts.sblock_alloc_tensor([6, 4], dtype="float32")
+        inverse = Ts.sblock_alloc_tensor([4, 4, 196, 64], dtype="float32")
+        conv2d_winograd = Ts.sblock_alloc_tensor([1, 56, 56, 64], dtype="float32")
+        T_add = Ts.sblock_alloc_tensor([1, 56, 56, 64], dtype="float32")
+        T_add_1 = Ts.sblock_alloc_tensor([1, 56, 56, 64], dtype="float32")
         for i0, i1, i2, i3 in T.grid(1, 58, 58, 64):
             with Ts.sblock("data_pad"):
                 i0_1, i1_1, i2_1, i3_1 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
@@ -1283,16 +1283,16 @@ class Conv2dWinogradAddResidualRelu_scheduled:
     @Ts.function
     def main(p0: T.Tensor((1, 56, 56, 64), "float32"), p1: T.Tensor((6, 6, 64, 64), "float32"), p2: T.Tensor((1, 1, 1, 64), "float32"), p3: T.Tensor((1, 56, 56, 64), "float32"), T_relu: T.Tensor((1, 56, 56, 64), "float32")) -> None:
         # function attr dict
-        T.func_attr({"global_symbol": "main", "tirx.noalias": True, "layout_free_buffers": [1]})
+        T.func_attr({"global_symbol": "main", "tirx.noalias": True, "layout_free_tensors": [1]})
         # body
         # with Ts.sblock("root")
-        input_tile_local = Ts.sblock_alloc_buffer([6, 6, 196, 64], dtype="float32", scope="local")
-        data_pack = Ts.sblock_alloc_buffer([6, 6, 196, 64], dtype="float32")
-        bgemm = Ts.sblock_alloc_buffer([6, 6, 196, 64], dtype="float32")
-        inverse = Ts.sblock_alloc_buffer([4, 4, 196, 64], dtype="float32")
-        bgemm_local = Ts.sblock_alloc_buffer([6, 6, 196, 64], dtype="float32", scope="local")
-        data_pack_shared = Ts.sblock_alloc_buffer([6, 6, 196, 64], dtype="float32", scope="shared")
-        p1_shared = Ts.sblock_alloc_buffer([6, 6, 64, 64], dtype="float32", scope="shared")
+        input_tile_local = Ts.sblock_alloc_tensor([6, 6, 196, 64], dtype="float32", scope="local")
+        data_pack = Ts.sblock_alloc_tensor([6, 6, 196, 64], dtype="float32")
+        bgemm = Ts.sblock_alloc_tensor([6, 6, 196, 64], dtype="float32")
+        inverse = Ts.sblock_alloc_tensor([4, 4, 196, 64], dtype="float32")
+        bgemm_local = Ts.sblock_alloc_tensor([6, 6, 196, 64], dtype="float32", scope="local")
+        data_pack_shared = Ts.sblock_alloc_tensor([6, 6, 196, 64], dtype="float32", scope="shared")
+        p1_shared = Ts.sblock_alloc_tensor([6, 6, 64, 64], dtype="float32", scope="shared")
         for i2_0_i3_0_i2_1_i3_1_fused_0 in T.thread_binding(98, thread="blockIdx.x", annotations={"auto_unroll_max_step":1024, "unroll_explicit":1}):
             for i2_0_i3_0_i2_1_i3_1_fused_1 in T.thread_binding(128, thread="threadIdx.x"):
                 for ax0, ax1, ax2, ax3 in T.grid(6, 6, 1, 1):
@@ -1425,14 +1425,14 @@ class Conv2dInt8_with_predicate:
         T.func_attr({"tirx.noalias": True, "global_symbol": "main"})
         # body
         # with Ts.sblock("root")
-        pad_temp = Ts.sblock_alloc_buffer([16, 56, 56, 64], dtype="int8")
-        conv2d_nhwc = Ts.sblock_alloc_buffer([16, 56, 56, 256], dtype="int32")
-        T_subtract = Ts.sblock_alloc_buffer([16, 56, 56, 256], dtype="int32")
-        T_add = Ts.sblock_alloc_buffer([16, 56, 56, 256], dtype="int32")
-        compute_1 = Ts.sblock_alloc_buffer([16, 56, 56, 256], dtype="int32")
-        T_add_1 = Ts.sblock_alloc_buffer([16, 56, 56, 256], dtype="int32")
-        compute_2 = Ts.sblock_alloc_buffer([16, 56, 56, 256], dtype="int32")
-        T_subtract_1 = Ts.sblock_alloc_buffer([16, 56, 56, 256], dtype="int32")
+        pad_temp = Ts.sblock_alloc_tensor([16, 56, 56, 64], dtype="int8")
+        conv2d_nhwc = Ts.sblock_alloc_tensor([16, 56, 56, 256], dtype="int32")
+        T_subtract = Ts.sblock_alloc_tensor([16, 56, 56, 256], dtype="int32")
+        T_add = Ts.sblock_alloc_tensor([16, 56, 56, 256], dtype="int32")
+        compute_1 = Ts.sblock_alloc_tensor([16, 56, 56, 256], dtype="int32")
+        T_add_1 = Ts.sblock_alloc_tensor([16, 56, 56, 256], dtype="int32")
+        compute_2 = Ts.sblock_alloc_tensor([16, 56, 56, 256], dtype="int32")
+        T_subtract_1 = Ts.sblock_alloc_tensor([16, 56, 56, 256], dtype="int32")
         for i0, i1, i2, i3 in T.grid(16, 56, 56, 64):
             with Ts.sblock("pad_temp"):
                 i0_1, i1_1, i2_1, i3_1 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
@@ -1498,17 +1498,17 @@ class Conv2dInt8_with_predicate_target:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         # body
         # with Ts.sblock("root")
-        pad_temp = Ts.sblock_alloc_buffer([16, 56, 56, 64], dtype="int8")
-        conv2d_nhwc = Ts.sblock_alloc_buffer([16, 56, 56, 256], dtype="int32")
-        T_subtract = Ts.sblock_alloc_buffer([16, 56, 56, 256], dtype="int32")
-        T_add = Ts.sblock_alloc_buffer([16, 56, 56, 256], dtype="int32")
-        compute_1 = Ts.sblock_alloc_buffer([16, 56, 56, 256], dtype="int32")
-        T_add_1 = Ts.sblock_alloc_buffer([16, 56, 56, 256], dtype="int32")
-        compute_2 = Ts.sblock_alloc_buffer([16, 56, 56, 256], dtype="int32")
-        T_subtract_1 = Ts.sblock_alloc_buffer([16, 56, 56, 256], dtype="int32")
-        compute_3 = Ts.sblock_alloc_buffer([16, 56, 56, 256], dtype="int32")
-        compute_4 = Ts.sblock_alloc_buffer([16, 56, 56, 256], dtype="int32")
-        T_add_2 = Ts.sblock_alloc_buffer([16, 56, 56, 256], dtype="int32")
+        pad_temp = Ts.sblock_alloc_tensor([16, 56, 56, 64], dtype="int8")
+        conv2d_nhwc = Ts.sblock_alloc_tensor([16, 56, 56, 256], dtype="int32")
+        T_subtract = Ts.sblock_alloc_tensor([16, 56, 56, 256], dtype="int32")
+        T_add = Ts.sblock_alloc_tensor([16, 56, 56, 256], dtype="int32")
+        compute_1 = Ts.sblock_alloc_tensor([16, 56, 56, 256], dtype="int32")
+        T_add_1 = Ts.sblock_alloc_tensor([16, 56, 56, 256], dtype="int32")
+        compute_2 = Ts.sblock_alloc_tensor([16, 56, 56, 256], dtype="int32")
+        T_subtract_1 = Ts.sblock_alloc_tensor([16, 56, 56, 256], dtype="int32")
+        compute_3 = Ts.sblock_alloc_tensor([16, 56, 56, 256], dtype="int32")
+        compute_4 = Ts.sblock_alloc_tensor([16, 56, 56, 256], dtype="int32")
+        T_add_2 = Ts.sblock_alloc_tensor([16, 56, 56, 256], dtype="int32")
         for i0, i1, i2, i3 in T.grid(16, 56, 56, 64):
             with Ts.sblock("pad_temp"):
                 i0_1, i1_1, i2_1, i3_1 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
@@ -1593,12 +1593,12 @@ class Conv2dInt8_with_predicate_scheduled:
             Ts.reads()
             Ts.writes()
             Ts.sblock_attr({"meta_schedule.unroll_explicit": 1024})
-            conv2d_nhwc_reindex_shared = Ts.sblock_alloc_buffer((50176, 256), "int32", scope="shared")
-            conv2d_nhwc_reindex_shared_wmma_accumulator = Ts.sblock_alloc_buffer((50176, 256), "int32", scope="wmma.accumulator")
-            pad_temp_reindex_shared = Ts.sblock_alloc_buffer((50176, 64), "int8", scope="shared")
-            p1_reindex_shared = Ts.sblock_alloc_buffer((1, 1, 256, 64), "int8", scope="shared")
-            pad_temp_reindex_shared_wmma_matrix_a = Ts.sblock_alloc_buffer((50176, 64), "int8", scope="wmma.matrix_a")
-            p1_reindex_shared_wmma_matrix_b = Ts.sblock_alloc_buffer((1, 1, 256, 64), "int8", scope="wmma.matrix_b")
+            conv2d_nhwc_reindex_shared = Ts.sblock_alloc_tensor((50176, 256), "int32", scope="shared")
+            conv2d_nhwc_reindex_shared_wmma_accumulator = Ts.sblock_alloc_tensor((50176, 256), "int32", scope="wmma.accumulator")
+            pad_temp_reindex_shared = Ts.sblock_alloc_tensor((50176, 64), "int8", scope="shared")
+            p1_reindex_shared = Ts.sblock_alloc_tensor((1, 1, 256, 64), "int8", scope="shared")
+            pad_temp_reindex_shared_wmma_matrix_a = Ts.sblock_alloc_tensor((50176, 64), "int8", scope="wmma.matrix_a")
+            p1_reindex_shared_wmma_matrix_b = Ts.sblock_alloc_tensor((1, 1, 256, 64), "int8", scope="wmma.matrix_b")
             for ax2_0_0_ax3_0_0_fused in T.thread_binding(32, thread="blockIdx.y"):
                 for ax2_0_1_ax3_0_1_fused in T.thread_binding(196, thread="blockIdx.x"):
                     for ax2_0_2_ax3_0_2_fused in T.thread_binding(4, thread="threadIdx.y"):
@@ -1609,7 +1609,7 @@ class Conv2dInt8_with_predicate_scheduled:
                                     v1 = Ts.axis.spatial(64, ax4_0_0 * 32 + ax0_ax1_fused % 32)
                                     Ts.reads(p0[v0 // 3136, v0 % 3136 // 56, v0 % 56, v1])
                                     Ts.writes(pad_temp_reindex_shared[v0, v1])
-                                    Ts.sblock_attr({"buffer_dim_align": [[0, 0, 32, 16]], "meta_schedule.cooperative_fetch": 4})
+                                    Ts.sblock_attr({"tensor_dim_align": [[0, 0, 32, 16]], "meta_schedule.cooperative_fetch": 4})
                                     pad_temp_reindex_shared[v0, v1] = p0[v0 // 3136, v0 % 3136 // 56, v0 % 56, v1]
                             for ax0_ax1_ax2_ax3_fused in range(2048):
                                 with Ts.sblock("p1_reindex_shared"):
@@ -1619,7 +1619,7 @@ class Conv2dInt8_with_predicate_scheduled:
                                     v3 = Ts.axis.spatial(64, ax4_0_0 * 32 + ax0_ax1_ax2_ax3_fused % 32)
                                     Ts.reads(p1[v2, v0, v1, v3])
                                     Ts.writes(p1_reindex_shared[v0, v1, v2, v3])
-                                    Ts.sblock_attr({"buffer_dim_align": [[0, 2, 32, 16]], "meta_schedule.cooperative_fetch": 3})
+                                    Ts.sblock_attr({"tensor_dim_align": [[0, 2, 32, 16]], "meta_schedule.cooperative_fetch": 3})
                                     p1_reindex_shared[v0, v1, v2, v3] = p1[v2, v0, v1, v3]
                             for ax0_1, ax1_1, ax4_0_1 in T.grid(1, 1, 2):
                                 for ax0_0_1, ax1_0_1 in T.grid(1, 1):
@@ -1727,7 +1727,7 @@ def test_dense_add_cpu():
         v21, v22 = sch.sample_perfect_tile(loop=l4, n=2, max_innermost_factor=64, decision=[128, 1])
         l23, l24 = sch.split(loop=l4, factors=[v21, v22], preserve_unit_iters=True)
         sch.reorder(l9, l17, l10, l18, l23, l11, l19, l24, l12, l20)
-        b25 = sch.cache_write(block=b0, write_buffer_index=0, storage_scope="global")
+        b25 = sch.cache_write(block=b0, write_tensor_index=0, storage_scope="global")
         sch.reverse_compute_at(block=b25, loop=l17, preserve_unit_loops=True, index=-1)
         sch.annotate(block_or_loop=b1, ann_key="meta_schedule.parallel", ann_val=160)
         sch.annotate(block_or_loop=b1, ann_key="meta_schedule.vectorize", ann_val=64)
@@ -1755,10 +1755,10 @@ def test_dense_add_cpu():
         l48, l49, l50, l51, l52, l53, l54, l55, l56 = sch.get_loops(block=b47)
         b57 = sch.decompose_reduction(block=b47, loop=l51)
         b58 = sch.get_sblock(name="T_matmul_NT_update", func_name="main")
-        b59 = sch.cache_read(block=b58, read_buffer_index=2, storage_scope="global")
+        b59 = sch.cache_read(block=b58, read_tensor_index=2, storage_scope="global")
         sch.transform_layout(
             block=b58,
-            buffer=("read", 2),
+            tensor=("read", 2),
             index_map=tvm.tirx.IndexMap.from_func(
                 lambda i0, i1: (
                     floordiv(i0, 64),
@@ -1822,10 +1822,10 @@ def test_dense_add_cpu_no_write_cache():
         l41, l42, l43, l44, l45, l46, l47 = sch.get_loops(block=b40)
         b48 = sch.decompose_reduction(block=b40, loop=l42)
         b49 = sch.get_sblock(name="T_matmul_NT_update", func_name="main")
-        b50 = sch.cache_read(block=b49, read_buffer_index=2, storage_scope="global")
+        b50 = sch.cache_read(block=b49, read_tensor_index=2, storage_scope="global")
         sch.transform_layout(
             block=b49,
-            buffer=("read", 2),
+            tensor=("read", 2),
             index_map=tvm.tirx.IndexMap.from_func(
                 lambda i0, i1: (
                     floordiv(i1, 16),
@@ -1883,10 +1883,10 @@ def test_dense_add_gpu():
         sch.annotate(
             block_or_loop=b0, ann_key="meta_schedule.thread_extent_high_inclusive", ann_val=256
         )
-        b34 = sch.cache_write(block=b0, write_buffer_index=0, storage_scope="local")
+        b34 = sch.cache_write(block=b0, write_tensor_index=0, storage_scope="local")
         sch.reverse_compute_at(block=b34, loop=l33, preserve_unit_loops=True, index=-1)
         b35 = sch.cache_read(
-            block=b0, read_buffer_index=0, storage_scope="shared", consumer_blocks=[b0]
+            block=b0, read_tensor_index=0, storage_scope="shared", consumer_blocks=[b0]
         )
         sch.compute_at(block=b35, loop=l28, preserve_unit_loops=True, index=-1)
         l36, l37, l38, l39, l40, l41 = sch.get_loops(block=b35)
@@ -1896,7 +1896,7 @@ def test_dense_add_gpu():
         )
         sch.annotate(block_or_loop=b35, ann_key="meta_schedule.cooperative_fetch", ann_val=v43)
         b44 = sch.cache_read(
-            block=b0, read_buffer_index=1, storage_scope="shared", consumer_blocks=[b0]
+            block=b0, read_tensor_index=1, storage_scope="shared", consumer_blocks=[b0]
         )
         sch.compute_at(block=b44, loop=l28, preserve_unit_loops=True, index=-1)
         l45, l46, l47, l48, l49, l50 = sch.get_loops(block=b44)
@@ -2214,7 +2214,7 @@ def test_winograd_gpu():
         sch.unroll(loop=l16)
         sch.reorder(l19, l23, l20, l24, l11, l12, l15, l16)
         sch.compute_at(block=b9, loop=l24, preserve_unit_loops=True, index=-1)
-        sch.set_scope(block=b9, buffer_index=0, storage_scope="local")
+        sch.set_scope(block=b9, tensor_index=0, storage_scope="local")
         sch.compute_inline(block=b10)
         l25, l26, l27, l28, l29, l30, l31, l32 = sch.get_loops(block=b1)
         l33 = sch.fuse(l25, l26, l27, l28, preserve_unit_iters=True)
@@ -2328,10 +2328,10 @@ def test_winograd_gpu():
         sch.annotate(
             block_or_loop=b2, ann_key="meta_schedule.thread_extent_high_inclusive", ann_val=1024
         )
-        b117 = sch.cache_write(block=b2, write_buffer_index=0, storage_scope="local")
+        b117 = sch.cache_write(block=b2, write_tensor_index=0, storage_scope="local")
         sch.reverse_compute_at(block=b117, loop=l116, preserve_unit_loops=True, index=-1)
         b118 = sch.cache_read(
-            block=b2, read_buffer_index=0, storage_scope="shared", consumer_blocks=[b2]
+            block=b2, read_tensor_index=0, storage_scope="shared", consumer_blocks=[b2]
         )
         sch.compute_at(block=b118, loop=l111, preserve_unit_loops=True, index=-1)
         l119, l120, l121, l122, l123, l124, l125, l126 = sch.get_loops(block=b118)
@@ -2341,7 +2341,7 @@ def test_winograd_gpu():
         )
         sch.annotate(block_or_loop=b118, ann_key="meta_schedule.cooperative_fetch", ann_val=v128)
         b129 = sch.cache_read(
-            block=b2, read_buffer_index=1, storage_scope="shared", consumer_blocks=[b2]
+            block=b2, read_tensor_index=1, storage_scope="shared", consumer_blocks=[b2]
         )
         sch.compute_at(block=b129, loop=l111, preserve_unit_loops=True, index=-1)
         l130, l131, l132, l133, l134, l135, l136, l137 = sch.get_loops(block=b129)
@@ -2494,12 +2494,12 @@ def test_inline_order():
         b8 = sch.get_sblock(name="compute_2", func_name="main")
         b9 = sch.get_sblock(name="root", func_name="main")
         sch.annotate(block_or_loop=b1, ann_key="meta_schedule.tiling_structure", ann_val="SSSRRSRS")
-        b10 = sch.reindex(block=b1, buffer=("write", 0))
-        b11 = sch.reindex(block=b1, buffer=("read", 0))
-        b12 = sch.reindex(block=b1, buffer=("read", 1))
+        b10 = sch.reindex(block=b1, tensor=("write", 0))
+        b11 = sch.reindex(block=b1, tensor=("read", 0))
+        b12 = sch.reindex(block=b1, tensor=("read", 1))
         sch.transform_layout(
             block=b1,
-            buffer=("read", 0),
+            tensor=("read", 0),
             index_map=lambda nn, yy, xx, rc: (
                 (((nn * 3136) + (yy * 56)) + xx),
                 rc,
@@ -2508,7 +2508,7 @@ def test_inline_order():
         )
         sch.transform_layout(
             block=b1,
-            buffer=("read", 1),
+            tensor=("read", 1),
             index_map=lambda ff, ry, rx, rc: (
                 ry,
                 rx,
@@ -2519,7 +2519,7 @@ def test_inline_order():
         )
         sch.transform_layout(
             block=b1,
-            buffer=("write", 0),
+            tensor=("write", 0),
             index_map=lambda nn, yy, xx, ff: (
                 (((nn * 3136) + (yy * 56)) + xx),
                 ff,
@@ -2635,9 +2635,9 @@ def test_inline_order():
         sch.annotate(
             block_or_loop=b32, ann_key="meta_schedule.thread_extent_high_inclusive", ann_val=1024
         )
-        b79 = sch.cache_write(block=b32, write_buffer_index=0, storage_scope="shared")
+        b79 = sch.cache_write(block=b32, write_tensor_index=0, storage_scope="shared")
         sch.reverse_compute_at(block=b79, loop=l77, preserve_unit_loops=True, index=-1)
-        b80 = sch.cache_write(block=b32, write_buffer_index=0, storage_scope="wmma.accumulator")
+        b80 = sch.cache_write(block=b32, write_tensor_index=0, storage_scope="wmma.accumulator")
         sch.reverse_compute_at(block=b80, loop=l78, preserve_unit_loops=True, index=-1)
         v81 = sch.sample_categorical(
             candidates=[1, 2, 3, 4, 8, 16],
@@ -2665,7 +2665,7 @@ def test_inline_order():
             ann_val="wmma_store_16x16x16_s32_shared",
         )
         b99 = sch.cache_read(
-            block=b32, read_buffer_index=0, storage_scope="shared", consumer_blocks=[b32]
+            block=b32, read_tensor_index=0, storage_scope="shared", consumer_blocks=[b32]
         )
         sch.compute_at(block=b99, loop=l73, preserve_unit_loops=True, index=-1)
         l100, l101, l102, l103, l104, l105, l106, l107 = sch.get_loops(block=b99)
@@ -2684,7 +2684,7 @@ def test_inline_order():
         )
         sch.annotate(block_or_loop=b99, ann_key="meta_schedule.cooperative_fetch", ann_val=v109)
         b110 = sch.cache_read(
-            block=b32, read_buffer_index=1, storage_scope="shared", consumer_blocks=[b32]
+            block=b32, read_tensor_index=1, storage_scope="shared", consumer_blocks=[b32]
         )
         sch.compute_at(block=b110, loop=l73, preserve_unit_loops=True, index=-1)
         l111, l112, l113, l114, l115, l116, l117, l118, l119, l120 = sch.get_loops(block=b110)
@@ -2702,7 +2702,7 @@ def test_inline_order():
             decision=2,
         )
         sch.annotate(block_or_loop=b110, ann_key="meta_schedule.cooperative_fetch", ann_val=v122)
-        b123 = sch.cache_read(block=b32, read_buffer_index=0, storage_scope="wmma.matrix_a")
+        b123 = sch.cache_read(block=b32, read_tensor_index=0, storage_scope="wmma.matrix_a")
         sch.compute_at(block=b123, loop=l74, preserve_unit_loops=True, index=-1)
         l124, l125, l126, l127, l128, l129, l130, l131, l132, l133, l134 = sch.get_loops(block=b123)
         l135, l136 = sch.split(loop=l134, factors=[None, 16], preserve_unit_iters=True)
@@ -2729,7 +2729,7 @@ def test_inline_order():
             ann_key="meta_schedule.auto_tensorize",
             ann_val="wmma_load_16x16x16_s8_a_shared",
         )
-        b153 = sch.cache_read(block=b32, read_buffer_index=1, storage_scope="wmma.matrix_b")
+        b153 = sch.cache_read(block=b32, read_tensor_index=1, storage_scope="wmma.matrix_b")
         sch.compute_at(block=b153, loop=l74, preserve_unit_loops=True, index=-1)
         (
             l154,
@@ -2774,8 +2774,8 @@ def test_inline_order():
         )
         sch.compute_inline(block=b11)
         sch.compute_inline(block=b12)
-        sch.storage_align(block=b99, buffer_index=0, axis=-2, factor=32, offset=16)
-        sch.storage_align(block=b110, buffer_index=0, axis=-2, factor=32, offset=16)
+        sch.storage_align(block=b99, tensor_index=0, axis=-2, factor=32, offset=16)
+        sch.storage_align(block=b110, tensor_index=0, axis=-2, factor=32, offset=16)
         sch.reverse_compute_inline(block=b8)
         sch.reverse_compute_inline(block=b7)
         sch.reverse_compute_inline(block=b6)

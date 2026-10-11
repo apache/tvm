@@ -41,7 +41,7 @@ def element_wise(
     with Ts.sblock("root"):
         Ts.reads([])
         Ts.writes([])
-        B = Ts.sblock_alloc_buffer([128, 128], elem_offset=0, align=64, offset_factor=1)
+        B = Ts.sblock_alloc_tensor([128, 128], elem_offset=0, align=64, offset_factor=1)
         for i0 in T.serial(0, 128):
             for ax1 in T.serial(0, 128):
                 with Ts.sblock("B"):
@@ -66,14 +66,14 @@ def element_wise_storage_align(
     with Ts.sblock("root"):
         Ts.reads([])
         Ts.writes([])
-        B = Ts.sblock_alloc_buffer([128, 128], elem_offset=0, align=64, offset_factor=1)
+        B = Ts.sblock_alloc_tensor([128, 128], elem_offset=0, align=64, offset_factor=1)
         for i0 in T.serial(0, 128):
             for ax1 in T.serial(0, 128):
                 with Ts.sblock("B"):
                     vi, vj = Ts.axis.remap("SS", [i0, ax1])
                     Ts.reads([A[vi, vj]])
                     Ts.writes([B[vi, vj]])
-                    Ts.sblock_attr({"buffer_dim_align": [[0, 0, 128, 127]]})
+                    Ts.sblock_attr({"tensor_dim_align": [[0, 0, 128, 127]]})
                     B[vi, vj] = A[vi, vj] * T.float32(2)
             for i1 in T.serial(0, 128):
                 with Ts.sblock("C"):
@@ -92,11 +92,11 @@ def element_wise_invalid_annotation(
     with Ts.sblock("root"):
         Ts.reads([])
         Ts.writes([])
-        B = Ts.sblock_alloc_buffer([128, 128], elem_offset=0, align=64, offset_factor=1)
+        B = Ts.sblock_alloc_tensor([128, 128], elem_offset=0, align=64, offset_factor=1)
         for i0 in T.serial(0, 128):
             for ax1 in T.serial(0, 128):
                 with Ts.sblock("B"):
-                    Ts.sblock_attr({"buffer_dim_align": [0]})
+                    Ts.sblock_attr({"tensor_dim_align": [0]})
                     vi, vj = Ts.axis.remap("SS", [i0, ax1])
                     Ts.reads([A[vi, vj]])
                     Ts.writes([B[vi, vj]])
@@ -141,14 +141,14 @@ def test_storage_align_invalid_factor2():
     with pytest.raises(tvm.s_tir.ScheduleError):
         s.storage_align(B, 0, axis=0, factor=-1, offset=127)
 
-def test_storage_align_invalid_buffer():
+def test_storage_align_invalid_tensor():
     func = element_wise
     s = tvm.s_tir.Schedule(func, debug_mask='all')
     C = s.get_sblock("C")
     with pytest.raises(tvm.s_tir.ScheduleError):
         s.storage_align(C, 0, axis=0, factor=128, offset=127)
 
-def test_storage_align_invalid_buffer_index():
+def test_storage_align_invalid_tensor_index():
     func = element_wise
     s = tvm.s_tir.Schedule(func, debug_mask='all')
     B = s.get_sblock("B")

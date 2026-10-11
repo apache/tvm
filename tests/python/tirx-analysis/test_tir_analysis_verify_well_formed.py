@@ -181,11 +181,11 @@ def test_reuse_of_region_parameter_across_functions_is_ill_formed():
         tvm.tirx.analysis.verify_well_formed(mod)
 
 
-def test_multiple_buffer_arguments_may_share_allocation():
-    """Buffer signatures may re-use a data argument
+def test_multiple_tensor_arguments_may_share_allocation():
+    """Tensor signatures may re-use a data argument
 
-    Like the shape/strides/elem_offset fields in a buffer, the first
-    occurrence of a `buffer->data` field defines it, and the
+    Like the shape/strides/elem_offset fields in a tensor, the first
+    occurrence of a `tensor->data` field defines it, and the
     occurrences are usages of that definition.
     """
 
@@ -287,7 +287,7 @@ def test_sequential_redefinition_with_location():
     assert "was re-defined at" in error_msg
 
 
-def test_buffer_param_is_well_formed():
+def test_tensor_param_is_well_formed():
     """TensorType-annotated parameters are in scope for the body."""
 
     @T.function
@@ -298,8 +298,8 @@ def test_buffer_param_is_well_formed():
     tvm.tirx.analysis.verify_well_formed(func)
 
 
-def test_decl_buffer_is_well_formed():
-    """A DeclTensor statement introduces a buffer into scope for its body."""
+def test_decl_tensor_is_well_formed():
+    """A DeclTensor statement introduces a tensor into scope for its body."""
 
     @T.function
     def func(A: T.Tensor((128,), "float32")):
@@ -310,8 +310,8 @@ def test_decl_buffer_is_well_formed():
     tvm.tirx.analysis.verify_well_formed(func)
 
 
-def test_alloc_buffer_is_well_formed():
-    """Allocation introduces a buffer into the function scope."""
+def test_alloc_tensor_is_well_formed():
+    """Allocation introduces a tensor into the function scope."""
 
     @I.ir_module
     class mod:
@@ -327,8 +327,8 @@ def test_alloc_buffer_is_well_formed():
 def test_tensor_load_asserted_type_matches_source_and_indices():
     @T.function
     def func():
-        buffer = T.alloc_tensor((4,), "float32")
-        T.evaluate(buffer[0])
+        tensor = T.alloc_tensor((4,), "float32")
+        T.evaluate(tensor[0])
 
     serialized = tvm.ir.save_json(func)
     round_tripped = tvm.ir.load_json(serialized)
@@ -352,10 +352,10 @@ def test_tensor_load_asserted_type_matches_source_and_indices():
 
 
 def test_tensor_load_malformed_indices_return_false_without_asserting():
-    buffer = tvm.tirx.decl_tensor((4, 4), "float32")
+    tensor = tvm.tirx.decl_tensor((4, 4), "float32")
     vector_index = tvm.tirx.Ramp(0, 1, 4)
-    load = tvm.tirx.TensorLoad(buffer, [0, vector_index])
-    func = tvm.tirx.Function([buffer], tvm.ir.Evaluate(load))
+    load = tvm.tirx.TensorLoad(tensor, [0, vector_index])
+    func = tvm.tirx.Function([tensor], tvm.ir.Evaluate(load))
 
     graph = json.loads(tvm.ir.save_json(func))
     load_node = next(node for node in graph["nodes"] if node["type"] == "ir.TensorLoad")
@@ -366,7 +366,7 @@ def test_tensor_load_malformed_indices_return_false_without_asserting():
     rank_mismatch_indices.pop()
     rank_mismatch = tvm.ir.load_json(json.dumps(rank_mismatch_graph))
     assert not tvm.tirx.analysis.verify_well_formed(rank_mismatch, assert_mode=False)
-    with pytest.raises(tvm.error.InternalError, match="indexes 2-dimensional buffer"):
+    with pytest.raises(tvm.error.InternalError, match="indexes 2-dimensional tensor"):
         tvm.tirx.analysis.verify_well_formed(rank_mismatch)
 
     indices[0], indices[1] = indices[1], indices[0]

@@ -40,11 +40,11 @@ enum class ScheduleErrorRenderLevel : int32_t {
   kNone = 2,
 };
 
-/*! \brief Type of buffer index */
-enum class BufferIndexType : int32_t {
-  /*! \brief Index of a read buffer */
+/*! \brief Type of tensor index */
+enum class TensorIndexType : int32_t {
+  /*! \brief Index of a read tensor */
   kRead = 0,
-  /*! \brief Index of a written buffer */
+  /*! \brief Index of a written tensor */
   kWrite = 1,
 };
 
@@ -323,10 +323,10 @@ class ScheduleNode : public ffi::Object {
   virtual ffi::Array<SBlockRV> GetConsumers(const SBlockRV& block_rv) = 0;
   /*!
    * \brief Get the list of output blocks within the given scope
-   * An output block is a block which has atleast one buffer being written
+   * An output block is a block which has atleast one tensor being written
    * to, but is not allocated within the Function
    * \param scope_block_rv The scope block from which output blocks are collected
-   * \return A list of all blocks that write to some output buffer
+   * \return A list of all blocks that write to some output tensor
    * block
    */
   virtual ffi::Array<SBlockRV> GetOutputBlocks(const SBlockRV& scope_block_rv) = 0;
@@ -452,70 +452,70 @@ class ScheduleNode : public ffi::Object {
   virtual void Unroll(const LoopRV& loop_rv) = 0;
   /******** Schedule: Insert cache stages ********/
   /*!
-   * \brief Create a block that reads a buffer region into a read cache. It requires:
-   * 1) There is at most one block who writes the buffer in the scope.
+   * \brief Create a block that reads a tensor region into a read cache. It requires:
+   * 1) There is at most one block who writes the tensor in the scope.
    * 2) The scope block have stage-pipeline property.
-   * \param block_rv The consumer block of the target buffer.
-   * \param read_buffer_index The index of the buffer in block's read region.
+   * \param block_rv The consumer block of the target tensor.
+   * \param read_tensor_index The index of the tensor in block's read region.
    * \param storage_scope The target storage scope.
    * \param consumer_blocks An optional list of consumers of the cache to rewrite.
    * \return The cache stage block.
    */
-  virtual SBlockRV CacheRead(const SBlockRV& block_rv, int read_buffer_index,
+  virtual SBlockRV CacheRead(const SBlockRV& block_rv, int read_tensor_index,
                              const ffi::String& storage_scope,
                              const ffi::Array<SBlockRV> consumer_blocks = {}) = 0;
   /*!
-   * \brief Create a block that writes a buffer region into a write cache. It requires:
-   * 1) There is only one block who writes the target buffer.
+   * \brief Create a block that writes a tensor region into a write cache. It requires:
+   * 1) There is only one block who writes the target tensor.
    * 2) The scope block have stage-pipeline property.
-   * \param block_rv The producer of the buffer
-   * \param write_buffer_index The index of the buffer in block's write region
+   * \param block_rv The producer of the tensor
+   * \param write_tensor_index The index of the tensor in block's write region
    * \param storage_scope The target storage scope
    * \param consumer_blocks An optional list of consumers to read from cache directly.
    * \return The cache stage block.
    */
-  virtual SBlockRV CacheWrite(const SBlockRV& block_rv, int write_buffer_index,
+  virtual SBlockRV CacheWrite(const SBlockRV& block_rv, int write_tensor_index,
                               const ffi::String& storage_scope,
                               const ffi::Array<SBlockRV> consumer_blocks = {}) = 0;
   /*!
-   * \brief Create a block that reads a buffer region into a read cache. It requires:
-   * 1) There is at most one block who writes the buffer in the scope.
+   * \brief Create a block that reads a tensor region into a read cache. It requires:
+   * 1) There is at most one block who writes the tensor in the scope.
    * 2) The scope block have stage-pipeline property.
-   * Compared to cache read, the indices to access allocated cache buffer is customized by user.
-   * \param block_rv The consumer block of the target buffer.
-   * \param read_buffer_index The index of the buffer in block's read region.
+   * Compared to cache read, the indices to access allocated cache tensor is customized by user.
+   * \param block_rv The consumer block of the target tensor.
+   * \param read_tensor_index The index of the tensor in block's read region.
    * \param storage_scope The target storage scope.
-   * \param index_map User defined indices to access allocated cache buffer, maps from block iter
+   * \param index_map User defined indices to access allocated cache tensor, maps from block iter
    * vars.
    * \return The cache stage block.
    */
-  virtual SBlockRV ReindexCacheRead(const SBlockRV& block_rv, int read_buffer_index,
+  virtual SBlockRV ReindexCacheRead(const SBlockRV& block_rv, int read_tensor_index,
                                     const ffi::String& storage_scope,
                                     const IndexMap& index_map) = 0;
   /*!
-   * \brief Create a block that writes a buffer region into a write cache. It requires:
-   * 1) There is only one block who writes the target buffer.
+   * \brief Create a block that writes a tensor region into a write cache. It requires:
+   * 1) There is only one block who writes the target tensor.
    * 2) The scope block have stage-pipeline property.
-   * Compared to cache write, the indices to access allocated cache buffer is customized by user.
-   * \param block_rv The producer of the buffer
-   * \param write_buffer_index The index of the buffer in block's write region
+   * Compared to cache write, the indices to access allocated cache tensor is customized by user.
+   * \param block_rv The producer of the tensor
+   * \param write_tensor_index The index of the tensor in block's write region
    * \param storage_scope The target storage scope
-   * \param index_map User defined indices to access allocated cache buffer, maps from block iter
+   * \param index_map User defined indices to access allocated cache tensor, maps from block iter
    * vars.
    * \return The cache stage block.
    */
-  virtual SBlockRV ReindexCacheWrite(const SBlockRV& block_rv, int write_buffer_index,
+  virtual SBlockRV ReindexCacheWrite(const SBlockRV& block_rv, int write_tensor_index,
                                      const ffi::String& storage_scope,
                                      const IndexMap& index_map) = 0;
   /*!
-   * \brief Create 2 blocks that read&write a buffer region into a read/write cache.
-   * It requires the target block both read & write the target buffer.
-   * \param block_rv The target block operates on the target buffer.
-   * \param read_buffer_index The index of the buffer in block's read region.
+   * \brief Create 2 blocks that read&write a tensor region into a read/write cache.
+   * It requires the target block both read & write the target tensor.
+   * \param block_rv The target block operates on the target tensor.
+   * \param read_tensor_index The index of the tensor in block's read region.
    * \param storage_scope The target storage scope
    * \return The cache stage blocks, cache read block together with cache write block.
    */
-  virtual ffi::Array<SBlockRV> CacheInplace(const SBlockRV& block_rv, int read_buffer_index,
+  virtual ffi::Array<SBlockRV> CacheInplace(const SBlockRV& block_rv, int read_tensor_index,
                                             const ffi::String& storage_scope) = 0;
   /*!
    * \brief Create a block to cache precomputed index for later use.
@@ -528,34 +528,34 @@ class ScheduleNode : public ffi::Object {
   virtual ffi::Array<SBlockRV> CacheIndex(const SBlockRV& block_rv,
                                           const ffi::String& storage_scope, int cse_thresh) = 0;
   /*!
-   * \brief Create a block that read/write a buffer region into a read/write cache with reindexing.
+   * \brief Create a block that read/write a tensor region into a read/write cache with reindexing.
    * The layout of the cache will be the same as by the iterators of the block that reads/writes the
-   * buffer. It requires:
-   * 1) There is only one block who reads/writes the target buffer
-   * 2) There is only one buffer load/store of this buffer in the block
-   * \param block_rv The block operates on the target buffer.
-   * \param buffer_index The index of the buffer in block's read or write region.
-   * \param buffer_index_type The type of the buffer index, kRead or kWrite.
+   * tensor. It requires:
+   * 1) There is only one block who reads/writes the target tensor
+   * 2) There is only one tensor load/store of this tensor in the block
+   * \param block_rv The block operates on the target tensor.
+   * \param tensor_index The index of the tensor in block's read or write region.
+   * \param tensor_index_type The type of the tensor index, kRead or kWrite.
    * \return The reindex stage block.
    */
-  virtual SBlockRV ReIndex(const SBlockRV& block_rv, int buffer_index,
-                           BufferIndexType buffer_index_type) = 0;
+  virtual SBlockRV ReIndex(const SBlockRV& block_rv, int tensor_index,
+                           TensorIndexType tensor_index_type) = 0;
   /******** Schedule: Data movement ********/
-  virtual SBlockRV ReadAt(const LoopRV& loop_rv, const SBlockRV& block_rv, int read_buffer_index,
+  virtual SBlockRV ReadAt(const LoopRV& loop_rv, const SBlockRV& block_rv, int read_tensor_index,
                           const ffi::String& storage_scope) = 0;
-  virtual SBlockRV WriteAt(const LoopRV& loop_rv, const SBlockRV& block_rv, int write_buffer_index,
+  virtual SBlockRV WriteAt(const LoopRV& loop_rv, const SBlockRV& block_rv, int write_tensor_index,
                            const ffi::String& storage_scope) = 0;
   /******** Schedule: Compute location ********/
   /*!
    * \brief Move a producer block under the specific loop, and regenerate the
-   * loops induced by the block so that the buffer region produced by the producer block could
+   * loops induced by the block so that the tensor region produced by the producer block could
    * cover those regions consumed by its consumer blocks under the given loop. It requires:
    * 1) `block` and `loop` are under the same scope, `loop` is not the ancestor of `block`
    * 2) The scope block has stage-pipeline property
    * 3) The subtree of the scope block, where the given block is in, satisfies the compact dataflow
    * condition. i.e. all the blocks in the scope block's subtree must be either complete block or
    * reduction block
-   * 4) The block is not an output block with regard to the scope block, i.e. the buffers written by
+   * 4) The block is not an output block with regard to the scope block, i.e. the tensors written by
    * the block are allocated under the scope block
    * 5) All the consumers of the block are under the given loop
    * \param block_rv The block to be moved
@@ -570,7 +570,7 @@ class ScheduleNode : public ffi::Object {
                          int index = -1) = 0;
   /*!
    * \brief Move a consumer block under the specific loop, and regenerate the
-   * loops induced by the block so that the buffer region consumed by the consumer block could
+   * loops induced by the block so that the tensor region consumed by the consumer block could
    * cover those regions produced by its producer blocks under the given loop. It requires:
    * 1) `block` and `loop` are under the same scope, `loop` is not the ancestor of `block`
    * 2) The scope block has stage-pipeline property
@@ -591,7 +591,7 @@ class ScheduleNode : public ffi::Object {
                                 bool preserve_unit_loops, int index = -1) = 0;
   /*!
    * \brief Inline a block into its consumer(s). It requires:
-   * 1) The block is a complete non-root block, which only produces one buffer
+   * 1) The block is a complete non-root block, which only produces one tensor
    * 2) The block must not be the only leaf in the scope.
    * 3) The body of the block must be a TensorStore statement in the form of,
    *    A[i, j, k, ...] = ...
@@ -602,7 +602,7 @@ class ScheduleNode : public ffi::Object {
   virtual void ComputeInline(const SBlockRV& block) = 0;
   /*!
    * \brief Inline a block into its only producer. It requires:
-   * 1) The block is a complete non-root block, which only produces and consumers one buffer
+   * 1) The block is a complete non-root block, which only produces and consumers one tensor
    * 2) The block must not be the only leaf in the scope.
    * 3) The only producer of the block is a read-after-write producer and a complete non-root block
    * 4) The body of the block must be a TensorStore statement in the form of,
@@ -642,13 +642,13 @@ class ScheduleNode : public ffi::Object {
    * because it leads to potential race condition during accumulation.
    * Alternatively, the reduction could be factorized on a loop with the following steps:
    * - Step 1: evenly slice the reduction into `n` separate chunks, where `n` is the loop extent
-   * - Step 2: compute the chunks separately and write the result into `n` intermediate buffers;
-   * - Step 3: accumulate the `n` separate buffer into the result buffer.
+   * - Step 2: compute the chunks separately and write the result into `n` intermediate tensors;
+   * - Step 3: accumulate the `n` separate tensor into the result tensor.
    * Note that the Step 2 above introduces opportunities for parallelization.
    * RFactor is a schedule primitive that implements the transformation described above.
    * \param loop_rv The loop outside block we want to do rfactor
    * \param factor_axis The position where the new dimension is placed in the new introduced rfactor
-   *                    buffer. Suppose the original reduction block writes to buffer `B` with
+   *                    tensor. Suppose the original reduction block writes to tensor `B` with
    *                    ndim(B) dimensions, then `factor_axis` should be in range `[-ndim(B) - 1,
    *                    ndim(B)]`, and the negative index will be normalized to a non-negative one
    * \return The rfactor block
@@ -661,33 +661,33 @@ class ScheduleNode : public ffi::Object {
    *        more friendly memory access pattern. For example, we can set alignment to be factor=2,
    *        offset=1 to avoid bank conflict for thread access on higher dimension in GPU shared
    *        memory.
-   * \param block_rv The producer block of the buffer
-   * \param buffer_index The index of the buffer in block's write region
+   * \param block_rv The producer block of the tensor
+   * \param tensor_index The index of the tensor in block's write region
    * \param axis The dimension to be specified for alignment
    * \param factor The factor multiple of alignment
    * \param offset The required offset factor
    */
-  virtual void StorageAlign(const SBlockRV& block_rv, int buffer_index, int axis, int factor,
+  virtual void StorageAlign(const SBlockRV& block_rv, int tensor_index, int axis, int factor,
                             int offset) = 0;
   /*!
-   * \brief Set the storage scope of a buffer, where the buffer is specified by a block and a
+   * \brief Set the storage scope of a tensor, where the tensor is specified by a block and a
    * write-index
-   * \param block_rv The producer block of the buffer
-   * \param buffer_index The index of the buffer in block's write region
+   * \param block_rv The producer block of the tensor
+   * \param tensor_index The index of the tensor in block's write region
    * \param storage_scope The storage scope to be set
    */
-  virtual void SetScope(const SBlockRV& block_rv, int buffer_index,
+  virtual void SetScope(const SBlockRV& block_rv, int tensor_index,
                         const ffi::String& storage_scope) = 0;
   /*!
-   * \brief Set the data type of a buffer, where the buffer is specified by a block and a
+   * \brief Set the data type of a tensor, where the tensor is specified by a block and a
    * write-index
    * \note This schedule primitive is unsafe and may change correctness of program because of
    *   type conversion, please use with caution.
-   * \param block_rv The producer block of the buffer
-   * \param buffer_index the index of the buffer in block's write region
+   * \param block_rv The producer block of the tensor
+   * \param tensor_index the index of the tensor in block's write region
    * \param dtype The data type to be set
    */
-  virtual void UnsafeSetDType(const SBlockRV& block_rv, int buffer_index,
+  virtual void UnsafeSetDType(const SBlockRV& block_rv, int tensor_index,
                               const ffi::String& dtype) = 0;
   /******** Schedule: Blockize & Tensorize ********/
   /*!
@@ -753,25 +753,25 @@ class ScheduleNode : public ffi::Object {
 
   /******** Schedule: Layout transformation ********/
   /*!
-   * \brief Apply a transformation represented by IndexMap to buffer
-   * \details The indices and the access region to the target buffer is transformed by the given
-   * index_map. The index_map is used to infer the new shape of the buffer. Buffer must be either
-   * a function parameter, or allocated in a block (it cannot be a buffer subregion created via
-   * 'match_buffer').
-   * \param block_rv The block that accesses the target buffer.
-   * \param buffer_index The index of the buffer in block's read or write region.
-   * \param buffer_index_type The type of the buffer index, kRead or kWrite.
+   * \brief Apply a transformation represented by IndexMap to tensor
+   * \details The indices and the access region to the target tensor is transformed by the given
+   * index_map. The index_map is used to infer the new shape of the tensor. Tensor must be either
+   * a function parameter, or allocated in a block (it cannot be a tensor subregion created via
+   * 'match_tensor').
+   * \param block_rv The block that accesses the target tensor.
+   * \param tensor_index The index of the tensor in block's read or write region.
+   * \param tensor_index_type The type of the tensor index, kRead or kWrite.
    * \param index_map The transformation to apply.
    *
    * \param pad_value The value to write into padding introduced by
    *    the transformation.  If the schedule contains a producer block
-   *    for the specified buffer, the pad value will be written as
+   *    for the specified tensor, the pad value will be written as
    *    part of the producer block if possible, or after the producer
-   *    block otherwise.  Otherwise, if the buffer is an input, will
+   *    block otherwise.  Otherwise, if the tensor is an input, will
    *    insert an annotation block to state that the padding contains
    *    the known value.
    *
-   *    Note: If applied to an input buffer, the calling scope is
+   *    Note: If applied to an input tensor, the calling scope is
    *    responsible for ensuring that the pad_value is present.
    *    Algebraic symplifications, branch elimination, and other
    *    optimizations may assume that this precondition is met, and
@@ -783,8 +783,8 @@ class ScheduleNode : public ffi::Object {
    * to ensure the index map is injective, otherwise, the correctness of the schedule is not
    * guaranteed.
    */
-  virtual void TransformLayout(const SBlockRV& block_rv, int buffer_index,
-                               BufferIndexType buffer_index_type, const IndexMap& index_map,
+  virtual void TransformLayout(const SBlockRV& block_rv, int tensor_index,
+                               TensorIndexType tensor_index_type, const IndexMap& index_map,
                                const ffi::Optional<IndexMap>& pad_value = std::nullopt,
                                bool assume_injective_transform = false) = 0;
 
@@ -814,45 +814,45 @@ class ScheduleNode : public ffi::Object {
    * \param padding The padding for each block iter.
    * \details This schedule primitives identifies the Einsum pattern in the block body, and find its
    * producer blocks. It then pads the computation of the Einsum pattern and its producer blocks.
-   * The output buffer and the producer buffer is resized according to the padding size. It requires
-   * the output buffer and the producer buffer to be allocated inside the Function.
+   * The output tensor and the producer tensor is resized according to the padding size. It requires
+   * the output tensor and the producer tensor to be allocated inside the Function.
    *
    * The padding is a list of non-negative integers, each element corresponds to the padding for
    * each block iter in the order of block iters. The block and its producer blocks should have
    * trivial bindings, i.e. each block iter is bound to a single loop variable. After padding, the
    * block iter extent and the corresponding outer loop is extended by the padding size.
    *
-   * The size of the producer buffers are infered from the padding size of the Einsum computation.
-   * The producer buffers are padded by the initial value of the corresponding reduction.
+   * The size of the producer tensors are infered from the padding size of the Einsum computation.
+   * The producer tensors are padded by the initial value of the corresponding reduction.
    */
   virtual void PadEinsum(const SBlockRV& block_rv, const ffi::Array<int64_t>& padding) = 0;
 
-  /******** Schedule: Buffer transformation ********/
+  /******** Schedule: Tensor transformation ********/
   /*!
-   * \brief Compute the target buffer via rolling buffering.
+   * \brief Compute the target tensor via rolling buffering.
    * \details This primitive selects the outermost rollable axis with a positive bound overlap that
-   * appears in the block's ancestor loops as `rolling axis`, fold and circularize the buffer along
+   * appears in the block's ancestor loops as `rolling axis`, fold and circularize the tensor along
    * the rolling dimension, append block predicate to avoid recomputing overlapping elements.
    * It requires:
-   * 1) The buffer to be an intermediate buffer defined via `alloc_tensor`.
-   * 2) The LCA of the producer and consumer of the buffer is a for loop, typically,
-   *    the producer and consumer of the buffer are cascaded through compute_at.
-   * 3) The access region of the buffer has at least one dimension that contains
+   * 1) The tensor to be an intermediate tensor defined via `alloc_tensor`.
+   * 2) The LCA of the producer and consumer of the tensor is a for loop, typically,
+   *    the producer and consumer of the tensor are cascaded through compute_at.
+   * 3) The access region of the tensor has at least one dimension that contains
    *    a positive bound overlap.
-   * \param block_rv The producer block of the buffer.
-   * \param write_buffer_index The index of the buffer in block's write region.
+   * \param block_rv The producer block of the tensor.
+   * \param write_tensor_index The index of the tensor in block's write region.
    */
-  virtual void RollingBuffer(const SBlockRV& block_rv, int write_buffer_index) = 0;
+  virtual void RollingBuffer(const SBlockRV& block_rv, int write_tensor_index) = 0;
 
   /*!
-   * \brief Annotate the buffer access of a block
+   * \brief Annotate the tensor access of a block
    * \param block_rv The block to be annotated
-   * \param buffer_index The index of the buffer in block's read or write region
-   * \param buffer_index_type The type of the buffer index, kRead or kWrite.
+   * \param tensor_index The index of the tensor in block's read or write region
+   * \param tensor_index_type The type of the tensor index, kRead or kWrite.
    * \param index_map The index map that defines the new read or write region
    */
-  virtual void AnnotateBufferAccess(const SBlockRV& block_rv, int buffer_index,
-                                    BufferIndexType buffer_index_type,
+  virtual void AnnotateTensorAccess(const SBlockRV& block_rv, int tensor_index,
+                                    TensorIndexType tensor_index_type,
                                     const IndexMap& index_map) = 0;
 
   /******** Schedule: Misc ********/
@@ -860,13 +860,13 @@ class ScheduleNode : public ffi::Object {
   virtual void EnterPostproc() = 0;
 
   /*!
-   * \brief Hide some buffer access in the given block.
-   * \param block_rv The block where we hide buffer access.
-   * \param buf_type The buffer type: read/write
-   * \param buf_index_array The array of buffer indices we hide access.
+   * \brief Hide some tensor access in the given block.
+   * \param block_rv The block where we hide tensor access.
+   * \param tensor_type The tensor type: read/write
+   * \param tensor_index_array The array of tensor indices we hide access.
    */
-  virtual void UnsafeHideBufferAccess(const SBlockRV& block_rv, const ffi::String& buf_type,
-                                      const ffi::Array<IntImm>& buf_index_array) = 0;
+  virtual void UnsafeHideTensorAccess(const SBlockRV& block_rv, const ffi::String& tensor_type,
+                                      const ffi::Array<IntImm>& tensor_index_array) = 0;
 };
 
 /*!
@@ -876,7 +876,7 @@ class ScheduleNode : public ffi::Object {
  * preserve the semantics of computation. Some example of schedules:
  * 1) Split a loop into two;
  * 2) Reorder two loops;
- * 3) Inline the computation of a specific buffer into its consumer
+ * 3) Inline the computation of a specific tensor into its consumer
  *
  * The schedule class stores auxiliary information to schedule correctly and efficiently.
  *

@@ -87,23 +87,23 @@ class TensorizeComparator : public ExprComparator, public StmtComparator {
   bool Dispatch_(const TensorLoadNode* op, const PrimExpr& other) override;
   bool Dispatch_(const SelectNode* op, const PrimExpr& other) override;
 
-  /*! \brief Map from RHS buffer to LHS buffer */
-  std::unordered_map<TensorVar, TensorVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> rhs_buffer_map_;
-  /*! \brief Base indices of the LHS buffer. */
+  /*! \brief Map from RHS tensor to LHS tensor */
+  std::unordered_map<TensorVar, TensorVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> rhs_tensor_map_;
+  /*! \brief Base indices of the LHS tensor. */
   std::unordered_map<TensorVar, std::vector<PrimExpr>, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
-      buffer_indices_;
+      tensor_indices_;
 
  protected:
   bool DefEqual(const Var& lhs, const Var& rhs);
   bool CompareExpr(const Expr& lhs, const Expr& rhs);
-  virtual bool CompareBuffer(const TensorVar& lhs, const TensorVar& rhs);
-  bool CompareBufferRegion(const TensorRegion& lhs, const TensorRegion& rhs);
+  virtual bool CompareTensor(const TensorVar& lhs, const TensorVar& rhs);
+  bool CompareTensorRegion(const TensorRegion& lhs, const TensorRegion& rhs);
   bool CompareAnnotation(const std::pair<ffi::String, ffi::Any>& lhs,
                          const std::pair<ffi::String, ffi::Any>& rhs);
   bool CompareAnnotationMap(const ffi::Map<ffi::String, ffi::Any>& lhs,
                             const ffi::Map<ffi::String, ffi::Any>& rhs);
   template <typename T>
-  bool CompareBufferAccess(const T* lhs, const T* rhs);
+  bool CompareTensorAccess(const T* lhs, const T* rhs);
   template <typename T, typename Self, typename F>
   bool CompareArray(const ffi::Array<T>& lhs, const ffi::Array<T>& rhs, F Self::* cmp);
   bool CompareRange(const Range& lhs, const Range& rhs);
@@ -134,7 +134,7 @@ class TensorizeComparator : public ExprComparator, public StmtComparator {
  * \brief IR comparator for auto tensorization.
  * This comparator is used to extract correspondence between the IR of the workload (LHS) and the
  * tensor intrin (RHS). Unlike `TensorizeComparator`, this comparator has relaxed requirements
- * during comparison. It ignores the loop structure (number of loops and their extents) and buffer
+ * during comparison. It ignores the loop structure (number of loops and their extents) and tensor
  * indices. It only requires the LHS and the RHS to have the same arithmetic operations and the same
  * dtype. With such relaxed requirements, workloads that can only match the tensor intrin after
  * certain transformations (e.g. im2col for conv2d) are allowed for auto tensorization.
@@ -153,9 +153,9 @@ class AutoTensorizeComparator : public TensorizeComparator {
 
   bool Dispatch_(const TensorLoadNode* op, const PrimExpr& other) override;
 
-  bool CompareBuffer(const TensorVar& lhs, const TensorVar& rhs) override;
+  bool CompareTensor(const TensorVar& lhs, const TensorVar& rhs) override;
   template <typename T>
-  bool CompareBufferAccess(const T* lhs, const T* rhs);
+  bool CompareTensorAccess(const T* lhs, const T* rhs);
 
  public:
   // Additional information extracted from LHS (the workload) and RHS (the tensor intrin).
@@ -164,14 +164,14 @@ class AutoTensorizeComparator : public TensorizeComparator {
   std::vector<IterVar> lhs_iters_;
   /*! \brief SBlock iters in the RHS stmt. */
   std::vector<IterVar> rhs_iters_;
-  /*! \brief The buffer and its access indices in the LHS stmt. */
+  /*! \brief The tensor and its access indices in the LHS stmt. */
   std::unordered_map<TensorVar, ffi::Array<PrimExpr>, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
-      lhs_buffer_indices_map_;
-  /*! \brief The buffer and its access indices in the RHS stmt. */
+      lhs_tensor_indices_map_;
+  /*! \brief The tensor and its access indices in the RHS stmt. */
   std::unordered_map<TensorVar, ffi::Array<PrimExpr>, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
-      rhs_buffer_indices_map_;
-  /*! \brief Map from LHS buffer to RHS buffer */
-  std::unordered_map<TensorVar, TensorVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> lhs_buffer_map_;
+      rhs_tensor_indices_map_;
+  /*! \brief Map from LHS tensor to RHS tensor */
+  std::unordered_map<TensorVar, TensorVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> lhs_tensor_map_;
 
  private:
   /*! \brief The domain of the inner block iters. */

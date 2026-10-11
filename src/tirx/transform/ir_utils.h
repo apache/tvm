@@ -317,11 +317,11 @@ class IRConvertSSA : public StmtExprMutator {
 ffi::String GetPtrStorageScope(Var buffer_var);
 
 /*!
- * \brief Get stride aware buffer allocation shape from buffer.
- * \param buffer The buffer object.
- * \return shape The shape considering buffer strides.
+ * \brief Get stride aware tensor allocation shape from tensor.
+ * \param tensor The tensor object.
+ * \return shape The shape considering tensor strides.
  */
-ffi::Array<PrimExpr> GetBufferAllocationShape(const TensorVar& buffer);
+ffi::Array<PrimExpr> GetTensorAllocationShape(const TensorVar& tensor);
 
 /*!
  * \brief Split string separated by "," to get wmma fragment dimension size.

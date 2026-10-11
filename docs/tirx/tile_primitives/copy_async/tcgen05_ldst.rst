@@ -150,7 +150,7 @@ Selecting the upper F sub-slab
 
 ``sub_slab`` is part of the tensor-memory layout rather than an option on
 ``copy_async``. This keeps physical TMEM occupation explicit and lets two
-64-row buffers alias the lower and upper halves of one 128-row allocation:
+64-row tensors alias the lower and upper halves of one 128-row allocation:
 
 .. code-block:: python
 

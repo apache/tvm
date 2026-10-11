@@ -50,7 +50,7 @@ std::string GetStorageScope(const Var& var) {
 }
 
 /*!
- * \brief Allocation calculator for buffer allocation bindings.
+ * \brief Allocation calculator for tensor allocation bindings.
  */
 class AllocTensorCalculator : public StmtExprVisitor {
  public:
@@ -122,8 +122,8 @@ class AllocTensorCalculator : public StmtExprVisitor {
 tvm::ffi::Map<ffi::String, tvm::ffi::Map<ffi::String, int64_t> > CalculateAllocatedBytes(
     const Function& func) {
   tvm::ffi::Map<ffi::String, tvm::ffi::Map<ffi::String, int64_t> > results;
-  auto alloc_buffer_result = ffi::make_object<AllocTensorCalculator>()->operator()(func);
-  results.Set("main", alloc_buffer_result);
+  auto alloc_tensor_result = ffi::make_object<AllocTensorCalculator>()->operator()(func);
+  results.Set("main", alloc_tensor_result);
   return results;
 }
 
@@ -133,9 +133,9 @@ tvm::ffi::Map<ffi::String, tvm::ffi::Map<ffi::String, int64_t> > CalculateAlloca
   for (const auto& kv : mod->functions) {
     if (auto function = kv.second.as<tirx::Function>()) {
       ffi::String func_name = kv.first->name_hint;
-      auto alloc_buffer_result =
+      auto alloc_tensor_result =
           ffi::make_object<AllocTensorCalculator>()->operator()(function.value());
-      results.Set(func_name, alloc_buffer_result);
+      results.Set(func_name, alloc_tensor_result);
     }
   }
   return results;
@@ -192,14 +192,14 @@ int64_t GetVTCMCapacity(ffi::Optional<Target> target, const tvm::transform::Pass
 ffi::Array<tvm::transform::Pass> GetVTCMCompactionPasses() {
   auto pass_list = ffi::Array<tvm::transform::Pass>();
   pass_list.push_back(s_tir::transform::LowerInitBlock());
-  pass_list.push_back(s_tir::transform::PlanAndUpdateBufferAllocationLocation());
+  pass_list.push_back(s_tir::transform::PlanAndUpdateTensorAllocationLocation());
   pass_list.push_back(s_tir::transform::ConvertBlocksToOpaque());
-  pass_list.push_back(s_tir::transform::CompactBufferAllocation());
-  pass_list.push_back(s_tir::transform::LowerMatchBuffer());
+  pass_list.push_back(s_tir::transform::CompactTensorAllocation());
+  pass_list.push_back(s_tir::transform::LowerMatchTensor());
   pass_list.push_back(s_tir::transform::InjectSoftwarePipeline());
   pass_list.push_back(s_tir::transform::LowerOpaqueBlock());
   pass_list.push_back(s_tir::transform::LowerThreadBinding());
-  pass_list.push_back(tirx::transform::FlattenBuffer());
+  pass_list.push_back(tirx::transform::FlattenTensor());
   pass_list.push_back(tirx::transform::StmtSimplify());
   pass_list.push_back(tirx::transform::VectorizeLoop(true));
   pass_list.push_back(tirx::transform::StorageRewrite());

@@ -81,23 +81,23 @@ SBlockScope::SBlockScope() { data_ = ffi::make_object<SBlockScopeNode>(); }
 
 SBlockScope::SBlockScope(const ffi::Array<StmtSRef>& child_block_srefs) {
   ffi::ObjectPtr<SBlockScopeNode> n = ffi::make_object<SBlockScopeNode>();
-  SMap<TensorVar, ffi::Array<StmtSRef>> buffer_readers;
-  SMap<TensorVar, ffi::Array<StmtSRef>>& buffer_writers = n->buffer_writers;
+  SMap<TensorVar, ffi::Array<StmtSRef>> tensor_readers;
+  SMap<TensorVar, ffi::Array<StmtSRef>>& tensor_writers = n->tensor_writers;
   for (const StmtSRef& child_block_sref : child_block_srefs) {
     const s_tir::SBlockNode* child_block = TVM_SREF_TO_SBLOCK(child_block_sref);
-    // Step 1. Update `buffer_readers` and `buffer_writers` for each buffer
+    // Step 1. Update `tensor_readers` and `tensor_writers` for each tensor
     for (const TensorRegion& region : child_block->reads) {
-      buffer_readers[region->source.as_or_throw<tvm::tirx::TensorVar>()].push_back(
+      tensor_readers[region->source.as_or_throw<tvm::tirx::TensorVar>()].push_back(
           child_block_sref);
     }
     for (const TensorRegion& region : child_block->writes) {
-      buffer_writers[region->source.as_or_throw<tvm::tirx::TensorVar>()].push_back(
+      tensor_writers[region->source.as_or_throw<tvm::tirx::TensorVar>()].push_back(
           child_block_sref);
     }
     // Step 2. Update RAW dependency
     for (const TensorRegion& region : child_block->reads) {
-      auto it = buffer_writers.find(region->source.as_or_throw<tvm::tirx::TensorVar>());
-      if (it != buffer_writers.end()) {
+      auto it = tensor_writers.find(region->source.as_or_throw<tvm::tirx::TensorVar>());
+      if (it != tensor_writers.end()) {
         for (const StmtSRef& from : it->second) {
           AddDependency(n.get(), from, child_block_sref, DepKind::kRAW);
         }
@@ -105,8 +105,8 @@ SBlockScope::SBlockScope(const ffi::Array<StmtSRef>& child_block_srefs) {
     }
     // Step 3. Update WAW dependency
     for (const TensorRegion& region : child_block->writes) {
-      auto it = buffer_writers.find(region->source.as_or_throw<tvm::tirx::TensorVar>());
-      if (it != buffer_writers.end()) {
+      auto it = tensor_writers.find(region->source.as_or_throw<tvm::tirx::TensorVar>());
+      if (it != tensor_writers.end()) {
         for (const StmtSRef& from : it->second) {
           AddDependency(n.get(), from, child_block_sref, DepKind::kWAW);
         }
@@ -114,8 +114,8 @@ SBlockScope::SBlockScope(const ffi::Array<StmtSRef>& child_block_srefs) {
     }
     // Step 4. Update WAR dependency
     for (const TensorRegion& region : child_block->writes) {
-      auto it = buffer_readers.find(region->source.as_or_throw<tvm::tirx::TensorVar>());
-      if (it != buffer_readers.end()) {
+      auto it = tensor_readers.find(region->source.as_or_throw<tvm::tirx::TensorVar>());
+      if (it != tensor_readers.end()) {
         for (const StmtSRef& from : it->second) {
           AddDependency(n.get(), from, child_block_sref, DepKind::kWAR);
         }

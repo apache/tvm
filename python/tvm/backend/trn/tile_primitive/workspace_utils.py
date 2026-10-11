@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-"""Workspace buffer utilities for TRN operator scheduling."""
+"""Workspace tensor utilities for TRN operator scheduling."""
 
 from tvm.tirx import Var
 
@@ -23,13 +23,13 @@ largest_psum_per_bank = 512
 max_psum_banks = 8
 
 
-def check_workspace_buffer(buffer: Var, shape: tuple[int], scope: str):
-    """Check if a workspace buffer is valid.
+def check_workspace_tensor(tensor: Var, shape: tuple[int], scope: str):
+    """Check if a workspace tensor is valid.
 
     Parameters
     ----------
-    buffer : Var
-        The workspace buffer to check
+    tensor : Var
+        The workspace tensor to check
     shape : Tuple[int]
         The required shape
     scope : str
@@ -38,17 +38,17 @@ def check_workspace_buffer(buffer: Var, shape: tuple[int], scope: str):
     Raises
     ------
     AssertionError :
-        If the buffer is invalid
+        If the tensor is invalid
     """
-    assert buffer.scope() == scope, f"workspace buffer must be a {scope} buffer"
-    assert buffer.ty.layout is None, "workspace buffer must not have a layout"
+    assert tensor.scope() == scope, f"workspace tensor must be a {scope} tensor"
+    assert tensor.ty.layout is None, "workspace tensor must not have a layout"
     if scope == "trn.psum":
         # the number of psum banks used is inferred from the shape
         # only check p and f dims
-        assert all(x >= y for x, y in zip(buffer.ty.shape[1:], shape)), (
-            f"workspace buffer must have enough size, {buffer.ty.shape[1:]} cannot cover {shape}"
+        assert all(x >= y for x, y in zip(tensor.ty.shape[1:], shape)), (
+            f"workspace tensor must have enough size, {tensor.ty.shape[1:]} cannot cover {shape}"
         )
     else:
-        assert all(x >= y for x, y in zip(buffer.ty.shape, shape)), (
-            f"workspace buffer must have enough size, {buffer.ty.shape} cannot cover {shape}"
+        assert all(x >= y for x, y in zip(tensor.ty.shape, shape)), (
+            f"workspace tensor must have enough size, {tensor.ty.shape} cannot cover {shape}"
         )

@@ -19,7 +19,7 @@
 
 /*!
  * \file update_pointer_storage_scope.h
- * \brief A pass to update storage scopes for buffer variables.
+ * \brief A pass to update storage scopes for tensor and pointer variables.
  */
 #ifndef TVM_TIR_TRANSFORM_UPDATE_POINTER_STORAGE_SCOPE_H_
 #define TVM_TIR_TRANSFORM_UPDATE_POINTER_STORAGE_SCOPE_H_
@@ -46,7 +46,7 @@ class UpdatePointerStorageScope : public StmtExprMutator {
           new_storage_scopes);
 
  private:
-  std::unordered_map<const CallNode*, ffi::String> buffer_scopes_;
+  std::unordered_map<const CallNode*, ffi::String> tensor_scopes_;
 };
 
 }  // namespace tirx

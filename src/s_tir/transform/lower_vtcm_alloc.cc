@@ -58,13 +58,13 @@ class VtcmAllocator : public StmtExprMutator {
       args.push_back(StringImm(scope));
       args.push_back(IntImm::Int64(shape->fields.size()));
       args.push_back(Call(PtrType(PrimType::Int(64)), tirx::stack_make_shape_op(), shape->fields));
-      TensorVar buffer = op->var.as_or_throw<TensorVar>();
-      return Bind(buffer,
-                  Call(buffer.type(), tirx::decl_tensor_op(),
-                       {Call(buffer.type()->DataPtrType(),
+      TensorVar tensor = op->var.as_or_throw<TensorVar>();
+      return Bind(tensor,
+                  Call(tensor.type(), tirx::decl_tensor_op(),
+                       {Call(tensor.type()->DataPtrType(),
                              tvm::backend::opencl::nd_mem_alloc_with_scope_op(), args),
-                        tvm::Tuple(buffer->shape), DataTypeImm(buffer->dtype->dtype),
-                        StringImm(buffer.scope())},
+                        tvm::Tuple(tensor->shape), DataTypeImm(tensor->dtype->dtype),
+                        StringImm(tensor.scope())},
                        {}, call->ty_args, call->loc),
                   op->loc);
     }

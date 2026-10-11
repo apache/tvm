@@ -275,9 +275,9 @@ class SBlockScopeNode : public ffi::Object {
   /*! \brief Lookup table for the `dst` of dependencies */
   std::unordered_map<StmtSRef, ffi::Array<Dependency>, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
       dst2deps;
-  /*! \brief The mapping from the buffer to the blocks who write it */
+  /*! \brief The mapping from the tensor to the blocks who write it */
   std::unordered_map<TensorVar, ffi::Array<StmtSRef>, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
-      buffer_writers;
+      tensor_writers;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;

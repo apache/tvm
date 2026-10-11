@@ -30,8 +30,8 @@ from tvm.testing import env
 def main(p0: T.Tensor((), "int32"), T_stack: T.Tensor((T.int64(3),), "int32")):
     T.func_attr({"tirx.noalias": True})
     # with Ts.sblock("root"):
-    compile_engine_const = Ts.sblock_alloc_buffer((), "int32")
-    compile_engine_const_1 = Ts.sblock_alloc_buffer((), "int32")
+    compile_engine_const = Ts.sblock_alloc_tensor((), "int32")
+    compile_engine_const_1 = Ts.sblock_alloc_tensor((), "int32")
     with Ts.sblock("compile_engine_const"):
         vi = Ts.axis.spatial(1, T.int64(0))
         Ts.reads()
