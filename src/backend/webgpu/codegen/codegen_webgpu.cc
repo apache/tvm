@@ -769,6 +769,30 @@ void CodeGenWebGPU::Dispatch_(const TensorStoreNode* op) {
   }
 }
 
+void CodeGenWebGPU::DispatchDeclTensor(const BindNode* op, const CallNode* buffer_call) {
+  Expr data = buffer_call->args[0];
+  const VarNode* source = data.as<VarNode>();
+  if (const auto* call = data.as<CallNode>();
+      call && call->op.same_as(tirx::tensor_data_ptr_op()) && call->args.size() == 1) {
+    source = call->args[0].as<VarNode>();
+  }
+  TVM_FFI_CHECK(source && var_idmap_.count(source), ValueError)
+      << "WebGPU tensor views require a named storage array";
+  PrimType dtype = op->var.as_or_throw<TensorVar>()->dtype;
+  Type source_type = source->ty;
+  if (const auto* tensor = source_type.as<TensorTypeNode>()) {
+    source_type = tensor->dtype;
+  } else if (const auto* pointer = source_type.as<PointerTypeNode>()) {
+    source_type = pointer->element_type;
+  }
+  TVM_FFI_CHECK(source_type == dtype, ValueError)
+      << "WebGPU tensor views cannot reinterpret the storage array element type";
+  // WGSL storage is an array, not a C pointer. Preserve its physical element
+  // representation and access mode by sharing the existing array name.
+  TVM_FFI_ICHECK(!var_idmap_.count(op->var.get()));
+  var_idmap_[op->var.get()] = GetVarID(source);
+}
+
 void CodeGenWebGPU::DispatchAllocTensor(const BindNode* op, const CallNode* buffer_call) {
   tvm::Tuple shape = buffer_call->args[0].as_or_throw<tvm::Tuple>();
   DLDataType dtype = buffer_call->args[1].as_or_throw<DataTypeImm>()->value;
