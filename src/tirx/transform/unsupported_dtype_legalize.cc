@@ -656,6 +656,10 @@ class StorageLegalizer : public StmtExprMutator {
     }
     // remap re-interpret so un-necessary reinterpret can be skipped.
     if (op->op.same_as(tirx::reinterpret_op())) {
+      // Pointer-to-integer casts also occur in generated tensor alignment checks.
+      if (!op->args[0]->ty.as<PrimTypeNode>()) {
+        return StmtExprMutator::Mutate_(op, inplace_mode);
+      }
       PrimExpr value = Mutate(op->args[0]).ValueOrUnchanged(op->args[0]).as_or_throw<PrimExpr>();
       // sometimes the input dtype can change and we can skip.
       PrimType op_dtype = op->ty.as_or_throw<PrimType>();
