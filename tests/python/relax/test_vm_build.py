@@ -1027,9 +1027,15 @@ def test_multi_systemlib():
     worker.send(popen_check)
 
 
+def _trial_tensor(data, device):
+    if isinstance(device, rpc.RemoteDevice):
+        return device.tensor(data)
+    return tvm.runtime.tensor(data, device)
+
+
 def set_input_trial(vm: relax.VirtualMachine, device: tvm.runtime.Device) -> None:
-    a = tvm.runtime.tensor(np.random.rand(32, 32).astype("float32"), device)
-    b = tvm.runtime.tensor(np.random.rand(32, 32).astype("float32"), device)
+    a = _trial_tensor(np.random.rand(32, 32).astype("float32"), device)
+    b = _trial_tensor(np.random.rand(32, 32).astype("float32"), device)
     vm.set_input("main", a, b)
     vm.invoke_stateful("main")
     res0 = vm.get_outputs("main")
@@ -1043,7 +1049,7 @@ def set_input_trial(vm: relax.VirtualMachine, device: tvm.runtime.Device) -> Non
 
     # bug! If you don't bind the Tensor to a var, the memory will get corrupted.
     # Possibly due to object lifecycles and other FFI issues
-    a = tvm.runtime.tensor(np.array(2).astype("int32"), device)
+    a = _trial_tensor(np.array(2).astype("int32"), device)
     vm.set_input("test_vm_tuple", a)
     vm.invoke_stateful("test_vm_tuple")
     res2 = vm.get_outputs("test_vm_tuple")
@@ -1051,7 +1057,7 @@ def set_input_trial(vm: relax.VirtualMachine, device: tvm.runtime.Device) -> Non
     # so we have to get the scalar out of the Tensor
     assert tuple(map(lambda a: int(a.numpy()), res2)) == (2, 2)
 
-    b = tvm.runtime.tensor(np.array(1).astype("int32"), device)
+    b = _trial_tensor(np.array(1).astype("int32"), device)
     vm.set_input("test_vm_nested_tuple", b)
     vm.invoke_stateful("test_vm_nested_tuple")
     res3 = vm.get_outputs("test_vm_nested_tuple")
@@ -1062,8 +1068,8 @@ def set_input_trial(vm: relax.VirtualMachine, device: tvm.runtime.Device) -> Non
 
 def set_input_attempt_stateless(vm: relax.VirtualMachine, device: tvm.runtime.Device) -> None:
     # this should fail: once you set inputs, you cannot run statelessly
-    a = tvm.runtime.tensor(np.random.rand(32, 32).astype("float32"), device)
-    b = tvm.runtime.tensor(np.random.rand(32, 32).astype("float32"), device)
+    a = _trial_tensor(np.random.rand(32, 32).astype("float32"), device)
+    b = _trial_tensor(np.random.rand(32, 32).astype("float32"), device)
     vm.set_input("main", a, b)
     # must use invoke stateful!
     vm["main"]()
@@ -1076,8 +1082,8 @@ def set_input_attempt_invoke(vm: relax.VirtualMachine, device: tvm.runtime.Devic
 
 def set_input_attempt_get(vm: relax.VirtualMachine, device: tvm.runtime.Device) -> None:
     # this should fail: you can't get outputs without invoking the function first
-    a = tvm.runtime.tensor(np.random.rand(32, 32).astype("float32"), device)
-    b = tvm.runtime.tensor(np.random.rand(32, 32).astype("float32"), device)
+    a = _trial_tensor(np.random.rand(32, 32).astype("float32"), device)
+    b = _trial_tensor(np.random.rand(32, 32).astype("float32"), device)
     vm.set_input("main", a, b)
     _ = vm.get_outputs("main")
 
@@ -1120,7 +1126,7 @@ def run_on_rpc(
 
         device = remote.cpu()
         # Build a VM out of the executable and context.
-        vm = relax.VirtualMachine(rexec, device=device)
+        vm = rpc.virtual_machine(rexec, device)
         trial_func(vm, device)
 
     check_remote(rpc.Server("127.0.0.1"))
@@ -1150,8 +1156,8 @@ def test_set_input_tuple():
 
 def save_function_kwargs_trial(vm: relax.VirtualMachine, device: tvm.runtime.Device) -> None:
     # just checking that we can use kwargs for the args when saving a function
-    a = tvm.runtime.tensor(np.random.rand(32, 32).astype("float32"), device)
-    b = tvm.runtime.tensor(np.random.rand(32, 32).astype("float32"), device)
+    a = _trial_tensor(np.random.rand(32, 32).astype("float32"), device)
+    b = _trial_tensor(np.random.rand(32, 32).astype("float32"), device)
     vm.save_function("main", "saved_main", x=a, w=b)
     res0 = vm["saved_main"]()
     tvm.testing.assert_allclose(res0.numpy(), a.numpy() * b.numpy(), rtol=1e-7, atol=1e-7)
@@ -1171,8 +1177,8 @@ def save_function_time_evaluator_trial(
     vm: relax.VirtualMachine, device: tvm.runtime.Device
 ) -> None:
     # just checking that the saved function can be called in the time evaluator
-    a = tvm.runtime.tensor(np.random.rand(32, 32).astype("float32"), device)
-    b = tvm.runtime.tensor(np.random.rand(32, 32).astype("float32"), device)
+    a = _trial_tensor(np.random.rand(32, 32).astype("float32"), device)
+    b = _trial_tensor(np.random.rand(32, 32).astype("float32"), device)
     vm.save_function("main", "saved_main", a, b)
     vm.time_evaluator("saved_main", device)()
 

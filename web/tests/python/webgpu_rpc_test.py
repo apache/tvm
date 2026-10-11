@@ -67,8 +67,8 @@ def test_rpc():
         # basic function checks.
         dev = remote.webgpu(0)
         adata = np.random.uniform(size=size).astype(A.dtype)
-        a = tvm.runtime.tensor(adata, dev)
-        b = tvm.runtime.tensor(np.zeros(size, dtype=A.dtype), dev)
+        a = dev.tensor(adata)
+        b = dev.tensor(np.zeros(size, dtype=A.dtype))
 
         np.testing.assert_equal(a.numpy(), adata)
         f1 = remote.system_lib()

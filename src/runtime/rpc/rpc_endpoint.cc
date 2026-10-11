@@ -33,6 +33,7 @@
 #include <array>
 #include <chrono>
 #include <cmath>
+#include <limits>
 #include <memory>
 #include <string>
 #include <type_traits>
@@ -185,10 +186,6 @@ class RPCEndpoint::EventHandler : public support::Stream {
               << "Cannot pass argument " << i << ", type " << obj->GetTypeKey()
               << " (type_index = " << obj->type_index() << ")";
         }
-      } else if (auto opt_device = args[i].as<DLDevice>()) {
-        DLDevice dev = opt_device.value();
-        TVM_FFI_CHECK(!IsRPCSessionDevice(dev), InternalError)
-            << "cannot pass RPC device in the channel";
       }
     }
   }
@@ -921,9 +918,12 @@ void RPCEndpoint::CopyToRemote(void* from_bytes, DLTensor* to, uint64_t nbytes) 
   RPCCode code = RPCCode::kCopyToRemote;
 
   uint64_t tensor_total_size_bytes = static_cast<uint64_t>(ffi::GetDataSize(*to));
-  TVM_FFI_ICHECK_LE(to->byte_offset + nbytes, tensor_total_size_bytes)
+  // byte_offset is relative to backing storage, not to the logical view.
+  TVM_FFI_ICHECK_LE(nbytes, tensor_total_size_bytes)
       << "CopyToRemote: overflow in tensor size: (byte_offset=" << to->byte_offset
       << ", nbytes=" << nbytes << ", tensor_total_size=" << tensor_total_size_bytes << ")";
+
+  TVM_FFI_ICHECK_LE(nbytes, std::numeric_limits<uint64_t>::max() - to->byte_offset);
 
   uint64_t overhead = RemoteCopyCalculatePacketOverheadSize(to, code, nbytes);
   uint64_t packet_nbytes = overhead + nbytes;
@@ -941,9 +941,12 @@ void RPCEndpoint::CopyFromRemote(DLTensor* from, void* to_bytes, uint64_t nbytes
   RPCCode code = RPCCode::kCopyFromRemote;
 
   uint64_t tensor_total_size_bytes = static_cast<uint64_t>(ffi::GetDataSize(*from));
-  TVM_FFI_ICHECK_LE(from->byte_offset + nbytes, tensor_total_size_bytes)
+  // byte_offset is relative to backing storage, not to the logical view.
+  TVM_FFI_ICHECK_LE(nbytes, tensor_total_size_bytes)
       << "CopyFromRemote: overflow in tensor size: (byte_offset=" << from->byte_offset
       << ", nbytes=" << nbytes << ", tensor_total_size=" << tensor_total_size_bytes << ")";
+
+  TVM_FFI_ICHECK_LE(nbytes, std::numeric_limits<uint64_t>::max() - from->byte_offset);
 
   uint64_t overhead = RemoteCopyCalculatePacketOverheadSize(from, code, nbytes);
   uint64_t packet_nbytes = overhead;
@@ -1116,6 +1119,8 @@ class RPCClientSession : public RPCSession, public DeviceAPI {
    */
   explicit RPCClientSession(std::shared_ptr<RPCEndpoint> endpoint) : endpoint_(endpoint) {}
 
+  ~RPCClientSession() override { ReleaseStreams(); }
+
   // function overrides
   PackedFuncHandle GetFunction(const std::string& name) final {
     return endpoint_->SysCallRemote(RPCCode::kGetGlobalFunc, name).cast<void*>();
@@ -1133,11 +1138,12 @@ class RPCClientSession : public RPCSession, public DeviceAPI {
     TVM_FFI_ICHECK_GT(rpc_max_size, overhead) << "CopyToRemote: Invalid block size!";
     const uint64_t block_size = rpc_max_size - overhead;
     uint64_t block_count = 0;
+    const uint64_t initial_offset = remote_to->byte_offset;
     const uint64_t num_blocks = nbytes / block_size;
     void* from_bytes;
 
     for (block_count = 0; block_count < num_blocks; block_count++) {
-      remote_to->byte_offset = block_count * block_size;
+      remote_to->byte_offset = initial_offset + block_count * block_size;
       from_bytes = reinterpret_cast<void*>(
           (reinterpret_cast<uint8_t*>(local_from_bytes) + block_count * block_size));
       endpoint_->CopyToRemote(from_bytes, remote_to, block_size);
@@ -1145,7 +1151,7 @@ class RPCClientSession : public RPCSession, public DeviceAPI {
 
     const uint64_t remainder_bytes = nbytes % block_size;
     if (remainder_bytes != 0) {
-      remote_to->byte_offset = block_count * block_size;
+      remote_to->byte_offset = initial_offset + block_count * block_size;
       from_bytes = reinterpret_cast<void*>(
           (reinterpret_cast<uint8_t*>(local_from_bytes) + block_count * block_size));
       endpoint_->CopyToRemote(from_bytes, remote_to, remainder_bytes);
@@ -1159,11 +1165,12 @@ class RPCClientSession : public RPCSession, public DeviceAPI {
     TVM_FFI_ICHECK_GT(rpc_max_size, overhead) << "CopyFromRemote: Invalid block size!";
     const uint64_t block_size = rpc_max_size - overhead;
     uint64_t block_count = 0;
+    const uint64_t initial_offset = remote_from->byte_offset;
     const uint64_t num_blocks = nbytes / block_size;
     void* to_bytes;
 
     for (block_count = 0; block_count < num_blocks; block_count++) {
-      remote_from->byte_offset = block_count * block_size;
+      remote_from->byte_offset = initial_offset + block_count * block_size;
       to_bytes = reinterpret_cast<void*>(
           (reinterpret_cast<uint8_t*>(local_to_bytes) + block_count * block_size));
       endpoint_->CopyFromRemote(remote_from, to_bytes, block_size);
@@ -1171,7 +1178,7 @@ class RPCClientSession : public RPCSession, public DeviceAPI {
 
     const uint64_t remainder_bytes = nbytes % block_size;
     if (remainder_bytes != 0) {
-      remote_from->byte_offset = block_count * block_size;
+      remote_from->byte_offset = initial_offset + block_count * block_size;
       to_bytes = reinterpret_cast<void*>(
           (reinterpret_cast<uint8_t*>(local_to_bytes) + block_count * block_size));
       endpoint_->CopyFromRemote(remote_from, to_bytes, remainder_bytes);
