@@ -973,7 +973,8 @@ void CodeGenC::DispatchDeclTensor(const BindNode* op, const CallNode* buffer_cal
   stream << ' ' << AllocVarID(buffer.get()) << " = ";
   // Packed argument decoding may already have established this typed view.
   const auto* cast = data.as<CallNode>();
-  if (cast && cast->op.same_as(tirx::reinterpret_op()) && ffi::StructuralEqual()(cast->ty, pointer_type)) {
+  if (cast && cast->op.same_as(tirx::reinterpret_op()) &&
+      ffi::StructuralEqual()(cast->ty, pointer_type)) {
     PrintExpr(data, stream);
   } else {
     PrintExpr(Call(pointer_type, tirx::reinterpret_op(), {data}), stream);

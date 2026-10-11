@@ -39,7 +39,7 @@ def test_argument_tensor_view(target, source_dtype, monkeypatch):
         @T.function
         def main(data: T.handle(source_dtype)):
             T.func_attr(
-                {"global_symbol": "main", "calling_conv": 2, "tirx.kernel_launch_params": []}
+                {"global_symbol": "kernel", "calling_conv": 2, "tirx.kernel_launch_params": []}
             )
             view = T.decl_tensor((4,), "float32", data=data)
             view[0] = T.float32(1)
@@ -62,7 +62,7 @@ def test_allocation_tensor_view(target, monkeypatch):
         @T.function
         def main():
             T.func_attr(
-                {"global_symbol": "main", "calling_conv": 2, "tirx.kernel_launch_params": []}
+                {"global_symbol": "kernel", "calling_conv": 2, "tirx.kernel_launch_params": []}
             )
             storage = T.alloc_tensor((8,), "uint32", scope=scope)
             view = T.decl_tensor((8,), "float32", data=storage.data, scope=scope)
@@ -81,25 +81,23 @@ def test_allocation_tensor_view(target, monkeypatch):
         assert "threadgroup float* view = ((threadgroup float*)" in source
 
 
-@pytest.mark.parametrize("dtype", ["float32", "int32"])
-def test_webgpu_array_view(dtype, monkeypatch):
+@pytest.mark.parametrize("source_dtype, dtype", [("float32", "float32"), ("uint32", "int8x4")])
+def test_webgpu_array_view(source_dtype, dtype, monkeypatch):
     @I.ir_module
     class Module:
         @T.function
-        def main(data: T.handle("float32")):
+        def main(data: T.handle(source_dtype)):
             T.func_attr(
-                {"global_symbol": "main", "calling_conv": 2, "tirx.kernel_launch_params": []}
+                {"global_symbol": "kernel", "calling_conv": 2, "tirx.kernel_launch_params": []}
             )
             view = T.decl_tensor((4,), dtype, data=data)
-            view[0] = T.Cast(dtype, 1)
+            view[0] = view[1]
 
-    if dtype == "float32":
-        source = _source(Module, "webgpu", monkeypatch)
-        assert "data[0i] =" in source
-        assert "float*" not in source
-    else:
-        with pytest.raises(ValueError, match="cannot reinterpret"):
-            _source(Module, "webgpu", monkeypatch)
+    source = _source(Module, "webgpu", monkeypatch)
+    assert "data[0i] =" in source
+    assert "float*" not in source
+    if dtype == "int8x4":
+        assert "array<u32>" in source
 
 
 @pytest.mark.parametrize("scope", ["shared", "shared.dyn"])
@@ -109,7 +107,7 @@ def test_cuda_shared_pool_views(scope, monkeypatch):
         @T.function
         def main():
             T.func_attr(
-                {"global_symbol": "main", "calling_conv": 2, "tirx.kernel_launch_params": []}
+                {"global_symbol": "kernel", "calling_conv": 2, "tirx.kernel_launch_params": []}
             )
             pool = T.alloc_tensor((64,), "uint8", scope=scope)
             floats = T.decl_tensor((8,), "float32", data=pool.data, scope=scope)
@@ -162,7 +160,7 @@ def test_volatile_tensor_view(target, monkeypatch):
         @T.function
         def main():
             T.func_attr(
-                {"global_symbol": "main", "calling_conv": 2, "tirx.kernel_launch_params": []}
+                {"global_symbol": "kernel", "calling_conv": 2, "tirx.kernel_launch_params": []}
             )
             pool = T.alloc_tensor((8,), "uint32", scope=scope, annotations={"tirx.volatile": True})
             view = T.decl_tensor((8,), "float32", data=pool.data, scope=scope)
@@ -173,3 +171,35 @@ def test_volatile_tensor_view(target, monkeypatch):
     source = _source(Module, target, monkeypatch)
     assert re.search(r"\(\(volatile [^)]*float\*\)view\)\[0\]", source)
     assert re.search(r"\(\(volatile [^)]*float\*\)view\)\[1\]", source)
+
+
+def test_cuda_vector_view_preserves_access_cast(monkeypatch):
+    @I.ir_module
+    class Module:
+        @T.function
+        def main(data: T.handle("uint8")):
+            T.func_attr(
+                {"global_symbol": "kernel", "calling_conv": 2, "tirx.kernel_launch_params": []}
+            )
+            view = T.decl_tensor((8,), "float32", data=data)
+            view[T.Ramp(0, 1, 4)] = T.Broadcast(T.float32(1), 4)
+
+    source = _source(Module, "cuda", monkeypatch)
+    assert "float* view = ((float*)data)" in source
+    assert "float4*" in source
+
+
+def test_cuda_packed_view_preserves_index_units(monkeypatch):
+    @I.ir_module
+    class Module:
+        @T.function
+        def main(data: T.handle("uint8")):
+            T.func_attr(
+                {"global_symbol": "kernel", "calling_conv": 2, "tirx.kernel_launch_params": []}
+            )
+            view = T.decl_tensor((32,), "int4", data=data)
+            view[16] = T.Cast("int4", 1)
+
+    source = _source(Module, "cuda", monkeypatch)
+    assert "int* view = ((int*)data)" in source
+    assert "16 / 8" in source

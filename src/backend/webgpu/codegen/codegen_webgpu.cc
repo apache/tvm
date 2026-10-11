@@ -778,15 +778,6 @@ void CodeGenWebGPU::DispatchDeclTensor(const BindNode* op, const CallNode* buffe
   }
   TVM_FFI_CHECK(source && var_idmap_.count(source), ValueError)
       << "WebGPU tensor views require a named storage array";
-  PrimType dtype = op->var.as_or_throw<TensorVar>()->dtype;
-  Type source_type = source->ty;
-  if (const auto* tensor = source_type.as<TensorTypeNode>()) {
-    source_type = tensor->dtype;
-  } else if (const auto* pointer = source_type.as<PointerTypeNode>()) {
-    source_type = pointer->element_type;
-  }
-  TVM_FFI_CHECK(source_type == dtype, ValueError)
-      << "WebGPU tensor views cannot reinterpret the storage array element type";
   // WGSL storage is an array, not a C pointer. Preserve its physical element
   // representation and access mode by sharing the existing array name.
   TVM_FFI_ICHECK(!var_idmap_.count(op->var.get()));
