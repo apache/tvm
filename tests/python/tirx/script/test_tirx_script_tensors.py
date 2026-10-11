@@ -1188,7 +1188,7 @@ def test_tensor_chunk_ir():
     """buf.chunk(spec)[picks] narrows each chunked dim to its picked chunk's
     contiguous [c*k : (c+1)*k) range (k = E // n), rank-preserving: a per-dim
     tuple where None passes the pick straight through and n divides that dim
-    into n equal chunks. chunk(spec)[picks] is the exact same make_tensor_region as
+    into n equal chunks. chunk(spec)[picks] is the exact same TensorRegion as
     the hand-written a*k:(a+1)*k slice — no reshape, no extra dim."""
 
     compose = T.ComposeLayout(3, 3, 3, T.TileLayout(T.S[(4, 512) : (512, 1)]))
@@ -1260,7 +1260,7 @@ def test_tensor_view_dtype_ir():
 
 
 def test_tensor_slice_region():
-    """Verify A[slice] returns make_tensor_region (not DeclTensor)."""
+    """Verify A[slice] returns TensorRegion (not DeclTensor)."""
 
     buf = tvm.tirx.decl_tensor((128, 64), "float16")
     br = buf[32:64, 0:32]

@@ -91,7 +91,7 @@ ffi::Array<MatchTensorRegion> ReplaceTensor(ffi::Array<MatchTensorRegion> match_
         if (match_tensor->source->source.as_or_throw<tvm::tirx::TensorVar>().same_as(source)) {
           ffi::ObjectPtr<MatchTensorRegionNode> n =
               ffi::make_object<MatchTensorRegionNode>(*match_tensor.get());
-          n->source = MakeTensorRegion(target, n->source->region);
+          n->source = TensorRegion(target, n->source->region, TensorRegionType());
           return MatchTensorRegion(ffi::UnsafeInit{}, n);
         }
         return match_tensor;
@@ -165,8 +165,9 @@ MatchTensorRegion ReplaceTensorMutator::VisitMatchTensorRegion(
   if (auto replacement =
           VarRemapGet(match_tensor->source->source.as_or_throw<tvm::tirx::TensorVar>())
               .as<TensorVar>()) {
-    return MatchTensorRegion(match_tensor->tensor,
-                             MakeTensorRegion(replacement.value(), match_tensor->source->region));
+    return MatchTensorRegion(
+        match_tensor->tensor,
+        TensorRegion(replacement.value(), match_tensor->source->region, TensorRegionType()));
   } else {
     return match_tensor;
   }
@@ -203,7 +204,7 @@ UnchangedOr<Stmt> ReplaceTensorMutator::Mutate_(const SBlockNode* block, Inplace
         region.same_as(tensor_region->region)) {
       return tensor_region;
     } else {
-      return MakeTensorRegion(tensor, region);
+      return TensorRegion(tensor, region, TensorRegionType());
     }
   };
   auto f_mutate_alloc_tensors = [this](const TensorVar& tensor) {
@@ -454,8 +455,8 @@ void BlockTensorAccessSimplifier::SimplifyAccessRegion(
       PrimExpr extent = analyzer_->Simplify(tensor_region->region[i]->extent);
       new_tensor_region.push_back(Range::FromMinExtent(min, extent));
     }
-    return MakeTensorRegion(tensor_region->source.as_or_throw<tvm::tirx::TensorVar>(),
-                            new_tensor_region);
+    return TensorRegion(tensor_region->source.as_or_throw<tvm::tirx::TensorVar>(),
+                        new_tensor_region, TensorRegionType());
   };
   (*old_access_regions).MutateByApply(fmutate);
 }

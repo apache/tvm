@@ -243,8 +243,8 @@ class SBlockInfoCollector : public StmtExprVisitor {
                   .as_or_throw<PrimExpr>();
           return Range::FromMinExtent(min, extent);
         });
-        reads.push_back(
-            MakeTensorRegion(region->source.as_or_throw<tvm::tirx::TensorVar>(), mapped_region));
+        reads.push_back(TensorRegion(region->source.as_or_throw<tvm::tirx::TensorVar>(),
+                                     mapped_region, TensorRegionType()));
       }
       block_reads_unbound.emplace(block_sref.get(), std::move(reads));
       // Step 1.2. Unbind write regions
@@ -259,8 +259,8 @@ class SBlockInfoCollector : public StmtExprVisitor {
                   .as_or_throw<PrimExpr>();
           return Range::FromMinExtent(min, extent);
         });
-        writes.push_back(
-            MakeTensorRegion(region->source.as_or_throw<tvm::tirx::TensorVar>(), mapped_region));
+        writes.push_back(TensorRegion(region->source.as_or_throw<tvm::tirx::TensorVar>(),
+                                      mapped_region, TensorRegionType()));
       }
       block_writes_unbound.emplace(block_sref.get(), std::move(writes));
     }

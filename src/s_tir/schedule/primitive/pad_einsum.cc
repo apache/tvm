@@ -190,8 +190,8 @@ struct TensorPadding {
         return TensorStore(tensor, indices, MakeTensorLoad(padded_tensor, indices));
       }
     }();
-    TensorRegion read_region = MakeTensorRegion(tensor, instance_dom);
-    TensorRegion write_region = MakeTensorRegion(padded_tensor, instance_dom);
+    TensorRegion read_region = TensorRegion(tensor, instance_dom, TensorRegionType());
+    TensorRegion write_region = TensorRegion(padded_tensor, instance_dom, TensorRegionType());
     if (!is_read) {
       std::swap(read_region, write_region);
     }
@@ -320,7 +320,7 @@ class PadEinsumTensorReplacer : public StmtExprMutator {
     for (const TensorRegion& read : block->reads) {
       if (ffi::Optional<TensorVar> tensor =
               VarRemapGet(read->source.as_or_throw<tvm::tirx::TensorVar>()).as<TensorVar>()) {
-        reads.push_back(MakeTensorRegion(tensor.value(), read->region));
+        reads.push_back(TensorRegion(tensor.value(), read->region, TensorRegionType()));
       } else {
         reads.push_back(read);
       }
@@ -330,7 +330,7 @@ class PadEinsumTensorReplacer : public StmtExprMutator {
     for (const TensorRegion& write : block->writes) {
       if (ffi::Optional<TensorVar> tensor =
               VarRemapGet(write->source.as_or_throw<tvm::tirx::TensorVar>()).as<TensorVar>()) {
-        writes.push_back(MakeTensorRegion(tensor.value(), write->region));
+        writes.push_back(TensorRegion(tensor.value(), write->region, TensorRegionType()));
       } else {
         writes.push_back(write);
       }

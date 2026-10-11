@@ -25,7 +25,7 @@ from tvm_ffi.access_path import AccessPath
 import tvm
 import tvm.testing
 from tvm import IRModule, s_tir, tirx
-from tvm.ir import Range
+from tvm.ir import Range, TensorRegion, TensorRegionType
 from tvm.s_tir.script.ir_builder import function as build_function
 from tvm.script import ir as I
 from tvm.script import ir_builder as IB
@@ -261,12 +261,13 @@ def test_match_tensor_region():
     tgt = tirx.decl_tensor((64, 64), "float32", name="tgt")
     obj = s_tir.MatchTensorRegion(
         tgt,
-        tirx.make_tensor_region(
+        TensorRegion(
             src,
             [
                 Range(64, 128),
                 Range(64, 128),
             ],
+            ty=TensorRegionType(),
         ),
     )
     _assert_print(

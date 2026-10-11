@@ -24,6 +24,8 @@ import re
 import numpy as np
 import pytest
 
+from tvm.ir import TensorRegion, TensorRegionType
+
 try:
     import ml_dtypes
 except ImportError:
@@ -4001,11 +4003,12 @@ def _make_gemm_tcgen05_call(
     )
     from tvm.ir import Range
     from tvm.tirx.exec_scope import ExecScope
-    from tvm.tirx.stmt import make_tensor_region
     from tvm.tirx.tile_dispatch import DispatchContext
 
     def full_region(buf):
-        return make_tensor_region(buf, [Range.from_min_extent(0, s) for s in buf.shape])
+        return TensorRegion(
+            buf, [Range.from_min_extent(0, s) for s in buf.shape], ty=TensorRegionType()
+        )
 
     A_shape = (M, K) if not transA else (K, M)
     B_shape = (K, N) if transB else (N, K)
@@ -4080,11 +4083,12 @@ def test_gemm_tcgen05_preserves_block_scale_tmem_lane_bases():
     )
     from tvm.ir import Range
     from tvm.tirx.exec_scope import ExecScope
-    from tvm.tirx.stmt import make_tensor_region
     from tvm.tirx.tile_dispatch import DispatchContext
 
     def full_region(buf):
-        return make_tensor_region(buf, [Range.from_min_extent(0, s) for s in buf.shape])
+        return TensorRegion(
+            buf, [Range.from_min_extent(0, s) for s in buf.shape], ty=TensorRegionType()
+        )
 
     M, N, K = 128, 64, 64
     data_dtype = "float4_e2m1fn"

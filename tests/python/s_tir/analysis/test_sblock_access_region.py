@@ -19,7 +19,7 @@ import pytest
 import tvm
 import tvm.testing
 from tvm import s_tir
-from tvm.ir import Range
+from tvm.ir import Range, TensorRegion, TensorRegionType
 from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
@@ -241,7 +241,7 @@ def test_block_access_region_detector():
     tvm.ir.assert_structural_equal(block.writes, ret[1])
     D = alloc_tensors[-1]
     tvm.ir.assert_structural_equal(
-        [tvm.tirx.make_tensor_region(D, [Range(0, 128), Range(0, 128)])], ret[2]
+        [TensorRegion(D, [Range(0, 128), Range(0, 128)], ty=TensorRegionType())], ret[2]
     )
 
 
@@ -251,10 +251,10 @@ def test_masked_access_is_not_opaque():
     A, B = root.alloc_tensors
     reads, writes, opaque = s_tir.analysis.get_sblock_access_region(block, {A: A, B: B})
     tvm.ir.assert_structural_equal(
-        reads, [tvm.tirx.make_tensor_region(A, [Range.from_min_extent(4, 4)])]
+        reads, [TensorRegion(A, [Range.from_min_extent(4, 4)], ty=TensorRegionType())]
     )
     tvm.ir.assert_structural_equal(
-        writes, [tvm.tirx.make_tensor_region(B, [Range.from_min_extent(8, 4)])]
+        writes, [TensorRegion(B, [Range.from_min_extent(8, 4)], ty=TensorRegionType())]
     )
     tvm.ir.assert_structural_equal(opaque, [])
 
@@ -519,12 +519,16 @@ def test_conditional_inequality_access_regions(case):
     tvm.ir.assert_structural_equal(
         reads,
         [
-            tirx.make_tensor_region(
-                inside, [Range.from_min_extent(*bounds) for bounds in expected]
+            TensorRegion(
+                inside,
+                [Range.from_min_extent(*bounds) for bounds in expected],
+                ty=TensorRegionType(),
             ),
             # Leaving the conditional scope must restore the original domains.
-            tirx.make_tensor_region(
-                outside, [Range.from_min_extent(*bounds) for bounds in outside_expected]
+            TensorRegion(
+                outside,
+                [Range.from_min_extent(*bounds) for bounds in outside_expected],
+                ty=TensorRegionType(),
             ),
         ],
     )

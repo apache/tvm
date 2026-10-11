@@ -71,7 +71,7 @@ def test_domain_touched():
 
 
 def test_domain_touched_vector():
-    pytest.skip("make_tensor_region arithmetic in expressions not supported")
+    pytest.skip("TensorRegion arithmetic in expressions not supported")
     m = tvm.runtime.convert(128)
 
     @Ts.function

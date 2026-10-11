@@ -25,7 +25,7 @@ import tvm.script
 import tvm.testing
 from tvm import ir, s_tir, tirx
 from tvm import tirx as tir
-from tvm.ir import Range, assert_structural_equal
+from tvm.ir import Range, TensorRegion, TensorRegionType, assert_structural_equal
 from tvm.script import ir as I
 from tvm.script import ir_builder as IB
 from tvm.script import tirx as T
@@ -144,12 +144,13 @@ def _assert_print(obj, expected):
 
 def test_tensor_region():
     src = tirx.decl_tensor((128, 128), "float32", name="src")
-    obj = tirx.make_tensor_region(
+    obj = TensorRegion(
         src,
         [
             Range(64, 128),
             Range(64, 128),
         ],
+        ty=TensorRegionType(),
     )
     _assert_print(
         obj,

@@ -217,8 +217,8 @@ SBlock MakeReindexCacheStage(const TensorRegion& cache_region, ReindexCacheStage
   // Create New Block
   SBlock block(
       /*iter_vars*/ std::move(block_vars),
-      /*reads=*/{MakeTensorRegion(info->read_tensor, read_access_region)},
-      /*writes=*/{MakeTensorRegion(info->write_tensor, write_access_region)},
+      /*reads=*/{TensorRegion(info->read_tensor, read_access_region, TensorRegionType())},
+      /*writes=*/{TensorRegion(info->write_tensor, write_access_region, TensorRegionType())},
       /*name_hint*/ cache_region->source.as_or_throw<tvm::tirx::TensorVar>().name() + "_" +
           storage_scope,
       /*body=*/
@@ -320,8 +320,8 @@ SBlock MakeCacheStage(const TensorRegion& cache_region, CacheStageInfo* info,
   //     write_tensor[access_indices] = read_tensor[access_indices]
   SBlock block(
       /*iter_vars=*/std::move(block_vars),
-      /*reads=*/{MakeTensorRegion(info->read_tensor, read_access_region)},
-      /*writes=*/{MakeTensorRegion(info->write_tensor, write_access_region)},
+      /*reads=*/{TensorRegion(info->read_tensor, read_access_region, TensorRegionType())},
+      /*writes=*/{TensorRegion(info->write_tensor, write_access_region, TensorRegionType())},
       /*name_hint=*/cache_region->source.as_or_throw<tvm::tirx::TensorVar>().name() + "_" +
           storage_scope,
       /*body=*/
@@ -679,7 +679,7 @@ TensorRegion RelaxTensorRegion(ScheduleState self, const TensorRegion& tensor_re
                           .as_or_throw<PrimExpr>();
     return Range::FromMinExtent(min, extent);
   });
-  TensorRegion subst_region = MakeTensorRegion(tensor, mapped_region);
+  TensorRegion subst_region = TensorRegion(tensor, mapped_region, TensorRegionType());
   ffi::Array<sym::IntSet> int_sets = AnalyzeRegionUpperBound(
       /*region=*/subst_region,
       /*predicate=*/
@@ -696,7 +696,7 @@ TensorRegion RelaxTensorRegion(ScheduleState self, const TensorRegion& tensor_re
   for (size_t i = 0; i < int_sets.size(); ++i) {
     region.push_back(int_sets[i].CoverRange(Range::FromMinExtent(0, tensor->shape[i])).value());
   }
-  return MakeTensorRegion(tensor, region);
+  return TensorRegion(tensor, region, TensorRegionType());
 }
 
 /*! \brief Detect the insertion position of the new cache stage */
@@ -997,8 +997,9 @@ class CacheReadRewriter : public StmtExprMutator {
       ffi::Array<TensorRegion> ret;
       for (const TensorRegion& region : regions) {
         if (region->source.as_or_throw<tvm::tirx::TensorVar>().same_as(info_->read_tensor)) {
-          ret.push_back(MakeTensorRegion(
-              info_->write_tensor, update_region(region->region, info_->cache_region->region)));
+          ret.push_back(TensorRegion(info_->write_tensor,
+                                     update_region(region->region, info_->cache_region->region),
+                                     TensorRegionType()));
         } else {
           ret.push_back(region);
         }
@@ -1016,8 +1017,9 @@ class CacheReadRewriter : public StmtExprMutator {
                 info_->read_tensor)) {
           ret.push_back(MatchTensorRegion(
               match_tensor->tensor,
-              MakeTensorRegion(info_->write_tensor, update_region(match_tensor->source->region,
-                                                                  info_->cache_region->region))));
+              TensorRegion(info_->write_tensor,
+                           update_region(match_tensor->source->region, info_->cache_region->region),
+                           TensorRegionType())));
         } else {
           ret.push_back(match_tensor);
         }
@@ -1213,7 +1215,7 @@ class ReindexCacheReadRewriter : public CacheReadRewriter {
           for (const PrimExpr index : new_indices_) {
             region.push_back(Range::FromMinExtent(index, IntImm::Int32(1)));
           }
-          new_reads.push_back(MakeTensorRegion(info_->write_tensor, region));
+          new_reads.push_back(TensorRegion(info_->write_tensor, region, TensorRegionType()));
         } else {
           new_reads.push_back(tensor_region);
         }
@@ -1229,8 +1231,9 @@ class ReindexCacheReadRewriter : public CacheReadRewriter {
           for (const PrimExpr index : new_indices_) {
             region.push_back(Range::FromMinExtent(index, IntImm::Int32(1)));
           }
-          new_match_tensors.push_back(MatchTensorRegion(
-              match_tensor_region->tensor, MakeTensorRegion(info_->write_tensor, region)));
+          new_match_tensors.push_back(
+              MatchTensorRegion(match_tensor_region->tensor,
+                                TensorRegion(info_->write_tensor, region, TensorRegionType())));
         } else {
           new_match_tensors.push_back(match_tensor_region);
         }
@@ -1307,8 +1310,9 @@ class CacheWriteRewriter : public StmtExprMutator {
       ffi::Array<TensorRegion> ret;
       for (const TensorRegion& region : regions) {
         if (region->source.as_or_throw<tvm::tirx::TensorVar>().same_as(info_->write_tensor)) {
-          ret.push_back(MakeTensorRegion(
-              info_->read_tensor, update_region(region->region, info_->cache_region->region)));
+          ret.push_back(TensorRegion(info_->read_tensor,
+                                     update_region(region->region, info_->cache_region->region),
+                                     TensorRegionType()));
         } else {
           ret.push_back(region);
         }
@@ -1326,8 +1330,9 @@ class CacheWriteRewriter : public StmtExprMutator {
                 info_->write_tensor)) {
           ret.push_back(MatchTensorRegion(
               match_tensor->tensor,
-              MakeTensorRegion(info_->read_tensor, update_region(match_tensor->source->region,
-                                                                 info_->cache_region->region))));
+              TensorRegion(info_->read_tensor,
+                           update_region(match_tensor->source->region, info_->cache_region->region),
+                           TensorRegionType())));
         } else {
           ret.push_back(match_tensor);
         }
@@ -1564,7 +1569,7 @@ class ReindexCacheWriteRewriter : public CacheWriteRewriter {
           for (const PrimExpr index : new_indices_) {
             region.push_back(Range::FromMinExtent(index, IntImm::Int32(1)));
           }
-          new_reads.push_back(MakeTensorRegion(info_->read_tensor, region));
+          new_reads.push_back(TensorRegion(info_->read_tensor, region, TensorRegionType()));
         } else {
           new_reads.push_back(tensor_region);
         }
@@ -1580,8 +1585,9 @@ class ReindexCacheWriteRewriter : public CacheWriteRewriter {
           for (const PrimExpr index : new_indices_) {
             region.push_back(Range::FromMinExtent(index, IntImm::Int32(1)));
           }
-          new_match_tensors.push_back(MatchTensorRegion(
-              match_tensor_region->tensor, MakeTensorRegion(info_->read_tensor, region)));
+          new_match_tensors.push_back(
+              MatchTensorRegion(match_tensor_region->tensor,
+                                TensorRegion(info_->read_tensor, region, TensorRegionType())));
         } else {
           new_match_tensors.push_back(match_tensor_region);
         }
@@ -1842,12 +1848,13 @@ class ReIndexRewriter : public StmtExprMutator {
                         .ValueOrUnchanged(ffi::GetRef<Stmt>(block))
                         .as_or_throw<SBlock>();
       // Update block reads/writes to use the intermediate reindex tensor
-      auto writes =
-          ReplaceTensorRegion(block->writes, old_tensor_, MakeTensorRegion(new_tensor_, region_));
-      auto reads =
-          ReplaceTensorRegion(block->reads, old_tensor_, MakeTensorRegion(new_tensor_, region_));
-      auto match_tensors = ReplaceTensorRegion(block->match_tensors, old_tensor_,
-                                               MakeTensorRegion(new_tensor_, region_));
+      auto writes = ReplaceTensorRegion(block->writes, old_tensor_,
+                                        TensorRegion(new_tensor_, region_, TensorRegionType()));
+      auto reads = ReplaceTensorRegion(block->reads, old_tensor_,
+                                       TensorRegion(new_tensor_, region_, TensorRegionType()));
+      auto match_tensors =
+          ReplaceTensorRegion(block->match_tensors, old_tensor_,
+                              TensorRegion(new_tensor_, region_, TensorRegionType()));
       if (!writes.same_as(block->writes) || !reads.same_as(block->reads) ||
           !match_tensors.same_as(block->match_tensors)) {
         ffi::ObjectPtr<SBlockNode> n = ffi::make_object<SBlockNode>(*stmt.as<SBlockNode>());

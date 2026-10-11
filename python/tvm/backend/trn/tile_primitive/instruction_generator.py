@@ -27,10 +27,10 @@ import tvm_ffi
 
 import tvm
 from tvm.backend.trn.layout import is_trainium_layout
-from tvm.ir import Range, TensorRegion
+from tvm.ir import Range, TensorRegion, TensorRegionType
 from tvm.script import tirx as T
 from tvm.sym.analyzer import Analyzer
-from tvm.tirx import Expr, IntImm, Var, is_tensor_var, make_tensor_region
+from tvm.tirx import Expr, IntImm, Var, is_tensor_var
 from tvm.tirx.layout import Iter
 
 from .dim_utils import DimensionMapper, RangeInfo, normalize_and_group
@@ -131,7 +131,7 @@ class InstructionGenerator:
                 changed = True
             region.append(Range.from_min_extent(r.min, bound.max_value))
         if changed:
-            bound_region = make_tensor_region(tensor_region.source, region)
+            bound_region = TensorRegion(tensor_region.source, region, ty=TensorRegionType())
             self.bound_regions[tensor_region] = bound_region
             return bound_region
         return tensor_region

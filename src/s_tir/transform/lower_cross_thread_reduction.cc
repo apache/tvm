@@ -355,7 +355,7 @@ Stmt TransformReductionBlock(const SBlockRealizeNode* realize,                  
     ffi::Array<TensorRegion> regions;
     regions.reserve(tensors.size());
     for (const TensorVar& tensor : tensors) {
-      regions.push_back(MakeTensorRegion(tensor, {Range::FromMinExtent(0, 1)}));
+      regions.push_back(TensorRegion(tensor, {Range::FromMinExtent(0, 1)}, TensorRegionType()));
     }
     return regions;
   };
@@ -522,7 +522,7 @@ Stmt TransformReductionBlock(const SBlockRealizeNode* realize,                  
     for (int i = 0; i < n_tensors; ++i) {
       wb_updates.push_back(TensorStore(wb_tensors[i], wb_indices,
                                        MakeTensorLoad(ct_tensors[i], {IntImm::Int32(0)})));
-      wb_regions.push_back(MakeTensorRegion(wb_tensors[i], region));
+      wb_regions.push_back(TensorRegion(wb_tensors[i], region, TensorRegionType()));
     }
 
     // Construct the predicate of the write-back block. It is the conjunction of

@@ -232,7 +232,7 @@ TensorRegion IndexDataTypeNormalizer::VisitTensorRegion(const TensorRegion& tens
 
   if (!remapped_tensor.same_as(tensor_region->source.as_or_throw<TensorVar>()) ||
       !new_region.same_as(tensor_region->region)) {
-    return MakeTensorRegion(remapped_tensor, new_region);
+    return TensorRegion(remapped_tensor, new_region, TensorRegionType());
   } else {
     return tensor_region;
   }

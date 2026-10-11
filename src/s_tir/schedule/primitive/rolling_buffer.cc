@@ -67,8 +67,8 @@ TensorRegion GetRelaxedTensorRegion(const SBlockRealize& realize, const TensorRe
                 0, tensor_region->source.as_or_throw<tvm::tirx::TensorVar>()->shape[i]))
             .value());
   }
-  return MakeTensorRegion(tensor_region->source.as_or_throw<tvm::tirx::TensorVar>(),
-                          relaxed_region);
+  return TensorRegion(tensor_region->source.as_or_throw<tvm::tirx::TensorVar>(), relaxed_region,
+                      TensorRegionType());
 }
 
 class RollingBufferDependencyError : public ScheduleErrorContextObj {

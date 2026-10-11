@@ -467,7 +467,7 @@ ffi::Array<TensorRegion> EvalSetRegions(const ffi::Array<TensorRegion>& regions,
     for (int i = 0; i < ndim; ++i) {
       new_region.push_back(relaxed[i].CoverRange(RangeFromExtent(tensor->shape[i])).value());
     }
-    results.push_back(MakeTensorRegion(tensor, new_region));
+    results.push_back(TensorRegion(tensor, new_region, TensorRegionType()));
   }
   return results;
 }
@@ -498,7 +498,7 @@ ffi::Array<TensorRegion> UnionRegions(const ffi::Array<TensorRegion>& regions) {
       const sym::IntSet intset = sym::Union(it.second[dim]);
       regions.push_back({intset.min(), intset.max() + 1});
     }
-    results.push_back(MakeTensorRegion(tensor, regions));
+    results.push_back(TensorRegion(tensor, regions, TensorRegionType()));
   }
   return results;
 }
@@ -898,7 +898,8 @@ void Tensorize(ScheduleState self, const StmtSRef& sref, const TensorIntrin& int
       PrimExpr extent = cast(min.ty(), old_region[i]->extent);
       new_region.push_back(Range::FromMinExtent(min, extent));
     }
-    match_tensor_regions.push_back(MatchTensorRegion(impl, MakeTensorRegion(cur, new_region)));
+    match_tensor_regions.push_back(
+        MatchTensorRegion(impl, TensorRegion(cur, new_region, TensorRegionType())));
   }
   // Step 5: Replace the subtree in the original IR with the tensor intrin impl.
   {

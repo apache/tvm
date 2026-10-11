@@ -45,7 +45,8 @@ TensorRegion ffi::TypeTraits<TensorRegion>::ConvertFallbackValue(TensorLoad valu
   for (const PrimExpr& index : value->indices) {
     ranges.push_back(Range::FromMinExtent(index, IntImm(index.ty(), 1)));
   }
-  return tirx::MakeTensorRegion(value->source.as_or_throw<tirx::TensorVar>(), ranges, value->loc);
+  return TensorRegion(value->source.as_or_throw<tirx::TensorVar>(), ranges, TensorRegionType(),
+                      value->loc);
 }
 
 namespace tirx {
@@ -120,11 +121,13 @@ ffi::ObjectRef RealizeTensorSubscript(
     region.push_back(
         Range::FromMinExtent(IntImm(tensor_ty->shape[i].ty(), 0), tensor_ty->shape[i]));
   }
-  return MakeTensorRegion(tensor, region, loc);
+  return TensorRegion(tensor, region, TensorRegionType(), loc);
 }
 
 ffi::ObjectRef RealizeTensorRegionSubscript(Expr value, SubscriptSlice slice, Location loc) {
   TensorRegion source = value.as_or_throw<TensorRegion>();
+  TVM_FFI_ICHECK_EQ(source->source.as_or_throw<TensorVar>()->shape.size(), source->region.size())
+      << "Tensor rank and region dimension mismatch";
   TVM_FFI_CHECK_LE(slice.size(), source->region.size(), IndexError)
       << "Too many indices for a " << source->region.size() << "-dimensional tensor region";
 
@@ -170,7 +173,7 @@ ffi::ObjectRef RealizeTensorRegionSubscript(Expr value, SubscriptSlice slice, Lo
   for (size_t i = slice.size(); i < source->region.size(); ++i) {
     region.push_back(source->region[i]);
   }
-  return MakeTensorRegion(source->source.as_or_throw<TensorVar>(), region, loc);
+  return TensorRegion(source->source.as_or_throw<TensorVar>(), region, TensorRegionType(), loc);
 }
 
 }  // namespace
@@ -178,18 +181,9 @@ ffi::ObjectRef RealizeTensorRegionSubscript(Expr value, SubscriptSlice slice, Lo
 using IndexMod = prim::FloorModNode;
 using IndexDiv = prim::FloorDivNode;
 
-TensorRegion MakeTensorRegion(TensorVar tensor, ffi::Array<Range> region, Location loc) {
-  TVM_FFI_ICHECK_EQ(tensor->shape.size(), region.size())
-      << "Tensor rank and region dimension mismatch";
-  return TensorRegion(std::move(tensor), std::move(region), TensorRegionType(), std::move(loc));
-}
-
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tirx.AsTensorRegion", [](TensorRegion region) { return region; });
-  refl::GlobalDef().def("tirx.MakeTensorRegion", [](TensorVar tensor, ffi::Array<Range> region) {
-    return MakeTensorRegion(tensor, region);
-  });
 }
 
 TensorRegion FullTensorRegion(TensorVar tensor) {
@@ -197,10 +191,12 @@ TensorRegion FullTensorRegion(TensorVar tensor) {
   for (PrimExpr extent : tensor->shape) {
     region.push_back(Range::FromMinExtent(0, extent));
   }
-  return MakeTensorRegion(tensor, region);
+  return TensorRegion(tensor, region, TensorRegionType());
 }
 
 TensorRegion TensorRegionFromPoint(TensorVar tensor, ffi::Array<PrimExpr> indices) {
+  TVM_FFI_ICHECK_EQ(tensor->shape.size(), indices.size())
+      << "Tensor rank and region dimension mismatch";
   ffi::Array<Range> region;
   for (const PrimExpr& index : indices) {
     if (const prim::RampNode* ramp_index = index.as<prim::RampNode>()) {
@@ -210,7 +206,7 @@ TensorRegion TensorRegionFromPoint(TensorVar tensor, ffi::Array<PrimExpr> indice
       region.push_back(Range::FromMinExtent(index, MakeConst(index.ty(), 1)));
     }
   }
-  return MakeTensorRegion(tensor, region);
+  return TensorRegion(tensor, region, TensorRegionType());
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

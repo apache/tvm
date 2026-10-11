@@ -451,7 +451,7 @@ ffi::Array<TensorRegion> BlockReadWriteDetector::CollectRegions(
         region.push_back(range.CoverRange(Range::FromMinExtent(0, tensors[i]->shape[j])).value());
       }
     }
-    res.push_back(MakeTensorRegion(tensors[i], region));
+    res.push_back(TensorRegion(tensors[i], region, TensorRegionType()));
   }
   return res;
 }

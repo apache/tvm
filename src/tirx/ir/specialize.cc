@@ -217,7 +217,7 @@ class FunctionSpecializer : public StmtExprMutator {
     if (result.UnchangedOrSameAs(ffi::GetRef<Expr>(op))) return ffi::Unchanged();
     auto region = std::move(result).ValueUnchecked().as_or_throw<TensorRegion>();
     if (auto tensor = region->source.as<TensorVar>()) {
-      return MakeTensorRegion(tensor.value(), region->region, region->loc);
+      return TensorRegion(tensor.value(), region->region, TensorRegionType(), region->loc);
     }
     return region;
   }

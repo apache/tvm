@@ -220,8 +220,9 @@ class StorageScopeMutator : public ReplaceTensorMutator {
                 .as<TensorVar>()) {
       TensorVar new_target_tensor = WithScope(match_tensor->tensor, replacement.value().scope());
       VarRemapSet(match_tensor->tensor, new_target_tensor);
-      return MatchTensorRegion(new_target_tensor,
-                               MakeTensorRegion(replacement.value(), match_tensor->source->region));
+      return MatchTensorRegion(
+          new_target_tensor,
+          TensorRegion(replacement.value(), match_tensor->source->region, TensorRegionType()));
     } else {
       return match_tensor;
     }
@@ -327,8 +328,9 @@ class DTypeMutator : public ReplaceTensorMutator {
                 .as<TensorVar>()) {
       TensorVar new_target_tensor = WithDType(match_tensor->tensor, replacement.value()->dtype);
       VarRemapSet(match_tensor->tensor, new_target_tensor);
-      return MatchTensorRegion(new_target_tensor,
-                               MakeTensorRegion(replacement.value(), match_tensor->source->region));
+      return MatchTensorRegion(
+          new_target_tensor,
+          TensorRegion(replacement.value(), match_tensor->source->region, TensorRegionType()));
     } else {
       return match_tensor;
     }

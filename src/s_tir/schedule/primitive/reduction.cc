@@ -266,8 +266,8 @@ StmtSRef DecomposeReduction(ScheduleState self, const StmtSRef& block_sref,
                             .as_or_throw<PrimExpr>();
       return Range::FromMinExtent(min, extent);
     });
-    init_block->writes.push_back(
-        MakeTensorRegion(write->source.as_or_throw<tvm::tirx::TensorVar>(), mapped_region));
+    init_block->writes.push_back(TensorRegion(write->source.as_or_throw<tvm::tirx::TensorVar>(),
+                                              mapped_region, TensorRegionType()));
   }
   // Step 3. Scan loops not higher than the specified loop above the reduction block.
   //         If the loop is used in the init block binding, then it is chosen.
@@ -1065,8 +1065,8 @@ class RFactorBlockCreator : public BaseBlockCreator {
                 .as_or_throw<PrimExpr>();
         return Range::FromMinExtent(min, extent);
       });
-      read_regions_.push_back(
-          MakeTensorRegion(read_region->source.as_or_throw<tvm::tirx::TensorVar>(), region));
+      read_regions_.push_back(TensorRegion(read_region->source.as_or_throw<tvm::tirx::TensorVar>(),
+                                           region, TensorRegionType()));
     }
     write_regions_.reserve(old_block->writes.size());
     for (const TensorRegion& write_region : old_block->writes) {
@@ -1085,7 +1085,7 @@ class RFactorBlockCreator : public BaseBlockCreator {
                 .as_or_throw<PrimExpr>();
         return Range::FromMinExtent(min, extent);
       });
-      write_regions_.push_back(MakeTensorRegion(rf_tensor.value(), region));
+      write_regions_.push_back(TensorRegion(rf_tensor.value(), region, TensorRegionType()));
     }
   }
 
@@ -1185,8 +1185,8 @@ class WriteBackBlockCreator : public BaseBlockCreator {
       for (const PrimExpr& index : tensor_load->indices) {
         region.push_back(Range::FromMinExtent(index, prim::MakeConst(index.ty(), 1)));
       }
-      tensor_regions.push_back(MakeTensorRegion(
-          tensor_load->source.as_or_throw<tvm::tirx::TensorVar>(), std::move(region)));
+      tensor_regions.push_back(TensorRegion(tensor_load->source.as_or_throw<tvm::tirx::TensorVar>(),
+                                            std::move(region), TensorRegionType()));
     }
   }
 

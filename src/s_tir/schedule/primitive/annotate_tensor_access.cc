@@ -110,7 +110,7 @@ void AnnotateTensorAccess(ScheduleState self, const StmtSRef& block_sref, int te
         new_indices[i], analyzer->Simplify(new_indices[i + 1] - new_indices[i])));
   }
 
-  TensorRegion new_region = MakeTensorRegion(tensor, new_ranges);
+  TensorRegion new_region = TensorRegion(tensor, new_ranges, TensorRegionType());
 
   auto mutator =
       ffi::make_object<AnnotateRegionRewriter>(tensor, tensor_index, new_region, tensor_index_type);

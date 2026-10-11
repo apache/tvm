@@ -191,8 +191,8 @@ class MatchTensorLower : public StmtExprMutator {
       const TensorRegion& source = (*it).second;
       ffi::Array<Range> region =
           ConvertRegion(MatchTensorRegion(tensor, source), tensor_region->region);
-      return MakeTensorRegion(source->source.as_or_throw<tvm::tirx::TensorVar>(),
-                              std::move(region));
+      return TensorRegion(source->source.as_or_throw<tvm::tirx::TensorVar>(), std::move(region),
+                          TensorRegionType());
     }
   }
 

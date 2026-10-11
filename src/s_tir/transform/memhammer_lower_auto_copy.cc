@@ -240,7 +240,7 @@ class AutoPadder {
           if (auto replacement =
                   VarRemapGet(read->source.as_or_throw<tvm::tirx::TensorVar>()).as<TensorVar>()) {
             changed = true;
-            reads.push_back(MakeTensorRegion(replacement.value(), read->region));
+            reads.push_back(TensorRegion(replacement.value(), read->region, TensorRegionType()));
           } else {
             reads.push_back(read);
           }
@@ -251,7 +251,7 @@ class AutoPadder {
           if (auto replacement =
                   VarRemapGet(write->source.as_or_throw<tvm::tirx::TensorVar>()).as<TensorVar>()) {
             changed = true;
-            writes.push_back(MakeTensorRegion(replacement.value(), write->region));
+            writes.push_back(TensorRegion(replacement.value(), write->region, TensorRegionType()));
           } else {
             writes.push_back(write);
           }
@@ -266,7 +266,8 @@ class AutoPadder {
             changed = true;
             TensorVar new_tensor = replacement.value();
             match_tensors.push_back(MatchTensorRegion(
-                match_tensor->tensor, MakeTensorRegion(new_tensor, match_tensor->source->region)));
+                match_tensor->tensor,
+                TensorRegion(new_tensor, match_tensor->source->region, TensorRegionType())));
           } else {
             match_tensors.push_back(match_tensor);
           }

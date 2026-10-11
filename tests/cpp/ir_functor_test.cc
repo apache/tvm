@@ -242,7 +242,8 @@ TEST(IRF, StmtVisitor) {
                                    {buf_var, tvm::Tuple(buffer->shape),
                                     DataTypeImm(buffer->dtype->dtype), StringImm(buffer.scope())})),
                  std::move(body)});
-    TensorRegion buffer_region = MakeTensorRegion(buffer, {Range::FromMinExtent(x + 1, 1)});
+    TensorRegion buffer_region =
+        TensorRegion(buffer, {Range::FromMinExtent(x + 1, 1)}, TensorRegionType());
     s_tir::MatchTensorRegion match_buffer_region(decl_tensor({1}), buffer_region);
 
     // construct block and block_realize
@@ -378,7 +379,8 @@ TEST(IRF, StmtExprMutator) {
     Stmt alloc = fmakealloc();
     // body is: DeclTensor, AllocTensor, Evaluate
     Stmt body = SeqStmt({decl, alloc, eval_body});
-    TensorRegion buffer_region = MakeTensorRegion(buffer, {Range::FromMinExtent(x + 1, 1)});
+    TensorRegion buffer_region =
+        TensorRegion(buffer, {Range::FromMinExtent(x + 1, 1)}, TensorRegionType());
     s_tir::MatchTensorRegion match_buffer_region(decl_tensor({1}), buffer_region);
     // construct block and block_realize
     s_tir::SBlock block = s_tir::SBlock({}, {buffer_region}, {buffer_region}, "block", body,

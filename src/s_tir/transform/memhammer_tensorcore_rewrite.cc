@@ -169,8 +169,8 @@ Stmt RewriteWmmaLoad(Stmt stmt) {
       /*predicate=*/IntImm::Bool(true),
       SBlock(
           /*iter_vars=*/{},
-          /*reads=*/{MakeTensorRegion(src_tensor, read_region)},
-          /*writes=*/{MakeTensorRegion(tgt_tensor, write_region)},
+          /*reads=*/{TensorRegion(src_tensor, read_region, TensorRegionType())},
+          /*writes=*/{TensorRegion(tgt_tensor, write_region, TensorRegionType())},
           /*name_hint=*/"wmma_load",
           /*body=*/
           Evaluate(Call(
@@ -193,8 +193,11 @@ Stmt RewriteWmmaLoad(Stmt stmt) {
           /*alloc_tensors=*/{},
           /*match_tensors=*/
           {
-              /*0:*/ MatchTensorRegion(new_src_tensor, MakeTensorRegion(src_tensor, read_region)),
-              /*1:*/ MatchTensorRegion(new_tgt_tensor, MakeTensorRegion(tgt_tensor, write_region)),
+              /*0:*/ MatchTensorRegion(new_src_tensor,
+                                       TensorRegion(src_tensor, read_region, TensorRegionType())),
+              /*1:*/
+              MatchTensorRegion(new_tgt_tensor,
+                                TensorRegion(tgt_tensor, write_region, TensorRegionType())),
           },
           /*annotations=*/{}));
   for (int i = n - 3; i >= 0; i--) {
@@ -262,8 +265,8 @@ Stmt RewriteWmmaStore(Stmt stmt) {
       /*predicate=*/IntImm::Bool(true),
       SBlock(
           /*iter_vars=*/{},
-          /*reads=*/{MakeTensorRegion(src_tensor, read_region)},
-          /*writes=*/{MakeTensorRegion(tgt_tensor, write_region)},
+          /*reads=*/{TensorRegion(src_tensor, read_region, TensorRegionType())},
+          /*writes=*/{TensorRegion(tgt_tensor, write_region, TensorRegionType())},
           /*name_hint=*/"wmma_store",
           Evaluate(Call(
               /*data=*/PrimType::Void(),
@@ -283,8 +286,10 @@ Stmt RewriteWmmaStore(Stmt stmt) {
           /*alloc_tensors=*/{},
           /*match_tensors=*/
           {
-              MatchTensorRegion(new_src_tensor, MakeTensorRegion(src_tensor, read_region)),
-              MatchTensorRegion(new_tgt_tensor, MakeTensorRegion(tgt_tensor, write_region)),
+              MatchTensorRegion(new_src_tensor,
+                                TensorRegion(src_tensor, read_region, TensorRegionType())),
+              MatchTensorRegion(new_tgt_tensor,
+                                TensorRegion(tgt_tensor, write_region, TensorRegionType())),
           },
           /*annotations=*/{}));
   for (int i = n - 3; i >= 0; i--) {
@@ -486,8 +491,8 @@ Stmt RewriteMmaStore(Stmt stmt) {
       /*predicate=*/IntImm::Bool(true),
       SBlock(
           /*iter_vars=*/{},
-          /*reads=*/{MakeTensorRegion(src_tensor, read_region)},
-          /*writes=*/{MakeTensorRegion(tgt_tensor, write_region)},
+          /*reads=*/{TensorRegion(src_tensor, read_region, TensorRegionType())},
+          /*writes=*/{TensorRegion(tgt_tensor, write_region, TensorRegionType())},
           /*name_hint=*/"mma_store",
           RegionStmt(tirx::launch_thread_op(), {StringImm("threadIdx.x"), IntImm::Int32(32)}, {tx},
                      DictAttrs(), /*body=*/
@@ -500,8 +505,10 @@ Stmt RewriteMmaStore(Stmt stmt) {
           /*alloc_tensors=*/{},
           /*match_tensors=*/
           {
-              MatchTensorRegion(new_src_tensor, MakeTensorRegion(src_tensor, read_region)),
-              MatchTensorRegion(new_tgt_tensor, MakeTensorRegion(tgt_tensor, write_region)),
+              MatchTensorRegion(new_src_tensor,
+                                TensorRegion(src_tensor, read_region, TensorRegionType())),
+              MatchTensorRegion(new_tgt_tensor,
+                                TensorRegion(tgt_tensor, write_region, TensorRegionType())),
           },
           /*annotations=*/{}));
 

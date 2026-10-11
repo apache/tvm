@@ -343,8 +343,8 @@ struct ReadWriteAtImpl {
         /*values=*/iter_values,
         /*predicate=*/IntImm::Bool(true),
         SBlock(/*iter_vars=*/iter_vars,
-               /*reads=*/{MakeTensorRegion(copy_from, domain)},
-               /*writes=*/{MakeTensorRegion(copy_to, domain)},
+               /*reads=*/{TensorRegion(copy_from, domain, TensorRegionType())},
+               /*writes=*/{TensorRegion(copy_to, domain, TensorRegionType())},
                /*name_hint=*/name_hint,  //
                /*body=*/std::move(stmt),
                /*init=*/std::nullopt,

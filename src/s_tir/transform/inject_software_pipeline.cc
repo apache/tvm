@@ -274,7 +274,7 @@ class PipelineBodyRewriter : public StmtExprMutator {
                                               new_tensor->shape[0]),
                                      IntImm::Int32(1));
       new_region.insert(new_region.begin(), accessed_version);
-      return MakeTensorRegion(new_tensor, new_region);
+      return TensorRegion(new_tensor, new_region, TensorRegionType());
     }
     return tensor_region;
   }
@@ -1293,7 +1293,7 @@ class PipelineInjector : public StmtExprMutator {
       for (const PrimExpr& dim : alloc_tensor->shape) {
         region.push_back(Range::FromMinExtent(0, dim));
       }
-      n->writes.push_back(MakeTensorRegion(alloc_tensor, region));
+      n->writes.push_back(TensorRegion(alloc_tensor, region, TensorRegionType()));
     }
   }
 

@@ -18,6 +18,7 @@
 import pytest
 
 import tvm
+from tvm.ir import TensorRegion, TensorRegionType
 from tvm.script import ir as I
 from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
@@ -27,7 +28,9 @@ def test_tensor_region_bounds_are_visited():
     data = tvm.tirx.Var("data", tvm.ir.PtrType(tvm.ir.PrimType("int32"), storage_scope="global"))
     tensor = tvm.tirx.decl_tensor([4], "int32", data=data)
     undefined = tvm.tirx.Var("undefined", "int32")
-    region = tvm.tirx.make_tensor_region(tensor, [tvm.ir.Range.from_min_extent(undefined, 4)])
+    region = TensorRegion(
+        tensor, [tvm.ir.Range.from_min_extent(undefined, 4)], ty=TensorRegionType()
+    )
     block = tvm.s_tir.SBlock([], [region], [], "region", tvm.ir.Evaluate(0))
     func = tvm.tirx.Function([tensor], block)
     assert not tvm.s_tir.analysis.verify_well_formed(func, assert_mode=False)
@@ -127,8 +130,8 @@ def test_error_undeclared_tensor_in_schedulable_tir():
     bi = tvm.tirx.Var("bi", "int32")
     block = tvm.s_tir.SBlock(
         iter_vars=[tvm.s_tir.IterVar(tvm.ir.Range(0, n), bi, 0)],  # 0 = kDataPar
-        reads=[tvm.tirx.make_tensor_region(A, [tvm.ir.Range(bi, bi + 1)])],
-        writes=[tvm.tirx.make_tensor_region(B, [tvm.ir.Range(bi, bi + 1)])],
+        reads=[TensorRegion(A, [tvm.ir.Range(bi, bi + 1)], ty=TensorRegionType())],
+        writes=[TensorRegion(B, [tvm.ir.Range(bi, bi + 1)], ty=TensorRegionType())],
         body=tvm.ir.TensorStore(B, [bi], tvm.tirx.TensorLoad(A, [bi])),
         name_hint="write_B",
     )

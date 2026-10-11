@@ -27,7 +27,7 @@ import tvm_ffi
 
 import tvm
 import tvm.testing
-from tvm.ir import PrimType, PtrType, Range
+from tvm.ir import PrimType, PtrType, Range, TensorRegion, TensorRegionType
 from tvm.script import tirx as T
 from tvm.sym import Analyzer
 from tvm.testing import env
@@ -54,7 +54,6 @@ from tvm.tirx.cuda.tile_primitive.tma_utils import (
 )
 from tvm.tirx.exec_scope import ExecScope
 from tvm.tirx.layout import S, TileLayout
-from tvm.tirx.stmt import make_tensor_region
 from tvm.tirx.tile_dispatch import DispatchContext
 
 _TMA_OPS = {
@@ -217,11 +216,11 @@ def _make_op(
     config = dict(config or {})
     if direction == "g2s":
         config.setdefault("mbar", Var("mbar", "handle"))
-        dst = make_tensor_region(s_buf, _ranges(s_region))
-        src = make_tensor_region(g_buf, _ranges(g_region))
+        dst = TensorRegion(s_buf, _ranges(s_region), ty=TensorRegionType())
+        src = TensorRegion(g_buf, _ranges(g_region), ty=TensorRegionType())
     else:
-        dst = make_tensor_region(g_buf, _ranges(g_region))
-        src = make_tensor_region(s_buf, _ranges(s_region))
+        dst = TensorRegion(g_buf, _ranges(g_region), ty=TensorRegionType())
+        src = TensorRegion(s_buf, _ranges(s_region), ty=TensorRegionType())
     if "use_tma_reduce" in config:
         config["reduce_op"] = config.pop("use_tma_reduce")
         op = T.cuda.tile.cp_reduce_async_bulk_tensor(dst, src, **config)

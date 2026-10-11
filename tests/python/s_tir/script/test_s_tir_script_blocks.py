@@ -23,7 +23,7 @@ import pytest
 import tvm
 import tvm.testing
 from tvm import s_tir
-from tvm.ir import Range
+from tvm.ir import Range, TensorRegion, TensorRegionType
 from tvm.s_tir.schedule.testing import assert_structural_equal_ignore_global_symbol
 from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
@@ -99,14 +99,14 @@ def test_complete_matmul():
     block = func.body[0].block.body[0].body[0].body[0].body[0].block
     assert isinstance(block, tvm.s_tir.SBlock)
     vi, vj, vk = [x.var for x in block.iter_vars]
-    access_A = tvm.tirx.make_tensor_region(
-        A, [Range.from_min_extent(vi, 1), Range.from_min_extent(vk, 1)]
+    access_A = TensorRegion(
+        A, [Range.from_min_extent(vi, 1), Range.from_min_extent(vk, 1)], ty=TensorRegionType()
     )
-    access_B = tvm.tirx.make_tensor_region(
-        B, [Range.from_min_extent(vj, 1), Range.from_min_extent(vk, 1)]
+    access_B = TensorRegion(
+        B, [Range.from_min_extent(vj, 1), Range.from_min_extent(vk, 1)], ty=TensorRegionType()
     )
-    access_C = tvm.tirx.make_tensor_region(
-        C, [Range.from_min_extent(vi, 1), Range.from_min_extent(vj, 1)]
+    access_C = TensorRegion(
+        C, [Range.from_min_extent(vi, 1), Range.from_min_extent(vj, 1)], ty=TensorRegionType()
     )
     tvm.ir.assert_structural_equal(block.reads, [access_A, access_B])
     tvm.ir.assert_structural_equal(block.writes, [access_C])
@@ -119,8 +119,10 @@ def test_complete_matmul_original():
     block1 = func.body[0].block.body[0].body[0].body[0].block
     assert isinstance(block1, tvm.s_tir.SBlock)
     vi, vj = [x.var for x in block1.iter_vars]
-    access_C = tvm.tirx.make_tensor_region(
-        C, [Range.from_min_extent(vi * 4, 4), Range.from_min_extent(vj * 4, 4)]
+    access_C = TensorRegion(
+        C,
+        [Range.from_min_extent(vi * 4, 4), Range.from_min_extent(vj * 4, 4)],
+        ty=TensorRegionType(),
     )
     tvm.ir.assert_structural_equal(block1.reads, [])
     tvm.ir.assert_structural_equal(block1.writes, [access_C])
@@ -128,14 +130,20 @@ def test_complete_matmul_original():
     block2 = func.body[0].block.body[0].body[0].body[1].body[0].block
     assert isinstance(block2, tvm.s_tir.SBlock)
     vi, vj, vk = [x.var for x in block2.iter_vars]
-    access_A = tvm.tirx.make_tensor_region(
-        A, [Range.from_min_extent(vi * 4, 4), Range.from_min_extent(vk * 4, 4)]
+    access_A = TensorRegion(
+        A,
+        [Range.from_min_extent(vi * 4, 4), Range.from_min_extent(vk * 4, 4)],
+        ty=TensorRegionType(),
     )
-    access_B = tvm.tirx.make_tensor_region(
-        B, [Range.from_min_extent(vj * 4, 4), Range.from_min_extent(vk * 4, 4)]
+    access_B = TensorRegion(
+        B,
+        [Range.from_min_extent(vj * 4, 4), Range.from_min_extent(vk * 4, 4)],
+        ty=TensorRegionType(),
     )
-    access_C = tvm.tirx.make_tensor_region(
-        C, [Range.from_min_extent(vi * 4, 4), Range.from_min_extent(vj * 4, 4)]
+    access_C = TensorRegion(
+        C,
+        [Range.from_min_extent(vi * 4, 4), Range.from_min_extent(vj * 4, 4)],
+        ty=TensorRegionType(),
     )
     tvm.ir.assert_structural_equal(block2.reads, [access_C, access_A, access_B])
     tvm.ir.assert_structural_equal(block2.writes, [access_C])
@@ -155,16 +163,20 @@ def _check_elementwise(func):
     tvm.ir.assert_structural_equal(
         block1.reads,
         [
-            tvm.tirx.make_tensor_region(
-                A, [Range.from_min_extent(vi, 1), Range.from_min_extent(vj, 1)]
+            TensorRegion(
+                A,
+                [Range.from_min_extent(vi, 1), Range.from_min_extent(vj, 1)],
+                ty=TensorRegionType(),
             )
         ],
     )
     tvm.ir.assert_structural_equal(
         block1.writes,
         [
-            tvm.tirx.make_tensor_region(
-                B, [Range.from_min_extent(vi, 1), Range.from_min_extent(vj, 1)]
+            TensorRegion(
+                B,
+                [Range.from_min_extent(vi, 1), Range.from_min_extent(vj, 1)],
+                ty=TensorRegionType(),
             )
         ],
     )
@@ -175,16 +187,20 @@ def _check_elementwise(func):
     tvm.ir.assert_structural_equal(
         block2.reads,
         [
-            tvm.tirx.make_tensor_region(
-                B, [Range.from_min_extent(vi, 1), Range.from_min_extent(vj, 1)]
+            TensorRegion(
+                B,
+                [Range.from_min_extent(vi, 1), Range.from_min_extent(vj, 1)],
+                ty=TensorRegionType(),
             )
         ],
     )
     tvm.ir.assert_structural_equal(
         block2.writes,
         [
-            tvm.tirx.make_tensor_region(
-                C, [Range.from_min_extent(vi, 1), Range.from_min_extent(vj, 1)]
+            TensorRegion(
+                C,
+                [Range.from_min_extent(vi, 1), Range.from_min_extent(vj, 1)],
+                ty=TensorRegionType(),
             )
         ],
     )
@@ -487,7 +503,7 @@ except TypeError:
 
 def test_slice_op():
     if slice_op_test is None:
-        pytest.skip("slice arithmetic on make_tensor_region is not defined")
+        pytest.skip("slice arithmetic on TensorRegion is not defined")
     tvm.ir.assert_structural_equal(
         slice_op_test.with_attr("global_symbol", "main"),
         slice_op_test_ref.with_attr("global_symbol", "main"),

@@ -168,9 +168,6 @@ TVM_DLL tirx::TensorVar TensorWithOffsetAlignment(ffi::Array<PrimExpr> shape, Pr
 TVM_DLL TensorLoad MakeTensorLoad(TensorVar tensor, ffi::Array<PrimExpr> indices,
                                   Location loc = UnknownLoc());
 
-/*! \brief Construct a region with tensor rank validation and TensorRegionType. */
-TVM_DLL TensorRegion MakeTensorRegion(TensorVar tensor, ffi::Array<Range> region,
-                                      Location loc = UnknownLoc());
 /*! \brief Select the entire tensor. */
 TVM_DLL TensorRegion FullTensorRegion(TensorVar tensor);
 /*! \brief Construct unit or vector-lane ranges from point indices. */

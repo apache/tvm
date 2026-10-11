@@ -1652,7 +1652,8 @@ SBlock ReductionEpilogueFuser::CreateFusedReductionBlock(
                               .as_or_throw<PrimExpr>();
         return Range::FromMinExtent(min, extent);
       });
-      new_writes.push_back(MakeTensorRegion(epilogue_output_tensor_, mapped_region));
+      new_writes.push_back(
+          TensorRegion(epilogue_output_tensor_, mapped_region, TensorRegionType()));
     } else {
       new_writes.push_back(write);
     }
@@ -1673,8 +1674,8 @@ SBlock ReductionEpilogueFuser::CreateFusedReductionBlock(
                               .as_or_throw<PrimExpr>();
         return Range::FromMinExtent(min, extent);
       });
-      new_reads.push_back(
-          MakeTensorRegion(read->source.as_or_throw<tvm::tirx::TensorVar>(), mapped_region));
+      new_reads.push_back(TensorRegion(read->source.as_or_throw<tvm::tirx::TensorVar>(),
+                                       mapped_region, TensorRegionType()));
       read_tensors.insert(read->source.as_or_throw<tvm::tirx::TensorVar>().get());
     }
   }
