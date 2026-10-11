@@ -21,13 +21,13 @@
 #include <tvm/ir/op.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/script/printer/doc_translator.h>
-#include <tvm/tirx/exec_scope.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/index_map.h>
 #include <tvm/tirx/layout.h>
 #include <tvm/tirx/op/abi.h>
 #include <tvm/tirx/op_attr_types.h>
 #include <tvm/tirx/stmt.h>
+#include <tvm/tirx/tile/exec_scope.h>
 
 #include <algorithm>
 #include <limits>

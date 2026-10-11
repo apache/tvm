@@ -18,7 +18,7 @@
  */
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/tirx/exec_scope.h>
+#include <tvm/tirx/tile/exec_scope.h>
 
 #include <map>
 #include <string>

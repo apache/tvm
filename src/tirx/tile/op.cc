@@ -18,15 +18,14 @@
  */
 
 /*!
- * \file tirx/op/tile.cc
+ * \file tirx/tile/op.cc
  * \brief Attribute schemas and validation for tensor instructions.
  */
 
 #include <tvm/ir/prim/op.h>
-#include <tvm/tirx/op_attr_types.h>
+#include <tvm/tirx/tile/op.h>
 
-namespace tvm {
-namespace tirx {
+namespace tvm::tirx::tile {
 
 struct ScopeAttrs : public AttrsNode {
   ffi::String scope;
@@ -202,14 +201,21 @@ ffi::Expected<void> ValidateTensorInstruction(const CallNode* call) noexcept try
   TVM_FFI_CHECK(call->ty_args.empty(), TypeError) << op->name << " does not take type arguments";
   TVM_FFI_CHECK(call->attrs.defined() && call->attrs->GetTypeKey() == op->attrs_type_key, TypeError)
       << op->name << " requires its registered static attributes";
-  static const auto& validators =
-      Op::GetAttrMap<ffi::Function>(tvm::tirx::op_attr::kTensorCallValidate);
+  static const auto& validators = Op::GetAttrMap<ffi::Function>(op_attr::kTensorCallValidate);
   validators[op](ffi::GetRef<Call>(call));
   return {};
 } catch (const ffi::Error& error) {
   return ffi::Unexpected(error);
 } catch (const std::exception& error) {
   return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
+}
+
+void ConfigureTensorInstruction(Op op, ffi::Function validator) {
+  OpDef(op->name)
+      .set_attr(op_attr::kTensorCallValidate, validator)
+      .set_validator(ffi::reflection::NativeFunctionView<void(
+                         const CallNode*)>::FromNative<&ValidateTensorInstruction>(),
+                     true);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -221,15 +227,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   TcMmaAttrs::RegisterReflection();
   MathAttrs::RegisterReflection();
   TrnAttrs::RegisterReflection();
-  ffi::reflection::GlobalDef().def(
-      "tirx.ConfigureTensorInstruction", [](Op op, ffi::Function validator) {
-        OpDef(op->name)
-            .set_attr(tvm::tirx::op_attr::kTensorCallValidate, validator)
-            .set_validator(ffi::reflection::NativeFunctionView<void(
-                               const CallNode*)>::FromNative<&ValidateTensorInstruction>(),
-                           true);
-      });
+  ffi::reflection::GlobalDef().def("tirx.ConfigureTensorInstruction", ConfigureTensorInstruction);
 }
 
-}  // namespace tirx
-}  // namespace tvm
+}  // namespace tvm::tirx::tile

@@ -18,7 +18,7 @@
  */
 #include <tvm/ir/prim/op.h>
 #include <tvm/script/printer/doc_translator.h>
-#include <tvm/tirx/exec_scope.h>
+#include <tvm/tirx/tile/exec_scope.h>
 
 #include <optional>
 

@@ -19,8 +19,8 @@
 
 #ifndef TVM_BACKEND_CUDA_TILE_EXEC_ANALYSIS_H_
 #define TVM_BACKEND_CUDA_TILE_EXEC_ANALYSIS_H_
-#include <tvm/tirx/exec_scope.h>
 #include <tvm/tirx/stmt.h>
+#include <tvm/tirx/tile/exec_scope.h>
 
 #include <memory>
 #include <string>

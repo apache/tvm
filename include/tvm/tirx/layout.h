@@ -31,7 +31,7 @@
 #include <tvm/ir/expr.h>
 #include <tvm/ir/module.h>
 #include <tvm/target/target.h>
-#include <tvm/tirx/exec_scope.h>
+#include <tvm/tirx/tile/exec_scope.h>
 
 namespace tvm {
 

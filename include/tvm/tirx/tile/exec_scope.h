@@ -17,8 +17,8 @@
  * under the License.
  */
 /*! \brief Backend-defined execution hierarchy nodes shared by layouts and tile calls. */
-#ifndef TVM_TIRX_EXEC_SCOPE_H_
-#define TVM_TIRX_EXEC_SCOPE_H_
+#ifndef TVM_TIRX_TILE_EXEC_SCOPE_H_
+#define TVM_TIRX_TILE_EXEC_SCOPE_H_
 #include <tvm/ffi/object.h>
 #include <tvm/ir/expr.h>
 
@@ -54,4 +54,4 @@ class ExecScope : public ffi::ObjectRef {
 TVM_DLL bool ScopeHigher(const ExecScope& a, const ExecScope& b);
 
 }  // namespace tvm::tirx
-#endif  // TVM_TIRX_EXEC_SCOPE_H_
+#endif  // TVM_TIRX_TILE_EXEC_SCOPE_H_

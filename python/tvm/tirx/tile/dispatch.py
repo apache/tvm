@@ -16,7 +16,7 @@
 # under the License.
 """Context for lowering tensor instruction Calls.
 
-Mirrors the C++ header ``include/tvm/tirx/tile/dispatch.h``.
+Mirrors the C++ header ``include/tvm/tirx/tile/context.h``.
 """
 # pylint: disable=no-member
 

@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file tile_dispatch.cc
+ * \file tirx/tile/lower.cc
  * \brief Lower tensor instructions and CUDA index calls using independent launch configuration.
  */
 
@@ -30,7 +30,6 @@
 #include <tvm/sym/analyzer.h>
 #include <tvm/sym/pattern.h>
 #include <tvm/target/target.h>
-#include <tvm/tirx/exec_scope.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/op/annotation.h>
 #include <tvm/tirx/op/gpu.h>
@@ -40,6 +39,7 @@
 #include <tvm/tirx/stmt.h>
 #include <tvm/tirx/stmt_functor.h>
 #include <tvm/tirx/tile/dispatch.h>
+#include <tvm/tirx/tile/exec_scope.h>
 #include <tvm/tirx/transform.h>
 
 #include <limits>
@@ -402,11 +402,7 @@ class TileDispatcher : public StmtExprMutator {
     tile::DispatchContext sctx(target_, scope, launch_params_, var_range_map_,
                                /*alloc_only=*/false, /*callbacks=*/{}, shared_state_, inter_map,
                                intra_map, scope_kind);
-    static auto f_op_dispatcher_ = ffi::Function::GetGlobal("tirx.f_op_dispatcher");
-    TVM_FFI_ICHECK(f_op_dispatcher_.has_value())
-        << "Internal Error: tirx.f_op_dispatcher is not registered";
-    Function res = f_op_dispatcher_.value()(ffi::GetRef<Call>(op), sctx).cast<Function>();
-    TVM_FFI_ICHECK(res.defined()) << "TIRx dispatcher did not return a Function";
+    Function res = tile::Dispatch(ffi::GetRef<Call>(op), sctx);
     // Implementation found, handle callbacks
     if (auto bufs = sctx->callbacks.Get(tirx::tile::callback::kPrivateAlloc)) {
       auto buf_list = bufs.value().as<Array<Bind>>().value();

@@ -18,7 +18,7 @@
  */
 #ifndef TVM_BACKEND_CUDA_TILE_EXEC_SCOPE_H_
 #define TVM_BACKEND_CUDA_TILE_EXEC_SCOPE_H_
-#include <tvm/tirx/exec_scope.h>
+#include <tvm/tirx/tile/exec_scope.h>
 
 #include <string>
 #include <utility>

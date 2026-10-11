@@ -27,7 +27,6 @@
 #include <tvm/sym/analyzer.h>
 #include <tvm/sym/pattern.h>
 #include <tvm/target/target.h>
-#include <tvm/tirx/exec_scope.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/op/annotation.h>
 #include <tvm/tirx/op/gpu.h>
@@ -36,7 +35,8 @@
 #include <tvm/tirx/op_attr_types.h>
 #include <tvm/tirx/stmt.h>
 #include <tvm/tirx/stmt_functor.h>
-#include <tvm/tirx/tile/dispatch.h>
+#include <tvm/tirx/tile/context.h>
+#include <tvm/tirx/tile/exec_scope.h>
 #include <tvm/tirx/transform.h>
 
 #include <limits>
