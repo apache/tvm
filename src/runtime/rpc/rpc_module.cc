@@ -52,9 +52,9 @@ namespace runtime {
  * \param dev Remote device used with this tensor. Must have non-zero RPCSessMask.
  * \param remote_tensor_handle The handle returned by RPC server to identify the Tensor.
  */
-Tensor TensorFromRemoteOpaqueHandle(std::shared_ptr<RPCSession> sess, void* handle,
-                                    DLTensor* template_tensor, Device dev,
-                                    void* remote_tensor_handle) {
+ffi::Tensor TensorFromRemoteOpaqueHandle(std::shared_ptr<RPCSession> sess, void* handle,
+                                         DLTensor* template_tensor, Device dev,
+                                         void* remote_tensor_handle) {
   TVM_FFI_ICHECK_EQ(sess->table_index(), GetRPCSessionIndex(dev))
       << "The Device given does not belong to the given session";
   class RemoteSpaceAlloc {
@@ -82,7 +82,7 @@ Tensor TensorFromRemoteOpaqueHandle(std::shared_ptr<RPCSession> sess, void* hand
   space.data = handle;
   space.object_handle = remote_tensor_handle;
   ffi::Shape shape(template_tensor->shape, template_tensor->shape + template_tensor->ndim);
-  return Tensor::FromNDAlloc(RemoteSpaceAlloc(space), shape, template_tensor->dtype, dev);
+  return ffi::Tensor::FromNDAlloc(RemoteSpaceAlloc(space), shape, template_tensor->dtype, dev);
 }
 
 /*!
@@ -117,7 +117,7 @@ class RPCWrappedFunc : public ffi::Object {
       switch (args[i].type_index()) {
         case ffi::TypeIndex::kTVMFFITensor: {
           // Pass Tensor as DLTensor
-          auto dptr = std::make_unique<DLTensor>(*args[i].cast<Tensor>().operator->());
+          auto dptr = std::make_unique<DLTensor>(*args[i].cast<ffi::Tensor>().GetDLTensorPtr());
           dptr->device = RemoveSessMask(dptr->device);
           dptr->data = static_cast<RemoteSpace*>(dptr->data)->data;
           packed_args[i] = dptr.get();
@@ -495,7 +495,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                   })
       .def("tvm.rpc.TensorFromRemoteOpaqueHandle",
            [](ffi::Module mod, void* remote_array, DLTensor* template_tensor, Device dev,
-              void* tensor_handle) -> Tensor {
+              void* tensor_handle) -> ffi::Tensor {
              return TensorFromRemoteOpaqueHandle(RPCModuleGetSession(mod), remote_array,
                                                  template_tensor, dev, tensor_handle);
            });

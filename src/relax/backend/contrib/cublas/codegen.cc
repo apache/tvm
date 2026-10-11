@@ -90,10 +90,10 @@ class CublasJSONSerializer : public JSONSerializer {
         float alpha = 1.0;
         if (ty->dtype == PrimType::Float(16)) {
           alpha = __extendXfYf2__<uint16_t, uint16_t, 10, float, uint32_t, 23>(
-              static_cast<uint16_t*>(const_expr->value.cast<runtime::Tensor>()->data)[0]);
+              static_cast<uint16_t*>(const_expr->value.cast<ffi::Tensor>()->data)[0]);
         } else {
           TVM_FFI_ICHECK(ty->dtype == PrimType::Float(32));
-          alpha = static_cast<float*>(const_expr->value.cast<runtime::Tensor>()->data)[0];
+          alpha = static_cast<float*>(const_expr->value.cast<ffi::Tensor>()->data)[0];
         }
 
         node->SetAttr("dq_scale", static_cast<double>(alpha));

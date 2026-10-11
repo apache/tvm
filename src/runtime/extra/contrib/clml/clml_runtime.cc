@@ -208,7 +208,7 @@ class CLMLRuntime : public JSONRuntimeBase {
    *
    * \param consts The constant params from compiled model.
    */
-  void Init(const ffi::Array<Tensor>& consts) override {
+  void Init(const ffi::Array<ffi::Tensor>& consts) override {
     TVM_FFI_ICHECK_EQ(consts.size(), const_idx_.size())
         << "The number of input constants must match the number of required.";
     SetupConstants(consts);
@@ -278,7 +278,7 @@ class CLMLRuntime : public JSONRuntimeBase {
     }
     namespace json = ::tvm::ffi::json;
     cl_command_queue queue = CLML_QUEUE;
-    ffi::Map<ffi::String, Tensor> dump_tensors;
+    ffi::Map<ffi::String, ffi::Tensor> dump_tensors;
     json::Object obj;
 
     obj.Set(ffi::String("graph"), ffi::String(graph_json_));
@@ -299,8 +299,8 @@ class CLMLRuntime : public JSONRuntimeBase {
       // Dump tensor to CPU
       auto shape = node.GetOpShape()[0];
       DLDataType tvm_dtype = node.GetOpDataType()[0];
-      Tensor narr = Tensor::Empty(ffi::Shape(shape), tvm_dtype, {kDLCPU, 0});
-      CopyDataFromCLMLTensor(clml_desc, narr.operator->()->data);
+      ffi::Tensor narr = tvm::runtime::Empty(ffi::Shape(shape), tvm_dtype, {kDLCPU, 0});
+      CopyDataFromCLMLTensor(clml_desc, narr.GetDLTensorPtr()->data);
 
       // Naming convention
       std::string node_name;
@@ -419,8 +419,8 @@ class CLMLRuntime : public JSONRuntimeBase {
           cl_channel_type cl_dtype = MakeCLDataType(tvm_dtype);
           int dtype_size = cl_dtype == CL_FLOAT ? 4 : 2;
           void* tmpptr = reinterpret_cast<void*>(malloc(isize * dtype_size));
-          Tensor::CopyToBytes(const_cast<DLTensor*>(data_entry_[eid]), const_cast<void*>(tmpptr),
-                              isize * dtype_size);
+          tvm::runtime::CopyToBytes(const_cast<DLTensor*>(data_entry_[eid]),
+                                    const_cast<void*>(tmpptr), isize * dtype_size);
           CopyDataToCLMLTensor(layer_.inputs[nid], tmpptr);
           free(tmpptr);
         }
@@ -535,8 +535,8 @@ class CLMLRuntime : public JSONRuntimeBase {
 
         void* tmpptr = reinterpret_cast<void*>(malloc(osize * dtype_size));
         CopyDataFromCLMLTensor(layer_.outputs[0], tmpptr);
-        Tensor::CopyFromBytes(const_cast<DLTensor*>(data_entry_[eid]), const_cast<void*>(tmpptr),
-                              osize * dtype_size);
+        tvm::runtime::CopyFromBytes(const_cast<DLTensor*>(data_entry_[eid]),
+                                    const_cast<void*>(tmpptr), osize * dtype_size);
         free(tmpptr);
       }
     }

@@ -353,11 +353,11 @@ constexpr const char* kExternalMods = "external_mods";
 constexpr const char* kSystemLibPrefix = "system_lib_prefix";
 
 /*!
- * \brief All the named runtime::Tensors accumulated during compilation by external codegen.
+ * \brief All the named Tensors accumulated during compilation by external codegen.
  * Generally the associated runtime::Module will indicate it requires bindings for these names,
  * and during module initialization these bindings will be recovered from a ConstLoaderModule.
  *
- * Type: ffi::Map<ffi::String, runtime::Tensor>
+ * Type: ffi::Map<ffi::String, Tensor>
  */
 constexpr const char* kConstNameToConstant = "const_name_to_constant";
 

@@ -55,7 +55,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 ExprDoc AnyValue(DocTranslatorObj* d, ffi::AnyView value) {
   if (value.type_index() == ffi::TypeIndex::kTVMFFINone) return LiteralDoc::None(std::nullopt);
-  if (value.as<ffi::Module>() || value.as<runtime::Tensor>()) return AddMetadata(d, value);
+  if (value.as<ffi::Module>() || value.as<ffi::TensorObj>()) return AddMetadata(d, value);
   if (auto array = value.as<ffi::Array<ffi::Any>>()) {
     ffi::Array<ExprDoc> elements;
     for (const auto& element : array.value()) elements.push_back(AnyValue(d, element));

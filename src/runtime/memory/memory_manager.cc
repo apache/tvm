@@ -62,8 +62,8 @@ inline size_t GetDataAlignment(const DLDataType& dtype) {
   return align;
 }
 
-Tensor StorageObj::AllocTensorScoped(int64_t offset, ffi::Shape shape, DLDataType dtype,
-                                     ffi::String scope) {
+ffi::Tensor StorageObj::AllocTensorScoped(int64_t offset, ffi::Shape shape, DLDataType dtype,
+                                          ffi::String scope) {
   if (scope == "global" || scope.empty()) {
     return AllocTensor(offset, shape, dtype);
   }
@@ -89,11 +89,11 @@ Tensor StorageObj::AllocTensorScoped(int64_t offset, ffi::Shape shape, DLDataTyp
       << "storage allocation failure, attempted to allocate " << needed_size << " at offset "
       << offset << " in region that is " << this->buffer.size << "bytes";
 
-  return Tensor::FromNDAlloc(StorageScopedAlloc(ffi::GetRef<Storage>(this)), shape, dtype,
-                             this->buffer.device, shape, scope, offset);
+  return ffi::Tensor::FromNDAlloc(StorageScopedAlloc(ffi::GetRef<Storage>(this)), shape, dtype,
+                                  this->buffer.device, shape, scope, offset);
 }
 
-Tensor StorageObj::AllocTensor(int64_t offset, ffi::Shape shape, DLDataType dtype) {
+ffi::Tensor StorageObj::AllocTensor(int64_t offset, ffi::Shape shape, DLDataType dtype) {
   VerifyDataType(dtype);
 
   size_t needed_size = ffi::GetDataSize(shape.Product(), dtype);
@@ -122,8 +122,8 @@ Tensor StorageObj::AllocTensor(int64_t offset, ffi::Shape shape, DLDataType dtyp
     Storage storage_;
   };
 
-  return Tensor::FromNDAlloc(StorageAlloc(ffi::GetRef<Storage>(this)), shape, dtype,
-                             this->buffer.device, offset);
+  return ffi::Tensor::FromNDAlloc(StorageAlloc(ffi::GetRef<Storage>(this)), shape, dtype,
+                                  this->buffer.device, offset);
 }
 
 MemoryManager* MemoryManager::Global() {
@@ -216,8 +216,8 @@ void MemoryManager::Clear() {
   }
 }
 
-Tensor Allocator::Empty(ffi::Shape shape, DLDataType dtype, DLDevice dev,
-                        ffi::Optional<ffi::String> mem_scope) {
+ffi::Tensor Allocator::Empty(ffi::Shape shape, DLDataType dtype, DLDevice dev,
+                             ffi::Optional<ffi::String> mem_scope) {
   VerifyDataType(dtype);
 
   class BufferAlloc {
@@ -242,7 +242,7 @@ Tensor Allocator::Empty(ffi::Shape shape, DLDataType dtype, DLDevice dev,
   } else {
     buffer = this->Alloc(dev, shape, dtype, *mem_scope);
   }
-  return Tensor::FromNDAlloc(BufferAlloc(buffer), shape, dtype, dev);
+  return ffi::Tensor::FromNDAlloc(BufferAlloc(buffer), shape, dtype, dev);
 }
 
 bool Allocator::AllowMemoryScope(const std::string& mem_scope) const {

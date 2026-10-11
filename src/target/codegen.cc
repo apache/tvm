@@ -381,8 +381,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
              DLDevice dev;
              dev.device_type = kDLCPU;
              dev.device_id = 0;
-             auto array = runtime::Tensor::Empty({size}, uchar, dev);
-             array.CopyFromBytes(buffer.data(), size);
+             auto array = runtime::Empty({size}, uchar, dev);
+             tvm::runtime::CopyFromBytes(array, buffer.data(), size);
              return array;
            })
       .def("runtime.ModulePackImportsToC", PackImportsToC)

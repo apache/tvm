@@ -27,7 +27,12 @@ namespace meta_schedule {
 /******** Constructors ********/
 
 BuilderInput::BuilderInput(IRModule mod, Target target,
-                           ffi::Optional<ffi::Map<ffi::String, runtime::Tensor>> params) {
+                           ffi::Optional<ffi::Map<ffi::String, ffi::Tensor>> params) {
+  if (params) {
+    for (const auto& entry : params.value()) {
+      TVM_FFI_ICHECK(entry.second.defined());
+    }
+  }
   ffi::ObjectPtr<BuilderInputNode> n = ffi::make_object<BuilderInputNode>(target);
   n->mod = std::move(mod);
   n->params = std::move(params);
@@ -60,10 +65,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("s_tir.meta_schedule.BuilderInput",
-           [](IRModule mod, Target target,
-              ffi::Optional<ffi::Map<ffi::String, runtime::Tensor>> params) -> BuilderInput {
-             return BuilderInput(mod, target, params);
-           })
+           [](IRModule mod, Target target, ffi::Optional<ffi::Map<ffi::String, ffi::Tensor>> params)
+               -> BuilderInput { return BuilderInput(mod, target, params); })
       .def("s_tir.meta_schedule.BuilderResult",
            [](ffi::Optional<ffi::String> artifact_path, ffi::Optional<ffi::String> error_msg)
                -> BuilderResult { return BuilderResult(artifact_path, error_msg); })

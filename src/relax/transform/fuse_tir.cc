@@ -630,7 +630,7 @@ class FusedTIRConstructor : public ExprVisitor {
   }
 
   void VisitExpr_(const GenericConstNode* op) final {
-    if (!op->value.as<runtime::Tensor>()) return;
+    if (!op->value.as<ffi::TensorObj>()) return;
     TVM_FFI_THROW(InternalError) << "Tensor constants are not supported in primitive functions.";
   }
 

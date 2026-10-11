@@ -435,19 +435,20 @@ void OpenCLWorkspace::FreeDataSpaceView(Device dev, void* ptr) {
   }
 }
 
-void* OpenCLWorkspace::GetNativePtr(const tvm::runtime::Tensor& narr) {
-  cl::BufferDescriptor* desc = static_cast<cl::BufferDescriptor*>(narr.operator->()->data);
+void* OpenCLWorkspace::GetNativePtr(const tvm::ffi::Tensor& narr) {
+  TVM_FFI_ICHECK(narr.defined());
+  cl::BufferDescriptor* desc = static_cast<cl::BufferDescriptor*>(narr.GetDLTensorPtr()->data);
   return desc->host_ptr;
 }
 
-void OpenCLWorkspace::SetNativePtr(const tvm::runtime::Tensor& narr, void* host_ptr,
-                                   size_t buf_size) {
-  cl::BufferDescriptor* desc = static_cast<cl::BufferDescriptor*>(narr.operator->()->data);
+void OpenCLWorkspace::SetNativePtr(const tvm::ffi::Tensor& narr, void* host_ptr, size_t buf_size) {
+  TVM_FFI_ICHECK(narr.defined());
+  cl::BufferDescriptor* desc = static_cast<cl::BufferDescriptor*>(narr.GetDLTensorPtr()->data);
 
   this->Init();
   if (desc->layout == cl::BufferDescriptor::MemoryLayout::kBuffer1D) {
 #ifdef USE_OPENCL_EXTN_QCOM
-    Device dev = narr.operator->()->device;
+    Device dev = narr.GetDLTensorPtr()->device;
     cl_device_id device_id = GetCLDeviceID(dev.device_id);
     auto platform = device_info[device_id].platform_id;
 

@@ -24,7 +24,7 @@ namespace tvm {
 namespace s_tir {
 namespace meta_schedule {
 
-ffi::Array<tvm::runtime::Tensor> PyFeatureExtractorNode::ExtractFrom(
+ffi::Array<tvm::ffi::Tensor> PyFeatureExtractorNode::ExtractFrom(
     const TuneContext& context, const ffi::Array<MeasureCandidate>& candidates) {
   TVM_FFI_ICHECK(f_extract_from != nullptr)
       << "PyFeatureExtractor's ExtractFrom method not implemented!";

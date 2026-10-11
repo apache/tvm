@@ -163,7 +163,7 @@ class IndexMapNode : public ffi::Object {
    *
    * \returns The transformed Tensor.
    */
-  runtime::Tensor MapTensor(runtime::Tensor arr_src) const;
+  ffi::Tensor MapTensor(ffi::Tensor arr_src) const;
 
   /*!
    * \brief Convert to string representation in Python.

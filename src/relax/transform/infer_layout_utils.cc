@@ -138,8 +138,8 @@ NLayout GetNLayout(const VarLayoutMap& var_layout_map, const Expr& arg) {
         return InitialNLayout(expr);
       }
     } else if (const auto* constant = expr.as<GenericConstNode>();
-               constant && constant->value.as<runtime::Tensor>()) {
-      return InitialLayoutDecision(constant->value.cast<runtime::Tensor>().Shape().size());
+               constant && constant->value.as<ffi::TensorObj>()) {
+      return InitialLayoutDecision(constant->value.cast<ffi::Tensor>().shape().size());
     }
     return LayoutDecision::InitUnknownDim();
   };

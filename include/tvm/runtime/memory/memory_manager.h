@@ -65,8 +65,8 @@ class TVM_RUNTIME_DLL Allocator {
    *  \param mem_scope The device memory scope hint.
    *  \return The empty Tensor.
    */
-  Tensor Empty(ffi::Shape shape, DLDataType dtype, Device dev,
-               ffi::Optional<ffi::String> mem_scope = std::nullopt);
+  ffi::Tensor Empty(ffi::Shape shape, DLDataType dtype, Device dev,
+                    ffi::Optional<ffi::String> mem_scope = std::nullopt);
   /*! \brief Return the allocator type. */
   inline AllocatorType type() const { return type_; }
   /*! \brief Allocate a buffer given a size, alignment and type.
@@ -162,11 +162,11 @@ class StorageObj : public ffi::Object {
   Allocator* allocator = nullptr;
 
   /*! \brief Allocate an Tensor from a given piece of storage. */
-  TVM_RUNTIME_DLL Tensor AllocTensor(int64_t offset, ffi::Shape shape, DLDataType dtype);
+  TVM_RUNTIME_DLL ffi::Tensor AllocTensor(int64_t offset, ffi::Shape shape, DLDataType dtype);
 
   /*! \brief Allocate an Tensor with memory scope from a given piece of storage. */
-  TVM_RUNTIME_DLL Tensor AllocTensorScoped(int64_t offset, ffi::Shape shape, DLDataType dtype,
-                                           ffi::String scope = "global");
+  TVM_RUNTIME_DLL ffi::Tensor AllocTensorScoped(int64_t offset, ffi::Shape shape, DLDataType dtype,
+                                                ffi::String scope = "global");
 
   ~StorageObj() {
     if (allocator) {

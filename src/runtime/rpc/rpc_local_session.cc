@@ -54,7 +54,7 @@ void LocalSession::EncodeReturn(ffi::Any rv, const FEncodeReturn& encode_return)
   if (rv == nullptr) {
     packed_args[1] = rv;
     encode_return(ffi::PackedArgs(packed_args, 2));
-  } else if (rv.as<Tensor>()) {
+  } else if (rv.as<ffi::TensorObj>()) {
     // We follow a special protocol to return Tensor to client side
     // The first pack value is the Tensor handle as DLTensor
     // The second pack value is a customized deleter that deletes the Tensor.
