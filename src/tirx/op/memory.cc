@@ -60,14 +60,14 @@ Type InferTypeAddressOf(const CallNode* call) {
 
 Type InferTypeMaskedLoad(const CallNode* call) {
   TVM_FFI_CHECK_GE(call->args.size(), 2U, ValueError)
-      << "Masked load type requires a buffer and index operands";
-  TensorVar buffer = call->args[0].as_or_throw<TensorVar>();
+      << "Masked load type requires a tensor and index operands";
+  TensorVar tensor = call->args[0].as_or_throw<TensorVar>();
   ffi::Array<PrimExpr> indices;
   for (size_t i = 1; i + 1 < call->args.size(); ++i) {
     indices.push_back(call->args[i].as_or_throw<PrimExpr>());
   }
   // Ordinary load typing computes vector elements and scalable index lanes.
-  return MakeTensorLoad(buffer, indices).ty();
+  return MakeTensorLoad(tensor, indices).ty();
 }
 
 ffi::Expected<Type> InferTypeTensorDataPtr(const CallNode* call) noexcept try {
@@ -82,9 +82,9 @@ ffi::Expected<Type> InferTypeTensorDataPtr(const CallNode* call) noexcept try {
   return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
-// Essential buffer properties follow operands; the supplied result type retains layout metadata.
+// Essential tensor properties follow operands; the supplied result type retains layout metadata.
 template <int shape_index>
-ffi::Expected<Type> InferTypeBuffer(const CallNode* call) noexcept try {
+ffi::Expected<Type> InferTypeTensor(const CallNode* call) noexcept try {
   if constexpr (shape_index == 0) {
     TVM_FFI_CHECK(call->args.size() == 3 || call->args.size() == 4, ValueError);
     if (call->args.size() == 4) {
@@ -115,7 +115,7 @@ ffi::Expected<Type> InferTypeBuffer(const CallNode* call) noexcept try {
 }
 
 ffi::Expected<void> ValidateAllocTensor(const CallNode* call) noexcept {
-  auto inferred = InferTypeBuffer<0>(call);
+  auto inferred = InferTypeTensor<0>(call);
   if (!inferred.has_value()) return ffi::Unexpected(inferred.error());
   return {};
 }
@@ -339,7 +339,7 @@ const Op& masked_load_op() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("tirx.masked_load")
-      .signature(sig::arg<TensorVar>("buffer", "The buffer."),
+      .signature(sig::arg<TensorVar>("tensor", "The tensor."),
                  sig::arg<PrimExpr>("index", "The index."), sig::var_args<PrimExpr>("args"))
       .set_attr<FInferType>(tvm::op_attr::kInferType,
                             FInferType::FromNative<&InferTypeMaskedLoad>())
@@ -357,7 +357,7 @@ const Op& masked_store_op() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("tirx.masked_store")
-      .signature(sig::arg<TensorVar>("buffer", "The buffer."),
+      .signature(sig::arg<TensorVar>("tensor", "The tensor."),
                  sig::arg<PrimExpr>("value", "The value to use."),
                  sig::arg<PrimExpr>("index", "The index."), sig::var_args<PrimExpr>("args"))
       .set_attr<TFixedReturnType>(tvm::op_attr::kFixedReturnType, PrimType::Void())
@@ -376,11 +376,11 @@ const Op& alloc_tensor_op() {
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("tirx.alloc_tensor")
       .set_attr<TIRxOpCategory>(tvm::tirx::op_attr::kOpCategory, ffi::String("builtin"))
-      .set_attr<FInferType>(tvm::op_attr::kInferType, FInferType::FromNative<&InferTypeBuffer<0>>())
+      .set_attr<FInferType>(tvm::op_attr::kInferType, FInferType::FromNative<&InferTypeTensor<0>>())
       .set_validator(ffi::reflection::NativeFunctionView<void(
                          const CallNode*)>::FromNative<&ValidateAllocTensor>())
-      .add_arg("shape", "The tuple of buffer extents.")
-      .add_arg("dtype", "The buffer data type.")
+      .add_arg("shape", "The tuple of tensor extents.")
+      .add_arg("dtype", "The tensor data type.")
       .add_arg("scope", "The storage scope.")
       .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
                                  static_cast<int64_t>(CallEffectKind::kOpaque));
@@ -394,12 +394,12 @@ const Op& decl_tensor_op() {
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("tirx.decl_tensor")
       .set_attr<TIRxOpCategory>(tvm::tirx::op_attr::kOpCategory, ffi::String("builtin"))
-      .set_attr<FInferType>(tvm::op_attr::kInferType, FInferType::FromNative<&InferTypeBuffer<1>>())
+      .set_attr<FInferType>(tvm::op_attr::kInferType, FInferType::FromNative<&InferTypeTensor<1>>())
       .set_validator(ffi::reflection::NativeFunctionView<void(
                          const CallNode*)>::FromNative<&ValidateDeclTensor>())
       .add_arg("data", "The existing data pointer.")
-      .add_arg("shape", "The tuple of buffer extents.")
-      .add_arg("dtype", "The buffer data type.")
+      .add_arg("shape", "The tuple of tensor extents.")
+      .add_arg("dtype", "The tensor data type.")
       .add_arg("scope", "The storage scope.")
       .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
                                  static_cast<int64_t>(CallEffectKind::kPure));

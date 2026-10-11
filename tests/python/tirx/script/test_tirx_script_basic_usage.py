@@ -53,19 +53,19 @@ def test_native_concise_scopes_unwind_with_their_parent():
     assert body.body[0].body[0].value.a.same_as(bx) and body.body[0].body[0].value.b.same_as(tx)
 
 
-def test_tir_buffer_annotation():
-    buffer_0 = T.Tensor((128, 128), "float32")
+def test_tir_tensor_annotation():
+    tensor_0 = T.Tensor((128, 128), "float32")
     assert (
-        isinstance(buffer_0, tirx.TensorType)
-        and list(buffer_0.shape) == [128, 128]
-        and buffer_0.dtype == ir.PrimType("float32")
+        isinstance(tensor_0, tirx.TensorType)
+        and list(tensor_0.shape) == [128, 128]
+        and tensor_0.dtype == ir.PrimType("float32")
     )
 
-    buffer_1 = T.Tensor((64, 64, 64), "int32")
+    tensor_1 = T.Tensor((64, 64, 64), "int32")
     assert (
-        isinstance(buffer_1, tirx.TensorType)
-        and list(buffer_1.shape) == [64, 64, 64]
-        and buffer_1.dtype == ir.PrimType("int32")
+        isinstance(tensor_1, tirx.TensorType)
+        and list(tensor_1.shape) == [64, 64, 64]
+        and tensor_1.dtype == ir.PrimType("int32")
     )
 
 

@@ -68,7 +68,7 @@ def binary_chain_trn(op: TensorCall, sctx: DispatchContext) -> Function | None:
     inst_gen.bind_inst_iter(output, f_var, inst_repr.size, inst_repr.stride, True)
     b_extent = inst_gen.fill_in_block_dim(output, b_var)
 
-    # Extract buffers and opcodes
+    # Extract tensors and opcodes
     _src, dst = srcs[0].source, output.source
     opcode0, opcode1 = opcode_table[op.op0], opcode_table[op.op1]
 
@@ -100,7 +100,7 @@ def binary_chain_trn(op: TensorCall, sctx: DispatchContext) -> Function | None:
 
     # Create implementation
     # fmt: off
-    # This fragment captures buffers and indices from its insertion scope.
+    # This fragment captures tensors and indices from its insertion scope.
     @T.function(check_well_formed=False)
     def impl():
         for b_loop in T.serial(0, b_extent):

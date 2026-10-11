@@ -166,7 +166,7 @@ def test_reduction_two_stage():
     @T.function
     def expected():
         T.func_attr({"global_symbol": "reduction"})
-        intermediate_buffer = T.alloc_tensor((128, 32), scope="trn.sbuf")
+        intermediate_tensor = T.alloc_tensor((128, 32), scope="trn.sbuf")
         A_sbuf = T.alloc_tensor((128, 4096), scope="trn.sbuf")
         B_sbuf = T.alloc_tensor((128, 4), scope="trn.sbuf")
         for b_loop in range(4):
@@ -174,16 +174,16 @@ def test_reduction_two_stage():
                 T.nki.tensorized_instruction()
                 for p_loop in T.serial(0, 128, annotations={"nki_dim":"P"}):
                     for f_loop in T.serial(0, 32, annotations={"nki_dim":"F"}):
-                        T.nki.tensorreduce(intermediate_buffer[p_loop, reduction_b_loop], A_sbuf[p_loop, reduction_b_loop * 128 + b_loop * 32 + f_loop], "add", False, -1)  # noqa: E501
+                        T.nki.tensorreduce(intermediate_tensor[p_loop, reduction_b_loop], A_sbuf[p_loop, reduction_b_loop * 128 + b_loop * 32 + f_loop], "add", False, -1)  # noqa: E501
             T.nki.tensorized_instruction()
             for p_loop in T.serial(0, 128, annotations={"nki_dim":"P"}):
                 for f_loop in T.serial(0, 32, annotations={"nki_dim":"F"}):
-                    T.nki.tensorreduce(B_sbuf[p_loop, b_loop], intermediate_buffer[p_loop, f_loop], "add", False, -1)  # noqa: E501
+                    T.nki.tensorreduce(B_sbuf[p_loop, b_loop], intermediate_tensor[p_loop, f_loop], "add", False, -1)  # noqa: E501
 
             # fmt: on
     with target:
         mod = tvm.IRModule({"main": reduction})
-        mod = tvm.tirx.trn.transform.TrnPrivateBufferAlloc()(mod)
+        mod = tvm.tirx.trn.transform.TrnPrivateTensorAlloc()(mod)
         mod = tvm.tirx.transform.LowerTIRx()(mod)
         assert_structural_equal(mod["main"], expected)
 
@@ -207,7 +207,7 @@ def test_reduction_with_guard():
     @T.function
     def expected():
         T.func_attr({"global_symbol": "reduction"})
-        intermediate_buffer = T.alloc_tensor((128, 2), scope="trn.sbuf")
+        intermediate_tensor = T.alloc_tensor((128, 2), scope="trn.sbuf")
         A_sbuf = T.alloc_tensor((128, 8192), scope="trn.sbuf")
         B_sbuf = T.alloc_tensor((128, 4), scope="trn.sbuf")
         for i, j in T.grid(4, 4):
@@ -220,16 +220,16 @@ def test_reduction_with_guard():
                                 b_loop - i < 1
                                 and reduction_b_loop * 512 + f_loop < j * 256 + 256
                             ):
-                                T.nki.tensorreduce(intermediate_buffer[p_loop, reduction_b_loop], A_sbuf[p_loop, b_loop * 2048 + reduction_b_loop * 512 + f_loop], "add", T.bool(False), -1)  # noqa: E501
+                                T.nki.tensorreduce(intermediate_tensor[p_loop, reduction_b_loop], A_sbuf[p_loop, b_loop * 2048 + reduction_b_loop * 512 + f_loop], "add", T.bool(False), -1)  # noqa: E501
                 T.nki.tensorized_instruction()
                 for p_loop in T.serial(128, annotations={"nki_dim": "P"}):
                     for f_loop in T.serial(2, annotations={"nki_dim": "F"}):
                         if b_loop - i < 1 and f_loop * 2 - j < 1:
-                            T.nki.tensorreduce(B_sbuf[p_loop, b_loop], intermediate_buffer[p_loop, f_loop], "add", T.bool(False), -1)  # noqa: E501
+                            T.nki.tensorreduce(B_sbuf[p_loop, b_loop], intermediate_tensor[p_loop, f_loop], "add", T.bool(False), -1)  # noqa: E501
             # fmt: on
     with target:
         mod = tvm.IRModule({"main": reduction})
-        mod = tvm.tirx.trn.transform.TrnPrivateBufferAlloc()(mod)
+        mod = tvm.tirx.trn.transform.TrnPrivateTensorAlloc()(mod)
         mod = tvm.tirx.transform.LowerTIRx()(mod)
         mod = tvm.tirx.transform.StmtSimplify()(mod)
         assert_structural_equal(mod["main"], expected)
@@ -245,17 +245,17 @@ def test_reduction_two_stage_workspace():
     @T.function
     def reduction():
         T.device_entry()
-        intermediate_buffer = T.alloc_tensor((128, 64), scope="trn.sbuf")
+        intermediate_tensor = T.alloc_tensor((128, 64), scope="trn.sbuf")
         A_sbuf = T.alloc_tensor(src_shape, "float32", scope="trn.sbuf", layout=src_layout)
         B_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
         T.trn.tile.tensorreduce(
-            B_sbuf, A_sbuf, axes=(1, 3), partial_reduce=intermediate_buffer, reduce_op="sum"
+            B_sbuf, A_sbuf, axes=(1, 3), partial_reduce=intermediate_tensor, reduce_op="sum"
         )
 
     @T.function
     def expected():
         T.func_attr({"global_symbol": "reduction"})
-        intermediate_buffer = T.alloc_tensor((128, 64), scope="trn.sbuf")
+        intermediate_tensor = T.alloc_tensor((128, 64), scope="trn.sbuf")
         A_sbuf = T.alloc_tensor((128, 4096), scope="trn.sbuf")
         B_sbuf = T.alloc_tensor((128, 4), scope="trn.sbuf")
         for b_loop in range(4):
@@ -263,11 +263,11 @@ def test_reduction_two_stage_workspace():
                 T.nki.tensorized_instruction()
                 for p_loop in T.serial(0, 128, annotations={"nki_dim":"P"}):
                     for f_loop in T.serial(0, 32, annotations={"nki_dim":"F"}):
-                        T.nki.tensorreduce(intermediate_buffer[p_loop, reduction_b_loop], A_sbuf[p_loop, reduction_b_loop * 128 + b_loop * 32 + f_loop], "add", False, -1)  # noqa: E501
+                        T.nki.tensorreduce(intermediate_tensor[p_loop, reduction_b_loop], A_sbuf[p_loop, reduction_b_loop * 128 + b_loop * 32 + f_loop], "add", False, -1)  # noqa: E501
             T.nki.tensorized_instruction()
             for p_loop in T.serial(0, 128, annotations={"nki_dim":"P"}):
                 for f_loop in T.serial(0, 32, annotations={"nki_dim":"F"}):
-                    T.nki.tensorreduce(B_sbuf[p_loop, b_loop], intermediate_buffer[p_loop, f_loop], "add", False, -1)  # noqa: E501
+                    T.nki.tensorreduce(B_sbuf[p_loop, b_loop], intermediate_tensor[p_loop, f_loop], "add", False, -1)  # noqa: E501
 
             # fmt: on
     with target:

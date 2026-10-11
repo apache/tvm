@@ -325,7 +325,7 @@ class Layout(Object):
         assert isinstance(data, list | tuple), "data must be a tuple"
         # Promote ``stride`` to the dtype of the shape extents so the resulting
         # strides match what te-create_function / C++ ``GetDefaultStrides``
-        # produce for int64-shaped buffers (otherwise the last stride stays a
+        # produce for int64-shaped tensors (otherwise the last stride stays a
         # Python ``int`` -> int32 IntImm and breaks structural-equal).
         for t in data:
             if tvm.ir.is_prim_expr(t) and t.ty.dtype != "int32":
@@ -590,14 +590,14 @@ __all__ += [
 # (M=64 non-``.ws``) the MMA writes scattered lanes
 # ``{0..15, 32..47, 64..79, 96..111}`` — half of each warp's 32-lane
 # partition — and the readback path (``.16x*b`` M=64 atom) has the matching
-# scatter built into the PTX. To keep the buffer's logical row indexing in
-# sync with the physical scatter, the buffer's TileLayout must encode the
+# scatter built into the PTX. To keep the tensor's logical row indexing in
+# sync with the physical scatter, the tensor's TileLayout must encode the
 # scatter directly.
 #
 # We surface this via the factory below. Callers pass the datapath letter
 # (``"D"`` / ``"F"``) and the logical ``(rows, cols)``; the factory returns
 # the appropriate TileLayout. ``tmem_pool.alloc(..., layout=...)`` plumbs
-# this into the buffer's layout so the dispatch can structurally verify
+# this into the tensor's layout so the dispatch can structurally verify
 # atom ↔ datapath compatibility instead of silently accepting mismatches.
 #
 # Supported today:
@@ -621,7 +621,7 @@ def tmem_datapath_layout(datapath: str, rows: int, cols: int, sub_slab: int = 0)
     """Return the ``TileLayout`` for a tcgen05 MMA datapath.
 
     See PTX ISA §9.7.16.10.5 for the datapath enumeration. The returned
-    layout is shape-compatible with a buffer of ``(rows, cols)`` and
+    layout is shape-compatible with a tensor of ``(rows, cols)`` and
     encodes the logical-row → physical-TMEM-lane mapping that the
     corresponding MMA writes to (and that the matching ``.16x*b`` /
     ``.32x32b`` atom expects to read).
@@ -645,7 +645,7 @@ def tmem_datapath_layout(datapath: str, rows: int, cols: int, sub_slab: int = 0)
         - ``"G"``: M=32, ``.ws`` — 32 rows, column quarters folded across
           the four 32-lane warp slabs.
     rows : int
-        Logical row count of the TMEM buffer. Must match the datapath's M
+        Logical row count of the TMEM tensor. Must match the datapath's M
         dimension: 128 for A/D, 64 for B/C/E/F, 32 for G.
     cols : int
         Logical column count. Datapath B requires an even count because its
@@ -767,7 +767,7 @@ def tmem_mma_operand_layout(
 
     ``operand``: ``"A"`` (A-in-TMEM) or ``"D"`` (accumulator / C).
     ``M`` is the PTX ``tcgen05.mma`` **instruction** M (256/128/64), NOT the
-    per-CTA buffer rows; ``per_cta_rows = M // cta_group``. Physical 32-bit
+    per-CTA tensor rows; ``per_cta_rows = M // cta_group``. Physical 32-bit
     column count is left to the pool's ``_resolve_cols`` (layout-aware).
 
     Reproduces the hand-written layouts the three FlashMLA kernels use; the
@@ -788,8 +788,8 @@ def tmem_mma_operand_layout(
 
     if operand == "D":
         if group is not None:
-            # flat buffer (m, N) + explicit grouping -> (m, s, 2, n) layout
-            # (codex plan option b): keeps kernel O buffer 2D, layout 4-axis.
+            # flat tensor (m, N) + explicit grouping -> (m, s, 2, n) layout
+            # (codex plan option b): keeps kernel O tensor 2D, layout 4-axis.
             if len(ext) != 2:
                 raise ValueError(f"alloc_tcgen05_mma_D group= requires 2D (m,N), got {ext}")
             m, N = ext

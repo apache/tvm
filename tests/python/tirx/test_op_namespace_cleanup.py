@@ -159,12 +159,12 @@ def test_device_intrinsic_namespaces_are_canonical_and_classified():
     assert T.metal is builder_op.metal
     assert T.nki is builder_op.nki
 
-    buffer = tvm.tirx.decl_tensor((1,), "float32")
+    tensor = tvm.tirx.decl_tensor((1,), "float32")
     calls = [
         T.cuda.elect_sync(),
         T.cuda.thread_fence(),
         T.nvshmem.fence(),
-        T.nki.identity(buffer[0], 1),
+        T.nki.identity(tensor[0], 1),
     ]
 
     expected = [

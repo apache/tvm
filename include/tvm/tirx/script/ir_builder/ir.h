@@ -57,19 +57,19 @@ using tvm::tirx::Layout;
 using tvm::tirx::TensorVar;
 
 /*!
- * \brief The buffer declaration function.
- * \param shape The type of the buffer prior to flattening.
- * \param dtype The data type in the content of the buffer.
- * \param buffer_name The name of the buffer.
+ * \brief The tensor declaration function.
+ * \param shape The type of the tensor prior to flattening.
+ * \param dtype The data type in the content of the tensor.
+ * \param tensor_name The name of the tensor.
  * \param data The pointer to the head of the data.
  * \param strides The strides of each dimension.
  * \param elem_offset The offset in terms of number of dtype elements (including lanes).
- * \param storage_scope The optional storage scope of buffer data pointer.
+ * \param storage_scope The optional storage scope of tensor data pointer.
  * \param align The alignment requirement of data pointer in bytes.
  * \param offset_factor The factor of elem_offset field.
- * \return The declared buffer.
+ * \return The declared tensor.
  */
-TensorVar TensorDecl(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String buffer_name,
+TensorVar TensorDecl(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String tensor_name,
                      ffi::Optional<Expr> data, ffi::Optional<ffi::Array<PrimExpr>> strides,
                      ffi::Optional<PrimExpr> elem_offset, ffi::String storage_scope, int align,
                      int offset_factor, ffi::Optional<Layout> layout = std::nullopt);
@@ -92,12 +92,12 @@ FunctionFrame DeclFunction(bool is_private = false, bool persistent = false);
 Var Arg(ffi::String name, Var var);
 
 /*!
- * \brief The Function buffer arguments adding function.
- * \param name The name of the buffer.
- * \param buffer The buffer argument.
- * \return The buffer.
+ * \brief The Function tensor arguments adding function.
+ * \param name The name of the tensor.
+ * \param tensor The tensor argument.
+ * \return The tensor.
  */
-TensorVar Arg(ffi::String name, TensorVar buffer);
+TensorVar Arg(ffi::String name, TensorVar tensor);
 
 /*!
  * \brief The Function naming statement.
@@ -183,31 +183,31 @@ ForFrame ThreadBinding(PrimExpr start, PrimExpr stop, ffi::String thread,
                        ffi::Optional<ffi::Map<ffi::String, Any>> annotations = std::nullopt);
 /*!
  * \brief Declare a tensor binding or allocate its storage.
- * \param shape The type of the buffer prior to flattening.
- * \param dtype The data type in the content of the buffer.
- * \param buffer_name The name of the buffer.
+ * \param shape The type of the tensor prior to flattening.
+ * \param dtype The data type in the content of the tensor.
+ * \param tensor_name The name of the tensor.
  * \param data The pointer to the head of the data.
  * \param strides The strides of each dimension.
  * \param elem_offset The offset in terms of number of dtype elements (including lanes).
- * \param storage_scope The optional storage scope of buffer data pointer.
+ * \param storage_scope The optional storage scope of tensor data pointer.
  * \param align The alignment requirement of data pointer in bytes.
  * \param offset_factor The factor of elem_offset field.
- * \param layout The layout of the buffer.
+ * \param layout The layout of the tensor.
  * \return The declared tensor.
  */
-TensorVar DeclTensor(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String buffer_name,
+TensorVar DeclTensor(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String tensor_name,
                      ffi::Optional<Expr> data, ffi::Optional<ffi::Array<PrimExpr>> strides,
                      ffi::Optional<PrimExpr> elem_offset, ffi::String storage_scope, int align,
                      int offset_factor, ffi::Optional<Layout> layout = std::nullopt,
                      ffi::Optional<PrimExpr> allocated_addr = std::nullopt);
 
 /*!
- * \brief Statement-level buffer allocation (binds a buffer-returning allocation Call).
- * \param shape The shape of the buffer to allocate.
- * \param dtype The data type of buffer elements.
+ * \brief Statement-level tensor allocation (binds a tensor-returning allocation Call).
+ * \param shape The shape of the tensor to allocate.
+ * \param dtype The data type of tensor elements.
  * \param storage_scope The storage scope (e.g., "global", "shared").
  * \param annotations Optional annotations for the allocation.
- * \return The allocated buffer.
+ * \return The allocated tensor.
  */
 TensorVar AllocTensor(ffi::Array<PrimExpr> shape, PrimType dtype = PrimType::Float(32),
                       ffi::String storage_scope = "global",

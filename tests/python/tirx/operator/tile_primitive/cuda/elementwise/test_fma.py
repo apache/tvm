@@ -81,11 +81,11 @@ def test_fma_scalar_scalar():
 
 
 # ---------------------------------------------------------------------------
-# FMA op: buffer scale + scalar bias (Horner pattern)
+# FMA op: tensor scale + scalar bias (Horner pattern)
 # ---------------------------------------------------------------------------
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
-def test_fma_buffer_scale_scalar_bias():
+def test_fma_tensor_scale_scalar_bias():
     sm = _get_sm_version()
     if sm < 100:
         pytest.skip(f"packed fma requires sm_100+, got sm_{sm}")
@@ -221,7 +221,7 @@ def test_add_rounding_mode():
 
 
 # ---------------------------------------------------------------------------
-# FMA op: layout=None local buffer (no TileLayout)
+# FMA op: layout=None local tensor (no TileLayout)
 # ---------------------------------------------------------------------------
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
@@ -265,11 +265,11 @@ def test_fma_no_layout():
 
 
 # ---------------------------------------------------------------------------
-# Binary sub with rounding mode (buffer-buffer)
+# Binary sub with rounding mode (tensor-tensor)
 # ---------------------------------------------------------------------------
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
-def test_sub_buffer_buffer_rounding():
+def test_sub_tensor_tensor_rounding():
     sm = _get_sm_version()
     if sm < 100:
         pytest.skip(f"packed sub with rounding requires sm_100+, got sm_{sm}")

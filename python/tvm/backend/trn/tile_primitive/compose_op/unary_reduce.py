@@ -28,7 +28,7 @@ from ..binary.utils import try_find_inst_nary
 from ..common import init_analyzer, nki_dim
 from ..dim_utils import get_reduction_dim_map
 from ..instruction_generator import InstructionGenerator
-from ..reduction.utils import generate_intermediate_buffer
+from ..reduction.utils import generate_intermediate_tensor
 from ..unary.utils import get_const_bias_tensor, try_find_inst_unary
 from .utils import opcode_table
 
@@ -55,7 +55,7 @@ def unary_reduce_trn(op: TensorCall, sctx: DispatchContext) -> Function | None:
 
     inst_gen = InstructionGenerator([unary_output, unary_input, bias, reduce_output], analyzer)
     reduce_dim_map = get_reduction_dim_map(unary_output, reduce_output, reduce_axes, analyzer)
-    inst_gen.link_buffer_regions(unary_output, reduce_output, reduce_dim_map)
+    inst_gen.link_tensor_regions(unary_output, reduce_output, reduce_dim_map)
     # Find instruction patterns based on bias type
     if isinstance(bias, TensorRegion):
         inst_repr, _, _ = try_find_inst_nary(
@@ -85,16 +85,16 @@ def unary_reduce_trn(op: TensorCall, sctx: DispatchContext) -> Function | None:
     reduction_b_extent = inst_gen.fill_in_block_dim(unary_output, reduction_b_var, reduce_axes)
     spatial_b_extent = inst_gen.fill_in_block_dim(unary_output, spatial_b_var)
     if reduction_b_extent != 1:
-        intermediate_buffer = generate_intermediate_buffer(
+        intermediate_tensor = generate_intermediate_tensor(
             reduce_output, reduction_b_extent, op.workspaces, sctx
         )
-    # Extract buffers and opcodes
+    # Extract tensors and opcodes
     src, dst1, dst2 = unary_input.source, unary_output.source, reduce_output.source
     unary_opcode = opcode_table[op.unary_op]
     reduce_opcode = opcode_table[op.reduce_op]
 
-    # Handle bias buffer
-    bias_buffer = (
+    # Handle bias tensor
+    bias_tensor = (
         bias.source
         if isinstance(bias, TensorRegion)
         else get_const_bias_tensor(
@@ -102,11 +102,11 @@ def unary_reduce_trn(op: TensorCall, sctx: DispatchContext) -> Function | None:
         )
     )
 
-    # Create appropriate implementation based on intermediate buffer requirement
+    # Create appropriate implementation based on intermediate tensor requirement
     if reduction_b_extent == 1:
-        # Direct implementation without intermediate buffer
+        # Direct implementation without intermediate tensor
         # fmt: off
-        # This fragment captures buffers and indices from its insertion scope.
+        # This fragment captures tensors and indices from its insertion scope.
         @T.function(check_well_formed=False)
         def impl():
             for b_loop in T.serial(0, spatial_b_extent):
@@ -120,9 +120,9 @@ def unary_reduce_trn(op: TensorCall, sctx: DispatchContext) -> Function | None:
                             if inst_gen.make_guard(unary_output):
                                 if T.constexpr(isinstance(bias, TensorRegion)):
                                     src_bias_indices = T.meta_var(inst_gen.generate_indices(bias))
-                                    T.evaluate(T.nki.activation_reduce(dst2[tuple(dst_2_indices)], dst1[tuple(dst_1_indices)], src[tuple(src_1_indices)], unary_opcode, reduce_opcode, bias_buffer[tuple(src_bias_indices)], scale))  # noqa: E501
+                                    T.evaluate(T.nki.activation_reduce(dst2[tuple(dst_2_indices)], dst1[tuple(dst_1_indices)], src[tuple(src_1_indices)], unary_opcode, reduce_opcode, bias_tensor[tuple(src_bias_indices)], scale))  # noqa: E501
                                 else:
-                                    T.evaluate(T.nki.activation_reduce(dst2[tuple(dst_2_indices)], dst1[tuple(dst_1_indices)], src[tuple(src_1_indices)], unary_opcode, reduce_opcode, bias_buffer[p_loop, f_loop], scale))  # noqa: E501
+                                    T.evaluate(T.nki.activation_reduce(dst2[tuple(dst_2_indices)], dst1[tuple(dst_1_indices)], src[tuple(src_1_indices)], unary_opcode, reduce_opcode, bias_tensor[p_loop, f_loop], scale))  # noqa: E501
         # fmt: on
 
         import tvm
@@ -132,7 +132,7 @@ def unary_reduce_trn(op: TensorCall, sctx: DispatchContext) -> Function | None:
         return mod["main"]
     else:
         # fmt: off
-        # This fragment captures buffers and indices from its insertion scope.
+        # This fragment captures tensors and indices from its insertion scope.
         @T.function(check_well_formed=False)
         def impl():
             for b_loop in T.serial(0, spatial_b_extent):
@@ -146,9 +146,9 @@ def unary_reduce_trn(op: TensorCall, sctx: DispatchContext) -> Function | None:
                                 if inst_gen.make_guard(unary_output):
                                     if T.constexpr(isinstance(bias, TensorRegion)):
                                         src_bias_indices = T.meta_var(inst_gen.generate_indices(bias))  # noqa: E501
-                                        T.evaluate(T.nki.activation_reduce(intermediate_buffer[p_loop, reduction_b_loop], dst1[tuple(dst_1_indices)], src[tuple(src_1_indices)], unary_opcode, reduce_opcode, bias_buffer[tuple(src_bias_indices)], scale))  # noqa: E501
+                                        T.evaluate(T.nki.activation_reduce(intermediate_tensor[p_loop, reduction_b_loop], dst1[tuple(dst_1_indices)], src[tuple(src_1_indices)], unary_opcode, reduce_opcode, bias_tensor[tuple(src_bias_indices)], scale))  # noqa: E501
                                     else:
-                                        T.evaluate(T.nki.activation_reduce(intermediate_buffer[p_loop, reduction_b_loop], dst1[tuple(dst_1_indices)], src[tuple(src_1_indices)], unary_opcode, reduce_opcode, bias_buffer[p_loop, f_loop], scale))  # noqa: E501
+                                        T.evaluate(T.nki.activation_reduce(intermediate_tensor[p_loop, reduction_b_loop], dst1[tuple(dst_1_indices)], src[tuple(src_1_indices)], unary_opcode, reduce_opcode, bias_tensor[p_loop, f_loop], scale))  # noqa: E501
                 with T.nki.tensorized_instruction():
                     for p_loop in T.serial(0, p_size, annotations={nki_dim: "P"}):
                         for f_loop in T.serial(0, reduction_b_extent, annotations={nki_dim: "F"}):
@@ -156,7 +156,7 @@ def unary_reduce_trn(op: TensorCall, sctx: DispatchContext) -> Function | None:
                             if inst_gen.make_guard(reduce_output):
                                 dst_2_indices = T.meta_var(inst_gen.generate_indices(reduce_output))
                                 # TODO: we should use nki.activation_reduce as second stage reduction  # noqa: E501
-                                T.evaluate(T.nki.tensorreduce(dst2[tuple(dst_2_indices)], intermediate_buffer[p_loop, f_loop], reduce_opcode, False, -1))  # noqa: E501
+                                T.evaluate(T.nki.tensorreduce(dst2[tuple(dst_2_indices)], intermediate_tensor[p_loop, f_loop], reduce_opcode, False, -1))  # noqa: E501
         # fmt: on
 
         return impl

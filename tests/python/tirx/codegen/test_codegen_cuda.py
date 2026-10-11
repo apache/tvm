@@ -153,22 +153,22 @@ def test_cuda_module_destructor_preserves_current_device():
 
 
 def test_vector_pointer_preserves_packed_offset(monkeypatch):
-    buffer = tvm.tirx.decl_tensor((8,), "int4x4", name="A")
-    data = tvm.tirx.Var("A_data", buffer.data.ty)
-    pointer = tvm.tirx.ptr_byte_offset(buffer.data, 4, ty=buffer.data.ty)
+    tensor = tvm.tirx.decl_tensor((8,), "int4x4", name="A")
+    data = tvm.tirx.Var("A_data", tensor.data.ty)
+    pointer = tvm.tirx.ptr_byte_offset(tensor.data, 4, ty=tensor.data.ty)
     body = tvm.ir.SeqStmt(
         [
             tvm.ir.Bind(
-                buffer,
+                tensor,
                 tvm.ir.Call(
                     "tirx.decl_tensor",
                     [
                         data,
-                        tvm.ir.Tuple(buffer.shape),
-                        tvm.ir.DataTypeImm(tvm.DataType(buffer.dtype)),
-                        tvm.ir.StringImm(buffer.scope()),
+                        tvm.ir.Tuple(tensor.shape),
+                        tvm.ir.DataTypeImm(tvm.DataType(tensor.dtype)),
+                        tvm.ir.StringImm(tensor.scope()),
                     ],
-                    ty=buffer.ty,
+                    ty=tensor.ty,
                 ),
             ),
             tvm.ir.Evaluate(tvm.tirx.call_extern("void", "consume", pointer)),
@@ -1053,7 +1053,7 @@ def test_ptx_ldmatrix(trans, num):
         A_local = T.alloc_local([8], "float16")
         A_local[0] = -1.0
         # ldmatrix .x{num}.b16 writes `num` b32 registers; A_local is a
-        # contiguous fp16[8] buffer, so the registers land through a uint32
+        # contiguous fp16[8] tensor, so the registers land through a uint32
         # view, two fp16 elements per word.
         A_words = A_local.view("uint32")
         if T.constexpr(num == 1):

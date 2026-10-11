@@ -96,9 +96,9 @@ def test_parser_attaches_loc_to_nested_tensor_load():
     @T.function
     @_capture_source(sources)
     def nested_load():
-        source_buffer = T.alloc_tensor((1,), "int32")
+        source_tensor = T.alloc_tensor((1,), "int32")
         output = T.alloc_tensor((1,), "int32")
-        output[0] = source_buffer[0] + 1
+        output[0] = source_tensor[0] + 1
 
     source = sources[0]
     load_ast = source.as_ast().body[0].body[-1].value.left
@@ -106,7 +106,7 @@ def test_parser_attaches_loc_to_nested_tensor_load():
     load = _find_ir_node(
         func,
         lambda node: (
-            isinstance(node, TensorLoad) and getattr(node.source, "name", None) == "source_buffer"
+            isinstance(node, TensorLoad) and getattr(node.source, "name", None) == "source_tensor"
         ),
     )
 
@@ -254,9 +254,9 @@ def test_native_view_keeps_producer_identity_name_and_loc(monkeypatch):
     loc = ir.SourceLoc(ir.SourceName("producer.py"), 7, 2, 7, 19)
 
     @wraps(original)
-    def view(ty, buffer, *args):
+    def view(ty, tensor, *args):
         seen.append("view")
-        value = base.at_(loc, original(ty, buffer, *args))
+        value = base.at_(loc, original(ty, tensor, *args))
         produced.append((value, value.name, value.loc))
         return value
 
@@ -295,8 +295,8 @@ def test_native_view_keeps_producer_identity_name_and_loc(monkeypatch):
     ir.assert_structural_equal(nodes[2].value.args[0], captured.data)
 
 
-def test_native_binding_preserves_metadata_but_binds_buffer_expressions():
-    # Inert metadata must retain resource identity; a non-Var buffer expression still needs a
+def test_native_binding_preserves_metadata_but_binds_tensor_expressions():
+    # Inert metadata must retain resource identity; a non-Var tensor expression still needs a
     # located binding.
     from tvm import ir
     from tvm.script.ir_builder import base
@@ -311,9 +311,9 @@ def test_native_binding_preserves_metadata_but_binds_buffer_expressions():
 
     values = []
 
-    def initialize(buffer):
-        base.at_(producer_loc, buffer)
-        values.extend([layout, Holder(buffer), ir.TupleGetItem(ir.Tuple([buffer]), 0)])
+    def initialize(tensor):
+        base.at_(producer_loc, tensor)
+        values.extend([layout, Holder(tensor), ir.TupleGetItem(ir.Tuple([tensor]), 0)])
 
     calls, observed, relocs = [], [], []
 
@@ -335,19 +335,19 @@ def test_native_binding_preserves_metadata_but_binds_buffer_expressions():
         make(0)
         make(1)
 
-    buffer = main.params[0]
+    tensor = main.params[0]
     holder, projection = values[1:]
     assert calls == [0, 1, 2, 0, 1]
     assert observed[0].same_as(layout)
-    assert observed[1] is holder and holder.resource.same_as(buffer)
-    assert all(buffer.loc.same_as(loc) for loc in relocs)
+    assert observed[1] is holder and holder.resource.same_as(tensor)
+    assert all(tensor.loc.same_as(loc) for loc in relocs)
     binding = main.body[0]
     assert isinstance(binding, tvm.ir.Bind) and binding.value.same_as(projection)
     assert binding.var.name == "bound"
     assert tirx.is_tensor_var(binding.var)
     assert not isinstance(projection, ir.Var)
     line = _line_of(
-        test_native_binding_preserves_metadata_but_binds_buffer_expressions, "bound = make(2)"
+        test_native_binding_preserves_metadata_but_binds_tensor_expressions, "bound = make(2)"
     )
     assert (
         binding.var.loc.start_line,

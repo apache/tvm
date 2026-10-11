@@ -25,7 +25,7 @@ from tvm.ir import PrimType, PtrType, assert_structural_equal
 from tvm.script import tirx as T
 
 
-def _is_buffer_binding(node, *op_names):
+def _is_tensor_binding(node, *op_names):
     return (
         isinstance(node, tvm.ir.Bind)
         and isinstance(node.value, tvm.ir.Call)
@@ -123,12 +123,12 @@ def test_mapa_pointer_bind_codegen():
         # fmt: on
 
     binds = []
-    decl_buffers = []
+    decl_tensors = []
     loads = []
 
     def collect(node):
-        if _is_buffer_binding(node, "tirx.decl_tensor"):
-            decl_buffers.append(node)
+        if _is_tensor_binding(node, "tirx.decl_tensor"):
+            decl_tensors.append(node)
         elif isinstance(node, tvm.ir.Bind) and isinstance(node.var.ty, PtrType):
             binds.append(node)
         elif isinstance(node, tvm.ir.TensorLoad):
@@ -140,9 +140,9 @@ def test_mapa_pointer_bind_codegen():
     assert binds[0].var.ty.storage_scope == "shared"
     assert binds[0].value.ty.storage_scope == "shared"
     assert_structural_equal(binds[0].var.ty, binds[0].value.ty)
-    assert len(decl_buffers) == 1
-    assert decl_buffers[0].value.args[0].same_as(binds[0].var)
-    assert any(load.source.same_as(decl_buffers[0].var) for load in loads)
+    assert len(decl_tensors) == 1
+    assert decl_tensors[0].value.args[0].same_as(binds[0].var)
+    assert any(load.source.same_as(decl_tensors[0].var) for load in loads)
 
     assert_structural_equal(
         main,

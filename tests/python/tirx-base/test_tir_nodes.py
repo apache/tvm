@@ -307,7 +307,7 @@ def test_function():
     func = tvm.tirx.Function([x, y, b], stmt)
     # make sure we can print
     assert func.params[2].same_as(b)
-    assert not hasattr(func, "buffer_map")
+    assert not hasattr(func, "tensor_map")
 
     assert sum(tvm.tirx.is_tensor_var(param) for param in func.params) == 1
     assert func.with_body(tvm.ir.Evaluate(0)).params[2].same_as(b)
@@ -335,14 +335,14 @@ def test_scoped_storage_vars():
     assert isinstance(ptype.element_type, tvm.ir.PrimType)
 
 
-def test_buffer_load_store():
+def test_tensor_load_store():
     b = tvm.tirx.decl_tensor((10,), "float32")
     x = tvm.tirx.TensorLoad(b, [0])
     assert isinstance(x, tvm.ir.TensorLoad)
     assert callable(tvm.tirx.TensorLoad)
     assert x.ty.dtype == "float32"
     assert x.source == b
-    assert not hasattr(x, "buffer")
+    assert not hasattr(x, "tensor")
     with pytest.raises(TypeError, match="cannot be constructed directly"):
         tvm.ir.TensorLoad(b, [0])
     s = tvm.ir.TensorStore(b, [0], 0.1)
@@ -409,7 +409,7 @@ def test_broadcast_to_scalable_vec():
     assert broadcast.lanes.b == 4
 
 
-def test_buffer_load_scalable_vec():
+def test_tensor_load_scalable_vec():
     buf = tvm.tirx.decl_tensor((24,), "float32")
     index = tvm.tirx.expr.Ramp(1, 1, 8 * tvm.tirx.vscale())
     load = tvm.tirx.TensorLoad(buf, [index])

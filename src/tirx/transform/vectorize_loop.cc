@@ -140,20 +140,20 @@ inline PrimExpr BroadcastTo(PrimExpr e, int lanes, bool is_scalable) {
   return prim::Broadcast(e, CreateNewLanes(is_scalable, lanes));
 }
 
-bool EnableBufferLevelPredication(ffi::Optional<Target> target) {
+bool EnableTensorLevelPredication(ffi::Optional<Target> target) {
   transform::PassContext pass_ctx = transform::PassContext::Current();
-  ffi::Optional<bool> enable_buffer_predication =
-      pass_ctx->GetConfig<bool>("tirx.enable_buffer_level_predication");
-  if (enable_buffer_predication.has_value()) {
-    return enable_buffer_predication.value();
+  ffi::Optional<bool> enable_tensor_predication =
+      pass_ctx->GetConfig<bool>("tirx.enable_tensor_level_predication");
+  if (enable_tensor_predication.has_value()) {
+    return enable_tensor_predication.value();
   }
 
-  // Use buffer-level predication by default for VLA targets
+  // Use tensor-level predication by default for VLA targets
   return TargetHasVLA(target);
 }
 
 /*!
- * \brief A pass that tries to rewrite buffer accesses (loads and stores) with a
+ * \brief A pass that tries to rewrite tensor accesses (loads and stores) with a
  * predicate expression where possible.
  *
  * \note For now we start with a minimal case targeting block-level predicates
@@ -175,14 +175,14 @@ bool EnableBufferLevelPredication(ffi::Optional<Target> target) {
  *  T.evaluate(T.call_intrin("void", "tirx.masked_store", B, A_load,
  *                           T.Ramp(i_0 * 4, 1, 4), predicate))
  */
-class TryPredicateBufferAccesses : public StmtExprMutator {
+class TryPredicateTensorAccesses : public StmtExprMutator {
  public:
-  explicit TryPredicateBufferAccesses(bool allow_offset_predication)
+  explicit TryPredicateTensorAccesses(bool allow_offset_predication)
       : allow_offset_predication_(allow_offset_predication) {}
 
   /*!
    * \brief Run the pass to try to exact predicates.
-   * \param stmt - The statement containing buffer accesses (loads and stores)
+   * \param stmt - The statement containing tensor accesses (loads and stores)
    * we want to attempt to predicate.
    * \param condition - The conditional expression (block-level predicate)
    * that we will try to remove.
@@ -223,14 +223,14 @@ class TryPredicateBufferAccesses : public StmtExprMutator {
     auto load = StmtExprMutator::Mutate_(op, inplace_mode)
                     .ValueOrUnchanged(ffi::GetRef<PrimExpr>(op))
                     .as_or_throw<TensorLoad>();
-    return TryPredicateBufferAccess(load);
+    return TryPredicateTensorAccess(load);
   }
 
   UnchangedOr<Stmt> Mutate_(const TensorStoreNode* op, InplaceMode inplace_mode) final {
     auto store = StmtExprMutator::Mutate_(op, inplace_mode)
                      .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
                      .as_or_throw<TensorStore>();
-    return TryPredicateBufferAccess(store);
+    return TryPredicateTensorAccess(store);
   }
 
   UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) final {
@@ -292,7 +292,7 @@ class TryPredicateBufferAccesses : public StmtExprMutator {
     return lane_mask;
   }
 
-  PrimExpr TryPredicateBufferAccess(TensorLoad load) {
+  PrimExpr TryPredicateTensorAccess(TensorLoad load) {
     if (auto mask = GetLaneMask(load->indices)) {
       ffi::Array<Expr> args{load->source.as_or_throw<tvm::tirx::TensorVar>().var()};
       for (const PrimExpr& index : load->indices) args.push_back(index);
@@ -302,7 +302,7 @@ class TryPredicateBufferAccesses : public StmtExprMutator {
     return load;
   }
 
-  Stmt TryPredicateBufferAccess(TensorStore store) {
+  Stmt TryPredicateTensorAccess(TensorStore store) {
     if (auto mask = GetLaneMask(store->indices)) {
       ffi::Array<Expr> args{store->dest.as_or_throw<TensorVar>().var(), store->value};
       for (const PrimExpr& index : store->indices) args.push_back(index);
@@ -322,11 +322,11 @@ class TryPredicateBufferAccesses : public StmtExprMutator {
   /*! \brief The limit of the predicate. The expr specifies the upper bound of the base's
    * evaluated value. */
   PrimExpr limit_{ffi::UnsafeInit{}};
-  /*! \brief Whether to predicate offset buffer accesses that use the same lane layout. */
+  /*! \brief Whether to predicate offset tensor accesses that use the same lane layout. */
   bool allow_offset_predication_;
-  /*! \brief The number of buffer accesses in the stmt we will analyze. */
+  /*! \brief The number of tensor accesses in the stmt we will analyze. */
   size_t num_accesses_analyzed_ = 0;
-  /*! \brief The number of buffer accesses rewritten with predicates. */
+  /*! \brief The number of tensor accesses rewritten with predicates. */
   size_t num_accesses_rewritten_ = 0;
 };
 
@@ -350,7 +350,7 @@ class VecAllocAccess : public StmtExprMutator {
                           ? ffi::GetRef<TensorLoad>(op)
                           : MakeTensorLoad(op->source.as_or_throw<TensorVar>(),
                                            std::move(indices).ValueUnchecked(), op->loc);
-    return UpdateBufferAccess(load);
+    return UpdateTensorAccess(load);
   }
 
   UnchangedOr<Stmt> Mutate_(const TensorStoreNode* op, InplaceMode inplace_mode) final {
@@ -362,13 +362,13 @@ class VecAllocAccess : public StmtExprMutator {
                             : TensorStore(op->dest.as_or_throw<TensorVar>(),
                                           std::move(indices).ValueOrUnchanged(op->indices),
                                           std::move(value).ValueOrUnchanged(op->value), op->loc);
-    return UpdateBufferAccess(store);
+    return UpdateTensorAccess(store);
   }
 
  private:
   template <typename Node>
-  Node UpdateBufferAccess(Node node) {
-    // Only update the buffer that's being replaced.
+  Node UpdateTensorAccess(Node node) {
+    // Only update the tensor that's being replaced.
     if (node->dest.template as_or_throw<TensorVar>().get() != buf_) {
       return node;
     }
@@ -386,8 +386,8 @@ class VecAllocAccess : public StmtExprMutator {
       shape.Set(shape.size() - 1, analyzer_->Simplify(shape[shape.size() - 1] * var_lanes_));
 
       // TODO(Lunderberg): Move this pass to be prior to
-      // FlattenBuffer, implement by appending a
-      // dimension to the buffer.  Since it is currently after the
+      // FlattenTensor, implement by appending a
+      // dimension to the tensor.  Since it is currently after the
       // flattening, the strides are not technically necessary, but
       // are updated for consistency.
 
@@ -401,7 +401,7 @@ class VecAllocAccess : public StmtExprMutator {
         strides.Set(i, analyzer_->Simplify(stride));
       }
 
-      // Copy everything into the new buffer.
+      // Copy everything into the new tensor.
       auto type = CopyTensorType(node->dest.template as_or_throw<TensorVar>());
       type->shape = shape;
       type->strides = strides;
@@ -421,27 +421,27 @@ class VecAllocAccess : public StmtExprMutator {
     return node;
   }
 
-  TensorLoad UpdateBufferAccess(TensorLoad node) {
-    TensorVar buffer = node->source.as_or_throw<tvm::tirx::TensorVar>();
-    if (buffer.get() != buf_) return node;
+  TensorLoad UpdateTensorAccess(TensorLoad node) {
+    TensorVar tensor = node->source.as_or_throw<tvm::tirx::TensorVar>();
+    if (tensor.get() != buf_) return node;
     TensorVar buf{ffi::UnsafeInit{}};
-    auto mapped = VarRemapGet(buffer);
+    auto mapped = VarRemapGet(tensor);
     if (mapped != nullptr) {
       buf = mapped.as_or_throw<TensorVar>();
     } else {
-      ffi::Array<PrimExpr> shape = buffer->shape;
+      ffi::Array<PrimExpr> shape = tensor->shape;
       shape.Set(shape.size() - 1, analyzer_->Simplify(shape.back() * var_lanes_));
-      ffi::Array<PrimExpr> strides = buffer->strides;
+      ffi::Array<PrimExpr> strides = tensor->strides;
       for (size_t i = 0; i < strides.size(); ++i) {
         PrimExpr stride = strides[i];
         if (i + 1 != strides.size()) stride *= var_lanes_;
         strides.Set(i, analyzer_->Simplify(stride));
       }
-      auto type = CopyTensorType(buffer);
+      auto type = CopyTensorType(tensor);
       type->shape = shape;
       type->strides = strides;
-      buf = RebuildTensorVar(buffer, std::move(type));
-      VarRemapSet(buffer, buf);
+      buf = RebuildTensorVar(tensor, std::move(type));
+      VarRemapSet(tensor, buf);
     }
     ffi::Array<PrimExpr> indices = node->indices;
     indices.Set(indices.size() - 1,
@@ -449,7 +449,7 @@ class VecAllocAccess : public StmtExprMutator {
     return MakeTensorLoad(buf, indices, node->loc);
   }
 
-  // buffer var
+  // tensor var
   const VarNode* buf_;
   // variable to be replaced
   Var var_;
@@ -1021,9 +1021,9 @@ class Vectorizer : public StmtExprMutator {
 
     if (!indices.same_as(op->indices) || !value_unchanged) {
       TVM_FFI_ICHECK(!op->dest.as_or_throw<TensorVar>()->dtype.IsScalableVector())
-          << "Vectorizing over scalable buffer elements is not supported in vectorizer.";
+          << "Vectorizing over scalable tensor elements is not supported in vectorizer.";
       // How many lanes of indexing are present in the index and
-      // buffer element type, excluding the last index.
+      // tensor element type, excluding the last index.
       int other_index_lanes = op->dest.as_or_throw<TensorVar>()->dtype.lanes();
       for (size_t i = 0; i < indices.size() - 1; i++) {
         other_index_lanes *= indices[i].ty().lanes();
@@ -1045,7 +1045,7 @@ class Vectorizer : public StmtExprMutator {
       int total_lanes = std::max(index_lanes, value_dtype_lanes);
 
       TVM_FFI_ICHECK_EQ(total_lanes % other_index_lanes, 0)
-          << "When storing to buffer " << op->dest.as_or_throw<TensorVar>().name()
+          << "When storing to tensor " << op->dest.as_or_throw<TensorVar>().name()
           << ", cannot produce " << total_lanes
           << " lanes of storage location by changing the last index.";
       int last_index_lanes = total_lanes / other_index_lanes;
@@ -1106,12 +1106,12 @@ class Vectorizer : public StmtExprMutator {
       else_case =
           this->Mutate(op->else_case.value(), inplace_mode).ValueOrUnchanged(op->else_case.value());
     }
-    // Check if we can rewrite the condition with predicated buffers
-    if (EnableBufferLevelPredication(target_) &&
+    // Check if we can rewrite the condition with predicated tensors
+    if (EnableTensorLevelPredication(target_) &&
         (condition.ty().IsScalableVector() || condition.ty().IsFixedLengthVector()) &&
         !else_case.has_value()) {
       std::pair<bool, Stmt> success_stmt_pair =
-          ffi::make_object<TryPredicateBufferAccesses>(TargetHasRVV(target_))
+          ffi::make_object<TryPredicateTensorAccesses>(TargetHasRVV(target_))
               ->Run(then_case, condition);
       bool can_remove_if_then_else = success_stmt_pair.first;
       if (can_remove_if_then_else) {
