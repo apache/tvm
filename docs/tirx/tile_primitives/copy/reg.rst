@@ -25,7 +25,7 @@ the width. The partition is induced by the register operand's layout: that layou
 already say which thread owns which logical coordinate, so the lowerer drops
 those axes, leaves each thread its private bundle of elements, and copies them
 in a vectorized serial loop. Source:
-``python/tvm/backend/cuda/tile_primitive/copy/vec_auto_reg.py``.
+``python/tvm/backend/cuda/tile/copy/vec_auto_reg.py``.
 
 What it accepts
 ---------------
@@ -79,7 +79,8 @@ contiguous elements). From ``test_reg.py``:
 
 .. code-block:: python
 
-    from tvm.tirx.layout import S, TileLayout, laneid
+    from tvm.tirx.layout import S, TileLayout
+    from tvm.backend.cuda.axis import laneid
 
     shape, dtype = (32, 8), "float32"
     r_layout = TileLayout(S[shape : (1 @ laneid, 1)])  # lane i -> row i, 8 regs

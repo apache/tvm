@@ -20,9 +20,23 @@ Tensor Instruction Lowering
 
 Backend tensor operations are ordinary ``tvm.ir.Call`` nodes with opaque
 side effects and void return types. CUDA and Trainium register their contracts
-in ``python/tvm/backend/{cuda,trn}/tensor_instructions.py`` using the shared
-``python/tvm/tirx/tensor_instruction.py`` machinery. C++ reflected attribute
-types and the native Call validator are in ``src/tirx/op/tile.cc``.
+in ``python/tvm/backend/{cuda,trn}/tile/instructions.py`` using the shared
+``python/tvm/tirx/tile/instruction.py`` machinery. C++ reflected attribute
+types and the native Call validator are in ``src/tirx/tile/op.cc``.
+
+The public C++ tile interfaces are grouped under ``include/tvm/tirx/tile/``:
+
+- ``op.h`` declares the instruction registration and validation contract.
+- ``dispatch.h`` declares the dispatcher entry point.
+- ``exec_scope.h`` defines backend execution hierarchy nodes used by layouts
+  and tile calls. The shared ``tirx::ExecScope`` type remains unchanged.
+- ``context.h`` defines the backend-neutral ``tile::DispatchContext`` and its
+  allocation and initialization callbacks.
+
+Their implementations live in ``src/tirx/tile/``. CUDA-specific scope bindings,
+active-thread execution contexts, and predicate analysis remain private to
+``src/backend/cuda/tile/``. Generic tensor layout types remain in
+``include/tvm/tirx/layout.h``.
 
 ``tirx.TileDispatch`` remains the first phase of ``LowerTIRx``.
 The pass recognizes ``Evaluate(Call)`` by the operator's ``TIRxOpCategory``:

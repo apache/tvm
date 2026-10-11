@@ -346,6 +346,8 @@ tvm_file_glob(GLOB CODEGEN_SRCS
   src/backend/cuda/codegen/*.cc
   src/backend/cuda/op/*.cc
   src/backend/cuda/transforms/*.cc
+  src/backend/cuda/tile/*.cc
+  src/backend/cuda/layout/*.cc
   src/backend/hexagon/codegen/*.cc
   src/backend/metal/codegen/*.cc
   src/backend/metal/op/*.cc
@@ -355,6 +357,7 @@ tvm_file_glob(GLOB CODEGEN_SRCS
   src/backend/trn/codegen/*.cc
   src/backend/trn/op/*.cc
   src/backend/trn/transform/*.cc
+  src/backend/trn/layout/*.cc
   src/backend/vulkan/codegen/target_kind.cc
   src/backend/vulkan/codegen/vulkan_fallback_module.cc
   src/backend/webgpu/codegen/*.cc

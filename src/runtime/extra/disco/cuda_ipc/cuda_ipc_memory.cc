@@ -113,7 +113,8 @@ class CUDAIPCMemoryAllocator final : public memory::PooledAllocator {
     ipc_memory->barrier_flag = 1;
     ipc_memory->num_workers = nccl_ctx->worker->num_workers;
     ipc_memory->worker_id = nccl_ctx->worker->worker_id;
-    ipc_memory_map_[data_ptr] = CUDAIPCMemory(ffi::UnsafeInit{}, std::move(ipc_memory));
+    ipc_memory_map_.insert_or_assign(data_ptr,
+                                     CUDAIPCMemory(ffi::UnsafeInit{}, std::move(ipc_memory)));
     return data_ptr;
   }
 
@@ -207,15 +208,11 @@ class CUDAIPCMemoryAllocator final : public memory::PooledAllocator {
  * \return The allocated storage object with internal CUDA IPC memory buffer.
  */
 memory::Storage IPCAllocStorage(ffi::Shape buffer_shape, DLDataType dtype_hint) {
-  auto storage_obj = ffi::make_object<memory::StorageObj>();
   nccl::CCLThreadLocalContext* nccl_ctx = nccl::CCLThreadLocalContext::Get();
   Device device{DLDeviceType::kDLCUDA, nccl_ctx->device_id};
   CUDAIPCMemoryAllocator* allocator = CUDAIPCMemoryAllocator::Global();
-  storage_obj->buffer = CUDAIPCMemoryAllocator::Global()->Alloc(
-      device, std::move(buffer_shape), dtype_hint, /*mem_scope=*/"ipc_memory");
-  storage_obj->allocator = allocator;
-  memory::Storage storage(storage_obj);
-  return storage;
+  auto buffer = allocator->Alloc(device, std::move(buffer_shape), dtype_hint, "ipc_memory");
+  return memory::Storage(std::move(buffer), allocator);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

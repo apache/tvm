@@ -23,6 +23,7 @@ import operator
 import re
 
 import tvm
+from tvm.backend.trn.axis import Axis as TRNAxis
 from tvm.tirx.expr import Expr
 from tvm.tirx.layout import Axis, Iter, Layout, S, TileLayout
 
@@ -72,8 +73,8 @@ def trainium_layout(annotation: str, shape: tuple[Expr], is_psum: bool = False) 
     p_shape = [s for s, c in zip(shape, annotation) if c == "P"]
     f_strides = Layout._get_default_strides(f_shape, 1)  # pylint: disable=protected-access
     p_strides = Layout._get_default_strides(p_shape, 1)  # pylint: disable=protected-access
-    f_tile_layout = TileLayout(S[tuple(f_shape) : tuple(s @ Axis.F for s in f_strides)])
-    p_tile_layout = TileLayout(S[tuple(p_shape) : tuple(s @ Axis.P for s in p_strides)])
+    f_tile_layout = TileLayout(S[tuple(f_shape) : tuple(s @ TRNAxis.F for s in f_strides)])
+    p_tile_layout = TileLayout(S[tuple(p_shape) : tuple(s @ TRNAxis.P for s in p_strides)])
     result = []
     f_index = p_index = 0
 

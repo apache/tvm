@@ -24,7 +24,7 @@ also accepted where the instruction permits them. It synthesizes an
 ``[outer, threads, vec]``
 partition from the execution scope, then applies the op to each (vectorized)
 element. Source:
-``python/tvm/backend/cuda/tile_primitive/elementwise/smem.py``.
+``python/tvm/backend/cuda/tile/elementwise/smem.py``.
 
 What it accepts
 ---------------

@@ -25,7 +25,7 @@ destination CTA's shared
 address into its own address space (PTX ``mapa``) and issues a bulk copy
 (``cp.async.bulk.shared::cluster``); the hardware decrements the *destination* CTA's
 mbarrier when the bytes land. Source:
-``python/tvm/backend/cuda/tile_primitive/copy_async/dsmem.py``.
+``python/tvm/backend/cuda/tile/copy_async/dsmem.py``.
 
 What it accepts
 ---------------

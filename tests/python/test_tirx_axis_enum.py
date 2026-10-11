@@ -24,11 +24,13 @@ import pytest
 from tvm_ffi.dataclasses import Enum
 
 import tvm
-from tvm.tirx.layout import Axis, S, TileLayout, laneid
+from tvm.backend.cuda.axis import Axis as CUDAAxis
+from tvm.backend.cuda.axis import laneid
+from tvm.tirx.layout import Axis, S, TileLayout
 
 
 def test_axis_enum_identity_and_attributes():
-    axis = Axis.laneid
+    axis = CUDAAxis.laneid
     assert isinstance(axis, Enum)
     assert axis.same_as(Axis.get("laneid"))
     assert axis.same_as(laneid)
@@ -37,8 +39,8 @@ def test_axis_enum_identity_and_attributes():
     assert hash(axis) == hash(Axis.get("laneid"))
     assert Axis.def_attr("thread")[axis] is True
     assert Axis.m.is_memory()
-    assert Axis.bx.get_scope().name == "thread"
-    assert Axis.bx.get_subscope().name == "cta"
+    assert CUDAAxis.bx.get_scope().name == "kernel"
+    assert CUDAAxis.bx.get_subscope().name == "cta"
     assert TileLayout(S[4 : 1 @ axis]).shard[0].axis.same_as(axis)
 
 
@@ -52,7 +54,7 @@ def test_axis_unknown_name_and_json_roundtrip():
     with pytest.raises(Exception, match="has no thread classification"):
         axis.is_memory()
     assert tvm.ir.load_json(tvm.ir.save_json(axis)).same_as(axis)
-    assert tvm.ir.load_json(tvm.ir.save_json(Axis.laneid)).same_as(Axis.laneid)
+    assert tvm.ir.load_json(tvm.ir.save_json(CUDAAxis.laneid)).same_as(CUDAAxis.laneid)
 
 
 def test_axis_runtime_only_import():

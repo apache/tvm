@@ -27,7 +27,7 @@ fragments and the C/D accumulators **all live in registers** — the caller stag
 A and B into register fragments first (typically via :doc:`copy/ldstmatrix`).
 The lowerer tiles M/N/K into ``m16n8k`` atoms and emits one ``mma`` per output
 tile, accumulating over K in place. Source:
-``python/tvm/backend/cuda/tile_primitive/gemm/mma_m16n8k_.py``. (For the
+``python/tvm/backend/cuda/tile/gemm/mma_m16n8k_.py``. (For the
 Blackwell async tensor-core path see :doc:`gemm_async`.)
 
 What it accepts
@@ -69,7 +69,8 @@ accumulate) — one ``m16n8k16`` atom (from ``test_gemm_mma_m16n8k_.py``):
 
 .. code-block:: python
 
-    from tvm.tirx.layout import S, TileLayout, laneid
+    from tvm.tirx.layout import S, TileLayout
+    from tvm.backend.cuda.axis import laneid
 
     D_FRAG = TileLayout(S[(2, 8, 4, 2) : (2, 4 @ laneid, 1 @ laneid, 1)])
     A_FRAG_K8 = TileLayout(S[(2, 8, 4, 2) : (2, 4 @ laneid, 1 @ laneid, 1)])

@@ -23,7 +23,7 @@ the PTX ``cp.async`` (LDGSTS) instruction: each thread issues an *asynchronous*
 vectorized copy that the hardware completes in the background, so the warp can keep
 computing while the load is in flight. Its layout planner constructs an
 ``[outer, threads, vec]`` partition. Source:
-``python/tvm/backend/cuda/tile_primitive/copy_async/ldgsts.py``.
+``python/tvm/backend/cuda/tile/copy_async/ldgsts.py``.
 
 What it accepts
 ---------------

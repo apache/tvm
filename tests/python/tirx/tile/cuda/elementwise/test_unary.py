@@ -1,0 +1,2312 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+import math
+import re
+
+import numpy as np
+import pytest
+
+import tvm
+import tvm.testing
+from tvm.backend.cuda.axis import laneid, tid_in_wg, tx, warpid
+from tvm.script import tirx as T
+from tvm.testing import env
+from tvm.tirx.cuda.tile.layout_utils import (
+    cast_layout_supported_for_local as _cast_layout_supported_for_local,
+)
+from tvm.tirx.layout import S, TileLayout
+
+
+@pytest.mark.parametrize(
+    "input",
+    [
+        ######### basic test #########
+        (
+            (32, 32),  # g_shape
+            (0, 0),  # st_a
+            (0, 0),  # st_res
+            (32, 32),  # extent_a
+            (32, 32),  # extent_res
+            64,  # thread_cnt
+            0,  # device_id
+        ),
+        ######### offset test #########
+        (
+            (32, 8, 12),  # g_shape
+            (10, 0, 3),  # st_a
+            (20, 0, 2),  # st_res
+            (5, 6, 7),  # extent_a
+            (5, 6, 7),  # extent_res
+            64,  # thread_cnt
+            0,  # device_id
+        ),
+    ],
+)
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
+@pytest.mark.parametrize("op_type", ["zero", "sqrt"])
+@pytest.mark.parametrize(
+    "src_dtype,dst_dtype", [("float16", "float16"), ("float32", "float16"), ("float32", "bfloat16")]
+)
+def test_unary_op_shared(input, op_type, src_dtype, dst_dtype):
+    g_shape, st_a, st_res, ext_a, ext_res, thread_cnt, device_id = input
+    s_shape = g_shape
+    g_layout = s_layout = TileLayout(S[g_shape])
+    in_place = src_dtype == dst_dtype
+
+    copy_slice = list(slice(None) for _ in range(len(g_shape)))
+    map_slice_a = list(slice(st_a[i], st_a[i] + ext_a[i]) for i in range(len(g_shape)))
+    map_slice_res = list(slice(st_res[i], st_res[i] + ext_res[i]) for i in range(len(g_shape)))
+
+    if in_place:
+        # fmt: off
+        @T.function
+        def unary_op(A: T.Tensor(g_shape, src_dtype, layout=g_layout)) -> None:
+
+            T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(thread_cnt,)))
+            _bx = T.cuda.block_idx('x')
+            _tx = T.cuda.thread_idx('x')
+            A_smem = T.alloc_tensor(
+                ty_args=[T.Tensor(s_shape, src_dtype, scope="shared", layout=s_layout)]
+            )
+            copy_src_5 = T.meta_var(A[tuple(copy_slice)])
+            copy_src_tensor_5 = T.meta_var(copy_src_5.source)
+            copy_dst_5 = T.meta_var(A_smem[tuple(copy_slice)])
+            copy_dst_tensor_5 = T.meta_var(copy_dst_5.source)
+            for copy_step_5 in T.serial(
+                T.ceildiv(math.prod([int(r.extent) for r in copy_src_5.region]), thread_cnt)
+            ):
+                copy_index_5 = copy_step_5 * (thread_cnt) + (_tx)
+                if copy_index_5 < math.prod([int(r.extent) for r in copy_src_5.region]):
+                    copy_value_5 = copy_src_tensor_5[
+                        tuple(
+                            [
+                                copy_src_5.region[k].min
+                                + copy_index_5
+                                // math.prod([int(s.extent) for s in copy_src_5.region[k + 1 :]])
+                                % copy_src_5.region[k].extent
+                                for k in range(len(copy_src_5.region))
+                            ]
+                        )
+                    ]
+                    copy_dst_index_5 = T.meta_var(
+                        tuple(
+                            [
+                                copy_dst_5.region[k].min
+                                + copy_index_5
+                                // math.prod([int(s.extent) for s in copy_dst_5.region[k + 1 :]])
+                                % copy_dst_5.region[k].extent
+                                for k in range(len(copy_dst_5.region))
+                            ]
+                        )
+                    )
+                    copy_dst_tensor_5[copy_dst_index_5] = copy_value_5
+            T.cuda.cta_sync()
+            if T.constexpr(op_type == "zero"):
+                T.cuda.tile.mov(A_smem[tuple(map_slice_res)], T.cast(0, A_smem.dtype), scope='cta')
+            elif T.constexpr(op_type == "sqrt"):
+                T.cuda.tile.sqrt(
+                    A_smem[tuple(map_slice_res)], A_smem[tuple(map_slice_a)], scope="cta"
+                )
+            T.cuda.cta_sync()
+            copy_src_6 = T.meta_var(A_smem[tuple(copy_slice)])
+            copy_src_tensor_6 = T.meta_var(copy_src_6.source)
+            copy_dst_6 = T.meta_var(A[tuple(copy_slice)])
+            copy_dst_tensor_6 = T.meta_var(copy_dst_6.source)
+            for copy_step_6 in T.serial(
+                T.ceildiv(math.prod([int(r.extent) for r in copy_src_6.region]), thread_cnt)
+            ):
+                copy_index_6 = copy_step_6 * (thread_cnt) + (_tx)
+                if copy_index_6 < math.prod([int(r.extent) for r in copy_src_6.region]):
+                    copy_value_6 = copy_src_tensor_6[
+                        tuple(
+                            [
+                                copy_src_6.region[k].min
+                                + copy_index_6
+                                // math.prod([int(s.extent) for s in copy_src_6.region[k + 1 :]])
+                                % copy_src_6.region[k].extent
+                                for k in range(len(copy_src_6.region))
+                            ]
+                        )
+                    ]
+                    copy_dst_index_6 = T.meta_var(
+                        tuple(
+                            [
+                                copy_dst_6.region[k].min
+                                + copy_index_6
+                                // math.prod([int(s.extent) for s in copy_dst_6.region[k + 1 :]])
+                                % copy_dst_6.region[k].extent
+                                for k in range(len(copy_dst_6.region))
+                            ]
+                        )
+                    )
+                    copy_dst_tensor_6[copy_dst_index_6] = copy_value_6
+            # fmt: on
+    else:
+        # fmt: off
+        @T.function
+        def unary_op(
+            A: T.Tensor(g_shape, src_dtype, layout=g_layout),
+            B: T.Tensor(g_shape, dst_dtype, layout=g_layout),
+        ) -> None:
+
+            T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(thread_cnt,)))
+            _bx = T.cuda.block_idx('x')
+            _tx = T.cuda.thread_idx('x')
+            A_smem = T.alloc_tensor(
+                ty_args=[T.Tensor(s_shape, src_dtype, scope="shared", layout=s_layout)]
+            )
+            B_smem = T.alloc_tensor(
+                ty_args=[T.Tensor(s_shape, dst_dtype, scope="shared", layout=s_layout)]
+            )
+            copy_src_7 = T.meta_var(A[tuple(copy_slice)])
+            copy_src_tensor_7 = T.meta_var(copy_src_7.source)
+            copy_dst_7 = T.meta_var(A_smem[tuple(copy_slice)])
+            copy_dst_tensor_7 = T.meta_var(copy_dst_7.source)
+            for copy_step_7 in T.serial(
+                T.ceildiv(math.prod([int(r.extent) for r in copy_src_7.region]), thread_cnt)
+            ):
+                copy_index_7 = copy_step_7 * (thread_cnt) + (_tx)
+                if copy_index_7 < math.prod([int(r.extent) for r in copy_src_7.region]):
+                    copy_value_7 = copy_src_tensor_7[
+                        tuple(
+                            [
+                                copy_src_7.region[k].min
+                                + copy_index_7
+                                // math.prod([int(s.extent) for s in copy_src_7.region[k + 1 :]])
+                                % copy_src_7.region[k].extent
+                                for k in range(len(copy_src_7.region))
+                            ]
+                        )
+                    ]
+                    copy_dst_index_7 = T.meta_var(
+                        tuple(
+                            [
+                                copy_dst_7.region[k].min
+                                + copy_index_7
+                                // math.prod([int(s.extent) for s in copy_dst_7.region[k + 1 :]])
+                                % copy_dst_7.region[k].extent
+                                for k in range(len(copy_dst_7.region))
+                            ]
+                        )
+                    )
+                    copy_dst_tensor_7[copy_dst_index_7] = copy_value_7
+            T.cuda.cta_sync()
+            if T.constexpr(op_type == "zero"):
+                T.cuda.tile.mov(B_smem[tuple(map_slice_res)], T.cast(0, B_smem.dtype), scope='cta')
+            elif T.constexpr(op_type == "sqrt"):
+                T.cuda.tile.sqrt(
+                    B_smem[tuple(map_slice_res)], A_smem[tuple(map_slice_a)], scope="cta"
+                )
+            T.cuda.cta_sync()
+            copy_src_8 = T.meta_var(B_smem[tuple(map_slice_res)])
+            copy_src_tensor_8 = T.meta_var(copy_src_8.source)
+            copy_dst_8 = T.meta_var(B[tuple(map_slice_res)])
+            copy_dst_tensor_8 = T.meta_var(copy_dst_8.source)
+            for copy_step_8 in T.serial(
+                T.ceildiv(math.prod([int(r.extent) for r in copy_src_8.region]), thread_cnt)
+            ):
+                copy_index_8 = copy_step_8 * (thread_cnt) + (_tx)
+                if copy_index_8 < math.prod([int(r.extent) for r in copy_src_8.region]):
+                    copy_value_8 = copy_src_tensor_8[
+                        tuple(
+                            [
+                                copy_src_8.region[k].min
+                                + copy_index_8
+                                // math.prod([int(s.extent) for s in copy_src_8.region[k + 1 :]])
+                                % copy_src_8.region[k].extent
+                                for k in range(len(copy_src_8.region))
+                            ]
+                        )
+                    ]
+                    copy_dst_index_8 = T.meta_var(
+                        tuple(
+                            [
+                                copy_dst_8.region[k].min
+                                + copy_index_8
+                                // math.prod([int(s.extent) for s in copy_dst_8.region[k + 1 :]])
+                                % copy_dst_8.region[k].extent
+                                for k in range(len(copy_dst_8.region))
+                            ]
+                        )
+                    )
+                    copy_dst_tensor_8[copy_dst_index_8] = copy_value_8
+            # fmt: on
+
+    def get_ref(A_np):
+        if in_place:
+            A_ref = A_np.copy()
+            if op_type == "zero":
+                A_ref[tuple(map_slice_res)] = 0.0
+            elif op_type == "sqrt":
+                A_ref[tuple(map_slice_res)] = np.sqrt(A_np[tuple(map_slice_a)])
+            return A_ref
+        else:
+            B_ref = np.zeros(g_shape, dtype=dst_dtype)
+            if op_type == "zero":
+                B_ref[tuple(map_slice_res)] = 0.0
+            elif op_type == "sqrt":
+                B_ref[tuple(map_slice_res)] = np.sqrt(A_np[tuple(map_slice_a)]).astype(dst_dtype)
+            return B_ref
+
+    target = tvm.target.Target("cuda")
+    with target:
+        np.random.seed(0)
+        A_np = np.abs(np.random.rand(*g_shape).astype(src_dtype)) + 0.1
+        mod = tvm.IRModule({"main": unary_op})
+        mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
+
+        def run_and_check():
+            dev = tvm.cuda(device_id)
+            A = tvm.runtime.tensor(A_np, dev)
+            if in_place:
+                mod(A)
+                A_ref = get_ref(A_np)
+                tvm.testing.assert_allclose(A_ref, A.numpy(), atol=1e-3)
+            else:
+                B = tvm.runtime.tensor(np.zeros(g_shape, dtype=dst_dtype), dev)
+                mod(A, B)
+                B_ref = get_ref(A_np)
+                tvm.testing.assert_allclose(B_ref, B.numpy(), atol=1e-2, rtol=1e-2)
+
+        tvm.testing.run_with_gpu_lock(run_and_check)
+
+
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
+@pytest.mark.parametrize("exec_scope", ["warp", "warpgroup"])
+def test_unary_op_shared_subcta_scope(exec_scope):
+    dtype = "float16"
+    n_warps = 4 if exec_scope == "warpgroup" else 1
+    g_shape = (n_warps * 32, 8)
+
+    @T.function
+    def unary_op_subcta(A: T.Tensor(g_shape, dtype, layout=TileLayout(S[g_shape]))) -> None:
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(256,)))
+        warp_id = T.cuda.warp_id()
+        wg_id = T.cuda.warpgroup_id()
+        _bx = T.cuda.block_idx("x")
+        _tid = T.cuda.thread_idx("x")
+        A_smem = T.alloc_tensor(
+            ty_args=[T.Tensor(g_shape, dtype, scope="shared", layout=TileLayout(S[g_shape]))]
+        )
+        copy_src_1 = T.meta_var(A[tuple(slice(None) for _ in A.shape)])
+        copy_src_tensor_1 = T.meta_var(copy_src_1.source)
+        copy_dst_1 = T.meta_var(A_smem[tuple(slice(None) for _ in A_smem.shape)])
+        copy_dst_tensor_1 = T.meta_var(copy_dst_1.source)
+        for copy_step_1 in T.serial(
+            T.ceildiv(math.prod([int(r.extent) for r in copy_src_1.region]), 256)
+        ):
+            copy_index_1 = copy_step_1 * (256) + (_tid)
+            if copy_index_1 < math.prod([int(r.extent) for r in copy_src_1.region]):
+                copy_value_1 = copy_src_tensor_1[
+                    tuple(
+                        [
+                            copy_src_1.region[k].min
+                            + copy_index_1
+                            // math.prod([int(s.extent) for s in copy_src_1.region[k + 1 :]])
+                            % copy_src_1.region[k].extent
+                            for k in range(len(copy_src_1.region))
+                        ]
+                    )
+                ]
+                copy_dst_index_1 = T.meta_var(
+                    tuple(
+                        [
+                            copy_dst_1.region[k].min
+                            + copy_index_1
+                            // math.prod([int(s.extent) for s in copy_dst_1.region[k + 1 :]])
+                            % copy_dst_1.region[k].extent
+                            for k in range(len(copy_dst_1.region))
+                        ]
+                    )
+                )
+                copy_dst_tensor_1[copy_dst_index_1] = copy_value_1
+        T.cuda.cta_sync()
+        if T.constexpr(exec_scope == "warp"):
+            if warp_id == 5:
+                T.cuda.tile.mov(A_smem, T.cast(0, A_smem.dtype), scope="warp")
+        elif T.constexpr(exec_scope == "warpgroup"):
+            if wg_id == 1:
+                T.cuda.tile.mov(A_smem, T.cast(0, A_smem.dtype), scope="warpgroup")
+        T.cuda.cta_sync()
+        copy_src_2 = T.meta_var(A_smem[tuple(slice(None) for _ in A_smem.shape)])
+        copy_src_tensor_2 = T.meta_var(copy_src_2.source)
+        copy_dst_2 = T.meta_var(A[tuple(slice(None) for _ in A.shape)])
+        copy_dst_tensor_2 = T.meta_var(copy_dst_2.source)
+        for copy_step_2 in T.serial(
+            T.ceildiv(math.prod([int(r.extent) for r in copy_src_2.region]), 256)
+        ):
+            copy_index_2 = copy_step_2 * (256) + (_tid)
+            if copy_index_2 < math.prod([int(r.extent) for r in copy_src_2.region]):
+                copy_value_2 = copy_src_tensor_2[
+                    tuple(
+                        [
+                            copy_src_2.region[k].min
+                            + copy_index_2
+                            // math.prod([int(s.extent) for s in copy_src_2.region[k + 1 :]])
+                            % copy_src_2.region[k].extent
+                            for k in range(len(copy_src_2.region))
+                        ]
+                    )
+                ]
+                copy_dst_index_2 = T.meta_var(
+                    tuple(
+                        [
+                            copy_dst_2.region[k].min
+                            + copy_index_2
+                            // math.prod([int(s.extent) for s in copy_dst_2.region[k + 1 :]])
+                            % copy_dst_2.region[k].extent
+                            for k in range(len(copy_dst_2.region))
+                        ]
+                    )
+                )
+                copy_dst_tensor_2[copy_dst_index_2] = copy_value_2
+
+    target = tvm.target.Target("cuda")
+    with target:
+        np.random.seed(0)
+        A_np = np.random.rand(*g_shape).astype(dtype)
+        mod = tvm.IRModule({"main": unary_op_subcta})
+        mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
+
+        def run_and_check():
+            dev = tvm.cuda(0)
+            A = tvm.runtime.tensor(A_np, dev)
+            mod(A)
+            tvm.testing.assert_allclose(A.numpy(), np.zeros_like(A_np), atol=1e-3)
+
+        tvm.testing.run_with_gpu_lock(run_and_check)
+
+
+@pytest.mark.parametrize(
+    "input",
+    [
+        ######### basic test #########
+        (
+            (32, 32),  # g_shape
+            (0, 0),  # st_a
+            (0, 0),  # st_res
+            (32, 32),  # extent_a
+            (32, 32),  # extent_res
+            64,  # thread_cnt
+            0,  # device_id
+        ),
+        ######### offset test #########
+        (
+            (32, 8, 12),  # g_shape
+            (10, 0, 3),  # st_a
+            (20, 0, 2),  # st_res
+            (5, 6, 7),  # extent_a
+            (5, 6, 7),  # extent_res
+            64,  # thread_cnt
+            0,  # device_id
+        ),
+    ],
+)
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
+@pytest.mark.parametrize("op_type", ["sqrt", "exp"])
+@pytest.mark.parametrize("bias_type", ["const", "region"])
+@pytest.mark.parametrize(
+    "src_dtype,dst_dtype",
+    [
+        ("float16", "float16"),
+        ("float32", "float32"),
+        ("float32", "float16"),
+        ("float32", "bfloat16"),
+    ],
+)
+def test_unary_op_shared_with_bias_scale(input, op_type, bias_type, src_dtype, dst_dtype):
+    g_shape, st_a, st_res, ext_a, ext_res, thread_cnt, device_id = input
+    s_shape = g_shape
+    g_layout = s_layout = TileLayout(S[g_shape])
+    in_place = src_dtype == dst_dtype
+
+    copy_slice = list(slice(None) for _ in range(len(g_shape)))
+    map_slice_a = list(slice(st_a[i], st_a[i] + ext_a[i]) for i in range(len(g_shape)))
+    map_slice_res = list(slice(st_res[i], st_res[i] + ext_res[i]) for i in range(len(g_shape)))
+
+    # scale and bias in compute_dtype (= src_dtype)
+    scale = T.FloatImm(src_dtype, 1.5)
+    const_bias = T.FloatImm(src_dtype, 0.88)
+
+    if in_place:
+
+        @T.function
+        def unary_op_with_bias(
+            A: T.Tensor(g_shape, src_dtype, layout=g_layout),
+            bias: T.Tensor(g_shape, src_dtype, layout=g_layout),
+        ) -> None:
+            T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(thread_cnt,)))
+            _bx = T.cuda.block_idx("x")
+            _tx = T.cuda.thread_idx("x")
+            A_smem = T.alloc_tensor(
+                ty_args=[T.Tensor(s_shape, src_dtype, scope="shared", layout=s_layout)]
+            )
+            bias_smem = T.alloc_tensor(
+                ty_args=[T.Tensor(s_shape, src_dtype, scope="shared", layout=s_layout)]
+            )
+            copy_src_9 = T.meta_var(A[tuple(copy_slice)])
+            copy_src_tensor_9 = T.meta_var(copy_src_9.source)
+            copy_dst_9 = T.meta_var(A_smem[tuple(copy_slice)])
+            copy_dst_tensor_9 = T.meta_var(copy_dst_9.source)
+            for copy_step_9 in T.serial(
+                T.ceildiv(math.prod([int(r.extent) for r in copy_src_9.region]), thread_cnt)
+            ):
+                copy_index_9 = copy_step_9 * (thread_cnt) + (_tx)
+                if copy_index_9 < math.prod([int(r.extent) for r in copy_src_9.region]):
+                    copy_value_9 = copy_src_tensor_9[
+                        tuple(
+                            [
+                                copy_src_9.region[k].min
+                                + copy_index_9
+                                // math.prod([int(s.extent) for s in copy_src_9.region[k + 1 :]])
+                                % copy_src_9.region[k].extent
+                                for k in range(len(copy_src_9.region))
+                            ]
+                        )
+                    ]
+                    copy_dst_index_9 = T.meta_var(
+                        tuple(
+                            [
+                                copy_dst_9.region[k].min
+                                + copy_index_9
+                                // math.prod([int(s.extent) for s in copy_dst_9.region[k + 1 :]])
+                                % copy_dst_9.region[k].extent
+                                for k in range(len(copy_dst_9.region))
+                            ]
+                        )
+                    )
+                    copy_dst_tensor_9[copy_dst_index_9] = copy_value_9
+            copy_src_10 = T.meta_var(bias[tuple(copy_slice)])
+            copy_src_tensor_10 = T.meta_var(copy_src_10.source)
+            copy_dst_10 = T.meta_var(bias_smem[tuple(copy_slice)])
+            copy_dst_tensor_10 = T.meta_var(copy_dst_10.source)
+            for copy_step_10 in T.serial(
+                T.ceildiv(math.prod([int(r.extent) for r in copy_src_10.region]), thread_cnt)
+            ):
+                copy_index_10 = copy_step_10 * (thread_cnt) + (_tx)
+                if copy_index_10 < math.prod([int(r.extent) for r in copy_src_10.region]):
+                    copy_value_10 = copy_src_tensor_10[
+                        tuple(
+                            [
+                                copy_src_10.region[k].min
+                                + copy_index_10
+                                // math.prod([int(s.extent) for s in copy_src_10.region[k + 1 :]])
+                                % copy_src_10.region[k].extent
+                                for k in range(len(copy_src_10.region))
+                            ]
+                        )
+                    ]
+                    copy_dst_index_10 = T.meta_var(
+                        tuple(
+                            [
+                                copy_dst_10.region[k].min
+                                + copy_index_10
+                                // math.prod([int(s.extent) for s in copy_dst_10.region[k + 1 :]])
+                                % copy_dst_10.region[k].extent
+                                for k in range(len(copy_dst_10.region))
+                            ]
+                        )
+                    )
+                    copy_dst_tensor_10[copy_dst_index_10] = copy_value_10
+            T.cuda.cta_sync()
+            if T.constexpr(bias_type == "const"):
+                if T.constexpr(op_type == "sqrt"):
+                    T.cuda.tile.compose.sqrt_with_scale_bias(
+                        A_smem[tuple(map_slice_res)],
+                        A_smem[tuple(map_slice_a)],
+                        scale=scale,
+                        bias=const_bias,
+                        scope="cta",
+                    )
+                elif T.constexpr(op_type == "exp"):
+                    T.cuda.tile.compose.exp_with_scale_bias(
+                        A_smem[tuple(map_slice_res)],
+                        A_smem[tuple(map_slice_a)],
+                        scale=scale,
+                        bias=const_bias,
+                        scope="cta",
+                    )
+            elif T.constexpr(bias_type == "region"):
+                if T.constexpr(op_type == "sqrt"):
+                    T.cuda.tile.compose.sqrt_with_scale_bias(
+                        A_smem[tuple(map_slice_res)],
+                        A_smem[tuple(map_slice_a)],
+                        scale=scale,
+                        bias=bias_smem[tuple(map_slice_a)],
+                        scope="cta",
+                    )
+                elif T.constexpr(op_type == "exp"):
+                    T.cuda.tile.compose.exp_with_scale_bias(
+                        A_smem[tuple(map_slice_res)],
+                        A_smem[tuple(map_slice_a)],
+                        scale=scale,
+                        bias=bias_smem[tuple(map_slice_a)],
+                        scope="cta",
+                    )
+            T.cuda.cta_sync()
+            copy_src_11 = T.meta_var(A_smem[tuple(copy_slice)])
+            copy_src_tensor_11 = T.meta_var(copy_src_11.source)
+            copy_dst_11 = T.meta_var(A[tuple(copy_slice)])
+            copy_dst_tensor_11 = T.meta_var(copy_dst_11.source)
+            for copy_step_11 in T.serial(
+                T.ceildiv(math.prod([int(r.extent) for r in copy_src_11.region]), thread_cnt)
+            ):
+                copy_index_11 = copy_step_11 * (thread_cnt) + (_tx)
+                if copy_index_11 < math.prod([int(r.extent) for r in copy_src_11.region]):
+                    copy_value_11 = copy_src_tensor_11[
+                        tuple(
+                            [
+                                copy_src_11.region[k].min
+                                + copy_index_11
+                                // math.prod([int(s.extent) for s in copy_src_11.region[k + 1 :]])
+                                % copy_src_11.region[k].extent
+                                for k in range(len(copy_src_11.region))
+                            ]
+                        )
+                    ]
+                    copy_dst_index_11 = T.meta_var(
+                        tuple(
+                            [
+                                copy_dst_11.region[k].min
+                                + copy_index_11
+                                // math.prod([int(s.extent) for s in copy_dst_11.region[k + 1 :]])
+                                % copy_dst_11.region[k].extent
+                                for k in range(len(copy_dst_11.region))
+                            ]
+                        )
+                    )
+                    copy_dst_tensor_11[copy_dst_index_11] = copy_value_11
+    else:
+
+        @T.function
+        def unary_op_with_bias(
+            A: T.Tensor(g_shape, src_dtype, layout=g_layout),
+            B: T.Tensor(g_shape, dst_dtype, layout=g_layout),
+            bias: T.Tensor(g_shape, src_dtype, layout=g_layout),
+        ) -> None:
+            T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(thread_cnt,)))
+            _bx = T.cuda.block_idx("x")
+            _tx = T.cuda.thread_idx("x")
+            A_smem = T.alloc_tensor(
+                ty_args=[T.Tensor(s_shape, src_dtype, scope="shared", layout=s_layout)]
+            )
+            B_smem = T.alloc_tensor(
+                ty_args=[T.Tensor(s_shape, dst_dtype, scope="shared", layout=s_layout)]
+            )
+            bias_smem = T.alloc_tensor(
+                ty_args=[T.Tensor(s_shape, src_dtype, scope="shared", layout=s_layout)]
+            )
+            copy_src_12 = T.meta_var(A[tuple(copy_slice)])
+            copy_src_tensor_12 = T.meta_var(copy_src_12.source)
+            copy_dst_12 = T.meta_var(A_smem[tuple(copy_slice)])
+            copy_dst_tensor_12 = T.meta_var(copy_dst_12.source)
+            for copy_step_12 in T.serial(
+                T.ceildiv(math.prod([int(r.extent) for r in copy_src_12.region]), thread_cnt)
+            ):
+                copy_index_12 = copy_step_12 * (thread_cnt) + (_tx)
+                if copy_index_12 < math.prod([int(r.extent) for r in copy_src_12.region]):
+                    copy_value_12 = copy_src_tensor_12[
+                        tuple(
+                            [
+                                copy_src_12.region[k].min
+                                + copy_index_12
+                                // math.prod([int(s.extent) for s in copy_src_12.region[k + 1 :]])
+                                % copy_src_12.region[k].extent
+                                for k in range(len(copy_src_12.region))
+                            ]
+                        )
+                    ]
+                    copy_dst_index_12 = T.meta_var(
+                        tuple(
+                            [
+                                copy_dst_12.region[k].min
+                                + copy_index_12
+                                // math.prod([int(s.extent) for s in copy_dst_12.region[k + 1 :]])
+                                % copy_dst_12.region[k].extent
+                                for k in range(len(copy_dst_12.region))
+                            ]
+                        )
+                    )
+                    copy_dst_tensor_12[copy_dst_index_12] = copy_value_12
+            copy_src_13 = T.meta_var(bias[tuple(copy_slice)])
+            copy_src_tensor_13 = T.meta_var(copy_src_13.source)
+            copy_dst_13 = T.meta_var(bias_smem[tuple(copy_slice)])
+            copy_dst_tensor_13 = T.meta_var(copy_dst_13.source)
+            for copy_step_13 in T.serial(
+                T.ceildiv(math.prod([int(r.extent) for r in copy_src_13.region]), thread_cnt)
+            ):
+                copy_index_13 = copy_step_13 * (thread_cnt) + (_tx)
+                if copy_index_13 < math.prod([int(r.extent) for r in copy_src_13.region]):
+                    copy_value_13 = copy_src_tensor_13[
+                        tuple(
+                            [
+                                copy_src_13.region[k].min
+                                + copy_index_13
+                                // math.prod([int(s.extent) for s in copy_src_13.region[k + 1 :]])
+                                % copy_src_13.region[k].extent
+                                for k in range(len(copy_src_13.region))
+                            ]
+                        )
+                    ]
+                    copy_dst_index_13 = T.meta_var(
+                        tuple(
+                            [
+                                copy_dst_13.region[k].min
+                                + copy_index_13
+                                // math.prod([int(s.extent) for s in copy_dst_13.region[k + 1 :]])
+                                % copy_dst_13.region[k].extent
+                                for k in range(len(copy_dst_13.region))
+                            ]
+                        )
+                    )
+                    copy_dst_tensor_13[copy_dst_index_13] = copy_value_13
+            T.cuda.cta_sync()
+            if T.constexpr(bias_type == "const"):
+                if T.constexpr(op_type == "sqrt"):
+                    T.cuda.tile.compose.sqrt_with_scale_bias(
+                        B_smem[tuple(map_slice_res)],
+                        A_smem[tuple(map_slice_a)],
+                        scale=scale,
+                        bias=const_bias,
+                        scope="cta",
+                    )
+                elif T.constexpr(op_type == "exp"):
+                    T.cuda.tile.compose.exp_with_scale_bias(
+                        B_smem[tuple(map_slice_res)],
+                        A_smem[tuple(map_slice_a)],
+                        scale=scale,
+                        bias=const_bias,
+                        scope="cta",
+                    )
+            elif T.constexpr(bias_type == "region"):
+                if T.constexpr(op_type == "sqrt"):
+                    T.cuda.tile.compose.sqrt_with_scale_bias(
+                        B_smem[tuple(map_slice_res)],
+                        A_smem[tuple(map_slice_a)],
+                        scale=scale,
+                        bias=bias_smem[tuple(map_slice_a)],
+                        scope="cta",
+                    )
+                elif T.constexpr(op_type == "exp"):
+                    T.cuda.tile.compose.exp_with_scale_bias(
+                        B_smem[tuple(map_slice_res)],
+                        A_smem[tuple(map_slice_a)],
+                        scale=scale,
+                        bias=bias_smem[tuple(map_slice_a)],
+                        scope="cta",
+                    )
+            T.cuda.cta_sync()
+            copy_src_14 = T.meta_var(B_smem[tuple(map_slice_res)])
+            copy_src_tensor_14 = T.meta_var(copy_src_14.source)
+            copy_dst_14 = T.meta_var(B[tuple(map_slice_res)])
+            copy_dst_tensor_14 = T.meta_var(copy_dst_14.source)
+            for copy_step_14 in T.serial(
+                T.ceildiv(math.prod([int(r.extent) for r in copy_src_14.region]), thread_cnt)
+            ):
+                copy_index_14 = copy_step_14 * (thread_cnt) + (_tx)
+                if copy_index_14 < math.prod([int(r.extent) for r in copy_src_14.region]):
+                    copy_value_14 = copy_src_tensor_14[
+                        tuple(
+                            [
+                                copy_src_14.region[k].min
+                                + copy_index_14
+                                // math.prod([int(s.extent) for s in copy_src_14.region[k + 1 :]])
+                                % copy_src_14.region[k].extent
+                                for k in range(len(copy_src_14.region))
+                            ]
+                        )
+                    ]
+                    copy_dst_index_14 = T.meta_var(
+                        tuple(
+                            [
+                                copy_dst_14.region[k].min
+                                + copy_index_14
+                                // math.prod([int(s.extent) for s in copy_dst_14.region[k + 1 :]])
+                                % copy_dst_14.region[k].extent
+                                for k in range(len(copy_dst_14.region))
+                            ]
+                        )
+                    )
+                    copy_dst_tensor_14[copy_dst_index_14] = copy_value_14
+
+    def get_ref(A_np, bias_np):
+        if in_place:
+            A_ref = A_np.copy()
+            if bias_type == "region":
+                if op_type == "sqrt":
+                    A_ref[tuple(map_slice_res)] = np.sqrt(
+                        A_np[tuple(map_slice_a)] * scale.value + bias_np[tuple(map_slice_a)]
+                    )
+                elif op_type == "exp":
+                    A_ref[tuple(map_slice_res)] = np.exp(
+                        A_np[tuple(map_slice_a)] * scale.value + bias_np[tuple(map_slice_a)]
+                    )
+            elif bias_type == "const":
+                if op_type == "sqrt":
+                    A_ref[tuple(map_slice_res)] = np.sqrt(
+                        A_np[tuple(map_slice_a)] * scale.value + const_bias.value
+                    )
+                elif op_type == "exp":
+                    A_ref[tuple(map_slice_res)] = np.exp(
+                        A_np[tuple(map_slice_a)] * scale.value + const_bias.value
+                    )
+            else:
+                raise ValueError(f"bias_type={bias_type} is not supported")
+            return A_ref
+        else:
+            B_ref = np.zeros(g_shape, dtype=dst_dtype)
+            if bias_type == "region":
+                if op_type == "sqrt":
+                    B_ref[tuple(map_slice_res)] = np.sqrt(
+                        A_np[tuple(map_slice_a)] * scale.value + bias_np[tuple(map_slice_a)]
+                    ).astype(dst_dtype)
+                elif op_type == "exp":
+                    B_ref[tuple(map_slice_res)] = np.exp(
+                        A_np[tuple(map_slice_a)] * scale.value + bias_np[tuple(map_slice_a)]
+                    ).astype(dst_dtype)
+            elif bias_type == "const":
+                if op_type == "sqrt":
+                    B_ref[tuple(map_slice_res)] = np.sqrt(
+                        A_np[tuple(map_slice_a)] * scale.value + const_bias.value
+                    ).astype(dst_dtype)
+                elif op_type == "exp":
+                    B_ref[tuple(map_slice_res)] = np.exp(
+                        A_np[tuple(map_slice_a)] * scale.value + const_bias.value
+                    ).astype(dst_dtype)
+            else:
+                raise ValueError(f"bias_type={bias_type} is not supported")
+            return B_ref
+
+    target = tvm.target.Target("cuda")
+    with target:
+        np.random.seed(0)
+        A_np = np.abs(np.random.rand(*g_shape).astype(src_dtype)) + 0.1
+        bias_np = np.random.rand(*g_shape).astype(src_dtype)
+        mod = tvm.IRModule({"main": unary_op_with_bias})
+        mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
+        atol = (
+            1e-1
+            if src_dtype == "float16" and op_type == "exp"
+            else (1e-2 if src_dtype == "float16" else 1e-3)
+        )
+
+        def run_and_check():
+            dev = tvm.cuda(device_id)
+            A = tvm.runtime.tensor(A_np, dev)
+            bias = tvm.runtime.tensor(bias_np, dev)
+            if in_place:
+                mod(A, bias)
+                A_ref = get_ref(A_np, bias_np)
+                tvm.testing.assert_allclose(A_ref, A.numpy(), atol=atol)
+            else:
+                B = tvm.runtime.tensor(np.zeros(g_shape, dtype=dst_dtype), dev)
+                mod(A, B, bias)
+                B_ref = get_ref(A_np, bias_np)
+                tvm.testing.assert_allclose(B_ref, B.numpy(), atol=1e-1, rtol=1e-2)
+
+        tvm.testing.run_with_gpu_lock(run_and_check)
+
+
+@pytest.mark.parametrize(
+    "input",
+    [
+        (
+            "wgmma",  # layout
+            1,  # N_GROUPS
+            1,  # N_WARPS
+            32,  # thread_cnt
+            0,  # device_id
+        ),
+        (
+            "wgmma",  # layout
+            1,  # N_GROUPS
+            4,  # N_WARPS
+            32,  # thread_cnt
+            0,  # device_id
+        ),
+        (
+            "wgmma",  # layout
+            2,  # N_GROUPS
+            8,  # N_WARPS
+            32,  # thread_cnt
+            0,  # device_id
+        ),
+    ],
+)
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
+@pytest.mark.parametrize("op_type", ["reciprocal", "exp", "exp2", "log2"])
+@pytest.mark.parametrize(
+    "src_dtype,dst_dtype", [("float16", "float16"), ("float32", "float16"), ("float32", "bfloat16")]
+)
+def test_unary_op_local(input, op_type, src_dtype, dst_dtype):
+    layout, N_GROUPS, N_WARPS, thread_cnt, device_id = input
+    assert layout == "wgmma", "logical tensor which is not WGMMA layout is not supported"
+
+    # get shape info
+    NUM_COL = 128
+    g_shape_a = g_shape_b = (16 * N_WARPS, NUM_COL)
+    g_layout_a = g_layout_b = TileLayout(S[g_shape_a])
+    acc_shape = red_shape = (16, NUM_COL)
+
+    @T.function
+    def test_unary(
+        A: T.Tensor(g_shape_a, src_dtype, layout=g_layout_a),
+        B: T.Tensor(g_shape_b, dst_dtype, layout=g_layout_b),
+    ) -> None:
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1, 1, 1), block=N_GROUPS * 128))
+        bx, by, bz = (T.cuda.block_idx("x"), T.cuda.block_idx("y"), T.cuda.block_idx("z"))
+        wg_id = T.cuda.warpgroup_id()
+        warp_id_in_wg = T.cuda.warp_in_warpgroup()
+        lane_id = T.cuda.lane_id()
+        # acc layout
+        atom = T.TileLayout(T.S[(1, 2) : (2, 1)])
+        warp_layout = T.TileLayout(T.S[(8, 4) : (4 @ laneid, 1 @ laneid)])
+        warp_atom = atom.tile(warp_layout, (8, 4), (1, 2))
+        tile = T.TileLayout(T.S[(2, NUM_COL // 8) : (1, 2)])
+        acc_layout = warp_atom.tile(tile, (2, NUM_COL // 8), (8, 8))
+        acc = T.alloc_tensor(
+            ty_args=[
+                T.Tensor(
+                    [2, NUM_COL // 4],
+                    src_dtype,
+                    scope="local",
+                    layout=atom.tile(tile, (2, NUM_COL // 8), (1, 2)),
+                )
+            ]
+        )
+        res = T.alloc_tensor(
+            ty_args=[
+                T.Tensor(
+                    [2, NUM_COL // 4],
+                    dst_dtype,
+                    scope="local",
+                    layout=atom.tile(tile, (2, NUM_COL // 8), (1, 2)),
+                )
+            ]
+        )
+        for i in T.serial(NUM_COL // 8):
+            for j in T.unroll(2):
+                for vec in T.vectorized(2):
+                    acc[j, i * 2 + vec] = A[
+                        wg_id * 64 + warp_id_in_wg * 16 + j * 8 + lane_id // 4,
+                        i * 8 + lane_id % 4 * 2 + vec,
+                    ]
+
+            # unary op
+        acc_view = acc.view(*acc_shape, layout=acc_layout)
+        res_view = res.view(*red_shape, layout=acc_layout)
+        if T.constexpr(op_type == "reciprocal"):
+            T.cuda.tile.div(res_view, T.cast(1, res_view.dtype), acc_view, scope="warp")
+        elif T.constexpr(op_type == "exp"):
+            T.cuda.tile.compose.exp(res_view, acc_view, scope="warp")
+        elif T.constexpr(op_type == "exp2"):
+            T.cuda.tile.ex2(res_view, acc_view, scope="warp")
+        elif T.constexpr(op_type == "log2"):
+            T.cuda.tile.lg2(res_view, acc_view, scope="warp")
+
+            # write res into B
+        for i in T.serial(NUM_COL // 8):
+            for j in T.unroll(2):
+                for vec in T.vectorized(2):
+                    B[
+                        wg_id * 64 + warp_id_in_wg * 16 + j * 8 + lane_id // 4,
+                        i * 8 + lane_id % 4 * 2 + vec,
+                    ] = res[j, i * 2 + vec]
+
+        # fmt: on
+
+    target = tvm.target.Target("cuda")
+    with target:
+        mod = tvm.IRModule({"main": test_unary})
+        mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
+
+        np.random.seed(0)
+        A_np = np.abs(np.random.rand(*g_shape_a).astype(src_dtype)) + 0.1
+        B_np = np.zeros(g_shape_b, dtype=dst_dtype)
+        print(f"compiled source code: {mod.mod.imports[0].inspect_source()}")
+
+        # find ref result
+        if op_type == "reciprocal":
+            B_ref = (1 / A_np).astype(dst_dtype)
+        elif op_type == "exp":
+            B_ref = np.exp(A_np).astype(dst_dtype)
+        elif op_type == "exp2":
+            B_ref = np.exp2(A_np).astype(dst_dtype)
+        elif op_type == "log2":
+            B_ref = np.log2(A_np).astype(dst_dtype)
+        else:
+            raise ValueError(f"op_type={op_type} is not supported")
+
+        def run_and_check():
+            dev = tvm.cuda(device_id)
+            A = tvm.runtime.tensor(A_np, dev)
+            B = tvm.runtime.tensor(B_np, dev)
+            mod(A, B)
+            tvm.testing.assert_allclose(B_ref, B.numpy(), atol=1e-2, rtol=1e-2)
+
+        tvm.testing.run_with_gpu_lock(run_and_check)
+
+
+@pytest.mark.parametrize(
+    "input",
+    [
+        (
+            "wgmma",  # layout
+            1,  # N_GROUPS
+            1,  # N_WARPS
+            32,  # thread_cnt
+            0,  # device_id
+        ),
+        (
+            "wgmma",  # layout
+            1,  # N_GROUPS
+            4,  # N_WARPS
+            32,  # thread_cnt
+            0,  # device_id
+        ),
+        (
+            "wgmma",  # layout
+            2,  # N_GROUPS
+            8,  # N_WARPS
+            32,  # thread_cnt
+            0,  # device_id
+        ),
+    ],
+)
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
+@pytest.mark.parametrize("op_type", ["sqrt", "exp"])
+@pytest.mark.parametrize("bias_type", ["const", "region"])
+@pytest.mark.parametrize(
+    "src_dtype,dst_dtype", [("float32", "float32"), ("float32", "float16"), ("float32", "bfloat16")]
+)
+def test_unary_op_local_with_bias_scale(input, op_type, bias_type, src_dtype, dst_dtype):
+    layout, N_GROUPS, N_WARPS, thread_cnt, device_id = input
+    assert layout == "wgmma", "logical tensor which is not WGMMA layout is not supported"
+
+    # get shape info
+    NUM_COL = 128
+    g_shape_a = g_shape_b = g_shape_bias = (16 * N_WARPS, NUM_COL)
+    g_layout_a = g_layout_b = g_layout_bias = TileLayout(S[g_shape_a])
+    acc_shape = red_shape = bias_shape = (16, NUM_COL)
+
+    scale = T.float16(1.5) if src_dtype == "float16" else T.float32(1.5)
+    const_bias = T.float16(0.88) if src_dtype == "float16" else T.float32(0.88)
+
+    @T.function
+    def test_unary_with_bias(
+        A: T.Tensor(g_shape_a, src_dtype, layout=g_layout_a),
+        B: T.Tensor(g_shape_b, dst_dtype, layout=g_layout_b),
+        bias: T.Tensor(g_shape_bias, src_dtype, layout=g_layout_bias),
+    ) -> None:
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1, 1, 1), block=N_GROUPS * 128))
+        bx, by, bz = (T.cuda.block_idx("x"), T.cuda.block_idx("y"), T.cuda.block_idx("z"))
+        wg_id = T.cuda.warpgroup_id()
+        warp_id_in_wg = T.cuda.warp_in_warpgroup()
+        lane_id = T.cuda.lane_id()
+        # acc layout
+        atom = T.TileLayout(T.S[(1, 2) : (2, 1)])
+        warp_layout = T.TileLayout(T.S[(8, 4) : (4 @ laneid, 1 @ laneid)])
+        warp_atom = atom.tile(warp_layout, (8, 4), (1, 2))
+        tile = T.TileLayout(T.S[(2, NUM_COL // 8) : (1, 2)])
+        acc_layout = warp_atom.tile(tile, (2, NUM_COL // 8), (8, 8))
+        acc = T.alloc_tensor(
+            ty_args=[
+                T.Tensor(
+                    [2, NUM_COL // 4],
+                    src_dtype,
+                    scope="local",
+                    layout=atom.tile(tile, (2, NUM_COL // 8), (1, 2)),
+                )
+            ]
+        )
+        bias_local = T.alloc_tensor(
+            ty_args=[
+                T.Tensor(
+                    [2, NUM_COL // 4],
+                    src_dtype,
+                    scope="local",
+                    layout=atom.tile(tile, (2, NUM_COL // 8), (1, 2)),
+                )
+            ]
+        )
+        res = T.alloc_tensor(
+            ty_args=[
+                T.Tensor(
+                    [2, NUM_COL // 4],
+                    dst_dtype,
+                    scope="local",
+                    layout=atom.tile(tile, (2, NUM_COL // 8), (1, 2)),
+                )
+            ]
+        )
+        for i in T.serial(NUM_COL // 8):
+            for j in T.unroll(2):
+                for vec in T.vectorized(2):
+                    acc[j, i * 2 + vec] = A[
+                        wg_id * 64 + warp_id_in_wg * 16 + j * 8 + lane_id // 4,
+                        i * 8 + lane_id % 4 * 2 + vec,
+                    ]
+            # load bias into bias_local
+        for i in T.serial(NUM_COL // 8):
+            for j in T.unroll(2):
+                for vec in T.vectorized(2):
+                    bias_local[j, i * 2 + vec] = bias[
+                        wg_id * 64 + warp_id_in_wg * 16 + j * 8 + lane_id // 4,
+                        i * 8 + lane_id % 4 * 2 + vec,
+                    ]
+
+            # unary op
+        acc_view = acc.view(*acc_shape, layout=acc_layout)
+        res_view = res.view(*red_shape, layout=acc_layout)
+        bias_view = bias_local.view(*bias_shape, layout=acc_layout)
+        if T.constexpr(bias_type == "const"):
+            if T.constexpr(op_type == "sqrt"):
+                T.cuda.tile.compose.sqrt_with_scale_bias(
+                    res_view, acc_view, scale=scale, bias=const_bias, scope="warp"
+                )
+            elif T.constexpr(op_type == "exp"):
+                T.cuda.tile.compose.exp_with_scale_bias(
+                    res_view, acc_view, scale=scale, bias=const_bias, scope="warp"
+                )
+        elif T.constexpr(bias_type == "region"):
+            if T.constexpr(op_type == "sqrt"):
+                T.cuda.tile.compose.sqrt_with_scale_bias(
+                    res_view, acc_view, scale=scale, bias=bias_view, scope="warp"
+                )
+            elif T.constexpr(op_type == "exp"):
+                T.cuda.tile.compose.exp_with_scale_bias(
+                    res_view, acc_view, scale=scale, bias=bias_view, scope="warp"
+                )
+
+            # write res into B
+        for i in T.serial(NUM_COL // 8):
+            for j in T.unroll(2):
+                for vec in T.vectorized(2):
+                    B[
+                        wg_id * 64 + warp_id_in_wg * 16 + j * 8 + lane_id // 4,
+                        i * 8 + lane_id % 4 * 2 + vec,
+                    ] = res[j, i * 2 + vec]
+
+    def get_ref(A_np, bias_np):
+        A_ref = A_np.copy()
+        if bias_type == "region":
+            if op_type == "sqrt":
+                A_ref = np.sqrt(A_np * scale.value + bias_np)
+            elif op_type == "exp":
+                A_ref = np.exp(A_np * scale.value + bias_np)
+        elif bias_type == "const":
+            if op_type == "sqrt":
+                A_ref = np.sqrt(A_np * scale.value + const_bias.value)
+            elif op_type == "exp":
+                A_ref = np.exp(A_np * scale.value + const_bias.value)
+        else:
+            raise ValueError(f"bias_type={bias_type} is not supported")
+        return A_ref.astype(dst_dtype)
+
+    target = tvm.target.Target("cuda")
+    with target:
+        np.random.seed(0)
+        A_np = np.random.rand(*g_shape_a).astype(src_dtype)
+        bias_np = np.random.rand(*g_shape_bias).astype(src_dtype)
+        B_np = np.zeros(g_shape_b, dtype=dst_dtype)
+        mod = tvm.IRModule({"main": test_unary_with_bias})
+        mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
+        B_ref = get_ref(A_np, bias_np)
+        atol = 1e-3 if src_dtype == dst_dtype else 2e-2
+
+        def run_and_check():
+            dev = tvm.cuda(device_id)
+            A = tvm.runtime.tensor(A_np, dev)
+            bias = tvm.runtime.tensor(bias_np, dev)
+            B = tvm.runtime.tensor(B_np, dev)
+            mod(A, B, bias)
+            tvm.testing.assert_allclose(B_ref, B.numpy(), atol=atol)
+
+        tvm.testing.run_with_gpu_lock(run_and_check)
+
+
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
+@pytest.mark.parametrize("shape", [(128, 8), (128, 4, 16), (128, 5, 5)])
+@pytest.mark.parametrize("op_type", ["fill"])
+@pytest.mark.parametrize("exec_scope", ["thread", "cta"])
+@pytest.mark.parametrize("storage_scope", ["local", "shared"])
+def test_unary_op_vectorized(shape, op_type, exec_scope, storage_scope):
+    if storage_scope == "local" and exec_scope == "cta":
+        return  # skip unsupported case
+    dtype = "float16"
+    A_ref = np.random.rand(*shape).astype(dtype)
+    value = T.float16(7.89) if dtype == "float16" else T.float32(7.89)
+
+    # fmt: off
+    @T.function
+    def test_unary_thread(A: T.Tensor(shape, dtype, layout=TileLayout(S[shape]))) -> None:
+
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(128,)))
+        _bx = T.cuda.block_idx('x')
+        tx = T.cuda.thread_idx('x')
+        if T.constexpr(storage_scope == "shared"):
+            a_smem = T.alloc_tensor(
+                ty_args=[T.Tensor(shape, dtype, layout=TileLayout(S[shape]), scope="shared")]
+            )
+            T.cuda.tile.mov(a_smem[tx], value)
+            copy_src_15 = T.meta_var(a_smem[tx])
+            copy_src_tensor_15 = T.meta_var(copy_src_15.source)
+            copy_dst_15 = T.meta_var(A[tx])
+            copy_dst_tensor_15 = T.meta_var(copy_dst_15.source)
+            for copy_step_15 in T.serial(
+                T.ceildiv(math.prod([int(r.extent) for r in copy_src_15.region]), 1)
+            ):
+                copy_index_15 = copy_step_15 * (1) + (0)
+                if copy_index_15 < math.prod([int(r.extent) for r in copy_src_15.region]):
+                    copy_value_15 = copy_src_tensor_15[
+                        tuple(
+                            [
+                                copy_src_15.region[k].min
+                                + copy_index_15
+                                // math.prod([int(s.extent) for s in copy_src_15.region[k + 1 :]])
+                                % copy_src_15.region[k].extent
+                                for k in range(len(copy_src_15.region))
+                            ]
+                        )
+                    ]
+                    copy_dst_index_15 = T.meta_var(
+                        tuple(
+                            [
+                                copy_dst_15.region[k].min
+                                + copy_index_15
+                                // math.prod([int(s.extent) for s in copy_dst_15.region[k + 1 :]])
+                                % copy_dst_15.region[k].extent
+                                for k in range(len(copy_dst_15.region))
+                            ]
+                        )
+                    )
+                    copy_dst_tensor_15[copy_dst_index_15] = copy_value_15
+        elif T.constexpr(storage_scope == "local"):
+            a_local = T.alloc_tensor(
+                ty_args=[T.Tensor(shape[1:], dtype, layout=TileLayout(S[shape[1:]]), scope="local")]
+            )
+            T.cuda.tile.mov(a_local, value)
+            T.cuda.tile.st(A[tx], a_local)
+
+    @T.function
+    def test_unary_cta(A: T.Tensor(shape, dtype, layout=TileLayout(S[shape]))) -> None:
+
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(128,)))
+        _bx = T.cuda.block_idx('x')
+        _tid = T.cuda.thread_idx('x')
+        if T.constexpr(storage_scope == "shared"):
+            a_smem = T.alloc_tensor(
+                ty_args=[T.Tensor(shape, dtype, layout=TileLayout(S[shape]), scope="shared")]
+            )
+            T.cuda.tile.mov(a_smem, value, scope='cta')
+            copy_src_16 = T.meta_var(a_smem[tuple(slice(None) for _ in a_smem.shape)])
+            copy_src_tensor_16 = T.meta_var(copy_src_16.source)
+            copy_dst_16 = T.meta_var(A[tuple(slice(None) for _ in A.shape)])
+            copy_dst_tensor_16 = T.meta_var(copy_dst_16.source)
+            for copy_step_16 in T.serial(
+                T.ceildiv(math.prod([int(r.extent) for r in copy_src_16.region]), 128)
+            ):
+                copy_index_16 = copy_step_16 * (128) + (_tid)
+                if copy_index_16 < math.prod([int(r.extent) for r in copy_src_16.region]):
+                    copy_value_16 = copy_src_tensor_16[
+                        tuple(
+                            [
+                                copy_src_16.region[k].min
+                                + copy_index_16
+                                // math.prod([int(s.extent) for s in copy_src_16.region[k + 1 :]])
+                                % copy_src_16.region[k].extent
+                                for k in range(len(copy_src_16.region))
+                            ]
+                        )
+                    ]
+                    copy_dst_index_16 = T.meta_var(
+                        tuple(
+                            [
+                                copy_dst_16.region[k].min
+                                + copy_index_16
+                                // math.prod([int(s.extent) for s in copy_dst_16.region[k + 1 :]])
+                                % copy_dst_16.region[k].extent
+                                for k in range(len(copy_dst_16.region))
+                            ]
+                        )
+                    )
+                    copy_dst_tensor_16[copy_dst_index_16] = copy_value_16
+        # fmt: on
+
+    target = tvm.target.Target("cuda")
+    with target:
+        mod = tvm.IRModule(
+            {"main": test_unary_thread if exec_scope == "thread" else test_unary_cta}
+        )
+        mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
+        print(mod.mod.imports[0].inspect_source())
+        def run_and_check():
+            dev = tvm.cuda(0)
+            A = tvm.runtime.tensor(A_ref, dev)
+            mod(A)
+            tvm.testing.assert_allclose(A.numpy(), np.full(shape, value.value), atol=1e-2)
+
+        tvm.testing.run_with_gpu_lock(run_and_check)
+
+
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
+@pytest.mark.parametrize("op_type", ["zero", "sqrt", "reciprocal", "exp", "silu"])
+@pytest.mark.parametrize("dtype", ["float16"])
+def test_unary_op_local_thread_wise(op_type, dtype):
+    """Test unary ops in thread scope with local tensors (trivial layout)."""
+    shape = (64, 32)
+    local_shape = shape[1:]
+
+    @T.function
+    def kernel(A: T.Tensor(shape, dtype, layout=TileLayout(S[shape]))) -> None:
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(64,)))
+        _bx = T.cuda.block_idx("x")
+        tid = T.cuda.thread_idx("x")
+        a_local = T.alloc_tensor(
+            ty_args=[T.Tensor(local_shape, dtype, scope="local", layout=TileLayout(S[local_shape]))]
+        )
+        T.cuda.tile.ld(a_local, A[tid])
+        if T.constexpr(op_type == "zero"):
+            T.cuda.tile.mov(a_local, T.cast(0, a_local.dtype))
+        elif T.constexpr(op_type == "sqrt"):
+            T.cuda.tile.sqrt(a_local, a_local)
+        elif T.constexpr(op_type == "reciprocal"):
+            T.cuda.tile.div(a_local, T.cast(1, a_local.dtype), a_local)
+        elif T.constexpr(op_type == "exp"):
+            T.cuda.tile.compose.exp(a_local, a_local)
+        elif T.constexpr(op_type == "silu"):
+            T.cuda.tile.compose.silu(a_local, a_local)
+        T.cuda.tile.st(A[tid], a_local)
+
+    target = tvm.target.Target("cuda")
+    with target:
+        np.random.seed(0)
+        A_np = np.abs(np.random.rand(*shape).astype(dtype)) + 0.1
+        mod = tvm.IRModule({"main": kernel})
+        mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
+        if op_type == "zero":
+            A_ref = np.zeros_like(A_np)
+        elif op_type == "sqrt":
+            A_ref = np.sqrt(A_np)
+        elif op_type == "reciprocal":
+            A_ref = (1.0 / A_np).astype(dtype)
+        elif op_type == "exp":
+            A_ref = np.exp(A_np)
+        elif op_type == "silu":
+            A_ref = (A_np / (1.0 + np.exp(-A_np.astype("float32")))).astype(dtype)
+
+        def run_and_check():
+            dev = tvm.cuda(0)
+            A = tvm.runtime.tensor(A_np, dev)
+            mod(A)
+            tvm.testing.assert_allclose(A_ref, A.numpy(), atol=1e-2, rtol=1e-2)
+
+        tvm.testing.run_with_gpu_lock(run_and_check)
+
+
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
+@pytest.mark.parametrize("shape", [(8,), (16, 16), (5, 5)])
+@pytest.mark.parametrize("A_dtype", ["float16", "float32"])
+@pytest.mark.parametrize("B_dtype", ["float16", "float32"])
+def test_cast_thread_local(shape, A_dtype, B_dtype):
+    if A_dtype == B_dtype:
+        return
+
+    A_ref = np.random.rand(*shape).astype(A_dtype)
+    B_ref = np.random.rand(*shape).astype(B_dtype)
+    B_ref = A_ref.astype(B_dtype)
+
+    # fmt: off
+    @T.function
+    def test_cast(
+        A: T.Tensor(shape, A_dtype, layout=TileLayout(S[shape])),
+        B: T.Tensor(shape, B_dtype, layout=TileLayout(S[shape])),
+    ) -> None:
+
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(256,)))
+        cta_id = T.cuda.block_idx('x')
+        tid = T.cuda.thread_idx('x')
+        A_local = T.alloc_local(shape, dtype=A_dtype, layout=TileLayout(S[shape]))
+        B_local = T.alloc_local(shape, dtype=B_dtype, layout=TileLayout(S[shape]))
+        T.cuda.tile.ld(A_local, A)
+        T.cuda.tile.cvt(B_local, A_local)
+        T.cuda.tile.st(B, B_local)
+        # fmt: on
+
+    target = tvm.target.Target("cuda")
+    with target:
+        mod = tvm.IRModule({"main": test_cast})
+        mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
+        print(mod.mod.imports[0].inspect_source())
+
+        def run_and_check():
+            dev = tvm.cuda(0)
+            A = tvm.runtime.tensor(A_ref, dev)
+            B = tvm.runtime.tensor(np.zeros(shape, dtype=B_dtype), dev)
+            mod(A, B)
+            tvm.testing.assert_allclose(B.numpy(), B_ref, atol=1e-2)
+
+        tvm.testing.run_with_gpu_lock(run_and_check)
+
+
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
+@pytest.mark.parametrize("A_dtype,B_dtype", [("float32", "float16"), ("float32", "bfloat16")])
+def test_cast_warpgroup_local_view(A_dtype, B_dtype):
+    """T.cast in warpgroup scope with offset (tid_in_wg + layout offset). Covers offset/tid_in_wg/warpgroup scope."""  # noqa: E501
+    N_THREADS, LOCAL_LEN = 128, 8
+    g_shape = (N_THREADS, LOCAL_LEN)
+    g_layout = TileLayout(S[g_shape])
+    use_offset = True
+    if use_offset:
+        from tvm.tirx.layout import Axis, Iter
+
+        m_axis = Axis.get("m")
+        shard = [Iter(N_THREADS, 1, tid_in_wg), Iter(LOCAL_LEN, 1, m_axis)]
+        cast_layout = TileLayout.from_iters(shard, [], {m_axis: 0})
+    else:
+        cast_layout = TileLayout(S[(N_THREADS, LOCAL_LEN) : (1 @ tid_in_wg, 1)])
+
+    A_ref = np.random.rand(*g_shape).astype(A_dtype)
+    B_ref = np.zeros(g_shape, dtype=B_dtype)
+    B_ref = A_ref.astype(B_dtype)
+
+    # fmt: off
+    @T.function
+    def test_cast(
+        A: T.Tensor(g_shape, A_dtype, layout=g_layout),
+        B: T.Tensor(g_shape, B_dtype, layout=g_layout),
+    ) -> None:
+
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=1 * 128))
+        cta_id = T.cuda.block_idx('x')
+        wg_id = T.cuda.warpgroup_id()
+        tid_in_wg = T.cuda.thread_in_warpgroup()
+        reg_src = T.alloc_tensor(
+            ty_args=[
+                T.Tensor(
+                    (LOCAL_LEN,),
+                    A_dtype,
+                    scope="local",
+                    layout="default",
+                )
+            ],
+        )
+        reg_dst = T.alloc_tensor(
+            ty_args=[
+                T.Tensor(
+                    (LOCAL_LEN,),
+                    B_dtype,
+                    scope="local",
+                    layout="default",
+                )
+            ],
+        )
+        for i in T.serial(LOCAL_LEN):
+            reg_src[i] = A[tid_in_wg, i]
+        reg_src_view = reg_src.view(N_THREADS, LOCAL_LEN, layout=cast_layout)
+        reg_dst_view = reg_dst.view(N_THREADS, LOCAL_LEN, layout=cast_layout)
+        T.cuda.tile.cvt(reg_dst_view, reg_src_view, scope='warpgroup')
+        for i in T.serial(LOCAL_LEN):
+            B[tid_in_wg, i] = reg_dst[i]
+        # fmt: on
+
+    target = tvm.target.Target("cuda")
+    with target:
+        mod = tvm.IRModule({"main": test_cast})
+        mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
+        print(mod.mod.imports[0].inspect_source())
+
+        def run_and_check():
+            dev = tvm.cuda(0)
+            A = tvm.runtime.tensor(A_ref, dev)
+            B = tvm.runtime.tensor(np.zeros(g_shape, dtype=B_dtype), dev)
+            mod(A, B)
+            tvm.testing.assert_allclose(B.numpy(), B_ref, atol=1e-2)
+
+        tvm.testing.run_with_gpu_lock(run_and_check)
+
+
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
+@pytest.mark.parametrize("A_dtype,B_dtype", [("float32", "float16"), ("float32", "bfloat16")])
+def test_cast_warpgroup_src_layout_to_flat_uses_vec2_intrinsic(A_dtype, B_dtype):
+    """Regression: GEMM-epilogue cast pattern must emit the packed vec2 cuda intrinsic.
+
+    Pattern: both sides have ``wg_local_layout`` (per-thread 1xK row). dst is
+    allocated per-chunk to keep both operands wg-distributed — the dispatch
+    requires layout-symmetric operands (no flat-vs-wg asymmetry).
+    """
+    from tvm.backend.cuda.layout import wg_local_layout
+
+    N_THREADS, LOCAL_LEN, N_CHUNKS = 128, 8, 4
+    g_shape = (N_THREADS, LOCAL_LEN * N_CHUNKS)
+    g_layout = TileLayout(S[g_shape])
+
+    A_ref = np.random.rand(*g_shape).astype(A_dtype)
+    B_ref = np.zeros(g_shape, dtype=B_dtype)
+    B_ref = A_ref.astype(B_dtype)
+
+    # fmt: off
+    @T.function
+    def test_cast(
+        A: T.Tensor(g_shape, A_dtype, layout=g_layout),
+        B: T.Tensor(g_shape, B_dtype, layout=g_layout),
+    ) -> None:
+
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=1 * 128))
+        cta_id = T.cuda.block_idx('x')
+        wg_id = T.cuda.warpgroup_id()
+        tid = T.cuda.thread_in_warpgroup()
+        for no in T.unroll(N_CHUNKS):
+            reg_src = T.alloc_tensor(
+                ty_args=[
+                    T.Tensor(
+                        (LOCAL_LEN,),
+                        A_dtype,
+                        scope="local",
+                        layout="default",
+                    )
+                ],
+            )
+            Dreg_chunk = T.alloc_tensor(
+                ty_args=[
+                    T.Tensor(
+                        (LOCAL_LEN,),
+                        B_dtype,
+                        scope="local",
+                        layout="default",
+                    )
+                ],
+            )
+            for i in T.serial(LOCAL_LEN):
+                reg_src[i] = A[tid, no * LOCAL_LEN + i]
+            reg_src_view = reg_src.view(N_THREADS, LOCAL_LEN, layout=wg_local_layout(LOCAL_LEN))
+            Dreg_chunk_view = Dreg_chunk.view(
+                N_THREADS, LOCAL_LEN, layout=wg_local_layout(LOCAL_LEN)
+            )
+            T.cuda.tile.cvt(Dreg_chunk_view, reg_src_view, scope='warpgroup')
+            for i in T.serial(LOCAL_LEN):
+                B[tid, no * LOCAL_LEN + i] = Dreg_chunk[i]
+        # fmt: on
+
+    target = tvm.target.Target("cuda")
+    with target:
+        mod = tvm.IRModule({"main": test_cast})
+        mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
+        src = mod.mod.imports[0].inspect_source()
+        # The packed vec2 cast intrinsic must be present — guards against
+        # falling back to scalar T.cast inside T.vectorized.
+        helper = f"tvm_builtin_cast_{A_dtype}x2_{B_dtype}x2"
+        assert helper in src, f"expected {helper!r} in generated CUDA, fell back to scalar cast"
+
+        def run_and_check():
+            dev = tvm.cuda(0)
+            A = tvm.runtime.tensor(A_ref, dev)
+            B = tvm.runtime.tensor(np.zeros(g_shape, dtype=B_dtype), dev)
+            mod(A, B)
+            tvm.testing.assert_allclose(B.numpy(), B_ref, atol=1e-2)
+
+        tvm.testing.run_with_gpu_lock(run_and_check)
+
+
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
+@pytest.mark.parametrize("A_dtype,B_dtype", [("float32", "float16"), ("float32", "bfloat16")])
+def test_cast_cta_local_view(A_dtype, B_dtype):
+    """T.cast with view+layout in CTA scope (128 threads, register->register)."""
+    N_THREADS, LOCAL_LEN = 128, 8
+    g_shape = (N_THREADS, LOCAL_LEN)
+    g_layout = TileLayout(S[g_shape])
+    cast_layout = TileLayout(S[(N_THREADS, LOCAL_LEN) : (1 @ tx, 1)])
+
+    A_ref = np.random.rand(*g_shape).astype(A_dtype)
+    B_ref = np.zeros(g_shape, dtype=B_dtype)
+    B_ref = A_ref.astype(B_dtype)
+
+    # fmt: off
+    @T.function
+    def test_cast(
+        A: T.Tensor(g_shape, A_dtype, layout=g_layout),
+        B: T.Tensor(g_shape, B_dtype, layout=g_layout),
+    ) -> None:
+
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(N_THREADS,)))
+        cta_id = T.cuda.block_idx('x')
+        tx_var = T.cuda.thread_idx('x')
+        reg_src = T.alloc_tensor(
+            ty_args=[
+                T.Tensor(
+                    (LOCAL_LEN,),
+                    A_dtype,
+                    scope="local",
+                    layout="default",
+                )
+            ],
+        )
+        reg_dst = T.alloc_tensor(
+            ty_args=[
+                T.Tensor(
+                    (LOCAL_LEN,),
+                    B_dtype,
+                    scope="local",
+                    layout="default",
+                )
+            ],
+        )
+        for i in T.serial(LOCAL_LEN):
+            reg_src[i] = A[tx_var, i]
+        reg_src_view = reg_src.view(N_THREADS, LOCAL_LEN, layout=cast_layout)
+        reg_dst_view = reg_dst.view(N_THREADS, LOCAL_LEN, layout=cast_layout)
+        T.cuda.tile.cvt(reg_dst_view, reg_src_view, scope='cta')
+        for i in T.serial(LOCAL_LEN):
+            B[tx_var, i] = reg_dst[i]
+        # fmt: on
+
+    target = tvm.target.Target("cuda")
+    with target:
+        mod = tvm.IRModule({"main": test_cast})
+        mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
+        print(mod.mod.imports[0].inspect_source())
+
+        def run_and_check():
+            dev = tvm.cuda(0)
+            A = tvm.runtime.tensor(A_ref, dev)
+            B = tvm.runtime.tensor(np.zeros(g_shape, dtype=B_dtype), dev)
+            mod(A, B)
+            tvm.testing.assert_allclose(B.numpy(), B_ref, atol=1e-2)
+
+        tvm.testing.run_with_gpu_lock(run_and_check)
+
+
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
+@pytest.mark.parametrize("A_dtype,B_dtype", [("float32", "float16"), ("float32", "bfloat16")])
+@pytest.mark.parametrize("slice_start,slice_end", [(0, 4), (2, 6), (4, 8)])
+def test_cast_local_view_sliced(A_dtype, B_dtype, slice_start, slice_end):
+    """T.cast with sliced view in CTA scope — exercises _emit_cast_local_view_sliced."""
+    N_THREADS, LOCAL_LEN = 128, 8
+    g_shape = (N_THREADS, LOCAL_LEN)
+    g_layout = TileLayout(S[g_shape])
+    cast_layout = TileLayout(S[(N_THREADS, LOCAL_LEN) : (1 @ tx, 1)])
+
+    A_ref = np.random.rand(*g_shape).astype(A_dtype)
+    B_ref = np.zeros(g_shape, dtype=B_dtype)
+    B_ref[:, slice_start:slice_end] = A_ref[:, slice_start:slice_end].astype(B_dtype)
+
+    # fmt: off
+    @T.function
+    def kernel(
+        A: T.Tensor(g_shape, A_dtype, layout=g_layout),
+        B: T.Tensor(g_shape, B_dtype, layout=g_layout),
+    ) -> None:
+
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(N_THREADS,)))
+        _bx = T.cuda.block_idx('x')
+        tx = T.cuda.thread_idx('x')
+        reg_src = T.alloc_tensor(
+            ty_args=[
+                T.Tensor(
+                    (LOCAL_LEN,),
+                    A_dtype,
+                    scope="local",
+                    layout="default",
+                )
+            ],
+        )
+        reg_dst = T.alloc_tensor(
+            ty_args=[
+                T.Tensor(
+                    (LOCAL_LEN,),
+                    B_dtype,
+                    scope="local",
+                    layout="default",
+                )
+            ],
+        )
+        for i in T.serial(LOCAL_LEN):
+            reg_src[i] = A[tx, i]
+        reg_src_view = reg_src.view(N_THREADS, LOCAL_LEN, layout=cast_layout)
+        reg_dst_view = reg_dst.view(N_THREADS, LOCAL_LEN, layout=cast_layout)
+        T.cuda.tile.cvt(
+            reg_dst_view[0:N_THREADS, slice_start:slice_end],
+            reg_src_view[0:N_THREADS, slice_start:slice_end],
+            scope="cta",
+        )
+        for i in T.serial(LOCAL_LEN):
+            B[tx, i] = reg_dst[i]
+        # fmt: on
+
+    target = tvm.target.Target("cuda")
+    with target:
+        mod = tvm.IRModule({"main": kernel})
+        mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
+
+    def run_and_check():
+        dev = tvm.cuda(0)
+        A = tvm.runtime.tensor(A_ref, dev)
+        B = tvm.runtime.tensor(np.zeros(g_shape, dtype=B_dtype), dev)
+        mod(A, B)
+        tvm.testing.assert_allclose(
+            B.numpy()[:, slice_start:slice_end], B_ref[:, slice_start:slice_end], atol=1e-2
+        )
+
+    tvm.testing.run_with_gpu_lock(run_and_check)
+
+
+def test_cast_layout_partition_and_validation():
+    """Partition table (simplified): partition structure and _cast_layout_supported_for_local."""
+    from tvm.tirx.cuda.tile.layout_utils import (
+        get_layout_thread_local_partition as _get_layout_thread_local_partition,
+    )
+    from tvm.tirx.layout import Axis, Iter
+
+    m_axis = Axis.get("m")
+
+    # (layout, expected_supported, optional check: part -> None or assert)
+    cases = [
+        # Supported: single tx, tid_in_wg, thread in middle (from_iters), mixed warpid+laneid
+        (
+            TileLayout(S[(128, 8) : (1 @ tx, 1)]),
+            True,
+            lambda p: p[0].get(tx) == ([0], [128]) and p[1] == [1] and p[2] == [8],
+        ),
+        (
+            TileLayout(S[(128, 8) : (1 @ tid_in_wg, 1)]),
+            True,
+            lambda p: p[0].get(tid_in_wg) == ([0], [128]),
+        ),
+        (
+            TileLayout.from_iters([Iter(4, 16, "m"), Iter(8, 2, tx), Iter(2, 1, "m")], [], {}),
+            True,
+            lambda p: p[0].get(tx) == ([1], [8]) and p[1] == [0, 2],
+        ),
+        (
+            TileLayout(S[(2, 8, 4, 2) : (2 @ warpid, 4 @ laneid, 1 @ laneid, 1)]),
+            True,
+            lambda p: warpid in p[0] and laneid in p[0] and p[1] == [3] and p[2] == [2],
+        ),
+        # Rejected: no thread, no local, thread in replica
+        (TileLayout(S[(64, 8) : (1, 1)]), False, None),
+        (TileLayout(S[(8, 8) : (1 @ tx, 1 @ laneid)]), False, None),
+        (
+            TileLayout.from_iters([Iter(128, 1, tx), Iter(8, 1, m_axis)], [Iter(2, 1, laneid)], {}),
+            False,
+            None,
+        ),
+    ]
+
+    for layout, expected_supported, check in cases:
+        part = _get_layout_thread_local_partition(layout)
+        supported = _cast_layout_supported_for_local(layout)
+        assert supported is expected_supported, f"layout={layout}"
+        if expected_supported and check:
+            assert part is not None
+            check(part)
+
+
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
+@pytest.mark.parametrize("slice_start,slice_end", [(0, 2), (2, 4)])
+def test_cast_mixed_axes_and_subregion(slice_start, slice_end):
+    """Test cast with mixed axes and subregion."""
+
+    N_WARPS, LANES = 2, 32
+    LOCAL_LEN = 4
+    full_shape = (8, N_WARPS, 4, LOCAL_LEN)
+    g_layout = TileLayout(S[full_shape])
+    cast_layout = TileLayout(S[full_shape : (4 @ laneid, 1 @ warpid, 1 @ laneid, 1)])
+
+    A_ref = np.zeros(full_shape, dtype="float32")
+    for j in range(full_shape[0]):
+        for w in range(full_shape[1]):
+            for k in range(full_shape[2]):
+                for i in range(full_shape[3]):
+                    A_ref[j, w, k, i] = float(j * 1000 + w * 100 + k * 10 + i)
+    B_ref = np.zeros(full_shape, dtype="float16")
+    B_ref[:, :, :, slice_start:slice_end] = A_ref[:, :, :, slice_start:slice_end].astype("float16")
+
+    @T.function
+    def kernel(
+        A: T.Tensor(full_shape, "float32", layout=g_layout),
+        B: T.Tensor(full_shape, "float16", layout=g_layout),
+    ) -> None:
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=N_WARPS * 32))
+        cta_id = T.cuda.block_idx("x")
+        warp_id = T.cuda.warp_id()
+        lane_id = T.cuda.lane_id()
+        reg_src = T.alloc_tensor(
+            ty_args=[T.Tensor((LOCAL_LEN,), "float32", scope="local", layout="default")]
+        )
+        reg_dst = T.alloc_tensor(
+            ty_args=[T.Tensor((LOCAL_LEN,), "float16", scope="local", layout="default")]
+        )
+        j, k = lane_id // 4, lane_id % 4
+        for i in T.serial(LOCAL_LEN):
+            reg_src[i] = A[j, warp_id, k, i]
+        reg_src_view = reg_src.view(*full_shape, layout=cast_layout)
+        reg_dst_view = reg_dst.view(*full_shape, layout=cast_layout)
+        T.cuda.tile.cvt(
+            reg_dst_view[0:8, 0:N_WARPS, 0:4, slice_start:slice_end],
+            reg_src_view[0:8, 0:N_WARPS, 0:4, slice_start:slice_end],
+            scope="cta",
+        )
+        j_1, k_1 = lane_id // 4, lane_id % 4
+        for i in T.serial(LOCAL_LEN):
+            B[j_1, warp_id, k_1, i] = reg_dst[i]
+
+    target = tvm.target.Target("cuda")
+    with target:
+        mod = tvm.IRModule({"main": kernel})
+        mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
+
+    def run_and_check():
+        dev = tvm.cuda(0)
+        A = tvm.runtime.tensor(A_ref, dev)
+        B = tvm.runtime.tensor(np.zeros(full_shape, dtype="float16"), dev)
+        mod(A, B)
+        tvm.testing.assert_allclose(
+            B.numpy()[:, :, :, slice_start:slice_end],
+            B_ref[:, :, :, slice_start:slice_end],
+            atol=1e-2,
+            rtol=0,
+        )
+
+    tvm.testing.run_with_gpu_lock(run_and_check)
+
+
+def test_cast_joint_decomposition_extents_order():
+    """Test joint decomposition uses thread dims in layout order with correct extents."""
+    from tvm.tirx.cuda.tile.layout_utils import (
+        get_layout_thread_local_partition as _get_layout_thread_local_partition,
+    )
+
+    layout = TileLayout(S[(2, 32, 4) : (2 @ warpid, 32 @ laneid, 1)])
+    part = _get_layout_thread_local_partition(layout)
+    assert part is not None
+    thread_groups, local_dims, local_extents = part
+    assert warpid in thread_groups and laneid in thread_groups
+    assert thread_groups[warpid] == ([0], [2])
+    assert thread_groups[laneid] == ([1], [32])
+    assert local_dims == [2]
+    assert local_extents == [4]
+
+    thread_dims_ordered = []
+    for _axis, (dim_indices, extents) in thread_groups.items():
+        for i, dim_idx in enumerate(dim_indices):
+            thread_dims_ordered.append((dim_idx, extents[i]))
+    thread_dims_ordered.sort(key=lambda x: x[0])
+    # Region extent = layout extent for full region
+    shape = [2, 32, 4]
+    joint_all_extents = [shape[dim_idx] for dim_idx, _ in thread_dims_ordered]
+    assert thread_dims_ordered == [(0, 2), (1, 32)], thread_dims_ordered
+    assert joint_all_extents == [2, 32], joint_all_extents
+
+
+def test_cast_validate_extent_mismatch_rejected():
+    """Validation rejects when src and dst layouts have same thread positions but different extents."""  # noqa: E501
+
+    view_shape = (2, 8, 4, 8)
+    g_layout = TileLayout(S[view_shape])
+    src_layout = TileLayout(S[view_shape : (2 @ warpid, 4 @ laneid, 1 @ laneid, 1)])
+    dst_layout = TileLayout(
+        S[view_shape : (2 @ warpid, 8 @ laneid, 1 @ laneid, 1)]
+    )  # dim1 extent 8 != 4
+
+    @T.function
+    def kernel(
+        A: T.Tensor(view_shape, "float32", layout=g_layout),
+        B: T.Tensor(view_shape, "float16", layout=g_layout),
+    ) -> None:
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=2 * 32))
+        cta_id = T.cuda.block_idx("x")
+        warp_id = T.cuda.warp_id()
+        lane_id = T.cuda.lane_id()
+        reg_src = T.alloc_tensor(
+            ty_args=[T.Tensor((8,), "float32", scope="local", layout="default")]
+        )
+        reg_dst = T.alloc_tensor(
+            ty_args=[T.Tensor((8,), "float16", scope="local", layout="default")]
+        )
+        j, k = lane_id // 4, lane_id % 4
+        for i in T.serial(8):
+            reg_src[i] = A[warp_id, j, k, i]
+        reg_src_view = reg_src.view(*view_shape, layout=src_layout)
+        reg_dst_view = reg_dst.view(*view_shape, layout=dst_layout)
+        T.cuda.tile.cvt(reg_dst_view, reg_src_view, scope="cta")
+        j_1, k_1 = lane_id // 4, lane_id % 4
+        for i in T.serial(8):
+            B[warp_id, j_1, k_1, i] = reg_dst[i]
+
+    target = tvm.target.Target("cuda")
+    with target:
+        mod = tvm.IRModule({"main": kernel})
+        # The mismatched dst also fails the scope-level check (thread axes don't
+        # span the full CTA), which fires first — either rejection is fine.
+        with pytest.raises(
+            Exception,
+            match="tile_local_valid|layout signature mismatch|thread part mismatch"
+            "|do not tile a complete|not the full",
+        ):
+            tvm.compile(mod, target=target, tir_pipeline="tirx")
+
+
+# -----------------------------------------------------------------------------
+# Dispatch codegen checks (no GPU runtime — explicit target arch).
+# -----------------------------------------------------------------------------
+def test_unary_exp_f16_shared_scalar_fallback_dispatch():
+    """exp f16 + shared cta → smem.py + scalar (T.vectorized) — no exp packed."""
+    shape = (64, 32)
+    lay = TileLayout(S[shape])
+
+    @T.function
+    def k(
+        A: T.Tensor(shape, "float16", layout=lay), B: T.Tensor(shape, "float16", layout=lay)
+    ) -> None:
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(64,)))
+        _bx = T.cuda.block_idx("x")
+        _tx = T.cuda.thread_idx("x")
+        sa = T.alloc_tensor(ty_args=[T.Tensor(shape, "float16", scope="shared", layout=lay)])
+        sb = T.alloc_tensor(ty_args=[T.Tensor(shape, "float16", scope="shared", layout=lay)])
+        copy_src_3 = T.meta_var(A[tuple(slice(None) for _ in A.shape)])
+        copy_src_tensor_3 = T.meta_var(copy_src_3.source)
+        copy_dst_3 = T.meta_var(sa[tuple(slice(None) for _ in sa.shape)])
+        copy_dst_tensor_3 = T.meta_var(copy_dst_3.source)
+        for copy_step_3 in T.serial(
+            T.ceildiv(math.prod([int(r.extent) for r in copy_src_3.region]), 1)
+        ):
+            copy_index_3 = copy_step_3 * (1) + (0)
+            if copy_index_3 < math.prod([int(r.extent) for r in copy_src_3.region]):
+                copy_value_3 = copy_src_tensor_3[
+                    tuple(
+                        [
+                            copy_src_3.region[k].min
+                            + copy_index_3
+                            // math.prod([int(s.extent) for s in copy_src_3.region[k + 1 :]])
+                            % copy_src_3.region[k].extent
+                            for k in range(len(copy_src_3.region))
+                        ]
+                    )
+                ]
+                copy_dst_index_3 = T.meta_var(
+                    tuple(
+                        [
+                            copy_dst_3.region[k].min
+                            + copy_index_3
+                            // math.prod([int(s.extent) for s in copy_dst_3.region[k + 1 :]])
+                            % copy_dst_3.region[k].extent
+                            for k in range(len(copy_dst_3.region))
+                        ]
+                    )
+                )
+                copy_dst_tensor_3[copy_dst_index_3] = copy_value_3
+        T.cuda.tile.compose.exp(sb, sa, scope="cta")
+        copy_src_4 = T.meta_var(sb[tuple(slice(None) for _ in sb.shape)])
+        copy_src_tensor_4 = T.meta_var(copy_src_4.source)
+        copy_dst_4 = T.meta_var(B[tuple(slice(None) for _ in B.shape)])
+        copy_dst_tensor_4 = T.meta_var(copy_dst_4.source)
+        for copy_step_4 in T.serial(
+            T.ceildiv(math.prod([int(r.extent) for r in copy_src_4.region]), 1)
+        ):
+            copy_index_4 = copy_step_4 * (1) + (0)
+            if copy_index_4 < math.prod([int(r.extent) for r in copy_src_4.region]):
+                copy_value_4 = copy_src_tensor_4[
+                    tuple(
+                        [
+                            copy_src_4.region[k].min
+                            + copy_index_4
+                            // math.prod([int(s.extent) for s in copy_src_4.region[k + 1 :]])
+                            % copy_src_4.region[k].extent
+                            for k in range(len(copy_src_4.region))
+                        ]
+                    )
+                ]
+                copy_dst_index_4 = T.meta_var(
+                    tuple(
+                        [
+                            copy_dst_4.region[k].min
+                            + copy_index_4
+                            // math.prod([int(s.extent) for s in copy_dst_4.region[k + 1 :]])
+                            % copy_dst_4.region[k].extent
+                            for k in range(len(copy_dst_4.region))
+                        ]
+                    )
+                )
+                copy_dst_tensor_4[copy_dst_index_4] = copy_value_4
+
+    target = tvm.target.Target({"kind": "cuda", "arch": "sm_80"})
+    with target:
+        mod = tvm.IRModule({"main": k})
+        mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
+        src = mod.mod.imports[0].inspect_source()
+    assert re.search(r"hexp|exp\(|expf", src), f"expected scalar exp; got:\n{src[:2000]}"
+
+
+@pytest.mark.parametrize(
+    "src_dtype,dst_dtype,intrinsic",
+    [
+        ("float32", "float16", "__float22half2_rn"),
+        ("float16", "float32", "__half22float2"),
+    ],
+)
+def test_cast_vec2_packed_dispatch(src_dtype, dst_dtype, intrinsic):
+    """cast (f32↔f16) + all-local → reg.py + packed pair intrinsic."""
+    shape = (64, 32)
+    lay = TileLayout(S[shape])
+
+    @T.function
+    def k(
+        A: T.Tensor(shape, src_dtype, layout=lay), B: T.Tensor(shape, dst_dtype, layout=lay)
+    ) -> None:
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(64,)))
+        _bx = T.cuda.block_idx("x")
+        tx = T.cuda.thread_idx("x")
+        ra = T.alloc_tensor(
+            ty_args=[T.Tensor(shape[1:], src_dtype, scope="local", layout=TileLayout(S[shape[1:]]))]
+        )
+        rb = T.alloc_tensor(
+            ty_args=[T.Tensor(shape[1:], dst_dtype, scope="local", layout=TileLayout(S[shape[1:]]))]
+        )
+        T.cuda.tile.ld(ra, A[tx])
+        T.cuda.tile.cvt(rb, ra)
+        T.cuda.tile.st(B[tx], rb)
+
+    target = tvm.target.Target({"kind": "cuda", "arch": "sm_80"})
+    with target:
+        mod = tvm.IRModule({"main": k})
+        mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
+        src = mod.mod.imports[0].inspect_source()
+    assert re.search(
+        rf"{re.escape(intrinsic)}|tvm_builtin_cast_{src_dtype}x2_{dst_dtype}x2", src
+    ), f"expected packed vec2 cast {intrinsic}; got:\n{src[:2000]}"
+
+
+# -----------------------------------------------------------------------------
+# Scope-level operand check: a warp/wg/cta reg op needs a scope-level layout
+# (thread axes spanning all the scope's threads), not a thread-local .local().
+# -----------------------------------------------------------------------------
+_SL_ROWS, _SL_COLS = 128, 8
+
+
+def _sl_compile(fn):
+    target = tvm.target.Target("cuda")
+    with target:
+        tvm.compile(tvm.IRModule({"main": fn}), target=target, tir_pipeline="tirx")
+
+
+def test_cast_wg_rejects_thread_local_view():
+    """Tx.wg.cast on a .local() (thread-axis-stripped) view is rejected."""
+
+    @T.function
+    def kernel(
+        A: T.Tensor((_SL_ROWS, _SL_COLS), "float32", layout=TileLayout(S[_SL_ROWS, _SL_COLS])),
+        B: T.Tensor((_SL_ROWS, _SL_COLS), "float16", layout=TileLayout(S[_SL_ROWS, _SL_COLS])),
+    ) -> None:
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=1 * 128))
+        _bx = T.cuda.block_idx("x")
+        _wg = T.cuda.warpgroup_id()
+        tid = T.cuda.thread_in_warpgroup()
+        src = T.alloc_tensor(
+            ty_args=[
+                T.Tensor(
+                    (_SL_ROWS, _SL_COLS),
+                    "float32",
+                    scope="local",
+                    layout=TileLayout(S[(_SL_ROWS, _SL_COLS) : (1 @ tid_in_wg, 1)]),
+                )
+            ]
+        )
+        dst = T.alloc_tensor(
+            ty_args=[
+                T.Tensor(
+                    (_SL_ROWS, _SL_COLS),
+                    "float16",
+                    scope="local",
+                    layout=TileLayout(S[(_SL_ROWS, _SL_COLS) : (1 @ tid_in_wg, 1)]),
+                )
+            ]
+        )
+        src_row = src.local(_SL_COLS)
+        for i in T.serial(_SL_COLS):
+            src_row[i] = A[tid, i]
+        T.cuda.tile.cvt(dst.local(), src.local(), scope="warpgroup")
+        dst_row = dst.local(_SL_COLS)
+        for i in T.serial(_SL_COLS):
+            B[tid, i] = dst_row[i]
+
+    with pytest.raises(Exception, match="thread-local view"):
+        _sl_compile(kernel)
+
+
+def test_cast_cta_rejects_thread_local_view():
+    """Tx.cta.cast on a .local() view is rejected (cta -> tx)."""
+
+    @T.function
+    def kernel(
+        A: T.Tensor((_SL_ROWS, _SL_COLS), "float32", layout=TileLayout(S[_SL_ROWS, _SL_COLS])),
+        B: T.Tensor((_SL_ROWS, _SL_COLS), "float16", layout=TileLayout(S[_SL_ROWS, _SL_COLS])),
+    ) -> None:
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(_SL_ROWS,)))
+        _bx = T.cuda.block_idx("x")
+        tx_var = T.cuda.thread_idx("x")
+        src = T.alloc_tensor(
+            ty_args=[
+                T.Tensor(
+                    (_SL_ROWS, _SL_COLS),
+                    "float32",
+                    scope="local",
+                    layout=TileLayout(S[(_SL_ROWS, _SL_COLS) : (1 @ tx, 1)]),
+                )
+            ]
+        )
+        dst = T.alloc_tensor(
+            ty_args=[
+                T.Tensor(
+                    (_SL_ROWS, _SL_COLS),
+                    "float16",
+                    scope="local",
+                    layout=TileLayout(S[(_SL_ROWS, _SL_COLS) : (1 @ tx, 1)]),
+                )
+            ]
+        )
+        src_row = src.local(_SL_COLS)
+        for i in T.serial(_SL_COLS):
+            src_row[i] = A[tx_var, i]
+        T.cuda.tile.cvt(dst.local(), src.local(), scope="cta")
+        dst_row = dst.local(_SL_COLS)
+        for i in T.serial(_SL_COLS):
+            B[tx_var, i] = dst_row[i]
+
+    with pytest.raises(Exception, match="thread-local view"):
+        _sl_compile(kernel)
+
+
+def test_cast_wg_rejects_partial_thread_coverage():
+    """A tid_in_wg layout covering only 64 of the 128 wg threads is rejected."""
+    half = 64
+
+    @T.function
+    def kernel(
+        A: T.Tensor((half, _SL_COLS), "float32", layout=TileLayout(S[half, _SL_COLS])),
+        B: T.Tensor((half, _SL_COLS), "float16", layout=TileLayout(S[half, _SL_COLS])),
+    ) -> None:
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=1 * 128))
+        _bx = T.cuda.block_idx("x")
+        _wg = T.cuda.warpgroup_id()
+        tid = T.cuda.thread_in_warpgroup()
+        src = T.alloc_tensor(
+            ty_args=[
+                T.Tensor(
+                    (half, _SL_COLS),
+                    "float32",
+                    scope="local",
+                    layout=TileLayout(S[(half, _SL_COLS) : (1 @ tid_in_wg, 1)]),
+                )
+            ]
+        )
+        dst = T.alloc_tensor(
+            ty_args=[
+                T.Tensor(
+                    (half, _SL_COLS),
+                    "float16",
+                    scope="local",
+                    layout=TileLayout(S[(half, _SL_COLS) : (1 @ tid_in_wg, 1)]),
+                )
+            ]
+        )
+        src_row = src.local(_SL_COLS)
+        for i in T.serial(_SL_COLS):
+            src_row[i] = A[tid, i]
+        T.cuda.tile.cvt(dst, src, scope="warpgroup")
+        dst_row = dst.local(_SL_COLS)
+        for i in T.serial(_SL_COLS):
+            B[tid, i] = dst_row[i]
+
+    with pytest.raises(Exception, match="not the full 128"):
+        _sl_compile(kernel)
+
+
+def test_cast_wg_accepts_wg_level_layout():
+    """Tx.wg.cast on a wg-level (tid_in_wg-distributed) layout compiles."""
+
+    @T.function
+    def kernel(
+        A: T.Tensor((_SL_ROWS, _SL_COLS), "float32", layout=TileLayout(S[_SL_ROWS, _SL_COLS])),
+        B: T.Tensor((_SL_ROWS, _SL_COLS), "float16", layout=TileLayout(S[_SL_ROWS, _SL_COLS])),
+    ) -> None:
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=1 * 128))
+        _bx = T.cuda.block_idx("x")
+        _wg = T.cuda.warpgroup_id()
+        tid = T.cuda.thread_in_warpgroup()
+        src = T.alloc_tensor(
+            ty_args=[
+                T.Tensor(
+                    (_SL_ROWS, _SL_COLS),
+                    "float32",
+                    scope="local",
+                    layout=TileLayout(S[(_SL_ROWS, _SL_COLS) : (1 @ tid_in_wg, 1)]),
+                )
+            ]
+        )
+        dst = T.alloc_tensor(
+            ty_args=[
+                T.Tensor(
+                    (_SL_ROWS, _SL_COLS),
+                    "float16",
+                    scope="local",
+                    layout=TileLayout(S[(_SL_ROWS, _SL_COLS) : (1 @ tid_in_wg, 1)]),
+                )
+            ]
+        )
+        src_row = src.local(_SL_COLS)
+        for i in T.serial(_SL_COLS):
+            src_row[i] = A[tid, i]
+        T.cuda.tile.cvt(dst, src, scope="warpgroup")
+        dst_row = dst.local(_SL_COLS)
+        for i in T.serial(_SL_COLS):
+            B[tid, i] = dst_row[i]
+
+    _sl_compile(kernel)
+
+
+def test_cast_thread_accepts_local_view():
+    """thread scope is exempt: a thread-axis-free local tile still compiles."""
+
+    @T.function
+    def kernel(
+        A: T.Tensor((_SL_ROWS, _SL_COLS), "float32", layout=TileLayout(S[_SL_ROWS, _SL_COLS])),
+        B: T.Tensor((_SL_ROWS, _SL_COLS), "float16", layout=TileLayout(S[_SL_ROWS, _SL_COLS])),
+    ) -> None:
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(_SL_ROWS,)))
+        _bx = T.cuda.block_idx("x")
+        tx_var = T.cuda.thread_idx("x")
+        src = T.alloc_tensor(
+            ty_args=[
+                T.Tensor((_SL_COLS,), "float32", scope="local", layout=TileLayout(S[(_SL_COLS,)]))
+            ]
+        )
+        dst = T.alloc_tensor(
+            ty_args=[
+                T.Tensor((_SL_COLS,), "float16", scope="local", layout=TileLayout(S[(_SL_COLS,)]))
+            ]
+        )
+        for i in T.serial(_SL_COLS):
+            src[i] = A[tx_var, i]
+        T.cuda.tile.cvt(dst, src)
+        for i in T.serial(_SL_COLS):
+            B[tx_var, i] = dst[i]
+
+    _sl_compile(kernel)
+
+
+# --- tcgen05 split-laneid atom (B00011 / tf32 A-cast path) -----------------
+_TCGEN05_M, _TCGEN05_K = 64, 64
+_TCGEN05_REGS_PER_THREAD = 32  # ``.16x256b`` fp32 atom on (64, 64)
+
+
+def _tcgen05_16x256b_row_col(tid_wg: T.int32, lane: T.int32, reg_idx: T.int32):
+    """Map ``(tid_in_wg, reg)`` → logical ``(row, col)`` for ``.16x256b`` fp32 atom."""
+    t0 = lane & T.int32(3)
+    t1 = lane >> 2
+    v0p = reg_idx & T.int32(1)
+    va = (reg_idx >> 1) & T.int32(1)
+    vb = reg_idx >> 2
+    wid = tid_wg >> 5
+    row = t1 + T.int32(8) * va + T.int32(16) * wid
+    col = v0p + T.int32(2) * t0 + T.int32(8) * vb
+    return row, col
+
+
+def _tcgen05_cast_atom_layout():
+    from tvm.backend.cuda.layout import tcgen05_atom_layout
+
+    # Production tf32_hc_prenorm_gemm pattern: bf16 payload in fp32 atom slots.
+    return tcgen05_atom_layout("16x256b", (_TCGEN05_M, _TCGEN05_K), "float32")
+
+
+def _tcgen05_cast_warpgroup_kernel():
+    """Scatter gmem bf16 → reg, ``Tx.wg.cast``, gather fp32 → gmem."""
+    atom_layout = _tcgen05_cast_atom_layout()
+    m, k = _TCGEN05_M, _TCGEN05_K
+
+    @T.function
+    def kernel(A: T.Tensor((m, k), "bfloat16"), B: T.Tensor((m, k), "float32")) -> None:
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=1 * 128))
+        _lane = T.cuda.lane_id()
+        tid_wg = T.cuda.thread_in_warpgroup()
+        lane = T.cuda.lane_id()
+        a_bf16 = T.alloc_tensor(
+            ty_args=[T.Tensor((m, k), "bfloat16", scope="local", layout=atom_layout)]
+        )
+        a_fp32 = T.alloc_tensor(
+            ty_args=[T.Tensor((m, k), "float32", scope="local", layout=atom_layout)]
+        )
+        reg_in = a_bf16.local(_TCGEN05_REGS_PER_THREAD)
+        reg_out = a_fp32.local(_TCGEN05_REGS_PER_THREAD)
+        for r in T.serial(_TCGEN05_REGS_PER_THREAD):
+            row, col = _tcgen05_16x256b_row_col(tid_wg, lane, T.cast(r, "int32"))
+            reg_in[r] = A[row, col]
+        T.cuda.tile.cvt(a_fp32, a_bf16, scope="warpgroup")
+        for r in T.serial(_TCGEN05_REGS_PER_THREAD):
+            row, col = _tcgen05_16x256b_row_col(tid_wg, lane, T.cast(r, "int32"))
+            B[row, col] = reg_out[r]
+
+    return kernel
+
+
+def test_cast_tcgen05_atom_warpgroup_reg_dispatch_compiles():
+    """Regression: tf32 A-cast ``Tx.wg.cast(a_fp32, a_bf16)`` on tcgen05 atom compiles."""
+    _sl_compile(_tcgen05_cast_warpgroup_kernel())
+
+
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
+def test_cast_tcgen05_atom_warpgroup_gpu():
+    """GPU: bf16→fp32 cast on tcgen05 ``.16x256b`` atom must preserve per-slot layout."""
+    m, k = _TCGEN05_M, _TCGEN05_K
+    target = tvm.target.Target("cuda")
+    with target:
+        mod = tvm.compile(
+            tvm.IRModule({"main": _tcgen05_cast_warpgroup_kernel()}),
+            target=target,
+            tir_pipeline="tirx",
+        )
+
+    np.random.seed(0)
+    a_np = (np.random.randn(m, k).astype("float32") * 4.0).astype("bfloat16")
+    b_ref = a_np.astype("float32")
+
+    def run_and_check():
+        dev = tvm.cuda(0)
+        a = tvm.runtime.tensor(a_np, dev)
+        b = tvm.runtime.tensor(np.zeros((m, k), dtype="float32"), dev)
+        mod(a, b)
+        tvm.testing.assert_allclose(b.numpy(), b_ref, rtol=0, atol=1e-2)
+
+    tvm.testing.run_with_gpu_lock(run_and_check)
+
+
+if __name__ == "__main__":
+    tvm.testing.main()

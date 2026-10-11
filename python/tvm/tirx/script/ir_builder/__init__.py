@@ -19,8 +19,6 @@
 from tvm.script.ir_builder.ir import constexpr as constexpr
 from tvm.script.ir_builder.ir import dtype as dtype
 from tvm.script.ir_builder.ir import dynamic as dynamic
-from tvm.tirx.lang.alloc_pool import SMEMPool as SMEMPool
-from tvm.tirx.lang.alloc_pool import TMEMPool as TMEMPool
 
 from . import ir as _native
 from .ir import *
@@ -37,6 +35,19 @@ from .utils import (
 from .utils import (
     tensor_indices as tensor_indices,
 )
+
+
+def SMEMPool(*args, **kwargs):
+    from tvm.backend.cuda.lang.alloc_pool import SMEMPool as pool
+
+    return pool(*args, **kwargs)
+
+
+def TMEMPool(*args, **kwargs):
+    from tvm.backend.cuda.lang.alloc_pool import TMEMPool as pool
+
+    return pool(*args, **kwargs)
+
 
 supports_mutable_declarations = True
 

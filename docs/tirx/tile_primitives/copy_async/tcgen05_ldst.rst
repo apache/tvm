@@ -26,7 +26,7 @@ registers. ``ld`` requires tensor-memory-to-local operands, while ``st``
 requires local-to-tensor-memory operands. The lowerer picks the
 widest instruction shape the register layout matches. As with the other async
 instructions, completion (``tcgen05.wait.ld`` / ``tcgen05.wait.st``) is the caller's. Source:
-``python/tvm/backend/cuda/tile_primitive/copy_async/tcgen05_ldst.py``.
+``python/tvm/backend/cuda/tile/copy_async/tcgen05_ldst.py``.
 
 What it accepts
 ---------------
@@ -65,8 +65,9 @@ fp16):
 
 .. code-block:: python
 
-    from tvm.tirx.layout import S, TCol, TileLayout, TLane
-    from tvm.tirx.layout import tid_in_wg as axis_tid_in_wg
+    from tvm.tirx.layout import S, TileLayout
+    from tvm.backend.cuda.axis import TCol, TLane
+    from tvm.backend.cuda.axis import tid_in_wg as axis_tid_in_wg
 
     local_view = TileLayout(S[(128, WIDTH) : (1 @ axis_tid_in_wg, 1)])
 
