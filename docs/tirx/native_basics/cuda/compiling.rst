@@ -19,7 +19,8 @@ Compiling and inspecting
 ========================
 
 CUDA compilation accepts a lightweight ``backend_config`` mapping. The same
-nested structure is accepted by ``tvm.compile``, ``T.device_entry``, and
+nested structure is accepted by the Target's ``backend_config`` attribute and
+``T.device_entry``. Pass the configured Target to ``tvm.compile`` or
 ``txl.Kernel.compile``. ``tvm.backend.cuda.BackendConfig`` is an optional
 ``TypedDict`` helper, also available as ``T.cuda.BackendConfig`` and
 ``txl.cuda.BackendConfig``:
@@ -46,8 +47,11 @@ nested structure is accepted by ``tvm.compile``, ``T.device_entry``, and
             y = T.cuda.thread_idx("x")
             A[y] = B[y] + T.float32(1)
 
-    cuda_config = BackendConfig(arch="sm_100a")
-    exe = tvm.compile(pipeline, backend_config={"cuda": cuda_config})
+    target = tvm.target.Target({
+        "kind": "cuda", "arch": "sm_100a",
+        "backend_config": {"cuda": BackendConfig(compiler="nvrtc")},
+    })
+    exe = tvm.compile(pipeline, target=target)
 
 Each entry resolves its configuration before architecture-sensitive lowering.
 Entries with different resolved targets or options compile as separate CUDA
@@ -58,8 +62,8 @@ Kernels must be compatible with the device on which they execute.
 Defaults and overrides
 ----------------------
 
-Precedence, from lowest to highest, is backend defaults, Target/tag defaults,
-compile-call overrides, then device-entry overrides. ``None`` and ``{}`` add no
+Precedence, from lowest to highest, is backend defaults, Target/tag settings,
+then device-entry overrides. ``None`` and ``{}`` add no
 overrides. Toolchain lists replace inherited lists in full, and ``[]`` clears a
 list. To keep fast math while changing FTZ, include both arguments as above.
 Configuration boundaries snapshot dictionaries and lists, so later mutation of
@@ -79,11 +83,10 @@ Target tags use the existing target registry and carry defaults in Target attrs:
 
 Both ``Target("local/blackwell")`` and ``Target({"tag": "local/blackwell"})``
 preserve these defaults in their expanded attributes. There is no separate
-backend tag registry. An explicit ``Target.arch`` conflicting with build-level
-``backend_config["cuda"]["arch"]`` is rejected. An entry can override the arch.
+backend tag registry. An entry can override the architecture supplied by its Target.
 
 Online builds can detect the GPU architecture. Offline builds require an
-explicit architecture in the Target, build configuration, or every device entry.
+explicit architecture in the Target or every device entry.
 A generic ``Target("cuda")`` may remain without an architecture for backend
 discovery and IR construction; compilation validates it before lowering.
 Architecture-dependent Python factories resolve and record their architecture
@@ -127,8 +130,8 @@ Migration
 
 Replace the former compilation dataclass with the nested mapping above. Convert
 math, debugging, include, and assembler options to native argument strings.
-Replace ``@txl.kernel(arch=...)`` and ``tirx.cuda_arch`` with an entry or compile
-``backend_config={"cuda": {"arch": ...}}``.
+Replace ``@txl.kernel(arch=...)`` and ``tirx.cuda_arch`` with ``Target.arch`` or
+an entry's ``backend_config={"cuda": {"arch": ...}}``.
 
 Compiler/math/ptxas environment policies remain removed. CPU benchmark
 preparation receives an explicit architecture through ``backend_config`` and
