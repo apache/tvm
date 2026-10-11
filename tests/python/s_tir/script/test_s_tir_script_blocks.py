@@ -1029,7 +1029,7 @@ def loop_split(
     A: T.Tensor([128, 128], dtype="float32"), B: T.Tensor([128], dtype="float32")
 ) -> None:
     for i, ko in T.grid(128, 4):
-        for ki in T.thread_binding(0, 32, thread="threadIdx.x"):
+        for ki in T.parallel(0, 32, annotations={"thread_binding": "threadIdx.x"}):
             with Ts.sblock("B"):
                 vi = Ts.axis.S(128, i)
                 vk = Ts.axis.R(128, ko * 32 + ki)
@@ -1046,7 +1046,7 @@ def different_access_indices(
     A: T.Tensor([128, 128, 128], dtype="float32"), B: T.Tensor([128, 128], dtype="float32")
 ) -> None:
     for i, j in T.grid(128, 128):
-        for k in T.thread_binding(0, 128, thread="threadIdx.x"):
+        for k in T.parallel(0, 128, annotations={"thread_binding": "threadIdx.x"}):
             with Ts.sblock("B"):
                 vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
                 Ts.reads([B[vi, vj], A[vi, vj, vk]])

@@ -171,8 +171,8 @@ class DefaultScheduledModule:
     ):
         T.func_attr({"global_symbol": "tir_matmul", "tirx.is_scheduled": True})
         # with Ts.sblock("root"):
-        for i0_j0_fused_0 in T.thread_binding(1, thread="blockIdx.x"):
-            for i0_j0_fused_1 in T.thread_binding(1024, thread="threadIdx.x"):
+        for i0_j0_fused_0 in T.parallel(1, annotations={"thread_binding": "blockIdx.x"}):
+            for i0_j0_fused_1 in T.parallel(1024, annotations={"thread_binding": "threadIdx.x"}):
                 for k0 in range(32):
                     with Ts.sblock(""):
                         i = Ts.axis.spatial(32, (i0_j0_fused_0 * 1024 + i0_j0_fused_1) // 32)
@@ -188,8 +188,8 @@ class DefaultScheduledModule:
     def tir_relu(A: T.Tensor((32, 32), "float32"), B: T.Tensor((32, 32), "float32")):
         T.func_attr({"global_symbol": "tir_relu", "tirx.is_scheduled": True})
         # with Ts.sblock("root"):
-        for i_j_fused_0 in T.thread_binding(1, thread="blockIdx.x"):
-            for i_j_fused_1 in T.thread_binding(1024, thread="threadIdx.x"):
+        for i_j_fused_0 in T.parallel(1, annotations={"thread_binding": "blockIdx.x"}):
+            for i_j_fused_1 in T.parallel(1024, annotations={"thread_binding": "threadIdx.x"}):
                 with Ts.sblock(""):
                     vi = Ts.axis.spatial(32, (i_j_fused_0 * 1024 + i_j_fused_1) // 32)
                     vj = Ts.axis.spatial(32, (i_j_fused_0 * 1024 + i_j_fused_1) % 32)

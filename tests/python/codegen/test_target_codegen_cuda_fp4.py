@@ -50,8 +50,8 @@ def test_e2m1_vector_conversions(promoted_dtype):
             C: T.Tensor((vector_length,), native_dtype),
         ):
             T.func_attr({"tirx.noalias": True})
-            for i_0 in T.thread_binding(vector_length // 32, thread="blockIdx.x"):
-                for i_1 in T.thread_binding(32, thread="threadIdx.x"):
+            with T.launch_thread("blockIdx.x", vector_length // 32) as i_0:
+                with T.launch_thread("threadIdx.x", 32) as i_1:
                     C[i_0 * 32 + i_1] = T.Cast(
                         native_dtype,
                         T.Cast(promoted_dtype, A[i_0 * 32 + i_1])
@@ -118,8 +118,8 @@ def _shuffle_reinterpret_module(n, num_blocks, vector_length, num_elem_per_stora
             B: T.Tensor((n,), "float16"),
         ):
             T.func_attr({"tirx.noalias": True})
-            for i_0 in T.thread_binding(num_blocks, thread="blockIdx.x"):
-                for i_1 in T.thread_binding(32, thread="threadIdx.x"):
+            with T.launch_thread("blockIdx.x", num_blocks) as i_0:
+                with T.launch_thread("threadIdx.x", 32) as i_1:
                     for i_2 in T.vectorized(vector_length):
                         B[i_0 * 32 * vector_length + i_1 * vector_length + i_2] = T.Shuffle(
                             [
@@ -166,8 +166,8 @@ def _scalar_reinterpret_module(n, num_blocks, vector_length, num_elem_per_storag
             B: T.Tensor((n,), "float16"),
         ):
             T.func_attr({"tirx.noalias": True})
-            for i_0 in T.thread_binding(num_blocks, thread="blockIdx.x"):
-                for i_1 in T.thread_binding(32, thread="threadIdx.x"):
+            with T.launch_thread("blockIdx.x", num_blocks) as i_0:
+                with T.launch_thread("threadIdx.x", 32) as i_1:
                     for i_2 in T.vectorized(vector_length):
                         B[i_0 * 32 * vector_length + i_1 * vector_length + i_2] = T.reinterpret(
                             T.bitwise_and(
@@ -235,8 +235,8 @@ def test_e2m1_scalar_buffer_offset():
     def func(A_raw: T.Tensor((n // 2,), "uint8"), B: T.Tensor((n,), "float16")):
         T.func_attr({"tir.noalias": True})
         A = T.decl_tensor(A_raw.data, ty_args=[T.Tensor((n,), "float4_e2m1fn", data=A_raw.data)])
-        for bx in T.thread_binding(n // 32, thread="blockIdx.x"):
-            for tx in T.thread_binding(32, thread="threadIdx.x"):
+        with T.launch_thread("blockIdx.x", n // 32) as bx:
+            with T.launch_thread("threadIdx.x", 32) as tx:
                 B[bx * 32 + tx] = T.Cast("float16", A[bx * 32 + tx])
 
     target = "cuda"

@@ -117,7 +117,7 @@ class OpaqueBlockLower : public StmtExprMutator {
                     .as_or_throw<UnchangedOr<ffi::Optional<PrimExpr>>>()
                     .ValueOrUnchanged(op->step);
     auto previous_remap = VarRemapGet(op->loop_var);
-    if (!tvm::tirx::GetThreadBinding(op).has_value() && IsOne(extent) && op->annotations.empty()) {
+    if (!tvm::s_tir::GetThreadBinding(op).has_value() && IsOne(extent) && op->annotations.empty()) {
       // handling unit loop
       VarRemapSet(op->loop_var, prim::cast(op->loop_var.ty(), min));
     }
@@ -143,7 +143,7 @@ class OpaqueBlockLower : public StmtExprMutator {
     VarRemapSet(op->loop_var, previous_remap);
 
     // Step 2. Keep thread-binding loops until LowerThreadBinding.
-    if (!tvm::tirx::GetThreadBinding(op).has_value() && IsOne(extent) && op->annotations.empty() &&
+    if (!tvm::s_tir::GetThreadBinding(op).has_value() && IsOne(extent) && op->annotations.empty() &&
         !op->annotations.count(tvm::s_tir::attr::kIrregularLoopMark)) {
       return body;
     }
@@ -166,17 +166,11 @@ class OpaqueBlockLower : public StmtExprMutator {
   // Effective policy is materialized on each surviving loop, preserving nested overrides.
   ScopeStack<UnrollPolicy> unroll_policy_;
 
-  // Preserve loop annotations while remapping enclosing bindings. Null optional
-  // policies do not override inherited values or reach code generation.
+  // Preserve loop annotations while remapping enclosing bindings.
   ffi::Map<ffi::String, ffi::Any> HandleAnnotations(
       const ffi::Map<ffi::String, ffi::Any>& annotations) {
     ffi::Map<ffi::String, ffi::Any> preserved;
     for (const auto& [key, value] : annotations) {
-      if ((key == tvm::tirx::attr::kAutoUnrollMaxStep || key == tvm::tirx::attr::kUnrollExplicit ||
-           key == tvm::tirx::attr::kPragmaUnroll) &&
-          value == nullptr) {
-        continue;
-      }
       preserved.Set(key, this->Mutate(value, InplaceMode::kDisallow).ValueOrUnchanged(value));
     }
     return preserved;

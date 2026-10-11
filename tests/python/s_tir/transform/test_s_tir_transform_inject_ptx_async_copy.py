@@ -375,7 +375,7 @@ def test_cp_async_in_if_then_else(postproc_if_missing_async_support):
         C: T.Tensor((16, 16), "float32"),
     ):
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
-        for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
+        for tx in T.parallel(0, 16, annotations={"thread_binding": "threadIdx.x"}):
             for i in T.serial(
                 16,
                 annotations={
@@ -474,10 +474,10 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
         Conv_reindex_wmma_accumulator = Ts.sblock_alloc_tensor(
             (512, 1280), "float16", scope="wmma.accumulator"
         )
-        for x_0_0 in T.thread_binding(8, thread="blockIdx.y"):
-            for y_0_0 in T.thread_binding(20, thread="blockIdx.x"):
-                for x_0_1 in T.thread_binding(2, thread="threadIdx.y"):
-                    for y_0_1 in T.thread_binding(2, thread="threadIdx.z"):
+        for x_0_0 in T.parallel(8, annotations={"thread_binding": "blockIdx.y"}):
+            for y_0_0 in T.parallel(20, annotations={"thread_binding": "blockIdx.x"}):
+                for x_0_1 in T.parallel(2, annotations={"thread_binding": "threadIdx.y"}):
+                    for y_0_1 in T.parallel(2, annotations={"thread_binding": "threadIdx.z"}):
                         for x_0_2_init, y_0_2_init in T.grid(2, 2):
                             with Ts.sblock("Conv_init_o"):
                                 v_x_o = Ts.axis.spatial(32, x_0_0 * 4 + x_0_1 * 2 + x_0_2_init)
@@ -516,12 +516,14 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
                             },
                         ):
                             for ax0_ax1_0_fused_0 in range(4):
-                                for ax0_ax1_0_fused_1 in T.thread_binding(2, thread="threadIdx.z"):
-                                    for ax0_ax1_0_fused_2 in T.thread_binding(
-                                        2, thread="threadIdx.y"
+                                for ax0_ax1_0_fused_1 in T.parallel(
+                                    2, annotations={"thread_binding": "threadIdx.z"}
+                                ):
+                                    for ax0_ax1_0_fused_2 in T.parallel(
+                                        2, annotations={"thread_binding": "threadIdx.y"}
                                     ):
-                                        for ax0_ax1_0_fused_3 in T.thread_binding(
-                                            32, thread="threadIdx.x"
+                                        for ax0_ax1_0_fused_3 in T.parallel(
+                                            32, annotations={"thread_binding": "threadIdx.x"}
                                         ):
                                             with Ts.sblock("data_im2col_reindex_shared.dyn_o"):
                                                 v0 = Ts.axis.spatial(
@@ -596,12 +598,14 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
                                                             T.float16(0),
                                                         )
                             for ax0_ax1_0_fused_0 in range(4):
-                                for ax0_ax1_0_fused_1 in T.thread_binding(2, thread="threadIdx.z"):
-                                    for ax0_ax1_0_fused_2 in T.thread_binding(
-                                        2, thread="threadIdx.y"
+                                for ax0_ax1_0_fused_1 in T.parallel(
+                                    2, annotations={"thread_binding": "threadIdx.z"}
+                                ):
+                                    for ax0_ax1_0_fused_2 in T.parallel(
+                                        2, annotations={"thread_binding": "threadIdx.y"}
                                     ):
-                                        for ax0_ax1_0_fused_3 in T.thread_binding(
-                                            32, thread="threadIdx.x"
+                                        for ax0_ax1_0_fused_3 in T.parallel(
+                                            32, annotations={"thread_binding": "threadIdx.x"}
                                         ):
                                             for ax1_1 in T.vectorized(8):
                                                 with Ts.sblock("weight_flatten_reindex_shared.dyn"):

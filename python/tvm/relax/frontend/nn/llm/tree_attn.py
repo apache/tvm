@@ -301,10 +301,10 @@ def tree_attn(h_kv, h_q, d, dtype, rope_scaling: dict[str, Any], target: Target)
           # pylint: disable=unused-variable
 
         # kernel code
-        for lbx in T.thread_binding(NUM_BLKS, thread="blockIdx.x"):
-            for lby in T.thread_binding(h_kv, thread="blockIdx.y"):
-                for lty in T.thread_binding(num_warps, thread="threadIdx.y"):
-                    for ltx in T.thread_binding(bdx, thread="threadIdx.x"):
+        for lbx in T.parallel(NUM_BLKS, annotations={"thread_binding": "blockIdx.x"}):
+            for lby in T.parallel(h_kv, annotations={"thread_binding": "blockIdx.y"}):
+                for lty in T.parallel(num_warps, annotations={"thread_binding": "threadIdx.y"}):
+                    for ltx in T.parallel(bdx, annotations={"thread_binding": "threadIdx.x"}):
                         with Ts.sblock("attn"):
                             bx, by, ty, tx = Ts.axis.remap("SSSS", [lbx, lby, lty, ltx])
                             Ts.reads()
@@ -808,10 +808,10 @@ def tree_attn_with_paged_kv_cache(
         )
 
         # kernel code
-        for lbx in T.thread_binding(NUM_BLKS, thread="blockIdx.x"):
-            for lby in T.thread_binding(h_kv, thread="blockIdx.y"):
-                for lty in T.thread_binding(num_warps, thread="threadIdx.y"):
-                    for ltx in T.thread_binding(bdx, thread="threadIdx.x"):
+        for lbx in T.parallel(NUM_BLKS, annotations={"thread_binding": "blockIdx.x"}):
+            for lby in T.parallel(h_kv, annotations={"thread_binding": "blockIdx.y"}):
+                for lty in T.parallel(num_warps, annotations={"thread_binding": "threadIdx.y"}):
+                    for ltx in T.parallel(bdx, annotations={"thread_binding": "threadIdx.x"}):
                         with Ts.sblock("attn"):
                             bx, by, ty, tx = Ts.axis.remap("SSSS", [lbx, lby, lty, ltx])
                             Ts.reads()

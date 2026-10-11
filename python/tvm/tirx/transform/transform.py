@@ -423,6 +423,10 @@ def FlattenTensor():
 
 def BindTarget(target):
     """Annotate a Function with a given target.
+
+    Device helper calls must be inside explicit launch_thread or device_entry
+    regions. Lower S-TIR thread bindings before classifying host/device calls.
+
     Parameters
     -------
     target : tvm.target.Target
@@ -479,23 +483,3 @@ def LowerTIRx():
         The result pass
     """
     return _ffi_api.LowerTIRx()  # type: ignore
-
-
-def LowerTIRxOpaque():
-    """Lower opaque constructs in TIRX programs.
-
-    Handles allocation call lowering, For(thread_binding) to RegionStmt(launch_thread)
-    conversion, unit loop elimination, and pragma annotation handling.
-    This is the tirx-specific counterpart of s_tir.LowerOpaqueBlock and
-    s_tir.LowerThreadBinding,
-    without any SBlock/SBlockRealize handling.
-
-    Run s_tir.transform.LoopPartition first when thread-binding loops carry
-    loop_partition_hint.
-
-    Returns
-    -------
-    fpass : tvm.transform.Pass
-        The result pass
-    """
-    return _ffi_api.LowerTIRxOpaque()  # type: ignore

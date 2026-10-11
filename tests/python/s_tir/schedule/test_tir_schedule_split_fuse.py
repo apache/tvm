@@ -127,7 +127,7 @@ def elementwise_with_thread_binding(
     A: T.Tensor((128, 128, 128)), B: T.Tensor((128, 128, 128))
 ) -> None:
     for i, j in T.grid(128, 128):
-        for k in T.thread_binding(0, 128, thread="threadIdx.x"):
+        for k in T.parallel(0, 128, annotations={"thread_binding": "threadIdx.x"}):
             with Ts.sblock("B"):
                 vi, vj, vk = Ts.axis.remap("SSS", [i, j, k])
                 Ts.reads([A[vi, vj, vk]])

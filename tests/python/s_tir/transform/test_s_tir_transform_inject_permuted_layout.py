@@ -40,9 +40,9 @@ def test_backward_compatibility_shared_a():
     @Ts.function
     def before(X: T.Tensor((4096, 4096), "float16")):
         # with Ts.sblock("root"):
-        for blockIdx_y in T.thread_binding(256, thread="blockIdx.y"):
-            for threadIdx_y in T.thread_binding(4, thread="threadIdx.y"):
-                for threadIdx_x in T.thread_binding(32, thread="threadIdx.x"):
+        for blockIdx_y in T.parallel(256, annotations={"thread_binding": "blockIdx.y"}):
+            for threadIdx_y in T.parallel(4, annotations={"thread_binding": "threadIdx.y"}):
+                for threadIdx_x in T.parallel(32, annotations={"thread_binding": "threadIdx.x"}):
                     with Ts.sblock(""):
                         Ts.reads(X[blockIdx_y // 8 * 128 + threadIdx_y * 8 + threadIdx_x // 4:blockIdx_y // 8 * 128 + threadIdx_y * 8 + threadIdx_x // 4 + 97, threadIdx_x % 4 * 8:threadIdx_x % 4 * 8 + 4072])
                         Ts.writes()
@@ -72,9 +72,9 @@ def test_backward_compatibility_shared_a():
 
     @Ts.function
     def expected(X: T.Tensor((4096, 4096), "float16")):
-        for blockIdx_y in T.thread_binding(256, thread="blockIdx.y"):
-            for threadIdx_y in T.thread_binding(4, thread="threadIdx.y"):
-                for threadIdx_x in T.thread_binding(32, thread="threadIdx.x"):
+        for blockIdx_y in T.parallel(256, annotations={"thread_binding": "blockIdx.y"}):
+            for threadIdx_y in T.parallel(4, annotations={"thread_binding": "threadIdx.y"}):
+                for threadIdx_x in T.parallel(32, annotations={"thread_binding": "threadIdx.x"}):
                     with Ts.sblock(""):
                         for ax2_0_0 in T.serial(128):
                             with Ts.sblock(""):
@@ -102,10 +102,10 @@ def test_backward_compatibility_shared_a_and_b():
     # fmt: off
     @Ts.function
     def before(X: T.Tensor((4096, 4096), "float16"), Y: T.Tensor((4096, 4096), "float16")):
-        for blockIdx_x in T.thread_binding(4, thread="blockIdx.x"):
-            for blockIdx_y in T.thread_binding(256, thread="blockIdx.y"):
-                for threadIdx_y in T.thread_binding(4, thread="threadIdx.y"):
-                    for threadIdx_x in T.thread_binding(32, thread="threadIdx.x"):
+        for blockIdx_x in T.parallel(4, annotations={"thread_binding": "blockIdx.x"}):
+            for blockIdx_y in T.parallel(256, annotations={"thread_binding": "blockIdx.y"}):
+                for threadIdx_y in T.parallel(4, annotations={"thread_binding": "threadIdx.y"}):
+                    for threadIdx_x in T.parallel(32, annotations={"thread_binding": "threadIdx.x"}):
                         with Ts.sblock(""):
                             for ax2_0_0 in T.serial(128):
                                 with Ts.sblock(""):
@@ -140,10 +140,10 @@ def test_backward_compatibility_shared_a_and_b():
 
     @Ts.function
     def expected(X: T.Tensor((4096, 4096), "float16"), Y: T.Tensor((4096, 4096), "float16")):
-        for blockIdx_x in T.thread_binding(4, thread="blockIdx.x"):
-            for blockIdx_y in T.thread_binding(256, thread="blockIdx.y"):
-                for threadIdx_y in T.thread_binding(4, thread="threadIdx.y"):
-                    for threadIdx_x in T.thread_binding(32, thread="threadIdx.x"):
+        for blockIdx_x in T.parallel(4, annotations={"thread_binding": "blockIdx.x"}):
+            for blockIdx_y in T.parallel(256, annotations={"thread_binding": "blockIdx.y"}):
+                for threadIdx_y in T.parallel(4, annotations={"thread_binding": "threadIdx.y"}):
+                    for threadIdx_x in T.parallel(32, annotations={"thread_binding": "threadIdx.x"}):
                         with Ts.sblock(""):
                             Ts.reads(X[blockIdx_y // 8 * 128 + threadIdx_y * 8 + threadIdx_x // 4:blockIdx_y // 8 * 128 + threadIdx_y * 8 + threadIdx_x // 4 + 97, threadIdx_x % 4 * 8:threadIdx_x % 4 * 8 + 4072], Y[threadIdx_y * 2 + threadIdx_x // 16:threadIdx_y * 2 + threadIdx_x // 16 + 4089, blockIdx_x * 1024 + blockIdx_y % 8 * 128 + threadIdx_x % 16 * 8:blockIdx_x * 1024 + blockIdx_y % 8 * 128 + threadIdx_x % 16 * 8 + 8])
                             Ts.writes()
@@ -190,9 +190,9 @@ def test_tensor_a():
 
         A_shared_dyn = Ts.sblock_alloc_tensor((T.int64(128), T.int64(32)), "float16", scope="shared.dyn")
         A_warp = Ts.sblock_alloc_tensor((T.int64(4), T.int64(1), T.int64(32), T.int64(8)), "float16", scope="warp")
-        for threadIdx_z in T.thread_binding(T.int64(2), thread="threadIdx.z"):
-            for threadIdx_y in T.thread_binding(T.int64(2), thread="threadIdx.y"):
-                for threadIdx_x in T.thread_binding(T.int64(32), thread="threadIdx.x"):
+        for threadIdx_z in T.parallel(T.int64(2), annotations={"thread_binding": "threadIdx.z"}):
+            for threadIdx_y in T.parallel(T.int64(2), annotations={"thread_binding": "threadIdx.y"}):
+                for threadIdx_x in T.parallel(T.int64(32), annotations={"thread_binding": "threadIdx.x"}):
                     for v0 in range(T.int64(4)):
                         for v1 in T.vectorized(T.int64(8)):
                             with Ts.sblock("A_reindex_shared.dyn"):
@@ -221,9 +221,9 @@ def test_tensor_a():
     def expected(A: T.Tensor((T.int64(128), T.int64(32)), "float16")):
         A_shared_dyn = Ts.sblock_alloc_tensor((T.int64(128), T.int64(32)), "float16", scope="shared.dyn")
         A_warp = Ts.sblock_alloc_tensor((T.int64(4), T.int64(1), T.int64(32), T.int64(8)), "float16", scope="warp")
-        for threadIdx_z in T.thread_binding(T.int64(2), thread="threadIdx.z"):
-            for threadIdx_y in T.thread_binding(T.int64(2), thread="threadIdx.y"):
-                for threadIdx_x in T.thread_binding(T.int64(32), thread="threadIdx.x"):
+        for threadIdx_z in T.parallel(T.int64(2), annotations={"thread_binding": "threadIdx.z"}):
+            for threadIdx_y in T.parallel(T.int64(2), annotations={"thread_binding": "threadIdx.y"}):
+                for threadIdx_x in T.parallel(T.int64(32), annotations={"thread_binding": "threadIdx.x"}):
                     for v0 in range(T.int64(4)):
                         for v1 in T.vectorized(T.int64(8)):
                             with Ts.sblock("A_reindex_shared.dyn"):
@@ -248,9 +248,9 @@ def test_tensor_b():
     @Ts.function
     def before(B: T.Tensor((T.int64(128), T.int64(32)), "float16")):
         B_shared_dyn = Ts.sblock_alloc_tensor((T.int64(128), T.int64(32)), "float16", scope="shared.dyn")
-        for threadIdx_z in T.thread_binding(T.int64(2), thread="threadIdx.z"):
-            for threadIdx_y in T.thread_binding(T.int64(2), thread="threadIdx.y"):
-                for threadIdx_x in T.thread_binding(T.int64(32), thread="threadIdx.x"):
+        for threadIdx_z in T.parallel(T.int64(2), annotations={"thread_binding": "threadIdx.z"}):
+            for threadIdx_y in T.parallel(T.int64(2), annotations={"thread_binding": "threadIdx.y"}):
+                for threadIdx_x in T.parallel(T.int64(32), annotations={"thread_binding": "threadIdx.x"}):
                     for v0 in range(T.int64(4)):
                         for v1 in T.vectorized(T.int64(8)):
                             with Ts.sblock("B_reindex_shared.dyn"):
@@ -270,9 +270,9 @@ def test_tensor_b():
     @Ts.function
     def expected(B: T.Tensor((T.int64(128), T.int64(32)), "float16")):
         B_shared_dyn = Ts.sblock_alloc_tensor((T.int64(128), T.int64(32)), "float16", scope="shared.dyn")
-        for threadIdx_z in T.thread_binding(T.int64(2), thread="threadIdx.z"):
-            for threadIdx_y in T.thread_binding(T.int64(2), thread="threadIdx.y"):
-                for threadIdx_x in T.thread_binding(T.int64(32), thread="threadIdx.x"):
+        for threadIdx_z in T.parallel(T.int64(2), annotations={"thread_binding": "threadIdx.z"}):
+            for threadIdx_y in T.parallel(T.int64(2), annotations={"thread_binding": "threadIdx.y"}):
+                for threadIdx_x in T.parallel(T.int64(32), annotations={"thread_binding": "threadIdx.x"}):
                     for v0 in range(T.int64(4)):
                         for v1 in T.vectorized(T.int64(8)):
                             with Ts.sblock("B_reindex_shared.dyn"):
@@ -302,9 +302,9 @@ def test_tensor_c_fp32():
 
         O_shared_dyn = Ts.sblock_alloc_tensor((T.int64(128), T.int64(128)), scope="shared.dyn")
         O_warp = Ts.sblock_alloc_tensor((T.int64(4), T.int64(4), T.int64(32), T.int64(8)), scope="warp")
-        for threadIdx_z in T.thread_binding(T.int64(2), thread="threadIdx.z"):
-            for threadIdx_y in T.thread_binding(T.int64(2), thread="threadIdx.y"):
-                for threadIdx_x in T.thread_binding(T.int64(32), thread="threadIdx.x"):
+        for threadIdx_z in T.parallel(T.int64(2), annotations={"thread_binding": "threadIdx.z"}):
+            for threadIdx_y in T.parallel(T.int64(2), annotations={"thread_binding": "threadIdx.y"}):
+                for threadIdx_x in T.parallel(T.int64(32), annotations={"thread_binding": "threadIdx.x"}):
                     for v0, v1 in T.grid(T.int64(4), T.int64(4)):
                         with Ts.sblock("O.dyn_warp_o"):
                             Ts.sblock_attr({"permuted_layout": 1})
@@ -322,9 +322,9 @@ def test_tensor_c_fp32():
         # with Ts.sblock("root"):
         O_shared_dyn = Ts.sblock_alloc_tensor((T.int64(128), T.int64(128)), scope="shared.dyn")
         O_warp = Ts.sblock_alloc_tensor((T.int64(4), T.int64(4), T.int64(32), T.int64(8)), scope="warp")
-        for threadIdx_z in T.thread_binding(T.int64(2), thread="threadIdx.z"):
-            for threadIdx_y in T.thread_binding(T.int64(2), thread="threadIdx.y"):
-                for threadIdx_x in T.thread_binding(T.int64(32), thread="threadIdx.x"):
+        for threadIdx_z in T.parallel(T.int64(2), annotations={"thread_binding": "threadIdx.z"}):
+            for threadIdx_y in T.parallel(T.int64(2), annotations={"thread_binding": "threadIdx.y"}):
+                for threadIdx_x in T.parallel(T.int64(32), annotations={"thread_binding": "threadIdx.x"}):
                     for v0, v1 in T.grid(T.int64(4), T.int64(4)):
                         with Ts.sblock("O.dyn_warp_o"):
                             Ts.reads(O_warp[v0, v1, threadIdx_x, T.int64(0):T.int64(8)])

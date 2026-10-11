@@ -55,8 +55,7 @@ namespace tirx {
  * \brief Visitor class to classify function calls as host or device calls.
  *
  * This visitor traverses the IRModule to identify which functions are called
- * from host code vs device code. It tracks GPU scopes (thread binding loops
- * and launch regions) to determine the calling context.
+ * from host code vs device code. It tracks GPU launch regions to determine the calling context.
  */
 class FunctionClassifierVisitor : public StmtExprVisitor {
  public:
@@ -101,19 +100,6 @@ class FunctionClassifierVisitor : public StmtExprVisitor {
       }
     }
     return StmtExprVisitor::Visit_(op);
-  }
-
-  ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) final {
-    if (tvm::tirx::GetThreadBinding(op).has_value()) {
-      // Enter GPU scope for thread binding loops
-      bool last_is_under_gpu_scope = is_under_gpu_scope_;
-      is_under_gpu_scope_ = true;
-      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
-      is_under_gpu_scope_ = last_is_under_gpu_scope;
-    } else {
-      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
-    }
-    return std::nullopt;
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const RegionStmtNode* op) final {
@@ -187,19 +173,6 @@ class CallSubstitutor : public StmtExprMutator {
       }
     }
     return call;
-  }
-
-  UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
-    if (tvm::tirx::GetThreadBinding(op).has_value()) {
-      // Enter GPU scope for thread binding loops
-      bool last_is_under_gpu_scope = is_under_gpu_scope_;
-      is_under_gpu_scope_ = true;
-      UnchangedOr<Stmt> stmt = StmtExprMutator::Mutate_(op, inplace_mode);
-      is_under_gpu_scope_ = last_is_under_gpu_scope;
-      return stmt;
-    } else {
-      return StmtExprMutator::Mutate_(op, inplace_mode);
-    }
   }
 
   UnchangedOr<Stmt> Mutate_(const RegionStmtNode* op, InplaceMode inplace_mode) final {

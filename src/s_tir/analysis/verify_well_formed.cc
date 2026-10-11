@@ -136,12 +136,36 @@ class BlockVarAccessVerifier : public StmtExprVisitor {
   bool has_error_{false};
 };
 
+/*! \brief Validate the scheduling annotation before thread-binding lowering. */
+class ThreadBindingVerifier : public tirx::Verifier<ThreadBindingVerifier, TIRVisitorWithPath> {
+  using Verifier = tirx::Verifier<ThreadBindingVerifier, TIRVisitorWithPath>;
+
+ public:
+  using Verifier::Verifier;
+  using Verifier::Verify;
+
+ private:
+  void Dispatch_(const ForNode* op, AccessPath path) override {
+    if (auto tag = op->annotations.Get(attr::kThreadBinding)) {
+      Verify(op->kind == ForKind::kParallel)
+          << "ValueError: thread_binding requires a parallel loop at " << path;
+      Verify(tag->as<ffi::String>().has_value())
+          << "TypeError: thread_binding annotation must be a string at " << path;
+      Verify(op->HasTrivialStep())
+          << "ValueError: Thread binding loops require a unit step at " << path;
+    }
+    Verifier::Dispatch_(op, path);
+  }
+};
+
 bool VerifyWellFormed(const tirx::Function& func, bool assert_mode) {
-  return BlockVarAccessVerifier::Verify(func, assert_mode) &&
+  return ThreadBindingVerifier::Verify(func, assert_mode) &&
+         BlockVarAccessVerifier::Verify(func, assert_mode) &&
          tirx::VerifyWellFormedCommon<TIRVisitorWithPath>(func, assert_mode);
 }
 
 bool VerifyWellFormed(const IRModule& mod, bool assert_mode) {
+  if (!ThreadBindingVerifier::Verify(mod, assert_mode)) return false;
   for (const auto& [gvar, base_func] : mod->functions) {
     if (auto func = base_func.as<tirx::Function>()) {
       if (!BlockVarAccessVerifier::Verify(func.value(), assert_mode)) return false;

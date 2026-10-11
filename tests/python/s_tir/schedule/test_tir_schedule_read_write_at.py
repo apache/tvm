@@ -52,12 +52,12 @@ from tvm.script import tirx as T
 @Ts.function
 def cuda_matmul(A: T.Tensor([2048, 2048], 'float32'), B: T.Tensor([2048, 2048], 'float32'), C: T.Tensor([2048, 2048], 'float32')) -> None:  # pylint: disable=undefined-loop-variable
 
-    for by in T.thread_binding(0, 32, thread = "blockIdx.y"):
-        for bx in T.thread_binding(0, 32, thread = "blockIdx.x"):
-            for vy in T.thread_binding(0, 2, thread = "vthread.y"):
-                for vx in T.thread_binding(0, 2, thread = "vthread.x"):
-                    for ty in T.thread_binding(0, 8, thread = "threadIdx.y"):
-                        for tx in T.thread_binding(0, 8, thread = "threadIdx.x"):
+    for by in T.parallel(0, 32, annotations={"thread_binding": "blockIdx.y"}):
+        for bx in T.parallel(0, 32, annotations={"thread_binding": "blockIdx.x"}):
+            for vy in T.parallel(0, 2, annotations={"thread_binding": "vthread.y"}):
+                for vx in T.parallel(0, 2, annotations={"thread_binding": "vthread.x"}):
+                    for ty in T.parallel(0, 8, annotations={"thread_binding": "threadIdx.y"}):
+                        for tx in T.parallel(0, 8, annotations={"thread_binding": "threadIdx.x"}):
                             for k0 in T.serial(0, 256):
                                 for k1 in T.unroll(0, 8):
                                     for _, i, j in T.grid(1, 4, 4):
@@ -75,12 +75,12 @@ def cuda_matmul(A: T.Tensor([2048, 2048], 'float32'), B: T.Tensor([2048, 2048], 
 def cuda_matmul_read_at_a(A: T.Tensor([2048, 2048], dtype='float32'), B: T.Tensor([2048, 2048], dtype='float32'), C: T.Tensor([2048, 2048], dtype='float32')) -> None:
 
     A_shared = Ts.sblock_alloc_tensor([2048, 2048], dtype="float32", scope="shared")
-    for by in T.thread_binding(0, 32, thread="blockIdx.y"):
-        for bx in T.thread_binding(0, 32, thread="blockIdx.x"):
-            for vy in T.thread_binding(0, 2, thread="vthread.y"):
-                for vx in T.thread_binding(0, 2, thread="vthread.x"):
-                    for ty in T.thread_binding(0, 8, thread="threadIdx.y"):
-                        for tx in T.thread_binding(0, 8, thread="threadIdx.x"):
+    for by in T.parallel(0, 32, annotations={"thread_binding": "blockIdx.y"}):
+        for bx in T.parallel(0, 32, annotations={"thread_binding": "blockIdx.x"}):
+            for vy in T.parallel(0, 2, annotations={"thread_binding": "vthread.y"}):
+                for vx in T.parallel(0, 2, annotations={"thread_binding": "vthread.x"}):
+                    for ty in T.parallel(0, 8, annotations={"thread_binding": "threadIdx.y"}):
+                        for tx in T.parallel(0, 8, annotations={"thread_binding": "threadIdx.x"}):
                             for k0 in T.serial(0, 256):
                                 with Ts.sblock("A_shared"):
                                     v0 = Ts.axis.S(32, by)
@@ -107,12 +107,12 @@ def cuda_matmul_read_at_ab(A: T.Tensor([2048, 2048], dtype='float32'), B: T.Tens
 
     A_shared = Ts.sblock_alloc_tensor([2048, 2048], dtype="float32", scope="shared")
     B_shared = Ts.sblock_alloc_tensor([2048, 2048], dtype="float32", scope="shared")
-    for by in T.thread_binding(0, 32, thread="blockIdx.y"):
-        for bx in T.thread_binding(0, 32, thread="blockIdx.x"):
-            for vy in T.thread_binding(0, 2, thread="vthread.y"):
-                for vx in T.thread_binding(0, 2, thread="vthread.x"):
-                    for ty in T.thread_binding(0, 8, thread="threadIdx.y"):
-                        for tx in T.thread_binding(0, 8, thread="threadIdx.x"):
+    for by in T.parallel(0, 32, annotations={"thread_binding": "blockIdx.y"}):
+        for bx in T.parallel(0, 32, annotations={"thread_binding": "blockIdx.x"}):
+            for vy in T.parallel(0, 2, annotations={"thread_binding": "vthread.y"}):
+                for vx in T.parallel(0, 2, annotations={"thread_binding": "vthread.x"}):
+                    for ty in T.parallel(0, 8, annotations={"thread_binding": "threadIdx.y"}):
+                        for tx in T.parallel(0, 8, annotations={"thread_binding": "threadIdx.x"}):
                             for k0 in T.serial(0, 256):
                                 with Ts.sblock("A_shared"):
                                     v0 = Ts.axis.S(32, by)
@@ -148,12 +148,12 @@ def cuda_matmul_write_at_c(A: T.Tensor([2048, 2048], dtype='float32'), B: T.Tens
     A_shared = Ts.sblock_alloc_tensor([2048, 2048], dtype="float32", scope="shared")
     B_shared = Ts.sblock_alloc_tensor([2048, 2048], dtype="float32", scope="shared")
     C_shared = Ts.sblock_alloc_tensor([2048, 2048], dtype="float32", scope="shared")
-    for by in T.thread_binding(0, 32, thread="blockIdx.y"):
-        for bx in T.thread_binding(0, 32, thread="blockIdx.x"):
-            for vy in T.thread_binding(0, 2, thread="vthread.y"):
-                for vx in T.thread_binding(0, 2, thread="vthread.x"):
-                    for ty in T.thread_binding(0, 8, thread="threadIdx.y"):
-                        for tx in T.thread_binding(0, 8, thread="threadIdx.x"):
+    for by in T.parallel(0, 32, annotations={"thread_binding": "blockIdx.y"}):
+        for bx in T.parallel(0, 32, annotations={"thread_binding": "blockIdx.x"}):
+            for vy in T.parallel(0, 2, annotations={"thread_binding": "vthread.y"}):
+                for vx in T.parallel(0, 2, annotations={"thread_binding": "vthread.x"}):
+                    for ty in T.parallel(0, 8, annotations={"thread_binding": "threadIdx.y"}):
+                        for tx in T.parallel(0, 8, annotations={"thread_binding": "threadIdx.x"}):
                             for k0 in T.serial(0, 256):
                                 with Ts.sblock("A_shared"):
                                     v0 = Ts.axis.S(32, by)

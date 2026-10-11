@@ -286,9 +286,9 @@ def test_cuda_matmul():
         C_local = Ts.sblock_alloc_tensor([512, 512], dtype="float32", scope="local")
         A_shared = Ts.sblock_alloc_tensor([512, 512], dtype="float32", scope="shared")
         B_shared = Ts.sblock_alloc_tensor([512, 512], dtype="float32", scope="shared")
-        for i0_0_i1_0_fused in T.thread_binding(128, thread="blockIdx.x"):
-            for i0_1_i1_1_fused in T.thread_binding(8, thread="vthread.x"):
-                for i0_2_i1_2_fused in T.thread_binding(4, thread="threadIdx.x"):
+        for i0_0_i1_0_fused in T.parallel(128, annotations={"thread_binding": "blockIdx.x"}):
+            for i0_1_i1_1_fused in T.parallel(8, annotations={"thread_binding": "vthread.x"}):
+                for i0_2_i1_2_fused in T.parallel(4, annotations={"thread_binding": "threadIdx.x"}):
                     for i2_0 in T.serial(128):
                         for ax0_ax1_fused in T.serial(256):
                             with Ts.sblock("A_shared"):
@@ -393,9 +393,9 @@ def test_cuda_matmul_relu():
         C_local = Ts.sblock_alloc_tensor([512, 512], dtype="float32", scope="local")
         A_shared = Ts.sblock_alloc_tensor([512, 512], dtype="float32", scope="shared")
         B_shared = Ts.sblock_alloc_tensor([512, 512], dtype="float32", scope="shared")
-        for i0_0_i1_0_fused in T.thread_binding(64, thread="blockIdx.x"):
-            for i0_1_i1_1_fused in T.thread_binding(64, thread="vthread.x"):
-                for i0_2_i1_2_fused in T.thread_binding(8, thread="threadIdx.x"):
+        for i0_0_i1_0_fused in T.parallel(64, annotations={"thread_binding": "blockIdx.x"}):
+            for i0_1_i1_1_fused in T.parallel(64, annotations={"thread_binding": "vthread.x"}):
+                for i0_2_i1_2_fused in T.parallel(8, annotations={"thread_binding": "threadIdx.x"}):
                     for i2_0 in T.serial(8):
                         for ax0_ax1_fused in T.serial(4096):
                             with Ts.sblock("A_shared"):
@@ -639,9 +639,9 @@ def test_cache_read_specify_consumer():
         C_local = Ts.sblock_alloc_tensor((512, 512), scope="local")
         A_shared = Ts.sblock_alloc_tensor((512, 512), scope="shared")
         B_shared = Ts.sblock_alloc_tensor((512, 512), scope="shared")
-        for i_0_j_0_fused in T.thread_binding(2, thread="blockIdx.x"):
-            for i_1_j_1_fused in T.thread_binding(512, thread="vthread.x"):
-                for i_2_j_2_fused in T.thread_binding(16, thread="threadIdx.x"):
+        for i_0_j_0_fused in T.parallel(2, annotations={"thread_binding": "blockIdx.x"}):
+            for i_1_j_1_fused in T.parallel(512, annotations={"thread_binding": "vthread.x"}):
+                for i_2_j_2_fused in T.parallel(16, annotations={"thread_binding": "threadIdx.x"}):
                     for k_0 in range(2):
                         for ax0_ax1_fused in range(131072):
                             with Ts.sblock("A_shared"):

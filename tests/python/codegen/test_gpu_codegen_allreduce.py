@@ -36,10 +36,10 @@ def _reduce_module(d1, d2, d3, is_max=False):
     class Module:
         @T.function
         def main(A: T.Tensor((1, d1, d2, d3), "float32"), B: T.Tensor((1, d1, d2), "float32")):
-            for i in T.thread_binding(1, thread="blockIdx.x"):
-                for j in T.thread_binding(d1, thread="threadIdx.z"):
-                    for k in T.thread_binding(d2, thread="threadIdx.y"):
-                        for l in T.thread_binding(d3, thread="threadIdx.x"):
+            with T.launch_thread("blockIdx.x", 1) as i:
+                with T.launch_thread("threadIdx.z", d1) as j:
+                    with T.launch_thread("threadIdx.y", d2) as k:
+                        with T.launch_thread("threadIdx.x", d3) as l:
                             reduced = T.alloc_tensor(
                                 ty_args=[T.Tensor((1,), "float32", scope="local")]
                             )

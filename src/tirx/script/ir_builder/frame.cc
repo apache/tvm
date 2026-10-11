@@ -36,10 +36,7 @@ namespace script {
 namespace ir_builder {
 namespace tirx {
 
-TVM_FFI_STATIC_INIT_BLOCK() {
-  TIRFrameNode::RegisterReflection();
-  FunctionFrameNode::RegisterReflection();
-}
+TVM_FFI_STATIC_INIT_BLOCK() { FunctionFrameNode::RegisterReflection(); }
 
 namespace {
 std::map<ffi::String, FunctionFrameNode::AttrValidator>& AttrValidators() {
@@ -60,14 +57,10 @@ void FunctionFrameNode::ValidateAttrs() const {
   }
 }
 
-void TIRFrameNode::BindTensorRegion(tvm::tirx::TensorVar tensor, tvm::TensorRegion region) {
-  TVM_FFI_THROW(ValueError) << "match_tensor requires a frame that supports region aliases";
-}
-
 tvm::tirx::Function FunctionFrameNode::FinalizeFunction(tvm::tirx::Function func) { return func; }
 
 void FunctionFrameNode::ExitWithScope() {
-  TIRFrameNode::ExitWithScope();
+  ir::StmtFrameNode::ExitWithScope();
   ValidateAttrs();
   // if the function is not private and there isn't already a global symbol,
   // add a global symbol

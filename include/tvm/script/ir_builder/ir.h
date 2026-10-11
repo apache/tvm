@@ -56,58 +56,21 @@ TVM_DLL GlobalVar DeclFunction(const ffi::String& func_name, const BaseFunc& fun
 TVM_DLL void DefFunction(const ffi::String& func_name, const BaseFunc& func);
 
 /*!
- * \brief The serial For statement.
+ * \brief Construct a For statement of the given kind.
+ * \param kind The kind of iteration.
  * \param start The minimum value of iteration.
  * \param stop The maximum value of iteration.
- * \param annotations The optional annotations of the For statement.
  * \param step The optional step value of iteration.
  * \param dtype The optional dtype of the loop var ("int32" or "uint32"). When omitted
  *              it is inferred from the bounds.
- * \return The ForFrame.
- */
-ForFrame Serial(PrimExpr start, PrimExpr stop,
-                ffi::Optional<ffi::Map<ffi::String, Any>> annotations = std::nullopt,
-                ffi::Optional<PrimExpr> step = std::nullopt,
-                ffi::Optional<PrimType> dtype = std::nullopt);
-/*!
- * \brief The parallel For statement.
- * \param start The minimum value of iteration.
- * \param stop The maximum value of iteration.
  * \param annotations The optional annotations of the For statement.
- * \param step The optional step value of iteration.
- * \param dtype The optional dtype of the loop var ("int32" or "uint32").
  * \return The ForFrame.
  */
-ForFrame Parallel(PrimExpr start, PrimExpr stop,
-                  ffi::Optional<ffi::Map<ffi::String, Any>> annotations = std::nullopt,
-                  ffi::Optional<PrimExpr> step = std::nullopt,
-                  ffi::Optional<PrimType> dtype = std::nullopt);
-/*!
- * \brief The vectorized For statement.
- * \param start The minimum value of iteration.
- * \param stop The maximum value of iteration.
- * \param annotations The optional annotations of the For statement.
- * \param step The optional step value of iteration.
- * \param dtype The optional dtype of the loop var ("int32" or "uint32").
- * \return The ForFrame.
- */
-ForFrame Vectorized(PrimExpr start, PrimExpr stop,
-                    ffi::Optional<ffi::Map<ffi::String, Any>> annotations = std::nullopt,
-                    ffi::Optional<PrimExpr> step = std::nullopt,
-                    ffi::Optional<PrimType> dtype = std::nullopt);
-/*!
- * \brief The unrolled For statement.
- * \param start The minimum value of iteration.
- * \param stop The maximum value of iteration.
- * \param annotations The optional annotations of the For statement.
- * \param step The optional step value of iteration.
- * \param dtype The optional dtype of the loop var ("int32" or "uint32").
- * \return The ForFrame.
- */
-ForFrame Unroll(PrimExpr start, PrimExpr stop,
-                ffi::Optional<ffi::Map<ffi::String, Any>> annotations = std::nullopt,
-                ffi::Optional<PrimExpr> step = std::nullopt,
-                ffi::Optional<PrimType> dtype = std::nullopt);
+ForFrame For(ForKind kind, PrimExpr start, PrimExpr stop,
+             ffi::Optional<PrimExpr> step = std::nullopt,
+             ffi::Optional<PrimType> dtype = std::nullopt,
+             ffi::Optional<ffi::Map<ffi::String, Any>> annotations = std::nullopt);
+
 /*!
  * \brief The grid For statement.
  * \param extents The extents of the iteration.

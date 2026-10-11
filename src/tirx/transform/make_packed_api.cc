@@ -61,12 +61,22 @@ class ReturnRewriter : public StmtExprMutator {
   explicit ReturnRewriter(Var ret_var) : ret_var_(ret_var) {}
 
   UnchangedOr<Stmt> Mutate_(const ForNode* node, InplaceMode inplace_mode) override {
-    if (node->kind == ForKind::kParallel && !tvm::tirx::GetThreadBinding(node).has_value())
-      in_parallel_ += 1;
+    // Unannotated single-iteration loops execute without a threadpool launch.
+    bool is_parallel =
+        node->kind == ForKind::kParallel &&
+        !(prim::IsOne(node->extent) && node->HasTrivialStep() && node->annotations.empty());
+    if (is_parallel) in_parallel_ += 1;
     Stmt ret =
         StmtExprMutator::Mutate_(node, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(node));
-    if (node->kind == ForKind::kParallel && !tvm::tirx::GetThreadBinding(node).has_value())
-      in_parallel_ -= 1;
+    if (is_parallel) in_parallel_ -= 1;
+    return ret;
+  }
+
+  UnchangedOr<Stmt> Mutate_(const RegionStmtNode* node, InplaceMode inplace_mode) override {
+    bool is_parallel = node->op.same_as(tirx::parallel_launch_op());
+    if (is_parallel) in_parallel_ += 1;
+    auto ret = StmtExprMutator::Mutate_(node, inplace_mode);
+    if (is_parallel) in_parallel_ -= 1;
     return ret;
   }
 

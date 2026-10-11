@@ -315,9 +315,9 @@ def test_dp4a_dense():
         compute_local = Ts.sblock_alloc_tensor((128, 128), "int32", scope="local")
         X_shared = Ts.sblock_alloc_tensor((128, 128), "int8", scope="shared")
         W_shared = Ts.sblock_alloc_tensor((128, 128), "int8", scope="shared")
-        for i_0_j_0_fused in T.thread_binding(1, thread="blockIdx.x"):
-            for i_1_j_1_fused in T.thread_binding(512, thread="vthread.x"):
-                for i_2_j_2_fused in T.thread_binding(2, thread="threadIdx.x"):
+        for i_0_j_0_fused in T.parallel(1, annotations={"thread_binding": "blockIdx.x"}):
+            for i_1_j_1_fused in T.parallel(512, annotations={"thread_binding": "vthread.x"}):
+                for i_2_j_2_fused in T.parallel(2, annotations={"thread_binding": "threadIdx.x"}):
                     for k_0_0 in range(1):
                         for ax0_ax1_fused in range(16384):
                             with Ts.sblock("X_shared"):

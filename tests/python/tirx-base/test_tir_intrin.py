@@ -41,8 +41,8 @@ def _unary_kernel(op, dtype="float32", out_dtype=None, gpu=False):
     @T.function
     def kernel(A: T.Tensor((n,), dtype), B: T.Tensor((n,), out_dtype)):
         if I.constexpr(gpu):
-            for bx in T.thread_binding(T.ceildiv(n, 64), thread="blockIdx.x"):
-                for tx in T.thread_binding(64, thread="threadIdx.x"):
+            with T.launch_thread("blockIdx.x", T.ceildiv(n, 64)) as bx:
+                with T.launch_thread("threadIdx.x", 64) as tx:
                     if bx * 64 + tx < n:
                         B[bx * 64 + tx] = op(A[bx * 64 + tx])
         else:

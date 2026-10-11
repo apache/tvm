@@ -110,13 +110,13 @@ def test_gemv_basic():
         var_NT_matmul_intermediate_rf_local_1 = Ts.sblock_alloc_tensor((64, 1, 32, 1, n), "float16", scope="local")
         lv1638_local = Ts.sblock_alloc_tensor((1, 32, n, 128), "float16", scope="local")
         lv1637_shared = Ts.sblock_alloc_tensor((1, 32, 1, 128), "float16", scope="shared")
-        for ax0_fused_ax1_fused_fused_0 in T.thread_binding(n * 32, thread="blockIdx.x"):
-            for ax0_fused_ax1_fused_fused_1 in T.thread_binding(1, thread="threadIdx.y"):
-                for ax2_fused_u_fused_1_ax2_fused_u_fused_3_fused_0 in T.thread_binding(64, thread="threadIdx.x"):
+        for ax0_fused_ax1_fused_fused_0 in T.parallel(n * 32, annotations={"thread_binding": "blockIdx.x"}):
+            for ax0_fused_ax1_fused_fused_1 in T.parallel(1, annotations={"thread_binding": "threadIdx.y"}):
+                for ax2_fused_u_fused_1_ax2_fused_u_fused_3_fused_0 in T.parallel(64, annotations={"thread_binding": "threadIdx.x"}):
                     for ax0, ax1, ax2 in T.grid(1, 1, 1):
                         for ax3_0 in T.serial(1, annotations={"unroll_explicit": 256}):
-                            for ax3_1 in T.thread_binding(1, thread="threadIdx.y"):
-                                for ax3_2 in T.thread_binding(64, thread="threadIdx.x"):
+                            for ax3_1 in T.parallel(1, annotations={"thread_binding": "threadIdx.y"}):
+                                for ax3_2 in T.parallel(64, annotations={"thread_binding": "threadIdx.x"}):
                                     for ax3_3 in T.vectorized(2):
                                         with Ts.sblock("lv1637_shared"):
                                             v0 = Ts.axis.spatial(1, ax0)
@@ -156,8 +156,8 @@ def test_gemv_basic():
                                     Ts.reads(var_NT_matmul_intermediate_rf_local[vax2_fused_u_fused_1_ax2_fused_u_fused_3_fused, 0, v0, 0, v1], lv1637_shared[0, v0, 0, vax2_fused_u_fused_0 * 128 + vax2_fused_u_fused_2 * 2 + vax2_fused_u_fused_1_ax2_fused_u_fused_3_fused], lv1638_local[0, v0, v1, vax2_fused_u_fused_0 * 128 + vax2_fused_u_fused_2 * 2 + vax2_fused_u_fused_1_ax2_fused_u_fused_3_fused])
                                     Ts.writes(var_NT_matmul_intermediate_rf_local[vax2_fused_u_fused_1_ax2_fused_u_fused_3_fused, 0, v0, 0, v1])
                                     var_NT_matmul_intermediate_rf_local[vax2_fused_u_fused_1_ax2_fused_u_fused_3_fused, 0, v0, 0, v1] = var_NT_matmul_intermediate_rf_local[vax2_fused_u_fused_1_ax2_fused_u_fused_3_fused, 0, v0, 0, v1] + lv1637_shared[0, v0, 0, vax2_fused_u_fused_0 * 128 + vax2_fused_u_fused_2 * 2 + vax2_fused_u_fused_1_ax2_fused_u_fused_3_fused] * lv1638_local[0, v0, v1, vax2_fused_u_fused_0 * 128 + vax2_fused_u_fused_2 * 2 + vax2_fused_u_fused_1_ax2_fused_u_fused_3_fused]
-            for ax2_ax3_fused_0 in T.thread_binding(1, thread="threadIdx.y"):
-                for ax0 in T.thread_binding(64, thread="threadIdx.x"):
+            for ax2_ax3_fused_0 in T.parallel(1, annotations={"thread_binding": "threadIdx.y"}):
+                for ax0 in T.parallel(64, annotations={"thread_binding": "threadIdx.x"}):
                     for ax2_ax3_fused_1_0 in T.serial(1, annotations={"auto_unroll_max_step": 256, "unroll_explicit": 1}):
                         for ax2_ax3_fused_1_1 in T.vectorized(1):
                             with Ts.sblock("NT_matmul_rf_init"):
@@ -176,8 +176,8 @@ def test_gemv_basic():
                                     Ts.writes(var_NT_matmul_intermediate_rf_local_1[vax2_fused_u_fused_1_ax2_fused_u_fused_3_fused_0, 0, v0, 0, v1])
                                     var_NT_matmul_intermediate_rf_local_1[vax2_fused_u_fused_1_ax2_fused_u_fused_3_fused_0, 0, v0, 0, v1] = var_NT_matmul_intermediate_rf_local_1[vax2_fused_u_fused_1_ax2_fused_u_fused_3_fused_0, 0, v0, 0, v1] + var_NT_matmul_intermediate_rf_local[vax2_fused_u_fused_1_ax2_fused_u_fused_3_fused_0 * 2 + vax2_fused_u_fused_1_ax2_fused_u_fused_3_fused_1, 0, v0, 0, v1]
             for ax1_ax2_fused_1 in range(1):
-                for ax1_ax2_fused_0 in T.thread_binding(1, thread="threadIdx.y"):
-                    for ax0 in T.thread_binding(64, thread="threadIdx.x"):
+                for ax1_ax2_fused_0 in T.parallel(1, annotations={"thread_binding": "threadIdx.y"}):
+                    for ax0 in T.parallel(64, annotations={"thread_binding": "threadIdx.x"}):
                         with Ts.sblock("NT_matmul"):
                             vax2_fused_u_fused_1_ax2_fused_u_fused_3_fused_0 = Ts.axis.reduce(64, ax0)
                             v0 = Ts.axis.spatial(32, ax0_fused_ax1_fused_fused_0 // n)
@@ -187,7 +187,7 @@ def test_gemv_basic():
                             with Ts.init():
                                 var_NT_matmul_intermediate_local[0, v0, 0, v1] = T.float16(0)
                             var_NT_matmul_intermediate_local[0, v0, 0, v1] = var_NT_matmul_intermediate_local[0, v0, 0, v1] + var_NT_matmul_intermediate_rf_local_1[vax2_fused_u_fused_1_ax2_fused_u_fused_3_fused_0, 0, v0, 0, v1]
-            for ax0_ax1_fused_0 in T.thread_binding(1, thread="threadIdx.y"):
+            for ax0_ax1_fused_0 in T.parallel(1, annotations={"thread_binding": "threadIdx.y"}):
                 for ax0_ax1_fused_1 in range(1):
                     with Ts.sblock("compute"):
                         v0 = Ts.axis.spatial(32, ax0_fused_ax1_fused_fused_0 // n)
@@ -233,9 +233,9 @@ def test_decode_gemv_256_threads():
         var_NT_matmul_intermediate_rf_local = Ts.sblock_alloc_tensor((16, 1, 1, 22016), "float16", scope="local")
         var_NT_matmul_intermediate_rf_local_1 = Ts.sblock_alloc_tensor((16, 1, 1, 22016), "float16", scope="local")
         lv571_local = Ts.sblock_alloc_tensor((22016, 512), "uint32", scope="local")
-        for u_fused_ax0_fused_fused_0 in T.thread_binding(5504, thread="blockIdx.x"):
-            for u_fused_ax0_fused_fused_1 in T.thread_binding(4, thread="threadIdx.x"):
-                for ax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused_0 in T.thread_binding(16, thread="threadIdx.y"):
+        for u_fused_ax0_fused_fused_0 in T.parallel(5504, annotations={"thread_binding": "blockIdx.x"}):
+            for u_fused_ax0_fused_fused_1 in T.parallel(4, annotations={"thread_binding": "threadIdx.x"}):
+                for ax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused_0 in T.parallel(16, annotations={"thread_binding": "threadIdx.y"}):
                     for u_fused_ax0_fused_fused_2_init in range(1):
                         for ax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused_1_init in T.vectorized(1):
                             with Ts.sblock("NT_matmul_rf_init"):
@@ -262,8 +262,8 @@ def test_decode_gemv_256_threads():
                                     Ts.reads(var_NT_matmul_intermediate_rf_local[vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused, 0, 0, v0], lv1654[0, 0, vax1_0_fused_ax1_1_fused_0 * 128 + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused * 8 + vax1_0_fused_ax1_1_fused_2], lv571_local[v0, vax1_0_fused_ax1_1_fused_0 * 16 + vax1_0_fused_ax1_1_fused_2 // 8 + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused], lv572[v0, (vax1_0_fused_ax1_1_fused_0 * 128 + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused * 8 + vax1_0_fused_ax1_1_fused_2) // 32])
                                     Ts.writes(var_NT_matmul_intermediate_rf_local[vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused, 0, 0, v0])
                                     var_NT_matmul_intermediate_rf_local[vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused, 0, 0, v0] = var_NT_matmul_intermediate_rf_local[vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused, 0, 0, v0] + lv1654[0, 0, vax1_0_fused_ax1_1_fused_0 * 128 + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused * 8 + vax1_0_fused_ax1_1_fused_2] * ((T.Cast("float16", T.bitwise_and(T.shift_right(lv571_local[v0, vax1_0_fused_ax1_1_fused_0 * 16 + vax1_0_fused_ax1_1_fused_2 // 8 + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused], T.Cast("uint32", (vax1_0_fused_ax1_1_fused_0 * 128 + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused * 8 + vax1_0_fused_ax1_1_fused_2) % 8) * T.uint32(4)), T.uint32(15))) - T.float16(7)) * lv572[v0, (vax1_0_fused_ax1_1_fused_0 * 128 + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused * 8 + vax1_0_fused_ax1_1_fused_2) // 32])
-            for ax2_fused_0 in T.thread_binding(4, thread="threadIdx.x"):
-                for ax0 in T.thread_binding(16, thread="threadIdx.y"):
+            for ax2_fused_0 in T.parallel(4, annotations={"thread_binding": "threadIdx.x"}):
+                for ax0 in T.parallel(16, annotations={"thread_binding": "threadIdx.y"}):
                     for ax2_fused_1_0 in T.serial(1, annotations={"auto_unroll_max_step": 256, "unroll_explicit": 1}):
                         for ax2_fused_1_1 in T.vectorized(1):
                             with Ts.sblock("NT_matmul_rf_init"):
@@ -280,8 +280,8 @@ def test_decode_gemv_256_threads():
                                     Ts.writes(var_NT_matmul_intermediate_rf_local_1[vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused_0, 0, 0, v0])
                                     var_NT_matmul_intermediate_rf_local_1[vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused_0, 0, 0, v0] = var_NT_matmul_intermediate_rf_local_1[vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused_0, 0, 0, v0] + var_NT_matmul_intermediate_rf_local[vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused_0 + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused_1, 0, 0, v0]
             for ax1_fused_1 in range(1):
-                for ax1_fused_0 in T.thread_binding(4, thread="threadIdx.x"):
-                    for ax0 in T.thread_binding(16, thread="threadIdx.y"):
+                for ax1_fused_0 in T.parallel(4, annotations={"thread_binding": "threadIdx.x"}):
+                    for ax0 in T.parallel(16, annotations={"thread_binding": "threadIdx.y"}):
                         with Ts.sblock("NT_matmul"):
                             vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused_0 = Ts.axis.reduce(16, ax0)
                             v0 = Ts.axis.spatial(22016, u_fused_ax0_fused_fused_0 * 4 + ax1_fused_0 + ax1_fused_1)
@@ -330,13 +330,13 @@ def test_decode_gemv1():
         var_NT_matmul_intermediate_rf_local_1 = Ts.sblock_alloc_tensor((32, 1, 1, 22016), "float16", scope="local")
         lv571_local = Ts.sblock_alloc_tensor((22016, 512), "uint32", scope="local")
         lv1654_shared = Ts.sblock_alloc_tensor((1, 1, 4096), "float16", scope="shared")
-        for u_fused_ax0_fused_fused_0 in T.thread_binding(1376, thread="blockIdx.x"):
-            for u_fused_ax0_fused_fused_1 in T.thread_binding(16, thread="threadIdx.y"):
-                for ax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused_0 in T.thread_binding(32, thread="threadIdx.x"):
+        for u_fused_ax0_fused_fused_0 in T.parallel(1376, annotations={"thread_binding": "blockIdx.x"}):
+            for u_fused_ax0_fused_fused_1 in T.parallel(16, annotations={"thread_binding": "threadIdx.y"}):
+                for ax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused_0 in T.parallel(32, annotations={"thread_binding": "threadIdx.x"}):
                     for ax0, ax1 in T.grid(1, 1):
                         for ax2_0 in T.serial(1, annotations={"unroll_explicit": 256}):
-                            for ax2_1 in T.thread_binding(16, thread="threadIdx.y"):
-                                for ax2_2 in T.thread_binding(32, thread="threadIdx.x"):
+                            for ax2_1 in T.parallel(16, annotations={"thread_binding": "threadIdx.y"}):
+                                for ax2_2 in T.parallel(32, annotations={"thread_binding": "threadIdx.x"}):
                                     for ax2_3 in T.vectorized(8):
                                         with Ts.sblock("lv1654_shared"):
                                             v0, v1 = Ts.axis.remap("SS", [ax0, ax1])
@@ -370,8 +370,8 @@ def test_decode_gemv1():
                                     Ts.reads(var_NT_matmul_intermediate_rf_local[vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused, 0, 0, v0], lv1654_shared[0, 0, vax1_0_fused_ax1_1_fused_0 * 256 + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused // 4 * 8 + vax1_0_fused_ax1_1_fused_2 * 4 + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused % 4], lv571_local[v0, vax1_0_fused_ax1_1_fused_0 * 32 + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused // 4 + vax1_0_fused_ax1_1_fused_2 // 2], lv572[v0, (vax1_0_fused_ax1_1_fused_0 * 256 + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused // 4 * 8 + vax1_0_fused_ax1_1_fused_2 * 4 + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused % 4) // 32])
                                     Ts.writes(var_NT_matmul_intermediate_rf_local[vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused, 0, 0, v0])
                                     var_NT_matmul_intermediate_rf_local[vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused, 0, 0, v0] = var_NT_matmul_intermediate_rf_local[vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused, 0, 0, v0] + lv1654_shared[0, 0, vax1_0_fused_ax1_1_fused_0 * 256 + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused // 4 * 8 + vax1_0_fused_ax1_1_fused_2 * 4 + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused % 4] * ((T.Cast("float16", T.bitwise_and(T.shift_right(lv571_local[v0, vax1_0_fused_ax1_1_fused_0 * 32 + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused // 4 + vax1_0_fused_ax1_1_fused_2 // 2], T.Cast("uint32", (vax1_0_fused_ax1_1_fused_0 * 256 + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused // 4 * 8 + vax1_0_fused_ax1_1_fused_2 * 4 + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused % 4) % 8) * T.uint32(4)), T.uint32(15))) - T.float16(7)) * lv572[v0, (vax1_0_fused_ax1_1_fused_0 * 256 + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused // 4 * 8 + vax1_0_fused_ax1_1_fused_2 * 4 + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused % 4) // 32])
-            for ax2_fused_0_ax2_fused_1_fused in T.thread_binding(16, thread="threadIdx.y"):
-                for ax0 in T.thread_binding(32, thread="threadIdx.x"):
+            for ax2_fused_0_ax2_fused_1_fused in T.parallel(16, annotations={"thread_binding": "threadIdx.y"}):
+                for ax0 in T.parallel(32, annotations={"thread_binding": "threadIdx.x"}):
                     for ax2_fused_2_0 in T.serial(1, annotations={"auto_unroll_max_step": 256, "unroll_explicit": 1}):
                         for ax2_fused_2_1 in T.vectorized(1):
                             with Ts.sblock("NT_matmul_rf_init"):
@@ -388,8 +388,8 @@ def test_decode_gemv1():
                                     Ts.writes(var_NT_matmul_intermediate_rf_local_1[vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused_0, 0, 0, v0])
                                     var_NT_matmul_intermediate_rf_local_1[vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused_0, 0, 0, v0] = var_NT_matmul_intermediate_rf_local_1[vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused_0, 0, 0, v0] + var_NT_matmul_intermediate_rf_local[vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused_0 * 4 + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused_1, 0, 0, v0]
             for ax1_fused_2 in range(1):
-                for ax1_fused_0_ax1_fused_1_fused in T.thread_binding(16, thread="threadIdx.y"):
-                    for ax0 in T.thread_binding(32, thread="threadIdx.x"):
+                for ax1_fused_0_ax1_fused_1_fused in T.parallel(16, annotations={"thread_binding": "threadIdx.y"}):
+                    for ax0 in T.parallel(32, annotations={"thread_binding": "threadIdx.x"}):
                         with Ts.sblock("NT_matmul"):
                             vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused_0 = Ts.axis.reduce(32, ax0)
                             v0 = Ts.axis.spatial(22016, u_fused_ax0_fused_fused_0 * 16 + ax1_fused_0_ax1_fused_1_fused + ax1_fused_2)
@@ -446,13 +446,13 @@ def test_decode_gemv2():
         var_NT_matmul_intermediate_rf_local_1 = Ts.sblock_alloc_tensor((32, 1, 1, 32000), "float16", scope="local")
         lv771_local = Ts.sblock_alloc_tensor((32000, 512), "uint32", scope="local")
         lv3216_shared = Ts.sblock_alloc_tensor((1, 1, 4096), "float16", scope="shared")
-        for u_fused_ax0_fused_fused_0 in T.thread_binding(2000, thread="blockIdx.x"):
-            for u_fused_ax0_fused_fused_1 in T.thread_binding(16, thread="threadIdx.y"):
-                for ax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused_0 in T.thread_binding(32, thread="threadIdx.x"):
+        for u_fused_ax0_fused_fused_0 in T.parallel(2000, annotations={"thread_binding": "blockIdx.x"}):
+            for u_fused_ax0_fused_fused_1 in T.parallel(16, annotations={"thread_binding": "threadIdx.y"}):
+                for ax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused_0 in T.parallel(32, annotations={"thread_binding": "threadIdx.x"}):
                     for ax0, ax1 in T.grid(1, 1):
                         for ax2_0 in T.serial(1, annotations={"unroll_explicit": 256}):
-                            for ax2_1 in T.thread_binding(16, thread="threadIdx.y"):
-                                for ax2_2 in T.thread_binding(32, thread="threadIdx.x"):
+                            for ax2_1 in T.parallel(16, annotations={"thread_binding": "threadIdx.y"}):
+                                for ax2_2 in T.parallel(32, annotations={"thread_binding": "threadIdx.x"}):
                                     for ax2_3 in T.vectorized(8):
                                         with Ts.sblock("lv3216_shared"):
                                             v0, v1 = Ts.axis.remap("SS", [ax0, ax1])
@@ -486,8 +486,8 @@ def test_decode_gemv2():
                                     Ts.reads(var_NT_matmul_intermediate_rf_local[vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused, 0, 0, v0], lv3216_shared[0, 0, vax1_0_fused_ax1_1_fused_0 * 256 + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused // 4 * 8 + vax1_0_fused_ax1_1_fused_2 * 4 + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused % 4], lv771_local[v0, vax1_0_fused_ax1_1_fused_0 * 32 + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused // 4 + vax1_0_fused_ax1_1_fused_2 // 2], lv772[v0, (vax1_0_fused_ax1_1_fused_0 * 256 + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused // 4 * 8 + vax1_0_fused_ax1_1_fused_2 * 4 + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused % 4) // 32])
                                     Ts.writes(var_NT_matmul_intermediate_rf_local[vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused, 0, 0, v0])
                                     var_NT_matmul_intermediate_rf_local[vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused, 0, 0, v0] = var_NT_matmul_intermediate_rf_local[vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused, 0, 0, v0] + lv3216_shared[0, 0, vax1_0_fused_ax1_1_fused_0 * 256 + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused // 4 * 8 + vax1_0_fused_ax1_1_fused_2 * 4 + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused % 4] * ((T.Cast("float16", T.bitwise_and(T.shift_right(lv771_local[v0, vax1_0_fused_ax1_1_fused_0 * 32 + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused // 4 + vax1_0_fused_ax1_1_fused_2 // 2], T.Cast("uint32", (vax1_0_fused_ax1_1_fused_0 * 256 + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused // 4 * 8 + vax1_0_fused_ax1_1_fused_2 * 4 + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused % 4) % 8) * T.uint32(4)), T.uint32(15))) - T.float16(7)) * lv772[v0, (vax1_0_fused_ax1_1_fused_0 * 256 + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused // 4 * 8 + vax1_0_fused_ax1_1_fused_2 * 4 + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused % 4) // 32])
-            for ax2_fused_0_ax2_fused_1_fused in T.thread_binding(16, thread="threadIdx.y"):
-                for ax0 in T.thread_binding(32, thread="threadIdx.x"):
+            for ax2_fused_0_ax2_fused_1_fused in T.parallel(16, annotations={"thread_binding": "threadIdx.y"}):
+                for ax0 in T.parallel(32, annotations={"thread_binding": "threadIdx.x"}):
                     for ax2_fused_2_0 in T.serial(1, annotations={"auto_unroll_max_step": 256, "unroll_explicit": 1}):
                         for ax2_fused_2_1 in T.vectorized(1):
                             with Ts.sblock("NT_matmul_rf_init"):
@@ -504,8 +504,8 @@ def test_decode_gemv2():
                                     Ts.writes(var_NT_matmul_intermediate_rf_local_1[vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused_0, 0, 0, v0])
                                     var_NT_matmul_intermediate_rf_local_1[vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused_0, 0, 0, v0] = var_NT_matmul_intermediate_rf_local_1[vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused_0, 0, 0, v0] + var_NT_matmul_intermediate_rf_local[vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused_0 * 4 + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused_1, 0, 0, v0]
             for ax1_fused_2 in range(1):
-                for ax1_fused_0_ax1_fused_1_fused in T.thread_binding(16, thread="threadIdx.y"):
-                    for ax0 in T.thread_binding(32, thread="threadIdx.x"):
+                for ax1_fused_0_ax1_fused_1_fused in T.parallel(16, annotations={"thread_binding": "threadIdx.y"}):
+                    for ax0 in T.parallel(32, annotations={"thread_binding": "threadIdx.x"}):
                         with Ts.sblock("NT_matmul"):
                             vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused_0 = Ts.axis.reduce(32, ax0)
                             v0 = Ts.axis.spatial(32000, u_fused_ax0_fused_fused_0 * 16 + ax1_fused_0_ax1_fused_1_fused + ax1_fused_2)
@@ -514,7 +514,7 @@ def test_decode_gemv2():
                             with Ts.init():
                                 var_NT_matmul_intermediate_local[0, 0, v0] = T.float16(0)
                             var_NT_matmul_intermediate_local[0, 0, v0] = var_NT_matmul_intermediate_local[0, 0, v0] + var_NT_matmul_intermediate_rf_local_1[vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused_0, 0, 0, v0]
-            for ax0_fused_0_ax0_fused_1_fused in T.thread_binding(16, thread="threadIdx.y"):
+            for ax0_fused_0_ax0_fused_1_fused in T.parallel(16, annotations={"thread_binding": "threadIdx.y"}):
                 for ax0_fused_2 in range(1):
                     with Ts.sblock("compute"):
                         v0 = Ts.axis.spatial(32000, u_fused_ax0_fused_fused_0 * 16 + ax0_fused_0_ax0_fused_1_fused + ax0_fused_2)
@@ -569,13 +569,13 @@ def test_decode_gemv3():
         var_NT_matmul_intermediate_rf_local_1 = Ts.sblock_alloc_tensor((T.int64(32), T.int64(1), T.int64(1), T.int64(4096)), "float16", scope="local")
         lv575_local = Ts.sblock_alloc_tensor((T.int64(4096), T.int64(1376)), "uint32", scope="local")
         lv574_shared = Ts.sblock_alloc_tensor((T.int64(1), T.int64(1), T.int64(11008)), "float16", scope="shared")
-        for u_fused_ax0_fused_fused_0 in T.thread_binding(T.int64(256), thread="blockIdx.x"):
-            for u_fused_ax0_fused_fused_1 in T.thread_binding(T.int64(16), thread="threadIdx.y"):
-                for ax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused_0 in T.thread_binding(T.int64(32), thread="threadIdx.x"):
+        for u_fused_ax0_fused_fused_0 in T.parallel(T.int64(256), annotations={"thread_binding": "blockIdx.x"}):
+            for u_fused_ax0_fused_fused_1 in T.parallel(T.int64(16), annotations={"thread_binding": "threadIdx.y"}):
+                for ax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused_0 in T.parallel(T.int64(32), annotations={"thread_binding": "threadIdx.x"}):
                     for ax0, ax1 in T.grid(T.int64(1), T.int64(1)):
                         for ax2_0 in T.serial(T.int64(22), annotations={"unroll_explicit": 256}):
-                            for ax2_1 in T.thread_binding(T.int64(16), thread="threadIdx.y"):
-                                for ax2_2 in T.thread_binding(T.int64(32), thread="threadIdx.x"):
+                            for ax2_1 in T.parallel(T.int64(16), annotations={"thread_binding": "threadIdx.y"}):
+                                for ax2_2 in T.parallel(T.int64(32), annotations={"thread_binding": "threadIdx.x"}):
                                     for ax2_3 in T.vectorized(T.int64(1)):
                                         with Ts.sblock("lv574_shared"):
                                             v0, v1 = Ts.axis.remap("SS", [ax0, ax1])
@@ -610,8 +610,8 @@ def test_decode_gemv3():
                                     Ts.reads(var_NT_matmul_intermediate_rf_local[vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused, T.int64(0), T.int64(0), v0], lv574_shared[T.int64(0), T.int64(0), vax1_0_fused_ax1_1_fused_0 * T.int64(256) + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused // T.int64(4) * T.int64(8) + vax1_0_fused_ax1_1_fused_2 * T.int64(4) + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused % T.int64(4)], lv575_local[v0, vax1_0_fused_ax1_1_fused_0 * T.int64(32) + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused // T.int64(4) + vax1_0_fused_ax1_1_fused_2 // T.int64(2)], lv576[v0, (vax1_0_fused_ax1_1_fused_0 * T.int64(256) + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused // T.int64(4) * T.int64(8) + vax1_0_fused_ax1_1_fused_2 * T.int64(4) + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused % T.int64(4)) // T.int64(32)])
                                     Ts.writes(var_NT_matmul_intermediate_rf_local[vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused, T.int64(0), T.int64(0), v0])
                                     var_NT_matmul_intermediate_rf_local[vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused, T.int64(0), T.int64(0), v0] = var_NT_matmul_intermediate_rf_local[vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused, T.int64(0), T.int64(0), v0] + lv574_shared[T.int64(0), T.int64(0), vax1_0_fused_ax1_1_fused_0 * T.int64(256) + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused // T.int64(4) * T.int64(8) + vax1_0_fused_ax1_1_fused_2 * T.int64(4) + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused % T.int64(4)] * ((T.Cast("float16", T.bitwise_and(T.shift_right(lv575_local[v0, vax1_0_fused_ax1_1_fused_0 * T.int64(32) + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused // T.int64(4) + vax1_0_fused_ax1_1_fused_2 // T.int64(2)], T.Cast("uint32", (vax1_0_fused_ax1_1_fused_0 * T.int64(256) + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused // T.int64(4) * T.int64(8) + vax1_0_fused_ax1_1_fused_2 * T.int64(4) + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused % T.int64(4)) % T.int64(8)) * T.uint32(4)), T.uint32(15))) - T.float16(7)) * lv576[v0, (vax1_0_fused_ax1_1_fused_0 * T.int64(256) + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused // T.int64(4) * T.int64(8) + vax1_0_fused_ax1_1_fused_2 * T.int64(4) + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused % T.int64(4)) // T.int64(32)])
-            for ax2_fused_0 in T.thread_binding(T.int64(16), thread="threadIdx.y"):
-                for ax0 in T.thread_binding(T.int64(32), thread="threadIdx.x"):
+            for ax2_fused_0 in T.parallel(T.int64(16), annotations={"thread_binding": "threadIdx.y"}):
+                for ax0 in T.parallel(T.int64(32), annotations={"thread_binding": "threadIdx.x"}):
                     for ax2_fused_1_0 in T.serial(T.int64(1), annotations={"auto_unroll_max_step": 256, "unroll_explicit": 1}):
                         for ax2_fused_1_1 in T.vectorized(T.int64(1)):
                             with Ts.sblock("NT_matmul_rf_init"):
@@ -628,8 +628,8 @@ def test_decode_gemv3():
                                     Ts.writes(var_NT_matmul_intermediate_rf_local_1[vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused_0, T.int64(0), T.int64(0), v0])
                                     var_NT_matmul_intermediate_rf_local_1[vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused_0, T.int64(0), T.int64(0), v0] = var_NT_matmul_intermediate_rf_local_1[vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused_0, T.int64(0), T.int64(0), v0] + var_NT_matmul_intermediate_rf_local[vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused_0 * T.int64(4) + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused_1, T.int64(0), T.int64(0), v0]
             for ax1_fused_1 in T.serial(T.int64(0), T.int64(1)):
-                for ax1_fused_0 in T.thread_binding(T.int64(16), thread="threadIdx.y"):
-                    for ax0 in T.thread_binding(T.int64(32), thread="threadIdx.x"):
+                for ax1_fused_0 in T.parallel(T.int64(16), annotations={"thread_binding": "threadIdx.y"}):
+                    for ax0 in T.parallel(T.int64(32), annotations={"thread_binding": "threadIdx.x"}):
                         with Ts.sblock("NT_matmul"):
                             vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused_0 = Ts.axis.reduce(T.int64(32), ax0)
                             v0 = Ts.axis.spatial(T.int64(4096), u_fused_ax0_fused_fused_0 * T.int64(16) + ax1_fused_0 + ax1_fused_1)
@@ -638,7 +638,7 @@ def test_decode_gemv3():
                             with Ts.init():
                                 var_NT_matmul_intermediate_local[T.int64(0), T.int64(0), v0] = T.float16(0)
                             var_NT_matmul_intermediate_local[T.int64(0), T.int64(0), v0] = var_NT_matmul_intermediate_local[T.int64(0), T.int64(0), v0] + var_NT_matmul_intermediate_rf_local_1[vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused_0, T.int64(0), T.int64(0), v0]
-            for ax0_fused_0 in T.thread_binding(T.int64(16), thread="threadIdx.y"):
+            for ax0_fused_0 in T.parallel(T.int64(16), annotations={"thread_binding": "threadIdx.y"}):
                 for ax0_fused_1 in T.serial(T.int64(0), T.int64(1)):
                     with Ts.sblock("T_add"):
                         v0 = Ts.axis.spatial(T.int64(4096), u_fused_ax0_fused_fused_0 * T.int64(16) + ax0_fused_0 + ax0_fused_1)
@@ -730,9 +730,9 @@ def test_outer_reduction_adreno():
         var_matmul_intermediate_rf_local_1 = Ts.sblock_alloc_tensor((4, 1, 1, 4096), "float16", scope="local")
         lv576_local = Ts.sblock_alloc_tensor((344, 4096), "float16", scope="local")
         lv575_local = Ts.sblock_alloc_tensor((1376, 4096), "uint32", scope="local")
-        for u_fused_ax0_fused_fused_0 in T.thread_binding(64, thread="blockIdx.x"):
-            for u_fused_ax0_fused_fused_1 in T.thread_binding(64, thread="threadIdx.x"):
-                for ax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused_0_init in T.thread_binding(4, thread="threadIdx.y"):
+        for u_fused_ax0_fused_fused_0 in T.parallel(64, annotations={"thread_binding": "blockIdx.x"}):
+            for u_fused_ax0_fused_fused_1 in T.parallel(64, annotations={"thread_binding": "threadIdx.x"}):
+                for ax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused_0_init in T.parallel(4, annotations={"thread_binding": "threadIdx.y"}):
                     for ax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused_1_init in T.vectorized(8):
                         with Ts.sblock("matmul_rf_init"):
                             vax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused = Ts.axis.spatial(32, ax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused_0_init * 8 + ax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused_1_init)
@@ -740,7 +740,7 @@ def test_outer_reduction_adreno():
                             Ts.reads()
                             Ts.writes(var_matmul_intermediate_rf_local[vax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused, 0, 0, v0])
                             var_matmul_intermediate_rf_local[vax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused, 0, 0, v0] = T.float16(0)
-                for ax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused_0 in T.thread_binding(4, thread="threadIdx.y"):
+                for ax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused_0 in T.parallel(4, annotations={"thread_binding": "threadIdx.y"}):
                     for ax1_0_fused_ax1_1_fused_0, ax1_0_fused_ax1_1_fused_1 in T.grid(86, 1):
                         for ax0, ax1 in T.grid(1, 1):
                             with Ts.sblock("lv576_local"):
@@ -765,8 +765,8 @@ def test_outer_reduction_adreno():
                                     Ts.reads(var_matmul_intermediate_rf_local[vax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused, 0, 0, v0], lv574[0, 0, vax1_0_fused_ax1_1_fused_0 * 128 + vax1_0_fused_ax1_1_fused_1 * 128 + vax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused // 8 * 32 + vax1_0_fused_ax1_1_fused_3 * 8 + vax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused % 8], lv575_local[vax1_0_fused_ax1_1_fused_0 * 16 + vax1_0_fused_ax1_1_fused_1 * 16 + vax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused // 8 * 4 + vax1_0_fused_ax1_1_fused_3, v0], lv576_local[vax1_0_fused_ax1_1_fused_0 * 4 + vax1_0_fused_ax1_1_fused_1 * 4 + vax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused // 8 + vax1_0_fused_ax1_1_fused_3 // 4, v0])
                                     Ts.writes(var_matmul_intermediate_rf_local[vax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused, 0, 0, v0])
                                     var_matmul_intermediate_rf_local[vax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused, 0, 0, v0] = var_matmul_intermediate_rf_local[vax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused, 0, 0, v0] + lv574[0, 0, vax1_0_fused_ax1_1_fused_0 * 128 + vax1_0_fused_ax1_1_fused_1 * 128 + vax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused // 8 * 32 + vax1_0_fused_ax1_1_fused_3 * 8 + vax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused % 8] * ((T.Cast("float16", T.bitwise_and(T.shift_right(lv575_local[vax1_0_fused_ax1_1_fused_0 * 16 + vax1_0_fused_ax1_1_fused_1 * 16 + vax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused // 8 * 4 + vax1_0_fused_ax1_1_fused_3, v0], T.Cast("uint32", (vax1_0_fused_ax1_1_fused_0 * 128 + vax1_0_fused_ax1_1_fused_1 * 128 + vax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused // 8 * 32 + vax1_0_fused_ax1_1_fused_3 * 8 + vax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused % 8) % 8) * T.uint32(4)), T.uint32(15))) - T.float16(7)) * lv576_local[vax1_0_fused_ax1_1_fused_0 * 4 + vax1_0_fused_ax1_1_fused_1 * 4 + vax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused // 8 + vax1_0_fused_ax1_1_fused_3 // 4, v0])
-            for ax2 in T.thread_binding(64, thread="threadIdx.x"):
-                for ax0 in T.thread_binding(4, thread="threadIdx.y"):
+            for ax2 in T.parallel(64, annotations={"thread_binding": "threadIdx.x"}):
+                for ax0 in T.parallel(4, annotations={"thread_binding": "threadIdx.y"}):
                     with Ts.sblock("matmul_rf_init"):
                         vax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused_0 = Ts.axis.spatial(4, ax0)
                         v0 = Ts.axis.spatial(4096, u_fused_ax0_fused_fused_0 * 64 + ax2)
@@ -780,8 +780,8 @@ def test_outer_reduction_adreno():
                             Ts.reads(var_matmul_intermediate_rf_local_1[vax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused_0, 0, 0, v0], var_matmul_intermediate_rf_local[vax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused_0 * 8 + vax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused_1, 0, 0, v0])
                             Ts.writes(var_matmul_intermediate_rf_local_1[vax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused_0, 0, 0, v0])
                             var_matmul_intermediate_rf_local_1[vax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused_0, 0, 0, v0] = var_matmul_intermediate_rf_local_1[vax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused_0, 0, 0, v0] + var_matmul_intermediate_rf_local[vax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused_0 * 8 + vax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused_1, 0, 0, v0]
-            for ax1 in T.thread_binding(64, thread="threadIdx.x"):
-                for ax0 in T.thread_binding(4, thread="threadIdx.y"):
+            for ax1 in T.parallel(64, annotations={"thread_binding": "threadIdx.x"}):
+                for ax0 in T.parallel(4, annotations={"thread_binding": "threadIdx.y"}):
                     with Ts.sblock("matmul"):
                         vax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused_0 = Ts.axis.reduce(4, ax0)
                         v0 = Ts.axis.spatial(4096, u_fused_ax0_fused_fused_0 * 64 + ax1)
@@ -790,7 +790,7 @@ def test_outer_reduction_adreno():
                         with Ts.init():
                             var_matmul_intermediate_local[0, 0, v0] = T.float16(0)
                         var_matmul_intermediate_local[0, 0, v0] = var_matmul_intermediate_local[0, 0, v0] + var_matmul_intermediate_rf_local_1[vax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused_0, 0, 0, v0]
-            for ax0_fused_0 in T.thread_binding(64, thread="threadIdx.x"):
+            for ax0_fused_0 in T.parallel(64, annotations={"thread_binding": "threadIdx.x"}):
                 for ax0_fused_1 in range(1):
                     with Ts.sblock("T_add"):
                         v0 = Ts.axis.spatial(4096, u_fused_ax0_fused_fused_0 * 64 + ax0_fused_0 + ax0_fused_1)
@@ -849,9 +849,9 @@ def test_outer_reduction_adreno_dynamic():
         lv613_local = Ts.sblock_alloc_tensor((T.int64(128), v), "float16", scope="local")
         lv612_local = Ts.sblock_alloc_tensor((T.int64(512), v), "uint32", scope="local")
         lv1607_shared = Ts.sblock_alloc_tensor((T.int64(1), T.int64(1), T.int64(4096)), "float16", scope="shared")
-        for u_fused_ax0_fused_fused_0 in T.thread_binding((v + T.int64(255)) // T.int64(256), thread="blockIdx.x"):
-            for u_fused_ax0_fused_fused_1 in T.thread_binding(T.int64(256), thread="threadIdx.x"):
-                for ax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused_0_init in T.thread_binding(T.int64(1), thread="threadIdx.y"):
+        for u_fused_ax0_fused_fused_0 in T.parallel((v + T.int64(255)) // T.int64(256), annotations={"thread_binding": "blockIdx.x"}):
+            for u_fused_ax0_fused_fused_1 in T.parallel(T.int64(256), annotations={"thread_binding": "threadIdx.x"}):
+                for ax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused_0_init in T.parallel(T.int64(1), annotations={"thread_binding": "threadIdx.y"}):
                     for ax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused_1_init in T.vectorized(T.int64(8)):
                         with Ts.sblock("matmul_rf_init"):
                             vax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused = Ts.axis.spatial(T.int64(8), ax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused_0_init * T.int64(8) + ax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused_1_init)
@@ -860,11 +860,11 @@ def test_outer_reduction_adreno_dynamic():
                             Ts.reads()
                             Ts.writes(var_matmul_intermediate_rf_local[vax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused, T.int64(0), T.int64(0), v0])
                             var_matmul_intermediate_rf_local[vax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused, T.int64(0), T.int64(0), v0] = T.float16(0)
-                for ax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused_0 in T.thread_binding(T.int64(1), thread="threadIdx.y"):
+                for ax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused_0 in T.parallel(T.int64(1), annotations={"thread_binding": "threadIdx.y"}):
                     for ax1_0_fused_ax1_1_fused_0 in T.serial(T.int64(0), T.int64(128)):
                         for ax0, ax1, ax2_0, ax2_1 in T.grid(T.int64(1), T.int64(1), T.int64(1), T.int64(1)):
-                            for ax2_2 in T.thread_binding(T.int64(256), thread="threadIdx.x"):
-                                for ax2_3 in T.thread_binding(T.int64(1), thread="threadIdx.y"):
+                            for ax2_2 in T.parallel(T.int64(256), annotations={"thread_binding": "threadIdx.x"}):
+                                for ax2_3 in T.parallel(T.int64(1), annotations={"thread_binding": "threadIdx.y"}):
                                     for ax2_4 in T.vectorized(T.int64(4)):
                                         with Ts.sblock("lv1607_shared"):
                                             v0, v1 = Ts.axis.remap("SS", [ax0, ax1])
@@ -900,8 +900,8 @@ def test_outer_reduction_adreno_dynamic():
                                         Ts.reads(var_matmul_intermediate_rf_local[vax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused, T.int64(0), T.int64(0), v0], lv1607_shared[T.int64(0), T.int64(0), vax1_0_fused_ax1_1_fused_0 * T.int64(32) + vax1_0_fused_ax1_1_fused_1 * T.int64(32) + vax1_0_fused_ax1_1_fused_3 * T.int64(8) + vax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused], lv612_local[vax1_0_fused_ax1_1_fused_0 * T.int64(4) + vax1_0_fused_ax1_1_fused_1 * T.int64(4) + vax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused // T.int64(8) + vax1_0_fused_ax1_1_fused_3, v0], lv613_local[(vax1_0_fused_ax1_1_fused_3 * T.int64(8) + vax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused) // T.int64(32) + vax1_0_fused_ax1_1_fused_0 + vax1_0_fused_ax1_1_fused_1, v0])
                                         Ts.writes(var_matmul_intermediate_rf_local[vax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused, T.int64(0), T.int64(0), v0])
                                         var_matmul_intermediate_rf_local[vax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused, T.int64(0), T.int64(0), v0] = var_matmul_intermediate_rf_local[vax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused, T.int64(0), T.int64(0), v0] + lv1607_shared[T.int64(0), T.int64(0), vax1_0_fused_ax1_1_fused_0 * T.int64(32) + vax1_0_fused_ax1_1_fused_1 * T.int64(32) + vax1_0_fused_ax1_1_fused_3 * T.int64(8) + vax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused] * ((T.Cast("float16", T.bitwise_and(T.shift_right(lv612_local[vax1_0_fused_ax1_1_fused_0 * T.int64(4) + vax1_0_fused_ax1_1_fused_1 * T.int64(4) + vax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused // T.int64(8) + vax1_0_fused_ax1_1_fused_3, v0], T.Cast("uint32", (vax1_0_fused_ax1_1_fused_0 * T.int64(32) + vax1_0_fused_ax1_1_fused_1 * T.int64(32) + vax1_0_fused_ax1_1_fused_3 * T.int64(8) + vax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused) % T.int64(8)) * T.uint32(4)), T.uint32(15))) - T.float16(7)) * lv613_local[(vax1_0_fused_ax1_1_fused_3 * T.int64(8) + vax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused) // T.int64(32) + vax1_0_fused_ax1_1_fused_0 + vax1_0_fused_ax1_1_fused_1, v0])
-            for ax2 in T.thread_binding(T.int64(256), thread="threadIdx.x"):
-                for ax0 in T.thread_binding(T.int64(1), thread="threadIdx.y"):
+            for ax2 in T.parallel(T.int64(256), annotations={"thread_binding": "threadIdx.x"}):
+                for ax0 in T.parallel(T.int64(1), annotations={"thread_binding": "threadIdx.y"}):
                     with Ts.sblock("matmul_rf_init"):
                         vax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused_0 = Ts.axis.spatial(T.int64(1), ax0)
                         v0 = Ts.axis.spatial(v, u_fused_ax0_fused_fused_0 * T.int64(256) + ax2)
@@ -917,8 +917,8 @@ def test_outer_reduction_adreno_dynamic():
                             Ts.reads(var_matmul_intermediate_rf_local_1[vax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused_0, T.int64(0), T.int64(0), v0], var_matmul_intermediate_rf_local[vax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused_0 * T.int64(8) + vax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused_1, T.int64(0), T.int64(0), v0])
                             Ts.writes(var_matmul_intermediate_rf_local_1[vax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused_0, T.int64(0), T.int64(0), v0])
                             var_matmul_intermediate_rf_local_1[vax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused_0, T.int64(0), T.int64(0), v0] = var_matmul_intermediate_rf_local_1[vax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused_0, T.int64(0), T.int64(0), v0] + var_matmul_intermediate_rf_local[vax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused_0 * T.int64(8) + vax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused_1, T.int64(0), T.int64(0), v0]
-            for ax1 in T.thread_binding(T.int64(256), thread="threadIdx.x"):
-                for ax0 in T.thread_binding(T.int64(1), thread="threadIdx.y"):
+            for ax1 in T.parallel(T.int64(256), annotations={"thread_binding": "threadIdx.x"}):
+                for ax0 in T.parallel(T.int64(1), annotations={"thread_binding": "threadIdx.y"}):
                     with Ts.sblock("matmul"):
                         vax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused_0 = Ts.axis.reduce(T.int64(1), ax0)
                         v0 = Ts.axis.spatial(v, u_fused_ax0_fused_fused_0 * T.int64(256) + ax1)
@@ -928,7 +928,7 @@ def test_outer_reduction_adreno_dynamic():
                         with Ts.init():
                             var_matmul_intermediate_local[T.int64(0), T.int64(0), v0] = T.float16(0)
                         var_matmul_intermediate_local[T.int64(0), T.int64(0), v0] = var_matmul_intermediate_local[T.int64(0), T.int64(0), v0] + var_matmul_intermediate_rf_local_1[vax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused_0, T.int64(0), T.int64(0), v0]
-            for ax0_fused_0 in T.thread_binding(T.int64(256), thread="threadIdx.x"):
+            for ax0_fused_0 in T.parallel(T.int64(256), annotations={"thread_binding": "threadIdx.x"}):
                 for ax0_fused_1 in T.serial(T.int64(0), T.int64(1)):
                     with Ts.sblock("compute"):
                         v0 = Ts.axis.spatial(v, u_fused_ax0_fused_fused_0 * T.int64(256) + ax0_fused_0 + ax0_fused_1)
@@ -949,7 +949,7 @@ def test_blockized_gemv():
     @Ts.function(private=True)
     def before(x: T.Tensor((1, 4096), "float16"), w: T.Tensor((8, 16384, 4096), "float16"), indptr: T.Tensor((2,), "int32"), o: T.Tensor((2, 16384), "float16")):
         # with Ts.sblock("root"):
-        for expert_id in T.thread_binding(2, thread="blockIdx.y"):
+        for expert_id in T.parallel(2, annotations={"thread_binding": "blockIdx.y"}):
             with Ts.sblock("gemv_o"):
                 v_expert_id_o = Ts.axis.spatial(2, expert_id)
                 vi_o = Ts.axis.spatial(1, 0)
@@ -969,7 +969,7 @@ def test_blockized_gemv():
     def expected(x: T.Tensor((1, 4096), "float16"), w: T.Tensor((8, 16384, 4096), "float16"), indptr: T.Tensor((2,), "int32"), o: T.Tensor((2, 16384), "float16")):
         T.func_attr({"tirx.is_scheduled": True})
         # with Ts.sblock("root"):
-        for expert_id in T.thread_binding(2, thread="blockIdx.y"):
+        for expert_id in T.parallel(2, annotations={"thread_binding": "blockIdx.y"}):
             with Ts.sblock("gemv_o"):
                 v_expert_id_o = Ts.axis.spatial(2, expert_id)
                 vi_o = Ts.axis.spatial(1, 0)
@@ -979,9 +979,9 @@ def test_blockized_gemv():
                 o_rf_local = Ts.sblock_alloc_tensor((16, 2, 16384), "float16", scope="local")
                 o_rf_local_1 = Ts.sblock_alloc_tensor((16, 2, 16384), "float16", scope="local")
                 w_local = Ts.sblock_alloc_tensor((1, 16384, 4096), "float16", scope="local")
-                for u_fused_ax0_fused_fused_0 in T.thread_binding(4096, thread="blockIdx.x"):
-                    for u_fused_ax0_fused_fused_1 in T.thread_binding(4, thread="threadIdx.x"):
-                        for ax1_fused_u_fused_1_ax1_fused_u_fused_3_fused_0 in T.thread_binding(16, thread="threadIdx.y"):
+                for u_fused_ax0_fused_fused_0 in T.parallel(4096, annotations={"thread_binding": "blockIdx.x"}):
+                    for u_fused_ax0_fused_fused_1 in T.parallel(4, annotations={"thread_binding": "threadIdx.x"}):
+                        for ax1_fused_u_fused_1_ax1_fused_u_fused_3_fused_0 in T.parallel(16, annotations={"thread_binding": "threadIdx.y"}):
                             for u_fused_ax0_fused_fused_2_init in range(1):
                                 for ax1_fused_u_fused_1_ax1_fused_u_fused_3_fused_1_init in T.vectorized(1):
                                     with Ts.sblock("gemv_rf_init"):
@@ -1010,8 +1010,8 @@ def test_blockized_gemv():
                                             Ts.reads(o_rf_local[vax1_fused_u_fused_1_ax1_fused_u_fused_3_fused, v_expert_id_o, v0], x[0, vax1_fused_u_fused_0 * 128 + vax1_fused_u_fused_1_ax1_fused_u_fused_3_fused * 8 + vax1_fused_u_fused_2], w_local[0, v0, vax1_fused_u_fused_0 * 128 + vax1_fused_u_fused_1_ax1_fused_u_fused_3_fused * 8 + vax1_fused_u_fused_2], indptr[v_expert_id_o])
                                             Ts.writes(o_rf_local[vax1_fused_u_fused_1_ax1_fused_u_fused_3_fused, v_expert_id_o, v0])
                                             o_rf_local[vax1_fused_u_fused_1_ax1_fused_u_fused_3_fused, v_expert_id_o, v0] = o_rf_local[vax1_fused_u_fused_1_ax1_fused_u_fused_3_fused, v_expert_id_o, v0] + x[0, vax1_fused_u_fused_0 * 128 + vax1_fused_u_fused_1_ax1_fused_u_fused_3_fused * 8 + vax1_fused_u_fused_2] * w_local[0, v0, vax1_fused_u_fused_0 * 128 + vax1_fused_u_fused_1_ax1_fused_u_fused_3_fused * 8 + vax1_fused_u_fused_2]
-                    for ax2_fused_0 in T.thread_binding(4, thread="threadIdx.x"):
-                        for ax0 in T.thread_binding(16, thread="threadIdx.y"):
+                    for ax2_fused_0 in T.parallel(4, annotations={"thread_binding": "threadIdx.x"}):
+                        for ax0 in T.parallel(16, annotations={"thread_binding": "threadIdx.y"}):
                             for ax2_fused_1_0 in T.serial(1, annotations={"auto_unroll_max_step": 256, "unroll_explicit": 1}):
                                 for ax2_fused_1_1 in T.vectorized(1):
                                     with Ts.sblock("gemv_rf_init"):
@@ -1028,8 +1028,8 @@ def test_blockized_gemv():
                                             Ts.writes(o_rf_local_1[vax1_fused_u_fused_1_ax1_fused_u_fused_3_fused_0, v_expert_id_o, v0])
                                             o_rf_local_1[vax1_fused_u_fused_1_ax1_fused_u_fused_3_fused_0, v_expert_id_o, v0] = o_rf_local_1[vax1_fused_u_fused_1_ax1_fused_u_fused_3_fused_0, v_expert_id_o, v0] + o_rf_local[vax1_fused_u_fused_1_ax1_fused_u_fused_3_fused_0 + vax1_fused_u_fused_1_ax1_fused_u_fused_3_fused_1, v_expert_id_o, v0]
                     for ax1_fused_1 in range(1):
-                        for ax1_fused_0 in T.thread_binding(4, thread="threadIdx.x"):
-                            for ax0 in T.thread_binding(16, thread="threadIdx.y"):
+                        for ax1_fused_0 in T.parallel(4, annotations={"thread_binding": "threadIdx.x"}):
+                            for ax0 in T.parallel(16, annotations={"thread_binding": "threadIdx.y"}):
                                 with Ts.sblock("gemv"):
                                     vax1_fused_u_fused_1_ax1_fused_u_fused_3_fused_0 = Ts.axis.reduce(16, ax0)
                                     v0 = Ts.axis.spatial(16384, u_fused_ax0_fused_fused_0 * 4 + ax1_fused_0 + ax1_fused_1)

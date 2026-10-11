@@ -40,6 +40,7 @@ using ir::Break;
 using ir::Continue;
 using ir::Else;
 using ir::Evaluate;
+using ir::For;
 using ir::Grid;
 using ir::If;
 using ir::Region;
@@ -98,69 +99,6 @@ void FuncAttrs(ffi::Map<ffi::String, ffi::Any> attrs);
  */
 Type FuncRet(Type ret_type);
 
-/*!
- * \brief The serial For statement.
- * \param start The minimum value of iteration.
- * \param stop The maximum value of iteration.
- * \param annotations The optional annotations of the For statement.
- * \param step The optional step value of iteration.
- * \param dtype The optional dtype of the loop var ("int32" or "uint32"). When omitted
- *              it is inferred from the bounds.
- * \return The ForFrame.
- */
-ForFrame Serial(PrimExpr start, PrimExpr stop,
-                ffi::Optional<ffi::Map<ffi::String, Any>> annotations = std::nullopt,
-                ffi::Optional<PrimExpr> step = std::nullopt,
-                ffi::Optional<PrimType> dtype = std::nullopt);
-/*!
- * \brief The parallel For statement.
- * \param start The minimum value of iteration.
- * \param stop The maximum value of iteration.
- * \param annotations The optional annotations of the For statement.
- * \param step The optional step value of iteration.
- * \param dtype The optional dtype of the loop var ("int32" or "uint32").
- * \return The ForFrame.
- */
-ForFrame Parallel(PrimExpr start, PrimExpr stop,
-                  ffi::Optional<ffi::Map<ffi::String, Any>> annotations = std::nullopt,
-                  ffi::Optional<PrimExpr> step = std::nullopt,
-                  ffi::Optional<PrimType> dtype = std::nullopt);
-/*!
- * \brief The vectorized For statement.
- * \param start The minimum value of iteration.
- * \param stop The maximum value of iteration.
- * \param annotations The optional annotations of the For statement.
- * \param step The optional step value of iteration.
- * \param dtype The optional dtype of the loop var ("int32" or "uint32").
- * \return The ForFrame.
- */
-ForFrame Vectorized(PrimExpr start, PrimExpr stop,
-                    ffi::Optional<ffi::Map<ffi::String, Any>> annotations = std::nullopt,
-                    ffi::Optional<PrimExpr> step = std::nullopt,
-                    ffi::Optional<PrimType> dtype = std::nullopt);
-/*!
- * \brief The unrolled For statement.
- * \param start The minimum value of iteration.
- * \param stop The maximum value of iteration.
- * \param annotations The optional annotations of the For statement.
- * \param step The optional step value of iteration.
- * \param dtype The optional dtype of the loop var ("int32" or "uint32").
- * \return The ForFrame.
- */
-ForFrame Unroll(PrimExpr start, PrimExpr stop,
-                ffi::Optional<ffi::Map<ffi::String, Any>> annotations = std::nullopt,
-                ffi::Optional<PrimExpr> step = std::nullopt,
-                ffi::Optional<PrimType> dtype = std::nullopt);
-/*!
- * \brief The thread-binding For statement.
- * \param start The minimum value of iteration.
- * \param stop The maximum value of iteration.
- * \param thread The thread for loop variable to bind.
- * \param annotations The optional annotations of the For statement.
- * \return The ForFrame.
- */
-ForFrame ThreadBinding(PrimExpr start, PrimExpr stop, ffi::String thread,
-                       ffi::Optional<ffi::Map<ffi::String, Any>> annotations = std::nullopt);
 /*!
  * \brief Store data in a tensor destination.
  * \param dest The destination expression.

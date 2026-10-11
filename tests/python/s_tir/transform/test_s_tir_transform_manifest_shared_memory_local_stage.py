@@ -33,10 +33,10 @@ class MatmulBefore:
         T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
         # body
         # with Ts.sblock("root")
-        for blockIdx_y in T.thread_binding(32, thread="blockIdx.y"):
-            for blockIdx_x in T.thread_binding(32, thread="blockIdx.x"):
-                for threadIdx_y in T.thread_binding(2, thread="threadIdx.y"):
-                    for threadIdx_x in T.thread_binding(2, thread="threadIdx.x"):
+        for blockIdx_y in T.parallel(32, annotations={"thread_binding": "blockIdx.y"}):
+            for blockIdx_x in T.parallel(32, annotations={"thread_binding": "blockIdx.x"}):
+                for threadIdx_y in T.parallel(2, annotations={"thread_binding": "threadIdx.y"}):
+                    for threadIdx_x in T.parallel(2, annotations={"thread_binding": "threadIdx.x"}):
                         for k_0 in T.serial(32):
                             with Ts.sblock():
                                 Ts.reads(A[blockIdx_y * 32 : blockIdx_y * 32 + 32, k_0 * 32 : k_0 * 32 + 32], B[k_0 * 32 : k_0 * 32 + 32, blockIdx_x * 32 : blockIdx_x * 32 + 32])
@@ -74,10 +74,10 @@ class MatmulAfter:
         T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
         # body
         # with Ts.sblock("root")
-        for blockIdx_y in T.thread_binding(32, thread="blockIdx.y"):
-            for blockIdx_x in T.thread_binding(32, thread="blockIdx.x"):
-                for threadIdx_y in T.thread_binding(2, thread="threadIdx.y"):
-                    for threadIdx_x in T.thread_binding(2, thread="threadIdx.x"):
+        for blockIdx_y in T.parallel(32, annotations={"thread_binding": "blockIdx.y"}):
+            for blockIdx_x in T.parallel(32, annotations={"thread_binding": "blockIdx.x"}):
+                for threadIdx_y in T.parallel(2, annotations={"thread_binding": "threadIdx.y"}):
+                    for threadIdx_x in T.parallel(2, annotations={"thread_binding": "threadIdx.x"}):
                         for k_0 in T.serial(32):
                             with Ts.sblock():
                                 Ts.reads(A[blockIdx_y * 32 : blockIdx_y * 32 + 32, k_0 * 32 : k_0 * 32 + 32], B[k_0 * 32 : k_0 * 32 + 32, blockIdx_x * 32 : blockIdx_x * 32 + 32])

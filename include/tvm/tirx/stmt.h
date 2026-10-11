@@ -39,8 +39,6 @@ inline bool IsNoOp(const Stmt& stmt) {
 
 /*! \brief Statement attribute and loop annotation keys. */
 namespace attr {
-constexpr const char* kThreadBinding = "thread_binding";
-
 constexpr const char* kPragmaUnroll = "pragma_unroll";
 
 constexpr const char* kDisableUnroll = "disable_unroll";
@@ -63,22 +61,6 @@ constexpr const char* kVolatile = "tirx.volatile";
 constexpr const char* kTensorDataAlignment = "tensor_data_alignment";
 
 }  // namespace attr
-
-/*! \brief Interpret and validate TIRx thread placement on a shared loop. */
-inline ffi::Optional<ffi::String> GetThreadBinding(const ForNode* loop) {
-  if (auto tag = loop->annotations.Get(tvm::tirx::attr::kThreadBinding)) {
-    TVM_FFI_CHECK(loop->kind == ForKind::kParallel, ValueError)
-        << "thread_binding requires a parallel loop";
-    TVM_FFI_CHECK(tag->as<ffi::String>().has_value(), TypeError)
-        << "thread_binding annotation must be a string";
-    TVM_FFI_CHECK(loop->HasTrivialStep(), ValueError) << "Thread binding loops require a unit step";
-    return tag->cast<ffi::String>();
-  }
-  return std::nullopt;
-}
-inline ffi::Optional<ffi::String> GetThreadBinding(const For& loop) {
-  return GetThreadBinding(loop.get());
-}
 
 }  // namespace tirx
 }  // namespace tvm

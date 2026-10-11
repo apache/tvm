@@ -106,7 +106,6 @@ class DisallowAsyncStridedMemCopyNode : public PostprocNode {
         IRModule lowered{ffi::UnsafeInit()};
         try {
           auto pass_list = ffi::Array<tvm::transform::Pass>();
-          pass_list.push_back(tirx::transform::BindTarget(this->target.value()));
           pass_list.push_back(s_tir::transform::LowerInitBlock());
           pass_list.push_back(s_tir::transform::PlanAndUpdateTensorAllocationLocation());
           pass_list.push_back(s_tir::transform::ConvertBlocksToOpaque());
@@ -115,6 +114,7 @@ class DisallowAsyncStridedMemCopyNode : public PostprocNode {
           pass_list.push_back(s_tir::transform::InjectSoftwarePipeline());
           pass_list.push_back(s_tir::transform::LowerOpaqueBlock());
           pass_list.push_back(s_tir::transform::LowerThreadBinding());
+          pass_list.push_back(tirx::transform::BindTarget(this->target.value()));
           pass_list.push_back(tirx::transform::FlattenTensor());
           pass_list.push_back(tirx::transform::BF16ComputeLegalize());
           pass_list.push_back(tirx::transform::NarrowDataType(32));

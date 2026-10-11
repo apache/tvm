@@ -931,11 +931,6 @@ def test_loop_var_dtype_rejects_unsupported(dtype):
         T.serial(4, dtype=dtype)
 
 
-def test_thread_binding_has_no_dtype_parameter():
-    with pytest.raises(TypeError):
-        T.thread_binding(0, 128, "threadIdx.x", dtype="uint32")
-
-
 def test_hand_built_for_promotes_int_literal_bounds_to_uint32():
     """The For constructor retypes literal bounds to the loop var's dtype."""
     loop_var = tvm.tirx.Var("i", "uint32")

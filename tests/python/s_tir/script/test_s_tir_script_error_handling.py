@@ -578,12 +578,12 @@ def test_illegal_tensor_slice():
     check_error(access_non_const_slice_length, 5, TypeError)
 
 
-def test_syntax_sugar_fail():
-    def loop_syntax_sugar_fail(A: T.Tensor((128,))) -> None:
-        for i in T.thread_binding(128, 128):
+def test_invalid_thread_binding_annotation():
+    def invalid_thread_binding_annotation(A: T.Tensor((128,))) -> None:
+        for i in T.parallel(128, annotations={"thread_binding": 128}):
             A[i] = A[i] * 2.0
 
-    check_error(loop_syntax_sugar_fail, 2, ValueError)
+    check_error(invalid_thread_binding_annotation, None, TypeError)
 
 
 def test_multi_line_error_report():

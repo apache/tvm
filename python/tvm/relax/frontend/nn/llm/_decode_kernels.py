@@ -232,11 +232,11 @@ def _attention_decode(num_kv_heads, num_qo_heads, head_dim, qkv_dtype, sliding_w
 
           # pylint: disable=unused-variable
 
-        for bx in T.thread_binding(B, thread="blockIdx.x"):
-            for fused_by_bz in T.thread_binding(H_kv * gdz, thread="blockIdx.y"):
-                for ty in T.thread_binding(bdy, thread="threadIdx.y"):
-                    for tx in T.thread_binding(bdx, thread="threadIdx.x"):
-                        for tz in T.thread_binding(bdz, thread="threadIdx.z"):
+        for bx in T.parallel(B, annotations={"thread_binding": "blockIdx.x"}):
+            for fused_by_bz in T.parallel(H_kv * gdz, annotations={"thread_binding": "blockIdx.y"}):
+                for ty in T.parallel(bdy, annotations={"thread_binding": "threadIdx.y"}):
+                    for tx in T.parallel(bdx, annotations={"thread_binding": "threadIdx.x"}):
+                        for tz in T.parallel(bdz, annotations={"thread_binding": "threadIdx.z"}):
                             with Ts.sblock("attn"):
                                 Q_local = Ts.sblock_alloc_tensor((VEC_SIZE,), qkv_dtype, scope="local")
                                 kv_chunk_len = Ts.sblock_alloc_tensor((1,), "int32", scope="local")
@@ -447,10 +447,10 @@ def _merge_state_inplace(num_heads, head_dim, v_dtype, target: Target, global_sy
     ):
         T.func_attr({"tirx.is_scheduled": True})
 
-        for bx in T.thread_binding(N, thread="blockIdx.x"):
-            for by in T.thread_binding(gdy, thread="blockIdx.y"):
-                for ty in T.thread_binding(bdy, thread="threadIdx.y"):
-                    for tx in T.thread_binding(bdx, thread="threadIdx.x"):
+        for bx in T.parallel(N, annotations={"thread_binding": "blockIdx.x"}):
+            for by in T.parallel(gdy, annotations={"thread_binding": "blockIdx.y"}):
+                for ty in T.parallel(bdy, annotations={"thread_binding": "threadIdx.y"}):
+                    for tx in T.parallel(bdx, annotations={"thread_binding": "threadIdx.x"}):
                         with Ts.sblock("merge"):
                             s_val = _var("float32")
                             s_other_val = _var("float32")

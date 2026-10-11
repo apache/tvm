@@ -47,10 +47,10 @@ def test_default_pipeline_allocations(pipeline):
 def test_lower_thread_binding():
     @T.function
     def before(A: T.Tensor((32,), "int32")):
-        for bx in T.thread_binding(1, thread="blockIdx.x"):
-            for tx in T.thread_binding(32, thread="threadIdx.x"):
+        for bx in T.parallel(1, annotations={"thread_binding": "blockIdx.x"}):
+            for tx in T.parallel(32, annotations={"thread_binding": "threadIdx.x"}):
                 A[tx] = tx
-            for tx in T.thread_binding(32, thread="threadIdx.x"):
+            for tx in T.parallel(32, annotations={"thread_binding": "threadIdx.x"}):
                 A[tx] = A[tx] + 1
 
     @T.function

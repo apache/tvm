@@ -58,7 +58,7 @@ class Module:
     def add(A: T.Tensor((16, 16), "float32"), B: T.Tensor((16, 16), "float32")):
         T.func_attr({"global_symbol": "add"})
         with Ts.sblock("root"):
-            for i in T.thread_binding(16, thread="threadIdx.x"):
+            for i in T.parallel(16, annotations={"thread_binding": "threadIdx.x"}):
                 for j in range(16):
                     with Ts.sblock("update"):
                         vi, vj = Ts.axis.remap("SS", [i, j])

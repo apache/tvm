@@ -352,7 +352,7 @@ def test_decompose_reduction_with_thread_binding():
     class Before:
         @Ts.function
         def main(A: T.Tensor((32, 16), "float32"), B: T.Tensor((32,), "float32")):
-            for t in T.thread_binding(0, 32, thread="threadIdx.x"):
+            for t in T.parallel(0, 32, annotations={"thread_binding": "threadIdx.x"}):
                 for r in T.serial(16):
                     with Ts.sblock("B"):
                         vi, vr = Ts.axis.remap("SR", [t, r])
@@ -364,11 +364,11 @@ def test_decompose_reduction_with_thread_binding():
     class Expected:
         @Ts.function
         def main(A: T.Tensor((32, 16), "float32"), B: T.Tensor((32,), "float32")):
-            for t_init in T.thread_binding(0, 32, thread="threadIdx.x"):
+            for t_init in T.parallel(0, 32, annotations={"thread_binding": "threadIdx.x"}):
                 with Ts.sblock("B_init"):
                     vi = Ts.axis.remap("S", [t_init])
                     B[vi] = T.float32(0)
-            for t in T.thread_binding(0, 32, thread="threadIdx.x"):
+            for t in T.parallel(0, 32, annotations={"thread_binding": "threadIdx.x"}):
                 for r in T.serial(16):
                     with Ts.sblock("B"):
                         vi, vr = Ts.axis.remap("SR", [t, r])
