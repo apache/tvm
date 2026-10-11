@@ -25,6 +25,7 @@ import tvm_ffi
 
 import tvm
 from tvm.ir import Op, assert_structural_equal
+from tvm.script import ir as I
 from tvm.script import tirx as T
 
 
@@ -84,7 +85,7 @@ def test_builtin_expression_ops_are_not_tile_primitives():
 
 def test_tensormap_encoding_accepts_attribute_keywords_and_defaults():
     @T.function
-    def encode(descriptor: T.TensorMap, data: T.handle):
+    def encode(descriptor: T.Ptr(T.TensorMap), data: T.handle):
         T.cuda.tensormap_encode_tiled(
             descriptor,
             data,
@@ -108,7 +109,7 @@ def test_tensormap_encoding_accepts_attribute_keywords_and_defaults():
     assert call.attrs.interleave == call.attrs.l2_promotion == call.attrs.oob_fill == 0
     assert call.attrs.force_cu_dtype == -1
     call.validate()
-    reparsed = tvm.script.from_source(encode.script(), extra_vars={"T": T})
+    reparsed = tvm.script.from_source(encode.script(), extra_vars={"I": I, "T": T})
     assert_structural_equal(encode, reparsed)
 
 

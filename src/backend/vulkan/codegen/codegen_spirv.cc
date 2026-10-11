@@ -93,11 +93,11 @@ runtime::SPIRVShader CodeGenSPIRV::BuildFunction(const Function& f, const std::s
   const uint32_t descriptor_set = 0;
 
   for (Var arg : f->params) {
-    if (auto* ptr = arg->ty.as<PointerTypeNode>()) {
+    if (auto* ptr = arg->ty.as<PtrTypeNode>()) {
       auto* prim = ptr->element_type.as<PrimTypeNode>();
       TVM_FFI_ICHECK(prim)
           << "All handles passed to the Vulkan codegen must have a type_annotation as a "
-             "PointerType, "
+             "PtrType, "
           << "and must point to a PrimType";
       PrimType value_storage_type = ffi::GetRef<PrimType>(prim);
       if (value_storage_type == PrimType::Bool()) {
@@ -1023,7 +1023,7 @@ void CodeGenSPIRV::Dispatch_(const BindNode* op) {
   if (auto prim_type = op->var->ty.as<PrimType>()) {
     TVM_FFI_ICHECK(!prim_type.value().IsVoid());
   } else {
-    TVM_FFI_ICHECK(op->var->ty.as<PointerTypeNode>());
+    TVM_FFI_ICHECK(op->var->ty.as<PtrTypeNode>());
   }
   var_map_[op->var.get()] = MakeValue(op->value);
   if (auto prim_value = op->value.as<PrimExpr>()) {

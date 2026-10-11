@@ -104,8 +104,8 @@ bool ContainsCallNode(const Stmt& stmt) {
 }
 
 PrimType GetTextureElementType(const Expr& texture) {
-  const auto* pointer_type = texture->ty.as<PointerTypeNode>();
-  TVM_FFI_ICHECK(pointer_type) << "Texture arguments must have PointerType";
+  const auto* pointer_type = texture->ty.as<PtrTypeNode>();
+  TVM_FFI_ICHECK(pointer_type) << "Texture arguments must have PtrType";
   return pointer_type->element_type.as_or_throw<PrimType>();
 }
 }  // namespace

@@ -121,8 +121,8 @@ class BuiltinLower : public StmtExprMutator {
   // Record stack frame for existing scope.
   struct AllocaScope {
     ffi::Optional<TensorVar> stack_shape;
-    Var stack_array = Var("stack_array", PointerType::VoidPointerTy());
-    Var stack_ffi_any = Var("stack_ffi_any", PointerType::VoidPointerTy());
+    Var stack_array = Var("stack_array", PtrType::VoidPtrType());
+    Var stack_ffi_any = Var("stack_ffi_any", PtrType::VoidPtrType());
 
     StackSizes max_sizes;
     StackSizes run_sizes;
@@ -197,7 +197,7 @@ class BuiltinLower : public StmtExprMutator {
                                         PrimType::Int(64), "stack_shape");
         stmt = SeqStmt({Bind(scope.stack_shape.value(),
                              Call(scope.stack_shape.value().type(), decl_tensor_op(),
-                                  {StackAlloca(scope.stack_shape.value().type()->DataPointerType(),
+                                  {StackAlloca(scope.stack_shape.value().type()->DataPtrType(),
                                                "shape", scope.max_sizes.shape_stack),
                                    tvm::Tuple(scope.stack_shape.value()->shape),
                                    DataTypeImm(scope.stack_shape.value()->dtype->dtype),
@@ -324,18 +324,18 @@ class BuiltinLower : public StmtExprMutator {
     // Push free to enclosing scope's pending_frees (LIFO ordering preserved).
     scope_.Current().pending_frees.push_back(free_stmt);
 
-    Stmt alloc_bind = Bind(
-        op->var.as_or_throw<TensorVar>(),
-        Call(op->var.as_or_throw<TensorVar>().type(), decl_tensor_op(),
-             {Call(op->var.as_or_throw<TensorVar>().type()->DataPointerType(), alloc_workspace_op,
-                   {prim::cast(PrimType::Int(32), device_type_.value()),
-                    prim::cast(PrimType::Int(32), device_id_.value()), total_bytes,
-                    IntImm::Int32(element_type.code()), IntImm::Int32(element_type.bits())}),
-              tvm::Tuple(op->var.as_or_throw<TensorVar>()->shape),
-              DataTypeImm(op->var.as_or_throw<TensorVar>()->dtype->dtype),
-              StringImm(op->var.as_or_throw<TensorVar>().scope())},
-             {}, buffer_call->ty_args, buffer_call->loc),
-        op->loc);
+    Stmt alloc_bind =
+        Bind(op->var.as_or_throw<TensorVar>(),
+             Call(op->var.as_or_throw<TensorVar>().type(), decl_tensor_op(),
+                  {Call(op->var.as_or_throw<TensorVar>().type()->DataPtrType(), alloc_workspace_op,
+                        {prim::cast(PrimType::Int(32), device_type_.value()),
+                         prim::cast(PrimType::Int(32), device_id_.value()), total_bytes,
+                         IntImm::Int32(element_type.code()), IntImm::Int32(element_type.bits())}),
+                   tvm::Tuple(op->var.as_or_throw<TensorVar>()->shape),
+                   DataTypeImm(op->var.as_or_throw<TensorVar>()->dtype->dtype),
+                   StringImm(op->var.as_or_throw<TensorVar>().scope())},
+                  {}, buffer_call->ty_args, buffer_call->loc),
+             op->loc);
 
     return SeqStmt({alloc_bind, alloc_nullptr_check});
   }
@@ -502,7 +502,7 @@ class BuiltinLower : public StmtExprMutator {
     }
     PrimExpr offset = ConstInt32(stack_begin);
     TensorLoad load = MakeTensorLoad(scope.stack_shape.value(), {offset});
-    return Call(scope.stack_shape.value().type()->DataPointerType(), address_of_op(), {load});
+    return Call(scope.stack_shape.value().type()->DataPtrType(), address_of_op(), {load});
   }
   // make array
   Expr MakeArray(const CallNode* op) {
@@ -549,7 +549,7 @@ class BuiltinLower : public StmtExprMutator {
                                        prim::cast(PrimType::Int(32), device_id_.value())));
     prep_seq.emplace_back(TVMStructSet(scope.stack_array, idx, kDLTensorDeviceType,
                                        prim::cast(PrimType::Int(32), device_type_.value())));
-    return TVMStructGet(PointerType::VoidPointerTy(), scope.stack_array, idx, kDLTensorAddr);
+    return TVMStructGet(PtrType::VoidPtrType(), scope.stack_array, idx, kDLTensorAddr);
   }
 
   void SetPackedArg(Expr arg, const Var& args_stack, size_t stack_offset,
@@ -557,8 +557,8 @@ class BuiltinLower : public StmtExprMutator {
     int arg_type_index;
     if (arg.as<StringImmNode>()) {
       arg_type_index = ffi::TypeIndex::kTVMFFIRawStr;
-      arg = tirx::reinterpret(PointerType::VoidPointerTy(), std::move(arg));
-    } else if (arg->ty.as<PointerTypeNode>()) {
+      arg = tirx::reinterpret(PtrType::VoidPtrType(), std::move(arg));
+    } else if (arg->ty.as<PtrTypeNode>()) {
       arg_type_index = IsArrayHandle(arg) ? ffi::TypeIndex::kTVMFFIDLTensorPtr
                                           : ffi::TypeIndex::kTVMFFIOpaquePtr;
     } else {
@@ -630,7 +630,7 @@ class BuiltinLower : public StmtExprMutator {
 
     for (size_t i = 0; i < num_args; ++i) {
       const Expr& arg = op->args[args_begin + i];
-      TVM_FFI_CHECK(arg.as<PrimExpr>() || arg->ty.as<PointerTypeNode>() || arg.as<StringImmNode>(),
+      TVM_FFI_CHECK(arg.as<PrimExpr>() || arg->ty.as<PtrTypeNode>() || arg.as<StringImmNode>(),
                     TypeError)
           << "Packed call argument must have a primitive, pointer, or string type, but got "
           << arg->ty;
@@ -664,7 +664,7 @@ class BuiltinLower : public StmtExprMutator {
     Stmt throw_last_error =
         Evaluate(Call(PrimType::Int(32), throw_last_error_op(), {}).as_or_throw<PrimExpr>());
 
-    const auto* dtype_node = let->var->ty.as<PointerTypeNode>()->element_type.as<PrimTypeNode>();
+    const auto* dtype_node = let->var->ty.as<PtrTypeNode>()->element_type.as<PrimTypeNode>();
     TVM_FFI_ICHECK(dtype_node);
     PrimType dtype = ffi::GetRef<PrimType>(dtype_node);
 

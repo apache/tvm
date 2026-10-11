@@ -57,6 +57,13 @@ using SubscriptSlice = ffi::Array<ffi::Variant<
     ffi::Tuple<ffi::Optional<PrimExpr>, ffi::Optional<PrimExpr>, ffi::Optional<PrimExpr>>,
     PrimExpr>>;
 
+PrimExpr SliceExtent(const PrimExpr& start, const PrimExpr& stop, const sym::Analyzer& analyzer) {
+  if (const auto* add = stop.as<AddNode>(); add && ffi::StructuralEqual()(add->a, start)) {
+    return add->b;
+  }
+  return analyzer->Simplify(stop - start);
+}
+
 ffi::ObjectRef RealizeBufferSubscript(
     Expr value,
     ffi::Array<ffi::Variant<
@@ -105,8 +112,8 @@ ffi::ObjectRef RealizeBufferSubscript(
                             .value();
       PrimExpr start = descriptor.get<0>().value_or(IntImm(buffer_ty->shape[i].ty(), 0));
       PrimExpr stop = descriptor.get<1>().value_or(buffer_ty->shape[i]);
-      // Preserve the sole simplification performed by the former Python path.
-      region.push_back(Range::FromMinExtent(start, analyzer->Simplify(stop - start)));
+      // Retain an explicitly supplied extent before simplifying other endpoints.
+      region.push_back(Range::FromMinExtent(start, SliceExtent(start, stop, analyzer)));
     }
   }
   for (size_t i = slice.size(); i < buffer_ty->shape.size(); ++i) {
@@ -157,7 +164,7 @@ ffi::ObjectRef RealizeBufferRegionSubscript(Expr value, SubscriptSlice slice, Lo
       PrimExpr start = descriptor.get<0>().value_or(IntImm(old_range->extent.ty(), 0));
       PrimExpr stop = descriptor.get<1>().value_or(old_range->extent);
       region.push_back(
-          Range::FromMinExtent(old_range->min + start, analyzer->Simplify(stop - start)));
+          Range::FromMinExtent(old_range->min + start, SliceExtent(start, stop, analyzer)));
     }
   }
   for (size_t i = slice.size(); i < source->region.size(); ++i) {

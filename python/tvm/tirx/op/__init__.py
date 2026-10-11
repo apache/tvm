@@ -32,8 +32,8 @@ from tvm.ir import (
     Call,
     Expr,
     ExprWithOp,
-    PointerType,
     PrimType,
+    PtrType,
     TensorLoad,
     TensorRegion,
     Var,
@@ -217,14 +217,14 @@ def _pack_buffer(buf, loc: Location = UNKNOWN_LOC):
         "tirx.stack_make_shape",
         buf.ty.shape,
         loc=loc,
-        ty=PointerType(tvm.ir.PrimType("int64")),
+        ty=PtrType(tvm.ir.PrimType("int64")),
     )
     strides = (
         Call(
             "tirx.stack_make_shape",
             buf.ty.strides,
             loc=loc,
-            ty=PointerType(tvm.ir.PrimType("int64")),
+            ty=PtrType(tvm.ir.PrimType("int64")),
         )
         if buf.ty.strides
         else 0
@@ -786,7 +786,7 @@ def abi_field_set(arr, index, field, value, *, ty=None, loc: Location = UNKNOWN_
 
 
 def _is_tensormap_var(obj: Var) -> bool:
-    return isinstance(obj.ty, PointerType) and isinstance(obj.ty.element_type, TensorMapType)
+    return isinstance(obj.ty, PtrType) and isinstance(obj.ty.element_type, TensorMapType)
 
 
 def address_of(obj: Var | TensorLoad, loc: Location = UNKNOWN_LOC, *, ty=None) -> Expr:
@@ -1197,9 +1197,7 @@ def reinterpret(dtype, value, loc: Location = UNKNOWN_LOC) -> Expr:
         The reinterpret cast value of dtype.
     """
     if isinstance(dtype, str):
-        dtype = (
-            PointerType(tvm.ir.PrimType("void")) if dtype == "handle" else tvm.ir.PrimType(dtype)
-        )
+        dtype = PtrType(tvm.ir.PrimType("void")) if dtype == "handle" else tvm.ir.PrimType(dtype)
     return _ffi_api.reinterpret(dtype, value, loc)  # type: ignore
 
 

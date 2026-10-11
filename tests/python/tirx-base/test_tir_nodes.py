@@ -78,7 +78,7 @@ def test_ir2():
     x = tvm.tirx.Var("n", "int32")
 
     storage_type = ir.PrimType("int32")
-    handle_type = ir.PointerType(storage_type)
+    handle_type = ir.PtrType(storage_type)
     array = tvm.tirx.Var("array", handle_type)
     buf = tvm.tirx.decl_tensor([buf_size], "int32", data=array)
 
@@ -319,7 +319,7 @@ def test_function():
 def test_vars():
     x = tvm.tirx.Var("xyz", "int8")
     assert x.ty.dtype == "int8"
-    ptype = tvm.ir.PointerType(tvm.ir.PrimType("float"))
+    ptype = tvm.ir.PtrType(tvm.ir.PrimType("float"))
     x = tvm.tirx.Var("xyz", ptype)
     assert x.ty == ptype
     assert isinstance(ptype.element_type, tvm.ir.PrimType)
@@ -328,7 +328,7 @@ def test_vars():
 def test_scoped_storage_vars():
     dtype = "float"
     storage_scope = "global.texture"
-    ptype = tvm.ir.PointerType(tvm.ir.PrimType(dtype), storage_scope)
+    ptype = tvm.ir.PtrType(tvm.ir.PrimType(dtype), storage_scope)
     x = tvm.tirx.Var("xyz", ptype)
     assert x.ty == ptype
     assert x.ty.storage_scope == storage_scope

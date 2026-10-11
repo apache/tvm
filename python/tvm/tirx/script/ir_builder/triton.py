@@ -24,7 +24,7 @@ from packaging import version
 from triton.runtime.jit import type_canonicalisation_dict
 
 from tvm import tirx
-from tvm.ir import PointerType, PrimType, is_prim_expr
+from tvm.ir import PrimType, PtrType, is_prim_expr
 from tvm.runtime import Module
 from tvm.sym.utils import get_const_int
 
@@ -84,7 +84,7 @@ class TritonKernel(BaseKernel):
         for arg in kernel_args:
             if isinstance(arg, int):
                 kernel_arg_types.append("int64")
-            elif isinstance(arg.ty, PointerType):
+            elif isinstance(arg.ty, PtrType):
                 kernel_arg_types.append("handle")
             else:
                 assert is_prim_expr(arg)
@@ -118,7 +118,7 @@ class TritonKernel(BaseKernel):
                 constants[kernel_params[i].name] = get_const_int(arg)
                 signature[kernel_params[i].name] = "constexpr"
                 continue
-            if isinstance(arg.ty, PointerType):
+            if isinstance(arg.ty, PtrType):
                 assert isinstance(arg.ty.element_type, PrimType)
                 elem_type = arg.ty.element_type.dtype
                 pointer_type = "*" + type_canonicalisation_dict[elem_type]

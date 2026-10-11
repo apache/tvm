@@ -207,7 +207,7 @@ def test_cuda_host_bundle_tensor_map_parameter(tmp_path, monkeypatch, *, backend
         pytest.skip("CUDA-host compilation requires NVCC")
 
     @T.function
-    def main(A_map: T.TensorMap()):
+    def main(A_map: T.Ptr(T.TensorMap)):
         T.device_entry(launch=T.cuda.LaunchConfig(grid=1, block=(32,)))
         tx = T.cuda.thread_idx("x")
         if tx == 0:

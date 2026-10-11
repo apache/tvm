@@ -29,9 +29,9 @@ def test_decl_buffer_data_is_use():
     undefined list so that callers (e.g., CreateComputeScope) capture it.
     """
     n = tirx.Var("n", "int32")
-    from tvm.ir import PointerType, PrimType
+    from tvm.ir import PrimType, PtrType
 
-    data_ptr = tirx.Var("buf_data", PointerType(PrimType("float32")))
+    data_ptr = tirx.Var("buf_data", PtrType(PrimType("float32")))
     buf = tirx.decl_tensor((n,), "float32", "buf", data=data_ptr)
 
     body = tvm.ir.Evaluate(tirx.TensorLoad(buf, [0]))
@@ -62,10 +62,10 @@ def test_decl_buffer_elem_offset_is_use():
     After FlattenBuffer, DeclTensor nodes carry elem_offset vars from
     match_buffer entries.  These must appear in the undefined list.
     """
-    from tvm.ir import PointerType, PrimType
+    from tvm.ir import PrimType, PtrType
 
     n = tirx.Var("n", "int32")
-    data_ptr = tirx.Var("buf_data", PointerType(PrimType("float32")))
+    data_ptr = tirx.Var("buf_data", PtrType(PrimType("float32")))
     elem_off = tirx.Var("buf_elem_offset", "int32")
     buf = tirx.decl_tensor((n,), "float32", "buf", data=data_ptr, elem_offset=elem_off)
 

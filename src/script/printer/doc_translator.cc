@@ -198,7 +198,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = ffi::reflection;
   refl::ObjectDef<DocTranslatorObj>();
   refl::EnsureTypeAttrColumn(tvm::script::printer::type_attr::kDocTranslate);
-  refl::EnsureTypeAttrColumn(tvm::script::printer::type_attr::kTensorLoadDocTranslate);
+  refl::EnsureTypeAttrColumn(tvm::script::printer::type_attr::kDocTranslateTensorLoadBySourceTy);
   refl::GlobalDef()
       .def("script.printer.DocTranslate",
            [](ffi::AnyView ir, ffi::Map<ffi::String, ffi::Any> extra_config) {
