@@ -393,11 +393,10 @@ class Module(_Module):
             The ProfileResult reports `repeat` time costs in seconds.
         """
         try:
-            feval = _ffi_api.RPCTimeEvaluator(
+            feval = _ffi_api.ModuleTimeEvaluator(
                 self,
                 func_name,
-                dev.dlpack_device_type(),
-                dev.index,
+                dev,
                 number,
                 repeat,
                 min_repeat_ms,

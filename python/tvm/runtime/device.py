@@ -23,8 +23,6 @@ import tvm_ffi
 
 from . import _ffi_api
 
-RPC_SESS_MASK = 128
-
 
 class Device(tvm_ffi.core.Device):
     """TVM device strucure."""
@@ -55,8 +53,7 @@ class Device(tvm_ffi.core.Device):
         """Maximum number of threads on each block.
 
         Returns device value for CUDA, Metal, ROCm, OpenCL, and Vulkan
-        devices.  Returns remote device value for RPC devices.
-        Returns None for all other devices.
+        devices.  Returns None for all other devices.
 
         Returns
         -------
@@ -72,7 +69,7 @@ class Device(tvm_ffi.core.Device):
 
         Returns device value for CUDA, ROCm, and Vulkan.  Returns
         1 for Metal and OpenCL devices, regardless of the physical
-        device.  Returns remote device value for RPC devices.  Returns
+        device.  Returns
         None for all other devices.
 
         Returns
@@ -88,7 +85,7 @@ class Device(tvm_ffi.core.Device):
         """Total amount of shared memory per block in bytes.
 
         Returns device value for CUDA, ROCm, OpenCL, and Vulkan.
-        Returns remote device value for RPC devices.  Returns None for
+        Returns None for
         all other devices.
 
         Returns
@@ -107,7 +104,7 @@ class Device(tvm_ffi.core.Device):
         supported by the device.
 
         Returns device value for CUDA, ROCm, OpenCL, and
-        Vulkan. Returns remote device value for RPC devices.  Returns
+        Vulkan. Returns
         None for all other devices.
 
         Returns
@@ -123,7 +120,7 @@ class Device(tvm_ffi.core.Device):
         """Return the vendor-specific name of device.
 
         Returns device value for CUDA, ROCm, OpenCL, and Vulkan.
-        Returns remote device value for RPC devices.  Returns None for
+        Returns None for
         all other devices.
 
         Returns
@@ -139,7 +136,7 @@ class Device(tvm_ffi.core.Device):
         """Return the max clock frequency of device (kHz).
 
         Returns device value for CUDA, ROCm, and OpenCL.  Returns
-        remote device value for RPC devices.  Returns None for all
+        None for all
         other devices.
 
         Returns
@@ -155,7 +152,7 @@ class Device(tvm_ffi.core.Device):
         """Return the number of compute units in the device.
 
         Returns device value for CUDA, ROCm, and OpenCL.  Returns
-        remote device value for RPC devices.  Returns None for all
+        None for all
         other devices.
 
         Returns
@@ -171,7 +168,7 @@ class Device(tvm_ffi.core.Device):
         """Return the maximum size of each thread axis
 
         Returns device value for CUDA, ROCm, OpenCL, and Vulkan.
-        Returns remote device value for RPC devices.  Returns None for
+        Returns None for
         all other devices.
 
         Returns
@@ -190,7 +187,7 @@ class Device(tvm_ffi.core.Device):
         Vulkan.
 
         Returns device value for CUDA, ROCm, OpenCL, and Vulkan.
-        Returns remote device value for RPC devices.  Returns None for
+        Returns None for
         all other devices.
 
         Returns
@@ -208,8 +205,7 @@ class Device(tvm_ffi.core.Device):
         Returns driver vendor's internal version number.
         (e.g. "450.408.256" for nvidia-driver-450)
 
-        Returns device value for opencl and vulkan.  Returns remote
-        device value for RPC devices.  Returns None for all other
+        Returns device value for opencl and vulkan.  Returns None for all other
         devices.
 
         Returns
@@ -320,10 +316,6 @@ class Device(tvm_ffi.core.Device):
         _ffi_api.Device_StreamSync(self, stream or 0)
 
     def __device_type_name__(self):
-        if self.dlpack_device_type() >= RPC_SESS_MASK:
-            tbl_id = self.dlpack_device_type() / RPC_SESS_MASK - 1
-            dev_type = self.dlpack_device_type() % RPC_SESS_MASK
-            return f"remote[{tbl_id}]:{Device._DEVICE_TYPE_TO_NAME[dev_type]}"
         return Device._DEVICE_TYPE_TO_NAME[self.dlpack_device_type()]
 
 

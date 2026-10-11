@@ -51,7 +51,7 @@ bool RuntimeEnabled(const ffi::String& target_str) {
   } else if (target == "vulkan") {
     f_name = "device_api.vulkan";
   } else if (target == "rpc") {
-    f_name = "device_api.rpc";
+    f_name = "rpc.LocalSession";
   } else if (target == "hexagon") {
     f_name = "device_api.hexagon";
   } else if (target.length() >= 5 && target.substr(0, 5) == "nvptx") {

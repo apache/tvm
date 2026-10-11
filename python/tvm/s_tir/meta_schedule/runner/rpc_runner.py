@@ -483,7 +483,7 @@ def default_alloc_argument(
         "Please make sure 'USE_RANDOM' is turned ON in the config.cmake on the RPC server.",
     )
 
-    return alloc_argument_common(f_random_fill, device, args_info, alloc_repeat)
+    return alloc_argument_common(f_random_fill, device, args_info, alloc_repeat, device.empty)
 
 
 def default_run_evaluator(

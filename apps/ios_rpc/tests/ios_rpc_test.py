@@ -70,8 +70,8 @@ def test_rpc_module(host, port, key, mode):
     dev = remote.metal(0)
     f1 = remote.load_module("dev_lib.dylib")
     a_np = np.random.uniform(size=1024).astype(A.dtype)
-    a = tvm.runtime.tensor(a_np, dev)
-    b = tvm.runtime.tensor(np.zeros(1024, dtype=A.dtype), dev)
+    a = dev.tensor(a_np)
+    b = dev.tensor(np.zeros(1024, dtype=A.dtype))
     time_f = f1.time_evaluator(f1.entry_name, dev, number=10)
     cost = time_f(a, b).mean
     print(f"Metal: {cost:g} secs/op")
