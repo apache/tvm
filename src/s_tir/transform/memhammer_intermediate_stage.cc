@@ -67,12 +67,12 @@ std::pair<Stmt, ffi::Optional<For>> LiftThreadBindingLoops(Stmt stmt) {
 }
 
 /*!
- * \brief Analyze the access pattern for buffer rank promotion.
- * Rank promotion is a transformation that reshapes the buffer
+ * \brief Analyze the access pattern for tensor rank promotion.
+ * Rank promotion is a transformation that reshapes the tensor
  * but doesn't change its underlying data layout.
  * After the reshape, we expect that all dimensions of the access indices
  * will be in the form of floormod(floordiv(x, a), b).
- * Rank promotion removes strided access, thus enabling further buffer compacting
+ * Rank promotion removes strided access, thus enabling further tensor compacting
  */
 class IndexPatternFinder : public StmtExprVisitor {
  public:
@@ -86,12 +86,12 @@ class IndexPatternFinder : public StmtExprVisitor {
   };
 
   /*!
-   * \brief Calculate the new buffer shape after rank promotion.
+   * \brief Calculate the new tensor shape after rank promotion.
    * For each dimension of original shape, it will be compacted.
-   * \param indices The access indices of the buffer
+   * \param indices The access indices of the tensor
    * \param var_range The iter range of the vars in the indices
    * \param rewrite_indices The access indices after rank promotion
-   * \return The new buffer shape after rank promotion.
+   * \return The new tensor shape after rank promotion.
    */
   static ffi::Array<PrimExpr> getRankPromotedShape(ffi::Array<PrimExpr> indices,
                                                    const ffi::Map<Var, Range>& var_range,
@@ -212,19 +212,19 @@ class TensorLoadReplacer : public StmtExprMutator {
   using StmtExprMutator::Mutate;
   using StmtExprMutator::Mutate_;
 
-  TensorLoadReplacer(const TensorVar& tgt_buffer, const TensorLoad& new_buffer_load)
-      : tgt_buffer_(tgt_buffer), new_buffer_load_(new_buffer_load) {}
+  TensorLoadReplacer(const TensorVar& tgt_tensor, const TensorLoad& new_tensor_load)
+      : tgt_tensor_(tgt_tensor), new_tensor_load_(new_tensor_load) {}
 
   UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) {
-    if (op->source.as_or_throw<tvm::tirx::TensorVar>().same_as(tgt_buffer_)) {
-      return new_buffer_load_;
+    if (op->source.as_or_throw<tvm::tirx::TensorVar>().same_as(tgt_tensor_)) {
+      return new_tensor_load_;
     }
     return StmtExprMutator::Mutate_(op, inplace_mode);
   }
 
  private:
-  TensorVar tgt_buffer_;
-  TensorLoad new_buffer_load_;
+  TensorVar tgt_tensor_;
+  TensorLoad new_tensor_load_;
 };
 
 /*!
@@ -249,7 +249,7 @@ std::pair<Stmt, SeqStmt> InsertCacheStage(Stmt stmt, bool is_write_cache, ffi::S
   bool need_relax = !compute_location.has_value();
   ffi::Map<Var, Range> var_range;
   PrimExpr vector_bytes = -1;
-  // Step 1. Perform rank promotion on the buffer access, turning a strided-changing dimension into
+  // Step 1. Perform rank promotion on the tensor access, turning a strided-changing dimension into
   // several contiguous-changing dimensions
   // Step 1.1 collect loop var range for rank promotion
   while (const ForNode* loop = body.as<ForNode>()) {
@@ -290,37 +290,37 @@ std::pair<Stmt, SeqStmt> InsertCacheStage(Stmt stmt, bool is_write_cache, ffi::S
   }
 
   sym::Analyzer analyzer;
-  const TensorLoadNode* target_buffer_load = nullptr;
+  const TensorLoadNode* target_tensor_load = nullptr;
   if (is_write_cache) {
-    auto walk_fn = [&](const TensorLoad& buffer_load) -> ffi::Expected<ffi::WalkResult> {
-      if (buffer_load->source.as_or_throw<tvm::tirx::TensorVar>().scope() == "wmma.accumulator" ||
-          buffer_load->source.as_or_throw<tvm::tirx::TensorVar>().scope() == "m16n8k8.matrixC") {
-        if (target_buffer_load == nullptr) {
-          target_buffer_load = buffer_load.get();
+    auto walk_fn = [&](const TensorLoad& tensor_load) -> ffi::Expected<ffi::WalkResult> {
+      if (tensor_load->source.as_or_throw<tvm::tirx::TensorVar>().scope() == "wmma.accumulator" ||
+          tensor_load->source.as_or_throw<tvm::tirx::TensorVar>().scope() == "m16n8k8.matrixC") {
+        if (target_tensor_load == nullptr) {
+          target_tensor_load = tensor_load.get();
         } else {
-          TVM_FFI_ICHECK(target_buffer_load->source.as_or_throw<tvm::tirx::TensorVar>().same_as(
-              buffer_load->source.as_or_throw<tvm::tirx::TensorVar>()))
-              << "More than one target buffer found";
-          TVM_FFI_ICHECK(target_buffer_load->indices.size() == buffer_load->indices.size());
-          for (size_t i = 0; i < target_buffer_load->indices.size(); i++) {
+          TVM_FFI_ICHECK(target_tensor_load->source.as_or_throw<tvm::tirx::TensorVar>().same_as(
+              tensor_load->source.as_or_throw<tvm::tirx::TensorVar>()))
+              << "More than one target tensor found";
+          TVM_FFI_ICHECK(target_tensor_load->indices.size() == tensor_load->indices.size());
+          for (size_t i = 0; i < target_tensor_load->indices.size(); i++) {
             TVM_FFI_ICHECK(
-                analyzer->CanProveEqual(target_buffer_load->indices[i], buffer_load->indices[i]));
+                analyzer->CanProveEqual(target_tensor_load->indices[i], tensor_load->indices[i]));
           }
         }
       }
       return ffi::WalkResult::Advance();
     };
     ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(stmt, walk_fn);
-    TVM_FFI_ICHECK(target_buffer_load);
+    TVM_FFI_ICHECK(target_tensor_load);
   }
 
-  const TensorStoreNode* buf_store = TVM_TYPE_AS(body, TensorStoreNode);
+  const TensorStoreNode* tensor_store = TVM_TYPE_AS(body, TensorStoreNode);
   ffi::Array<PrimExpr> cache_indices;
   ffi::Array<PrimExpr> new_shape;
   bool use_rank_promotion = false;
-  if (!is_write_cache && buf_store->value.as<TensorLoadNode>()) {
+  if (!is_write_cache && tensor_store->value.as<TensorLoadNode>()) {
     ffi::Array<PrimExpr> indices =
-        is_write_cache ? buf_store->indices : buf_store->value.as<TensorLoadNode>()->indices;
+        is_write_cache ? tensor_store->indices : tensor_store->value.as<TensorLoadNode>()->indices;
     new_shape = IndexPatternFinder::getRankPromotedShape(indices, var_range, &cache_indices);
     // write cache disabled for now
     // rank promotion for write cache cannot guarantee the shape fits wmma.accumulator
@@ -365,7 +365,7 @@ std::pair<Stmt, SeqStmt> InsertCacheStage(Stmt stmt, bool is_write_cache, ffi::S
   ffi::Array<PrimExpr> subst_indices;
   ffi::Array<PrimExpr> subst_cache_indices;
   if (is_write_cache) {
-    for (PrimExpr e : buf_store->indices) {
+    for (PrimExpr e : tensor_store->indices) {
       subst_indices.push_back(
           ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(e, map_var).as_or_throw<PrimExpr>());
     }
@@ -375,35 +375,35 @@ std::pair<Stmt, SeqStmt> InsertCacheStage(Stmt stmt, bool is_write_cache, ffi::S
         ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(e, map_var).as_or_throw<PrimExpr>());
   }
 
-  TensorVar new_buffer{ffi::UnsafeInit{}};
+  TensorVar new_tensor{ffi::UnsafeInit{}};
   if (is_write_cache) {
     // this is needed for global <- cast(load(wmma))
     // shared stage should have the same dtype as wmma
-    new_buffer =
-        WithScope(target_buffer_load->source.as_or_throw<tvm::tirx::TensorVar>(), storage_scope);
+    new_tensor =
+        WithScope(target_tensor_load->source.as_or_throw<tvm::tirx::TensorVar>(), storage_scope);
   } else {
-    new_buffer = WithScope(buf_store->dest.as_or_throw<TensorVar>(), storage_scope);
+    new_tensor = WithScope(tensor_store->dest.as_or_throw<TensorVar>(), storage_scope);
   }
-  ffi::ObjectPtr<TensorTypeNode> buffer_type = CopyTensorType(new_buffer);
-  buffer_type->shape = new_shape;
-  new_buffer = RebuildTensorVar(new_buffer, std::move(buffer_type));
-  *alloc_tensor = new_buffer;
+  ffi::ObjectPtr<TensorTypeNode> tensor_type = CopyTensorType(new_tensor);
+  tensor_type->shape = new_shape;
+  new_tensor = RebuildTensorVar(new_tensor, std::move(tensor_type));
+  *alloc_tensor = new_tensor;
 
   Stmt generate_body{ffi::UnsafeInit{}};
   if (is_write_cache) {
-    // copy from wmma to new cache buffer
-    TensorLoad new_buffer_load = MakeTensorLoad(new_buffer, cache_indices);
+    // copy from wmma to new cache tensor
+    TensorLoad new_tensor_load = MakeTensorLoad(new_tensor, cache_indices);
     generate_body =
         ffi::make_object<TensorLoadReplacer>(
-            target_buffer_load->source.as_or_throw<tvm::tirx::TensorVar>(), new_buffer_load)
-            ->Mutate(ffi::GetRef<Stmt>(buf_store))
-            .ValueOrUnchanged(ffi::GetRef<Stmt>(buf_store));
+            target_tensor_load->source.as_or_throw<tvm::tirx::TensorVar>(), new_tensor_load)
+            ->Mutate(ffi::GetRef<Stmt>(tensor_store))
+            .ValueOrUnchanged(ffi::GetRef<Stmt>(tensor_store));
     generate_body =
         ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(generate_body, map_var).as_or_throw<Stmt>();
   } else {
     generate_body =
-        TensorStore(new_buffer, subst_cache_indices,
-                    ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(buf_store->value, map_var)
+        TensorStore(new_tensor, subst_cache_indices,
+                    ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(tensor_store->value, map_var)
                         .as_or_throw<PrimExpr>());
   }
 
@@ -435,12 +435,12 @@ std::pair<Stmt, SeqStmt> InsertCacheStage(Stmt stmt, bool is_write_cache, ffi::S
   }
   Stmt rewrite_body{ffi::UnsafeInit{}};
   if (is_write_cache) {
-    TensorLoad new_buffer_load = MakeTensorLoad(new_buffer, cache_indices);
+    TensorLoad new_tensor_load = MakeTensorLoad(new_tensor, cache_indices);
     rewrite_body =
-        TensorStore(new_buffer, cache_indices, ffi::GetRef<TensorLoad>(target_buffer_load));
+        TensorStore(new_tensor, cache_indices, ffi::GetRef<TensorLoad>(target_tensor_load));
   } else {
-    rewrite_body = TensorStore(buf_store->dest.as_or_throw<TensorVar>(), buf_store->indices,
-                               MakeTensorLoad(new_buffer, cache_indices));
+    rewrite_body = TensorStore(tensor_store->dest.as_or_throw<TensorVar>(), tensor_store->indices,
+                               MakeTensorLoad(new_tensor, cache_indices));
   }
   if (predicate.has_value()) {
     rewrite_body = If(predicate.value(), rewrite_body);
@@ -464,11 +464,11 @@ std::pair<Stmt, SeqStmt> InsertCacheStage(Stmt stmt, bool is_write_cache, ffi::S
 Stmt CreateLocalStage::Rewrite(const Stmt& stmt, const ConstraintSet& constraints,
                                OutputSet* output) const {
   auto [body, compute_location] = LiftThreadBindingLoops(stmt);
-  TensorVar cache_buffer{ffi::UnsafeInit{}};
+  TensorVar cache_tensor{ffi::UnsafeInit{}};
   Stmt after_caching = InsertCacheStage(body, false, "local", compute_location,
-                                        constraints.outer_loops, &cache_buffer)
+                                        constraints.outer_loops, &cache_tensor)
                            .first;
-  output->alloc_tensor.push_back(cache_buffer);
+  output->alloc_tensor.push_back(cache_tensor);
   return after_caching;
 }
 

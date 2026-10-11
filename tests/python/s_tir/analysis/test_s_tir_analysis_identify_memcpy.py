@@ -111,7 +111,7 @@ def test_1d_strided_output():
 
 
 def test_1d_input_2d_output_fused_loop():
-    """Like test_1d, but the output is written as a 2-d buffer"""
+    """Like test_1d, but the output is written as a 2-d tensor"""
 
     @Ts.function
     def func(A: T.Tensor(1024, "float32"), B: T.Tensor((32, 32), "float32")):
@@ -124,7 +124,7 @@ def test_1d_input_2d_output_fused_loop():
 
 
 def test_2d_input_1d_output_fused_loop():
-    """Like test_1d, but the input is written as a 2-d buffer"""
+    """Like test_1d, but the input is written as a 2-d tensor"""
 
     @Ts.function
     def func(A: T.Tensor((32, 32), "float32"), B: T.Tensor(1024, "float32")):
@@ -182,7 +182,7 @@ def test_1d_input_1d_output_nested_loop_equivalent_expressions():
 
 
 def test_1d_input_2d_output_nested_loop():
-    """Like test_1d_input_1d_output_nested_loop, but with a 2-d output buffer"""
+    """Like test_1d_input_1d_output_nested_loop, but with a 2-d output tensor"""
 
     @Ts.function
     def func(A: T.Tensor(1024, "float32"), B: T.Tensor((32, 32), "float32")):
@@ -199,7 +199,7 @@ def test_1d_input_2d_output_nested_loop():
 
 
 def test_2d_input_1d_output_nested_loop():
-    """Like test_1d_input_1d_output_nested_loop, but with a 2-d input buffer"""
+    """Like test_1d_input_1d_output_nested_loop, but with a 2-d input tensor"""
 
     @Ts.function
     def func(A: T.Tensor((32, 32), "float32"), B: T.Tensor(1024, "float32")):
@@ -216,7 +216,7 @@ def test_2d_input_1d_output_nested_loop():
 
 
 def test_2d_input_2d_output_nested_loop():
-    """Like test_1d_input_1d_output_nested_loop, but with 2-d input/output buffers"""
+    """Like test_1d_input_1d_output_nested_loop, but with 2-d input/output tensors"""
 
     @Ts.function
     def func(A: T.Tensor((32, 32), "float32"), B: T.Tensor((32, 32), "float32")):
@@ -272,7 +272,7 @@ def test_2d_input_2d_output_transpose_both():
     """test_2d_input_2d_output_nested_loop, but with a transposed input
 
     The inner loop is not recognized as a memcpy, because it has
-    strided access of both the input and output buffers.  However, the
+    strided access of both the input and output tensors.  However, the
     outer loop is still recognized as a memcpy, because the full
     region has been copied over, even though it occurs out of order.
     """

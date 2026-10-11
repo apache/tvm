@@ -50,9 +50,9 @@ def test_matmul_tensorize_too_small():
         T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
 
         # with Ts.sblock("root"):
-        compute_reindex_pad_local = Ts.sblock_alloc_buffer((1, (m + 31) // 32 * 32, 64), scope="local")
-        X_reindex_pad_shared = Ts.sblock_alloc_buffer((1, (m + 31) // 32 * 32, 256), "float16", scope="shared")
-        W_reindex_pad_shared = Ts.sblock_alloc_buffer((1, 64, 256), "float16", scope="shared")
+        compute_reindex_pad_local = Ts.sblock_alloc_tensor((1, (m + 31) // 32 * 32, 64), scope="local")
+        X_reindex_pad_shared = Ts.sblock_alloc_tensor((1, (m + 31) // 32 * 32, 256), "float16", scope="shared")
+        W_reindex_pad_shared = Ts.sblock_alloc_tensor((1, 64, 256), "float16", scope="shared")
         for ax0_ax2_0_fused in T.thread_binding(1, thread="blockIdx.y"):
             for ax1_0 in T.thread_binding((m + 31) // 32, thread="blockIdx.x"):
                 for ax2_1 in T.thread_binding(1, thread="vthread.y"):
@@ -79,7 +79,7 @@ def test_matmul_tensorize_too_small():
                                                         v2 = Ts.axis.spatial(256, ax3_0 * 16 + (ax0_ax1_ax2_fused_0 * 32 + ax0_ax1_ax2_fused_1 * 4 + ax0_ax1_ax2_fused_2 * 2 + ax0_ax1_ax2_fused_3) % 16)
                                                         Ts.reads(X[v1, v2])
                                                         Ts.writes(X_reindex_pad_shared[v0, v1, v2])
-                                                        Ts.sblock_attr({"buffer_dim_align": [[0, 1, 8, 2]]})
+                                                        Ts.sblock_attr({"tensor_dim_align": [[0, 1, 8, 2]]})
                                                         X_reindex_pad_shared[v0, v1, v2] = T.if_then_else(v1 < m, X[v1, v2], T.float16(0))
                                     for ax0_ax1_ax2_fused_0 in T.thread_binding(16, thread="threadIdx.y"):
                                         for ax0_ax1_ax2_fused_1 in T.thread_binding(8, thread="threadIdx.x"):
@@ -91,7 +91,7 @@ def test_matmul_tensorize_too_small():
                                                         v2 = Ts.axis.spatial(256, ax3_0 * 16 + (ax0_ax1_ax2_fused_0 * 64 + ax0_ax1_ax2_fused_1 * 8 + ax0_ax1_ax2_fused_2 * 2 + ax0_ax1_ax2_fused_3) % 16)
                                                         Ts.reads(W[v1, v2])
                                                         Ts.writes(W_reindex_pad_shared[v0, v1, v2])
-                                                        Ts.sblock_attr({"buffer_dim_align": [[0, 1, 8, 2]]})
+                                                        Ts.sblock_attr({"tensor_dim_align": [[0, 1, 8, 2]]})
                                                         W_reindex_pad_shared[v0, v1, v2] = T.if_then_else(v1 < 15, W[v1, v2], T.float16(0))
                                     for ax3_1, ax1_3, ax2_3_0 in T.grid(16, 4, 2):
                                         for ax2_3_1 in T.vectorized(2):
@@ -167,12 +167,12 @@ def test_matmul_metal():
         T.func_attr({"tirx.is_scheduled": True})
 
         # with Ts.sblock("root"):
-        A_reindex_pad_shared = Ts.sblock_alloc_buffer((1, (batch_size + 15) // 16 * 16, 4096), "float16", scope="shared")
-        B_reindex_shared = Ts.sblock_alloc_buffer((1, 28672, 4096), "float16", scope="shared")
-        A_reindex_pad_shared_metal_simdgroup = Ts.sblock_alloc_buffer((1, (batch_size + 15) // 16 * 16, 4096), "float16", scope="metal.simdgroup")
-        B_reindex_shared_metal_simdgroup = Ts.sblock_alloc_buffer((1, 4096, 28672), "float16", scope="metal.simdgroup")
-        C_reindex_pad_metal_simdgroup = Ts.sblock_alloc_buffer((1, (batch_size + 15) // 16 * 16, 28672), "float16", scope="metal.simdgroup")
-        C_reindex_pad_shared = Ts.sblock_alloc_buffer((1, (batch_size + 15) // 16 * 16, 28672), "float16", scope="shared")
+        A_reindex_pad_shared = Ts.sblock_alloc_tensor((1, (batch_size + 15) // 16 * 16, 4096), "float16", scope="shared")
+        B_reindex_shared = Ts.sblock_alloc_tensor((1, 28672, 4096), "float16", scope="shared")
+        A_reindex_pad_shared_metal_simdgroup = Ts.sblock_alloc_tensor((1, (batch_size + 15) // 16 * 16, 4096), "float16", scope="metal.simdgroup")
+        B_reindex_shared_metal_simdgroup = Ts.sblock_alloc_tensor((1, 4096, 28672), "float16", scope="metal.simdgroup")
+        C_reindex_pad_metal_simdgroup = Ts.sblock_alloc_tensor((1, (batch_size + 15) // 16 * 16, 28672), "float16", scope="metal.simdgroup")
+        C_reindex_pad_shared = Ts.sblock_alloc_tensor((1, (batch_size + 15) // 16 * 16, 28672), "float16", scope="shared")
         for ax0 in T.thread_binding(1, thread="blockIdx.z"):
             for ax1_0 in T.thread_binding((batch_size + 15) // 16, thread="blockIdx.x"):
                 for ax2_0 in T.thread_binding(448, thread="blockIdx.y"):
@@ -185,7 +185,7 @@ def test_matmul_metal():
                                     v2_o = Ts.axis.spatial(3584, ax2_0 * 8 + ax2_1 * 2 + ax2_2_init + ax2_3_init_0)
                                     Ts.reads()
                                     Ts.writes(C_reindex_pad_metal_simdgroup[0, v1_o * 8:v1_o * 8 + 8, v2_o * 8:v2_o * 8 + 8])
-                                    A_1 = Ts.match_buffer(C_reindex_pad_metal_simdgroup[0, v1_o * 8:v1_o * 8 + 8, v2_o * 8:v2_o * 8 + 8], (8, 8), "float16", strides=(A_s0, A_s1), scope="metal.simdgroup", offset_factor=1)
+                                    A_1 = Ts.match_tensor(C_reindex_pad_metal_simdgroup[0, v1_o * 8:v1_o * 8 + 8, v2_o * 8:v2_o * 8 + 8], (8, 8), "float16", strides=(A_s0, A_s1), scope="metal.simdgroup", offset_factor=1)
                                     T.metal.make_filled_simdgroup_matrix(A_1.data, A_1.elem_offset // A_1.strides[0] // 8 * (A_1.strides[0] // 8) + A_1.elem_offset % A_1.strides[0] // 8, T.float32(0), 8, 8)
                             for ax3_0 in range(128):
                                 for ax0_1, ax1_ax2_fused_0 in T.grid(1, 1):
@@ -220,8 +220,8 @@ def test_matmul_metal():
                                             v2_o = Ts.axis.spatial(512, ax3_0 * 4 + ax3_1 + ax1_0_1)
                                             Ts.reads(A_reindex_pad_shared[v0_o, v1_o * 8:v1_o * 8 + 8, v2_o * 8:v2_o * 8 + 8])
                                             Ts.writes(A_reindex_pad_shared_metal_simdgroup[v0_o, v1_o * 8:v1_o * 8 + 8, v2_o * 8:v2_o * 8 + 8])
-                                            A_1 = Ts.match_buffer(A_reindex_pad_shared[v0_o, v1_o * 8:v1_o * 8 + 8, v2_o * 8:v2_o * 8 + 8], (8, 8), "float16", strides=(A_1_s0, A_1_s1), scope="shared", offset_factor=1)
-                                            C_1 = Ts.match_buffer(A_reindex_pad_shared_metal_simdgroup[v0_o, v1_o * 8:v1_o * 8 + 8, v2_o * 8:v2_o * 8 + 8], (8, 8), "float16", strides=(C_s0, C_s1), scope="metal.simdgroup", offset_factor=1)
+                                            A_1 = Ts.match_tensor(A_reindex_pad_shared[v0_o, v1_o * 8:v1_o * 8 + 8, v2_o * 8:v2_o * 8 + 8], (8, 8), "float16", strides=(A_1_s0, A_1_s1), scope="shared", offset_factor=1)
+                                            C_1 = Ts.match_tensor(A_reindex_pad_shared_metal_simdgroup[v0_o, v1_o * 8:v1_o * 8 + 8, v2_o * 8:v2_o * 8 + 8], (8, 8), "float16", strides=(C_s0, C_s1), scope="metal.simdgroup", offset_factor=1)
                                             T.metal.simdgroup_load(C_1.data, C_1.elem_offset // C_1.strides[0] // 8 * (C_1.strides[0] // 8) + C_1.elem_offset % C_1.strides[0] // 8, A_1.ptr_to([0] * len(A_1.shape)), A_1.strides[0], 8, 8, T.bool(False))
                                     for ax0_0, ax1_0_1 in T.grid(2, 1):
                                         with Ts.sblock("B_reindex_shared_metal.simdgroup_o"):
@@ -230,8 +230,8 @@ def test_matmul_metal():
                                             v2_o = Ts.axis.spatial(512, ax3_0 * 4 + ax3_1 + ax1_0_1)
                                             Ts.reads(B_reindex_shared[v0_o, v1_o * 8:v1_o * 8 + 8, v2_o * 8:v2_o * 8 + 8])
                                             Ts.writes(B_reindex_shared_metal_simdgroup[v0_o, v2_o * 8:v2_o * 8 + 8, v1_o * 8:v1_o * 8 + 8])
-                                            A_1 = Ts.match_buffer(B_reindex_shared[v0_o, v1_o * 8:v1_o * 8 + 8, v2_o * 8:v2_o * 8 + 8], (8, 8), "float16", strides=(A_2_s0, A_2_s1), scope="shared", offset_factor=1)
-                                            C_1 = Ts.match_buffer(B_reindex_shared_metal_simdgroup[v0_o, v2_o * 8:v2_o * 8 + 8, v1_o * 8:v1_o * 8 + 8], (8, 8), "float16", strides=(C_1_s0, C_1_s1), scope="metal.simdgroup", offset_factor=1)
+                                            A_1 = Ts.match_tensor(B_reindex_shared[v0_o, v1_o * 8:v1_o * 8 + 8, v2_o * 8:v2_o * 8 + 8], (8, 8), "float16", strides=(A_2_s0, A_2_s1), scope="shared", offset_factor=1)
+                                            C_1 = Ts.match_tensor(B_reindex_shared_metal_simdgroup[v0_o, v2_o * 8:v2_o * 8 + 8, v1_o * 8:v1_o * 8 + 8], (8, 8), "float16", strides=(C_1_s0, C_1_s1), scope="metal.simdgroup", offset_factor=1)
                                             T.metal.simdgroup_load(C_1.data, C_1.elem_offset // C_1.strides[0] // 8 * (C_1.strides[0] // 8) + C_1.elem_offset % C_1.strides[0] // 8, A_1.ptr_to([0] * len(A_1.shape)), A_1.strides[0], 8, 8, T.bool(True))
                                     for ax1_2, ax2_2 in T.grid(2, 2):
                                         with Ts.sblock("C_update_o"):
@@ -241,9 +241,9 @@ def test_matmul_metal():
                                             v3_o = Ts.axis.reduce(512, ax3_0 * 4 + ax3_1)
                                             Ts.reads(C_reindex_pad_metal_simdgroup[0, v1_o * 8:v1_o * 8 + 8, v2_o * 8:v2_o * 8 + 8], A_reindex_pad_shared_metal_simdgroup[0, v1_o * 8:v1_o * 8 + 8, v3_o * 8:v3_o * 8 + 8], B_reindex_shared_metal_simdgroup[0, v3_o * 8:v3_o * 8 + 8, v2_o * 8:v2_o * 8 + 8])
                                             Ts.writes(C_reindex_pad_metal_simdgroup[0, v1_o * 8:v1_o * 8 + 8, v2_o * 8:v2_o * 8 + 8])
-                                            A_1 = Ts.match_buffer(A_reindex_pad_shared_metal_simdgroup[0, v1_o * 8:v1_o * 8 + 8, v3_o * 8:v3_o * 8 + 8], (8, 8), "float16", strides=(A_3_s0, A_3_s1), scope="metal.simdgroup", offset_factor=1)
-                                            B_1 = Ts.match_buffer(B_reindex_shared_metal_simdgroup[0, v3_o * 8:v3_o * 8 + 8, v2_o * 8:v2_o * 8 + 8], (8, 8), "float16", strides=(B_s0, B_s1), scope="metal.simdgroup", offset_factor=1)
-                                            C_1 = Ts.match_buffer(C_reindex_pad_metal_simdgroup[0, v1_o * 8:v1_o * 8 + 8, v2_o * 8:v2_o * 8 + 8], (8, 8), "float16", strides=(C_2_s0, C_2_s1), scope="metal.simdgroup", offset_factor=1)
+                                            A_1 = Ts.match_tensor(A_reindex_pad_shared_metal_simdgroup[0, v1_o * 8:v1_o * 8 + 8, v3_o * 8:v3_o * 8 + 8], (8, 8), "float16", strides=(A_3_s0, A_3_s1), scope="metal.simdgroup", offset_factor=1)
+                                            B_1 = Ts.match_tensor(B_reindex_shared_metal_simdgroup[0, v3_o * 8:v3_o * 8 + 8, v2_o * 8:v2_o * 8 + 8], (8, 8), "float16", strides=(B_s0, B_s1), scope="metal.simdgroup", offset_factor=1)
+                                            C_1 = Ts.match_tensor(C_reindex_pad_metal_simdgroup[0, v1_o * 8:v1_o * 8 + 8, v2_o * 8:v2_o * 8 + 8], (8, 8), "float16", strides=(C_2_s0, C_2_s1), scope="metal.simdgroup", offset_factor=1)
                                             T.metal.simdgroup_multiply_accumulate(C_1.data, C_1.elem_offset // C_1.strides[0] // 8 * (C_1.strides[0] // 8) + C_1.elem_offset % C_1.strides[0] // 8, A_1.data, A_1.elem_offset // A_1.strides[0] // 8 * (A_1.strides[0] // 8) + A_1.elem_offset % A_1.strides[0] // 8, B_1.data, B_1.elem_offset // B_1.strides[0] // 8 * (B_1.strides[0] // 8) + B_1.elem_offset % B_1.strides[0] // 8, C_1.data, C_1.elem_offset // C_1.strides[0] // 8 * (C_1.strides[0] // 8) + C_1.elem_offset % C_1.strides[0] // 8)
                             for ax0_1, ax1_0_1, ax2_0_1 in T.grid(1, 2, 2):
                                 with Ts.sblock("C_reindex_pad_metal.simdgroup_o"):
@@ -252,8 +252,8 @@ def test_matmul_metal():
                                     v2_o = Ts.axis.spatial(3584, ax2_0 * 8 + ax2_1 * 2 + ax2_0_1)
                                     Ts.reads(C_reindex_pad_metal_simdgroup[v0_o, v1_o * 8:v1_o * 8 + 8, v2_o * 8:v2_o * 8 + 8])
                                     Ts.writes(C_reindex_pad_shared[v0_o, v1_o * 8:v1_o * 8 + 8, v2_o * 8:v2_o * 8 + 8])
-                                    A_1 = Ts.match_buffer(C_reindex_pad_metal_simdgroup[v0_o, v1_o * 8:v1_o * 8 + 8, v2_o * 8:v2_o * 8 + 8], (8, 8), "float16", strides=(A_4_s0, A_4_s1), scope="metal.simdgroup", offset_factor=1)
-                                    C_1 = Ts.match_buffer(C_reindex_pad_shared[v0_o, v1_o * 8:v1_o * 8 + 8, v2_o * 8:v2_o * 8 + 8], (8, 8), "float16", strides=(C_3_s0, C_3_s1), scope="shared", offset_factor=1)
+                                    A_1 = Ts.match_tensor(C_reindex_pad_metal_simdgroup[v0_o, v1_o * 8:v1_o * 8 + 8, v2_o * 8:v2_o * 8 + 8], (8, 8), "float16", strides=(A_4_s0, A_4_s1), scope="metal.simdgroup", offset_factor=1)
+                                    C_1 = Ts.match_tensor(C_reindex_pad_shared[v0_o, v1_o * 8:v1_o * 8 + 8, v2_o * 8:v2_o * 8 + 8], (8, 8), "float16", strides=(C_3_s0, C_3_s1), scope="shared", offset_factor=1)
                                     T.metal.simdgroup_store(A_1.data, A_1.elem_offset // A_1.strides[0] // 8 * (A_1.strides[0] // 8) + A_1.elem_offset % A_1.strides[0] // 8, C_1.ptr_to([0] * len(C_1.shape)), C_1.strides[0], 8, 8, T.bool(False))
                     for ax0_1, ax1_ax2_fused_0 in T.grid(1, 2):
                         for ax1_ax2_fused_1 in T.thread_binding(4, thread="threadIdx.z"):
@@ -288,8 +288,8 @@ def test_matmul_metal_int4_quant():
         C: T.Tensor((batch_size, 1, 28672), 'float16')
     ):
 
-        compute = Ts.sblock_alloc_buffer((28672, 4096), "float16")
-        B = Ts.sblock_alloc_buffer((28672, 4096), "float16")
+        compute = Ts.sblock_alloc_tensor((28672, 4096), "float16")
+        B = Ts.sblock_alloc_tensor((28672, 4096), "float16")
         for i0, i1 in T.grid(28672, 4096):
             with Ts.sblock("compute"):
                 v_i0, v_i1 = Ts.axis.remap("SS", [i0, i1])
@@ -332,12 +332,12 @@ def test_matmul_metal_int4_quant():
         T.func_attr({"tirx.is_scheduled": True})
 
         # with Ts.sblock("root"):
-        A_reindex_pad_shared = Ts.sblock_alloc_buffer((1, (batch_size + 15) // 16 * 16, 4096), "float16", scope="shared")
-        B_reindex_shared = Ts.sblock_alloc_buffer((1, 28672, 4096), "float16", scope="shared")
-        A_reindex_pad_shared_metal_simdgroup = Ts.sblock_alloc_buffer((1, (batch_size + 15) // 16 * 16, 4096), "float16", scope="metal.simdgroup")
-        B_reindex_shared_metal_simdgroup = Ts.sblock_alloc_buffer((1, 4096, 28672), "float16", scope="metal.simdgroup")
-        C_reindex_pad_metal_simdgroup = Ts.sblock_alloc_buffer((1, (batch_size + 15) // 16 * 16, 28672), "float16", scope="metal.simdgroup")
-        C_reindex_pad_shared = Ts.sblock_alloc_buffer((1, (batch_size + 15) // 16 * 16, 28672), "float16", scope="shared")
+        A_reindex_pad_shared = Ts.sblock_alloc_tensor((1, (batch_size + 15) // 16 * 16, 4096), "float16", scope="shared")
+        B_reindex_shared = Ts.sblock_alloc_tensor((1, 28672, 4096), "float16", scope="shared")
+        A_reindex_pad_shared_metal_simdgroup = Ts.sblock_alloc_tensor((1, (batch_size + 15) // 16 * 16, 4096), "float16", scope="metal.simdgroup")
+        B_reindex_shared_metal_simdgroup = Ts.sblock_alloc_tensor((1, 4096, 28672), "float16", scope="metal.simdgroup")
+        C_reindex_pad_metal_simdgroup = Ts.sblock_alloc_tensor((1, (batch_size + 15) // 16 * 16, 28672), "float16", scope="metal.simdgroup")
+        C_reindex_pad_shared = Ts.sblock_alloc_tensor((1, (batch_size + 15) // 16 * 16, 28672), "float16", scope="shared")
         for ax0 in T.thread_binding(1, thread="blockIdx.z"):
             for ax1_0 in T.thread_binding((batch_size + 15) // 16, thread="blockIdx.x"):
                 for ax2_0 in T.thread_binding(448, thread="blockIdx.y"):
@@ -350,7 +350,7 @@ def test_matmul_metal_int4_quant():
                                     v2_o = Ts.axis.spatial(3584, ax2_0 * 8 + ax2_1 * 2 + ax2_2_init + ax2_3_init_0)
                                     Ts.reads()
                                     Ts.writes(C_reindex_pad_metal_simdgroup[0, v1_o * 8:v1_o * 8 + 8, v2_o * 8:v2_o * 8 + 8])
-                                    A_1 = Ts.match_buffer(C_reindex_pad_metal_simdgroup[0, v1_o * 8:v1_o * 8 + 8, v2_o * 8:v2_o * 8 + 8], (8, 8), "float16", strides=(A_s0, A_s1), scope="metal.simdgroup", offset_factor=1)
+                                    A_1 = Ts.match_tensor(C_reindex_pad_metal_simdgroup[0, v1_o * 8:v1_o * 8 + 8, v2_o * 8:v2_o * 8 + 8], (8, 8), "float16", strides=(A_s0, A_s1), scope="metal.simdgroup", offset_factor=1)
                                     T.metal.make_filled_simdgroup_matrix(A_1.data, A_1.elem_offset // A_1.strides[0] // 8 * (A_1.strides[0] // 8) + A_1.elem_offset % A_1.strides[0] // 8, T.float32(0), 8, 8)
                             for ax3_0 in range(128):
                                 for ax0_1, ax1_ax2_fused_0 in T.grid(1, 1):
@@ -385,8 +385,8 @@ def test_matmul_metal_int4_quant():
                                             v2_o = Ts.axis.spatial(512, ax3_0 * 4 + ax3_1 + ax1_0_1)
                                             Ts.reads(A_reindex_pad_shared[v0_o, v1_o * 8:v1_o * 8 + 8, v2_o * 8:v2_o * 8 + 8])
                                             Ts.writes(A_reindex_pad_shared_metal_simdgroup[v0_o, v1_o * 8:v1_o * 8 + 8, v2_o * 8:v2_o * 8 + 8])
-                                            A_1 = Ts.match_buffer(A_reindex_pad_shared[v0_o, v1_o * 8:v1_o * 8 + 8, v2_o * 8:v2_o * 8 + 8], (8, 8), "float16", strides=(A_1_s0, A_1_s1), scope="shared", offset_factor=1)
-                                            C_1 = Ts.match_buffer(A_reindex_pad_shared_metal_simdgroup[v0_o, v1_o * 8:v1_o * 8 + 8, v2_o * 8:v2_o * 8 + 8], (8, 8), "float16", strides=(C_s0, C_s1), scope="metal.simdgroup", offset_factor=1)
+                                            A_1 = Ts.match_tensor(A_reindex_pad_shared[v0_o, v1_o * 8:v1_o * 8 + 8, v2_o * 8:v2_o * 8 + 8], (8, 8), "float16", strides=(A_1_s0, A_1_s1), scope="shared", offset_factor=1)
+                                            C_1 = Ts.match_tensor(A_reindex_pad_shared_metal_simdgroup[v0_o, v1_o * 8:v1_o * 8 + 8, v2_o * 8:v2_o * 8 + 8], (8, 8), "float16", strides=(C_s0, C_s1), scope="metal.simdgroup", offset_factor=1)
                                             T.metal.simdgroup_load(C_1.data, C_1.elem_offset // C_1.strides[0] // 8 * (C_1.strides[0] // 8) + C_1.elem_offset % C_1.strides[0] // 8, A_1.ptr_to([0] * len(A_1.shape)), A_1.strides[0], 8, 8, T.bool(False))
                                     for ax0_0, ax1_0_1 in T.grid(2, 1):
                                         with Ts.sblock("B_reindex_shared_metal.simdgroup_o"):
@@ -395,8 +395,8 @@ def test_matmul_metal_int4_quant():
                                             v2_o = Ts.axis.spatial(512, ax3_0 * 4 + ax3_1 + ax1_0_1)
                                             Ts.reads(B_reindex_shared[v0_o, v1_o * 8:v1_o * 8 + 8, v2_o * 8:v2_o * 8 + 8])
                                             Ts.writes(B_reindex_shared_metal_simdgroup[v0_o, v2_o * 8:v2_o * 8 + 8, v1_o * 8:v1_o * 8 + 8])
-                                            A_1 = Ts.match_buffer(B_reindex_shared[v0_o, v1_o * 8:v1_o * 8 + 8, v2_o * 8:v2_o * 8 + 8], (8, 8), "float16", strides=(A_2_s0, A_2_s1), scope="shared", offset_factor=1)
-                                            C_1 = Ts.match_buffer(B_reindex_shared_metal_simdgroup[v0_o, v2_o * 8:v2_o * 8 + 8, v1_o * 8:v1_o * 8 + 8], (8, 8), "float16", strides=(C_1_s0, C_1_s1), scope="metal.simdgroup", offset_factor=1)
+                                            A_1 = Ts.match_tensor(B_reindex_shared[v0_o, v1_o * 8:v1_o * 8 + 8, v2_o * 8:v2_o * 8 + 8], (8, 8), "float16", strides=(A_2_s0, A_2_s1), scope="shared", offset_factor=1)
+                                            C_1 = Ts.match_tensor(B_reindex_shared_metal_simdgroup[v0_o, v2_o * 8:v2_o * 8 + 8, v1_o * 8:v1_o * 8 + 8], (8, 8), "float16", strides=(C_1_s0, C_1_s1), scope="metal.simdgroup", offset_factor=1)
                                             T.metal.simdgroup_load(C_1.data, C_1.elem_offset // C_1.strides[0] // 8 * (C_1.strides[0] // 8) + C_1.elem_offset % C_1.strides[0] // 8, A_1.ptr_to([0] * len(A_1.shape)), A_1.strides[0], 8, 8, T.bool(True))
                                     for ax1_2, ax2_2 in T.grid(2, 2):
                                         with Ts.sblock("NT_matmul_update_o"):
@@ -406,9 +406,9 @@ def test_matmul_metal_int4_quant():
                                             v3_o = Ts.axis.reduce(512, ax3_0 * 4 + ax3_1)
                                             Ts.reads(C_reindex_pad_metal_simdgroup[0, v1_o * 8:v1_o * 8 + 8, v2_o * 8:v2_o * 8 + 8], A_reindex_pad_shared_metal_simdgroup[0, v1_o * 8:v1_o * 8 + 8, v3_o * 8:v3_o * 8 + 8], B_reindex_shared_metal_simdgroup[0, v3_o * 8:v3_o * 8 + 8, v2_o * 8:v2_o * 8 + 8])
                                             Ts.writes(C_reindex_pad_metal_simdgroup[0, v1_o * 8:v1_o * 8 + 8, v2_o * 8:v2_o * 8 + 8])
-                                            A_1 = Ts.match_buffer(A_reindex_pad_shared_metal_simdgroup[0, v1_o * 8:v1_o * 8 + 8, v3_o * 8:v3_o * 8 + 8], (8, 8), "float16", strides=(A_3_s0, A_3_s1), scope="metal.simdgroup", offset_factor=1)
-                                            B = Ts.match_buffer(B_reindex_shared_metal_simdgroup[0, v3_o * 8:v3_o * 8 + 8, v2_o * 8:v2_o * 8 + 8], (8, 8), "float16", strides=(B_s0, B_s1), scope="metal.simdgroup", offset_factor=1)
-                                            C_1 = Ts.match_buffer(C_reindex_pad_metal_simdgroup[0, v1_o * 8:v1_o * 8 + 8, v2_o * 8:v2_o * 8 + 8], (8, 8), "float16", strides=(C_2_s0, C_2_s1), scope="metal.simdgroup", offset_factor=1)
+                                            A_1 = Ts.match_tensor(A_reindex_pad_shared_metal_simdgroup[0, v1_o * 8:v1_o * 8 + 8, v3_o * 8:v3_o * 8 + 8], (8, 8), "float16", strides=(A_3_s0, A_3_s1), scope="metal.simdgroup", offset_factor=1)
+                                            B = Ts.match_tensor(B_reindex_shared_metal_simdgroup[0, v3_o * 8:v3_o * 8 + 8, v2_o * 8:v2_o * 8 + 8], (8, 8), "float16", strides=(B_s0, B_s1), scope="metal.simdgroup", offset_factor=1)
+                                            C_1 = Ts.match_tensor(C_reindex_pad_metal_simdgroup[0, v1_o * 8:v1_o * 8 + 8, v2_o * 8:v2_o * 8 + 8], (8, 8), "float16", strides=(C_2_s0, C_2_s1), scope="metal.simdgroup", offset_factor=1)
                                             T.metal.simdgroup_multiply_accumulate(C_1.data, C_1.elem_offset // C_1.strides[0] // 8 * (C_1.strides[0] // 8) + C_1.elem_offset % C_1.strides[0] // 8, A_1.data, A_1.elem_offset // A_1.strides[0] // 8 * (A_1.strides[0] // 8) + A_1.elem_offset % A_1.strides[0] // 8, B.data, B.elem_offset // B.strides[0] // 8 * (B.strides[0] // 8) + B.elem_offset % B.strides[0] // 8, C_1.data, C_1.elem_offset // C_1.strides[0] // 8 * (C_1.strides[0] // 8) + C_1.elem_offset % C_1.strides[0] // 8)
                             for ax0_1, ax1_0_1, ax2_0_1 in T.grid(1, 2, 2):
                                 with Ts.sblock("C_reindex_pad_metal.simdgroup_o"):
@@ -417,8 +417,8 @@ def test_matmul_metal_int4_quant():
                                     v2_o = Ts.axis.spatial(3584, ax2_0 * 8 + ax2_1 * 2 + ax2_0_1)
                                     Ts.reads(C_reindex_pad_metal_simdgroup[v0_o, v1_o * 8:v1_o * 8 + 8, v2_o * 8:v2_o * 8 + 8])
                                     Ts.writes(C_reindex_pad_shared[v0_o, v1_o * 8:v1_o * 8 + 8, v2_o * 8:v2_o * 8 + 8])
-                                    A_1 = Ts.match_buffer(C_reindex_pad_metal_simdgroup[v0_o, v1_o * 8:v1_o * 8 + 8, v2_o * 8:v2_o * 8 + 8], (8, 8), "float16", strides=(A_4_s0, A_4_s1), scope="metal.simdgroup", offset_factor=1)
-                                    C_1 = Ts.match_buffer(C_reindex_pad_shared[v0_o, v1_o * 8:v1_o * 8 + 8, v2_o * 8:v2_o * 8 + 8], (8, 8), "float16", strides=(C_3_s0, C_3_s1), scope="shared", offset_factor=1)
+                                    A_1 = Ts.match_tensor(C_reindex_pad_metal_simdgroup[v0_o, v1_o * 8:v1_o * 8 + 8, v2_o * 8:v2_o * 8 + 8], (8, 8), "float16", strides=(A_4_s0, A_4_s1), scope="metal.simdgroup", offset_factor=1)
+                                    C_1 = Ts.match_tensor(C_reindex_pad_shared[v0_o, v1_o * 8:v1_o * 8 + 8, v2_o * 8:v2_o * 8 + 8], (8, 8), "float16", strides=(C_3_s0, C_3_s1), scope="shared", offset_factor=1)
                                     T.metal.simdgroup_store(A_1.data, A_1.elem_offset // A_1.strides[0] // 8 * (A_1.strides[0] // 8) + A_1.elem_offset % A_1.strides[0] // 8, C_1.ptr_to([0] * len(C_1.shape)), C_1.strides[0], 8, 8, T.bool(False))
                     for ax0_1, ax1_ax2_fused_0 in T.grid(1, 2):
                         for ax1_ax2_fused_1 in T.thread_binding(4, thread="threadIdx.z"):

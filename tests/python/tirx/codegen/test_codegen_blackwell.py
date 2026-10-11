@@ -28,7 +28,7 @@ from tvm.script import tirx as T
 from tvm.testing import env
 
 
-def _is_buffer_binding(node, *op_names):
+def _is_tensor_binding(node, *op_names):
     return (
         isinstance(node, tvm.ir.Bind)
         and isinstance(node.value, tvm.ir.Call)
@@ -47,7 +47,7 @@ def _get_source(func: tvm.tirx.Function) -> str:
 
 def _assert_remote_mbarrier_ir(func, arrive_op_name, n_arrives=1):
     bindings = []
-    buffers = []
+    tensors = []
     mapa_calls = []
     arrive_calls = []
 
@@ -55,10 +55,10 @@ def _assert_remote_mbarrier_ir(func, arrive_op_name, n_arrives=1):
         if isinstance(node, tvm.ir.Bind) and node.var.name == "remote_mbar_ptr":
             bindings.append(node)
         if (
-            _is_buffer_binding(node, "tirx.decl_tensor")
+            _is_tensor_binding(node, "tirx.decl_tensor")
             and getattr(node.value.args[0], "name", None) == "remote_mbar_ptr"
         ):
-            buffers.append(node)
+            tensors.append(node)
         if isinstance(node, tvm.ir.Call) and node.op.name == "tirx.ptx.mapa":
             mapa_calls.append(node)
         if isinstance(node, tvm.ir.Call) and node.op.name == arrive_op_name:
@@ -66,15 +66,15 @@ def _assert_remote_mbarrier_ir(func, arrive_op_name, n_arrives=1):
 
     tvm_ffi.structural_walk(func.body, visit)
     assert len(bindings) == 1
-    assert len(buffers) == 1
+    assert len(tensors) == 1
     assert len(mapa_calls) == 1
     assert arrive_calls
     assert isinstance(bindings[0].var.ty, tvm.ir.PtrType)
     assert bindings[0].var.ty.storage_scope == "shared"
     assert bindings[0].value.ty.storage_scope == "shared"
-    assert buffers[0].value.args[0].same_as(bindings[0].var)
-    assert buffers[0].value.args[0].ty.storage_scope == "shared"
-    assert buffers[0].var.scope() == "shared"
+    assert tensors[0].value.args[0].same_as(bindings[0].var)
+    assert tensors[0].value.args[0].ty.storage_scope == "shared"
+    assert tensors[0].var.scope() == "shared"
     # ptx operand order is the PTX operand order: mapa writes its result into
     # a destination the caller declared, so args are (d, a, b) and the arrive
     # reads the mapped address back out of that destination rather than

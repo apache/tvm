@@ -154,7 +154,7 @@ class ScheduleCopier {
       ffi::ObjectPtr<SBlockScopeNode> scope = ffi::make_object<SBlockScopeNode>();
       scope->src2deps = Copy(old_info.scope->src2deps);
       scope->dst2deps = Copy(old_info.scope->dst2deps);
-      scope->buffer_writers = Copy(old_info.scope->buffer_writers);
+      scope->tensor_writers = Copy(old_info.scope->tensor_writers);
       new_info.scope = SBlockScope(std::move(scope));
       result[Copy(old_sref)] = std::move(new_info);
     }
@@ -675,7 +675,7 @@ void ConcreteScheduleNode::Unroll(const LoopRV& loop_rv) {
 
 /******** Schedule: Insert cache stages ********/
 
-SBlockRV ConcreteScheduleNode::CacheRead(const SBlockRV& block_rv, int read_buffer_index,
+SBlockRV ConcreteScheduleNode::CacheRead(const SBlockRV& block_rv, int read_tensor_index,
                                          const ffi::String& storage_scope,
                                          const ffi::Array<SBlockRV> consumer_blocks) {
   StmtSRef result{ffi::UnsafeInit{}};
@@ -685,14 +685,14 @@ SBlockRV ConcreteScheduleNode::CacheRead(const SBlockRV& block_rv, int read_buff
     consumer_block_refs.push_back(this->GetSRef(block));
   }
   TVM_TIR_SCHEDULE_BEGIN();
-  result = s_tir::CacheRead(state_, this->GetSRef(block_rv), read_buffer_index, storage_scope,
+  result = s_tir::CacheRead(state_, this->GetSRef(block_rv), read_tensor_index, storage_scope,
                             consumer_block_refs);
   TVM_TIR_SCHEDULE_END("cache-read", this->error_render_level_);
   this->state_->DebugVerify();
   return CreateRV<SBlockRV>(result);
 }
 
-SBlockRV ConcreteScheduleNode::CacheWrite(const SBlockRV& block_rv, int write_buffer_index,
+SBlockRV ConcreteScheduleNode::CacheWrite(const SBlockRV& block_rv, int write_tensor_index,
                                           const ffi::String& storage_scope,
                                           const ffi::Array<SBlockRV> consumer_blocks) {
   StmtSRef result{ffi::UnsafeInit{}};
@@ -702,31 +702,31 @@ SBlockRV ConcreteScheduleNode::CacheWrite(const SBlockRV& block_rv, int write_bu
     consumer_block_refs.push_back(this->GetSRef(block));
   }
   TVM_TIR_SCHEDULE_BEGIN();
-  result = s_tir::CacheWrite(state_, this->GetSRef(block_rv), write_buffer_index, storage_scope,
+  result = s_tir::CacheWrite(state_, this->GetSRef(block_rv), write_tensor_index, storage_scope,
                              consumer_block_refs);
   TVM_TIR_SCHEDULE_END("cache-write", this->error_render_level_);
   this->state_->DebugVerify();
   return CreateRV<SBlockRV>(result);
 }
 
-SBlockRV ConcreteScheduleNode::ReindexCacheRead(const SBlockRV& block_rv, int read_buffer_index,
+SBlockRV ConcreteScheduleNode::ReindexCacheRead(const SBlockRV& block_rv, int read_tensor_index,
                                                 const ffi::String& storage_scope,
                                                 const IndexMap& index_map) {
   StmtSRef result{ffi::UnsafeInit{}};
   TVM_TIR_SCHEDULE_BEGIN();
-  result = s_tir::ReindexCacheRead(state_, this->GetSRef(block_rv), read_buffer_index,
+  result = s_tir::ReindexCacheRead(state_, this->GetSRef(block_rv), read_tensor_index,
                                    storage_scope, index_map);
   TVM_TIR_SCHEDULE_END("reverse-cache-read", this->error_render_level_);
   this->state_->DebugVerify();
   return CreateRV<SBlockRV>(result);
 }
 
-SBlockRV ConcreteScheduleNode::ReindexCacheWrite(const SBlockRV& block_rv, int write_buffer_index,
+SBlockRV ConcreteScheduleNode::ReindexCacheWrite(const SBlockRV& block_rv, int write_tensor_index,
                                                  const ffi::String& storage_scope,
                                                  const IndexMap& index_map) {
   StmtSRef result{ffi::UnsafeInit{}};
   TVM_TIR_SCHEDULE_BEGIN();
-  result = s_tir::ReindexCacheWrite(state_, this->GetSRef(block_rv), write_buffer_index,
+  result = s_tir::ReindexCacheWrite(state_, this->GetSRef(block_rv), write_tensor_index,
                                     storage_scope, index_map);
   TVM_TIR_SCHEDULE_END("reverse-cache-write", this->error_render_level_);
   this->state_->DebugVerify();
@@ -734,12 +734,12 @@ SBlockRV ConcreteScheduleNode::ReindexCacheWrite(const SBlockRV& block_rv, int w
 }
 
 ffi::Array<SBlockRV> ConcreteScheduleNode::CacheInplace(const SBlockRV& block_rv,
-                                                        int write_buffer_index,
+                                                        int write_tensor_index,
                                                         const ffi::String& storage_scope) {
   ffi::Array<StmtSRef> results;
   TVM_TIR_SCHEDULE_BEGIN();
-  results = s_tir::CacheInplace(state_, this->GetSRef(block_rv), write_buffer_index, storage_scope);
-  TVM_TIR_SCHEDULE_END("cache-buffer", this->error_render_level_);
+  results = s_tir::CacheInplace(state_, this->GetSRef(block_rv), write_tensor_index, storage_scope);
+  TVM_TIR_SCHEDULE_END("cache-tensor", this->error_render_level_);
   this->state_->DebugVerify();
   ffi::Array<SBlockRV> return_blocks;
   return_blocks.push_back(CreateRV<SBlockRV>(results[0]));
@@ -762,11 +762,11 @@ ffi::Array<SBlockRV> ConcreteScheduleNode::CacheIndex(const SBlockRV& block_rv,
   return return_blocks;
 }
 
-SBlockRV ConcreteScheduleNode::ReIndex(const SBlockRV& block_rv, int buffer_index,
-                                       BufferIndexType buffer_index_type) {
+SBlockRV ConcreteScheduleNode::ReIndex(const SBlockRV& block_rv, int tensor_index,
+                                       TensorIndexType tensor_index_type) {
   StmtSRef result{ffi::UnsafeInit{}};
   TVM_TIR_SCHEDULE_BEGIN();
-  result = s_tir::ReIndex(state_, this->GetSRef(block_rv), buffer_index, buffer_index_type);
+  result = s_tir::ReIndex(state_, this->GetSRef(block_rv), tensor_index, tensor_index_type);
   TVM_TIR_SCHEDULE_END("reindex", this->error_render_level_);
   this->state_->DebugVerify();
   return CreateRV<SBlockRV>(result);
@@ -775,10 +775,10 @@ SBlockRV ConcreteScheduleNode::ReIndex(const SBlockRV& block_rv, int buffer_inde
 /******** Schedule: Data movement ********/
 
 SBlockRV ConcreteScheduleNode::ReadAt(const LoopRV& loop_rv, const SBlockRV& block_rv,
-                                      int read_buffer_index, const ffi::String& storage_scope) {
+                                      int read_tensor_index, const ffi::String& storage_scope) {
   StmtSRef result{ffi::UnsafeInit{}};
   TVM_TIR_SCHEDULE_BEGIN();
-  result = s_tir::ReadAt(state_, this->GetSRef(loop_rv), this->GetSRef(block_rv), read_buffer_index,
+  result = s_tir::ReadAt(state_, this->GetSRef(loop_rv), this->GetSRef(block_rv), read_tensor_index,
                          storage_scope);
   TVM_TIR_SCHEDULE_END("read-at", this->error_render_level_);
   this->state_->DebugVerify();
@@ -786,11 +786,11 @@ SBlockRV ConcreteScheduleNode::ReadAt(const LoopRV& loop_rv, const SBlockRV& blo
 }
 
 SBlockRV ConcreteScheduleNode::WriteAt(const LoopRV& loop_rv, const SBlockRV& block_rv,
-                                       int write_buffer_index, const ffi::String& storage_scope) {
+                                       int write_tensor_index, const ffi::String& storage_scope) {
   StmtSRef result{ffi::UnsafeInit{}};
   TVM_TIR_SCHEDULE_BEGIN();
   result = s_tir::WriteAt(state_, this->GetSRef(loop_rv), this->GetSRef(block_rv),
-                          write_buffer_index, storage_scope);
+                          write_tensor_index, storage_scope);
   TVM_TIR_SCHEDULE_END("write-at", this->error_render_level_);
   this->state_->DebugVerify();
   return CreateRV<SBlockRV>(result);
@@ -861,26 +861,26 @@ void ConcreteScheduleNode::FuseReductionEpilogue(const SBlockRV& reduction_block
 
 /******** Schedule: SBlock Annotation ********/
 
-void ConcreteScheduleNode::StorageAlign(const SBlockRV& block_rv, int buffer_index, int axis,
+void ConcreteScheduleNode::StorageAlign(const SBlockRV& block_rv, int tensor_index, int axis,
                                         int factor, int offset) {
   TVM_TIR_SCHEDULE_BEGIN();
-  s_tir::StorageAlign(state_, this->GetSRef(block_rv), buffer_index, axis, factor, offset);
+  s_tir::StorageAlign(state_, this->GetSRef(block_rv), tensor_index, axis, factor, offset);
   TVM_TIR_SCHEDULE_END("storage-align", this->error_render_level_);
   this->state_->DebugVerify();
 }
 
-void ConcreteScheduleNode::SetScope(const SBlockRV& block_rv, int buffer_index,
+void ConcreteScheduleNode::SetScope(const SBlockRV& block_rv, int tensor_index,
                                     const ffi::String& storage_scope) {
   TVM_TIR_SCHEDULE_BEGIN();
-  s_tir::SetScope(state_, this->GetSRef(block_rv), buffer_index, storage_scope);
+  s_tir::SetScope(state_, this->GetSRef(block_rv), tensor_index, storage_scope);
   TVM_TIR_SCHEDULE_END("set-scope", this->error_render_level_);
   this->state_->DebugVerify();
 }
 
-void ConcreteScheduleNode::UnsafeSetDType(const SBlockRV& block_rv, int buffer_index,
+void ConcreteScheduleNode::UnsafeSetDType(const SBlockRV& block_rv, int tensor_index,
                                           const ffi::String& dtype) {
   TVM_TIR_SCHEDULE_BEGIN();
-  s_tir::UnsafeSetDType(state_, this->GetSRef(block_rv), buffer_index, dtype);
+  s_tir::UnsafeSetDType(state_, this->GetSRef(block_rv), tensor_index, dtype);
   TVM_TIR_SCHEDULE_END("set-dtype", this->error_render_level_);
   this->state_->DebugVerify();
 }
@@ -1035,8 +1035,8 @@ void ConcreteScheduleNode::Unannotate(const SBlockRV& block_rv, const ffi::Strin
 }
 
 /******** Schedule: Layout transformation ********/
-void ConcreteScheduleNode::TransformLayout(const SBlockRV& block_rv, int buffer_index,
-                                           BufferIndexType buffer_index_type,
+void ConcreteScheduleNode::TransformLayout(const SBlockRV& block_rv, int tensor_index,
+                                           TensorIndexType tensor_index_type,
                                            const IndexMap& index_map,
                                            const ffi::Optional<IndexMap>& pad_value,
                                            bool assume_injective_transform) {
@@ -1052,7 +1052,7 @@ void ConcreteScheduleNode::TransformLayout(const SBlockRV& block_rv, int buffer_
   };
   auto new_index_map = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(index_map, f_substitute)
                            .as_or_throw<IndexMap>();
-  s_tir::TransformLayout(state_, this->GetSRef(block_rv), buffer_index, buffer_index_type,
+  s_tir::TransformLayout(state_, this->GetSRef(block_rv), tensor_index, tensor_index_type,
                          new_index_map, pad_value, assume_injective_transform);
   this->state_->DebugVerify();
   TVM_TIR_SCHEDULE_END("transform_layout", this->error_render_level_);
@@ -1084,33 +1084,33 @@ void ConcreteScheduleNode::PadEinsum(const SBlockRV& block_rv, const ffi::Array<
   this->state_->DebugVerify();
 }
 
-/******** Schedule: Buffer Transformation ********/
+/******** Schedule: Tensor Transformation ********/
 
-void ConcreteScheduleNode::RollingBuffer(const SBlockRV& block_rv, int write_buffer_index) {
+void ConcreteScheduleNode::RollingBuffer(const SBlockRV& block_rv, int write_tensor_index) {
   TVM_TIR_SCHEDULE_BEGIN();
-  s_tir::RollingBuffer(state_, this->GetSRef(block_rv), write_buffer_index);
-  TVM_TIR_SCHEDULE_END("rolling-buffer", this->error_render_level_);
+  s_tir::RollingBuffer(state_, this->GetSRef(block_rv), write_tensor_index);
+  TVM_TIR_SCHEDULE_END("rolling-tensor", this->error_render_level_);
   this->state_->DebugVerify();
 }
 
 /******** Schedule: Misc ********/
 
-void ConcreteScheduleNode::UnsafeHideBufferAccess(const SBlockRV& block_rv,
-                                                  const ffi::String& buf_type,
-                                                  const ffi::Array<IntImm>& buf_index_array) {
+void ConcreteScheduleNode::UnsafeHideTensorAccess(const SBlockRV& block_rv,
+                                                  const ffi::String& tensor_type,
+                                                  const ffi::Array<IntImm>& tensor_index_array) {
   TVM_TIR_SCHEDULE_BEGIN();
-  s_tir::UnsafeHideBufferAccess(state_, this->GetSRef(block_rv), buf_type, buf_index_array);
-  TVM_TIR_SCHEDULE_END("hide-buffer-access", this->error_render_level_);
+  s_tir::UnsafeHideTensorAccess(state_, this->GetSRef(block_rv), tensor_type, tensor_index_array);
+  TVM_TIR_SCHEDULE_END("hide-tensor-access", this->error_render_level_);
   this->state_->DebugVerify();
 }
 
-void ConcreteScheduleNode::AnnotateBufferAccess(const SBlockRV& block_rv, int buffer_index,
-                                                BufferIndexType buffer_index_type,
+void ConcreteScheduleNode::AnnotateTensorAccess(const SBlockRV& block_rv, int tensor_index,
+                                                TensorIndexType tensor_index_type,
                                                 const IndexMap& index_map) {
   TVM_TIR_SCHEDULE_BEGIN();
-  s_tir::AnnotateBufferAccess(state_, this->GetSRef(block_rv), buffer_index, buffer_index_type,
+  s_tir::AnnotateTensorAccess(state_, this->GetSRef(block_rv), tensor_index, tensor_index_type,
                               index_map);
-  TVM_TIR_SCHEDULE_END("annotate-buffer-access", this->error_render_level_);
+  TVM_TIR_SCHEDULE_END("annotate-tensor-access", this->error_render_level_);
   this->state_->DebugVerify();
 }
 

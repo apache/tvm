@@ -95,7 +95,7 @@ def test_bench_retains_round_samples_and_uses_arithmetic_mean(monkeypatch):
     assert results["impls"] == {"tir": 103.0 / 3.0}
 
 
-def test_bench_l2_flush_buffer_matches_triton_256_mib(monkeypatch):
+def test_bench_l2_flush_tensor_matches_triton_256_mib(monkeypatch):
     captured = {}
 
     def fake_empty(size, *, dtype, device):

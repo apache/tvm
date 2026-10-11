@@ -66,17 +66,17 @@ def LowerInitBlock():
     return _ffi_api.LowerInitBlock()  # type: ignore
 
 
-def PlanAndUpdateBufferAllocationLocation():
-    """Locate the buffer allocation to the exact position (usually is
-    the lca of buffer access). This pass will inject opaque block
-    with alloc_buffers at the allocation site.
+def PlanAndUpdateTensorAllocationLocation():
+    """Locate the tensor allocation to the exact position (usually is
+    the lca of tensor access). This pass will inject opaque block
+    with alloc_tensors at the allocation site.
 
     Returns
     -------
     fpass : tvm.transform.Pass
         The result pass
     """
-    return _ffi_api.PlanAndUpdateBufferAllocationLocation()  # type: ignore
+    return _ffi_api.PlanAndUpdateTensorAllocationLocation()  # type: ignore
 
 
 def ConvertBlocksToOpaque():
@@ -103,34 +103,34 @@ def LiftThreadBinding():
     return _ffi_api.LiftThreadBinding()  # type: ignore
 
 
-def CompactBufferAllocation(is_strict: bool = True):
-    """Compact the buffer access region by removing the buffer regions
-    that are not accessed, i.e. narrowing the buffer shape and adjust
+def CompactTensorAllocation(is_strict: bool = True):
+    """Compact the tensor access region by removing the tensor regions
+    that are not accessed, i.e. narrowing the tensor shape and adjust
     the access region if necessary.
 
     Parameters
     ----------
     is_strict : bool
         Ensure the compacted shape to be always smaller than the original shape.
-        Otherwise it allows to grow the shape to match actual accessed buffer regions.
+        Otherwise it allows to grow the shape to match actual accessed tensor regions.
 
     Returns
     -------
     fpass : tvm.transform.Pass
         The result pass
     """
-    return _ffi_api.CompactBufferAllocation(is_strict)  # type: ignore
+    return _ffi_api.CompactTensorAllocation(is_strict)  # type: ignore
 
 
-def LowerMatchBuffer():
-    """Remove match buffers inside the block. Also, it will validate the binding.
+def LowerMatchTensor():
+    """Remove match tensors inside the block. Also, it will validate the binding.
 
     Returns
     -------
     fpass : tvm.transform.Pass
         The result pass
     """
-    return _ffi_api.LowerMatchBuffer()  # type: ignore
+    return _ffi_api.LowerMatchTensor()  # type: ignore
 
 
 def LowerOpaqueBlock():
@@ -146,15 +146,15 @@ def LowerOpaqueBlock():
     return _ffi_api.LowerOpaqueBlock()  # type: ignore
 
 
-def TransformMmaBufferLayout():
-    """Transform mma buffer layout
+def TransformMmaTensorLayout():
+    """Transform mma tensor layout
 
     Returns
     -------
     fpass : tvm.transform.Pass
         The result pass
     """
-    return _ffi_api.TransformMmaBufferLayout()  # type: ignore
+    return _ffi_api.TransformMmaTensorLayout()  # type: ignore
 
 
 def InjectPermutedLayout():
@@ -298,7 +298,7 @@ def LowerVtcmAlloc():
 
 
 def ThreadSync(storage_scope):
-    """Insert sync between parallel read/write of shared buffers.
+    """Insert sync between parallel read/write of shared tensors.
 
     Parameters
     ----------
@@ -424,10 +424,10 @@ def UseAssumeToReduceBranches():
 
 
 def ForceNarrowIndexToInt32():
-    """Force narrow down indexing expressions and integer buffers to int32 dtype.
+    """Force narrow down indexing expressions and integer tensors to int32 dtype.
 
     Unlike :py:func:`tvm.tirx.transform.ForceNarrowIndexToInt32`, this pass also rewrites block
-    iterators, block access regions, and match buffer regions, so it can run on scheduled
+    iterators, block access regions, and match tensor regions, so it can run on scheduled
     functions before block lowering.
 
     Returns

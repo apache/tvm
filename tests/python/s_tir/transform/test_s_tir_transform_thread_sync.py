@@ -45,8 +45,8 @@ def test_sync_read_thread_id_independent_location():
     @Ts.function(check_well_formed=False)
     def func(p0_arg: T.Tensor((1, 2, 1, 1), "float32"), p1: T.Tensor(2, "float32")) -> None:
         p0 = T.Var("p0", T.Tensor([2], dtype="float32", data=p0_arg.data))
-        result_local = Ts.sblock_alloc_buffer([1], dtype="float32", scope="local")
-        temp_shared = Ts.sblock_alloc_buffer([1], dtype="float32", scope="shared")
+        result_local = Ts.sblock_alloc_tensor([1], dtype="float32", scope="local")
+        temp_shared = Ts.sblock_alloc_tensor([1], dtype="float32", scope="shared")
         blockIdx_x = T.launch_thread("blockIdx.x", 8)
         threadIdx_x = T.launch_thread("threadIdx.x", 4)
         result_local[0] = T.float32(0)
@@ -144,7 +144,7 @@ def test_sync_shared_dyn():
     tvm.ir.assert_structural_equal(mod["main"], expected)
 
 
-def test_sync_shared_aliasing_buffer_views():
+def test_sync_shared_aliasing_tensor_views():
     @Ts.function(private=True)
     def func(A: T.Tensor((64,), "float32")):
         blockIdx_x = T.launch_thread("blockIdx.x", 1)

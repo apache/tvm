@@ -238,8 +238,9 @@ TEST(IRF, StmtVisitor) {
     body = SeqStmt({Bind(buffer, Call(buffer.type(), tvm::tirx::decl_tensor_op(), {buf_var}, {},
                                       {buffer.type()})),
                     std::move(body)});
-    TensorRegion buffer_region = BufferRegion(buffer, {Range::FromMinExtent(x + 1, 1)});
-    s_tir::MatchBufferRegion match_buffer_region(decl_tensor({1}), buffer_region);
+    TensorRegion buffer_region =
+        TensorRegion(buffer, {Range::FromMinExtent(x + 1, 1)}, TensorRegionType());
+    s_tir::MatchTensorRegion match_buffer_region(decl_tensor({1}), buffer_region);
 
     // construct block and block_realize
     s_tir::SBlock block = s_tir::SBlock({}, {buffer_region}, {buffer_region}, "block", body,
@@ -248,7 +249,7 @@ TEST(IRF, StmtVisitor) {
 
     v->count = 0;
     v->Visit(block_realize);
-    // x visited in: reads range (1), writes range (1), match_buffers range (1).
+    // x visited in: reads range (1), writes range (1), match_tensors range (1).
     // init: DeclTensor data b(1) + AllocTensor shape x,x(2) + Evaluate x(1) = 4.
     // body: DeclTensor data b(1) + AllocTensor shape x,x(2) + Evaluate x(1) = 4.
     // Total: 1 + 1 + 1 + 4 + 4 = 11.
@@ -371,8 +372,9 @@ TEST(IRF, StmtExprMutator) {
     Stmt alloc = fmakealloc();
     // body is: DeclTensor, AllocTensor, Evaluate
     Stmt body = SeqStmt({decl, alloc, eval_body});
-    TensorRegion buffer_region = BufferRegion(buffer, {Range::FromMinExtent(x + 1, 1)});
-    s_tir::MatchBufferRegion match_buffer_region(decl_tensor({1}), buffer_region);
+    TensorRegion buffer_region =
+        TensorRegion(buffer, {Range::FromMinExtent(x + 1, 1)}, TensorRegionType());
+    s_tir::MatchTensorRegion match_buffer_region(decl_tensor({1}), buffer_region);
     // construct block and block_realize
     s_tir::SBlock block = s_tir::SBlock({}, {buffer_region}, {buffer_region}, "block", body,
                                         SeqStmt(body), {}, {match_buffer_region});
@@ -390,7 +392,7 @@ TEST(IRF, StmtExprMutator) {
     // buffer region min is mutated: x+1 -> x
     TVM_FFI_ICHECK(new_block->reads[0]->region[0]->min.same_as(x));
     TVM_FFI_ICHECK(new_block->writes[0]->region[0]->min.same_as(x));
-    TVM_FFI_ICHECK(new_block->match_buffers[0]->source->region[0]->min.same_as(x));
+    TVM_FFI_ICHECK(new_block->match_tensors[0]->source->region[0]->min.same_as(x));
   }
 }
 

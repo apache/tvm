@@ -51,7 +51,7 @@ def test_cpu_matmul():
         C: T.Tensor((4, 4), "float32"),
     ) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
-        C_rf = Ts.sblock_alloc_buffer([4, 4, 128], dtype="float32")
+        C_rf = Ts.sblock_alloc_tensor([4, 4, 128], dtype="float32")
         for i0, i1, i2_0, i2_1 in T.grid(4, 4, 4, 128):
             with Ts.sblock("C_rf"):
                 vi2_1, i, j, vi2_0 = Ts.axis.remap("SSSR", [i2_1, i0, i1, i2_0])
@@ -79,7 +79,7 @@ def test_cpu_matmul():
         C: T.Tensor((4, 4), "float32"),
     ) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
-        C_rf = Ts.sblock_alloc_buffer([4, 4, 4], dtype="float32")
+        C_rf = Ts.sblock_alloc_tensor([4, 4, 4], dtype="float32")
         for i0, i1, i2_0, i2_1 in T.grid(4, 4, 4, 128):
             with Ts.sblock("C_rf"):
                 vi2_0, i, j, vi2_1 = Ts.axis.remap("SSSR", [i2_0, i0, i1, i2_1])
@@ -179,8 +179,8 @@ def test_cpu_argmax():
         argmax_v0: T.Tensor(128, "int32"),
         argmax_v1: T.Tensor(128, "float32"),
     ) -> None:
-        argmax_v0_rf = Ts.sblock_alloc_buffer([128, 16], dtype="int32")
-        argmax_v1_rf = Ts.sblock_alloc_buffer([128, 16], dtype="float32")
+        argmax_v0_rf = Ts.sblock_alloc_tensor([128, 16], dtype="int32")
+        argmax_v1_rf = Ts.sblock_alloc_tensor([128, 16], dtype="float32")
         for i0, i1_0, i1_1 in T.grid(128, 8, 16):
             with Ts.sblock("argmax_rf"):
                 vi1_1, i, vi1_0 = Ts.axis.remap("SSR", [i1_1, i0, i1_0])
@@ -228,8 +228,8 @@ def test_cpu_argmax():
     ) -> None:
         # body
         # with Ts.sblock("root")
-        argmax_v0_rf = Ts.sblock_alloc_buffer([128, 8], dtype="int32")
-        argmax_v1_rf = Ts.sblock_alloc_buffer([128, 8], dtype="float32")
+        argmax_v0_rf = Ts.sblock_alloc_tensor([128, 8], dtype="int32")
+        argmax_v1_rf = Ts.sblock_alloc_tensor([128, 8], dtype="float32")
         for i0, i1_0, i1_1 in T.grid(128, 8, 16):
             with Ts.sblock("argmax_rf"):
                 vi1_0, i, vi1_1 = Ts.axis.remap("SSR", [i1_0, i0, i1_1])

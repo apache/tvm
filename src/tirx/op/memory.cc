@@ -60,14 +60,14 @@ Type InferTypeAddressOf(const CallNode* call) {
 
 Type InferTypeMaskedLoad(const CallNode* call) {
   TVM_FFI_CHECK_GE(call->args.size(), 2U, ValueError)
-      << "Masked load type requires a buffer and index operands";
-  TensorVar buffer = call->args[0].as_or_throw<TensorVar>();
+      << "Masked load type requires a tensor and index operands";
+  TensorVar tensor = call->args[0].as_or_throw<TensorVar>();
   ffi::Array<PrimExpr> indices;
   for (size_t i = 1; i + 1 < call->args.size(); ++i) {
     indices.push_back(call->args[i].as_or_throw<PrimExpr>());
   }
   // Ordinary load typing computes vector elements and scalable index lanes.
-  return MakeTensorLoad(buffer, indices).ty();
+  return MakeTensorLoad(tensor, indices).ty();
 }
 
 ffi::Expected<Type> InferTypeTensorDataPtr(const CallNode* call) noexcept try {
@@ -84,7 +84,7 @@ ffi::Expected<Type> InferTypeTensorDataPtr(const CallNode* call) noexcept try {
 
 // Allocation and declaration share the complete, explicit tensor type argument.
 template <bool is_alloc>
-Type InferTypeBuffer(const CallNode* call) {
+Type InferTypeTensor(const CallNode* call) {
   TVM_FFI_CHECK_EQ(call->ty_args.size(), 1U, ValueError)
       << "Tensor allocation and declaration require exactly one TensorType argument";
   auto type = call->ty_args[0].as_or_throw<TensorType>();
@@ -104,7 +104,7 @@ Type InferTypeBuffer(const CallNode* call) {
 
 template <bool is_alloc>
 void ValidateTensorProducer(const CallNode* call) {
-  Type inferred = InferTypeBuffer<is_alloc>(call);
+  Type inferred = InferTypeTensor<is_alloc>(call);
   TVM_FFI_CHECK(ffi::StructuralEqual()(call->ty, inferred), TypeError)
       << "Tensor producer result must match its TensorType argument";
   if constexpr (is_alloc) {
@@ -324,7 +324,7 @@ const Op& masked_load_op() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("tirx.masked_load")
-      .signature(sig::arg<TensorVar>("buffer", "The buffer."),
+      .signature(sig::arg<TensorVar>("tensor", "The tensor."),
                  sig::arg<PrimExpr>("index", "The index."), sig::var_args<PrimExpr>("args"))
       .set_attr<FInferType>(tvm::op_attr::kInferType,
                             FInferType::FromNative<&InferTypeMaskedLoad>())
@@ -342,7 +342,7 @@ const Op& masked_store_op() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("tirx.masked_store")
-      .signature(sig::arg<TensorVar>("buffer", "The buffer."),
+      .signature(sig::arg<TensorVar>("tensor", "The tensor."),
                  sig::arg<PrimExpr>("value", "The value to use."),
                  sig::arg<PrimExpr>("index", "The index."), sig::var_args<PrimExpr>("args"))
       .set_attr<TFixedReturnType>(tvm::op_attr::kFixedReturnType, PrimType::Void())
@@ -362,7 +362,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("tirx.alloc_tensor")
       .set_attr<TIRxOpCategory>(tvm::tirx::op_attr::kOpCategory, ffi::String("builtin"))
       .set_attr<FInferType>(tvm::op_attr::kInferType,
-                            FInferType::FromNative<&InferTypeBuffer<true>>())
+                            FInferType::FromNative<&InferTypeTensor<true>>())
       .set_validator(ffi::reflection::NativeFunctionView<void(
                          const CallNode*)>::FromNative<&ValidateTensorProducer<true>>(),
                      true)
@@ -384,7 +384,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("tirx.decl_tensor")
       .set_attr<TIRxOpCategory>(tvm::tirx::op_attr::kOpCategory, ffi::String("builtin"))
       .set_attr<FInferType>(tvm::op_attr::kInferType,
-                            FInferType::FromNative<&InferTypeBuffer<false>>())
+                            FInferType::FromNative<&InferTypeTensor<false>>())
       .set_validator(ffi::reflection::NativeFunctionView<void(
                          const CallNode*)>::FromNative<&ValidateTensorProducer<false>>(),
                      true)

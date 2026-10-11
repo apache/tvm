@@ -40,7 +40,7 @@ def tirx_pipeline(*, prepare_only=False):
             tirx.transform.LowerTIRx(),
             tirx.transform.StmtSimplify(),
             tirx.transform.LowerTIRxOpaque(),
-            tirx.transform.FlattenBuffer(),
+            tirx.transform.FlattenTensor(),
             tirx.transform.NarrowDataType(32),
             tirx.transform.VectorizeLoop(not bool(config.get("tirx.disable_vectorize", False))),
             tirx.transform.UnrollLoop(),

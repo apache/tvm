@@ -199,17 +199,17 @@ def tensorized_matmul(A: T.Tensor([128, 128], elem_offset=0, align=64, offset_fa
                     ]
                 )
                 Ts.writes(C[vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16])
-                A_sub = Ts.match_buffer(
+                A_sub = Ts.match_tensor(
                     A[vi * 16 : vi * 16 + 16, vk * 16 : vk * 16 + 16],
                     [16, 16],
                     elem_offset=A_elem_offset,
                 )
-                B_sub = Ts.match_buffer(
+                B_sub = Ts.match_tensor(
                     B[vj * 16 : vj * 16 + 16, vk * 16 : vk * 16 + 16],
                     [16, 16],
                     elem_offset=B_elem_offset,
                 )
-                C_sub = Ts.match_buffer(
+                C_sub = Ts.match_tensor(
                     C[vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16],
                     [16, 16],
                     elem_offset=C_elem_offset,
@@ -270,17 +270,17 @@ def tensorized_batch_matmul_mma(
                     B[vn : vn + 1, vj * 16 : vj * 16 + 16, vk * 16 : vk * 16 + 16],
                 )
                 Ts.writes(C[vn : vn + 1, vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16])
-                A_sub = Ts.match_buffer(
+                A_sub = Ts.match_tensor(
                     A[vn : vn + 1, vi * 16 : vi * 16 + 16, vk * 16 : vk * 16 + 16],
                     (16, 16),
                     elem_offset=A_elem_offset,
                 )
-                B_sub = Ts.match_buffer(
+                B_sub = Ts.match_tensor(
                     B[vn : vn + 1, vj * 16 : vj * 16 + 16, vk * 16 : vk * 16 + 16],
                     (16, 16),
                     elem_offset=B_elem_offset,
                 )
-                C_sub = Ts.match_buffer(
+                C_sub = Ts.match_tensor(
                     C[vn : vn + 1, vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16],
                     (16, 16),
                     elem_offset=C_elem_offset,
@@ -318,13 +318,13 @@ def tensorized_batch_matmul_dot_product(
                 C[vn, vi, vj], A[vn, vi, vko * 4 : vko * 4 + 4], B[vn, vj, vko * 4 : vko * 4 + 4]
             )
             Ts.writes(C[vn, vi, vj])
-            A_1 = Ts.match_buffer(
+            A_1 = Ts.match_tensor(
                 A[vn, vi, vko * 4 : vko * 4 + 4], [4], dtype="float32", offset_factor=1
             )
-            B_1 = Ts.match_buffer(
+            B_1 = Ts.match_tensor(
                 B[vn, vj, vko * 4 : vko * 4 + 4], [4], dtype="float32", offset_factor=1
             )
-            C_1 = Ts.match_buffer(C[vn, vi, vj], [], dtype="float32", offset_factor=1)
+            C_1 = Ts.match_tensor(C[vn, vi, vj], [], dtype="float32", offset_factor=1)
             T.evaluate(
                 T.call_extern(
                     "vec4add",
@@ -359,10 +359,10 @@ def tensorized_batch_matmul_outer_product(
                 B[vn, vjo * 16 : vjo * 16 + 16, vk],
             )
             Ts.writes(C[vn, vio * 16 : vio * 16 + 16, vjo * 16 : vjo * 16 + 16])
-            A_1 = Ts.match_buffer(A[vn, vio * 16 : vio * 16 + 16, vk], [16, 1], dtype="float32", offset_factor=1)
-            B_1 = Ts.match_buffer(B[vn, vjo * 16 : vjo * 16 + 16, vk], [16, 1], dtype="float32", offset_factor=1
+            A_1 = Ts.match_tensor(A[vn, vio * 16 : vio * 16 + 16, vk], [16, 1], dtype="float32", offset_factor=1)
+            B_1 = Ts.match_tensor(B[vn, vjo * 16 : vjo * 16 + 16, vk], [16, 1], dtype="float32", offset_factor=1
             )
-            C_1 = Ts.match_buffer(
+            C_1 = Ts.match_tensor(
                 C[vn, vio * 16 : vio * 16 + 16, vjo * 16 : vjo * 16 + 16], [16, 16], dtype="float32", offset_factor=1
             )
             T.evaluate(
@@ -422,17 +422,17 @@ def annotated_tensorized_matmul(A: T.Tensor([128, 128], elem_offset=0, align=64,
                     ]
                 )
                 Ts.writes(C[vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16])
-                A_sub = Ts.match_buffer(
+                A_sub = Ts.match_tensor(
                     A[vi * 16 : vi * 16 + 16, vk * 16 : vk * 16 + 16],
                     [16, 16],
                     elem_offset=A_elem_offset,
                 )
-                B_sub = Ts.match_buffer(
+                B_sub = Ts.match_tensor(
                     B[vj * 16 : vj * 16 + 16, vk * 16 : vk * 16 + 16],
                     [16, 16],
                     elem_offset=B_elem_offset,
                 )
-                C_sub = Ts.match_buffer(
+                C_sub = Ts.match_tensor(
                     C[vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16],
                     [16, 16],
                     elem_offset=C_elem_offset,
@@ -744,17 +744,17 @@ def test_tensorize_matmul_mixed_dtype():
                         ]
                     )
                     Ts.writes(C[vi * T.int64(16) : vi * T.int64(16) + T.int64(16), vj * T.int64(16) : vj * T.int64(16) + T.int64(16)])
-                    A_sub = Ts.match_buffer(
+                    A_sub = Ts.match_tensor(
                         A[vi * T.int64(16) : vi * T.int64(16) + T.int64(16), vk * T.int64(16) : vk * T.int64(16) + T.int64(16)],
                         [T.int64(16), T.int64(16)],
                         elem_offset=A_elem_offset,
                     )
-                    B_sub = Ts.match_buffer(
+                    B_sub = Ts.match_tensor(
                         B[vj * T.int64(16) : vj * T.int64(16) + T.int64(16), vk * T.int64(16) : vk * T.int64(16) + T.int64(16)],
                         [T.int64(16), T.int64(16)],
                         elem_offset=B_elem_offset,
                     )
-                    C_sub = Ts.match_buffer(
+                    C_sub = Ts.match_tensor(
                         C[vi * T.int64(16) : vi * T.int64(16) + T.int64(16), vj * T.int64(16) : vj * T.int64(16) + T.int64(16)],
                         [T.int64(16), T.int64(16)],
                         elem_offset=C_elem_offset,
@@ -828,8 +828,8 @@ def test_tensorize_arith_simplification():
     # fmt: off
     @Ts.function
     def decode_i4s_to_int32_to_f16():
-        B_decode_local = Ts.sblock_alloc_buffer((16384, 16384), "float16", scope="local")
-        B_local = Ts.sblock_alloc_buffer((16384, 2048), "int32", scope="local")
+        B_decode_local = Ts.sblock_alloc_tensor((16384, 16384), "float16", scope="local")
+        B_local = Ts.sblock_alloc_tensor((16384, 2048), "int32", scope="local")
         for ax0_0 in T.thread_binding(8192, thread="blockIdx.x"):
             for ax0_1 in T.thread_binding(2, thread="threadIdx.y"):
                 for ax1_0 in range(32):
@@ -844,8 +844,8 @@ def test_tensorize_arith_simplification():
 
     @Ts.function
     def tensorized_decode_i4s_to_int32_to_f16():
-        B_decode_local = Ts.sblock_alloc_buffer((16384, 16384), "float16", scope="local")
-        B_local = Ts.sblock_alloc_buffer((16384, 2048), "int32", scope="local")
+        B_decode_local = Ts.sblock_alloc_tensor((16384, 16384), "float16", scope="local")
+        B_local = Ts.sblock_alloc_tensor((16384, 2048), "int32", scope="local")
         for ax0_0 in T.thread_binding(8192, thread="blockIdx.x"):
             for ax0_1 in T.thread_binding(2, thread="threadIdx.y"):
                 for ax1_0 in range(32):
@@ -856,8 +856,8 @@ def test_tensorize_arith_simplification():
                                 v1_o = Ts.axis.spatial(2048, ax1_0 * 64 + ax1_1)
                                 Ts.reads(B_local[v0_o, v1_o])
                                 Ts.writes(B_decode_local[v0_o, v1_o * 8:v1_o * 8 + 8])
-                                Compressed = Ts.match_buffer(B_local[v0_o, v1_o], (1,), "int32", scope="local")
-                                Decompressed = Ts.match_buffer(B_decode_local[v0_o, v1_o * 8:v1_o * 8 + 8], (8,), "float16", scope="local")
+                                Compressed = Ts.match_tensor(B_local[v0_o, v1_o], (1,), "int32", scope="local")
+                                Decompressed = Ts.match_tensor(B_decode_local[v0_o, v1_o * 8:v1_o * 8 + 8], (8,), "float16", scope="local")
                                 T.call_extern( "test_decode_i4s_to_f16", Compressed.data, Decompressed.data, 8, ty="handle")
 
     s = tvm.s_tir.Schedule(decode_i4s_to_int32_to_f16, debug_mask="all")

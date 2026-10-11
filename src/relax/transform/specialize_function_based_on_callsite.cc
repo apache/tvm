@@ -18,7 +18,7 @@
  */
 /*!
  * \file src/relax/transform/specialize_tir_params.cc
- * \brief Update tirx::Function buffers based on updated scope (or structure) info.
+ * \brief Update tirx::Function tensors based on updated scope (or structure) info.
  */
 
 #include <tvm/relax/expr.h>
@@ -101,9 +101,9 @@ class SpecializeTIRCallArgs : ExprMutator {
         name = std::string({static_cast<char>('A' + i)});
       }
 
-      const TensorVar& buffer = tirx::decl_tensor(GetShapeFromTensorType(tensor_ty),
+      const TensorVar& tensor = tirx::decl_tensor(GetShapeFromTensorType(tensor_ty),
                                                   tensor_ty->dtype.value(), name, scope);
-      param_map.Set(pfunc->params[i], buffer);
+      param_map.Set(pfunc->params[i], tensor);
     }
     ffi::String scope = "global";
     auto out_ty = call->ty_args[0];
@@ -112,9 +112,9 @@ class SpecializeTIRCallArgs : ExprMutator {
       if (ty->vdevice.has_value()) {
         scope = ty->vdevice.value()->memory_scope;
       }
-      const TensorVar& buffer =
+      const TensorVar& tensor =
           tirx::decl_tensor(GetShapeFromTensorType(ty), ty->dtype.value(), "ret_val", scope);
-      param_map.Set(pfunc->params[pfunc->params.size() - 1], buffer);
+      param_map.Set(pfunc->params[pfunc->params.size() - 1], tensor);
     } else {
       TVM_FFI_ICHECK(out_ty->IsInstance<TupleTypeNode>())
           << "Expect output type of call_tir to be either TupleType or "
@@ -134,9 +134,9 @@ class SpecializeTIRCallArgs : ExprMutator {
           scope = ty->vdevice.value()->memory_scope;
         }
 
-        const TensorVar& buffer = tirx::decl_tensor(GetShapeFromTensorType(ty), ty->dtype.value(),
+        const TensorVar& tensor = tirx::decl_tensor(GetShapeFromTensorType(ty), ty->dtype.value(),
                                                     "ret_val_" + std::to_string(index), scope);
-        param_map.Set(pfunc->params[args.size() + index], buffer);
+        param_map.Set(pfunc->params[args.size() + index], tensor);
         index++;
       }
     }

@@ -60,7 +60,7 @@ def test_param():
             B: T.Tensor((T.int64(32), T.int64(32)), "float32"),
             C: T.Tensor((T.int64(32), T.int64(32)), "float32"),
         ):
-            T.func_attr({"layout_free_buffers": [1]})
+            T.func_attr({"layout_free_tensors": [1]})
             for i, j, k in T.grid(T.int64(32), T.int64(32), T.int64(32)):
                 with Ts.sblock("C"):
                     with Ts.init():
@@ -76,7 +76,7 @@ def test_param():
                 R.output(gv)
             return gv
 
-    after = relax.transform.AttachAttrLayoutFreeBuffers()(Before)
+    after = relax.transform.AttachAttrLayoutFreeTensors()(Before)
     tvm.ir.assert_structural_equal(after, Expected)
 
 
@@ -118,7 +118,7 @@ def test_const():
             B: T.Tensor((T.int64(32), T.int64(32)), "float32"),
             C: T.Tensor((T.int64(32), T.int64(32)), "float32"),
         ):
-            T.func_attr({"layout_free_buffers": [1]})
+            T.func_attr({"layout_free_tensors": [1]})
             for i, j, k in T.grid(T.int64(32), T.int64(32), T.int64(32)):
                 with Ts.sblock("C"):
                     with Ts.init():
@@ -138,7 +138,7 @@ def test_const():
                 R.output(gv)
             return gv
 
-    after = relax.transform.AttachAttrLayoutFreeBuffers()(Before)
+    after = relax.transform.AttachAttrLayoutFreeTensors()(Before)
     tvm.ir.assert_structural_equal(after, Expected)
 
 
@@ -187,7 +187,7 @@ def test_multiple_same_func():
             B: T.Tensor((T.int64(32), T.int64(32)), "float32"),
             C: T.Tensor((T.int64(32), T.int64(32)), "float32"),
         ):
-            T.func_attr({"layout_free_buffers": [1]})
+            T.func_attr({"layout_free_tensors": [1]})
             for i, j, k in T.grid(T.int64(32), T.int64(32), T.int64(32)):
                 with Ts.sblock("C"):
                     with Ts.init():
@@ -216,7 +216,7 @@ def test_multiple_same_func():
                 R.output(gv)
             return gv
 
-    after = relax.transform.AttachAttrLayoutFreeBuffers()(Before)
+    after = relax.transform.AttachAttrLayoutFreeTensors()(Before)
     tvm.ir.assert_structural_equal(after, Expected)
 
 
@@ -265,7 +265,7 @@ def test_multiple_same_func_with_different_free_buffers():
             B: T.Tensor((T.int64(32), T.int64(32)), "float32"),
             C: T.Tensor((T.int64(32), T.int64(32)), "float32"),
         ):
-            T.func_attr({"layout_free_buffers": [1]})
+            T.func_attr({"layout_free_tensors": [1]})
             for i, j, k in T.grid(T.int64(32), T.int64(32), T.int64(32)):
                 with Ts.sblock("C"):
                     with Ts.init():
@@ -278,7 +278,7 @@ def test_multiple_same_func_with_different_free_buffers():
             B: T.Tensor((T.int64(32), T.int64(32)), "float32"),
             C: T.Tensor((T.int64(32), T.int64(32)), "float32"),
         ):
-            T.func_attr({"layout_free_buffers": [0]})
+            T.func_attr({"layout_free_tensors": [0]})
             for i, j, k in T.grid(T.int64(32), T.int64(32), T.int64(32)):
                 with Ts.sblock("C"):
                     with Ts.init():
@@ -307,7 +307,7 @@ def test_multiple_same_func_with_different_free_buffers():
                 R.output(gv)
             return gv
 
-    after = relax.transform.AttachAttrLayoutFreeBuffers()(Before)
+    after = relax.transform.AttachAttrLayoutFreeTensors()(Before)
     tvm.ir.assert_structural_equal(after, Expected)
 
 

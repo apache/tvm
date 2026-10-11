@@ -152,18 +152,51 @@ def test_cuda_module_destructor_preserves_current_device():
         torch.cuda.set_device(original_device)
 
 
+def test_typed_buffer_bindings(monkeypatch):
+    @T.function
+    def main(data: T.handle("float32"), output: T.handle):
+        T.func_attr({"global_symbol": "main", "calling_conv": 2, "tirx.kernel_launch_params": []})
+        A = T.decl_tensor(data, ty_args=[T.Tensor((1,), "float32")])
+        B = T.decl_tensor(output, ty_args=[T.Tensor((1,), "float32")])
+        storage = T.alloc_tensor(ty_args=[T.Tensor((1,), "uint32", scope="shared")])
+        S = T.decl_tensor(storage.data, ty_args=[T.Tensor((1,), "float32", scope="shared")])
+        pool = T.alloc_tensor(ty_args=[T.Tensor((4,), "uint8", scope="shared.dyn")])
+        D = T.decl_tensor(pool.data, ty_args=[T.Tensor((1,), "float32", scope="shared.dyn")])
+        alias = T.decl_tensor(D.data, ty_args=[T.Tensor((1,), "float32", scope="shared.dyn")])
+        S[0] = A[0]
+        D[0] = S[0]
+        B[0] = alias[0]
+        storage[0] = T.uint32(0)
+
+    monkeypatch.setenv("TVM_COMPILE_FORCE_FALLBACK", "1")
+    target = tvm.target.Target({"kind": "cuda", "arch": "sm_80"})
+    source = tvm.get_global_func("target.build.cuda")(
+        tvm.IRModule.from_expr(main), target
+    ).inspect_source()
+    assert "float* data, void* output" in source
+    assert "float* B = ((float*)output);" in source
+    assert "__shared__ alignas(64) uint storage_ptr[1];" in source
+    assert "float* S = ((float*)storage_ptr);" in source
+    assert "extern __shared__ __align__(64) uchar pool_ptr[];" in source
+    assert "float* D = ((float*)pool_ptr);" in source
+    assert "S[0] = data[0];" in source
+    assert "D[0] = S[0];" in source
+    assert "B[0] = D[0];" in source
+    assert "storage_ptr[0] = (uint)0;" in source
+
+
 def test_vector_pointer_preserves_packed_offset(monkeypatch):
-    buffer = tvm.tirx.decl_tensor((8,), "int4x4", name="A")
-    data = tvm.tirx.Var("A_data", buffer.data.ty)
-    pointer = tvm.tirx.ptr_byte_offset(buffer.data, 4, ty=buffer.data.ty)
+    tensor = tvm.tirx.decl_tensor((8,), "int4x4", name="A")
+    data = tvm.tirx.Var("A_data", tensor.data.ty)
+    pointer = tvm.tirx.ptr_byte_offset(tensor.data, 4, ty=tensor.data.ty)
     body = tvm.ir.SeqStmt(
         [
             tvm.ir.Bind(
-                buffer,
+                tensor,
                 tvm.ir.Call(
                     "tirx.decl_tensor",
                     [data],
-                    ty_args=[buffer.ty],
+                    ty_args=[tensor.ty],
                 ),
             ),
             tvm.ir.Evaluate(tvm.tirx.call_extern("void", "consume", pointer)),
@@ -1048,7 +1081,7 @@ def test_ptx_ldmatrix(trans, num):
         A_local = T.alloc_local([8], "float16")
         A_local[0] = -1.0
         # ldmatrix .x{num}.b16 writes `num` b32 registers; A_local is a
-        # contiguous fp16[8] buffer, so the registers land through a uint32
+        # contiguous fp16[8] tensor, so the registers land through a uint32
         # view, two fp16 elements per word.
         A_words = A_local.view("uint32")
         if T.constexpr(num == 1):

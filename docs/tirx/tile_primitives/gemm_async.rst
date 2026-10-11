@@ -51,7 +51,7 @@ A single predicate — single-thread or warp scope:
    * - dtype
      - without ``is_AB_tf32``, dense A/B use the same dtype: ``float16``,
        ``bfloat16``, ``float8_e4m3fn``, or ``float8_e5m2``. Typical TF32
-       authoring uses ``float32`` buffers with ``is_AB_tf32=True``; the flag
+       authoring uses ``float32`` tensors with ``is_AB_tf32=True``; the flag
        replaces both semantic A/B dtypes with ``tf32`` before validation, so
        the current implementation does not separately validate the underlying
        storage dtypes or their equality in that mode.

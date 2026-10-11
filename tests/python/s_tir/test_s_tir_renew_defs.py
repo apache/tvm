@@ -33,7 +33,7 @@ def _check_func_signature_remap(lhs: Function, rhs: Function):
         assert tvm.tirx.is_tensor_var(x) == tvm.tirx.is_tensor_var(y)
 
 
-def _check_buffer_decl(lhs: Var, rhs: Var):
+def _check_tensor_decl(lhs: Var, rhs: Var):
     assert lhs != rhs
     assert lhs.data != rhs.data
 
@@ -43,11 +43,11 @@ def _check_block_signature_remap(lhs: SBlock, rhs: SBlock):
     for x, y in zip(lhs.iter_vars, rhs.iter_vars):
         assert x != y
         assert x.var != y.var
-    for x, y in zip(lhs.alloc_buffers, rhs.alloc_buffers):
-        _check_buffer_decl(x, y)
-    for x, y in zip(lhs.match_buffers, rhs.match_buffers):
+    for x, y in zip(lhs.alloc_tensors, rhs.alloc_tensors):
+        _check_tensor_decl(x, y)
+    for x, y in zip(lhs.match_tensors, rhs.match_tensors):
         assert x != y
-        _check_buffer_decl(x.buffer, y.buffer)
+        _check_tensor_decl(x.tensor, y.tensor)
 
 
 def test_simple():
@@ -55,7 +55,7 @@ def test_simple():
     # Var A should be remapped
     def elementwise(A: T.Tensor((128, 128), "float32")):
         # Var B should be remapped
-        B = Ts.sblock_alloc_buffer((128, 128), "float32")
+        B = Ts.sblock_alloc_tensor((128, 128), "float32")
         # i, j should be remapped
         for i, j in T.grid(128, 128):
             with Ts.sblock("B"):
@@ -84,7 +84,7 @@ def test_simple():
     _check_block_signature_remap(_get_sblock(f1), _get_sblock(f2))
 
 
-def test_match_buffer():
+def test_match_tensor():
     # well-formed checker complains about multiple definitions for variable A0_s1,
     # likely stemming from strides=[s, s]
     s = T.dynamic("s", "int32")
@@ -92,10 +92,10 @@ def test_match_buffer():
 
     @Ts.function(check_well_formed=False)
     # A and B should be remapped
-    def func_match_buffer(A: T.Tensor((128, 128), "float32"), B: T.Tensor((128, 128), "float32")):
+    def func_match_tensor(A: T.Tensor((128, 128), "float32"), B: T.Tensor((128, 128), "float32")):
         with Ts.sblock("root"):
             # A0 should be remapped
-            A0 = Ts.match_buffer(
+            A0 = Ts.match_tensor(
                 A[0:128, 0:128],
                 shape=(128, 128),
                 dtype="float32",
@@ -108,7 +108,7 @@ def test_match_buffer():
                     vi, vj = Ts.axis.remap("SS", [i, j])
                     B[vi, vj] = A0[vi, vj] * 2.0
 
-    f1 = func_match_buffer
+    f1 = func_match_tensor
     f2 = tvm.tirx.renew_def(f1)
     tvm.ir.assert_structural_equal(f1, f2)
 
@@ -123,19 +123,19 @@ def test_match_buffer():
     block2 = _get_sblock(f2)
     _check_block_signature_remap(block1, block2)
 
-    matched_buffer1 = block1.match_buffers[0].buffer
-    matched_buffer2 = block2.match_buffers[0].buffer
+    matched_tensor1 = block1.match_tensors[0].tensor
+    matched_tensor2 = block2.match_tensors[0].tensor
     # Stride var s should be remapped
-    assert matched_buffer1.strides[0] != matched_buffer2.strides[0]
-    assert matched_buffer1.strides[1] != matched_buffer2.strides[1]
+    assert matched_tensor1.strides[0] != matched_tensor2.strides[0]
+    assert matched_tensor1.strides[1] != matched_tensor2.strides[1]
     # s should be only remapped once
-    assert matched_buffer1.strides[0] == matched_buffer1.strides[1]
-    assert matched_buffer2.strides[0] == matched_buffer2.strides[1]
+    assert matched_tensor1.strides[0] == matched_tensor1.strides[1]
+    assert matched_tensor2.strides[0] == matched_tensor2.strides[1]
     # Element-offset var e should be remapped
-    assert matched_buffer1.elem_offset != matched_buffer2.elem_offset
+    assert matched_tensor1.elem_offset != matched_tensor2.elem_offset
 
 
-def test_undefined_buffer():
+def test_undefined_tensor():
     @Ts.function
     def access_alloc():
         # Var A should be remapped
@@ -151,11 +151,11 @@ def test_undefined_buffer():
     # AllocTensor is now a flat statement in SeqStmt
     assert f1.body.seq[0].var.data != f2.body.seq[0].var.data
 
-    def _get_tensor_store_buffer(f):
+    def _get_tensor_store_tensor(f):
         # SeqStmt: [AllocTensor, Evaluate, For]; For body has the TensorStore
         return f.body.seq[2].body[0].dest
 
-    _check_buffer_decl(_get_tensor_store_buffer(f1), _get_tensor_store_buffer(f2))
+    _check_tensor_decl(_get_tensor_store_tensor(f1), _get_tensor_store_tensor(f2))
 
 
 def test_symbolic_func():
@@ -172,7 +172,7 @@ def test_symbolic_func():
     tvm.ir.assert_structural_equal(f1, f2)
 
 
-def test_buffer_params():
+def test_tensor_params():
     m = T.dynamic("m")
 
     @Ts.function
@@ -188,7 +188,7 @@ def test_buffer_params():
     assert f1.params[1].shape[0] != f2.params[1].shape[0]
 
 
-def test_compound_buffer_param_shape_var():
+def test_compound_tensor_param_shape_var():
     n = tvm.tirx.Var("n", "int32")
     A = tvm.tirx.decl_tensor((tvm.tirx.max(n, 1),), layout=None)
     f1 = tvm.tirx.Function([A], tvm.ir.Evaluate(n))

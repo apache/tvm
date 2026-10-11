@@ -34,7 +34,7 @@ from tvm.script import tirx as T
 @Ts.function
 def elementwise(A: T.Tensor((128, 128), 'float32'), C: T.Tensor((128, 128), 'float32')) -> None:
 
-    B = Ts.sblock_alloc_buffer((128, 128), "float32")
+    B = Ts.sblock_alloc_tensor((128, 128), "float32")
     for i, j in T.grid(128, 128):
         with Ts.sblock("B"):
             vi, vj = Ts.axis.remap("SS", [i, j])
@@ -171,7 +171,7 @@ def multi_producer_consumer(A: T.Tensor((128,)), B: T.Tensor((128,))) -> None:
 @Ts.function
 def elementwise_affine_producer(A: T.Tensor((128, 128), 'float32'), C: T.Tensor((128, 128), 'float32')) -> None:
 
-    B = Ts.sblock_alloc_buffer((128, 128), "float32")
+    B = Ts.sblock_alloc_tensor((128, 128), "float32")
     for i, j, k, l in T.grid(16, 2, 32, 16):
         with Ts.sblock("B"):
             vi = Ts.axis.S(128, i * 8 + j * 4 + k // 8)
@@ -185,7 +185,7 @@ def elementwise_affine_producer(A: T.Tensor((128, 128), 'float32'), C: T.Tensor(
 @Ts.function
 def elementwise_subblock(A: T.Tensor((128, 128), 'float32'), C: T.Tensor((128, 128), 'float32')) -> None:
 
-    B = Ts.sblock_alloc_buffer((128, 128), "float32")
+    B = Ts.sblock_alloc_tensor((128, 128), "float32")
     for i, j in T.grid(32, 32):
         with Ts.sblock("B"):
             vi, vj = Ts.axis.remap("SS", [i, j])
@@ -203,7 +203,7 @@ def elementwise_subblock(A: T.Tensor((128, 128), 'float32'), C: T.Tensor((128, 1
 @Ts.function
 def elementwise_subblock_uncovered(A: T.Tensor((128, 128), 'float32'), C: T.Tensor((128, 128), 'float32')) -> None:
 
-    B = Ts.sblock_alloc_buffer((128, 128), "float32")
+    B = Ts.sblock_alloc_tensor((128, 128), "float32")
     for i, j in T.grid(32, 32):
         with Ts.sblock("B"):
             vi, vj = Ts.axis.remap("SS", [i, j])
@@ -221,7 +221,7 @@ def elementwise_subblock_uncovered(A: T.Tensor((128, 128), 'float32'), C: T.Tens
 @Ts.function
 def bound_to_thread(A: T.Tensor([128, 128]), C: T.Tensor([128, 128])) -> None:
 
-    B = Ts.sblock_alloc_buffer([128, 128], scope="shared")
+    B = Ts.sblock_alloc_tensor([128, 128], scope="shared")
     for i in T.thread_binding(0, 128, thread="threadIdx.x"):
         for j in T.serial(0, 128):
             with Ts.sblock("B"):
@@ -235,7 +235,7 @@ def bound_to_thread(A: T.Tensor([128, 128]), C: T.Tensor([128, 128])) -> None:
 @Ts.function
 def equal_ranked_threads(A: T.Tensor([128, 128]), C: T.Tensor([128, 128])) -> None:
 
-    B = Ts.sblock_alloc_buffer([128, 128], scope="shared")
+    B = Ts.sblock_alloc_tensor([128, 128], scope="shared")
     for i_o in T.thread_binding(0, 16, thread="threadIdx.x"):
         for i_i in T.thread_binding(0, 8, thread="threadIdx.y"):
             for j in T.serial(0, 128):
@@ -252,7 +252,7 @@ def equal_ranked_threads(A: T.Tensor([128, 128]), C: T.Tensor([128, 128])) -> No
 @Ts.function
 def warp_memory(A: T.Tensor([128, 128]), C: T.Tensor([128, 128])) -> None:
 
-    B = Ts.sblock_alloc_buffer([128, 4, 32], scope="warp")
+    B = Ts.sblock_alloc_tensor([128, 4, 32], scope="warp")
     for i_o in T.thread_binding(0, 4, thread="threadIdx.y"):
         for i_i in T.thread_binding(0, 32, thread="threadIdx.x"):
             for j in T.serial(0, 128):
@@ -267,7 +267,7 @@ def warp_memory(A: T.Tensor([128, 128]), C: T.Tensor([128, 128])) -> None:
 @Ts.function
 def warp_memory_negative(A: T.Tensor([128, 128]), C: T.Tensor([128, 128])) -> None:
 
-    B = Ts.sblock_alloc_buffer([128, 4, 32], scope="warp")
+    B = Ts.sblock_alloc_tensor([128, 4, 32], scope="warp")
     for i_o in T.thread_binding(0, 4, thread="threadIdx.y"):
         for i_i in T.thread_binding(0, 32, thread="threadIdx.x"):
             for j in T.serial(0, 128):
@@ -285,7 +285,7 @@ def warp_memory_negative(A: T.Tensor([128, 128]), C: T.Tensor([128, 128])) -> No
 @Ts.function
 def non_perfect_tiling_cache(X: T.Tensor([224, 224], dtype='float32'), Y: T.Tensor([224, 224], dtype='float32')) -> None:
 
-    cache = Ts.sblock_alloc_buffer([224, 224], dtype="float32")
+    cache = Ts.sblock_alloc_tensor([224, 224], dtype="float32")
     for hh_0, ww_0 in T.grid(28, 28):
         for ax0 in T.serial(0, 10):
             for ax1 in T.serial(0, 10):
@@ -336,11 +336,11 @@ def matmul_relu_padding(A: T.Tensor((127, 127), "float16"), B: T.Tensor((127, 12
     T.func_attr({"global_symbol": "main", "tirx.noalias": True})
     # body
     # with Ts.sblock("root")
-    C = Ts.sblock_alloc_buffer([127, 127], dtype="float32")
-    A_reindex = Ts.sblock_alloc_buffer([128, 128], dtype="float16")
-    B_reindex = Ts.sblock_alloc_buffer([128, 128], dtype="float16")
-    C_reindex_shared = Ts.sblock_alloc_buffer([128, 128], dtype="float32", scope="shared")
-    C_reindex_shared_wmma_accumulator = Ts.sblock_alloc_buffer([128, 128], dtype="float32", scope="wmma.accumulator")
+    C = Ts.sblock_alloc_tensor([127, 127], dtype="float32")
+    A_reindex = Ts.sblock_alloc_tensor([128, 128], dtype="float16")
+    B_reindex = Ts.sblock_alloc_tensor([128, 128], dtype="float16")
+    C_reindex_shared = Ts.sblock_alloc_tensor([128, 128], dtype="float32", scope="shared")
+    C_reindex_shared_wmma_accumulator = Ts.sblock_alloc_tensor([128, 128], dtype="float32", scope="wmma.accumulator")
     for ax0, ax1, ax2 in T.grid(128, 1, 128):
         with Ts.sblock("A_reindex"):
             v0, v1, v2 = Ts.axis.remap("SSS", [ax0, ax1, ax2])

@@ -41,7 +41,7 @@ def matmul_clipping_before(
     upper: T.float32,
 ) -> None:
     """Original function with separate reduction and clipping epilogue blocks."""
-    temp = Ts.sblock_alloc_buffer((16, 16), dtype="float32")
+    temp = Ts.sblock_alloc_tensor((16, 16), dtype="float32")
     for i, j, k in T.grid(16, 16, 16):
         with Ts.sblock("matmul"):
             vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
@@ -64,7 +64,7 @@ def matmul_clipping_expected(
     upper: T.float32,
 ) -> None:
     """Expected function after fusion (Clipping)."""
-    temp = Ts.sblock_alloc_buffer((16, 16), dtype="float32")
+    temp = Ts.sblock_alloc_tensor((16, 16), dtype="float32")
     for i, j, k in T.grid(16, 16, 16):
         with Ts.sblock("matmul"):
             vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
@@ -90,7 +90,7 @@ def matmul_clipping_before_per_iteration(
     D: T.Tensor((16, 16), "float32"),
 ) -> None:
     """Original function with per-iteration clipping (same semantics as fused)."""
-    temp = Ts.sblock_alloc_buffer((16, 16), dtype="float32")
+    temp = Ts.sblock_alloc_tensor((16, 16), dtype="float32")
     lower = T.float32(-5.0)
     upper = T.float32(5.0)
     for i, j in T.grid(16, 16):
@@ -164,7 +164,7 @@ def matmul_clipping_multiple_epilogue_before(
     upper: T.float32,
 ) -> None:
     """Original function with separate reduction and multiple epilogue blocks (one with clipping, one without)."""
-    temp = Ts.sblock_alloc_buffer((16, 16), dtype="float32")
+    temp = Ts.sblock_alloc_tensor((16, 16), dtype="float32")
     for i, j, k in T.grid(16, 16, 16):
         with Ts.sblock("matmul"):
             vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
@@ -193,7 +193,7 @@ def matmul_clipping_multiple_epilogue_expected(
     upper: T.float32,
 ) -> None:
     """Expected function after fusion (Clipping) with multiple epilogue blocks."""
-    temp = Ts.sblock_alloc_buffer((16, 16), dtype="float32")
+    temp = Ts.sblock_alloc_tensor((16, 16), dtype="float32")
     for i, j, k in T.grid(16, 16, 16):
         with Ts.sblock("matmul"):
             vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
@@ -215,7 +215,7 @@ def test_matmul_clipping_multiple_epilogue():
 
     Following the same pattern as test_fuse_reduction_epilogue_multiple_epilogue,
     this test verifies that fusion works correctly when there are multiple
-    epilogue blocks. The temp buffer is kept because the second epilogue block
+    epilogue blocks. The temp tensor is kept because the second epilogue block
     still needs it.
     """
     sch = tvm.s_tir.Schedule(matmul_clipping_multiple_epilogue_before, debug_mask="all")
@@ -251,7 +251,7 @@ def test_matmul_clipping_commutative_variants(pattern_func):
         B: T.Tensor((8, 8), "float32"),
         D: T.Tensor((8, 8), "float32"),
     ) -> None:
-        temp = Ts.sblock_alloc_buffer((8, 8), dtype="float32")
+        temp = Ts.sblock_alloc_tensor((8, 8), dtype="float32")
         for i, j, k in T.grid(8, 8, 8):
             with Ts.sblock("matmul"):
                 vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])

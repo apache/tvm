@@ -167,12 +167,12 @@ ffi::Array<PrimExpr> GetMapping(const Stmt& stmt, const ConstraintSet& constrain
   while (const ForNode* loop = body.as<ForNode>()) {
     body = loop->body->size() == 1 ? loop->body->seq[0] : loop->body;
   }
-  const TensorStoreNode* buf_store = TVM_TYPE_AS(body, TensorStoreNode);
+  const TensorStoreNode* tensor_store = TVM_TYPE_AS(body, TensorStoreNode);
   TensorRegion write_region = constraints.write_region;
-  const ffi::Array<PrimExpr>& write_index = buf_store->indices;
+  const ffi::Array<PrimExpr>& write_index = tensor_store->indices;
   TVM_FFI_ICHECK(write_region->region.size() == write_index.size() &&
                  write_region->source.as_or_throw<tvm::tirx::TensorVar>().same_as(
-                     buf_store->dest.as_or_throw<TensorVar>()));
+                     tensor_store->dest.as_or_throw<TensorVar>()));
   ffi::Array<PrimExpr> result;
   sym::Analyzer analyzer;
   for (int i = 0; i < static_cast<int>(write_region->region.size()); i++) {
@@ -209,7 +209,7 @@ Stmt InverseMapping::Rewrite(const Stmt& stmt, const ConstraintSet& constraints,
   ffi::Array<PrimExpr> read_index;
   ffi::Array<PrimVar> new_loop_vars;
   ffi::Map<Var, PrimExpr> substitute_map;
-  // Step 3.1 construct target buffer indices
+  // Step 3.1 construct target tensor indices
   for (int i = 0, j = 0; i < static_cast<int>(write_region->region.size()); i++) {
     if (IsOne(write_region->region[i]->extent)) {
       write_index.push_back(write_region->region[i]->min);
@@ -225,7 +225,7 @@ Stmt InverseMapping::Rewrite(const Stmt& stmt, const ConstraintSet& constraints,
     if (auto repl = substitute_map.Get(var)) return ffi::Any(*std::move(repl));
     return ffi::Unchanged();
   };
-  // Step 3.2 construct source buffer indices
+  // Step 3.2 construct source tensor indices
   for (int i = 0, j = 0; i < static_cast<int>(read_region->region.size()); i++) {
     if (IsOne(read_region->region[i]->extent)) {
       read_index.push_back(read_region->region[i]->min);
@@ -236,11 +236,11 @@ Stmt InverseMapping::Rewrite(const Stmt& stmt, const ConstraintSet& constraints,
       read_index.push_back(read_region->region[i]->min + inverse);
     }
   }
-  TensorLoad new_buf_load =
+  TensorLoad new_tensor_load =
       MakeTensorLoad(read_region->source.as_or_throw<tvm::tirx::TensorVar>(), read_index);
-  TensorStore new_buf_store = TensorStore(write_region->source.as_or_throw<tvm::tirx::TensorVar>(),
-                                          write_index, new_buf_load);
-  Stmt ret = new_buf_store;
+  TensorStore new_tensor_store = TensorStore(
+      write_region->source.as_or_throw<tvm::tirx::TensorVar>(), write_index, new_tensor_load);
+  Stmt ret = new_tensor_store;
   // Step 3.3 construct loop body
   for (int i = static_cast<int>(new_loop_vars.size()) - 1; i >= 0; i--) {
     PrimExpr extent = write_region->region[i]->extent;

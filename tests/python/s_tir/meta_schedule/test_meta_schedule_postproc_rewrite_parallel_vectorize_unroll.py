@@ -93,7 +93,7 @@ def before_matmul_vectorize(
         Ts.reads()
         Ts.writes()
         Ts.sblock_attr({"meta_schedule.vectorize":64})
-        T_matmul_NT_global = Ts.sblock_alloc_buffer([64, 768], dtype="float32")
+        T_matmul_NT_global = Ts.sblock_alloc_tensor([64, 768], dtype="float32")
         for i0_0, i1_0, i0_1, i1_1 in T.grid(1, 16, 1, 3):
             for i2_0, i0_2, i1_2, i2_1, i0_3, i1_3 in T.grid(48, 8, 1, 16, 8, 16):
                 with Ts.sblock("T_matmul_NT"):
@@ -119,7 +119,7 @@ def after_matmul_vectorize(
     placeholder_1: T.Tensor((768, 768), "float32"),
     T_matmul_NT: T.Tensor((64, 768), "float32"),
 ) -> None:
-    T_matmul_NT_global = Ts.sblock_alloc_buffer([64, 768], dtype="float32")
+    T_matmul_NT_global = Ts.sblock_alloc_tensor([64, 768], dtype="float32")
     for i0_0, i1_0, i0_1, i1_1 in T.grid(1, 16, 1, 3):
         for i2_0, i0_2, i1_2, i2_1, i0_3 in T.grid(48, 8, 1, 16, 8):
             for i1_3_fused in T.vectorized(16):
@@ -224,8 +224,8 @@ def test_no_unroll_for_spatial_block():
     def layer_norm(A: T.Tensor((1, 4, 4, 32), "float32"), B: T.Tensor((4, 4, 32), "float32"), C: T.Tensor((4, 4, 32), "float32"), T_layer_norm: T.Tensor((1, 4, 4, 32), "float32")):
         with Ts.sblock("root"):
             Ts.sblock_attr({"meta_schedule.unroll_explicit": 512})
-            A_red_temp_v0 = Ts.sblock_alloc_buffer((1,))
-            A_red_temp_v1 = Ts.sblock_alloc_buffer((1,))
+            A_red_temp_v0 = Ts.sblock_alloc_tensor((1,))
+            A_red_temp_v1 = Ts.sblock_alloc_tensor((1,))
             for ax0, k1, k2, k3 in T.grid(1, 4, 4, 32):
                 with Ts.sblock("A_red_temp"):
                     v_ax0, v_k1, v_k2, v_k3 = Ts.axis.remap("SRRR", [ax0, k1, k2, k3])
@@ -248,8 +248,8 @@ def test_no_unroll_for_spatial_block():
     @Ts.function
     def expected(A: T.Tensor((1, 4, 4, 32), "float32"), B: T.Tensor((4, 4, 32), "float32"), C: T.Tensor((4, 4, 32), "float32"), T_layer_norm: T.Tensor((1, 4, 4, 32), "float32")):
         with Ts.sblock("root"):
-            A_red_temp_v0 = Ts.sblock_alloc_buffer((1,))
-            A_red_temp_v1 = Ts.sblock_alloc_buffer((1,))
+            A_red_temp_v0 = Ts.sblock_alloc_tensor((1,))
+            A_red_temp_v1 = Ts.sblock_alloc_tensor((1,))
             for ax0 in T.serial(1, annotations={"auto_unroll_max_step": 512, "unroll_explicit": 1}):
                 for k1, k2, k3 in T.grid(4, 4, 32):
                     with Ts.sblock("A_red_temp"):

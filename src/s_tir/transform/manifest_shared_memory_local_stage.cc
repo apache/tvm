@@ -24,7 +24,7 @@
  * This pass finds the cache_read stage on the shared memory, and create another intermediate stage
  * to store the data into local memory first, and then copy the data from local memory to the shared
  * memory. This is similar to the schedule primitive cache_read, but it bypasses the limitation
- * of requiring buffer access to be contiguous in each dimension.
+ * of requiring tensor access to be contiguous in each dimension.
  */
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_mutate.h>
@@ -46,8 +46,8 @@ namespace tvm {
 namespace s_tir {
 using namespace tvm::tirx;
 
-/*! \brief Rewriter for the block storing to the target buffer. Create an intermediate cache stage
- * to store the result. Rewrite the original block to load from the intermediate buffer.
+/*! \brief Rewriter for the block storing to the target tensor. Create an intermediate cache stage
+ * to store the result. Rewrite the original block to load from the intermediate tensor.
  */
 class IntermediateStageRewriter {
  public:
@@ -64,31 +64,31 @@ class IntermediateStageRewriter {
         ValueError)
         << "Expect the body of the block to be TensorStore to shared memory.";
 
-    const TensorVar& target_buffer = store->dest.as_or_throw<TensorVar>();
+    const TensorVar& target_tensor = store->dest.as_or_throw<TensorVar>();
 
     // Step 0: Collect relaxed loops
-    std::vector<const ForNode*> relaxed_loops = CollectRelaxedOuterLoops(block, target_buffer);
+    std::vector<const ForNode*> relaxed_loops = CollectRelaxedOuterLoops(block, target_tensor);
 
-    // Step 1: Create buffer for the local stage
-    auto [new_buffer, buffer_indices] = CreateIntermediateBuffer(relaxed_loops, target_buffer);
+    // Step 1: Create tensor for the local stage
+    auto [new_tensor, tensor_indices] = CreateIntermediateTensor(relaxed_loops, target_tensor);
 
     // Step 2: Create the local stage block
-    Stmt local_stage = MakeLocalStage(block, new_buffer, buffer_indices, relaxed_loops, store);
+    Stmt local_stage = MakeLocalStage(block, new_tensor, tensor_indices, relaxed_loops, store);
 
-    // Step 3: Create TensorLoad from the intermediate buffer
-    TensorLoad new_buffer_load = MakeTensorLoad(new_buffer, buffer_indices);
+    // Step 3: Create TensorLoad from the intermediate tensor
+    TensorLoad new_tensor_load = MakeTensorLoad(new_tensor, tensor_indices);
     TensorStore new_tensor_store = ffi::GetRef<TensorStore>(store);
-    new_tensor_store.CopyOnWrite()->value = new_buffer_load;
+    new_tensor_store.CopyOnWrite()->value = new_tensor_load;
     SBlock new_block = ffi::GetRef<SBlock>(block);
     new_block.CopyOnWrite()->body = std::move(new_tensor_store);
 
-    return {target_buffer, new_buffer, new_block, local_stage};
+    return {target_tensor, new_tensor, new_block, local_stage};
   }
 
  private:
   /*! \brief Collect relaxed outer loops from innermost to outermost */
   std::vector<const ForNode*> CollectRelaxedOuterLoops(const SBlockNode* block,
-                                                       const TensorVar& target_buffer) {
+                                                       const TensorVar& target_tensor) {
     std::vector<const ForNode*> relaxed_loops;
     for (int n = static_cast<int>(ancestor_loop_or_blocks_.size()) - 1, i = n - 1; i >= 0; --i) {
       const Stmt& ancestor = ancestor_loop_or_blocks_[i];
@@ -117,9 +117,9 @@ class IntermediateStageRewriter {
         TVM_FFI_ICHECK(ancestor_block_realize != nullptr);
         const SBlockNode* ancestor_block = ancestor_block_realize->block.get();
         auto it = std::find_if(
-            ancestor_block->alloc_buffers.begin(), ancestor_block->alloc_buffers.end(),
-            [&target_buffer](const TensorVar& buffer) { return buffer.same_as(target_buffer); });
-        TVM_FFI_CHECK(it != ancestor_block->alloc_buffers.end(), ValueError)
+            ancestor_block->alloc_tensors.begin(), ancestor_block->alloc_tensors.end(),
+            [&target_tensor](const TensorVar& tensor) { return tensor.same_as(target_tensor); });
+        TVM_FFI_CHECK(it != ancestor_block->alloc_tensors.end(), ValueError)
             << "Expect the shared memory allocation to be in the parent block.";
         break;
       }
@@ -128,16 +128,16 @@ class IntermediateStageRewriter {
   }
 
   /*! \brief Create the intermediate stage. */
-  Stmt MakeLocalStage(const SBlockNode* block, const TensorVar& new_buffer,
+  Stmt MakeLocalStage(const SBlockNode* block, const TensorVar& new_tensor,
                       ffi::Array<PrimExpr> local_stage_indices,
                       std::vector<const ForNode*> relaxed_loops, const TensorStoreNode* store) {
-    // Step 0: Create the body of the local stage, which is TensorStore to the intermediate buffer.
-    Stmt local_stage = TensorStore(new_buffer, local_stage_indices, store->value);
+    // Step 0: Create the body of the local stage, which is TensorStore to the intermediate tensor.
+    Stmt local_stage = TensorStore(new_tensor, local_stage_indices, store->value);
 
     // Step 1: Make block and block realize
-    TensorRegion write_buffer_region = BufferRegionFromPoint(new_buffer, local_stage_indices);
+    TensorRegion write_tensor_region = TensorRegionFromPoint(new_tensor, local_stage_indices);
     local_stage =
-        SBlock(/*iter_vars=*/{}, /*reads=*/block->reads, /*writes=*/{write_buffer_region}, "",
+        SBlock(/*iter_vars=*/{}, /*reads=*/block->reads, /*writes=*/{write_tensor_region}, "",
                /*body=*/std::move(local_stage));
     local_stage = SBlockRealize(
         /*iter_values=*/{},
@@ -162,25 +162,25 @@ class IntermediateStageRewriter {
     return local_stage;
   }
 
-  /*! \brief Create the intermediate buffer with the extents of the relaxed outer loops. */
-  std::pair<TensorVar, ffi::Array<PrimExpr>> CreateIntermediateBuffer(
-      const std::vector<const ForNode*> relaxed_loops, const TensorVar& buffer) const {
-    ffi::Array<PrimExpr> buffer_indices;
-    ffi::Array<PrimExpr> new_buffer_shape;
+  /*! \brief Create the intermediate tensor with the extents of the relaxed outer loops. */
+  std::pair<TensorVar, ffi::Array<PrimExpr>> CreateIntermediateTensor(
+      const std::vector<const ForNode*> relaxed_loops, const TensorVar& tensor) const {
+    ffi::Array<PrimExpr> tensor_indices;
+    ffi::Array<PrimExpr> new_tensor_shape;
 
-    // Create the intermediate buffer for the local stage. The shape of the new buffer is the
+    // Create the intermediate tensor for the local stage. The shape of the new tensor is the
     // extents of the relaxed outer loops.
 
     for (auto it = relaxed_loops.rbegin(); it != relaxed_loops.rend(); ++it) {
       const ForNode* relaxed_loop = *it;
-      buffer_indices.push_back(relaxed_loop->min + relaxed_loop->loop_var);
-      new_buffer_shape.push_back(relaxed_loop->extent);
+      tensor_indices.push_back(relaxed_loop->min + relaxed_loop->loop_var);
+      new_tensor_shape.push_back(relaxed_loop->extent);
     }
-    TensorVar new_buffer = WithScope(buffer, "local");
-    ffi::ObjectPtr<TensorTypeNode> type = CopyTensorType(new_buffer);
-    type->shape = new_buffer_shape;
-    new_buffer = RebuildTensorVar(new_buffer, std::move(type));
-    return {new_buffer, buffer_indices};
+    TensorVar new_tensor = WithScope(tensor, "local");
+    ffi::ObjectPtr<TensorTypeNode> type = CopyTensorType(new_tensor);
+    type->shape = new_tensor_shape;
+    new_tensor = RebuildTensorVar(new_tensor, std::move(type));
+    return {new_tensor, tensor_indices};
   }
 
   const std::vector<Stmt>& ancestor_loop_or_blocks_;
@@ -212,38 +212,38 @@ class SharedMemoryLocalStageInserter : public StmtExprMutator {
   }
 
   UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) final {
-    if (op->annotations.count(tvm::s_tir::attr::kManifestSharedMemoryLocalStage)) {
-      // Rewrite the shared memory access to load from the intermediate buffer.
+    if (op->annotations.count(s_tir::attr::kManifestSharedMemoryLocalStage)) {
+      // Rewrite the shared memory access to load from the intermediate tensor.
       // The annotated block must be a leaf block (will be checked during rewriting). No need to
       // visit its body recursively.
 
       IntermediateStageRewriter rewriter(ancestor_loop_or_blocks_);
-      auto [target_buffer, new_buffer, new_block, local_stage] = rewriter.Rewrite(op);
-      buffer_remap_.Set(target_buffer, new_buffer);
+      auto [target_tensor, new_tensor, new_block, local_stage] = rewriter.Rewrite(op);
+      tensor_remap_.Set(target_tensor, new_tensor);
 
-      new_block.CopyOnWrite()->annotations.erase(tvm::s_tir::attr::kManifestSharedMemoryLocalStage);
-      buffer_local_stage_.Set(target_buffer, local_stage);
-      target_buffers_.push_back(target_buffer);
+      new_block.CopyOnWrite()->annotations.erase(s_tir::attr::kManifestSharedMemoryLocalStage);
+      tensor_local_stage_.Set(target_tensor, local_stage);
+      target_tensors_.push_back(target_tensor);
 
       return new_block;
     }
 
-    std::unordered_set<TensorVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> allocated_buffers(
-        op->alloc_buffers.begin(), op->alloc_buffers.end());
+    std::unordered_set<TensorVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> allocated_tensors(
+        op->alloc_tensors.begin(), op->alloc_tensors.end());
 
     // Visit children and insert local stages (if any) to the proper location.
-    ffi::Array<TensorVar> new_alloc_buffers;
+    ffi::Array<TensorVar> new_alloc_tensors;
     ffi::Array<Stmt> new_seq;
 
-    // Helper function to check if the subtree (body of the block) contains any target buffers.
-    // If so, the allocated intermediate buffer and the local stage should be lifted to the current
+    // Helper function to check if the subtree (body of the block) contains any target tensors.
+    // If so, the allocated intermediate tensor and the local stage should be lifted to the current
     // block.
     auto f_check_subtree = [&](int start, int end) {
       for (int i = start; i < end; ++i) {
-        const TensorVar& buffer = target_buffers_[i];
-        if (allocated_buffers.count(buffer)) {
-          new_seq.push_back(buffer_local_stage_.at(buffer));
-          new_alloc_buffers.push_back(buffer_remap_.at(buffer));
+        const TensorVar& tensor = target_tensors_[i];
+        if (allocated_tensors.count(tensor)) {
+          new_seq.push_back(tensor_local_stage_.at(tensor));
+          new_alloc_tensors.push_back(tensor_remap_.at(tensor));
         }
       }
     };
@@ -251,24 +251,24 @@ class SharedMemoryLocalStageInserter : public StmtExprMutator {
     // Visit each body statement and insert its local stage immediately before it.
     bool changed = false;
     for (const Stmt& stmt : op->body->seq) {
-      int subtree_start = target_buffers_.size();
+      int subtree_start = target_tensors_.size();
       auto result = Mutate(stmt);
       bool unchanged = result.UnchangedOrSameAs(stmt);
       Stmt new_stmt = std::move(result).ValueOrUnchanged(stmt);
-      int subtree_end = target_buffers_.size();
+      int subtree_end = target_tensors_.size();
       f_check_subtree(subtree_start, subtree_end);
       new_seq.push_back(new_stmt);
       changed |= !unchanged;
     }
-    if (!changed && new_alloc_buffers.empty()) {
+    if (!changed && new_alloc_tensors.empty()) {
       return ffi::Unchanged();
     }
 
     SBlock new_block = ffi::GetRef<SBlock>(op);
     SBlockNode* new_block_node = new_block.CopyOnWrite();
-    // Add new buffer allocations if any.
-    if (new_alloc_buffers.size() > 0) {
-      new_block_node->alloc_buffers = Concat(new_block_node->alloc_buffers, new_alloc_buffers);
+    // Add new tensor allocations if any.
+    if (new_alloc_tensors.size() > 0) {
+      new_block_node->alloc_tensors = Concat(new_block_node->alloc_tensors, new_alloc_tensors);
     }
     new_block_node->body = SeqStmt(new_seq, op->body->loc);
     return new_block;
@@ -276,10 +276,10 @@ class SharedMemoryLocalStageInserter : public StmtExprMutator {
 
   std::vector<Stmt> ancestor_loop_or_blocks_;  // ancestor loops or block realize
   ffi::Map<TensorVar, TensorVar>
-      buffer_remap_;  // mapping from the target buffer to the intermediate buffer
+      tensor_remap_;  // mapping from the target tensor to the intermediate tensor
   ffi::Map<TensorVar, Stmt>
-      buffer_local_stage_;                // mapping from the target buffer to the local stage
-  ffi::Array<TensorVar> target_buffers_;  // the target buffers for rewriting
+      tensor_local_stage_;                // mapping from the target tensor to the local stage
+  ffi::Array<TensorVar> target_tensors_;  // the target tensors for rewriting
 };
 
 namespace transform {

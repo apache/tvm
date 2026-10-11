@@ -105,8 +105,8 @@ def _parse_seed(seed: int | None) -> int:
 def _get_sblock_default_dtype(block: SBlock) -> str:
     for i in block.iter_vars:
         return str(i.var.ty)
-    for buffer_region in list(block.reads) + list(block.writes):
-        for dom in buffer_region.region:
+    for tensor_region in list(block.reads) + list(block.writes):
+        for dom in tensor_region.region:
             return str(dom.min.ty)
     return "int64"
 
@@ -119,7 +119,7 @@ class Schedule(Object):
     preserve the semantics of computation. Some example of schedules:
     1) Split a loop into two;
     2) Reorder two loops;
-    3) Inline the computation of a specific buffer into its consumer
+    3) Inline the computation of a specific tensor into its consumer
 
     The schedule class stores auxiliary information to schedule correctly and efficiently.
 
@@ -579,7 +579,7 @@ class Schedule(Object):
     @type_checked
     def get_output_blocks(self, scope_block: SBlockRV | str) -> list[SBlockRV]:
         """Get the list of output blocks within the given scope
-        An output block is a block which has atleast one buffer being written
+        An output block is a block which has atleast one tensor being written
         to, but is not allocated within the Function
 
         Parameters
@@ -590,7 +590,7 @@ class Schedule(Object):
         Returns
         -------
         output_blocks : List[SBlockRV]
-            A list of all blocks that write to some output buffer
+            A list of all blocks that write to some output tensor
 
         """
         scope_block = self._normalize_block_arg(scope_block)
@@ -1360,25 +1360,25 @@ class Schedule(Object):
     def cache_read(
         self,
         block: SBlockRV | str,
-        read_buffer_index: int | str | Var,
+        read_tensor_index: int | str | Var,
         storage_scope: str,
         consumer_blocks: list[SBlockRV | str] | None = None,
     ) -> SBlockRV:
-        """Create a block that reads a buffer region into a read cache. It requires:
+        """Create a block that reads a tensor region into a read cache. It requires:
 
 
-        1) There is at most one block who write the buffer in the scope.
+        1) There is at most one block who write the tensor in the scope.
 
         2) The scope block have stage-pipeline property.
 
         Parameters
         ----------
         block : SBlockRV | str
-            The consumer block of the target buffer.
+            The consumer block of the target tensor.
 
-        buffer: int | str | Var
-            The index of the buffer in block's read region, the unique
-            name of a read buffer in the block, or a Var object
+        tensor: int | str | Var
+            The index of the tensor in block's read region, the unique
+            name of a read tensor in the block, or a Var object
             that is within the blocks read region.
 
         storage_scope: str
@@ -1425,7 +1425,7 @@ class Schedule(Object):
             def after_cache_read(A: T.Tensor((128, 128)), B: T.Tensor((128, 128))) -> None:
 
 
-                A_local = Ts.sblock_alloc_buffer((128, 128), scope="local")
+                A_local = Ts.sblock_alloc_tensor((128, 128), scope="local")
                 for i, j in T.grid(128, 128):
                     with Ts.sblock("A_local"):
                         vi, vj = Ts.axis.remap("SS", [i, j])
@@ -1443,37 +1443,37 @@ class Schedule(Object):
         consumer_blocks = [self._normalize_block_arg(b) for b in consumer_blocks]
         block = self._normalize_block_arg(block)
 
-        if not isinstance(read_buffer_index, int):
-            _, read_buffer_index, _ = self._normalize_buffer_arg(
-                block, read_buffer_index, required_buffer_type="read"
+        if not isinstance(read_tensor_index, int):
+            _, read_tensor_index, _ = self._normalize_tensor_arg(
+                block, read_tensor_index, required_tensor_type="read"
             )
         return _ffi_api.ScheduleCacheRead(  # type: ignore # pylint: disable=no-member
-            self, block, read_buffer_index, storage_scope, consumer_blocks
+            self, block, read_tensor_index, storage_scope, consumer_blocks
         )
 
     @type_checked
     def cache_write(
         self,
         block: SBlockRV | str,
-        write_buffer_index: int | str | Var,
+        write_tensor_index: int | str | Var,
         storage_scope: str,
         consumer_blocks: list[SBlockRV | str] | None = None,
     ) -> SBlockRV:
-        """Create a block that reads a buffer region into a write cache. It requires:
+        """Create a block that reads a tensor region into a write cache. It requires:
 
 
-        1) There is only one block who write the buffer in the scope.
+        1) There is only one block who write the tensor in the scope.
 
         2) The scope block have stage-pipeline property.
 
         Parameters
         ----------
         block : SBlockRV | str
-            The producer block of the target buffer.
+            The producer block of the target tensor.
 
-        write_buffer_index: int
-            The index of the buffer in block's write region, the unique
-            name of a write buffer in the block, or a Var object
+        write_tensor_index: int
+            The index of the tensor in block's write region, the unique
+            name of a write tensor in the block, or a Var object
             that is within the blocks write region.
 
         storage_scope: str
@@ -1481,7 +1481,7 @@ class Schedule(Object):
 
         consumer_blocks: Optional[List[SBlockRV | str]]
             An optional list of consumers that should read directly from the cache.
-            If not specified, all consumers will read from the original buffer.
+            If not specified, all consumers will read from the original tensor.
 
         Returns
         -------
@@ -1520,7 +1520,7 @@ class Schedule(Object):
             def after_cache_write(A: T.Tensor((128, 128)), B: T.Tensor((128, 128))) -> None:
 
 
-                B_local = Ts.sblock_alloc_buffer((128, 128), scope="local")
+                B_local = Ts.sblock_alloc_tensor((128, 128), scope="local")
                 for i, j in T.grid(128, 128):
                     with Ts.sblock("A_local"):
                         vi, vj = Ts.axis.remap("SS", [i, j])
@@ -1538,27 +1538,27 @@ class Schedule(Object):
         consumer_blocks = [self._normalize_block_arg(b) for b in consumer_blocks]
         block = self._normalize_block_arg(block)
 
-        if not isinstance(write_buffer_index, int):
-            _, write_buffer_index, _ = self._normalize_buffer_arg(
-                block, write_buffer_index, required_buffer_type="write"
+        if not isinstance(write_tensor_index, int):
+            _, write_tensor_index, _ = self._normalize_tensor_arg(
+                block, write_tensor_index, required_tensor_type="write"
             )
         return _ffi_api.ScheduleCacheWrite(  # type: ignore # pylint: disable=no-member
-            self, block, write_buffer_index, storage_scope, consumer_blocks
+            self, block, write_tensor_index, storage_scope, consumer_blocks
         )
 
     @type_checked
     def reindex_cache_read(
         self,
         block: SBlockRV | str,
-        read_buffer_index: int,
+        read_tensor_index: int,
         storage_scope: str,
         index_map: IndexMap | Callable,
     ) -> SBlockRV:
-        """Create a block that reads a buffer region into a read cache using customized
-        indices specified by index map. The read region of the buffer must be a single point.
+        """Create a block that reads a tensor region into a read cache using customized
+        indices specified by index map. The read region of the tensor must be a single point.
 
         The cache stage block follows the original order of loops and block itervars in the block.
-        If a block itervar does not appear in the buffer access region, it and its corresponding
+        If a block itervar does not appear in the tensor access region, it and its corresponding
         loop variables will be omitted. User can then use `transform_block_layout` primitive to
         reorder the block itervars and surrounding loops of the cache read/write block.
 
@@ -1568,13 +1568,13 @@ class Schedule(Object):
         Parameters
         ----------
         block : SBlockRV
-            The consumer block of the target buffer.
-        read_buffer_index: int
-            The index of the buffer in block's read region.
+            The consumer block of the target tensor.
+        read_tensor_index: int
+            The index of the tensor in block's read region.
         storage_scope: str
             The target storage scope.
         index_map: IndexMap | Callable
-            User defined indices to access allocated cache buffer, maps from block iter vars.
+            User defined indices to access allocated cache tensor, maps from block iter vars.
 
         Returns
         -------
@@ -1613,7 +1613,7 @@ class Schedule(Object):
             def after_reindex_cache_read(A: T.Tensor((128, 128)), B: T.Tensor((128, 128))) -> None:
 
 
-                A_local = Ts.sblock_alloc_buffer((128, 128), scope="local")
+                A_local = Ts.sblock_alloc_tensor((128, 128), scope="local")
                 for i, j in T.grid(128, 128):
                     with Ts.sblock("A_local"):
                         vi, vj = Ts.axis.remap("SS", [i, j])
@@ -1640,22 +1640,22 @@ class Schedule(Object):
                 index_dtype=_get_sblock_default_dtype(self.get(block)),
             )
         return _ffi_api.ScheduleReindexCacheRead(  # type: ignore # pylint: disable=no-member
-            self, block, read_buffer_index, storage_scope, index_map
+            self, block, read_tensor_index, storage_scope, index_map
         )
 
     @type_checked
     def reindex_cache_write(
         self,
         block: SBlockRV | str,
-        write_buffer_index: int,
+        write_tensor_index: int,
         storage_scope: str,
         index_map: Callable | IndexMap,
     ) -> SBlockRV:
-        r"""Create a block that reads a buffer region into a write cache using customized
-        indices specified by index map. The write region of the buffer must be a single point.
+        r"""Create a block that reads a tensor region into a write cache using customized
+        indices specified by index map. The write region of the tensor must be a single point.
 
         The cache stage block follows the original order of loops and block itervars in the block.
-        If a block itervar does not appear in the buffer access region, it and its corresponding
+        If a block itervar does not appear in the tensor access region, it and its corresponding
         loop variables will be omitted. User can then use `transform_block_layout` primitive to
         reorder the block itervars and surrounding loops of the cache read/write block.
 
@@ -1665,16 +1665,16 @@ class Schedule(Object):
         Parameters
         ----------
         block : SBlockRV | str
-            The consumer block of the target buffer.
-        write_buffer_index: int
-            The index of the buffer in block's write region.
+            The consumer block of the target tensor.
+        write_tensor_index: int
+            The index of the tensor in block's write region.
         storage_scope: str
             The target storage scope.
         index_map: Callable | IndexMap
-            User defined indices to access allocated cache buffer, maps from block iter vars.
+            User defined indices to access allocated cache tensor, maps from block iter vars.
         consumer_blocks: Optional[List[SBlockRV | str]]
             An optional list of consumers that should read directly from the cache.
-            If not specified, all consumers will read from the original buffer.
+            If not specified, all consumers will read from the original tensor.
 
         Returns
         -------
@@ -1714,7 +1714,7 @@ class Schedule(Object):
             def after_cache_write(A: T.Tensor((128, 128)), B: T.Tensor((64, 2, 128))) -> None:
 
 
-                B_local = Ts.sblock_alloc_buffer((128, 128), scope="local")
+                B_local = Ts.sblock_alloc_tensor((128, 128), scope="local")
                 for i, j in T.grid(128, 128):
                     with Ts.sblock("A_local"):
                         vi, vj = Ts.axis.remap("SS", [i, j])
@@ -1741,28 +1741,28 @@ class Schedule(Object):
                 index_dtype=_get_sblock_default_dtype(self.get(block)),
             )
         return _ffi_api.ScheduleReindexCacheWrite(  # type: ignore # pylint: disable=no-member
-            self, block, write_buffer_index, storage_scope, index_map
+            self, block, write_tensor_index, storage_scope, index_map
         )
 
     @type_checked
     def cache_inplace(
         self,
         block: SBlockRV | str,
-        read_buffer_index: int | str | Var,
+        read_tensor_index: int | str | Var,
         storage_scope: str,
     ) -> list[SBlockRV]:
-        """Create blocks that reads & write a buffer region into a cache block.
-        It requires the target block both read & write the target buffer.
+        """Create blocks that reads & write a tensor region into a cache block.
+        It requires the target block both read & write the target tensor.
         Mainly for inplace operation.
 
         Parameters
         ----------
         block : SBlockRV | str
-            The target block operates on the target buffer.
+            The target block operates on the target tensor.
 
-        read_buffer_index: int
-            The index of the buffer in block's read region, the unique
-            name of a read buffer in the block, or a Var object
+        read_tensor_index: int
+            The index of the tensor in block's read region, the unique
+            name of a read tensor in the block, or a Var object
             that is within the blocks read region.
 
         storage_scope: str
@@ -1803,7 +1803,7 @@ class Schedule(Object):
 
             @Ts.function
             def cache_inplace(data_io: T.Tensor(64, "int32")) -> None:
-                data_io_local = Ts.sblock_alloc_buffer([64], dtype="int32", scope="local")
+                data_io_local = Ts.sblock_alloc_tensor([64], dtype="int32", scope="local")
                 for i0 in T.serial(1):
                     for ax0 in T.serial(64):
                         with Ts.sblock("data_io_local"):
@@ -1825,12 +1825,12 @@ class Schedule(Object):
         """
         block = self._normalize_block_arg(block)
 
-        if not isinstance(read_buffer_index, int):
-            _, read_buffer_index, _ = self._normalize_buffer_arg(
-                block, read_buffer_index, required_buffer_type="read"
+        if not isinstance(read_tensor_index, int):
+            _, read_tensor_index, _ = self._normalize_tensor_arg(
+                block, read_tensor_index, required_tensor_type="read"
             )
         return _ffi_api.ScheduleCacheInplace(  # type: ignore # pylint: disable=no-member
-            self, block, read_buffer_index, storage_scope
+            self, block, read_tensor_index, storage_scope
         )
 
     @type_checked
@@ -1843,7 +1843,7 @@ class Schedule(Object):
         Parameters
         ----------
         block : SBlockRV | str
-            The target block operates on the target buffer.
+            The target block operates on the target tensor.
 
         storage_scope: str
             The storage scope of cached block.
@@ -1856,7 +1856,7 @@ class Schedule(Object):
         Returns
         -------
         cached_blocks : List[SBlockRV]
-            The blocks of the stage writing the cache buffers
+            The blocks of the stage writing the cache tensors
 
         Examples
         --------
@@ -1890,8 +1890,8 @@ class Schedule(Object):
             def resize_cache_index(
                 A: T.Tensor((1, 3, 40, 40), "float32"), B: T.Tensor((1, 3, 80, 80), "float32")
             ) -> None:
-                index_var_0 = Ts.sblock_alloc_buffer([80, 80], dtype="int32", strides=[1])
-                index_var_1 = Ts.sblock_alloc_buffer([80], dtype="int32", strides=[1])
+                index_var_0 = Ts.sblock_alloc_tensor([80, 80], dtype="int32", strides=[1])
+                index_var_1 = Ts.sblock_alloc_tensor([80], dtype="int32", strides=[1])
                 for ax0, ax1 in T.grid(80, 80):
                     with Ts.sblock("index_0"):
                         v0 = Ts.axis.spatial(80, ax0)
@@ -1920,36 +1920,36 @@ class Schedule(Object):
         )
 
     @type_checked
-    def reindex(self, block: SBlockRV | str, buffer: tuple[str, int] | str | Var) -> SBlockRV:
-        """Create a block that read/write a buffer region into a read/write cache with reindexing.
+    def reindex(self, block: SBlockRV | str, tensor: tuple[str, int] | str | Var) -> SBlockRV:
+        """Create a block that read/write a tensor region into a read/write cache with reindexing.
         The layout of the cache will be the same as by the iterators of the block that reads/writes
-        the buffer. It requires:
+        the tensor. It requires:
 
-        1) There is only one block who reads/writes the target buffer
-        2) There is only one buffer load/store of this buffer in the block
+        1) There is only one block who reads/writes the target tensor
+        2) There is only one tensor load/store of this tensor in the block
 
         Parameters
         ----------
         block : SBlockRV | str
 
-            The block that accesses the target buffer.  If a string,
+            The block that accesses the target tensor.  If a string,
             this must uniquely identify a block.
 
-        buffer: Union[Tuple[str,int], Var, str]
+        tensor: Union[Tuple[str,int], Var, str]
 
-            The buffer to be transformed, or a specification of how to
-            identify the buffer to be transformed.
+            The tensor to be transformed, or a specification of how to
+            identify the tensor to be transformed.
 
-            If `buffer` if a tuple of ``(str,int)``, the first item
+            If `tensor` if a tuple of ``(str,int)``, the first item
             should be either "read" or "write", and the second item is
             an index into the block's read or write regions.
 
-            If `buffer` is a string, it is the name of the buffer,
+            If `tensor` is a string, it is the name of the tensor,
             which must exist within the reads/writes of the block.  In
             addition, the reads/writes of the block may not contain
-            more than one buffer with this name.
+            more than one tensor with this name.
 
-            If `buffer` is a Var object, it must exist within the
+            If `tensor` is a Var object, it must exist within the
             reads/writes of the block.
 
         Returns
@@ -1991,7 +1991,7 @@ class Schedule(Object):
                 A: T.Tensor((128, 128), "float32"),
                 B: T.Tensor((128, 128), "float32")
             ) -> None:
-                A_reindex = Ts.sblock_alloc_buffer((128, 128), "float32")
+                A_reindex = Ts.sblock_alloc_tensor((128, 128), "float32")
                 for i, j in T.grid(128, 128):
                     with Ts.sblock("A_reindex"):
                         vi, vj = Ts.axis.remap("SS", [i, j])
@@ -2003,27 +2003,27 @@ class Schedule(Object):
 
         """
         block = self._normalize_block_arg(block)
-        buffer_index_type, buffer_index, _ = self._normalize_buffer_arg(block, buffer)
-        assert buffer_index_type in ["read", "write"], "Invalid buffer_index_type"
-        buffer_index_type_enum = 0 if buffer_index_type == "read" else 1
+        tensor_index_type, tensor_index, _ = self._normalize_tensor_arg(block, tensor)
+        assert tensor_index_type in ["read", "write"], "Invalid tensor_index_type"
+        tensor_index_type_enum = 0 if tensor_index_type == "read" else 1
         return _ffi_api.ScheduleReIndex(  # type: ignore # pylint: disable=no-member
-            self, block, buffer_index, buffer_index_type_enum
+            self, block, tensor_index, tensor_index_type_enum
         )
 
     ########## Schedule: Data movement ##########
 
     def read_at(
-        self, loop: LoopRV, block: SBlockRV, read_buffer_index: int, storage_scope: str
+        self, loop: LoopRV, block: SBlockRV, read_tensor_index: int, storage_scope: str
     ) -> SBlockRV:
         return _ffi_api.ScheduleReadAt(  # type: ignore # pylint: disable=no-member
-            self, loop, block, read_buffer_index, storage_scope
+            self, loop, block, read_tensor_index, storage_scope
         )
 
     def write_at(
-        self, loop: LoopRV, block: SBlockRV, write_buffer_index: int, storage_scope: str
+        self, loop: LoopRV, block: SBlockRV, write_tensor_index: int, storage_scope: str
     ) -> SBlockRV:
         return _ffi_api.ScheduleWriteAt(  # type: ignore # pylint: disable=no-member
-            self, loop, block, write_buffer_index, storage_scope
+            self, loop, block, write_tensor_index, storage_scope
         )
 
     ########## Schedule: Compute location ##########
@@ -2037,7 +2037,7 @@ class Schedule(Object):
         index: int = -1,
     ) -> None:
         """Compute-At. Move a producer block under the specific loop, and regenerate the
-        loops induced by the block so that the buffer region produced by the producer block could
+        loops induced by the block so that the tensor region produced by the producer block could
         cover those regions consumed by its consumer blocks under the given loop. It requires:
 
 
@@ -2049,7 +2049,7 @@ class Schedule(Object):
         dataflow condition. i.e. all the blocks in the scope block's subtree must be either
         complete block or reduction block
 
-        4) The block is not an output block with regard to the scope block, i.e. the buffers written
+        4) The block is not an output block with regard to the scope block, i.e. the tensors written
         by the block are allocated under the scope block
 
         5) All the consumers of the block are under the given loop
@@ -2083,7 +2083,7 @@ class Schedule(Object):
                 A: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "float32")
             ) -> None:
 
-                B = Ts.sblock_alloc_buffer((128, 128), "float32")
+                B = Ts.sblock_alloc_tensor((128, 128), "float32")
 
                 for i, j in T.grid(128, 128):
                     with Ts.sblock("B"):
@@ -2113,7 +2113,7 @@ class Schedule(Object):
                 A: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "float32")
             ) -> None:
 
-                B = Ts.sblock_alloc_buffer((128, 128), "float32")
+                B = Ts.sblock_alloc_tensor((128, 128), "float32")
 
                 for i in T.serial(0, 128):
                     for j in T.serial(0, 128):
@@ -2140,7 +2140,7 @@ class Schedule(Object):
         index: int = -1,
     ) -> None:
         """Reverse-Compute-At. Move a consumer block under the specific loop, and regenerate the
-        loops induced by the block so that the buffer region consumed by the consumer block could
+        loops induced by the block so that the tensor region consumed by the consumer block could
         cover those regions produced by its producer blocks under the given loop. It requires:
 
 
@@ -2183,7 +2183,7 @@ class Schedule(Object):
                 A: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "float32")
             ) -> None:
 
-                B = Ts.sblock_alloc_buffer((128, 128), "float32")
+                B = Ts.sblock_alloc_tensor((128, 128), "float32")
 
                 for i, j in T.grid(128, 128):
                     with Ts.sblock("B"):
@@ -2213,7 +2213,7 @@ class Schedule(Object):
                 A: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "float32")
             ) -> None:
 
-                B = Ts.sblock_alloc_buffer((128, 128), "float32")
+                B = Ts.sblock_alloc_tensor((128, 128), "float32")
 
                 for i in T.serial(0, 128):
                     for j in T.serial(0, 128):
@@ -2236,7 +2236,7 @@ class Schedule(Object):
         """Inline a block into its consumer(s). It requires:
 
 
-        1) The block is a complete non-root block, which only produces one buffer
+        1) The block is a complete non-root block, which only produces one tensor
 
         2) The block must not be the only leaf in the scope.
 
@@ -2261,7 +2261,7 @@ class Schedule(Object):
             @Ts.function
             def before_inline(A: T.Tensor((128, 128)), C: T.Tensor((128, 128))) -> None:
 
-                B = Ts.sblock_alloc_buffer((128, 128))
+                B = Ts.sblock_alloc_tensor((128, 128))
 
                 for i, j in T.grid(128, 128):
                     with Ts.sblock("B"):
@@ -2302,7 +2302,7 @@ class Schedule(Object):
         """Inline a block into its only producer. It requires:
 
 
-        1) The block is a complete non-root block, which only produces and consumes one buffer
+        1) The block is a complete non-root block, which only produces and consumes one tensor
 
         2) The block must not be the only leaf in the scope.
 
@@ -2330,7 +2330,7 @@ class Schedule(Object):
             @Ts.function
             def before_inline(A: T.Tensor((128, 128)), C: T.Tensor((128, 128))) -> None:
 
-                B = Ts.sblock_alloc_buffer((128, 128))
+                B = Ts.sblock_alloc_tensor((128, 128))
 
                 for i, j in T.grid(128, 128):
                     with Ts.sblock("B"):
@@ -2512,12 +2512,12 @@ class Schedule(Object):
         because it leads to potential race condition during accumulation.
         Alternatively, the reduction could be factorized on a loop with the following steps:
         - Step 1: evenly slice the reduction into `n` separate chunks, where `n` is the loop extent
-        - Step 2: compute the chunks separately and write the result into `n` intermediate buffers;
-        - Step 3: accumulate the `n` separate buffer into the result buffer.
+        - Step 2: compute the chunks separately and write the result into `n` intermediate tensors;
+        - Step 3: accumulate the `n` separate tensor into the result tensor.
         Note that the Step 2 above introduces opportunities for parallelization.
 
         RFactor is a schedule primitive that implements the transformation described above:
-        Given a block that writes to buffer `B`, it factorizes a loop of extent `n`.
+        Given a block that writes to tensor `B`, it factorizes a loop of extent `n`.
 
         For example, the pseudocode below accumulates `B[i] = sum(A[i, : , : ])`:
 
@@ -2529,9 +2529,9 @@ class Schedule(Object):
                         B[i] = B[i] + A[i, j, k]
 
         Suppose RFactor is applied on the innermost loop `k` and `factor_axis = 1`.
-        RFactor then creates an intermediate buffer and two blocks.
+        RFactor then creates an intermediate tensor and two blocks.
 
-        1. The intermediate buffer, or "rf-buffer" is a buffer of rank `ndim(B) + 1` and
+        1. The intermediate tensor, or "rf-tensor" is a tensor of rank `ndim(B) + 1` and
         size `size(B) * n`, whose shape expands from `shape(B)` by adding an axis of `n`
         at the position specified by `factor_axis`. For example,
 
@@ -2540,21 +2540,21 @@ class Schedule(Object):
             * shape(B) = [1, 2, 3], factor_axis = 2  => shape(B_rf) = [1, 2, n, 3]
             * shape(B) = [1, 2, 3], factor_axis = 3  => shape(B_rf) = [1, 2, 3, n]
 
-        2. The rfactor block, or "rf-block", is a block that writes to the `rf-buffer` without
+        2. The rfactor block, or "rf-block", is a block that writes to the `rf-tensor` without
         accumulating over the loop `k`, i.e. the loop `k` is converted from a reduction loop
         to a data parallel loop. In our example, the rf-block is:
 
         .. code-block:: python
 
-            B_rf = np.zeros((128, 128))     # the rf-buffer
+            B_rf = np.zeros((128, 128))     # the rf-tensor
             for k in range(128):            # loop k is converted to a data parallel loop
                 for i in range(128):        # loop i is a data parallel loop (unchanged)
                     for j in range(128):    # loop j is a reduction loop (unchanged)
                         B_rf[i, k] = B_rf[i, k] + A[i, j, k]
 
 
-        3. The write-back block, or `wb-block`, is a block that accumulates the rf-buffer into
-        the result buffer. All the reduction loops are removed except the loop `k` for accumulation.
+        3. The write-back block, or `wb-block`, is a block that accumulates the rf-tensor into
+        the result tensor. All the reduction loops are removed except the loop `k` for accumulation.
         In our example, the wb-block is:
 
         .. code-block:: python
@@ -2570,7 +2570,7 @@ class Schedule(Object):
         loop : LoopRV
             The loop outside block for which we want to do rfactor
         factor_axis : int
-            The position where the new dimension is placed in the new introduced rfactor buffer
+            The position where the new dimension is placed in the new introduced rfactor tensor
 
         Returns
         -------
@@ -2611,7 +2611,7 @@ class Schedule(Object):
             def after_rfactor(A: T.Tensor([128, 128, 128]), B: T.Tensor([128])) -> None:
 
 
-                B_rf = Ts.sblock_alloc_buffer([128, 128])
+                B_rf = Ts.sblock_alloc_tensor([128, 128])
                 for i2, ii, i in T.grid(128, 128, 128):
                     with Ts.sblock("B_rf"):
                         vi2, vii, vi = Ts.axis.remap("SSR", [i2, ii, i])
@@ -2640,13 +2640,13 @@ class Schedule(Object):
         6) The outermost reduction loop should have only one child block;
         7) An unary extent loop that is not bound to any reduction or data parallel variables in
         the block binding should not appear under some reduction loop;
-        8) The reduction block should write to only one buffer, and its init and body are both
+        8) The reduction block should write to only one tensor, and its init and body are both
         simple `TensorStore`s, and the pattern is registered as an associative reducer.
         The pre-defined patterns include: plus, multiplication, min and max;
         9) Each of the loops on top of the block cannot be bound to a data parallel and a
         reduction block binding at the same time;
         10) `factor_axis` should be in range `[-ndim(B) - 1, ndim(B)]`,
-        where `B` is the buffer that the reduction block writes to.
+        where `B` is the tensor that the reduction block writes to.
         Negative indexing is normalized according to numpy convention.
         """
         # pylint: disable-next=no-member
@@ -2656,7 +2656,7 @@ class Schedule(Object):
 
     @type_checked
     def storage_align(  # pylint: disable=too-many-arguments
-        self, block: SBlockRV | str, buffer_index: int, axis: int, factor: int, offset: int
+        self, block: SBlockRV | str, tensor_index: int, axis: int, factor: int, offset: int
     ) -> None:
         """Set alignment requirement for specific dimension such that
         stride[axis] == k * factor + offset for some k. This is useful to set memory layout for more
@@ -2666,9 +2666,9 @@ class Schedule(Object):
         Parameters
         ----------
         block : SBlockRV | str
-            The producer block of the buffer.
-        buffer_index : int
-            The index of the buffer in block's write region.
+            The producer block of the tensor.
+        tensor_index : int
+            The index of the tensor in block's write region.
         axis : int
             The dimension to be specified for alignment.
         factor : int
@@ -2686,7 +2686,7 @@ class Schedule(Object):
             @Ts.function
             def before_storage_align(A: T.Tensor((128, 128)), C: T.Tensor((128, 128))) -> None:
 
-                B = Ts.sblock_alloc_buffer((128, 128))
+                B = Ts.sblock_alloc_tensor((128, 128))
 
                 for i, j in T.grid(128, 128):
                     with Ts.sblock("B"):
@@ -2702,7 +2702,7 @@ class Schedule(Object):
         .. code-block:: python
 
             sch = tvm.s_tir.Schedule(before_storage_align)
-            sch.storage_align(sch.get_sblock("B"), buffer_index=0, axis=0, factor=128, offset=1)
+            sch.storage_align(sch.get_sblock("B"), tensor_index=0, axis=0, factor=128, offset=1)
             print(sch.mod["main"].script())
 
         After applying storage_align, the IR becomes:
@@ -2712,11 +2712,11 @@ class Schedule(Object):
             @Ts.function
             def after_storage_align(A: T.Tensor((128, 128)), C: T.Tensor((128, 128))) -> None:
 
-                B = Ts.sblock_alloc_buffer((128, 128))
+                B = Ts.sblock_alloc_tensor((128, 128))
 
                 for i, j in T.grid(128, 128):
                     with Ts.sblock("B"):
-                        Ts.sblock_attr({"buffer_dim_align": [[[0, 128, 1]]]})
+                        Ts.sblock_attr({"tensor_dim_align": [[[0, 128, 1]]]})
                         vi, vj = Ts.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vi, vj] * 2.0
                 for i, j in T.grid(128, 128):
@@ -2724,30 +2724,30 @@ class Schedule(Object):
                         vi, vj = Ts.axis.remap("SS", [i, j])
                         C[vi, vj] = B[vi, vj] + 1.0
 
-        After lowering passes, buffer B will have strides as [129, 1].
+        After lowering passes, tensor B will have strides as [129, 1].
 
         Note
         ----
-        Storage_align requires the buffer to be an intermediate buffer defined via `alloc_tensor`.
+        Storage_align requires the tensor to be an intermediate tensor defined via `alloc_tensor`.
         """
         block = self._normalize_block_arg(block)
         _ffi_api.ScheduleStorageAlign(  # type: ignore # pylint: disable=no-member
-            self, block, buffer_index, axis, factor, offset
+            self, block, tensor_index, axis, factor, offset
         )
 
     @type_checked
     def set_scope(
-        self, block: SBlockRV | str, buffer_index: int | str | Var, storage_scope: str
+        self, block: SBlockRV | str, tensor_index: int | str | Var, storage_scope: str
     ) -> None:
-        """Set the storage scope of a buffer, where the buffer is
+        """Set the storage scope of a tensor, where the tensor is
         specified by the a block and a write-index.
 
         Parameters
         ----------
         block : SBlockRV | str
-            The producer block of the buffer
-        buffer_index : int
-            The index of the buffer in block's write region
+            The producer block of the tensor
+        tensor_index : int
+            The index of the tensor in block's write region
         storage_scope : str
             The storage scope to be set
 
@@ -2762,7 +2762,7 @@ class Schedule(Object):
             def before_set_scope(
                 A: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "float32")
             ) -> None:
-                B = Ts.sblock_alloc_buffer((128, 128), dtype="float32")
+                B = Ts.sblock_alloc_tensor((128, 128), dtype="float32")
 
                 for i, j in T.grid(128, 128):
                     with Ts.sblock("B"):
@@ -2778,7 +2778,7 @@ class Schedule(Object):
         .. code-block:: python
 
             sch = tvm.s_tir.Schedule(before_set_scope)
-            sch.set_scope(sch.get_sblock("B"), buffer_index=0, storage_scope="shared")
+            sch.set_scope(sch.get_sblock("B"), tensor_index=0, storage_scope="shared")
             print(sch.mod["main"].script())
 
         After applying set_scope, the IR becomes:
@@ -2789,7 +2789,7 @@ class Schedule(Object):
             def after_set_scope(
                 A: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "float32")
             ) -> None:
-                B_shared = Ts.sblock_alloc_buffer([128, 128], dtype="float32", scope="shared")
+                B_shared = Ts.sblock_alloc_tensor([128, 128], dtype="float32", scope="shared")
 
                 for i, j in T.grid(128, 128):
                     with Ts.sblock("B"):
@@ -2802,20 +2802,20 @@ class Schedule(Object):
 
         Note
         ----
-        `set_scope` requires the buffer to be an intermediate buffer defined via `alloc_tensor`.
+        `set_scope` requires the tensor to be an intermediate tensor defined via `alloc_tensor`.
         """
         block = self._normalize_block_arg(block)
-        if not isinstance(buffer_index, int):
-            _, buffer_index, _ = self._normalize_buffer_arg(
-                block, buffer_index, required_buffer_type="write"
+        if not isinstance(tensor_index, int):
+            _, tensor_index, _ = self._normalize_tensor_arg(
+                block, tensor_index, required_tensor_type="write"
             )
         _ffi_api.ScheduleSetScope(  # type: ignore # pylint: disable=no-member
-            self, block, buffer_index, storage_scope
+            self, block, tensor_index, storage_scope
         )
 
     @type_checked
-    def unsafe_set_dtype(self, block: SBlockRV | str, buffer_index: int, dtype: str) -> None:
-        """Set the data type of a buffer, where the buffer is
+    def unsafe_set_dtype(self, block: SBlockRV | str, tensor_index: int, dtype: str) -> None:
+        """Set the data type of a tensor, where the tensor is
         specified by the a block and write-index.
 
         This schedule primitive is unsafe and may change the correctness of program because of
@@ -2824,9 +2824,9 @@ class Schedule(Object):
         Parameters
         ----------
         block : SBlockRV | str
-            The producer block of the buffer
-        buffer_index : int
-            The index of the buffer in block's write region
+            The producer block of the tensor
+        tensor_index : int
+            The index of the tensor in block's write region
         dtype : str
             The data type to be set
 
@@ -2841,7 +2841,7 @@ class Schedule(Object):
             def before_set_dtype(
                 A: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "float32")
             ) -> None:
-                B = Ts.sblock_alloc_buffer((128, 128), dtype="float32")
+                B = Ts.sblock_alloc_tensor((128, 128), dtype="float32")
 
                 for i, j in T.grid(128, 128):
                     with Ts.sblock("B"):
@@ -2857,7 +2857,7 @@ class Schedule(Object):
         .. code-block:: python
 
             sch = tvm.s_tir.Schedule(before_set_dtype)
-            sch.unsafe_set_dtype("B", buffer_index=0, dtype="float16")
+            sch.unsafe_set_dtype("B", tensor_index=0, dtype="float16")
             print(sch.mod["main"].script())
 
         After applying set_dtype, the IR becomes:
@@ -2868,7 +2868,7 @@ class Schedule(Object):
             def after_set_dtype(
                 A: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "float32")
             ) -> None:
-                B = Ts.sblock_alloc_buffer((128, 128), dtype="float16")
+                B = Ts.sblock_alloc_tensor((128, 128), dtype="float16")
 
                 for i, j in T.grid(128, 128):
                     with Ts.sblock("B"):
@@ -2881,12 +2881,12 @@ class Schedule(Object):
 
         Note
         ----
-        `unsafe_set_dtype` requires the buffer to be an intermediate buffer defined via
+        `unsafe_set_dtype` requires the tensor to be an intermediate tensor defined via
         `alloc_tensor`.
         """
         block = self._normalize_block_arg(block)
         _ffi_api.ScheduleUnsafeSetDType(  # type: ignore # pylint: disable=no-member
-            self, block, buffer_index, dtype
+            self, block, tensor_index, dtype
         )
 
     ########## Schedule: Blockize & Tensorize ##########
@@ -3088,19 +3088,19 @@ class Schedule(Object):
                             B[vjo * 16 : vjo * 16 + 16, vko * 16 : vko * 16 + 16],
                         )
                         Ts.writes(C[vio * 16 : vio * 16 + 16, vjo * 16 : vjo * 16 + 16])
-                        A_1 = Ts.match_buffer(
+                        A_1 = Ts.match_tensor(
                             A[vio * 16 : vio * 16 + 16, vko * 16 : vko * 16 + 16],
                             [16, 16],
                             dtype="float32",
                             offset_factor=1,
                         )
-                        B_1 = Ts.match_buffer(
+                        B_1 = Ts.match_tensor(
                             B[vjo * 16 : vjo * 16 + 16, vko * 16 : vko * 16 + 16],
                             [16, 16],
                             dtype="float32",
                             offset_factor=1,
                         )
-                        C_1 = Ts.match_buffer(
+                        C_1 = Ts.match_tensor(
                             C[vio * 16 : vio * 16 + 16, vjo * 16 : vjo * 16 + 16],
                             [16, 16],
                             dtype="float32",
@@ -3253,108 +3253,108 @@ class Schedule(Object):
 
         return block
 
-    def _normalize_buffer_arg(
+    def _normalize_tensor_arg(
         self,
         block: SBlockRV,
-        buffer: tuple[str, int] | int | str | Var,
-        required_buffer_type=None,
+        tensor: tuple[str, int] | int | str | Var,
+        required_tensor_type=None,
     ) -> tuple[str, int, Var]:
         block_obj: SBlock = self.get(block)
         block_name = block_obj.name_hint
 
-        def iter_buffers():
+        def iter_tensors():
             for i, read in enumerate(block_obj.reads):
                 yield "read", i, read.source
             for i, write in enumerate(block_obj.writes):
                 yield "write", i, write.source
 
-        if isinstance(buffer, int):
-            buffer = (required_buffer_type, buffer)
+        if isinstance(tensor, int):
+            tensor = (required_tensor_type, tensor)
 
-        if isinstance(buffer, str):
-            possible_buffers = {}
+        if isinstance(tensor, str):
+            possible_tensors = {}
             # String lookup requires ensuring that the name is unique
-            for buffer_index_type, buffer_index, buf in iter_buffers():
-                if buf.name == buffer:
-                    possible_buffers[buf] = (buffer_index_type, buffer_index)
+            for tensor_index_type, tensor_index, candidate_tensor in iter_tensors():
+                if candidate_tensor.name == tensor:
+                    possible_tensors[candidate_tensor] = (tensor_index_type, tensor_index)
 
-            assert possible_buffers, f"Could not find buffer '{buffer}' in block '{block_name}'"
-            assert len(possible_buffers) == 1, (
-                f"Multiple buffers named '{buffer}' in block '{block_name}'"
+            assert possible_tensors, f"Could not find tensor '{tensor}' in block '{block_name}'"
+            assert len(possible_tensors) == 1, (
+                f"Multiple tensors named '{tensor}' in block '{block_name}'"
             )
-            buffer_obj, (buffer_index_type, buffer_index) = next(iter(possible_buffers.items()))
+            tensor_obj, (tensor_index_type, tensor_index) = next(iter(possible_tensors.items()))
 
-        elif is_tensor_var(buffer):
+        elif is_tensor_var(tensor):
             # Var lookup has unique id, can break out early
             found = False
-            for buffer_index_type, buffer_index, buffer_obj in iter_buffers():
-                if buffer_obj.same_as(buffer):
+            for tensor_index_type, tensor_index, tensor_obj in iter_tensors():
+                if tensor_obj.same_as(tensor):
                     found = True
                     break
 
-            assert found, f"Could not find buffer '{buffer.name}' in block '{block_name}'"
+            assert found, f"Could not find tensor '{tensor.name}' in block '{block_name}'"
 
-        elif isinstance(buffer, tuple):
-            buffer_index_type, buffer_index = buffer
-            assert buffer_index_type in ["read", "write"], (
-                f"Invalid buffer_index_type.  "
+        elif isinstance(tensor, tuple):
+            tensor_index_type, tensor_index = tensor
+            assert tensor_index_type in ["read", "write"], (
+                f"Invalid tensor_index_type.  "
                 f"Expected 'read' or 'write', "
-                f"but received {buffer_index_type}"
+                f"but received {tensor_index_type}"
             )
-            buffer_list = block_obj.reads if buffer_index_type == "read" else block_obj.writes
-            assert 0 <= buffer_index < len(buffer_list), (
-                f"Invalid buffer_index {buffer_index}.  "
+            tensor_list = block_obj.reads if tensor_index_type == "read" else block_obj.writes
+            assert 0 <= tensor_index < len(tensor_list), (
+                f"Invalid tensor_index {tensor_index}.  "
                 f"Block {block_name} has only "
-                f"{len(buffer_list)} {buffer_index_type} buffers."
+                f"{len(tensor_list)} {tensor_index_type} tensors."
             )
-            buffer_obj = buffer_list[buffer_index].source
+            tensor_obj = tensor_list[tensor_index].source
 
         else:
-            raise TypeError(f"Invalid type for argument 'buffer': {type(buffer)}")
+            raise TypeError(f"Invalid type for argument 'tensor': {type(tensor)}")
 
-        if required_buffer_type is not None:
-            assert buffer_index_type == required_buffer_type, (
-                f"Expected buffer to be read buffer, "
-                f"but {buffer_obj.name} was a {buffer_index_type} buffer "
+        if required_tensor_type is not None:
+            assert tensor_index_type == required_tensor_type, (
+                f"Expected tensor to be read tensor, "
+                f"but {tensor_obj.name} was a {tensor_index_type} tensor "
                 f"in the specified block"
             )
 
-        return (buffer_index_type, buffer_index, buffer_obj)
+        return (tensor_index_type, tensor_index, tensor_obj)
 
     @type_checked
     def transform_layout(
         self,
         block: SBlockRV | str,
-        buffer: tuple[str, int] | str | Var,
+        tensor: tuple[str, int] | str | Var,
         index_map: IndexMap | Callable,
         pad_value: int | float | Expr | IndexMap | Callable | None = None,
         *,
         assume_injective_transform: bool = False,
     ) -> None:
-        """Apply a transformation represented by IndexMap to buffer
+        """Apply a transformation represented by IndexMap to tensor
 
         Parameters
         ----------
         block : SBlockRV | str
 
-            The block that accesses the target buffer.  If a string,
+            The block that accesses the target tensor.  If a string,
             this must uniquely identify a block.
 
-        buffer: Union[Tuple[str,int], Var, str]
+        tensor: Union[Tuple[str,int], Var, str]
 
-            The buffer to be transformed, or a specification of how to
-            identify the buffer to be transformed.
+            The tensor to be transformed, or a specification of how to
+            identify the tensor to be transformed.
 
-            If `buffer` if a tuple of ``(str,int)``, the first item
+            If `tensor` if a tuple of ``(str,int)``, the first item
             should be either "read" or "write", and the second item is
             an index into the block's read or write regions.
 
-            If `buffer` is a string, it is the name of the buffer,
+            If `tensor` is a string, it is the name of the tensor,
             which must exist within the reads/writes of the block.  In
             addition, the reads/writes of the block may not contain
-            more than one buffer with this name.
+            more than one tensor with this name.
 
-            If `buffer` is a Var object, it must exist within the
+            If `tensor` is a Var object, it must exist within the
             reads/writes of the block.
 
         index_map : IndexMap | Callable
@@ -3365,18 +3365,18 @@ class Schedule(Object):
 
             The value to be used for any padding introduced by the
             transformation.  If the schedule contains a producer block
-            for the specified buffer, the pad value will be written as
+            for the specified tensor, the pad value will be written as
             part of the producer block if possible, or after the producer
-            block otherwise.  Otherwise, if the buffer is an input, will
+            block otherwise.  Otherwise, if the tensor is an input, will
             insert an annotation block to state that the padding contains
             the known value.
 
             The pad value may not contain instances of TensorLoad,
-            except where it loads a value from the buffer being
-            transformed (e.g. to create a circular buffer with
+            except where it loads a value from the tensor being
+            transformed (e.g. to create a circular tensor with
             padding that consists of repeated elements).
 
-            Note: If applied to an input buffer, the calling scope is
+            Note: If applied to an input tensor, the calling scope is
             responsible for ensuring that the pad_value is present.
             Algebraic symplifications, branch elimination, and other
             optimizations may assume that this precondition is met, and
@@ -3409,7 +3409,7 @@ class Schedule(Object):
                 A: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "float32")
             ) -> None:
 
-                B = Ts.sblock_alloc_buffer((128, 128), "float32")
+                B = Ts.sblock_alloc_tensor((128, 128), "float32")
 
                 for i, j in T.grid(128, 128):
                     with Ts.sblock("B"):
@@ -3425,7 +3425,7 @@ class Schedule(Object):
         .. code-block:: python
 
             sch = tvm.s_tir.Schedule(before_storage_align)
-            sch.transform_layout(sch.get_sblock("B"), buffer=("write",0),
+            sch.transform_layout(sch.get_sblock("B"), tensor=("write",0),
                                  index_map=lambda m, n: (m // 16, n // 16, m % 16, n % 16))
             print(sch.mod["main"].script())
 
@@ -3434,11 +3434,11 @@ class Schedule(Object):
         .. code-block:: python
 
             @Ts.function
-            def two_elementwise_transformed_intermediate_buffer(
+            def two_elementwise_transformed_intermediate_tensor(
                 A: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "float32")
             ) -> None:
 
-                B = Ts.sblock_alloc_buffer((8, 8, 16, 16), "float32")
+                B = Ts.sblock_alloc_tensor((8, 8, 16, 16), "float32")
 
                 for i, j in T.grid(128, 128):
                     with Ts.sblock("B"):
@@ -3451,9 +3451,9 @@ class Schedule(Object):
 
         """
         block = self._normalize_block_arg(block)
-        buffer_index_type, buffer_index, buffer_obj = self._normalize_buffer_arg(block, buffer)
+        tensor_index_type, tensor_index, tensor_obj = self._normalize_tensor_arg(block, tensor)
 
-        ndim = len(buffer_obj.ty.shape)
+        ndim = len(tensor_obj.ty.shape)
         if callable(index_map):
             index_map = IndexMap.from_func(
                 index_map,
@@ -3471,29 +3471,29 @@ class Schedule(Object):
             )
         elif not isinstance(pad_value, IndexMap):
             # Explicitly convert python int/float arguments to the
-            # buffer's type.  If the default `tvm.runtime.convert`
+            # tensor's type.  If the default `tvm.runtime.convert`
             # behavior is applied, these would be converted to
-            # int32/float32, which may not match the buffer's type.
-            if buffer_obj.ty.dtype.matches_code(DataTypeCode.INT, DataTypeCode.UINT) and isinstance(
+            # int32/float32, which may not match the tensor's type.
+            if tensor_obj.ty.dtype.matches_code(DataTypeCode.INT, DataTypeCode.UINT) and isinstance(
                 pad_value, int
             ):
-                pad_value = IntImm(buffer_obj.ty.dtype.dtype, pad_value)
-            elif buffer_obj.ty.dtype.matches_code(
+                pad_value = IntImm(tensor_obj.ty.dtype.dtype, pad_value)
+            elif tensor_obj.ty.dtype.matches_code(
                 DataTypeCode.FLOAT, DataTypeCode.BFLOAT
             ) and isinstance(pad_value, float):
-                pad_value = FloatImm(buffer_obj.ty.dtype.dtype, pad_value)
+                pad_value = FloatImm(tensor_obj.ty.dtype.dtype, pad_value)
             pad_value = IndexMap.from_func(
                 lambda *indices: pad_value,
                 ndim=len(index_map.final_indices),
                 index_dtype=_get_sblock_default_dtype(self.get(block)),
             )
 
-        buffer_index_type_enum = 0 if buffer_index_type == "read" else 1
+        tensor_index_type_enum = 0 if tensor_index_type == "read" else 1
         _ffi_api.ScheduleTransformLayout(  # type: ignore # pylint: disable=no-member
             self,
             block,
-            buffer_index,
-            buffer_index_type_enum,
+            tensor_index,
+            tensor_index_type_enum,
             index_map,
             pad_value,
             assume_injective_transform,
@@ -3645,10 +3645,10 @@ class Schedule(Object):
 
         On a block with trivial binding, this primitive pads the iteration domain of the block by
         the given padding factors, for example, 127 -> 128, 132 -> 144 when padding factor is 16.
-        Extra producer and consumer padding blocks will be generated to avoid out-of-bound buffer
+        Extra producer and consumer padding blocks will be generated to avoid out-of-bound tensor
         access.
 
-        Einsum pattern means all the indices on the buffer access are either by constants
+        Einsum pattern means all the indices on the tensor access are either by constants
         (e.g. B[0]) or by variables (e.g. B[i]), but not by composite expressions (e.g. B[i + 1]).
 
         Parameters
@@ -3699,9 +3699,9 @@ class Schedule(Object):
                 C: T.Tensor((127, 127), "float32"),
             ):
                 # with Ts.sblock("root"):
-                A_pad = Ts.sblock_alloc_buffer((128, 128))
-                B_pad = Ts.sblock_alloc_buffer((128, 128))
-                C_pad = Ts.sblock_alloc_buffer((128, 128))
+                A_pad = Ts.sblock_alloc_tensor((128, 128))
+                B_pad = Ts.sblock_alloc_tensor((128, 128))
+                C_pad = Ts.sblock_alloc_tensor((128, 128))
                 for i0, i1 in T.grid(128, 128):
                     with Ts.sblock("A_pad"):
                         v0, v1 = Ts.axis.remap("SS", [i0, i1])
@@ -3738,29 +3738,29 @@ class Schedule(Object):
     ######## Schedule: Var transformation ########
 
     @type_checked
-    def rolling_buffer(self, block: SBlockRV | str, write_buffer_index: int) -> None:
-        """Compute the target buffer via rolling buffering, select the outermost rollable
+    def rolling_buffer(self, block: SBlockRV | str, write_tensor_index: int) -> None:
+        """Compute the target tensor via rolling buffering, select the outermost rollable
         axis with a positive bound overlap that appears in the block's ancestor loops
-        as `rolling axis`, fold and circularize the buffer along the rolling dimension,
+        as `rolling axis`, fold and circularize the tensor along the rolling dimension,
         append block predicate to avoid recomputing overlapping elements. It requires:
 
 
         1) The block is not an output block and has only RAW dependencies.
 
-        2) The buffer to be an intermediate buffer defined via `alloc_tensor`.
+        2) The tensor to be an intermediate tensor defined via `alloc_tensor`.
 
-        3) The LCA of the producer and consumer of the buffer is a for loop, typically,
-        the producer and consumer of the buffer are cascaded through compute_at.
+        3) The LCA of the producer and consumer of the tensor is a for loop, typically,
+        the producer and consumer of the tensor are cascaded through compute_at.
 
-        4) The access region of the buffer has at least one dimension that contains
+        4) The access region of the tensor has at least one dimension that contains
         a positive bound overlap.
 
         Parameters
         ----------
         block : SBlockRV | str
-            The producer block of the buffer.
-        write_buffer_index : int
-            The index of the buffer in block's write region.
+            The producer block of the tensor.
+        write_tensor_index : int
+            The index of the tensor in block's write region.
 
         Examples
         --------
@@ -3775,7 +3775,7 @@ class Schedule(Object):
             ) -> None:
                 # body
                 # with Ts.sblock("root")
-                B = Ts.sblock_alloc_buffer([10, 10], dtype="int8")
+                B = Ts.sblock_alloc_tensor([10, 10], dtype="int8")
                 for i0, i1 in T.grid(2, 2):
                     for ax0, ax1, ax2, ax3 in T.grid(6, 6, 3, 3):
                         with Ts.sblock("B"):
@@ -3799,7 +3799,7 @@ class Schedule(Object):
         .. code-block:: python
 
             sch = tvm.s_tir.Schedule(before_rolling_buffer)
-            sch.rolling_buffer(sch.get_sblock("B"), write_buffer_index=0)
+            sch.rolling_buffer(sch.get_sblock("B"), write_tensor_index=0)
             print(sch.mod["main"].script())
 
         After applying rolling_buffer, the IR becomes:
@@ -3813,7 +3813,7 @@ class Schedule(Object):
             ) -> None:
                 # body
                 # with Ts.sblock("root")
-                B = Ts.sblock_alloc_buffer([6, 10], dtype="int8")
+                B = Ts.sblock_alloc_tensor([6, 10], dtype="int8")
                 for i0, i1 in T.grid(2, 2):
                     for ax0, ax1, ax2, ax3 in T.grid(6, 6, 3, 3):
                         with Ts.sblock("B"):
@@ -3835,11 +3835,11 @@ class Schedule(Object):
 
         Note
         ----
-        The region_cover property of the consumer block of the target buffer will become false.
+        The region_cover property of the consumer block of the target tensor will become false.
         """
         block = self._normalize_block_arg(block)
         # pylint: disable-next=no-member
-        return _ffi_api.ScheduleRollingBuffer(self, block, write_buffer_index)  # type: ignore
+        return _ffi_api.ScheduleRollingBuffer(self, block, write_tensor_index)  # type: ignore
 
     ########## Schedule: Misc ##########
 
@@ -3849,39 +3849,39 @@ class Schedule(Object):
         _ffi_api.ScheduleEnterPostproc(self)  # type: ignore # pylint: disable=no-member
 
     @type_checked
-    def unsafe_hide_buffer_access(
-        self, block: SBlockRV, buf_type: str, buf_index_array: list[int]
+    def unsafe_hide_tensor_access(
+        self, block: SBlockRV, tensor_type: str, tensor_index_array: list[int]
     ) -> None:
-        """Hide some buffer access in a given block. This is an unsafe schedule primitive.
+        """Hide some tensor access in a given block. This is an unsafe schedule primitive.
 
         Parameters
         ----------
         block : SBlockRV
             The block where we hide read access.
-        buf_type : str
-            The buffer type: "read"/"write".
-        buf_index_array : List[int]
-            The array of buffer indices we hide access.
+        tensor_type : str
+            The tensor type: "read"/"write".
+        tensor_index_array : List[int]
+            The array of tensor indices we hide access.
 
         Note
         ----
         This schedule primitive is unsafe, and may fail dependency analysis.
-        One use case of `unsafe_hide_buffer_access` is to hide the buffer access
-        to indices buffers (e.g. in sparse computation) so that we can further tensorize
-        the block (the indices buffers appeared in read/write regions may fail the pattern
-        matching in `tensorize` primitive, and hide the access to these buffers could address
+        One use case of `unsafe_hide_tensor_access` is to hide the tensor access
+        to indices tensors (e.g. in sparse computation) so that we can further tensorize
+        the block (the indices tensors appeared in read/write regions may fail the pattern
+        matching in `tensorize` primitive, and hide the access to these tensors could address
         the issue).
         """
-        _ffi_api.ScheduleUnsafeHideBufferAccess(  # type: ignore # pylint: disable=no-member
+        _ffi_api.ScheduleUnsafeHideTensorAccess(  # type: ignore # pylint: disable=no-member
             self,
             block,
-            buf_type,
-            buf_index_array,
+            tensor_type,
+            tensor_index_array,
         )
 
     @type_checked
-    def annotate_buffer_access(
-        self, block: SBlockRV, buffer_index: int, buf_type: str, gen_new_ranges: Callable
+    def annotate_tensor_access(
+        self, block: SBlockRV, tensor_index: int, tensor_type: str, gen_new_ranges: Callable
     ) -> None:
         """Annotate the read or write region of a block
 
@@ -3889,31 +3889,31 @@ class Schedule(Object):
         ----------
         block : SBlockRV
             The block to be annotated
-        buffer_index : int
-            The index of the buffer in block's read or write region
-        buf_type : str
-            The buffer type: "read" or "write"
+        tensor_index : int
+            The index of the tensor in block's read or write region
+        tensor_type : str
+            The tensor type: "read" or "write"
         gen_new_ranges : Callable
             A function that takes the block's iter_vars and returns a
             Tuple[Union[Expr, Tuple[Expr, Expr]], ...]
-            which defines the new read or write region for the buffer.
+            which defines the new read or write region for the tensor.
             Each element in the tuple can be:
             - A single Expr representing the iter_var itself
             - A tuple of two PrimExprs representing the range (begin, end)
 
         Examples
         --------
-        Annotate a 2D read region for a buffer.
-        Before annotate_buffer_access, in TensorIR, the IR is:
+        Annotate a 2D read region for a tensor.
+        Before annotate_tensor_access, in TensorIR, the IR is:
 
         .. code-block:: python
 
             @Ts.function
-            def before_annotate_buffer_access(
+            def before_annotate_tensor_access(
                 A: T.Tensor((128, 128), "float32"),
                 C: T.Tensor((128, 128), "float32")
             ) -> None:
-                B = Ts.sblock_alloc_buffer((128, 128), "float32")
+                B = Ts.sblock_alloc_tensor((128, 128), "float32")
                 for i, j in T.grid(128, 128):
                     with Ts.sblock("B"):
                         vi, vj = Ts.axis.remap("SS", [i, j])
@@ -3923,26 +3923,26 @@ class Schedule(Object):
                         vi, vj = Ts.axis.remap("SS", [i, j])
                         C[vi, vj] = B[vi, vj] + 1.0
 
-        Create the schedule and do annotate_buffer_access:
+        Create the schedule and do annotate_tensor_access:
 
         .. code-block:: python
 
-            sch = tvm.s_tir.Schedule(before_annotate_buffer_access)
+            sch = tvm.s_tir.Schedule(before_annotate_tensor_access)
             block = sch.get_sblock("B")
-            sch.annotate_buffer_access(block, 0, "read",
+            sch.annotate_tensor_access(block, 0, "read",
             lambda vi, vj: ((vi - 1, vi + 1), (vj - 1, vj + 1)))
             print(sch.mod["main"].script())
 
-        After applying annotate_buffer_access, the IR becomes:
+        After applying annotate_tensor_access, the IR becomes:
 
         .. code-block:: python
 
             @Ts.function
-            def after_annotate_buffer_access(
+            def after_annotate_tensor_access(
                 A: T.Tensor((128, 128), "float32"),
                 C: T.Tensor((128, 128), "float32")
             ) -> None:
-                B = Ts.sblock_alloc_buffer((128, 128), "float32")
+                B = Ts.sblock_alloc_tensor((128, 128), "float32")
                 for i, j in T.grid(128, 128):
                     with Ts.sblock("B"):
                         vi, vj = Ts.axis.remap("SS", [i, j])
@@ -3955,7 +3955,7 @@ class Schedule(Object):
                         vi, vj = Ts.axis.remap("SS", [i, j])
                         C[vi, vj] = B[vi, vj] + 1.0
 
-        This annotates the read region for buffer A (index 0) in block "B" to be
+        This annotates the read region for tensor A (index 0) in block "B" to be
         [vi-1:vi+1, vj-1:vj+1] for each (vi, vj) in the block's iteration domain.
 
         Note
@@ -3963,16 +3963,16 @@ class Schedule(Object):
         This function allows manual specification of read or write regions, which
         can be useful in cases where the compiler cannot accurately infer the
         access pattern, such as complex data-dependent accesses.
-        It overrides the automatically inferred region for the specified buffer.
+        It overrides the automatically inferred region for the specified tensor.
         The function adds an annotation to the block, indicating that an explicit
-        region has been provided for the buffer at the given index. This annotation
-        is used in the CompactBufferAllocation pass to respect the manually specified
+        region has been provided for the tensor at the given index. This annotation
+        is used in the CompactTensorAllocation pass to respect the manually specified
         region instead of relying on automatic inference.
 
         Caution should be exercised when using this function, as incorrect annotations
         may lead to incorrect code generation or runtime errors. It's crucial to
         ensure that the specified region covers all actual reads or writes performed
-        by the block for the given buffer.
+        by the block for the given tensor.
 
         """
         block_obj = self.get(block)
@@ -4004,13 +4004,13 @@ class Schedule(Object):
             inverse_index_map=None,
         )
 
-        if buf_type == "read":
-            buffer_index_type = 0
-        elif buf_type == "write":
-            buffer_index_type = 1
+        if tensor_type == "read":
+            tensor_index_type = 0
+        elif tensor_type == "write":
+            tensor_index_type = 1
         else:
-            raise ValueError(f"Invalid buf_type: {buf_type}. Expected 'read' or 'write'.")
+            raise ValueError(f"Invalid tensor_type: {tensor_type}. Expected 'read' or 'write'.")
 
-        return _ffi_api.ScheduleAnnotateBufferAccess(
-            self, block, buffer_index, buffer_index_type, index_map
+        return _ffi_api.ScheduleAnnotateTensorAccess(
+            self, block, tensor_index, tensor_index_type, index_map
         )

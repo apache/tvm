@@ -59,68 +59,68 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 ffi::Optional<ExprDoc> TensorTypeDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
                                               const ffi::Object*) {
-  const auto* buffer =
+  const auto* tensor =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const tirx::TensorTypeNode>(input);
   bool default_offset =
-      ffi::StructuralEqual()(buffer->elem_offset, IntImm(PrimType(buffer->DefaultIndexType()), 0));
-  // The buffer type constructor normalizes these fields.
+      ffi::StructuralEqual()(tensor->elem_offset, IntImm(PrimType(tensor->DefaultIndexType()), 0));
+  // The tensor type constructor normalizes these fields.
   // Keep the explicit type constructor when that normalization would change the IR.
-  if (buffer->storage_scope.empty() || buffer->data_alignment <= 0 || buffer->offset_factor == 0) {
+  if (tensor->storage_scope.empty() || tensor->data_alignment <= 0 || tensor->offset_factor == 0) {
     return NamespaceDoc("ir")
         ->Attr("make_node")
         ->Call({LiteralDoc::Str("tirx.TensorType", std::nullopt)},
                {"dtype", "storage_scope", "shape", "strides", "elem_offset", "data_alignment",
                 "offset_factor", "layout"},
-               {TypeValue(d, buffer->dtype, false),
-                LiteralDoc::Str(buffer->storage_scope, std::nullopt), AnyValue(d, buffer->shape),
-                AnyValue(d, buffer->strides), d->Translate(buffer->elem_offset).value(),
-                LiteralDoc::Int(buffer->data_alignment, std::nullopt),
-                LiteralDoc::Int(buffer->offset_factor, std::nullopt),
-                buffer->layout.has_value() ? d->Translate(buffer->layout.value()).value()
+               {TypeValue(d, tensor->dtype, false),
+                LiteralDoc::Str(tensor->storage_scope, std::nullopt), AnyValue(d, tensor->shape),
+                AnyValue(d, tensor->strides), d->Translate(tensor->elem_offset).value(),
+                LiteralDoc::Int(tensor->data_alignment, std::nullopt),
+                LiteralDoc::Int(tensor->offset_factor, std::nullopt),
+                tensor->layout.has_value() ? d->Translate(tensor->layout.value()).value()
                                            : LiteralDoc::None(std::nullopt)});
   }
   ffi::Array<ExprDoc> shape;
-  for (const PrimExpr& extent : buffer->shape) shape.push_back(d->Translate(extent).value());
+  for (const PrimExpr& extent : tensor->shape) shape.push_back(d->Translate(extent).value());
   ffi::Array<ffi::String> keys;
   ffi::Array<ExprDoc> values;
-  if (buffer->storage_scope != "global") {
+  if (tensor->storage_scope != "global") {
     keys.push_back("scope");
-    values.push_back(LiteralDoc::Str(buffer->storage_scope, std::nullopt));
+    values.push_back(LiteralDoc::Str(tensor->storage_scope, std::nullopt));
   }
-  if (!buffer->strides.empty()) {
+  if (!tensor->strides.empty()) {
     ffi::Array<ExprDoc> strides;
-    for (const PrimExpr& stride : buffer->strides) strides.push_back(d->Translate(stride).value());
+    for (const PrimExpr& stride : tensor->strides) strides.push_back(d->Translate(stride).value());
     keys.push_back("strides");
     values.push_back(TupleDoc(strides));
   }
   // A nondefault offset_factor makes an omitted offset symbolic in the parser.
-  if ((!default_offset || buffer->offset_factor != 1)) {
+  if ((!default_offset || tensor->offset_factor != 1)) {
     keys.push_back("elem_offset");
-    values.push_back(d->Translate(buffer->elem_offset).value());
+    values.push_back(d->Translate(tensor->elem_offset).value());
   }
-  if (buffer->data_alignment != 64) {
+  if (tensor->data_alignment != 64) {
     keys.push_back("align");
-    values.push_back(LiteralDoc::Int(buffer->data_alignment, std::nullopt));
+    values.push_back(LiteralDoc::Int(tensor->data_alignment, std::nullopt));
   }
-  if (buffer->offset_factor != 1) {
+  if (tensor->offset_factor != 1) {
     keys.push_back("offset_factor");
-    values.push_back(LiteralDoc::Int(buffer->offset_factor, std::nullopt));
+    values.push_back(LiteralDoc::Int(tensor->offset_factor, std::nullopt));
   }
-  if (buffer->layout.has_value()) {
+  if (tensor->layout.has_value()) {
     keys.push_back("layout");
-    if (ffi::StructuralEqual()(buffer->layout.value(),
-                               tirx::TileLayoutNode::DefaultLayout(buffer->shape))) {
+    if (ffi::StructuralEqual()(tensor->layout.value(),
+                               tirx::TileLayoutNode::DefaultLayout(tensor->shape))) {
       values.push_back(LiteralDoc::Str("default", std::nullopt));
     } else {
-      values.push_back(d->Translate(buffer->layout.value()).value());
+      values.push_back(d->Translate(tensor->layout.value()).value());
     }
   }
-  if (!buffer->layout.has_value()) {
+  if (!tensor->layout.has_value()) {
     keys.push_back("layout");
     values.push_back(LiteralDoc::None(std::nullopt));
   }
   return NamespaceDoc("tirx")->Attr("Tensor")->Call(
-      {TupleDoc(shape), LiteralDoc::DataType(buffer->dtype->dtype, std::nullopt)}, keys, values);
+      {TupleDoc(shape), LiteralDoc::DataType(tensor->dtype->dtype, std::nullopt)}, keys, values);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -139,9 +139,9 @@ ffi::Optional<ExprDoc> TensorStoreDocTranslate(DocTranslatorObj* d, ffi::AnyView
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const TensorStoreNode>(input);
   TVM_FFI_CHECK(destination == nullptr, TypeError)
       << "printer statement-only node cannot fulfill a destination";
-  ExprDoc buffer = d->Translate(store->dest).value();
+  ExprDoc tensor = d->Translate(store->dest).value();
   ExprDoc value = d->Translate(store->value).value();
-  ExprDoc lhs = IndexDoc(buffer, TensorIndices(d, store->indices, true));
+  ExprDoc lhs = IndexDoc(tensor, TensorIndices(d, store->indices, true));
   d->Emit(AssignDoc(lhs, value, std::nullopt), ffi::GetRef<ffi::ObjectRef>(store));
   return std::nullopt;
 }

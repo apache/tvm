@@ -60,8 +60,8 @@ void FunctionFrameNode::ValidateAttrs() const {
   }
 }
 
-void TIRFrameNode::BindBufferRegion(tvm::tirx::TensorVar buffer, tvm::TensorRegion region) {
-  TVM_FFI_THROW(ValueError) << "match_buffer requires a frame that supports region aliases";
+void TIRFrameNode::BindTensorRegion(tvm::tirx::TensorVar tensor, tvm::TensorRegion region) {
+  TVM_FFI_THROW(ValueError) << "match_tensor requires a frame that supports region aliases";
 }
 
 tvm::tirx::Function FunctionFrameNode::FinalizeFunction(tvm::tirx::Function func) { return func; }

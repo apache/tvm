@@ -121,35 +121,35 @@ def tree_attn_cpu(h_kv, h_q, d, dtype, rope_scaling: dict[str, Any]):
         for b in T.serial(batch_size_plus_1 - 1):
             with Ts.sblock("attn"):
 
-                softmax_sum = Ts.sblock_alloc_buffer([h_q], "float32")
-                m_prev = Ts.sblock_alloc_buffer([h_q], "float32")
-                m_new = Ts.sblock_alloc_buffer([h_q], "float32")
-                d_prev = Ts.sblock_alloc_buffer([h_q], "float32")
-                d_new = Ts.sblock_alloc_buffer([h_q], "float32")
-                p_sum = Ts.sblock_alloc_buffer([d], "float32")
+                softmax_sum = Ts.sblock_alloc_tensor([h_q], "float32")
+                m_prev = Ts.sblock_alloc_tensor([h_q], "float32")
+                m_new = Ts.sblock_alloc_tensor([h_q], "float32")
+                d_prev = Ts.sblock_alloc_tensor([h_q], "float32")
+                d_new = Ts.sblock_alloc_tensor([h_q], "float32")
+                p_sum = Ts.sblock_alloc_tensor([d], "float32")
 
-                max_score = Ts.sblock_alloc_buffer([h_q], "float32")
-                attention_scores = Ts.sblock_alloc_buffer([kv_len, h_q], "float32")
-                exp_scores = Ts.sblock_alloc_buffer([kv_len, h_q], "float32")
-                attention_score = Ts.sblock_alloc_buffer(
+                max_score = Ts.sblock_alloc_tensor([h_q], "float32")
+                attention_scores = Ts.sblock_alloc_tensor([kv_len, h_q], "float32")
+                exp_scores = Ts.sblock_alloc_tensor([kv_len, h_q], "float32")
+                attention_score = Ts.sblock_alloc_tensor(
                     [
                         1,
                     ],
                     "float32",
                 )
-                query_val = Ts.sblock_alloc_buffer(
+                query_val = Ts.sblock_alloc_tensor(
                     [
                         1,
                     ],
                     "float32",
                 )
-                key_val = Ts.sblock_alloc_buffer(
+                key_val = Ts.sblock_alloc_tensor(
                     [
                         1,
                     ],
                     "float32",
                 )
-                result = Ts.sblock_alloc_buffer(
+                result = Ts.sblock_alloc_tensor(
                     [
                         1,
                     ],
@@ -636,19 +636,19 @@ def tree_attn_with_paged_kv_cache_cpu(h_kv, h_q, d, dtype, rope_scaling: dict[st
                 with Ts.sblock("attn"):
                     Ts.reads()
                     Ts.writes()
-                    O_local = Ts.sblock_alloc_buffer((d, ), "float32")
-                    Q_local = Ts.sblock_alloc_buffer((d, ), "float32")
-                    K_local = Ts.sblock_alloc_buffer((d, ), "float32")
-                    V_local = Ts.sblock_alloc_buffer((d, ), "float32")
+                    O_local = Ts.sblock_alloc_tensor((d, ), "float32")
+                    Q_local = Ts.sblock_alloc_tensor((d, ), "float32")
+                    K_local = Ts.sblock_alloc_tensor((d, ), "float32")
+                    V_local = Ts.sblock_alloc_tensor((d, ), "float32")
 
-                    kv_chunk_len = Ts.sblock_alloc_buffer((1, ), "int32")
+                    kv_chunk_len = Ts.sblock_alloc_tensor((1, ), "int32")
 
-                    m_val = Ts.sblock_alloc_buffer((1, ), "float32")
-                    new_m = Ts.sblock_alloc_buffer((1, ), "float32")
-                    d_val = Ts.sblock_alloc_buffer((1, ), "float32")
-                    S_val = Ts.sblock_alloc_buffer((1, ), "float32")
-                    scale_O = Ts.sblock_alloc_buffer((1, ), "float32")
-                    factor = Ts.sblock_alloc_buffer((1, ), "float32")
+                    m_val = Ts.sblock_alloc_tensor((1, ), "float32")
+                    new_m = Ts.sblock_alloc_tensor((1, ), "float32")
+                    d_val = Ts.sblock_alloc_tensor((1, ), "float32")
+                    S_val = Ts.sblock_alloc_tensor((1, ), "float32")
+                    scale_O = Ts.sblock_alloc_tensor((1, ), "float32")
+                    factor = Ts.sblock_alloc_tensor((1, ), "float32")
                     cur_page_indptr_begin: T.let[T.int32] = page_indptr[b_idx]
                     cur_page_indptr_end: T.let[T.int32] = page_indptr[b_idx + 1]
                     kv_chunk_len[0] = T.if_then_else(

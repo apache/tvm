@@ -19,9 +19,9 @@
 
 /*!
  * \file tvm/tirx/index_map.h
- * \brief Defines a remapping of buffer indices
+ * \brief Defines a remapping of tensor indices
  *
- * For use with TIR buffers.
+ * For use with TIR tensors.
  */
 #ifndef TVM_TIR_INDEX_MAP_H_
 #define TVM_TIR_INDEX_MAP_H_
@@ -43,9 +43,9 @@ namespace tirx {
 
 /*!
  * \brief Defines a mapping between two representations of indices
- * into a buffer.
+ * into a tensor.
  *
- * This is primarily used for layout transformations of buffers
+ * This is primarily used for layout transformations of tensors
  * objects.
  */
 class IndexMapNode : public ffi::Object {
@@ -138,20 +138,20 @@ class IndexMapNode : public ffi::Object {
    */
   ffi::Array<Range> MapRanges(const ffi::Array<Range>& ranges, const sym::Analyzer& analyzer) const;
 
-  /*! \brief Map a buffer shape to the output space using a fresh analyzer.
+  /*! \brief Map a tensor shape to the output space using a fresh analyzer.
    *
-   * \param shape The buffer shape in the input space.  Should contain
+   * \param shape The tensor shape in the input space.  Should contain
    * one value for each variable in `initial_indices`.
-   * \returns The buffer shape in the output space.  Contains one
+   * \returns The tensor shape in the output space.  Contains one
    * value for each expression in `final_indices`.
    */
   ffi::Array<PrimExpr> MapShape(const ffi::Array<PrimExpr>& shape) const;
-  /*! \brief Map a buffer shape to the output space using an existing analyzer.
+  /*! \brief Map a tensor shape to the output space using an existing analyzer.
    *
-   * \param shape The buffer shape in the input space.  Should contain
+   * \param shape The tensor shape in the input space.  Should contain
    * one value for each variable in `initial_indices`.
    * \param analyzer An analyzer to be used to simplify the resulting expressions.
-   * \returns The buffer shape in the output space.  Contains one
+   * \returns The tensor shape in the output space.  Contains one
    * value for each expression in `final_indices`.
    */
   ffi::Array<PrimExpr> MapShape(const ffi::Array<PrimExpr>& shape,

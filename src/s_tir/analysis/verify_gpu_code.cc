@@ -230,7 +230,7 @@ class GPUCodeVerifier : public StmtExprVisitor {
     return StmtExprVisitor::Visit_(op);
   }
 
-  void CheckBufferIndicesVectorizable(const ffi::Array<PrimExpr> indices) {
+  void CheckTensorIndicesVectorizable(const ffi::Array<PrimExpr> indices) {
     for (const auto index : indices) {
       if (const auto* ramp = index.as<RampNode>()) {
         PrimType ramp_ty = ramp->ty.as_or_throw<PrimType>();
@@ -270,7 +270,7 @@ class GPUCodeVerifier : public StmtExprVisitor {
           << " is greater than the maximum number of vector bytes (" << max_vector_bytes_ << ")";
         errors_.push_back(s.str());
       }
-      CheckBufferIndicesVectorizable(op->indices);
+      CheckTensorIndicesVectorizable(op->indices);
     }
     return StmtExprVisitor::Visit_(op);
   }
@@ -285,7 +285,7 @@ class GPUCodeVerifier : public StmtExprVisitor {
           << " is greater than the maximum number of vector bytes (" << max_vector_bytes_ << ")";
         errors_.push_back(s.str());
       }
-      CheckBufferIndicesVectorizable(op->indices);
+      CheckTensorIndicesVectorizable(op->indices);
     }
     return StmtExprVisitor::Visit_(op);
   }

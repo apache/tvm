@@ -784,7 +784,7 @@ def sort(data, axis=-1, is_ascend=1):
         [data.shape, data.shape],
         [data],
         lambda ins, outs: sort_ir(ins[0], outs[0], outs[1], -1, is_ascend),
-        out_buffers=[value_buf, value_buf_swap],
+        out_tensors=[value_buf, value_buf_swap],
         name="sort_gpu",
         tag="sort_gpu",
     )[0]
@@ -849,7 +849,7 @@ def sort_thrust(data, axis=-1, is_ascend=1, workspace=None):
         ## For performance, we should probably rename the contrib function and add
         ## a pure sort
         f_compute,
-        out_buffers=[value_buf, indices_buf],
+        out_tensors=[value_buf, indices_buf],
         name="sort_gpu",
         tag="sort_gpu",
     )[0]
@@ -918,7 +918,7 @@ def argsort(data, axis=-1, is_ascend=1, dtype="float32", ret_type="indices"):
             indices_out=outs[1],
             indices_out_swap=outs[3],
         ),
-        out_buffers=[value_buf, indices_buf, value_swap_buf, indices_swap_buf],
+        out_tensors=[value_buf, indices_buf, value_swap_buf, indices_swap_buf],
         name="argsort_gpu",
         tag="argsort_gpu",
     )
@@ -1027,7 +1027,7 @@ def topk(data, k=1, axis=-1, ret_type="both", is_ascend=False, dtype="int64"):
             [data.shape, data.shape],
             [data],
             lambda ins, outs: sort_ir(ins[0], outs[0], outs[1], -1, is_ascend),
-            out_buffers=[values_buf, values_swap_buf],
+            out_tensors=[values_buf, values_swap_buf],
             name="topk_gpu",
             tag="topk_gpu",
         )[0]
@@ -1039,7 +1039,7 @@ def topk(data, k=1, axis=-1, ret_type="both", is_ascend=False, dtype="int64"):
             [data.shape, data.shape, data.shape, data.shape],
             [data],
             lambda ins, outs: sort_ir(ins[0], outs[0], outs[2], -1, is_ascend, outs[1], outs[3]),
-            out_buffers=[values_buf, indices_buf, values_swap_buf, indices_swap_buf],
+            out_tensors=[values_buf, indices_buf, values_swap_buf, indices_swap_buf],
             name="topk_gpu",
             tag="topk_gpu",
         )[0:2]
@@ -1146,8 +1146,8 @@ def topk_thrust(
         [data.shape, data.shape],
         [data] if workspace is None else [data, workspace],
         f_compute,
-        in_buffers=[data_buf] if workspace is None else [data_buf, workspace_buf],
-        out_buffers=out_bufs,
+        in_tensors=[data_buf] if workspace is None else [data_buf, workspace_buf],
+        out_tensors=out_bufs,
         name="topk_gpu",
         tag="topk_gpu",
     )

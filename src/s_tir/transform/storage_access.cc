@@ -304,11 +304,11 @@ void StorageAccessVisitor::RecordOpaqueAccess(Var source) {
   entry.threads = env_threads();
   entry.buffer = root;
   entry.scope = scope;
-  auto buffer = root.as<TensorVar>();
-  if (!buffer.has_value()) buffer = source.as<TensorVar>();
-  if (buffer.has_value()) {
-    entry.dtype = buffer.value()->dtype;
-    for (const PrimExpr& extent : buffer.value()->shape) {
+  auto tensor = root.as<TensorVar>();
+  if (!tensor.has_value()) tensor = source.as<TensorVar>();
+  if (tensor.has_value()) {
+    entry.dtype = tensor.value()->dtype;
+    for (const PrimExpr& extent : tensor.value()->shape) {
       entry.touched.push_back(sym::IntSet::FromRange(Range::FromMinExtent(0, extent)));
     }
   } else {
@@ -336,25 +336,25 @@ ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const VarNode* op) {
 ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const CallNode* op) {
   Call call = ffi::GetRef<Call>(op);
   if (allow_append_ && in_opaque_call_) {
-    ffi::Optional<TensorVar> buffer;
+    ffi::Optional<TensorVar> tensor;
     if (op->op.same_as(tirx::tensor_data_ptr_op())) {
-      buffer = op->args[0].as<TensorVar>();
+      tensor = op->args[0].as<TensorVar>();
     } else if (op->op.same_as(tirx::address_of_op())) {
       if (const auto* load = op->args[0].as<TensorLoadNode>()) {
-        buffer = load->source.as<TensorVar>();
+        tensor = load->source.as<TensorVar>();
       }
     }
-    if (buffer.has_value()) {
-      RecordOpaqueAccess(buffer.value());
+    if (tensor.has_value()) {
+      RecordOpaqueAccess(tensor.value());
     }
   }
   if (op->op.same_as(tirx::masked_load_op()) || op->op.same_as(tirx::masked_store_op())) {
     bool is_load = op->op.same_as(tirx::masked_load_op());
-    TensorVar buffer = op->args[0].as_or_throw<TensorVar>();
+    TensorVar tensor = op->args[0].as_or_throw<TensorVar>();
     PrimType value_dtype =
         is_load ? op->ty.as_or_throw<PrimType>() : op->args[1].as_or_throw<PrimExpr>().ty();
-    Var buf = ResolveBuffer(buffer.var());
-    StorageScope scope = StorageScope::Create(buffer.scope());
+    Var buf = ResolveBuffer(tensor.var());
+    StorageScope scope = StorageScope::Create(tensor.scope());
     if (Enabled(buf.get(), scope)) {
       TVM_FFI_ICHECK(allow_append_) << call << " " << scope.to_string();
       AccessEntry e;
@@ -364,7 +364,7 @@ ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const CallNode* op) {
       for (size_t i = is_load ? 1 : 2; i + 1 < op->args.size(); ++i) {
         e.touched.push_back(sym::IntSet::Vector(op->args[i].as_or_throw<PrimExpr>()));
       }
-      if (offset_aliases_.count(buffer.get())) e.touched.clear();
+      if (offset_aliases_.count(tensor.get())) e.touched.clear();
       e.type = is_load ? kRead : kWrite;
       e.scope = scope;
       curr_stmt_.access.emplace_back(std::move(e));
@@ -372,7 +372,7 @@ ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const CallNode* op) {
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
   } else if (op->op.same_as(tirx::address_of_op())) {
     if (const auto* load = op->args[0].as<TensorLoadNode>()) {
-      // Taking an address does not read the buffer value.  Visit only the
+      // Taking an address does not read the tensor value.  Visit only the
       // load's children so index expressions still contribute accesses.
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(load));
     } else {
@@ -407,8 +407,8 @@ ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const CallNode* op) {
 }
 
 StorageScope StorageAccessVisitor::GetScope(Var buffer_var) const {
-  if (auto buffer_type = buffer_var->ty.as<TensorType>()) {
-    return StorageScope::Create(buffer_type.value()->storage_scope);
+  if (auto tensor_type = buffer_var->ty.as<TensorType>()) {
+    return StorageScope::Create(tensor_type.value()->storage_scope);
   }
   if (buffer_var->ty.as<PtrTypeNode>()) {
     return StorageScope::Create(GetPtrStorageScope(buffer_var));

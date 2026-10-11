@@ -72,12 +72,12 @@ class IRMutatorWithAnalyzer : public StmtExprMutator {
       : StmtExprMutator(vtable), analyzer_(analyzer) {}
   static const VTable* GlobalVTable();
   /*!
-   * \brief Mark all buffer-parameter shape values as positive values.
+   * \brief Mark all tensor-parameter shape values as positive values.
    *
    * \note call this function before Visit function's body to maximize
    *       simplification efficiency
    */
-  void MarkBufferParamShapes(const Function& func);
+  void MarkTensorParamShapes(const Function& func);
 
   /*!
    * \brief Use internal bound information to perform inter map simplification of indices.

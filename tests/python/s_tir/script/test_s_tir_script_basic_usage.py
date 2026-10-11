@@ -220,8 +220,8 @@ def test_inferred_ty_with_prim_args():
     tvm.ir.assert_structural_equal(func.ty, expected)
 
 
-def test_inferred_ty_with_buffer_args():
-    """Function buffer arguments retain native tensor types."""
+def test_inferred_ty_with_tensor_args():
+    """Function tensor arguments retain native tensor types."""
 
     @Ts.function
     def func(A: T.Tensor([16, 16], "float32"), B: T.Tensor([256], "int32")) -> T.float32:
@@ -258,7 +258,7 @@ def test_inferred_ty_with_internal_allocation():
     tvm.ir.assert_structural_equal(func.ty, expected)
 
 
-def test_inferred_ty_with_output_buffer():
+def test_inferred_ty_with_output_tensor():
     """Output tensors remain native parameters with a void result."""
 
     @Ts.function
@@ -363,9 +363,9 @@ def test_alloc_inside_block():
     @Ts.function(private=True)
     def func() -> None:
         with Ts.sblock():
-            A = Ts.sblock_alloc_buffer([10], "float32")
+            A = Ts.sblock_alloc_tensor([10], "float32")
             for i in T.serial(0, 10):
-                B = Ts.sblock_alloc_buffer([10], "float32")
+                B = Ts.sblock_alloc_tensor([10], "float32")
                 for j in T.serial(0, 10):
                     B[j] = T.float32(j)
                     A[i] += B[j]
@@ -373,8 +373,8 @@ def test_alloc_inside_block():
     @Ts.function(private=True)
     def expected() -> None:
         with Ts.sblock():
-            A = Ts.sblock_alloc_buffer([10], "float32")
-            B = Ts.sblock_alloc_buffer([10], "float32")
+            A = Ts.sblock_alloc_tensor([10], "float32")
+            B = Ts.sblock_alloc_tensor([10], "float32")
             for i, j in T.grid(10, 10):
                 B[j] = T.float32(j)
                 A[i] += B[j]
@@ -480,7 +480,7 @@ def test_for_thread_binding():
 def while_loop():
     @Ts.function
     def while_loop(A: T.Tensor((16,), "float32"), B: T.Tensor((16,), "float32")) -> None:
-        i = Ts.sblock_alloc_buffer((), "int32", scope="local")
+        i = Ts.sblock_alloc_tensor((), "int32", scope="local")
         for ii in range(16):
             with Ts.sblock():
                 vi = Ts.axis.S(16, ii)
@@ -779,7 +779,7 @@ def test_loop_syntax_sugar():
 
 
 @Ts.function
-def elementwise_buffer_default_dtype(
+def elementwise_tensor_default_dtype(
     A: T.Tensor((128, 128, 128, 128)),
     B: T.Tensor((128, 128, 128, 128)),
 ) -> None:
@@ -790,7 +790,7 @@ def elementwise_buffer_default_dtype(
 
 
 @Ts.function
-def elementwise_buffer_kwargs(
+def elementwise_tensor_kwargs(
     a: T.Tensor(shape=(128, 128, 128, 128), dtype="float32"),
     b: T.Tensor(shape=(128, 128, 128, 128), dtype="float32"),
 ) -> None:
@@ -801,7 +801,7 @@ def elementwise_buffer_kwargs(
 
 
 @Ts.function
-def elementwise_buffer_no_kwargs(
+def elementwise_tensor_no_kwargs(
     a: T.Tensor((128, 128, 128, 128), "float32"),
     b: T.Tensor((128, 128, 128, 128), "float32"),
 ) -> None:
@@ -811,18 +811,18 @@ def elementwise_buffer_no_kwargs(
             b[vi, vj, vk, vl] = a[vi, vj, vk, vl] * 2.0
 
 
-def test_buffer_signature_syntax_sugar():
+def test_tensor_signature_syntax_sugar():
     # with kwargs
     assert_structural_equal_ignore_global_symbol(
-        elementwise_buffer_default_dtype, elementwise_buffer_kwargs
+        elementwise_tensor_default_dtype, elementwise_tensor_kwargs
     )
     # without kwargs
     assert_structural_equal_ignore_global_symbol(
-        elementwise_buffer_default_dtype, elementwise_buffer_no_kwargs
+        elementwise_tensor_default_dtype, elementwise_tensor_no_kwargs
     )
 
 
-def test_buffer_1d():
+def test_tensor_1d():
     @Ts.function
     def func_no_sugar(A: T.Tensor(shape=(16,))):
         for i in T.serial(16):
@@ -836,12 +836,12 @@ def test_buffer_1d():
     assert_structural_equal_ignore_global_symbol(func_no_sugar, func_with_sugar)
 
 
-def test_bind_bufferload_without_type_annotation():
+def test_bind_tensorload_without_type_annotation():
     # Variable assignment of Expr types uses the dtype of the
     # Expr to determine the variable's dtype.  Parsing of
-    # buf[indices] is done by generating a BufferSlice object, which
-    # handles both store and load cases.  BufferSlice is not a
-    # Expr, and implements BufferSlice.dtype explicitly.
+    # buf[indices] is done by generating a TensorSlice object, which
+    # handles both store and load cases.  TensorSlice is not a
+    # Expr, and implements TensorSlice.dtype explicitly.
 
     # Failure occurred during parsing of the tvmscript.
     @Ts.function

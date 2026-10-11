@@ -124,7 +124,7 @@ inline InlineType AutoInlineNode::CheckInline(const s_tir::Schedule& sch,
   ScheduleState state = sch->state();
   const SBlockNode* block = TVM_SREF_TO_SBLOCK(block_sref);
   SBlockRealize realize = GetSBlockRealize(state, block_sref);
-  // Cond 1. The block has only one write buffer
+  // Cond 1. The block has only one write tensor
   if (block->writes.size() != 1) {
     return InlineType::kNoInline;
   }

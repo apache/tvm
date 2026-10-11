@@ -36,8 +36,8 @@ class TIRFrame(StmtFrame): ...
 class FunctionFrame(TIRFrame):
     """Native function frame retaining signature and finalized results."""
 
-    def default_buffer_layout(self, shape, scope):
-        """Select the default layout for buffers constructed in this function."""
+    def default_tensor_layout(self, shape, scope):
+        """Select the default layout for tensors constructed in this function."""
         from tvm.tirx.layout import S, TileLayout
 
         return None if scope in ("trn.sbuf", "trn.psum") else TileLayout(S[tuple(shape)])

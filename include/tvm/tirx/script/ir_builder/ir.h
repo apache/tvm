@@ -72,12 +72,12 @@ FunctionFrame DeclFunction(bool is_private = false, bool persistent = false);
 Var Arg(ffi::String name, Var var);
 
 /*!
- * \brief The Function buffer arguments adding function.
- * \param name The name of the buffer.
- * \param buffer The buffer argument.
- * \return The buffer.
+ * \brief The Function tensor arguments adding function.
+ * \param name The name of the tensor.
+ * \param tensor The tensor argument.
+ * \return The tensor.
  */
-TensorVar Arg(ffi::String name, TensorVar buffer);
+TensorVar Arg(ffi::String name, TensorVar tensor);
 
 /*!
  * \brief The Function naming statement.

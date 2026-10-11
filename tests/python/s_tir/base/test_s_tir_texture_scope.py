@@ -39,7 +39,7 @@ def test_texture_scope():
         ) -> None:
             T.func_attr({"tirx.noalias": True})
 
-            B = Ts.sblock_alloc_buffer((128, 128, 4), dtype="float32", scope="global.texture")
+            B = Ts.sblock_alloc_tensor((128, 128, 4), dtype="float32", scope="global.texture")
 
             for block_idx in T.thread_binding(0, 128, thread="blockIdx.x"):
                 for thread_idx in T.thread_binding(0, 128, thread="threadIdx.x"):

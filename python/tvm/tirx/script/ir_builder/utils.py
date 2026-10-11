@@ -20,31 +20,31 @@ from tvm.script.ir_builder.stmt import frame_scope as frame_scope
 from tvm.tirx import Var
 
 
-def tensor_indices(buffer: Var, index):
-    """Translate logical flat or multidimensional indices for a concrete buffer.
+def tensor_indices(tensor: Var, index):
+    """Translate logical flat or multidimensional indices for a concrete tensor.
 
     A single index is unraveled in row-major logical order, retaining the
     outermost quotient. Explicit multidimensional coordinates pass through.
-    The result indexes the original buffer, preserving its strides, layout,
-    element offset and aliases; this function never creates a buffer view.
+    The result indexes the original tensor, preserving its strides, layout,
+    element offset and aliases; this function never creates a tensor view.
 
     Parameters
     ----------
-    buffer : Var
-        The concrete buffer whose logical shape determines the coordinates.
+    tensor : Var
+        The concrete tensor whose logical shape determines the coordinates.
     index : Expr or sequence of Expr
         A flat logical index or explicit multidimensional coordinates.
 
     Returns
     -------
     indices : list of Expr
-        Coordinates for a buffer load or an explicitly emitted buffer store.
+        Coordinates for a tensor load or an explicitly emitted tensor store.
     """
     try:
         indices = list(index)
     except TypeError:
         indices = [index]
-    shape = buffer.shape
+    shape = tensor.shape
     if len(indices) != 1 or len(shape) == 1:
         return indices
     index = indices[0]

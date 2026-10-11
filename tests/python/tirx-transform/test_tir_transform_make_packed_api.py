@@ -30,7 +30,7 @@ from tvm.script import ir as I
 from tvm.script import tirx as T
 
 
-def _is_buffer_binding(node, *op_names):
+def _is_tensor_binding(node, *op_names):
     return (
         isinstance(node, tvm.ir.Bind)
         and isinstance(node.value, tvm.ir.Call)
@@ -451,9 +451,9 @@ def test_float_parameter():
 def test_forward_reference_symbolic_variable():
     """MakePackedAPI succeeds when a symbolic variable is used before it is defined.
 
-    When buffer A has shape (batch_size+1,) and buffer B has shape (batch_size,),
+    When tensor A has shape (batch_size+1,) and tensor B has shape (batch_size,),
     batch_size is referenced (in A's shape check) before it is defined (from B's
-    shape). The three-sequence separation (init_nest, asserts, decl_buffers)
+    shape). The three-sequence separation (init_nest, asserts, decl_tensors)
     ensures all variable definitions precede all assertions.
     """
 
@@ -473,7 +473,7 @@ def test_forward_reference_symbolic_variable():
     assert len(After["main"].params) == 4
 
 
-def test_buffer_alignment_attached_to_buffer_var():
+def test_tensor_alignment_attached_to_tensor_var():
     """Packed ABI alignment metadata remains keyed by the logical TensorVar."""
 
     @I.ir_module
@@ -485,17 +485,17 @@ def test_buffer_alignment_attached_to_buffer_var():
 
     after = tvm.tirx.transform.MakePackedAPI()(Before)["main"]
     alignment_nodes = []
-    declared_buffers = []
+    declared_tensors = []
 
     def collect(node):
         if isinstance(node, tvm.ir.Call) and node.op == tvm.ir.Op.get("tirx.assume_aligned"):
             alignment_nodes.append(node.args[0])
-        if _is_buffer_binding(node, "tirx.decl_tensor"):
-            declared_buffers.append(node.var)
+        if _is_tensor_binding(node, "tirx.decl_tensor"):
+            declared_tensors.append(node.var)
 
     tvm_ffi.structural_walk(after.body, collect)
     assert len(alignment_nodes) == 1
-    assert any(alignment_nodes[0].same_as(buffer) for buffer in declared_buffers)
+    assert any(alignment_nodes[0].same_as(tensor) for tensor in declared_tensors)
 
 
 if __name__ == "__main__":

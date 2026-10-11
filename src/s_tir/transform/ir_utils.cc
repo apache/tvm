@@ -88,10 +88,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 }  // namespace transform
 
-ffi::Array<PrimExpr> ConvertIndices(const MatchBufferRegion& match_buffer,
+ffi::Array<PrimExpr> ConvertIndices(const MatchTensorRegion& match_tensor,
                                     const ffi::Array<PrimExpr>& indices) {
-  const TensorVar& target = match_buffer->buffer;
-  const TensorRegion& source = match_buffer->source;
+  const TensorVar& target = match_tensor->tensor;
+  const TensorRegion& source = match_tensor->source;
   TVM_FFI_ICHECK_EQ(indices.size(), target->shape.size());
 
   sym::Analyzer analyzer;
@@ -111,10 +111,10 @@ ffi::Array<PrimExpr> ConvertIndices(const MatchBufferRegion& match_buffer,
   return result;
 }
 
-ffi::Array<Range> ConvertRegion(const MatchBufferRegion& match_buffer,
+ffi::Array<Range> ConvertRegion(const MatchTensorRegion& match_tensor,
                                 const ffi::Array<Range>& region) {
-  const TensorVar& target = match_buffer->buffer;
-  const TensorRegion& source = match_buffer->source;
+  const TensorVar& target = match_tensor->tensor;
+  const TensorRegion& source = match_tensor->source;
   TVM_FFI_ICHECK_EQ(region.size(), target->shape.size());
 
   sym::Analyzer analyzer;
@@ -147,9 +147,9 @@ class StorageAlignCollector : public StmtExprVisitor {
   friend std::unordered_map<Var, StorageAlignAnnotation> CollectStorageAlignAnnotation(
       const Stmt& body);
 
-  /*! \brief SBlock: resolve each annotation's buffer index through the write regions. */
+  /*! \brief SBlock: resolve each annotation's tensor index through the write regions. */
   ffi::Optional<VisitInterrupt> Visit_(const SBlockNode* op) final {
-    auto it = op->annotations.find(tvm::s_tir::attr::kBufferDimAlign);
+    auto it = op->annotations.find(attr::kTensorDimAlign);
     if (it != op->annotations.end()) {
       auto annotation = (*it).second.as_or_throw<StorageAlignAnnotation>();
       for (const auto& item : annotation) {
@@ -160,7 +160,7 @@ class StorageAlignCollector : public StmtExprVisitor {
     return StmtExprVisitor::Visit_(op);
   }
 
-  /*! \brief AllocTensor: check for buffer_dim_align annotations. */
+  /*! \brief AllocTensor: check for tensor_dim_align annotations. */
   ffi::Optional<VisitInterrupt> Visit_(const BindNode* op) final {
     if (const auto* call = op->value.as<CallNode>();
         call && call->op.same_as(tirx::alloc_tensor_op())) {
@@ -171,21 +171,21 @@ class StorageAlignCollector : public StmtExprVisitor {
 
   ffi::Optional<VisitInterrupt> DispatchAllocTensor(const BindNode* op, const CallNode* call) {
     DictAttrs annotations = call->attrs.as_or_throw<DictAttrs>();
-    auto it = annotations->dict.find(tvm::s_tir::attr::kBufferDimAlign);
+    auto it = annotations->dict.find(attr::kTensorDimAlign);
     if (it != annotations->dict.end()) {
       auto storage_align_annotation = (*it).second.as_or_throw<StorageAlignAnnotation>();
       for (const auto& storage_align_tuple : storage_align_annotation) {
-        int buffer_index = storage_align_tuple.get<0>();
-        // the first buffer idx info is meaningless for alloc
+        int tensor_index = storage_align_tuple.get<0>();
+        // the first tensor idx info is meaningless for alloc
         // stmt and should set as negative intentionally.
-        TVM_FFI_ICHECK_EQ(buffer_index, -1);
+        TVM_FFI_ICHECK_EQ(tensor_index, -1);
         storage_align_[op->var.as_or_throw<TensorVar>().var()].push_back(storage_align_tuple);
       }
     }
     return StmtExprVisitor::Visit_(op);
   }
 
-  /*! \brief The map from buffer var to its storage alignment information. */
+  /*! \brief The map from tensor var to its storage alignment information. */
   std::unordered_map<Var, StorageAlignAnnotation> storage_align_;
 };
 

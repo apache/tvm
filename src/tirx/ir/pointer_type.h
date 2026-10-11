@@ -17,11 +17,11 @@
  * under the License.
  */
 /*!
- * \file tirx/ir/buffer_common.h
- * \brief Common utils for buffer access
+ * \file tirx/ir/pointer_type.h
+ * \brief Primitive pointer type utility
  */
-#ifndef TVM_TIR_IR_BUFFER_COMMON_H_
-#define TVM_TIR_IR_BUFFER_COMMON_H_
+#ifndef TVM_TIR_IR_POINTER_TYPE_H_
+#define TVM_TIR_IR_POINTER_TYPE_H_
 
 #include <tvm/ffi/dtype.h>
 #include <tvm/ir/type.h>
@@ -54,4 +54,4 @@ inline std::optional<PrimType> GetPtrElementType(const Type& type) {
 
 }  // namespace tirx
 }  // namespace tvm
-#endif  // TVM_TIR_IR_BUFFER_COMMON_H_
+#endif  // TVM_TIR_IR_POINTER_TYPE_H_

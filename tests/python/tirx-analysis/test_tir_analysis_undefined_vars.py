@@ -21,7 +21,7 @@ import tvm.testing
 from tvm import tirx
 
 
-def test_decl_buffer_data_is_use():
+def test_decl_tensor_data_is_use():
     """DeclTensor's data var should be reported as undefined (USE), not defined.
 
     When UndefinedVars encounters a DeclTensor, the data pointer references
@@ -51,11 +51,11 @@ def test_decl_buffer_data_is_use():
     assert "buf_data" in undef_names, f"Expected buf_data in undefined vars, got {undef_names}"
 
 
-def test_decl_buffer_elem_offset_is_use():
+def test_decl_tensor_elem_offset_is_use():
     """DeclTensor's elem_offset var should be reported as undefined (USE).
 
-    After FlattenBuffer, DeclTensor nodes carry elem_offset vars from
-    match_buffer entries.  These must appear in the undefined list.
+    After FlattenTensor, DeclTensor nodes carry elem_offset vars from
+    match_tensor entries.  These must appear in the undefined list.
     """
     from tvm.ir import PrimType, PtrType
 
@@ -83,7 +83,7 @@ def test_decl_buffer_elem_offset_is_use():
     )
 
 
-def test_alloc_buffer_data_is_def():
+def test_alloc_tensor_data_is_def():
     """AllocTensor's data var should NOT be reported as undefined (it's a DEF).
 
     AllocTensor allocates new storage — the data pointer is a new definition,
@@ -106,13 +106,13 @@ def test_alloc_buffer_data_is_def():
 
     undef = tvm.tirx.analysis.undefined_vars(stmt, [])
     undef_names = {v.name for v in undef}
-    # The buffer Var itself is defined by AllocTensor.
+    # The tensor Var itself is defined by AllocTensor.
     assert buf.name not in undef_names
     # shape var n should be undefined (comes from enclosing scope)
     assert "n" in undef_names, f"Expected shape var 'n' in undefined vars, got {undef_names}"
 
 
-def test_buffer_data_projection_is_buffer_use():
+def test_tensor_data_projection_is_tensor_use():
     """An opaque data projection must retain the TensorVar identity."""
     buf = tirx.decl_tensor((16,), "float32", "buf")
     stmt = tvm.ir.Evaluate(buf.data)

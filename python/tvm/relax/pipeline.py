@@ -171,7 +171,7 @@ def static_shape_tuning_pipeline(
     @tvm.transform.module_pass(opt_level=0)
     def _pipeline(mod: tvm.ir.IRModule, _ctx: tvm.transform.PassContext) -> tvm.ir.IRModule:
         if cpu_weight_prepack:
-            pre_tuning_layout_rewrite = [transform.AttachAttrLayoutFreeBuffers()]
+            pre_tuning_layout_rewrite = [transform.AttachAttrLayoutFreeTensors()]
             post_tuning_layout_rewrite = [
                 transform.SplitLayoutRewritePreproc(),
                 transform.LiftTransformParams(),

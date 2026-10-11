@@ -45,12 +45,12 @@ def test_rms_norm_with_casting():
             T.func_attr({"tirx.noalias": True})
 
             # with Ts.sblock("root"):
-            T_cast_1 = Ts.sblock_alloc_buffer((1, n, 4096))
-            T_multiply = Ts.sblock_alloc_buffer((1, n, 4096))
-            T_multiply_red = Ts.sblock_alloc_buffer((1, n))
-            rsqrt = Ts.sblock_alloc_buffer((1, n))
-            T_cast_2 = Ts.sblock_alloc_buffer((4096,))
-            T_rms_norm = Ts.sblock_alloc_buffer((1, n, 4096))
+            T_cast_1 = Ts.sblock_alloc_tensor((1, n, 4096))
+            T_multiply = Ts.sblock_alloc_tensor((1, n, 4096))
+            T_multiply_red = Ts.sblock_alloc_tensor((1, n))
+            rsqrt = Ts.sblock_alloc_tensor((1, n))
+            T_cast_2 = Ts.sblock_alloc_tensor((4096,))
+            T_rms_norm = Ts.sblock_alloc_tensor((1, n, 4096))
             for ax0, ax1, ax2 in T.grid(1, n, 4096):
                 with Ts.sblock("T_cast"):
                     v_ax0, v_ax1, v_ax2 = Ts.axis.remap("SSS", [ax0, ax1, ax2])
@@ -105,11 +105,11 @@ def test_rms_norm_with_casting():
             T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
 
             # with Ts.sblock("root"):
-            T_multiply_local = Ts.sblock_alloc_buffer((1, n, 4096), scope="local")
-            T_multiply_red_local = Ts.sblock_alloc_buffer((1, n), scope="local")
-            rsqrt_shared = Ts.sblock_alloc_buffer((1, n), scope="shared")
-            T_rms_norm_local = Ts.sblock_alloc_buffer((1, n, 4096), scope="local")
-            data_local = Ts.sblock_alloc_buffer((1, n, 4096), "float16", scope="local")
+            T_multiply_local = Ts.sblock_alloc_tensor((1, n, 4096), scope="local")
+            T_multiply_red_local = Ts.sblock_alloc_tensor((1, n), scope="local")
+            rsqrt_shared = Ts.sblock_alloc_tensor((1, n), scope="shared")
+            T_rms_norm_local = Ts.sblock_alloc_tensor((1, n, 4096), scope="local")
+            data_local = Ts.sblock_alloc_tensor((1, n, 4096), "float16", scope="local")
             for ax0_ax1_fused in T.thread_binding(n, thread="blockIdx.x"):
                 for ax2_0 in T.thread_binding(512, thread="threadIdx.x"):
                     for ax2_1 in range(1):
@@ -177,10 +177,10 @@ def test_rms_norm_without_casting():
             T.func_attr({"tirx.noalias": True})
 
             # with Ts.sblock("root"):
-            T_multiply = Ts.sblock_alloc_buffer((1, n, 4096))
-            T_multiply_red = Ts.sblock_alloc_buffer((1, n))
-            rsqrt = Ts.sblock_alloc_buffer((1, n))
-            T_rms_norm = Ts.sblock_alloc_buffer((1, n, 4096))
+            T_multiply = Ts.sblock_alloc_tensor((1, n, 4096))
+            T_multiply_red = Ts.sblock_alloc_tensor((1, n))
+            rsqrt = Ts.sblock_alloc_tensor((1, n))
+            T_rms_norm = Ts.sblock_alloc_tensor((1, n, 4096))
             for ax0, ax1, ax2 in T.grid(1, n, 4096):
                 with Ts.sblock("T_multiply"):
                     v_ax0, v_ax1, v_ax2 = Ts.axis.remap("SSS", [ax0, ax1, ax2])
@@ -223,11 +223,11 @@ def test_rms_norm_without_casting():
             T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
 
             # with Ts.sblock("root"):
-            T_multiply_local = Ts.sblock_alloc_buffer((1, n, 4096), scope="local")
-            T_multiply_red_local = Ts.sblock_alloc_buffer((1, n), scope="local")
-            rsqrt_shared = Ts.sblock_alloc_buffer((1, n), scope="shared")
-            T_rms_norm_local = Ts.sblock_alloc_buffer((1, n, 4096), scope="local")
-            data_local = Ts.sblock_alloc_buffer((1, n, 4096), scope="local")
+            T_multiply_local = Ts.sblock_alloc_tensor((1, n, 4096), scope="local")
+            T_multiply_red_local = Ts.sblock_alloc_tensor((1, n), scope="local")
+            rsqrt_shared = Ts.sblock_alloc_tensor((1, n), scope="shared")
+            T_rms_norm_local = Ts.sblock_alloc_tensor((1, n, 4096), scope="local")
+            data_local = Ts.sblock_alloc_tensor((1, n, 4096), scope="local")
             for ax0_ax1_fused in T.thread_binding(n, thread="blockIdx.x"):
                 for ax2_0 in T.thread_binding(512, thread="threadIdx.x"):
                     for ax2_1 in range(1):

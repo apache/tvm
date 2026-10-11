@@ -26,7 +26,7 @@ from tvm.script import ir as I
 from tvm.script import tirx as T
 
 
-def _is_buffer_binding(node, *op_names):
+def _is_tensor_binding(node, *op_names):
     return (
         isinstance(node, tvm.ir.Bind)
         and isinstance(node.value, tvm.ir.Call)
@@ -362,7 +362,7 @@ def test_symbolic_var_parameter():
     assert isinstance(after["main_kernel"].params[2], tvm.tirx.Var)
 
 
-def test_buffer_used_only_through_data_projection():
+def test_tensor_used_only_through_data_projection():
     @I.ir_module
     class Before:
         @T.function
@@ -373,14 +373,14 @@ def test_buffer_used_only_through_data_projection():
 
     after = tvm.tirx.transform.SplitHostDevice()(Before)
     kernel = after["main_kernel"]
-    declared_buffers = []
+    declared_tensors = []
 
     def collect(node):
-        if _is_buffer_binding(node, "tirx.decl_tensor"):
-            declared_buffers.append(node.var)
+        if _is_tensor_binding(node, "tirx.decl_tensor"):
+            declared_tensors.append(node.var)
 
     tvm_ffi.structural_walk(kernel.body, collect)
-    assert len(declared_buffers) == 1
+    assert len(declared_tensors) == 1
     assert not tvm.tirx.analysis.undefined_vars(kernel.body, kernel.params)
 
 

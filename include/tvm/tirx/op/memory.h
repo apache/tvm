@@ -150,20 +150,20 @@ TVM_DLL const Op& assume_aligned_op();
 TVM_DLL const Op& undef_op();
 
 /*!
- * \brief Masked buffer load.
+ * \brief Masked tensor load.
  *
  * Arguments, in order:
- * - args[0]: buffer, The buffer.
+ * - args[0]: tensor, The tensor.
  * - args[1]: index, The index.
  * - args[2...]: args, trailing PrimExpr operands.
  */
 TVM_DLL const Op& masked_load_op();
 
 /*!
- * \brief Masked buffer store.
+ * \brief Masked tensor store.
  *
  * Arguments, in order:
- * - args[0]: buffer, The buffer.
+ * - args[0]: tensor, The tensor.
  * - args[1]: value, The value to use.
  * - args[2]: index, The index.
  * - args[3...]: args, trailing PrimExpr operands.

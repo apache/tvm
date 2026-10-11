@@ -35,7 +35,7 @@ using s_tir::Schedule;
 
 /*!
  * \brief Extension of MultiLevelTiling for backends with wide vectors.
- * The loop over the innermost spatial axis of the output buffer is always vectorized with the
+ * The loop over the innermost spatial axis of the output tensor is always vectorized with the
  * maximum vector length.
  */
 class MultiLevelTilingWideVectorNode : public MultiLevelTilingNode {
@@ -73,7 +73,7 @@ MultiLevelTilingWideVectorNode::SplitLoop(const Schedule& sch, SBlockRV block_rv
   const auto out_dtype = block_node->writes[0]->source.as_or_throw<tvm::tirx::TensorVar>()->dtype;
   const int vec_len = vector_length_in_bits / out_dtype.bits();
 
-  // Determine if this loop is over the innermost axis of the output buffer.
+  // Determine if this loop is over the innermost axis of the output tensor.
   // In the example below, we look for a loop whose loop var is bound to the axis co.
 
   // for (i0, 0, 1) {

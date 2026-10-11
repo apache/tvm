@@ -88,9 +88,9 @@ Var Arg(ffi::String name, Var var) {
   return var;
 }
 
-TensorVar Arg(ffi::String name, TensorVar buffer) {
-  Arg(std::move(name), buffer.var());
-  return buffer;
+TensorVar Arg(ffi::String name, TensorVar tensor) {
+  Arg(std::move(name), tensor.var());
+  return tensor;
 }
 
 void FuncName(ffi::String name) {
@@ -206,13 +206,13 @@ ForFrame ThreadBinding(PrimExpr start, PrimExpr stop, ffi::String thread,
 
 tvm::Stmt TensorStore(Expr dest, ffi::Array<PrimExpr> indices, PrimExpr value) {
   auto tensor_type = dest->ty.as_or_throw<tvm::tirx::TensorType>();
-  PrimType buffer_dtype = tensor_type->dtype;
+  PrimType tensor_dtype = tensor_type->dtype;
   PrimType index_ty = indices.empty() ? PrimType::Int(32) : indices.back().ty();
   bool is_index_scalable = !indices.empty() && index_ty.IsScalableVector();
-  bool is_buffer_dtype_scalable = buffer_dtype.IsScalableVector();
+  bool is_tensor_dtype_scalable = tensor_dtype.IsScalableVector();
 
-  TVM_FFI_ICHECK(!(is_index_scalable && is_buffer_dtype_scalable))
-      << "Index dtype and buffer dtype can't both be scalable.";
+  TVM_FFI_ICHECK(!(is_index_scalable && is_tensor_dtype_scalable))
+      << "Index dtype and tensor dtype can't both be scalable.";
 
   int index_lanes;
   if (indices.empty()) {
@@ -223,14 +223,14 @@ tvm::Stmt TensorStore(Expr dest, ffi::Array<PrimExpr> indices, PrimExpr value) {
     index_lanes = index_ty.lanes();
   }
 
-  int buffer_lanes = is_buffer_dtype_scalable ? buffer_dtype.VScaleFactor() : buffer_dtype.lanes();
+  int tensor_lanes = is_tensor_dtype_scalable ? tensor_dtype.VScaleFactor() : tensor_dtype.lanes();
 
-  PrimType lhs_dtype = buffer_dtype;
-  if (is_buffer_dtype_scalable || is_index_scalable) {
-    lhs_dtype = PrimType::ScalableVector(buffer_dtype.code(), buffer_dtype.bits(),
-                                         buffer_lanes * index_lanes);
+  PrimType lhs_dtype = tensor_dtype;
+  if (is_tensor_dtype_scalable || is_index_scalable) {
+    lhs_dtype = PrimType::ScalableVector(tensor_dtype.code(), tensor_dtype.bits(),
+                                         tensor_lanes * index_lanes);
   } else {
-    lhs_dtype = buffer_dtype.WithLanes(buffer_dtype.lanes() * index_lanes);
+    lhs_dtype = tensor_dtype.WithLanes(tensor_dtype.lanes() * index_lanes);
   }
 
   PrimType rhs_dtype = value.ty();
@@ -286,8 +286,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   Namer::vtable().SetDispatch<TensorLoadNode>(
       [](const ffi::ObjectRef& node, ffi::String name) -> void {
         using namespace tvm::tirx;
-        TensorLoadNode* buffer = const_cast<TensorLoadNode*>(node.as<TensorLoadNode>());
-        Namer::Name(buffer->source.as_or_throw<tvm::tirx::TensorVar>(), name);
+        TensorLoadNode* tensor = const_cast<TensorLoadNode*>(node.as<TensorLoadNode>());
+        Namer::Name(tensor->source.as_or_throw<tvm::tirx::TensorVar>(), name);
       });
 }
 

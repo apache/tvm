@@ -39,31 +39,31 @@ def unary_trn(op: TensorCall, unary_op: MapOpType, sctx: DispatchContext) -> Fun
         fail("requires Trainium target and thread exec_scope")
 
     # Extract operation arguments
-    dst_buffer_region, _src = op.args
+    dst_tensor_region, _src = op.args
 
-    # Handle constant or buffer source
+    # Handle constant or tensor source
     if isinstance(_src, FloatImm):
         if unary_op not in const_input_ops:
             assert False, f"Unsupported unary operation {unary_op} taking const as input"
         CONST = _src
-        src_buffer_region = None
+        src_tensor_region = None
     else:
         CONST = None
-        src_buffer_region = _src
+        src_tensor_region = _src
 
     # Initialize analyzer and validate operation type
     analyzer = init_analyzer(sctx)
     assert unary_op in non_activation_unary_map_ops, f"Unsupported unary operation {unary_op}"
 
-    inst_gen = InstructionGenerator([dst_buffer_region, _src], analyzer)
+    inst_gen = InstructionGenerator([dst_tensor_region, _src], analyzer)
     # Find instruction parameters
     if CONST is None:
-        inst_repr = try_find_inst_unary(dst_buffer_region, src_buffer_region, analyzer, inst_gen)
+        inst_repr = try_find_inst_unary(dst_tensor_region, src_tensor_region, analyzer, inst_gen)
     else:
-        inst_repr = try_find_inst_unary(dst_buffer_region, dst_buffer_region, analyzer, inst_gen)
+        inst_repr = try_find_inst_unary(dst_tensor_region, dst_tensor_region, analyzer, inst_gen)
     # Generate and return the implementation function
     return generate_unary_func(
-        dst_buffer_region,
+        dst_tensor_region,
         _src,
         inst_gen,
         inst_repr,

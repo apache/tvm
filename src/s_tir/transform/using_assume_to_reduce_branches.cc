@@ -25,11 +25,11 @@
  * oriented for layout specific padding related branches.
  *
  * \note
- *    1. This pass works if the buffer assumption variable is in the branch statement.
- *       In case, the buffer assumption is not present in the branch statement and
- *       there are intermediate buffers then, inline the code.
+ *    1. This pass works if the tensor assumption variable is in the branch statement.
+ *       In case, the tensor assumption is not present in the branch statement and
+ *       there are intermediate tensors then, inline the code.
  *    2. The assumptions leveraged here should be of the form T.assume(condition_on_indices or
- *       buffer_equals_to_some_value)
+ *       tensor_equals_to_some_value)
  *    3. Some part of the code are reused from the control_flow_graph.cc file which also
  *       handles eliminating branches in particular scenarios.
  *    4. This pass currently works for op_pattern kElemWise and kBroadcast.
@@ -83,8 +83,8 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
   using IRMutatorWithAnalyzer::Mutate_;
 
   /* This class analyzes the complete function.
-  It parses the buffer assumptions and eliminates the redundant branch
-  introduced due to layout specific padding by leveraging from buffer assumptions.
+  It parses the tensor assumptions and eliminates the redundant branch
+  introduced due to layout specific padding by leveraging from tensor assumptions.
   On eliminating the branch there are more opportunities to vectorize the code
   and improve performance.
 
@@ -110,8 +110,8 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
     It checks if the context of the assume statement (for condition indices and
     assume_condition) is same as the context of the if_then_else statement (for condition indices
     and if_then_else condition). If context is same and the expression inside if_then_else statement
-    is a function of the buffer assumption (eg A in above example),
-    then the pass substitutes the value from the buffer assumption and simplifies the expression.
+    is a function of the tensor assumption (eg A in above example),
+    then the pass substitutes the value from the tensor assumption and simplifies the expression.
     3. The pass then checks if then_clause and else_clause evaluate to same value.
     If yes, then return the else_clause if we are in the then_condition_context (since then_clause
     will be true in this context and if else_clause is also evaluating to true then we can directly
@@ -125,19 +125,19 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
  private:
   // This struct stores all the relevant data related to asssume statement
   struct assume_struct {        // Consider the example : T.assume(i < 14 or A[i] == 0)
-    PrimExpr buffer_context;    // The context of the assume statement (the bound on the axis)
-    PrimExpr buffer_predicate;  // The condition inside assume statement (i < 14) excluding
-                                // bufferload expression (A[i] == 0)
-    TensorLoad buffer_load;     // Storing the buffer load Eg: A[i] in A[i] == 0
-    PrimExpr buffer_value;      // Storing the value for the buffer Eg : 0 in A[i] == 0
-    ffi::Array<PrimExpr> buffer_indices;  // Storing the indices of the buffer Eg : i
+    PrimExpr tensor_context;    // The context of the assume statement (the bound on the axis)
+    PrimExpr tensor_predicate;  // The condition inside assume statement (i < 14) excluding
+                                // tensorload expression (A[i] == 0)
+    TensorLoad tensor_load;     // Storing the tensor load Eg: A[i] in A[i] == 0
+    PrimExpr tensor_value;      // Storing the value for the tensor Eg : 0 in A[i] == 0
+    ffi::Array<PrimExpr> tensor_indices;  // Storing the indices of the tensor Eg : i
   };
   // List of conditions in a scope
   std::vector<PrimExpr> conditions_;
 
-  // Storing all the buffer assumptions data in map
+  // Storing all the tensor assumptions data in map
   std::unordered_map<tirx::TensorVar, assume_struct, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
-      map_buffer_assumption;
+      map_tensor_assumption;
 
   struct InternalConstraintContext {
     /* This stuct appends the constraint passed to it in the conditions list.
@@ -197,22 +197,22 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
   }
 
   UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) override {
-    if (map_buffer_assumption.find(op->source.as_or_throw<tvm::tirx::TensorVar>()) !=
-        map_buffer_assumption.end()) {
-      /* If the cuurent context where the buffer load is present is same as
-      the context of the buffer assumption then, return the buffer value present in the assumption.
-      This will eventually replace the bufferload value in the complete expresison */
+    if (map_tensor_assumption.find(op->source.as_or_throw<tvm::tirx::TensorVar>()) !=
+        map_tensor_assumption.end()) {
+      /* If the cuurent context where the tensor load is present is same as
+      the context of the tensor assumption then, return the tensor value present in the assumption.
+      This will eventually replace the tensorload value in the complete expresison */
 
-      auto buffer_assumption =
-          map_buffer_assumption.at(op->source.as_or_throw<tvm::tirx::TensorVar>());
+      auto tensor_assumption =
+          map_tensor_assumption.at(op->source.as_or_throw<tvm::tirx::TensorVar>());
       PrimExpr current_predicate_and_context = CurrentScopePredicate();
-      PrimExpr buffer_predicate_and_context =
-          buffer_assumption.buffer_context && buffer_assumption.buffer_predicate;
-      bool current_context_and_buffer_constraint_is_same = ffi::StructuralEqual::Equal(
-          current_predicate_and_context, buffer_predicate_and_context, /*map_free_vars=*/true);
+      PrimExpr tensor_predicate_and_context =
+          tensor_assumption.tensor_context && tensor_assumption.tensor_predicate;
+      bool current_context_and_tensor_constraint_is_same = ffi::StructuralEqual::Equal(
+          current_predicate_and_context, tensor_predicate_and_context, /*map_free_vars=*/true);
 
-      if (current_context_and_buffer_constraint_is_same) {
-        return buffer_assumption.buffer_value;
+      if (current_context_and_tensor_constraint_is_same) {
+        return tensor_assumption.tensor_value;
       }
     }
     return ffi::Unchanged();
@@ -305,19 +305,19 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
   void AssumeConstraintComponent(PrimExpr assumption) {
     PrimExpr additional_predicate = IntImm::Bool(true);
 
-    std::vector<PrimExpr> buffer_exprs;
+    std::vector<PrimExpr> tensor_exprs;
     for (const auto& expr : sym::ExtractComponents(assumption)) {
       auto side_effect = SideEffect(expr);
       if (side_effect <= CallEffectKind::kPure) {
         // Pulling out portions of the assumption that do not depend
-        // on a buffer value allows the following two forms to be
+        // on a tensor value allows the following two forms to be
         // treated identically.
         //
-        // Option 1: if i < 3: T.assume(buf[i] == value)
-        // Option 2: T.assume(i>=3 or buf[i] == value)
+        // Option 1: if i < 3: T.assume(tensor[i] == value)
+        // Option 2: T.assume(i>=3 or tensor[i] == value)
         additional_predicate = additional_predicate && logical_not(expr);
       } else if (side_effect == CallEffectKind::kReadState) {
-        buffer_exprs.push_back(expr);
+        tensor_exprs.push_back(expr);
       } else {
         TVM_FFI_THROW(InternalError)
             << "Assumption must be pure or read-only, but contained expression " << expr
@@ -326,12 +326,12 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
     }
 
     additional_predicate = analyzer_->Simplify(std::move(additional_predicate));
-    TVM_FFI_ICHECK_EQ(buffer_exprs.size(), 1)
-        << "T.assume must contain only a single buffer expression";
+    TVM_FFI_ICHECK_EQ(tensor_exprs.size(), 1)
+        << "T.assume must contain only a single tensor expression";
 
-    auto* as_equal_node = buffer_exprs[0].as<prim::EQNode>();
+    auto* as_equal_node = tensor_exprs[0].as<prim::EQNode>();
     TVM_FFI_ICHECK(as_equal_node)
-        << "T.assume buffer constraint must be of the form 'buffer[indices] == "
+        << "T.assume tensor constraint must be of the form 'tensor[indices] == "
            "value', but received "
         << assumption;
     if (!as_equal_node) {
@@ -353,18 +353,18 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
       value = as_equal_node->a;
     } else {
       TVM_FFI_THROW(InternalError)
-          << "T.assume buffer constraint must be of the form 'buffer[indices] == value'";
+          << "T.assume tensor constraint must be of the form 'tensor[indices] == value'";
     }
 
-    // Populating the assume statement predicate, buffer, value
+    // Populating the assume statement predicate, tensor, value
     // and the context of the assume statement
-    assume_struct buf_data{CurrentScopePredicate(), additional_predicate, load, value,
-                           load->indices};
+    assume_struct tensor_data{CurrentScopePredicate(), additional_predicate, load, value,
+                              load->indices};
     for (size_t i = 0; i < load->indices.size(); i++) {
-      buf_data.buffer_indices.push_back(analyzer_->Simplify(load->indices[i]));
+      tensor_data.tensor_indices.push_back(analyzer_->Simplify(load->indices[i]));
     }
-    map_buffer_assumption.insert_or_assign(
-        buf_data.buffer_load->source.as_or_throw<tvm::tirx::TensorVar>(), buf_data);
+    map_tensor_assumption.insert_or_assign(
+        tensor_data.tensor_load->source.as_or_throw<tvm::tirx::TensorVar>(), tensor_data);
 
     auto has_side_effect = SideEffect(value) > CallEffectKind::kPure;
     TVM_FFI_ICHECK(!has_side_effect)

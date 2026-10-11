@@ -63,20 +63,20 @@ def check_error(func, rel_lineno, error_type):
             assert match.group(1) in str(caught.value)
 
 
-def test_buffer_bind():
-    def buffer_bind_missing_args(A: T.Tensor(dtype="float32")) -> None:  # error
+def test_tensor_bind():
+    def tensor_bind_missing_args(A: T.Tensor(dtype="float32")) -> None:  # error
         T.evaluate(0)
 
-    check_error(buffer_bind_missing_args, 1, TypeError)
+    check_error(tensor_bind_missing_args, 1, TypeError)
 
 
-def test_undefined_buffer():
-    def undefined_buffer(A: T.Tensor((16, 16), "float32")) -> None:
+def test_undefined_tensor():
+    def undefined_tensor(A: T.Tensor((16, 16), "float32")) -> None:
         for i in T.serial(16):
             for j in T.serial(0, 16):
                 C[i, j] = 0.0  # error  # noqa: F821
 
-    check_error(undefined_buffer, 4, NameError)
+    check_error(undefined_tensor, 4, NameError)
 
 
 def test_unsupported_function_call():
@@ -214,28 +214,28 @@ def test_inconsistent_grid():
     check_error(inconsistent_grid, 2, ValueError)
 
 
-def test_invalid_match_buffer_region():
-    def invalid_match_buffer_region() -> None:
+def test_invalid_match_tensor_region():
+    def invalid_match_tensor_region() -> None:
         for i, j in T.grid(128, 128):
             with Ts.sblock():
                 vi, vj = Ts.axis.remap("SS", [i, j])
-                A = Ts.match_buffer(vi)  # error
+                A = Ts.match_tensor(vi)  # error
                 T.evaluate(1.0)
 
-    check_error(invalid_match_buffer_region, 5, TypeError)
+    check_error(invalid_match_tensor_region, 5, TypeError)
 
 
-def test_buffer_rebinding_preserves_distinct_allocations():
+def test_tensor_rebinding_preserves_distinct_allocations():
     @Ts.function
-    def rebound_buffer() -> None:
-        A = Ts.sblock_alloc_buffer((128, 128), "float32")
-        A = Ts.sblock_alloc_buffer((128, 128), "float32")
+    def rebound_tensor() -> None:
+        A = Ts.sblock_alloc_tensor((128, 128), "float32")
+        A = Ts.sblock_alloc_tensor((128, 128), "float32")
         A[0, 0] = A[0, 1] + T.float32(1)
 
-    # Python rebinding selects the second buffer and retains both native allocations.
-    block = rebound_buffer.body[0].block
-    assert len(block.alloc_buffers) == 2
-    first, second = block.alloc_buffers
+    # Python rebinding selects the second tensor and retains both native allocations.
+    block = rebound_tensor.body[0].block
+    assert len(block.alloc_tensors) == 2
+    first, second = block.alloc_tensors
     assert not first.same_as(second)
     store = block.body[0]
     assert isinstance(store, tvm.ir.TensorStore)
@@ -245,7 +245,7 @@ def test_buffer_rebinding_preserves_distinct_allocations():
 
 def test_duplicate_block_signature():
     def duplicate_reads() -> None:
-        A = Ts.sblock_alloc_buffer((128, 128), "float32")
+        A = Ts.sblock_alloc_tensor((128, 128), "float32")
         for i, j in T.grid(128, 128):
             with Ts.sblock():
                 vi, vj = Ts.axis.remap("SS", [i, j])
@@ -254,7 +254,7 @@ def test_duplicate_block_signature():
                 T.evaluate(1.0)
 
     def duplicate_writes() -> None:
-        A = Ts.sblock_alloc_buffer((128, 128), "float32")
+        A = Ts.sblock_alloc_tensor((128, 128), "float32")
         for i, j in T.grid(128, 128):
             with Ts.sblock():
                 vi, vj = Ts.axis.remap("SS", [i, j])
@@ -314,20 +314,20 @@ def test_opaque_access_during_complete():
     check_error(opaque_access_during_complete, None, ValueError)
 
 
-def test_convert_slice_to_bufferload():
-    def convert_slice_to_bufferload() -> None:
-        A = Ts.sblock_alloc_buffer((128, 128), "float32")
+def test_convert_slice_to_tensorload():
+    def convert_slice_to_tensorload() -> None:
+        A = Ts.sblock_alloc_tensor((128, 128), "float32")
         for i, j in T.grid(128, 128):
             with Ts.sblock():
                 vi, vj = Ts.axis.remap("SS", [i, j])
                 A[vi, vj] = A[vi : vi + 2, vj] + 1  # error
 
-    check_error(convert_slice_to_bufferload, 6, TypeError)
+    check_error(convert_slice_to_tensorload, 6, TypeError)
 
 
 def test_tvm_exception_catch_from_special_stmt():
     def special_stmt_except() -> None:
-        A = Ts.sblock_alloc_buffer("(128, 128)", "float32")  # error
+        A = Ts.sblock_alloc_tensor("(128, 128)", "float32")  # error
         T.evaluate(1.0)
 
     check_error(special_stmt_except, 2, TypeError)
@@ -355,19 +355,19 @@ def test_tvm_exception_catch_from_assigned_intrin():
     check_error(intrin_except_assign, 2, tvm.error.InternalError)
 
 
-def test_match_buffer_shape_mismatch():
-    def buffer_shape_mismatch(A: T.Tensor((8, 8))) -> None:
+def test_match_tensor_shape_mismatch():
+    def tensor_shape_mismatch(A: T.Tensor((8, 8))) -> None:
         for i, j in T.grid(8, 2):
             with Ts.sblock():
                 Ts.reads([])
                 Ts.writes([A[i, j * 4 : j * 4 + 4]])
-                sub_A = Ts.match_buffer(
+                sub_A = Ts.match_tensor(
                     A[i, j * 4 : j * 4 + 4], (5)
                 )  # error: shape mismatched between 4 and 5
                 for jj in range(0, 4):
                     sub_A[i, j * 4 + jj] = 1
 
-    check_error(buffer_shape_mismatch, 6, tvm.error.InternalError)
+    check_error(tensor_shape_mismatch, 6, tvm.error.InternalError)
 
 
 def test_high_dim_store():
@@ -431,7 +431,7 @@ def elementwise_not_affine(
 def elementwise_non_single_branch(
     A: T.Tensor((128, 128, 128)), B: T.Tensor((128, 128, 128))
 ) -> None:
-    C = Ts.sblock_alloc_buffer((128, 128, 128))
+    C = Ts.sblock_alloc_tensor((128, 128, 128))
 
     for i, j in T.grid(128, 128):
         for k in T.serial(0, 128):
@@ -553,9 +553,9 @@ def test_non_integer_typed_block_iter():
     check_error(non_integer_typed_block_iter, 3, tvm.error.InternalError)
 
 
-def test_illegal_buffer_slice():
-    def strided_buffer_region(A: T.Tensor((128, 128), "int32")):
-        # do not allow stride in buffer region
+def test_illegal_tensor_slice():
+    def strided_tensor_region(A: T.Tensor((128, 128), "int32")):
+        # do not allow stride in tensor region
 
         with Ts.sblock("block"):
             Ts.reads([])
@@ -573,7 +573,7 @@ def test_illegal_buffer_slice():
         for i in range(4):
             T.evaluate(A[0:i:1])  # error
 
-    check_error(strided_buffer_region, 6, ValueError)
+    check_error(strided_tensor_region, 6, ValueError)
     check_error(access_reversed_slice, 4, tvm.error.InternalError)
     check_error(access_non_const_slice_length, 5, TypeError)
 
@@ -644,7 +644,7 @@ def test_tir_func_private_manual_global_symbol_fail():
         assert matmul.__name__ == "matmul"
 
 
-def test_buffer_input_requires_shape_arg():
+def test_tensor_input_requires_shape_arg():
     with pytest.raises(TypeError):
 
         @Ts.function

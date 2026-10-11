@@ -222,7 +222,7 @@ class ScheduleRule : public ffi::ObjectRef {
 
   /*!
    * \brief Extension of MultiLevelTiling for backends with wide vectors.
-   * The loop over the innermost spatial axis of the output buffer is always vectorized with the
+   * The loop over the innermost spatial axis of the output tensor is always vectorized with the
    * maximum vector length.
    * \param structure The tiling structure. 'SSRSRS' is recommended.
    * \param vector_length_in_bits The length of a vector register in bits.

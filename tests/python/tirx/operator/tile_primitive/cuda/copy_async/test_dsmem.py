@@ -30,6 +30,7 @@ import tvm_ffi
 
 import tvm
 import tvm.testing
+from tvm.ir import TensorRegion, TensorRegionType
 from tvm.script import tirx as T
 from tvm.testing import env
 from tvm.tirx import IntImm, Var
@@ -43,14 +44,15 @@ from tvm.tirx.tile_dispatch import DispatchContext
 def _make_dsmem_dispatch_call(shape, dtype, src_layout, dst_layout):
     """Call copy_dsmem_impl directly. Returns impl or raises DispatchFail."""
     from tvm.ir import Range
-    from tvm.tirx.stmt import BufferRegion
 
     src_buf = tvm.tirx.decl_tensor(shape, dtype, "A", scope="shared.dyn", layout=src_layout)
     dst_buf = tvm.tirx.decl_tensor(shape, dtype, "B", scope="shared.dyn", layout=dst_layout)
     ranges = [Range.from_min_extent(0, s) for s in shape]
     config = {"mbar": Var("mbar", "handle"), "remote_cta_id": IntImm("int32", 1)}
     op_call = T.cuda.tile.cp_async_bulk(
-        BufferRegion(dst_buf, ranges), BufferRegion(src_buf, ranges), **config
+        TensorRegion(dst_buf, ranges, ty=TensorRegionType()),
+        TensorRegion(src_buf, ranges, ty=TensorRegionType()),
+        **config,
     )
     target = tvm.target.Target({"kind": "cuda", "arch": "sm_90a"})
     sctx = DispatchContext(target, ExecScope("thread"), {}, {})
@@ -148,7 +150,7 @@ def test_dsmem(shape, dtype, src_spec, dst_spec, expected):
     assert _count_s2c_ops(impl) == expected
 
     # --- GPU correctness ---
-    # Allocate two separate smem buffers: src_smem (src_layout) and dst_smem
+    # Allocate two separate smem tensors: src_smem (src_layout) and dst_smem
     # (dst_layout). CTA 0 loads global→src_smem, copy_async copies src_smem→
     # dst_smem on CTA 1. CTA 1 reads dst_smem and writes to global output.
 
@@ -304,11 +306,10 @@ def test_dsmem(shape, dtype, src_spec, dst_spec, expected):
 def test_dsmem_dispatch_missing_config():
     """Dispatch fails when required config keys are missing."""
     from tvm.ir import Range
-    from tvm.tirx.stmt import BufferRegion
 
     layout = TileLayout(S[64])
     buf = tvm.tirx.decl_tensor((64,), "float16", "A", scope="shared.dyn", layout=layout)
-    br = BufferRegion(buf, [Range.from_min_extent(0, 64)])
+    br = TensorRegion(buf, [Range.from_min_extent(0, 64)], ty=TensorRegionType())
     target = tvm.target.Target({"kind": "cuda", "arch": "sm_90a"})
     sctx = DispatchContext(target, ExecScope("thread"), {}, {})
 

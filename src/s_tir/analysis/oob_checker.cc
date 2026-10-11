@@ -32,7 +32,7 @@ namespace s_tir {
 using namespace tvm::tirx;
 namespace transform {
 struct OOBLocation {
-  TensorVar buf;
+  TensorVar tensor;
   size_t dimension;
   ffi::ObjectRef index;
   sym::IntSet index_bounds;
@@ -47,7 +47,7 @@ class OOBError : public s_tir::ScheduleErrorContextObj {
   ffi::String DetailRenderTemplate() const final {
     std::stringstream s;
     for (const auto& oob : locations_) {
-      s << "Out of bounds memory access on buffer " << oob.buf.name() << " dimension "
+      s << "Out of bounds memory access on tensor " << oob.tensor.name() << " dimension "
         << oob.dimension << ".";
       s << " index " << oob.index << " with bounds [" << oob.index_bounds.min() << ", "
         << oob.index_bounds.max() << "] is outside the range [0, " << oob.shape_bounds.min()
@@ -80,19 +80,19 @@ class OOBCheckerVisitor final : public s_tir::IRVisitorWithAnalyzer {
     return IRVisitorWithAnalyzer::Visit_(node);
   }
   ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* node) final {
-    TensorVar buffer = node->source.as_or_throw<tvm::tirx::TensorVar>();
-    for (size_t i = 0; i < buffer->shape.size(); i++) {
-      CheckBounds(node, buffer, i);
+    TensorVar tensor = node->source.as_or_throw<tvm::tirx::TensorVar>();
+    for (size_t i = 0; i < tensor->shape.size(); i++) {
+      CheckBounds(node, tensor, i);
     }
     return IRVisitorWithAnalyzer::Visit_(node);
   }
 
   template <class T>
-  void CheckBounds(const T* node, const TensorVar& buffer, size_t i) {
+  void CheckBounds(const T* node, const TensorVar& tensor, size_t i) {
     auto ind_bounds = analyzer_->int_set(node->indices[i]);
-    auto shape_bounds = analyzer_->int_set(buffer->shape[i]);
+    auto shape_bounds = analyzer_->int_set(tensor->shape[i]);
     // We would expect that
-    // `analyzer_.CanProve(node->indices[i] < 0 || node->indices[i] >= buffer->shape[i])`
+    // `analyzer_.CanProve(node->indices[i] < 0 || node->indices[i] >= tensor->shape[i])`
     // would be the way to check if any out of bounds access occurs here, but `CanProve` checks if
     // the statement is true for all possible values (universal quantification). For a mix of in
     // bounds and out of bounds access, no out of bounds access would be reported. We instead want
@@ -104,7 +104,7 @@ class OOBCheckerVisitor final : public s_tir::IRVisitorWithAnalyzer {
     // us to the following check: are the bounds of the index outside the bounds of the shape.
     if (analyzer_->CanProve(ind_bounds.max() >= shape_bounds.min()) ||
         analyzer_->CanProve(ind_bounds.min() < 0)) {
-      errors.push_back({buffer, i, node->indices[i], ind_bounds, shape_bounds});
+      errors.push_back({tensor, i, node->indices[i], ind_bounds, shape_bounds});
     }
   }
 

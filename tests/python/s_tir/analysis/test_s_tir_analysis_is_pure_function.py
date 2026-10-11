@@ -58,13 +58,13 @@ class TestComputeValueAndReturn(CheckPureFunction):
         return N * M
 
 
-class TestReadBufferArgument(CheckPureFunction):
+class TestReadTensorArgument(CheckPureFunction):
     @Ts.function
     def func(A: T.Tensor(16, "float32")) -> T.float32:
         return A[0]
 
 
-class TestWriteToBufferArgument(CheckImpureFunction):
+class TestWriteToTensorArgument(CheckImpureFunction):
     @Ts.function
     def func(A: T.Tensor(16, "float32"), B: T.Tensor(16, "float32")):
         for i in range(16):

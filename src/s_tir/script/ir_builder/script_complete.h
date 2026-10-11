@@ -33,7 +33,7 @@ namespace s_tir {
 
 tvm::tirx::Function ScriptComplete(tvm::tirx::Function func,
                                    const ffi::Array<tvm::tirx::TensorVar>& root_allocates,
-                                   const BufferAllocatedAddresses& root_addresses = {});
+                                   const TensorAllocatedAddresses& root_addresses = {});
 
 }  // namespace s_tir
 }  // namespace tvm

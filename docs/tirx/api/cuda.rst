@@ -146,7 +146,7 @@ memory pools.
 
 .. py:method:: TMEMPool.alloc(shape, dtype="float32", *, layout=None, cols=None)
 
-   Allocate a tensor-memory buffer from the pool.  ``layout`` supplies an
+   Allocate a tensor-memory tensor from the pool.  ``layout`` supplies an
    explicit ``TileLayout``; without it, two-dimensional shapes use the default
    dense layout.  ``cols`` overrides the inferred tensor-memory column count.
    Datapath-specific accumulators can instead use

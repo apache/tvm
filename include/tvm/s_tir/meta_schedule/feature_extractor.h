@@ -96,7 +96,7 @@ class FeatureExtractor : public ffi::ObjectRef {
 
   /*!
    * \brief Create a feature extractor that extracts features from each TensorStore
-   * \param buffers_per_store The number of buffers in each TensorStore; Pad or truncate if
+   * \param tensors_per_store The number of tensors in each TensorStore; Pad or truncate if
    * necessary.
    * \param arith_intensity_curve_num_samples The number of samples used in the arithmetic intensity
    * curve.
@@ -104,7 +104,7 @@ class FeatureExtractor : public ffi::ObjectRef {
    * \param extract_workload Whether to extract features in the workload in tuning context or not.
    * \return The feature extractor created.
    */
-  TVM_DLL static FeatureExtractor PerStoreFeature(int buffers_per_store = 5,
+  TVM_DLL static FeatureExtractor PerStoreFeature(int tensors_per_store = 5,
                                                   int arith_intensity_curve_num_samples = 10,
                                                   int cache_line_bytes = 64,
                                                   bool extract_workload = false);

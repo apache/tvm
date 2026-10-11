@@ -176,7 +176,7 @@ A natural native progression, each rung adding one capability:
    ``Tx.ptx.mbarrier.*`` / ``Tx.cuda.mbarrier_wait`` to overlap loads with compute.
 
 Rung 2 in full — a 256-element block sum via a shared-memory tree reduction
-(shared buffer, ``cta_sync``, a ``while`` loop, and a thread predicate):
+(shared tensor, ``cta_sync``, a ``while`` loop, and a thread predicate):
 
 .. code-block:: python
 
@@ -217,5 +217,5 @@ The full tile-level GEMM/attention ladder (sync → TMA → warp specialization 
 Next steps
 ----------
 
-- :doc:`../../layout` — how buffers map to physical resources (``TileLayout``).
+- :doc:`../../layout` — how tensors map to physical resources (``TileLayout``).
 - :doc:`../../tile_primitives` — the dispatchable ops these native idioms lower to.

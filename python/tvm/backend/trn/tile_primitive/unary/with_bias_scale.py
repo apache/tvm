@@ -38,33 +38,33 @@ def unary_with_bias_scale_trn(
         fail("requires Trainium target and thread exec_scope")
 
     if len(op.args) == 2:
-        dst_buffer_region, src_buffer_region = op.args
+        dst_tensor_region, src_tensor_region = op.args
         scale, _bias = 1.0, 0.0
     else:
-        dst_buffer_region, src_buffer_region, scale, _bias = op.args
+        dst_tensor_region, src_tensor_region, scale, _bias = op.args
 
     # Initialize analyzer and validate operation type
     analyzer = init_analyzer(sctx)
     assert unary_op in activation_map_ops, f"Unsupported activation operation {unary_op}"
 
     # Find instruction parameters
-    inst_gen = InstructionGenerator([dst_buffer_region, src_buffer_region, _bias], analyzer)
+    inst_gen = InstructionGenerator([dst_tensor_region, src_tensor_region, _bias], analyzer)
     if isinstance(_bias, TensorRegion):
         inst_repr, _, _ = try_find_inst_nary(
-            dst_buffer_region,
-            [src_buffer_region, _bias],
+            dst_tensor_region,
+            [src_tensor_region, _bias],
             analyzer,
             inst_gen,
             allow_first_op_tensortensor=False,
         )
     else:
         # Handle scalar bias
-        inst_repr = try_find_inst_unary(dst_buffer_region, src_buffer_region, analyzer, inst_gen)
+        inst_repr = try_find_inst_unary(dst_tensor_region, src_tensor_region, analyzer, inst_gen)
 
     # Generate and return the implementation function
     return generate_unary_func(
-        dst_buffer_region,
-        src_buffer_region,
+        dst_tensor_region,
+        src_tensor_region,
         inst_gen,
         inst_repr,
         unary_op,

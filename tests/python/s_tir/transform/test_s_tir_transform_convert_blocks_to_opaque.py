@@ -39,7 +39,7 @@ def elementwise_func(A: T.Tensor((16, 16), "float32"), C: T.Tensor((16, 16), "fl
         with Ts.sblock():
             Ts.reads(A[i, 0:16])
             Ts.writes(C[i, 0:16])
-            B = Ts.sblock_alloc_buffer((16, 16), "float32")
+            B = Ts.sblock_alloc_tensor((16, 16), "float32")
             for j in range(0, 16):
                 with Ts.sblock():
                     vi = Ts.axis.S(16, i)
@@ -60,7 +60,7 @@ def substituted_elementwise_func(
         with Ts.sblock():
             Ts.reads(A[i, 0:16])
             Ts.writes(C[i, 0:16])
-            B = Ts.sblock_alloc_buffer([16, 16], "float32")
+            B = Ts.sblock_alloc_tensor([16, 16], "float32")
             for j in range(0, 16):
                 with Ts.sblock():
                     Ts.reads([A[i, j]])

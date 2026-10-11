@@ -106,7 +106,7 @@ class Fallback(AdrenoScheduleRule):
         block_info = analysis.get_sblock_info(sch, blk)
 
         s_loops, r_loops, o_loops = [], [], []
-        v_loop = block_info.write_bufs(sch)[0].assoc_lps[-1]
+        v_loop = block_info.write_tensors(sch)[0].assoc_lps[-1]
 
         for iter_info in block_info.iters:
             if sch.get(iter_info.loop_rv) == sch.get(v_loop):
@@ -114,7 +114,7 @@ class Fallback(AdrenoScheduleRule):
             {"S": s_loops, "R": r_loops, "O": o_loops}.get(iter_info.kind).append(iter_info.loop_rv)
 
         iter_vars = analysis.collect_block_iter_vars_used_in_access_region(
-            sch.get(blk), block_info.write_bufs(sch)[0].buf_region.region
+            sch.get(blk), block_info.write_tensors(sch)[0].tensor_region.region
         )
         o_outer = [lp for lp in o_loops if sch.get(lp).var in iter_vars]
         o_inner = [lp for lp in o_loops if sch.get(lp).var not in iter_vars]
@@ -185,7 +185,7 @@ class Fallback(AdrenoScheduleRule):
             return None
 
         block_infos = [analysis.get_sblock_info(sch, block) for block in blocks]
-        if not any("texture" in block.write_bufs(sch)[0].get_scope() for block in block_infos):
+        if not any("texture" in block.write_tensors(sch)[0].get_scope() for block in block_infos):
             return None
 
         Fallback.schedule_fallback(sch)

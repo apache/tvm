@@ -964,11 +964,11 @@ def MergeCompositeFunctions() -> tvm.transform.Pass:
     return _ffi_api.MergeCompositeFunctions()  # type: ignore
 
 
-def AttachAttrLayoutFreeBuffers() -> tvm.transform.Pass:
-    """Attach layout free buffers to the tirx::Function.
+def AttachAttrLayoutFreeTensors() -> tvm.transform.Pass:
+    """Attach layout free tensors to the tirx::Function.
 
-    This pass is used to attach layout free buffers to the tirx::Function according to
-    the function usage in the relax function. Currently, the layout free buffers are the model
+    This pass is used to attach layout free tensors to the tirx::Function according to
+    the function usage in the relax function. Currently, the layout free tensors are the model
     weights and relax constants.
 
     Note that we recommend applying CanonicalizeBindings before this pass.
@@ -976,9 +976,9 @@ def AttachAttrLayoutFreeBuffers() -> tvm.transform.Pass:
     Returns
     -------
     ret : tvm.transform.Pass
-        The registered pass for attaching layout free buffers.
+        The registered pass for attaching layout free tensors.
     """
-    return _ffi_api.AttachAttrLayoutFreeBuffers()  # type: ignore
+    return _ffi_api.AttachAttrLayoutFreeTensors()  # type: ignore
 
 
 def SplitLayoutRewritePreproc() -> tvm.transform.Pass:
@@ -1293,11 +1293,11 @@ def DecomposeOpsForTraining(func_name: str | None = None) -> tvm.transform.Pass:
 
 def AlterOpImpl(
     op_impl_map: dict[str, Function],
-    op_buffer_transforms: dict[str, list[IndexMap | Callable]],
+    op_tensor_transforms: dict[str, list[IndexMap | Callable]],
 ):
     """Replace all Function's which have matching 'operator_name' attribute, with replacement
-    Function that could possibly have different layouts on i/o buffers. The layout
-    transformations on i/o buffers is present in the op_buffer_transforms map. Inserts the layout
+    Function that could possibly have different layouts on i/o tensors. The layout
+    transformations on i/o tensors is present in the op_tensor_transforms map. Inserts the layout
     transformations in the call sites of Functions being replaced to transform i/o
     tensors into expected layout by new Function.
 
@@ -1305,13 +1305,13 @@ def AlterOpImpl(
     ----------
     op_impl_map: Dict[str, Function]
         op_kind to Function map
-    op_buffer_transforms: Dict[str, List[Union[IndexMap, Callable]]
-        op_kind to layout transformation map for each of the buffers
+    op_tensor_transforms: Dict[str, List[Union[IndexMap, Callable]]
+        op_kind to layout transformation map for each of the tensors
     Returns
     -------
     ret: tvm.transform.Pass
     """
-    for operator_name, transform_list in op_buffer_transforms.items():
+    for operator_name, transform_list in op_tensor_transforms.items():
         l = []
         for transform in transform_list:
             # Extract the index_map
@@ -1320,9 +1320,9 @@ def AlterOpImpl(
             elif isinstance(transform, Array | tuple) and isinstance(transform[0], IndexMap):
                 transform = transform[0]
             l.append(transform)
-        op_buffer_transforms[operator_name] = l
+        op_tensor_transforms[operator_name] = l
 
-    return _ffi_api.AlterOpImpl(op_impl_map, op_buffer_transforms)  # type: ignore
+    return _ffi_api.AlterOpImpl(op_impl_map, op_tensor_transforms)  # type: ignore
 
 
 def ConvertLayout(
@@ -1574,9 +1574,9 @@ def AllocateWorkspace() -> tvm.transform.Pass:
 
 
 def SpecializeFunctionBasedOnCallSite() -> tvm.transform.Pass:
-    """This pass updates the var_buffer mapping of Functiontions from the call_tir info.
+    """This pass updates the var_tensor mapping of Functiontions from the call_tir info.
     Primarily used to update the VDevice information if any changes occurred from the caller.
-    This pass recreates the buffers and updates the map.
+    This pass recreates the tensors and updates the map.
 
     Returns
     -------

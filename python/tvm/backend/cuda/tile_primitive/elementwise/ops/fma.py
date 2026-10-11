@@ -36,7 +36,7 @@ def _parse_fma(op: TensorCall) -> tuple[Plan | None, str | None]:
     srcs: list[SrcSpec] = []
     for a in args:
         if isinstance(a, TensorRegion):
-            srcs.append(SrcSpec(buf_region=a))
+            srcs.append(SrcSpec(tensor_region=a))
         else:
             srcs.append(SrcSpec(scalar=a))
     return Plan(dst=_dst, srcs=srcs, extras={}), None

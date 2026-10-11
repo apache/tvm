@@ -95,19 +95,19 @@ def _attention_decode_cpu(num_kv_heads, num_qo_heads, head_dim, qkv_dtype, slidi
 
         for b in T.serial(B):
             with Ts.sblock("attn"):
-                O_local = Ts.sblock_alloc_buffer((D,), "float32")
-                Q_local = Ts.sblock_alloc_buffer((D,), "float32")
-                K_local = Ts.sblock_alloc_buffer((D,), "float32")
-                V_local = Ts.sblock_alloc_buffer((D,), "float32")
+                O_local = Ts.sblock_alloc_tensor((D,), "float32")
+                Q_local = Ts.sblock_alloc_tensor((D,), "float32")
+                K_local = Ts.sblock_alloc_tensor((D,), "float32")
+                V_local = Ts.sblock_alloc_tensor((D,), "float32")
 
-                kv_chunk_len = Ts.sblock_alloc_buffer((1,), "int32")
+                kv_chunk_len = Ts.sblock_alloc_tensor((1,), "int32")
 
-                m_val = Ts.sblock_alloc_buffer((1,), "float32")
-                new_m = Ts.sblock_alloc_buffer((1,), "float32")
-                d_val = Ts.sblock_alloc_buffer((1,), "float32")
-                S_val = Ts.sblock_alloc_buffer((1,), "float32")
-                scale_O = Ts.sblock_alloc_buffer((1,), "float32")
-                factor = Ts.sblock_alloc_buffer((1,), "float32")
+                m_val = Ts.sblock_alloc_tensor((1,), "float32")
+                new_m = Ts.sblock_alloc_tensor((1,), "float32")
+                d_val = Ts.sblock_alloc_tensor((1,), "float32")
+                S_val = Ts.sblock_alloc_tensor((1,), "float32")
+                scale_O = Ts.sblock_alloc_tensor((1,), "float32")
+                factor = Ts.sblock_alloc_tensor((1,), "float32")
 
                 cur_page_indptr_begin: T.let[T.int32] = page_table_indptr[b]
                 cur_page_indptr_end: T.let[T.int32] = page_table_indptr[b + 1]
@@ -238,28 +238,28 @@ def _attention_decode(num_kv_heads, num_qo_heads, head_dim, qkv_dtype, sliding_w
                     for tx in T.thread_binding(bdx, thread="threadIdx.x"):
                         for tz in T.thread_binding(bdz, thread="threadIdx.z"):
                             with Ts.sblock("attn"):
-                                Q_local = Ts.sblock_alloc_buffer((VEC_SIZE,), qkv_dtype, scope="local")
-                                kv_chunk_len = Ts.sblock_alloc_buffer((1,), "int32", scope="local")
-                                K_smem = Ts.sblock_alloc_buffer((bdz * bdy * tile_size_per_bdx, D), qkv_dtype, scope="shared")
-                                V_smem = Ts.sblock_alloc_buffer((bdz * bdy * tile_size_per_bdx, D), qkv_dtype, scope="shared")
-                                O_allreduce = Ts.sblock_alloc_buffer((bdz, bdy, D), "float32", scope="shared")
-                                md_allreduce = Ts.sblock_alloc_buffer((bdz, bdy, 2), "float32", scope="shared")
-                                S_reduce_local = Ts.sblock_alloc_buffer((1,), "float32", scope="local")
-                                t0 = Ts.sblock_alloc_buffer((1,), "float32", scope="local")
+                                Q_local = Ts.sblock_alloc_tensor((VEC_SIZE,), qkv_dtype, scope="local")
+                                kv_chunk_len = Ts.sblock_alloc_tensor((1,), "int32", scope="local")
+                                K_smem = Ts.sblock_alloc_tensor((bdz * bdy * tile_size_per_bdx, D), qkv_dtype, scope="shared")
+                                V_smem = Ts.sblock_alloc_tensor((bdz * bdy * tile_size_per_bdx, D), qkv_dtype, scope="shared")
+                                O_allreduce = Ts.sblock_alloc_tensor((bdz, bdy, D), "float32", scope="shared")
+                                md_allreduce = Ts.sblock_alloc_tensor((bdz, bdy, 2), "float32", scope="shared")
+                                S_reduce_local = Ts.sblock_alloc_tensor((1,), "float32", scope="local")
+                                t0 = Ts.sblock_alloc_tensor((1,), "float32", scope="local")
 
-                                S_local = Ts.sblock_alloc_buffer((bdy * tile_size_per_bdx), "float32", scope="local")
-                                QK_local = Ts.sblock_alloc_buffer((VEC_SIZE,), "float32", scope="local")
-                                V_local = Ts.sblock_alloc_buffer((VEC_SIZE,), qkv_dtype, scope="local")
-                                m_prev = Ts.sblock_alloc_buffer((1,), "float32", scope="local")
-                                d_prev = Ts.sblock_alloc_buffer((1,), "float32", scope="local")
-                                other_m = Ts.sblock_alloc_buffer((1,), "float32", scope="local")
-                                other_d = Ts.sblock_alloc_buffer((1,), "float32", scope="local")
-                                exp_mprev = Ts.sblock_alloc_buffer((1,), "float32", scope="local")
-                                exp_otherm = Ts.sblock_alloc_buffer((1,), "float32", scope="local")
-                                other_o = Ts.sblock_alloc_buffer((VEC_SIZE,), "float32", scope="local")
-                                st_m = Ts.sblock_alloc_buffer((1,), "float32", scope="local")
-                                st_d = Ts.sblock_alloc_buffer((1,), "float32", scope="local")
-                                O_local = Ts.sblock_alloc_buffer((VEC_SIZE,), "float32", scope="local")
+                                S_local = Ts.sblock_alloc_tensor((bdy * tile_size_per_bdx), "float32", scope="local")
+                                QK_local = Ts.sblock_alloc_tensor((VEC_SIZE,), "float32", scope="local")
+                                V_local = Ts.sblock_alloc_tensor((VEC_SIZE,), qkv_dtype, scope="local")
+                                m_prev = Ts.sblock_alloc_tensor((1,), "float32", scope="local")
+                                d_prev = Ts.sblock_alloc_tensor((1,), "float32", scope="local")
+                                other_m = Ts.sblock_alloc_tensor((1,), "float32", scope="local")
+                                other_d = Ts.sblock_alloc_tensor((1,), "float32", scope="local")
+                                exp_mprev = Ts.sblock_alloc_tensor((1,), "float32", scope="local")
+                                exp_otherm = Ts.sblock_alloc_tensor((1,), "float32", scope="local")
+                                other_o = Ts.sblock_alloc_tensor((VEC_SIZE,), "float32", scope="local")
+                                st_m = Ts.sblock_alloc_tensor((1,), "float32", scope="local")
+                                st_d = Ts.sblock_alloc_tensor((1,), "float32", scope="local")
+                                O_local = Ts.sblock_alloc_tensor((VEC_SIZE,), "float32", scope="local")
 
                                 by: T.let[T.int32] = fused_by_bz % H_kv
                                 bz: T.let[T.int32] = fused_by_bz // H_kv
@@ -458,8 +458,8 @@ def _merge_state_inplace(num_heads, head_dim, v_dtype, target: Target, global_sy
                             scale = _var("float32")
                             other_scale = _var("float32")
 
-                            v_vec = Ts.sblock_alloc_buffer((VEC_SIZE,), v_dtype, scope="local")
-                            v_other_vec = Ts.sblock_alloc_buffer((VEC_SIZE,), v_dtype, scope="local")
+                            v_vec = Ts.sblock_alloc_tensor((VEC_SIZE,), v_dtype, scope="local")
+                            v_other_vec = Ts.sblock_alloc_tensor((VEC_SIZE,), v_dtype, scope="local")
 
                             s_val[0] = S[bx, ty + by * bdy]
                             s_other_val[0] = S_other[bx, ty + by * bdy]

@@ -28,7 +28,7 @@ from ..binary.utils import InstType, try_find_inst_nary
 from ..common import init_analyzer, nki_dim
 from ..dim_utils import get_reduction_dim_map
 from ..instruction_generator import InstructionGenerator
-from ..reduction.utils import generate_intermediate_buffer
+from ..reduction.utils import generate_intermediate_tensor
 from .utils import opcode_table
 
 
@@ -53,7 +53,7 @@ def binary_reduce_trn(op: TensorCall, sctx: DispatchContext) -> Function | None:
         [binary_output, binary_input1, binary_input2, reduce_output], analyzer
     )
     reduce_dim_map = get_reduction_dim_map(binary_output, reduce_output, reduce_axes, analyzer)
-    inst_gen.link_buffer_regions(binary_output, reduce_output, reduce_dim_map)
+    inst_gen.link_tensor_regions(binary_output, reduce_output, reduce_dim_map)
     inst_repr, inst_type, reverse = try_find_inst_nary(
         binary_output,
         [binary_input1, binary_input2],
@@ -76,7 +76,7 @@ def binary_reduce_trn(op: TensorCall, sctx: DispatchContext) -> Function | None:
     if reverse[0]:
         binary_input1, binary_input2 = binary_input2, binary_input1
 
-    # Generate intermediate buffer for reduction if needed
+    # Generate intermediate tensor for reduction if needed
     p_var = T.Var("P", "int32")
     f_var = T.Var("F", "int32")
     reduction_b_var = T.Var("rB", "int32")
@@ -87,24 +87,24 @@ def binary_reduce_trn(op: TensorCall, sctx: DispatchContext) -> Function | None:
     reduction_b_extent = inst_gen.fill_in_block_dim(binary_output, reduction_b_var, reduce_axes)
     spatial_b_extent = inst_gen.fill_in_block_dim(binary_output, spatial_b_var)
     if reduction_b_extent != 1:
-        intermediate_buffer = generate_intermediate_buffer(
+        intermediate_tensor = generate_intermediate_tensor(
             reduce_output, reduction_b_extent, op.workspaces, sctx
         )
 
-    # Handle source 2 (either buffer region or constant)
+    # Handle source 2 (either tensor region or constant)
     CONST = binary_input2 if not isinstance(binary_input2, TensorRegion) else None
-    # Extract buffers and opcodes
+    # Extract tensors and opcodes
     src1, src2 = (
         binary_input1.source,
         (binary_input2.source if isinstance(binary_input2, TensorRegion) else None),
     )
     dst1, dst2 = binary_output.source, reduce_output.source
     binary_opcode, reduce_opcode = opcode_table[op.binary_op], opcode_table[op.reduce_op]
-    # Create appropriate implementation based on intermediate buffer requirement
+    # Create appropriate implementation based on intermediate tensor requirement
     if reduction_b_extent == 1:
-        # Direct implementation without intermediate buffer
+        # Direct implementation without intermediate tensor
         # fmt: off
-        # This fragment captures buffers and indices from its insertion scope.
+        # This fragment captures tensors and indices from its insertion scope.
         @T.function(check_well_formed=False)
         def impl():
             for b_loop in T.serial(0, spatial_b_extent):
@@ -123,9 +123,9 @@ def binary_reduce_trn(op: TensorCall, sctx: DispatchContext) -> Function | None:
                                     T.nki.tensorscalar_reduce(dst2[tuple(reduce_dst_idx)], dst1[tuple(vec_dst_idx)], src1[tuple(src_1_indices)], CONST, binary_opcode, reduce_opcode, reverse[0])  # noqa: E501
         # fmt: on
     else:
-        # Implementation with intermediate buffer
+        # Implementation with intermediate tensor
         # fmt: off
-        # This fragment captures buffers and indices from its insertion scope.
+        # This fragment captures tensors and indices from its insertion scope.
         @T.function(check_well_formed=False)
         def impl():
             for b_loop in T.serial(0, spatial_b_extent):
@@ -139,16 +139,16 @@ def binary_reduce_trn(op: TensorCall, sctx: DispatchContext) -> Function | None:
                                     vec_dst_idx = T.meta_var(inst_gen.generate_indices(binary_output))  # noqa: E501
                                     if T.constexpr(CONST is None):
                                         src_2_indices = T.meta_var(inst_gen.generate_indices(binary_input2))  # noqa: E501
-                                        T.nki.tensorscalar_reduce(intermediate_buffer[p_loop, reduction_b_loop], dst1[tuple(vec_dst_idx)], src1[tuple(src_1_indices)], src2[tuple(src_2_indices)], binary_opcode, reduce_opcode, reverse[0])  # noqa: E501
+                                        T.nki.tensorscalar_reduce(intermediate_tensor[p_loop, reduction_b_loop], dst1[tuple(vec_dst_idx)], src1[tuple(src_1_indices)], src2[tuple(src_2_indices)], binary_opcode, reduce_opcode, reverse[0])  # noqa: E501
                                     else:
-                                        T.nki.tensorscalar_reduce(intermediate_buffer[p_loop, reduction_b_loop], dst1[tuple(vec_dst_idx)], src1[tuple(src_1_indices)], CONST, binary_opcode, reduce_opcode, reverse[0])  # noqa: E501
+                                        T.nki.tensorscalar_reduce(intermediate_tensor[p_loop, reduction_b_loop], dst1[tuple(vec_dst_idx)], src1[tuple(src_1_indices)], CONST, binary_opcode, reduce_opcode, reverse[0])  # noqa: E501
                 with T.nki.tensorized_instruction():
                     for p_loop in T.serial(0, p_size, annotations={nki_dim: "P"}):
                         for f_loop in T.serial(0, reduction_b_extent, annotations={nki_dim: "F"}):
                             inst_gen.set_bind_map_all({p_var: p_loop, spatial_b_var: b_loop})
                             if inst_gen.make_guard(reduce_output):
                                 dst_2_indices = T.meta_var(inst_gen.generate_indices(reduce_output))
-                                T.nki.tensorreduce(dst2[tuple(dst_2_indices)], intermediate_buffer[p_loop, f_loop], reduce_opcode, False, -1)  # noqa: E501
+                                T.nki.tensorreduce(dst2[tuple(dst_2_indices)], intermediate_tensor[p_loop, f_loop], reduce_opcode, False, -1)  # noqa: E501
         # fmt: on
 
     return impl

@@ -61,7 +61,7 @@ def element_wise_i_bound(A: T.Tensor((128, 128)), B: T.Tensor((128, 128))) -> No
 
 @Ts.function
 def element_wise_compute_at_split(A: T.Tensor((128, 128)), C: T.Tensor((128, 128))) -> None:
-    B = Ts.sblock_alloc_buffer((128, 128))
+    B = Ts.sblock_alloc_tensor((128, 128))
     for i in T.serial(0, 128):
         for j0 in T.serial(0, 128):
             with Ts.sblock("B"):
@@ -78,7 +78,7 @@ def element_wise_compute_at_split(A: T.Tensor((128, 128)), C: T.Tensor((128, 128
 def element_wise_compute_at_split_vectorized(
     A: T.Tensor((128, 128)), C: T.Tensor((128, 128))
 ) -> None:
-    B = Ts.sblock_alloc_buffer((128, 128))
+    B = Ts.sblock_alloc_tensor((128, 128))
     for i in T.serial(0, 128):
         for j0 in T.serial(0, 128):
             with Ts.sblock("B"):
@@ -133,7 +133,7 @@ def element_wise_split_predicate_vectorized(
 def element_wise_compute_at_split_j0_j1o_bound(
     A: T.Tensor((128, 128)), C: T.Tensor((128, 128))
 ) -> None:
-    B = Ts.sblock_alloc_buffer((128, 128))
+    B = Ts.sblock_alloc_tensor((128, 128))
     for i in T.serial(0, 128):
         for j0 in T.thread_binding(0, 128, thread="threadIdx.x"):
             with Ts.sblock("B"):
@@ -261,7 +261,7 @@ def decomposed_gemm(
     B: T.Tensor((16, 16), "float32"),
     C: T.Tensor((16, 16), "float32"),
 ):
-    local = Ts.sblock_alloc_buffer((16, 16), "float32")
+    local = Ts.sblock_alloc_tensor((16, 16), "float32")
     for i, j in T.grid(4, 4):
         for ii, jj in T.grid(4, 4):
             with Ts.sblock("init"):
@@ -287,7 +287,7 @@ def decomposed_gemm_after_vectorize(
     B: T.Tensor((16, 16), "float32"),
     C: T.Tensor((16, 16), "float32"),
 ):
-    local = Ts.sblock_alloc_buffer((16, 16), "float32")
+    local = Ts.sblock_alloc_tensor((16, 16), "float32")
     for i, j in T.grid(4, 4):
         for ii, jj in T.grid(4, 4):
             with Ts.sblock("init"):
@@ -347,7 +347,7 @@ def nested_block_bind_after_cache_read(
     for i in T.serial(16):
         with Ts.sblock("outer"):
             vi = Ts.axis.spatial(16, i)
-            A_shared = Ts.sblock_alloc_buffer([1, 16], dtype="float32", scope="shared")
+            A_shared = Ts.sblock_alloc_tensor([1, 16], dtype="float32", scope="shared")
             for ax0, ax1 in T.grid(1, 16):
                 with Ts.sblock("A_shared"):
                     v0 = Ts.axis.spatial(16, vi + ax0)
@@ -368,7 +368,7 @@ def thread_bound_nested_block_after_cache_read(
     for i in T.thread_binding(16, thread="blockIdx.x"):
         with Ts.sblock("outer"):
             vi = Ts.axis.spatial(16, i)
-            A_shared = Ts.sblock_alloc_buffer([1, 16], dtype="float32", scope="shared")
+            A_shared = Ts.sblock_alloc_tensor([1, 16], dtype="float32", scope="shared")
             for ax0, ax1 in T.grid(1, 16):
                 with Ts.sblock("A_shared"):
                     v0 = Ts.axis.spatial(16, vi + ax0)
@@ -388,7 +388,7 @@ def decomposed_gemm_parallelize_init(
     B: T.Tensor((16, 16), "float32"),
     C: T.Tensor((16, 16), "float32"),
 ) -> None:
-    local = Ts.sblock_alloc_buffer([16, 16], dtype="float32")
+    local = Ts.sblock_alloc_tensor([16, 16], dtype="float32")
     for i, j in T.grid(4, 4):
         for ii in T.serial(4):
             for jj in T.vectorized(4):

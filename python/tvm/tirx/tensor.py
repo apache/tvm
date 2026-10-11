@@ -26,7 +26,7 @@ import tvm
 from tvm.ir import Call, PrimType, PtrType, Type, Var
 from tvm.ir.location import UNKNOWN_LOC, Location
 
-from . import _buffer_view, _ffi_api
+from . import _ffi_api, _tensor_view
 
 _REARRANGE_PATTERN_UNSET = object()
 
@@ -84,17 +84,17 @@ class TensorType(Type):
     }
 
     def scope(self, expr):
-        """Return the storage scope associated with this buffer.
+        """Return the storage scope associated with this tensor.
         Returns
         -------
         scope : str
-            The storage scope associated with this buffer.
+            The storage scope associated with this tensor.
         """
         _check_tensor_receiver(self, expr)
         return _ffi_api.TensorStorageScope(expr)  # type: ignore
 
     def is_scalar(self, expr, alloc_or_decl=True):
-        """Check if the buffer is a scalar.
+        """Check if the tensor is a scalar.
 
         Parameters
         ----------
@@ -104,24 +104,24 @@ class TensorType(Type):
 
         Returns
         -------
-            bool: True if the buffer is a scalar, False otherwise.
+            bool: True if the tensor is a scalar, False otherwise.
         """
         _check_tensor_receiver(self, expr)
         return _ffi_api.TensorIsScalar(expr, alloc_or_decl)
 
     def ptr_to(self, expr, indices):
-        """Get the pointer to the buffer at the given indices (logical indices).
+        """Get the pointer to the tensor at the given indices (logical indices).
 
-        Note that the bufferload inside requires LowerTIPp pass to apply the layout to get the physical indices.
+        Note that the tensorload inside requires LowerTIPp pass to apply the layout to get the physical indices.
         """  # noqa: E501
         _check_tensor_receiver(self, expr)
         assert len(indices) == len(self.shape), (
-            f"The number of indices {indices} does not match the shape of the buffer {self.shape}"
+            f"The number of indices {indices} does not match the shape of the tensor {self.shape}"
         )
         return tvm.tirx.address_of(expr[tuple(indices)])
 
     def view(self, expr, *args, **kwargs) -> "Var":
-        """Creates a new view of the buffer. (used by parser)
+        """Creates a new view of the tensor. (used by parser)
 
         Supported signatures are ``view(*shape, layout=None)``, where shape can contain
         ``-1`` to indicate that the dimension size is auto-inferred, and
@@ -130,14 +130,14 @@ class TensorType(Type):
         Returns
         -------
         view : Var
-            The corresponding view buffer.
+            The corresponding view tensor.
         """
         _check_tensor_receiver(self, expr)
 
-        return _buffer_view.view(expr, *args, **kwargs)
+        return _tensor_view.view(expr, *args, **kwargs)
 
     def local(self, expr, *shape, layout=None) -> "Var":
-        """Create a thread-local view of this buffer.
+        """Create a thread-local view of this tensor.
 
         By default, both the inferred and explicit-shape forms address the
         raw physical storage span.  ``local()[k]`` is the k-th physical
@@ -145,13 +145,13 @@ class TensorType(Type):
         ``local(d0, d1, ...)`` is a row-major reshape of that same span.
         Pass ``layout=`` to request a mediated view explicitly.  This is an
         escape hatch whose shape is interpreted by the supplied layout.  When
-        that shape is explicit, the parent buffer does not need a layout.
+        that shape is explicit, the parent tensor does not need a layout.
 
         When called with no shape arguments, auto-infers a 1D shape from
         the span of the parent layout's non-thread component (i.e.
         ``expr.layout.storage().span()``).  The explicit-``layout=`` form
         instead infers the parent layout's ``storage().size()`` for
-        compatibility.  Either inference requires the parent buffer to have a
+        compatibility.  Either inference requires the parent tensor to have a
         layout.
 
         Parameters
@@ -168,13 +168,13 @@ class TensorType(Type):
         Returns
         -------
         local : Var
-            The corresponding local buffer.
+            The corresponding local tensor.
         """
         _check_tensor_receiver(self, expr)
-        return _buffer_view.local(expr, *shape, layout=layout)
+        return _tensor_view.local(expr, *shape, layout=layout)
 
     def permute(self, expr, *dims) -> "Var":
-        """Permute the dimensions of the buffer.
+        """Permute the dimensions of the tensor.
 
         Parameters
         ----------
@@ -184,10 +184,10 @@ class TensorType(Type):
         Returns
         -------
         permuted : Var
-            The buffer with permuted dimensions.
+            The tensor with permuted dimensions.
         """
         _check_tensor_receiver(self, expr)
-        return _buffer_view.permute(expr, *dims)
+        return _tensor_view.permute(expr, *dims)
 
     def rearrange(self, expr, pattern: str = _REARRANGE_PATTERN_UNSET, /, **sizes) -> "Var":
         """einops-style relayout in one line: ``buf.rearrange("b (2 r) -> 2 b r")``.
@@ -195,11 +195,11 @@ class TensorType(Type):
         A pure reshape+permute+reshape over the SAME physical bytes, spelled as
         an einops pattern. Lowers to ``view`` (split lhs groups) → ``permute``
         (reorder to rhs atom order) → ``view`` (merge rhs groups), so it inherits
-        whatever the underlying axis machinery does: a plain (unswizzled) buffer
-        collapses to a flat layout, a swizzled buffer keeps its swizzle,
-        and a tmem buffer retains its backing address. It therefore does
-        NOT flatten a swizzle atom — the same pattern on a swizzled SMEM buffer
-        vs an unswizzled TMEM buffer legitimately yields different physical
+        whatever the underlying axis machinery does: a plain (unswizzled) tensor
+        collapses to a flat layout, a swizzled tensor keeps its swizzle,
+        and a tmem tensor retains its backing address. It therefore does
+        NOT flatten a swizzle atom — the same pattern on a swizzled SMEM tensor
+        vs an unswizzled TMEM tensor legitimately yields different physical
         layouts (that is the point: rearrange acts on the operand, not a string).
 
         ``pattern`` is ``"lhs -> rhs"``; each side is space-separated axis names,
@@ -214,9 +214,9 @@ class TensorType(Type):
             if "pattern" not in sizes:
                 raise TypeError("Var.rearrange() missing required argument: 'pattern'")
             pattern = sizes.pop("pattern")
-        return _buffer_view.rearrange(expr, pattern, **sizes)
+        return _tensor_view.rearrange(expr, pattern, **sizes)
 
-    def tile(self, expr, *specs) -> "_buffer_view.TileIndexer":
+    def tile(self, expr, *specs) -> "_tensor_view.TileIndexer":
         """Chunk a dim: split it into factors, pick a chunk, keep the rest.
 
         Rank-preserving — the picked dim's remaining factors merge back into
@@ -244,9 +244,9 @@ class TensorType(Type):
         several factors of one dim is allowed.
         """
         _check_tensor_receiver(self, expr)
-        return _buffer_view.tile(expr, *specs)
+        return _tensor_view.tile(expr, *specs)
 
-    def chunk(self, expr, spec) -> "_buffer_view.ChunkIndexer":
+    def chunk(self, expr, spec) -> "_tensor_view.ChunkIndexer":
         """Split dims into equal contiguous chunks and pick a chunk per dim —
         **rank-preserving**. Index the result with ``[picks]``.
 
@@ -264,7 +264,7 @@ class TensorType(Type):
             X.chunk((None, .., n, ..))[.., c, ..]  # after (k inferred)
         """
         _check_tensor_receiver(self, expr)
-        return _buffer_view.chunk(expr, spec)
+        return _tensor_view.chunk(expr, spec)
 
     def _data(self, expr):
         _check_tensor_property_receiver(self, expr)
@@ -280,7 +280,7 @@ class TensorType(Type):
 
     def _sub(self, expr):
         _check_tensor_property_receiver(self, expr)
-        return _buffer_view.sub(expr)
+        return _tensor_view.sub(expr)
 
 
 def is_tensor_var(value) -> bool:
@@ -309,7 +309,7 @@ def _check_tensor_property_receiver(ty, expr):
 def decl_tensor(
     shape,
     dtype=None,
-    name="buffer",
+    name="tensor",
     data=None,
     strides=None,
     elem_offset=None,
@@ -340,7 +340,7 @@ def decl_tensor(
         if not isinstance(data.ty.element_type, PrimType):
             raise TypeError("Tensor data must point to a primitive type")
         storage_scope = data.ty.storage_scope
-    buffer_type = _ffi_api.TensorType(  # type: ignore
+    tensor_type = _ffi_api.TensorType(  # type: ignore
         storage_scope,
         dtype,
         shape,
@@ -351,7 +351,7 @@ def decl_tensor(
         layout,
         loc,
     )
-    return _ffi_api.TensorVar(name, buffer_type, loc)  # type: ignore
+    return _ffi_api.TensorVar(name, tensor_type, loc)  # type: ignore
 
 
 def tensor_data_ptr(tensor, *, ty=None, loc: Location = UNKNOWN_LOC):

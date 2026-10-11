@@ -34,18 +34,18 @@ namespace s_tir {
 using namespace tvm::tirx;
 
 /*!
- * \brief Rewriter for all m16n8k8.matrix[A/B/C] buffer. This pass mainly do two things:
- *     1. Lower m16n8k8.matrix[A/B/C] buffer to local registers, where each thread holds their
+ * \brief Rewriter for all m16n8k8.matrix[A/B/C] tensor. This pass mainly do two things:
+ *     1. Lower m16n8k8.matrix[A/B/C] tensor to local registers, where each thread holds their
  *        own part of the matrix;
  *     2. Rewrite access of m16n8k8.matrixC so it can access the correct part of the matrix.
- *   The reason why access of m16n8k8.matrix[A/B] buffer doesn't need this kind of rewrite is
+ *   The reason why access of m16n8k8.matrix[A/B] tensor doesn't need this kind of rewrite is
  *   that their access is through opaque access inside ldmatrix and mma_sync. Please refer to
  *   get_index_[A/B] in python/tvm/tirx/tensor_intrin/cuda.py.
  *   We cannot use this kind of opaque access in matrixC too since the ptx stmatrix is only
  *   supported for sm90 or higher. Therefore, writeback of matrixC is limited to the
  *   transparent way.
  */
-class MmaBufferLayoutTransformer : public StmtExprMutator {
+class MmaTensorLayoutTransformer : public StmtExprMutator {
  public:
   using StmtExprMutator::Mutate;
   using StmtExprMutator::Mutate_;
@@ -53,84 +53,84 @@ class MmaBufferLayoutTransformer : public StmtExprMutator {
   UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) {
     SBlock block = ffi::GetRef<SBlock>(op);
     auto* n = block.CopyOnWrite();
-    auto fmutate = [this](const TensorVar& buffer) {
-      // m16n8k8.matrix[A/B/C] buffers are composed ofseveral small blocks. Assume the block's
+    auto fmutate = [this](const TensorVar& tensor) {
+      // m16n8k8.matrix[A/B/C] tensors are composed ofseveral small blocks. Assume the block's
       // shape is [bi, bj]. Inside each small block, we have 8 threads in stride dimension and 4
-      // threads in contiguous dimension, so we change the buffer's shape from [i, j]
+      // threads in contiguous dimension, so we change the tensor's shape from [i, j]
       // to [i // bi, j // bj, bi // 8, bj // 4].
-      if (buffer.scope() == "m16n8k8.matrixC") {
+      if (tensor.scope() == "m16n8k8.matrixC") {
         // m16n8k8.matrixC
         // bi = 16, bj = 8
-        size_t size = buffer->shape.size();
+        size_t size = tensor->shape.size();
         TVM_FFI_ICHECK_GE(size, 2);
-        const IntImmNode* dim0 = buffer->shape[size - 2].as<IntImmNode>();
-        const IntImmNode* dim1 = buffer->shape[size - 1].as<IntImmNode>();
+        const IntImmNode* dim0 = tensor->shape[size - 2].as<IntImmNode>();
+        const IntImmNode* dim1 = tensor->shape[size - 1].as<IntImmNode>();
         TVM_FFI_ICHECK(dim0 != nullptr && dim1 != nullptr);
         TVM_FFI_ICHECK(dim0->value % 16 == 0 && dim1->value % 8 == 0);
 
         std::vector<PrimExpr> new_shape;
         for (size_t i = 0; i < size - 2; ++i) {
-          new_shape.push_back(buffer->shape[i]);
+          new_shape.push_back(tensor->shape[i]);
         }
         new_shape.insert(new_shape.end(),
                          {IntImm::Int32(dim0->value / 16), IntImm::Int32(dim1->value / 8), 2, 2});
 
-        TensorVar new_buffer =
-            decl_tensor(std::move(new_shape), buffer->dtype, buffer.name(), "local");
-        VarRemapSet(buffer, new_buffer);
-        return new_buffer;
+        TensorVar new_tensor =
+            decl_tensor(std::move(new_shape), tensor->dtype, tensor.name(), "local");
+        VarRemapSet(tensor, new_tensor);
+        return new_tensor;
 
-      } else if (buffer.scope() == "m16n8k8.matrixA") {
+      } else if (tensor.scope() == "m16n8k8.matrixA") {
         // m16n8k8.matrixA
         // bi = 32, bj = 8
-        size_t size = buffer->shape.size();
+        size_t size = tensor->shape.size();
         TVM_FFI_ICHECK_GE(size, 2);
-        const IntImmNode* dim0 = buffer->shape[size - 2].as<IntImmNode>();
-        const IntImmNode* dim1 = buffer->shape[size - 1].as<IntImmNode>();
+        const IntImmNode* dim0 = tensor->shape[size - 2].as<IntImmNode>();
+        const IntImmNode* dim1 = tensor->shape[size - 1].as<IntImmNode>();
         TVM_FFI_ICHECK(dim0 != nullptr && dim1 != nullptr);
         TVM_FFI_ICHECK(dim0->value % 32 == 0 && dim1->value % 8 == 0);
         std::vector<PrimExpr> new_shape;
         for (size_t i = 0; i < size - 2; ++i) {
-          new_shape.push_back(buffer->shape[i]);
+          new_shape.push_back(tensor->shape[i]);
         }
         new_shape.insert(new_shape.end(),
                          {IntImm::Int32(dim0->value / 32), IntImm::Int32(dim1->value / 8), 4, 2});
 
-        TensorVar new_buffer =
-            decl_tensor(std::move(new_shape), buffer->dtype, buffer.name(), "local");
-        VarRemapSet(buffer, new_buffer);
-        return new_buffer;
+        TensorVar new_tensor =
+            decl_tensor(std::move(new_shape), tensor->dtype, tensor.name(), "local");
+        VarRemapSet(tensor, new_tensor);
+        return new_tensor;
 
-      } else if (buffer.scope() == "m16n8k8.matrixB") {
+      } else if (tensor.scope() == "m16n8k8.matrixB") {
         // m16n8k8.matrixB
         // bj = 8, bj = 32
-        size_t size = buffer->shape.size();
+        size_t size = tensor->shape.size();
         TVM_FFI_ICHECK_GE(size, 2);
-        const IntImmNode* dim0 = buffer->shape[size - 2].as<IntImmNode>();
-        const IntImmNode* dim1 = buffer->shape[size - 1].as<IntImmNode>();
+        const IntImmNode* dim0 = tensor->shape[size - 2].as<IntImmNode>();
+        const IntImmNode* dim1 = tensor->shape[size - 1].as<IntImmNode>();
         TVM_FFI_ICHECK(dim0 != nullptr && dim1 != nullptr);
         TVM_FFI_ICHECK(dim0->value % 8 == 0 && dim1->value % 32 == 0);
         std::vector<PrimExpr> new_shape;
         for (size_t i = 0; i < size - 2; ++i) {
-          new_shape.push_back(buffer->shape[i]);
+          new_shape.push_back(tensor->shape[i]);
         }
         new_shape.insert(new_shape.end(),
                          {IntImm::Int32(dim0->value / 8), IntImm::Int32(dim1->value / 32), 1, 8});
 
-        TensorVar new_buffer =
-            decl_tensor(std::move(new_shape), buffer->dtype, buffer.name(), "local");
-        VarRemapSet(buffer, new_buffer);
-        return new_buffer;
+        TensorVar new_tensor =
+            decl_tensor(std::move(new_shape), tensor->dtype, tensor.name(), "local");
+        VarRemapSet(tensor, new_tensor);
+        return new_tensor;
       }
-      return buffer;
+      return tensor;
     };
-    n->alloc_buffers.MutateByApply(fmutate);
+    n->alloc_tensors.MutateByApply(fmutate);
     n->body = Mutate(n->body, inplace_mode).ValueOrUnchanged(n->body);
     return block;
   }
 
   UnchangedOr<Stmt> Mutate_(const TensorStoreNode* op, InplaceMode inplace_mode) {
-    TensorVar original_buffer = op->dest.as_or_throw<TensorVar>();
+    TensorVar original_tensor = op->dest.as_or_throw<TensorVar>();
     auto value = Mutate(op->value, inplace_mode);
     auto indices =
         Mutate(op->indices, inplace_mode).as_or_throw<UnchangedOr<ffi::Array<PrimExpr>>>();
@@ -140,20 +140,20 @@ class MmaBufferLayoutTransformer : public StmtExprMutator {
       n->value = std::move(value).ValueOrUnchanged(op->value);
       n->indices = std::move(indices).ValueOrUnchanged(op->indices);
     }
-    if (auto replacement = VarRemapGet(original_buffer).as<TensorVar>()) {
+    if (auto replacement = VarRemapGet(original_tensor).as<TensorVar>()) {
       auto* n = store.CopyOnWrite();
-      if (original_buffer.scope() == "m16n8k8.matrixC") {
+      if (original_tensor.scope() == "m16n8k8.matrixC") {
         const auto index_map_func = tvm::ffi::Function::GetGlobal("tirx.index_map_m16n8k8.matrixC");
         TVM_FFI_ICHECK(index_map_func.has_value());
         auto index_map = IndexMap::FromFunc(2, *index_map_func);
         auto new_indices = index_map->MapIndices(store->indices, analyzer);
         n->dest = replacement.value();
         n->indices = std::move(new_indices);
-      } else if (original_buffer.scope() == "m16n8k8.matrixA" ||
-                 original_buffer.scope() == "m16n8k8.matrixB") {
+      } else if (original_tensor.scope() == "m16n8k8.matrixA" ||
+                 original_tensor.scope() == "m16n8k8.matrixB") {
         TVM_FFI_ICHECK(false)
-            << "TransformMmaBufferLayout requires " << original_buffer.scope()
-            << " buffers to be accessed through opaque ldmatrix/mma_sync operations, but found "
+            << "TransformMmaTensorLayout requires " << original_tensor.scope()
+            << " tensors to be accessed through opaque ldmatrix/mma_sync operations, but found "
                "an explicit TensorStore.";
       }
     }
@@ -161,7 +161,7 @@ class MmaBufferLayoutTransformer : public StmtExprMutator {
   }
 
   UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) {
-    TensorVar buffer = op->source.as_or_throw<TensorVar>();
+    TensorVar tensor = op->source.as_or_throw<TensorVar>();
     // Remap the source together with its indices below, after the scope checks.
     auto indices_result =
         Mutate(op->indices, inplace_mode).as_or_throw<UnchangedOr<ffi::Array<PrimExpr>>>();
@@ -169,17 +169,17 @@ class MmaBufferLayoutTransformer : public StmtExprMutator {
     if (!indices_result.UnchangedOrSameAs(op->indices)) {
       load.CopyOnWrite()->indices = std::move(indices_result).ValueUnchecked();
     }
-    if (auto replacement = VarRemapGet(buffer).as<TensorVar>()) {
+    if (auto replacement = VarRemapGet(tensor).as<TensorVar>()) {
       ffi::Array<PrimExpr> indices = load->indices;
-      if (buffer.scope() == "m16n8k8.matrixC") {
+      if (tensor.scope() == "m16n8k8.matrixC") {
         const auto index_map_func = tvm::ffi::Function::GetGlobal("tirx.index_map_m16n8k8.matrixC");
         TVM_FFI_ICHECK(index_map_func.has_value());
         auto index_map = IndexMap::FromFunc(2, *index_map_func);
         indices = index_map->MapIndices(load->indices, analyzer);
       } else {
         TVM_FFI_ICHECK(false)
-            << "TransformMmaBufferLayout requires " << buffer.scope()
-            << " buffers to be accessed through opaque ldmatrix/mma_sync operations, but found "
+            << "TransformMmaTensorLayout requires " << tensor.scope()
+            << " tensors to be accessed through opaque ldmatrix/mma_sync operations, but found "
                "an explicit TensorLoad.";
       }
       return MakeTensorLoad(replacement.value(), indices, load->loc);
@@ -193,20 +193,20 @@ class MmaBufferLayoutTransformer : public StmtExprMutator {
 
 namespace transform {
 
-Pass TransformMmaBufferLayout() {
+Pass TransformMmaTensorLayout() {
   auto pass_func = [=](Function f, IRModule m, PassContext ctx) {
     auto* n = f.CopyOnWrite();
-    n->body = ffi::make_object<MmaBufferLayoutTransformer>()
+    n->body = ffi::make_object<MmaTensorLayoutTransformer>()
                   ->Mutate(n->body, InplaceMode::kAllow)
                   .ValueOrUnchanged(std::move(n->body));
     return f;
   };
-  return CreateFunctionPass(pass_func, 0, "s_tir.TransformMmaBufferLayout");
+  return CreateFunctionPass(pass_func, 0, "s_tir.TransformMmaTensorLayout");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("s_tir.transform.TransformMmaBufferLayout", TransformMmaBufferLayout);
+  refl::GlobalDef().def("s_tir.transform.TransformMmaTensorLayout", TransformMmaTensorLayout);
 }
 }  // namespace transform
 

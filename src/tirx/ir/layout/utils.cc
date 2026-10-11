@@ -59,7 +59,7 @@ std::vector<PrimExpr> GetDefaultStrides(const ffi::Array<PrimExpr>& data, PrimEx
   // Promote ``initial_stride`` (an IntImm constructed from `1`, defaults to
   // int32) to the dtype of the shape extents so the resulting strides
   // match what the tvmscript parser produces (``stride *= shape[i]`` in
-  // Python preserves the shape's dtype). Otherwise int64-shaped buffers
+  // Python preserves the shape's dtype). Otherwise int64-shaped tensors
   // get int32 strides and structurally differ from parser output.
   PrimExpr current_stride = initial_stride;
   if (const auto* imm = current_stride.as<IntImmNode>()) {

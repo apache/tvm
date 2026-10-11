@@ -29,7 +29,7 @@ from tvm.script.ir_builder import IRBuilder
 from tvm.tirx.script import ir_builder as T
 
 
-def _is_buffer_binding(node, *op_names):
+def _is_tensor_binding(node, *op_names):
     return (
         isinstance(node, tvm.ir.Bind)
         and isinstance(node.value, tvm.ir.Call)
@@ -81,7 +81,7 @@ def test_ir_builder_tir_function_complete():
             T.arg_("a", T.handle())
             T.arg_("b", T.int64())
             T.arg_("c", T.Tensor((128, 128), "float32"))
-            buffer_d = T.arg_("d", T.Tensor((64, 64), "int64"))
+            tensor_d = T.arg_("d", T.Tensor((64, 64), "int64"))
             e = T.arg_("e", T.Tensor((1024,), "int8"))
             T.func_attr({"key": "value"})
             T.func_ret(tvm.ir.PrimType("int64"))
@@ -92,16 +92,16 @@ def test_ir_builder_tir_function_complete():
     function_actual = ib.get()
 
     # the expected function
-    c_buffer = tirx.decl_tensor((128, 128), "float32", name="c", layout=None)
-    d_buffer = tirx.decl_tensor((64, 64), "int64", name="d", layout=None)
-    e_buffer = tirx.decl_tensor((1024,), "int8", name="e", layout=None)
+    c_tensor = tirx.decl_tensor((128, 128), "float32", name="c", layout=None)
+    d_tensor = tirx.decl_tensor((64, 64), "int64", name="d", layout=None)
+    e_tensor = tirx.decl_tensor((1024,), "int8", name="e", layout=None)
     function_expected = tirx.Function(
         params=[
             tirx.Var("a", tvm.ir.PtrType(tvm.ir.PrimType("void"))),
             tirx.Var("b", "int64"),
-            c_buffer,
-            d_buffer,
-            e_buffer,
+            c_tensor,
+            d_tensor,
+            e_tensor,
         ],
         body=tvm.ir.Evaluate(0),
         ret_type=tvm.ir.PrimType("int64"),
@@ -129,8 +129,8 @@ def test_ir_builder_tir_block_base():
         writes=[],
         name_hint="block",
         body=tvm.ir.Evaluate(0),
-        alloc_buffers=None,
-        match_buffers=None,
+        alloc_tensors=None,
+        match_tensors=None,
         annotations={"tirx.script_parsing_detect_access": tirx.IntImm("int64", 3)},
     )
     block_realize_expected = s_tir.SBlockRealize(
@@ -156,8 +156,8 @@ def test_ir_builder_tir_block_complete():
             Ts.reads(b[0:16, 0:16])
             Ts.writes(c[d:128, d:128])
             Ts.sblock_attr({"key": "value"})
-            Ts.sblock_alloc_buffer((128, 128), "float32")
-            Ts.match_buffer(e[0:32, 0:32], (32, 32), "float32")
+            Ts.sblock_alloc_tensor((128, 128), "float32")
+            Ts.match_tensor(e[0:32, 0:32], (32, 32), "float32")
             Ts.axis.spatial(128, f)
             T.evaluate(0)
 
@@ -166,20 +166,20 @@ def test_ir_builder_tir_block_complete():
 
     # the expected block
     var_a = tirx.Var("a", "int64")
-    buffer_b = tirx.decl_tensor((128, 128), "float32", name="b")
-    buffer_c = tirx.decl_tensor((128, 128), "float32", name="c")
+    tensor_b = tirx.decl_tensor((128, 128), "float32", name="b")
+    tensor_c = tirx.decl_tensor((128, 128), "float32", name="c")
     var_d = tirx.Var("d", "int32")
-    buffer_e = tirx.decl_tensor((128, 128), "float32", name="c")
+    tensor_e = tirx.decl_tensor((128, 128), "float32", name="c")
     var_f = tirx.Var("f", "int32")
     block_expected = s_tir.SBlock(
         iter_vars=[s_tir.IterVar((0, 128), tirx.Var("", "int32"), iter_type=s_tir.IterVar.DataPar)],
-        reads=[buffer_b[0:16, 0:16]],
-        writes=[buffer_c[var_d:128, var_d:128]],
+        reads=[tensor_b[0:16, 0:16]],
+        writes=[tensor_c[var_d:128, var_d:128]],
         name_hint="block",
         body=tvm.ir.Evaluate(0),
-        alloc_buffers=[tirx.decl_tensor((128, 128), "float32")],
-        match_buffers=[
-            s_tir.MatchBufferRegion(tirx.decl_tensor((32, 32), "float32"), buffer_e[0:32, 0:32])
+        alloc_tensors=[tirx.decl_tensor((128, 128), "float32")],
+        match_tensors=[
+            s_tir.MatchTensorRegion(tirx.decl_tensor((32, 32), "float32"), tensor_e[0:32, 0:32])
         ],
         annotations={"key": "value"},
     )
@@ -275,12 +275,12 @@ def test_ir_builder_tir_allocate():
     # AllocTensor is flat: body should be a SeqStmt with [AllocTensor, Evaluate(1)]
     assert isinstance(body, tvm.ir.SeqStmt), f"Expected SeqStmt but got {type(body)}"
     assert len(body) == 2
-    assert _is_buffer_binding(body[0], "tirx.alloc_tensor")
+    assert _is_tensor_binding(body[0], "tirx.alloc_tensor")
     assert isinstance(body[1], tvm.ir.Evaluate)
     assert body[1].value.value == 1
 
 
-def test_ir_builder_tir_decl_buffer():
+def test_ir_builder_tir_decl_tensor():
     with IRBuilder() as ib:
         with build_function():
             T.func_name_("test")
@@ -294,7 +294,7 @@ def test_ir_builder_tir_decl_buffer():
     # decl_tensor without data emits AllocTensor (flat): body should be SeqStmt
     assert isinstance(body, tvm.ir.SeqStmt), f"Expected SeqStmt but got {type(body)}"
     assert len(body) == 2
-    assert _is_buffer_binding(body[0], "tirx.alloc_tensor")
+    assert _is_tensor_binding(body[0], "tirx.alloc_tensor")
     assert isinstance(body[1], tvm.ir.Evaluate)
     assert body[1].value.value == 1
 

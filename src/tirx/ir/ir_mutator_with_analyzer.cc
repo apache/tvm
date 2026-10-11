@@ -50,14 +50,14 @@ using namespace tvm::prim;
 
 using sym::detail::EnterConstraintFacts;
 
-void IRMutatorWithAnalyzer::MarkBufferParamShapes(const tirx::Function& func) {
-  // Mark all symbolic buffer-parameter shape values as positive.
+void IRMutatorWithAnalyzer::MarkTensorParamShapes(const tirx::Function& func) {
+  // Mark all symbolic tensor-parameter shape values as positive.
   for (const tvm::Var& param : func->params) {
     if (!param->ty.as<tirx::TensorTypeNode>()) {
       continue;
     }
-    tirx::TensorVar buffer = param.as_or_throw<tirx::TensorVar>();
-    for (PrimExpr shape : buffer->shape) {
+    tirx::TensorVar tensor = param.as_or_throw<tirx::TensorVar>();
+    for (PrimExpr shape : tensor->shape) {
       analyzer_->MarkGlobalNonNegValue(shape);
     }
   }

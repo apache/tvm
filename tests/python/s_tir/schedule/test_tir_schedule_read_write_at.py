@@ -74,7 +74,7 @@ def cuda_matmul(A: T.Tensor([2048, 2048], 'float32'), B: T.Tensor([2048, 2048], 
 @Ts.function
 def cuda_matmul_read_at_a(A: T.Tensor([2048, 2048], dtype='float32'), B: T.Tensor([2048, 2048], dtype='float32'), C: T.Tensor([2048, 2048], dtype='float32')) -> None:
 
-    A_shared = Ts.sblock_alloc_buffer([2048, 2048], dtype="float32", scope="shared")
+    A_shared = Ts.sblock_alloc_tensor([2048, 2048], dtype="float32", scope="shared")
     for by in T.thread_binding(0, 32, thread="blockIdx.y"):
         for bx in T.thread_binding(0, 32, thread="blockIdx.x"):
             for vy in T.thread_binding(0, 2, thread="vthread.y"):
@@ -105,8 +105,8 @@ def cuda_matmul_read_at_a(A: T.Tensor([2048, 2048], dtype='float32'), B: T.Tenso
 @Ts.function
 def cuda_matmul_read_at_ab(A: T.Tensor([2048, 2048], dtype='float32'), B: T.Tensor([2048, 2048], dtype='float32'), C: T.Tensor([2048, 2048], dtype='float32')) -> None:
 
-    A_shared = Ts.sblock_alloc_buffer([2048, 2048], dtype="float32", scope="shared")
-    B_shared = Ts.sblock_alloc_buffer([2048, 2048], dtype="float32", scope="shared")
+    A_shared = Ts.sblock_alloc_tensor([2048, 2048], dtype="float32", scope="shared")
+    B_shared = Ts.sblock_alloc_tensor([2048, 2048], dtype="float32", scope="shared")
     for by in T.thread_binding(0, 32, thread="blockIdx.y"):
         for bx in T.thread_binding(0, 32, thread="blockIdx.x"):
             for vy in T.thread_binding(0, 2, thread="vthread.y"):
@@ -145,9 +145,9 @@ def cuda_matmul_read_at_ab(A: T.Tensor([2048, 2048], dtype='float32'), B: T.Tens
 @Ts.function
 def cuda_matmul_write_at_c(A: T.Tensor([2048, 2048], dtype='float32'), B: T.Tensor([2048, 2048], dtype='float32'), C: T.Tensor([2048, 2048], dtype='float32')) -> None:
 
-    A_shared = Ts.sblock_alloc_buffer([2048, 2048], dtype="float32", scope="shared")
-    B_shared = Ts.sblock_alloc_buffer([2048, 2048], dtype="float32", scope="shared")
-    C_shared = Ts.sblock_alloc_buffer([2048, 2048], dtype="float32", scope="shared")
+    A_shared = Ts.sblock_alloc_tensor([2048, 2048], dtype="float32", scope="shared")
+    B_shared = Ts.sblock_alloc_tensor([2048, 2048], dtype="float32", scope="shared")
+    C_shared = Ts.sblock_alloc_tensor([2048, 2048], dtype="float32", scope="shared")
     for by in T.thread_binding(0, 32, thread="blockIdx.y"):
         for bx in T.thread_binding(0, 32, thread="blockIdx.x"):
             for vy in T.thread_binding(0, 2, thread="vthread.y"):

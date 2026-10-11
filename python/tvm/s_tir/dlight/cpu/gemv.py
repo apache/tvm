@@ -56,8 +56,8 @@ class GEMV(CPUScheduleRule):
             # or [S, R] = [S, R] * [R]
             return None
         block = block_info.block_rv
-        vector_input_buffers = is_gemv(sch, block_info)
-        if vector_input_buffers is None:
+        vector_input_tensors = is_gemv(sch, block_info)
+        if vector_input_tensors is None:
             return None
 
         # Step 1. Normalize the block, merge spatial and reduction iters
@@ -67,7 +67,7 @@ class GEMV(CPUScheduleRule):
         if is_inner_reduction is None:
             return None
         elif is_inner_reduction:
-            return self.sch_inner_reduction(sch, target, block, vector_input_buffers, epilogue)
+            return self.sch_inner_reduction(sch, target, block, vector_input_tensors, epilogue)
         else:
             # sch_outer reduction
             return None
@@ -77,7 +77,7 @@ class GEMV(CPUScheduleRule):
         sch: s_tir.Schedule,
         target: Target,
         block: s_tir.schedule.SBlockRV,
-        vector_input_buffers: list[tirx.Var],
+        vector_input_tensors: list[tirx.Var],
         epilogue_info: SBlockInfo | None,
     ):
         """Schedule the inner reduction block."""

@@ -769,6 +769,21 @@ void CodeGenWebGPU::Dispatch_(const TensorStoreNode* op) {
   }
 }
 
+void CodeGenWebGPU::DispatchDeclTensor(const BindNode* op, const CallNode* buffer_call) {
+  Expr data = buffer_call->args[0];
+  const VarNode* source = data.as<VarNode>();
+  if (const auto* call = data.as<CallNode>();
+      call && call->op.same_as(tirx::tensor_data_ptr_op()) && call->args.size() == 1) {
+    source = call->args[0].as<VarNode>();
+  }
+  TVM_FFI_CHECK(source && var_idmap_.count(source), ValueError)
+      << "WebGPU tensor views require a named storage array";
+  // WGSL storage is an array, not a C pointer. Preserve its physical element
+  // representation and access mode by sharing the existing array name.
+  TVM_FFI_ICHECK(!var_idmap_.count(op->var.get()));
+  var_idmap_[op->var.get()] = GetVarID(source);
+}
+
 void CodeGenWebGPU::DispatchAllocTensor(const BindNode* op, const CallNode* buffer_call) {
   tvm::Tuple shape = tvm::Tuple(buffer_call->ty_args[0].as_or_throw<tirx::TensorType>()->shape);
   DLDataType dtype = buffer_call->ty_args[0].as_or_throw<tirx::TensorType>()->dtype->dtype;

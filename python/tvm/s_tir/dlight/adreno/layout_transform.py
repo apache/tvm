@@ -82,17 +82,20 @@ class LayoutTransform(AdrenoScheduleRule):
         ):
             return None
 
-        read_buf, write_buf = (block_info.read_bufs(sch)[0], block_info.write_bufs(sch)[0])
+        read_tensor, write_tensor = (
+            block_info.read_tensors(sch)[0],
+            block_info.write_tensors(sch)[0],
+        )
         lps = block_info.get_loops()
         lpv_read, lpv_write = (
-            read_buf.assoc_lps[-1],
-            write_buf.assoc_lps[-1],
+            read_tensor.assoc_lps[-1],
+            write_tensor.assoc_lps[-1],
         )
 
         if lpv_read is None or lpv_write is None:
             return None
 
-        vlen_read, vlen_write = read_buf.get_vecsize(), write_buf.get_vecsize()
+        vlen_read, vlen_write = read_tensor.get_vecsize(), write_tensor.get_vecsize()
         local_cache = sch.get(lpv_read) != sch.get(lpv_write) or vlen_read != vlen_write
         block_loops = [
             lp

@@ -85,7 +85,7 @@ std::variant<MemCpyDetails, std::string> IdentifyMemCpyImpl(const For& loop,
 
   // Now, we have a TensorStore whose value is a TensorLoad.  Because
   // non-flat physical indices are target-dependent, only handle cases
-  // where the buffer will be flattened to a 1-d physical buffer.
+  // where the tensor will be flattened to a 1-d physical tensor.
   ffi::Array<PrimExpr> flattened_dst =
       store->dest.as_or_throw<TensorVar>().type()->ElemOffset(store->indices);
   ffi::Array<PrimExpr> flattened_src =
@@ -102,7 +102,7 @@ std::variant<MemCpyDetails, std::string> IdentifyMemCpyImpl(const For& loop,
   PrimExpr dst_index = flattened_dst[0];
 
   // First check, do the input/output form affine subsets of their
-  // respective buffers?
+  // respective tensors?
   //
   // For example, should exclude the following, indices are not affine
   //
@@ -275,13 +275,15 @@ std::variant<MemCpyDetails, std::string> IdentifyMemCpyImpl(const For& loop,
   }
 
   TensorRegion src_region =
-      BufferRegion(load->source.as_or_throw<tvm::tirx::TensorVar>(),
+      TensorRegion(load->source.as_or_throw<tvm::tirx::TensorVar>(),
                    DomainTouched(loop, load->source.as_or_throw<tvm::tirx::TensorVar>(), true, true)
-                       .Map([](const ffi::Optional<Range>& range) { return range.value(); }));
+                       .Map([](const ffi::Optional<Range>& range) { return range.value(); }),
+                   TensorRegionType());
   TensorRegion dst_region =
-      BufferRegion(store->dest.as_or_throw<TensorVar>(),
+      TensorRegion(store->dest.as_or_throw<TensorVar>(),
                    DomainTouched(loop, store->dest.as_or_throw<TensorVar>(), true, true)
-                       .Map([](const ffi::Optional<Range>& range) { return range.value(); }));
+                       .Map([](const ffi::Optional<Range>& range) { return range.value(); }),
+                   TensorRegionType());
 
   return MemCpyDetails{src_region, dst_region};
 }

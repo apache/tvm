@@ -1384,7 +1384,7 @@ void CodeGenCUDA::DispatchAllocTensor(const BindNode* op, const CallNode* buffer
   this->PrintIndent();
   PrintStorageScope(scope, stream);
   int align = buffer->data_alignment;
-  auto it = annotations->dict.find(tvm::tirx::attr::kBufferDataAlignment);
+  auto it = annotations->dict.find(tvm::tirx::attr::kTensorDataAlignment);
   if (it != annotations->dict.end()) {
     if (const auto* n = (*it).second.as<IntImmNode>()) {
       align = n->value.as<int>().value();

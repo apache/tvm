@@ -267,15 +267,15 @@ class BuiltinLower : public StmtExprMutator {
 
   UnchangedOr<Stmt> MutateAllocTensor(const BindNode* op, InplaceMode inplace_mode) {
     // Lower AllocTensor to device allocate when needed.
-    // AllocTensor is flat (no body). Visit buffer fields via base class.
+    // AllocTensor is flat (no body). Visit tensor fields via base class.
     Stmt stmt = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     op = stmt.as<BindNode>();
-    const auto* buffer_call = op->value.as<CallNode>();
-    tvm::Tuple shape = tvm::Tuple(buffer_call->ty_args[0].as_or_throw<TensorType>()->shape);
-    DLDataType dtype = buffer_call->ty_args[0].as_or_throw<TensorType>()->dtype->dtype;
+    const auto* tensor_call = op->value.as<CallNode>();
+    tvm::Tuple shape = tvm::Tuple(tensor_call->ty_args[0].as_or_throw<TensorType>()->shape);
+    DLDataType dtype = tensor_call->ty_args[0].as_or_throw<TensorType>()->dtype->dtype;
     PrimType element_type(dtype);
-    ffi::String scope = buffer_call->ty_args[0].as_or_throw<TensorType>()->storage_scope;
-    DictAttrs annotations = buffer_call->attrs.value().as_or_throw<DictAttrs>();
+    ffi::String scope = tensor_call->ty_args[0].as_or_throw<TensorType>()->storage_scope;
+    DictAttrs annotations = tensor_call->attrs.value().as_or_throw<DictAttrs>();
     if (annotations->dict.count(transform::kDisableLowerTVMBuiltin)) {
       if (annotations->dict[transform::kDisableLowerTVMBuiltin].as_or_throw<IntImm>()->value) {
         return stmt;
@@ -328,7 +328,7 @@ class BuiltinLower : public StmtExprMutator {
                         {prim::cast(PrimType::Int(32), device_type_.value()),
                          prim::cast(PrimType::Int(32), device_id_.value()), total_bytes,
                          IntImm::Int32(element_type.code()), IntImm::Int32(element_type.bits())})},
-                  {}, {op->var.as_or_throw<TensorVar>().type()}, buffer_call->loc),
+                  {}, {op->var.as_or_throw<TensorVar>().type()}, tensor_call->loc),
              op->loc);
 
     return SeqStmt({alloc_bind, alloc_nullptr_check});
@@ -617,7 +617,7 @@ class BuiltinLower : public StmtExprMutator {
 
     // The extra one slot is for return value.
     scope.run_sizes.arg_stack += num_args + 1;
-    // Specially handle the buffer packed intrinsic
+    // Specially handle the tensor packed intrinsic
     Expr expr = StmtExprMutator::Mutate_(op, InplaceMode::kDisallow)
                     .ValueOrUnchanged(ffi::GetRef<Expr>(op));
     op = expr.as<CallNode>();

@@ -17,7 +17,7 @@
 
 import tvm
 import tvm.testing
-from tvm.backend.trn.transform import TrnPrivateBufferAlloc
+from tvm.backend.trn.transform import TrnPrivateTensorAlloc
 from tvm.ir import assert_structural_equal
 from tvm.script import tirx as T
 from tvm.tirx.layout import F, P, S, TileLayout
@@ -43,7 +43,7 @@ def test_normal_copy():
         # fmt: on
     with target:
         mod = tvm.IRModule({"main": copy})
-        mod = TrnPrivateBufferAlloc()(mod)
+        mod = TrnPrivateTensorAlloc()(mod)
         assert_structural_equal(mod["main"], copy)
 
 
@@ -98,7 +98,7 @@ def test_unary_with_bias_scale():
         # fmt: on
     with target:
         mod = tvm.IRModule({"main": unary})
-        mod = TrnPrivateBufferAlloc()(mod)
+        mod = TrnPrivateTensorAlloc()(mod)
         assert_structural_equal(mod["main"], expected)
 
 
@@ -146,7 +146,7 @@ def test_reduction_two_stage():
         # fmt: on
     with target:
         mod = tvm.IRModule({"main": reduction})
-        mod = TrnPrivateBufferAlloc()(mod)
+        mod = TrnPrivateTensorAlloc()(mod)
         assert_structural_equal(mod["main"], expected)
 
 
@@ -191,7 +191,7 @@ def test_gemm():
         # fmt: on
     with target:
         mod = tvm.IRModule({"main": gemm})
-        mod = TrnPrivateBufferAlloc()(mod)
+        mod = TrnPrivateTensorAlloc()(mod)
         assert_structural_equal(mod["main"], expected)
 
 
@@ -252,7 +252,7 @@ def test_binary_reduce_two_stage():
         # fmt: on
     with target:
         mod = tvm.IRModule({"main": tensor_scalar_reduce})
-        mod = TrnPrivateBufferAlloc()(mod)
+        mod = TrnPrivateTensorAlloc()(mod)
         assert_structural_equal(mod["main"], expected)
 
 
@@ -324,7 +324,7 @@ def test_activation_reduce_two_stage():
         # fmt: on
     with target:
         mod = tvm.IRModule({"main": activation_reduce})
-        mod = TrnPrivateBufferAlloc()(mod)
+        mod = TrnPrivateTensorAlloc()(mod)
         assert_structural_equal(mod["main"], expected)
 
 
@@ -395,7 +395,7 @@ def test_partial_workspace_specify():
         # fmt: on
     with target:
         mod = tvm.IRModule({"main": activation_reduce})
-        mod = TrnPrivateBufferAlloc()(mod)
+        mod = TrnPrivateTensorAlloc()(mod)
         assert_structural_equal(mod["main"], expected)
 
 
@@ -457,7 +457,7 @@ def test_workspace_reuse():
 
     with target:
         mod = tvm.IRModule({"main": unary})
-        mod = TrnPrivateBufferAlloc()(mod)
+        mod = TrnPrivateTensorAlloc()(mod)
         assert_structural_equal(mod["main"], expected)
 
 
@@ -471,7 +471,7 @@ def test_no_rewrite_with_existing_workspace():
     @T.function
     def reduction():
         T.device_entry()
-        intermediate_buffer = T.alloc_tensor(ty_args=[T.Tensor((128, 64), scope="trn.sbuf")])
+        intermediate_tensor = T.alloc_tensor(ty_args=[T.Tensor((128, 64), scope="trn.sbuf")])
         A_sbuf = T.alloc_tensor(
             ty_args=[T.Tensor(src_shape, "float32", scope="trn.sbuf", layout=src_layout)]
         )
@@ -479,12 +479,12 @@ def test_no_rewrite_with_existing_workspace():
             ty_args=[T.Tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)]
         )
         T.trn.tile.tensorreduce(
-            B_sbuf, A_sbuf, axes=(1, 3), partial_reduce=intermediate_buffer, reduce_op="sum"
+            B_sbuf, A_sbuf, axes=(1, 3), partial_reduce=intermediate_tensor, reduce_op="sum"
         )
         # fmt: on
     with target:
         mod = tvm.IRModule({"main": reduction})
-        mod = TrnPrivateBufferAlloc()(mod)
+        mod = TrnPrivateTensorAlloc()(mod)
         assert_structural_equal(mod["main"], reduction)
 
 
@@ -511,7 +511,7 @@ def test_no_rewrite_with_psum_output():
         # fmt: on
     with target:
         mod = tvm.IRModule({"main": gemm})
-        mod = TrnPrivateBufferAlloc()(mod)
+        mod = TrnPrivateTensorAlloc()(mod)
         assert_structural_equal(mod["main"], gemm)
 
 

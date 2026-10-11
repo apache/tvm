@@ -37,8 +37,8 @@ def test_batch_decode_gemv():
         T.func_attr({"tirx.noalias": True})
 
         # with Ts.sblock("root"):
-        compute = Ts.sblock_alloc_buffer((T.int64(4096), T.int64(28672)), "float16")
-        dequantize_intermediate_intermediate = Ts.sblock_alloc_buffer((T.int64(4096), T.int64(28672)), "float16")
+        compute = Ts.sblock_alloc_tensor((T.int64(4096), T.int64(28672)), "float16")
+        dequantize_intermediate_intermediate = Ts.sblock_alloc_tensor((T.int64(4096), T.int64(28672)), "float16")
         for i0, i1 in T.grid(T.int64(4096), T.int64(28672)):
             with Ts.sblock("compute"):
                 v_i0, v_i1 = Ts.axis.remap("SS", [i0, i1])
@@ -67,10 +67,10 @@ def test_batch_decode_gemv():
         T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
 
         # with Ts.sblock("root"):
-        dequantize_intermediate_intermediate_local = Ts.sblock_alloc_buffer((T.int64(4096), T.int64(28672)), "float16", scope="local")
-        NT_matmul_intermediate_pad_local = Ts.sblock_alloc_buffer(((batch_size + T.int64(3)) // T.int64(4) * T.int64(4), T.int64(1), T.int64(4096)), "float16", scope="local")
-        NT_matmul_intermediate_pad_rf_local = Ts.sblock_alloc_buffer((T.int64(128), (batch_size + T.int64(3)) // T.int64(4) * T.int64(4), T.int64(1), T.int64(4096)), "float16", scope="local")
-        NT_matmul_intermediate_pad_rf_local_1 = Ts.sblock_alloc_buffer((T.int64(32), (batch_size + T.int64(3)) // T.int64(4) * T.int64(4), T.int64(1), T.int64(4096)), "float16", scope="local")
+        dequantize_intermediate_intermediate_local = Ts.sblock_alloc_tensor((T.int64(4096), T.int64(28672)), "float16", scope="local")
+        NT_matmul_intermediate_pad_local = Ts.sblock_alloc_tensor(((batch_size + T.int64(3)) // T.int64(4) * T.int64(4), T.int64(1), T.int64(4096)), "float16", scope="local")
+        NT_matmul_intermediate_pad_rf_local = Ts.sblock_alloc_tensor((T.int64(128), (batch_size + T.int64(3)) // T.int64(4) * T.int64(4), T.int64(1), T.int64(4096)), "float16", scope="local")
+        NT_matmul_intermediate_pad_rf_local_1 = Ts.sblock_alloc_tensor((T.int64(32), (batch_size + T.int64(3)) // T.int64(4) * T.int64(4), T.int64(1), T.int64(4096)), "float16", scope="local")
         for ax0_0 in T.thread_binding((batch_size + T.int64(3)) // T.int64(4), thread="blockIdx.y"):
             for u_fused_ax1_fused_fused_0 in T.thread_binding(T.int64(256), thread="blockIdx.x"):
                 for u_fused_ax1_fused_fused_1 in T.thread_binding(T.int64(8), thread="threadIdx.x"):
@@ -181,9 +181,9 @@ def test_batch_gemv():
         T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
 
         # with Ts.sblock("root"):
-        NT_matmul_pad_local = Ts.sblock_alloc_buffer(((batch_size + T.int64(3)) // T.int64(4) * T.int64(4), T.int64(1), T.int64(4096)), "float16", scope="local")
-        NT_matmul_pad_rf_local = Ts.sblock_alloc_buffer((T.int64(128), (batch_size + T.int64(3)) // T.int64(4) * T.int64(4), T.int64(1), T.int64(4096)), "float16", scope="local")
-        NT_matmul_pad_rf_local_1 = Ts.sblock_alloc_buffer((T.int64(32), (batch_size + T.int64(3)) // T.int64(4) * T.int64(4), T.int64(1), T.int64(4096)), "float16", scope="local")
+        NT_matmul_pad_local = Ts.sblock_alloc_tensor(((batch_size + T.int64(3)) // T.int64(4) * T.int64(4), T.int64(1), T.int64(4096)), "float16", scope="local")
+        NT_matmul_pad_rf_local = Ts.sblock_alloc_tensor((T.int64(128), (batch_size + T.int64(3)) // T.int64(4) * T.int64(4), T.int64(1), T.int64(4096)), "float16", scope="local")
+        NT_matmul_pad_rf_local_1 = Ts.sblock_alloc_tensor((T.int64(32), (batch_size + T.int64(3)) // T.int64(4) * T.int64(4), T.int64(1), T.int64(4096)), "float16", scope="local")
         for ax0_0 in T.thread_binding((batch_size + T.int64(3)) // T.int64(4), thread="blockIdx.y"):
             for u_fused_ax1_fused_fused_0 in T.thread_binding(T.int64(256), thread="blockIdx.x"):
                 for u_fused_ax1_fused_fused_1 in T.thread_binding(T.int64(8), thread="threadIdx.x"):
@@ -309,9 +309,9 @@ def test_small_spatial_axis():
         T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
 
         # with Ts.sblock("root"):
-        C_pad_local = Ts.sblock_alloc_buffer(((batch_size + T.int64(3)) // T.int64(4) * T.int64(4), T.int64(8)), "float16", scope="local")
-        C_pad_rf_local = Ts.sblock_alloc_buffer((T.int64(128), (batch_size + T.int64(3)) // T.int64(4) * T.int64(4), T.int64(8)), "float16", scope="local")
-        C_pad_rf_local_1 = Ts.sblock_alloc_buffer((T.int64(32), (batch_size + T.int64(3)) // T.int64(4) * T.int64(4), T.int64(8)), "float16", scope="local")
+        C_pad_local = Ts.sblock_alloc_tensor(((batch_size + T.int64(3)) // T.int64(4) * T.int64(4), T.int64(8)), "float16", scope="local")
+        C_pad_rf_local = Ts.sblock_alloc_tensor((T.int64(128), (batch_size + T.int64(3)) // T.int64(4) * T.int64(4), T.int64(8)), "float16", scope="local")
+        C_pad_rf_local_1 = Ts.sblock_alloc_tensor((T.int64(32), (batch_size + T.int64(3)) // T.int64(4) * T.int64(4), T.int64(8)), "float16", scope="local")
         for ax0_0 in T.thread_binding((batch_size + T.int64(3)) // T.int64(4), thread="blockIdx.y"):
             for u_fused_ax1_fused_fused_0 in T.thread_binding(T.int64(1), thread="blockIdx.x"):
                 for u_fused_ax1_fused_fused_1 in T.thread_binding(T.int64(16), thread="threadIdx.y"):
@@ -403,8 +403,8 @@ def test_outer_reduction():
         C: T.Tensor((batch_size, 1, 6144), 'float16')
     ):
 
-        compute = Ts.sblock_alloc_buffer((4096, 6144), "float16")
-        B = Ts.sblock_alloc_buffer((4096, 6144), "float16")
+        compute = Ts.sblock_alloc_tensor((4096, 6144), "float16")
+        B = Ts.sblock_alloc_tensor((4096, 6144), "float16")
         for i0, i1 in T.grid(4096, 6144):
             with Ts.sblock("compute"):
                 v_i0, v_i1 = Ts.axis.remap("SS", [i0, i1])
@@ -427,13 +427,13 @@ def test_outer_reduction():
         T.func_attr({"tirx.is_scheduled": True})
 
         # with Ts.sblock("root"):
-        B_local = Ts.sblock_alloc_buffer((4096, 6144), "float16", scope="local")
-        A_pad_shared = Ts.sblock_alloc_buffer(((batch_size + 3) // 4 * 4, 1, 4096), "float16", scope="shared")
-        C_pad_local = Ts.sblock_alloc_buffer(((batch_size + 3) // 4 * 4, 1, 6144), "float16", scope="local")
-        C_pad_rf_local = Ts.sblock_alloc_buffer((32, (batch_size + 3) // 4 * 4, 1, 6144), "float16", scope="local")
-        C_pad_rf_local_1 = Ts.sblock_alloc_buffer((4, (batch_size + 3) // 4 * 4, 1, 6144), "float16", scope="local")
-        B0_local = Ts.sblock_alloc_buffer((512, 6144), "uint32", scope="local")
-        B1_local = Ts.sblock_alloc_buffer((128, 6144), "float16", scope="local")
+        B_local = Ts.sblock_alloc_tensor((4096, 6144), "float16", scope="local")
+        A_pad_shared = Ts.sblock_alloc_tensor(((batch_size + 3) // 4 * 4, 1, 4096), "float16", scope="shared")
+        C_pad_local = Ts.sblock_alloc_tensor(((batch_size + 3) // 4 * 4, 1, 6144), "float16", scope="local")
+        C_pad_rf_local = Ts.sblock_alloc_tensor((32, (batch_size + 3) // 4 * 4, 1, 6144), "float16", scope="local")
+        C_pad_rf_local_1 = Ts.sblock_alloc_tensor((4, (batch_size + 3) // 4 * 4, 1, 6144), "float16", scope="local")
+        B0_local = Ts.sblock_alloc_tensor((512, 6144), "uint32", scope="local")
+        B1_local = Ts.sblock_alloc_tensor((128, 6144), "float16", scope="local")
         for ax0_0 in T.thread_binding((batch_size + 3) // 4, thread="blockIdx.y"):
             for ax1_fused_0 in T.thread_binding(96, thread="blockIdx.x"):
                 for ax1_fused_1 in T.thread_binding(64, thread="threadIdx.x"):
@@ -470,7 +470,7 @@ def test_outer_reduction():
                                             v1 = Ts.axis.spatial(4096, ax2_fused_0 * 128 + (ax0_ax1_fused_0 * 128 + ax0_ax1_fused_1 * 2 + ax0_ax1_fused_2) % 128)
                                             Ts.reads(A[v0, 0, v1])
                                             Ts.writes(A_pad_shared[v0, 0, v1])
-                                            Ts.sblock_attr({"buffer_dim_align": [[0, 1, 8, 1]]})
+                                            Ts.sblock_attr({"tensor_dim_align": [[0, 1, 8, 1]]})
                                             A_pad_shared[v0, 0, v1] = T.if_then_else(v0 < batch_size, A[v0, 0, v1], T.float16(0))
                             for ax2_fused_2 in range(4):
                                 for ax0_ax1_fused_0 in range(2):
@@ -564,7 +564,7 @@ def test_low_batch_gemv_cuda_target_without_max_shared_memory_per_block():
     assert mod["main"].attrs["tirx.is_scheduled"] == 1
 
 
-def test_low_batch_gemv_rejects_non_einsum_buffer_access():
+def test_low_batch_gemv_rejects_non_einsum_tensor_access():
     batch_size = T.dynamic("batch_size")
 
     @Ts.function(private=True)
@@ -599,7 +599,7 @@ def test_low_batch_gemv_broadcast_epilogue():
     ):
         T.func_attr({"tirx.noalias": True})
 
-        C_temp = Ts.sblock_alloc_buffer((T.int64(1), batch_size, T.int64(1), T.int64(128)), "float16")
+        C_temp = Ts.sblock_alloc_tensor((T.int64(1), batch_size, T.int64(1), T.int64(128)), "float16")
         for i0, i1, i2, i3, k in T.grid(
             T.int64(1), batch_size, T.int64(1), T.int64(128), T.int64(128)
         ):

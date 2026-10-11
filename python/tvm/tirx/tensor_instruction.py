@@ -345,12 +345,12 @@ class TensorCall:
         view.scope = ExecScope(str(call.attrs.scope))
         return view
 
-    def get_private_buffers(self, buffer_dict, sctx):
+    def get_private_tensors(self, tensor_dict, sctx):
         if sctx.target.kind.name == "trn":
-            return self.get_private_buffers_trn(buffer_dict, sctx)
+            return self.get_private_tensors_trn(tensor_dict, sctx)
         return {}
 
-    def get_private_buffers_trn(self, buffer_dict, sctx):
+    def get_private_tensors_trn(self, tensor_dict, sctx):
         return {}
 
     def with_workspaces(self, values):

@@ -1310,8 +1310,8 @@ def test_fp16A_int4B_gemm():
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
-            max_abs_value = Ts.sblock_alloc_buffer((T.int64(128),), "float16")
-            scale = Ts.sblock_alloc_buffer((T.int64(128),))
+            max_abs_value = Ts.sblock_alloc_tensor((T.int64(128),), "float16")
+            scale = Ts.sblock_alloc_tensor((T.int64(128),))
             for i, k in T.grid(T.int64(128), T.int64(64)):
                 with Ts.sblock("max_abs_value"):
                     v_i, v_k = Ts.axis.remap("SR", [i, k])
@@ -1561,8 +1561,8 @@ def test_fp16A_int8B_gemm():
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
-            max_abs_value = Ts.sblock_alloc_buffer((T.int64(64),), "float16")
-            scale = Ts.sblock_alloc_buffer((T.int64(64),))
+            max_abs_value = Ts.sblock_alloc_tensor((T.int64(64),), "float16")
+            scale = Ts.sblock_alloc_tensor((T.int64(64),))
             for i, k in T.grid(T.int64(64), T.int64(64)):
                 with Ts.sblock("max_abs_value"):
                     v_i, v_k = Ts.axis.remap("SR", [i, k])
@@ -1698,7 +1698,7 @@ def test_rms_norm():
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
-            Ared_temp = Ts.sblock_alloc_buffer((T.int64(1), T.int64(1)))
+            Ared_temp = Ts.sblock_alloc_tensor((T.int64(1), T.int64(1)))
             for bsz, i, k in T.grid(T.int64(1), T.int64(1), T.int64(4096)):
                 with Ts.sblock("Ared_temp"):
                     v_bsz, v_i, v_k = Ts.axis.remap("SSR", [bsz, i, k])
@@ -1848,8 +1848,8 @@ def test_fp16A_int8B_gemm_batched():
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
-            max_abs_value = Ts.sblock_alloc_buffer((T.int64(64),), "float16")
-            scale = Ts.sblock_alloc_buffer((T.int64(64),))
+            max_abs_value = Ts.sblock_alloc_tensor((T.int64(64),), "float16")
+            scale = Ts.sblock_alloc_tensor((T.int64(64),))
             for i, k in T.grid(T.int64(64), T.int64(64)):
                 with Ts.sblock("max_abs_value"):
                     v_i, v_k = Ts.axis.remap("SR", [i, k])
@@ -1993,14 +1993,14 @@ def test_fp16A_int8B_gemm_batched_finegrained():
             ),
         ):
             T.func_attr({"tirx.noalias": True})
-            max_abs_value = Ts.sblock_alloc_buffer(
+            max_abs_value = Ts.sblock_alloc_tensor(
                 (
                     T.int64(2),
                     T.int64(128),
                 ),
                 "float16",
             )
-            scale = Ts.sblock_alloc_buffer(
+            scale = Ts.sblock_alloc_tensor(
                 (
                     T.int64(2),
                     T.int64(128),

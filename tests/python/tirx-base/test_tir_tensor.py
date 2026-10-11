@@ -24,7 +24,7 @@ import tvm.testing
 from tvm.script import tirx as T
 
 
-def test_buffer():
+def test_tensor():
     m = tvm.tirx.Var("m", "int32")
     n = tvm.tirx.Var("n", "int32")
     l = tvm.tirx.Var("l", "int32")
@@ -47,16 +47,16 @@ def test_buffer():
 
 def test_tensor_var_identity_and_global_var_properties():
     scalar = tvm.ir.Var("scalar", tvm.ir.PrimType("int32"))
-    buffer = tvm.tirx.decl_tensor((8,), "float32")
+    tensor = tvm.tirx.decl_tensor((8,), "float32")
 
-    assert isinstance(buffer, tvm.ir.Var)
+    assert isinstance(tensor, tvm.ir.Var)
     assert isinstance(scalar, tvm.ir.Var)
     assert not tvm.tirx.is_tensor_var(scalar)
-    assert tvm.tirx.is_tensor_var(buffer)
+    assert tvm.tirx.is_tensor_var(tensor)
 
-    assert tuple(buffer.shape) == (8,)
-    assert buffer.dtype == tvm.DataType("float32")
-    assert buffer.data.args[0].same_as(buffer)
+    assert tuple(tensor.shape) == (8,)
+    assert tensor.dtype == tvm.DataType("float32")
+    assert tensor.data.args[0].same_as(tensor)
 
     for name in ("shape", "dtype", "data"):
         assert not hasattr(scalar, name)
@@ -64,64 +64,64 @@ def test_tensor_var_identity_and_global_var_properties():
             getattr(scalar, name)
 
 
-def test_buffer_data_is_typed_projection():
-    buffer = tvm.tirx.decl_tensor((8,), "bool", scope="shared")
+def test_tensor_data_is_typed_projection():
+    tensor = tvm.tirx.decl_tensor((8,), "bool", scope="shared")
 
-    assert buffer.ty.dtype == tvm.ir.PrimType("bool")
-    assert buffer.data.ty == tvm.ir.PtrType(tvm.ir.PrimType("bool"), "shared")
-    assert buffer.data.op.name == "tirx.tensor_data_ptr"
-    assert buffer.data.args[0].same_as(buffer)
+    assert tensor.ty.dtype == tvm.ir.PrimType("bool")
+    assert tensor.data.ty == tvm.ir.PtrType(tvm.ir.PrimType("bool"), "shared")
+    assert tensor.data.op.name == "tirx.tensor_data_ptr"
+    assert tensor.data.args[0].same_as(tensor)
 
 
-def test_buffer_pointer_type_derived_from_dtype_and_scope():
+def test_tensor_pointer_type_derived_from_dtype_and_scope():
     data = tvm.ir.Var("storage", tvm.ir.PtrType(tvm.ir.PrimType("uint8"), "local"))
-    buffer = tvm.tirx.decl_tensor((8,), "float16", data=data)
+    tensor = tvm.tirx.decl_tensor((8,), "float16", data=data)
 
-    assert buffer.ty.dtype == tvm.ir.PrimType("float16")
-    assert buffer.ty.storage_scope == "local"
-    assert buffer.data.ty == tvm.ir.PtrType(tvm.ir.PrimType("float16"), "local")
+    assert tensor.ty.dtype == tvm.ir.PrimType("float16")
+    assert tensor.ty.storage_scope == "local"
+    assert tensor.data.ty == tvm.ir.PtrType(tvm.ir.PrimType("float16"), "local")
 
 
-def test_decl_buffer_physical_data_binding():
-    buffer = tvm.tirx.decl_tensor((8,), "float32")
-    data = tvm.tirx.Var("data", buffer.data.ty)
+def test_decl_tensor_physical_data_binding():
+    tensor = tvm.tirx.decl_tensor((8,), "float32")
+    data = tvm.tirx.Var("data", tensor.data.ty)
 
     decl = tvm.ir.Bind(
-        buffer,
+        tensor,
         tvm.ir.Call(
             "tirx.decl_tensor",
             [data],
-            ty_args=[buffer.ty],
+            ty_args=[tensor.ty],
         ),
     )
-    assert decl.var.same_as(buffer)
+    assert decl.var.same_as(tensor)
     assert decl.value.args[0].same_as(data)
 
 
-def test_buffer_ptr_to():
+def test_tensor_ptr_to():
     m = tvm.tirx.Var("m", "int32")
     n = tvm.tirx.Var("n", "int32")
-    buffer = tvm.tirx.decl_tensor((m, n), "float32", strides=[n + 1, 1], elem_offset=7)
-    pointer = buffer.ptr_to([2, 3])
+    tensor = tvm.tirx.decl_tensor((m, n), "float32", strides=[n + 1, 1], elem_offset=7)
+    pointer = tensor.ptr_to([2, 3])
     assert pointer.op.name == "tirx.address_of"
     assert pointer.ty == tvm.ir.PtrType(tvm.ir.PrimType("float32"))
-    assert pointer.args[0].source.same_as(buffer)
+    assert pointer.args[0].source.same_as(tensor)
     tvm.ir.assert_structural_equal(pointer.args[0].indices, [T.int32(2), T.int32(3)])
     shared = tvm.tirx.decl_tensor((m, n), "float32", scope="shared")
     assert shared.ptr_to([0, 0]).ty == tvm.ir.PtrType(tvm.ir.PrimType("float32"), "shared")
 
 
-def _flattened_load(buffer, indices):
-    function = tvm.tirx.Function([buffer], [tvm.ir.Evaluate(buffer[tuple(indices)])])
-    module = tvm.tirx.transform.FlattenBuffer()(tvm.IRModule({"main": function}))
+def _flattened_load(tensor, indices):
+    function = tvm.tirx.Function([tensor], [tvm.ir.Evaluate(tensor[tuple(indices)])])
+    module = tvm.tirx.transform.FlattenTensor()(tvm.IRModule({"main": function}))
     return module["main"].body[-1].value
 
 
-def _flattened_indices(buffer, indices):
-    return _flattened_load(buffer, indices).indices
+def _flattened_indices(tensor, indices):
+    return _flattened_load(tensor, indices).indices
 
 
-def test_buffer_load():
+def test_tensor_load():
     m = tvm.tirx.Var("m", "int32")
     n = tvm.tirx.Var("n", "int32")
     Ab = tvm.tirx.decl_tensor((m, n), "float32", elem_offset=100)
@@ -129,7 +129,7 @@ def test_buffer_load():
     tvm.ir.assert_structural_equal(load.indices, [T.int32(2), T.int32(3)])
 
 
-def test_buffer_flatten_offset():
+def test_tensor_flatten_offset():
     m = tvm.tirx.Var("m", "int32")
     n = tvm.tirx.Var("n", "int32")
     Ab = tvm.tirx.decl_tensor((m, n), "float32", elem_offset=100)
@@ -137,7 +137,7 @@ def test_buffer_flatten_offset():
     tvm.ir.assert_structural_equal(offset, [n * 2 + 103])
 
 
-def test_buffer_index_merge_mult_mod():
+def test_tensor_index_merge_mult_mod():
     m = tvm.tirx.Var("m", "int32")
     n = tvm.tirx.Var("n", "int32")
     s = tvm.tirx.Var("s", "int32")
@@ -220,7 +220,7 @@ def test_buffer_index_merge_mult_mod():
     "shape,strides,expected",
     [([16, 32], None, 512), ([16], None, 16), ([], None, 1), ([16, 32], [40, 1], 640)],
 )
-def test_buffer_flatten(shape, strides, expected):
+def test_tensor_flatten(shape, strides, expected):
     """Flattening derives the storage span and binds a fresh physical view."""
     buf = tvm.tirx.decl_tensor(shape, strides=strides)
     flat = _flattened_load(buf, [0] * len(shape)).source

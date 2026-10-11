@@ -33,7 +33,7 @@ def lower_func_body(func, target_bits):
     gvar = next(iter(mod.functions.keys()))
     func = tvm.tirx.transform.NarrowDataType(target_bits)(mod)[gvar]
     body = func.body
-    # With flat buffer semantics, navigate to the first For node
+    # With flat tensor semantics, navigate to the first For node
     if isinstance(body, tvm.ir.SeqStmt):
         for stmt in body:
             if isinstance(stmt, tvm.ir.For):
@@ -163,7 +163,7 @@ def test_multilanes():
 
 
 def test_slice():
-    # Test narrowing with slice indexing where buffer B has different index ranges.
+    # Test narrowing with slice indexing where tensor B has different index ranges.
     def check(m, n, target_bits, target_dtype):
         # The index may overflow in B, while not in A
         @T.function
@@ -296,7 +296,7 @@ def test_avg_pool2d():
     tvm.ir.assert_structural_equal(after["main"], expected_after.with_attr("global_symbol", "main"))
 
 
-def test_narrow_i64_valued_bufferload_index_to_i32():
+def test_narrow_i64_valued_tensorload_index_to_i32():
     @T.function
     def before(A: T.Tensor((16,), "int64")):
         for i in range(T.int64(15)):

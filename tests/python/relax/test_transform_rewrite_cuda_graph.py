@@ -400,10 +400,10 @@ def test_capture_fixed_inputs():
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
-            pad_temp = Ts.sblock_alloc_buffer(
+            pad_temp = Ts.sblock_alloc_tensor(
                 (T.int64(16), T.int64(34), T.int64(34), T.int64(16)), "float16"
             )
-            var_conv2d_nhwc_intermediate = Ts.sblock_alloc_buffer(
+            var_conv2d_nhwc_intermediate = Ts.sblock_alloc_tensor(
                 (T.int64(16), T.int64(32), T.int64(32), T.int64(16)), "float16"
             )
             for i0, i1, i2, i3 in T.grid(T.int64(16), T.int64(34), T.int64(34), T.int64(16)):
@@ -462,8 +462,8 @@ def test_capture_fixed_inputs():
         ):
             T.func_attr({"op_pattern": 4, "tirx.noalias": True})
             # with Ts.sblock("root"):
-            A_red_temp_v0 = Ts.sblock_alloc_buffer((T.int64(16), T.int64(32), T.int64(32)))
-            A_red_temp_v1 = Ts.sblock_alloc_buffer((T.int64(16), T.int64(32), T.int64(32)))
+            A_red_temp_v0 = Ts.sblock_alloc_tensor((T.int64(16), T.int64(32), T.int64(32)))
+            A_red_temp_v1 = Ts.sblock_alloc_tensor((T.int64(16), T.int64(32), T.int64(32)))
             for ax0, ax1, ax2, k3 in T.grid(T.int64(16), T.int64(32), T.int64(32), T.int64(16)):
                 with Ts.sblock("A_red_temp"):
                     v_ax0, v_ax1, v_ax2, v_k3 = Ts.axis.remap("SSSR", [ax0, ax1, ax2, k3])

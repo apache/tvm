@@ -37,9 +37,9 @@ def matmul_before(
     B: T.Tensor((127, 127), "float32"),
     C: T.Tensor((128, 127), "float32"),
 ) -> None:
-    A_shared = Ts.sblock_alloc_buffer((128, 127), "float32", scope="shared")
-    B_shared = Ts.sblock_alloc_buffer((127, 127), "float32", scope="shared")
-    C_shared = Ts.sblock_alloc_buffer((128, 127), "float32", scope="shared")
+    A_shared = Ts.sblock_alloc_tensor((128, 127), "float32", scope="shared")
+    B_shared = Ts.sblock_alloc_tensor((127, 127), "float32", scope="shared")
+    C_shared = Ts.sblock_alloc_tensor((128, 127), "float32", scope="shared")
     for i0, i1 in T.grid(128, 127):
         with Ts.sblock("A"):
             i, j = Ts.axis.remap("SS", [i0, i1])
@@ -66,9 +66,9 @@ def matmul_expected(
     B: T.Tensor((127, 127), "float32"),
     C: T.Tensor((128, 127), "float32"),
 ) -> None:
-    A_shared_padded = Ts.sblock_alloc_buffer([128, 128], dtype="float32", scope="shared")
-    B_shared_padded = Ts.sblock_alloc_buffer([128, 128], dtype="float32", scope="shared")
-    C_shared_padded = Ts.sblock_alloc_buffer([128, 128], dtype="float32", scope="shared")
+    A_shared_padded = Ts.sblock_alloc_tensor([128, 128], dtype="float32", scope="shared")
+    B_shared_padded = Ts.sblock_alloc_tensor([128, 128], dtype="float32", scope="shared")
+    C_shared_padded = Ts.sblock_alloc_tensor([128, 128], dtype="float32", scope="shared")
     for i0, i1 in T.grid(128, 128):
         with Ts.sblock("A"):
             i, j = Ts.axis.remap("SS", [i0, i1])
@@ -128,8 +128,8 @@ def test_pad_matmul():
         B: T.Tensor((n, 128), "float32"),
         C: T.Tensor((128, n), "float32"),
     ):
-        B_pad = Ts.sblock_alloc_buffer(((n + 31) // 32 * 32, 128))
-        C_pad = Ts.sblock_alloc_buffer((128, (n + 31) // 32 * 32))
+        B_pad = Ts.sblock_alloc_tensor(((n + 31) // 32 * 32, 128))
+        C_pad = Ts.sblock_alloc_tensor((128, (n + 31) // 32 * 32))
         for i0, i1 in T.grid((n + 31) // 32 * 32, 128):
             with Ts.sblock("B_pad"):
                 v0, v1 = Ts.axis.remap("SS", [i0, i1])
@@ -166,7 +166,7 @@ def test_pad_matmul_2():
     ):
         T.func_attr({"tirx.noalias": True})
 
-        C = Ts.sblock_alloc_buffer((1, n, 11008))
+        C = Ts.sblock_alloc_tensor((1, n, 11008))
         for i0, i1, i2, k in T.grid(1, n, 11008, 4096):
             with Ts.sblock("C"):
                 v_i0, v_i1, v_i2, v_k = Ts.axis.remap("SSSR", [i0, i1, i2, k])
@@ -192,9 +192,9 @@ def test_pad_matmul_2():
         T.func_attr({"tirx.noalias": True})
 
         # with Ts.sblock("root"):
-        C = Ts.sblock_alloc_buffer((1, n, 11008))
-        A_pad = Ts.sblock_alloc_buffer((1, (n + 31) // 32 * 32, 4096))
-        C_pad = Ts.sblock_alloc_buffer((1, (n + 31) // 32 * 32, 11008))
+        C = Ts.sblock_alloc_tensor((1, n, 11008))
+        A_pad = Ts.sblock_alloc_tensor((1, (n + 31) // 32 * 32, 4096))
+        C_pad = Ts.sblock_alloc_tensor((1, (n + 31) // 32 * 32, 11008))
         for i0, i1, i2 in T.grid(1, (n + 31) // 32 * 32, 4096):
             with Ts.sblock("A_pad"):
                 v0, v1, v2 = Ts.axis.remap("SSS", [i0, i1, i2])
@@ -236,7 +236,7 @@ def test_pad_rms():
     ):
         T.func_attr({"tirx.noalias": True})
 
-        S = Ts.sblock_alloc_buffer((1, n), "float32")
+        S = Ts.sblock_alloc_tensor((1, n), "float32")
         for bsz, i, k in T.grid(1, n, 4096):
             with Ts.sblock("S"):
                 v_bsz, v_i, v_k = Ts.axis.remap("SSR", [bsz, i, k])
@@ -261,9 +261,9 @@ def test_pad_rms():
     ):
         T.func_attr({"tirx.noalias": True})
 
-        S = Ts.sblock_alloc_buffer((1, n))
-        A_pad = Ts.sblock_alloc_buffer((1, (n + 31) // 32 * 32, 4096))
-        S_pad = Ts.sblock_alloc_buffer((1, (n + 31) // 32 * 32))
+        S = Ts.sblock_alloc_tensor((1, n))
+        A_pad = Ts.sblock_alloc_tensor((1, (n + 31) // 32 * 32, 4096))
+        S_pad = Ts.sblock_alloc_tensor((1, (n + 31) // 32 * 32))
         for i0, i1, i2 in T.grid(1, (n + 31) // 32 * 32, 4096):
             with Ts.sblock("A_pad"):
                 v0, v1, v2 = Ts.axis.remap("SSS", [i0, i1, i2])

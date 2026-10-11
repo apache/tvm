@@ -64,11 +64,11 @@ class StmtFunctor<R(const Stmt&, Args...)> : public tirx::StmtFunctor<R(const St
 /*!
  * \brief Extend native TIRX traversal with schedulable block semantics.
  *
- * Block iterator binders and policy annotations are not expression uses. Buffer
+ * Block iterator binders and policy annotations are not expression uses. Tensor
  * definitions precede their regions; ordinary statements reuse TIRX hooks.
  * Structural traversal remains available independently with its full field walk.
  * Generic TIRX visitors traverse these nodes structurally, including whole
- * iterators and annotations. Both paths visit allocation and match-buffer
+ * iterators and annotations. Both paths visit allocation and match-tensor
  * definitions before region uses. Producer placement annotations are expression uses.
  * Only this S-TIR subclass supplies native block hooks; the core TIRX table does not
  * register dialect nodes.
@@ -97,11 +97,11 @@ class TVM_DLL StmtExprVisitor : public tirx::StmtExprVisitor {
  * \brief Extend native TIRX mutation while preserving block iterator binders.
  *
  * Reuses inherited remapping and ownership checks. Block policy annotations are left
- * intact; producer placement annotations follow buffer remapping. Structural mutation
+ * intact; producer placement annotations follow tensor remapping. Structural mutation
  * separately provides the full field rewrite.
  * Generic TIRX mutators instead use the full structural rewrite, including
  * iterator definitions and annotations. Both paths establish allocation and
- * match-buffer remaps before visiting region uses and preserve copy-on-write.
+ * match-tensor remaps before visiting region uses and preserve copy-on-write.
  */
 class TVM_DLL StmtExprMutator : public tirx::StmtExprMutator {
  public:

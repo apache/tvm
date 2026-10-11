@@ -110,8 +110,8 @@ def gpu_2d_continuous_cumsum(
         for by in T.thread_binding(batch, thread="blockIdx.y"):
             for bx in T.thread_binding(num_blocks, thread="blockIdx.x"):
                 with Ts.sblock():
-                    local_buf = Ts.sblock_alloc_buffer((thread_elem,), out_dtype, scope="local")
-                    shared_buf = Ts.sblock_alloc_buffer((block_elem,), out_dtype, scope="shared")
+                    local_buf = Ts.sblock_alloc_tensor((thread_elem,), out_dtype, scope="local")
+                    shared_buf = Ts.sblock_alloc_tensor((block_elem,), out_dtype, scope="shared")
                     for ty in T.thread_binding(TY, thread="threadIdx.y"):
                         for tx in T.thread_binding(TX, thread="threadIdx.x"):
                             tx_idx: T.let[T.int64] = (
@@ -269,7 +269,7 @@ def gpu_3d_axis_1_cumsum(
             for tx in T.thread_binding(TX, thread="threadIdx.x"):
                 row: T.let[T.int64] = bx * TX + tx
                 with Ts.sblock():
-                    accumulator = Ts.sblock_alloc_buffer((), out_dtype, scope="local")
+                    accumulator = Ts.sblock_alloc_tensor((), out_dtype, scope="local")
                     if row < outer * inner:
                         outer_idx: T.let[T.int64] = row // inner
                         inner_idx: T.let[T.int64] = row % inner

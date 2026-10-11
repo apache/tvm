@@ -679,10 +679,10 @@ def get_mma_intrin_group(
     Parameters
     ----------
     load_scope : Literal["shared", "shared.dyn"]
-        The memory scope of the input buffer.
+        The memory scope of the input tensor.
 
     store_scope : Literal["global", "shared", "shared.dyn"]
-        The memory scope of the result buffer.
+        The memory scope of the result tensor.
 
     in_dtype : str
         The input data type.

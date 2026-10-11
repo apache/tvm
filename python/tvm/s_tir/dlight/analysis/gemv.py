@@ -78,7 +78,7 @@ def is_gemv(sch: s_tir.Schedule, block_info: SBlockInfo) -> list[tirx.Var] | Non
     Returns
     -------
     ret : Optional[List[tirx.Var]]
-        The vector buffers used in the GEMV if it is a GEMV, otherwise None.
+        The vector tensors used in the GEMV if it is a GEMV, otherwise None.
     """
     block = block_info.block_rv
     block_stmt = sch.get(block)
@@ -114,14 +114,14 @@ def normalize(
         detect_dominant_read(block_stmt),
         input_iters={i.var: i.dom for i in block_stmt.iter_vars},
     )
-    buffers_use_vars = [
-        collect_block_iter_vars_used_in_access_region(block_stmt, buf.region)
-        for buf in block_stmt.writes
+    tensors_use_vars = [
+        collect_block_iter_vars_used_in_access_region(block_stmt, tensor.region)
+        for tensor in block_stmt.writes
     ]
-    buffers_use_vars.extend(
+    tensors_use_vars.extend(
         [
-            collect_block_iter_vars_used_in_access_region(block_stmt, buf.region)
-            for buf in block_stmt.reads
+            collect_block_iter_vars_used_in_access_region(block_stmt, tensor.region)
+            for tensor in block_stmt.reads
         ]
     )
     if collect_vars_used_in_prim_expr(access.base) & set(
@@ -152,7 +152,7 @@ def normalize(
             c_loops.append(c_loop)
         if is_reduction:
             r_loops.append(loop)
-        elif all([var in buf_vars for buf_vars in buffers_use_vars]):
+        elif all([var in tensor_vars for tensor_vars in tensors_use_vars]):
             batch_loops.append(loop)
         else:
             s_loops.append(loop)

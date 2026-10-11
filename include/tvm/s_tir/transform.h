@@ -68,12 +68,12 @@ TVM_DLL Pass LowerCrossThreadReduction();
 TVM_DLL Pass LowerInitBlock();
 
 /*!
- * \brief Locate the buffer allocation to the exact position (usually is
- *        the lca of buffer access). This pass will inject opaque block
- *        with alloc_buffers at the allocation site.
+ * \brief Locate the tensor allocation to the exact position (usually is
+ *        the lca of tensor access). This pass will inject opaque block
+ *        with alloc_tensors at the allocation site.
  * \return The pass.
  */
-TVM_DLL Pass PlanAndUpdateBufferAllocationLocation();
+TVM_DLL Pass PlanAndUpdateTensorAllocationLocation();
 
 /*!
  * \brief Substitute all the block vars with the PrimExprs they are bound to, indicated by the
@@ -90,10 +90,10 @@ TVM_DLL Pass ConvertBlocksToOpaque();
 TVM_DLL Pass LiftThreadBinding();
 
 /*!
- * \brief Compact the buffer access region by removing the buffer regions that are not accessed,
- *        i.e. narrowing the buffer shape and adjust the access region if necessary.
+ * \brief Compact the tensor access region by removing the tensor regions that are not accessed,
+ *        i.e. narrowing the tensor shape and adjust the access region if necessary.
  *
- * Before narrowing, `B` is a `[16, 16]` buffer, but only a skinny vector `B[i, 0:16]` is accessed.
+ * Before narrowing, `B` is a `[16, 16]` tensor, but only a skinny vector `B[i, 0:16]` is accessed.
  *
  *  \code
  *
@@ -107,7 +107,7 @@ TVM_DLL Pass LiftThreadBinding();
  *
  *  \endcode
  *
- * This pass narrows the buffer shape and adjust its accessed region accordingly.
+ * This pass narrows the tensor shape and adjust its accessed region accordingly.
  * In this particular case, because only a `1 * 16` vector of `B` is accessed,
  * the pass narrows `B` to shape `[1, 16]`, and changes the access to `B[i, j]` to `B[0, j]`.
  *
@@ -124,16 +124,16 @@ TVM_DLL Pass LiftThreadBinding();
  *  \endcode
  *
  * \param is_strict ensure the compacted shape always smaller than the original shape.
- *   otherwise it allows to grow the shape to match actual accessed buffer regions.
+ *   otherwise it allows to grow the shape to match actual accessed tensor regions.
  * \return The pass.
  */
-TVM_DLL Pass CompactBufferAllocation(bool is_strict = true);
+TVM_DLL Pass CompactTensorAllocation(bool is_strict = true);
 
 /*!
- * \brief Remove match buffers inside the block. Also, it will validate the binding.
+ * \brief Remove match tensors inside the block. Also, it will validate the binding.
  * \return The pass.
  */
-TVM_DLL Pass LowerMatchBuffer();
+TVM_DLL Pass LowerMatchTensor();
 
 /*!
  * \brief Inject permuted layout for shared memory.
@@ -145,7 +145,7 @@ TVM_DLL Pass InjectPermutedLayout();
  * \brief Transform Mma scope (m16n8k8.matrixA/B/C) to local scope with layout transformation.
  * \return The pass.
  */
-TVM_DLL Pass TransformMmaBufferLayout();
+TVM_DLL Pass TransformMmaTensorLayout();
 
 /*!
  * \brief Remove the block to ensure that the TIR can not be scheduled again.
@@ -177,7 +177,7 @@ TVM_DLL Pass LowerThreadBinding();
  * where max_stage is the maximum (inclusive) stage.
  * 2) Loop annotation `software_pipeline_order` defines the pipeline order.
  * An array of `n` integers, a permutation of [0, 1, ..., num_components - 1];
- * 3) SBlock annotation `double_buffer_scope` controls certain buffer sizes to allow decoupling of
+ * 3) SBlock annotation `double_buffer_scope` controls certain tensor sizes to allow decoupling of
  * read/write dependency. It's an integer index of the write regions of the block.
  *
  * Every annotated loop is transformed into a loop with three blocks as its direct children:
@@ -305,17 +305,17 @@ TVM_DLL Pass RemoveStoreUndef();
 TVM_DLL Pass DecorateDeviceScope();
 
 /*!
- * \brief Eliminate branches by leveraging buffer assumptions (T.assume).
+ * \brief Eliminate branches by leveraging tensor assumptions (T.assume).
  * \return The pass.
  */
 TVM_DLL Pass UseAssumeToReduceBranches();
 
 /*!
- * \brief Force to narrow down indexing expressions and integer buffers to int32 dtype in
+ * \brief Force to narrow down indexing expressions and integer tensors to int32 dtype in
  *        functions that may still contain S-TIR blocks.
  *
  * Unlike tirx::transform::ForceNarrowIndexToInt32, this pass also rewrites block iterators,
- * block access regions, and match buffer regions, so it can run on scheduled functions before
+ * block access regions, and match tensor regions, so it can run on scheduled functions before
  * block lowering.
  *
  * \return The pass.

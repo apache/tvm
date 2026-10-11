@@ -165,7 +165,7 @@ class StmtFunctor<R(const Stmt&, Args...)> {
  * \brief Native visitor for TIRx statements and their expression operands.
  *
  * Inherits core expression dispatch and preserves TIRx traversal order and
- * buffer definition/use boundaries. Allocate visitors with ffi::make_object;
+ * tensor definition/use boundaries. Allocate visitors with ffi::make_object;
  * hooks return the first interrupt or throw on failure.
  * To preserve thrown ffi::Error subclasses, keep child traversal native:
  * Visit(array) crosses structural callbacks that may erase the C++ subtype.

@@ -76,7 +76,7 @@ def test_substitute_allocate():
     tvm.ir.assert_structural_equal(After, Expected)
 
 
-def test_substitute_buffer_load():
+def test_substitute_tensor_load():
     @I.ir_module
     class Before:
         @T.function
@@ -97,7 +97,7 @@ def test_substitute_buffer_load():
     tvm.ir.assert_structural_equal(After, Expected)
 
 
-def test_substitute_decl_buffer():
+def test_substitute_decl_tensor():
     @I.ir_module
     class Before:
         @T.function

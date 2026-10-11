@@ -27,7 +27,7 @@ import tvm_ffi
 
 import tvm
 import tvm.testing
-from tvm.ir import PrimType, PtrType, Range
+from tvm.ir import PrimType, PtrType, Range, TensorRegion, TensorRegionType
 from tvm.script import tirx as T
 from tvm.sym import Analyzer
 from tvm.testing import env
@@ -54,7 +54,6 @@ from tvm.tirx.cuda.tile_primitive.tma_utils import (
 )
 from tvm.tirx.exec_scope import ExecScope
 from tvm.tirx.layout import S, TileLayout
-from tvm.tirx.stmt import BufferRegion
 from tvm.tirx.tile_dispatch import DispatchContext
 
 _TMA_OPS = {
@@ -217,11 +216,11 @@ def _make_op(
     config = dict(config or {})
     if direction == "g2s":
         config.setdefault("mbar", Var("mbar", "handle"))
-        dst = BufferRegion(s_buf, _ranges(s_region))
-        src = BufferRegion(g_buf, _ranges(g_region))
+        dst = TensorRegion(s_buf, _ranges(s_region), ty=TensorRegionType())
+        src = TensorRegion(g_buf, _ranges(g_region), ty=TensorRegionType())
     else:
-        dst = BufferRegion(g_buf, _ranges(g_region))
-        src = BufferRegion(s_buf, _ranges(s_region))
+        dst = TensorRegion(g_buf, _ranges(g_region), ty=TensorRegionType())
+        src = TensorRegion(s_buf, _ranges(s_region), ty=TensorRegionType())
     if "use_tma_reduce" in config:
         config["reduce_op"] = config.pop("use_tma_reduce")
         op = T.cuda.tile.cp_reduce_async_bulk_tensor(dst, src, **config)
@@ -338,7 +337,7 @@ def _make_spec(**overrides):
         target_arch="sm_90a",
         coordinates=(0, 0),
         gather4=(),
-        smem_buffer=s_buf,
+        smem_tensor=s_buf,
         smem_start=(0, 0),
         smem_base_offset=0,
         mbar=Var("mbar", "handle"),
@@ -1301,7 +1300,7 @@ def test_auto_promotion_preserves_payload_and_shared_pointer():
     assert _ints(plan.spec.box_dims) == (256,)
     assert int(plan.spec.payload_bits) == 4096
     assert plan.spec.smem_start == (0, 0)
-    assert str(plan.spec.smem_buffer.dtype) == "uint8"
+    assert str(plan.spec.smem_tensor.dtype) == "uint8"
 
 
 def test_auto_promotes_before_crossing_box_blocked_inner_chain_boundary():

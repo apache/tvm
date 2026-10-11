@@ -23,6 +23,7 @@
 #include "codegen_c.h"
 
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/structural_equal.h>
 #include <tvm/ir/function.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/ir/unique_name_supply.h>
@@ -40,7 +41,7 @@
 #include <limits>
 
 #include "../../sym/pattern_match.h"
-#include "../../tirx/ir/buffer_common.h"
+#include "../../tirx/ir/pointer_type.h"
 #include "codegen_params.h"
 
 namespace tvm {
@@ -946,18 +947,20 @@ void CodeGenC::DispatchDeclTensor(const BindNode* op, const CallNode* buffer_cal
   }
   if (source && var_idmap_.count(source)) {
     TVM_FFI_ICHECK(!var_idmap_.count(buffer.get()));
-    var_idmap_[buffer.get()] = GetVarID(source);
     if (auto it = alloc_storage_scope_.find(source); it != alloc_storage_scope_.end()) {
-      alloc_storage_scope_[buffer.get()] = it->second;
-    } else {
-      alloc_storage_scope_[buffer.get()] = scope;
+      scope = it->second;
     }
     if (IsVolatile(source)) {
       MarkVolatile(buffer.get());
     }
-    auto it = handle_data_type_.find(source);
-    RegisterHandleType(buffer.get(), it == handle_data_type_.end() ? PrimType(dtype) : it->second);
-    return;
+    // Reuse the name only when it already has the view's element type.
+    // Otherwise declare a typed view without changing the backing allocation.
+    if (HandleTypeMatch(source, PrimType(dtype))) {
+      var_idmap_[buffer.get()] = GetVarID(source);
+      alloc_storage_scope_[buffer.get()] = scope;
+      RegisterHandleType(buffer.get(), PrimType(dtype));
+      return;
+    }
   }
 
   alloc_storage_scope_[buffer.get()] = scope;
@@ -965,9 +968,17 @@ void CodeGenC::DispatchDeclTensor(const BindNode* op, const CallNode* buffer_cal
   if (IsScopePartOfType()) {
     PrintStorageScope(scope, stream);
   }
-  PrintType(PtrType(PrimType(dtype), scope), stream);
+  PtrType pointer_type(PrimType(dtype), scope);
+  PrintType(pointer_type, stream);
   stream << ' ' << AllocVarID(buffer.get()) << " = ";
-  PrintExpr(Call(PtrType(PrimType(dtype), scope), tirx::reinterpret_op(), {data}), stream);
+  // Packed argument decoding may already have established this typed view.
+  const auto* cast = data.as<CallNode>();
+  if (cast && cast->op.same_as(tirx::reinterpret_op()) &&
+      ffi::StructuralEqual()(cast->ty, pointer_type)) {
+    PrintExpr(data, stream);
+  } else {
+    PrintExpr(Call(pointer_type, tirx::reinterpret_op(), {data}), stream);
+  }
   stream << ";\n";
   RegisterHandleType(buffer.get(), PrimType(dtype));
 }

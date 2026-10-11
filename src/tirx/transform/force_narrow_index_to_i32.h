@@ -35,7 +35,7 @@ namespace tvm {
 namespace tirx {
 
 /*!
- * \brief Force index expressions and integer buffers to int32.
+ * \brief Force index expressions and integer tensors to int32.
  * \tparam Normalizer The index normalizer that determines which statements are traversed:
  *         tirx::IndexDataTypeNormalizer for lowered TIR, s_tir::IndexDataTypeNormalizer for
  *         TIR that still contains S-TIR blocks.
@@ -50,20 +50,20 @@ class Int32DTypeNarrowerBase : public Normalizer {
   explicit Int32DTypeNarrowerBase(Function func)
       : Normalizer(PrimType::Int(32)), func_(std::move(func)) {}
 
-  /*! \brief Reject integer buffer parameters wider than int32. */
-  static void CheckBufferParams(const Function& func) {
+  /*! \brief Reject integer tensor parameters wider than int32. */
+  static void CheckTensorParams(const Function& func) {
     for (const Var& param : func->params) {
-      if (auto buffer = param.as<TensorVar>();
-          buffer && buffer.value()->dtype.MatchesCode(DLDataTypeCode::kDLInt) &&
-          buffer.value()->dtype.bits() > 32) {
-        TVM_FFI_THROW(InternalError) << "The buffer parameter " << buffer.value() << " has dtype "
-                                     << buffer.value()->dtype << ". The function is " << func;
+      if (auto tensor = param.as<TensorVar>();
+          tensor && tensor.value()->dtype.MatchesCode(DLDataTypeCode::kDLInt) &&
+          tensor.value()->dtype.bits() > 32) {
+        TVM_FFI_THROW(InternalError) << "The tensor parameter " << tensor.value() << " has dtype "
+                                     << tensor.value()->dtype << ". The function is " << func;
       }
     }
   }
 
-  /*! \brief Reject allocated integer buffers wider than int32. */
-  void CheckAllocatedBuffer(const TensorVar& buf) const {
+  /*! \brief Reject allocated integer tensors wider than int32. */
+  void CheckAllocatedTensor(const TensorVar& buf) const {
     // Scalar assignments in TVMScript use local scalar storage.  Keep its explicit
     // dtype (e.g. an int64 opaque call result) and cast at narrowed index uses.
     // IsScalar checks the scalar layout contract, not merely the allocation size.
@@ -71,7 +71,7 @@ class Int32DTypeNarrowerBase : public Normalizer {
     if (!is_local_scalar && buf->dtype.MatchesCode(DLDataTypeCode::kDLInt) &&
         buf->dtype.bits() > 32) {
       TVM_FFI_THROW(InternalError)
-          << "The buffer " << buf << " allocated in the function has dtype " << buf->dtype
+          << "The tensor " << buf << " allocated in the function has dtype " << buf->dtype
           << ". The function is " << func_;
     }
   }
@@ -100,7 +100,7 @@ class Int32DTypeNarrowerBase : public Normalizer {
     auto result = Normalizer::Mutate_(op, inplace_mode);
     auto alloc =
         std::move(result).ValueOrUnchanged(ffi::GetRef<Stmt>(op)).template as_or_throw<Bind>();
-    CheckAllocatedBuffer(alloc->var.template as_or_throw<TensorVar>());
+    CheckAllocatedTensor(alloc->var.template as_or_throw<TensorVar>());
     return alloc;
   }
 

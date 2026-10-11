@@ -64,21 +64,21 @@ class SplitFunctionLayoutRewrite : public s_tir::StmtExprMutator {
   void sort_rewrite_infos() {
     std::sort(
         rewrite_infos_.begin(), rewrite_infos_.end(),
-        [](const RewriteInfo& a, const RewriteInfo& b) { return a.buffer_index < b.buffer_index; });
+        [](const RewriteInfo& a, const RewriteInfo& b) { return a.tensor_index < b.tensor_index; });
   }
 
   tirx::Function create_layout_rewrite_preproc_func() const {
-    // Step 1: Check the number of pre_rewrite_buffers and post_rewrite_buffers
-    TVM_FFI_ICHECK(rewrite_infos_.size() > 0) << "There should be at least one buffer rewrite.";
+    // Step 1: Check the number of pre_rewrite_tensors and post_rewrite_tensors
+    TVM_FFI_ICHECK(rewrite_infos_.size() > 0) << "There should be at least one tensor rewrite.";
 
     // Step 2: Create the params for the new tirx::Function
     ffi::Array<Var> params;
 
     for (const auto& info : rewrite_infos_) {
-      params.push_back(info.pre_rewrite_buffer.var());
+      params.push_back(info.pre_rewrite_tensor.var());
     }
     for (const auto& info : rewrite_infos_) {
-      params.push_back(info.post_rewrite_buffer.var());
+      params.push_back(info.post_rewrite_tensor.var());
     }
 
     // Step 3: Create the body for the new tirx::Function
@@ -96,7 +96,7 @@ class SplitFunctionLayoutRewrite : public s_tir::StmtExprMutator {
     for (const auto& [key, original_value] : original_func_->attrs->dict) {
       if (key == tvm::attr::kGlobalSymbol) {
         dict.Set(key, original_value.as_or_throw<ffi::String>() + "_weight_prepack");
-      } else if (key != tvm::s_tir::attr::kLayoutFreeBuffers) {
+      } else if (key != tvm::s_tir::attr::kLayoutFreeTensors) {
         dict.Set(key, original_value);
       }
     }
@@ -110,22 +110,22 @@ class SplitFunctionLayoutRewrite : public s_tir::StmtExprMutator {
     // Step 1: Create the params for the new tirx::Function
     ffi::Array<Var> params = original_func_->params;
     for (const auto& info : rewrite_infos_) {
-      const Var& param = params[info.buffer_index];
-      TVM_FFI_ICHECK(param.as<tirx::TensorVar>().value() == info.pre_rewrite_buffer);
-      params.Set(info.buffer_index, info.post_rewrite_buffer.var());
+      const Var& param = params[info.tensor_index];
+      TVM_FFI_ICHECK(param.as<tirx::TensorVar>().value() == info.pre_rewrite_tensor);
+      params.Set(info.tensor_index, info.post_rewrite_tensor.var());
     }
 
     // Step 2: Create the body for the new tirx::Function
     Stmt body = SeqStmt(compute_stmts_);
     s_tir::SBlock original_block =
         original_func_->body.value()->seq[0].as<s_tir::SBlockRealizeNode>()->block;
-    ffi::Array<TensorVar> alloc_buffers;
-    for (const auto& buffer : original_block->alloc_buffers) {
+    ffi::Array<TensorVar> alloc_tensors;
+    for (const auto& tensor : original_block->alloc_tensors) {
       auto it =
           std::find_if(rewrite_infos_.begin(), rewrite_infos_.end(),
-                       [&](const RewriteInfo& info) { return info.post_rewrite_buffer == buffer; });
+                       [&](const RewriteInfo& info) { return info.post_rewrite_tensor == tensor; });
       if (it == rewrite_infos_.end()) {
-        alloc_buffers.push_back(buffer);
+        alloc_tensors.push_back(tensor);
       }
     }
 
@@ -136,13 +136,13 @@ class SplitFunctionLayoutRewrite : public s_tir::StmtExprMutator {
         s_tir::SBlock(/*iter_vars=*/{}, /*reads=*/{}, /*writes=*/{},
                       /*name_hint=*/"root", body,
                       /*init=*/std::nullopt,
-                      /*alloc_buffers=*/alloc_buffers));
+                      /*alloc_tensors=*/alloc_tensors));
 
     ffi::Map<ffi::String, ffi::Any> dict;
     for (const auto& [key, original_value] : original_func_->attrs->dict) {
       if (key == tvm::attr::kGlobalSymbol) {
         dict.Set(key, original_value.as_or_throw<ffi::String>() + "_prepacked");
-      } else if (key != tvm::s_tir::attr::kLayoutFreeBuffers) {
+      } else if (key != tvm::s_tir::attr::kLayoutFreeTensors) {
         dict.Set(key, original_value);
       }
     }
@@ -186,26 +186,26 @@ class SplitFunctionLayoutRewrite : public s_tir::StmtExprMutator {
 
     if (is_layout_rewrite_preproc) {
       TVM_FFI_ICHECK(op->reads.size() == 1)
-          << "There should be only one read buffer in the layout rewrite";
+          << "There should be only one read tensor in the layout rewrite";
       TVM_FFI_ICHECK(op->writes.size() == 1)
-          << "There should be only one write buffer in the layout rewrite";
-      TVM_FFI_ICHECK(op->alloc_buffers.empty())
-          << "There should be no alloc buffer in the layout rewrite";
-      TVM_FFI_ICHECK(op->match_buffers.empty())
-          << "There should be no match buffer in the layout rewrite";
-      const TensorVar& preproc_buffer = op->reads[0]->source.as_or_throw<tvm::tirx::TensorVar>();
-      int buffer_index = -1;
+          << "There should be only one write tensor in the layout rewrite";
+      TVM_FFI_ICHECK(op->alloc_tensors.empty())
+          << "There should be no alloc tensor in the layout rewrite";
+      TVM_FFI_ICHECK(op->match_tensors.empty())
+          << "There should be no match tensor in the layout rewrite";
+      const TensorVar& preproc_tensor = op->reads[0]->source.as_or_throw<tvm::tirx::TensorVar>();
+      int tensor_index = -1;
       for (size_t i = 0; i < original_func_->params.size(); ++i) {
-        TensorVar buffer = original_func_->params[i].as_or_throw<tvm::tirx::TensorVar>();
-        if (buffer == preproc_buffer) {
-          buffer_index = i;
+        TensorVar tensor = original_func_->params[i].as_or_throw<tvm::tirx::TensorVar>();
+        if (tensor == preproc_tensor) {
+          tensor_index = i;
           break;
         }
       }
-      TVM_FFI_ICHECK(buffer_index != -1)
-          << "The preproc buffer is not found in the original function.";
+      TVM_FFI_ICHECK(tensor_index != -1)
+          << "The preproc tensor is not found in the original function.";
       rewrite_infos_.push_back(
-          RewriteInfo{buffer_index, op->reads[0]->source.as_or_throw<tvm::tirx::TensorVar>(),
+          RewriteInfo{tensor_index, op->reads[0]->source.as_or_throw<tvm::tirx::TensorVar>(),
                       op->writes[0]->source.as_or_throw<tvm::tirx::TensorVar>()});
 
       auto new_annotations = op->annotations;
@@ -219,9 +219,9 @@ class SplitFunctionLayoutRewrite : public s_tir::StmtExprMutator {
 
  public:
   struct RewriteInfo {
-    int buffer_index;
-    TensorVar pre_rewrite_buffer;
-    TensorVar post_rewrite_buffer;
+    int tensor_index;
+    TensorVar pre_rewrite_tensor;
+    TensorVar post_rewrite_tensor;
   };
   std::vector<RewriteInfo> rewrite_infos_;
 
@@ -307,15 +307,15 @@ class SplitLayoutRewritePreproc : public ExprMutator {
     ffi::Array<Expr> preproc_args;
     ffi::Array<Type> preproc_ty_list;
     for (const auto& info : rewrite_infos) {
-      preproc_args.push_back(call_tir_args[info.buffer_index]);
-      tirx::TensorVar rewritten_buffer = info.post_rewrite_buffer;
-      for (const auto& shape_expr : rewritten_buffer->shape) {
+      preproc_args.push_back(call_tir_args[info.tensor_index]);
+      tirx::TensorVar rewritten_tensor = info.post_rewrite_tensor;
+      for (const auto& shape_expr : rewritten_tensor->shape) {
         TVM_FFI_ICHECK(shape_expr.as<IntImmNode>())
-            << "Currently does not support rewrite buffer with "
+            << "Currently does not support rewrite tensor with "
                "dynamic shape.";
       }
       preproc_ty_list.push_back(
-          TensorType(ShapeExpr(rewritten_buffer->shape), rewritten_buffer->dtype));
+          TensorType(ShapeExpr(rewritten_tensor->shape), rewritten_tensor->dtype));
     }
     Type preproc_ty = preproc_ty_list.size() > 1        //
                           ? TupleType(preproc_ty_list)  //
@@ -325,10 +325,10 @@ class SplitLayoutRewritePreproc : public ExprMutator {
     Expr preproc_call = builder_->Emit(
         Call(Type::Missing(), call_tir_op, {preproc_gv, Tuple(preproc_args)}, {}, {preproc_ty}));
     if (rewrite_infos.size() == 1) {
-      call_tir_args.Set(rewrite_infos[0].buffer_index, preproc_call);
+      call_tir_args.Set(rewrite_infos[0].tensor_index, preproc_call);
     } else {
       for (size_t i = 0; i < rewrite_infos.size(); ++i) {
-        call_tir_args.Set(rewrite_infos[i].buffer_index, TupleGetItem(preproc_call, i));
+        call_tir_args.Set(rewrite_infos[i].tensor_index, TupleGetItem(preproc_call, i));
       }
     }
     Expr main_call = builder_->Emit(

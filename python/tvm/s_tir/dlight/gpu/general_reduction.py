@@ -67,30 +67,30 @@ class GeneralReduction(GPUScheduleRule):
             # Add a unit thread loop so the final write happens inside a valid
             # GPU thread environment.
             if num_last_block_iter == 0:
-                # Allocation planning can move a reduction buffer inside its
+                # Allocation planning can move a reduction tensor inside its
                 # producer kernel when all surrounding loops are trivial. Give
-                # buffers private to that kernel an explicit local scope, while
-                # preserving global scope for buffers accessed by another block.
+                # tensors private to that kernel an explicit local scope, while
+                # preserving global scope for tensors accessed by another block.
                 blocks = [sch.get(info.block_rv) for info in block_infos]
-                alloc_buffers = list(sch.get(get_root_block(sch)).alloc_buffers)
+                alloc_tensors = list(sch.get(get_root_block(sch)).alloc_tensors)
                 analyzer = sym.Analyzer()
                 for block_index, (info, block) in enumerate(zip(block_infos[:-1], blocks[:-1])):
                     loops = sch.get_loops(info.block_rv)
                     if not all(analyzer.can_prove_equal(sch.get(loop).extent, 1) for loop in loops):
                         continue
 
-                    other_block_buffers = [
+                    other_block_tensors = [
                         region.source
                         for other_index, other_block in enumerate(blocks)
                         if other_index != block_index
                         for region in (*other_block.reads, *other_block.writes)
                     ]
-                    for buffer_index, write in enumerate(block.writes):
-                        buffer = write.source
-                        is_allocated = any(buffer.same_as(other) for other in alloc_buffers)
-                        is_cross_block = any(buffer.same_as(other) for other in other_block_buffers)
-                        if buffer.scope() == "global" and is_allocated and not is_cross_block:
-                            sch.set_scope(block_infos[block_index].block_rv, buffer_index, "local")
+                    for tensor_index, write in enumerate(block.writes):
+                        tensor = write.source
+                        is_allocated = any(tensor.same_as(other) for other in alloc_tensors)
+                        is_cross_block = any(tensor.same_as(other) for other in other_block_tensors)
+                        if tensor.scope() == "global" and is_allocated and not is_cross_block:
+                            sch.set_scope(block_infos[block_index].block_rv, tensor_index, "local")
 
                 # Put every block (both the running reductions and the final
                 # scalar write) inside a trivial GPU thread. The very first block
@@ -147,12 +147,12 @@ class GeneralReduction(GPUScheduleRule):
             # It is possible that the loop order of the last block is not the same as
             # previous blocks.
             # Thus we reorder spatial loops to align with reduction loops for followup schedule.
-            # We first collect all the buffers written by reduction blocks,
-            # then in the final block, any index of those buffers are spatial.
-            reduced_buffers = []
+            # We first collect all the tensors written by reduction blocks,
+            # then in the final block, any index of those tensors are spatial.
+            reduced_tensors = []
             for block_info in block_infos[:-1]:
-                for buffer_write in sch.get(block_info.block_rv).writes:
-                    reduced_buffers.append(buffer_write.source)
+                for tensor_write in sch.get(block_info.block_rv).writes:
+                    reduced_tensors.append(tensor_write.source)
 
             spatial_block = sch.get(block_infos[-1].block_rv)
             spatial_loops = set()
@@ -165,10 +165,10 @@ class GeneralReduction(GPUScheduleRule):
                 if e in block_var_to_loop_var:
                     spatial_loops.add(block_var_to_loop_var[e])
 
-            for buffer_read in spatial_block.reads:
-                buffer = buffer_read.source
-                if buffer in reduced_buffers:
-                    for read_range in buffer_read.region:
+            for tensor_read in spatial_block.reads:
+                tensor = tensor_read.source
+                if tensor in reduced_tensors:
+                    for read_range in tensor_read.region:
                         tvm_ffi.structural_walk(
                             read_range.min, (tirx.Var, _visit_expr), order="post"
                         )
@@ -198,7 +198,7 @@ class GeneralReduction(GPUScheduleRule):
         for block in reversed(block_infos[:-1]):
             block = block.block_rv
             for i, _ in enumerate(sch.get(block).writes):
-                sch.set_scope(block, buffer_index=i, storage_scope="shared")
+                sch.set_scope(block, tensor_index=i, storage_scope="shared")
             sch.compute_at(block, bx, preserve_unit_loops=True)
             r_loop = sch.fuse(*sch.get_loops(block)[-num_trailing_r:])
             r_loop, tx = sch.split(r_loop, [None, len_tx])

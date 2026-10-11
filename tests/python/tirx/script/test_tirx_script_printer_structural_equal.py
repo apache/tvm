@@ -44,7 +44,7 @@ def test_prim_type_hidden_path_exact_message():
     )
 
 
-def test_function_buffer_param():
+def test_function_tensor_param():
     @T.function
     def func1(A: T.Tensor((128, 128)), B: T.Tensor((128, 128))):
         pass

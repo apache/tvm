@@ -48,7 +48,7 @@ def check_value(expr, variables, data, fref):
     num_vars = len(variables)
     assert num_vars >= 1 and all(len(row) == num_vars for row in data)
 
-    # Build input and output buffers
+    # Build input and output tensors
     input_bufs = [
         tvm.tirx.decl_tensor((n,), dtype=variables[i].ty, name=f"v{i}") for i in range(num_vars)
     ]
@@ -58,7 +58,7 @@ def check_value(expr, variables, data, fref):
     loop_var = tvm.tirx.Var("i", "int32")
 
     def make_store(i_var):
-        # Build the expression with each variable bound to the corresponding buffer load
+        # Build the expression with each variable bound to the corresponding tensor load
         result = expr
         for j in range(num_vars - 1, -1, -1):
             result = tvm.tirx.Let(variables[j], tvm.tirx.TensorLoad(input_bufs[j], [i_var]), result)
@@ -102,25 +102,25 @@ def test_nested_byte_pointer_offset():
 @pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 @pytest.mark.parametrize("dtype, byte_offset", [("float32x2", 16), ("float32x3", 24)])
 def test_vector_byte_pointer_offset(dtype, byte_offset):
-    buffer = tvm.tirx.decl_tensor((8,), dtype, name="A")
-    pointer = tvm.tirx.ptr_byte_offset(buffer.data, byte_offset, ty=buffer.data.ty)
+    tensor = tvm.tirx.decl_tensor((8,), dtype, name="A")
+    pointer = tvm.tirx.ptr_byte_offset(tensor.data, byte_offset, ty=tensor.data.ty)
     body = tvm.ir.Evaluate(tvm.tirx.call_extern("void", "consume", pointer))
-    func = tvm.tirx.Function([buffer], body).with_attr("global_symbol", "main")
+    func = tvm.tirx.Function([tensor], body).with_attr("global_symbol", "main")
     tvm.tirx.build(tvm.IRModule.from_expr(func), target="llvm")
 
 
 @pytest.mark.parametrize("shape, indices", [((), []), ((16,), [3]), ((2, 4), [1, 2])])
-def test_logical_pointer_preserves_buffer_identity(shape, indices):
-    buffer = tvm.tirx.decl_tensor(shape, "float32", "buffer")
-    pointer = buffer.ptr_to(indices)
-    func = tvm.tirx.Function([buffer], tvm.ir.Evaluate(pointer)).with_attr(
+def test_logical_pointer_preserves_tensor_identity(shape, indices):
+    tensor = tvm.tirx.decl_tensor(shape, "float32", "tensor")
+    pointer = tensor.ptr_to(indices)
+    func = tvm.tirx.Function([tensor], tvm.ir.Evaluate(pointer)).with_attr(
         "target", tvm.target.Target("llvm")
     )
     lowered = tvm.tirx.transform.LowerIntrin()(tvm.IRModule.from_expr(func))["main"].body[0].value
     assert lowered.op.name == "tirx.address_of"
     load = lowered.args[0]
     assert isinstance(load, tvm.ir.TensorLoad)
-    assert load.source.same_as(buffer)
+    assert load.source.same_as(tensor)
     assert [int(index) for index in load.indices] == indices
 
 
