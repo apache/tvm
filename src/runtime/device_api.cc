@@ -97,6 +97,10 @@ DeviceAPI* DeviceAPI::Get(Device dev, bool allow_missing) {
   return DeviceAPIManager::Get(static_cast<int>(dev.device_type), allow_missing);
 }
 
+int DeviceAPI::GetDeviceIndex() {
+  TVM_FFI_THROW(NotImplementedError) << "Device does not support GetDeviceIndex.";
+}
+
 void* DeviceAPI::AllocWorkspace(Device dev, size_t size, DLDataType type_hint) {
   return AllocDataSpace(dev, size, kTempAllocaAlignment, type_hint);
 }
@@ -204,13 +208,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def_packed(tvm::runtime::symbol::tvm_set_device,
-                  [](tvm::ffi::PackedArgs args, tvm::ffi::Any* ret) {
-                    DLDevice dev;
-                    dev.device_type = static_cast<DLDeviceType>(args[0].cast<int>());
-                    dev.device_id = args[1].cast<int>();
-                    DeviceAPIManager::Get(dev)->SetDevice(dev);
-                  })
       .def_packed("runtime.GetDeviceAttr",
                   [](tvm::ffi::PackedArgs args, tvm::ffi::Any* ret) {
                     DLDevice dev;
@@ -240,6 +237,27 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }  // namespace tvm
 
 using namespace tvm::runtime;
+
+int TVMBackendSetDevice(int device_type, int device_index) {
+  TVM_FFI_SAFE_CALL_BEGIN();
+  TVM_FFI_CHECK(device_type > 0 && device_type < TVMDeviceExtType_End, ValueError)
+      << "Expected a local device type, got " << device_type;
+  TVM_FFI_CHECK_GE(device_index, 0, ValueError) << "Expected a nonnegative device index";
+  DLDevice dev{static_cast<DLDeviceType>(device_type), device_index};
+  DeviceAPI::Get(dev)->SetDevice(dev);
+  TVM_FFI_SAFE_CALL_END();
+}
+
+int TVMBackendGetDeviceIndex(int device_type, int* out_device_index) {
+  TVM_FFI_SAFE_CALL_BEGIN();
+  TVM_FFI_CHECK(out_device_index != nullptr, ValueError) << "out_device_index must not be null";
+  TVM_FFI_CHECK(device_type > 0 && device_type < TVMDeviceExtType_End, ValueError)
+      << "Expected a local device type, got " << device_type;
+  DLDevice dev{static_cast<DLDeviceType>(device_type), 0};
+  int device_index = DeviceAPI::Get(dev)->GetDeviceIndex();
+  *out_device_index = device_index;
+  TVM_FFI_SAFE_CALL_END();
+}
 
 void* TVMBackendAllocWorkspace(int device_type, int device_id, uint64_t size, int dtype_code_hint,
                                int dtype_bits_hint) {

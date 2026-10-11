@@ -73,6 +73,48 @@ def test_no_op_when_global_symbol_is_absent(use_global_symbol):
         tvm.ir.assert_structural_equal(before, after)
 
 
+@pytest.mark.parametrize("device_target", ["llvm", "cuda"])
+def test_device_selection_status(device_target):
+    target = tvm.target.Target(device_target, host="llvm")
+
+    @T.function
+    def before(A: T.Tensor((1,), "float32")):
+        T.func_attr({"target": target})
+        T.evaluate(0)
+
+    after = tirx.transform.MakePackedAPI()(tvm.IRModule.from_expr(before))["before"]
+    calls = []
+    tvm_ffi.structural_walk(
+        after.body,
+        lambda node: calls.append(node) if isinstance(node, tvm.ir.Call) else None,
+    )
+    setters = [
+        call
+        for call in calls
+        if call.op == tvm.ir.Op.get("tirx.call_extern")
+        and call.args[0].value == "TVMBackendSetDevice"
+    ]
+    assert len(setters) == (1 if device_target == "cuda" else 0)
+    if device_target == "cuda":
+        sequences = []
+        tvm_ffi.structural_walk(
+            after.body,
+            lambda node: sequences.append(node) if isinstance(node, tvm.ir.SeqStmt) else None,
+        )
+        body, setter_index = next(
+            (seq, i)
+            for seq in sequences
+            for i, stmt in enumerate(seq)
+            if isinstance(stmt, tvm.ir.Bind) and stmt.value.same_as(setters[0])
+        )
+        binding, check, compute = list(body)[setter_index : setter_index + 3]
+        assert int(setters[0].args[1]) == 2
+        assert isinstance(check, tvm.ir.If)
+        tvm.ir.assert_structural_equal(check.condition, binding.var != 0)
+        assert check.then_case[0].value.op == tvm.ir.Op.get("tirx.throw_last_error")
+        assert compute.same_as(_find_compute_scope(after))
+
+
 def test_target_host_removed():
     """After MakePackedAPI, host-side target should be the host
 

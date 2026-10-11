@@ -137,6 +137,18 @@ class TVM_RUNTIME_DLL DeviceAPI {
    */
   virtual void SetDevice(Device dev) = 0;
   /*!
+   * \brief Get the currently selected runtime device index on the calling host thread.
+   *
+   * The device type is determined by this DeviceAPI instance. The result is a
+   * runtime device index (DLDevice::device_id), not a device type or a target
+   * configuration index. Implementations must query the current selection without
+   * changing it. The default implementation throws NotImplementedError; support
+   * for SetDevice does not imply support for this query. RPC devices are excluded.
+   *
+   * \return The selected device index, on success.
+   */
+  virtual int GetDeviceIndex();
+  /*!
    * \brief Get attribute of specified device.
    * \param dev The device device
    * \param kind The result kind
@@ -414,12 +426,6 @@ inline Device AddRPCSessionMask(Device dev, int session_table_index) {
  * \return Whether runtime is enabled.
  */
 TVM_RUNTIME_DLL bool RuntimeEnabled(const ffi::String& target);
-
-/*! \brief namespace for constant symbols */
-namespace symbol {
-/*! \brief global function to set device */
-constexpr const char* tvm_set_device = "__tvm_set_device";
-}  // namespace symbol
 
 }  // namespace runtime
 }  // namespace tvm

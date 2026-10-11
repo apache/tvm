@@ -269,11 +269,15 @@ Function MakePackedAPI(Function func) {
   // Set device context
   if (need_set_device) {
     if (runtime::DeviceAPI::NeedSetDevice(target_device_type)) {
-      Stmt set_device = Evaluate(Call(PrimType::Int(32), tirx::call_packed_op(),
-                                      {StringImm(runtime::symbol::tvm_set_device), device_type,
-                                       device_id.as_or_throw<PrimExpr>()})
-                                     .as_or_throw<PrimExpr>());
-      body = SeqStmt({set_device, body});
+      PrimVar status("set_device_status", PrimType::Int(32));
+      Stmt set_device =
+          Bind(status, Call(PrimType::Int(32), tirx::call_extern_op(),
+                            {StringImm("TVMBackendSetDevice"), device_type, device_id}));
+      Stmt check_status = If(
+          status != IntImm::Int32(0),
+          SeqStmt({Evaluate(
+              Call(PrimType::Int(32), tirx::throw_last_error_op(), {}).as_or_throw<PrimExpr>())}));
+      body = SeqStmt({set_device, check_status, body});
     }
   }
 
