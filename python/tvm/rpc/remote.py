@@ -49,8 +49,11 @@ class _RemoteDeviceAttributeQuery:
     def dlpack_device_type(self):
         return self.remote.endpoint_device.dlpack_device_type()
 
-    def _GetDeviceAttr(self, device_type, device_id, attr):
+    def get_attr(self, attr):
         return self.remote.get_attr(attr)
+
+    def _GetDeviceAttr(self, device_type, device_id, attr):
+        return self.get_attr(attr)
 
 
 @_register_remote_object("rpc.RemoteDevice")
