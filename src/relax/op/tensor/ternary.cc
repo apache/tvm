@@ -75,7 +75,7 @@ Type InferTypeEwiseFMA(const Call& call, const BlockBuilder& ctx) {
         vdev = input_ty[i]->vdevice.value();
       } else if (input_ty[i]->vdevice.value()->target.has_value()) {
         // mismatch
-        if (input_ty[i]->vdevice.value() != vdev) {
+        if (input_ty[i]->vdevice.value() != vdev.value()) {
           vdev = std::nullopt;
           break;
         }
