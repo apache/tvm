@@ -162,7 +162,7 @@ def test_control_flow_jump():
 
 def test_break_statement():
     @T.function
-    def func(In: T.Tensor((2,), "int32"), Out: T.Tensor((2,), "int32")):
+    def func(In: T.Tensor((2,), "int32", align=4), Out: T.Tensor((2,), "int32", align=4)):
         Out[0] = 0
         Out[1] = 1
         for i in range(10):
@@ -189,7 +189,7 @@ def test_break_statement():
 
 def test_continue_statement():
     @T.function
-    def func(Out: T.Tensor((2,), "int32")):
+    def func(Out: T.Tensor((2,), "int32", align=4)):
         T.func_attr({"global_symbol": "main"})
         Out[0] = 0
         Out[1] = 0
