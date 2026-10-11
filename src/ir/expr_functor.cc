@@ -477,17 +477,8 @@ UnchangedOr<Expr> ExprMutator::Mutate_(const GlobalVarNode* node, InplaceMode in
 }
 
 UnchangedOr<Expr> ExprMutator::Mutate_(const CallNode* node, InplaceMode inplace_mode) {
-  // Preserve result types shared with an explicit type argument, visiting them only once.
-  size_t original_ty_args_size = node->ty_args.size();
-  size_t result_type_arg = 0;
-  while (result_type_arg < original_ty_args_size &&
-         !node->ty.same_as(node->ty_args[result_type_arg])) {
-    ++result_type_arg;
-  }
-  bool result_from_type_arg =
-      !node->ty.as<PrimTypeNode>() && result_type_arg < original_ty_args_size;
   UnchangedOr<Type> ty_u = ffi::Unchanged();
-  if (!result_from_type_arg && !node->ty.as<PrimTypeNode>()) {
+  if (!node->ty.as<PrimTypeNode>()) {
     ty_u = Mutate(node->ty, inplace_mode).as_or_throw<UnchangedOr<Type>>();
   }
   UnchangedOr<Expr> op_u = ffi::Unchanged();
@@ -498,16 +489,6 @@ UnchangedOr<Expr> ExprMutator::Mutate_(const CallNode* node, InplaceMode inplace
   UnchangedOr<ffi::Array<Type>> ty_args_u = ffi::Unchanged();
   if (!node->ty_args.empty()) {
     ty_args_u = Mutate(node->ty_args, inplace_mode).as_or_throw<UnchangedOr<ffi::Array<Type>>>();
-  }
-  if (result_from_type_arg) {
-    auto ty_args = std::move(ty_args_u).ValueOrUnchanged(node->ty_args);
-    if (ty_args.size() == original_ty_args_size) {
-      ty_u = ty_args[result_type_arg];
-    } else if (!node->ty.as<PrimTypeNode>()) {
-      // A container rewrite may remove the corresponding argument.
-      ty_u = Mutate(node->ty, inplace_mode).as_or_throw<UnchangedOr<Type>>();
-    }
-    ty_args_u = std::move(ty_args);
   }
   if (ty_u.UnchangedOrSameAs(node->ty) && op_u.UnchangedOrSameAs(node->op) &&
       args_u.UnchangedOrSameAs(node->args) && ty_args_u.UnchangedOrSameAs(node->ty_args))
