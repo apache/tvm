@@ -493,6 +493,8 @@ void CodeGenCPU::InitGlobalContext(bool dynamic_lookup) {
       gv_tvm_parallel_barrier_ = InitContextPtr(llvmGetPointerTo(ftype_tvm_parallel_barrier_, 0),
                                                 "__TVMBackendParallelBarrier");
       // Mark as context functions
+      gv_func_map_["TVMBackendSetDevice"] = nullptr;
+      gv_func_map_["TVMBackendGetDeviceIndex"] = nullptr;
       gv_func_map_["TVMBackendAllocWorkspace"] = nullptr;
       gv_func_map_["TVMBackendFreeWorkspace"] = nullptr;
     }
