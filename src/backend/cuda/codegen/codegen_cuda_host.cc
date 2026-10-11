@@ -199,19 +199,6 @@ class CodeGenCUDAHost : public CodeGenCHost {
         TVM_FFI_THROW(ValueError)
             << "cuda_host requires tensormap_encode_tiled instead of a packed tensor-map encoder";
       }
-      if (name == "__tvm_set_device") {
-        std::string args =
-            "((TVMFFIAny*)" + PrintExpr(op->args[1]) + " + " + PrintExpr(op->args[2]) + ")";
-        std::string guard = name_supply_->FreshName("cuda_device_guard");
-        PrintIndent();
-        stream << "if (" << args << "[0].v_int64 != kDLCUDA) {\n"
-               << "  TVMFFIErrorSetRaisedFromCStr(\"ValueError\", "
-               << "\"cuda_host requires a CUDA device\");\n  return -1;\n}\n";
-        PrintIndent();
-        stream << "tvm::ffi::CUDADeviceGuard " << guard << "(" << args << "[1].v_int64);\n";
-        os << "0";
-        return;
-      }
       std::string function_name = name;
       TVM_FFI_CHECK(function_name.rfind("runtime.", 0) != 0 &&
                         function_name.rfind("device_api.", 0) != 0 &&
@@ -228,6 +215,20 @@ class CodeGenCUDAHost : public CodeGenCHost {
     }
     if (op->op.same_as(tirx::call_extern_op()) || op->op.same_as(tirx::call_pure_extern_op())) {
       const auto& symbol = op->args[0].as_or_throw<StringImm>()->value;
+      if (op->op.same_as(tirx::call_extern_op()) && symbol == "TVMBackendSetDevice") {
+        TVM_FFI_CHECK_EQ(op->args.size(), 3, ValueError);
+        std::string device_type = PrintExpr(op->args[1]);
+        std::string device_index = PrintExpr(op->args[2]);
+        std::string guard = name_supply_->FreshName("cuda_device_guard");
+        PrintIndent();
+        stream << "if (" << device_type << " != kDLCUDA) {\n"
+               << "  TVMFFIErrorSetRaisedFromCStr(\"ValueError\", "
+               << "\"cuda_host requires a CUDA device\");\n  return -1;\n}\n";
+        PrintIndent();
+        stream << "tvm::ffi::CUDADeviceGuard " << guard << "(" << device_index << ");\n";
+        os << "0";
+        return;
+      }
       TVM_FFI_CHECK(std::string(symbol).rfind("TVMBackend", 0) != 0, ValueError)
           << "cuda_host does not provide TVM runtime operation: " << symbol;
     }
