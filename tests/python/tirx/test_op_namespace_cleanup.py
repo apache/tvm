@@ -386,8 +386,10 @@ def test_registered_tirx_ops_have_exactly_one_category():
     assert not lingering_flat_tile
 
 
-def test_generic_tile_namespace_and_stmt_are_removed():
-    assert not hasattr(T, "tile")
+def test_tile_helpers_are_separate_from_backend_instructions():
+    assert T.tile.DispatchContext
+    assert T.tile.Instruction
+    assert not hasattr(T.tile, "copy")
     assert not hasattr(tvm.tirx, "TilePrimitiveCall")
     assert not hasattr(tvm.tirx, "TileOpCall")
     assert not any(name.startswith("tirx.tile.") for name in Op.list_op_names())

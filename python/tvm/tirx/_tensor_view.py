@@ -29,7 +29,9 @@ if TYPE_CHECKING:
     from tvm.ir import Var
 
 
-def _redecl(buf: Var, shape, layout, *, dtype=None, elem_offset=None, addr_offset=None):
+def _redecl(
+    buf: Var, shape, layout, *, dtype=None, elem_offset=None, addr_offset=None, strides=None
+):
     """Re-declare a derived view over ``buf`` storage.
 
     Routes the tensor identity by storage kind: a ``tmem`` tensor aliases by
@@ -60,7 +62,7 @@ def _redecl(buf: Var, shape, layout, *, dtype=None, elem_offset=None, addr_offse
     tensor_type = tvm.tirx.script.ir_builder.Tensor(
         shape,
         buf.dtype if dtype is None else dtype,
-        strides=buf.strides,
+        strides=buf.strides if strides is None else strides,
         elem_offset=buf.elem_offset if elem_offset is None else elem_offset,
         scope=buf.scope(),
         align=buf.data_alignment,
@@ -70,15 +72,65 @@ def _redecl(buf: Var, shape, layout, *, dtype=None, elem_offset=None, addr_offse
     return bind_(tvm.tirx.script.ir_builder.decl_tensor(buf.data, ty_args=[tensor_type]))
 
 
+def _strides(buf):
+    if buf.strides:
+        return list(buf.strides)
+    return tvm.tirx.layout.Layout._get_default_strides(list(buf.shape), 1)
+
+
+def _reshape_strides(buf, shape):
+    """Reshape contiguous stride groups without changing their storage addresses."""
+    analyzer = tvm.sym.Analyzer()
+    old_shape, old_strides = list(buf.shape), _strides(buf)
+    if not analyzer.can_prove_equal(
+        functools.reduce(lambda a, b: a * b, old_shape, 1),
+        functools.reduce(lambda a, b: a * b, shape, 1),
+    ):
+        raise ValueError("view: source and result must have equal element counts")
+    if not buf.strides:
+        return []
+    chunks = []
+    for extent, stride in reversed(list(zip(old_shape, old_strides))):
+        if analyzer.can_prove_equal(extent, 1):
+            continue
+        if chunks and analyzer.can_prove_equal(stride, chunks[-1][0] * chunks[-1][1]):
+            chunks[-1] = (analyzer.simplify(chunks[-1][0] * extent), chunks[-1][1])
+        else:
+            chunks.append((extent, stride))
+    result = [None] * len(shape)
+    i = len(shape) - 1
+    for extent, stride in chunks:
+        product = 1
+        while i >= 0:
+            result[i] = analyzer.simplify(product * stride)
+            product = analyzer.simplify(product * shape[i])
+            i -= 1
+            if analyzer.can_prove_equal(product, extent):
+                break
+        if not analyzer.can_prove_equal(product, extent):
+            raise ValueError("view: reshape crosses non-contiguous stride groups")
+    while i >= 0 and analyzer.can_prove_equal(shape[i], 1):
+        result[i] = analyzer.simplify(result[i + 1] * shape[i + 1]) if i + 1 < len(shape) else 1
+        i -= 1
+    if i >= 0:
+        raise ValueError("view: reshape crosses non-contiguous stride groups")
+    return result
+
+
 def view(buf: Var, *args, **kwargs) -> Var:
     """Implement :meth:`TensorType.view`."""
 
     def _infer_shape(shape):
         shape = list(shape)
-        if -1 in shape and shape.count(-1) == 1:
+        inferred = [i for i, dim in enumerate(shape) if _concrete_int(dim) == -1]
+        if len(inferred) > 1:
+            raise ValueError("view: at most one inferred dimension is allowed")
+        if inferred:
             size = functools.reduce(lambda x, y: x * y, buf.shape)
-            n_size = functools.reduce(lambda x, y: x * y, [s for s in shape if s != -1], 1)
-            shape[shape.index(-1)] = size // n_size
+            n_size = functools.reduce(
+                lambda x, y: x * y, [s for i, s in enumerate(shape) if i != inferred[0]], 1
+            )
+            shape[inferred[0]] = size // n_size
         else:
             # A PrimExpr comparison returns an EQ node, not a Python bool.
             if all(isinstance(s, int) for s in shape) and all(
@@ -101,16 +153,37 @@ def view(buf: Var, *args, **kwargs) -> Var:
         if cast_dtype.bits > cur_dtype.bits:
             assert cast_dtype.bits % cur_dtype.bits == 0
             ratio = cast_dtype.bits // cur_dtype.bits
-            layout = buf.layout.pack(ratio)
+            layout = None if buf.layout is None else buf.layout.pack(ratio)
             shape = [s for s in buf.shape[:-1]] + [buf.shape[-1] // ratio]
             new_elem_offset = buf.elem_offset // ratio
         else:
             assert cur_dtype.bits % cast_dtype.bits == 0
             ratio = cur_dtype.bits // cast_dtype.bits
-            layout = buf.layout.unpack(ratio)
+            layout = None if buf.layout is None else buf.layout.unpack(ratio)
             shape = [s for s in buf.shape[:-1]] + [buf.shape[-1] * ratio]
             new_elem_offset = buf.elem_offset * ratio
-        return _redecl(buf, shape, layout, dtype=cast_dtype, elem_offset=new_elem_offset)
+        strides = None
+        if buf.layout is None:
+            analyzer = tvm.sym.Analyzer()
+            source_strides = _strides(buf)
+            if not analyzer.can_prove_equal(source_strides[-1], 1):
+                raise ValueError("view(dtype): the last dimension must have unit stride")
+            if cast_dtype.bits > cur_dtype.bits:
+                if any(
+                    analyzer.can_prove(value % ratio != 0)
+                    for value in [buf.shape[-1], buf.elem_offset, *source_strides[:-1]]
+                ):
+                    raise ValueError(
+                        "view(dtype): shape, offset and strides must align to the new dtype"
+                    )
+                strides = [analyzer.simplify(value // ratio) for value in source_strides[:-1]] + [1]
+            else:
+                strides = [analyzer.simplify(value * ratio) for value in source_strides[:-1]] + [1]
+            if not buf.strides:
+                strides = []
+        return _redecl(
+            buf, shape, layout, dtype=cast_dtype, elem_offset=new_elem_offset, strides=strides
+        )
 
     shape = args
     assert all(
@@ -123,7 +196,8 @@ def view(buf: Var, *args, **kwargs) -> Var:
     )
     if layout is None:
         shape = _infer_shape(shape)
-    return _redecl(buf, shape, buf.layout if layout is None else layout)
+    strides = _reshape_strides(buf, shape) if buf.layout is None and layout is None else None
+    return _redecl(buf, shape, buf.layout if layout is None else layout, strides=strides)
 
 
 def local(buf: Var, *shape, layout=None) -> Var:
@@ -155,7 +229,12 @@ def local(buf: Var, *shape, layout=None) -> Var:
 
 def permute(buf: Var, *dims) -> Var:
     """Implement :meth:`TensorType.permute`."""
+    if sorted(dims) != list(range(len(buf.shape))):
+        raise ValueError(f"permute: invalid dimensions {dims}")
     new_shape = [buf.shape[d] for d in dims]
+    if buf.layout is None:
+        strides = _strides(buf)
+        return _redecl(buf, new_shape, None, strides=[strides[d] for d in dims])
     layout, swizzle = _surgery_parts(buf)
     grouped, seps = layout.group(list(buf.shape))
     new_layout = grouped.permute_by_groups(seps, list(dims))
@@ -427,6 +506,15 @@ def _view_drop(buf: Var, dim, index):
             f"index {index_c} out of range for dim {dim} "
             f"of extent {extent_c if extent_c is not None else buf.shape[dim]}"
         )
+    if buf.layout is None:
+        strides = _strides(buf)
+        return _redecl(
+            buf,
+            list(buf.shape[:dim]) + list(buf.shape[dim + 1 :]),
+            None,
+            elem_offset=buf.elem_offset + index * strides[dim],
+            strides=strides[:dim] + strides[dim + 1 :],
+        )
     layout, swizzle = _surgery_parts(buf)
     grouped, seps = layout.group(list(buf.shape))
     iters = list(grouped.shard)
@@ -456,6 +544,13 @@ def _view_narrow(buf: Var, dim, start, length):
     ):
         raise ValueError(
             f"sub: range [{start_c}, {start_c + length_c}) exceeds dim {dim} extent {extent_c}"
+        )
+    if buf.layout is None:
+        strides = _strides(buf)
+        shape = list(buf.shape)
+        shape[dim] = length
+        return _redecl(
+            buf, shape, None, elem_offset=buf.elem_offset + start * strides[dim], strides=strides
         )
     layout, swizzle = _surgery_parts(buf)
     grouped, seps = layout.group(list(buf.shape))
