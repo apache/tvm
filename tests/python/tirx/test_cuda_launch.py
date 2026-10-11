@@ -34,6 +34,7 @@ from tvm.backend.cuda.launch import (
     ProgrammaticEvent,
 )
 from tvm.backend.cuda.launch._impl import pack_kernel_attrs, pack_launch
+from tvm.script import ir as I
 from tvm.script import tirx as T
 from tvm.testing import env
 
@@ -121,7 +122,7 @@ def test_launch_region_roundtrip_and_host_only_operands():
         bx, tx = T.cuda.block_idx("x"), T.cuda.thread_idx("x")
         A[bx * 32 + tx] = bx
 
-    parsed = tvm.script.from_source(kernel.script(), extra_vars={"T": T})
+    parsed = tvm.script.from_source(kernel.script(), extra_vars={"I": I, "T": T})
     tvm.ir.assert_structural_equal(kernel, parsed)
     target = tvm.target.Target("cuda", host="llvm")
     with target:

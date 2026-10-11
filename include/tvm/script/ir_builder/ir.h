@@ -136,7 +136,7 @@ AssertFrame Assert(PrimExpr condition, ffi::String error_kind,
  * \param value The value to be bound.
  * \param type_annotation  The type annotation of the binding.
  *                         Usually it is used for fine-grained var typing,
- *                         particularly, PointerType.
+ *                         particularly, PtrType.
  * \param var The variable to be bound. If not specified, a new variable will be created.
  * \return The bound Var.
  */

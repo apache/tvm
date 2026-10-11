@@ -90,7 +90,7 @@ def _wait_until_scalar_suffix(ty, requested=""):
 
 
 def _wait_until_pointee(ptr, what):
-    if not isinstance(ptr.ty, ir.PointerType):
+    if not isinstance(ptr.ty, ir.PtrType):
         raise TypeError(f"{what} ptr must be a pointer to the synchronization word")
     return ptr.ty.element_type
 
@@ -457,7 +457,7 @@ def codegen_s_tir_cp_async_raw(*args):
         ca_or_cg = "cg" if cp_size_v == 16 else "ca"
 
         # Recover the per-side element dtype from each pointer's type
-        # type (Var has ty = PointerType(PrimType(dtype))).
+        # type (Var has ty = PtrType(PrimType(dtype))).
         # InjectPTXAsyncCopy emits offsets in element-units of each side's
         # buffer dtype (dst gets dst_offset * src_elem_size only when dst is a
         # merged shared.dyn byte buffer, in which case dst_elem_dtype is uint8

@@ -48,10 +48,10 @@ void CallFFIKernelAttr::RegisterReflection() {
 Type InferTypeStackAlloca(const CallNode* call) {
   TVM_FFI_CHECK_GE(call->args.size(), 1U, ValueError) << "Stack allocation requires a dtype name";
   ffi::String dtype = call->args[0].as_or_throw<StringImm>()->value;
-  if (dtype == "shape") return PointerType(PrimType::Int(64));
-  if (dtype == "arg_tcode") return PointerType(PrimType::Int(32));
-  if (dtype == "tensormap") return PointerType(TensorMapType());
-  return PointerType(PrimType::Void());
+  if (dtype == "shape") return PtrType(PrimType::Int(64));
+  if (dtype == "arg_tcode") return PtrType(PrimType::Int(32));
+  if (dtype == "tensormap") return PtrType(TensorMapType());
+  return PtrType(PrimType::Void());
 }
 
 const Op& call_extern_op() {
@@ -203,7 +203,7 @@ const Op& stack_make_shape_op() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("tirx.stack_make_shape")
-      .set_attr<TFixedReturnType>(tvm::op_attr::kFixedReturnType, PointerType(PrimType::Int(64)))
+      .set_attr<TFixedReturnType>(tvm::op_attr::kFixedReturnType, PtrType(PrimType::Int(64)))
       .signature(sig::var_args<IntExpr>("args"))
       .set_attr<TScriptPrinterName>(tvm::script::printer::op_attr::kScriptPrinterName,
                                     ffi::String("tirx.stack_make_shape"))
@@ -219,7 +219,7 @@ const Op& stack_make_dltensor_op() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("tirx.stack_make_dltensor")
-      .set_attr<TFixedReturnType>(tvm::op_attr::kFixedReturnType, PointerType(PrimType::Void()))
+      .set_attr<TFixedReturnType>(tvm::op_attr::kFixedReturnType, PtrType(PrimType::Void()))
       .signature(sig::arg("data", "The input data."), sig::arg("shape", "The shape."),
                  sig::arg("strides", "The strides."),
                  sig::arg<IntExpr>("ndim", "The number of dimensions."),
@@ -336,7 +336,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("tirx.alloc_workspace")
-      .set_attr<TFixedReturnType>(tvm::op_attr::kFixedReturnType, PointerType(PrimType::Void()))
+      .set_attr<TFixedReturnType>(tvm::op_attr::kFixedReturnType, PtrType(PrimType::Void()))
       .signature(sig::arg<IntExpr>("device_type", "The device type."),
                  sig::arg<IntExpr>("device_id", "The device index."),
                  sig::arg<IntExpr>("nbytes", "The number of bytes."),

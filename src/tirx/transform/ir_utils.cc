@@ -300,7 +300,7 @@ ffi::String GetPtrStorageScope(Var buffer_var) {
   if (const auto* buffer_type = buffer_var->ty.as<TensorTypeNode>()) {
     return buffer_type->storage_scope;
   }
-  const auto* ptr_type = buffer_var->ty.as<PointerTypeNode>();
+  const auto* ptr_type = buffer_var->ty.as<PtrTypeNode>();
   TVM_FFI_ICHECK(ptr_type)
       << "The provided variable is neither a pointer nor a buffer-typed variable";
   return ptr_type->storage_scope;

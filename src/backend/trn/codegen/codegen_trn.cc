@@ -120,7 +120,7 @@ void CodeGenTrainium::AddFunction(const GlobalVar& gvar, const Function& func) {
   size_t num_buffer = 0;
   for (size_t i = 0; i < func->params.size(); ++i, ++num_buffer) {
     Var v = func->params[i];
-    if (!v->ty.as<PointerTypeNode>()) {
+    if (!v->ty.as<PtrTypeNode>()) {
       LOG(FATAL) << "Trainium codegen currently only support buffer arguments";
     };
     std::string vid = AllocVarID(v.get());
@@ -646,7 +646,7 @@ void CodeGenTrainium::DispatchDeclTensor(const BindNode* op, const CallNode* buf
     data_var = call->args[0].as<VarNode>();
   }
   TVM_FFI_ICHECK(data_var) << "Trainium codegen expects DeclTensor data to be a buffer variable";
-  if (data_var->ty.as<PointerTypeNode>()) {
+  if (data_var->ty.as<PtrTypeNode>()) {
     buffer_idmap_[buffer] = GetVarID(data_var);
     buffer_data_varmap_[buffer] = data_var;
     return;

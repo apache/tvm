@@ -113,7 +113,7 @@ class WebGPUWorkgroupInfoCollector : public StmtExprVisitor {
   ffi::Optional<VisitInterrupt> Visit_(const VarNode* op) final {
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     Var buffer_var = ffi::GetRef<Var>(op);
-    if (buffer_var->ty.as<PointerTypeNode>()) {
+    if (buffer_var->ty.as<PtrTypeNode>()) {
       info_.write_access_set.insert(buffer_var);
     }
 
@@ -192,7 +192,7 @@ void CodeGenWebGPU::InitFuncState(const Function& f) {
   workgroup_memory_bytes_ = 0;
   // analyze the data;
   for (Var arg : f->params) {
-    if (arg->ty.as<PointerTypeNode>()) {
+    if (arg->ty.as<PtrTypeNode>()) {
       alloc_storage_scope_[arg.get()] = "global";
     }
   }
@@ -253,12 +253,12 @@ runtime::FunctionInfo CodeGenWebGPU::AddFunction(const Function& f, bool skip_re
   os_param_access << "paramWriteAccess:[";
   // setup buffer argumemts
   for (Var arg : f->params) {
-    if (auto* ptr = arg->ty.as<PointerTypeNode>()) {
+    if (auto* ptr = arg->ty.as<PtrTypeNode>()) {
       runtime_arg_types.push_back(kRuntimeOpaqueHandleType);
       auto* prim = ptr->element_type.as<PrimTypeNode>();
       TVM_FFI_ICHECK(prim)
           << "All handles passed to the CodeGenWebGPU must have a type_annotation as a "
-             "PointerType, "
+             "PtrType, "
           << "and must point to a PrimType";
       PrimType value_storage_type = ffi::GetRef<PrimType>(prim);
       TVM_FFI_ICHECK(!value_storage_type.IsVoid())
