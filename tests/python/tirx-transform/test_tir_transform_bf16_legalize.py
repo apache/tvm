@@ -177,6 +177,11 @@ def test_bf16_masked_load_store_will_legalize():
             for node in nodes
             if _is_buffer_binding(node, "tirx.alloc_tensor", "tirx.decl_tensor")
         }
+        cells = {
+            node.var.name: str(node.var.ty.element_type)
+            for node in nodes
+            if isinstance(node, tvm.ir.Bind) and isinstance(node.var.ty, tvm.tirx.MutableCellType)
+        }
         masked_loads = [
             node
             for node in nodes
@@ -187,18 +192,20 @@ def test_bf16_masked_load_store_will_legalize():
             for node in nodes
             if isinstance(node, tvm.ir.Call) and node.op.name == "tirx.masked_store"
         ]
-        return buffers, masked_loads, masked_stores
+        return buffers, cells, masked_loads, masked_stores
 
-    compute_buffers, compute_loads, compute_stores = collect(after_compute)
-    assert compute_buffers == {"A": "bfloat16", "B": "float32", "C": "bfloat16", "mask": "boolx4"}
+    compute_buffers, compute_cells, compute_loads, compute_stores = collect(after_compute)
+    assert compute_buffers == {"A": "bfloat16", "B": "float32", "C": "bfloat16"}
+    assert compute_cells == {"mask": "boolx4"}
     assert sorted(str(load.ty) for load in compute_loads) == ["bfloat16x4", "float32x4"]
     assert sorted(str(store.args[1].ty) for store in compute_stores) == [
         "bfloat16x4",
         "float32x4",
     ]
 
-    storage_buffers, storage_loads, storage_stores = collect(after_storage)
-    assert storage_buffers == {"A": "uint16", "B": "float32", "C": "uint16", "mask": "boolx4"}
+    storage_buffers, storage_cells, storage_loads, storage_stores = collect(after_storage)
+    assert storage_buffers == {"A": "uint16", "B": "float32", "C": "uint16"}
+    assert storage_cells == {"mask": "boolx4"}
     assert sorted(str(load.ty) for load in storage_loads) == [
         "float32x4",
         "float32x4",

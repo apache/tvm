@@ -375,7 +375,7 @@ def test_dltensor_buffer_is_unlowered():
 
     @Ts.function
     def before(dlpack_handle: T.handle, axis: T.int64) -> T.int64:
-        ndim: T.int32 = T.abi_field_get(dlpack_handle, 0, 5, ty="int32")
+        ndim: T.let[T.int32] = T.abi_field_get(dlpack_handle, 0, 5, ty="int32")
         stride_ptr: T.let[T.handle("int64")] = T.abi_field_get(
             dlpack_handle, 0, 4, ty=T.handle("int64").ty
         )
@@ -391,7 +391,7 @@ def test_dltensor_buffer_is_unlowered():
             return product[()]
         else:
             strides = T.decl_tensor(ndim, "int64", data=stride_ptr)
-            stride: T.int64 = strides[axis]
+            stride: T.let[T.int64] = strides[axis]
             return stride
 
     after = before

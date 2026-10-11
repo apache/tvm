@@ -929,7 +929,7 @@ def test_preserve_parameter_name():
 
 @pytest.mark.parametrize("mutable", [False, True])
 def test_preserve_variable_name(mutable):
-    """Use variable name when generating tirx::Bind / AllocTensor"""
+    """Use variable names for immutable bindings and mutable cells"""
 
     # Bare bindings name the immutable Var; explicit declarations name scalar storage.
     annotation = ": T.int32" if mutable else ""
@@ -945,7 +945,8 @@ def func():
     binding = func.body[0].body.seq[0]
     if mutable:
         assert isinstance(binding, tvm.ir.Bind) and isinstance(binding.value, tvm.ir.Call)
-        assert binding.value.op.name == "tirx.alloc_tensor"
+        assert binding.value.op.name == "tirx.mutable_cell_alloc"
+        assert isinstance(binding.var.ty, tvm.tirx.MutableCellType)
         var_name = binding.var.name
     else:
         assert isinstance(binding, tvm.ir.Bind)
