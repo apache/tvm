@@ -41,7 +41,6 @@ from tvm.tirx.layout import TileLayout
 from tvm.tirx.tile import DispatchContext
 from tvm.tirx.tile.dispatch import fail
 from tvm.tirx.tile.instruction import TensorCall
-from tvm.tirx.tile.layout_utils import effective_layout
 
 from ..common import get_st_extent
 from ..copy._common import _carve_tail, _verify_s_tail_contig
@@ -64,7 +63,7 @@ from .vec_emit import _emit_vec
 # Predicate
 # -----------------------------------------------------------------------------
 def _validate_anchor_layout(anchor_br) -> tuple[bool, str | None]:
-    layout = effective_layout(anchor_br.source)
+    layout = anchor_br.source.ty.effective_layout()
     if layout.is_swizzle():
         return False, "anchor layout is swizzle"
     if not isinstance(layout, TileLayout):
@@ -90,7 +89,7 @@ def _validate_scope_level_anchor(anchor_br, sctx: DispatchContext) -> tuple[bool
     # Canonicalize the sliced anchor with the target so warp/lane axes fuse.
     st, ext = get_st_extent(anchor_br)
     sliced = get_sublayout_from_region(
-        effective_layout(anchor_br.source), anchor_br.source.shape, st, ext
+        anchor_br.source.ty.effective_layout(), anchor_br.source.shape, st, ext
     )
     with sctx.target:
         canon = sliced.canonicalize()
@@ -156,7 +155,7 @@ def _check_layout_operands_agree(plan, sctx) -> tuple[bool, str | None]:
         st, ext = get_st_extent(br)
         with sctx.target:
             sliced = get_sublayout_from_region(
-                effective_layout(br.source), br.source.shape, st, ext
+                br.source.ty.effective_layout(), br.source.shape, st, ext
             )
             canon = sliced.canonicalize()
         sig = layout_signature(canon)
@@ -195,7 +194,7 @@ def is_reg_ewise(spec):
         for br in buffer_regions(plan):
             if br.source.scope() != "local":
                 return False, f"operand scope {br.source.scope()} != local"
-            if effective_layout(br.source) is None:
+            if br.source.ty.effective_layout() is None:
                 return False, f"operand {br} has no layout"
         if spec.check_extras is not None:
             ok2, reason2 = spec.check_extras(plan.extras, compute_dtype_of(plan))

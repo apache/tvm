@@ -29,7 +29,6 @@ from tvm.tirx import Function
 from tvm.tirx.layout import ComposeLayout, S, TileLayout
 from tvm.tirx.tile.dispatch import DispatchContext, fail
 from tvm.tirx.tile.instruction import TensorCall
-from tvm.tirx.tile.layout_utils import effective_layout
 
 from ._common import (  # noqa: F401  (_carve_tail reserved for future variants)
     _carve_tail,
@@ -87,9 +86,9 @@ def _emit(op_call: TensorCall, sctx: DispatchContext) -> Function:
     r_buf = r_br.source
     s_buf = s_br.source
     r_shape = list(r_buf.shape)
-    r_layout = effective_layout(r_buf)
+    r_layout = r_buf.ty.effective_layout()
     s_shape = list(s_buf.shape)
-    s_layout = effective_layout(s_buf)
+    s_layout = s_buf.ty.effective_layout()
 
     r_region = [(r.min, r.min + r.extent) for r in r_br.region]
     s_region = [(r.min, r.min + r.extent) for r in s_br.region]
@@ -102,7 +101,9 @@ def _emit(op_call: TensorCall, sctx: DispatchContext) -> Function:
     # Peel the S-side wrapper before structural checks, retaining its
     # parameters so the selected TileLayout can be wrapped again at emit.
     s_swizzle = (
-        effective_layout(s_buf) if isinstance(effective_layout(s_buf), ComposeLayout) else None
+        s_buf.ty.effective_layout()
+        if isinstance(s_buf.ty.effective_layout(), ComposeLayout)
+        else None
     )
     if s_swizzle is not None and s_swizzle.per_element < 3:
         # ldmatrix/stmatrix .b16 reads/writes 8 fp16 = 128b per lane in one

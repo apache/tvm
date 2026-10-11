@@ -40,7 +40,6 @@ from tvm.tirx import op as tirx_op
 from tvm.tirx.layout import ComposeLayout, Iter, R, S, TileLayout
 from tvm.tirx.tile import DispatchContext
 from tvm.tirx.tile.instruction import TensorCall
-from tvm.tirx.tile.layout_utils import effective_layout
 
 from ...cpp.descriptors import (
     _check_tcgen05_mma_matrix_shape,
@@ -333,14 +332,14 @@ def _layout_matches_datapath_f(tmem_buf) -> bool:
     F C buffers (the canonical pairing for M=64 outputs that are read back
     via ``.16x*b`` M=64; see PTX ISA §9.7.16.10.5).
     """
-    if effective_layout(tmem_buf) is None or int(tmem_buf.shape[0]) != 64:
+    if tmem_buf.ty.effective_layout() is None or int(tmem_buf.shape[0]) != 64:
         return False
     try:
         base = tmem_datapath_layout("F", 64, tmem_buf.shape[1])
         expected = TileLayout.from_iters(
-            base.shard, base.replica, effective_layout(tmem_buf).offset
+            base.shard, base.replica, tmem_buf.ty.effective_layout().offset
         ).canonicalize()
-        tvm.ir.assert_structural_equal(effective_layout(tmem_buf).canonicalize(), expected)
+        tvm.ir.assert_structural_equal(tmem_buf.ty.effective_layout().canonicalize(), expected)
         return True
     except (AssertionError, ValueError):
         return False
@@ -471,10 +470,10 @@ def gemm_async_tcgen05_impl(op_call: TensorCall, sctx: DispatchContext) -> Funct
                 f"got SFA_scope={SFA_scope}, SFB_scope={SFB_scope}"
             )
         SFA_type, SFB_type = _dtype_name(SFA_buffer.dtype), _dtype_name(SFB_buffer.dtype)
-        SFA_slice_layout = effective_layout(SFA_buffer).slice(
+        SFA_slice_layout = SFA_buffer.ty.effective_layout().slice(
             SFA_buffer.shape, SFA_buffer_region.region
         )
-        SFB_slice_layout = effective_layout(SFB_buffer).slice(
+        SFB_slice_layout = SFB_buffer.ty.effective_layout().slice(
             SFB_buffer.shape, SFB_buffer_region.region
         )
         SFA_elem_per_col = 32 // DataType(SFA_type).bits
@@ -519,9 +518,9 @@ def gemm_async_tcgen05_impl(op_call: TensorCall, sctx: DispatchContext) -> Funct
     C_st, C_extent = get_st_extent(C_buffer_region)
     _, A_extent = get_st_extent(A_buffer_region)
     _, B_extent = get_st_extent(B_buffer_region)
-    A_slice_layout = effective_layout(A_buffer).slice(A_buffer.shape, A_buffer_region.region)
-    B_slice_layout = effective_layout(B_buffer).slice(B_buffer.shape, B_buffer_region.region)
-    C_slice_layout = effective_layout(C_buffer).slice(C_buffer.shape, C_buffer_region.region)
+    A_slice_layout = A_buffer.ty.effective_layout().slice(A_buffer.shape, A_buffer_region.region)
+    B_slice_layout = B_buffer.ty.effective_layout().slice(B_buffer.shape, B_buffer_region.region)
+    C_slice_layout = C_buffer.ty.effective_layout().slice(C_buffer.shape, C_buffer_region.region)
     # Extract pre-swizzle tile layout for descriptor offset computation.
     # strip_swizzle_to_tile rebuilds an identity tile over the slice extents for
     # a bare swizzle (ComposeLayout with a trivial tile), so .apply() maps over
@@ -723,7 +722,7 @@ def gemm_async_tcgen05_impl(op_call: TensorCall, sctx: DispatchContext) -> Funct
         # contiguous slice -- this is what enables fine K-major split-K.
         cax = len(region) - 1  # innermost (contiguous) axis
         elem_per_16b = 128 // DataType(dtype).bits
-        phys_mode = get_swizzle_mode_from_layout(effective_layout(buf))
+        phys_mode = get_swizzle_mode_from_layout(buf.ty.effective_layout())
         desc_region = list(region)
         if phys_mode in (
             SwizzleMode.SWIZZLE_128B_ATOM,
@@ -750,7 +749,7 @@ def gemm_async_tcgen05_impl(op_call: TensorCall, sctx: DispatchContext) -> Funct
                     )
                 desc_region[cax] = tvm.ir.Range.from_min_extent(0, rounded)
 
-        slice_layout = effective_layout(buf).slice(buf.shape, desc_region)
+        slice_layout = buf.ty.effective_layout().slice(buf.shape, desc_region)
         # Strip unit dims to get the 2D matrix shape.
         shape_2d = [int(r.extent) for r in desc_region if int(r.extent) != 1]
         assert len(shape_2d) == 2, (
@@ -1015,7 +1014,7 @@ def gemm_async_tcgen05_impl(op_call: TensorCall, sctx: DispatchContext) -> Funct
     elif (
         M == 64
         and int(C_buffer.shape[0]) == 64
-        and effective_layout(C_buffer) is not None
+        and C_buffer.ty.effective_layout() is not None
         and _layout_matches_datapath_f(C_buffer)
     ):
         base = tmem_datapath_layout("F", 64, N)

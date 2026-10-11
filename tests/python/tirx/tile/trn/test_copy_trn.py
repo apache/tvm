@@ -21,8 +21,11 @@ import tvm_ffi
 import tvm
 import tvm.testing
 from tvm.backend.trn.axis import F, P
+from tvm.backend.trn.tile.instruction_generator import InstructionGenerator
 from tvm.ir import assert_structural_equal as _assert_structural_equal
 from tvm.script import tirx as T
+from tvm.sym import Analyzer
+from tvm.tirx import decl_tensor
 from tvm.tirx.layout import S, TileLayout
 
 target = tvm.target.Target("aws/trn1/trn1.2xlarge")
@@ -47,6 +50,15 @@ def assert_structural_equal(lhs, rhs, *args, **kwargs):
     if isinstance(rhs, tvm.tirx.Function):
         rhs = rhs.with_body(_strip_exec_scope_stmt(rhs.body))
     _assert_structural_equal(lhs, rhs, *args, **kwargs)
+
+
+def test_instruction_generator_compact_global_layout():
+    tensor = decl_tensor((8, 16), "float32")
+    region = tensor[0:8, 0:16]
+    generator = InstructionGenerator((region,), Analyzer())
+    layout = generator.split_layout_views[region]
+    assert int(layout.apply(3, 5, shape=tensor.shape)["m"]) == 53
+    assert tensor.layout is None
 
 
 def test_simple_copy():

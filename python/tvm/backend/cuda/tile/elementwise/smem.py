@@ -35,7 +35,6 @@ from tvm.tirx import Function
 from tvm.tirx.tile import DispatchContext
 from tvm.tirx.tile.dispatch import fail
 from tvm.tirx.tile.instruction import TensorCall
-from tvm.tirx.tile.layout_utils import effective_layout
 
 from ..common import get_indices, get_st_extent, get_thread_cnt
 from ._common import (
@@ -76,7 +75,7 @@ def is_smem_ewise(spec):
         for br in buffer_regions(plan):
             if not br.source.scope().startswith("shared"):
                 return False, f"operand scope {br.source.scope()} != shared*"
-            if effective_layout(br.source) is None:
+            if br.source.ty.effective_layout() is None:
                 return False, "shared operand has no layout"
         if spec.check_extras is not None:
             ok2, reason2 = spec.check_extras(plan.extras, compute_dtype_of(plan))

@@ -36,19 +36,6 @@ from .utils import (
     tensor_indices as tensor_indices,
 )
 
-
-def SMEMPool(*args, **kwargs):
-    from tvm.backend.cuda.lang.alloc_pool import SMEMPool as pool
-
-    return pool(*args, **kwargs)
-
-
-def TMEMPool(*args, **kwargs):
-    from tvm.backend.cuda.lang.alloc_pool import TMEMPool as pool
-
-    return pool(*args, **kwargs)
-
-
 supports_mutable_declarations = True
 
 __all__ = [
@@ -58,8 +45,6 @@ __all__ = [
     "dynamic",
     "dtype",
     "constexpr",
-    "SMEMPool",
-    "TMEMPool",
     "bool",
     "tensor_indices",
     "frame_scope",

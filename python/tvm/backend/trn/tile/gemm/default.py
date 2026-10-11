@@ -27,7 +27,6 @@ from tvm.sym.analyzer import Analyzer
 from tvm.tirx import Function
 from tvm.tirx.tile import DispatchContext, fail
 from tvm.tirx.tile.instruction import TensorCall
-from tvm.tirx.tile.layout_utils import effective_layout
 
 from ..common import init_analyzer
 from ..dim_utils import normalize_and_group
@@ -57,7 +56,7 @@ def get_pf_dim_from_tensor_region(
     assert len(non_unit_dims) == 2, "Only 2D matrix is supported for gemm"
 
     layout, seps = normalize_and_group(
-        effective_layout(tensor_region.source), tensor_region.source.ty.shape
+        tensor_region.source.ty.effective_layout(), tensor_region.source.ty.shape
     )
     # Determine partition and free dimensions based on operator kind
     if operator_kind == OperatorKind.A:
@@ -142,19 +141,19 @@ def matmul_trn(op: TensorCall, sctx: DispatchContext) -> Function | None:
     # Validate tensor properties
     assert all(
         [
-            effective_layout(A) and effective_layout(B) and effective_layout(C),
+            A.ty.effective_layout() and B.ty.effective_layout() and C.ty.effective_layout(),
             A.ty.dtype == B.ty.dtype,
             A.scope() == "trn.sbuf" and B.scope() == "trn.sbuf",
             C.scope() == "trn.psum" or C.scope() == "trn.sbuf",
-            is_trainium_layout(effective_layout(A)),
-            is_trainium_layout(effective_layout(B)),
-            is_trainium_layout(effective_layout(C)),
-            effective_layout(A).size("P") == effective_layout(B).size("P"),
+            is_trainium_layout(A.ty.effective_layout()),
+            is_trainium_layout(B.ty.effective_layout()),
+            is_trainium_layout(C.ty.effective_layout()),
+            A.ty.effective_layout().size("P") == B.ty.effective_layout().size("P"),
         ]
     ), "Invalid tensor layout and scope"
 
-    p_size = effective_layout(A).size("P")
-    assert p_size == effective_layout(B).size("P"), "Partition size mismatch"
+    p_size = A.ty.effective_layout().size("P")
+    assert p_size == B.ty.effective_layout().size("P"), "Partition size mismatch"
 
     # Get partition and free dimensions
     lhs_p_dim, lhs_f_dim = get_pf_dim_from_tensor_region(
@@ -204,12 +203,14 @@ def matmul_trn(op: TensorCall, sctx: DispatchContext) -> Function | None:
     reduction_b = T.Var("reduction_b", "int32")
     lhs_b = T.Var("lhs_b", "int32")
     rhs_b = T.Var("rhs_b", "int32")
-    lhs_f_size = effective_layout(C).size("P")
+    lhs_f_size = C.ty.effective_layout().size("P")
     inst_gen.bind_inst_iter(
         B_tensor_region, rhs_f, inst_repr.size, inst_repr.stride, is_free_dim=True
     )
     inst_gen.bind_inst_iter(C_tensor_region, lhs_f, lhs_f_size, 1, is_free_dim=False)
-    inst_gen.bind_inst_iter(A_tensor_region, p, effective_layout(A).size("P"), 1, is_free_dim=False)
+    inst_gen.bind_inst_iter(
+        A_tensor_region, p, A.ty.effective_layout().size("P"), 1, is_free_dim=False
+    )
     reduction_b_extent = inst_gen.fill_in_block_dim(A_tensor_region, reduction_b, [lhs_p_dim])
     lhs_b_extent = inst_gen.fill_in_block_dim(A_tensor_region, lhs_b, [lhs_f_dim])
     rhs_b_extent = inst_gen.fill_in_block_dim(B_tensor_region, rhs_b, [rhs_f_dim])

@@ -120,7 +120,6 @@ from tvm.tirx.layout import ComposeLayout, TileLayout
 from tvm.tirx.layout import m as m_axis
 from tvm.tirx.tile import DispatchContext
 from tvm.tirx.tile.instruction import TensorCall
-from tvm.tirx.tile.layout_utils import effective_layout
 
 # Allowed .multicast qualifiers per shape (PTX ISA 8.8 §9.7.16.9.2): "" = none,
 # 64x128b needs an explicit warpx2 pick.
@@ -366,9 +365,9 @@ def _plan_for_shape(op_call: TensorCall, shape: str, multicast: str):
     # C: slice + canonicalize.
     s_region = [(r.min, r.min + r.extent) for r in src_region.region]
     t_region = [(r.min, r.min + r.extent) for r in dst_region.region]
-    s_sliced = effective_layout(s_buf).slice(list(s_buf.shape), s_region)
+    s_sliced = s_buf.ty.effective_layout().slice(list(s_buf.shape), s_region)
     s = s_sliced.canonicalize()
-    t = effective_layout(t_buf).slice(list(t_buf.shape), t_region).canonicalize()
+    t = t_buf.ty.effective_layout().slice(list(t_buf.shape), t_region).canonicalize()
 
     # If s is ComposeLayout (swizzle over a tile), peel off the swizzle for
     # stride analysis; record the swizzle object for cross-checks.
@@ -725,8 +724,8 @@ def _validate_smem_tmem_copy(op_call: TensorCall, sctx: DispatchContext):
     return (
         src.scope().startswith("shared")
         and dst.scope() == "tmem"
-        and effective_layout(src) is not None
-        and effective_layout(dst) is not None
+        and src.ty.effective_layout() is not None
+        and dst.ty.effective_layout() is not None
         # Byte reinterpret is legal (nvfp4 stages sf as uint8, reads fp8); a
         # true width change needs decompress, rejected in copy_smem_tmem_impl.
         and DataType(src.dtype).bits == DataType(dst.dtype).bits

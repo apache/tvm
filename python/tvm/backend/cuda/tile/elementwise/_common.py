@@ -35,7 +35,6 @@ from tvm.runtime import DataType
 from tvm.script import tirx as T
 from tvm.sym.analyzer import Analyzer
 from tvm.tirx.layout import Axis, Iter, TileLayout
-from tvm.tirx.tile.layout_utils import effective_layout
 
 from ..common import get_indices, get_st_extent
 
@@ -206,7 +205,7 @@ def preprocess_operand(op_br, anchor_tshape):
     Raises ``ValueError`` if the lift is not broadcast-compatible (caller
     should have verified via ``shape_broadcast_compat`` in the predicate).
     """
-    op_layout = effective_layout(op_br.source)
+    op_layout = op_br.source.ty.effective_layout()
     op_shape = op_br.source.shape
     op_region = [(r.min, r.min + r.extent) for r in op_br.region]
     sliced = op_layout.slice(list(op_shape), op_region).canonicalize()
@@ -287,7 +286,7 @@ def align_operands_to_anchor(anchor_br, layout_others_br):
     Uses ``_align_layouts_no_post_canon`` (not copy's ``align_layouts_raw``
     directly) so ``anchor_p.shard`` length matches ``op_seps`` groupings.
     """
-    anchor_layout = effective_layout(anchor_br.source)
+    anchor_layout = anchor_br.source.ty.effective_layout()
     anchor_shape = anchor_br.source.shape
     anchor_region = [(r.min, r.min + r.extent) for r in anchor_br.region]
 
@@ -302,7 +301,7 @@ def align_operands_to_anchor(anchor_br, layout_others_br):
         return anchor_p, per_op_aligned
 
     for op_br in layout_others_br:
-        op_layout = effective_layout(op_br.source)
+        op_layout = op_br.source.ty.effective_layout()
         op_shape = op_br.source.shape
         op_region = [(r.min, r.min + r.extent) for r in op_br.region]
         r_p, op_p, op_seps = _align_layouts_no_post_canon(

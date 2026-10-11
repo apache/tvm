@@ -23,19 +23,12 @@ __all__ = [
     "ClusterPersistentScheduler2D",
     "FlashAttentionLPTScheduler",
     "FlashAttentionLinearScheduler",
-    "GroupMajor3D",
-    "IndexedTripleTileScheduler",
     "MBarrier",
     "Pipeline",
     "PipelineState",
-    "RankAwareGroupMajorTileScheduler",
     "SMEMPool",
-    "SmemDescriptor",
     "TCGen05Bar",
     "TMABar",
-    "TMEMPool",
-    "WarpRole",
-    "WarpgroupRole",
 ]
 
 _HELPER_MODULES = {
@@ -46,16 +39,9 @@ _HELPER_MODULES = {
     "ClusterPersistentScheduler2D": ".tile_scheduler",
     "FlashAttentionLPTScheduler": ".tile_scheduler",
     "FlashAttentionLinearScheduler": ".tile_scheduler",
-    "GroupMajor3D": ".tile_scheduler",
-    "IndexedTripleTileScheduler": ".tile_scheduler",
-    "RankAwareGroupMajorTileScheduler": ".tile_scheduler",
     "SMEMPool": ".alloc_pool",
     "TCGen05Bar": ".pipeline",
     "TMABar": ".pipeline",
-    "TMEMPool": ".alloc_pool",
-    "WarpRole": ".warp_role",
-    "WarpgroupRole": ".warp_role",
-    "SmemDescriptor": ".smem_desc",
 }
 
 

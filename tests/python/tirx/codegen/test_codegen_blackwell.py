@@ -24,6 +24,7 @@ import tvm_ffi
 import tvm
 import tvm.testing
 from tvm.backend.cuda.cpp.descriptors import _get_tcgen05_mma_kind
+from tvm.backend.cuda.lang import SMEMPool
 from tvm.script import tirx as T
 from tvm.testing import env
 
@@ -156,13 +157,13 @@ def test_mbarrier_try_wait_once_codegen():
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda_compute(10), reason="need cuda compute >= 10.0")
 def test_mbarrier_remote_view_codegen():
-    from tvm.tirx.lang.pipeline import MBarrier
+    from tvm.backend.cuda.lang.pipeline import MBarrier
 
     # fmt: off
     @T.function
     def test_remote_view():
         T.device_entry(launch=T.cuda.LaunchConfig(grid=1 * 2, block=(128,), cluster=(2,)))
-        pool = T.SMEMPool()
+        pool = SMEMPool()
         bar = MBarrier(pool, 1)
         pool.commit()
         remote_bar = bar.remote_view(0)
@@ -188,14 +189,14 @@ def test_mbarrier_remote_view_codegen():
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda_compute(10), reason="need cuda compute >= 10.0")
 def test_mbarrier_local_arrive_forwards_predicate_and_count():
-    from tvm.tirx.lang.pipeline import MBarrier
+    from tvm.backend.cuda.lang.pipeline import MBarrier
 
     # fmt: off
     @T.function
     def test_local_arrive():
         T.device_entry(launch=T.cuda.LaunchConfig(grid=1, block=(32,)))
         thread = T.cuda.thread_idx('x')
-        pool = T.SMEMPool()
+        pool = SMEMPool()
         bar = MBarrier(pool, 1)
         pool.commit()
         bar.arrive(0, pred=(thread == 0), count=2)
@@ -221,13 +222,13 @@ def test_mbarrier_local_arrive_forwards_predicate_and_count():
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda_compute(10), reason="need cuda compute >= 10.0")
 def test_tma_mbarrier_remote_view_codegen():
-    from tvm.tirx.lang.pipeline import TMABar
+    from tvm.backend.cuda.lang.pipeline import TMABar
 
     # fmt: off
     @T.function
     def test_remote_view():
         T.device_entry(launch=T.cuda.LaunchConfig(grid=1 * 2, block=(128,), cluster=(2,)))
-        pool = T.SMEMPool()
+        pool = SMEMPool()
         bar = TMABar(pool, 1)
         pool.commit()
         remote_bar = bar.remote_view(0)
@@ -245,14 +246,14 @@ def test_tma_mbarrier_remote_view_codegen():
 
 
 def test_mbarrier_remote_view_rejects_invalid_operations():
-    from tvm.tirx.lang.pipeline import MBarrier, TMABar
+    from tvm.backend.cuda.lang.pipeline import MBarrier, TMABar
 
     with pytest.raises(ValueError, match=r"remote_view\(\) cannot be initialized"):
         # fmt: off
         @T.function
         def invalid_init():
             T.device_entry(launch=T.cuda.LaunchConfig(grid=(2,), block=(128,)))
-            pool = T.SMEMPool()
+            pool = SMEMPool()
             bar = MBarrier(pool, 1)
             bar.remote_view(0).init(1)
         # fmt: on
@@ -262,7 +263,7 @@ def test_mbarrier_remote_view_rejects_invalid_operations():
         @T.function
         def invalid_wait():
             T.device_entry(launch=T.cuda.LaunchConfig(grid=(2,), block=(128,)))
-            pool = T.SMEMPool()
+            pool = SMEMPool()
             bar = MBarrier(pool, 1)
             bar.remote_view(0).wait(0, 0)
         # fmt: on
@@ -272,7 +273,7 @@ def test_mbarrier_remote_view_rejects_invalid_operations():
         @T.function
         def ambiguous_mbarrier_arrive():
             T.device_entry(launch=T.cuda.LaunchConfig(grid=(2,), block=(128,)))
-            pool = T.SMEMPool()
+            pool = SMEMPool()
             bar = MBarrier(pool, 1)
             bar.remote_view(0).arrive(0, remote=1)
         # fmt: on
@@ -282,7 +283,7 @@ def test_mbarrier_remote_view_rejects_invalid_operations():
         @T.function
         def ambiguous_tma_arrive():
             T.device_entry(launch=T.cuda.LaunchConfig(grid=(2,), block=(128,)))
-            pool = T.SMEMPool()
+            pool = SMEMPool()
             bar = TMABar(pool, 1)
             bar.remote_view(0).arrive(0, tx_count=128, remote=1)
         # fmt: on
@@ -295,7 +296,7 @@ def test_mbarrier_remote_view_rejects_invalid_operations():
         @T.function
         def nested_remote_view():
             T.device_entry(launch=T.cuda.LaunchConfig(grid=(2,), block=(128,)))
-            pool = T.SMEMPool()
+            pool = SMEMPool()
             bar = MBarrier(pool, 1)
             bar.remote_view(0).remote_view(1)
         # fmt: on

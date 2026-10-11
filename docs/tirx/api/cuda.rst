@@ -88,8 +88,7 @@ CUDA language utilities
 -----------------------
 
 ``tvm.backend.cuda.lang`` provides reusable objects for hand-written CUDA TIRx
-kernels, including schedulers, pipelines, roles, barriers, descriptors, and
-memory pools.
+kernels, including schedulers, pipelines, barriers, and shared-memory pools.
 
 .. autoclass:: tvm.backend.cuda.lang.BaseTileScheduler
    :members:
@@ -110,12 +109,6 @@ memory pools.
    ``init`` starts from a CTA index, ``next_tile`` advances by ``num_ctas``,
    and ``valid`` reports whether work remains.
 
-.. autoclass:: tvm.backend.cuda.lang.GroupMajor3D
-   :members:
-
-.. autoclass:: tvm.backend.cuda.lang.IndexedTripleTileScheduler
-   :members:
-
 .. autoclass:: tvm.backend.cuda.lang.MBarrier
    :members:
 
@@ -125,37 +118,13 @@ memory pools.
 .. autoclass:: tvm.backend.cuda.lang.PipelineState
    :members:
 
-.. autoclass:: tvm.backend.cuda.lang.RankAwareGroupMajorTileScheduler
-   :members:
-
 .. autoclass:: tvm.backend.cuda.lang.SMEMPool
-   :members:
-
-.. autoclass:: tvm.backend.cuda.lang.SmemDescriptor
    :members:
 
 .. autoclass:: tvm.backend.cuda.lang.TCGen05Bar
    :members:
 
 .. autoclass:: tvm.backend.cuda.lang.TMABar
-   :members:
-
-.. autoclass:: tvm.backend.cuda.lang.TMEMPool
-   :members:
-   :exclude-members: alloc
-
-.. py:method:: TMEMPool.alloc(shape, dtype="float32", *, layout=None, cols=None)
-
-   Allocate a tensor-memory tensor from the pool.  ``layout`` supplies an
-   explicit ``TileLayout``; without it, two-dimensional shapes use the default
-   dense layout.  ``cols`` overrides the inferred tensor-memory column count.
-   Datapath-specific accumulators can instead use
-   ``alloc_tcgen05_mma_D(...)`` / ``alloc_tcgen05_mma_C(...)``.
-
-.. autoclass:: tvm.backend.cuda.lang.WarpRole
-   :members:
-
-.. autoclass:: tvm.backend.cuda.lang.WarpgroupRole
    :members:
 
 IKET profiling
