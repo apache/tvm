@@ -31,7 +31,6 @@ from tvm.tirx import decl_tensor
 from tvm.tirx.exec_scope import ExecScope
 from tvm.tirx.layout import Axis, S, TileLayout
 from tvm.tirx.script import ir_builder as I
-from tvm.tirx.tile.layout_utils import effective_layout
 
 
 def test_generic_layout_without_backend_autoload():
@@ -49,7 +48,10 @@ assert Axis.m.backend is None
 assert T.Axis.m.same_as(Axis.m)
 assert TileLayout(S[8]).apply(3, shape=[8])["m"] == 3
 assert decl_tensor((8,), "float32").layout is None
-assert T.Tensor((8,), "float32").layout is None
+tensor_type = T.Tensor((8,), "float32")
+assert tensor_type.layout is None
+tvm.ir.assert_structural_equal(tensor_type.effective_layout(), TileLayout(S[8]))
+assert tensor_type.layout is None
 assert "tvm.backend.cuda.axis" not in sys.modules
 assert "tvm.backend.trn.axis" not in sys.modules
 """,
@@ -107,25 +109,36 @@ def test_omitted_and_explicit_none_layout(scope):
             assert allocated.layout is None and declared.layout is None
 
 
+@pytest.mark.parametrize(
+    "shape,strides",
+    [((8, 16), None), ((8, 16), (16, 1)), ((8, 1, 16), (16, 99, 1))],
+)
+def test_effective_layout_on_tensor_type(shape, strides):
+    tensor_type = T.Tensor(shape, "float32", strides=strides)
+    before = save_json(tensor_type)
+    assert_structural_equal(tensor_type.effective_layout(), TileLayout(S[shape]))
+    assert save_json(tensor_type) == before
+
+
 def test_effective_global_layout_preserves_source_and_region():
     tensor = decl_tensor((8, 16), "float32", elem_offset=13)
     before = save_json(tensor)
     region = tensor[2:4, 3:7]
-    layout = effective_layout(region.source)
+    layout = region.source.ty.effective_layout()
     assert int(layout.apply(2, 3, shape=tensor.shape)["m"]) == 35
     sliced = layout.slice(tensor.shape, region.region)
     assert int(sliced.apply(0, 0)["m"]) == 35
     assert int(sliced.apply(1, 3)["m"]) == 54
     assert save_json(tensor) == before
     compact = decl_tensor((8, 16), "float32", strides=(16, 1))
-    assert_structural_equal(effective_layout(compact), layout)
+    assert_structural_equal(compact.ty.effective_layout(), layout)
     strided = decl_tensor((8, 16), "float32", strides=(32, 1))
     with pytest.raises(ValueError, match="noncompact"):
-        effective_layout(strided)
+        strided.ty.effective_layout()
     with pytest.raises(ValueError, match="explicit layout"):
-        effective_layout(decl_tensor((8, 16), "float32", scope="shared"))
+        decl_tensor((8, 16), "float32", scope="shared").ty.effective_layout()
     explicit = decl_tensor((8, 16), "float32", scope="shared", layout=layout)
-    assert effective_layout(explicit).same_as(layout)
+    assert explicit.ty.effective_layout().same_as(layout)
 
 
 def test_none_layout_views_keep_offsets_and_strides():

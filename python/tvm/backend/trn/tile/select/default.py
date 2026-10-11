@@ -23,7 +23,6 @@ from tvm.script import tirx as T
 from tvm.tirx import FloatImm, Function
 from tvm.tirx.tile import DispatchContext, fail
 from tvm.tirx.tile.instruction import TensorCall
-from tvm.tirx.tile.layout_utils import effective_layout
 from tvm.tirx.tile.views import Select
 
 from ..common import init_analyzer, nki_dim
@@ -60,10 +59,10 @@ def select_trn(op: TensorCall, sctx: DispatchContext) -> Function | None:
 
     # Validate tensor layout and scope
     tensor_conditions = [
-        effective_layout(dst.source) and effective_layout(true_value.source),
+        dst.source.ty.effective_layout() and true_value.source.ty.effective_layout(),
         dst.source.scope() == "trn.sbuf" and true_value.source.scope() == "trn.sbuf",
-        is_trainium_layout(effective_layout(true_value.source)),
-        is_trainium_layout(effective_layout(dst.source)),
+        is_trainium_layout(true_value.source.ty.effective_layout()),
+        is_trainium_layout(dst.source.ty.effective_layout()),
     ]
 
     if not all(tensor_conditions):
@@ -96,7 +95,7 @@ def select_trn(op: TensorCall, sctx: DispatchContext) -> Function | None:
     p_var = T.Var("p", "int32")
     b_var = T.Var("b", "int32")
     f_var = T.Var("f", "int32")
-    p_size = effective_layout(dst.source).size("P")
+    p_size = dst.source.ty.effective_layout().size("P")
     inst_gen.bind_inst_iter(dst, f_var, inst_repr.size, inst_repr.stride, True)
     inst_gen.bind_inst_iter(dst, p_var, p_size, 1, False)
     b_extent = inst_gen.fill_in_block_dim(dst, b_var)
