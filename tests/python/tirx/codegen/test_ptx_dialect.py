@@ -29,7 +29,8 @@ from tvm.ir import Op
 from tvm.script import tirx as T
 from tvm.testing import env
 
-TARGET = tvm.target.Target("cuda")
+TARGET = tvm.target.Target({"kind": "cuda", "arch": env.cuda_arch() or "sm_90"})
+
 
 requires_nvcc = pytest.mark.skipif(shutil.which("nvcc") is None, reason="nvcc not available")
 
@@ -51,8 +52,15 @@ def _assert_ptxas_ok(src: str, rdc: bool = False, arch: str = PTX_ARCH) -> None:
     """Assemble through ptxas (cubin) — `-ptx` alone never validates inline asm."""
     from tvm.support import nvcc
 
-    options = ["-rdc=true"] if rdc else None
-    nvcc.compile_cuda(src, target_format="cubin", arch=arch, options=options, compiler="nvcc")
+    options = ["--use_fast_math"] + (["-rdc=true"] if rdc else [])
+    nvcc.compile_cuda(
+        src,
+        backend_config={
+            "cuda": T.cuda.BackendConfig(
+                arch=arch, target_format="cubin", compiler="nvcc", nvcc=options
+            )
+        },
+    )
 
 
 def test_ptx_registration():

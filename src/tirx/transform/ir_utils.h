@@ -172,7 +172,7 @@ inline PrimType APIType(const PrimType& t) {
   if (t.MatchesCode(DLDataTypeCode::kDLBool, DLDataTypeCode::kDLUInt, DLDataTypeCode::kDLInt)) {
     return PrimType::Int(64);
   }
-  TVM_FFI_ICHECK_EQ(t.code(), DLDataTypeCode::kDLFloat);
+  TVM_FFI_ICHECK(t.MatchesCode(DLDataTypeCode::kDLFloat, DLDataTypeCode::kDLBfloat));
   return PrimType::Float(64);
 }
 

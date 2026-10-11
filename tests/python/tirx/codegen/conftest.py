@@ -25,6 +25,13 @@ from tvm.testing import env
 
 
 @pytest.fixture(autouse=True)
+def _source_codegen_without_cuda(monkeypatch):
+    # CPU-only source checks must not depend on a CUDA compiler being installed.
+    if not env.has_cuda():
+        monkeypatch.setenv("TVM_COMPILE_FORCE_FALLBACK", "1")
+
+
+@pytest.fixture(autouse=True)
 def _release_cuda_cache_between_tests():
     yield
     gc.collect()

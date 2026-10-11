@@ -38,4 +38,22 @@ def LowerIket():
     return get_global_func("tirx.backend.cuda.transforms.LowerIket")()
 
 
-__all__ = ["LowerIket"]
+def BindBackendConfig(backend_config=None):
+    """Resolve per-entry compilation settings and targets before tile dispatch."""
+    from tvm.backend.config import backend_config_json
+
+    config = "" if backend_config is None else backend_config_json(backend_config)
+    return get_global_func("tirx.backend.cuda.transforms.BindBackendConfig")(config)
+
+
+def SpecializeDeviceHelpers():
+    """Clone private device helpers into each independently compiled CUDA group."""
+    return get_global_func("tirx.backend.cuda.transforms.SpecializeDeviceHelpers")()
+
+
+def SpecializeEntryHelpers():
+    """Specialize shared helper calls before target-sensitive tile dispatch."""
+    return get_global_func("tirx.backend.cuda.transforms.SpecializeEntryHelpers")()
+
+
+__all__ = ["BindBackendConfig", "LowerIket", "SpecializeDeviceHelpers", "SpecializeEntryHelpers"]

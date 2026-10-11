@@ -20,87 +20,31 @@
 import glob
 import os
 import platform
-import shlex
 import subprocess
 import warnings
 
 import tvm_ffi
 
 import tvm
+from tvm.backend.config import parse_backend_config
 from tvm.target import Target
 
 from . import utils
 
 
-def _ptxas_option_flags():
-    """Return ptxas flags forwarded via ``--ptxas-options`` (without the prefix).
+def compile_cuda(code, *, backend_config=None, path_target=None):
+    """Compile source using the nested backend_config mapping and return its bytes.
 
-    Environment Variables
-    ---------------------
-    TVM_CUDA_PTXAS_REG_LEVEL : str
-        ptxas ``--register-usage-level`` (default ``10``).
-    TVM_CUDA_PTXAS_EXTRA_OPTS : str
-        Extra ptxas flags, shell-tokenized (e.g. ``"-O1"`` or ``"-O2 --def-load-cache=ca"``).
-        Each token becomes its own ``--ptxas-options=<token>`` entry for NVRTC, or is
-        comma-joined for nvcc.
+    For the binary format and resolved configuration, use
+    :func:`tvm.backend.cuda.compiler.compile_source` directly.
     """
-    flags = [
-        "-v",
-        f"--register-usage-level={os.environ.get('TVM_CUDA_PTXAS_REG_LEVEL', '10')}",
-        "--warn-on-local-memory-usage",
-    ]
-    extra = os.environ.get("TVM_CUDA_PTXAS_EXTRA_OPTS", "").strip()
-    if extra:
-        flags.extend(shlex.split(extra))
-    return flags
+    from tvm.backend.cuda.compiler import compile_source
 
-
-def compile_cuda(
-    code, target_format=None, arch=None, options=None, path_target=None, compiler="nvrtc"
-):
-    """Compile CUDA code with NVCC or NVRTC.
-
-    Parameters
-    ----------
-    code : str
-        The CUDA code.
-
-    target_format : str
-        The target format of the compiler ("ptx", "cubin", or "fatbin").
-
-    arch : str
-        The CUDA architecture.
-
-    options : str or list of str
-        The additional options.
-
-    path_target : str, optional
-        Output file.
-
-    compiler : str, optional
-        Compiler backend: "nvrtc" (default) or "nvcc".
-        This can be set by the TVM_CUDA_COMPILE_MODE environment variable.
-
-    Returns
-    -------
-    res_binary : bytearray
-        The bytearray of the compiled binary (ptx/cubin/fatbin).
-
-    Notes
-    -----
-    - NVRTC is a "runtime" compilation library and can be faster for JIT compilation.
-    - NVRTC requires cuda-bindings: pip install cuda-bindings
-    """
-    use_nvshmem = "#include <nvshmem.h>" in code or "#include <nvshmemx.h>" in code
-
-    if compiler == "nvcc":
-        result = _compile_cuda_nvcc(code, target_format, arch, options, path_target, use_nvshmem)
-    elif compiler == "nvrtc":
-        result = _compile_cuda_nvrtc(code, target_format, arch, options, path_target, use_nvshmem)
-    else:
-        raise ValueError(f"CUDA compiler must be 'nvcc' or 'nvrtc', got: {compiler}")
-
-    return result
+    result = compile_source(code, backend_config)
+    if path_target:
+        with open(path_target, "wb") as output:
+            output.write(result.binary)
+    return bytearray(result.binary)
 
 
 def _compile_cuda_nvcc(
@@ -142,49 +86,12 @@ def _compile_cuda_nvcc(
         target_format = "cubin"
         nvshmem_include_path, nvshmem_lib_path = find_nvshmem_paths()
 
-    if arch is None:
-        # If None, then it will use `tvm.target.Target.current().arch`.
-        # Target arch could be a str like "sm_xx", or a list, such as
-        # [
-        #   "-gencode", "arch=compute_52,code=sm_52",
-        #   "-gencode", "arch=compute_70,code=sm_70"
-        # ]
-        target = Target.current(allow_none=True)
-        target_arch = getattr(target, "arch", None) if target is not None else None
-        if isinstance(target_arch, str) and target_arch.startswith("sm_"):
-            suffix = target_arch[3:]
-        else:
-            suffix = "".join(get_target_compute_version(target).split("."))
-        arch = ["-gencode", f"arch=compute_{suffix},code=sm_{suffix}"]
-
     temp = utils.tempdir()
     file_name = "tvm_kernels"
-    if target_format is None and not use_nvshmem:
-        target_format = "ptx"
-
-    tvm_kernel_dump = os.environ.get("TVM_KERNEL_DUMP", None)
-    if tvm_kernel_dump is not None:
-        target_format = "fatbin"  # use fatbin to get cubin for SASS extraction
-
     if target_format not in ["cubin", "ptx", "fatbin"]:
         raise ValueError("target_format must be in cubin, ptx, fatbin")
     temp_code = temp.relpath(f"{file_name}.cu")
     temp_target = temp.relpath(f"{file_name}.{target_format}")
-
-    pass_context = tvm_ffi.get_global_func("transform.GetCurrentPassContext")()
-    kernels_output_dir = (
-        pass_context.config["cuda.kernels_output_dir"]
-        if "cuda.kernels_output_dir" in pass_context.config
-        else None
-    )
-    if tvm_kernel_dump is not None:
-        kernels_output_dir = tvm_kernel_dump
-
-    if kernels_output_dir is not None:
-        if not os.path.isdir(kernels_output_dir):
-            os.makedirs(kernels_output_dir)
-        temp_code = os.path.join(kernels_output_dir, f"{file_name}.cu")
-        temp_target = os.path.join(kernels_output_dir, f"{file_name}.{target_format}")
 
     with open(temp_code, "w") as out_file:
         out_file.write(code)
@@ -196,12 +103,6 @@ def _compile_cuda_nvcc(
 
     cmd = ["nvcc"]
     cmd += [f"--{target_format}", "-O3"]
-    if tvm_kernel_dump is not None:
-        cmd += ["-lineinfo"]
-        cmd += ["--keep", f"--keep-dir={tvm_kernel_dump}"]
-    if os.environ.get("TVM_KERNEL_DEBUG", "0") == "1":
-        cmd += ["-g"]
-        cmd += ["-G"]
     if isinstance(arch, list):
         cmd += arch
     elif isinstance(arch, str):
@@ -216,11 +117,7 @@ def _compile_cuda_nvcc(
         "-U__CUDA_NO_BFLOAT162_CONVERSIONS__",
         "--expt-relaxed-constexpr",
         "--expt-extended-lambda",
-        *([] if os.environ.get("TVM_CUDA_NVCC_NO_FAST_MATH") else ["--use_fast_math"]),
-        f"--ptxas-options={','.join(_ptxas_option_flags())}",
     ]
-
-    major, _ = parse_compute_version(get_target_compute_version(Target.current(allow_none=True)))
 
     if options:
         if isinstance(options, str):
@@ -258,12 +155,7 @@ def _compile_cuda_nvcc(
 
     # Second stage for NVSHMEM
     if use_nvshmem:
-        target = Target.current(allow_none=True)
-        target_arch = getattr(target, "arch", None) if target is not None else None
-        if isinstance(target_arch, str) and target_arch.startswith("sm_"):
-            compute_version = target_arch[3:]
-        else:
-            compute_version = "".join(get_target_compute_version(target).split("."))
+        compute_version = arch.removeprefix("sm_")
         cmd = ["nvlink"]
         cmd += [f"-arch=sm_{compute_version}"]
         cmd += ["-L", nvshmem_lib_path]
@@ -289,7 +181,7 @@ def _compile_cuda_nvcc(
         data = bytearray(f.read())
         if not data:
             raise RuntimeError("Compilation error: empty result is generated")
-        return data
+        return data, out.decode("utf-8", errors="replace")
 
 
 def _find_cuda_target_include(cuda_path):
@@ -489,6 +381,13 @@ namespace std {
         b"--device-int128",
     ]
 
+    # CUDA 12.9+ enables a driver-backed cache and calls cuInit implicitly.
+    # Keep compilation driver-independent. Its cubin cache also reused an
+    # artifact across FTZ changes in CUDA 13.2. Keep different compiler
+    # configurations independent of that cache.
+    status, major, minor = nvrtc.nvrtcVersion()
+    if status == nvrtc.nvrtcResult.NVRTC_SUCCESS and (major, minor) >= (12, 9):
+        compile_opts.append(b"--no-cache")
     if use_nvshmem:
         compile_opts.extend([b"-rdc", b"true"])
 
@@ -568,63 +467,11 @@ namespace std {
             b"-U__CUDA_NO_BFLOAT16_CONVERSIONS__",
             b"-U__CUDA_NO_BFLOAT162_OPERATORS__",
             b"-U__CUDA_NO_BFLOAT162_CONVERSIONS__",
-            b"--use_fast_math",
         ]
     )
 
-    # Mirror the nvcc path's ptxas options. register-usage-level drives ptxas
-    # register allocation / instruction scheduling and is perf-relevant (FA4 was
-    # tuned around it, hence the env-driven default); -v and
-    # --warn-on-local-memory-usage are diagnostic. NVRTC rejects -O3 and
-    # --register-usage-level as top-level flags but forwards them to its internal
-    # ptxas via --ptxas-options (ptxas already defaults to -O3). NB: unlike nvcc,
-    # NVRTC does not comma-split --ptxas-options, so each ptxas flag must be its
-    # own entry. The nvcc-only --expt-relaxed-constexpr / --expt-extended-lambda
-    # have no NVRTC equivalent and are intentionally not mirrored.
-    for flag in _ptxas_option_flags():
-        compile_opts.append(f"--ptxas-options={flag}".encode())
-
-    # Extra NVRTC frontend flags (shell-tokenized), appended after all built-in
-    # defaults so they can override them (e.g. TVM_CUDA_NVRTC_EXTRA_OPTS="--ftz=false"
-    # to undo the -ftz=true implied by --use_fast_math).
-    nvrtc_extra = os.environ.get("TVM_CUDA_NVRTC_EXTRA_OPTS", "").strip()
-    if nvrtc_extra:
-        compile_opts.extend(t.encode() for t in shlex.split(nvrtc_extra))
-
-    # Add user-provided options, filtering out nvcc-specific flags that nvrtc doesn't support
-    if options:
-        nvcc_only_prefixes = (
-            "-c",
-            "-O",
-            "-std",
-            "--std",
-            "-Xcompiler",
-            "-Xlinker",
-            "-Xarchive",
-            "-Xcudafe",
-            "-Xptxas",
-            "--compile",
-            "--compiler-options",
-            "--linker-options",
-            "-fPIC",
-            "-shared",
-            "-o",
-        )
-        if isinstance(options, str):
-            options = [options]
-        for opt in options:
-            if isinstance(opt, str):
-                opt_str = opt
-            elif isinstance(opt, bytes):
-                opt_str = opt.decode()
-            else:
-                opt_str = str(opt)
-            skip = any(
-                opt_str.startswith(prefix) or opt_str == prefix for prefix in nvcc_only_prefixes
-            )
-            if skip:
-                continue
-            compile_opts.append(opt.encode() if isinstance(opt, str) else opt)
+    # Options have already been validated and translated for this backend.
+    compile_opts.extend(option.encode() for option in (options or ()))
 
     # Compile
     (result,) = nvrtc.nvrtcCompileProgram(prog, len(compile_opts), compile_opts)
@@ -643,6 +490,12 @@ namespace std {
 
         nvrtc.nvrtcDestroyProgram(prog)
         raise RuntimeError(error_msg)
+
+    result_log, log_size = nvrtc.nvrtcGetProgramLogSize(prog)
+    log_buf = bytearray(log_size)
+    if result_log == nvrtc.nvrtcResult.NVRTC_SUCCESS and log_size:
+        nvrtc.nvrtcGetProgramLog(prog, log_buf)
+    log = log_buf.decode("utf-8", errors="replace").rstrip("\0")
 
     # Get compiled binary
     if target_format == "cubin":
@@ -676,7 +529,7 @@ namespace std {
     if path_target:
         with open(path_target, "wb") as f:
             f.write(binary_buf)
-    return binary_buf
+    return binary_buf, log
 
 
 def _link_nvshmem_nvrtc(binary_buf, nvshmem_lib_path):
@@ -907,51 +760,17 @@ def find_nvshmem_paths() -> tuple[str, str]:
 
 
 @tvm_ffi.register_global_func
-def tvm_callback_cuda_compile(code):
-    """
-    Compile CUDA code using the configured backend (nvcc or nvrtc).
+def tvm_callback_cuda_compile(code, config_json):
+    """Compile one device group using its serialized, resolved configuration."""
+    from tvm.backend.cuda.compiler import compile_source
 
-    This callback is invoked by TVM's C++ backend during CUDA module compilation.
-    By default, uses nvrtc to generate cubin.  The current target is fetched
-    inside the callback (via ``tvm.target.Target.current(allow_none=True)``)
-    so the caller does not need to push/pop a target scope around the
-    invocation.
-
-    Environment Variables
-    ---------------------
-    TVM_CUDA_COMPILE_MODE : str
-        Compiler backend: "nvrtc" (default) or "nvcc"
-        - "nvrtc": Use NVRTC via cuda-bindings for faster JIT, generates cubin
-        - "nvcc": Use nvcc subprocess, generates fatbin
-    TVM_KERNEL_DUMP : str
-        If set, dump generated CUDA/intermediate files and append "-lineinfo" so profilers can
-        correlate SASS back to the dumped source.
-    TVM_CUDA_PTXAS_REG_LEVEL : str
-        Forwarded to ptxas ``--register-usage-level`` (default ``10``).
-    TVM_CUDA_PTXAS_EXTRA_OPTS : str
-        Extra ptxas flags (shell-tokenized), e.g. ``"-O1"`` or ``"-O2"``.
-
-    Parameters
-    ----------
-    code : str
-        CUDA source code to compile
-
-    Returns
-    -------
-    bytes
-        Compiled binary (fatbin for nvcc, cubin for nvrtc)
-    """
-    # The current Target is fetched inside compile_cuda via
-    # tvm.target.Target.current(allow_none=True) when arch is unset; the
-    # caller no longer needs to push/pop a target scope.
-    compiler = os.environ.get("TVM_CUDA_COMPILE_MODE", "nvrtc").lower()
-
-    if compiler == "nvrtc":
-        return compile_cuda(code, target_format="cubin", compiler="nvrtc")
-    if compiler == "nvcc":
-        return compile_cuda(code, target_format="fatbin", compiler="nvcc")
-
-    raise ValueError(f"Invalid TVM_CUDA_COMPILE_MODE: {compiler}. Expected 'nvcc' or 'nvrtc'.")
+    config = parse_backend_config(config_json)
+    arch = config.get("cuda", {}).get("arch")
+    # A saved device group already contains its resolved defaults. Do not let
+    # an unrelated Target scope supply new defaults when replaying its source.
+    target = {"kind": "cuda", "arch": arch} if arch is not None else None
+    result = compile_source(code, config, target=target)
+    return [bytearray(result.binary), result.target_format]
 
 
 @tvm_ffi.register_global_func("tvm_callback_libdevice_path")

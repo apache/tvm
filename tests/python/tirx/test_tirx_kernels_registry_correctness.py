@@ -128,31 +128,6 @@ def _required_cuda_device_count(config):
 
 
 @contextmanager
-def _current_cuda_prepare_arch():
-    try:
-        import torch
-    except ImportError:
-        yield
-        return
-
-    arch = env.cuda_arch(torch.cuda.current_device()) if torch.cuda.is_available() else None
-    if arch is None:
-        yield
-        return
-
-    variable = kernel_runner.PREPARE_CUDA_ARCH_ENV
-    previous = os.environ.get(variable)
-    os.environ[variable] = arch
-    try:
-        yield
-    finally:
-        if previous is None:
-            os.environ.pop(variable, None)
-        else:
-            os.environ[variable] = previous
-
-
-@contextmanager
 def _registry_gpu_lock(kernel_name, config):
     try:
         import fcntl
@@ -211,5 +186,10 @@ def test_manifest_tirx_kernel_correctness(kernel_name, config):
             "MegaMoE requires its dedicated multi-process scheduler; this suite's "
             "processes own CUDA contexts that its physical-device assignment rejects"
         )
-    with _registry_gpu_lock(kernel_name, config), _current_cuda_prepare_arch():
-        kernel_runner.run_kernel_test(kernel_name, config, registry=_KERNELS)
+    with _registry_gpu_lock(kernel_name, config):
+        import torch
+
+        backend_config = {"cuda": {"arch": env.cuda_arch(torch.cuda.current_device())}}
+        kernel_runner.run_kernel_test(
+            kernel_name, config, registry=_KERNELS, backend_config=backend_config
+        )
