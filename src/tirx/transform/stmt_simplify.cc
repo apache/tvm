@@ -135,6 +135,23 @@ UnchangedOr<ffi::Any> StmtSimplifier::Mutate(ffi::AnyView input, InplaceMode inp
 }
 
 UnchangedOr<Stmt> StmtSimplifier::Mutate_(const ForNode* op, InplaceMode inplace_mode) {
+  if (op->annotations.empty() && op->HasTrivialStep() &&
+      SideEffect(op->min) <= CallEffectKind::kPure &&
+      SideEffect(op->extent) <= CallEffectKind::kPure && analyzer_->CanProveEqual(op->extent, 1)) {
+    PrimExpr min = analyzer_->Simplify(prim::cast(op->loop_var.ty(), op->min));
+    analyzer_->Bind(op->loop_var, min);
+    // Substitute metadata too: normal simplification preserves tensor declarations and types.
+    auto substitute = [&](const Var& var,
+                          TVMFFIDefRegionKind kind) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+      if (kind == kTVMFFIDefRegionKindNone && var.same_as(op->loop_var)) return ffi::Any(min);
+      return ffi::Unchanged();
+    };
+    Stmt body =
+        ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(op->body, substitute).as_or_throw<Stmt>();
+    return constraint_scope_.WithNewScope([&]() -> UnchangedOr<Stmt> {
+      return this->Mutate(body, inplace_mode).ValueOrUnchanged(body);
+    });
+  }
   analyzer_->Bind(op->loop_var, Range::FromMinExtent(op->min, op->extent));
   With<sym::ConstraintContext> ctx1(analyzer_, op->loop_var >= op->min);
   With<sym::ConstraintContext> ctx2(analyzer_,

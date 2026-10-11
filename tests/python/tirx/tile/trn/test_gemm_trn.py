@@ -649,7 +649,7 @@ def test_gemm_guard2():
         A_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 4096), scope="trn.sbuf")])
         B_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 2048), scope="trn.sbuf")])
         C_psum = T.alloc_tensor(ty_args=[T.Tensor((2, 128, 512), scope="trn.psum")])
-        for j, i, k, lhs_b_loop, rhs_b_loop, reduction_b_loop in T.grid(4, 2, 2, 2, 1, 4):
+        for j, i, k, lhs_b_loop, reduction_b_loop in T.grid(4, 2, 2, 2, 4):
             T.nki.tensorized_instruction()
             for p_loop in T.serial(0, 128, annotations={"nki_dim":"P"}):
               for lhs_f_loop in T.serial(0, 128, annotations={"nki_dim":"lhs_F"}):

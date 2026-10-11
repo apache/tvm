@@ -84,11 +84,10 @@ def test_simple_activation_reduce():
         A = T.alloc_tensor(ty_args=[T.Tensor((128, 512), scope="trn.sbuf")])
         B = T.alloc_tensor(ty_args=[T.Tensor((128, 512), scope="trn.sbuf")])
         C = T.alloc_tensor(ty_args=[T.Tensor((128, 1), scope="trn.sbuf")])
-        for b_loop in range(1):
-            T.nki.tensorized_instruction()
-            for p_loop in T.serial(0, 128, annotations={"nki_dim":"P"}):
-                for f_loop in T.serial(0, 512, annotations={"nki_dim":"F"}):
-                    T.nki.activation_reduce(C[p_loop, 0], B[p_loop, f_loop], A[p_loop, f_loop], "sqrt", "add", bias=const_bias[p_loop, f_loop])  # noqa: E501
+        T.nki.tensorized_instruction()
+        for p_loop in T.serial(0, 128, annotations={"nki_dim":"P"}):
+            for f_loop in T.serial(0, 512, annotations={"nki_dim":"F"}):
+                T.nki.activation_reduce(C[p_loop, 0], B[p_loop, f_loop], A[p_loop, f_loop], "sqrt", "add", bias=const_bias[p_loop, f_loop])  # noqa: E501
             # fmt: on
     with target:
         mod = tvm.IRModule({"main": activation_reduce})
@@ -912,7 +911,7 @@ def test_unary_reduce_complex():
         rowsum_p = T.alloc_tensor(ty_args=[T.Tensor((128, 2), scope="trn.sbuf")])
         qk = T.alloc_tensor(ty_args=[T.Tensor((128, 16384), scope="trn.sbuf")])
         running_max = T.alloc_tensor(ty_args=[T.Tensor((128, 128), scope="trn.sbuf")])
-        for i, b_loop in T.grid(4, 1):
+        for i in range(4):
             T.nki.tensorized_instruction()
             for p_loop in T.serial(128, annotations={"nki_dim": "P"}):
                 for f_loop in T.serial(8192, annotations={"nki_dim": "F"}):
