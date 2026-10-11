@@ -22,9 +22,10 @@ import tvm_ffi
 import tvm
 from tvm.ir import Call, Op, const
 from tvm.script import tirx as T
+from tvm.testing import env
 from tvm.tirx.expr import Broadcast, CallEffectKind
 
-TARGET = tvm.target.Target("cuda")
+TARGET = tvm.target.Target({"kind": "cuda", "arch": env.cuda_arch() or "sm_90"})
 
 
 def _cuda_source(func) -> str:

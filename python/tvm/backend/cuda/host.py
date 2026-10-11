@@ -14,40 +14,26 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""CUDA host and device source assembly."""
+"""Export standalone tvm-ffi host C++ with independently compiled CUDA binaries."""
+
+import json
 
 from tvm_ffi import Module
 
+from tvm.backend.config import parse_backend_config
+
 
 def export_cuda_host(mod: Module) -> str:
-    """Return one CUDA C++ translation unit from a built CUDA-host module.
+    """Return C++ host source with embedded device binaries.
 
-    Build ``mod`` with a CUDA target whose host is ``"cuda_host"``. Its CUDA
-    device imports must retain their CUDA C++ source. Device definitions are
-    emitted before the host wrappers that launch them. This function only
-    reads the modules and returns source; compilation, loading and writing
-    files are left to the caller. Sources are concatenated without rewriting
-    declarations or deduplicating helpers, so the imports must be compatible
-    within one translation unit and provide the types needed by NVCC's host pass.
-    Generated host wrappers use tvm-ffi and CUDA libraries. TVM runtime workspace
-    allocation and other unsupported runtime services are rejected during codegen.
-    Tensor-map encoding additionally requires linking the CUDA driver library.
+    Build with a CUDA Target whose host is ``cuda_host``. Each device import
+    retains its own architecture and BackendConfig. This export preserves those
+    binary boundaries; compiling the returned host source does not invoke a
+    device compiler. Link the result with tvm-ffi, cudart and the CUDA driver.
+    The resulting library needs only those libraries at runtime.
 
-    Parameters
-    ----------
-    mod : tvm.runtime.Module
-        The built CUDA-host source module with its CUDA device imports.
-
-    Returns
-    -------
-    source : str
-        CUDA C++ source suitable for compilation with NVCC and tvm-ffi headers.
-
-    Raises
-    ------
-    ValueError
-        If the host or its imports are incompatible, or CUDA source is absent
-        (for example, after loading a device module saved as a binary).
+    Source-only fallback imports are compiled using their serialized settings.
+    Binary imports work after a save/load roundtrip, without original source.
     """
     if not isinstance(mod, Module):
         raise TypeError("export_cuda_host expects a runtime Module")
@@ -56,9 +42,8 @@ def export_cuda_host(mod: Module) -> str:
     host_source = mod.inspect_source()
     if not host_source:
         raise ValueError("CUDA-host module has no source")
-
-    sources = []
-    visited = set()
+    binaries = []
+    visited, symbols = set(), set()
 
     def collect(device_mod):
         if device_mod in visited:
@@ -66,13 +51,54 @@ def export_cuda_host(mod: Module) -> str:
         visited.add(device_mod)
         if device_mod.kind != "cuda":
             raise ValueError(f"Expected a CUDA device import, got {device_mod.kind!r}")
-        source = device_mod.inspect_source("cuda")
-        if not source:
-            raise ValueError("CUDA device import has no CUDA C++ source to bundle")
         for imported in device_mod.imports:
             collect(imported)
-        sources.append(source)
+        binary, fmt, names = device_mod["__tvm_cuda_binary"]()
+        if fmt == "cuda":
+            from .compiler import compile_source
+
+            config = device_mod.inspect_source("backend_config")
+            if not config:
+                config = "{}"
+            config = parse_backend_config(config)
+            arch = config.get("cuda", {}).get("arch")
+            target = {"kind": "cuda", "arch": arch} if arch is not None else None
+            result = compile_source(bytes(binary).decode(), config, target=target)
+            binary, fmt = result.binary, result.target_format
+        if fmt not in ("cubin", "fatbin", "ptx"):
+            raise ValueError(f"Cannot embed CUDA format {fmt!r}")
+        names = tuple(str(name) for name in names)
+        duplicate = symbols.intersection(names)
+        if duplicate:
+            raise ValueError(f"Duplicate CUDA kernel symbols: {sorted(duplicate)}")
+        symbols.update(names)
+        binaries.append((bytes(binary), names))
 
     for imported in mod.imports:
         collect(imported)
-    return "\n\n".join([*sources, host_source])
+    source = [
+        "#define TVM_FFI_CUBIN_LAUNCHER_USE_DRIVER_API 1",
+        "#include <tvm/ffi/extra/cuda/cubin_launcher.h>",
+        "#include <cstring>",
+    ]
+    for index, (binary, _) in enumerate(binaries):
+        # PTX must be NUL terminated; an extra trailing byte is harmless for ELF/fatbin.
+        values = [str(value) for value in binary] + ["0"]
+        lines = [",".join(values[start : start + 32]) for start in range(0, len(values), 32)]
+        source.append(
+            f"alignas(64) static const unsigned char tvm_cuda_binary_{index}[] = {{\n"
+            + ",\n".join(lines)
+            + "\n};"
+        )
+    source.append("static CUkernel tvm_cuda_host_get_kernel(const char* name) {")
+    for index, (_, names) in enumerate(binaries):
+        match = " || ".join(f"std::strcmp(name, {json.dumps(name)}) == 0" for name in names)
+        if match:
+            source.append(
+                f"  if ({match}) {{\n"
+                f"    static tvm::ffi::CubinModule module(tvm_cuda_binary_{index});\n"
+                "    return module.GetKernel(name).GetHandle();\n  }"
+            )
+    source.append('  TVM_FFI_THROW(ValueError) << "Unknown CUDA kernel: " << name;\n}')
+    source.append(host_source)
+    return "\n\n".join(source)

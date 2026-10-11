@@ -41,6 +41,13 @@ TARGET = tvm.target.Target({"kind": "cuda", "arch": "sm_100a"})
 ORACLE_PATH = Path(__file__).parent / "oracle" / "iket_official_cutlass_4_6_0_oracle.json"
 
 
+@pytest.fixture(autouse=True)
+def _source_codegen_without_cuda(monkeypatch):
+    # Metadata and source checks do not require an installed CUDA compiler.
+    if not env.has_cuda():
+        monkeypatch.setenv("TVM_COMPILE_FORCE_FALLBACK", "1")
+
+
 @T.function
 def serial_a(out: T.Tensor((32,), "int32")):
     T.device_entry(launch=T.cuda.LaunchConfig(grid=1, block=(32,)))
@@ -350,7 +357,10 @@ def _nvrtc_disassemble(source, tmp_path):
     from tvm.support.nvcc import compile_cuda
 
     tmp_path.mkdir(parents=True, exist_ok=True)
-    cubin = compile_cuda(source, target_format="cubin", arch="sm_100a", compiler="nvrtc")
+    cubin = compile_cuda(
+        source,
+        backend_config={"cuda": {"arch": "sm_100a", "compiler": "nvrtc", "target_format": "cubin"}},
+    )
     cubin_path = tmp_path / "kernel.cubin"
     cubin_path.write_bytes(cubin)
     return subprocess.run(

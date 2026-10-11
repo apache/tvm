@@ -1776,7 +1776,7 @@ void CodeGenCUDA::PrintVecElemLoadExpr(const PrimType& t, int i, const std::stri
 // CUDA codegen entry point.  Generates CUDA C++ source, optionally lets a
 // Python postproc hook rewrite it, and hands the source bytes off to the
 // fallback-aware module factory.  The factory may JIT to PTX/cubin via
-// `tvm_callback_cuda_compile` (CUDAModuleNode::JitCompileFromSource) when
+// `tvm_callback_cuda_compile` when
 // USE_CUDA=ON; on USE_CUDA=OFF builds (or when TVM_COMPILE_FORCE_FALLBACK is
 // set), it returns a `CUDAFallbackModuleNode` carrying the raw source for
 // later cross-compile.
@@ -1813,10 +1813,19 @@ ffi::Module BuildCUDA(IRModule mod, Target target) {
 
   // Hand off raw CUDA source to the fallback-aware factory.  When the real
   // CUDA runtime is registered (USE_CUDA=ON and not forced-fallback) the
-  // factory invokes JitCompileFromSource via tvm_callback_cuda_compile and
+  // factory invokes tvm_callback_cuda_compile and
   // builds a real CUDAModuleNode.  Otherwise it stores the source in a
   // CUDAFallbackModuleNode for later cross-compile.
   ffi::Map<ffi::String, ffi::String> source_map;
+  auto config = mod->GetAttr<ffi::String>("backend_config");
+  if (!config.has_value()) {
+    // Direct codegen callers still resolve an explicit target, without relying
+    // on a current Target scope or compiler environment variables.
+    auto resolve = ffi::Function::GetGlobalRequired("cuda.resolve_backend_config");
+    auto resolved = resolve("", "", target).cast<ffi::Array<ffi::Any>>();
+    config = resolved[1].cast<ffi::String>();
+  }
+  source_map.Set("backend_config", config.value());
   return ::tvm::target::CUDAModuleCreateWithFallback(
       ffi::Bytes(code.data(), code.size()), ffi::String("cuda"), ExtractFuncInfo(mod), source_map);
 }

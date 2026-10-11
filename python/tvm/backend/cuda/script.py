@@ -21,6 +21,7 @@ from __future__ import annotations
 from tvm import ir as _ir
 from tvm.backend.cuda import op as _cuda_op
 
+from .backend_config import BackendConfig as BackendConfig
 from .launch import AccessPolicyWindow as AccessPolicyWindow
 from .launch import KernelAttributes as KernelAttributes
 from .launch import LaunchCompletionEvent as LaunchCompletionEvent

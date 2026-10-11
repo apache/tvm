@@ -41,7 +41,6 @@ def tirx_pipeline(*, prepare_only=False):
             tirx.transform.StmtSimplify(),
             tirx.transform.LowerTIRxOpaque(),
             tirx.transform.FlattenBuffer(),
-            tirx.transform.BF16ComputeLegalize(),
             tirx.transform.NarrowDataType(32),
             tirx.transform.VectorizeLoop(not bool(config.get("tirx.disable_vectorize", False))),
             tirx.transform.UnrollLoop(),
@@ -51,7 +50,6 @@ def tirx_pipeline(*, prepare_only=False):
             passes.append(tirx.transform.CommonSubexprElim())
         passes.extend(
             [
-                tirx.transform.FP8ComputeLegalize(),
                 tirx.transform.VerifyMemory(),
                 tirx.transform.LowerThreadAllreduce(),
             ]
@@ -69,6 +67,9 @@ def finalize_tir_pipeline():
             tirx.transform.AnnotateEntryFunc(),
             tirx.transform.SplitHostDevice(),
             cuda_transforms.LowerIket(),
+            cuda_transforms.SpecializeDeviceHelpers(),
+            tirx.transform.BF16ComputeLegalize(),
+            tirx.transform.FP8ComputeLegalize(),
             tirx.transform.MakePackedAPI(),
             tirx.transform.FP8StorageLegalize(),
             tirx.transform.BF16StorageLegalize(),

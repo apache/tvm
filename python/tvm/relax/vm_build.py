@@ -103,6 +103,7 @@ def _vmlink(
     params: dict[str, list] | None = None,
     *,
     system_lib: bool | None = None,
+    backend_config=None,
 ):
     """
     Internal codegen function to make executable.
@@ -146,7 +147,9 @@ def _vmlink(
     tir_ext_libs = []
     if tir_mod is not None and len(tir_mod.get_global_vars()) > 0:
         tir_mod = _auto_attach_system_lib_prefix(tir_mod, target, system_lib)
-        lib = tvm.tirx.build(tir_mod, target=target, pipeline=tir_pipeline)
+        lib = tvm.tirx.build(
+            tir_mod, target=target, pipeline=tir_pipeline, backend_config=backend_config
+        )
     for ext_mod in ext_libs:
         if _is_device_module(ext_mod):
             tir_ext_libs.append(ext_mod)
@@ -169,6 +172,7 @@ def build(
     tir_pipeline: None | str | tvm.transform.Pass = "default",
     *,
     system_lib: bool | None = None,
+    backend_config=None,
 ) -> Executable:
     """
     Build an IRModule to VM executable.
@@ -202,6 +206,9 @@ def build(
         auto registers generated functions to the system.
         By default auto detects based on the target.
 
+    backend_config : Optional[dict[str, dict]]
+        CUDA compiler defaults forwarded to the generated TIRx functions.
+
     Returns
     -------
     ex: tvm.relax.Executable
@@ -229,6 +236,10 @@ def build(
         constants = attrs.get("const_name_to_constant", {})
         return ext_libs, constants
 
+    from tvm.backend.config import copy_backend_config, prepare_target
+
+    backend_config = copy_backend_config(backend_config)
+    target = prepare_target(target, backend_config, mod)
     if isinstance(target, str):
         target = tvm.target.Target(target)
     if not params:
@@ -269,6 +280,7 @@ def build(
         ext_libs=ext_libs,
         params=params,
         system_lib=system_lib,
+        backend_config=backend_config,
     )
 
 

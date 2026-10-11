@@ -23,6 +23,7 @@ from tvm_ffi.libinfo import load_lib_ctypes
 
 from tvm.base import _LOADED_LIBS
 
+from .backend_config import BackendConfig
 from .host import export_cuda_host
 
 _LAZY_SUBMODULES = {
@@ -115,6 +116,7 @@ def __getattr__(name: str):
 
 
 __all__ = [
+    "BackendConfig",
     "codegen",
     "cpp",
     "export_cuda_host",

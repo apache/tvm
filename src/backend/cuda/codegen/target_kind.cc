@@ -77,11 +77,11 @@ ffi::Map<ffi::String, ffi::Any> UpdateCUDAAttrs(ffi::Map<ffi::String, ffi::Any> 
     int archInt;
     ffi::Any version;
     if (!DetectDeviceFlag({kDLCUDA, 0}, runtime::kComputeVersion, &version)) {
-      LOG(WARNING) << "Unable to detect CUDA version, default to \"-arch=sm_50\" instead";
-      archInt = 50;
-    } else {
-      archInt = std::stod(version.cast<std::string>()) * 10 + 0.1;
+      // Generic targets are also used for backend discovery and IR construction.
+      // Require an explicit architecture when resolving compilation, not here.
+      return target;
     }
+    archInt = std::stod(version.cast<std::string>()) * 10 + 0.1;
     if (archInt >= 90) {
       target.Set("arch", ffi::String("sm_") + std::to_string(archInt) + "a");
     } else {
@@ -126,6 +126,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
   TargetKindDef("cuda")
       .set_default_device_type(kDLCUDA)
+      .def_option<ffi::Map<ffi::String, ffi::Any>>("backend_config")
       .def_option<ffi::String>("mcpu")
       .def_option<ffi::String>("arch")
       .def_option<int64_t>("max_shared_memory_per_block")

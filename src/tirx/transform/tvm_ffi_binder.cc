@@ -588,7 +588,7 @@ void TVMFFIABIBuilder::DecodeParam(int param_index) {
   } else if (dtype.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) {
     arg_value = DecodeParamInt(param_index, type_index.as_or_throw<PrimExpr>(), dtype);
   } else {
-    TVM_FFI_ICHECK_EQ(dtype.code(), DLDataTypeCode::kDLFloat);
+    TVM_FFI_ICHECK(dtype.MatchesCode(DLDataTypeCode::kDLFloat, DLDataTypeCode::kDLBfloat));
     arg_value = DecodeParamFloat(param_index, type_index.as_or_throw<PrimExpr>(), dtype);
   }
 

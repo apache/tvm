@@ -165,6 +165,7 @@ def _compile(kernel, host, tmp_path):
         name="launch_" + kernel.attrs["global_symbol"],
         cuda_sources=source,
         extra_cuda_cflags=[f"-arch={arch}"],
+        extra_ldflags=["-lcuda"],
         build_directory=str(tmp_path),
         backend="cuda",
     )
@@ -325,4 +326,4 @@ def test_static_shared_memory_override_cannot_shrink_allocation():
         scratch[0] = T.cuda.thread_idx("x")
 
     with pytest.raises(ValueError, match="smaller than"):
-        tvm.compile(kernel, target="cuda")
+        tvm.compile(kernel, backend_config={"cuda": {"arch": "sm_80"}})
