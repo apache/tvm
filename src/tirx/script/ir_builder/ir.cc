@@ -29,7 +29,6 @@
 #include <tvm/sym/analyzer.h>
 #include <tvm/tirx/exec_scope.h>
 #include <tvm/tirx/layout.h>
-#include <tvm/tirx/op/memory.h>
 #include <tvm/tirx/script/ir_builder/ir.h>
 #include <tvm/tirx/stmt.h>
 
@@ -64,14 +63,6 @@ tvm::tirx::TensorType TensorTypeDecl(ffi::Array<PrimExpr> shape, PrimType dtype,
 }
 
 }  // namespace
-
-TensorVar TensorDecl(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String buffer_name,
-                     ffi::Optional<Expr> data, ffi::Optional<ffi::Array<PrimExpr>> strides,
-                     ffi::Optional<PrimExpr> elem_offset, ffi::String storage_scope, int align,
-                     int offset_factor, ffi::Optional<Layout> layout) {
-  return TensorVar(buffer_name, TensorTypeDecl(shape, dtype, data, strides, elem_offset,
-                                               storage_scope, align, offset_factor, layout));
-}
 
 FunctionFrame Function(bool is_private, bool persistent) {
   ffi::ObjectPtr<FunctionFrameNode> n = ffi::make_object<FunctionFrameNode>();
@@ -284,67 +275,6 @@ tvm::Stmt TensorStore(Expr dest, ffi::Array<PrimExpr> indices, PrimExpr value) {
   return store;
 }
 
-TensorVar DeclTensor(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String buffer_name,
-                     ffi::Optional<Expr> data, ffi::Optional<ffi::Array<PrimExpr>> strides,
-                     ffi::Optional<PrimExpr> elem_offset, ffi::String storage_scope, int align,
-                     int offset_factor, ffi::Optional<Layout> layout,
-                     ffi::Optional<PrimExpr> allocated_addr) {
-  std::string scope = static_cast<std::string>(storage_scope);
-  if (scope.empty()) {
-    scope = "global";
-  }
-
-  TensorVar buffer = TensorDecl(shape, dtype, buffer_name, data, strides, elem_offset,
-                                storage_scope, align, offset_factor, layout);
-  if (scope == "tmem" && allocated_addr.has_value()) {
-    TVM_FFI_CHECK(!data.has_value(), ValueError)
-        << "A TMEM declaration cannot have both data and an address";
-    Location loc = IRBuilder::Current()->GetCurrentLoc();
-    AddToParent(tvm::Bind(buffer.var(),
-                          Call(std::nullopt, Op::Get("tirx.cuda.decl_tmem"),
-                               {allocated_addr.value()}, {}, {buffer.type()}, loc),
-                          loc));
-    return buffer;
-  }
-  TVM_FFI_CHECK(!allocated_addr.has_value() || !data.has_value(), ValueError)
-      << "Placement addresses apply to allocations, not pointer-backed declarations";
-  TVM_FFI_CHECK(!allocated_addr.has_value() || (scope != "global" && scope != "shared" &&
-                                                scope != "shared.dyn" && scope != "local"),
-                ValueError)
-      << "This storage scope does not support allocation placement";
-  Location loc = IRBuilder::Current()->GetCurrentLoc();
-  if (data.has_value()) {
-    AddToParent(tvm::Bind(
-        buffer.var(),
-        Call(buffer.type(), tvm::tirx::decl_tensor_op(), {data.value()}, {}, {buffer.type()}, loc),
-        loc));
-  } else {
-    // Without a backing pointer, declare and allocate the tensor together.
-    ffi::Array<Expr> args;
-    if (allocated_addr.has_value()) args.push_back(tvm::Tuple({allocated_addr.value()}));
-    AddToParent(tvm::Bind(
-        buffer.var(),
-        Call(buffer.type(), tvm::tirx::alloc_tensor_op(), args, DictAttrs(), {buffer.type()}, loc),
-        loc));
-  }
-  return buffer;
-}
-
-TensorVar AllocTensor(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String storage_scope,
-                      ffi::Optional<ffi::Map<ffi::String, ffi::Any>> annotations) {
-  TensorVar buffer = TensorDecl(shape, dtype, "", std::nullopt, std::nullopt, std::nullopt,
-                                storage_scope, 0, 0, std::nullopt);
-  ffi::Array<Expr> args;
-  auto attrs = annotations.value_or(ffi::Map<ffi::String, ffi::Any>());
-  if (auto placement = attrs.Get("buffer_allocated_addr")) {
-    args.push_back(tvm::Tuple(placement.value().as_or_throw<ffi::Array<PrimExpr>>()));
-    attrs.erase("buffer_allocated_addr");
-  }
-  AddToParent(tvm::Bind(buffer.var(), Call(buffer.type(), tvm::tirx::alloc_tensor_op(), args,
-                                           DictAttrs(std::move(attrs)), {buffer.type()})));
-  return buffer;
-}
-
 Var Ptr(PrimType dtype, ffi::String storage_scope = "global") {
   PtrType type_annotation(dtype, storage_scope);
   return tvm::Var("", type_annotation);
@@ -405,13 +335,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("script.ir_builder.tirx.FuncName", FuncName)
       .def("script.ir_builder.tirx.FuncAttrs", FuncAttrs)
       .def("script.ir_builder.tirx.FuncRet", FuncRet)
-      .def("script.ir_builder.tirx.AllocTensor", AllocTensor)
       .def("script.ir_builder.tirx.Serial", Serial)
       .def("script.ir_builder.tirx.Parallel", Parallel)
       .def("script.ir_builder.tirx.Vectorized", Vectorized)
       .def("script.ir_builder.tirx.Unroll", Unroll)
       .def("script.ir_builder.tirx.ThreadBinding", ThreadBinding)
-      .def("script.ir_builder.tirx.DeclTensor", DeclTensor)
       .def("script.ir_builder.tirx.TensorStore", TensorStore)
       .def("script.ir_builder.tirx.Ptr", Ptr);
 }
