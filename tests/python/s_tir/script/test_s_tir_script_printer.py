@@ -1161,11 +1161,9 @@ def opt_conv_tensorcore_mod_host():
         assert dev_id == T.abi_field_get(arg2, 0, 9, ty="int32"), (
             "Argument arg2.device_id has an unsatisfied constraint"
         )
-        T.evaluate(T.abi_field_set(stack_value, 0, 12, T.cast(2, "int64")))
-        stack_tcode[0] = 0
-        T.evaluate(T.abi_field_set(stack_value, 1, 12, T.cast(dev_id, "int64")))
-        stack_tcode[1] = 0
-        T.evaluate(T.call_packed_lowered("__tvm_set_device", stack_value, 0, 2))
+        set_device_status = T.call_extern("TVMBackendSetDevice", 2, dev_id, ty="int32")
+        if set_device_status != 0:
+            T.evaluate(T.throw_last_error())
         with T.compute_scope("default_function_compute_"):
             T.evaluate(T.abi_field_set(stack_value, 0, 12, A))
             stack_tcode[0] = 3
