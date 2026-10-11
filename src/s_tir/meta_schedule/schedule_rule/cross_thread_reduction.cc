@@ -25,9 +25,9 @@ namespace tvm {
 namespace s_tir {
 namespace meta_schedule {
 
-class CrossThreadReductionNode : public ScheduleRuleNode {
+class CrossThreadReductionObj : public ScheduleRuleObj {
  public:
-  // Inherited from ScheduleRuleNode
+  // Inherited from ScheduleRuleObj
   void InitializeWithTuneContext(const TuneContext& context) final {
     TVM_FFI_ICHECK(context->target.has_value());
     Target target = context->target.value();
@@ -50,7 +50,7 @@ class CrossThreadReductionNode : public ScheduleRuleNode {
     warp_size = opt_warp_size.value_or(-1);
   }
 
-  // Inherited from ScheduleRuleNode
+  // Inherited from ScheduleRuleObj
   ffi::Array<s_tir::Schedule> Apply(const s_tir::Schedule& sch,
                                     const s_tir::SBlockRV& block_rv) final {
     // Step 0. Check the conditions of this rule.
@@ -120,9 +120,9 @@ class CrossThreadReductionNode : public ScheduleRuleNode {
     return {tmp_sch, sch};
   }
 
-  // Inherited from ScheduleRuleNode
+  // Inherited from ScheduleRuleObj
   ScheduleRule Clone() const final {
-    ffi::ObjectPtr<CrossThreadReductionNode> n = ffi::make_object<CrossThreadReductionNode>(*this);
+    ffi::ObjectPtr<CrossThreadReductionObj> n = ffi::make_object<CrossThreadReductionObj>(*this);
     return ScheduleRule(ffi::UnsafeInit{}, n);
   }
 
@@ -283,25 +283,25 @@ class CrossThreadReductionNode : public ScheduleRuleNode {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<CrossThreadReductionNode>()
-        .def_ro("max_threads_per_block", &CrossThreadReductionNode::max_threads_per_block)
-        .def_ro("warp_size", &CrossThreadReductionNode::warp_size)
-        .def_ro("thread_extents", &CrossThreadReductionNode::thread_extents);
+    refl::ObjectDef<CrossThreadReductionObj>()
+        .def_ro("max_threads_per_block", &CrossThreadReductionObj::max_threads_per_block)
+        .def_ro("warp_size", &CrossThreadReductionObj::warp_size)
+        .def_ro("thread_extents", &CrossThreadReductionObj::thread_extents);
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.meta_schedule.CrossThreadReduction",
-                                    CrossThreadReductionNode, ScheduleRuleNode);
+                                    CrossThreadReductionObj, ScheduleRuleObj);
 };
 
 ScheduleRule ScheduleRule::CrossThreadReduction(ffi::Array<int64_t> thread_extents) {
   for (int64_t extent : thread_extents) {
     TVM_FFI_CHECK(extent > 0, ValueError) << "The candidates of thread extent must be positive";
   }
-  ffi::ObjectPtr<CrossThreadReductionNode> n = ffi::make_object<CrossThreadReductionNode>();
+  ffi::ObjectPtr<CrossThreadReductionObj> n = ffi::make_object<CrossThreadReductionObj>();
   n->thread_extents = std::move(thread_extents);
   return ScheduleRule(ffi::UnsafeInit{}, n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK() { CrossThreadReductionNode::RegisterReflection(); }
+TVM_FFI_STATIC_INIT_BLOCK() { CrossThreadReductionObj::RegisterReflection(); }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;

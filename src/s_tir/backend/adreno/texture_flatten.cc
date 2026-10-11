@@ -47,12 +47,13 @@ using runtime::ApplyTexture2DFlattening;
 using runtime::DefaultTextureLayoutSeparator;
 using runtime::IsTextureStorage;
 
-class TextureLoweringBase : public StmtExprMutator {
+class TextureLoweringBaseObj : public StmtExprMutatorObj {
  public:
-  using StmtExprMutator::Mutate;
-  using StmtExprMutator::Mutate_;
+  using StmtExprMutatorObj::Mutate;
+  using StmtExprMutatorObj::Mutate_;
 
-  explicit TextureLoweringBase(const ffi::Array<Var>& params, IRVisitorWithAnalyzer* bound_analyzer)
+  explicit TextureLoweringBaseObj(const ffi::Array<Var>& params,
+                                  IRVisitorWithAnalyzerObj* bound_analyzer)
       : bound_analyzer_{bound_analyzer} {
     for (const Var& param : params) {
       if (auto tensor = param.as<TensorVar>()) {
@@ -81,21 +82,23 @@ class TextureLoweringBase : public StmtExprMutator {
   // Set of all external input and output tensors
   std::unordered_set<TensorVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> extern_tensor_;
   // Bound analzer
-  IRVisitorWithAnalyzer* bound_analyzer_;
+  IRVisitorWithAnalyzerObj* bound_analyzer_;
 };
 
 // Lower Nd storage access to 2d texture access using lowering convention
 // specified by the tensors storage scope.
-class TextureFlattener : public TextureLoweringBase {
+class TextureFlattenerObj : public TextureLoweringBaseObj {
  public:
-  using TextureLoweringBase::Mutate;
-  using TextureLoweringBase::Mutate_;
+  using TextureLoweringBaseObj::Mutate;
+  using TextureLoweringBaseObj::Mutate_;
 
-  explicit TextureFlattener(const ffi::Array<Var>& params, IRVisitorWithAnalyzer* bound_analyzer)
-      : TextureLoweringBase(params, bound_analyzer) {}
+  explicit TextureFlattenerObj(const ffi::Array<Var>& params,
+                               IRVisitorWithAnalyzerObj* bound_analyzer)
+      : TextureLoweringBaseObj(params, bound_analyzer) {}
 
   UnchangedOr<Stmt> Mutate_(const TensorStoreNode* op, InplaceMode inplace_mode) final {
-    Stmt stmt = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
+    Stmt stmt =
+        StmtExprMutatorObj::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     op = stmt.as<TensorStoreNode>();
     std::string storage_scope = GetStorageScope(op->dest.as_or_throw<TensorVar>());
     // Lower to two dimensional access
@@ -110,7 +113,7 @@ class TextureFlattener : public TextureLoweringBase {
 
   UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) final {
     PrimExpr expr =
-        StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<PrimExpr>(op));
+        StmtExprMutatorObj::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<PrimExpr>(op));
     op = expr.as<TensorLoadNode>();
     // Lower to two dimensional access
     std::string storage_scope = GetStorageScope(op->source.as_or_throw<tvm::tirx::TensorVar>());
@@ -168,9 +171,9 @@ class TextureFlattener : public TextureLoweringBase {
 
 Function TextureFlattenHandler(Function func) {
   auto fptr = func.CopyOnWrite();
-  auto bound_analyzer = ffi::make_object<IRVisitorWithAnalyzer>();
+  auto bound_analyzer = ffi::make_object<IRVisitorWithAnalyzerObj>();
   bound_analyzer->Visit(fptr->body);
-  fptr->body = ffi::make_object<TextureFlattener>(fptr->params, bound_analyzer.get())
+  fptr->body = ffi::make_object<TextureFlattenerObj>(fptr->params, bound_analyzer.get())
                    ->Mutate(fptr->body, InplaceMode::kAllow)
                    .ValueOrUnchanged(std::move(fptr->body));
   return func;

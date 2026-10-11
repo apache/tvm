@@ -33,15 +33,15 @@
 namespace tvm {
 namespace tirx {
 
-void CallFFIKernelAttr::RegisterReflection() {
+void CallFFIKernelAttrNode::RegisterReflection() {
   namespace refl = ffi::reflection;
-  refl::ObjectDef<CallFFIKernelAttr>()
-      .def_ro("launch_params", &CallFFIKernelAttr::launch_params,
+  refl::ObjectDef<CallFFIKernelAttrNode>()
+      .def_ro("launch_params", &CallFFIKernelAttrNode::launch_params,
               refl::DefaultValue(ffi::Array<ffi::String>()))
-      .def_ro("launch_fields", &CallFFIKernelAttr::launch_fields,
+      .def_ro("launch_fields", &CallFFIKernelAttrNode::launch_fields,
               refl::DefaultValue(ffi::Array<ffi::String>()))
-      .def_ro("num_kernel_args", &CallFFIKernelAttr::num_kernel_args, refl::DefaultValue(-1))
-      .def_ro("kernel_attrs", &CallFFIKernelAttr::kernel_attrs,
+      .def_ro("num_kernel_args", &CallFFIKernelAttrNode::num_kernel_args, refl::DefaultValue(-1))
+      .def_ro("kernel_attrs", &CallFFIKernelAttrNode::kernel_attrs,
               refl::DefaultValue(ffi::Map<ffi::String, int64_t>()));
 }
 
@@ -249,12 +249,12 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  CallFFIKernelAttr::RegisterReflection();
+  CallFFIKernelAttrNode::RegisterReflection();
   ffi::reflection::GlobalDef().def(
       "tirx.CallFFIKernelAttr",
       [](ffi::Array<ffi::String> launch_params, ffi::Array<ffi::String> launch_fields,
          int64_t num_kernel_args, ffi::Map<ffi::String, int64_t> kernel_attrs) {
-        auto attrs = ffi::make_object<CallFFIKernelAttr>();
+        auto attrs = ffi::make_object<CallFFIKernelAttrNode>();
         attrs->launch_params = std::move(launch_params);
         attrs->launch_fields = std::move(launch_fields);
         attrs->num_kernel_args = num_kernel_args;
@@ -271,7 +271,7 @@ const Op& call_ffi_kernel_op() {
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("tirx.call_ffi_kernel")
       .signature(sig::arg("kernel", "The kernel."), sig::var_args("args"),
-                 sig::call_attrs<CallFFIKernelAttr>())
+                 sig::call_attrs<CallFFIKernelAttrNode>())
       .set_attr<TFixedReturnType>(tvm::op_attr::kFixedReturnType, PrimType::Int(32))
       .set_attr<TScriptPrinterName>(tvm::script::printer::op_attr::kScriptPrinterName,
                                     ffi::String("tirx.call_ffi_kernel"))

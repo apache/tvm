@@ -19,7 +19,7 @@
 
 /*!
  * \file hexagon_fallback_module.cc
- * \brief HexagonFallbackModuleNode — codegen-time placeholder used when the
+ * \brief HexagonFallbackModuleObj — codegen-time placeholder used when the
  *        Hexagon runtime is not linked.  Mirrors `HexagonModuleNode`'s
  *        save/load format byte-for-byte; see one-way comment in
  *        `SaveToBytes` below.  Always compiled (independent of USE_HEXAGON);
@@ -38,11 +38,11 @@
 namespace tvm {
 namespace target {
 
-class HexagonFallbackModuleNode : public ffi::ModuleObj {
+class HexagonFallbackModuleObj : public ffi::ModuleObj {
  public:
-  HexagonFallbackModuleNode(ffi::Bytes code, ffi::String fmt,
-                            ffi::Map<ffi::String, runtime::FunctionInfo> fmap,
-                            HexagonSourceMap source)
+  HexagonFallbackModuleObj(ffi::Bytes code, ffi::String fmt,
+                           ffi::Map<ffi::String, runtime::FunctionInfo> fmap,
+                           HexagonSourceMap source)
       : code_(std::move(code)),
         fmt_(std::move(fmt)),
         fmap_(std::move(fmap)),
@@ -121,8 +121,8 @@ class HexagonFallbackModuleNode : public ffi::ModuleObj {
 ffi::Module HexagonFallbackModuleCreate(ffi::Bytes code, ffi::String fmt,
                                         ffi::Map<ffi::String, runtime::FunctionInfo> fmap,
                                         HexagonSourceMap source) {
-  auto n = ffi::make_object<HexagonFallbackModuleNode>(std::move(code), std::move(fmt),
-                                                       std::move(fmap), std::move(source));
+  auto n = ffi::make_object<HexagonFallbackModuleObj>(std::move(code), std::move(fmt),
+                                                      std::move(fmap), std::move(source));
   return ffi::Module(n);
 }
 

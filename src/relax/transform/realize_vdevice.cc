@@ -53,7 +53,7 @@ class VDeviceLookup {
   }
 
   VDevice operator()(ffi::Optional<Attrs> hint_on_device_attrs) {
-    auto attrs = hint_on_device_attrs.as<HintOnDeviceAttrs>();
+    auto attrs = hint_on_device_attrs.as<HintOnDeviceAttrsNode>();
     TVM_FFI_ICHECK(attrs);
     int32_t device_type = attrs->device_type;
     int32_t device_id = attrs->index;
@@ -395,7 +395,8 @@ class VDeviceTypeUpdater : ExprMutator {
     if (input_vdevice.has_value() && input_vdevice.value() == output_vdevice) {
       return arg;
     } else {
-      ffi::ObjectPtr<ToVDeviceAttrs> attrs = ffi::make_object<ToVDeviceAttrs>(output_vdevice);
+      ffi::ObjectPtr<ToVDeviceAttrsNode> attrs =
+          ffi::make_object<ToVDeviceAttrsNode>(output_vdevice);
       return Call(Type::Missing(), to_vdevice_op_, {arg}, Attrs(attrs), {});
     }
   }

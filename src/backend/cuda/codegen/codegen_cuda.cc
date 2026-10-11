@@ -197,11 +197,11 @@ void CodeGenCUDA::PrintFunctionPrefix(const Function& func, std::ostream& os) {
   }
 }
 
-class ThreadIdxExtractor : public tirx::StmtExprVisitor {
+class ThreadIdxExtractorObj : public tirx::StmtExprVisitorObj {
  public:
   ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
     if (value.as<tvm::ExprNode>()) return std::nullopt;
-    return StmtExprVisitor::Visit(value);
+    return StmtExprVisitorObj::Visit(value);
   }
 
  private:
@@ -229,7 +229,7 @@ class ThreadIdxExtractor : public tirx::StmtExprVisitor {
       } else if (tag == "clusterCtaIdx.z") {
         clusterCtaIdx_z_ext = extent;
       }
-      return StmtExprVisitor::Visit_(op);
+      return StmtExprVisitorObj::Visit_(op);
     } else {
       TVM_FFI_THROW(ValueError) << "Unsupported region op " << op->op;
     }
@@ -257,7 +257,7 @@ void CodeGenCUDA::InitFuncState(const Function& func) {
       func->GetAttr<CallingConv>(tvm::attr::kCallingConv, CallingConv::kDefault).value() ==
       CallingConv::kDeviceKernelLaunch;
   // Thread metadata is also needed while emitting cluster index accesses.
-  auto extractor = ffi::make_object<ThreadIdxExtractor>();
+  auto extractor = ffi::make_object<ThreadIdxExtractorObj>();
   extractor->Visit(func->body);
   launch_dimensions_ = {extractor->threadIdx_x_ext,     extractor->threadIdx_y_ext,
                         extractor->threadIdx_z_ext,     extractor->clusterCtaIdx_x_ext,
@@ -1162,7 +1162,7 @@ void CodeGenCUDA::Dispatch_(const CallNode* op, std::ostream& os) {
     // "//" and "%" in the index map are translated to FloorDiv/Mod, but the plain Div/Mod are fine.
     // FloorDiv/Mod are supposed to be lowered before they reach codegen, so manually replace them
     // to the plain ones here.
-    class LowerFloorDivMod : public tirx::StmtExprMutator {
+    class LowerFloorDivModObj : public tirx::StmtExprMutatorObj {
      public:
       UnchangedOr<PrimExpr> Mutate_(const prim::FloorDivNode* op, InplaceMode inplace_mode) {
         return prim::Div(this->Mutate(op->a, inplace_mode).ValueOrUnchanged(op->a),
@@ -1176,7 +1176,7 @@ void CodeGenCUDA::Dispatch_(const CallNode* op, std::ostream& os) {
 
     PrimExpr dst_expr = indices_16x16[0] * stride + indices_16x16[1];
     auto dst_ind =
-        ffi::make_object<LowerFloorDivMod>()->Mutate(dst_expr).ValueOrUnchanged(dst_expr);
+        ffi::make_object<LowerFloorDivModObj>()->Mutate(dst_expr).ValueOrUnchanged(dst_expr);
 
     var_idmap_[inverse_index_map->initial_indices[0].get()] = "threadIdx.x";
     var_idmap_[inverse_index_map->initial_indices[1].get()] = "local_id";

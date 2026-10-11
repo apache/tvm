@@ -29,11 +29,11 @@ namespace s_tir {
 using namespace tvm::tirx;
 
 /*! \brief Check if an IRModule has any async strided mem copies. */
-struct AsyncStridedMemCopyFinder : public StmtExprVisitor {
-  using StmtExprVisitor::Visit_;
+struct AsyncStridedMemCopyFinderObj : public StmtExprVisitorObj {
+  using StmtExprVisitorObj::Visit_;
 
   static bool Find(const IRModule& mod) {
-    auto finder = ffi::make_object<AsyncStridedMemCopyFinder>();
+    auto finder = ffi::make_object<AsyncStridedMemCopyFinderObj>();
     for (const auto& kv : mod->functions) {
       if (const auto* function = kv.second.as<FunctionNode>()) {
         finder->Visit(function->body);
@@ -49,7 +49,7 @@ struct AsyncStridedMemCopyFinder : public StmtExprVisitor {
   ffi::Optional<VisitInterrupt> Visit_(const ForNode* loop) final {
     if (!found_) {
       input_iters.Set(loop->loop_var, Range(loop->min, loop->extent));
-      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(loop));
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitorObj::Visit_(loop));
     }
     return std::nullopt;
   }
@@ -57,7 +57,7 @@ struct AsyncStridedMemCopyFinder : public StmtExprVisitor {
   ffi::Optional<VisitInterrupt> Visit_(const RegionStmtNode* op) final {
     bool previous = in_async_copy_;
     in_async_copy_ |= op->op.same_as(s_tir::async_copy_scope());
-    auto result = StmtExprVisitor::Visit_(op);
+    auto result = StmtExprVisitorObj::Visit_(op);
     in_async_copy_ = previous;
     return result;
   }
@@ -88,15 +88,15 @@ namespace s_tir {
 namespace meta_schedule {
 
 /*! \brief Check if the IRModule has any loop with non-constant extent. */
-class DisallowAsyncStridedMemCopyNode : public PostprocNode {
+class DisallowAsyncStridedMemCopyObj : public PostprocObj {
  public:
-  // Inherited from PostprocNode
+  // Inherited from PostprocObj
   void InitializeWithTuneContext(const TuneContext& context) final {
     /* Null check */
     TVM_FFI_ICHECK(context->target) << "Context must contain a target";
     this->target = context->target.value();
   }
-  // Inherited from PostprocNode
+  // Inherited from PostprocObj
   bool Apply(const s_tir::Schedule& sch) final {
     IRModule mod = sch->mod();
     for (const auto& kv : mod->functions) {
@@ -130,41 +130,41 @@ class DisallowAsyncStridedMemCopyNode : public PostprocNode {
         } catch (const std::runtime_error& e) {
           return false;
         }
-        if (s_tir::AsyncStridedMemCopyFinder::Find(lowered)) {
+        if (s_tir::AsyncStridedMemCopyFinderObj::Find(lowered)) {
           return false;
         }
       }
     }
     return true;
   }
-  // Inherited from PostprocNode
+  // Inherited from PostprocObj
   Postproc Clone() const {
-    ffi::ObjectPtr<DisallowAsyncStridedMemCopyNode> n =
-        ffi::make_object<DisallowAsyncStridedMemCopyNode>(*this);
+    ffi::ObjectPtr<DisallowAsyncStridedMemCopyObj> n =
+        ffi::make_object<DisallowAsyncStridedMemCopyObj>(*this);
     return Postproc(ffi::UnsafeInit{}, n);
   }
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<DisallowAsyncStridedMemCopyNode>();
+    refl::ObjectDef<DisallowAsyncStridedMemCopyObj>();
   }
 
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.meta_schedule.DisallowAsyncStridedMemCopy",
-                                    DisallowAsyncStridedMemCopyNode, PostprocNode);
+                                    DisallowAsyncStridedMemCopyObj, PostprocObj);
 
  private:
   ffi::Optional<tvm::Target> target;
 };
 
 Postproc Postproc::DisallowAsyncStridedMemCopy() {
-  ffi::ObjectPtr<DisallowAsyncStridedMemCopyNode> n =
-      ffi::make_object<DisallowAsyncStridedMemCopyNode>();
+  ffi::ObjectPtr<DisallowAsyncStridedMemCopyObj> n =
+      ffi::make_object<DisallowAsyncStridedMemCopyObj>();
   return Postproc(ffi::UnsafeInit{}, n);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  DisallowAsyncStridedMemCopyNode::RegisterReflection();
+  DisallowAsyncStridedMemCopyObj::RegisterReflection();
   refl::GlobalDef().def("s_tir.meta_schedule.PostprocDisallowAsyncStridedMemCopy",
                         Postproc::DisallowAsyncStridedMemCopy);
 }

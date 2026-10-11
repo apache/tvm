@@ -42,183 +42,188 @@
 namespace tvm {
 namespace relax {
 
-void ConcatAttrs::RegisterReflection() {
+void ConcatAttrsNode::RegisterReflection() {
   namespace refl = tvm::ffi::reflection;
-  refl::ObjectDef<ConcatAttrs>().def_ro("axis", &ConcatAttrs::axis,
-                                        "The axis at which the input arrays are concatenated."
-                                        "Should lie in range `[-ndim, ndim)`.",
-                                        refl::DefaultValue(ffi::Optional<int64_t>{0}));
+  refl::ObjectDef<ConcatAttrsNode>().def_ro("axis", &ConcatAttrsNode::axis,
+                                            "The axis at which the input arrays are concatenated."
+                                            "Should lie in range `[-ndim, ndim)`.",
+                                            refl::DefaultValue(ffi::Optional<int64_t>{0}));
 }
 
-void ExpandDimsAttrs::RegisterReflection() {
+void ExpandDimsAttrsNode::RegisterReflection() {
   namespace refl = tvm::ffi::reflection;
-  refl::ObjectDef<ExpandDimsAttrs>().def_ro(
-      "axis", &ExpandDimsAttrs::axis,
+  refl::ObjectDef<ExpandDimsAttrsNode>().def_ro(
+      "axis", &ExpandDimsAttrsNode::axis,
       "The axes at which the input array are expanded. "
       "All values are required to lie in range `[-data.ndim - 1, data.ndim]`, "
       "with the convention of negative indexing.");
 }
 
-void LayoutTransformAttrs::RegisterReflection() {
+void LayoutTransformAttrsNode::RegisterReflection() {
   namespace refl = tvm::ffi::reflection;
-  refl::ObjectDef<LayoutTransformAttrs>()
-      .def_ro("index_map", &LayoutTransformAttrs::index_map, "The layout transformation to apply.")
+  refl::ObjectDef<LayoutTransformAttrsNode>()
+      .def_ro("index_map", &LayoutTransformAttrsNode::index_map,
+              "The layout transformation to apply.")
       .def_ro(
-          "pad_value", &LayoutTransformAttrs::pad_value,
+          "pad_value", &LayoutTransformAttrsNode::pad_value,
           "The specific value to be used to pad if the layout transform would result in implicit "
           "padding. If not specified, the compiler is free to choose any value.",
           refl::DefaultValue(ffi::Optional<PrimExpr>{}));
 }
 
-void PermuteDimsAttrs::RegisterReflection() {
+void PermuteDimsAttrsNode::RegisterReflection() {
   namespace refl = tvm::ffi::reflection;
-  refl::ObjectDef<PermuteDimsAttrs>().def_ro(
-      "axes", &PermuteDimsAttrs::axes, "The target axes order, reverse order if not specified.",
+  refl::ObjectDef<PermuteDimsAttrsNode>().def_ro(
+      "axes", &PermuteDimsAttrsNode::axes, "The target axes order, reverse order if not specified.",
       refl::DefaultValue(ffi::Optional<ffi::Array<int64_t>>{}));
 }
 
-void SplitAttrs::RegisterReflection() {
+void SplitAttrsNode::RegisterReflection() {
   namespace refl = tvm::ffi::reflection;
-  refl::ObjectDef<SplitAttrs>()
-      .def_ro("indices_or_sections", &SplitAttrs::indices_or_sections,
+  refl::ObjectDef<SplitAttrsNode>()
+      .def_ro("indices_or_sections", &SplitAttrsNode::indices_or_sections,
               "The input array of indices or the number of split sections.")
-      .def_ro("axis", &SplitAttrs::axis, "The axis to be splitted", refl::DefaultValue(0));
+      .def_ro("axis", &SplitAttrsNode::axis, "The axis to be splitted", refl::DefaultValue(0));
 }
 
-void SqueezeAttrs::RegisterReflection() {
+void SqueezeAttrsNode::RegisterReflection() {
   namespace refl = tvm::ffi::reflection;
-  refl::ObjectDef<SqueezeAttrs>().def_ro("axis", &SqueezeAttrs::axis,
-                                         "The axis to squeeze in the input tensor."
-                                         "If `axis = None`, all axis of dimension 1 get squeezed;"
-                                         "Else, the dimension in axes get squeezed."
-                                         "It is an error if an axis does not has dimension 1.",
-                                         refl::DefaultValue(ffi::Optional<ffi::Array<int64_t>>{}));
+  refl::ObjectDef<SqueezeAttrsNode>().def_ro(
+      "axis", &SqueezeAttrsNode::axis,
+      "The axis to squeeze in the input tensor."
+      "If `axis = None`, all axis of dimension 1 get squeezed;"
+      "Else, the dimension in axes get squeezed."
+      "It is an error if an axis does not has dimension 1.",
+      refl::DefaultValue(ffi::Optional<ffi::Array<int64_t>>{}));
 }
 
-void StackAttrs::RegisterReflection() {
+void StackAttrsNode::RegisterReflection() {
   namespace refl = tvm::ffi::reflection;
-  refl::ObjectDef<StackAttrs>().def_ro("axis", &StackAttrs::axis,
-                                       "The axis along which to stack the input tensors. "
-                                       "The axis will be inserted at this position in the output, "
-                                       "so it must be in range [-ndim-1, ndim] where ndim is the "
-                                       "number of dimensions of the input tensors.",
-                                       refl::DefaultValue(ffi::Optional<int64_t>{0}));
+  refl::ObjectDef<StackAttrsNode>().def_ro(
+      "axis", &StackAttrsNode::axis,
+      "The axis along which to stack the input tensors. "
+      "The axis will be inserted at this position in the output, "
+      "so it must be in range [-ndim-1, ndim] where ndim is the "
+      "number of dimensions of the input tensors.",
+      refl::DefaultValue(ffi::Optional<int64_t>{0}));
 }
 
-void RepeatAttrs::RegisterReflection() {
+void RepeatAttrsNode::RegisterReflection() {
   namespace refl = tvm::ffi::reflection;
-  refl::ObjectDef<RepeatAttrs>()
-      .def_ro("repeats", &RepeatAttrs::repeats, "The number of repetitions.")
-      .def_ro("axis", &RepeatAttrs::axis,
+  refl::ObjectDef<RepeatAttrsNode>()
+      .def_ro("repeats", &RepeatAttrsNode::repeats, "The number of repetitions.")
+      .def_ro("axis", &RepeatAttrsNode::axis,
               "The axis along which to repeat values. The negative numbers are interpreted "
               "counting from the backward. By default, use the flattened input array, and "
               "return a flat output array.",
               refl::DefaultValue(ffi::Optional<int64_t>{}));
 }
 
-void TileAttrs::RegisterReflection() {
+void TileAttrsNode::RegisterReflection() {
   namespace refl = tvm::ffi::reflection;
-  refl::ObjectDef<TileAttrs>().def_ro("repeats", &TileAttrs::repeats,
-                                      "The number of repetitions of data along each axis.");
+  refl::ObjectDef<TileAttrsNode>().def_ro("repeats", &TileAttrsNode::repeats,
+                                          "The number of repetitions of data along each axis.");
 }
 
-void FlipAttrs::RegisterReflection() {
+void FlipAttrsNode::RegisterReflection() {
   namespace refl = tvm::ffi::reflection;
-  refl::ObjectDef<FlipAttrs>().def_ro("axis", &FlipAttrs::axis,
-                                      "The axis along which to flip over.");
+  refl::ObjectDef<FlipAttrsNode>().def_ro("axis", &FlipAttrsNode::axis,
+                                          "The axis along which to flip over.");
 }
 
-void ReverseSequenceAttrs::RegisterReflection() {
+void ReverseSequenceAttrsNode::RegisterReflection() {
   namespace refl = tvm::ffi::reflection;
-  refl::ObjectDef<ReverseSequenceAttrs>()
-      .def_ro("seq_axis", &ReverseSequenceAttrs::seq_axis,
+  refl::ObjectDef<ReverseSequenceAttrsNode>()
+      .def_ro("seq_axis", &ReverseSequenceAttrsNode::seq_axis,
               "The axis along which to reverse variable length slices.", refl::DefaultValue(1))
-      .def_ro("batch_axis", &ReverseSequenceAttrs::batch_axis, "The axis that indexes the batch.",
-              refl::DefaultValue(0));
+      .def_ro("batch_axis", &ReverseSequenceAttrsNode::batch_axis,
+              "The axis that indexes the batch.", refl::DefaultValue(0));
 }
 
-void GatherElementsAttrs::RegisterReflection() {
+void GatherElementsAttrsNode::RegisterReflection() {
   namespace refl = tvm::ffi::reflection;
-  refl::ObjectDef<GatherElementsAttrs>().def_ro(
-      "axis", &GatherElementsAttrs::axis, "The axis along which to index.", refl::DefaultValue(0));
+  refl::ObjectDef<GatherElementsAttrsNode>().def_ro("axis", &GatherElementsAttrsNode::axis,
+                                                    "The axis along which to index.",
+                                                    refl::DefaultValue(0));
 }
 
-void GatherNDAttrs::RegisterReflection() {
+void GatherNDAttrsNode::RegisterReflection() {
   namespace refl = tvm::ffi::reflection;
-  refl::ObjectDef<GatherNDAttrs>().def_ro("batch_dims", &GatherNDAttrs::batch_dims,
-                                          "The number of batch dims.", refl::DefaultValue(0));
+  refl::ObjectDef<GatherNDAttrsNode>().def_ro("batch_dims", &GatherNDAttrsNode::batch_dims,
+                                              "The number of batch dims.", refl::DefaultValue(0));
 }
 
-void IndexPutAttrs::RegisterReflection() {
+void IndexPutAttrsNode::RegisterReflection() {
   namespace refl = tvm::ffi::reflection;
-  refl::ObjectDef<IndexPutAttrs>().def_ro("accumulate", &IndexPutAttrs::accumulate,
-                                          "Whether to accumulate (add) values rather than replace. "
-                                          "If true, performs tensor[indices] += values, "
-                                          "otherwise performs tensor[indices] = values.",
-                                          refl::DefaultValue(false));
+  refl::ObjectDef<IndexPutAttrsNode>().def_ro(
+      "accumulate", &IndexPutAttrsNode::accumulate,
+      "Whether to accumulate (add) values rather than replace. "
+      "If true, performs tensor[indices] += values, "
+      "otherwise performs tensor[indices] = values.",
+      refl::DefaultValue(false));
 }
 
-void MeshgridAttrs::RegisterReflection() {
+void MeshgridAttrsNode::RegisterReflection() {
   namespace refl = tvm::ffi::reflection;
-  refl::ObjectDef<MeshgridAttrs>().def_ro("indexing", &MeshgridAttrs::indexing,
-                                          "Specifies how the grid dimensions are ordered.",
-                                          refl::DefaultValue(ffi::String("ij")));
+  refl::ObjectDef<MeshgridAttrsNode>().def_ro("indexing", &MeshgridAttrsNode::indexing,
+                                              "Specifies how the grid dimensions are ordered.",
+                                              refl::DefaultValue(ffi::String("ij")));
 }
 
-void ScatterElementsAttrs::RegisterReflection() {
+void ScatterElementsAttrsNode::RegisterReflection() {
   namespace refl = tvm::ffi::reflection;
-  refl::ObjectDef<ScatterElementsAttrs>()
-      .def_ro("axis", &ScatterElementsAttrs::axis, "The axis over which to select values.",
+  refl::ObjectDef<ScatterElementsAttrsNode>()
+      .def_ro("axis", &ScatterElementsAttrsNode::axis, "The axis over which to select values.",
               refl::DefaultValue(0))
-      .def_ro("reduction", &ScatterElementsAttrs::reduction,
+      .def_ro("reduction", &ScatterElementsAttrsNode::reduction,
               "Reduction mode of the scatter elements, "
               "either \"update\", \"add\", \"mul\", \"mean\", \"min\" or \"max\".",
               refl::DefaultValue("update"));
 }
 
-void ScatterNDAttrs::RegisterReflection() {
+void ScatterNDAttrsNode::RegisterReflection() {
   namespace refl = tvm::ffi::reflection;
-  refl::ObjectDef<ScatterNDAttrs>().def_ro(
-      "reduction", &ScatterNDAttrs::reduction,
+  refl::ObjectDef<ScatterNDAttrsNode>().def_ro(
+      "reduction", &ScatterNDAttrsNode::reduction,
       "Accumulation mode of the ScatterND, "
       "either \"update\", \"add\", \"mul\", \"min\" or \"max\".",
       refl::DefaultValue("update"));
 }
 
-void SliceScatterAttrs::RegisterReflection() {
+void SliceScatterAttrsNode::RegisterReflection() {
   namespace refl = tvm::ffi::reflection;
-  refl::ObjectDef<SliceScatterAttrs>().def_ro("axis", &SliceScatterAttrs::axis,
-                                              "the dimension to insert the slice into ",
-                                              refl::DefaultValue(0));
+  refl::ObjectDef<SliceScatterAttrsNode>().def_ro("axis", &SliceScatterAttrsNode::axis,
+                                                  "the dimension to insert the slice into ",
+                                                  refl::DefaultValue(0));
 }
 
-void OneHotAttrs::RegisterReflection() {
+void OneHotAttrsNode::RegisterReflection() {
   namespace refl = tvm::ffi::reflection;
-  refl::ObjectDef<OneHotAttrs>()
-      .def_ro("depth", &OneHotAttrs::depth, "Depth of the one hot dimension.")
-      .def_ro("axis", &OneHotAttrs::axis, "Axis to fill.", refl::DefaultValue(-1));
+  refl::ObjectDef<OneHotAttrsNode>()
+      .def_ro("depth", &OneHotAttrsNode::depth, "Depth of the one hot dimension.")
+      .def_ro("axis", &OneHotAttrsNode::axis, "Axis to fill.", refl::DefaultValue(-1));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  ConcatAttrs::RegisterReflection();
-  ExpandDimsAttrs::RegisterReflection();
-  LayoutTransformAttrs::RegisterReflection();
-  PermuteDimsAttrs::RegisterReflection();
-  SplitAttrs::RegisterReflection();
-  SqueezeAttrs::RegisterReflection();
-  StackAttrs::RegisterReflection();
-  RepeatAttrs::RegisterReflection();
-  TileAttrs::RegisterReflection();
-  FlipAttrs::RegisterReflection();
-  ReverseSequenceAttrs::RegisterReflection();
-  GatherElementsAttrs::RegisterReflection();
-  GatherNDAttrs::RegisterReflection();
-  IndexPutAttrs::RegisterReflection();
-  MeshgridAttrs::RegisterReflection();
-  ScatterElementsAttrs::RegisterReflection();
-  ScatterNDAttrs::RegisterReflection();
-  SliceScatterAttrs::RegisterReflection();
-  OneHotAttrs::RegisterReflection();
+  ConcatAttrsNode::RegisterReflection();
+  ExpandDimsAttrsNode::RegisterReflection();
+  LayoutTransformAttrsNode::RegisterReflection();
+  PermuteDimsAttrsNode::RegisterReflection();
+  SplitAttrsNode::RegisterReflection();
+  SqueezeAttrsNode::RegisterReflection();
+  StackAttrsNode::RegisterReflection();
+  RepeatAttrsNode::RegisterReflection();
+  TileAttrsNode::RegisterReflection();
+  FlipAttrsNode::RegisterReflection();
+  ReverseSequenceAttrsNode::RegisterReflection();
+  GatherElementsAttrsNode::RegisterReflection();
+  GatherNDAttrsNode::RegisterReflection();
+  IndexPutAttrsNode::RegisterReflection();
+  MeshgridAttrsNode::RegisterReflection();
+  ScatterElementsAttrsNode::RegisterReflection();
+  ScatterNDAttrsNode::RegisterReflection();
+  SliceScatterAttrsNode::RegisterReflection();
+  OneHotAttrsNode::RegisterReflection();
 }
 
 /* relax.broadcast_to */
@@ -303,7 +308,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 /* relax.concat */
 
 Expr concat(Expr tensors, ffi::Optional<int64_t> axis) {
-  ffi::ObjectPtr<ConcatAttrs> attrs = ffi::make_object<ConcatAttrs>();
+  ffi::ObjectPtr<ConcatAttrsNode> attrs = ffi::make_object<ConcatAttrsNode>();
   attrs->axis = std::move(axis);
 
   static const Op op = Op::Get("relax.concat");
@@ -378,7 +383,7 @@ Type InferTypeConcat(const Call& call, const BlockBuilder& ctx) {
            "given input Tuple is empty.";
   }
 
-  const auto* attrs = call->attrs.as<ConcatAttrs>();
+  const auto* attrs = call->attrs.as<ConcatAttrsNode>();
   int output_ndim = attrs->axis.has_value() ? kUnknownNDim : 1;
   ffi::Optional<PrimType> output_dtype = std::nullopt;
   ffi::Optional<VDevice> vdev = std::nullopt;
@@ -491,7 +496,7 @@ InferLayoutOutput InferLayoutConcat(
     const VarLayoutMap& var_layout_map) {
   TVM_FFI_ICHECK(NoDesiredLayout(call, desired_layouts));
 
-  const auto* attrs = call->attrs.as<ConcatAttrs>();
+  const auto* attrs = call->attrs.as<ConcatAttrsNode>();
   TVM_FFI_ICHECK(attrs != nullptr) << "Invalid Call";
 
   NLayout nlayout = GetNLayout(var_layout_map, call->args[0]);
@@ -550,14 +555,15 @@ InferLayoutOutput InferLayoutConcat(
     input_layouts.push_back(layout);
   }
   output_layouts.push_back(layout);
-  ffi::ObjectPtr<ConcatAttrs> new_attrs = ffi::make_object<ConcatAttrs>(*attrs);
+  ffi::ObjectPtr<ConcatAttrsNode> new_attrs = ffi::make_object<ConcatAttrsNode>(*attrs);
   new_attrs->axis = FindAxis(layout->layout.value(), attrs->axis.value_or(0));
   return InferLayoutOutput({NLayout(input_layouts)}, output_layouts, Attrs(new_attrs));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.concat")
-      .signature(sig::arg("tensors", "The input list of tensors."), sig::call_attrs<ConcatAttrs>())
+      .signature(sig::arg("tensors", "The input list of tensors."),
+                 sig::call_attrs<ConcatAttrsNode>())
       .set_attr<FInferTypeWithBuilder>(tvm::relax::op_attr::kInferTypeWithBuilder, InferTypeConcat)
       .set_attr<FRelaxInferLayout>(tvm::relax::op_attr::kInferLayout, InferLayoutConcat)
       .set_attr<TMixedPrecisionPolicy>(tvm::relax::op_attr::kMixedPrecisionPolicy,
@@ -568,7 +574,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 /* relax.expand_dims */
 
 Expr expand_dims(Expr x, ffi::Array<int64_t> axis) {
-  ffi::ObjectPtr<ExpandDimsAttrs> attrs = ffi::make_object<ExpandDimsAttrs>();
+  ffi::ObjectPtr<ExpandDimsAttrsNode> attrs = ffi::make_object<ExpandDimsAttrsNode>();
   attrs->axis = std::move(axis);
 
   static const Op op = Op::Get("relax.expand_dims");
@@ -584,7 +590,7 @@ Type InferTypeExpandDims(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
   if (RequiresTensorInputNormalization(call)) return Type::Missing();
   TensorType data_ty = GetUnaryInputTensorType(call);
-  const auto* attrs = call->attrs.as<ExpandDimsAttrs>();
+  const auto* attrs = call->attrs.as<ExpandDimsAttrsNode>();
   if (attrs->axis.empty()) {
     return data_ty;
   }
@@ -621,7 +627,7 @@ InferLayoutOutput InferLayoutExpandDims(
     const Call& call, const ffi::Map<ffi::String, ffi::Array<ffi::String>>& desired_layouts,
     const VarLayoutMap& var_layout_map) {
   TVM_FFI_ICHECK(NoDesiredLayout(call, desired_layouts));
-  const auto* attrs = call->attrs.as<ExpandDimsAttrs>();
+  const auto* attrs = call->attrs.as<ExpandDimsAttrsNode>();
   TVM_FFI_ICHECK(attrs != nullptr) << "Invalid Call";
   const auto* tensor_ty = GetTypeAs<TensorTypeNode>(call->args[0]);
   TVM_FFI_ICHECK(tensor_ty != nullptr) << "Invalid Call";
@@ -661,7 +667,7 @@ InferLayoutOutput InferLayoutExpandDims(
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.expand_dims")
-      .signature(sig::arg("x", "The input tensor."), sig::call_attrs<ExpandDimsAttrs>())
+      .signature(sig::arg("x", "The input tensor."), sig::call_attrs<ExpandDimsAttrsNode>())
       .set_attr<FInferType>(tvm::op_attr::kInferType,
                             FInferType::FromNative<&InferTypeExpandDims>())
       .set_attr<FRelaxInferLayout>(tvm::relax::op_attr::kInferLayout, InferLayoutExpandDims)
@@ -872,8 +878,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 /* relax.layout_transform */
 
 Expr layout_transform(Expr x, tirx::IndexMap index_map, ffi::Optional<PrimExpr> pad_value) {
-  ffi::ObjectPtr<LayoutTransformAttrs> attrs =
-      ffi::make_object<LayoutTransformAttrs>(std::move(index_map));
+  ffi::ObjectPtr<LayoutTransformAttrsNode> attrs =
+      ffi::make_object<LayoutTransformAttrsNode>(std::move(index_map));
   attrs->pad_value = std::move(pad_value);
 
   static const Op op = Op::Get("relax.layout_transform");
@@ -888,7 +894,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 Type InferTypeLayoutTransform(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
   TensorType data_ty = GetUnaryInputTensorType(call);
-  const auto* attrs = call->attrs.as<LayoutTransformAttrs>();
+  const auto* attrs = call->attrs.as<LayoutTransformAttrsNode>();
   tirx::IndexMap index_map = attrs->index_map;
   ffi::Optional<PrimExpr> optional_pad_value = attrs->pad_value;
 
@@ -932,7 +938,7 @@ Type InferTypeLayoutTransform(const CallNode* call_node) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.layout_transform")
-      .signature(sig::arg("x", "The input tensor."), sig::call_attrs<LayoutTransformAttrs>())
+      .signature(sig::arg("x", "The input tensor."), sig::call_attrs<LayoutTransformAttrsNode>())
       .set_attr<FInferType>(tvm::op_attr::kInferType,
                             FInferType::FromNative<&InferTypeLayoutTransform>())
       .set_attr<TMixedPrecisionPolicy>(tvm::relax::op_attr::kMixedPrecisionPolicy,
@@ -943,7 +949,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 /* relax.permute_dims */
 
 Expr permute_dims(Expr x, ffi::Optional<ffi::Array<int64_t>> axes) {
-  ffi::ObjectPtr<PermuteDimsAttrs> attrs = ffi::make_object<PermuteDimsAttrs>();
+  ffi::ObjectPtr<PermuteDimsAttrsNode> attrs = ffi::make_object<PermuteDimsAttrsNode>();
   attrs->axes = std::move(axes);
 
   static const Op op = Op::Get("relax.permute_dims");
@@ -969,7 +975,7 @@ Type InferTypePermuteDims(const CallNode* call_node) {
   if (RequiresTensorInputNormalization(call)) return Type::Missing();
   TensorType data_ty = GetUnaryInputTensorType(call);
 
-  const auto* attrs = call->attrs.as<PermuteDimsAttrs>();
+  const auto* attrs = call->attrs.as<PermuteDimsAttrsNode>();
 
   // Todo(relax-team): revisit here for better check on if the input tensor has
   // ndim same as the number of input axes.
@@ -1016,7 +1022,7 @@ InferLayoutOutput InferLayoutPermuteDims(
     const VarLayoutMap& var_layout_map) {
   TVM_FFI_ICHECK(NoDesiredLayout(call, desired_layouts));
 
-  const auto* attrs = call->attrs.as<PermuteDimsAttrs>();
+  const auto* attrs = call->attrs.as<PermuteDimsAttrsNode>();
   TVM_FFI_ICHECK(attrs != nullptr) << "Invalid Call";
   const auto* tensor_ty = GetTypeAs<TensorTypeNode>(call->args[0]);
   TVM_FFI_ICHECK(tensor_ty != nullptr) << "Invalid Call";
@@ -1050,14 +1056,14 @@ InferLayoutOutput InferLayoutPermuteDims(
   for (size_t i = 0; i < new_axes.size(); ++i) {
     new_order.push_back(new_axes.at(i) - 'A');
   }
-  ffi::ObjectPtr<PermuteDimsAttrs> new_attrs = ffi::make_object<PermuteDimsAttrs>(*attrs);
+  ffi::ObjectPtr<PermuteDimsAttrsNode> new_attrs = ffi::make_object<PermuteDimsAttrsNode>(*attrs);
   new_attrs->axes = new_order;
   return InferLayoutOutput({existing_layout}, {InitialLayoutDecision(ndim)}, Attrs(new_attrs));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.permute_dims")
-      .signature(sig::arg("x", "The input tensor."), sig::call_attrs<PermuteDimsAttrs>())
+      .signature(sig::arg("x", "The input tensor."), sig::call_attrs<PermuteDimsAttrsNode>())
       .set_attr<FInferType>(tvm::op_attr::kInferType,
                             FInferType::FromNative<&InferTypePermuteDims>())
       .set_attr<FRelaxInferLayout>(tvm::relax::op_attr::kInferLayout, InferLayoutPermuteDims)
@@ -1237,7 +1243,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 /* relax.split */
 
 Expr split(Expr x, ffi::Variant<IntImm, ffi::Array<IntImm>> indices_or_sections, int axis) {
-  ffi::ObjectPtr<SplitAttrs> attrs = ffi::make_object<SplitAttrs>();
+  ffi::ObjectPtr<SplitAttrsNode> attrs = ffi::make_object<SplitAttrsNode>();
   ffi::ObjectRef indices_or_sections_obj;
 
   if (const auto* indices = indices_or_sections.as<ffi::ArrayObj>()) {
@@ -1275,7 +1281,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 Type InferTypeSplit(const Call& call, const BlockBuilder& ctx) {
   TensorType data_ty = GetUnaryInputTensorType(call, ctx);
-  const auto* attrs = call->attrs.as<SplitAttrs>();
+  const auto* attrs = call->attrs.as<SplitAttrsNode>();
   const auto* data_shape = data_ty->shape.as<ShapeExprNode>();
   int axis = data_ty->IsUnknownNdim() ? -1 : NormalizeAxis(call, ctx, data_ty->ndim, attrs->axis);
 
@@ -1351,7 +1357,7 @@ InferLayoutOutput InferLayoutSplit(
     const VarLayoutMap& var_layout_map) {
   TVM_FFI_ICHECK(NoDesiredLayout(call, desired_layouts));
 
-  const auto* attrs = call->attrs.as<SplitAttrs>();
+  const auto* attrs = call->attrs.as<SplitAttrsNode>();
   TVM_FFI_ICHECK(attrs != nullptr) << "Invalid Call";
   const auto* tensor_ty = GetTypeAs<TensorTypeNode>(call->args[0]);
   TVM_FFI_ICHECK(tensor_ty != nullptr) << "Invalid Call";
@@ -1383,7 +1389,7 @@ InferLayoutOutput InferLayoutSplit(
     }
   }
 
-  ffi::ObjectPtr<SplitAttrs> new_attrs = ffi::make_object<SplitAttrs>(*attrs);
+  ffi::ObjectPtr<SplitAttrsNode> new_attrs = ffi::make_object<SplitAttrsNode>(*attrs);
   new_attrs->axis = FindAxis(existing_layout->layout.value(), attrs->axis);
   TVM_FFI_ICHECK(out_tuple != nullptr) << "Invalid Call";
   NLayout tuple_layouts(ffi::Array<NLayout>(out_tuple->fields.size(), existing_layout));
@@ -1392,7 +1398,7 @@ InferLayoutOutput InferLayoutSplit(
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.split")
-      .signature(sig::arg("x", "The input tensor."), sig::call_attrs<SplitAttrs>())
+      .signature(sig::arg("x", "The input tensor."), sig::call_attrs<SplitAttrsNode>())
       .set_attr<FInferTypeWithBuilder>(tvm::relax::op_attr::kInferTypeWithBuilder, InferTypeSplit)
       .set_attr<FRelaxInferLayout>(tvm::relax::op_attr::kInferLayout, InferLayoutSplit)
       .set_attr<TMixedPrecisionPolicy>(tvm::relax::op_attr::kMixedPrecisionPolicy,
@@ -1403,7 +1409,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 /* relax.squeeze */
 
 Expr squeeze(Expr x, ffi::Optional<ffi::Array<int64_t>> axis) {
-  ffi::ObjectPtr<SqueezeAttrs> attrs = ffi::make_object<SqueezeAttrs>();
+  ffi::ObjectPtr<SqueezeAttrsNode> attrs = ffi::make_object<SqueezeAttrsNode>();
   attrs->axis = std::move(axis);
 
   static const Op op = Op::Get("relax.squeeze");
@@ -1419,7 +1425,7 @@ Type InferTypeSqueeze(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
   if (RequiresTensorInputNormalization(call)) return Type::Missing();
   TensorType data_ty = GetUnaryInputTensorType(call);
-  const auto* attrs = call->attrs.as<SqueezeAttrs>();
+  const auto* attrs = call->attrs.as<SqueezeAttrsNode>();
   if (attrs->axis.has_value() && attrs->axis.value().empty()) {
     return data_ty;
   }
@@ -1497,7 +1503,7 @@ InferLayoutOutput InferLayoutSqueeze(
     const VarLayoutMap& var_layout_map) {
   TVM_FFI_ICHECK(NoDesiredLayout(call, desired_layouts));
 
-  const auto* attrs = call->attrs.as<SqueezeAttrs>();
+  const auto* attrs = call->attrs.as<SqueezeAttrsNode>();
   TVM_FFI_ICHECK(attrs != nullptr) << "Invalid Call";
   const auto* tensor_ty = GetTypeAs<TensorTypeNode>(call->args[0]);
   TVM_FFI_ICHECK(tensor_ty != nullptr) << "Invalid Call";
@@ -1547,7 +1553,7 @@ InferLayoutOutput InferLayoutSqueeze(
   output_layout.erase(std::remove(output_layout.begin(), output_layout.end(), '1'),
                       output_layout.end());
 
-  ffi::ObjectPtr<SqueezeAttrs> new_attrs = ffi::make_object<SqueezeAttrs>(*attrs);
+  ffi::ObjectPtr<SqueezeAttrsNode> new_attrs = ffi::make_object<SqueezeAttrsNode>(*attrs);
   new_attrs->axis = new_axis;
   return InferLayoutOutput({existing_layout}, {LayoutDecision(SLayout::Create(output_layout))},
                            Attrs(new_attrs));
@@ -1555,7 +1561,7 @@ InferLayoutOutput InferLayoutSqueeze(
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.squeeze")
-      .signature(sig::arg("x", "The input tensor."), sig::call_attrs<SqueezeAttrs>())
+      .signature(sig::arg("x", "The input tensor."), sig::call_attrs<SqueezeAttrsNode>())
       .set_attr<FInferType>(tvm::op_attr::kInferType, FInferType::FromNative<&InferTypeSqueeze>())
       .set_attr<FRelaxInferLayout>(tvm::relax::op_attr::kInferLayout, InferLayoutSqueeze)
       .set_attr<TMixedPrecisionPolicy>(tvm::relax::op_attr::kMixedPrecisionPolicy,
@@ -1605,7 +1611,7 @@ void CheckCollapseShape(const Call& call, const BlockBuilder& ctx,
 /* relax.stack */
 
 Expr stack(Expr tensors, ffi::Optional<int64_t> axis) {
-  ffi::ObjectPtr<StackAttrs> attrs = ffi::make_object<StackAttrs>();
+  ffi::ObjectPtr<StackAttrsNode> attrs = ffi::make_object<StackAttrsNode>();
   attrs->axis = std::move(axis);
 
   static const Op op = Op::Get("relax.stack");
@@ -1665,7 +1671,7 @@ Type InferTypeStack(const Call& call, const BlockBuilder& ctx) {
         << "However, the given input Tuple is empty.";
   }
 
-  const auto* attrs = call->attrs.as<StackAttrs>();
+  const auto* attrs = call->attrs.as<StackAttrsNode>();
   TVM_FFI_ICHECK(attrs != nullptr) << "Stack must have StackAttrs";
 
   // Default axis is 0 if not specified
@@ -1781,7 +1787,7 @@ InferLayoutOutput InferLayoutStack(
     const VarLayoutMap& var_layout_map) {
   TVM_FFI_ICHECK(NoDesiredLayout(call, desired_layouts));
 
-  const auto* attrs = call->attrs.as<StackAttrs>();
+  const auto* attrs = call->attrs.as<StackAttrsNode>();
   TVM_FFI_ICHECK(attrs != nullptr) << "Invalid Call";
   NLayout nlayout = GetNLayout(var_layout_map, call->args[0]);
   TVM_FFI_ICHECK(nlayout.IsNested());
@@ -1802,7 +1808,7 @@ InferLayoutOutput InferLayoutStack(
   SLayout output_layout = SLayout(layout_str);
   output_layouts.push_back(LayoutDecision(output_layout));
 
-  ffi::ObjectPtr<StackAttrs> new_attrs = ffi::make_object<StackAttrs>(*attrs);
+  ffi::ObjectPtr<StackAttrsNode> new_attrs = ffi::make_object<StackAttrsNode>(*attrs);
   new_attrs->axis = static_cast<int64_t>(FindAxis(layout->layout.value(), axis));
   return InferLayoutOutput({NLayout(input_layouts)}, output_layouts, Attrs(new_attrs));
 }
@@ -1810,7 +1816,7 @@ InferLayoutOutput InferLayoutStack(
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.stack")
       .signature(sig::arg("tensors", "The input list of tensors to stack"),
-                 sig::call_attrs<StackAttrs>())
+                 sig::call_attrs<StackAttrsNode>())
       .set_attr<FInferTypeWithBuilder>(tvm::relax::op_attr::kInferTypeWithBuilder, InferTypeStack)
       .set_attr<FRelaxInferLayout>(tvm::relax::op_attr::kInferLayout, InferLayoutStack)
       .set_attr<TMixedPrecisionPolicy>(tvm::relax::op_attr::kMixedPrecisionPolicy,
@@ -1921,7 +1927,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 /* relax.repeat */
 
 Expr repeat(Expr data, int repeats, ffi::Optional<int64_t> axis) {
-  auto attrs = ffi::make_object<RepeatAttrs>();
+  auto attrs = ffi::make_object<RepeatAttrsNode>();
   attrs->repeats = std::move(repeats);
   attrs->axis = std::move(axis);
 
@@ -1937,7 +1943,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 Type InferTypeRepeat(const Call& call, const BlockBuilder& ctx) {
   sym::Analyzer analyzer = ctx->GetAnalyzer();
   TensorType data_ty = GetUnaryInputTensorType(call, ctx);
-  const auto* attrs = call->attrs.as<RepeatAttrs>();
+  const auto* attrs = call->attrs.as<RepeatAttrsNode>();
   const auto* data_shape = data_ty->shape.as<ShapeExprNode>();
 
   if (attrs->axis.has_value() && !data_ty->IsUnknownNdim()) {
@@ -1982,7 +1988,7 @@ InferLayoutOutput InferLayoutRepeat(
     const VarLayoutMap& var_layout_map) {
   TVM_FFI_ICHECK(NoDesiredLayout(call, desired_layouts));
 
-  const auto* attrs = call->attrs.as<RepeatAttrs>();
+  const auto* attrs = call->attrs.as<RepeatAttrsNode>();
   TVM_FFI_ICHECK(attrs != nullptr) << "Invalid Call";
   const auto* tensor_ty = GetTypeAs<TensorTypeNode>(call->args[0]);
   TVM_FFI_ICHECK(tensor_ty != nullptr) << "Invalid Call";
@@ -2029,7 +2035,7 @@ InferLayoutOutput InferLayoutRepeat(
   }
   TVM_FFI_ICHECK_GE(new_axis, 0) << "Failed to find transformed axis";
 
-  ffi::ObjectPtr<RepeatAttrs> new_attrs = ffi::make_object<RepeatAttrs>(*attrs);
+  ffi::ObjectPtr<RepeatAttrsNode> new_attrs = ffi::make_object<RepeatAttrsNode>(*attrs);
   new_attrs->axis = new_axis;
 
   // When axis is specified, the layout is preserved
@@ -2038,7 +2044,7 @@ InferLayoutOutput InferLayoutRepeat(
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.repeat")
-      .signature(sig::arg("data", "The input tensor."), sig::call_attrs<RepeatAttrs>())
+      .signature(sig::arg("data", "The input tensor."), sig::call_attrs<RepeatAttrsNode>())
       .set_attr<FInferTypeWithBuilder>(tvm::relax::op_attr::kInferTypeWithBuilder, InferTypeRepeat)
       .set_attr<FRelaxInferLayout>(tvm::relax::op_attr::kInferLayout, InferLayoutRepeat)
       .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
@@ -2047,7 +2053,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 /* relax.tile */
 
 Expr tile(Expr data, ffi::Array<int64_t> repeats) {
-  auto attrs = ffi::make_object<TileAttrs>();
+  auto attrs = ffi::make_object<TileAttrsNode>();
   attrs->repeats = std::move(repeats);
 
   static const Op op = Op::Get("relax.tile");
@@ -2062,7 +2068,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 Type InferTypeTile(const Call& call, const BlockBuilder& ctx) {
   sym::Analyzer analyzer = ctx->GetAnalyzer();
   TensorType data_ty = GetUnaryInputTensorType(call, ctx);
-  const auto* attrs = call->attrs.as<TileAttrs>();
+  const auto* attrs = call->attrs.as<TileAttrsNode>();
   const auto* data_shape = data_ty->shape.as<ShapeExprNode>();
   int l = attrs->repeats.size();
   int ndim = data_ty->ndim;
@@ -2107,7 +2113,7 @@ InferLayoutOutput InferLayoutTile(
     const VarLayoutMap& var_layout_map) {
   TVM_FFI_ICHECK(NoDesiredLayout(call, desired_layouts));
 
-  const auto* attrs = call->attrs.as<TileAttrs>();
+  const auto* attrs = call->attrs.as<TileAttrsNode>();
   TVM_FFI_ICHECK(attrs != nullptr) << "Invalid Call";
   const auto* tensor_ty = GetTypeAs<TensorTypeNode>(call->args[0]);
   TVM_FFI_ICHECK(tensor_ty != nullptr) << "Invalid Call";
@@ -2171,7 +2177,7 @@ InferLayoutOutput InferLayoutTile(
     }
   }
 
-  ffi::ObjectPtr<TileAttrs> new_attrs = ffi::make_object<TileAttrs>(*attrs);
+  ffi::ObjectPtr<TileAttrsNode> new_attrs = ffi::make_object<TileAttrsNode>(*attrs);
   new_attrs->repeats = new_repeats;
 
   // Layout is preserved (same as input)
@@ -2183,7 +2189,7 @@ InferLayoutOutput InferLayoutTile(
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.tile")
-      .signature(sig::arg("data", "The input tensor."), sig::call_attrs<TileAttrs>())
+      .signature(sig::arg("data", "The input tensor."), sig::call_attrs<TileAttrsNode>())
       .set_attr<FInferTypeWithBuilder>(tvm::relax::op_attr::kInferTypeWithBuilder, InferTypeTile)
       .set_attr<FRelaxInferLayout>(tvm::relax::op_attr::kInferLayout, InferLayoutTile)
       .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
@@ -2192,7 +2198,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 /* relax.flip */
 
 Expr flip(Expr data, int64_t axis) {
-  auto attrs = ffi::make_object<FlipAttrs>();
+  auto attrs = ffi::make_object<FlipAttrsNode>();
   attrs->axis = axis;
   static const Op op = Op::Get("relax.flip");
   return Call(Type::Missing(), op, {std::move(data)}, Attrs{attrs}, {});
@@ -2209,7 +2215,7 @@ Type InferTypeFlip(const CallNode* call_node) {
     TVM_FFI_VISIT_THROW(ValueError, call) << "Flip op should take 1 argument";
   }
   TensorType data_ty = GetUnaryInputTensorType(call);
-  const auto* attrs = call->attrs.as<FlipAttrs>();
+  const auto* attrs = call->attrs.as<FlipAttrsNode>();
   int axis = static_cast<int>(attrs->axis);
   if (!data_ty->IsUnknownNdim()) {
     int ndim = data_ty->ndim;
@@ -2227,7 +2233,7 @@ InferLayoutOutput InferLayoutFlip(
     const VarLayoutMap& var_layout_map) {
   TVM_FFI_ICHECK(NoDesiredLayout(call, desired_layouts));
 
-  const auto* attrs = call->attrs.as<FlipAttrs>();
+  const auto* attrs = call->attrs.as<FlipAttrsNode>();
   TVM_FFI_ICHECK(attrs != nullptr) << "Invalid Call";
   const auto* tensor_ty = GetTypeAs<TensorTypeNode>(call->args[0]);
   TVM_FFI_ICHECK(tensor_ty != nullptr) << "Invalid Call";
@@ -2249,7 +2255,7 @@ InferLayoutOutput InferLayoutFlip(
   const int new_axis = FindAxis(existing_layout->layout.value(), axis);
   TVM_FFI_ICHECK_GE(new_axis, 0) << "Failed to find transformed axis";
 
-  ffi::ObjectPtr<FlipAttrs> new_attrs = ffi::make_object<FlipAttrs>(*attrs);
+  ffi::ObjectPtr<FlipAttrsNode> new_attrs = ffi::make_object<FlipAttrsNode>(*attrs);
   new_attrs->axis = static_cast<int64_t>(new_axis);
 
   return InferLayoutOutput({existing_layout}, {existing_layout}, Attrs(new_attrs));
@@ -2257,7 +2263,7 @@ InferLayoutOutput InferLayoutFlip(
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.flip")
-      .signature(sig::arg("data", "The input tensor."), sig::call_attrs<FlipAttrs>())
+      .signature(sig::arg("data", "The input tensor."), sig::call_attrs<FlipAttrsNode>())
       .set_attr<FInferType>(tvm::op_attr::kInferType, FInferType::FromNative<&InferTypeFlip>())
       .set_attr<FRelaxInferLayout>(tvm::relax::op_attr::kInferLayout, InferLayoutFlip)
       .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
@@ -2266,7 +2272,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 /* relax.reverse_sequence */
 
 Expr reverse_sequence(Expr data, Expr seq_lengths, int64_t seq_axis, int64_t batch_axis) {
-  auto attrs = ffi::make_object<ReverseSequenceAttrs>();
+  auto attrs = ffi::make_object<ReverseSequenceAttrsNode>();
   attrs->seq_axis = seq_axis;
   attrs->batch_axis = batch_axis;
   static const Op op = Op::Get("relax.reverse_sequence");
@@ -2307,7 +2313,7 @@ Type InferTypeReverseSequence(const Call& call, const BlockBuilder& ctx) {
         << seq_lengths_ty->dtype;
   }
 
-  const auto* attrs = call->attrs.as<ReverseSequenceAttrs>();
+  const auto* attrs = call->attrs.as<ReverseSequenceAttrsNode>();
   int64_t seq_axis = attrs->seq_axis;
   int64_t batch_axis = attrs->batch_axis;
   if (!data_ty->IsUnknownNdim()) {
@@ -2352,7 +2358,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.reverse_sequence")
       .signature(sig::arg("data", "The input tensor."),
                  sig::arg("seq_lengths", "The sequence length tensor."),
-                 sig::call_attrs<ReverseSequenceAttrs>())
+                 sig::call_attrs<ReverseSequenceAttrsNode>())
       .set_attr<FInferTypeWithBuilder>(tvm::relax::op_attr::kInferTypeWithBuilder,
                                        InferTypeReverseSequence)
       .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
@@ -2361,7 +2367,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 /* relax.gather_elements */
 
 Expr gather_elements(Expr data, Expr indices, int axis) {
-  auto attrs = ffi::make_object<GatherElementsAttrs>();
+  auto attrs = ffi::make_object<GatherElementsAttrsNode>();
   attrs->axis = axis;
   static const Op op = Op::Get("relax.gather_elements");
   return Call(Type::Missing(), op, {data, indices}, Attrs(attrs), {});
@@ -2377,7 +2383,7 @@ Type InferTypeGatherElements(const CallNode* call_node) {
   if (RequiresTensorInputNormalization(call)) return Type::Missing();
   const auto* data_ty = GetTypeAs<TensorTypeNode>(call->args[0]);
   const auto* indices_ty = GetTypeAs<TensorTypeNode>(call->args[1]);
-  const auto* attrs = call->attrs.as<GatherElementsAttrs>();
+  const auto* attrs = call->attrs.as<GatherElementsAttrsNode>();
 
   if (data_ty == nullptr) {
     TVM_FFI_VISIT_THROW(TypeError, call)
@@ -2424,7 +2430,7 @@ InferLayoutOutput InferLayoutGatherElements(
     const Call& call, const ffi::Map<ffi::String, ffi::Array<ffi::String>>& desired_layouts,
     const VarLayoutMap& var_layout_map) {
   TVM_FFI_ICHECK(NoDesiredLayout(call, desired_layouts));
-  const auto* attrs = call->attrs.as<GatherElementsAttrs>();
+  const auto* attrs = call->attrs.as<GatherElementsAttrsNode>();
   TVM_FFI_ICHECK(attrs) << "Invalid Call";
 
   LayoutDecision data_layout = GetLayoutDecision(var_layout_map, call->args[0]);
@@ -2454,7 +2460,8 @@ InferLayoutOutput InferLayoutGatherElements(
     layout = LayoutDecision(InitialLayout(ndim));
   }
 
-  ffi::ObjectPtr<GatherElementsAttrs> new_attrs = ffi::make_object<GatherElementsAttrs>(*attrs);
+  ffi::ObjectPtr<GatherElementsAttrsNode> new_attrs =
+      ffi::make_object<GatherElementsAttrsNode>(*attrs);
   new_attrs->axis = FindAxis(layout->layout.value(), attrs->axis);
   return InferLayoutOutput({layout, layout}, {layout}, Attrs(new_attrs));
 }
@@ -2462,7 +2469,7 @@ InferLayoutOutput InferLayoutGatherElements(
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.gather_elements")
       .signature(sig::arg("data", "The input tensor."), sig::arg("indices", "The indices tensor."),
-                 sig::call_attrs<GatherElementsAttrs>())
+                 sig::call_attrs<GatherElementsAttrsNode>())
       .set_attr<FInferType>(tvm::op_attr::kInferType,
                             FInferType::FromNative<&InferTypeGatherElements>())
       .set_attr<FRelaxInferLayout>(tvm::relax::op_attr::kInferLayout, InferLayoutGatherElements)
@@ -2472,7 +2479,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 /* relax.gather_nd */
 
 Expr gather_nd(Expr data, Expr indices, int batch_dims) {
-  auto attrs = ffi::make_object<GatherNDAttrs>();
+  auto attrs = ffi::make_object<GatherNDAttrsNode>();
   attrs->batch_dims = batch_dims;
   static const Op op = Op::Get("relax.gather_nd");
   return Call(Type::Missing(), op, {data, indices}, Attrs(attrs), {});
@@ -2488,7 +2495,7 @@ Type InferTypeGatherND(const CallNode* call_node) {
   if (RequiresTensorInputNormalization(call)) return Type::Missing();
   const auto* data_ty = GetTypeAs<TensorTypeNode>(call->args[0]);
   const auto* indices_ty = GetTypeAs<TensorTypeNode>(call->args[1]);
-  const auto* attrs = call->attrs.as<GatherNDAttrs>();
+  const auto* attrs = call->attrs.as<GatherNDAttrsNode>();
 
   if (data_ty == nullptr) {
     TVM_FFI_VISIT_THROW(TypeError, call)
@@ -2559,7 +2566,7 @@ Type InferTypeGatherND(const CallNode* call_node) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.gather_nd")
       .signature(sig::arg("data", "The input tensor."), sig::arg("indices", "The indices tensor."),
-                 sig::call_attrs<GatherNDAttrs>())
+                 sig::call_attrs<GatherNDAttrsNode>())
       .set_attr<FInferType>(tvm::op_attr::kInferType, FInferType::FromNative<&InferTypeGatherND>())
       .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
 }
@@ -2567,7 +2574,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 /* relax.index_put */
 
 Expr index_put(Expr data, Expr indices, Expr values, bool accumulate) {
-  auto attrs = ffi::make_object<IndexPutAttrs>();
+  auto attrs = ffi::make_object<IndexPutAttrsNode>();
   attrs->accumulate = std::move(accumulate);
   static const Op op = Op::Get("relax.index_put");
   return Call(Type::Missing(), op, {data, indices, values}, Attrs(attrs), {});
@@ -2711,7 +2718,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.index_put")
       .signature(sig::arg("data", "The input tensor."),
                  sig::arg("indices", "The indices tensor(s)."),
-                 sig::arg("values", "The values to put."), sig::call_attrs<IndexPutAttrs>())
+                 sig::arg("values", "The values to put."), sig::call_attrs<IndexPutAttrsNode>())
       .set_attr<FInferType>(tvm::op_attr::kInferType, FInferType::FromNative<&InferTypeIndexPut>())
       .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
 }
@@ -2719,7 +2726,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 /* relax.meshgrid */
 
 Expr meshgrid(Expr tensors, ffi::Optional<ffi::String> indexing) {
-  ffi::ObjectPtr<MeshgridAttrs> attrs = ffi::make_object<MeshgridAttrs>();
+  ffi::ObjectPtr<MeshgridAttrsNode> attrs = ffi::make_object<MeshgridAttrsNode>();
   attrs->indexing = indexing;
   static const Op op = Op::Get("relax.meshgrid");
   return Call(Type::Missing(), op, {std::move(tensors)}, Attrs(attrs), {});
@@ -2817,7 +2824,7 @@ Type InferTypeMeshgrid(const CallNode* call_node) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.meshgrid")
       .signature(sig::arg("tensors", "The input list of tensors."),
-                 sig::call_attrs<MeshgridAttrs>())
+                 sig::call_attrs<MeshgridAttrsNode>())
       .set_attr<FInferType>(tvm::op_attr::kInferType, FInferType::FromNative<&InferTypeMeshgrid>())
       .set_attr<TMixedPrecisionPolicy>(tvm::relax::op_attr::kMixedPrecisionPolicy,
                                        MixedPrecisionPolicyKind::kFollow)
@@ -2827,7 +2834,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 /* relax.scatter_elements */
 
 Expr scatter_elements(Expr data, Expr indices, Expr updates, int axis, ffi::String reduction) {
-  auto attrs = ffi::make_object<ScatterElementsAttrs>();
+  auto attrs = ffi::make_object<ScatterElementsAttrsNode>();
   attrs->axis = std::move(axis);
   attrs->reduction = std::move(reduction);
   static const Op op = Op::Get("relax.scatter_elements");
@@ -2934,7 +2941,7 @@ InferLayoutOutput InferLayoutScatterElements(
     const Call& call, const ffi::Map<ffi::String, ffi::Array<ffi::String>>& desired_layouts,
     const VarLayoutMap& var_layout_map) {
   TVM_FFI_ICHECK(NoDesiredLayout(call, desired_layouts));
-  const auto* attrs = call->attrs.as<ScatterElementsAttrs>();
+  const auto* attrs = call->attrs.as<ScatterElementsAttrsNode>();
   TVM_FFI_ICHECK(attrs) << "Invalid Call";
 
   LayoutDecision data_layout = GetLayoutDecision(var_layout_map, call->args[0]);
@@ -2955,7 +2962,8 @@ InferLayoutOutput InferLayoutScatterElements(
     layout = LayoutDecision(InitialLayout(ndim));
   }
 
-  ffi::ObjectPtr<ScatterElementsAttrs> new_attrs = ffi::make_object<ScatterElementsAttrs>(*attrs);
+  ffi::ObjectPtr<ScatterElementsAttrsNode> new_attrs =
+      ffi::make_object<ScatterElementsAttrsNode>(*attrs);
   new_attrs->axis = FindAxis(layout->layout.value(), attrs->axis);
   return InferLayoutOutput({layout, layout, layout}, {layout}, Attrs(new_attrs));
 }
@@ -2964,7 +2972,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.scatter_elements")
       .signature(sig::arg("data", "The input tensor."), sig::arg("indices", "The indices tensor."),
                  sig::arg("updates", "The input tensor of updates."),
-                 sig::call_attrs<ScatterElementsAttrs>())
+                 sig::call_attrs<ScatterElementsAttrsNode>())
       .set_attr<FInferTypeWithBuilder>(tvm::relax::op_attr::kInferTypeWithBuilder,
                                        InferTypeScatterElements)
       .set_attr<FRelaxInferLayout>(tvm::relax::op_attr::kInferLayout, InferLayoutScatterElements)
@@ -2974,7 +2982,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 /* relax.scatter_nd */
 
 Expr scatter_nd(Expr data, Expr indices, Expr updates, ffi::String reduction) {
-  auto attrs = ffi::make_object<ScatterNDAttrs>();
+  auto attrs = ffi::make_object<ScatterNDAttrsNode>();
   attrs->reduction = std::move(reduction);
   static const Op op = Op::Get("relax.scatter_nd");
   return Call(Type::Missing(), op, {data, indices, updates}, Attrs(attrs), {});
@@ -3144,7 +3152,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.scatter_nd")
       .signature(sig::arg("data", "The input tensor."), sig::arg("indices", "The indices tensor."),
                  sig::arg("updates", "The input tensor of updates."),
-                 sig::call_attrs<ScatterNDAttrs>())
+                 sig::call_attrs<ScatterNDAttrsNode>())
       .set_attr<FInferTypeWithBuilder>(tvm::relax::op_attr::kInferTypeWithBuilder,
                                        InferTypeScatterND)
       .set_attr<FRelaxInferLayout>(tvm::relax::op_attr::kInferLayout, InferLayoutScatterND)
@@ -3154,7 +3162,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 /* relax.scatter_nd */
 
 Expr slice_scatter(Expr input, Expr src, int axis, PrimExpr start, PrimExpr end, PrimExpr step) {
-  auto attrs = ffi::make_object<SliceScatterAttrs>();
+  auto attrs = ffi::make_object<SliceScatterAttrsNode>();
   attrs->axis = std::move(axis);
   static const Op op = Op::Get("relax.slice_scatter");
   return Call(Type::Missing(), op, {input, src, start, end, step}, Attrs(attrs), {});
@@ -3169,7 +3177,7 @@ Type InferTypeSliceScatter(const Call& call, const BlockBuilder& ctx) {
   sym::Analyzer analyzer = ctx->GetAnalyzer();
   const auto* data_ty = GetTypeAs<TensorTypeNode>(call->args[0]);
   const auto* src_ty = GetTypeAs<TensorTypeNode>(call->args[1]);
-  auto* attrs = call->attrs.as<SliceScatterAttrs>();
+  auto* attrs = call->attrs.as<SliceScatterAttrsNode>();
 
   auto diag_tensor_check = [&](const TensorTypeNode* ty, const Expr& arg_expr, ffi::String name) {
     if (ty == nullptr) {
@@ -3297,11 +3305,12 @@ Type InferTypeSliceScatter(const Call& call, const BlockBuilder& ctx) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.slice_scatter")
-      .signature(
-          sig::arg("input", "The input tensor."), sig::arg("src", "The source tensor to scatter."),
-          sig::arg<IntExpr>("start", "The starting index of the slice (inclusive)."),
-          sig::arg<IntExpr>("end", "The ending index of the slice (exclusive)."),
-          sig::arg<IntExpr>("step", "The step of the slice."), sig::call_attrs<SliceScatterAttrs>())
+      .signature(sig::arg("input", "The input tensor."),
+                 sig::arg("src", "The source tensor to scatter."),
+                 sig::arg<IntExpr>("start", "The starting index of the slice (inclusive)."),
+                 sig::arg<IntExpr>("end", "The ending index of the slice (exclusive)."),
+                 sig::arg<IntExpr>("step", "The step of the slice."),
+                 sig::call_attrs<SliceScatterAttrsNode>())
       .set_attr<FInferTypeWithBuilder>(tvm::relax::op_attr::kInferTypeWithBuilder,
                                        InferTypeSliceScatter)
       .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
@@ -3310,7 +3319,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 /* relax.one_hot */
 
 Expr one_hot(Expr indices, PrimExpr on_value, PrimExpr off_value, int depth, int axis) {
-  ffi::ObjectPtr<OneHotAttrs> attrs = ffi::make_object<OneHotAttrs>();
+  ffi::ObjectPtr<OneHotAttrsNode> attrs = ffi::make_object<OneHotAttrsNode>();
   attrs->depth = depth;
   attrs->axis = axis;
 
@@ -3335,7 +3344,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 Type InferTypeOneHot(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
   TensorType indices_ty = GetInputTensorType(call, 0);
-  const auto* attrs = call->attrs.as<OneHotAttrs>();
+  const auto* attrs = call->attrs.as<OneHotAttrsNode>();
   PrimExpr on_value = call->args[1].as_or_throw<PrimExpr>();
   PrimExpr off_value = call->args[2].as_or_throw<PrimExpr>();
   // Check if on_value and off_value have the same dtype
@@ -3387,7 +3396,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .signature(sig::arg("indices", "The indices tensor."),
                  sig::arg("on_value", "The value to fill at specified indices."),
                  sig::arg("off_value", "The value to fill at other indices."),
-                 sig::call_attrs<OneHotAttrs>())
+                 sig::call_attrs<OneHotAttrsNode>())
       .set_attr<FInferType>(tvm::op_attr::kInferType, FInferType::FromNative<&InferTypeOneHot>())
       .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
 }

@@ -28,7 +28,7 @@ namespace ir_builder {
 namespace s_tir {
 
 /*! \brief Function frame owning schedulable TIR construction. */
-class FunctionFrameNode : public tirx::FunctionFrameNode {
+class FunctionFrameObj : public tirx::FunctionFrameObj {
  public:
   /*! \brief Tensors allocated in the implicit root block. */
   ffi::Array<tvm::tirx::TensorVar> root_alloc_tensors;
@@ -37,12 +37,12 @@ class FunctionFrameNode : public tirx::FunctionFrameNode {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<FunctionFrameNode>()
-        .def_ro("root_alloc_tensors", &FunctionFrameNode::root_alloc_tensors)
-        .def_ro("root_allocated_addresses", &FunctionFrameNode::root_allocated_addresses);
+    refl::ObjectDef<FunctionFrameObj>()
+        .def_ro("root_alloc_tensors", &FunctionFrameObj::root_alloc_tensors)
+        .def_ro("root_allocated_addresses", &FunctionFrameObj::root_allocated_addresses);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.s_tir.FunctionFrame", FunctionFrameNode,
-                                    tirx::FunctionFrameNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.s_tir.FunctionFrame", FunctionFrameObj,
+                                    tirx::FunctionFrameObj);
   /*! \brief Register an alias in the current block, including standalone block construction. */
   static void BindTensorRegion(tvm::tirx::TensorVar tensor, tvm::TensorRegion region,
                                ffi::Array<PrimExpr> allocated_addr);
@@ -51,10 +51,10 @@ class FunctionFrameNode : public tirx::FunctionFrameNode {
 
 class FunctionFrame : public tirx::FunctionFrame {
  public:
-  explicit FunctionFrame(ffi::ObjectPtr<FunctionFrameNode> data)
+  explicit FunctionFrame(ffi::ObjectPtr<FunctionFrameObj> data)
       : tirx::FunctionFrame(std::move(data)) {}
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(FunctionFrame, tirx::FunctionFrame,
-                                                FunctionFrameNode);
+                                                FunctionFrameObj);
 };
 
 /*!
@@ -62,7 +62,7 @@ class FunctionFrame : public tirx::FunctionFrame {
  *
  * \sa SBlockFrame
  */
-class SBlockFrameNode : public ir::StmtFrameNode {
+class SBlockFrameObj : public ir::StmtFrameObj {
  public:
   /*! \brief The name of the block. */
   ffi::String name;
@@ -94,22 +94,22 @@ class SBlockFrameNode : public ir::StmtFrameNode {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<SBlockFrameNode>()
-        .def_ro("name", &SBlockFrameNode::name)
-        .def_ro("iter_vars", &SBlockFrameNode::iter_vars)
-        .def_ro("reads", &SBlockFrameNode::reads)
-        .def_ro("writes", &SBlockFrameNode::writes)
-        .def_ro("init", &SBlockFrameNode::init)
-        .def_ro("alloc_tensors", &SBlockFrameNode::alloc_tensors)
-        .def_ro("match_tensors", &SBlockFrameNode::match_tensors)
-        .def_ro("allocated_addresses", &SBlockFrameNode::allocated_addresses)
-        .def_ro("annotations", &SBlockFrameNode::annotations)
-        .def_ro("iter_values", &SBlockFrameNode::iter_values)
-        .def_ro("predicate", &SBlockFrameNode::predicate)
-        .def_ro("no_realize", &SBlockFrameNode::no_realize);
+    refl::ObjectDef<SBlockFrameObj>()
+        .def_ro("name", &SBlockFrameObj::name)
+        .def_ro("iter_vars", &SBlockFrameObj::iter_vars)
+        .def_ro("reads", &SBlockFrameObj::reads)
+        .def_ro("writes", &SBlockFrameObj::writes)
+        .def_ro("init", &SBlockFrameObj::init)
+        .def_ro("alloc_tensors", &SBlockFrameObj::alloc_tensors)
+        .def_ro("match_tensors", &SBlockFrameObj::match_tensors)
+        .def_ro("allocated_addresses", &SBlockFrameObj::allocated_addresses)
+        .def_ro("annotations", &SBlockFrameObj::annotations)
+        .def_ro("iter_values", &SBlockFrameObj::iter_values)
+        .def_ro("predicate", &SBlockFrameObj::predicate)
+        .def_ro("no_realize", &SBlockFrameObj::no_realize);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.s_tir.SBlockFrame", SBlockFrameNode,
-                                    ir::StmtFrameNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.s_tir.SBlockFrame", SBlockFrameObj,
+                                    ir::StmtFrameObj);
 
  public:
   /*!
@@ -120,18 +120,18 @@ class SBlockFrameNode : public ir::StmtFrameNode {
 };
 
 /*!
- * \brief Managed reference to SBlockFrameNode.
+ * \brief Managed reference to SBlockFrameObj.
  *
- * \sa SBlockFrameNode
+ * \sa SBlockFrameObj
  */
 
 class SBlockFrame : public ir::StmtFrame {
  public:
-  explicit SBlockFrame(ffi::ObjectPtr<SBlockFrameNode> data) : ir::StmtFrame(ffi::UnsafeInit{}) {
+  explicit SBlockFrame(ffi::ObjectPtr<SBlockFrameObj> data) : ir::StmtFrame(ffi::UnsafeInit{}) {
     TVM_FFI_ICHECK(data != nullptr);
     data_ = std::move(data);
   }
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(SBlockFrame, ir::StmtFrame, SBlockFrameNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(SBlockFrame, ir::StmtFrame, SBlockFrameObj);
 };
 
 /*!
@@ -139,14 +139,14 @@ class SBlockFrame : public ir::StmtFrame {
  *
  * \sa BlockInitFrame
  */
-class BlockInitFrameNode : public ir::StmtFrameNode {
+class BlockInitFrameObj : public ir::StmtFrameObj {
  public:
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<BlockInitFrameNode>();
+    refl::ObjectDef<BlockInitFrameObj>();
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.s_tir.BlockInitFrame", BlockInitFrameNode,
-                                    ir::StmtFrameNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.s_tir.BlockInitFrame", BlockInitFrameObj,
+                                    ir::StmtFrameObj);
 
  public:
   /*!
@@ -162,18 +162,18 @@ class BlockInitFrameNode : public ir::StmtFrameNode {
 };
 
 /*!
- * \brief Managed reference to BlockInitFrameNode.
+ * \brief Managed reference to BlockInitFrameObj.
  *
- * \sa BlockInitFrameNode
+ * \sa BlockInitFrameObj
  */
 class BlockInitFrame : public ir::StmtFrame {
  public:
-  explicit BlockInitFrame(ffi::ObjectPtr<BlockInitFrameNode> data)
+  explicit BlockInitFrame(ffi::ObjectPtr<BlockInitFrameObj> data)
       : ir::StmtFrame(ffi::UnsafeInit{}) {
     TVM_FFI_ICHECK(data != nullptr);
     data_ = std::move(data);
   }
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(BlockInitFrame, ir::StmtFrame, BlockInitFrameNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(BlockInitFrame, ir::StmtFrame, BlockInitFrameObj);
 };
 
 }  // namespace s_tir

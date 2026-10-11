@@ -47,8 +47,8 @@
 // The logics are somewhat interdependent with each other.
 // To help us implement a block builder in two parts:
 //
-// - BlockBuilderImpl: implements ctx and scope management, with no normalization.
-// - BlockBuilderImplWithNormalize: subclasses BlockBuilderImpl and implements normalization.
+// - BlockBuilderImplObj: implements ctx and scope management, with no normalization.
+// - BlockBuilderImplWithNormalize: subclasses BlockBuilderImplObj and implements normalization.
 //
 // The final blockbuilder create will be backed by BlockBuilderWithNormalize
 
@@ -59,11 +59,11 @@ using namespace tvm::prim;
 //---------------------------------------
 // ctx and scope management.
 //---------------------------------------
-class BlockBuilderImpl : public BlockBuilderNode {
+class BlockBuilderImplObj : public BlockBuilderObj {
  public:
-  explicit BlockBuilderImpl(IRModule context_mod) : context_mod_(std::move(context_mod)) {}
+  explicit BlockBuilderImplObj(IRModule context_mod) : context_mod_(std::move(context_mod)) {}
 
-  ~BlockBuilderImpl() {
+  ~BlockBuilderImplObj() {
     if (!block_stack_.empty()) {
       LOG(WARNING) << "BlockBuilder destroyed with remaining blocks!";
     }
@@ -515,12 +515,12 @@ class BlockBuilderImpl : public BlockBuilderNode {
 // - If an expr appears in Type, then it is already normalized.
 //   As a result, we do not need to peek into Type in Normalization.
 // - GenericConst, ShapeExpr, already have their Type populated in constructing time.
-class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&)> {
+class NormalizerObj : public BlockBuilderImplObj, private ExprFunctor<Expr(const Expr&)> {
  public:
-  explicit Normalizer(IRModule context_mod) : BlockBuilderImpl(context_mod) {}
-  explicit Normalizer(IRModule context_mod,
-                      BlockBuilder::DisableOperatorSpecificNormalizationForTVMScript)
-      : BlockBuilderImpl(context_mod), apply_f_normalize_(false) {}
+  explicit NormalizerObj(IRModule context_mod) : BlockBuilderImplObj(context_mod) {}
+  explicit NormalizerObj(IRModule context_mod,
+                         BlockBuilder::DisableOperatorSpecificNormalizationForTVMScript)
+      : BlockBuilderImplObj(context_mod), apply_f_normalize_(false) {}
 
   Expr Normalize(const Expr& expr) final {
     Expr normalized = this->VisitExpr(expr);
@@ -1064,13 +1064,13 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
 };
 
 BlockBuilder BlockBuilder::Create(ffi::Optional<IRModule> mod) {
-  ffi::ObjectPtr<BlockBuilderNode> n = ffi::make_object<Normalizer>(mod.value_or(IRModule()));
+  ffi::ObjectPtr<BlockBuilderObj> n = ffi::make_object<NormalizerObj>(mod.value_or(IRModule()));
   return BlockBuilder(ffi::UnsafeInit{}, std::move(n));
 }
 
 BlockBuilder BlockBuilder::Create(ffi::Optional<IRModule> mod,
                                   BlockBuilder::DisableOperatorSpecificNormalizationForTVMScript) {
-  ffi::ObjectPtr<BlockBuilderNode> n = ffi::make_object<Normalizer>(
+  ffi::ObjectPtr<BlockBuilderObj> n = ffi::make_object<NormalizerObj>(
       mod.value_or(IRModule()), BlockBuilder::DisableOperatorSpecificNormalizationForTVMScript());
   return BlockBuilder(ffi::UnsafeInit{}, std::move(n));
 }
@@ -1081,14 +1081,14 @@ BlockBuilder BlockBuilder::Create(ffi::Optional<IRModule> mod,
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::ObjectDef<BlockBuilderNode>();
+  refl::ObjectDef<BlockBuilderObj>();
   refl::GlobalDef()
       .def("relax.BlockBuilderCreate",
            [](ffi::Optional<IRModule> mod) { return BlockBuilder::Create(mod); })
-      .def_method("relax.BlockBuilderBeginDataflowBlock", &BlockBuilderNode::BeginDataflowBlock)
-      .def_method("relax.BlockBuilderBeginBindingBlock", &BlockBuilderNode::BeginBindingBlock)
-      .def_method("relax.BlockBuilderEndBlock", &BlockBuilderNode::EndBlock)
-      .def_method("relax.BlockBuilderNormalize", &BlockBuilderNode::Normalize)
+      .def_method("relax.BlockBuilderBeginDataflowBlock", &BlockBuilderObj::BeginDataflowBlock)
+      .def_method("relax.BlockBuilderBeginBindingBlock", &BlockBuilderObj::BeginBindingBlock)
+      .def_method("relax.BlockBuilderEndBlock", &BlockBuilderObj::EndBlock)
+      .def_method("relax.BlockBuilderNormalize", &BlockBuilderObj::Normalize)
       .def("relax.BlockBuilderEmit",
            [](BlockBuilder builder, Expr expr, ffi::String name_hint) {
              return builder->Emit(expr, name_hint);
@@ -1108,15 +1108,15 @@ TVM_FFI_STATIC_INIT_BLOCK() {
              return builder->name_supply()->FreshName(name_hint, /*add_prefix*/ false,
                                                       /*add_underscore*/ false);
            })
-      .def_method("relax.BlockBuilderAddFunction", &BlockBuilderNode::AddFunction)
-      .def_method("relax.BlockBuilderUpdateFunction", &BlockBuilderNode::UpdateFunction)
-      .def_method("relax.BlockBuilderGetContextIRModule", &BlockBuilderNode::GetContextIRModule)
-      .def_method("relax.BlockBuilderFinalize", &BlockBuilderNode::Finalize)
+      .def_method("relax.BlockBuilderAddFunction", &BlockBuilderObj::AddFunction)
+      .def_method("relax.BlockBuilderUpdateFunction", &BlockBuilderObj::UpdateFunction)
+      .def_method("relax.BlockBuilderGetContextIRModule", &BlockBuilderObj::GetContextIRModule)
+      .def_method("relax.BlockBuilderFinalize", &BlockBuilderObj::Finalize)
       .def_method("relax.BlockBuilderCurrentBlockIsDataFlow",
-                  &BlockBuilderNode::CurrentBlockIsDataFlow)
-      .def_method("relax.BlockBuilderLookupBinding", &BlockBuilderNode::LookupBinding)
-      .def_method("relax.BlockBuilderBeginScope", &BlockBuilderNode::BeginScope)
-      .def_method("relax.BlockBuilderEndScope", &BlockBuilderNode::EndScope);
+                  &BlockBuilderObj::CurrentBlockIsDataFlow)
+      .def_method("relax.BlockBuilderLookupBinding", &BlockBuilderObj::LookupBinding)
+      .def_method("relax.BlockBuilderBeginScope", &BlockBuilderObj::BeginScope)
+      .def_method("relax.BlockBuilderEndScope", &BlockBuilderObj::EndScope);
 }
 }  // namespace relax
 }  // namespace tvm

@@ -30,20 +30,20 @@ namespace tvm {
 namespace relax {
 
 /*! \brief Attributes used in full/full_like, ones/ones_like, and zeros/zeros_like operators */
-struct InitAttrs : public AttrsNode {
+struct InitAttrsNode : public AttrsNode {
   ffi::Optional<DLDataType> dtype;
 
   static void RegisterReflection();
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.InitAttrs", InitAttrs, AttrsNode);
-};  // struct InitAttrs
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.InitAttrs", InitAttrsNode, AttrsNode);
+};  // struct InitAttrsNode
 
 /*! \brief Attributes used in tril and triu operator */
-struct TriluAttrs : public AttrsNode {
+struct TriluAttrsNode : public AttrsNode {
   int k;
 
   static void RegisterReflection();
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.TriluAttrs", TriluAttrs, AttrsNode);
-};  // struct TriluAttrs
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.TriluAttrs", TriluAttrsNode, AttrsNode);
+};  // struct TriluAttrsNode
 
 }  // namespace relax
 }  // namespace tvm

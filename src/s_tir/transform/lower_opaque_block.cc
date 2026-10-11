@@ -42,13 +42,13 @@ using namespace tvm::tirx;
 /*!
  * \brief Remove SBlock to ensure that the TIR can not be scheduled again.
  */
-class OpaqueBlockLower : public StmtExprMutator {
+class OpaqueBlockLowerObj : public StmtExprMutatorObj {
  public:
-  using StmtExprMutator::Mutate;
-  using StmtExprMutator::Mutate_;
+  using StmtExprMutatorObj::Mutate;
+  using StmtExprMutatorObj::Mutate_;
 
   static Stmt Rewrite(Stmt body) {
-    auto lower = ffi::make_object<OpaqueBlockLower>();
+    auto lower = ffi::make_object<OpaqueBlockLowerObj>();
     lower->storage_align_ = CollectStorageAlignAnnotation(body);
     return lower->Mutate(body, InplaceMode::kAllow).ValueOrUnchanged(std::move(body));
   }
@@ -186,7 +186,7 @@ Pass LowerOpaqueBlock() {
   auto pass_func = [=](Function f, IRModule m, PassContext ctx) {
     if (!f->body.has_value()) return f;
     auto fptr = f.CopyOnWrite();
-    fptr->body = OpaqueBlockLower::Rewrite(std::move(fptr->body).value());
+    fptr->body = OpaqueBlockLowerObj::Rewrite(std::move(fptr->body).value());
     return f;
   };
   return CreateFunctionPass(pass_func, 0, "s_tir.LowerOpaqueBlock");

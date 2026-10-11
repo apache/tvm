@@ -60,14 +60,14 @@ using namespace tvm::prim;
  *  Every use site then only looks the pair up; a use before its definition is
  *  a hard error instead of a silently stale reference.
  */
-class TensorFlattener : public IRMutatorWithAnalyzer {
+class TensorFlattenerObj : public IRMutatorWithAnalyzerObj {
  public:
-  using IRMutatorWithAnalyzer::Mutate;
-  using IRMutatorWithAnalyzer::Mutate_;
+  using IRMutatorWithAnalyzerObj::Mutate;
+  using IRMutatorWithAnalyzerObj::Mutate_;
   static Function Flatten(Function func) {
     if (!func->body.has_value()) return func;
     sym::Analyzer ana;
-    auto pass = ffi::make_object<TensorFlattener>(ana);
+    auto pass = ffi::make_object<TensorFlattenerObj>(ana);
     pass->MarkTensorParamShapes(func);
     for (const Var& param : func->params) {
       if (auto tensor = param.as<TensorVar>()) {
@@ -103,7 +103,7 @@ class TensorFlattener : public IRMutatorWithAnalyzer {
   }
 
  public:
-  explicit TensorFlattener(const sym::Analyzer& ana) : IRMutatorWithAnalyzer(ana) {}
+  explicit TensorFlattenerObj(const sym::Analyzer& ana) : IRMutatorWithAnalyzerObj(ana) {}
 
  private:
   struct FlatInfo {
@@ -188,7 +188,7 @@ class TensorFlattener : public IRMutatorWithAnalyzer {
       if (call->op.same_as(alloc_tensor_op())) return MutateAllocTensor(op, call, inplace_mode);
       if (call->op.same_as(decl_tensor_op())) return MutateDeclTensor(op, call, inplace_mode);
     }
-    return IRMutatorWithAnalyzer::Mutate_(op, inplace_mode);
+    return IRMutatorWithAnalyzerObj::Mutate_(op, inplace_mode);
   }
 
   UnchangedOr<Stmt> MutateAllocTensor(const BindNode* op, const CallNode* tensor_call,
@@ -287,7 +287,7 @@ class TensorFlattener : public IRMutatorWithAnalyzer {
         }
       }
     }
-    return IRMutatorWithAnalyzer::Mutate_(op, inplace_mode);
+    return IRMutatorWithAnalyzerObj::Mutate_(op, inplace_mode);
   }
 
   ffi::Array<PrimExpr> FoldIndices(const FlatInfo& info, const ffi::Array<PrimExpr>& indices) {
@@ -325,7 +325,7 @@ class TensorFlattener : public IRMutatorWithAnalyzer {
   std::unordered_map<Var, FlatInfo, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> flat_map_;
 };
 
-Function FlattenTensor(Function f) { return TensorFlattener::Flatten(f); }
+Function FlattenTensor(Function f) { return TensorFlattenerObj::Flatten(f); }
 
 namespace transform {
 

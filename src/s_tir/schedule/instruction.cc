@@ -68,9 +68,9 @@ ffi::String InstructionAsPythonRepr(const InstructionNode* self) {
 
 }  // namespace
 
-TVM_FFI_STATIC_INIT_BLOCK() { InstructionKindNode::RegisterReflection(); }
+TVM_FFI_STATIC_INIT_BLOCK() { InstructionKindObj::RegisterReflection(); }
 
-bool InstructionKindNode::IsPostproc() const {
+bool InstructionKindObj::IsPostproc() const {
   static InstructionKind inst_enter_postproc = InstructionKind::Get("EnterPostproc");
   return this == inst_enter_postproc.get();
 }
@@ -118,7 +118,7 @@ class InstructionKindRegistry {
     if (auto kind = kinds_.Get(name)) {
       return *kind;
     }
-    InstructionKind kind(ffi::UnsafeInit{}, ffi::make_object<InstructionKindNode>());
+    InstructionKind kind(ffi::UnsafeInit{}, ffi::make_object<InstructionKindObj>());
     kinds_.Set(name, kind);
     return kind;
   }

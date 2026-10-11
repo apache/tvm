@@ -37,28 +37,28 @@
 namespace tvm {
 namespace relax {
 
-void MatmulAttrs::RegisterReflection() {
+void MatmulAttrsNode::RegisterReflection() {
   namespace refl = tvm::ffi::reflection;
-  refl::ObjectDef<MatmulAttrs>().def_ro("out_dtype", &MatmulAttrs::out_dtype,
-                                        "The data type of the output tensor",
-                                        refl::DefaultValue(ffi::Optional<DLDataType>{}));
+  refl::ObjectDef<MatmulAttrsNode>().def_ro("out_dtype", &MatmulAttrsNode::out_dtype,
+                                            "The data type of the output tensor",
+                                            refl::DefaultValue(ffi::Optional<DLDataType>{}));
 }
 
-void EinsumAttrs::RegisterReflection() {
+void EinsumAttrsNode::RegisterReflection() {
   namespace refl = tvm::ffi::reflection;
-  refl::ObjectDef<EinsumAttrs>().def_ro("subscripts", &EinsumAttrs::subscripts,
-                                        "The einsum expression string");
+  refl::ObjectDef<EinsumAttrsNode>().def_ro("subscripts", &EinsumAttrsNode::subscripts,
+                                            "The einsum expression string");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  MatmulAttrs::RegisterReflection();
-  EinsumAttrs::RegisterReflection();
+  MatmulAttrsNode::RegisterReflection();
+  EinsumAttrsNode::RegisterReflection();
 }
 
 /* relax.matmul */
 
 Expr matmul(Expr x1, Expr x2, ffi::Optional<DLDataType> out_dtype) {
-  ffi::ObjectPtr<MatmulAttrs> attrs = ffi::make_object<MatmulAttrs>();
+  ffi::ObjectPtr<MatmulAttrsNode> attrs = ffi::make_object<MatmulAttrsNode>();
   attrs->out_dtype = out_dtype;
 
   static const Op op = Op::Get("relax.matmul");
@@ -88,7 +88,7 @@ Type InferTypeMatmul(const Call& call, const BlockBuilder& ctx) {
     vdev = x2_ty->vdevice.value();
   }
 
-  const auto* attrs = call->attrs.as<MatmulAttrs>();
+  const auto* attrs = call->attrs.as<MatmulAttrsNode>();
   ffi::Optional<PrimType> out_dtype = attrs->out_dtype.has_value()
                                           ? PrimType(attrs->out_dtype.value())
                                           : InferBinaryArithOpOutDtype(call, ctx, x1_ty, x2_ty);
@@ -180,7 +180,7 @@ Call InferMixedPrecisionMatmul(const Call& call, DLDataType out_dtype) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.matmul")
       .signature(sig::arg("x1", "The first input tensor."),
-                 sig::arg("x2", "The second input tensor."), sig::call_attrs<MatmulAttrs>())
+                 sig::arg("x2", "The second input tensor."), sig::call_attrs<MatmulAttrsNode>())
       .set_attr<FInferTypeWithBuilder>(tvm::relax::op_attr::kInferTypeWithBuilder, InferTypeMatmul)
       .set_attr<TMixedPrecisionPolicy>(tvm::relax::op_attr::kMixedPrecisionPolicy,
                                        MixedPrecisionPolicyKind::kAlways)
@@ -192,7 +192,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 /* relax.einsum */
 
 Expr einsum(Expr operands, ffi::String subscripts) {
-  ffi::ObjectPtr<EinsumAttrs> attrs = ffi::make_object<EinsumAttrs>();
+  ffi::ObjectPtr<EinsumAttrsNode> attrs = ffi::make_object<EinsumAttrsNode>();
   attrs->subscripts = std::move(subscripts);
 
   static const Op op = Op::Get("relax.einsum");
@@ -216,7 +216,7 @@ Type InferTypeEinsum(const CallNode* call_node) {
            "given input Tuple is empty.";
   }
 
-  const auto* attrs = call->attrs.as<EinsumAttrs>();
+  const auto* attrs = call->attrs.as<EinsumAttrsNode>();
 
   bool vdevice_unknown = false;
   ffi::Optional<VDevice> vdev;
@@ -272,7 +272,7 @@ Type InferTypeEinsum(const CallNode* call_node) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.einsum")
-      .signature(sig::arg("operands", "The input tensors."), sig::call_attrs<EinsumAttrs>())
+      .signature(sig::arg("operands", "The input tensors."), sig::call_attrs<EinsumAttrsNode>())
       .set_attr<FInferType>(tvm::op_attr::kInferType, FInferType::FromNative<&InferTypeEinsum>())
       .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
 }

@@ -236,7 +236,7 @@ struct ExprLess {
 /*!
  * \brief normalize to the form `expr <= 0`
  */
-class NormalizeComparisons : public tvm::ExprMutator {
+class NormalizeComparisonsObj : public tvm::ExprMutatorObj {
  public:
   UnchangedOr<PrimExpr> Mutate_(const prim::EQNode* op, InplaceMode inplace_mode) override {
     return Make<prim::EQ>(op->a, op->b);
@@ -387,7 +387,7 @@ PartialSolvedInequalities SolveLinearInequalities(const IntConstraints& system_t
   std::vector<PrimExpr> rest;
 
   // Simplify each inequality into the form `expr <= 0` and add to current formulas
-  auto normalizer = ffi::make_object<NormalizeComparisons>();
+  auto normalizer = ffi::make_object<NormalizeComparisonsObj>();
   for (const PrimExpr& ineq : system_to_solve.relations) {
     PrimExpr simplified = analyzer->Simplify(ineq, kSimplifyRewriteCanonicalRewrite);
     PrimExpr normalized = normalizer->Mutate(simplified).ValueOrUnchanged(simplified);

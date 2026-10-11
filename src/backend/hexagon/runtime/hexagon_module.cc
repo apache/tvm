@@ -19,14 +19,14 @@
 
 /*!
  * \file hexagon_module.cc
- * \brief HexagonModuleNode — runtime-side, plugin-only.  Reachable from C++
+ * \brief HexagonModuleObj — runtime-side, plugin-only.  Reachable from C++
  *        only through the FFI registry keys "ffi.Module.create.hexagon" and
  *        "ffi.Module.load_from_bytes.hexagon".  No exported header —
  *        codegen-side construction goes through
  *        src/backend/hexagon/codegen/hexagon_fallback_module.h.
  *
  *        This carrier holds the linked Hexagon `.so` blob in memory.  The
- *        existing HexagonModuleNode does not perform `dlopen` (Hexagon
+ *        existing HexagonModuleObj does not perform `dlopen` (Hexagon
  *        execution happens via a separate RPC-based runtime path); kernel
  *        launches via `GetFunction` are unimplemented.  The module exists
  *        primarily for cross-compile shipment (SaveToBytes) and source
@@ -49,10 +49,10 @@ namespace runtime {
 
 using HexagonSourceMap = ffi::Map<ffi::String, ffi::Variant<ffi::String, ffi::Bytes>>;
 
-class HexagonModuleNode : public ffi::ModuleObj {
+class HexagonModuleObj : public ffi::ModuleObj {
  public:
-  HexagonModuleNode(ffi::Bytes code, ffi::String fmt, ffi::Map<ffi::String, FunctionInfo> fmap,
-                    HexagonSourceMap source)
+  HexagonModuleObj(ffi::Bytes code, ffi::String fmt, ffi::Map<ffi::String, FunctionInfo> fmap,
+                   HexagonSourceMap source)
       : code_(std::move(code)),
         fmt_(std::move(fmt)),
         fmap_(std::move(fmap)),
@@ -65,7 +65,7 @@ class HexagonModuleNode : public ffi::ModuleObj {
   }
 
   ffi::Optional<ffi::Function> GetFunction(const ffi::String& name) final {
-    TVM_FFI_THROW(InternalError) << "HexagonModuleNode::GetFunction is not implemented.";
+    TVM_FFI_THROW(InternalError) << "HexagonModuleObj::GetFunction is not implemented.";
     TVM_FFI_UNREACHABLE();
   }
 
@@ -118,8 +118,8 @@ class HexagonModuleNode : public ffi::ModuleObj {
 static ffi::Module HexagonModuleCreateImpl(ffi::Bytes code, ffi::String fmt,
                                            ffi::Map<ffi::String, FunctionInfo> fmap,
                                            HexagonSourceMap source) {
-  auto n = ffi::make_object<HexagonModuleNode>(std::move(code), std::move(fmt), std::move(fmap),
-                                               std::move(source));
+  auto n = ffi::make_object<HexagonModuleObj>(std::move(code), std::move(fmt), std::move(fmap),
+                                              std::move(source));
   return ffi::Module(n);
 }
 

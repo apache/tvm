@@ -405,20 +405,20 @@ class CollectConsumerScopeInfo : public ExprVisitor {
     if (op_pattern < OpPatternKind::kCommReduce) return {true};
 
     for (auto attr : op_attrs) {
-      if (auto conv_attr = attr.as<Conv2DAttrs>()) {
+      if (auto conv_attr = attr.as<Conv2DAttrsNode>()) {
         if (conv_attr->data_layout == "NCHW4c" && conv_attr->kernel_layout == "OIHW4o") {
           // No Texture for weights
           return {true, false};
         }
-      } else if (auto pool_attrs = attr.as<Pool2DAttrs>()) {
+      } else if (auto pool_attrs = attr.as<Pool2DAttrsNode>()) {
         if (pool_attrs->layout == "NCHW4c") {
           return {true};
         }
-      } else if (auto avg_attrs = attr.as<AdaptivePool2DAttrs>()) {
+      } else if (auto avg_attrs = attr.as<AdaptivePool2DAttrsNode>()) {
         if (avg_attrs->layout == "NCHW4c") {
           return {true};
         }
-      } else if (attr.as<LayerNormAttrs>()) {
+      } else if (attr.as<LayerNormAttrsNode>()) {
         return {true};
       }
     }
@@ -737,7 +737,7 @@ class DefineVDevice : ExprMutator {
         }
       }
     }
-    ffi::ObjectPtr<HintOnDeviceAttrs> attrs = ffi::make_object<HintOnDeviceAttrs>();
+    ffi::ObjectPtr<HintOnDeviceAttrsNode> attrs = ffi::make_object<HintOnDeviceAttrsNode>();
     const VDevice& vdev = MakeGlobalVDevice(VDevice(target_, 0, scope));
     attrs->device_type = vdev->target.value()->GetTargetDeviceType();
     attrs->index = vdev->vdevice_id;

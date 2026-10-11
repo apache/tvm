@@ -73,23 +73,23 @@ class StmtFunctor<R(const Stmt&, Args...)> : public tirx::StmtFunctor<R(const St
  * Only this S-TIR subclass supplies native block hooks; the core TIRX table does not
  * register dialect nodes.
  */
-class TVM_DLL StmtExprVisitor : public tirx::StmtExprVisitor {
+class TVM_DLL StmtExprVisitorObj : public tirx::StmtExprVisitorObj {
  public:
-  TVM_DEFINE_OBJECT_FUNCTOR_DEFAULT_CONSTRUCTOR(StmtExprVisitor, tirx::StmtExprVisitor)
-  using tirx::StmtExprVisitor::Visit;
-  using tirx::StmtExprVisitor::Visit_;
+  TVM_DEFINE_OBJECT_FUNCTOR_DEFAULT_CONSTRUCTOR(StmtExprVisitorObj, tirx::StmtExprVisitorObj)
+  using tirx::StmtExprVisitorObj::Visit;
+  using tirx::StmtExprVisitorObj::Visit_;
 
   virtual ffi::Optional<VisitInterrupt> Visit_(const SBlockNode* op);
   virtual ffi::Optional<VisitInterrupt> Visit_(const SBlockRealizeNode* op);
 
   // Shared native traversal for specialized TIRX helpers extended by S-TIR.
-  static ffi::Optional<VisitInterrupt> VisitBlock(tirx::StmtExprVisitor* visitor,
+  static ffi::Optional<VisitInterrupt> VisitBlock(tirx::StmtExprVisitorObj* visitor,
                                                   const SBlockNode* op);
-  static ffi::Optional<VisitInterrupt> VisitBlockRealize(tirx::StmtExprVisitor* visitor,
+  static ffi::Optional<VisitInterrupt> VisitBlockRealize(tirx::StmtExprVisitorObj* visitor,
                                                          const SBlockRealizeNode* op);
 
  protected:
-  explicit StmtExprVisitor(const VTable* vtable) : tirx::StmtExprVisitor(vtable) {}
+  explicit StmtExprVisitorObj(const VTable* vtable) : tirx::StmtExprVisitorObj(vtable) {}
   static void InitVTable(VTable* vtable);
 };
 
@@ -103,24 +103,24 @@ class TVM_DLL StmtExprVisitor : public tirx::StmtExprVisitor {
  * iterator definitions and annotations. Both paths establish allocation and
  * match-tensor remaps before visiting region uses and preserve copy-on-write.
  */
-class TVM_DLL StmtExprMutator : public tirx::StmtExprMutator {
+class TVM_DLL StmtExprMutatorObj : public tirx::StmtExprMutatorObj {
  public:
-  TVM_DEFINE_OBJECT_FUNCTOR_DEFAULT_CONSTRUCTOR(StmtExprMutator, tirx::StmtExprMutator)
-  using tirx::StmtExprMutator::Mutate;
-  using tirx::StmtExprMutator::Mutate_;
+  TVM_DEFINE_OBJECT_FUNCTOR_DEFAULT_CONSTRUCTOR(StmtExprMutatorObj, tirx::StmtExprMutatorObj)
+  using tirx::StmtExprMutatorObj::Mutate;
+  using tirx::StmtExprMutatorObj::Mutate_;
 
   virtual UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode);
   virtual UnchangedOr<Stmt> Mutate_(const SBlockRealizeNode* op, InplaceMode inplace_mode);
 
   // Share block ownership and binder rules with specialized TIRX helpers.
-  static UnchangedOr<Stmt> MutateBlock(tirx::StmtExprMutator* mutator, const SBlockNode* op,
+  static UnchangedOr<Stmt> MutateBlock(tirx::StmtExprMutatorObj* mutator, const SBlockNode* op,
                                        InplaceMode inplace_mode);
-  static UnchangedOr<Stmt> MutateBlockRealize(tirx::StmtExprMutator* mutator,
+  static UnchangedOr<Stmt> MutateBlockRealize(tirx::StmtExprMutatorObj* mutator,
                                               const SBlockRealizeNode* op,
                                               InplaceMode inplace_mode);
 
  protected:
-  explicit StmtExprMutator(const VTable* vtable) : tirx::StmtExprMutator(vtable) {}
+  explicit StmtExprMutatorObj(const VTable* vtable) : tirx::StmtExprMutatorObj(vtable) {}
   static void InitVTable(VTable* vtable);
 };
 

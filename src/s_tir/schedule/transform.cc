@@ -127,23 +127,23 @@ ffi::Array<MatchTensorRegion> ReplaceTensorRegion(ffi::Array<MatchTensorRegion> 
   return match_tensors;
 }
 
-/******** ReplaceTensorMutator ********/
-ReplaceTensorMutator::ReplaceTensorMutator(const TensorVar& old_tensor, TensorVar new_tensor,
-                                           ffi::Map<SBlock, SBlock>* block_sref_reuse)
+/******** ReplaceTensorMutatorObj ********/
+ReplaceTensorMutatorObj::ReplaceTensorMutatorObj(const TensorVar& old_tensor, TensorVar new_tensor,
+                                                 ffi::Map<SBlock, SBlock>* block_sref_reuse)
     : block_sref_reuse_(block_sref_reuse) {
   VarRemapSet(old_tensor, new_tensor);
 }
 
-ReplaceTensorMutator::ReplaceTensorMutator(const ffi::Map<TensorVar, TensorVar>& tensor_map,
-                                           ffi::Map<SBlock, SBlock>* block_sref_reuse)
+ReplaceTensorMutatorObj::ReplaceTensorMutatorObj(const ffi::Map<TensorVar, TensorVar>& tensor_map,
+                                                 ffi::Map<SBlock, SBlock>* block_sref_reuse)
     : block_sref_reuse_(block_sref_reuse) {
   for (const auto& [old_tensor, new_tensor] : tensor_map) {
     VarRemapSet(old_tensor, new_tensor);
   }
 }
 
-UnchangedOr<Expr> ReplaceTensorMutator::Mutate_(const CallNode* op, InplaceMode inplace_mode) {
-  auto result = StmtExprMutator::Mutate_(op, inplace_mode);
+UnchangedOr<Expr> ReplaceTensorMutatorObj::Mutate_(const CallNode* op, InplaceMode inplace_mode) {
+  auto result = StmtExprMutatorObj::Mutate_(op, inplace_mode);
   if (!result.IsUnchanged()) {
     op = ffi::AnyView(result).as<CallNode>();
     if (!op->unique()) inplace_mode = InplaceMode::kDisallow;
@@ -160,7 +160,7 @@ UnchangedOr<Expr> ReplaceTensorMutator::Mutate_(const CallNode* op, InplaceMode 
   return Expr(std::move(copy));
 }
 
-MatchTensorRegion ReplaceTensorMutator::VisitMatchTensorRegion(
+MatchTensorRegion ReplaceTensorMutatorObj::VisitMatchTensorRegion(
     const MatchTensorRegion& match_tensor) {
   if (auto replacement =
           VarRemapGet(match_tensor->source->source.as_or_throw<tvm::tirx::TensorVar>())
@@ -173,7 +173,8 @@ MatchTensorRegion ReplaceTensorMutator::VisitMatchTensorRegion(
   }
 }
 
-UnchangedOr<Stmt> ReplaceTensorMutator::Mutate_(const SBlockNode* block, InplaceMode inplace_mode) {
+UnchangedOr<Stmt> ReplaceTensorMutatorObj::Mutate_(const SBlockNode* block,
+                                                   InplaceMode inplace_mode) {
   // To reduce the number of blocks in block sref reuse map, we check whether the block is really
   // mutated (i.e., the old tensor appears in the block). If so, we return the block after
   // mutation. Otherwise we just return the original block.
@@ -219,7 +220,7 @@ UnchangedOr<Stmt> ReplaceTensorMutator::Mutate_(const SBlockNode* block, Inplace
   // Step 3. Mutate `alloc_tensors` for the old tensor allocated in this block.
   ffi::Array<TensorVar> alloc_tensors = block->alloc_tensors.Map(f_mutate_alloc_tensors);
   // Step 4. Recursively mutate the block.
-  SBlock mutated_block = StmtExprMutator::Mutate_(block, inplace_mode)
+  SBlock mutated_block = StmtExprMutatorObj::Mutate_(block, inplace_mode)
                              .ValueOrUnchanged(ffi::GetRef<Stmt>(block))
                              .as_or_throw<SBlock>();
 
@@ -247,9 +248,9 @@ UnchangedOr<Stmt> ReplaceTensorMutator::Mutate_(const SBlockNode* block, Inplace
 
 void LeafBlockRemovalPlan(const ScheduleState& self, const StmtSRef& leaf_block_sref,
                           Stmt* src_stmt, Stmt* tgt_stmt) {
-  class OnlyLeafError : public ScheduleErrorContextObj {
+  class OnlyLeafErrorObj : public ScheduleErrorContextObj {
    public:
-    explicit OnlyLeafError(IRModule mod, SBlock leaf_block, SBlock scope_root)
+    explicit OnlyLeafErrorObj(IRModule mod, SBlock leaf_block, SBlock scope_root)
         : mod_(mod), leaf_block_(leaf_block), scope_root_(scope_root) {}
 
     ffi::String FastErrorString() const final {
@@ -273,7 +274,7 @@ void LeafBlockRemovalPlan(const ScheduleState& self, const StmtSRef& leaf_block_
 
   // Go upwards until find an ancestor with more than one child
   const StmtNode* last_stmt = leaf_block_sref->stmt;
-  StmtSRefNode* sref = leaf_block_sref->parent;
+  StmtSRefObj* sref = leaf_block_sref->parent;
   for (;; last_stmt = sref->stmt, sref = sref->parent) {
     if (const auto* loop = sref->StmtAs<ForNode>()) {
       if (loop->body->size() > 1) {
@@ -307,8 +308,8 @@ void LeafBlockRemovalPlan(const ScheduleState& self, const StmtSRef& leaf_block_
   TVM_FFI_ICHECK(sref != nullptr && sref->stmt != nullptr);
   const auto* leaf_block = TVM_SREF_TO_SBLOCK(leaf_block_sref);
   const auto* scope_block = TVM_SREF_TO_SBLOCK(sref);
-  throw MakeScheduleError<OnlyLeafError>(self->mod, ffi::GetRef<SBlock>(leaf_block),
-                                         ffi::GetRef<SBlock>(scope_block));
+  throw MakeScheduleError<OnlyLeafErrorObj>(self->mod, ffi::GetRef<SBlock>(leaf_block),
+                                            ffi::GetRef<SBlock>(scope_block));
 }
 
 ffi::Optional<LoopRV> TileWithTensorIntrin(const s_tir::Schedule& sch,
@@ -318,11 +319,11 @@ ffi::Optional<LoopRV> TileWithTensorIntrin(const s_tir::Schedule& sch,
       GetTensorizeLoopMapping(sch->state(), sch->GetSRef(block_rv),
                               TensorIntrin::Get(intrin_name).value()->desc, allow_padding);
   if (!opt_tensorize_info) return std::nullopt;
-  const TensorizeInfoNode* info = opt_tensorize_info.value().get();
+  const TensorizeInfoObj* info = opt_tensorize_info.value().get();
   if (info->block_iter_paddings.has_value()) {
     // We have to track whether each producer or consumer is padded.
     // To do so, we first record all the Block's.
-    std::unordered_set<const StmtSRefNode*> original_producers, original_consumers;
+    std::unordered_set<const StmtSRefObj*> original_producers, original_consumers;
     {
       for (const auto& p : GetProducers(sch->state(), sch->GetSRef(block_rv)))
         original_producers.insert(p.get());
@@ -388,7 +389,7 @@ ffi::Optional<LoopRV> TileWithTensorIntrin(const s_tir::Schedule& sch,
   }
   // Split the loops
   sym::Analyzer analyzer;
-  std::unordered_set<const tirx::StmtSRefNode*> inner_loops;
+  std::unordered_set<const tirx::StmtSRefObj*> inner_loops;
   std::vector<LoopRV> reorder_suffix;
   reorder_suffix.resize(info->loop_map.size());
   for (const auto& kv : info->loop_map) {
@@ -439,8 +440,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("s_tir.schedule.TileWithTensorIntrin", TileWithTensorIntrin);
 }
 
-/******** BlockTensorAccessSimplifier ********/
-void BlockTensorAccessSimplifier::SimplifyAccessRegion(
+/******** BlockTensorAccessSimplifierObj ********/
+void BlockTensorAccessSimplifierObj::SimplifyAccessRegion(
     ffi::Array<TensorRegion>* old_access_regions) {
   auto fmutate = [this](const TensorRegion& tensor_region) {
     ffi::Array<Range> new_tensor_region;
@@ -461,13 +462,13 @@ void BlockTensorAccessSimplifier::SimplifyAccessRegion(
   (*old_access_regions).MutateByApply(fmutate);
 }
 
-void BlockTensorAccessSimplifier::SimplifyTensorIndices(ffi::Array<PrimExpr>* indices) {
+void BlockTensorAccessSimplifierObj::SimplifyTensorIndices(ffi::Array<PrimExpr>* indices) {
   *indices = this->IterMapSimplifyWithContext(*indices, true);
 }
 
-UnchangedOr<Stmt> BlockTensorAccessSimplifier::Mutate_(const SBlockNode* op,
-                                                       InplaceMode inplace_mode) {
-  SBlock block = s_tir::IRMutatorWithAnalyzer::Mutate_(op, inplace_mode)
+UnchangedOr<Stmt> BlockTensorAccessSimplifierObj::Mutate_(const SBlockNode* op,
+                                                          InplaceMode inplace_mode) {
+  SBlock block = s_tir::IRMutatorWithAnalyzerObj::Mutate_(op, inplace_mode)
                      .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
                      .as_or_throw<SBlock>();
   auto* n = block.CopyOnWrite();
@@ -476,18 +477,18 @@ UnchangedOr<Stmt> BlockTensorAccessSimplifier::Mutate_(const SBlockNode* op,
   return block;
 }
 
-UnchangedOr<Stmt> BlockTensorAccessSimplifier::Mutate_(const TensorStoreNode* op,
-                                                       InplaceMode inplace_mode) {
-  TensorStore node = s_tir::IRMutatorWithAnalyzer::Mutate_(op, inplace_mode)
+UnchangedOr<Stmt> BlockTensorAccessSimplifierObj::Mutate_(const TensorStoreNode* op,
+                                                          InplaceMode inplace_mode) {
+  TensorStore node = s_tir::IRMutatorWithAnalyzerObj::Mutate_(op, inplace_mode)
                          .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
                          .as_or_throw<TensorStore>();
   SimplifyTensorIndices(&node.CopyOnWrite()->indices);
   return node;
 }
 
-UnchangedOr<PrimExpr> BlockTensorAccessSimplifier::Mutate_(const TensorLoadNode* op,
-                                                           InplaceMode inplace_mode) {
-  TensorLoad node = s_tir::IRMutatorWithAnalyzer::Mutate_(op, inplace_mode)
+UnchangedOr<PrimExpr> BlockTensorAccessSimplifierObj::Mutate_(const TensorLoadNode* op,
+                                                              InplaceMode inplace_mode) {
+  TensorLoad node = s_tir::IRMutatorWithAnalyzerObj::Mutate_(op, inplace_mode)
                         .ValueOrUnchanged(ffi::GetRef<PrimExpr>(op))
                         .as_or_throw<TensorLoad>();
   SimplifyTensorIndices(&node.CopyOnWrite()->indices);

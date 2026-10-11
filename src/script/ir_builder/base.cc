@@ -119,19 +119,19 @@ Location ComposeLoc(const Location& active, const Location& existing) {
 }  // namespace
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  IRBuilderFrameNode::RegisterReflection();
-  IRBuilderNode::RegisterReflection();
+  IRBuilderFrameObj::RegisterReflection();
+  IRBuilderObj::RegisterReflection();
 }
 
-IRBuilderFrameNode::IRBuilderFrameNode() {
+IRBuilderFrameObj::IRBuilderFrameObj() {
   if (IRBuilder::IsInScope()) loc = IRBuilder::Current()->GetCurrentLoc();
 }
 
-void IRBuilderFrameNode::EnterWithScope() {
+void IRBuilderFrameObj::EnterWithScope() {
   IRBuilder::Current()->frames.push_back(ffi::GetRef<IRBuilderFrame>(this));
 }
 
-void IRBuilderFrameNode::ExitWithScope() {
+void IRBuilderFrameObj::ExitWithScope() {
   for (auto it = callbacks.rbegin(); it != callbacks.rend(); ++it) {
     (*it)();
   }
@@ -139,7 +139,7 @@ void IRBuilderFrameNode::ExitWithScope() {
   IRBuilder::Current()->frames.pop_back();
 }
 
-void IRBuilderFrameNode::AddCallback(ffi::TypedFunction<void()> callback) {
+void IRBuilderFrameObj::AddCallback(ffi::TypedFunction<void()> callback) {
   if (IRBuilder::Current()->frames.empty()) {
     TVM_FFI_THROW(InternalError) << "ValueError: No frames in Builder to add callback";
   }
@@ -147,22 +147,22 @@ void IRBuilderFrameNode::AddCallback(ffi::TypedFunction<void()> callback) {
 }
 
 IRBuilder::IRBuilder() {
-  ffi::ObjectPtr<IRBuilderNode> n = ffi::make_object<IRBuilderNode>();
+  ffi::ObjectPtr<IRBuilderObj> n = ffi::make_object<IRBuilderObj>();
   n->frames.clear();
   n->result = std::nullopt;
   n->locs.clear();
   data_ = n;
 }
 
-void IRBuilderNode::PushLoc(Location loc) { locs.push_back(std::move(loc)); }
+void IRBuilderObj::PushLoc(Location loc) { locs.push_back(std::move(loc)); }
 
-void IRBuilderNode::PopLoc() {
+void IRBuilderObj::PopLoc() {
   TVM_FFI_CHECK(!locs.empty(), ValueError)
       << "ValueError: No source location exists in the builder scope";
   locs.pop_back();
 }
 
-Location IRBuilderNode::GetCurrentLoc(Location location) const {
+Location IRBuilderObj::GetCurrentLoc(Location location) const {
   std::vector<Location> normalized;
   normalized.reserve(locs.size());
   for (const Location& loc : locs) {
@@ -172,11 +172,11 @@ Location IRBuilderNode::GetCurrentLoc(Location location) const {
   return NormalizedLoc(normalized);
 }
 
-ffi::ObjectRef IRBuilderNode::SetCurrentLoc(ffi::ObjectRef obj) const {
+ffi::ObjectRef IRBuilderObj::SetCurrentLoc(ffi::ObjectRef obj) const {
   return SetLoc(std::move(obj), UnknownLoc());
 }
 
-ffi::ObjectRef IRBuilderNode::SetLoc(ffi::ObjectRef obj, Location loc) const {
+ffi::ObjectRef IRBuilderObj::SetLoc(ffi::ObjectRef obj, Location loc) const {
   loc = ComposeLoc(GetCurrentLoc(), loc);
   if (!loc.as<UnknownLocNode>() && obj.defined()) {
     if (Location* target = details::LocationAccessor::vtable()(obj)) {
@@ -192,7 +192,7 @@ std::vector<IRBuilder>* ThreadLocalBuilderStack() {
 }
 
 void IRBuilder::EnterWithScope() {
-  IRBuilderNode* n = this->get();
+  IRBuilderObj* n = this->get();
   TVM_FFI_CHECK(n->frames.empty(), ValueError)
       << "ValueError: There are frame(s) left in the builder: " << n->frames.size()
       << ". Please use a fresh new builder every time building IRs";
@@ -233,9 +233,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .SetDispatch<ffi::Object>([](const ffi::ObjectRef&) -> Location* { return nullptr; })
       .SetDispatch<ExprNode>(
           [](const ffi::ObjectRef& obj) -> Location* { return &obj.as<ExprNode>()->loc; })
-      .SetDispatch<IRBuilderFrameNode>([](const ffi::ObjectRef& obj) -> Location* {
-        return &obj.as<IRBuilderFrameNode>()->loc;
-      });
+      .SetDispatch<IRBuilderFrameObj>(
+          [](const ffi::ObjectRef& obj) -> Location* { return &obj.as<IRBuilderFrameObj>()->loc; });
 }
 
 Namer::FType& Namer::vtable() {
@@ -256,19 +255,19 @@ void Namer::Name(ffi::ObjectRef node, ffi::String name) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def_method("script.ir_builder.IRBuilderFrameEnter", &IRBuilderFrameNode::EnterWithScope)
-      .def_method("script.ir_builder.IRBuilderFrameExit", &IRBuilderFrameNode::ExitWithScope)
-      .def_method("script.ir_builder.IRBuilderFrameAddCallback", &IRBuilderFrameNode::AddCallback)
+      .def_method("script.ir_builder.IRBuilderFrameEnter", &IRBuilderFrameObj::EnterWithScope)
+      .def_method("script.ir_builder.IRBuilderFrameExit", &IRBuilderFrameObj::ExitWithScope)
+      .def_method("script.ir_builder.IRBuilderFrameAddCallback", &IRBuilderFrameObj::AddCallback)
       .def("script.ir_builder.IRBuilder", []() { return IRBuilder(); })
       .def_method("script.ir_builder.IRBuilderEnter", &IRBuilder::EnterWithScope)
       .def_method("script.ir_builder.IRBuilderExit", &IRBuilder::ExitWithScope)
       .def("script.ir_builder.IRBuilderCurrent", IRBuilder::Current)
       .def("script.ir_builder.IRBuilderIsInScope", IRBuilder::IsInScope)
-      .def_method("script.ir_builder.IRBuilderGet", &IRBuilderNode::Get<ffi::ObjectRef>)
-      .def_method("script.ir_builder.IRBuilderPushLoc", &IRBuilderNode::PushLoc)
-      .def_method("script.ir_builder.IRBuilderPopLoc", &IRBuilderNode::PopLoc)
-      .def_method("script.ir_builder.IRBuilderSetCurrentLoc", &IRBuilderNode::SetCurrentLoc)
-      .def_method("script.ir_builder.IRBuilderSetLoc", &IRBuilderNode::SetLoc)
+      .def_method("script.ir_builder.IRBuilderGet", &IRBuilderObj::Get<ffi::ObjectRef>)
+      .def_method("script.ir_builder.IRBuilderPushLoc", &IRBuilderObj::PushLoc)
+      .def_method("script.ir_builder.IRBuilderPopLoc", &IRBuilderObj::PopLoc)
+      .def_method("script.ir_builder.IRBuilderSetCurrentLoc", &IRBuilderObj::SetCurrentLoc)
+      .def_method("script.ir_builder.IRBuilderSetLoc", &IRBuilderObj::SetLoc)
       .def("script.ir_builder.IRBuilderName", IRBuilder::Name<ffi::ObjectRef>);
 }
 

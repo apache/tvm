@@ -19,7 +19,7 @@
 
 /*!
  * \file metal_fallback_module.cc
- * \brief MetalFallbackModuleNode — codegen-time placeholder used when the
+ * \brief MetalFallbackModuleObj — codegen-time placeholder used when the
  *        Metal runtime is not linked.  Mirrors `MetalModuleNode`'s save/load
  *        format byte-for-byte; see one-way comment in `SaveToBytes` below.
  *        Always compiled (independent of USE_METAL); never registered as an
@@ -38,11 +38,11 @@
 namespace tvm {
 namespace target {
 
-class MetalFallbackModuleNode : public ffi::ModuleObj {
+class MetalFallbackModuleObj : public ffi::ModuleObj {
  public:
-  MetalFallbackModuleNode(ffi::Map<ffi::String, ffi::Bytes> smap, ffi::String fmt,
-                          ffi::Map<ffi::String, runtime::FunctionInfo> fmap,
-                          ffi::Map<ffi::String, ffi::String> source)
+  MetalFallbackModuleObj(ffi::Map<ffi::String, ffi::Bytes> smap, ffi::String fmt,
+                         ffi::Map<ffi::String, runtime::FunctionInfo> fmap,
+                         ffi::Map<ffi::String, ffi::String> source)
       : smap_(std::move(smap)),
         fmt_(std::move(fmt)),
         fmap_(std::move(fmap)),
@@ -122,8 +122,8 @@ class MetalFallbackModuleNode : public ffi::ModuleObj {
 ffi::Module MetalFallbackModuleCreate(ffi::Map<ffi::String, ffi::Bytes> smap, ffi::String fmt,
                                       ffi::Map<ffi::String, runtime::FunctionInfo> fmap,
                                       ffi::Map<ffi::String, ffi::String> source) {
-  auto n = ffi::make_object<MetalFallbackModuleNode>(std::move(smap), std::move(fmt),
-                                                     std::move(fmap), std::move(source));
+  auto n = ffi::make_object<MetalFallbackModuleObj>(std::move(smap), std::move(fmt),
+                                                    std::move(fmap), std::move(source));
   return ffi::Module(n);
 }
 

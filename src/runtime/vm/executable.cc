@@ -47,21 +47,21 @@ constexpr uint64_t kTVMVMBytecodeMagicV2 = 0xD225DE2F4214151E;
   TVM_FFI_ICHECK(val) << "Invalid VM file format in the " << section << " section." \
                       << "\n";
 
-const char* VMExecutable::kind() const { return "relax.VMExecutable"; }
+const char* VMExecutableObj::kind() const { return "relax.VMExecutable"; }
 
-ffi::Optional<ffi::Function> VMExecutable::GetFunction(const ffi::String& _name) {
+ffi::Optional<ffi::Function> VMExecutableObj::GetFunction(const ffi::String& _name) {
   using SelfPtr = std::remove_cv_t<decltype(this)>;
   ::tvm::ffi::ObjectPtr<::tvm::ffi::Object> _self =
       ::tvm::ffi::GetObjectPtr<::tvm::ffi::Object>(this);
-  TVM_MODULE_VTABLE_ENTRY("stats", &VMExecutable::Stats);
-  TVM_MODULE_VTABLE_ENTRY("as_text", &VMExecutable::AsText);
-  TVM_MODULE_VTABLE_ENTRY("as_python", &VMExecutable::AsPython);
-  TVM_MODULE_VTABLE_ENTRY("vm_load_executable", &VMExecutable::VMLoadExecutable);
-  TVM_MODULE_VTABLE_ENTRY("has_function", &VMExecutable::HasFunction);
+  TVM_MODULE_VTABLE_ENTRY("stats", &VMExecutableObj::Stats);
+  TVM_MODULE_VTABLE_ENTRY("as_text", &VMExecutableObj::AsText);
+  TVM_MODULE_VTABLE_ENTRY("as_python", &VMExecutableObj::AsPython);
+  TVM_MODULE_VTABLE_ENTRY("vm_load_executable", &VMExecutableObj::VMLoadExecutable);
+  TVM_MODULE_VTABLE_ENTRY("has_function", &VMExecutableObj::HasFunction);
   return std::nullopt;
 }
 
-std::string VMExecutable::Stats() const {
+std::string VMExecutableObj::Stats() const {
   std::ostringstream oss;
   oss << "Relax VM executable statistics:" << std::endl;
 
@@ -121,14 +121,14 @@ std::string VMExecutable::Stats() const {
   return oss.str();
 }
 
-void VMExecutable::SetInstructionData(Index i, Index j, ExecWord val) {
+void VMExecutableObj::SetInstructionData(Index i, Index j, ExecWord val) {
   TVM_FFI_ICHECK_LT(i, instr_offset.size());
   Index instr_idx = instr_offset[i];
   TVM_FFI_ICHECK_LT(instr_idx + j, instr_data.size());
   instr_data[instr_idx + j] = val;
 }
 
-Instruction VMExecutable::GetInstruction(Index i) const {
+Instruction VMExecutableObj::GetInstruction(Index i) const {
   Index offset = instr_offset[i];
   Opcode op = static_cast<Opcode>(instr_data[offset]);
   switch (op) {
@@ -180,7 +180,7 @@ uint64_t LoadHeader(support::Stream* strm) {
   return header;
 }
 
-ffi::Bytes VMExecutable::SaveToBytes() const {
+ffi::Bytes VMExecutableObj::SaveToBytes() const {
   std::string result;
   support::BytesOutStream strm(&result);
 
@@ -202,14 +202,14 @@ ffi::Bytes VMExecutable::SaveToBytes() const {
   return ffi::Bytes(std::move(result));
 }
 
-void VMExecutable::WriteToFile(const ffi::String& file_name, const ffi::String& format) const {
-  runtime::SaveBinaryToFile(file_name, VMExecutable::SaveToBytes());
+void VMExecutableObj::WriteToFile(const ffi::String& file_name, const ffi::String& format) const {
+  runtime::SaveBinaryToFile(file_name, VMExecutableObj::SaveToBytes());
 }
 
-ffi::Module VMExecutable::LoadFromBytes(const ffi::Bytes& bytes) {
+ffi::Module VMExecutableObj::LoadFromBytes(const ffi::Bytes& bytes) {
   support::BytesInStream strm(bytes);
 
-  ffi::ObjectPtr<VMExecutable> exec = ffi::make_object<VMExecutable>();
+  ffi::ObjectPtr<VMExecutableObj> exec = ffi::make_object<VMExecutableObj>();
 
   // Load header.
   uint64_t header_magic = LoadHeader(&strm);
@@ -231,17 +231,17 @@ ffi::Module VMExecutable::LoadFromBytes(const ffi::Bytes& bytes) {
   return ffi::Module(exec);
 }
 
-ffi::Module VMExecutable::LoadFromFile(const ffi::String& file_name) {
+ffi::Module VMExecutableObj::LoadFromFile(const ffi::String& file_name) {
   std::string data;
   runtime::LoadBinaryFromFile(file_name, &data);
-  return VMExecutable::LoadFromBytes(ffi::Bytes(data));
+  return VMExecutableObj::LoadFromBytes(ffi::Bytes(data));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("ffi.Module.load_from_file.relax.VMExecutable", VMExecutable::LoadFromFile)
-      .def("ffi.Module.load_from_bytes.relax.VMExecutable", VMExecutable::LoadFromBytes);
+      .def("ffi.Module.load_from_file.relax.VMExecutable", VMExecutableObj::LoadFromFile)
+      .def("ffi.Module.load_from_bytes.relax.VMExecutable", VMExecutableObj::LoadFromBytes);
 }
 
 void VMFuncInfo::Save(support::Stream* strm) const {
@@ -268,9 +268,9 @@ bool VMFuncInfo::Load(support::Stream* strm) {
   return true;
 }
 
-void VMExecutable::SaveGlobalSection(support::Stream* strm) const { strm->Write(func_table); }
+void VMExecutableObj::SaveGlobalSection(support::Stream* strm) const { strm->Write(func_table); }
 
-void VMExecutable::SaveMemoryScopeSection(support::Stream* strm) const {
+void VMExecutableObj::SaveMemoryScopeSection(support::Stream* strm) const {
   strm->Write(static_cast<uint64_t>(this->memory_scopes.size()));
   for (auto it = this->memory_scopes.begin(); it != this->memory_scopes.end(); it++) {
     LOG(WARNING) << "Scope Saving:" << it->second;
@@ -279,7 +279,7 @@ void VMExecutable::SaveMemoryScopeSection(support::Stream* strm) const {
   }
 }
 
-void VMExecutable::SaveConstantSection(support::Stream* strm) const {
+void VMExecutableObj::SaveConstantSection(support::Stream* strm) const {
   // NOTE: pay close attention to the explicit type in write here
   // so the load/save is 32/64 bit compatible
   strm->Write(static_cast<uint64_t>(this->constants.size()));
@@ -312,12 +312,12 @@ void VMExecutable::SaveConstantSection(support::Stream* strm) const {
   }
 }
 
-void VMExecutable::SaveCodeSection(support::Stream* strm) const {
+void VMExecutableObj::SaveCodeSection(support::Stream* strm) const {
   strm->Write(instr_offset);
   strm->Write(instr_data);
 }
 
-void VMExecutable::LoadGlobalSection(support::Stream* strm) {
+void VMExecutableObj::LoadGlobalSection(support::Stream* strm) {
   STREAM_CHECK(strm->Read(&func_table), "Global Section");
   // setup func map
   for (size_t i = 0; i < func_table.size(); ++i) {
@@ -325,7 +325,7 @@ void VMExecutable::LoadGlobalSection(support::Stream* strm) {
   }
 }
 
-void VMExecutable::LoadMemoryScopeSection(support::Stream* strm) {
+void VMExecutableObj::LoadMemoryScopeSection(support::Stream* strm) {
   uint64_t sz;
   // Load the number of memory scope entries.
   STREAM_CHECK(strm->Read(&sz, sizeof(sz)), "memory scopes");
@@ -342,7 +342,7 @@ void VMExecutable::LoadMemoryScopeSection(support::Stream* strm) {
   }
 }
 
-void VMExecutable::LoadConstantSection(support::Stream* strm) {
+void VMExecutableObj::LoadConstantSection(support::Stream* strm) {
   uint64_t sz;
   // Load the number of constants.
   STREAM_CHECK(strm->Read(&sz, sizeof(sz)), "constant");
@@ -401,7 +401,7 @@ void VMExecutable::LoadConstantSection(support::Stream* strm) {
   }
 }
 
-void VMExecutable::LoadCodeSection(support::Stream* strm) {
+void VMExecutableObj::LoadCodeSection(support::Stream* strm) {
   STREAM_CHECK(strm->Read(&(this->instr_offset)), "instr offset");
   STREAM_CHECK(strm->Read(&(this->instr_data)), "instr data");
 }
@@ -430,15 +430,15 @@ std::string RegNameToStr(RegName reg) {
   return "%" + std::to_string(reg);
 }
 
-ffi::Module VMExecutable::VMLoadExecutable() const {
-  ffi::ObjectPtr<VirtualMachine> vm = VirtualMachine::Create();
-  vm->LoadExecutable(ffi::GetObjectPtr<VMExecutable>(const_cast<VMExecutable*>(this)));
+ffi::Module VMExecutableObj::VMLoadExecutable() const {
+  ffi::ObjectPtr<VirtualMachineObj> vm = VirtualMachineObj::Create();
+  vm->LoadExecutable(ffi::GetObjectPtr<VMExecutableObj>(const_cast<VMExecutableObj*>(this)));
   return ffi::Module(vm);
 }
 
-bool VMExecutable::HasFunction(const ffi::String& name) const { return func_map.count(name); }
+bool VMExecutableObj::HasFunction(const ffi::String& name) const { return func_map.count(name); }
 
-ffi::String VMExecutable::AsText() const {
+ffi::String VMExecutableObj::AsText() const {
   auto get_func_name = [&](Index index) -> std::string {
     if (static_cast<size_t>(index) < func_table.size()) {
       return func_table[index].name;
@@ -512,7 +512,7 @@ ffi::String VMExecutable::AsText() const {
   return ffi::String(os.str());
 }
 
-ffi::String VMExecutable::AsPython() const {
+ffi::String VMExecutableObj::AsPython() const {
   auto get_func_name = [&](Index index) -> std::string {
     if (static_cast<size_t>(index) < func_table.size()) {
       return "\"" + func_table[index].name + "\"";
@@ -590,7 +590,7 @@ ffi::String VMExecutable::AsPython() const {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.ExecutableLoadFromFile", VMExecutable::LoadFromFile);
+  refl::GlobalDef().def("relax.ExecutableLoadFromFile", VMExecutableObj::LoadFromFile);
 }
 
 }  // namespace vm

@@ -90,7 +90,7 @@ FunctionFrame Function(bool is_pure, bool is_private) {
           ir_builder->GetLastFrame<ir::IRModuleFrame>()) {
     mod = tvm::IRModule(mod_frame.value()->functions);
   }
-  auto n = ffi::make_object<FunctionFrameNode>(tvm::relax::BlockBuilder::Create(
+  auto n = ffi::make_object<FunctionFrameObj>(tvm::relax::BlockBuilder::Create(
       /*mod=*/mod, tvm::relax::BlockBuilder::DisableOperatorSpecificNormalizationForTVMScript()));
   n->is_pure = is_pure;
   n->is_private = is_private;
@@ -217,14 +217,14 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 ///////////////////////////// BindingBlock //////////////////////////////
 
 BindingBlockFrame Dataflow() {
-  ffi::ObjectPtr<BindingBlockFrameNode> n = ffi::make_object<BindingBlockFrameNode>();
+  ffi::ObjectPtr<BindingBlockFrameObj> n = ffi::make_object<BindingBlockFrameObj>();
   n->is_dataflow = true;
   n->block_ended = false;
   return BindingBlockFrame(n);
 }
 
 BindingBlockFrame BindingBlock() {
-  ffi::ObjectPtr<BindingBlockFrameNode> n = ffi::make_object<BindingBlockFrameNode>();
+  ffi::ObjectPtr<BindingBlockFrameObj> n = ffi::make_object<BindingBlockFrameObj>();
   n->is_dataflow = false;
   n->block_ended = false;
   return BindingBlockFrame(n);
@@ -340,7 +340,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 /////////////////////////////// SeqExpr ///////////////////////////////
 
 SeqExprFrame SeqExpr() {
-  ffi::ObjectPtr<SeqExprFrameNode> n = ffi::make_object<SeqExprFrameNode>();
+  ffi::ObjectPtr<SeqExprFrameObj> n = ffi::make_object<SeqExprFrameObj>();
   return SeqExprFrame(n);
 }
 
@@ -352,19 +352,19 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 ///////////////////////////// If Then Else /////////////////////////////
 
 IfFrame If(tvm::relax::Expr condition) {
-  ffi::ObjectPtr<IfFrameNode> n = ffi::make_object<IfFrameNode>(condition);
+  ffi::ObjectPtr<IfFrameObj> n = ffi::make_object<IfFrameObj>(condition);
   n->then_expr = std::nullopt;
   n->else_expr = std::nullopt;
   return IfFrame(n);
 }
 
 ThenFrame Then() {
-  ffi::ObjectPtr<ThenFrameNode> n = ffi::make_object<ThenFrameNode>();
+  ffi::ObjectPtr<ThenFrameObj> n = ffi::make_object<ThenFrameObj>();
   return ThenFrame(n);
 }
 
 ElseFrame Else() {
-  ffi::ObjectPtr<ElseFrameNode> n = ffi::make_object<ElseFrameNode>();
+  ffi::ObjectPtr<ElseFrameObj> n = ffi::make_object<ElseFrameObj>();
   return ElseFrame(n);
 }
 

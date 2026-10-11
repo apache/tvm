@@ -28,12 +28,12 @@ namespace script {
 namespace ir_builder {
 namespace s_tir {
 
-using ir::ForFrameNode;
+using ir::ForFrameObj;
 using tvm::s_tir::IterVar;
 using tvm::s_tir::IterVarType;
 
 FunctionFrame Function(bool is_private, bool persistent) {
-  auto n = ffi::make_object<FunctionFrameNode>();
+  auto n = ffi::make_object<FunctionFrameObj>();
   n->is_private = is_private;
   n->persistent = persistent;
   n->attrs = {};
@@ -68,12 +68,12 @@ TensorVar MatchTensor(ffi::ObjectRef param, ffi::Array<PrimExpr> shape, PrimType
   } else {
     TVM_FFI_THROW(ValueError) << "Unexpected type for MatchTensor";
   }
-  FunctionFrameNode::BindTensorRegion(tensor, std::move(region), std::move(allocated_addr));
+  FunctionFrameObj::BindTensorRegion(tensor, std::move(region), std::move(allocated_addr));
   return tensor;
 }
 
 SBlockFrame Block(ffi::String name, bool no_realize, ffi::String exec_scope) {
-  ffi::ObjectPtr<SBlockFrameNode> n = ffi::make_object<SBlockFrameNode>();
+  ffi::ObjectPtr<SBlockFrameObj> n = ffi::make_object<SBlockFrameObj>();
   n->name = name;
   n->iter_vars.clear();
   n->reads = std::nullopt;
@@ -88,7 +88,7 @@ SBlockFrame Block(ffi::String name, bool no_realize, ffi::String exec_scope) {
   return SBlockFrame(n);
 }
 
-BlockInitFrame Init() { return BlockInitFrame(ffi::make_object<BlockInitFrameNode>()); }
+BlockInitFrame Init() { return BlockInitFrame(ffi::make_object<BlockInitFrameObj>()); }
 
 void Where(PrimExpr predicate) {
   SBlockFrame frame = FindSBlockFrame("Ts.where");
@@ -211,7 +211,7 @@ TensorVar SBlockAllocTensor(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::Opt
   IRBuilder builder = IRBuilder::Current();
   auto opt_func_frame = builder->FindFrame<tirx::FunctionFrame>();
   if (opt_func_frame.has_value()) {
-    TVM_FFI_CHECK(opt_func_frame.value().as<FunctionFrameNode>() != nullptr, ValueError)
+    TVM_FFI_CHECK(opt_func_frame.value().as<FunctionFrameObj>() != nullptr, ValueError)
         << "ValueError: `Ts.alloc_tensor()` is only for s_tir Functions. "
            "Use `T.alloc_tensor()` inside default (tirx) Functions.";
   }
@@ -227,7 +227,7 @@ TensorVar SBlockAllocTensor(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::Opt
           ffi::Tuple<Var, ffi::Array<PrimExpr>>(tensor.var(), allocated_addr));
     }
   } else if (opt_func_frame.has_value()) {
-    auto frame = ffi::GetRef<FunctionFrame>(opt_func_frame.value().as<FunctionFrameNode>());
+    auto frame = ffi::GetRef<FunctionFrame>(opt_func_frame.value().as<FunctionFrameObj>());
     frame->root_alloc_tensors.push_back(tensor);
     if (!allocated_addr.empty()) {
       frame->root_allocated_addresses.push_back(
@@ -285,7 +285,7 @@ ffi::Array<Var> Remap(ffi::String kinds, ffi::Array<PrimExpr> bindings, PrimType
     TVM_FFI_ICHECK(v) << "TypeError: Only Var is supported in T.axis.remap";
     ffi::Optional<Range> dom;
     for (const auto& frame : IRBuilder::Current()->frames) {
-      if (const auto* for_frame = frame.as<ForFrameNode>()) {
+      if (const auto* for_frame = frame.as<ForFrameObj>()) {
         TVM_FFI_ICHECK_EQ(for_frame->doms.size(), for_frame->vars.size());
         int n = for_frame->doms.size();
         for (int i = 0; i < n; ++i) {

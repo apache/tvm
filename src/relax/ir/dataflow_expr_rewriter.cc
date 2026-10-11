@@ -218,7 +218,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
            });
 }
 
-RewriteSpec ExprPatternRewriterNode::RewriteBindings(const ffi::Array<Binding>& bindings) const {
+RewriteSpec ExprPatternRewriterObj::RewriteBindings(const ffi::Array<Binding>& bindings) const {
   ffi::Map<Var, Expr> variable_rewrites;
   ffi::Map<Var, Expr> binding_lookup;
   for (const auto& binding : bindings) {
@@ -236,8 +236,8 @@ RewriteSpec ExprPatternRewriterNode::RewriteBindings(const ffi::Array<Binding>& 
   }
 }
 
-ffi::Optional<Expr> ExprPatternRewriterNode::RewriteExpr(
-    const Expr& expr, const ffi::Map<Var, Expr>& bindings) const {
+ffi::Optional<Expr> ExprPatternRewriterObj::RewriteExpr(const Expr& expr,
+                                                        const ffi::Map<Var, Expr>& bindings) const {
   if (auto opt_matches = ExtractMatchedExpr(pattern, expr, bindings)) {
     auto matches = opt_matches.value();
     if (additional_bindings) {
@@ -276,14 +276,14 @@ ExprPatternRewriter::ExprPatternRewriter(
     ffi::Optional<ffi::Array<DFPattern>> additional_bindings,
     ffi::Map<GlobalVar, BaseFunc> new_subroutines)
     : PatternMatchingRewriter(ffi::UnsafeInit{}) {
-  auto node = ffi::make_object<ExprPatternRewriterNode>(pattern);
+  auto node = ffi::make_object<ExprPatternRewriterObj>(pattern);
   node->func = std::move(func);
   node->additional_bindings = std::move(additional_bindings);
   node->new_subroutines = std::move(new_subroutines);
   data_ = std::move(node);
 }
 
-RewriteSpec OrRewriterNode::RewriteBindings(const ffi::Array<Binding>& bindings) const {
+RewriteSpec OrRewriterObj::RewriteBindings(const ffi::Array<Binding>& bindings) const {
   auto lhs_match = lhs->RewriteBindings(bindings);
   if (!lhs_match) {
     // If no rewrites found on LHS, RHS is allowed to modify any
@@ -323,11 +323,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 OrRewriter::OrRewriter(PatternMatchingRewriter lhs, PatternMatchingRewriter rhs)
     : PatternMatchingRewriter(ffi::UnsafeInit{}) {
-  auto node = ffi::make_object<OrRewriterNode>(std::move(lhs), std::move(rhs));
+  auto node = ffi::make_object<OrRewriterObj>(std::move(lhs), std::move(rhs));
   data_ = std::move(node);
 }
 
-RewriteSpec TupleRewriterNode::RewriteBindings(const ffi::Array<Binding>& bindings) const {
+RewriteSpec TupleRewriterObj::RewriteBindings(const ffi::Array<Binding>& bindings) const {
   TVM_FFI_ICHECK_LE(patterns.size(), 3)
       << "For performance reasons, "
       << "matching of implicit tuple patterns is currently limited"
@@ -341,7 +341,7 @@ RewriteSpec TupleRewriterNode::RewriteBindings(const ffi::Array<Binding>& bindin
   }
 }
 
-ffi::Map<Var, Expr> TupleRewriterNode::GenerateVariableRewrites(
+ffi::Map<Var, Expr> TupleRewriterObj::GenerateVariableRewrites(
     const ffi::Array<Binding>& bindings) const {
   ffi::Map<Var, Expr> rewrites;
 
@@ -529,7 +529,7 @@ ffi::Map<Var, Expr> TupleRewriterNode::GenerateVariableRewrites(
   return rewrites;
 }
 
-std::optional<std::vector<Expr>> TupleRewriterNode::TryMatchByBindingIndex(
+std::optional<std::vector<Expr>> TupleRewriterObj::TryMatchByBindingIndex(
     const std::vector<VarInfo>& info_vec, const std::vector<size_t>& indices) const {
   TVM_FFI_ICHECK_GE(indices.size(), 1);
 
@@ -627,7 +627,7 @@ TupleRewriter::TupleRewriter(
     ffi::Optional<ffi::Array<DFPattern>> additional_bindings,
     ffi::Map<GlobalVar, BaseFunc> new_subroutines)
     : PatternMatchingRewriter(ffi::UnsafeInit{}) {
-  auto node = ffi::make_object<TupleRewriterNode>();
+  auto node = ffi::make_object<TupleRewriterObj>();
   node->patterns = std::move(patterns);
   node->func = std::move(func);
   node->additional_bindings = std::move(additional_bindings);
@@ -827,7 +827,7 @@ class PatternMatchingMutator : public ExprMutator {
  public:
   using ExprMutator::VisitExpr_;
 
-  explicit PatternMatchingMutator(const PatternMatchingRewriterNode* rewriter)
+  explicit PatternMatchingMutator(const PatternMatchingRewriterObj* rewriter)
       : rewriter_(rewriter) {}
 
   ffi::Map<GlobalVar, BaseFunc> GetNewSubroutines() const { return new_subroutines_; }
@@ -1035,7 +1035,7 @@ class PatternMatchingMutator : public ExprMutator {
   }
 
  private:
-  const PatternMatchingRewriterNode* rewriter_;
+  const PatternMatchingRewriterObj* rewriter_;
   ffi::Map<GlobalVar, BaseFunc> new_subroutines_;
 };
 
@@ -1060,8 +1060,8 @@ Expr PatternMatchingRewriter::operator()(Expr expr) {
   return new_expr;
 }
 
-IRModule PatternMatchingRewriterNode::operator()(
-    IRModule mod, const tvm::transform::PassContext& pass_ctx) const {
+IRModule PatternMatchingRewriterObj::operator()(IRModule mod,
+                                                const tvm::transform::PassContext& pass_ctx) const {
   PatternMatchingMutator mutator(this);
 
   IRModule updates;
@@ -1082,7 +1082,7 @@ IRModule PatternMatchingRewriterNode::operator()(
 
   return mod;
 }
-tvm::transform::PassInfo PatternMatchingRewriterNode::Info() const {
+tvm::transform::PassInfo PatternMatchingRewriterObj::Info() const {
   return tvm::transform::PassInfo(0, "PatternMatchingRewriter");
 }
 
@@ -1098,10 +1098,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  PatternMatchingRewriterNode::RegisterReflection();
-  ExprPatternRewriterNode::RegisterReflection();
-  OrRewriterNode::RegisterReflection();
-  TupleRewriterNode::RegisterReflection();
+  PatternMatchingRewriterObj::RegisterReflection();
+  ExprPatternRewriterObj::RegisterReflection();
+  OrRewriterObj::RegisterReflection();
+  TupleRewriterObj::RegisterReflection();
 }
 
 }  // namespace relax

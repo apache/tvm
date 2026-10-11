@@ -35,26 +35,26 @@ namespace tirx {
 
 // Retain dialect imports as aliases of the shared canonical frames.
 using ir::AssertFrame;
-using ir::AssertFrameNode;
+using ir::AssertFrameObj;
 using ir::ElseFrame;
-using ir::ElseFrameNode;
+using ir::ElseFrameObj;
 using ir::ForFrame;
-using ir::ForFrameNode;
+using ir::ForFrameObj;
 using ir::IfFrame;
-using ir::IfFrameNode;
+using ir::IfFrameObj;
 using ir::RegionFrame;
-using ir::RegionFrameNode;
+using ir::RegionFrameObj;
 using ir::ThenFrame;
-using ir::ThenFrameNode;
+using ir::ThenFrameObj;
 using ir::WhileFrame;
-using ir::WhileFrameNode;
+using ir::WhileFrameObj;
 
 /*!
  * \brief A frame that represents the Function containing TIR statements.
  *
  * \sa FunctionFrame
  */
-class FunctionFrameNode : public ir::StmtFrameNode {
+class FunctionFrameObj : public ir::StmtFrameObj {
  public:
   /*! \brief The name of the block. */
   ffi::Optional<ffi::String> name;
@@ -76,19 +76,19 @@ class FunctionFrameNode : public ir::StmtFrameNode {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<FunctionFrameNode>()
-        .def_ro("name", &FunctionFrameNode::name)
-        .def_ro("args", &FunctionFrameNode::args)
-        .def_ro("is_private", &FunctionFrameNode::is_private)
-        .def_ro("ret_type", &FunctionFrameNode::ret_type)
-        .def_ro("attrs", &FunctionFrameNode::attrs)
-        .def_ro("persistent", &FunctionFrameNode::persistent)
-        .def_ro("is_declaration", &FunctionFrameNode::is_declaration)
-        .def_ro("function", &FunctionFrameNode::function)
-        .def_ro("global_var", &FunctionFrameNode::global_var);
+    refl::ObjectDef<FunctionFrameObj>()
+        .def_ro("name", &FunctionFrameObj::name)
+        .def_ro("args", &FunctionFrameObj::args)
+        .def_ro("is_private", &FunctionFrameObj::is_private)
+        .def_ro("ret_type", &FunctionFrameObj::ret_type)
+        .def_ro("attrs", &FunctionFrameObj::attrs)
+        .def_ro("persistent", &FunctionFrameObj::persistent)
+        .def_ro("is_declaration", &FunctionFrameObj::is_declaration)
+        .def_ro("function", &FunctionFrameObj::function)
+        .def_ro("global_var", &FunctionFrameObj::global_var);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO("script.ir_builder.tirx.FunctionFrame", FunctionFrameNode,
-                              ir::StmtFrameNode);
+  TVM_FFI_DECLARE_OBJECT_INFO("script.ir_builder.tirx.FunctionFrame", FunctionFrameObj,
+                              ir::StmtFrameObj);
 
  public:
   /*!
@@ -98,7 +98,7 @@ class FunctionFrameNode : public ir::StmtFrameNode {
   void ExitWithScope() final;
 
   /*! \brief Register validation for an extension-owned function attribute. */
-  using AttrValidator = std::function<void(const FunctionFrameNode*, const ffi::Any&)>;
+  using AttrValidator = std::function<void(const FunctionFrameObj*, const ffi::Any&)>;
   static void RegisterAttrValidator(ffi::String key, AttrValidator validator);
   void ValidateAttrs() const;
 
@@ -107,18 +107,18 @@ class FunctionFrameNode : public ir::StmtFrameNode {
 };
 
 /*!
- * \brief Managed reference to FunctionFrameNode.
+ * \brief Managed reference to FunctionFrameObj.
  *
- * \sa FunctionFrameNode
+ * \sa FunctionFrameObj
  */
 class FunctionFrame : public ir::StmtFrame {
  public:
-  explicit FunctionFrame(ffi::ObjectPtr<FunctionFrameNode> data)
+  explicit FunctionFrame(ffi::ObjectPtr<FunctionFrameObj> data)
       : ir::StmtFrame(ffi::UnsafeInit{}) {
     TVM_FFI_ICHECK(data != nullptr);
     data_ = std::move(data);
   }
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(FunctionFrame, ir::StmtFrame, FunctionFrameNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(FunctionFrame, ir::StmtFrame, FunctionFrameObj);
 };
 
 }  // namespace tirx

@@ -45,8 +45,8 @@ namespace runtime {
 class OpenCLWrappedFunc {
  public:
   // initialize the OpenCL function.
-  void Init(OpenCLModuleNodeBase* m, ffi::ObjectPtr<ffi::Object> sptr,
-            OpenCLModuleNode::KTRefEntry entry, std::string func_name, std::vector<size_t> arg_size,
+  void Init(OpenCLModuleBaseObj* m, ffi::ObjectPtr<ffi::Object> sptr,
+            OpenCLModuleObj::KTRefEntry entry, std::string func_name, std::vector<size_t> arg_size,
             const ffi::Array<ffi::String>& launch_param_tags) {
     w_ = m->GetGlobalWorkspace();
     m_ = m;
@@ -102,11 +102,11 @@ class OpenCLWrappedFunc {
   // global workspace.
   cl::OpenCLWorkspace* w_;
   // The module
-  OpenCLModuleNodeBase* m_;
+  OpenCLModuleBaseObj* m_;
   // resource handle
   ffi::ObjectPtr<ffi::Object> sptr_;
   // global kernel id in the kernel table.
-  OpenCLModuleNode::KTRefEntry entry_;
+  OpenCLModuleObj::KTRefEntry entry_;
   // The name of the function.
   std::string func_name_;
   // convert code for void argument
@@ -115,7 +115,7 @@ class OpenCLWrappedFunc {
   LaunchParamConfig launch_param_config_;
 };
 
-OpenCLModuleNodeBase::~OpenCLModuleNodeBase() {
+OpenCLModuleBaseObj::~OpenCLModuleBaseObj() {
   {
     // free the kernel ids in global table.
     std::lock_guard<std::mutex> lock(workspace_->mu);
@@ -137,11 +137,11 @@ OpenCLModuleNodeBase::~OpenCLModuleNodeBase() {
   }
 }
 
-cl::OpenCLWorkspace* OpenCLModuleNodeBase::GetGlobalWorkspace() {
+cl::OpenCLWorkspace* OpenCLModuleBaseObj::GetGlobalWorkspace() {
   return cl::OpenCLWorkspace::Global();
 }
 
-ffi::Optional<ffi::Function> OpenCLModuleNodeBase::GetFunction(const ffi::String& name) {
+ffi::Optional<ffi::Function> OpenCLModuleBaseObj::GetFunction(const ffi::String& name) {
   ffi::ObjectPtr<ffi::Object> sptr_to_self = ffi::GetObjectPtr<ffi::Object>(this);
   TVM_FFI_ICHECK_EQ(sptr_to_self.get(), this);
   auto opt_info = fmap_.Get(name);
@@ -166,7 +166,7 @@ ffi::Optional<ffi::Function> OpenCLModuleNodeBase::GetFunction(const ffi::String
   return PackFuncVoidAddr(f, info->arg_types);
 }
 
-ffi::Bytes OpenCLModuleNode::SaveToBytes() const {
+ffi::Bytes OpenCLModuleObj::SaveToBytes() const {
   // NOTE: serialization format MUST remain byte-identical to
   // target::OpenCLFallbackModuleNode::SaveToBytes in
   // src/backend/opencl/codegen/opencl_fallback_module.cc.  This file is the
@@ -182,7 +182,7 @@ ffi::Bytes OpenCLModuleNode::SaveToBytes() const {
   return ffi::Bytes(std::move(result));
 }
 
-ffi::String OpenCLModuleNode::InspectSource(const ffi::String& format) const {
+ffi::String OpenCLModuleObj::InspectSource(const ffi::String& format) const {
   if (auto it = source_.find(format); it != source_.end()) {
     return (*it).second;
   }
@@ -198,7 +198,7 @@ ffi::String OpenCLModuleNode::InspectSource(const ffi::String& format) const {
   return ffi::String();
 }
 
-void OpenCLModuleNode::Init() {
+void OpenCLModuleObj::Init() {
   workspace_ = GetGlobalWorkspace();
   // initialize the kernel id, need to lock global table.
   std::lock_guard<std::mutex> lock(workspace_->mu);
@@ -229,7 +229,7 @@ void OpenCLModuleNode::Init() {
   }
 }
 
-bool OpenCLModuleNode::IsProgramCreated(const std::string& func_name, int device_id) {
+bool OpenCLModuleObj::IsProgramCreated(const std::string& func_name, int device_id) {
   auto size = programs_[func_name].size();
   if (size > 0 && programs_[func_name][device_id] != nullptr) return true;
   auto dev_size = GetGlobalWorkspace()->devices.size();
@@ -240,8 +240,8 @@ bool OpenCLModuleNode::IsProgramCreated(const std::string& func_name, int device
   return false;
 }
 
-cl_kernel OpenCLModuleNode::InstallKernel(cl::OpenCLWorkspace* w, cl::OpenCLThreadEntry* t,
-                                          const std::string& func_name, const KTRefEntry& e) {
+cl_kernel OpenCLModuleObj::InstallKernel(cl::OpenCLWorkspace* w, cl::OpenCLThreadEntry* t,
+                                         const std::string& func_name, const KTRefEntry& e) {
   std::lock_guard<std::mutex> lock(build_lock_);
   int device_id = t->device.device_id;
   auto did = w->GetCLDeviceID(device_id);
@@ -293,7 +293,7 @@ cl_kernel OpenCLModuleNode::InstallKernel(cl::OpenCLWorkspace* w, cl::OpenCLThre
   return kernel;
 }
 
-void OpenCLModuleNode::SetPreCompiledPrograms(const std::string& bytes) {
+void OpenCLModuleObj::SetPreCompiledPrograms(const std::string& bytes) {
   workspace_->Init();
   support::BytesInStream strm(bytes);
   uint64_t kernels_num;
@@ -334,7 +334,7 @@ void OpenCLModuleNode::SetPreCompiledPrograms(const std::string& bytes) {
   }
 }
 
-std::string OpenCLModuleNode::GetPreCompiledPrograms() {
+std::string OpenCLModuleObj::GetPreCompiledPrograms() {
   workspace_->Init();
   std::string result;
   support::BytesOutStream strm(&result);
@@ -362,7 +362,7 @@ std::string OpenCLModuleNode::GetPreCompiledPrograms() {
   return result;
 }
 
-ffi::Optional<ffi::Function> OpenCLModuleNode::GetFunction(const ffi::String& name) {
+ffi::Optional<ffi::Function> OpenCLModuleObj::GetFunction(const ffi::String& name) {
   ffi::ObjectPtr<ffi::Object> sptr_to_self = ffi::GetObjectPtr<ffi::Object>(this);
   TVM_FFI_ICHECK_EQ(sptr_to_self.get(), this);
   if (name == "opencl.GetPreCompiledPrograms") {
@@ -374,14 +374,14 @@ ffi::Optional<ffi::Function> OpenCLModuleNode::GetFunction(const ffi::String& na
       this->SetPreCompiledPrograms(args[0].cast<std::string>());
     });
   }
-  return OpenCLModuleNodeBase::GetFunction(name);
+  return OpenCLModuleBaseObj::GetFunction(name);
 }
 
 static ffi::Module OpenCLModuleCreateImpl(ffi::Bytes code, ffi::String fmt,
                                           ffi::Map<ffi::String, FunctionInfo> fmap,
                                           ffi::Map<ffi::String, ffi::String> source) {
-  auto n = ffi::make_object<OpenCLModuleNode>(std::move(code), std::move(fmt), std::move(fmap),
-                                              std::move(source));
+  auto n = ffi::make_object<OpenCLModuleObj>(std::move(code), std::move(fmt), std::move(fmap),
+                                             std::move(source));
   n->Init();
   return ffi::Module(n);
 }

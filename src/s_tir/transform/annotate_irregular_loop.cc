@@ -32,26 +32,26 @@ namespace tvm {
 namespace s_tir {
 using namespace tvm::tirx;
 
-class IrregularLoopAnnotator : public StmtExprMutator {
+class IrregularLoopAnnotatorObj : public StmtExprMutatorObj {
  public:
-  using StmtExprMutator::Mutate;
-  using StmtExprMutator::Mutate_;
+  using StmtExprMutatorObj::Mutate;
+  using StmtExprMutatorObj::Mutate_;
   UnchangedOr<ffi::Any> Mutate(ffi::AnyView value, InplaceMode inplace_mode) override {
     if (value.as<ExprNode>()) return ffi::Unchanged();
-    return StmtExprMutator::Mutate(value, inplace_mode);
+    return StmtExprMutatorObj::Mutate(value, inplace_mode);
   }
 
   static Stmt Annotate(const Stmt& body) {
-    return ffi::make_object<IrregularLoopAnnotator>()->Mutate(body).ValueOrUnchanged(body);
+    return ffi::make_object<IrregularLoopAnnotatorObj>()->Mutate(body).ValueOrUnchanged(body);
   }
 
-  IrregularLoopAnnotator() = default;
+  IrregularLoopAnnotatorObj() = default;
 
  private:
   UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
     bool cur_has_jump = has_jump_;
     has_jump_ = false;
-    For res = StmtExprMutator::Mutate_(op, inplace_mode)
+    For res = StmtExprMutatorObj::Mutate_(op, inplace_mode)
                   .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
                   .as_or_throw<For>();
     if (has_jump_) {
@@ -72,7 +72,8 @@ class IrregularLoopAnnotator : public StmtExprMutator {
   UnchangedOr<Stmt> Mutate_(const WhileNode* op, InplaceMode inplace_mode) final {
     bool cur_has_jump = has_jump_;
     has_jump_ = false;
-    Stmt res = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
+    Stmt res =
+        StmtExprMutatorObj::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     std::swap(cur_has_jump, has_jump_);
     return res;
   }
@@ -95,7 +96,7 @@ namespace transform {
 Pass AnnotateIrregularLoop() {
   auto pass_func = [](Function func, IRModule mod, PassContext ctx) -> Function {
     if (!func->body.has_value()) return func;
-    func.CopyOnWrite()->body = IrregularLoopAnnotator::Annotate(func->body.value());
+    func.CopyOnWrite()->body = IrregularLoopAnnotatorObj::Annotate(func->body.value());
     return func;
   };
 

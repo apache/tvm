@@ -46,11 +46,11 @@ namespace contrib {
 using namespace tvm::runtime;
 using namespace tvm::runtime::json;
 
-class cuDNNJSONRuntime : public JSONRuntimeBase {
+class cuDNNJSONRuntimeObj : public JSONRuntimeBaseObj {
  public:
-  cuDNNJSONRuntime(const std::string& symbol_name, const std::string& graph_json,
-                   const ffi::Array<ffi::String> const_names)
-      : JSONRuntimeBase(symbol_name, graph_json, const_names) {}
+  cuDNNJSONRuntimeObj(const std::string& symbol_name, const std::string& graph_json,
+                      const ffi::Array<ffi::String> const_names)
+      : JSONRuntimeBaseObj(symbol_name, graph_json, const_names) {}
 
   void Init(const ffi::Array<Tensor>& consts) override {
     op_execs_.resize(nodes_.size());
@@ -249,7 +249,7 @@ class cuDNNJSONRuntime : public JSONRuntimeBase {
 
 ffi::Module cuDNNJSONRuntimeCreate(ffi::String symbol_name, ffi::String graph_json,
                                    const ffi::Array<ffi::String>& const_names) {
-  auto n = ffi::make_object<cuDNNJSONRuntime>(symbol_name, graph_json, const_names);
+  auto n = ffi::make_object<cuDNNJSONRuntimeObj>(symbol_name, graph_json, const_names);
   return ffi::Module(n);
 }
 
@@ -258,7 +258,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef()
       .def("runtime.cuDNNJSONRuntimeCreate", cuDNNJSONRuntimeCreate)
       .def("ffi.Module.load_from_bytes.cudnn_json",
-           JSONRuntimeBase::LoadFromBytes<cuDNNJSONRuntime>);
+           JSONRuntimeBaseObj::LoadFromBytes<cuDNNJSONRuntimeObj>);
 }
 
 }  // namespace contrib

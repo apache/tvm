@@ -68,7 +68,7 @@ class VMClosureObj : public ffi::Object {
 
   /*!
    * \brief The implementation of the Closure.
-   * \note This function takes context pointer(VirtualMachine*)
+   * \note This function takes context pointer(VirtualMachineObj*)
    *       as the first argument. The rest of arguments follows
    *       the same arguments as the normal function call.
    */
@@ -101,15 +101,15 @@ class VMClosure : public ffi::ObjectRef {
  *
  * This is the base class for all VM extensions and should not be used directly.
  */
-class VMExtensionNode : public ffi::Object {
+class VMExtensionObj : public ffi::Object {
  protected:
-  TVM_FFI_DECLARE_OBJECT_INFO("runtime.VMExtension", VMExtensionNode, ffi::Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("runtime.VMExtension", VMExtensionObj, ffi::Object);
 };
 
 /*! \brief Managed reference to VM extension. */
 class VMExtension : public ffi::ObjectRef {
  public:
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(VMExtension, ffi::ObjectRef, VMExtensionNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(VMExtension, ffi::ObjectRef, VMExtensionObj);
 };
 
 /*!
@@ -123,7 +123,7 @@ class VMExtension : public ffi::ObjectRef {
  * multiple threads, or serialize them to disk or over the
  * wire.
  */
-class VirtualMachine : public ffi::ModuleObj {
+class VirtualMachineObj : public ffi::ModuleObj {
  public:
   /*!
    * \brief Initialize the virtual machine for a set of devices.
@@ -136,7 +136,7 @@ class VirtualMachine : public ffi::ModuleObj {
    * \brief Load the executable for the virtual machine.
    * \param exec The executable.
    */
-  virtual void LoadExecutable(ffi::ObjectPtr<VMExecutable> exec) = 0;
+  virtual void LoadExecutable(ffi::ObjectPtr<VMExecutableObj> exec) = 0;
   /*!
    * \brief Get global function in the VM.
    * \param func_name The name of the function.
@@ -196,16 +196,16 @@ class VirtualMachine : public ffi::ModuleObj {
    * \brief Create a specific instance of VM.
    * \return Created VM
    */
-  static ffi::ObjectPtr<VirtualMachine> Create();
+  static ffi::ObjectPtr<VirtualMachineObj> Create();
   /*!
    * \brief Helper function for vm closure functions to get the context ptr
    * \param arg The argument value.
    */
-  static VirtualMachine* GetContextPtr(ffi::AnyView arg) {
-    return static_cast<VirtualMachine*>(arg.cast<void*>());
+  static VirtualMachineObj* GetContextPtr(ffi::AnyView arg) {
+    return static_cast<VirtualMachineObj*>(arg.cast<void*>());
   }
 
-  ~VirtualMachine() {}
+  ~VirtualMachineObj() {}
 
   //--------------------------------------------------------------------------
   // The following section contains states that other builtin can depend on

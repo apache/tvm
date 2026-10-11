@@ -588,34 +588,34 @@ bool OpSupportsInplace(const Op& op) { return SUPPORTED_OPS.count(op->name); }
 /*! \brief Corresponds to a binding where at least one argument meets the conditions to be
  *  made in-place. Contains the binding index and indices of the applicable arguments
  */
-class InplaceOpportunityNode : public ffi::Object {
+class InplaceOpportunityObj : public ffi::Object {
  public:
   int64_t binding_idx;
   ffi::Array<int64_t> arg_idxs;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<InplaceOpportunityNode>()
-        .def_ro("binding_idx", &InplaceOpportunityNode::binding_idx)
-        .def_ro("arg_idxs", &InplaceOpportunityNode::arg_idxs);
+    refl::ObjectDef<InplaceOpportunityObj>()
+        .def_ro("binding_idx", &InplaceOpportunityObj::binding_idx)
+        .def_ro("arg_idxs", &InplaceOpportunityObj::arg_idxs);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO("relax.transform.InplaceOpportunity", InplaceOpportunityNode,
+  TVM_FFI_DECLARE_OBJECT_INFO("relax.transform.InplaceOpportunity", InplaceOpportunityObj,
                               ffi::Object);
 };
 
-TVM_FFI_STATIC_INIT_BLOCK() { InplaceOpportunityNode::RegisterReflection(); }
+TVM_FFI_STATIC_INIT_BLOCK() { InplaceOpportunityObj::RegisterReflection(); }
 
 class InplaceOpportunity : public ffi::ObjectRef {
  public:
   TVM_DLL InplaceOpportunity(int64_t binding_idx, const ffi::Array<int64_t>& arg_idxs) {
-    auto node = ffi::make_object<InplaceOpportunityNode>();
+    auto node = ffi::make_object<InplaceOpportunityObj>();
     node->binding_idx = binding_idx;
     node->arg_idxs = arg_idxs;
     data_ = std::move(node);
   }
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(InplaceOpportunity, ffi::ObjectRef,
-                                                InplaceOpportunityNode);
+                                                InplaceOpportunityObj);
 };
 
 // Check for in-place eligibility:
@@ -767,16 +767,16 @@ FindInplaceOpportunities(const DataflowBlock& block, const ffi::Array<Var>& inpu
 // Replace tensors in a tirx::Function according to the mapping.
 tvm::Stmt RemapTensors(const tvm::Stmt& stmt,
                        const ffi::Map<tirx::TensorVar, tirx::TensorVar>& tensor_map) {
-  class TensorMapper : public tirx::StmtExprMutator {
+  class TensorMapperObj : public tirx::StmtExprMutatorObj {
    public:
-    explicit TensorMapper(const ffi::Map<tirx::TensorVar, tirx::TensorVar>& tensor_map) {
+    explicit TensorMapperObj(const ffi::Map<tirx::TensorVar, tirx::TensorVar>& tensor_map) {
       for (const auto& [source, target] : tensor_map) {
         VarRemapSet(source, target);
       }
     }
   };
 
-  return ffi::make_object<TensorMapper>(tensor_map)->Mutate(stmt).ValueOrUnchanged(stmt);
+  return ffi::make_object<TensorMapperObj>(tensor_map)->Mutate(stmt).ValueOrUnchanged(stmt);
 }
 
 class ModuleInplaceTransformer : public ExprMutator {
@@ -938,7 +938,7 @@ class ModuleInplaceTransformer : public ExprMutator {
     new_args.Set(0, new_gv);
     legalized_call_cow->args = new_args;
 
-    ffi::ObjectPtr<CallTIRInplaceAttrs> attrs = ffi::make_object<CallTIRInplaceAttrs>();
+    ffi::ObjectPtr<CallTIRInplaceAttrsNode> attrs = ffi::make_object<CallTIRInplaceAttrsNode>();
     attrs->inplace_indices = inplace_indices;
     legalized_call_cow->attrs = Attrs(attrs);
 

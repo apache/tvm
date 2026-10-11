@@ -187,12 +187,12 @@ struct VMFrame {
   }
 };
 
-class VirtualMachineImpl : public VirtualMachine {
+class VirtualMachineImplObj : public VirtualMachineObj {
  public:
   //---------------------------------------------------
   // Public facing functions overloading
   //---------------------------------------------------
-  void LoadExecutable(ffi::ObjectPtr<VMExecutable> exec) final;
+  void LoadExecutable(ffi::ObjectPtr<VMExecutableObj> exec) final;
   void Init(const std::vector<Device>& devices,
             const std::vector<AllocatorType>& alloc_types) final;
   VMClosure GetClosure(const ffi::String& func_name) final {
@@ -219,19 +219,19 @@ class VirtualMachineImpl : public VirtualMachine {
   ffi::Function _LookupFunction(const ffi::String& name);
 
   TVM_MODULE_VTABLE_BEGIN("relax.VirtualMachine");
-  TVM_MODULE_VTABLE_ENTRY_PACKED("vm_initialization", &VirtualMachineImpl::_Init);
-  TVM_MODULE_VTABLE_ENTRY_PACKED("save_function", &VirtualMachineImpl::_SaveClosure);
-  TVM_MODULE_VTABLE_ENTRY_PACKED("invoke_closure", &VirtualMachineImpl::_InvokeClosure);
-  TVM_MODULE_VTABLE_ENTRY("invoke_stateful", &VirtualMachineImpl::_InvokeClosureStateful);
-  TVM_MODULE_VTABLE_ENTRY_PACKED("set_instrument", &VirtualMachineImpl::_SetInstrument);
-  TVM_MODULE_VTABLE_ENTRY_PACKED("get_output_arity", &VirtualMachineImpl::_GetOutputArity);
-  TVM_MODULE_VTABLE_ENTRY_PACKED("get_output", &VirtualMachineImpl::_GetOutput);
-  TVM_MODULE_VTABLE_ENTRY_PACKED("set_input", &VirtualMachineImpl::_SetInputWithoutParamModule);
+  TVM_MODULE_VTABLE_ENTRY_PACKED("vm_initialization", &VirtualMachineImplObj::_Init);
+  TVM_MODULE_VTABLE_ENTRY_PACKED("save_function", &VirtualMachineImplObj::_SaveClosure);
+  TVM_MODULE_VTABLE_ENTRY_PACKED("invoke_closure", &VirtualMachineImplObj::_InvokeClosure);
+  TVM_MODULE_VTABLE_ENTRY("invoke_stateful", &VirtualMachineImplObj::_InvokeClosureStateful);
+  TVM_MODULE_VTABLE_ENTRY_PACKED("set_instrument", &VirtualMachineImplObj::_SetInstrument);
+  TVM_MODULE_VTABLE_ENTRY_PACKED("get_output_arity", &VirtualMachineImplObj::_GetOutputArity);
+  TVM_MODULE_VTABLE_ENTRY_PACKED("get_output", &VirtualMachineImplObj::_GetOutput);
+  TVM_MODULE_VTABLE_ENTRY_PACKED("set_input", &VirtualMachineImplObj::_SetInputWithoutParamModule);
   TVM_MODULE_VTABLE_ENTRY_PACKED("set_input_with_param_module",
-                                 &VirtualMachineImpl::_SetInputWithParamModule);
-  TVM_MODULE_VTABLE_ENTRY("get_function_arity", &VirtualMachineImpl::_GetFunctionArity);
-  TVM_MODULE_VTABLE_ENTRY("get_function_param_name", &VirtualMachineImpl::_GetFunctionParamName);
-  TVM_MODULE_VTABLE_END_WITH_DEFAULT(&VirtualMachineImpl::_LookupFunction);
+                                 &VirtualMachineImplObj::_SetInputWithParamModule);
+  TVM_MODULE_VTABLE_ENTRY("get_function_arity", &VirtualMachineImplObj::_GetFunctionArity);
+  TVM_MODULE_VTABLE_ENTRY("get_function_param_name", &VirtualMachineImplObj::_GetFunctionParamName);
+  TVM_MODULE_VTABLE_END_WITH_DEFAULT(&VirtualMachineImplObj::_LookupFunction);
 
   //--------------------------------------------------
   // Additional support arguments functions for VM
@@ -324,8 +324,8 @@ class VirtualMachineImpl : public VirtualMachine {
    */
   class FrameGuard {
    public:
-    VirtualMachineImpl* vm;
-    explicit FrameGuard(VirtualMachineImpl* vm, std::unique_ptr<VMFrame> frame) : vm(vm) {
+    VirtualMachineImplObj* vm;
+    explicit FrameGuard(VirtualMachineImplObj* vm, std::unique_ptr<VMFrame> frame) : vm(vm) {
       vm->frames_.emplace_back(std::move(frame));
     }
     ~FrameGuard() {
@@ -381,10 +381,10 @@ class VirtualMachineImpl : public VirtualMachine {
       ret = nullptr;
     } else {
       TVM_FFI_ICHECK_EQ(reg, Instruction::kVMRegister);
-      // per convention, ctx ptr must be VirtualMachine* casted to void.
-      // this and VirtualMachine* may or may not be the same
-      // do first cast to VirtualMachine* then to void*
-      ret = static_cast<void*>(static_cast<VirtualMachine*>(this));
+      // per convention, ctx ptr must be VirtualMachineObj* casted to void.
+      // this and VirtualMachineObj* may or may not be the same
+      // do first cast to VirtualMachineObj* then to void*
+      ret = static_cast<void*>(static_cast<VirtualMachineObj*>(this));
     }
     return ret;
   }
@@ -420,7 +420,7 @@ class VirtualMachineImpl : public VirtualMachine {
   // Internal states for execution.
   //--------------------------------------------------------
   /*! \brief The loaded executable. */
-  ffi::ObjectPtr<VMExecutable> exec_;
+  ffi::ObjectPtr<VMExecutableObj> exec_;
   /*! \brief The global constant pool */
   std::vector<ffi::Any> const_pool_;
   /*!
@@ -457,13 +457,13 @@ class VirtualMachineImpl : public VirtualMachine {
   ffi::Function instrument_ = nullptr;
 };
 
-void VirtualMachineImpl::LoadExecutable(ffi::ObjectPtr<VMExecutable> exec) {
+void VirtualMachineImplObj::LoadExecutable(ffi::ObjectPtr<VMExecutableObj> exec) {
   this->exec_ = exec;
   this->imports_ = exec->imports();
 }
 
-void VirtualMachineImpl::Init(const std::vector<Device>& devices,
-                              const std::vector<AllocatorType>& alloc_types) {
+void VirtualMachineImplObj::Init(const std::vector<Device>& devices,
+                                 const std::vector<AllocatorType>& alloc_types) {
   TVM_FFI_ICHECK_EQ(devices.size(), alloc_types.size());
 
   this->devices.reserve(devices.size());
@@ -487,7 +487,7 @@ void VirtualMachineImpl::Init(const std::vector<Device>& devices,
   this->InitFuncPool();
 }
 
-VMFuncInfo VirtualMachineImpl::LookupVMFuncInfo(const std::string& func_name) {
+VMFuncInfo VirtualMachineImplObj::LookupVMFuncInfo(const std::string& func_name) {
   TVM_FFI_ICHECK(exec_) << "The executable is not created yet.";
   auto it = this->exec_->func_map.find(func_name);
   TVM_FFI_CHECK(it != this->exec_->func_map.end(), ValueError) << "Unknown function: " << func_name;
@@ -495,7 +495,7 @@ VMFuncInfo VirtualMachineImpl::LookupVMFuncInfo(const std::string& func_name) {
   return exec_->func_table[it->second];
 }
 
-RegType VirtualMachineImpl::LookupVMOutput(const std::string& func_name) {
+RegType VirtualMachineImplObj::LookupVMOutput(const std::string& func_name) {
   if (!outputs_.count(func_name)) {
     TVM_FFI_THROW(ValueError) << "No output saved for call of \"" << func_name
                               << "\"; use `invoke_stateful` to call it first.";
@@ -503,8 +503,8 @@ RegType VirtualMachineImpl::LookupVMOutput(const std::string& func_name) {
   return outputs_[func_name];
 }
 
-void VirtualMachineImpl::SetInput(std::string func_name, bool with_param_module,
-                                  ffi::PackedArgs args) {
+void VirtualMachineImplObj::SetInput(std::string func_name, bool with_param_module,
+                                     ffi::PackedArgs args) {
   const auto& m = exec_->func_map;
   if (m.find(func_name) != m.end()) {
     Index gf_idx = m.at(func_name);
@@ -530,8 +530,8 @@ void VirtualMachineImpl::SetInput(std::string func_name, bool with_param_module,
 //------------------------------------------
 // Closure handling
 //------------------------------------------
-void VirtualMachineImpl::InvokeClosurePacked(const ffi::ObjectRef& closure_or_packedfunc,
-                                             ffi::PackedArgs args, ffi::Any* rv) {
+void VirtualMachineImplObj::InvokeClosurePacked(const ffi::ObjectRef& closure_or_packedfunc,
+                                                ffi::PackedArgs args, ffi::Any* rv) {
   // run packed call if it is a packed func.
   if (auto* packed = closure_or_packedfunc.as<ffi::Function::ContainerType>()) {
     packed->CallPacked(args.data(), args.size(), rv);
@@ -542,10 +542,10 @@ void VirtualMachineImpl::InvokeClosurePacked(const ffi::ObjectRef& closure_or_pa
   TVM_FFI_ICHECK(clo != nullptr) << "Function expects a closure or ffi::Function ";
 
   std::vector<ffi::AnyView> packed_args(args.size() + 1);
-  // per convention, ctx ptr must be VirtualMachine* casted to void.
-  // this and VirtualMachine* may or maynot be the same
-  // do first cast to VirtualMachine* then to void*
-  packed_args[0] = static_cast<void*>(static_cast<VirtualMachine*>(this));
+  // per convention, ctx ptr must be VirtualMachineObj* casted to void.
+  // this and VirtualMachineObj* may or maynot be the same
+  // do first cast to VirtualMachineObj* then to void*
+  packed_args[0] = static_cast<void*>(static_cast<VirtualMachineObj*>(this));
   std::copy(args.data(), args.data() + args.size(), packed_args.begin() + 1);
   {
     support::NVTXScopedRange scope("RelaxVM: " + clo->func_name);
@@ -554,8 +554,8 @@ void VirtualMachineImpl::InvokeClosurePacked(const ffi::ObjectRef& closure_or_pa
 }
 
 // internal variant version of invoke closurepacked
-RegType VirtualMachineImpl::InvokeClosureInternal(const ffi::ObjectRef& closure_or_packed,
-                                                  const std::vector<RegType>& args) {
+RegType VirtualMachineImplObj::InvokeClosureInternal(const ffi::ObjectRef& closure_or_packed,
+                                                     const std::vector<RegType>& args) {
   RegType ret;
   auto* packed = closure_or_packed.as<ffi::Function::ContainerType>();
   auto* clo = closure_or_packed.as<VMClosureObj>();
@@ -564,7 +564,7 @@ RegType VirtualMachineImpl::InvokeClosureInternal(const ffi::ObjectRef& closure_
   std::vector<ffi::AnyView> packed_args(args.size() + clo_offset);
 
   if (clo != nullptr) {
-    packed_args[0] = static_cast<void*>(static_cast<VirtualMachine*>(this));
+    packed_args[0] = static_cast<void*>(static_cast<VirtualMachineObj*>(this));
   }
   for (size_t i = 0; i < args.size(); ++i) {
     packed_args[i + clo_offset] = args[i];
@@ -579,8 +579,8 @@ RegType VirtualMachineImpl::InvokeClosureInternal(const ffi::ObjectRef& closure_
   return ret;
 }
 
-void VirtualMachineImpl::SaveClosure(const ffi::String& func_name, const ffi::String& save_name,
-                                     bool include_return, ffi::PackedArgs args) {
+void VirtualMachineImplObj::SaveClosure(const ffi::String& func_name, const ffi::String& save_name,
+                                        bool include_return, ffi::PackedArgs args) {
   VMClosure clo = this->GetClosure(func_name);
   std::vector<RegType> inputs(args.size());
   for (int i = 0; i < args.size(); ++i) {
@@ -596,8 +596,8 @@ void VirtualMachineImpl::SaveClosure(const ffi::String& func_name, const ffi::St
   saved_closures_.insert_or_assign(save_name, VMClosure(save_name, impl));
 }
 
-ffi::Optional<VMClosure> VirtualMachineImpl::GetClosureInternal(const ffi::String& func_name,
-                                                                bool allow_missing) {
+ffi::Optional<VMClosure> VirtualMachineImplObj::GetClosureInternal(const ffi::String& func_name,
+                                                                   bool allow_missing) {
   // look up saved closures.
   auto saved_it = saved_closures_.find(func_name);
   if (saved_it != saved_closures_.end()) {
@@ -616,14 +616,14 @@ ffi::Optional<VMClosure> VirtualMachineImpl::GetClosureInternal(const ffi::Strin
       << "Cannot support closure with function kind " << static_cast<int>(finfo.kind);
   // NOTE: should not capture strong ref to self and avoid cyclic ref.
   auto impl = ffi::Function([gf_idx](ffi::PackedArgs args, ffi::Any* rv) {
-    // Per convention, ctx ptr is a VirtualMachine*
-    VirtualMachine* ctx_ptr = static_cast<VirtualMachine*>(args[0].cast<void*>());
+    // Per convention, ctx ptr is a VirtualMachineObj*
+    VirtualMachineObj* ctx_ptr = static_cast<VirtualMachineObj*>(args[0].cast<void*>());
 
     std::vector<RegType> inputs(args.size() - 1);
     for (size_t i = 0; i < inputs.size(); ++i) {
       inputs[i] = args[i + 1];
     }
-    *rv = static_cast<VirtualMachineImpl*>(ctx_ptr)->InvokeBytecode(gf_idx, inputs);
+    *rv = static_cast<VirtualMachineImplObj*>(ctx_ptr)->InvokeBytecode(gf_idx, inputs);
   });
   return VMClosure(func_name, impl);
 }
@@ -631,7 +631,7 @@ ffi::Optional<VMClosure> VirtualMachineImpl::GetClosureInternal(const ffi::Strin
 //--------------------------------------------------------------------
 // Instruction interpretations.
 //--------------------------------------------------------------------
-RegType VirtualMachineImpl::InvokeBytecode(Index gf_idx, const std::vector<RegType>& args) {
+RegType VirtualMachineImplObj::InvokeBytecode(Index gf_idx, const std::vector<RegType>& args) {
   const VMFuncInfo& gfunc = exec_->func_table[gf_idx];
   TVM_FFI_ICHECK(gfunc.kind == VMFuncInfo::FuncKind::kVMFunc);
 
@@ -671,7 +671,7 @@ RegType VirtualMachineImpl::InvokeBytecode(Index gf_idx, const std::vector<RegTy
   return return_value_;
 }
 
-void VirtualMachineImpl::InitFuncPool() {
+void VirtualMachineImplObj::InitFuncPool() {
   func_pool_.resize(exec_->func_table.size());
 
   for (size_t func_index = 0; func_index < exec_->func_table.size(); ++func_index) {
@@ -697,7 +697,7 @@ void VirtualMachineImpl::InitFuncPool() {
   }
 }
 
-void VirtualMachineImpl::RunInstrCall(VMFrame* curr_frame, Instruction instr) {
+void VirtualMachineImplObj::RunInstrCall(VMFrame* curr_frame, Instruction instr) {
   DLOG(INFO) << "\n  pc = " << pc_ << ", execute: " << GetFuncName(instr.func_idx);
   int args_begin_offset = instrument_ != nullptr ? 4 : 0;
   // Use the call arg stack from the current frame to increase reuse
@@ -781,7 +781,7 @@ void VirtualMachineImpl::RunInstrCall(VMFrame* curr_frame, Instruction instr) {
   pc_++;
 }
 
-void VirtualMachineImpl::RunLoop() {
+void VirtualMachineImplObj::RunLoop() {
   VMFrame* curr_frame = frames_.back().get();
 
   while (true) {
@@ -827,15 +827,15 @@ void VirtualMachineImpl::RunLoop() {
   }
 }
 
-ffi::ObjectPtr<VirtualMachine> VirtualMachine::Create() {
-  return ffi::make_object<VirtualMachineImpl>();
+ffi::ObjectPtr<VirtualMachineObj> VirtualMachineObj::Create() {
+  return ffi::make_object<VirtualMachineImplObj>();
 }
 
 //--------------------------------------------------------------------
 // FFI related code
 //--------------------------------------------------------------------
 
-void VirtualMachineImpl::_Init(ffi::PackedArgs args, ffi::Any* rv) {
+void VirtualMachineImplObj::_Init(ffi::PackedArgs args, ffi::Any* rv) {
   TVM_FFI_ICHECK_EQ(args.size() % 3, 0);
   std::vector<Device> devices;
   std::vector<AllocatorType> alloc_types;
@@ -849,17 +849,17 @@ void VirtualMachineImpl::_Init(ffi::PackedArgs args, ffi::Any* rv) {
   this->Init(devices, alloc_types);
 }
 
-void VirtualMachineImpl::_SaveClosure(ffi::PackedArgs args, ffi::Any* rv) {
+void VirtualMachineImplObj::_SaveClosure(ffi::PackedArgs args, ffi::Any* rv) {
   TVM_FFI_ICHECK_GE(args.size(), 3);
   std::string func_name = args[0].cast<std::string>();
   this->SaveClosure(func_name, args[1].cast<ffi::String>(), args[2].cast<bool>(), args.Slice(3));
 }
 
-void VirtualMachineImpl::_InvokeClosure(ffi::PackedArgs args, ffi::Any* rv) {
+void VirtualMachineImplObj::_InvokeClosure(ffi::PackedArgs args, ffi::Any* rv) {
   this->InvokeClosurePacked(args[0].cast<ffi::ObjectRef>(), args.Slice(1), rv);
 }
 
-void VirtualMachineImpl::_InvokeClosureStateful(std::string func_name) {
+void VirtualMachineImplObj::_InvokeClosureStateful(std::string func_name) {
   const std::unordered_map<std::string, Index>& m = this->exec_->func_map;
   if (m.find(func_name) == m.end()) {
     TVM_FFI_THROW(ValueError) << "Unknown function: " << func_name;
@@ -873,7 +873,7 @@ void VirtualMachineImpl::_InvokeClosureStateful(std::string func_name) {
       func_pool_[m.at(func_name)].cast<ffi::ObjectRef>(), inputs_[func_name]);
 }
 
-void VirtualMachineImpl::_SetInstrument(ffi::PackedArgs args, ffi::Any* rv) {
+void VirtualMachineImplObj::_SetInstrument(ffi::PackedArgs args, ffi::Any* rv) {
   if (args[0].as<ffi::Function>()) {
     this->SetInstrument(args[0].cast<ffi::Function>());
   } else {
@@ -886,7 +886,7 @@ void VirtualMachineImpl::_SetInstrument(ffi::PackedArgs args, ffi::Any* rv) {
   }
 }
 
-void VirtualMachineImpl::_GetOutputArity(ffi::PackedArgs args, ffi::Any* rv) {
+void VirtualMachineImplObj::_GetOutputArity(ffi::PackedArgs args, ffi::Any* rv) {
   std::string func_name = args[0].cast<std::string>();
   RegType out = LookupVMOutput(func_name);
   ffi::Any obj = IndexIntoNestedObject(out, args, 1);
@@ -897,7 +897,7 @@ void VirtualMachineImpl::_GetOutputArity(ffi::PackedArgs args, ffi::Any* rv) {
   }
 }
 
-void VirtualMachineImpl::_GetOutput(ffi::PackedArgs args, ffi::Any* rv) {
+void VirtualMachineImplObj::_GetOutput(ffi::PackedArgs args, ffi::Any* rv) {
   std::string func_name = args[0].cast<std::string>();
   RegType out = LookupVMOutput(func_name);
   ffi::Any obj = IndexIntoNestedObject(out, args, 1);
@@ -909,22 +909,22 @@ void VirtualMachineImpl::_GetOutput(ffi::PackedArgs args, ffi::Any* rv) {
   *rv = obj;
 }
 
-void VirtualMachineImpl::_SetInputWithoutParamModule(ffi::PackedArgs args, ffi::Any* rv) {
+void VirtualMachineImplObj::_SetInputWithoutParamModule(ffi::PackedArgs args, ffi::Any* rv) {
   std::string func_name = args[0].cast<std::string>();
   this->SetInput(func_name, false, args.Slice(1));
 }
 
-void VirtualMachineImpl::_SetInputWithParamModule(ffi::PackedArgs args, ffi::Any* rv) {
+void VirtualMachineImplObj::_SetInputWithParamModule(ffi::PackedArgs args, ffi::Any* rv) {
   std::string func_name = args[0].cast<std::string>();
   this->SetInput(func_name, true, args.Slice(1));
 }
 
-int VirtualMachineImpl::_GetFunctionArity(std::string func_name) {
+int VirtualMachineImplObj::_GetFunctionArity(std::string func_name) {
   const VMFuncInfo& vm_func = LookupVMFuncInfo(func_name);
   return vm_func.param_names.size();
 }
 
-std::string VirtualMachineImpl::_GetFunctionParamName(std::string func_name, int index) {
+std::string VirtualMachineImplObj::_GetFunctionParamName(std::string func_name, int index) {
   const VMFuncInfo& vm_func = LookupVMFuncInfo(func_name);
   if (static_cast<size_t>(index) >= vm_func.param_names.size()) {
     TVM_FFI_THROW(ValueError) << "Invalid index for " << func_name << " (" << index << " out of "
@@ -933,11 +933,11 @@ std::string VirtualMachineImpl::_GetFunctionParamName(std::string func_name, int
   return vm_func.param_names[index];
 }
 
-ffi::Function VirtualMachineImpl::_LookupFunction(const ffi::String& name) {
+ffi::Function VirtualMachineImplObj::_LookupFunction(const ffi::String& name) {
   if (ffi::Optional<VMClosure> opt = this->GetClosureInternal(name, true)) {
     return ffi::Function([clo = opt.value(), _self = ffi::GetRef<ffi::Module>(this)](
                              ffi::PackedArgs args, ffi::Any* rv) -> void {
-      auto* self = const_cast<VirtualMachineImpl*>(_self.as<VirtualMachineImpl>());
+      auto* self = const_cast<VirtualMachineImplObj*>(_self.as<VirtualMachineImplObj>());
       TVM_FFI_ICHECK(self);
       self->InvokeClosurePacked(clo, args, rv);
     });

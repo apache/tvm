@@ -36,22 +36,22 @@
 namespace tvm {
 namespace relax {
 
-void QuantizeAttrs::RegisterReflection() {
+void QuantizeAttrsNode::RegisterReflection() {
   namespace refl = tvm::ffi::reflection;
-  refl::ObjectDef<QuantizeAttrs>()
-      .def_ro("out_dtype", &QuantizeAttrs::out_dtype, "Output data type.")
-      .def_ro("axis", &QuantizeAttrs::axis,
+  refl::ObjectDef<QuantizeAttrsNode>()
+      .def_ro("out_dtype", &QuantizeAttrsNode::out_dtype, "Output data type.")
+      .def_ro("axis", &QuantizeAttrsNode::axis,
               "The output channel axis for channel wise quantization/dequantization. "
               "Default value is -1, which corresponds to the last axis.",
               refl::DefaultValue(-1));
 }
 
-TVM_FFI_STATIC_INIT_BLOCK() { QuantizeAttrs::RegisterReflection(); }
+TVM_FFI_STATIC_INIT_BLOCK() { QuantizeAttrsNode::RegisterReflection(); }
 
 /* relax.quantize */
 
 Expr quantize(Expr data, Expr scale, Expr zero_point, int axis, DLDataType out_dtype) {
-  ffi::ObjectPtr<QuantizeAttrs> attrs = ffi::make_object<QuantizeAttrs>();
+  ffi::ObjectPtr<QuantizeAttrsNode> attrs = ffi::make_object<QuantizeAttrsNode>();
   attrs->axis = axis;
   attrs->out_dtype = out_dtype;
   static const Op op = Op::Get("relax.quantize");
@@ -71,7 +71,7 @@ TensorType WithUnknownDtype(const TensorType& input_ty) {
 }
 
 Type InferTypeQuantize(const Call& call, const BlockBuilder& ctx) {
-  const auto* attrs = call->attrs.as<QuantizeAttrs>();
+  const auto* attrs = call->attrs.as<QuantizeAttrsNode>();
   if (attrs->out_dtype != DLDataType{kDLInt, 8, 1} &&
       attrs->out_dtype != DLDataType{kDLUInt, 8, 1} &&
       attrs->out_dtype != DLDataType{kDLInt, 16, 1} &&
@@ -171,7 +171,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .signature(sig::arg("data", "The input tensor."),
                  sig::arg("scale", "The quantization scale of the output tensor."),
                  sig::arg("zero_point", "The quantization zero_point of the output tensor."),
-                 sig::call_attrs<QuantizeAttrs>())
+                 sig::call_attrs<QuantizeAttrsNode>())
       .set_attr<FInferTypeWithBuilder>(tvm::relax::op_attr::kInferTypeWithBuilder,
                                        InferTypeQuantize)
       .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
@@ -180,7 +180,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 /* relax.dequantize */
 
 Expr dequantize(Expr data, Expr scale, Expr zero_point, int axis, DLDataType out_dtype) {
-  ffi::ObjectPtr<QuantizeAttrs> attrs = ffi::make_object<QuantizeAttrs>();
+  ffi::ObjectPtr<QuantizeAttrsNode> attrs = ffi::make_object<QuantizeAttrsNode>();
   attrs->axis = axis;
   attrs->out_dtype = out_dtype;
   static const Op op = Op::Get("relax.dequantize");
@@ -194,7 +194,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 Type InferTypeDequantize(const Call& call, const BlockBuilder& ctx) {
-  const auto* attrs = call->attrs.as<QuantizeAttrs>();
+  const auto* attrs = call->attrs.as<QuantizeAttrsNode>();
   if (attrs->out_dtype != DLDataType{kDLFloat, 16, 1} &&
       attrs->out_dtype != DLDataType{kDLFloat, 32, 1}) {
     TVM_FFI_VISIT_THROW(TypeError, call)
@@ -295,7 +295,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .signature(sig::arg("data", "The input tensor."),
                  sig::arg("scale", "The quantization scale of the input tensor."),
                  sig::arg("zero_point", "The quantization zero_point of the input tensor."),
-                 sig::call_attrs<QuantizeAttrs>())
+                 sig::call_attrs<QuantizeAttrsNode>())
       .set_attr<FInferTypeWithBuilder>(tvm::relax::op_attr::kInferTypeWithBuilder,
                                        InferTypeDequantize)
       .set_attr<bool>(tvm::relax::op_attr::kPurity, true);

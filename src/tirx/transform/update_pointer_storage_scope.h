@@ -33,15 +33,15 @@
 namespace tvm {
 namespace tirx {
 
-class UpdatePointerStorageScope : public StmtExprMutator {
+class UpdatePointerStorageScopeObj : public StmtExprMutatorObj {
  public:
-  using StmtExprMutator::Mutate_;
+  using StmtExprMutatorObj::Mutate_;
 
   UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final;
 
   UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) final;
 
-  explicit UpdatePointerStorageScope(
+  explicit UpdatePointerStorageScopeObj(
       const std::unordered_map<Var, ffi::String, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>&
           new_storage_scopes);
 

@@ -30,24 +30,24 @@ namespace s_tir {
 
 using namespace tirx;
 
-void StmtExprVisitor::InitVTable(VTable* vtable) {
-  tirx::StmtExprVisitor::InitVTable(vtable);
-  SetDispatch<StmtExprVisitor, SBlockNode>(vtable);
-  SetDispatch<StmtExprVisitor, SBlockRealizeNode>(vtable);
+void StmtExprVisitorObj::InitVTable(VTable* vtable) {
+  tirx::StmtExprVisitorObj::InitVTable(vtable);
+  SetDispatch<StmtExprVisitorObj, SBlockNode>(vtable);
+  SetDispatch<StmtExprVisitorObj, SBlockRealizeNode>(vtable);
 }
 
-void StmtExprMutator::InitVTable(VTable* vtable) {
-  tirx::StmtExprMutator::InitVTable(vtable);
-  SetDispatch<StmtExprMutator, SBlockNode>(vtable);
-  SetDispatch<StmtExprMutator, SBlockRealizeNode>(vtable);
+void StmtExprMutatorObj::InitVTable(VTable* vtable) {
+  tirx::StmtExprMutatorObj::InitVTable(vtable);
+  SetDispatch<StmtExprMutatorObj, SBlockNode>(vtable);
+  SetDispatch<StmtExprMutatorObj, SBlockRealizeNode>(vtable);
 }
 
-ffi::Optional<VisitInterrupt> StmtExprVisitor::Visit_(const SBlockNode* op) {
+ffi::Optional<VisitInterrupt> StmtExprVisitorObj::Visit_(const SBlockNode* op) {
   return VisitBlock(this, op);
 }
 
-ffi::Optional<VisitInterrupt> StmtExprVisitor::VisitBlock(tirx::StmtExprVisitor* visitor,
-                                                          const SBlockNode* op) {
+ffi::Optional<VisitInterrupt> StmtExprVisitorObj::VisitBlock(tirx::StmtExprVisitorObj* visitor,
+                                                             const SBlockNode* op) {
   for (const IterVar& iter_var : op->iter_vars) {
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->Visit(iter_var->dom.value()->min));
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->Visit(iter_var->dom.value()->extent));
@@ -82,12 +82,12 @@ ffi::Optional<VisitInterrupt> StmtExprVisitor::VisitBlock(tirx::StmtExprVisitor*
   return visitor->Visit(op->body);
 }
 
-ffi::Optional<VisitInterrupt> StmtExprVisitor::Visit_(const SBlockRealizeNode* op) {
+ffi::Optional<VisitInterrupt> StmtExprVisitorObj::Visit_(const SBlockRealizeNode* op) {
   return VisitBlockRealize(this, op);
 }
 
-ffi::Optional<VisitInterrupt> StmtExprVisitor::VisitBlockRealize(tirx::StmtExprVisitor* visitor,
-                                                                 const SBlockRealizeNode* op) {
+ffi::Optional<VisitInterrupt> StmtExprVisitorObj::VisitBlockRealize(
+    tirx::StmtExprVisitorObj* visitor, const SBlockRealizeNode* op) {
   for (const auto& child : op->iter_values) {
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->Visit(child));
   }
@@ -95,12 +95,12 @@ ffi::Optional<VisitInterrupt> StmtExprVisitor::VisitBlockRealize(tirx::StmtExprV
   return visitor->Visit(op->block);
 }
 
-UnchangedOr<Stmt> StmtExprMutator::Mutate_(const SBlockNode* op, InplaceMode inplace_mode) {
+UnchangedOr<Stmt> StmtExprMutatorObj::Mutate_(const SBlockNode* op, InplaceMode inplace_mode) {
   return MutateBlock(this, op, inplace_mode);
 }
 
-UnchangedOr<Stmt> StmtExprMutator::MutateBlock(tirx::StmtExprMutator* mutator, const SBlockNode* op,
-                                               InplaceMode inplace_mode) {
+UnchangedOr<Stmt> StmtExprMutatorObj::MutateBlock(tirx::StmtExprMutatorObj* mutator,
+                                                  const SBlockNode* op, InplaceMode inplace_mode) {
   // SBlock iteration variables keep their binders; only their domains are expressions here.
   const auto* iters = op->iter_vars.GetArrayObj();
   InplaceMode iter_mode = iters->unique() ? inplace_mode : InplaceMode::kDisallow;
@@ -183,13 +183,14 @@ UnchangedOr<Stmt> StmtExprMutator::MutateBlock(tirx::StmtExprMutator* mutator, c
   return Stmt(std::move(copy));
 }
 
-UnchangedOr<Stmt> StmtExprMutator::Mutate_(const SBlockRealizeNode* op, InplaceMode inplace_mode) {
+UnchangedOr<Stmt> StmtExprMutatorObj::Mutate_(const SBlockRealizeNode* op,
+                                              InplaceMode inplace_mode) {
   return MutateBlockRealize(this, op, inplace_mode);
 }
 
-UnchangedOr<Stmt> StmtExprMutator::MutateBlockRealize(tirx::StmtExprMutator* mutator,
-                                                      const SBlockRealizeNode* op,
-                                                      InplaceMode inplace_mode) {
+UnchangedOr<Stmt> StmtExprMutatorObj::MutateBlockRealize(tirx::StmtExprMutatorObj* mutator,
+                                                         const SBlockRealizeNode* op,
+                                                         InplaceMode inplace_mode) {
   auto iter_values = mutator->Mutate(op->iter_values, inplace_mode)
                          .as_or_throw<UnchangedOr<ffi::Array<PrimExpr>>>();
   auto predicate = mutator->Mutate(op->predicate, inplace_mode);

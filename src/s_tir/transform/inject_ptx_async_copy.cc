@@ -40,13 +40,13 @@ namespace tvm {
 namespace s_tir {
 using namespace tvm::tirx;
 
-class PTXAsyncCopyInjector : public StmtExprMutator {
+class PTXAsyncCopyInjectorObj : public StmtExprMutatorObj {
  public:
-  using StmtExprMutator::Mutate;
-  using StmtExprMutator::Mutate_;
+  using StmtExprMutatorObj::Mutate;
+  using StmtExprMutatorObj::Mutate_;
   UnchangedOr<ffi::Any> Mutate(ffi::AnyView value, InplaceMode inplace_mode) override {
     if (value.as<ExprNode>()) return ffi::Unchanged();
-    return StmtExprMutator::Mutate(value, inplace_mode);
+    return StmtExprMutatorObj::Mutate(value, inplace_mode);
   }
 
   UnchangedOr<Stmt> Mutate_(const RegionStmtNode* region, InplaceMode inplace_mode) {
@@ -57,7 +57,7 @@ class PTXAsyncCopyInjector : public StmtExprMutator {
       in_async = false;
       return body;
     }
-    return StmtExprMutator::Mutate_(region, inplace_mode);
+    return StmtExprMutatorObj::Mutate_(region, inplace_mode);
   }
 
   Stmt InjectPTX(const TensorLoadNode* load, const TensorStoreNode* store, bool predicated = false,
@@ -180,7 +180,7 @@ class PTXAsyncCopyInjector : public StmtExprMutator {
         }
       }
     }
-    return StmtExprMutator::Mutate_(store, InplaceMode::kDisallow)
+    return StmtExprMutatorObj::Mutate_(store, InplaceMode::kDisallow)
         .ValueOrUnchanged(ffi::GetRef<Stmt>(store));
   }
 
@@ -212,7 +212,7 @@ class PTXAsyncCopyInjector : public StmtExprMutator {
         }
       }
     }
-    return StmtExprMutator::Mutate_(store, inplace_mode);
+    return StmtExprMutatorObj::Mutate_(store, inplace_mode);
   }
 
  private:
@@ -224,7 +224,8 @@ namespace transform {
 Pass InjectPTXAsyncCopy() {
   auto pass_func = [=](Function f, IRModule m, PassContext ctx) {
     auto* n = f.CopyOnWrite();
-    n->body = ffi::make_object<PTXAsyncCopyInjector>()->Mutate(n->body).ValueOrUnchanged(n->body);
+    n->body =
+        ffi::make_object<PTXAsyncCopyInjectorObj>()->Mutate(n->body).ValueOrUnchanged(n->body);
     return f;
   };
   return CreateFunctionPass(pass_func, 0, "s_tir.InjectPTXAsyncCopy");

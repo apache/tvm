@@ -46,7 +46,7 @@ class ExecBuilder;
 /*!
  * \brief A builder provides api to build VM executable with instructions.
  */
-class ExecBuilderNode : public ffi::Object {
+class ExecBuilderObj : public ffi::Object {
  public:
   /*!
    * \brief Declare a function, it is OK to have multiple declarations.
@@ -135,12 +135,12 @@ class ExecBuilderNode : public ffi::Object {
   /*!
    * \brief Raw access to underlying executable build in progress.
    */
-  vm::VMExecutable* exec() const;
+  vm::VMExecutableObj* exec() const;
   /*!
    * \brief Finalize the build, run formalize and get the final result.
    * \note This function should not be called during construction.
    */
-  ffi::ObjectPtr<vm::VMExecutable> Get();
+  ffi::ObjectPtr<vm::VMExecutableObj> Get();
   /*!
    * \brief Create an ExecBuilder.
    * \return The ExecBuilder.
@@ -149,11 +149,11 @@ class ExecBuilderNode : public ffi::Object {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<ExecBuilderNode>();
+    refl::ObjectDef<ExecBuilderObj>();
   }
 
   static constexpr const bool _type_mutable = true;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.ExecBuilder", ExecBuilderNode, ffi::Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.ExecBuilder", ExecBuilderObj, ffi::Object);
 
  private:
   /*!
@@ -177,7 +177,7 @@ class ExecBuilderNode : public ffi::Object {
   void Formalize();
 
   /*! \brief The mutable internal executable. */
-  ffi::ObjectPtr<vm::VMExecutable> exec_;  // mutable
+  ffi::ObjectPtr<vm::VMExecutableObj> exec_;  // mutable
   /*! \brief internal dedup map when creating index for a new constant */
   std::unordered_map<ffi::Any, vm::Index, ffi::StructuralHash, ffi::StructuralEqual>
       const_dedup_map_;
@@ -185,11 +185,11 @@ class ExecBuilderNode : public ffi::Object {
 
 class ExecBuilder : public ffi::ObjectRef {
  public:
-  explicit ExecBuilder(ffi::UnsafeInit tag, ffi::ObjectPtr<ExecBuilderNode> n)
+  explicit ExecBuilder(ffi::UnsafeInit tag, ffi::ObjectPtr<ExecBuilderObj> n)
       : ffi::ObjectRef(tag) {
     data_ = std::move(n);
   }
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ExecBuilder, ffi::ObjectRef, ExecBuilderNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ExecBuilder, ffi::ObjectRef, ExecBuilderObj);
 };
 
 }  // namespace relax

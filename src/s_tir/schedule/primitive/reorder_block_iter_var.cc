@@ -31,9 +31,9 @@ using namespace tvm::tirx;
  * \brief The reorder index is not a valid permutation of
  *   [0, 1, ..., n-1] where n is the number of block iter vars.
  */
-class InvalidReorderIndex : public ScheduleErrorContextObj {
+class InvalidReorderIndexObj : public ScheduleErrorContextObj {
  public:
-  explicit InvalidReorderIndex(IRModule mod, SBlock block, ffi::Array<int64_t> new_order)
+  explicit InvalidReorderIndexObj(IRModule mod, SBlock block, ffi::Array<int64_t> new_order)
       : mod_(mod), block_(block), new_order_(new_order) {}
   IRModule mod() const final { return mod_; }
   ffi::String FastErrorString() const final {
@@ -53,17 +53,17 @@ class InvalidReorderIndex : public ScheduleErrorContextObj {
   ffi::Array<int64_t> new_order_;
 };
 
-class BlockIterVarRewriter : public StmtExprMutator {
+class BlockIterVarRewriterObj : public StmtExprMutatorObj {
  public:
-  using StmtExprMutator::Mutate;
-  using StmtExprMutator::Mutate_;
+  using StmtExprMutatorObj::Mutate;
+  using StmtExprMutatorObj::Mutate_;
   UnchangedOr<ffi::Any> Mutate(ffi::AnyView value, InplaceMode inplace_mode) override {
     if (value.as<ExprNode>()) return ffi::Unchanged();
-    return StmtExprMutator::Mutate(value, inplace_mode);
+    return StmtExprMutatorObj::Mutate(value, inplace_mode);
   }
 
   ffi::Map<SBlock, SBlock> block_map;
-  explicit BlockIterVarRewriter(const SBlockNode* block_n, std::vector<int> order)
+  explicit BlockIterVarRewriterObj(const SBlockNode* block_n, std::vector<int> order)
       : order_(std::move(order)), block_to_rewrite(block_n) {}
 
  private:
@@ -100,7 +100,7 @@ class BlockIterVarRewriter : public StmtExprMutator {
         return SBlockRealize(std::move(copy));
       }
     } else {
-      return StmtExprMutator::Mutate_(op, inplace_mode);
+      return StmtExprMutatorObj::Mutate_(op, inplace_mode);
     }
   }
 };
@@ -121,13 +121,13 @@ void ReorderBlockIterVar(ScheduleState self, const StmtSRef& block_sref,
     return x >= 0 && x < static_cast<int>(num_block_itervars);
   });
   if (!is_full || !is_unique || !is_within_boundary) {
-    throw MakeScheduleError<InvalidReorderIndex>(self->mod, ffi::GetRef<SBlock>(block_n),
-                                                 new_order);
+    throw MakeScheduleError<InvalidReorderIndexObj>(self->mod, ffi::GetRef<SBlock>(block_n),
+                                                    new_order);
   }
 
   // find parent block
   const SBlockNode* parent_block_n = nullptr;
-  const StmtSRefNode* p = block_sref.get()->parent;
+  const StmtSRefObj* p = block_sref.get()->parent;
   while (p != nullptr) {
     if (p->stmt->IsInstance<SBlockNode>()) {
       parent_block_n = TVM_SREF_TO_SBLOCK(ffi::GetRef<StmtSRef>(p));
@@ -139,7 +139,7 @@ void ReorderBlockIterVar(ScheduleState self, const StmtSRef& block_sref,
   const SBlock& parent_block = ffi::GetRef<SBlock>(parent_block_n);
 
   // rewrite block and blockrealize
-  auto rewriter = ffi::make_object<BlockIterVarRewriter>(block_n, std::move(new_order_vec));
+  auto rewriter = ffi::make_object<BlockIterVarRewriterObj>(block_n, std::move(new_order_vec));
   SBlock new_parent_block =
       rewriter->Mutate(parent_block).ValueOrUnchanged(parent_block).as_or_throw<SBlock>();
   rewriter->block_map.Set(parent_block, new_parent_block);

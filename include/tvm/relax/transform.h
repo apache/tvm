@@ -359,10 +359,10 @@ TVM_DLL Pass FuseOps(int fuse_opt_level = -1);
  * fused, it needs to be matched with `pattern` and the `check` function needs to return
  * true.
  */
-class FusionPatternNode : public ffi::Object {
+class FusionPatternObj : public ffi::Object {
  public:
-  explicit FusionPatternNode(DFPattern value) : pattern(std::move(value)) {}
-  explicit FusionPatternNode(ffi::UnsafeInit) : pattern(ffi::UnsafeInit{}) {}
+  explicit FusionPatternObj(DFPattern value) : pattern(std::move(value)) {}
+  explicit FusionPatternObj(ffi::UnsafeInit) : pattern(ffi::UnsafeInit{}) {}
 
   /*!
    * \brief The name of pattern. It becomes the value of the kComposite attribute
@@ -401,15 +401,14 @@ class FusionPatternNode : public ffi::Object {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<FusionPatternNode>()
-        .def_ro("name", &FusionPatternNode::name)
-        .def_ro("pattern", &FusionPatternNode::pattern)
-        .def_ro("annotation_patterns", &FusionPatternNode::annotation_patterns)
-        .def_ro("check", &FusionPatternNode::check)
-        .def_ro("attrs_getter", &FusionPatternNode::attrs_getter);
+    refl::ObjectDef<FusionPatternObj>()
+        .def_ro("name", &FusionPatternObj::name)
+        .def_ro("pattern", &FusionPatternObj::pattern)
+        .def_ro("annotation_patterns", &FusionPatternObj::annotation_patterns)
+        .def_ro("check", &FusionPatternObj::check)
+        .def_ro("attrs_getter", &FusionPatternObj::attrs_getter);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.transform.FusionPattern", FusionPatternNode,
-                                    ffi::Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.transform.FusionPattern", FusionPatternObj, ffi::Object);
 };
 
 class FusionPattern : public ffi::ObjectRef {
@@ -421,16 +420,16 @@ class FusionPattern : public ffi::ObjectRef {
   FusionPattern(ffi::String name, DFPattern pattern)
       : FusionPattern(name, pattern, {}, std::nullopt, std::nullopt) {}
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(FusionPattern, ffi::ObjectRef, FusionPatternNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(FusionPattern, ffi::ObjectRef, FusionPatternObj);
 };
 
 /*!
  * \brief The input of FusionPattern::check.
  */
-class PatternCheckContextNode : public ffi::Object {
+class PatternCheckContextObj : public ffi::Object {
  public:
-  explicit PatternCheckContextNode(Expr matched_expr) : matched_expr(std::move(matched_expr)) {}
-  explicit PatternCheckContextNode(ffi::UnsafeInit) : matched_expr(ffi::UnsafeInit{}) {}
+  explicit PatternCheckContextObj(Expr matched_expr) : matched_expr(std::move(matched_expr)) {}
+  explicit PatternCheckContextObj(ffi::UnsafeInit) : matched_expr(ffi::UnsafeInit{}) {}
 
   /*!
    * \brief The expression that's matched with the FusionPattern::pattern.
@@ -463,14 +462,14 @@ class PatternCheckContextNode : public ffi::Object {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<PatternCheckContextNode>()
-        .def_ro("matched_expr", &PatternCheckContextNode::matched_expr)
-        .def_ro("annotated_expr", &PatternCheckContextNode::annotated_expr)
-        .def_ro("matched_bindings", &PatternCheckContextNode::matched_bindings)
-        .def_ro("var_usages", &PatternCheckContextNode::var_usages)
-        .def_ro("value_to_bound_var", &PatternCheckContextNode::value_to_bound_var);
+    refl::ObjectDef<PatternCheckContextObj>()
+        .def_ro("matched_expr", &PatternCheckContextObj::matched_expr)
+        .def_ro("annotated_expr", &PatternCheckContextObj::annotated_expr)
+        .def_ro("matched_bindings", &PatternCheckContextObj::matched_bindings)
+        .def_ro("var_usages", &PatternCheckContextObj::var_usages)
+        .def_ro("value_to_bound_var", &PatternCheckContextObj::value_to_bound_var);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.transform.PatternCheckContext", PatternCheckContextNode,
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.transform.PatternCheckContext", PatternCheckContextObj,
                                     ffi::Object);
 };
 
@@ -482,7 +481,7 @@ class PatternCheckContext : public ffi::ObjectRef {
                       ffi::Map<Expr, Var> value_to_bound_var);
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(PatternCheckContext, ffi::ObjectRef,
-                                                PatternCheckContextNode);
+                                                PatternCheckContextObj);
 };
 
 /*!

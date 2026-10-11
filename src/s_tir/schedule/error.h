@@ -79,9 +79,9 @@ ffi::Error MakeScheduleError(Args&&... args) {
  */
 const ScheduleErrorContextObj* GetScheduleErrorContext(const ffi::Error& error);
 
-class LoopPositionError : public ScheduleErrorContextObj {
+class LoopPositionErrorObj : public ScheduleErrorContextObj {
  public:
-  explicit LoopPositionError(IRModule mod, For loop, SBlock block, const std::string& primitive)
+  explicit LoopPositionErrorObj(IRModule mod, For loop, SBlock block, const std::string& primitive)
       : mod_(std::move(mod)),
         loop_(std::move(loop)),
         block_(std::move(block)),

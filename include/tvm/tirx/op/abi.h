@@ -166,7 +166,7 @@ TVM_DLL const Op& stack_make_dltensor_op();
 TVM_DLL const Op& call_packed_op();
 
 /*! \brief Launch metadata for call_ffi_kernel. */
-struct CallFFIKernelAttr : public AttrsNode {
+struct CallFFIKernelAttrNode : public AttrsNode {
   /*!
    * \brief Ordered launch tags describing the suffix of the call arguments.
    *
@@ -183,14 +183,14 @@ struct CallFFIKernelAttr : public AttrsNode {
   ffi::Map<ffi::String, int64_t> kernel_attrs;
 
   static void RegisterReflection();
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.CallFFIKernelAttr", CallFFIKernelAttr, AttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.CallFFIKernelAttr", CallFFIKernelAttrNode, AttrsNode);
 };
 
 /*!
  * \brief Launch a kernel using the packed-function argument convention.
  *
  * Arguments are the kernel symbol, kernel operands, then launch values.
- * CallFFIKernelAttr::launch_params describes the launch-value suffix.
+ * CallFFIKernelAttrNode::launch_params describes the launch-value suffix.
  * Host backends may consume this call directly or lower it to call_packed.
  */
 TVM_DLL const Op& call_ffi_kernel_op();

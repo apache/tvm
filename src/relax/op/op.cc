@@ -37,48 +37,49 @@ namespace tvm {
 namespace relax {
 using namespace tvm::prim;
 
-void CallTIRWithGradAttrs::RegisterReflection() {
+void CallTIRWithGradAttrsNode::RegisterReflection() {
   namespace refl = tvm::ffi::reflection;
-  refl::ObjectDef<CallTIRWithGradAttrs>()
-      .def_ro("te_grad_name", &CallTIRWithGradAttrs::te_grad_name,
+  refl::ObjectDef<CallTIRWithGradAttrsNode>()
+      .def_ro("te_grad_name", &CallTIRWithGradAttrsNode::te_grad_name,
               "The name of the te gradient function associated with this call_tir_with_grad node.")
-      .def_ro("te_grad_kwargs", &CallTIRWithGradAttrs::te_grad_kwargs,
+      .def_ro("te_grad_kwargs", &CallTIRWithGradAttrsNode::te_grad_kwargs,
               "The keyword arguments passed to the te gradient function.");
 }
 
-void CallTIRInplaceAttrs::RegisterReflection() {
+void CallTIRInplaceAttrsNode::RegisterReflection() {
   namespace refl = tvm::ffi::reflection;
-  refl::ObjectDef<CallTIRInplaceAttrs>().def_ro("inplace_indices",
-                                                &CallTIRInplaceAttrs::inplace_indices);
+  refl::ObjectDef<CallTIRInplaceAttrsNode>().def_ro("inplace_indices",
+                                                    &CallTIRInplaceAttrsNode::inplace_indices);
 }
 
-void CallInplacePackedAttrs::RegisterReflection() {
+void CallInplacePackedAttrsNode::RegisterReflection() {
   namespace refl = tvm::ffi::reflection;
-  refl::ObjectDef<CallInplacePackedAttrs>().def_ro("inplace_indices",
-                                                   &CallInplacePackedAttrs::inplace_indices);
+  refl::ObjectDef<CallInplacePackedAttrsNode>().def_ro(
+      "inplace_indices", &CallInplacePackedAttrsNode::inplace_indices);
 }
 
-void ToVDeviceAttrs::RegisterReflection() {
+void ToVDeviceAttrsNode::RegisterReflection() {
   namespace refl = tvm::ffi::reflection;
-  refl::ObjectDef<ToVDeviceAttrs>().def_ro("dst_vdevice", &ToVDeviceAttrs::dst_vdevice,
-                                           "The destination device where the data is copied to.");
+  refl::ObjectDef<ToVDeviceAttrsNode>().def_ro(
+      "dst_vdevice", &ToVDeviceAttrsNode::dst_vdevice,
+      "The destination device where the data is copied to.");
 }
 
-void HintOnDeviceAttrs::RegisterReflection() {
+void HintOnDeviceAttrsNode::RegisterReflection() {
   namespace refl = tvm::ffi::reflection;
-  refl::ObjectDef<HintOnDeviceAttrs>()
-      .def_ro("device_type", &HintOnDeviceAttrs::device_type,
+  refl::ObjectDef<HintOnDeviceAttrsNode>()
+      .def_ro("device_type", &HintOnDeviceAttrsNode::device_type,
               "The device type where the data is supposed to be executed.")
-      .def_ro("index", &HintOnDeviceAttrs::index, "The device id.")
-      .def_ro("memory_scope", &HintOnDeviceAttrs::memory_scope, "The device memory scope.");
+      .def_ro("index", &HintOnDeviceAttrsNode::index, "The device id.")
+      .def_ro("memory_scope", &HintOnDeviceAttrsNode::memory_scope, "The device memory scope.");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  CallTIRWithGradAttrs::RegisterReflection();
-  CallTIRInplaceAttrs::RegisterReflection();
-  CallInplacePackedAttrs::RegisterReflection();
-  ToVDeviceAttrs::RegisterReflection();
-  HintOnDeviceAttrs::RegisterReflection();
+  CallTIRWithGradAttrsNode::RegisterReflection();
+  CallTIRInplaceAttrsNode::RegisterReflection();
+  CallInplacePackedAttrsNode::RegisterReflection();
+  ToVDeviceAttrsNode::RegisterReflection();
+  HintOnDeviceAttrsNode::RegisterReflection();
 }
 
 bool EqualConstInt(const PrimExpr& lhs, int64_t value) {
@@ -252,7 +253,7 @@ Type InferTypeCallInplacePacked(const Call& call, const BlockBuilder& ctx) {
       << " is not opaque";
 
   // check the range for inplace indices, make sure at least one is not -1, ensure they're unique
-  const auto* attrs = call->attrs.as<CallInplacePackedAttrs>();
+  const auto* attrs = call->attrs.as<CallInplacePackedAttrsNode>();
   size_t num_args = call->args.size() - 1;
   std::unordered_set<int> encountered;
   for (size_t i = 0; i < attrs->inplace_indices.size(); i++) {
@@ -326,7 +327,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                           "arguments to that function."),
                  sig::var_args("args"),
                  sig::var_ty_args("type_args", "Optional type arguments forwarded to the callee."),
-                 sig::call_attrs<CallInplacePackedAttrs>())
+                 sig::call_attrs<CallInplacePackedAttrsNode>())
       .set_attr<FInferTypeWithBuilder>(tvm::relax::op_attr::kInferTypeWithBuilder,
                                        InferTypeCallInplacePacked)
       // Warning: considered pure, but it has the potential to create visible effects!
@@ -338,7 +339,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 Expr MakeCallInplacePacked(Expr func, ffi::Array<Expr> args, ffi::Array<int64_t> inplace_indices,
                            ffi::Array<Type> ty_args) {
-  ffi::ObjectPtr<CallInplacePackedAttrs> attrs = ffi::make_object<CallInplacePackedAttrs>();
+  ffi::ObjectPtr<CallInplacePackedAttrsNode> attrs = ffi::make_object<CallInplacePackedAttrsNode>();
   attrs->inplace_indices = ffi::Array<int64_t>(inplace_indices.begin(), inplace_indices.end());
 
   static const Op op = Op::Get("relax.call_inplace_packed");
@@ -437,7 +438,7 @@ tvm::FuncType ContextualTIRxSignature(const BlockBuilder& ctx, const Expr& calle
   // Specialization may replace the function while retaining its typed GlobalVar.
   // Use the available definition at this boundary without modifying the symbol.
   signature = function->ty.as_or_throw<tvm::FuncType>();
-  auto substitutor = ffi::make_object<tvm::ExprMutator>();
+  auto substitutor = ffi::make_object<tvm::ExprMutatorObj>();
   for (size_t i = 0; i < arguments->fields.size() && i < function->params.size(); ++i) {
     if (!function->params[i]->ty.as<PrimTypeNode>()) continue;
     Expr value = arguments->fields[i];
@@ -608,7 +609,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
  * \param opt_inplace_indices For `R.call_tir_inplace`, an array of
  *     indices indicating which outputs are constructed from in-place
  *     mutation of the inputs.  See
- *     `CallTIRInplaceAttrs::inplace_indices` for more details.
+ *     `CallTIRInplaceAttrsNode::inplace_indices` for more details.
  *
  * \return The `arg_ty`, if it can be inferred from the arguments.
  *     Otherwise, std::nullopt.
@@ -851,7 +852,7 @@ Expr NormalizeCallTIR(const BlockBuilder& ctx, Call call) {
 
   tvm::FuncType signature = ContextualTIRxSignature(ctx, callee, new_arg_tuple);
   ffi::Optional<ffi::Array<int64_t>> inplace_indices;
-  if (const auto* attrs = call->attrs.as<CallTIRInplaceAttrs>()) {
+  if (const auto* attrs = call->attrs.as<CallTIRInplaceAttrsNode>()) {
     inplace_indices = attrs->inplace_indices;
   }
   CheckTIRxDestinations(signature, new_arg_tuple->ty, call->ty_args[0], inplace_indices);
@@ -882,7 +883,7 @@ void ValidateCallTIR(const CallNode* call) {
   Expr arg_tuple = call->args[1];
 
   auto opt_inplace_indices = [&]() -> ffi::Optional<ffi::Array<int64_t>> {
-    if (const auto* attrs = call->attrs.as<CallTIRInplaceAttrs>()) {
+    if (const auto* attrs = call->attrs.as<CallTIRInplaceAttrsNode>()) {
       return attrs->inplace_indices;
     } else {
       return std::nullopt;
@@ -946,7 +947,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .signature(sig::arg("func", "The destination-passing-style function."),
                  sig::arg("args", "The input arguments."),
                  sig::ty_arg("out_type", "The output type."),
-                 sig::call_attrs<CallTIRWithGradAttrs>())
+                 sig::call_attrs<CallTIRWithGradAttrsNode>())
       .set_attr<FInferType>(tvm::op_attr::kInferType, FInferType::FromNative<&InferTypeCallTIR>())
       .set_attr<FNormalize>(tvm::relax::op_attr::kNormalize, NormalizeCallTIR)
       .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
@@ -969,7 +970,7 @@ Expr MakeCallTIRWithGrad(Expr func, Tuple args, ffi::Array<TensorType> out_ty_li
     out_ty = TupleType({out_ty_list.begin(), out_ty_list.end()});
   }
 
-  ffi::ObjectPtr<CallTIRWithGradAttrs> attrs = ffi::make_object<CallTIRWithGradAttrs>();
+  ffi::ObjectPtr<CallTIRWithGradAttrsNode> attrs = ffi::make_object<CallTIRWithGradAttrsNode>();
   attrs->te_grad_name = te_grad_name;
   attrs->te_grad_kwargs = te_grad_kwargs;
 
@@ -1000,7 +1001,7 @@ Expr NormalizeCallTIRInPlace(const BlockBuilder& ctx, Call call) {
   }();
 
   // there must be an inplace index for each output
-  const auto* attrs = call->attrs.as<CallTIRInplaceAttrs>();
+  const auto* attrs = call->attrs.as<CallTIRInplaceAttrsNode>();
   TVM_FFI_ICHECK(attrs);
   if (attrs->inplace_indices.size() != ty_outputs.size()) {
     TVM_FFI_VISIT_THROW(ValueError, call)
@@ -1078,7 +1079,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .signature(sig::arg("func", "The destination-passing-style function."),
                  sig::arg("args", "The input arguments."),
                  sig::ty_arg("out_type", "The output type."),
-                 sig::call_attrs<CallTIRInplaceAttrs>())
+                 sig::call_attrs<CallTIRInplaceAttrsNode>())
       .set_attr<FInferType>(tvm::op_attr::kInferType, FInferType::FromNative<&InferTypeCallTIR>())
       .set_attr<FNormalize>(tvm::relax::op_attr::kNormalize, NormalizeCallTIRInPlace)
       // Warning: considered pure, but it has the potential to create visible effects!
@@ -1097,7 +1098,7 @@ Expr MakeCallTIRInplace(Expr func, Tuple args, ffi::Array<int64_t> inplace_indic
         << ty;
   }
 
-  ffi::ObjectPtr<CallTIRInplaceAttrs> attrs = ffi::make_object<CallTIRInplaceAttrs>();
+  ffi::ObjectPtr<CallTIRInplaceAttrsNode> attrs = ffi::make_object<CallTIRInplaceAttrsNode>();
   attrs->inplace_indices = ffi::Array<int64_t>(inplace_indices.begin(), inplace_indices.end());
 
   Type out_ty = Type::Missing();
@@ -1863,7 +1864,7 @@ Type InferToVDeviceType(const CallNode* call_node) {
   TVM_FFI_ICHECK(call->args.size() == 1);
   TVM_FFI_ICHECK(!call->args[0]->ty.as<MissingType>().has_value());
   TensorType data_ty = GetUnaryInputTensorType(call);
-  auto attrs = call->attrs.as<ToVDeviceAttrs>();
+  auto attrs = call->attrs.as<ToVDeviceAttrsNode>();
   VDevice vdev = attrs->dst_vdevice;
   if (data_ty->shape.has_value()) {
     return TensorType(data_ty->shape.value(), data_ty->dtype, vdev, data_ty->loc);
@@ -1874,14 +1875,14 @@ Type InferToVDeviceType(const CallNode* call_node) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.to_vdevice")
       .signature(sig::arg("data", "The input expression to be copied"),
-                 sig::call_attrs<ToVDeviceAttrs>())
+                 sig::call_attrs<ToVDeviceAttrsNode>())
       .set_attr<FInferType>(tvm::op_attr::kInferType, FInferType::FromNative<&InferToVDeviceType>())
       .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
 }
 
 Expr MakeToVDevice(Expr data, VDevice dst_vdev) {
   static const Op op = Op::Get("relax.to_vdevice");
-  ffi::ObjectPtr<ToVDeviceAttrs> attrs = ffi::make_object<ToVDeviceAttrs>(dst_vdev);
+  ffi::ObjectPtr<ToVDeviceAttrsNode> attrs = ffi::make_object<ToVDeviceAttrsNode>(dst_vdev);
   return Call(Type::Missing(), op, {data}, Attrs(attrs), {});
 }
 
@@ -1902,7 +1903,7 @@ Type InferHintOnDeviceType(const CallNode* call_node) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.hint_on_device")
-      .signature(sig::arg("data", "The input expression"), sig::call_attrs<HintOnDeviceAttrs>())
+      .signature(sig::arg("data", "The input expression"), sig::call_attrs<HintOnDeviceAttrsNode>())
       .set_attr<FInferType>(tvm::op_attr::kInferType,
                             FInferType::FromNative<&InferHintOnDeviceType>())
       .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
@@ -1910,7 +1911,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 Expr MakeHintOnDevice(Expr data, Device device, ffi::String memory_scope = "global") {
   static const Op op = Op::Get("relax.hint_on_device");
-  ffi::ObjectPtr<HintOnDeviceAttrs> attrs = ffi::make_object<HintOnDeviceAttrs>();
+  ffi::ObjectPtr<HintOnDeviceAttrsNode> attrs = ffi::make_object<HintOnDeviceAttrsNode>();
   attrs->device_type = static_cast<int32_t>(device.device_type);
   attrs->index = device.device_id;
   attrs->memory_scope = memory_scope;

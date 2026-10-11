@@ -181,7 +181,7 @@ ffi::Map<ffi::String, ffi::Map<ffi::String, ffi::String>> PassContext::ListConfi
 }
 
 PassContext PassContext::Create() {
-  return PassContext(ffi::UnsafeInit{}, ffi::make_object<PassContextNode>());
+  return PassContext(ffi::UnsafeInit{}, ffi::make_object<PassContextObj>());
 }
 
 namespace {
@@ -378,7 +378,7 @@ ffi::Error EnrichPassErrorWithContext(const ffi::Error& err, const IRModule& mod
 }
 
 IRModule Pass::operator()(IRModule mod, const PassContext& pass_ctx) const {
-  const PassNode* node = operator->();
+  const PassObj* node = operator->();
   TVM_FFI_ICHECK(node != nullptr);
   const PassInfo& pass_info = node->Info();
   if (!pass_ctx.InstrumentBeforePass(mod, pass_info)) {
@@ -387,7 +387,7 @@ IRModule Pass::operator()(IRModule mod, const PassContext& pass_ctx) const {
     return mod;
   }
   IRModule ret;
-  // Error enrichment happens in the leaf pass executors (ModulePassNode /
+  // Error enrichment happens in the leaf pass executors (ModulePassObj /
   // FunctionPassNode), not here — guarding the generic funnel (which also wraps
   // Sequential) would re-resolve FindAccessPaths against a mutated post-pass
   // module and double-wrap the message.
@@ -400,7 +400,7 @@ IRModule Pass::operator()(IRModule mod, const PassContext& pass_ctx) const {
   return ret;
 }
 
-IRModule Pass::AssertImmutableModule(const IRModule& mod, const PassNode* node,
+IRModule Pass::AssertImmutableModule(const IRModule& mod, const PassObj* node,
                                      const PassContext& pass_ctx) {
   size_t before_pass_hash = ffi::StructuralHash()(mod);
   IRModule copy_mod = mod;
@@ -420,7 +420,7 @@ IRModule Pass::AssertImmutableModule(const IRModule& mod, const PassNode* node,
  * at this level have the full control of a given Relax program including
  * addition and deletion of functions.
  */
-class ModulePassNode : public PassNode {
+class ModulePassObj : public PassObj {
  public:
   /* \brief The pass meta data.*/
   PassInfo pass_info;
@@ -432,12 +432,12 @@ class ModulePassNode : public PassNode {
    */
   std::function<IRModule(IRModule, PassContext)> pass_func;
 
-  explicit ModulePassNode(PassInfo pass_info) : pass_info(std::move(pass_info)) {}
-  explicit ModulePassNode(ffi::UnsafeInit tag) : pass_info(tag) {}
+  explicit ModulePassObj(PassInfo pass_info) : pass_info(std::move(pass_info)) {}
+  explicit ModulePassObj(ffi::UnsafeInit tag) : pass_info(tag) {}
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<ModulePassNode>().def_ro("pass_info", &ModulePassNode::pass_info);
+    refl::ObjectDef<ModulePassObj>().def_ro("pass_info", &ModulePassObj::pass_info);
   }
 
   /*!
@@ -454,18 +454,18 @@ class ModulePassNode : public PassNode {
    * \brief Get the pass information/meta data.
    */
   PassInfo Info() const override { return pass_info; }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("transform.ModulePass", ModulePassNode, PassNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("transform.ModulePass", ModulePassObj, PassObj);
 };
 
 class ModulePass : public Pass {
  public:
   ModulePass(std::function<IRModule(IRModule, PassContext)> pass_func, PassInfo pass_info);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ModulePass, Pass, ModulePassNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ModulePass, Pass, ModulePassObj);
 };
 
 PassInfo::PassInfo(int opt_level, ffi::String name) {
-  auto pass_info = ffi::make_object<PassInfoNode>();
+  auto pass_info = ffi::make_object<PassInfoObj>();
   pass_info->opt_level = opt_level;
   pass_info->name = std::move(name);
   data_ = std::move(pass_info);
@@ -473,13 +473,13 @@ PassInfo::PassInfo(int opt_level, ffi::String name) {
 
 ModulePass::ModulePass(std::function<IRModule(IRModule, PassContext)> pass_func, PassInfo pass_info)
     : Pass(ffi::UnsafeInit{}) {
-  auto n = ffi::make_object<ModulePassNode>(std::move(pass_info));
+  auto n = ffi::make_object<ModulePassObj>(std::move(pass_info));
   n->pass_func = std::move(pass_func);
   data_ = std::move(n);
 }
 
 // Module -> Module optimizations.
-IRModule ModulePassNode::operator()(IRModule mod, const PassContext& pass_ctx) const {
+IRModule ModulePassObj::operator()(IRModule mod, const PassContext& pass_ctx) const {
   const PassInfo& pass_info = Info();
   TVM_FFI_ICHECK(mod.defined()) << "The input module must be set.";
 
@@ -502,22 +502,22 @@ IRModule ModulePassNode::operator()(IRModule mod, const PassContext& pass_ctx) c
 }
 
 Sequential::Sequential(tvm::ffi::Array<Pass> passes, PassInfo pass_info) : Pass(ffi::UnsafeInit{}) {
-  auto n = ffi::make_object<SequentialNode>(std::move(pass_info));
+  auto n = ffi::make_object<SequentialObj>(std::move(pass_info));
   n->passes = std::move(passes);
   data_ = std::move(n);
 }
 
 Sequential::Sequential(tvm::ffi::Array<Pass> passes, ffi::String name) : Pass(ffi::UnsafeInit{}) {
-  auto n = ffi::make_object<SequentialNode>(PassInfo(0, std::move(name)));
+  auto n = ffi::make_object<SequentialObj>(PassInfo(0, std::move(name)));
   n->passes = std::move(passes);
   data_ = std::move(n);
 }
 
-const SequentialNode* Sequential::operator->() const {
-  return static_cast<const SequentialNode*>(get());
+const SequentialObj* Sequential::operator->() const {
+  return static_cast<const SequentialObj*>(get());
 }
 
-IRModule SequentialNode::operator()(IRModule mod, const PassContext& pass_ctx) const {
+IRModule SequentialObj::operator()(IRModule mod, const PassContext& pass_ctx) const {
   for (const Pass& pass : passes) {
     VLOG(0) << "Running pass " << pass->Info()->name;
     TVM_FFI_ICHECK(pass.defined()) << "Found undefined pass for optimization.";
@@ -549,13 +549,13 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       });
 }
 
-// Pattern A (RM): auto-default repr from reflection for PassInfoNode.
+// Pattern A (RM): auto-default repr from reflection for PassInfoObj.
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  PassContextNode::RegisterReflection();
-  PassInfoNode::RegisterReflection();
-  SequentialNode::RegisterReflection();
-  ModulePassNode::RegisterReflection();
+  PassContextObj::RegisterReflection();
+  PassInfoObj::RegisterReflection();
+  SequentialObj::RegisterReflection();
+  ModulePassObj::RegisterReflection();
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -573,7 +573,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
            [](Pass pass, ffi::RValueRef<IRModule> mod) { return pass(*std::move(mod)); });
 }
 
-// Pattern A (RM): auto-default repr from reflection for ModulePassNode.
+// Pattern A (RM): auto-default repr from reflection for ModulePassObj.
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
@@ -583,7 +583,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                         });
 }
 
-// Pattern A (RM): auto-default repr from reflection for SequentialNode.
+// Pattern A (RM): auto-default repr from reflection for SequentialObj.
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
@@ -606,7 +606,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                         });
 }
 
-// Pattern A (RM): auto-default repr from reflection for PassContextNode.
+// Pattern A (RM): auto-default repr from reflection for PassContextObj.
 
 class PassContext::Internal {
  public:

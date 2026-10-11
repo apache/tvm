@@ -32,7 +32,7 @@ namespace backend {
 namespace cuda {
 
 /*! \brief Fixed encoding options for tensormap_encode_tiled. */
-struct TensorMapEncodeTiledAttr : public AttrsNode {
+struct TensorMapEncodeTiledAttrNode : public AttrsNode {
   DLDataType descriptor_dtype;
   int64_t rank;
   int64_t interleave;
@@ -42,14 +42,14 @@ struct TensorMapEncodeTiledAttr : public AttrsNode {
   int64_t force_cu_dtype;
 
   static void RegisterReflection();
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.cuda.TensorMapEncodeTiledAttr", TensorMapEncodeTiledAttr,
-                                    AttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.cuda.TensorMapEncodeTiledAttr",
+                                    TensorMapEncodeTiledAttrNode, AttrsNode);
 };
 
 /*!
  * \brief Encode a tiled tensor map at invocation time.
  *
- * TensorMapEncodeTiledAttr stores the descriptor dtype, rank and fixed options.
+ * TensorMapEncodeTiledAttrNode stores the descriptor dtype, rank and fixed options.
  * Arguments are descriptor and data pointers, global dimensions (rank), byte
  * strides (rank - 1), box dimensions (rank), then element strides (rank).
  */

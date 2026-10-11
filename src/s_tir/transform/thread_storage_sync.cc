@@ -42,10 +42,10 @@ namespace tvm {
 namespace s_tir {
 using namespace tvm::tirx;
 
-class ThreadSyncPlanner : public StorageAccessVisitor {
+class ThreadSyncPlannerObj : public StorageAccessVisitorObj {
  public:
-  using StorageAccessVisitor::Visit_;
-  explicit ThreadSyncPlanner(StorageScope sync_scope) : sync_scope_(sync_scope) {}
+  using StorageAccessVisitorObj::Visit_;
+  explicit ThreadSyncPlannerObj(StorageScope sync_scope) : sync_scope_(sync_scope) {}
 
   // The syncs inserted before each statement
   std::unordered_set<const ffi::Object*> syncs_inserted_;
@@ -271,9 +271,9 @@ class ThreadSyncPlanner : public StorageAccessVisitor {
   StorageScope sync_scope_;
 };
 
-// There are cases where necessary syncthreads is not inserted by ThreadSyncInserter.
+// There are cases where necessary syncthreads is not inserted by ThreadSyncInserterObj.
 // For example, syncthreads is needed after async_wait in the second loop below,
-// but since ThreadSyncInserter is not aware of the asynchronous semantics, it cannot tell
+// but since ThreadSyncInserterObj is not aware of the asynchronous semantics, it cannot tell
 // that the syncthreads is needed there.
 //
 // // Pipeline prologue
@@ -289,14 +289,14 @@ class ThreadSyncPlanner : public StorageAccessVisitor {
 //    local[...] = shared[(i + 125) % 4]
 
 // This class adds syncthreads after all async_wait operations. That includes syncthreads that
-// can be inserted by ThreadSyncInserter as well, but ThreadSyncInserter will not insert
+// can be inserted by ThreadSyncInserterObj as well, but ThreadSyncInserterObj will not insert
 // duplicate syncthreads if it finds an existing one at the synchronization point.
-class ThreadSyncAfterWaitQueueInserter : public StmtExprMutator {
+class ThreadSyncAfterWaitQueueInserterObj : public StmtExprMutatorObj {
  public:
-  using StmtExprMutator::Mutate;
-  using StmtExprMutator::Mutate_;
+  using StmtExprMutatorObj::Mutate;
+  using StmtExprMutatorObj::Mutate_;
 
-  explicit ThreadSyncAfterWaitQueueInserter(StorageScope sync_scope) : sync_scope_(sync_scope) {}
+  explicit ThreadSyncAfterWaitQueueInserterObj(StorageScope sync_scope) : sync_scope_(sync_scope) {}
 
   UnchangedOr<Stmt> Mutate_(const EvaluateNode* op, InplaceMode inplace_mode) final {
     if (const auto* call = op->value.as<CallNode>();
@@ -305,31 +305,32 @@ class ThreadSyncAfterWaitQueueInserter : public StmtExprMutator {
                                 {StringImm(sync_scope_.to_string())}));
       return SeqStmt({ffi::GetRef<Stmt>(op), sync});
     }
-    return StmtExprMutator::Mutate_(op, inplace_mode);
+    return StmtExprMutatorObj::Mutate_(op, inplace_mode);
   }
 
  private:
   StorageScope sync_scope_;
 };
 
-class ThreadSyncInserter : public StmtExprMutator {
+class ThreadSyncInserterObj : public StmtExprMutatorObj {
  public:
-  using StmtExprMutator::Mutate;
-  using StmtExprMutator::Mutate_;
+  using StmtExprMutatorObj::Mutate;
+  using StmtExprMutatorObj::Mutate_;
 
-  ThreadSyncInserter(StorageScope sync_scope, const std::unordered_set<const ffi::Object*>& syncs)
+  ThreadSyncInserterObj(StorageScope sync_scope,
+                        const std::unordered_set<const ffi::Object*>& syncs)
       : sync_scope_(sync_scope), syncs_(syncs) {}
 
   UnchangedOr<ffi::Any> Mutate(ffi::AnyView value, InplaceMode inplace_mode) final {
     const auto* stmt = value.as<StmtNode>();
-    if (!stmt) return StmtExprMutator::Mutate(value, inplace_mode);
+    if (!stmt) return StmtExprMutatorObj::Mutate(value, inplace_mode);
     if (syncs_.empty()) return ffi::Unchanged();
-    if (!syncs_.count(stmt)) return StmtExprMutator::Mutate(value, inplace_mode);
+    if (!syncs_.count(stmt)) return StmtExprMutatorObj::Mutate(value, inplace_mode);
     Stmt barrier = Evaluate(
         Call(PrimType::Int(32), tirx::gpu_storage_sync_op(), {StringImm(sync_scope_.to_string())})
             .as_or_throw<PrimExpr>());
     // Mutate after query, to avoid stmt change.
-    auto result = StmtExprMutator::Mutate(value, inplace_mode);
+    auto result = StmtExprMutatorObj::Mutate(value, inplace_mode);
     Stmt body = std::move(result).ValueOrUnchanged(value).as_or_throw<Stmt>();
     return ffi::Any(SeqStmt({barrier, body}));
   }
@@ -343,37 +344,37 @@ class ThreadSyncInserter : public StmtExprMutator {
 Stmt ThreadSync(Stmt stmt, std::string storage_scope) {
   StorageScope sync_scope = StorageScope::Create(storage_scope);
   if (sync_scope.rank == StorageRank::kShared && sync_scope.tag == "") {
-    stmt = ffi::make_object<ThreadSyncAfterWaitQueueInserter>(sync_scope)
+    stmt = ffi::make_object<ThreadSyncAfterWaitQueueInserterObj>(sync_scope)
                ->Mutate(stmt)
                .ValueOrUnchanged(stmt);
   }
-  auto planner = ffi::make_object<ThreadSyncPlanner>(sync_scope);
+  auto planner = ffi::make_object<ThreadSyncPlannerObj>(sync_scope);
   planner->Visit(stmt);
-  return ffi::make_object<ThreadSyncInserter>(sync_scope, planner->syncs_inserted_)
+  return ffi::make_object<ThreadSyncInserterObj>(sync_scope, planner->syncs_inserted_)
       ->Mutate(stmt, InplaceMode::kAllow)
       .ValueOrUnchanged(std::move(stmt));
 }
 
 // The synchronization markers have served their purpose after all ThreadSync passes.
 // Only CUDA has backend queue operations; other targets retain synchronous copies.
-class SynchronizationLowerer : public StmtExprMutator {
+class SynchronizationLowererObj : public StmtExprMutatorObj {
  public:
-  using StmtExprMutator::Mutate;
-  using StmtExprMutator::Mutate_;
-  explicit SynchronizationLowerer(bool is_cuda) : is_cuda_(is_cuda) {}
+  using StmtExprMutatorObj::Mutate;
+  using StmtExprMutatorObj::Mutate_;
+  explicit SynchronizationLowererObj(bool is_cuda) : is_cuda_(is_cuda) {}
 
   UnchangedOr<Stmt> Mutate_(const RegionStmtNode* op, InplaceMode inplace_mode) final {
     if (op->op.same_as(s_tir::manual_sync()) || op->op.same_as(s_tir::async_copy_scope())) {
       return Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
     }
-    return StmtExprMutator::Mutate_(op, inplace_mode);
+    return StmtExprMutatorObj::Mutate_(op, inplace_mode);
   }
 
   UnchangedOr<Stmt> Mutate_(const EvaluateNode* op, InplaceMode inplace_mode) final {
     const auto* call = op->value.as<CallNode>();
     if (!call ||
         (!call->op.same_as(s_tir::async_commit()) && !call->op.same_as(s_tir::async_wait()))) {
-      return StmtExprMutator::Mutate_(op, inplace_mode);
+      return StmtExprMutatorObj::Mutate_(op, inplace_mode);
     }
     if (!is_cuda_) return Evaluate(0);
     TVM_FFI_ICHECK_EQ(call->args[0].as_or_throw<IntImm>()->value, 0)
@@ -412,7 +413,7 @@ Pass LowerSynchronization() {
     auto target = f->GetAttr<Target>(tvm::attr::kTarget);
     bool is_cuda = target && target.value()->kind->name == "cuda";
     auto* n = f.CopyOnWrite();
-    n->body = ffi::make_object<SynchronizationLowerer>(is_cuda)
+    n->body = ffi::make_object<SynchronizationLowererObj>(is_cuda)
                   ->Mutate(n->body.value(), InplaceMode::kAllow)
                   .ValueOrUnchanged(n->body.value());
     return f;

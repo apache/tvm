@@ -67,10 +67,10 @@ ffi::Optional<Var> GetShardingVarFromIndex(PrimExpr index, ffi::Map<Var, Range> 
  * \brief Construct an axis group graph from a tirx::Function. Two tensor axis are connected if they
  * are accessed by the same index.
  */
-class TensorAxisGraphExtractor : public s_tir::StmtExprVisitor {
+class TensorAxisGraphExtractorObj : public s_tir::StmtExprVisitorObj {
  public:
   static std::vector<std::vector<TIRVarAxis>> GetTIRVarAxisGraph(const tirx::Function& function) {
-    auto extractor = ffi::make_object<TensorAxisGraphExtractor>();
+    auto extractor = ffi::make_object<TensorAxisGraphExtractorObj>();
     extractor->Visit(function->body);
     ffi::Map<TensorVar, Var> inverse_tensor_map;
     for (const Var& param : function->params) {
@@ -121,14 +121,14 @@ class TensorAxisGraphExtractor : public s_tir::StmtExprVisitor {
 
  private:
   ffi::Optional<VisitInterrupt> Visit_(const TensorStoreNode* op) final {
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(s_tir::StmtExprVisitor::Visit_(op));
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(s_tir::StmtExprVisitorObj::Visit_(op));
     tensor_access_indices_.push_back({op->dest.as_or_throw<tvm::tirx::TensorVar>(), op->indices});
 
     return std::nullopt;
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* op) final {
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(s_tir::StmtExprVisitor::Visit_(op));
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(s_tir::StmtExprVisitorObj::Visit_(op));
     tensor_access_indices_.push_back({op->source.as_or_throw<tvm::tirx::TensorVar>(), op->indices});
 
     return std::nullopt;
@@ -162,10 +162,10 @@ class TensorAxisGraphExtractor : public s_tir::StmtExprVisitor {
 
   ffi::Optional<VisitInterrupt> Visit_(const s_tir::SBlockNode* op) final {
     if (op->name_hint == "root") {
-      return s_tir::StmtExprVisitor::Visit_(op);
+      return s_tir::StmtExprVisitorObj::Visit_(op);
     }
     tensor_access_indices_.clear();
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(s_tir::StmtExprVisitor::Visit_(op));
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(s_tir::StmtExprVisitorObj::Visit_(op));
     iter_var_range_.clear();
     for (const auto& iter_var : op->iter_vars) {
       iter_var_range_.Set(iter_var->var, iter_var->dom.value());

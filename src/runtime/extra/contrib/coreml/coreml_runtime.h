@@ -96,7 +96,7 @@ class CoreMLModel {
  *  This runtime can be accessed in various language via
  *  TVM runtime ffi::Function API.
  */
-class CoreMLRuntime : public ffi::ModuleObj {
+class CoreMLRuntimeObj : public ffi::ModuleObj {
  public:
   /*!
    * \brief Get member function to front-end.

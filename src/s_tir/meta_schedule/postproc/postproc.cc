@@ -24,27 +24,27 @@ namespace tvm {
 namespace s_tir {
 namespace meta_schedule {
 
-void PyPostprocNode::InitializeWithTuneContext(const TuneContext& context) {
+void PyPostprocObj::InitializeWithTuneContext(const TuneContext& context) {
   TVM_FFI_ICHECK(f_initialize_with_tune_context != nullptr)
       << "PyPostproc's InitializeWithTuneContext method not implemented!";
   f_initialize_with_tune_context(context);
 }
 
-bool PyPostprocNode::Apply(const s_tir::Schedule& sch) {
+bool PyPostprocObj::Apply(const s_tir::Schedule& sch) {
   TVM_FFI_ICHECK(f_apply != nullptr) << "PyPostproc's Apply method not implemented!";
   return f_apply(sch);
 }
 
-Postproc PyPostprocNode::Clone() const {
+Postproc PyPostprocObj::Clone() const {
   TVM_FFI_ICHECK(f_clone != nullptr) << "PyPostproc's Clone method not implemented!";
   return f_clone();
 }
 
 Postproc Postproc::PyPostproc(
-    PyPostprocNode::FInitializeWithTuneContext f_initialize_with_tune_context,  //
-    PyPostprocNode::FApply f_apply,                                             //
-    PyPostprocNode::FClone f_clone) {
-  ffi::ObjectPtr<PyPostprocNode> n = ffi::make_object<PyPostprocNode>();
+    PyPostprocObj::FInitializeWithTuneContext f_initialize_with_tune_context,  //
+    PyPostprocObj::FApply f_apply,                                             //
+    PyPostprocObj::FClone f_clone) {
+  ffi::ObjectPtr<PyPostprocObj> n = ffi::make_object<PyPostprocObj>();
   n->f_initialize_with_tune_context = std::move(f_initialize_with_tune_context);
   n->f_apply = std::move(f_apply);
   n->f_clone = std::move(f_clone);
@@ -112,17 +112,17 @@ ffi::Array<Postproc> Postproc::DefaultHexagon() {
 // Pattern A (RM): auto-default repr from reflection.
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  PostprocNode::RegisterReflection();
-  PyPostprocNode::RegisterReflection();
+  PostprocObj::RegisterReflection();
+  PyPostprocObj::RegisterReflection();
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def_method("s_tir.meta_schedule.PostprocInitializeWithTuneContext",
-                  &PostprocNode::InitializeWithTuneContext)
-      .def_method("s_tir.meta_schedule.PostprocApply", &PostprocNode::Apply)
-      .def_method("s_tir.meta_schedule.PostprocClone", &PostprocNode::Clone)
+                  &PostprocObj::InitializeWithTuneContext)
+      .def_method("s_tir.meta_schedule.PostprocApply", &PostprocObj::Apply)
+      .def_method("s_tir.meta_schedule.PostprocClone", &PostprocObj::Clone)
       .def("s_tir.meta_schedule.PostprocPyPostproc", Postproc::PyPostproc)
       .def("s_tir.meta_schedule.PostprocDefaultLLVM", Postproc::DefaultLLVM)
       .def("s_tir.meta_schedule.PostprocDefaultCUDA", Postproc::DefaultCUDA)

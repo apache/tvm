@@ -45,7 +45,7 @@ using namespace tvm::prim;
 
 #if defined(TVM_MLIR_VERSION) && TVM_MLIR_VERSION >= 150
 
-TVM_FFI_STATIC_INIT_BLOCK() { PresburgerSetNode::RegisterReflection(); }
+TVM_FFI_STATIC_INIT_BLOCK() { PresburgerSetObj::RegisterReflection(); }
 
 static int64_t GetPresburgerCoefficient(const PrimExpr& coefficient) {
   const auto* imm = coefficient.as<IntImmNode>();
@@ -55,7 +55,7 @@ static int64_t GetPresburgerCoefficient(const PrimExpr& coefficient) {
   return *value;
 }
 
-static void Update(const PrimExpr& constraint, PresburgerSetNode* intset) {
+static void Update(const PrimExpr& constraint, PresburgerSetObj* intset) {
   auto& space = intset->space;
   auto constraints_union = ExtractComponents(constraint);
   for (const PrimExpr& subconstraint : constraints_union) {
@@ -118,7 +118,7 @@ PresburgerSet::PresburgerSet(const PrimExpr& constraint) : IntSet(ffi::UnsafeIni
   Analyzer analyzer;
   PrimExpr simplified_constraint = analyzer->Simplify(constraint, kSimplifyRewriteCanonicalRewrite);
   auto space = PresburgerSpace::getRelationSpace(vars.size(), 0, 0, 0);
-  auto node = ffi::make_object<PresburgerSetNode>(std::move(space), vars);
+  auto node = ffi::make_object<PresburgerSetObj>(std::move(space), vars);
   node->SetVars(vars);
   Update(simplified_constraint, node.get());
   data_ = std::move(node);
@@ -127,19 +127,19 @@ PresburgerSet::PresburgerSet(const PrimExpr& constraint) : IntSet(ffi::UnsafeIni
 PresburgerSet::PresburgerSet(const std::vector<IntegerRelation>& disjuncts,
                              const ffi::Array<PrimVar>& vars)
     : IntSet(ffi::UnsafeInit{}) {
-  auto node = ffi::make_object<PresburgerSetNode>(disjuncts, disjuncts[0].getSpace(), vars);
+  auto node = ffi::make_object<PresburgerSetObj>(disjuncts, disjuncts[0].getSpace(), vars);
   data_ = std::move(node);
 }
 
-void PresburgerSetNode::UpdateConstraint(const PrimExpr& constraint,
-                                         const ffi::Array<PrimVar>& vars) {
+void PresburgerSetObj::UpdateConstraint(const PrimExpr& constraint,
+                                        const ffi::Array<PrimVar>& vars) {
   Analyzer analyzer;
   PrimExpr simplified_constraint = analyzer->Simplify(constraint, kSimplifyRewriteCanonicalRewrite);
   Update(simplified_constraint, this);
   SetVars(vars);
 }
 
-PrimExpr PresburgerSetNode::GenerateConstraint() const {
+PrimExpr PresburgerSetObj::GenerateConstraint() const {
   PrimExpr constraint = IntImm::Bool(false);
   for (const IntegerRelation& disjunct : disjuncts) {
     PrimExpr union_entry = IntImm::Bool(true);
@@ -283,7 +283,7 @@ PresburgerSet MakePresburgerSet(const PrimExpr& constraint) { return PresburgerS
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  PresburgerSetNode::RegisterReflection();
+  PresburgerSetObj::RegisterReflection();
   refl::GlobalDef().def("sym.PresburgerSet", MakePresburgerSet);
 }
 

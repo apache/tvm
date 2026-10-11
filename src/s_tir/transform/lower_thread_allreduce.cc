@@ -29,7 +29,7 @@ namespace transform {
 
 Pass LowerThreadAllreduce() {
   auto pass_func = [](tirx::Function f, IRModule m, PassContext ctx) {
-    return tirx::detail::LowerThreadAllreduce<s_tir::StmtExprMutator>(std::move(f));
+    return tirx::detail::LowerThreadAllreduce<s_tir::StmtExprMutatorObj>(std::move(f));
   };
   return tirx::transform::CreateFunctionPass(pass_func, 0, "s_tir.LowerThreadAllreduce");
 }

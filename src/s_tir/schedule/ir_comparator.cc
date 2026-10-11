@@ -36,15 +36,15 @@ bool IsVScaleCall(const PrimExpr& expr) {
 
 // File-local helper: true if `expr` contains a call to prim::vscale_op().
 bool ContainsVscaleCall(const PrimExpr& expr) {
-  struct VScaleFinder : tirx::StmtExprVisitor {
+  struct VScaleFinderObj : tirx::StmtExprVisitorObj {
     ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) final {
       if (auto expr = value.as<PrimExpr>(); expr && IsVScaleCall(*expr)) {
         return VisitInterrupt();
       }
-      return StmtExprVisitor::Visit(value);
+      return StmtExprVisitorObj::Visit(value);
     }
   };
-  return ffi::make_object<VScaleFinder>()->Visit(expr).has_value();
+  return ffi::make_object<VScaleFinderObj>()->Visit(expr).has_value();
 }
 }  // namespace
 
@@ -54,10 +54,10 @@ using namespace tvm::tirx;
 
 /******** Tensorize Comparator ********/
 
-class TensorIntrinMismatchError : public ScheduleErrorContextObj {
+class TensorIntrinMismatchErrorObj : public ScheduleErrorContextObj {
  public:
-  explicit TensorIntrinMismatchError(IRModule lhs_mod, Stmt lhs_stmt, Stmt rhs_stmt,
-                                     std::vector<std::string> error_messages)
+  explicit TensorIntrinMismatchErrorObj(IRModule lhs_mod, Stmt lhs_stmt, Stmt rhs_stmt,
+                                        std::vector<std::string> error_messages)
       : lhs_mod_(std::move(lhs_mod)),
         lhs_stmt_(std::move(lhs_stmt)),
         rhs_stmt_(std::move(rhs_stmt)),
@@ -96,8 +96,8 @@ bool TensorizeComparator::Dispatch(const Stmt& n, const Stmt& other) {
   bool equal = n.same_as(other) ||
                ((n->type_index() == other->type_index()) && StmtComparator::Dispatch(n, other));
   if (!equal && assert_mode_ && (n->IsInstance<ForNode>() || n->IsInstance<SBlockNode>())) {
-    throw MakeScheduleError<TensorIntrinMismatchError>(lhs_mod_, n, other,
-                                                       std::move(error_messages_));
+    throw MakeScheduleError<TensorIntrinMismatchErrorObj>(lhs_mod_, n, other,
+                                                          std::move(error_messages_));
   }
   return equal;
 }

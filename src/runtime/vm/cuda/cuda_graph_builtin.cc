@@ -146,7 +146,7 @@ class CUDACaptureStream {
 }  // namespace
 
 /*! \brief The VM extension of CUDA graph. */
-class CUDAGraphExtensionNode : public VMExtensionNode {
+class CUDAGraphExtensionObj : public VMExtensionObj {
  public:
   /*!
    * \brief Launch the cuda graph if it has been cached, otherwise execute it in capture mode.
@@ -159,7 +159,7 @@ class CUDAGraphExtensionNode : public VMExtensionNode {
    * \param entry_index The unique index of the capture function used for lookup.
    * \return The return value of the capture function.
    */
-  ffi::ObjectRef RunOrCapture(VirtualMachine* vm, const ffi::ObjectRef& capture_func, Any args,
+  ffi::ObjectRef RunOrCapture(VirtualMachineObj* vm, const ffi::ObjectRef& capture_func, Any args,
                               int64_t entry_index, ffi::Optional<ffi::Shape> shape_expr) {
     CUDAGraphCaptureKey entry_key{entry_index, shape_expr};
     if (auto it = capture_cache_.find(entry_key); it != capture_cache_.end()) {
@@ -215,7 +215,7 @@ class CUDAGraphExtensionNode : public VMExtensionNode {
    * tuple of allocated storage objects.
    * \param entry_index The unique index of the allocation function used for lookup.
    */
-  ffi::ObjectRef GetCachedAllocation(VirtualMachine* vm, const ffi::ObjectRef& alloc_func,
+  ffi::ObjectRef GetCachedAllocation(VirtualMachineObj* vm, const ffi::ObjectRef& alloc_func,
                                      int64_t entry_index) {
     if (auto it = alloc_cache_.find(entry_index); it != alloc_cache_.end()) {
       return it->second;
@@ -228,8 +228,7 @@ class CUDAGraphExtensionNode : public VMExtensionNode {
   }
 
   static constexpr const bool _type_mutable = true;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("vm.CUDAGraphExtension", CUDAGraphExtensionNode,
-                                    VMExtensionNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("vm.CUDAGraphExtension", CUDAGraphExtensionObj, VMExtensionObj);
 
  private:
   /*!
@@ -246,13 +245,13 @@ class CUDAGraphExtensionNode : public VMExtensionNode {
   std::unordered_map<int64_t, ffi::ObjectRef> alloc_cache_;
 };
 
-/*! Managed reference to CUDAGraphExtensionNode */
+/*! Managed reference to CUDAGraphExtensionObj */
 class CUDAGraphExtension : public VMExtension {
  public:
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(CUDAGraphExtension, VMExtension,
-                                                CUDAGraphExtensionNode);
+                                                CUDAGraphExtensionObj);
   static CUDAGraphExtension Create() {
-    auto data_ = ffi::make_object<CUDAGraphExtensionNode>();
+    auto data_ = ffi::make_object<CUDAGraphExtensionObj>();
     return ffi::GetRef<CUDAGraphExtension>(data_.get());
   }
 };
@@ -263,7 +262,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def_packed("vm.builtin.cuda_graph.run_or_capture",
                   [](ffi::PackedArgs args, ffi::Any* rv) {
                     TVM_FFI_ICHECK(args.size() == 5 || args.size() == 4);
-                    VirtualMachine* vm = VirtualMachine::GetContextPtr(args[0]);
+                    VirtualMachineObj* vm = VirtualMachineObj::GetContextPtr(args[0]);
                     auto extension = vm->GetOrCreateExtension<CUDAGraphExtension>();
                     auto capture_func = args[1].cast<ffi::ObjectRef>();
                     Any func_args = args[2];
@@ -277,7 +276,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                   })
       .def_packed("vm.builtin.cuda_graph.get_cached_alloc", [](ffi::PackedArgs args, ffi::Any* rv) {
         TVM_FFI_ICHECK_EQ(args.size(), 3);
-        VirtualMachine* vm = VirtualMachine::GetContextPtr(args[0]);
+        VirtualMachineObj* vm = VirtualMachineObj::GetContextPtr(args[0]);
         auto extension = vm->GetOrCreateExtension<CUDAGraphExtension>();
         auto alloc_func = args[1].cast<ffi::ObjectRef>();
         int64_t entry_index = args[2].cast<int64_t>();

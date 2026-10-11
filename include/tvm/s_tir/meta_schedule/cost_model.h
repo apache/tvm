@@ -40,10 +40,10 @@ namespace meta_schedule {
 class TuneContext;
 
 /*! \brief Cost model. */
-class CostModelNode : public ffi::Object {
+class CostModelObj : public ffi::Object {
  public:
   /*! \brief Virtual destructor. */
-  virtual ~CostModelNode() = default;
+  virtual ~CostModelObj() = default;
 
   /*!
    * \brief Load the cost model from given file location.
@@ -76,11 +76,11 @@ class CostModelNode : public ffi::Object {
                                       const ffi::Array<MeasureCandidate>& candidates) = 0;
 
   static constexpr const bool _type_mutable = true;
-  TVM_FFI_DECLARE_OBJECT_INFO("s_tir.meta_schedule.CostModel", CostModelNode, ffi::Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("s_tir.meta_schedule.CostModel", CostModelObj, ffi::Object);
 };
 
 /*! \brief The cost model with customized methods on the python-side. */
-class PyCostModelNode : public CostModelNode {
+class PyCostModelObj : public CostModelObj {
  public:
   /*!
    * \brief Load the cost model from given file location.
@@ -124,18 +124,17 @@ class PyCostModelNode : public CostModelNode {
               const ffi::Array<RunnerResult>& results);
   std::vector<double> Predict(const TuneContext& context,
                               const ffi::Array<MeasureCandidate>& candidates);
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.meta_schedule.PyCostModel", PyCostModelNode,
-                                    CostModelNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.meta_schedule.PyCostModel", PyCostModelObj,
+                                    CostModelObj);
 };
 
 /*!
- * \brief Managed reference to CostModelNode
- * \sa CostModelNode
+ * \brief Managed reference to CostModelObj
+ * \sa CostModelObj
  */
 class CostModel : public ffi::ObjectRef {
  public:
-  explicit CostModel(ffi::UnsafeInit tag, ffi::ObjectPtr<CostModelNode> data)
-      : ffi::ObjectRef(tag) {
+  explicit CostModel(ffi::UnsafeInit tag, ffi::ObjectPtr<CostModelObj> data) : ffi::ObjectRef(tag) {
     data_ = std::move(data);
   }
 
@@ -147,11 +146,11 @@ class CostModel : public ffi::ObjectRef {
    * \param f_predict The packed function of `Predict`.
    * \return The cost model created.
    */
-  TVM_DLL static CostModel PyCostModel(PyCostModelNode::FLoad f_load,      //
-                                       PyCostModelNode::FSave f_save,      //
-                                       PyCostModelNode::FUpdate f_update,  //
-                                       PyCostModelNode::FPredict f_predict);
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(CostModel, ffi::ObjectRef, CostModelNode);
+  TVM_DLL static CostModel PyCostModel(PyCostModelObj::FLoad f_load,      //
+                                       PyCostModelObj::FSave f_save,      //
+                                       PyCostModelObj::FUpdate f_update,  //
+                                       PyCostModelObj::FPredict f_predict);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(CostModel, ffi::ObjectRef, CostModelObj);
 };
 
 }  // namespace meta_schedule

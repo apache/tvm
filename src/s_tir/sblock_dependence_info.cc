@@ -25,26 +25,26 @@
 namespace tvm {
 namespace tirx {
 
-TVM_FFI_STATIC_INIT_BLOCK() { SBlockDependenceInfoNode::RegisterReflection(); }
+TVM_FFI_STATIC_INIT_BLOCK() { SBlockDependenceInfoObj::RegisterReflection(); }
 
 /**
  * @brief A helper class to collect and build s_tir::SBlock Dependences using SBlockScope class
  */
-class SBlockDependenceInfoCollector : public s_tir::StmtExprVisitor {
+class SBlockDependenceInfoCollectorObj : public s_tir::StmtExprVisitorObj {
  public:
-  using s_tir::StmtExprVisitor::Visit_;
+  using s_tir::StmtExprVisitorObj::Visit_;
 
   ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
     if (value.as<ExprNode>()) return std::nullopt;
-    return s_tir::StmtExprVisitor::Visit(value);
+    return s_tir::StmtExprVisitorObj::Visit(value);
   }
 
-  static void Collect(SBlockDependenceInfoNode* self, const Stmt& stmt) {
-    auto collector = ffi::make_object<SBlockDependenceInfoCollector>(self);
+  static void Collect(SBlockDependenceInfoObj* self, const Stmt& stmt) {
+    auto collector = ffi::make_object<SBlockDependenceInfoCollectorObj>(self);
     collector->Visit(stmt);
   }
 
-  explicit SBlockDependenceInfoCollector(SBlockDependenceInfoNode* self)
+  explicit SBlockDependenceInfoCollectorObj(SBlockDependenceInfoObj* self)
       : self_(self), block_frames_{} {
     block_frames_.emplace_back();
   }
@@ -70,31 +70,31 @@ class SBlockDependenceInfoCollector : public s_tir::StmtExprVisitor {
 
   ffi::Optional<VisitInterrupt> Visit_(const SeqStmtNode* seq_stmt) final {
     // Set `seq_index` information for SeqStmtNode
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(s_tir::StmtExprVisitor::Visit_(seq_stmt));
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(s_tir::StmtExprVisitorObj::Visit_(seq_stmt));
     SetSeqIndexInChildren(self_->stmt2ref, seq_stmt, false);
     return std::nullopt;
   }
 
-  SBlockDependenceInfoNode* self_;
+  SBlockDependenceInfoObj* self_;
   /*! \brief The stack frames of blocks in the DFS visit. */
   std::vector<ffi::Array<StmtSRef>> block_frames_;
 };
 
 SBlockDependenceInfo::SBlockDependenceInfo() {
-  data_ = ffi::make_object<SBlockDependenceInfoNode>();
+  data_ = ffi::make_object<SBlockDependenceInfoObj>();
 }
 
 SBlockDependenceInfo::SBlockDependenceInfo(IRModule mod) {
-  ffi::ObjectPtr<SBlockDependenceInfoNode> n = ffi::make_object<SBlockDependenceInfoNode>();
-  SBlockDependenceInfoNode* self = n.get();
-  n->stmt2ref = SRefTreeCreator::Create(mod, /* include_loops */ false);
+  ffi::ObjectPtr<SBlockDependenceInfoObj> n = ffi::make_object<SBlockDependenceInfoObj>();
+  SBlockDependenceInfoObj* self = n.get();
+  n->stmt2ref = SRefTreeCreatorObj::Create(mod, /* include_loops */ false);
 
   for (const auto& kv : mod->functions) {
     const BaseFunc& base_func = kv.second;
     if (auto opt = base_func.as<Function>()) {
       auto func = opt.value();
       if (func->body.has_value()) {
-        SBlockDependenceInfoCollector::Collect(self, func->body.value());
+        SBlockDependenceInfoCollectorObj::Collect(self, func->body.value());
       }
     }
   }
@@ -107,7 +107,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("s_tir.SBlockDependenceInfo",
            [](IRModule mod) -> SBlockDependenceInfo { return SBlockDependenceInfo(mod); })
       .def_method("s_tir.SBlockDependenceInfoGetSBlockScope",
-                  &SBlockDependenceInfoNode::GetSBlockScope)
+                  &SBlockDependenceInfoObj::GetSBlockScope)
       .def("s_tir.SBlockDependenceInfoGetSRef",
            [](SBlockDependenceInfo self, Stmt stmt) -> ffi::Optional<StmtSRef> {
              auto it = self->stmt2ref.find(stmt.get());

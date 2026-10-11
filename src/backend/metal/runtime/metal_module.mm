@@ -19,7 +19,7 @@
 
 /*!
  * \file metal_module.mm
- * \brief MetalModuleNode — runtime-side, plugin-only.  Reachable from C++
+ * \brief MetalModuleObj — runtime-side, plugin-only.  Reachable from C++
  *        only through the FFI registry keys "ffi.Module.create.metal" and
  *        "ffi.Module.load_from_bytes.metal".  No exported header — codegen-
  *        side construction goes through src/target/metal/metal_fallback_module.h.
@@ -67,16 +67,16 @@ static bool MetalDeviceSupportsMetal4(id<MTLDevice> device) {
 // Module to support thread-safe multi-GPU execution.
 // The runtime will contain a per-device module table
 // The modules will be lazily loaded
-class MetalModuleNode final : public ffi::ModuleObj {
+class MetalModuleObj final : public ffi::ModuleObj {
  public:
   // Unified factory signature shared with the codegen-side fallback in
   // src/target/metal/metal_fallback_module.h.  The per-kernel `smap`
   // payload is Map<String, Bytes> regardless of whether the format is
   // text MSL ("metal") or compiled metallib ("metallib") — text vs binary
   // distinction lives in `fmt`.
-  MetalModuleNode(ffi::Map<ffi::String, ffi::Bytes> smap, ffi::String fmt,
-                  ffi::Map<ffi::String, FunctionInfo> fmap,
-                  ffi::Map<ffi::String, ffi::String> source)
+  MetalModuleObj(ffi::Map<ffi::String, ffi::Bytes> smap, ffi::String fmt,
+                 ffi::Map<ffi::String, FunctionInfo> fmap,
+                 ffi::Map<ffi::String, ffi::String> source)
       : smap_(std::move(smap)),
         fmt_(std::move(fmt)),
         fmap_(std::move(fmap)),
@@ -220,7 +220,7 @@ class MetalModuleNode final : public ffi::ModuleObj {
 class MetalWrappedFunc {
  public:
   // initialize the METAL function.
-  void Init(MetalModuleNode* m, ffi::ObjectPtr<ffi::Object> sptr, const std::string& func_name,
+  void Init(MetalModuleObj* m, ffi::ObjectPtr<ffi::Object> sptr, const std::string& func_name,
             size_t num_buffer_args, size_t num_pack_args,
             const ffi::Array<ffi::String>& launch_param_tags) {
     w_ = metal::MetalWorkspace::Global();
@@ -278,7 +278,7 @@ class MetalWrappedFunc {
   // Reference to global workspace.
   metal::MetalWorkspace* w_;
   // internal module
-  MetalModuleNode* m_;
+  MetalModuleObj* m_;
   // the resource holder
   ffi::ObjectPtr<ffi::Object> sptr_;
   // The name of the function.
@@ -294,7 +294,7 @@ class MetalWrappedFunc {
   LaunchParamConfig launch_param_config_;
 };
 
-ffi::Optional<ffi::Function> MetalModuleNode::GetFunction(const ffi::String& name) {
+ffi::Optional<ffi::Function> MetalModuleObj::GetFunction(const ffi::String& name) {
   ffi::Function ret;
   AUTORELEASEPOOL {
     ffi::ObjectPtr<ffi::Object> sptr_to_self = ffi::GetObjectPtr<ffi::Object>(this);
@@ -316,10 +316,10 @@ ffi::Optional<ffi::Function> MetalModuleNode::GetFunction(const ffi::String& nam
 static ffi::Module MetalModuleCreateImpl(ffi::Map<ffi::String, ffi::Bytes> smap, ffi::String fmt,
                                          ffi::Map<ffi::String, FunctionInfo> fmap,
                                          ffi::Map<ffi::String, ffi::String> source) {
-  ffi::ObjectPtr<MetalModuleNode> n;
+  ffi::ObjectPtr<MetalModuleObj> n;
   AUTORELEASEPOOL {
-    n = ffi::make_object<MetalModuleNode>(std::move(smap), std::move(fmt), std::move(fmap),
-                                          std::move(source));
+    n = ffi::make_object<MetalModuleObj>(std::move(smap), std::move(fmt), std::move(fmap),
+                                         std::move(source));
   };
   return ffi::Module(n);
 }

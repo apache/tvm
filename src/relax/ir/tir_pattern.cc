@@ -22,11 +22,11 @@
 namespace tvm {
 namespace relax {
 
-TVM_FFI_STATIC_INIT_BLOCK() { MatchResultNode::RegisterReflection(); }
+TVM_FFI_STATIC_INIT_BLOCK() { MatchResultObj::RegisterReflection(); }
 
 MatchResult::MatchResult(TIRPattern pattern, ffi::Array<PrimExpr> symbol_values,
                          ffi::Array<tirx::TensorVar> matched_tensors) {
-  auto n = ffi::make_object<MatchResultNode>(std::move(pattern));
+  auto n = ffi::make_object<MatchResultObj>(std::move(pattern));
   n->symbol_values = std::move(symbol_values);
   n->matched_tensors = std::move(matched_tensors);
   data_ = std::move(n);

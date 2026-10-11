@@ -145,7 +145,7 @@ CLMLThreadEntry* CLMLThreadEntry::ThreadLocal() {
 }
 #endif
 
-class CLMLRuntime : public JSONRuntimeBase {
+class CLMLRuntimeObj : public JSONRuntimeBaseObj {
  public:
   /*!
    * \brief The CLML runtime module. Deserialize the provided functions
@@ -155,11 +155,11 @@ class CLMLRuntime : public JSONRuntimeBase {
    * \param graph_json serialized JSON representation of a sub-graph.
    * \param const_names The names of each constant in the sub-graph.
    */
-  explicit CLMLRuntime(const std::string& symbol_name, const std::string& graph_json,
-                       const ffi::Array<ffi::String>& const_names)
-      : JSONRuntimeBase(symbol_name, graph_json, const_names), clml_symbol(symbol_name) {}
+  explicit CLMLRuntimeObj(const std::string& symbol_name, const std::string& graph_json,
+                          const ffi::Array<ffi::String>& const_names)
+      : JSONRuntimeBaseObj(symbol_name, graph_json, const_names), clml_symbol(symbol_name) {}
 
-  ~CLMLRuntime() {
+  ~CLMLRuntimeObj() {
 #ifdef TVM_GRAPH_EXECUTOR_CLML
     cl_int result = 0;
     if (this->layer_.tuning_cache) {
@@ -471,7 +471,7 @@ class CLMLRuntime : public JSONRuntimeBase {
     } else {
       LOG_CLML << "Execution by Normal Queue";
       for (size_t i = 0; i < this->layer_.function.size(); ++i) {
-        // Make CLML subgraphs accounted by OpenCLTimerNode.
+        // Make CLML subgraphs accounted by OpenCLTimerObj.
         LOG_CLML << "Run Layer:" << this->layer_.function[i].layer_name;
 #if (CL_QCOM_ML_OPS_H_MAJOR_VERSION >= 5)
         if (this->layer_.function[i].op_props.size() && this->layer_.function[i].op_props[1]) {
@@ -1962,7 +1962,7 @@ class CLMLRuntime : public JSONRuntimeBase {
 
 ffi::Module CLMLRuntimeCreate(const ffi::String& symbol_name, const ffi::String& graph_json,
                               const ffi::Array<ffi::String>& const_names) {
-  auto n = ffi::make_object<CLMLRuntime>(symbol_name, graph_json, const_names);
+  auto n = ffi::make_object<CLMLRuntimeObj>(symbol_name, graph_json, const_names);
   return ffi::Module(n);
 }
 
@@ -1970,7 +1970,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("runtime.clml_runtime_create", CLMLRuntimeCreate)
-      .def("ffi.Module.load_from_bytes.clml", JSONRuntimeBase::LoadFromBytes<CLMLRuntime>);
+      .def("ffi.Module.load_from_bytes.clml", JSONRuntimeBaseObj::LoadFromBytes<CLMLRuntimeObj>);
 }
 }  //  namespace contrib
 }  //  namespace runtime

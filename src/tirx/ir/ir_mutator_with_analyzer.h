@@ -47,14 +47,14 @@ namespace tirx {
  *
  * \sa src/tirx/ir/ir_mutator_with_analyzer.cc
  */
-class IRMutatorWithAnalyzer : public StmtExprMutator {
+class IRMutatorWithAnalyzerObj : public StmtExprMutatorObj {
  public:
-  using StmtExprMutator::Mutate;
-  using StmtExprMutator::Mutate_;
-  explicit IRMutatorWithAnalyzer(const sym::Analyzer& analyzer)
-      : IRMutatorWithAnalyzer(analyzer.get()) {}
-  explicit IRMutatorWithAnalyzer(sym::AnalyzerObj* analyzer)
-      : IRMutatorWithAnalyzer(analyzer, GlobalVTable()) {}
+  using StmtExprMutatorObj::Mutate;
+  using StmtExprMutatorObj::Mutate_;
+  explicit IRMutatorWithAnalyzerObj(const sym::Analyzer& analyzer)
+      : IRMutatorWithAnalyzerObj(analyzer.get()) {}
+  explicit IRMutatorWithAnalyzerObj(sym::AnalyzerObj* analyzer)
+      : IRMutatorWithAnalyzerObj(analyzer, GlobalVTable()) {}
 
   // override functions that need to populate the context information.
   UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) override;
@@ -68,8 +68,8 @@ class IRMutatorWithAnalyzer : public StmtExprMutator {
 
  protected:
   static void InitVTable(VTable* vtable);
-  IRMutatorWithAnalyzer(sym::AnalyzerObj* analyzer, const VTable* vtable)
-      : StmtExprMutator(vtable), analyzer_(analyzer) {}
+  IRMutatorWithAnalyzerObj(sym::AnalyzerObj* analyzer, const VTable* vtable)
+      : StmtExprMutatorObj(vtable), analyzer_(analyzer) {}
   static const VTable* GlobalVTable();
   /*!
    * \brief Mark all tensor-parameter shape values as positive values.

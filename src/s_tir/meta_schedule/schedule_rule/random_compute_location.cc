@@ -25,12 +25,12 @@ namespace tvm {
 namespace s_tir {
 namespace meta_schedule {
 
-class RandomComputeLocationNode : public ScheduleRuleNode {
+class RandomComputeLocationObj : public ScheduleRuleObj {
  public:
-  // Inherited from ScheduleRuleNode
+  // Inherited from ScheduleRuleObj
   void InitializeWithTuneContext(const TuneContext& context) final {}
 
-  // Inherited from ScheduleRuleNode
+  // Inherited from ScheduleRuleObj
   ffi::Array<s_tir::Schedule> Apply(const s_tir::Schedule& sch,
                                     const s_tir::SBlockRV& block_rv) final {
     if (!CheckConditions(sch, block_rv)) {
@@ -62,10 +62,9 @@ class RandomComputeLocationNode : public ScheduleRuleNode {
     return {res};
   }
 
-  // Inherited from ScheduleRuleNode
+  // Inherited from ScheduleRuleObj
   ScheduleRule Clone() const final {
-    ffi::ObjectPtr<RandomComputeLocationNode> n =
-        ffi::make_object<RandomComputeLocationNode>(*this);
+    ffi::ObjectPtr<RandomComputeLocationObj> n = ffi::make_object<RandomComputeLocationObj>(*this);
     return ScheduleRule(ffi::UnsafeInit{}, n);
   }
 
@@ -119,17 +118,17 @@ class RandomComputeLocationNode : public ScheduleRuleNode {
  public:
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<RandomComputeLocationNode>();
+    refl::ObjectDef<RandomComputeLocationObj>();
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.meta_schedule.RandomComputeLocation",
-                                    RandomComputeLocationNode, ScheduleRuleNode);
+                                    RandomComputeLocationObj, ScheduleRuleObj);
 };
 
 ScheduleRule ScheduleRule::RandomComputeLocation() {
-  return ScheduleRule(ffi::UnsafeInit{}, ffi::make_object<RandomComputeLocationNode>());
+  return ScheduleRule(ffi::UnsafeInit{}, ffi::make_object<RandomComputeLocationObj>());
 }
 
-TVM_FFI_STATIC_INIT_BLOCK() { RandomComputeLocationNode::RegisterReflection(); }
+TVM_FFI_STATIC_INIT_BLOCK() { RandomComputeLocationObj::RegisterReflection(); }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;

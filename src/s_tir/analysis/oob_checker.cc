@@ -39,9 +39,10 @@ struct OOBLocation {
   sym::IntSet shape_bounds;
 };
 
-class OOBError : public s_tir::ScheduleErrorContextObj {
+class OOBErrorObj : public s_tir::ScheduleErrorContextObj {
  public:
-  OOBError(IRModule mod, std::vector<OOBLocation> locations) : mod_(mod), locations_(locations) {}
+  OOBErrorObj(IRModule mod, std::vector<OOBLocation> locations)
+      : mod_(mod), locations_(locations) {}
   ffi::String FastErrorString() const final { return "Out of bound memory access"; }
 
   ffi::String DetailRenderTemplate() const final {
@@ -69,22 +70,22 @@ class OOBError : public s_tir::ScheduleErrorContextObj {
   IRModule mod_;
   std::vector<OOBLocation> locations_;
 };
-class OOBCheckerVisitor final : public s_tir::IRVisitorWithAnalyzer {
+class OOBCheckerVisitorObj final : public s_tir::IRVisitorWithAnalyzerObj {
  public:
-  using s_tir::IRVisitorWithAnalyzer::Visit_;
+  using s_tir::IRVisitorWithAnalyzerObj::Visit_;
 
   ffi::Optional<VisitInterrupt> Visit_(const TensorStoreNode* node) final {
     for (size_t i = 0; i < node->dest.as_or_throw<TensorVar>()->shape.size(); i++) {
       CheckBounds(node, node->dest.as_or_throw<TensorVar>(), i);
     }
-    return IRVisitorWithAnalyzer::Visit_(node);
+    return IRVisitorWithAnalyzerObj::Visit_(node);
   }
   ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* node) final {
     TensorVar tensor = node->source.as_or_throw<tvm::tirx::TensorVar>();
     for (size_t i = 0; i < tensor->shape.size(); i++) {
       CheckBounds(node, tensor, i);
     }
-    return IRVisitorWithAnalyzer::Visit_(node);
+    return IRVisitorWithAnalyzerObj::Visit_(node);
   }
 
   template <class T>
@@ -113,13 +114,13 @@ class OOBCheckerVisitor final : public s_tir::IRVisitorWithAnalyzer {
 
 tvm::transform::Pass OOBChecker() {
   auto pass_func = [=](tirx::Function func, IRModule mod, tvm::transform::PassContext ctx) {
-    auto checker = ffi::make_object<OOBCheckerVisitor>();
+    auto checker = ffi::make_object<OOBCheckerVisitorObj>();
     checker->Visit(func->body);
     if (checker->errors.size() > 0) {
       // mod doesn't contain our function, so we construct a new mod with out function
       IRModule func_mod({{GlobalVar("main"), func}});
       TVM_FFI_THROW(ScheduleError)
-          << OOBError(func_mod, checker->errors).RenderReport("Out of bounds checker");
+          << OOBErrorObj(func_mod, checker->errors).RenderReport("Out of bounds checker");
     }
     return func;
   };

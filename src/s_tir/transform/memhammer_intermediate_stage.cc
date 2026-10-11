@@ -74,10 +74,11 @@ std::pair<Stmt, ffi::Optional<For>> LiftThreadBindingLoops(Stmt stmt) {
  * will be in the form of floormod(floordiv(x, a), b).
  * Rank promotion removes strided access, thus enabling further tensor compacting
  */
-class IndexPatternFinder : public StmtExprVisitor {
+class IndexPatternFinderObj : public StmtExprVisitorObj {
  public:
-  using StmtExprVisitor::Visit_;
-  IndexPatternFinder(const ffi::Map<Var, Range>& var_range, ffi::Array<PrimExpr>* resulting_index)
+  using StmtExprVisitorObj::Visit_;
+  IndexPatternFinderObj(const ffi::Map<Var, Range>& var_range,
+                        ffi::Array<PrimExpr>* resulting_index)
       : var_range_(var_range), resulting_index_(resulting_index) {}
   struct Operator {
     enum class OpKind { Mul, FloorDiv, FloorMod };
@@ -100,7 +101,7 @@ class IndexPatternFinder : public StmtExprVisitor {
     ffi::Array<PrimExpr> new_shape;
     for (const PrimExpr& expr : indices) {
       ffi::Array<PrimExpr> indices_dim;
-      auto extractor = ffi::make_object<IndexPatternFinder>(var_range, &indices_dim);
+      auto extractor = ffi::make_object<IndexPatternFinderObj>(var_range, &indices_dim);
       extractor->Visit(expr);
       if (!extractor->success_) {
         return {};
@@ -179,7 +180,7 @@ class IndexPatternFinder : public StmtExprVisitor {
   ffi::Optional<VisitInterrupt> Visit_(const FloorDivNode* op) final {
     int64_t b = static_cast<int64_t>(op->b.as<IntImmNode>()->value);
     operator_stack.push_back(Operator{Operator::OpKind::FloorDiv, b});
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitorObj::Visit_(op));
     operator_stack.pop_back();
     return std::nullopt;
   }
@@ -187,7 +188,7 @@ class IndexPatternFinder : public StmtExprVisitor {
   ffi::Optional<VisitInterrupt> Visit_(const FloorModNode* op) final {
     int64_t b = static_cast<int64_t>(op->b.as<IntImmNode>()->value);
     operator_stack.push_back(Operator{Operator::OpKind::FloorMod, b});
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitorObj::Visit_(op));
     operator_stack.pop_back();
     return std::nullopt;
   }
@@ -195,7 +196,7 @@ class IndexPatternFinder : public StmtExprVisitor {
   ffi::Optional<VisitInterrupt> Visit_(const MulNode* op) final {
     int64_t b = static_cast<int64_t>(op->b.as<IntImmNode>()->value);
     operator_stack.push_back(Operator{Operator::OpKind::Mul, b});
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitorObj::Visit_(op));
     operator_stack.pop_back();
     return std::nullopt;
   }
@@ -207,19 +208,19 @@ class IndexPatternFinder : public StmtExprVisitor {
   bool success_ = true;
 };
 
-class TensorLoadReplacer : public StmtExprMutator {
+class TensorLoadReplacerObj : public StmtExprMutatorObj {
  public:
-  using StmtExprMutator::Mutate;
-  using StmtExprMutator::Mutate_;
+  using StmtExprMutatorObj::Mutate;
+  using StmtExprMutatorObj::Mutate_;
 
-  TensorLoadReplacer(const TensorVar& tgt_tensor, const TensorLoad& new_tensor_load)
+  TensorLoadReplacerObj(const TensorVar& tgt_tensor, const TensorLoad& new_tensor_load)
       : tgt_tensor_(tgt_tensor), new_tensor_load_(new_tensor_load) {}
 
   UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) {
     if (op->source.as_or_throw<tvm::tirx::TensorVar>().same_as(tgt_tensor_)) {
       return new_tensor_load_;
     }
-    return StmtExprMutator::Mutate_(op, inplace_mode);
+    return StmtExprMutatorObj::Mutate_(op, inplace_mode);
   }
 
  private:
@@ -321,7 +322,7 @@ std::pair<Stmt, SeqStmt> InsertCacheStage(Stmt stmt, bool is_write_cache, ffi::S
   if (!is_write_cache && tensor_store->value.as<TensorLoadNode>()) {
     ffi::Array<PrimExpr> indices =
         is_write_cache ? tensor_store->indices : tensor_store->value.as<TensorLoadNode>()->indices;
-    new_shape = IndexPatternFinder::getRankPromotedShape(indices, var_range, &cache_indices);
+    new_shape = IndexPatternFinderObj::getRankPromotedShape(indices, var_range, &cache_indices);
     // write cache disabled for now
     // rank promotion for write cache cannot guarantee the shape fits wmma.accumulator
     if (!new_shape.empty()) {
@@ -394,7 +395,7 @@ std::pair<Stmt, SeqStmt> InsertCacheStage(Stmt stmt, bool is_write_cache, ffi::S
     // copy from wmma to new cache tensor
     TensorLoad new_tensor_load = MakeTensorLoad(new_tensor, cache_indices);
     generate_body =
-        ffi::make_object<TensorLoadReplacer>(
+        ffi::make_object<TensorLoadReplacerObj>(
             target_tensor_load->source.as_or_throw<tvm::tirx::TensorVar>(), new_tensor_load)
             ->Mutate(ffi::GetRef<Stmt>(tensor_store))
             .ValueOrUnchanged(ffi::GetRef<Stmt>(tensor_store));

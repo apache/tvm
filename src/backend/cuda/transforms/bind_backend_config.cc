@@ -34,9 +34,9 @@ namespace tvm {
 namespace tirx {
 namespace transform {
 
-class BackendConfigBinder : public StmtExprMutator {
+class BackendConfigBinderObj : public StmtExprMutatorObj {
  public:
-  BackendConfigBinder(Target target, ffi::String defaults)
+  BackendConfigBinderObj(Target target, ffi::String defaults)
       : target_(target),
         defaults_(defaults),
         resolve_(ffi::Function::GetGlobalRequired("cuda.resolve_backend_config")) {}
@@ -60,7 +60,7 @@ class BackendConfigBinder : public StmtExprMutator {
  private:
   UnchangedOr<Stmt> Mutate_(const RegionStmtNode* op, InplaceMode inplace_mode) final {
     if (op->op->name != "tirx.device_entry" && op->op->name != "tirx.device_scope") {
-      return StmtExprMutator::Mutate_(op, inplace_mode);
+      return StmtExprMutatorObj::Mutate_(op, inplace_mode);
     }
     auto local = op->attrs->dict.Get("backend_config");
     auto resolved = resolve_(local.has_value() ? local.value().cast<ffi::String>() : ffi::String(),
@@ -82,7 +82,7 @@ Pass BindBackendConfig(ffi::String defaults) {
   auto transform = [defaults](Function func, IRModule mod, PassContext ctx) -> Function {
     auto target = func->GetAttr<Target>(tvm::attr::kTarget);
     if (!target.has_value() || target.value()->kind->name != "cuda") return func;
-    return BackendConfigBinder(target.value(), defaults).Apply(func);
+    return BackendConfigBinderObj(target.value(), defaults).Apply(func);
   };
   return CreateFunctionPass(transform, 0, "cuda.BindBackendConfig");
 }
@@ -90,10 +90,10 @@ Pass BindBackendConfig(ffi::String defaults) {
 // Private device helpers belong to a compilation group. Specialize their
 // transitive closure before dtype legalization so every helper sees the same
 // target and options as its callers. No device symbol crosses binary boundaries.
-class DeviceHelperSpecializer : public StmtExprMutator {
+class DeviceHelperSpecializerObj : public StmtExprMutatorObj {
  public:
-  DeviceHelperSpecializer(IRModule input, IRModule output, UniqueNameSupply names, Target target,
-                          ffi::String config, bool active = true)
+  DeviceHelperSpecializerObj(IRModule input, IRModule output, UniqueNameSupply names, Target target,
+                             ffi::String config, bool active = true)
       : input_(input),
         output_(output),
         names_(names),
@@ -114,11 +114,11 @@ class DeviceHelperSpecializer : public StmtExprMutator {
  private:
   UnchangedOr<Stmt> Mutate_(const RegionStmtNode* op, InplaceMode inplace_mode) final {
     if (op->op->name != "tirx.device_entry") {
-      return StmtExprMutator::Mutate_(op, inplace_mode);
+      return StmtExprMutatorObj::Mutate_(op, inplace_mode);
     }
     auto entry_target = op->attrs->dict.Get(tvm::attr::kTarget);
     if (!entry_target || entry_target.value().cast<Target>()->kind->name != "cuda") {
-      return StmtExprMutator::Mutate_(op, inplace_mode);
+      return StmtExprMutatorObj::Mutate_(op, inplace_mode);
     }
     auto saved_target = target_;
     auto saved_config = config_;
@@ -128,7 +128,7 @@ class DeviceHelperSpecializer : public StmtExprMutator {
     config_ = op->attrs->dict.at("backend_config").cast<ffi::String>();
     replacements_ = {};
     active_ = true;
-    auto result = StmtExprMutator::Mutate_(op, inplace_mode);
+    auto result = StmtExprMutatorObj::Mutate_(op, inplace_mode);
     target_ = saved_target;
     config_ = saved_config;
     replacements_ = saved_replacements;
@@ -138,7 +138,7 @@ class DeviceHelperSpecializer : public StmtExprMutator {
 
   UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) final {
     auto result =
-        StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Expr>(op));
+        StmtExprMutatorObj::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Expr>(op));
     auto call = result.as_or_throw<Call>();
     auto callee = call->op.as<GlobalVar>();
     if (!active_ || !callee.has_value() || !input_->functions.count(callee.value())) return result;
@@ -181,12 +181,12 @@ class DeviceHelperSpecializer : public StmtExprMutator {
 
 // Entry targets must also govern helper tile dispatch, which precedes splitting.
 // Clone before lowering, then discard only originals made unreachable by cloning.
-class HelperCallCollector : public StmtExprVisitor {
+class HelperCallCollectorObj : public StmtExprVisitorObj {
  public:
   std::vector<GlobalVar> calls;
   ffi::Optional<VisitInterrupt> Visit_(const CallNode* op) final {
     if (auto gv = op->op.as<GlobalVar>()) calls.push_back(gv.value());
-    return StmtExprVisitor::Visit_(op);
+    return StmtExprVisitorObj::Visit_(op);
   }
 };
 
@@ -200,7 +200,7 @@ Pass SpecializeEntryHelpers() {
       auto func = base.as<Function>();
       auto target = func ? func.value()->GetAttr<Target>(tvm::attr::kTarget) : std::nullopt;
       if (target && target.value()->kind->name == "cuda") {
-        auto rewriter = ffi::make_object<DeviceHelperSpecializer>(
+        auto rewriter = ffi::make_object<DeviceHelperSpecializerObj>(
             mod, result, names, target.value(), ffi::String(), false);
         result->Add(gv, rewriter->Rewrite(func.value()));
         originals.insert(rewriter->originals.begin(), rewriter->originals.end());
@@ -219,7 +219,7 @@ Pass SpecializeEntryHelpers() {
       if (!reachable.insert(gv.get()).second) continue;
       auto func = result->Lookup(gv).as<Function>();
       if (!func || !func.value()->body.has_value()) continue;
-      auto collector = ffi::make_object<HelperCallCollector>();
+      auto collector = ffi::make_object<HelperCallCollectorObj>();
       collector->Visit(func.value()->body.value());
       for (auto callee : collector->calls) {
         if (result->functions.count(callee)) pending.push_back(callee);
@@ -240,7 +240,7 @@ Pass SpecializeDeviceHelpers() {
     IRModule result({}, mod->source_map, mod->attrs, mod->global_infos);
     UniqueNameSupply names(mod->functions.begin(), mod->functions.end(),
                            [](const auto& kv) { return kv.first->name_hint; });
-    std::map<std::string, ffi::ObjectPtr<DeviceHelperSpecializer>> groups;
+    std::map<std::string, ffi::ObjectPtr<DeviceHelperSpecializerObj>> groups;
     for (auto [gv, base] : mod->functions) {
       auto func = base.as<Function>();
       if (!func.has_value()) {
@@ -261,8 +261,8 @@ Pass SpecializeDeviceHelpers() {
       std::string key = std::string(target.value()->str()) + "\n" + std::string(config);
       auto& group = groups[key];
       if (!group)
-        group =
-            ffi::make_object<DeviceHelperSpecializer>(mod, result, names, target.value(), config);
+        group = ffi::make_object<DeviceHelperSpecializerObj>(mod, result, names, target.value(),
+                                                             config);
       result->Add(gv, group->Rewrite(func.value()));
     }
     return result;

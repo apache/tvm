@@ -98,9 +98,9 @@ struct PrimTypeEqual {
 // The storage need to be kept alive between allocate and last access.
 // The free point is only inserted at the same scope of allocate.
 //
-class LinearAccessPatternFinder final : public StmtExprVisitor {
+class LinearAccessPatternFinderObj final : public StmtExprVisitorObj {
  public:
-  explicit LinearAccessPatternFinder(const ffi::Array<Var>& params) {
+  explicit LinearAccessPatternFinderObj(const ffi::Array<Var>& params) {
     for (const Var& param : params) {
       if (auto tensor = param.as<TensorVar>()) {
         tensor_aliases_.Set(tensor.value().var(), tensor.value().var());
@@ -179,7 +179,7 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
   ffi::Optional<VisitInterrupt> Visit_(const EvaluateNode* op) final {
     scope_.push_back(StmtEntry());
     // visit subexpr
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitorObj::Visit_(op));
     StmtEntry e = scope_.back();
     scope_.pop_back();
     if (e.touched.size() != 0) {
@@ -191,7 +191,7 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
 
   ffi::Optional<VisitInterrupt> Visit_(const ReturnNode* op) final {
     scope_.push_back(StmtEntry());
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitorObj::Visit_(op));
     StmtEntry e = scope_.back();
     scope_.pop_back();
     if (e.touched.size() != 0) {
@@ -202,7 +202,7 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const VarNode* buf) final {
-    if (def_region_kind() != kTVMFFIDefRegionKindNone) return StmtExprVisitor::Visit_(buf);
+    if (def_region_kind() != kTVMFFIDefRegionKindNone) return StmtExprVisitorObj::Visit_(buf);
     // Directly reference to the variable count as a read.
     if (buf->ty.as<TensorTypeNode>()) {
       Var var = ffi::GetRef<Var>(buf);
@@ -224,7 +224,7 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
     int64_t begin_index = static_cast<int64_t>(linear_seq_.size());
     // before scope.
     linear_seq_.push_back(e);
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitorObj::Visit_(op));
     // after scope.
     e.touched = std::move(scope_.back().touched);
     scope_.pop_back();
@@ -243,7 +243,7 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
     // generic regions retain a lexical allocation boundary of their own.
     if (op->op.same_as(tirx::launch_thread_op()) &&
         std::string(op->args[0].as_or_throw<StringImm>()->value).rfind("vthread", 0) != 0) {
-      if (in_thread_env_) return StmtExprVisitor::Visit_(op);
+      if (in_thread_env_) return StmtExprVisitorObj::Visit_(op);
       in_thread_env_ = true;
       auto result = VisitNewScope(op);
       in_thread_env_ = false;
@@ -277,7 +277,7 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(call->attrs));
     }
     // visit subexpr (the value may contain TensorLoad)
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitorObj::Visit_(op));
     StmtEntry e = scope_.back();
     scope_.pop_back();
     if (e.touched.size() != 0) {
@@ -352,7 +352,7 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
 //
 // The code after inplace transformation is no longer idempotent.
 //
-class InplaceOpVerifier : public StmtExprVisitor {
+class InplaceOpVerifierObj : public StmtExprVisitorObj {
  public:
   bool Check(const ffi::Object* stmt, const VarNode* dst, const VarNode* src) {
     dst_ = dst;
@@ -372,15 +372,15 @@ class InplaceOpVerifier : public StmtExprVisitor {
     return result_;
   }
 
-  using StmtExprVisitor::Visit_;
+  using StmtExprVisitorObj::Visit_;
 
   ffi::Optional<VisitInterrupt> Visit(ffi::AnyView n) final {
     if (!result_) return std::nullopt;
-    return StmtExprVisitor::Visit(n);
+    return StmtExprVisitorObj::Visit(n);
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const VarNode* op) final {
-    if (def_region_kind() != kTVMFFIDefRegionKindNone) return StmtExprVisitor::Visit_(op);
+    if (def_region_kind() != kTVMFFIDefRegionKindNone) return StmtExprVisitorObj::Visit_(op);
     // assume all opaque access is unsafe
     if (op == dst_ || op == src_) {
       result_ = false;
@@ -409,7 +409,7 @@ class InplaceOpVerifier : public StmtExprVisitor {
     if (const auto* call = op->value.as<CallNode>();
         call && call->op.same_as(tirx::alloc_tensor_op()))
       return DispatchAllocTensor(op, call);
-    return StmtExprVisitor::Visit_(op);
+    return StmtExprVisitorObj::Visit_(op);
   }
 
   ffi::Optional<VisitInterrupt> DispatchAllocTensor(const BindNode* op,
@@ -420,7 +420,7 @@ class InplaceOpVerifier : public StmtExprVisitor {
       result_ = false;
       return std::nullopt;
     }
-    return StmtExprVisitor::Visit_(op);
+    return StmtExprVisitorObj::Visit_(op);
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* op) final {
@@ -474,24 +474,24 @@ class InplaceOpVerifier : public StmtExprVisitor {
 
 /* \brief Rewrite and merge memory allocation.
  *
- * Using LinearAccessPatternFinder, determines which buffers could share an
+ * Using LinearAccessPatternFinderObj, determines which buffers could share an
  * allocation.  This includes both sequential usage of the same buffer and
  * merging small allocations at the same scope into a single larger allocation.
  * The merging of small allocations requires the codegen to cast the resulting
  * value from the storage type to the output type after access.
  */
-class StoragePlanRewriter : public StmtExprMutator {
+class StoragePlanRewriterObj : public StmtExprMutatorObj {
  public:
-  using StmtExprMutator::Mutate;
-  using StmtExprMutator::Mutate_;
-  using StmtEntry = LinearAccessPatternFinder::StmtEntry;
-  using AllocEntry = LinearAccessPatternFinder::AllocEntry;
+  using StmtExprMutatorObj::Mutate;
+  using StmtExprMutatorObj::Mutate_;
+  using StmtEntry = LinearAccessPatternFinderObj::StmtEntry;
+  using AllocEntry = LinearAccessPatternFinderObj::AllocEntry;
 
   Stmt Rewrite(Stmt stmt, const ffi::Array<Var>& params, bool detect_inplace, bool enable_reuse,
                bool reuse_require_exact_matched_dtype) {
     detect_inplace_ = detect_inplace;
     // plan the rewrite
-    auto finder = ffi::make_object<LinearAccessPatternFinder>(params);
+    auto finder = ffi::make_object<LinearAccessPatternFinderObj>(params);
     finder->Visit(stmt);
     this->LivenessAnalysis(finder->linear_seq_);
     this->PlanMemory(finder->linear_seq_, finder->alloc_info_, enable_reuse,
@@ -605,7 +605,7 @@ class StoragePlanRewriter : public StmtExprMutator {
         LOG(WARNING) << "Use a merged buffer variable address, could cause error";
       }
     }
-    return StmtExprMutator::Mutate_(op, inplace_mode);
+    return StmtExprMutatorObj::Mutate_(op, inplace_mode);
   }
   UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) final {
     if (op->op.same_as(tirx::alloc_tensor_op()) || op->op.same_as(tirx::decl_tensor_op())) {
@@ -613,7 +613,7 @@ class StoragePlanRewriter : public StmtExprMutator {
       // can refer to earlier bindings that this pass has remapped.
       auto attrs = Mutate(op->attrs, InplaceMode::kDisallow)
                        .as_or_throw<UnchangedOr<ffi::Optional<Attrs>>>();
-      auto call = StmtExprMutator::Mutate_(op, inplace_mode)
+      auto call = StmtExprMutatorObj::Mutate_(op, inplace_mode)
                       .ValueOrUnchanged(ffi::GetRef<Expr>(op))
                       .as_or_throw<Call>();
       if (!attrs.UnchangedOrSameAs(op->attrs)) {
@@ -669,13 +669,13 @@ class StoragePlanRewriter : public StmtExprMutator {
         return Call(PrimType::Void(), op->op, args, op->attrs, op->ty_args, op->loc);
       }
     } else {
-      return StmtExprMutator::Mutate_(op, inplace_mode);
+      return StmtExprMutatorObj::Mutate_(op, inplace_mode);
     }
   }
 
   UnchangedOr<Stmt> Mutate_(const RegionStmtNode* op, InplaceMode inplace_mode) final {
     auto it = attach_map_.find(op);
-    RegionStmt region = StmtExprMutator::Mutate_(op, inplace_mode)
+    RegionStmt region = StmtExprMutatorObj::Mutate_(op, inplace_mode)
                             .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
                             .as_or_throw<RegionStmt>();
     if (it != attach_map_.end()) {
@@ -690,12 +690,12 @@ class StoragePlanRewriter : public StmtExprMutator {
     if (attach_map_.count(op)) {
       auto& svec = attach_map_[op];
       Stmt stmt =
-          StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
+          StmtExprMutatorObj::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
       op = stmt.as<ForNode>();
       return For(op->loop_var, op->min, op->extent, op->kind, MakeAttach(svec, op->body),
                  op->annotations, op->step);
     } else {
-      return StmtExprMutator::Mutate_(op, inplace_mode);
+      return StmtExprMutatorObj::Mutate_(op, inplace_mode);
     }
   }
 
@@ -705,7 +705,7 @@ class StoragePlanRewriter : public StmtExprMutator {
         return MutateAllocTensor(op, call, inplace_mode);
       if (call->op.same_as(tirx::decl_tensor_op())) return MutateDeclTensor(op, call, inplace_mode);
     }
-    return StmtExprMutator::Mutate_(op, inplace_mode);
+    return StmtExprMutatorObj::Mutate_(op, inplace_mode);
   }
 
   UnchangedOr<Stmt> MutateAllocTensor(const BindNode* op, const CallNode* tensor_call,
@@ -713,7 +713,7 @@ class StoragePlanRewriter : public StmtExprMutator {
     // Placement and opaque metadata can depend on the original definition site.
     // Preserve that binding while remapping storage reads in its operands and attrs.
     if (RequiresExactAllocation(tensor_call)) {
-      return StmtExprMutator::Mutate_(op, inplace_mode);
+      return StmtExprMutatorObj::Mutate_(op, inplace_mode);
     }
     // AllocTensor combines allocation and tensor declaration.
     // Storage rewrite may merge this allocation with others.
@@ -751,7 +751,7 @@ class StoragePlanRewriter : public StmtExprMutator {
                        {tensor.type()}, tensor_call->loc),
                   op->loc);
     }
-    return StmtExprMutator::Mutate_(op, inplace_mode);
+    return StmtExprMutatorObj::Mutate_(op, inplace_mode);
   }
 
  private:
@@ -1125,7 +1125,7 @@ class StoragePlanRewriter : public StmtExprMutator {
             bool inplace_found = false;
             for (const VarNode* src : it->second.kill) {
               if (!inplace_flag.count(src) && alloc_map_.count(src)) {
-                auto visitor = ffi::make_object<InplaceOpVerifier>();
+                auto visitor = ffi::make_object<InplaceOpVerifierObj>();
                 StorageEntry* src_entry = alloc_map_.at(src);
                 if (!src_entry->requires_exact_allocation && src_entry->scope == storage_scope &&
                     src_entry->attach_scope_ == thread_scope_ && !element_type.IsScalableVector() &&
@@ -1332,7 +1332,7 @@ class StoragePlanRewriter : public StmtExprMutator {
   std::vector<std::unique_ptr<StorageEntry>> alloc_vec_;
   // Physical backing chosen for each remapped tensor view.
   std::unordered_map<const VarNode*, TensorVar> remapped_backing_;
-  // Physical roots of tensor aliases, flattened by LinearAccessPatternFinder.
+  // Physical roots of tensor aliases, flattened by LinearAccessPatternFinderObj.
   ffi::Map<Var, Var> tensor_aliases_;
   // analyzer
   sym::Analyzer analyzer_;
@@ -1426,7 +1426,7 @@ struct BufferVarInfo {
  * function.
  *
  */
-class VectorTypeAccessChecker : public StmtExprVisitor {
+class VectorTypeAccessCheckerObj : public StmtExprVisitorObj {
  public:
   /* Constructor
    *
@@ -1436,8 +1436,9 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
    * missing a type annotation, assume that it has the same underlying
    * type as it is later accessed, with scalar element types.
    */
-  VectorTypeAccessChecker(const ffi::Array<tvm::Var>& params, bool allow_untyped_pointers = false,
-                          bool detect_scalar_read_patterns = true)
+  VectorTypeAccessCheckerObj(const ffi::Array<tvm::Var>& params,
+                             bool allow_untyped_pointers = false,
+                             bool detect_scalar_read_patterns = true)
       : allow_untyped_pointers_(allow_untyped_pointers),
         detect_scalar_read_patterns_(detect_scalar_read_patterns) {
     for (Var buffer_var : params) {
@@ -1465,13 +1466,13 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
     OnArrayAccess(op->ty.as_or_throw<PrimType>(),
                   op->source.as_or_throw<tvm::tirx::TensorVar>().get(), op->indices,
                   /*is_tensor_load=*/true);
-    return StmtExprVisitor::Visit_(op);
+    return StmtExprVisitorObj::Visit_(op);
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const TensorStoreNode* op) final {
     OnArrayAccess(op->value.ty(), op->dest.as_or_throw<TensorVar>().get(), op->indices,
                   /*is_tensor_load=*/false);
-    return StmtExprVisitor::Visit_(op);
+    return StmtExprVisitorObj::Visit_(op);
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const CallNode* op) final {
@@ -1491,10 +1492,10 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
                       load->source.as_or_throw<tvm::tirx::TensorVar>().get(), load->indices,
                       /*is_tensor_load=*/false);
         // Preserve the address use without treating its operand as a value load.
-        return StmtExprVisitor::Visit_(load);
+        return StmtExprVisitorObj::Visit_(load);
       }
     }
-    return StmtExprVisitor::Visit_(op);
+    return StmtExprVisitorObj::Visit_(op);
   }
 
   ffi::Optional<VisitInterrupt> DispatchAllocTensor(const BindNode* op, const CallNode* call) {
@@ -1506,7 +1507,7 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
         shape->fields.size() ? shape->fields.back().as_or_throw<PrimExpr>() : PrimExpr(0);
     OnArrayDeclaration(op->var, element_type, extent, BufferVarInfo::kAllocTensorCall);
 
-    return StmtExprVisitor::Visit_(op);
+    return StmtExprVisitorObj::Visit_(op);
   }
 
   ffi::Optional<VisitInterrupt> DispatchDeclTensor(const BindNode* op,
@@ -1518,12 +1519,12 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
     PrimExpr extent =
         shape->fields.size() ? shape->fields.back().as_or_throw<PrimExpr>() : PrimExpr(0);
     OnArrayDeclaration(op->var, element_type, extent, BufferVarInfo::kDeclTensorCall);
-    return StmtExprVisitor::Visit_(op);
+    return StmtExprVisitorObj::Visit_(op);
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const prim::LetNode* op) final {
     HandleLetNode(op->var);
-    return StmtExprVisitor::Visit_(op);
+    return StmtExprVisitorObj::Visit_(op);
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const BindNode* op) final {
@@ -1532,7 +1533,7 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
       if (call->op.same_as(tirx::decl_tensor_op())) return DispatchDeclTensor(op, call);
     }
     HandleLetNode(op->var);
-    return StmtExprVisitor::Visit_(op);
+    return StmtExprVisitorObj::Visit_(op);
   }
 
   void HandleLetNode(Var let_var) {
@@ -1716,7 +1717,7 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
  * runtimes, in which `float16x4* vec = *(float16x4*)(float_arr + offset)` is
  * valid.
  *
- * By default, VectorTypeRewriter will attempt to rewrite all buffer variables to
+ * By default, VectorTypeRewriterObj will attempt to rewrite all buffer variables to
  * vectorized access, if the load/store occurring in the Function are all
  * vectorized.  This includes adjusting the indices being used to access the
  * array.  (e.g. If `float16* scalar_arr` is being converted to `float16x4*
@@ -1726,17 +1727,17 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
  * Currently, several of the C-style runtimes do not support buffers whose
  * elements are vectorized types, or rely on the presence of the Ramp nodes to
  * identify vectorized loads.  The boolean parameters in the constructor are to
- * mimic the previous behavior of VectorTypeRewriter, to avoid breaking these
+ * mimic the previous behavior of VectorTypeRewriterObj, to avoid breaking these
  * runtimes.  Once all runtimes support vectorized buffer elements, these
  * parameters can be removed.
  */
-class VectorTypeRewriter : public StmtExprMutator {
+class VectorTypeRewriterObj : public StmtExprMutatorObj {
  public:
-  using StmtExprMutator::Mutate;
-  using StmtExprMutator::Mutate_;
+  using StmtExprMutatorObj::Mutate;
+  using StmtExprMutatorObj::Mutate_;
   /* Constructor
    *
-   * @param checker The VectorTypeAccessChecker that has previously read out
+   * @param checker The VectorTypeAccessCheckerObj that has previously read out
    * information from the Function
    *
    * @param rewrite_tensor_params Whether TensorType-annotated parameters should
@@ -1754,11 +1755,11 @@ class VectorTypeRewriter : public StmtExprMutator {
    * @param rewrite_let_node Whether pointer declarations in let nodes
    * should be re-written.
    */
-  VectorTypeRewriter(const std::unordered_map<const VarNode*, BufferVarInfo>& info_map,
-                     const ffi::Map<Var, Var>& tensor_aliases, bool rewrite_tensor_params = true,
-                     bool rewrite_pointer_params = true, bool rewrite_alloc_tensor_node = true,
-                     bool rewrite_indices = true, bool rewrite_let_node = true,
-                     bool rewrite_scalar_read_to_vector_shuffle = true)
+  VectorTypeRewriterObj(const std::unordered_map<const VarNode*, BufferVarInfo>& info_map,
+                        const ffi::Map<Var, Var>& tensor_aliases, bool rewrite_tensor_params = true,
+                        bool rewrite_pointer_params = true, bool rewrite_alloc_tensor_node = true,
+                        bool rewrite_indices = true, bool rewrite_let_node = true,
+                        bool rewrite_scalar_read_to_vector_shuffle = true)
       : rewrite_indices_(rewrite_indices), tensor_aliases_(tensor_aliases) {
     int rewrite_mask = 0;
     if (rewrite_tensor_params) {
@@ -2072,7 +2073,7 @@ class VectorTypeRewriter : public StmtExprMutator {
         return RemapTensor(var.value().as_or_throw<TensorVar>()).data();
       }
     }
-    return StmtExprMutator::Mutate_(op, inplace_mode);
+    return StmtExprMutatorObj::Mutate_(op, inplace_mode);
   }
 
   /* Update the parameters and all remaining variable references
@@ -2087,13 +2088,13 @@ class VectorTypeRewriter : public StmtExprMutator {
     auto& func = *func_ptr;
     auto* n = func.CopyOnWrite();
 
-    class PointerVarSubstituter : public StmtExprMutator {
+    class PointerVarSubstituterObj : public StmtExprMutatorObj {
      public:
-      using StmtExprMutator::Mutate;
-      using StmtExprMutator::Mutate_;
+      using StmtExprMutatorObj::Mutate;
+      using StmtExprMutatorObj::Mutate_;
 
       UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) final {
-        auto result = StmtExprMutator::Mutate_(op, inplace_mode);
+        auto result = StmtExprMutatorObj::Mutate_(op, inplace_mode);
         if (!result.IsUnchanged()) {
           op = ffi::AnyView(result).as<CallNode>();
           if (!op->unique()) inplace_mode = InplaceMode::kDisallow;
@@ -2110,7 +2111,7 @@ class VectorTypeRewriter : public StmtExprMutator {
         return Expr(std::move(copy));
       }
     };
-    auto substituter = ffi::make_object<PointerVarSubstituter>();
+    auto substituter = ffi::make_object<PointerVarSubstituterObj>();
     for (const auto& [_, info] : rewrite_map_) {
       substituter->VarRemapSet(info.old_tensor_var, info.new_tensor_var);
     }
@@ -2159,11 +2160,11 @@ Function PointerValueTypeRewrite(Function f, bool allow_untyped_pointers = false
                                  bool rewrite_alloc_tensor_node = true, bool rewrite_indices = true,
                                  bool rewrite_let_node = true,
                                  bool rewrite_scalar_read_to_vector_shuffle = true) {
-  auto checker = ffi::make_object<VectorTypeAccessChecker>(f->params, allow_untyped_pointers,
-                                                           rewrite_scalar_read_to_vector_shuffle);
+  auto checker = ffi::make_object<VectorTypeAccessCheckerObj>(
+      f->params, allow_untyped_pointers, rewrite_scalar_read_to_vector_shuffle);
   checker->Visit(f->body);
 
-  auto rewriter = ffi::make_object<VectorTypeRewriter>(
+  auto rewriter = ffi::make_object<VectorTypeRewriterObj>(
       checker->info_map_, checker->tensor_aliases_, rewrite_tensor_params, rewrite_pointer_params,
       rewrite_alloc_tensor_node, rewrite_indices, rewrite_let_node,
       rewrite_scalar_read_to_vector_shuffle);
@@ -2196,9 +2197,9 @@ Pass StorageRewrite() {
       reuse_require_exact_matched_dtype = true;
     }
     auto* n = f.CopyOnWrite();
-    n->body = ffi::make_object<StoragePlanRewriter>()->Rewrite(std::move(n->body).value(),
-                                                               n->params, true, enable_reuse,
-                                                               reuse_require_exact_matched_dtype);
+    n->body = ffi::make_object<StoragePlanRewriterObj>()->Rewrite(
+        std::move(n->body).value(), n->params, true, enable_reuse,
+        reuse_require_exact_matched_dtype);
     // Parameters may not be rewritten, but internal allocations may.
     return PointerValueTypeRewrite(std::move(f), true, false, false, true, true, true, false);
   };

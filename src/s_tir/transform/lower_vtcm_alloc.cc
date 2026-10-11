@@ -34,19 +34,19 @@ inline bool IsVtcmStorage(std::string scope) {
   return scope.find("global.vtcm") != std::string::npos;
 }
 
-class VtcmAllocator : public StmtExprMutator {
+class VtcmAllocatorObj : public StmtExprMutatorObj {
  public:
-  using StmtExprMutator::Mutate;
-  using StmtExprMutator::Mutate_;
+  using StmtExprMutatorObj::Mutate;
+  using StmtExprMutatorObj::Mutate_;
 
-  VtcmAllocator() {}
+  VtcmAllocatorObj() {}
 
   UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final {
     if (const auto* call = op->value.as<CallNode>();
         call && call->op.same_as(tirx::alloc_tensor_op())) {
       return Mutate_AllocTensor(op, call, inplace_mode);
     }
-    return StmtExprMutator::Mutate_(op, inplace_mode);
+    return StmtExprMutatorObj::Mutate_(op, inplace_mode);
   }
 
   UnchangedOr<Stmt> Mutate_AllocTensor(const BindNode* op, const CallNode* call,
@@ -66,7 +66,7 @@ class VtcmAllocator : public StmtExprMutator {
                        {}, {tensor.type()}, call->loc),
                   op->loc);
     }
-    return StmtExprMutator::Mutate_(op, inplace_mode);
+    return StmtExprMutatorObj::Mutate_(op, inplace_mode);
   }
 
  protected:
@@ -79,7 +79,7 @@ class VtcmAllocator : public StmtExprMutator {
 
 Function LowerVtcmAlloc(Function func) {
   auto fptr = func.CopyOnWrite();
-  fptr->body = ffi::make_object<VtcmAllocator>()
+  fptr->body = ffi::make_object<VtcmAllocatorObj>()
                    ->Mutate(fptr->body, InplaceMode::kAllow)
                    .ValueOrUnchanged(std::move(fptr->body));
   return func;

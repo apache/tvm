@@ -36,10 +36,10 @@ using support::NDIntSet;
  * \tparam is_consumer Indicates if all the required blocks are consumers or producers
  */
 template <bool is_consumer>
-class NotAllRequiredBlocksAreVisitedError : public ScheduleErrorContextObj {
+class NotAllRequiredBlocksAreVisitedErrorObj : public ScheduleErrorContextObj {
  public:
-  explicit NotAllRequiredBlocksAreVisitedError(IRModule mod, int num_not_visited,
-                                               const ffi::Array<StmtSRef>& required)
+  explicit NotAllRequiredBlocksAreVisitedErrorObj(IRModule mod, int num_not_visited,
+                                                  const ffi::Array<StmtSRef>& required)
       : mod_(mod), num_not_visited_(num_not_visited) {
     required_.reserve(required.size());
     for (const StmtSRef& block_sref : required) {
@@ -81,23 +81,23 @@ class NotAllRequiredBlocksAreVisitedError : public ScheduleErrorContextObj {
  * \brief An error raised when the given block is not in the same block scope as the given loop,
  * or the given loop is the ancestor of the given block.
  */
-class NotInSameScopeError : public ScheduleErrorContextObj {
+class NotInSameScopeErrorObj : public ScheduleErrorContextObj {
  public:
   static void CheckAndBindLoopDomain(const ScheduleState& self, const StmtSRef& block_sref,
                                      const StmtSRef& loop_sref, const StmtSRef& scope_root_sref,
                                      sym::AnalyzerObj* analyzer) {
-    for (const StmtSRefNode* p = loop_sref.get();; p = p->parent) {
+    for (const StmtSRefObj* p = loop_sref.get();; p = p->parent) {
       if (const ForNode* loop = p->StmtAs<ForNode>()) {
         analyzer->Bind(loop->loop_var, Range::FromMinExtent(loop->min, loop->extent));
       } else if (p != scope_root_sref.get()) {
-        throw MakeScheduleError<NotInSameScopeError>(self->mod, block_sref, loop_sref);
+        throw MakeScheduleError<NotInSameScopeErrorObj>(self->mod, block_sref, loop_sref);
       } else {
         break;
       }
     }
-    for (const StmtSRefNode* p = block_sref->parent; p != scope_root_sref.get(); p = p->parent) {
+    for (const StmtSRefObj* p = block_sref->parent; p != scope_root_sref.get(); p = p->parent) {
       if (p == loop_sref.get()) {
-        throw MakeScheduleError<NotInSameScopeError>(self->mod, block_sref, loop_sref);
+        throw MakeScheduleError<NotInSameScopeErrorObj>(self->mod, block_sref, loop_sref);
       }
     }
   }
@@ -113,7 +113,8 @@ class NotInSameScopeError : public ScheduleErrorContextObj {
   IRModule mod() const final { return mod_; }
   ffi::Array<ffi::ObjectRef> LocationsOfInterest() const final { return {block_, loop_}; }
 
-  explicit NotInSameScopeError(IRModule mod, const StmtSRef& block_sref, const StmtSRef& loop_sref)
+  explicit NotInSameScopeErrorObj(IRModule mod, const StmtSRef& block_sref,
+                                  const StmtSRef& loop_sref)
       : mod_(mod),
         block_(ffi::GetRef<SBlock>(block_sref->StmtAs<SBlockNode>())),
         loop_(ffi::GetRef<For>(loop_sref->StmtAs<ForNode>())) {}
@@ -154,7 +155,7 @@ int FindInsertionPoint(
   if (require_all_producers_visited) {
     int num_producers = producer_srefs.size();
     if (split.n_producers_visited < num_producers) {
-      throw MakeScheduleError<NotAllRequiredBlocksAreVisitedError<false>>(
+      throw MakeScheduleError<NotAllRequiredBlocksAreVisitedErrorObj<false>>(
           self->mod, num_producers - split.n_producers_visited, producer_srefs);
     }
   }
@@ -162,7 +163,7 @@ int FindInsertionPoint(
   if (require_all_consumers_visited) {
     int num_consumers = consumer_srefs.size();
     if (split.n_consumers_visited < num_consumers) {
-      throw MakeScheduleError<NotAllRequiredBlocksAreVisitedError<true>>(
+      throw MakeScheduleError<NotAllRequiredBlocksAreVisitedErrorObj<true>>(
           self->mod, num_consumers - split.n_consumers_visited, consumer_srefs);
     }
   }
@@ -242,16 +243,16 @@ struct BlockVarDomainInfo {
  * \brief A helper to reconstruct the block scope where the given block is moved under the given
  * loop, and the given block's induced loop nest is regenerated to satisfy the required region.
  */
-class ScopeReconstructor : public StmtExprMutator {
+class ScopeReconstructorObj : public StmtExprMutatorObj {
  public:
-  using StmtExprMutator::Mutate;
-  using StmtExprMutator::Mutate_;
+  using StmtExprMutatorObj::Mutate;
+  using StmtExprMutatorObj::Mutate_;
   UnchangedOr<ffi::Any> Mutate(ffi::AnyView value, InplaceMode inplace_mode) override {
     if (value.as<ExprNode>()) return ffi::Unchanged();
-    return StmtExprMutator::Mutate(value, inplace_mode);
+    return StmtExprMutatorObj::Mutate(value, inplace_mode);
   }
 
-  explicit ScopeReconstructor(SBlock scope_root, SBlock block, For loop)
+  explicit ScopeReconstructorObj(SBlock scope_root, SBlock block, For loop)
       : scope_root_(scope_root), block_(block), loop_(loop) {}
 
   /*!
@@ -329,7 +330,8 @@ class ScopeReconstructor : public StmtExprMutator {
     if (block == rm_src_stmt_.get()) {
       block = TVM_TYPE_AS(rm_tgt_stmt_, SBlockNode);
     }
-    return StmtExprMutator::Mutate_(block, block->unique() ? inplace_mode : InplaceMode::kDisallow)
+    return StmtExprMutatorObj::Mutate_(block,
+                                       block->unique() ? inplace_mode : InplaceMode::kDisallow)
         .ValueOrUnchanged(ffi::GetRef<Stmt>(block));
   }
 
@@ -340,7 +342,7 @@ class ScopeReconstructor : public StmtExprMutator {
     if (loop == loop_.get()) {
       return new_loop_.value();
     }
-    return StmtExprMutator::Mutate_(loop, loop->unique() ? inplace_mode : InplaceMode::kDisallow)
+    return StmtExprMutatorObj::Mutate_(loop, loop->unique() ? inplace_mode : InplaceMode::kDisallow)
         .ValueOrUnchanged(ffi::GetRef<Stmt>(loop));
   }
 
@@ -735,15 +737,15 @@ void ComputeAtOrReverseComputeAtImpl(ScheduleState self, const StmtSRef& block_s
   CheckCompleteOrReductionBlock(self, block_sref, scope_root_sref);
   // Check condition 3): `block` and `loop` are under the same scope,
   // and `loop` is not the ancestor of `block`
-  NotInSameScopeError::CheckAndBindLoopDomain(self, block_sref, loop_sref, scope_root_sref,
-                                              analyzer);
+  NotInSameScopeErrorObj::CheckAndBindLoopDomain(self, block_sref, loop_sref, scope_root_sref,
+                                                 analyzer);
   // Check condition 4): `block` is not an output block
   if (is_compute_at) {
     CheckNotOutputBlock(self, block_sref, scope_root_sref);
   }
   // Step 2. Plan for the removal of `block`
-  auto reconstructor = ffi::make_object<ScopeReconstructor>(scope_root, ffi::GetRef<SBlock>(block),
-                                                            ffi::GetRef<For>(loop));
+  auto reconstructor = ffi::make_object<ScopeReconstructorObj>(
+      scope_root, ffi::GetRef<SBlock>(block), ffi::GetRef<For>(loop));
   LeafBlockRemovalPlan(self, block_sref, &reconstructor->rm_src_stmt_,
                        &reconstructor->rm_tgt_stmt_);
   // Step 3. Find the insertion point under `loop`

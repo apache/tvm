@@ -122,7 +122,7 @@ class ProcessSessionObj final : public BcastSessionObj {
     }
     ffi::ObjectRef wrapped{nullptr};
     if (value.as<ffi::ObjectRef>()) {
-      wrapped = DiscoDebugObject::Wrap(value);
+      wrapped = DiscoDebugObj::Wrap(value);
       value = wrapped;
     }
     {

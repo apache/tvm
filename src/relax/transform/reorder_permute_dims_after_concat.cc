@@ -85,7 +85,7 @@ std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, ffi::Map<DFPattern, Expr>)>>
   auto get_permute_dims_optional_axes = [](const Expr& expr) -> ffi::Optional<ffi::Array<int64_t>> {
     auto call = expr.as<CallNode>();
     TVM_FFI_ICHECK(call);
-    auto attrs = call->attrs.as<PermuteDimsAttrs>();
+    auto attrs = call->attrs.as<PermuteDimsAttrsNode>();
     TVM_FFI_ICHECK(attrs);
 
     return attrs->axes;
@@ -166,7 +166,7 @@ std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, ffi::Map<DFPattern, Expr>)>>
         get_permute_dims_optional_axes(all_permute_dims[0]);
 
     Call concat_call = matches[pat_concat].as_or_throw<Call>();
-    auto concat_attrs = concat_call->attrs.as<ConcatAttrs>();
+    auto concat_attrs = concat_call->attrs.as<ConcatAttrsNode>();
     TVM_FFI_ICHECK(concat_attrs);
 
     int64_t old_concat_axis = concat_attrs->axis.value_or(0);

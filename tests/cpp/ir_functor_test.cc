@@ -203,7 +203,7 @@ TEST(IRF, StmtVisitor) {
   using namespace tvm;
   using namespace tvm::tirx;
   PrimVar x("x");
-  class MyVisitor : public s_tir::StmtExprVisitor {
+  class MyVisitorObj : public s_tir::StmtExprVisitorObj {
    public:
     int count = 0;
     // implementation
@@ -213,7 +213,7 @@ TEST(IRF, StmtVisitor) {
       return std::nullopt;
     }
   };
-  auto v = ffi::make_object<MyVisitor>();
+  auto v = ffi::make_object<MyVisitorObj>();
   auto fmaketest = [&]() {
     auto z = x + 1;
     Stmt eval_body = Evaluate(z);
@@ -257,14 +257,14 @@ TEST(IRF, StmtVisitor) {
   }
 }
 
-TEST(IRF, StmtExprMutator) {
+TEST(IRF, StmtExprMutatorObj) {
   using namespace tvm;
   using namespace tvm::tirx;
   PrimVar x("x");
 
-  class MyMutator : public s_tir::StmtExprMutator {
+  class MyMutatorObj : public s_tir::StmtExprMutatorObj {
    public:
-    using s_tir::StmtExprMutator::Mutate_;
+    using s_tir::StmtExprMutatorObj::Mutate_;
     UnchangedOr<PrimExpr> Mutate_(const prim::AddNode* op, InplaceMode) final { return op->a; }
   };
   auto fmakealloc = [&]() {
@@ -281,7 +281,7 @@ TEST(IRF, StmtExprMutator) {
     return If(x, Evaluate(0), SeqStmt(body));
   };
 
-  auto v = ffi::make_object<MyMutator>();
+  auto v = ffi::make_object<MyMutatorObj>();
   {
     auto alloc = fmakealloc();
     Stmt body2 = Evaluate(1);

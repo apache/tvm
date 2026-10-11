@@ -29,12 +29,12 @@ namespace script {
 namespace ir_builder {
 namespace s_tir {
 TVM_FFI_STATIC_INIT_BLOCK() {
-  FunctionFrameNode::RegisterReflection();
-  SBlockFrameNode::RegisterReflection();
-  BlockInitFrameNode::RegisterReflection();
-  tirx::FunctionFrameNode::RegisterAttrValidator(
-      tvm::attr::kSTir, [](const tirx::FunctionFrameNode* frame, const ffi::Any& value) {
-        TVM_FFI_CHECK(frame->IsInstance<FunctionFrameNode>(), ValueError)
+  FunctionFrameObj::RegisterReflection();
+  SBlockFrameObj::RegisterReflection();
+  BlockInitFrameObj::RegisterReflection();
+  tirx::FunctionFrameObj::RegisterAttrValidator(
+      tvm::attr::kSTir, [](const tirx::FunctionFrameObj* frame, const ffi::Any& value) {
+        TVM_FFI_CHECK(frame->IsInstance<FunctionFrameObj>(), ValueError)
             << "The s_tir attribute requires Ts.function";
         bool enabled = false;
         if (auto flag = value.as<bool>()) {
@@ -48,7 +48,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       });
 }
 
-tvm::tirx::Function FunctionFrameNode::FinalizeFunction(tvm::tirx::Function func) {
+tvm::tirx::Function FunctionFrameObj::FinalizeFunction(tvm::tirx::Function func) {
   func = WithAttr(std::move(func), tvm::attr::kScriptNamespace, ffi::String("s_tir"));
   TVM_FFI_CHECK(!is_declaration || root_alloc_tensors.empty(), ValueError)
       << "A function declaration cannot allocate tensors";
@@ -60,10 +60,10 @@ tvm::tirx::Function FunctionFrameNode::FinalizeFunction(tvm::tirx::Function func
   return func;
 }
 
-void FunctionFrameNode::BindTensorRegion(tvm::tirx::TensorVar tensor, tvm::TensorRegion region,
+void FunctionFrameObj::BindTensorRegion(tvm::tirx::TensorVar tensor, tvm::TensorRegion region,
                                          ffi::Array<PrimExpr> allocated_addr) {
   if (auto function = IRBuilder::Current()->FindFrame<tirx::FunctionFrame>()) {
-    TVM_FFI_CHECK(function.value().as<FunctionFrameNode>() != nullptr, ValueError)
+    TVM_FFI_CHECK(function.value().as<FunctionFrameObj>() != nullptr, ValueError)
         << "match_tensor requires Ts.function; T.function only accepts TIRx";
   }
   SBlockFrame frame = FindSBlockFrame("Ts.match_tensor");
@@ -74,13 +74,13 @@ void FunctionFrameNode::BindTensorRegion(tvm::tirx::TensorVar tensor, tvm::Tenso
   }
 }
 
-void SBlockFrameNode::ExitWithScope() {
-  ir::StmtFrameNode::ExitWithScope();
+void SBlockFrameObj::ExitWithScope() {
+  ir::StmtFrameObj::ExitWithScope();
 
   // Shared operations remain usable in S-TIR and raw builder contexts, but
   // a TIRx function cannot contain an S-TIR block, even with validation disabled.
   if (auto function = IRBuilder::Current()->FindFrame<tirx::FunctionFrame>()) {
-    TVM_FFI_CHECK(function.value().as<FunctionFrameNode>() != nullptr, ValueError)
+    TVM_FFI_CHECK(function.value().as<FunctionFrameObj>() != nullptr, ValueError)
         << "S-TIR blocks require Ts.function; T.function only accepts TIRx";
   }
 
@@ -113,16 +113,16 @@ void SBlockFrameNode::ExitWithScope() {
   }
 }
 
-void BlockInitFrameNode::EnterWithScope() {
+void BlockInitFrameObj::EnterWithScope() {
   SBlockFrame frame = FindSBlockFrame("Ts.init");
   if (frame->init.has_value()) {
     TVM_FFI_THROW(ValueError) << "Duplicate block init declaration";
   }
-  ir::StmtFrameNode::EnterWithScope();
+  ir::StmtFrameObj::EnterWithScope();
 }
 
-void BlockInitFrameNode::ExitWithScope() {
-  ir::StmtFrameNode::ExitWithScope();
+void BlockInitFrameObj::ExitWithScope() {
+  ir::StmtFrameObj::ExitWithScope();
   SBlockFrame frame = FindSBlockFrame("Ts.init");
   frame->init = AsStmt(stmts);
 }

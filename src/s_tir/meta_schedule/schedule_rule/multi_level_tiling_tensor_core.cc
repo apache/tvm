@@ -77,9 +77,9 @@ TensorCoreIntrinGroup TensorCoreIntrinGroup::FromConfig(
   return intrin_group;
 }
 
-class TensorCoreStateNode : public StateNode {
+class TensorCoreStateObj : public StateObj {
  public:
-  explicit TensorCoreStateNode(Schedule sch) : StateNode(std::move(sch)) {}
+  explicit TensorCoreStateObj(Schedule sch) : StateObj(std::move(sch)) {}
   /*! \brief The tensor core intrinsic group. */
   TensorCoreIntrinGroup intrin_group;
   /*! \brief The auto tensorization maping info. */
@@ -99,11 +99,11 @@ class TensorCoreStateNode : public StateNode {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<TensorCoreStateNode>();
+    refl::ObjectDef<TensorCoreStateObj>();
   }
 
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.meta_schedule.TensorCoreState", TensorCoreStateNode,
-                                    StateNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.meta_schedule.TensorCoreState", TensorCoreStateObj,
+                                    StateObj);
 };
 
 class TensorCoreState : public State {
@@ -113,7 +113,7 @@ class TensorCoreState : public State {
                            SBlockRV block_rv, bool use_async,
                            ffi::Array<ffi::Array<s_tir::LoopRV>> tiles = {});
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TensorCoreState, State, TensorCoreStateNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TensorCoreState, State, TensorCoreStateObj);
 };
 
 TensorCoreState::TensorCoreState(TensorCoreIntrinGroup intrin_group,
@@ -121,7 +121,7 @@ TensorCoreState::TensorCoreState(TensorCoreIntrinGroup intrin_group,
                                  SBlockRV block_rv, bool use_async,
                                  ffi::Array<ffi::Array<LoopRV>> tiles)
     : State(ffi::UnsafeInit{}) {
-  ffi::ObjectPtr<TensorCoreStateNode> node = ffi::make_object<TensorCoreStateNode>(std::move(sch));
+  ffi::ObjectPtr<TensorCoreStateObj> node = ffi::make_object<TensorCoreStateObj>(std::move(sch));
   node->intrin_group = intrin_group;
   node->mapping_info = mapping_info;
   node->block_rv = std::move(block_rv);
@@ -131,8 +131,8 @@ TensorCoreState::TensorCoreState(TensorCoreIntrinGroup intrin_group,
   data_ = std::move(node);
 }
 
-State TensorCoreStateNode::Copy() const {
-  ffi::ObjectPtr<TensorCoreStateNode> node = ffi::make_object<TensorCoreStateNode>(*this);
+State TensorCoreStateObj::Copy() const {
+  ffi::ObjectPtr<TensorCoreStateObj> node = ffi::make_object<TensorCoreStateObj>(*this);
   node->sch = sch->Copy();
   return State(ffi::UnsafeInit{}, node);
 }
@@ -141,7 +141,7 @@ State TensorCoreStateNode::Copy() const {
  * \brief Extension of MultiLevelTiling for auto-tensorizing with a single group of tensor core
  * intrinsics.
  */
-class MultiLevelTilingTensorCoreNode : public MultiLevelTilingNode {
+class MultiLevelTilingTensorCoreObj : public MultiLevelTilingObj {
  private:
   // SubRule: Add tensorization-related transformations
   inline std::vector<State> TransformForTensorization(TensorCoreState state) const;
@@ -149,7 +149,7 @@ class MultiLevelTilingTensorCoreNode : public MultiLevelTilingNode {
   // output in the shared memory.
   std::vector<State> TransformIntermediateOutputLayout(TensorCoreState state);
   // Subrule: Add read cache for mma
-  // Basically same with MultiLevelTilingNode::AddReadReuse, but change CacheRead + ComputeAt to
+  // Basically same with MultiLevelTilingObj::AddReadReuse, but change CacheRead + ComputeAt to
   // ReadAt
   inline std::vector<State> MMAAddReadReuse(TensorCoreState state) const;
   // Subrule: Add tensorized load
@@ -163,7 +163,7 @@ class MultiLevelTilingTensorCoreNode : public MultiLevelTilingNode {
   MMASplitLoop(const Schedule& sch, SBlockRV block, LoopRV loop, int n_tiles, int partition_pos,
                int innerpart_factor) const;
   // Subrule: tile loop nest for mma
-  // Basically same with MultiLevelTilingNode::TileLoopNest, but change SamplePerfectTile to
+  // Basically same with MultiLevelTilingObj::TileLoopNest, but change SamplePerfectTile to
   // SamplePartitionedTile
   inline std::vector<State> MMATileLoopNest(TensorCoreState state) const;
 
@@ -173,10 +173,10 @@ class MultiLevelTilingTensorCoreNode : public MultiLevelTilingNode {
   // Override Apply to apply tensorization-specific analysis before applying sub-rules
   ffi::Array<Schedule> Apply(const Schedule& sch, const SBlockRV& block_rv) final;
 
-  // Inherited from ScheduleRuleNode
+  // Inherited from ScheduleRuleObj
   ScheduleRule Clone() const final {
-    ffi::ObjectPtr<MultiLevelTilingTensorCoreNode> n =
-        ffi::make_object<MultiLevelTilingTensorCoreNode>(*this);
+    ffi::ObjectPtr<MultiLevelTilingTensorCoreObj> n =
+        ffi::make_object<MultiLevelTilingTensorCoreObj>(*this);
     return ScheduleRule(ffi::UnsafeInit{}, n);
   }
 
@@ -186,7 +186,7 @@ class MultiLevelTilingTensorCoreNode : public MultiLevelTilingNode {
    * \param intrin_name The name of the tensor intrin
    * \return The loop to be tensorized. std::nullopt if the workload can't be tensorized.
    */
-  ffi::Optional<LoopRV> TransformWithTensorIntrin(TensorCoreStateNode* state,
+  ffi::Optional<LoopRV> TransformWithTensorIntrin(TensorCoreStateObj* state,
                                                   const ffi::String& intrin_name) const;
 
   /*!
@@ -206,18 +206,18 @@ class MultiLevelTilingTensorCoreNode : public MultiLevelTilingNode {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<MultiLevelTilingTensorCoreNode>();
+    refl::ObjectDef<MultiLevelTilingTensorCoreObj>();
   }
 
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.meta_schedule.MultiLevelTilingTensorCore",
-                                    MultiLevelTilingTensorCoreNode, MultiLevelTilingNode);
+                                    MultiLevelTilingTensorCoreObj, MultiLevelTilingObj);
 
  private:
 };
 
-// Entry of the mega rule; Inherited from ScheduleRuleNode
-ffi::Array<Schedule> MultiLevelTilingTensorCoreNode::Apply(const Schedule& sch,
-                                                           const SBlockRV& block_rv) {
+// Entry of the mega rule; Inherited from ScheduleRuleObj
+ffi::Array<Schedule> MultiLevelTilingTensorCoreObj::Apply(const Schedule& sch,
+                                                          const SBlockRV& block_rv) {
   if (!NeedsMultiLevelTiling(sch->state(), sch->GetSRef(block_rv))) {
     return {sch};
   }
@@ -254,7 +254,7 @@ ffi::Array<Schedule> MultiLevelTilingTensorCoreNode::Apply(const Schedule& sch,
   ffi::Array<Schedule> results;
   for (auto&& state : ApplySubRules(initial_states)) {
     TVM_PY_LOG(INFO, logger) << "Sketch " << results.size() << ": tensorizing with "
-                             << state.as<TensorCoreStateNode>()->intrin_group.compute_intrin;
+                             << state.as<TensorCoreStateObj>()->intrin_group.compute_intrin;
     results.push_back(std::move(state->sch));
   }
   if (results.empty()) {
@@ -264,7 +264,7 @@ ffi::Array<Schedule> MultiLevelTilingTensorCoreNode::Apply(const Schedule& sch,
   return results;
 }
 
-std::vector<State> MultiLevelTilingTensorCoreNode::ApplySubRules(std::vector<State> states) {
+std::vector<State> MultiLevelTilingTensorCoreObj::ApplySubRules(std::vector<State> states) {
   states = SubRule(std::move(states), [&](State state) {
     return TransformForTensorization(state.as_or_throw<TensorCoreState>());
   });
@@ -292,7 +292,7 @@ std::vector<State> MultiLevelTilingTensorCoreNode::ApplySubRules(std::vector<Sta
   return states;
 }
 
-void MultiLevelTilingTensorCoreNode::TileAndAnnotateTensorize(
+void MultiLevelTilingTensorCoreObj::TileAndAnnotateTensorize(
     Schedule* sch, const SBlockRV& block_rv, const ffi::String& intrin_name,
     const ffi::String& permuted_layout_annotate_value) const {
   ffi::Optional<LoopRV> loop = s_tir::TileWithTensorIntrin(*sch, block_rv, intrin_name).value();
@@ -305,7 +305,7 @@ void MultiLevelTilingTensorCoreNode::TileAndAnnotateTensorize(
   }
 }
 
-std::vector<State> MultiLevelTilingTensorCoreNode::MMAAddReadReuse(TensorCoreState state) const {
+std::vector<State> MultiLevelTilingTensorCoreObj::MMAAddReadReuse(TensorCoreState state) const {
   const ReuseConfig& config = this->reuse_read_;
   if (config.req == ReuseType::kNoReuse) {
     return {std::move(state)};
@@ -340,9 +340,9 @@ std::vector<State> MultiLevelTilingTensorCoreNode::MMAAddReadReuse(TensorCoreSta
 }
 
 std::pair<ffi::Array<ffi::Optional<s_tir::ExprRV>>, ffi::Array<s_tir::LoopRV>>
-MultiLevelTilingTensorCoreNode::MMASplitLoop(const Schedule& sch, SBlockRV block, LoopRV loop,
-                                             int n_tiles, int partition_pos,
-                                             int innerpart_factor) const {
+MultiLevelTilingTensorCoreObj::MMASplitLoop(const Schedule& sch, SBlockRV block, LoopRV loop,
+                                            int n_tiles, int partition_pos,
+                                            int innerpart_factor) const {
   auto sampled_factors = sch->SamplePartitionedTile(
       /*loop=*/loop,
       /*n=*/n_tiles,
@@ -354,7 +354,7 @@ MultiLevelTilingTensorCoreNode::MMASplitLoop(const Schedule& sch, SBlockRV block
   return {factors, splits};
 }
 
-std::vector<State> MultiLevelTilingTensorCoreNode::MMATileLoopNest(TensorCoreState state) const {
+std::vector<State> MultiLevelTilingTensorCoreObj::MMATileLoopNest(TensorCoreState state) const {
   Schedule& sch = state->sch;
   const SBlockRV& block_rv = state->block_rv;
   // Step 1. Assuming trivial binding, pair the loops and their iter-var-types
@@ -438,7 +438,7 @@ std::vector<State> MultiLevelTilingTensorCoreNode::MMATileLoopNest(TensorCoreSta
   return {state};
 }
 
-std::vector<State> MultiLevelTilingTensorCoreNode::TransformIntermediateOutputLayout(
+std::vector<State> MultiLevelTilingTensorCoreObj::TransformIntermediateOutputLayout(
     TensorCoreState state) {
   if (state->is_mma) {
     return {state};
@@ -538,7 +538,7 @@ std::vector<State> MultiLevelTilingTensorCoreNode::TransformIntermediateOutputLa
   return {state};
 }
 
-std::vector<State> MultiLevelTilingTensorCoreNode::AddWriteReuseTensorCore(
+std::vector<State> MultiLevelTilingTensorCoreObj::AddWriteReuseTensorCore(
     TensorCoreState state) const {
   if (state->is_mma) {
     state->sch->WriteAt(state->tiles[2].back(), state->block_rv, 0, "m16n8k8.matrixC");
@@ -611,7 +611,7 @@ std::vector<State> MultiLevelTilingTensorCoreNode::AddWriteReuseTensorCore(
   return {state};
 }
 
-std::vector<State> MultiLevelTilingTensorCoreNode::AddReadReuseTensorCore(
+std::vector<State> MultiLevelTilingTensorCoreObj::AddReadReuseTensorCore(
     TensorCoreState state) const {
   const ffi::Array<LoopRV>& r_tiles = state->tiles[r_indices_[1]];
   Schedule& sch = state->sch;
@@ -654,8 +654,7 @@ std::vector<State> MultiLevelTilingTensorCoreNode::AddReadReuseTensorCore(
   return {state};
 }
 
-std::vector<State> MultiLevelTilingTensorCoreNode::AddSoftwarePipeline(
-    TensorCoreState state) const {
+std::vector<State> MultiLevelTilingTensorCoreObj::AddSoftwarePipeline(TensorCoreState state) const {
   if (!use_software_pipeline) {
     return {state};
   }
@@ -784,8 +783,8 @@ std::vector<State> MultiLevelTilingTensorCoreNode::AddSoftwarePipeline(
   return {state};
 }
 
-ffi::Optional<LoopRV> MultiLevelTilingTensorCoreNode::TransformWithTensorIntrin(
-    TensorCoreStateNode* state, const ffi::String& intrin_name) const {
+ffi::Optional<LoopRV> MultiLevelTilingTensorCoreObj::TransformWithTensorIntrin(
+    TensorCoreStateObj* state, const ffi::String& intrin_name) const {
   SBlockRV block_rv = state->block_rv;
   const s_tir::AutoTensorizeMappingInfo& mapping_info = state->mapping_info;
   tirx::StmtSRef block_sref = state->sch->GetSRef(state->block_rv);
@@ -909,7 +908,7 @@ ffi::Optional<LoopRV> MultiLevelTilingTensorCoreNode::TransformWithTensorIntrin(
                                      /*allow_padding=*/true);
 }
 
-inline std::vector<State> MultiLevelTilingTensorCoreNode::TransformForTensorization(
+inline std::vector<State> MultiLevelTilingTensorCoreObj::TransformForTensorization(
     TensorCoreState state) const {
   // Do reindex and layout transformations.
   ffi::Optional<LoopRV> transformed_loop_rv =
@@ -943,7 +942,7 @@ ScheduleRule ScheduleRule::MultiLevelTilingTensorCore(
           << "Cannot bind to threadIdx.x when using tensor core.";
     }
   }
-  auto node = MultiLevelTilingInitCommon<MultiLevelTilingTensorCoreNode>(
+  auto node = MultiLevelTilingInitCommon<MultiLevelTilingTensorCoreObj>(
       structure, tile_binds, max_innermost_factor, vector_load_lens, reuse_read, reuse_write);
 
   bool have_wmma_intrin_group = false;
@@ -970,8 +969,8 @@ ScheduleRule ScheduleRule::MultiLevelTilingTensorCore(
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  MultiLevelTilingTensorCoreNode::RegisterReflection();
-  TensorCoreStateNode::RegisterReflection();
+  MultiLevelTilingTensorCoreObj::RegisterReflection();
+  TensorCoreStateObj::RegisterReflection();
   refl::GlobalDef().def("s_tir.meta_schedule.ScheduleRuleMultiLevelTilingTensorCore",
                         ScheduleRule::MultiLevelTilingTensorCore);
 }

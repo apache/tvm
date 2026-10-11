@@ -80,18 +80,18 @@ inline bool IsParam(const Function& func, const Var& param) {
   }
 
 /*! \brief Mutator to specialize function and remove const parameters */
-class FunctionSpecializer : public StmtExprMutator {
+class FunctionSpecializerObj : public StmtExprMutatorObj {
  public:
-  using StmtExprMutator::Mutate;
-  using StmtExprMutator::Mutate_;
-  explicit FunctionSpecializer(const VarMap& var_map) {
+  using StmtExprMutatorObj::Mutate;
+  using StmtExprMutatorObj::Mutate_;
+  explicit FunctionSpecializerObj(const VarMap& var_map) {
     for (const auto& [var, value] : var_map) {
       if (!var.as<TensorVar>()) VarRemapSet(var, value);
     }
   }
 
   static Function Specialize(Function f, const VarMap& var_map) {
-    auto specializer = ffi::make_object<FunctionSpecializer>(var_map);
+    auto specializer = ffi::make_object<FunctionSpecializerObj>(var_map);
     for (const Var& param : f->params) {
       auto tensor = param.as<TensorVar>();
       auto replacement = var_map.find(param);
@@ -134,7 +134,7 @@ class FunctionSpecializer : public StmtExprMutator {
       }
     }
 
-    auto planner = ffi::make_object<TensorPlanner>(specializer.get());
+    auto planner = ffi::make_object<TensorPlannerObj>(specializer.get());
     planner->Visit(f->body);
 
     auto body_result =
@@ -150,11 +150,11 @@ class FunctionSpecializer : public StmtExprMutator {
   }
 
  private:
-  class TensorPlanner : public StmtExprVisitor {
+  class TensorPlannerObj : public StmtExprVisitorObj {
    public:
-    using StmtExprVisitor::Visit_;
+    using StmtExprVisitorObj::Visit_;
 
-    explicit TensorPlanner(FunctionSpecializer* specializer) : specializer_(specializer) {}
+    explicit TensorPlannerObj(FunctionSpecializerObj* specializer) : specializer_(specializer) {}
 
    private:
     ffi::Optional<VisitInterrupt> Visit_(const VarNode* op) final {
@@ -166,7 +166,7 @@ class FunctionSpecializer : public StmtExprMutator {
           specializer_->ValidateTensorUse(GetTensorVar(op));
         }
       }
-      return StmtExprVisitor::Visit_(op);
+      return StmtExprVisitorObj::Visit_(op);
     }
 
     ffi::Optional<VisitInterrupt> Visit_(const BindNode* op) final {
@@ -179,14 +179,14 @@ class FunctionSpecializer : public StmtExprMutator {
         // Value operands include declaration data or allocation placement.
         return Visit(call->args);
       }
-      return StmtExprVisitor::Visit_(op);
+      return StmtExprVisitorObj::Visit_(op);
     }
 
-    FunctionSpecializer* specializer_;
+    FunctionSpecializerObj* specializer_;
   };
 
   UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) final {
-    auto result = StmtExprMutator::Mutate_(op, inplace_mode);
+    auto result = StmtExprMutatorObj::Mutate_(op, inplace_mode);
     if (!result.IsUnchanged()) {
       op = ffi::AnyView(result).as<CallNode>();
       if (!op->unique()) inplace_mode = InplaceMode::kDisallow;
@@ -204,7 +204,7 @@ class FunctionSpecializer : public StmtExprMutator {
   }
 
   UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) final {
-    auto result = StmtExprMutator::Mutate_(op, InplaceMode::kDisallow);
+    auto result = StmtExprMutatorObj::Mutate_(op, InplaceMode::kDisallow);
     if (result.UnchangedOrSameAs(ffi::GetRef<PrimExpr>(op))) return ffi::Unchanged();
     auto load = std::move(result).ValueUnchecked().as_or_throw<TensorLoad>();
     if (auto tensor = load->source.as<TensorVar>()) {
@@ -214,7 +214,7 @@ class FunctionSpecializer : public StmtExprMutator {
   }
 
   UnchangedOr<Expr> Mutate_(const TensorRegionNode* op, InplaceMode inplace_mode) final {
-    auto result = StmtExprMutator::Mutate_(op, InplaceMode::kDisallow);
+    auto result = StmtExprMutatorObj::Mutate_(op, InplaceMode::kDisallow);
     if (result.UnchangedOrSameAs(ffi::GetRef<Expr>(op))) return ffi::Unchanged();
     auto region = std::move(result).ValueUnchecked().as_or_throw<TensorRegion>();
     if (auto tensor = region->source.as<TensorVar>()) {
@@ -461,7 +461,7 @@ Function Specialize(Function func, const ffi::Map<Var, ffi::Variant<TensorVar, E
       TVM_FFI_THROW(TypeError) << "specialize expected instance to be TensorVar or Expr";
     }
   }
-  return FunctionSpecializer::Specialize(func, std::move(var_map));
+  return FunctionSpecializerObj::Specialize(func, std::move(var_map));
 }
 
 /**************** FFI ****************/
@@ -483,7 +483,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                                  << instance.GetTypeKey();
       }
     }
-    return FunctionSpecializer::Specialize(func, std::move(var_map));
+    return FunctionSpecializerObj::Specialize(func, std::move(var_map));
   });
 }
 

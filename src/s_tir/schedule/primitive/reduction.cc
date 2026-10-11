@@ -35,13 +35,13 @@ using namespace tvm::tirx;
  * \brief A helper class to create a new scope that contains decomposed init body
  * and replaced old reduction block.
  */
-class DecomposeReductionBlockReplacer : public StmtExprMutator {
+class DecomposeReductionBlockReplacerObj : public StmtExprMutatorObj {
  public:
-  using StmtExprMutator::Mutate;
-  using StmtExprMutator::Mutate_;
+  using StmtExprMutatorObj::Mutate;
+  using StmtExprMutatorObj::Mutate_;
   UnchangedOr<ffi::Any> Mutate(ffi::AnyView value, InplaceMode inplace_mode) override {
     if (value.as<ExprNode>()) return ffi::Unchanged();
-    return StmtExprMutator::Mutate(value, inplace_mode);
+    return StmtExprMutatorObj::Mutate(value, inplace_mode);
   }
 
   /*!
@@ -54,7 +54,7 @@ class DecomposeReductionBlockReplacer : public StmtExprMutator {
    */
   static std::pair<SBlock, SBlock> Replace(SBlock old_scope_root, For target_loop,
                                            Stmt decomposed_body, SBlock old_reduction_block) {
-    auto replacer = ffi::make_object<DecomposeReductionBlockReplacer>(
+    auto replacer = ffi::make_object<DecomposeReductionBlockReplacerObj>(
         std::move(target_loop), std::move(decomposed_body), std::move(old_reduction_block));
     SBlock new_scope_root = replacer->Mutate(old_scope_root, InplaceMode::kAllow)
                                 .ValueOrUnchanged(std::move(old_scope_root))
@@ -62,8 +62,8 @@ class DecomposeReductionBlockReplacer : public StmtExprMutator {
     return std::make_pair(std::move(new_scope_root), replacer->new_reduction_block_.value());
   }
 
-  explicit DecomposeReductionBlockReplacer(For target_loop, Stmt decomposed_body,
-                                           SBlock old_reduction_block)
+  explicit DecomposeReductionBlockReplacerObj(For target_loop, Stmt decomposed_body,
+                                              SBlock old_reduction_block)
       : target_loop_(std::move(target_loop)),
         decomposed_body_(std::move(decomposed_body)),
         old_reduction_block_(std::move(old_reduction_block)) {}
@@ -71,7 +71,7 @@ class DecomposeReductionBlockReplacer : public StmtExprMutator {
  private:
   UnchangedOr<Stmt> Mutate_(const ForNode* loop, InplaceMode inplace_mode) final {
     Stmt mutated_stmt =
-        StmtExprMutator::Mutate_(loop, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(loop));
+        StmtExprMutatorObj::Mutate_(loop, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(loop));
     if (loop == target_loop_.get()) {
       return SeqStmt({decomposed_body_, mutated_stmt});
     } else {
@@ -103,7 +103,7 @@ class DecomposeReductionBlockReplacer : public StmtExprMutator {
       new_reduction_block_ = SBlock(p_new_block);
       return new_reduction_block_.value();
     } else {
-      return StmtExprMutator::Mutate_(block, inplace_mode);
+      return StmtExprMutatorObj::Mutate_(block, inplace_mode);
     }
   }
 
@@ -113,7 +113,7 @@ class DecomposeReductionBlockReplacer : public StmtExprMutator {
   ffi::Optional<SBlock> new_reduction_block_;
 };
 
-class LoopHeightError : public ScheduleErrorContextObj {
+class LoopHeightErrorObj : public ScheduleErrorContextObj {
  public:
   static void CheckLoopHigherThanReduceLoops(const IRModule& mod, const SBlockNode* block,
                                              const SBlockRealizeNode* realize,
@@ -139,14 +139,14 @@ class LoopHeightError : public ScheduleErrorContextObj {
         };
         if (ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(binding, walkfn).has_value()) {
           const ForNode* loop = TVM_SREF_TO_FOR(loop_sref);
-          throw MakeScheduleError<LoopHeightError>(mod, ffi::GetRef<For>(loop),
-                                                   ffi::GetRef<SBlock>(block));
+          throw MakeScheduleError<LoopHeightErrorObj>(mod, ffi::GetRef<For>(loop),
+                                                      ffi::GetRef<SBlock>(block));
         }
       }
     }
   }
 
-  explicit LoopHeightError(IRModule mod, For loop, SBlock block)
+  explicit LoopHeightErrorObj(IRModule mod, For loop, SBlock block)
       : mod_(std::move(mod)), loop_(std::move(loop)), block_(std::move(block)) {}
 
   ffi::String FastErrorString() const final {
@@ -209,13 +209,13 @@ StmtSRef DecomposeReduction(ScheduleState self, const StmtSRef& block_sref,
   if (self->enable_check) {
     // Cond 0. Check loop_sref is an ancestor of block_sref
     if (std::find(loops.begin(), loops.end(), loop_sref) == loops.end()) {
-      throw MakeScheduleError<LoopPositionError>(self->mod, ffi::GetRef<For>(loop),
-                                                 ffi::GetRef<SBlock>(block), "decompose_reduction");
+      throw MakeScheduleError<LoopPositionErrorObj>(
+          self->mod, ffi::GetRef<For>(loop), ffi::GetRef<SBlock>(block), "decompose_reduction");
     }
     // Cond 1. Check block is reduction
     CheckReductionBlock(self, block_sref, scope_root_sref);
     // Cond 2. Check 'loop' is higher than all the loops related to block var of type reduction
-    LoopHeightError::CheckLoopHigherThanReduceLoops(self->mod, block, realize, loops, loop_sref);
+    LoopHeightErrorObj::CheckLoopHigherThanReduceLoops(self->mod, block, realize, loops, loop_sref);
   }
   // IR Manipulation
   ffi::Array<IterVar> init_iter_vars;
@@ -329,7 +329,7 @@ StmtSRef DecomposeReduction(ScheduleState self, const StmtSRef& block_sref,
   body = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(body, f_substitute).as_or_throw<Stmt>();
   // Step 6. Mutate IR
   const SBlockNode* old_scope_root = TVM_SREF_TO_SBLOCK(scope_root_sref);
-  auto [new_scope_root, new_reduction_block] = DecomposeReductionBlockReplacer::Replace(
+  auto [new_scope_root, new_reduction_block] = DecomposeReductionBlockReplacerObj::Replace(
       ffi::GetRef<SBlock>(old_scope_root), ffi::GetRef<For>(loop), body,
       ffi::GetRef<SBlock>(block));
   self->Replace(scope_root_sref, new_scope_root,
@@ -551,9 +551,9 @@ GetReducerGetters() {
   return ReducerRegistry::Global()->reducer_getters;
 }
 
-class NotSerialLoopKindError : public ScheduleErrorContextObj {
+class NotSerialLoopKindErrorObj : public ScheduleErrorContextObj {
  public:
-  explicit NotSerialLoopKindError(IRModule mod, For loop)
+  explicit NotSerialLoopKindErrorObj(IRModule mod, For loop)
       : mod_(std::move(mod)), loop_(std::move(loop)) {}
 
   ffi::String FastErrorString() const final {
@@ -576,9 +576,9 @@ class NotSerialLoopKindError : public ScheduleErrorContextObj {
   For loop_;
 };
 
-class FactorAxisOutOfRangeError : public ScheduleErrorContextObj {
+class FactorAxisOutOfRangeErrorObj : public ScheduleErrorContextObj {
  public:
-  explicit FactorAxisOutOfRangeError(IRModule mod, TensorVar tensor, int factor_axis)
+  explicit FactorAxisOutOfRangeErrorObj(IRModule mod, TensorVar tensor, int factor_axis)
       : mod_(std::move(mod)), tensor_(std::move(tensor)), factor_axis_(factor_axis) {}
 
   ffi::String FastErrorString() const final {
@@ -602,7 +602,7 @@ class FactorAxisOutOfRangeError : public ScheduleErrorContextObj {
   static int CheckAndUpdate(const IRModule& mod, const TensorVar& tensor, int factor_axis) {
     int ndim = static_cast<int>(tensor->shape.size());
     if (factor_axis < -(ndim + 1) || factor_axis > ndim) {
-      throw MakeScheduleError<FactorAxisOutOfRangeError>(mod, tensor, factor_axis);
+      throw MakeScheduleError<FactorAxisOutOfRangeErrorObj>(mod, tensor, factor_axis);
     }
     // If factor_axis is negative, convert it to a non-negative one.
     if (factor_axis < 0) {
@@ -616,7 +616,7 @@ class FactorAxisOutOfRangeError : public ScheduleErrorContextObj {
   int factor_axis_;
 };
 
-class LoopPropertyError : public ScheduleErrorContextObj {
+class LoopPropertyErrorObj : public ScheduleErrorContextObj {
  public:
   enum ErrorType {
     kDataParIterTouchRFactorLoop = 0,
@@ -625,7 +625,7 @@ class LoopPropertyError : public ScheduleErrorContextObj {
     kUnboundLoopUnderReductionLoop = 3
   };
 
-  explicit LoopPropertyError(IRModule mod, For loop, ErrorType error_type)
+  explicit LoopPropertyErrorObj(IRModule mod, For loop, ErrorType error_type)
       : mod_(std::move(mod)), loop_(std::move(loop)), error_type_(error_type) {}
 
   ffi::String FastErrorString() const final {
@@ -676,8 +676,8 @@ class LoopPropertyError : public ScheduleErrorContextObj {
     ffi::Array<SBlockRealize> children_of_outermost_loop =
         GetChildBlockRealizeOnSRefTree(self->stmt2ref.at(loops[0].get()));
     if (!children_of_outermost_loop[0]->block.same_as(block)) {
-      throw MakeScheduleError<LoopPropertyError>(self->mod, loops[0],
-                                                 kNotFirstChildBlockOfOutermostLoop);
+      throw MakeScheduleError<LoopPropertyErrorObj>(self->mod, loops[0],
+                                                    kNotFirstChildBlockOfOutermostLoop);
     }
 
     bool meet_reduction_loop = false;
@@ -686,11 +686,12 @@ class LoopPropertyError : public ScheduleErrorContextObj {
       bool reduction_touched = reduce_loop_vars.count(loop->loop_var.get());
 
       if (data_par_touched && reduction_touched) {
-        throw MakeScheduleError<LoopPropertyError>(self->mod, loop,
-                                                   kLoopTouchedByBothKindsOfBlockIters);
+        throw MakeScheduleError<LoopPropertyErrorObj>(self->mod, loop,
+                                                      kLoopTouchedByBothKindsOfBlockIters);
       } else if (data_par_touched) {
         if (loop.get() == rf_loop) {
-          throw MakeScheduleError<LoopPropertyError>(self->mod, loop, kDataParIterTouchRFactorLoop);
+          throw MakeScheduleError<LoopPropertyErrorObj>(self->mod, loop,
+                                                        kDataParIterTouchRFactorLoop);
         }
         continue;
       } else if (reduction_touched) {
@@ -700,7 +701,8 @@ class LoopPropertyError : public ScheduleErrorContextObj {
         }
         continue;
       } else if (meet_reduction_loop && !IsOne(loop->extent)) {
-        throw MakeScheduleError<LoopPropertyError>(self->mod, loop, kUnboundLoopUnderReductionLoop);
+        throw MakeScheduleError<LoopPropertyErrorObj>(self->mod, loop,
+                                                      kUnboundLoopUnderReductionLoop);
       }
     }
   }
@@ -1251,13 +1253,13 @@ Stmt CreateLoopOutsideRfactorBlock(SBlockRealize rf_block_realize, const ffi::Ar
   return rf_body;
 }
 
-class BlockReplacer : public StmtExprMutator {
+class BlockReplacerObj : public StmtExprMutatorObj {
  public:
-  using StmtExprMutator::Mutate;
-  using StmtExprMutator::Mutate_;
+  using StmtExprMutatorObj::Mutate;
+  using StmtExprMutatorObj::Mutate_;
   UnchangedOr<ffi::Any> Mutate(ffi::AnyView value, InplaceMode inplace_mode) override {
     if (value.as<ExprNode>()) return ffi::Unchanged();
-    return StmtExprMutator::Mutate(value, inplace_mode);
+    return StmtExprMutatorObj::Mutate(value, inplace_mode);
   }
 
   /*!
@@ -1287,7 +1289,7 @@ class BlockReplacer : public StmtExprMutator {
                         For rf_loop, std::unordered_set<const VarNode*> reduce_loop_vars,
                         std::unordered_map<const VarNode*, For> loop_vars2loop,
                         const ffi::Array<TensorVar>& rf_tensors) {
-    auto replacer = ffi::make_object<BlockReplacer>(
+    auto replacer = ffi::make_object<BlockReplacerObj>(
         std::move(rf_body), std::move(outermost_loop), std::move(wb_block_realize),
         std::move(old_block_realize), std::move(rf_loop), std::move(reduce_loop_vars),
         std::move(loop_vars2loop));
@@ -1301,10 +1303,10 @@ class BlockReplacer : public StmtExprMutator {
     return new_scope_root;
   }
 
-  explicit BlockReplacer(Stmt rf_body, For outermost_loop, SBlockRealize wb_block_realize,
-                         SBlockRealize old_block_realize, For rf_loop,
-                         std::unordered_set<const VarNode*> reduce_loop_vars,
-                         std::unordered_map<const VarNode*, For> loop_vars2loop)
+  explicit BlockReplacerObj(Stmt rf_body, For outermost_loop, SBlockRealize wb_block_realize,
+                            SBlockRealize old_block_realize, For rf_loop,
+                            std::unordered_set<const VarNode*> reduce_loop_vars,
+                            std::unordered_map<const VarNode*, For> loop_vars2loop)
       : rf_body_(std::move(rf_body)),
         outermost_loop_(std::move(outermost_loop)),
         wb_block_realize_(std::move(wb_block_realize)),
@@ -1323,7 +1325,7 @@ class BlockReplacer : public StmtExprMutator {
     }
 
     // Step 2. Recursively mutate.
-    Stmt body = StmtExprMutator::Mutate(ffi::AnyView(loop->body), inplace_mode)
+    Stmt body = StmtExprMutatorObj::Mutate(ffi::AnyView(loop->body), inplace_mode)
                     .ValueOrUnchanged(loop->body)
                     .as_or_throw<Stmt>();
 
@@ -1378,7 +1380,7 @@ StmtSRef RFactor(ScheduleState self, const StmtSRef& rf_loop_sref, int factor_ax
   }
   const ForNode* rf_loop = TVM_SREF_TO_FOR(rf_loop_sref);
   if (rf_loop->kind != ForKind::kDefault) {
-    throw MakeScheduleError<NotSerialLoopKindError>(self->mod, ffi::GetRef<For>(rf_loop));
+    throw MakeScheduleError<NotSerialLoopKindErrorObj>(self->mod, ffi::GetRef<For>(rf_loop));
   }
 
   // Step 2. Collect loop vars that are touched by data parallel block iters and reduction block
@@ -1399,8 +1401,8 @@ StmtSRef RFactor(ScheduleState self, const StmtSRef& rf_loop_sref, int factor_ax
   // - the outermost loop that is touched by some reduction block iters can only have one child
   // block.
   if (self->enable_check) {
-    LoopPropertyError::CheckLoopProperty(self, loops, rf_loop, block, data_par_loop_vars,
-                                         reduce_loop_vars);
+    LoopPropertyErrorObj::CheckLoopProperty(self, loops, rf_loop, block, data_par_loop_vars,
+                                            reduce_loop_vars);
   }
 
   // Step 5. Get the `init` identity and the `update` combiner of the reduction. Extract the
@@ -1418,7 +1420,7 @@ StmtSRef RFactor(ScheduleState self, const StmtSRef& rf_loop_sref, int factor_ax
 
   // Step 6. Check whether `factor_axis` is in a correct range, and convert it to non-negative if it
   // is negative.
-  factor_axis = FactorAxisOutOfRangeError::CheckAndUpdate(
+  factor_axis = FactorAxisOutOfRangeErrorObj::CheckAndUpdate(
       self->mod, updates[0]->dest.as_or_throw<TensorVar>(), factor_axis);
 
   // *****************************************************
@@ -1453,7 +1455,7 @@ StmtSRef RFactor(ScheduleState self, const StmtSRef& rf_loop_sref, int factor_ax
 
   // Step 1. Substitute the old scope root block with the new scope root block.
   SBlock old_scope_root_block = ffi::GetRef<SBlock>(scope_root->StmtAs<SBlockNode>());
-  SBlock new_scope_root_block = BlockReplacer::Replace(
+  SBlock new_scope_root_block = BlockReplacerObj::Replace(
       old_scope_root_block, rf_body, loops[0], wb_block_creator.new_block_realize_, block_realize,
       ffi::GetRef<For>(rf_loop), reduce_loop_vars, loop_vars2loop, rf_tensors);
   self->Replace(

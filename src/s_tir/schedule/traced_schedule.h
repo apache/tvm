@@ -28,21 +28,21 @@ namespace tvm {
 namespace s_tir {
 using namespace tvm::tirx;
 
-class TracedScheduleNode : public ConcreteScheduleNode {
+class TracedScheduleObj : public ConcreteScheduleObj {
   friend class Schedule;
 
  protected:
   Trace trace_;
 
  public:
-  using ConcreteScheduleNode::ConcreteScheduleNode;
+  using ConcreteScheduleObj::ConcreteScheduleObj;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<TracedScheduleNode>();
+    refl::ObjectDef<TracedScheduleObj>();
   }
 
-  ~TracedScheduleNode() = default;
+  ~TracedScheduleObj() = default;
 
  public:
   ffi::Optional<Trace> trace() const final { return trace_; }

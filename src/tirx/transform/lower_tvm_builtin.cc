@@ -56,10 +56,10 @@ TVM_FFI_INLINE int GetVectorBytes(const PrimType& dtype) {
 
 // Calculate the statistics of packed function.
 // These information are needed during codegen.
-class BuiltinLower : public StmtExprMutator {
+class BuiltinLowerObj : public StmtExprMutatorObj {
  public:
-  using StmtExprMutator::Mutate;
-  using StmtExprMutator::Mutate_;
+  using StmtExprMutatorObj::Mutate;
+  using StmtExprMutatorObj::Mutate_;
   static Function Build(Function func) {
     if (!func->body.has_value()) return func;
     ffi::Optional<PrimExpr> device_type = std::nullopt;
@@ -70,13 +70,13 @@ class BuiltinLower : public StmtExprMutator {
       preserve_ffi_kernel = host->kind->name == "cuda_host";
     }
 
-    auto mutator = ffi::make_object<BuiltinLower>(device_type, preserve_ffi_kernel);
+    auto mutator = ffi::make_object<BuiltinLowerObj>(device_type, preserve_ffi_kernel);
     func.CopyOnWrite()->body = mutator->VisitBodyAndRealizeAlloca(func->body.value());
     return func;
   }
 
-  explicit BuiltinLower(ffi::Optional<PrimExpr> device_type = std::nullopt,
-                        bool preserve_ffi_kernel = false)
+  explicit BuiltinLowerObj(ffi::Optional<PrimExpr> device_type = std::nullopt,
+                           bool preserve_ffi_kernel = false)
       : device_type_(device_type), preserve_ffi_kernel_(preserve_ffi_kernel) {}
 
   // NOTE: Right now, we make the following scoping requirement
@@ -143,7 +143,7 @@ class BuiltinLower : public StmtExprMutator {
   Stmt Build(Stmt stmt) { return this->VisitBodyAndRealizeAlloca(stmt); }
 
   StackSizes GetMaxStack(Stmt stmt) {
-    auto precheck = ffi::make_object<BuiltinLower>();
+    auto precheck = ffi::make_object<BuiltinLowerObj>();
     precheck->is_precheck_ = true;
     precheck->device_id_ = this->device_id_;
     precheck->device_type_ = this->device_type_;
@@ -221,12 +221,12 @@ class BuiltinLower : public StmtExprMutator {
   }
 
   UnchangedOr<ffi::Any> Mutate(ffi::AnyView input, InplaceMode inplace_mode) final {
-    if (!input.as<StmtNode>()) return StmtExprMutator::Mutate(input, inplace_mode);
+    if (!input.as<StmtNode>()) return StmtExprMutatorObj::Mutate(input, inplace_mode);
     // Allocate space to hold preparation statements for this statement.
     prep_seq_stack_.emplace_back(std::vector<Stmt>());
 
     auto scope_size = alloca_scope_.size();
-    auto mutated = StmtExprMutator::Mutate(input, inplace_mode);
+    auto mutated = StmtExprMutatorObj::Mutate(input, inplace_mode);
     Stmt stmt = std::move(mutated).ValueOrUnchanged(input).as_or_throw<Stmt>();
     {
       // NOTE: this scope reference is invalid after any mutation is applied to alloca_scope_.
@@ -262,13 +262,14 @@ class BuiltinLower : public StmtExprMutator {
         return MakeNdMemAllocWithScope(op, call);
       }
     }
-    return StmtExprMutator::Mutate_(op, inplace_mode);
+    return StmtExprMutatorObj::Mutate_(op, inplace_mode);
   }
 
   UnchangedOr<Stmt> MutateAllocTensor(const BindNode* op, InplaceMode inplace_mode) {
     // Lower AllocTensor to device allocate when needed.
     // AllocTensor is flat (no body). Visit tensor fields via base class.
-    Stmt stmt = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
+    Stmt stmt =
+        StmtExprMutatorObj::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     op = stmt.as<BindNode>();
     const auto* tensor_call = op->value.as<CallNode>();
     tvm::Tuple shape = tvm::Tuple(tensor_call->ty_args[0].as_or_throw<TensorType>()->shape);
@@ -354,7 +355,7 @@ class BuiltinLower : public StmtExprMutator {
       return body;
     }
     return scope_.WithNewScope([&]() -> Stmt {
-      RegionStmt region = StmtExprMutator::Mutate_(op, inplace_mode)
+      RegionStmt region = StmtExprMutatorObj::Mutate_(op, inplace_mode)
                               .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
                               .as_or_throw<RegionStmt>();
       if (!scope_.Current().pending_frees.empty()) {
@@ -426,9 +427,9 @@ class BuiltinLower : public StmtExprMutator {
 
   UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) final {
     if (op->op.same_as(backend::cuda::tensormap_encode_tiled_op()) && !preserve_ffi_kernel_) {
-      const auto* attr =
-          (op->attrs.has_value() ? op->attrs.value().as<backend::cuda::TensorMapEncodeTiledAttr>()
-                                 : nullptr);
+      const auto* attr = (op->attrs.has_value()
+                              ? op->attrs.value().as<backend::cuda::TensorMapEncodeTiledAttrNode>()
+                              : nullptr);
       TVM_FFI_CHECK(attr && attr->rank >= 1 && attr->rank <= 5 &&
                         op->args.size() == static_cast<size_t>(4 * attr->rank + 1),
                     ValueError)
@@ -456,7 +457,7 @@ class BuiltinLower : public StmtExprMutator {
     } else if (op->op.same_as(stack_make_dltensor_op())) {
       return MakeArray(op);
     } else {
-      return StmtExprMutator::Mutate_(op, inplace_mode);
+      return StmtExprMutatorObj::Mutate_(op, inplace_mode);
     }
   }
 
@@ -485,7 +486,7 @@ class BuiltinLower : public StmtExprMutator {
     }
     int64_t stack_begin = scope.run_sizes.shape_stack;
     scope.run_sizes.shape_stack += op->args.size();
-    Expr expr = StmtExprMutator::Mutate_(op, InplaceMode::kDisallow)
+    Expr expr = StmtExprMutatorObj::Mutate_(op, InplaceMode::kDisallow)
                     .ValueOrUnchanged(ffi::GetRef<Expr>(op));
     op = expr.as<CallNode>();
     // no need to perform any store for a scalar shape
@@ -506,7 +507,7 @@ class BuiltinLower : public StmtExprMutator {
 
     size_t idx = scope.run_sizes.array_stack;
     scope.run_sizes.array_stack += 1;
-    Expr expr = StmtExprMutator::Mutate_(op, InplaceMode::kDisallow)
+    Expr expr = StmtExprMutatorObj::Mutate_(op, InplaceMode::kDisallow)
                     .ValueOrUnchanged(ffi::GetRef<Expr>(op));
     op = expr.as<CallNode>();
 
@@ -618,7 +619,7 @@ class BuiltinLower : public StmtExprMutator {
     // The extra one slot is for return value.
     scope.run_sizes.arg_stack += num_args + 1;
     // Specially handle the tensor packed intrinsic
-    Expr expr = StmtExprMutator::Mutate_(op, InplaceMode::kDisallow)
+    Expr expr = StmtExprMutatorObj::Mutate_(op, InplaceMode::kDisallow)
                     .ValueOrUnchanged(ffi::GetRef<Expr>(op));
     op = expr.as<CallNode>();
 
@@ -684,14 +685,14 @@ class BuiltinLower : public StmtExprMutator {
                          storage_scope, let->var});
     Stmt free_stmt = If(free_op.as_or_throw<PrimExpr>() != IntImm::Int32(0), throw_last_error);
     // Visit the free_stmt so call_packed builtins inside it get lowered.
-    free_stmt = StmtExprMutator::Mutate(ffi::AnyView(free_stmt), InplaceMode::kDisallow)
+    free_stmt = StmtExprMutatorObj::Mutate(ffi::AnyView(free_stmt), InplaceMode::kDisallow)
                     .ValueOrUnchanged(free_stmt)
                     .as_or_throw<Stmt>();
     scope_.Current().pending_frees.push_back(free_stmt);
 
     // Re-visit so call_packed in the Bind value and null_check get lowered.
     Stmt input = SeqStmt({Bind(let->var, call_packed), null_check});
-    return StmtExprMutator::Mutate(ffi::AnyView(input), InplaceMode::kDisallow)
+    return StmtExprMutatorObj::Mutate(ffi::AnyView(input), InplaceMode::kDisallow)
         .ValueOrUnchanged(input)
         .as_or_throw<Stmt>();
   }
@@ -754,7 +755,7 @@ namespace transform {
 Pass LowerTVMBuiltin() {
   auto pass_func = [](Function func, IRModule m, PassContext ctx) {
     if (IsHostFunc(func).value_or(false)) {
-      func = BuiltinLower::Build(func);
+      func = BuiltinLowerObj::Build(func);
       VLOG(2) << "LowerTVMBuiltin: " << func;
     }
     return func;

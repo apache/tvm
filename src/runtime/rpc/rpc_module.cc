@@ -45,9 +45,9 @@ namespace runtime {
 /*!
  * \brief A wrapped remote function as a ffi::Function.
  */
-class RPCWrappedFunc : public ffi::Object {
+class RPCWrappedFuncObj : public ffi::Object {
  public:
-  RPCWrappedFunc(void* handle, std::shared_ptr<RPCSession> sess) : handle_(handle), sess_(sess) {}
+  RPCWrappedFuncObj(void* handle, std::shared_ptr<RPCSession> sess) : handle_(handle), sess_(sess) {}
 
   void operator()(ffi::PackedArgs args, ffi::Any* rv) const {
     sess_->EnsureOpen();
@@ -114,7 +114,7 @@ class RPCWrappedFunc : public ffi::Object {
     sess_->CallFunc(handle_, ffi::PackedArgs(packed_args.data(), packed_args.size()), set_return);
   }
 
-  ~RPCWrappedFunc() {
+  ~RPCWrappedFuncObj() {
     try {
       sess_->FreeHandle(handle_);
     } catch (const ffi::Error& e) {
@@ -135,12 +135,12 @@ class RPCWrappedFunc : public ffi::Object {
 };
 
 // RPC that represents a remote module session.
-class RPCModuleNode final : public ffi::ModuleObj {
+class RPCModuleObj final : public ffi::ModuleObj {
  public:
-  RPCModuleNode(void* module_handle, std::shared_ptr<RPCSession> sess)
+  RPCModuleObj(void* module_handle, std::shared_ptr<RPCSession> sess)
       : module_handle_(module_handle), sess_(sess) {}
 
-  ~RPCModuleNode() {
+  ~RPCModuleObj() {
     if (module_handle_ != nullptr) {
       try {
         sess_->FreeHandle(module_handle_);
@@ -213,7 +213,7 @@ class RPCModuleNode final : public ffi::ModuleObj {
 
   ffi::Function WrapRemoteFunc(RPCSession::PackedFuncHandle handle) {
     if (handle == nullptr) return ffi::Function();
-    auto wf = std::make_shared<RPCWrappedFunc>(handle, sess_);
+    auto wf = std::make_shared<RPCWrappedFuncObj>(handle, sess_);
     return ffi::Function(
         [wf](ffi::PackedArgs args, ffi::Any* rv) { return wf->operator()(args, rv); });
   }
@@ -234,13 +234,13 @@ class RPCModuleNode final : public ffi::ModuleObj {
   ffi::TypedFunction<void(ffi::Module, ffi::Module)> remote_import_module_;
 };
 
-void* RPCWrappedFunc::UnwrapRemoteValueToHandle(const AnyView& arg) const {
+void* RPCWrappedFuncObj::UnwrapRemoteValueToHandle(const AnyView& arg) const {
   // TODO(tqchen): only support Module unwrapping for now.
   if (arg.type_index() == ffi::TypeIndex::kTVMFFIModule) {
     ffi::Module mod = arg.cast<ffi::Module>();
     std::string tkey = mod->kind();
     TVM_FFI_CHECK_EQ(tkey, "rpc", ValueError) << "Cannot pass a non-RPC module to remote";
-    auto* rmod = static_cast<RPCModuleNode*>(mod.operator->());
+    auto* rmod = static_cast<RPCModuleObj*>(mod.operator->());
     TVM_FFI_CHECK(rmod->sess() == sess_, ValueError)
         << "Cannot pass in module into a different remote session";
     return rmod->module_handle();
@@ -251,7 +251,7 @@ void* RPCWrappedFunc::UnwrapRemoteValueToHandle(const AnyView& arg) const {
   }
 }
 
-void RPCWrappedFunc::WrapRemoteReturnToValue(ffi::PackedArgs args, ffi::Any* rv) const {
+void RPCWrappedFuncObj::WrapRemoteReturnToValue(ffi::PackedArgs args, ffi::Any* rv) const {
   int type_index = args[0].cast<int>();
   if (type_index == ffi::TypeIndex::kTVMFFINone) {
     *rv = nullptr;
@@ -261,13 +261,13 @@ void RPCWrappedFunc::WrapRemoteReturnToValue(ffi::PackedArgs args, ffi::Any* rv)
   } else if (type_index == ffi::TypeIndex::kTVMFFIFunction) {
     TVM_FFI_ICHECK_EQ(args.size(), 2);
     void* handle = args[1].cast<void*>();
-    auto wf = std::make_shared<RPCWrappedFunc>(handle, sess_);
+    auto wf = std::make_shared<RPCWrappedFuncObj>(handle, sess_);
     *rv = ffi::Function(
         [wf](ffi::PackedArgs args, ffi::Any* rv) { return wf->operator()(args, rv); });
   } else if (type_index == ffi::TypeIndex::kTVMFFIModule) {
     TVM_FFI_ICHECK_EQ(args.size(), 2);
     void* handle = args[1].cast<void*>();
-    auto n = ffi::make_object<RPCModuleNode>(handle, sess_);
+    auto n = ffi::make_object<RPCModuleObj>(handle, sess_);
     *rv = ffi::Module(n);
   } else if (type_index == ffi::TypeIndex::kTVMFFITensor ||
              type_index == ffi::TypeIndex::kTVMFFIDLTensorPtr) {
@@ -293,14 +293,14 @@ void RPCWrappedFunc::WrapRemoteReturnToValue(ffi::PackedArgs args, ffi::Any* rv)
 }
 
 ffi::Module CreateRPCSessionModule(std::shared_ptr<RPCSession> sess) {
-  auto n = ffi::make_object<RPCModuleNode>(nullptr, sess);
+  auto n = ffi::make_object<RPCModuleObj>(nullptr, sess);
   return ffi::Module(n);
 }
 
 std::shared_ptr<RPCSession> RPCModuleGetSession(ffi::Module mod) {
   std::string tkey = mod->kind();
   TVM_FFI_CHECK_EQ(tkey, "rpc", ValueError) << "Cannot pass a non-RPC module to remote";
-  auto* rmod = static_cast<RPCModuleNode*>(mod.operator->());
+  auto* rmod = static_cast<RPCModuleObj*>(mod.operator->());
   return rmod->sess();
 }
 
@@ -369,7 +369,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                ffi::Module m = opt_mod.value();
                std::string tkey = m->kind();
                if (tkey == "rpc") {
-                 return static_cast<RPCModuleNode*>(m.operator->())
+                 return static_cast<RPCModuleObj*>(m.operator->())
                      ->GetTimeEvaluator(name, dev, number, repeat, min_repeat_ms,
                                         limit_zero_time_iterations, cooldown_interval_ms,
                                         repeats_to_cooldown, cache_flush_bytes, f_preproc_name);
@@ -428,13 +428,13 @@ TVM_FFI_STATIC_INIT_BLOCK() {
            [](ffi::Module sess, std::string name) {
              std::string tkey = sess->kind();
              TVM_FFI_ICHECK_EQ(tkey, "rpc");
-             return static_cast<RPCModuleNode*>(sess.operator->())->LoadModule(name);
+             return static_cast<RPCModuleObj*>(sess.operator->())->LoadModule(name);
            })
       .def("rpc.ImportRemoteModule",
            [](ffi::Module parent, ffi::Module child) {
              std::string tkey = parent->kind();
              TVM_FFI_ICHECK_EQ(tkey, "rpc");
-             static_cast<RPCModuleNode*>(parent.operator->())->ImportModule(child);
+             static_cast<RPCModuleObj*>(parent.operator->())->ImportModule(child);
            })
       .def("rpc.ValidateDevice",
            [](ffi::Module mod, RemoteDevice dev) {
@@ -461,7 +461,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
              sess->EnsureOpen();
              TVM_FFI_CHECK(sess == dev->sess, ValueError)
                  << "Device belongs to a different remote session";
-             return static_cast<RPCModuleNode*>(mod.operator->())
+             return static_cast<RPCModuleObj*>(mod.operator->())
                  ->GetTimeEvaluator(name, dev->endpoint_device, number, repeat, min_repeat_ms,
                                     limit_zero_time_iterations, cooldown_interval_ms,
                                     repeats_to_cooldown, cache_flush_bytes, f_preproc_name);

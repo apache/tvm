@@ -45,7 +45,7 @@ using namespace tvm::tirx;
  *
  * Var x("x"), y("y");
  * // use PrimExpr to declare patterns, x, y are holes that can be filled with
- * PatternMatcher pattern_matcher(x + y);
+ * PatternMatcherObj pattern_matcher(x + y);
  * // expr = C[i, j] + A[i, k] * B[k, j], which is the expr we want to match
  * pattern_matcher.Match(expr);
  *
@@ -56,11 +56,11 @@ using namespace tvm::tirx;
  *
  * \endcode
  */
-class PatternMatcher : public StmtExprVisitor {
+class PatternMatcherObj : public StmtExprVisitorObj {
  public:
-  using StmtExprVisitor::Visit_;
+  using StmtExprVisitorObj::Visit_;
 
-  explicit PatternMatcher(ffi::Array<PrimExpr> pattern) : pattern_(std::move(pattern)) {}
+  explicit PatternMatcherObj(ffi::Array<PrimExpr> pattern) : pattern_(std::move(pattern)) {}
 
   ffi::Optional<VisitInterrupt> Visit_(const VarNode* op) final {
     auto it = filled_map_.find(op);
@@ -334,9 +334,9 @@ static const char* kRFactorCrossThreadReductionApplicableBlockDef =
 
 void ErrorRFactorCrossThreadReductionNotApplicable(const ffi::Optional<ScheduleState>& self,
                                                    SBlock block, int violated_cond) {
-  class RFactorNotApplicableError : public ScheduleErrorContextObj {
+  class RFactorNotApplicableErrorObj : public ScheduleErrorContextObj {
    public:
-    explicit RFactorNotApplicableError(IRModule mod, SBlock block, int violated_cond)
+    explicit RFactorNotApplicableErrorObj(IRModule mod, SBlock block, int violated_cond)
         : mod_(std::move(mod)), block_(std::move(block)), violated_cond_(violated_cond) {}
 
     ffi::String FastErrorString() const final {
@@ -361,8 +361,8 @@ void ErrorRFactorCrossThreadReductionNotApplicable(const ffi::Optional<ScheduleS
   };
 
   if (self.has_value()) {
-    throw MakeScheduleError<RFactorNotApplicableError>(self.value()->mod, std::move(block),
-                                                       violated_cond);
+    throw MakeScheduleError<RFactorNotApplicableErrorObj>(self.value()->mod, std::move(block),
+                                                          violated_cond);
   } else {
     TVM_FFI_THROW(ValueError) << "Cross-thread reduction cannot be applied to the block "
                               << block->name_hint << " because the block violates the condition #"
@@ -631,10 +631,10 @@ bool ReductionIterNotIndexOutputTensor(const SBlock& block) {
   return result.has_value() ? result.value()->value.cast<bool>() : true;
 }
 
-class NoMatchedReducerError : public ScheduleErrorContextObj {
+class NoMatchedReducerErrorObj : public ScheduleErrorContextObj {
  public:
-  explicit NoMatchedReducerError(IRModule mod, ffi::Array<PrimExpr> identities,
-                                 ffi::Array<TensorStore> combiners)
+  explicit NoMatchedReducerErrorObj(IRModule mod, ffi::Array<PrimExpr> identities,
+                                    ffi::Array<TensorStore> combiners)
       : mod_(std::move(mod)),
         identities_(std::move(identities)),
         combiners_(std::move(combiners)) {}
@@ -669,7 +669,7 @@ std::tuple<te::CommReducer, ffi::Array<PrimExpr>, ffi::Array<PrimExpr>> GetReduc
       FromIdentityCombiner(identities, combiners, &reducer, &combiner_lhs, &combiner_rhs);
   if (!matched) {
     if (self.has_value()) {
-      throw MakeScheduleError<NoMatchedReducerError>(self.value()->mod, identities, combiners);
+      throw MakeScheduleError<NoMatchedReducerErrorObj>(self.value()->mod, identities, combiners);
     } else {
       TVM_FFI_THROW(ValueError)
           << "No matched reducer for the identity and the combiner of the "
@@ -694,7 +694,7 @@ bool MatchReducer(const te::CommReducer& reducer, const ffi::Array<PrimExpr>& id
     }
   }
 
-  auto pattern_matcher = ffi::make_object<PatternMatcher>(reducer->result);
+  auto pattern_matcher = ffi::make_object<PatternMatcherObj>(reducer->result);
   pattern_matcher->Match(combined_values);
   ffi::Array<PrimExpr> lhs_tmp, rhs_tmp;
   lhs_tmp.reserve(n_tensors);

@@ -38,14 +38,14 @@ class TuneContext;
 class ScheduleRule;
 
 /*! \brief Rules to modify a block in a schedule. */
-class ScheduleRuleNode : public ffi::Object {
+class ScheduleRuleObj : public ffi::Object {
  public:
   /*! \brief Virtual destructor. */
-  virtual ~ScheduleRuleNode() = default;
+  virtual ~ScheduleRuleObj() = default;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<ScheduleRuleNode>();
+    refl::ObjectDef<ScheduleRuleObj>();
   }
 
   /*!
@@ -71,16 +71,16 @@ class ScheduleRuleNode : public ffi::Object {
   virtual ScheduleRule Clone() const = 0;
 
   static constexpr const bool _type_mutable = true;
-  TVM_FFI_DECLARE_OBJECT_INFO("s_tir.meta_schedule.ScheduleRule", ScheduleRuleNode, ffi::Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("s_tir.meta_schedule.ScheduleRule", ScheduleRuleObj, ffi::Object);
 };
 
 /*!
- * \brief Managed reference to ScheduleRuleNode
- * \sa ScheduleRuleNode
+ * \brief Managed reference to ScheduleRuleObj
+ * \sa ScheduleRuleObj
  */
 class ScheduleRule : public ffi::ObjectRef {
  public:
-  explicit ScheduleRule(ffi::UnsafeInit tag, ffi::ObjectPtr<ScheduleRuleNode> data)
+  explicit ScheduleRule(ffi::UnsafeInit tag, ffi::ObjectPtr<ScheduleRuleObj> data)
       : ffi::ObjectRef(tag) {
     data_ = std::move(data);
   }
@@ -313,11 +313,11 @@ class ScheduleRule : public ffi::ObjectRef {
   /*! \brief Create default schedule rules for RISCV CPU (RVV) */
   TVM_DLL static ffi::Array<ScheduleRule, void> DefaultRISCV(int vlen);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ScheduleRule, ffi::ObjectRef, ScheduleRuleNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ScheduleRule, ffi::ObjectRef, ScheduleRuleObj);
 };
 
 /*! \brief The schedule rule with customized methods on the python-side. */
-class PyScheduleRuleNode : public ScheduleRuleNode {
+class PyScheduleRuleObj : public ScheduleRuleObj {
  public:
   using FInitializeWithTuneContext = ScheduleRule::FInitializeWithTuneContext;
   using FApply = ScheduleRule::FApply;
@@ -335,14 +335,14 @@ class PyScheduleRuleNode : public ScheduleRuleNode {
     // `f_apply` is not registered
     // `f_clone` is not registered
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<PyScheduleRuleNode>();
+    refl::ObjectDef<PyScheduleRuleObj>();
   }
 
   void InitializeWithTuneContext(const TuneContext& context) final;
   ffi::Array<s_tir::Schedule> Apply(const s_tir::Schedule& sch, const s_tir::SBlockRV& block) final;
   ScheduleRule Clone() const final;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.meta_schedule.PyScheduleRule", PyScheduleRuleNode,
-                                    ScheduleRuleNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.meta_schedule.PyScheduleRule", PyScheduleRuleObj,
+                                    ScheduleRuleObj);
 };
 
 }  // namespace meta_schedule

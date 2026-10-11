@@ -27,7 +27,7 @@ namespace tvm {
 namespace s_tir {
 using namespace tvm::tirx;
 
-TVM_FFI_STATIC_INIT_BLOCK() { ScheduleStateNode::RegisterReflection(); }
+TVM_FFI_STATIC_INIT_BLOCK() { ScheduleStateObj::RegisterReflection(); }
 
 template <class K, class V>
 using SMap = std::unordered_map<K, V, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>;
@@ -147,7 +147,7 @@ bool ProducerCoversConsumer(const ffi::Array<PrimExpr>& tensor_shape,
  * \param sref The sref to be updated
  * \param new_stmt The statement that replaces the statement inside the sref
  */
-void UpdateSRef(ScheduleStateNode* self, StmtSRefNode* sref, const StmtNode* new_stmt) {
+void UpdateSRef(ScheduleStateObj* self, StmtSRefObj* sref, const StmtNode* new_stmt) {
   TVM_FFI_ICHECK(new_stmt->IsInstance<SBlockNode>() || new_stmt->IsInstance<ForNode>());
   const StmtNode* old_stmt = sref->stmt;
   TVM_FFI_ICHECK_NE(new_stmt, old_stmt);
@@ -157,22 +157,22 @@ void UpdateSRef(ScheduleStateNode* self, StmtSRefNode* sref, const StmtNode* new
 }
 
 /**************** Creation ****************/
-/*! \brief A helper class to update SBlockInfo for a ScheduleStateNode */
-class SBlockInfoCollector : public StmtExprVisitor {
+/*! \brief A helper class to update SBlockInfo for a ScheduleStateObj */
+class SBlockInfoCollectorObj : public StmtExprVisitorObj {
  public:
-  using StmtExprVisitor::Visit_;
+  using StmtExprVisitorObj::Visit_;
 
   ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
     if (value.as<ExprNode>()) return std::nullopt;
-    return StmtExprVisitor::Visit(value);
+    return StmtExprVisitorObj::Visit(value);
   }
 
-  static void Collect(ScheduleStateNode* self, const Stmt& stmt) {
-    auto collector = ffi::make_object<SBlockInfoCollector>(self);
+  static void Collect(ScheduleStateObj* self, const Stmt& stmt) {
+    auto collector = ffi::make_object<SBlockInfoCollectorObj>(self);
     collector->Visit(stmt);
   }
 
-  explicit SBlockInfoCollector(ScheduleStateNode* self)
+  explicit SBlockInfoCollectorObj(ScheduleStateObj* self)
       : self_(self), srefs_{}, block2realize_{}, block_frames_{} {
     block_frames_.emplace_back();
   }
@@ -217,11 +217,11 @@ class SBlockInfoCollector : public StmtExprVisitor {
 
   bool CheckRegionCoverAndStagePipeline(const SBlockInfo& info, const StmtSRef& scope_root,
                                         const ffi::Array<StmtSRef>& child_block_srefs) {
-    const StmtSRefNode* limit = scope_root->parent;
+    const StmtSRefObj* limit = scope_root->parent;
     bool stage_pipeline = true;
     // Step 1. Unbind the read/write regions of each child block
-    std::unordered_map<const StmtSRefNode*, ffi::Array<TensorRegion>> block_reads_unbound;
-    std::unordered_map<const StmtSRefNode*, ffi::Array<TensorRegion>> block_writes_unbound;
+    std::unordered_map<const StmtSRefObj*, ffi::Array<TensorRegion>> block_reads_unbound;
+    std::unordered_map<const StmtSRefObj*, ffi::Array<TensorRegion>> block_writes_unbound;
     block_reads_unbound.reserve(child_block_srefs.size());
     block_writes_unbound.reserve(child_block_srefs.size());
     for (const StmtSRef& block_sref : child_block_srefs) {
@@ -272,8 +272,8 @@ class SBlockInfoCollector : public StmtExprVisitor {
       const SBlockRealize& consumer_realize = block2realize_.at(consumer_block);
       bool& region_cover = self_->block_info.at(consumer_block_sref).region_cover = true;
       // Step 2.1. Extract the path to the scope root
-      std::unordered_map<const StmtSRefNode*, std::vector<const StmtSRefNode*>> lca_loc;
-      for (const StmtSRefNode* p = consumer_block_sref.get(); p != limit; p = p->parent) {
+      std::unordered_map<const StmtSRefObj*, std::vector<const StmtSRefObj*>> lca_loc;
+      for (const StmtSRefObj* p = consumer_block_sref.get(); p != limit; p = p->parent) {
         TVM_FFI_ICHECK(p != nullptr);
         lca_loc[p] = {};
       }
@@ -287,7 +287,7 @@ class SBlockInfoCollector : public StmtExprVisitor {
           continue;
         }
         const StmtSRef& producer = dep->src;
-        for (const StmtSRefNode* p = producer.get();; p = p->parent) {
+        for (const StmtSRefObj* p = producer.get();; p = p->parent) {
           TVM_FFI_ICHECK(p != nullptr);
           auto it = lca_loc.find(p);
           // Find the first (lowest) position in the ancestor of the consumer,
@@ -300,10 +300,10 @@ class SBlockInfoCollector : public StmtExprVisitor {
       }
       // Step 2.3. For each LCA, gather the produced regions,
       // then check if it could cover the consumed region
-      for (const StmtSRefNode* lca_node = consumer_block_sref.get();
+      for (const StmtSRefObj* lca_node = consumer_block_sref.get();
            region_cover && lca_node != limit; lca_node = lca_node->parent) {
         StmtSRef lca = ffi::GetRef<StmtSRef>(lca_node);
-        const std::vector<const StmtSRefNode*>& producer_block_srefs = lca_loc.at(lca.get());
+        const std::vector<const StmtSRefObj*>& producer_block_srefs = lca_loc.at(lca.get());
         // Skip empty LCA positions
         if (producer_block_srefs.empty()) {
           continue;
@@ -318,7 +318,7 @@ class SBlockInfoCollector : public StmtExprVisitor {
           touched_regions[tensor] = {};
         }
         // Step 2.3.2. Find all the regions written by each producer
-        for (const StmtSRefNode* producer_block_sref : producer_block_srefs) {
+        for (const StmtSRefObj* producer_block_sref : producer_block_srefs) {
           const SBlockRealize& producer_realize = block2realize_.at(producer_block_sref->stmt);
           StmtSRef parent_sref = ffi::GetRef<StmtSRef>(producer_block_sref->parent);
           for (const TensorRegion& region : block_writes_unbound.at(producer_block_sref)) {
@@ -396,13 +396,13 @@ class SBlockInfoCollector : public StmtExprVisitor {
 
   ffi::Optional<VisitInterrupt> Visit_(const SeqStmtNode* seq_stmt) final {
     // Set `seq_index` information for SeqStmtNode
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(seq_stmt));
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitorObj::Visit_(seq_stmt));
     SetSeqIndexInChildren(self_->stmt2ref, seq_stmt);
     return std::nullopt;
   }
 
-  /*! \brief The ScheduleStateNode we are operating on */
-  ScheduleStateNode* self_;
+  /*! \brief The ScheduleStateObj we are operating on */
+  ScheduleStateObj* self_;
   /*! \brief The stack frame used to indicate the current scope */
   std::vector<StmtSRef> srefs_;
   /*! \brief The BlockRealize corresponding to blocks */
@@ -418,8 +418,8 @@ class SBlockInfoCollector : public StmtExprVisitor {
 ScheduleState::ScheduleState(IRModule mod, int debug_mask, bool enable_check) {
   TVM_FFI_CHECK_GE(debug_mask, -1, ValueError)
       << "negative `debug_mask` other than -1 is not supported";
-  ffi::ObjectPtr<ScheduleStateNode> n = ffi::make_object<ScheduleStateNode>();
-  ScheduleStateNode* self = n.get();
+  ffi::ObjectPtr<ScheduleStateObj> n = ffi::make_object<ScheduleStateObj>();
+  ScheduleStateObj* self = n.get();
   // Set `n->mod`
   n->mod = std::move(mod);
   // Set `n->debug_mask`
@@ -428,7 +428,7 @@ ScheduleState::ScheduleState(IRModule mod, int debug_mask, bool enable_check) {
   n->enable_check = enable_check;
   std::unordered_map<const StmtNode*, StmtSRef> stmt2ref;
   // Set `n->stmt2ref`
-  self->stmt2ref = SRefTreeCreator::Create(self->mod);
+  self->stmt2ref = SRefTreeCreatorObj::Create(self->mod);
   // Set `n->block_info`
   for (const auto& kv : n->mod->functions) {
     const BaseFunc& base_func = kv.second;
@@ -436,7 +436,7 @@ ScheduleState::ScheduleState(IRModule mod, int debug_mask, bool enable_check) {
       auto func = opt.value();
       s_tir::VerifyWellFormed(func);
       if (func->body.has_value()) {
-        SBlockInfoCollector::Collect(self, func->body.value());
+        SBlockInfoCollectorObj::Collect(self, func->body.value());
       }
     }
   }
@@ -454,8 +454,8 @@ ScheduleState::ScheduleState(IRModule mod, int debug_mask, bool enable_check) {
  *
  * The workflow of the replacement algorithm is:
  * 1) Detect all possible reuses in class ReuseInfo
- * 2) Remove the expired srefs in class SRefTreePruner
- * 3) Update the reused the sref, and create the srefs for new statements, in class SRefUpdater
+ * 2) Remove the expired srefs in class SRefTreePrunerObj
+ * 3) Update the reused the sref, and create the srefs for new statements, in class SRefUpdaterObj
  * 4) Renew the ancestors of `src_stmt` to reflect the replacement
  */
 
@@ -471,10 +471,10 @@ ScheduleState::ScheduleState(IRModule mod, int debug_mask, bool enable_check) {
  * there is correspondence between them,
  * which makes us to reuse the sref pointing to `src`, and change it to point to `tgt`.
  *
- * \note The intact reuse and loop sref reuse are collected in the ReuseCollector,
+ * \note The intact reuse and loop sref reuse are collected in the ReuseCollectorObj,
  * while the block reuse is specified by the caller.
  *
- * \sa ReuseCollector
+ * \sa ReuseCollectorObj
  */
 struct ReuseInfo {
   /*!
@@ -511,27 +511,27 @@ struct ReuseInfo {
  * and there is correspondence between them,
  * which makes us to reuse the sref pointing to `src`, and changes it to point to `tgt`,
  */
-class ReuseCollector : public StmtExprVisitor {
+class ReuseCollectorObj : public StmtExprVisitorObj {
  public:
-  using StmtExprVisitor::Visit_;
+  using StmtExprVisitorObj::Visit_;
 
   ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
     if (value.as<ExprNode>()) return std::nullopt;
-    return StmtExprVisitor::Visit(value);
+    return StmtExprVisitorObj::Visit(value);
   }
 
-  static ReuseInfo Collect(const ScheduleStateNode* self, const Stmt& tgt_stmt) {
-    auto collector = ffi::make_object<ReuseCollector>(self);
+  static ReuseInfo Collect(const ScheduleStateObj* self, const Stmt& tgt_stmt) {
+    auto collector = ffi::make_object<ReuseCollectorObj>(self);
     collector->Visit(tgt_stmt);
     ReuseInfo result;
     result.intact = {collector->intact_.begin(), collector->intact_.end()};
     result.loop_sref_possible_reuse = {collector->loop_vars_.begin(), collector->loop_vars_.end()};
-    // `result.block_reuse ` is not set here because ReuseCollector doesn't collect it,
+    // `result.block_reuse ` is not set here because ReuseCollectorObj doesn't collect it,
     // and it is supposed to be properly set by the caller.
     return result;
   }
 
-  explicit ReuseCollector(const ScheduleStateNode* self) : self_(self) {}
+  explicit ReuseCollectorObj(const ScheduleStateObj* self) : self_(self) {}
 
  private:
   ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) final {
@@ -540,7 +540,7 @@ class ReuseCollector : public StmtExprVisitor {
     } else {
       // Collect loop vars for detecting reuse of loop sref
       loop_vars_.push_back(op->loop_var.get());
-      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitorObj::Visit_(op));
     }
     return std::nullopt;
   }
@@ -549,13 +549,13 @@ class ReuseCollector : public StmtExprVisitor {
     if (self_->stmt2ref.count(op)) {
       intact_.push_back(op);
     } else {
-      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitorObj::Visit_(op));
     }
     return std::nullopt;
   }
 
   /*! \brief The schedule state to be worked on */
-  const ScheduleStateNode* self_;
+  const ScheduleStateObj* self_;
   /*! \brief The intact statements we have collected along the way of visiting */
   std::vector<const StmtNode*> intact_;
   /*! \brief The loop variable we collected in the tgt_stmt */
@@ -570,13 +570,13 @@ class ReuseCollector : public StmtExprVisitor {
  * 1) delete those srefs that are not reused.
  * 2) return the sref objects that are loop/block sref reuses, but not intact reuses
  */
-class SRefTreePruner : public StmtExprVisitor {
+class SRefTreePrunerObj : public StmtExprVisitorObj {
  public:
-  using StmtExprVisitor::Visit_;
+  using StmtExprVisitorObj::Visit_;
 
   ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
     if (value.as<ExprNode>()) return std::nullopt;
-    return StmtExprVisitor::Visit(value);
+    return StmtExprVisitorObj::Visit(value);
   }
 
   /*!
@@ -590,15 +590,15 @@ class SRefTreePruner : public StmtExprVisitor {
    * where the block comes from the subtree of `tgt_stmt`
    * 3) Intact reuse: not returned
    */
-  static std::unordered_map<const ffi::Object*, StmtSRef> Prune(ScheduleStateNode* self,
+  static std::unordered_map<const ffi::Object*, StmtSRef> Prune(ScheduleStateObj* self,
                                                                 const ReuseInfo& reuse_info,
                                                                 const Stmt& src_stmt) {
-    auto pruner = ffi::make_object<SRefTreePruner>(self, reuse_info);
+    auto pruner = ffi::make_object<SRefTreePrunerObj>(self, reuse_info);
     pruner->Visit(src_stmt);
     return std::move(pruner->reused_srefs_);
   }
 
-  explicit SRefTreePruner(ScheduleStateNode* self, const ReuseInfo& reuse_info)
+  explicit SRefTreePrunerObj(ScheduleStateObj* self, const ReuseInfo& reuse_info)
       : self_(self), reuse_info_(reuse_info) {}
 
  private:
@@ -652,7 +652,7 @@ class SRefTreePruner : public StmtExprVisitor {
   }
 
   /*! \brief The schedule state we are working on */
-  ScheduleStateNode* self_;
+  ScheduleStateObj* self_;
   /*! \brief The reuse information we collected previously */
   const ReuseInfo& reuse_info_;
   /*!
@@ -667,27 +667,27 @@ class SRefTreePruner : public StmtExprVisitor {
  * \brief Update the sref in the `tgt_stmt` given the reuse information
  *
  * After being updated, in the `tgt_stmt` subtree,
- * 1) all `StmtSRefNode::parent`s are correct
- * 2) all `StmtSRefNode::seq_index`s are correct, except for the root
- * 3) all `StmtSRefNode::stmt`s are correct, except for the root
+ * 1) all `StmtSRefObj::parent`s are correct
+ * 2) all `StmtSRefObj::seq_index`s are correct, except for the root
+ * 3) all `StmtSRefObj::stmt`s are correct, except for the root
  */
-class SRefUpdater : public StmtExprVisitor {
+class SRefUpdaterObj : public StmtExprVisitorObj {
  public:
-  using StmtExprVisitor::Visit_;
+  using StmtExprVisitorObj::Visit_;
 
   ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
     if (value.as<ExprNode>()) return std::nullopt;
-    return StmtExprVisitor::Visit(value);
+    return StmtExprVisitorObj::Visit(value);
   }
 
-  static void Update(ScheduleStateNode* self, StmtSRefNode* src_stmt_parent,
+  static void Update(ScheduleStateObj* self, StmtSRefObj* src_stmt_parent,
                      const std::unordered_map<const ffi::Object*, StmtSRef>& reused_srefs,
                      const Stmt& tgt_stmt) {
-    ffi::make_object<SRefUpdater>(self, src_stmt_parent, reused_srefs)->Visit(tgt_stmt);
+    ffi::make_object<SRefUpdaterObj>(self, src_stmt_parent, reused_srefs)->Visit(tgt_stmt);
   }
 
-  explicit SRefUpdater(ScheduleStateNode* self, StmtSRefNode* src_stmt_parent,
-                       const std::unordered_map<const ffi::Object*, StmtSRef>& reused_srefs)
+  explicit SRefUpdaterObj(ScheduleStateObj* self, StmtSRefObj* src_stmt_parent,
+                          const std::unordered_map<const ffi::Object*, StmtSRef>& reused_srefs)
       : self_(ffi::GetRef<ScheduleState>(self)),
         ancestors_{src_stmt_parent},
         reused_srefs_(reused_srefs) {}
@@ -758,7 +758,7 @@ class SRefUpdater : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const SeqStmtNode* seq_stmt) final {
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(seq_stmt));
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitorObj::Visit_(seq_stmt));
     SetSeqIndexInChildren(self_->stmt2ref, seq_stmt);
     return std::nullopt;
   }
@@ -788,7 +788,7 @@ class SRefUpdater : public StmtExprVisitor {
   /*! \brief The schedule state class to be worked on */
   ScheduleState self_;
   /*! \brief A stack containing all the ancestor For/Block nodes during the visit */
-  std::vector<StmtSRefNode*> ancestors_;
+  std::vector<StmtSRefObj*> ancestors_;
   /*! \brief Maps the loop var / block to the reused sref */
   const std::unordered_map<const ffi::Object*, StmtSRef>& reused_srefs_;
 };
@@ -798,10 +798,10 @@ class SRefUpdater : public StmtExprVisitor {
  * where the subtree `child_src_stmt` is replaced with the subtree `child_tgt_stmt`.
  * \note The visitor assumes `child_src_stmt` is the child of `parent_stmt` in the sref tree.
  */
-class ChildReplacer : public StmtExprMutator {
+class ChildReplacerObj : public StmtExprMutatorObj {
  public:
-  using StmtExprMutator::Mutate;
-  using StmtExprMutator::Mutate_;
+  using StmtExprMutatorObj::Mutate;
+  using StmtExprMutatorObj::Mutate_;
 
   static Stmt Replace(const StmtNode* parent_stmt, const StmtNode* child_src_stmt,
                       const Stmt& child_tgt_stmt, int seq_index, bool allow_copy_on_write) {
@@ -811,7 +811,7 @@ class ChildReplacer : public StmtExprMutator {
     TVM_FFI_ICHECK(child_tgt_stmt->IsInstance<SBlockNode>() ||  //
                    child_tgt_stmt->IsInstance<ForNode>() ||     //
                    child_tgt_stmt->IsInstance<SBlockRealizeNode>());
-    auto replacer = ffi::make_object<ChildReplacer>(child_src_stmt, child_tgt_stmt, seq_index);
+    auto replacer = ffi::make_object<ChildReplacerObj>(child_src_stmt, child_tgt_stmt, seq_index);
     // ScheduleState has proved the complete ancestor chain. Check the borrowed
     // parent before creating an owning result handle.
     auto mode =
@@ -819,14 +819,14 @@ class ChildReplacer : public StmtExprMutator {
     return replacer->CopyOnWriteAndMutate(parent_stmt, mode);
   }
 
-  explicit ChildReplacer(const StmtNode* src_stmt, const Stmt& tgt_stmt, int seq_index)
+  explicit ChildReplacerObj(const StmtNode* src_stmt, const Stmt& tgt_stmt, int seq_index)
       : src_stmt_(src_stmt), tgt_stmt_(tgt_stmt), seq_index_(seq_index) {}
 
  private:
   UnchangedOr<ffi::Any> Mutate(ffi::AnyView value, InplaceMode inplace_mode) final {
     if (value.as<ExprNode>()) return ffi::Unchanged();
     if (value.as<StmtNode>() == src_stmt_) return ffi::Any(tgt_stmt_);
-    return StmtExprMutator::Mutate(value, inplace_mode);
+    return StmtExprMutatorObj::Mutate(value, inplace_mode);
   }
 
   // Skipping sibling blocks and loops other than `src_stmt_`
@@ -874,7 +874,7 @@ class ChildReplacer : public StmtExprMutator {
         }
       }
     }
-    return StmtExprMutator::Mutate_(op, inplace_mode);
+    return StmtExprMutatorObj::Mutate_(op, inplace_mode);
   }
 
   Stmt CopyOnWriteAndMutate(const StmtNode* parent_stmt, InplaceMode inplace_mode) {
@@ -915,13 +915,13 @@ class ChildReplacer : public StmtExprMutator {
   const Stmt& tgt_stmt_;
   /*!
    * \brief The `seq_index` of the `src_stmt`
-   * \sa StmtSRefNode
+   * \sa StmtSRefObj
    */
   int seq_index_;
 };
 
-void ScheduleStateNode::Replace(const tirx::StmtSRef& _src_sref, const Stmt& tgt_stmt,
-                                const ffi::Map<SBlock, SBlock>& _block_sref_reuse) {
+void ScheduleStateObj::Replace(const tirx::StmtSRef& _src_sref, const Stmt& tgt_stmt,
+                               const ffi::Map<SBlock, SBlock>& _block_sref_reuse) {
   if (this->debug_mask != 0) {
     const StmtNode* src_stmt = _src_sref->stmt;
     bool input_correct =
@@ -958,15 +958,15 @@ void ScheduleStateNode::Replace(const tirx::StmtSRef& _src_sref, const Stmt& tgt
     // Step 1.1. Collect info for different kinds of reuses
     // 1) intact
     // 2) loop/block reuse
-    ReuseInfo reuse_info = ReuseCollector::Collect(this, tgt_stmt);
+    ReuseInfo reuse_info = ReuseCollectorObj::Collect(this, tgt_stmt);
     reuse_info.block_sref_reuse = std::move(block_sref_reuse);
     // Step 1.2. Collect loop/block reuse to their corresponding srefs
     // and remove those srefs in the `src_stmt` that are no longer used after replacement
     std::unordered_map<const ffi::Object*, StmtSRef> reused_srefs =
-        SRefTreePruner::Prune(this, reuse_info, src_stmt);
+        SRefTreePrunerObj::Prune(this, reuse_info, src_stmt);
     // Step 1.3. Update the sref tree, inserting newly created srefs and properly handle reused
     // srefs in `tgt_stmt`
-    SRefUpdater::Update(this, src_sref->parent, reused_srefs, tgt_stmt);
+    SRefUpdaterObj::Update(this, src_sref->parent, reused_srefs, tgt_stmt);
   }
   // Step 2. Set the ancestors' children properly
   //   Iteratively visit the ancestors, creating new ones whose `body`s are properly fixed.
@@ -984,8 +984,8 @@ void ScheduleStateNode::Replace(const tirx::StmtSRef& _src_sref, const Stmt& tgt
   GlobalVar g_var{ffi::UnsafeInit{}};
   {
     int i = 0;
-    const StmtSRefNode* p = src_sref.get();
-    const StmtSRefNode* child = nullptr;
+    const StmtSRefObj* p = src_sref.get();
+    const StmtSRefObj* child = nullptr;
     while (true) {
       if (child != nullptr) {
         // The sref tree omits body sequences and BlockRealize wrappers. A shared
@@ -1042,7 +1042,7 @@ void ScheduleStateNode::Replace(const tirx::StmtSRef& _src_sref, const Stmt& tgt
   // 1) Create `parent_stmt` that corresponds to `child_sref->parent`
   // 2) Point `child_sref` to `child_tgt_stmt`
   // 3) `tgt_stmt` is of type Loop or Block
-  StmtSRefNode* child_sref = src_sref.get();
+  StmtSRefObj* child_sref = src_sref.get();
   Stmt child_tgt_stmt = std::move(tgt_stmt);
   for (int i = 0; (need_module_copy || i <= num_copy_steps) && child_sref->parent != nullptr; ++i) {
     bool can_directly_mutate_parent = !need_module_copy && i == num_copy_steps;
@@ -1051,7 +1051,7 @@ void ScheduleStateNode::Replace(const tirx::StmtSRef& _src_sref, const Stmt& tgt
     const StmtNode* child_src_stmt = child_sref->stmt;
     // Step 2.1. Link `child_sref` to `child_tgt_stmt`
     if (i == 0) {
-      // As the invariance of SRefUpdater,
+      // As the invariance of SRefUpdaterObj,
       // the `seq_index` of the root of `tgt_stmt` is set as -1,
       // which might be incorrect
       SetSeqIndex(this->stmt2ref, child_tgt_stmt, child_sref->seq_index);
@@ -1061,9 +1061,9 @@ void ScheduleStateNode::Replace(const tirx::StmtSRef& _src_sref, const Stmt& tgt
     }
     // Step 2.2. Create `new_parent_stmt`, by mutating the body of `parent_stmt`
     Stmt new_parent_stmt =
-        ChildReplacer::Replace(parent_stmt, child_src_stmt, child_tgt_stmt,
-                               /*seq_index=*/child_sref->seq_index,
-                               /*allow_copy_on_write=*/can_directly_mutate_parent);
+        ChildReplacerObj::Replace(parent_stmt, child_src_stmt, child_tgt_stmt,
+                                  /*seq_index=*/child_sref->seq_index,
+                                  /*allow_copy_on_write=*/can_directly_mutate_parent);
     // Step 2.3. Go to next parent
     if (can_directly_mutate_parent) {
       // If the node can be directly mutated inplace,
@@ -1116,7 +1116,7 @@ void ScheduleStateNode::Replace(const tirx::StmtSRef& _src_sref, const Stmt& tgt
   }
 }
 
-void ScheduleStateNode::DebugVerify() const {
+void ScheduleStateObj::DebugVerify() const {
   TVM_FFI_ICHECK_GE(debug_mask, -1);
   uint32_t flag = (debug_mask != -1)                       //
                       ? static_cast<uint32_t>(debug_mask)  //
@@ -1131,7 +1131,7 @@ void ScheduleStateNode::DebugVerify() const {
 
 /**************** SBlockInfo-related ****************/
 
-SBlockInfo ScheduleStateNode::GetSBlockInfo(const StmtSRef& block_sref) const {
+SBlockInfo ScheduleStateObj::GetSBlockInfo(const StmtSRef& block_sref) const {
   TVM_SREF_TO_SBLOCK(block_sref);
   auto it = this->block_info.find(block_sref);
   TVM_FFI_CHECK(it != this->block_info.end(), IndexError)
@@ -1140,8 +1140,8 @@ SBlockInfo ScheduleStateNode::GetSBlockInfo(const StmtSRef& block_sref) const {
   return it->second;
 }
 
-void ScheduleStateNode::UpdateScopeSBlockInfo(const Stmt& stmt) {
-  SBlockInfoCollector::Collect(this, stmt);
+void ScheduleStateObj::UpdateScopeSBlockInfo(const Stmt& stmt) {
+  SBlockInfoCollectorObj::Collect(this, stmt);
 }
 
 TVM_DLL ffi::Array<IntImm> GetCachedFlags(const ScheduleState& self, const StmtSRef& block_sref) {
@@ -1160,8 +1160,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
            [](IRModule mod, int debug_mask, bool enable_check) -> ScheduleState {
              return ScheduleState(mod, debug_mask, enable_check);
            })
-      .def_method("s_tir.schedule.ScheduleStateGetSBlockScope", &ScheduleStateNode::GetSBlockScope)
-      .def_method("s_tir.schedule.ScheduleStateReplace", &ScheduleStateNode::Replace)
+      .def_method("s_tir.schedule.ScheduleStateGetSBlockScope", &ScheduleStateObj::GetSBlockScope)
+      .def_method("s_tir.schedule.ScheduleStateReplace", &ScheduleStateObj::Replace)
       .def("s_tir.schedule.ScheduleStateGetSRef",
            [](ScheduleState self, Stmt stmt) -> ffi::Optional<StmtSRef> {
              auto it = self->stmt2ref.find(stmt.get());

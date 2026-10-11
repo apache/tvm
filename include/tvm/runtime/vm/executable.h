@@ -84,7 +84,7 @@ struct VMFuncInfo {
  * The executable contains information (e.g. data in different memory regions)
  * to run in a virtual machine.
  */
-class TVM_RUNTIME_DLL VMExecutable : public ffi::ModuleObj {
+class TVM_RUNTIME_DLL VMExecutableObj : public ffi::ModuleObj {
  public:
   /*! \brief Get the property of the runtime module .*/
   int GetPropertyMask() const final { return ffi::Module::kBinarySerializable; };
@@ -119,28 +119,29 @@ class TVM_RUNTIME_DLL VMExecutable : public ffi::ModuleObj {
    */
   ffi::String AsPython() const;
   /*!
-   * \brief Write the VMExecutable to the binary stream in serialized form.
+   * \brief Write the VMExecutableObj to the binary stream in serialized form.
    * \return The binary bytes that save the executable to.
    */
   ffi::Bytes SaveToBytes() const final;
   /*!
-   * \brief Load VMExecutable from the binary stream in serialized form.
+   * \brief Load VMExecutableObj from the binary stream in serialized form.
    * \param bytes The binary bytes that load the executable from.
    * \return The loaded executable, in the form of a `runtime::Module`.
    */
   static ffi::Module LoadFromBytes(const ffi::Bytes& bytes);
   /*!
-   * \brief Write the VMExecutable to the provided path as a file containing its serialized content.
+   * \brief Write the VMExecutableObj to the provided path as a file containing its serialized
+   * content.
    * \param file_name The name of the file to write the serialized data to.
    * \param format The target format of the saved file.
    */
   void WriteToFile(const ffi::String& file_name, const ffi::String& format) const final;
   /*! \brief Create a Relax virtual machine and load `this` as the executable. */
   ffi::Module VMLoadExecutable() const;
-  /*! \brief Check if the VMExecutable contains a specific function. */
+  /*! \brief Check if the VMExecutableObj contains a specific function. */
   bool HasFunction(const ffi::String& name) const;
   /*!
-   * \brief Load VMExecutable from the file.
+   * \brief Load VMExecutableObj from the file.
    * \param file_name The path of the file that load the executable from.
    * \return The loaded executable, in the form of a `runtime::Module`.
    */
@@ -159,7 +160,7 @@ class TVM_RUNTIME_DLL VMExecutable : public ffi::ModuleObj {
   /*! \brief The byte data of instruction. */
   std::vector<ExecWord> instr_data;
 
-  virtual ~VMExecutable() {}
+  virtual ~VMExecutableObj() {}
 
   /*! \brief Module type key. */
   const char* kind() const final;

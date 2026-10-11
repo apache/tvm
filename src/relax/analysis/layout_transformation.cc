@@ -61,7 +61,7 @@ static bool IsBijectiveAffine(const IndexMap& m, const ffi::Array<Range>& ranges
  * are used in it. This is important to get which spatial iterators are accessed in each index
  * of tensor access.
  */
-class IndexAnalyzer : public s_tir::StmtExprVisitor {
+class IndexAnalyzerObj : public s_tir::StmtExprVisitorObj {
  public:
   ffi::Array<tvm::Var> Analyze(const sym::IterSumExpr& expr) {
     Visit(expr);
@@ -81,7 +81,7 @@ class IndexAnalyzer : public s_tir::StmtExprVisitor {
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->extent));
       return Visit(op->scale);
     }
-    return s_tir::StmtExprVisitor::Visit(value);
+    return s_tir::StmtExprVisitorObj::Visit(value);
   }
 
   ffi::Optional<VisitInterrupt> VisitIterMark(const sym::IterMark& op) {
@@ -116,7 +116,7 @@ static SpatialLayout GetSpatialLayout(const sym::IterMapResult& iter_map_result)
   TVM_FFI_ICHECK(!iter_map_result->indices.empty());
   SpatialLayout result;
   for (const sym::IterSumExpr& index : iter_map_result->indices) {
-    auto index_analyzer = ffi::make_object<IndexAnalyzer>();
+    auto index_analyzer = ffi::make_object<IndexAnalyzerObj>();
     ffi::Array<tvm::Var> iter_vars = index_analyzer->Analyze(index);
     if (iter_vars.size() >= 2) {
       LOG(WARNING) << "[LayoutInference] Unable to get spatial layout of access: "
@@ -325,11 +325,11 @@ static ffi::Optional<IndexMap> InferLayoutTransformation(const SpatialLayout& sr
  * 2. Expects write tensor access to be affine and only use spatial iterators of the block.
  * 3. Proposes transformations to a read tensor if all access to it are affine.
  */
-class BlockAnalyzer : public s_tir::StmtExprVisitor {
+class BlockAnalyzerObj : public s_tir::StmtExprVisitorObj {
  public:
-  explicit BlockAnalyzer(const s_tir::SBlock& block,
-                         const ffi::Map<TensorVar, IndexMap>& transformation_cache,
-                         IndexMap write_transformation)
+  explicit BlockAnalyzerObj(const s_tir::SBlock& block,
+                            const ffi::Map<TensorVar, IndexMap>& transformation_cache,
+                            IndexMap write_transformation)
       : can_transform_block_(true),
         write_transformation_(write_transformation),
         block_(block),
@@ -493,7 +493,7 @@ class BlockAnalyzer : public s_tir::StmtExprVisitor {
     return std::nullopt;
   }
   ffi::Optional<VisitInterrupt> Visit_(const TensorStoreNode* op) final {
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(s_tir::StmtExprVisitor::Visit_(op));
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(s_tir::StmtExprVisitorObj::Visit_(op));
 
     TensorAccessInfo& access_info =
         tensor_access_info_[op->dest.as_or_throw<tvm::tirx::TensorVar>()];
@@ -572,10 +572,10 @@ class BlockAnalyzer : public s_tir::StmtExprVisitor {
  * possible that the tirx::Function is too complex for analysis. In such a case, no transformations
  * are proposed.
  */
-class FunctionAnalyzer : public s_tir::StmtExprVisitor {
+class FunctionAnalyzerObj : public s_tir::StmtExprVisitorObj {
  public:
-  explicit FunctionAnalyzer(const tirx::Function& func,
-                            ffi::Array<IndexMap> write_transformations) {
+  explicit FunctionAnalyzerObj(const tirx::Function& func,
+                               ffi::Array<IndexMap> write_transformations) {
     TVM_FFI_ICHECK_LE(write_transformations.size(), func->params.size())
         << "Incompatible Function and write_transformations";
 
@@ -607,7 +607,7 @@ class FunctionAnalyzer : public s_tir::StmtExprVisitor {
   ffi::Optional<VisitInterrupt> Visit_(const s_tir::SBlockNode* op) final {
     if (op->name_hint == "root") {
       // Skip the root block
-      return s_tir::StmtExprVisitor::Visit_(op);
+      return s_tir::StmtExprVisitorObj::Visit_(op);
     }
 
     s_tir::SBlock block = ffi::GetRef<s_tir::SBlock>(op);
@@ -615,7 +615,7 @@ class FunctionAnalyzer : public s_tir::StmtExprVisitor {
     if (block->writes.size() != 1) return std::nullopt;
     auto write_tensor = block->writes[0]->source.as_or_throw<tvm::tirx::TensorVar>();
     block_to_tensor_[block].push_back(write_tensor);
-    auto block_analyzer = ffi::make_object<BlockAnalyzer>(
+    auto block_analyzer = ffi::make_object<BlockAnalyzerObj>(
         block, tensor_transformation_cache_, tensor_transformation_cache_[write_tensor]);
     block_analyzer->Analyze();
 
@@ -624,9 +624,9 @@ class FunctionAnalyzer : public s_tir::StmtExprVisitor {
     block_transformations_.Set(block, block_analyzer->GetSBlockTransformation());
 
     for (const auto& [tensor, index_map] : block_analyzer->GetReadTensorTransformations()) {
-      // BlockAnalyzer makes sure that it does not propose transformation for a tensor for which a
-      // transformation has already been proposed by other blocks or by write_transformations which
-      // are input to this analysis.
+      // BlockAnalyzerObj makes sure that it does not propose transformation for a tensor for which
+      // a transformation has already been proposed by other blocks or by write_transformations
+      // which are input to this analysis.
       TVM_FFI_ICHECK_EQ(tensor_transformation_cache_.count(tensor), 0);
       tensor_transformation_cache_.Set(tensor, index_map);
       block_to_tensor_[block].push_back(tensor);
@@ -647,7 +647,7 @@ ffi::Map<s_tir::SBlock, ffi::Map<ffi::ObjectRef, tirx::IndexMap>> SuggestLayoutT
   // No changes to the tirx::Function are required if no transformations on output tensors.
   if (write_tensor_transformations.empty()) return {};
 
-  auto analyzer = ffi::make_object<FunctionAnalyzer>(function, write_tensor_transformations);
+  auto analyzer = ffi::make_object<FunctionAnalyzerObj>(function, write_tensor_transformations);
   analyzer->Visit(function->body);
   return analyzer->GetSuggestedTransforms();
 }

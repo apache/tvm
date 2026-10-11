@@ -33,64 +33,64 @@
 namespace tvm {
 namespace relax {
 
-void SortAttrs::RegisterReflection() {
+void SortAttrsNode::RegisterReflection() {
   namespace refl = tvm::ffi::reflection;
-  refl::ObjectDef<SortAttrs>()
-      .def_ro("axis", &SortAttrs::axis,
+  refl::ObjectDef<SortAttrsNode>()
+      .def_ro("axis", &SortAttrsNode::axis,
               "Axis along which the sort is computed."
               "The default the last axis is used.",
               refl::DefaultValue(-1))
-      .def_ro("descending", &SortAttrs::descending,
+      .def_ro("descending", &SortAttrsNode::descending,
               "Whether to sort in descending order."
               "If it is not specified, it defaults to the ascending order.",
               refl::DefaultValue(false));
 }
 
-void ArgsortAttrs::RegisterReflection() {
+void ArgsortAttrsNode::RegisterReflection() {
   namespace refl = tvm::ffi::reflection;
-  refl::ObjectDef<ArgsortAttrs>()
-      .def_ro("axis", &ArgsortAttrs::axis,
+  refl::ObjectDef<ArgsortAttrsNode>()
+      .def_ro("axis", &ArgsortAttrsNode::axis,
               "Axis along which the argsort is computed."
               "The default the last axis is used.",
               refl::DefaultValue(-1))
-      .def_ro("descending", &ArgsortAttrs::descending,
+      .def_ro("descending", &ArgsortAttrsNode::descending,
               "Whether to argsort in descending order."
               "If it is not specified, it defaults to the ascending order.",
               refl::DefaultValue(false))
-      .def_ro("dtype", &ArgsortAttrs::dtype, "DType of the output indices.",
+      .def_ro("dtype", &ArgsortAttrsNode::dtype, "DType of the output indices.",
               refl::DefaultValue((DLDataType{kDLInt, 32, 1})));
 }
 
-void TopKAttrs::RegisterReflection() {
+void TopKAttrsNode::RegisterReflection() {
   namespace refl = tvm::ffi::reflection;
-  refl::ObjectDef<TopKAttrs>()
-      .def_ro("k", &TopKAttrs::k, "Number of top elements to select", refl::DefaultValue(1))
-      .def_ro("axis", &TopKAttrs::axis, "Axis along which to sort the input tensor.",
+  refl::ObjectDef<TopKAttrsNode>()
+      .def_ro("k", &TopKAttrsNode::k, "Number of top elements to select", refl::DefaultValue(1))
+      .def_ro("axis", &TopKAttrsNode::axis, "Axis along which to sort the input tensor.",
               refl::DefaultValue(-1))
-      .def_ro("ret_type", &TopKAttrs::ret_type,
+      .def_ro("ret_type", &TopKAttrsNode::ret_type,
               "The return type [both, values, indices]."
               "both - return both top k data and indices."
               "values - return top k data only."
               "indices - return top k indices only.",
               refl::DefaultValue("both"))
-      .def_ro("largest", &TopKAttrs::largest,
+      .def_ro("largest", &TopKAttrsNode::largest,
               "Whether to return largest or smallest elements."
               "By default, return the largest k elements.",
               refl::DefaultValue(true))
-      .def_ro("dtype", &TopKAttrs::dtype, "Data type of the output indices.",
+      .def_ro("dtype", &TopKAttrsNode::dtype, "Data type of the output indices.",
               refl::DefaultValue((DLDataType{kDLInt, 32, 1})));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  SortAttrs::RegisterReflection();
-  ArgsortAttrs::RegisterReflection();
-  TopKAttrs::RegisterReflection();
+  SortAttrsNode::RegisterReflection();
+  ArgsortAttrsNode::RegisterReflection();
+  TopKAttrsNode::RegisterReflection();
 }
 
 /* relax.sort */
 
 Expr sort(Expr data, int axis, bool descending) {
-  auto attrs = ffi::make_object<SortAttrs>();
+  auto attrs = ffi::make_object<SortAttrsNode>();
   attrs->axis = std::move(axis);
   attrs->descending = std::move(descending);
 
@@ -110,7 +110,7 @@ Type InferTypeSort(const CallNode* call_node) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.sort")
-      .signature(sig::arg("data", "The input tensor."), sig::call_attrs<SortAttrs>())
+      .signature(sig::arg("data", "The input tensor."), sig::call_attrs<SortAttrsNode>())
       .set_attr<FInferType>(tvm::op_attr::kInferType, FInferType::FromNative<&InferTypeSort>())
       .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
 }
@@ -118,7 +118,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 /* relax.argsort */
 
 Expr argsort(Expr data, int axis, bool descending, ffi::Optional<DLDataType> dtype) {
-  auto attrs = ffi::make_object<ArgsortAttrs>();
+  auto attrs = ffi::make_object<ArgsortAttrsNode>();
   attrs->axis = std::move(axis);
   attrs->descending = std::move(descending);
   attrs->dtype = std::move(dtype);
@@ -135,7 +135,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 Type InferTypeArgsort(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
   TensorType data_ty = GetUnaryInputTensorType(call);
-  const auto* attrs = call->attrs.as<ArgsortAttrs>();
+  const auto* attrs = call->attrs.as<ArgsortAttrsNode>();
   ffi::Optional<PrimType> out_type = attrs->dtype.has_value()
                                          ? ffi::Optional<PrimType>(PrimType(attrs->dtype.value()))
                                          : data_ty->dtype;
@@ -147,7 +147,7 @@ Type InferTypeArgsort(const CallNode* call_node) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.argsort")
-      .signature(sig::arg("data", "The input tensor."), sig::call_attrs<ArgsortAttrs>())
+      .signature(sig::arg("data", "The input tensor."), sig::call_attrs<ArgsortAttrsNode>())
       .set_attr<FInferType>(tvm::op_attr::kInferType, FInferType::FromNative<&InferTypeArgsort>())
       .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
 }
@@ -156,7 +156,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 Expr topk(Expr data, int k, int axis, ffi::String ret_type, bool largest,
           ffi::Optional<DLDataType> dtype) {
-  auto attrs = ffi::make_object<TopKAttrs>();
+  auto attrs = ffi::make_object<TopKAttrsNode>();
   attrs->k = std::move(k);
   attrs->axis = std::move(axis);
   attrs->ret_type = std::move(ret_type);
@@ -177,7 +177,7 @@ Type InferTypeTopK(const CallNode* call_node) {
   if (RequiresTensorInputNormalization(call)) return Type::Missing();
   TensorType data_ty = GetUnaryInputTensorType(call);
   const auto* data_shape = data_ty->shape.as<ShapeExprNode>();
-  const auto* attrs = call->attrs.as<TopKAttrs>();
+  const auto* attrs = call->attrs.as<TopKAttrsNode>();
   ffi::Optional<PrimType> indices_type =
       attrs->dtype.has_value() ? ffi::Optional<PrimType>(PrimType(attrs->dtype.value()))
                                : data_ty->dtype;
@@ -217,7 +217,7 @@ Type InferTypeTopK(const CallNode* call_node) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.topk")
-      .signature(sig::arg("data", "The input tensor."), sig::call_attrs<TopKAttrs>())
+      .signature(sig::arg("data", "The input tensor."), sig::call_attrs<TopKAttrsNode>())
       .set_attr<FInferType>(tvm::op_attr::kInferType, FInferType::FromNative<&InferTypeTopK>())
       .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
 }

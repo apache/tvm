@@ -148,7 +148,7 @@ struct DiscoWorker::Impl {
     if (worker_id == self->worker_id) {
       ffi::Any rv = GetReg(self, reg_id);
       if (rv.as<ffi::ObjectRef>()) {
-        rv = DiscoDebugObject::Wrap(rv);
+        rv = DiscoDebugObj::Wrap(rv);
       }
       ffi::AnyView packed_args[2];
       ffi::PackedArgs::Fill(packed_args, static_cast<int>(DiscoAction::kDebugGetFromRemote), rv);

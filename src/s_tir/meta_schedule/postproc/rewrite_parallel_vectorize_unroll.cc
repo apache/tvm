@@ -38,9 +38,9 @@ inline bool HasAnnOrBinding(const ForNode* loop) {
 }
 
 /*! \brief The visitor for extracting the stride of a var in a PrimExpr. */
-class StrideExtractor : public StmtExprVisitor {
+class StrideExtractorObj : public StmtExprVisitorObj {
  public:
-  using StmtExprVisitor::Visit_;
+  using StmtExprVisitorObj::Visit_;
 
   /*!
    * \brief Extracting the stride of a var in a PrimExpr.
@@ -50,16 +50,16 @@ class StrideExtractor : public StmtExprVisitor {
    * \return The stride of the var.
    */
   static int64_t Extract(const PrimExpr& expr, const Var& var) {
-    auto extractor = ffi::make_object<StrideExtractor>(var);
+    auto extractor = ffi::make_object<StrideExtractorObj>(var);
     extractor->Visit(expr);
     return extractor->strides_[expr.get()];
   }
 
-  explicit StrideExtractor(const Var& var) : var_(var) {}
+  explicit StrideExtractorObj(const Var& var) : var_(var) {}
 
  private:
   ffi::Optional<VisitInterrupt> Visit_(const MulNode* node) final {
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(node));
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitorObj::Visit_(node));
 
     if (const auto* a = node->a.as<IntImmNode>()) {
       if (strides_.count(node->b.get())) {
@@ -74,7 +74,7 @@ class StrideExtractor : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const AddNode* node) final {
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(node));
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitorObj::Visit_(node));
     int64_t stride_a, stride_b;
     if (strides_.count(node->a.get())) {
       stride_a = strides_[node->a.get()];
@@ -239,7 +239,7 @@ void AdjustParallelVectorize(const Schedule& sch, const SBlockRV& block_rv,
         PrimExpr idx = analyzer->Simplify(
             ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(access->region[i]->min, f_substitute)
                 .as_or_throw<PrimExpr>());
-        int64_t coef = StrideExtractor::Extract(idx, var->loop_var);
+        int64_t coef = StrideExtractorObj::Extract(idx, var->loop_var);
         if (coef != 0) {
           stride = coef * tensor_stride;
           break;
@@ -455,7 +455,7 @@ namespace meta_schedule {
 
 using s_tir::Schedule;
 
-class RewriteParallelVectorizeUnrollNode : public PostprocNode {
+class RewriteParallelVectorizeUnrollObj : public PostprocObj {
  public:
   void InitializeWithTuneContext(const TuneContext& context) final {}
 
@@ -505,29 +505,29 @@ class RewriteParallelVectorizeUnrollNode : public PostprocNode {
   }
 
   Postproc Clone() const {
-    ffi::ObjectPtr<RewriteParallelVectorizeUnrollNode> n =
-        ffi::make_object<RewriteParallelVectorizeUnrollNode>(*this);
+    ffi::ObjectPtr<RewriteParallelVectorizeUnrollObj> n =
+        ffi::make_object<RewriteParallelVectorizeUnrollObj>(*this);
     return Postproc(ffi::UnsafeInit{}, n);
   }
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<RewriteParallelVectorizeUnrollNode>();
+    refl::ObjectDef<RewriteParallelVectorizeUnrollObj>();
   }
 
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.meta_schedule.RewriteParallelVectorizeUnroll",
-                                    RewriteParallelVectorizeUnrollNode, PostprocNode);
+                                    RewriteParallelVectorizeUnrollObj, PostprocObj);
 };
 
 Postproc Postproc::RewriteParallelVectorizeUnroll() {
-  ffi::ObjectPtr<RewriteParallelVectorizeUnrollNode> n =
-      ffi::make_object<RewriteParallelVectorizeUnrollNode>();
+  ffi::ObjectPtr<RewriteParallelVectorizeUnrollObj> n =
+      ffi::make_object<RewriteParallelVectorizeUnrollObj>();
   return Postproc(ffi::UnsafeInit{}, n);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  RewriteParallelVectorizeUnrollNode::RegisterReflection();
+  RewriteParallelVectorizeUnrollObj::RegisterReflection();
   refl::GlobalDef().def("s_tir.meta_schedule.PostprocRewriteParallelVectorizeUnroll",
                         Postproc::RewriteParallelVectorizeUnroll);
 }

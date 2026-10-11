@@ -34,13 +34,13 @@
 namespace tvm {
 namespace tirx {
 
-class IRVisitorWithAnalyzer : public StmtExprVisitor {
+class IRVisitorWithAnalyzerObj : public StmtExprVisitorObj {
  public:
-  TVM_DEFINE_OBJECT_FUNCTOR_DEFAULT_CONSTRUCTOR(IRVisitorWithAnalyzer, StmtExprVisitor)
+  TVM_DEFINE_OBJECT_FUNCTOR_DEFAULT_CONSTRUCTOR(IRVisitorWithAnalyzerObj, StmtExprVisitorObj)
 
   PrimExpr Simplify(const PrimExpr& expr) { return analyzer_->Simplify(expr); }
 
-  using StmtExprVisitor::Visit_;
+  using StmtExprVisitorObj::Visit_;
 
   ffi::Optional<VisitInterrupt> Visit_(const ForNode* op);
   ffi::Optional<VisitInterrupt> Visit_(const BindNode* op);
@@ -50,13 +50,13 @@ class IRVisitorWithAnalyzer : public StmtExprVisitor {
   ffi::Optional<VisitInterrupt> Visit_(const CallNode* op);
   ffi::Optional<VisitInterrupt> Visit_(const prim::LetNode* op);
 
-  // IRVisitorWithAnalyzer deliberately does not handle Select nodes,
+  // IRVisitorWithAnalyzerObj deliberately does not handle Select nodes,
   // because both sides of a Select node are visited regardless of the
   // condition.
 
  protected:
   static void InitVTable(VTable* vtable);
-  explicit IRVisitorWithAnalyzer(const VTable* vtable) : StmtExprVisitor(vtable) {}
+  explicit IRVisitorWithAnalyzerObj(const VTable* vtable) : StmtExprVisitorObj(vtable) {}
   /*! \brief internal analyzer field. */
   sym::Analyzer analyzer_;
 

@@ -314,12 +314,12 @@ Stmt WmmaToShared::Rewrite(const Stmt& stmt, const ConstraintSet& constraints,
   return RewriteWmmaStore(after_tiling);
 }
 
-class WmmaToGlobalRewriter : public StmtExprMutator {
+class WmmaToGlobalRewriterObj : public StmtExprMutatorObj {
  public:
-  using StmtExprMutator::Mutate;
-  using StmtExprMutator::Mutate_;
+  using StmtExprMutatorObj::Mutate;
+  using StmtExprMutatorObj::Mutate_;
 
-  WmmaToGlobalRewriter(const SeqStmtNode* tgt_stmt, const ConstraintSet& constraints)
+  WmmaToGlobalRewriterObj(const SeqStmtNode* tgt_stmt, const ConstraintSet& constraints)
       : tgt_stmt_(tgt_stmt), constraints_(constraints) {}
 
  private:
@@ -330,7 +330,7 @@ class WmmaToGlobalRewriter : public StmtExprMutator {
       Stmt shared_to_global = CoalescedAccess().Rewrite(op->seq[1], constraints_, nullptr);
       return SeqStmt({wmma_to_shared, shared_to_global});
     } else {
-      return StmtExprMutator::Mutate_(op, inplace_mode);
+      return StmtExprMutatorObj::Mutate_(op, inplace_mode);
     }
   }
 
@@ -349,7 +349,7 @@ Stmt WmmaToGlobal::Rewrite(const Stmt& stmt, const ConstraintSet& constraints,
   output->alloc_tensor.push_back(cache_tensor);
   output->padding_min.Set(cache_tensor, 8);
   // Step 2. do coalesced rewrite and tensor core rewrite respectively for 2 parts
-  auto rewriter = ffi::make_object<WmmaToGlobalRewriter>(seq.get(), constraints);
+  auto rewriter = ffi::make_object<WmmaToGlobalRewriterObj>(seq.get(), constraints);
   return rewriter->Mutate(body).ValueOrUnchanged(body);
 }
 
@@ -521,12 +521,12 @@ Stmt RewriteMmaStore(Stmt stmt) {
   return mma_body;
 }
 
-class MmaToGlobalRewriter : public StmtExprMutator {
+class MmaToGlobalRewriterObj : public StmtExprMutatorObj {
  public:
-  using StmtExprMutator::Mutate;
-  using StmtExprMutator::Mutate_;
+  using StmtExprMutatorObj::Mutate;
+  using StmtExprMutatorObj::Mutate_;
 
-  MmaToGlobalRewriter(const SeqStmtNode* tgt_stmt, const ConstraintSet& constraints)
+  MmaToGlobalRewriterObj(const SeqStmtNode* tgt_stmt, const ConstraintSet& constraints)
       : tgt_stmt_(tgt_stmt), constraints_(constraints) {}
 
  private:
@@ -540,7 +540,7 @@ class MmaToGlobalRewriter : public StmtExprMutator {
       Stmt shared_to_global = CoalescedAccess().Rewrite(op->seq[1], constraints_, nullptr);
       return SeqStmt({mma_to_shared, shared_to_global});
     } else {
-      return StmtExprMutator::Mutate_(op, inplace_mode);
+      return StmtExprMutatorObj::Mutate_(op, inplace_mode);
     }
   }
 
@@ -559,7 +559,7 @@ Stmt MmaToGlobal::Rewrite(const Stmt& stmt, const ConstraintSet& constraints,
   output->alloc_tensor.push_back(cache_tensor);
   output->padding_min.Set(cache_tensor, 8);
   // Step 2. do coalesced rewrite and tensor core rewrite respectively for 2 parts
-  auto rewriter = ffi::make_object<MmaToGlobalRewriter>(seq.get(), constraints);
+  auto rewriter = ffi::make_object<MmaToGlobalRewriterObj>(seq.get(), constraints);
   return rewriter->Mutate(body).ValueOrUnchanged(body);
 }
 

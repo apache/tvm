@@ -41,12 +41,12 @@ namespace tvm {
 namespace s_tir {
 using namespace tvm::prim;
 using namespace tvm::tirx;
-class MatchTensorLower : public StmtExprMutator {
+class MatchTensorLowerObj : public StmtExprMutatorObj {
  public:
-  using StmtExprMutator::Mutate;
-  using StmtExprMutator::Mutate_;
+  using StmtExprMutatorObj::Mutate;
+  using StmtExprMutatorObj::Mutate_;
 
-  explicit MatchTensorLower(const Function& func) {
+  explicit MatchTensorLowerObj(const Function& func) {
     for (const Var& param : func->params) {
       // Mark input var as const variable.
       auto prim_type = param->ty.as<PrimType>();
@@ -67,7 +67,7 @@ class MatchTensorLower : public StmtExprMutator {
     for (const auto& kv : match_tensors_) {
       orig_tensors.push_back(kv.first);
     }
-    SBlock stmt = StmtExprMutator::Mutate_(op, inplace_mode)
+    SBlock stmt = StmtExprMutatorObj::Mutate_(op, inplace_mode)
                       .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
                       .as_or_throw<SBlock>();
     // Add remapped tensor keys to match_tensors_
@@ -80,10 +80,10 @@ class MatchTensorLower : public StmtExprMutator {
     }
     op = stmt.as<SBlockNode>();
     TVM_FFI_ICHECK(op != nullptr);
-    ffi::Array<TensorRegion> reads =
-        op->reads.Map(std::bind(&MatchTensorLower::VisitTensorRegion, this, std::placeholders::_1));
+    ffi::Array<TensorRegion> reads = op->reads.Map(
+        std::bind(&MatchTensorLowerObj::VisitTensorRegion, this, std::placeholders::_1));
     ffi::Array<TensorRegion> writes = op->writes.Map(
-        std::bind(&MatchTensorLower::VisitTensorRegion, this, std::placeholders::_1));
+        std::bind(&MatchTensorLowerObj::VisitTensorRegion, this, std::placeholders::_1));
 
     if (reads.same_as(op->reads) && writes.same_as(op->writes) && op->match_tensors.empty()) {
       return stmt;
@@ -115,7 +115,7 @@ class MatchTensorLower : public StmtExprMutator {
 
   UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
     analyzer_->Bind(op->loop_var, Range::FromMinExtent(op->min, op->extent));
-    return StmtExprMutator::Mutate_(op, inplace_mode);
+    return StmtExprMutatorObj::Mutate_(op, inplace_mode);
   }
 
   UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) final {
@@ -136,13 +136,13 @@ class MatchTensorLower : public StmtExprMutator {
         }
       }
     }
-    return StmtExprMutator::Mutate_(op, inplace_mode);
+    return StmtExprMutatorObj::Mutate_(op, inplace_mode);
   }
 
   UnchangedOr<Stmt> Mutate_(const TensorStoreNode* op, InplaceMode inplace_mode) final {
     // Save the original tensor before base class mutation may remap it
     TensorVar orig_tensor = op->dest.as_or_throw<TensorVar>();
-    TensorStore stmt = StmtExprMutator::Mutate_(op, inplace_mode)
+    TensorStore stmt = StmtExprMutatorObj::Mutate_(op, inplace_mode)
                            .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
                            .as_or_throw<TensorStore>();
     op = stmt.as<TensorStoreNode>();
@@ -167,7 +167,7 @@ class MatchTensorLower : public StmtExprMutator {
     // Save the original tensor before base class mutation may remap it
     TensorVar orig_tensor = op->source.as_or_throw<tvm::tirx::TensorVar>();
     PrimExpr expr =
-        StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<PrimExpr>(op));
+        StmtExprMutatorObj::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<PrimExpr>(op));
     op = expr.as<TensorLoadNode>();
     TVM_FFI_ICHECK(op != nullptr);
 
@@ -340,7 +340,7 @@ namespace transform {
 Pass LowerMatchTensor() {
   auto pass_func = [](Function f, IRModule m, PassContext ctx) {
     auto fptr = f.CopyOnWrite();
-    fptr->body = ffi::make_object<MatchTensorLower>(f)
+    fptr->body = ffi::make_object<MatchTensorLowerObj>(f)
                      ->Mutate(fptr->body, InplaceMode::kAllow)
                      .ValueOrUnchanged(std::move(fptr->body));
     return f;

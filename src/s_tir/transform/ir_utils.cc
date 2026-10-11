@@ -33,16 +33,16 @@ using namespace tirx;
 using namespace tvm::prim;
 
 namespace {
-class SIRConvertSSA final : public tirx::IRConvertSSA {
+class SIRConvertSSAObj final : public tirx::IRConvertSSAObj {
  public:
-  TVM_DEFINE_OBJECT_FUNCTOR_DEFAULT_CONSTRUCTOR(SIRConvertSSA, tirx::IRConvertSSA)
-  using tirx::IRConvertSSA::Mutate_;
+  TVM_DEFINE_OBJECT_FUNCTOR_DEFAULT_CONSTRUCTOR(SIRConvertSSAObj, tirx::IRConvertSSAObj)
+  using tirx::IRConvertSSAObj::Mutate_;
 
  protected:
   static void InitVTable(VTable* table) {
-    tirx::IRConvertSSA::InitVTable(table);
-    SetDispatch<SIRConvertSSA, SBlockNode>(table);
-    SetDispatch<SIRConvertSSA, SBlockRealizeNode>(table);
+    tirx::IRConvertSSAObj::InitVTable(table);
+    SetDispatch<SIRConvertSSAObj, SBlockNode>(table);
+    SetDispatch<SIRConvertSSAObj, SBlockRealizeNode>(table);
   }
 
  public:
@@ -55,26 +55,26 @@ class SIRConvertSSA final : public tirx::IRConvertSSA {
         return iter;
       });
       if (!iter_vars.same_as(op->iter_vars)) block.CopyOnWrite()->iter_vars = iter_vars;
-      return s_tir::StmtExprMutator::MutateBlock(this, block.get(),
-                                                 block.unique() ? mode : InplaceMode::kDisallow)
+      return s_tir::StmtExprMutatorObj::MutateBlock(this, block.get(),
+                                                    block.unique() ? mode : InplaceMode::kDisallow)
           .ValueOrUnchanged(block);
     });
   }
 
   UnchangedOr<Stmt> Mutate_(const SBlockRealizeNode* op, InplaceMode mode) {
-    return s_tir::StmtExprMutator::MutateBlockRealize(this, op, mode);
+    return s_tir::StmtExprMutatorObj::MutateBlockRealize(this, op, mode);
   }
 };
 }  // namespace
 
 Stmt ConvertSSA(Stmt stmt) {
-  return ffi::make_object<SIRConvertSSA>()
+  return ffi::make_object<SIRConvertSSAObj>()
       ->Mutate(stmt, InplaceMode::kAllow)
       .ValueOrUnchanged(stmt);
 }
 
 IRModule ConvertSSA(IRModule mod) {
-  return ffi::make_object<SIRConvertSSA>()->VisitIRModule(std::move(mod));
+  return ffi::make_object<SIRConvertSSAObj>()->VisitIRModule(std::move(mod));
 }
 
 namespace transform {
@@ -136,11 +136,11 @@ ffi::Array<Range> ConvertRegion(const MatchTensorRegion& match_tensor,
 }
 
 /*! \brief Collect storage alignment information from annotations. */
-class StorageAlignCollector : public StmtExprVisitor {
+class StorageAlignCollectorObj : public StmtExprVisitorObj {
  public:
   ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
     if (value.as<ExprNode>()) return std::nullopt;
-    return StmtExprVisitor::Visit(value);
+    return StmtExprVisitorObj::Visit(value);
   }
 
  private:
@@ -157,7 +157,7 @@ class StorageAlignCollector : public StmtExprVisitor {
             item);
       }
     }
-    return StmtExprVisitor::Visit_(op);
+    return StmtExprVisitorObj::Visit_(op);
   }
 
   /*! \brief AllocTensor: check for tensor_dim_align annotations. */
@@ -166,7 +166,7 @@ class StorageAlignCollector : public StmtExprVisitor {
         call && call->op.same_as(tirx::alloc_tensor_op())) {
       return DispatchAllocTensor(op, call);
     }
-    return StmtExprVisitor::Visit_(op);
+    return StmtExprVisitorObj::Visit_(op);
   }
 
   ffi::Optional<VisitInterrupt> DispatchAllocTensor(const BindNode* op, const CallNode* call) {
@@ -182,7 +182,7 @@ class StorageAlignCollector : public StmtExprVisitor {
         storage_align_[op->var.as_or_throw<TensorVar>().var()].push_back(storage_align_tuple);
       }
     }
-    return StmtExprVisitor::Visit_(op);
+    return StmtExprVisitorObj::Visit_(op);
   }
 
   /*! \brief The map from tensor var to its storage alignment information. */
@@ -190,7 +190,7 @@ class StorageAlignCollector : public StmtExprVisitor {
 };
 
 std::unordered_map<Var, StorageAlignAnnotation> CollectStorageAlignAnnotation(const Stmt& body) {
-  auto collector = ffi::make_object<StorageAlignCollector>();
+  auto collector = ffi::make_object<StorageAlignCollectorObj>();
   collector->Visit(body);
   return std::move(collector->storage_align_);
 }

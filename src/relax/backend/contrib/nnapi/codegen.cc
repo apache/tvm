@@ -54,7 +54,7 @@ class CollectFromCompositeFunctionBody : public ExprVisitor {
   void VisitExpr_(const CallNode* call_node) override;
 
   void SetPermuteDimsAttribute(const CallNode* call_node) {
-    const auto* permute_dims_attr = call_node->attrs.as<PermuteDimsAttrs>();
+    const auto* permute_dims_attr = call_node->attrs.as<PermuteDimsAttrsNode>();
     TVM_FFI_ICHECK(permute_dims_attr);
     if (permute_dims_attr->axes) {
       ffi::Array<int64_t> axes;
@@ -66,13 +66,13 @@ class CollectFromCompositeFunctionBody : public ExprVisitor {
   }
 
   void SetAstypeAttribute(const CallNode* call_node) {
-    const auto* astype_attrs = call_node->attrs.as<AstypeAttrs>();
+    const auto* astype_attrs = call_node->attrs.as<AstypeAttrsNode>();
     TVM_FFI_ICHECK(astype_attrs);
     node_->SetAttr("astype_dtype", ffi::String(ffi::DLDataTypeToString(astype_attrs->dtype)));
   }
 
   void SetMeanAttribute(const CallNode* call_node) {
-    const auto* mean_attrs = call_node->attrs.as<StatisticalAttrs>();
+    const auto* mean_attrs = call_node->attrs.as<StatisticalAttrsNode>();
     TVM_FFI_ICHECK(mean_attrs);
     TVM_FFI_ICHECK(mean_attrs->axis.has_value());
 
@@ -87,7 +87,7 @@ class CollectFromCompositeFunctionBody : public ExprVisitor {
   }
 
   void SetConv2dAttribute(const CallNode* call_node) {
-    const auto* conv2d_attr = call_node->attrs.as<Conv2DAttrs>();
+    const auto* conv2d_attr = call_node->attrs.as<Conv2DAttrsNode>();
     TVM_FFI_ICHECK(conv2d_attr) << "didn't catch attributes";
 
     ffi::Array<int64_t> strides;
@@ -111,7 +111,7 @@ class CollectFromCompositeFunctionBody : public ExprVisitor {
   }
 
   void SetMaxPool2dAttribute(const CallNode* call_node) {
-    const auto* max_pool_2d_attr = call_node->attrs.as<Pool2DAttrs>();
+    const auto* max_pool_2d_attr = call_node->attrs.as<Pool2DAttrsNode>();
     TVM_FFI_ICHECK(max_pool_2d_attr) << "didn't catch attributes";
 
     ffi::Array<int64_t> strides;

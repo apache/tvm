@@ -586,14 +586,14 @@ void SumExprNode::AddToSelf(const SumExpr& other, ffi::BigInt scale) {
 
 // Pattern A (RM): auto-default repr from reflection for SplitExprNode and SumExprNode.
 
-// Sub-class RewriteSimplifier::Impl to take benefit of
+// Sub-class RewriteSimplifier::ImplObj to take benefit of
 // rewriter for condition simplification etc.
-class CanonicalSimplifier::Impl : public RewriteSimplifier::Impl {
+class CanonicalSimplifier::ImplObj : public RewriteSimplifier::ImplObj {
  public:
-  using Rewriter = RewriteSimplifier::Impl;
+  using Rewriter = RewriteSimplifier::ImplObj;
   using Rewriter::Mutate;
 
-  explicit Impl(AnalyzerObj* parent) : Rewriter(parent) {}
+  explicit ImplObj(AnalyzerObj* parent) : Rewriter(parent) {}
 
   // Bypass only this entry override; the parent checks the target and descendants stay virtual.
   TVM_FFI_INLINE UnchangedOr<PrimExpr> DirectMutate(
@@ -763,8 +763,8 @@ class CanonicalSimplifier::Impl : public RewriteSimplifier::Impl {
   }
 };
 
-UnchangedOr<PrimExpr> CanonicalSimplifier::Impl::Mutate_(const prim::AddNode* op,
-                                                         InplaceMode inplace_mode) {
+UnchangedOr<PrimExpr> CanonicalSimplifier::ImplObj::Mutate_(const prim::AddNode* op,
+                                                            InplaceMode inplace_mode) {
   if (!IsIndexTypedExpr(op)) {
     return Rewriter::Mutate_(op, inplace_mode);
   }
@@ -788,8 +788,8 @@ UnchangedOr<PrimExpr> CanonicalSimplifier::Impl::Mutate_(const prim::AddNode* op
   return ret;
 }
 
-UnchangedOr<PrimExpr> CanonicalSimplifier::Impl::Mutate_(const prim::SubNode* op,
-                                                         InplaceMode inplace_mode) {
+UnchangedOr<PrimExpr> CanonicalSimplifier::ImplObj::Mutate_(const prim::SubNode* op,
+                                                            InplaceMode inplace_mode) {
   if (!IsIndexTypedExpr(op)) {
     return Rewriter::Mutate_(op, inplace_mode);
   }
@@ -813,8 +813,8 @@ UnchangedOr<PrimExpr> CanonicalSimplifier::Impl::Mutate_(const prim::SubNode* op
   return ret;
 }
 
-UnchangedOr<PrimExpr> CanonicalSimplifier::Impl::Mutate_(const prim::MulNode* op,
-                                                         InplaceMode inplace_mode) {
+UnchangedOr<PrimExpr> CanonicalSimplifier::ImplObj::Mutate_(const prim::MulNode* op,
+                                                            InplaceMode inplace_mode) {
   if (!IsIndexTypedExpr(op)) {
     return Rewriter::Mutate_(op, inplace_mode);
   }
@@ -858,9 +858,9 @@ UnchangedOr<PrimExpr> CanonicalSimplifier::Impl::Mutate_(const prim::MulNode* op
   }
 }
 
-void CanonicalSimplifier::Impl::SeparateDivisibleParts(const SumExprNode* psum, ffi::BigInt coeff,
-                                                       SumExpr* out_divisible,
-                                                       SumExpr* out_non_divisible) {
+void CanonicalSimplifier::ImplObj::SeparateDivisibleParts(const SumExprNode* psum,
+                                                          ffi::BigInt coeff, SumExpr* out_divisible,
+                                                          SumExpr* out_non_divisible) {
   auto divisible = ffi::make_object<SumExprNode>();
   auto non_divisible = ffi::make_object<SumExprNode>();
   divisible->ExprNode::ty = psum->ExprNode::ty.as_or_throw<PrimType>();
@@ -882,8 +882,8 @@ void CanonicalSimplifier::Impl::SeparateDivisibleParts(const SumExprNode* psum, 
   *out_non_divisible = SumExpr(non_divisible);
 }
 
-SplitExpr CanonicalSimplifier::Impl::SplitDivConst(SplitExpr lhs, ffi::BigInt cval,
-                                                   DivMode div_mode) {
+SplitExpr CanonicalSimplifier::ImplObj::SplitDivConst(SplitExpr lhs, ffi::BigInt cval,
+                                                      DivMode div_mode) {
   TVM_FFI_ICHECK_GT(cval, 0);
   lhs = ConvertDivMode(lhs, div_mode);
 
@@ -929,8 +929,8 @@ SplitExpr CanonicalSimplifier::Impl::SplitDivConst(SplitExpr lhs, ffi::BigInt cv
   return lhs;
 }
 
-bool CanonicalSimplifier::Impl::ProdDivSimplify(PrimExpr* plhs, PrimExpr* prhs,
-                                                PrimExpr* common_scale) {
+bool CanonicalSimplifier::ImplObj::ProdDivSimplify(PrimExpr* plhs, PrimExpr* prhs,
+                                                   PrimExpr* common_scale) {
   // the constant rhs case is covered by other simplifier so
   // we just skip to save the time
   if (prhs->as<IntImmNode>()) return false;
@@ -991,8 +991,8 @@ bool CanonicalSimplifier::Impl::ProdDivSimplify(PrimExpr* plhs, PrimExpr* prhs,
   return true;
 }
 
-UnchangedOr<PrimExpr> CanonicalSimplifier::Impl::Mutate_(const prim::DivNode* op,
-                                                         InplaceMode inplace_mode) {
+UnchangedOr<PrimExpr> CanonicalSimplifier::ImplObj::Mutate_(const prim::DivNode* op,
+                                                            InplaceMode inplace_mode) {
   if (!IsIndexTypedExpr(op)) {
     return Rewriter::Mutate_(op, inplace_mode);
   }
@@ -1057,8 +1057,8 @@ UnchangedOr<PrimExpr> CanonicalSimplifier::Impl::Mutate_(const prim::DivNode* op
   }
 }
 
-UnchangedOr<PrimExpr> CanonicalSimplifier::Impl::Mutate_(const prim::FloorDivNode* op,
-                                                         InplaceMode inplace_mode) {
+UnchangedOr<PrimExpr> CanonicalSimplifier::ImplObj::Mutate_(const prim::FloorDivNode* op,
+                                                            InplaceMode inplace_mode) {
   if (!IsIndexTypedExpr(op)) {
     return Rewriter::Mutate_(op, inplace_mode);
   }
@@ -1155,8 +1155,8 @@ UnchangedOr<PrimExpr> CanonicalSimplifier::Impl::Mutate_(const prim::FloorDivNod
   }
 }
 
-SplitExpr CanonicalSimplifier::Impl::SplitModConst(SplitExpr lhs, ffi::BigInt cval,
-                                                   DivMode div_mode, InplaceMode inplace_mode) {
+SplitExpr CanonicalSimplifier::ImplObj::SplitModConst(SplitExpr lhs, ffi::BigInt cval,
+                                                      DivMode div_mode, InplaceMode inplace_mode) {
   TVM_FFI_ICHECK_GT(cval, 0);
   lhs = ConvertDivMode(lhs, div_mode);
 
@@ -1216,8 +1216,8 @@ SplitExpr CanonicalSimplifier::Impl::SplitModConst(SplitExpr lhs, ffi::BigInt cv
   return lhs;
 }
 
-UnchangedOr<PrimExpr> CanonicalSimplifier::Impl::Mutate_(const prim::ModNode* op,
-                                                         InplaceMode inplace_mode) {
+UnchangedOr<PrimExpr> CanonicalSimplifier::ImplObj::Mutate_(const prim::ModNode* op,
+                                                            InplaceMode inplace_mode) {
   if (!IsIndexTypedExpr(op)) {
     return Rewriter::Mutate_(op, inplace_mode);
   }
@@ -1292,8 +1292,8 @@ UnchangedOr<PrimExpr> CanonicalSimplifier::Impl::Mutate_(const prim::ModNode* op
   }
 }
 
-UnchangedOr<PrimExpr> CanonicalSimplifier::Impl::Mutate_(const prim::FloorModNode* op,
-                                                         InplaceMode inplace_mode) {
+UnchangedOr<PrimExpr> CanonicalSimplifier::ImplObj::Mutate_(const prim::FloorModNode* op,
+                                                            InplaceMode inplace_mode) {
   if (!IsIndexTypedExpr(op)) {
     return Rewriter::Mutate_(op, inplace_mode);
   }
@@ -1359,8 +1359,8 @@ UnchangedOr<PrimExpr> CanonicalSimplifier::Impl::Mutate_(const prim::FloorModNod
   }
 }
 
-UnchangedOr<PrimExpr> CanonicalSimplifier::Impl::Mutate_(const prim::CastNode* op,
-                                                         InplaceMode inplace_mode) {
+UnchangedOr<PrimExpr> CanonicalSimplifier::ImplObj::Mutate_(const prim::CastNode* op,
+                                                            InplaceMode inplace_mode) {
   // The cast reasoning below is index-centric; for unsigned operands it runs
   // only under the caller's no-overflow assertion (uint_as_index).
   if (!IsIndexTypedExpr(op) &&
@@ -1388,8 +1388,8 @@ UnchangedOr<PrimExpr> CanonicalSimplifier::Impl::Mutate_(const prim::CastNode* o
   return Rewriter::Mutate_(op, inplace_mode);
 }
 
-UnchangedOr<PrimExpr> CanonicalSimplifier::Impl::Mutate_(const prim::LTNode* op,
-                                                         InplaceMode inplace_mode) {
+UnchangedOr<PrimExpr> CanonicalSimplifier::ImplObj::Mutate_(const prim::LTNode* op,
+                                                            InplaceMode inplace_mode) {
   // First convert a < b into a - b < 0
   PrimExpr difference = op->a - op->b;
   PrimExpr expr = DirectMutate(difference, inplace_mode).ValueOrUnchanged(std::move(difference));
@@ -1460,7 +1460,7 @@ void CanonicalSimplifier::Update(const Var& var, const PrimExpr& info, bool over
 }
 
 CanonicalSimplifier::CanonicalSimplifier(AnalyzerObj* parent)
-    : impl_(ffi::make_object<Impl>(parent)) {}
+    : impl_(ffi::make_object<ImplObj>(parent)) {}
 
 CanonicalSimplifier::~CanonicalSimplifier() = default;
 

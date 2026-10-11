@@ -228,16 +228,16 @@ inline Call StackAlloca(Type ret_type, std::string type, size_t num) {
 Stmt ConvertSSA(Stmt stmt);
 
 /*! \brief Shared SSA renaming algorithm; dialects extend statement dispatch explicitly. */
-class IRConvertSSA : public StmtExprMutator {
+class IRConvertSSAObj : public StmtExprMutatorObj {
  public:
-  TVM_DEFINE_OBJECT_FUNCTOR_DEFAULT_CONSTRUCTOR(IRConvertSSA, StmtExprMutator)
-  using StmtExprMutator::Mutate;
-  using StmtExprMutator::Mutate_;
+  TVM_DEFINE_OBJECT_FUNCTOR_DEFAULT_CONSTRUCTOR(IRConvertSSAObj, StmtExprMutatorObj)
+  using StmtExprMutatorObj::Mutate;
+  using StmtExprMutatorObj::Mutate_;
   Function VisitFunction(Function func);
   IRModule VisitIRModule(IRModule mod);
 
  protected:
-  explicit IRConvertSSA(const VTable* table) : StmtExprMutator(table) {}
+  explicit IRConvertSSAObj(const VTable* table) : StmtExprMutatorObj(table) {}
   UnchangedOr<Expr> Mutate_(const VarNode* op, InplaceMode inplace_mode) final;
   Stmt WithScope(const std::function<Stmt()>& body);
   Var DefineVar(Var var);
@@ -271,7 +271,7 @@ class IRConvertSSA : public StmtExprMutator {
    */
   struct ScopeLevel {
     std::vector<VarRemap> remaps;
-    IRConvertSSA* parent{nullptr};
+    IRConvertSSAObj* parent{nullptr};
 
     void push_back(VarRemap remap) { remaps.push_back(std::move(remap)); }
     size_t size() const { return remaps.size(); }

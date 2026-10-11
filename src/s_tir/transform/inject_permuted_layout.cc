@@ -58,15 +58,15 @@ ffi::Optional<Var> GetBufferDataVar(const ffi::Any& data) {
 
 }  // namespace
 
-class PermutedLayoutInjector : public IRMutatorWithAnalyzer {
+class PermutedLayoutInjectorObj : public IRMutatorWithAnalyzerObj {
  public:
-  using IRMutatorWithAnalyzer::Mutate;
-  using IRMutatorWithAnalyzer::Mutate_;
+  using IRMutatorWithAnalyzerObj::Mutate;
+  using IRMutatorWithAnalyzerObj::Mutate_;
 
   static Function Transform(Function func) {
     Analyzer analyzer;
 
-    auto new_body = ffi::make_object<PermutedLayoutInjector>(func, analyzer)
+    auto new_body = ffi::make_object<PermutedLayoutInjectorObj>(func, analyzer)
                         ->Mutate(func->body)
                         .ValueOrUnchanged(func->body);
     auto func_node = func.CopyOnWrite();
@@ -74,8 +74,8 @@ class PermutedLayoutInjector : public IRMutatorWithAnalyzer {
     return func;
   }
 
-  explicit PermutedLayoutInjector(Function func, const Analyzer& analyzer)
-      : IRMutatorWithAnalyzer(analyzer) {
+  explicit PermutedLayoutInjectorObj(Function func, const Analyzer& analyzer)
+      : IRMutatorWithAnalyzerObj(analyzer) {
     for (const Var& param : func->params) {
       if (auto tensor = param.as<TensorVar>()) {
         tensor_map_.insert({tensor.value().var(), tensor.value()});
@@ -152,13 +152,13 @@ class PermutedLayoutInjector : public IRMutatorWithAnalyzer {
 
     if (op->annotations.count(tvm::s_tir::attr::kPermutedLayout) == 0 ||
         !CheckAnnotation(op->annotations.at(tvm::s_tir::attr::kPermutedLayout))) {
-      return IRMutatorWithAnalyzer::Mutate_(op, inplace_mode);
+      return IRMutatorWithAnalyzerObj::Mutate_(op, inplace_mode);
     }
 
     auto prev_permute = permute_;
     permute_ = true;
 
-    SBlock block = IRMutatorWithAnalyzer::Mutate_(op, inplace_mode)
+    SBlock block = IRMutatorWithAnalyzerObj::Mutate_(op, inplace_mode)
                        .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
                        .as_or_throw<SBlock>();
 
@@ -210,7 +210,7 @@ class PermutedLayoutInjector : public IRMutatorWithAnalyzer {
     // Rewrite write from global to shared.dyn or shared
     // We assume the shape of the shared memory is [..., row_size, col_size],
     // where row_size is divisible by 64, or divisible by 32 and col_size is divisible by 2.
-    auto store = IRMutatorWithAnalyzer::Mutate_(op, inplace_mode)
+    auto store = IRMutatorWithAnalyzerObj::Mutate_(op, inplace_mode)
                      .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
                      .as_or_throw<TensorStore>();
 
@@ -231,7 +231,7 @@ class PermutedLayoutInjector : public IRMutatorWithAnalyzer {
 
   UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) final {
     // Rewrite load from shared or shared.dyn to global
-    auto load = IRMutatorWithAnalyzer::Mutate_(op, inplace_mode)
+    auto load = IRMutatorWithAnalyzerObj::Mutate_(op, inplace_mode)
                     .ValueOrUnchanged(ffi::GetRef<PrimExpr>(op))
                     .as_or_throw<TensorLoad>();
 
@@ -308,7 +308,7 @@ class PermutedLayoutInjector : public IRMutatorWithAnalyzer {
     static const Op ptx_ldmatrix_op = Op::Get("tirx.ptx_legacy.ldmatrix");
     static const Op mma_store_op = Op::Get("tirx.cuda.mma_store");
     if (!permute_ || (!op->op.same_as(ptx_ldmatrix_op) && !op->op.same_as(mma_store_op))) {
-      return IRMutatorWithAnalyzer::Mutate_(op, inplace_mode);
+      return IRMutatorWithAnalyzerObj::Mutate_(op, inplace_mode);
     }
     bool is_ldmatrix = op->op.same_as(ptx_ldmatrix_op);
     int pointer_index = is_ldmatrix ? 5 : 2;
@@ -339,7 +339,7 @@ namespace transform {
 
 Pass InjectPermutedLayout() {
   auto pass_func = [=](Function f, IRModule m, PassContext ctx) {
-    return PermutedLayoutInjector::Transform(std::move(f));
+    return PermutedLayoutInjectorObj::Transform(std::move(f));
   };
   return CreateFunctionPass(pass_func, 0, "s_tir.InjectPermutedLayout");
 }

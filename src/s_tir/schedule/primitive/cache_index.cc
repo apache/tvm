@@ -53,7 +53,7 @@ struct IndexInfo {
   size_t loc_pos;
   /*! \brief The cache stage to be inserted. */
   Stmt cache_stage{ffi::UnsafeInit{}};
-  /*! \brief The map used for ScheduleStateNode::Replace. */
+  /*! \brief The map used for ScheduleStateObj::Replace. */
   ffi::Map<SBlock, SBlock> block_reuse;
 };
 
@@ -74,9 +74,9 @@ PrimType DeterminePrimType(const sym::IntSet& range) {
 }
 
 /*! \brief Collect the index info to be cached */
-class IndexInfoCollector : public StmtExprVisitor {
+class IndexInfoCollectorObj : public StmtExprVisitorObj {
  public:
-  using StmtExprVisitor::Visit_;
+  using StmtExprVisitorObj::Visit_;
 
   /*!
    * \brief Collect the index info for cache_index and write into the IndexInfo
@@ -87,7 +87,7 @@ class IndexInfoCollector : public StmtExprVisitor {
   static void Collect(const ScheduleState& self, const StmtSRef& block_sref,
                       const StmtSRef& scope_sref, IndexInfo* info) {
     auto collector =
-        ffi::make_object<IndexInfoCollector>(self, block_sref, scope_sref, info->cse_thresh);
+        ffi::make_object<IndexInfoCollectorObj>(self, block_sref, scope_sref, info->cse_thresh);
     collector->Visit(ffi::GetRef<Stmt>(scope_sref->stmt));
     info->loc_pos = collector->loc_pos_;
     info->index_exprs = collector->exprs_;
@@ -101,8 +101,8 @@ class IndexInfoCollector : public StmtExprVisitor {
    * \param scope_sref The sref of the scope block of the target block
    * \param cse_thresh The repeat threshold that determines a common subexpr
    */
-  IndexInfoCollector(const ScheduleState self, const StmtSRef& block_sref,
-                     const StmtSRef& scope_sref, int cse_thresh)
+  IndexInfoCollectorObj(const ScheduleState self, const StmtSRef& block_sref,
+                        const StmtSRef& scope_sref, int cse_thresh)
       : self_(self), block_sref_(block_sref), scope_sref_(scope_sref), cse_thresh_(cse_thresh) {}
 
  private:
@@ -124,7 +124,7 @@ class IndexInfoCollector : public StmtExprVisitor {
 
   ffi::Optional<VisitInterrupt> Visit_(const SBlockNode* block) final {
     visiting_target_sblock = static_cast<bool>(block_sref_->stmt == block);
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(block));
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitorObj::Visit_(block));
     visiting_target_sblock = false;
     if (block == scope_sref_->stmt) {
       // The block vistied is the current parent scope
@@ -144,7 +144,7 @@ class IndexInfoCollector : public StmtExprVisitor {
 
   ffi::Optional<VisitInterrupt> Visit_(const ForNode* loop) final {
     range_map_.Set(loop->loop_var, Range::FromMinExtent(loop->min, loop->extent));
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(loop));
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitorObj::Visit_(loop));
     // Update seq pos only at top scope
     if (visited_block_ && self_->stmt2ref.at(loop)->parent == scope_sref_.get()) {
       update_seq_pos_ = true;
@@ -162,8 +162,9 @@ class IndexInfoCollector : public StmtExprVisitor {
 
       // Analyze sub expr candidates
       ComputationTable table_syntactic_comp_done_by_stmt =
-          ComputationsDoneBy::GetComputationsDoneBy(ffi::GetRef<Stmt>(store), IsEligibleComputation,
-                                                    [](const PrimExpr& expr) { return true; });
+          ComputationsDoneByObj::GetComputationsDoneBy(ffi::GetRef<Stmt>(store),
+                                                       IsEligibleComputation,
+                                                       [](const PrimExpr& expr) { return true; });
       std::vector<std::pair<PrimExpr, size_t>> semantic_comp_done_by_stmt =
           SyntacticToSemanticComputations(table_syntactic_comp_done_by_stmt, true);
 
@@ -171,7 +172,7 @@ class IndexInfoCollector : public StmtExprVisitor {
       for (size_t i = 0; i < semantic_comp_done_by_stmt.size(); i++) {
         std::pair<PrimExpr, size_t>& computation_and_nb = semantic_comp_done_by_stmt[i];
         if (computation_and_nb.second < cse_thresh_) {
-          std::vector<PrimExpr> direct_subexprs = DirectSubexpr::GetDirectSubexpressions(
+          std::vector<PrimExpr> direct_subexprs = DirectSubexprObj::GetDirectSubexpressions(
               computation_and_nb.first, IsEligibleComputation,
               [](const PrimExpr& expr) { return true; });
           InsertVectorToSortedSemanticComputations(&semantic_comp_done_by_stmt, direct_subexprs,
@@ -201,7 +202,7 @@ class IndexInfoCollector : public StmtExprVisitor {
       };
       std::stable_sort(exprs_.begin(), exprs_.end(), cmp);
     }
-    return StmtExprVisitor::Visit_(store);
+    return StmtExprVisitorObj::Visit_(store);
   }
 
   /*! \brief The schedule class */
@@ -392,10 +393,10 @@ Stmt InsertIndexStage(const Stmt& stmt, int pos, const Stmt& stage) {
 }
 
 /*! \brief Mutator for CacheIndex. */
-class CacheIndexRewriter : public StmtExprMutator {
+class CacheIndexRewriterObj : public StmtExprMutatorObj {
  public:
-  using StmtExprMutator::Mutate;
-  using StmtExprMutator::Mutate_;
+  using StmtExprMutatorObj::Mutate;
+  using StmtExprMutatorObj::Mutate_;
 
   /*!
    * \brief Rewrite the AST and add stages of writting precomputed index
@@ -404,12 +405,12 @@ class CacheIndexRewriter : public StmtExprMutator {
    * \return The new AST rooting at the original parent scope
    */
   static Stmt Rewrite(const StmtSRef& scope_sref, IndexInfo* info) {
-    auto rewriter = ffi::make_object<CacheIndexRewriter>(scope_sref, info);
+    auto rewriter = ffi::make_object<CacheIndexRewriterObj>(scope_sref, info);
     return rewriter->Mutate(ffi::GetRef<Stmt>(scope_sref->stmt))
         .ValueOrUnchanged(ffi::GetRef<Stmt>(scope_sref->stmt));
   }
 
-  explicit CacheIndexRewriter(const StmtSRef& scope_sref, IndexInfo* info)
+  explicit CacheIndexRewriterObj(const StmtSRef& scope_sref, IndexInfo* info)
       : scope_sref_(scope_sref), info_(info) {
     cache_indices_.reserve(info_->origin_block_vars.size());
     for (const ffi::Array<Var>& group_it : info_->origin_block_vars) {
@@ -425,7 +426,7 @@ class CacheIndexRewriter : public StmtExprMutator {
     SBlock old_stmt = ffi::GetRef<SBlock>(block);
     // Mutate the body
     visiting_target_sblock = static_cast<bool>(block == info_->target_sblock->stmt);
-    SBlock stmt = StmtExprMutator::Mutate_(block, inplace_mode)
+    SBlock stmt = StmtExprMutatorObj::Mutate_(block, inplace_mode)
                       .ValueOrUnchanged(ffi::GetRef<Stmt>(block))
                       .as_or_throw<SBlock>();
     visiting_target_sblock = false;
@@ -446,7 +447,7 @@ class CacheIndexRewriter : public StmtExprMutator {
 
   UnchangedOr<Stmt> Mutate_(const TensorStoreNode* store, InplaceMode inplace_mode) final {
     Stmt ret_stmt =
-        StmtExprMutator::Mutate_(store, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(store));
+        StmtExprMutatorObj::Mutate_(store, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(store));
     // Replace common sub expr for target block, with cached tensor load
     if (visiting_target_sblock) {
       for (size_t i = 0; i < info_->index_exprs.size(); i++) {
@@ -456,7 +457,7 @@ class CacheIndexRewriter : public StmtExprMutator {
               return (EquivalentTerms(current_expr, computation, true));
             };
         TensorLoad load = MakeTensorLoad(info_->cache_tensor[i], cache_indices_[i]);
-        ret_stmt = ReplaceSelectedExpr::ReplaceSelectedExprInStmt(
+        ret_stmt = ReplaceSelectedExprObj::ReplaceSelectedExprInStmt(
             ret_stmt, predicate_selector, std::move(load),
             [](const PrimExpr& expr) { return true; });
       }
@@ -492,13 +493,13 @@ ffi::Array<StmtSRef> CacheIndex(ScheduleState self, const StmtSRef& block_sref,
   StmtSRef scope_sref = GetScopeRoot(self, block_sref, /*require_stage_pipeline=*/false);
 
   // Step 1. Collect the indexing info of target tensor.
-  IndexInfoCollector::Collect(self, block_sref, scope_sref, &info);
+  IndexInfoCollectorObj::Collect(self, block_sref, scope_sref, &info);
 
   // Step 2. Create cache stages and rewrite the stmt.
   SBlockRealize realize = GetSBlockRealize(self, block_sref);
   info.var_binding = GetBindings(realize);
   ffi::Array<SBlock> cache_stages = MakeIndexCacheStage(&info, storage_scope);
-  Stmt new_scope = CacheIndexRewriter::Rewrite(/*scope_sref=*/scope_sref, /*info=*/&info);
+  Stmt new_scope = CacheIndexRewriterObj::Rewrite(/*scope_sref=*/scope_sref, /*info=*/&info);
 
   bool old_stage_pipeline = self->block_info[block_sref].stage_pipeline;
 

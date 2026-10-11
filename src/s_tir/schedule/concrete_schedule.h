@@ -34,12 +34,12 @@ namespace tvm {
 namespace s_tir {
 using namespace tvm::tirx;
 
-class ConcreteScheduleNode : public ScheduleNode {
+class ConcreteScheduleObj : public ScheduleObj {
   friend class Schedule;
   friend class ScheduleCopier;
 
  public:
-  explicit ConcreteScheduleNode(ScheduleState state) : state_(std::move(state)) {}
+  explicit ConcreteScheduleObj(ScheduleState state) : state_(std::move(state)) {}
 
   using TSymbolTable = ffi::Map<ffi::ObjectRef, ffi::ObjectRef>;
 
@@ -60,10 +60,10 @@ class ConcreteScheduleNode : public ScheduleNode {
  public:
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<ConcreteScheduleNode>();
+    refl::ObjectDef<ConcreteScheduleObj>();
   }
 
-  virtual ~ConcreteScheduleNode() = default;
+  virtual ~ConcreteScheduleObj() = default;
 
  public:
   ScheduleState state() const final { return state_; }
@@ -87,7 +87,7 @@ class ConcreteScheduleNode : public ScheduleNode {
   void RemoveRV(const SBlockRV& block_rv) final { RemoveFromSymbolTable(block_rv); }
   void RemoveRV(const LoopRV& loop_rv) final { RemoveFromSymbolTable(loop_rv); }
   void RemoveRV(const ExprRV& expr_rv) final { RemoveFromSymbolTable(expr_rv); }
-  using ScheduleNode::GetSRef;
+  using ScheduleObj::GetSRef;
 
  public:
   /******** Schedule: Sampling ********/
@@ -250,18 +250,18 @@ class ConcreteScheduleNode : public ScheduleNode {
 
 /******** Lookup random variables ********/
 
-inline SBlock ConcreteScheduleNode::Get(const SBlockRV& block_rv) const {
+inline SBlock ConcreteScheduleObj::Get(const SBlockRV& block_rv) const {
   StmtSRef sref = this->GetSRef(block_rv);
   return ffi::GetRef<SBlock>(TVM_SREF_TO_SBLOCK(sref));
 }
 
-inline For ConcreteScheduleNode::Get(const LoopRV& loop_rv) const {
+inline For ConcreteScheduleObj::Get(const LoopRV& loop_rv) const {
   StmtSRef sref = this->GetSRef(loop_rv);
   const ForNode* loop = TVM_SREF_TO_FOR(sref);
   return ffi::GetRef<For>(loop);
 }
 
-inline PrimExpr ConcreteScheduleNode::Get(const ExprRV& expr_rv) const {
+inline PrimExpr ConcreteScheduleObj::Get(const ExprRV& expr_rv) const {
   auto f_substitute = [this](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
     auto it = this->symbol_table_.find(var);
     if (it == this->symbol_table_.end()) {
@@ -276,26 +276,26 @@ inline PrimExpr ConcreteScheduleNode::Get(const ExprRV& expr_rv) const {
   return this->analyzer_->Simplify(transformed);
 }
 
-inline bool ConcreteScheduleNode::HasBlock(const SBlockRV& block_rv) const {
+inline bool ConcreteScheduleObj::HasBlock(const SBlockRV& block_rv) const {
   auto it = this->symbol_table_.find(block_rv);
   if (it == this->symbol_table_.end()) {
     return false;
   }
   const ffi::ObjectRef& obj = (*it).second;
-  const auto* sref = obj.as<StmtSRefNode>();
+  const auto* sref = obj.as<StmtSRefObj>();
   if (sref == nullptr || sref->stmt == nullptr) {
     return false;
   }
   return true;
 }
 
-inline StmtSRef ConcreteScheduleNode::GetSRef(const SBlockRV& block_rv) const {
+inline StmtSRef ConcreteScheduleObj::GetSRef(const SBlockRV& block_rv) const {
   auto it = this->symbol_table_.find(block_rv);
   if (it == this->symbol_table_.end()) {
     TVM_FFI_THROW(IndexError) << "Cannot find corresponding SBlockRV: " << block_rv;
   }
   const ffi::ObjectRef& obj = (*it).second;
-  const auto* sref = obj.as<StmtSRefNode>();
+  const auto* sref = obj.as<StmtSRefObj>();
   if (sref == nullptr) {
     TVM_FFI_THROW(ValueError) << "SBlockRV's corresponding type is invalid: "
                               << (obj.defined() ? obj->GetTypeKey() : "None");
@@ -306,7 +306,7 @@ inline StmtSRef ConcreteScheduleNode::GetSRef(const SBlockRV& block_rv) const {
   return ffi::GetRef<StmtSRef>(sref);
 }
 
-inline StmtSRef ConcreteScheduleNode::GetSRef(const LoopRV& loop_rv) const {
+inline StmtSRef ConcreteScheduleObj::GetSRef(const LoopRV& loop_rv) const {
   static StmtSRef inline_mark = StmtSRef::InlineMark();
   static StmtSRef root_mark = StmtSRef::RootMark();
   auto it = this->symbol_table_.find(loop_rv);
@@ -320,7 +320,7 @@ inline StmtSRef ConcreteScheduleNode::GetSRef(const LoopRV& loop_rv) const {
   if (obj.same_as(root_mark)) {
     return root_mark;
   }
-  const auto* sref = obj.as<StmtSRefNode>();
+  const auto* sref = obj.as<StmtSRefObj>();
   if (sref == nullptr) {
     TVM_FFI_THROW(ValueError) << "LoopRV's corresponding type is invalid: "
                               << (obj.defined() ? obj->GetTypeKey() : "None");
@@ -332,7 +332,7 @@ inline StmtSRef ConcreteScheduleNode::GetSRef(const LoopRV& loop_rv) const {
 }
 
 template <class T>
-inline ffi::Array<StmtSRef> GetSRefsHelper(const ConcreteScheduleNode* sch,
+inline ffi::Array<StmtSRef> GetSRefsHelper(const ConcreteScheduleObj* sch,
                                            const ffi::Array<T>& rvs) {
   ffi::Array<StmtSRef> result;
   result.reserve(rvs.size());
@@ -342,18 +342,18 @@ inline ffi::Array<StmtSRef> GetSRefsHelper(const ConcreteScheduleNode* sch,
   return result;
 }
 
-inline ffi::Array<StmtSRef> ConcreteScheduleNode::GetSRefs(const ffi::Array<SBlockRV>& rvs) const {
+inline ffi::Array<StmtSRef> ConcreteScheduleObj::GetSRefs(const ffi::Array<SBlockRV>& rvs) const {
   return GetSRefsHelper(this, rvs);
 }
 
-inline ffi::Array<StmtSRef> ConcreteScheduleNode::GetSRefs(const ffi::Array<LoopRV>& rvs) const {
+inline ffi::Array<StmtSRef> ConcreteScheduleObj::GetSRefs(const ffi::Array<LoopRV>& rvs) const {
   return GetSRefsHelper(this, rvs);
 }
 
 /******** Adding/Removing elements in the symbol table ********/
 
 template <class T>
-inline ffi::Array<T> ConcreteScheduleNode::CreateRV(const ffi::Array<StmtSRef>& srefs) {
+inline ffi::Array<T> ConcreteScheduleObj::CreateRV(const ffi::Array<StmtSRef>& srefs) {
   ffi::Array<T> result;
   result.reserve(srefs.size());
   for (const StmtSRef& sref : srefs) {
@@ -365,19 +365,19 @@ inline ffi::Array<T> ConcreteScheduleNode::CreateRV(const ffi::Array<StmtSRef>& 
 }
 
 template <class T>
-inline T ConcreteScheduleNode::CreateRV(const StmtSRef& sref) {
+inline T ConcreteScheduleObj::CreateRV(const StmtSRef& sref) {
   T rv;
   this->symbol_table_.Set(rv, sref);
   return rv;
 }
 
-inline ExprRV ConcreteScheduleNode::CreateRV(int64_t value) {
+inline ExprRV ConcreteScheduleObj::CreateRV(int64_t value) {
   Var rv("v" + std::to_string(this->symbol_table_.size() + 1), PrimType::Int(32));
   this->symbol_table_.Set(rv, IntImm::Int32(static_cast<int32_t>(value)));
   return rv.as_or_throw<PrimExpr>();
 }
 
-inline ffi::Array<ExprRV> ConcreteScheduleNode::CreateRV(const std::vector<int64_t>& value) {
+inline ffi::Array<ExprRV> ConcreteScheduleObj::CreateRV(const std::vector<int64_t>& value) {
   ffi::Array<ExprRV> results;
   results.reserve(value.size());
   for (int64_t v : value) {
@@ -386,7 +386,7 @@ inline ffi::Array<ExprRV> ConcreteScheduleNode::CreateRV(const std::vector<int64
   return results;
 }
 
-inline ffi::Array<ffi::Optional<ExprRV>> ConcreteScheduleNode::CreateOptionalRV(
+inline ffi::Array<ffi::Optional<ExprRV>> ConcreteScheduleObj::CreateOptionalRV(
     const std::vector<int64_t>& value) {
   ffi::Array<ffi::Optional<ExprRV>> results;
   results.reserve(value.size());
@@ -396,7 +396,7 @@ inline ffi::Array<ffi::Optional<ExprRV>> ConcreteScheduleNode::CreateOptionalRV(
   return results;
 }
 
-inline void ConcreteScheduleNode::RemoveFromSymbolTable(const ffi::ObjectRef& obj) {
+inline void ConcreteScheduleObj::RemoveFromSymbolTable(const ffi::ObjectRef& obj) {
   auto it = this->symbol_table_.find(obj);
   if (it != this->symbol_table_.end()) {
     this->symbol_table_.erase(obj);

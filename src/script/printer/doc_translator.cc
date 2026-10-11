@@ -44,9 +44,9 @@ struct VariableEnvironment {
 };
 
 // Bindings and reservations stay stable within each function naming region.
-class TranslationEngine : public DocTranslatorObj {
+class TranslationEngineObj : public DocTranslatorObj {
  public:
-  explicit TranslationEngine(ffi::Map<ffi::String, ffi::Any> config)
+  explicit TranslationEngineObj(ffi::Map<ffi::String, ffi::Any> config)
       : DocTranslatorObj(VTable(), std::move(config)) {
     for (const char* keyword :
          {"range", "False", "None",     "True",  "and",    "as",   "assert", "async",  "await",
@@ -58,7 +58,7 @@ class TranslationEngine : public DocTranslatorObj {
   }
 
   static IdDoc Allocate(DocTranslatorObj* d, ffi::AnyView value) {
-    auto* self = static_cast<TranslationEngine*>(d);
+    auto* self = static_cast<TranslationEngineObj*>(d);
     std::string base = value.cast<ffi::String>();
     if (base.empty()) base = "v";
     for (char& c : base)
@@ -75,7 +75,7 @@ class TranslationEngine : public DocTranslatorObj {
   }
 
   static IdDoc GetOrAllocate(DocTranslatorObj* d, ffi::AnyView value, bool explicit_def) {
-    auto* self = static_cast<TranslationEngine*>(d);
+    auto* self = static_cast<TranslationEngineObj*>(d);
     Var var = value.cast<Var>();
     for (size_t i = self->var_scopes_.size(); i != 0; --i) {
       auto& frame = self->var_scopes_[i - 1];
@@ -95,13 +95,13 @@ class TranslationEngine : public DocTranslatorObj {
     return id;
   }
   static ffi::Dict<Var, IdDoc> ImplicitDefinitions(DocTranslatorObj* d) {
-    return static_cast<TranslationEngine*>(d)->var_scopes_.back().implicit_defs;
+    return static_cast<TranslationEngineObj*>(d)->var_scopes_.back().implicit_defs;
   }
   static void BeginScope(DocTranslatorObj* d) {
-    static_cast<TranslationEngine*>(d)->var_scopes_.emplace_back();
+    static_cast<TranslationEngineObj*>(d)->var_scopes_.emplace_back();
   }
   static void EndScope(DocTranslatorObj* d) {
-    auto* self = static_cast<TranslationEngine*>(d);
+    auto* self = static_cast<TranslationEngineObj*>(d);
     TVM_FFI_CHECK(self->var_scopes_.size() > 1, ValueError)
         << "printer cannot pop the root variable scope";
     auto& local = self->var_scopes_.back();
@@ -141,7 +141,7 @@ class TranslationEngine : public DocTranslatorObj {
   std::vector<VariableEnvironment> var_scopes_{1};
 };
 
-Doc TranslateComplete(ffi::AnyView obj, TranslationEngine* engine,
+Doc TranslateComplete(ffi::AnyView obj, TranslationEngineObj* engine,
                       const ffi::Map<ffi::String, ffi::Any>& extra_config) {
   // Reserve the same registered or explicitly configured aliases used by rendering.
   // Keep key order so overlapping aliases reserve the same generated names.
@@ -188,7 +188,7 @@ Doc TranslateComplete(ffi::AnyView obj, TranslationEngine* engine,
 
 Doc DocTranslate(ffi::AnyView ir, ffi::Dict<Doc, ffi::ObjectRef>* doc_origins,
                  ffi::Map<ffi::String, ffi::Any> extra_config) {
-  auto engine = ffi::make_object<TranslationEngine>(extra_config);
+  auto engine = ffi::make_object<TranslationEngineObj>(extra_config);
   Doc doc = TranslateComplete(ir, engine.get(), extra_config);
   if (doc_origins) *doc_origins = engine->GetDocOrigins();
   return doc;

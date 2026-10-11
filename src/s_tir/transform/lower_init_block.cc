@@ -33,19 +33,19 @@ namespace tvm {
 namespace s_tir {
 using namespace tvm::tirx;
 
-class InitBlockLower : public StmtExprMutator {
+class InitBlockLowerObj : public StmtExprMutatorObj {
  public:
-  using StmtExprMutator::Mutate;
-  using StmtExprMutator::Mutate_;
+  using StmtExprMutatorObj::Mutate;
+  using StmtExprMutatorObj::Mutate_;
   UnchangedOr<ffi::Any> Mutate(ffi::AnyView value, InplaceMode inplace_mode) override {
     if (value.as<ExprNode>()) return ffi::Unchanged();
-    return StmtExprMutator::Mutate(value, inplace_mode);
+    return StmtExprMutatorObj::Mutate(value, inplace_mode);
   }
 
  private:
   UnchangedOr<Stmt> Mutate_(const SBlockNode* block, InplaceMode inplace_mode) final {
     if (!block->init.has_value()) {
-      return StmtExprMutator::Mutate_(block, inplace_mode);
+      return StmtExprMutatorObj::Mutate_(block, inplace_mode);
     }
     Stmt init = DoLowering(block->init.value(), block->iter_vars);
     Stmt body = Mutate(block->body, inplace_mode).ValueOrUnchanged(block->body);
@@ -88,7 +88,7 @@ namespace transform {
 Pass LowerInitBlock() {
   auto pass_func = [](Function f, IRModule m, PassContext ctx) {
     auto fptr = f.CopyOnWrite();
-    fptr->body = ffi::make_object<InitBlockLower>()
+    fptr->body = ffi::make_object<InitBlockLowerObj>()
                      ->Mutate(fptr->body, InplaceMode::kAllow)
                      .ValueOrUnchanged(std::move(fptr->body));
     return f;

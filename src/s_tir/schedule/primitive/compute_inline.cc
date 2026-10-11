@@ -40,9 +40,9 @@ and there should be no variables other than the index variables), and f is a bij
 mapping and there should not be predicates in the inlined block. The iter domains of the inlined
 block should be covered by the producer block.)";
 
-class HasInitBlock : public ScheduleErrorContextObj {
+class HasInitBlockObj : public ScheduleErrorContextObj {
  public:
-  explicit HasInitBlock(IRModule mod, SBlock block) : mod_(mod), block_(block) {}
+  explicit HasInitBlockObj(IRModule mod, SBlock block) : mod_(mod), block_(block) {}
 
   ffi::String FastErrorString() const final {
     return "ScheduleError: The block has init statement";
@@ -57,7 +57,7 @@ class HasInitBlock : public ScheduleErrorContextObj {
 
   static void Check(const IRModule& mod, const SBlock& block) {
     if (block->init.has_value()) {
-      throw MakeScheduleError<HasInitBlock>(mod, block);
+      throw MakeScheduleError<HasInitBlockObj>(mod, block);
     }
   }
 
@@ -66,9 +66,9 @@ class HasInitBlock : public ScheduleErrorContextObj {
   SBlock block_;
 };
 
-class NotSingleReadWriteTensor : public ScheduleErrorContextObj {
+class NotSingleReadWriteTensorObj : public ScheduleErrorContextObj {
  public:
-  explicit NotSingleReadWriteTensor(IRModule mod, bool is_read, SBlock block)
+  explicit NotSingleReadWriteTensorObj(IRModule mod, bool is_read, SBlock block)
       : mod_(mod), is_read_(is_read), block_(std::move(block)) {}
 
   ffi::String FastErrorString() const final {
@@ -108,28 +108,28 @@ class NotSingleReadWriteTensor : public ScheduleErrorContextObj {
       }
       if (tensor_writers.count(ffi::GetRef<Var>(tensor).as_or_throw<TensorVar>()) > 0) {
         if (read_tensor != nullptr) {
-          throw MakeScheduleError<NotSingleReadWriteTensor>(self->mod, true, block);
+          throw MakeScheduleError<NotSingleReadWriteTensorObj>(self->mod, true, block);
         }
         read_tensor = tensor;
       }
     }
     if (read_tensor == nullptr) {
-      throw MakeScheduleError<NotSingleReadWriteTensor>(self->mod, true, block);
+      throw MakeScheduleError<NotSingleReadWriteTensorObj>(self->mod, true, block);
     }
     return ffi::GetRef<Var>(read_tensor).as_or_throw<TensorVar>();
   }
 
   static TensorVar GetSingleWrite(const ScheduleState& self, const SBlock& block) {
     if (block->writes.size() != 1) {
-      throw MakeScheduleError<NotSingleReadWriteTensor>(self->mod, false, block);
+      throw MakeScheduleError<NotSingleReadWriteTensorObj>(self->mod, false, block);
     }
     return block->writes[0]->source.as_or_throw<tvm::tirx::TensorVar>();
   }
 };
 
-class BodyAnalysisError : public ScheduleErrorContextObj {
+class BodyAnalysisErrorObj : public ScheduleErrorContextObj {
  public:
-  explicit BodyAnalysisError(bool is_reverse, IRModule mod, SBlock block)
+  explicit BodyAnalysisErrorObj(bool is_reverse, IRModule mod, SBlock block)
       : is_reverse_(is_reverse), mod_(mod), block_(std::move(block)) {}
 
   ffi::String FastErrorString() const final {
@@ -149,9 +149,9 @@ class BodyAnalysisError : public ScheduleErrorContextObj {
   SBlock block_;
 };
 
-class NonSingleProducerError : public ScheduleErrorContextObj {
+class NonSingleProducerErrorObj : public ScheduleErrorContextObj {
  public:
-  explicit NonSingleProducerError(IRModule mod, SBlock block)
+  explicit NonSingleProducerErrorObj(IRModule mod, SBlock block)
       : mod_(mod), block_(std::move(block)) {}
 
   ffi::String FastErrorString() const final {
@@ -184,27 +184,27 @@ class NonSingleProducerError : public ScheduleErrorContextObj {
                         const StmtSRef& scope_root_sref) {
     const SBlockNode* scope_block = TVM_SREF_TO_SBLOCK(scope_root_sref);
     const SBlockNode* consumer_block = TVM_SREF_TO_SBLOCK(consumer_block_sref);
-    TensorVar consumer_tensor = NotSingleReadWriteTensor::GetSingleRead(
+    TensorVar consumer_tensor = NotSingleReadWriteTensorObj::GetSingleRead(
         self, ffi::GetRef<SBlock>(consumer_block), scope_root_sref);
-    class ProducerFinder : public StmtExprVisitor {
+    class ProducerFinderObj : public StmtExprVisitorObj {
      public:
-      using StmtExprVisitor::Visit_;
+      using StmtExprVisitorObj::Visit_;
 
       ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
         if (value.as<ExprNode>()) return std::nullopt;
-        return StmtExprVisitor::Visit(value);
+        return StmtExprVisitorObj::Visit(value);
       }
 
       static std::vector<SBlock> GetProducer(const ScheduleState& self,
                                              const StmtSRef& scope_root_sref,
                                              const TensorVar& tensor, const SBlock& scope_block) {
-        auto finder = ffi::make_object<ProducerFinder>(self, scope_root_sref, tensor);
+        auto finder = ffi::make_object<ProducerFinderObj>(self, scope_root_sref, tensor);
         finder->Visit(scope_block);
         return finder->producer_across_scope_.back();
       }
 
-      explicit ProducerFinder(const ScheduleState& self, const StmtSRef& scope_root_sref,
-                              const TensorVar& tensor)
+      explicit ProducerFinderObj(const ScheduleState& self, const StmtSRef& scope_root_sref,
+                                 const TensorVar& tensor)
           : self_(self), scope_root_sref_(scope_root_sref), tensor_(tensor) {
         producer_across_scope_.push_back({});
       }
@@ -212,7 +212,7 @@ class NonSingleProducerError : public ScheduleErrorContextObj {
      private:
       ffi::Optional<VisitInterrupt> Visit_(const SBlockNode* node) final {
         producer_across_scope_.push_back({});
-        TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(node));
+        TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitorObj::Visit_(node));
         // not a leaf block
         if (!producer_across_scope_.back().empty()) {
           auto producer_under_block = producer_across_scope_.back();
@@ -229,8 +229,8 @@ class NonSingleProducerError : public ScheduleErrorContextObj {
             // Check if the producer block is a complete block
             StmtSRef producer_block_sref = self_->stmt2ref.at(node);
             if (!IsCompleteBlock(self_, producer_block_sref, scope_root_sref_)) {
-              throw MakeScheduleError<NonSingleProducerError>(self_->mod,
-                                                              ffi::GetRef<SBlock>(node));
+              throw MakeScheduleError<NonSingleProducerErrorObj>(self_->mod,
+                                                                 ffi::GetRef<SBlock>(node));
             }
             producer_across_scope_.back().push_back(ffi::GetRef<SBlock>(node));
             break;
@@ -243,19 +243,19 @@ class NonSingleProducerError : public ScheduleErrorContextObj {
       TensorVar tensor_;
       std::vector<std::vector<SBlock>> producer_across_scope_;
     };
-    std::vector<SBlock> producer_across_scope = ProducerFinder::GetProducer(
+    std::vector<SBlock> producer_across_scope = ProducerFinderObj::GetProducer(
         self, scope_root_sref, consumer_tensor, ffi::GetRef<SBlock>(scope_block));
     if (producer_across_scope.size() != 1) {
-      throw MakeScheduleError<NonSingleProducerError>(self->mod,
-                                                      ffi::GetRef<SBlock>(consumer_block));
+      throw MakeScheduleError<NonSingleProducerErrorObj>(self->mod,
+                                                         ffi::GetRef<SBlock>(consumer_block));
     }
     return self->stmt2ref.at(producer_across_scope[0].get());
   }
 };
 
-class OpaqueAccessError : public ScheduleErrorContextObj {
+class OpaqueAccessErrorObj : public ScheduleErrorContextObj {
  public:
-  explicit OpaqueAccessError(IRModule mod, StmtSRef scope_root_sref)
+  explicit OpaqueAccessErrorObj(IRModule mod, StmtSRef scope_root_sref)
       : mod_(mod), scope_root_(ffi::GetRef<SBlock>(TVM_SREF_TO_SBLOCK(scope_root_sref))) {
     const SBlockNode* scope_root = TVM_SREF_TO_SBLOCK(scope_root_sref);
     this->scope_root_ = ffi::GetRef<SBlock>(scope_root);
@@ -278,10 +278,10 @@ class OpaqueAccessError : public ScheduleErrorContextObj {
   SBlock scope_root_;
 };
 
-class ProducerHasNonTrivialPredicateError : public ScheduleErrorContextObj {
+class ProducerHasNonTrivialPredicateErrorObj : public ScheduleErrorContextObj {
  public:
-  explicit ProducerHasNonTrivialPredicateError(IRModule mod, SBlockRealize producer,
-                                               PrimExpr new_predicate)
+  explicit ProducerHasNonTrivialPredicateErrorObj(IRModule mod, SBlockRealize producer,
+                                                  PrimExpr new_predicate)
       : mod_(mod), producer_(producer), new_predicate_(new_predicate) {}
 
   ffi::String FastErrorString() const final {
@@ -310,13 +310,13 @@ class ProducerHasNonTrivialPredicateError : public ScheduleErrorContextObj {
  * 2) Update the block signature to reflect the changes of read/write/allocated tensors
  * 3) Maintain a list of index variables and their substitution of the tensor being inlined
  */
-class BaseInliner : public StmtExprMutator {
+class BaseInlinerObj : public StmtExprMutatorObj {
  public:
-  using StmtExprMutator::Mutate;
-  using StmtExprMutator::Mutate_;
+  using StmtExprMutatorObj::Mutate;
+  using StmtExprMutatorObj::Mutate_;
 
-  explicit BaseInliner(const TensorVar& inlined_tensor, const SBlock& inlined_block,
-                       const StmtSRef& scope_root_sref)
+  explicit BaseInlinerObj(const TensorVar& inlined_tensor, const SBlock& inlined_block,
+                          const StmtSRef& scope_root_sref)
       : inlined_tensor_(inlined_tensor),
         inlined_store_(inlined_block->body->size() == 1
                            ? inlined_block->body->seq[0].as<TensorStoreNode>()
@@ -328,7 +328,7 @@ class BaseInliner : public StmtExprMutator {
  protected:
   UnchangedOr<Expr> Mutate_(const TensorRegionNode* op, InplaceMode inplace_mode) final {
     if (!op->source.as<TensorVar>()) {
-      return StmtExprMutator::Mutate_(op, inplace_mode);
+      return StmtExprMutatorObj::Mutate_(op, inplace_mode);
     }
     auto region = Mutate(op->region).as_or_throw<UnchangedOr<ffi::Array<Range>>>();
     if (region.UnchangedOrSameAs(op->region)) return ffi::Unchanged();
@@ -362,7 +362,7 @@ class BaseInliner : public StmtExprMutator {
     if (def_region_kind() == kTVMFFIDefRegionKindNone) {
       CheckOpaqueAccess(var);
     }
-    return StmtExprMutator::Mutate_(var, inplace_mode);
+    return StmtExprMutatorObj::Mutate_(var, inplace_mode);
   }
 
   UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) final {
@@ -370,14 +370,14 @@ class BaseInliner : public StmtExprMutator {
       if (const auto* load = op->args[0].as<TensorLoadNode>()) {
         CheckOpaqueAccess(load->source.as_or_throw<TensorVar>().get());
         // An address operand must remain a TensorLoad, not the inlined value.
-        auto operand = BaseInliner::Mutate_(load, inplace_mode);
+        auto operand = BaseInlinerObj::Mutate_(load, inplace_mode);
         if (operand.UnchangedOrSameAs(ffi::GetRef<TensorLoad>(load))) return ffi::Unchanged();
         Call call = ffi::GetRef<Call>(op);
         call.CopyOnWrite()->args.Set(0, std::move(operand).ValueUnchecked());
         return call;
       }
     }
-    return StmtExprMutator::Mutate_(op, inplace_mode);
+    return StmtExprMutatorObj::Mutate_(op, inplace_mode);
   }
 
   UnchangedOr<Stmt> Mutate_(const ForNode* loop, InplaceMode inplace_mode) final {
@@ -385,7 +385,7 @@ class BaseInliner : public StmtExprMutator {
       loop = tgt_stmt.as<ForNode>();
       TVM_FFI_ICHECK(loop != nullptr);
     }
-    return StmtExprMutator::Mutate_(loop, loop->unique() ? inplace_mode : InplaceMode::kDisallow)
+    return StmtExprMutatorObj::Mutate_(loop, loop->unique() ? inplace_mode : InplaceMode::kDisallow)
         .ValueOrUnchanged(ffi::GetRef<Stmt>(loop));
   }
 
@@ -398,7 +398,7 @@ class BaseInliner : public StmtExprMutator {
       TVM_FFI_ICHECK(block != nullptr);
     }
     SBlock tgt_block =
-        StmtExprMutator::Mutate_(block, block->unique() ? inplace_mode : InplaceMode::kDisallow)
+        StmtExprMutatorObj::Mutate_(block, block->unique() ? inplace_mode : InplaceMode::kDisallow)
             .ValueOrUnchanged(ffi::GetRef<Stmt>(block))
             .as_or_throw<SBlock>();
     bool is_scope_root = src_block.get() == scope_root_sref_->stmt;
@@ -530,14 +530,14 @@ class BaseInliner : public StmtExprMutator {
  * to its value calculation in the producer block
  * 2) Analyze the producer block to determine the remapping of index variables
  */
-class ComputeInliner : public BaseInliner {
+class ComputeInlinerObj : public BaseInlinerObj {
  public:
-  using BaseInliner::Mutate;
-  using BaseInliner::Mutate_;
+  using BaseInlinerObj::Mutate;
+  using BaseInlinerObj::Mutate_;
 
-  explicit ComputeInliner(const TensorVar& inlined_tensor, const SBlock& producer_block,
-                          const StmtSRef& scope_root_sref)
-      : BaseInliner(inlined_tensor, producer_block, scope_root_sref) {}
+  explicit ComputeInlinerObj(const TensorVar& inlined_tensor, const SBlock& producer_block,
+                             const StmtSRef& scope_root_sref)
+      : BaseInlinerObj(inlined_tensor, producer_block, scope_root_sref) {}
 
   bool BodyPatternAllowInline(const SBlock& producer_block) {
     if (inlined_store_ == nullptr) {
@@ -615,7 +615,7 @@ class ComputeInliner : public BaseInliner {
 
  private:
   UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* _load, InplaceMode inplace_mode) final {
-    TensorLoad load = BaseInliner::Mutate_(_load, inplace_mode)
+    TensorLoad load = BaseInlinerObj::Mutate_(_load, inplace_mode)
                           .ValueOrUnchanged(ffi::GetRef<PrimExpr>(_load))
                           .as_or_throw<TensorLoad>();
     if (!load->source.as_or_throw<tvm::tirx::TensorVar>().same_as(inlined_tensor_)) {
@@ -626,7 +626,7 @@ class ComputeInliner : public BaseInliner {
 
   PrimExpr ReplaceInlinedTensor(TensorLoad load) {
     TVM_FFI_ICHECK_EQ(load->indices.size(), idx_vars_.size());
-    auto substituter = ffi::make_object<StmtExprMutator>();
+    auto substituter = ffi::make_object<StmtExprMutatorObj>();
     for (size_t i = 0; i < idx_vars_.size(); ++i) {
       substituter->VarRemapSet(idx_vars_[i], load->indices[i]);
     }
@@ -648,17 +648,17 @@ class ComputeInliner : public BaseInliner {
  * 2) Substitute `TensorStore` of the tensor to be inlined,
  * replacing it with direct writing to the tensor that consumer writes
  */
-class ReverseComputeInliner : public BaseInliner {
+class ReverseComputeInlinerObj : public BaseInlinerObj {
  public:
-  using BaseInliner::Mutate;
-  using BaseInliner::Mutate_;
+  using BaseInlinerObj::Mutate;
+  using BaseInlinerObj::Mutate_;
 
-  class Substituter : public StmtExprMutator {
+  class SubstituterObj : public StmtExprMutatorObj {
    public:
-    using StmtExprMutator::Mutate;
-    using StmtExprMutator::Mutate_;
+    using StmtExprMutatorObj::Mutate;
+    using StmtExprMutatorObj::Mutate_;
 
-    explicit Substituter(ReverseComputeInliner* self) : self_(self) {
+    explicit SubstituterObj(ReverseComputeInlinerObj* self) : self_(self) {
       for (const IterVar& iter : self->consumer_block_->iter_vars) {
         auto replacement = self->VarRemapGet(iter->var);
         if (replacement != nullptr) VarRemapSet(iter->var, replacement);
@@ -667,7 +667,7 @@ class ReverseComputeInliner : public BaseInliner {
 
    private:
     UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* _load, InplaceMode inplace_mode) final {
-      TensorLoad load = StmtExprMutator::Mutate_(_load, inplace_mode)
+      TensorLoad load = StmtExprMutatorObj::Mutate_(_load, inplace_mode)
                             .ValueOrUnchanged(ffi::GetRef<PrimExpr>(_load))
                             .as_or_throw<TensorLoad>();
       return load->source.as_or_throw<tvm::tirx::TensorVar>().same_as(self_->inlined_tensor_)
@@ -675,15 +675,15 @@ class ReverseComputeInliner : public BaseInliner {
                  : load;
     }
 
-    ReverseComputeInliner* self_;
+    ReverseComputeInlinerObj* self_;
   };
 
-  class RecursionResolver : public StmtExprMutator {
+  class RecursionResolverObj : public StmtExprMutatorObj {
    public:
-    using StmtExprMutator::Mutate;
-    using StmtExprMutator::Mutate_;
+    using StmtExprMutatorObj::Mutate;
+    using StmtExprMutatorObj::Mutate_;
 
-    explicit RecursionResolver(ReverseComputeInliner* self) : self_(self) {
+    explicit RecursionResolverObj(ReverseComputeInlinerObj* self) : self_(self) {
       for (const IterVar& iter : self->consumer_block_->iter_vars) {
         auto replacement = self->VarRemapGet(iter->var);
         if (replacement != nullptr) VarRemapSet(iter->var, replacement);
@@ -692,24 +692,25 @@ class ReverseComputeInliner : public BaseInliner {
 
    private:
     UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* _load, InplaceMode inplace_mode) final {
-      TensorLoad load = StmtExprMutator::Mutate_(_load, inplace_mode)
+      TensorLoad load = StmtExprMutatorObj::Mutate_(_load, inplace_mode)
                             .ValueOrUnchanged(ffi::GetRef<PrimExpr>(_load))
                             .as_or_throw<TensorLoad>();
       if (!load->source.as_or_throw<TensorVar>().same_as(self_->inlined_tensor_)) return load;
       PrimExpr replacement = MakeTensorLoad(self_->inlined_store_->dest.as_or_throw<TensorVar>(),
                                             self_->inlined_store_->indices);
-      return StmtExprMutator::Mutate(ffi::AnyView(replacement), InplaceMode::kDisallow)
+      return StmtExprMutatorObj::Mutate(ffi::AnyView(replacement), InplaceMode::kDisallow)
           .ValueOrUnchanged(std::move(replacement))
           .as_or_throw<PrimExpr>();
     }
 
-    ReverseComputeInliner* self_;
+    ReverseComputeInlinerObj* self_;
   };
 
-  explicit ReverseComputeInliner(const TensorVar& inlined_tensor, const SBlockNode* producer_block,
-                                 const SBlockRealize& consumer_block_realize,
-                                 const StmtSRef& scope_root_sref, const IRModule& mod)
-      : BaseInliner(inlined_tensor, consumer_block_realize->block, scope_root_sref),
+  explicit ReverseComputeInlinerObj(const TensorVar& inlined_tensor,
+                                    const SBlockNode* producer_block,
+                                    const SBlockRealize& consumer_block_realize,
+                                    const StmtSRef& scope_root_sref, const IRModule& mod)
+      : BaseInlinerObj(inlined_tensor, consumer_block_realize->block, scope_root_sref),
         producer_block_(producer_block),
         consumer_block_(consumer_block_realize->block.get()) {
     // Initialize the predicates to ensure consumer block iters are in-bound
@@ -837,7 +838,7 @@ class ReverseComputeInliner : public BaseInliner {
       }
     }
     // Substitute the consumer block iters with the corresponding iters in the producer blocks
-    PrimExpr predicate = ffi::make_object<Substituter>(this)
+    PrimExpr predicate = ffi::make_object<SubstituterObj>(this)
                              ->Mutate(consumer_iter_in_bound_)
                              .ValueOrUnchanged(consumer_iter_in_bound_);
     // Simplify the predicate using the producer block iter domains
@@ -871,7 +872,7 @@ class ReverseComputeInliner : public BaseInliner {
 
   UnchangedOr<Stmt> Mutate_(const SBlockRealizeNode* op, InplaceMode inplace_mode) final {
     SBlock src_block = op->block;
-    SBlockRealize tgt_block_realize = StmtExprMutator::Mutate_(op, inplace_mode)
+    SBlockRealize tgt_block_realize = StmtExprMutatorObj::Mutate_(op, inplace_mode)
                                           .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
                                           .as_or_throw<SBlockRealize>();
     if (src_block.get() == producer_block_) {
@@ -882,7 +883,7 @@ class ReverseComputeInliner : public BaseInliner {
   }
 
   UnchangedOr<Stmt> Mutate_(const TensorStoreNode* _store, InplaceMode inplace_mode) final {
-    TensorStore store = BaseInliner::Mutate_(_store, inplace_mode)
+    TensorStore store = BaseInlinerObj::Mutate_(_store, inplace_mode)
                             .ValueOrUnchanged(ffi::GetRef<Stmt>(_store))
                             .as_or_throw<TensorStore>();
     if (!store->dest.as_or_throw<TensorVar>().same_as(inlined_tensor_)) {
@@ -932,10 +933,10 @@ class ReverseComputeInliner : public BaseInliner {
   Stmt ReplaceInlinedTensor(TensorStore producer) {
     // "producer->value" may contain the tensor that is inlined in cases of reduction,
     // so we need to resolve the recursion first
-    producer_rhs_ = ffi::make_object<RecursionResolver>(this)
+    producer_rhs_ = ffi::make_object<RecursionResolverObj>(this)
                         ->Mutate(producer->value)
                         .ValueOrUnchanged(producer->value);
-    return ffi::make_object<Substituter>(this)
+    return ffi::make_object<SubstituterObj>(this)
         ->Mutate(ffi::GetRef<TensorStore>(inlined_store_))
         .ValueOrUnchanged(ffi::GetRef<TensorStore>(inlined_store_));
   }
@@ -948,19 +949,19 @@ class ReverseComputeInliner : public BaseInliner {
    */
   static std::vector<const TensorLoadNode*> ExtractTensorLoad(const TensorVar& tensor,
                                                               const TensorStoreNode* from) {
-    struct Extractor : public StmtExprVisitor {
-      using StmtExprVisitor::Visit_;
+    struct ExtractorObj : public StmtExprVisitorObj {
+      using StmtExprVisitorObj::Visit_;
 
       ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* load) final {
         if (load->source.as_or_throw<tvm::tirx::TensorVar>().get() == tensor) {
           result.push_back(load);
         }
-        return StmtExprVisitor::Visit_(load);
+        return StmtExprVisitorObj::Visit_(load);
       }
       const VarNode* tensor;
       std::vector<const TensorLoadNode*> result;
     };
-    auto extractor = ffi::make_object<Extractor>();
+    auto extractor = ffi::make_object<ExtractorObj>();
     extractor->tensor = tensor.get();
     for (const PrimExpr& expr : from->indices) {
       extractor->Visit(expr);
@@ -1009,8 +1010,8 @@ void ComputeInlineImpl(ScheduleState self, const StmtSRef& producer_block_sref,
                        bool check_only = false) {
   const SBlockNode* _producer_block = TVM_SREF_TO_SBLOCK(producer_block_sref);
   SBlock producer_block = ffi::GetRef<SBlock>(_producer_block);
-  HasInitBlock::Check(self->mod, producer_block);
-  TensorVar inlined_tensor = NotSingleReadWriteTensor::GetSingleWrite(self, producer_block);
+  HasInitBlockObj::Check(self->mod, producer_block);
+  TensorVar inlined_tensor = NotSingleReadWriteTensorObj::GetSingleWrite(self, producer_block);
   // Step 1. Get the scope block
   StmtSRef scope_root_sref = GetScopeRoot(self, producer_block_sref,
                                           /*require_stage_pipeline=*/true);
@@ -1018,9 +1019,10 @@ void ComputeInlineImpl(ScheduleState self, const StmtSRef& producer_block_sref,
   CheckNotOutputBlock(self, producer_block_sref, scope_root_sref);
   CheckCompleteBlock(self, producer_block_sref, scope_root_sref);
   // Step 3. Analyze the block body
-  auto inliner = ffi::make_object<ComputeInliner>(inlined_tensor, producer_block, scope_root_sref);
+  auto inliner =
+      ffi::make_object<ComputeInlinerObj>(inlined_tensor, producer_block, scope_root_sref);
   if (!inliner->BodyPatternAllowInline(producer_block)) {
-    throw MakeScheduleError<BodyAnalysisError>(false, self->mod, producer_block);
+    throw MakeScheduleError<BodyAnalysisErrorObj>(false, self->mod, producer_block);
   }
   // Step 4. Create a plan that removes the leaf block to be inlined
   LeafBlockRemovalPlan(self, producer_block_sref, &inliner->src_stmt, &inliner->tgt_stmt);
@@ -1029,7 +1031,7 @@ void ComputeInlineImpl(ScheduleState self, const StmtSRef& producer_block_sref,
   Stmt tgt_stmt = inliner->Mutate(ffi::GetRef<Stmt>(scope_root_sref->stmt))
                       .ValueOrUnchanged(ffi::GetRef<Stmt>(scope_root_sref->stmt));
   if (inliner->has_opaque_access) {
-    throw MakeScheduleError<OpaqueAccessError>(self->mod, scope_root_sref);
+    throw MakeScheduleError<OpaqueAccessErrorObj>(self->mod, scope_root_sref);
   }
   // Step 6. Do the real mutation on the AST and the sref tree in the schedule state
   if (check_only) {
@@ -1056,25 +1058,25 @@ void ReverseComputeInlineImpl(ScheduleState self, const StmtSRef& consumer_block
   const SBlockNode* _consumer_block = TVM_SREF_TO_SBLOCK(consumer_block_sref);
   SBlock consumer_block = ffi::GetRef<SBlock>(_consumer_block);
   SBlockRealize consumer_block_realize = GetSBlockRealize(self, consumer_block_sref);
-  HasInitBlock::Check(self->mod, consumer_block);
+  HasInitBlockObj::Check(self->mod, consumer_block);
   // Step 1. Get the scope block
   StmtSRef scope_root_sref = GetScopeRoot(self, consumer_block_sref,  //
                                           /*require_stage_pipeline=*/true);
   TensorVar inlined_tensor =
-      NotSingleReadWriteTensor::GetSingleRead(self, consumer_block, scope_root_sref);
+      NotSingleReadWriteTensorObj::GetSingleRead(self, consumer_block, scope_root_sref);
   // Step 2. Check completeness
   CheckCompleteBlock(self, consumer_block_sref, scope_root_sref);
   // Step 3. Check if the consumer has a single complete producer, and the producer is not an output
   // block
   StmtSRef producer_block_sref =
-      NonSingleProducerError::Check(self, consumer_block_sref, scope_root_sref);
+      NonSingleProducerErrorObj::Check(self, consumer_block_sref, scope_root_sref);
   CheckNotOutputBlock(self, producer_block_sref, scope_root_sref);
   // Step 4. Analyze the block body
-  auto inliner = ffi::make_object<ReverseComputeInliner>(
+  auto inliner = ffi::make_object<ReverseComputeInlinerObj>(
       inlined_tensor, producer_block_sref->StmtAs<SBlockNode>(), consumer_block_realize,
       scope_root_sref, self->mod);
   if (!inliner->BodyPatternAllowInline(consumer_block_realize)) {
-    throw MakeScheduleError<BodyAnalysisError>(true, self->mod, consumer_block);
+    throw MakeScheduleError<BodyAnalysisErrorObj>(true, self->mod, consumer_block);
   }
   // Step 5. Create a plan that removes the leaf block to be inlined
   LeafBlockRemovalPlan(self, consumer_block_sref, &inliner->src_stmt, &inliner->tgt_stmt);
@@ -1083,7 +1085,7 @@ void ReverseComputeInlineImpl(ScheduleState self, const StmtSRef& consumer_block
   Stmt tgt_stmt = inliner->Mutate(ffi::GetRef<Stmt>(scope_root_sref->stmt))
                       .ValueOrUnchanged(ffi::GetRef<Stmt>(scope_root_sref->stmt));
   if (inliner->has_opaque_access) {
-    throw MakeScheduleError<OpaqueAccessError>(self->mod, scope_root_sref);
+    throw MakeScheduleError<OpaqueAccessErrorObj>(self->mod, scope_root_sref);
   }
   // Step 7. Do the real mutation on the AST and the sref tree in the schedule state
   if (check_only) {
@@ -1117,16 +1119,16 @@ void ReverseComputeInline(ScheduleState self, const StmtSRef& consumer_block_sre
  * \brief Helper to fuse epilogue block into reduction block
  * Uses generalized approach to handle any epilogue expression without pattern matching
  */
-class ReductionEpilogueFuser : public BaseInliner {
+class ReductionEpilogueFuserObj : public BaseInlinerObj {
  public:
-  using BaseInliner::Mutate;
-  using BaseInliner::Mutate_;
+  using BaseInlinerObj::Mutate;
+  using BaseInlinerObj::Mutate_;
 
-  explicit ReductionEpilogueFuser(const TensorVar& reduction_tensor,
-                                  const SBlockNode* reduction_block,
-                                  const SBlockRealize& epilogue_block_realize,
-                                  const StmtSRef& scope_root_sref)
-      : BaseInliner(reduction_tensor, epilogue_block_realize->block, scope_root_sref),
+  explicit ReductionEpilogueFuserObj(const TensorVar& reduction_tensor,
+                                     const SBlockNode* reduction_block,
+                                     const SBlockRealize& epilogue_block_realize,
+                                     const StmtSRef& scope_root_sref)
+      : BaseInlinerObj(reduction_tensor, epilogue_block_realize->block, scope_root_sref),
         reduction_block_(reduction_block),
         epilogue_block_(epilogue_block_realize->block.get()) {
     // Disable opaque access check for epilogue fusion
@@ -1138,7 +1140,7 @@ class ReductionEpilogueFuser : public BaseInliner {
   void CheckOpaqueAccess(const VarNode* tensor_var) {
     // For epilogue fusion, we allow multiple tensor reads (temp + bias)
     // So we don't check for opaque access
-    // BaseInliner::CheckOpaqueAccess(tensor_var);  // Don't call base class
+    // BaseInlinerObj::CheckOpaqueAccess(tensor_var);  // Don't call base class
   }
 
   bool BodyPatternAllowFusion(const SBlockRealize& epilogue_block_realize);
@@ -1153,20 +1155,20 @@ class ReductionEpilogueFuser : public BaseInliner {
   // Helper function to extract TensorLoad nodes from TensorStore
   static std::vector<const TensorLoadNode*> ExtractTensorLoad(const TensorVar& tensor,
                                                               const TensorStoreNode* from) {
-    struct Extractor : public StmtExprVisitor {
-      using StmtExprVisitor::Visit_;
+    struct ExtractorObj : public StmtExprVisitorObj {
+      using StmtExprVisitorObj::Visit_;
 
       ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* load) final {
         if (load->source.as_or_throw<tvm::tirx::TensorVar>().same_as(tensor)) {
           result.push_back(load);
         }
         // Continue visiting child nodes (indices)
-        return StmtExprVisitor::Visit_(load);
+        return StmtExprVisitorObj::Visit_(load);
       }
       TensorVar tensor{ffi::UnsafeInit{}};
       std::vector<const TensorLoadNode*> result;
     };
-    auto extractor = ffi::make_object<Extractor>();
+    auto extractor = ffi::make_object<ExtractorObj>();
     extractor->tensor = tensor;
     // Visit indices first (though they typically don't contain TensorLoad)
     for (const PrimExpr& expr : from->indices) {
@@ -1191,7 +1193,8 @@ class ReductionEpilogueFuser : public BaseInliner {
   ffi::Optional<TensorRegion> epilogue_addend_region_;  // Read region of additional tensor
 };
 
-bool ReductionEpilogueFuser::BodyPatternAllowFusion(const SBlockRealize& epilogue_block_realize) {
+bool ReductionEpilogueFuserObj::BodyPatternAllowFusion(
+    const SBlockRealize& epilogue_block_realize) {
   // 1. Validate predicate
   if (!IsOne(epilogue_block_realize->predicate)) {
     // Failure: Predicate in epilogue block is not supported
@@ -1226,12 +1229,12 @@ bool ReductionEpilogueFuser::BodyPatternAllowFusion(const SBlockRealize& epilogu
   // 5. Reject epilogues that scale the reduction result with non-additive ops
   // For example, (reduce_out * 2.0) + C[i] is not a valid bias-style epilogue.
   // We only allow the reduction result to be combined via Add/Min/Max shells.
-  class ScalingDetector : public StmtExprVisitor {
+  class ScalingDetectorObj : public StmtExprVisitorObj {
    public:
-    using StmtExprVisitor::Visit_;
+    using StmtExprVisitorObj::Visit_;
 
-    explicit ScalingDetector(const TensorVar& tensor)
-        : finder_(ffi::make_object<TargetFinder>(tensor)) {}
+    explicit ScalingDetectorObj(const TensorVar& tensor)
+        : finder_(ffi::make_object<TargetFinderObj>(tensor)) {}
 
     bool HasScaling(const PrimExpr& expr) {
       has_scaling_ = false;
@@ -1240,11 +1243,11 @@ bool ReductionEpilogueFuser::BodyPatternAllowFusion(const SBlockRealize& epilogu
     }
 
    private:
-    class TargetFinder : public StmtExprVisitor {
+    class TargetFinderObj : public StmtExprVisitorObj {
      public:
-      using StmtExprVisitor::Visit_;
+      using StmtExprVisitorObj::Visit_;
 
-      explicit TargetFinder(const TensorVar& tensor) : tensor_(tensor) {}
+      explicit TargetFinderObj(const TensorVar& tensor) : tensor_(tensor) {}
 
       bool Find(const PrimExpr& e) {
         found_ = false;
@@ -1258,7 +1261,7 @@ bool ReductionEpilogueFuser::BodyPatternAllowFusion(const SBlockRealize& epilogu
           found_ = true;
           return std::nullopt;
         }
-        return StmtExprVisitor::Visit_(op);
+        return StmtExprVisitorObj::Visit_(op);
       }
 
       TensorVar tensor_;
@@ -1276,7 +1279,7 @@ bool ReductionEpilogueFuser::BodyPatternAllowFusion(const SBlockRealize& epilogu
         has_scaling_ = true;
         return std::nullopt;
       }
-      return StmtExprVisitor::Visit_(op);
+      return StmtExprVisitorObj::Visit_(op);
     }
 
     ffi::Optional<VisitInterrupt> Visit_(const DivNode* op) final {
@@ -1285,7 +1288,7 @@ bool ReductionEpilogueFuser::BodyPatternAllowFusion(const SBlockRealize& epilogu
         has_scaling_ = true;
         return std::nullopt;
       }
-      return StmtExprVisitor::Visit_(op);
+      return StmtExprVisitorObj::Visit_(op);
     }
 
     ffi::Optional<VisitInterrupt> Visit_(const ModNode* op) final {
@@ -1294,15 +1297,15 @@ bool ReductionEpilogueFuser::BodyPatternAllowFusion(const SBlockRealize& epilogu
         has_scaling_ = true;
         return std::nullopt;
       }
-      return StmtExprVisitor::Visit_(op);
+      return StmtExprVisitorObj::Visit_(op);
     }
 
-    ffi::ObjectPtr<TargetFinder> finder_;
+    ffi::ObjectPtr<TargetFinderObj> finder_;
     bool has_scaling_{false};
   };
 
   {
-    auto detector = ffi::make_object<ScalingDetector>(inlined_tensor_);
+    auto detector = ffi::make_object<ScalingDetectorObj>(inlined_tensor_);
     if (detector->HasScaling(inlined_store_->value)) {
       // Failure: Non-additive scaling of the reduction result is not supported
       return false;
@@ -1321,7 +1324,7 @@ bool ReductionEpilogueFuser::BodyPatternAllowFusion(const SBlockRealize& epilogu
   return true;
 }
 
-bool ReductionEpilogueFuser::IsReductionBlock(const SBlockNode* block) {
+bool ReductionEpilogueFuserObj::IsReductionBlock(const SBlockNode* block) {
   // Check if block has reduction iter vars
   for (const IterVar& iter : block->iter_vars) {
     if (iter->iter_type == kCommReduce) {
@@ -1331,7 +1334,7 @@ bool ReductionEpilogueFuser::IsReductionBlock(const SBlockNode* block) {
   return false;
 }
 
-void ReductionEpilogueFuser::ExtractEpilogueInfo() {
+void ReductionEpilogueFuserObj::ExtractEpilogueInfo() {
   // Extract epilogue output tensor and indices
   epilogue_output_tensor_ = inlined_store_->dest.as_or_throw<TensorVar>();
   epilogue_output_indices_ = inlined_store_->indices;
@@ -1346,19 +1349,19 @@ void ReductionEpilogueFuser::ExtractEpilogueInfo() {
 
   // Generalized approach: extract all non-reduction tensors from epilogue expression
   // Find all tensors in epilogue expression (except the reduction tensor)
-  struct TensorExtractor : public StmtExprVisitor {
-    using StmtExprVisitor::Visit_;
+  struct TensorExtractorObj : public StmtExprVisitorObj {
+    using StmtExprVisitorObj::Visit_;
 
     ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* load) final {
       if (!load->source.as_or_throw<tvm::tirx::TensorVar>().same_as(reduction_tensor)) {
         other_tensors.insert(load->source.as_or_throw<tvm::tirx::TensorVar>().get());
       }
-      return StmtExprVisitor::Visit_(load);
+      return StmtExprVisitorObj::Visit_(load);
     }
     TensorVar reduction_tensor{ffi::UnsafeInit{}};
     std::unordered_set<const VarNode*> other_tensors;
   };
-  auto extractor = ffi::make_object<TensorExtractor>();
+  auto extractor = ffi::make_object<TensorExtractorObj>();
   extractor->reduction_tensor = inlined_tensor_;
   extractor->Visit(epilogue_expression_);
 
@@ -1377,7 +1380,7 @@ void ReductionEpilogueFuser::ExtractEpilogueInfo() {
   }
 }
 
-SBlock ReductionEpilogueFuser::CreateFusedReductionBlock(
+SBlock ReductionEpilogueFuserObj::CreateFusedReductionBlock(
     const SBlockNode* reduction_block, const SBlockRealizeNode* reduction_realize) {
   ffi::ObjectPtr<SBlockNode> new_block = ffi::make_object<SBlockNode>(*reduction_block);
 
@@ -1412,16 +1415,16 @@ SBlock ReductionEpilogueFuser::CreateFusedReductionBlock(
 
   // 2. Generalized init transformation: substitute reduction tensor load with identity element (0)
   // Create a substituter to replace reduction_tensor_load_ with identity element
-  class InitSubstituter : public StmtExprMutator {
+  class InitSubstituterObj : public StmtExprMutatorObj {
    public:
-    using StmtExprMutator::Mutate;
-    using StmtExprMutator::Mutate_;
+    using StmtExprMutatorObj::Mutate;
+    using StmtExprMutatorObj::Mutate_;
 
-    InitSubstituter(const TensorVar& target_tensor, PrimExpr identity_elem)
+    InitSubstituterObj(const TensorVar& target_tensor, PrimExpr identity_elem)
         : target_tensor_(target_tensor), identity_elem_(identity_elem) {}
 
     UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) final {
-      TensorLoad load = StmtExprMutator::Mutate_(op, inplace_mode)
+      TensorLoad load = StmtExprMutatorObj::Mutate_(op, inplace_mode)
                             .ValueOrUnchanged(ffi::GetRef<PrimExpr>(op))
                             .as_or_throw<TensorLoad>();
       if (load->source.as_or_throw<tvm::tirx::TensorVar>().same_as(target_tensor_)) {
@@ -1439,7 +1442,7 @@ SBlock ReductionEpilogueFuser::CreateFusedReductionBlock(
   PrimExpr identity_elem = prim::MakeConst(epilogue_output_tensor_->dtype, 0);
 
   // Substitute reduction tensor load with identity element
-  auto init_subst = ffi::make_object<InitSubstituter>(inlined_tensor_, identity_elem);
+  auto init_subst = ffi::make_object<InitSubstituterObj>(inlined_tensor_, identity_elem);
   PrimExpr init_epilogue =
       init_subst->Mutate(epilogue_expression_).ValueOrUnchanged(epilogue_expression_);
 
@@ -1462,14 +1465,14 @@ SBlock ReductionEpilogueFuser::CreateFusedReductionBlock(
   // 3. Generalized update transformation: apply epilogue expression with reduction tensor replaced
   // If reduction tensor load's parent is Add and other operand is not a reduction tensor,
   // remove that operand (bias addend) from update expression
-  class UpdateSubstituter : public StmtExprMutator {
+  class UpdateSubstituterObj : public StmtExprMutatorObj {
    public:
-    using StmtExprMutator::Mutate;
-    using StmtExprMutator::Mutate_;
+    using StmtExprMutatorObj::Mutate;
+    using StmtExprMutatorObj::Mutate_;
 
-    UpdateSubstituter(const TensorVar& old_tensor, const TensorVar& new_tensor,
-                      const TensorVar& reduction_tensor, const PrimExpr& epilogue_expr,
-                      const std::unordered_map<Var, Var>& var_map)
+    UpdateSubstituterObj(const TensorVar& old_tensor, const TensorVar& new_tensor,
+                         const TensorVar& reduction_tensor, const PrimExpr& epilogue_expr,
+                         const std::unordered_map<Var, Var>& var_map)
         : old_tensor_(old_tensor),
           new_tensor_(new_tensor),
           reduction_tensor_(reduction_tensor),
@@ -1477,22 +1480,22 @@ SBlock ReductionEpilogueFuser::CreateFusedReductionBlock(
           var_map_(var_map) {}
 
     UnchangedOr<Stmt> Mutate_(const TensorStoreNode* op, InplaceMode inplace_mode) final {
-      TensorStore store = StmtExprMutator::Mutate_(op, inplace_mode)
+      TensorStore store = StmtExprMutatorObj::Mutate_(op, inplace_mode)
                               .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
                               .as_or_throw<TensorStore>();
       if (store->dest.as_or_throw<TensorVar>().same_as(old_tensor_)) {
         // Replace old_tensor_ in store->value with new_tensor_ to get the reduction update
         // expression This ensures store->value references new_tensor_ instead of old_tensor_
-        class ReductionUpdateReplacer : public StmtExprMutator {
+        class ReductionUpdateReplacerObj : public StmtExprMutatorObj {
          public:
-          using StmtExprMutator::Mutate;
-          using StmtExprMutator::Mutate_;
+          using StmtExprMutatorObj::Mutate;
+          using StmtExprMutatorObj::Mutate_;
 
-          ReductionUpdateReplacer(const TensorVar& old_tensor, const TensorVar& new_tensor)
+          ReductionUpdateReplacerObj(const TensorVar& old_tensor, const TensorVar& new_tensor)
               : old_tensor_(old_tensor), new_tensor_(new_tensor) {}
 
           UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) final {
-            TensorLoad load = StmtExprMutator::Mutate_(op, inplace_mode)
+            TensorLoad load = StmtExprMutatorObj::Mutate_(op, inplace_mode)
                                   .ValueOrUnchanged(ffi::GetRef<PrimExpr>(op))
                                   .as_or_throw<TensorLoad>();
             if (load->source.as_or_throw<tvm::tirx::TensorVar>().same_as(old_tensor_)) {
@@ -1508,27 +1511,28 @@ SBlock ReductionEpilogueFuser::CreateFusedReductionBlock(
         };
 
         auto reduction_replacer =
-            ffi::make_object<ReductionUpdateReplacer>(old_tensor_, new_tensor_);
+            ffi::make_object<ReductionUpdateReplacerObj>(old_tensor_, new_tensor_);
         PrimExpr reduction_update =
             reduction_replacer->Mutate(store->value).ValueOrUnchanged(store->value);
 
         // Generalized approach: apply epilogue expression with reduction tensor load replaced
         // If reduction tensor load's direct parent is Add and the other operand is not a reduction
         // tensor, remove that operand (bias addend) from the update expression
-        class GeneralizedEpilogueApplier : public StmtExprMutator {
+        class GeneralizedEpilogueApplierObj : public StmtExprMutatorObj {
          public:
-          using StmtExprMutator::Mutate;
-          using StmtExprMutator::Mutate_;
+          using StmtExprMutatorObj::Mutate;
+          using StmtExprMutatorObj::Mutate_;
 
-          GeneralizedEpilogueApplier(const TensorVar& target_tensor,
-                                     const TensorVar& reduction_tensor, const PrimExpr& replacement)
+          GeneralizedEpilogueApplierObj(const TensorVar& target_tensor,
+                                        const TensorVar& reduction_tensor,
+                                        const PrimExpr& replacement)
               : target_tensor_(target_tensor),
                 reduction_tensor_(reduction_tensor),
                 replacement_(replacement),
                 found_target_load_(false) {}
 
           UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) final {
-            TensorLoad load = StmtExprMutator::Mutate_(op, inplace_mode)
+            TensorLoad load = StmtExprMutatorObj::Mutate_(op, inplace_mode)
                                   .ValueOrUnchanged(ffi::GetRef<PrimExpr>(op))
                                   .as_or_throw<TensorLoad>();
             if (load->source.as_or_throw<tvm::tirx::TensorVar>().same_as(target_tensor_)) {
@@ -1593,8 +1597,8 @@ SBlock ReductionEpilogueFuser::CreateFusedReductionBlock(
           bool found_target_load_;
         };
 
-        auto applier = ffi::make_object<GeneralizedEpilogueApplier>(old_tensor_, reduction_tensor_,
-                                                                    reduction_update);
+        auto applier = ffi::make_object<GeneralizedEpilogueApplierObj>(
+            old_tensor_, reduction_tensor_, reduction_update);
         PrimExpr new_value =
             applier->Mutate(epilogue_expression_).ValueOrUnchanged(epilogue_expression_);
 
@@ -1614,7 +1618,7 @@ SBlock ReductionEpilogueFuser::CreateFusedReductionBlock(
     }
 
     UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) final {
-      TensorLoad load = StmtExprMutator::Mutate_(op, inplace_mode)
+      TensorLoad load = StmtExprMutatorObj::Mutate_(op, inplace_mode)
                             .ValueOrUnchanged(ffi::GetRef<PrimExpr>(op))
                             .as_or_throw<TensorLoad>();
       if (load->source.as_or_throw<tvm::tirx::TensorVar>().same_as(old_tensor_)) {
@@ -1637,7 +1641,7 @@ SBlock ReductionEpilogueFuser::CreateFusedReductionBlock(
       ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(epilogue_expression_, f_substitute)
           .as_or_throw<PrimExpr>();
 
-  auto replacer = ffi::make_object<UpdateSubstituter>(
+  auto replacer = ffi::make_object<UpdateSubstituterObj>(
       inlined_tensor_, epilogue_output_tensor_, inlined_tensor_, epilogue_expr_mapped, var_map);
   new_block->body = replacer->Mutate(reduction_block->body).ValueOrUnchanged(reduction_block->body);
 
@@ -1701,16 +1705,16 @@ SBlock ReductionEpilogueFuser::CreateFusedReductionBlock(
  * \brief Check if a tensor is still referenced by other blocks in the scope
  */
 static bool CheckTensorStillUsed(const SBlock& scope_root, const TensorVar& tensor) {
-  class TensorUsageChecker : public StmtExprVisitor {
+  class TensorUsageCheckerObj : public StmtExprVisitorObj {
    public:
-    using StmtExprVisitor::Visit_;
+    using StmtExprVisitorObj::Visit_;
 
     ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
       if (value.as<ExprNode>()) return std::nullopt;
-      return StmtExprVisitor::Visit(value);
+      return StmtExprVisitorObj::Visit(value);
     }
 
-    explicit TensorUsageChecker(const TensorVar& tensor) : tensor_(tensor) {}
+    explicit TensorUsageCheckerObj(const TensorVar& tensor) : tensor_(tensor) {}
 
     bool CheckStmt(const Stmt& stmt) {
       found_usage_ = false;
@@ -1723,12 +1727,12 @@ static bool CheckTensorStillUsed(const SBlock& scope_root, const TensorVar& tens
       if (found_usage_) return std::nullopt;
 
       if (!op || !op->block.defined()) {
-        return StmtExprVisitor::Visit_(op);
+        return StmtExprVisitorObj::Visit_(op);
       }
 
       const SBlockNode* block = op->block.get();
       if (!block) {
-        return StmtExprVisitor::Visit_(op);
+        return StmtExprVisitorObj::Visit_(op);
       }
 
       // Check reads
@@ -1748,7 +1752,7 @@ static bool CheckTensorStillUsed(const SBlock& scope_root, const TensorVar& tens
       }
 
       // Continue visiting nested blocks
-      return StmtExprVisitor::Visit_(op);
+      return StmtExprVisitorObj::Visit_(op);
     }
 
     ffi::Optional<VisitInterrupt> Visit_(const SBlockNode* op) final {
@@ -1763,7 +1767,7 @@ static bool CheckTensorStillUsed(const SBlock& scope_root, const TensorVar& tens
         }
       }
 
-      return StmtExprVisitor::Visit_(op);
+      return StmtExprVisitorObj::Visit_(op);
     }
 
     const TensorVar& tensor_;
@@ -1774,25 +1778,25 @@ static bool CheckTensorStillUsed(const SBlock& scope_root, const TensorVar& tens
     return false;
   }
 
-  auto checker = ffi::make_object<TensorUsageChecker>(tensor);
+  auto checker = ffi::make_object<TensorUsageCheckerObj>(tensor);
   return checker->CheckStmt(scope_root->body);
 }
 
 /*!
  * \brief Helper class to replace reduction and epilogue blocks with a single fused block
  */
-class SingleBlockFusionReplacer : public StmtExprMutator {
+class SingleBlockFusionReplacerObj : public StmtExprMutatorObj {
  public:
-  using StmtExprMutator::Mutate;
-  using StmtExprMutator::Mutate_;
+  using StmtExprMutatorObj::Mutate;
+  using StmtExprMutatorObj::Mutate_;
   UnchangedOr<ffi::Any> Mutate(ffi::AnyView value, InplaceMode inplace_mode) override {
     if (value.as<ExprNode>()) return ffi::Unchanged();
-    return StmtExprMutator::Mutate(value, inplace_mode);
+    return StmtExprMutatorObj::Mutate(value, inplace_mode);
   }
 
   static SBlock Replace(SBlock old_scope_root, SBlock new_fused_block, SBlock old_reduction_block,
                         SBlock old_epilogue_block, TensorVar reduction_tensor) {
-    auto replacer = ffi::make_object<SingleBlockFusionReplacer>(
+    auto replacer = ffi::make_object<SingleBlockFusionReplacerObj>(
         std::move(new_fused_block), std::move(old_reduction_block), std::move(old_epilogue_block),
         std::move(reduction_tensor));
     SBlock result = replacer->Mutate(old_scope_root, InplaceMode::kAllow)
@@ -1817,8 +1821,8 @@ class SingleBlockFusionReplacer : public StmtExprMutator {
     return result;
   }
 
-  explicit SingleBlockFusionReplacer(SBlock new_fused_block, SBlock old_reduction_block,
-                                     SBlock old_epilogue_block, TensorVar reduction_tensor)
+  explicit SingleBlockFusionReplacerObj(SBlock new_fused_block, SBlock old_reduction_block,
+                                        SBlock old_epilogue_block, TensorVar reduction_tensor)
       : new_fused_block_(std::move(new_fused_block)),
         old_reduction_block_(std::move(old_reduction_block)),
         old_epilogue_block_(std::move(old_epilogue_block)),
@@ -1845,7 +1849,7 @@ class SingleBlockFusionReplacer : public StmtExprMutator {
       // Remove epilogue block completely.
       return SeqStmt({});
     }
-    return StmtExprMutator::Mutate_(realize, inplace_mode);
+    return StmtExprMutatorObj::Mutate_(realize, inplace_mode);
   }
 
   UnchangedOr<Stmt> Mutate_(const SeqStmtNode* seq, InplaceMode inplace_mode) final {
@@ -1878,7 +1882,7 @@ void FuseReductionEpilogueImpl(ScheduleState self, const StmtSRef& reduction_blo
       GetScopeRoot(self, epilogue_block_sref, /*require_stage_pipeline=*/true);
 
   // Step 2. Get the reduction tensor (intermediate tensor)
-  TensorVar reduction_tensor = NotSingleReadWriteTensor::GetSingleWrite(self, reduction_block);
+  TensorVar reduction_tensor = NotSingleReadWriteTensorObj::GetSingleWrite(self, reduction_block);
 
   // Step 3. Check completeness and reduction block properties
   CheckReductionBlock(self, reduction_block_sref, scope_root_sref);
@@ -1886,10 +1890,10 @@ void FuseReductionEpilogueImpl(ScheduleState self, const StmtSRef& reduction_blo
   CheckNotOutputBlock(self, reduction_block_sref, scope_root_sref);
 
   // Step 4. Analyze the epilogue pattern
-  auto fuser = ffi::make_object<ReductionEpilogueFuser>(reduction_tensor, _reduction_block,
-                                                        epilogue_block_realize, scope_root_sref);
+  auto fuser = ffi::make_object<ReductionEpilogueFuserObj>(reduction_tensor, _reduction_block,
+                                                           epilogue_block_realize, scope_root_sref);
   if (!fuser->BodyPatternAllowFusion(epilogue_block_realize)) {
-    throw MakeScheduleError<BodyAnalysisError>(true, self->mod, epilogue_block);
+    throw MakeScheduleError<BodyAnalysisErrorObj>(true, self->mod, epilogue_block);
   }
 
   if (check_only) {
@@ -1904,8 +1908,8 @@ void FuseReductionEpilogueImpl(ScheduleState self, const StmtSRef& reduction_blo
   const SBlockNode* old_scope_root = TVM_SREF_TO_SBLOCK(scope_root_sref);
 
   SBlock new_scope_root =
-      SingleBlockFusionReplacer::Replace(ffi::GetRef<SBlock>(old_scope_root), fused_block,
-                                         reduction_block, epilogue_block, reduction_tensor);
+      SingleBlockFusionReplacerObj::Replace(ffi::GetRef<SBlock>(old_scope_root), fused_block,
+                                            reduction_block, epilogue_block, reduction_tensor);
 
   // Step 7. Update schedule state
   ffi::Map<SBlock, SBlock> block_reuse;

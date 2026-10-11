@@ -29,28 +29,29 @@ namespace cuda {
 
 using namespace tirx;
 
-void TensorMapEncodeTiledAttr::RegisterReflection() {
+void TensorMapEncodeTiledAttrNode::RegisterReflection() {
   namespace refl = ffi::reflection;
-  ffi::reflection::ObjectDef<TensorMapEncodeTiledAttr>()
-      .def_ro("descriptor_dtype", &TensorMapEncodeTiledAttr::descriptor_dtype)
-      .def_ro("rank", &TensorMapEncodeTiledAttr::rank)
-      .def_ro("interleave", &TensorMapEncodeTiledAttr::interleave, refl::DefaultValue(0))
-      .def_ro("swizzle", &TensorMapEncodeTiledAttr::swizzle, refl::DefaultValue(0))
-      .def_ro("l2_promotion", &TensorMapEncodeTiledAttr::l2_promotion, refl::DefaultValue(0))
-      .def_ro("oob_fill", &TensorMapEncodeTiledAttr::oob_fill, refl::DefaultValue(0))
-      .def_ro("force_cu_dtype", &TensorMapEncodeTiledAttr::force_cu_dtype, refl::DefaultValue(-1));
+  ffi::reflection::ObjectDef<TensorMapEncodeTiledAttrNode>()
+      .def_ro("descriptor_dtype", &TensorMapEncodeTiledAttrNode::descriptor_dtype)
+      .def_ro("rank", &TensorMapEncodeTiledAttrNode::rank)
+      .def_ro("interleave", &TensorMapEncodeTiledAttrNode::interleave, refl::DefaultValue(0))
+      .def_ro("swizzle", &TensorMapEncodeTiledAttrNode::swizzle, refl::DefaultValue(0))
+      .def_ro("l2_promotion", &TensorMapEncodeTiledAttrNode::l2_promotion, refl::DefaultValue(0))
+      .def_ro("oob_fill", &TensorMapEncodeTiledAttrNode::oob_fill, refl::DefaultValue(0))
+      .def_ro("force_cu_dtype", &TensorMapEncodeTiledAttrNode::force_cu_dtype,
+              refl::DefaultValue(-1));
 }
 const Op& tensormap_encode_tiled_op() {
   static const Op op = Op::Get("tirx.cuda.tensormap_encode_tiled");
   return op;
 }
 TVM_FFI_STATIC_INIT_BLOCK() {
-  TensorMapEncodeTiledAttr::RegisterReflection();
+  TensorMapEncodeTiledAttrNode::RegisterReflection();
   ffi::reflection::GlobalDef().def(
       "tirx.cuda.TensorMapEncodeTiledAttr",
       [](DLDataType descriptor_dtype, int64_t rank, int64_t interleave, int64_t swizzle,
          int64_t l2_promotion, int64_t oob_fill, int64_t force_cu_dtype) {
-        auto attrs = ffi::make_object<TensorMapEncodeTiledAttr>();
+        auto attrs = ffi::make_object<TensorMapEncodeTiledAttrNode>();
         attrs->descriptor_dtype = descriptor_dtype;
         attrs->rank = rank;
         attrs->interleave = interleave;
@@ -63,7 +64,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("tirx.cuda.tensormap_encode_tiled")
       .set_attr<TFixedReturnType>(tvm::op_attr::kFixedReturnType, PrimType::Int(32))
       .signature(sig::arg("descriptor", "The descriptor."), sig::arg("data", "The input data."),
-                 sig::var_args<PrimExpr>("args"), sig::call_attrs<TensorMapEncodeTiledAttr>())
+                 sig::var_args<PrimExpr>("args"), sig::call_attrs<TensorMapEncodeTiledAttrNode>())
       .set_attr<TScriptPrinterName>(tvm::script::printer::op_attr::kScriptPrinterName,
                                     ffi::String("tirx.cuda.tensormap_encode_tiled"))
       .set_attr<TIRxOpCategory>(tvm::tirx::op_attr::kOpCategory, ffi::String("builtin"))

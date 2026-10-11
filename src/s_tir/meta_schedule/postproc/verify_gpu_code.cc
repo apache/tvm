@@ -30,19 +30,19 @@ namespace tvm {
 namespace s_tir {
 using namespace tvm::tirx;
 
-class ThreadExtentChecker : public StmtExprVisitor {
+class ThreadExtentCheckerObj : public StmtExprVisitorObj {
  public:
-  using StmtExprVisitor::Visit_;
+  using StmtExprVisitorObj::Visit_;
 
   ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
     if (value.as<ExprNode>()) return std::nullopt;
-    return StmtExprVisitor::Visit(value);
+    return StmtExprVisitorObj::Visit(value);
   }
 
   static bool Check(const Stmt& stmt, int thread_warp_size) {
     try {
       TVM_FFI_ICHECK(thread_warp_size > 0);
-      auto checker = ffi::make_object<ThreadExtentChecker>(thread_warp_size);
+      auto checker = ffi::make_object<ThreadExtentCheckerObj>(thread_warp_size);
       checker->Visit(stmt);
       return true;
     } catch (const std::exception&) {
@@ -50,7 +50,7 @@ class ThreadExtentChecker : public StmtExprVisitor {
     }
   }
 
-  explicit ThreadExtentChecker(int thread_warp_size) : thread_warp_size_(thread_warp_size) {}
+  explicit ThreadExtentCheckerObj(int thread_warp_size) : thread_warp_size_(thread_warp_size) {}
 
  private:
   ffi::Optional<VisitInterrupt> Visit_(const ForNode* loop) {
@@ -62,25 +62,25 @@ class ThreadExtentChecker : public StmtExprVisitor {
         int64_t ext = *p_ext;
         if (thread_scope.dim_index == 0) {
           std::swap(thread_idx_x, ext);
-          TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(loop));
+          TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitorObj::Visit_(loop));
           std::swap(thread_idx_x, ext);
         } else if (thread_scope.dim_index == 1) {
           std::swap(thread_idx_y, ext);
-          TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(loop));
+          TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitorObj::Visit_(loop));
           std::swap(thread_idx_y, ext);
         } else if (thread_scope.dim_index == 2) {
           std::swap(thread_idx_z, ext);
-          TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(loop));
+          TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitorObj::Visit_(loop));
           std::swap(thread_idx_z, ext);
         } else {
-          TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(loop));
+          TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitorObj::Visit_(loop));
         }
         return std::nullopt;
       } else {
         throw std::runtime_error("Dynamic thread extent");
       }
     }
-    return StmtExprVisitor::Visit_(loop);
+    return StmtExprVisitorObj::Visit_(loop);
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const SBlockNode* block) {
@@ -100,7 +100,7 @@ class ThreadExtentChecker : public StmtExprVisitor {
         }
       }
     }
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(block));
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitorObj::Visit_(block));
     thread_idx_x = old_thread_idx_x;
     return std::nullopt;
   }
@@ -129,7 +129,7 @@ IntImm Extract(const Target& target, const char* name) {
 }
 
 /*! \brief Verify the correctness of the generated GPU code. */
-class VerifyGPUCodeNode : public PostprocNode {
+class VerifyGPUCodeObj : public PostprocObj {
  public:
   ffi::Optional<Target> target_;
   ffi::Map<ffi::String, PrimExpr> target_constraints_{ffi::UnsafeInit()};
@@ -166,7 +166,7 @@ class VerifyGPUCodeNode : public PostprocNode {
       const BaseFunc& base_func = kv.second;
       if (const auto* function = base_func.as<tirx::FunctionNode>()) {
         if (function->body.has_value() &&
-            !s_tir::ThreadExtentChecker::Check(function->body.value(), thread_warp_size_)) {
+            !s_tir::ThreadExtentCheckerObj::Check(function->body.value(), thread_warp_size_)) {
           return false;
         }
         IRModule lowered{ffi::UnsafeInit()};
@@ -220,28 +220,28 @@ class VerifyGPUCodeNode : public PostprocNode {
   }
 
   Postproc Clone() const {
-    ffi::ObjectPtr<VerifyGPUCodeNode> n = ffi::make_object<VerifyGPUCodeNode>(*this);
+    ffi::ObjectPtr<VerifyGPUCodeObj> n = ffi::make_object<VerifyGPUCodeObj>(*this);
     n->target_constraints_ = this->target_constraints_;
     return Postproc(ffi::UnsafeInit{}, n);
   }
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<VerifyGPUCodeNode>();
+    refl::ObjectDef<VerifyGPUCodeObj>();
   }
 
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.meta_schedule.VerifyGPUCode", VerifyGPUCodeNode,
-                                    PostprocNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.meta_schedule.VerifyGPUCode", VerifyGPUCodeObj,
+                                    PostprocObj);
 };
 
 Postproc Postproc::VerifyGPUCode() {
-  ffi::ObjectPtr<VerifyGPUCodeNode> n = ffi::make_object<VerifyGPUCodeNode>();
+  ffi::ObjectPtr<VerifyGPUCodeObj> n = ffi::make_object<VerifyGPUCodeObj>();
   return Postproc(ffi::UnsafeInit{}, n);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  VerifyGPUCodeNode::RegisterReflection();
+  VerifyGPUCodeObj::RegisterReflection();
   refl::GlobalDef().def("s_tir.meta_schedule.PostprocVerifyGPUCode", Postproc::VerifyGPUCode);
 }
 

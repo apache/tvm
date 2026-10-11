@@ -58,7 +58,7 @@ ffi::Module VulkanFallbackModuleCreate(ffi::Map<ffi::String, ffi::Bytes> smap, f
  *        "ffi.Module.create.vulkan"; on miss or when forced via env var,
  *        falls back to `VulkanFallbackModuleCreate`.
  *
- *   - Registry hit (USE_VULKAN=ON build) → real `VulkanModuleNode` returned.
+ *   - Registry hit (USE_VULKAN=ON build) → real `VulkanModuleObj` returned.
  *   - Registry miss (USE_VULKAN=OFF build) → `VulkanFallbackModuleNode`
  *     returned.
  *   - `TVM_COMPILE_FORCE_FALLBACK` env var truthy → fallback regardless of

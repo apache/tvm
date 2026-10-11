@@ -80,10 +80,10 @@ using FInstructionAttrsFromJSON = ffi::TypedFunction<ffi::Array<Any>(ffi::Object
  * 4) A functor that serialize its attributes to JSON
  * 5) A functor that deserialize its attributes from JSON
  *
- * Unlike `tvm::OpNode`, `InstructionKindNode` doesn't support unstructured properties,
+ * Unlike `tvm::OpNode`, `InstructionKindObj` doesn't support unstructured properties,
  * mainly because there is no such usecase yet to add any other property.
  */
-class InstructionKindNode : public ffi::Object {
+class InstructionKindObj : public ffi::Object {
  public:
   /*! \brief The name of a kind of instructions */
   ffi::String name;
@@ -111,23 +111,23 @@ class InstructionKindNode : public ffi::Object {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<InstructionKindNode>()
-        .def_ro("name", &InstructionKindNode::name)
-        .def_ro("_is_pure", &InstructionKindNode::is_pure);
+    refl::ObjectDef<InstructionKindObj>()
+        .def_ro("name", &InstructionKindObj::name)
+        .def_ro("_is_pure", &InstructionKindObj::is_pure);
   }
 
   /*! \brief Checks if the instruction kind is EnterPostproc */
   bool IsPostproc() const;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.InstructionKind", InstructionKindNode, ffi::Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.InstructionKind", InstructionKindObj, ffi::Object);
 };
 
 /*!
- * \brief Managed reference to InstructionKindNode
- * \sa InstructionKindNode
+ * \brief Managed reference to InstructionKindObj
+ * \sa InstructionKindObj
  */
 class InstructionKind : public ffi::ObjectRef {
  public:
-  explicit InstructionKind(ffi::UnsafeInit tag, ffi::ObjectPtr<InstructionKindNode> data)
+  explicit InstructionKind(ffi::UnsafeInit tag, ffi::ObjectPtr<InstructionKindObj> data)
       : ffi::ObjectRef(tag) {
     data_ = std::move(data);
   }
@@ -139,7 +139,7 @@ class InstructionKind : public ffi::ObjectRef {
    */
   static InstructionKind Get(const ffi::String& name);
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(InstructionKind, ffi::ObjectRef,
-                                                InstructionKindNode);
+                                                InstructionKindObj);
 };
 
 /*! \brief Schedule instructions each corresponds to a schedule primitive */
@@ -260,8 +260,8 @@ class InstructionKindDef {
   }
 
  private:
-  InstructionKindNode* get_mutable() const {
-    return const_cast<InstructionKindNode*>(inst_kind_.get());
+  InstructionKindObj* get_mutable() const {
+    return const_cast<InstructionKindObj*>(inst_kind_.get());
   }
 
   InstructionKind inst_kind_;

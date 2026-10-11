@@ -27,12 +27,12 @@ namespace s_tir {
 using namespace tvm::tirx;
 
 /*! \brief The visitor that finds all the reduction block to be decomposed */
-struct ReductionBlockFinder : public StmtExprVisitor {
-  using StmtExprVisitor::Visit_;
+struct ReductionBlockFinderObj : public StmtExprVisitorObj {
+  using StmtExprVisitorObj::Visit_;
 
   ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
     if (value.as<ExprNode>()) return std::nullopt;
-    return StmtExprVisitor::Visit(value);
+    return StmtExprVisitorObj::Visit(value);
   }
 
   /*! \brief Find all the reduction blocks that should be decomposed */
@@ -42,7 +42,7 @@ struct ReductionBlockFinder : public StmtExprVisitor {
       GlobalVar g_var = kv.first;
       BaseFunc base_func = kv.second;
       if (const auto* function = base_func.as<FunctionNode>()) {
-        auto finder = ffi::make_object<ReductionBlockFinder>();
+        auto finder = ffi::make_object<ReductionBlockFinderObj>();
         finder->Visit(function->body);
         for (const SBlockNode* block : finder->results_) {
           results.emplace_back(self->stmt2ref.at(block), g_var->name_hint);
@@ -58,14 +58,14 @@ struct ReductionBlockFinder : public StmtExprVisitor {
     if (IsThreadIdx(thread_scope) || IsBlockIdx(thread_scope)) {
       thread_bound_loop_vars_.insert(loop->loop_var.get());
     }
-    return StmtExprVisitor::Visit_(loop);
+    return StmtExprVisitorObj::Visit_(loop);
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const SBlockRealizeNode* realize) final {
     if (realize->block->init.has_value() && AllReductionIterVarAreUnbound(realize)) {
       results_.push_back(realize->block.get());
     }
-    return StmtExprVisitor::Visit_(realize);
+    return StmtExprVisitorObj::Visit_(realize);
   }
 
   bool AllReductionIterVarAreUnbound(const SBlockRealizeNode* realize) const {
@@ -123,32 +123,31 @@ namespace s_tir {
 namespace meta_schedule {
 
 /*! \brief Rewrite reduction block by moving the init block out */
-class RewriteReductionBlockNode : public PostprocNode {
+class RewriteReductionBlockObj : public PostprocObj {
  public:
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<RewriteReductionBlockNode>();
+    refl::ObjectDef<RewriteReductionBlockObj>();
   }
 
-  // Inherited from PostprocNode
+  // Inherited from PostprocObj
   void InitializeWithTuneContext(const TuneContext& context) final {}
-  // Inherited from PostprocNode
+  // Inherited from PostprocObj
   bool Apply(const s_tir::Schedule& sch) final;
 
   Postproc Clone() const {
-    ffi::ObjectPtr<RewriteReductionBlockNode> n =
-        ffi::make_object<RewriteReductionBlockNode>(*this);
+    ffi::ObjectPtr<RewriteReductionBlockObj> n = ffi::make_object<RewriteReductionBlockObj>(*this);
     return Postproc(ffi::UnsafeInit{}, n);
   }
 
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.meta_schedule.RewriteReductionBlock",
-                                    RewriteReductionBlockNode, PostprocNode);
+                                    RewriteReductionBlockObj, PostprocObj);
 };
 
-bool RewriteReductionBlockNode::Apply(const s_tir::Schedule& sch) {
+bool RewriteReductionBlockObj::Apply(const s_tir::Schedule& sch) {
   for (;;) {
     std::vector<std::pair<tirx::StmtSRef, ffi::String>> results =
-        s_tir::ReductionBlockFinder::Find(sch->state());
+        s_tir::ReductionBlockFinderObj::Find(sch->state());
     int rewritten = 0;
     for (const auto& kv : results) {
       const tirx::StmtSRef& block_sref = kv.first;
@@ -188,13 +187,13 @@ bool RewriteReductionBlockNode::Apply(const s_tir::Schedule& sch) {
 }
 
 Postproc Postproc::RewriteReductionBlock() {
-  ffi::ObjectPtr<RewriteReductionBlockNode> n = ffi::make_object<RewriteReductionBlockNode>();
+  ffi::ObjectPtr<RewriteReductionBlockObj> n = ffi::make_object<RewriteReductionBlockObj>();
   return Postproc(ffi::UnsafeInit{}, n);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  RewriteReductionBlockNode::RegisterReflection();
+  RewriteReductionBlockObj::RegisterReflection();
   refl::GlobalDef().def("s_tir.meta_schedule.PostprocRewriteReductionBlock",
                         Postproc::RewriteReductionBlock);
 }

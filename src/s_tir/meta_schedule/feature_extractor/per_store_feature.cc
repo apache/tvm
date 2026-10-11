@@ -161,24 +161,24 @@ IntVec RelaxAndUnion(const std::vector<MultiIndex>& multi_indices, int64_t* nume
  */
 int64_t GetVarStride(const std::vector<MultiIndex>& multi_indices, const IntVec& tensor_stride,
                      const Var& var) {
-  class CoefficientExtractor : public StmtExprVisitor {
+  class CoefficientExtractorObj : public StmtExprVisitorObj {
    public:
-    using StmtExprVisitor::Visit_;
+    using StmtExprVisitorObj::Visit_;
 
     static int64_t Extract(const PrimExpr& expr, const Var& var) {
-      auto extractor = ffi::make_object<CoefficientExtractor>(var);
+      auto extractor = ffi::make_object<CoefficientExtractorObj>(var);
       extractor->Visit(expr);
       return (extractor->visited_var && !extractor->visited_mul && !extractor->visited_add)
                  ? 1
                  : (extractor->visited_var ? extractor->stride : 0);
     }
 
-    explicit CoefficientExtractor(const Var& var)
+    explicit CoefficientExtractorObj(const Var& var)
         : var(var), stride(0), visited_var(false), visited_add(false), visited_mul(false) {}
 
    private:
     ffi::Optional<VisitInterrupt> Visit_(const MulNode* node) override {
-      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(node));
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitorObj::Visit_(node));
       if (visited_var && !visited_add) {
         if (const auto* a = node->a.as<IntImmNode>()) {
           visited_mul = true;
@@ -192,7 +192,7 @@ int64_t GetVarStride(const std::vector<MultiIndex>& multi_indices, const IntVec&
     }
 
     ffi::Optional<VisitInterrupt> Visit_(const AddNode* node) override {
-      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(node));
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitorObj::Visit_(node));
       if (visited_var && !visited_mul) {
         visited_add = true;
         stride = 1;
@@ -223,7 +223,7 @@ int64_t GetVarStride(const std::vector<MultiIndex>& multi_indices, const IntVec&
     TVM_FFI_ICHECK_EQ(multi_index.size(), tensor_stride.size());
     // Find the rightest dimension that contains the given variable
     for (int i = ndim - 1; i >= 0; --i) {
-      int64_t coef = CoefficientExtractor::Extract(multi_index[i], var);
+      int64_t coef = CoefficientExtractorObj::Extract(multi_index[i], var);
       if (coef != 0) {
         result = std::min(result, std::abs(coef) * tensor_stride[i]);
         break;
@@ -267,16 +267,16 @@ namespace transform {
  * \return The pass created
  */
 Pass SimplifyForFeatureExtraction(bool normalize_thread_bindings = false) {
-  class Simplifier : public StmtExprMutator {
+  class SimplifierObj : public StmtExprMutatorObj {
    public:
-    using StmtExprMutator::Mutate;
-    using StmtExprMutator::Mutate_;
+    using StmtExprMutatorObj::Mutate;
+    using StmtExprMutatorObj::Mutate_;
 
-    explicit Simplifier(bool normalize_thread_bindings)
+    explicit SimplifierObj(bool normalize_thread_bindings)
         : normalize_thread_bindings_(normalize_thread_bindings) {}
 
     static Stmt Run(Stmt stmt, bool normalize_thread_bindings) {
-      return ffi::make_object<Simplifier>(normalize_thread_bindings)
+      return ffi::make_object<SimplifierObj>(normalize_thread_bindings)
           ->Mutate(stmt, InplaceMode::kAllow)
           .ValueOrUnchanged(std::move(stmt));
     }
@@ -291,7 +291,7 @@ Pass SimplifyForFeatureExtraction(bool normalize_thread_bindings = false) {
     }
 
     UnchangedOr<PrimExpr> Mutate_(const SelectNode* node, InplaceMode inplace_mode) final {
-      if (normalize_thread_bindings_) return StmtExprMutator::Mutate_(node, inplace_mode);
+      if (normalize_thread_bindings_) return StmtExprMutatorObj::Mutate_(node, inplace_mode);
       if (HasTensorLoad(node->true_value) || HasTensorLoad(node->false_value) ||
           HasTensorLoad(node->condition)) {
         return ffi::Unchanged();
@@ -301,10 +301,10 @@ Pass SimplifyForFeatureExtraction(bool normalize_thread_bindings = false) {
 
     UnchangedOr<Stmt> Mutate_(const ForNode* loop, InplaceMode inplace_mode) final {
       auto mutate_retained_loop = [&]() -> UnchangedOr<Stmt> {
-        if (!normalize_thread_bindings_) return StmtExprMutator::Mutate_(loop, inplace_mode);
+        if (!normalize_thread_bindings_) return StmtExprMutatorObj::Mutate_(loop, inplace_mode);
         auto annotations = Mutate(loop->annotations, inplace_mode)
                                .as_or_throw<UnchangedOr<ffi::Map<ffi::String, ffi::Any>>>();
-        auto result = StmtExprMutator::Mutate_(loop, inplace_mode);
+        auto result = StmtExprMutatorObj::Mutate_(loop, inplace_mode);
         if (annotations.UnchangedOrSameAs(loop->annotations)) return result;
         For updated =
             std::move(result).ValueOrUnchanged(ffi::GetRef<Stmt>(loop)).as_or_throw<For>();
@@ -363,10 +363,10 @@ Pass SimplifyForFeatureExtraction(bool normalize_thread_bindings = false) {
     }
 
     UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) final {
-      if (!normalize_thread_bindings_) return StmtExprMutator::Mutate_(op, inplace_mode);
+      if (!normalize_thread_bindings_) return StmtExprMutatorObj::Mutate_(op, inplace_mode);
       auto annotations = Mutate(op->annotations, inplace_mode)
                              .as_or_throw<UnchangedOr<ffi::Map<ffi::String, ffi::Any>>>();
-      auto result = StmtExprMutator::Mutate_(op, inplace_mode);
+      auto result = StmtExprMutatorObj::Mutate_(op, inplace_mode);
       if (annotations.UnchangedOrSameAs(op->annotations)) return result;
       SBlock block =
           std::move(result).ValueOrUnchanged(ffi::GetRef<Stmt>(op)).as_or_throw<SBlock>();
@@ -376,7 +376,7 @@ Pass SimplifyForFeatureExtraction(bool normalize_thread_bindings = false) {
 
     UnchangedOr<Stmt> Mutate_(const RegionStmtNode* region, InplaceMode inplace_mode) final {
       thread_bindings_.push_back(nullptr);
-      auto result = StmtExprMutator::Mutate_(region, inplace_mode);
+      auto result = StmtExprMutatorObj::Mutate_(region, inplace_mode);
       thread_bindings_.pop_back();
       return result;
     }
@@ -387,7 +387,7 @@ Pass SimplifyForFeatureExtraction(bool normalize_thread_bindings = false) {
   auto pass_func = [normalize_thread_bindings](Function f, IRModule m, PassContext ctx) {
     if (!f->body.has_value()) return f;
     FunctionNode* n = f.CopyOnWrite();
-    n->body = Simplifier::Run(std::move(n->body).value(), normalize_thread_bindings);
+    n->body = SimplifierObj::Run(std::move(n->body).value(), normalize_thread_bindings);
     return f;
   };
   return CreateFunctionPass(pass_func, 0, "tirx.SimplifyForFeatureExtraction");
@@ -635,14 +635,14 @@ struct Feature {
 };
 
 Feature::ArithOps::ArithOps(const TensorStoreNode* store, int64_t prod_loop_extent) {
-  class ArithOpCounter : public StmtExprVisitor {
+  class ArithOpCounterObj : public StmtExprVisitorObj {
    public:
-    using StmtExprVisitor::Visit_;
+    using StmtExprVisitorObj::Visit_;
 
 #define TVM_FEATURE_SIMPLE(Type, Counter)                      \
   ffi::Optional<VisitInterrupt> Visit_(const Type* op) final { \
     result_.Counter += this->prod_loop_extent_;                \
-    return StmtExprVisitor::Visit_(op);                        \
+    return StmtExprVisitorObj::Visit_(op);                     \
   }
 #define TVM_FEATURE_BINARY(Type, FloatCounter, IntCounter)                      \
   ffi::Optional<VisitInterrupt> Visit_(const Type* op) final {                  \
@@ -651,7 +651,7 @@ Feature::ArithOps::ArithOps(const TensorStoreNode* store, int64_t prod_loop_exte
     } else {                                                                    \
       result_.IntCounter += this->prod_loop_extent_;                            \
     }                                                                           \
-    return StmtExprVisitor::Visit_(op);                                         \
+    return StmtExprVisitorObj::Visit_(op);                                      \
   }
     TVM_FEATURE_SIMPLE(AndNode, bool_op);
     TVM_FEATURE_SIMPLE(OrNode, bool_op);
@@ -684,7 +684,7 @@ Feature::ArithOps::ArithOps(const TensorStoreNode* store, int64_t prod_loop_exte
     ffi::Optional<VisitInterrupt> Visit_(const CallNode* op) final {
       auto result_type = op->ty.as<PrimType>();
       if (!result_type) {
-        return StmtExprVisitor::Visit_(op);
+        return StmtExprVisitorObj::Visit_(op);
       }
       static auto op_call_effect_ = Op::GetAttrMap<TCallEffectKind>(tvm::op_attr::kCallEffectKind);
       CallEffectKind effect_kind =
@@ -704,13 +704,13 @@ Feature::ArithOps::ArithOps(const TensorStoreNode* store, int64_t prod_loop_exte
           result_.int_other_func += prod_loop_extent_;
         }
       }
-      return StmtExprVisitor::Visit_(op);
+      return StmtExprVisitorObj::Visit_(op);
     }
 
     int64_t prod_loop_extent_;
     ArithOps result_;
   };
-  auto counter = ffi::make_object<ArithOpCounter>();
+  auto counter = ffi::make_object<ArithOpCounterObj>();
   counter->prod_loop_extent_ = prod_loop_extent;
   counter->Visit(store->value);
   *this = counter->result_;
@@ -1319,17 +1319,17 @@ struct Feature {
 namespace group6 {
 
 /*! \brief The auxiliary feature extractor for workloads */
-class WorkloadEmbeddingExtractor : public StmtExprVisitor {
+class WorkloadEmbeddingExtractorObj : public StmtExprVisitorObj {
  public:
-  using StmtExprVisitor::Visit_;
+  using StmtExprVisitorObj::Visit_;
 
   ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
     if (value.as<ExprNode>()) return std::nullopt;
-    return StmtExprVisitor::Visit(value);
+    return StmtExprVisitorObj::Visit(value);
   }
 
   static std::vector<double> Extract(const IRModule& mod) {
-    auto self = ffi::make_object<WorkloadEmbeddingExtractor>();
+    auto self = ffi::make_object<WorkloadEmbeddingExtractorObj>();
     for (const auto& kv : mod->functions) {
       if (const FunctionNode* func = kv.second.as<FunctionNode>()) {
         self->Visit(func->body);
@@ -1340,7 +1340,7 @@ class WorkloadEmbeddingExtractor : public StmtExprVisitor {
 
  private:
   ffi::Optional<VisitInterrupt> Visit_(const SBlockNode* block) final {
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(block));
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitorObj::Visit_(block));
     std::string name = block->name_hint;
     std::for_each(name.begin(), name.end(), [](char& c) { c = ::tolower(c); });
     if (name.find("softmax") != std::string::npos) {
@@ -1369,7 +1369,7 @@ class WorkloadEmbeddingExtractor : public StmtExprVisitor {
 /*! \brief Group 6 feature */
 struct Feature {
   explicit Feature(const IRModule& mod) {
-    this->feature = WorkloadEmbeddingExtractor::Extract(mod);
+    this->feature = WorkloadEmbeddingExtractorObj::Extract(mod);
   }
 
   void Export(std::vector<double>* v) const {
@@ -1397,20 +1397,20 @@ struct Feature {
 };
 
 /*! \brief The main feature extractor */
-class PerStoreFeatureCollector : public StmtExprVisitor {
+class PerStoreFeatureCollectorObj : public StmtExprVisitorObj {
  public:
-  using StmtExprVisitor::Visit_;
+  using StmtExprVisitorObj::Visit_;
 
   ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
     if (value.as<ExprNode>()) return std::nullopt;
-    return StmtExprVisitor::Visit(value);
+    return StmtExprVisitorObj::Visit(value);
   }
 
   static std::vector<Feature> Collect(bool is_gpu, int64_t cache_line_bytes,
                                       int64_t arith_intensity_curve_num_samples,
                                       const IRModule& mod) {
-    auto collector = ffi::make_object<PerStoreFeatureCollector>(is_gpu, cache_line_bytes,
-                                                                arith_intensity_curve_num_samples);
+    auto collector = ffi::make_object<PerStoreFeatureCollectorObj>(
+        is_gpu, cache_line_bytes, arith_intensity_curve_num_samples);
     for (const auto& kv : mod->functions) {
       if (const FunctionNode* func = kv.second.as<FunctionNode>()) {
         collector->Visit(func->body);
@@ -1444,7 +1444,7 @@ class PerStoreFeatureCollector : public StmtExprVisitor {
   ffi::Optional<VisitInterrupt> Visit_(const ForNode* loop) final {
     int64_t auto_unroll;
     ForVec* for_vec = loop_nest_.Push(loop, &auto_unroll);
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(loop));
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitorObj::Visit_(loop));
     loop_nest_.Pop(loop, for_vec, auto_unroll);
     return std::nullopt;
   }
@@ -1471,7 +1471,7 @@ class PerStoreFeatureCollector : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const SBlockNode* block) final {
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(block));
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitorObj::Visit_(block));
     for (const TensorVar& tensor : block->alloc_tensors) {
       HandleTensorAlloc(tensor);
     }
@@ -1484,8 +1484,8 @@ class PerStoreFeatureCollector : public StmtExprVisitor {
   }
 
  public:
-  explicit PerStoreFeatureCollector(bool is_gpu, int64_t cache_line_bytes,
-                                    int64_t arith_intensity_curve_num_samples)
+  explicit PerStoreFeatureCollectorObj(bool is_gpu, int64_t cache_line_bytes,
+                                       int64_t arith_intensity_curve_num_samples)
       : is_gpu_(is_gpu),
         cache_line_bytes_(cache_line_bytes),
         arith_intensity_curve_num_samples_(arith_intensity_curve_num_samples) {}
@@ -1508,7 +1508,7 @@ namespace tvm {
 namespace s_tir {
 namespace meta_schedule {
 
-class PerStoreFeatureNode : public FeatureExtractorNode {
+class PerStoreFeatureObj : public FeatureExtractorObj {
  public:
   int tensors_per_store;
   int arith_intensity_curve_num_samples;
@@ -1518,19 +1518,19 @@ class PerStoreFeatureNode : public FeatureExtractorNode {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<PerStoreFeatureNode>()
-        .def_ro("tensors_per_store", &PerStoreFeatureNode::tensors_per_store)
+    refl::ObjectDef<PerStoreFeatureObj>()
+        .def_ro("tensors_per_store", &PerStoreFeatureObj::tensors_per_store)
         .def_ro("arith_intensity_curve_num_samples",
-                &PerStoreFeatureNode::arith_intensity_curve_num_samples)
-        .def_ro("cache_line_bytes", &PerStoreFeatureNode::cache_line_bytes)
-        .def_ro("extract_workload", &PerStoreFeatureNode::extract_workload)
-        .def_ro("feature_vector_length", &PerStoreFeatureNode::feature_vector_length);
+                &PerStoreFeatureObj::arith_intensity_curve_num_samples)
+        .def_ro("cache_line_bytes", &PerStoreFeatureObj::cache_line_bytes)
+        .def_ro("extract_workload", &PerStoreFeatureObj::extract_workload)
+        .def_ro("feature_vector_length", &PerStoreFeatureObj::feature_vector_length);
   }
 
   void ExtractSingle(IRModule mod, bool is_gpu, std::vector<std::vector<double>>* results) {
     static tvm::transform::Sequential passes = s_tir::transform::PassListForPerStoreFeature();
     mod = passes(std::move(mod));
-    std::vector<s_tir::Feature> features = s_tir::PerStoreFeatureCollector::Collect(
+    std::vector<s_tir::Feature> features = s_tir::PerStoreFeatureCollectorObj::Collect(
         is_gpu, this->cache_line_bytes, this->arith_intensity_curve_num_samples, mod);
     int n_features = features.size();
     results->resize(n_features);
@@ -1573,14 +1573,14 @@ class PerStoreFeatureNode : public FeatureExtractorNode {
     for (auto& result : results) features.push_back(std::move(result).value());
     return features;
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.meta_schedule.PerStoreFeature", PerStoreFeatureNode,
-                                    FeatureExtractorNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.meta_schedule.PerStoreFeature", PerStoreFeatureObj,
+                                    FeatureExtractorObj);
 };
 
 FeatureExtractor FeatureExtractor::PerStoreFeature(int tensors_per_store,
                                                    int arith_intensity_curve_num_samples,
                                                    int cache_line_bytes, bool extract_workload) {
-  ffi::ObjectPtr<PerStoreFeatureNode> n = ffi::make_object<PerStoreFeatureNode>();
+  ffi::ObjectPtr<PerStoreFeatureObj> n = ffi::make_object<PerStoreFeatureObj>();
   n->tensors_per_store = tensors_per_store;
   n->arith_intensity_curve_num_samples = arith_intensity_curve_num_samples;
   n->cache_line_bytes = cache_line_bytes;
@@ -1596,7 +1596,7 @@ FeatureExtractor FeatureExtractor::PerStoreFeature(int tensors_per_store,
   return FeatureExtractor(ffi::UnsafeInit{}, n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK() { PerStoreFeatureNode::RegisterReflection(); }
+TVM_FFI_STATIC_INIT_BLOCK() { PerStoreFeatureObj::RegisterReflection(); }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;

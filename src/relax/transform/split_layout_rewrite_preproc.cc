@@ -38,15 +38,15 @@ namespace tvm {
 namespace tirx {
 using namespace tvm::prim;
 
-class SplitFunctionLayoutRewrite : public s_tir::StmtExprMutator {
+class SplitFunctionLayoutRewriteObj : public s_tir::StmtExprMutatorObj {
  public:
-  using s_tir::StmtExprMutator::Mutate;
+  using s_tir::StmtExprMutatorObj::Mutate;
   UnchangedOr<ffi::Any> Mutate(ffi::AnyView value, InplaceMode inplace_mode) final {
     if (value.as<ExprNode>()) return ffi::Unchanged();
-    return s_tir::StmtExprMutator::Mutate(value, inplace_mode);
+    return s_tir::StmtExprMutatorObj::Mutate(value, inplace_mode);
   }
 
-  explicit SplitFunctionLayoutRewrite(const tirx::Function& func) : original_func_(func) {}
+  explicit SplitFunctionLayoutRewriteObj(const tirx::Function& func) : original_func_(func) {}
   std::tuple<ffi::Optional<tirx::Function>, tirx::Function> Transform(const tirx::Function& func) {
     TVM_FFI_ICHECK(func->body.has_value() && func->body.value()->size() == 1 &&
                    func->body.value()->seq[0].as<s_tir::SBlockRealizeNode>())
@@ -167,7 +167,7 @@ class SplitFunctionLayoutRewrite : public s_tir::StmtExprMutator {
     }
   }
   UnchangedOr<Stmt> Mutate_(const s_tir::SBlockNode* op, InplaceMode inplace_mode) final {
-    s_tir::SBlock block = s_tir::StmtExprMutator::Mutate_(op, inplace_mode)
+    s_tir::SBlock block = s_tir::StmtExprMutatorObj::Mutate_(op, inplace_mode)
                               .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
                               .as_or_throw<s_tir::SBlock>();
     auto it = op->annotations.find(tvm::s_tir::attr::kMetaScheduleLayoutRewritePreproc);
@@ -251,8 +251,8 @@ class SplitLayoutRewritePreproc : public ExprMutator {
     // Step 1: Split the function into preproc and compute
     for (auto [gv, func] : mod->functions) {
       if (func->IsInstance<tirx::FunctionNode>()) {
-        auto tir_rewriter =
-            ffi::make_object<tirx::SplitFunctionLayoutRewrite>(func.as_or_throw<tirx::Function>());
+        auto tir_rewriter = ffi::make_object<tirx::SplitFunctionLayoutRewriteObj>(
+            func.as_or_throw<tirx::Function>());
         auto [preproc_func, compute_func] =
             tir_rewriter->Transform(func.as_or_throw<tirx::Function>());
         if (preproc_func.has_value()) {
@@ -340,7 +340,7 @@ class SplitLayoutRewritePreproc : public ExprMutator {
  private:
   std::unordered_map<const GlobalVarNode*, std::tuple<tirx::Function, tirx::Function>> split_funcs_;
   std::unordered_map<const GlobalVarNode*,
-                     std::vector<tirx::SplitFunctionLayoutRewrite::RewriteInfo>>
+                     std::vector<tirx::SplitFunctionLayoutRewriteObj::RewriteInfo>>
       rewrite_infos_;
 };
 

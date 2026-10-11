@@ -92,10 +92,10 @@ class GradientSimplifier : private ExprMutator {
     if (ndim == kUnknownNDim || ndim == 1) {
       return false;
     }
-    if (!call_node->attrs.as<PermuteDimsAttrs>()->axes.has_value()) {
+    if (!call_node->attrs.as<PermuteDimsAttrsNode>()->axes.has_value()) {
       return ndim == 2;
     }
-    auto axes = call_node->attrs.as<PermuteDimsAttrs>()->axes.value();
+    auto axes = call_node->attrs.as<PermuteDimsAttrsNode>()->axes.value();
     TVM_FFI_ICHECK(static_cast<int>(axes.size()) == ndim);
     for (int i = 0; i < ndim - 2; ++i) {
       if (axes[i] != i) {
@@ -185,8 +185,8 @@ class GradientSimplifier : private ExprMutator {
 
       auto a = GetTransposeAccordingToCtx(prev_call_node->args[0]);
       auto b = GetTransposeAccordingToCtx(prev_call_node->args[1]);
-      result =
-          ExprMutator::VisitExpr(matmul(b, a, prev_call_node->attrs.as<MatmulAttrs>()->out_dtype));
+      result = ExprMutator::VisitExpr(
+          matmul(b, a, prev_call_node->attrs.as<MatmulAttrsNode>()->out_dtype));
       ReEmitBinding(binding, result);
       return;
     } else {

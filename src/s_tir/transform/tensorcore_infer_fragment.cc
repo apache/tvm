@@ -55,11 +55,11 @@ const VarNode* GetBufferVarFromData(const Expr& data) {
 }
 
 // Get fragment information from tensor intrinsics
-class FragmentGetter : public s_tir::StmtExprVisitor {
+class FragmentGetterObj : public s_tir::StmtExprVisitorObj {
  public:
-  using s_tir::StmtExprVisitor::Visit_;
+  using s_tir::StmtExprVisitorObj::Visit_;
   ffi::Optional<VisitInterrupt> Visit_(const CallNode* op) final {
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(s_tir::StmtExprVisitor::Visit_(op));
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(s_tir::StmtExprVisitorObj::Visit_(op));
 
     static const Op gpu_load_matrix_sync_op = Op::Get("tirx.gpu_load_matrix_sync");
     static const Op gpu_store_matrix_sync_op = Op::Get("tirx.gpu_store_matrix_sync");
@@ -135,19 +135,19 @@ class FragmentGetter : public s_tir::StmtExprVisitor {
 };
 
 std::unordered_map<const VarNode*, FragmentInfo> GetTensorCoreFragmentInfo(const Stmt& stmt) {
-  auto getter = ffi::make_object<s_tir::FragmentGetter>();
+  auto getter = ffi::make_object<s_tir::FragmentGetterObj>();
   getter->Visit(stmt);
   return std::move(getter->fragments);
 }
 
 // Check shape of fragment making sure it is a valid shape for gpu_mma_sync
-class FragmentChecker : public s_tir::StmtExprVisitor {
+class FragmentCheckerObj : public s_tir::StmtExprVisitorObj {
  public:
-  using s_tir::StmtExprVisitor::Visit_;
-  explicit FragmentChecker(const FragmentGetter& getter) : fragment_getter(getter) {}
+  using s_tir::StmtExprVisitorObj::Visit_;
+  explicit FragmentCheckerObj(const FragmentGetterObj& getter) : fragment_getter(getter) {}
 
   ffi::Optional<VisitInterrupt> Visit_(const CallNode* op) final {
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(s_tir::StmtExprVisitor::Visit_(op));
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(s_tir::StmtExprVisitorObj::Visit_(op));
     // Check shape when calling gpu_mma_sync
     static const Op gpu_mma_sync_op = Op::Get("tirx.gpu_mma_sync");
     static const Op bmma_sync_op = Op::Get("tirx.cuda.bmma_sync");
@@ -186,20 +186,20 @@ class FragmentChecker : public s_tir::StmtExprVisitor {
     return info1.m == info2.m && info1.n == info2.n && info1.k == info2.k;
   }
   // Fragment infomation
-  const FragmentGetter& fragment_getter;
+  const FragmentGetterObj& fragment_getter;
 };
 
 // Store the metadata into attributes
-class InferFragmenter : public s_tir::StmtExprMutator {
+class InferFragmenterObj : public s_tir::StmtExprMutatorObj {
  public:
-  using s_tir::StmtExprMutator::Mutate;
-  using s_tir::StmtExprMutator::Mutate_;
+  using s_tir::StmtExprMutatorObj::Mutate;
+  using s_tir::StmtExprMutatorObj::Mutate_;
   UnchangedOr<ffi::Any> Mutate(ffi::AnyView value, InplaceMode inplace_mode) override {
     if (value.as<ExprNode>()) return ffi::Unchanged();
-    return s_tir::StmtExprMutator::Mutate(value, inplace_mode);
+    return s_tir::StmtExprMutatorObj::Mutate(value, inplace_mode);
   }
 
-  explicit InferFragmenter(const FragmentGetter& getter) : fragment_getter(getter) {}
+  explicit InferFragmenterObj(const FragmentGetterObj& getter) : fragment_getter(getter) {}
 
   UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final {
     if (const auto* call = op->value.as<CallNode>();
@@ -227,20 +227,20 @@ class InferFragmenter : public s_tir::StmtExprMutator {
       value.CopyOnWrite()->attrs = DictAttrs(std::move(annotations));
       return Bind(op->var, std::move(value), op->loc);
     }
-    return s_tir::StmtExprMutator::Mutate_(op, inplace_mode);
+    return s_tir::StmtExprMutatorObj::Mutate_(op, inplace_mode);
   }
 
  private:
   // Fragment infomation
-  const FragmentGetter& fragment_getter;
+  const FragmentGetterObj& fragment_getter;
 };
 
 Stmt InferFragment(Stmt stmt) {
-  auto getter = ffi::make_object<FragmentGetter>();
+  auto getter = ffi::make_object<FragmentGetterObj>();
   getter->Visit(stmt);
-  auto checker = ffi::make_object<FragmentChecker>(*getter);
+  auto checker = ffi::make_object<FragmentCheckerObj>(*getter);
   checker->Visit(stmt);
-  stmt = ffi::make_object<InferFragmenter>(*getter)
+  stmt = ffi::make_object<InferFragmenterObj>(*getter)
              ->Mutate(stmt, InplaceMode::kAllow)
              .ValueOrUnchanged(std::move(stmt));
   return stmt;

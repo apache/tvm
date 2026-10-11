@@ -73,7 +73,7 @@ class SymbolicVarCanonicalizer : public ExprMutator {
         op->args.Map([this](const Expr& arg) { return this->VisitExpr(arg); });
     Type out_ty = this->VisitExprDepTypeField(op->ty_args[0]);
     ffi::Optional<ffi::Array<int64_t>> inplace_indices;
-    if (const auto* attrs = op->attrs.as<CallTIRInplaceAttrs>()) {
+    if (const auto* attrs = op->attrs.as<CallTIRInplaceAttrsNode>()) {
       inplace_indices = attrs->inplace_indices;
     }
     auto implied = InferCallTIROutputTypeFromArguments(GetType(new_args[0]), GetType(new_args[1]),

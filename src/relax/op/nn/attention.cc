@@ -33,7 +33,7 @@ namespace relax {
 Expr attention(Expr query, Expr key, Expr value, ffi::Optional<Expr> bias,
                ffi::Optional<FloatImm> scale, ffi::Optional<ffi::String> causal_mask,
                ffi::Optional<IntImm> window_size) {
-  ffi::ObjectPtr<AttentionAttrs> attrs = ffi::make_object<AttentionAttrs>();
+  ffi::ObjectPtr<AttentionAttrsNode> attrs = ffi::make_object<AttentionAttrsNode>();
   attrs->scale = scale;
   attrs->causal_mask = causal_mask;
   attrs->window_size = window_size;
@@ -50,7 +50,7 @@ Expr attention(Expr query, Expr key, Expr value, ffi::Optional<Expr> bias,
 Expr attention_var_len(Expr query, Expr key, Expr value, Expr seqstart_q, Expr seqstart_k,
                        Expr max_seqlen_q, Expr max_seqlen_k, ffi::Optional<FloatImm> scale,
                        ffi::Optional<ffi::String> causal_mask, ffi::Optional<IntImm> window_size) {
-  ffi::ObjectPtr<AttentionAttrs> attrs = ffi::make_object<AttentionAttrs>();
+  ffi::ObjectPtr<AttentionAttrsNode> attrs = ffi::make_object<AttentionAttrsNode>();
   attrs->scale = scale;
   attrs->causal_mask = causal_mask;
   attrs->window_size = window_size;
@@ -60,17 +60,17 @@ Expr attention_var_len(Expr query, Expr key, Expr value, Expr seqstart_q, Expr s
               {});
 }
 
-void AttentionAttrs::RegisterReflection() {
+void AttentionAttrsNode::RegisterReflection() {
   namespace refl = tvm::ffi::reflection;
-  refl::ObjectDef<AttentionAttrs>()
+  refl::ObjectDef<AttentionAttrsNode>()
       .def_ro(
-          "scale", &AttentionAttrs::scale,
+          "scale", &AttentionAttrsNode::scale,
           "The custom scale applied before the softmax. The default value is 1 / sqrt(head_dim).",
           refl::DefaultValue(ffi::Optional<FloatImm>{}))
-      .def_ro("causal_mask", &AttentionAttrs::causal_mask,
+      .def_ro("causal_mask", &AttentionAttrsNode::causal_mask,
               "The type of the causal mask, i.e. 'TopLeft' and 'BottomRight'.",
               refl::DefaultValue(ffi::Optional<ffi::String>{}))
-      .def_ro("window_size", &AttentionAttrs::window_size,
+      .def_ro("window_size", &AttentionAttrsNode::window_size,
               "The size of the window for sliding-window attention.",
               refl::DefaultValue(ffi::Optional<IntImm>{}));
 }
@@ -167,9 +167,9 @@ Call InferMixedPrecisionAttention(const Call& call, DLDataType out_dtype) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.nn.attention")
-      .signature(sig::arg("query", "The input queries tensor."),
-                 sig::arg("key", "The input keys tensor."),
-                 sig::arg("value", "The input values tensor."), sig::call_attrs<AttentionAttrs>())
+      .signature(
+          sig::arg("query", "The input queries tensor."), sig::arg("key", "The input keys tensor."),
+          sig::arg("value", "The input values tensor."), sig::call_attrs<AttentionAttrsNode>())
       .set_attr<TMixedPrecisionPolicy>(tvm::relax::op_attr::kMixedPrecisionPolicy,
                                        MixedPrecisionPolicyKind::kAlways)
       .set_attr<FInferMixedPrecision>(tvm::relax::op_attr::kInferMixedPrecision,
@@ -182,7 +182,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .signature(sig::arg("query", "The input queries tensor."),
                  sig::arg("key", "The input keys tensor."),
                  sig::arg("value", "The input values tensor."),
-                 sig::arg("bias", "The input bias tensor."), sig::call_attrs<AttentionAttrs>())
+                 sig::arg("bias", "The input bias tensor."), sig::call_attrs<AttentionAttrsNode>())
       .set_attr<TMixedPrecisionPolicy>(tvm::relax::op_attr::kMixedPrecisionPolicy,
                                        MixedPrecisionPolicyKind::kAlways)
       .set_attr<FInferMixedPrecision>(tvm::relax::op_attr::kInferMixedPrecision,
@@ -199,7 +199,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                  sig::arg("seqstart_k", "The cumsum of key sequence lengths, prepended with 0."),
                  sig::arg("max_seqlen_q", "The maximum query sequence length in the batch."),
                  sig::arg("max_seqlen_k", "The maximum key sequence length in the batch."),
-                 sig::call_attrs<AttentionAttrs>())
+                 sig::call_attrs<AttentionAttrsNode>())
       .set_attr<TMixedPrecisionPolicy>(tvm::relax::op_attr::kMixedPrecisionPolicy,
                                        MixedPrecisionPolicyKind::kAlways)
       .set_attr<FInferMixedPrecision>(tvm::relax::op_attr::kInferMixedPrecision,
@@ -208,7 +208,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                                        InferTypeAttention)
       .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
 
-  AttentionAttrs::RegisterReflection();
+  AttentionAttrsNode::RegisterReflection();
 }
 
 }  // namespace relax

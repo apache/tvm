@@ -41,7 +41,7 @@ Type InferDistTypeSoftmax(const Call& call, const BlockBuilder& ctx) {
                                             "dtype. However, the given input dtype is "
                                          << input_tensor_ty->dtype;
   }
-  const auto* attrs = call->attrs.as<SoftmaxAttrs>();
+  const auto* attrs = call->attrs.as<SoftmaxAttrsNode>();
   NormalizeAxis(call, ctx, input_tensor_ty->ndim, attrs->axis);
 
   return InferShardingSpec(call, ctx, input_tensor_ty, distributed::BuildAxisGraphReduce);

@@ -111,9 +111,9 @@ struct ReuseConfig {
 class State;
 
 /*! \brief The state of auto scheduling for the multi-level tiling rule */
-class StateNode : public ffi::Object {
+class StateObj : public ffi::Object {
  public:
-  explicit StateNode(s_tir::Schedule sch) : sch(std::move(sch)) {}
+  explicit StateObj(s_tir::Schedule sch) : sch(std::move(sch)) {}
   /*! \brief The schedule to date */
   s_tir::Schedule sch;
   /*! \brief The block to be tiled */
@@ -134,20 +134,20 @@ class StateNode : public ffi::Object {
   virtual State Copy() const;
 
   static constexpr const bool _type_mutable = true;
-  TVM_FFI_DECLARE_OBJECT_INFO("s_tir.meta_schedule.State", StateNode, ffi::Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("s_tir.meta_schedule.State", StateObj, ffi::Object);
 };
 
-/*! \brief Managed reference to StateNode */
+/*! \brief Managed reference to StateObj */
 class State : public ffi::ObjectRef {
  public:
-  explicit State(ffi::UnsafeInit tag, ffi::ObjectPtr<StateNode> data) : ffi::ObjectRef(tag) {
+  explicit State(ffi::UnsafeInit tag, ffi::ObjectPtr<StateObj> data) : ffi::ObjectRef(tag) {
     data_ = std::move(data);
   }
 
   /*! \brief Default constructor */
   explicit State(s_tir::Schedule sch, s_tir::SBlockRV block_rv,
                  ffi::Array<ffi::Array<s_tir::LoopRV>> tiles = {});
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(State, ffi::ObjectRef, StateNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(State, ffi::ObjectRef, StateObj);
 };
 
 /*!
@@ -171,9 +171,9 @@ std::vector<State> SubRule(std::vector<State> states, FLambda sub_rule) {
 /*!
  * \brief The mega rule: multi-level tiling with data reuse
  */
-class MultiLevelTilingNode : public ScheduleRuleNode {
+class MultiLevelTilingObj : public ScheduleRuleObj {
  public:
-  virtual ~MultiLevelTilingNode() = default;
+  virtual ~MultiLevelTilingObj() = default;
 
   // SubRule 1. add write cache
   std::vector<State> AddWriteReuse(State state) const;
@@ -184,14 +184,14 @@ class MultiLevelTilingNode : public ScheduleRuleNode {
   // SubRule 4. add async pipeline
   std::vector<State> AddAsyncPipeline(State state) const;
 
-  // Do nothing; Inherited from ScheduleRuleNode
+  // Do nothing; Inherited from ScheduleRuleObj
   void InitializeWithTuneContext(const TuneContext& context) final;
 
-  // Entry of the mega rule; Inherited from ScheduleRuleNode
+  // Entry of the mega rule; Inherited from ScheduleRuleObj
   ffi::Array<s_tir::Schedule> Apply(const s_tir::Schedule& sch,
                                     const s_tir::SBlockRV& block_rv) override;
 
-  // Inherited from ScheduleRuleNode
+  // Inherited from ScheduleRuleObj
   ScheduleRule Clone() const override;
 
  protected:
@@ -237,13 +237,13 @@ class MultiLevelTilingNode : public ScheduleRuleNode {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<MultiLevelTilingNode>()
-        .def_ro("structure", &MultiLevelTilingNode::structure)
-        .def_ro("tile_binds", &MultiLevelTilingNode::tile_binds)
-        .def_ro("max_innermost_factor", &MultiLevelTilingNode::max_innermost_factor);
+    refl::ObjectDef<MultiLevelTilingObj>()
+        .def_ro("structure", &MultiLevelTilingObj::structure)
+        .def_ro("tile_binds", &MultiLevelTilingObj::tile_binds)
+        .def_ro("max_innermost_factor", &MultiLevelTilingObj::max_innermost_factor);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO("s_tir.meta_schedule.MultiLevelTiling", MultiLevelTilingNode,
-                              ScheduleRuleNode);
+  TVM_FFI_DECLARE_OBJECT_INFO("s_tir.meta_schedule.MultiLevelTiling", MultiLevelTilingObj,
+                              ScheduleRuleObj);
 };
 
 template <typename NodeType>

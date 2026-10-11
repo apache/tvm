@@ -69,9 +69,9 @@ ffi::Optional<ffi::Array<Var>> CheckTrivialTensorAccess(const TensorRegion& tens
 }
 
 /*! \brief The schedule error class when the padding size is invalid. */
-class InvalidPaddingError : public ScheduleErrorContextObj {
+class InvalidPaddingErrorObj : public ScheduleErrorContextObj {
  public:
-  InvalidPaddingError(IRModule mod, SBlock block, ffi::Array<int64_t> padding)
+  InvalidPaddingErrorObj(IRModule mod, SBlock block, ffi::Array<int64_t> padding)
       : mod_(std::move(mod)), block_(std::move(block)), padding_(std::move(padding)) {}
   IRModule mod() const final { return mod_; }
   ffi::Array<ffi::ObjectRef> LocationsOfInterest() const final { return {block_}; }
@@ -87,11 +87,11 @@ class InvalidPaddingError : public ScheduleErrorContextObj {
 
   static void Check(const ScheduleState& self, const SBlock& block, ffi::Array<int64_t> padding) {
     if (padding.size() != block->iter_vars.size()) {
-      throw MakeScheduleError<InvalidPaddingError>(self->mod, block, padding);
+      throw MakeScheduleError<InvalidPaddingErrorObj>(self->mod, block, padding);
     }
     for (int64_t pad : padding) {
       if (pad <= 0) {
-        throw MakeScheduleError<InvalidPaddingError>(self->mod, block, padding);
+        throw MakeScheduleError<InvalidPaddingErrorObj>(self->mod, block, padding);
       }
     }
   }
@@ -103,9 +103,9 @@ class InvalidPaddingError : public ScheduleErrorContextObj {
 };
 
 /*! \brief The schedule error class when the block body is not an Einsum pattern. */
-class NonEinsumError : public ScheduleErrorContextObj {
+class NonEinsumErrorObj : public ScheduleErrorContextObj {
  public:
-  explicit NonEinsumError(IRModule mod, SBlock block)
+  explicit NonEinsumErrorObj(IRModule mod, SBlock block)
       : mod_(std::move(mod)), block_(std::move(block)) {}
 
   IRModule mod() const final { return mod_; }
@@ -217,36 +217,36 @@ Einsum ExtractEinsum(const ScheduleState& self, const SBlock& block) {
   for (int i = 0; i < n_reads; ++i) {
     const TensorVar& tensor = block->reads[i]->source.as_or_throw<tvm::tirx::TensorVar>();
     if (tensor_used.count(tensor.get()) != 0) {
-      throw MakeScheduleError<NonEinsumError>(self->mod, block);
+      throw MakeScheduleError<NonEinsumErrorObj>(self->mod, block);
     }
     tensor_used.insert(tensor.get());
     if (ffi::Optional<ffi::Array<Var>> opt_indices = CheckTrivialTensorAccess(block->reads[i])) {
       result.input_tensors.push_back(tensor);
       result.input_indices.Set(tensor, opt_indices.value());
     } else {
-      throw MakeScheduleError<NonEinsumError>(self->mod, block);
+      throw MakeScheduleError<NonEinsumErrorObj>(self->mod, block);
     }
   }
   int n_writes = block->writes.size();
   for (int i = 0; i < n_writes; ++i) {
     const TensorVar& tensor = block->writes[i]->source.as_or_throw<tvm::tirx::TensorVar>();
     if (tensor_used.count(tensor.get()) != 0) {
-      throw MakeScheduleError<NonEinsumError>(self->mod, block);
+      throw MakeScheduleError<NonEinsumErrorObj>(self->mod, block);
     }
     tensor_used.insert(tensor.get());
     if (ffi::Optional<ffi::Array<Var>> opt_indices = CheckTrivialTensorAccess(block->writes[i])) {
       result.output_tensors.push_back(tensor);
       result.output_indices.Set(tensor, opt_indices.value());
     } else {
-      throw MakeScheduleError<NonEinsumError>(self->mod, block);
+      throw MakeScheduleError<NonEinsumErrorObj>(self->mod, block);
     }
   }
   return result;
 }
 
-class TensorNotAllocatedInScopeError : public ScheduleErrorContextObj {
+class TensorNotAllocatedInScopeErrorObj : public ScheduleErrorContextObj {
  public:
-  explicit TensorNotAllocatedInScopeError(IRModule mod, TensorVar tensor)
+  explicit TensorNotAllocatedInScopeErrorObj(IRModule mod, TensorVar tensor)
       : mod_(std::move(mod)), tensor_(std::move(tensor)) {}
 
   ffi::String FastErrorString() const final {
@@ -270,9 +270,9 @@ class TensorNotAllocatedInScopeError : public ScheduleErrorContextObj {
 };
 
 /*! \brief The schedule error class when the producer block cannot be padded. */
-class InvalidProducerError : public ScheduleErrorContextObj {
+class InvalidProducerErrorObj : public ScheduleErrorContextObj {
  public:
-  explicit InvalidProducerError(IRModule mod, SBlock producer)
+  explicit InvalidProducerErrorObj(IRModule mod, SBlock producer)
       : mod_(std::move(mod)), producer_(std::move(producer)) {}
 
   ffi::String FastErrorString() const final {
@@ -294,14 +294,14 @@ class InvalidProducerError : public ScheduleErrorContextObj {
   SBlock producer_;
 };
 
-class PadEinsumTensorReplacer : public StmtExprMutator {
+class PadEinsumTensorReplacerObj : public StmtExprMutatorObj {
  public:
-  using StmtExprMutator::Mutate;
-  using StmtExprMutator::Mutate_;
+  using StmtExprMutatorObj::Mutate;
+  using StmtExprMutatorObj::Mutate_;
 
   UnchangedOr<Stmt> Mutate_(const SBlockNode* old_block_ptr, InplaceMode inplace_mode) final {
     SBlock old_block = ffi::GetRef<SBlock>(old_block_ptr);
-    SBlock block = StmtExprMutator::Mutate_(old_block_ptr, inplace_mode)
+    SBlock block = StmtExprMutatorObj::Mutate_(old_block_ptr, inplace_mode)
                        .ValueOrUnchanged(ffi::GetRef<Stmt>(old_block_ptr))
                        .as_or_throw<SBlock>();
     ffi::Array<IterVar> iter_vars;
@@ -344,7 +344,7 @@ class PadEinsumTensorReplacer : public StmtExprMutator {
 
   UnchangedOr<Stmt> Mutate_(const ForNode* old_for_ptr, InplaceMode inplace_mode) final {
     For old_for = ffi::GetRef<For>(old_for_ptr);
-    For new_for = StmtExprMutator::Mutate_(old_for_ptr, inplace_mode)
+    For new_for = StmtExprMutatorObj::Mutate_(old_for_ptr, inplace_mode)
                       .ValueOrUnchanged(ffi::GetRef<Stmt>(old_for_ptr))
                       .as_or_throw<For>();
     if (ffi::Optional<PrimExpr> new_extent = loop_var2padded_extent.Get(new_for->loop_var)) {
@@ -356,7 +356,7 @@ class PadEinsumTensorReplacer : public StmtExprMutator {
   }
 
   UnchangedOr<Stmt> Mutate_(const TensorStoreNode* old_store_ptr, InplaceMode inplace_mode) final {
-    TensorStore store = StmtExprMutator::Mutate_(old_store_ptr, inplace_mode)
+    TensorStore store = StmtExprMutatorObj::Mutate_(old_store_ptr, inplace_mode)
                             .ValueOrUnchanged(ffi::GetRef<Stmt>(old_store_ptr))
                             .as_or_throw<TensorStore>();
     if (ffi::Optional<TensorVar> tensor =
@@ -369,7 +369,7 @@ class PadEinsumTensorReplacer : public StmtExprMutator {
 
   UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* old_load_ptr,
                                 InplaceMode inplace_mode) final {
-    TensorLoad load = StmtExprMutator::Mutate_(old_load_ptr, inplace_mode)
+    TensorLoad load = StmtExprMutatorObj::Mutate_(old_load_ptr, inplace_mode)
                           .ValueOrUnchanged(ffi::GetRef<PrimExpr>(old_load_ptr))
                           .as_or_throw<TensorLoad>();
     if (ffi::Optional<TensorVar> tensor = VarRemapGet(load->source).as<TensorVar>()) {
@@ -391,11 +391,11 @@ void PadEinsum(ScheduleState self, const StmtSRef& block_sref, const ffi::Array<
   SBlockRealize realize = GetSBlockRealize(self, block_sref);
   StmtSRef scope_sref = GetScopeRoot(self, block_sref, /*require_stage_pipeline=*/true);
   const SBlockNode* scope_block = TVM_SREF_TO_SBLOCK(scope_sref);
-  InvalidPaddingError::Check(self, ffi::GetRef<SBlock>(block), padding);
+  InvalidPaddingErrorObj::Check(self, ffi::GetRef<SBlock>(block), padding);
   // Step 2. Extract the Einsum pattern
   ExtractEinsum(self, ffi::GetRef<SBlock>(block));
   // Step 3. Figure out the padding needed
-  auto replacer = ffi::make_object<PadEinsumTensorReplacer>();
+  auto replacer = ffi::make_object<PadEinsumTensorReplacerObj>();
   for (int i = 0, n = padding.size(); i < n; ++i) {
     const IterVar& iter = block->iter_vars[i];
     PrimExpr dom = iter->dom.value()->extent;

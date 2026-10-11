@@ -19,7 +19,7 @@
 
 /*!
  * \file rocm_fallback_module.cc
- * \brief ROCmFallbackModuleNode — codegen-time placeholder used when the ROCm
+ * \brief ROCmFallbackModuleObj — codegen-time placeholder used when the ROCm
  *        runtime is not linked.  Mirrors `ROCMModuleNode`'s save/load format
  *        byte-for-byte; see one-way comment in `SaveToBytes` below.
  *        Always compiled (independent of USE_ROCM); never registered as an
@@ -38,11 +38,11 @@
 namespace tvm {
 namespace target {
 
-class ROCmFallbackModuleNode : public ffi::ModuleObj {
+class ROCmFallbackModuleObj : public ffi::ModuleObj {
  public:
-  ROCmFallbackModuleNode(ffi::Bytes code, ffi::String fmt,
-                         ffi::Map<ffi::String, runtime::FunctionInfo> fmap,
-                         ffi::Map<ffi::String, ffi::String> source)
+  ROCmFallbackModuleObj(ffi::Bytes code, ffi::String fmt,
+                        ffi::Map<ffi::String, runtime::FunctionInfo> fmap,
+                        ffi::Map<ffi::String, ffi::String> source)
       : code_(std::move(code)),
         fmt_(std::move(fmt)),
         fmap_(std::move(fmap)),
@@ -117,8 +117,8 @@ class ROCmFallbackModuleNode : public ffi::ModuleObj {
 ffi::Module ROCmFallbackModuleCreate(ffi::Bytes code, ffi::String fmt,
                                      ffi::Map<ffi::String, runtime::FunctionInfo> fmap,
                                      ffi::Map<ffi::String, ffi::String> source) {
-  auto n = ffi::make_object<ROCmFallbackModuleNode>(std::move(code), std::move(fmt),
-                                                    std::move(fmap), std::move(source));
+  auto n = ffi::make_object<ROCmFallbackModuleObj>(std::move(code), std::move(fmt), std::move(fmap),
+                                                   std::move(source));
   return ffi::Module(n);
 }
 

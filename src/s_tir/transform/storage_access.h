@@ -44,9 +44,9 @@ using runtime::StorageScope;
 /*!
  * \brief Base class of storage access analysis
  */
-class StorageAccessVisitor : public StmtExprVisitor {
+class StorageAccessVisitorObj : public StmtExprVisitorObj {
  public:
-  using StmtExprVisitor::Visit_;
+  using StmtExprVisitorObj::Visit_;
 
   /*! \brief Storage access type */
   enum AccessType {
@@ -95,7 +95,7 @@ class StorageAccessVisitor : public StmtExprVisitor {
   ffi::Optional<VisitInterrupt> Visit_(const VarNode* op) final;
 
  protected:
-  StorageAccessVisitor() { scope_.push_back(std::vector<StmtEntry>()); }
+  StorageAccessVisitorObj() { scope_.push_back(std::vector<StmtEntry>()); }
   /*! \return number of conditions in the current scope. */
   int condition_counter() const { return condition_counter_; }
   /*! \return whether we are in device environment. */

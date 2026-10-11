@@ -35,263 +35,263 @@ namespace tvm {
 namespace relax {
 using namespace tvm::prim;
 
-void Conv1DAttrs::RegisterReflection() {
+void Conv1DAttrsNode::RegisterReflection() {
   namespace refl = tvm::ffi::reflection;
-  refl::ObjectDef<Conv1DAttrs>()
-      .def_ro("strides", &Conv1DAttrs::strides, "Specifies the strides of the convolution.",
+  refl::ObjectDef<Conv1DAttrsNode>()
+      .def_ro("strides", &Conv1DAttrsNode::strides, "Specifies the strides of the convolution.",
               refl::DefaultValue(ffi::Array<int64_t>{1}))
-      .def_ro("padding", &Conv1DAttrs::padding,
+      .def_ro("padding", &Conv1DAttrsNode::padding,
               "If padding is non-zero, then the input is implicitly zero-padded"
               "Padding support both symmetric and asymmetric as"
               "one int : same padding used on both sides"
               "two int : padding width in the order of (left, right)",
               refl::DefaultValue(ffi::Array<int64_t>{0, 0}))
-      .def_ro("dilation", &Conv1DAttrs::dilation,
+      .def_ro("dilation", &Conv1DAttrsNode::dilation,
               "Specifies the dilation rate to use for dilated convolution.",
               refl::DefaultValue(ffi::Array<int64_t>{1}))
-      .def_ro("groups", &Conv1DAttrs::groups,
+      .def_ro("groups", &Conv1DAttrsNode::groups,
               "Number of groups to split the input into for grouped convolution. The number of "
               "input and "
               "output channels should be divisible by the number of groups.",
               refl::DefaultValue(1))
-      .def_ro("data_layout", &Conv1DAttrs::data_layout,
+      .def_ro("data_layout", &Conv1DAttrsNode::data_layout,
               "Dimension ordering of input data. Can be 'NCW', 'NWC', etc."
               "'N', 'C', 'W' stands for batch, channel, width"
               "dimensions respectively. Convolution is applied on the 'W' dimensions.",
               refl::DefaultValue(ffi::String("NCW")))
-      .def_ro("kernel_layout", &Conv1DAttrs::kernel_layout,
+      .def_ro("kernel_layout", &Conv1DAttrsNode::kernel_layout,
               "Dimension ordering of weight. Can be 'OIW', 'IOW', etc."
               "'O', 'I', 'W' stands for num_filter, input_channel, and width"
               "dimensions respectively.",
               refl::DefaultValue(ffi::String("OIW")))
-      .def_ro("out_layout", &Conv1DAttrs::out_layout,
+      .def_ro("out_layout", &Conv1DAttrsNode::out_layout,
               "Dimension ordering of output. Can be 'NCW', 'NWC', etc."
               "'N', 'C', 'W' stands for batch, channel, and width"
               "dimensions respectively. Default to be same as input layout.")
-      .def_ro("out_dtype", &Conv1DAttrs::out_dtype,
+      .def_ro("out_dtype", &Conv1DAttrsNode::out_dtype,
               "Output data type, set to explicit type under mixed precision setting",
               refl::DefaultValue(ffi::Optional<DLDataType>{}));
 }
 
-void Conv2DAttrs::RegisterReflection() {
+void Conv2DAttrsNode::RegisterReflection() {
   namespace refl = tvm::ffi::reflection;
-  refl::ObjectDef<Conv2DAttrs>()
-      .def_ro("strides", &Conv2DAttrs::strides, "Specifies the strides of the convolution.",
+  refl::ObjectDef<Conv2DAttrsNode>()
+      .def_ro("strides", &Conv2DAttrsNode::strides, "Specifies the strides of the convolution.",
               refl::DefaultValue(ffi::Array<int64_t>{1, 1}))
-      .def_ro("padding", &Conv2DAttrs::padding,
+      .def_ro("padding", &Conv2DAttrsNode::padding,
               "If padding is non-zero, then the input is implicitly zero-padded"
               "Padding support both symmetric and asymmetric as"
               "one int : same padding used on all sides"
               "two int : bottom, right will use same padding as top, left"
               "four int : padding width in the order of (top, left, bottom, right)",
               refl::DefaultValue(ffi::Array<int64_t>{0, 0, 0, 0}))
-      .def_ro("dilation", &Conv2DAttrs::dilation,
+      .def_ro("dilation", &Conv2DAttrsNode::dilation,
               "Specifies the dilation rate to use for dilated convolution.",
               refl::DefaultValue(ffi::Array<int64_t>{1, 1}))
-      .def_ro("groups", &Conv2DAttrs::groups,
+      .def_ro("groups", &Conv2DAttrsNode::groups,
               "Number of groups to split the input into for grouped convolution. The number of "
               "input and "
               "output channels should be divisible by the number of groups.",
               refl::DefaultValue(1))
-      .def_ro("data_layout", &Conv2DAttrs::data_layout,
+      .def_ro("data_layout", &Conv2DAttrsNode::data_layout,
               "Dimension ordering of input data. Can be 'NCHW', 'NHWC', etc."
               "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"
               "dimensions respectively. Convolution is applied on the 'H' and"
               "'W' dimensions.",
               refl::DefaultValue(ffi::String("NCHW")))
-      .def_ro("kernel_layout", &Conv2DAttrs::kernel_layout,
+      .def_ro("kernel_layout", &Conv2DAttrsNode::kernel_layout,
               "Dimension ordering of weight. Can be 'OIHW', 'OIHW16o16i', etc."
               "'O', 'I', 'H', 'W' stands for num_filter, input_channel, height, and width"
               "dimensions respectively.",
               refl::DefaultValue(ffi::String("OIHW")))
-      .def_ro("out_layout", &Conv2DAttrs::out_layout,
+      .def_ro("out_layout", &Conv2DAttrsNode::out_layout,
               "Dimension ordering of output. Can be 'NCHW', 'NHWC', etc."
               "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"
               "dimensions respectively. Default to be same as input layout.")
-      .def_ro("out_dtype", &Conv2DAttrs::out_dtype,
+      .def_ro("out_dtype", &Conv2DAttrsNode::out_dtype,
               "Output data type, set to explicit type under mixed precision setting",
               refl::DefaultValue(ffi::Optional<DLDataType>{}));
 }
 
-void Conv3DAttrs::RegisterReflection() {
+void Conv3DAttrsNode::RegisterReflection() {
   namespace refl = tvm::ffi::reflection;
-  refl::ObjectDef<Conv3DAttrs>()
-      .def_ro("strides", &Conv3DAttrs::strides, "Specifies the strides of the convolution.",
+  refl::ObjectDef<Conv3DAttrsNode>()
+      .def_ro("strides", &Conv3DAttrsNode::strides, "Specifies the strides of the convolution.",
               refl::DefaultValue(ffi::Array<int64_t>{1, 1, 1}))
-      .def_ro("padding", &Conv3DAttrs::padding,
+      .def_ro("padding", &Conv3DAttrsNode::padding,
               "If padding is non-zero, then the input is implicitly zero-padded"
               "Padding support both symmetric and asymmetric as"
               "one int : same padding used on all sides"
               "two int : bottom, right will use same padding as top, left"
               "four int : padding width in the order of (forward, back, top, left, bottom, right)",
               refl::DefaultValue(ffi::Array<int64_t>{0, 0, 0, 0, 0, 0}))
-      .def_ro("dilation", &Conv3DAttrs::dilation,
+      .def_ro("dilation", &Conv3DAttrsNode::dilation,
               "Specifies the dilation rate to use for dilated convolution.",
               refl::DefaultValue(ffi::Array<int64_t>{1, 1, 1}))
-      .def_ro("groups", &Conv3DAttrs::groups,
+      .def_ro("groups", &Conv3DAttrsNode::groups,
               "Number of groups to split the input into for grouped convolution. The number of "
               "input and "
               "output channels should be divisible by the number of groups.",
               refl::DefaultValue(1))
-      .def_ro("data_layout", &Conv3DAttrs::data_layout,
+      .def_ro("data_layout", &Conv3DAttrsNode::data_layout,
               "Dimension ordering of input data. Can be 'NCDHW', 'NDHWC', etc."
               "'N', 'C', 'D', 'H', 'W' stands for batch, channel, depth, height, and width"
               "dimensions respectively. Convolution is applied on the 'D', 'H', and"
               "'W' dimensions.",
               refl::DefaultValue(ffi::String("NCDHW")))
       .def_ro(
-          "kernel_layout", &Conv3DAttrs::kernel_layout,
+          "kernel_layout", &Conv3DAttrsNode::kernel_layout,
           "Dimension ordering of weight. Can be 'OIDHW', 'OIDHW16o16i', etc."
           "'O', 'I', 'D', 'H', 'W' stands for num_filter, input_channel, depth, height, and width"
           "dimensions respectively.",
           refl::DefaultValue(ffi::String("OIDHW")))
-      .def_ro("out_layout", &Conv3DAttrs::out_layout,
+      .def_ro("out_layout", &Conv3DAttrsNode::out_layout,
               "Dimension ordering of output. Can be 'NCDHW', 'NDHWC', etc."
               "'N', 'C', 'D', 'H', 'W' stands for batch, channel, depth, height, and width"
               "dimensions respectively. Default to be same as input layout.")
-      .def_ro("out_dtype", &Conv3DAttrs::out_dtype,
+      .def_ro("out_dtype", &Conv3DAttrsNode::out_dtype,
               "Output data type, set to explicit type under mixed precision setting",
               refl::DefaultValue(ffi::Optional<DLDataType>{}));
 }
 
-void Conv1DTransposeAttrs::RegisterReflection() {
+void Conv1DTransposeAttrsNode::RegisterReflection() {
   namespace refl = tvm::ffi::reflection;
-  refl::ObjectDef<Conv1DTransposeAttrs>()
-      .def_ro("strides", &Conv1DTransposeAttrs::strides,
+  refl::ObjectDef<Conv1DTransposeAttrsNode>()
+      .def_ro("strides", &Conv1DTransposeAttrsNode::strides,
               "Specifies the strides of the convolution.",
               refl::DefaultValue(ffi::Array<int64_t>{1}))
-      .def_ro("padding", &Conv1DTransposeAttrs::padding,
+      .def_ro("padding", &Conv1DTransposeAttrsNode::padding,
               "If padding is non-zero, then the input is implicitly zero-padded"
               "Padding support both symmetric and asymmetric as"
               "one int : same padding used on both sides"
               "two int : padding width in the order of (left, right)",
               refl::DefaultValue(ffi::Array<int64_t>{0, 0}))
-      .def_ro("output_padding", &Conv1DTransposeAttrs::output_padding,
+      .def_ro("output_padding", &Conv1DTransposeAttrsNode::output_padding,
               "Used to disambiguate the output shape.", refl::DefaultValue(ffi::Array<int64_t>{0}))
-      .def_ro("dilation", &Conv1DTransposeAttrs::dilation,
+      .def_ro("dilation", &Conv1DTransposeAttrsNode::dilation,
               "Specifies the dilation rate to use for dilated convolution.",
               refl::DefaultValue(ffi::Array<int64_t>{1}))
-      .def_ro("groups", &Conv1DTransposeAttrs::groups,
+      .def_ro("groups", &Conv1DTransposeAttrsNode::groups,
               "Number of groups to split the input into for grouped convolution. The number of "
               "input and "
               "output channels should be divisible by the number of groups.",
               refl::DefaultValue(1))
-      .def_ro("data_layout", &Conv1DTransposeAttrs::data_layout,
+      .def_ro("data_layout", &Conv1DTransposeAttrsNode::data_layout,
               "Dimension ordering of input data. Can be 'NCW', 'NWC', etc."
               "'N', 'C', 'W' stands for batch, channel, width"
               "dimensions respectively. Convolution is applied on the 'W' dimensions.",
               refl::DefaultValue(ffi::String("NCW")))
-      .def_ro("kernel_layout", &Conv1DTransposeAttrs::kernel_layout,
+      .def_ro("kernel_layout", &Conv1DTransposeAttrsNode::kernel_layout,
               "Dimension ordering of weight. Can be 'OIW', 'IOW', etc."
               "'O', 'I', 'W' stands for num_filter, input_channel, and width"
               "dimensions respectively.",
               refl::DefaultValue(ffi::String("IOW")))
-      .def_ro("out_layout", &Conv1DTransposeAttrs::out_layout,
+      .def_ro("out_layout", &Conv1DTransposeAttrsNode::out_layout,
               "Dimension ordering of output. Can be 'NCW', 'NWC', etc."
               "'N', 'C', 'W' stands for batch, channel, and width"
               "dimensions respectively. Default to be same as input layout.")
-      .def_ro("out_dtype", &Conv1DTransposeAttrs::out_dtype,
+      .def_ro("out_dtype", &Conv1DTransposeAttrsNode::out_dtype,
               "Output data type, set to explicit type under mixed precision setting",
               refl::DefaultValue(ffi::Optional<DLDataType>{}));
 }
 
-void Conv2DTransposeAttrs::RegisterReflection() {
+void Conv2DTransposeAttrsNode::RegisterReflection() {
   namespace refl = tvm::ffi::reflection;
-  refl::ObjectDef<Conv2DTransposeAttrs>()
-      .def_ro("strides", &Conv2DTransposeAttrs::strides,
+  refl::ObjectDef<Conv2DTransposeAttrsNode>()
+      .def_ro("strides", &Conv2DTransposeAttrsNode::strides,
               "Specifies the strides of the convolution.",
               refl::DefaultValue(ffi::Array<int64_t>{1, 1}))
-      .def_ro("padding", &Conv2DTransposeAttrs::padding,
+      .def_ro("padding", &Conv2DTransposeAttrsNode::padding,
               "If padding is non-zero, then the input is implicitly zero-padded"
               "Padding support both symmetric and asymmetric as"
               "one int : same padding used on all sides"
               "two int : bottom, right will use same padding as top, left"
               "four int : padding width in the order of (top, left, bottom, right)",
               refl::DefaultValue(ffi::Array<int64_t>{0, 0, 0, 0}))
-      .def_ro("output_padding", &Conv2DTransposeAttrs::output_padding,
+      .def_ro("output_padding", &Conv2DTransposeAttrsNode::output_padding,
               "Used to disambiguate the output shape.",
               refl::DefaultValue(ffi::Array<int64_t>{0, 0}))
-      .def_ro("dilation", &Conv2DTransposeAttrs::dilation,
+      .def_ro("dilation", &Conv2DTransposeAttrsNode::dilation,
               "Specifies the dilation rate to use for dilated convolution.",
               refl::DefaultValue(ffi::Array<int64_t>{1, 1}))
-      .def_ro("groups", &Conv2DTransposeAttrs::groups,
+      .def_ro("groups", &Conv2DTransposeAttrsNode::groups,
               "Number of groups to split the input into for grouped convolution. The number of "
               "input and "
               "output channels should be divisible by the number of groups.",
               refl::DefaultValue(1))
-      .def_ro("data_layout", &Conv2DTransposeAttrs::data_layout,
+      .def_ro("data_layout", &Conv2DTransposeAttrsNode::data_layout,
               "Dimension ordering of input data. Can be 'NCHW', 'NHWC', etc."
               "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"
               "dimensions respectively. Convolution is applied on the 'H' and"
               "'W' dimensions.",
               refl::DefaultValue(ffi::String("NCHW")))
-      .def_ro("kernel_layout", &Conv2DTransposeAttrs::kernel_layout,
+      .def_ro("kernel_layout", &Conv2DTransposeAttrsNode::kernel_layout,
               "Dimension ordering of weight. Can be 'OIHW', 'OIHW16o16i', etc."
               "'O', 'I', 'H', 'W' stands for num_filter, input_channel, height, and width"
               "dimensions respectively.",
               refl::DefaultValue(ffi::String("IOHW")))
-      .def_ro("out_layout", &Conv2DTransposeAttrs::out_layout,
+      .def_ro("out_layout", &Conv2DTransposeAttrsNode::out_layout,
               "Dimension ordering of output. Can be 'NCHW', 'NHWC', etc."
               "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"
               "dimensions respectively. Default to be same as input layout.")
-      .def_ro("out_dtype", &Conv2DTransposeAttrs::out_dtype,
+      .def_ro("out_dtype", &Conv2DTransposeAttrsNode::out_dtype,
               "Output data type, set to explicit type under mixed precision setting",
               refl::DefaultValue(ffi::Optional<DLDataType>{}));
 }
 
-void Conv3DTransposeAttrs::RegisterReflection() {
+void Conv3DTransposeAttrsNode::RegisterReflection() {
   namespace refl = tvm::ffi::reflection;
-  refl::ObjectDef<Conv3DTransposeAttrs>()
-      .def_ro("strides", &Conv3DTransposeAttrs::strides,
+  refl::ObjectDef<Conv3DTransposeAttrsNode>()
+      .def_ro("strides", &Conv3DTransposeAttrsNode::strides,
               "Specifies the strides of the convolution.",
               refl::DefaultValue(ffi::Array<int64_t>{1, 1, 1}))
-      .def_ro("padding", &Conv3DTransposeAttrs::padding,
+      .def_ro("padding", &Conv3DTransposeAttrsNode::padding,
               "If padding is non-zero, then the input is implicitly zero-padded"
               "Padding support both symmetric and asymmetric as"
               "one int : same padding used on all sides"
               "three int : back/bottom/right will use same padding as front/top/left"
               "six int : padding width in the order of (front, top, left, back, bottom, right)",
               refl::DefaultValue(ffi::Array<int64_t>{0, 0, 0, 0, 0, 0}))
-      .def_ro("output_padding", &Conv3DTransposeAttrs::output_padding,
+      .def_ro("output_padding", &Conv3DTransposeAttrsNode::output_padding,
               "Used to disambiguate the output shape.",
               refl::DefaultValue(ffi::Array<int64_t>{0, 0, 0}))
-      .def_ro("dilation", &Conv3DTransposeAttrs::dilation,
+      .def_ro("dilation", &Conv3DTransposeAttrsNode::dilation,
               "Specifies the dilation rate to use for dilated convolution.",
               refl::DefaultValue(ffi::Array<int64_t>{1, 1, 1}))
-      .def_ro("groups", &Conv3DTransposeAttrs::groups,
+      .def_ro("groups", &Conv3DTransposeAttrsNode::groups,
               "Number of groups to split the input into for grouped convolution. The number of "
               "input and "
               "output channels should be divisible by the number of groups.",
               refl::DefaultValue(1))
-      .def_ro("data_layout", &Conv3DTransposeAttrs::data_layout,
+      .def_ro("data_layout", &Conv3DTransposeAttrsNode::data_layout,
               "Dimension ordering of input data. Can be 'NCDHW', 'NDHWC', etc."
               "'N', 'C', 'D', 'H', 'W' stands for batch, channel, depth, height, and width"
               "dimensions respectively. Convolution is applied on the 'D', 'H', and"
               "'W' dimensions.",
               refl::DefaultValue(ffi::String("NCDHW")))
       .def_ro(
-          "kernel_layout", &Conv3DTransposeAttrs::kernel_layout,
+          "kernel_layout", &Conv3DTransposeAttrsNode::kernel_layout,
           "Dimension ordering of weight. Can be 'IODHW', etc."
           "'I', 'O', 'D', 'H', 'W' stands for input_channel, output_channel, depth, height, and "
           "width"
           "dimensions respectively.",
           refl::DefaultValue(ffi::String("IODHW")))
-      .def_ro("out_layout", &Conv3DTransposeAttrs::out_layout,
+      .def_ro("out_layout", &Conv3DTransposeAttrsNode::out_layout,
               "Dimension ordering of output. Can be 'NCDHW', 'NDHWC', etc."
               "'N', 'C', 'D', 'H', 'W' stands for batch, channel, depth, height, and width"
               "dimensions respectively. Default to be same as input layout.")
-      .def_ro("out_dtype", &Conv3DTransposeAttrs::out_dtype,
+      .def_ro("out_dtype", &Conv3DTransposeAttrsNode::out_dtype,
               "Output data type, set to explicit type under mixed precision setting",
               refl::DefaultValue(ffi::Optional<DLDataType>{}));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  Conv1DAttrs::RegisterReflection();
-  Conv2DAttrs::RegisterReflection();
-  Conv3DAttrs::RegisterReflection();
-  Conv1DTransposeAttrs::RegisterReflection();
-  Conv2DTransposeAttrs::RegisterReflection();
-  Conv3DTransposeAttrs::RegisterReflection();
+  Conv1DAttrsNode::RegisterReflection();
+  Conv2DAttrsNode::RegisterReflection();
+  Conv3DAttrsNode::RegisterReflection();
+  Conv1DTransposeAttrsNode::RegisterReflection();
+  Conv2DTransposeAttrsNode::RegisterReflection();
+  Conv3DTransposeAttrsNode::RegisterReflection();
 }
 
 /* relax.nn.conv1d */
@@ -311,11 +311,11 @@ Expr conv1d(Expr data, Expr weight, ffi::Array<int64_t> strides, ffi::Array<int6
   TVM_FFI_ICHECK_EQ(dilation.size(), 1)
       << "The input dilation length is expected to be 1. However, the given dilation is "
       << dilation;
-  return MakeConv<Conv1DAttrs>(std::move(data), std::move(weight), std::move(strides),
-                               std::move(padding), std::move(dilation), groups, data_layout,
-                               std::move(kernel_layout), out_layout.value_or(data_layout),
-                               out_dtype,
-                               /*op_name=*/"relax.nn.conv1d");
+  return MakeConv<Conv1DAttrsNode>(std::move(data), std::move(weight), std::move(strides),
+                                   std::move(padding), std::move(dilation), groups, data_layout,
+                                   std::move(kernel_layout), out_layout.value_or(data_layout),
+                                   out_dtype,
+                                   /*op_name=*/"relax.nn.conv1d");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -328,7 +328,7 @@ Type InferTypeConv1d(const Call& call, const BlockBuilder& ctx) {
   TensorType data_ty = input_ty[0];
   TensorType weight_ty = input_ty[1];
 
-  const auto* attrs = call->attrs.as<Conv1DAttrs>();
+  const auto* attrs = call->attrs.as<Conv1DAttrsNode>();
   auto [data_layout, data2NCW] = CheckTensorLayout(call, ctx, attrs->data_layout,  //
                                                    /*tgt_layout=*/"NCW",           //
                                                    /*tensor_name=*/"data");
@@ -400,12 +400,12 @@ InferLayoutOutput InferLayoutConv1d(
     const Call& call, const ffi::Map<ffi::String, ffi::Array<ffi::String>>& desired_layouts,
     const VarLayoutMap& var_layout_map) {
   const auto& it = desired_layouts.find("relax.nn.conv1d");
-  const auto* attrs = call->attrs.as<Conv1DAttrs>();
+  const auto* attrs = call->attrs.as<Conv1DAttrsNode>();
   TVM_FFI_ICHECK(attrs) << "Invalid Call";
 
   LayoutDecision data_layout(ffi::UnsafeInit{}), weight_layout(ffi::UnsafeInit{}),
       output_layout(ffi::UnsafeInit{});
-  ffi::ObjectPtr<Conv1DAttrs> new_attrs = ffi::make_object<Conv1DAttrs>(*attrs);
+  ffi::ObjectPtr<Conv1DAttrsNode> new_attrs = ffi::make_object<Conv1DAttrsNode>(*attrs);
 
   if (it != desired_layouts.end()) {
     // We have a desired layout for conv1d.
@@ -447,7 +447,7 @@ InferLayoutOutput InferLayoutConv1d(
 }
 
 Call InferMixedPrecisionConv1d(const Call& call, DLDataType out_dtype) {
-  const auto* conv1d_attrs = call->attrs.as<Conv1DAttrs>();
+  const auto* conv1d_attrs = call->attrs.as<Conv1DAttrsNode>();
   return conv1d(call->args[0], call->args[1], conv1d_attrs->strides, conv1d_attrs->padding,
                 conv1d_attrs->dilation, conv1d_attrs->groups, conv1d_attrs->data_layout,
                 conv1d_attrs->kernel_layout, conv1d_attrs->out_layout, out_dtype)
@@ -459,7 +459,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .signature(
           sig::arg("data", "The input tensor."), sig::arg("weight", "The weight tensor."),
           sig::var_ty_args("out_type", "Optional output tensor type carrying the virtual device."),
-          sig::call_attrs<Conv1DAttrs>())
+          sig::call_attrs<Conv1DAttrsNode>())
       .set_attr<FInferTypeWithBuilder>(tvm::relax::op_attr::kInferTypeWithBuilder, InferTypeConv1d)
       .set_attr<FRelaxInferLayout>(tvm::relax::op_attr::kInferLayout, InferLayoutConv1d)
       .set_attr<TMixedPrecisionPolicy>(tvm::relax::op_attr::kMixedPrecisionPolicy,
@@ -492,11 +492,11 @@ Expr conv2d(Expr data, Expr weight, ffi::Array<int64_t> strides, ffi::Array<int6
   TVM_FFI_ICHECK_EQ(dilation.size(), 2)
       << "The input dilation length is expected to be 2. However, the given dilation is "
       << dilation;
-  return MakeConv<Conv2DAttrs>(std::move(data), std::move(weight), std::move(strides),
-                               std::move(padding), std::move(dilation), groups, data_layout,
-                               std::move(kernel_layout), out_layout.value_or(data_layout),
-                               out_dtype,
-                               /*op_name=*/"relax.nn.conv2d");
+  return MakeConv<Conv2DAttrsNode>(std::move(data), std::move(weight), std::move(strides),
+                                   std::move(padding), std::move(dilation), groups, data_layout,
+                                   std::move(kernel_layout), out_layout.value_or(data_layout),
+                                   out_dtype,
+                                   /*op_name=*/"relax.nn.conv2d");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -509,7 +509,7 @@ Type InferTypeConv2d(const Call& call, const BlockBuilder& ctx) {
   TensorType data_ty = input_ty[0];
   TensorType weight_ty = input_ty[1];
 
-  const auto* attrs = call->attrs.as<Conv2DAttrs>();
+  const auto* attrs = call->attrs.as<Conv2DAttrsNode>();
   auto [data_layout, data2NCHW] = CheckTensorLayout(call, ctx, attrs->data_layout,  //
                                                     /*tgt_layout=*/"NCHW",          //
                                                     /*tensor_name=*/"data");
@@ -588,14 +588,14 @@ InferLayoutOutput InferLayoutConv2d(
     const Call& call, const ffi::Map<ffi::String, ffi::Array<ffi::String>>& desired_layouts,
     const VarLayoutMap& var_layout_map) {
   const auto& it = desired_layouts.find("relax.nn.conv2d");
-  const auto* attrs = call->attrs.as<Conv2DAttrs>();
+  const auto* attrs = call->attrs.as<Conv2DAttrsNode>();
   TVM_FFI_ICHECK(attrs) << "Invalid Call";
 
   LayoutDecision data_layout(ffi::UnsafeInit{}), weight_layout(ffi::UnsafeInit{}),
       output_layout(ffi::UnsafeInit{});
   data_layout = GetLayoutDecision(var_layout_map, call->args[0]);
   weight_layout = GetLayoutDecision(var_layout_map, call->args[1]);
-  ffi::ObjectPtr<Conv2DAttrs> new_attrs = ffi::make_object<Conv2DAttrs>(*attrs);
+  ffi::ObjectPtr<Conv2DAttrsNode> new_attrs = ffi::make_object<Conv2DAttrsNode>(*attrs);
 
   if (it != desired_layouts.end()) {
     // We have a desired layout for conv2d.
@@ -670,7 +670,7 @@ InferLayoutOutput InferLayoutConv2d(
 }
 
 Call InferMixedPrecisionConv2d(const Call& call, DLDataType out_dtype) {
-  const auto* conv2d_attrs = call->attrs.as<Conv2DAttrs>();
+  const auto* conv2d_attrs = call->attrs.as<Conv2DAttrsNode>();
   return conv2d(call->args[0], call->args[1], conv2d_attrs->strides, conv2d_attrs->padding,
                 conv2d_attrs->dilation, conv2d_attrs->groups, conv2d_attrs->data_layout,
                 conv2d_attrs->kernel_layout, conv2d_attrs->out_layout, out_dtype)
@@ -682,7 +682,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .signature(
           sig::arg("data", "The input tensor."), sig::arg("weight", "The weight tensor."),
           sig::var_ty_args("out_type", "Optional output tensor type carrying the virtual device."),
-          sig::call_attrs<Conv2DAttrs>())
+          sig::call_attrs<Conv2DAttrsNode>())
       .set_attr<FInferTypeWithBuilder>(tvm::relax::op_attr::kInferTypeWithBuilder, InferTypeConv2d)
       .set_attr<FRelaxInferLayout>(tvm::relax::op_attr::kInferLayout, InferLayoutConv2d)
       .set_attr<TMixedPrecisionPolicy>(tvm::relax::op_attr::kMixedPrecisionPolicy,
@@ -717,11 +717,11 @@ Expr conv3d(Expr data, Expr weight, ffi::Array<int64_t> strides, ffi::Array<int6
   TVM_FFI_ICHECK_EQ(dilation.size(), 3)
       << "The input dilation length is expected to be 3. However, the given dilation is "
       << dilation;
-  return MakeConv<Conv3DAttrs>(std::move(data), std::move(weight), std::move(strides),
-                               std::move(padding), std::move(dilation), groups, data_layout,
-                               std::move(kernel_layout), out_layout.value_or(data_layout),
-                               out_dtype,
-                               /*op_name=*/"relax.nn.conv3d");
+  return MakeConv<Conv3DAttrsNode>(std::move(data), std::move(weight), std::move(strides),
+                                   std::move(padding), std::move(dilation), groups, data_layout,
+                                   std::move(kernel_layout), out_layout.value_or(data_layout),
+                                   out_dtype,
+                                   /*op_name=*/"relax.nn.conv3d");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -734,7 +734,7 @@ Type InferTypeConv3d(const Call& call, const BlockBuilder& ctx) {
   TensorType data_ty = input_ty[0];
   TensorType weight_ty = input_ty[1];
 
-  const auto* attrs = call->attrs.as<Conv3DAttrs>();
+  const auto* attrs = call->attrs.as<Conv3DAttrsNode>();
   auto [data_layout, data2NCDHW] = CheckTensorLayout(call, ctx, attrs->data_layout,  //
                                                      /*tgt_layout=*/"NCDHW",         //
                                                      /*tensor_name=*/"data");
@@ -820,12 +820,12 @@ InferLayoutOutput InferLayoutConv3d(
     const Call& call, const ffi::Map<ffi::String, ffi::Array<ffi::String>>& desired_layouts,
     const VarLayoutMap& var_layout_map) {
   const auto& it = desired_layouts.find("relax.nn.conv3d");
-  const auto* attrs = call->attrs.as<Conv3DAttrs>();
+  const auto* attrs = call->attrs.as<Conv3DAttrsNode>();
   TVM_FFI_ICHECK(attrs) << "Invalid Call";
 
   LayoutDecision data_layout(ffi::UnsafeInit{}), weight_layout(ffi::UnsafeInit{}),
       output_layout(ffi::UnsafeInit{});
-  ffi::ObjectPtr<Conv3DAttrs> new_attrs = ffi::make_object<Conv3DAttrs>(*attrs);
+  ffi::ObjectPtr<Conv3DAttrsNode> new_attrs = ffi::make_object<Conv3DAttrsNode>(*attrs);
 
   if (it != desired_layouts.end()) {
     // We have a desired layout for conv3d.
@@ -867,7 +867,7 @@ InferLayoutOutput InferLayoutConv3d(
 }
 
 Call InferMixedPrecisionConv3d(const Call& call, DLDataType out_dtype) {
-  const auto* conv3d_attrs = call->attrs.as<Conv3DAttrs>();
+  const auto* conv3d_attrs = call->attrs.as<Conv3DAttrsNode>();
   return conv3d(call->args[0], call->args[1], conv3d_attrs->strides, conv3d_attrs->padding,
                 conv3d_attrs->dilation, conv3d_attrs->groups, conv3d_attrs->data_layout,
                 conv3d_attrs->kernel_layout, conv3d_attrs->out_layout, out_dtype)
@@ -879,7 +879,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .signature(
           sig::arg("data", "The input tensor."), sig::arg("weight", "The weight tensor."),
           sig::var_ty_args("out_type", "Optional output tensor type carrying the virtual device."),
-          sig::call_attrs<Conv3DAttrs>())
+          sig::call_attrs<Conv3DAttrsNode>())
       .set_attr<FInferTypeWithBuilder>(tvm::relax::op_attr::kInferTypeWithBuilder, InferTypeConv3d)
       .set_attr<FRelaxInferLayout>(tvm::relax::op_attr::kInferLayout, InferLayoutConv3d)
       .set_attr<TMixedPrecisionPolicy>(tvm::relax::op_attr::kMixedPrecisionPolicy,
@@ -910,7 +910,7 @@ Expr conv1d_transpose(Expr data, Expr weight, ffi::Array<int64_t> strides,
       << "The input dilation length is expected to be 1. However, the given dilation is "
       << dilation;
 
-  auto attrs = ffi::make_object<Conv1DTransposeAttrs>();
+  auto attrs = ffi::make_object<Conv1DTransposeAttrsNode>();
   attrs->strides = std::move(strides);
   attrs->padding = std::move(padding);
   attrs->output_padding = std::move(output_padding);
@@ -934,7 +934,7 @@ Type InferTypeConv1dTranspose(const Call& call, const BlockBuilder& ctx) {
   TensorType data_ty = input_ty[0];
   TensorType weight_ty = input_ty[1];
 
-  const auto* attrs = call->attrs.as<Conv1DTransposeAttrs>();
+  const auto* attrs = call->attrs.as<Conv1DTransposeAttrsNode>();
   auto [data_layout, data2NCW] = CheckTensorLayout(call, ctx, attrs->data_layout,  //
                                                    /*tgt_layout=*/"NCW",           //
                                                    /*tensor_name=*/"data");
@@ -1012,10 +1012,11 @@ Type InferTypeConv1dTranspose(const Call& call, const BlockBuilder& ctx) {
 InferLayoutOutput InferLayoutConv1dTranspose(
     const Call& call, const ffi::Map<ffi::String, ffi::Array<ffi::String>>& desired_layouts,
     const VarLayoutMap& var_layout_map) {
-  const auto* attrs = call->attrs.as<Conv1DTransposeAttrs>();
+  const auto* attrs = call->attrs.as<Conv1DTransposeAttrsNode>();
   LayoutDecision data_layout(ffi::UnsafeInit{}), weight_layout(ffi::UnsafeInit{}),
       output_layout(ffi::UnsafeInit{});
-  ffi::ObjectPtr<Conv1DTransposeAttrs> new_attrs = ffi::make_object<Conv1DTransposeAttrs>(*attrs);
+  ffi::ObjectPtr<Conv1DTransposeAttrsNode> new_attrs =
+      ffi::make_object<Conv1DTransposeAttrsNode>(*attrs);
 
   auto it = desired_layouts.find("relax.nn.conv1d_transpose");
   if (it != desired_layouts.end()) {
@@ -1055,7 +1056,7 @@ InferLayoutOutput InferLayoutConv1dTranspose(
 }
 
 Call InferMixedPrecisionConv1dTranspose(const Call& call, DLDataType out_dtype) {
-  const auto* conv1d_transpose_attrs = call->attrs.as<Conv1DTransposeAttrs>();
+  const auto* conv1d_transpose_attrs = call->attrs.as<Conv1DTransposeAttrsNode>();
   return conv1d_transpose(call->args[0], call->args[1], conv1d_transpose_attrs->strides,
                           conv1d_transpose_attrs->padding, conv1d_transpose_attrs->output_padding,
                           conv1d_transpose_attrs->dilation, conv1d_transpose_attrs->groups,
@@ -1070,7 +1071,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .signature(
           sig::arg("data", "The input tensor."), sig::arg("weight", "The weight tensor."),
           sig::var_ty_args("out_type", "Optional output tensor type carrying the virtual device."),
-          sig::call_attrs<Conv1DTransposeAttrs>())
+          sig::call_attrs<Conv1DTransposeAttrsNode>())
       .set_attr<FInferTypeWithBuilder>(tvm::relax::op_attr::kInferTypeWithBuilder,
                                        InferTypeConv1dTranspose)
       .set_attr<FRelaxInferLayout>(tvm::relax::op_attr::kInferLayout, InferLayoutConv1dTranspose)
@@ -1113,7 +1114,7 @@ Expr conv2d_transpose(Expr data, Expr weight, ffi::Array<int64_t> strides,
       << "The input dilation length is expected to be 2. However, the given dilation is "
       << dilation;
 
-  auto attrs = ffi::make_object<Conv2DTransposeAttrs>();
+  auto attrs = ffi::make_object<Conv2DTransposeAttrsNode>();
   attrs->strides = std::move(strides);
   attrs->padding = std::move(padding);
   attrs->output_padding = std::move(output_padding);
@@ -1137,7 +1138,7 @@ Type InferTypeConv2dTranspose(const Call& call, const BlockBuilder& ctx) {
   TensorType data_ty = input_ty[0];
   TensorType weight_ty = input_ty[1];
 
-  const auto* attrs = call->attrs.as<Conv2DTransposeAttrs>();
+  const auto* attrs = call->attrs.as<Conv2DTransposeAttrsNode>();
   auto [data_layout, data2NCHW] = CheckTensorLayout(call, ctx, attrs->data_layout,  //
                                                     /*tgt_layout=*/"NCHW",          //
                                                     /*tensor_name=*/"data");
@@ -1221,11 +1222,12 @@ Type InferTypeConv2dTranspose(const Call& call, const BlockBuilder& ctx) {
 InferLayoutOutput InferLayoutConv2dTranspose(
     const Call& call, const ffi::Map<ffi::String, ffi::Array<ffi::String>>& desired_layouts,
     const VarLayoutMap& var_layout_map) {
-  const auto* attrs = call->attrs.as<Conv2DTransposeAttrs>();
+  const auto* attrs = call->attrs.as<Conv2DTransposeAttrsNode>();
   LayoutDecision data_layout = GetLayoutDecision(var_layout_map, call->args[0]);
   LayoutDecision weight_layout = GetLayoutDecision(var_layout_map, call->args[1]);
   LayoutDecision output_layout(ffi::UnsafeInit{});
-  ffi::ObjectPtr<Conv2DTransposeAttrs> new_attrs = ffi::make_object<Conv2DTransposeAttrs>(*attrs);
+  ffi::ObjectPtr<Conv2DTransposeAttrsNode> new_attrs =
+      ffi::make_object<Conv2DTransposeAttrsNode>(*attrs);
 
   auto it = desired_layouts.find("relax.nn.conv2d_transpose");
   if (it != desired_layouts.end()) {
@@ -1295,7 +1297,7 @@ InferLayoutOutput InferLayoutConv2dTranspose(
 }
 
 Call InferMixedPrecisionConv2dTranspose(const Call& call, DLDataType out_dtype) {
-  const auto* conv2d_transpose_attrs = call->attrs.as<Conv2DTransposeAttrs>();
+  const auto* conv2d_transpose_attrs = call->attrs.as<Conv2DTransposeAttrsNode>();
   return conv2d_transpose(call->args[0], call->args[1], conv2d_transpose_attrs->strides,
                           conv2d_transpose_attrs->padding, conv2d_transpose_attrs->output_padding,
                           conv2d_transpose_attrs->dilation, conv2d_transpose_attrs->groups,
@@ -1310,7 +1312,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .signature(
           sig::arg("data", "The input tensor."), sig::arg("weight", "The weight tensor."),
           sig::var_ty_args("out_type", "Optional output tensor type carrying the virtual device."),
-          sig::call_attrs<Conv2DTransposeAttrs>())
+          sig::call_attrs<Conv2DTransposeAttrsNode>())
       .set_attr<FInferTypeWithBuilder>(tvm::relax::op_attr::kInferTypeWithBuilder,
                                        InferTypeConv2dTranspose)
       .set_attr<FRelaxInferLayout>(tvm::relax::op_attr::kInferLayout, InferLayoutConv2dTranspose)
@@ -1356,7 +1358,7 @@ Expr conv3d_transpose(Expr data, Expr weight, ffi::Array<int64_t> strides,
       << "The input dilation length is expected to be 3. However, the given dilation is "
       << dilation;
 
-  auto attrs = ffi::make_object<Conv3DTransposeAttrs>();
+  auto attrs = ffi::make_object<Conv3DTransposeAttrsNode>();
   attrs->strides = std::move(strides);
   attrs->padding = std::move(padding);
   attrs->output_padding = std::move(output_padding);
@@ -1380,7 +1382,7 @@ Type InferTypeConv3dTranspose(const Call& call, const BlockBuilder& ctx) {
   TensorType data_ty = input_ty[0];
   TensorType weight_ty = input_ty[1];
 
-  const auto* attrs = call->attrs.as<Conv3DTransposeAttrs>();
+  const auto* attrs = call->attrs.as<Conv3DTransposeAttrsNode>();
   auto [data_layout, data2NCDHW] = CheckTensorLayout(call, ctx, attrs->data_layout,  //
                                                      /*tgt_layout=*/"NCDHW",         //
                                                      /*tensor_name=*/"data");
@@ -1472,11 +1474,12 @@ Type InferTypeConv3dTranspose(const Call& call, const BlockBuilder& ctx) {
 InferLayoutOutput InferLayoutConv3dTranspose(
     const Call& call, const ffi::Map<ffi::String, ffi::Array<ffi::String>>& desired_layouts,
     const VarLayoutMap& var_layout_map) {
-  const auto* attrs = call->attrs.as<Conv3DTransposeAttrs>();
+  const auto* attrs = call->attrs.as<Conv3DTransposeAttrsNode>();
   LayoutDecision data_layout = GetLayoutDecision(var_layout_map, call->args[0]);
   LayoutDecision weight_layout = GetLayoutDecision(var_layout_map, call->args[1]);
   LayoutDecision output_layout(ffi::UnsafeInit{});
-  ffi::ObjectPtr<Conv3DTransposeAttrs> new_attrs = ffi::make_object<Conv3DTransposeAttrs>(*attrs);
+  ffi::ObjectPtr<Conv3DTransposeAttrsNode> new_attrs =
+      ffi::make_object<Conv3DTransposeAttrsNode>(*attrs);
 
   auto it = desired_layouts.find("relax.nn.conv3d_transpose");
   if (it != desired_layouts.end()) {
@@ -1546,7 +1549,7 @@ InferLayoutOutput InferLayoutConv3dTranspose(
 }
 
 Call InferMixedPrecisionConv3dTranspose(const Call& call, DLDataType out_dtype) {
-  const auto* conv3d_transpose_attrs = call->attrs.as<Conv3DTransposeAttrs>();
+  const auto* conv3d_transpose_attrs = call->attrs.as<Conv3DTransposeAttrsNode>();
   return conv3d_transpose(call->args[0], call->args[1], conv3d_transpose_attrs->strides,
                           conv3d_transpose_attrs->padding, conv3d_transpose_attrs->output_padding,
                           conv3d_transpose_attrs->dilation, conv3d_transpose_attrs->groups,
@@ -1561,7 +1564,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .signature(
           sig::arg("data", "The input tensor."), sig::arg("weight", "The weight tensor."),
           sig::var_ty_args("out_type", "Optional output tensor type carrying the virtual device."),
-          sig::call_attrs<Conv3DTransposeAttrs>())
+          sig::call_attrs<Conv3DTransposeAttrsNode>())
       .set_attr<FInferTypeWithBuilder>(tvm::relax::op_attr::kInferTypeWithBuilder,
                                        InferTypeConv3dTranspose)
       .set_attr<FRelaxInferLayout>(tvm::relax::op_attr::kInferLayout, InferLayoutConv3dTranspose)

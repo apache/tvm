@@ -37,17 +37,17 @@ namespace tirx {
 /*!
  * \brief Force index expressions and integer tensors to int32.
  * \tparam Normalizer The index normalizer that determines which statements are traversed:
- *         tirx::IndexDataTypeNormalizer for lowered TIR, s_tir::IndexDataTypeNormalizer for
+ *         tirx::IndexDataTypeNormalizerObj for lowered TIR, s_tir::IndexDataTypeNormalizerObj for
  *         TIR that still contains S-TIR blocks.
  */
 template <typename Normalizer>
-class Int32DTypeNarrowerBase : public Normalizer {
+class Int32DTypeNarrowerBaseObj : public Normalizer {
  public:
   using Normalizer::Mutate;
   using Normalizer::Mutate_;
 
  protected:
-  explicit Int32DTypeNarrowerBase(Function func)
+  explicit Int32DTypeNarrowerBaseObj(Function func)
       : Normalizer(PrimType::Int(32)), func_(std::move(func)) {}
 
   /*! \brief Reject integer tensor parameters wider than int32. */

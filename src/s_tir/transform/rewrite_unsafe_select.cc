@@ -126,14 +126,14 @@ class UnsafeExprDetector : public tvm::ExprFunctor<bool(const Expr& n)> {
       Op::GetAttrMap<TCallEffectKind>(tvm::op_attr::kCallEffectKind);
 };
 
-class UnsafeSelectRewriter : public StmtExprMutator {
+class UnsafeSelectRewriterObj : public StmtExprMutatorObj {
  public:
-  using StmtExprMutator::Mutate;
-  using StmtExprMutator::Mutate_;
+  using StmtExprMutatorObj::Mutate;
+  using StmtExprMutatorObj::Mutate_;
 
   UnchangedOr<PrimExpr> Mutate_(const prim::SelectNode* op, InplaceMode inplace_mode) {
     PrimExpr expr =
-        StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<PrimExpr>(op));
+        StmtExprMutatorObj::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<PrimExpr>(op));
     op = expr.as<prim::SelectNode>();
     UnsafeExprDetector unsafe;
     PrimType cond_ty = op->condition.ty();
@@ -150,7 +150,7 @@ class UnsafeSelectRewriter : public StmtExprMutator {
 };
 
 Stmt RewriteUnsafeSelect(Stmt stmt) {
-  return ffi::make_object<UnsafeSelectRewriter>()
+  return ffi::make_object<UnsafeSelectRewriterObj>()
       ->Mutate(stmt, InplaceMode::kAllow)
       .ValueOrUnchanged(std::move(stmt));
 }
@@ -160,7 +160,7 @@ namespace transform {
 Pass RewriteUnsafeSelect() {
   auto pass_func = [](Function f, IRModule m, PassContext ctx) {
     auto* n = f.CopyOnWrite();
-    n->body = ffi::make_object<UnsafeSelectRewriter>()
+    n->body = ffi::make_object<UnsafeSelectRewriterObj>()
                   ->Mutate(n->body, InplaceMode::kAllow)
                   .ValueOrUnchanged(std::move(n->body));
     return f;

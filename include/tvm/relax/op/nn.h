@@ -30,7 +30,7 @@ namespace tvm {
 namespace relax {
 
 /*! \brief Attributes used in Conv1d operator */
-struct Conv1DAttrs : public AttrsNode {
+struct Conv1DAttrsNode : public AttrsNode {
   ffi::Array<int64_t> strides;
   ffi::Array<int64_t> padding;
   ffi::Array<int64_t> dilation;
@@ -41,11 +41,11 @@ struct Conv1DAttrs : public AttrsNode {
   ffi::Optional<DLDataType> out_dtype;
 
   static void RegisterReflection();
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.Conv1DAttrs", Conv1DAttrs, AttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.Conv1DAttrs", Conv1DAttrsNode, AttrsNode);
 };  // struct Conv1dAttrs
 
 /*! \brief Attributes used in Conv2d operator */
-struct Conv2DAttrs : public AttrsNode {
+struct Conv2DAttrsNode : public AttrsNode {
   ffi::Array<int64_t> strides;
   ffi::Array<int64_t> padding;
   ffi::Array<int64_t> dilation;
@@ -56,11 +56,11 @@ struct Conv2DAttrs : public AttrsNode {
   ffi::Optional<DLDataType> out_dtype;
 
   static void RegisterReflection();
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.Conv2DAttrs", Conv2DAttrs, AttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.Conv2DAttrs", Conv2DAttrsNode, AttrsNode);
 };  // struct Conv2dAttrs
 
 /*! \brief Attributes used in Conv3d operator */
-struct Conv3DAttrs : public AttrsNode {
+struct Conv3DAttrsNode : public AttrsNode {
   ffi::Array<int64_t> strides;
   ffi::Array<int64_t> padding;
   ffi::Array<int64_t> dilation;
@@ -71,11 +71,11 @@ struct Conv3DAttrs : public AttrsNode {
   ffi::Optional<DLDataType> out_dtype;
 
   static void RegisterReflection();
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.Conv3DAttrs", Conv3DAttrs, AttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.Conv3DAttrs", Conv3DAttrsNode, AttrsNode);
 };  // struct Conv3dAttrs
 
 /*! \brief Attributes used in Conv1DTranspose operator */
-struct Conv1DTransposeAttrs : public AttrsNode {
+struct Conv1DTransposeAttrsNode : public AttrsNode {
   ffi::Array<int64_t> strides;
   ffi::Array<int64_t> padding;
   ffi::Array<int64_t> output_padding;
@@ -87,12 +87,12 @@ struct Conv1DTransposeAttrs : public AttrsNode {
   ffi::Optional<DLDataType> out_dtype;
 
   static void RegisterReflection();
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.Conv1DTransposeAttrs", Conv1DTransposeAttrs,
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.Conv1DTransposeAttrs", Conv1DTransposeAttrsNode,
                                     AttrsNode);
-};  // struct Conv1DTransposeAttrs
+};  // struct Conv1DTransposeAttrsNode
 
 /*! \brief Attributes used in Conv2d operator */
-struct Conv2DTransposeAttrs : public AttrsNode {
+struct Conv2DTransposeAttrsNode : public AttrsNode {
   ffi::Array<int64_t> strides;
   ffi::Array<int64_t> padding;
   ffi::Array<int64_t> output_padding;
@@ -104,12 +104,12 @@ struct Conv2DTransposeAttrs : public AttrsNode {
   ffi::Optional<DLDataType> out_dtype;
 
   static void RegisterReflection();
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.Conv2DTransposeAttrs", Conv2DTransposeAttrs,
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.Conv2DTransposeAttrs", Conv2DTransposeAttrsNode,
                                     AttrsNode);
-};  // struct Conv2DTransposeAttrs
+};  // struct Conv2DTransposeAttrsNode
 
 /*! \brief Attributes used in Conv3dTranspose operator */
-struct Conv3DTransposeAttrs : public AttrsNode {
+struct Conv3DTransposeAttrsNode : public AttrsNode {
   ffi::Array<int64_t> strides;
   ffi::Array<int64_t> padding;
   ffi::Array<int64_t> output_padding;
@@ -121,12 +121,12 @@ struct Conv3DTransposeAttrs : public AttrsNode {
   ffi::Optional<DLDataType> out_dtype;
 
   static void RegisterReflection();
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.Conv3DTransposeAttrs", Conv3DTransposeAttrs,
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.Conv3DTransposeAttrs", Conv3DTransposeAttrsNode,
                                     AttrsNode);
-};  // struct Conv3DTransposeAttrs
+};  // struct Conv3DTransposeAttrsNode
 
 /*! \brief Attributes used in max_pool1d and avg_pool1d operator */
-struct Pool1DAttrs : public AttrsNode {
+struct Pool1DAttrsNode : public AttrsNode {
   ffi::Array<int64_t> pool_size;
   ffi::Array<int64_t> strides;
   ffi::Array<int64_t> padding;
@@ -137,11 +137,11 @@ struct Pool1DAttrs : public AttrsNode {
   ffi::String out_layout;
 
   static void RegisterReflection();
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.Pool1DAttrs", Pool1DAttrs, AttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.Pool1DAttrs", Pool1DAttrsNode, AttrsNode);
 };  // struct Pool1dAttrs
 
 /*! \brief Attributes used in max_pool2d and avg_pool2d operator */
-struct Pool2DAttrs : public AttrsNode {
+struct Pool2DAttrsNode : public AttrsNode {
   ffi::Array<int64_t> pool_size;
   ffi::Array<int64_t> strides;
   ffi::Array<int64_t> padding;
@@ -152,11 +152,11 @@ struct Pool2DAttrs : public AttrsNode {
   ffi::String out_layout;
 
   static void RegisterReflection();
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.Pool2DAttrs", Pool2DAttrs, AttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.Pool2DAttrs", Pool2DAttrsNode, AttrsNode);
 };  // struct Pool2dAttrs
 
 /*! \brief Attributes used in max_pool3d and avg_pool3d operator */
-struct Pool3DAttrs : public AttrsNode {
+struct Pool3DAttrsNode : public AttrsNode {
   ffi::Array<int64_t> pool_size;
   ffi::Array<int64_t> strides;
   ffi::Array<int64_t> padding;
@@ -167,77 +167,77 @@ struct Pool3DAttrs : public AttrsNode {
   ffi::String out_layout;
 
   static void RegisterReflection();
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.Pool3DAttrs", Pool3DAttrs, AttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.Pool3DAttrs", Pool3DAttrsNode, AttrsNode);
 };  // struct Pool3dAttrs
 
 /*! \brief Attributes for 1d adaptive pool operator */
-struct AdaptivePool1DAttrs : public AttrsNode {
+struct AdaptivePool1DAttrsNode : public AttrsNode {
   ffi::Optional<ffi::Array<int64_t>> output_size;
   ffi::String layout;
   ffi::String out_layout;
 
   static void RegisterReflection();
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.AdaptivePool1DAttrs", AdaptivePool1DAttrs,
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.AdaptivePool1DAttrs", AdaptivePool1DAttrsNode,
                                     AttrsNode);
-};  // struct AdaptivePool1DAttrs
+};  // struct AdaptivePool1DAttrsNode
 
 /*! \brief Attributes for 2d adaptive pool operator */
-struct AdaptivePool2DAttrs : public AttrsNode {
+struct AdaptivePool2DAttrsNode : public AttrsNode {
   ffi::Optional<ffi::Array<int64_t>> output_size;
   ffi::String layout;
   ffi::String out_layout;
 
   static void RegisterReflection();
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.AdaptivePool2DAttrs", AdaptivePool2DAttrs,
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.AdaptivePool2DAttrs", AdaptivePool2DAttrsNode,
                                     AttrsNode);
-};  // struct AdaptivePool2DAttrs
+};  // struct AdaptivePool2DAttrsNode
 
 /*! \brief Attributes for 3d adaptive pool operator */
-struct AdaptivePool3DAttrs : public AttrsNode {
+struct AdaptivePool3DAttrsNode : public AttrsNode {
   ffi::Optional<ffi::Array<int64_t>> output_size;
   ffi::String layout;
   ffi::String out_layout;
 
   static void RegisterReflection();
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.AdaptivePool3DAttrs", AdaptivePool3DAttrs,
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.AdaptivePool3DAttrs", AdaptivePool3DAttrsNode,
                                     AttrsNode);
-};  // struct AdaptivePool3DAttrs
+};  // struct AdaptivePool3DAttrsNode
 
 /*! \brief Attributes used in softmax operators */
-struct SoftmaxAttrs : public AttrsNode {
+struct SoftmaxAttrsNode : public AttrsNode {
   int axis;
 
   static void RegisterReflection();
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.SoftmaxAttrs", SoftmaxAttrs, AttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.SoftmaxAttrs", SoftmaxAttrsNode, AttrsNode);
 };
 
 /*! \brief Attributes used in softmax operators */
-struct LeakyReluAttrs : public AttrsNode {
+struct LeakyReluAttrsNode : public AttrsNode {
   double alpha;
 
   static void RegisterReflection();
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.LeakyReluAttrs", LeakyReluAttrs, AttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.LeakyReluAttrs", LeakyReluAttrsNode, AttrsNode);
 };
 
 /*! \brief Attributes used in softplus operators */
-struct SoftplusAttrs : public AttrsNode {
+struct SoftplusAttrsNode : public AttrsNode {
   double beta;
   double threshold;
 
   static void RegisterReflection();
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.SoftplusAttrs", SoftplusAttrs, AttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.SoftplusAttrs", SoftplusAttrsNode, AttrsNode);
 };
 
 /*! \brief Attributes used in PReLU operator */
-struct PReluAttrs : public AttrsNode {
+struct PReluAttrsNode : public AttrsNode {
   int axis;
 
   static void RegisterReflection();
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.PReluAttrs", PReluAttrs, AttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.PReluAttrs", PReluAttrsNode, AttrsNode);
 };
 
 /*! \brief Attributes used in batch_norm operator */
-struct BatchNormAttrs : public AttrsNode {
+struct BatchNormAttrsNode : public AttrsNode {
   int axis;
   double epsilon;
   bool center;
@@ -246,22 +246,22 @@ struct BatchNormAttrs : public AttrsNode {
   bool training;
 
   static void RegisterReflection();
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.BatchNormAttrs", BatchNormAttrs, AttrsNode);
-};  // struct BatchNormAttrs
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.BatchNormAttrs", BatchNormAttrsNode, AttrsNode);
+};  // struct BatchNormAttrsNode
 
 /*! \brief Attributes used in layer_norm operator */
-struct LayerNormAttrs : public AttrsNode {
+struct LayerNormAttrsNode : public AttrsNode {
   ffi::Array<int64_t> axes;
   double epsilon;
   bool center;
   bool scale;
 
   static void RegisterReflection();
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.LayerNormAttrs", LayerNormAttrs, AttrsNode);
-};  // struct LayerNormAttrs
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.LayerNormAttrs", LayerNormAttrsNode, AttrsNode);
+};  // struct LayerNormAttrsNode
 
 /*! \brief Attributes used in group_norm operator */
-struct GroupNormAttrs : public AttrsNode {
+struct GroupNormAttrsNode : public AttrsNode {
   int num_groups;
   int channel_axis;
   ffi::Array<int64_t> axes;
@@ -270,11 +270,11 @@ struct GroupNormAttrs : public AttrsNode {
   bool scale;
 
   static void RegisterReflection();
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.GroupNormAttrs", GroupNormAttrs, AttrsNode);
-};  // struct GroupNormAttrs
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.GroupNormAttrs", GroupNormAttrsNode, AttrsNode);
+};  // struct GroupNormAttrsNode
 
 /*! \brief Attributes used in instance_norm operator */
-struct InstanceNormAttrs : public AttrsNode {
+struct InstanceNormAttrsNode : public AttrsNode {
   int channel_axis;
   ffi::Array<int64_t> axes;
   double epsilon;
@@ -282,61 +282,63 @@ struct InstanceNormAttrs : public AttrsNode {
   bool scale;
 
   static void RegisterReflection();
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.InstanceNormAttrs", InstanceNormAttrs, AttrsNode);
-};  // struct InstanceNormAttrs
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.InstanceNormAttrs", InstanceNormAttrsNode,
+                                    AttrsNode);
+};  // struct InstanceNormAttrsNode
 
 /*! \brief Attributes used in rms_norm operator */
-struct RMSNormAttrs : public AttrsNode {
+struct RMSNormAttrsNode : public AttrsNode {
   ffi::Array<int64_t> axes;
   double epsilon;
 
   static void RegisterReflection();
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.RMSNormAttrs", RMSNormAttrs, AttrsNode);
-};  // struct RMSNormAttrs
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.RMSNormAttrs", RMSNormAttrsNode, AttrsNode);
+};  // struct RMSNormAttrsNode
 
 /*! \brief Attributes used in nll_loss operator */
-struct NLLLossAttrs : public AttrsNode {
+struct NLLLossAttrsNode : public AttrsNode {
   ffi::String reduction;
   int ignore_index;
 
   static void RegisterReflection();
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.NLLLossAttrs", NLLLossAttrs, AttrsNode);
-};  // struct NLLLossAttrs
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.NLLLossAttrs", NLLLossAttrsNode, AttrsNode);
+};  // struct NLLLossAttrsNode
 
 /*! \brief Attributes used in dropout operator */
-struct DropoutAttrs : public AttrsNode {
+struct DropoutAttrsNode : public AttrsNode {
   double rate;
 
   static void RegisterReflection();
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.DropoutAttrs", DropoutAttrs, AttrsNode);
-};  // struct DropoutAttrs
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.DropoutAttrs", DropoutAttrsNode, AttrsNode);
+};  // struct DropoutAttrsNode
 
 /*! \brief Attributes used in Attention operator */
-struct AttentionAttrs : public AttrsNode {
+struct AttentionAttrsNode : public AttrsNode {
   ffi::Optional<FloatImm> scale;
   ffi::Optional<ffi::String> causal_mask;
   ffi::Optional<IntImm> window_size;
 
   static void RegisterReflection();
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.AttentionAttrs", AttentionAttrs, AttrsNode);
-};  // struct AttentionAttrs
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.AttentionAttrs", AttentionAttrsNode, AttrsNode);
+};  // struct AttentionAttrsNode
 
 /*! \brief Attributes used for the padding operator */
-struct PadAttrs : public AttrsNode {
+struct PadAttrsNode : public AttrsNode {
   ffi::Array<int64_t> pad_width;
   double pad_value = 0.0;
   tvm::ffi::String pad_mode;
 
   static void RegisterReflection();
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.PadAttrs", PadAttrs, AttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.PadAttrs", PadAttrsNode, AttrsNode);
 };
 
 /*! \brief Attributes used for the pixel shuffle operator */
-struct PixelShuffleAttrs : public AttrsNode {
+struct PixelShuffleAttrsNode : public AttrsNode {
   int upscale_factor;
 
   static void RegisterReflection();
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.PixelShuffleAttrs", PixelShuffleAttrs, AttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.PixelShuffleAttrs", PixelShuffleAttrsNode,
+                                    AttrsNode);
 };
 
 }  // namespace relax

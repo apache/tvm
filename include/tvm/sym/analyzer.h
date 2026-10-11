@@ -86,16 +86,16 @@ enum class ProofStrength : int {
  *
  *  set = [min_value, max_value]
  */
-class ConstIntBoundNode : public ffi::Object {
+class ConstIntBoundObj : public ffi::Object {
  public:
   int64_t min_value;
   int64_t max_value;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<ConstIntBoundNode>()
-        .def_ro("min_value", &ConstIntBoundNode::min_value)
-        .def_ro("max_value", &ConstIntBoundNode::max_value);
+    refl::ObjectDef<ConstIntBoundObj>()
+        .def_ro("min_value", &ConstIntBoundObj::min_value)
+        .def_ro("max_value", &ConstIntBoundObj::max_value);
   }
 
   /*! \brief Number to represent +inf */
@@ -107,12 +107,12 @@ class ConstIntBoundNode : public ffi::Object {
   static const constexpr int64_t kNegInf = -kPosInf;
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("sym.ConstIntBound", ConstIntBoundNode, ffi::Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("sym.ConstIntBound", ConstIntBoundObj, ffi::Object);
 };
 
 /*!
- * \brief reference class to ConstIntBoundNode
- * \sa ConstIntBoundNode
+ * \brief reference class to ConstIntBoundObj
+ * \sa ConstIntBoundObj
  */
 class ConstIntBound : public ffi::ObjectRef {
  public:
@@ -123,9 +123,9 @@ class ConstIntBound : public ffi::ObjectRef {
    */
   TVM_DLL ConstIntBound(int64_t min_value, int64_t max_value);
 
-  static const constexpr int64_t kPosInf = ConstIntBoundNode::kPosInf;
-  static const constexpr int64_t kNegInf = ConstIntBoundNode::kNegInf;
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ConstIntBound, ffi::ObjectRef, ConstIntBoundNode);
+  static const constexpr int64_t kPosInf = ConstIntBoundObj::kPosInf;
+  static const constexpr int64_t kNegInf = ConstIntBoundObj::kNegInf;
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ConstIntBound, ffi::ObjectRef, ConstIntBoundObj);
 };
 
 /*!
@@ -206,7 +206,7 @@ class ConstIntBoundAnalyzer {
  *  This is useful to decide if the index is dividable by certain value.
  *  For example, if index = 0 + 4 x, then we know it can be divided by 4.
  */
-class ModularSetNode : public ffi::Object {
+class ModularSetObj : public ffi::Object {
  public:
   /*! \brief linear co-efficient */
   int64_t coeff;
@@ -215,24 +215,24 @@ class ModularSetNode : public ffi::Object {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<ModularSetNode>()
-        .def_ro("coeff", &ModularSetNode::coeff)
-        .def_ro("base", &ModularSetNode::base);
+    refl::ObjectDef<ModularSetObj>()
+        .def_ro("coeff", &ModularSetObj::coeff)
+        .def_ro("base", &ModularSetObj::base);
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("sym.ModularSet", ModularSetNode, ffi::Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("sym.ModularSet", ModularSetObj, ffi::Object);
 };
 
 /*!
- * \brief reference of ModularSetNode
- * \sa ModularSetNode
+ * \brief reference of ModularSetObj
+ * \sa ModularSetObj
  */
 class ModularSet : public ffi::ObjectRef {
  public:
   TVM_DLL ModularSet(int64_t coeff, int64_t base);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ModularSet, ffi::ObjectRef, ModularSetNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ModularSet, ffi::ObjectRef, ModularSetObj);
 };
 
 /*!
@@ -417,9 +417,9 @@ class RewriteSimplifier {
   explicit RewriteSimplifier(AnalyzerObj* parent);
   TVM_DLL ~RewriteSimplifier();
   void CopyFrom(const RewriteSimplifier& other);
-  class Impl;
+  class ImplObj;
   /*! \brief Internal impl */
-  ffi::ObjectPtr<Impl> impl_;
+  ffi::ObjectPtr<ImplObj> impl_;
 };
 
 /*!
@@ -449,9 +449,9 @@ class CanonicalSimplifier {
   explicit CanonicalSimplifier(AnalyzerObj* parent);
   TVM_DLL ~CanonicalSimplifier();
   void CopyFrom(const CanonicalSimplifier& other);
-  class Impl;
+  class ImplObj;
   /*! \brief Internal impl */
-  ffi::ObjectPtr<Impl> impl_;
+  ffi::ObjectPtr<ImplObj> impl_;
 };
 
 /*! \brief Structure for representing result of known

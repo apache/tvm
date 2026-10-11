@@ -42,7 +42,7 @@
 namespace tvm {
 namespace tirx {
 
-struct UnrollLoopConfigNode : public ffi::Object {
+struct UnrollLoopConfigObj : public ffi::Object {
   int auto_max_step;
   int auto_max_depth;
   int auto_max_extent;
@@ -51,40 +51,40 @@ struct UnrollLoopConfigNode : public ffi::Object {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<UnrollLoopConfigNode>()
-        .def_ro("auto_max_step", &UnrollLoopConfigNode::auto_max_step,
+    refl::ObjectDef<UnrollLoopConfigObj>()
+        .def_ro("auto_max_step", &UnrollLoopConfigObj::auto_max_step,
                 "Threshold of number of steps in the loop to be automatically unrolled",
                 refl::DefaultValue(0))
-        .def_ro("auto_max_depth", &UnrollLoopConfigNode::auto_max_depth,
+        .def_ro("auto_max_depth", &UnrollLoopConfigObj::auto_max_depth,
                 "The maximum nested level of loops that can be automatically unrolled.",
                 refl::DefaultValue(8))
-        .def_ro("auto_max_extent", &UnrollLoopConfigNode::auto_max_extent,
+        .def_ro("auto_max_extent", &UnrollLoopConfigObj::auto_max_extent,
                 "The maximum extent` of loop that will be unrolled.", refl::DefaultValue(0))
-        .def_ro("explicit_unroll", &UnrollLoopConfigNode::explicit_unroll,
+        .def_ro("explicit_unroll", &UnrollLoopConfigObj::explicit_unroll,
                 "Whether to explicitly unroll the loop instead of setting a pragma",
                 refl::DefaultValue(true))
-        .def_ro("unroll_local_access", &UnrollLoopConfigNode::unroll_local_access,
+        .def_ro("unroll_local_access", &UnrollLoopConfigObj::unroll_local_access,
                 "Whether to always unroll local access", refl::DefaultValue(false));
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.transform.UnrollLoopConfig", UnrollLoopConfigNode,
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.transform.UnrollLoopConfig", UnrollLoopConfigObj,
                                     ffi::Object);
 };
 
 class UnrollLoopConfig : public ffi::ObjectRef {
  public:
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(UnrollLoopConfig, ffi::ObjectRef,
-                                                UnrollLoopConfigNode);
+                                                UnrollLoopConfigObj);
 };
 
-TVM_FFI_STATIC_INIT_BLOCK() { UnrollLoopConfigNode::RegisterReflection(); }
+TVM_FFI_STATIC_INIT_BLOCK() { UnrollLoopConfigObj::RegisterReflection(); }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ::tvm::transform::PassContext::RegisterConfigOption<UnrollLoopConfig>("tirx.UnrollLoop");
 }
 
-class VarLocalAccessMarker : public StmtExprVisitor {
+class VarLocalAccessMarkerObj : public StmtExprVisitorObj {
  public:
-  explicit VarLocalAccessMarker(std::unordered_set<Var>* var_touched_local)
+  explicit VarLocalAccessMarkerObj(std::unordered_set<Var>* var_touched_local)
       : var_touched_local_(var_touched_local) {}
 
   ffi::Optional<VisitInterrupt> Visit_(const VarNode* op) final {
@@ -99,12 +99,12 @@ class VarLocalAccessMarker : public StmtExprVisitor {
 // The Visitor is used to check whether var is used as write index in a local memory
 // If a loop var is used as indices to a local memory, it must be unrolled so
 // the local memory access can be turned into register access.
-class LoopUnroller : public StmtExprMutator {
+class LoopUnrollerObj : public StmtExprMutatorObj {
  public:
-  using StmtExprMutator::Mutate;
-  using StmtExprMutator::Mutate_;
-  explicit LoopUnroller(int auto_max_step, int auto_max_depth, int auto_max_extent,
-                        bool explicit_unroll, bool unroll_local_access)
+  using StmtExprMutatorObj::Mutate;
+  using StmtExprMutatorObj::Mutate_;
+  explicit LoopUnrollerObj(int auto_max_step, int auto_max_depth, int auto_max_extent,
+                           bool explicit_unroll, bool unroll_local_access)
       : auto_max_depth_(auto_max_depth),
         auto_max_extent_(auto_max_extent),
         unroll_local_access_(unroll_local_access) {
@@ -130,7 +130,7 @@ class LoopUnroller : public StmtExprMutator {
 
   UnchangedOr<Stmt> RewriteLoop(const ForNode* op, InplaceMode inplace_mode) {
     // Post order so we can collect more information
-    auto result = StmtExprMutator::Mutate_(op, inplace_mode);
+    auto result = StmtExprMutatorObj::Mutate_(op, inplace_mode);
     if (!result.IsUnchanged()) {
       op = ffi::AnyView(result).as<ForNode>();
       if (!op->unique()) {
@@ -204,7 +204,7 @@ class LoopUnroller : public StmtExprMutator {
           runtime::StorageScope::Create(op->source.as_or_throw<tvm::tirx::TensorVar>().scope());
       if (storage_scope.rank == runtime::StorageRank::kLocal ||
           storage_scope.rank == runtime::StorageRank::kWarp) {
-        auto marker = ffi::make_object<VarLocalAccessMarker>(&var_touched_local_);
+        auto marker = ffi::make_object<VarLocalAccessMarkerObj>(&var_touched_local_);
         for (PrimExpr e : op->indices) {
           marker->Visit(e);
         }
@@ -219,18 +219,18 @@ class LoopUnroller : public StmtExprMutator {
       auto storage_scope = runtime::StorageScope::Create(op->dest.as_or_throw<TensorVar>().scope());
       if (storage_scope.rank == runtime::StorageRank::kLocal ||
           storage_scope.rank == runtime::StorageRank::kWarp) {
-        auto marker = ffi::make_object<VarLocalAccessMarker>(&var_touched_local_);
+        auto marker = ffi::make_object<VarLocalAccessMarkerObj>(&var_touched_local_);
         for (PrimExpr e : op->indices) {
           marker->Visit(e);
         }
       }
     }
-    return StmtExprMutator::Mutate_(op, inplace_mode);
+    return StmtExprMutatorObj::Mutate_(op, inplace_mode);
   }
 
   UnchangedOr<Stmt> Mutate_(const EvaluateNode* op, InplaceMode inplace_mode) final {
     ++step_count_;
-    return StmtExprMutator::Mutate_(op, inplace_mode);
+    return StmtExprMutatorObj::Mutate_(op, inplace_mode);
   }
 
   UnchangedOr<Stmt> Mutate_(const SeqStmtNode* op, InplaceMode inplace_mode) final {
@@ -318,10 +318,10 @@ class LoopUnroller : public StmtExprMutator {
 
 Stmt UnrollLoop(Stmt stmt, UnrollLoopConfig cfg) {
   // Identity determines whether unrolled definitions require SSA conversion.
-  auto result =
-      ffi::make_object<LoopUnroller>(cfg->auto_max_step, cfg->auto_max_depth, cfg->auto_max_extent,
-                                     cfg->explicit_unroll, cfg->unroll_local_access)
-          ->Mutate(stmt, InplaceMode::kDisallow);
+  auto result = ffi::make_object<LoopUnrollerObj>(cfg->auto_max_step, cfg->auto_max_depth,
+                                                  cfg->auto_max_extent, cfg->explicit_unroll,
+                                                  cfg->unroll_local_access)
+                    ->Mutate(stmt, InplaceMode::kDisallow);
   if (!result.UnchangedOrSameAs(stmt)) {
     return ConvertSSA(std::move(result).ValueUnchecked());
   } else {

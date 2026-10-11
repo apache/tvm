@@ -35,21 +35,21 @@
 namespace tvm {
 namespace relax {
 
-void MultinomialFromUniformAttrs::RegisterReflection() {
+void MultinomialFromUniformAttrsNode::RegisterReflection() {
   namespace refl = tvm::ffi::reflection;
-  refl::ObjectDef<MultinomialFromUniformAttrs>().def_ro(
-      "dtype", &MultinomialFromUniformAttrs::dtype, "Data type of the output indices.",
+  refl::ObjectDef<MultinomialFromUniformAttrsNode>().def_ro(
+      "dtype", &MultinomialFromUniformAttrsNode::dtype, "Data type of the output indices.",
       refl::DefaultValue((DLDataType{kDLInt, 64, 1})));
 }
 
-TVM_FFI_STATIC_INIT_BLOCK() { MultinomialFromUniformAttrs::RegisterReflection(); }
+TVM_FFI_STATIC_INIT_BLOCK() { MultinomialFromUniformAttrsNode::RegisterReflection(); }
 
 /* relax.multinomial_from_uniform */
 
 Expr multinomial_from_uniform(Expr prob, Expr uniform_sample, Expr sample_indices,
                               DLDataType dtype) {
-  ffi::ObjectPtr<MultinomialFromUniformAttrs> attrs =
-      ffi::make_object<MultinomialFromUniformAttrs>();
+  ffi::ObjectPtr<MultinomialFromUniformAttrsNode> attrs =
+      ffi::make_object<MultinomialFromUniformAttrsNode>();
   attrs->dtype = dtype;
 
   static const Op op = Op::Get("relax.multinomial_from_uniform");
@@ -70,7 +70,7 @@ Type InferTypeMultinomialFromUniform(const CallNode* call_node) {
   TensorType prob_ty = GetInputTensorType(call, 0);
   TensorType uniform_sample_ty = GetInputTensorType(call, 1);
   TensorType sample_indices_ty = GetInputTensorType(call, 2);
-  const auto* attrs = call->attrs.as<MultinomialFromUniformAttrs>();
+  const auto* attrs = call->attrs.as<MultinomialFromUniformAttrsNode>();
 
   // Only the element kind matters here; shape inference does not depend on vector lanes.
   if (!prob_ty->IsUnknownDtype() &&
@@ -160,7 +160,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .signature(sig::arg("prob", "The probability tensor."),
                  sig::arg("uniform_sample", "The uniform sample tensor."),
                  sig::arg("sample_indices", "The sample indices tensor."),
-                 sig::call_attrs<MultinomialFromUniformAttrs>())
+                 sig::call_attrs<MultinomialFromUniformAttrsNode>())
       .set_attr<FInferType>(tvm::op_attr::kInferType,
                             FInferType::FromNative<&InferTypeMultinomialFromUniform>())
       .set_attr<bool>(tvm::relax::op_attr::kPurity, true);

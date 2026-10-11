@@ -29,20 +29,20 @@ using namespace tvm::prim;
 using namespace tvm::tirx;
 
 /*! \brief Append a new predicate to the each child of type BlockRealize (not recursively) */
-class BlockPredicateAppender : public StmtExprMutator {
+class BlockPredicateAppenderObj : public StmtExprMutatorObj {
  public:
-  using StmtExprMutator::Mutate;
-  using StmtExprMutator::Mutate_;
+  using StmtExprMutatorObj::Mutate;
+  using StmtExprMutatorObj::Mutate_;
   UnchangedOr<ffi::Any> Mutate(ffi::AnyView value, InplaceMode inplace_mode) override {
     if (value.as<ExprNode>()) return ffi::Unchanged();
-    return StmtExprMutator::Mutate(value, inplace_mode);
+    return StmtExprMutatorObj::Mutate(value, inplace_mode);
   }
 
   /*!
    * \brief Constructor
    * \param to_append The predicate to be appended to BlockRealizeNode
    */
-  explicit BlockPredicateAppender(const PrimExpr& to_append) : to_append_(to_append) {}
+  explicit BlockPredicateAppenderObj(const PrimExpr& to_append) : to_append_(to_append) {}
 
  private:
   // For each direct child of type BlockRealizeNode, append the predicate
@@ -64,13 +64,13 @@ class BlockPredicateAppender : public StmtExprMutator {
 };
 
 /*! \brief Substitute vars and collect the reuse mapping of opaque blocks */
-class SubstituteVarAndCollectOpaqueBlock : public StmtExprMutator {
+class SubstituteVarAndCollectOpaqueBlockObj : public StmtExprMutatorObj {
  public:
-  using StmtExprMutator::Mutate;
-  using StmtExprMutator::Mutate_;
+  using StmtExprMutatorObj::Mutate;
+  using StmtExprMutatorObj::Mutate_;
 
-  explicit SubstituteVarAndCollectOpaqueBlock(const ffi::Map<Var, PrimExpr>& substitutions,
-                                              ffi::Map<SBlock, SBlock>* opaque_blocks)
+  explicit SubstituteVarAndCollectOpaqueBlockObj(const ffi::Map<Var, PrimExpr>& substitutions,
+                                                 ffi::Map<SBlock, SBlock>* opaque_blocks)
       : opaque_blocks_(opaque_blocks) {
     for (const auto& [var, replacement] : substitutions) {
       VarRemapSet(var, tvm::prim::cast(var->ty.as_or_throw<PrimType>(), replacement));
@@ -79,7 +79,7 @@ class SubstituteVarAndCollectOpaqueBlock : public StmtExprMutator {
 
  private:
   UnchangedOr<Stmt> Mutate_(const SBlockRealizeNode* op, InplaceMode inplace_mode) final {
-    SBlockRealize realize = StmtExprMutator::Mutate_(op, inplace_mode)
+    SBlockRealize realize = StmtExprMutatorObj::Mutate_(op, inplace_mode)
                                 .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
                                 .as_or_throw<SBlockRealize>();
     if (realize->block->iter_vars.empty()) {
@@ -93,14 +93,14 @@ class SubstituteVarAndCollectOpaqueBlock : public StmtExprMutator {
 };
 
 /*! \brief Simplify the binding of block realize and update the opaque block reuse mapping */
-class IterMapSimplifyBlockBinding : public StmtExprMutator {
+class IterMapSimplifyBlockBindingObj : public StmtExprMutatorObj {
  public:
-  using StmtExprMutator::Mutate;
-  using StmtExprMutator::Mutate_;
+  using StmtExprMutatorObj::Mutate;
+  using StmtExprMutatorObj::Mutate_;
 
-  explicit IterMapSimplifyBlockBinding(ffi::MapObj* opaque_blocks,
-                                       ffi::Map<PrimVar, Range> loop_var2extent,
-                                       bool preserve_unit_iters)
+  explicit IterMapSimplifyBlockBindingObj(ffi::MapObj* opaque_blocks,
+                                          ffi::Map<PrimVar, Range> loop_var2extent,
+                                          bool preserve_unit_iters)
       : opaque_blocks_(opaque_blocks),
         loop_var2extent_(loop_var2extent),
         preserve_unit_iters_(preserve_unit_iters) {}
@@ -112,8 +112,8 @@ class IterMapSimplifyBlockBinding : public StmtExprMutator {
       const ForNode* loop = TVM_SREF_TO_FOR(sref);
       loop_var2extent.Set(loop->loop_var, Range::FromMinExtent(loop->min, loop->extent));
     }
-    return ffi::make_object<IterMapSimplifyBlockBinding>(opaque_blocks, std::move(loop_var2extent),
-                                                         preserve_unit_iters)
+    return ffi::make_object<IterMapSimplifyBlockBindingObj>(
+               opaque_blocks, std::move(loop_var2extent), preserve_unit_iters)
         ->Mutate(stmt, InplaceMode::kAllow)
         .ValueOrUnchanged(std::move(stmt))
         .as_or_throw<For>();
@@ -122,7 +122,8 @@ class IterMapSimplifyBlockBinding : public StmtExprMutator {
  private:
   UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
     loop_var2extent_.Set(op->loop_var, Range::FromMinExtent(op->min, op->extent));
-    Stmt res = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
+    Stmt res =
+        StmtExprMutatorObj::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     loop_var2extent_.erase(op->loop_var);
     return res;
   }
@@ -131,7 +132,7 @@ class IterMapSimplifyBlockBinding : public StmtExprMutator {
     // skip opaque block and update mapping
     if (op->iter_values.empty()) {
       SBlock block = op->block;
-      SBlockRealize realize = StmtExprMutator::Mutate_(op, inplace_mode)
+      SBlockRealize realize = StmtExprMutatorObj::Mutate_(op, inplace_mode)
                                   .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
                                   .as_or_throw<SBlockRealize>();
       for (const auto& entry : *opaque_blocks_) {
@@ -173,7 +174,7 @@ class IterMapSimplifyBlockBinding : public StmtExprMutator {
   bool preserve_unit_iters_;
 };
 
-class BlockPropertyError : public ScheduleErrorContextObj {
+class BlockPropertyErrorObj : public ScheduleErrorContextObj {
  public:
   /*!
    * \brief Check that all the blocks under the specific stmt have affine bindings
@@ -181,26 +182,26 @@ class BlockPropertyError : public ScheduleErrorContextObj {
    * \param self The state of the schedule
    * \param sref The sref to the specific stmt
    */
-  static void CheckBlockIterTypeAndAffineBinding(const ScheduleState& self, const StmtSRefNode* top,
-                                                 const StmtSRefNode* sref) {
-    class BlockIterTypeAndAffineBindingChecker : public StmtExprVisitor {
+  static void CheckBlockIterTypeAndAffineBinding(const ScheduleState& self, const StmtSRefObj* top,
+                                                 const StmtSRefObj* sref) {
+    class BlockIterTypeAndAffineBindingCheckerObj : public StmtExprVisitorObj {
      public:
-      using StmtExprVisitor::Visit_;
+      using StmtExprVisitorObj::Visit_;
 
       ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
         if (value.as<ExprNode>()) return std::nullopt;
-        return StmtExprVisitor::Visit(value);
+        return StmtExprVisitorObj::Visit(value);
       }
 
-      explicit BlockIterTypeAndAffineBindingChecker(const ScheduleState& state,
-                                                    const StmtSRefNode* top)
+      explicit BlockIterTypeAndAffineBindingCheckerObj(const ScheduleState& state,
+                                                       const StmtSRefObj* top)
           : state_(state), top_(top) {}
 
      private:
       ffi::Optional<VisitInterrupt> Visit_(const SBlockNode* op) final {
         for (const IterVar& iter_var : op->iter_vars) {
           if (iter_var->iter_type != kDataPar && iter_var->iter_type != kCommReduce) {
-            throw MakeScheduleError<BlockPropertyError>(state_->mod, ffi::GetRef<SBlock>(op));
+            throw MakeScheduleError<BlockPropertyErrorObj>(state_->mod, ffi::GetRef<SBlock>(op));
           }
           ffi::Optional<StmtSRef> high_exclusive = top_->parent
                                                        ? ffi::GetRef<StmtSRef>(top_->parent)
@@ -210,14 +211,15 @@ class BlockPropertyError : public ScheduleErrorContextObj {
         return std::nullopt;
       }
       const ScheduleState& state_;
-      const StmtSRefNode* top_;
+      const StmtSRefObj* top_;
     };
 
-    auto checker = ffi::make_object<BlockIterTypeAndAffineBindingChecker>(self, top);
+    auto checker = ffi::make_object<BlockIterTypeAndAffineBindingCheckerObj>(self, top);
     checker->Visit(ffi::GetRef<Stmt>(sref->stmt));
   }
 
-  explicit BlockPropertyError(IRModule mod, SBlock block) : mod_(mod), block_(std::move(block)) {}
+  explicit BlockPropertyErrorObj(IRModule mod, SBlock block)
+      : mod_(mod), block_(std::move(block)) {}
 
   ffi::String FastErrorString() const final {
     return "ScheduleError: The block under the loops to be reordered have block iter type other "
@@ -236,9 +238,9 @@ class BlockPropertyError : public ScheduleErrorContextObj {
   SBlock block_;
 };
 
-class HasAnnotationOrThreadBindingError : public ScheduleErrorContextObj {
+class HasAnnotationOrThreadBindingErrorObj : public ScheduleErrorContextObj {
  public:
-  explicit HasAnnotationOrThreadBindingError(IRModule mod, For loop)
+  explicit HasAnnotationOrThreadBindingErrorObj(IRModule mod, For loop)
       : mod_(mod), loop_(std::move(loop)) {}
 
   ffi::String FastErrorString() const final {
@@ -257,9 +259,9 @@ class HasAnnotationOrThreadBindingError : public ScheduleErrorContextObj {
   For loop_;
 };
 
-class OuterNotInnerParent : public ScheduleErrorContextObj {
+class OuterNotInnerParentObj : public ScheduleErrorContextObj {
  public:
-  explicit OuterNotInnerParent(IRModule mod, For outer, For inner)
+  explicit OuterNotInnerParentObj(IRModule mod, For outer, For inner)
       : mod_(mod), outer_(std::move(outer)), inner_(std::move(inner)) {}
 
   ffi::String FastErrorString() const final {
@@ -279,9 +281,9 @@ class OuterNotInnerParent : public ScheduleErrorContextObj {
   For inner_;
 };
 
-class NotOnlyChildError : public ScheduleErrorContextObj {
+class NotOnlyChildErrorObj : public ScheduleErrorContextObj {
  public:
-  explicit NotOnlyChildError(IRModule mod, For outer, For inner)
+  explicit NotOnlyChildErrorObj(IRModule mod, For outer, For inner)
       : mod_(mod), outer_(std::move(outer)), inner_(std::move(inner)) {}
 
   ffi::String FastErrorString() const final {
@@ -301,9 +303,9 @@ class NotOnlyChildError : public ScheduleErrorContextObj {
   For inner_;
 };
 
-class NotSingleInferFactorError : public ScheduleErrorContextObj {
+class NotSingleInferFactorErrorObj : public ScheduleErrorContextObj {
  public:
-  explicit NotSingleInferFactorError(IRModule mod) : mod_(mod) {}
+  explicit NotSingleInferFactorErrorObj(IRModule mod) : mod_(mod) {}
 
   ffi::String FastErrorString() const final {
     return "ScheduleError: only one factor can be specified as -1 or none";
@@ -319,9 +321,9 @@ class NotSingleInferFactorError : public ScheduleErrorContextObj {
   IRModule mod_;
 };
 
-class WrongFactorProductError : public ScheduleErrorContextObj {
+class WrongFactorProductErrorObj : public ScheduleErrorContextObj {
  public:
-  explicit WrongFactorProductError(IRModule mod, For loop) : mod_(mod), loop_(std::move(loop)) {}
+  explicit WrongFactorProductErrorObj(IRModule mod, For loop) : mod_(mod), loop_(std::move(loop)) {}
 
   ffi::String FastErrorString() const final {
     return "ScheduleError: The product of factors is not larger than or equal to the extent of "
@@ -339,9 +341,10 @@ class WrongFactorProductError : public ScheduleErrorContextObj {
   For loop_;
 };
 
-class LoopMultiAppearanceError : public ScheduleErrorContextObj {
+class LoopMultiAppearanceErrorObj : public ScheduleErrorContextObj {
  public:
-  explicit LoopMultiAppearanceError(IRModule mod, For loop) : mod_(mod), loop_(std::move(loop)) {}
+  explicit LoopMultiAppearanceErrorObj(IRModule mod, For loop)
+      : mod_(mod), loop_(std::move(loop)) {}
 
   ffi::String FastErrorString() const final {
     return "ScheduleError: Some loop appears in the input array for multiple times.";
@@ -358,11 +361,12 @@ class LoopMultiAppearanceError : public ScheduleErrorContextObj {
   For loop_;
 };
 
-class LoopsNotAChainError : public ScheduleErrorContextObj {
+class LoopsNotAChainErrorObj : public ScheduleErrorContextObj {
  public:
   enum class ProblemKind { kNotUnderAScope, kHaveNonSingleBranchStmt };
 
-  explicit LoopsNotAChainError(IRModule mod, ffi::Optional<Stmt> problematic_loop, ProblemKind kind)
+  explicit LoopsNotAChainErrorObj(IRModule mod, ffi::Optional<Stmt> problematic_loop,
+                                  ProblemKind kind)
       : mod_(mod), problematic_loop_(std::move(problematic_loop)), kind_(kind) {}
 
   ffi::String FastErrorString() const final {
@@ -395,10 +399,10 @@ class LoopsNotAChainError : public ScheduleErrorContextObj {
   ProblemKind kind_;
 };
 
-class DependentLoopError : public ScheduleErrorContextObj {
+class DependentLoopErrorObj : public ScheduleErrorContextObj {
  public:
   enum class PrimitiveKind { kFuse, kReorder };
-  explicit DependentLoopError(IRModule mod, For loop, ffi::String inner_var, PrimitiveKind kind)
+  explicit DependentLoopErrorObj(IRModule mod, For loop, ffi::String inner_var, PrimitiveKind kind)
       : mod_(mod), loop_(std::move(loop)), inner_var_(std::move(inner_var)), kind_(kind) {}
 
   ffi::String FastErrorString() const final {
@@ -438,7 +442,8 @@ ffi::Array<StmtSRef> Split(ScheduleState self, const StmtSRef& loop_sref,
   // Step 1. Check correctness
   const ForNode* loop = TVM_SREF_TO_FOR(loop_sref);
   if (!loop->annotations.empty()) {
-    throw MakeScheduleError<HasAnnotationOrThreadBindingError>(self->mod, ffi::GetRef<For>(loop));
+    throw MakeScheduleError<HasAnnotationOrThreadBindingErrorObj>(self->mod,
+                                                                  ffi::GetRef<For>(loop));
   }
   // Currently, loops not starting with 0 are not supported
   sym::Analyzer analyzer;
@@ -466,14 +471,14 @@ ffi::Array<StmtSRef> Split(ScheduleState self, const StmtSRef& loop_sref,
   }
   ffi::Map<SBlock, SBlock> opaque_block_reuse;
   Stmt new_stmt = loop->body;
-  new_stmt = ffi::make_object<SubstituteVarAndCollectOpaqueBlock>(
+  new_stmt = ffi::make_object<SubstituteVarAndCollectOpaqueBlockObj>(
                  ffi::Map<Var, PrimExpr>{{loop->loop_var, substitute_value}}, &opaque_block_reuse)
                  ->Mutate(new_stmt, InplaceMode::kAllow)
                  .ValueOrUnchanged(std::move(new_stmt));
   // Step 3. Update predicate to guard the loop
   PrimExpr predicate = substitute_value < loop->extent;
   if (!disable_predication && !analyzer->CanProve(predicate, sym::ProofStrength::kSymbolicBound)) {
-    new_stmt = ffi::make_object<BlockPredicateAppender>(/*predicate=*/predicate)
+    new_stmt = ffi::make_object<BlockPredicateAppenderObj>(/*predicate=*/predicate)
                    ->Mutate(new_stmt, InplaceMode::kAllow)
                    .ValueOrUnchanged(std::move(new_stmt));
   }
@@ -482,9 +487,9 @@ ffi::Array<StmtSRef> Split(ScheduleState self, const StmtSRef& loop_sref,
     new_stmt =
         For(new_loop_vars[i].as_or_throw<PrimVar>(), 0, factors[i], ForKind::kDefault, new_stmt);
   }
-  new_stmt = IterMapSimplifyBlockBinding::SimplifyBindings(std::move(new_stmt), GetLoops(loop_sref),
-                                                           opaque_block_reuse.CopyOnWrite(),
-                                                           preserve_unit_iters);
+  new_stmt = IterMapSimplifyBlockBindingObj::SimplifyBindings(
+      std::move(new_stmt), GetLoops(loop_sref), opaque_block_reuse.CopyOnWrite(),
+      preserve_unit_iters);
   self->Replace(loop_sref, new_stmt, opaque_block_reuse);
   ffi::Array<StmtSRef> result_srefs;
   result_srefs.reserve(n);
@@ -499,14 +504,14 @@ ffi::Array<StmtSRef> Split(ScheduleState self, const StmtSRef& loop_sref,
   return result_srefs;
 }
 
-class TensorIndicesMapExtractor : public StmtExprVisitor {
+class TensorIndicesMapExtractorObj : public StmtExprVisitorObj {
  public:
-  using StmtExprVisitor::Visit_;
+  using StmtExprVisitorObj::Visit_;
 
-  explicit TensorIndicesMapExtractor(Var loop_var) : loop_var_(loop_var) {}
+  explicit TensorIndicesMapExtractorObj(Var loop_var) : loop_var_(loop_var) {}
 
   static ffi::Map<TensorVar, ffi::Array<Var>> Extract(Var loop_var, SBlock& block) {
-    auto extractor = ffi::make_object<TensorIndicesMapExtractor>(loop_var);
+    auto extractor = ffi::make_object<TensorIndicesMapExtractorObj>(loop_var);
     extractor->Visit(std::move(block->body));
     return extractor->tensor_indices_map;
   }
@@ -526,7 +531,7 @@ class TensorIndicesMapExtractor : public StmtExprVisitor {
     if (tensor_indices_map.find(store->dest.as_or_throw<TensorVar>()) == tensor_indices_map.end() &&
         !check_)
       tensor_indices_map.Set(store->dest.as_or_throw<TensorVar>(), indices);
-    return StmtExprVisitor::Visit_(store);
+    return StmtExprVisitorObj::Visit_(store);
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* load) final {
@@ -544,7 +549,7 @@ class TensorIndicesMapExtractor : public StmtExprVisitor {
     if (tensor_indices_map.find(tensor) == tensor_indices_map.end() && !check_) {
       tensor_indices_map.Set(tensor, indices);
     }
-    return StmtExprVisitor::Visit_(load);
+    return StmtExprVisitorObj::Visit_(load);
   }
 
   Var loop_var_;
@@ -572,17 +577,17 @@ ffi::Array<TensorRegion> MutateTensorRegion(ffi::Map<TensorVar, ffi::Array<Var>>
   return new_region_arr;
 }
 
-class BlockMutator : public StmtExprMutator {
+class BlockMutatorObj : public StmtExprMutatorObj {
  public:
-  using StmtExprMutator::Mutate;
-  using StmtExprMutator::Mutate_;
+  using StmtExprMutatorObj::Mutate;
+  using StmtExprMutatorObj::Mutate_;
 
-  explicit BlockMutator(Var new_loop_var, PrimExpr min, PrimExpr extent)
+  explicit BlockMutatorObj(Var new_loop_var, PrimExpr min, PrimExpr extent)
       : new_loop_var_(new_loop_var), min_(min), extent_(extent) {}
 
  private:
   UnchangedOr<Stmt> Mutate_(const SBlockNode* _op, InplaceMode inplace_mode) final {
-    SBlock new_block = StmtExprMutator::Mutate_(_op, inplace_mode)
+    SBlock new_block = StmtExprMutatorObj::Mutate_(_op, inplace_mode)
                            .ValueOrUnchanged(ffi::GetRef<Stmt>(_op))
                            .as_or_throw<SBlock>();
 
@@ -629,7 +634,7 @@ class BlockMutator : public StmtExprMutator {
 
     // Get the (TensorVar, indices) map
     ffi::Map<TensorVar, ffi::Array<Var>> tensor_indices_map =
-        TensorIndicesMapExtractor::Extract(new_loop_var_, new_block);
+        TensorIndicesMapExtractorObj::Extract(new_loop_var_, new_block);
     ffi::Array<TensorRegion> new_writes =
         MutateTensorRegion(tensor_indices_map, index_range_map, new_block->writes);
     if (!new_block->writes.same_as(new_writes)) {
@@ -670,14 +675,14 @@ class BlockMutator : public StmtExprMutator {
         break;
       }
     }
-    SBlockRealize stmt = StmtExprMutator::Mutate_(realize, inplace_mode)
+    SBlockRealize stmt = StmtExprMutatorObj::Mutate_(realize, inplace_mode)
                              .ValueOrUnchanged(ffi::GetRef<Stmt>(realize))
                              .as_or_throw<SBlockRealize>();
     return stmt;
   }
 
   UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
-    For res = StmtExprMutator::Mutate_(op, inplace_mode)
+    For res = StmtExprMutatorObj::Mutate_(op, inplace_mode)
                   .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
                   .as_or_throw<For>();
     Var new_var = Var(op->loop_var->name, op->loop_var.ty());
@@ -718,7 +723,8 @@ ffi::Array<StmtSRef> LoopPartition(ScheduleState self, const StmtSRef& loop_sref
                                    const ffi::Array<PrimExpr>& factors, bool preserve_unit_iters) {
   const ForNode* loop = TVM_SREF_TO_FOR(loop_sref);
   if (!loop->annotations.empty()) {
-    throw MakeScheduleError<HasAnnotationOrThreadBindingError>(self->mod, ffi::GetRef<For>(loop));
+    throw MakeScheduleError<HasAnnotationOrThreadBindingErrorObj>(self->mod,
+                                                                  ffi::GetRef<For>(loop));
   }
 
   sym::Analyzer analyzer;
@@ -755,7 +761,7 @@ ffi::Array<StmtSRef> LoopPartition(ScheduleState self, const StmtSRef& loop_sref
         ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(loop->body, f_substitute).as_or_throw<Stmt>();
 
     // Create new block with new reference to each variable/stmt/expr in the existing block
-    loop_body = ffi::make_object<BlockMutator>(new_loop_var, min_value, extent_value)
+    loop_body = ffi::make_object<BlockMutatorObj>(new_loop_var, min_value, extent_value)
                     ->Mutate(loop_body, InplaceMode::kAllow)
                     .ValueOrUnchanged(std::move(loop_body));
     // Create new for loop with appropriate range
@@ -796,16 +802,16 @@ ffi::Array<StmtSRef> LoopPartition(ScheduleState self, const StmtSRef& loop_sref
   return partition_srefs;
 }
 
-class LoopReconstructor : public StmtExprMutator {
+class LoopReconstructorObj : public StmtExprMutatorObj {
  public:
-  using StmtExprMutator::Mutate;
-  using StmtExprMutator::Mutate_;
+  using StmtExprMutatorObj::Mutate;
+  using StmtExprMutatorObj::Mutate_;
   UnchangedOr<ffi::Any> Mutate(ffi::AnyView value, InplaceMode inplace_mode) override {
     if (value.as<ExprNode>()) return ffi::Unchanged();
-    return StmtExprMutator::Mutate(value, inplace_mode);
+    return StmtExprMutatorObj::Mutate(value, inplace_mode);
   }
 
-  explicit LoopReconstructor(SBlock scope_root, const std::vector<std::vector<For>>& loops)
+  explicit LoopReconstructorObj(SBlock scope_root, const std::vector<std::vector<For>>& loops)
       : scope_root_(scope_root), loops_(loops) {}
 
   /*!
@@ -855,7 +861,7 @@ class LoopReconstructor : public StmtExprMutator {
     if (block != scope_root_.get()) {
       return ffi::Unchanged();
     }
-    return StmtExprMutator::Mutate_(block, inplace_mode);
+    return StmtExprMutatorObj::Mutate_(block, inplace_mode);
   }
 
   UnchangedOr<Stmt> Mutate_(const ForNode* loop, InplaceMode inplace_mode) final {
@@ -865,7 +871,7 @@ class LoopReconstructor : public StmtExprMutator {
                           ffi::GetRef<For>(loop))) {
       return Evaluate(0);
     }
-    return StmtExprMutator::Mutate_(loop, inplace_mode);
+    return StmtExprMutatorObj::Mutate_(loop, inplace_mode);
   }
 
  public:
@@ -901,8 +907,8 @@ StmtSRef Merge(ScheduleState self, const ffi::Array<StmtSRef>& loop_srefs) {
     for (auto p = sref.get(); p != lca.get(); p = p->parent) {
       if (auto loop = p->StmtAs<ForNode>()) {
         if (!loop->annotations.empty()) {
-          throw MakeScheduleError<HasAnnotationOrThreadBindingError>(self->mod,
-                                                                     ffi::GetRef<For>(loop));
+          throw MakeScheduleError<HasAnnotationOrThreadBindingErrorObj>(self->mod,
+                                                                        ffi::GetRef<For>(loop));
         }
         CheckLoopStartsWithZero(self, ffi::GetRef<StmtSRef>(p), analyzer.get());
         nest_loop_i_loops.push_back(ffi::GetRef<For>(loop));
@@ -914,7 +920,8 @@ StmtSRef Merge(ScheduleState self, const ffi::Array<StmtSRef>& loop_srefs) {
     for (auto iter = nest_loop_i_loops.rbegin(); iter != nest_loop_i_loops.rend(); ++iter) {
       if (outer_loop &&
           (outer_loop->body->size() != 1 || !outer_loop->body->seq[0].same_as(*iter))) {
-        throw MakeScheduleError<NotOnlyChildError>(self->mod, ffi::GetRef<For>(outer_loop), *iter);
+        throw MakeScheduleError<NotOnlyChildErrorObj>(self->mod, ffi::GetRef<For>(outer_loop),
+                                                      *iter);
       }
       outer_loop = (*iter).get();
     }
@@ -944,7 +951,7 @@ StmtSRef Merge(ScheduleState self, const ffi::Array<StmtSRef>& loop_srefs) {
   }
   // Step 2. Create merged loops and replace the original loops
   SBlock scope_root = ffi::GetRef<SBlock>(scope_root_sref.value()->StmtAs<SBlockNode>());
-  auto reconstructor = ffi::make_object<LoopReconstructor>(scope_root, lca_nest_loops);
+  auto reconstructor = ffi::make_object<LoopReconstructorObj>(scope_root, lca_nest_loops);
   reconstructor->MakeNewLoop();
   SBlock new_scope_root =
       reconstructor->Mutate(scope_root).ValueOrUnchanged(scope_root).as_or_throw<SBlock>();
@@ -969,17 +976,18 @@ StmtSRef Fuse(ScheduleState self, const ffi::Array<StmtSRef>& loop_srefs,
   for (const StmtSRef& sref : loop_srefs) {
     const ForNode* loop = TVM_SREF_TO_FOR(sref);
     if (!loop->annotations.empty()) {
-      throw MakeScheduleError<HasAnnotationOrThreadBindingError>(self->mod, ffi::GetRef<For>(loop));
+      throw MakeScheduleError<HasAnnotationOrThreadBindingErrorObj>(self->mod,
+                                                                    ffi::GetRef<For>(loop));
     }
     if (outer_loop_sref.has_value()) {
       if (sref->parent != outer_loop_sref.value().get()) {
-        throw MakeScheduleError<OuterNotInnerParent>(self->mod, ffi::GetRef<For>(outer_loop),
-                                                     ffi::GetRef<For>(loop));
+        throw MakeScheduleError<OuterNotInnerParentObj>(self->mod, ffi::GetRef<For>(outer_loop),
+                                                        ffi::GetRef<For>(loop));
       }
       if (outer_loop->body->size() != 1 ||
           !outer_loop->body->seq[0].same_as(ffi::GetRef<For>(loop))) {
-        throw MakeScheduleError<NotOnlyChildError>(self->mod, ffi::GetRef<For>(outer_loop),
-                                                   ffi::GetRef<For>(loop));
+        throw MakeScheduleError<NotOnlyChildErrorObj>(self->mod, ffi::GetRef<For>(outer_loop),
+                                                      ffi::GetRef<For>(loop));
       }
     }
     outer_loop_sref = sref;
@@ -992,8 +1000,9 @@ StmtSRef Fuse(ScheduleState self, const ffi::Array<StmtSRef>& loop_srefs,
     auto result = ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(loop->extent, walkfn);
     if (result.has_value()) {
       Var used_var = result.value()->value.cast<Var>();
-      throw MakeScheduleError<DependentLoopError>(self->mod, ffi::GetRef<For>(loop), used_var->name,
-                                                  DependentLoopError::PrimitiveKind::kFuse);
+      throw MakeScheduleError<DependentLoopErrorObj>(self->mod, ffi::GetRef<For>(loop),
+                                                     used_var->name,
+                                                     DependentLoopErrorObj::PrimitiveKind::kFuse);
     }
     outer_loop_vars.insert(loop->loop_var.get());
     loops.push_back(loop);
@@ -1028,7 +1037,7 @@ StmtSRef Fuse(ScheduleState self, const ffi::Array<StmtSRef>& loop_srefs,
   ffi::Map<Var, PrimExpr> substitutions;
   for (int i = 0; i < n; ++i) substitutions.Set(loops[i]->loop_var, substitute_value[i]);
   new_stmt =
-      ffi::make_object<SubstituteVarAndCollectOpaqueBlock>(substitutions, &opaque_block_reuse)
+      ffi::make_object<SubstituteVarAndCollectOpaqueBlockObj>(substitutions, &opaque_block_reuse)
           ->Mutate(new_stmt, InplaceMode::kAllow)
           .ValueOrUnchanged(std::move(new_stmt));
   // Step 3. Generate a loop to replace the original loops
@@ -1038,7 +1047,7 @@ StmtSRef Fuse(ScheduleState self, const ffi::Array<StmtSRef>& loop_srefs,
   }
   fused_extent = analyzer->Simplify(fused_extent);
   new_stmt = For(fused_var.as_or_throw<PrimVar>(), 0, fused_extent, ForKind::kDefault, new_stmt);
-  new_stmt = IterMapSimplifyBlockBinding::SimplifyBindings(
+  new_stmt = IterMapSimplifyBlockBindingObj::SimplifyBindings(
       std::move(new_stmt), GetLoops(loop_srefs[0]), opaque_block_reuse.CopyOnWrite(),
       preserve_unit_iters);
   self->Replace(loop_srefs[0], new_stmt, opaque_block_reuse);
@@ -1052,15 +1061,15 @@ StmtSRef Fuse(ScheduleState self, const ffi::Array<StmtSRef>& loop_srefs,
  * \return A set containing all loops in the array
  * \throws ScheduleError If there are duplicate loops in the array
  */
-std::unordered_set<const StmtSRefNode*> CollectLoopsIntoSet(
+std::unordered_set<const StmtSRefObj*> CollectLoopsIntoSet(
     const ScheduleState& self, const ffi::Array<StmtSRef>& ordered_loop_srefs) {
-  std::unordered_set<const StmtSRefNode*> loop_srefs;
+  std::unordered_set<const StmtSRefObj*> loop_srefs;
   loop_srefs.reserve(ordered_loop_srefs.size());
   for (const StmtSRef& loop_sref : ordered_loop_srefs) {
     auto inserted = loop_srefs.insert(loop_sref.get());
     if (!inserted.second) {
       const ForNode* loop = TVM_SREF_TO_FOR(loop_sref);
-      throw MakeScheduleError<LoopMultiAppearanceError>(self->mod, ffi::GetRef<For>(loop));
+      throw MakeScheduleError<LoopMultiAppearanceErrorObj>(self->mod, ffi::GetRef<For>(loop));
     }
   }
   return loop_srefs;
@@ -1073,23 +1082,23 @@ std::unordered_set<const StmtSRefNode*> CollectLoopsIntoSet(
  * \return A pair containing the top and bottom boundary of the reorder range
  * \throws ScheduleError If the loops to be reordered is not in a chain
  */
-std::pair<const StmtSRefNode*, const StmtSRefNode*> GetBoundaryOfReorderRange(
-    const ScheduleState& self, const std::unordered_set<const StmtSRefNode*>& loop_srefs) {
-  const StmtSRefNode* top = nullptr;
-  const StmtSRefNode* bottom = *loop_srefs.begin();
-  std::unordered_set<const StmtSRefNode*> visited;
+std::pair<const StmtSRefObj*, const StmtSRefObj*> GetBoundaryOfReorderRange(
+    const ScheduleState& self, const std::unordered_set<const StmtSRefObj*>& loop_srefs) {
+  const StmtSRefObj* top = nullptr;
+  const StmtSRefObj* bottom = *loop_srefs.begin();
+  std::unordered_set<const StmtSRefObj*> visited;
   bool scope_block_visited = false;
   bool first_traversal = true;
-  for (const StmtSRefNode* loop_sref : loop_srefs) {
+  for (const StmtSRefObj* loop_sref : loop_srefs) {
     if (visited.count(loop_sref)) {
       continue;
     }
-    for (const StmtSRefNode* v = loop_sref;; v = v->parent) {
+    for (const StmtSRefObj* v = loop_sref;; v = v->parent) {
       // Case 1. If `v` corresponds to a block, stop traversal.
       if (v->stmt->IsInstance<SBlockNode>()) {
         if (scope_block_visited) {
-          throw MakeScheduleError<LoopsNotAChainError>(
-              self->mod, std::nullopt, LoopsNotAChainError::ProblemKind::kNotUnderAScope);
+          throw MakeScheduleError<LoopsNotAChainErrorObj>(
+              self->mod, std::nullopt, LoopsNotAChainErrorObj::ProblemKind::kNotUnderAScope);
         }
         scope_block_visited = true;
         break;
@@ -1098,9 +1107,9 @@ std::pair<const StmtSRefNode*, const StmtSRefNode*> GetBoundaryOfReorderRange(
       // `bottom`.
       if (visited.count(v)) {
         if (v != bottom) {
-          throw MakeScheduleError<LoopsNotAChainError>(
+          throw MakeScheduleError<LoopsNotAChainErrorObj>(
               self->mod, ffi::GetRef<Stmt>(v->stmt),
-              LoopsNotAChainError::ProblemKind::kHaveNonSingleBranchStmt);
+              LoopsNotAChainErrorObj::ProblemKind::kHaveNonSingleBranchStmt);
         }
         bottom = loop_sref;
         break;
@@ -1126,19 +1135,19 @@ std::pair<const StmtSRefNode*, const StmtSRefNode*> GetBoundaryOfReorderRange(
  * \return An array containing all the loops in the reorder range
  * \throws ScheduleError If some loop in the reorder range is not single-branch
  */
-std::vector<const StmtSRefNode*> GetLoopsInReorderRange(const ScheduleState& self,
-                                                        const StmtSRefNode* top,
-                                                        const StmtSRefNode* bottom) {
-  std::vector<const StmtSRefNode*> chain;
-  for (const StmtSRefNode* loop_sref = bottom; loop_sref != top;) {
-    const StmtSRefNode* parent_loop_sref = loop_sref->parent;
+std::vector<const StmtSRefObj*> GetLoopsInReorderRange(const ScheduleState& self,
+                                                       const StmtSRefObj* top,
+                                                       const StmtSRefObj* bottom) {
+  std::vector<const StmtSRefObj*> chain;
+  for (const StmtSRefObj* loop_sref = bottom; loop_sref != top;) {
+    const StmtSRefObj* parent_loop_sref = loop_sref->parent;
     const ForNode* outer = parent_loop_sref->StmtAs<ForNode>();
     const ForNode* inner = loop_sref->StmtAs<ForNode>();
     TVM_FFI_ICHECK(outer != nullptr && inner != nullptr);
     if (outer->body->size() != 1 || outer->body->seq[0].get() != inner) {
-      throw MakeScheduleError<LoopsNotAChainError>(
+      throw MakeScheduleError<LoopsNotAChainErrorObj>(
           self->mod, ffi::GetRef<For>(outer),
-          LoopsNotAChainError::ProblemKind::kHaveNonSingleBranchStmt);
+          LoopsNotAChainErrorObj::ProblemKind::kHaveNonSingleBranchStmt);
     }
     chain.push_back(loop_sref);
     loop_sref = parent_loop_sref;
@@ -1157,14 +1166,14 @@ std::vector<const StmtSRefNode*> GetLoopsInReorderRange(const ScheduleState& sel
  * \throws ScheduleError If the domain of an outer loop depends on any of the inner loops after
  * reordering
  */
-For ConstructNewLoopChain(const ScheduleState& self, std::vector<const StmtSRefNode*> chain,
+For ConstructNewLoopChain(const ScheduleState& self, std::vector<const StmtSRefObj*> chain,
                           const ffi::Array<StmtSRef>& ordered_loop_srefs,
-                          const std::unordered_set<const StmtSRefNode*>& loop_srefs) {
+                          const std::unordered_set<const StmtSRefObj*>& loop_srefs) {
   std::unordered_set<const VarNode*> inner_vars;
   inner_vars.reserve(chain.size());
   ffi::Optional<For> new_loop;
   int index = static_cast<int>(ordered_loop_srefs.size()) - 1;
-  for (const StmtSRefNode* loop_sref : chain) {
+  for (const StmtSRefObj* loop_sref : chain) {
     const ForNode* copy = nullptr;
     if (loop_srefs.count(loop_sref)) {
       copy = ordered_loop_srefs[index]->StmtAs<ForNode>();
@@ -1189,8 +1198,9 @@ For ConstructNewLoopChain(const ScheduleState& self, std::vector<const StmtSRefN
     }
     if (result.has_value()) {
       Var used_var = result.value()->value.cast<Var>();
-      throw MakeScheduleError<DependentLoopError>(self->mod, ffi::GetRef<For>(copy), used_var->name,
-                                                  DependentLoopError::PrimitiveKind::kReorder);
+      throw MakeScheduleError<DependentLoopErrorObj>(
+          self->mod, ffi::GetRef<For>(copy), used_var->name,
+          DependentLoopErrorObj::PrimitiveKind::kReorder);
     }
     inner_vars.insert(copy->loop_var.get());
     new_loop = For(std::move(n));
@@ -1203,8 +1213,7 @@ void Reorder(ScheduleState self, const ffi::Array<StmtSRef>& ordered_loop_srefs)
     return;
   }
   // Step 1. Check uniqueness and collect the input loop srefs into a set
-  std::unordered_set<const StmtSRefNode*> loop_srefs =
-      CollectLoopsIntoSet(self, ordered_loop_srefs);
+  std::unordered_set<const StmtSRefObj*> loop_srefs = CollectLoopsIntoSet(self, ordered_loop_srefs);
   // Step 2. Gather loops to be reordered
   // For each loop sref in the input sref array, traverse upwards along its parent pointer in the
   // sref tree, and stop on either a block, or a previously-visited loop
@@ -1214,10 +1223,10 @@ void Reorder(ScheduleState self, const ffi::Array<StmtSRef>& ordered_loop_srefs)
   // the previous traversals
   auto [top, bottom] = GetBoundaryOfReorderRange(self, loop_srefs);
   // Step 3. Collect all loops in the chain and check the loops are single-branch
-  std::vector<const StmtSRefNode*> chain = GetLoopsInReorderRange(self, top, bottom);
+  std::vector<const StmtSRefObj*> chain = GetLoopsInReorderRange(self, top, bottom);
   // Step 4. Check the block below has all its block_var to be data-parallel or reduction,
   // and the block has an affine binding wrt top of the loop range.
-  BlockPropertyError::CheckBlockIterTypeAndAffineBinding(self, top, bottom);
+  BlockPropertyErrorObj::CheckBlockIterTypeAndAffineBinding(self, top, bottom);
   // Step 5. Replace the original loops with the reordered loops and check that outer loop is
   // not dependent on inner loop
   For new_loop = ConstructNewLoopChain(self, std::move(chain), ordered_loop_srefs, loop_srefs);
@@ -1231,16 +1240,16 @@ StmtSRef AddUnitLoop(ScheduleState self, StmtSRef sref) {
     self->Replace(sref, new_loop, {});
     return self->stmt2ref.at(new_loop.get());
   }
-  class NewLoopCreator : public StmtExprMutator {
+  class NewLoopCreatorObj : public StmtExprMutatorObj {
    public:
-    using StmtExprMutator::Mutate;
-    using StmtExprMutator::Mutate_;
+    using StmtExprMutatorObj::Mutate;
+    using StmtExprMutatorObj::Mutate_;
     UnchangedOr<ffi::Any> Mutate(ffi::AnyView value, InplaceMode inplace_mode) override {
       if (value.as<ExprNode>()) return ffi::Unchanged();
-      return StmtExprMutator::Mutate(value, inplace_mode);
+      return StmtExprMutatorObj::Mutate(value, inplace_mode);
     }
 
-    explicit NewLoopCreator(const StmtNode* src_block) : src_block_(src_block) {}
+    explicit NewLoopCreatorObj(const StmtNode* src_block) : src_block_(src_block) {}
 
     UnchangedOr<Stmt> Mutate_(const SBlockRealizeNode* realize, InplaceMode inplace_mode) final {
       if (realize->block.get() == src_block_) {
@@ -1248,7 +1257,7 @@ StmtSRef AddUnitLoop(ScheduleState self, StmtSRef sref) {
                         ffi::GetRef<SBlockRealize>(realize));
         return new_loop_.value();
       }
-      return StmtExprMutator::Mutate_(realize, inplace_mode);
+      return StmtExprMutatorObj::Mutate_(realize, inplace_mode);
     }
 
     const StmtNode* src_block_;
@@ -1257,7 +1266,7 @@ StmtSRef AddUnitLoop(ScheduleState self, StmtSRef sref) {
 
   TVM_FFI_CHECK(sref->parent != nullptr, ValueError) << "Cannot add loops on top of the root block";
   StmtSRef parent_sref = ffi::GetRef<StmtSRef>(sref->parent);
-  auto creator = ffi::make_object<NewLoopCreator>(sref->stmt);
+  auto creator = ffi::make_object<NewLoopCreatorObj>(sref->stmt);
   Stmt new_stmt = creator->Mutate(ffi::GetRef<Stmt>(parent_sref->stmt))
                       .ValueOrUnchanged(ffi::GetRef<Stmt>(parent_sref->stmt));
   if (new_stmt->IsInstance<ForNode>()) {

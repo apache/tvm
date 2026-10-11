@@ -42,18 +42,18 @@ namespace runtime {
 namespace contrib {
 using namespace tvm::runtime;
 using namespace tvm::runtime::json;
-class HipblasJSONRuntime : public JSONRuntimeBase {
+class HipblasJSONRuntimeObj : public JSONRuntimeBaseObj {
  public:
-  HipblasJSONRuntime(const std::string& symbol_name, const std::string& graph_json,
-                     const ffi::Array<ffi::String> const_names)
-      : JSONRuntimeBase(symbol_name, graph_json, const_names) {}
+  HipblasJSONRuntimeObj(const std::string& symbol_name, const std::string& graph_json,
+                        const ffi::Array<ffi::String> const_names)
+      : JSONRuntimeBaseObj(symbol_name, graph_json, const_names) {}
 
   void Init(const ffi::Array<Tensor>& consts) override {}
 
   ffi::Optional<ffi::Function> GetFunction(const ffi::String& name) override {
-    // JSONRuntimeBase::SetInputOutputBuffers(...) is not thread safe. Since HipblasJSONRuntime
-    // can be used by multiple GPUs running on different threads, we avoid using that function
-    // and directly call hipBLAS on the inputs from ffi::PackedArgs.
+    // JSONRuntimeBaseObj::SetInputOutputBuffers(...) is not thread safe. Since
+    // HipblasJSONRuntimeObj can be used by multiple GPUs running on different threads, we avoid
+    // using that function and directly call hipBLAS on the inputs from ffi::PackedArgs.
     ffi::ObjectPtr<ffi::Object> sptr_to_self = ffi::GetObjectPtr<ffi::Object>(this);
     if (this->symbol_name_ == name) {
       return ffi::Function([sptr_to_self, this](ffi::PackedArgs args, ffi::Any* rv) {
@@ -61,7 +61,7 @@ class HipblasJSONRuntime : public JSONRuntimeBase {
         this->Run(args);
       });
     } else {
-      return JSONRuntimeBase::GetFunction(name);
+      return JSONRuntimeBaseObj::GetFunction(name);
     }
   }
 
@@ -143,7 +143,7 @@ class HipblasJSONRuntime : public JSONRuntimeBase {
 
 ffi::Module HipblasJSONRuntimeCreate(ffi::String symbol_name, ffi::String graph_json,
                                      const ffi::Array<ffi::String>& const_names) {
-  auto n = ffi::make_object<HipblasJSONRuntime>(symbol_name, graph_json, const_names);
+  auto n = ffi::make_object<HipblasJSONRuntimeObj>(symbol_name, graph_json, const_names);
   return ffi::Module(n);
 }
 
@@ -152,7 +152,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef()
       .def("runtime.HipblasJSONRuntimeCreate", HipblasJSONRuntimeCreate)
       .def("ffi.Module.load_from_bytes.hipblas_json",
-           JSONRuntimeBase::LoadFromBytes<HipblasJSONRuntime>);
+           JSONRuntimeBaseObj::LoadFromBytes<HipblasJSONRuntimeObj>);
 }
 
 }  // namespace contrib

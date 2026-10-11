@@ -463,16 +463,16 @@ struct BufferDescriptor {
 // To make the call thread-safe, we create a thread-local kernel table
 // and lazily install new kernels into the kernel table when the kernel is called.
 // The kernels are recycled when the module get destructed.
-class OpenCLModuleNodeBase : public ffi::ModuleObj {
+class OpenCLModuleBaseObj : public ffi::ModuleObj {
  public:
   // Kernel table reference entry.
   struct KTRefEntry {
     size_t kernel_id;
     size_t version;
   };
-  explicit OpenCLModuleNodeBase(ffi::Map<ffi::String, FunctionInfo> fmap) : fmap_(fmap) {}
+  explicit OpenCLModuleBaseObj(ffi::Map<ffi::String, FunctionInfo> fmap) : fmap_(fmap) {}
   // destructor
-  ~OpenCLModuleNodeBase();
+  ~OpenCLModuleBaseObj();
 
   /*!
    * \brief Get the global workspace
@@ -510,12 +510,12 @@ class OpenCLModuleNodeBase : public ffi::ModuleObj {
   std::vector<cl_kernel> kernels_;
 };
 
-class OpenCLModuleNode : public OpenCLModuleNodeBase {
+class OpenCLModuleObj : public OpenCLModuleBaseObj {
  public:
-  explicit OpenCLModuleNode(ffi::Bytes code, ffi::String fmt,
-                            ffi::Map<ffi::String, FunctionInfo> fmap,
-                            ffi::Map<ffi::String, ffi::String> source)
-      : OpenCLModuleNodeBase(fmap),
+  explicit OpenCLModuleObj(ffi::Bytes code, ffi::String fmt,
+                           ffi::Map<ffi::String, FunctionInfo> fmap,
+                           ffi::Map<ffi::String, ffi::String> source)
+      : OpenCLModuleBaseObj(fmap),
         code_(std::move(code)),
         fmt_(std::move(fmt)),
         source_(std::move(source)) {}
@@ -548,7 +548,7 @@ class OpenCLModuleNode : public OpenCLModuleNodeBase {
 };
 
 /*! \brief OpenCL timer node */
-class OpenCLTimerNode : public TimerNode {
+class OpenCLTimerObj : public TimerObj {
  public:
   // Timer start
   virtual void Start() {
@@ -588,7 +588,7 @@ class OpenCLTimerNode : public TimerNode {
   }
   virtual int64_t SyncAndGetElapsedNanos() { return this->duration; }
   // destructor
-  virtual ~OpenCLTimerNode() {
+  virtual ~OpenCLTimerObj() {
     // Profiling session ends, recreate clCommandQueue in non-profiling mode
     // This will disable collection of cl_events in case of executing inference after profile
     if (count_timer_execs == 0) {
@@ -597,12 +597,12 @@ class OpenCLTimerNode : public TimerNode {
     }
   }
   // constructor
-  OpenCLTimerNode() {}
-  explicit OpenCLTimerNode(Device dev) : dev_(dev) {}
+  OpenCLTimerObj() {}
+  explicit OpenCLTimerObj(Device dev) : dev_(dev) {}
 
   static size_t count_timer_execs;
   static std::vector<size_t> event_start_idxs;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("runtime.opencl.OpenCLTimerNode", OpenCLTimerNode, TimerNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("runtime.opencl.OpenCLTimerNode", OpenCLTimerObj, TimerObj);
 
  private:
   int64_t duration;

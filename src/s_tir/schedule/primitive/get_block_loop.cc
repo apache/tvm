@@ -28,15 +28,15 @@ using namespace tvm::tirx;
 
 ffi::Array<StmtSRef> GetSBlocks(const ScheduleState& self, const ffi::String& name,
                                 const GlobalVar& gv) {
-  struct Finder : public StmtExprVisitor {
-    using StmtExprVisitor::Visit_;
+  struct FinderObj : public StmtExprVisitorObj {
+    using StmtExprVisitorObj::Visit_;
 
     ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
       if (value.as<ExprNode>()) return std::nullopt;
-      return StmtExprVisitor::Visit(value);
+      return StmtExprVisitorObj::Visit(value);
     }
 
-    explicit Finder(const ScheduleState& self, const ffi::String& name)
+    explicit FinderObj(const ScheduleState& self, const ffi::String& name)
         : self_(self), name_(name) {}
 
     ffi::Optional<VisitInterrupt> Visit_(const SBlockNode* block) override {
@@ -45,7 +45,7 @@ ffi::Array<StmtSRef> GetSBlocks(const ScheduleState& self, const ffi::String& na
         TVM_FFI_ICHECK(it != self_->stmt2ref.end());
         results_.push_back(it->second);
       }
-      return StmtExprVisitor::Visit_(block);
+      return StmtExprVisitorObj::Visit_(block);
     }
 
     const ScheduleState& self_;
@@ -55,14 +55,14 @@ ffi::Array<StmtSRef> GetSBlocks(const ScheduleState& self, const ffi::String& na
 
   BaseFunc func = self->mod->Lookup(gv);
   const auto* function = TVM_TYPE_AS(func, FunctionNode);
-  auto finder = ffi::make_object<Finder>(self, name);
+  auto finder = ffi::make_object<FinderObj>(self, name);
   finder->Visit(function->body);
   return std::move(finder->results_);
 }
 
 ffi::Array<StmtSRef> GetLoops(const StmtSRef& block_sref) {
   std::vector<StmtSRef> result;
-  for (StmtSRefNode* parent = block_sref->parent; parent && parent->stmt->IsInstance<ForNode>();
+  for (StmtSRefObj* parent = block_sref->parent; parent && parent->stmt->IsInstance<ForNode>();
        parent = parent->parent) {
     result.push_back(ffi::GetRef<StmtSRef>(parent));
   }
@@ -70,12 +70,12 @@ ffi::Array<StmtSRef> GetLoops(const StmtSRef& block_sref) {
 }
 
 ffi::Array<StmtSRef> GetChildBlocks(const ScheduleState& self, const StmtSRef& parent_sref) {
-  struct Collector : public StmtExprVisitor {
-    using StmtExprVisitor::Visit_;
+  struct CollectorObj : public StmtExprVisitorObj {
+    using StmtExprVisitorObj::Visit_;
 
     ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
       if (value.as<ExprNode>()) return std::nullopt;
-      return StmtExprVisitor::Visit(value);
+      return StmtExprVisitorObj::Visit(value);
     }
 
    private:
@@ -85,12 +85,12 @@ ffi::Array<StmtSRef> GetChildBlocks(const ScheduleState& self, const StmtSRef& p
     }
 
    public:
-    explicit Collector(const ScheduleState& self) : self(self) {}
+    explicit CollectorObj(const ScheduleState& self) : self(self) {}
 
     const ScheduleState& self;
     ffi::Array<StmtSRef> result;
   };
-  auto collector = ffi::make_object<Collector>(self);
+  auto collector = ffi::make_object<CollectorObj>(self);
   if (parent_sref->stmt->IsInstance<ForNode>()) {
     const auto* loop = static_cast<const ForNode*>(parent_sref->stmt);
     collector->Visit(loop->body);

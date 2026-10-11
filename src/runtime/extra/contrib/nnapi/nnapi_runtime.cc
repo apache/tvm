@@ -48,11 +48,11 @@ namespace contrib {
 using namespace tvm::runtime::json;
 using JSONGraphNode = tvm::runtime::json::JSONGraphNode;
 
-class NNAPIRuntime : public JSONRuntimeBase {
+class NNAPIRuntimeObj : public JSONRuntimeBaseObj {
  public:
-  explicit NNAPIRuntime(const std::string& symbol_name, const std::string& graph_json,
-                        const ffi::Array<ffi::String>& const_names)
-      : JSONRuntimeBase(symbol_name, graph_json, const_names) {}
+  explicit NNAPIRuntimeObj(const std::string& symbol_name, const std::string& graph_json,
+                           const ffi::Array<ffi::String>& const_names)
+      : JSONRuntimeBaseObj(symbol_name, graph_json, const_names) {}
 
   const char* kind() const final { return "nnapi"; }
 
@@ -243,7 +243,7 @@ class NNAPIRuntime : public JSONRuntimeBase {
 
 ffi::Module NNAPIRuntimeCreate(const ffi::String& symbol_name, const ffi::String& graph_json,
                                const ffi::Array<ffi::String>& const_names) {
-  auto n = ffi::make_object<NNAPIRuntime>(symbol_name, graph_json, const_names);
+  auto n = ffi::make_object<NNAPIRuntimeObj>(symbol_name, graph_json, const_names);
   return ffi::Module(n);
 }
 
@@ -251,7 +251,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("runtime.nnapi_runtime_create", NNAPIRuntimeCreate)
-      .def("ffi.Module.load_from_bytes.nnapi", JSONRuntimeBase::LoadFromBytes<NNAPIRuntime>);
+      .def("ffi.Module.load_from_bytes.nnapi", JSONRuntimeBaseObj::LoadFromBytes<NNAPIRuntimeObj>);
 }
 
 }  // namespace contrib

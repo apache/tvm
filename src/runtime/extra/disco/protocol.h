@@ -93,14 +93,14 @@ struct DiscoProtocol {
  * \brief The debug extension of the communication protocol that allows serialization and
  * deserialization of Tensors and reflection-capable TVM objects.
  */
-struct DiscoDebugObject : public ffi::Object {
+struct DiscoDebugObj : public ffi::Object {
  public:
   /*! \brief The data to be serialized */
   ffi::Any data;
 
   /*! \brief Wrap an Tensor or reflection-capable TVM object into the debug extension. */
   static ffi::ObjectRef Wrap(const ffi::Any& data) {
-    ffi::ObjectPtr<DiscoDebugObject> n = ffi::make_object<DiscoDebugObject>();
+    ffi::ObjectPtr<DiscoDebugObj> n = ffi::make_object<DiscoDebugObj>();
     n->data = data;
     return ffi::ObjectRef(n);
   }
@@ -115,12 +115,12 @@ struct DiscoDebugObject : public ffi::Object {
   /*! \brief Serialize the debug object to string */
   inline std::string SaveToStr() const;
   /*! \brief Deserialize the debug object from string */
-  static inline ffi::ObjectPtr<DiscoDebugObject> LoadFromStr(std::string json_str);
+  static inline ffi::ObjectPtr<DiscoDebugObj> LoadFromStr(std::string json_str);
   /*! \brief Get the size of the debug object in bytes */
   inline uint64_t GetFFIAnyProtocolBytes() const {
     return sizeof(uint64_t) + this->SaveToStr().size();
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("runtime.disco.DiscoDebugObject", DiscoDebugObject, SessionObj);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("runtime.disco.DiscoDebugObject", DiscoDebugObj, SessionObj);
 };
 
 template <class SubClassType>
@@ -137,7 +137,7 @@ inline uint64_t DiscoProtocol<SubClassType>::GetFFIAnyProtocolBytes(const TVMFFI
   } else if (const auto opt_shape = any_view_ptr->as<ffi::Shape>()) {
     uint64_t ndim = (*opt_shape).size();
     return sizeof(uint32_t) + sizeof(uint64_t) + ndim * sizeof(ffi::ShapeObj::index_type);
-  } else if (const auto opt_debug_obj = any_view_ptr->as<DiscoDebugObject>()) {
+  } else if (const auto opt_debug_obj = any_view_ptr->as<DiscoDebugObj>()) {
     return sizeof(uint32_t) + (*opt_debug_obj).GetFFIAnyProtocolBytes();
   } else {
     TVM_FFI_THROW(ValueError) << "Object type is not supported in Disco calling convention: "
@@ -166,7 +166,7 @@ inline void DiscoProtocol<SubClassType>::WriteFFIAny(const TVMFFIAny* value) {
     self->template Write<uint32_t>(ffi::TypeIndex::kTVMFFIShape);
     self->template Write<uint64_t>((*opt_shape).size());
     self->template WriteArray<ffi::ShapeObj::index_type>((*opt_shape).data(), (*opt_shape).size());
-  } else if (const auto opt_debug_obj = any_view_ptr->as<DiscoDebugObject>()) {
+  } else if (const auto opt_debug_obj = any_view_ptr->as<DiscoDebugObj>()) {
     self->template Write<uint32_t>(0);
     std::string str = (*opt_debug_obj).SaveToStr();
     self->template Write<uint64_t>(str.size());
@@ -211,7 +211,7 @@ inline void DiscoProtocol<SubClassType>::ReadFFIAny(TVMFFIAny* out) {
     self->template Read<uint64_t>(&size);
     std::string data(size, '\0');
     self->template ReadArray<char>(data.data(), size);
-    result = DiscoDebugObject::LoadFromStr(std::move(data))->data.cast<ffi::ObjectRef>();
+    result = DiscoDebugObj::LoadFromStr(std::move(data))->data.cast<ffi::ObjectRef>();
   } else {
     TVM_FFI_THROW(ValueError) << "Object type is not supported in Disco calling convention: "
                               << ffi::Object::TypeIndex2Key(type_index)
@@ -221,7 +221,7 @@ inline void DiscoProtocol<SubClassType>::ReadFFIAny(TVMFFIAny* out) {
   any_arena_.push_back(result);
 }
 
-inline std::string DiscoDebugObject::SaveToStr() const {
+inline std::string DiscoDebugObj::SaveToStr() const {
   if (auto opt_nd = this->data.as<Tensor>()) {
     Tensor array = opt_nd.value();
     std::string result;
@@ -244,11 +244,11 @@ inline std::string DiscoDebugObject::SaveToStr() const {
   return "";
 }
 
-inline ffi::ObjectPtr<DiscoDebugObject> DiscoDebugObject::LoadFromStr(std::string json_str) {
+inline ffi::ObjectPtr<DiscoDebugObj> DiscoDebugObj::LoadFromStr(std::string json_str) {
   TVM_FFI_ICHECK(!json_str.empty());
   char control_bit = json_str.back();
   json_str.pop_back();
-  ffi::ObjectPtr<DiscoDebugObject> result = ffi::make_object<DiscoDebugObject>();
+  ffi::ObjectPtr<DiscoDebugObj> result = ffi::make_object<DiscoDebugObj>();
   if (control_bit == '0') {
     result->data = ffi::FromJSONGraph(ffi::json::Parse(json_str));
   } else if (control_bit == '1') {

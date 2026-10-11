@@ -33,51 +33,51 @@ using namespace tvm::prim;
 
 /* relax.ccl.allreduce */
 
-void AllReduceAttrs::RegisterReflection() {
+void AllReduceAttrsNode::RegisterReflection() {
   namespace refl = tvm::ffi::reflection;
-  refl::ObjectDef<AllReduceAttrs>()
-      .def_ro("op_type", &AllReduceAttrs::op_type,
+  refl::ObjectDef<AllReduceAttrsNode>()
+      .def_ro("op_type", &AllReduceAttrsNode::op_type,
               "The type of reduction operation to be applied to the input data. Now only sum is "
               "supported.",
               refl::DefaultValue(ffi::String("sum")))
-      .def_ro("in_group", &AllReduceAttrs::in_group,
+      .def_ro("in_group", &AllReduceAttrsNode::in_group,
               "Whether the reduction operation performs in group or globally or in group as "
               "default.",
               refl::DefaultValue(true));
 }
 
-void AllGatherAttrs::RegisterReflection() {
+void AllGatherAttrsNode::RegisterReflection() {
   namespace refl = tvm::ffi::reflection;
-  refl::ObjectDef<AllGatherAttrs>()
-      .def_ro("num_workers", &AllGatherAttrs::num_workers,
+  refl::ObjectDef<AllGatherAttrsNode>()
+      .def_ro("num_workers", &AllGatherAttrsNode::num_workers,
               "The number of workers, also the number of parts the given buffer should be "
               "chunked into.")
-      .def_ro("in_group", &AllGatherAttrs::in_group,
+      .def_ro("in_group", &AllGatherAttrsNode::in_group,
               "Whether the allgather operation performs in group or globally or in group as "
               "default.",
               refl::DefaultValue(true));
 }
 
-void ScatterCollectiveAttrs::RegisterReflection() {
+void ScatterCollectiveAttrsNode::RegisterReflection() {
   namespace refl = tvm::ffi::reflection;
-  refl::ObjectDef<ScatterCollectiveAttrs>()
-      .def_ro("num_workers", &ScatterCollectiveAttrs::num_workers,
+  refl::ObjectDef<ScatterCollectiveAttrsNode>()
+      .def_ro("num_workers", &ScatterCollectiveAttrsNode::num_workers,
               "The number of workers, also the number of parts the given buffer should be "
               "chunked into.")
-      .def_ro("axis", &ScatterCollectiveAttrs::axis,
+      .def_ro("axis", &ScatterCollectiveAttrsNode::axis,
               "The axis of the tensor to be scattered. The tensor will be chunked along "
               "this axis.",
               refl::DefaultValue(0));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  AllReduceAttrs::RegisterReflection();
-  AllGatherAttrs::RegisterReflection();
-  ScatterCollectiveAttrs::RegisterReflection();
+  AllReduceAttrsNode::RegisterReflection();
+  AllGatherAttrsNode::RegisterReflection();
+  ScatterCollectiveAttrsNode::RegisterReflection();
 }
 
 Expr allreduce(Expr x, ffi::String op_type, bool in_group) {
-  ffi::ObjectPtr<AllReduceAttrs> attrs = ffi::make_object<AllReduceAttrs>();
+  ffi::ObjectPtr<AllReduceAttrsNode> attrs = ffi::make_object<AllReduceAttrsNode>();
   attrs->op_type = std::move(op_type);
   attrs->in_group = std::move(in_group);
 
@@ -100,7 +100,7 @@ Type InferTypeAllReduce(const CallNode* call_node) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.ccl.allreduce")
       .signature(sig::arg("x", "Input to which allreduce will be applied."),
-                 sig::call_attrs<AllReduceAttrs>())
+                 sig::call_attrs<AllReduceAttrsNode>())
       .set_attr<FInferType>(tvm::op_attr::kInferType, FInferType::FromNative<&InferTypeAllReduce>())
       .set_attr<FRelaxInferLayout>(tvm::relax::op_attr::kInferLayout, InferLayoutUnaryEwise)
       .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
@@ -109,7 +109,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 /* relax.ccl.allgather */
 
 Expr allgather(Expr x, int num_workers, bool in_group) {
-  ffi::ObjectPtr<AllGatherAttrs> attrs = ffi::make_object<AllGatherAttrs>();
+  ffi::ObjectPtr<AllGatherAttrsNode> attrs = ffi::make_object<AllGatherAttrsNode>();
   attrs->num_workers = std::move(num_workers);
   attrs->in_group = std::move(in_group);
 
@@ -126,7 +126,7 @@ Type InferTypeAllGather(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
   TensorType input_ty = GetUnaryInputTensorType(call);
 
-  const auto* attrs = call->attrs.as<AllGatherAttrs>();
+  const auto* attrs = call->attrs.as<AllGatherAttrsNode>();
   int num_workers = attrs->num_workers;
 
   ffi::Optional<PrimType> output_dtype = input_ty->dtype;
@@ -142,7 +142,7 @@ Type InferTypeAllGather(const CallNode* call_node) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.ccl.allgather")
       .signature(sig::arg("x", "Input to which allgather will be applied."),
-                 sig::call_attrs<AllGatherAttrs>())
+                 sig::call_attrs<AllGatherAttrsNode>())
       .set_attr<FInferType>(tvm::op_attr::kInferType, FInferType::FromNative<&InferTypeAllGather>())
       .set_attr<FRelaxInferLayout>(tvm::relax::op_attr::kInferLayout, InferLayoutUnaryEwise)
       .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
@@ -177,7 +177,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 /* relax.ccl.scatter_from_worker0 */
 
 Expr scatter_from_worker0(Expr data, int num_workers, int axis) {
-  ffi::ObjectPtr<ScatterCollectiveAttrs> attrs = ffi::make_object<ScatterCollectiveAttrs>();
+  ffi::ObjectPtr<ScatterCollectiveAttrsNode> attrs = ffi::make_object<ScatterCollectiveAttrsNode>();
   attrs->num_workers = std::move(num_workers);
   attrs->axis = std::move(axis);
   static const Op op = Op::Get("relax.ccl.scatter_from_worker0");
@@ -194,7 +194,7 @@ Type InferTypeScatter(const Call& call, const BlockBuilder& ctx) {
   TensorType input_ty = GetUnaryInputTensorType(call, ctx);
   ffi::Optional<PrimType> output_dtype = input_ty->dtype;
 
-  const auto* attrs = call->attrs.as<ScatterCollectiveAttrs>();
+  const auto* attrs = call->attrs.as<ScatterCollectiveAttrsNode>();
   int num_workers = attrs->num_workers;
 
   sym::Analyzer analyzer = ctx->GetAnalyzer();
@@ -220,7 +220,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
           sig::arg(
               "x",
               "The buffer to be divided into equal parts and sent to each worker accordingly."),
-          sig::call_attrs<ScatterCollectiveAttrs>())
+          sig::call_attrs<ScatterCollectiveAttrsNode>())
       .set_attr<FInferTypeWithBuilder>(tvm::relax::op_attr::kInferTypeWithBuilder, InferTypeScatter)
       .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
 }

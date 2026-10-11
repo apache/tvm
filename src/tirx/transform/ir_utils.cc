@@ -80,7 +80,7 @@ Stmt MergeNest(const std::vector<std::vector<Stmt>>& nest, Stmt body) {
   return body;
 }
 
-Function IRConvertSSA::VisitFunction(Function func) {
+Function IRConvertSSAObj::VisitFunction(Function func) {
   std::unordered_set<const VarNode*> parameter_symbols;
   // Define explicit parameters before the symbolic values in their types.
   for (const Var& param : func->params) {
@@ -147,7 +147,7 @@ Function IRConvertSSA::VisitFunction(Function func) {
   return func;
 }
 
-UnchangedOr<Expr> IRConvertSSA::Mutate_(const VarNode* op, InplaceMode inplace_mode) {
+UnchangedOr<Expr> IRConvertSSAObj::Mutate_(const VarNode* op, InplaceMode inplace_mode) {
   Var var = ffi::GetRef<Var>(op);
   if (def_region_kind() != kTVMFFIDefRegionKindNone) {
     if (def_region_kind() == kTVMFFIDefRegionKindPattern) {
@@ -161,20 +161,21 @@ UnchangedOr<Expr> IRConvertSSA::Mutate_(const VarNode* op, InplaceMode inplace_m
   return ffi::Unchanged();
 }
 
-UnchangedOr<PrimExpr> IRConvertSSA::Mutate_(const prim::LetNode* op, InplaceMode inplace_mode) {
+UnchangedOr<PrimExpr> IRConvertSSAObj::Mutate_(const prim::LetNode* op, InplaceMode inplace_mode) {
   ffi::Any previous_remap = VarRemapGet(op->var);
   PrimExpr result = scope_.WithNewScope([&] {
-    return StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<PrimExpr>(op));
+    return StmtExprMutatorObj::Mutate_(op, inplace_mode)
+        .ValueOrUnchanged(ffi::GetRef<PrimExpr>(op));
   });
   VarRemapSet(op->var, previous_remap);
   return result;
 }
 
-Stmt IRConvertSSA::WithScope(const std::function<Stmt()>& body) {
+Stmt IRConvertSSAObj::WithScope(const std::function<Stmt()>& body) {
   return scope_.WithNewScope(body);
 }
 
-Var IRConvertSSA::DefineVar(Var var) {
+Var IRConvertSSAObj::DefineVar(Var var) {
   Type type = WithDefRegionKind(kTVMFFIDefRegionKindNone, [&] {
     return Mutate(var->ty, InplaceMode::kDisallow)
         .as_or_throw<UnchangedOr<Type>>()
@@ -187,7 +188,7 @@ Var IRConvertSSA::DefineVar(Var var) {
   return result;
 }
 
-Var IRConvertSSA::GetRemappedVar(Var var) {
+Var IRConvertSSAObj::GetRemappedVar(Var var) {
   if (auto it = scoped_var_remap_.find(var.get());
       it != scoped_var_remap_.end() && it->second.size()) {
     return it->second.back();
@@ -196,18 +197,18 @@ Var IRConvertSSA::GetRemappedVar(Var var) {
   }
 }
 
-UnchangedOr<Stmt> IRConvertSSA::Mutate_(const BindNode* op, InplaceMode inplace_mode) {
+UnchangedOr<Stmt> IRConvertSSAObj::Mutate_(const BindNode* op, InplaceMode inplace_mode) {
   Var var = op->var;
   ffi::Any previous_remap = VarRemapGet(var);
   // The ordinary Bind path rewrites the RHS before defining the Var and propagates its type.
-  Stmt stmt = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
+  Stmt stmt = StmtExprMutatorObj::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
   Var bound_var = stmt.as<BindNode>()->var;
   if (!bound_var.same_as(GetRemappedVar(var))) PushVarRemap(var, bound_var);
   VarRemapSet(var, previous_remap);
   return stmt;
 }
 
-UnchangedOr<Stmt> IRConvertSSA::Mutate_(const IfNode* op, InplaceMode inplace_mode) {
+UnchangedOr<Stmt> IRConvertSSAObj::Mutate_(const IfNode* op, InplaceMode inplace_mode) {
   // Each branch gets its own scope so Bind remaps in one branch
   // do not leak into the other.
   auto condition_result = Mutate(op->condition, inplace_mode);
@@ -228,14 +229,14 @@ UnchangedOr<Stmt> IRConvertSSA::Mutate_(const IfNode* op, InplaceMode inplace_mo
   return If(condition, then_case, else_case);
 }
 
-UnchangedOr<Stmt> IRConvertSSA::Mutate_(const ForNode* op, InplaceMode inplace_mode) {
+UnchangedOr<Stmt> IRConvertSSAObj::Mutate_(const ForNode* op, InplaceMode inplace_mode) {
   const Var& v = op->loop_var;
   if (defined_.count(v.get())) {
     return scope_.WithNewScope([&]() -> Stmt {
       Var new_var = MakeNewVar(v);
       PushVarRemap(v, new_var);
       Stmt stmt =
-          StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
+          StmtExprMutatorObj::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
       auto n = ffi::make_object<ForNode>(*stmt.as<ForNode>());
       n->loop_var = new_var.as_or_throw<PrimVar>();
       return For(n);
@@ -243,18 +244,18 @@ UnchangedOr<Stmt> IRConvertSSA::Mutate_(const ForNode* op, InplaceMode inplace_m
   } else {
     defined_.insert(v.get());
     return scope_.WithNewScope([&]() -> Stmt {
-      return StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
+      return StmtExprMutatorObj::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     });
   }
 }
 
-UnchangedOr<Stmt> IRConvertSSA::Mutate_(const WhileNode* op, InplaceMode inplace_mode) {
+UnchangedOr<Stmt> IRConvertSSAObj::Mutate_(const WhileNode* op, InplaceMode inplace_mode) {
   return scope_.WithNewScope([&]() -> Stmt {
-    return StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
+    return StmtExprMutatorObj::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
   });
 }
 
-UnchangedOr<Stmt> IRConvertSSA::Mutate_(const RegionStmtNode* op, InplaceMode inplace_mode) {
+UnchangedOr<Stmt> IRConvertSSAObj::Mutate_(const RegionStmtNode* op, InplaceMode inplace_mode) {
   auto attrs = Mutate(op->attrs, InplaceMode::kDisallow)
                    .as_or_throw<UnchangedOr<DictAttrs>>()
                    .ValueOrUnchanged(op->attrs);
@@ -272,18 +273,18 @@ UnchangedOr<Stmt> IRConvertSSA::Mutate_(const RegionStmtNode* op, InplaceMode in
                     std::move(results), op->loc);
 }
 
-Var IRConvertSSA::MakeNewVar(const Var& old_var) {
+Var IRConvertSSAObj::MakeNewVar(const Var& old_var) {
   return Var(old_var->name, old_var->ty, old_var->loc);
 }
 
-void IRConvertSSA::PushVarRemap(const Var& old_var, const Var& new_var) {
+void IRConvertSSAObj::PushVarRemap(const Var& old_var, const Var& new_var) {
   scoped_var_remap_[old_var.get()].push_back(new_var);
   auto& level = scope_.Current();
   level.parent = this;
   level.push_back({old_var, new_var});
 }
 
-void IRConvertSSA::PopAllRemapsInCurrentScope() {
+void IRConvertSSAObj::PopAllRemapsInCurrentScope() {
   auto& current = scope_.Current();
   while (current.size()) {
     auto& remap = current.back();
@@ -293,7 +294,9 @@ void IRConvertSSA::PopAllRemapsInCurrentScope() {
 }
 
 Stmt ConvertSSA(Stmt stmt) {
-  return ffi::make_object<IRConvertSSA>()->Mutate(stmt, InplaceMode::kAllow).ValueOrUnchanged(stmt);
+  return ffi::make_object<IRConvertSSAObj>()
+      ->Mutate(stmt, InplaceMode::kAllow)
+      .ValueOrUnchanged(stmt);
 }
 
 ffi::String GetPtrStorageScope(Var buffer_var) {
@@ -359,7 +362,7 @@ std::optional<bool> IsHostFunc(const Function& func) {
   }
 }
 
-IRModule IRConvertSSA::VisitIRModule(IRModule mod) {
+IRModule IRConvertSSAObj::VisitIRModule(IRModule mod) {
   ffi::Map<GlobalVar, BaseFunc> functions;
   bool made_change = false;
   for (auto [gvar, base_func] : mod->functions) {
@@ -381,7 +384,7 @@ IRModule IRConvertSSA::VisitIRModule(IRModule mod) {
 namespace transform {
 Pass ConvertSSA() {
   auto pass_func = [](IRModule mod, PassContext ctx) {
-    return ffi::make_object<tirx::IRConvertSSA>()->VisitIRModule(std::move(mod));
+    return ffi::make_object<tirx::IRConvertSSAObj>()->VisitIRModule(std::move(mod));
   };
   return tvm::transform::CreateModulePass(pass_func, 0, "tirx.ConvertSSA");
 }

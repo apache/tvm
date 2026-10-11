@@ -126,7 +126,7 @@ struct UnpackedInstTraits {
   /*!
    * \brief Unpack the arguments in the calling convention, and feed them into
    * `TTraits::UnpackedApplyToSchedule`
-   * \sa InstructionKindNode::f_apply_to_schedule
+   * \sa InstructionKindObj::f_apply_to_schedule
    */
   static ffi::Array<Any> ApplyToSchedule(const Schedule& sch, const ffi::Array<Any>& inputs,
                                          const ffi::Array<Any>& attrs, const Any& decision);
@@ -134,7 +134,7 @@ struct UnpackedInstTraits {
   /*!
    * \brief Unpack the arguments in the calling convention, and feed them into
    * `TTraits::UnpackedAsPython`
-   * \sa InstructionKindNode::f_as_python
+   * \sa InstructionKindObj::f_as_python
    */
   static ffi::String AsPython(const ffi::Array<Any>& inputs, const ffi::Array<Any>& attrs,
                               const Any& decision, const ffi::Array<ffi::String>& outputs);
@@ -158,7 +158,7 @@ struct UnpackedInstTraits {
 /*!
  * \brief A helper class that constructs schedule API call in python syntax,
  * which helps convert an Inst to a python statement.
- * \sa InstructionKindNode::f_as_python
+ * \sa InstructionKindObj::f_as_python
  */
 class PythonAPICall {
  public:

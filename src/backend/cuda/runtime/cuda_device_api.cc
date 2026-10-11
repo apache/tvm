@@ -324,7 +324,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       });
 }
 
-class CUDATimerNode : public TimerNode {
+class CUDATimerObj : public TimerObj {
  public:
   virtual void Start() {
     // This initial cudaEventRecord is sometimes pretty slow (~100us). Does
@@ -345,15 +345,15 @@ class CUDATimerNode : public TimerNode {
     TVM_FFI_CHECK_CUDA_ERROR(cudaEventElapsedTime(&milliseconds, start_, stop_));
     return milliseconds * 1e6;
   }
-  virtual ~CUDATimerNode() {
+  virtual ~CUDATimerObj() {
     TVM_FFI_CHECK_CUDA_ERROR(cudaEventDestroy(start_));
     TVM_FFI_CHECK_CUDA_ERROR(cudaEventDestroy(stop_));
   }
-  CUDATimerNode() {
+  CUDATimerObj() {
     TVM_FFI_CHECK_CUDA_ERROR(cudaEventCreate(&start_));
     TVM_FFI_CHECK_CUDA_ERROR(cudaEventCreate(&stop_));
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("runtime.cuda.CUDATimerNode", CUDATimerNode, TimerNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("runtime.cuda.CUDATimerNode", CUDATimerObj, TimerObj);
 
  private:
   cudaEvent_t start_;
@@ -364,7 +364,7 @@ class CUDATimerNode : public TimerNode {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("runtime.timer.cuda", [](Device dev) {
-    return Timer(ffi::UnsafeInit{}, ffi::make_object<CUDATimerNode>());
+    return Timer(ffi::UnsafeInit{}, ffi::make_object<CUDATimerObj>());
   });
 }
 

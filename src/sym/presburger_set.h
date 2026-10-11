@@ -58,13 +58,13 @@ using namespace presburger;
  *       and some additional APIs that analyze and solve
  *       multi-dimension interger set problems
  */
-class PresburgerSetNode : public IntSetNode {
+class PresburgerSetObj : public IntSetObj {
  public:
-  PresburgerSetNode() : space(PresburgerSpace::getRelationSpace()) {}
-  explicit PresburgerSetNode(const PresburgerSpace& space, const ffi::Array<PrimVar>& vars)
+  PresburgerSetObj() : space(PresburgerSpace::getRelationSpace()) {}
+  explicit PresburgerSetObj(const PresburgerSpace& space, const ffi::Array<PrimVar>& vars)
       : disjuncts({}), space(space), vars(vars) {}
-  explicit PresburgerSetNode(const std::vector<IntegerRelation>& disjuncts,
-                             const PresburgerSpace& space, const ffi::Array<PrimVar>& vars)
+  explicit PresburgerSetObj(const std::vector<IntegerRelation>& disjuncts,
+                            const PresburgerSpace& space, const ffi::Array<PrimVar>& vars)
       : disjuncts(disjuncts), space(space), vars(vars) {}
 
   /*! \brief Represent the union of multiple IntegerRelation */
@@ -75,7 +75,7 @@ class PresburgerSetNode : public IntSetNode {
   // visitor overload.
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<PresburgerSetNode>();
+    refl::ObjectDef<PresburgerSetObj>();
   }
 
   /*!
@@ -117,7 +117,7 @@ class PresburgerSetNode : public IntSetNode {
     return std::all_of(disjuncts.begin(), disjuncts.end(),
                        std::mem_fn(&IntegerRelation::isIntegerEmpty));
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("sym.PresburgerSet", PresburgerSetNode, IntSetNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("sym.PresburgerSet", PresburgerSetObj, IntSetObj);
 
  private:
   ffi::Array<PrimVar> vars;
@@ -125,7 +125,7 @@ class PresburgerSetNode : public IntSetNode {
 
 /*!
  * \brief Integer set used for multi-dimension integer analysis.
- * \sa PresburgerSetNode
+ * \sa PresburgerSetObj
  */
 class PresburgerSet : public IntSet {
  public:
@@ -145,20 +145,20 @@ class PresburgerSet : public IntSet {
    */
   TVM_DLL PresburgerSet(const PrimExpr& constraint);
 
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(PresburgerSetNode);
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(PresburgerSet, IntSet, PresburgerSetNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(PresburgerSetObj);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(PresburgerSet, IntSet, PresburgerSetObj);
 };
 #endif  // TVM_MLIR_VERSION >= 150
 #else   // TVM_MLIR_VERSION
 // Class definition when MLIR is not enabled, to prevent compile-time error.
-class PresburgerSetNode : public IntSetNode {
+class PresburgerSetObj : public IntSetObj {
  public:
   // dummy visitor overload.
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<PresburgerSetNode>();
+    refl::ObjectDef<PresburgerSetObj>();
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("sym.PresburgerSet", PresburgerSetNode, IntSetNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("sym.PresburgerSet", PresburgerSetObj, IntSetObj);
 };
 
 class PresburgerSet : public IntSet {

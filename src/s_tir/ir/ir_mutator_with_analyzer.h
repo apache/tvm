@@ -26,24 +26,25 @@
 
 namespace tvm {
 namespace s_tir {
-class IRMutatorWithAnalyzer : public tirx::IRMutatorWithAnalyzer {
+class IRMutatorWithAnalyzerObj : public tirx::IRMutatorWithAnalyzerObj {
  public:
-  using Parent = tirx::IRMutatorWithAnalyzer;
+  using Parent = tirx::IRMutatorWithAnalyzerObj;
   using Parent::Mutate;
   using Parent::Mutate_;
-  explicit IRMutatorWithAnalyzer(const sym::Analyzer& analyzer)
-      : IRMutatorWithAnalyzer(analyzer.get()) {}
-  explicit IRMutatorWithAnalyzer(sym::AnalyzerObj* analyzer) : Parent(analyzer, GlobalVTable()) {}
+  explicit IRMutatorWithAnalyzerObj(const sym::Analyzer& analyzer)
+      : IRMutatorWithAnalyzerObj(analyzer.get()) {}
+  explicit IRMutatorWithAnalyzerObj(sym::AnalyzerObj* analyzer)
+      : Parent(analyzer, GlobalVTable()) {}
   virtual UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode);
   virtual UnchangedOr<Stmt> Mutate_(const SBlockRealizeNode* op, InplaceMode inplace_mode) {
-    return s_tir::StmtExprMutator::MutateBlockRealize(this, op, inplace_mode);
+    return s_tir::StmtExprMutatorObj::MutateBlockRealize(this, op, inplace_mode);
   }
 
  protected:
   static void InitVTable(VTable* vtable) {
     Parent::InitVTable(vtable);
-    SetDispatch<IRMutatorWithAnalyzer, SBlockNode>(vtable);
-    SetDispatch<IRMutatorWithAnalyzer, SBlockRealizeNode>(vtable);
+    SetDispatch<IRMutatorWithAnalyzerObj, SBlockNode>(vtable);
+    SetDispatch<IRMutatorWithAnalyzerObj, SBlockRealizeNode>(vtable);
   }
   static const VTable* GlobalVTable() {
     static const VTable table = [] {

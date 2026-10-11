@@ -383,7 +383,7 @@ class BackwardBindingGenerator : private ExprVisitor {
              "function is not supported yet.";
     } else if (call_op.same_as(Op::Get("relax.call_tir_with_grad"))) {
       // tirx gradient registering
-      auto te_grad_name = call->attrs.as<CallTIRWithGradAttrs>()->te_grad_name;
+      auto te_grad_name = call->attrs.as<CallTIRWithGradAttrsNode>()->te_grad_name;
       const auto grad_func =
           tvm::ffi::Function::GetGlobalRequired(te_grad_func_prefix + te_grad_name);
       Var partials =

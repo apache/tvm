@@ -40,10 +40,10 @@
 namespace tvm {
 namespace tirx {
 
-class IfHoister : public StmtExprMutator {
+class IfHoisterObj : public StmtExprMutatorObj {
  public:
-  using StmtExprMutator::Mutate;
-  using StmtExprMutator::Mutate_;
+  using StmtExprMutatorObj::Mutate;
+  using StmtExprMutatorObj::Mutate_;
 
   UnchangedOr<ffi::Any> Mutate(ffi::AnyView input, InplaceMode inplace_mode) final {
     // Expressions are inspected only as whole If predicates, never split or hoisted.
@@ -53,9 +53,9 @@ class IfHoister : public StmtExprMutator {
       // Bindings, regions and unknown statements have no code-motion contract.
       // Hide outer loops and their variable depths while visiting this subtree;
       // active_loops_/split_in_nest_ still bound duplication of the enclosing nest.
-      return scopes_.WithNewScope([&] { return StmtExprMutator::Mutate(input, inplace_mode); });
+      return scopes_.WithNewScope([&] { return StmtExprMutatorObj::Mutate(input, inplace_mode); });
     }
-    return StmtExprMutator::Mutate(input, inplace_mode);
+    return StmtExprMutatorObj::Mutate(input, inplace_mode);
   }
 
  private:
@@ -76,8 +76,8 @@ class IfHoister : public StmtExprMutator {
   UnchangedOr<Stmt> Mutate_(const SeqStmtNode* op, InplaceMode inplace_mode) final {
     // Sibling statements isolate loop placement; a singleton stays transparent.
     // An If inside one sibling must not move outside the loop executing all siblings.
-    if (op->seq.size() == 1) return StmtExprMutator::Mutate_(op, inplace_mode);
-    return scopes_.WithNewScope([&] { return StmtExprMutator::Mutate_(op, inplace_mode); });
+    if (op->seq.size() == 1) return StmtExprMutatorObj::Mutate_(op, inplace_mode);
+    return scopes_.WithNewScope([&] { return StmtExprMutatorObj::Mutate_(op, inplace_mode); });
   }
 
   // Purity alone does not permit evaluating a predicate before its guards or
@@ -148,7 +148,7 @@ class IfHoister : public StmtExprMutator {
     // Moving guards inside a thread launch can prevent later synchronization
     // insertion, even when the guards themselves are loop-invariant.
     if (op->op.same_as(launch_thread_op())) return ffi::Unchanged();
-    return StmtExprMutator::Mutate_(op, inplace_mode);
+    return StmtExprMutatorObj::Mutate_(op, inplace_mode);
   }
 
   UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
@@ -158,7 +158,7 @@ class IfHoister : public StmtExprMutator {
     if (op->kind != ForKind::kDefault || SideEffect(op->min) > CallEffectKind::kReadState ||
         SideEffect(op->extent) > CallEffectKind::kReadState ||
         (op->step && SideEffect(op->step.value()) > CallEffectKind::kReadState)) {
-      return scopes_.WithNewScope([&] { return StmtExprMutator::Mutate_(op, inplace_mode); });
+      return scopes_.WithNewScope([&] { return StmtExprMutatorObj::Mutate_(op, inplace_mode); });
     }
     auto& scope = scopes_.Current();
     // A new outermost eligible loop gets one two-sided split. Do not reset at
@@ -171,7 +171,8 @@ class IfHoister : public StmtExprMutator {
     // identifies both where to wrap a lifted If and which variables it must avoid.
     scope.loop_depths[var] = scope.loops.size();
     scope.loops.push_back(&loop);
-    Stmt stmt = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
+    Stmt stmt =
+        StmtExprMutatorObj::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     // Only descendants can lift to this loop; remove both entries before siblings.
     // The local LoopState remains alive below to emit its collected conditions.
     scope.loops.pop_back();
@@ -191,7 +192,7 @@ class IfHoister : public StmtExprMutator {
     auto& scope = scopes_.Current();
     // Moving a one-sided inner If could otherwise skip this predicate's effects.
     if (!scope.loops.empty() && SideEffect(op->condition) > CallEffectKind::kReadState) {
-      return scopes_.WithNewScope([&] { return StmtExprMutator::Mutate_(op, inplace_mode); });
+      return scopes_.WithNewScope([&] { return StmtExprMutatorObj::Mutate_(op, inplace_mode); });
     }
     bool has_else = op->else_case.has_value();
     if (!scope.loops.empty()) {
@@ -219,7 +220,7 @@ class IfHoister : public StmtExprMutator {
     }
     // Descendant hoists must preserve this If's alternate arm, in either branch.
     else_depth_ += has_else;
-    auto result = StmtExprMutator::Mutate_(op, inplace_mode);
+    auto result = StmtExprMutatorObj::Mutate_(op, inplace_mode);
     // Restore the ancestor count so following siblings do not inherit this If.
     else_depth_ -= has_else;
     return result;
@@ -242,7 +243,7 @@ Pass HoistIf() {
   auto pass_func = [](Function f, IRModule m, PassContext ctx) {
     if (!f->body.has_value()) return f;
     auto* n = f.CopyOnWrite();
-    Stmt body = ffi::make_object<IfHoister>()
+    Stmt body = ffi::make_object<IfHoisterObj>()
                     ->Mutate(n->body.value(), InplaceMode::kAllow)
                     .ValueOrUnchanged(n->body.value());
     n->body = tirx::ConvertSSA(std::move(body));

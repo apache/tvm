@@ -97,7 +97,7 @@ namespace tirx {
   }()
 
 /*!
- * \brief Set the `StmtSRefNode::seq_index` field for stmt
+ * \brief Set the `StmtSRefObj::seq_index` field for stmt
  * \param stmt2ref The stmt2ref map to be updated with seq_index
  * \param stmt The statement, or the realize node of the statement whose sref to be set
  * \param seq_index The seq_index to be set

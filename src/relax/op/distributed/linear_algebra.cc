@@ -32,7 +32,7 @@ Type InferDistTypeMatmul(const Call& call, const BlockBuilder& ctx) {
   TensorType x1_ty = input_dtensor_tys[0]->tensor_ty;
   TensorType x2_ty = input_dtensor_tys[1]->tensor_ty;
 
-  const auto* attrs = call->attrs.as<MatmulAttrs>();
+  const auto* attrs = call->attrs.as<MatmulAttrsNode>();
   ffi::Optional<PrimType> out_dtype = attrs->out_dtype.has_value()
                                           ? PrimType(attrs->out_dtype.value())
                                           : InferBinaryArithOpOutDtype(call, ctx, x1_ty, x2_ty);

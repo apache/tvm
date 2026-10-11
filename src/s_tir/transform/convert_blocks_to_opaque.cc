@@ -38,17 +38,17 @@ using namespace tvm::tirx;
  * \brief Substitute expr via BlockRealize value bindings and convert each block into opaque
  *        blocks.
  */
-class OpaqueBlockConverter : public StmtExprMutator {
+class OpaqueBlockConverterObj : public StmtExprMutatorObj {
  public:
-  using StmtExprMutator::Mutate;
-  using StmtExprMutator::Mutate_;
+  using StmtExprMutatorObj::Mutate;
+  using StmtExprMutatorObj::Mutate_;
 
   static ffi::Optional<SeqStmt> Convert(const Function& f) {
-    auto substituter = ffi::make_object<OpaqueBlockConverter>();
+    auto substituter = ffi::make_object<OpaqueBlockConverterObj>();
     return substituter->Mutate(f->body).ValueOrUnchanged(f->body);
   }
 
-  OpaqueBlockConverter() = default;
+  OpaqueBlockConverterObj() = default;
 
  private:
   UnchangedOr<Expr> Mutate_(const VarNode* var, InplaceMode inplace_mode) final {
@@ -57,7 +57,7 @@ class OpaqueBlockConverter : public StmtExprMutator {
           << "Variable " << var->name << " occurs in the predicate or iter_values of a block, "
           << "but isn't defined until the body of the block";
     }
-    return StmtExprMutator::Mutate_(var, inplace_mode);
+    return StmtExprMutatorObj::Mutate_(var, inplace_mode);
   }
 
   UnchangedOr<Stmt> Mutate_(const SBlockNode* block, InplaceMode inplace_mode) final {
@@ -65,7 +65,7 @@ class OpaqueBlockConverter : public StmtExprMutator {
         << "Block Init part is not allowed in pass ConvertBlocksToOpaque";
     auto node = ffi::make_object<SBlockNode>(*block);
     node->iter_vars.clear();
-    return StmtExprMutator::Mutate_(node.get(), inplace_mode)
+    return StmtExprMutatorObj::Mutate_(node.get(), inplace_mode)
         .ValueOrUnchanged(SBlock(std::move(node)));
   }
 
@@ -115,7 +115,7 @@ namespace transform {
 Pass ConvertBlocksToOpaque() {
   auto pass_func = [=](Function f, IRModule m, PassContext ctx) {
     FunctionNode* fptr = f.CopyOnWrite();
-    fptr->body = OpaqueBlockConverter::Convert(f);
+    fptr->body = OpaqueBlockConverterObj::Convert(f);
     return f;
   };
   return CreateFunctionPass(pass_func, 0, "s_tir.ConvertBlocksToOpaque");

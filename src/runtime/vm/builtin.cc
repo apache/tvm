@@ -52,7 +52,7 @@ using tvm::runtime::Tensor;
  * \return An allocate Tensor as shape heap.
  */
 Tensor AllocShapeHeap(void* ctx_ptr, int64_t size) {
-  VirtualMachine* vm = static_cast<VirtualMachine*>(ctx_ptr);
+  VirtualMachineObj* vm = static_cast<VirtualMachineObj*>(ctx_ptr);
   // use host allocator, which is always last element.
   size_t host_device_index = vm->devices.size() - 1;
   // specially handle hexagon on-device RT.
@@ -378,7 +378,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 //-------------------------------------------------
 Storage VMAllocStorage(void* ctx_ptr, ffi::Shape buffer_shape, Index device_index,
                        DLDataType dtype_hint, ffi::String mem_scope) {
-  VirtualMachine* vm = static_cast<VirtualMachine*>(ctx_ptr);
+  VirtualMachineObj* vm = static_cast<VirtualMachineObj*>(ctx_ptr);
 
   TVM_FFI_ICHECK_LT(device_index, vm->devices.size())
       << "The device index is out of VM physical devices list";
@@ -434,7 +434,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def_packed("vm.builtin.invoke_closure",
                   [](ffi::PackedArgs args, ffi::Any* rv) {
                     // args[0]: vm; args[1]: closure; args[2, 3, ...]: function arguments
-                    VirtualMachine* vm = VirtualMachine::GetContextPtr(args[0]);
+                    VirtualMachineObj* vm = VirtualMachineObj::GetContextPtr(args[0]);
                     ffi::ObjectRef vm_closure = args[1].cast<ffi::ObjectRef>();
                     vm->InvokeClosurePacked(vm_closure, args.Slice(2), rv);
                   })

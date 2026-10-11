@@ -47,12 +47,13 @@ using namespace sym;
     return RecursiveRewrite((ResExpr).Eval());               \
   }
 
-class SplitPatternReNormalizer : public IRMutatorWithAnalyzer {
+class SplitPatternReNormalizerObj : public IRMutatorWithAnalyzerObj {
  public:
-  using IRMutatorWithAnalyzer::Mutate;
-  using IRMutatorWithAnalyzer::Mutate_;
+  using IRMutatorWithAnalyzerObj::Mutate;
+  using IRMutatorWithAnalyzerObj::Mutate_;
 
-  explicit SplitPatternReNormalizer(const Analyzer& analyzer) : IRMutatorWithAnalyzer(analyzer) {}
+  explicit SplitPatternReNormalizerObj(const Analyzer& analyzer)
+      : IRMutatorWithAnalyzerObj(analyzer) {}
 
   UnchangedOr<PrimExpr> Mutate_(const prim::FloorDivNode* op, InplaceMode inplace_mode) final {
     PrimExpr a = Mutate(op->a, inplace_mode).ValueOrUnchanged(op->a);
@@ -172,7 +173,7 @@ class SplitPatternReNormalizer : public IRMutatorWithAnalyzer {
   }
 
   UnchangedOr<PrimExpr> Mutate_(const prim::NotNode* op, InplaceMode inplace_mode) {
-    PrimExpr ret = IRMutatorWithAnalyzer::Mutate_(op, inplace_mode)
+    PrimExpr ret = IRMutatorWithAnalyzerObj::Mutate_(op, inplace_mode)
                        .ValueOrUnchanged(ffi::GetRef<PrimExpr>(op));
     // Pattern var to match any expression
     PVar<PrimExpr> x, y;
@@ -189,7 +190,7 @@ class SplitPatternReNormalizer : public IRMutatorWithAnalyzer {
     With<ConstraintContext> ctx1(analyzer_, op->loop_var >= op->min);
     With<ConstraintContext> ctx2(analyzer_,
                                  static_cast<PrimExpr>(op->loop_var) < op->min + op->extent);
-    return IRMutatorWithAnalyzer::Mutate_(op, inplace_mode);
+    return IRMutatorWithAnalyzerObj::Mutate_(op, inplace_mode);
   }
 
   // Recursive rewrite x
@@ -216,7 +217,7 @@ Pass RenormalizeSplitPattern() {
   auto pass_func = [](Function f, IRModule m, PassContext ctx) {
     auto* n = f.CopyOnWrite();
     sym::Analyzer analyzer;
-    n->body = ffi::make_object<SplitPatternReNormalizer>(analyzer)
+    n->body = ffi::make_object<SplitPatternReNormalizerObj>(analyzer)
                   ->Mutate(n->body, InplaceMode::kAllow)
                   .ValueOrUnchanged(std::move(n->body));
     return f;

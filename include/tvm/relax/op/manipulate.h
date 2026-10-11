@@ -31,170 +31,172 @@ namespace tvm {
 namespace relax {
 
 /*! \brief Attributes used in concat operators */
-struct ConcatAttrs : public AttrsNode {
+struct ConcatAttrsNode : public AttrsNode {
   ffi::Optional<int64_t> axis;
 
   static void RegisterReflection();
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.ConcatAttrs", ConcatAttrs, AttrsNode);
-};  // struct ConcatAttrs
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.ConcatAttrs", ConcatAttrsNode, AttrsNode);
+};  // struct ConcatAttrsNode
 
 /*! \brief Attributes used in expand_dims operators */
-struct ExpandDimsAttrs : public AttrsNode {
+struct ExpandDimsAttrsNode : public AttrsNode {
   ffi::Array<int64_t> axis;
 
   static void RegisterReflection();
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.ExpandDimsAttrs", ExpandDimsAttrs, AttrsNode);
-};  // struct ExpandDimsAttrs
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.ExpandDimsAttrs", ExpandDimsAttrsNode, AttrsNode);
+};  // struct ExpandDimsAttrsNode
 
 /*! \brief Attributes used in layout_transform operator */
-struct LayoutTransformAttrs : public AttrsNode {
-  explicit LayoutTransformAttrs(tirx::IndexMap value) : index_map(std::move(value)) {}
-  explicit LayoutTransformAttrs(ffi::UnsafeInit) : index_map(ffi::UnsafeInit{}) {}
+struct LayoutTransformAttrsNode : public AttrsNode {
+  explicit LayoutTransformAttrsNode(tirx::IndexMap value) : index_map(std::move(value)) {}
+  explicit LayoutTransformAttrsNode(ffi::UnsafeInit) : index_map(ffi::UnsafeInit{}) {}
   tirx::IndexMap index_map;
   // pad_value is chosen to be of PrimExpr type, as it represents constant TIR POD expression. This
   // needs to be revisited in case PrimExpr is evolved to represent symbolic expression in future.
   ffi::Optional<PrimExpr> pad_value;
 
   static void RegisterReflection();
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.LayoutTransformAttrs", LayoutTransformAttrs,
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.LayoutTransformAttrs", LayoutTransformAttrsNode,
                                     AttrsNode);
-};  // struct LayoutTransformAttrs
+};  // struct LayoutTransformAttrsNode
 
 /*! \brief Attributes used in permute_dims operator */
-struct PermuteDimsAttrs : public AttrsNode {
+struct PermuteDimsAttrsNode : public AttrsNode {
   ffi::Optional<ffi::Array<int64_t>> axes;
 
   static void RegisterReflection();
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.PermuteDimsAttrs", PermuteDimsAttrs, AttrsNode);
-};  // struct PermuteDimsAttrs
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.PermuteDimsAttrs", PermuteDimsAttrsNode,
+                                    AttrsNode);
+};  // struct PermuteDimsAttrsNode
 
 /*! \brief Attributes used in split operator */
-struct SplitAttrs : public AttrsNode {
+struct SplitAttrsNode : public AttrsNode {
   ffi::ObjectRef indices_or_sections;
   int axis;
 
   static void RegisterReflection();
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.SplitAttrs", SplitAttrs, AttrsNode);
-};  // struct SplitAttrs
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.SplitAttrs", SplitAttrsNode, AttrsNode);
+};  // struct SplitAttrsNode
 
 /*! \brief Attributes used in squeeze operators */
-struct SqueezeAttrs : public AttrsNode {
+struct SqueezeAttrsNode : public AttrsNode {
   ffi::Optional<ffi::Array<int64_t>> axis;
 
   static void RegisterReflection();
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.SqueezeAttrs", SqueezeAttrs, AttrsNode);
-};  // struct SqueezeAttrs
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.SqueezeAttrs", SqueezeAttrsNode, AttrsNode);
+};  // struct SqueezeAttrsNode
 
 /*! \brief Attributes used in stack operators */
-struct StackAttrs : public AttrsNode {
+struct StackAttrsNode : public AttrsNode {
   ffi::Optional<int64_t> axis;
 
   static void RegisterReflection();
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.StackAttrs", StackAttrs, AttrsNode);
-};  // struct StackAttrs
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.StackAttrs", StackAttrsNode, AttrsNode);
+};  // struct StackAttrsNode
 
 /*! \brief Attributes used in repeat operators */
-struct RepeatAttrs : public AttrsNode {
+struct RepeatAttrsNode : public AttrsNode {
   int repeats;
   ffi::Optional<int64_t> axis;
 
   static void RegisterReflection();
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.RepeatAttrs", RepeatAttrs, AttrsNode);
-};  // struct RepeatAttrs
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.RepeatAttrs", RepeatAttrsNode, AttrsNode);
+};  // struct RepeatAttrsNode
 
 /*! \brief Attributes used in tile operators */
-struct TileAttrs : public AttrsNode {
+struct TileAttrsNode : public AttrsNode {
   ffi::Array<int64_t> repeats;
 
   static void RegisterReflection();
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.TileAttrs", TileAttrs, AttrsNode);
-};  // struct TileAttrs
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.TileAttrs", TileAttrsNode, AttrsNode);
+};  // struct TileAttrsNode
 
 /*! \brief Attributes used in flip operators */
-struct FlipAttrs : public AttrsNode {
+struct FlipAttrsNode : public AttrsNode {
   int64_t axis;
 
   static void RegisterReflection();
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.FlipAttrs", FlipAttrs, AttrsNode);
-};  // struct FlipAttrs
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.FlipAttrs", FlipAttrsNode, AttrsNode);
+};  // struct FlipAttrsNode
 
 /*! \brief Attributes used in reverse_sequence operators */
-struct ReverseSequenceAttrs : public AttrsNode {
+struct ReverseSequenceAttrsNode : public AttrsNode {
   int64_t seq_axis;
   int64_t batch_axis;
 
   static void RegisterReflection();
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.ReverseSequenceAttrs", ReverseSequenceAttrs,
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.ReverseSequenceAttrs", ReverseSequenceAttrsNode,
                                     AttrsNode);
-};  // struct ReverseSequenceAttrs
+};  // struct ReverseSequenceAttrsNode
 
 /*! \brief Attributes used in gather_elements operators */
-struct GatherElementsAttrs : public AttrsNode {
+struct GatherElementsAttrsNode : public AttrsNode {
   int64_t axis;
 
   static void RegisterReflection();
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.GatherElementsAttrs", GatherElementsAttrs,
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.GatherElementsAttrs", GatherElementsAttrsNode,
                                     AttrsNode);
-};  // struct GatherElementsAttrs
+};  // struct GatherElementsAttrsNode
 
 /*! \brief Attributes used in gather_nd operators */
-struct GatherNDAttrs : public AttrsNode {
+struct GatherNDAttrsNode : public AttrsNode {
   int64_t batch_dims;
 
   static void RegisterReflection();
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.GatherNDAttrs", GatherNDAttrs, AttrsNode);
-};  // struct GatherNDAttrs
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.GatherNDAttrs", GatherNDAttrsNode, AttrsNode);
+};  // struct GatherNDAttrsNode
 
 /*! \brief Attributes used in index_put operator */
-struct IndexPutAttrs : public AttrsNode {
+struct IndexPutAttrsNode : public AttrsNode {
   bool accumulate;
 
   static void RegisterReflection();
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.IndexPutAttrs", IndexPutAttrs, AttrsNode);
-};  // struct IndexPutAttrs
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.IndexPutAttrs", IndexPutAttrsNode, AttrsNode);
+};  // struct IndexPutAttrsNode
 
 /*! \brief Attribute used in meshgrid operator */
-struct MeshgridAttrs : public AttrsNode {
+struct MeshgridAttrsNode : public AttrsNode {
   ffi::Optional<ffi::String> indexing;
 
   static void RegisterReflection();
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.MeshgridAttrs", MeshgridAttrs, AttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.MeshgridAttrs", MeshgridAttrsNode, AttrsNode);
 };
 
 /*! \brief Attributes used in scatter_elements operators */
-struct ScatterElementsAttrs : public AttrsNode {
+struct ScatterElementsAttrsNode : public AttrsNode {
   int64_t axis;
   ffi::String reduction;
 
   static void RegisterReflection();
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.ScatterElementsAttrs", ScatterElementsAttrs,
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.ScatterElementsAttrs", ScatterElementsAttrsNode,
                                     AttrsNode);
-};  // struct ScatterElementsAttrs
+};  // struct ScatterElementsAttrsNode
 
 /*! \brief Attributes used in scatter_nd operators */
-struct ScatterNDAttrs : public AttrsNode {
+struct ScatterNDAttrsNode : public AttrsNode {
   ffi::String reduction;
 
   static void RegisterReflection();
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.ScatterNDAttrs", ScatterNDAttrs, AttrsNode);
-};  // struct ScatterNDAttrs
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.ScatterNDAttrs", ScatterNDAttrsNode, AttrsNode);
+};  // struct ScatterNDAttrsNode
 
 /*! \brief Attributes used in slice_scatter operator */
-struct SliceScatterAttrs : public AttrsNode {
+struct SliceScatterAttrsNode : public AttrsNode {
   int axis;
 
   static void RegisterReflection();
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.SliceScatterAttrs", SliceScatterAttrs, AttrsNode);
-};  // struct SliceScatterAttrs
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.SliceScatterAttrs", SliceScatterAttrsNode,
+                                    AttrsNode);
+};  // struct SliceScatterAttrsNode
 
 /*! \brief Attributes used in one_hot operator */
-struct OneHotAttrs : public AttrsNode {
+struct OneHotAttrsNode : public AttrsNode {
   int depth;
   int axis;
 
   static void RegisterReflection();
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.OneHotAttrs", OneHotAttrs, AttrsNode);
-};  // struct OneHotAttrs
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.OneHotAttrs", OneHotAttrsNode, AttrsNode);
+};  // struct OneHotAttrsNode
 
 }  // namespace relax
 }  // namespace tvm

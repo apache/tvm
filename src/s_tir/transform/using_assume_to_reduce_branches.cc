@@ -55,9 +55,9 @@ using namespace tvm::tirx;
 
 using namespace sym;
 
-class AssumeChecker : public StmtExprVisitor {
+class AssumeCheckerObj : public StmtExprVisitorObj {
  public:
-  using StmtExprVisitor::Visit_;
+  using StmtExprVisitorObj::Visit_;
 
   /* This class checks if the function has assume statement.
   If yes, then only the FuncAnanlyzerMutator class runs. This is to ensure speedup in the pass.*/
@@ -67,7 +67,7 @@ class AssumeChecker : public StmtExprVisitor {
     if (has_assume) {
       return std::nullopt;
     }
-    return StmtExprVisitor::Visit(stmt);
+    return StmtExprVisitorObj::Visit(stmt);
   }
   ffi::Optional<VisitInterrupt> Visit_(const CallNode* op) override {
     if (op->op.same_as(prim::assume_op())) {
@@ -77,10 +77,10 @@ class AssumeChecker : public StmtExprVisitor {
   }
 };
 
-class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
+class ParseAssumeAndOvercomputeObj : public IRMutatorWithAnalyzerObj {
  public:
-  using IRMutatorWithAnalyzer::Mutate;
-  using IRMutatorWithAnalyzer::Mutate_;
+  using IRMutatorWithAnalyzerObj::Mutate;
+  using IRMutatorWithAnalyzerObj::Mutate_;
 
   /* This class analyzes the complete function.
   It parses the tensor assumptions and eliminates the redundant branch
@@ -119,8 +119,8 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
     else_condition_context.
   This class handles all these scenarios.*/
 
-  using Parent = IRMutatorWithAnalyzer;
-  explicit ParseAssumeAndOvercompute(const Analyzer& analyzer) : Parent(analyzer) {}
+  using Parent = IRMutatorWithAnalyzerObj;
+  explicit ParseAssumeAndOvercomputeObj(const Analyzer& analyzer) : Parent(analyzer) {}
 
  private:
   // This struct stores all the relevant data related to asssume statement
@@ -142,7 +142,7 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
   struct InternalConstraintContext {
     /* This stuct appends the constraint passed to it in the conditions list.
     It keeps track of the bounds of the variables along with any conditions on the variables */
-    InternalConstraintContext(ParseAssumeAndOvercompute* self, PrimExpr constraint)
+    InternalConstraintContext(ParseAssumeAndOvercomputeObj* self, PrimExpr constraint)
         : self(self), analyzer_context(self->analyzer_, constraint) {
       old_num_constraints = self->conditions_.size();
 
@@ -163,7 +163,7 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
                               self->conditions_.end());
     }
 
-    ParseAssumeAndOvercompute* self{nullptr};
+    ParseAssumeAndOvercomputeObj* self{nullptr};
     With<sym::ConstraintContext> analyzer_context;
     size_t old_num_constraints{0};
     size_t new_num_constraints{0};
@@ -394,12 +394,12 @@ Pass UseAssumeToReduceBranches() {
         if (pattern == relax::OpPatternKind::kElemWise ||
             pattern == relax::OpPatternKind::kBroadcast) {
           // If the function contains assume statement then, run the mutator pass.
-          auto assume_checker = ffi::make_object<AssumeChecker>();
+          auto assume_checker = ffi::make_object<AssumeCheckerObj>();
           assume_checker->Visit(std::move(n->body));
 
           if (assume_checker->has_assume) {
             // Leverage from assume and eliminate the branch
-            auto func_analyzer_mutator = ffi::make_object<ParseAssumeAndOvercompute>(analyzer);
+            auto func_analyzer_mutator = ffi::make_object<ParseAssumeAndOvercomputeObj>(analyzer);
             n->body = func_analyzer_mutator->Mutate(n->body, InplaceMode::kAllow)
                           .ValueOrUnchanged(std::move(n->body));
           }

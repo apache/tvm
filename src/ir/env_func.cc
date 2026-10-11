@@ -36,7 +36,7 @@ using ffi::PackedArgs;
 ffi::ObjectPtr<ffi::Object> CreateEnvNode(const std::string& name) {
   auto f = tvm::ffi::Function::GetGlobal(name);
   TVM_FFI_ICHECK(f.has_value()) << "Cannot find global function \'" << name << '\'';
-  ffi::ObjectPtr<EnvFuncNode> n = ffi::make_object<EnvFuncNode>();
+  ffi::ObjectPtr<EnvFuncObj> n = ffi::make_object<EnvFuncObj>();
   n->func = *f;
   n->name = name;
   return n;
@@ -48,11 +48,11 @@ EnvFunc EnvFunc::Get(const ffi::String& name) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  EnvFuncNode::RegisterReflection();
-  // override EnvFuncNode to use name as the repr
-  refl::TypeAttrDef<EnvFuncNode>()
+  EnvFuncObj::RegisterReflection();
+  // override EnvFuncObj to use name as the repr
+  refl::TypeAttrDef<EnvFuncObj>()
       .def(tvm::ffi::reflection::type_attr::kDataToJson,
-           [](const EnvFuncNode* node) {
+           [](const EnvFuncObj* node) {
              // simply save as the string
              return node->name;
            })

@@ -36,20 +36,20 @@ namespace s_tir {
 using namespace tvm::prim;
 using namespace tvm::tirx;
 
-class RemoveLayoutRewriteBlock : public StmtExprMutator {
+class RemoveLayoutRewriteBlockObj : public StmtExprMutatorObj {
  public:
-  using StmtExprMutator::Mutate;
-  using StmtExprMutator::Mutate_;
+  using StmtExprMutatorObj::Mutate;
+  using StmtExprMutatorObj::Mutate_;
   UnchangedOr<ffi::Any> Mutate(ffi::AnyView value, InplaceMode inplace_mode) override {
     if (value.as<ExprNode>()) return ffi::Unchanged();
-    return StmtExprMutator::Mutate(value, inplace_mode);
+    return StmtExprMutatorObj::Mutate(value, inplace_mode);
   }
 
   static std::tuple<Function, ffi::Map<TensorVar, TensorVar>,
                     std::unordered_map<const VarNode*, IndexMap>,
                     std::unordered_map<const VarNode*, ffi::Array<PrimExpr>>>
   Rewrite(Function f) {
-    auto rewriter = ffi::make_object<RemoveLayoutRewriteBlock>();
+    auto rewriter = ffi::make_object<RemoveLayoutRewriteBlockObj>();
 
     FunctionNode* n = f.CopyOnWrite();
     n->body = rewriter->Mutate(n->body, InplaceMode::kAllow).ValueOrUnchanged(std::move(n->body));
@@ -59,7 +59,7 @@ class RemoveLayoutRewriteBlock : public StmtExprMutator {
 
  private:
   UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) final {
-    SBlock block = StmtExprMutator::Mutate_(op, inplace_mode)
+    SBlock block = StmtExprMutatorObj::Mutate_(op, inplace_mode)
                        .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
                        .as_or_throw<SBlock>();
 
@@ -133,18 +133,18 @@ class RemoveLayoutRewriteBlock : public StmtExprMutator {
   std::unordered_map<const VarNode*, ffi::Array<PrimExpr>> tensor_var_to_rewritten_shape_;
 };
 
-class WeightLayoutRewriteBlockRemover : public StmtExprMutator {
+class WeightLayoutRewriteBlockRemoverObj : public StmtExprMutatorObj {
  public:
-  using StmtExprMutator::Mutate;
-  using StmtExprMutator::Mutate_;
+  using StmtExprMutatorObj::Mutate;
+  using StmtExprMutatorObj::Mutate_;
   UnchangedOr<ffi::Any> Mutate(ffi::AnyView value, InplaceMode inplace_mode) override {
     if (value.as<ExprNode>()) return ffi::Unchanged();
-    return StmtExprMutator::Mutate(value, inplace_mode);
+    return StmtExprMutatorObj::Mutate(value, inplace_mode);
   }
 
   static Function Remove(Function f, bool skip_tensor_rewrite) {
     auto [f_, tensor_map, tensor_var_to_index_map, tensor_var_to_rewritten_shape] =
-        RemoveLayoutRewriteBlock::Rewrite(f);
+        RemoveLayoutRewriteBlockObj::Rewrite(f);
 
     FunctionNode* n = f_.CopyOnWrite();
 
@@ -172,7 +172,7 @@ namespace transform {
 
 Pass RemoveWeightLayoutRewriteBlock(bool skip_tensor_rewrite) {
   auto pass_func = [skip_tensor_rewrite](Function f, IRModule m, PassContext ctx) {
-    return WeightLayoutRewriteBlockRemover::Remove(std::move(f), skip_tensor_rewrite);
+    return WeightLayoutRewriteBlockRemoverObj::Remove(std::move(f), skip_tensor_rewrite);
   };
   return CreateFunctionPass(pass_func, 0, "s_tir.RemoveWeightLayoutRewriteBlock");
 }

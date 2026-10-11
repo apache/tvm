@@ -123,10 +123,10 @@ ffi::Array<MatchTensorRegion> ReplaceTensorRegion(ffi::Array<MatchTensorRegion> 
  * use cases, the target tensors in `match_tensors` may also need to be mutated. In this
  * case, this class should be subclassed to explicitly handle `match_tensors`.
  */
-class ReplaceTensorMutator : public StmtExprMutator {
+class ReplaceTensorMutatorObj : public StmtExprMutatorObj {
  public:
-  using StmtExprMutator::Mutate;
-  using StmtExprMutator::Mutate_;
+  using StmtExprMutatorObj::Mutate;
+  using StmtExprMutatorObj::Mutate_;
 
   /*!
    * \brief The constructor
@@ -135,11 +135,11 @@ class ReplaceTensorMutator : public StmtExprMutator {
    * \param block_sref_reuse Optional map to record mapping between old and new blocks that reuse
    *        sref.
    */
-  ReplaceTensorMutator(const TensorVar& old_tensor, TensorVar new_tensor,
-                       ffi::Map<SBlock, SBlock>* block_sref_reuse);
+  ReplaceTensorMutatorObj(const TensorVar& old_tensor, TensorVar new_tensor,
+                          ffi::Map<SBlock, SBlock>* block_sref_reuse);
 
-  ReplaceTensorMutator(const ffi::Map<TensorVar, TensorVar>& tensor_map,
-                       ffi::Map<SBlock, SBlock>* block_sref_reuse);
+  ReplaceTensorMutatorObj(const ffi::Map<TensorVar, TensorVar>& tensor_map,
+                          ffi::Map<SBlock, SBlock>* block_sref_reuse);
 
  protected:
   UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) override;
@@ -211,10 +211,10 @@ ffi::Optional<s_tir::LoopRV> TileWithTensorIntrin(const s_tir::Schedule& sch,
 /*!
  * \brief Simplifier for indices of tensor access and block tensor access regions.
  */
-class BlockTensorAccessSimplifier : public s_tir::IRMutatorWithAnalyzer {
+class BlockTensorAccessSimplifierObj : public s_tir::IRMutatorWithAnalyzerObj {
  public:
-  using s_tir::IRMutatorWithAnalyzer::Mutate;
-  using s_tir::IRMutatorWithAnalyzer::Mutate_;
+  using s_tir::IRMutatorWithAnalyzerObj::Mutate;
+  using s_tir::IRMutatorWithAnalyzerObj::Mutate_;
 
   /*!
    * \brief Simplify indices of tensor access and block tensor access regions in the statement
@@ -223,12 +223,12 @@ class BlockTensorAccessSimplifier : public s_tir::IRMutatorWithAnalyzer {
    * \return The simplified statement
    */
   static Stmt Simplify(const Stmt& stmt, const sym::Analyzer& analyzer) {
-    auto simplifier = ffi::make_object<BlockTensorAccessSimplifier>(analyzer);
+    auto simplifier = ffi::make_object<BlockTensorAccessSimplifierObj>(analyzer);
     return simplifier->Mutate(stmt).ValueOrUnchanged(stmt);
   }
 
-  explicit BlockTensorAccessSimplifier(const sym::Analyzer& analyzer)
-      : IRMutatorWithAnalyzer(analyzer) {}
+  explicit BlockTensorAccessSimplifierObj(const sym::Analyzer& analyzer)
+      : IRMutatorWithAnalyzerObj(analyzer) {}
 
  private:
   void SimplifyAccessRegion(ffi::Array<TensorRegion>* old_access_regions);
