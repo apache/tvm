@@ -122,7 +122,7 @@ class RPCSession {
    *  - int/float/string/bytes follows the ffi::Function convention, all data are local.
    *  - ffi::Function/Module and future remote objects: pass remote handle instead.
    *  - Tensor/DLTensor: pass a DLTensor pointer, the data field of DLTensor
-   *                      points to a remote data handle returned by the Device API.
+   *                      points to a remote data handle returned by the session.
    *                      The meta-data of the DLTensor sits on local.
    *
    *  The caller populates the arguments and manages these arguments.
@@ -132,9 +132,8 @@ class RPCSession {
    *
    *  The callee need to store the return value into ret_value.
    *  - ffi::Function/Module are stored as void*
-   *  - Tensor is stored as local Tensor, whose data field is a remote handle.
-   *    Notably the Tensor's deleter won't delete remote handle.
-   *    It is up to the user of the RPCSession to such wrapping.
+   *  - Tensor is encoded as a transport-only DLTensor descriptor and an object
+   *    handle. The caller wraps these in an explicitly remote owning object.
    *  - In short, remote handles are "moved" as return values
    *    and the callee needs to explicitly manage them by calling
    *    the deleter functions when they are no longer needed.
@@ -169,22 +168,18 @@ class RPCSession {
    */
   virtual void FreeHandle(void* handle) = 0;
 
-  /*!
-   * \brief Get device API that represents the remote
-   *  actions that can be taken on the remote.
-   *
-   *  The caller can then call into the Alloc/Free functions
-   *  to allocate free spaces and taking the pointer as the handle.
-   *
-   *  The device API is guaranteed to be alive during the
-   *  lifetime of the Session.
-   *
-   * \param dev The remote device.
-   * \param allow_missing Whether can we return nullptr if it is not available.
-   *
-   * \return The device API.
-   */
-  virtual DeviceAPI* GetDeviceAPI(Device dev, bool allow_missing = false) = 0;
+  // These operations transport endpoint handles, never local ffi::Tensor storage.
+  virtual void SetDevice(Device dev) = 0;
+  virtual ffi::Any GetAttr(Device dev, const ffi::String& name) = 0;
+  virtual void* AllocTensor(Device dev, ffi::ShapeView shape, DLDataType dtype,
+                            ffi::Optional<ffi::String> mem_scope) = 0;
+  virtual void FreeTensor(Device dev, void* handle) = 0;
+  virtual void CopyDataFromTo(DLTensor* from, DLTensor* to, TVMStreamHandle stream) = 0;
+  virtual TVMStreamHandle CreateStream(Device dev) = 0;
+  virtual void FreeStream(Device dev, TVMStreamHandle stream) = 0;
+  virtual void StreamSync(Device dev, TVMStreamHandle stream) = 0;
+  virtual void SetStream(Device dev, TVMStreamHandle stream) = 0;
+  virtual TVMStreamHandle GetCurrentStream(Device dev) = 0;
 
   /*!
    * \brief Whether the session is a local session and we can directly
@@ -288,13 +283,12 @@ class RPCSession {
     if (stream->closed) return;
     stream->closed = true;
     streams_.erase(std::remove(streams_.begin(), streams_.end(), stream), streams_.end());
-    auto* api = GetDeviceAPI(stream->device);
-    if (api->GetCurrentStream(stream->device) == stream->handle) {
-      api->SetStream(stream->device, nullptr);
+    if (GetCurrentStream(stream->device) == stream->handle) {
+      SetStream(stream->device, nullptr);
     }
-    if (stream->owned) api->FreeStream(stream->device, stream->handle);
+    if (stream->owned) FreeStream(stream->device, stream->handle);
   }
-  // Derived destructors call this while their DeviceAPI/transport is still alive.
+  // Derived destructors call this while their endpoint/transport is still alive.
   void ReleaseStreams() {
     std::vector<std::shared_ptr<RPCStreamState>> streams;
     {

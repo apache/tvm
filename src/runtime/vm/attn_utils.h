@@ -770,7 +770,7 @@ class PlainPagedKVCacheAuxDataManager : public PagedKVCacheAuxDataManager {
         TVM_FFI_ICHECK_EQ(shape.value().size(), 1);
         copy_size = shape.value()->data[0] * sizeof(int32_t);
       } else {
-        copy_size = DeviceAPI::Get(array->device)->GetDataSize(*array.GetDLTensorPtr());
+        copy_size = ffi::GetDataSize(*array.GetDLTensorPtr());
       }
       memcpy(static_cast<char*>(nptr) + dst_elem_offset * sizeof(int32_t), vec_data, copy_size);
       return;

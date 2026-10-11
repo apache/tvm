@@ -51,77 +51,78 @@ class RemoteDevice(tvm_ffi.Object):
         return f"RemoteDevice({self.endpoint_device})"
 
     def get_attr(self, attr):
-        """Query a DeviceAttrKind in the owning session."""
+        """Query a named device attribute in the owning session."""
         return _ffi_api.DeviceGetAttr(self, attr)
 
     @property
     def exist(self):
-        return bool(self.get_attr(0))
+        return bool(self.get_attr("exist"))
 
     @property
     def max_threads_per_block(self):
-        return self.get_attr(1)
+        return self.get_attr("max_threads_per_block")
 
     @property
     def warp_size(self):
-        return self.get_attr(2)
+        return self.get_attr("warp_size")
 
     @property
     def max_shared_memory_per_block(self):
-        return self.get_attr(3)
+        return self.get_attr("max_shared_memory_per_block")
 
     @property
     def compute_version(self):
-        return self.get_attr(4)
+        return self.get_attr("compute_version")
 
     @property
     def device_name(self):
-        return self.get_attr(5)
+        return self.get_attr("device_name")
 
     @property
     def max_clock_rate(self):
-        return self.get_attr(6)
+        return self.get_attr("max_clock_rate")
 
     @property
     def multi_processor_count(self):
-        return self.get_attr(7)
+        return self.get_attr("multi_processor_count")
 
     @property
     def max_thread_dimensions(self):
         import json
 
-        return json.loads(self.get_attr(8))
+        value = self.get_attr("max_thread_dimensions")
+        return None if value is None else json.loads(value)
 
     @property
     def max_registers_per_block(self):
-        return self.get_attr(9)
+        return self.get_attr("max_registers_per_block")
 
     @property
     def gcn_arch(self):
-        return self.get_attr(10)
+        return self.get_attr("gcn_arch")
 
     @property
     def available_global_memory(self):
-        return self.get_attr(15)
+        return self.get_attr("available_global_memory")
 
     def texture_spatial_limit(self):
-        return self.get_attr(12)
+        return self.get_attr("driver_version")
 
     @property
     def api_version(self):
-        return self.get_attr(11)
+        return self.get_attr("api_version")
 
     @property
     def driver_version(self):
-        return self.get_attr(12)
+        return self.get_attr("driver_version")
 
     @property
     def l2_cache_size_bytes(self):
-        return self.get_attr(13)
+        return self.get_attr("l2_cache_size_bytes")
 
     @property
     def total_global_memory(self):
-        return self.get_attr(14)
+        return self.get_attr("total_global_memory")
 
     def empty(self, shape, dtype="float32", mem_scope=None):
         """Allocate a remote tensor through this device's session."""

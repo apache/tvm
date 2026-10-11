@@ -23,6 +23,8 @@
 #include <algorithm>
 #include <cassert>
 
+#include "../hexagon_device_api.h"
+
 #ifndef TVM_RUNTIME_HEXAGON_OPS_CONV2D_H_
 #define TVM_RUNTIME_HEXAGON_OPS_CONV2D_H_
 
@@ -294,8 +296,8 @@ SDLTensor<4> prepare_nhwc(tvm::runtime::DeviceAPI* device_api, const DLTensor* n
   int c = round_up(nhwc_flat->shape[3], block_depth);
   int64_t shape_2d[2] = {(n * h * w * c) / (block_height * block_width * block_depth),
                          block_height * block_width * block_depth};
-  void* nhwc_vtcm =
-      device_api->AllocDataSpace(hexagon_device, 2, shape_2d, nhwc_flat->dtype, vtcm_scope);
+  void* nhwc_vtcm = static_cast<HexagonDeviceAPI*>(device_api)
+                        ->AllocDataSpace(hexagon_device, 2, shape_2d, nhwc_flat->dtype, vtcm_scope);
   if (copy_data) {
     blockize_hwc<T, block_height, block_width, block_depth>(
         nhwc_vtcm, nhwc_flat->data, nhwc_flat->shape[1], nhwc_flat->shape[2], nhwc_flat->shape[3]);
@@ -317,7 +319,7 @@ SDLTensor<4> prepare_hwio_8b(tvm::runtime::DeviceAPI* device_api, const DLTensor
 template <size_t N>
 void release(tvm::runtime::DeviceAPI* device_api, const SDLTensor<N>& tensor) {
   if (auto* data_space = tensor.GetDataSpace()) {
-    device_api->FreeDataSpace(hexagon_device, data_space);
+    static_cast<HexagonDeviceAPI*>(device_api)->FreeDataSpace(hexagon_device, data_space);
   }
 }
 

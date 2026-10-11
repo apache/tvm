@@ -115,7 +115,7 @@ static size_t GetMemObjectSize(Device dev, int ndim, const int64_t* shape, DLDat
   temp.shape = const_cast<int64_t*>(shape);
   temp.strides = nullptr;
   temp.byte_offset = 0;
-  size_t size = DeviceAPI::Get(dev)->GetDataSize(temp);
+  size_t size = ffi::GetDataSize(temp);
   return size;
 }
 
@@ -135,113 +135,101 @@ cl_device_id OpenCLWorkspace::GetCLDeviceID(int device_id) {
 
 void OpenCLWorkspace::SetDevice(Device dev) { GetThreadEntry()->device.device_id = dev.device_id; }
 
-void OpenCLWorkspace::GetAttr(Device dev, DeviceAttrKind kind, ffi::Any* rv) {
+ffi::Any OpenCLWorkspace::GetAttr(Device dev, const ffi::String& name) {
   this->Init();
   size_t index = static_cast<size_t>(dev.device_id);
-  if (kind == kExist) {
-    *rv = static_cast<int>(index < devices.size());
-    return;
+  if (name == "exist") {
+    return dev.device_type == kDLOpenCL && index < devices.size();
   }
   cl_device_id device_id = GetCLDeviceID(index);
-  switch (kind) {
-    case kExist:
-      break;
-    case kMaxThreadsPerBlock: {
-      size_t value;
-      OPENCL_CALL(clGetDeviceInfo(device_id, CL_DEVICE_MAX_WORK_GROUP_SIZE, sizeof(size_t), &value,
-                                  nullptr));
-      *rv = static_cast<int64_t>(value);
-      break;
-    }
-    case kWarpSize: {
-      /* TODO: the warp size of OpenCL device is not always 1
-               e.g. Intel Graphics has a sub group concept which contains 8 - 32 work items,
-               corresponding to the number of SIMD entries the heardware configures.
-               We need to figure out a way to query this information from the hardware.
-      */
-      const int warp_size = support::GetEnv("TVM_OPENCL_WARP_SIZE", 1);
-      *rv = warp_size;
-      break;
-    }
-    case kMaxSharedMemoryPerBlock: {
-      cl_ulong value;
-      OPENCL_CALL(
-          clGetDeviceInfo(device_id, CL_DEVICE_LOCAL_MEM_SIZE, sizeof(cl_ulong), &value, nullptr));
-      *rv = static_cast<int64_t>(value);
-      break;
-    }
-    case kComputeVersion:
-      *rv = GetOpenCLVersion(device_id);
-      break;
-    case kDeviceName:
-      *rv = GetDeviceInfo(device_id, CL_DEVICE_NAME);
-      break;
-    case kMaxClockRate: {
-      cl_uint value;
-      OPENCL_CALL(clGetDeviceInfo(device_id, CL_DEVICE_MAX_CLOCK_FREQUENCY, sizeof(cl_uint), &value,
-                                  nullptr));
-      // OpenCL returns the clock rate in MHz, while CUDA/ROCm return the
-      // clock rate in kHz.  Converting to the same units for each.
-      *rv = static_cast<int32_t>(value * 1000);
-      break;
-    }
-    case kMultiProcessorCount: {
-      cl_uint value;
-      OPENCL_CALL(clGetDeviceInfo(device_id, CL_DEVICE_MAX_COMPUTE_UNITS, sizeof(cl_uint), &value,
-                                  nullptr));
-      *rv = static_cast<int32_t>(value);
-      break;
-    }
-    case kMaxThreadDimensions: {
-      size_t dims[3];
-      OPENCL_CALL(
-          clGetDeviceInfo(device_id, CL_DEVICE_MAX_WORK_ITEM_SIZES, sizeof(dims), dims, nullptr));
-
-      std::stringstream ss;  // use json string to return multiple int values;
-      ss << "[" << dims[0] << ", " << dims[1] << ", " << dims[2] << "]";
-      *rv = ss.str();
-      break;
-    }
-    case kMaxRegistersPerBlock:
-      return;
-    case kGcnArch:
-      return;
-    case kApiVersion: {
-      *rv = CL_TARGET_OPENCL_VERSION;
-      break;
-    }
-    case kDriverVersion: {
-      char value[128] = {0};
-      OPENCL_CALL(clGetDeviceInfo(device_id, CL_DRIVER_VERSION, sizeof(value) - 1, value, nullptr));
-      *rv = std::string(value);
-      break;
-    }
-    case kL2CacheSizeBytes: {
-      // NOTE(Zihao): this API cannot reflect the real L2 cache size in both CUDA/AMD GPUs.
-      cl_ulong value;
-      OPENCL_CALL(clGetDeviceInfo(device_id, CL_DEVICE_GLOBAL_MEM_CACHE_SIZE, sizeof(value), &value,
-                                  nullptr));
-      *rv = static_cast<int64_t>(value);
-      break;
-    }
-    case kTotalGlobalMemory: {
-      cl_ulong total_global_memory;
-      OPENCL_CALL(clGetDeviceInfo(device_id, CL_DEVICE_GLOBAL_MEM_SIZE, sizeof(total_global_memory),
-                                  &total_global_memory, nullptr));
-      *rv = static_cast<int64_t>(total_global_memory);
-      return;
-    }
-
-    case kAvailableGlobalMemory:
-      // Not currently implemented.  Based on
-      // https://stackoverflow.com/a/3568223, may not be implementable
-      // at all through OpenCL API.
-      break;
-    case kImagePitchAlignment: {
-      *rv = static_cast<int64_t>(device_info[device_id].image_row_align);
-      break;
-    }
+  if (name == "max_threads_per_block") {
+    size_t value;
+    OPENCL_CALL(
+        clGetDeviceInfo(device_id, CL_DEVICE_MAX_WORK_GROUP_SIZE, sizeof(size_t), &value, nullptr));
+    return static_cast<int64_t>(value);
   }
+  if (name == "warp_size") {
+    /* TODO: the warp size of OpenCL device is not always 1
+             e.g. Intel Graphics has a sub group concept which contains 8 - 32 work items,
+             corresponding to the number of SIMD entries the heardware configures.
+             We need to figure out a way to query this information from the hardware.
+    */
+    const int warp_size = support::GetEnv("TVM_OPENCL_WARP_SIZE", 1);
+    return warp_size;
+  }
+  if (name == "max_shared_memory_per_block") {
+    cl_ulong value;
+    OPENCL_CALL(
+        clGetDeviceInfo(device_id, CL_DEVICE_LOCAL_MEM_SIZE, sizeof(cl_ulong), &value, nullptr));
+    return static_cast<int64_t>(value);
+  }
+  if (name == "compute_version") {
+    return GetOpenCLVersion(device_id);
+  }
+  if (name == "device_name") {
+    return GetDeviceInfo(device_id, CL_DEVICE_NAME);
+  }
+  if (name == "max_clock_rate") {
+    cl_uint value;
+    OPENCL_CALL(clGetDeviceInfo(device_id, CL_DEVICE_MAX_CLOCK_FREQUENCY, sizeof(cl_uint), &value,
+                                nullptr));
+    // OpenCL returns the clock rate in MHz, while CUDA/ROCm return the
+    // clock rate in kHz.  Converting to the same units for each.
+    return static_cast<int32_t>(value * 1000);
+  }
+  if (name == "multi_processor_count") {
+    cl_uint value;
+    OPENCL_CALL(
+        clGetDeviceInfo(device_id, CL_DEVICE_MAX_COMPUTE_UNITS, sizeof(cl_uint), &value, nullptr));
+    return static_cast<int32_t>(value);
+  }
+  if (name == "max_thread_dimensions") {
+    size_t dims[3];
+    OPENCL_CALL(
+        clGetDeviceInfo(device_id, CL_DEVICE_MAX_WORK_ITEM_SIZES, sizeof(dims), dims, nullptr));
+
+    std::stringstream ss;  // use json string to return multiple int values;
+    ss << "[" << dims[0] << ", " << dims[1] << ", " << dims[2] << "]";
+    return ss.str();
+  }
+  if (name == "max_registers_per_block") {
+    return {};
+  }
+  if (name == "gcn_arch") {
+    return {};
+  }
+  if (name == "api_version") {
+    return CL_TARGET_OPENCL_VERSION;
+  }
+  if (name == "driver_version") {
+    char value[128] = {0};
+    OPENCL_CALL(clGetDeviceInfo(device_id, CL_DRIVER_VERSION, sizeof(value) - 1, value, nullptr));
+    return std::string(value);
+  }
+  if (name == "l2_cache_size_bytes") {
+    // NOTE(Zihao): this API cannot reflect the real L2 cache size in both CUDA/AMD GPUs.
+    cl_ulong value;
+    OPENCL_CALL(clGetDeviceInfo(device_id, CL_DEVICE_GLOBAL_MEM_CACHE_SIZE, sizeof(value), &value,
+                                nullptr));
+    return static_cast<int64_t>(value);
+  }
+  if (name == "total_global_memory") {
+    cl_ulong total_global_memory;
+    OPENCL_CALL(clGetDeviceInfo(device_id, CL_DEVICE_GLOBAL_MEM_SIZE, sizeof(total_global_memory),
+                                &total_global_memory, nullptr));
+    return static_cast<int64_t>(total_global_memory);
+  }
+
+  if (name == "available_global_memory") {
+    // Not currently implemented.  Based on
+    // https://stackoverflow.com/a/3568223, may not be implementable
+    // at all through OpenCL API.
+    return {};
+  }
+  if (name == "image_pitch_alignment") {
+    return static_cast<int64_t>(device_info[device_id].image_row_align);
+  }
+  return {};
 }
 
 void* OpenCLWorkspace::CreateHostPtrIfEnabled(cl::BufferDescriptor* desc, Device dev, size_t size) {
@@ -256,10 +244,25 @@ void* OpenCLWorkspace::CreateHostPtrIfEnabled(cl::BufferDescriptor* desc, Device
   return desc;
 }
 
-void* OpenCLWorkspace::AllocDataSpace(Device dev, size_t size, size_t alignment,
-                                      DLDataType type_hint) {
-  this->Init();
-  return AllocCLBuffer(dev, size, alignment, type_hint);
+ffi::Tensor OpenCLWorkspace::Empty(ffi::ShapeView shape, DLDataType dtype, DLDevice device,
+                                   ffi::Optional<ffi::String> mem_scope) {
+  struct NDAlloc {
+    OpenCLWorkspace* api;
+    ffi::Optional<ffi::String> scope;
+    void AllocData(DLTensor* tensor) {
+      tensor->data =
+          api->AllocDataSpace(tensor->device, tensor->ndim, tensor->shape, tensor->dtype, scope);
+    }
+    void FreeData(DLTensor* tensor) {
+      auto* desc = static_cast<BufferDescriptor*>(tensor->data);
+      if (desc->layout == BufferDescriptor::MemoryLayout::kBuffer1D) {
+        MemoryManager::GetAllocator(tensor->device, desc->mbuf.alloc_type)->Free(desc->mbuf);
+      } else {
+        api->FreeDataSpace(tensor->device, desc);
+      }
+    }
+  };
+  return ffi::Tensor::FromNDAlloc(NDAlloc{this, mem_scope}, shape, dtype, device);
 }
 
 void* OpenCLWorkspace::AllocDataSpace(Device dev, size_t width, size_t height, size_t depth,
@@ -282,7 +285,14 @@ void* OpenCLWorkspace::AllocDataSpace(Device dev, size_t width, size_t height, s
   if (!mem_scope.has_value()) {
     mem_scope = ffi::String("global.texture");
   }
-  return AllocCLImage(dev, back_buffer, width, height, depth, row_pitch, type_hint, mem_scope);
+  try {
+    return AllocCLImage(dev, back_buffer, width, height, depth, row_pitch, type_hint, mem_scope);
+  } catch (...) {
+    if (back_buffer) {
+      MemoryManager::GetAllocator(dev, back_buffer->mbuf.alloc_type)->Free(back_buffer->mbuf);
+    }
+    throw;
+  }
 }
 
 void* OpenCLWorkspace::AllocDataSpace(Device dev, int ndim, const int64_t* shape, DLDataType dtype,
@@ -347,17 +357,6 @@ void* OpenCLWorkspace::AllocCLImage(Device dev, void* back_buffer, size_t width,
   desc->buffer = mptr;
   desc->back_buffer = back_desc;
   return desc;
-}
-
-size_t OpenCLWorkspace::GetDataSize(const DLTensor& arr, ffi::Optional<ffi::String> mem_scope) {
-  if (!mem_scope.has_value() || (*mem_scope).empty() || (*mem_scope) == "global") {
-    return DeviceAPI::GetDataSize(arr);
-  }
-  cl_uint row_align = GetImageAlignment(GetThreadEntry()->device.device_id);
-  std::vector<int64_t> shape;
-  shape.assign(arr.shape, arr.shape + arr.ndim);
-  return runtime::GetTextureMemorySize<std::vector<int64_t>>(shape, arr.dtype.bits, arr.dtype.lanes,
-                                                             mem_scope.value(), row_align);
 }
 
 void* OpenCLWorkspace::AllocDataSpaceView(Device dev, void* data, ffi::Shape shape,
@@ -593,21 +592,6 @@ void OpenCLWorkspace::StreamSync(Device dev, TVMStreamHandle stream) {
   OPENCL_CALL(clFinish(this->GetQueue(dev)));
 }
 
-void* OpenCLWorkspace::AllocWorkspace(Device dev, size_t size, DLDataType type_hint) {
-  this->Init();
-  cl::BufferDescriptor* ret_buffer = nullptr;
-  auto buf = MemoryManager::GetOrCreateAllocator(dev, AllocatorType::kPooled)
-                 ->Alloc(dev, size, kTempAllocaAlignment, type_hint);
-  ret_buffer = static_cast<cl::BufferDescriptor*>(buf.data);
-  ret_buffer->mbuf = buf;
-  return ret_buffer;
-}
-
-void OpenCLWorkspace::FreeWorkspace(Device dev, void* data) {
-  cl::BufferDescriptor* desc = static_cast<cl::BufferDescriptor*>(data);
-  MemoryManager::GetAllocator(dev, desc->mbuf.alloc_type)->Free(desc->mbuf);
-}
-
 OpenCLThreadEntry* OpenCLThreadEntry::ThreadLocal() {
   static thread_local OpenCLThreadEntry inst;
   return &inst;
@@ -643,10 +627,12 @@ std::string GetOpenCLVersion(cl_device_id pid) {
 }
 
 std::vector<cl_platform_id> GetPlatformIDs() {
-  cl_uint ret_size;
+  cl_uint ret_size = 0;
   cl_int code = clGetPlatformIDs(0, nullptr, &ret_size);
   std::vector<cl_platform_id> ret;
-  if (code != CL_SUCCESS) return ret;
+  if (code == CL_PLATFORM_NOT_FOUND_KHR) return ret;
+  OPENCL_CHECK_ERROR(code);
+  if (ret_size == 0) return ret;
   ret.resize(ret_size);
   OPENCL_CALL(clGetPlatformIDs(ret_size, &ret[0], nullptr));
   return ret;
@@ -657,10 +643,12 @@ std::vector<cl_device_id> GetDeviceIDs(cl_platform_id pid, std::string device_ty
   if (device_type == "cpu") dtype = CL_DEVICE_TYPE_CPU;
   if (device_type == "gpu") dtype = CL_DEVICE_TYPE_GPU;
   if (device_type == "accelerator") dtype = CL_DEVICE_TYPE_ACCELERATOR;
-  cl_uint ret_size;
+  cl_uint ret_size = 0;
   cl_int code = clGetDeviceIDs(pid, dtype, 0, nullptr, &ret_size);
   std::vector<cl_device_id> ret;
-  if (code != CL_SUCCESS) return ret;
+  if (code == CL_DEVICE_NOT_FOUND) return ret;
+  OPENCL_CHECK_ERROR(code);
+  if (ret_size == 0) return ret;
   ret.resize(ret_size);
   OPENCL_CALL(clGetDeviceIDs(pid, dtype, ret_size, &ret[0], nullptr));
   return ret;
@@ -821,6 +809,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 class OpenCLPooledAllocator final : public memory::PooledAllocator {
  public:
   explicit OpenCLPooledAllocator() : PooledAllocator() {}
+  ~OpenCLPooledAllocator() override { ReleaseAll(); }
 
   bool AllowMemoryScope(const std::string& mem_scope) const final {
     return ((mem_scope.find("texture") != std::string::npos) || mem_scope.empty() ||
@@ -859,17 +848,15 @@ class OpenCLPooledAllocator final : public memory::PooledAllocator {
                const std::string& mem_scope) override {
     if (AllowMemoryScope(mem_scope)) {
       size_t size = GetMemObjectSize(dev, shape.size(), shape.data(), type_hint);
+      if (mem_scope.empty() || mem_scope == "global") {
+        return Alloc(dev, size, kTempAllocaAlignment, type_hint);
+      }
       Buffer buf;
       buf.device = dev;
       buf.size = size;
       buf.alloc_type = AllocatorType::kPooled;
-      buf.data = DeviceAPI::Get(dev)->AllocDataSpace(dev, shape.size(), shape.data(), type_hint,
-                                                     ffi::String(mem_scope));
-      if (mem_scope.find("texture") == std::string::npos) {
-        // All textures are backed by buffers - don't count in total memory
-        used_memory_.fetch_add(size, std::memory_order_relaxed);
-      }
-      DLOG(INFO) << "allocate " << size << " B, used memory " << used_memory_ << " B";
+      buf.data = OpenCLWorkspace::Global()->AllocDataSpace(dev, shape.size(), shape.data(),
+                                                           type_hint, ffi::String(mem_scope));
       return buf;
     }
     TVM_FFI_THROW(InternalError) << "Unsupported memory scope for this Allocator:" << mem_scope;
@@ -878,6 +865,11 @@ class OpenCLPooledAllocator final : public memory::PooledAllocator {
 
   void Free(const Buffer& buffer) override {
     std::lock_guard<std::recursive_mutex> lock(mu_);
+    auto* desc = static_cast<BufferDescriptor*>(buffer.data);
+    if (desc->layout != BufferDescriptor::MemoryLayout::kBuffer1D) {
+      OpenCLWorkspace::Global()->FreeDataSpace(buffer.device, buffer.data);
+      return;
+    }
     if (memory_pool_.find(buffer.size) == memory_pool_.end()) {
       memory_pool_.emplace(buffer.size, std::vector<Buffer>{});
     }
@@ -895,6 +887,17 @@ class OpenCLPooledAllocator final : public memory::PooledAllocator {
   void FreeView(Device dev, void* data) final {
     OpenCLWorkspace* ws_ = OpenCLWorkspace::Global();
     return ws_->FreeDataSpaceView(dev, data);
+  }
+
+ protected:
+  // Empty uses this pool for its backing storage. Keep these hooks below Empty
+  // so a cache miss does not recursively enter owning tensor allocation.
+  void* DeviceAllocDataSpace(Device dev, size_t size, size_t alignment,
+                             DLDataType type_hint) override {
+    return OpenCLWorkspace::Global()->AllocCLBuffer(dev, size, alignment, type_hint);
+  }
+  void DeviceFreeDataSpace(Device dev, void* data) override {
+    OpenCLWorkspace::Global()->FreeDataSpace(dev, data);
   }
 };
 

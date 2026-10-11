@@ -30,15 +30,15 @@ public class TVMRemoteDevice extends TVMObject {
   }
 
   public boolean exist() {
-    return RPC.getApi("DeviceGetAttr").call(this, 0).asLong() != 0;
+    return RPC.getApi("DeviceGetAttr").call(this, "exist").asLong() != 0;
   }
 
   public long maxThreadsPerBlock() {
-    return RPC.getApi("DeviceGetAttr").call(this, 1).asLong();
+    return RPC.getApi("DeviceGetAttr").call(this, "max_threads_per_block").asLong();
   }
 
   public long warpSize() {
-    return RPC.getApi("DeviceGetAttr").call(this, 2).asLong();
+    return RPC.getApi("DeviceGetAttr").call(this, "warp_size").asLong();
   }
 
   public void sync() {

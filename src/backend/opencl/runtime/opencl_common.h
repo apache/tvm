@@ -352,22 +352,18 @@ class OpenCLWorkspace : public DeviceAPI {
   cl_device_id GetCLDeviceID(int device_id);
   // override device API
   void SetDevice(Device dev) final;
-  void GetAttr(Device dev, DeviceAttrKind kind, ffi::Any* rv) final;
-  void* AllocDataSpace(Device dev, size_t size, size_t alignment, DLDataType type_hint) final;
+  ffi::Any GetAttr(Device dev, const ffi::String& name) final;
+  ffi::Tensor Empty(ffi::ShapeView shape, DLDataType dtype, DLDevice device,
+                    ffi::Optional<ffi::String> mem_scope = std::nullopt) final;
   void* AllocDataSpace(Device dev, int ndim, const int64_t* shape, DLDataType dtype,
-                       ffi::Optional<ffi::String> mem_scope = std::nullopt) final;
+                       ffi::Optional<ffi::String> mem_scope = std::nullopt);
   void* AllocDataSpace(Device dev, size_t width, size_t height, size_t depth, DLDataType type_hint,
                        ffi::Optional<ffi::String> mem_scope = std::nullopt);
   void* GetNativePtr(const tvm::ffi::Tensor& narr);
   void SetNativePtr(const tvm::ffi::Tensor& narr, void* host_ptr, size_t buf_size);
   void SetPerfHint(Device dev, cl_uint perf_hint);
-  void FreeDataSpace(Device dev, void* ptr) final;
+  void FreeDataSpace(Device dev, void* ptr);
   void StreamSync(Device dev, TVMStreamHandle stream) final;
-  void* AllocWorkspace(Device dev, size_t size, DLDataType type_hint) final;
-  void FreeWorkspace(Device dev, void* data) final;
-  size_t GetDataSize(const DLTensor& arr,
-                     ffi::Optional<ffi::String> mem_scope = std::nullopt) final;
-
   // cl_mem alloc utils
   void* AllocCLBuffer(Device dev, size_t size, size_t alignment, DLDataType type_hint);
   void* AllocCLImage(Device dev, void* back_buffer, size_t width, size_t height, size_t depth,

@@ -53,9 +53,8 @@ static RemoteTensor RemoteEmpty(ffi::Shape shape, DLDataType dtype, RemoteDevice
   auto storage = std::make_shared<RemoteTensorStorage>();
   storage->sess = dev->sess;
   storage->device = dev->endpoint_device;
+  storage->data = dev->session()->AllocTensor(dev->endpoint_device, shape, dtype, scope);
   storage->owns_allocation = true;
-  storage->data =
-      dev->api()->AllocDataSpace(dev->endpoint_device, shape.size(), shape.data(), dtype, scope);
   n->storage = std::move(storage);
   return RemoteTensor(n);
 }
@@ -70,7 +69,7 @@ static void CopyRemote(RemoteTensor from, RemoteTensor to, ffi::Optional<RemoteS
   auto dst = to->descriptor();
   auto dev = src.device.device_type == kDLCPU ? to->device : from->device;
   auto handle = CheckRemoteStream(dev, stream);
-  dev->api()->CopyDataFromTo(&src, &dst, handle);
+  dev->session()->CopyDataFromTo(&src, &dst, handle);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -87,22 +86,18 @@ TVM_FFI_STATIC_INIT_BLOCK() {
              return MakeRemoteDevice(RPCModuleGetSession(mod), dev);
            })
       .def("rpc.DeviceGetAttr",
-           [](RemoteDevice dev, int attr) {
+           [](RemoteDevice dev, ffi::String attr) {
              dev->sess->EnsureOpen();
-             auto kind = static_cast<DeviceAttrKind>(attr);
-             auto* api = dev->sess->GetDeviceAPI(dev->endpoint_device, kind == kExist);
-             ffi::Any rv = 0;
-             if (api != nullptr) api->GetAttr(dev->endpoint_device, kind, &rv);
-             return rv;
+             return dev->sess->GetAttr(dev->endpoint_device, attr);
            })
       .def("rpc.DeviceSetDevice",
-           [](RemoteDevice dev) { dev->api()->SetDevice(dev->endpoint_device); })
+           [](RemoteDevice dev) { dev->session()->SetDevice(dev->endpoint_device); })
       .def("rpc.DeviceCreateStream",
            [](RemoteDevice dev) {
              auto n = ffi::make_object<RemoteStreamObj>();
              n->device = dev;
              n->state = dev->sess->TrackStream(
-                 dev->endpoint_device, dev->api()->CreateStream(dev->endpoint_device), true);
+                 dev->endpoint_device, dev->session()->CreateStream(dev->endpoint_device), true);
              return RemoteStream(n);
            })
       .def("rpc.DeviceCurrentStream",
@@ -110,7 +105,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
              auto n = ffi::make_object<RemoteStreamObj>();
              n->device = dev;
              n->state = dev->sess->TrackStream(
-                 dev->endpoint_device, dev->api()->GetCurrentStream(dev->endpoint_device), false);
+                 dev->endpoint_device, dev->session()->GetCurrentStream(dev->endpoint_device),
+                 false);
              return RemoteStream(n);
            })
       .def("rpc.DeviceFreeStream",
@@ -121,12 +117,12 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("rpc.DeviceSetStream",
            [](RemoteDevice dev, ffi::Optional<RemoteStream> stream) {
              auto handle = CheckRemoteStream(dev, stream);
-             dev->api()->SetStream(dev->endpoint_device, handle);
+             dev->session()->SetStream(dev->endpoint_device, handle);
            })
       .def("rpc.DeviceSync",
            [](RemoteDevice dev, ffi::Optional<RemoteStream> stream) {
              auto handle = CheckRemoteStream(dev, stream);
-             dev->api()->StreamSync(dev->endpoint_device, handle);
+             dev->session()->StreamSync(dev->endpoint_device, handle);
            })
       .def("rpc.Empty", RemoteEmpty)
       .def("rpc.CopyFromTo", CopyRemote)

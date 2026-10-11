@@ -86,17 +86,7 @@ void CopyFromBytes(ffi::TensorView destination, const void* data, size_t nbytes,
 
 ffi::Tensor Empty(ffi::Shape shape, DLDataType dtype, Device dev,
                   ffi::Optional<ffi::String> mem_scope) {
-  struct DeviceAPIAlloc {
-    void AllocData(DLTensor* tensor, ffi::Optional<ffi::String> mem_scope) {
-      tensor->data = DeviceAPI::Get(tensor->device)
-                         ->AllocDataSpace(tensor->device, tensor->ndim, tensor->shape,
-                                          tensor->dtype, mem_scope);
-    }
-    void FreeData(DLTensor* tensor) {
-      DeviceAPI::Get(tensor->device)->FreeDataSpace(tensor->device, tensor->data);
-    }
-  };
-  return ffi::Tensor::FromNDAlloc(DeviceAPIAlloc(), shape, dtype, dev, mem_scope);
+  return DeviceAPI::Get(dev)->Empty(shape, dtype, dev, mem_scope);
 }
 
 ffi::Tensor CreateView(ffi::Tensor source, ffi::Shape shape, DLDataType dtype,

@@ -36,11 +36,16 @@
 #include <array>
 #include <cctype>
 #include <cstdlib>
+#include <limits>
+#include <memory>
 #include <mutex>
 #include <sstream>
 #include <string>
 #include <tuple>
+#include <unordered_map>
 #include <variant>
+
+#include "workspace_pool.h"
 
 namespace tvm {
 namespace runtime {
@@ -94,50 +99,6 @@ int DeviceAPI::GetDeviceIndex() {
   TVM_FFI_THROW(NotImplementedError) << "Device does not support GetDeviceIndex.";
 }
 
-void* DeviceAPI::AllocWorkspace(Device dev, size_t size, DLDataType type_hint) {
-  return AllocDataSpace(dev, size, kTempAllocaAlignment, type_hint);
-}
-
-static size_t GetDataAlignment(const DLDataType dtype) {
-  size_t align = (dtype.bits / 8) * dtype.lanes;
-  if (align < kAllocAlignment) return kAllocAlignment;
-  return align;
-}
-
-size_t DeviceAPI::GetDataSize(const DLTensor& arr, ffi::Optional<ffi::String> mem_scope) {
-  if (!mem_scope.has_value() || mem_scope.value().empty() || mem_scope.value() == "global") {
-    size_t size = 1;
-    for (int i = 0; i < arr.ndim; ++i) {
-      size *= static_cast<size_t>(arr.shape[i]);
-    }
-    return ffi::GetDataSize(size, arr.dtype);
-  }
-  TVM_FFI_THROW(InternalError) << "Device does not support physical mem computation with "
-                               << "specified memory scope: " << mem_scope.value();
-  return 0;
-}
-
-void* DeviceAPI::AllocDataSpace(Device dev, int ndim, const int64_t* shape, DLDataType dtype,
-                                ffi::Optional<ffi::String> mem_scope) {
-  if (!mem_scope.has_value() || mem_scope.value().empty() || mem_scope.value() == "global") {
-    // by default, we can always redirect to the flat memory allocations
-    DLTensor temp;
-    temp.data = nullptr;
-    temp.device = dev;
-    temp.ndim = ndim;
-    temp.dtype = dtype;
-    temp.shape = const_cast<int64_t*>(shape);
-    temp.strides = nullptr;
-    temp.byte_offset = 0;
-    size_t size = ffi::GetDataSize(temp);
-    size_t alignment = GetDataAlignment(temp.dtype);
-    return AllocDataSpace(dev, size, alignment, dtype);
-  }
-  TVM_FFI_THROW(InternalError) << "Device does not support allocate data space with "
-                               << "specified memory scope: " << mem_scope.value();
-  return nullptr;
-}
-
 void DeviceAPI::CopyDataFromTo(DLTensor* from, DLTensor* to, TVMStreamHandle stream) {
   // by default, we can always redirect to the flat memory copy operation.
   size_t nbytes = ffi::GetDataSize(*from);
@@ -154,8 +115,6 @@ void DeviceAPI::CopyDataFromTo(const void* from, size_t from_offset, void* to, s
                                DLDataType type_hint, TVMStreamHandle stream) {
   TVM_FFI_THROW(InternalError) << "Device does not support CopyDataFromTo.";
 }
-
-void DeviceAPI::FreeWorkspace(Device dev, void* ptr) { FreeDataSpace(dev, ptr); }
 
 TVMStreamHandle DeviceAPI::CreateStream(Device dev) { return nullptr; }
 
@@ -201,24 +160,13 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def_packed("runtime.GetDeviceAttr",
-                  [](tvm::ffi::PackedArgs args, tvm::ffi::Any* ret) {
-                    DLDevice dev;
-                    dev.device_type = static_cast<DLDeviceType>(args[0].cast<int>());
-                    dev.device_id = args[1].cast<int>();
-
-                    DeviceAttrKind kind = static_cast<DeviceAttrKind>(args[2].cast<int>());
-                    if (kind == kExist) {
-                      DeviceAPI* api = DeviceAPIManager::Get(dev.device_type, true);
-                      if (api != nullptr) {
-                        api->GetAttr(dev, kind, ret);
-                      } else {
-                        *ret = 0;
-                      }
-                    } else {
-                      DeviceAPIManager::Get(dev)->GetAttr(dev, kind, ret);
-                    }
-                  })
+      .def("runtime.GetDeviceAttr",
+           [](int device_type, int device_id, ffi::String name) {
+             DLDevice dev{static_cast<DLDeviceType>(device_type), device_id};
+             DeviceAPI* api = DeviceAPI::Get(dev, name == "exist");
+             if (api == nullptr) return ffi::Any(false);
+             return api->GetAttr(dev, name);
+           })
       .def("runtime.TVMSetStream", [](int device_type, int device_id, void* stream) {
         Device dev;
         dev.device_type = static_cast<DLDeviceType>(device_type);
@@ -252,24 +200,25 @@ int TVMBackendGetDeviceIndex(int device_type, int* out_device_index) {
   TVM_FFI_SAFE_CALL_END();
 }
 
+namespace {
+WorkspacePool* BackendWorkspacePool(DLDevice dev) {
+  static thread_local std::unordered_map<int, std::unique_ptr<WorkspacePool>> pools;
+  auto& pool = pools[static_cast<int>(dev.device_type)];
+  if (!pool) pool = std::make_unique<WorkspacePool>(dev.device_type, DeviceAPI::Get(dev));
+  return pool.get();
+}
+}  // namespace
+
 void* TVMBackendAllocWorkspace(int device_type, int device_id, uint64_t size, int dtype_code_hint,
                                int dtype_bits_hint) {
-  DLDevice dev;
-  dev.device_type = static_cast<DLDeviceType>(device_type);
-  dev.device_id = device_id;
-
-  DLDataType type_hint;
-  type_hint.code = static_cast<decltype(type_hint.code)>(dtype_code_hint);
-  type_hint.bits = static_cast<decltype(type_hint.bits)>(dtype_bits_hint);
-  type_hint.lanes = 1;
-
-  return DeviceAPIManager::Get(dev)->AllocWorkspace(dev, static_cast<size_t>(size), type_hint);
+  DLDevice dev{static_cast<DLDeviceType>(device_type), device_id};
+  TVM_FFI_CHECK_LE(size, std::numeric_limits<size_t>::max(), ValueError)
+      << "Workspace size exceeds addressable memory";
+  return BackendWorkspacePool(dev)->AllocWorkspace(dev, static_cast<size_t>(size));
 }
 
 int TVMBackendFreeWorkspace(int device_type, int device_id, void* ptr) {
-  DLDevice dev;
-  dev.device_type = static_cast<DLDeviceType>(device_type);
-  dev.device_id = device_id;
-  DeviceAPIManager::Get(dev)->FreeWorkspace(dev, ptr);
+  DLDevice dev{static_cast<DLDeviceType>(device_type), device_id};
+  BackendWorkspacePool(dev)->FreeWorkspace(dev, ptr);
   return 0;
 }

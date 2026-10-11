@@ -39,9 +39,9 @@ class RemoteDeviceObj : public ffi::Object {
  public:
   std::shared_ptr<RPCSession> sess;
   Device endpoint_device;
-  DeviceAPI* api() const {
+  RPCSession* session() const {
     sess->EnsureOpen();
-    return sess->GetDeviceAPI(endpoint_device);
+    return sess.get();
   }
   static constexpr bool _type_mutable = true;
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("rpc.RemoteDevice", RemoteDeviceObj, ffi::Object);
@@ -70,8 +70,9 @@ struct RemoteTensorStorage {
     try {
       if (object_handle != nullptr) {
         sess->FreeHandle(object_handle);
-      } else if (owns_allocation && data != nullptr) {
-        sess->GetDeviceAPI(device)->FreeDataSpace(device, data);
+      } else if (owns_allocation) {
+        sess->EnsureOpen();
+        sess->FreeTensor(device, data);
       }
     } catch (const ffi::Error&) {
       // A closed transport has already released its remote resources.

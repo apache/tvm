@@ -22,13 +22,16 @@
 
 #include <tvm/runtime/device_api.h>
 
+#include <condition_variable>
 #include <map>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <unordered_map>
 #include <utility>
 #include <vector>
 
+#include "../../../runtime/workspace_pool.h"
 #include "hexagon_buffer.h"
 #include "hexagon_buffer_manager.h"
 #include "hexagon_power_manager.h"
@@ -57,13 +60,13 @@ class HexagonDeviceAPI final : public DeviceAPI {
   //! \brief Ensures resource managers are in a good state for the runtime
   void AcquireResources() {
     TVM_FFI_ICHECK_EQ(runtime_power_manager, nullptr);
-    runtime_power_manager = std::make_unique<HexagonPowerManager>();
-
     TVM_FFI_ICHECK_EQ(runtime_vtcm, nullptr);
-    runtime_vtcm = std::make_unique<HexagonVtcmPool>();
+    auto resources = AcquireDeviceResources();
+    runtime_power_manager = std::shared_ptr<HexagonPowerManager>(resources, &resources->power);
+    runtime_vtcm = std::shared_ptr<HexagonVtcmPool>(resources, &resources->vtcm);
 
     TVM_FFI_ICHECK_EQ(runtime_hexbuffs, nullptr);
-    runtime_hexbuffs = std::make_unique<HexagonBufferManager>();
+    runtime_hexbuffs = std::make_shared<HexagonBufferManager>();
 
     TVM_FFI_ICHECK_EQ(runtime_threads, nullptr);
     runtime_threads =
@@ -81,6 +84,7 @@ class HexagonDeviceAPI final : public DeviceAPI {
     TVM_FFI_ICHECK(runtime_threads) << "runtime_threads was not created in AcquireResources";
     runtime_threads.reset();
 
+    ResetWorkspacePool(kDLHexagon);
     TVM_FFI_ICHECK(runtime_hexbuffs) << "runtime_hexbuffs was not created in AcquireResources";
     runtime_hexbuffs.reset();
 
@@ -98,25 +102,20 @@ class HexagonDeviceAPI final : public DeviceAPI {
   void SetDevice(Device dev) final {};
 
   //! \brief Return the queried Hexagon device attribute.
-  void GetAttr(Device dev, DeviceAttrKind kind, ffi::Any* rv) final;
+  ffi::Any GetAttr(Device dev, const ffi::String& name) final;
+
+  ffi::Tensor Empty(ffi::ShapeView shape, DLDataType dtype, DLDevice device,
+                    ffi::Optional<ffi::String> mem_scope = std::nullopt) final;
 
   //! \brief Currently unimplemented interface to synchronize a device stream.
   void StreamSync(Device dev, TVMStreamHandle stream) final {}
 
-  //! \note Standard memory allocation methods of the DeviceAPI interface.
+  //! \note Backend-local allocation helpers for generated Hexagon operators.
   //! \brief Allocate a flat allocation of global memory wrapped in a HexagonBuffer.
-  void* AllocDataSpace(Device dev, size_t nbytes, size_t alignment, DLDataType type_hint) final;
+  void* AllocDataSpace(Device dev, size_t nbytes, size_t alignment, DLDataType type_hint);
 
   //! \brief Free the allocated HexagonBuffer.
-  void FreeDataSpace(Device dev, void* ptr) final;
-
-  /*! \brief Request a dynamically allocated HexagonBuffer from a workspace pool.
-   *  \returns The underlying allocation pointer.
-   */
-  void* AllocWorkspace(Device dev, size_t size, DLDataType type_hint) final;
-
-  //! Erase from HexagonBufferManager and free
-  void FreeWorkspace(Device dev, void* data) final;
+  void FreeDataSpace(Device dev, void* ptr);
 
   /*!
    * \brief Allocate an Nd data space on device with memory scope support.
@@ -124,7 +123,7 @@ class HexagonDeviceAPI final : public DeviceAPI {
    * If mem_scope is undefined or is "global", treat shape as the
    * tensor shape, to be flattened into an allocation of 1-d physical
    * memory.  This is done to maintain the semantics expected by callers of
-   * DeviceAPI::AllocDataSpace, in cases where it has a valid return value.
+   * compact tensor allocation, in cases where it has a valid return value.
    *
    * For other values of mem_scope, the shape is the N-d physical
    * shape of the allocation.
@@ -137,7 +136,7 @@ class HexagonDeviceAPI final : public DeviceAPI {
    * \return The allocated HexagonBuffer pointer.
    */
   void* AllocDataSpace(Device dev, int ndim, const int64_t* shape, DLDataType dtype,
-                       ffi::Optional<ffi::String> mem_scope) final;
+                       ffi::Optional<ffi::String> mem_scope);
 
   /*!
    * \brief Copy data from one storage to another.
@@ -159,6 +158,12 @@ class HexagonDeviceAPI final : public DeviceAPI {
     return runtime_dma.get();
   }
 
+  // The alias also retains power for allocations that outlive their session.
+  std::shared_ptr<HexagonVtcmPool> VtcmPoolOwner() {
+    TVM_FFI_ICHECK(runtime_vtcm) << "runtime_vtcm has not been created";
+    return runtime_vtcm;
+  }
+
   HexagonVtcmPool* VtcmPool() {
     TVM_FFI_ICHECK(runtime_vtcm) << "runtime_vtcm has not been created";
     return runtime_vtcm.get();
@@ -171,6 +176,49 @@ class HexagonDeviceAPI final : public DeviceAPI {
                       TVMStreamHandle stream) final;
 
  private:
+  // VTCM reserves the device's available memory. Surviving VTCM allocations and
+  // a new session must share that reservation instead of requesting it twice.
+  // Member order keeps power available until after the VTCM reservation is freed.
+  struct DeviceResources {
+    HexagonPowerManager power;
+    HexagonVtcmPool vtcm;
+  };
+
+  static std::shared_ptr<DeviceResources> AcquireDeviceResources() {
+    struct ResourceCache {
+      std::recursive_mutex mutex;
+      std::condition_variable_any released;
+      std::weak_ptr<DeviceResources> resources;
+      bool reserved{false};
+    };
+    // The cache also outlives tensor deleters during process shutdown.
+    static auto* cache = new ResourceCache();
+    std::unique_lock<std::recursive_mutex> lock(cache->mutex);
+    while (true) {
+      if (auto resources = cache->resources.lock()) {
+        return resources;
+      }
+      // A weak lock can fail before the final deleter releases the reservation.
+      // Let that deleter finish before asking HAP for the device memory again.
+      if (cache->reserved) {
+        cache->released.wait(lock);
+        continue;
+      }
+      auto* resource = new DeviceResources();
+      cache->reserved = true;
+      auto resources =
+          std::shared_ptr<DeviceResources>(resource, [state = cache](DeviceResources* p) {
+            // Recursive locking also handles a failed shared_ptr control-block allocation.
+            std::lock_guard<std::recursive_mutex> lock(state->mutex);
+            delete p;
+            state->reserved = false;
+            state->released.notify_all();
+          });
+      cache->resources = resources;
+      return resources;
+    }
+  }
+
   /*! \brief Helper to check if the device type is valid for the Hexagon Device API
    *  \return Boolean indicating whether the device type is valid
    */
@@ -181,9 +229,9 @@ class HexagonDeviceAPI final : public DeviceAPI {
 
   //! \brief Manages runtime HexagonBuffer allocations
   // runtime_hexbuffs is used for runtime allocations.  It is created with a call to
-  // AcquireResources, and destroyed on ReleaseResources.  The buffers in this manager are scoped
-  // to the lifetime of a user application session.
-  std::unique_ptr<HexagonBufferManager> runtime_hexbuffs;
+  // AcquireResources. Owning tensors retain their original manager after ReleaseResources,
+  // so a late deleter never frees an allocation through a replacement session.
+  std::shared_ptr<HexagonBufferManager> runtime_hexbuffs;
 
   //! \brief Thread manager
   std::unique_ptr<HexagonThreadManager> runtime_threads;
@@ -196,10 +244,10 @@ class HexagonDeviceAPI final : public DeviceAPI {
   std::unique_ptr<HexagonUserDMA> runtime_dma;
 
   //! \brief VTCM memory manager
-  std::unique_ptr<HexagonVtcmPool> runtime_vtcm;
+  std::shared_ptr<HexagonVtcmPool> runtime_vtcm;
 
   //! \brief Hexagon power manager
-  std::unique_ptr<HexagonPowerManager> runtime_power_manager;
+  std::shared_ptr<HexagonPowerManager> runtime_power_manager;
 };
 }  // namespace hexagon
 }  // namespace runtime

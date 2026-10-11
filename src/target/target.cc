@@ -415,7 +415,9 @@ ffi::ObjectPtr<TargetNode> TargetInternal::FromConfig(ffi::Map<ffi::String, ffi:
   if (from_device_id >= 0) {
     auto device_params = QueryDevice(from_device_id, target.get());
     for (const auto& kv : device_params) {
-      if (attrs.count(kv.first) == 0) {
+      // Schema defaults must not hide detected device values. Only explicit
+      // input options take precedence, including explicit false capabilities.
+      if (config.count(kv.first) == 0) {
         attrs[kv.first] = kv.second;
       }
     }
@@ -439,8 +441,7 @@ std::unordered_map<ffi::String, ffi::Any> TargetInternal::QueryDevice(int device
     return output;
   }
 
-  ffi::Any ret;
-  api->GetAttr(device, runtime::kExist, &ret);
+  ffi::Any ret = api->GetAttr(device, "exist");
   bool device_exists = ret.cast<bool>();
   if (!device_exists) {
     TVM_FFI_ICHECK(device_exists) << "Requested reading the parameters for " << target->kind->name
@@ -451,8 +452,13 @@ std::unordered_map<ffi::String, ffi::Any> TargetInternal::QueryDevice(int device
   }
 
   for (const auto& e : target->kind->schema_.ListOptions()) {
-    ffi::Any ret;
-    api->GetTargetProperty(device, e.key, &ret);
+    ffi::String name = e.key;
+    if (name == "max_num_threads") name = "max_threads_per_block";
+    if (name == "thread_warp_size") name = "warp_size";
+    if (target->kind->name == "vulkan" && name == "driver_version") {
+      name = "vulkan_driver_version";
+    }
+    ffi::Any ret = api->GetAttr(device, name);
     if (ret.type_index() != kTVMFFINone) {
       output[e.key] = ret;
     }

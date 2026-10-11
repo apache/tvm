@@ -468,8 +468,9 @@ int conv2d_packed_fp16(void*, TVMFFIAny* args, int num_args, TVMFFIAny* out_val)
 
   // Prepare zero_block
   int64_t block_nbytes = 2048;
-  void* zero_block = device_api->AllocDataSpace(conv_utils::hexagon_device, 1, &block_nbytes,
-                                                DLDataType{kDLUInt, 8, 1}, vtcm_scope);
+  void* zero_block = static_cast<HexagonDeviceAPI*>(device_api)
+                         ->AllocDataSpace(conv_utils::hexagon_device, 1, &block_nbytes,
+                                          DLDataType{kDLUInt, 8, 1}, vtcm_scope);
   memset(zero_block, 0, 2048);
 
   // FIXME: Setting bias to zero_block: this works for up to 256 output channels.
@@ -488,7 +489,7 @@ int conv2d_packed_fp16(void*, TVMFFIAny* args, int num_args, TVMFFIAny* out_val)
   conv_utils::deblockize_hwc<uint16_t, 8, 4, 32>(out_flat->data, out_vtcm.data, out_flat->shape[1],
                                                  out_flat->shape[2], out_flat->shape[3]);
 
-  device_api->FreeDataSpace(conv_utils::hexagon_device, zero_block);
+  static_cast<HexagonDeviceAPI*>(device_api)->FreeDataSpace(conv_utils::hexagon_device, zero_block);
   conv_utils::release(device_api, out_vtcm);
   conv_utils::release(device_api, wgt_vtcm);
   conv_utils::release(device_api, act_vtcm);

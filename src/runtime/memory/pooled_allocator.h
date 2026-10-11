@@ -27,7 +27,10 @@
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/memory/memory_manager.h>
 
+#include <algorithm>
 #include <atomic>
+#include <limits>
+#include <memory>
 #include <mutex>
 #include <string>
 #include <unordered_map>
@@ -52,9 +55,16 @@ class PooledAllocator : public Allocator {
     auto&& it = memory_pool_.find(size);
     if (it != memory_pool_.end() && !it->second.empty()) {
       auto&& pool = it->second;
-      auto ret = pool.back();
-      pool.pop_back();
-      return ret;
+      bool addressable = DeviceAPI::Get(dev)->SupportsDevicePointerArithmeticsOnHost();
+      auto candidate = std::find_if(pool.begin(), pool.end(), [&](const Buffer& buffer) {
+        return !addressable ||
+               (alignment != 0 && reinterpret_cast<uintptr_t>(buffer.data) % alignment == 0);
+      });
+      if (candidate != pool.end()) {
+        Buffer ret = *candidate;
+        pool.erase(candidate);
+        return ret;
+      }
     }
     Buffer buf;
     buf.device = dev;
@@ -99,11 +109,43 @@ class PooledAllocator : public Allocator {
  protected:
   virtual void* DeviceAllocDataSpace(Device dev, size_t nbytes, size_t alignment,
                                      DLDataType type_hint) {
-    return DeviceAPI::Get(dev)->AllocDataSpace(dev, nbytes, alignment, type_hint);
+    TVM_FFI_CHECK(alignment && (alignment & (alignment - 1)) == 0, ValueError)
+        << "Allocation alignment must be a power of two";
+    size_t natural_alignment = std::max(static_cast<size_t>(kAllocAlignment),
+                                        static_cast<size_t>(type_hint.bits / 8) * type_hint.lanes);
+    DLDataType storage_dtype = type_hint;
+    size_t storage_bytes = nbytes;
+    bool align_cpu = dev.device_type == kDLCPU && alignment > natural_alignment;
+    if (align_cpu) {
+      TVM_FFI_CHECK_LE(nbytes, std::numeric_limits<size_t>::max() - (alignment - 1), ValueError)
+          << "Aligned allocation size overflow";
+      storage_bytes += alignment - 1;
+    } else if (alignment > natural_alignment) {
+      TVM_FFI_CHECK_LE(alignment, std::numeric_limits<uint16_t>::max(), ValueError)
+          << "Backend allocation alignment cannot be represented";
+      storage_dtype = DLDataType{kDLUInt, 8, static_cast<uint16_t>(alignment)};
+    }
+    size_t element_bits = static_cast<size_t>(storage_dtype.bits) * storage_dtype.lanes;
+    TVM_FFI_CHECK_GT(element_bits, 0, ValueError) << "Invalid allocation datatype";
+    TVM_FFI_CHECK_LE(storage_bytes, (std::numeric_limits<int64_t>::max() - element_bits) / 8,
+                     ValueError)
+        << "Allocation size overflow";
+    int64_t length = static_cast<int64_t>(
+        (static_cast<uint64_t>(storage_bytes) * 8 + element_bits - 1) / element_bits);
+    ffi::Tensor owner = DeviceAPI::Get(dev)->Empty(ffi::ShapeView(&length, 1), storage_dtype, dev);
+    void* data = owner.data_ptr();
+    if (align_cpu) {
+      size_t space = ffi::GetDataSize(owner);
+      TVM_FFI_ICHECK(std::align(alignment, nbytes, data, space) != nullptr);
+    }
+    owners_.emplace(data, std::move(owner));
+    return data;
   }
 
   virtual void DeviceFreeDataSpace(Device dev, void* ptr) {
-    DeviceAPI::Get(dev)->FreeDataSpace(dev, ptr);
+    auto it = owners_.find(ptr);
+    TVM_FFI_ICHECK(it != owners_.end()) << "Unknown allocation owner";
+    owners_.erase(it);
   }
 
   virtual void ReleaseAll() {
@@ -120,6 +162,7 @@ class PooledAllocator : public Allocator {
   }
 
  protected:
+  std::unordered_multimap<void*, ffi::Tensor> owners_;
   size_t page_size_;
   std::atomic<size_t> used_memory_;
   std::unordered_map<size_t, std::vector<Buffer>> memory_pool_;

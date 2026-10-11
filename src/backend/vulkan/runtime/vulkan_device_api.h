@@ -26,7 +26,6 @@
 #include <string>
 #include <vector>
 
-#include "../../../runtime/workspace_pool.h"
 #include "thread_map.h"
 #include "vulkan/vulkan_core.h"
 #include "vulkan_device.h"
@@ -44,13 +43,9 @@ class VulkanDeviceAPI final : public DeviceAPI {
 
   // Implement active device
   void SetDevice(Device dev) final;
-  void GetAttr(Device dev, DeviceAttrKind kind, ffi::Any* rv) final;
-
-  // Implement memory management required by DeviceAPI
-  void* AllocDataSpace(Device dev, size_t nbytes, size_t alignment, DLDataType type_hint) final;
-  void FreeDataSpace(Device dev, void* ptr) final;
-  void* AllocWorkspace(Device dev, size_t size, DLDataType type_hint) final;
-  void FreeWorkspace(Device dev, void* data) final;
+  ffi::Any GetAttr(Device dev, const ffi::String& name) final;
+  ffi::Tensor Empty(ffi::ShapeView shape, DLDataType dtype, DLDevice device,
+                    ffi::Optional<ffi::String> mem_scope = std::nullopt) final;
 
   // Current vulkan implementation has one "stream" per CPU thread,
   // with all commands writing into a single command buffer that is
@@ -100,14 +95,10 @@ class VulkanDeviceAPI final : public DeviceAPI {
    */
   VulkanDevice& device(size_t device_id);
 
-  /*! \brief Returns a property to be stored in a target.
-   *
-   * Returns the results of feature/property queries done during the
-   * device initialization.
-   */
-  void GetTargetProperty(Device dev, const std::string& property, ffi::Any* rv) final;
-
  private:
+  void* AllocDataSpace(Device dev, size_t nbytes, size_t alignment, DLDataType type_hint);
+  void FreeDataSpace(Device dev, void* ptr);
+
   std::vector<uint32_t> GetComputeQueueFamilies(VkPhysicalDevice phy_dev);
 
   /*! \brief The Vulkan API instance owned by the VulkanDeviceAPI
@@ -122,13 +113,6 @@ class VulkanDeviceAPI final : public DeviceAPI {
    * and must be destructed before the instance_.
    */
   std::vector<VulkanDevice> devices_;
-
-  /*! \brief One pool of device memory for each CPU thread.
-   *
-   * These allocate memory based on the devices stored in devices_.
-   * The memory pools must be destructed before devices_.
-   */
-  ThreadMap<WorkspacePool> pool_per_thread;
 
   /*! \brief The index of the active device for each CPU thread.
    *

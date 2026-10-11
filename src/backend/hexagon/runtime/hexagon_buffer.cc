@@ -65,7 +65,8 @@ struct DDRAllocation : public Allocation {
 };
 
 struct VTCMAllocation : public Allocation {
-  VTCMAllocation(size_t nbytes, size_t alignment) : Allocation(nbytes, alignment) {
+  VTCMAllocation(size_t nbytes, size_t alignment)
+      : Allocation(nbytes, alignment), pool_(HexagonDeviceAPI::Global()->VtcmPoolOwner()) {
     // For simplicity, the current VTCM dynamic pool supports the following alignments: less than
     // or equal to 128 (0x80), and 2k (0x800)
     TVM_FFI_ICHECK((alignment <= 0x80) || (alignment == 0x800))
@@ -84,14 +85,16 @@ struct VTCMAllocation : public Allocation {
                  << nbytes;
       allocation_nbytes_ = nbytes;
     }
-    data_ = HexagonDeviceAPI::Global()->VtcmPool()->Allocate(allocation_nbytes_);
+    data_ = pool_->Allocate(allocation_nbytes_);
     DLOG(INFO) << "VTCMAllocation " << data_ << " " << allocation_nbytes_ << " " << alignment;
   }
   ~VTCMAllocation() {
     DLOG(INFO) << "~VTCMAllocation " << data_ << " " << allocation_nbytes_;
-    HexagonDeviceAPI::Global()->VtcmPool()->Free(data_, allocation_nbytes_);
+    pool_->Free(data_, allocation_nbytes_);
     data_ = nullptr;
   }
+
+  std::shared_ptr<HexagonVtcmPool> pool_;
 };
 
 template <HexagonBuffer::StorageScope S>

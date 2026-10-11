@@ -33,9 +33,13 @@ class StreamTestDevice final : public DeviceAPI {
   std::unordered_set<void*> live;
   void* current{nullptr};
   void SetDevice(Device) final {}
-  void GetAttr(Device, DeviceAttrKind, ffi::Any* result) final { *result = 1; }
-  void* AllocDataSpace(Device, size_t, size_t, DLDataType) final { return nullptr; }
-  void FreeDataSpace(Device, void*) final {}
+  ffi::Any GetAttr(Device, const ffi::String& name) final {
+    if (name == "exist") return true;
+    return nullptr;
+  }
+  ffi::Tensor Empty(ffi::ShapeView, DLDataType, Device, ffi::Optional<ffi::String>) final {
+    TVM_FFI_THROW(NotImplementedError) << "Stream test device does not allocate tensors";
+  }
   void* CreateStream(Device) final {
     auto handle = new int(0);
     live.insert(handle);
