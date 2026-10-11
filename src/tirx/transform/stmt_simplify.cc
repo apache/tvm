@@ -135,9 +135,8 @@ UnchangedOr<ffi::Any> StmtSimplifier::Mutate(ffi::AnyView input, InplaceMode inp
 }
 
 UnchangedOr<Stmt> StmtSimplifier::Mutate_(const ForNode* op, InplaceMode inplace_mode) {
-  if (op->annotations.empty() && op->HasTrivialStep() &&
-      SideEffect(op->min) <= CallEffectKind::kPure &&
-      SideEffect(op->extent) <= CallEffectKind::kPure && analyzer_->CanProveEqual(op->extent, 1)) {
+  if (IsOne(op->extent) && op->annotations.empty() && op->HasTrivialStep() &&
+      SideEffect(op->min) <= CallEffectKind::kPure) {
     PrimExpr min = analyzer_->Simplify(prim::cast(op->loop_var.ty(), op->min));
     analyzer_->Bind(op->loop_var, min);
     // Substitute metadata too: normal simplification preserves tensor declarations and types.
