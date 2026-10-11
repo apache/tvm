@@ -188,7 +188,7 @@ class Module:
     I.module_attrs({"device_num": 10})
     I.module_global_infos({"mesh": [R.device_mesh((2, 2), I.Range(0, 4)), R.device_mesh((1,), I.Range(4, 5))]})
     @Ts.function
-    def tir_func(x: T.Tensor((T.int64(128), T.int64(128)), "float32", layout=None), y: T.Tensor((T.int64(128), T.int64(128)), "float32", layout=None)):
+    def tir_func(x: T.Tensor((T.int64(128), T.int64(128)), "float32"), y: T.Tensor((T.int64(128), T.int64(128)), "float32")):
         T.func_attr({"s_tir": True, "script.namespace": "s_tir", "tirx.noalias": True})
         with Ts.sblock("root"):
             Ts.reads()
@@ -963,7 +963,7 @@ from __future__ import annotations
 @I.ir_module
 class Module:
     @Ts.function
-    def tir_func(x: T.Tensor((T.int64(128),), "float32", layout=None), y: T.Tensor((T.int64(128),), "float32", layout=None)):
+    def tir_func(x: T.Tensor((T.int64(128),), "float32"), y: T.Tensor((T.int64(128),), "float32")):
         T.func_attr({"s_tir": True, "script.namespace": "s_tir"})
 
     @R.function
@@ -988,7 +988,7 @@ from __future__ import annotations
 @I.ir_module
 class Module:
     @Ts.function
-    def tir_func(x: T.Tensor((T.int64(128),), "float32", layout=None), y: T.Tensor((T.int64(128),), "float32", layout=None)):
+    def tir_func(x: T.Tensor((T.int64(128),), "float32"), y: T.Tensor((T.int64(128),), "float32")):
         T.func_attr({"s_tir": True, "script.namespace": "s_tir"})
 
     @R.function
