@@ -122,12 +122,12 @@ Type InferTypeAllClassNMS(const CallNode* call_node) {
   TVM_FFI_ICHECK_EQ(boxes_ty->ndim, 3) << "AllClassNMS input boxes should be 3-D.";
   TVM_FFI_ICHECK_EQ(scores_ty->ndim, 3) << "AllClassNMS input scores count should be 3-D.";
 
-  const auto batch = ffi::AnyView(boxes_ty->shape).as<ShapeExprNode>()->values[0];
-  const auto num_classes = ffi::AnyView(scores_ty->shape).as<ShapeExprNode>()->values[1];
-  const auto num_boxes = ffi::AnyView(boxes_ty->shape).as<ShapeExprNode>()->values[1];
+  const auto batch = boxes_ty->shape.as<ShapeExprNode>()->values[0];
+  const auto num_classes = scores_ty->shape.as<ShapeExprNode>()->values[1];
+  const auto num_boxes = boxes_ty->shape.as<ShapeExprNode>()->values[1];
 
   auto vdev = input_ty[0]->vdevice;
-  const auto* attrs = ffi::AnyView(call->attrs).as<AllClassNonMaximumSuppressionAttrs>();
+  const auto* attrs = call->attrs.as<AllClassNonMaximumSuppressionAttrs>();
   if (attrs->output_format == "onnx") {
     auto vdev = input_ty[0]->vdevice;
     auto num_total_boxes = batch * num_classes * num_boxes;
@@ -202,10 +202,10 @@ Type InferTypeGetValidCounts(const CallNode* call_node) {
         << "get_valid_counts expects 3-D input, got ndim " << data_ty->ndim;
   }
 
-  const auto* attrs = ffi::AnyView(call->attrs).as<GetValidCountsAttrs>();
+  const auto* attrs = call->attrs.as<GetValidCountsAttrs>();
   TVM_FFI_ICHECK(attrs != nullptr) << "Invalid get_valid_counts attrs";
   auto vdev = data_ty->vdevice;
-  const auto* data_shape = ffi::AnyView(data_ty->shape).as<ShapeExprNode>();
+  const auto* data_shape = data_ty->shape.as<ShapeExprNode>();
   if (data_shape == nullptr) {
     tvm::ffi::Array<Type> fields = {TensorType(PrimType::Int(32), /*ndim=*/1, vdev),
                                     TensorType(data_ty->dtype, /*ndim=*/3, vdev),
@@ -317,9 +317,9 @@ Type InferTypeNMS(const Call& call, const BlockBuilder& ctx) {
         << "non_max_suppression expects indices to have dtype int32, got " << indices_ty->dtype;
   }
 
-  const auto* data_shape = ffi::AnyView(data_ty->shape).as<ShapeExprNode>();
-  const auto* valid_count_shape = ffi::AnyView(valid_count_ty->shape).as<ShapeExprNode>();
-  const auto* indices_shape = ffi::AnyView(indices_ty->shape).as<ShapeExprNode>();
+  const auto* data_shape = data_ty->shape.as<ShapeExprNode>();
+  const auto* valid_count_shape = valid_count_ty->shape.as<ShapeExprNode>();
+  const auto* indices_shape = indices_ty->shape.as<ShapeExprNode>();
   if (data_shape != nullptr) {
     sym::Analyzer analyzer = ctx->GetAnalyzer();
     PrimExpr batch = data_shape->values[0];
@@ -342,7 +342,7 @@ Type InferTypeNMS(const Call& call, const BlockBuilder& ctx) {
     }
   }
 
-  const auto* attrs = ffi::AnyView(call->attrs).as<NonMaximumSuppressionAttrs>();
+  const auto* attrs = call->attrs.as<NonMaximumSuppressionAttrs>();
   TVM_FFI_ICHECK(attrs != nullptr) << "Invalid non_max_suppression attrs";
   auto vdev = data_ty->vdevice;
   if (data_shape != nullptr) {
@@ -403,7 +403,7 @@ Type InferTypeNMS(const Call& call, const BlockBuilder& ctx) {
   }
 
   // Returns modified data tensor with the same shape as input.
-  if (const auto* data_shape = ffi::AnyView(data_ty->shape).as<ShapeExprNode>()) {
+  if (const auto* data_shape = data_ty->shape.as<ShapeExprNode>()) {
     return TensorType(ffi::GetRef<ShapeExpr>(data_shape), data_ty->dtype, vdev);
   }
   return TensorType(data_ty->dtype, /*ndim=*/3, vdev);

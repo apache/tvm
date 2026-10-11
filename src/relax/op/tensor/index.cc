@@ -117,7 +117,7 @@ Type InferTypeTake(const CallNode* call_node) {
     }
   }
 
-  const auto* attrs = ffi::AnyView(call->attrs).as<TakeAttrs>();
+  const auto* attrs = call->attrs.as<TakeAttrs>();
   if (!attrs->axis.has_value() && data_ty->ndim != 1) {
     TVM_FFI_VISIT_THROW(ValueError, call)
         << "Take op expects the input data to be 1-dimensional tensor when the axis "
@@ -132,8 +132,8 @@ Type InferTypeTake(const CallNode* call_node) {
   if (attrs->axis.has_value()) {
     axis = NormalizeAxis(call, data_ty->ndim, attrs->axis.value());
   }
-  const auto* data_shape = ffi::AnyView(data_ty->shape).as<ShapeExprNode>();
-  const auto* indices_shape = ffi::AnyView(indices_ty->shape).as<ShapeExprNode>();
+  const auto* data_shape = data_ty->shape.as<ShapeExprNode>();
+  const auto* indices_shape = indices_ty->shape.as<ShapeExprNode>();
   if (data_shape == nullptr || indices_shape == nullptr) {
     return TensorType(data_ty->dtype, indices_ty->ndim + data_ty->ndim - 1, data_ty->vdevice);
   }
@@ -235,9 +235,9 @@ ffi::Optional<ffi::Array<PrimType>> UnpackTupleOfPrimExpr(ffi::Optional<Type> ty
   // An AnyType may contain a tuple of the desired type, but
   // it isn't yet known whether it does.  Return early, as we cannot
   // provide a known `ffi::Array<PrimType>` to the caller.
-  if (ffi::AnyView(ty).as<AnyTypeNode>()) return std::nullopt;
+  if (ty.as<AnyTypeNode>()) return std::nullopt;
 
-  auto tuple = ffi::AnyView(ty).as<TupleTypeNode>();
+  auto tuple = ty.as<TupleTypeNode>();
   TVM_FFI_CHECK(tuple, TypeError) << "The type " << ty
                                   << " cannot contain a tuple whose elements are "
                                   << PrimType::ContainerType::_type_key;
@@ -440,7 +440,7 @@ Type InferTypeStridedSlice(const Call& call, const BlockBuilder& ctx) {
     axes_tuple_i64.reserve(axes_tuple.size());
     for (const IntImm& v : axes_tuple) axes_tuple_i64.push_back(static_cast<int64_t>(v->value));
     std::vector<int> axes = NormalizeAxes(call, ctx, data_ty->ndim, axes_tuple_i64);
-    auto attrs = ffi::AnyView(call->attrs).as<StridedSliceAttrs>();
+    auto attrs = call->attrs.as<StridedSliceAttrs>();
 
     ffi::Array<PrimExpr> output_shape = data_ty->GetShape().value();
     for (size_t i = 0; i < axes.size(); i++) {
@@ -477,7 +477,7 @@ InferLayoutOutput InferLayoutStridedSlice(
     const VarLayoutMap& var_layout_map) {
   TVM_FFI_ICHECK(NoDesiredLayout(call, desired_layouts));
 
-  const auto* attrs = ffi::AnyView(call->attrs).as<StridedSliceAttrs>();
+  const auto* attrs = call->attrs.as<StridedSliceAttrs>();
   TVM_FFI_ICHECK(attrs != nullptr) << "Invalid Call";
 
   const auto* tensor_ty = GetTypeAs<TensorTypeNode>(call->args[0]);
@@ -565,7 +565,7 @@ Type InferTypeDynStridedSlice(const CallNode* call_node) {
                        << " to be have the type. Please try normalizing the inputs.";
     TVM_FFI_ICHECK_EQ(ty->ndim, 1)
         << "Dynamic strided slice requires " << name << " to be 1d tensor (list of values).";
-    const auto* shape = ffi::AnyView(ty->shape).as<ShapeExprNode>();
+    const auto* shape = ty->shape.as<ShapeExprNode>();
     TVM_FFI_ICHECK(shape) << "Dynamic strided slice requires the input " << name
                           << " to have well-defined shape.";
     // NOTE(tvm-team): This strong restriction seems necessary for now until we have a generic

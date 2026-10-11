@@ -200,7 +200,7 @@ Type InferTypeResize2D(const CallNode* call_node) {
                                           << size_ty->ndim;
   }
 
-  const auto* attrs = ffi::AnyView(call->attrs).as<Resize2DAttrs>();
+  const auto* attrs = call->attrs.as<Resize2DAttrs>();
   auto [data_layout, data2NCHW] = CheckTensorLayout(call, attrs->layout,    //
                                                     /*tgt_layout=*/"NCHW",  //
                                                     /*tensor_name=*/"data");
@@ -228,7 +228,7 @@ InferLayoutOutput InferLayoutResize2d(
     const Call& call, const ffi::Map<ffi::String, ffi::Array<ffi::String>>& desired_layouts,
     const VarLayoutMap& var_layout_map) {
   const auto& it = desired_layouts.find("relax.image.resize2d");
-  const auto* attrs = ffi::AnyView(call->attrs).as<Resize2DAttrs>();
+  const auto* attrs = call->attrs.as<Resize2DAttrs>();
   TVM_FFI_ICHECK(attrs) << "Invalid Call";
 
   LayoutDecision data_layout(ffi::UnsafeInit{});
@@ -321,7 +321,7 @@ Type InferTypeResize3D(const CallNode* call_node) {
                                           << size_ty->ndim;
   }
 
-  const auto* attrs = ffi::AnyView(call->attrs).as<Resize3DAttrs>();
+  const auto* attrs = call->attrs.as<Resize3DAttrs>();
   auto [data_layout, data2NCDHW] = CheckTensorLayout(call, attrs->layout,     //
                                                      /*tgt_layout=*/"NCDHW",  //
                                                      /*tensor_name=*/"data");
@@ -350,7 +350,7 @@ InferLayoutOutput InferLayoutResize3d(
     const Call& call, const ffi::Map<ffi::String, ffi::Array<ffi::String>>& desired_layouts,
     const VarLayoutMap& var_layout_map) {
   const auto& it = desired_layouts.find("relax.image.resize3d");
-  const auto* attrs = ffi::AnyView(call->attrs).as<Resize3DAttrs>();
+  const auto* attrs = call->attrs.as<Resize3DAttrs>();
   TVM_FFI_ICHECK(attrs) << "Invalid Call";
 
   LayoutDecision data_layout(ffi::UnsafeInit{});
@@ -430,7 +430,7 @@ Type InferTypeGridSample(const CallNode* call_node) {
         << call->args[1]->GetTypeKey();
   }
 
-  const auto* attrs = ffi::AnyView(call->attrs).as<GridSampleAttrs>();
+  const auto* attrs = call->attrs.as<GridSampleAttrs>();
 
   // grid_sample supports both 2D (NCHW) and 3D (NCDHW) sampling. The frontend
   // sets attrs->layout to "NCDHW" for the volumetric case; everything else is
@@ -445,7 +445,7 @@ Type InferTypeGridSample(const CallNode* call_node) {
 
   ffi::Optional<ShapeExpr> data_shape =
       CheckNdimPerLayoutAndGetShape(call, ffi::GetRef<TensorType>(data_ty), data_layout);
-  const auto* grid_shape = ffi::AnyView(grid_ty->shape).as<ShapeExprNode>();
+  const auto* grid_shape = grid_ty->shape.as<ShapeExprNode>();
 
   if (!data_shape.has_value() || grid_shape == nullptr) {
     return TensorType(out_dtype, data_layout.ndim(), data_ty->vdevice);
@@ -535,7 +535,7 @@ Type InferTypeAffineGrid(const CallNode* call_node) {
                                           << data_ty->ndim;
   }
 
-  const auto* data_shape = ffi::AnyView(data_ty->shape).as<ShapeExprNode>();
+  const auto* data_shape = data_ty->shape.as<ShapeExprNode>();
   if (data_shape != nullptr) {
     if (data_shape->values.size() >= 2) {
       auto* dim1 = data_shape->values[1].as<IntImmNode>();

@@ -80,7 +80,7 @@ class DistIRSharder : public ExprMutator {
   TensorType ShardDTensorType(DTensorType orig_ty) {
     TensorType tensor_ty = orig_ty->tensor_ty;
     TVM_FFI_ICHECK(tensor_ty->shape);
-    const auto* orig_shape = ffi::AnyView(tensor_ty->shape).as<ShapeExprNode>();
+    const auto* orig_shape = tensor_ty->shape.as<ShapeExprNode>();
     auto new_tensor_ty = ffi::make_object<TensorTypeNode>(*tensor_ty.get());
     new_tensor_ty->shape =
         ShardShape(ffi::GetRef<ShapeExpr>(orig_shape), orig_ty->device_mesh, orig_ty->placement);

@@ -293,7 +293,7 @@ template <typename TObjectRef>
 inline TObjectRef IRBuilderObj::Get() const {
   using TObject = typename TObjectRef::ContainerType;
   TVM_FFI_CHECK(result.has_value(), IndexError) << "No result exists in IRBuilder yet";
-  const auto* n = ffi::AnyView(result).as<TObject>();
+  const auto* n = result.as<TObject>();
   TVM_FFI_CHECK(n != nullptr, TypeError)
       << "IRBuilder result is not of type: " << TObject::_type_key;
   return ffi::GetRef<TObjectRef>(n);

@@ -108,8 +108,7 @@ void ValidateTensorProducer(const CallNode* call) {
   TVM_FFI_CHECK(ffi::StructuralEqual()(call->ty, inferred), TypeError)
       << "Tensor producer result must match its TensorType argument";
   if constexpr (is_alloc) {
-    TVM_FFI_CHECK(!call->attrs.has_value() || ffi::AnyView(call->attrs).as<DictAttrsNode>(),
-                  ValueError)
+    TVM_FFI_CHECK(!call->attrs.has_value() || call->attrs.as<DictAttrsNode>(), ValueError)
         << "alloc_tensor annotations must be DictAttrs";
   } else {
     TVM_FFI_CHECK(!call->attrs.has_value(), ValueError) << "decl_tensor does not accept attributes";

@@ -834,7 +834,7 @@ class VMShapeLowerMutator
   void VisitType_(const TensorTypeNode* op, Expr value, bool always_check, bool dynamic_only,
                   const ffi::String& err_ctx, std::vector<MatchShapeTodoItem>* match_todos) final {
     // emit runtime check of shape
-    auto* shape_expr = ffi::AnyView(op->shape).as<ShapeExprNode>();
+    auto* shape_expr = op->shape.as<ShapeExprNode>();
     if (dynamic_only &&
         std::all_of(shape_expr->values.begin(), shape_expr->values.end(),
                     [](const PrimExpr& e) { return e->IsInstance<IntImmNode>(); })) {
@@ -853,7 +853,7 @@ class VMShapeLowerMutator
 
     if (shape_expr != nullptr) {
       match_todos->push_back(MatchShapeTodoItem{value, shape_expr->values, err_ctx});
-    } else if (ffi::AnyView(op->shape).as<VarNode>()) {
+    } else if (op->shape.as<VarNode>()) {
       // NOTE: This part of the logic is left empty for future support as it is less common.
       // Future implementors: we can emit a binding here and assert here.
       TVM_FFI_THROW(InternalError)

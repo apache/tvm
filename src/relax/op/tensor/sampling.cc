@@ -70,7 +70,7 @@ Type InferTypeMultinomialFromUniform(const CallNode* call_node) {
   TensorType prob_ty = GetInputTensorType(call, 0);
   TensorType uniform_sample_ty = GetInputTensorType(call, 1);
   TensorType sample_indices_ty = GetInputTensorType(call, 2);
-  const auto* attrs = ffi::AnyView(call->attrs).as<MultinomialFromUniformAttrs>();
+  const auto* attrs = call->attrs.as<MultinomialFromUniformAttrs>();
 
   // Only the element kind matters here; shape inference does not depend on vector lanes.
   if (!prob_ty->IsUnknownDtype() &&
@@ -121,11 +121,11 @@ Type InferTypeMultinomialFromUniform(const CallNode* call_node) {
   }
 
   // Expected to be `(batch, vocab_size)`
-  const auto* prob_shape = ffi::AnyView(prob_ty->shape).as<ShapeExprNode>();
+  const auto* prob_shape = prob_ty->shape.as<ShapeExprNode>();
   // Expected to be `(n, 1)`
-  const auto* uniform_sample_shape = ffi::AnyView(uniform_sample_ty->shape).as<ShapeExprNode>();
+  const auto* uniform_sample_shape = uniform_sample_ty->shape.as<ShapeExprNode>();
   // Expected to be `(n, 1)`
-  const auto* sample_indices_shape = ffi::AnyView(sample_indices_ty->shape).as<ShapeExprNode>();
+  const auto* sample_indices_shape = sample_indices_ty->shape.as<ShapeExprNode>();
   // The output shape is expected to be `(n, 1)`
 
   if (prob_shape == nullptr || uniform_sample_shape == nullptr || sample_indices_shape == nullptr) {

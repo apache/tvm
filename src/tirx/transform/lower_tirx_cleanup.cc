@@ -189,7 +189,7 @@ class LayoutApplier : public IRMutatorWithAnalyzer {
     TensorVar flattened = buf;
     ffi::ObjectPtr<TensorTypeNode> type;
     if (is_alloc) {
-      if (auto tile_layout = ffi::AnyView(buf->layout).as<TileLayoutNode>();
+      if (auto tile_layout = buf->layout.as<TileLayoutNode>();
           tile_layout && tile_layout->HasThreadAxis()) {
         // Logical alloc_tensor with thread axes: physical shape = memory-axis span
         sym::Analyzer ana;

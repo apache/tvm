@@ -166,7 +166,7 @@ ffi::Map<ffi::String, ffi::Any> TargetObj::ToConfig() const {
   return result;
 }
 
-ffi::Optional<Target> TargetObj::GetHost() const { return ffi::AnyView(this->host).as<Target>(); }
+ffi::Optional<Target> TargetObj::GetHost() const { return this->host.as<Target>(); }
 
 Target Target::WithoutHost() const {
   if ((*this)->GetHost()) {

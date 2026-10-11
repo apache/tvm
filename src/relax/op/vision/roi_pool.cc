@@ -100,14 +100,14 @@ Type InferTypeROIPool(const CallNode* call_node) {
         << rois_ty->ndim;
   }
 
-  const auto* attrs = ffi::AnyView(call->attrs).as<ROIPoolAttrs>();
+  const auto* attrs = call->attrs.as<ROIPoolAttrs>();
   TVM_FFI_ICHECK(attrs != nullptr) << "Invalid ROIPool attrs";
   if (attrs->layout != "NCHW") {
     TVM_FFI_VISIT_THROW(ValueError, call)
         << "ROIPool only supports NCHW layout, but got " << attrs->layout;
   }
 
-  const auto* rois_shape = ffi::AnyView(rois_ty->shape).as<ShapeExprNode>();
+  const auto* rois_shape = rois_ty->shape.as<ShapeExprNode>();
   if (rois_shape != nullptr) {
     const auto* last_dim = rois_shape->values[1].as<IntImmNode>();
     if (last_dim != nullptr && last_dim->value != 5) {
@@ -118,11 +118,11 @@ Type InferTypeROIPool(const CallNode* call_node) {
     }
   }
 
-  if (ffi::AnyView(data_ty->shape).as<ShapeExprNode>() == nullptr || rois_shape == nullptr) {
+  if (data_ty->shape.as<ShapeExprNode>() == nullptr || rois_shape == nullptr) {
     return TensorType(data_ty->dtype, 4, data_ty->vdevice);
   }
 
-  ffi::Array<PrimExpr> data_shape = ffi::AnyView(data_ty->shape).as<ShapeExprNode>()->values;
+  ffi::Array<PrimExpr> data_shape = data_ty->shape.as<ShapeExprNode>()->values;
   ffi::Array<PrimExpr> out_shape = {rois_shape->values[0], data_shape[1],
                                     IntImm::Int32(attrs->pooled_size[0]),
                                     IntImm::Int32(attrs->pooled_size[1])};

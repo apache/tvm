@@ -477,7 +477,7 @@ class BlockBuilderImpl : public BlockBuilderObj {
 
    private:
     void VisitType_(const TensorTypeNode* op) final {
-      if (const auto* shape_expr = ffi::AnyView(op->shape).as<ShapeExprNode>()) {
+      if (const auto* shape_expr = op->shape.as<ShapeExprNode>()) {
         for (const PrimExpr& s : shape_expr->values) {
           // Only collect single var defined shape. Ignore something like `R.Tensor((m + 1, n + 1))
           if (auto var = s.as<PrimVar>()) {

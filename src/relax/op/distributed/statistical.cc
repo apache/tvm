@@ -30,7 +30,7 @@ Type InferDistTypeStatistical(const Call& call, const BlockBuilder& ctx) {
   ffi::Array<distributed::DTensorType> input_dtensor_tys = GetInputDTensorType(call, ctx);
   TensorType data_ty = input_dtensor_tys[0]->tensor_ty;
 
-  const auto* attrs = ffi::AnyView(call->attrs).as<StatisticalAttrs>();
+  const auto* attrs = call->attrs.as<StatisticalAttrs>();
 
   std::vector<int> axes;
   if (!data_ty->IsUnknownNdim() && attrs->axis.has_value()) {
@@ -56,7 +56,7 @@ Type InferDistTypeStatistical(const Call& call, const BlockBuilder& ctx) {
   // - axes is not None, keepdims is false -> the returned shape does not contain the input axes.
   // - axes is not None, keepdims is true -> the returned shape has value 1 at the positions of the
   // input axes
-  const auto* data_shape = ffi::AnyView(data_ty->shape).as<ShapeExprNode>();
+  const auto* data_shape = data_ty->shape.as<ShapeExprNode>();
 
   if (data_shape == nullptr) {
     TVM_FFI_VISIT_THROW(ValueError, call) << "Input of distributed operator must be known shape";

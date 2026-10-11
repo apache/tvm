@@ -102,7 +102,7 @@ Type InferTypeFull(const CallNode* call_node) {
         << call->args[1]->ty;
   }
 
-  const auto* attrs = ffi::AnyView(call->attrs).as<InitAttrs>();
+  const auto* attrs = call->attrs.as<InitAttrs>();
   ffi::Optional<PrimType> out_dtype = attrs->dtype.has_value()
                                           ? ffi::Optional<PrimType>(PrimType(attrs->dtype.value()))
                                           : fill_value_ty->dtype;
@@ -146,7 +146,7 @@ Type InferTypeFullLike(const CallNode* call_node) {
                                           << fill_value_ty->ndim;
   }
 
-  const auto* attrs = ffi::AnyView(call->attrs).as<InitAttrs>();
+  const auto* attrs = call->attrs.as<InitAttrs>();
   if (!attrs->dtype.has_value()) {
     return data_ty;
   } else {
@@ -179,7 +179,7 @@ Type InferTypeOnesZeros(const CallNode* call_node) {
         << "Ones/Zeros requires the input shape to be a Shape. However, the given one is "
         << call->args[0]->ty->GetTypeKey();
   }
-  const auto* attrs = ffi::AnyView(call->attrs).as<InitAttrs>();
+  const auto* attrs = call->attrs.as<InitAttrs>();
   TVM_FFI_ICHECK(attrs->dtype.has_value());
   return TensorType(/*shape=*/call->args[0], PrimType(attrs->dtype.value()));
 }
@@ -188,7 +188,7 @@ Type InferTypeOnesZeros(const CallNode* call_node) {
 Type InferTypeOnesLikeZerosLike(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
   TensorType data_ty = GetUnaryInputTensorType(call);
-  const auto* attrs = ffi::AnyView(call->attrs).as<InitAttrs>();
+  const auto* attrs = call->attrs.as<InitAttrs>();
   if (!attrs->dtype.has_value()) {
     return data_ty;
   } else {
@@ -307,7 +307,7 @@ Type InferTypeEye(const CallNode* call_node) {
   PrimExpr n = get_prim_value(call->args[0], "n");
   PrimExpr m = get_prim_value(call->args[1], "m");
 
-  const auto* attrs = ffi::AnyView(call->attrs).as<InitAttrs>();
+  const auto* attrs = call->attrs.as<InitAttrs>();
   TVM_FFI_ICHECK(attrs->dtype.has_value());
   DLDataType dtype = attrs->dtype.value();
   return TensorType(ShapeExpr({n, m}), PrimType(dtype));
@@ -333,7 +333,7 @@ Type InferTypeEyeLike(const CallNode* call_node) {
         << " dimensions";
   }
 
-  const auto* attrs = ffi::AnyView(call->attrs).as<InitAttrs>();
+  const auto* attrs = call->attrs.as<InitAttrs>();
   ffi::Optional<PrimType> out_dtype = attrs->dtype.has_value()
                                           ? ffi::Optional<PrimType>(PrimType(attrs->dtype.value()))
                                           : x_ty->dtype;
@@ -391,7 +391,7 @@ Type InferTypeArange(const CallNode* call_node) {
   PrimExpr start = get_prim_value(call->args[0], "start");
   PrimExpr end = get_prim_value(call->args[1], "end");
   PrimExpr step = get_prim_value(call->args[2], "step");
-  const auto* attrs = ffi::AnyView(call->attrs).as<InitAttrs>();
+  const auto* attrs = call->attrs.as<InitAttrs>();
   TVM_FFI_ICHECK(attrs->dtype.has_value());
   DLDataType dtype = attrs->dtype.value();
   PrimExpr num_elem = [&]() -> PrimExpr {
@@ -439,7 +439,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 Type InferTypeHammingWindow(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
-  const auto* attrs = ffi::AnyView(call->attrs).as<InitAttrs>();
+  const auto* attrs = call->attrs.as<InitAttrs>();
   TVM_FFI_ICHECK(attrs->dtype.has_value());
   DLDataType dtype = attrs->dtype.value();
   if (dtype.code == DLDataTypeCode::kDLInt || dtype.code == DLDataTypeCode::kDLUInt) {

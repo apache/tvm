@@ -676,7 +676,7 @@ inline ffi::Optional<ShapeExpr> CheckNdimPerLayoutAndGetShape(const Call& call,
         << "In " << call->op << ", layout " << layout << " requires the input to be "
         << layout.ndim() << "-dim tensor. However, the given input has ndim " << ty->ndim;
   }
-  if (const auto* shape_expr = ffi::AnyView(ty->shape).as<ShapeExprNode>()) {
+  if (const auto* shape_expr = ty->shape.as<ShapeExprNode>()) {
     return ffi::GetRef<ShapeExpr>(shape_expr);
   }
   return std::nullopt;

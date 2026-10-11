@@ -92,10 +92,10 @@ class GradientSimplifier : private ExprMutator {
     if (ndim == kUnknownNDim || ndim == 1) {
       return false;
     }
-    if (!ffi::AnyView(call_node->attrs).as<PermuteDimsAttrs>()->axes.has_value()) {
+    if (!call_node->attrs.as<PermuteDimsAttrs>()->axes.has_value()) {
       return ndim == 2;
     }
-    auto axes = ffi::AnyView(call_node->attrs).as<PermuteDimsAttrs>()->axes.value();
+    auto axes = call_node->attrs.as<PermuteDimsAttrs>()->axes.value();
     TVM_FFI_ICHECK(static_cast<int>(axes.size()) == ndim);
     for (int i = 0; i < ndim - 2; ++i) {
       if (axes[i] != i) {
@@ -133,7 +133,7 @@ class GradientSimplifier : private ExprMutator {
     if (!prev_expr || !prev_expr.value()->IsInstance<CallNode>()) {
       return GetTransposeOf(expr);
     }
-    auto prev_call_node = ffi::AnyView(prev_expr).as<CallNode>();
+    auto prev_call_node = prev_expr.as<CallNode>();
     if (!IsTransposeOp(prev_call_node)) {
       return GetTransposeOf(expr);
     }
@@ -162,7 +162,7 @@ class GradientSimplifier : private ExprMutator {
       return reemit_and_return();
     }
 
-    auto prev_call_node = ffi::AnyView(prev_expr).as<CallNode>();
+    auto prev_call_node = prev_expr.as<CallNode>();
     if (IsTransposeOp(prev_call_node)) {
       // rewrite rule #1: permute_dims(permute_dims(a)) -> a
       if (prev_call_node->args[0]->IsInstance<VarNode>()) {
@@ -185,8 +185,8 @@ class GradientSimplifier : private ExprMutator {
 
       auto a = GetTransposeAccordingToCtx(prev_call_node->args[0]);
       auto b = GetTransposeAccordingToCtx(prev_call_node->args[1]);
-      result = ExprMutator::VisitExpr(
-          matmul(b, a, ffi::AnyView(prev_call_node->attrs).as<MatmulAttrs>()->out_dtype));
+      result =
+          ExprMutator::VisitExpr(matmul(b, a, prev_call_node->attrs.as<MatmulAttrs>()->out_dtype));
       ReEmitBinding(binding, result);
       return;
     } else {

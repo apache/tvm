@@ -660,7 +660,7 @@ class StorageAllocatorInit : public StorageAllocatorBaseVisitor {
     // - no storage token was created for this call before.
     const auto* ty = call->ty.as<TensorTypeNode>();
     TVM_FFI_ICHECK_NOTNULL(ty);
-    const auto* shape = ffi::AnyView(ty->shape).as<ShapeExprNode>();
+    const auto* shape = ty->shape.as<ShapeExprNode>();
     TVM_FFI_ICHECK_NOTNULL(shape);
     TVM_FFI_ICHECK(!ty->IsUnknownDtype());
     TVM_FFI_ICHECK(ty->dtype.value()->dtype == call->args[1].as_or_throw<DataTypeImm>()->value);
@@ -966,7 +966,7 @@ class StorageAllocationRewriter : public ExprMutator {
       TVM_FFI_ICHECK(call->op.same_as(alloc_tensor_op));
       const auto* ty = call->ty.as<TensorTypeNode>();
       TVM_FFI_ICHECK_NOTNULL(ty);
-      TVM_FFI_ICHECK_NOTNULL(ffi::AnyView(ty->shape).as<ShapeExprNode>());
+      TVM_FFI_ICHECK_NOTNULL(ty->shape.as<ShapeExprNode>());
       PrimExpr runtime_device_index = call->args[2].as_or_throw<PrimExpr>();
 
       // If the token is visited for the first time, create a storage variable using
@@ -1005,7 +1005,7 @@ class StorageAllocationRewriter : public ExprMutator {
 
       const auto* ty = call->ty.as<TensorTypeNode>();
       TVM_FFI_ICHECK_NOTNULL(ty);
-      const auto* shape = ffi::AnyView(ty->shape).as<ShapeExprNode>();
+      const auto* shape = ty->shape.as<ShapeExprNode>();
       TVM_FFI_ICHECK_NOTNULL(shape);
       ffi::Array<PrimExpr> upper_bounded_shape =
           GetUpperBoundShape(shape->values, ana_.get(), dom_map_);

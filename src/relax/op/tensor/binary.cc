@@ -152,8 +152,8 @@ InferLayoutOutput InferLayoutBinaryEwise(
   TVM_FFI_ICHECK(!x1_ty->IsUnknownNdim() && !x2_ty->IsUnknownNdim())
       << "Unknown dim tensors should not be handled by this function";
 
-  ffi::Optional<ShapeExpr> shape1 = ffi::AnyView(x1_ty->shape).as<ShapeExpr>();
-  ffi::Optional<ShapeExpr> shape2 = ffi::AnyView(x2_ty->shape).as<ShapeExpr>();
+  ffi::Optional<ShapeExpr> shape1 = x1_ty->shape.as<ShapeExpr>();
+  ffi::Optional<ShapeExpr> shape2 = x2_ty->shape.as<ShapeExpr>();
   // Lets handle sub indexing as long as primal dims are matching
   if (((layout1->layout.has_value() ? layout1->layout.value().ndim() : 0) !=
        (layout1->layout.has_value() ? layout1->layout.value().ndim_primal() : 0)) ||

@@ -71,7 +71,7 @@ Type InferTypeStatistical(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
   if (RequiresTensorInputNormalization(call)) return Type::Missing();
   TensorType data_ty = GetUnaryInputTensorType(call);
-  const auto* attrs = ffi::AnyView(call->attrs).as<StatisticalAttrs>();
+  const auto* attrs = call->attrs.as<StatisticalAttrs>();
 
   std::vector<int> axes;
   if (!data_ty->IsUnknownNdim() && attrs->axis.has_value()) {
@@ -97,7 +97,7 @@ Type InferTypeStatistical(const CallNode* call_node) {
   // - axes is not None, keepdims is false -> the returned shape does not contain the input axes.
   // - axes is not None, keepdims is true -> the returned shape has value 1 at the positions of the
   // input axes
-  const auto* data_shape = ffi::AnyView(data_ty->shape).as<ShapeExprNode>();
+  const auto* data_shape = data_ty->shape.as<ShapeExprNode>();
   if (data_shape == nullptr) {
     if (!attrs->axis.has_value() && attrs->keepdims && out_ndim != kUnknownNDim) {
       return TensorType(ShapeExpr(ffi::Array<PrimExpr>(out_ndim, IntImm::Int64(/*value=*/1))),
@@ -127,7 +127,7 @@ InferLayoutOutput InferLayoutStatistical(
     const VarLayoutMap& var_layout_map) {
   TVM_FFI_ICHECK(NoDesiredLayout(call, desired_layouts));
 
-  const auto* attrs = ffi::AnyView(call->attrs).as<StatisticalAttrs>();
+  const auto* attrs = call->attrs.as<StatisticalAttrs>();
   TVM_FFI_ICHECK(attrs != nullptr) << "Invalid Call";
   const auto* tensor_ty = GetTypeAs<TensorTypeNode>(call->args[0]);
   TVM_FFI_ICHECK(tensor_ty != nullptr) << "Invalid Call";
@@ -189,7 +189,7 @@ InferLayoutOutput InferLayoutStatistical(
 Type InferTypeScan(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
   TensorType data_ty = GetUnaryInputTensorType(call);
-  const auto* attrs = ffi::AnyView(call->attrs).as<ScanopAttrs>();
+  const auto* attrs = call->attrs.as<ScanopAttrs>();
 
   ffi::Optional<PrimType> out_type = attrs->dtype.has_value()
                                          ? ffi::Optional<PrimType>(PrimType(attrs->dtype.value()))
@@ -197,7 +197,7 @@ Type InferTypeScan(const CallNode* call_node) {
 
   if (!attrs->axis.has_value()) {
     // flattened
-    const auto* data_shape = ffi::AnyView(data_ty->shape).as<ShapeExprNode>();
+    const auto* data_shape = data_ty->shape.as<ShapeExprNode>();
     if (data_shape == nullptr) {
       return TensorType(out_type, data_ty->ndim, data_ty->vdevice);
     } else {
@@ -219,7 +219,7 @@ Type InferTypeScan(const CallNode* call_node) {
 Type InferTypeStatisticalExtension(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
   TensorType data_ty = GetUnaryInputTensorType(call);
-  const auto* attrs = ffi::AnyView(call->attrs).as<StatisticalAttrs>();
+  const auto* attrs = call->attrs.as<StatisticalAttrs>();
 
   std::vector<int> axes;
   if (!data_ty->IsUnknownNdim() && attrs->axis.has_value()) {
@@ -245,7 +245,7 @@ Type InferTypeStatisticalExtension(const CallNode* call_node) {
   // - len(axes) == 1, keepdims is false -> the returned shape does not contain the input axis.
   // - len(axes) == 1, keepdims is true -> the returned shape has value 1 at the positions of the
   // input axis
-  const auto* data_shape = ffi::AnyView(data_ty->shape).as<ShapeExprNode>();
+  const auto* data_shape = data_ty->shape.as<ShapeExprNode>();
   if (data_shape == nullptr) {
     if (!attrs->axis.has_value() && attrs->keepdims && out_ndim != kUnknownNDim) {
       return TensorType(ShapeExpr(ffi::Array<PrimExpr>(out_ndim, IntImm::Int64(/*value=*/1))),

@@ -32,7 +32,7 @@ Type InferDistTypeMatmul(const Call& call, const BlockBuilder& ctx) {
   TensorType x1_ty = input_dtensor_tys[0]->tensor_ty;
   TensorType x2_ty = input_dtensor_tys[1]->tensor_ty;
 
-  const auto* attrs = ffi::AnyView(call->attrs).as<MatmulAttrs>();
+  const auto* attrs = call->attrs.as<MatmulAttrs>();
   ffi::Optional<PrimType> out_dtype = attrs->out_dtype.has_value()
                                           ? PrimType(attrs->out_dtype.value())
                                           : InferBinaryArithOpOutDtype(call, ctx, x1_ty, x2_ty);
@@ -63,8 +63,8 @@ Type InferDistTypeMatmul(const Call& call, const BlockBuilder& ctx) {
   }
   int output_ndim = std::max(x1_ndim, x2_ndim) - x1_prepended - x2_appended;
 
-  const auto* x1_shape = ffi::AnyView(x1_ty->shape).as<ShapeExprNode>();
-  const auto* x2_shape = ffi::AnyView(x2_ty->shape).as<ShapeExprNode>();
+  const auto* x1_shape = x1_ty->shape.as<ShapeExprNode>();
+  const auto* x2_shape = x2_ty->shape.as<ShapeExprNode>();
   if (x1_shape == nullptr || x2_shape == nullptr) {
     TVM_FFI_VISIT_THROW(ValueError, call) << "input of distributed operator must have shape";
   }

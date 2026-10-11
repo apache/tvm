@@ -378,7 +378,7 @@ class RelaxToTIRVarMapCollector : public ExprVisitor {
 
     ffi::Array<int64_t> output_idxs;
     if (in_place) {
-      const auto* attrs = ffi::AnyView(call->attrs).as<CallTIRInplaceAttrs>();
+      const auto* attrs = call->attrs.as<CallTIRInplaceAttrs>();
       TVM_FFI_ICHECK(attrs) << "Must have CallTIRInplaceAttrs for an in-place call";
       output_idxs = GetInplaceOutputIndices(attrs->inplace_indices, num_inputs);
     } else {
@@ -645,7 +645,7 @@ class FusedTIRConstructor : public ExprVisitor {
     TVM_FFI_ICHECK_EQ(call->ty_args.size(), 1);
     auto get_tensor_shape =
         [](const TensorTypeNode* ty) {
-          const auto* shape_expr = ffi::AnyView(ty->shape).as<ShapeExprNode>();
+          const auto* shape_expr = ty->shape.as<ShapeExprNode>();
           TVM_FFI_ICHECK(shape_expr)
               << "FuseTIR expects all parameters are Tensors with symbolic shape.";
           return shape_expr->values;
@@ -759,7 +759,7 @@ class FusedTIRConstructor : public ExprVisitor {
     ffi::Array<tirx::TensorVar> output_tensors;
     ffi::Array<int64_t> output_idxs;
     if (is_inplace) {
-      const auto* attrs = ffi::AnyView(call->attrs).as<CallTIRInplaceAttrs>();
+      const auto* attrs = call->attrs.as<CallTIRInplaceAttrs>();
       TVM_FFI_ICHECK(attrs) << "Must have CallTIRInplaceAttrs for an in-place call";
       output_idxs = GetInplaceOutputIndices(attrs->inplace_indices, num_inputs);
     } else {
@@ -831,7 +831,7 @@ class FusedTIRConstructor : public ExprVisitor {
 
     if (const auto* tensor_type = ty.as<TensorTypeNode>()) {
       // Case 1. The relax param is a Tensor, we directly create a tirx var and tensor
-      const auto* shape_expr = ffi::AnyView(tensor_type->shape).as<ShapeExprNode>();
+      const auto* shape_expr = tensor_type->shape.as<ShapeExprNode>();
       TVM_FFI_ICHECK(shape_expr) << "FuseTIR expects all Tensor parameters have a known shape.";
       PrimType dtype = tensor_type->dtype.value();
       tirx::TensorVar tensor = tir_tensor_param.has_value()
@@ -1067,7 +1067,7 @@ class TIRFuseMutator : public ExprMutator {
     } else {
       auto* tensor = ty.as<TensorTypeNode>();
       TVM_FFI_ICHECK(tensor) << "FuseTIR can only take tensor or tuple type";
-      auto* shape_expr = ffi::AnyView(tensor->shape).as<ShapeExprNode>();
+      auto* shape_expr = tensor->shape.as<ShapeExprNode>();
       TVM_FFI_ICHECK(shape_expr) << "FuseTIR requires all intermediate values have shape";
       return ffi::GetRef<ShapeExpr>(shape_expr);
     }

@@ -285,7 +285,7 @@ class BuiltinLower : public StmtExprMutator {
       return stmt;
     }
     int64_t nbytes = GetVectorBytes(element_type);
-    if (const auto* dev_type = ffi::AnyView(device_type_).as<IntImmNode>();
+    if (const auto* dev_type = device_type_.as<IntImmNode>();
         dev_type && dev_type->value == kDLCPU) {
       if (scope == "global") {
         auto constant_size = op->var->ty.as_or_throw<TensorType>()->ConstantAllocationSize();
@@ -464,7 +464,7 @@ class BuiltinLower : public StmtExprMutator {
     TVM_FFI_ICHECK(device_type_) << "Method " << method_name << " requires the device type, "
                                  << "but occurred outside of a \"device_context\" region";
 
-    auto as_int = ffi::AnyView(device_type_).as<IntImmNode>();
+    auto as_int = device_type_.as<IntImmNode>();
     TVM_FFI_ICHECK(as_int) << "Method " << method_name
                            << " requires the device type to be a DLDeviceType enum value, "
                            << "but was instead the expression " << device_type_ << " with type "

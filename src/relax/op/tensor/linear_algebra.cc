@@ -88,7 +88,7 @@ Type InferTypeMatmul(const Call& call, const BlockBuilder& ctx) {
     vdev = x2_ty->vdevice.value();
   }
 
-  const auto* attrs = ffi::AnyView(call->attrs).as<MatmulAttrs>();
+  const auto* attrs = call->attrs.as<MatmulAttrs>();
   ffi::Optional<PrimType> out_dtype = attrs->out_dtype.has_value()
                                           ? PrimType(attrs->out_dtype.value())
                                           : InferBinaryArithOpOutDtype(call, ctx, x1_ty, x2_ty);
@@ -126,8 +126,8 @@ Type InferTypeMatmul(const Call& call, const BlockBuilder& ctx) {
   }
   int output_ndim = std::max(x1_ndim, x2_ndim) - x1_prepended - x2_appended;
 
-  const auto* x1_shape = ffi::AnyView(x1_ty->shape).as<ShapeExprNode>();
-  const auto* x2_shape = ffi::AnyView(x2_ty->shape).as<ShapeExprNode>();
+  const auto* x1_shape = x1_ty->shape.as<ShapeExprNode>();
+  const auto* x2_shape = x2_ty->shape.as<ShapeExprNode>();
   if (x1_shape == nullptr || x2_shape == nullptr) {
     if (vdev.has_value()) {
       return TensorType(out_dtype, output_ndim, vdev);
@@ -216,7 +216,7 @@ Type InferTypeEinsum(const CallNode* call_node) {
            "given input Tuple is empty.";
   }
 
-  const auto* attrs = ffi::AnyView(call->attrs).as<EinsumAttrs>();
+  const auto* attrs = call->attrs.as<EinsumAttrs>();
 
   bool vdevice_unknown = false;
   ffi::Optional<VDevice> vdev;
@@ -251,7 +251,7 @@ Type InferTypeEinsum(const CallNode* call_node) {
     }
 
     // Get input shapes
-    const auto* shape_expr = ffi::AnyView(tensor_ty->shape).as<ShapeExprNode>();
+    const auto* shape_expr = tensor_ty->shape.as<ShapeExprNode>();
     if (shape_expr != nullptr) {
       input_shapes.push_back(shape_expr->values);
     } else {
@@ -301,8 +301,8 @@ Type InferTypeOuter(const CallNode* call_node) {
   }
 
   // Determine output shape
-  auto x1_shape = ffi::AnyView(x1_ty->shape).as<ShapeExprNode>();
-  auto x2_shape = ffi::AnyView(x2_ty->shape).as<ShapeExprNode>();
+  auto x1_shape = x1_ty->shape.as<ShapeExprNode>();
+  auto x2_shape = x2_ty->shape.as<ShapeExprNode>();
   if (!x1_shape || !x2_shape) {
     return TensorType(x1_ty->dtype, 2);
   }

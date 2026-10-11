@@ -132,9 +132,9 @@ Type InferTypeMultiboxTransformLoc(const CallNode* call_node) {
   }
 
   auto vdev = cls_ty->vdevice;
-  const auto* cls_shape = ffi::AnyView(cls_ty->shape).as<ShapeExprNode>();
-  const auto* loc_shape = ffi::AnyView(loc_ty->shape).as<ShapeExprNode>();
-  const auto* anchor_shape = ffi::AnyView(anchor_ty->shape).as<ShapeExprNode>();
+  const auto* cls_shape = cls_ty->shape.as<ShapeExprNode>();
+  const auto* loc_shape = loc_ty->shape.as<ShapeExprNode>();
+  const auto* anchor_shape = anchor_ty->shape.as<ShapeExprNode>();
 
   if (loc_shape != nullptr) {
     const auto* loc_dim1 = loc_shape->values[1].as<IntImmNode>();

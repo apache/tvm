@@ -1019,7 +1019,7 @@ void ScheduleStateObj::Replace(const tirx::StmtSRef& _src_sref, const Stmt& tgt_
     }
     // Find `g_func` and `g_var` where the `src_sref` is in
     g_func = GetRootFunction(this->mod, p->stmt, &g_var);
-    const auto* function_body = ffi::AnyView(g_func->body).as<SeqStmtNode>();
+    const auto* function_body = g_func->body.as<SeqStmtNode>();
     TVM_FFI_ICHECK(function_body != nullptr && function_body->size() == 1);
     need_module_copy = num_copy_steps == i ||             //
                        !this->mod.unique() ||             //
@@ -1101,8 +1101,8 @@ void ScheduleStateObj::Replace(const tirx::StmtSRef& _src_sref, const Stmt& tgt_
     const auto* child_block = TVM_TYPE_AS(child_tgt_stmt, SBlockNode);
     ffi::ObjectPtr<SBlockRealizeNode> new_realize = ffi::make_object<SBlockRealizeNode>(*realize);
     new_realize->block = ffi::GetRef<SBlock>(child_block);
-    new_func->body = SeqStmt({SBlockRealize(std::move(new_realize))},
-                             ffi::AnyView(g_func->body).as<SeqStmtNode>()->loc);
+    new_func->body =
+        SeqStmt({SBlockRealize(std::move(new_realize))}, g_func->body.as<SeqStmtNode>()->loc);
     SetSeqIndexInChildren(this->stmt2ref, new_func->body.value().get());
     // Finally, move the `ref_new_func` back and update `this->mod`
     new_map->at(g_var) = std::move(ref_new_func);

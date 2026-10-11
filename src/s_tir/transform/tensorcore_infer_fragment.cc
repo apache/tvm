@@ -207,7 +207,7 @@ class InferFragmenter : public s_tir::StmtExprMutator {
       auto it = fragment_getter.fragments.find(op->var.get());
       if (it == fragment_getter.fragments.end()) return ffi::Unchanged();
       const FragmentInfo& info = it->second;
-      DictAttrs attrs = ffi::AnyView(call->attrs).cast<DictAttrs>();
+      DictAttrs attrs = call->attrs.as_or_throw<DictAttrs>();
       auto annotations = attrs->dict;
       auto set_annotation = [&](const char* key, const std::string& value) {
         if (auto existing = annotations.Get(key)) {

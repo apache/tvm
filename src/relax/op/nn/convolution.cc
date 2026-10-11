@@ -328,7 +328,7 @@ Type InferTypeConv1d(const Call& call, const BlockBuilder& ctx) {
   TensorType data_ty = input_ty[0];
   TensorType weight_ty = input_ty[1];
 
-  const auto* attrs = ffi::AnyView(call->attrs).as<Conv1DAttrs>();
+  const auto* attrs = call->attrs.as<Conv1DAttrs>();
   auto [data_layout, data2NCW] = CheckTensorLayout(call, ctx, attrs->data_layout,  //
                                                    /*tgt_layout=*/"NCW",           //
                                                    /*tensor_name=*/"data");
@@ -400,7 +400,7 @@ InferLayoutOutput InferLayoutConv1d(
     const Call& call, const ffi::Map<ffi::String, ffi::Array<ffi::String>>& desired_layouts,
     const VarLayoutMap& var_layout_map) {
   const auto& it = desired_layouts.find("relax.nn.conv1d");
-  const auto* attrs = ffi::AnyView(call->attrs).as<Conv1DAttrs>();
+  const auto* attrs = call->attrs.as<Conv1DAttrs>();
   TVM_FFI_ICHECK(attrs) << "Invalid Call";
 
   LayoutDecision data_layout(ffi::UnsafeInit{}), weight_layout(ffi::UnsafeInit{}),
@@ -447,7 +447,7 @@ InferLayoutOutput InferLayoutConv1d(
 }
 
 Call InferMixedPrecisionConv1d(const Call& call, DLDataType out_dtype) {
-  const auto* conv1d_attrs = ffi::AnyView(call->attrs).as<Conv1DAttrs>();
+  const auto* conv1d_attrs = call->attrs.as<Conv1DAttrs>();
   return conv1d(call->args[0], call->args[1], conv1d_attrs->strides, conv1d_attrs->padding,
                 conv1d_attrs->dilation, conv1d_attrs->groups, conv1d_attrs->data_layout,
                 conv1d_attrs->kernel_layout, conv1d_attrs->out_layout, out_dtype)
@@ -509,7 +509,7 @@ Type InferTypeConv2d(const Call& call, const BlockBuilder& ctx) {
   TensorType data_ty = input_ty[0];
   TensorType weight_ty = input_ty[1];
 
-  const auto* attrs = ffi::AnyView(call->attrs).as<Conv2DAttrs>();
+  const auto* attrs = call->attrs.as<Conv2DAttrs>();
   auto [data_layout, data2NCHW] = CheckTensorLayout(call, ctx, attrs->data_layout,  //
                                                     /*tgt_layout=*/"NCHW",          //
                                                     /*tensor_name=*/"data");
@@ -588,7 +588,7 @@ InferLayoutOutput InferLayoutConv2d(
     const Call& call, const ffi::Map<ffi::String, ffi::Array<ffi::String>>& desired_layouts,
     const VarLayoutMap& var_layout_map) {
   const auto& it = desired_layouts.find("relax.nn.conv2d");
-  const auto* attrs = ffi::AnyView(call->attrs).as<Conv2DAttrs>();
+  const auto* attrs = call->attrs.as<Conv2DAttrs>();
   TVM_FFI_ICHECK(attrs) << "Invalid Call";
 
   LayoutDecision data_layout(ffi::UnsafeInit{}), weight_layout(ffi::UnsafeInit{}),
@@ -628,9 +628,9 @@ InferLayoutOutput InferLayoutConv2d(
       TensorType data_ty = data_si.as<TensorType>().value();
       TensorType kernel_ty = kernel_si.as<TensorType>().value();
       ffi::Optional<ShapeExpr> data_shape =
-          ffi::GetRef<ShapeExpr>(ffi::AnyView(data_ty->shape).as<ShapeExprNode>());
+          ffi::GetRef<ShapeExpr>(data_ty->shape.as<ShapeExprNode>());
       ffi::Optional<ShapeExpr> kernel_shape =
-          ffi::GetRef<ShapeExpr>(ffi::AnyView(kernel_ty->shape).as<ShapeExprNode>());
+          ffi::GetRef<ShapeExpr>(kernel_ty->shape.as<ShapeExprNode>());
 
       bool can_data_proved =
           CanProveLayoutTransform(input_layout, desired_data_layout, data_shape.value()->values);
@@ -670,7 +670,7 @@ InferLayoutOutput InferLayoutConv2d(
 }
 
 Call InferMixedPrecisionConv2d(const Call& call, DLDataType out_dtype) {
-  const auto* conv2d_attrs = ffi::AnyView(call->attrs).as<Conv2DAttrs>();
+  const auto* conv2d_attrs = call->attrs.as<Conv2DAttrs>();
   return conv2d(call->args[0], call->args[1], conv2d_attrs->strides, conv2d_attrs->padding,
                 conv2d_attrs->dilation, conv2d_attrs->groups, conv2d_attrs->data_layout,
                 conv2d_attrs->kernel_layout, conv2d_attrs->out_layout, out_dtype)
@@ -734,7 +734,7 @@ Type InferTypeConv3d(const Call& call, const BlockBuilder& ctx) {
   TensorType data_ty = input_ty[0];
   TensorType weight_ty = input_ty[1];
 
-  const auto* attrs = ffi::AnyView(call->attrs).as<Conv3DAttrs>();
+  const auto* attrs = call->attrs.as<Conv3DAttrs>();
   auto [data_layout, data2NCDHW] = CheckTensorLayout(call, ctx, attrs->data_layout,  //
                                                      /*tgt_layout=*/"NCDHW",         //
                                                      /*tensor_name=*/"data");
@@ -820,7 +820,7 @@ InferLayoutOutput InferLayoutConv3d(
     const Call& call, const ffi::Map<ffi::String, ffi::Array<ffi::String>>& desired_layouts,
     const VarLayoutMap& var_layout_map) {
   const auto& it = desired_layouts.find("relax.nn.conv3d");
-  const auto* attrs = ffi::AnyView(call->attrs).as<Conv3DAttrs>();
+  const auto* attrs = call->attrs.as<Conv3DAttrs>();
   TVM_FFI_ICHECK(attrs) << "Invalid Call";
 
   LayoutDecision data_layout(ffi::UnsafeInit{}), weight_layout(ffi::UnsafeInit{}),
@@ -867,7 +867,7 @@ InferLayoutOutput InferLayoutConv3d(
 }
 
 Call InferMixedPrecisionConv3d(const Call& call, DLDataType out_dtype) {
-  const auto* conv3d_attrs = ffi::AnyView(call->attrs).as<Conv3DAttrs>();
+  const auto* conv3d_attrs = call->attrs.as<Conv3DAttrs>();
   return conv3d(call->args[0], call->args[1], conv3d_attrs->strides, conv3d_attrs->padding,
                 conv3d_attrs->dilation, conv3d_attrs->groups, conv3d_attrs->data_layout,
                 conv3d_attrs->kernel_layout, conv3d_attrs->out_layout, out_dtype)
@@ -934,7 +934,7 @@ Type InferTypeConv1dTranspose(const Call& call, const BlockBuilder& ctx) {
   TensorType data_ty = input_ty[0];
   TensorType weight_ty = input_ty[1];
 
-  const auto* attrs = ffi::AnyView(call->attrs).as<Conv1DTransposeAttrs>();
+  const auto* attrs = call->attrs.as<Conv1DTransposeAttrs>();
   auto [data_layout, data2NCW] = CheckTensorLayout(call, ctx, attrs->data_layout,  //
                                                    /*tgt_layout=*/"NCW",           //
                                                    /*tensor_name=*/"data");
@@ -1012,7 +1012,7 @@ Type InferTypeConv1dTranspose(const Call& call, const BlockBuilder& ctx) {
 InferLayoutOutput InferLayoutConv1dTranspose(
     const Call& call, const ffi::Map<ffi::String, ffi::Array<ffi::String>>& desired_layouts,
     const VarLayoutMap& var_layout_map) {
-  const auto* attrs = ffi::AnyView(call->attrs).as<Conv1DTransposeAttrs>();
+  const auto* attrs = call->attrs.as<Conv1DTransposeAttrs>();
   LayoutDecision data_layout(ffi::UnsafeInit{}), weight_layout(ffi::UnsafeInit{}),
       output_layout(ffi::UnsafeInit{});
   ffi::ObjectPtr<Conv1DTransposeAttrs> new_attrs = ffi::make_object<Conv1DTransposeAttrs>(*attrs);
@@ -1055,7 +1055,7 @@ InferLayoutOutput InferLayoutConv1dTranspose(
 }
 
 Call InferMixedPrecisionConv1dTranspose(const Call& call, DLDataType out_dtype) {
-  const auto* conv1d_transpose_attrs = ffi::AnyView(call->attrs).as<Conv1DTransposeAttrs>();
+  const auto* conv1d_transpose_attrs = call->attrs.as<Conv1DTransposeAttrs>();
   return conv1d_transpose(call->args[0], call->args[1], conv1d_transpose_attrs->strides,
                           conv1d_transpose_attrs->padding, conv1d_transpose_attrs->output_padding,
                           conv1d_transpose_attrs->dilation, conv1d_transpose_attrs->groups,
@@ -1137,7 +1137,7 @@ Type InferTypeConv2dTranspose(const Call& call, const BlockBuilder& ctx) {
   TensorType data_ty = input_ty[0];
   TensorType weight_ty = input_ty[1];
 
-  const auto* attrs = ffi::AnyView(call->attrs).as<Conv2DTransposeAttrs>();
+  const auto* attrs = call->attrs.as<Conv2DTransposeAttrs>();
   auto [data_layout, data2NCHW] = CheckTensorLayout(call, ctx, attrs->data_layout,  //
                                                     /*tgt_layout=*/"NCHW",          //
                                                     /*tensor_name=*/"data");
@@ -1221,7 +1221,7 @@ Type InferTypeConv2dTranspose(const Call& call, const BlockBuilder& ctx) {
 InferLayoutOutput InferLayoutConv2dTranspose(
     const Call& call, const ffi::Map<ffi::String, ffi::Array<ffi::String>>& desired_layouts,
     const VarLayoutMap& var_layout_map) {
-  const auto* attrs = ffi::AnyView(call->attrs).as<Conv2DTransposeAttrs>();
+  const auto* attrs = call->attrs.as<Conv2DTransposeAttrs>();
   LayoutDecision data_layout = GetLayoutDecision(var_layout_map, call->args[0]);
   LayoutDecision weight_layout = GetLayoutDecision(var_layout_map, call->args[1]);
   LayoutDecision output_layout(ffi::UnsafeInit{});
@@ -1256,9 +1256,9 @@ InferLayoutOutput InferLayoutConv2dTranspose(
       TensorType data_ty = data_si.as<TensorType>().value();
       TensorType kernel_ty = kernel_si.as<TensorType>().value();
       ffi::Optional<ShapeExpr> data_shape =
-          ffi::GetRef<ShapeExpr>(ffi::AnyView(data_ty->shape).as<ShapeExprNode>());
+          ffi::GetRef<ShapeExpr>(data_ty->shape.as<ShapeExprNode>());
       ffi::Optional<ShapeExpr> kernel_shape =
-          ffi::GetRef<ShapeExpr>(ffi::AnyView(kernel_ty->shape).as<ShapeExprNode>());
+          ffi::GetRef<ShapeExpr>(kernel_ty->shape.as<ShapeExprNode>());
 
       bool can_data_proved =
           CanProveLayoutTransform(input_layout, desired_data_layout, data_shape.value()->values);
@@ -1295,7 +1295,7 @@ InferLayoutOutput InferLayoutConv2dTranspose(
 }
 
 Call InferMixedPrecisionConv2dTranspose(const Call& call, DLDataType out_dtype) {
-  const auto* conv2d_transpose_attrs = ffi::AnyView(call->attrs).as<Conv2DTransposeAttrs>();
+  const auto* conv2d_transpose_attrs = call->attrs.as<Conv2DTransposeAttrs>();
   return conv2d_transpose(call->args[0], call->args[1], conv2d_transpose_attrs->strides,
                           conv2d_transpose_attrs->padding, conv2d_transpose_attrs->output_padding,
                           conv2d_transpose_attrs->dilation, conv2d_transpose_attrs->groups,
@@ -1380,7 +1380,7 @@ Type InferTypeConv3dTranspose(const Call& call, const BlockBuilder& ctx) {
   TensorType data_ty = input_ty[0];
   TensorType weight_ty = input_ty[1];
 
-  const auto* attrs = ffi::AnyView(call->attrs).as<Conv3DTransposeAttrs>();
+  const auto* attrs = call->attrs.as<Conv3DTransposeAttrs>();
   auto [data_layout, data2NCDHW] = CheckTensorLayout(call, ctx, attrs->data_layout,  //
                                                      /*tgt_layout=*/"NCDHW",         //
                                                      /*tensor_name=*/"data");
@@ -1472,7 +1472,7 @@ Type InferTypeConv3dTranspose(const Call& call, const BlockBuilder& ctx) {
 InferLayoutOutput InferLayoutConv3dTranspose(
     const Call& call, const ffi::Map<ffi::String, ffi::Array<ffi::String>>& desired_layouts,
     const VarLayoutMap& var_layout_map) {
-  const auto* attrs = ffi::AnyView(call->attrs).as<Conv3DTransposeAttrs>();
+  const auto* attrs = call->attrs.as<Conv3DTransposeAttrs>();
   LayoutDecision data_layout = GetLayoutDecision(var_layout_map, call->args[0]);
   LayoutDecision weight_layout = GetLayoutDecision(var_layout_map, call->args[1]);
   LayoutDecision output_layout(ffi::UnsafeInit{});
@@ -1507,9 +1507,9 @@ InferLayoutOutput InferLayoutConv3dTranspose(
       TensorType data_ty = data_si.as<TensorType>().value();
       TensorType kernel_ty = kernel_si.as<TensorType>().value();
       ffi::Optional<ShapeExpr> data_shape =
-          ffi::GetRef<ShapeExpr>(ffi::AnyView(data_ty->shape).as<ShapeExprNode>());
+          ffi::GetRef<ShapeExpr>(data_ty->shape.as<ShapeExprNode>());
       ffi::Optional<ShapeExpr> kernel_shape =
-          ffi::GetRef<ShapeExpr>(ffi::AnyView(kernel_ty->shape).as<ShapeExprNode>());
+          ffi::GetRef<ShapeExpr>(kernel_ty->shape.as<ShapeExprNode>());
 
       bool can_data_proved =
           CanProveLayoutTransform(input_layout, desired_data_layout, data_shape.value()->values);
@@ -1546,7 +1546,7 @@ InferLayoutOutput InferLayoutConv3dTranspose(
 }
 
 Call InferMixedPrecisionConv3dTranspose(const Call& call, DLDataType out_dtype) {
-  const auto* conv3d_transpose_attrs = ffi::AnyView(call->attrs).as<Conv3DTransposeAttrs>();
+  const auto* conv3d_transpose_attrs = call->attrs.as<Conv3DTransposeAttrs>();
   return conv3d_transpose(call->args[0], call->args[1], conv3d_transpose_attrs->strides,
                           conv3d_transpose_attrs->padding, conv3d_transpose_attrs->output_padding,
                           conv3d_transpose_attrs->dilation, conv3d_transpose_attrs->groups,

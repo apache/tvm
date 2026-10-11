@@ -67,7 +67,7 @@ Type InferTypeUnique(const CallNode* call_node) {
   }
   if (!data_ty->IsUnknownNdim() && axis.has_value()) {
     // Normalize the axis for sanity check purpose.
-    if (const auto* axis_int = ffi::AnyView(axis).as<IntImmNode>()) {
+    if (const auto* axis_int = axis.as<IntImmNode>()) {
       NormalizeAxis(call, data_ty->ndim, axis_int->value.as<int>().value());
     }
   }

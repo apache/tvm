@@ -244,7 +244,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 Type InferTypePool1D(const Call& call, const BlockBuilder& ctx) {
   TensorType data_ty = GetUnaryInputTensorType(call, ctx);
 
-  const auto* attrs = ffi::AnyView(call->attrs).as<Pool1DAttrs>();
+  const auto* attrs = call->attrs.as<Pool1DAttrs>();
   auto [data_layout, data2NCW] = CheckTensorLayout(call, ctx, attrs->layout,
                                                    /*tgt_layout=*/"NCW",
                                                    /*tensor_name=*/"data");
@@ -296,7 +296,7 @@ InferLayoutOutput InferLayoutPool1d(
   const auto* tensor_ty = GetTypeAs<TensorTypeNode>(call);
   TVM_FFI_ICHECK(tensor_ty != nullptr) << "Invalid Call";
   TVM_FFI_ICHECK_EQ(tensor_ty->ndim, 3) << "Unsupported initial layout";
-  const auto* attrs = ffi::AnyView(call->attrs).as<Pool1DAttrs>();
+  const auto* attrs = call->attrs.as<Pool1DAttrs>();
   TVM_FFI_ICHECK(attrs) << "Invalid Call";
 
   LayoutDecision layout = GetLayoutDecision(var_layout_map, call->args[0]);
@@ -372,7 +372,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 Type InferTypePool2D(const Call& call, const BlockBuilder& ctx) {
   TensorType data_ty = GetUnaryInputTensorType(call, ctx);
 
-  const auto* attrs = ffi::AnyView(call->attrs).as<Pool2DAttrs>();
+  const auto* attrs = call->attrs.as<Pool2DAttrs>();
   auto [data_layout, data2NCHW] = CheckTensorLayout(call, ctx, attrs->layout,
                                                     /*tgt_layout=*/"NCHW",
                                                     /*tensor_name=*/"data");
@@ -436,7 +436,7 @@ InferLayoutOutput InferLayoutPool2d(
   const auto* tensor_ty = GetTypeAs<TensorTypeNode>(call);
   TVM_FFI_ICHECK(tensor_ty != nullptr) << "Invalid Call";
   TVM_FFI_ICHECK_EQ(tensor_ty->ndim, 4) << "Unsupported initial layout";
-  const auto* attrs = ffi::AnyView(call->attrs).as<Pool2DAttrs>();
+  const auto* attrs = call->attrs.as<Pool2DAttrs>();
   TVM_FFI_ICHECK(attrs) << "Invalid Call";
 
   LayoutDecision layout = GetLayoutDecision(var_layout_map, call->args[0]);
@@ -451,7 +451,7 @@ InferLayoutOutput InferLayoutPool2d(
     auto data_si = GetType(call->args[0]);
     TensorType data_ty = data_si.as<TensorType>().value();
     ffi::Optional<ShapeExpr> data_shape =
-        ffi::GetRef<ShapeExpr>(ffi::AnyView(data_ty->shape).as<ShapeExprNode>());
+        ffi::GetRef<ShapeExpr>(data_ty->shape.as<ShapeExprNode>());
     if (CanProveLayoutTransform(in_layout, desired_layout, data_shape.value()->values)) {
       // Not handling out_layout being different from in_layout now. Any use case ?
       new_attrs->layout = desired_layout.value().name();
@@ -538,7 +538,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 Type InferTypePool3D(const Call& call, const BlockBuilder& ctx) {
   TensorType data_ty = GetUnaryInputTensorType(call, ctx);
 
-  const auto* attrs = ffi::AnyView(call->attrs).as<Pool3DAttrs>();
+  const auto* attrs = call->attrs.as<Pool3DAttrs>();
   auto [data_layout, data2NCDHW] = CheckTensorLayout(call, ctx, attrs->layout,
                                                      /*tgt_layout=*/"NCDHW",
                                                      /*tensor_name=*/"data");
@@ -614,7 +614,7 @@ InferLayoutOutput InferLayoutPool3d(
   const auto* tensor_ty = GetTypeAs<TensorTypeNode>(call);
   TVM_FFI_ICHECK(tensor_ty != nullptr) << "Invalid Call";
   TVM_FFI_ICHECK_EQ(tensor_ty->ndim, 5) << "Unsupported initial layout";
-  const auto* attrs = ffi::AnyView(call->attrs).as<Pool3DAttrs>();
+  const auto* attrs = call->attrs.as<Pool3DAttrs>();
   TVM_FFI_ICHECK(attrs) << "Invalid Call";
 
   LayoutDecision layout = GetLayoutDecision(var_layout_map, call->args[0]);
@@ -727,7 +727,7 @@ Type InferTypeAdaptiveAvgPool1D(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
   TensorType data_ty = GetUnaryInputTensorType(call);
 
-  const auto* attrs = ffi::AnyView(call->attrs).as<AdaptivePool1DAttrs>();
+  const auto* attrs = call->attrs.as<AdaptivePool1DAttrs>();
   auto [data_layout, data2NCW] = CheckTensorLayout(call, attrs->layout,
                                                    /*tgt_layout=*/"NCW",
                                                    /*tensor_name=*/"data");
@@ -762,7 +762,7 @@ InferLayoutOutput InferLayoutAdaptiveAvgPool1D(
   const auto* tensor_ty = GetTypeAs<TensorTypeNode>(call);
   TVM_FFI_ICHECK(tensor_ty != nullptr) << "Invalid Call";
   TVM_FFI_ICHECK_EQ(tensor_ty->ndim, 3) << "Unsupported initial layout";
-  const auto* attrs = ffi::AnyView(call->attrs).as<AdaptivePool1DAttrs>();
+  const auto* attrs = call->attrs.as<AdaptivePool1DAttrs>();
   TVM_FFI_ICHECK(attrs) << "Invalid Call";
 
   LayoutDecision layout = GetLayoutDecision(var_layout_map, call->args[0]);
@@ -816,7 +816,7 @@ Type InferTypeAdaptiveAvgPool2D(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
   TensorType data_ty = GetUnaryInputTensorType(call);
 
-  const auto* attrs = ffi::AnyView(call->attrs).as<AdaptivePool2DAttrs>();
+  const auto* attrs = call->attrs.as<AdaptivePool2DAttrs>();
   auto [data_layout, data2NCHW] = CheckTensorLayout(call, attrs->layout,
                                                     /*tgt_layout=*/"NCHW",
                                                     /*tensor_name=*/"data");
@@ -852,7 +852,7 @@ InferLayoutOutput InferLayoutAdaptiveAvgPool2D(
   const auto* tensor_ty = GetTypeAs<TensorTypeNode>(call);
   TVM_FFI_ICHECK(tensor_ty != nullptr) << "Invalid Call";
   TVM_FFI_ICHECK_EQ(tensor_ty->ndim, 4) << "Unsupported initial layout";
-  const auto* attrs = ffi::AnyView(call->attrs).as<AdaptivePool2DAttrs>();
+  const auto* attrs = call->attrs.as<AdaptivePool2DAttrs>();
   TVM_FFI_ICHECK(attrs) << "Invalid Call";
 
   LayoutDecision layout = GetLayoutDecision(var_layout_map, call->args[0]);
@@ -866,7 +866,7 @@ InferLayoutOutput InferLayoutAdaptiveAvgPool2D(
     auto data_si = GetType(call->args[0]);
     TensorType data_ty = data_si.as<TensorType>().value();
     ffi::Optional<ShapeExpr> data_shape =
-        ffi::GetRef<ShapeExpr>(ffi::AnyView(data_ty->shape).as<ShapeExprNode>());
+        ffi::GetRef<ShapeExpr>(data_ty->shape.as<ShapeExprNode>());
     if (CanProveLayoutTransform(in_layout, desired_layout, data_shape.value()->values)) {
       // Not handling out_layout being different from in_layout now. Any use case ?
       new_attrs->layout = desired_layout.value().name();
@@ -927,7 +927,7 @@ Type InferTypeAdaptiveAvgPool3D(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
   TensorType data_ty = GetUnaryInputTensorType(call);
 
-  const auto* attrs = ffi::AnyView(call->attrs).as<AdaptivePool3DAttrs>();
+  const auto* attrs = call->attrs.as<AdaptivePool3DAttrs>();
   auto [data_layout, data2NCDHW] = CheckTensorLayout(call, attrs->layout,
                                                      /*tgt_layout=*/"NCDHW",
                                                      /*tensor_name=*/"data");
@@ -964,7 +964,7 @@ InferLayoutOutput InferLayoutAdaptiveAvgPool3D(
   const auto* tensor_ty = GetTypeAs<TensorTypeNode>(call);
   TVM_FFI_ICHECK(tensor_ty != nullptr) << "Invalid Call";
   TVM_FFI_ICHECK_EQ(tensor_ty->ndim, 5) << "Unsupported initial layout";
-  const auto* attrs = ffi::AnyView(call->attrs).as<AdaptivePool3DAttrs>();
+  const auto* attrs = call->attrs.as<AdaptivePool3DAttrs>();
   TVM_FFI_ICHECK(attrs) << "Invalid Call";
 
   LayoutDecision layout = GetLayoutDecision(var_layout_map, call->args[0]);

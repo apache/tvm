@@ -130,7 +130,7 @@ class TensorFlattener : public IRMutatorWithAnalyzer {
       view_type->elem_offset = this->Mutate(view_type->elem_offset, InplaceMode::kDisallow)
                                    .ValueOrUnchanged(view_type->elem_offset);
     }
-    if (auto tile = ffi::AnyView(view_type->layout).as<TileLayoutNode>()) {
+    if (auto tile = view_type->layout.as<TileLayoutNode>()) {
       auto remap_iter = [this](const Iter& iter) {
         PrimExpr extent =
             this->Mutate(iter->extent, InplaceMode::kDisallow).ValueOrUnchanged(iter->extent);

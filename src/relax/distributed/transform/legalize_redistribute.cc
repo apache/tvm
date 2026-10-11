@@ -66,7 +66,7 @@ class RedistributeLegalizer : public ExprMutator {
     Call call = ExprMutator::VisitExpr_(op).as_or_throw<Call>();
     static Op redistribute_op = Op::Get("relax.dist.redistribute");
     if (call->op.same_as(redistribute_op)) {
-      const auto* attrs = ffi::AnyView(call->attrs).as<DistributionAttrs>();
+      const auto* attrs = call->attrs.as<DistributionAttrs>();
       TVM_FFI_ICHECK(attrs);
       const auto* input_ty = call->args[0]->ty.as<DTensorTypeNode>();
       TVM_FFI_ICHECK(input_ty);

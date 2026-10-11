@@ -150,7 +150,7 @@ class TrainiumLayoutApplier : public tirx::IRMutatorWithAnalyzer {
     if (mapped.type_index() != ffi::TypeIndex::kTVMFFINone) {
       return std::move(mapped).as_or_throw<UnchangedOr<TensorVar>>().ValueOrUnchanged(buf);
     }
-    auto trn_layout = ffi::AnyView(buf->layout).as<TileLayoutNode>();
+    auto trn_layout = buf->layout.as<TileLayoutNode>();
     TensorVar flattened = buf;
     ffi::ObjectPtr<TensorTypeNode> type;
     if (IsTrainiumLayout(trn_layout)) {
@@ -165,7 +165,7 @@ class TrainiumLayoutApplier : public tirx::IRMutatorWithAnalyzer {
       type->shape = new_shape;
       type->strides = {};
     } else if (is_alloc) {
-      if (auto tile_layout = ffi::AnyView(buf->layout).as<TileLayoutNode>();
+      if (auto tile_layout = buf->layout.as<TileLayoutNode>();
           tile_layout && tile_layout->HasThreadAxis()) {
         sym::Analyzer ana;
         PrimExpr mem_span = IntImm::Int32(1);
