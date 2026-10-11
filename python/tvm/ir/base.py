@@ -23,7 +23,7 @@ from tvm_ffi.serialization import from_json_graph_str, to_json_graph_str
 from tvm.runtime import Object
 
 from ..libinfo import __version__
-from . import _ffi_api, json_compact
+from . import _ffi_api
 
 
 class Scriptable:
@@ -74,7 +74,6 @@ def load_json(json_str) -> Object:
         The loaded tvm node.
     """
 
-    json_str = json_compact.upgrade_json(json_str)
     return from_json_graph_str(json_str)
 
 
