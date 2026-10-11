@@ -142,7 +142,7 @@ class LayoutApplier : public IRMutatorWithAnalyzer {
         // TMEM is already allocated by the pool.  Retain an explicit backing pointer so
         // ordinary data projections also work for views and function parameters.
         Call declaration(buffer.type(), decl_tensor_op(),
-                         {Call(buffer->DataPointerType(), reinterpret_op(), {call->args[0]}),
+                         {Call(buffer->DataPtrType(), reinterpret_op(), {call->args[0]}),
                           tvm::Tuple(buffer->shape), DataTypeImm(buffer->dtype->dtype),
                           StringImm(buffer.scope())});
         Bind binding(op->var, declaration, op->loc);

@@ -69,7 +69,7 @@ def _assert_remote_mbarrier_ir(func, arrive_op_name, n_arrives=1):
     assert len(buffers) == 1
     assert len(mapa_calls) == 1
     assert arrive_calls
-    assert isinstance(bindings[0].var.ty, tvm.ir.PointerType)
+    assert isinstance(bindings[0].var.ty, tvm.ir.PtrType)
     assert bindings[0].var.ty.storage_scope == "shared"
     assert bindings[0].value.ty.storage_scope == "shared"
     assert buffers[0].value.args[0].same_as(bindings[0].var)

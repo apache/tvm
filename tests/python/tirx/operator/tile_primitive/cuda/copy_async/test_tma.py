@@ -27,7 +27,7 @@ import tvm_ffi
 
 import tvm
 import tvm.testing
-from tvm.ir import PointerType, PrimType, Range
+from tvm.ir import PrimType, PtrType, Range
 from tvm.script import tirx as T
 from tvm.sym import Analyzer
 from tvm.testing import env
@@ -306,7 +306,7 @@ def _ints(values):
 
 
 def _make_spec(**overrides):
-    g_data = Var("A", PointerType(PrimType("float16"), "global"))
+    g_data = Var("A", PtrType(PrimType("float16"), "global"))
     s_buf = tvm.tirx.decl_tensor(
         (4, 8),
         "float16",
@@ -1375,7 +1375,7 @@ def test_auto_odd_partial_and_unrepairable_box_fail_loudly():
 
 
 def test_auto_descriptor_cache_key_includes_promoted_dtype():
-    data = Var("A", PointerType(PrimType("uint8"), "global"))
+    data = Var("A", PtrType(PrimType("uint8"), "global"))
     target = tvm.target.Target({"kind": "cuda", "arch": "sm_90a"})
     sctx = DispatchContext(target, ExecScope("thread"), {}, {})
     for rows in (32, 64):

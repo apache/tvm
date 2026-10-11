@@ -35,7 +35,7 @@ void CodeGenSourceBase::ClearFuncState() {
 }
 
 std::string CodeGenSourceBase::SSAGetID(std::string src, const Type& t) {
-  TVM_FFI_ICHECK(t.as<PrimTypeNode>() || t.as<PointerTypeNode>())
+  TVM_FFI_ICHECK(t.as<PrimTypeNode>() || t.as<PtrTypeNode>())
       << "Cannot assign an SSA value of type " << t;
   if (name_supply_->ContainsName(src)) return src;
   auto it = ssa_assign_map_.find(src);
@@ -153,7 +153,7 @@ void CodeGenSourceBase::PrintType(const PrimType& type, std::ostream& os) {  // 
 void CodeGenSourceBase::PrintType(const Type& type, std::ostream& os) {  // NOLINT(*)
   if (auto* ptr = type.as<PrimTypeNode>()) {
     return PrintType(ffi::GetRef<PrimType>(ptr), os);
-  } else if (auto* ptr = type.as<PointerTypeNode>()) {
+  } else if (auto* ptr = type.as<PtrTypeNode>()) {
     PrintType(ptr->element_type, os);
     os << '*';
   } else if (IsVoidType(type)) {

@@ -289,12 +289,12 @@ def test_roundtrip_tensormap():
 def test_roundtrip_tensormap_kernel_param():
     # fmt: off
     @T.function
-    def func1(A_map: T.TensorMap()):
+    def func1(A_map: T.Ptr(T.TensorMap, "")):
         T.func_attr({"global_symbol": "func"})
         T.evaluate(T.address_of(A_map))
     # fmt: on
     code = func1.script()
-    assert "T.TensorMap()" in code
+    assert "T.Ptr(T.TensorMap)" in code
     assert from_source(code).script() == code
     assert_structural_equal(func1, from_source(code))
 

@@ -27,7 +27,7 @@ from tvm import DataType, tirx
 from tvm.ir import Attrs, Call, Op, StringImm, const
 from tvm.ir.location import UNKNOWN_LOC, Location
 from tvm.ir.op import _init_op_api, _make_op_api
-from tvm.ir.type import PointerType, PrimType
+from tvm.ir.type import PrimType, PtrType
 from tvm.tirx.op import bitwise_and, call_intrin, ptr_byte_offset
 from tvm.tirx.operator.intrinsics._common import (
     CP_ASYNC_BULK_CACHE_HINT as _CP_ASYNC_BULK_CACHE_HINT,
@@ -1150,7 +1150,7 @@ def _normalize_ptx_ld_dst(dst, vec, op_name):
 def _validate_ptx_address(addr, space, op_name):
     """Validate pointer and raw shared-memory address forms."""
     addr_ty = getattr(addr, "ty", None)
-    if isinstance(addr_ty, PointerType):
+    if isinstance(addr_ty, PtrType):
         return
     if isinstance(addr_ty, PrimType):
         if addr_ty.dtype == "uint32":

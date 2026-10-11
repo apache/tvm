@@ -235,7 +235,7 @@ TEST(IRF, StmtVisitor) {
     // tests for block and block_realize
     Stmt body = fmaketest();
     PrimType dtype = PrimType::Float(32);
-    tvm::Var buf_var("b", PointerType(dtype));
+    tvm::Var buf_var("b", PtrType(dtype));
     TensorVar buffer = decl_tensor({16});
     body =
         SeqStmt({Bind(buffer, Call(buffer.type(), tvm::tirx::decl_tensor_op(),
@@ -371,7 +371,7 @@ TEST(IRF, StmtExprMutator) {
     // AllocTensor and DeclTensor are flat (no body), placed as siblings in SeqStmt
     Stmt eval_body = Evaluate(x + 1);
     TensorVar buffer = decl_tensor({16});
-    tvm::Var buffer_data("buffer_data", buffer.type()->DataPointerType());
+    tvm::Var buffer_data("buffer_data", buffer.type()->DataPtrType());
     Stmt decl = Bind(buffer, Call(buffer.type(), tvm::tirx::decl_tensor_op(),
                                   {buffer_data, tvm::Tuple(buffer->shape),
                                    DataTypeImm(buffer->dtype->dtype), StringImm(buffer.scope())}));
@@ -681,7 +681,7 @@ TEST(IRF, StructuralMapBufferDefinition) {
   using namespace tvm;
   using namespace tvm::tirx;
   PrimType dtype = PrimType::Float(32);
-  tvm::Var x("x", PointerType(dtype, ""));
+  tvm::Var x("x", PtrType(dtype, ""));
   PrimVar n("n", PrimType::Int(32));
 
   auto fmakebuffer = [&]() {

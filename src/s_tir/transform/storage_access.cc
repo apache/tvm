@@ -42,7 +42,7 @@ namespace {
 
 ffi::Optional<Var> GetBufferDataVar(const ffi::Any& data) {
   if (auto var = data.as<Var>()) {
-    if (var.value()->ty.as<PointerTypeNode>() || var.value()->ty.as<TensorTypeNode>()) return var;
+    if (var.value()->ty.as<PtrTypeNode>() || var.value()->ty.as<TensorTypeNode>()) return var;
     return std::nullopt;
   }
   if (const auto* call = data.as<CallNode>();
@@ -130,7 +130,7 @@ ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const EvaluateNode* o
 }
 
 ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const BindNode* op) {
-  if (op->var->ty.as<PointerTypeNode>()) {
+  if (op->var->ty.as<PtrTypeNode>()) {
     pointer_values_.insert_or_assign(op->var.get(), op->value);
     if (HasOffsetPointer(op->value)) offset_aliases_.insert(op->var.get());
     if (auto source = GetBufferDataVar(op->value)) {
@@ -314,8 +314,8 @@ void StorageAccessVisitor::RecordOpaqueAccess(Var source) {
   } else {
     // Raw pointers have no shape or direction information. An empty region
     // denotes unknown storage, which synchronization treats conservatively.
-    entry.dtype = source->ty.as_or_throw<PointerType>()->element_type.as<PrimType>().value_or(
-        PrimType::UInt(8));
+    entry.dtype =
+        source->ty.as_or_throw<PtrType>()->element_type.as<PrimType>().value_or(PrimType::UInt(8));
   }
   entry.type = kRead;
   curr_stmt_.access.push_back(entry);
@@ -328,7 +328,7 @@ ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const VarNode* op) {
     if (auto it = pointer_values_.find(op); it != pointer_values_.end()) {
       return Visit(it->second);
     }
-    if (op->ty.as<PointerTypeNode>()) RecordOpaqueAccess(ffi::GetRef<Var>(op));
+    if (op->ty.as<PtrTypeNode>()) RecordOpaqueAccess(ffi::GetRef<Var>(op));
   }
   return StmtExprVisitor::Visit_(op);
 }
@@ -410,7 +410,7 @@ StorageScope StorageAccessVisitor::GetScope(Var buffer_var) const {
   if (auto buffer_type = buffer_var->ty.as<TensorType>()) {
     return StorageScope::Create(buffer_type.value()->storage_scope);
   }
-  if (buffer_var->ty.as<PointerTypeNode>()) {
+  if (buffer_var->ty.as<PtrTypeNode>()) {
     return StorageScope::Create(GetPtrStorageScope(buffer_var));
   }
   return StorageScope();  // global by default

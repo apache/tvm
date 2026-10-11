@@ -32,8 +32,8 @@ from tvm.ir import (
     Call,
     Expr,
     Op,
-    PointerType,
     PrimType,
+    PtrType,
     StringImm,
     TensorLoad,
     TensorRegion,
@@ -196,7 +196,7 @@ class Instruction:
             elif arg.role == "address":
                 from tvm.ir import is_prim_expr
 
-                if not isinstance(value.ty, PointerType) and not is_prim_expr(value):
+                if not isinstance(value.ty, PtrType) and not is_prim_expr(value):
                     raise TypeError(f"{arg.name} must be a pointer or shared address")
             elif arg.role == "scalar":
                 from tvm.ir import is_prim_expr

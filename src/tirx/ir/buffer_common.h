@@ -40,9 +40,9 @@ namespace tirx {
  * to a primitive type, the object has a value which is the pointed-to
  * type. Otherwise the object is nullopt.
  */
-inline std::optional<PrimType> GetPointerType(const Type& type) {
+inline std::optional<PrimType> GetPtrElementType(const Type& type) {
   if (!type.as<MissingType>().has_value()) {
-    if (auto* ptr_type = type.as<PointerTypeNode>()) {
+    if (auto* ptr_type = type.as<PtrTypeNode>()) {
       if (auto* prim_type = ptr_type->element_type.as<PrimTypeNode>()) {
         return ffi::GetRef<PrimType>(prim_type);
       }

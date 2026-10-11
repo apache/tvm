@@ -45,7 +45,10 @@ ffi::Optional<ExprDoc> FunctionDocTranslate(DocTranslatorObj* d, ffi::AnyView in
       << "printer statement-only node cannot fulfill a destination";
   VarScope vars(d);
 
-  ffi::String name = func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol).value_or("main");
+  auto bound_name = d->GetOrCreateExtraState<ffi::Optional<ffi::String>>("ir.function_name");
+  ExtraStateScope<ffi::Optional<ffi::String>> name_scope(d, "ir.function_name", std::nullopt);
+  auto global_symbol = func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol);
+  ffi::String name = bound_name.value_or(global_symbol.value_or("main"));
   ffi::Array<AssignDoc> args;
   ffi::Array<IdDoc> param_ids;
   // A prior annotation may depend on a later scalar parameter.
@@ -105,6 +108,14 @@ ffi::Optional<ExprDoc> FunctionDocTranslate(DocTranslatorObj* d, ffi::AnyView in
     d->Emit(ReturnDoc(result), ffi::GetRef<ffi::ObjectRef>(func));
   });
   auto body = ToStmtDocArray(docs);
+  if (bound_name && global_symbol && global_symbol.value() != bound_name.value()) {
+    body.insert(
+        body.begin(),
+        ExprStmtDoc(NamespaceDoc("relax")
+                        ->Attr("func_attr")
+                        ->Call({DictDoc({LiteralDoc::Str(tvm::attr::kGlobalSymbol, std::nullopt)},
+                                        {LiteralDoc::Str(global_symbol.value(), std::nullopt)})})));
+  }
   FunctionDoc function(IdDoc(name), args, {decorator}, ret_type, body);
   FinalizeFunctionDefinitions(d, signature_candidates, function);
   vars.Close();

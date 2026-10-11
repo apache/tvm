@@ -91,7 +91,7 @@ dtype vs type
 
 The ``dtype`` is *low-level* — it says "what bits". Separately, a value has a
 high-level **type**: ``PrimType(dtype)`` for a scalar, or
-``PointerType(PrimType(dtype), scope)`` for a pointer. Most expressions are scalars
+``PtrType(PrimType(dtype), scope)`` for a pointer. Most expressions are scalars
 (``PrimType``); the type system matters mainly for **pointers**.
 
 Pointers (``handle``)
@@ -112,11 +112,11 @@ A buffer's ``data`` — its pointer — is a ``Var`` of pointer type, and it is
 
   .. code-block:: python
 
-      from tvm.ir.type import PointerType, PrimType
+      from tvm.ir.type import PtrType, PrimType
 
       mapped = Tx.alloc_local([1], "uint64")
       Tx.ptx.mapa.u64(mapped[0], mbar.ptr_to([0]), Tx.uint32(0))
-      ptr_ty = PointerType(PrimType("uint64"), "shared")
+      ptr_ty = PtrType(PrimType("uint64"), "shared")
       ptr = Tx.reinterpret(ptr_ty, mapped[0])
       remote_mbar = Tx.decl_tensor([1], "uint64", data=ptr, scope="shared")
 

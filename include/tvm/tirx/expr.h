@@ -71,7 +71,7 @@ class TensorVar : public Var {
   const Location& loc() const { return get()->loc; }
 
   /*! \brief Project the physical pointer established by the definition site. */
-  Expr data() const { return Call(type()->DataPointerType(), tensor_data_ptr_op(), {var()}); }
+  Expr data() const { return Call(type()->DataPtrType(), tensor_data_ptr_op(), {var()}); }
 
   /*! \brief Return the storage scope associated with this buffer. */
   ffi::String scope() const { return (*this)->storage_scope; }
