@@ -26,8 +26,8 @@ from tvm.script import tirx as T
 def test_stmt_simplify():
     @T.function(private=True)
     def func(A: T.handle("float32"), C: T.handle("float32"), n: T.int32):
-        A_ptr = T.decl_tensor((10,), "float32", data=A)
-        C_ptr = T.decl_tensor((10,), "float32", data=C)
+        A_ptr = T.decl_tensor(A, ty_args=[T.Tensor((10,), "float32", data=A)])
+        C_ptr = T.decl_tensor(C, ty_args=[T.Tensor((10,), "float32", data=C)])
         n_val: T.let[T.int32] = 10
         for i in T.serial(n_val):
             if i < 12:
@@ -48,8 +48,8 @@ def test_stmt_simplify():
 def test_thread_extent_simplify():
     @T.function(private=True)
     def func(A: T.handle("float32"), C: T.handle("float32"), n: T.int32):
-        A_ptr = T.decl_tensor((10,), "float32", data=A)
-        C_ptr = T.decl_tensor((10,), "float32", data=C)
+        A_ptr = T.decl_tensor(A, ty_args=[T.Tensor((10,), "float32", data=A)])
+        C_ptr = T.decl_tensor(C, ty_args=[T.Tensor((10,), "float32", data=C)])
         n_val: T.let[T.int32] = 10
         for tx in T.thread_binding(n_val, thread="threadIdx.x"):
             for ty in T.thread_binding(1, thread="threadIdx.y"):
@@ -73,8 +73,8 @@ def test_thread_extent_simplify():
 def test_if_likely():
     @T.function(private=True)
     def func(A: T.handle("float32"), C: T.handle("float32"), n: T.int32):
-        A_ptr = T.decl_tensor((32,), "float32", data=A)
-        C_ptr = T.decl_tensor((1024,), "float32", data=C)
+        A_ptr = T.decl_tensor(A, ty_args=[T.Tensor((32,), "float32", data=A)])
+        C_ptr = T.decl_tensor(C, ty_args=[T.Tensor((1024,), "float32", data=C)])
         for tx in T.thread_binding(32, thread="threadIdx.x"):
             for ty in T.thread_binding(32, thread="threadIdx.y"):
                 if T.likely(tx * 32 + ty < n):
@@ -1161,7 +1161,7 @@ def test_simplify_trivial_let_tensor_var():
     @T.function(private=True)
     def before(A_ptr: T.handle("float32")):
         A_ptr_redef: T.let[T.handle("float32")] = A_ptr
-        A = T.decl_tensor(1, "float32", data=A_ptr_redef)
+        A = T.decl_tensor(A_ptr_redef, ty_args=[T.Tensor(1, "float32", data=A_ptr_redef)])
         A[0] = 42.0
 
     expected = before
@@ -1176,13 +1176,17 @@ def test_simplify_trivial_let_elem_offset():
     @T.function(private=True)
     def before(A_ptr: T.handle("float32"), A_offset: T.int32):
         A_offset_redef = A_offset
-        A = T.decl_tensor(1, "float32", elem_offset=A_offset_redef, data=A_ptr)
+        A = T.decl_tensor(
+            A_ptr, ty_args=[T.Tensor(1, "float32", elem_offset=A_offset_redef, data=A_ptr)]
+        )
         A[0] = 42.0
 
     @T.function(private=True)
     def expected(A_ptr: T.handle("float32"), A_offset: T.int32):
         A_offset_redef = A_offset
-        A = T.decl_tensor(1, "float32", elem_offset=A_offset_redef, data=A_ptr)
+        A = T.decl_tensor(
+            A_ptr, ty_args=[T.Tensor(1, "float32", elem_offset=A_offset_redef, data=A_ptr)]
+        )
         A[0] = 42.0
 
     after = _apply_simplify(before)
@@ -1195,13 +1199,13 @@ def test_simplify_trivial_let_shape():
     @T.function(private=True)
     def before(A_ptr: T.handle("float32"), A_size: T.int32):
         A_size_redef = A_size
-        A = T.decl_tensor([A_size_redef], "float32", data=A_ptr)
+        A = T.decl_tensor(A_ptr, ty_args=[T.Tensor([A_size_redef], "float32", data=A_ptr)])
         A[0] = 42.0
 
     @T.function(private=True)
     def expected(A_ptr: T.handle("float32"), A_size: T.int32):
         A_size_redef = A_size
-        A = T.decl_tensor([A_size_redef], "float32", data=A_ptr)
+        A = T.decl_tensor(A_ptr, ty_args=[T.Tensor([A_size_redef], "float32", data=A_ptr)])
         A[0] = 42.0
 
     after = _apply_simplify(before)
@@ -1214,13 +1218,17 @@ def test_simplify_trivial_let_stride():
     @T.function(private=True)
     def before(A_ptr: T.handle("float32"), A_stride: T.int32):
         A_stride_redef = A_stride
-        A = T.decl_tensor(1, "float32", strides=[A_stride_redef], data=A_ptr)
+        A = T.decl_tensor(
+            A_ptr, ty_args=[T.Tensor(1, "float32", strides=[A_stride_redef], data=A_ptr)]
+        )
         A[0] = 42.0
 
     @T.function(private=True)
     def expected(A_ptr: T.handle("float32"), A_stride: T.int32):
         A_stride_redef = A_stride
-        A = T.decl_tensor(1, "float32", strides=[A_stride_redef], data=A_ptr)
+        A = T.decl_tensor(
+            A_ptr, ty_args=[T.Tensor(1, "float32", strides=[A_stride_redef], data=A_ptr)]
+        )
         A[0] = 42.0
 
     after = _apply_simplify(before)
@@ -1240,8 +1248,8 @@ def test_simplify_tensor_identity_well_formed():
     @T.function(private=True)
     def before(A_ptr: T.handle("float32"), B_ptr: T.handle("float32"), n: T.int32):
         n_val = n
-        A = T.decl_tensor([n_val], "float32", data=A_ptr)
-        B = T.decl_tensor([n_val], "float32", data=B_ptr)
+        A = T.decl_tensor(A_ptr, ty_args=[T.Tensor([n_val], "float32", data=A_ptr)])
+        B = T.decl_tensor(B_ptr, ty_args=[T.Tensor([n_val], "float32", data=B_ptr)])
         B[0] = A[0]
 
     after = _apply_simplify(before)

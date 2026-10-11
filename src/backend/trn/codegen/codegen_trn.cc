@@ -229,9 +229,9 @@ void CodeGenTrainium::Dispatch_(const BindNode* op) {
 }
 
 void CodeGenTrainium::DispatchAllocTensor(const BindNode* op, const CallNode* buffer_call) {
-  tvm::Tuple shape = buffer_call->args[0].as_or_throw<tvm::Tuple>();
-  DLDataType dtype = buffer_call->args[1].as_or_throw<DataTypeImm>()->value;
-  ffi::String scope = buffer_call->args[2].as_or_throw<StringImm>()->value;
+  tvm::Tuple shape = tvm::Tuple(buffer_call->ty_args[0].as_or_throw<tirx::TensorType>()->shape);
+  DLDataType dtype = buffer_call->ty_args[0].as_or_throw<tirx::TensorType>()->dtype->dtype;
+  ffi::String scope = buffer_call->ty_args[0].as_or_throw<tirx::TensorType>()->storage_scope;
   TensorVar buffer = op->var.as_or_throw<TensorVar>();
   TVM_FFI_ICHECK(buffer.defined());
   std::string vid = AllocVarID(buffer.get(), buffer.name() + "_ptr");
@@ -251,8 +251,8 @@ void CodeGenTrainium::DispatchAllocTensor(const BindNode* op, const CallNode* bu
            << ", dtype=" << dtype_str << ", buffer=";
   }
   Array<PrimExpr> addr;
-  if (buffer_call->args.size() == 4) {
-    addr = buffer_call->args[3].as_or_throw<tvm::Tuple>()->fields.as_or_throw<Array<PrimExpr>>();
+  if (!buffer_call->args.empty()) {
+    addr = buffer_call->args[0].as_or_throw<tvm::Tuple>()->fields.as_or_throw<Array<PrimExpr>>();
   }
   if (addr.empty()) {
     stream << GetStorageScopeStr(scope) << ")\n";
@@ -260,9 +260,9 @@ void CodeGenTrainium::DispatchAllocTensor(const BindNode* op, const CallNode* bu
     if (scope == "trn.psum") {
       TVM_FFI_ICHECK(addr.size() == 2);
       TVM_FFI_ICHECK(addr[0]->IsInstance<IntImmNode>())
-          << "allocated_addr[0] must be a constant integer, got: " << addr[0];
+          << "placement[0] must be a constant integer, got: " << addr[0];
       TVM_FFI_ICHECK(addr[1]->IsInstance<IntImmNode>())
-          << "allocated_addr[1] must be a constant integer, got: " << addr[1];
+          << "placement[1] must be a constant integer, got: " << addr[1];
       int64_t base_bank = static_cast<int64_t>(addr[0].as_or_throw<IntImm>()->value);
       int64_t base_addr = static_cast<int64_t>(addr[1].as_or_throw<IntImm>()->value);
       stream << "ncc.psum.mod_alloc(base_bank=" << base_bank << ", base_addr=" << base_addr;
@@ -270,7 +270,7 @@ void CodeGenTrainium::DispatchAllocTensor(const BindNode* op, const CallNode* bu
     } else {
       TVM_FFI_ICHECK(addr.size() == 1);
       TVM_FFI_ICHECK(addr[0]->IsInstance<IntImmNode>())
-          << "allocated_addr[0] must be a constant integer, got: " << addr[0];
+          << "placement[0] must be a constant integer, got: " << addr[0];
       int64_t base_addr = static_cast<int64_t>(addr[0].as_or_throw<IntImm>()->value);
       stream << "ncc.sbuf.mod_alloc(base_addr=" << base_addr << "))\n";
     }
@@ -633,10 +633,10 @@ void CodeGenTrainium::Dispatch_(const prim::FloorModNode* op, std::ostream& os) 
 
 void CodeGenTrainium::DispatchDeclTensor(const BindNode* op, const CallNode* buffer_call) {
   Expr data = buffer_call->args[0];
-  tvm::Tuple shape = buffer_call->args[1].as_or_throw<tvm::Tuple>();
-  DLDataType dtype = buffer_call->args[2].as_or_throw<DataTypeImm>()->value;
-  ffi::String scope = buffer_call->args[3].as_or_throw<StringImm>()->value;
   TensorVar buffer = op->var.as_or_throw<TensorVar>();
+  tvm::Tuple shape(buffer->shape);
+  DLDataType dtype = buffer->dtype->dtype;
+  ffi::String scope = buffer.scope();
   if (scope == "trn.psum" || scope == "trn.sbuf") {
     return;
   }

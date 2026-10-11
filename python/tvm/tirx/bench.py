@@ -940,8 +940,12 @@ class CudaProfiler:
             # Assume Expr-like input; use as-is
             self.profiler_enabled = profiler_enabled  # type: ignore[assignment]
 
-        self.profiler_tag = T.alloc_tensor([1], "uint64", scope="local", align=8)
-        self.profiler_write_offset = T.alloc_tensor([1], "uint32", scope="local", align=8)
+        self.profiler_tag = T.bind(
+            T.alloc_tensor(ty_args=[T.Tensor([1], "uint64", scope="local", align=8)])
+        )
+        self.profiler_write_offset = T.bind(
+            T.alloc_tensor(ty_args=[T.Tensor([1], "uint32", scope="local", align=8)])
+        )
 
     def _leader(self, leader: None | tvm.tirx.Expr | bool):
         if leader is not None:

@@ -57,15 +57,19 @@ def test_select():
     @T.function
     def select() -> None:
         T.device_entry()
-        A_sbuf = T.alloc_tensor(src_shape, "float32", scope="trn.sbuf", layout=src_layout)
-        B_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
+        A_sbuf = T.alloc_tensor(
+            ty_args=[T.Tensor(src_shape, "float32", scope="trn.sbuf", layout=src_layout)]
+        )
+        B_sbuf = T.alloc_tensor(
+            ty_args=[T.Tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)]
+        )
         T.trn.tile.affine_select(B_sbuf, A_sbuf, 0.0, lambda i, j: i < j)
 
     @T.function
     def expected():
         T.func_attr({"global_symbol": "select"})
-        A_sbuf = T.alloc_tensor((128, 512), scope="trn.sbuf")
-        B_sbuf = T.alloc_tensor((128, 512), scope="trn.sbuf")
+        A_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 512), scope="trn.sbuf")])
+        B_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 512), scope="trn.sbuf")])
         for b_loop in T.serial(0, 1):
             T.nki.tensorized_instruction()
             for p_loop in T.serial(0, 128, annotations={"nki_dim":"P"}):
@@ -90,16 +94,20 @@ def test_select_in_loop():
     @T.function
     def select() -> None:
         T.device_entry()
-        A_sbuf = T.alloc_tensor(src_shape, "float32", scope="trn.sbuf", layout=src_layout)
-        B_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
+        A_sbuf = T.alloc_tensor(
+            ty_args=[T.Tensor(src_shape, "float32", scope="trn.sbuf", layout=src_layout)]
+        )
+        B_sbuf = T.alloc_tensor(
+            ty_args=[T.Tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)]
+        )
         for i in range(2):
             T.trn.tile.affine_select(B_sbuf, A_sbuf[i*16, :, :], 0.0, lambda a, b: (i+1)* a < b)
 
     @T.function
     def expected():
         T.func_attr({"global_symbol": "select"})
-        A_sbuf = T.alloc_tensor((128, 16384), scope="trn.sbuf")
-        B_sbuf = T.alloc_tensor((128, 512), scope="trn.sbuf")
+        A_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 16384), scope="trn.sbuf")])
+        B_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 512), scope="trn.sbuf")])
         for i, b_loop in T.grid(2, 1):
             T.nki.tensorized_instruction()
             for p_loop in T.serial(0, 128, annotations={"nki_dim":"P"}):
@@ -124,15 +132,19 @@ def test_select_expr_affine():
     @T.function
     def select() -> None:
         T.device_entry()
-        A_sbuf = T.alloc_tensor(src_shape, "float32", scope="trn.sbuf", layout=src_layout)
-        B_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
+        A_sbuf = T.alloc_tensor(
+            ty_args=[T.Tensor(src_shape, "float32", scope="trn.sbuf", layout=src_layout)]
+        )
+        B_sbuf = T.alloc_tensor(
+            ty_args=[T.Tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)]
+        )
         T.trn.tile.affine_select(B_sbuf, A_sbuf, 0.0, lambda i, j: i < j)
 
     @T.function
     def expected():
         T.func_attr({"global_symbol": "select"})
-        A_sbuf = T.alloc_tensor((128, 2048), scope="trn.sbuf")
-        B_sbuf = T.alloc_tensor((128, 2048), scope="trn.sbuf")
+        A_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 2048), scope="trn.sbuf")])
+        B_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 2048), scope="trn.sbuf")])
         for b_loop in T.serial(0, 4):
             T.nki.tensorized_instruction()
             for p_loop in T.serial(0, 128, annotations={"nki_dim":"P"}):
@@ -156,8 +168,12 @@ def test_select_with_guard():
     @T.function
     def select() -> None:
         T.device_entry()
-        A_sbuf = T.alloc_tensor(src_shape, "float32", scope="trn.sbuf", layout=src_layout)
-        B_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
+        A_sbuf = T.alloc_tensor(
+            ty_args=[T.Tensor(src_shape, "float32", scope="trn.sbuf", layout=src_layout)]
+        )
+        B_sbuf = T.alloc_tensor(
+            ty_args=[T.Tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)]
+        )
         for i in range(4):
             for j in range(4):
                 T.trn.tile.affine_select(B_sbuf[0: (i+1) * 128, 0: (j+1) * 128], A_sbuf[0: (i+1) * 128, 0: (j+1) * 128], 0.0, lambda a, b: a < b)  # noqa: E501
@@ -165,8 +181,8 @@ def test_select_with_guard():
     @T.function
     def expected():
         T.func_attr({"global_symbol": "select"})
-        A_sbuf = T.alloc_tensor((128, 2048), scope="trn.sbuf")
-        B_sbuf = T.alloc_tensor((128, 2048), scope="trn.sbuf")
+        A_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 2048), scope="trn.sbuf")])
+        B_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 2048), scope="trn.sbuf")])
         for i, j, b_loop in T.grid(4, 4, 4):
             T.nki.tensorized_instruction()
             for p_loop in T.serial(0, 128, annotations={"nki_dim":"P"}):

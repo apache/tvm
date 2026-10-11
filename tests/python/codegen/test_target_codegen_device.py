@@ -68,7 +68,7 @@ def test_add_pipeline():
         def main(A: T.Tensor((n,)), B: T.Tensor((), "float32"), D: T.Tensor((n,))):
             T.func_attr({"tirx.noalias": True})
 
-            C = T.alloc_tensor((n,))
+            C = T.alloc_tensor(ty_args=[T.Tensor((n,))])
             for i0_0 in T.thread_binding((n + 255) // 256, thread="blockIdx.x"):
                 for i0_1 in T.thread_binding(256, thread="threadIdx.x"):
                     if i0_0 * 256 + i0_1 < n:

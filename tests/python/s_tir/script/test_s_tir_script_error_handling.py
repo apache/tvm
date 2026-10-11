@@ -373,7 +373,7 @@ def test_match_tensor_shape_mismatch():
 def test_high_dim_store():
     def high_dim_store() -> None:
         with Ts.sblock("root"):
-            B = T.alloc_tensor((256,), "float32")
+            B = T.alloc_tensor(ty_args=[T.Tensor((256,), "float32")])
             for i, j in T.grid(16, 16):
                 B[i, j] = 1.0  # error: Store is only allowed with one index
 

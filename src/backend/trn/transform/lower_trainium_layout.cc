@@ -80,11 +80,9 @@ class TrainiumLayoutApplier : public tirx::IRMutatorWithAnalyzer {
     }
     auto new_stmt = storage_lower->Mutate(stmt, InplaceMode::kDisallow).ValueOrUnchanged(stmt);
     for (const auto& [buf, source] : param_flattened_tensors) {
-      new_stmt = SeqStmt({Bind(buf, Call(buf.type(), tirx::decl_tensor_op(),
-                                         {source.data(), tvm::Tuple(buf->shape),
-                                          DataTypeImm(buf->dtype->dtype), StringImm(buf.scope())},
-                                         {})),
-                          std::move(new_stmt)});
+      new_stmt = SeqStmt(
+          {Bind(buf, Call(buf.type(), tirx::decl_tensor_op(), {source.data()}, {}, {buf.type()})),
+           std::move(new_stmt)});
     }
     return std::make_pair(new_stmt, new_params);
   }
@@ -113,8 +111,8 @@ class TrainiumLayoutApplier : public tirx::IRMutatorWithAnalyzer {
         call && call->op.same_as(tirx::alloc_tensor_op())) {
       TensorVar original_tensor = op->var.as_or_throw<TensorVar>();
       ffi::Array<Expr> args = call->args;
-      if (args.size() == 4) {
-        args.Set(3, Mutate(args[3], inplace_mode).ValueOrUnchanged(args[3]));
+      if (!args.empty()) {
+        args.Set(0, Mutate(args[0], inplace_mode).ValueOrUnchanged(args[0]));
       }
       auto tensor = original_tensor->layout.has_value()
                         ? GetFlattenedTensor(original_tensor, /*is_alloc=*/true)
@@ -122,13 +120,11 @@ class TrainiumLayoutApplier : public tirx::IRMutatorWithAnalyzer {
       if (tensor.same_as(original_tensor) && args.same_as(call->args)) {
         return ffi::Unchanged();
       }
-      args.Set(0, tvm::Tuple(tensor->shape, call->args[0]->loc));
-      args.Set(1, DataTypeImm(tensor->dtype->dtype, call->args[1]->loc));
-      args.Set(2, StringImm(tensor.scope(), call->args[2]->loc));
-      return Bind(
-          tensor.var(),
-          Call(tensor.type(), tirx::alloc_tensor_op(), args, call->attrs, call->ty_args, call->loc),
-          op->loc);
+
+      return Bind(tensor.var(),
+                  Call(tensor.type(), tirx::alloc_tensor_op(), args, call->attrs, {tensor.type()},
+                       call->loc),
+                  op->loc);
     }
     if (const auto* call = op->value.as<CallNode>();
         call && call->op.same_as(tirx::decl_tensor_op())) {
@@ -142,10 +138,8 @@ class TrainiumLayoutApplier : public tirx::IRMutatorWithAnalyzer {
         return ffi::Unchanged();
       }
       return Bind(tensor,
-                  Call(tensor.type(), tirx::decl_tensor_op(),
-                       {std::move(data), tvm::Tuple(tensor->shape),
-                        DataTypeImm(tensor->dtype->dtype), StringImm(tensor.scope())},
-                       call->attrs, call->ty_args, call->loc),
+                  Call(tensor.type(), tirx::decl_tensor_op(), {std::move(data)}, call->attrs,
+                       {tensor.type()}, call->loc),
                   op->loc);
     }
     return IRMutatorWithAnalyzer::Mutate_(op, inplace_mode);

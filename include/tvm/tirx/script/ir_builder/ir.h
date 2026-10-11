@@ -25,7 +25,6 @@
 #include <tvm/runtime/tensor.h>
 #include <tvm/script/ir_builder/ir.h>
 #include <tvm/tirx/exec_scope.h>
-#include <tvm/tirx/layout.h>
 #include <tvm/tirx/script/ir_builder/frame.h>
 #include <tvm/tirx/stmt.h>
 #include <tvm/tirx/type.h>
@@ -53,26 +52,7 @@ using tvm::ffi::Tuple;
 using tvm::ffi::Variant;
 using tvm::runtime::Tensor;
 using tvm::tirx::ExecScope;
-using tvm::tirx::Layout;
 using tvm::tirx::TensorVar;
-
-/*!
- * \brief The tensor declaration function.
- * \param shape The type of the tensor prior to flattening.
- * \param dtype The data type in the content of the tensor.
- * \param tensor_name The name of the tensor.
- * \param data The pointer to the head of the data.
- * \param strides The strides of each dimension.
- * \param elem_offset The offset in terms of number of dtype elements (including lanes).
- * \param storage_scope The optional storage scope of tensor data pointer.
- * \param align The alignment requirement of data pointer in bytes.
- * \param offset_factor The factor of elem_offset field.
- * \return The declared tensor.
- */
-TensorVar TensorDecl(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String tensor_name,
-                     ffi::Optional<Expr> data, ffi::Optional<ffi::Array<PrimExpr>> strides,
-                     ffi::Optional<PrimExpr> elem_offset, ffi::String storage_scope, int align,
-                     int offset_factor, ffi::Optional<Layout> layout = std::nullopt);
 
 /*!
  * \brief The primitive function statement.
@@ -181,38 +161,6 @@ ForFrame Unroll(PrimExpr start, PrimExpr stop,
  */
 ForFrame ThreadBinding(PrimExpr start, PrimExpr stop, ffi::String thread,
                        ffi::Optional<ffi::Map<ffi::String, Any>> annotations = std::nullopt);
-/*!
- * \brief Declare a tensor binding or allocate its storage.
- * \param shape The type of the tensor prior to flattening.
- * \param dtype The data type in the content of the tensor.
- * \param tensor_name The name of the tensor.
- * \param data The pointer to the head of the data.
- * \param strides The strides of each dimension.
- * \param elem_offset The offset in terms of number of dtype elements (including lanes).
- * \param storage_scope The optional storage scope of tensor data pointer.
- * \param align The alignment requirement of data pointer in bytes.
- * \param offset_factor The factor of elem_offset field.
- * \param layout The layout of the tensor.
- * \return The declared tensor.
- */
-TensorVar DeclTensor(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String tensor_name,
-                     ffi::Optional<Expr> data, ffi::Optional<ffi::Array<PrimExpr>> strides,
-                     ffi::Optional<PrimExpr> elem_offset, ffi::String storage_scope, int align,
-                     int offset_factor, ffi::Optional<Layout> layout = std::nullopt,
-                     ffi::Optional<PrimExpr> allocated_addr = std::nullopt);
-
-/*!
- * \brief Statement-level tensor allocation (binds a tensor-returning allocation Call).
- * \param shape The shape of the tensor to allocate.
- * \param dtype The data type of tensor elements.
- * \param storage_scope The storage scope (e.g., "global", "shared").
- * \param annotations Optional annotations for the allocation.
- * \return The allocated tensor.
- */
-TensorVar AllocTensor(ffi::Array<PrimExpr> shape, PrimType dtype = PrimType::Float(32),
-                      ffi::String storage_scope = "global",
-                      ffi::Optional<ffi::Map<ffi::String, ffi::Any>> annotations = std::nullopt);
-
 /*!
  * \brief Store data in a tensor destination.
  * \param dest The destination expression.

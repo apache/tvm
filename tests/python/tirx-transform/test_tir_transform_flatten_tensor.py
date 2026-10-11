@@ -39,7 +39,7 @@ def test_elementwise():
         @T.function
         def main(A: T.Tensor((16, 16), "float32"), C: T.Tensor((16, 16), "float32")):
             for i in T.serial(0, 16):
-                B_new = T.decl_tensor([1, 16], "float32")
+                B_new = T.alloc_tensor(ty_args=[T.Tensor([1, 16], "float32")])
                 for j in T.serial(0, 16):
                     B_new[0, j] = A[i, j] + 1.0
                 for j in T.serial(0, 16):
@@ -49,10 +49,14 @@ def test_elementwise():
     class Expected:
         @T.function
         def main(A: T.Tensor((16, 16), "float32"), C: T.Tensor((16, 16), "float32")):
-            A_1 = T.decl_tensor(256, dtype="float32", data=A.data, layout=None)
-            C_1 = T.decl_tensor(256, dtype="float32", data=C.data, layout=None)
+            A_1 = T.decl_tensor(
+                A.data, ty_args=[T.Tensor(256, "float32", layout=None, data=A.data)]
+            )
+            C_1 = T.decl_tensor(
+                C.data, ty_args=[T.Tensor(256, "float32", layout=None, data=C.data)]
+            )
             for i in T.serial(0, 16):
-                B_new = T.decl_tensor([16], "float32", layout=None)
+                B_new = T.alloc_tensor(ty_args=[T.Tensor([16], "float32", layout=None)])
                 for j in T.serial(0, 16):
                     B_new[j] = A_1[((i * 16) + j)] + 1.0
                 for j in T.serial(0, 16):
@@ -77,8 +81,10 @@ def test_elementwise_without_decl_tensor():
         @T.function
         def main(A: T.Tensor((16, 16), "float32"), C: T.Tensor((16, 16), "float32")):
             for i in T.serial(0, 16):
-                B_new_buf = T.alloc_tensor((1, 16), "float32")
-                B_new = T.decl_tensor([1, 16], "float32", data=B_new_buf.data)
+                B_new_buf = T.alloc_tensor(ty_args=[T.Tensor((1, 16), "float32")])
+                B_new = T.decl_tensor(
+                    B_new_buf.data, ty_args=[T.Tensor([1, 16], "float32", data=B_new_buf.data)]
+                )
                 for j in T.serial(0, 16):
                     B_new[0, j] = A[i, j] + 1.0
                 for j in T.serial(0, 16):
@@ -88,11 +94,18 @@ def test_elementwise_without_decl_tensor():
     class Expected:
         @T.function
         def main(input_A: T.Tensor((16, 16), "float32"), input_C: T.Tensor((16, 16), "float32")):
-            A = T.decl_tensor(256, dtype="float32", data=input_A.data, layout=None)
-            C = T.decl_tensor(256, dtype="float32", data=input_C.data, layout=None)
+            A = T.decl_tensor(
+                input_A.data, ty_args=[T.Tensor(256, "float32", layout=None, data=input_A.data)]
+            )
+            C = T.decl_tensor(
+                input_C.data, ty_args=[T.Tensor(256, "float32", layout=None, data=input_C.data)]
+            )
             for i in T.serial(0, 16):
-                B_new_buf = T.alloc_tensor((16,), "float32", layout=None)
-                B_new = T.decl_tensor(16, "float32", data=B_new_buf.data, layout=None)
+                B_new_buf = T.alloc_tensor(ty_args=[T.Tensor((16,), "float32", layout=None)])
+                B_new = T.decl_tensor(
+                    B_new_buf.data,
+                    ty_args=[T.Tensor(16, "float32", layout=None, data=B_new_buf.data)],
+                )
                 for j in T.serial(0, 16):
                     B_new[j] = A[((i * 16) + j)] + 1.0
                 for j in T.serial(0, 16):
@@ -112,7 +125,7 @@ def test_gpu():
             i0 = T.launch_thread("blockIdx.x", 4)
             i1 = T.launch_thread("threadIdx.x", 2)
             i2 = T.launch_thread("vthread", 2)
-            B = T.decl_tensor([1, 16], "float32", scope="local")
+            B = T.alloc_tensor(ty_args=[T.Tensor([1, 16], "float32", scope="local")])
             for j in range(0, 16):
                 B[0, j] = A[i0 * 4 + i1 * 2 + i2, j] + 1.0
             for j in range(0, 16):
@@ -122,13 +135,17 @@ def test_gpu():
     class Expected:
         @T.function
         def main(A: T.Tensor((16, 16), "float32"), C: T.Tensor((16, 16), "float32")):
-            A_1 = T.decl_tensor(256, dtype="float32", data=A.data, layout=None)
-            C_1 = T.decl_tensor(256, dtype="float32", data=C.data, layout=None)
+            A_1 = T.decl_tensor(
+                A.data, ty_args=[T.Tensor(256, "float32", layout=None, data=A.data)]
+            )
+            C_1 = T.decl_tensor(
+                C.data, ty_args=[T.Tensor(256, "float32", layout=None, data=C.data)]
+            )
 
             i0 = T.launch_thread("blockIdx.x", 4)
             i1 = T.launch_thread("threadIdx.x", 2)
             i2 = T.launch_thread("vthread", 2)
-            B = T.decl_tensor([16], "float32", scope="local", layout=None)
+            B = T.alloc_tensor(ty_args=[T.Tensor([16], "float32", scope="local", layout=None)])
             for j in range(0, 16):
                 B[j] = A_1[i0 * 64 + i1 * 32 + i2 * 16 + j] + 1.0
             for j in range(0, 16):
@@ -151,7 +168,7 @@ def test_symbolic():
             m: T.int32,
         ) -> None:
             for i in range(0, n):
-                B = T.decl_tensor([m], "float32")
+                B = T.alloc_tensor(ty_args=[T.Tensor([m], "float32")])
                 for j in range(0, m):
                     B[j] = A[i, j] + 1.0
                 for j in range(0, m):
@@ -166,11 +183,15 @@ def test_symbolic():
             n: T.int32,
             m: T.int32,
         ) -> None:
-            A_1 = T.decl_tensor(n * m, "float32", data=A.data, layout=None)
-            C_1 = T.decl_tensor(n * m, "float32", data=C.data, layout=None)
+            A_1 = T.decl_tensor(
+                A.data, ty_args=[T.Tensor(n * m, "float32", layout=None, data=A.data)]
+            )
+            C_1 = T.decl_tensor(
+                C.data, ty_args=[T.Tensor(n * m, "float32", layout=None, data=C.data)]
+            )
 
             for i in range(0, n):
-                B = T.decl_tensor([m], "float32", layout=None)
+                B = T.alloc_tensor(ty_args=[T.Tensor([m], "float32", layout=None)])
                 for j in range(0, m):
                     B[j] = A_1[i * m + j] + 1.0
                 for j in range(0, m):
@@ -204,8 +225,14 @@ def test_fused_symbolic():
             input_B: T.Tensor((32, n, n), "float32"),  # noqa: F821
             n: T.int32,
         ) -> None:
-            A = T.decl_tensor(n * n * 32, "float32", data=input_A.data, layout=None)
-            B = T.decl_tensor(n * n * 32, "float32", data=input_B.data, layout=None)
+            A = T.decl_tensor(
+                input_A.data,
+                ty_args=[T.Tensor(n * n * 32, "float32", layout=None, data=input_A.data)],
+            )
+            B = T.decl_tensor(
+                input_B.data,
+                ty_args=[T.Tensor(n * n * 32, "float32", layout=None, data=input_B.data)],
+            )
 
             for i in range(0, n * n * 32):
                 B[i] = A[i]
@@ -245,8 +272,14 @@ def test_fused_symbolic_with_predicate():
             input_B: T.Tensor((32, n, n), "float32"),  # noqa: F821
             n: T.int32,
         ) -> None:
-            A = T.decl_tensor(n * n * 32, "float32", data=input_A.data, layout=None)
-            B = T.decl_tensor(n * n * 32, "float32", data=input_B.data, layout=None)
+            A = T.decl_tensor(
+                input_A.data,
+                ty_args=[T.Tensor(n * n * 32, "float32", layout=None, data=input_A.data)],
+            )
+            B = T.decl_tensor(
+                input_B.data,
+                ty_args=[T.Tensor(n * n * 32, "float32", layout=None, data=input_B.data)],
+            )
 
             for bx, tx in T.grid((n * n + 1) // 2, 64):
                 if bx * 64 + tx < n * n * 32:
@@ -264,8 +297,8 @@ def test_multi_alloc():
         @T.function
         def main(A: T.Tensor((4, 32), "float32"), D: T.Tensor((4, 32), "float32")):
             for i, j in T.grid(4, 32):
-                B = T.decl_tensor((4, 32), "float32", scope="global")
-                C = T.decl_tensor((4, 32), "float32", scope="global")
+                B = T.alloc_tensor(ty_args=[T.Tensor((4, 32), "float32", scope="global")])
+                C = T.alloc_tensor(ty_args=[T.Tensor((4, 32), "float32", scope="global")])
                 B[i, j] = A[i, j] + 1.0
                 C[i, j] = A[i, j] + B[i, j]
                 D[i, j] = C[i, j] * 2.0
@@ -274,12 +307,16 @@ def test_multi_alloc():
     class Expected:
         @T.function
         def main(A: T.Tensor((4, 32), "float32"), D: T.Tensor((4, 32), "float32")):
-            A_1 = T.decl_tensor(128, "float32", data=A.data, layout=None)
-            D_1 = T.decl_tensor(128, "float32", data=D.data, layout=None)
+            A_1 = T.decl_tensor(
+                A.data, ty_args=[T.Tensor(128, "float32", layout=None, data=A.data)]
+            )
+            D_1 = T.decl_tensor(
+                D.data, ty_args=[T.Tensor(128, "float32", layout=None, data=D.data)]
+            )
 
             for i, j in T.grid(4, 32):
-                B = T.decl_tensor([128], "float32", layout=None)
-                C = T.decl_tensor([128], "float32", layout=None)
+                B = T.alloc_tensor(ty_args=[T.Tensor([128], "float32", layout=None)])
+                C = T.alloc_tensor(ty_args=[T.Tensor([128], "float32", layout=None)])
                 B[i * 32 + j] = A_1[i * 32 + j] + 1.0
                 C[i * 32 + j] = A_1[i * 32 + j] + B[i * 32 + j]
                 D_1[i * 32 + j] = C[i * 32 + j] * 2.0
@@ -296,8 +333,10 @@ def test_strided():
         @T.function
         def main(A: T.Tensor((16, 16), "float32"), C: T.Tensor((16, 16), "float32")):
             for i0 in T.serial(4):
-                B = T.decl_tensor([4, 17], "float32")
-                B_1 = T.decl_tensor([4, 16], dtype="float32", data=B.data, strides=[17, 1])
+                B = T.alloc_tensor(ty_args=[T.Tensor([4, 17], "float32")])
+                B_1 = T.decl_tensor(
+                    B.data, ty_args=[T.Tensor([4, 16], "float32", strides=[17, 1], data=B.data)]
+                )
                 for i1, j in T.grid(4, 16):
                     B_1[i1, j] = A[i0 * 4 + i1, j] + 1.0
                 for i1, j in T.grid(4, 16):
@@ -307,11 +346,17 @@ def test_strided():
     class Expected:
         @T.function
         def main(A: T.Tensor((16, 16), "float32"), C: T.Tensor((16, 16), "float32")):
-            A_1 = T.decl_tensor(256, dtype="float32", data=A.data, layout=None)
-            C_1 = T.decl_tensor(256, dtype="float32", data=C.data, layout=None)
+            A_1 = T.decl_tensor(
+                A.data, ty_args=[T.Tensor(256, "float32", layout=None, data=A.data)]
+            )
+            C_1 = T.decl_tensor(
+                C.data, ty_args=[T.Tensor(256, "float32", layout=None, data=C.data)]
+            )
             for i0 in T.serial(0, 4):
-                B = T.decl_tensor([68], "float32", layout=None)
-                B_1 = T.decl_tensor([68], "float32", data=B.data, layout=None)
+                B = T.alloc_tensor(ty_args=[T.Tensor([68], "float32", layout=None)])
+                B_1 = T.decl_tensor(
+                    B.data, ty_args=[T.Tensor([68], "float32", layout=None, data=B.data)]
+                )
                 for i1 in T.serial(0, 4):
                     for j in T.serial(0, 16):
                         B_1[i1 * 17 + j] = A_1[i0 * 64 + i1 * 16 + j] + 1.0
@@ -337,8 +382,12 @@ def test_boolean():
     class Expected:
         @T.function
         def main(input_A: T.Tensor(10, "bool"), input_B: T.Tensor(10, "bool")) -> None:
-            A = T.decl_tensor(10, dtype="bool", data=input_A.data, layout=None)
-            B = T.decl_tensor(10, dtype="bool", data=input_B.data, layout=None)
+            A = T.decl_tensor(
+                input_A.data, ty_args=[T.Tensor(10, "bool", layout=None, data=input_A.data)]
+            )
+            B = T.decl_tensor(
+                input_B.data, ty_args=[T.Tensor(10, "bool", layout=None, data=input_B.data)]
+            )
             # body
             for i0 in T.serial(10):
                 B[i0] = A[i0]
@@ -354,7 +403,7 @@ def test_flatten_inside_block():
     class Before:
         @T.function
         def main():
-            A = T.alloc_tensor([32, 32])
+            A = T.alloc_tensor(ty_args=[T.Tensor([32, 32])])
             for i, j in T.grid(32, 32):
                 T.evaluate(A[i, j])
 
@@ -362,7 +411,7 @@ def test_flatten_inside_block():
     class Expected:
         @T.function
         def main():
-            A = T.alloc_tensor([1024], layout=None)
+            A = T.alloc_tensor(ty_args=[T.Tensor([1024], layout=None)])
             for i, j in T.grid(32, 32):
                 T.evaluate(A[i * 32 + j])
 

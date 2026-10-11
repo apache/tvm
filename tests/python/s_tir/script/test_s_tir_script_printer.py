@@ -92,13 +92,9 @@ def test_function_symbolic_alloc_tensor_roundtrip():
                     buf,
                     tvm.ir.Call(
                         "tirx.alloc_tensor",
-                        [
-                            tvm.ir.Tuple(buf.shape),
-                            tvm.ir.DataTypeImm(tvm.DataType(buf.dtype)),
-                            tvm.ir.StringImm(buf.scope()),
-                        ],
+                        [],
                         attrs=tvm.ir.DictAttrs({}),
-                        ty=buf.ty,
+                        ty_args=[buf.ty],
                     ),
                 ),
                 tvm.ir.Evaluate(tirx.TensorLoad(buf, [0])),
@@ -107,7 +103,7 @@ def test_function_symbolic_alloc_tensor_roundtrip():
     ).with_attr({"s_tir": True, "script.namespace": "s_tir"})
 
     source = func.script()
-    assert 'T.alloc_tensor((size,), "float32", layout=None)' in source
+    assert 'T.alloc_tensor(ty_args=[T.Tensor((size,), "float32", layout=None)])' in source
     tvm.ir.assert_structural_equal(
         tvm.script.from_source(
             source,
@@ -628,7 +624,7 @@ def test_masked_load_prevents_scalar_allocation_init_fusion():
 
     @Ts.function
     def main():
-        A = TB.alloc_tensor((1,), "float32x4")
+        A = TB.alloc_tensor(ty_args=[TB.Tensor((1,), "float32x4")])
         A[0] = TB.masked_load(A, 0, TB.Broadcast(TB.bool(True), 4), ty="float32x4")
 
     source = main.script()
@@ -731,12 +727,12 @@ def opt_gemm_lower():
             # function attr dict
             T.func_attr({"tirx.noalias": True})
             # body
-            packedB = T.alloc_tensor((32768,))
+            packedB = T.alloc_tensor(ty_args=[T.Tensor((32768,))])
             for x in T.parallel(0, 32):
                 for y in T.serial(0, 1024):
                     packedB[T.ramp(((x * 32768) + (y * 32)), 1, 32)] = B_1[y, T.ramp(x * 32, 1, 32)]
             for x_outer in T.parallel(0, 32):
-                C_global = T.alloc_tensor((1024,))
+                C_global = T.alloc_tensor(ty_args=[T.Tensor((1024,))])
                 for y_outer in T.serial(0, 32):
                     for x_c_init in T.serial(0, 32):
                         C_global[T.ramp((x_c_init * 32), 1, 32)] = T.broadcast(T.float32(0), 32)
@@ -788,15 +784,21 @@ def opt_conv_tensorcore_lower():
         # function attr dict
         T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
         # body
-        A_1 = T.decl_tensor([12845056], dtype="float16", data=A.data)
-        W_1 = T.decl_tensor([1179648], dtype="float16", data=W.data)
-        Conv_1 = T.decl_tensor([25690112], data=Conv.data)
+        A_1 = T.decl_tensor(A.data, ty_args=[T.Tensor([12845056], "float16", data=A.data)])
+        W_1 = T.decl_tensor(W.data, ty_args=[T.Tensor([1179648], "float16", data=W.data)])
+        Conv_1 = T.decl_tensor(Conv.data, ty_args=[T.Tensor([25690112], data=Conv.data)])
         bz = T.launch_thread("blockIdx.z", 196)
-        Conv_wmma_accumulator = T.alloc_tensor((2048,), scope="wmma.accumulator")
-        Apad_shared = T.alloc_tensor((12288,), "float16", scope="shared")
-        W_shared = T.alloc_tensor((12288,), "float16", scope="shared")
-        Apad_shared_wmma_matrix_a = T.alloc_tensor((512,), "float16", scope="wmma.matrix_a")
-        W_shared_wmma_matrix_b = T.alloc_tensor((1024,), "float16", scope="wmma.matrix_b")
+        Conv_wmma_accumulator = T.alloc_tensor(
+            ty_args=[T.Tensor((2048,), scope="wmma.accumulator")]
+        )
+        Apad_shared = T.alloc_tensor(ty_args=[T.Tensor((12288,), "float16", scope="shared")])
+        W_shared = T.alloc_tensor(ty_args=[T.Tensor((12288,), "float16", scope="shared")])
+        Apad_shared_wmma_matrix_a = T.alloc_tensor(
+            ty_args=[T.Tensor((512,), "float16", scope="wmma.matrix_a")]
+        )
+        W_shared_wmma_matrix_b = T.alloc_tensor(
+            ty_args=[T.Tensor((1024,), "float16", scope="wmma.matrix_b")]
+        )
         bx = T.launch_thread("blockIdx.x", 2)
         by = T.launch_thread("blockIdx.y", 4)
         ty = T.launch_thread("threadIdx.y", 4)
@@ -1083,7 +1085,9 @@ def opt_conv_tensorcore_mod_host():
         )
         # body
         stack_tcode_data: T.let[T.handle("int32")] = T.stack_alloca("arg_tcode", 10)
-        stack_tcode = T.decl_tensor([9], "int32", data=stack_tcode_data)
+        stack_tcode = T.decl_tensor(
+            stack_tcode_data, ty_args=[T.Tensor([9], "int32", data=stack_tcode_data)]
+        )
         stack_value: T.let[T.handle] = T.stack_alloca("arg_value", 10)
         assert num_args == 3, "default_function: num_args should be 3"
         arg0: T.let[T.handle] = T.abi_field_get(args, 0, 12, ty="handle")
@@ -1092,25 +1096,29 @@ def opt_conv_tensorcore_mod_host():
         arg2: T.let[T.handle] = T.abi_field_get(args, 2, 12, ty="handle")
 
         A: T.let[T.handle] = T.abi_field_get(arg0, 0, 1, ty="handle")
-        A_tensor = T.decl_tensor([1], "float16", data=A)
+        A_tensor = T.decl_tensor(A, ty_args=[T.Tensor([1], "float16", data=A)])
         T.assume_aligned(A_tensor, 128)
         arg0_shape_data: T.let[T.handle("int64")] = T.abi_field_get(
             arg0, 0, 2, ty=T.handle("int64").ty
         )
-        arg0_shape = T.decl_tensor([6], "int64", data=arg0_shape_data)
+        arg0_shape = T.decl_tensor(
+            arg0_shape_data, ty_args=[T.Tensor([6], "int64", data=arg0_shape_data)]
+        )
         arg0_strides_data: T.let[T.handle("int64")] = T.abi_field_get(
             arg0, 0, 3, ty=T.handle("int64").ty
         )
-        arg0_strides = T.decl_tensor([6], "int64", data=arg0_strides_data)
+        arg0_strides = T.decl_tensor(
+            arg0_strides_data, ty_args=[T.Tensor([6], "int64", data=arg0_strides_data)]
+        )
 
         dev_id: T.let[T.int32] = T.abi_field_get(arg0, 0, 9, ty="int32")
 
         W: T.let[T.handle] = T.abi_field_get(arg1, 0, 1, ty="handle")
-        W_tensor = T.decl_tensor([1], "float16", data=W)
+        W_tensor = T.decl_tensor(W, ty_args=[T.Tensor([1], "float16", data=W)])
         T.assume_aligned(W_tensor, 128)
 
         Conv: T.let[T.handle] = T.abi_field_get(arg2, 0, 1, ty="handle")
-        Conv_tensor = T.decl_tensor([1], "float32", data=Conv)
+        Conv_tensor = T.decl_tensor(Conv, ty_args=[T.Tensor([1], "float32", data=Conv)])
         T.assume_aligned(Conv_tensor, 128)
 
         assert (((arg0_code == 3) or (arg0_code == 13)) or (arg0_code == 7)) or (arg0_code == 4), (
@@ -1286,7 +1294,9 @@ def function_with_allocate_annotations():
         )
 
         # body
-        tensor_2 = T.alloc_tensor((200704,), "uint8", annotations={"attr1_key": "attr1_value"})
+        tensor_2 = T.alloc_tensor(
+            ty_args=[T.Tensor((200704,), "uint8")], annotations={"attr1_key": "attr1_value"}
+        )
         for ax0_ax1_fused_4 in T.serial(0, 56):
             for ax2_4 in T.serial(0, 56):
                 for ax3_init in T.serial(0, 64):
@@ -1335,7 +1345,7 @@ def comm_reducer_single_reduce_group():
 
         for i in T.serial(0, 128):
             threadIdx_x = T.launch_thread("threadIdx.x", 128)
-            reduce_temp0 = T.alloc_tensor((1,), scope="local")
+            reduce_temp0 = T.alloc_tensor(ty_args=[T.Tensor((1,), scope="local")])
             T.evaluate(
                 T.gpu_thread_allreduce(
                     T.Lambda([T.float32, T.float32], lambda x, y: (x + y,)),
@@ -1359,8 +1369,8 @@ def comm_reducer_multiple_reduce_groups():
 
         for i in T.serial(0, 128):
             threadIdx_x = T.launch_thread("threadIdx.x", 128)
-            reduce_temp0 = T.alloc_tensor((1,), "int32", scope="local")
-            reduce_temp1 = T.alloc_tensor((1,), "float32", scope="local")
+            reduce_temp0 = T.alloc_tensor(ty_args=[T.Tensor((1,), "int32", scope="local")])
+            reduce_temp1 = T.alloc_tensor(ty_args=[T.Tensor((1,), "float32", scope="local")])
             T.evaluate(
                 T.gpu_thread_allreduce(
                     T.Lambda(
@@ -1506,7 +1516,9 @@ def func_T_ptr_let_statement():
     ) -> None:
         # The T.Ptr declaration in the parameter list should parse
         # correctly, and should be usable as the data pointer in a tensor.
-        arg_type_ids = T.decl_tensor([2], dtype="int32", data=arg_type_ids_handle)
+        arg_type_ids = T.decl_tensor(
+            arg_type_ids_handle, ty_args=[T.Tensor([2], "int32", data=arg_type_ids_handle)]
+        )
 
         arg0: T.let[T.handle] = T.abi_field_get(args, 0, 12, ty="handle")
         arg1: T.let[T.handle] = T.abi_field_get(args, 1, 12, ty="handle")
@@ -1521,11 +1533,11 @@ def func_T_ptr_let_statement():
         # this function.  It should only be defined after the data pointer
         # has been defined, and should not be hoisted into the header of
         # the function as other tensor_decl statements can be.
-        A = T.decl_tensor([1024], dtype="float32", data=A_data)
+        A = T.decl_tensor(A_data, ty_args=[T.Tensor([1024], "float32", data=A_data)])
         B_data: T.let[T.handle("float32")] = T.reinterpret(
             T.abi_field_get(arg1, 0, 1, ty="handle"), ty=T.handle("float32").ty
         )
-        B = T.decl_tensor([1024], dtype="float32", data=B_data)
+        B = T.decl_tensor(B_data, ty_args=[T.Tensor([1024], "float32", data=B_data)])
 
         B[0] = A[0]
 
@@ -1535,7 +1547,7 @@ def func_T_ptr_let_statement():
 def func_T_ptr_allocate():
     @Ts.function
     def func_T_ptr_allocate() -> None:
-        A = T.alloc_tensor((1024,))
+        A = T.alloc_tensor(ty_args=[T.Tensor((1024,))])
         A[0] = 0.0
 
     return func_T_ptr_allocate
@@ -1582,8 +1594,8 @@ def string_annotation_escaping():
 def pointer_type():
     @Ts.function
     def func_with_ptr_type_annotations(x: T.handle("int32"), y: T.handle("int32", "shared")):
-        xx = T.alloc_tensor((16,), "int32")
-        yy = T.alloc_tensor((16,), "int32", scope="shared")
+        xx = T.alloc_tensor(ty_args=[T.Tensor((16,), "int32")])
+        yy = T.alloc_tensor(ty_args=[T.Tensor((16,), "int32", scope="shared")])
         a: T.let[T.handle("int32")] = T.address_of(xx[0])
         b: T.let[T.handle("int32", "shared")] = T.address_of(yy[0])
         T.evaluate(T.call_extern("copy", a, b, ty=""))
@@ -1723,9 +1735,11 @@ def void_ptr():
 def decl_tensor():
     @Ts.function
     def func(A: T.Tensor((16, 16), "float32"), B: T.Tensor((16, 16), "float32")) -> None:
-        A_flattened = T.decl_tensor(data=A.data, shape=(256,), dtype="float32")
-        B_flattened = T.decl_tensor(data=B.data, shape=(256,), dtype="float32")
-        C_alias = T.decl_tensor(data=A_flattened.data, shape=(256,), dtype="float32")
+        A_flattened = T.decl_tensor(A.data, ty_args=[T.Tensor((256,), "float32", data=A.data)])
+        B_flattened = T.decl_tensor(B.data, ty_args=[T.Tensor((256,), "float32", data=B.data)])
+        C_alias = T.decl_tensor(
+            A_flattened.data, ty_args=[T.Tensor((256,), "float32", data=A_flattened.data)]
+        )
         for i in range(256):
             B_flattened[i] = A_flattened[i] + C_alias[i] + T.float32(1.0)
 
@@ -1735,9 +1749,9 @@ def decl_tensor():
 def allocate_and_decl_tensor():
     @Ts.function
     def func(A: T.Tensor((16,), "float32"), B: T.Tensor((16,), "float32")) -> None:
-        D = T.alloc_tensor((16,))
+        D = T.alloc_tensor(ty_args=[T.Tensor((16,))])
         for i in range(4):
-            C = T.alloc_tensor((4,))
+            C = T.alloc_tensor(ty_args=[T.Tensor((4,))])
             for j in range(4):
                 C[j] = A[i * 4 + j] + T.float32(1.0)
             for j in range(4):
@@ -1751,7 +1765,7 @@ def allocate_and_decl_tensor():
 def alloc_tensor_example():
     @Ts.function
     def func(A: T.Tensor((128,), "float32"), C: T.Tensor((128,), "float32")):
-        B = T.alloc_tensor((128,), "float32")
+        B = T.alloc_tensor(ty_args=[T.Tensor((128,), "float32")])
         for i in range(128):
             B[i] = A[i] * T.float32(2)
         for i in range(128):
@@ -1877,24 +1891,24 @@ def tvm_shfl_builtins():
     ):
         blockIdx_x = T.launch_thread("blockIdx.x", 1)
         threadIdx_x = T.launch_thread("threadIdx.x", 32)
-        A_warp = T.alloc_tensor((1,), scope="local")
-        B_warp = T.alloc_tensor((1,), scope="local")
-        red_buf0 = T.alloc_tensor((1,), scope="local")
-        A_warp_1 = T.decl_tensor((32,), data=A_warp.data, scope="local")
-        A_1 = T.decl_tensor((32,), data=A)  # A is a handle param
+        A_warp = T.alloc_tensor(ty_args=[T.Tensor((1,), scope="local")])
+        B_warp = T.alloc_tensor(ty_args=[T.Tensor((1,), scope="local")])
+        red_buf0 = T.alloc_tensor(ty_args=[T.Tensor((1,), scope="local")])
+        A_warp_1 = T.decl_tensor(A_warp.data, ty_args=[T.Tensor((32,), scope="local")])
+        A_1 = T.decl_tensor(A, ty_args=[T.Tensor((32,), data=A)])  # A is a handle param
         A_warp_1[0] = A_1[threadIdx_x]
-        B_warp_1 = T.decl_tensor((32,), data=B_warp.data, scope="local")
+        B_warp_1 = T.decl_tensor(B_warp.data, ty_args=[T.Tensor((32,), scope="local")])
         T.gpu_storage_sync("warp")
         B_warp_1[0] = T.gpu_warp_shuffle(
             T.gpu_warp_activemask(), A_warp_1[0], threadIdx_x % 4 * 8 + threadIdx_x // 4, 32, 32
         ) + T.float32(1)
-        red_buf0_1 = T.decl_tensor((1,), data=red_buf0.data, scope="local")
-        mask = T.alloc_tensor((1,), "uint32", scope="local")
-        t0 = T.alloc_tensor((1,), scope="local")
+        red_buf0_1 = T.decl_tensor(red_buf0.data, ty_args=[T.Tensor((1,), scope="local")])
+        mask = T.alloc_tensor(ty_args=[T.Tensor((1,), "uint32", scope="local")])
+        t0 = T.alloc_tensor(ty_args=[T.Tensor((1,), scope="local")])
         red_buf0_1[0] = A_warp_1[0]
-        mask_1 = T.decl_tensor((1,), "uint32", data=mask.data, scope="local")
+        mask_1 = T.decl_tensor(mask.data, ty_args=[T.Tensor((1,), "uint32", scope="local")])
         mask_1[0] = T.gpu_warp_activemask()
-        t0_1 = T.decl_tensor((1,), data=t0.data, scope="local")
+        t0_1 = T.decl_tensor(t0.data, ty_args=[T.Tensor((1,), scope="local")])
         t0_1[0] = T.gpu_warp_shuffle_down(mask_1[0], red_buf0_1[0], 16, 32, 32)
         red_buf0_1[0] = red_buf0_1[0] + t0_1[0]
         t0_1[0] = T.gpu_warp_shuffle_down(mask_1[0], red_buf0_1[0], 8, 32, 32)
@@ -1909,9 +1923,9 @@ def tvm_shfl_builtins():
         # NOTE(Zihao): test gpu_warp_shuffle_up
         red_buf0_1[0] = T.gpu_warp_shuffle_up(mask_1[0], red_buf0_1[0], 0, 32, 32)
         if threadIdx_x == 0:
-            C_1 = T.decl_tensor((1,), data=C)
+            C_1 = T.decl_tensor(C, ty_args=[T.Tensor((1,), data=C)])
             C_1[0] = red_buf0_1[0]
-        B_1 = T.decl_tensor((32,), data=B)
+        B_1 = T.decl_tensor(B, ty_args=[T.Tensor((32,), data=B)])
         B_1[threadIdx_x] = B_warp_1[0]
 
     return func
@@ -1970,7 +1984,7 @@ def undefined_data_ptr_in_decl_tensor():
     @Ts.function(check_well_formed=False)
     def func():
         data_ptr = T.handle("float32")
-        buf = T.decl_tensor(shape=[1], dtype="float32", data=data_ptr)
+        buf = T.decl_tensor(data_ptr, ty_args=[T.Tensor([1], "float32", data=data_ptr)])
         T.evaluate(buf[0])
 
     return func
@@ -2107,8 +2121,8 @@ def test_disable_concise_scoping_when_scope_annotated():
         y: T.int32 = x + 1
         T.evaluate(y - 1)
 
-    # Explicit scalar declarations lower to AllocTensor + TensorStore (local_scalar).
-    # The printer fuses each pair into one line; annotate the allocation for y.
+    # Explicit scalar declarations lower to allocation and store statements.
+    # Keep the annotation attached to the allocation for y.
     result = _func.with_attr("global_symbol", "main").script(
         obj_to_annotate={
             _func.body.seq[2]: "annotation 1",
@@ -2122,9 +2136,11 @@ def test_disable_concise_scoping_when_scope_annotated():
 @Ts.function
 def main():
     T.func_attr({"s_tir": True, "script.namespace": "s_tir"})
-    x: T.int32 = 1
-    y: T.int32 = x + 1  # annotation 1
-    T.evaluate(y - 1)"""
+    x = T.alloc_tensor(ty_args=[T.Tensor((1,), "int32", scope="local", layout="default")])
+    x[0] = 1
+    y = T.alloc_tensor(ty_args=[T.Tensor((1,), "int32", scope="local", layout="default")])  # annotation 1
+    y[0] = x[0] + 1
+    T.evaluate(y[0] - 1)"""
     )
 
 

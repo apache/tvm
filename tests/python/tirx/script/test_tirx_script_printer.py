@@ -240,15 +240,23 @@ def test_allocate(declare):
     with IRBuilder() as ib:
         with TB.function():
             TB.func_name_("test")
-            buf = declare([128, 128], "float32")
+            if declare is TB.decl_tensor:
+                data = TB.ptr("float32")
+                buf = TB.bind(declare(data, ty_args=[TB.Tensor([128, 128], "float32")]))
+            else:
+                buf = TB.bind(declare(ty_args=[TB.Tensor([128, 128], "float32")]))
             TB.evaluate(1)
     obj = ib.get()
     _assert_print(
         obj.body,
-        """
-v = T.alloc_tensor((128, 128), "float32", layout="default")
-T.evaluate(1)
-""",
+        (
+            'v_1 = I.Var("", T.Ptr(T.float32))\n'
+            'v = T.decl_tensor(v_1, ty_args=[T.Tensor((128, 128), "float32", layout="default")])\n'
+            "T.evaluate(1)\n"
+            if declare is TB.decl_tensor
+            else 'v = T.alloc_tensor(ty_args=[T.Tensor((128, 128), "float32", layout="default")])\n'
+            "T.evaluate(1)\n"
+        ),
     )
 
 
@@ -257,15 +265,17 @@ def test_allocate_with_decl_tensor_sugar():
     with IRBuilder() as ib:
         with TB.function():
             TB.func_name_("test")
-            buf = TB.alloc_tensor([128, 128], "float32")
-            buf2 = TB.decl_tensor([128, 128], "float32", data=buf.data)
+            buf = TB.bind(TB.alloc_tensor(ty_args=[TB.Tensor([128, 128], "float32")]))
+            buf2 = TB.bind(
+                TB.decl_tensor(buf.data, ty_args=[TB.Tensor([128, 128], "float32", data=buf.data)])
+            )
             TB.evaluate(1)
     obj = ib.get()
     _assert_print(
         obj.body,
         """
-v = T.alloc_tensor((128, 128), "float32", layout="default")
-v_1 = T.decl_tensor((128, 128), "float32", data=v.data, layout="default")
+v = T.alloc_tensor(ty_args=[T.Tensor((128, 128), "float32", layout="default")])
+v_1 = T.decl_tensor(v.data, ty_args=[T.Tensor((128, 128), "float32", layout="default")])
 T.evaluate(1)
 """,
     )
@@ -276,15 +286,17 @@ def test_allocate_with_decl_tensor_sugar_multi_usage():
     with IRBuilder() as ib:
         with TB.function():
             TB.func_name_("test")
-            buf = TB.alloc_tensor([128, 128], "float32")
-            buf2 = TB.decl_tensor([128, 128], "float32", data=buf.data)
+            buf = TB.bind(TB.alloc_tensor(ty_args=[TB.Tensor([128, 128], "float32")]))
+            buf2 = TB.bind(
+                TB.decl_tensor(buf.data, ty_args=[TB.Tensor([128, 128], "float32", data=buf.data)])
+            )
             TB.evaluate(buf.data)
     obj = ib.get()
     _assert_print(
         obj.body,
         """
-v = T.alloc_tensor((128, 128), "float32", layout="default")
-v_1 = T.decl_tensor((128, 128), "float32", data=v.data, layout="default")
+v = T.alloc_tensor(ty_args=[T.Tensor((128, 128), "float32", layout="default")])
+v_1 = T.decl_tensor(v.data, ty_args=[T.Tensor((128, 128), "float32", layout="default")])
 T.evaluate(v.data)
 """,
     )
@@ -294,15 +306,17 @@ def test_allocate_with_decl_tensor_no_sugar_mismatch():
     with IRBuilder() as ib:
         with TB.function():
             TB.func_name_("test")
-            buf = TB.alloc_tensor([128, 128], "float32")
-            buf2 = TB.decl_tensor([256, 256], "float32", data=buf.data)
+            buf = TB.bind(TB.alloc_tensor(ty_args=[TB.Tensor([128, 128], "float32")]))
+            buf2 = TB.bind(
+                TB.decl_tensor(buf.data, ty_args=[TB.Tensor([256, 256], "float32", data=buf.data)])
+            )
             TB.evaluate(buf.data)
     obj = ib.get()
     _assert_print(
         obj.body,
         """
-v = T.alloc_tensor((128, 128), "float32", layout="default")
-v_1 = T.decl_tensor((256, 256), "float32", data=v.data, layout="default")
+v = T.alloc_tensor(ty_args=[T.Tensor((128, 128), "float32", layout="default")])
+v_1 = T.decl_tensor(v.data, ty_args=[T.Tensor((256, 256), "float32", layout="default")])
 T.evaluate(v.data)
 """,
     )
@@ -313,7 +327,11 @@ def test_decl_tensor():
     with IRBuilder() as ib:
         with TB.function():
             TB.func_name_("test")
-            buf = TB.decl_tensor((10, 10), data=TB.ptr("float32"))
+            buf = TB.bind(
+                TB.decl_tensor(
+                    TB.ptr("float32"), ty_args=[TB.Tensor((10, 10), data=TB.ptr("float32"))]
+                )
+            )
             TB.evaluate(1)
     obj = ib.get()
     # Print only the body (skip Function wrapper)
@@ -321,7 +339,7 @@ def test_decl_tensor():
         obj.body,
         """
 v_1 = I.Var("", T.Ptr(T.float32))
-v = T.decl_tensor((10, 10), "float32", data=v_1, layout="default")
+v = T.decl_tensor(v_1, ty_args=[T.Tensor((10, 10), "float32", layout="default")])
 T.evaluate(1)
 """,
     )
@@ -681,7 +699,7 @@ def test_print_kwargs_schedule_op_full_code():
     # fmt: off
     @T.function
     def test():
-        A = T.alloc_tensor((16,), "float32")
+        A = T.alloc_tensor(ty_args=[T.Tensor((16,), "float32")])
         T.cuda.tile.mov(A[0:16], T.float32(1.25), scope="warp")
     # fmt: on
 
@@ -690,7 +708,7 @@ def test_print_kwargs_schedule_op_full_code():
         "\n"
         "@T.function\n"
         "def test():\n"
-        '    A = T.alloc_tensor((16,), "float32", layout="default")\n'
+        '    A = T.alloc_tensor(ty_args=[T.Tensor((16,), "float32", layout="default")])\n'
         '    T.cuda.tile.mov(A[0:16], T.float32(1.25), scope="warp")'
     )
     code = test.script()
