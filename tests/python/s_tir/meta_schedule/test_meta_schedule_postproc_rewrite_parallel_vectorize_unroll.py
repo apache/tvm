@@ -264,7 +264,7 @@ def test_no_unroll_for_spatial_block():
                         v_A_red_temp_v1: T.let[T.float32] = A_red_temp_v1[0] + A[0, v_k1, v_k2, v_k3] * A[0, v_k1, v_k2, v_k3]
                         A_red_temp_v0[0] = v_A_red_temp_v0
                         A_red_temp_v1[0] = v_A_red_temp_v1
-            for ax1, ax2, ax3 in T.grid(4, 4, 32):
+            for ax0, ax1, ax2, ax3 in T.grid(1, 4, 4, 32):
                 with Ts.sblock("T_layer_norm"):
                     v_ax0 = Ts.axis.spatial(1, 0)
                     v_ax1, v_ax2, v_ax3 = Ts.axis.remap("SSS", [ax1, ax2, ax3])

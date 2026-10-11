@@ -548,7 +548,7 @@ def test_copy_with_guard():
 
         A_1 = T.decl_tensor(A.data, ty_args=[T.Tensor((262144,), layout=None, data=A.data)])
         A_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 2048), scope="trn.sbuf")])
-        for j, i in T.grid(4, 4):
+        for j, i, b_loop in T.grid(4, 4, 1):
             T.nki.tensorized_instruction()
             for p_loop in T.serial(0, 128, annotations={"nki_dim":"P"}):
                 for f_loop in T.serial(0, 384, annotations={"nki_dim":"F"}):
