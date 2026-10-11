@@ -50,13 +50,13 @@ def test_tir_op_address_of():
     buffer = tirx.decl_tensor((128), "float32")
     expr = tirx.address_of(buffer[0])
     assert expr.op.name == "tirx.address_of"
-    storage = tirx.Var("storage", tvm.ir.PointerType(tvm.ir.PrimType("uint8"), "shared.dyn"))
+    storage = tirx.Var("storage", tvm.ir.PtrType(tvm.ir.PrimType("uint8"), "shared.dyn"))
     pooled_buffer = tirx.decl_tensor((128), "float32", data=storage, scope="shared.dyn")
-    expected_ty = tvm.ir.PointerType(tvm.ir.PrimType("float32"), "shared.dyn")
+    expected_ty = tvm.ir.PtrType(tvm.ir.PrimType("float32"), "shared.dyn")
     assert tirx.address_of(pooled_buffer).ty == expected_ty
     assert tirx.address_of(pooled_buffer[0]).ty == expected_ty
     scalar_address = tirx.address_of(tirx.Var("value", "uint32"))
-    assert scalar_address.ty == tvm.ir.PointerType(tvm.ir.PrimType("uint32"))
+    assert scalar_address.ty == tvm.ir.PtrType(tvm.ir.PrimType("uint32"))
 
 
 def test_tir_op_reinterpret():
@@ -66,7 +66,7 @@ def test_tir_op_reinterpret():
     with pytest.raises(TypeError, match="scalar 64-bit integer source"):
         tirx.reinterpret("handle", x)
     pointer = tirx.reinterpret("handle", tirx.Var("address", ty="uint64"))
-    assert pointer.ty == tvm.ir.PointerType(tvm.ir.PrimType("void"))
+    assert pointer.ty == tvm.ir.PtrType(tvm.ir.PrimType("void"))
 
 
 def test_tir_op_isnullptr():
@@ -105,7 +105,7 @@ def test_tir_op_tvm_thread_allreduce():
 
 def test_tir_op_ptr_byte_offset():
     buffer = tirx.decl_tensor((128,), "float32", scope="shared")
-    ty = tvm.ir.PointerType(tvm.ir.PrimType("uint8"), "shared")
+    ty = tvm.ir.PtrType(tvm.ir.PrimType("uint8"), "shared")
     offset_expr = tirx.ptr_byte_offset(buffer.data, 16, ty=ty)
     assert offset_expr.op.name == "tirx.ptr_byte_offset"
     assert offset_expr.ty == ty

@@ -30,14 +30,7 @@
 namespace tvm {
 namespace script {
 namespace printer {
-namespace details {
-
-void PrintFunction(DocTranslatorObj* d, const tirx::FunctionNode* func, ExprDoc decorator,
-                   const ffi::String& dialect_attr);
-ffi::Optional<ExprDoc> VarDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
-                                       const ffi::Object* destination);
-
-}  // namespace details
+namespace details {}  // namespace details
 }  // namespace printer
 }  // namespace script
 }  // namespace tvm

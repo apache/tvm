@@ -750,6 +750,7 @@ class VMShapeLowerMutator
     // This could require us to attach target to the relax function here.
     tirx::Function shape_func(params, body, ret_type);
     shape_func = WithAttr(std::move(shape_func), tvm::attr::kSTir, true);
+    shape_func = WithAttr(std::move(shape_func), tvm::attr::kScriptNamespace, ffi::String("s_tir"));
     if (!shape_func->attrs.GetAttr<tvm::Target>(tvm::attr::kTarget).has_value()) {
       // kTarget and kIsHostFunc are mutually exclusive
       shape_func =

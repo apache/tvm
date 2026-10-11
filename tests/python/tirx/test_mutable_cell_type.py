@@ -71,7 +71,7 @@ def test_cell_rejects_unsupported_elements(dtype):
 
 def test_cell_rejects_nonprimitive_and_wider_scope():
     with pytest.raises(TypeError):
-        tirx.MutableCellType(ir.PointerType(ir.PrimType("int32")))
+        tirx.MutableCellType(ir.PtrType(ir.PrimType("int32")))
     with pytest.raises(TypeError):
         tirx.MutableCellType(tirx.MutableCellType("int32"))
     with pytest.raises(ValueError, match="thread"):
@@ -120,7 +120,7 @@ def test_raw_cells_require_local_allocation_and_direct_operations():
         _function(
             bind,
             ir.Evaluate(
-                ir.Call("tirx.address_of", [_load(cell)], ty=ir.PointerType(ir.PrimType("int32")))
+                ir.Call("tirx.address_of", [_load(cell)], ty=ir.PtrType(ir.PrimType("int32")))
             ),
         ),
         _function(ir.If(ir.const(True, "bool"), [bind], None), ir.Evaluate(_load(cell))),

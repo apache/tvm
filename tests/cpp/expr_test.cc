@@ -119,7 +119,7 @@ TEST(Expr, VarCopyHelpers) {
   using namespace tvm::tirx;
 
   SourceLoc loc(SourceName::Get("test.cc"), 1, 1, 1, 10);
-  Type pointer_type = PointerType(PrimType::Float(32), "global");
+  Type pointer_type = PtrType(PrimType::Float(32), "global");
   Var var("x", pointer_type, loc);
 
   Var renamed = var.CopyWithName("y");
@@ -186,8 +186,8 @@ TEST(ExprNodeRef, Basic) {
 
 TEST(Expr, DeepEqualTensorLoadSourceIdentity) {
   using namespace tvm;
-  Var source("source", PointerType(PrimType::Float(32)));
-  Var other_source("source", PointerType(PrimType::Float(32)));
+  Var source("source", PtrType(PrimType::Float(32)));
+  Var other_source("source", PtrType(PrimType::Float(32)));
   auto load = [](Expr source, PrimExpr index) {
     auto node = ffi::make_object<TensorLoadNode>(source);
     node->ty = PrimType::Float(32);

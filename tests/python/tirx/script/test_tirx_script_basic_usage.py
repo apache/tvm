@@ -26,7 +26,7 @@ import tvm
 import tvm.script
 import tvm.testing
 from tvm import ir, tirx
-from tvm.ir import PointerType, PrimType, assert_structural_equal
+from tvm.ir import PrimType, PtrType, assert_structural_equal
 from tvm.script import ir as I
 from tvm.script import tirx as T
 
@@ -73,7 +73,7 @@ def test_tir_ptr_proxy():
     ptr_0 = T.handle("int32", "global")
     assert (
         isinstance(ptr_0, tirx.Var)
-        and isinstance(ptr_0.ty, ir.PointerType)
+        and isinstance(ptr_0.ty, ir.PtrType)
         and ptr_0.ty.element_type == ir.PrimType("int32")
         and ptr_0.ty.storage_scope == "global"
     )
@@ -81,7 +81,7 @@ def test_tir_ptr_proxy():
     ptr_1 = T.handle("float32", "shared")
     assert (
         isinstance(ptr_1, tirx.Var)
-        and isinstance(ptr_1.ty, ir.PointerType)
+        and isinstance(ptr_1.ty, ir.PtrType)
         and ptr_1.ty.element_type == ir.PrimType("float32")
         and ptr_1.ty.storage_scope == "shared"
     )
@@ -204,13 +204,13 @@ def test_tuple_let_binding_and_traversal():
 def test_annotation_syntax_comprehensive():
     """Comprehensive test for scalar annotation, T.let, banned annotations, and bare assignment."""
 
-    # 1. T.let with T.Var(PointerType) — round-trip
+    # 1. T.let with T.Var(PtrType) — round-trip
     # fmt: off
     @T.function
     def test_let_var():
         T.device_entry()
         smem = T.alloc_shared([128], "float16")
-        ptr: T.let[T.Var(name="ptr", ty=PointerType(PrimType("void")))] = T.reinterpret(
+        ptr: T.let[T.Var(name="ptr", ty=PtrType(PrimType("void")))] = T.reinterpret(
              smem.ptr_to([0] * len(smem.shape))
         , ty="handle")
         T.evaluate(ptr)
@@ -231,10 +231,10 @@ def func():
     # 3. Banned: non-PrimType annotation without T.let
     src_ptr = """
 from tvm.script import tirx as T
-from tvm.ir import PointerType, PrimType
+from tvm.ir import PtrType, PrimType
 @T.function
 def func():
-    x: T.Var(name="x", ty=PointerType(PrimType("float16"))) = T.int64(0)
+    x: T.Var(name="x", ty=PtrType(PrimType("float16"))) = T.int64(0)
 """
     with pytest.raises(tvm.error.InternalError):
         from_source(src_ptr)
@@ -266,12 +266,12 @@ def test_pointer_expression_assignment_uses_bind():
     binds = []
 
     def collect_pointer_bind(node):
-        if isinstance(node, tvm.ir.Bind) and isinstance(node.var.ty, PointerType):
+        if isinstance(node, tvm.ir.Bind) and isinstance(node.var.ty, PtrType):
             binds.append(node)
 
     tvm_ffi.structural_walk(func.body, collect_pointer_bind)
     assert len(binds) == 1
-    assert isinstance(binds[0].var.ty, PointerType)
+    assert isinstance(binds[0].var.ty, PtrType)
     assert_structural_equal(binds[0].var.ty, binds[0].value.ty)
 
     code = func.script()
@@ -297,14 +297,14 @@ def test_pointer_expression_rebinding_creates_distinct_native_bindings():
     bindings, uses = [], []
 
     def collect(node):
-        if isinstance(node, tvm.ir.Bind) and isinstance(node.var.ty, PointerType):
+        if isinstance(node, tvm.ir.Bind) and isinstance(node.var.ty, PtrType):
             bindings.append(node)
         elif isinstance(node, tvm.ir.Evaluate):
             uses.append(node)
 
     tvm_ffi.structural_walk(func.body, collect)
     assert len(bindings) == 2
-    assert all(isinstance(binding.var.ty, PointerType) for binding in bindings)
+    assert all(isinstance(binding.var.ty, PtrType) for binding in bindings)
     assert not bindings[0].var.same_as(bindings[1].var)
     assert len(uses) == 1
     assert uses[0].value.args[0].same_as(bindings[1].var)
@@ -326,7 +326,7 @@ def func() -> None:
     binds = []
 
     def collect_pointer_bind(node):
-        if isinstance(node, tvm.ir.Bind) and isinstance(node.var.ty, PointerType):
+        if isinstance(node, tvm.ir.Bind) and isinstance(node.var.ty, PtrType):
             binds.append(node)
 
     tvm_ffi.structural_walk(func.body, collect_pointer_bind)

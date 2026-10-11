@@ -68,18 +68,18 @@ def test_buffer_data_is_typed_projection():
     buffer = tvm.tirx.decl_tensor((8,), "bool", scope="shared")
 
     assert buffer.ty.dtype == tvm.ir.PrimType("bool")
-    assert buffer.data.ty == tvm.ir.PointerType(tvm.ir.PrimType("bool"), "shared")
+    assert buffer.data.ty == tvm.ir.PtrType(tvm.ir.PrimType("bool"), "shared")
     assert buffer.data.op.name == "tirx.tensor_data_ptr"
     assert buffer.data.args[0].same_as(buffer)
 
 
 def test_buffer_pointer_type_derived_from_dtype_and_scope():
-    data = tvm.ir.Var("storage", tvm.ir.PointerType(tvm.ir.PrimType("uint8"), "local"))
+    data = tvm.ir.Var("storage", tvm.ir.PtrType(tvm.ir.PrimType("uint8"), "local"))
     buffer = tvm.tirx.decl_tensor((8,), "float16", data=data)
 
     assert buffer.ty.dtype == tvm.ir.PrimType("float16")
     assert buffer.ty.storage_scope == "local"
-    assert buffer.data.ty == tvm.ir.PointerType(tvm.ir.PrimType("float16"), "local")
+    assert buffer.data.ty == tvm.ir.PtrType(tvm.ir.PrimType("float16"), "local")
 
 
 def test_decl_buffer_physical_data_binding():
@@ -109,11 +109,11 @@ def test_buffer_ptr_to():
     buffer = tvm.tirx.decl_tensor((m, n), "float32", strides=[n + 1, 1], elem_offset=7)
     pointer = buffer.ptr_to([2, 3])
     assert pointer.op.name == "tirx.address_of"
-    assert pointer.ty == tvm.ir.PointerType(tvm.ir.PrimType("float32"))
+    assert pointer.ty == tvm.ir.PtrType(tvm.ir.PrimType("float32"))
     assert pointer.args[0].source.same_as(buffer)
     tvm.ir.assert_structural_equal(pointer.args[0].indices, [T.int32(2), T.int32(3)])
     shared = tvm.tirx.decl_tensor((m, n), "float32", scope="shared")
-    assert shared.ptr_to([0, 0]).ty == tvm.ir.PointerType(tvm.ir.PrimType("float32"), "shared")
+    assert shared.ptr_to([0, 0]).ty == tvm.ir.PtrType(tvm.ir.PrimType("float32"), "shared")
 
 
 def _flattened_load(buffer, indices):

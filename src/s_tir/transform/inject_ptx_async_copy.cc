@@ -74,9 +74,9 @@ class PTXAsyncCopyInjector : public StmtExprMutator {
 
       if (bytes == 4 || bytes == 8 || bytes == 16) {
         auto dst_elem_type =
-            GetPointerType(store->dest.as_or_throw<TensorVar>().type()->DataPointerType());
-        auto src_elem_type = GetPointerType(
-            load->source.as_or_throw<tvm::tirx::TensorVar>().type()->DataPointerType());
+            GetPtrElementType(store->dest.as_or_throw<TensorVar>().type()->DataPtrType());
+        auto src_elem_type = GetPtrElementType(
+            load->source.as_or_throw<tvm::tirx::TensorVar>().type()->DataPtrType());
         TVM_FFI_ICHECK(dst_elem_type.has_value() && src_elem_type.has_value())
             << "Both store and load buffer should have a pointer type annotation.";
 

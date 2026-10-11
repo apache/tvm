@@ -483,7 +483,7 @@ class FusedTIRConstructor : public ExprVisitor {
         // printed, it's more readable when done explicitly.  Since
         // TensorVar is used more than param it gets the name with better
         // readability.
-        tvm::Var param = tvm::Var("p_" + buffer.name(), PointerType::VoidPointerTy());
+        tvm::Var param = tvm::Var("p_" + buffer.name(), PtrType::VoidPtrType());
         func_info_.params.push_back(param);
         func_info_.buffer_map.Set(param, buffer);
       } else if (auto var = param.as<PrimVar>()) {
@@ -530,7 +530,7 @@ class FusedTIRConstructor : public ExprVisitor {
         continue;
       }
 
-      tvm::Var param = tvm::Var("p_output" + std::to_string(out_idx), PointerType::VoidPointerTy());
+      tvm::Var param = tvm::Var("p_output" + std::to_string(out_idx), PtrType::VoidPtrType());
       out_idx++;
       func_info_.buffer_map.Set(param, buffers[i]);
       func_info_.params.push_back(param);
@@ -866,6 +866,7 @@ class FusedTIRConstructor : public ExprVisitor {
     ffi::Map<ffi::String, Any> attr_map;
     attr_map.Set(tvm::tirx::attr::kNoAlias, true);
     attr_map.Set(tvm::attr::kSTir, true);
+    attr_map.Set(tvm::attr::kScriptNamespace, ffi::String("s_tir"));
     auto subst = ffi::make_object<tirx::FuseTIRBufferSubstitutor>(func_info_.buffer_subst_map,
                                                                   func_info_.symbolic_var_remap);
     TVM_FFI_ICHECK(func_info_.global_name != "fused");

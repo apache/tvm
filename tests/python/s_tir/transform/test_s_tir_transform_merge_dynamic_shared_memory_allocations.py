@@ -274,11 +274,11 @@ def test_async_copy():
     # lowering, rather than being pre-scaled as byte offsets here.
     assert (
         'A_sh = T.decl_tensor((128,), "float32", data=buf_dyn_shmem.data, '
-        'scope="shared.dyn")' in script
+        'scope="shared.dyn", layout=None)' in script
     )
     assert (
         'B_sh = T.decl_tensor((128,), "float32", data=buf_dyn_shmem.data, '
-        'scope="shared.dyn")' in script
+        'scope="shared.dyn", layout=None)' in script
     )
     assert (
         "T.s_tir.cp_async_raw(A_sh.data, threadIdx_x, "
@@ -309,7 +309,7 @@ def test_decl_buffer_alias_extends_allocation_lifetime():
 
     After = transform(Before)
     script = After["main"].script()
-    assert 'alloc_tensor((1024,), "uint8", scope="shared.dyn")' in script
+    assert 'alloc_tensor((1024,), "uint8", scope="shared.dyn", layout=None)' in script
     assert "B_view[threadIdx_x + 128]" in script
     assert "A_view[threadIdx_x]" in script
 

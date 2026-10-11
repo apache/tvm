@@ -24,9 +24,7 @@ from tvm.script import tirx as T
 
 
 def test_buffer_region_bounds_are_visited():
-    data = tvm.tirx.Var(
-        "data", tvm.ir.PointerType(tvm.ir.PrimType("int32"), storage_scope="global")
-    )
+    data = tvm.tirx.Var("data", tvm.ir.PtrType(tvm.ir.PrimType("int32"), storage_scope="global"))
     buffer = tvm.tirx.decl_tensor([4], "int32", data=data)
     undefined = tvm.tirx.Var("undefined", "int32")
     region = tvm.tirx.BufferRegion(buffer, [tvm.ir.Range.from_min_extent(undefined, 4)])
@@ -122,7 +120,7 @@ def test_error_undeclared_buffer_in_schedulable_tir():
 
     # Create an undeclared buffer using an explicit data pointer that is NOT
     # a function parameter and NOT wrapped with DeclTensor.
-    B_data = tvm.tirx.Var("B_data", tvm.ir.PointerType(tvm.ir.PrimType("float32")))
+    B_data = tvm.tirx.Var("B_data", tvm.ir.PtrType(tvm.ir.PrimType("float32")))
     B = tvm.tirx.decl_tensor([n], "float32", name="B", data=B_data)
 
     # Build a block that writes to B without any declaration of B.
