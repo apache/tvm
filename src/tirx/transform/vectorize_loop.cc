@@ -1305,6 +1305,43 @@ class Vectorizer : public StmtExprMutator {
   }
 };
 
+// A vectorized loop disappears before UnrollLoop consumes scoped policy.  Keep
+// that policy on the first surviving loops; their normal inheritance handles
+// deeper loops and local overrides, including zero and false values.
+Stmt PreserveUnrollPolicy(Stmt body, const ffi::Map<ffi::String, ffi::Any>& annotations) {
+  struct PolicyTransfer : StmtExprMutator {
+    using StmtExprMutator::Mutate;
+    ffi::Map<ffi::String, ffi::Any> policy;
+
+    UnchangedOr<ffi::Any> Mutate(ffi::AnyView value, InplaceMode inplace_mode) final {
+      if (value.as<ExprNode>()) return ffi::Unchanged();
+      return StmtExprMutator::Mutate(value, inplace_mode);
+    }
+
+    UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
+      auto annotations = op->annotations;
+      for (const auto& [key, value] : policy) {
+        auto existing = annotations.Get(key);
+        if (!existing.has_value() || existing.value() == nullptr) {
+          annotations.Set(key, value);
+        }
+      }
+      if (annotations.same_as(op->annotations)) return ffi::Unchanged();
+      auto copy = ffi::make_object<ForNode>(*op);
+      copy->annotations = std::move(annotations);
+      return For(copy);
+    }
+  };
+  auto transfer = ffi::make_object<PolicyTransfer>();
+  for (const char* key : {attr::kAutoUnrollMaxStep, attr::kUnrollExplicit}) {
+    if (auto value = annotations.Get(key); value.has_value() && value.value() != nullptr) {
+      transfer->policy.Set(key, value.value());
+    }
+  }
+  if (transfer->policy.empty()) return body;
+  return transfer->Mutate(body, InplaceMode::kDisallow).ValueOrUnchanged(body);
+}
+
 class LoopVectorizer : public StmtExprMutator {
  public:
   using StmtExprMutator::Mutate;
@@ -1340,9 +1377,10 @@ class LoopVectorizer : public StmtExprMutator {
         TVM_FFI_ICHECK(is_scalable_expr && TargetHasVLA(target_))
             << "Failed to vectorize loop with extent " << op->extent << " for target " << target_;
       }
+      Stmt body = PreserveUnrollPolicy(op->body, op->annotations);
       return ffi::make_object<Vectorizer>(op->loop_var, op->extent, target_)
-          ->Mutate(op->body, inplace_mode)
-          .ValueOrUnchanged(op->body);
+          ->Mutate(body, inplace_mode)
+          .ValueOrUnchanged(body);
     } else {
       return StmtExprMutator::Mutate_(op, inplace_mode);
     }
@@ -1398,7 +1436,9 @@ class VectorizeSkipper : public StmtExprMutator {
     Stmt stmt = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     op = stmt.as<ForNode>();
     if (op->kind == ForKind::kVectorized) {
-      return For(op->loop_var, op->min, op->extent, ForKind::kDefault, op->body);
+      auto copy = ffi::make_object<ForNode>(*op);
+      copy->kind = ForKind::kDefault;
+      return For(copy);
     } else {
       return stmt;
     }

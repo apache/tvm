@@ -151,11 +151,6 @@ class LoopUnroller : public StmtExprMutator {
       node->annotations.erase(tvm::tirx::attr::kUnrollExplicit);
       op = node;
     }
-    if (tvm::tirx::GetThreadBinding(op).has_value()) {
-      // Explicit thread placement must survive until thread-binding lowering.
-      normal_loop_depth_ += 1;
-      return result;
-    }
     int value = GetExtent(op);
     // condition for auto unroll
     bool auto_unroll = (op->kind == ForKind::kDefault && value >= 0 && normal_loop_depth_ == 0 &&

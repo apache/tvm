@@ -49,8 +49,8 @@ def test_thread_axis2():
         T_where: T.Tensor((T.int64(1), T.int64(12), T.int64(384), 384), "float32"),
     ) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
-        for i0_i1_i2_i3_fused_1 in T.thread_binding(T.int64(256), thread="blockIdx.x"):
-            for i0_i1_i2_i3_fused_2 in T.thread_binding(T.int64(1024), thread="threadIdx.x"):
+        with T.launch_thread("blockIdx.x", T.int64(256)) as i0_i1_i2_i3_fused_1:
+            with T.launch_thread("threadIdx.x", T.int64(1024)) as i0_i1_i2_i3_fused_2:
                 for i0_i1_i2_i3_fused_0 in T.serial(T.int64(7)):
                     if (i0_i1_i2_i3_fused_0 * T.int64(256) + i0_i1_i2_i3_fused_1) * T.int64(
                         1024
@@ -150,8 +150,8 @@ def test_thread_axis2():
         T_where: T.Tensor((1, 12, 384, 384), "float32"),
     ):
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
-        for i0_i1_i2_i3_fused_1 in T.thread_binding(256, thread="blockIdx.x"):
-            for i0_i1_i2_i3_fused_2 in T.thread_binding(1024, thread="threadIdx.x"):
+        with T.launch_thread("blockIdx.x", 256) as i0_i1_i2_i3_fused_1:
+            with T.launch_thread("threadIdx.x", 1024) as i0_i1_i2_i3_fused_2:
                 for i0_i1_i2_i3_fused_0 in range(7):
                     if (
                         i0_i1_i2_i3_fused_0 * 256 + i0_i1_i2_i3_fused_1

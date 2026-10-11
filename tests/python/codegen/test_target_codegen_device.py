@@ -35,8 +35,8 @@ def test_large_uint_imm():
         @T.function
         def main(A: T.Tensor((12,), "uint64")):
             T.func_attr({"tirx.noalias": True})
-            for i0_0 in T.thread_binding(6, thread="blockIdx.x"):
-                for i0_1 in T.thread_binding(2, thread="threadIdx.x"):
+            with T.launch_thread("blockIdx.x", 6) as i0_0:
+                with T.launch_thread("threadIdx.x", 2) as i0_1:
                     A[i0_0 * 2 + i0_1] = value_const + T.uint64(3)
 
     def check_target(target):
@@ -69,12 +69,12 @@ def test_add_pipeline():
             T.func_attr({"tirx.noalias": True})
 
             C = T.alloc_tensor(ty_args=[T.Tensor((n,))])
-            for i0_0 in T.thread_binding((n + 255) // 256, thread="blockIdx.x"):
-                for i0_1 in T.thread_binding(256, thread="threadIdx.x"):
+            with T.launch_thread("blockIdx.x", (n + 255) // 256) as i0_0:
+                with T.launch_thread("threadIdx.x", 256) as i0_1:
                     if i0_0 * 256 + i0_1 < n:
                         C[i0_0 * 256 + i0_1] = A[i0_0 * 256 + i0_1] + B[()]
-            for i0_0 in T.thread_binding((n + 255) // 256, thread="blockIdx.x"):
-                for i0_1 in T.thread_binding(256, thread="threadIdx.x"):
+            with T.launch_thread("blockIdx.x", (n + 255) // 256) as i0_0:
+                with T.launch_thread("threadIdx.x", 256) as i0_1:
                     if i0_0 * 256 + i0_1 < n:
                         D[i0_0 * 256 + i0_1] = C[i0_0 * 256 + i0_1] + T.float32(1.0)
 

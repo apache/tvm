@@ -153,7 +153,6 @@ class IfHoister : public StmtExprMutator {
 
   UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
     // Preserve the same synchronization boundary before thread-binding lowering.
-    if (GetThreadBinding(op).has_value()) return ffi::Unchanged();
     // Only ordinary serial loops permit code motion across their execution scope.
     // Hoisting must not suppress evaluation of an effectful loop header either.
     if (op->kind != ForKind::kDefault || SideEffect(op->min) > CallEffectKind::kReadState ||

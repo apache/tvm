@@ -409,7 +409,7 @@ def test_thread_binding_boundary():
     class Before:
         @T.function
         def main(A: T.Tensor((4, 4), "int32"), n: T.int32):
-            for tx in T.thread_binding(4, thread="threadIdx.x"):
+            with T.launch_thread("threadIdx.x", 4) as tx:
                 for i in T.serial(4):
                     if 0 < n:
                         A[tx, i] = 1
