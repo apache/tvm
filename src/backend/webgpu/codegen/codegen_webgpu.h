@@ -84,6 +84,7 @@ class CodeGenWebGPU final : public CodeGenC {
   void Dispatch_(const TensorStoreNode* op) final;
   void Dispatch_(const ForNode* op) final;
   void DispatchAllocTensor(const BindNode* op, const CallNode* buffer_call);
+  void DispatchDeclTensor(const BindNode* op, const CallNode* buffer_call);
   void Dispatch_(const AssertStmtNode* op) final;
   void Dispatch_(const WhileNode* op) final;
   void Dispatch_(const BreakNode* op) final;
