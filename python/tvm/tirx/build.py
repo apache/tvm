@@ -163,8 +163,6 @@ def build(
     mod: Function | IRModule,
     target: str | Target | None = None,
     pipeline: str | tvm.transform.Pass | None = "default",
-    *,
-    backend_config=None,
 ):
     """Build a function with a signature, generating code for devices
     coupled with target information.
@@ -174,11 +172,9 @@ def build(
     mod : Union[Function, IRModule]
         The input to be built.
     target : Optional[Union[str, Target]]
-        The target for compilation.
+        The target for compilation, including backend configuration defaults.
     pipeline : Union[None, str, tvm.transform.Pass]
         The pipeline to use for compilation.
-    backend_config : Optional[dict[str, dict]]
-        Per-backend compiler defaults, overridden by each device entry.
 
     Returns
     -------
@@ -191,11 +187,10 @@ def build(
     else:
         assert isinstance(mod, tvm.IRModule)
 
-    from tvm.backend.config import copy_backend_config, prepare_target
+    from tvm.backend.config import prepare_target
     from tvm.backend.cuda.transforms import BindBackendConfig, SpecializeEntryHelpers
 
-    backend_config = copy_backend_config(backend_config)
-    target = prepare_target(target, backend_config, mod)
+    target = prepare_target(target, mod)
 
     # Step 0: Determine the target in environment
     # It's used to bind the Function without target attr to serve as a default target
@@ -228,7 +223,7 @@ def build(
 
     # Step 3: Bind the target to the input module
     mod = tvm.tirx.transform.BindTarget(target_to_bind)(mod)
-    mod = BindBackendConfig(backend_config)(mod)
+    mod = BindBackendConfig()(mod)
     mod = SpecializeEntryHelpers()(mod)
 
     # Step 4: Apply the tirx pipeline

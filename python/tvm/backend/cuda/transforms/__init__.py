@@ -38,12 +38,9 @@ def LowerIket():
     return get_global_func("tirx.backend.cuda.transforms.LowerIket")()
 
 
-def BindBackendConfig(backend_config=None):
+def BindBackendConfig():
     """Resolve per-entry compilation settings and targets before tile dispatch."""
-    from tvm.backend.config import backend_config_json
-
-    config = "" if backend_config is None else backend_config_json(backend_config)
-    return get_global_func("tirx.backend.cuda.transforms.BindBackendConfig")(config)
+    return get_global_func("tirx.backend.cuda.transforms.BindBackendConfig")("")
 
 
 def SpecializeDeviceHelpers():

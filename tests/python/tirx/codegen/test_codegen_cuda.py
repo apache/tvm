@@ -23,6 +23,7 @@ import pytest
 
 import tvm
 import tvm.testing
+from tvm.backend.config import merge_backend_configs
 from tvm.backend.cuda.lang.clc import query_cancel_first_ctaid_x
 from tvm.script import tirx as T
 from tvm.testing import env
@@ -34,9 +35,21 @@ def _get_source(
     if target is None:
         target = {"kind": "cuda", "arch": "sm_100a"}
     target = tvm.target.Target(target)
+    target = tvm.target.Target(
+        {
+            **target.export(),
+            "backend_config": merge_backend_configs(
+                target.attrs.get("backend_config"), backend_config
+            ),
+        }
+    )
     mod = tvm.IRModule({"main": func})
     with target:
-        mod = tvm.compile(mod, target=target, tir_pipeline="tirx", backend_config=backend_config)
+        mod = tvm.compile(
+            mod,
+            target=target,
+            tir_pipeline="tirx",
+        )
     src = mod.mod.imports[0].inspect_source()
     return src, mod
 
