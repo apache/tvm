@@ -366,58 +366,9 @@ inline const char* DLDeviceType2Str(int type) {
   throw;
 }
 
-/*! \brief The device type bigger than this is RPC device */
-constexpr int kRPCSessMask = 128;
-static_assert(kRPCSessMask >= TVMDeviceExtType_End);
-
-/*!
- * \brief Return true if a Device is owned by an RPC session.
- */
-inline bool IsRPCSessionDevice(Device dev) { return (dev.device_type / kRPCSessMask) > 0; }
-
-/*!
- * \brief Return the RPCSessTable index of the RPC Session that owns this device.
- * \return the table index.
- */
-inline int GetRPCSessionIndex(Device dev) {
-  TVM_FFI_ICHECK(IsRPCSessionDevice(dev)) << "GetRPCSessionIndex: dev has no RPC session";
-  return dev.device_type / kRPCSessMask - 1;
-}
-
-/*!
- * \brief Remove the RPC session mask from a Device.
- * RPC clients typically do this when encoding a Device for transmission to an RPC remote.
- * On the wire, RPCdevice are expected to be valid on the server without interpretation.
- * \param dev A Device with non-zero RPC Session mask, valid on the RPC client.
- * \return A Device without any RPC Session mask, valid on the RPC server.
- */
-inline Device RemoveRPCSessionMask(Device dev) {
-  dev.device_type = static_cast<DLDeviceType>(dev.device_type % kRPCSessMask);
-  return dev;
-}
-
 inline std::ostream& operator<<(std::ostream& os, DLDevice dev) {  // NOLINT(*)
-  if (tvm::runtime::IsRPCSessionDevice(dev)) {
-    os << "remote[" << tvm::runtime::GetRPCSessionIndex(dev) << "]-";
-    dev = tvm::runtime::RemoveRPCSessionMask(dev);
-  }
-  os << tvm::runtime::DLDeviceType2Str(static_cast<int>(dev.device_type)) << ":" << dev.device_id;
+  os << DLDeviceType2Str(static_cast<int>(dev.device_type)) << ":" << dev.device_id;
   return os;
-}
-
-/*!
- * \brief Add a RPC session mask to a Device.
- * RPC clients typically do this when decoding a Device received from a RPC remote.
- * \param dev A Device without any RPC Session mask, valid on the RPC server.
- * \param session_table_index Numeric index of the RPC session in the session table.
- * \return A Device with RPC session mask added, valid on the RPC client.
- */
-inline Device AddRPCSessionMask(Device dev, int session_table_index) {
-  TVM_FFI_ICHECK(!IsRPCSessionDevice(dev))
-      << "AddRPCSessionMask: dev already non-zero RPCSessionIndex: " << dev;
-  dev.device_type =
-      static_cast<DLDeviceType>(dev.device_type | (kRPCSessMask * (session_table_index + 1)));
-  return dev;
 }
 
 /*!

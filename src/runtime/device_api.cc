@@ -56,7 +56,6 @@ class DeviceAPIManager {
 
  private:
   std::array<DeviceAPI*, kMaxDeviceAPI> api_;
-  DeviceAPI* rpc_api_{nullptr};
   std::mutex mutex_;
   // constructor
   DeviceAPIManager() { std::fill(api_.begin(), api_.end(), nullptr); }
@@ -67,20 +66,14 @@ class DeviceAPIManager {
   }
   // Get or initialize API.
   DeviceAPI* GetAPI(int type, bool allow_missing) {
-    if (type < kRPCSessMask) {
-      if (api_[type] != nullptr) return api_[type];
-      std::lock_guard<std::mutex> lock(mutex_);
-      if (api_[type] != nullptr) return api_[type];
-      api_[type] = GetAPI(DLDeviceType2Str(type), allow_missing);
-      return api_[type];
-    } else {
-      if (rpc_api_ != nullptr) return rpc_api_;
-      std::lock_guard<std::mutex> lock(mutex_);
-      if (rpc_api_ != nullptr) return rpc_api_;
-      rpc_api_ = GetAPI("rpc", allow_missing);
-      return rpc_api_;
-    }
+    TVM_FFI_CHECK(type >= 0 && type < kMaxDeviceAPI, ValueError) << "Invalid device type " << type;
+    if (api_[type] != nullptr) return api_[type];
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (api_[type] != nullptr) return api_[type];
+    api_[type] = GetAPI(DLDeviceType2Str(type), allow_missing);
+    return api_[type];
   }
+
   DeviceAPI* GetAPI(const std::string name, bool allow_missing) {
     std::string factory = "device_api." + name;
     const auto f = tvm::ffi::Function::GetGlobal(factory);
