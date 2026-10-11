@@ -446,6 +446,8 @@ def test_call_tir_canonical_roundtrip(name, tuple_result, result_kind, namespace
         callee, call.args[1], ty_args=[output_type], attrs=call.attrs, ty=result_type, loc=loc
     )
     tvm.ir.assert_structural_equal(call, with_attrs)
+    # Roundtrip printing requires a type-consistent Call after constructor checks.
+    call = tvm.ir.Call(call.op, call.args, attrs=call.attrs, ty_args=call.ty_args, loc=call.loc)
     printed = call.script()
     assert printed.startswith(f"R.{name}(")
     assert "ty_args=" in printed and "out_ty=" not in printed
@@ -552,6 +554,8 @@ def test_call_py_func_canonical_roundtrip(tuple_size, result_kind, builder):
     assert len(call.args[1].fields) == 1 and call.args[1].fields[0].same_as(x)
     tvm.ir.assert_structural_equal(call.ty_args[0], output_type)
     tvm.ir.assert_structural_equal(call.ty, output_type if result_type is None else result_type)
+    # Roundtrip printing requires a type-consistent Call after constructor checks.
+    call = tvm.ir.Call(call.op, call.args, attrs=call.attrs, ty_args=call.ty_args, loc=call.loc)
     printed = call.script()
     assert printed.startswith("R.call_py_func(")
     assert "ty_args=" in printed and "out_ty=" not in printed
