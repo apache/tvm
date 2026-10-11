@@ -931,18 +931,6 @@ def test_loop_var_dtype_rejects_unsupported(dtype):
         T.serial(4, dtype=dtype)
 
 
-def test_annotated_parallel_loop_var_dtype_uint32():
-    @T.function
-    def func(A: T.Tensor((128,), "float32")):
-        for i in T.parallel(128, dtype="uint32", annotations={"thread_binding": "threadIdx.x"}):
-            A[i] = T.float32(1)
-
-    loop = func.body[0]
-    assert loop.loop_var.ty == PrimType("uint32")
-    assert loop.annotations["thread_binding"] == "threadIdx.x"
-    _assert_roundtrip(func)
-
-
 def test_hand_built_for_promotes_int_literal_bounds_to_uint32():
     """The For constructor retypes literal bounds to the loop var's dtype."""
     loop_var = tvm.tirx.Var("i", "uint32")

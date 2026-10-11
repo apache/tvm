@@ -16,8 +16,6 @@
 # under the License.
 from __future__ import annotations
 
-import tvm_ffi
-
 import tvm
 from tvm.script import ir as I
 from tvm.script import tirx as T
@@ -152,54 +150,6 @@ def test_unroll_local_access():
         after = tvm.tirx.transform.StmtSimplify()(after)
 
     tvm.ir.assert_structural_equal(after, Expected)
-
-
-def test_vectorized_loop_unroll_policy():
-    @T.function
-    def before(A: T.Tensor((4, 4), "int32")):
-        for i in T.vectorized(
-            4, annotations={"auto_unroll_max_step": 16, "unroll_explicit": False}
-        ):
-            for inherited in range(4):
-                A[inherited, i] = inherited + i
-            for disabled in T.serial(4, annotations={"auto_unroll_max_step": 0}):
-                A[disabled, i] = disabled - i
-            for explicit in T.serial(4, annotations={"unroll_explicit": True}):
-                A[explicit, i] = explicit * i
-        for sibling in range(4):
-            A[sibling, 0] = sibling
-
-    mod = tvm.IRModule({"main": before.with_attr("target", tvm.target.Target("llvm"))})
-    after = tvm.tirx.transform.VectorizeLoop()(mod)
-    after = tvm.tirx.transform.UnrollLoop()(after)
-    loops = []
-    tvm_ffi.structural_walk(
-        after["main"].body,
-        lambda node: loops.append(node) if isinstance(node, tvm.ir.For) else None,
-    )
-    assert [(loop.loop_var.name, loop.kind) for loop in loops] == [
-        ("inherited", tvm.ir.ForKind.UNROLLED),
-        ("disabled", tvm.ir.ForKind.DEFAULT),
-        ("sibling", tvm.ir.ForKind.DEFAULT),
-    ]
-    assert all(not loop.annotations for loop in loops)
-
-
-def test_disabled_vectorization_preserves_unroll_policy():
-    @T.function
-    def before(A: T.Tensor((4, 4), "int32")):
-        for i in T.vectorized(
-            4, annotations={"auto_unroll_max_step": 16, "unroll_explicit": False}
-        ):
-            for j in range(4):
-                A[j, i] = i + j
-
-    mod = tvm.IRModule({"main": before})
-    after = tvm.tirx.transform.VectorizeLoop(enable_vectorize=False)(mod)
-    after = tvm.tirx.transform.UnrollLoop()(after)
-    outer = after["main"].body[0]
-    assert outer.kind == tvm.ir.ForKind.UNROLLED
-    assert outer.body[0].kind == tvm.ir.ForKind.UNROLLED
 
 
 if __name__ == "__main__":

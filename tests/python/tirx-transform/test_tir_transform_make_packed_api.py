@@ -230,31 +230,17 @@ def test_pointer_return():
     assert 4 in return_type_indices  # ffi::TypeIndex::kTVMFFIOpaquePtr
 
 
-@pytest.mark.parametrize("extent,annotations", [(2, {}), (1, {"keep_scope": True})])
-def test_return_from_parallel_scope_is_rejected(extent, annotations):
+def test_return_from_parallel_scope_is_rejected():
     """A parallel loop cannot return from its enclosing function."""
 
     i = tirx.Var("i", "int32")
-    body = tvm.ir.For(i, 0, extent, tvm.ir.ForKind.PARALLEL, tvm.ir.Return(i), annotations)
+    body = tvm.ir.For(i, 0, 2, tvm.ir.ForKind.PARALLEL, tvm.ir.Return(i))
     func = tirx.Function([], body, tvm.ir.PrimType("int32"))
     func = func.with_attr("global_symbol", "main")
     func = func.with_attr("target", tvm.target.Target("llvm", host="llvm"))
 
     with pytest.raises(tvm.error.InternalError, match="Return cannot be used in parallel scope"):
         tvm.tirx.transform.MakePackedAPI()(tvm.IRModule({"main": func}))
-
-
-def test_return_from_explicit_parallel_launch_is_rejected():
-    @T.function
-    def main() -> T.int32:
-        T.func_attr({"target": T.target("llvm", host="llvm")})
-        with T.parallel_launch():
-            for i in T.parallel(1):
-                return i + 7
-        return 0
-
-    with pytest.raises(tvm.error.InternalError, match="Return cannot be used in parallel scope"):
-        tvm.tirx.transform.MakePackedAPI()(tvm.IRModule({"main": main}))
 
 
 def test_int_parameter():

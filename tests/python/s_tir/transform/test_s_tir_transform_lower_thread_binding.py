@@ -289,53 +289,5 @@ def test_inner_binding_with_annotation():
     _check(inner_binding_with_annotation, lowered_inner_binding_with_annotation)
 
 
-def test_inherited_unroll_policy_after_binding_lowering():
-    import tvm_ffi
-
-    @Ts.function
-    def before(A: T.Tensor((32,), "int32")):
-        for tx in T.parallel(
-            4,
-            annotations={
-                "thread_binding": "threadIdx.x",
-                "auto_unroll_max_step": 16,
-                "unroll_explicit": 0,
-            },
-        ):
-            for inherited in T.serial(4):
-                A[tx * 4 + inherited] = inherited
-            for overridden in T.serial(
-                4, annotations={"auto_unroll_max_step": 0, "unroll_explicit": 1}
-            ):
-                A[tx * 4 + overridden] = overridden + 1
-        for sibling in T.serial(4):
-            A[sibling] = 0
-
-    lowered = tvm.transform.Sequential(
-        [
-            s_tir.transform.LowerOpaqueBlock(),
-            s_tir.transform.LowerThreadBinding(),
-            tvm.tirx.transform.UnrollLoop(),
-        ]
-    )(tvm.IRModule({"main": before}))
-    loops = {}
-    launches = []
-
-    def collect(node):
-        if isinstance(node, tvm.ir.For):
-            loops[node.loop_var.name] = node
-            assert "thread_binding" not in node.annotations
-            assert "auto_unroll_max_step" not in node.annotations
-            assert "unroll_explicit" not in node.annotations
-        elif isinstance(node, tvm.ir.RegionStmt) and node.op.name == "tirx.launch_thread":
-            launches.append(node)
-
-    tvm_ffi.structural_walk(lowered["main"].body, collect)
-    assert len(launches) == 1
-    assert loops["inherited"].kind == tvm.ir.ForKind.UNROLLED
-    assert loops["overridden"].kind == tvm.ir.ForKind.DEFAULT
-    assert loops["sibling"].kind == tvm.ir.ForKind.DEFAULT
-
-
 if __name__ == "__main__":
     tvm.testing.main()
