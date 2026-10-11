@@ -55,8 +55,9 @@ class HexagonTimerNode : public TimerNode {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("runtime.timer.hexagon",
-                        [](Device dev) { return Timer(ffi::make_object<HexagonTimerNode>()); });
+  refl::GlobalDef().def("runtime.timer.hexagon", [](Device dev) {
+    return Timer(ffi::UnsafeInit{}, ffi::make_object<HexagonTimerNode>());
+  });
 }
 }  // namespace hexagon
 

@@ -37,7 +37,7 @@ def test_pass_tensor_to_function():
     ):
         B = R.multiply(A, R.const(2))
         _ = callback(B)
-        return R.tuple()
+        return ()
 
     ex = tvm.relax.build(
         tvm.IRModule.from_expr(relax_func),

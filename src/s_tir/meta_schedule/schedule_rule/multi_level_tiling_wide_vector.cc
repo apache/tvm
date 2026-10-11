@@ -54,25 +54,23 @@ class MultiLevelTilingWideVectorNode : public MultiLevelTilingNode {
   ScheduleRule Clone() const final {
     ffi::ObjectPtr<MultiLevelTilingWideVectorNode> n =
         ffi::make_object<MultiLevelTilingWideVectorNode>(*this);
-    return ScheduleRule(n);
+    return ScheduleRule(ffi::UnsafeInit{}, n);
   }
 
-  std::pair<ffi::Array<s_tir::ExprRV>, ffi::Array<s_tir::LoopRV>> SplitLoop(const Schedule& sch,
-                                                                            SBlockRV block,
-                                                                            LoopRV loop,
-                                                                            int n_tiles) const;
+  std::pair<ffi::Array<ffi::Optional<s_tir::ExprRV>>, ffi::Array<s_tir::LoopRV>> SplitLoop(
+      const Schedule& sch, SBlockRV block, LoopRV loop, int n_tiles) const;
 };
 
-std::pair<ffi::Array<s_tir::ExprRV>, ffi::Array<s_tir::LoopRV>>
+std::pair<ffi::Array<ffi::Optional<s_tir::ExprRV>>, ffi::Array<s_tir::LoopRV>>
 MultiLevelTilingWideVectorNode::SplitLoop(const Schedule& sch, SBlockRV block_rv, LoopRV loop_rv,
                                           int n_tiles) const {
-  const tirx::ForNode* loop = TVM_SREF_TO_FOR(sch->GetSRef(loop_rv));
+  const ForNode* loop = TVM_SREF_TO_FOR(sch->GetSRef(loop_rv));
   const tirx::StmtSRef block_sref = sch->GetSRef(block_rv);
   const s_tir::SBlockNode* block_node = block_sref->StmtAs<s_tir::SBlockNode>();
   const s_tir::SBlockRealize block_realize = s_tir::GetSBlockRealize(sch->state(), block_sref);
   TVM_FFI_ICHECK(block_node && block_node->writes.size() == 1);
 
-  const auto out_dtype = block_node->writes[0]->source.as_or_throw<tvm::tirx::BufferVar>()->dtype;
+  const auto out_dtype = block_node->writes[0]->source.as_or_throw<tvm::tirx::TensorVar>()->dtype;
   const int vec_len = vector_length_in_bits / out_dtype.bits();
 
   // Determine if this loop is over the innermost axis of the output buffer.
@@ -107,20 +105,20 @@ MultiLevelTilingWideVectorNode::SplitLoop(const Schedule& sch, SBlockRV block_rv
       ffi::Array<s_tir::LoopRV> inner_splits =
           sch->Split(/*loop=*/loop_rv,
                      /*factors=*/{std::nullopt, PrimExpr(vec_len)});
-      ffi::Array<s_tir::ExprRV> outer_factors = sch->SamplePerfectTile(
+      ffi::Array<ffi::Optional<s_tir::ExprRV>> outer_factors = sch->SamplePerfectTile(
           /*loop=*/inner_splits[0],
           /*n=*/n_tiles - 1,
           /*max_innermost_factor=*/max_innermost_factor);
       ffi::Array<s_tir::LoopRV> outer_splits = sch->Split(
-          /*loop=*/inner_splits[0], /*factors=*/{outer_factors.begin(), outer_factors.end()});
+          /*loop=*/inner_splits[0], /*factors=*/outer_factors);
       outer_splits.push_back(inner_splits[1]);
       outer_factors.push_back(PrimExpr(vec_len));
       return {outer_factors, outer_splits};
     } else {
-      ffi::Array<s_tir::ExprRV> factors(n_tiles - 1, PrimExpr(1));
+      ffi::Array<ffi::Optional<s_tir::ExprRV>> factors(n_tiles - 1, PrimExpr(1));
       factors.push_back(loop->extent);
       ffi::Array<s_tir::LoopRV> splits = sch->Split(/*loop=*/loop_rv,
-                                                    /*factors=*/{factors.begin(), factors.end()});
+                                                    /*factors=*/factors);
       return {factors, splits};
     }
   }
@@ -134,7 +132,7 @@ ScheduleRule ScheduleRule::MultiLevelTilingWideVector(
   auto node = MultiLevelTilingInitCommon<MultiLevelTilingWideVectorNode>(
       structure, std::nullopt, max_innermost_factor, std::nullopt, reuse_read, reuse_write);
   node->vector_length_in_bits = vector_length_in_bits;
-  return ScheduleRule(node);
+  return ScheduleRule(ffi::UnsafeInit{}, node);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

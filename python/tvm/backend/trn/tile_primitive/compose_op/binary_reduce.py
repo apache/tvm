@@ -19,9 +19,10 @@
 
 from tvm.ir import TensorRegion
 from tvm.script import tirx as T
-from tvm.tirx import PrimFunc, TilePrimitiveCall
-from tvm.tirx.operator.tile_primitive import DispatchContext, predicate, register_dispatch
-from tvm.tirx.operator.tile_primitive.ops import BinaryReduce
+from tvm.tirx import Function
+from tvm.tirx.op.tile import BinaryReduce
+from tvm.tirx.operator.tile_primitive import DispatchContext
+from tvm.tirx.tensor_instruction import TensorCall
 
 from ..binary.utils import InstType, try_find_inst_nary
 from ..common import init_analyzer, nki_dim
@@ -31,9 +32,9 @@ from ..reduction.utils import generate_intermediate_buffer
 from .utils import opcode_table
 
 
-def binary_reduce_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc | None:
+def binary_reduce_trn(op: TensorCall, sctx: DispatchContext) -> Function | None:
     """Generate a TRN schedule for binary reduction operations."""
-    op = TilePrimitiveCall.downcast(op)
+    op = TensorCall.decode(op)
     assert isinstance(op, BinaryReduce), f"invalid operator downcast: {op}"
 
     # Extract operation components
@@ -43,7 +44,9 @@ def binary_reduce_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc 
     analyzer = init_analyzer(sctx)
 
     # Normalize negative axes
-    reduce_axes = [i if i >= 0 else len(binary_output.source.ty.shape) + i for i in reduce_axes]
+    reduce_axes = [
+        int(i) if int(i) >= 0 else len(binary_output.source.ty.shape) + int(i) for i in reduce_axes
+    ]
 
     # Find instruction patterns
     inst_gen = InstructionGenerator(
@@ -61,7 +64,7 @@ def binary_reduce_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc 
     )
 
     # Apply instruction size limits
-    inst_size_limit = op.config.get("max_inst_size", None)
+    inst_size_limit = op.options.get("max_inst_size", None)
     inst_repr.bound_inst_size(inst_size_limit, analyzer)
 
     # Generate axes and validate
@@ -85,7 +88,7 @@ def binary_reduce_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc 
     spatial_b_extent = inst_gen.fill_in_block_dim(binary_output, spatial_b_var)
     if reduction_b_extent != 1:
         intermediate_buffer = generate_intermediate_buffer(
-            reduce_output, reduction_b_extent, op.workspace, sctx
+            reduce_output, reduction_b_extent, op.workspaces, sctx
         )
 
     # Handle source 2 (either buffer region or constant)
@@ -102,10 +105,10 @@ def binary_reduce_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc 
         # Direct implementation without intermediate buffer
         # fmt: off
         # This fragment captures buffers and indices from its insertion scope.
-        @T.prim_func(check_well_formed=False)
+        @T.function(check_well_formed=False)
         def impl():
             for b_loop in T.serial(0, spatial_b_extent):
-                with T.attr(0, "tensorized_nki_instruction", 1):
+                with T.nki.tensorized_instruction():
                     for p_loop in T.serial(0, p_size, annotations={nki_dim: "P"}):
                         for f_loop in T.serial(0, inst_repr.size, annotations={nki_dim: "F"}):
                             inst_gen.set_bind_map_all({p_var: p_loop, f_var: f_loop, spatial_b_var: b_loop})  # noqa: E501
@@ -123,11 +126,11 @@ def binary_reduce_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc 
         # Implementation with intermediate buffer
         # fmt: off
         # This fragment captures buffers and indices from its insertion scope.
-        @T.prim_func(check_well_formed=False)
+        @T.function(check_well_formed=False)
         def impl():
             for b_loop in T.serial(0, spatial_b_extent):
                 for reduction_b_loop in T.serial(0, reduction_b_extent):
-                    with T.attr(0, "tensorized_nki_instruction", 1):
+                    with T.nki.tensorized_instruction():
                         for p_loop in T.serial(0, p_size, annotations={nki_dim: "P"}):
                             for f_loop in T.serial(0, inst_repr.size, annotations={nki_dim: "F"}):
                                 inst_gen.set_bind_map_all({p_var: p_loop, f_var: f_loop, spatial_b_var: b_loop, reduction_b_var: reduction_b_loop})  # noqa: E501
@@ -139,7 +142,7 @@ def binary_reduce_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc 
                                         T.nki.tensorscalar_reduce(intermediate_buffer[p_loop, reduction_b_loop], dst1[tuple(vec_dst_idx)], src1[tuple(src_1_indices)], src2[tuple(src_2_indices)], binary_opcode, reduce_opcode, reverse[0])  # noqa: E501
                                     else:
                                         T.nki.tensorscalar_reduce(intermediate_buffer[p_loop, reduction_b_loop], dst1[tuple(vec_dst_idx)], src1[tuple(src_1_indices)], CONST, binary_opcode, reduce_opcode, reverse[0])  # noqa: E501
-                with T.attr(0, "tensorized_nki_instruction", 1):
+                with T.nki.tensorized_instruction():
                     for p_loop in T.serial(0, p_size, annotations={nki_dim: "P"}):
                         for f_loop in T.serial(0, reduction_b_extent, annotations={nki_dim: "F"}):
                             inst_gen.set_bind_map_all({p_var: p_loop, spatial_b_var: b_loop})
@@ -149,23 +152,3 @@ def binary_reduce_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc 
         # fmt: on
 
     return impl
-
-
-# Rich dispatcher variants for TRN compose ops
-@register_dispatch(
-    "binary_reduce",
-    "trn",
-    variant="default",
-    priority=10,
-    when=[
-        predicate(
-            "exec_scope",
-            lambda op, sctx: (
-                sctx.scope_kind == "thread",
-                f"unsupported exec_scope {sctx.scope_kind}",
-            ),
-        )
-    ],
-)
-def binary_reduce_trn_dispatch(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
-    return binary_reduce_trn(op, sctx)

@@ -49,7 +49,7 @@ Mutator Mutator::PyMutator(
   n->f_initialize_with_tune_context = std::move(f_initialize_with_tune_context);
   n->f_apply = std::move(f_apply);
   n->f_clone = std::move(f_clone);
-  return Mutator(n);
+  return Mutator(ffi::UnsafeInit{}, n);
 }
 
 ffi::Map<Mutator, FloatImm> Mutator::DefaultLLVM() {

@@ -24,10 +24,10 @@ from tvm.target import Target
 # pylint: disable=invalid-name, no-member
 
 
-@Ts.prim_func
+@Ts.function
 def add(
-    A: T.Buffer([2048, 2048, 2048], dtype="float32"),
-    B: T.Buffer([2048, 2048, 2048], dtype="float32"),
+    A: T.Tensor([2048, 2048, 2048], dtype="float32"),
+    B: T.Tensor([2048, 2048, 2048], dtype="float32"),
 ) -> None:
     # function attr dict
     T.func_attr({"global_symbol": "main"})

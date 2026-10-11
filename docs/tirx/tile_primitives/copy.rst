@@ -15,56 +15,22 @@
     specific language governing permissions and limitations
     under the License.
 
-copy
-====
+CUDA Tensor Loads, Stores, and Moves
+====================================
 
-Synchronous element copy ``src → dst`` between global, shared, and register
-(``local``) memory.  CUDA currently registers eight variants: five explicit
-fixed-width variants, ``ldstmatrix``, ``vec_auto``, and ``fallback``.  The
-``vec_auto`` implementation contains separate global/shared and register paths;
-``gmem_smem`` and ``reg`` below name those implementation paths, not selectable
-dispatch variants.
+``T.cuda.tile.ld(dst_registers, src_memory, scope=...)`` and
+``T.cuda.tile.st(dst_memory, src_registers, scope=...)`` expand the register
+layout into memory instructions. ``vec_bits`` requests a fixed-width
+thread-level instruction. ``ldmatrix`` and ``stmatrix`` explicitly select
+matrix load/store instructions. ``mov`` copies registers or fills a tensor.
 
-.. list-table::
-   :header-rows: 1
-   :widths: 28 16 12 44
-
-   * - Variant
-     - Pair
-     - Prio
-     - Lowering
-   * - ``vec_16b`` / ``vec_32b`` / ``vec_64b`` / ``vec_128b`` /
-       ``vec_256b``
-     - global ↔ shared/local, or shared ↔ local
-     - 20
-     - explicit thread-scope transfer of exactly the named width; optional
-       global-load cache controls
-   * - ``vec_auto``: :doc:`copy/gmem_smem` path
-     - global ↔ shared
-     - 10
-     - synthesized ``[outer, threads, vec]`` partition with direct-PTX vector
-       loads and stores
-   * - ``vec_auto``: :doc:`copy/reg` path
-     - register ↔ shared/global
-     - 10
-     - partition induced by the register layout's thread axes
-   * - :doc:`copy/ldstmatrix`
-     - register ↔ shared
-     - 10
-     - warp-collective ``ldmatrix`` / ``stmatrix`` (m8n8 fragments)
-   * - :doc:`copy/fallback`
-     - global / shared / local
-     - 0
-     - scalar single-thread copy (last resort)
-
-The detailed pages cover the two ``vec_auto`` paths, ``ldstmatrix``, and the
-fallback, including accepted input, lowering algorithm, emitted TIRx IR, and
-generated CUDA:
+Synchronous global/shared copying requires explicit local storage and separate
+load and store operations, or caller-written scalar loops. There is no scalar
+fallback dispatcher. See :doc:`../tile_primitives` for scope and cache
+qualifiers.
 
 .. toctree::
    :maxdepth: 1
 
-   copy/gmem_smem
    copy/reg
    copy/ldstmatrix
-   copy/fallback

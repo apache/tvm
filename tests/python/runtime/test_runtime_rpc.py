@@ -78,7 +78,7 @@ def test_bigendian_rpc():
     def verify_rpc(remote, target, shape, dtype):
         A = te.placeholder(shape, dtype=dtype)
         B = te.compute(A.shape, lambda i: A[i] + tvm.tirx.const(1, A.dtype))
-        f = tvm.compile(te.create_prim_func([A, B]), target=target)
+        f = tvm.compile(te.create_function([A, B]), target=target)
 
         dev = remote.cpu(0)
         a = tvm.runtime.tensor(np.random.randint(0, 256, size=shape).astype(A.dtype), device=dev)
@@ -236,7 +236,7 @@ def test_rpc_remote_module():
     n = tvm.runtime.convert(102)
     A = te.placeholder((n,), name="A")
     B = te.compute(A.shape, lambda *i: A(*i) + 1.0, name="B")
-    mod = tvm.ir.IRModule.from_expr(te.create_prim_func([A, B]).with_attr("global_symbol", "myadd"))
+    mod = tvm.ir.IRModule.from_expr(te.create_function([A, B]).with_attr("global_symbol", "myadd"))
 
     server0 = rpc.Server(key="x0")
     server1 = rpc.Server(key="x1")
@@ -676,11 +676,11 @@ def test_compiled_function_with_zero_arguments(call_with_unused_argument):
 
     @I.ir_module
     class Module:
-        @Ts.prim_func
+        @Ts.function
         def func_without_arg() -> T.int64:
             return T.int64(42)
 
-        @Ts.prim_func
+        @Ts.function
         def func_with_arg(unused: T.int64) -> T.int64:
             return T.int64(42)
 

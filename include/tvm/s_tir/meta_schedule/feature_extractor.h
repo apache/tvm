@@ -89,9 +89,14 @@ class PyFeatureExtractorNode : public FeatureExtractorNode {
  */
 class FeatureExtractor : public ffi::ObjectRef {
  public:
+  explicit FeatureExtractor(ffi::UnsafeInit tag, ffi::ObjectPtr<FeatureExtractorNode> data)
+      : ffi::ObjectRef(tag) {
+    data_ = std::move(data);
+  }
+
   /*!
-   * \brief Create a feature extractor that extracts features from each BufferStore
-   * \param buffers_per_store The number of buffers in each BufferStore; Pad or truncate if
+   * \brief Create a feature extractor that extracts features from each TensorStore
+   * \param buffers_per_store The number of buffers in each TensorStore; Pad or truncate if
    * necessary.
    * \param arith_intensity_curve_num_samples The number of samples used in the arithmetic intensity
    * curve.
@@ -110,8 +115,8 @@ class FeatureExtractor : public ffi::ObjectRef {
    */
   TVM_DLL static FeatureExtractor PyFeatureExtractor(
       PyFeatureExtractorNode::FExtractFrom f_extract_from);
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(FeatureExtractor, ffi::ObjectRef,
-                                             FeatureExtractorNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(FeatureExtractor, ffi::ObjectRef,
+                                                FeatureExtractorNode);
 };
 
 }  // namespace meta_schedule

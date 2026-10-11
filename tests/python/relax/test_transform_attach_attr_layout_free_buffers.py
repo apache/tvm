@@ -31,11 +31,11 @@ from tvm.script.ir_builder import IRBuilder
 def test_param():
     @I.ir_module
     class Before:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def matmul(
-            A: T.Buffer((T.int64(32), T.int64(32)), "float32"),
-            B: T.Buffer((T.int64(32), T.int64(32)), "float32"),
-            C: T.Buffer((T.int64(32), T.int64(32)), "float32"),
+            A: T.Tensor((T.int64(32), T.int64(32)), "float32"),
+            B: T.Tensor((T.int64(32), T.int64(32)), "float32"),
+            C: T.Tensor((T.int64(32), T.int64(32)), "float32"),
         ):
             for i, j, k in T.grid(T.int64(32), T.int64(32), T.int64(32)):
                 with Ts.sblock("C"):
@@ -48,17 +48,17 @@ def test_param():
             R.func_attr({"num_input": 1})
             cls = Before
             with R.dataflow():
-                gv = R.call_tir(cls.matmul, (x, y), out_ty=R.Tensor((32, 32), "float32"))
+                gv = R.call_tir(cls.matmul, (x, y), ty_args=[R.Tensor((32, 32), "float32")])
                 R.output(gv)
             return gv
 
     @I.ir_module
     class Expected:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def matmul1(
-            A: T.Buffer((T.int64(32), T.int64(32)), "float32"),
-            B: T.Buffer((T.int64(32), T.int64(32)), "float32"),
-            C: T.Buffer((T.int64(32), T.int64(32)), "float32"),
+            A: T.Tensor((T.int64(32), T.int64(32)), "float32"),
+            B: T.Tensor((T.int64(32), T.int64(32)), "float32"),
+            C: T.Tensor((T.int64(32), T.int64(32)), "float32"),
         ):
             T.func_attr({"layout_free_buffers": [1]})
             for i, j, k in T.grid(T.int64(32), T.int64(32), T.int64(32)):
@@ -72,7 +72,7 @@ def test_param():
             R.func_attr({"num_input": 1})
             cls = Expected
             with R.dataflow():
-                gv = R.call_tir(cls.matmul1, (x, y), out_ty=R.Tensor((32, 32), "float32"))
+                gv = R.call_tir(cls.matmul1, (x, y), ty_args=[R.Tensor((32, 32), "float32")])
                 R.output(gv)
             return gv
 
@@ -85,11 +85,11 @@ def test_const():
 
     @I.ir_module
     class Before:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def matmul(
-            A: T.Buffer((T.int64(32), T.int64(32)), "float32"),
-            B: T.Buffer((T.int64(32), T.int64(32)), "float32"),
-            C: T.Buffer((T.int64(32), T.int64(32)), "float32"),
+            A: T.Tensor((T.int64(32), T.int64(32)), "float32"),
+            B: T.Tensor((T.int64(32), T.int64(32)), "float32"),
+            C: T.Tensor((T.int64(32), T.int64(32)), "float32"),
         ):
             for i, j, k in T.grid(T.int64(32), T.int64(32), T.int64(32)):
                 with Ts.sblock("C"):
@@ -105,18 +105,18 @@ def test_const():
                 gv = R.call_tir(
                     cls.matmul,
                     (x, relax.const(const_value)),
-                    out_ty=R.Tensor((32, 32), "float32"),
+                    ty_args=[R.Tensor((32, 32), "float32")],
                 )
                 R.output(gv)
             return gv
 
     @I.ir_module
     class Expected:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def matmul1(
-            A: T.Buffer((T.int64(32), T.int64(32)), "float32"),
-            B: T.Buffer((T.int64(32), T.int64(32)), "float32"),
-            C: T.Buffer((T.int64(32), T.int64(32)), "float32"),
+            A: T.Tensor((T.int64(32), T.int64(32)), "float32"),
+            B: T.Tensor((T.int64(32), T.int64(32)), "float32"),
+            C: T.Tensor((T.int64(32), T.int64(32)), "float32"),
         ):
             T.func_attr({"layout_free_buffers": [1]})
             for i, j, k in T.grid(T.int64(32), T.int64(32), T.int64(32)):
@@ -133,7 +133,7 @@ def test_const():
                 gv = R.call_tir(
                     cls.matmul1,
                     (x, relax.const(const_value)),
-                    out_ty=R.Tensor((32, 32), "float32"),
+                    ty_args=[R.Tensor((32, 32), "float32")],
                 )
                 R.output(gv)
             return gv
@@ -145,11 +145,11 @@ def test_const():
 def test_multiple_same_func():
     @I.ir_module
     class Before:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def matmul(
-            A: T.Buffer((T.int64(32), T.int64(32)), "float32"),
-            B: T.Buffer((T.int64(32), T.int64(32)), "float32"),
-            C: T.Buffer((T.int64(32), T.int64(32)), "float32"),
+            A: T.Tensor((T.int64(32), T.int64(32)), "float32"),
+            B: T.Tensor((T.int64(32), T.int64(32)), "float32"),
+            C: T.Tensor((T.int64(32), T.int64(32)), "float32"),
         ):
             for i, j, k in T.grid(T.int64(32), T.int64(32), T.int64(32)):
                 with Ts.sblock("C"):
@@ -169,23 +169,23 @@ def test_multiple_same_func():
                 lv1 = R.call_tir(
                     cls.matmul,
                     (x, w1),
-                    out_ty=R.Tensor((32, 32), "float32"),
+                    ty_args=[R.Tensor((32, 32), "float32")],
                 )
                 gv = R.call_tir(
                     cls.matmul,
                     (lv1, w2),
-                    out_ty=R.Tensor((32, 32), "float32"),
+                    ty_args=[R.Tensor((32, 32), "float32")],
                 )
                 R.output(gv)
             return gv
 
     @I.ir_module
     class Expected:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def matmul1(
-            A: T.Buffer((T.int64(32), T.int64(32)), "float32"),
-            B: T.Buffer((T.int64(32), T.int64(32)), "float32"),
-            C: T.Buffer((T.int64(32), T.int64(32)), "float32"),
+            A: T.Tensor((T.int64(32), T.int64(32)), "float32"),
+            B: T.Tensor((T.int64(32), T.int64(32)), "float32"),
+            C: T.Tensor((T.int64(32), T.int64(32)), "float32"),
         ):
             T.func_attr({"layout_free_buffers": [1]})
             for i, j, k in T.grid(T.int64(32), T.int64(32), T.int64(32)):
@@ -206,12 +206,12 @@ def test_multiple_same_func():
                 lv1 = R.call_tir(
                     cls.matmul1,
                     (x, w1),
-                    out_ty=R.Tensor((32, 32), "float32"),
+                    ty_args=[R.Tensor((32, 32), "float32")],
                 )
                 gv = R.call_tir(
                     cls.matmul1,
                     (lv1, w2),
-                    out_ty=R.Tensor((32, 32), "float32"),
+                    ty_args=[R.Tensor((32, 32), "float32")],
                 )
                 R.output(gv)
             return gv
@@ -223,11 +223,11 @@ def test_multiple_same_func():
 def test_multiple_same_func_with_different_free_buffers():
     @I.ir_module
     class Before:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def matmul(
-            A: T.Buffer((T.int64(32), T.int64(32)), "float32"),
-            B: T.Buffer((T.int64(32), T.int64(32)), "float32"),
-            C: T.Buffer((T.int64(32), T.int64(32)), "float32"),
+            A: T.Tensor((T.int64(32), T.int64(32)), "float32"),
+            B: T.Tensor((T.int64(32), T.int64(32)), "float32"),
+            C: T.Tensor((T.int64(32), T.int64(32)), "float32"),
         ):
             for i, j, k in T.grid(T.int64(32), T.int64(32), T.int64(32)):
                 with Ts.sblock("C"):
@@ -247,23 +247,23 @@ def test_multiple_same_func_with_different_free_buffers():
                 lv1 = R.call_tir(
                     cls.matmul,
                     (x, w1),
-                    out_ty=R.Tensor((32, 32), "float32"),
+                    ty_args=[R.Tensor((32, 32), "float32")],
                 )
                 gv = R.call_tir(
                     cls.matmul,
                     (w2, lv1),
-                    out_ty=R.Tensor((32, 32), "float32"),
+                    ty_args=[R.Tensor((32, 32), "float32")],
                 )
                 R.output(gv)
             return gv
 
     @I.ir_module
     class Expected:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def matmul1(
-            A: T.Buffer((T.int64(32), T.int64(32)), "float32"),
-            B: T.Buffer((T.int64(32), T.int64(32)), "float32"),
-            C: T.Buffer((T.int64(32), T.int64(32)), "float32"),
+            A: T.Tensor((T.int64(32), T.int64(32)), "float32"),
+            B: T.Tensor((T.int64(32), T.int64(32)), "float32"),
+            C: T.Tensor((T.int64(32), T.int64(32)), "float32"),
         ):
             T.func_attr({"layout_free_buffers": [1]})
             for i, j, k in T.grid(T.int64(32), T.int64(32), T.int64(32)):
@@ -272,11 +272,11 @@ def test_multiple_same_func_with_different_free_buffers():
                         C[i, j] = T.float32(0)
                     C[i, j] = C[i, j] + A[i, k] * B[k, j]
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def matmul2(
-            A: T.Buffer((T.int64(32), T.int64(32)), "float32"),
-            B: T.Buffer((T.int64(32), T.int64(32)), "float32"),
-            C: T.Buffer((T.int64(32), T.int64(32)), "float32"),
+            A: T.Tensor((T.int64(32), T.int64(32)), "float32"),
+            B: T.Tensor((T.int64(32), T.int64(32)), "float32"),
+            C: T.Tensor((T.int64(32), T.int64(32)), "float32"),
         ):
             T.func_attr({"layout_free_buffers": [0]})
             for i, j, k in T.grid(T.int64(32), T.int64(32), T.int64(32)):
@@ -297,12 +297,12 @@ def test_multiple_same_func_with_different_free_buffers():
                 lv1 = R.call_tir(
                     cls.matmul1,
                     (x, w1),
-                    out_ty=R.Tensor((32, 32), "float32"),
+                    ty_args=[R.Tensor((32, 32), "float32")],
                 )
                 gv = R.call_tir(
                     cls.matmul2,
                     (w2, lv1),
-                    out_ty=R.Tensor((32, 32), "float32"),
+                    ty_args=[R.Tensor((32, 32), "float32")],
                 )
                 R.output(gv)
             return gv

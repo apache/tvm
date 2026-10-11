@@ -362,7 +362,7 @@ def create_cached_read(
         The block which reads from global memory and writes to shared memory buffer.
 
     orig_input_shape:
-        The input shape of the input buffer to the primfunc.
+        The input shape of the input buffer to the function.
 
     orig_src_layout:
         The original src_layout string.

@@ -22,9 +22,11 @@
  */
 
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>
-#include <tvm/s_tir/transform.h>
+#include <tvm/s_tir/function.h>
+#include <tvm/tirx/function.h>
 #include <tvm/tirx/stmt_functor.h>
 
 namespace tvm {
@@ -49,7 +51,7 @@ class AttrAttacher : public ExprMutator {
 
   using ExprMutator::VisitExpr_;
   Expr VisitExpr_(const FunctionNode* op) final {
-    if (auto opt_num_input = op->attrs.GetAttr<int64_t>(attr::kNumInput)) {
+    if (auto opt_num_input = op->attrs.GetAttr<int64_t>(tvm::relax::attr::kNumInput)) {
       TVM_FFI_ICHECK(layout_free_exprs_.empty())
           << "meet a non-global function with num_input attr";
       size_t num_input = opt_num_input.value();
@@ -80,16 +82,16 @@ class AttrAttacher : public ExprMutator {
         layout_free_buffers.push_back(i);
       }
     }
-    // Attach the layout free buffers to the tirx::PrimFunc
-    tirx::PrimFunc func = WithAttr(mod_->Lookup(gv).as_or_throw<tirx::PrimFunc>(),
-                                   "layout_free_buffers", layout_free_buffers);
+    // Attach the layout free buffers to the tirx::Function
+    tirx::Function func = WithAttr(mod_->Lookup(gv).as_or_throw<tirx::Function>(),
+                                   tvm::s_tir::attr::kLayoutFreeBuffers, layout_free_buffers);
     // Renew defs
-    func = s_tir::RenewDefs(func);
-    // Add the updated tirx::PrimFunc in the IRModule
+    func = tirx::RenewDef(func);
+    // Add the updated tirx::Function in the IRModule
     // Note the blockbuilder would automatically combine the same tirx function
     // So we don't need to worry about the duplicate insertion
     GlobalVar new_gv = builder_->AddFunction(func, gv->name_hint);
-    // Create a new call node with the updated tirx::PrimFunc
+    // Create a new call node with the updated tirx::Function
     auto n = ffi::make_object<CallNode>(*op);
     n->args = {new_gv, Tuple(call_tir_args)};
     return Call(n);
@@ -103,8 +105,8 @@ namespace transform {
 
 Pass AttachAttrLayoutFreeBuffers() {
   auto pass_func = [=](IRModule mod, PassContext pc) { return AttrAttacher::Transform(mod); };
-  auto pass = CreateModulePass(pass_func, 0, "_AttachAttrLayoutFreeBuffers", {});
-  // Apply DeadCodeElimination to remove unused tirx::PrimFunc
+  auto pass = CreateModulePass(pass_func, 0, "_AttachAttrLayoutFreeBuffers");
+  // Apply DeadCodeElimination to remove unused tirx::Function
   return tvm::transform::Sequential({pass, DeadCodeElimination()}, "AttachAttrLayoutFreeBuffers");
 }
 

@@ -50,8 +50,8 @@ def test_codegen_vscale(target):
         pytest.skip(f"{target} not enabled")
     vscale = tvm.tirx.vscale()
 
-    @T.prim_func
-    def main(A: T.Buffer((5,), "int32")):
+    @T.function
+    def main(A: T.Tensor((5,), "int32")):
         for i in range(5):
             A[i] = 2 * vscale
 
@@ -82,8 +82,8 @@ def test_scalable_buffer_load_store(target):
     if not tvm.testing.device_enabled(target):
         pytest.skip(f"{target} not enabled")
 
-    @T.prim_func
-    def my_func(A: T.Buffer((128,), "float32"), B: T.Buffer((128,), "float32")):
+    @T.function
+    def my_func(A: T.Tensor((128,), "float32"), B: T.Tensor((128,), "float32")):
         T.func_attr({"global_symbol": "my_module", "tirx.noalias": True})
         B[T.ramp(0, 1, 4 * T.vscale())] = A[T.ramp(0, 1, 4 * T.vscale())]
 
@@ -115,8 +115,8 @@ def test_scalable_broadcast(target):
     if not tvm.testing.device_enabled(target):
         pytest.skip(f"{target} not enabled")
 
-    @T.prim_func
-    def my_func(A: T.Buffer((128,), "float32")):
+    @T.function
+    def my_func(A: T.Tensor((128,), "float32")):
         T.func_attr({"global_symbol": "my_module", "tirx.noalias": True})
         A[T.ramp(0, 1, 4 * T.vscale())] = T.broadcast(1, 4 * T.vscale())
 
@@ -153,10 +153,10 @@ def test_get_active_lane_mask(target):
     if not tvm.testing.device_enabled(target):
         pytest.skip(f"{target} not enabled")
 
-    @T.prim_func
-    def before(A: T.Buffer((30,), "int1")):
+    @T.function
+    def before(A: T.Tensor((30,), "int1")):
         for i in range(T.ceildiv(30, T.vscale() * 4)):
-            A[i : i + T.vscale() * 4] = T.get_active_lane_mask("uint1xvscalex4", i, 30)
+            A[i : i + T.vscale() * 4] = T.get_active_lane_mask(i, 30, ty="uint1xvscalex4")
 
     with tvm.target.Target(target):
         out = tvm.tirx.build(before)
@@ -185,8 +185,8 @@ def test_predicated_scalable_buffer(target):
     if not tvm.testing.device_enabled(target):
         pytest.skip(f"{target} not enabled")
 
-    @T.prim_func
-    def before(A: T.Buffer((16,), "float32"), B: T.Buffer((16,), "float32")):
+    @T.function
+    def before(A: T.Tensor((16,), "float32"), B: T.Tensor((16,), "float32")):
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         for i_0 in T.serial(T.ceildiv(16, 4 * T.vscale())):
             for i_1 in T.vectorized(4 * T.vscale()):

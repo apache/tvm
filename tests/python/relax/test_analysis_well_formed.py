@@ -24,6 +24,8 @@ import tvm
 import tvm.testing
 from tvm import relax as rx
 from tvm import tirx
+from tvm.ir import TupleType as _TupleType
+from tvm.relax import ExternFunc as _ExternFunc
 from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import s_tir as Ts
@@ -109,8 +111,8 @@ def test_dataflow_var():
 
 def test_nested_tir_call_in_dependent_type_is_well_formed():
     p = rx.Var("p", tvm.ir.PrimType("int64"))
-    inner = tirx.call_intrin("int64", "tirx.tvm_thread_invariant", p)
-    outer = tirx.call_intrin("int64", "tirx.tvm_thread_invariant", inner)
+    inner = tirx.call_intrin("int64", "tirx.gpu_thread_invariant", p)
+    outer = tirx.call_intrin("int64", "tirx.gpu_thread_invariant", inner)
     x = rx.Var("x", rx.TensorType([outer], "float32"))
     bb = rx.BlockBuilder()
 
@@ -122,8 +124,8 @@ def test_nested_tir_call_in_dependent_type_is_well_formed():
 
 def test_nested_tir_call_in_shape_expr_is_well_formed():
     p = rx.Var("p", tvm.ir.PrimType("int64"))
-    inner = tirx.call_intrin("int64", "tirx.tvm_thread_invariant", p)
-    outer = tirx.call_intrin("int64", "tirx.tvm_thread_invariant", inner)
+    inner = tirx.call_intrin("int64", "tirx.gpu_thread_invariant", p)
+    outer = tirx.call_intrin("int64", "tirx.gpu_thread_invariant", inner)
     bb = rx.BlockBuilder()
 
     with bb.function("main", [p]):
@@ -152,8 +154,9 @@ def test_global_var():
     # Error: GlobalVar GlobalVar0 is not defined
     gv0 = rx.Var("gv0", R.Tensor([m, n], "float32"))
     globalvar = rx.GlobalVar("GlobalVar0")
-    call_node = rx.Call.unchecked(
+    call_node = rx.Call(
         op=tvm.ir.Op.get("relax.call_tir"),
+        ty=tvm.ir.Type.missing(),
         args=[globalvar, rx.Tuple([x]), rx.ShapeExpr([m, n])],
     )
     bindings = [rx.VarBinding(gv0, call_node)]
@@ -163,20 +166,20 @@ def test_global_var():
     assert not rx.analysis.check_well_formed(mod, check_ty=False)
 
 
-def test_unchecked_call_constructor():
+def test_provisional_call_constructor():
     op = tvm.ir.Op.get("relax.add")
     with pytest.raises(Exception, match="Call.args expected 2 arguments, got 1"):
-        tvm.ir.Call(op, [x])
+        tvm.ir.Call(op, [x]).validate()
 
-    span = tvm.ir.Span(tvm.ir.SourceName("unchecked.py"), 1, 1, 0, 1)
-    call = tvm.ir.Call.unchecked("relax.add", [x], attrs={"key": 1}, span=span)
+    loc = tvm.ir.SourceLoc(tvm.ir.SourceName("provisional.py"), 1, 0, 1, 1)
+    call = tvm.ir.Call("relax.add", [x], attrs={"key": 1}, loc=loc)
     assert isinstance(call, tvm.ir.Call)
     assert call.op.same_as(op)
-    assert call.ty.is_missing()
-    assert call.span.same_as(span)
+    assert isinstance(call.ty, tvm.ir.MissingType)
+    assert call.loc.same_as(loc)
     assert isinstance(call.attrs, tvm.ir.DictAttrs)
     assert len(call.ty_args) == 0
-    assert isinstance(tvm.ir.Call.unchecked(op, [x], ret_ty="handle").ty, tvm.ir.PointerType)
+    assert isinstance(tvm.ir.Call(op, [x], ty="handle").ty, tvm.ir.PointerType)
     with pytest.raises(TypeError, match="skip_validate"):
         tvm.ir.Call(op, [x], skip_validate=True)
 
@@ -286,7 +289,7 @@ def test_if():
     false_blocks = [rx.BindingBlock(false_bindings)]
     false_seq_expr = rx.SeqExpr(false_blocks, false_blocks[-1].bindings[-1].var)
     # build If node
-    if_node = rx.If(cond=cond, true_branch=true_seq_expr, false_branch=false_seq_expr)
+    if_node = rx.IfExpr(cond=cond, true_branch=true_seq_expr, false_branch=false_seq_expr)
     gv1 = rx.Var("gv1", R.Tensor([m, n], "float32"))
     # try to call v_in_if defined in the true/false branch
     bindings = [rx.VarBinding(gv0, if_node), rx.VarBinding(gv1, v_in_if)]
@@ -298,7 +301,7 @@ def test_if():
 
 def test_if_non_seq_body():
     # Error: If node has a body that is not a seq node
-    if_node = rx.If(cond=cond, true_branch=x, false_branch=x)
+    if_node = rx.IfExpr(cond=cond, true_branch=x, false_branch=x)
     blocks = [
         rx.BindingBlock(
             [
@@ -315,7 +318,7 @@ def test_if_non_seq_body():
 
     # on the other hand, if they're wrapped in a seq node, it's fine
     seq = rx.SeqExpr([], x)
-    new_if_node = rx.If(cond=cond, true_branch=seq, false_branch=seq)
+    new_if_node = rx.IfExpr(cond=cond, true_branch=seq, false_branch=seq)
     new_blocks = [
         rx.BindingBlock(
             [
@@ -337,7 +340,7 @@ def test_if_complex_condition():
     # Error: If condition must be a leaf expression
     cond_tuple = rx.Tuple([cond])
     cond_idx = rx.TupleGetItem(cond_tuple, 0)
-    if_node = rx.If(cond_idx, rx.SeqExpr([], x), rx.SeqExpr([], x))
+    if_node = rx.IfExpr(cond_idx, rx.SeqExpr([], x), rx.SeqExpr([], x))
     blocks = [
         rx.BindingBlock(
             [
@@ -353,7 +356,7 @@ def test_if_complex_condition():
     assert not rx.analysis.check_well_formed(mod, check_ty=False)
 
     cond_var = rx.Var("q", R.Tensor([], "bool"))
-    new_if = rx.If(cond_var, rx.SeqExpr([], x), rx.SeqExpr([], x))
+    new_if = rx.IfExpr(cond_var, rx.SeqExpr([], x), rx.SeqExpr([], x))
     blocks = [
         rx.BindingBlock(
             [
@@ -446,8 +449,8 @@ def test_complex_seq_body():
     rx.analysis.well_formed(normalized, check_ty=True)
 
 
-def test_inline_prim_func():
-    # Error: inline prim_func is disallowed in Relax IR
+def test_inline_function():
+    # Error: inline function is disallowed in Relax IR
     x = rx.Var("x", R.Tensor([], "int32"))
     y = rx.Var("y", R.Tensor([], "int32"))
     new_func = rx.Function(
@@ -458,15 +461,16 @@ def test_inline_prim_func():
                     [
                         rx.VarBinding(
                             var=x,
-                            value=tirx.PrimFunc([], tirx.Evaluate(0)),
+                            value=tirx.Function([], tvm.ir.Evaluate(0)),
                         ),
                         rx.VarBinding(
                             var=y,
-                            value=rx.Call.unchecked(
+                            value=rx.Call(
                                 op=tvm.ir.Op.get("relax.call_tir"),
+                                ty=tvm.ir.Type.missing(),
                                 args=[
                                     rx.GlobalVar("GlobalVar0"),
-                                    rx.Tuple([x, tirx.PrimFunc([], tirx.Evaluate(0))]),
+                                    rx.Tuple([x, tirx.Function([], tvm.ir.Evaluate(0))]),
                                     rx.ShapeExpr([]),
                                 ],
                             ),
@@ -553,7 +557,7 @@ def test_ty_args_tir_var_used_before_define_call_tir():
     # Error: Symbolic Var m1, n1 are not defined
     m1 = tirx.Var("m1", "int64")
     n1 = tirx.Var("n1", "int64")
-    call = R.call_dps_packed("my_func", x, out_ty=R.Tensor((m1, n1), "float32"))
+    call = R.call_dps_packed(_ExternFunc("my_func"), x, ty_args=[R.Tensor((m1, n1), "float32")])
     func = build_function([rx.BindingBlock([rx.VarBinding(rx.Var("gv"), call)])])
     mod = rx.transform.Normalize()(tvm.IRModule.from_expr(func))
     assert not rx.analysis.check_well_formed(mod, check_ty=False)
@@ -567,12 +571,14 @@ def test_ty_erase_to_well_formed():
 
     @R.function
     def foo(x: R.Tensor((m, n), dtype="float32")) -> R.Tensor((m1, n1), dtype="float32"):
-        gv = R.call_dps_packed("my_func", (x,), out_ty=R.Tensor((m, n), dtype="float32"))
+        gv = R.call_dps_packed(
+            R.ExternFunc("my_func"), (x,), ty_args=[R.Tensor((m, n), dtype="float32")]
+        )
         return gv
     """
     m1 = tirx.Var("m1", "int64")
     n1 = tirx.Var("n1", "int64")
-    call = R.call_dps_packed("my_func", x, out_ty=R.Tensor((m, n), "float32"))
+    call = R.call_dps_packed(_ExternFunc("my_func"), x, ty_args=[R.Tensor((m, n), "float32")])
     blocks = [rx.BindingBlock([rx.VarBinding(rx.Var("gv"), call)])]
     seq_expr = rx.SeqExpr(blocks, blocks[-1].bindings[-1].var)
     func = rx.Function([x], seq_expr, R.Tensor((m1, n1), "float32")).with_attr(
@@ -599,7 +605,7 @@ def test_conditional_in_dataflow_block():
     # error: not allowed to have a conditional inside a dataflow block
     x = rx.Var("x", rx.TensorType([], dtype="int32"))
     y = rx.Var("y", rx.TensorType([], dtype="int32"))
-    block = rx.DataflowBlock([rx.VarBinding(y, rx.If(rx.const(True, dtype="bool"), x, x))])
+    block = rx.DataflowBlock([rx.VarBinding(y, rx.IfExpr(rx.const(True, dtype="bool"), x, x))])
     func = rx.Function([x], rx.SeqExpr([block], y), R.Tensor((), dtype="int32")).with_attr(
         "global_symbol", "foo"
     )
@@ -610,7 +616,7 @@ def test_conditional_in_dataflow_block():
 def test_unlabeled_impure():
     x = rx.Var("x", R.Tensor((), dtype="int32"))
     y = rx.Var("y")
-    block = rx.BindingBlock([rx.VarBinding(y, rx.op.print(x, format="{}"))])
+    block = rx.BindingBlock([rx.VarBinding(y, rx.op.print("{}", x))])
     # print is impure, but the function is not labeled as impure
     func = rx.Function([x], rx.SeqExpr([block], x), R.Tensor((), dtype="int32")).with_attr(
         "global_symbol", "foo"
@@ -623,7 +629,7 @@ def test_labeled_impure():
     # the function is labeled impure so the impure operation is permitted
     x = rx.Var("x", R.Tensor((), dtype="int32"))
     y = rx.Var("y")
-    block = rx.BindingBlock([rx.VarBinding(y, rx.op.print(x, format="{}"))])
+    block = rx.BindingBlock([rx.VarBinding(y, rx.op.print("{}", x))])
     # print is impure, but the function is not labeled as impure
     func = rx.Function(
         [x], rx.SeqExpr([block], x), R.Tensor((), dtype="int32"), is_pure=False
@@ -635,7 +641,7 @@ def test_labeled_impure():
 def test_force_pure():
     x = rx.Var("x", R.Tensor((), dtype="int32"))
     y = rx.Var("y")
-    block = rx.BindingBlock([rx.VarBinding(y, rx.op.print(x, format="{}"))])
+    block = rx.BindingBlock([rx.VarBinding(y, rx.op.print("{}", x))])
     # print is impure, but force_pure overrides the judgment
     func = rx.Function([x], rx.SeqExpr([block], x), R.Tensor((), dtype="int32")).with_attrs(
         {"global_symbol": "foo", "relax.force_pure": True}
@@ -659,7 +665,7 @@ def test_impure_in_dataflow_block():
     # even if force_pure is set, an impure operation cannot appear in a dataflow block
     x = rx.Var("x", R.Tensor((), dtype="int32"))
     y = rx.DataflowVar("y")
-    block = rx.DataflowBlock([rx.VarBinding(y, rx.op.print(x, format="{}"))])
+    block = rx.DataflowBlock([rx.VarBinding(y, rx.op.print("{}", x))])
     func = rx.Function([x], rx.SeqExpr([block], x), R.Tensor((), dtype="int32")).with_attrs(
         {"global_symbol": "foo", "relax.force_pure": True}
     )
@@ -669,7 +675,7 @@ def test_impure_in_dataflow_block():
     # The throwing form surfaces the offending impure call in its message.
     with pytest.raises(Exception) as excinfo:
         rx.analysis.well_formed(mod)
-    assert "R.print" in str(excinfo.value)
+    assert 'R.print("{}", x)' in str(excinfo.value)
 
 
 def test_well_formed_function():
@@ -724,13 +730,15 @@ def test_pass_dltensor_arg_to_tir():
     class Module:
         @R.function
         def main(A: R.Tensor) -> T.bool:
-            return Module.is_bfloat16_dtype(A)
+            return R.call_pure_packed(
+                tvm.ir.Op.get("relax.call_tir_packed"), Module.is_bfloat16_dtype, (A,)
+            )
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def is_bfloat16_dtype(tensor: T.handle) -> T.bool:
             T.func_attr({"tirx.is_scheduled": True, "tirx.is_host_func": True})
 
-            # From #include <tvm/tirx/builtin.h>
+            # From #include <tvm/ir/prim/op.h>
             kDLTensorTypeCode = T.meta_var(5)
             kDLTensorTypeBits = T.meta_var(6)
             kDLTensorTypeLanes = T.meta_var(7)
@@ -738,9 +746,9 @@ def test_pass_dltensor_arg_to_tir():
             # From #include <dlpack/dlpack.h>
             kDLBfloat = T.meta_var(4)
 
-            type_code = T.tvm_struct_get(tensor, 0, kDLTensorTypeCode, dtype="uint8")
-            type_bits = T.tvm_struct_get(tensor, 0, kDLTensorTypeBits, dtype="uint8")
-            type_lanes = T.tvm_struct_get(tensor, 0, kDLTensorTypeLanes, dtype="uint16")
+            type_code = T.abi_field_get(tensor, 0, kDLTensorTypeCode, ty="uint8")
+            type_bits = T.abi_field_get(tensor, 0, kDLTensorTypeBits, ty="uint8")
+            type_lanes = T.abi_field_get(tensor, 0, kDLTensorTypeLanes, ty="uint16")
 
             is_bfloat16: T.bool = (
                 (type_code == kDLBfloat) and (type_bits == 16) and (type_lanes == 1)
@@ -757,11 +765,11 @@ def test_call_tir_with_matching_arguments():
     class Module:
         @R.function
         def main(A: R.Tensor([16], "float16")):
-            B = R.call_tir(Module.add_one, A, out_ty=R.Tensor([16], "float16"))
+            B = R.call_tir(Module.add_one, A, ty_args=[R.Tensor([16], "float16")])
             return B
 
-        @Ts.prim_func
-        def add_one(A: T.Buffer(16, "float16"), B: T.Buffer(16, "float16")):
+        @Ts.function
+        def add_one(A: T.Tensor(16, "float16"), B: T.Tensor(16, "float16")):
             for i in range(16):
                 with Ts.sblock("compute"):
                     vi = Ts.axis.remap("S", [i])
@@ -781,15 +789,15 @@ def test_call_tir_with_interspersed_primitive_argument():
             scale: T.float32,
             C: R.Tensor([16], "float16"),
         ):
-            B = R.call_tir(Module.add_scaled, (A, scale, C), out_ty=R.Tensor([16], "float16"))
+            B = R.call_tir(Module.add_scaled, (A, scale, C), ty_args=[R.Tensor([16], "float16")])
             return B
 
-        @Ts.prim_func
+        @Ts.function
         def add_scaled(
-            A: T.Buffer([T.int64(16)], "float16"),
+            A: T.Tensor([T.int64(16)], "float16"),
             scale: T.float32,
-            C: T.Buffer([T.int64(16)], "float16"),
-            B: T.Buffer([T.int64(16)], "float16"),
+            C: T.Tensor([T.int64(16)], "float16"),
+            B: T.Tensor([T.int64(16)], "float16"),
         ):
             for i in range(T.int64(16)):
                 B[i] = A[i] + T.Cast("float16", scale) * C[i]
@@ -798,20 +806,20 @@ def test_call_tir_with_interspersed_primitive_argument():
 
 
 def test_call_tir_with_incorrect_primitive_argument_dtype():
-    """Primitive call_tir arguments must match the PrimFunc parameter dtype."""
+    """Primitive call_tir arguments must match the Function parameter dtype."""
 
     @I.ir_module(check_well_formed=False)
     class Module:
         @R.function
         def main(A: R.Tensor([16], "float16"), scale: T.int64):
-            B = R.call_tir(Module.scale, (A, scale), out_ty=R.Tensor([16], "float16"))
+            B = R.call_tir(Module.scale, (A, scale), ty_args=[R.Tensor([16], "float16")])
             return B
 
-        @Ts.prim_func
+        @Ts.function
         def scale(
-            A: T.Buffer([T.int64(16)], "float16"),
+            A: T.Tensor([T.int64(16)], "float16"),
             scale: T.float32,
-            B: T.Buffer([T.int64(16)], "float16"),
+            B: T.Tensor([T.int64(16)], "float16"),
         ):
             for i in range(T.int64(16)):
                 B[i] = A[i] * T.Cast("float16", scale)
@@ -831,12 +839,12 @@ def test_call_tir_shape_expr_is_not_a_primitive_argument():
             B = R.call_tir(
                 Module.make_tensor,
                 (R.shape([1, 2]),),
-                out_ty=R.Tensor([1], "float32"),
+                ty_args=[R.Tensor([1], "float32")],
             )
             return B
 
-        @Ts.prim_func
-        def make_tensor(m: T.int64, n: T.int64, B: T.Buffer([T.int64(1)], "float32")):
+        @Ts.function
+        def make_tensor(m: T.int64, n: T.int64, B: T.Tensor([T.int64(1)], "float32")):
             B[0] = T.Cast("float32", m + n)
 
     assert not rx.analysis.check_well_formed(Module)
@@ -854,11 +862,11 @@ def test_call_tir_input_ndim():
     class Module:
         @R.function
         def main(A: R.Tensor([4, 4], "float16")):
-            B = R.call_tir(Module.add_one, A, out_ty=R.Tensor([16], "float16"))
+            B = R.call_tir(Module.add_one, A, ty_args=[R.Tensor([16], "float16")])
             return B
 
-        @Ts.prim_func
-        def add_one(A: T.Buffer(16, "float16"), B: T.Buffer(16, "float16")):
+        @Ts.function
+        def add_one(A: T.Tensor(16, "float16"), B: T.Tensor(16, "float16")):
             for i in range(16):
                 with Ts.sblock("compute"):
                     vi = Ts.axis.remap("S", [i])
@@ -878,11 +886,11 @@ def test_call_tir_output_ndim():
     class Module:
         @R.function
         def main(A: R.Tensor([16], "float16")):
-            B = R.call_tir(Module.add_one, A, out_ty=R.Tensor([4, 4], "float16"))
+            B = R.call_tir(Module.add_one, A, ty_args=[R.Tensor([4, 4], "float16")])
             return B
 
-        @Ts.prim_func
-        def add_one(A: T.Buffer(16, "float16"), B: T.Buffer(16, "float16")):
+        @Ts.function
+        def add_one(A: T.Tensor(16, "float16"), B: T.Tensor(16, "float16")):
             for i in range(16):
                 with Ts.sblock("compute"):
                     vi = Ts.axis.remap("S", [i])
@@ -903,11 +911,11 @@ def test_call_tir_input_shape():
     class Module:
         @R.function
         def main(A: R.Tensor([32], "float16")):
-            B = R.call_tir(Module.add_one, A, out_ty=R.Tensor([16], "float16"))
+            B = R.call_tir(Module.add_one, A, ty_args=[R.Tensor([16], "float16")])
             return B
 
-        @Ts.prim_func
-        def add_one(A: T.Buffer(16, "float16"), B: T.Buffer(16, "float16")):
+        @Ts.function
+        def add_one(A: T.Tensor(16, "float16"), B: T.Tensor(16, "float16")):
             for i in range(16):
                 with Ts.sblock("compute"):
                     vi = Ts.axis.remap("S", [i])
@@ -927,11 +935,11 @@ def test_call_tir_output_shape():
     class Module:
         @R.function
         def main(A: R.Tensor([16], "float16")):
-            B = R.call_tir(Module.add_one, A, out_ty=R.Tensor([32], "float16"))
+            B = R.call_tir(Module.add_one, A, ty_args=[R.Tensor([32], "float16")])
             return B
 
-        @Ts.prim_func
-        def add_one(A: T.Buffer(16, "float16"), B: T.Buffer(16, "float16")):
+        @Ts.function
+        def add_one(A: T.Tensor(16, "float16"), B: T.Tensor(16, "float16")):
             for i in range(16):
                 with Ts.sblock("compute"):
                     vi = Ts.axis.remap("S", [i])
@@ -953,11 +961,11 @@ def test_call_tir_input_dtype():
     class Module:
         @R.function
         def main(A: R.Tensor([16], "float32")):
-            B = R.call_tir(Module.add_one, A, out_ty=R.Tensor([16], "float16"))
+            B = R.call_tir(Module.add_one, A, ty_args=[R.Tensor([16], "float16")])
             return B
 
-        @Ts.prim_func
-        def add_one(A: T.Buffer(16, "float16"), B: T.Buffer(16, "float16")):
+        @Ts.function
+        def add_one(A: T.Tensor(16, "float16"), B: T.Tensor(16, "float16")):
             for i in range(16):
                 with Ts.sblock("compute"):
                     vi = Ts.axis.remap("S", [i])
@@ -979,11 +987,11 @@ def test_call_tir_output_dtype():
     class Module:
         @R.function
         def main(A: R.Tensor([16], "float16")):
-            B = R.call_tir(Module.add_one, A, out_ty=R.Tensor([16], "float32"))
+            B = R.call_tir(Module.add_one, A, ty_args=[R.Tensor([16], "float32")])
             return B
 
-        @Ts.prim_func
-        def add_one(A: T.Buffer(16, "float16"), B: T.Buffer(16, "float16")):
+        @Ts.function
+        def add_one(A: T.Tensor(16, "float16"), B: T.Tensor(16, "float16")):
             for i in range(16):
                 with Ts.sblock("compute"):
                     vi = Ts.axis.remap("S", [i])
@@ -1011,11 +1019,11 @@ def test_call_tir_with_correct_dynamic_output_shape():
     class Module:
         @R.function
         def main(A: R.Tensor([16], "float16")):
-            B = R.call_tir(Module.reshape, A, out_ty=R.Tensor([2, 8], "float16"))
+            B = R.call_tir(Module.reshape, A, ty_args=[R.Tensor([2, 8], "float16")])
             return B
 
-        @Ts.prim_func
-        def reshape(A: T.Buffer(16, "float16"), B: T.Buffer([M, N], dtype="float16")):
+        @Ts.function
+        def reshape(A: T.Tensor(16, "float16"), B: T.Tensor([M, N], dtype="float16")):
             for i, j in T.grid(M, N):
                 with Ts.sblock("compute"):
                     vi, vj = Ts.axis.remap("SS", [i, j])
@@ -1043,11 +1051,11 @@ def test_call_tir_with_incorrect_dynamic_output_shape():
     class Module:
         @R.function
         def main(A: R.Tensor([16], "float16")):
-            B = R.call_tir(Module.reshape, A, out_ty=R.Tensor([16, 16], "float16"))
+            B = R.call_tir(Module.reshape, A, ty_args=[R.Tensor([16, 16], "float16")])
             return B
 
-        @Ts.prim_func
-        def reshape(A: T.Buffer(16, "float16"), B: T.Buffer([M, N], dtype="float16")):
+        @Ts.function
+        def reshape(A: T.Tensor(16, "float16"), B: T.Tensor([M, N], dtype="float16")):
             for i, j in T.grid(M, N):
                 with Ts.sblock("compute"):
                     vi, vj = Ts.axis.remap("SS", [i, j])
@@ -1064,8 +1072,8 @@ def test_call_tir_incorrect_dimensionality_of_output_shape():
 
     Even though the output shape may not be inferred from the input
     arguments, the output dimensionality can still be inferred from
-    the PrimFunc signature.  The IRModule below is ill-formed, because
-    the PrimFunc requires a 2-d output argument, but is provided with
+    the Function signature.  The IRModule below is ill-formed, because
+    the Function requires a 2-d output argument, but is provided with
     a 3-d output argument.
 
     """
@@ -1077,11 +1085,11 @@ def test_call_tir_incorrect_dimensionality_of_output_shape():
     class Module:
         @R.function
         def main(A: R.Tensor([16], "float16")):
-            B = R.call_tir(Module.reshape, A, out_ty=R.Tensor([2, 4, 2], "float16"))
+            B = R.call_tir(Module.reshape, A, ty_args=[R.Tensor([2, 4, 2], "float16")])
             return B
 
-        @Ts.prim_func
-        def reshape(A: T.Buffer(16, "float16"), B: T.Buffer([M, N], dtype="float16")):
+        @Ts.function
+        def reshape(A: T.Tensor(16, "float16"), B: T.Tensor([M, N], dtype="float16")):
             for i, j in T.grid(M, N):
                 with Ts.sblock("compute"):
                     vi, vj = Ts.axis.remap("SS", [i, j])
@@ -1114,11 +1122,11 @@ def test_call_tir_output_shape_with_mixed_static_and_dynamic():
     class Module:
         @R.function
         def main(A: R.Tensor([256], "float16")):
-            B = R.call_tir(Module.reshape, A, out_ty=R.Tensor([8, 16, 2], "float16"))
+            B = R.call_tir(Module.reshape, A, ty_args=[R.Tensor([8, 16, 2], "float16")])
             return B
 
-        @Ts.prim_func
-        def reshape(A: T.Buffer(256, "float16"), B: T.Buffer([16, M, N], dtype="float16")):
+        @Ts.function
+        def reshape(A: T.Tensor(256, "float16"), B: T.Tensor([16, M, N], dtype="float16")):
             for i, j, k in T.grid(16, M, N):
                 with Ts.sblock("compute"):
                     vi, vj, vk = Ts.axis.remap("SSS", [i, j, k])
@@ -1145,11 +1153,11 @@ def test_call_tir_with_correct_inferred_dynamic_output_shape():
     class Module:
         @R.function
         def main(A: R.Tensor([8, 4], "float16")):
-            B = R.call_tir(Module.flatten, A, out_ty=R.Tensor([32], "float16"))
+            B = R.call_tir(Module.flatten, A, ty_args=[R.Tensor([32], "float16")])
             return B
 
-        @Ts.prim_func
-        def flatten(A: T.Buffer([M, N], dtype="float16"), B: T.Buffer([M * N], dtype="float16")):
+        @Ts.function
+        def flatten(A: T.Tensor([M, N], dtype="float16"), B: T.Tensor([M * N], dtype="float16")):
             for i in T.grid(M * N):
                 with Ts.sblock("compute"):
                     vi = Ts.axis.remap("S", [i])
@@ -1181,11 +1189,11 @@ def test_call_tir_with_incorrect_inferred_dynamic_output_shape():
     class Module:
         @R.function
         def main(A: R.Tensor([8, 4], "float16")):
-            B = R.call_tir(Module.flatten, A, out_ty=R.Tensor([64], "float16"))
+            B = R.call_tir(Module.flatten, A, ty_args=[R.Tensor([64], "float16")])
             return B
 
-        @Ts.prim_func
-        def flatten(A: T.Buffer([M, N], dtype="float16"), B: T.Buffer([M * N], dtype="float16")):
+        @Ts.function
+        def flatten(A: T.Tensor([M, N], dtype="float16"), B: T.Tensor([M * N], dtype="float16")):
             for i in T.grid(M * N):
                 with Ts.sblock("compute"):
                     vi = Ts.axis.remap("S", [i])
@@ -1217,12 +1225,12 @@ def test_call_tir_with_dtensor_arguments():
         @R.function
         def main(A: R.dist.DTensor([8, 4], "float16", "mesh[0]", "S[0]")):
             B = R.dist.call_tir(
-                Module.flatten, A, out_ty=R.dist.DTensor([64], "float16", "mesh[0]", "S[0]")
+                Module.flatten, A, ty_args=[R.dist.DTensor([64], "float16", "mesh[0]", "S[0]")]
             )
             return B
 
-        @Ts.prim_func
-        def flatten(A: T.Buffer([M, N], dtype="float16"), B: T.Buffer([M * N], dtype="float16")):
+        @Ts.function
+        def flatten(A: T.Tensor([M, N], dtype="float16"), B: T.Tensor([M * N], dtype="float16")):
             for i in T.grid(M * N):
                 with Ts.sblock("compute"):
                     vi = Ts.axis.remap("S", [i])
@@ -1242,12 +1250,12 @@ def test_call_tir_inplace_with_correct_shapes():
                 Module.add_one,
                 A,
                 inplace_indices=[0],
-                out_ty=R.Tensor([16], "float16"),
+                ty_args=[R.Tensor([16], "float16")],
             )
             return B
 
-        @Ts.prim_func
-        def add_one(A: T.Buffer(16, "float16")):
+        @Ts.function
+        def add_one(A: T.Tensor(16, "float16")):
             for i in range(16):
                 with Ts.sblock("compute"):
                     vi = Ts.axis.remap("S", [i])
@@ -1267,12 +1275,12 @@ def test_call_tir_inplace_with_incorrect_shapes():
                 Module.add_one,
                 A,
                 inplace_indices=[0],
-                out_ty=R.Tensor([32], "float16"),
+                ty_args=[R.Tensor([32], "float16")],
             )
             return B
 
-        @Ts.prim_func
-        def add_one(A: T.Buffer(16, "float16")):
+        @Ts.function
+        def add_one(A: T.Tensor(16, "float16")):
             for i in range(16):
                 with Ts.sblock("compute"):
                     vi = Ts.axis.remap("S", [i])
@@ -1292,18 +1300,15 @@ def test_call_tir_inplace_with_some_allocated_outputs():
                 Module.add_one,
                 (A, B),
                 inplace_indices=[-1, 1],
-                out_ty=[
-                    R.Tensor([16], "float16"),
-                    R.Tensor([32], "float16"),
-                ],
+                ty_args=[_TupleType([R.Tensor([16], "float16"), R.Tensor([32], "float16")])],
             )
             return out
 
-        @Ts.prim_func
+        @Ts.function
         def add_one(
-            A: T.Buffer(16, "float16"),
-            B: T.Buffer(32, "float16"),
-            C: T.Buffer(16, "float16"),
+            A: T.Tensor(16, "float16"),
+            B: T.Tensor(32, "float16"),
+            C: T.Tensor(16, "float16"),
         ):
             for i in range(32):
                 with Ts.sblock("inplace_B"):

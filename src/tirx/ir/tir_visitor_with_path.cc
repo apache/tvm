@@ -25,6 +25,8 @@
 
 #include <tvm/ffi/reflection/access_path.h>
 #include <tvm/ffi/reflection/accessor.h>
+#include <tvm/ir/function.h>
+#include <tvm/tirx/stmt.h>
 
 #include <algorithm>
 #include <optional>
@@ -67,29 +69,29 @@ void TIRVisitorWithPath::Visit(const IRModule& mod, AccessPath path) {
 
   for (const auto& gvar : gvars) {
     auto base_func = mod->functions[gvar];
-    if (auto prim_func = base_func.as<PrimFunc>()) {
-      Visit(prim_func.value(), path->Attr("functions")->MapItem(gvar));
+    if (auto function = base_func.as<Function>()) {
+      Visit(function.value(), path->Attr("functions")->MapItem(gvar));
     }
   }
 
   while (context.size()) context.pop_back();
 }
 
-void TIRVisitorWithPath::Visit(const PrimFunc& func, AccessPath path) {
-  // BufferType metadata may introduce symbolic dimensions.  Define those
+void TIRVisitorWithPath::Visit(const Function& func, AccessPath path) {
+  // TensorType metadata may introduce symbolic dimensions.  Define those
   // symbols before entering the buffer parameter itself.
   std::vector<DefContext<Var>> context;
 
   auto ppath = path->Attr("params");
   for (size_t i = 0; i < func->params.size(); i++) {
     const Var& param = func->params[i];
-    if (!param->ty.as<BufferTypeNode>()) {
+    if (!param->ty.as<TensorTypeNode>()) {
       context.push_back(WithDef(param, ppath->ArrayItem(i)));
     }
   }
 
   for (size_t i = 0; i < func->params.size(); i++) {
-    if (auto opt = func->params[i].as<BufferVar>()) {
+    if (auto opt = func->params[i].as<TensorVar>()) {
       auto buf = opt.value();
       auto buf_path = ppath->ArrayItem(i)->Attr("ty");
 
@@ -102,7 +104,7 @@ void TIRVisitorWithPath::Visit(const PrimFunc& func, AccessPath path) {
   // Only after all the implicit definitions have been visited can we
   // visit the buffer definition itself.
   for (size_t i = 0; i < func->params.size(); i++) {
-    if (auto opt = func->params[i].as<BufferVar>()) {
+    if (auto opt = func->params[i].as<TensorVar>()) {
       context.push_back(WithDef(opt.value().var(), ppath->ArrayItem(i)));
     }
   }
@@ -110,17 +112,6 @@ void TIRVisitorWithPath::Visit(const PrimFunc& func, AccessPath path) {
   bind_scope_.WithNewScope([&]() { Visit(func->body, path->Attr("body")); });
 
   while (context.size()) context.pop_back();
-}
-
-void TIRVisitorWithPath::EnterDef(const IterVar& iter_var, AccessPath path) {
-  if (iter_var->dom.defined()) {
-    Visit(iter_var->dom, path->Attr("dom"));
-  }
-  EnterDef(iter_var->var, path->Attr("var"));
-}
-
-void TIRVisitorWithPath::ExitDef(const IterVar& iter_var, AccessPath path) {
-  ExitDef(iter_var->var, path->Attr("var"));
 }
 
 void TIRVisitorWithPath::Visit(const Type& type, AccessPath path) {
@@ -149,22 +140,15 @@ void TIRVisitorWithPath::Visit(ffi::AnyView obj, AccessPath path) {
 }
 
 // Uses retain their definition's identity without revisiting its type metadata.
-void TIRVisitorWithPath::VisitBufferUse(const BufferVar& buffer, AccessPath path) {}
+void TIRVisitorWithPath::VisitBufferUse(const TensorVar& buffer, AccessPath path) {}
 
 void TIRVisitorWithPath::Visit(const TensorRegion& region, AccessPath path) {
-  if (auto buffer = region->source.as<BufferVar>()) {
+  if (auto buffer = region->source.as<TensorVar>()) {
     VisitBufferUse(buffer.value(), path->Attr("source"));
   } else {
     Visit(region->source, path->Attr("source"));
   }
   Visit(region->region, path->Attr("region"));
-}
-
-void TIRVisitorWithPath::Visit(const IterVar& iter_var, AccessPath path) {
-  if (iter_var->dom.defined()) {
-    Visit(iter_var->dom, path->Attr("dom"));
-  }
-  Visit(iter_var->var, path->Attr("var"));
 }
 
 void TIRVisitorWithPath::Visit(const Range& range, AccessPath path) {
@@ -179,24 +163,25 @@ void TIRVisitorWithPath::Dispatch_(const BindNode* op, AccessPath path) {
   bind_scope_.Current().push_back(WithDef(op->var, path->Attr("var")));
 }
 
-void TIRVisitorWithPath::Dispatch_(const AttrStmtNode* op, AccessPath path) {
-  Visit(op->value, path->Attr("value"));
-
-  std::vector<DefContext<IterVar>> context;
-  if (auto iter_var = op->node.as<IterVar>();
-      iter_var &&
-      (op->attr_key == attr::thread_extent || op->attr_key == tvm::tirx::attr::virtual_thread)) {
-    // Some attributes serve as a source of definition for the
-    // tirx::Var they annotate.
-    context.push_back(WithDef(iter_var.value(), path->Attr("node")));
-
-  } else if (auto expr = op->node.as<PrimExpr>()) {
-    Visit(expr.value(), path->Attr("node"));
+void TIRVisitorWithPath::Dispatch_(const RegionStmtNode* op, AccessPath path) {
+  Visit(op->args, path->Attr("args"));
+  Visit(ffi::AnyView(op->attrs), path->Attr("attrs"));
+  // All parameter types belong to the enclosing scope, including types with
+  // symbolic dimensions. No body parameter is visible to another parameter's type.
+  auto params_path = path->Attr("body_params");
+  for (size_t i = 0; i < op->body_params.size(); ++i) {
+    Visit(op->body_params[i]->ty, params_path->ArrayItem(i)->Attr("ty"));
   }
-  bind_scope_.WithNewScope([&]() { Visit(op->body, path->Attr("body")); });
-
-  while (context.size()) {
-    context.pop_back();
+  bind_scope_.WithNewScope([&]() {
+    for (size_t i = 0; i < op->body_params.size(); ++i) {
+      bind_scope_.Current().push_back(
+          WithDef(op->body_params[i], params_path->ArrayItem(i), /*visit_type=*/false));
+    }
+    Visit(op->body, path->Attr("body"));
+  });
+  auto results_path = path->Attr("result_vars");
+  for (size_t i = 0; i < op->result_vars.size(); ++i) {
+    bind_scope_.Current().push_back(WithDef(op->result_vars[i], results_path->ArrayItem(i)));
   }
 }
 
@@ -220,13 +205,13 @@ void TIRVisitorWithPath::Dispatch_(const BreakNode* op, AccessPath path) {}
 
 void TIRVisitorWithPath::Dispatch_(const ContinueNode* op, AccessPath path) {}
 
-void TIRVisitorWithPath::Dispatch_(const BufferStoreNode* op, AccessPath path) {
+void TIRVisitorWithPath::Dispatch_(const TensorStoreNode* op, AccessPath path) {
   Visit(op->value, path->Attr("value"));
-  VisitBufferUse(op->buffer, path->Attr("buffer"));
+  VisitBufferUse(op->dest.as_or_throw<TensorVar>(), path->Attr("buffer"));
   Visit(op->indices, path->Attr("indices"));
 }
 
-void TIRVisitorWithPath::Dispatch_(const IfThenElseNode* op, AccessPath path) {
+void TIRVisitorWithPath::Dispatch_(const IfNode* op, AccessPath path) {
   Visit(op->condition, path->Attr("condition"));
   bind_scope_.WithNewScope([&]() { Visit(op->then_case, path->Attr("then_case")); });
   bind_scope_.WithNewScope([&]() { Visit(op->else_case, path->Attr("else_case")); });
@@ -249,45 +234,10 @@ void TIRVisitorWithPath::Dispatch_(const EvaluateNode* op, AccessPath path) {
   Visit(op->value, path->Attr("value"));
 }
 
-void TIRVisitorWithPath::Dispatch_(const tirx::TilePrimitiveCallNode* op, AccessPath path) {
-  for (size_t i = 0; i < op->args.size(); i++) {
-    if (op->args[i] == nullptr) {
-      continue;
-    }
-    if (auto buf_region = op->args[i].as<TensorRegion>()) {
-      Visit(buf_region.value(), path->Attr("args")->ArrayItem(i));
-    } else if (auto expr = op->args[i].as<PrimExpr>()) {
-      Visit(expr.value(), path->Attr("args")->ArrayItem(i));
-    } else if (auto stmt = op->args[i].as<Stmt>()) {
-      Visit(stmt.value(), path->Attr("args")->ArrayItem(i));
-    } else if (auto buf = op->args[i].as<BufferVar>()) {
-      VisitBufferUse(buf.value(), path->Attr("args")->ArrayItem(i));
-    }
-  }
-}
-
-void TIRVisitorWithPath::Dispatch_(const ScopeIdDefStmtNode* op, AccessPath path) {
-  // Flat stmt -- no body. Visit extents and preferred_extents (if present),
-  // then push the bound Var(s) into the current scope so subsequent siblings
-  // see them as defined.
-  auto def_path = path->Attr("def");
-  if (op->def->extents.has_value()) {
-    Visit(op->def->extents.value(), def_path->Attr("extents"));
-  }
-  if (op->def->preferred_extents.has_value()) {
-    Visit(op->def->preferred_extents.value(), def_path->Attr("preferred_extents"));
-  }
-  auto def_ids_path = def_path->Attr("def_ids");
-  for (size_t i = 0; i < op->def->def_ids.size(); ++i) {
-    bind_scope_.Current().push_back(
-        WithDef(static_cast<Var>(op->def->def_ids[i]), def_ids_path->ArrayItem(i)));
-  }
-}
-
 void TIRVisitorWithPath::Dispatch_(const VarNode* op, AccessPath path) {}
 
 void TIRVisitorWithPath::Dispatch_(const TensorLoadNode* op, AccessPath path) {
-  VisitBufferUse(op->source.as_or_throw<tvm::tirx::BufferVar>(), path->Attr("source"));
+  VisitBufferUse(op->source.as_or_throw<tvm::tirx::TensorVar>(), path->Attr("source"));
   Visit(op->indices, path->Attr("indices"));
 }
 
@@ -296,6 +246,15 @@ void TIRVisitorWithPath::Dispatch_(const TensorRegionNode* op, AccessPath path) 
 }
 
 void TIRVisitorWithPath::Dispatch_(const OpaqueExprNode* op, AccessPath path) {}
+
+void TIRVisitorWithPath::VisitLambda(const LambdaExprNode* op, AccessPath path) {
+  Visit(op->ty, path->Attr("ty"));
+  std::vector<DefContext<Var>> context;
+  for (size_t i = 0; i < op->vars.size(); ++i) {
+    context.push_back(WithDef(op->vars[i], path->Attr("vars")->ArrayItem(i)));
+  }
+  Visit(op->body, path->Attr("body"));
+}
 
 void TIRVisitorWithPath::Dispatch_(const TupleNode* op, AccessPath path) {
   Visit(op->fields, path->Attr("fields"));

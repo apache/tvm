@@ -16,6 +16,7 @@
 
 """Tests for the independent ``tma_auto`` and ``tma_explicit`` planners."""
 
+import math
 from dataclasses import dataclass, replace
 from functools import reduce
 from operator import mul
@@ -28,7 +29,6 @@ import tvm
 import tvm.testing
 from tvm.ir import PointerType, PrimType, Range
 from tvm.script import tirx as T
-from tvm.script.tirx import tile as Tx
 from tvm.sym import Analyzer
 from tvm.testing import env
 from tvm.tirx import IntImm, Var
@@ -54,9 +54,8 @@ from tvm.tirx.cuda.tile_primitive.tma_utils import (
 )
 from tvm.tirx.exec_scope import ExecScope
 from tvm.tirx.layout import S, TileLayout
-from tvm.tirx.operator.tile_primitive.ops import CopyAsync
 from tvm.tirx.stmt import BufferRegion
-from tvm.tirx.tile_primitive import DispatchContext
+from tvm.tirx.tile_dispatch import DispatchContext
 
 _TMA_OPS = {
     "tirx.ptx.cp_async_bulk_tensor_g2s_cluster",
@@ -114,7 +113,7 @@ class _TMACounter:
     def visit_stmt(self, stmt):
         tvm_ffi.structural_visit(
             stmt,
-            [(tvm.tirx.For, self._visit_for), (tvm.tirx.Evaluate, self._visit_evaluate)],
+            [(tvm.ir.For, self._visit_for), (tvm.ir.Evaluate, self._visit_evaluate)],
         )
 
 
@@ -123,7 +122,7 @@ class _EncodeCollector:
         self.calls = []
 
     def _visit_call(self, op):
-        if isinstance(op.op, tvm.ir.Op) and op.op.name == "tirx.tensormap_encode_tiled":
+        if isinstance(op.op, tvm.ir.Op) and op.op.name == "tirx.cuda.tensormap_encode_tiled":
             self.calls.append(op)
 
     def visit_stmt(self, stmt):
@@ -199,7 +198,7 @@ def _make_op(
     g_layout = g_layout or _plain_layout(g_shape)
     s_layout = s_layout or _plain_layout(s_shape)
     s_dtype = s_dtype or dtype
-    g_buf = tvm.tirx.decl_buffer(
+    g_buf = tvm.tirx.decl_tensor(
         g_shape,
         dtype,
         "A",
@@ -207,7 +206,7 @@ def _make_op(
         elem_offset=g_elem_offset,
         layout=g_layout,
     )
-    s_buf = tvm.tirx.decl_buffer(
+    s_buf = tvm.tirx.decl_tensor(
         s_shape,
         s_dtype,
         "A_smem",
@@ -223,7 +222,13 @@ def _make_op(
     else:
         dst = BufferRegion(g_buf, _ranges(g_region))
         src = BufferRegion(s_buf, _ranges(s_region))
-    op = CopyAsync(dst, src, config=config)
+    if "use_tma_reduce" in config:
+        config["reduce_op"] = config.pop("use_tma_reduce")
+        op = T.cuda.tile.cp_reduce_async_bulk_tensor(dst, src, **config)
+    elif direction == "g2s":
+        op = T.cuda.tile.cp_async_bulk_tensor_load(dst, src, **config)
+    else:
+        op = T.cuda.tile.cp_async_bulk_tensor_store(dst, src, **config)
     if sctx is None:
         target = tvm.target.Target({"kind": "cuda", "arch": target_arch})
         sctx = DispatchContext(target, ExecScope("thread"), {}, {})
@@ -254,7 +259,7 @@ def _direct_plan(variant, **kwargs):
 
 def _count_tma(stmt):
     counter = _TMACounter()
-    counter.visit_stmt(stmt.body if isinstance(stmt, tvm.tirx.PrimFunc) else stmt)
+    counter.visit_stmt(stmt.body if isinstance(stmt, tvm.tirx.Function) else stmt)
     return counter
 
 
@@ -302,7 +307,7 @@ def _ints(values):
 
 def _make_spec(**overrides):
     g_data = Var("A", PointerType(PrimType("float16"), "global"))
-    s_buf = tvm.tirx.decl_buffer(
+    s_buf = tvm.tirx.decl_tensor(
         (4, 8),
         "float16",
         "A_smem",
@@ -355,7 +360,7 @@ def _finding(spec, rule):
 
 
 def _from_source(source):
-    return tvm.script.from_source(source, {"T": T, "Tx": Tx})
+    return tvm.script.from_source(source, {"T": T})
 
 
 def _lower_module(func, arch="sm_100a"):
@@ -1117,14 +1122,14 @@ def test_auto_defers_dynamic_global_dimension_bounds_to_runtime():
 def test_dispatch_propagates_flat_bind_to_auto_coordinate_proof():
     func = _from_source(
         """
-@T.prim_func
-def bind_coordinate(D: T.Buffer((33360, 6144), 'bfloat16')):
+@T.function
+def bind_coordinate(D: T.Tensor((33360, 6144), 'bfloat16')):
 
-    T.device_entry()
-    block = T.cta_id([192])
-    tid = T.thread_id([1])
+    T.device_entry(launch=T.cuda.LaunchConfig(grid=192, block=1))
+    block = T.cuda.block_idx("x")
+    tid = T.cuda.thread_idx("x")
     tile_index = T.alloc_local((1,), "int32")
-    D_smem = T.alloc_buffer(
+    D_smem = T.alloc_tensor(
         (2, 16, 128),
         "bfloat16",
         scope="shared.dyn",
@@ -1133,10 +1138,10 @@ def bind_coordinate(D: T.Buffer((33360, 6144), 'bfloat16')):
     tile_index[0] = block
     d_n: T.let = tile_index[0] * 128
     if tid == 0:
-        Tx.copy_async(
+        T.cuda.tile.cp_async_bulk_tensor_store(
             D[0:16, d_n : d_n + 128],
             D_smem[0, :, :],
-            dispatch="tma_auto",
+            descriptor_mode="auto",
         )
 """
     )
@@ -1525,19 +1530,17 @@ def test_explicit_shared_pointer_counts_each_offset_once():
 def test_explicit_allows_different_operand_ranks_with_equal_payload_bytes():
     source = _from_source(
         """
-@T.prim_func
-def rank_change(A: T.Buffer((8, 8), 'float16')):
+@T.function
+def rank_change(A: T.Tensor((8, 8), 'float16')):
 
-    T.device_entry()
-    T.cta_id([1])
-    tid = T.thread_id([1])
-    dyn = T.alloc_buffer((65,), "uint64", scope="shared.dyn")
-    T.attr({"tirx.dyn_smem_bytes": 65 * 8})
-    A_smem = T.decl_buffer((64,), "float16", dyn.data, layout=T.TileLayout(T.S[64]))
-    mbar = T.decl_buffer((1,), "uint64", dyn.data, elem_offset=16)
+    T.device_entry(launch=T.cuda.LaunchConfig(grid=1, block=1))
+    tid = T.cuda.thread_idx("x")
+    dyn = T.alloc_tensor((65,), "uint64", scope="shared.dyn")
+    A_smem = T.decl_tensor((64,), "float16", dyn.data, layout=T.TileLayout(T.S[64]))
+    mbar = T.decl_tensor((1,), "uint64", dyn.data, elem_offset=16)
     if tid == 0:
-        Tx.copy_async(
-            A_smem[:], A[:, :], dispatch="tma_explicit", mbar=mbar.ptr_to([0])
+        T.cuda.tile.cp_async_bulk_tensor_load(
+            A_smem[:], A[:, :], descriptor_mode="explicit", mbar=mbar.ptr_to([0])
         )
 """
     )
@@ -1546,30 +1549,28 @@ def rank_change(A: T.Buffer((8, 8), 'float16')):
 
 
 _SELECTOR_SOURCE = """
-@T.prim_func
+@T.function
 def selector_gather(
-    A: T.Buffer((256, 64), 'bfloat16'),
-    B: T.Buffer((512, 80), 'bfloat16'),
+    A: T.Tensor((256, 64), 'bfloat16'),
+    B: T.Tensor((512, 80), 'bfloat16'),
     flag: T.int32,
 ):
 
 
     B_view = B.sub[16:512, 8:72]
-    T.device_entry()
-    T.cta_id([1])
-    tid = T.thread_id([128])
-    dyn = T.alloc_buffer((520,), "uint64", scope="shared.dyn")
-    T.attr({"tirx.dyn_smem_bytes": 520 * 8})
-    A_smem = T.decl_buffer(
+    T.device_entry(launch=T.cuda.LaunchConfig(grid=1, block=128))
+    tid = T.cuda.thread_idx("x")
+    dyn = T.alloc_tensor((520,), "uint64", scope="shared.dyn")
+    A_smem = T.decl_tensor(
         (4, 64), "bfloat16", dyn.data, layout=T.TileLayout(T.S[4, 64])
     )
-    mbar = T.decl_buffer((1,), "uint64", dyn.data, elem_offset=64)
+    mbar = T.decl_tensor((1,), "uint64", dyn.data, elem_offset=64)
     if tid == 0:
         T.ptx.mbarrier.init.shared.b64(mbar.ptr_to([0]), T.uint32(1))
-        Tx.copy_async(
+        T.cuda.tile.cp_async_bulk_tensor_load(
             A_smem[:, :],
             A[0:1, :],
-            dispatch="tma_explicit",
+            descriptor_mode="explicit",
             mbar=mbar.ptr_to([0]),
             gather4=[1, 2, 3, 4],
             src_selector=[(flag != 0, B_view)],
@@ -1696,10 +1697,10 @@ def _build_sparse_decode_qo_tma_regression():
     shared_bytes = (q_elements + q_tail_elements + o_elements) * 2
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def kernel(
-        Q_storage: T.Buffer((64 * 576,), 'bfloat16'),
-        O_storage: T.Buffer((64 * 512,), 'bfloat16'),
+        Q_storage: T.Tensor((64 * 576,), 'bfloat16'),
+        O_storage: T.Tensor((64 * 512,), 'bfloat16'),
         q_stride_b: T.int64,
         q_stride_s: T.int64,
         q_stride_h: T.int64,
@@ -1726,15 +1727,15 @@ def _build_sparse_decode_qo_tma_regression():
                 T.S[(1, 1, 64, 512) : (o_stride_b, o_stride_s, o_stride_h, 1)]
             ),
         )
-        T.device_entry()
-        T.cta_id([1])
-        tid = T.thread_id([128])
-        dyn = T.alloc_buffer((shared_bytes + 8,), "uint8", scope="shared.dyn")
-        T.attr({"tirx.dyn_smem_bytes": shared_bytes + 8})
-        q_smem = T.decl_buffer(
+        T.device_entry(
+            launch=T.cuda.LaunchConfig(grid=(1,), block=(128,), dynamic_smem_bytes=shared_bytes + 8)
+        )
+        tid = T.cuda.thread_idx('x')
+        dyn = T.alloc_tensor((shared_bytes + 8,), "uint8", scope="shared.dyn")
+        q_smem = T.decl_tensor(
             (64, 512), "bfloat16", dyn.data, scope="shared.dyn", layout=q_layout
         )
-        q_tail_smem = T.decl_buffer(
+        q_tail_smem = T.decl_tensor(
             (64, 64),
             "bfloat16",
             dyn.data,
@@ -1742,7 +1743,7 @@ def _build_sparse_decode_qo_tma_regression():
             scope="shared.dyn",
             layout=q_tail_layout,
         )
-        o_smem = T.decl_buffer(
+        o_smem = T.decl_tensor(
             (64, 512),
             "bfloat16",
             dyn.data,
@@ -1750,37 +1751,37 @@ def _build_sparse_decode_qo_tma_regression():
             scope="shared.dyn",
             layout=o_layout,
         )
-        mbar = T.decl_buffer(
+        mbar = T.decl_tensor(
             (1,), "uint64", dyn.data, elem_offset=shared_bytes // 8, scope="shared.dyn"
         )
         q_tail_smem_tma = q_tail_smem.view(64, 2, 32).permute(1, 0, 2)
         q_tail_gmem_tma = Q.sub[0, 0, :, 512:576].view(64, 2, 32).permute(1, 0, 2)
         if tid == 0:
             for q_tile in T.unroll(8):
-                Tx.copy_async(
+                T.cuda.tile.cp_async_bulk_tensor_load(
                     q_smem[:, q_tile * 64 : (q_tile + 1) * 64],
                     Q[0, 0, :, q_tile * 64 : (q_tile + 1) * 64],
-                    dispatch="tma_explicit",
                     mbar=mbar.ptr_to([0]),
                     cache_hint="evict_first",
                     tensormap_l2_promotion="L2::128B",
+                    descriptor_mode="explicit",
                 )
-            Tx.copy_async(
+            T.cuda.tile.cp_async_bulk_tensor_load(
                 q_tail_smem_tma[:, :, :],
                 q_tail_gmem_tma[:, :, :],
-                dispatch="tma_explicit",
+                descriptor_mode="explicit",
                 mbar=mbar.ptr_to([0]),
                 cache_hint="evict_first",
                 tensormap_l2_promotion="L2::128B",
             )
             for o_tile in T.unroll(8):
                 store_tile: T.let = o_tile
-                Tx.copy_async(
+                T.cuda.tile.cp_async_bulk_tensor_store(
                     O_view[0, 0, :, store_tile * 64 : (store_tile + 1) * 64],
                     o_smem[:, store_tile * 64 : (store_tile + 1) * 64],
-                    dispatch="tma_explicit",
                     cache_hint="evict_first",
                     tensormap_l2_promotion="L2::128B",
+                    descriptor_mode="explicit",
                 )
         # fmt: on
 
@@ -1992,42 +1993,75 @@ def _build_selector_gather_gpu_kernel(dtype="float16"):
     shared_bytes = 4 * cols * tvm.DataType(dtype).bits // 8
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def kernel(
-        A: T.Buffer((rows, cols), dtype),
-        B: T.Buffer((rows, cols), dtype),
+        A: T.Tensor((rows, cols), dtype),
+        B: T.Tensor((rows, cols), dtype),
         flag: T.int32,
-        Out: T.Buffer((4, cols), dtype),
+        Out: T.Tensor((4, cols), dtype),
     ):
 
-        T.device_entry()
-        T.cta_id([1])
-        tid = T.thread_id([128])
-        dyn = T.alloc_buffer((shared_bytes + 64,), "uint8", scope="shared.dyn")
-        T.attr({"tirx.dyn_smem_bytes": shared_bytes + 64})
-        A_smem = T.decl_buffer(
+        T.device_entry(
+            launch=T.cuda.LaunchConfig(
+                grid=1, block=128, dynamic_smem_bytes=shared_bytes + 64
+            )
+        )
+        tid = T.cuda.thread_idx('x')
+        dyn = T.alloc_tensor((shared_bytes + 64,), "uint8", scope="shared.dyn")
+        A_smem = T.decl_tensor(
             (4, cols), dtype, dyn.data, layout=T.TileLayout(T.S[4, cols])
         )
-        mbar = T.decl_buffer((1,), "uint64", dyn.data, elem_offset=shared_bytes // 8)
+        mbar = T.decl_tensor((1,), "uint64", dyn.data, elem_offset=shared_bytes // 8)
         mbar_ptr = T.meta_var(mbar.ptr_to([0]))
         if tid == 0:
             T.ptx.mbarrier.init.shared.b64(mbar_ptr, T.uint32(1))
         T.ptx.fence.proxy.async_.shared__cta()
         T.cuda.cta_sync()
         if tid == 0:
-            Tx.copy_async(
+            T.cuda.tile.cp_async_bulk_tensor_load(
                 A_smem[:, :],
                 A[0:1, :],
-                dispatch="tma_explicit",
                 mbar=mbar_ptr,
                 gather4=[7, 3, 19, 5],
                 src_selector=[(flag != 0, B)],
+                descriptor_mode="explicit",
             )
             T.ptx.mbarrier.arrive.expect_tx.shared.b64(mbar_ptr, T.uint32(shared_bytes))
         T.cuda.mbarrier_wait(mbar_ptr, 0)
         T.ptx.fence.proxy.async_.shared__cta()
         T.cuda.cta_sync()
-        Tx.cta.copy(Out[:, :], A_smem[:, :])
+        copy_src_1 = T.meta_var(A_smem[:, :])
+        copy_src_tensor_1 = T.meta_var(copy_src_1.source)
+        copy_dst_1 = T.meta_var(Out[:, :])
+        copy_dst_tensor_1 = T.meta_var(copy_dst_1.source)
+        for copy_step_1 in T.serial(
+            T.ceildiv(math.prod([int(r.extent) for r in copy_src_1.region]), 128)
+        ):
+            copy_index_1 = copy_step_1 * (128) + (tid)
+            if copy_index_1 < math.prod([int(r.extent) for r in copy_src_1.region]):
+                copy_value_1 = copy_src_tensor_1[
+                    tuple(
+                        [
+                            copy_src_1.region[k].min
+                            + copy_index_1
+                            // math.prod([int(s.extent) for s in copy_src_1.region[k + 1 :]])
+                            % copy_src_1.region[k].extent
+                            for k in range(len(copy_src_1.region))
+                        ]
+                    )
+                ]
+                copy_dst_index_1 = T.meta_var(
+                    tuple(
+                        [
+                            copy_dst_1.region[k].min
+                            + copy_index_1
+                            // math.prod([int(s.extent) for s in copy_dst_1.region[k + 1 :]])
+                            % copy_dst_1.region[k].extent
+                            for k in range(len(copy_dst_1.region))
+                        ]
+                    )
+                )
+                copy_dst_tensor_1[copy_dst_index_1] = copy_value_1
         # fmt: on
 
     return kernel

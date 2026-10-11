@@ -104,7 +104,7 @@ def verify(mod, expected):
         mod = tvm.relax.transform.DeadCodeElimination()(mod)
         mod = tvm.relax.backend.adreno.transform.FoldVDeviceScopeChange()(mod)
         mod = tvm.relax.transform.DeadCodeElimination()(mod)
-        mod = tvm.relax.transform.SpecializePrimFuncBasedOnCallSite()(mod)
+        mod = tvm.relax.transform.SpecializeFunctionBasedOnCallSite()(mod)
         mod = tvm.relax.transform.Normalize()(mod)
 
     ValidateScope(expected).visit(mod)

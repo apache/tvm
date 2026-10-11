@@ -25,12 +25,12 @@
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/ir/unique_name_supply.h>
 #include <tvm/sym/analyzer.h>
 #include <tvm/sym/int_set.h>
 #include <tvm/sym/iter_affine_map.h>
 #include <tvm/tirx/index_map.h>
-#include <tvm/tirx/op.h>
 #include <tvm/tirx/stmt_functor.h>
 
 #include <sstream>
@@ -125,8 +125,8 @@ std::pair<IndexMap, PrimExpr> IndexMapInverseImpl(const IndexMap& self,
   ffi::Array<PrimExpr> inverse_exprs;
   for (int i = 0, n = self->initial_indices.size(); i < n; ++i) {
     PrimVar index = self->initial_indices[i];
-    PrimExpr expr;
-    if (is_one(initial_ranges[i]->extent) && !inverse_exprs_map.count(index)) {
+    PrimExpr expr{ffi::UnsafeInit{}};
+    if (IsOne(initial_ranges[i]->extent) && !inverse_exprs_map.count(index)) {
       expr = initial_ranges[i]->min;
     } else {
       expr = inverse_exprs_map.at(index);
@@ -134,7 +134,7 @@ std::pair<IndexMap, PrimExpr> IndexMapInverseImpl(const IndexMap& self,
     inverse_exprs.push_back(analyzer->Simplify(expr));
   }
 
-  PrimExpr padding_predicate = padded_iter_map->padding_predicate;
+  PrimExpr padding_predicate = padded_iter_map->padding_predicate.value();
   padding_predicate = sym::NormalizeIterMapToExpr(padding_predicate);
   auto f_substitute =
       [&inverse_exprs_map](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
@@ -254,7 +254,7 @@ ffi::Array<Range> IndexMapNode::MapRanges(const ffi::Array<Range>& ranges,
     // results in a shape [1, N].
     std::unordered_map<const VarNode*, sym::IntSet> dom_map;
     for (size_t i = 0; i < initial_indices.size(); i++) {
-      dom_map[initial_indices[i].get()] = sym::IntSet::FromRange(ranges[i]);
+      dom_map.insert_or_assign(initial_indices[i].get(), sym::IntSet::FromRange(ranges[i]));
     }
 
     for (const auto& final_index : final_indices) {
@@ -299,7 +299,7 @@ ffi::Array<PrimExpr> IndexMapNode::MapShape(const ffi::Array<PrimExpr>& shape,
 
   ffi::Array<PrimExpr> output;
   for (auto& range : mapped) {
-    TVM_FFI_ICHECK(is_zero(range->min));
+    TVM_FFI_ICHECK(IsZero(range->min));
     output.push_back(range->extent);
   }
 

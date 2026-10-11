@@ -2030,8 +2030,8 @@ def tensor_expr_op(
         BlockBuilder.current().emit_te(
             tensor_expr_func,
             *[_convert(arg) for arg in args],
-            primfunc_name_hint=name_hint,
-            primfunc_attrs=attrs,
+            function_name_hint=name_hint,
+            function_attrs=attrs,
         ),
         name=name_hint,
     )
@@ -2041,23 +2041,23 @@ OutType = TypeVar("OutType", bound=Tensor | Sequence[Tensor])
 
 
 def tensor_ir_op(
-    func: _tir.PrimFunc,
+    func: _tir.Function,
     name_hint: str,
     args: Tensor | Sequence[Tensor | rx.ShapeExpr | _tir.Expr],
     out: OutType,
 ) -> OutType:
-    """Create a `call_tir` binding with given PrimFunc
+    """Create a `call_tir` binding with given Function
 
     Parameters
     ----------
-    func : _tir.PrimFunc
-        The PrimFunc to call.
+    func : _tir.Function
+        The Function to call.
 
     name_hint : str
         Name hint.
 
     args : Union[Tensor, Sequence[Tensor | rx.ShapeExpr | _tir.Expr]]
-        The arguments to pass to the PrimFunc.
+        The arguments to pass to the Function.
 
     out : Union[Tensor, List[Tensor]]
         The output tensors.
@@ -2091,34 +2091,35 @@ def tensor_ir_op(
     else:
         out_ty = [x._expr.ty for x in out]
 
+    out_ty = out_ty[0] if len(out_ty) == 1 else tvm.ir.TupleType(out_ty)
     bb = BlockBuilder.current()
     global_var = bb.add_func(func, name_hint)
 
     return wrap_nested(
-        bb.emit(rx.call_tir(global_var, call_tir_args, out_ty)),
+        bb.emit(rx.call_tir(global_var, call_tir_args, ty_args=[out_ty])),
         name=name_hint,
     )
 
 
 def tensor_ir_inplace_op(
-    func: _tir.PrimFunc,
+    func: _tir.Function,
     name_hint: str,
     args: Tensor | Sequence[Tensor | rx.ShapeExpr | _tir.Expr],
     inplace_indices: int | list[int],
     out: OutType,
 ) -> OutType:
-    """Create a `call_tir_inplace` binding with given PrimFunc
+    """Create a `call_tir_inplace` binding with given Function
 
     Parameters
     ----------
-    func : _tir.PrimFunc
-        The PrimFunc to call.
+    func : _tir.Function
+        The Function to call.
 
     name_hint : str
         Name hint.
 
     args : Union[Tensor, Sequence[Tensor | rx.ShapeExpr | _tir.Expr]]
-        The arguments to pass to the PrimFunc.
+        The arguments to pass to the Function.
 
     inplace_indices : Union[int, List[int]]
         Specify which arguments should be used for in-place computations.
@@ -2160,11 +2161,16 @@ def tensor_ir_inplace_op(
     else:
         out_ty = [x._expr.ty for x in out]
 
+    out_ty = out_ty[0] if len(out_ty) == 1 else tvm.ir.TupleType(out_ty)
     bb = BlockBuilder.current()
     global_var = bb.add_func(func, name_hint)
 
     return wrap_nested(
-        bb.emit(rx.call_tir_inplace(global_var, call_tir_args, inplace_indices, out_ty)),
+        bb.emit(
+            rx.call_tir_inplace(
+                global_var, call_tir_args, inplace_indices=inplace_indices, ty_args=[out_ty]
+            )
+        ),
         name=name_hint,
     )
 
@@ -2214,9 +2220,9 @@ def extern(
     rx_outputs_ty = _convert(out, "dummy").ty
     return wrap_nested(
         _op.call_dps_packed(
-            name,
+            rx.ExternFunc(name),
             args=rx_inputs,
-            out_ty=rx_outputs_ty,
+            ty_args=[rx_outputs_ty],
         ),
         name,
     )  # type: ignore
@@ -2798,12 +2804,12 @@ def sample_top_p_top_k_from_sorted_prob(
     batch = T.dynamic("batch")
     vocab_size = T.dynamic("vocab_size")
 
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def _get_renorm_prob(
-        cumsum_sorted: T.Buffer((batch, vocab_size), prob_dtype),
-        top_p: T.Buffer((batch, 1), prob_dtype),
-        top_k: T.Buffer((batch, 1), index_dtype),
-        renorm_prob: T.Buffer((batch, 1), prob_dtype),
+        cumsum_sorted: T.Tensor((batch, vocab_size), prob_dtype),
+        top_p: T.Tensor((batch, 1), prob_dtype),
+        top_k: T.Tensor((batch, 1), index_dtype),
+        renorm_prob: T.Tensor((batch, 1), prob_dtype),
     ):
         for ax0, ax1 in T.grid(batch, vocab_size):
             with Ts.sblock("T_get_renorm_prob"):
@@ -2820,14 +2826,14 @@ def sample_top_p_top_k_from_sorted_prob(
     vocab_size = T.dynamic("vocab_size")
     kernel_out_batch = T.dynamic("out_batch")
 
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def _get_index_from_sorted(
-        cumsum_sorted: T.Buffer((batch, vocab_size), prob_dtype),
-        indices: T.Buffer((batch, vocab_size), index_dtype),
-        renorm_prob: T.Buffer((batch, 1), prob_dtype),
-        usample: T.Buffer((kernel_out_batch, 1), prob_dtype),
-        sample_indices: T.Buffer((kernel_out_batch, 1), sample_indices_dtype),
-        output_index: T.Buffer((kernel_out_batch, 1), index_dtype),
+        cumsum_sorted: T.Tensor((batch, vocab_size), prob_dtype),
+        indices: T.Tensor((batch, vocab_size), index_dtype),
+        renorm_prob: T.Tensor((batch, 1), prob_dtype),
+        usample: T.Tensor((kernel_out_batch, 1), prob_dtype),
+        sample_indices: T.Tensor((kernel_out_batch, 1), sample_indices_dtype),
+        output_index: T.Tensor((kernel_out_batch, 1), index_dtype),
     ):
         for ax0, ax1 in T.grid(kernel_out_batch, vocab_size):
             with Ts.sblock("T_get_index_from_sorted"):
@@ -2907,13 +2913,13 @@ def renormalize_top_p_top_k_prob(prob, sorted_prob, top_p, top_k):
     kernel_batch = T.dynamic("batch")
     vocab_size = T.dynamic("vocab_size")
 
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def _get_renorm_cutoff(
-        sorted_prob: T.Buffer((kernel_batch, vocab_size), prob_dtype),
-        cumsum_sorted: T.Buffer((kernel_batch, vocab_size), prob_dtype),
-        top_p: T.Buffer((kernel_batch, 1), prob_dtype),
-        top_k: T.Buffer((kernel_batch, 1), top_k_dtype),
-        cutoff: T.Buffer((kernel_batch, 1), prob_dtype),
+        sorted_prob: T.Tensor((kernel_batch, vocab_size), prob_dtype),
+        cumsum_sorted: T.Tensor((kernel_batch, vocab_size), prob_dtype),
+        top_p: T.Tensor((kernel_batch, 1), prob_dtype),
+        top_k: T.Tensor((kernel_batch, 1), top_k_dtype),
+        cutoff: T.Tensor((kernel_batch, 1), prob_dtype),
     ):
         for ax0, ax1 in T.grid(kernel_batch, vocab_size):
             with Ts.sblock("T_get_renorm_cutoff"):

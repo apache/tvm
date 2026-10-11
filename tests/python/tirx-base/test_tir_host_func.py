@@ -24,11 +24,11 @@ from tvm.script import tirx as T
 
 @I.ir_module
 class Module:
-    @T.prim_func
+    @T.function
     def main(
-        A: T.Buffer((729, 729), "float32"),
-        B: T.Buffer((729, 729), "float32"),
-        C: T.Buffer((729, 729), "float32"),
+        A: T.Tensor((729, 729), "float32"),
+        B: T.Tensor((729, 729), "float32"),
+        C: T.Tensor((729, 729), "float32"),
     ):
         T.func_attr(
             {

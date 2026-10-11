@@ -21,10 +21,10 @@ import functools
 import inspect
 import threading
 from collections.abc import Callable
-from functools import partial
 from numbers import Integral
 from typing import TYPE_CHECKING, Any, TypeVar
 
+import tvm
 from tvm import ir as _ir
 from tvm.script.ir_builder.base import annotation_constructor as _annotation_constructor
 from tvm.script.ir_builder.base import at as _at
@@ -36,9 +36,11 @@ from typing import Literal
 
 from tvm import DataType, ir
 from tvm import tirx as tir
-from tvm.ir import TensorLoad, Type, is_prim_expr
-from tvm.script.ir_builder.base import IRBuilder
-from tvm.script.ir_builder.ir import meta_var
+from tvm.ir import Range, Type, is_prim_expr
+from tvm.ir.location import UNKNOWN_LOC, Location
+from tvm.script.ir_builder.base import MISSING, IRBuilder
+from tvm.script.ir_builder.base import LocationEntry as _LocationEntry
+from tvm.script.ir_builder.ir import Lambda, meta_var
 from tvm.script.parser.protocol_registry import (
     register_mutable_decl as _register_mutable_decl,
 )
@@ -48,15 +50,14 @@ from tvm.script.parser.protocol_registry import (
 from tvm.target import Target
 
 # pylint: disable=unused-import
-from tvm.tirx import Buffer, Expr, IndexMap, is_buffer_var, type_annotation
-from tvm.tirx.exec_scope import ExecScope, ScopeIdDef, Var
+from tvm.tirx import Expr, IndexMap, Var, is_tensor_var
+from tvm.tirx.exec_scope import ExecScope
 
 # import tirx.expr for direct ir construction to pass structural_equal comparison
 from tvm.tirx.expr import (
-    BufferLoad,
     FloatImm,
     IntImm,
-    IterVar,
+    TensorLoad,
 )
 from tvm.tirx.layout import (
     ComposeLayout,
@@ -74,18 +75,22 @@ from . import _ffi_api, frame
 
 
 def _get_layout(layout: str | Layout | None, shape: list[Expr], scope: str) -> Layout | None:
+    if layout is MISSING:
+        if IRBuilder.is_in_scope():
+            for function_frame in reversed(list(IRBuilder.current().frames)):
+                if isinstance(function_frame, frame.FunctionFrame):
+                    return function_frame.default_buffer_layout(shape, scope)
+        if scope in ["trn.sbuf", "trn.psum"]:
+            return None
+        return TileLayout(S[tuple(shape)])
     if layout is None:
         return None
     if isinstance(layout, Layout):
         return layout
     assert isinstance(layout, str)
     if layout == "default":
-        if IRBuilder.is_in_scope():
-            for function_frame in reversed(list(IRBuilder.current().frames)):
-                if isinstance(function_frame, frame.PrimFuncFrame):
-                    return function_frame.default_buffer_layout(shape, scope)
-        if scope in ["trn.sbuf", "trn.psum"]:
-            return None
+        # An explicit default denotes the same TileLayout in every dialect.
+        # Only an omitted argument consults the enclosing function's policy.
         return TileLayout(S[tuple(shape)])
     shape = tuple(shape)
     if scope == "trn.sbuf":
@@ -204,9 +209,9 @@ def _record_meta_resource(value: Any, skip_frames: int = 2) -> None:
         scope.record(value, frame_info)
 
 
-@_register_mutable_decl("tirx.Buffer", syntax="parameter")
+@_register_mutable_decl("tirx.Tensor", syntax="parameter")
 @_annotation_constructor
-def buffer(
+def _tensor_type(
     shape: list[Expr] | tuple[Expr] | Expr | Integral,
     dtype: str = "float32",
     data: Var = None,
@@ -216,13 +221,11 @@ def buffer(
     scope: str = "global",
     align: int = 0,
     offset_factor: int = 0,
-    layout: str | Layout | None = "default",
-    allocated_addr: int | tuple[int, ...] | None = None,
-    buffer_name: str = "",
+    layout: str | Layout | None = MISSING,
     *,
-    span=None,
-) -> Buffer:
-    """The buffer declaration function.
+    loc: _LocationEntry | Location = UNKNOWN_LOC,
+) -> tir.TensorType:
+    """Construct a tensor type for annotations and explicit type-valued fields.
 
     Parameters
     ----------
@@ -233,7 +236,7 @@ def buffer(
         The data type in the content of the buffer.
 
     data : Var
-        The pointer to the head of the data.
+        An optional pointer whose storage scope determines the buffer type scope.
 
     strides : List[Expr]
         The strides of each dimension.
@@ -254,31 +257,22 @@ def buffer(
         The factor of elem_offset field.
 
     layout : str or Layout, optional
-        The buffer layout; "default" selects the layout for the buffer scope.
-
-    allocated_addr : int or tuple of int, optional
-        Addresses assigned to the buffer allocation.
-
-    buffer_name : str
-        The name of the buffer.
+        The buffer layout. "default" constructs the shape's default TileLayout;
+        omission uses the enclosing dialect and scope default. None omits a layout.
 
     Returns
     -------
-    res : Buffer
-        The declared buffer.
+    res : TensorType
+        The tensor type. Function annotations introduce variables of this type;
+        allocation and declaration operations construct tensor variables.
     """
     shape = (shape,) if is_prim_expr(shape) or isinstance(shape, Integral) else shape
     shape = tuple(shape)
     if strides is None:
         strides = []
-    if allocated_addr is None:
-        allocated_addr = []
-    if not isinstance(allocated_addr, list | tuple):
-        allocated_addr = [allocated_addr]
-    result = _ffi_api.Buffer(  # type: ignore[attr-defined] # pylint: disable=no-member
+    result = _ffi_api.TensorType(  # type: ignore[attr-defined] # pylint: disable=no-member
         shape,
         dtype,
-        buffer_name,
         data,
         strides,
         _get_elem_offset(elem_offset, byte_offset, dtype),
@@ -286,9 +280,8 @@ def buffer(
         align,
         offset_factor,
         _get_layout(layout, shape, scope),
-        allocated_addr,
     )
-    return _at(span, result)
+    return _at(loc, result)
 
 
 def Tuple(*fields: Type) -> Type:  # pylint: disable=invalid-name
@@ -317,150 +310,8 @@ def elected():
     )
 
 
-def scope_id(
-    extents: list[Expr | int] | None, parent: str, cur: str, dtype: str = "int32"
-) -> Var | tuple[Var, ...]:
-    """Declare scope IDs between execution levels and return their native variables.
-
-    One dimension returns a variable; multiple dimensions return a tuple in
-    declaration order. ``None`` defers extent inference to LowerTIRx.
-    """
-    ret = _ffi_api.ScopeId(extents, parent, "T.scope_id", cur, dtype)  # type: ignore[attr-defined] # pylint: disable=no-member
-    if len(ret) == 1:
-        return ret[0]
-    return tuple(ret)
-
-
-def cluster_id(
-    extents: list[Expr | int] | None = None, dtype: str = "int32"
-) -> Var | tuple[Var, ...]:
-    """Define a kernel→cluster scope id. Pass ``None`` (the default) to defer the
-    extent; it will be inferred at LowerTIRx from sibling ScopeIdDef closure.
-
-    ``dtype`` selects the dtype of the introduced vars (``"int32"`` or ``"uint32"``).
-    """
-    ret = _ffi_api.ClusterId(extents, "kernel", dtype)  # type: ignore[attr-defined] # pylint: disable=no-member
-    if len(ret) == 1:
-        return ret[0]
-    return tuple(ret)
-
-
-def cta_id(
-    extents: list[Expr | int] | None = None, preferred=None, dtype: str = "int32"
-) -> Var | tuple[Var, ...]:
-    """Define a kernel→cta scope id. Pass ``None`` (the default) to defer the
-    extent; it will be inferred at LowerTIRx from sibling ScopeIdDef closure.
-
-    ``dtype`` selects the dtype of the introduced vars (``"int32"`` or ``"uint32"``).
-    """
-    ret = _ffi_api.CtaId(extents, "kernel", preferred, dtype)  # type: ignore[attr-defined] # pylint: disable=no-member
-    if len(ret) == 1:
-        return ret[0]
-    return tuple(ret)
-
-
-def cta_id_in_cluster(
-    extents: list[Expr | int] | None = None, preferred=None, dtype: str = "int32"
-) -> Var | tuple[Var, ...]:
-    """Define a cluster→cta scope id. Pass ``None`` (the default) to defer the
-    extent; it will be inferred at LowerTIRx from sibling ScopeIdDef closure.
-
-    ``dtype`` selects the dtype of the introduced vars (``"int32"`` or ``"uint32"``).
-    """
-    ret = _ffi_api.CtaId(extents, "cluster", preferred, dtype)  # type: ignore[attr-defined] # pylint: disable=no-member
-    if len(ret) == 1:
-        return ret[0]
-    return tuple(ret)
-
-
-def cta_id_in_pair(dtype: str = "int32") -> Var:
-    """Return the native CTA index within its two-CTA pair."""
-    ret = _ffi_api.CtaIdInPair(dtype)  # type: ignore[attr-defined] # pylint: disable=no-member
-    return ret[0]
-
-
-def warpgroup_id(
-    extents: list[Expr | int] | None = None, dtype: str = "int32"
-) -> Var | tuple[Var, ...]:
-    """Define a cta→warpgroup scope id. Pass ``None`` (the default) to defer
-    the extent; it will be inferred at LowerTIRx from sibling closure.
-
-    ``dtype`` selects the dtype of the introduced vars (``"int32"`` or ``"uint32"``).
-    """
-    ret = _ffi_api.WarpgroupId(extents, "cta", dtype)  # type: ignore[attr-defined] # pylint: disable=no-member
-    if len(ret) == 1:
-        return ret[0]
-    return tuple(ret)
-
-
-def warp_id(extents: list[Expr | int] | None = None, dtype: str = "int32") -> Var | tuple[Var, ...]:
-    """Define a cta→warp scope id. Pass ``None`` (the default) to defer the
-    extent; it will be inferred at LowerTIRx from sibling closure.
-
-    ``dtype`` selects the dtype of the introduced vars (``"int32"`` or ``"uint32"``).
-    """
-    ret = _ffi_api.WarpId(extents, "cta", dtype)  # type: ignore[attr-defined] # pylint: disable=no-member
-    if len(ret) == 1:
-        return ret[0]
-    return tuple(ret)
-
-
-def warp_id_in_wg(
-    extents: list[Expr | int] | None = None, dtype: str = "int32"
-) -> Var | tuple[Var, ...]:
-    """Define a warpgroup→warp scope id. Pass ``None`` (the default) to defer
-    the extent; it will be inferred at LowerTIRx from sibling closure.
-
-    ``dtype`` selects the dtype of the introduced vars (``"int32"`` or ``"uint32"``).
-    """
-    ret = _ffi_api.WarpId(extents, "warpgroup", dtype)  # type: ignore[attr-defined] # pylint: disable=no-member
-    if len(ret) == 1:
-        return ret[0]
-    return tuple(ret)
-
-
-def lane_id(extents: list[Expr | int] | None = None, dtype: str = "int32") -> Var | tuple[Var, ...]:
-    """Define a warp→thread scope id. Pass ``None`` (the default) to defer the
-    extent; it will be inferred at LowerTIRx from sibling closure.
-
-    ``dtype`` selects the dtype of the introduced vars (``"int32"`` or ``"uint32"``).
-    """
-    ret = _ffi_api.ThreadId(extents, "warp", dtype)  # type: ignore[attr-defined] # pylint: disable=no-member
-    if len(ret) == 1:
-        return ret[0]
-    return tuple(ret)
-
-
-def thread_id(
-    extents: list[Expr | int] | None = None, dtype: str = "int32"
-) -> Var | tuple[Var, ...]:
-    """Define a cta→thread scope id. Pass ``None`` (the default) to defer the
-    extent; it will be inferred at LowerTIRx from sibling closure.
-
-    ``dtype`` selects the dtype of the introduced vars (``"int32"`` or ``"uint32"``).
-    """
-    ret = _ffi_api.ThreadId(extents, "cta", dtype)  # type: ignore[attr-defined] # pylint: disable=no-member
-    if len(ret) == 1:
-        return ret[0]
-    return tuple(ret)
-
-
-def thread_id_in_wg(
-    extents: list[Expr | int] | None = None, dtype: str = "int32"
-) -> Var | tuple[Var, ...]:
-    """Define a warpgroup→thread scope id. Pass ``None`` (the default) to defer
-    the extent; it will be inferred at LowerTIRx from sibling closure.
-
-    ``dtype`` selects the dtype of the introduced vars (``"int32"`` or ``"uint32"``).
-    """
-    ret = _ffi_api.ThreadId(extents, "warpgroup", dtype)  # type: ignore[attr-defined] # pylint: disable=no-member
-    if len(ret) == 1:
-        return ret[0]
-    return tuple(ret)
-
-
-@_register_mutable_decl("tirx.alloc_buffer")
-def alloc_buffer(
+@_register_mutable_decl("tirx.alloc_tensor")
+def alloc_tensor(
     shape: list[Expr] | tuple[Expr] | Expr | Integral,
     dtype: str = "float32",
     data: Var | None = None,
@@ -470,15 +321,15 @@ def alloc_buffer(
     scope: str = "global",
     align: int = -1,
     offset_factor: int = 0,
-    layout: str | Layout | None = "default",
+    layout: str | Layout | None = MISSING,
     allocated_addr: int | tuple[int, ...] | None = None,
     annotations: dict[str, Any] | None = None,
-) -> Buffer:
-    """Statement-level buffer allocation (creates a buffer-returning allocation Call).
+) -> Var:
+    """Allocate a tensor and return its variable.
 
-    Emits a Bind statement with an allocation Call and returns the Buffer directly::
+    Emits a Bind statement with a ``tirx.alloc_tensor`` Call::
 
-        buf = T.alloc_buffer((128, 128))
+        buf = T.alloc_tensor((128, 128))
 
     Parameters
     ----------
@@ -509,23 +360,24 @@ def alloc_buffer(
 
     Returns
     -------
-    res : Buffer
+    res : Var
         The allocated buffer.
     """
     shape = (shape,) if is_prim_expr(shape) or isinstance(shape, Integral) else shape
-    buf = buffer(
-        shape=shape,
-        dtype=dtype,
-        data=data,
-        strides=strides,
-        elem_offset=elem_offset,
-        byte_offset=byte_offset,
-        scope=scope,
-        align=align,
-        offset_factor=offset_factor,
-        layout=layout,
-        allocated_addr=allocated_addr,
-        buffer_name="",
+    buf = Var(
+        "",
+        _tensor_type(
+            shape=shape,
+            dtype=dtype,
+            data=data,
+            strides=strides,
+            elem_offset=elem_offset,
+            byte_offset=byte_offset,
+            scope=scope,
+            align=align,
+            offset_factor=offset_factor,
+            layout=layout,
+        ),
     )
     _record_meta_resource(buf, skip_frames=2)
 
@@ -544,26 +396,39 @@ def alloc_buffer(
         return v
 
     norm_annotations = {k: _normalize_ann_value(v) for k, v in (annotations or {}).items()}
+    if allocated_addr is not None:
+        if scope in ("", "global", "shared", "shared.dyn", "local"):
+            raise ValueError(f"{scope} does not support allocation placement")
+        if data is not None or elem_offset is not None or byte_offset is not None or offset_factor:
+            raise ValueError(
+                "Allocation placement cannot be combined with pointer or offset metadata"
+            )
+        addresses = allocated_addr if isinstance(allocated_addr, list | tuple) else [allocated_addr]
+        allocated_addr = [_normalize_ann_value(v) for v in addresses]
+    # Normalize the historical annotation spelling at the construction boundary.
+    if "buffer_allocated_addr" in norm_annotations:
+        if allocated_addr is not None:
+            raise ValueError("Allocation placement was specified twice")
+        allocated_addr = norm_annotations.pop("buffer_allocated_addr")
+    args = [ir.Tuple(buf.shape), ir.DataTypeImm(DataType(buf.dtype)), ir.StringImm(buf.scope())]
+    if allocated_addr is not None:
+        args.append(ir.Tuple(allocated_addr))
     allocation = ir.Call(
-        "tirx.alloc_buffer",
-        [
-            ir.Tuple(buf.shape),
-            ir.DataTypeImm(DataType(buf.dtype)),
-            ir.StringImm(buf.scope()),
-        ],
+        "tirx.alloc_tensor",
+        args,
         attrs=ir.DictAttrs(norm_annotations),
-        ret_ty=buf.ty,
+        ty=buf.ty,
     )
-    _ffi_api.AddToParent(tir.Bind(buf, allocation))
+    _ffi_api.AddToParent(tvm.ir.Bind(buf, allocation))
     return buf
 
 
-def wg_reg_tile(elem_per_thread: int, dtype: str = "float32") -> Buffer:
+def wg_reg_tile(elem_per_thread: int, dtype: str = "float32") -> Var:
     """Warpgroup-wide ``(128, elem_per_thread)`` register tile in local scope.
 
     Sugar for the recurring pattern::
 
-        T.alloc_buffer(
+        T.alloc_tensor(
             (128, elem_per_thread), dtype,
             layout=wg_local_layout(elem_per_thread),
             scope="local",
@@ -572,7 +437,7 @@ def wg_reg_tile(elem_per_thread: int, dtype: str = "float32") -> Buffer:
     Used to stage a tcgen05 load: each of the 128 threads in a warpgroup
     owns one row of ``elem_per_thread`` contiguous elements.
     """
-    return alloc_buffer(
+    return alloc_tensor(
         (128, elem_per_thread),
         dtype,
         layout=wg_local_layout(elem_per_thread),
@@ -667,8 +532,8 @@ class DtypeConstructor:
         return f"DtypeConstructor({self._dtype_str!r})"
 
 
-@_register_mutable_decl("tirx.decl_buffer")
-def decl_buffer(
+@_register_mutable_decl("tirx.decl_tensor")
+def decl_tensor(
     shape,
     dtype="float32",
     data=None,
@@ -678,13 +543,14 @@ def decl_buffer(
     scope="global",
     align=0,
     offset_factor=0,
-    layout="default",
+    layout=MISSING,
     allocated_addr=None,
-) -> Buffer:
-    """Create a buffer declaration node.
+) -> Var:
+    """Declare a tensor backed by a pointer, or allocate its storage.
 
-    When ``data`` is provided, creates a DeclBuffer (alias to existing data).
-    When ``data`` is None, creates an AllocBuffer (new allocation).
+    With ``data``, bind a ``tirx.decl_tensor`` Call to the tensor variable.
+    Without ``data``, bind a ``tirx.alloc_tensor`` Call instead. The ``tmem``
+    scope uses ``allocated_addr`` to declare externally allocated tensor memory.
 
     Parameters
     ----------
@@ -720,7 +586,7 @@ def decl_buffer(
 
     Returns
     -------
-    res : Buffer
+    res : Var
         The declared buffer.
     """
     shape = (shape,) if is_prim_expr(shape) or isinstance(shape, Integral) else shape
@@ -728,7 +594,7 @@ def decl_buffer(
     if strides is None:
         strides = []
     dtype = _normalize_prim_type(dtype)
-    decl_frame = _ffi_api.DeclBuffer(  # type: ignore[attr-defined] # pylint: disable=no-member
+    buf = _ffi_api.DeclTensor(  # type: ignore[attr-defined] # pylint: disable=no-member
         shape,
         dtype,
         "",
@@ -741,26 +607,21 @@ def decl_buffer(
         _get_layout(layout, shape, scope),
         allocated_addr,
     )
-    if isinstance(decl_frame, frame.DeclBufferFrame):
-        decl_frame.add_callback(partial(decl_frame.__exit__, None, None, None))
-        buf = decl_frame.__enter__()
-    else:
-        buf = decl_frame
     _record_meta_resource(buf, skip_frames=2)
     return buf
 
 
-alloc_shared = functools.partial(alloc_buffer, scope="shared")
+alloc_shared = functools.partial(alloc_tensor, scope="shared")
 
 _register_mutable_decl("tirx.alloc_shared")(alloc_shared)
 
-alloc_local = functools.partial(alloc_buffer, scope="local")
+alloc_local = functools.partial(alloc_tensor, scope="local")
 
 _register_mutable_decl("tirx.alloc_local")(alloc_local)
 
 smem = _register_mutable_decl("tirx.smem")(alloc_shared)
 
-tmem = functools.partial(alloc_buffer, scope="tmem")
+tmem = functools.partial(alloc_tensor, scope="tmem")
 
 
 def alloc_tcgen05_ldst_frag(instr_shape, tensor_shape, dtype):
@@ -787,7 +648,7 @@ def alloc_tcgen05_ldst_frag(instr_shape, tensor_shape, dtype):
 
     Returns
     -------
-    Buffer
+    Var
         2-D view of shape ``tensor_shape`` whose layout matches
         ``tcgen05_atom_layout(instr_shape, tensor_shape, dtype)``.
 
@@ -836,14 +697,14 @@ def alloc_cast_frag(src, dtype):
 
     Parameters
     ----------
-    src : Buffer
+    src : Var
         Source register frag (e.g. from ``alloc_tcgen05_ldst_frag``).
     dtype : str
         Destination element dtype.
 
     Returns
     -------
-    Buffer
+    Var
         Fresh ``local`` frag, ``src.shape`` shaped, ``src.layout``, dtype-cast.
     """
     rows, cols = src.ty.shape
@@ -858,20 +719,20 @@ def alloc_scalar(
     scope: str = "global",
     *,
     annotations: dict[str, Any] | None = None,
-) -> TensorLoad:
+) -> _ir.TensorLoad:
     """Allocate a zero-dimensional buffer (scalar), with optional allocation annotations."""
-    buf = alloc_buffer(
+    buf = alloc_tensor(
         shape=(1,), dtype=dtype, scope=scope, layout=TileLayout(S[1]), annotations=annotations
     )
-    assert is_buffer_var(buf)
+    assert is_tensor_var(buf)
     scalar = buf[0]
     return scalar
 
 
 @_register_mutable_decl("tirx.decl_scalar")
-def decl_scalar(dtype, data, scope, elem_offset=None, byte_offset=None) -> TensorLoad:
+def decl_scalar(dtype, data, scope, elem_offset=None, byte_offset=None) -> _ir.TensorLoad:
     """Declare a zero-dimensional buffer (scalar) from a pointer."""
-    buf = decl_buffer(
+    buf = decl_tensor(
         shape=(1,),
         dtype=dtype,
         data=data,
@@ -882,7 +743,7 @@ def decl_scalar(dtype, data, scope, elem_offset=None, byte_offset=None) -> Tenso
         offset_factor=0,
         layout=TileLayout(S[1]),
     )
-    assert is_buffer_var(buf)
+    assert is_tensor_var(buf)
     scalar = buf[0]
     return scalar
 
@@ -890,7 +751,7 @@ def decl_scalar(dtype, data, scope, elem_offset=None, byte_offset=None) -> Tenso
 @_register_mutable_decl("tirx.shared_scalar")
 def shared_scalar(
     dtype: str = "float32", *, annotations: dict[str, Any] | None = None
-) -> TensorLoad:
+) -> _ir.TensorLoad:
     """Allocate a zero-dimensional buffer in shared memory."""
     return alloc_scalar(dtype=dtype, scope="shared", annotations=annotations)
 
@@ -898,7 +759,7 @@ def shared_scalar(
 @_register_mutable_decl("tirx.local_scalar")
 def local_scalar(
     dtype: str = "float32", *, annotations: dict[str, Any] | None = None
-) -> TensorLoad:
+) -> _ir.TensorLoad:
     """Allocate a zero-dimensional buffer in local memory."""
     return alloc_scalar(dtype=dtype, scope="local", annotations=annotations)
 
@@ -908,9 +769,9 @@ def _is_meta_class_instance(value: Any) -> bool:
 
 
 def _meta_resource_for_value(value: Any) -> Any | None:
-    if isinstance(value, TensorLoad):
+    if isinstance(value, _ir.TensorLoad):
         return value.source
-    if is_buffer_var(value):
+    if is_tensor_var(value):
         return value
     return None
 
@@ -1455,32 +1316,6 @@ def ptr(dtype: str, storage_scope: str = "global") -> Var:
     return _ffi_api.Ptr(dtype, storage_scope)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-def iter_var(v: Var | str, dom: ir.Range, iter_type: str, thread_tag: str) -> IterVar:
-    """The iteration variable.
-
-    Parameters
-    ----------
-    v : Union[Var, str]
-        The internal variable that is used for iteration.
-
-    dom : Range
-        The domain of the iteration.
-
-    iter_type : str
-        The iteration type.
-
-    thread_tag : str
-        The thread type tag.
-
-    Returns
-    -------
-    res : IterVar
-        The iteration variable.
-    """
-    iter_type = getattr(IterVar, iter_type)
-    return IterVar(dom, v, iter_type, thread_tag)
-
-
 def index_map(
     mapping: Callable,
     *,
@@ -1530,21 +1365,6 @@ def target(
     return Target(target_config, host)
 
 
-def Range(begin: Expr, end: Expr) -> ir.Range:  # pylint: disable=invalid-name
-    """
-    Create a Range object.
-
-    Parameters
-    ----------
-    begin : Expr
-        The begin value of the range.
-
-    end : Optional[Expr]
-        The end value of the range.
-    """
-    return ir.Range(begin, end)
-
-
 if TYPE_CHECKING:
     C = TypeVar("C")
 
@@ -1579,14 +1399,14 @@ else:
         return cls
 
     def meta_class(cls):
-        """Decorator for utility classes used inside @T.prim_func.
+        """Decorator for utility classes used inside @T.function.
 
         Instances of decorated classes are treated as parser meta values.
         """
         return _install_meta_class(cls)
 
 
-def Ptr(dtype, storage_scope="global", *, span=None):
+def Ptr(dtype, storage_scope="global", *, loc: _LocationEntry | Location = UNKNOWN_LOC):
     """The pointer declaration function.
 
     Parameters
@@ -1597,7 +1417,7 @@ def Ptr(dtype, storage_scope="global", *, span=None):
     storage_scope : str
         The storage scope of the pointer.
 
-    span : SpanEntry, Span or None, optional
+    loc : LocationEntry or Location, optional
         Source location attached to the constructed IR.
 
     Returns
@@ -1611,22 +1431,19 @@ def Ptr(dtype, storage_scope="global", *, span=None):
         dtype = dtype.ty
     if isinstance(dtype, _ir.PrimType):
         dtype = dtype.dtype
-    return _at(span, ptr(dtype, storage_scope))
+    return _at(loc, ptr(dtype, storage_scope))
 
 
-Buffer = buffer
-_register_mutable_decl("tirx.buffer", syntax="parameter")(buffer)
+Tensor = _tensor_type
 
 __all__ = [
-    "Buffer",
-    "BufferLoad",
     "ComposeLayout",
     "DtypeConstructor",
     "ExecScope",
     "FloatImm",
     "IntImm",
     "Iter",
-    "IterVar",
+    "Lambda",
     "Layout",
     "LetAnnotation",
     "LocalVectorAnnotation",
@@ -1634,27 +1451,23 @@ __all__ = [
     "R",
     "Range",
     "S",
-    "ScopeIdDef",
+    "Tensor",
+    "TensorLoad",
     "TensorMap",
     "TileLayout",
     "Tuple",
     "Var",
-    "alloc_buffer",
     "alloc_cast_frag",
     "alloc_local",
     "alloc_scalar",
     "alloc_shared",
     "alloc_tcgen05_ldst_frag",
+    "alloc_tensor",
     "bf16",
     "bfloat16",
     "boolean",
-    "buffer",
-    "cluster_id",
-    "cta_id",
-    "cta_id_in_cluster",
-    "cta_id_in_pair",
-    "decl_buffer",
     "decl_scalar",
+    "decl_tensor",
     "f16",
     "f32",
     "f64",
@@ -1790,22 +1603,16 @@ __all__ = [
     "int64x16",
     "int64x32",
     "int64x64",
-    "iter_var",
-    "lane_id",
     "let",
     "local_scalar",
     "meta_class",
     "meta_var",
     "ptr",
-    "scope_id",
     "shared_scalar",
     "smem",
     "static_assert",
     "target",
-    "thread_id",
-    "thread_id_in_wg",
     "tmem",
-    "type_annotation",
     "u8",
     "u16",
     "u32",
@@ -1839,8 +1646,5 @@ __all__ = [
     "uint64x32",
     "uint64x64",
     "void",
-    "warp_id",
-    "warp_id_in_wg",
-    "warpgroup_id",
     "wg_reg_tile",
 ]

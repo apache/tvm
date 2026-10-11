@@ -25,11 +25,11 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/sym/analyzer.h>
-#include <tvm/tirx/builtin.h>
-#include <tvm/tirx/op.h>
+#include <tvm/tirx/op/memory.h>
 
 #include <unordered_map>
 #include <unordered_set>
@@ -50,10 +50,10 @@ class BlockReadWriteDetector : public s_tir::StmtExprVisitor {
  public:
   using s_tir::StmtExprVisitor::Visit_;
 
-  explicit BlockReadWriteDetector(const ffi::Map<Var, BufferVar>& buffer_var_map)
+  explicit BlockReadWriteDetector(const ffi::Map<Var, TensorVar>& buffer_var_map)
       : buffer_var_map_(buffer_var_map) {
     for (const auto& item : buffer_var_map) {
-      const BufferVar& buffer = item.second;
+      const TensorVar& buffer = item.second;
       buffer_var_map_.Set(buffer.var(), buffer);
     }
   }
@@ -81,11 +81,11 @@ class BlockReadWriteDetector : public s_tir::StmtExprVisitor {
   /*! \brief Unresolved conditions within current scope. */
   std::vector<PrimExpr> pending_conditions_;
   /*! \brief The buffers that the current block reads */
-  std::vector<BufferVar> read_buffers_;
+  std::vector<TensorVar> read_buffers_;
   /*! \brief The buffers that the current block writes */
-  std::vector<BufferVar> writes_buffers_;
+  std::vector<TensorVar> writes_buffers_;
   /*! \brief The opaque buffer which is access by buffer.data */
-  std::vector<BufferVar> opaque_buffers_;
+  std::vector<TensorVar> opaque_buffers_;
   /*! \brief The read regions of the current block */
   std::vector<std::vector<tvm::sym::IntSet>> read_regions_;
   /*! \brief The write regions of the current block */
@@ -93,7 +93,7 @@ class BlockReadWriteDetector : public s_tir::StmtExprVisitor {
   /*! \brief The opaque regions of the current block */
   std::vector<std::vector<tvm::sym::IntSet>> opaque_regions_;
   /*! \brief The outside buffer data mapping to its buffer */
-  ffi::Map<Var, BufferVar> buffer_var_map_;
+  ffi::Map<Var, TensorVar> buffer_var_map_;
   /*! \brief The target buffer var mapping to its matching */
   std::unordered_map<const VarNode*, s_tir::MatchBufferRegion> match_buffers_;
   /*! \brief let bindings inside the block */
@@ -108,12 +108,12 @@ class BlockReadWriteDetector : public s_tir::StmtExprVisitor {
    * \param buffer The provided buffer
    * \param region The provided region
    */
-  void Update(std::vector<BufferVar>* buffers, std::vector<std::vector<sym::IntSet>>* regions,
-              BufferVar buffer, std::vector<sym::IntSet> region);
+  void Update(std::vector<TensorVar>* buffers, std::vector<std::vector<sym::IntSet>>* regions,
+              TensorVar buffer, std::vector<sym::IntSet> region);
 
   /*! \brief Helper function to collect access regions. */
   ffi::Array<TensorRegion> CollectRegions(
-      const std::vector<BufferVar>& buffers,
+      const std::vector<TensorVar>& buffers,
       const std::vector<std::vector<tvm::sym::IntSet>>& regions,
       const std::unordered_set<const VarNode*>* excluded_buffers = nullptr);
 
@@ -129,7 +129,7 @@ class BlockReadWriteDetector : public s_tir::StmtExprVisitor {
 
   // Declared regions carry bounds, not opaque runtime accesses.
   ffi::Optional<VisitInterrupt> Visit_(const TensorRegionNode* op) final {
-    if (!op->source.as<BufferVar>()) return StmtExprVisitor::Visit_(op);
+    if (!op->source.as<TensorVar>()) return StmtExprVisitor::Visit_(op);
     for (const Range& range : op->region) {
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(range->min));
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(range->extent));
@@ -138,9 +138,9 @@ class BlockReadWriteDetector : public s_tir::StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) override;
-  ffi::Optional<VisitInterrupt> Visit_(const IfThenElseNode* op) override;
+  ffi::Optional<VisitInterrupt> Visit_(const IfNode* op) override;
   ffi::Optional<VisitInterrupt> Visit_(const s_tir::SBlockRealizeNode* op) override;
-  ffi::Optional<VisitInterrupt> Visit_(const BufferStoreNode* op) override;
+  ffi::Optional<VisitInterrupt> Visit_(const TensorStoreNode* op) override;
   ffi::Optional<VisitInterrupt> Visit_(const BindNode* op) override;
   ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* op) override;
   ffi::Optional<VisitInterrupt> Visit_(const VarNode* op) override;
@@ -153,9 +153,9 @@ void BlockReadWriteDetector::operator()(const Stmt& stmt) {
       << "Only visiting Blocks is allowed, but got " << stmt->GetTypeKey();
   for (const s_tir::MatchBufferRegion& match_buffer : block->match_buffers) {
     const Var target_var = match_buffer->buffer.var();
-    const Var source_var = match_buffer->source->source.as_or_throw<tvm::tirx::BufferVar>().var();
+    const Var source_var = match_buffer->source->source.as_or_throw<tvm::tirx::TensorVar>().var();
     if (buffer_var_map_.find(source_var) != buffer_var_map_.end()) {
-      match_buffers_[target_var.get()] = match_buffer;
+      match_buffers_.insert_or_assign(target_var.get(), match_buffer);
       buffer_var_map_.Set(target_var, match_buffer->buffer);
     }
   }
@@ -200,7 +200,7 @@ ffi::Optional<VisitInterrupt> BlockReadWriteDetector::Visit_(const TensorLoadNod
     }
     relaxed_region.push_back(sym::EvalSet(sym::IntSet::Vector(remapped_index), dom_map_));
   }
-  Update(&read_buffers_, &read_regions_, op->source.as_or_throw<tvm::tirx::BufferVar>(),
+  Update(&read_buffers_, &read_regions_, op->source.as_or_throw<tvm::tirx::TensorVar>(),
          relaxed_region);
   for (const auto& index : op->indices) {
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(index));
@@ -210,13 +210,13 @@ ffi::Optional<VisitInterrupt> BlockReadWriteDetector::Visit_(const TensorLoadNod
 
 ffi::Optional<VisitInterrupt> BlockReadWriteDetector::Visit_(const ForNode* op) {
   Range range = Range::FromMinExtent(op->min, op->extent);
-  dom_map_[op->loop_var.get()] = sym::IntSet::FromRange(range);
+  dom_map_.insert_or_assign(op->loop_var.get(), sym::IntSet::FromRange(range));
   TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(s_tir::StmtExprVisitor::Visit_(op));
   dom_map_.erase(op->loop_var.get());
   return std::nullopt;
 }
 
-ffi::Optional<VisitInterrupt> BlockReadWriteDetector::Visit_(const IfThenElseNode* op) {
+ffi::Optional<VisitInterrupt> BlockReadWriteDetector::Visit_(const IfNode* op) {
   TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->condition));
   {
     // Visit then branch
@@ -235,20 +235,20 @@ ffi::Optional<VisitInterrupt> BlockReadWriteDetector::Visit_(const IfThenElseNod
 
 ffi::Optional<VisitInterrupt> BlockReadWriteDetector::Visit_(const BindNode* op) {
   if (const auto* call = op->value.as<CallNode>();
-      call && call->op.same_as(tirx::builtin::decl_buffer())) {
-    // A DeclBuffer data expression defines the alias source.  It is not an
+      call && call->op.same_as(tirx::decl_tensor_op())) {
+    // A DeclTensor data expression defines the alias source.  It is not an
     // opaque buffer access by the containing block.
     return WithDefRegionKind(kTVMFFIDefRegionKindSimple, [&]() { return Visit(op->var); });
   }
   if (auto value = op->value.as<PrimExpr>()) {
-    let_bindings_[op->var.get()] = value.value();
+    let_bindings_.insert_or_assign(op->var.get(), value.value());
   }
   return s_tir::StmtExprVisitor::Visit_(op);
 }
 
 ffi::Optional<VisitInterrupt> BlockReadWriteDetector::Visit_(const CallNode* op) {
-  auto update_masked_access = [this](const BufferVar& buffer, const ffi::Array<PrimExpr>& indices,
-                                     std::vector<BufferVar>* buffers,
+  auto update_masked_access = [this](const TensorVar& buffer, const ffi::Array<PrimExpr>& indices,
+                                     std::vector<TensorVar>* buffers,
                                      std::vector<std::vector<sym::IntSet>>* regions) {
     auto f_substitute = [this](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
       if (auto it = let_bindings_.find(var.get()); it != let_bindings_.end()) {
@@ -269,10 +269,9 @@ ffi::Optional<VisitInterrupt> BlockReadWriteDetector::Visit_(const CallNode* op)
     }
     Update(buffers, regions, buffer, relaxed_region);
   };
-  if (op->op.same_as(tirx::builtin::masked_load()) ||
-      op->op.same_as(tirx::builtin::masked_store())) {
-    bool is_load = op->op.same_as(tirx::builtin::masked_load());
-    BufferVar buffer = op->args[0].as_or_throw<BufferVar>();
+  if (op->op.same_as(tirx::masked_load_op()) || op->op.same_as(tirx::masked_store_op())) {
+    bool is_load = op->op.same_as(tirx::masked_load_op());
+    TensorVar buffer = op->args[0].as_or_throw<TensorVar>();
     ffi::Array<PrimExpr> indices;
     for (size_t i = is_load ? 1 : 2; i + 1 < op->args.size(); ++i) {
       indices.push_back(op->args[i].as_or_throw<PrimExpr>());
@@ -284,39 +283,17 @@ ffi::Optional<VisitInterrupt> BlockReadWriteDetector::Visit_(const CallNode* op)
     }
     return std::nullopt;
   }
-  if (op->op.same_as(tirx::builtin::tvm_access_ptr())) {
-    const VarNode* buffer_var = op->args[1].as<VarNode>();
-    if (const auto* data = op->args[1].as<CallNode>();
-        data && data->op.same_as(tirx::builtin::buffer_data())) {
-      buffer_var = data->args[0].as<VarNode>();
-    }
-    const IntImmNode* access_mask = op->args[4].as<IntImmNode>();
-    if (buffer_var && access_mask) {
-      auto it = buffer_var_map_.find(ffi::GetRef<Var>(buffer_var));
-      if (it != buffer_var_map_.end()) {
-        const BufferVar& buffer = (*it).second;
-        const TensorRegion buffer_region = FullBufferRegion(buffer);
-        const ffi::Array<Range>& region = buffer_region->region;
-        std::vector<sym::IntSet> int_set;
-        int_set.reserve(region.size());
-        for (const Range& range : region) {
-          int_set.push_back(sym::EvalSet(range, dom_map_));
-        }
-        // read access, write access or opaque access
-        if ((access_mask->value & 1) && (access_mask->value & 2)) {
-          Update(&opaque_buffers_, &opaque_regions_, buffer, int_set);
-        } else if (access_mask->value & 1) {
-          Update(&read_buffers_, &read_regions_, buffer, int_set);
-        } else if (access_mask->value & 2) {
-          Update(&writes_buffers_, &write_regions_, buffer, int_set);
-        }
+  if (op->op.same_as(tirx::address_of_op())) {
+    if (const auto* load = op->args[0].as<TensorLoadNode>()) {
+      // A tensor address is an opaque use, not a load of its pointed-to value.
+      UpdateOpaque(load->source.as_or_throw<TensorVar>().var());
+      for (const PrimExpr& index : load->indices) {
+        TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(index));
       }
-    } else {
-      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(s_tir::StmtExprVisitor::Visit_(op));
+      return std::nullopt;
     }
-    return std::nullopt;
   }
-  if (op->op.same_as(prim::builtin::if_then_else())) {
+  if (op->op.same_as(prim::if_then_else_op())) {
     PrimExpr condition = op->args[0].as_or_throw<PrimExpr>();
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(condition));
     {
@@ -338,7 +315,7 @@ ffi::Optional<VisitInterrupt> BlockReadWriteDetector::Visit_(const CallNode* op)
   return s_tir::StmtExprVisitor::Visit_(op);
 }
 
-ffi::Optional<VisitInterrupt> BlockReadWriteDetector::Visit_(const BufferStoreNode* op) {
+ffi::Optional<VisitInterrupt> BlockReadWriteDetector::Visit_(const TensorStoreNode* op) {
   auto f_substitute = [this](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
     if (auto it = let_bindings_.find(var.get()); it != let_bindings_.end()) {
       return ffi::Any(it->second);
@@ -356,7 +333,7 @@ ffi::Optional<VisitInterrupt> BlockReadWriteDetector::Visit_(const BufferStoreNo
     }
     relaxed_region.push_back(sym::EvalSet(sym::IntSet::Vector(remapped_index), dom_map_));
   }
-  Update(&writes_buffers_, &write_regions_, op->buffer, relaxed_region);
+  Update(&writes_buffers_, &write_regions_, op->dest.as_or_throw<TensorVar>(), relaxed_region);
   TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->value));
   for (const auto& index : op->indices) {
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(index));
@@ -368,7 +345,7 @@ ffi::Optional<VisitInterrupt> BlockReadWriteDetector::Visit_(const s_tir::SBlock
   /*! \note detector will not visit child block recursively, so it will stop here */
   std::unordered_map<const VarNode*, PrimExpr> vmap;
   for (size_t i = 0; i < op->block->iter_vars.size(); ++i) {
-    vmap[op->block->iter_vars[i]->var.get()] = op->iter_values[i];
+    vmap.insert_or_assign(op->block->iter_vars[i]->var.get(), op->iter_values[i]);
   }
   auto f_substitute = [&vmap](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
     if (auto it = vmap.find(var.get()); it != vmap.end()) return ffi::Any(it->second);
@@ -384,7 +361,7 @@ ffi::Optional<VisitInterrupt> BlockReadWriteDetector::Visit_(const s_tir::SBlock
       relaxed_region.push_back(
           sym::EvalSet(sym::IntSet::FromRange(Range::FromMinExtent(min, extent)), dom_map_));
     }
-    Update(&read_buffers_, &read_regions_, read->source.as_or_throw<tvm::tirx::BufferVar>(),
+    Update(&read_buffers_, &read_regions_, read->source.as_or_throw<tvm::tirx::TensorVar>(),
            relaxed_region);
   }
   for (const auto& write : op->block->writes) {
@@ -397,7 +374,7 @@ ffi::Optional<VisitInterrupt> BlockReadWriteDetector::Visit_(const s_tir::SBlock
       relaxed_region.push_back(
           sym::EvalSet(sym::IntSet::FromRange(Range::FromMinExtent(min, extent)), dom_map_));
     }
-    Update(&writes_buffers_, &write_regions_, write->source.as_or_throw<tvm::tirx::BufferVar>(),
+    Update(&writes_buffers_, &write_regions_, write->source.as_or_throw<tvm::tirx::TensorVar>(),
            relaxed_region);
   }
   return std::nullopt;
@@ -405,14 +382,14 @@ ffi::Optional<VisitInterrupt> BlockReadWriteDetector::Visit_(const s_tir::SBlock
 
 std::vector<sym::IntSet> BlockReadWriteDetector::ConvertMatchedRegion(
     const s_tir::MatchBufferRegion& match_buffer, const std::vector<sym::IntSet>& int_sets) const {
-  const BufferVar& buffer = match_buffer->buffer;
+  const TensorVar& buffer = match_buffer->buffer;
 
   ffi::Array<Range> region;
   region.reserve(int_sets.size());
   TVM_FFI_ICHECK_EQ(buffer->shape.size(), int_sets.size());
   for (size_t i = 0; i < int_sets.size(); ++i) {
     const tvm::sym::IntSet& int_set = int_sets[i];
-    region.push_back(int_set.CoverRange(Range::FromMinExtent(0, buffer->shape[i])));
+    region.push_back(int_set.CoverRange(Range::FromMinExtent(0, buffer->shape[i])).value());
   }
 
   region = ConvertRegion(match_buffer, region);
@@ -425,15 +402,15 @@ std::vector<sym::IntSet> BlockReadWriteDetector::ConvertMatchedRegion(
   return result;
 }
 
-void BlockReadWriteDetector::Update(std::vector<BufferVar>* buffers,
+void BlockReadWriteDetector::Update(std::vector<TensorVar>* buffers,
                                     std::vector<std::vector<sym::IntSet>>* regions,
-                                    BufferVar buffer, std::vector<sym::IntSet> region) {
+                                    TensorVar buffer, std::vector<sym::IntSet> region) {
   if (buffer_var_map_.find(buffer.var()) == buffer_var_map_.end()) return;
   // Handle match_buffer remap
   auto it = match_buffers_.find(buffer.get());
   if (it != match_buffers_.end()) {
     const s_tir::MatchBufferRegion& match_buffer = it->second;
-    buffer = match_buffer->source->source.as_or_throw<tvm::tirx::BufferVar>();
+    buffer = match_buffer->source->source.as_or_throw<tvm::tirx::TensorVar>();
     region = ConvertMatchedRegion(match_buffer, std::move(region));
   }
   TVM_FFI_ICHECK_EQ(buffers->size(), regions->size())
@@ -452,7 +429,7 @@ void BlockReadWriteDetector::Update(std::vector<BufferVar>* buffers,
 }
 
 ffi::Array<TensorRegion> BlockReadWriteDetector::CollectRegions(
-    const std::vector<BufferVar>& buffers,
+    const std::vector<TensorVar>& buffers,
     const std::vector<std::vector<tvm::sym::IntSet>>& regions,
     const std::unordered_set<const VarNode*>* excluded_buffers) {
   TVM_FFI_ICHECK_EQ(buffers.size(), regions.size());
@@ -471,7 +448,7 @@ ffi::Array<TensorRegion> BlockReadWriteDetector::CollectRegions(
         PrimExpr min = range.min();
         region.push_back(Range::FromMinExtent(min, prim::MakeConst(min.ty(), 1)));
       } else {
-        region.push_back(range.CoverRange(Range::FromMinExtent(0, buffers[i]->shape[j])));
+        region.push_back(range.CoverRange(Range::FromMinExtent(0, buffers[i]->shape[j])).value());
       }
     }
     res.push_back(BufferRegion(buffers[i], region));
@@ -482,7 +459,7 @@ ffi::Array<TensorRegion> BlockReadWriteDetector::CollectRegions(
 void BlockReadWriteDetector::UpdateOpaque(const Var& buffer_var) {
   auto it = buffer_var_map_.find(buffer_var);
   if (it != buffer_var_map_.end()) {
-    const BufferVar& buffer = (*it).second;
+    const TensorVar& buffer = (*it).second;
     const TensorRegion buffer_region = FullBufferRegion(buffer);
     const ffi::Array<Range>& region = buffer_region->region;
     std::vector<sym::IntSet> int_set;
@@ -495,7 +472,7 @@ void BlockReadWriteDetector::UpdateOpaque(const Var& buffer_var) {
 }
 
 ffi::Array<ffi::Array<TensorRegion>> GetSBlockAccessRegion(
-    const s_tir::SBlock& block, const ffi::Map<Var, BufferVar>& buffer_var_map) {
+    const s_tir::SBlock& block, const ffi::Map<Var, TensorVar>& buffer_var_map) {
   auto detector = ffi::make_object<BlockReadWriteDetector>(buffer_var_map);
   detector->operator()(block);
   ffi::Array<TensorRegion> writes = detector->CollectWrites();
@@ -503,7 +480,7 @@ ffi::Array<ffi::Array<TensorRegion>> GetSBlockAccessRegion(
   // exclude write buffers from read regions for reductions if init block is defined.
   if (block->init.has_value()) {
     for (const TensorRegion& write_access : writes) {
-      excluded_buffers.insert(write_access->source.as_or_throw<tvm::tirx::BufferVar>().get());
+      excluded_buffers.insert(write_access->source.as_or_throw<tvm::tirx::TensorVar>().get());
     }
   }
   ffi::Array<TensorRegion> reads = detector->CollectReads(&excluded_buffers);
@@ -512,18 +489,18 @@ ffi::Array<ffi::Array<TensorRegion>> GetSBlockAccessRegion(
 }
 
 ffi::Array<ffi::Array<TensorRegion>> GetSBlockReadWriteRegion(
-    const s_tir::SBlock& block, const ffi::Map<Var, BufferVar>& buffer_var_map) {
+    const s_tir::SBlock& block, const ffi::Map<Var, TensorVar>& buffer_var_map) {
   auto detector = ffi::make_object<BlockReadWriteDetector>(buffer_var_map);
   detector->operator()(block);
   ffi::Array<TensorRegion> opaques = detector->CollectOpaques();
   std::unordered_set<const VarNode*> excluded_buffers;
   for (const TensorRegion& opaque_access : opaques) {
-    excluded_buffers.insert(opaque_access->source.as_or_throw<tvm::tirx::BufferVar>().get());
+    excluded_buffers.insert(opaque_access->source.as_or_throw<tvm::tirx::TensorVar>().get());
   }
   ffi::Array<TensorRegion> writes = detector->CollectWrites(&excluded_buffers);
   if (block->init.has_value()) {
     for (const TensorRegion& write_access : writes) {
-      excluded_buffers.insert(write_access->source.as_or_throw<tvm::tirx::BufferVar>().get());
+      excluded_buffers.insert(write_access->source.as_or_throw<tvm::tirx::TensorVar>().get());
     }
   }
   ffi::Array<TensorRegion> reads = detector->CollectReads(&excluded_buffers);

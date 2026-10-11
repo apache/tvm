@@ -22,29 +22,22 @@ import operator
 
 import tvm
 from tvm.script import tirx as T
-from tvm.tirx import Buffer, PrimFunc
-from tvm.tirx.operator.tile_primitive import (
-    DispatchContext,
-    fail,
-    predicate,
-    register_dispatch,
-)
-from tvm.tirx.tile_primitive import TilePrimitiveCall
+from tvm.tirx import Function, Var
+from tvm.tirx.operator.tile_primitive import DispatchContext, fail
+from tvm.tirx.tensor_instruction import TensorCall
 
-from ..common import validate_copy_op
-from ..exec_scope_utils import single_thread
 from .utils import find_contiguous_region, to_tile_layout
 
 
-def _is_shared_to_shared(op_call: TilePrimitiveCall) -> bool:
+def _is_shared_to_shared(op_call: TensorCall) -> bool:
     """Check if both src and dst are in shared memory."""
-    op_call = TilePrimitiveCall.downcast(op_call)
+    op_call = TensorCall.decode(op_call)
     src_scope = op_call.src.source.scope()
     dst_scope = op_call.dst.source.scope()
     return src_scope.startswith("shared") and dst_scope.startswith("shared")
 
 
-def copy_dsmem_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
+def copy_dsmem_impl(op_call: TensorCall, sctx: DispatchContext) -> Function:
     """Implement shared-to-shared cross-CTA copy using cp.async.bulk.
 
     Uses cp.async.bulk.shared::cluster.shared::cta.mbarrier::complete_tx::bytes
@@ -55,21 +48,21 @@ def copy_dsmem_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFu
     analysis of both src and dst buffers. Non-contiguous dimensions are iterated
     over, emitting one cp.async.bulk instruction per contiguous chunk.
     """
-    op_call = TilePrimitiveCall.downcast(op_call)
+    op_call = TensorCall.decode(op_call)
 
     # Extract config
-    remote_cta_id = op_call.config.get("remote_cta_id", None)
+    remote_cta_id = op_call.options.get("remote_cta_id", None)
     if remote_cta_id is None:
         fail("remote_cta_id not set in config")
-    mbar = op_call.config.get("mbar", None)
+    mbar = op_call.options.get("mbar", None)
     if mbar is None:
         fail("mbar not set in config")
 
     # Extract buffer regions
     dst_buffer_region = op_call.dst
     src_buffer_region = op_call.src
-    src_buf: Buffer = src_buffer_region.source
-    dst_buf: Buffer = dst_buffer_region.source
+    src_buf: Var = src_buffer_region.source
+    dst_buf: Var = dst_buffer_region.source
 
     src_st = [r.min for r in src_buffer_region.region]
     src_ext = [r.extent for r in src_buffer_region.region]
@@ -134,6 +127,8 @@ def copy_dsmem_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFu
 
     # Helper to compute element offsets from loop variables (called via T.meta_var)
     def compute_offsets(loop_vars):
+        if isinstance(loop_vars, Var):
+            loop_vars = (loop_vars,)
         src_off = 0
         dst_off = 0
         for j, v in enumerate(loop_vars):
@@ -145,7 +140,7 @@ def copy_dsmem_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFu
     dst_tile = to_tile_layout(dst_buf.layout, dst_buf.shape)
 
     # fmt: off
-    @T.prim_func(check_well_formed=False)
+    @T.function(check_well_formed=False)
     def impl():
         # Map mbar to remote CTA (complete_tx targets the destination's mbar).
         # mapa writes its result into a declared register, so the mapped
@@ -167,13 +162,13 @@ def copy_dsmem_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFu
             for loop_vars in T.grid(*outer_extents):
                 src_elem_offset, dst_elem_offset = T.meta_var(compute_offsets(loop_vars))
 
-                src_buf_w = T.decl_buffer(
+                src_buf_w = T.decl_tensor(
                     src_buf.shape, src_buf.dtype, src_buf.data,
                     elem_offset=src_buf.elem_offset + src_elem_offset,
                     scope=src_buf.scope(),
                     layout=src_tile,
                 )
-                dst_buf_w = T.decl_buffer(
+                dst_buf_w = T.decl_tensor(
                     dst_buf.shape, dst_buf.dtype, dst_buf.data,
                     elem_offset=dst_buf.elem_offset + dst_elem_offset,
                     scope=dst_buf.scope(),
@@ -190,45 +185,3 @@ def copy_dsmem_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFu
     # fmt: on
 
     return impl
-
-
-# === Variant: copy_async/dsmem (priority=10) ===
-#
-# When: valid async copy at single-thread scope where both src and dst are in
-# shared memory. Used for intra-cluster DSMEM copies (shared::cta -> shared::cluster).
-#
-# Before (TilePrimitiveCall):
-#     Tx.copy_async(
-#         dst_smem[0:128, 0:64],
-#         src_smem[0:128, 0:64],
-#         config={"mbar": mbar, "remote_cta_id": cta_id}
-#     )
-#
-# After (emits cp.async.bulk.shared::cluster.shared::cta):
-#   cluster_dst = mapa(dst_smem.ptr, cta_id)
-#   cp.async.bulk.shared::cluster.shared::cta.mbarrier::complete_tx::bytes
-#       [cluster_dst], [src_smem.ptr], size, [mbar]
-@register_dispatch(
-    "copy_async",
-    "cuda",
-    variant="dsmem",
-    priority=10,
-    when=[
-        predicate(
-            "validate_copy_op", lambda op, sctx: (validate_copy_op(op, sctx), "not a valid copy op")
-        ),
-        predicate(
-            "single_thread",
-            lambda op, sctx: (
-                single_thread(op, sctx),
-                f"unsupported exec_scope {sctx.exec_scope}, expected single thread",
-            ),
-        ),
-        predicate(
-            "is_shared_to_shared",
-            lambda op, sctx: (_is_shared_to_shared(op), "not a shared-to-shared copy"),
-        ),
-    ],
-)
-def copy_async_dispatch_dsmem(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
-    return copy_dsmem_impl(op, sctx)

@@ -63,13 +63,13 @@ from tvm.script import tirx as T
 
 @I.ir_module
 class MyModule:
-    @Ts.prim_func
+    @Ts.function
     def mm_relu(
-        A: T.Buffer((128, 128), "float32"),
-        B: T.Buffer((128, 128), "float32"),
-        C: T.Buffer((128, 128), "float32"),
+        A: T.Tensor((128, 128), "float32"),
+        B: T.Tensor((128, 128), "float32"),
+        C: T.Tensor((128, 128), "float32"),
     ):
-        Y = T.alloc_buffer((128, 128), dtype="float32")
+        Y = T.alloc_tensor((128, 128), dtype="float32")
         for i in range(128):
             for j in range(128):
                 for k in range(128):
@@ -106,13 +106,13 @@ class MyModule:
 
 @I.ir_module
 class ConciseModule:
-    @Ts.prim_func
+    @Ts.function
     def mm_relu(
-        A: T.Buffer((128, 128), "float32"),
-        B: T.Buffer((128, 128), "float32"),
-        C: T.Buffer((128, 128), "float32"),
+        A: T.Tensor((128, 128), "float32"),
+        B: T.Tensor((128, 128), "float32"),
+        C: T.Tensor((128, 128), "float32"),
     ):
-        Y = T.alloc_buffer((128, 128), dtype="float32")
+        Y = T.alloc_tensor((128, 128), dtype="float32")
         for i, j, k in T.grid(128, 128, 128):
             with Ts.sblock("Y"):
                 vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
@@ -145,13 +145,13 @@ dtype = "float32"
 # IRModule in TVMScript
 @I.ir_module
 class ConciseModuleFromPython:
-    @Ts.prim_func
+    @Ts.function
     def mm_relu(
-        A: T.Buffer((M, K), dtype),
-        B: T.Buffer((K, N), dtype),
-        C: T.Buffer((M, N), dtype),
+        A: T.Tensor((M, K), dtype),
+        B: T.Tensor((K, N), dtype),
+        C: T.Tensor((M, N), dtype),
     ):
-        Y = T.alloc_buffer((M, N), dtype)
+        Y = T.alloc_tensor((M, N), dtype)
         for i, j, k in T.grid(M, N, K):
             with Ts.sblock("Y"):
                 vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
@@ -184,11 +184,11 @@ K = T.dynamic("K", "int32")
 
 @I.ir_module
 class DynamicShapeModule:
-    @Ts.prim_func
-    def mm_relu(A: T.Buffer([M, K], dtype), B: T.Buffer([K, N], dtype), C: T.Buffer([M, N], dtype)):
+    @Ts.function
+    def mm_relu(A: T.Tensor([M, K], dtype), B: T.Tensor([K, N], dtype), C: T.Tensor([M, N], dtype)):
         # Bind the input buffers with the dynamic shapes
 
-        Y = T.alloc_buffer((M, N), dtype)
+        Y = T.alloc_tensor((M, N), dtype)
         for i, j, k in T.grid(M, N, K):
             with Ts.sblock("Y"):
                 vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
@@ -264,7 +264,7 @@ C = te.compute((128, 128), lambda i, j: te.max(Y[i, j], 0), name="C")
 # In this specific instance, we aim to construct a function with two input parameters **A, B**
 # and one output parameter **C**.
 
-te_func = te.create_prim_func([A, B, C]).with_attr({"global_symbol": "mm_relu"})
+te_func = te.create_function([A, B, C]).with_attr({"global_symbol": "mm_relu"})
 TEModule = tvm.IRModule({"mm_relu": te_func})
 TEModule.show()
 
@@ -282,6 +282,6 @@ k = te.reduce_axis((0, K), "k")
 Y = te.compute((M, N), lambda i, j: te.sum(A[i, k] * B[k, j], axis=k), name="Y")
 C = te.compute((M, N), lambda i, j: te.max(Y[i, j], 0), name="C")
 
-dyn_te_func = te.create_prim_func([A, B, C]).with_attr({"global_symbol": "mm_relu"})
+dyn_te_func = te.create_function([A, B, C]).with_attr({"global_symbol": "mm_relu"})
 DynamicTEModule = tvm.IRModule({"mm_relu": dyn_te_func})
 DynamicTEModule.show()

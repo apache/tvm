@@ -22,7 +22,6 @@
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/ir/prim/builtin.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/prim/op.h>
 
@@ -38,7 +37,7 @@ namespace {
 std::optional<int> ExtractVscaleFactor(const PrimExpr& lanes) {
   auto is_vscale = [](const PrimExpr& e) -> bool {
     if (const auto* call = e.as<CallNode>()) {
-      return call->op.same_as(prim::builtin::vscale());
+      return call->op.same_as(prim::vscale_op());
     }
     return false;
   };
@@ -208,7 +207,8 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> ShuffleMaybeInplaceMuta
 
 }  // namespace
 // Ramp
-Ramp::Ramp(PrimExpr base, PrimExpr stride, PrimExpr lanes, Span span) {
+Ramp::Ramp(PrimExpr base, PrimExpr stride, PrimExpr lanes, Location loc)
+    : PrimExpr(ffi::UnsafeInit{}) {
   TVM_FFI_ICHECK(base.defined());
   TVM_FFI_ICHECK(stride.defined());
   PrimType base_ty = base.ty();
@@ -219,7 +219,7 @@ Ramp::Ramp(PrimExpr base, PrimExpr stride, PrimExpr lanes, Span span) {
     stride = prim::cast(base_ty, stride);
   }
 
-  ffi::ObjectPtr<RampNode> node = ffi::make_object<RampNode>();
+  ffi::ObjectPtr<RampNode> node = ffi::make_object<RampNode>(base, stride, lanes);
   auto* lanes_as_int = lanes.as<IntImmNode>();
   if (lanes_as_int) {
     int lanes = lanes_as_int->value.as<int>().value();
@@ -233,13 +233,11 @@ Ramp::Ramp(PrimExpr base, PrimExpr stride, PrimExpr lanes, Span span) {
 
     node->ExprNode::ty =
         PrimType::ScalableVector(base_ty.code(), base_ty.bits(), vscale_factor.value());
-    lanes = Mul(Call(PrimType::Int(32), prim::builtin::vscale(), {}).as_or_throw<PrimExpr>(),
+    lanes = Mul(Call(PrimType::Int(32), prim::vscale_op(), {}).as_or_throw<PrimExpr>(),
                 vscale_factor.value());
     node->lanes = lanes;
   }
-  node->base = base;
-  node->stride = stride;
-  node->span = std::move(span);
+  node->loc = loc;
   data_ = std::move(node);
 }
 
@@ -252,18 +250,17 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&RampMaybeInplaceMutate>());
 
-  refl::GlobalDef().def("prim.Ramp", [](PrimExpr base, PrimExpr stride, PrimExpr lanes, Span span) {
-    return Ramp(base, stride, lanes, span);
-  });
+  refl::GlobalDef().def("prim.Ramp", [](PrimExpr base, PrimExpr stride, PrimExpr lanes,
+                                        Location loc) { return Ramp(base, stride, lanes, loc); });
 }
 
 // Broadcast
-Broadcast::Broadcast(PrimExpr value, PrimExpr lanes, Span span) {
+Broadcast::Broadcast(PrimExpr value, PrimExpr lanes, Location loc) : PrimExpr(ffi::UnsafeInit{}) {
   TVM_FFI_ICHECK(value.defined());
   PrimType value_ty = value.ty();
   TVM_FFI_ICHECK(value_ty.IsScalar());
 
-  ffi::ObjectPtr<BroadcastNode> node = ffi::make_object<BroadcastNode>();
+  ffi::ObjectPtr<BroadcastNode> node = ffi::make_object<BroadcastNode>(value, lanes);
   auto* lanes_int = lanes.as<IntImmNode>();
   if (lanes_int) {
     int lanes = lanes_int->value.as<int>().value();
@@ -277,12 +274,11 @@ Broadcast::Broadcast(PrimExpr value, PrimExpr lanes, Span span) {
 
     node->ExprNode::ty =
         PrimType::ScalableVector(value_ty.code(), value_ty.bits(), vscale_factor.value());
-    lanes = Mul(Call(PrimType::Int(32), prim::builtin::vscale(), {}).as_or_throw<PrimExpr>(),
+    lanes = Mul(Call(PrimType::Int(32), prim::vscale_op(), {}).as_or_throw<PrimExpr>(),
                 vscale_factor.value());
     node->lanes = lanes;
   }
-  node->value = std::move(value);
-  node->span = std::move(span);
+  node->loc = loc;
   data_ = node;
 }
 
@@ -296,13 +292,14 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&BroadcastMaybeInplaceMutate>());
 
-  refl::GlobalDef().def("prim.Broadcast", [](PrimExpr value, PrimExpr lanes, Span span) {
-    return Broadcast(value, lanes, span);
+  refl::GlobalDef().def("prim.Broadcast", [](PrimExpr value, PrimExpr lanes, Location loc) {
+    return Broadcast(value, lanes, loc);
   });
 }
 
 // Shuffle
-Shuffle::Shuffle(ffi::Array<PrimExpr> vectors, ffi::Array<PrimExpr> indices, Span span) {
+Shuffle::Shuffle(ffi::Array<PrimExpr> vectors, ffi::Array<PrimExpr> indices, Location loc)
+    : PrimExpr(ffi::UnsafeInit{}) {
   TVM_FFI_ICHECK_NE(vectors.size(), 0U);
   TVM_FFI_ICHECK_NE(indices.size(), 0U);
 
@@ -320,7 +317,7 @@ Shuffle::Shuffle(ffi::Array<PrimExpr> vectors, ffi::Array<PrimExpr> indices, Spa
   node->ExprNode::ty = base_type.WithLanes(static_cast<int>(indices.size()));
   node->vectors = std::move(vectors);
   node->indices = std::move(indices);
-  node->span = std::move(span);
+  node->loc = loc;
   data_ = node;
 }
 
@@ -334,13 +331,13 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&ShuffleMaybeInplaceMutate>());
 
-  refl::GlobalDef().def("prim.Shuffle",
-                        [](ffi::Array<PrimExpr> vectors, ffi::Array<PrimExpr> indices, Span span) {
-                          return Shuffle(vectors, indices, span);
-                        });
+  refl::GlobalDef().def(
+      "prim.Shuffle", [](ffi::Array<PrimExpr> vectors, ffi::Array<PrimExpr> indices, Location loc) {
+        return Shuffle(vectors, indices, loc);
+      });
 }
 
-PrimExpr Shuffle::Concat(ffi::Array<PrimExpr> vectors, Span span) {
+PrimExpr Shuffle::Concat(ffi::Array<PrimExpr> vectors, Location loc) {
   TVM_FFI_ICHECK_NE(vectors.size(), 0);
   if (vectors.size() == 1) {
     return vectors[0];
@@ -352,11 +349,11 @@ PrimExpr Shuffle::Concat(ffi::Array<PrimExpr> vectors, Span span) {
       indices.push_back(IntImm::Int32(index++));
     }
   }
-  return Shuffle(vectors, indices, span);
+  return Shuffle(vectors, indices, loc);
 }
 
-PrimExpr Shuffle::ExtractElement(PrimExpr vector, int index, Span span) {
-  return Shuffle({vector}, {IntImm::Int32(index)}, span);
+PrimExpr Shuffle::ExtractElement(PrimExpr vector, int index, Location loc) {
+  return Shuffle({vector}, {IntImm::Int32(index)}, loc);
 }
 
 }  // namespace prim

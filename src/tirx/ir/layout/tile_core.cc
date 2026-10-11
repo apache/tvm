@@ -151,10 +151,7 @@ TVM_FFI_STATIC_INIT_BLOCK() { ComposeLayoutNode::RegisterReflection(); }
 
 /**************** Iter ****************/
 Iter::Iter(PrimExpr extent, PrimExpr stride, Axis axis) {
-  auto n = ffi::make_object<IterNode>();
-  n->extent = extent;
-  n->stride = stride;
-  n->axis = axis;
+  auto n = ffi::make_object<IterNode>(extent, stride, axis);
   data_ = std::move(n);
 }
 
@@ -174,7 +171,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 /**************** TileLayout ****************/
 TileLayout::TileLayout(ffi::Array<Iter> shard, ffi::Array<Iter> replica,
-                       ffi::Map<Axis, PrimExpr> offset) {
+                       ffi::Map<Axis, PrimExpr> offset)
+    : Layout(ffi::UnsafeInit{}) {
   auto n = ffi::make_object<TileLayoutNode>();
   n->shard = shard;
   n->replica = replica;
@@ -323,18 +321,20 @@ ffi::Map<ffi::String, PrimExpr> TileLayoutNode::Apply(Array<PrimExpr> coord) con
   for (size_t i = 0; i < shard.size(); ++i) {
     auto it = result.find(shard[i]->axis.name());
     if (it == result.end()) {
-      result[shard[i]->axis.name()] = analyzer->Simplify(coord[i] * shard[i]->stride);
+      result.insert_or_assign(shard[i]->axis.name(),
+                              analyzer->Simplify(coord[i] * shard[i]->stride));
     } else {
-      result[shard[i]->axis.name()] = analyzer->Simplify(it->second + coord[i] * shard[i]->stride);
+      result.insert_or_assign(shard[i]->axis.name(),
+                              analyzer->Simplify(it->second + coord[i] * shard[i]->stride));
     }
   }
   // Add offset to the result
   for (const auto& [axis, off] : offset) {
     auto it = result.find(axis.name());
     if (it == result.end()) {
-      result[axis.name()] = analyzer->Simplify(off);
+      result.insert_or_assign(axis.name(), analyzer->Simplify(off));
     } else {
-      result[axis.name()] = analyzer->Simplify(it->second + off);
+      result.insert_or_assign(axis.name(), analyzer->Simplify(it->second + off));
     }
   }
   return result;
@@ -347,7 +347,7 @@ ffi::Array<PrimExpr> TileLayoutNode::GetShardShape() const {
 bool TileLayoutNode::IsTrivial() const {
   if (shard.size() > 1) return false;
   if (shard.size() == 1) {
-    if (!shard[0]->axis->IsMemoryAxis() || !is_one(shard[0]->stride)) return false;
+    if (!shard[0]->axis->IsMemoryAxis() || !IsOne(shard[0]->stride)) return false;
   }
   return replica.size() == 0 && offset.size() == 0;
 }

@@ -436,7 +436,7 @@ TVM_FFI_INLINE ffi::Expected<ffi::Optional<ffi::VisitInterrupt>> VarVisit(
   // A PrimType carries only a dtype, so it has nothing to visit.  Broad callbacks do not see this
   // skipped field; dynamically typed Vars still descend through the Type value.
   if (!self->ty.as<PrimTypeNode>()) {
-    // Only Simple is clamped: Pattern co-introduces type fields such as BufferType shape
+    // Only Simple is clamped: Pattern co-introduces type fields such as TensorType shape
     // variables, so that ambient region must continue through the dynamic type.
     if (visitor->def_region_kind() == kTVMFFIDefRegionKindSimple) {
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->WithDefRegionKind(
@@ -467,7 +467,7 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> VarMutate(
   // A PrimType carries only a dtype, so it has nothing to substitute.  Broad callbacks do not see
   // this skipped field; dynamically typed Vars still descend through the Type value.
   if (!self->ty.as<PrimTypeNode>()) {
-    // Pattern co-introduces type fields such as BufferType shape variables; Simple does not.
+    // Pattern co-introduces type fields such as TensorType shape variables; Simple does not.
     ffi::Expected<ffi::UnchangedOr<ffi::Any>> mapped_ty_result =
         mutator->def_region_kind() == kTVMFFIDefRegionKindSimple
             ? mutator->WithDefRegionKind(kTVMFFIDefRegionKindNone,
@@ -510,7 +510,7 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> VarMaybeInplaceMutate(
   // A PrimType carries only a dtype, so it has nothing to substitute.  Broad callbacks do not see
   // this skipped field; dynamically typed Vars still descend through the Type value.
   if (!self->ty.as<PrimTypeNode>()) {
-    // Pattern co-introduces type fields such as BufferType shape variables; Simple does not.
+    // Pattern co-introduces type fields such as TensorType shape variables; Simple does not.
     ffi::Expected<ffi::UnchangedOr<ffi::Any>> mapped_ty_result =
         mutator->def_region_kind() == kTVMFFIDefRegionKindSimple
             ? mutator->WithDefRegionKind(
@@ -695,12 +695,12 @@ TVM_FFI_STATIC_INIT_BLOCK() {
             ffi::FStructuralMutate::FromNative<&TensorLoadMaybeInplaceMutate>());
 }
 
-TensorRegion::TensorRegion(Expr source, ffi::Array<Range> region, Type ty, Span span) {
-  auto node = ffi::make_object<TensorRegionNode>();
-  node->source = std::move(source);
+TensorRegion::TensorRegion(Expr source, ffi::Array<Range> region, Type ty, Location loc)
+    : Expr(ffi::UnsafeInit{}) {
+  auto node = ffi::make_object<TensorRegionNode>(source);
   node->region = std::move(region);
   node->ty = std::move(ty);
-  node->span = std::move(span);
+  node->loc = loc;
   data_ = std::move(node);
 }
 
@@ -715,17 +715,55 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&TensorRegionMaybeInplaceMutate>());
   refl::GlobalDef().def("ir.TensorRegion",
-                        [](Expr source, ffi::Array<Range> region, Type ty, Span span) {
-                          return TensorRegion(source, region, ty, span);
+                        [](Expr source, ffi::Array<Range> region, Type ty, Location loc) {
+                          return TensorRegion(source, region, ty, loc);
                         });
 }
 
+// LambdaExpr
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  StagingExprNode::RegisterReflection();
+  LambdaExprNode::RegisterReflection();
+}
+
+Expr LambdaExprNode::Apply(const ffi::Array<Expr>& arguments) const {
+  TVM_FFI_CHECK_EQ(arguments.size(), vars.size(), ValueError) << "LambdaExpr Apply arity mismatch";
+  ffi::Map<Var, Expr> vmap;
+  for (size_t i = 0; i < vars.size(); ++i) vmap.Set(vars[i], arguments[i]);
+  return ffi::StructuralMap<ffi::WalkOrder::kPostOrder>(
+             body, [&](const Var& var) -> Expr { return vmap.Get(var).value_or(var); })
+      .cast<Expr>();
+}
+
+LambdaExpr::LambdaExpr(ffi::Array<Var> vars, Expr body) : StagingExpr(ffi::UnsafeInit{}) {
+  auto n = ffi::make_object<LambdaExprNode>(std::move(body));
+  ffi::Array<Type> types;
+  for (const Var& var : vars) types.push_back(var->ty);
+  n->ty = FuncType(types, n->body->ty);
+  n->vars = std::move(vars);
+  data_ = std::move(n);
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("ir.LambdaExpr",
+                        [](ffi::Array<Var> vars, Expr body) { return LambdaExpr(vars, body); });
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("ir.LambdaExprApply", [](LambdaExpr body, ffi::Array<Expr> indices) {
+    return body->Apply(indices);
+  });
+}
+
 // Tuple
-Tuple::Tuple(ffi::Array<Expr> fields, Span span) {
+Tuple::Tuple(ffi::Array<Expr> fields, Location loc) : Expr(ffi::UnsafeInit{}) {
   ffi::Optional<Type> tuple_ty = [&]() -> ffi::Optional<Type> {
     ffi::Array<Type> field_ty;
     for (const Expr& field : fields) {
-      if (field->ty.IsMissing()) {
+      if (field->ty.as<MissingType>().has_value()) {
         return std::nullopt;
       }
       field_ty.push_back(field->ty);
@@ -735,7 +773,7 @@ Tuple::Tuple(ffi::Array<Expr> fields, Span span) {
 
   ffi::ObjectPtr<TupleNode> node = ffi::make_object<TupleNode>();
   node->fields = std::move(fields);
-  node->span = std::move(span);
+  node->loc = loc;
   if (tuple_ty.has_value()) {
     node->ty = tuple_ty.value();
   }
@@ -752,23 +790,22 @@ TVM_FFI_STATIC_INIT_BLOCK() {
             ffi::FStructuralMutate::FromNative<&TupleMaybeInplaceMutate>());
 
   refl::GlobalDef().def("ir.Tuple",
-                        [](ffi::Array<Expr> fields, Span span) { return Tuple(fields, span); });
+                        [](ffi::Array<Expr> fields, Location loc) { return Tuple(fields, loc); });
 }
 
 // TupleGetItem
-TupleGetItem::TupleGetItem(Expr tuple, int index, Span span) {
+TupleGetItem::TupleGetItem(Expr tuple, int index, Location loc) : Expr(ffi::UnsafeInit{}) {
   TVM_FFI_CHECK_GE(index, 0, IndexError) << "Index out of bounds: Tuple " << tuple
                                          << " cannot be accessed with negative index " << index;
-  ffi::ObjectPtr<TupleGetItemNode> node = ffi::make_object<TupleGetItemNode>();
+  ffi::ObjectPtr<TupleGetItemNode> node = ffi::make_object<TupleGetItemNode>(tuple);
   if (const auto* tuple_type = tuple->ty.as<TupleTypeNode>()) {
     TVM_FFI_CHECK_LT(index, tuple_type->fields.size(), IndexError)
         << "Index out of bounds: Tuple " << tuple << " is of size " << tuple_type->fields.size()
         << ", and cannot be accessed with index " << index;
     node->ty = tuple_type->fields[index];
   }
-  node->tuple = std::move(tuple);
   node->index = index;
-  node->span = std::move(span);
+  node->loc = loc;
   data_ = std::move(node);
 }
 
@@ -783,8 +820,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&TupleGetItemMaybeInplaceMutate>());
 
-  refl::GlobalDef().def("ir.TupleGetItem", [](Expr tuple, int index, Span span) {
-    return TupleGetItem(tuple, index, span);
+  refl::GlobalDef().def("ir.TupleGetItem", [](Expr tuple, int index, Location loc) {
+    return TupleGetItem(tuple, index, loc);
   });
 }
 
@@ -794,35 +831,18 @@ PrimExpr::PrimExpr(int32_t value) : PrimExpr(IntImm::Int32(value)) {}
 
 PrimExpr::PrimExpr(float value) : PrimExpr(FloatImm(PrimType::Float(32), value)) {}
 
-Expr ffi::TypeTraits<Expr>::ConvertFallbackValue(ffi::String value) { return StringImm(value); }
-
-namespace ffi {
-
-PrimExpr TypeTraits<PrimExpr>::ConvertFallbackValue(StrictBool value) {
-  return IntImm::Bool(value);
-}
-
-PrimExpr TypeTraits<PrimExpr>::ConvertFallbackValue(int64_t value) {
-  return TypeTraits<IntImm>::ConvertFallbackValue(value);
-}
-
-PrimExpr TypeTraits<PrimExpr>::ConvertFallbackValue(double value) {
-  return TypeTraits<FloatImm>::ConvertFallbackValue(value);
-}
-
-}  // namespace ffi
-
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("relax.Tuple", [](ffi::Array<Expr> fields, Span span) { return Tuple(fields, span); })
+      .def("relax.Tuple", [](ffi::Array<Expr> fields, Location loc) { return Tuple(fields, loc); })
       .def("relax.TupleGetItem",
-           [](Expr tuple, int index, Span span) { return TupleGetItem(tuple, index, span); });
+           [](Expr tuple, int index, Location loc) { return TupleGetItem(tuple, index, loc); });
 }
 
 // Constants
-GenericConst::GenericConst(ffi::Any value, Type ty, Span span) {
-  TVM_FFI_CHECK(!ty.IsMissing(), TypeError) << "GenericConst requires an expression type";
+GenericConst::GenericConst(ffi::Any value, Type ty, Location loc) : Constant(ffi::UnsafeInit{}) {
+  TVM_FFI_CHECK(!ty.as<MissingType>().has_value(), TypeError)
+      << "GenericConst requires an expression type";
   TVM_FFI_CHECK(!value.as<ffi::BigInt>() && !value.as<bool>() && !value.as<double>() &&
                     !value.as<ffi::String>(),
                 TypeError)
@@ -830,23 +850,23 @@ GenericConst::GenericConst(ffi::Any value, Type ty, Span span) {
   auto node = ffi::make_object<GenericConstNode>();
   node->value = std::move(value);
   node->ty = std::move(ty);
-  node->span = std::move(span);
+  node->loc = loc;
   data_ = std::move(node);
 }
 
-StringImm::StringImm(ffi::String value, Span span) {
+StringImm::StringImm(ffi::String value, Location loc) : Constant(ffi::UnsafeInit{}) {
   auto node = ffi::make_object<StringImmNode>();
   node->value = std::move(value);
   node->ty = StringType();
-  node->span = std::move(span);
+  node->loc = loc;
   data_ = std::move(node);
 }
 
-DataTypeImm::DataTypeImm(DLDataType value, Span span) {
+DataTypeImm::DataTypeImm(DLDataType value, Location loc) : Constant(ffi::UnsafeInit{}) {
   auto node = ffi::make_object<DataTypeImmNode>();
   node->value = std::move(value);
   node->ty = AnyType();
-  node->span = std::move(span);
+  node->loc = loc;
   data_ = std::move(node);
 }
 
@@ -879,17 +899,17 @@ TVM_FFI_STATIC_INIT_BLOCK() {
             ffi::FStructuralMutate::FromNative<&DataTypeImmMaybeInplaceMutate>());
   refl::GlobalDef()
       .def("ir.GenericConst",
-           [](ffi::Any value, Type ty, Span span) {
-             return GenericConst(std::move(value), std::move(ty), std::move(span));
+           [](ffi::Any value, Type ty, Location loc) {
+             return GenericConst(std::move(value), std::move(ty), std::move(loc));
            })
       .def("ir.DataTypeImm",
-           [](DLDataType value, Span span) { return DataTypeImm(value, std::move(span)); })
-      .def("ir.StringImm", [](ffi::String value, Span span) {
-        return StringImm(std::move(value), std::move(span));
+           [](DLDataType value, Location loc) { return DataTypeImm(value, std::move(loc)); })
+      .def("ir.StringImm", [](ffi::String value, Location loc) {
+        return StringImm(std::move(value), std::move(loc));
       });
 }
 
-IntImm::IntImm(PrimType value_ty, ffi::BigInt value, Span span) {
+IntImm::IntImm(PrimType value_ty, ffi::BigInt value, Location loc) : PrimExpr(ffi::UnsafeInit{}) {
   DLDataType runtime_dtype = value_ty->dtype;
   DLDataTypeCode code = value_ty.code();
   int32_t bits = value_ty.bits();
@@ -929,7 +949,7 @@ IntImm::IntImm(PrimType value_ty, ffi::BigInt value, Span span) {
   ffi::ObjectPtr<IntImmNode> node = ffi::make_object<IntImmNode>();
   node->ExprNode::ty = std::move(value_ty);
   node->value = std::move(value);
-  node->span = span;
+  node->loc = loc;
   data_ = std::move(node);
 }
 
@@ -942,13 +962,13 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&IntImmMaybeInplaceMutate>());
 
-  refl::GlobalDef().def("ir.IntImm", [](DLDataType dtype, ffi::BigInt value, Span span) {
-    return IntImm(PrimType(dtype), value, span);
+  refl::GlobalDef().def("ir.IntImm", [](DLDataType dtype, ffi::BigInt value, Location loc) {
+    return IntImm(PrimType(dtype), value, loc);
   });
 }
 
 // FloatImm
-FloatImm::FloatImm(PrimType value_ty, double value, Span span) {
+FloatImm::FloatImm(PrimType value_ty, double value, Location loc) : PrimExpr(ffi::UnsafeInit{}) {
   DLDataType runtime_dtype = value_ty->dtype;
   DLDataTypeCode code = value_ty.code();
   int32_t bits = value_ty.bits();
@@ -1056,7 +1076,7 @@ FloatImm::FloatImm(PrimType value_ty, double value, Span span) {
   ffi::ObjectPtr<FloatImmNode> node = ffi::make_object<FloatImmNode>();
   node->ExprNode::ty = std::move(value_ty);
   node->value = value;
-  node->span = span;
+  node->loc = loc;
   data_ = std::move(node);
 }
 
@@ -1070,15 +1090,15 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&FloatImmMaybeInplaceMutate>());
 
-  refl::GlobalDef().def("ir.FloatImm", [](DLDataType dtype, double value, Span span) {
-    return FloatImm(PrimType(dtype), value, span);
+  refl::GlobalDef().def("ir.FloatImm", [](DLDataType dtype, double value, Location loc) {
+    return FloatImm(PrimType(dtype), value, loc);
   });
 }
 
 // Range
-Range::Range(PrimExpr begin, PrimExpr end, Span span)
-    : Range(ffi::make_object<RangeNode>(begin, tvm::prim::is_zero(begin) ? end : (end - begin),
-                                        span)) {}
+Range::Range(PrimExpr begin, PrimExpr end, Location loc)
+    : Range(ffi::UnsafeInit{}, ffi::make_object<RangeNode>(
+                                   begin, tvm::prim::IsZero(begin) ? end : (end - begin), loc)) {}
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
@@ -1090,17 +1110,17 @@ TVM_FFI_STATIC_INIT_BLOCK() {
             ffi::FStructuralMutate::FromNative<&RangeMaybeInplaceMutate>());
 
   refl::GlobalDef().def("ir.Range",
-                        [](PrimExpr begin, ffi::Optional<PrimExpr> end, Span span) -> Range {
+                        [](PrimExpr begin, ffi::Optional<PrimExpr> end, Location loc) -> Range {
                           if (end.has_value()) {
-                            return Range(begin, end.value(), span);
+                            return Range(begin, end.value(), loc);
                           } else {
-                            return Range(IntImm(begin.ty(), 0), begin, span);
+                            return Range(IntImm(begin.ty(), 0), begin, loc);
                           }
                         });
 }
 
-Range Range::FromMinExtent(PrimExpr min, PrimExpr extent, Span span) {
-  return Range(ffi::make_object<RangeNode>(min, extent, span));
+Range Range::FromMinExtent(PrimExpr min, PrimExpr extent, Location loc) {
+  return Range(ffi::UnsafeInit{}, ffi::make_object<RangeNode>(min, extent, loc));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -1109,13 +1129,14 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // Var
-Var::Var(ffi::String name, ffi::Optional<Type> ty_annotation, Span span) {
+Var::Var(ffi::String name, ffi::Optional<Type> ty_annotation, Location loc)
+    : Expr(ffi::UnsafeInit{}) {
   ffi::ObjectPtr<VarNode> n = ffi::make_object<VarNode>();
   n->name = std::move(name);
   if (ty_annotation.has_value()) {
     n->ty = ty_annotation.value();
   }
-  n->span = std::move(span);
+  n->loc = loc;
   data_ = std::move(n);
 }
 
@@ -1129,7 +1150,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
             ffi::FStructuralMutate::FromNative<&VarMaybeInplaceMutate>());
 
   refl::GlobalDef().def("ir.Var", [](ffi::String name, ffi::Optional<Type> ty_annotation,
-                                     Span span) { return Var(name, ty_annotation, span); });
+                                     Location loc) { return Var(name, ty_annotation, loc); });
 }
 
 Var Var::CopyWithName(const ffi::String& name) const {
@@ -1155,10 +1176,10 @@ Var Var::CopyWithType(Type type) const {
 }
 
 // GlobalVar
-GlobalVar::GlobalVar(ffi::String name_hint, Span span) {
+GlobalVar::GlobalVar(ffi::String name_hint, Location loc) : Expr(ffi::UnsafeInit{}) {
   ffi::ObjectPtr<GlobalVarNode> n = ffi::make_object<GlobalVarNode>();
   n->name_hint = std::move(name_hint);
-  n->span = std::move(span);
+  n->loc = loc;
   data_ = std::move(n);
 }
 
@@ -1175,48 +1196,43 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("ir.GlobalVar", [](ffi::String name) { return GlobalVar(name); });
 }
 
-// Call
-Call::Call(Type ret_ty, Expr op, ffi::Array<Expr> args, Attrs attrs, ffi::Array<Type> ty_args,
-           Span span)
-    : Call(std::move(ret_ty), std::move(op), std::move(args), std::move(attrs), std::move(ty_args),
-           std::move(span), true) {}
-
-Call Call::Unchecked(Type ret_ty, Expr op, ffi::Array<Expr> args, Attrs attrs,
-                     ffi::Array<Type> ty_args, Span span) {
-  return Call(std::move(ret_ty), std::move(op), std::move(args), std::move(attrs),
-              std::move(ty_args), std::move(span), false);
+// Call construction intentionally does not validate: passes and raw script
+// reconstruction may need to represent provisional or invalid input exactly.
+Call::Call(ffi::Optional<Type> ret_ty, Expr op, ffi::Array<Expr> args, ffi::Optional<Attrs> attrs,
+           ffi::Array<Type> ty_args, Location loc)
+    : Expr(ffi::UnsafeInit{}) {
+  TVM_FFI_CHECK(op.defined(), ValueError) << "Call expects a defined operator";
+  auto node = ffi::make_object<CallNode>(std::move(op));
+  node->ExprNode::ty = ret_ty.value_or(Type::Missing());
+  node->args = std::move(args);
+  node->attrs = std::move(attrs);
+  node->ty_args = std::move(ty_args);
+  node->loc = loc;
+  if (!ret_ty.has_value()) node->ExprNode::ty = ReinferType(node.get());
+  data_ = std::move(node);
 }
 
-Call::Call(Type ret_ty, Expr op, ffi::Array<Expr> args, Attrs attrs, ffi::Array<Type> ty_args,
-           Span span, bool validate) {
-  TVM_FFI_CHECK(op.defined(), ValueError) << "Call expects a defined operator";
-
-  ffi::ObjectPtr<CallNode> n = ffi::make_object<CallNode>();
-  n->ExprNode::ty = std::move(ret_ty);
-  n->op = std::move(op);
-  n->args = std::move(args);
-  n->attrs = std::move(attrs);
-  n->ty_args = std::move(ty_args);
-  n->span = std::move(span);
-  if (validate) {
-    if (auto opt_op = n->op.as<Op>()) opt_op.value().Validate(n.get());
-  }
-  data_ = std::move(n);
+void Call::Validate() const {
+  if (auto op = (*this)->op.as<Op>()) op.value().Validate(get());
 }
 
 Type Call::ReinferType(const CallNode* call) {
   TVM_FFI_CHECK(call != nullptr, ValueError) << "Call::ReinferType expects a defined Call";
   auto op = call->op.as<Op>();
-  TVM_FFI_CHECK(op.has_value(), ValueError) << "Call::ReinferType requires an Op callee";
-  TVM_FFI_CHECK(Op::HasAttrMap("FInferType"), ValueError)
-      << "No context-free FInferType hook is registered for " << op.value();
-  static auto infer_type = Op::GetAttrMap<FInferType>("FInferType");
-  TVM_FFI_CHECK(infer_type.count(op.value()), ValueError)
-      << "No context-free FInferType hook is registered for " << op.value();
-  Type result = infer_type[op.value()].CallExpected(call).value();
-  TVM_FFI_CHECK(!result.IsMissing(), InternalError)
-      << "FInferType for " << op.value() << " returned Type::Missing()";
-  return result;
+  if (!op) {
+    if (const auto* type = call->op->ty.as<FuncTypeNode>()) return type->ret_type;
+    return Type::Missing();
+  }
+  if (Op::HasAttrMap(tvm::op_attr::kFixedReturnType)) {
+    static auto fixed_return_type =
+        Op::GetAttrMap<TFixedReturnType>(tvm::op_attr::kFixedReturnType);
+    if (fixed_return_type.count(op.value())) return fixed_return_type[op.value()];
+  }
+  if (Op::HasAttrMap(tvm::op_attr::kInferType)) {
+    static auto infer_type = Op::GetAttrMap<FInferType>(tvm::op_attr::kInferType);
+    if (infer_type.count(op.value())) return infer_type[op.value()].CallExpected(call).value();
+  }
+  return Type::Missing();
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -1228,14 +1244,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&CallMaybeInplaceMutate>());
 
-  refl::GlobalDef().def("ir.Call", [](Type ret_ty, Expr op, ffi::Array<Expr> args, Attrs attrs,
-                                      ffi::Array<Type> ty_args, Span span) {
-    return Call(ret_ty, op, args, attrs, ty_args, span);
-  });
-  refl::GlobalDef().def("ir.CallUnchecked", [](Type ret_ty, Expr op, ffi::Array<Expr> args,
-                                               Attrs attrs, ffi::Array<Type> ty_args, Span span) {
-    return Call::Unchecked(ret_ty, op, args, attrs, ty_args, span);
-  });
+  refl::GlobalDef().def("ir.Call",
+                        [](ffi::Optional<Type> ret_ty, Expr op, ffi::Array<Expr> args,
+                           ffi::Optional<Attrs> attrs, ffi::Array<Type> ty_args,
+                           Location loc) { return Call(ret_ty, op, args, attrs, ty_args, loc); });
+  refl::GlobalDef().def("ir.CallValidate", [](const Call& call) { call.Validate(); });
   refl::GlobalDef().def("ir.reinfer_type",
                         [](const Call& call) { return Call::ReinferType(call.get()); });
 }
@@ -1247,8 +1260,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
     ss << ref;
     return ss.str();
   });
-  // Note: kRepr for GlobalVarNode is registered in script/printer/ir/ir.cc
-  // via TVMScriptPrinter::Register<GlobalVarNode>(ReprPrintIR).
+  // Note: kRepr for GlobalVarNode is registered in script/printer/script_printer.cc.
 }
 
 }  // namespace tvm

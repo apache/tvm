@@ -15,12 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-"""Implementation of copy_async operator dispatches for CUDA targets.
-
-Registered op: copy_async (4 variants).
-See the @register_dispatch blocks in each submodule for detailed documentation
-with before/after IR examples.
-"""
+"""CUDA asynchronous tensor transfer instruction lowerers."""
 
 from .dsmem import *
 from .ldgsts import *

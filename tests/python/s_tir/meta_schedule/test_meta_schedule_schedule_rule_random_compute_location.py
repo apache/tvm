@@ -30,10 +30,10 @@ from tvm.target import Target
 
 @tvm.script.ir_module
 class Add:
-    @Ts.prim_func
+    @Ts.function
     def main(
-        A: T.Buffer([2048, 2048, 2048], dtype="float32"),
-        B: T.Buffer([2048, 2048, 2048], dtype="float32"),
+        A: T.Tensor([2048, 2048, 2048], dtype="float32"),
+        B: T.Tensor([2048, 2048, 2048], dtype="float32"),
     ) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main"})
@@ -60,10 +60,10 @@ class Add:
 
 
 def test_random_compute_location():
-    @Ts.prim_func
+    @Ts.function
     def add_0(
-        A: T.Buffer((2048, 2048, 2048), "float32"),
-        B: T.Buffer((2048, 2048, 2048), "float32"),
+        A: T.Tensor((2048, 2048, 2048), "float32"),
+        B: T.Tensor((2048, 2048, 2048), "float32"),
     ) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main"})

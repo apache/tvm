@@ -29,11 +29,11 @@ from tvm.script import tirx as T
 
 @I.ir_module
 class Module:
-    @Ts.prim_func
+    @Ts.function
     def add(
-        arg0: T.Buffer((2, 2), "float32"),
-        arg1: T.Buffer((2, 2), "float32"),
-        output: T.Buffer((2, 2), "float32"),
+        arg0: T.Tensor((2, 2), "float32"),
+        arg1: T.Tensor((2, 2), "float32"),
+        output: T.Tensor((2, 2), "float32"),
     ):
         T.func_attr({"operator_name": "relax.add"})
         for ax0 in range(2):
@@ -52,7 +52,7 @@ class Module:
             R.shape([2 * 2]), runtime_device_index=0, dtype="float32", storage_scope="global"
         )
         alloc = R.vm.alloc_tensor(storage, offset=0, shape=R.shape([2, 2]), dtype="float32")
-        _: R.Tuple = cls.add(x, x, alloc)
+        _: R.Tuple = R.call_tir_packed(cls.add, (x, x, alloc))
         out: R.Tensor((2, 2), dtype="float32") = alloc
         return out
 

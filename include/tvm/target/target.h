@@ -44,6 +44,8 @@ class Target;
  */
 class TargetNode : public ffi::Object {
  public:
+  explicit TargetNode(TargetKind kind) : kind(std::move(kind)) {}
+  explicit TargetNode(ffi::UnsafeInit tag) : kind(tag) {}
   /*! \brief The kind of the target device */
   TargetKind kind;
   /*! \brief Target host information, must be Target type */
@@ -133,8 +135,6 @@ class TargetNode : public ffi::Object {
  */
 class Target : public ffi::ObjectRef {
  public:
-  /*! \brief Construct a null Target */
-  TVM_DLL explicit Target(std::nullptr_t) { data_ = nullptr; }
   /*!
    * \brief Construct a Target given a string
    * \param tag_or_config_or_target_str the string to parse for target
@@ -147,22 +147,26 @@ class Target : public ffi::ObjectRef {
   TVM_DLL explicit Target(const ffi::Map<ffi::String, ffi::Any>& config);
   /*!
    * \brief Get the current target context from thread local storage.
-   * \param allow_not_defined If the context stack is empty and this is set to true, an
-   *   undefined Target will be returned. Otherwise, an empty context stack will cause a
+   * \param allow_not_defined If the context stack is empty and this is set to true, std::nullopt
+   *   will be returned. Otherwise, an empty context stack will cause a
    *   runtime error.
-   * \return The target that is the current context. The target may not be defined if
+   * \return The target that is the current context. The result may be absent if
    * allow_not_defined is true.
    */
-  TVM_DLL static tvm::Target Current(bool allow_not_defined = true);
+  TVM_DLL static ffi::Optional<Target> Current(bool allow_not_defined = true);
   /*!
    * \brief Construct a Target given target and host
    * \param target The Target typed object with host field undefined for target
    * \param host The Target typed object for target host
    */
-  TVM_DLL explicit Target(Target target, Target host);
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Target, ffi::ObjectRef, TargetNode);
+  TVM_DLL explicit Target(Target target, ffi::Optional<Target> host);
+  explicit Target(ffi::UnsafeInit tag, ffi::ObjectPtr<TargetNode> n) : ffi::ObjectRef(tag) {
+    data_ = std::move(n);
+  }
 
-  static Target WithHost(const Target& target, const Target& host);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Target, ffi::ObjectRef, TargetNode);
+
+  static Target WithHost(const Target& target, const ffi::Optional<Target>& host);
 
   /*! \return The target with the host stripped out */
   Target WithoutHost() const;

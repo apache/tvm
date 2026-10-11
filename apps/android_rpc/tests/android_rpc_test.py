@@ -58,7 +58,7 @@ def test_rpc_module():
     tracker = rpc.connect_tracker(tracker_host, tracker_port)
     remote = tracker.request(key, priority=0, session_timeout=60)
 
-    mod = tvm.IRModule.from_expr(te.create_prim_func([A, B]).with_attr("global_symbol", "myadd"))
+    mod = tvm.IRModule.from_expr(te.create_function([A, B]).with_attr("global_symbol", "myadd"))
     sch = tvm.s_tir.Schedule(mod)
     (x,) = sch.get_loops(block=sch.get_sblock("B"))
     xo, xi = sch.split(i, [None, 32])

@@ -32,18 +32,18 @@ import tvm
 from tvm import relax
 from tvm.script import tirx as T
 
-from tvm.s_tir.dlight.benchmark import benchmark_prim_func
+from tvm.s_tir.dlight.benchmark import benchmark_function
 
 MODEL_NAME = "{model_name}"
 RELAX_FUNC_NAME = "{relax_func_name}"
-PRIM_FUNC_NAME = "{prim_func_name}"
+FUNCTION_NAME = "{function_name}"
 FUNC_HASH = {func_hash}
 WEIGHT = {weight}
 SAMPLE_NUMBER = {sample_number}
 
 DYM_VAR_SAMPLE_FUNC = {dym_var_sample_func}
 
-# None means extract from PrimFunc
+# None means extract from Function
 INPUT_ARGS = {input_args}
 DYM_VAR_DICT = {dym_var_dict}
 
@@ -51,7 +51,7 @@ DYM_VAR_DICT = {dym_var_dict}
 
 if __name__ == "__main__":
     target = tvm.target.Target({target})
-    benchmark_prim_func(
+    benchmark_function(
         main,
         args = INPUT_ARGS,
         dym_var_dict = DYM_VAR_DICT,
@@ -60,7 +60,7 @@ if __name__ == "__main__":
         target = target,
         weight = WEIGHT,
         relax_func_name = RELAX_FUNC_NAME,
-        prim_func_name = PRIM_FUNC_NAME,
+        function_name = FUNCTION_NAME,
     )
 """
 
@@ -108,7 +108,7 @@ def extract_dynamic_var(
             List[Tuple[List, int]],
         ],
         The relax function dictionary, containing the input arguments' shape information of each
-        PrimFunc in a Relax function.
+        Function in a Relax function.
 
     Returns
     -------
@@ -159,15 +159,15 @@ def update_records(
     records.append((new_args, 1))
 
 
-def extract_func_info_from_prim_func(
-    func: tvm.tirx.PrimFunc,
+def extract_func_info_from_function(
+    func: tvm.tirx.Function,
 ) -> tuple[list[tuple[tuple[tvm.tirx.Var | int, ...], str]], dict[str, str]]:
-    """Extract function input information from a PrimFunc.
+    """Extract function input information from a Function.
 
     Parameters
     ----------
-    func : tvm.tirx.PrimFunc
-        The PrimFunc to be analyzed.
+    func : tvm.tirx.Function
+        The Function to be analyzed.
 
     Returns
     -------
@@ -180,7 +180,7 @@ def extract_func_info_from_prim_func(
     func_args = []
     dym_var = {}
     for param in func.params:
-        if not tvm.tirx.is_buffer_var(param):
+        if not tvm.tirx.is_tensor_var(param):
             continue
         buffer = param
         shape = []
@@ -226,7 +226,7 @@ def extract_all_func_info_from_relax(
                         raw_args = binding.value.args
                         functor = raw_args[0]
                         if isinstance(functor, tvm.ir.GlobalVar) and isinstance(
-                            mod.functions[functor], tvm.tirx.PrimFunc
+                            mod.functions[functor], tvm.tirx.Function
                         ):
                             args = extract_shape(raw_args[1:]) + extract_shape(binding.value)
                             if isinstance(functor, tvm.ir.GlobalVar):
@@ -239,11 +239,11 @@ def extract_all_func_info_from_relax(
     return relax_func_dict, extract_dynamic_var(relax_func_dict)
 
 
-def extract_prim_func(  # pylint: disable=too-many-arguments
+def extract_function(  # pylint: disable=too-many-arguments
     model_name: str,
     relax_func_name: str,
-    prim_func_name: str,
-    func: tvm.tirx.PrimFunc,
+    function_name: str,
+    func: tvm.tirx.Function,
     *,
     func_args: list[tuple[tuple[tvm.ir.Call | int, ...], str]] | None = None,
     dym_var_dict: dict[str, str] | None = None,
@@ -251,7 +251,7 @@ def extract_prim_func(  # pylint: disable=too-many-arguments
     sample_number: int = 5,
     target: str | dict | tvm.target.Target | None = None,
 ) -> str:
-    """Extract a self-contained PrimFunc test file from a Relax module.
+    """Extract a self-contained Function test file from a Relax module.
 
     Parameters
     ----------
@@ -259,28 +259,28 @@ def extract_prim_func(  # pylint: disable=too-many-arguments
         The name of the model.
     relax_func_name: str
         The name of the Relax function.
-    prim_func_name: str
-        The name of the prim function.
-    func: tvm.tirx.PrimFunc
-        The PrimFunc to be extracted.
+    function_name: str
+        The name of the functiontion.
+    func: tvm.tirx.Function
+        The Function to be extracted.
     func_args: Optional[List[Tuple[Tuple[Union[tvm.ir.Call, int], ...], str]]]
-        The arguments of the prim function, including both static and dynamic shape arguments.
+        The arguments of the functiontion, including both static and dynamic shape arguments.
         Given in format [ ..., ((1, n, 128), "float32"), ... ].
-        If not given, the arguments will be extracted from the PrimFunc.
+        If not given, the arguments will be extracted from the Function.
     dym_var_dict: Optional[Dict[str, str]]
         The dictionary of dynamic shape variables. Given in format {"n": "int32", "m": "int32"}.
-        If not given, the dictionary will be extracted from the PrimFunc.
+        If not given, the dictionary will be extracted from the Function.
     weight: int
-        The weight of the prim function, by default 1.
+        The weight of the functiontion, by default 1.
     sample_number: int
         The number of times to sample dynamic shape variables, by default 5.
     target: Optional[Union[str, dict, tvm.target.Target]]
-        The target device to run the PrimFunc. If None, will use target from the context.
+        The target device to run the Function. If None, will use target from the context.
 
     Returns
     -------
     result : str
-        The extracted PrimFunc test file content.
+        The extracted Function test file content.
     """
     if target is None:
         target = tvm.target.Target.current()
@@ -296,7 +296,7 @@ def extract_prim_func(  # pylint: disable=too-many-arguments
         **{
             "model_name": model_name,
             "relax_func_name": relax_func_name,
-            "prim_func_name": prim_func_name,
+            "function_name": function_name,
             "func_hash": tvm_ffi.structural_hash(func),
             "weight": weight,
             "sample_number": sample_number,
@@ -319,7 +319,7 @@ def extract_from_relax(
     file_path: str,
     target: str | dict | tvm.target.Target | None = None,
 ) -> None:
-    """Extract self-contained PrimFunc test files from a Relax module.
+    """Extract self-contained Function test files from a Relax module.
 
     Parameters
     ----------
@@ -330,24 +330,24 @@ def extract_from_relax(
     file_path: str
         The path to store the extracted files.
     target: Optional[Union[str, tvm.target.Target]]
-        The target device to run the PrimFunc. If None, will use target from the context.
+        The target device to run the Function. If None, will use target from the context.
     """
     relax_funcs, dym_var_dict = extract_all_func_info_from_relax(mod)
     Path(file_path).mkdir(parents=True, exist_ok=True)
     for relax_func_gv in relax_funcs:  # pylint: disable=consider-using-dict-items
         relax_func_name = get_func_name_from_gv(relax_func_gv)
-        for prim_func_gv in relax_funcs[relax_func_gv]:
-            prim_func_name = get_func_name_from_gv(prim_func_gv)
-            for func_args, weight in relax_funcs[relax_func_gv][prim_func_gv]:
+        for function_gv in relax_funcs[relax_func_gv]:
+            function_name = get_func_name_from_gv(function_gv)
+            for func_args, weight in relax_funcs[relax_func_gv][function_gv]:
                 with open(
-                    f"{file_path}/{relax_func_name}_{prim_func_name}.py", "w", encoding="utf-8"
+                    f"{file_path}/{relax_func_name}_{function_name}.py", "w", encoding="utf-8"
                 ) as file:
                     print(
-                        extract_prim_func(
+                        extract_function(
                             model_name=model_name,
                             relax_func_name=relax_func_name,
-                            prim_func_name=prim_func_name,
-                            func=mod[prim_func_gv],
+                            function_name=function_name,
+                            func=mod[function_gv],
                             dym_var_dict=dym_var_dict[relax_func_gv],
                             func_args=func_args,
                             weight=weight,

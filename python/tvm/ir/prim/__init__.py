@@ -17,7 +17,7 @@
 # pylint: disable=unused-import
 """Primitive expressions and construction helpers shared by TVM IR dialects."""
 
-from ...runtime import const
+from .._constant import const
 from ..expr import Expr
 from . import _ffi_api
 from .expr import (
@@ -57,7 +57,77 @@ from .expr import (
     Shuffle,
     Sub,
 )
-from .op import clz, convert, max_value, min_value
+from .op import (
+    abs,
+    acos,
+    acosh,
+    all,
+    any,
+    asin,
+    asinh,
+    assume,
+    atan,
+    atan2,
+    atanh,
+    bitwise_and,
+    bitwise_not,
+    bitwise_or,
+    bitwise_xor,
+    ceil,
+    ceildiv,
+    clz,
+    convert,
+    copysign,
+    cos,
+    cosh,
+    div,
+    erf,
+    exp,
+    exp2,
+    exp10,
+    floor,
+    floordiv,
+    floormod,
+    fma,
+    fmod,
+    hypot,
+    if_then_else,
+    indexdiv,
+    indexmod,
+    infinity,
+    isfinite,
+    isinf,
+    isnan,
+    ldexp,
+    likely,
+    log,
+    log1p,
+    log2,
+    log10,
+    max,
+    max_value,
+    min,
+    min_value,
+    nearbyint,
+    nextafter,
+    popcount,
+    pow,
+    power,
+    round,
+    rsqrt,
+    shift_left,
+    shift_right,
+    sigmoid,
+    sin,
+    sinh,
+    sqrt,
+    tan,
+    tanh,
+    trunc,
+    truncdiv,
+    truncmod,
+    vscale,
+)
 
 
 def expr_deep_equal(lhs: Expr, rhs: Expr) -> bool:

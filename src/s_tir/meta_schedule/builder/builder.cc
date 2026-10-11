@@ -28,9 +28,8 @@ namespace meta_schedule {
 
 BuilderInput::BuilderInput(IRModule mod, Target target,
                            ffi::Optional<ffi::Map<ffi::String, runtime::Tensor>> params) {
-  ffi::ObjectPtr<BuilderInputNode> n = ffi::make_object<BuilderInputNode>();
+  ffi::ObjectPtr<BuilderInputNode> n = ffi::make_object<BuilderInputNode>(target);
   n->mod = std::move(mod);
-  n->target = std::move(target);
   n->params = std::move(params);
   data_ = std::move(n);
 }

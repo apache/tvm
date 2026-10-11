@@ -20,9 +20,9 @@ from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
-@Ts.prim_func
+@Ts.function
 def buffer_load_store_func(
-    A: T.Buffer((128, 128), "float32"), B: T.Buffer((128, 128), "float32")
+    A: T.Tensor((128, 128), "float32"), B: T.Tensor((128, 128), "float32")
 ) -> None:
     C = Ts.sblock_alloc_buffer((128, 128), "float32")
     D = Ts.sblock_alloc_buffer((128, 128), "float32")
@@ -45,21 +45,21 @@ def buffer_load_store_func(
                     )
 
 
-@Ts.prim_func
+@Ts.function
 def buffer_opaque_access(
-    B: T.Buffer([16, 16], "float32"), C: T.Buffer([16, 16], "float32")
+    B: T.Tensor([16, 16], "float32"), C: T.Tensor([16, 16], "float32")
 ) -> None:
     with Ts.sblock():
         Ts.reads([])
         Ts.writes(B[0:16, 0:16])
-        A = T.decl_buffer([256], "float32")
+        A = T.decl_tensor([256], "float32")
         for i, j in T.grid(16, 16):
             A[i * 16 + j] = 1
         for i in range(0, 16):
             for j in range(0, 16):
                 T.evaluate(A[i * 16 + j])
             for j in range(0, 16):
-                T.evaluate(T.tvm_fill_fragment(B.data, 16, 16, 16, 0, T.float32(0), dtype="handle"))
+                T.evaluate(T.gpu_fill_fragment(B.data, 16, 16, 16, 0, T.float32(0)))
 
     for i, j in T.grid(16, 16):
         with Ts.sblock():
@@ -67,14 +67,14 @@ def buffer_opaque_access(
             C[vi, vj] = B[vi, vj]
 
 
-@Ts.prim_func
-def lca_is_func_root(A: T.Buffer([0, 0], "float32")) -> None:
+@Ts.function
+def lca_is_func_root(A: T.Tensor([0, 0], "float32")) -> None:
     A[0, 0] = 1.0
 
 
-@Ts.prim_func
+@Ts.function
 def match_buffer_func(
-    A: T.Buffer((128, 128), "float32"), B: T.Buffer((128, 128), "float32")
+    A: T.Tensor((128, 128), "float32"), B: T.Tensor((128, 128), "float32")
 ) -> None:
     for i, j in T.grid(8, 8):
         with Ts.sblock("block"):
@@ -92,9 +92,9 @@ def match_buffer_func(
             T.evaluate(B1.data)
 
 
-@Ts.prim_func
+@Ts.function
 def global_buffer_with_blockidx(
-    a: T.Buffer((1, 32), "int32"), b: T.Buffer((1, 32), "int32")
+    a: T.Tensor((1, 32), "int32"), b: T.Tensor((1, 32), "int32")
 ) -> None:
     for i0 in T.thread_binding(0, 1, thread="blockIdx.x"):
         for i1 in T.thread_binding(0, 32, thread="threadIdx.x"):
@@ -107,21 +107,21 @@ def global_buffer_with_blockidx(
 
 def test_buffer_load_store():
     func = buffer_load_store_func
-    A, B = [x for x in func.params if tvm.tirx.is_buffer_var(x)]
-    C, D = func.body.block.alloc_buffers
+    A, B = [x for x in func.params if tvm.tirx.is_tensor_var(x)]
+    C, D = func.body[0].block.alloc_buffers
     lca = s_tir.analysis.detect_buffer_access_lca(func)
 
     # LCA of Buffer A is root
-    root_block = func.body.block
-    assert lca[A] == func.body.block
+    root_block = func.body[0].block
+    assert lca[A] == func.body[0].block
 
     # LCA of Buffer B is the loop dominate all reduction loop
-    reduce_dom_loop = root_block.body[1].body
-    reduce_block = reduce_dom_loop.body.body.block
+    reduce_dom_loop = root_block.body[1].body[0]
+    reduce_block = reduce_dom_loop.body[0].body[0].block
     assert lca[B] == reduce_dom_loop
 
     # LCA of Buffer C is the second loop kk
-    loop_jj = reduce_block.body.body
+    loop_jj = reduce_block.body[0].body[0]
     assert lca[C] == loop_jj
 
     # LCA of Buffer D is loop jj
@@ -131,34 +131,34 @@ def test_buffer_load_store():
 
 def test_opaque_access():
     func = buffer_opaque_access
-    B, C = [x for x in func.params if tvm.tirx.is_buffer_var(x)]
+    B, C = [x for x in func.params if tvm.tirx.is_tensor_var(x)]
     lca = s_tir.analysis.detect_buffer_access_lca(func)
 
     # Cannot detect buffer A since it is define by low-level Allocate
 
     # LCA of Buffer B is root
-    root_block = func.body.block
-    assert lca[B] == func.body.block
+    root_block = func.body[0].block
+    assert lca[B] == func.body[0].block
 
     # LCA of Buffer C is the correspond block
-    assert lca[C] == root_block.body[1].body.body.block
+    assert lca[C] == root_block.body[1].body[0].body[0].block
 
 
 def test_lca_func_root():
     func = lca_is_func_root
-    (A,) = [x for x in func.params if tvm.tirx.is_buffer_var(x)]
+    (A,) = [x for x in func.params if tvm.tirx.is_tensor_var(x)]
     lca = s_tir.analysis.detect_buffer_access_lca(func)
     assert lca[A] is None
 
 
 def test_match_buffer():
     func = match_buffer_func
-    A, B = [x for x in func.params if tvm.tirx.is_buffer_var(x)]
+    A, B = [x for x in func.params if tvm.tirx.is_tensor_var(x)]
     lca = s_tir.analysis.detect_buffer_access_lca(func)
 
-    root_block = func.body.block
-    block = root_block.body.body.body.block
-    block_inner = block.body[0].body.body.block
+    root_block = func.body[0].block
+    block = root_block.body[0].body[0].body[0].block
+    block_inner = block.body[0].body[0].body[0].block
 
     # LCA of Buffer C is the inner block
     assert lca[A] == block_inner
@@ -169,11 +169,11 @@ def test_match_buffer():
 
 def test_global_buffer_with_blockidx():
     func = global_buffer_with_blockidx
-    A, B = [x for x in func.params if tvm.tirx.is_buffer_var(x)]
+    A, B = [x for x in func.params if tvm.tirx.is_tensor_var(x)]
     lca = s_tir.analysis.detect_buffer_access_lca(func)
 
-    root_block = func.body.block
-    blockidx_loop = root_block.body
+    root_block = func.body[0].block
+    blockidx_loop = root_block.body[0]
     # LCA of both A and B should be the loop bound to `blockIdx`
     assert lca[A] == blockidx_loop
     assert lca[B] == blockidx_loop

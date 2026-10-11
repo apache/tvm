@@ -43,11 +43,11 @@ def test_mul(dtype):
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(
-            A: T.Buffer((m,), dtype=dtype),
-            B: T.Buffer((m,), dtype=dtype),
-            C: T.Buffer((m,), dtype=dtype),
+            A: T.Tensor((m,), dtype=dtype),
+            B: T.Tensor((m,), dtype=dtype),
+            C: T.Tensor((m,), dtype=dtype),
         ):
             T.func_attr({"tirx.noalias": True})
 
@@ -81,11 +81,11 @@ def test_add(dtype):
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(
-            A: T.Buffer((m,), dtype=dtype),
-            B: T.Buffer((m,), dtype=dtype),
-            C: T.Buffer((m,), dtype=dtype),
+            A: T.Tensor((m,), dtype=dtype),
+            B: T.Tensor((m,), dtype=dtype),
+            C: T.Tensor((m,), dtype=dtype),
         ):
             T.func_attr({"tirx.noalias": True})
 
@@ -119,11 +119,11 @@ def test_sub(dtype):
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(
-            A: T.Buffer((m,), dtype=dtype),
-            B: T.Buffer((m,), dtype=dtype),
-            C: T.Buffer((m,), dtype=dtype),
+            A: T.Tensor((m,), dtype=dtype),
+            B: T.Tensor((m,), dtype=dtype),
+            C: T.Tensor((m,), dtype=dtype),
         ):
             T.func_attr({"tirx.noalias": True})
 
@@ -157,12 +157,12 @@ def test_muladd(dtype):
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(
-            A: T.Buffer((m,), dtype=dtype),
-            B: T.Buffer((m,), dtype=dtype),
-            C: T.Buffer((m,), dtype=dtype),
-            D: T.Buffer((m,), dtype=dtype),
+            A: T.Tensor((m,), dtype=dtype),
+            B: T.Tensor((m,), dtype=dtype),
+            C: T.Tensor((m,), dtype=dtype),
+            D: T.Tensor((m,), dtype=dtype),
         ):
             T.func_attr({"tirx.noalias": True})
 
@@ -206,11 +206,11 @@ def test_max(dtype):
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(
-            A: T.Buffer((m,), dtype=dtype),
-            B: T.Buffer((m,), dtype=dtype),
-            C: T.Buffer((m,), dtype=dtype),
+            A: T.Tensor((m,), dtype=dtype),
+            B: T.Tensor((m,), dtype=dtype),
+            C: T.Tensor((m,), dtype=dtype),
         ):
             T.func_attr({"tirx.noalias": True})
 
@@ -248,11 +248,11 @@ def test_min(dtype):
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(
-            A: T.Buffer((m,), dtype=dtype),
-            B: T.Buffer((m,), dtype=dtype),
-            C: T.Buffer((m,), dtype=dtype),
+            A: T.Tensor((m,), dtype=dtype),
+            B: T.Tensor((m,), dtype=dtype),
+            C: T.Tensor((m,), dtype=dtype),
         ):
             T.func_attr({"tirx.noalias": True})
 
@@ -290,11 +290,11 @@ def test_div(dtype):
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(
-            A: T.Buffer((m,), dtype=dtype),
-            B: T.Buffer((m,), dtype=dtype),
-            C: T.Buffer((m,), dtype=dtype),
+            A: T.Tensor((m,), dtype=dtype),
+            B: T.Tensor((m,), dtype=dtype),
+            C: T.Tensor((m,), dtype=dtype),
         ):
             T.func_attr({"tirx.noalias": True})
 
@@ -327,11 +327,11 @@ def test_mod(dtype):
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(
-            A: T.Buffer((m,), dtype=dtype),
-            B: T.Buffer((m,), dtype=dtype),
-            C: T.Buffer((m,), dtype=dtype),
+            A: T.Tensor((m,), dtype=dtype),
+            B: T.Tensor((m,), dtype=dtype),
+            C: T.Tensor((m,), dtype=dtype),
         ):
             T.func_attr({"tirx.noalias": True})
 
@@ -365,11 +365,11 @@ def test_eq(dtype):
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(
-            A: T.Buffer((m,), dtype=dtype),
-            B: T.Buffer((m,), dtype=dtype),
-            C: T.Buffer((m,), "bool"),
+            A: T.Tensor((m,), dtype=dtype),
+            B: T.Tensor((m,), dtype=dtype),
+            C: T.Tensor((m,), "bool"),
         ):
             T.func_attr({"tirx.noalias": True})
 
@@ -406,11 +406,11 @@ def test_neq(dtype):
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(
-            A: T.Buffer((m,), dtype=dtype),
-            B: T.Buffer((m,), dtype=dtype),
-            C: T.Buffer((m,), "bool"),
+            A: T.Tensor((m,), dtype=dtype),
+            B: T.Tensor((m,), dtype=dtype),
+            C: T.Tensor((m,), "bool"),
         ):
             T.func_attr({"tirx.noalias": True})
 
@@ -446,11 +446,11 @@ def test_or(dtype):
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(
-            A: T.Buffer((m,), dtype=dtype),
-            B: T.Buffer((m,), dtype=dtype),
-            C: T.Buffer((m,), dtype=dtype),
+            A: T.Tensor((m,), dtype=dtype),
+            B: T.Tensor((m,), dtype=dtype),
+            C: T.Tensor((m,), dtype=dtype),
         ):
             T.func_attr({"tirx.noalias": True})
 
@@ -483,11 +483,11 @@ def test_and(dtype):
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(
-            A: T.Buffer((m,), dtype=dtype),
-            B: T.Buffer((m,), dtype=dtype),
-            C: T.Buffer((m,), dtype=dtype),
+            A: T.Tensor((m,), dtype=dtype),
+            B: T.Tensor((m,), dtype=dtype),
+            C: T.Tensor((m,), dtype=dtype),
         ):
             T.func_attr({"tirx.noalias": True})
 
@@ -520,8 +520,8 @@ def test_not(dtype):
 
     @I.ir_module
     class Module:
-        @T.prim_func
-        def main(A: T.Buffer((m,), dtype=dtype), C: T.Buffer((m,), dtype=dtype)):
+        @T.function
+        def main(A: T.Tensor((m,), dtype=dtype), C: T.Tensor((m,), dtype=dtype)):
             T.func_attr({"tirx.noalias": True})
 
             for i in range(m):
@@ -557,11 +557,11 @@ def test_memcpy(dtype):
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(
-            A: T.Buffer((m,), dtype=dtype),
-            B: T.Buffer((m,), "int32"),
-            C: T.Buffer((m,), dtype=dtype),
+            A: T.Tensor((m,), dtype=dtype),
+            B: T.Tensor((m,), "int32"),
+            C: T.Tensor((m,), dtype=dtype),
         ):
             T.func_attr({"tirx.noalias": True})
 
@@ -600,8 +600,8 @@ def test_vscale_range_function_attribute(mattr, expect_attr):
 
     @I.ir_module
     class Module:
-        @T.prim_func
-        def main(A: T.Buffer((m,)), C: T.Buffer((m,))):
+        @T.function
+        def main(A: T.Tensor((m,)), C: T.Tensor((m,))):
             T.func_attr({"tirx.noalias": True})
 
             for i in range(m):

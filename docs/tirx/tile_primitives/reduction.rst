@@ -15,37 +15,16 @@
     specific language governing permissions and limitations
     under the License.
 
-reduction
-=========
+Reduction Instructions
+======================
 
-Covers ``sum``, ``max``, ``min`` (reduce over ``axes``).  All three operations
-register ``local`` and ``shared`` variants at priority 10, discriminated by
-operand storage scope.  On CUDA SM100 or newer, ``sum`` additionally registers
-``packed_add_sum`` and ``max`` / ``min`` register ``3input_maxmin`` at priority
-20.  The implementation file and detailed page group those two names as the
-SM100 packed paths; ``sm100_packed`` is not itself a dispatch name.
+CUDA reduction algorithms belong to the caller. Use scalar or packed
+arithmetic, warp shuffle instructions, shared storage, and explicit
+synchronization as appropriate for the kernel's decomposition.
 
-.. list-table::
-   :header-rows: 1
-   :widths: 26 14 60
+Trainium exposes the native ``T.trn.tile.tensorreduce`` instruction and the
+fused ``tensorscalar_reduce`` and ``activation_reduce`` instructions. Their
+axes and opcode are static qualifiers; tensors and optional reduction
+workspace are ordinary Call arguments.
 
-   * - Variant
-     - Prio
-     - Lowering
-   * - :doc:`reduction/local`
-     - 10
-     - local-buffer src/dst; sequential thread reduction (+ optional warp shuffle)
-   * - :doc:`reduction/shared`
-     - 10
-     - shared src/dst; adaptive group-size ``__shfl_xor`` tree
-   * - :doc:`reduction/sm100_packed` (``packed_add_sum`` / ``3input_maxmin``)
-     - 20
-     - CUDA SM100+ thread-scope fp32 ≥8: packed ``add.f32x2`` /
-       ``max3``/``min3``
-
-.. toctree::
-   :maxdepth: 1
-
-   reduction/local
-   reduction/shared
-   reduction/sm100_packed
+See :doc:`../tile_primitives` for the complete contract.

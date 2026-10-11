@@ -20,7 +20,6 @@
 #include "simplify_base.h"
 
 #include <tvm/ir/expr.h>
-#include <tvm/ir/prim/builtin.h>
 #include <tvm/ir/prim/op.h>
 
 #include "constraint_helpers.h"
@@ -74,7 +73,7 @@ UnchangedOr<PrimExpr> SimplifierBase::Mutate_(const TensorLoadNode* op, InplaceM
 }
 
 UnchangedOr<Expr> SimplifierBase::Mutate_(const CallNode* op, InplaceMode inplace_mode) {
-  if (op->op.same_as(prim::builtin::if_then_else())) {
+  if (op->op.same_as(prim::if_then_else_op())) {
     InplaceMode inplace_mode_args = inplace_mode;
     // Ensure uniqueness along op -> args -> args[i].
     // op was already checked; check args here, and Mutate checks args[i].
@@ -90,25 +89,24 @@ UnchangedOr<Expr> SimplifierBase::Mutate_(const CallNode* op, InplaceMode inplac
                           })
                           .ValueOrUnchanged((*args)[1])
                           .as_or_throw<Expr>();
-    Expr false_value;
-    {
+    Expr false_value = [&]() {
       PrimExpr not_cond = prim::Not(cond);
-      false_value = constraint_scope_
-                        .WithNewScope([&]() {
-                          constraint_scope_.Current().Emplace(analyzer_, not_cond);
-                          return Mutate((*args)[2], inplace_mode_args);
-                        })
-                        .ValueOrUnchanged((*args)[2])
-                        .as_or_throw<Expr>();
-    }
-    if (prim::is_zero(cond)) return false_value;
-    if (prim::is_one(cond)) return true_value;
+      return constraint_scope_
+          .WithNewScope([&]() {
+            constraint_scope_.Current().Emplace(analyzer_, not_cond);
+            return Mutate((*args)[2], inplace_mode_args);
+          })
+          .ValueOrUnchanged((*args)[2])
+          .as_or_throw<Expr>();
+    }();
+    if (prim::IsZero(cond)) return false_value;
+    if (prim::IsOne(cond)) return true_value;
     if (cond.same_as(op->args[0]) && true_value.same_as(op->args[1]) &&
         false_value.same_as(op->args[2])) {
       // Reuse the original node identity; there is no replacement to process.
       return ffi::Unchanged();
     }
-    return Call(op->ty, op->op, {cond, true_value, false_value}, op->attrs, op->ty_args, op->span);
+    return Call(op->ty, op->op, {cond, true_value, false_value}, op->attrs, op->ty_args, op->loc);
   }
   auto args_u = Mutate(op->args, inplace_mode).as_or_throw<UnchangedOr<ffi::Array<Expr>>>();
   if (args_u.UnchangedOrSameAs(op->args)) return ffi::Unchanged();
@@ -131,7 +129,7 @@ UnchangedOr<PrimExpr> SimplifierBase::Mutate_(const prim::LetNode* op, InplaceMo
     // Reuse the original node identity; there is no replacement to process.
     return ffi::Unchanged();
   }
-  return prim::Let(op->var, value, body, op->span);
+  return prim::Let(op->var, value, body, op->loc);
 }
 
 UnchangedOr<PrimExpr> SimplifierBase::Mutate_(const prim::SelectNode* op,
@@ -143,24 +141,23 @@ UnchangedOr<PrimExpr> SimplifierBase::Mutate_(const prim::SelectNode* op,
                               return Mutate(op->true_value, inplace_mode);
                             })
                             .ValueOrUnchanged(op->true_value);
-  PrimExpr false_value;
-  {
+  PrimExpr false_value = [&]() {
     PrimExpr neg_cond = analyzer_->rewrite_simplify(prim::Not(cond));
-    false_value = constraint_scope_
-                      .WithNewScope([&]() {
-                        constraint_scope_.Current().Emplace(analyzer_, neg_cond);
-                        return Mutate(op->false_value, inplace_mode);
-                      })
-                      .ValueOrUnchanged(op->false_value);
-  }
-  if (prim::is_zero(cond)) return false_value;
-  if (prim::is_one(cond)) return true_value;
+    return constraint_scope_
+        .WithNewScope([&]() {
+          constraint_scope_.Current().Emplace(analyzer_, neg_cond);
+          return Mutate(op->false_value, inplace_mode);
+        })
+        .ValueOrUnchanged(op->false_value);
+  }();
+  if (prim::IsZero(cond)) return false_value;
+  if (prim::IsOne(cond)) return true_value;
   if (cond.same_as(op->condition) && true_value.same_as(op->true_value) &&
       false_value.same_as(op->false_value)) {
     // Reuse the original node identity; there is no replacement to process.
     return ffi::Unchanged();
   }
-  return prim::Select(cond, true_value, false_value, op->span);
+  return prim::Select(cond, true_value, false_value, op->loc);
 }
 
 }  // namespace sym

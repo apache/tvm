@@ -23,8 +23,8 @@ import tvm_ffi
 
 import tvm
 from tvm import tirx
-from tvm.ir.transform import PassContext
 from tvm.script import tirx as T
+from tvm.transform import PassContext
 
 
 def build_tir_func(func):
@@ -51,8 +51,8 @@ def test_scalar_add():
         lhs = tirx.Cast(lhs_type, lhs_input)
         rhs = tirx.Cast(rhs_type, rhs_input)
         output = lhs + rhs
-        output = tirx.Return(output)
-        func = tirx.PrimFunc([lhs_input, rhs_input], output)
+        output = tvm.ir.Return(output)
+        func = tirx.Function([lhs_input, rhs_input], output)
         func = build_tir_func(func)
         out = func(1.0, 2.0)
         assert out == 3.0
@@ -94,8 +94,8 @@ def test_cast_between_types():
 
 def test_return_const():
     a = tirx.const(0)
-    b = tirx.Return(a)
-    func = tirx.PrimFunc([], b)
+    b = tvm.ir.Return(a)
+    func = tirx.Function([], b)
     func = build_tir_func(func)
     out = func()
     assert out == 0
@@ -103,26 +103,26 @@ def test_return_const():
 
 def test_return_accepts_expr_and_roundtrips():
     value = tvm.relax.ShapeExpr([2, 3])
-    span = tvm.ir.Span(tvm.ir.SourceName("return_test"), 1, 1, 1, 9)
-    stmt = tirx.Return(value, span)
+    loc = tvm.ir.SourceLoc(tvm.ir.SourceName("return_test"), 1, 1, 1, 9)
+    stmt = tvm.ir.Return(value, loc)
 
     assert stmt.value.same_as(value)
-    assert stmt.span.same_as(span)
+    assert stmt.loc.same_as(loc)
     assert not tvm.ir.is_prim_expr(stmt.value)
 
     restored = tvm.ir.load_json(tvm.ir.save_json(stmt))
     tvm.ir.assert_structural_equal(restored, stmt)
     assert tvm_ffi.structural_hash(restored) == tvm_ffi.structural_hash(stmt)
 
-    with pytest.raises(tvm.error.InternalError):
-        tirx.Return(None)
+    with pytest.raises(TypeError):
+        tvm.ir.Return(None)
 
 
-def test_stmt_span_not_structural():
-    span_a = tvm.ir.Span(tvm.ir.SourceName("a.py"), 1, 1, 1, 2)
-    span_b = tvm.ir.Span(tvm.ir.SourceName("b.py"), 10, 10, 3, 4)
-    stmt_a = tirx.Evaluate(tirx.IntImm("int32", 0), span_a)
-    stmt_b = tirx.Evaluate(tirx.IntImm("int32", 0), span_b)
+def test_stmt_loc_not_structural():
+    loc_a = tvm.ir.SourceLoc(tvm.ir.SourceName("a.py"), 1, 1, 1, 2)
+    loc_b = tvm.ir.SourceLoc(tvm.ir.SourceName("b.py"), 10, 3, 10, 4)
+    stmt_a = tvm.ir.Evaluate(tirx.IntImm("int32", 0), loc_a)
+    stmt_b = tvm.ir.Evaluate(tirx.IntImm("int32", 0), loc_b)
 
     assert tvm_ffi.structural_equal(stmt_a, stmt_b)
     assert tvm_ffi.structural_hash(stmt_a) == tvm_ffi.structural_hash(stmt_b)
@@ -130,26 +130,26 @@ def test_stmt_span_not_structural():
 
 def test_return_stmt_functor_traversal_and_mutation():
     x = tirx.Var("x", "int32")
-    span = tvm.ir.Span(tvm.ir.SourceName("return_test"), 1, 1, 1, 9)
-    stmt = tirx.Return(x + 1, span)
+    loc = tvm.ir.SourceLoc(tvm.ir.SourceName("return_test"), 1, 1, 1, 9)
+    stmt = tvm.ir.Return(x + 1, loc)
     visited = []
 
     tvm_ffi.structural_walk(stmt, visited.append)
     assert any(node.same_as(x) for node in visited)
-    assert any(isinstance(node, tirx.Return) for node in visited)
+    assert any(isinstance(node, tvm.ir.Return) for node in visited)
 
     rewritten = tvm_ffi.structural_map(
         stmt,
         (tirx.Var, lambda var: tirx.IntImm("int32", 4) if var.same_as(x) else var),
         order="post",
     )
-    expected = tirx.Return(tirx.Add(tirx.IntImm("int32", 4), tirx.IntImm("int32", 1)), span)
+    expected = tvm.ir.Return(tirx.Add(tirx.IntImm("int32", 4), tirx.IntImm("int32", 1)), loc)
     tvm.ir.assert_structural_equal(rewritten, expected)
-    assert rewritten.span.same_as(span)
+    assert rewritten.loc.same_as(loc)
 
 
 def test_control_flow_jump():
-    @T.prim_func
+    @T.function
     def func(a: T.float32, b: T.float32):
         if True:
             return a
@@ -161,8 +161,8 @@ def test_control_flow_jump():
 
 
 def test_break_statement():
-    @T.prim_func
-    def func(In: T.Buffer((2,), "int32"), Out: T.Buffer((2,), "int32")):
+    @T.function
+    def func(In: T.Tensor((2,), "int32"), Out: T.Tensor((2,), "int32")):
         Out[0] = 0
         Out[1] = 1
         for i in range(10):
@@ -188,8 +188,8 @@ def test_break_statement():
 
 
 def test_continue_statement():
-    @T.prim_func
-    def func(Out: T.Buffer((2,), "int32")):
+    @T.function
+    def func(Out: T.Tensor((2,), "int32")):
         T.func_attr({"global_symbol": "main"})
         Out[0] = 0
         Out[1] = 0
@@ -198,7 +198,7 @@ def test_continue_statement():
                 if (i * 10 + j) % 3 != 0:
                     continue
                 Out[0] = Out[0] + 1
-        k = T.decl_buffer([], "int32")
+        k = T.decl_tensor([], "int32")
         k[()] = 0
         while k[()] < Out[0]:
             k[()] = k[()] + 1
@@ -226,9 +226,9 @@ def test_eq_ops():
     # `__eq__` / `__ne__` operators on `IntImm` / `StringImm`; the `is` operators
     # bypass those overloads and would defeat the test.
     a = tirx.IntImm("int8", 1)
-    with pytest.raises(ValueError):
+    with pytest.raises(TypeError):
         assert a != None
-    with pytest.raises(ValueError):
+    with pytest.raises(TypeError):
         assert not a == None
     b = tvm.ir.StringImm("abc")
     assert b != None

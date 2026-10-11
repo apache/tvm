@@ -351,7 +351,7 @@ Pass TopologicalSort(TraversalOrder order, StartingLocation starting_location) {
     TopologicalSorter mutator(order, starting_location);
     return mutator(func).as_or_throw<Function>();
   };
-  return relax::transform::CreateFunctionPass(pass_func, 0, "TopologicalSort", {});
+  return relax::transform::CreateFunctionPass(pass_func, 0, "TopologicalSort");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

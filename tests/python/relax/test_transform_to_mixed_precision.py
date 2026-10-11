@@ -1061,15 +1061,15 @@ def test_call_tir_with_float16_args():
         def main(A: R.Tensor([64], "float16")):
             cls = Before
             with R.dataflow():
-                B = R.call_tir(cls.tir_identity, [A], out_ty=R.Tensor([64], "float16"))
-                C = R.call_tir(cls.tir_identity, [B], out_ty=R.Tensor([64], "float16"))
+                B = R.call_tir(cls.tir_identity, [A], ty_args=[R.Tensor([64], "float16")])
+                C = R.call_tir(cls.tir_identity, [B], ty_args=[R.Tensor([64], "float16")])
                 R.output(C)
             return C
 
-        @Ts.prim_func
+        @Ts.function
         def tir_identity(
-            Input: T.Buffer(64, "float16"),
-            Output: T.Buffer(64, "float16"),
+            Input: T.Tensor(64, "float16"),
+            Output: T.Tensor(64, "float16"),
         ):
             for i in range(64):
                 with Ts.sblock("copy"):
@@ -1080,6 +1080,25 @@ def test_call_tir_with_float16_args():
 
     After = ToMixedPrecision()(Before)
     tvm.ir.assert_structural_equal(Expected, After)
+
+
+def test_local_function_in_dataflow_block():
+    @I.ir_module
+    class Module:
+        @R.function
+        def main(x: R.Tensor((), "float32")):
+            with R.dataflow():
+
+                @R.function
+                def double(y: R.Tensor((), "float32")) -> R.Tensor((), "float32"):
+                    return R.add(y, y)
+
+                gv = double(x)
+                R.output(gv)
+            return gv
+
+    transformed = ToMixedPrecision()(Module)
+    tvm.ir.assert_structural_equal(transformed, Module)
 
 
 def test_dynamic_strided_slice():

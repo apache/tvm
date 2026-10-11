@@ -44,10 +44,10 @@ class RandomComputeLocationNode : public ScheduleRuleNode {
     // access the input block. Hence we collect its producer ahead of time.
     // - Note that only single producer is allowed in this case.
     ffi::Array<s_tir::SBlockRV> producers{nullptr};
-    if (s_tir::HasAnn(sch->GetSRef(block_rv), s_tir::attr::meta_schedule_random_compute_producer,
+    if (s_tir::HasAnn(sch->GetSRef(block_rv), tvm::s_tir::attr::kMetaScheduleRandomComputeProducer,
                       true)) {
       producers = sch->GetProducers(block_rv);
-      sch->Unannotate(block_rv, s_tir::attr::meta_schedule_random_compute_producer);
+      sch->Unannotate(block_rv, tvm::s_tir::attr::kMetaScheduleRandomComputeProducer);
       TVM_FFI_ICHECK_EQ(producers.size(), 1);
     }
 
@@ -66,7 +66,7 @@ class RandomComputeLocationNode : public ScheduleRuleNode {
   ScheduleRule Clone() const final {
     ffi::ObjectPtr<RandomComputeLocationNode> n =
         ffi::make_object<RandomComputeLocationNode>(*this);
-    return ScheduleRule(n);
+    return ScheduleRule(ffi::UnsafeInit{}, n);
   }
 
  private:
@@ -126,7 +126,7 @@ class RandomComputeLocationNode : public ScheduleRuleNode {
 };
 
 ScheduleRule ScheduleRule::RandomComputeLocation() {
-  return ScheduleRule(ffi::make_object<RandomComputeLocationNode>());
+  return ScheduleRule(ffi::UnsafeInit{}, ffi::make_object<RandomComputeLocationNode>());
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() { RandomComputeLocationNode::RegisterReflection(); }

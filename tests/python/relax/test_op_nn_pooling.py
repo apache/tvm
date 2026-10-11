@@ -35,9 +35,13 @@ def test_op_correctness():
     assert relax.op.nn.avg_pool1d(x).op == Op.get("relax.nn.avg_pool1d")
     assert relax.op.nn.avg_pool2d(x).op == Op.get("relax.nn.avg_pool2d")
     assert relax.op.nn.avg_pool3d(x).op == Op.get("relax.nn.avg_pool3d")
-    assert relax.op.nn.adaptive_avg_pool1d(x).op == Op.get("relax.nn.adaptive_avg_pool1d")
+    assert relax.op.nn.adaptive_avg_pool1d(x, ty=tvm.ir.Type.missing()).op == Op.get(
+        "relax.nn.adaptive_avg_pool1d"
+    )
     assert relax.op.nn.adaptive_avg_pool2d(x).op == Op.get("relax.nn.adaptive_avg_pool2d")
-    assert relax.op.nn.adaptive_avg_pool3d(x).op == Op.get("relax.nn.adaptive_avg_pool3d")
+    assert relax.op.nn.adaptive_avg_pool3d(x, ty=tvm.ir.Type.missing()).op == Op.get(
+        "relax.nn.adaptive_avg_pool3d"
+    )
 
 
 def _check_inference(bb: relax.BlockBuilder, call: relax.Call, expected_ty: relax.Type):

@@ -19,6 +19,8 @@
 import warnings
 from typing import TYPE_CHECKING, Union
 
+import tvm
+
 # isort: off
 from typing import Literal
 
@@ -27,10 +29,10 @@ from typing import Literal
 from tvm_ffi import get_global_func, register_global_func
 
 from tvm.ir import IRModule
-from tvm.ir.transform import PassContext
 from tvm.runtime import Tensor
 from tvm.target import Target
 from tvm.tirx.expr import IntImm
+from tvm.transform import PassContext
 
 from .builder import Builder
 from .cost_model import CostModel
@@ -410,7 +412,6 @@ def compile_relax(
         The built runtime module or vm VMExecutable for the given relax workload.
     """
     # pylint: disable=import-outside-toplevel
-    import tvm
     from tvm import relax
     from tvm.relax import build as relax_build
     from tvm.relax import pipeline as relax_pipeline_mod

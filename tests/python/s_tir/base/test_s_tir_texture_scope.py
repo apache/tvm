@@ -32,10 +32,10 @@ from tvm.tirx.compilation_pipeline import finalize_device_passes
 def test_texture_scope():
     @tvm.script.ir_module
     class PlusOneMultTwo:
-        @Ts.prim_func
+        @Ts.function
         def main(
-            A: T.Buffer((128, 128, 4), dtype="float32", scope="global.texture"),
-            C: T.Buffer((128, 128, 4), dtype="float32", scope="global.texture"),
+            A: T.Tensor((128, 128, 4), dtype="float32", scope="global.texture"),
+            C: T.Tensor((128, 128, 4), dtype="float32", scope="global.texture"),
         ) -> None:
             T.func_attr({"tirx.noalias": True})
 
@@ -69,7 +69,7 @@ def test_texture_scope():
     lowered = pipeline(lowered)
     _, device_mods = split_host_device_mods(lowered)
     assert len(device_mods) == 1
-    device_target, device_mod = next(iter(device_mods.items()))
+    (device_target, _backend_config), device_mod = next(iter(device_mods.items()))
     device_mod = finalize_device_passes()(device_mod)
     source = tvm.get_global_func("target.build.opencl")(device_mod, device_target).inspect_source()
     assert "__read_only image2d_array_t" in source

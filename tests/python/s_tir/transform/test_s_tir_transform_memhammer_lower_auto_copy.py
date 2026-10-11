@@ -29,7 +29,7 @@ from tvm.script import tirx as T
 
 def _is_buffer_binding(node, *op_names):
     return (
-        isinstance(node, tvm.tirx.Bind)
+        isinstance(node, tvm.ir.Bind)
         and isinstance(node.value, tvm.ir.Call)
         and isinstance(node.value.op, tvm.ir.Op)
         and node.value.op.name in op_names
@@ -38,8 +38,8 @@ def _is_buffer_binding(node, *op_names):
 
 @tvm.script.ir_module
 class Transpose:
-    @Ts.prim_func
-    def main(A: T.Buffer([1024, 1024]), B: T.Buffer([1024, 1024])) -> None:
+    @Ts.function
+    def main(A: T.Tensor([1024, 1024]), B: T.Tensor([1024, 1024])) -> None:
         with Ts.sblock("root"):
             Ts.sblock_attr({"warp_execution": True})
             for ty in T.thread_binding(8, thread="threadIdx.y"):
@@ -59,8 +59,8 @@ class Transpose:
 
 @tvm.script.ir_module
 class GlobalToShared:
-    @Ts.prim_func
-    def main(A: T.Buffer([1024, 1024]), B: T.Buffer([1024, 1024])) -> None:
+    @Ts.function
+    def main(A: T.Tensor([1024, 1024]), B: T.Tensor([1024, 1024])) -> None:
         with Ts.sblock("root"):
             Ts.sblock_attr({"warp_execution": True})
             for bx in T.thread_binding(8, thread="blockIdx.x"):
@@ -81,8 +81,8 @@ class GlobalToShared:
 
 @tvm.script.ir_module
 class SharedToGlobal:
-    @Ts.prim_func
-    def main(A: T.Buffer([1024, 1024]), B: T.Buffer([1024, 1024])) -> None:
+    @Ts.function
+    def main(A: T.Tensor([1024, 1024]), B: T.Tensor([1024, 1024])) -> None:
         with Ts.sblock("root"):
             Ts.sblock_attr({"warp_execution": True})
             for bx in T.thread_binding(8, thread="blockIdx.x"):
@@ -103,8 +103,8 @@ class SharedToGlobal:
 
 @tvm.script.ir_module
 class GlobalToSharedWithLocalStage:
-    @Ts.prim_func
-    def main(A: T.Buffer([1024, 1024]), B: T.Buffer([1024, 1024])) -> None:
+    @Ts.function
+    def main(A: T.Tensor([1024, 1024]), B: T.Tensor([1024, 1024])) -> None:
         with Ts.sblock("root"):
             Ts.sblock_attr({"warp_execution": True})
             for bx in T.thread_binding(8, thread="blockIdx.x"):
@@ -127,7 +127,7 @@ class GlobalToSharedWithLocalStage:
 
 @tvm.script.ir_module
 class SharedToWmma:
-    @Ts.prim_func
+    @Ts.function
     def main() -> None:
         with Ts.sblock("root"):
             Ts.sblock_attr({"warp_execution": True})
@@ -149,7 +149,7 @@ class SharedToWmma:
 
 @tvm.script.ir_module
 class WmmaToShared:
-    @Ts.prim_func
+    @Ts.function
     def main() -> None:
         with Ts.sblock("root"):
             Ts.sblock_attr({"warp_execution": True})
@@ -171,8 +171,8 @@ class WmmaToShared:
 
 @tvm.script.ir_module
 class WmmaToGlobal:
-    @Ts.prim_func
-    def main(C: T.Buffer([1024, 1024])) -> None:
+    @Ts.function
+    def main(C: T.Tensor([1024, 1024])) -> None:
         with Ts.sblock("root"):
             Ts.sblock_attr({"warp_execution": True})
             for bx in T.thread_binding(8, thread="blockIdx.x"):
@@ -190,8 +190,8 @@ class WmmaToGlobal:
 
 @tvm.script.ir_module
 class WmmaToGlobalWithFusion:
-    @Ts.prim_func
-    def main(A: T.Buffer([1024]), C: T.Buffer([1024, 1024])) -> None:
+    @Ts.function
+    def main(A: T.Tensor([1024]), C: T.Tensor([1024, 1024])) -> None:
         with Ts.sblock("root"):
             Ts.sblock_attr({"warp_execution": True})
             for bx in T.thread_binding(8, thread="blockIdx.x"):
@@ -211,8 +211,8 @@ class WmmaToGlobalWithFusion:
 
 @tvm.script.ir_module
 class MmaToGlobal:
-    @Ts.prim_func
-    def main(C: T.Buffer([1024, 1024])) -> None:
+    @Ts.function
+    def main(C: T.Tensor([1024, 1024])) -> None:
         with Ts.sblock("root"):
             Ts.sblock_attr({"warp_execution": True})
             for bx in T.thread_binding(8, thread="blockIdx.x"):
@@ -230,8 +230,8 @@ class MmaToGlobal:
 
 @tvm.script.ir_module
 class TransformedGlobalToShared:
-    @Ts.prim_func
-    def main(A: T.Buffer([1024, 1024]), B: T.Buffer([1024, 1024])) -> None:
+    @Ts.function
+    def main(A: T.Tensor([1024, 1024]), B: T.Tensor([1024, 1024])) -> None:
         with Ts.sblock("root"):
             Ts.sblock_attr({"warp_execution": True})
             for bx in T.thread_binding(8, thread="blockIdx.x"):
@@ -269,8 +269,8 @@ class TransformedGlobalToShared:
 
 @tvm.script.ir_module
 class TransformedSharedToGlobal:
-    @Ts.prim_func
-    def main(A: T.Buffer([1024, 1024]), B: T.Buffer([1024, 1024])) -> None:
+    @Ts.function
+    def main(A: T.Tensor([1024, 1024]), B: T.Tensor([1024, 1024])) -> None:
         with Ts.sblock("root"):
             Ts.sblock_attr({"warp_execution": True})
             for bx in T.thread_binding(8, thread="blockIdx.x"):
@@ -310,8 +310,8 @@ class TransformedSharedToGlobal:
 
 @tvm.script.ir_module
 class TransformedGlobalToSharedWithLocalStage:
-    @Ts.prim_func
-    def main(A: T.Buffer((1024, 1024)), B: T.Buffer((1024, 1024))):
+    @Ts.function
+    def main(A: T.Tensor((1024, 1024)), B: T.Tensor((1024, 1024))):
         with Ts.sblock("root"):
             Ts.sblock_attr({"warp_execution": True})
             for bx in T.thread_binding(8, thread="blockIdx.x"):
@@ -418,7 +418,7 @@ s1 = T.dynamic("s1", "int32")
 
 @tvm.script.ir_module
 class TransformedSharedToWmma:
-    @Ts.prim_func
+    @Ts.function
     def main() -> None:
         # body
         with Ts.sblock("root"):
@@ -473,24 +473,16 @@ class TransformedSharedToWmma:
                                             offset_factor=16,
                                         )
                                         T.evaluate(
-                                            T.tvm_load_matrix_sync(
+                                            T.gpu_load_matrix_sync(
                                                 tgt.data,
                                                 16,
                                                 16,
                                                 16,
                                                 tgt.elem_offset // 256
                                                 + tgt.elem_offset % 256 // 16,
-                                                T.tvm_access_ptr(
-                                                    T.type_annotation(dtype="float16"),
-                                                    src.data,
-                                                    src.elem_offset,
-                                                    s1 * 16,
-                                                    1,
-                                                    dtype="handle",
-                                                ),
+                                                src.ptr_to([0] * len(src.shape)),
                                                 s1,
                                                 "row_major",
-                                                dtype="handle",
                                             )
                                         )
 
@@ -501,7 +493,7 @@ s1 = T.dynamic("s1", "int32")
 
 @tvm.script.ir_module
 class TransformedWmmaToShared:
-    @Ts.prim_func
+    @Ts.function
     def main() -> None:
         # body
         with Ts.sblock("root"):
@@ -556,24 +548,16 @@ class TransformedWmmaToShared:
                                             offset_factor=16,
                                         )
                                         T.evaluate(
-                                            T.tvm_store_matrix_sync(
+                                            T.gpu_store_matrix_sync(
                                                 src.data,
                                                 16,
                                                 16,
                                                 16,
                                                 src.elem_offset // 256
                                                 + src.elem_offset % 256 // 16,
-                                                T.tvm_access_ptr(
-                                                    T.type_annotation(dtype="float32"),
-                                                    tgt.data,
-                                                    tgt.elem_offset,
-                                                    s1 * 16,
-                                                    2,
-                                                    dtype="handle",
-                                                ),
+                                                tgt.ptr_to([0] * len(tgt.shape)),
                                                 s1,
                                                 "row_major",
-                                                dtype="handle",
                                             )
                                         )
 
@@ -584,8 +568,8 @@ s0 = T.dynamic("s0", "int32")
 
 @tvm.script.ir_module
 class TransformedWmmaToGlobal:
-    @Ts.prim_func
-    def main(C: T.Buffer((1024, 1024), "float32")):
+    @Ts.function
+    def main(C: T.Tensor((1024, 1024), "float32")):
         with Ts.sblock("root"):
             Ts.sblock_attr({"warp_execution": True})
             for bx in T.thread_binding(8, thread="blockIdx.x"):
@@ -628,20 +612,14 @@ class TransformedWmmaToGlobal:
                                                 scope="shared.dyn",
                                                 offset_factor=16,
                                             )
-                                            T.tvm_store_matrix_sync(
+                                            T.gpu_store_matrix_sync(
                                                 src.data,
                                                 16,
                                                 16,
                                                 16,
                                                 src.elem_offset // 256
                                                 + src.elem_offset % 256 // 16,
-                                                T.tvm_access_ptr(
-                                                    T.type_annotation("float32"),
-                                                    tgt.data,
-                                                    tgt.elem_offset,
-                                                    s1 * 16,
-                                                    2,
-                                                ),
+                                                tgt.ptr_to([0] * len(tgt.shape)),
                                                 s1,
                                                 "row_major",
                                             )
@@ -785,8 +763,8 @@ s0_1 = T.dynamic("s0_1", "int32")
 
 @tvm.script.ir_module
 class TransformedWmmaToGlobalWithFusion:
-    @Ts.prim_func
-    def main(A: T.Buffer((1024,), "float32"), C: T.Buffer((1024, 1024), "float32")) -> None:
+    @Ts.function
+    def main(A: T.Tensor((1024,), "float32"), C: T.Tensor((1024, 1024), "float32")) -> None:
         # body
         with Ts.sblock("root"):
             Ts.sblock_attr({"warp_execution": True})
@@ -832,20 +810,14 @@ class TransformedWmmaToGlobalWithFusion:
                                                 scope="shared.dyn",
                                                 offset_factor=16,
                                             )
-                                            T.tvm_store_matrix_sync(
+                                            T.gpu_store_matrix_sync(
                                                 src.data,
                                                 16,
                                                 16,
                                                 16,
                                                 src.elem_offset // 256
                                                 + src.elem_offset % 256 // 16,
-                                                T.tvm_access_ptr(
-                                                    T.type_annotation("float32"),
-                                                    tgt.data,
-                                                    tgt.elem_offset,
-                                                    s1_1 * 16,
-                                                    2,
-                                                ),
+                                                tgt.ptr_to([0] * len(tgt.shape)),
                                                 s1_1,
                                                 "row_major",
                                             )
@@ -1010,8 +982,8 @@ s0 = T.dynamic("s0", "int32")
 
 @tvm.script.ir_module
 class TransformedMmaToGlobal:
-    @Ts.prim_func
-    def main(C: T.Buffer((1024, 1024), "float32")):
+    @Ts.function
+    def main(C: T.Tensor((1024, 1024), "float32")):
         with Ts.sblock("root"):
             Ts.sblock_attr({"warp_execution": True})
             for bx in T.thread_binding(8, thread="blockIdx.x"):
@@ -1142,7 +1114,7 @@ def verify_single_allocation(stmt, alloc_size=None):
     alloc_extents = []
 
     def verify(n):
-        if _is_buffer_binding(n, "tirx.alloc_buffer") and n.var.scope() == "shared.dyn":
+        if _is_buffer_binding(n, "tirx.alloc_tensor") and n.var.scope() == "shared.dyn":
             num_alloc[0] += 1
             alloc_extents.append(n.var.shape)
 

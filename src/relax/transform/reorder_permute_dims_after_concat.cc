@@ -198,7 +198,7 @@ Pass ReorderPermuteDimsAfterConcat() {
     auto [pattern, rewriter] = CreatePatterns();
     return RewriteCall(pattern, rewriter, func);
   };
-  return CreateFunctionPass(pass_func, 1, "ReorderPermuteDimsAfterConcat", {});
+  return CreateFunctionPass(pass_func, 1, "ReorderPermuteDimsAfterConcat");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

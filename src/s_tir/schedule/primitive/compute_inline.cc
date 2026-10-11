@@ -20,6 +20,7 @@
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/stmt.h>
+#include <tvm/tirx/op/memory.h>
 
 #include "../utils.h"
 
@@ -94,18 +95,18 @@ class NotSingleReadWriteBuffer : public ScheduleErrorContextObj {
   bool is_read_;
   SBlock block_;
 
-  static BufferVar GetSingleRead(const ScheduleState& self, const SBlock& block,
+  static TensorVar GetSingleRead(const ScheduleState& self, const SBlock& block,
                                  const StmtSRef& scope_root_sref) {
-    const std::unordered_map<BufferVar, ffi::Array<StmtSRef>, ffi::ObjectPtrHash,
+    const std::unordered_map<TensorVar, ffi::Array<StmtSRef>, ffi::ObjectPtrHash,
                              ffi::ObjectPtrEqual>& buffer_writers =
         self->block_info.at(scope_root_sref).scope->buffer_writers;
     const VarNode* read_buffer = nullptr;
     for (const TensorRegion& read_region : block->reads) {
-      const VarNode* buffer = read_region->source.as_or_throw<tvm::tirx::BufferVar>().get();
+      const VarNode* buffer = read_region->source.as_or_throw<tvm::tirx::TensorVar>().get();
       if (buffer == read_buffer) {
         continue;
       }
-      if (buffer_writers.count(ffi::GetRef<Var>(buffer).as_or_throw<BufferVar>()) > 0) {
+      if (buffer_writers.count(ffi::GetRef<Var>(buffer).as_or_throw<TensorVar>()) > 0) {
         if (read_buffer != nullptr) {
           throw MakeScheduleError<NotSingleReadWriteBuffer>(self->mod, true, block);
         }
@@ -115,14 +116,14 @@ class NotSingleReadWriteBuffer : public ScheduleErrorContextObj {
     if (read_buffer == nullptr) {
       throw MakeScheduleError<NotSingleReadWriteBuffer>(self->mod, true, block);
     }
-    return ffi::GetRef<Var>(read_buffer).as_or_throw<BufferVar>();
+    return ffi::GetRef<Var>(read_buffer).as_or_throw<TensorVar>();
   }
 
-  static BufferVar GetSingleWrite(const ScheduleState& self, const SBlock& block) {
+  static TensorVar GetSingleWrite(const ScheduleState& self, const SBlock& block) {
     if (block->writes.size() != 1) {
       throw MakeScheduleError<NotSingleReadWriteBuffer>(self->mod, false, block);
     }
-    return block->writes[0]->source.as_or_throw<tvm::tirx::BufferVar>();
+    return block->writes[0]->source.as_or_throw<tvm::tirx::TensorVar>();
   }
 };
 
@@ -183,7 +184,7 @@ class NonSingleProducerError : public ScheduleErrorContextObj {
                         const StmtSRef& scope_root_sref) {
     const SBlockNode* scope_block = TVM_SREF_TO_SBLOCK(scope_root_sref);
     const SBlockNode* consumer_block = TVM_SREF_TO_SBLOCK(consumer_block_sref);
-    BufferVar consumer_buffer = NotSingleReadWriteBuffer::GetSingleRead(
+    TensorVar consumer_buffer = NotSingleReadWriteBuffer::GetSingleRead(
         self, ffi::GetRef<SBlock>(consumer_block), scope_root_sref);
     class ProducerFinder : public StmtExprVisitor {
      public:
@@ -196,14 +197,14 @@ class NonSingleProducerError : public ScheduleErrorContextObj {
 
       static std::vector<SBlock> GetProducer(const ScheduleState& self,
                                              const StmtSRef& scope_root_sref,
-                                             const BufferVar& buffer, const SBlock& scope_block) {
+                                             const TensorVar& buffer, const SBlock& scope_block) {
         auto finder = ffi::make_object<ProducerFinder>(self, scope_root_sref, buffer);
         finder->Visit(scope_block);
         return finder->producer_across_scope_.back();
       }
 
       explicit ProducerFinder(const ScheduleState& self, const StmtSRef& scope_root_sref,
-                              const BufferVar& buffer)
+                              const TensorVar& buffer)
           : self_(self), scope_root_sref_(scope_root_sref), buffer_(buffer) {
         producer_across_scope_.push_back({});
       }
@@ -224,7 +225,7 @@ class NonSingleProducerError : public ScheduleErrorContextObj {
         // leaf block
         producer_across_scope_.pop_back();
         for (const auto& write : node->writes) {
-          if (write->source.as_or_throw<tvm::tirx::BufferVar>().same_as(buffer_)) {
+          if (write->source.as_or_throw<tvm::tirx::TensorVar>().same_as(buffer_)) {
             // Check if the producer block is a complete block
             StmtSRef producer_block_sref = self_->stmt2ref.at(node);
             if (!IsCompleteBlock(self_, producer_block_sref, scope_root_sref_)) {
@@ -239,7 +240,7 @@ class NonSingleProducerError : public ScheduleErrorContextObj {
       }
       ScheduleState self_;
       StmtSRef scope_root_sref_;
-      BufferVar buffer_;
+      TensorVar buffer_;
       std::vector<std::vector<SBlock>> producer_across_scope_;
     };
     std::vector<SBlock> producer_across_scope = ProducerFinder::GetProducer(
@@ -255,7 +256,7 @@ class NonSingleProducerError : public ScheduleErrorContextObj {
 class OpaqueAccessError : public ScheduleErrorContextObj {
  public:
   explicit OpaqueAccessError(IRModule mod, StmtSRef scope_root_sref)
-      : mod_(mod), scope_root_(nullptr) {
+      : mod_(mod), scope_root_(ffi::GetRef<SBlock>(TVM_SREF_TO_SBLOCK(scope_root_sref))) {
     const SBlockNode* scope_root = TVM_SREF_TO_SBLOCK(scope_root_sref);
     this->scope_root_ = ffi::GetRef<SBlock>(scope_root);
   }
@@ -314,17 +315,19 @@ class BaseInliner : public StmtExprMutator {
   using StmtExprMutator::Mutate;
   using StmtExprMutator::Mutate_;
 
-  explicit BaseInliner(const BufferVar& inlined_buffer, const SBlock& inlined_block,
+  explicit BaseInliner(const TensorVar& inlined_buffer, const SBlock& inlined_block,
                        const StmtSRef& scope_root_sref)
       : inlined_buffer_(inlined_buffer),
-        inlined_store_(inlined_block->body.as<BufferStoreNode>()),
+        inlined_store_(inlined_block->body->size() == 1
+                           ? inlined_block->body->seq[0].as<TensorStoreNode>()
+                           : nullptr),
         scope_root_sref_(scope_root_sref) {
     AddBuffersInBlockSignature(inlined_block.get());
   }
 
  protected:
   UnchangedOr<Expr> Mutate_(const TensorRegionNode* op, InplaceMode inplace_mode) final {
-    if (!op->source.as<BufferVar>()) {
+    if (!op->source.as<TensorVar>()) {
       return StmtExprMutator::Mutate_(op, inplace_mode);
     }
     auto region = Mutate(op->region).as_or_throw<UnchangedOr<ffi::Array<Range>>>();
@@ -343,10 +346,10 @@ class BaseInliner : public StmtExprMutator {
     return node;
   }
 
-  UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) override {
+  UnchangedOr<Stmt> Mutate_(const TensorStoreNode* op, InplaceMode inplace_mode) override {
     auto value = Mutate(op->value);
     auto indices = Mutate(op->indices).as_or_throw<UnchangedOr<ffi::Array<PrimExpr>>>();
-    BufferStore node = ffi::GetRef<BufferStore>(op);
+    TensorStore node = ffi::GetRef<TensorStore>(op);
     if (!value.UnchangedOrSameAs(op->value) || !indices.UnchangedOrSameAs(op->indices)) {
       auto* n = node.CopyOnWrite();
       n->value = std::move(value).ValueOrUnchanged(op->value);
@@ -360,6 +363,21 @@ class BaseInliner : public StmtExprMutator {
       CheckOpaqueAccess(var);
     }
     return StmtExprMutator::Mutate_(var, inplace_mode);
+  }
+
+  UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) final {
+    if (op->op.same_as(tirx::address_of_op())) {
+      if (const auto* load = op->args[0].as<TensorLoadNode>()) {
+        CheckOpaqueAccess(load->source.as_or_throw<TensorVar>().get());
+        // An address operand must remain a TensorLoad, not the inlined value.
+        auto operand = BaseInliner::Mutate_(load, inplace_mode);
+        if (operand.UnchangedOrSameAs(ffi::GetRef<TensorLoad>(load))) return ffi::Unchanged();
+        Call call = ffi::GetRef<Call>(op);
+        call.CopyOnWrite()->args.Set(0, std::move(operand).ValueUnchecked());
+        return call;
+      }
+    }
+    return StmtExprMutator::Mutate_(op, inplace_mode);
   }
 
   UnchangedOr<Stmt> Mutate_(const ForNode* loop, InplaceMode inplace_mode) final {
@@ -397,21 +415,21 @@ class BaseInliner : public StmtExprMutator {
    */
   void AddBuffersInBlockSignature(const SBlockNode* block) {
     for (const TensorRegion& buffer_region : block->reads) {
-      const BufferVar& buffer = buffer_region->source.as_or_throw<tvm::tirx::BufferVar>();
+      const TensorVar& buffer = buffer_region->source.as_or_throw<tvm::tirx::TensorVar>();
       buffer_var_map_.Set(buffer.var(), buffer);
     }
     for (const TensorRegion& buffer_region : block->writes) {
-      const BufferVar& buffer = buffer_region->source.as_or_throw<tvm::tirx::BufferVar>();
+      const TensorVar& buffer = buffer_region->source.as_or_throw<tvm::tirx::TensorVar>();
       buffer_var_map_.Set(buffer.var(), buffer);
     }
-    for (const BufferVar& buffer : block->alloc_buffers) {
+    for (const TensorVar& buffer : block->alloc_buffers) {
       buffer_var_map_.Set(buffer.var(), buffer);
     }
   }
 
   /*!
    * \brief Update the following block signature:
-   * 1) T.alloc_buffer, if the block is scope root
+   * 1) T.alloc_tensor, if the block is scope root
    * 2) T.reads, if the block is not scope root
    * 3) T.writes, if the block is not scope root
    * \param block The block to be updated
@@ -420,12 +438,12 @@ class BaseInliner : public StmtExprMutator {
    */
   SBlock UpdateBuffersInBlockSignature(SBlock block, bool is_scope_root) {
     // Step 1. Update `BlockNode::alloc_buffers`
-    ffi::Array<BufferVar> alloc_buffers;
+    ffi::Array<TensorVar> alloc_buffers;
     if (is_scope_root) {
       alloc_buffers.reserve(block->alloc_buffers.size());
-      for (const BufferVar& alloc_buffer : block->alloc_buffers) {
-        if (!alloc_buffer.same_as(inlined_buffer_)) {
-          alloc_buffers.push_back(alloc_buffer);
+      for (const TensorVar& alloc_tensor : block->alloc_buffers) {
+        if (!alloc_tensor.same_as(inlined_buffer_)) {
+          alloc_buffers.push_back(alloc_tensor);
         }
       }
     } else {
@@ -435,7 +453,7 @@ class BaseInliner : public StmtExprMutator {
     ffi::Array<TensorRegion> reads = std::move(block->reads);
     ffi::Array<TensorRegion> writes = std::move(block->writes);
     auto f_access_inline_buffer = [this](const TensorRegion& access) {
-      return access->source.as_or_throw<tvm::tirx::BufferVar>().same_as(this->inlined_buffer_);
+      return access->source.as_or_throw<tvm::tirx::TensorVar>().same_as(this->inlined_buffer_);
     };
     if (!is_scope_root && (std::any_of(reads.begin(), reads.end(), f_access_inline_buffer) ||
                            std::any_of(writes.begin(), writes.end(), f_access_inline_buffer))) {
@@ -470,8 +488,8 @@ class BaseInliner : public StmtExprMutator {
    */
   void CheckMatchBufferRegion(const SBlockNode* block) {
     for (const MatchBufferRegion& match_buffer_region : block->match_buffers) {
-      const BufferVar& matched =
-          match_buffer_region->source->source.as_or_throw<tvm::tirx::BufferVar>();
+      const TensorVar& matched =
+          match_buffer_region->source->source.as_or_throw<tvm::tirx::TensorVar>();
       if (matched.same_as(inlined_buffer_)) {
         this->has_opaque_access = true;
       }
@@ -480,13 +498,13 @@ class BaseInliner : public StmtExprMutator {
 
  protected:
   /*! \brief The buffer to be inlined */
-  BufferVar inlined_buffer_{nullptr};
+  TensorVar inlined_buffer_;
   /*! \brief The body of the block to be inlined */
-  const BufferStoreNode* inlined_store_{nullptr};
+  const TensorStoreNode* inlined_store_{nullptr};
   /*! \brief The scope root */
-  StmtSRef scope_root_sref_{nullptr};
+  StmtSRef scope_root_sref_;
   /*! \brief Maps a buffer's data field to itself */
-  ffi::Map<Var, BufferVar> buffer_var_map_;
+  ffi::Map<Var, TensorVar> buffer_var_map_;
   /*! \brief The indices used for indexing the buffer to be inlined */
   std::vector<Var> idx_vars_;
 
@@ -496,9 +514,9 @@ class BaseInliner : public StmtExprMutator {
    * \note The pair (src_stmt, tgt_stmt) are produced by LeafBlockRemovalPlan to indicate a
    * transformation on top of the input AST. We take this approach to avoid changing the AST twice
    */
-  Stmt src_stmt{nullptr};
+  Stmt src_stmt{ffi::UnsafeInit{}};
   /*! \brief The Stmt to be replaced to when removing the leaf block */
-  Stmt tgt_stmt{nullptr};
+  Stmt tgt_stmt{ffi::UnsafeInit{}};
   /*! \brief The reuse mapping of block srefs */
   ffi::Map<SBlock, SBlock> block_reuse;
   /*! \brief Indicates if there is any opaque access of the inlined buffer */
@@ -508,7 +526,7 @@ class BaseInliner : public StmtExprMutator {
 /*!
  * \brief Helper to inline the producer block into its consumer(s)
  * The derived class implements the following functionalities:
- * 1) Substitute `BufferLoad` on the buffer to be inlined
+ * 1) Substitute `TensorLoad` on the buffer to be inlined
  * to its value calculation in the producer block
  * 2) Analyze the producer block to determine the remapping of index variables
  */
@@ -517,7 +535,7 @@ class ComputeInliner : public BaseInliner {
   using BaseInliner::Mutate;
   using BaseInliner::Mutate_;
 
-  explicit ComputeInliner(const BufferVar& inlined_buffer, const SBlock& producer_block,
+  explicit ComputeInliner(const TensorVar& inlined_buffer, const SBlock& producer_block,
                           const StmtSRef& scope_root_sref)
       : BaseInliner(inlined_buffer, producer_block, scope_root_sref) {}
 
@@ -537,9 +555,9 @@ class ComputeInliner : public BaseInliner {
       for (size_t i = 0; i < num_iters; ++i) {
         const IterVar& iter = producer_block->iter_vars[i];
         const PrimExpr& e = inlined_store_->indices[i];
-        if (e.same_as(iter->var) ||
-            (analyzer_->CanProveEqual(e, 0) && analyzer_->CanProveEqual(iter->dom->min, 0) &&
-             analyzer_->CanProveEqual(iter->dom->extent, 1))) {
+        if (e.same_as(iter->var) || (analyzer_->CanProveEqual(e, 0) &&
+                                     analyzer_->CanProveEqual(iter->dom.value()->min, 0) &&
+                                     analyzer_->CanProveEqual(iter->dom.value()->extent, 1))) {
           idx_vars.push_back(iter->var);
         } else {
           break;
@@ -556,7 +574,7 @@ class ComputeInliner : public BaseInliner {
     // check bijective mapping from producer iter var to store indices
     ffi::Map<PrimVar, Range> producer_iter_doms;
     for (const auto& iter : producer_block->iter_vars) {
-      producer_iter_doms.Set(iter->var, iter->dom);
+      producer_iter_doms.Set(iter->var, iter->dom.value());
     }
     sym::IterMapResult res = sym::DetectIterMap(
         /*indices=*/inlined_store_->indices,
@@ -566,21 +584,23 @@ class ComputeInliner : public BaseInliner {
         /*analyzer=*/analyzer_,
         /*simplify_trivial_iterators=*/false);
     if (!res->errors.empty()) {
-      // Failure: indices of BufferStore are not bijective affine
+      // Failure: indices of TensorStore are not bijective affine
       return false;
     }
-    idx_vars_.resize(buffer_ndim);
-    for (size_t i = 0; i < idx_vars_.size(); ++i) {
-      idx_vars_[i] = Var("ph_" + std::to_string(i), inlined_store_->indices[i].ty());
+    idx_vars_.clear();
+    idx_vars_.reserve(buffer_ndim);
+    for (size_t i = 0; i < buffer_ndim; ++i) {
+      idx_vars_.emplace_back("ph_" + std::to_string(i), inlined_store_->indices[i].ty());
     }
     ffi::Array<PrimExpr> prim_idx_vars;
     prim_idx_vars.reserve(idx_vars_.size());
     for (const Var& var : idx_vars_) prim_idx_vars.push_back(var.as_or_throw<PrimExpr>());
     auto inverse_iter_map = sym::InverseAffineIterMap(res->indices, prim_idx_vars);
     for (const auto& iter : producer_block->iter_vars) {
-      if (is_const_int(iter->dom->min) && analyzer_->CanProveEqual(iter->dom->extent, 1)) {
+      if (IsConstInt(iter->dom.value()->min) &&
+          analyzer_->CanProveEqual(iter->dom.value()->extent, 1)) {
         // fallback mapping for constant iters
-        inverse_iter_map.Set(iter->var, iter->dom->min);
+        inverse_iter_map.Set(iter->var, iter->dom.value()->min);
       }
     }
     auto f_substitute =
@@ -598,7 +618,7 @@ class ComputeInliner : public BaseInliner {
     TensorLoad load = BaseInliner::Mutate_(_load, inplace_mode)
                           .ValueOrUnchanged(ffi::GetRef<PrimExpr>(_load))
                           .as_or_throw<TensorLoad>();
-    if (!load->source.as_or_throw<tvm::tirx::BufferVar>().same_as(inlined_buffer_)) {
+    if (!load->source.as_or_throw<tvm::tirx::TensorVar>().same_as(inlined_buffer_)) {
       return load;
     }
     return ReplaceInlinedBuffer(std::move(load));
@@ -618,14 +638,14 @@ class ComputeInliner : public BaseInliner {
   /*! \brief The store value for inlinement. If the producer
    store indices are trivial, it is wrt the producer block iter var,
    otherwise it is wrt to the placeholder vars of store indices. */
-  PrimExpr store_value_;
+  PrimExpr store_value_{ffi::UnsafeInit{}};
 };
 
 /*!
  * \brief Helper to inline the consumer block into its producer
  * The derived class implements the following functionalities:
  * 1) Analyze the consumer block to determine the remapping of index variables
- * 2) Substitute `BufferStore` of the buffer to be inlined,
+ * 2) Substitute `TensorStore` of the buffer to be inlined,
  * replacing it with direct writing to the buffer that consumer writes
  */
 class ReverseComputeInliner : public BaseInliner {
@@ -650,7 +670,7 @@ class ReverseComputeInliner : public BaseInliner {
       TensorLoad load = StmtExprMutator::Mutate_(_load, inplace_mode)
                             .ValueOrUnchanged(ffi::GetRef<PrimExpr>(_load))
                             .as_or_throw<TensorLoad>();
-      return load->source.as_or_throw<tvm::tirx::BufferVar>().same_as(self_->inlined_buffer_)
+      return load->source.as_or_throw<tvm::tirx::TensorVar>().same_as(self_->inlined_buffer_)
                  ? self_->producer_rhs_
                  : load;
     }
@@ -675,9 +695,9 @@ class ReverseComputeInliner : public BaseInliner {
       TensorLoad load = StmtExprMutator::Mutate_(_load, inplace_mode)
                             .ValueOrUnchanged(ffi::GetRef<PrimExpr>(_load))
                             .as_or_throw<TensorLoad>();
-      if (!load->source.as_or_throw<BufferVar>().same_as(self_->inlined_buffer_)) return load;
-      PrimExpr replacement =
-          BufferLoad(self_->inlined_store_->buffer, self_->inlined_store_->indices);
+      if (!load->source.as_or_throw<TensorVar>().same_as(self_->inlined_buffer_)) return load;
+      PrimExpr replacement = MakeTensorLoad(self_->inlined_store_->dest.as_or_throw<TensorVar>(),
+                                            self_->inlined_store_->indices);
       return StmtExprMutator::Mutate(ffi::AnyView(replacement), InplaceMode::kDisallow)
           .ValueOrUnchanged(std::move(replacement))
           .as_or_throw<PrimExpr>();
@@ -686,7 +706,7 @@ class ReverseComputeInliner : public BaseInliner {
     ReverseComputeInliner* self_;
   };
 
-  explicit ReverseComputeInliner(const BufferVar& inlined_buffer, const SBlockNode* producer_block,
+  explicit ReverseComputeInliner(const TensorVar& inlined_buffer, const SBlockNode* producer_block,
                                  const SBlockRealize& consumer_block_realize,
                                  const StmtSRef& scope_root_sref, const IRModule& mod)
       : BaseInliner(inlined_buffer, consumer_block_realize->block, scope_root_sref),
@@ -695,24 +715,25 @@ class ReverseComputeInliner : public BaseInliner {
     // Initialize the predicates to ensure consumer block iters are in-bound
     consumer_iter_in_bound_ = IntImm::Bool(true);
     for (const IterVar& iter : consumer_block_realize->block->iter_vars) {
-      consumer_iter_in_bound_ = consumer_iter_in_bound_ && (iter->var >= iter->dom->min &&
-                                                            static_cast<PrimExpr>(iter->var) <
-                                                                iter->dom->min + iter->dom->extent);
+      consumer_iter_in_bound_ =
+          consumer_iter_in_bound_ &&
+          (iter->var >= iter->dom.value()->min &&
+           static_cast<PrimExpr>(iter->var) < iter->dom.value()->min + iter->dom.value()->extent);
     }
   }
 
   bool BodyPatternAllowInline(const SBlockRealize& consumer_block_realize) {
     const SBlock& consumer_block = consumer_block_realize->block;
 
-    if (!is_one(consumer_block_realize->predicate)) {
+    if (!IsOne(consumer_block_realize->predicate)) {
       // Failure: Predicate is the consumer block is not supported
       return false;
     }
     if (inlined_store_ == nullptr) {
-      // Failure: block body is not BufferStore
+      // Failure: block body is not TensorStore
       return false;
     }
-    std::vector<const TensorLoadNode*> loads = ExtractBufferLoad(inlined_buffer_, inlined_store_);
+    std::vector<const TensorLoadNode*> loads = ExtractTensorLoad(inlined_buffer_, inlined_store_);
     if (loads.size() == 0) {
       // Failure: no TensorLoad from the `inlined_buffer_`
       return false;
@@ -721,10 +742,10 @@ class ReverseComputeInliner : public BaseInliner {
     // Collect block iter domains and update the substition map
     ffi::Map<PrimVar, Range> consumer_iter_doms;
     for (const auto& iter_var : consumer_block->iter_vars) {
-      consumer_iter_doms.Set(iter_var->var, iter_var->dom);
+      consumer_iter_doms.Set(iter_var->var, iter_var->dom.value());
       // Set default mapping for unit iters
-      if (is_const_int(iter_var->dom->extent, 1) && is_const_int(iter_var->dom->min)) {
-        VarRemapSet(iter_var->var, iter_var->dom->min);
+      if (IsConstInt(iter_var->dom.value()->extent, 1) && IsConstInt(iter_var->dom.value()->min)) {
+        VarRemapSet(iter_var->var, iter_var->dom.value()->min);
       }
     }
 
@@ -747,24 +768,37 @@ class ReverseComputeInliner : public BaseInliner {
       return false;
     }
 
-    const BufferStoreNode* producer_store = nullptr;
-    if (const auto* producer_if = producer_block_->body.as<tirx::IfThenElseNode>()) {
+    if (producer_block_->body->size() != 1) {
+      return false;
+    }
+    const TensorStoreNode* producer_store = nullptr;
+    const Stmt& producer_body = producer_block_->body->seq[0];
+    if (const auto* producer_if = producer_body.as<IfNode>()) {
       if (producer_if->else_case.has_value()) {
         return false;
       }
-      producer_store = producer_if->then_case.as<BufferStoreNode>();
+      producer_store = producer_if->then_case->size() == 1
+                           ? producer_if->then_case->seq[0].as<TensorStoreNode>()
+                           : nullptr;
     } else {
-      producer_store = producer_block_->body.as<BufferStoreNode>();
-      if (producer_block_->annotations.count(s_tir::attr::auto_copy) != 0) {
-        const ForNode* producer_inner_loop = producer_block_->body.as<ForNode>();
-        while (producer_inner_loop->body.as<ForNode>()) {
-          producer_inner_loop = producer_inner_loop->body.as<ForNode>();
+      producer_store = producer_body.as<TensorStoreNode>();
+      if (producer_block_->annotations.count(tvm::s_tir::attr::kAutoCopy) != 0) {
+        const ForNode* producer_inner_loop = producer_body.as<ForNode>();
+        if (producer_inner_loop == nullptr) return false;
+        for (;;) {
+          if (producer_inner_loop->body->size() != 1) return false;
+          const Stmt& child = producer_inner_loop->body->seq[0];
+          if (const auto* inner_loop = child.as<ForNode>()) {
+            producer_inner_loop = inner_loop;
+          } else {
+            producer_store = child.as<TensorStoreNode>();
+            break;
+          }
         }
-        producer_store = producer_inner_loop->body.as<BufferStoreNode>();
       }
     }
     if (producer_store == nullptr) {
-      // Failure: producer block body is not BufferStore
+      // Failure: producer block body is not TensorStore
       return false;
     }
     CreateInverseMapping(producer_store->indices);
@@ -786,19 +820,21 @@ class ReverseComputeInliner : public BaseInliner {
       const IterVar& iter = producer_block->iter_vars[i];
       const PrimExpr& binding = producer_block_realize->iter_values[i];
       subst_map.Set(iter->var, binding);
-      analyzer_->Bind(iter->var, Range::FromMinExtent(iter->dom->min, iter->dom->extent));
+      analyzer_->Bind(iter->var,
+                      Range::FromMinExtent(iter->dom.value()->min, iter->dom.value()->extent));
     }
-    if (producer_block->annotations.count(s_tir::attr::auto_copy) != 0) {
+    if (producer_block->annotations.count(tvm::s_tir::attr::kAutoCopy) != 0) {
       auto bind = [&](const ForNode* loop) {
         analyzer_->Bind(loop->loop_var,
                         Range::FromMinExtent(IntImm(loop->extent.ty(), 0), loop->extent));
       };
-      const ForNode* producer_inner_loop = producer_block->body.as<ForNode>();
-      while (producer_inner_loop->body.as<ForNode>()) {
+      TVM_FFI_ICHECK_EQ(producer_block->body->size(), 1);
+      const ForNode* producer_inner_loop = producer_block->body->seq[0].as<ForNode>();
+      while (producer_inner_loop != nullptr) {
         bind(producer_inner_loop);
-        producer_inner_loop = producer_inner_loop->body.as<ForNode>();
+        TVM_FFI_ICHECK_EQ(producer_inner_loop->body->size(), 1);
+        producer_inner_loop = producer_inner_loop->body->seq[0].as<ForNode>();
       }
-      bind(producer_inner_loop);
     }
     // Substitute the consumer block iters with the corresponding iters in the producer blocks
     PrimExpr predicate = ffi::make_object<Substituter>(this)
@@ -806,10 +842,12 @@ class ReverseComputeInliner : public BaseInliner {
                              .ValueOrUnchanged(consumer_iter_in_bound_);
     // Simplify the predicate using the producer block iter domains
     predicate = analyzer_->Simplify(predicate);
-    if (is_one(predicate)) {
+    if (IsOne(predicate)) {
       return producer_block_realize;
     }
-    if (const auto* if_ = producer_block->body.as<IfThenElseNode>()) {
+    if (const auto* if_ = producer_block->body->size() == 1
+                              ? producer_block->body->seq[0].as<IfNode>()
+                              : nullptr) {
       if (!if_->else_case.has_value()) {
         PrimExpr if_predicate = analyzer_->Simplify(if_->condition);
         if (!ffi::StructuralEqual()(predicate, if_predicate)) {
@@ -843,11 +881,11 @@ class ReverseComputeInliner : public BaseInliner {
     return tgt_block_realize;
   }
 
-  UnchangedOr<Stmt> Mutate_(const BufferStoreNode* _store, InplaceMode inplace_mode) final {
-    BufferStore store = BaseInliner::Mutate_(_store, inplace_mode)
+  UnchangedOr<Stmt> Mutate_(const TensorStoreNode* _store, InplaceMode inplace_mode) final {
+    TensorStore store = BaseInliner::Mutate_(_store, inplace_mode)
                             .ValueOrUnchanged(ffi::GetRef<Stmt>(_store))
-                            .as_or_throw<BufferStore>();
-    if (!store->buffer.same_as(inlined_buffer_)) {
+                            .as_or_throw<TensorStore>();
+    if (!store->dest.as_or_throw<TensorVar>().same_as(inlined_buffer_)) {
       return store;
     }
     return ReplaceInlinedBuffer(std::move(store));
@@ -860,15 +898,15 @@ class ReverseComputeInliner : public BaseInliner {
   bool CheckConsumerCovered() {
     ffi::Map<Var, sym::IntSet> producer_iter_doms;
     for (const IterVar& iter_var : producer_block_->iter_vars) {
-      producer_iter_doms.Set(iter_var->var, sym::IntSet::FromRange(iter_var->dom));
+      producer_iter_doms.Set(iter_var->var, sym::IntSet::FromRange(iter_var->dom.value()));
     }
     // For each block iter in the consumer block, find the corresponding expression in the producer
     for (const IterVar& iter : consumer_block_->iter_vars) {
       if (auto producer_iter = VarRemapGet(iter->var).as<PrimExpr>()) {
         sym::IntSet producer_iter_range = sym::EvalSet(producer_iter.value(), producer_iter_doms);
-        if (analyzer_->CanProve(producer_iter_range.min() > iter->dom->min) ||
+        if (analyzer_->CanProve(producer_iter_range.min() > iter->dom.value()->min) ||
             analyzer_->CanProve(producer_iter_range.max() <
-                                iter->dom->min + iter->dom->extent - 1)) {
+                                iter->dom.value()->min + iter->dom.value()->extent - 1)) {
           return false;
         }
       } else {
@@ -880,9 +918,9 @@ class ReverseComputeInliner : public BaseInliner {
 
   /*!
    * \brief Apply the inverse of `buffer_load_iter_map_` to producer indices. Seed the inherited
-   * remapping environment with the result. It will be later used to transform the BufferStore
+   * remapping environment with the result. It will be later used to transform the TensorStore
    * indices of the producer.
-   * \param producer_indices The BufferStore indices of the producer.
+   * \param producer_indices The TensorStore indices of the producer.
    */
   void CreateInverseMapping(const ffi::Array<PrimExpr> producer_indices) {
     auto inverse_iter_map = sym::InverseAffineIterMap(buffer_load_iter_map_, producer_indices);
@@ -891,30 +929,30 @@ class ReverseComputeInliner : public BaseInliner {
     }
   }
 
-  Stmt ReplaceInlinedBuffer(BufferStore producer) {
+  Stmt ReplaceInlinedBuffer(TensorStore producer) {
     // "producer->value" may contain the buffer that is inlined in cases of reduction,
     // so we need to resolve the recursion first
     producer_rhs_ = ffi::make_object<RecursionResolver>(this)
                         ->Mutate(producer->value)
                         .ValueOrUnchanged(producer->value);
     return ffi::make_object<Substituter>(this)
-        ->Mutate(ffi::GetRef<BufferStore>(inlined_store_))
-        .ValueOrUnchanged(ffi::GetRef<BufferStore>(inlined_store_));
+        ->Mutate(ffi::GetRef<TensorStore>(inlined_store_))
+        .ValueOrUnchanged(ffi::GetRef<TensorStore>(inlined_store_));
   }
 
   /*!
    * \brief Extracts expressions that loads a specific buffer
    * \param buffer The buffer to be loaded from
-   * \param from The BufferStore statement to be extracted from
-   * \return A list of `BufferLoad` expressions
+   * \param from The TensorStore statement to be extracted from
+   * \return A list of `TensorLoad` expressions
    */
-  static std::vector<const TensorLoadNode*> ExtractBufferLoad(const BufferVar& buffer,
-                                                              const BufferStoreNode* from) {
+  static std::vector<const TensorLoadNode*> ExtractTensorLoad(const TensorVar& buffer,
+                                                              const TensorStoreNode* from) {
     struct Extractor : public StmtExprVisitor {
       using StmtExprVisitor::Visit_;
 
       ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* load) final {
-        if (load->source.as_or_throw<tvm::tirx::BufferVar>().get() == buffer) {
+        if (load->source.as_or_throw<tvm::tirx::TensorVar>().get() == buffer) {
           result.push_back(load);
         }
         return StmtExprVisitor::Visit_(load);
@@ -943,17 +981,17 @@ class ReverseComputeInliner : public BaseInliner {
       buffer_load_indices_ = indices;
     } else if (!std::equal(buffer_load_indices_.begin(), buffer_load_indices_.end(),
                            indices.begin(), indices.end(), prim::ExprDeepEqual())) {
-      // Failure: indices are not consistent in different BufferLoads
+      // Failure: indices are not consistent in different TensorLoads
       return false;
     }
     return true;
   }
 
-  /*! \brief The RHS value of the producer's BufferStore statement */
-  PrimExpr producer_rhs_{nullptr};
-  /*! \brief The indices of the consumer's BufferLoad */
+  /*! \brief The RHS value of the producer's TensorStore statement */
+  PrimExpr producer_rhs_{ffi::UnsafeInit{}};
+  /*! \brief The indices of the consumer's TensorLoad */
   ffi::Array<PrimExpr> buffer_load_indices_;
-  /*! \brief The IterMap representing the indices of the consumer's BufferLoad */
+  /*! \brief The IterMap representing the indices of the consumer's TensorLoad */
   ffi::Array<sym::IterSumExpr> buffer_load_iter_map_{nullptr};
   /*! \brief The producer block */
   const SBlockNode* producer_block_{nullptr};
@@ -962,7 +1000,7 @@ class ReverseComputeInliner : public BaseInliner {
   /*! \brief The predicate to ensure the consumer block iters are in-bound. It will be inserted
    * as the predicate of the producer block after inlining.
    */
-  PrimExpr consumer_iter_in_bound_{nullptr};
+  PrimExpr consumer_iter_in_bound_{ffi::UnsafeInit{}};
   /*! \brief The arithmetic analyzer */
   sym::Analyzer analyzer_;
 };
@@ -972,7 +1010,7 @@ void ComputeInlineImpl(ScheduleState self, const StmtSRef& producer_block_sref,
   const SBlockNode* _producer_block = TVM_SREF_TO_SBLOCK(producer_block_sref);
   SBlock producer_block = ffi::GetRef<SBlock>(_producer_block);
   HasInitBlock::Check(self->mod, producer_block);
-  BufferVar inlined_buffer = NotSingleReadWriteBuffer::GetSingleWrite(self, producer_block);
+  TensorVar inlined_buffer = NotSingleReadWriteBuffer::GetSingleWrite(self, producer_block);
   // Step 1. Get the scope block
   StmtSRef scope_root_sref = GetScopeRoot(self, producer_block_sref,
                                           /*require_stage_pipeline=*/true);
@@ -1022,7 +1060,7 @@ void ReverseComputeInlineImpl(ScheduleState self, const StmtSRef& consumer_block
   // Step 1. Get the scope block
   StmtSRef scope_root_sref = GetScopeRoot(self, consumer_block_sref,  //
                                           /*require_stage_pipeline=*/true);
-  BufferVar inlined_buffer =
+  TensorVar inlined_buffer =
       NotSingleReadWriteBuffer::GetSingleRead(self, consumer_block, scope_root_sref);
   // Step 2. Check completeness
   CheckCompleteBlock(self, consumer_block_sref, scope_root_sref);
@@ -1084,7 +1122,7 @@ class ReductionEpilogueFuser : public BaseInliner {
   using BaseInliner::Mutate;
   using BaseInliner::Mutate_;
 
-  explicit ReductionEpilogueFuser(const BufferVar& reduction_buffer,
+  explicit ReductionEpilogueFuser(const TensorVar& reduction_buffer,
                                   const SBlockNode* reduction_block,
                                   const SBlockRealize& epilogue_block_realize,
                                   const StmtSRef& scope_root_sref)
@@ -1112,25 +1150,25 @@ class ReductionEpilogueFuser : public BaseInliner {
  private:
   bool IsReductionBlock(const SBlockNode* block);
   void ExtractEpilogueInfo();
-  // Helper function to extract TensorLoad nodes from BufferStore
-  static std::vector<const TensorLoadNode*> ExtractBufferLoad(const BufferVar& buffer,
-                                                              const BufferStoreNode* from) {
+  // Helper function to extract TensorLoad nodes from TensorStore
+  static std::vector<const TensorLoadNode*> ExtractTensorLoad(const TensorVar& buffer,
+                                                              const TensorStoreNode* from) {
     struct Extractor : public StmtExprVisitor {
       using StmtExprVisitor::Visit_;
 
       ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* load) final {
-        if (load->source.as_or_throw<tvm::tirx::BufferVar>().same_as(buffer)) {
+        if (load->source.as_or_throw<tvm::tirx::TensorVar>().same_as(buffer)) {
           result.push_back(load);
         }
         // Continue visiting child nodes (indices)
         return StmtExprVisitor::Visit_(load);
       }
-      BufferVar buffer;
+      TensorVar buffer{ffi::UnsafeInit{}};
       std::vector<const TensorLoadNode*> result;
     };
     auto extractor = ffi::make_object<Extractor>();
     extractor->buffer = buffer;
-    // Visit indices first (though they typically don't contain BufferLoad)
+    // Visit indices first (though they typically don't contain TensorLoad)
     for (const PrimExpr& expr : from->indices) {
       extractor->Visit(expr);
     }
@@ -1143,31 +1181,31 @@ class ReductionEpilogueFuser : public BaseInliner {
   const SBlockNode* epilogue_block_;
   // Generalized approach: store the entire epilogue expression
   PrimExpr epilogue_expression_{
-      nullptr};  // The entire epilogue expression (e.g., temp + C, max(temp + C, 0))
+      ffi::UnsafeInit{}};  // The entire epilogue expression (e.g., temp + C, max(temp + C, 0))
   const TensorLoadNode* reduction_buffer_load_{
-      nullptr};                                // The reduction buffer load in epilogue expression
-  BufferVar epilogue_output_buffer_{nullptr};  // Output buffer D
+      nullptr};  // The reduction buffer load in epilogue expression
+  TensorVar epilogue_output_buffer_{ffi::UnsafeInit{}};    // Output buffer D
   ffi::Array<PrimExpr> epilogue_output_indices_{nullptr};  // Indices of D[vi, vj]
-  TensorRegion epilogue_output_region_{nullptr};           // Write region of D
-  BufferVar epilogue_addend_buffer_{nullptr};     // Additional buffer (e.g., bias buffer C)
-  TensorRegion epilogue_addend_region_{nullptr};  // Read region of additional buffer
+  ffi::Optional<TensorRegion> epilogue_output_region_;     // Write region of D
+  ffi::Optional<TensorVar> epilogue_addend_buffer_;     // Additional buffer (e.g., bias buffer C)
+  ffi::Optional<TensorRegion> epilogue_addend_region_;  // Read region of additional buffer
 };
 
 bool ReductionEpilogueFuser::BodyPatternAllowFusion(const SBlockRealize& epilogue_block_realize) {
   // 1. Validate predicate
-  if (!is_one(epilogue_block_realize->predicate)) {
+  if (!IsOne(epilogue_block_realize->predicate)) {
     // Failure: Predicate in epilogue block is not supported
     return false;
   }
 
-  // 2. Check if epilogue body is BufferStore
+  // 2. Check if epilogue body is TensorStore
   if (inlined_store_ == nullptr) {
-    // Failure: epilogue block body is not BufferStore
+    // Failure: epilogue block body is not TensorStore
     return false;
   }
 
   // 3. Check if epilogue reads from reduction buffer
-  std::vector<const TensorLoadNode*> loads = ExtractBufferLoad(inlined_buffer_, inlined_store_);
+  std::vector<const TensorLoadNode*> loads = ExtractTensorLoad(inlined_buffer_, inlined_store_);
   if (loads.size() == 0) {
     // Failure: no TensorLoad from the reduction buffer
     return false;
@@ -1192,7 +1230,7 @@ bool ReductionEpilogueFuser::BodyPatternAllowFusion(const SBlockRealize& epilogu
    public:
     using StmtExprVisitor::Visit_;
 
-    explicit ScalingDetector(const BufferVar& buffer)
+    explicit ScalingDetector(const TensorVar& buffer)
         : finder_(ffi::make_object<TargetFinder>(buffer)) {}
 
     bool HasScaling(const PrimExpr& expr) {
@@ -1206,7 +1244,7 @@ bool ReductionEpilogueFuser::BodyPatternAllowFusion(const SBlockRealize& epilogu
      public:
       using StmtExprVisitor::Visit_;
 
-      explicit TargetFinder(const BufferVar& buffer) : buffer_(buffer) {}
+      explicit TargetFinder(const TensorVar& buffer) : buffer_(buffer) {}
 
       bool Find(const PrimExpr& e) {
         found_ = false;
@@ -1216,14 +1254,14 @@ bool ReductionEpilogueFuser::BodyPatternAllowFusion(const SBlockRealize& epilogu
 
      private:
       ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* op) final {
-        if (op->source.as_or_throw<tvm::tirx::BufferVar>().same_as(buffer_)) {
+        if (op->source.as_or_throw<tvm::tirx::TensorVar>().same_as(buffer_)) {
           found_ = true;
           return std::nullopt;
         }
         return StmtExprVisitor::Visit_(op);
       }
 
-      BufferVar buffer_;
+      TensorVar buffer_;
       bool found_{false};
     };
 
@@ -1295,12 +1333,12 @@ bool ReductionEpilogueFuser::IsReductionBlock(const SBlockNode* block) {
 
 void ReductionEpilogueFuser::ExtractEpilogueInfo() {
   // Extract epilogue output buffer and indices
-  epilogue_output_buffer_ = inlined_store_->buffer;
+  epilogue_output_buffer_ = inlined_store_->dest.as_or_throw<TensorVar>();
   epilogue_output_indices_ = inlined_store_->indices;
 
   // Extract epilogue output region from epilogue block writes
   for (const TensorRegion& write : epilogue_block_->writes) {
-    if (write->source.as_or_throw<tvm::tirx::BufferVar>().same_as(epilogue_output_buffer_)) {
+    if (write->source.as_or_throw<tvm::tirx::TensorVar>().same_as(epilogue_output_buffer_)) {
       epilogue_output_region_ = write;
       break;
     }
@@ -1312,12 +1350,12 @@ void ReductionEpilogueFuser::ExtractEpilogueInfo() {
     using StmtExprVisitor::Visit_;
 
     ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* load) final {
-      if (!load->source.as_or_throw<tvm::tirx::BufferVar>().same_as(reduction_buffer)) {
-        other_buffers.insert(load->source.as_or_throw<tvm::tirx::BufferVar>().get());
+      if (!load->source.as_or_throw<tvm::tirx::TensorVar>().same_as(reduction_buffer)) {
+        other_buffers.insert(load->source.as_or_throw<tvm::tirx::TensorVar>().get());
       }
       return StmtExprVisitor::Visit_(load);
     }
-    BufferVar reduction_buffer;
+    TensorVar reduction_buffer{ffi::UnsafeInit{}};
     std::unordered_set<const VarNode*> other_buffers;
   };
   auto extractor = ffi::make_object<BufferExtractor>();
@@ -1328,10 +1366,10 @@ void ReductionEpilogueFuser::ExtractEpilogueInfo() {
   // In most cases, there's one additional buffer (e.g., bias buffer)
   if (!extractor->other_buffers.empty()) {
     const VarNode* first_buffer = *extractor->other_buffers.begin();
-    epilogue_addend_buffer_ = ffi::GetRef<Var>(first_buffer).as_or_throw<BufferVar>();
+    epilogue_addend_buffer_ = ffi::GetRef<Var>(first_buffer).as_or_throw<TensorVar>();
     // Find the read region from epilogue block reads
     for (const TensorRegion& read : epilogue_block_->reads) {
-      if (read->source.as_or_throw<tvm::tirx::BufferVar>().get() == first_buffer) {
+      if (read->source.as_or_throw<tvm::tirx::TensorVar>().get() == first_buffer) {
         epilogue_addend_region_ = read;
         break;
       }
@@ -1363,7 +1401,7 @@ SBlock ReductionEpilogueFuser::CreateFusedReductionBlock(
 
   std::unordered_map<Var, Var> var_map;
   for (size_t i = 0; i < reduction_data_vars.size(); ++i) {
-    var_map[epilogue_data_vars[i]] = reduction_data_vars[i];
+    var_map.insert_or_assign(epilogue_data_vars[i], reduction_data_vars[i]);
   }
   auto f_substitute = [&var_map](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
     if (auto it = var_map.find(var); it != var_map.end()) {
@@ -1379,21 +1417,21 @@ SBlock ReductionEpilogueFuser::CreateFusedReductionBlock(
     using StmtExprMutator::Mutate;
     using StmtExprMutator::Mutate_;
 
-    InitSubstituter(const BufferVar& target_buffer, PrimExpr identity_elem)
+    InitSubstituter(const TensorVar& target_buffer, PrimExpr identity_elem)
         : target_buffer_(target_buffer), identity_elem_(identity_elem) {}
 
     UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) final {
       TensorLoad load = StmtExprMutator::Mutate_(op, inplace_mode)
                             .ValueOrUnchanged(ffi::GetRef<PrimExpr>(op))
                             .as_or_throw<TensorLoad>();
-      if (load->source.as_or_throw<tvm::tirx::BufferVar>().same_as(target_buffer_)) {
+      if (load->source.as_or_throw<tvm::tirx::TensorVar>().same_as(target_buffer_)) {
         return identity_elem_;
       }
       return load;
     }
 
    private:
-    BufferVar target_buffer_;
+    TensorVar target_buffer_;
     PrimExpr identity_elem_;
   };
 
@@ -1418,7 +1456,7 @@ SBlock ReductionEpilogueFuser::CreateFusedReductionBlock(
         return ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(index, f_substitute)
             .as_or_throw<PrimExpr>();
       });
-  BufferStore new_init_store = BufferStore(epilogue_output_buffer_, init_epilogue, init_indices);
+  TensorStore new_init_store = TensorStore(epilogue_output_buffer_, init_indices, init_epilogue);
   new_block->init = new_init_store;
 
   // 3. Generalized update transformation: apply epilogue expression with reduction buffer replaced
@@ -1429,8 +1467,8 @@ SBlock ReductionEpilogueFuser::CreateFusedReductionBlock(
     using StmtExprMutator::Mutate;
     using StmtExprMutator::Mutate_;
 
-    UpdateSubstituter(const BufferVar& old_buf, const BufferVar& new_buf,
-                      const BufferVar& reduction_buf, const PrimExpr& epilogue_expr,
+    UpdateSubstituter(const TensorVar& old_buf, const TensorVar& new_buf,
+                      const TensorVar& reduction_buf, const PrimExpr& epilogue_expr,
                       const std::unordered_map<Var, Var>& var_map)
         : old_buffer_(old_buf),
           new_buffer_(new_buf),
@@ -1438,11 +1476,11 @@ SBlock ReductionEpilogueFuser::CreateFusedReductionBlock(
           epilogue_expression_(epilogue_expr),
           var_map_(var_map) {}
 
-    UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) final {
-      BufferStore store = StmtExprMutator::Mutate_(op, inplace_mode)
+    UnchangedOr<Stmt> Mutate_(const TensorStoreNode* op, InplaceMode inplace_mode) final {
+      TensorStore store = StmtExprMutator::Mutate_(op, inplace_mode)
                               .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
-                              .as_or_throw<BufferStore>();
-      if (store->buffer.same_as(old_buffer_)) {
+                              .as_or_throw<TensorStore>();
+      if (store->dest.as_or_throw<TensorVar>().same_as(old_buffer_)) {
         // Replace old_buffer_ in store->value with new_buffer_ to get the reduction update
         // expression This ensures store->value references new_buffer_ instead of old_buffer_
         class ReductionUpdateReplacer : public StmtExprMutator {
@@ -1450,14 +1488,14 @@ SBlock ReductionEpilogueFuser::CreateFusedReductionBlock(
           using StmtExprMutator::Mutate;
           using StmtExprMutator::Mutate_;
 
-          ReductionUpdateReplacer(const BufferVar& old_buf, const BufferVar& new_buf)
+          ReductionUpdateReplacer(const TensorVar& old_buf, const TensorVar& new_buf)
               : old_buffer_(old_buf), new_buffer_(new_buf) {}
 
           UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) final {
             TensorLoad load = StmtExprMutator::Mutate_(op, inplace_mode)
                                   .ValueOrUnchanged(ffi::GetRef<PrimExpr>(op))
                                   .as_or_throw<TensorLoad>();
-            if (load->source.as_or_throw<tvm::tirx::BufferVar>().same_as(old_buffer_)) {
+            if (load->source.as_or_throw<tvm::tirx::TensorVar>().same_as(old_buffer_)) {
               load.CopyOnWrite()->source = new_buffer_;
               return load;
             }
@@ -1465,8 +1503,8 @@ SBlock ReductionEpilogueFuser::CreateFusedReductionBlock(
           }
 
          private:
-          BufferVar old_buffer_;
-          BufferVar new_buffer_;
+          TensorVar old_buffer_;
+          TensorVar new_buffer_;
         };
 
         auto reduction_replacer =
@@ -1482,7 +1520,7 @@ SBlock ReductionEpilogueFuser::CreateFusedReductionBlock(
           using StmtExprMutator::Mutate;
           using StmtExprMutator::Mutate_;
 
-          GeneralizedEpilogueApplier(const BufferVar& target_buf, const BufferVar& reduction_buf,
+          GeneralizedEpilogueApplier(const TensorVar& target_buf, const TensorVar& reduction_buf,
                                      const PrimExpr& replacement)
               : target_buffer_(target_buf),
                 reduction_buffer_(reduction_buf),
@@ -1493,7 +1531,7 @@ SBlock ReductionEpilogueFuser::CreateFusedReductionBlock(
             TensorLoad load = StmtExprMutator::Mutate_(op, inplace_mode)
                                   .ValueOrUnchanged(ffi::GetRef<PrimExpr>(op))
                                   .as_or_throw<TensorLoad>();
-            if (load->source.as_or_throw<tvm::tirx::BufferVar>().same_as(target_buffer_)) {
+            if (load->source.as_or_throw<tvm::tirx::TensorVar>().same_as(target_buffer_)) {
               found_target_load_ = true;
               // Check if parent is Add (will be checked in Dispatch_(const AddNode*))
               return replacement_;
@@ -1522,7 +1560,7 @@ SBlock ReductionEpilogueFuser::CreateFusedReductionBlock(
                 // Check if b is from reduction buffer
                 if (const auto* load_b = b.as<TensorLoadNode>()) {
                   other_is_reduction =
-                      load_b->source.as_or_throw<tvm::tirx::BufferVar>().same_as(reduction_buffer_);
+                      load_b->source.as_or_throw<tvm::tirx::TensorVar>().same_as(reduction_buffer_);
                 }
                 if (!other_is_reduction) {
                   // b is the bias addend, remove it
@@ -1532,7 +1570,7 @@ SBlock ReductionEpilogueFuser::CreateFusedReductionBlock(
                 // Check if a is from reduction buffer
                 if (const auto* load_a = a.as<TensorLoadNode>()) {
                   other_is_reduction =
-                      load_a->source.as_or_throw<tvm::tirx::BufferVar>().same_as(reduction_buffer_);
+                      load_a->source.as_or_throw<tvm::tirx::TensorVar>().same_as(reduction_buffer_);
                 }
                 if (!other_is_reduction) {
                   // a is the bias addend, remove it
@@ -1549,8 +1587,8 @@ SBlock ReductionEpilogueFuser::CreateFusedReductionBlock(
           }
 
          private:
-          const BufferVar& target_buffer_;
-          const BufferVar& reduction_buffer_;
+          const TensorVar& target_buffer_;
+          const TensorVar& reduction_buffer_;
           const PrimExpr& replacement_;
           bool found_target_load_;
         };
@@ -1570,7 +1608,7 @@ SBlock ReductionEpilogueFuser::CreateFusedReductionBlock(
         new_value = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(new_value, f_substitute)
                         .as_or_throw<PrimExpr>();
 
-        return BufferStore(new_buffer_, new_value, store->indices);
+        return TensorStore(new_buffer_, store->indices, new_value);
       }
       return store;
     }
@@ -1579,7 +1617,7 @@ SBlock ReductionEpilogueFuser::CreateFusedReductionBlock(
       TensorLoad load = StmtExprMutator::Mutate_(op, inplace_mode)
                             .ValueOrUnchanged(ffi::GetRef<PrimExpr>(op))
                             .as_or_throw<TensorLoad>();
-      if (load->source.as_or_throw<tvm::tirx::BufferVar>().same_as(old_buffer_)) {
+      if (load->source.as_or_throw<tvm::tirx::TensorVar>().same_as(old_buffer_)) {
         load.CopyOnWrite()->source = new_buffer_;
         return load;
       }
@@ -1587,9 +1625,9 @@ SBlock ReductionEpilogueFuser::CreateFusedReductionBlock(
     }
 
    private:
-    BufferVar old_buffer_;
-    BufferVar new_buffer_;
-    BufferVar reduction_buffer_;
+    TensorVar old_buffer_;
+    TensorVar new_buffer_;
+    TensorVar reduction_buffer_;
     PrimExpr epilogue_expression_;
     std::unordered_map<Var, Var> var_map_;
   };
@@ -1606,7 +1644,7 @@ SBlock ReductionEpilogueFuser::CreateFusedReductionBlock(
   // 4. Update write regions
   ffi::Array<TensorRegion> new_writes;
   for (const TensorRegion& write : reduction_block->writes) {
-    if (write->source.as_or_throw<tvm::tirx::BufferVar>().same_as(inlined_buffer_)) {
+    if (write->source.as_or_throw<tvm::tirx::TensorVar>().same_as(inlined_buffer_)) {
       ffi::Array<Range> mapped_region = write->region.Map([&f_substitute](const Range& range) {
         PrimExpr min = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(range->min, f_substitute)
                            .as_or_throw<PrimExpr>();
@@ -1627,7 +1665,7 @@ SBlock ReductionEpilogueFuser::CreateFusedReductionBlock(
 
   // Add all non-reduction buffers from epilogue expression
   for (const TensorRegion& read : epilogue_block_->reads) {
-    if (!read->source.as_or_throw<tvm::tirx::BufferVar>().same_as(inlined_buffer_)) {
+    if (!read->source.as_or_throw<tvm::tirx::TensorVar>().same_as(inlined_buffer_)) {
       ffi::Array<Range> mapped_region = read->region.Map([&f_substitute](const Range& range) {
         PrimExpr min = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(range->min, f_substitute)
                            .as_or_throw<PrimExpr>();
@@ -1636,19 +1674,19 @@ SBlock ReductionEpilogueFuser::CreateFusedReductionBlock(
         return Range::FromMinExtent(min, extent);
       });
       new_reads.push_back(
-          BufferRegion(read->source.as_or_throw<tvm::tirx::BufferVar>(), mapped_region));
-      read_bufs.insert(read->source.as_or_throw<tvm::tirx::BufferVar>().get());
+          BufferRegion(read->source.as_or_throw<tvm::tirx::TensorVar>(), mapped_region));
+      read_bufs.insert(read->source.as_or_throw<tvm::tirx::TensorVar>().get());
     }
   }
 
   // Add existing read regions from reduction block (A, B, etc.)
   for (const TensorRegion& read : reduction_block->reads) {
-    if (!read->source.as_or_throw<tvm::tirx::BufferVar>().same_as(inlined_buffer_)) {
+    if (!read->source.as_or_throw<tvm::tirx::TensorVar>().same_as(inlined_buffer_)) {
       // Only add non-temp buffers that haven't been added yet
-      if (read_bufs.find(read->source.as_or_throw<tvm::tirx::BufferVar>().get()) ==
+      if (read_bufs.find(read->source.as_or_throw<tvm::tirx::TensorVar>().get()) ==
           read_bufs.end()) {
         new_reads.push_back(read);
-        read_bufs.insert(read->source.as_or_throw<tvm::tirx::BufferVar>().get());
+        read_bufs.insert(read->source.as_or_throw<tvm::tirx::TensorVar>().get());
       }
     }
   }
@@ -1661,7 +1699,7 @@ SBlock ReductionEpilogueFuser::CreateFusedReductionBlock(
 /*!
  * \brief Check if a buffer is still referenced by other blocks in the scope
  */
-static bool CheckBufferStillUsed(const SBlock& scope_root, const BufferVar& buffer) {
+static bool CheckBufferStillUsed(const SBlock& scope_root, const TensorVar& buffer) {
   class BufferUsageChecker : public StmtExprVisitor {
    public:
     using StmtExprVisitor::Visit_;
@@ -1671,7 +1709,7 @@ static bool CheckBufferStillUsed(const SBlock& scope_root, const BufferVar& buff
       return StmtExprVisitor::Visit(value);
     }
 
-    explicit BufferUsageChecker(const BufferVar& buffer) : buffer_(buffer) {}
+    explicit BufferUsageChecker(const TensorVar& buffer) : buffer_(buffer) {}
 
     bool CheckStmt(const Stmt& stmt) {
       found_usage_ = false;
@@ -1694,7 +1732,7 @@ static bool CheckBufferStillUsed(const SBlock& scope_root, const BufferVar& buff
 
       // Check reads
       for (const TensorRegion& read : block->reads) {
-        if (read->source.as_or_throw<tvm::tirx::BufferVar>().same_as(buffer_)) {
+        if (read->source.as_or_throw<tvm::tirx::TensorVar>().same_as(buffer_)) {
           found_usage_ = true;
           return std::nullopt;
         }
@@ -1702,7 +1740,7 @@ static bool CheckBufferStillUsed(const SBlock& scope_root, const BufferVar& buff
 
       // Check writes
       for (const TensorRegion& write : block->writes) {
-        if (write->source.as_or_throw<tvm::tirx::BufferVar>().same_as(buffer_)) {
+        if (write->source.as_or_throw<tvm::tirx::TensorVar>().same_as(buffer_)) {
           found_usage_ = true;
           return std::nullopt;
         }
@@ -1717,7 +1755,7 @@ static bool CheckBufferStillUsed(const SBlock& scope_root, const BufferVar& buff
       if (!op) return std::nullopt;
 
       // Check alloc_buffers
-      for (const BufferVar& buf : op->alloc_buffers) {
+      for (const TensorVar& buf : op->alloc_buffers) {
         if (buf.same_as(buffer_)) {
           found_usage_ = true;
           return std::nullopt;
@@ -1727,7 +1765,7 @@ static bool CheckBufferStillUsed(const SBlock& scope_root, const BufferVar& buff
       return StmtExprVisitor::Visit_(op);
     }
 
-    const BufferVar& buffer_;
+    const TensorVar& buffer_;
     bool found_usage_{false};
   };
 
@@ -1752,7 +1790,7 @@ class SingleBlockFusionReplacer : public StmtExprMutator {
   }
 
   static SBlock Replace(SBlock old_scope_root, SBlock new_fused_block, SBlock old_reduction_block,
-                        SBlock old_epilogue_block, BufferVar reduction_buffer) {
+                        SBlock old_epilogue_block, TensorVar reduction_buffer) {
     auto replacer = ffi::make_object<SingleBlockFusionReplacer>(
         std::move(new_fused_block), std::move(old_reduction_block), std::move(old_epilogue_block),
         std::move(reduction_buffer));
@@ -1766,8 +1804,8 @@ class SingleBlockFusionReplacer : public StmtExprMutator {
     // Remove intermediate temp buffer only if it's not used by other blocks
     if (!buffer_still_used) {
       SBlockNode* p = result.CopyOnWrite();
-      ffi::Array<BufferVar> new_alloc_buffers;
-      for (const BufferVar& buf : p->alloc_buffers) {
+      ffi::Array<TensorVar> new_alloc_buffers;
+      for (const TensorVar& buf : p->alloc_buffers) {
         if (!buf.same_as(reduction_buffer)) {
           new_alloc_buffers.push_back(buf);
         }
@@ -1779,7 +1817,7 @@ class SingleBlockFusionReplacer : public StmtExprMutator {
   }
 
   explicit SingleBlockFusionReplacer(SBlock new_fused_block, SBlock old_reduction_block,
-                                     SBlock old_epilogue_block, BufferVar reduction_buffer)
+                                     SBlock old_epilogue_block, TensorVar reduction_buffer)
       : new_fused_block_(std::move(new_fused_block)),
         old_reduction_block_(std::move(old_reduction_block)),
         old_epilogue_block_(std::move(old_epilogue_block)),
@@ -1787,16 +1825,13 @@ class SingleBlockFusionReplacer : public StmtExprMutator {
 
  private:
   UnchangedOr<Stmt> Mutate_(const ForNode* loop, InplaceMode inplace_mode) final {
-    Stmt mutated_body = StmtExprMutator::Mutate(ffi::AnyView(loop->body), inplace_mode)
-                            .ValueOrUnchanged(loop->body)
-                            .as_or_throw<Stmt>();
-    // Remove empty loops (containing only Evaluate(0))
-    if (mutated_body.as<EvaluateNode>()) {
-      return mutated_body;  // Return Evaluate(0) to be removed by SeqStmt
+    SeqStmt mutated_body = Mutate(loop->body, inplace_mode).ValueOrUnchanged(loop->body);
+    if (mutated_body->seq.empty()) {
+      return mutated_body;
     }
 
     return For(loop->loop_var, loop->min, loop->extent, loop->kind, mutated_body,
-               loop->thread_binding, loop->annotations);
+               loop->annotations);
   }
 
   UnchangedOr<Stmt> Mutate_(const SBlockRealizeNode* realize, InplaceMode inplace_mode) final {
@@ -1806,8 +1841,8 @@ class SingleBlockFusionReplacer : public StmtExprMutator {
       new_realize->block = new_fused_block_;
       return SBlockRealize(new_realize);
     } else if (realize->block.same_as(old_epilogue_block_)) {
-      // Remove epilogue block completely
-      return Evaluate(0);
+      // Remove epilogue block completely.
+      return SeqStmt({});
     }
     return StmtExprMutator::Mutate_(realize, inplace_mode);
   }
@@ -1817,18 +1852,15 @@ class SingleBlockFusionReplacer : public StmtExprMutator {
     for (size_t i = 0; i < seq->seq.size(); ++i) {
       Stmt stmt = seq->seq[i];
       Stmt new_stmt = Mutate(stmt).ValueOrUnchanged(stmt).as_or_throw<Stmt>();
-      // Remove Evaluate(0)
-      if (!new_stmt.as<EvaluateNode>()) {
-        new_stmts.push_back(new_stmt);
-      }
+      new_stmts.push_back(new_stmt);
     }
-    return SeqStmt::Flatten(new_stmts);
+    return SeqStmt(new_stmts, seq->loc);
   }
 
   SBlock new_fused_block_;
   SBlock old_reduction_block_;
   SBlock old_epilogue_block_;
-  BufferVar reduction_buffer_;
+  TensorVar reduction_buffer_;
 };
 
 void FuseReductionEpilogueImpl(ScheduleState self, const StmtSRef& reduction_block_sref,
@@ -1845,7 +1877,7 @@ void FuseReductionEpilogueImpl(ScheduleState self, const StmtSRef& reduction_blo
       GetScopeRoot(self, epilogue_block_sref, /*require_stage_pipeline=*/true);
 
   // Step 2. Get the reduction buffer (intermediate buffer)
-  BufferVar reduction_buffer = NotSingleReadWriteBuffer::GetSingleWrite(self, reduction_block);
+  TensorVar reduction_buffer = NotSingleReadWriteBuffer::GetSingleWrite(self, reduction_block);
 
   // Step 3. Check completeness and reduction block properties
   CheckReductionBlock(self, reduction_block_sref, scope_root_sref);

@@ -26,6 +26,7 @@ from typing import Literal
 import tvm_ffi
 from tvm_ffi import get_global_func
 
+import tvm
 from tvm import ir, s_tir, tirx
 from tvm.ir import TensorRegion
 from tvm.s_tir import Schedule
@@ -83,7 +84,7 @@ class BufferInfo:
     buf_region: TensorRegion
     shape: tuple[int]
     assoc_lps: list[s_tir.schedule.LoopRV | None]
-    assoc_lps_info: list[tirx.For | None]
+    assoc_lps_info: list[tvm.ir.For | None]
 
     def __init__(
         self,
@@ -285,22 +286,22 @@ class SBlockInfo:
         return str(self)
 
 
-_normalize_prim_func = get_global_func("s_tir.schedule.NormalizePrimFunc")
+_normalize_function = get_global_func("s_tir.schedule.NormalizeFunction")
 
 
-def normalize_prim_func(sch: s_tir.Schedule) -> list[SBlockInfo] | None:
-    """Normalize the primfunc to normal form"""
+def normalize_function(sch: s_tir.Schedule) -> list[SBlockInfo] | None:
+    """Normalize the function to normal form"""
     try:
-        result = _normalize_prim_func(sch)
+        result = _normalize_function(sch)
         if result is None:
             return None
     except Exception:  # pylint: disable=broad-except
         return None
 
-    def _iter_kind(i: tirx.IterVar) -> str:
+    def _iter_kind(i: s_tir.IterVar) -> str:
         return {
-            tirx.IterVar.DataPar: "S",
-            tirx.IterVar.CommReduce: "R",
+            s_tir.IterVar.DataPar: "S",
+            s_tir.IterVar.CommReduce: "R",
         }.get(i.iter_type, "O")
 
     blocks: list[SBlockInfo] = []
@@ -325,8 +326,8 @@ def normalize_prim_func(sch: s_tir.Schedule) -> list[SBlockInfo] | None:
 
 
 def get_sblock_info(sch: s_tir.Schedule, block: s_tir.schedule.SBlockRV) -> SBlockInfo:
-    def _iter_kind(loop: tirx.IterVar) -> str:
-        return {tirx.IterVar.DataPar: "S", tirx.IterVar.CommReduce: "R"}.get(loop.iter_type, "O")
+    def _iter_kind(loop: s_tir.IterVar) -> str:
+        return {s_tir.IterVar.DataPar: "S", s_tir.IterVar.CommReduce: "R"}.get(loop.iter_type, "O")
 
     def _is_reduction_block(block: s_tir.schedule.SBlockRV):
         for iter_var in sch.get(block).iter_vars:
@@ -395,14 +396,13 @@ def get_max_shared_memory_per_block(target: Target) -> int:
 
 
 def get_root_block(sch: Schedule, func_name: str = "main") -> SBlockRV:
-    try:
-        block = sch.mod[func_name].body.block
-    except Exception:
+    body = sch.mod[func_name].body
+    if body is None or len(body) != 1 or not isinstance(body[0], s_tir.SBlockRealize):
         raise ValueError(
             f"The function body is expected to be the root block, but got:\n"
             f"{sch.mod[func_name].body}"
         )
-    return sch.get_sblock(block.name_hint)
+    return sch.get_sblock(body[0].block.name_hint)
 
 
 def collect_block_iter_vars_used_in_access_region(
@@ -438,8 +438,19 @@ def detect_dominant_read(block: s_tir.SBlock) -> tirx.Expr:
             num_read_iters = len(tir_vars)
             dominant_read = buffer_region
     assert dominant_read is not None
-    (result,) = dominant_read.source.offset_of([e.min for e in dominant_read.region])
-    return result
+    return _buffer_region_offset(dominant_read)
+
+
+def _buffer_region_offset(region):
+    """Linear element offset of a region's first element."""
+    buffer = region.source
+    offset = 0
+    for axis, bounds in enumerate(region.region):
+        if buffer.strides:
+            offset += bounds.min * buffer.strides[axis]
+        else:
+            offset = offset * buffer.shape[axis] + bounds.min
+    return tvm.sym.Analyzer().simplify(offset + buffer.elem_offset)
 
 
 def is_broadcast_epilogue(

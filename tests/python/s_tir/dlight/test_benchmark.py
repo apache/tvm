@@ -27,11 +27,11 @@ import tvm.testing
 from tvm.s_tir import meta_schedule as ms
 from tvm.s_tir.dlight.benchmark import (
     benchmark,
-    benchmark_prim_func,
+    benchmark_function,
     benchmark_relax_func,
     extract_from_relax,
-    extract_func_info_from_prim_func,
-    extract_prim_func,
+    extract_func_info_from_function,
+    extract_function,
 )
 from tvm.s_tir.meta_schedule.testing.local_rpc import LocalRPC
 from tvm.script import ir as I
@@ -50,8 +50,8 @@ _test_n = T.dynamic("n")
 
 @I.ir_module(check_well_formed=False)
 class Module:
-    @Ts.prim_func
-    def full1(T_full: T.Buffer((T.int64(1), T.int64(32), T.int64(1), full1_n), 'float16')):
+    @Ts.function
+    def full1(T_full: T.Tensor((T.int64(1), T.int64(32), T.int64(1), full1_n), 'float16')):
         T.func_attr({"op_pattern": 0, "tirx.noalias": True})
 
         # with Ts.sblock("root"):
@@ -62,8 +62,8 @@ class Module:
                 Ts.writes(T_full[v_ax0, v_ax1, v_ax2, v_ax3])
                 T_full[v_ax0, v_ax1, v_ax2, v_ax3] = T.float16(1.0)
 
-    @Ts.prim_func
-    def full2(T_full: T.Buffer((T.int64(1), T.int64(32), full2_n, T.int64(128)), 'float16')):
+    @Ts.function
+    def full2(T_full: T.Tensor((T.int64(1), T.int64(32), full2_n, T.int64(128)), 'float16')):
         T.func_attr({"op_pattern": 0, "tirx.noalias": True})
 
         # with Ts.sblock("root"):
@@ -74,8 +74,8 @@ class Module:
                 Ts.writes(T_full[v_ax0, v_ax1, v_ax2, v_ax3])
                 T_full[v_ax0, v_ax1, v_ax2, v_ax3] = T.float16(1.0)
 
-    @Ts.prim_func
-    def matmul1(A: T.Buffer((T.int64(1), T.int64(32), T.int64(1), matmul1_n), 'float16'), B: T.Buffer((T.int64(1), T.int64(32), matmul1_n, T.int64(128)), 'float16'), matmul: T.Buffer((T.int64(1), T.int64(32), T.int64(1), T.int64(128)), "float16")):
+    @Ts.function
+    def matmul1(A: T.Tensor((T.int64(1), T.int64(32), T.int64(1), matmul1_n), 'float16'), B: T.Tensor((T.int64(1), T.int64(32), matmul1_n, T.int64(128)), 'float16'), matmul: T.Tensor((T.int64(1), T.int64(32), T.int64(1), T.int64(128)), "float16")):
         T.func_attr({"op_pattern": 4, "tirx.noalias": True})
 
         # with Ts.sblock("root"):
@@ -93,19 +93,19 @@ class Module:
         R.func_attr({"tir_var_upper_bound": {"n": 2048}})
         cls = Module
         with R.dataflow():
-            lv1 = R.call_tir(cls.full1,(), out_ty=R.Tensor((1, 32, 1, _test_n), dtype="float16"))
-            lv1_1 = R.call_tir(cls.full1,(), out_ty=R.Tensor((1, 32, 1, _test_n), dtype="float16"))
-            lv1_2 = R.call_tir(cls.full1,(), out_ty=R.Tensor((1, 32, 1, _test_n), dtype="float16"))
-            lv2 = R.call_tir(cls.full2,(), out_ty=R.Tensor((1, 32, _test_n, 128), dtype="float16"))
-            lv2_1 = R.call_tir(cls.full2,(), out_ty=R.Tensor((1, 32, _test_n, 128), dtype="float16"))
-            lv3 = R.call_tir(cls.matmul1, (lv1, lv2), out_ty=R.Tensor((1, 32, 1, 128), dtype="float16"))
+            lv1 = R.call_tir(cls.full1,(), ty_args=[R.Tensor((1, 32, 1, _test_n), dtype="float16")])
+            lv1_1 = R.call_tir(cls.full1,(), ty_args=[R.Tensor((1, 32, 1, _test_n), dtype="float16")])
+            lv1_2 = R.call_tir(cls.full1,(), ty_args=[R.Tensor((1, 32, 1, _test_n), dtype="float16")])
+            lv2 = R.call_tir(cls.full2,(), ty_args=[R.Tensor((1, 32, _test_n, 128), dtype="float16")])
+            lv2_1 = R.call_tir(cls.full2,(), ty_args=[R.Tensor((1, 32, _test_n, 128), dtype="float16")])
+            lv3 = R.call_tir(cls.matmul1, (lv1, lv2), ty_args=[R.Tensor((1, 32, 1, 128), dtype="float16")])
             R.output(lv3)
         return lv3
 
 m = T.dynamic("m")
 
-@Ts.prim_func
-def cuda_workload(inp0: T.Buffer((T.int64(1), m, T.int64(4096))), inp1: T.Buffer((T.int64(4096), T.int64(4096)), "float32"), matmul: T.Buffer((T.int64(1), m, T.int64(4096)))):
+@Ts.function
+def cuda_workload(inp0: T.Tensor((T.int64(1), m, T.int64(4096))), inp1: T.Tensor((T.int64(4096), T.int64(4096)), "float32"), matmul: T.Tensor((T.int64(1), m, T.int64(4096)))):
     T.func_attr({"tirx.is_scheduled": True})
 
     # with Ts.sblock("root"):
@@ -118,7 +118,7 @@ def cuda_workload(inp0: T.Buffer((T.int64(1), m, T.int64(4096))), inp1: T.Buffer
                 for ax2_1 in T.thread_binding(T.int64(1), thread="vthread.y"):
                     for ax1_1 in T.thread_binding(T.int64(1), thread="vthread.x"):
                         for ax2_2 in T.thread_binding(T.int64(16), thread="threadIdx.y"):
-                            for ax1_2 in T.thread_binding(T.int64(8), thread="threadIdx.x", annotations={"pragma_auto_unroll_max_step": 256, "pragma_unroll_explicit": 1}):
+                            for ax1_2 in T.thread_binding(T.int64(8), thread="threadIdx.x", annotations={"auto_unroll_max_step": 256, "unroll_explicit": 1}):
                                 for ax2_3_init, ax1_3_init in T.grid(T.int64(4), T.int64(4)):
                                     with Ts.sblock("matmul_init"):
                                         v0 = Ts.axis.spatial(T.int64(1), ax0)
@@ -176,7 +176,7 @@ def cuda_workload(inp0: T.Buffer((T.int64(1), m, T.int64(4096))), inp1: T.Buffer
 
 
 @pytest.mark.skip("requires CUDA")
-def test_benchmark_prim_func_rpc():
+def test_benchmark_function_rpc():
     with LocalRPC() as rpc:
         rpc_config = ms.runner.RPCConfig(
             tracker_host=rpc.tracker_host,
@@ -204,7 +204,7 @@ def test_benchmark_prim_func_rpc():
 
 
 @pytest.mark.skip("requires CUDA")
-def test_benchmark_prim_func_local():
+def test_benchmark_function_local():
     input_infos, _, _ = benchmark(
         cuda_workload,
         args=[
@@ -223,15 +223,15 @@ def test_benchmark_prim_func_local():
 
 
 @pytest.mark.skip("requires CUDA")
-def test_benchmark_prim_func_full_local():
+def test_benchmark_function_full_local():
     with tvm.target.Target("nvidia/geforce-rtx-3070"):
-        benchmark_prim_func(
+        benchmark_function(
             cuda_workload,
         )
 
 
 @pytest.mark.skip("requires CUDA")
-def test_benchmark_prim_func_full_rpc():
+def test_benchmark_function_full_rpc():
     with LocalRPC() as rpc:
         rpc_config = ms.runner.RPCConfig(
             tracker_host=rpc.tracker_host,
@@ -240,7 +240,7 @@ def test_benchmark_prim_func_full_rpc():
             session_priority=1,
             session_timeout_sec=100,
         )
-        benchmark_prim_func(
+        benchmark_function(
             cuda_workload,
             target="nvidia/geforce-rtx-3070",
             rpc_config=rpc_config,
@@ -258,12 +258,12 @@ def test_benchmark_relax_func():
         benchmark_relax_func(Module, "test")
 
 
-def test_extract_prim_func_full1():
+def test_extract_function_full1():
     print(
-        extract_prim_func(
+        extract_function(
             model_name="TEST",
             relax_func_name="test",
-            prim_func_name="full1",
+            function_name="full1",
             func=Module["full1"],  # type: ignore
             func_args=[((1, 32, 1, "n"), "float16")],
             dym_var_dict={"n": "int32"},
@@ -274,12 +274,12 @@ def test_extract_prim_func_full1():
     )
 
 
-def test_extract_prim_func_matmul1():
+def test_extract_function_matmul1():
     print(
-        extract_prim_func(
+        extract_function(
             model_name="TEST",
             relax_func_name="test",
-            prim_func_name="matmul1",
+            function_name="matmul1",
             func=Module["matmul1"],  # type: ignore
             weight=2,
             sample_number=10,
@@ -298,21 +298,21 @@ def test_extract_from_relax():
             )
 
 
-def test_extract_func_info_from_prim_func():
+def test_extract_func_info_from_function():
     assert (
-        str(extract_func_info_from_prim_func(cuda_workload))
+        str(extract_func_info_from_function(cuda_workload))
         == "([((1, m, 4096), 'float32'), ((4096, 4096), 'float32'), ((1, m, 4096), 'float32')], {'m': 'int64'})"
     )
     assert (
-        str(extract_func_info_from_prim_func(Module["full1"]))
+        str(extract_func_info_from_function(Module["full1"]))
         == "([((1, 32, 1, n), 'float16')], {'n': 'int64'})"
     )
     assert (
-        str(extract_func_info_from_prim_func(Module["matmul1"]))
+        str(extract_func_info_from_function(Module["matmul1"]))
         == "([((1, 32, 1, n), 'float16'), ((1, 32, n, 128), 'float16'), ((1, 32, 1, 128), 'float16')], {'n': 'int64'})"
     )
     assert (
-        str(extract_func_info_from_prim_func(Module["full2"]))
+        str(extract_func_info_from_function(Module["full2"]))
         == "([((1, 32, n, 128), 'float16')], {'n': 'int64'})"
     )
 

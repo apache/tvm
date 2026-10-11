@@ -21,11 +21,11 @@ import pytest
 
 import tvm
 from tvm.script import tirx as T
-from tvm.script.tirx import tile as Tx
 from tvm.testing import env
 from tvm.tirx.cuda.tile_primitive.copy._common import copy_ptx_form
 
-TARGET = tvm.target.Target("cuda")
+TARGET = tvm.target.Target({"kind": "cuda", "arch": env.cuda_arch() or "sm_90"})
+
 
 # num_bytes → kernel layout. ``fill_offset`` fills lane i with ``i + fill_offset``.
 _SHARED_COPY_CASES = {
@@ -74,22 +74,20 @@ def _shared_scratch_copy_kernel(num_bytes: int):
     tail, lanes, reg_dtype = copy_ptx_form(num_bytes)
     ld_chain, st_chain = f"ld.shared.{tail}", f"st.shared.{tail}"
 
-    @T.prim_func
-    def func(out: T.Buffer((nelems,), smem_dtype)):
-        T.device_entry()
-        T.cta_id([1])
-        T.warp_id([1])
-        lane = T.lane_id([32])
-        src_buf = T.alloc_buffer((nelems,), smem_dtype, scope="shared")
-        dst_buf = T.alloc_buffer((nelems,), smem_dtype, scope="shared")
+    @T.function
+    def func(out: T.Tensor((nelems,), smem_dtype)):
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=1 * 32))
+        lane = T.cuda.lane_id()
+        src_buf = T.alloc_tensor((nelems,), smem_dtype, scope="shared")
+        dst_buf = T.alloc_tensor((nelems,), smem_dtype, scope="shared")
         tmp = T.alloc_local((lanes,), reg_dtype)
-        if fill_offset is not None:
+        if T.constexpr(fill_offset is not None):
             if lane < nelems:
                 src_buf[lane] = T.uint32(lane + fill_offset)
-        elif fill_fp16 is not None:
+        elif T.constexpr(fill_fp16 is not None):
             if lane == 0:
                 src_buf[0] = T.float16(fill_fp16)
-        elif fill_u8 is not None:
+        elif T.constexpr(fill_u8 is not None):
             if lane == 0:
                 src_buf[0] = T.uint8(fill_u8)
         elif lane == 0:
@@ -109,25 +107,22 @@ def test_ptx_ld_st_codegen_emits_shared_asm():
     """Shared ↔ register typed copies must codegen to ``ld.shared`` / ``st.shared``."""
 
     # fmt: off
-    @T.prim_func
-    def copy_kernel(D: T.Buffer((4,), 'uint32')) -> None:
+    @T.function
+    def copy_kernel(D: T.Tensor((4,), 'uint32')) -> None:
 
-        T.device_entry()
-        T.warp_id([4])
-        T.cta_id([1])
-        T.warpgroup_id([1])
-        tid_in_wg = T.thread_id_in_wg([128])
-        smem = T.alloc_buffer((4,), "uint32", scope="shared")
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=4 * 32))
+        tid_in_wg = T.cuda.thread_in_warpgroup()
+        smem = T.alloc_tensor((4,), "uint32", scope="shared")
         reg = T.alloc_local((4,), "uint32")
         if tid_in_wg == 0:
             T.ptx.st.shared.v4.u32(smem.ptr_to([0]), reg[0], reg[1], reg[2], reg[3])
         T.cuda.cta_sync()
         if tid_in_wg == 0:
             T.ptx.ld.shared.v4.u32(reg[0], reg[1], reg[2], reg[3], smem.ptr_to([0]))
-        Tx.copy(D[0:4], reg[:])
+        T.cuda.tile.st(D[0:4], reg[:])
     # fmt: on
 
-    target = tvm.target.Target("cuda")
+    target = TARGET
     with target:
         mod = tvm.compile(tvm.IRModule({"main": copy_kernel}), target=target, tir_pipeline="tirx")
     src = mod.mod.imports[0].inspect_source("cuda")
@@ -138,11 +133,11 @@ def test_ptx_ld_st_codegen_emits_shared_asm():
 
 
 def test_ptx_ld_st_raw_shared_address_codegen():
-    @T.prim_func
-    def main(out: T.Buffer((2,), "uint64")):
-        T.device_entry()
-        tx = T.thread_id([32])
-        smem = T.alloc_buffer((2,), "uint64", scope="shared")
+    @T.function
+    def main(out: T.Tensor((2,), "uint64")):
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=1, block=(32,)))
+        tx = T.cuda.thread_idx("x")
+        smem = T.alloc_tensor((2,), "uint64", scope="shared")
         values = T.alloc_local((4,), "uint32")
         if tx == 0:
             raw_addr: T.uint32 = T.cuda.cvta_generic_to_shared(smem.data)
@@ -164,10 +159,10 @@ def test_ptx_ld_st_raw_shared_address_codegen():
 def test_ptx_ld_st_immediate_offset_codegen():
     """An immediate displacement must stay inside the PTX memory operand."""
 
-    @T.prim_func
-    def main(src: T.Buffer((4,), "uint64"), out: T.Buffer((4,), "uint64")):
-        T.device_entry()
-        tx = T.thread_id([32])
+    @T.function
+    def main(src: T.Tensor((4,), "uint64"), out: T.Tensor((4,), "uint64")):
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=1, block=(32,)))
+        tx = T.cuda.thread_idx("x")
         values = T.alloc_local((2,), "uint64")
         if tx == 0:
             T.ptx.ld.global_.v2.b64(values[0], values[1], T.ptx.addr(src.data, 16))
@@ -180,13 +175,17 @@ def test_ptx_ld_st_immediate_offset_codegen():
     assert "st.global.v2.b64 [%0+16], {%1, %2};" in src
 
 
+@pytest.mark.skipif(
+    not env.has_cuda_compute(10),
+    reason="256-bit ld.global.nc.v8 requires CUDA compute >= 10.0",
+)
 def test_ptx_ld_global_nc_v8_codegen():
     """FlashMLA index loads need ``ld.global.nc`` with a 256B prefetch."""
 
-    @T.prim_func
-    def copy_kernel(src: T.Buffer((8,), "int32"), out: T.Buffer((8,), "int32")) -> None:
-        T.device_entry()
-        tx = T.thread_id([32])
+    @T.function
+    def copy_kernel(src: T.Tensor((8,), "int32"), out: T.Tensor((8,), "int32")) -> None:
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=1, block=(32,)))
+        tx = T.cuda.thread_idx("x")
         tmp = T.alloc_local((8,), "int32")
         if tx == 0:
             T.ptx["ld.global.nc.L1::no_allocate.L2::evict_first.L2::256B.v8.s32"](
@@ -195,7 +194,7 @@ def test_ptx_ld_global_nc_v8_codegen():
             for i in T.unroll(8):
                 out[i] = tmp[i]
 
-    target = tvm.target.Target("cuda")
+    target = TARGET
     with target:
         mod = tvm.compile(tvm.IRModule({"main": copy_kernel}), target=target, tir_pipeline="tirx")
     src = mod.mod.imports[0].inspect_source("cuda")
@@ -203,13 +202,17 @@ def test_ptx_ld_global_nc_v8_codegen():
     assert "{%0, %1, %2, %3, %4, %5, %6, %7}, [%8];" in src
 
 
+@pytest.mark.skipif(
+    not env.has_cuda_compute(10),
+    reason="256-bit ld.global.nc.v4.u64 requires CUDA compute >= 10.0",
+)
 def test_ptx_ld_global_nc_v4_u64_256b_codegen():
     """FlashMLA 32-byte index loads may use four 64-bit PTX outputs."""
 
-    @T.prim_func
-    def copy_kernel(src: T.Buffer((4,), "uint64"), out: T.Buffer((4,), "uint64")) -> None:
-        T.device_entry()
-        tx = T.thread_id([32])
+    @T.function
+    def copy_kernel(src: T.Tensor((4,), "uint64"), out: T.Tensor((4,), "uint64")) -> None:
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=1, block=(32,)))
+        tx = T.cuda.thread_idx("x")
         tmp = T.alloc_local((4,), "uint64")
         if tx == 0:
             T.ptx["ld.global.nc.L1::no_allocate.L2::evict_normal.L2::256B.v4.u64"](
@@ -218,7 +221,7 @@ def test_ptx_ld_global_nc_v4_u64_256b_codegen():
             for i in T.unroll(4):
                 out[i] = tmp[i]
 
-    target = tvm.target.Target("cuda")
+    target = TARGET
     with target:
         mod = tvm.compile(tvm.IRModule({"main": copy_kernel}), target=target, tir_pipeline="tirx")
     src = mod.mod.imports[0].inspect_source("cuda")
@@ -229,10 +232,10 @@ def test_ptx_ld_global_nc_v4_u64_256b_codegen():
 def test_ptx_ld_vector_scatter_dst_codegen():
     """Vector loads may write independent destination pointers."""
 
-    @T.prim_func
-    def copy_kernel(src: T.Buffer((4,), "int32"), out: T.Buffer((4,), "int32")) -> None:
-        T.device_entry()
-        tx = T.thread_id([32])
+    @T.function
+    def copy_kernel(src: T.Tensor((4,), "int32"), out: T.Tensor((4,), "int32")) -> None:
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=1, block=(32,)))
+        tx = T.cuda.thread_idx("x")
         tmp0 = T.alloc_local((1,), "int32")
         tmp1 = T.alloc_local((1,), "int32")
         tmp2 = T.alloc_local((1,), "int32")
@@ -244,7 +247,7 @@ def test_ptx_ld_vector_scatter_dst_codegen():
             out[2] = tmp2[0]
             out[3] = tmp3[0]
 
-    target = tvm.target.Target("cuda")
+    target = TARGET
     with target:
         mod = tvm.compile(tvm.IRModule({"main": copy_kernel}), target=target, tir_pipeline="tirx")
     src = mod.mod.imports[0].inspect_source("cuda")

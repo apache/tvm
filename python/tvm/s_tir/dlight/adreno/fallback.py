@@ -168,13 +168,13 @@ class Fallback(AdrenoScheduleRule):
 
     def apply(  # pylint: disable=too-many-locals
         self,
-        func: tirx.PrimFunc,
+        func: tirx.Function,
         target: Target,
         _: bool,
     ) -> None | s_tir.Schedule | list[s_tir.Schedule]:
         # pylint: disable=invalid-name
 
-        if not isinstance(func, tirx.PrimFunc) or not self.is_target_available(target):
+        if not isinstance(func, tirx.Function) or not self.is_target_available(target):
             return None
 
         sch = s_tir.Schedule(func)

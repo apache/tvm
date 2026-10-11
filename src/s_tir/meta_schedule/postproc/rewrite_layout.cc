@@ -19,7 +19,9 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/s_tir/function.h>
 #include <tvm/s_tir/stmt.h>
+#include <tvm/topi/tags.h>
 
 #include <optional>
 #include <unordered_set>
@@ -32,15 +34,15 @@ using namespace tvm::tirx;
 
 /*!
  * \brief Collect the block and index where the buffer is read.
- * \note The buffer is expected to be read by only one BufferLoad
+ * \note The buffer is expected to be read by only one TensorLoad
  */
 class BufferReadPosCollector : public StmtExprVisitor {
  public:
   using StmtExprVisitor::Visit_;
 
-  explicit BufferReadPosCollector(const BufferVar& buffer) : buffer_(buffer.get()) {}
+  explicit BufferReadPosCollector(const TensorVar& buffer) : buffer_(buffer.get()) {}
 
-  const std::pair<SBlock, int>& GetBufferLocation() const { return buffer_loc_; }
+  const std::pair<SBlock, int>& GetBufferLocation() const { return buffer_loc_.value(); }
 
   const ffi::Optional<IndexMap> GetBufferIndexMap() const { return buffer_index_map_; }
 
@@ -53,7 +55,7 @@ class BufferReadPosCollector : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const SBlockRealizeNode* op) final {
-    SBlockRealize outer_block_realize = ffi::GetRef<SBlockRealize>(op);
+    ffi::Optional<SBlockRealize> outer_block_realize = ffi::GetRef<SBlockRealize>(op);
     std::swap(outer_block_realize, cur_realize_);
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     std::swap(cur_realize_, outer_block_realize);
@@ -61,14 +63,14 @@ class BufferReadPosCollector : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* op) final {
-    TVM_FFI_ICHECK(cur_realize_.defined()) << "TensorLoad occurred outside of any block";
+    TVM_FFI_ICHECK(cur_realize_.has_value()) << "TensorLoad occurred outside of any block";
 
-    const BufferVar& buffer = op->source.as_or_throw<tvm::tirx::BufferVar>();
+    const TensorVar& buffer = op->source.as_or_throw<tvm::tirx::TensorVar>();
     if (buffer_ == buffer.get()) {
       ffi::Map<Var, PrimExpr> subst_map;
-      for (size_t i = 0; i < cur_realize_->iter_values.size(); i++) {
-        const Var& var = cur_realize_->block->iter_vars[i]->var;
-        const PrimExpr& value = cur_realize_->iter_values[i];
+      for (size_t i = 0; i < cur_realize_.value()->iter_values.size(); i++) {
+        const Var& var = cur_realize_.value()->block->iter_vars[i]->var;
+        const PrimExpr& value = cur_realize_.value()->iter_values[i];
         subst_map.Set(var, value);
       }
       auto f_substitute =
@@ -81,21 +83,21 @@ class BufferReadPosCollector : public StmtExprVisitor {
         subst_indices.push_back(
             ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(e, f_substitute).as_or_throw<PrimExpr>());
       }
-      buffer_index_map_ = SuggestIndexMap(/*buffer=*/buffer,                      //
-                                          /*indices=*/subst_indices,              //
-                                          /*loops=*/loop_stack_,                  //
-                                          /*predicate=*/cur_realize_->predicate,  //
+      buffer_index_map_ = SuggestIndexMap(/*buffer=*/buffer,                              //
+                                          /*indices=*/subst_indices,                      //
+                                          /*loops=*/loop_stack_,                          //
+                                          /*predicate=*/cur_realize_.value()->predicate,  //
                                           /*analyzer=*/analyzer_.get());
-      int buffer_index = GetReadBufferIndex(cur_realize_->block, buffer);
+      int buffer_index = GetReadBufferIndex(cur_realize_.value()->block, buffer);
       TVM_FFI_ICHECK(buffer_index != -1);
-      buffer_loc_ = std::make_pair(cur_realize_->block, buffer_index);
+      buffer_loc_ = std::make_pair(cur_realize_.value()->block, buffer_index);
     }
     return std::nullopt;
   }
 
-  static int GetReadBufferIndex(const SBlock& block, const BufferVar& buffer) {
+  static int GetReadBufferIndex(const SBlock& block, const TensorVar& buffer) {
     for (size_t i = 0; i < block->reads.size(); i++) {
-      if (block->reads[i]->source.as_or_throw<tvm::tirx::BufferVar>().same_as(buffer)) {
+      if (block->reads[i]->source.as_or_throw<tvm::tirx::TensorVar>().same_as(buffer)) {
         return i;
       }
     }
@@ -105,7 +107,7 @@ class BufferReadPosCollector : public StmtExprVisitor {
   /*! \brief The buffer of interest. */
   const VarNode* buffer_;
   /*! \brief The block that consumes the buffer and the corresponding read index. */
-  std::pair<SBlock, int> buffer_loc_;
+  std::optional<std::pair<SBlock, int>> buffer_loc_;
   /*! \brief The proposed IndexMap. */
   ffi::Optional<IndexMap> buffer_index_map_;
 
@@ -114,7 +116,7 @@ class BufferReadPosCollector : public StmtExprVisitor {
   /*! \brief Arithmetic analyzer. */
   sym::Analyzer analyzer_;
   /*! \brief Current BlockRealize scope, used in recursive visit */
-  SBlockRealize cur_realize_;
+  ffi::Optional<SBlockRealize> cur_realize_;
 };
 
 class LayoutFreeBufferCollector : public StmtExprVisitor {
@@ -128,27 +130,27 @@ class LayoutFreeBufferCollector : public StmtExprVisitor {
 
   ffi::Optional<VisitInterrupt> Visit_(const SBlockNode* block) final {
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(block));
-    if (auto ann = block->annotations.Get("layout_free_placeholders")) {
-      for (BufferVar buffer : ann.value().as_or_throw<ffi::Array<BufferVar>>()) {
+    if (auto ann = block->annotations.Get(tvm::topi::attr::kLayoutFreePlaceholders)) {
+      for (TensorVar buffer : ann.value().as_or_throw<ffi::Array<TensorVar>>()) {
         buffers.insert(buffer);
       }
     }
     return std::nullopt;
   }
 
-  std::unordered_set<BufferVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> buffers;
+  std::unordered_set<TensorVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> buffers;
 };
 
-ffi::Array<BufferVar> CollectLayoutFreeBuffers(const PrimFuncNode* func) {
-  // Only rewrite PrimFuncs with attr "layout_free_buffers"
+ffi::Array<TensorVar> CollectLayoutFreeBuffers(const FunctionNode* func) {
+  // Only rewrite Functions with attr "layout_free_buffers"
   ffi::Array<int64_t> layout_free_buffer_index =
-      func->GetAttr(s_tir::attr::layout_free_buffers, ffi::Array<int64_t>()).value();
+      func->GetAttr(tvm::s_tir::attr::kLayoutFreeBuffers, ffi::Array<int64_t>()).value();
 
-  ffi::Array<BufferVar> layout_free_buffers;
+  ffi::Array<TensorVar> layout_free_buffers;
   for (int64_t index : layout_free_buffer_index) {
     TVM_FFI_ICHECK(static_cast<size_t>(index) < func->params.size());
     const Var& param = func->params[index];
-    layout_free_buffers.push_back(param.as_or_throw<tvm::tirx::BufferVar>());
+    layout_free_buffers.push_back(param.as_or_throw<tvm::tirx::TensorVar>());
   }
 
   auto collector = ffi::make_object<LayoutFreeBufferCollector>();
@@ -161,9 +163,9 @@ ffi::Array<BufferVar> CollectLayoutFreeBuffers(const PrimFuncNode* func) {
 }
 
 std::optional<std::tuple<SBlock, int, IndexMap>> GetSuggestedIndexMap(
-    BufferVar buffer, const PrimFuncNode* prim_func) {
+    TensorVar buffer, const FunctionNode* function) {
   auto collector = ffi::make_object<BufferReadPosCollector>(buffer);
-  collector->Visit(prim_func->body);
+  collector->Visit(function->body);
 
   const auto& index_map = collector->GetBufferIndexMap();
 
@@ -177,7 +179,7 @@ std::optional<std::tuple<SBlock, int, IndexMap>> GetSuggestedIndexMap(
 }
 
 /*! \brief Get a chain of cache-read blocks, starting from the one consuming buf. */
-std::vector<std::string> GetCacheReadChain(const BufferVar& buf, const PrimFuncNode* prim_func) {
+std::vector<std::string> GetCacheReadChain(const TensorVar& buf, const FunctionNode* function) {
   class BufferReadChainCollector : public StmtExprVisitor {
    public:
     using StmtExprVisitor::Visit_;
@@ -187,14 +189,14 @@ std::vector<std::string> GetCacheReadChain(const BufferVar& buf, const PrimFuncN
       return StmtExprVisitor::Visit(value);
     }
 
-    explicit BufferReadChainCollector(const BufferVar& buffer) : cur_buffer_(buffer.get()) {}
+    explicit BufferReadChainCollector(const TensorVar& buffer) : cur_buffer_(buffer.get()) {}
 
     ffi::Optional<VisitInterrupt> Visit_(const SBlockNode* op) final {
       // Check if this block is doing cache_read or a similar operation that consumes cur_buffer_.
       if (!op->init && op->reads.size() == 1 && op->writes.size() == 1 &&
-          op->reads[0]->source.as_or_throw<tvm::tirx::BufferVar>().get() == cur_buffer_) {
+          op->reads[0]->source.as_or_throw<tvm::tirx::TensorVar>().get() == cur_buffer_) {
         cache_read_chain.push_back(op->name_hint);
-        cur_buffer_ = op->writes[0]->source.as_or_throw<tvm::tirx::BufferVar>().get();
+        cur_buffer_ = op->writes[0]->source.as_or_throw<tvm::tirx::TensorVar>().get();
       }
       return StmtExprVisitor::Visit_(op);
     }
@@ -206,7 +208,7 @@ std::vector<std::string> GetCacheReadChain(const BufferVar& buf, const PrimFuncN
   };
 
   auto collector = ffi::make_object<BufferReadChainCollector>(buf);
-  collector->Visit(prim_func->body);
+  collector->Visit(function->body);
   return collector->cache_read_chain;
 }
 
@@ -214,23 +216,23 @@ bool RewriteLayout(const Schedule& sch) {
   std::vector<std::pair<StmtSRef, ffi::String>> results;
   auto add_layout_rewrite_block = [&sch](SBlockRV consumer_block_rv, int buffer_index) {
     SBlockRV rewrite_block_rv = sch->CacheRead(consumer_block_rv, buffer_index, "global");
-    sch->Annotate(rewrite_block_rv, s_tir::attr::meta_schedule_layout_rewrite_preproc, true);
+    sch->Annotate(rewrite_block_rv, tvm::s_tir::attr::kMetaScheduleLayoutRewritePreproc, true);
   };
 
   for (const auto& [g_var, base_func] : sch->mod()->functions) {
     const ffi::String& func_name = g_var->name_hint;
-    const auto* prim_func = base_func.as<PrimFuncNode>();
-    // Only consider PrimFunc
-    if (prim_func == nullptr) {
+    const auto* function = base_func.as<FunctionNode>();
+    // Only consider Function
+    if (function == nullptr) {
       continue;
     }
 
-    for (auto buffer : CollectLayoutFreeBuffers(prim_func)) {
-      const auto cache_read_chain = GetCacheReadChain(buffer, prim_func);
+    for (auto buffer : CollectLayoutFreeBuffers(function)) {
+      const auto cache_read_chain = GetCacheReadChain(buffer, function);
       if (cache_read_chain.empty()) {
         // The common case, where the layout-free buffer is directly consumed by an anchor op such
         // as conv2d or dense.
-        auto tup_opt = GetSuggestedIndexMap(buffer, prim_func);
+        auto tup_opt = GetSuggestedIndexMap(buffer, function);
         if (tup_opt == std::nullopt) continue;
 
         auto [anchor_block, buffer_index, index_map] = *tup_opt;
@@ -245,7 +247,7 @@ bool RewriteLayout(const Schedule& sch) {
         SBlock cache_read_block = sch->Get(sch->GetSBlock(cache_read_chain.back(), func_name));
         TVM_FFI_ICHECK_EQ(cache_read_block->writes.size(), 1);
         auto tup_opt = GetSuggestedIndexMap(
-            cache_read_block->writes[0]->source.as_or_throw<tvm::tirx::BufferVar>(), prim_func);
+            cache_read_block->writes[0]->source.as_or_throw<tvm::tirx::TensorVar>(), function);
         if (tup_opt == std::nullopt) continue;
 
         auto [anchor_block, buffer_index, index_map] = *tup_opt;
@@ -293,7 +295,7 @@ class RewriteLayoutNode : public PostprocNode {
 
   Postproc Clone() const {
     ffi::ObjectPtr<RewriteLayoutNode> n = ffi::make_object<RewriteLayoutNode>(*this);
-    return Postproc(n);
+    return Postproc(ffi::UnsafeInit{}, n);
   }
 
   static void RegisterReflection() {
@@ -307,7 +309,7 @@ class RewriteLayoutNode : public PostprocNode {
 
 Postproc Postproc::RewriteLayout() {
   auto n = ffi::make_object<RewriteLayoutNode>();
-  return Postproc(n);
+  return Postproc(ffi::UnsafeInit{}, n);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

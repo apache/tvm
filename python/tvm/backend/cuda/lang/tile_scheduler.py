@@ -17,7 +17,7 @@
 """Reusable tile scheduler helpers for TIR tests/kernels.
 
 These classes emit TIR via @T.inline. Decorate with @T.meta_class so that
-instances are automatically treated as meta values inside @T.prim_func.
+instances are automatically treated as meta values inside @T.function.
 """
 
 from tvm.backend.cuda.lang.clc import query_cancel_first_ctaid_x
@@ -821,7 +821,7 @@ class FlashAttentionLPTScheduler(BaseTileScheduler):
         :class:`FlashAttentionLinearScheduler`, while keeping the LPT + L2
         swizzle index mapping.
         """
-        if self._num_ctas is None:
+        if T.constexpr(self._num_ctas is None):
             self.linear_idx = self._total_tasks
         else:
             self.linear_idx = self.linear_idx + self._num_ctas

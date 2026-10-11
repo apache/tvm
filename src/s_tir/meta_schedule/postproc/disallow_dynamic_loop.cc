@@ -32,8 +32,8 @@ struct DynamicExtentFinder : public StmtExprVisitor {
     auto finder = ffi::make_object<DynamicExtentFinder>();
     for (const auto& kv : mod->functions) {
       const BaseFunc& func = kv.second;
-      if (const auto* prim_func = func.as<PrimFuncNode>()) {
-        finder->Visit(prim_func->body);
+      if (const auto* function = func.as<FunctionNode>()) {
+        finder->Visit(function->body);
         if (finder->found_) {
           return true;
         }
@@ -80,7 +80,7 @@ class DisallowDynamicLoopNode : public PostprocNode {
   // Inherited from PostprocNode
   Postproc Clone() const {
     ffi::ObjectPtr<DisallowDynamicLoopNode> n = ffi::make_object<DisallowDynamicLoopNode>(*this);
-    return Postproc(n);
+    return Postproc(ffi::UnsafeInit{}, n);
   }
 
   static void RegisterReflection() {
@@ -94,7 +94,7 @@ class DisallowDynamicLoopNode : public PostprocNode {
 
 Postproc Postproc::DisallowDynamicLoop() {
   ffi::ObjectPtr<DisallowDynamicLoopNode> n = ffi::make_object<DisallowDynamicLoopNode>();
-  return Postproc(n);
+  return Postproc(ffi::UnsafeInit{}, n);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

@@ -44,14 +44,27 @@ class StmtSimplifier final : public tirx::StmtSimplifier {
     // while the analyzer state is protected by its owning base class.
     return constraint_scope_.WithNewScope([&]() -> UnchangedOr<Stmt> {
       for (const auto& iter_var : op->iter_vars) {
-        analyzer_->Bind(iter_var->var, iter_var->dom);
-        iter_vars_.Set(iter_var->var, iter_var->dom);
+        analyzer_->Bind(iter_var->var, iter_var->dom.value());
+        iter_vars_.Set(iter_var->var, iter_var->dom.value());
       }
       return s_tir::StmtExprMutator::MutateBlock(this, op, inplace_mode);
     });
   }
   UnchangedOr<Stmt> Mutate_(const SBlockRealizeNode* op, InplaceMode inplace_mode) {
     return s_tir::StmtExprMutator::MutateBlockRealize(this, op, inplace_mode);
+  }
+
+  UnchangedOr<Stmt> Mutate_(const EvaluateNode* op, InplaceMode inplace_mode) final {
+    Stmt stmt = Parent::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
+    if (const auto* evaluate = stmt.as<EvaluateNode>()) {
+      if (const auto* call = evaluate->value.as<CallNode>();
+          call && call->op.same_as(s_tir::async_wait()) &&
+          analyzer_->CanProve(call->args[1].as_or_throw<PrimExpr>() < 0)) {
+        // Unrolling may make a wait count negative; such a wait is a no-op.
+        return Evaluate(0);
+      }
+    }
+    return stmt;
   }
 
  protected:
@@ -71,20 +84,19 @@ class StmtSimplifier final : public tirx::StmtSimplifier {
   }
 };
 
-PrimFunc StmtSimplify(PrimFunc func, const sym::Analyzer& analyzer) {
+Function StmtSimplify(Function func, const sym::Analyzer& analyzer) {
   auto config = tvm::transform::PassConfigWithDefaults<tirx::StmtSimplifyConfig>();
   return ffi::make_object<StmtSimplifier>(analyzer, config)->Run(std::move(func));
 }
 
 namespace transform {
 Pass StmtSimplify() {
-  auto pass_func = [](PrimFunc func, IRModule, tvm::transform::PassContext ctx) {
+  auto pass_func = [](Function func, IRModule, tvm::transform::PassContext ctx) {
     sym::Analyzer analyzer;
-    auto config = ctx->GetConfig<tirx::StmtSimplifyConfig>("tirx.StmtSimplify")
-                      .value_or(tvm::transform::PassConfigWithDefaults<tirx::StmtSimplifyConfig>());
+    auto config = ctx->GetConfigOrDefault<tirx::StmtSimplifyConfig>("tirx.StmtSimplify");
     return ffi::make_object<s_tir::StmtSimplifier>(analyzer, config)->Run(std::move(func));
   };
-  return tirx::transform::CreatePrimFuncPass(pass_func, 0, "s_tir.StmtSimplify", {});
+  return tirx::transform::CreateFunctionPass(pass_func, 0, "s_tir.StmtSimplify");
 }
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::GlobalDef().def("s_tir.transform.StmtSimplify", StmtSimplify);

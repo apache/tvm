@@ -38,11 +38,9 @@ def tirx_pipeline(*, prepare_only=False):
         config = pass_ctx.config
         passes = [
             tirx.transform.LowerTIRx(),
-            tirx.transform.UnifyThreadBinding(),
             tirx.transform.StmtSimplify(),
             tirx.transform.LowerTIRxOpaque(),
             tirx.transform.FlattenBuffer(),
-            tirx.transform.BF16ComputeLegalize(),
             tirx.transform.NarrowDataType(32),
             tirx.transform.VectorizeLoop(not bool(config.get("tirx.disable_vectorize", False))),
             tirx.transform.UnrollLoop(),
@@ -52,12 +50,11 @@ def tirx_pipeline(*, prepare_only=False):
             passes.append(tirx.transform.CommonSubexprElim())
         passes.extend(
             [
-                tirx.transform.FP8ComputeLegalize(),
                 tirx.transform.VerifyMemory(),
                 tirx.transform.LowerThreadAllreduce(),
             ]
         )
-        mod = tvm.ir.transform.Sequential(passes)(mod)
+        mod = tvm.transform.Sequential(passes)(mod)
         return mod if prepare_only else finalize_tir_pipeline()(mod)
 
     return _pipeline, finalize_host_passes, finalize_device_passes
@@ -65,11 +62,14 @@ def tirx_pipeline(*, prepare_only=False):
 
 def finalize_tir_pipeline():
     """Lower module-wide calling conventions after all dialects are prepared."""
-    return tvm.ir.transform.Sequential(
+    return tvm.transform.Sequential(
         [
             tirx.transform.AnnotateEntryFunc(),
             tirx.transform.SplitHostDevice(),
             cuda_transforms.LowerIket(),
+            cuda_transforms.SpecializeDeviceHelpers(),
+            tirx.transform.BF16ComputeLegalize(),
+            tirx.transform.FP8ComputeLegalize(),
             tirx.transform.MakePackedAPI(),
             tirx.transform.FP8StorageLegalize(),
             tirx.transform.BF16StorageLegalize(),
@@ -83,7 +83,7 @@ def finalize_host_passes():  # pylint: disable=unused-argument
         tirx.transform.LowerTVMBuiltin(),
         tirx.transform.LowerIntrin(),
     ]
-    return tvm.ir.transform.Sequential(host_pass_list)
+    return tvm.transform.Sequential(host_pass_list)
 
 
 def finalize_device_passes():  # pylint: disable=unused-argument
@@ -93,13 +93,13 @@ def finalize_device_passes():  # pylint: disable=unused-argument
         tirx.transform.StmtSimplify(),
         tirx.transform.LowerIntrin(),
     ]
-    return tvm.ir.transform.Sequential(device_pass_list)
+    return tvm.transform.Sequential(device_pass_list)
 
 
 def finalize_device_passes_tirx():  # pylint: disable=unused-argument
     """The TIRx finalization passes for TIR backend."""
     device_pass_list = [tirx.transform.LowerIntrin()]
-    return tvm.ir.transform.Sequential(device_pass_list)
+    return tvm.transform.Sequential(device_pass_list)
 
 
 # global map of pre-built pipelines

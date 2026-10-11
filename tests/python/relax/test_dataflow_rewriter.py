@@ -71,7 +71,7 @@ def test_missing_pattern_raises_error():
         class Rewriter:
             @R.function
             def replacement():
-                return R.tuple()
+                return ()
 
 
 def test_incorrect_function_type_of_pattern_raises_error():
@@ -81,13 +81,13 @@ def test_incorrect_function_type_of_pattern_raises_error():
 
         @R.rewriter
         class Rewriter:
-            @Ts.prim_func
+            @Ts.function
             def pattern():
                 pass
 
             @R.function
             def replacement():
-                return R.tuple()
+                return ()
 
 
 def test_missing_replacement_raises_error():
@@ -99,7 +99,7 @@ def test_missing_replacement_raises_error():
         class Rewriter:
             @R.function
             def pattern():
-                return R.tuple()
+                return ()
 
 
 def test_incorrect_function_type_of_replacement_raises_error():
@@ -111,9 +111,9 @@ def test_incorrect_function_type_of_replacement_raises_error():
         class Rewriter:
             @R.function
             def pattern():
-                return R.tuple()
+                return ()
 
-            @Ts.prim_func
+            @Ts.function
             def replacement():
                 pass
 
@@ -195,7 +195,7 @@ def test_rewriter_may_be_applied_to_ir_module():
 
 
 def test_rewriter_may_be_used_as_ir_transform():
-    """A rewriter may be used as a tvm.ir.transform.Pass"""
+    """A rewriter may be used as a tvm.transform.Pass"""
 
     @R.rewriter
     class Rewriter:
@@ -225,7 +225,7 @@ def test_rewriter_may_be_used_as_ir_transform():
             )
             return out
 
-    After = tvm.ir.transform.Sequential([Rewriter])(Before)
+    After = tvm.transform.Sequential([Rewriter])(Before)
     tvm.ir.assert_structural_equal(Expected, After)
 
 
@@ -438,10 +438,10 @@ def test_rewrite_only_introduces_private_subroutines_when_required():
 
         @R.function
         def replacement(A: R.Tensor([16], "float32")):
-            return R.call_tir(RewriteMul.subroutine_mul, [A], out_ty=R.Tensor([16], "float32"))
+            return R.call_tir(RewriteMul.subroutine_mul, [A], ty_args=[R.Tensor([16], "float32")])
 
-        @Ts.prim_func(private=True)
-        def subroutine_mul(A: T.Buffer(16, "float32"), B: T.Buffer(16, "float32")):
+        @Ts.function(private=True)
+        def subroutine_mul(A: T.Tensor(16, "float32"), B: T.Tensor(16, "float32")):
             for i in range(16):
                 B[i] = A[i] * A[i]
 
@@ -516,10 +516,10 @@ def test_rewrite_branches_may_reuse_subroutine_name():
 
         @R.function
         def replacement(A: R.Tensor([16], "float32")):
-            return R.call_tir(RewriteMul.subroutine, [A], out_ty=R.Tensor([16], "float32"))
+            return R.call_tir(RewriteMul.subroutine, [A], ty_args=[R.Tensor([16], "float32")])
 
-        @Ts.prim_func(private=True)
-        def subroutine(A: T.Buffer(16, "float32"), B: T.Buffer(16, "float32")):
+        @Ts.function(private=True)
+        def subroutine(A: T.Tensor(16, "float32"), B: T.Tensor(16, "float32")):
             for i in range(16):
                 B[i] = A[i] * A[i]
 
@@ -536,15 +536,15 @@ def test_rewrite_branches_may_reuse_subroutine_name():
         @R.function
         def main(A: R.Tensor([16], "float32")):
             B = Expected.subroutine(A)
-            C = R.call_tir(Expected.subroutine_1, [B], out_ty=R.Tensor([16], "float32"))
+            C = R.call_tir(Expected.subroutine_1, [B], ty_args=[R.Tensor([16], "float32")])
             return C
 
         @R.function(private=True)
         def subroutine(A: R.Tensor([16], "float32")) -> R.Tensor([16], "float32"):
             return A * R.const(2.0, "float32")
 
-        @Ts.prim_func(private=True)
-        def subroutine_1(A: T.Buffer(16, "float32"), B: T.Buffer(16, "float32")):
+        @Ts.function(private=True)
+        def subroutine_1(A: T.Tensor(16, "float32"), B: T.Tensor(16, "float32")):
             for i in range(16):
                 B[i] = A[i] * A[i]
 
@@ -1075,11 +1075,11 @@ def test_pattern_matching_may_not_reorder_across_impure_functions():
         weights: R.Tensor([16, 16], "float32"),
         bias: R.Tensor([16], "float32"),
     ):
-        R.print(format="Start of function")
+        R.print("Start of function")
         state = R.matmul(weights, state)
-        R.print(format="After matmul, before add")
+        R.print("After matmul, before add")
         state = R.add(bias, state)
-        R.print(format="End of function")
+        R.print("End of function")
         return state
 
     expected = before
@@ -1135,10 +1135,10 @@ def test_pattern_matching_may_occur_between_impure_functions():
         weights: R.Tensor([16, 16], "float32"),
         bias: R.Tensor([16], "float32"),
     ):
-        R.print(format="Start of function")
+        R.print("Start of function")
         state = R.matmul(weights, state)
         state = R.add(bias, state)
-        R.print(format="End of function")
+        R.print("End of function")
         return state
 
     @R.function(private=True, pure=False)
@@ -1147,7 +1147,7 @@ def test_pattern_matching_may_occur_between_impure_functions():
         weights: R.Tensor([16, 16], "float32"),
         bias: R.Tensor([16], "float32"),
     ):
-        R.print(format="Start of function")
+        R.print("Start of function")
         state = R.call_pure_packed(
             "my_optimized_fma_impl",
             state,
@@ -1155,7 +1155,7 @@ def test_pattern_matching_may_occur_between_impure_functions():
             bias,
             ty_args=R.Tensor([16], "float32"),
         )
-        R.print(format="End of function")
+        R.print("End of function")
         return state
 
     after = Rewriter(before)

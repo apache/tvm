@@ -19,9 +19,10 @@
 
 from tvm.ir import TensorRegion
 from tvm.script import tirx as T
-from tvm.tirx import PrimFunc, TilePrimitiveCall
-from tvm.tirx.operator.tile_primitive import DispatchContext, predicate, register_dispatch
-from tvm.tirx.operator.tile_primitive.ops import UnaryReduce
+from tvm.tirx import Function
+from tvm.tirx.op.tile import UnaryReduce
+from tvm.tirx.operator.tile_primitive import DispatchContext
+from tvm.tirx.tensor_instruction import TensorCall
 
 from ..binary.utils import try_find_inst_nary
 from ..common import init_analyzer, nki_dim
@@ -32,20 +33,25 @@ from ..unary.utils import get_const_bias_tensor, try_find_inst_unary
 from .utils import opcode_table
 
 
-def unary_reduce_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc | None:
+def unary_reduce_trn(op: TensorCall, sctx: DispatchContext) -> Function | None:
     """Generate a TRN schedule for unary reduction operations."""
-    op = TilePrimitiveCall.downcast(op)
+    op = TensorCall.decode(op)
     assert isinstance(op, UnaryReduce), f"invalid operator downcast: {op}"
 
     # Extract operation components
     unary_output, reduce_output = op.dsts
-    unary_input, bias, scale = op.srcs
+    unary_input = op.unary_input
+    if op.kind == "unary_reduce_with_scale_bias":
+        scale, bias = op.scale, op.bias
+    else:
+        scale, bias = 1.0, 0.0
     analyzer = init_analyzer(sctx)
 
     # Normalize axes and default values
-    reduce_axes = [i if i >= 0 else len(unary_output.source.ty.shape) + i for i in op.reduce_axes]
-    scale = 1.0 if scale is None else scale
-    bias = 0.0 if bias is None else bias
+    reduce_axes = [
+        int(i) if int(i) >= 0 else len(unary_output.source.ty.shape) + int(i)
+        for i in op.reduce_axes
+    ]
 
     inst_gen = InstructionGenerator([unary_output, unary_input, bias, reduce_output], analyzer)
     reduce_dim_map = get_reduction_dim_map(unary_output, reduce_output, reduce_axes, analyzer)
@@ -66,7 +72,7 @@ def unary_reduce_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc |
         )
 
     # Apply instruction size limits
-    inst_size_limit = op.config.get("max_inst_size", None)
+    inst_size_limit = op.options.get("max_inst_size", None)
     inst_repr.bound_inst_size(inst_size_limit, analyzer)
 
     p_var = T.Var("P", "int32")
@@ -80,7 +86,7 @@ def unary_reduce_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc |
     spatial_b_extent = inst_gen.fill_in_block_dim(unary_output, spatial_b_var)
     if reduction_b_extent != 1:
         intermediate_buffer = generate_intermediate_buffer(
-            reduce_output, reduction_b_extent, op.workspace, sctx
+            reduce_output, reduction_b_extent, op.workspaces, sctx
         )
     # Extract buffers and opcodes
     src, dst1, dst2 = unary_input.source, unary_output.source, reduce_output.source
@@ -92,7 +98,7 @@ def unary_reduce_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc |
         bias.source
         if isinstance(bias, TensorRegion)
         else get_const_bias_tensor(
-            bias, (p_size, inst_repr.size), dst1.ty.dtype, op.workspace, sctx
+            bias, (p_size, inst_repr.size), dst1.ty.dtype, op.workspaces, sctx
         )
     )
 
@@ -101,10 +107,10 @@ def unary_reduce_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc |
         # Direct implementation without intermediate buffer
         # fmt: off
         # This fragment captures buffers and indices from its insertion scope.
-        @T.prim_func(check_well_formed=False)
+        @T.function(check_well_formed=False)
         def impl():
             for b_loop in T.serial(0, spatial_b_extent):
-                with T.attr(0, "tensorized_nki_instruction", 1):
+                with T.nki.tensorized_instruction():
                     for p_loop in T.serial(0, p_size, annotations={nki_dim: "P"}):
                         for f_loop in T.serial(0, inst_repr.size, annotations={nki_dim: "F"}):
                             inst_gen.set_bind_map_all({p_var: p_loop, f_var: f_loop, spatial_b_var: b_loop})  # noqa: E501
@@ -127,11 +133,11 @@ def unary_reduce_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc |
     else:
         # fmt: off
         # This fragment captures buffers and indices from its insertion scope.
-        @T.prim_func(check_well_formed=False)
+        @T.function(check_well_formed=False)
         def impl():
             for b_loop in T.serial(0, spatial_b_extent):
                 for reduction_b_loop in T.serial(0, reduction_b_extent):
-                    with T.attr(0, "tensorized_nki_instruction", 1):
+                    with T.nki.tensorized_instruction():
                         for p_loop in T.serial(0, p_size, annotations={nki_dim: "P"}):
                             for f_loop in T.serial(0, inst_repr.size, annotations={nki_dim: "F"}):
                                 inst_gen.set_bind_map_all({p_var: p_loop, f_var: f_loop, spatial_b_var: b_loop, reduction_b_var: reduction_b_loop})  # noqa: E501
@@ -143,7 +149,7 @@ def unary_reduce_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc |
                                         T.evaluate(T.nki.activation_reduce(intermediate_buffer[p_loop, reduction_b_loop], dst1[tuple(dst_1_indices)], src[tuple(src_1_indices)], unary_opcode, reduce_opcode, bias_buffer[tuple(src_bias_indices)], scale))  # noqa: E501
                                     else:
                                         T.evaluate(T.nki.activation_reduce(intermediate_buffer[p_loop, reduction_b_loop], dst1[tuple(dst_1_indices)], src[tuple(src_1_indices)], unary_opcode, reduce_opcode, bias_buffer[p_loop, f_loop], scale))  # noqa: E501
-                with T.attr(0, "tensorized_nki_instruction", 1):
+                with T.nki.tensorized_instruction():
                     for p_loop in T.serial(0, p_size, annotations={nki_dim: "P"}):
                         for f_loop in T.serial(0, reduction_b_extent, annotations={nki_dim: "F"}):
                             inst_gen.set_bind_map_all({p_var: p_loop, spatial_b_var: b_loop})
@@ -154,22 +160,3 @@ def unary_reduce_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc |
         # fmt: on
 
         return impl
-
-
-@register_dispatch(
-    "unary_reduce",
-    "trn",
-    variant="default",
-    priority=10,
-    when=[
-        predicate(
-            "exec_scope",
-            lambda op, sctx: (
-                sctx.scope_kind == "thread",
-                f"unsupported exec_scope {sctx.scope_kind}",
-            ),
-        )
-    ],
-)
-def unary_reduce_trn_dispatch(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
-    return unary_reduce_trn(op, sctx)

@@ -50,8 +50,8 @@ def test_dispatch_multinomial_from_uniform_generic():
 
     @I.ir_module
     class Expected:
-        @Ts.prim_func(private=True)
-        def get_sample_index(prob: T.Buffer((batch, vocab_size)), usample: T.Buffer((out_batch, 1)), sample_indices: T.Buffer((out_batch, 1), 'int64'), output_index: T.Buffer((out_batch, 1), 'int64')):
+        @Ts.function(private=True)
+        def get_sample_index(prob: T.Tensor((batch, vocab_size)), usample: T.Tensor((out_batch, 1)), sample_indices: T.Tensor((out_batch, 1), 'int64'), output_index: T.Tensor((out_batch, 1), 'int64')):
 
             # with Ts.sblock("root"):
             for ax0, ax1 in T.grid(out_batch, vocab_size):
@@ -69,7 +69,7 @@ def test_dispatch_multinomial_from_uniform_generic():
             cls = Expected
             with R.dataflow():
                 lv: R.Tensor((3, 5), dtype="float32") = R.cumsum(prob, axis=1, dtype="float32", exclusive=0)
-                gv = R.call_tir(cls.get_sample_index, (lv, uniform_sample, sample_indices), out_ty=R.Tensor((6, 1), dtype="int64"))
+                gv = R.call_tir(cls.get_sample_index, (lv, uniform_sample, sample_indices), ty_args=[R.Tensor((6, 1), dtype="int64")])
                 R.output(gv)
             return gv
     # fmt: on
@@ -88,8 +88,8 @@ def test_dispatch_multinomial_from_uniform_gpu():
 
     @I.ir_module
     class Expected:
-        @Ts.prim_func
-        def parallel_sampling_from_prob(prob: T.Buffer((n, vocab_size)), uniform_samples: T.Buffer((batch_size, 1)), row_indices: T.Buffer((batch_size, 1), 'int64'), token_ids: T.Buffer((batch_size, 1), 'int64')):
+        @Ts.function
+        def parallel_sampling_from_prob(prob: T.Tensor((n, vocab_size)), uniform_samples: T.Tensor((batch_size, 1)), row_indices: T.Tensor((batch_size, 1), 'int64'), token_ids: T.Tensor((batch_size, 1), 'int64')):
             T.func_attr({"tirx.is_scheduled": True})
 
             # with Ts.sblock("root"):
@@ -103,7 +103,7 @@ def test_dispatch_multinomial_from_uniform_gpu():
                         u: T.let[T.float32] = uniform_samples[bx, 0]
                         aggregate[()] = T.Cast("float32", 0)
                         step_iter[()] = 0
-                        while T.tvm_thread_invariant((step_iter[()] == 0 or aggregate[()] < u - T.float32(9.9999999999999995e-07)) and T.Cast("int64", step_iter[()]) < T.Cast("int64", (vocab_size + T.int64(512) - T.int64(1)) // T.int64(512))):
+                        while T.gpu_thread_invariant((step_iter[()] == 0 or aggregate[()] < u - T.float32(9.9999999999999995e-07)) and T.Cast("int64", step_iter[()]) < T.Cast("int64", (vocab_size + T.int64(512) - T.int64(1)) // T.int64(512))):
                             with Ts.sblock(""):
                                 Ts.reads(step_iter[()], prob[row_idx, T.Cast("int64", step_iter[()]) * T.int64(512) + ty * T.int64(128) + tx * T.int64(4):T.Cast("int64", step_iter[()]) * T.int64(512) + ty * T.int64(128) + tx * T.int64(4) + T.int64(4)], aggregate[()])
                                 Ts.writes(sample_id_local[()], aggregate[()])
@@ -133,7 +133,7 @@ def test_dispatch_multinomial_from_uniform_gpu():
                                         if idx % T.shift_left(T.int64(1), i + T.int64(1)) == T.int64(0):
                                             shared_buf[idx] = shared_buf[idx] + shared_buf[idx + T.shift_left(T.int64(1), i)]
                                     step_aggregate[()] = shared_buf[0]
-                                if T.tvm_thread_invariant(aggregate[()] + step_aggregate[()] >= u - T.float32(9.9999999999999995e-07)):
+                                if T.gpu_thread_invariant(aggregate[()] + step_aggregate[()] >= u - T.float32(9.9999999999999995e-07)):
                                     for i in T.unroll(T.int64(1), T.int64(4)):
                                         prob_gt_threshold[i] = prob_gt_threshold[i] + prob_gt_threshold[i - T.int64(1)]
                                     for i in T.vectorized(T.int64(4)):
@@ -186,7 +186,7 @@ def test_dispatch_multinomial_from_uniform_gpu():
         def foo(prob: R.Tensor((3, 5), dtype="float32"), uniform_sample: R.Tensor((6, 1), dtype="float32"), sample_indices: R.Tensor((6, 1), dtype="int64")) -> R.Tensor((6, 1), dtype="int64"):
             cls = Expected
             with R.dataflow():
-                gv = R.call_tir(cls.parallel_sampling_from_prob, (prob, uniform_sample, sample_indices), out_ty=R.Tensor((6, 1), dtype="int64"))
+                gv = R.call_tir(cls.parallel_sampling_from_prob, (prob, uniform_sample, sample_indices), ty_args=[R.Tensor((6, 1), dtype="int64")])
                 R.output(gv)
             return gv
     # fmt: on

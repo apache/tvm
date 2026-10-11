@@ -18,22 +18,25 @@
 # pylint: disable=unused-import
 """Common data structures across all IR variants."""
 
-from . import instrument, transform
+from ._constant import const
 from .attrs import Attrs, DictAttrs, make_node
-from .base import (
-    EnvFunc,
-    Node,
-    SourceName,
-    Span,
-    SequentialSpan,
-    assert_structural_equal,
-    load_json,
-    save_json,
-)
+from .base import EnvFunc, Node, Scriptable, assert_structural_equal, load_json, save_json
+from .location import UNKNOWN_LOC, SourceName, Location, SourceLoc, UnknownLoc, CallSiteLoc
 
 # Register Type before Expr.  Expr's reflected ``ty`` field otherwise creates
 # an auto-generated Type wrapper before the concrete Python class is available.
-from .type import AnyType, FuncType, OpaqueType, PointerType, PrimType, StringType, TupleType, Type
+from .type import (
+    AnyType,
+    FuncType,
+    MissingType,
+    OpaqueType,
+    PointerType,
+    PrimType,
+    StringType,
+    TensorRegionType,
+    TupleType,
+    Type,
+)
 from .expr import (
     Call,
     Constant,
@@ -44,6 +47,8 @@ from .expr import (
     ExprOperand,
     ExprWithOp,
     GlobalVar,
+    LambdaExpr,
+    StagingExpr,
     OpaqueExpr,
     Range,
     TensorLoad,
@@ -60,5 +65,23 @@ from .function import BaseFunc, CallingConv
 from .global_info import GlobalInfo
 from .module import IRModule
 from .op import Op, register_op_attr
+from .stmt import (
+    Stmt,
+    SeqStmt,
+    Bind,
+    Evaluate,
+    Return,
+    If,
+    ForKind,
+    For,
+    While,
+    Break,
+    Continue,
+    AssertStmt,
+    RegionStmt,
+    TensorStore,
+    stmt_seq,
+    stmt_list,
+)
 
 from tvm_ffi import Array, Map

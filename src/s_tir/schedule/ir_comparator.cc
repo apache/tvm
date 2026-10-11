@@ -19,26 +19,32 @@
 #include "./ir_comparator.h"
 
 #include <tvm/ffi/cast.h>
-#include <tvm/ir/prim/builtin.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/s_tir/stmt.h>
-#include <tvm/tirx/builtin.h>
-
-#include "../../tirx/analysis/check_contains.h"
+#include <tvm/tirx/stmt_functor.h>
 
 namespace tvm {
 
 namespace {
-// File-local helper: true if `expr` is a call to prim::builtin::vscale().
+// File-local helper: true if `expr` is a call to prim::vscale_op().
 bool IsVScaleCall(const PrimExpr& expr) {
   if (const auto* call = expr.as<CallNode>()) {
-    return call->op.same_as(prim::builtin::vscale());
+    return call->op.same_as(prim::vscale_op());
   }
   return false;
 }
 
-// File-local helper: true if `expr` contains a call to prim::builtin::vscale().
+// File-local helper: true if `expr` contains a call to prim::vscale_op().
 bool ContainsVscaleCall(const PrimExpr& expr) {
-  return tirx::CheckContains::ExprContains(expr, IsVScaleCall);
+  struct VScaleFinder : tirx::StmtExprVisitor {
+    ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) final {
+      if (auto expr = value.as<PrimExpr>(); expr && IsVScaleCall(*expr)) {
+        return VisitInterrupt();
+      }
+      return StmtExprVisitor::Visit(value);
+    }
+  };
+  return ffi::make_object<VScaleFinder>()->Visit(expr).has_value();
 }
 }  // namespace
 
@@ -200,20 +206,6 @@ bool TensorizeComparator::Dispatch_(const ForNode* op, const Stmt& other) {
     }
     return false;
   }
-  if (op->thread_binding.has_value() != rhs->thread_binding.has_value()) {
-    if (assert_mode_) {
-      std::ostringstream os;
-      os << "ForNode thread_bindings do not match: op->thread_binding.has_value()="
-         << op->thread_binding.has_value()
-         << " vs rhs->thread_binding.has_value()=" << rhs->thread_binding.has_value();
-      EmitError(os.str());
-    }
-    return false;
-  }
-  if (op->thread_binding.has_value() &&
-      !Dispatch(op->thread_binding.value(), rhs->thread_binding.value())) {
-    return false;
-  }
   if (op->kind != rhs->kind) {
     if (assert_mode_) {
       std::ostringstream os;
@@ -241,8 +233,8 @@ bool TensorizeComparator::Dispatch_(const SeqStmtNode* op, const Stmt& other) {
                           &TensorizeComparator::Dispatch));
 }
 
-bool TensorizeComparator::Dispatch_(const BufferStoreNode* op, const Stmt& other) {
-  const auto* rhs = other.as<BufferStoreNode>();
+bool TensorizeComparator::Dispatch_(const TensorStoreNode* op, const Stmt& other) {
+  const auto* rhs = other.as<TensorStoreNode>();
   return CompareBufferAccess(op, rhs) && Dispatch(op->value, rhs->value);
 }
 
@@ -267,7 +259,7 @@ bool TensorizeComparator::Dispatch_(const SBlockRealizeNode* op, const Stmt& oth
 bool TensorizeComparator::Dispatch_(const SBlockNode* op, const Stmt& other) {
   const auto* rhs = other.as<SBlockNode>();
   for (const IterVar& iter : op->iter_vars) {
-    lhs_analyzer_->Bind(iter->var, iter->dom);
+    lhs_analyzer_->Bind(iter->var, iter->dom.value());
   }
   // Check block equality.
   // All iter vars and buffer regions including the order should match.
@@ -424,11 +416,11 @@ bool TensorizeComparator::DefEqual(const Var& lhs, const Var& rhs) {
   auto rhs_prim_type = rhs->ty.as<PrimType>();
   if (!lhs_prim_type || !rhs_prim_type) {
     if (!ffi::StructuralEqual()(lhs->ty, rhs->ty)) return false;
-    equal_map_[lhs] = rhs;
+    equal_map_.insert_or_assign(lhs, rhs);
     return true;
   }
   // Otherwise remap lhs to rhs
-  equal_map_[lhs] = rhs;
+  equal_map_.insert_or_assign(lhs, rhs);
   // Cast if necessary. This allows the workload and the tensor intrin to have different dtypes in
   // the indices.
   analyzer_->Bind(lhs, cast(lhs_prim_type.value(), rhs.as_or_throw<PrimExpr>()));
@@ -499,7 +491,7 @@ bool TensorizeComparator::CompareAnnotationMap(const ffi::Map<ffi::String, ffi::
   return true;
 }
 
-bool TensorizeComparator::CompareBuffer(const BufferVar& lhs, const BufferVar& rhs) {
+bool TensorizeComparator::CompareBuffer(const TensorVar& lhs, const TensorVar& rhs) {
   if (lhs.same_as(rhs)) return true;
   auto it = rhs_buffer_map_.find(rhs);
   bool equal;
@@ -507,7 +499,7 @@ bool TensorizeComparator::CompareBuffer(const BufferVar& lhs, const BufferVar& r
     equal = (*it).second.same_as(lhs);
   } else {
     // Remap the buffer variable definition without recursively comparing its
-    // BufferType.  Tensorization intentionally matches a region of a larger
+    // TensorType.  Tensorization intentionally matches a region of a larger
     // workload buffer against the intrinsic's smaller descriptor buffer.
     auto data_it = equal_map_.find(lhs.var());
     if (data_it != equal_map_.end()) {
@@ -515,11 +507,11 @@ bool TensorizeComparator::CompareBuffer(const BufferVar& lhs, const BufferVar& r
     } else {
       equal = lhs->dtype == rhs->dtype && lhs.scope() == rhs.scope();
       if (equal) {
-        equal_map_[lhs.var()] = rhs.var();
+        equal_map_.insert_or_assign(lhs.var(), rhs.var());
       }
     }
     if (equal) {
-      rhs_buffer_map_[rhs] = lhs;
+      rhs_buffer_map_.insert_or_assign(rhs, lhs);
     } else {
       if (assert_mode_) {
         std::ostringstream os;
@@ -534,13 +526,13 @@ bool TensorizeComparator::CompareBuffer(const BufferVar& lhs, const BufferVar& r
 }
 
 bool TensorizeComparator::CompareBufferRegion(const TensorRegion& lhs, const TensorRegion& rhs) {
-  if (!CompareBuffer(lhs->source.as_or_throw<tvm::tirx::BufferVar>(),
-                     rhs->source.as_or_throw<tvm::tirx::BufferVar>())) {
+  if (!CompareBuffer(lhs->source.as_or_throw<tvm::tirx::TensorVar>(),
+                     rhs->source.as_or_throw<tvm::tirx::TensorVar>())) {
     if (assert_mode_) {
       std::ostringstream os;
       os << "CompareBufferRegion returning false due to buffer mismatch: lhs->source="
-         << lhs->source.as_or_throw<tvm::tirx::BufferVar>()
-         << " vs rhs->source=" << rhs->source.as_or_throw<tvm::tirx::BufferVar>();
+         << lhs->source.as_or_throw<tvm::tirx::TensorVar>()
+         << " vs rhs->source=" << rhs->source.as_or_throw<tvm::tirx::TensorVar>();
       EmitError(os.str());
     }
     return false;
@@ -558,7 +550,7 @@ bool TensorizeComparator::CompareBufferRegion(const TensorRegion& lhs, const Ten
     return false;
   }
 
-  auto it = buffer_indices_.find(lhs->source.as_or_throw<tvm::tirx::BufferVar>());
+  auto it = buffer_indices_.find(lhs->source.as_or_throw<tvm::tirx::TensorVar>());
   if (it == buffer_indices_.end()) {
     // Update base indices for the buffer, this can only happen if it is visiting the scope block.
     TVM_FFI_ICHECK(is_scope_block);
@@ -566,7 +558,7 @@ bool TensorizeComparator::CompareBufferRegion(const TensorRegion& lhs, const Ten
     indices_base.reserve(lhs->region.size());
     for (int i = 0; i < offset; i++) {
       // High-dim region must be element-wise
-      if (!is_one(lhs->region[i]->extent)) {
+      if (!IsOne(lhs->region[i]->extent)) {
         if (assert_mode_) {
           std::ostringstream os;
           os << "CompareBufferRegion returning false because buffer extent high-dim region must be "
@@ -592,14 +584,14 @@ bool TensorizeComparator::CompareBufferRegion(const TensorRegion& lhs, const Ten
         return false;
       }
     }
-    buffer_indices_.emplace(lhs->source.as_or_throw<tvm::tirx::BufferVar>(),
+    buffer_indices_.emplace(lhs->source.as_or_throw<tvm::tirx::TensorVar>(),
                             std::move(indices_base));
   } else {
     // Check the base indices are consistent.
     const std::vector<PrimExpr>& indices_base = it->second;
     for (int i = 0; i < offset; i++) {
       // High-dim region must be element-wise
-      if (!is_one(lhs->region[i]->extent)) {
+      if (!IsOne(lhs->region[i]->extent)) {
         if (assert_mode_) {
           std::ostringstream os;
           os << "CompareBufferRegion returning false because buffer extent high-dim region must be "
@@ -612,7 +604,7 @@ bool TensorizeComparator::CompareBufferRegion(const TensorRegion& lhs, const Ten
       if (!lhs_analyzer_->CanProveEqual(indices_base[i], lhs->region[i]->min)) {
         if (assert_mode_) {
           std::ostringstream os;
-          os << "BufferVar base index consistency check failed due to unequal index base: "
+          os << "TensorVar base index consistency check failed due to unequal index base: "
                 "indices_base[i]="
              << indices_base[i] << " vs lhs->region[i]->min=" << lhs->region[i]->min;
           EmitError(os.str());
@@ -647,16 +639,18 @@ bool TensorizeComparator::CompareBufferRegion(const TensorRegion& lhs, const Ten
   return true;
 }
 
-// Comparator for BufferStoreNode and TensorLoadNode
-inline BufferVar GetBufferAccessBuffer(const BufferStoreNode* op) { return op->buffer; }
-inline BufferVar GetBufferAccessBuffer(const TensorLoadNode* op) {
-  return op->source.as_or_throw<tvm::tirx::BufferVar>();
+// Comparator for TensorStoreNode and TensorLoadNode
+inline TensorVar GetBufferAccessBuffer(const TensorStoreNode* op) {
+  return op->dest.as_or_throw<TensorVar>();
+}
+inline TensorVar GetBufferAccessBuffer(const TensorLoadNode* op) {
+  return op->source.as_or_throw<tvm::tirx::TensorVar>();
 }
 
 template <typename T>
 bool TensorizeComparator::CompareBufferAccess(const T* lhs, const T* rhs) {
-  BufferVar lhs_buffer = GetBufferAccessBuffer(lhs);
-  BufferVar rhs_buffer = GetBufferAccessBuffer(rhs);
+  TensorVar lhs_buffer = GetBufferAccessBuffer(lhs);
+  TensorVar rhs_buffer = GetBufferAccessBuffer(rhs);
   if (!CompareBuffer(lhs_buffer, rhs_buffer)) return false;
   int offset = static_cast<int>(lhs->indices.size()) - static_cast<int>(rhs->indices.size());
   if (offset < 0) {
@@ -746,12 +740,12 @@ bool AutoTensorizeComparator::Dispatch_(const SBlockNode* op, const Stmt& other)
       return false;
     }
     for (const IterVar& block_iter : op->iter_vars) {
-      inner_iter_dom_map_.Set(block_iter->var, sym::IntSet::FromRange(block_iter->dom));
+      inner_iter_dom_map_.Set(block_iter->var, sym::IntSet::FromRange(block_iter->dom.value()));
     }
   } else {
     auto collect_iter = [&](const SBlockNode* op, std::vector<IterVar>& iters) -> bool {
       for (const auto& iter : op->iter_vars) {
-        analyzer_->Bind(iter->var, iter->dom);
+        analyzer_->Bind(iter->var, iter->dom.value());
         if (iter->iter_type == IterVarType::kDataPar ||
             iter->iter_type == IterVarType::kCommReduce) {
           iters.push_back(iter);
@@ -772,7 +766,7 @@ bool AutoTensorizeComparator::Dispatch_(const SBlockNode* op, const Stmt& other)
   return Dispatch(op->body, rhs->body);
 }
 
-bool AutoTensorizeComparator::CompareBuffer(const BufferVar& lhs, const BufferVar& rhs) {
+bool AutoTensorizeComparator::CompareBuffer(const TensorVar& lhs, const TensorVar& rhs) {
   if (lhs.same_as(rhs)) return true;
   auto it = rhs_buffer_map_.find(rhs);
   bool equal;
@@ -788,19 +782,19 @@ bool AutoTensorizeComparator::CompareBuffer(const BufferVar& lhs, const BufferVa
     } else {
       equal = lhs->dtype == rhs->dtype;
       if (equal) {
-        equal_map_[lhs.var()] = rhs.var();
+        equal_map_.insert_or_assign(lhs.var(), rhs.var());
       }
     }
     if (equal) {
-      rhs_buffer_map_[rhs] = lhs;
-      lhs_buffer_map_[lhs] = rhs;
+      rhs_buffer_map_.insert_or_assign(rhs, lhs);
+      lhs_buffer_map_.insert_or_assign(lhs, rhs);
     }
   }
   return equal;
 }
 
-bool AutoTensorizeComparator::Dispatch_(const BufferStoreNode* op, const Stmt& other) {
-  const auto* rhs = other.as<BufferStoreNode>();
+bool AutoTensorizeComparator::Dispatch_(const TensorStoreNode* op, const Stmt& other) {
+  const auto* rhs = other.as<TensorStoreNode>();
   return CompareBufferAccess(op, rhs) && Dispatch(op->value, rhs->value);
 }
 
@@ -811,8 +805,8 @@ bool AutoTensorizeComparator::Dispatch_(const TensorLoadNode* op, const PrimExpr
 
 template <typename T>
 bool AutoTensorizeComparator::CompareBufferAccess(const T* lhs, const T* rhs) {
-  BufferVar lhs_buffer = GetBufferAccessBuffer(lhs);
-  BufferVar rhs_buffer = GetBufferAccessBuffer(rhs);
+  TensorVar lhs_buffer = GetBufferAccessBuffer(lhs);
+  TensorVar rhs_buffer = GetBufferAccessBuffer(rhs);
   if (!CompareBuffer(lhs_buffer, rhs_buffer)) return false;
   auto it_lhs = lhs_buffer_indices_map_.find(lhs_buffer);
   if (it_lhs == lhs_buffer_indices_map_.end()) {

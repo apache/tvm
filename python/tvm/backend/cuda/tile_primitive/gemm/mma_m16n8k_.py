@@ -21,15 +21,10 @@ from dataclasses import dataclass
 
 from tvm.script import tirx as T
 from tvm.sym.analyzer import Analyzer
-from tvm.tirx import PrimFunc
+from tvm.tirx import Function
 from tvm.tirx.layout import TileLayout
-from tvm.tirx.operator.tile_primitive import (
-    DispatchContext,
-    fail,
-    predicate,
-    register_dispatch,
-)
-from tvm.tirx.tile_primitive import TilePrimitiveCall
+from tvm.tirx.operator.tile_primitive import DispatchContext, fail
+from tvm.tirx.tensor_instruction import TensorCall
 
 
 @dataclass(frozen=True)
@@ -220,7 +215,7 @@ def _same_iters(a, b):
     )
 
 
-def _full_active_lanes(op: TilePrimitiveCall, sctx: DispatchContext):
+def _full_active_lanes(op: TensorCall, sctx: DispatchContext):
     """The active thread set (sctx.intra) must be complete and un-narrowed.
 
     mma.sync.aligned is collective over every active thread; an enclosing if
@@ -235,9 +230,9 @@ def _full_active_lanes(op: TilePrimitiveCall, sctx: DispatchContext):
         if tx is None:
             return False, "cta scope needs threadIdx.x in launch_params"
         try:
-            full["warpid"] = int(tx.dom.extent) // 32
+            full["warpid"] = int(tx[1]) // 32
         except (TypeError, ValueError):
-            return False, f"non-static threadIdx.x extent {tx.dom.extent}"
+            return False, f"non-static threadIdx.x extent {tx[1]}"
     for axis, rng in sctx.intra.items():
         if axis not in full:
             return False, f"unsupported active-set axis {axis!r}"
@@ -249,7 +244,7 @@ def _full_active_lanes(op: TilePrimitiveCall, sctx: DispatchContext):
     return True
 
 
-def _no_replica(op: TilePrimitiveCall, sctx: DispatchContext):
+def _no_replica(op: TensorCall, sctx: DispatchContext):
     """All operand layouts must have no replica (no broadcast/duplicated axes)."""
     for region, name in zip(op.args[:4], ("D", "A", "B", "C")):
         if region.source.layout.replica:
@@ -257,17 +252,7 @@ def _no_replica(op: TilePrimitiveCall, sctx: DispatchContext):
     return True
 
 
-@register_dispatch(
-    "gemm",
-    "cuda",
-    variant="mma.m16n8k*",
-    priority=10,
-    when=[
-        predicate("full_active_lanes", _full_active_lanes),
-        predicate("no_replica", _no_replica),
-    ],
-)
-def gemm_cuda_mma_dispatch(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
+def gemm_cuda_mma_dispatch(op: TensorCall, sctx: DispatchContext) -> Function:
     """``gemm`` -> warp-level ``mma.sync`` of the m16n8k* family.
 
     This is the ``"mma.m16n8k*"`` variant. It targets the m16n8k* tensor-core
@@ -556,7 +541,7 @@ def gemm_cuda_mma_dispatch(op: TilePrimitiveCall, sctx: DispatchContext) -> Prim
     n_rN = inst.n // 4
     n_kHi = inst.k // (4 * inst.k_pack)
 
-    @T.prim_func(check_well_formed=False)
+    @T.function(check_well_formed=False)
     def impl():
         d_local = D.local(*d_shape, layout=D_reg)
         c_local = C.local(*c_shape, layout=C_reg)
@@ -570,7 +555,7 @@ def gemm_cuda_mma_dispatch(op: TilePrimitiveCall, sctx: DispatchContext) -> Prim
                 # Initialize D[m, n]: copy C (beta==1) or clear to 0 (beta==0).
                 for rM in T.unroll(n_rM):
                     for rN in T.unroll(n_rN):
-                        if use_c:
+                        if T.constexpr(use_c):
                             d_local[m, n, rM, rN] = c_local[m, n, rM, rN]
                         else:
                             d_local[m, n, rM, rN] = T.float32(0)

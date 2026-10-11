@@ -43,11 +43,11 @@ def test_e2m1_vector_conversions(promoted_dtype):
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(
-            A: T.Buffer((vector_length,), native_dtype),
-            B: T.Buffer((vector_length,), native_dtype),
-            C: T.Buffer((vector_length,), native_dtype),
+            A: T.Tensor((vector_length,), native_dtype),
+            B: T.Tensor((vector_length,), native_dtype),
+            C: T.Tensor((vector_length,), native_dtype),
         ):
             T.func_attr({"tirx.noalias": True})
             for i_0 in T.thread_binding(vector_length // 32, thread="blockIdx.x"):
@@ -112,10 +112,10 @@ def test_e2m1_vector_conversions(promoted_dtype):
 def _shuffle_reinterpret_module(n, num_blocks, vector_length, num_elem_per_storage):
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(
-            A: T.Buffer((n // num_elem_per_storage,), "uint32"),
-            B: T.Buffer((n,), "float16"),
+            A: T.Tensor((n // num_elem_per_storage,), "uint32"),
+            B: T.Tensor((n,), "float16"),
         ):
             T.func_attr({"tirx.noalias": True})
             for i_0 in T.thread_binding(num_blocks, thread="blockIdx.x"):
@@ -124,7 +124,6 @@ def _shuffle_reinterpret_module(n, num_blocks, vector_length, num_elem_per_stora
                         B[i_0 * 32 * vector_length + i_1 * vector_length + i_2] = T.Shuffle(
                             [
                                 T.reinterpret(
-                                    "float4_e2m1fnx2",
                                     T.bitwise_and(
                                         T.shift_right(
                                             A[
@@ -149,6 +148,7 @@ def _shuffle_reinterpret_module(n, num_blocks, vector_length, num_elem_per_stora
                                         ),
                                         T.uint32((1 << 4 * 2) - 1),
                                     ).astype("uint8"),
+                                    ty="float4_e2m1fnx2",
                                 ).astype("float16x2")
                             ],
                             indices=[(i_0 * 32 * vector_length + i_1 * vector_length + i_2) % 2],
@@ -160,17 +160,16 @@ def _shuffle_reinterpret_module(n, num_blocks, vector_length, num_elem_per_stora
 def _scalar_reinterpret_module(n, num_blocks, vector_length, num_elem_per_storage):
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(
-            A: T.Buffer((n // num_elem_per_storage,), "uint32"),
-            B: T.Buffer((n,), "float16"),
+            A: T.Tensor((n // num_elem_per_storage,), "uint32"),
+            B: T.Tensor((n,), "float16"),
         ):
             T.func_attr({"tirx.noalias": True})
             for i_0 in T.thread_binding(num_blocks, thread="blockIdx.x"):
                 for i_1 in T.thread_binding(32, thread="threadIdx.x"):
                     for i_2 in T.vectorized(vector_length):
                         B[i_0 * 32 * vector_length + i_1 * vector_length + i_2] = T.reinterpret(
-                            "float4_e2m1fn",
                             T.bitwise_and(
                                 T.shift_right(
                                     A[
@@ -185,6 +184,7 @@ def _scalar_reinterpret_module(n, num_blocks, vector_length, num_elem_per_storag
                                 ),
                                 T.uint32((1 << 4) - 1),
                             ).astype("uint8"),
+                            ty="float4_e2m1fn",
                         ).astype("float16")
 
     return Module
@@ -231,10 +231,10 @@ def test_e2m1_scalar_buffer_offset():
     """
     n = 128
 
-    @T.prim_func
-    def func(A_raw: T.Buffer((n // 2,), "uint8"), B: T.Buffer((n,), "float16")):
+    @T.function
+    def func(A_raw: T.Tensor((n // 2,), "uint8"), B: T.Tensor((n,), "float16")):
         T.func_attr({"tir.noalias": True})
-        A = T.decl_buffer((n,), "float4_e2m1fn", data=A_raw.data)
+        A = T.decl_tensor((n,), "float4_e2m1fn", data=A_raw.data)
         for bx in T.thread_binding(n // 32, thread="blockIdx.x"):
             for tx in T.thread_binding(32, thread="threadIdx.x"):
                 B[bx * 32 + tx] = T.Cast("float16", A[bx * 32 + tx])

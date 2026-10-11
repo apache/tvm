@@ -22,6 +22,7 @@ from typing import Literal
 
 import tvm_ffi
 
+import tvm
 from tvm import s_tir, sym, tirx
 from tvm.target import Target
 
@@ -31,26 +32,29 @@ from ..analysis import (
     collect_vars_used_in_prim_expr,
     get_max_shared_memory_per_block,
     is_broadcast_epilogue,
-    normalize_prim_func,
+    normalize_function,
 )
+from ..analysis.common_analysis import _buffer_region_offset
 from ..base import auto_vectorize, get_bytes, get_extent, try_inline_contiguous_spatial
 from .base import GPUScheduleRule
 
 
 def _get_reduction_expr(block: s_tir.SBlock) -> tirx.Expr | None:
     # Detect and return `Y` in `X[...] = X[...] + Y`
-    buffer_store = block.body
-    if not isinstance(buffer_store, tirx.BufferStore):
+    if len(block.body) != 1:
         return None
-    if not isinstance(buffer_store.value, tirx.Add):
+    tensor_store = block.body[0]
+    if not isinstance(tensor_store, tvm.ir.TensorStore):
+        return None
+    if not isinstance(tensor_store.value, tirx.Add):
         return None
     if not tvm_ffi.structural_equal(
-        buffer_store.value.a,
-        tirx.BufferLoad(buffer_store.buffer, block.body.indices),
+        tensor_store.value.a,
+        tirx.TensorLoad(tensor_store.dest, tensor_store.indices),
         map_free_vars=True,
     ):
         return None
-    return buffer_store.value.b
+    return tensor_store.value.b
 
 
 def _has_pad_einsum_compatible_access(block: s_tir.SBlock) -> bool:
@@ -64,7 +68,7 @@ def _has_pad_einsum_compatible_access(block: s_tir.SBlock) -> bool:
     )
 
 
-def is_gemv(sch: s_tir.Schedule, block_info: SBlockInfo) -> list[tirx.Buffer] | None:
+def is_gemv(sch: s_tir.Schedule, block_info: SBlockInfo) -> list[tirx.Var] | None:
     """Check if the block is a low batch GEMM.
 
     Parameters
@@ -79,7 +83,7 @@ def is_gemv(sch: s_tir.Schedule, block_info: SBlockInfo) -> list[tirx.Buffer] | 
 
     Returns
     -------
-    ret : Optional[List[tirx.Buffer]]
+    ret : Optional[List[tirx.Var]]
         The vector-like buffers used in the low batch GEMM if it is a low batch GEMM,
         otherwise None.
     """
@@ -109,7 +113,7 @@ def is_gemv(sch: s_tir.Schedule, block_info: SBlockInfo) -> list[tirx.Buffer] | 
         for iter_var in block_stmt.iter_vars
         if not isinstance(iter_var.dom.extent, tirx.IntImm)
     )
-    if symbolic_iter_var.iter_type != tirx.stmt.IterVar.DataPar:
+    if symbolic_iter_var.iter_type != s_tir.IterVar.DataPar:
         return None
     ret = [
         read.source
@@ -139,8 +143,7 @@ def detect_dominant_read(block: s_tir.SBlock, const_iter_vars: set[tirx.Var]) ->
             num_read_iters = len(tir_vars)
             dominant_read = buffer_region
     assert dominant_read is not None
-    (result,) = dominant_read.source.offset_of([e.min for e in dominant_read.region])
-    return result
+    return _buffer_region_offset(dominant_read)
 
 
 def normalize(
@@ -211,14 +214,14 @@ class LowBatchGEMV(GPUScheduleRule):
 
     def apply(  # pylint: disable=too-many-locals,too-many-branches,too-many-return-statements
         self,
-        func: tirx.PrimFunc,
+        func: tirx.Function,
         target: Target,
         _: bool,
     ) -> None | s_tir.Schedule | list[s_tir.Schedule]:
-        if not isinstance(func, tirx.PrimFunc) or not self.is_target_available(target):
+        if not isinstance(func, tirx.Function) or not self.is_target_available(target):
             return None
         sch = s_tir.Schedule(func)
-        block_infos = normalize_prim_func(sch)
+        block_infos = normalize_function(sch)
         if block_infos is None:
             return None
         reduction_block_infos = [
@@ -236,7 +239,7 @@ class LowBatchGEMV(GPUScheduleRule):
             for iter in reduction_block_info.iters
         ]
         sch.pad_einsum(reduction_block_info.block_rv, pad_value)
-        block_infos = normalize_prim_func(sch)
+        block_infos = normalize_function(sch)
         dequantize_block = None
         pad_input_block = None
         for block_info in block_infos:
@@ -308,7 +311,7 @@ class LowBatchGEMV(GPUScheduleRule):
         block: s_tir.schedule.SBlockRV,
         dequantize_block: s_tir.schedule.SBlockRV | None,
         pad_input_block: s_tir.schedule.SBlockRV | None,
-        vector_input_buffers: list[tirx.Buffer],
+        vector_input_buffers: list[tirx.Var],
         epilogue_info: SBlockInfo | None,
         batch_pad: int,
     ):
@@ -396,7 +399,7 @@ class LowBatchGEMV(GPUScheduleRule):
                 V_shared = sch.cache_read(rf, read_buffer_index=0, storage_scope="shared")
                 sch.compute_at(V_shared, tr, preserve_unit_loops=True)
                 l = sch.get_loops(block=V_shared)[-1]
-                loop: tirx.For = sch.get(l)
+                loop: tvm.ir.For = sch.get(l)
                 if isinstance(loop.extent, tirx.IntImm):
                     # avoid introducing predicates when vector length is too large
                     vec_length = max(
@@ -470,30 +473,23 @@ class LowBatchGEMV(GPUScheduleRule):
 
             sch.annotate(
                 block_or_loop=sch.get_loops(rf)[4],
-                ann_key="pragma_auto_unroll_max_step",
+                ann_key="auto_unroll_max_step",
                 ann_val=unroll_factor,
             )
-            sch.annotate(
-                block_or_loop=sch.get_loops(rf)[4], ann_key="pragma_unroll_explicit", ann_val=1
-            )
+            sch.annotate(block_or_loop=sch.get_loops(rf)[4], ann_key="unroll_explicit", ann_val=1)
 
             sch.annotate(
                 block_or_loop=sch.get_loops(rf2)[4],
-                ann_key="pragma_auto_unroll_max_step",
+                ann_key="auto_unroll_max_step",
                 ann_val=unroll_factor,
             )
-            sch.annotate(
-                block_or_loop=sch.get_loops(rf2)[4], ann_key="pragma_unroll_explicit", ann_val=1
-            )
+            sch.annotate(block_or_loop=sch.get_loops(rf2)[4], ann_key="unroll_explicit", ann_val=1)
 
             if LOAD_V_SHARED:
                 sch.annotate(
                     block_or_loop=sch.get_loops(V_shared)[-4],
-                    ann_key="pragma_unroll_explicit",
+                    ann_key="unroll_explicit",
                     ann_val=unroll_factor,
-                )
-                sch.annotate(
-                    block_or_loop=sch.get_loops(V_shared)[-4], ann_key="pragma_vectorize", ann_val=1
                 )
 
             epilogue = sch.get_consumers(gemv)
@@ -621,7 +617,7 @@ class LowBatchGEMV(GPUScheduleRule):
         block: s_tir.schedule.SBlockRV,
         dequantize_block: s_tir.schedule.SBlockRV | None,
         pad_input_block: s_tir.schedule.SBlockRV | None,
-        vector_input_buffers: list[tirx.Buffer],
+        vector_input_buffers: list[tirx.Var],
         epilogue_info: SBlockInfo | None,
         batch_pad: int,
     ):

@@ -47,8 +47,7 @@ using VarIdentitySet = std::set<Var, VarIdentityLess>;
 TVM_FFI_STATIC_INIT_BLOCK() { DataflowBlockRewriteNode::RegisterReflection(); }
 
 DataflowBlockRewrite::DataflowBlockRewrite(DataflowBlock dfb, Function root_fn) {
-  auto n = ffi::make_object<DataflowBlockRewriteNode>();
-  n->dfb_ = dfb;
+  auto n = ffi::make_object<DataflowBlockRewriteNode>(dfb);
   n->root_fn_ = root_fn;
   n->original_fn_ptr_ = root_fn.get();
   auto p = FunctionUseDef(root_fn);
@@ -73,7 +72,7 @@ void DataflowBlockRewriteNode::ReplaceAllUses(Var old_var, Var new_var) {
     const DataflowBlockNode* const to_catch;
 
    public:
-    DataflowBlock caught;
+    ffi::Optional<DataflowBlock> caught;
 
     ReplaceAllUsePass(Var old_var, Var new_var, const DataflowBlockNode* to_catch)
         : old_var(old_var), new_var(new_var), to_catch(to_catch) {}
@@ -99,7 +98,7 @@ void DataflowBlockRewriteNode::ReplaceAllUses(Var old_var, Var new_var) {
   ReplaceAllUsePass replacer(old_var, new_var, dfb_.get());
   if (root_fn_) {
     root_fn_ = replacer.VisitExpr(root_fn_.value()).as_or_throw<Function>();
-    dfb_ = replacer.caught;
+    dfb_ = replacer.caught.value();
   } else {
     dfb_ = replacer.VisitBindingBlock(dfb_).as_or_throw<DataflowBlock>();
   }
@@ -156,7 +155,7 @@ void DataflowBlockRewriteNode::Add(Binding binding) {
       return std::make_pair(mc->var, mc->value);
     }
     TVM_FFI_THROW(InternalError) << "Unsupported binding type";
-    return std::make_pair(Var{}, Expr{});
+    throw;
   }();
 
   TVM_FFI_ICHECK(0 == to_users_.count(var)) << var << " has been defined so cannot be added.";

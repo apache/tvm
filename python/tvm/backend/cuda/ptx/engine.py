@@ -37,13 +37,14 @@ per-instruction generated or hand-written code:
   ``T.ptx.ld.acquire.gpu.global_.b32(val, ptr)``.
 """
 
+from tvm_ffi import get_global_func, register_global_func, structural_equal
+
 from tvm.backend.cuda.codegen.registry import register_codegen
 from tvm.backend.cuda.codegen.utils import parse_str
 from tvm.backend.cuda.op import cuda_cvta_generic_to_shared, cuda_func_call
-from tvm.ir import Call, Op, TensorLoad
+from tvm.ir import Call, Op, StringImm, TensorLoad, const
 from tvm.ir.op import register_op_attr
 from tvm.ir.type import PointerType, PrimType
-from tvm.runtime import const
 from tvm.tirx.expr import CallEffectKind, IntImm
 from tvm.tirx.op import call_intrin, reinterpret
 
@@ -105,9 +106,16 @@ def register_table(table: dict[str, InstructionEntry]) -> None:
         # `PTXNamespace.__getattr__`. The escape is the identity for every
         # other family, and `gen_stubs` already spells the attribute this way.
         family = escape_token(entry.family)
-        register_op_attr(entry.op_name, "TScriptPrinterName", f"ptx.{family}")
+        register_op_attr(entry.op_name, "TScriptPrinterName", f"tirx.ptx.{family}")
         register_op_attr(entry.op_name, "TIRxOpCategory", "device_intrin")
         register_op_attr(entry.op_name, "TDeviceIntrinsicNamespace", "ptx")
+        register_op_attr(entry.op_name, "TFixedReturnType", PrimType("void"))
+        if Op.get(entry.op_name).get_attr("__tvm_doc_translate_op_call__") is None:
+            register_op_attr(
+                entry.op_name,
+                "__tvm_doc_translate_op_call__",
+                get_global_func("script.printer.PTXCallDocTranslate")(),
+            )
         register_codegen(f"ptx.{entry.name}")(_make_codegen(entry))
 
 
@@ -117,9 +125,16 @@ def register_addr() -> None:
     op = Op.get(_ADDR_OP_NAME)
     op.add_arg("base", "The base pointer.")
     op.add_arg("byte_offset", "The offset in bytes.")
-    register_op_attr(_ADDR_OP_NAME, "TScriptPrinterName", "ptx.addr")
+    register_op_attr(_ADDR_OP_NAME, "TScriptPrinterName", "tirx.ptx.addr")
     register_op_attr(_ADDR_OP_NAME, "TIRxOpCategory", "device_intrin")
     register_op_attr(_ADDR_OP_NAME, "TDeviceIntrinsicNamespace", "ptx")
+    register_op_attr(_ADDR_OP_NAME, "FInferType", _infer_addr_type)
+    if op.get_attr("__tvm_doc_translate_op_call__") is None:
+        register_op_attr(
+            _ADDR_OP_NAME,
+            "__tvm_doc_translate_op_call__",
+            get_global_func("script.printer.PTXCallDocTranslate")(),
+        )
     register_codegen("ptx.addr")(_unconsumed_addr_codegen)
 
 
@@ -128,6 +143,10 @@ def _unconsumed_addr_codegen(*_args):
         "T.ptx.addr(...) must be consumed by a PTX address operand that supports "
         "immediate byte offsets"
     )
+
+
+def _infer_addr_type(call):
+    return call.args[0].ty
 
 
 # ---------------------------------------------------------------------------
@@ -291,7 +310,7 @@ def _make_codegen(entry: InstructionEntry):
         # is forwarded as-is.
         forwarded = [rest[at[i]] for i in range(n_operands) if i not in imm_at and i not in sunk]
         forwarded += list(rest[n_present:])
-        return cuda_func_call(helper, *forwarded, source_code=source)
+        return cuda_func_call(helper, *forwarded, source)
 
     return codegen
 
@@ -408,7 +427,7 @@ def _coerce_operand(entry, slot, values, mod_map):
     re-check afterwards -- and a bare literal lane can take its dtype from the
     group instead of being typed on its own.
     """
-    # T.local_scalar / `x: T.float32` hand back a wrapper around the BufferLoad;
+    # T.local_scalar / `x: T.float32` hand back a wrapper around the TensorLoad;
     # unwrap once here so every kind sees the node itself. A PredArg is NOT
     # unwrapped here: whether the tag is present is the discriminator, so each
     # branch below has to be able to see it.
@@ -813,7 +832,9 @@ class _InstrChain:
             # ascending order, to restore the operand positions) and then the
             # register-class tags, whose indices are those same positions.
             args = list(args)
-            for flag in sorted(f for f in flags if f.startswith("s")):
+            for flag in sorted(
+                (f for f in flags if f.startswith("s")), key=lambda flag: int(flag[1:])
+            ):
                 args.insert(int(flag[1:]), SINK)
             for flag in flags:
                 if flag.startswith("p") and flag != "pred":
@@ -973,3 +994,20 @@ class PTXNamespace:
 
     def __repr__(self):
         return f"<T.ptx: {len(self._family_names())} instruction families>"
+
+
+@register_global_func("script.printer.PTXCallCanRoundtrip")
+def _ptx_call_can_roundtrip(call):
+    """Check that printed operands dispatch to the same PTX instruction."""
+    name = call.op.get_attr("TScriptPrinterName").rsplit(".", 1)[-1]
+    args = []
+    try:
+        for arg in call.args:
+            if isinstance(arg, StringImm):
+                arg = arg.value
+            elif isinstance(arg, Call) and arg.op.same_as(Op.get(_ADDR_OP_NAME)):
+                arg = AddrArg(*arg.args)
+            args.append(arg)
+        return structural_equal(call, getattr(PTXNamespace(), name)(*args))
+    except (ValueError, TypeError, IndexError, AttributeError):
+        return False

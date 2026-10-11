@@ -36,10 +36,11 @@ import operator
 
 from tvm.script import tirx as T
 from tvm.sym import Analyzer
-from tvm.tirx import PrimFunc, TilePrimitiveCall
+from tvm.tirx import Function
 from tvm.tirx.layout import TileLayout
 from tvm.tirx.operator.tile_primitive import DispatchContext
 from tvm.tirx.operator.tile_primitive.dispatcher import fail
+from tvm.tirx.tensor_instruction import TensorCall
 
 from ..common import get_st_extent
 from ..copy._common import _carve_tail, _verify_s_tail_contig
@@ -175,7 +176,7 @@ def _check_layout_operands_agree(plan, sctx) -> tuple[bool, str | None]:
 def is_reg_ewise(spec):
     """Predicate factory: dispatch accepted iff all operands in ``local`` scope."""
 
-    def check(op_call: TilePrimitiveCall, sctx: DispatchContext) -> tuple[bool, str | None]:
+    def check(op_call: TensorCall, sctx: DispatchContext) -> tuple[bool, str | None]:
         if not sctx.is_target("cuda"):
             return False, "non-cuda target"
         if sctx.scope_kind not in ("thread", "warp", "warpgroup", "cta"):
@@ -230,7 +231,7 @@ def _prod(it) -> int:
 # -----------------------------------------------------------------------------
 # Main entry
 # -----------------------------------------------------------------------------
-def emit_reg(op_call: TilePrimitiveCall, spec, sctx: DispatchContext) -> PrimFunc:
+def emit_reg(op_call: TensorCall, spec, sctx: DispatchContext) -> Function:
     plan, msg = spec.parse(op_call)
     if msg is not None or plan is None:
         fail(msg or "parse failed")
@@ -284,7 +285,7 @@ def _pick_vec_and_carve(spec, op_call, sctx, plan, per_op_mem_layouts):
     return 1, None, dict(per_op_mem_layouts)
 
 
-def _emit_induced(plan, spec, sctx, op_call, anchor_br) -> PrimFunc:
+def _emit_induced(plan, spec, sctx, op_call, anchor_br) -> Function:
     # Every buffer-region operand has a layout (enforced by predicate);
     # trivial / identity layouts are fine — the algorithm is robust to
     # layouts with no thread axes (strip is no-op, placeholders empty).
@@ -354,7 +355,7 @@ def _make_views_meta(per_op_carved, per_thread_total):
     iter strides at codegen time.
     """
     return {
-        op_br: T.decl_buffer(
+        op_br: T.decl_tensor(
             (per_thread_total,),
             op_br.source.dtype,
             op_br.source.data,
@@ -370,12 +371,12 @@ def _make_views_meta(per_op_carved, per_thread_total):
 # -----------------------------------------------------------------------------
 def _emit_induced_packed(
     plan, vec_impl, vec_len, outer_total, per_thread_total, per_op_carved, anchor_br
-) -> PrimFunc:
+) -> Function:
     extras = plan.extras
     srcs = plan.srcs
     dst_br = plan.dst
 
-    @T.prim_func(check_well_formed=False)
+    @T.function(check_well_formed=False)
     def impl():
         views = T.meta_var(_make_views_meta(per_op_carved, per_thread_total))
         # Serial loop (not T.unroll): T.unroll materializes each per-iter
@@ -389,7 +390,7 @@ def _emit_induced_packed(
             src_args = T.meta_var(
                 [
                     src.scalar
-                    if src.is_scalar
+                    if T.constexpr(src.is_scalar)
                     else (
                         views[src.buf_region],
                         [[f * vec_len + k] for k in range(vec_len)],
@@ -408,14 +409,14 @@ def _emit_induced_packed(
 # -----------------------------------------------------------------------------
 def _emit_induced_scalar(
     plan, spec, outer_total, per_thread_total, per_op_carved, anchor_br
-) -> PrimFunc:
+) -> Function:
     extras = plan.extras
     srcs = plan.srcs
     dst_br = plan.dst
     dst_dtype = dst_br.source.dtype
     compute = spec.compute_scalar
 
-    @T.prim_func(check_well_formed=False)
+    @T.function(check_well_formed=False)
     def impl():
         views = T.meta_var(_make_views_meta(per_op_carved, per_thread_total))
         # Serial loop (not T.unroll) — see _emit_induced_packed for why.
@@ -423,7 +424,10 @@ def _emit_induced_scalar(
             # Logical 1D coord = f (vec_len = 1 in scalar path); each
             # buffer's layout maps to physical at access time.
             src_vals = T.meta_var(
-                [src.scalar if src.is_scalar else views[src.buf_region][f] for src in srcs]
+                [
+                    src.scalar if T.constexpr(src.is_scalar) else views[src.buf_region][f]
+                    for src in srcs
+                ]
             )
             views[dst_br][f] = T.cast(compute(src_vals, extras, dst_dtype), dst_dtype)
 

@@ -71,8 +71,9 @@ class BufferTouchedDomain final : public s_tir::IRVisitorWithAnalyzer {
     return buffer_access_map_;
   }
 
-  Region FindUnion(const BufferVar& buffer, bool consider_loads, bool consider_stores) {
-    Region ret;
+  ffi::Array<ffi::Optional<Range>> FindUnion(const TensorVar& buffer, bool consider_loads,
+                                             bool consider_stores) {
+    ffi::Array<ffi::Optional<Range>> ret;
     auto kv = buffer_access_map_.find(buffer.get());
     if (kv == buffer_access_map_.end()) {
       LOG(WARNING) << "[s_tir::BufferDomainTouched] "
@@ -80,7 +81,6 @@ class BufferTouchedDomain final : public s_tir::IRVisitorWithAnalyzer {
       return ret;
     }
 
-    Range none;
     BufferTouches bounds;
     if (consider_loads && consider_stores) {
       bounds = std::get<CombinedAccess>(kv->second).set;
@@ -93,7 +93,7 @@ class BufferTouchedDomain final : public s_tir::IRVisitorWithAnalyzer {
           << "Must consider at least on of either loads and stores, but both are false";
     }
     for (size_t i = 0; i < bounds.size(); ++i) {
-      ret.push_back(sym::Union(bounds[i]).CoverRange(none));
+      ret.push_back(sym::Union(bounds[i]).CoverRange(std::nullopt));
     }
     return ret;
   }
@@ -102,7 +102,7 @@ class BufferTouchedDomain final : public s_tir::IRVisitorWithAnalyzer {
   using Parent = s_tir::IRVisitorWithAnalyzer;
 
   ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* op) final {
-    BufferVar buffer = op->source.as_or_throw<tvm::tirx::BufferVar>();
+    TensorVar buffer = op->source.as_or_throw<tvm::tirx::TensorVar>();
     // Record load-exclusive buffer access
     Touch(&std::get<LoadAccess>(buffer_access_map_[buffer.get()]).set, op->indices);
     // Record load-store inclusive buffer access
@@ -110,11 +110,14 @@ class BufferTouchedDomain final : public s_tir::IRVisitorWithAnalyzer {
     return Parent::Visit_(op);
   }
 
-  ffi::Optional<VisitInterrupt> Visit_(const BufferStoreNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const TensorStoreNode* op) final {
     // Record store-exclusive buffer access
-    Touch(&std::get<StoreAccess>(buffer_access_map_[op->buffer.get()]).set, op->indices);
+    Touch(&std::get<StoreAccess>(buffer_access_map_[op->dest.as_or_throw<TensorVar>().get()]).set,
+          op->indices);
     // Record load-store inclusive buffer access
-    Touch(&std::get<CombinedAccess>(buffer_access_map_[op->buffer.get()]).set, op->indices);
+    Touch(
+        &std::get<CombinedAccess>(buffer_access_map_[op->dest.as_or_throw<TensorVar>().get()]).set,
+        op->indices);
     return Parent::Visit_(op);
   }
 
@@ -134,23 +137,23 @@ class BufferTouchedDomain final : public s_tir::IRVisitorWithAnalyzer {
   std::unordered_map<const VarNode*, BufferDomainAccess> buffer_access_map_;
 };
 
-Region DomainTouched(const Stmt& stmt, const BufferVar& buffer, bool consider_loads,
-                     bool consider_stores) {
+ffi::Array<ffi::Optional<Range>> DomainTouched(const Stmt& stmt, const TensorVar& buffer,
+                                               bool consider_loads, bool consider_stores) {
   auto visitor = ffi::make_object<BufferTouchedDomain>();
   visitor->Visit(stmt);
   return visitor->FindUnion(buffer, consider_loads, consider_stores);
 }
 
-ffi::Map<BufferVar, ffi::Array<ffi::ObjectRef>> DomainTouchedAccessMap(const PrimFunc& func) {
+ffi::Map<TensorVar, ffi::Array<ffi::ObjectRef>> DomainTouchedAccessMap(const Function& func) {
   auto visitor = ffi::make_object<BufferTouchedDomain>();
   visitor->Visit(func->body);
   auto buffer_access_map = visitor->GetAccessedBufferRegions();
-  ffi::Map<BufferVar, ffi::Array<ffi::ObjectRef>> ret;
+  ffi::Map<TensorVar, ffi::Array<ffi::ObjectRef>> ret;
   for (auto& var : func->params) {
-    if (!var->ty.as<BufferTypeNode>()) {
+    if (!var->ty.as<TensorTypeNode>()) {
       continue;
     }
-    BufferVar buffer = var.as_or_throw<BufferVar>();
+    TensorVar buffer = var.as_or_throw<TensorVar>();
     auto& access = buffer_access_map[buffer.get()];
     ffi::Array<ffi::Array<IntSet>> loads, stores, combined;
     for (std::vector<IntSet>& touch : std::get<LoadAccess>(access).set) {

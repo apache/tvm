@@ -53,17 +53,17 @@ class LayoutTransform(AdrenoScheduleRule):
     # TODO: Try using Coalesced Writes...
     def apply(  # pylint: disable=too-many-locals
         self,
-        func: tirx.PrimFunc | s_tir.Schedule,
+        func: tirx.Function | s_tir.Schedule,
         target: Target,
         _: bool,
     ) -> None | s_tir.Schedule | list[s_tir.Schedule]:
         # pylint: disable=invalid-name
-        if not (isinstance(func, tirx.PrimFunc | s_tir.Schedule)) or not self.is_target_available(
+        if not (isinstance(func, tirx.Function | s_tir.Schedule)) or not self.is_target_available(
             target
         ):
             return None
 
-        if isinstance(func, tirx.PrimFunc):
+        if isinstance(func, tirx.Function):
             sch = s_tir.Schedule(func)
             sch.work_on("main")
         elif isinstance(func, s_tir.Schedule):

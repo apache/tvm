@@ -34,10 +34,10 @@ using SubscriptSlice = ffi::Array<ffi::Variant<
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::EnsureTypeAttrColumn("__subscript_expr_realize__");
+  refl::EnsureTypeAttrColumn(tvm::type_attr::kSubscriptExprRealize);
   refl::TypeAttrDef<TupleTypeNode>().def(
-      "__subscript_expr_realize__",
-      [](Expr value, SubscriptSlice slice, Span span) -> ffi::ObjectRef {
+      tvm::type_attr::kSubscriptExprRealize,
+      [](Expr value, SubscriptSlice slice, Location loc) -> ffi::ObjectRef {
         TVM_FFI_CHECK_EQ(slice.size(), 1, IndexError)
             << "A tuple expression requires exactly one index";
         auto index = slice[0].as<PrimExpr>();
@@ -45,17 +45,18 @@ TVM_FFI_STATIC_INIT_BLOCK() {
         const auto* imm = index.value().as<IntImmNode>();
         TVM_FFI_CHECK(imm != nullptr, TypeError)
             << "A tuple expression requires a constant integer index";
-        return TupleGetItem(value, imm->value.as<int>().value(), span);
+        return TupleGetItem(value, imm->value.as<int>().value(), loc);
       });
   refl::GlobalDef().def(
-      "ir.SubscriptExprRealize", [](Expr value, SubscriptSlice slice, Span span) -> ffi::ObjectRef {
+      "ir.SubscriptExprRealize",
+      [](Expr value, SubscriptSlice slice, Location loc) -> ffi::ObjectRef {
         TVM_FFI_CHECK(value.defined(), TypeError) << "Cannot subscript an undefined expression";
-        static refl::TypeAttrColumn realize_column("__subscript_expr_realize__");
+        static refl::TypeAttrColumn realize_column(tvm::type_attr::kSubscriptExprRealize);
         ffi::AnyView packed_realize = realize_column[value->ty->type_index()];
         TVM_FFI_CHECK(packed_realize != nullptr, TypeError)
             << "Type " << value->ty->GetTypeKey() << " does not support subscript";
         ffi::ObjectRef result =
-            packed_realize.cast<ffi::Function>()(value, slice, span).cast<ffi::ObjectRef>();
+            packed_realize.cast<ffi::Function>()(value, slice, loc).cast<ffi::ObjectRef>();
         TVM_FFI_CHECK(result.defined(), TypeError)
             << "__subscript_expr_realize__ for type " << value->ty->GetTypeKey()
             << " returned an undefined object";

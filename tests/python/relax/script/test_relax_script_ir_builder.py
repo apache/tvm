@@ -19,6 +19,7 @@
 import tvm
 import tvm.testing
 from tvm import relax, tirx
+from tvm.relax import ExternFunc as _ExternFunc
 from tvm.relax.script import ir_builder as R
 from tvm.script.ir_builder.base import IRBuilder
 
@@ -38,11 +39,17 @@ def test_function_simple():
             x = R.arg_("x", relax.TensorType((128, 128), "float32"))
             R.func_ret_type_(relax.TensorType(dtype="float32", ndim=2))
             y = R.emit(
-                R.call_dps_packed("extern_func", x, relax.TensorType((128, 128), dtype="float32"))
+                R.call_dps_packed(
+                    _ExternFunc("extern_func"),
+                    x,
+                    ty_args=[relax.TensorType((128, 128), dtype="float32")],
+                )
             )
             out = R.emit(
                 R.call_dps_packed(
-                    "extern_dps_func", y, relax.TensorType((128, 128), dtype="float32")
+                    _ExternFunc("extern_dps_func"),
+                    y,
+                    ty_args=[relax.TensorType((128, 128), dtype="float32")],
                 )
             )
             IRBuilder.name("out", out)
@@ -53,11 +60,17 @@ def test_function_simple():
     bb = relax.BlockBuilder()
     with bb.function("foo", (x,), attrs={"Primitive": True}):
         y = bb.emit(
-            relax.call_dps_packed("extern_func", x, relax.TensorType((128, 128), dtype="float32"))
+            relax.call_dps_packed(
+                _ExternFunc("extern_func"),
+                x,
+                ty_args=[relax.TensorType((128, 128), dtype="float32")],
+            )
         )
         out = bb.emit(
             relax.call_dps_packed(
-                "extern_dps_func", y, relax.TensorType((128, 128), dtype="float32")
+                _ExternFunc("extern_dps_func"),
+                y,
+                ty_args=[relax.TensorType((128, 128), dtype="float32")],
             )
         )
         bb.emit_func_output(out)
@@ -137,7 +150,9 @@ def test_dataflow_block():
             with R.dataflow() as df:
                 lv0 = R.emit(
                     R.call_dps_packed(
-                        "extern_func", x, relax.TensorType((128, 128), dtype="float32")
+                        _ExternFunc("extern_func"),
+                        x,
+                        ty_args=[relax.TensorType((128, 128), dtype="float32")],
                     )
                 )
                 IRBuilder.name("lv0", lv0)
@@ -155,7 +170,9 @@ def test_dataflow_block():
         with bb.dataflow():
             lv0 = bb.emit(
                 relax.call_dps_packed(
-                    "extern_func", x, relax.TensorType((128, 128), dtype="float32")
+                    _ExternFunc("extern_func"),
+                    x,
+                    ty_args=[relax.TensorType((128, 128), dtype="float32")],
                 )
             )
             gv = bb.emit_output(lv0)

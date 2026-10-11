@@ -23,7 +23,6 @@ from tvm.tirx.lang.alloc_pool import SMEMPool as SMEMPool
 from tvm.tirx.lang.alloc_pool import TMEMPool as TMEMPool
 
 from . import ir as _native
-from . import tirx as tile
 from .ir import *
 from .ir import __all__ as _ir_exports
 from .ir import boolean as bool
@@ -32,32 +31,11 @@ from .op import __all__ as _op_exports
 from .op import _get_script_namespace as __getattr__
 from .parser_protocol import *
 from .parser_protocol import __all__ as _protocol_exports
-from .tirx import (
-    cluster as cluster,
-)
-from .tirx import (
-    cta as cta,
-)
-from .tirx import (
-    thread as thread,
-)
-from .tirx import (
-    warp as warp,
-)
-from .tirx import (
-    warpgroup as warpgroup,
-)
-from .tirx import (
-    wg as wg,
-)
-from .utils import (
-    buffer_indices as buffer_indices,
-)
 from .utils import (
     frame_scope as frame_scope,
 )
 from .utils import (
-    seq_scope as seq_scope,
+    tensor_indices as tensor_indices,
 )
 
 supports_mutable_declarations = True
@@ -72,15 +50,7 @@ __all__ = [
     "SMEMPool",
     "TMEMPool",
     "bool",
-    "tile",
-    "cluster",
-    "cta",
-    "thread",
-    "warp",
-    "warpgroup",
-    "wg",
-    "buffer_indices",
+    "tensor_indices",
     "frame_scope",
-    "seq_scope",
     "supports_mutable_declarations",
 ]

@@ -26,6 +26,7 @@
 #define TVM_RELAX_OP_DISTRIBUTED_UNARY_H_
 
 #include <tvm/ffi/extra/visit_error_context.h>
+#include <tvm/relax/op_attr_types.h>
 
 #include "utils.h"
 
@@ -67,11 +68,11 @@ Type InferDistTypeUnaryCheck(const Call& call, const BlockBuilder& ctx);
 // clang-format off
 #define RELAX_REGISTER_UNARY_ARITH_DIST_INFER_TYPE(OpName, RequireFloatDtype) \
   OpDef("relax." #OpName)                                                     \
-      .set_attr<FInferTypeWithBuilder>("relax.dist.FInferTypeWithBuilder", InferDistTypeUnaryArith<RequireFloatDtype>)
+      .set_attr<FInferTypeWithBuilder>(tvm::relax::distributed::op_attr::kInferTypeWithBuilder, InferDistTypeUnaryArith<RequireFloatDtype>)
 
 #define RELAX_REGISTER_UNARY_CHECK_DIST_INFER_TYPE(OpName) \
   OpDef("relax." #OpName)                              \
-      .set_attr<FInferTypeWithBuilder>("relax.dist.FInferTypeWithBuilder", InferDistTypeUnaryCheck)
+      .set_attr<FInferTypeWithBuilder>(tvm::relax::distributed::op_attr::kInferTypeWithBuilder, InferDistTypeUnaryCheck)
 // clang-format on
 
 }  // namespace distributed

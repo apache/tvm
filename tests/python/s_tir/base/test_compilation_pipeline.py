@@ -29,15 +29,15 @@ from tvm.script import tirx as T
 @pytest.mark.skipif(not tvm.runtime.enabled("llvm"), reason="LLVM is not enabled")
 @pytest.mark.parametrize("mixed", [False, True])
 def test_default_pipeline_selects_dialect(mixed):
-    @Ts.prim_func
-    def scheduled(A: Ts.Buffer((16,), "float32"), B: Ts.Buffer((16,), "float32")):
+    @Ts.function
+    def scheduled(A: Ts.Tensor((16,), "float32"), B: Ts.Tensor((16,), "float32")):
         for i in range(16):
             with Ts.sblock("copy"):
                 vi = Ts.axis.spatial(16, i)
                 B[vi] = A[vi] + Ts.float32(1)
 
-    @T.prim_func
-    def native(A: T.Buffer((16,), "float32"), B: T.Buffer((16,), "float32")):
+    @T.function
+    def native(A: T.Tensor((16,), "float32"), B: T.Tensor((16,), "float32")):
         for i in range(16):
             B[i] = A[i] + T.float32(2)
 
@@ -46,7 +46,7 @@ def test_default_pipeline_selects_dialect(mixed):
         functions["native"] = native
     finalized_modules = []
 
-    @tvm.instrument.pass_instrument
+    @tvm.transform.pass_instrument
     class RecordFinalization:
         def run_before_pass(self, mod, info):
             if info.name == "tirx.MakePackedAPI":

@@ -73,7 +73,7 @@ mod.show()
 # in ML compilers. Note that in relax, fusion optimizations are done with the collaboration of
 # a set of passes. We can apply them in a sequence.
 
-mod = tvm.ir.transform.Sequential(
+mod = tvm.transform.Sequential(
     [
         tvm.relax.transform.AnnotateTIROpPattern(),
         tvm.relax.transform.FuseOps(),

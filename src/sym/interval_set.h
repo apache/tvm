@@ -45,6 +45,11 @@ namespace sym {
  */
 class IntervalSetNode : public IntSetNode {
  public:
+  explicit IntervalSetNode(PrimExpr min_value, PrimExpr max_value)
+      : min_value(std::move(min_value)), max_value(std::move(max_value)) {}
+  explicit IntervalSetNode(ffi::UnsafeInit)
+      : min_value(ffi::UnsafeInit{}), max_value(ffi::UnsafeInit{}) {}
+
   /*! \brief Minimum value in the interval. */
   PrimExpr min_value;
   /*! \brief Maximum value in the interval. */
@@ -112,7 +117,7 @@ class IntervalSet : public IntSet {
   static IntervalSet Empty() { return IntervalSet(pos_inf(), neg_inf()); }
 
   TVM_DEFINE_OBJECT_REF_COW_METHOD(IntervalSetNode);
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(IntervalSet, IntSet, IntervalSetNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(IntervalSet, IntSet, IntervalSetNode);
 };
 
 /*!

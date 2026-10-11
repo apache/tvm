@@ -32,7 +32,7 @@
 #include <tvm/ir/expr.h>
 #include <tvm/ir/function.h>
 #include <tvm/ir/global_info.h>
-#include <tvm/ir/source_map.h>
+#include <tvm/ir/location.h>
 #include <tvm/ir/type.h>
 
 #include <string>
@@ -141,8 +141,8 @@ class IRModuleNode : public ffi::Object {
         .def_ro("global_infos", &IRModuleNode::global_infos);
     // register custom structural equal and hash.
     refl::TypeAttrDef<IRModuleNode>()
-        .def("__s_equal__", &IRModuleNode::SEqual)
-        .def("__s_hash__", &IRModuleNode::SHash);
+        .def(tvm::ffi::reflection::type_attr::kSEqual, &IRModuleNode::SEqual)
+        .def(tvm::ffi::reflection::type_attr::kSHash, &IRModuleNode::SHash);
   }
 
   TVM_DLL bool SEqual(const IRModuleNode* other,
@@ -254,6 +254,7 @@ class IRModuleNode : public ffi::Object {
  */
 class IRModule : public ffi::ObjectRef {
  public:
+  static constexpr bool _type_is_nullable = false;
   /*!
    * \brief constructor
    * \param functions Functions in the module.
@@ -267,11 +268,10 @@ class IRModule : public ffi::ObjectRef {
 
   /*! \brief default constructor */
   IRModule() : IRModule(ffi::Map<GlobalVar, BaseFunc>({})) {}
-  /*!
-   * \brief constructor
-   * \param n The object pointer.
-   */
-  explicit IRModule(ffi::ObjectPtr<IRModuleNode> n) : ffi::ObjectRef(n) {}
+  /*! \brief Checked pointer construction required by ffi::RValueRef. */
+  explicit IRModule(ffi::ObjectPtr<IRModuleNode> n) : ffi::ObjectRef(std::move(n)) {
+    TVM_FFI_ICHECK(data_ != nullptr);
+  }
   /*!
    * \brief constructor with UnsafeInit
    */
@@ -360,6 +360,8 @@ constexpr const char* kSystemLibPrefix = "system_lib_prefix";
  * Type: ffi::Map<ffi::String, runtime::Tensor>
  */
 constexpr const char* kConstNameToConstant = "const_name_to_constant";
+
+constexpr const char* kDeviceContexts = "device_contexts";
 
 }  // namespace attr
 }  // namespace tvm

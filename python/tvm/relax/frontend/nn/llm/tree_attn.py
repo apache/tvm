@@ -98,18 +98,18 @@ def tree_attn_cpu(h_kv, h_q, d, dtype, rope_scaling: dict[str, Any]):
     mask_elem_offset = T.dynamic("mask_elem_offset", "int32")
     tree_size = T.dynamic("tree_size", "int32")
     batch_size_plus_1 = T.dynamic("batch_size_plus_1", "int32")
-    @Ts.prim_func
+    @Ts.function
     def batch_tree_attn(  # pylint: disable=too-many-branches,line-too-long
-        q: T.Buffer((qo_len, h_q, d), dtype),  # [total_len, h_q, d]
-        q_indptr: T.Buffer((batch_size_plus_1,), 'int32', elem_offset=q_indptr_elem_offset),  # [batch_size + 1]
-        k: T.Buffer((kv_len, h_kv, d), dtype),  # [total_len, h_kv, d]
-        v: T.Buffer((kv_len, h_kv, d), dtype),  # [total_len, h_kv, d]
-        kv_indptr: T.Buffer((batch_size_plus_1,), 'int32', elem_offset=kv_indptr_elem_offset),  # [batch_size + 1], kv_indptr should be the same as q_indptr in this case
-        q_rope_position: T.Buffer((qo_len,), 'int32', elem_offset=q_rope_position_elem_offset),  # [total_q_len]
-        mn_indptr: T.Buffer((batch_size_plus_1,), 'int32', elem_offset=mn_indptr_elem_offset),  # [batch_size + 1]
-        mask: T.Buffer((tree_size, 2), 'int32', elem_offset=mask_elem_offset),  # [mn_indptr[batch_size]]
-        output: T.Buffer((qo_len, h_q, d), dtype),  # [total_len, h_q, d]
-        lse: T.Buffer((qo_len, h_q), 'float32'),  # [total_len, h_q]
+        q: T.Tensor((qo_len, h_q, d), dtype),  # [total_len, h_q, d]
+        q_indptr: T.Tensor((batch_size_plus_1,), 'int32', elem_offset=q_indptr_elem_offset),  # [batch_size + 1]
+        k: T.Tensor((kv_len, h_kv, d), dtype),  # [total_len, h_kv, d]
+        v: T.Tensor((kv_len, h_kv, d), dtype),  # [total_len, h_kv, d]
+        kv_indptr: T.Tensor((batch_size_plus_1,), 'int32', elem_offset=kv_indptr_elem_offset),  # [batch_size + 1], kv_indptr should be the same as q_indptr in this case
+        q_rope_position: T.Tensor((qo_len,), 'int32', elem_offset=q_rope_position_elem_offset),  # [total_q_len]
+        mn_indptr: T.Tensor((batch_size_plus_1,), 'int32', elem_offset=mn_indptr_elem_offset),  # [batch_size + 1]
+        mask: T.Tensor((tree_size, 2), 'int32', elem_offset=mask_elem_offset),  # [mn_indptr[batch_size]]
+        output: T.Tensor((qo_len, h_q, d), dtype),  # [total_len, h_q, d]
+        lse: T.Tensor((qo_len, h_q), 'float32'),  # [total_len, h_q]
         rotary_mode: T.int32,
         rope_scale: T.float32,
         rope_theta: T.float32,
@@ -280,18 +280,18 @@ def tree_attn(h_kv, h_q, d, dtype, rope_scaling: dict[str, Any], target: Target)
     mask_elem_offset = T.dynamic("mask_elem_offset", "int32")
     tree_size = T.dynamic("tree_size", "int32")
     batch_size_plus_1 = T.dynamic("batch_size_plus_1", "int32")
-    @Ts.prim_func
+    @Ts.function
     def batch_tree_attn(  # pylint: disable=too-many-branches
-        q: T.Buffer((qo_len, h_q, d), dtype), # [total_len, h_q, d]
-        q_indptr: T.Buffer((batch_size_plus_1,), 'int32', elem_offset=q_indptr_elem_offset), # [batch_size + 1]
-        k: T.Buffer((kv_len, h_kv, d), dtype), # [total_len, h_kv, d]
-        v: T.Buffer((kv_len, h_kv, d), dtype), # [total_len, h_kv, d]
-        kv_indptr: T.Buffer((batch_size_plus_1,), 'int32', elem_offset=kv_indptr_elem_offset), # [batch_size + 1], kv_indptr should be the same as q_indptr in this case
-        q_rope_position: T.Buffer((qo_len,), 'int32', elem_offset=q_rope_position_elem_offset), # [total_q_len]
-        mn_indptr: T.Buffer((batch_size_plus_1,), 'int32', elem_offset=mn_indptr_elem_offset), # [batch_size + 1]
-        mask: T.Buffer((tree_size, 2), 'int32', elem_offset=mask_elem_offset), # [mn_indptr[batch_size]]
-        output: T.Buffer((qo_len, h_q, d), dtype), # [total_len, h_q, d]
-        lse: T.Buffer((qo_len, h_q), 'float32'), # [total_len, h_q]
+        q: T.Tensor((qo_len, h_q, d), dtype), # [total_len, h_q, d]
+        q_indptr: T.Tensor((batch_size_plus_1,), 'int32', elem_offset=q_indptr_elem_offset), # [batch_size + 1]
+        k: T.Tensor((kv_len, h_kv, d), dtype), # [total_len, h_kv, d]
+        v: T.Tensor((kv_len, h_kv, d), dtype), # [total_len, h_kv, d]
+        kv_indptr: T.Tensor((batch_size_plus_1,), 'int32', elem_offset=kv_indptr_elem_offset), # [batch_size + 1], kv_indptr should be the same as q_indptr in this case
+        q_rope_position: T.Tensor((qo_len,), 'int32', elem_offset=q_rope_position_elem_offset), # [total_q_len]
+        mn_indptr: T.Tensor((batch_size_plus_1,), 'int32', elem_offset=mn_indptr_elem_offset), # [batch_size + 1]
+        mask: T.Tensor((tree_size, 2), 'int32', elem_offset=mask_elem_offset), # [mn_indptr[batch_size]]
+        output: T.Tensor((qo_len, h_q, d), dtype), # [total_len, h_q, d]
+        lse: T.Tensor((qo_len, h_q), 'float32'), # [total_len, h_q]
         rotary_mode: T.int32,
         rope_scale: T.float32,
         rope_theta: T.float32,
@@ -317,7 +317,7 @@ def tree_attn(h_kv, h_q, d, dtype, rope_scaling: dict[str, Any], target: Target)
                             batch_idx[0] = 0
                             batch_rows[0] = (q_indptr[1] - q_indptr[0]) * group_size
                             batch_tiles[0] = T.ceildiv(batch_rows[0], tile_x)
-                            while T.tvm_thread_invariant(batch_idx[0] < batch_size_plus_1 - 1):
+                            while T.gpu_thread_invariant(batch_idx[0] < batch_size_plus_1 - 1):
                                 # advance to next tile
                                 while tile_id[0] >= batch_tiles[0] and batch_idx[0] < batch_size_plus_1 - 1:
                                     tile_id[0] -= batch_tiles[0]
@@ -327,13 +327,13 @@ def tree_attn(h_kv, h_q, d, dtype, rope_scaling: dict[str, Any], target: Target)
                                         batch_rows[0] = (q_indptr[b_idx + 1] - q_indptr[b_idx]) * group_size
                                         batch_tiles[0] = T.ceildiv(batch_rows[0], tile_x)
 
-                                if T.tvm_thread_invariant(batch_idx[0] < batch_size_plus_1 - 1):
+                                if T.gpu_thread_invariant(batch_idx[0] < batch_size_plus_1 - 1):
                                     b_idx: T.let[T.int32()] = batch_idx[0]
                                     LH_start: T.let[T.int32()] = tile_id[0] * tile_x
                                     q_indptr_val: T.let[T.int32] = q_indptr[b_idx]
 
                                     kv_chunk_len[0] = kv_indptr[b_idx + 1] - kv_indptr[b_idx]
-                                    T.tvm_storage_sync("shared")
+                                    T.gpu_storage_sync("shared")
 
                                     # init states
                                     for i in T.serial(T.ceildiv(tile_x, bdx * num_warps)):
@@ -346,7 +346,7 @@ def tree_attn(h_kv, h_q, d, dtype, rope_scaling: dict[str, Any], target: Target)
                                         with Ts.sblock("O_init"):
                                             i, j = Ts.axis.remap("SS", [li, lj])
                                             O_local[i, j] = 0.0
-                                    T.tvm_storage_sync("shared")
+                                    T.gpu_storage_sync("shared")
 
                                     # Load Q from gmem to smem
                                     for li, lj in T.grid(tile_x, tile_y):
@@ -364,7 +364,7 @@ def tree_attn(h_kv, h_q, d, dtype, rope_scaling: dict[str, Any], target: Target)
                                                 )
                                             else:
                                                 Q_smem[i, j] = 0.0
-                                    T.tvm_storage_sync("shared")
+                                    T.gpu_storage_sync("shared")
 
                                     for iterator in T.serial(T.ceildiv(kv_chunk_len[0], tile_z)):
                                         L_kv_start: T.let[T.int32] = iterator * tile_z
@@ -385,7 +385,7 @@ def tree_attn(h_kv, h_q, d, dtype, rope_scaling: dict[str, Any], target: Target)
                                                 else:
                                                     K_smem[i, j] = 0.0
                                                     V_smem[i, j] = 0.0
-                                        T.tvm_storage_sync("shared")
+                                        T.gpu_storage_sync("shared")
 
                                         # Compute S
                                         with Ts.sblock():
@@ -395,12 +395,12 @@ def tree_attn(h_kv, h_q, d, dtype, rope_scaling: dict[str, Any], target: Target)
                                                     with Ts.init():
                                                         S_local[i, j] = 0.0
                                                     S_local[i, j] += T.cast(Q_smem[i, k_axis], "float32") * T.cast(K_smem[j, k_axis], "float32") * sm_scale * math.log2(math.exp(1))
-                                        T.tvm_storage_sync("shared")
+                                        T.gpu_storage_sync("shared")
                                         for li, lj in T.grid(tile_x, tile_z):
                                             with Ts.sblock("S_store"):
                                                 i, j = Ts.axis.remap("SS", [li, lj])
                                                 S_smem[i, j] = S_local[i, j]
-                                        T.tvm_storage_sync("shared")
+                                        T.gpu_storage_sync("shared")
 
                                         # Update S, m, d
                                         for i in T.serial(T.ceildiv(tile_x, bdx * num_warps)):
@@ -451,7 +451,7 @@ def tree_attn(h_kv, h_q, d, dtype, rope_scaling: dict[str, Any], target: Target)
                                                     m_smem[row] = m_new[i]
                                                     d_smem[row] = d_new[i]
                                                     m_prev_smem[row] = m_prev[i]
-                                        T.tvm_storage_sync("shared")
+                                        T.gpu_storage_sync("shared")
 
                                         # Update O
                                         with Ts.sblock():
@@ -595,24 +595,24 @@ def tree_attn_with_paged_kv_cache_cpu(h_kv, h_q, d, dtype, rope_scaling: dict[st
     tree_order_elem_offset = T.dynamic("tree_order_elem_offset", "int32")
     tree_order_indptr_elem_offset = T.dynamic("tree_order_indptr_elem_offset", "int32")
     total_tree_order_len = T.dynamic("total_tree_order_len", "int32")
-    @Ts.prim_func
+    @Ts.function
     def tree_attn_paged_kv_cpu(
-        q: T.Buffer((total_len, h_q, d), dtype), # [total_len, h_q, d]
-        q_indptr: T.Buffer((batch_size + 1,), 'int32', elem_offset=q_indptr_elem_offset), # [batch_size + 1]
-        pages: T.Buffer((max_num_pages, 2, h_kv, 16, d), dtype), # [max_num_pages, 2, h_kv, page_size, d]
-        page_indptr: T.Buffer((batch_size + 1,), 'int32', elem_offset=page_indptr_elem_offset), # [batch_size + 1]
-        page_values: T.Buffer((nnz_pages,), 'int32', elem_offset=page_values_elem_offset), # [nnz_pages]
+        q: T.Tensor((total_len, h_q, d), dtype), # [total_len, h_q, d]
+        q_indptr: T.Tensor((batch_size + 1,), 'int32', elem_offset=q_indptr_elem_offset), # [batch_size + 1]
+        pages: T.Tensor((max_num_pages, 2, h_kv, 16, d), dtype), # [max_num_pages, 2, h_kv, page_size, d]
+        page_indptr: T.Tensor((batch_size + 1,), 'int32', elem_offset=page_indptr_elem_offset), # [batch_size + 1]
+        page_values: T.Tensor((nnz_pages,), 'int32', elem_offset=page_values_elem_offset), # [nnz_pages]
         length_info: _length_info_buffer(batch_size, sliding_window, length_info_elem_offset), # [b] when sliding window = False, or otherwise [3, b]
-        k_rope_pos_offset: T.Buffer((batch_size,), 'int32', elem_offset=k_rope_pos_offset_elem_offset), # [b]
-        q_rope_position: T.Buffer((total_len,), 'int32', elem_offset=q_rope_position_elem_offset), # [total_len]
-        output: T.Buffer((total_len, h_q, d), dtype), # [total_len, h_q, d]
-        lse: T.Buffer((total_len, h_q), 'float32'), # [total_len, h_q]
+        k_rope_pos_offset: T.Tensor((batch_size,), 'int32', elem_offset=k_rope_pos_offset_elem_offset), # [b]
+        q_rope_position: T.Tensor((total_len,), 'int32', elem_offset=q_rope_position_elem_offset), # [total_len]
+        output: T.Tensor((total_len, h_q, d), dtype), # [total_len, h_q, d]
+        lse: T.Tensor((total_len, h_q), 'float32'), # [total_len, h_q]
         rotary_mode: T.int32,
         rope_scale: T.float32,
         rope_theta: T.float32,
         sm_scale: T.float32,
-        tree_order_indptr: T.Buffer((batch_size + 1,), 'int32', elem_offset=tree_order_indptr_elem_offset),  # [batch_size + 1]
-        tree_order: T.Buffer((total_tree_order_len, 2), 'int32', elem_offset=tree_order_elem_offset),  # [total_len, 2]
+        tree_order_indptr: T.Tensor((batch_size + 1,), 'int32', elem_offset=tree_order_indptr_elem_offset),  # [batch_size + 1]
+        tree_order: T.Tensor((total_tree_order_len, 2), 'int32', elem_offset=tree_order_elem_offset),  # [total_len, 2]
     ):
         T.func_attr({"global_symbol": global_symbol})
 
@@ -770,24 +770,24 @@ def tree_attn_with_paged_kv_cache(
     tree_order_elem_offset = T.dynamic("tree_order_elem_offset", "int32")
     tree_order_indptr_elem_offset = T.dynamic("tree_order_indptr_elem_offset", "int32")
     total_tree_order_len = T.dynamic("total_tree_order_len", "int32")
-    @Ts.prim_func
+    @Ts.function
     def tree_attn_paged_kv(
-        q: T.Buffer((total_len, h_q, d), dtype),  # [total_len, h_q, d]
-        q_indptr: T.Buffer((batch_size + 1,), 'int32', elem_offset=q_indptr_elem_offset),  # [batch_size + 1]
-        pages: T.Buffer((max_num_pages, 2, h_kv, 16, d), dtype),  # [max_num_pages, 2, h_kv, page_size, d]
-        page_indptr: T.Buffer((batch_size + 1,), 'int32', elem_offset=page_indptr_elem_offset),  # [batch_size + 1]
-        page_values: T.Buffer((nnz_pages,), 'int32', elem_offset=page_values_elem_offset),  # [nnz_pages]
+        q: T.Tensor((total_len, h_q, d), dtype),  # [total_len, h_q, d]
+        q_indptr: T.Tensor((batch_size + 1,), 'int32', elem_offset=q_indptr_elem_offset),  # [batch_size + 1]
+        pages: T.Tensor((max_num_pages, 2, h_kv, 16, d), dtype),  # [max_num_pages, 2, h_kv, page_size, d]
+        page_indptr: T.Tensor((batch_size + 1,), 'int32', elem_offset=page_indptr_elem_offset),  # [batch_size + 1]
+        page_values: T.Tensor((nnz_pages,), 'int32', elem_offset=page_values_elem_offset),  # [nnz_pages]
         length_info: _length_info_buffer(batch_size, sliding_window, length_info_elem_offset),  # [b] when sliding window = False, or otherwise [3, b]
-        k_rope_pos_offset: T.Buffer((batch_size,), 'int32', elem_offset=k_rope_pos_offset_elem_offset),  # [b]
-        q_rope_position: T.Buffer((total_len,), 'int32', elem_offset=q_rope_position_elem_offset),  # [total_len]
-        output: T.Buffer((total_len, h_q, d), dtype),  # [total_len, h_q, d]
-        lse: T.Buffer((total_len, h_q), 'float32'),  # [total_len, h_q]
+        k_rope_pos_offset: T.Tensor((batch_size,), 'int32', elem_offset=k_rope_pos_offset_elem_offset),  # [b]
+        q_rope_position: T.Tensor((total_len,), 'int32', elem_offset=q_rope_position_elem_offset),  # [total_len]
+        output: T.Tensor((total_len, h_q, d), dtype),  # [total_len, h_q, d]
+        lse: T.Tensor((total_len, h_q), 'float32'),  # [total_len, h_q]
         rotary_mode: T.int32,
         rope_scale: T.float32,
         rope_theta: T.float32,
         sm_scale: T.float32,
-        tree_order_indptr: T.Buffer((batch_size + 1,), 'int32', elem_offset=tree_order_indptr_elem_offset),  # [batch_size + 1]
-        tree_order: T.Buffer((total_tree_order_len, 2), 'int32', elem_offset=tree_order_elem_offset),  # [total_len, 2]
+        tree_order_indptr: T.Tensor((batch_size + 1,), 'int32', elem_offset=tree_order_indptr_elem_offset),  # [batch_size + 1]
+        tree_order: T.Tensor((total_tree_order_len, 2), 'int32', elem_offset=tree_order_elem_offset),  # [total_len, 2]
     ):
         # pylint: disable=unused-variable, too-many-branches
         T.func_attr({"global_symbol": global_symbol})
@@ -824,7 +824,7 @@ def tree_attn_with_paged_kv_cache(
                             batch_idx[0] = 0
                             batch_rows[0] = (q_indptr[1] - q_indptr[0]) * group_size
                             batch_tiles[0] = T.ceildiv(batch_rows[0], tile_x)
-                            while T.tvm_thread_invariant(batch_idx[0] < batch_size):
+                            while T.gpu_thread_invariant(batch_idx[0] < batch_size):
                                 # advance to next tile
                                 while tile_id[0] >= batch_tiles[0] and batch_idx[0] < batch_size:
                                     tile_id[0] -= batch_tiles[0]
@@ -836,7 +836,7 @@ def tree_attn_with_paged_kv_cache(
                                         ) * group_size
                                         batch_tiles[0] = T.ceildiv(batch_rows[0], tile_x)
 
-                                if T.tvm_thread_invariant(batch_idx[0] < batch_size):
+                                if T.gpu_thread_invariant(batch_idx[0] < batch_size):
                                     b_idx: T.let[T.int32()] = batch_idx[0]
                                     LH_start: T.let[T.int32()] = tile_id[0] * tile_x
                                     q_indptr_val: T.let[T.int32] = q_indptr[b_idx]
@@ -854,7 +854,7 @@ def tree_attn_with_paged_kv_cache(
                                         ),
                                         0,
                                     )
-                                    T.tvm_storage_sync("shared")
+                                    T.gpu_storage_sync("shared")
 
                                     # init states
                                     for i in T.serial(T.ceildiv(tile_x, bdx * num_warps)):
@@ -867,7 +867,7 @@ def tree_attn_with_paged_kv_cache(
                                         with Ts.sblock("O_init"):
                                             i, j = Ts.axis.remap("SS", [li, lj])
                                             O_local[i, j] = 0.0
-                                    T.tvm_storage_sync("shared")
+                                    T.gpu_storage_sync("shared")
 
                                     # Load Q from gmem to smem
                                     for li, lj in T.grid(tile_x, tile_y):
@@ -894,7 +894,7 @@ def tree_attn_with_paged_kv_cache(
                                                 )
                                             else:
                                                 Q_smem[i, j] = 0.0
-                                    T.tvm_storage_sync("shared")
+                                    T.gpu_storage_sync("shared")
 
                                     for iterator in T.serial(T.ceildiv(kv_chunk_len[0], tile_z)):
                                         L_kv_start: T.let[T.int32] = iterator * tile_z
@@ -914,7 +914,7 @@ def tree_attn_with_paged_kv_cache(
                                                 else:
                                                     K_smem[i, j] = 0.0
 
-                                        T.tvm_storage_sync("shared")
+                                        T.gpu_storage_sync("shared")
                                         for lz, ly in T.grid(tile_z, tile_y):
                                             with Ts.sblock("V_load"):
                                                 i, j = Ts.axis.remap("SS", [lz, ly])
@@ -930,7 +930,7 @@ def tree_attn_with_paged_kv_cache(
                                                     ]
                                                 else:
                                                     V_smem[i, j] = 0.0
-                                        T.tvm_storage_sync("shared")
+                                        T.gpu_storage_sync("shared")
 
                                         # Compute S
                                         with Ts.sblock():
@@ -945,12 +945,12 @@ def tree_attn_with_paged_kv_cache(
                                                         * sm_scale
                                                         * math.log2(math.exp(1))
                                                     )
-                                        T.tvm_storage_sync("shared")
+                                        T.gpu_storage_sync("shared")
                                         for li, lj in T.grid(tile_x, tile_z):
                                             with Ts.sblock("S_store"):
                                                 i, j = Ts.axis.remap("SS", [li, lj])
                                                 S_smem[i, j] = S_local[i, j]
-                                        T.tvm_storage_sync("shared")
+                                        T.gpu_storage_sync("shared")
 
                                         # Update S, m, d
                                         for i in T.serial(T.ceildiv(tile_x, bdx * num_warps)):
@@ -1013,7 +1013,7 @@ def tree_attn_with_paged_kv_cache(
                                                     m_smem[row] = m_new[i]
                                                     d_smem[row] = d_new[i]
                                                     m_prev_smem[row] = m_prev[i]
-                                        T.tvm_storage_sync("shared")
+                                        T.gpu_storage_sync("shared")
 
                                         # Update O
                                         with Ts.sblock():

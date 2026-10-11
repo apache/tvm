@@ -24,9 +24,10 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/module.h>
-#include <tvm/tirx/builtin.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/layout.h>
+#include <tvm/tirx/stmt.h>
 #include <tvm/tirx/stmt_functor.h>
 
 #include <cstdint>
@@ -34,8 +35,8 @@
 #include <utility>
 #include <vector>
 
+#include "../../ir/seq_stmt_mutate.h"
 #include "data_type_rewriter.h"
-#include "seq_stmt_mutate.h"
 
 namespace tvm {
 namespace tirx {
@@ -43,19 +44,17 @@ namespace tirx {
 void StmtExprVisitor::InitVTable(VTable* vtable) {
   tvm::ExprVisitor::InitVTable(vtable);
   SetDispatch<StmtExprVisitor, BindNode>(vtable);
-  SetDispatch<StmtExprVisitor, AttrStmtNode>(vtable);
-  SetDispatch<StmtExprVisitor, IfThenElseNode>(vtable);
+  SetDispatch<StmtExprVisitor, RegionStmtNode>(vtable);
+  SetDispatch<StmtExprVisitor, IfNode>(vtable);
   SetDispatch<StmtExprVisitor, ForNode>(vtable);
   SetDispatch<StmtExprVisitor, WhileNode>(vtable);
   SetDispatch<StmtExprVisitor, ReturnNode>(vtable);
   SetDispatch<StmtExprVisitor, BreakNode>(vtable);
   SetDispatch<StmtExprVisitor, ContinueNode>(vtable);
-  SetDispatch<StmtExprVisitor, BufferStoreNode>(vtable);
+  SetDispatch<StmtExprVisitor, TensorStoreNode>(vtable);
   SetDispatch<StmtExprVisitor, AssertStmtNode>(vtable);
   SetDispatch<StmtExprVisitor, SeqStmtNode>(vtable);
   SetDispatch<StmtExprVisitor, EvaluateNode>(vtable);
-  SetDispatch<StmtExprVisitor, ScopeIdDefStmtNode>(vtable);
-  SetDispatch<StmtExprVisitor, TilePrimitiveCallNode>(vtable);
 }
 
 ffi::Optional<VisitInterrupt> StmtExprVisitor::Visit_(const VarNode* op) {
@@ -133,9 +132,14 @@ ffi::Optional<VisitInterrupt> StmtExprVisitor::Visit_(const BindNode* op) {
                                  [&]() { return this->Visit(op->var); });
 }
 
-ffi::Optional<VisitInterrupt> StmtExprVisitor::Visit_(const AttrStmtNode* op) {
-  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->value));
-  return this->Visit(op->body);
+ffi::Optional<VisitInterrupt> StmtExprVisitor::Visit_(const RegionStmtNode* op) {
+  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->attrs));
+  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->args));
+  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->WithDefRegionKind(
+      kTVMFFIDefRegionKindSimple, [&]() { return this->Visit(op->body_params); }));
+  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->body));
+  return this->WithDefRegionKind(kTVMFFIDefRegionKindSimple,
+                                 [&]() { return this->Visit(op->result_vars); });
 }
 
 ffi::Optional<VisitInterrupt> StmtExprVisitor::Visit_(const ForNode* op) {
@@ -156,16 +160,15 @@ ffi::Optional<VisitInterrupt> StmtExprVisitor::Visit_(const ReturnNode* op) {
   return this->Visit(op->value);
 }
 
-ffi::Optional<VisitInterrupt> StmtExprVisitor::Visit_(const BufferStoreNode* op) {
-  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->buffer));
-  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->value));
+ffi::Optional<VisitInterrupt> StmtExprVisitor::Visit_(const TensorStoreNode* op) {
+  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->dest));
   for (const auto& child : op->indices) {
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(child));
   }
-  return std::nullopt;
+  return this->Visit(op->value);
 }
 
-ffi::Optional<VisitInterrupt> StmtExprVisitor::Visit_(const IfThenElseNode* op) {
+ffi::Optional<VisitInterrupt> StmtExprVisitor::Visit_(const IfNode* op) {
   TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->condition));
   TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->then_case));
   if (op->else_case) {
@@ -191,64 +194,20 @@ ffi::Optional<VisitInterrupt> StmtExprVisitor::Visit_(const EvaluateNode* op) {
   return this->Visit(op->value);
 }
 
-ffi::Optional<VisitInterrupt> StmtExprVisitor::Visit_(const ScopeIdDefStmtNode* op) {
-  // Flat stmt -- no body. Visit extents (skip deferred defs whose extents
-  // are NullOpt) and any preferred_extents.
-  if (op->def->extents.has_value()) {
-    for (const auto& child : op->def->extents.value()) {
-      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(child));
-    }
-  }
-  if (op->def->preferred_extents.has_value()) {
-    for (const auto& child : op->def->preferred_extents.value()) {
-      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(child));
-    }
-  }
-  return std::nullopt;
-}
-
-ffi::Optional<VisitInterrupt> StmtExprVisitor::Visit_(const TilePrimitiveCallNode* op) {
-  std::function<ffi::Optional<VisitInterrupt>(const ffi::Any&)> fvisit;
-  fvisit = [this, &fvisit](const ffi::Any& e) -> ffi::Optional<VisitInterrupt> {
-    if (e == nullptr) return std::nullopt;
-    if (auto buffer_region = e.as<TensorRegion>()) {
-      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(buffer_region.value()));
-    } else if (auto expr = e.as<Expr>()) {
-      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(expr.value()));
-    } else if (auto stmt = e.as<Stmt>()) {
-      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(stmt.value()));
-    } else if (auto array = e.as<ffi::Array<ffi::Any>>()) {
-      for (const ffi::Any& item : array.value()) {
-        TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(fvisit(item));
-      }
-    }
-    return std::nullopt;
-  };
-  for (const ffi::Any& arg : op->args) {
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(fvisit(arg));
-  }
-  for (const auto& [key, value] : op->config) {
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(fvisit(value));
-  }
-  return std::nullopt;
-}
-
 void StmtExprMutator::InitVTable(VTable* vtable) {
   tvm::ExprMutator::InitVTable(vtable);
   SetDispatch<StmtExprMutator, BindNode>(vtable);
-  SetDispatch<StmtExprMutator, AttrStmtNode>(vtable);
-  SetDispatch<StmtExprMutator, IfThenElseNode>(vtable);
+  SetDispatch<StmtExprMutator, RegionStmtNode>(vtable);
+  SetDispatch<StmtExprMutator, IfNode>(vtable);
   SetDispatch<StmtExprMutator, ForNode>(vtable);
   SetDispatch<StmtExprMutator, WhileNode>(vtable);
   SetDispatch<StmtExprMutator, ReturnNode>(vtable);
   SetDispatch<StmtExprMutator, BreakNode>(vtable);
   SetDispatch<StmtExprMutator, ContinueNode>(vtable);
-  SetDispatch<StmtExprMutator, BufferStoreNode>(vtable);
+  SetDispatch<StmtExprMutator, TensorStoreNode>(vtable);
   SetDispatch<StmtExprMutator, AssertStmtNode>(vtable);
   SetDispatch<StmtExprMutator, SeqStmtNode>(vtable);
   SetDispatch<StmtExprMutator, EvaluateNode>(vtable);
-  SetDispatch<StmtExprMutator, ScopeIdDefStmtNode>(vtable);
-  SetDispatch<StmtExprMutator, TilePrimitiveCallNode>(vtable);
 }
 
 UnchangedOr<Stmt> StmtExprMutator::Mutate_(const BindNode* op, InplaceMode inplace_mode) {
@@ -281,20 +240,36 @@ UnchangedOr<Stmt> StmtExprMutator::Mutate_(const BindNode* op, InplaceMode inpla
   return Stmt(std::move(copy));
 }
 
-UnchangedOr<Stmt> StmtExprMutator::Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) {
-  auto value = Mutate(op->value, inplace_mode);
+UnchangedOr<Stmt> StmtExprMutator::Mutate_(const RegionStmtNode* op, InplaceMode inplace_mode) {
+  auto attrs = Mutate(op->attrs, inplace_mode).as_or_throw<UnchangedOr<DictAttrs>>();
+  auto args = Mutate(op->args, inplace_mode).as_or_throw<UnchangedOr<ffi::Array<Expr>>>();
+  auto body_params = WithDefRegionKind(kTVMFFIDefRegionKindSimple, [&]() {
+    return Mutate(op->body_params, inplace_mode).as_or_throw<UnchangedOr<ffi::Array<Var>>>();
+  });
   auto body = Mutate(op->body, inplace_mode);
-  if (value.UnchangedOrSameAs(op->value) && body.UnchangedOrSameAs(op->body))
-    return ffi::Unchanged();
-  if (inplace_mode == InplaceMode::kAllow) {
-    auto* writable = const_cast<AttrStmtNode*>(op);
-    if (!value.IsUnchanged()) writable->value = std::move(value).ValueUnchecked();
-    if (!body.IsUnchanged()) writable->body = std::move(body).ValueUnchecked();
+  auto result_vars = WithDefRegionKind(kTVMFFIDefRegionKindSimple, [&]() {
+    return Mutate(op->result_vars, inplace_mode).as_or_throw<UnchangedOr<ffi::Array<Var>>>();
+  });
+  if (attrs.UnchangedOrSameAs(op->attrs) && args.UnchangedOrSameAs(op->args) &&
+      body_params.UnchangedOrSameAs(op->body_params) && body.UnchangedOrSameAs(op->body) &&
+      result_vars.UnchangedOrSameAs(op->result_vars)) {
     return ffi::Unchanged();
   }
-  auto copy = ffi::make_object<AttrStmtNode>(*op);
-  if (!value.IsUnchanged()) copy->value = std::move(value).ValueUnchecked();
+  if (inplace_mode == InplaceMode::kAllow) {
+    auto* writable = const_cast<RegionStmtNode*>(op);
+    if (!attrs.IsUnchanged()) writable->attrs = std::move(attrs).ValueUnchecked();
+    if (!args.IsUnchanged()) writable->args = std::move(args).ValueUnchecked();
+    if (!body_params.IsUnchanged()) writable->body_params = std::move(body_params).ValueUnchecked();
+    if (!body.IsUnchanged()) writable->body = std::move(body).ValueUnchecked();
+    if (!result_vars.IsUnchanged()) writable->result_vars = std::move(result_vars).ValueUnchecked();
+    return ffi::Unchanged();
+  }
+  auto copy = ffi::make_object<RegionStmtNode>(*op);
+  if (!attrs.IsUnchanged()) copy->attrs = std::move(attrs).ValueUnchecked();
+  if (!args.IsUnchanged()) copy->args = std::move(args).ValueUnchecked();
+  if (!body_params.IsUnchanged()) copy->body_params = std::move(body_params).ValueUnchecked();
   if (!body.IsUnchanged()) copy->body = std::move(body).ValueUnchecked();
+  if (!result_vars.IsUnchanged()) copy->result_vars = std::move(result_vars).ValueUnchecked();
   return Stmt(std::move(copy));
 }
 
@@ -352,22 +327,21 @@ UnchangedOr<Stmt> StmtExprMutator::Mutate_(const ReturnNode* op, InplaceMode inp
   return Stmt(std::move(copy));
 }
 
-UnchangedOr<Stmt> StmtExprMutator::Mutate_(const IfThenElseNode* op, InplaceMode inplace_mode) {
+UnchangedOr<Stmt> StmtExprMutator::Mutate_(const IfNode* op, InplaceMode inplace_mode) {
   auto condition = Mutate(op->condition, inplace_mode);
   auto then_case = Mutate(op->then_case, inplace_mode);
-  auto else_case =
-      Mutate(op->else_case, inplace_mode).as_or_throw<UnchangedOr<ffi::Optional<Stmt>>>();
+  auto else_case = Mutate(op->else_case, inplace_mode);
   if (condition.UnchangedOrSameAs(op->condition) && then_case.UnchangedOrSameAs(op->then_case) &&
       else_case.UnchangedOrSameAs(op->else_case))
     return ffi::Unchanged();
   if (inplace_mode == InplaceMode::kAllow) {
-    auto* writable = const_cast<IfThenElseNode*>(op);
+    auto* writable = const_cast<IfNode*>(op);
     if (!condition.IsUnchanged()) writable->condition = std::move(condition).ValueUnchecked();
     if (!then_case.IsUnchanged()) writable->then_case = std::move(then_case).ValueUnchecked();
     if (!else_case.IsUnchanged()) writable->else_case = std::move(else_case).ValueUnchecked();
     return ffi::Unchanged();
   }
-  auto copy = ffi::make_object<IfThenElseNode>(*op);
+  auto copy = ffi::make_object<IfNode>(*op);
   if (!condition.IsUnchanged()) copy->condition = std::move(condition).ValueUnchecked();
   if (!then_case.IsUnchanged()) copy->then_case = std::move(then_case).ValueUnchecked();
   if (!else_case.IsUnchanged()) copy->else_case = std::move(else_case).ValueUnchecked();
@@ -412,129 +386,32 @@ UnchangedOr<Stmt> StmtExprMutator::Mutate_(const ContinueNode* op, InplaceMode i
   return ffi::Unchanged();
 }
 
-UnchangedOr<Stmt> StmtExprMutator::Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) {
-  auto buffer = Mutate(op->buffer, inplace_mode).as_or_throw<UnchangedOr<BufferVar>>();
-  auto value = Mutate(op->value, inplace_mode);
+UnchangedOr<Stmt> StmtExprMutator::Mutate_(const TensorStoreNode* op, InplaceMode inplace_mode) {
+  auto dest = Mutate(op->dest, inplace_mode).as_or_throw<UnchangedOr<Expr>>();
   auto indices = Mutate(op->indices, inplace_mode).as_or_throw<UnchangedOr<ffi::Array<PrimExpr>>>();
-  if (buffer.UnchangedOrSameAs(op->buffer) && value.UnchangedOrSameAs(op->value) &&
+  auto value = Mutate(op->value, inplace_mode);
+  if (dest.UnchangedOrSameAs(op->dest) && value.UnchangedOrSameAs(op->value) &&
       indices.UnchangedOrSameAs(op->indices))
     return ffi::Unchanged();
   if (inplace_mode == InplaceMode::kAllow) {
-    auto* writable = const_cast<BufferStoreNode*>(op);
-    if (!buffer.IsUnchanged()) writable->buffer = std::move(buffer).ValueUnchecked();
+    auto* writable = const_cast<TensorStoreNode*>(op);
+    if (!dest.IsUnchanged()) writable->dest = std::move(dest).ValueUnchecked();
     if (!value.IsUnchanged()) writable->value = std::move(value).ValueUnchecked();
     if (!indices.IsUnchanged()) writable->indices = std::move(indices).ValueUnchecked();
     return ffi::Unchanged();
   }
-  auto copy = ffi::make_object<BufferStoreNode>(*op);
-  if (!buffer.IsUnchanged()) copy->buffer = std::move(buffer).ValueUnchecked();
+  auto copy = ffi::make_object<TensorStoreNode>(*op);
+  if (!dest.IsUnchanged()) copy->dest = std::move(dest).ValueUnchecked();
   if (!value.IsUnchanged()) copy->value = std::move(value).ValueUnchecked();
   if (!indices.IsUnchanged()) copy->indices = std::move(indices).ValueUnchecked();
   return Stmt(std::move(copy));
 }
 
 UnchangedOr<Stmt> StmtExprMutator::Mutate_(const SeqStmtNode* op, InplaceMode inplace_mode) {
-  return detail::MutateSeqStmt(op, inplace_mode, [this](ffi::AnyView element, InplaceMode mode) {
-    return Mutate(element, mode).as_or_throw<UnchangedOr<Stmt>>();
-  });
-}
-
-namespace {
-
-template <typename T, typename F>
-UnchangedOr<ffi::Array<T>> MutateTileArray(const ffi::ArrayObj* values, InplaceMode mode,
-                                           F fmutate) {
-  // Borrow both the owning container and its elements throughout recursion.
-  if (!values->unique()) mode = InplaceMode::kDisallow;
-  std::vector<std::pair<size_t, T>> replacements;
-  for (size_t i = 0; i < values->size(); ++i) {
-    UnchangedOr<ffi::Any> result = fmutate(ffi::AnyView((*values)[i]), mode);
-    if (!result.UnchangedOrSameAs((*values)[i])) {
-      replacements.emplace_back(i, std::move(result).ValueUnchecked().template as_or_throw<T>());
-    }
-  }
-  if (replacements.empty()) return ffi::Unchanged();
-  if (mode == InplaceMode::kAllow) {
-    auto* writable = const_cast<ffi::ArrayObj*>(values);
-    for (auto& [i, value] : replacements) writable->SetItem(i, std::move(value));
-    return ffi::Unchanged();
-  }
-  ffi::Array<T> result(ffi::GetObjectPtr<ffi::ArrayObj>(const_cast<ffi::ArrayObj*>(values)));
-  for (auto& [i, value] : replacements) result.Set(i, std::move(value));
-  return result;
-}
-
-}  // namespace
-
-UnchangedOr<Stmt> StmtExprMutator::Mutate_(const ScopeIdDefStmtNode* op, InplaceMode inplace_mode) {
-  // The definition owns both optional arrays; it is skipped by this semantic hook.
-  InplaceMode def_mode = op->def.unique() ? inplace_mode : InplaceMode::kDisallow;
-  auto extents = Mutate(op->def->extents, def_mode)
-                     .as_or_throw<UnchangedOr<ffi::Optional<ffi::Array<PrimExpr>>>>();
-  auto preferred = Mutate(op->def->preferred_extents, def_mode)
-                       .as_or_throw<UnchangedOr<ffi::Optional<ffi::Array<PrimExpr>>>>();
-  if (extents.UnchangedOrSameAs(op->def->extents) &&
-      preferred.UnchangedOrSameAs(op->def->preferred_extents))
-    return ffi::Unchanged();
-  ScopeIdDef def(op->def->def_ids, std::move(extents).ValueOrUnchanged(op->def->extents),
-                 op->def->scope, std::move(preferred).ValueOrUnchanged(op->def->preferred_extents));
-  if (inplace_mode == InplaceMode::kAllow) {
-    const_cast<ScopeIdDefStmtNode*>(op)->def = std::move(def);
-    return ffi::Unchanged();
-  }
-  auto copy = ffi::make_object<ScopeIdDefStmtNode>(*op);
-  copy->def = std::move(def);
-  return Stmt(std::move(copy));
-}
-
-UnchangedOr<Stmt> StmtExprMutator::Mutate_(const TilePrimitiveCallNode* op,
-                                           InplaceMode inplace_mode) {
-  std::function<UnchangedOr<ffi::Any>(ffi::AnyView, InplaceMode)> mutate_arg;
-  mutate_arg = [&](ffi::AnyView value, InplaceMode mode) -> UnchangedOr<ffi::Any> {
-    if (value.as<TensorRegionNode>()) {
-      return Mutate(value, mode);
-    }
-    if (value.as<Expr>() || value.as<StmtNode>()) return Mutate(value, mode);
-    if (const auto* array = value.as<ffi::ArrayObj>()) {
-      return MutateTileArray<ffi::Any>(array, mode, mutate_arg);
-    }
-    return ffi::Unchanged();
-  };
-  auto args = MutateTileArray<ffi::Any>(op->args.GetArrayObj(), inplace_mode, mutate_arg);
-  // A config map is another owning container on the path to its values.
-  auto config_mode = op->config.unique() ? inplace_mode : InplaceMode::kDisallow;
-  UnchangedOr<ffi::Map<ffi::String, ffi::Any>> config = ffi::Unchanged();
-  std::vector<std::pair<ffi::String, ffi::Any>> replacements;
-  for (const auto& [key, value] : *static_cast<const ffi::MapObj*>(op->config.get())) {
-    auto result = mutate_arg(value, config_mode);
-    if (!result.UnchangedOrSameAs(value)) {
-      replacements.emplace_back(key.as_or_throw<ffi::String>(), std::move(result).ValueUnchecked());
-    }
-  }
-  if (!replacements.empty()) {
-    if (config_mode == InplaceMode::kAllow) {
-      for (auto& [key, value] : replacements)
-        const_cast<ffi::MapObj*>(static_cast<const ffi::MapObj*>(op->config.get()))->at(key) =
-            std::move(value);
-    } else {
-      ffi::Map<ffi::String, ffi::Any> replacement = op->config;
-      for (auto& [key, value] : replacements) replacement.Set(key, std::move(value));
-      config = std::move(replacement);
-    }
-  }
-  if (args.UnchangedOrSameAs(op->args) && config.UnchangedOrSameAs(op->config)) {
-    return ffi::Unchanged();
-  }
-  if (inplace_mode == InplaceMode::kAllow) {
-    auto* writable = const_cast<TilePrimitiveCallNode*>(op);
-    if (!args.IsUnchanged()) writable->args = std::move(args).ValueUnchecked();
-    if (!config.IsUnchanged()) writable->config = std::move(config).ValueUnchecked();
-    return ffi::Unchanged();
-  }
-  auto copy = ffi::make_object<TilePrimitiveCallNode>(*op);
-  if (!args.IsUnchanged()) copy->args = std::move(args).ValueUnchecked();
-  if (!config.IsUnchanged()) copy->config = std::move(config).ValueUnchecked();
-  return Stmt(std::move(copy));
+  return tvm::detail::MutateSeqStmt(op, inplace_mode,
+                                    [this](ffi::AnyView element, InplaceMode mode) {
+                                      return Mutate(element, mode).as_or_throw<UnchangedOr<Stmt>>();
+                                    });
 }
 
 class IRSubstituteWithDataTypeLegalization : public DataTypeLegalizer {
@@ -558,27 +435,10 @@ class IRSubstituteWithDataTypeLegalization : public DataTypeLegalizer {
     auto result = StmtExprMutator::Mutate_(op, InplaceMode::kDisallow);
     if (result.UnchangedOrSameAs(ffi::GetRef<PrimExpr>(op))) return ffi::Unchanged();
     auto load = std::move(result).ValueUnchecked().as_or_throw<TensorLoad>();
-    if (auto buffer = load->source.as<BufferVar>()) {
-      return BufferLoad(buffer.value(), load->indices, load->span);
+    if (auto buffer = load->source.as<TensorVar>()) {
+      return MakeTensorLoad(buffer.value(), load->indices, load->loc);
     }
     return load;
-  }
-
-  UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final {
-    Stmt ret = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
-    op = ret.as<AttrStmtNode>();
-    // remap var node in attr
-    if (auto var_node = op->node.as<Var>()) {
-      ffi::Any mapped = VarRemapGet(var_node.value());
-      if (mapped.type_index() != ffi::TypeIndex::kTVMFFINone) {
-        Expr node =
-            std::move(mapped).as_or_throw<UnchangedOr<Expr>>().ValueOrUnchanged(var_node.value());
-        if (!node.same_as(var_node.value())) {
-          return AttrStmt(node, op->attr_key, op->value, op->body);
-        }
-      }
-    }
-    return ret;
   }
 };
 

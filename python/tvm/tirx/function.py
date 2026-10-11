@@ -19,33 +19,33 @@
 
 import collections
 import inspect
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from typing import Optional
 
 import tvm_ffi
 
 import tvm
 import tvm.runtime
-from tvm.ir import BaseFunc, Range
-from tvm.runtime import Object, Scriptable
+from tvm.ir import BaseFunc, Range, Scriptable, SeqStmt, Stmt, Var
+from tvm.ir.location import UNKNOWN_LOC, Location
+from tvm.runtime import Object
 
 from ..runtime._tensor import Tensor
 from . import _ffi_api
-from .buffer import Buffer
-from .expr import Expr, Var
+from .expr import Expr
 
 
-@tvm_ffi.register_object("tirx.PrimFunc")
-class PrimFunc(BaseFunc, Scriptable):
+@tvm_ffi.register_object("tirx.Function")
+class Function(BaseFunc, Scriptable):
     """A function declaration expression.
 
     Parameters
     ----------
-    params: List[Union[tvm.tirx.Var, tvm.tirx.Buffer]]
+    params: List[Union[tvm.tirx.Var, tvm.tirx.Var]]
         List of input parameters to the function.
 
-    body: tvm.tirx.Stmt
-        The body of the function.
+    body: Stmt | Sequence[Stmt] | None
+        The body of the function, or None for a declaration.
 
     ret_type: tvm.ir.Type
         The return type annotation of the function.
@@ -53,30 +53,39 @@ class PrimFunc(BaseFunc, Scriptable):
     attrs: Optional[tvm.Attrs]
         Attributes of the function, can be None
 
-    span : Optional[Span]
+    loc : Location, optional
         The location of this itervar in the source code.
     """
 
-    def __init__(self, params, body, ret_type=None, attrs=None, span=None):
+    body: SeqStmt | None
+
+    def __init__(
+        self,
+        params,
+        body: Stmt | Sequence[Stmt] | None,
+        ret_type=None,
+        attrs=None,
+        loc: Location = UNKNOWN_LOC,
+    ):
         if ret_type is None:
             ret_type = tvm.ir.Type.missing()
         param_list = []
         for x in params:
             x = tvm.runtime.convert(x) if not isinstance(x, Object) else x
             if not isinstance(x, Var):
-                raise TypeError("params can only contain Var or Buffer")
+                raise TypeError("params can only contain Var or Var")
             param_list.append(x)
 
         if attrs is None:
             attrs = tvm.ir.make_node("ir.DictAttrs")
 
         self.__init_handle_by_constructor__(
-            _ffi_api.PrimFunc,
+            _ffi_api.Function,
             param_list,
             body,
             ret_type,
             attrs,
-            span,
+            loc,
         )  # type: ignore
 
     @property
@@ -84,37 +93,37 @@ class PrimFunc(BaseFunc, Scriptable):
         """Whether this primitive function uses the TIRx dialect."""
         return not bool(self.attrs.get("s_tir", False))
 
-    def with_body(self, new_body, span=None):
-        """Create a new PrimFunc with the same set signatures but a new body.
+    def with_body(self, new_body: Stmt | Sequence[Stmt] | None, loc: Location = UNKNOWN_LOC):
+        """Create a new Function with the same set signatures but a new body.
 
         Parameters
         ----------
-        new_body : Stmt
-            The new body.
+        new_body : Stmt | Sequence[Stmt] | None
+            The new body, or None for a declaration.
 
-        span : Optional[Span]
+        loc : Location, optional
             The location of this itervar in the source code.
 
         Returns
         -------
-        new_func : PrimFunc
+        new_func : Function
             The created new function.
         """
-        return PrimFunc(
+        return Function(
             self.params,
             new_body,
             ret_type=self.ret_type,
             attrs=self.attrs,
-            span=span,
+            loc=loc,
         )
 
-    def specialize(self, param_map: Mapping[Var, Expr | Buffer]):
-        """Specialize parameters of PrimFunc
+    def specialize(self, param_map: Mapping[Var, Expr | Var]):
+        """Specialize parameters of Function
 
         Parameters
         ----------
 
-        param_map : Mapping[Var, Union[Expr, Buffer]]
+        param_map : Mapping[Var, Union[Expr, Var]]
             The mapping from function params to the instance
 
         Examples
@@ -125,10 +134,10 @@ class PrimFunc(BaseFunc, Scriptable):
 
             from __future__ import annotations
 
-            @T.prim_func
+            @T.function
             def mem_copy(
-                A: T.Buffer((m, n), "float32"),
-                B: T.Buffer((m, n), "float32"),
+                A: T.Tensor((m, n), "float32"),
+                B: T.Tensor((m, n), "float32"),
                 m: T.int32,
                 n: T.int32,
             ) -> None:
@@ -141,7 +150,7 @@ class PrimFunc(BaseFunc, Scriptable):
         .. code-block:: python
 
             a, _, m, n = mem_copy.params
-            func = mem_copy.specialize({a: tirx.decl_buffer((16, 16))})
+            func = mem_copy.specialize({a: tirx.decl_tensor((16, 16))})
             # or
             func = mem_copy.specialize({n: 16, m: 16})
 
@@ -149,9 +158,9 @@ class PrimFunc(BaseFunc, Scriptable):
 
         .. code-block:: python
 
-            @T.prim_func
+            @T.function
             def mem_copy_16_16(
-                A: T.Buffer((16, 16), "float32"), B: T.Buffer((16, 16), "float32")
+                A: T.Tensor((16, 16), "float32"), B: T.Tensor((16, 16), "float32")
             ) -> None:
 
                 for i, j in T.grid(16, 16):
@@ -159,10 +168,29 @@ class PrimFunc(BaseFunc, Scriptable):
 
         Returns
         -------
-        func : PrimFunc
+        func : Function
             The new function with parameter specialized
         """
         return _ffi_api.Specialize(self, param_map)  # type: ignore
+
+
+def renew_def(func: Function) -> Function:
+    """Renew variable definitions and remap their uses in a function.
+
+    Definition regions follow the registered structural hooks. Free variables
+    and function attributes are preserved, and the function signature is rebuilt.
+
+    Parameters
+    ----------
+    func : Function
+        The function to renew.
+
+    Returns
+    -------
+    Function
+        The function with fresh variable definitions.
+    """
+    return _ffi_api.RenewDef(func)
 
 
 @tvm_ffi.register_object("tirx.IndexMap")

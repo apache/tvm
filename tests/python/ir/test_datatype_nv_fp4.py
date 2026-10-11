@@ -48,7 +48,7 @@ def test_create_nv_fp4_nd_array(np_dtype, dtype_str):
 def test_nv_fp4_buffer(np_dtype, dtype_str):
     m = te.var("m")
     n = te.var("n")
-    A = tvm.tirx.decl_buffer((m, n), dtype_str)
+    A = tvm.tirx.decl_tensor((m, n), dtype_str)
     assert A.dtype == dtype_str
 
 

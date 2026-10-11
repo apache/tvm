@@ -37,10 +37,10 @@ def test_mlp():
             {"mesh": [R.device_mesh((2,), I.Range(0, 2)), R.device_mesh((1,), I.Range(4, 5))]}
         )
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def gelu(
-            A: T.Buffer((T.int64(128), T.int64(128)), "float32"),
-            T_multiply: T.Buffer((T.int64(128), T.int64(128)), "float32"),
+            A: T.Tensor((T.int64(128), T.int64(128)), "float32"),
+            T_multiply: T.Tensor((T.int64(128), T.int64(128)), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -79,11 +79,11 @@ def test_mlp():
                     Ts.writes(T_multiply[v_ax0, v_ax1])
                     T_multiply[v_ax0, v_ax1] = A[v_ax0, v_ax1] * T_add[v_ax0, v_ax1]
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def matmul(
-            A: T.Buffer((T.int64(128), T.int64(128)), "float32"),
-            B: T.Buffer((T.int64(128), T.int64(128)), "float32"),
-            matmul_1: T.Buffer((T.int64(128), T.int64(128)), "float32"),
+            A: T.Tensor((T.int64(128), T.int64(128)), "float32"),
+            B: T.Tensor((T.int64(128), T.int64(128)), "float32"),
+            matmul_1: T.Tensor((T.int64(128), T.int64(128)), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -106,16 +106,16 @@ def test_mlp():
             lv0 = R.dist.call_tir(
                 cls.matmul,
                 (x, weight1),
-                out_ty=R.DTensor((128, 128), "float32", "mesh[0]", "S[1]"),
+                ty_args=[R.DTensor((128, 128), "float32", "mesh[0]", "S[1]")],
             )
             lv1 = R.dist.call_tir(
-                cls.gelu, (lv0,), out_ty=R.DTensor((128, 128), "float32", "mesh[0]", "S[1]")
+                cls.gelu, (lv0,), ty_args=[R.DTensor((128, 128), "float32", "mesh[0]", "S[1]")]
             )
             lv2: R.DTensor((128, 128), "float32", "mesh[0]", "S[1]") = lv1
             lv3 = R.dist.call_tir(
                 cls.matmul,
                 (lv2, weight2),
-                out_ty=R.DTensor((128, 128), "float32", "mesh[0]", "R"),
+                ty_args=[R.DTensor((128, 128), "float32", "mesh[0]", "R")],
             )
             return lv3
 
@@ -126,10 +126,10 @@ def test_mlp():
             {"mesh": [R.device_mesh((2,), I.Range(0, 2)), R.device_mesh((1,), I.Range(4, 5))]}
         )
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def gelu1(
-            A: T.Buffer((T.int64(128), T.int64(64)), "float32"),
-            T_multiply: T.Buffer((T.int64(128), T.int64(64)), "float32"),
+            A: T.Tensor((T.int64(128), T.int64(64)), "float32"),
+            T_multiply: T.Tensor((T.int64(128), T.int64(64)), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -168,11 +168,11 @@ def test_mlp():
                     Ts.writes(T_multiply[v_ax0, v_ax1])
                     T_multiply[v_ax0, v_ax1] = A[v_ax0, v_ax1] * T_add[v_ax0, v_ax1]
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def matmul1(
-            A: T.Buffer((T.int64(128), T.int64(128)), "float32"),
-            B: T.Buffer((T.int64(128), T.int64(64)), "float32"),
-            matmul_1: T.Buffer((T.int64(128), T.int64(64)), "float32"),
+            A: T.Tensor((T.int64(128), T.int64(128)), "float32"),
+            B: T.Tensor((T.int64(128), T.int64(64)), "float32"),
+            matmul_1: T.Tensor((T.int64(128), T.int64(64)), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -185,11 +185,11 @@ def test_mlp():
                         matmul_1[v_i0, v_i1] = T.float32(0)
                     matmul_1[v_i0, v_i1] = matmul_1[v_i0, v_i1] + A[v_i0, v_k] * B[v_k, v_i1]
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def matmul2(
-            A: T.Buffer((T.int64(128), T.int64(64)), "float32"),
-            B: T.Buffer((T.int64(64), T.int64(128)), "float32"),
-            matmul_1: T.Buffer((T.int64(128), T.int64(128)), "float32"),
+            A: T.Tensor((T.int64(128), T.int64(64)), "float32"),
+            B: T.Tensor((T.int64(64), T.int64(128)), "float32"),
+            matmul_1: T.Tensor((T.int64(128), T.int64(128)), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -212,16 +212,16 @@ def test_mlp():
             lv0: R.DTensor((128, 128), "float32", "mesh[0]", "S[1]") = R.dist.call_tir_local_view(
                 cls.matmul1,
                 (x, weight1),
-                out_ty=R.DTensor((128, 128), "float32", "mesh[0]", "S[1]"),
+                ty_args=[R.DTensor((128, 128), "float32", "mesh[0]", "S[1]")],
             )
             lv1: R.DTensor((128, 128), "float32", "mesh[0]", "S[1]") = R.dist.call_tir_local_view(
-                cls.gelu1, (lv0,), out_ty=R.DTensor((128, 128), "float32", "mesh[0]", "S[1]")
+                cls.gelu1, (lv0,), ty_args=[R.DTensor((128, 128), "float32", "mesh[0]", "S[1]")]
             )
             lv2: R.DTensor((128, 128), "float32", "mesh[0]", "S[1]") = lv1
             gv: R.DTensor((128, 128), "float32", "mesh[0]", "R") = R.dist.call_tir_local_view(
                 cls.matmul2,
                 (lv2, weight2),
-                out_ty=R.DTensor((128, 128), "float32", "mesh[0]", "R"),
+                ty_args=[R.DTensor((128, 128), "float32", "mesh[0]", "R")],
             )
             lv3: R.DTensor((128, 128), "float32", "mesh[0]", "R") = R.ccl.allreduce(
                 gv, op_type="sum", in_group=False
@@ -242,11 +242,11 @@ def test_llama_attention():
             {"mesh": [R.device_mesh((2,), I.Range(0, 2)), R.device_mesh((1,), I.Range(4, 5))]}
         )
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def add(
-            A: T.Buffer((T.int64(1), T.int64(256), T.int64(4096)), "float16"),
-            B: T.Buffer((T.int64(1), T.int64(256), T.int64(4096)), "float16"),
-            T_add: T.Buffer((T.int64(1), T.int64(256), T.int64(4096)), "float16"),
+            A: T.Tensor((T.int64(1), T.int64(256), T.int64(4096)), "float16"),
+            B: T.Tensor((T.int64(1), T.int64(256), T.int64(4096)), "float16"),
+            T_add: T.Tensor((T.int64(1), T.int64(256), T.int64(4096)), "float16"),
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -257,11 +257,11 @@ def test_llama_attention():
                     Ts.writes(T_add[v_ax0, v_ax1, v_ax2])
                     T_add[v_ax0, v_ax1, v_ax2] = A[v_ax0, v_ax1, v_ax2] + B[v_ax0, v_ax1, v_ax2]
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def divide(
-            A: T.Buffer((T.int64(1), T.int64(32), T.int64(256), T.int64(256)), "float16"),
-            B: T.Buffer((T.int64(1), T.int64(32), T.int64(256), T.int64(256)), "float16"),
-            T_divide: T.Buffer((T.int64(1), T.int64(32), T.int64(256), T.int64(256)), "float16"),
+            A: T.Tensor((T.int64(1), T.int64(32), T.int64(256), T.int64(256)), "float16"),
+            B: T.Tensor((T.int64(1), T.int64(32), T.int64(256), T.int64(256)), "float16"),
+            T_divide: T.Tensor((T.int64(1), T.int64(32), T.int64(256), T.int64(256)), "float16"),
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -274,11 +274,11 @@ def test_llama_attention():
                         A[v_ax0, v_ax1, v_ax2, v_ax3] / B[v_ax0, v_ax1, v_ax2, v_ax3]
                     )
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def matmul(
-            A: T.Buffer((T.int64(1), T.int64(256), T.int64(4096)), "float16"),
-            B: T.Buffer((T.int64(4096), T.int64(4096)), "float16"),
-            matmul: T.Buffer((T.int64(1), T.int64(256), T.int64(4096)), "float16"),
+            A: T.Tensor((T.int64(1), T.int64(256), T.int64(4096)), "float16"),
+            B: T.Tensor((T.int64(4096), T.int64(4096)), "float16"),
+            matmul: T.Tensor((T.int64(1), T.int64(256), T.int64(4096)), "float16"),
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -293,11 +293,11 @@ def test_llama_attention():
                         matmul[v_i0, v_i1, v_i2] + A[v_i0, v_i1, v_k] * B[v_k, v_i2]
                     )
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def matmul1(
-            A: T.Buffer((T.int64(1), T.int64(32), T.int64(256), T.int64(128)), "float16"),
-            B: T.Buffer((T.int64(1), T.int64(32), T.int64(128), T.int64(256)), "float16"),
-            matmul: T.Buffer((T.int64(1), T.int64(32), T.int64(256), T.int64(256)), "float16"),
+            A: T.Tensor((T.int64(1), T.int64(32), T.int64(256), T.int64(128)), "float16"),
+            B: T.Tensor((T.int64(1), T.int64(32), T.int64(128), T.int64(256)), "float16"),
+            matmul: T.Tensor((T.int64(1), T.int64(32), T.int64(256), T.int64(256)), "float16"),
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -315,11 +315,11 @@ def test_llama_attention():
                         + A[v_i0, v_i1, v_i2, v_k] * B[v_i0, v_i1, v_k, v_i3]
                     )
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def matmul2(
-            A: T.Buffer((T.int64(1), T.int64(32), T.int64(256), T.int64(256)), "float16"),
-            B: T.Buffer((T.int64(1), T.int64(32), T.int64(256), T.int64(128)), "float16"),
-            matmul: T.Buffer((T.int64(1), T.int64(32), T.int64(256), T.int64(128)), "float16"),
+            A: T.Tensor((T.int64(1), T.int64(32), T.int64(256), T.int64(256)), "float16"),
+            B: T.Tensor((T.int64(1), T.int64(32), T.int64(256), T.int64(128)), "float16"),
+            matmul: T.Tensor((T.int64(1), T.int64(32), T.int64(256), T.int64(128)), "float16"),
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -337,11 +337,11 @@ def test_llama_attention():
                         + A[v_i0, v_i1, v_i2, v_k] * B[v_i0, v_i1, v_k, v_i3]
                     )
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def maximum(
-            A: T.Buffer((T.int64(1), T.int64(32), T.int64(256), T.int64(256)), "float16"),
-            B: T.Buffer((T.int64(1), T.int64(32), T.int64(256), T.int64(256)), "float16"),
-            T_maximum: T.Buffer((T.int64(1), T.int64(32), T.int64(256), T.int64(256)), "float16"),
+            A: T.Tensor((T.int64(1), T.int64(32), T.int64(256), T.int64(256)), "float16"),
+            B: T.Tensor((T.int64(1), T.int64(32), T.int64(256), T.int64(256)), "float16"),
+            T_maximum: T.Tensor((T.int64(1), T.int64(32), T.int64(256), T.int64(256)), "float16"),
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -354,11 +354,11 @@ def test_llama_attention():
                         A[v_ax0, v_ax1, v_ax2, v_ax3], B[v_ax0, v_ax1, v_ax2, v_ax3]
                     )
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def minimum(
-            A: T.Buffer((T.int64(1), T.int64(32), T.int64(256), T.int64(256)), "float16"),
-            B: T.Buffer((T.int64(1), T.int64(1), T.int64(256), T.int64(256)), "float16"),
-            T_minimum: T.Buffer((T.int64(1), T.int64(32), T.int64(256), T.int64(256)), "float16"),
+            A: T.Tensor((T.int64(1), T.int64(32), T.int64(256), T.int64(256)), "float16"),
+            B: T.Tensor((T.int64(1), T.int64(1), T.int64(256), T.int64(256)), "float16"),
+            T_minimum: T.Tensor((T.int64(1), T.int64(32), T.int64(256), T.int64(256)), "float16"),
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -371,10 +371,10 @@ def test_llama_attention():
                         A[v_ax0, v_ax1, v_ax2, v_ax3], B[v_ax0, T.int64(0), v_ax2, v_ax3]
                     )
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def reshape(
-            A: T.Buffer((T.int64(1), T.int64(256), T.int64(4096)), "float16"),
-            T_reshape: T.Buffer((T.int64(1), T.int64(256), T.int64(32), T.int64(128)), "float16"),
+            A: T.Tensor((T.int64(1), T.int64(256), T.int64(4096)), "float16"),
+            T_reshape: T.Tensor((T.int64(1), T.int64(256), T.int64(32), T.int64(128)), "float16"),
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -396,10 +396,10 @@ def test_llama_attention():
                         (v_ax2 * T.int64(128) + v_ax3) % T.int64(4096),
                     ]
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def reshape1(
-            A: T.Buffer((T.int64(1), T.int64(256), T.int64(32), T.int64(128)), "float16"),
-            T_reshape: T.Buffer((T.int64(256), T.int64(32), T.int64(128)), "float16"),
+            A: T.Tensor((T.int64(1), T.int64(256), T.int64(32), T.int64(128)), "float16"),
+            T_reshape: T.Tensor((T.int64(256), T.int64(32), T.int64(128)), "float16"),
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -422,10 +422,10 @@ def test_llama_attention():
                         v_ax2 % T.int64(128),
                     ]
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def reshape2(
-            A: T.Buffer((T.int64(256), T.int64(32), T.int64(128)), "float16"),
-            T_reshape: T.Buffer((T.int64(1), T.int64(256), T.int64(32), T.int64(128)), "float16"),
+            A: T.Tensor((T.int64(256), T.int64(32), T.int64(128)), "float16"),
+            T_reshape: T.Tensor((T.int64(1), T.int64(256), T.int64(32), T.int64(128)), "float16"),
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -446,10 +446,10 @@ def test_llama_attention():
                         v_ax3 % T.int64(128),
                     ]
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def reshape3(
-            A: T.Buffer((T.int64(1), T.int64(256), T.int64(32), T.int64(128)), "float16"),
-            T_reshape: T.Buffer((T.int64(1), T.int64(256), T.int64(4096)), "float16"),
+            A: T.Tensor((T.int64(1), T.int64(256), T.int64(32), T.int64(128)), "float16"),
+            T_reshape: T.Tensor((T.int64(1), T.int64(256), T.int64(4096)), "float16"),
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -472,11 +472,11 @@ def test_llama_attention():
                         v_ax2 % T.int64(128),
                     ]
 
-        @Ts.prim_func
+        @Ts.function
         def rms_norm(
-            A: T.Buffer((T.int64(1), 256, T.int64(4096)), "float16"),
-            B: T.Buffer((T.int64(4096),), "float16"),
-            rms_norm_1: T.Buffer((T.int64(1), 256, T.int64(4096)), "float16"),
+            A: T.Tensor((T.int64(1), 256, T.int64(4096)), "float16"),
+            B: T.Tensor((T.int64(4096),), "float16"),
+            rms_norm_1: T.Tensor((T.int64(1), 256, T.int64(4096)), "float16"),
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -508,12 +508,12 @@ def test_llama_attention():
                         ),
                     )
 
-        @Ts.prim_func
+        @Ts.function
         def rotary_embedding(
-            A: T.Buffer((T.int64(1), 256, T.int64(32), T.int64(128)), "float16"),
-            B: T.Buffer((T.int64(2048), T.int64(128)), "float16"),
-            C: T.Buffer((T.int64(2048), T.int64(128)), "float16"),
-            rotary: T.Buffer((T.int64(1), 256, T.int64(32), T.int64(128)), "float16"),
+            A: T.Tensor((T.int64(1), 256, T.int64(32), T.int64(128)), "float16"),
+            B: T.Tensor((T.int64(2048), T.int64(128)), "float16"),
+            C: T.Tensor((T.int64(2048), T.int64(128)), "float16"),
+            rotary: T.Tensor((T.int64(1), 256, T.int64(32), T.int64(128)), "float16"),
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -534,10 +534,10 @@ def test_llama_attention():
                         A[v_i0, v_i1, v_i2, v_i3 + T.int64(64)] * T.float16(-1),
                     )
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def softmax(
-            A: T.Buffer((T.int64(1), T.int64(32), T.int64(256), T.int64(256)), "float16"),
-            T_softmax_norm: T.Buffer(
+            A: T.Tensor((T.int64(1), T.int64(32), T.int64(256), T.int64(256)), "float16"),
+            T_softmax_norm: T.Tensor(
                 (T.int64(1), T.int64(32), T.int64(256), T.int64(256)), "float16"
             ),
         ):
@@ -592,10 +592,10 @@ def test_llama_attention():
                         T_softmax_exp[v_i0, v_i1, v_i2, v_i3] / T_softmax_expsum[v_i0, v_i1, v_i2]
                     )
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def transpose(
-            A: T.Buffer((T.int64(4096), T.int64(4096)), "float16"),
-            T_transpose: T.Buffer((T.int64(4096), T.int64(4096)), "float16"),
+            A: T.Tensor((T.int64(4096), T.int64(4096)), "float16"),
+            T_transpose: T.Tensor((T.int64(4096), T.int64(4096)), "float16"),
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -606,10 +606,10 @@ def test_llama_attention():
                     Ts.writes(T_transpose[v_ax0, v_ax1])
                     T_transpose[v_ax0, v_ax1] = A[v_ax1, v_ax0]
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def transpose1(
-            A: T.Buffer((T.int64(1), T.int64(256), T.int64(32), T.int64(128)), "float16"),
-            T_transpose: T.Buffer((T.int64(1), T.int64(32), T.int64(256), T.int64(128)), "float16"),
+            A: T.Tensor((T.int64(1), T.int64(256), T.int64(32), T.int64(128)), "float16"),
+            T_transpose: T.Tensor((T.int64(1), T.int64(32), T.int64(256), T.int64(128)), "float16"),
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -620,10 +620,10 @@ def test_llama_attention():
                     Ts.writes(T_transpose[v_ax0, v_ax1, v_ax2, v_ax3])
                     T_transpose[v_ax0, v_ax1, v_ax2, v_ax3] = A[v_ax0, v_ax2, v_ax1, v_ax3]
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def transpose2(
-            A: T.Buffer((T.int64(1), T.int64(32), T.int64(256), T.int64(128)), "float16"),
-            T_transpose: T.Buffer((T.int64(1), T.int64(32), T.int64(128), T.int64(256)), "float16"),
+            A: T.Tensor((T.int64(1), T.int64(32), T.int64(256), T.int64(128)), "float16"),
+            T_transpose: T.Tensor((T.int64(1), T.int64(32), T.int64(128), T.int64(256)), "float16"),
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -634,10 +634,10 @@ def test_llama_attention():
                     Ts.writes(T_transpose[v_ax0, v_ax1, v_ax2, v_ax3])
                     T_transpose[v_ax0, v_ax1, v_ax2, v_ax3] = A[v_ax0, v_ax1, v_ax3, v_ax2]
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def transpose3(
-            A: T.Buffer((T.int64(1), T.int64(32), T.int64(256), T.int64(128)), "float16"),
-            T_transpose: T.Buffer((T.int64(1), T.int64(256), T.int64(32), T.int64(128)), "float16"),
+            A: T.Tensor((T.int64(1), T.int64(32), T.int64(256), T.int64(128)), "float16"),
+            T_transpose: T.Tensor((T.int64(1), T.int64(256), T.int64(32), T.int64(128)), "float16"),
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -667,72 +667,72 @@ def test_llama_attention():
             lv6 = R.dist.call_tir(
                 cls.rms_norm,
                 (input_tokens, rms_norm_weight),
-                out_ty=R.DTensor((1, 256, 4096), "float16", "mesh[0]", "R"),
+                ty_args=[R.DTensor((1, 256, 4096), "float16", "mesh[0]", "R")],
             )
             lv7 = R.dist.call_tir(
                 cls.transpose,
                 (linear_weight,),
-                out_ty=R.DTensor((4096, 4096), "float16", "mesh[0]", "S[1]"),
+                ty_args=[R.DTensor((4096, 4096), "float16", "mesh[0]", "S[1]")],
             )
             lv8 = R.dist.call_tir(
                 cls.matmul,
                 (lv6, lv7),
-                out_ty=R.DTensor((1, 256, 4096), "float16", "mesh[0]", "S[2]"),
+                ty_args=[R.DTensor((1, 256, 4096), "float16", "mesh[0]", "S[2]")],
             )
             lv9 = R.dist.call_tir(
                 cls.reshape,
                 (lv8,),
-                out_ty=R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]"),
+                ty_args=[R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]")],
             )
             lv10 = R.dist.call_tir(
                 cls.transpose,
                 (linear_weight1,),
-                out_ty=R.DTensor((4096, 4096), "float16", "mesh[0]", "S[1]"),
+                ty_args=[R.DTensor((4096, 4096), "float16", "mesh[0]", "S[1]")],
             )
             lv11 = R.dist.call_tir(
                 cls.matmul,
                 (lv6, lv10),
-                out_ty=R.DTensor((1, 256, 4096), "float16", "mesh[0]", "S[2]"),
+                ty_args=[R.DTensor((1, 256, 4096), "float16", "mesh[0]", "S[2]")],
             )
             lv12 = R.dist.call_tir(
                 cls.reshape,
                 (lv11,),
-                out_ty=R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]"),
+                ty_args=[R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]")],
             )
             lv13 = R.dist.call_tir(
                 cls.transpose,
                 (linear_weight2,),
-                out_ty=R.DTensor((4096, 4096), "float16", "mesh[0]", "S[1]"),
+                ty_args=[R.DTensor((4096, 4096), "float16", "mesh[0]", "S[1]")],
             )
             lv14 = R.dist.call_tir(
                 cls.matmul,
                 (lv6, lv13),
-                out_ty=R.DTensor((1, 256, 4096), "float16", "mesh[0]", "S[2]"),
+                ty_args=[R.DTensor((1, 256, 4096), "float16", "mesh[0]", "S[2]")],
             )
             lv15 = R.dist.call_tir(
                 cls.reshape,
                 (lv14,),
-                out_ty=R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]"),
+                ty_args=[R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]")],
             )
             lv16 = R.dist.call_tir(
                 cls.rotary_embedding,
                 (lv9, cos_cached, sin_cached),
-                out_ty=R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]"),
+                ty_args=[R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]")],
             )
             lv17 = R.dist.call_tir(
                 cls.rotary_embedding,
                 (lv12, cos_cached, sin_cached),
-                out_ty=R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]"),
+                ty_args=[R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]")],
             )
             lv18 = R.dist.call_tir(
                 cls.reshape1,
                 (lv17,),
-                out_ty=R.DTensor((256, 32, 128), "float16", "mesh[0]", "S[1]"),
+                ty_args=[R.DTensor((256, 32, 128), "float16", "mesh[0]", "S[1]")],
             )
             lv19 = R.dist.call_tir(
                 cls.reshape1,
                 (lv15,),
-                out_ty=R.DTensor((256, 32, 128), "float16", "mesh[0]", "S[1]"),
+                ty_args=[R.DTensor((256, 32, 128), "float16", "mesh[0]", "S[1]")],
             )
             lv20: R.Any = kv_cache[0]
             lv21: R.Any = R.call_packed(
@@ -763,87 +763,87 @@ def test_llama_attention():
             lv26 = R.dist.call_tir(
                 cls.reshape2,
                 (lv24,),
-                out_ty=R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]"),
+                ty_args=[R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]")],
             )
             lv27 = R.dist.call_tir(
                 cls.reshape2,
                 (lv25,),
-                out_ty=R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]"),
+                ty_args=[R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]")],
             )
             lv28 = R.dist.call_tir(
                 cls.transpose1,
                 (lv16,),
-                out_ty=R.DTensor((1, 32, 256, 128), "float16", "mesh[0]", "S[1]"),
+                ty_args=[R.DTensor((1, 32, 256, 128), "float16", "mesh[0]", "S[1]")],
             )
             lv29 = R.dist.call_tir(
                 cls.transpose1,
                 (lv26,),
-                out_ty=R.DTensor((1, 32, 256, 128), "float16", "mesh[0]", "S[1]"),
+                ty_args=[R.DTensor((1, 32, 256, 128), "float16", "mesh[0]", "S[1]")],
             )
             lv30 = R.dist.call_tir(
                 cls.transpose1,
                 (lv27,),
-                out_ty=R.DTensor((1, 32, 256, 128), "float16", "mesh[0]", "S[1]"),
+                ty_args=[R.DTensor((1, 32, 256, 128), "float16", "mesh[0]", "S[1]")],
             )
             lv31 = R.dist.call_tir(
                 cls.transpose2,
                 (lv29,),
-                out_ty=R.DTensor((1, 32, 128, 256), "float16", "mesh[0]", "S[1]"),
+                ty_args=[R.DTensor((1, 32, 128, 256), "float16", "mesh[0]", "S[1]")],
             )
             lv32 = R.dist.call_tir(
                 cls.matmul1,
                 (lv28, lv31),
-                out_ty=R.DTensor((1, 32, 256, 256), "float16", "mesh[0]", "S[1]"),
+                ty_args=[R.DTensor((1, 32, 256, 256), "float16", "mesh[0]", "S[1]")],
             )
             lv33 = R.dist.call_tir(
                 cls.divide,
                 (lv32, div_const),
-                out_ty=R.DTensor((1, 32, 256, 256), "float16", "mesh[0]", "S[1]"),
+                ty_args=[R.DTensor((1, 32, 256, 256), "float16", "mesh[0]", "S[1]")],
             )
             lv34 = R.dist.call_tir(
                 cls.maximum,
                 (lv33, maximum_const),
-                out_ty=R.DTensor((1, 32, 256, 256), "float16", "mesh[0]", "S[1]"),
+                ty_args=[R.DTensor((1, 32, 256, 256), "float16", "mesh[0]", "S[1]")],
             )
             lv35 = R.dist.call_tir(
                 cls.minimum,
                 (lv34, mask),
-                out_ty=R.DTensor((1, 32, 256, 256), "float16", "mesh[0]", "S[1]"),
+                ty_args=[R.DTensor((1, 32, 256, 256), "float16", "mesh[0]", "S[1]")],
             )
             lv37 = R.dist.call_tir(
                 cls.softmax,
                 (lv35,),
-                out_ty=R.DTensor((1, 32, 256, 256), "float16", "mesh[0]", "S[1]"),
+                ty_args=[R.DTensor((1, 32, 256, 256), "float16", "mesh[0]", "S[1]")],
             )
             lv39 = R.dist.call_tir(
                 cls.matmul2,
                 (lv37, lv30),
-                out_ty=R.DTensor((1, 32, 256, 128), "float16", "mesh[0]", "S[1]"),
+                ty_args=[R.DTensor((1, 32, 256, 128), "float16", "mesh[0]", "S[1]")],
             )
             lv40 = R.dist.call_tir(
                 cls.transpose3,
                 (lv39,),
-                out_ty=R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]"),
+                ty_args=[R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]")],
             )
             lv41 = R.dist.call_tir(
                 cls.reshape3,
                 (lv40,),
-                out_ty=R.DTensor((1, 256, 4096), "float16", "mesh[0]", "S[2]"),
+                ty_args=[R.DTensor((1, 256, 4096), "float16", "mesh[0]", "S[2]")],
             )
             lv42 = R.dist.call_tir(
                 cls.transpose,
                 (linear_weight3,),
-                out_ty=R.DTensor((4096, 4096), "float16", "mesh[0]", "S[0]"),
+                ty_args=[R.DTensor((4096, 4096), "float16", "mesh[0]", "S[0]")],
             )
             lv43 = R.dist.call_tir(
                 cls.matmul,
                 (lv41, lv42),
-                out_ty=R.DTensor((1, 256, 4096), "float16", "mesh[0]", "R"),
+                ty_args=[R.DTensor((1, 256, 4096), "float16", "mesh[0]", "R")],
             )
             lv44 = R.dist.call_tir(
                 cls.add,
                 (input_tokens, lv43),
-                out_ty=R.DTensor((1, 256, 4096), "float16", "mesh[0]", "R"),
+                ty_args=[R.DTensor((1, 256, 4096), "float16", "mesh[0]", "R")],
             )
             gv: R.DTensor((1, 256, 4096), "float16", "mesh[0]", "R") = lv44
             return gv
@@ -855,11 +855,11 @@ def test_llama_attention():
             {"mesh": [R.device_mesh((2,), I.Range(0, 2)), R.device_mesh((1,), I.Range(4, 5))]}
         )
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def add(
-            A: T.Buffer((T.int64(1), T.int64(256), T.int64(4096)), "float16"),
-            B: T.Buffer((T.int64(1), T.int64(256), T.int64(4096)), "float16"),
-            T_add: T.Buffer((T.int64(1), T.int64(256), T.int64(4096)), "float16"),
+            A: T.Tensor((T.int64(1), T.int64(256), T.int64(4096)), "float16"),
+            B: T.Tensor((T.int64(1), T.int64(256), T.int64(4096)), "float16"),
+            T_add: T.Tensor((T.int64(1), T.int64(256), T.int64(4096)), "float16"),
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -870,11 +870,11 @@ def test_llama_attention():
                     Ts.writes(T_add[v_ax0, v_ax1, v_ax2])
                     T_add[v_ax0, v_ax1, v_ax2] = A[v_ax0, v_ax1, v_ax2] + B[v_ax0, v_ax1, v_ax2]
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def divide1(
-            A: T.Buffer((T.int64(1), T.int64(16), T.int64(256), T.int64(256)), "float16"),
-            B: T.Buffer((T.int64(1), T.int64(16), T.int64(256), T.int64(256)), "float16"),
-            T_divide: T.Buffer((T.int64(1), T.int64(16), T.int64(256), T.int64(256)), "float16"),
+            A: T.Tensor((T.int64(1), T.int64(16), T.int64(256), T.int64(256)), "float16"),
+            B: T.Tensor((T.int64(1), T.int64(16), T.int64(256), T.int64(256)), "float16"),
+            T_divide: T.Tensor((T.int64(1), T.int64(16), T.int64(256), T.int64(256)), "float16"),
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -887,11 +887,11 @@ def test_llama_attention():
                         A[v_ax0, v_ax1, v_ax2, v_ax3] / B[v_ax0, v_ax1, v_ax2, v_ax3]
                     )
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def matmul11(
-            A: T.Buffer((T.int64(1), T.int64(16), T.int64(256), T.int64(128)), "float16"),
-            B: T.Buffer((T.int64(1), T.int64(16), T.int64(128), T.int64(256)), "float16"),
-            matmul: T.Buffer((T.int64(1), T.int64(16), T.int64(256), T.int64(256)), "float16"),
+            A: T.Tensor((T.int64(1), T.int64(16), T.int64(256), T.int64(128)), "float16"),
+            B: T.Tensor((T.int64(1), T.int64(16), T.int64(128), T.int64(256)), "float16"),
+            matmul: T.Tensor((T.int64(1), T.int64(16), T.int64(256), T.int64(256)), "float16"),
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -909,11 +909,11 @@ def test_llama_attention():
                         + A[v_i0, v_i1, v_i2, v_k] * B[v_i0, v_i1, v_k, v_i3]
                     )
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def matmul21(
-            A: T.Buffer((T.int64(1), T.int64(16), T.int64(256), T.int64(256)), "float16"),
-            B: T.Buffer((T.int64(1), T.int64(16), T.int64(256), T.int64(128)), "float16"),
-            matmul: T.Buffer((T.int64(1), T.int64(16), T.int64(256), T.int64(128)), "float16"),
+            A: T.Tensor((T.int64(1), T.int64(16), T.int64(256), T.int64(256)), "float16"),
+            B: T.Tensor((T.int64(1), T.int64(16), T.int64(256), T.int64(128)), "float16"),
+            matmul: T.Tensor((T.int64(1), T.int64(16), T.int64(256), T.int64(128)), "float16"),
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -931,11 +931,11 @@ def test_llama_attention():
                         + A[v_i0, v_i1, v_i2, v_k] * B[v_i0, v_i1, v_k, v_i3]
                     )
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def matmul3(
-            A: T.Buffer((T.int64(1), T.int64(256), T.int64(4096)), "float16"),
-            B: T.Buffer((T.int64(4096), T.int64(2048)), "float16"),
-            matmul: T.Buffer((T.int64(1), T.int64(256), T.int64(2048)), "float16"),
+            A: T.Tensor((T.int64(1), T.int64(256), T.int64(4096)), "float16"),
+            B: T.Tensor((T.int64(4096), T.int64(2048)), "float16"),
+            matmul: T.Tensor((T.int64(1), T.int64(256), T.int64(2048)), "float16"),
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -950,11 +950,11 @@ def test_llama_attention():
                         matmul[v_i0, v_i1, v_i2] + A[v_i0, v_i1, v_k] * B[v_k, v_i2]
                     )
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def matmul4(
-            A: T.Buffer((T.int64(1), T.int64(256), T.int64(2048)), "float16"),
-            B: T.Buffer((T.int64(2048), T.int64(4096)), "float16"),
-            matmul: T.Buffer((T.int64(1), T.int64(256), T.int64(4096)), "float16"),
+            A: T.Tensor((T.int64(1), T.int64(256), T.int64(2048)), "float16"),
+            B: T.Tensor((T.int64(2048), T.int64(4096)), "float16"),
+            matmul: T.Tensor((T.int64(1), T.int64(256), T.int64(4096)), "float16"),
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -969,11 +969,11 @@ def test_llama_attention():
                         matmul[v_i0, v_i1, v_i2] + A[v_i0, v_i1, v_k] * B[v_k, v_i2]
                     )
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def maximum1(
-            A: T.Buffer((T.int64(1), T.int64(16), T.int64(256), T.int64(256)), "float16"),
-            B: T.Buffer((T.int64(1), T.int64(16), T.int64(256), T.int64(256)), "float16"),
-            T_maximum: T.Buffer((T.int64(1), T.int64(16), T.int64(256), T.int64(256)), "float16"),
+            A: T.Tensor((T.int64(1), T.int64(16), T.int64(256), T.int64(256)), "float16"),
+            B: T.Tensor((T.int64(1), T.int64(16), T.int64(256), T.int64(256)), "float16"),
+            T_maximum: T.Tensor((T.int64(1), T.int64(16), T.int64(256), T.int64(256)), "float16"),
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -986,11 +986,11 @@ def test_llama_attention():
                         A[v_ax0, v_ax1, v_ax2, v_ax3], B[v_ax0, v_ax1, v_ax2, v_ax3]
                     )
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def minimum1(
-            A: T.Buffer((T.int64(1), T.int64(16), T.int64(256), T.int64(256)), "float16"),
-            B: T.Buffer((T.int64(1), T.int64(1), T.int64(256), T.int64(256)), "float16"),
-            T_minimum: T.Buffer((T.int64(1), T.int64(16), T.int64(256), T.int64(256)), "float16"),
+            A: T.Tensor((T.int64(1), T.int64(16), T.int64(256), T.int64(256)), "float16"),
+            B: T.Tensor((T.int64(1), T.int64(1), T.int64(256), T.int64(256)), "float16"),
+            T_minimum: T.Tensor((T.int64(1), T.int64(16), T.int64(256), T.int64(256)), "float16"),
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -1003,10 +1003,10 @@ def test_llama_attention():
                         A[v_ax0, v_ax1, v_ax2, v_ax3], B[v_ax0, T.int64(0), v_ax2, v_ax3]
                     )
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def reshape11(
-            A: T.Buffer((T.int64(1), T.int64(256), T.int64(16), T.int64(128)), "float16"),
-            T_reshape: T.Buffer((T.int64(256), T.int64(16), T.int64(128)), "float16"),
+            A: T.Tensor((T.int64(1), T.int64(256), T.int64(16), T.int64(128)), "float16"),
+            T_reshape: T.Tensor((T.int64(256), T.int64(16), T.int64(128)), "float16"),
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -1029,10 +1029,10 @@ def test_llama_attention():
                         v_ax2 % T.int64(128),
                     ]
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def reshape21(
-            A: T.Buffer((T.int64(256), T.int64(16), T.int64(128)), "float16"),
-            T_reshape: T.Buffer((T.int64(1), T.int64(256), T.int64(16), T.int64(128)), "float16"),
+            A: T.Tensor((T.int64(256), T.int64(16), T.int64(128)), "float16"),
+            T_reshape: T.Tensor((T.int64(1), T.int64(256), T.int64(16), T.int64(128)), "float16"),
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -1053,10 +1053,10 @@ def test_llama_attention():
                         v_ax3 % T.int64(128),
                     ]
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def reshape31(
-            A: T.Buffer((T.int64(1), T.int64(256), T.int64(16), T.int64(128)), "float16"),
-            T_reshape: T.Buffer((T.int64(1), T.int64(256), T.int64(2048)), "float16"),
+            A: T.Tensor((T.int64(1), T.int64(256), T.int64(16), T.int64(128)), "float16"),
+            T_reshape: T.Tensor((T.int64(1), T.int64(256), T.int64(2048)), "float16"),
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -1079,10 +1079,10 @@ def test_llama_attention():
                         v_ax2 % T.int64(128),
                     ]
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def reshape4(
-            A: T.Buffer((T.int64(1), T.int64(256), T.int64(2048)), "float16"),
-            T_reshape: T.Buffer((T.int64(1), T.int64(256), T.int64(16), T.int64(128)), "float16"),
+            A: T.Tensor((T.int64(1), T.int64(256), T.int64(2048)), "float16"),
+            T_reshape: T.Tensor((T.int64(1), T.int64(256), T.int64(16), T.int64(128)), "float16"),
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -1104,11 +1104,11 @@ def test_llama_attention():
                         (v_ax2 * T.int64(128) + v_ax3) % T.int64(4096),
                     ]
 
-        @Ts.prim_func
+        @Ts.function
         def rms_norm(
-            A: T.Buffer((T.int64(1), 256, T.int64(4096)), "float16"),
-            B: T.Buffer((T.int64(4096),), "float16"),
-            rms_norm_1: T.Buffer((T.int64(1), 256, T.int64(4096)), "float16"),
+            A: T.Tensor((T.int64(1), 256, T.int64(4096)), "float16"),
+            B: T.Tensor((T.int64(4096),), "float16"),
+            rms_norm_1: T.Tensor((T.int64(1), 256, T.int64(4096)), "float16"),
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -1140,12 +1140,12 @@ def test_llama_attention():
                         ),
                     )
 
-        @Ts.prim_func
+        @Ts.function
         def rotary_embedding(
-            A: T.Buffer((T.int64(1), 256, T.int64(32), T.int64(128)), "float16"),
-            B: T.Buffer((T.int64(2048), T.int64(128)), "float16"),
-            C: T.Buffer((T.int64(2048), T.int64(128)), "float16"),
-            rotary: T.Buffer((T.int64(1), 256, T.int64(32), T.int64(128)), "float16"),
+            A: T.Tensor((T.int64(1), 256, T.int64(32), T.int64(128)), "float16"),
+            B: T.Tensor((T.int64(2048), T.int64(128)), "float16"),
+            C: T.Tensor((T.int64(2048), T.int64(128)), "float16"),
+            rotary: T.Tensor((T.int64(1), 256, T.int64(32), T.int64(128)), "float16"),
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -1166,12 +1166,12 @@ def test_llama_attention():
                         A[v_i0, v_i1, v_i2, v_i3 + T.int64(64)] * T.float16(-1),
                     )
 
-        @Ts.prim_func
+        @Ts.function
         def rotary_embedding1(
-            A: T.Buffer((T.int64(1), 256, T.int64(16), T.int64(128)), "float16"),
-            B: T.Buffer((T.int64(2048), T.int64(128)), "float16"),
-            C: T.Buffer((T.int64(2048), T.int64(128)), "float16"),
-            rotary: T.Buffer((T.int64(1), 256, T.int64(16), T.int64(128)), "float16"),
+            A: T.Tensor((T.int64(1), 256, T.int64(16), T.int64(128)), "float16"),
+            B: T.Tensor((T.int64(2048), T.int64(128)), "float16"),
+            C: T.Tensor((T.int64(2048), T.int64(128)), "float16"),
+            rotary: T.Tensor((T.int64(1), 256, T.int64(16), T.int64(128)), "float16"),
         ):
             T.func_attr({"global_symbol": "rotary_embedding", "tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -1192,10 +1192,10 @@ def test_llama_attention():
                         A[v_i0, v_i1, v_i2, v_i3 + T.int64(64)] * T.float16(-1),
                     )
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def softmax1(
-            A: T.Buffer((T.int64(1), T.int64(16), T.int64(256), T.int64(256)), "float16"),
-            T_softmax_norm: T.Buffer(
+            A: T.Tensor((T.int64(1), T.int64(16), T.int64(256), T.int64(256)), "float16"),
+            T_softmax_norm: T.Tensor(
                 (T.int64(1), T.int64(16), T.int64(256), T.int64(256)), "float16"
             ),
         ):
@@ -1250,10 +1250,10 @@ def test_llama_attention():
                         T_softmax_exp[v_i0, v_i1, v_i2, v_i3] / T_softmax_expsum[v_i0, v_i1, v_i2]
                     )
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def transpose11(
-            A: T.Buffer((T.int64(1), T.int64(256), T.int64(16), T.int64(128)), "float16"),
-            T_transpose: T.Buffer((T.int64(1), T.int64(16), T.int64(256), T.int64(128)), "float16"),
+            A: T.Tensor((T.int64(1), T.int64(256), T.int64(16), T.int64(128)), "float16"),
+            T_transpose: T.Tensor((T.int64(1), T.int64(16), T.int64(256), T.int64(128)), "float16"),
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -1264,10 +1264,10 @@ def test_llama_attention():
                     Ts.writes(T_transpose[v_ax0, v_ax1, v_ax2, v_ax3])
                     T_transpose[v_ax0, v_ax1, v_ax2, v_ax3] = A[v_ax0, v_ax2, v_ax1, v_ax3]
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def transpose21(
-            A: T.Buffer((T.int64(1), T.int64(16), T.int64(256), T.int64(128)), "float16"),
-            T_transpose: T.Buffer((T.int64(1), T.int64(16), T.int64(128), T.int64(256)), "float16"),
+            A: T.Tensor((T.int64(1), T.int64(16), T.int64(256), T.int64(128)), "float16"),
+            T_transpose: T.Tensor((T.int64(1), T.int64(16), T.int64(128), T.int64(256)), "float16"),
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -1278,10 +1278,10 @@ def test_llama_attention():
                     Ts.writes(T_transpose[v_ax0, v_ax1, v_ax2, v_ax3])
                     T_transpose[v_ax0, v_ax1, v_ax2, v_ax3] = A[v_ax0, v_ax1, v_ax3, v_ax2]
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def transpose31(
-            A: T.Buffer((T.int64(1), T.int64(16), T.int64(256), T.int64(128)), "float16"),
-            T_transpose: T.Buffer((T.int64(1), T.int64(256), T.int64(16), T.int64(128)), "float16"),
+            A: T.Tensor((T.int64(1), T.int64(16), T.int64(256), T.int64(128)), "float16"),
+            T_transpose: T.Tensor((T.int64(1), T.int64(256), T.int64(16), T.int64(128)), "float16"),
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -1292,10 +1292,10 @@ def test_llama_attention():
                     Ts.writes(T_transpose[v_ax0, v_ax1, v_ax2, v_ax3])
                     T_transpose[v_ax0, v_ax1, v_ax2, v_ax3] = A[v_ax0, v_ax2, v_ax1, v_ax3]
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def transpose4(
-            A: T.Buffer((T.int64(2048), T.int64(4096)), "float16"),
-            T_transpose: T.Buffer((T.int64(4096), T.int64(2048)), "float16"),
+            A: T.Tensor((T.int64(2048), T.int64(4096)), "float16"),
+            T_transpose: T.Tensor((T.int64(4096), T.int64(2048)), "float16"),
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -1306,10 +1306,10 @@ def test_llama_attention():
                     Ts.writes(T_transpose[v_ax0, v_ax1])
                     T_transpose[v_ax0, v_ax1] = A[v_ax1, v_ax0]
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def transpose5(
-            A: T.Buffer((T.int64(4096), T.int64(2048)), "float16"),
-            T_transpose: T.Buffer((T.int64(2048), T.int64(4096)), "float16"),
+            A: T.Tensor((T.int64(4096), T.int64(2048)), "float16"),
+            T_transpose: T.Tensor((T.int64(2048), T.int64(4096)), "float16"),
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -1339,95 +1339,95 @@ def test_llama_attention():
             lv6: R.DTensor((1, 256, 4096), "float16", "mesh[0]", "R") = R.dist.call_tir_local_view(
                 cls.rms_norm,
                 (input_tokens, rms_norm_weight),
-                out_ty=R.DTensor((1, 256, 4096), "float16", "mesh[0]", "R"),
+                ty_args=[R.DTensor((1, 256, 4096), "float16", "mesh[0]", "R")],
             )
             lv7: R.DTensor((4096, 4096), "float16", "mesh[0]", "S[1]") = R.dist.call_tir_local_view(
                 cls.transpose4,
                 (linear_weight,),
-                out_ty=R.DTensor((4096, 4096), "float16", "mesh[0]", "S[1]"),
+                ty_args=[R.DTensor((4096, 4096), "float16", "mesh[0]", "S[1]")],
             )
             lv8: R.DTensor((1, 256, 4096), "float16", "mesh[0]", "S[2]") = (
                 R.dist.call_tir_local_view(
                     cls.matmul3,
                     (lv6, lv7),
-                    out_ty=R.DTensor((1, 256, 4096), "float16", "mesh[0]", "S[2]"),
+                    ty_args=[R.DTensor((1, 256, 4096), "float16", "mesh[0]", "S[2]")],
                 )
             )
             lv9: R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]") = (
                 R.dist.call_tir_local_view(
                     cls.reshape4,
                     (lv8,),
-                    out_ty=R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]"),
+                    ty_args=[R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]")],
                 )
             )
             lv10: R.DTensor((4096, 4096), "float16", "mesh[0]", "S[1]") = (
                 R.dist.call_tir_local_view(
                     cls.transpose4,
                     (linear_weight1,),
-                    out_ty=R.DTensor((4096, 4096), "float16", "mesh[0]", "S[1]"),
+                    ty_args=[R.DTensor((4096, 4096), "float16", "mesh[0]", "S[1]")],
                 )
             )
             lv11: R.DTensor((1, 256, 4096), "float16", "mesh[0]", "S[2]") = (
                 R.dist.call_tir_local_view(
                     cls.matmul3,
                     (lv6, lv10),
-                    out_ty=R.DTensor((1, 256, 4096), "float16", "mesh[0]", "S[2]"),
+                    ty_args=[R.DTensor((1, 256, 4096), "float16", "mesh[0]", "S[2]")],
                 )
             )
             lv12: R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]") = (
                 R.dist.call_tir_local_view(
                     cls.reshape4,
                     (lv11,),
-                    out_ty=R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]"),
+                    ty_args=[R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]")],
                 )
             )
             lv13: R.DTensor((4096, 4096), "float16", "mesh[0]", "S[1]") = (
                 R.dist.call_tir_local_view(
                     cls.transpose4,
                     (linear_weight2,),
-                    out_ty=R.DTensor((4096, 4096), "float16", "mesh[0]", "S[1]"),
+                    ty_args=[R.DTensor((4096, 4096), "float16", "mesh[0]", "S[1]")],
                 )
             )
             lv14: R.DTensor((1, 256, 4096), "float16", "mesh[0]", "S[2]") = (
                 R.dist.call_tir_local_view(
                     cls.matmul3,
                     (lv6, lv13),
-                    out_ty=R.DTensor((1, 256, 4096), "float16", "mesh[0]", "S[2]"),
+                    ty_args=[R.DTensor((1, 256, 4096), "float16", "mesh[0]", "S[2]")],
                 )
             )
             lv15: R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]") = (
                 R.dist.call_tir_local_view(
                     cls.reshape4,
                     (lv14,),
-                    out_ty=R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]"),
+                    ty_args=[R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]")],
                 )
             )
             lv16: R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]") = (
                 R.dist.call_tir_local_view(
                     cls.rotary_embedding1,
                     (lv9, cos_cached, sin_cached),
-                    out_ty=R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]"),
+                    ty_args=[R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]")],
                 )
             )
             lv17: R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]") = (
                 R.dist.call_tir_local_view(
                     cls.rotary_embedding1,
                     (lv12, cos_cached, sin_cached),
-                    out_ty=R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]"),
+                    ty_args=[R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]")],
                 )
             )
             lv18: R.DTensor((256, 32, 128), "float16", "mesh[0]", "S[1]") = (
                 R.dist.call_tir_local_view(
                     cls.reshape11,
                     (lv17,),
-                    out_ty=R.DTensor((256, 32, 128), "float16", "mesh[0]", "S[1]"),
+                    ty_args=[R.DTensor((256, 32, 128), "float16", "mesh[0]", "S[1]")],
                 )
             )
             lv19: R.DTensor((256, 32, 128), "float16", "mesh[0]", "S[1]") = (
                 R.dist.call_tir_local_view(
                     cls.reshape11,
                     (lv15,),
-                    out_ty=R.DTensor((256, 32, 128), "float16", "mesh[0]", "S[1]"),
+                    ty_args=[R.DTensor((256, 32, 128), "float16", "mesh[0]", "S[1]")],
                 )
             )
             lv20: R.Any = kv_cache[0]
@@ -1460,111 +1460,111 @@ def test_llama_attention():
                 R.dist.call_tir_local_view(
                     cls.reshape21,
                     (lv24,),
-                    out_ty=R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]"),
+                    ty_args=[R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]")],
                 )
             )
             lv27: R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]") = (
                 R.dist.call_tir_local_view(
                     cls.reshape21,
                     (lv25,),
-                    out_ty=R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]"),
+                    ty_args=[R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]")],
                 )
             )
             lv28: R.DTensor((1, 32, 256, 128), "float16", "mesh[0]", "S[1]") = (
                 R.dist.call_tir_local_view(
                     cls.transpose11,
                     (lv16,),
-                    out_ty=R.DTensor((1, 32, 256, 128), "float16", "mesh[0]", "S[1]"),
+                    ty_args=[R.DTensor((1, 32, 256, 128), "float16", "mesh[0]", "S[1]")],
                 )
             )
             lv29: R.DTensor((1, 32, 256, 128), "float16", "mesh[0]", "S[1]") = (
                 R.dist.call_tir_local_view(
                     cls.transpose11,
                     (lv26,),
-                    out_ty=R.DTensor((1, 32, 256, 128), "float16", "mesh[0]", "S[1]"),
+                    ty_args=[R.DTensor((1, 32, 256, 128), "float16", "mesh[0]", "S[1]")],
                 )
             )
             lv30: R.DTensor((1, 32, 256, 128), "float16", "mesh[0]", "S[1]") = (
                 R.dist.call_tir_local_view(
                     cls.transpose11,
                     (lv27,),
-                    out_ty=R.DTensor((1, 32, 256, 128), "float16", "mesh[0]", "S[1]"),
+                    ty_args=[R.DTensor((1, 32, 256, 128), "float16", "mesh[0]", "S[1]")],
                 )
             )
             lv31: R.DTensor((1, 32, 128, 256), "float16", "mesh[0]", "S[1]") = (
                 R.dist.call_tir_local_view(
                     cls.transpose21,
                     (lv29,),
-                    out_ty=R.DTensor((1, 32, 128, 256), "float16", "mesh[0]", "S[1]"),
+                    ty_args=[R.DTensor((1, 32, 128, 256), "float16", "mesh[0]", "S[1]")],
                 )
             )
             lv32: R.DTensor((1, 32, 256, 256), "float16", "mesh[0]", "S[1]") = (
                 R.dist.call_tir_local_view(
                     cls.matmul11,
                     (lv28, lv31),
-                    out_ty=R.DTensor((1, 32, 256, 256), "float16", "mesh[0]", "S[1]"),
+                    ty_args=[R.DTensor((1, 32, 256, 256), "float16", "mesh[0]", "S[1]")],
                 )
             )
             lv33: R.DTensor((1, 32, 256, 256), "float16", "mesh[0]", "S[1]") = (
                 R.dist.call_tir_local_view(
                     cls.divide1,
                     (lv32, div_const),
-                    out_ty=R.DTensor((1, 32, 256, 256), "float16", "mesh[0]", "S[1]"),
+                    ty_args=[R.DTensor((1, 32, 256, 256), "float16", "mesh[0]", "S[1]")],
                 )
             )
             lv34: R.DTensor((1, 32, 256, 256), "float16", "mesh[0]", "S[1]") = (
                 R.dist.call_tir_local_view(
                     cls.maximum1,
                     (lv33, maximum_const),
-                    out_ty=R.DTensor((1, 32, 256, 256), "float16", "mesh[0]", "S[1]"),
+                    ty_args=[R.DTensor((1, 32, 256, 256), "float16", "mesh[0]", "S[1]")],
                 )
             )
             lv35: R.DTensor((1, 32, 256, 256), "float16", "mesh[0]", "S[1]") = (
                 R.dist.call_tir_local_view(
                     cls.minimum1,
                     (lv34, mask),
-                    out_ty=R.DTensor((1, 32, 256, 256), "float16", "mesh[0]", "S[1]"),
+                    ty_args=[R.DTensor((1, 32, 256, 256), "float16", "mesh[0]", "S[1]")],
                 )
             )
             lv37: R.DTensor((1, 32, 256, 256), "float16", "mesh[0]", "S[1]") = (
                 R.dist.call_tir_local_view(
                     cls.softmax1,
                     (lv35,),
-                    out_ty=R.DTensor((1, 32, 256, 256), "float16", "mesh[0]", "S[1]"),
+                    ty_args=[R.DTensor((1, 32, 256, 256), "float16", "mesh[0]", "S[1]")],
                 )
             )
             lv39: R.DTensor((1, 32, 256, 128), "float16", "mesh[0]", "S[1]") = (
                 R.dist.call_tir_local_view(
                     cls.matmul21,
                     (lv37, lv30),
-                    out_ty=R.DTensor((1, 32, 256, 128), "float16", "mesh[0]", "S[1]"),
+                    ty_args=[R.DTensor((1, 32, 256, 128), "float16", "mesh[0]", "S[1]")],
                 )
             )
             lv40: R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]") = (
                 R.dist.call_tir_local_view(
                     cls.transpose31,
                     (lv39,),
-                    out_ty=R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]"),
+                    ty_args=[R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]")],
                 )
             )
             lv41: R.DTensor((1, 256, 4096), "float16", "mesh[0]", "S[2]") = (
                 R.dist.call_tir_local_view(
                     cls.reshape31,
                     (lv40,),
-                    out_ty=R.DTensor((1, 256, 4096), "float16", "mesh[0]", "S[2]"),
+                    ty_args=[R.DTensor((1, 256, 4096), "float16", "mesh[0]", "S[2]")],
                 )
             )
             lv42: R.DTensor((4096, 4096), "float16", "mesh[0]", "S[0]") = (
                 R.dist.call_tir_local_view(
                     cls.transpose5,
                     (linear_weight3,),
-                    out_ty=R.DTensor((4096, 4096), "float16", "mesh[0]", "S[0]"),
+                    ty_args=[R.DTensor((4096, 4096), "float16", "mesh[0]", "S[0]")],
                 )
             )
             gv: R.DTensor((1, 256, 4096), "float16", "mesh[0]", "R") = R.dist.call_tir_local_view(
                 cls.matmul4,
                 (lv41, lv42),
-                out_ty=R.DTensor((1, 256, 4096), "float16", "mesh[0]", "R"),
+                ty_args=[R.DTensor((1, 256, 4096), "float16", "mesh[0]", "R")],
             )
             lv43: R.DTensor((1, 256, 4096), "float16", "mesh[0]", "R") = R.ccl.allreduce(
                 gv, op_type="sum", in_group=False
@@ -1572,7 +1572,7 @@ def test_llama_attention():
             lv44: R.DTensor((1, 256, 4096), "float16", "mesh[0]", "R") = R.dist.call_tir_local_view(
                 cls.add,
                 (input_tokens, lv43),
-                out_ty=R.DTensor((1, 256, 4096), "float16", "mesh[0]", "R"),
+                ty_args=[R.DTensor((1, 256, 4096), "float16", "mesh[0]", "R")],
             )
             gv_1: R.DTensor((1, 256, 4096), "float16", "mesh[0]", "R") = lv44
             return gv_1

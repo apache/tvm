@@ -24,7 +24,8 @@
 #ifndef TVM_TIR_TRANSFORM_FORCE_NARROW_INDEX_TO_I32_H_
 #define TVM_TIR_TRANSFORM_FORCE_NARROW_INDEX_TO_I32_H_
 
-#include <tvm/tirx/op.h>
+#include <tvm/ir/prim/op.h>
+#include <tvm/tirx/op/memory.h>
 
 #include <utility>
 
@@ -46,13 +47,13 @@ class Int32DTypeNarrowerBase : public Normalizer {
   using Normalizer::Mutate_;
 
  protected:
-  explicit Int32DTypeNarrowerBase(PrimFunc func)
+  explicit Int32DTypeNarrowerBase(Function func)
       : Normalizer(PrimType::Int(32)), func_(std::move(func)) {}
 
   /*! \brief Reject integer buffer parameters wider than int32. */
-  static void CheckBufferParams(const PrimFunc& func) {
+  static void CheckBufferParams(const Function& func) {
     for (const Var& param : func->params) {
-      if (auto buffer = param.as<BufferVar>();
+      if (auto buffer = param.as<TensorVar>();
           buffer && buffer.value()->dtype.MatchesCode(DLDataTypeCode::kDLInt) &&
           buffer.value()->dtype.bits() > 32) {
         TVM_FFI_THROW(InternalError) << "The buffer parameter " << buffer.value() << " has dtype "
@@ -62,7 +63,7 @@ class Int32DTypeNarrowerBase : public Normalizer {
   }
 
   /*! \brief Reject allocated integer buffers wider than int32. */
-  void CheckAllocatedBuffer(const BufferVar& buf) const {
+  void CheckAllocatedBuffer(const TensorVar& buf) const {
     // Scalar assignments in TVMScript use local scalar storage.  Keep its explicit
     // dtype (e.g. an int64 opaque call result) and cast at narrowed index uses.
     // IsScalar checks the scalar layout contract, not merely the allocation size.
@@ -90,20 +91,20 @@ class Int32DTypeNarrowerBase : public Normalizer {
 
   UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final {
     if (const auto* call = op->value.as<CallNode>();
-        call && call->op.same_as(builtin::alloc_buffer()))
-      return MutateAllocBuffer(op, inplace_mode);
+        call && call->op.same_as(tirx::alloc_tensor_op()))
+      return MutateAllocTensor(op, inplace_mode);
     return Normalizer::Mutate_(op, inplace_mode);
   }
 
-  UnchangedOr<Stmt> MutateAllocBuffer(const BindNode* op, InplaceMode inplace_mode) {
+  UnchangedOr<Stmt> MutateAllocTensor(const BindNode* op, InplaceMode inplace_mode) {
     auto result = Normalizer::Mutate_(op, inplace_mode);
     auto alloc =
         std::move(result).ValueOrUnchanged(ffi::GetRef<Stmt>(op)).template as_or_throw<Bind>();
-    CheckAllocatedBuffer(alloc->var.template as_or_throw<BufferVar>());
+    CheckAllocatedBuffer(alloc->var.template as_or_throw<TensorVar>());
     return alloc;
   }
 
-  PrimFunc func_;
+  Function func_;
 };
 
 }  // namespace tirx

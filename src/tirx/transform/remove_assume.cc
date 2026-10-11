@@ -19,14 +19,13 @@
 
 /*!
  * \file remove_store_undef.cc
- * \brief Remove stores of tirx::builtin::undef
+ * \brief Remove stores of tirx::undef_op
  */
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/ir/prim/builtin.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/tirx/analysis.h>
-#include <tvm/tirx/builtin.h>
-#include <tvm/tirx/op.h>
+#include <tvm/tirx/op/memory.h>
 #include <tvm/tirx/stmt.h>
 #include <tvm/tirx/stmt_functor.h>
 #include <tvm/tirx/transform.h>
@@ -34,7 +33,7 @@
 namespace tvm {
 namespace tirx {
 
-// Remove any builtin::assume calls
+// Remove any prim::assume_op calls
 class AssumeRemover : public StmtExprMutator {
  public:
   using StmtExprMutator::Mutate;
@@ -43,7 +42,7 @@ class AssumeRemover : public StmtExprMutator {
 
   UnchangedOr<Stmt> Mutate_(const EvaluateNode* op, InplaceMode inplace_mode) final {
     if (auto* call = op->value.as<CallNode>()) {
-      if (call->op.same_as(builtin::assume())) {
+      if (call->op.same_as(prim::assume_op())) {
         return Evaluate(0);
       }
     }
@@ -53,14 +52,14 @@ class AssumeRemover : public StmtExprMutator {
 
 namespace transform {
 Pass RemoveAssumeInternal() {
-  auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
+  auto pass_func = [](Function f, IRModule m, PassContext ctx) {
     auto* n = f.CopyOnWrite();
     n->body = ffi::make_object<AssumeRemover>()
                   ->Mutate(n->body, InplaceMode::kAllow)
                   .ValueOrUnchanged(n->body);
     return f;
   };
-  return CreatePrimFuncPass(pass_func, 0, "tirx.RemoveAssumeInternal", {});
+  return CreateFunctionPass(pass_func, 0, "tirx.RemoveAssumeInternal");
 }
 
 Pass RemoveAssume() {

@@ -20,6 +20,7 @@
  * \file src/runtime/vm/paged_kv_cache.cc
  * \brief Runtime paged KV cache object for language models.
  */
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/container/map.h>
 #include <tvm/ffi/error.h>
 #include <tvm/ffi/extra/json.h>
@@ -192,9 +193,9 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
    */
   std::vector<Tensor> pages_;
   /*! \brief A reusable host-side zero page for deterministic checkpoint padding. */
-  Tensor checkpoint_zero_page_host_;
+  ffi::Optional<Tensor> checkpoint_zero_page_host_;
   /*! \brief The whole KV cache allocated by NVSHMEM*/
-  Tensor nvshmem_pages_;
+  ffi::Optional<Tensor> nvshmem_pages_;
   /*! \brief The list of ids of released pages for page reuse. */
   std::vector<int32_t> free_page_ids_;
   /*! \brief The mapping from sequence ids to sequences. */
@@ -249,15 +250,15 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
   std::unique_ptr<PagedKVCacheAuxDataManager> aux_data_manager_;
 
   // Temporary arrays to store intermediate attention results.
-  Tensor temp_attn_q_device_;
-  Tensor temp_attn_k_device_;
-  Tensor temp_attn_v_device_;
+  ffi::Optional<Tensor> temp_attn_q_device_;
+  ffi::Optional<Tensor> temp_attn_k_device_;
+  ffi::Optional<Tensor> temp_attn_v_device_;
   Tensor temp_attn_output_device_;
   Tensor temp_attn_lse_device_;
   Tensor merged_attn_lse_device_;
   std::vector<Tensor> temp_int_attn_workspace_;
   std::vector<Tensor> temp_int_pinned_attn_workspace_;
-  Tensor temp_float_attn_workspace_;
+  ffi::Optional<Tensor> temp_float_attn_workspace_;
 
   std::vector<ffi::Any> retrieve_ret_;
 
@@ -297,29 +298,29 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
   // after each synchronization and pass these views as input for
   // attention/append.
   //-------------------------------------------
-  Tensor cur_append_length_indptr_view_;
-  Tensor k_ragged_rope_pos_offset_view_;
-  Tensor q_rope_position_map_view_;
-  Tensor append_position_map_view_;
-  Tensor kv_transfer_remote_position_map_view_;
-  Tensor kv_transfer_recver_id_view_;
-  Tensor kv_transfer_page_to_page_local_position_map_view_;
-  Tensor kv_transfer_page_to_page_remote_position_map_view_;
-  Tensor kv_transfer_page_to_page_recver_id_view_;
-  Tensor temp_attn_output_view_;
-  Tensor temp_attn_lse_view_;
-  Tensor merged_attn_lse_view_;
-  std::vector<Tensor> qo_indptr_on_depths_view_;
-  std::vector<Tensor> page_indptr_on_depths_view_;
-  std::vector<Tensor> page_indices_on_depths_view_;
-  std::vector<Tensor> page_indptr_sliding_window_on_depths_view_;
-  std::vector<Tensor> page_indices_sliding_window_on_depths_view_;
-  std::vector<Tensor> length_info_on_depths_view_;
-  std::vector<Tensor> layer_sliding_window_length_info_on_depths_view_;
-  std::vector<Tensor> k_rope_pos_offset_view_;
-  std::vector<Tensor> k_rope_pos_offset_sliding_window_view_;
-  std::vector<Tensor> tree_attn_mask_view_;
-  std::vector<Tensor> tree_attn_mn_indptr_view_;
+  ffi::Optional<Tensor> cur_append_length_indptr_view_;
+  ffi::Optional<Tensor> k_ragged_rope_pos_offset_view_;
+  ffi::Optional<Tensor> q_rope_position_map_view_;
+  ffi::Optional<Tensor> append_position_map_view_;
+  ffi::Optional<Tensor> kv_transfer_remote_position_map_view_;
+  ffi::Optional<Tensor> kv_transfer_recver_id_view_;
+  ffi::Optional<Tensor> kv_transfer_page_to_page_local_position_map_view_;
+  ffi::Optional<Tensor> kv_transfer_page_to_page_remote_position_map_view_;
+  ffi::Optional<Tensor> kv_transfer_page_to_page_recver_id_view_;
+  ffi::Optional<Tensor> temp_attn_output_view_;
+  ffi::Optional<Tensor> temp_attn_lse_view_;
+  ffi::Optional<Tensor> merged_attn_lse_view_;
+  std::vector<ffi::Optional<Tensor>> qo_indptr_on_depths_view_;
+  std::vector<ffi::Optional<Tensor>> page_indptr_on_depths_view_;
+  std::vector<ffi::Optional<Tensor>> page_indices_on_depths_view_;
+  std::vector<ffi::Optional<Tensor>> page_indptr_sliding_window_on_depths_view_;
+  std::vector<ffi::Optional<Tensor>> page_indices_sliding_window_on_depths_view_;
+  std::vector<ffi::Optional<Tensor>> length_info_on_depths_view_;
+  std::vector<ffi::Optional<Tensor>> layer_sliding_window_length_info_on_depths_view_;
+  std::vector<ffi::Optional<Tensor>> k_rope_pos_offset_view_;
+  std::vector<ffi::Optional<Tensor>> k_rope_pos_offset_sliding_window_view_;
+  std::vector<ffi::Optional<Tensor>> tree_attn_mask_view_;
+  std::vector<ffi::Optional<Tensor>> tree_attn_mn_indptr_view_;
 
   ffi::Optional<ffi::Function> f_transpose_append_mha_;
   ffi::Optional<ffi::Function> f_transpose_append_mla_;
@@ -409,6 +410,12 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
         rotary_theta_(rotary_theta),
         rope_ext_factors_(std::move(rope_ext_factors)),
         kv_dtype_(dtype),
+        temp_attn_output_device_(
+            Tensor::Empty({prefill_chunk_size_, num_qo_heads, v_head_dim}, dtype, device)),
+        temp_attn_lse_device_(Tensor::Empty({prefill_chunk_size_, num_qo_heads},
+                                            DLDataType{kDLFloat, 32, 1}, device)),
+        merged_attn_lse_device_(Tensor::Empty({prefill_chunk_size_, num_qo_heads},
+                                              DLDataType{kDLFloat, 32, 1}, device)),
         f_transpose_append_mha_(std::move(f_transpose_append_mha)),
         f_transpose_append_mla_(std::move(f_transpose_append_mla)),
         f_compact_copy_(std::move(f_compact_copy)),
@@ -452,10 +459,11 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
               dtype, device)
               .cast<Tensor>();
       for (int i = 0; i < num_layers; ++i) {
-        pages_.push_back(nvshmem_pages_.CreateView(
-            {num_total_pages_, 2, num_kv_heads_, page_size_, qk_head_dim_}, nvshmem_pages_->dtype,
+        pages_.push_back(nvshmem_pages_.value().CreateView(
+            {num_total_pages_, 2, num_kv_heads_, page_size_, qk_head_dim_},
+            nvshmem_pages_.value()->dtype,
             i * num_total_pages_ * 2 * num_kv_heads_ * page_size_ * qk_head_dim_ *
-                (nvshmem_pages_.DataType().bits + 7) / 8));
+                (nvshmem_pages_.value().DataType().bits + 7) / 8));
       }
 
       const auto f_transfer_kv_ptr = tvm::ffi::Function::GetGlobal("nvshmem.KVTransfer");
@@ -537,17 +545,17 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
         temp_int_pinned_attn_workspace_.push_back(Tensor::Empty(
             {kIntAttnWorkspaceByte}, DLDataType{kDLUInt, 8, 1}, GetPreferredHostDevice(device)));
       }
-      qo_indptr_on_depths_view_.push_back(Tensor());
-      page_indptr_on_depths_view_.push_back(Tensor());
-      page_indices_on_depths_view_.push_back(Tensor());
-      page_indptr_sliding_window_on_depths_view_.push_back(Tensor());
-      page_indices_sliding_window_on_depths_view_.push_back(Tensor());
-      length_info_on_depths_view_.push_back(Tensor());
-      layer_sliding_window_length_info_on_depths_view_.push_back(Tensor());
-      k_rope_pos_offset_view_.push_back(Tensor());
-      k_rope_pos_offset_sliding_window_view_.push_back(Tensor());
-      tree_attn_mask_view_.push_back(Tensor());
-      tree_attn_mn_indptr_view_.push_back(Tensor());
+      qo_indptr_on_depths_view_.push_back(std::nullopt);
+      page_indptr_on_depths_view_.push_back(std::nullopt);
+      page_indices_on_depths_view_.push_back(std::nullopt);
+      page_indptr_sliding_window_on_depths_view_.push_back(std::nullopt);
+      page_indices_sliding_window_on_depths_view_.push_back(std::nullopt);
+      length_info_on_depths_view_.push_back(std::nullopt);
+      layer_sliding_window_length_info_on_depths_view_.push_back(std::nullopt);
+      k_rope_pos_offset_view_.push_back(std::nullopt);
+      k_rope_pos_offset_sliding_window_view_.push_back(std::nullopt);
+      tree_attn_mask_view_.push_back(std::nullopt);
+      tree_attn_mn_indptr_view_.push_back(std::nullopt);
       is_chain_on_depths_.push_back(true);
     }
     // Additional workspace for the "prefill with ragged kv" kernel.
@@ -568,12 +576,6 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
       temp_attn_v_device_ =
           Tensor::Empty({prefill_chunk_size_, num_kv_heads, v_head_dim}, dtype, device);
     }
-    temp_attn_output_device_ =
-        Tensor::Empty({prefill_chunk_size_, num_qo_heads, v_head_dim}, dtype, device);
-    temp_attn_lse_device_ =
-        Tensor::Empty({prefill_chunk_size_, num_qo_heads}, DLDataType{kDLFloat, 32, 1}, device);
-    merged_attn_lse_device_ =
-        Tensor::Empty({prefill_chunk_size_, num_qo_heads}, DLDataType{kDLFloat, 32, 1}, device);
     for (int64_t page_id = num_total_pages - 1; page_id >= 0; --page_id) {
       free_page_ids_.push_back(page_id);
     }
@@ -1552,12 +1554,12 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     // The auxiliary data structure on device must have been synchronized.
     TVM_FFI_ICHECK(!dirty_aux_data_device_);
 
-    Tensor q_data = temp_attn_q_device_.CreateView({total_seq_length, num_qo_heads_, qk_head_dim_},
-                                                   qkv_data->dtype);
-    Tensor k_data = temp_attn_k_device_.CreateView({total_seq_length, num_kv_heads_, qk_head_dim_},
-                                                   qkv_data->dtype);
-    Tensor v_data = temp_attn_v_device_.CreateView({total_seq_length, num_kv_heads_, qk_head_dim_},
-                                                   qkv_data->dtype);
+    Tensor q_data = temp_attn_q_device_.value().CreateView(
+        {total_seq_length, num_qo_heads_, qk_head_dim_}, qkv_data->dtype);
+    Tensor k_data = temp_attn_k_device_.value().CreateView(
+        {total_seq_length, num_kv_heads_, qk_head_dim_}, qkv_data->dtype);
+    Tensor v_data = temp_attn_v_device_.value().CreateView(
+        {total_seq_length, num_kv_heads_, qk_head_dim_}, qkv_data->dtype);
 
     Tensor qkv_data_view = qkv_data;
     Tensor o_data_view = o_data;
@@ -1573,10 +1575,10 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
       DeviceAPI::Get(device_)->SyncStreamFromTo(device_, kv_transfer_stream_, compute_stream_);
     }
     if (!rope_ext_factors_.has_value()) {
-      f_split_rotary_(qkv_data_view, q_rope_position_map_view_, q_data, k_data, v_data,
+      f_split_rotary_(qkv_data_view, q_rope_position_map_view_.value(), q_data, k_data, v_data,
                       static_cast<int64_t>(rope_mode_ == RoPEMode::kNormal));
     } else {
-      f_split_rotary_(qkv_data_view, q_rope_position_map_view_, q_data, k_data, v_data,
+      f_split_rotary_(qkv_data_view, q_rope_position_map_view_.value(), q_data, k_data, v_data,
                       rope_ext_factors_.value());
     }
 
@@ -1584,7 +1586,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     TVM_FFI_ICHECK(f_transpose_append_mha_.has_value());
     if (append_before_attn_) {
       f_transpose_append_mha_.value()(pages_[local_layer_id], k_data, v_data,
-                                      append_position_map_view_);
+                                      append_position_map_view_.value());
     }
     // Part 4: KV transfer
     if (page_to_page_transfer_kv_) {
@@ -1592,11 +1594,11 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
       // FIXME: if the sender and recver's PP/TP degree do not match, we will need to first
       // get the view of remote pages, and then take the specific remote layer.
       // The KV transfer stream nees to wait for the compute stream.
-      f_transfer_kv_page_to_page_.value()(pages_[local_layer_id], pages_[local_layer_id],
-                                          kv_transfer_page_to_page_remote_position_map_view_,
-                                          kv_transfer_page_to_page_local_position_map_view_,
-                                          kv_transfer_page_to_page_recver_id_view_,
-                                          kv_transfer_stream_);
+      f_transfer_kv_page_to_page_.value()(
+          pages_[local_layer_id], pages_[local_layer_id],
+          kv_transfer_page_to_page_remote_position_map_view_.value(),
+          kv_transfer_page_to_page_local_position_map_view_.value(),
+          kv_transfer_page_to_page_recver_id_view_.value(), kv_transfer_stream_);
     }
     if (transfer_kv_) {
       // FIXME: if the sender and recver's PP/TP degree do not match, we will need to first
@@ -1604,15 +1606,15 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
       // The KV transfer stream nees to wait for the compute stream.
       DeviceAPI::Get(device_)->SyncStreamFromTo(device_, compute_stream_, kv_transfer_stream_);
       f_transfer_kv_.value()(pages_[local_layer_id], k_data, v_data,
-                             kv_transfer_remote_position_map_view_, kv_transfer_recver_id_view_,
-                             kv_transfer_stream_);
+                             kv_transfer_remote_position_map_view_.value(),
+                             kv_transfer_recver_id_view_.value(), kv_transfer_stream_);
     }
     // Part 5: perform attention
     AttentionInternal(layer_id, q_data, k_data, v_data, o_data_view, sm_scale);
     // Part 6. Append k/v data to kv-cache if flag "append_before_attn" is not set.
     if (!append_before_attn_) {
       f_transpose_append_mha_.value()(pages_[local_layer_id], k_data, v_data,
-                                      append_position_map_view_);
+                                      append_position_map_view_.value());
     }
   }
 
@@ -1762,7 +1764,8 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     TVM_FFI_ICHECK(!dirty_aux_data_device_);
 
     TVM_FFI_ICHECK(f_transpose_append_mla_.has_value());
-    f_transpose_append_mla_.value()(pages_[local_layer_id], kv_data, append_position_map_view_);
+    f_transpose_append_mla_.value()(pages_[local_layer_id], kv_data,
+                                    append_position_map_view_.value());
   }
 
   ffi::Array<Tensor> MergeAttnOutputInplace(Tensor o_self_attn, Tensor lse_self_attn,
@@ -1878,7 +1881,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     ComputeStreamWaitForCopyStream();
     // The auxiliary data structure on device must have been synchronized.
     TVM_FFI_ICHECK(!dirty_aux_data_device_);
-    return q_rope_position_map_view_;
+    return q_rope_position_map_view_.value();
   };
 
   void DebugGetKV(int64_t seq_id, int64_t start_pos, int64_t end_pos, Tensor k_data,
@@ -2435,11 +2438,11 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
 
     int64_t bytes_per_scalar = GetCheckpointBytesPerScalar();
     int64_t bytes_per_page = GetCheckpointBytesPerPage();
-    if (!checkpoint_zero_page_host_.defined()) {
+    if (!checkpoint_zero_page_host_.has_value()) {
       checkpoint_zero_page_host_ = Tensor::Empty({2, num_kv_heads_, page_size_, qk_head_dim_},
                                                  kv_dtype_, GetPreferredHostDevice(device_));
       std::vector<uint8_t> zero_data(bytes_per_page, 0);
-      checkpoint_zero_page_host_.CopyFromBytes(zero_data.data(), zero_data.size());
+      checkpoint_zero_page_host_.value().CopyFromBytes(zero_data.data(), zero_data.size());
     }
 
     // Initialize the full destination page with one transfer, then overwrite
@@ -2447,7 +2450,8 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     Tensor dst_page = dst.CreateView({2, num_kv_heads_, page_size_, qk_head_dim_}, dst->dtype,
                                      static_cast<uint64_t>(dst_page_index * bytes_per_page));
     DLTensor dst_page_view = *dst_page.operator->();
-    Tensor::CopyFromTo(checkpoint_zero_page_host_.operator->(), &dst_page_view, compute_stream_);
+    Tensor::CopyFromTo(checkpoint_zero_page_host_.value().operator->(), &dst_page_view,
+                       compute_stream_);
 
     for (int64_t kv_index = 0; kv_index < 2; ++kv_index) {
       for (int64_t head_index = 0; head_index < num_kv_heads_; ++head_index) {
@@ -2775,7 +2779,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
       if (is_chain_on_depths_[0] && f_attention_prefill_ragged_ != nullptr &&
           f_attention_prefill_ragged_->backend_kind == AttnBackendKind::kFlashInfer) {
         f_attention_prefill_ragged_->BeginForward(
-            temp_float_attn_workspace_, temp_int_attn_workspace_[0],
+            temp_float_attn_workspace_.value(), temp_int_attn_workspace_[0],
             temp_int_pinned_attn_workspace_[0], &cur_append_lengths_indptr_host_,
             &cur_append_lengths_indptr_host_, cur_batch_size_,
             cur_append_lengths_indptr_host_.back(), num_qo_heads_, num_kv_heads_, qk_head_dim_,
@@ -2783,7 +2787,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
       }
     }
     for (int d = 0; d < num_depths_; ++d) {
-      if (page_indices_on_depths_view_[d]->shape[0] == 0) {
+      if (page_indices_on_depths_view_[d].value()->shape[0] == 0) {
         continue;
       }
       TVM_FFI_ICHECK(!support_sliding_window_ || !support_layer_sliding_window_)
@@ -2792,7 +2796,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
         if (f_attention_decode_ != nullptr &&
             f_attention_decode_->backend_kind == AttnBackendKind::kFlashInfer) {
           f_attention_decode_->BeginForward(
-              d, temp_float_attn_workspace_, temp_int_attn_workspace_[d + 1],
+              d, temp_float_attn_workspace_.value(), temp_int_attn_workspace_[d + 1],
               temp_int_pinned_attn_workspace_[d + 1], &page_indptr_on_depths_host_[d],
               cur_batch_size_, page_size_, num_qo_heads_, num_kv_heads_, qk_head_dim_, v_head_dim_,
               rope_mode_, kv_dtype_, kv_dtype_, copy_stream_);
@@ -2801,7 +2805,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
         if (f_attention_prefill_ != nullptr &&
             f_attention_prefill_->backend_kind == AttnBackendKind::kFlashInfer) {
           f_attention_prefill_->BeginForward(
-              d, temp_float_attn_workspace_, temp_int_attn_workspace_[d + 1],
+              d, temp_float_attn_workspace_.value(), temp_int_attn_workspace_[d + 1],
               temp_int_pinned_attn_workspace_[d + 1], &qo_indptr_on_depths_host_[d],
               &page_indptr_on_depths_host_[d], &last_page_len_on_depths_host_[d],
               static_cast<int64_t>(qo_indptr_on_depths_host_[d].size()) - 1,
@@ -2819,7 +2823,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
         if (f_attention_prefill_ragged_ != nullptr &&
             f_attention_prefill_ragged_->backend_kind == AttnBackendKind::kFlashInfer) {
           f_attention_prefill_ragged_->BeginForward(
-              temp_float_attn_workspace_, temp_int_attn_workspace_[0],
+              temp_float_attn_workspace_.value(), temp_int_attn_workspace_[0],
               temp_int_pinned_attn_workspace_[0], &cur_append_lengths_indptr_host_,
               &cur_append_lengths_indptr_host_, cur_batch_size_,
               cur_append_lengths_indptr_host_.back(), num_qo_heads_, num_kv_heads_, qk_head_dim_,
@@ -2828,7 +2832,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
       }
     }
     for (int d = 0; d < num_depths_; ++d) {
-      if (page_indices_on_depths_view_[d]->shape[0] == 0) {
+      if (page_indices_on_depths_view_[d].value()->shape[0] == 0) {
         continue;
       }
       TVM_FFI_ICHECK(!support_sliding_window_)
@@ -2836,7 +2840,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
       if (f_mla_prefill_ != nullptr &&
           f_mla_prefill_->backend_kind == AttnBackendKind::kFlashInfer) {
         f_mla_prefill_->BeginForward(
-            d, temp_float_attn_workspace_, temp_int_attn_workspace_[d + 1],
+            d, temp_float_attn_workspace_.value(), temp_int_attn_workspace_[d + 1],
             temp_int_pinned_attn_workspace_[d + 1], &qo_indptr_on_depths_host_[d],
             &page_indptr_on_depths_host_[d], &last_page_len_on_depths_host_[d],
             static_cast<int64_t>(qo_indptr_on_depths_host_[d].size()) - 1,
@@ -2860,11 +2864,11 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     if (!append_before_attn_) {
       // The first part of attention, which only involves the q and the newly appended k/v.
       is_first_kernel = false;
-      MHASelfAttnInternal(q_data, k_data, v_data, output, merged_attn_lse_view_, sm_scale);
+      MHASelfAttnInternal(q_data, k_data, v_data, output, merged_attn_lse_view_.value(), sm_scale);
     }
     bool self_attn_computed = !is_first_kernel;
     bool cross_attn_computed = MHACrossAttnInternal(
-        local_layer_id, q_data, output, merged_attn_lse_view_, sm_scale, is_first_kernel,
+        local_layer_id, q_data, output, merged_attn_lse_view_.value(), sm_scale, is_first_kernel,
         /*causal=*/!append_before_attn_ &&
             attn_kinds_[local_layer_id + layer_id_begin_offset_] == AttnKind::kMHASliding);
     TVM_FFI_ICHECK(self_attn_computed || cross_attn_computed)
@@ -2877,19 +2881,21 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
       // If the batch does not form a tree, use raggedness prefill kernel.
       TVM_FFI_ICHECK_NOTNULL(f_attention_prefill_ragged_);
       f_attention_prefill_ragged_->MHA(
-          q_data, k_data, v_data, cur_append_length_indptr_view_, cur_append_length_indptr_view_,
-          q_rope_position_map_view_, k_ragged_rope_pos_offset_view_, /*causal=*/true, rope_mode_,
-          rotary_scale_, rotary_theta_, sm_scale, o_data, lse_data, compute_stream_);
+          q_data, k_data, v_data, cur_append_length_indptr_view_.value(),
+          cur_append_length_indptr_view_.value(), q_rope_position_map_view_.value(),
+          k_ragged_rope_pos_offset_view_.value(), /*causal=*/true, rope_mode_, rotary_scale_,
+          rotary_theta_, sm_scale, o_data, lse_data, compute_stream_);
     } else {
       // The batch requires tree attention.
       TVM_FFI_ICHECK(f_attention_prefill_with_tree_mask_ != nullptr)
           << "Function \"f_attention_prefill_with_tree_mask_\" is not defined.";
-      TVM_FFI_ICHECK(tree_attn_mask_view_[0].defined());
-      TVM_FFI_ICHECK(tree_attn_mn_indptr_view_[0].defined());
+      TVM_FFI_ICHECK(tree_attn_mask_view_[0].has_value());
+      TVM_FFI_ICHECK(tree_attn_mn_indptr_view_[0].has_value());
       f_attention_prefill_with_tree_mask_->MHA(
-          q_data, k_data, v_data, cur_append_length_indptr_view_, cur_append_length_indptr_view_,
-          q_rope_position_map_view_, tree_attn_mn_indptr_view_[0], tree_attn_mask_view_[0],
-          rope_mode_, rotary_scale_, rotary_theta_, sm_scale, o_data, lse_data, compute_stream_);
+          q_data, k_data, v_data, cur_append_length_indptr_view_.value(),
+          cur_append_length_indptr_view_.value(), q_rope_position_map_view_.value(),
+          tree_attn_mn_indptr_view_[0].value(), tree_attn_mask_view_[0].value(), rope_mode_,
+          rotary_scale_, rotary_theta_, sm_scale, o_data, lse_data, compute_stream_);
     }
   }
 
@@ -2899,9 +2905,10 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     // If the batch does not form a tree, use raggedness prefill kernel.
     TVM_FFI_ICHECK_NOTNULL(f_attention_prefill_ragged_);
     f_attention_prefill_ragged_->MHA(
-        q_data, k_data, v_data, cur_append_length_indptr_view_, cur_append_length_indptr_view_,
-        q_rope_position_map_view_, k_ragged_rope_pos_offset_view_, /*causal=*/true, RoPEMode::kNone,
-        rotary_scale_, rotary_theta_, sm_scale, o_data, lse_data, compute_stream_);
+        q_data, k_data, v_data, cur_append_length_indptr_view_.value(),
+        cur_append_length_indptr_view_.value(), q_rope_position_map_view_.value(),
+        k_ragged_rope_pos_offset_view_.value(), /*causal=*/true, RoPEMode::kNone, rotary_scale_,
+        rotary_theta_, sm_scale, o_data, lse_data, compute_stream_);
   }
 
   /*! \brief Compute cross-attention for MHA. Return if there is effective computation. */
@@ -2922,66 +2929,52 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
 
     bool cross_attn_computed = false;
     for (int d = 0; d < num_depths_; ++d) {
-      if (page_indices_on_depths_view_[d]->shape[0] == 0) {
+      if (page_indices_on_depths_view_[d].value()->shape[0] == 0) {
         continue;
       }
-      Tensor attn_output;
-      Tensor attn_lse;
-      if (is_first_kernel) {
-        attn_output = o_data;
-        attn_lse = lse_data;
-      } else {
-        attn_output = temp_attn_output_view_;
-        attn_lse = temp_attn_lse_view_;
-      }
+      Tensor attn_output = is_first_kernel ? o_data : temp_attn_output_view_.value();
+      Tensor attn_lse = is_first_kernel ? lse_data : temp_attn_lse_view_.value();
       // If layer is sliding window, use sliding window index pointer/indices
-      Tensor page_indptr;
-      Tensor page_indices;
-      Tensor length_info;
-      Tensor k_rope_pos;
-      double rotary_theta;
-      double rotary_scale;
-
-      if (attn_kinds_[local_layer_id + layer_id_begin_offset_] == AttnKind::kMHASliding) {
-        page_indptr = page_indptr_sliding_window_on_depths_view_[d];
-        page_indices = page_indices_sliding_window_on_depths_view_[d];
-        length_info = layer_sliding_window_length_info_on_depths_view_[d];
-        k_rope_pos = k_rope_pos_offset_sliding_window_view_[d];
-        rotary_theta = 10000;
-        rotary_scale = 1;
-      } else {
-        page_indptr = page_indptr_on_depths_view_[d];
-        page_indices = page_indices_on_depths_view_[d];
-        length_info = length_info_on_depths_view_[d];
-        k_rope_pos = k_rope_pos_offset_view_[d];
-        rotary_theta = rotary_theta_;
-        rotary_scale = rotary_scale_;
-      }
+      bool layer_sliding =
+          attn_kinds_[local_layer_id + layer_id_begin_offset_] == AttnKind::kMHASliding;
+      Tensor page_indptr = layer_sliding ? page_indptr_sliding_window_on_depths_view_[d].value()
+                                         : page_indptr_on_depths_view_[d].value();
+      Tensor page_indices = layer_sliding ? page_indices_sliding_window_on_depths_view_[d].value()
+                                          : page_indices_on_depths_view_[d].value();
+      Tensor length_info = layer_sliding
+                               ? layer_sliding_window_length_info_on_depths_view_[d].value()
+                               : length_info_on_depths_view_[d].value();
+      Tensor k_rope_pos = layer_sliding ? k_rope_pos_offset_sliding_window_view_[d].value()
+                                        : k_rope_pos_offset_view_[d].value();
+      double rotary_theta = layer_sliding ? 10000 : rotary_theta_;
+      double rotary_scale = layer_sliding ? 1 : rotary_scale_;
 
       if (append_before_attn_ && !is_chain_on_depths_[d]) {
         TVM_FFI_ICHECK_NOTNULL(f_attention_prefill_with_tree_mask_paged_kv_);
         f_attention_prefill_with_tree_mask_paged_kv_->MHA(
-            q_data, qo_indptr_on_depths_view_[d], pages_[local_layer_id], page_indptr, page_indices,
-            length_info, k_rope_pos, q_rope_position_map_view_, tree_attn_mn_indptr_view_[d],
-            tree_attn_mask_view_[d], rope_mode_, rotary_scale, rotary_theta, sm_scale, attn_output,
-            attn_lse, compute_stream_);
+            q_data, qo_indptr_on_depths_view_[d].value(), pages_[local_layer_id], page_indptr,
+            page_indices, length_info, k_rope_pos, q_rope_position_map_view_.value(),
+            tree_attn_mn_indptr_view_[d].value(), tree_attn_mask_view_[d].value(), rope_mode_,
+            rotary_scale, rotary_theta, sm_scale, attn_output, attn_lse, compute_stream_);
       } else if (use_decode_kernel_[d]) {
         // Use decode kernel for depth d
         TVM_FFI_ICHECK_NOTNULL(f_decode);
         f_decode->MHA(d, q_data, pages_[local_layer_id], page_indptr, page_indices, length_info,
-                      k_rope_pos, q_rope_position_map_view_, rope_mode_, rotary_scale, rotary_theta,
-                      sm_scale, attn_output, attn_lse, compute_stream_);
+                      k_rope_pos, q_rope_position_map_view_.value(), rope_mode_, rotary_scale,
+                      rotary_theta, sm_scale, attn_output, attn_lse, compute_stream_);
       } else {
         // Use prefill kernel for depth d
         TVM_FFI_ICHECK_NOTNULL(f_prefill);
-        f_prefill->MHA(d, q_data, qo_indptr_on_depths_view_[d], pages_[local_layer_id], page_indptr,
-                       page_indices, length_info, q_rope_position_map_view_, k_rope_pos, causal,
+        f_prefill->MHA(d, q_data, qo_indptr_on_depths_view_[d].value(), pages_[local_layer_id],
+                       page_indptr, page_indices, length_info, q_rope_position_map_view_.value(),
+                       k_rope_pos, causal,
                        /*rotary_mode=*/rope_mode_, rotary_scale, rotary_theta, sm_scale,
                        attn_output, attn_lse, compute_stream_);
       }
 
       if (!is_first_kernel) {
-        f_merge_inplace_[0](o_data, lse_data, temp_attn_output_view_, temp_attn_lse_view_);
+        f_merge_inplace_[0](o_data, lse_data, temp_attn_output_view_.value(),
+                            temp_attn_lse_view_.value());
       } else {
         is_first_kernel = false;
       }
@@ -2998,27 +2991,22 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
 
     bool is_first_kernel = true;
     for (int d = 0; d < num_depths_; ++d) {
-      if (page_indices_on_depths_view_[d]->shape[0] == 0) {
+      if (page_indices_on_depths_view_[d].value()->shape[0] == 0) {
         continue;
       }
-      Tensor attn_output;
-      Tensor attn_lse;
-      if (is_first_kernel) {
-        attn_output = o_data;
-        attn_lse = lse_data;
-      } else {
-        attn_output = temp_attn_output_view_;
-        attn_lse = temp_attn_lse_view_;
-      }
+      Tensor attn_output = is_first_kernel ? o_data : temp_attn_output_view_.value();
+      Tensor attn_lse = is_first_kernel ? lse_data : temp_attn_lse_view_.value();
       TVM_FFI_ICHECK(is_chain_on_depths_[d]) << "Tree attn not able for MLA for now.";
       TVM_FFI_ICHECK_NOTNULL(f_mla_prefill_);
-      f_mla_prefill_->MLA(d, q_data, qo_indptr_on_depths_view_[d], pages_[local_layer_id],
-                          page_indptr_on_depths_view_[d], page_indices_on_depths_view_[d],
-                          length_info_on_depths_view_[d], /*causal=*/false, sm_scale, attn_output,
-                          attn_lse, compute_stream_);
+      f_mla_prefill_->MLA(d, q_data, qo_indptr_on_depths_view_[d].value(), pages_[local_layer_id],
+                          page_indptr_on_depths_view_[d].value(),
+                          page_indices_on_depths_view_[d].value(),
+                          length_info_on_depths_view_[d].value(), /*causal=*/false, sm_scale,
+                          attn_output, attn_lse, compute_stream_);
 
       if (!is_first_kernel) {
-        f_merge_inplace_[0](o_data, lse_data, temp_attn_output_view_, temp_attn_lse_view_);
+        f_merge_inplace_[0](o_data, lse_data, temp_attn_output_view_.value(),
+                            temp_attn_lse_view_.value());
       } else {
         is_first_kernel = false;
       }
@@ -3327,7 +3315,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
             std::move(f_attention_prefill_with_tree_mask),           //
             std::move(f_mla_prefill), std::move(f_merge_inplace), std::move(f_split_rotary),
             std::move(f_copy_single_page), std::move(f_debug_get_kv));
-        *rv = AttentionKVCache(std::move(n));
+        *rv = ffi::GetRef<AttentionKVCache>(n.get());
       });
 }
 

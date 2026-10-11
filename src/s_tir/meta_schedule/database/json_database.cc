@@ -177,7 +177,7 @@ Database Database::JSONDatabase(ffi::String path_workload, ffi::String path_tuni
       if (recalc_hash != workload->shash) {
         ffi::ObjectPtr<WorkloadNode> wkl = ffi::make_object<WorkloadNode>(*workload.get());
         wkl->shash = recalc_hash;
-        workload = Workload(wkl);
+        workload = Workload(ffi::UnsafeInit{}, wkl);
       }
       n->workloads2idx_.emplace(workload, i);
       workloads.push_back(workload);

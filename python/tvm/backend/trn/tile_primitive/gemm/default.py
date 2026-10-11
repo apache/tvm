@@ -24,14 +24,9 @@ from tvm.backend.trn.layout import is_trainium_layout
 from tvm.ir import TensorRegion, assert_structural_equal
 from tvm.script import tirx as T
 from tvm.sym.analyzer import Analyzer
-from tvm.tirx import PrimFunc
-from tvm.tirx.operator.tile_primitive import (
-    DispatchContext,
-    fail,
-    predicate,
-    register_dispatch,
-)
-from tvm.tirx.tile_primitive import TilePrimitiveCall
+from tvm.tirx import Function
+from tvm.tirx.operator.tile_primitive import DispatchContext, fail
+from tvm.tirx.tensor_instruction import TensorCall
 
 from ..common import init_analyzer
 from ..dim_utils import normalize_and_group
@@ -110,7 +105,7 @@ def get_pf_dim_from_buffer_region(
     return p_dim, f_dim
 
 
-def matmul_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc | None:
+def matmul_trn(op: TensorCall, sctx: DispatchContext) -> Function | None:
     """Schedule GEMM operation on Trainium."""
     # Basic validation checks
     if not (sctx.is_target("trn") and sctx.scope_kind == "thread"):
@@ -223,7 +218,7 @@ def matmul_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc | None:
     # fmt: off
     @T.inline
     def matmul_inst_macro(lhs_b_loop, rhs_b_loop, reduction_b_loop, acc, C_as_output, max_psum_slots):  # noqa: E501
-        with T.attr(0, "tensorized_nki_instruction", 1):
+        with T.nki.tensorized_instruction():
             for p_loop in T.serial(0, p_size, annotations={"nki_dim": "P"}):
                 for lhs_f_loop in T.serial(0, lhs_f_size, annotations={"nki_dim": "lhs_F"}):
                     for rhs_f_loop in T.serial(0, inst_repr.size, annotations={"nki_dim": "rhs_F"}):
@@ -241,7 +236,7 @@ def matmul_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc | None:
 
     if C.scope() == "trn.psum":
         # This fragment captures buffers and indices from its insertion scope.
-        @T.prim_func(check_well_formed=False)
+        @T.function(check_well_formed=False)
         def impl_C_psum():
             for lhs_b_loop, rhs_b_loop, reduction_b_loop in T.grid(lhs_b_extent, rhs_b_extent, reduction_b_extent):  # noqa: E501
                 matmul_inst_macro(lhs_b_loop, rhs_b_loop, reduction_b_loop, C, True, None)
@@ -254,29 +249,28 @@ def matmul_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc | None:
     # and a matmul fusion pass can help infer the pattern
 
     acc_psum_shape = (max_psum_banks, p_size, largest_psum_per_bank)
-    if "acc_psum" not in op.workspace:
+    if "acc_psum" not in op.workspaces:
         assert sctx.alloc_only, "Accumulation psum buffer must be specified in workspace. Run tvm.tirx.trn.transform.TrnPrivateBufferAlloc first."  # noqa: E501
-        acc_psum = T.buffer(
-                acc_psum_shape,
-                "float32",
-                scope="trn.psum",
-                allocated_addr=(0, 0),
-                buffer_name="acc_psum"
-            )
-        sctx.add_alloc_buffer(acc_psum)
+        acc_psum = T.Var(
+            "acc_psum",
+            T.Tensor(acc_psum_shape, "float32", scope="trn.psum"),
+        )
+        sctx.add_alloc_buffer(
+            acc_psum, allocated_addr=[T.int32(0), T.int32(0)]
+        )
         max_psum_slots = max_psum_banks
     else:
-        acc_psum = op.workspace["acc_psum"]
+        acc_psum = op.workspaces["acc_psum"]
         check_workspace_buffer(acc_psum, (p_size, largest_psum_per_bank), "trn.psum")
         max_psum_slots = acc_psum.ty.shape[0]
 
     # This fragment captures buffers and indices from its insertion scope.
-    @T.prim_func(check_well_formed=False)
+    @T.function(check_well_formed=False)
     def impl_C_sbuf():
         for lhs_b_loop, rhs_b_loop in T.grid(lhs_b_extent, rhs_b_extent):
             for reduction_b_loop in T.serial(0, reduction_b_extent):
                 matmul_inst_macro(lhs_b_loop, rhs_b_loop, reduction_b_loop, acc_psum, False, max_psum_slots)  # noqa: E501
-            with T.attr(0, "tensorized_nki_instruction", 1):
+            with T.nki.tensorized_instruction():
                 for lhs_f_loop in T.serial(0, lhs_f_size, annotations={"nki_dim": "P"}):
                     for rhs_f_loop in T.serial(0, inst_repr.size, annotations={"nki_dim": "F"}):
                         inst_gen.set_bind_map(C_buffer_region, {lhs_f: lhs_f_loop, rhs_f: rhs_f_loop, lhs_b: lhs_b_loop, rhs_b: rhs_b_loop})  # noqa: E501
@@ -285,23 +279,3 @@ def matmul_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc | None:
                             T.evaluate(T.nki.tensor_copy(C[acc_indices], acc_psum[(lhs_b_loop * rhs_b_extent + rhs_b_loop) % max_psum_slots, lhs_f_loop, rhs_f_loop]))  # noqa: E501
     # fmt: on
     return impl_C_sbuf
-
-
-# Rich dispatcher variant for TRN gemm
-@register_dispatch(
-    "gemm",
-    "trn",
-    variant="default",
-    priority=10,
-    when=[
-        predicate(
-            "exec_scope",
-            lambda op, sctx: (
-                sctx.scope_kind == "thread",
-                f"unsupported exec_scope {sctx.scope_kind}",
-            ),
-        )
-    ],
-)
-def gemm_trn_dispatch(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
-    return matmul_trn(op, sctx)

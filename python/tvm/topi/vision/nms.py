@@ -46,7 +46,7 @@ def _get_valid_counts_ir(
 
     with IRBuilder() as ib:
         with T.parallel(0, batch_size) as i:
-            T.buffer_store(valid_count, T.int32(0), T.buffer_indices(valid_count, i))
+            T.tensor_store(valid_count, T.tensor_indices(valid_count, i), T.int32(0))
 
             with T.serial(0, num_anchors) as j:
                 score = data[(i, j, score_index)]
@@ -57,27 +57,27 @@ def _get_valid_counts_ir(
 
                 with T.if_(is_valid):
                     with T.then_():
-                        cur = valid_count[T.buffer_indices(valid_count, i)]
+                        cur = valid_count[T.tensor_indices(valid_count, i)]
                         with T.serial(0, box_data_length) as k:
-                            T.buffer_store(
+                            T.tensor_store(
                                 out_tensor,
-                                data[(i, j, k)],
                                 (i, cur, k),
+                                data[(i, j, k)],
                             )
-                        T.buffer_store(out_indices, j, (i, cur))
-                        T.buffer_store(valid_count, cur + 1, T.buffer_indices(valid_count, i))
+                        T.tensor_store(out_indices, (i, cur), j)
+                        T.tensor_store(valid_count, T.tensor_indices(valid_count, i), cur + 1)
 
             # Fill remaining slots with -1
             with T.serial(0, num_anchors) as j:
-                with T.if_(j >= valid_count[T.buffer_indices(valid_count, i)]):
+                with T.if_(j >= valid_count[T.tensor_indices(valid_count, i)]):
                     with T.then_():
                         with T.serial(0, box_data_length) as k:
-                            T.buffer_store(
+                            T.tensor_store(
                                 out_tensor,
-                                tvm.tirx.Cast(data.dtype, T.float32(-1.0)),
                                 (i, j, k),
+                                tvm.tirx.Cast(data.dtype, T.float32(-1.0)),
                             )
-                        T.buffer_store(out_indices, T.int32(-1), (i, j))
+                        T.tensor_store(out_indices, (i, j), T.int32(-1))
 
         return ib.get()
 
@@ -122,16 +122,16 @@ def get_valid_counts(data, score_threshold=0, id_index=0, score_index=1):
     id_index_const = tvm.tirx.const(id_index, "int32")
     score_index_const = tvm.tirx.const(score_index, "int32")
 
-    valid_count_buf = tvm.tirx.decl_buffer((batch_size,), "int32", "valid_count", layout=None)
-    out_tensor_buf = tvm.tirx.decl_buffer(
+    valid_count_buf = tvm.tirx.decl_tensor((batch_size,), "int32", "valid_count", layout=None)
+    out_tensor_buf = tvm.tirx.decl_tensor(
         (batch_size, num_anchors, box_data_length), data.dtype, "out_tensor", layout=None
     )
-    out_indices_buf = tvm.tirx.decl_buffer(
+    out_indices_buf = tvm.tirx.decl_tensor(
         (batch_size, num_anchors), "int32", "out_indices", layout=None
     )
 
     if is_score_threshold_tensor:
-        score_thresh_buf = tvm.tirx.decl_buffer(
+        score_thresh_buf = tvm.tirx.decl_tensor(
             score_threshold.shape, score_threshold.dtype, "score_threshold", layout=None
         )
         valid_count, out_tensor, out_indices = te.extern(
@@ -149,7 +149,7 @@ def get_valid_counts(data, score_threshold=0, id_index=0, score_index=1):
             dtype=["int32", data.dtype, "int32"],
             out_buffers=[valid_count_buf, out_tensor_buf, out_indices_buf],
             in_buffers=[
-                tvm.tirx.decl_buffer(data.shape, data.dtype, "data", layout=None),
+                tvm.tirx.decl_tensor(data.shape, data.dtype, "data", layout=None),
                 score_thresh_buf,
             ],
             name="get_valid_counts",
@@ -174,7 +174,7 @@ def get_valid_counts(data, score_threshold=0, id_index=0, score_index=1):
             _ir_with_const_threshold,
             dtype=["int32", data.dtype, "int32"],
             out_buffers=[valid_count_buf, out_tensor_buf, out_indices_buf],
-            in_buffers=[tvm.tirx.decl_buffer(data.shape, data.dtype, "data", layout=None)],
+            in_buffers=[tvm.tirx.decl_tensor(data.shape, data.dtype, "data", layout=None)],
             name="get_valid_counts",
             tag="get_valid_counts",
         )
@@ -212,55 +212,55 @@ def _classic_nms_ir(
 
         with T.parallel(0, batch_size) as i:
             # Step 1: Reorder data by sorted score
-            nkeep_buf = T.alloc_buffer((1,), "int32", scope="local")
+            nkeep_buf = T.alloc_tensor((1,), "int32", scope="local")
             nkeep_local = nkeep_buf
-            T.buffer_store(
+            T.tensor_store(
                 nkeep_local,
-                valid_count[T.buffer_indices(valid_count, i)],
-                T.buffer_indices(nkeep_local, 0),
+                T.tensor_indices(nkeep_local, 0),
+                valid_count[T.tensor_indices(valid_count, i)],
             )
             with T.if_(
-                tvm.tirx.all(top_k > 0, top_k < nkeep_local[T.buffer_indices(nkeep_local, 0)])
+                tvm.tirx.all(top_k > 0, top_k < nkeep_local[T.tensor_indices(nkeep_local, 0)])
             ):
                 with T.then_():
-                    T.buffer_store(nkeep_local, top_k, T.buffer_indices(nkeep_local, 0))
+                    T.tensor_store(nkeep_local, T.tensor_indices(nkeep_local, 0), top_k)
 
             # Copy sorted boxes to output
             with T.serial(0, num_anchors) as j:
-                with T.if_(j < nkeep_local[T.buffer_indices(nkeep_local, 0)]):
+                with T.if_(j < nkeep_local[T.tensor_indices(nkeep_local, 0)]):
                     with T.then_():
                         src_idx = sorted_index[(i, j)]
                         with T.serial(0, box_data_length) as k:
-                            T.buffer_store(
+                            T.tensor_store(
                                 out_data,
-                                data[(i, src_idx, k)],
                                 (i, j, k),
+                                data[(i, src_idx, k)],
                             )
-                        T.buffer_store(
+                        T.tensor_store(
                             out_box_indices,
-                            sorted_index[(i, j)],
                             (i, j),
+                            sorted_index[(i, j)],
                         )
                     with T.else_():
                         with T.serial(0, box_data_length) as k:
-                            T.buffer_store(
+                            T.tensor_store(
                                 out_data,
-                                tvm.tirx.Cast(data.dtype, T.float32(-1.0)),
                                 (i, j, k),
+                                tvm.tirx.Cast(data.dtype, T.float32(-1.0)),
                             )
-                        T.buffer_store(out_box_indices, T.int32(-1), (i, j))
+                        T.tensor_store(out_box_indices, (i, j), T.int32(-1))
 
             # Step 2: Apply NMS - greedy suppression
-            num_valid_boxes_buf = T.alloc_buffer((1,), "int32", scope="local")
+            num_valid_boxes_buf = T.alloc_tensor((1,), "int32", scope="local")
             num_valid_boxes = num_valid_boxes_buf
-            T.buffer_store(num_valid_boxes, T.int32(0), T.buffer_indices(num_valid_boxes, 0))
-            best_idx_buf = T.alloc_buffer((1,), "int32", scope="local")
+            T.tensor_store(num_valid_boxes, T.tensor_indices(num_valid_boxes, 0), T.int32(0))
+            best_idx_buf = T.alloc_tensor((1,), "int32", scope="local")
             best_idx = best_idx_buf
-            best_score_buf = T.alloc_buffer((1,), data.dtype, scope="local")
+            best_score_buf = T.alloc_tensor((1,), data.dtype, scope="local")
             best_score = best_score_buf
-            tmp_idx_buf = T.alloc_buffer((1,), "int32", scope="local")
+            tmp_idx_buf = T.alloc_tensor((1,), "int32", scope="local")
             tmp_idx = tmp_idx_buf
-            tmp_val_buf = T.alloc_buffer((1,), data.dtype, scope="local")
+            tmp_val_buf = T.alloc_tensor((1,), data.dtype, scope="local")
             tmp_val = tmp_val_buf
             zero = tvm.tirx.Cast(data.dtype, T.float32(0.0))
 
@@ -311,126 +311,126 @@ def _classic_nms_ir(
                 # LiteRT soft-NMS selects the current highest-score candidate each round.
                 soft_nms_scale = tvm.tirx.Cast(data.dtype, T.float32(-0.5 / soft_nms_sigma))
 
-                with T.serial(0, nkeep_local[T.buffer_indices(nkeep_local, 0)]) as _:
+                with T.serial(0, nkeep_local[T.tensor_indices(nkeep_local, 0)]) as _:
                     with T.if_(
                         tvm.tirx.Select(
                             max_output_size > 0,
-                            num_valid_boxes[T.buffer_indices(num_valid_boxes, 0)] < max_output_size,
+                            num_valid_boxes[T.tensor_indices(num_valid_boxes, 0)] < max_output_size,
                             tvm.tirx.const(True),
                         )
                     ):
                         with T.then_():
-                            T.buffer_store(best_idx, T.int32(-1), T.buffer_indices(best_idx, 0))
-                            T.buffer_store(best_score, thresh, T.buffer_indices(best_score, 0))
+                            T.tensor_store(best_idx, T.tensor_indices(best_idx, 0), T.int32(-1))
+                            T.tensor_store(best_score, T.tensor_indices(best_score, 0), thresh)
 
-                            with T.serial(0, nkeep_local[T.buffer_indices(nkeep_local, 0)]) as j:
+                            with T.serial(0, nkeep_local[T.tensor_indices(nkeep_local, 0)]) as j:
                                 with T.if_(
                                     tvm.tirx.all(
-                                        j >= num_valid_boxes[T.buffer_indices(num_valid_boxes, 0)],
+                                        j >= num_valid_boxes[T.tensor_indices(num_valid_boxes, 0)],
                                         out_box_indices[(i, j)] >= 0,
                                         out_data[(i, j, score_index)]
-                                        > best_score[T.buffer_indices(best_score, 0)],
+                                        > best_score[T.tensor_indices(best_score, 0)],
                                     )
                                 ):
                                     with T.then_():
-                                        T.buffer_store(best_idx, j, T.buffer_indices(best_idx, 0))
-                                        T.buffer_store(
+                                        T.tensor_store(best_idx, T.tensor_indices(best_idx, 0), j)
+                                        T.tensor_store(
                                             best_score,
+                                            T.tensor_indices(best_score, 0),
                                             out_data[(i, j, score_index)],
-                                            T.buffer_indices(best_score, 0),
                                         )
 
-                            with T.if_(best_idx[T.buffer_indices(best_idx, 0)] >= 0):
+                            with T.if_(best_idx[T.tensor_indices(best_idx, 0)] >= 0):
                                 with T.then_():
                                     with T.if_(
-                                        best_idx[T.buffer_indices(best_idx, 0)]
-                                        != num_valid_boxes[T.buffer_indices(num_valid_boxes, 0)]
+                                        best_idx[T.tensor_indices(best_idx, 0)]
+                                        != num_valid_boxes[T.tensor_indices(num_valid_boxes, 0)]
                                     ):
                                         with T.then_():
-                                            T.buffer_store(
+                                            T.tensor_store(
                                                 tmp_idx,
+                                                T.tensor_indices(tmp_idx, 0),
                                                 out_box_indices[
                                                     (
                                                         i,
                                                         num_valid_boxes[
-                                                            T.buffer_indices(num_valid_boxes, (0))
+                                                            T.tensor_indices(num_valid_boxes, (0))
                                                         ],
                                                     )
                                                 ],
-                                                T.buffer_indices(tmp_idx, 0),
                                             )
-                                            T.buffer_store(
+                                            T.tensor_store(
                                                 out_box_indices,
-                                                out_box_indices[
-                                                    (
-                                                        i,
-                                                        best_idx[T.buffer_indices(best_idx, 0)],
-                                                    )
-                                                ],
                                                 (
                                                     i,
                                                     num_valid_boxes[
-                                                        T.buffer_indices(num_valid_boxes, 0)
+                                                        T.tensor_indices(num_valid_boxes, 0)
                                                     ],
                                                 ),
+                                                out_box_indices[
+                                                    (
+                                                        i,
+                                                        best_idx[T.tensor_indices(best_idx, 0)],
+                                                    )
+                                                ],
                                             )
-                                            T.buffer_store(
+                                            T.tensor_store(
                                                 out_box_indices,
-                                                tmp_idx[T.buffer_indices(tmp_idx, 0)],
-                                                (i, best_idx[T.buffer_indices(best_idx, 0)]),
+                                                (i, best_idx[T.tensor_indices(best_idx, 0)]),
+                                                tmp_idx[T.tensor_indices(tmp_idx, 0)],
                                             )
 
                                             with T.serial(0, box_data_length) as k:
-                                                T.buffer_store(
+                                                T.tensor_store(
                                                     tmp_val,
+                                                    T.tensor_indices(tmp_val, 0),
                                                     out_data[
                                                         (
                                                             i,
                                                             num_valid_boxes[
-                                                                T.buffer_indices(
+                                                                T.tensor_indices(
                                                                     num_valid_boxes, (0)
                                                                 )
                                                             ],
                                                             k,
                                                         )
                                                     ],
-                                                    T.buffer_indices(tmp_val, 0),
                                                 )
-                                                T.buffer_store(
+                                                T.tensor_store(
                                                     out_data,
-                                                    out_data[
-                                                        (
-                                                            i,
-                                                            best_idx[T.buffer_indices(best_idx, 0)],
-                                                            k,
-                                                        )
-                                                    ],
                                                     (
                                                         i,
                                                         num_valid_boxes[
-                                                            T.buffer_indices(num_valid_boxes, (0))
+                                                            T.tensor_indices(num_valid_boxes, (0))
                                                         ],
                                                         k,
                                                     ),
+                                                    out_data[
+                                                        (
+                                                            i,
+                                                            best_idx[T.tensor_indices(best_idx, 0)],
+                                                            k,
+                                                        )
+                                                    ],
                                                 )
-                                                T.buffer_store(
+                                                T.tensor_store(
                                                     out_data,
-                                                    tmp_val[T.buffer_indices(tmp_val, 0)],
                                                     (
                                                         i,
-                                                        best_idx[T.buffer_indices(best_idx, 0)],
+                                                        best_idx[T.tensor_indices(best_idx, 0)],
                                                         k,
                                                     ),
+                                                    tmp_val[T.tensor_indices(tmp_val, 0)],
                                                 )
 
                                     with T.serial(
-                                        0, nkeep_local[T.buffer_indices(nkeep_local, 0)]
+                                        0, nkeep_local[T.tensor_indices(nkeep_local, 0)]
                                     ) as j:
                                         with T.if_(
                                             tvm.tirx.all(
                                                 j
                                                 > num_valid_boxes[
-                                                    T.buffer_indices(num_valid_boxes, 0)
+                                                    T.tensor_indices(num_valid_boxes, 0)
                                                 ],
                                                 out_box_indices[(i, j)] >= 0,
                                                 out_data[(i, j, score_index)] > thresh,
@@ -446,7 +446,7 @@ def _classic_nms_ir(
                                                             (
                                                                 i,
                                                                 num_valid_boxes[
-                                                                    T.buffer_indices(
+                                                                    T.tensor_indices(
                                                                         num_valid_boxes, (0)
                                                                     )
                                                                 ],
@@ -462,7 +462,7 @@ def _classic_nms_ir(
                                                     with T.then_():
                                                         iou = compute_iou(
                                                             num_valid_boxes[
-                                                                T.buffer_indices(
+                                                                T.tensor_indices(
                                                                     num_valid_boxes, (0)
                                                                 )
                                                             ],
@@ -471,98 +471,98 @@ def _classic_nms_ir(
 
                                                         with T.if_(iou >= iou_threshold):
                                                             with T.then_():
-                                                                T.buffer_store(
+                                                                T.tensor_store(
                                                                     out_box_indices,
-                                                                    T.int32(-1),
                                                                     (i, j),
+                                                                    T.int32(-1),
                                                                 )
                                                         with T.if_(iou < iou_threshold):
                                                             with T.then_():
-                                                                T.buffer_store(
+                                                                T.tensor_store(
                                                                     out_data,
+                                                                    (i, j, score_index),
                                                                     out_data[(i, j, score_index)]
                                                                     * tvm.tirx.exp(
                                                                         soft_nms_scale * iou * iou
                                                                     ),
-                                                                    (i, j, score_index),
                                                                 )
                                                                 with T.if_(
                                                                     out_data[(i, j, score_index)]
                                                                     <= thresh
                                                                 ):
                                                                     with T.then_():
-                                                                        T.buffer_store(
+                                                                        T.tensor_store(
                                                                             out_box_indices,
-                                                                            T.int32(-1),
                                                                             (i, j),
+                                                                            T.int32(-1),
                                                                         )
 
-                                    T.buffer_store(
+                                    T.tensor_store(
                                         num_valid_boxes,
-                                        num_valid_boxes[T.buffer_indices(num_valid_boxes, 0)] + 1,
-                                        T.buffer_indices(num_valid_boxes, 0),
+                                        T.tensor_indices(num_valid_boxes, 0),
+                                        num_valid_boxes[T.tensor_indices(num_valid_boxes, 0)] + 1,
                                     )
 
                 if return_indices:
-                    T.buffer_store(
+                    T.tensor_store(
                         out_valid_box_count,
-                        num_valid_boxes[T.buffer_indices(num_valid_boxes, 0)],
                         (i, 0),
+                        num_valid_boxes[T.tensor_indices(num_valid_boxes, 0)],
                     )
 
                     with T.serial(0, num_anchors) as j:
-                        with T.if_(j < num_valid_boxes[T.buffer_indices(num_valid_boxes, 0)]):
+                        with T.if_(j < num_valid_boxes[T.tensor_indices(num_valid_boxes, 0)]):
                             with T.then_():
                                 orig_idx = out_box_indices[(i, j)]
-                                T.buffer_store(
+                                T.tensor_store(
                                     out_box_indices,
-                                    indices[(i, orig_idx)],
                                     (i, j),
+                                    indices[(i, orig_idx)],
                                 )
-                        with T.if_(j >= num_valid_boxes[T.buffer_indices(num_valid_boxes, 0)]):
+                        with T.if_(j >= num_valid_boxes[T.tensor_indices(num_valid_boxes, 0)]):
                             with T.then_():
                                 with T.serial(0, box_data_length) as k:
-                                    T.buffer_store(
+                                    T.tensor_store(
                                         out_data,
-                                        tvm.tirx.Cast(data.dtype, T.float32(-1.0)),
                                         (i, j, k),
+                                        tvm.tirx.Cast(data.dtype, T.float32(-1.0)),
                                     )
-                                T.buffer_store(
+                                T.tensor_store(
                                     out_box_indices,
-                                    T.int32(-1),
                                     (i, j),
+                                    T.int32(-1),
                                 )
                 else:
                     with T.serial(0, num_anchors) as j:
-                        with T.if_(j >= num_valid_boxes[T.buffer_indices(num_valid_boxes, 0)]):
+                        with T.if_(j >= num_valid_boxes[T.tensor_indices(num_valid_boxes, 0)]):
                             with T.then_():
                                 with T.serial(0, box_data_length) as k:
-                                    T.buffer_store(
+                                    T.tensor_store(
                                         out_data,
-                                        tvm.tirx.Cast(data.dtype, T.float32(-1.0)),
                                         (i, j, k),
+                                        tvm.tirx.Cast(data.dtype, T.float32(-1.0)),
                                     )
             else:
-                with T.serial(0, nkeep_local[T.buffer_indices(nkeep_local, 0)]) as j:
+                with T.serial(0, nkeep_local[T.tensor_indices(nkeep_local, 0)]) as j:
                     with T.if_(
                         tvm.tirx.all(
                             out_data[(i, j, score_index)] > thresh,
                             tvm.tirx.Select(
                                 max_output_size > 0,
-                                num_valid_boxes[T.buffer_indices(num_valid_boxes, 0)]
+                                num_valid_boxes[T.tensor_indices(num_valid_boxes, 0)]
                                 < max_output_size,
                                 tvm.tirx.const(True),
                             ),
                         )
                     ):
                         with T.then_():
-                            T.buffer_store(
+                            T.tensor_store(
                                 num_valid_boxes,
-                                num_valid_boxes[T.buffer_indices(num_valid_boxes, 0)] + 1,
-                                T.buffer_indices(num_valid_boxes, 0),
+                                T.tensor_indices(num_valid_boxes, 0),
+                                num_valid_boxes[T.tensor_indices(num_valid_boxes, 0)] + 1,
                             )
 
-                            with T.serial(0, nkeep_local[T.buffer_indices(nkeep_local, 0)]) as k:
+                            with T.serial(0, nkeep_local[T.tensor_indices(nkeep_local, 0)]) as k:
                                 with T.if_(
                                     tvm.tirx.all(
                                         k > j,
@@ -587,65 +587,65 @@ def _classic_nms_ir(
 
                                                 with T.if_(iou >= iou_threshold):
                                                     with T.then_():
-                                                        T.buffer_store(
+                                                        T.tensor_store(
                                                             out_data,
+                                                            (i, k, score_index),
                                                             tvm.tirx.Cast(
                                                                 data.dtype, T.float32(-1.0)
                                                             ),
-                                                            (i, k, score_index),
                                                         )
-                                                        T.buffer_store(
+                                                        T.tensor_store(
                                                             out_box_indices,
-                                                            T.int32(-1),
                                                             (i, k),
+                                                            T.int32(-1),
                                                         )
 
                         with T.else_():
                             with T.serial(0, box_data_length) as k:
-                                T.buffer_store(
+                                T.tensor_store(
                                     out_data,
-                                    tvm.tirx.Cast(data.dtype, T.float32(-1.0)),
                                     (i, j, k),
+                                    tvm.tirx.Cast(data.dtype, T.float32(-1.0)),
                                 )
-                            T.buffer_store(
+                            T.tensor_store(
                                 out_box_indices,
-                                T.int32(-1),
                                 (i, j),
+                                T.int32(-1),
                             )
 
                 if return_indices:
-                    valid_idx_buf = T.alloc_buffer((1,), "int32", scope="local")
+                    valid_idx_buf = T.alloc_tensor((1,), "int32", scope="local")
                     valid_idx = valid_idx_buf
-                    T.buffer_store(valid_idx, T.int32(0), T.buffer_indices(valid_idx, 0))
+                    T.tensor_store(valid_idx, T.tensor_indices(valid_idx, 0), T.int32(0))
 
                     with T.serial(0, num_anchors) as j:
                         with T.if_(out_box_indices[(i, j)] >= 0):
                             with T.then_():
                                 orig_idx = out_box_indices[(i, j)]
-                                T.buffer_store(
+                                T.tensor_store(
                                     out_box_indices,
+                                    (i, valid_idx[T.tensor_indices(valid_idx, 0)]),
                                     indices[(i, orig_idx)],
-                                    (i, valid_idx[T.buffer_indices(valid_idx, 0)]),
                                 )
-                                T.buffer_store(
+                                T.tensor_store(
                                     valid_idx,
-                                    valid_idx[T.buffer_indices(valid_idx, 0)] + 1,
-                                    T.buffer_indices(valid_idx, 0),
+                                    T.tensor_indices(valid_idx, 0),
+                                    valid_idx[T.tensor_indices(valid_idx, 0)] + 1,
                                 )
 
-                    T.buffer_store(
+                    T.tensor_store(
                         out_valid_box_count,
-                        valid_idx[T.buffer_indices(valid_idx, 0)],
                         (i, 0),
+                        valid_idx[T.tensor_indices(valid_idx, 0)],
                     )
 
                     with T.serial(0, num_anchors) as j:
-                        with T.if_(j >= valid_idx[T.buffer_indices(valid_idx, 0)]):
+                        with T.if_(j >= valid_idx[T.tensor_indices(valid_idx, 0)]):
                             with T.then_():
-                                T.buffer_store(
+                                T.tensor_store(
                                     out_box_indices,
-                                    T.int32(-1),
                                     (i, j),
+                                    T.int32(-1),
                                 )
 
         return ib.get()
@@ -746,22 +746,22 @@ def non_max_suppression(
     )
     sort_tensor = argsort(score_tensor, valid_count=valid_count, axis=1, is_ascend=False)
 
-    data_buf = tvm.tirx.decl_buffer(data.shape, data.dtype, "data", layout=None)
-    sort_buf = tvm.tirx.decl_buffer(
+    data_buf = tvm.tirx.decl_tensor(data.shape, data.dtype, "data", layout=None)
+    sort_buf = tvm.tirx.decl_tensor(
         sort_tensor.shape, sort_tensor.dtype, "sorted_index", layout=None
     )
-    valid_count_buf = tvm.tirx.decl_buffer(
+    valid_count_buf = tvm.tirx.decl_tensor(
         valid_count.shape, valid_count.dtype, "valid_count", layout=None
     )
-    indices_buf = tvm.tirx.decl_buffer(indices.shape, indices.dtype, "indices", layout=None)
+    indices_buf = tvm.tirx.decl_tensor(indices.shape, indices.dtype, "indices", layout=None)
 
-    out_data_buf = tvm.tirx.decl_buffer(data.shape, data.dtype, "out_data", layout=None)
-    out_box_indices_buf = tvm.tirx.decl_buffer(
+    out_data_buf = tvm.tirx.decl_tensor(data.shape, data.dtype, "out_data", layout=None)
+    out_box_indices_buf = tvm.tirx.decl_tensor(
         (batch_size, num_anchors), "int32", "out_box_indices", layout=None
     )
 
     if return_indices:
-        out_valid_box_count_buf = tvm.tirx.decl_buffer(
+        out_valid_box_count_buf = tvm.tirx.decl_tensor(
             (batch_size, 1), "int32", "out_valid_box_count", layout=None
         )
 
@@ -841,7 +841,7 @@ def non_max_suppression(
 
 def _rearrange_out(data, batch_size, num_anchors, box_data_length, score_index):
     """Move valid boxes (score >= 0) to the top of output."""
-    out_buf = tvm.tirx.decl_buffer(
+    out_buf = tvm.tirx.decl_tensor(
         (batch_size, num_anchors, box_data_length), data.dtype, "rearranged", layout=None
     )
 
@@ -851,9 +851,9 @@ def _rearrange_out(data, batch_size, num_anchors, box_data_length, score_index):
             out = outs[0]
 
             with T.parallel(0, batch_size) as i:
-                valid_idx_buf = T.alloc_buffer((1,), "int32", scope="local")
+                valid_idx_buf = T.alloc_tensor((1,), "int32", scope="local")
                 valid_idx = valid_idx_buf
-                T.buffer_store(valid_idx, T.int32(0), T.buffer_indices(valid_idx, 0))
+                T.tensor_store(valid_idx, T.tensor_indices(valid_idx, 0), T.int32(0))
 
                 with T.serial(0, num_anchors) as j:
                     with T.if_(
@@ -861,25 +861,25 @@ def _rearrange_out(data, batch_size, num_anchors, box_data_length, score_index):
                     ):
                         with T.then_():
                             with T.serial(0, box_data_length) as k:
-                                T.buffer_store(
+                                T.tensor_store(
                                     out,
+                                    (i, valid_idx[T.tensor_indices(valid_idx, 0)], k),
                                     data[(i, j, k)],
-                                    (i, valid_idx[T.buffer_indices(valid_idx, 0)], k),
                                 )
-                            T.buffer_store(
+                            T.tensor_store(
                                 valid_idx,
-                                valid_idx[T.buffer_indices(valid_idx, 0)] + 1,
-                                T.buffer_indices(valid_idx, 0),
+                                T.tensor_indices(valid_idx, 0),
+                                valid_idx[T.tensor_indices(valid_idx, 0)] + 1,
                             )
 
                 with T.serial(0, num_anchors) as j:
-                    with T.if_(j >= valid_idx[T.buffer_indices(valid_idx, 0)]):
+                    with T.if_(j >= valid_idx[T.tensor_indices(valid_idx, 0)]):
                         with T.then_():
                             with T.serial(0, box_data_length) as k:
-                                T.buffer_store(
+                                T.tensor_store(
                                     out,
-                                    tvm.tirx.Cast(data.dtype, T.float32(-1.0)),
                                     (i, j, k),
+                                    tvm.tirx.Cast(data.dtype, T.float32(-1.0)),
                                 )
 
             return ib.get()
@@ -913,12 +913,12 @@ def _nms_loop(
 
     def nms_inner_loop(i, j, nkeep, num_valid_boxes_local):
         on_new_valid_box_func(
-            0, num_valid_boxes_local[T.buffer_indices(num_valid_boxes_local, 0)], i, j
+            0, num_valid_boxes_local[T.tensor_indices(num_valid_boxes_local, 0)], i, j
         )
-        T.buffer_store(
+        T.tensor_store(
             num_valid_boxes_local,
-            num_valid_boxes_local[T.buffer_indices(num_valid_boxes_local, 0)] + 1,
-            T.buffer_indices(num_valid_boxes_local, 0),
+            T.tensor_indices(num_valid_boxes_local, 0),
+            num_valid_boxes_local[T.tensor_indices(num_valid_boxes_local, 0)] + 1,
         )
 
         num_boxes_to_check = nkeep - (j + 1)
@@ -938,7 +938,7 @@ def _nms_loop(
 
                     with T.if_(iou >= iou_threshold):
                         with T.then_():
-                            T.buffer_store(out_scores, T.float32(-1.0), (i, k))
+                            T.tensor_store(out_scores, (i, k), T.float32(-1.0))
                             on_new_invalidated_box_func(i, k)
 
     with T.serial(0, batch_size) as i:
@@ -946,17 +946,17 @@ def _nms_loop(
 
         with T.if_(tvm.tirx.all(iou_threshold > te.const(0), valid_count[i] > te.const(0))):
             with T.then_():
-                num_valid_boxes_local_buf = T.alloc_buffer((1,), "int32", scope="local")
+                num_valid_boxes_local_buf = T.alloc_tensor((1,), "int32", scope="local")
                 num_valid_boxes_local = num_valid_boxes_local_buf
-                T.buffer_store(
-                    num_valid_boxes_local, T.int32(0), T.buffer_indices(num_valid_boxes_local, 0)
+                T.tensor_store(
+                    num_valid_boxes_local, T.tensor_indices(num_valid_boxes_local, 0), T.int32(0)
                 )
 
                 with T.serial(0, nkeep) as j:
                     with T.if_(
                         tvm.tirx.all(
                             out_scores[(i, j)] > -1.0,  # box is still valid
-                            num_valid_boxes_local[T.buffer_indices(num_valid_boxes_local, 0)]
+                            num_valid_boxes_local[T.tensor_indices(num_valid_boxes_local, 0)]
                             < max_output_size,  # haven't reached max limit
                         )
                     ):
@@ -968,14 +968,14 @@ def _nms_loop(
                             else:
                                 nms_inner_loop(i, j, nkeep, num_valid_boxes_local)
 
-                T.buffer_store(
+                T.tensor_store(
                     num_valid_boxes,
-                    num_valid_boxes_local[T.buffer_indices(num_valid_boxes_local, 0)],
-                    T.buffer_indices(num_valid_boxes, i),
+                    T.tensor_indices(num_valid_boxes, i),
+                    num_valid_boxes_local[T.tensor_indices(num_valid_boxes_local, 0)],
                 )
 
             with T.else_():
-                T.buffer_store(num_valid_boxes, T.int32(0), T.buffer_indices(num_valid_boxes, i))
+                T.tensor_store(num_valid_boxes, T.tensor_indices(num_valid_boxes, i), T.int32(0))
 
 
 def _get_valid_box_count(scores, score_threshold):
@@ -997,15 +997,15 @@ def _get_valid_box_count(scores, score_threshold):
 
             return ib.get()
 
-    scores_buf = tvm.tirx.decl_buffer(
+    scores_buf = tvm.tirx.decl_tensor(
         scores.shape, scores.dtype, "scores_buf", data_alignment=8, layout=None
     )
-    searchsorted_buf = tvm.tirx.decl_buffer(
+    searchsorted_buf = tvm.tirx.decl_tensor(
         (batch_classes,), "int32", "searchsorted", data_alignment=8, layout=None
     )
 
     if hasattr(score_threshold, "shape"):
-        score_thresh_buf = tvm.tirx.decl_buffer(
+        score_thresh_buf = tvm.tirx.decl_tensor(
             score_threshold.shape,
             score_threshold.dtype,
             "score_thresh_buf",
@@ -1058,44 +1058,43 @@ def _collect_selected_indices_ir(
     batch_classes, _ = selected_indices.shape
 
     with IRBuilder() as ib:
-        with T.seq_scope():
-            # Initialize output buffer to zero
-            # Calculate the actual output shape based on max_output_boxes_per_class
+        # Initialize output buffer to zero
+        # Calculate the actual output shape based on max_output_boxes_per_class
+        if isinstance(max_output_boxes_per_class, int):
+            max_output_rows = batch_classes * max_output_boxes_per_class
+        else:
+            # Fallback to a reasonable default if max_output_boxes_per_class is not an integer
+            max_output_rows = batch_classes * 10
+        with T.serial(0, max_output_rows) as init_i:
+            with T.serial(0, 3) as init_j:  # 3 columns
+                T.tensor_store(out, (init_i, init_j), cast(0, "int64"))
+
+        with T.parallel(0, batch_classes) as i:
+            i_64 = cast(i, "int64")
+            batch_id = i_64 // num_class
+            class_id = i_64 % num_class
+
             if isinstance(max_output_boxes_per_class, int):
-                max_output_rows = batch_classes * max_output_boxes_per_class
-            else:
-                # Fallback to a reasonable default if max_output_boxes_per_class is not an integer
-                max_output_rows = batch_classes * 10
-            with T.serial(0, max_output_rows) as init_i:
-                with T.serial(0, 3) as init_j:  # 3 columns
-                    T.buffer_store(out, cast(0, "int64"), (init_i, init_j))
-
-            with T.parallel(0, batch_classes) as i:
-                i_64 = cast(i, "int64")
-                batch_id = i_64 // num_class
-                class_id = i_64 % num_class
-
-                if isinstance(max_output_boxes_per_class, int):
-                    limit = tvm.tirx.min(
-                        num_detections[i], tvm.tirx.IntImm("int32", max_output_boxes_per_class)
-                    )
-                elif isinstance(max_output_boxes_per_class, te.Tensor):
-                    if len(max_output_boxes_per_class.shape) == 0:
-                        max_boxes_val = max_output_boxes_per_class[()]
-                    else:
-                        max_boxes_val = max_output_boxes_per_class[0]
-                    limit = tvm.tirx.min(num_detections[i], max_boxes_val)
+                limit = tvm.tirx.min(
+                    num_detections[i], tvm.tirx.IntImm("int32", max_output_boxes_per_class)
+                )
+            elif isinstance(max_output_boxes_per_class, te.Tensor):
+                if len(max_output_boxes_per_class.shape) == 0:
+                    max_boxes_val = max_output_boxes_per_class[()]
                 else:
-                    limit = num_detections[i]
+                    max_boxes_val = max_output_boxes_per_class[0]
+                limit = tvm.tirx.min(num_detections[i], max_boxes_val)
+            else:
+                limit = num_detections[i]
 
-                with T.serial(0, limit) as j:
-                    T.buffer_store(out, batch_id, (row_offsets[i] + j, 0))
-                    T.buffer_store(out, class_id, (row_offsets[i] + j, 1))
-                    T.buffer_store(
-                        out,
-                        cast(selected_indices[i, j], "int64"),
-                        (row_offsets[i] + j, 2),
-                    )
+            with T.serial(0, limit) as j:
+                T.tensor_store(out, (row_offsets[i] + j, 0), batch_id)
+                T.tensor_store(out, (row_offsets[i] + j, 1), class_id)
+                T.tensor_store(
+                    out,
+                    (row_offsets[i] + j, 2),
+                    cast(selected_indices[i, j], "int64"),
+                )
 
         return ib.get()
 
@@ -1124,20 +1123,20 @@ def _collect_selected_indices_and_scores_ir(
                 with T.if_(j < num_detections[batch_id, class_id]):
                     with T.then_():
                         offset = row_offsets[batch_id, class_id] + j
-                        T.buffer_store(
+                        T.tensor_store(
                             collected_indices,
-                            class_id,
                             (batch_id, offset, 0),
+                            class_id,
                         )
-                        T.buffer_store(
+                        T.tensor_store(
                             collected_indices,
-                            cast(selected_indices[i, j], "int64"),
                             (batch_id, offset, 1),
+                            cast(selected_indices[i, j], "int64"),
                         )
-                        T.buffer_store(
+                        T.tensor_store(
                             collected_scores,
-                            selected_scores[i, j],
                             (batch_id, offset),
+                            selected_scores[i, j],
                         )
                     with T.else_():
                         offset = (
@@ -1147,20 +1146,20 @@ def _collect_selected_indices_and_scores_ir(
                             + j
                             - num_detections[batch_id, class_id]
                         )
-                        T.buffer_store(
+                        T.tensor_store(
                             collected_indices,
-                            zero,
                             (batch_id, offset, 0),
-                        )
-                        T.buffer_store(
-                            collected_indices,
                             zero,
-                            (batch_id, offset, 1),
                         )
-                        T.buffer_store(
+                        T.tensor_store(
+                            collected_indices,
+                            (batch_id, offset, 1),
+                            zero,
+                        )
+                        T.tensor_store(
                             collected_scores,
-                            T.float32(0.0),
                             (batch_id, offset),
+                            T.float32(0.0),
                         )
 
         return ib.get()

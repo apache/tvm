@@ -24,10 +24,12 @@
  *  builtin intrinsic operators specific to Trainium target.
  */
 #include <tvm/ffi/function.h>
-#include <tvm/ir/prim/builtin.h>
+#include <tvm/ir/expr.h>
+#include <tvm/ir/op.h>
+#include <tvm/ir/prim/op.h>
+#include <tvm/ir/stmt.h>
 #include <tvm/runtime/base.h>
-#include <tvm/tirx/builtin.h>
-#include <tvm/tirx/op.h>
+#include <tvm/script/printer/doc_translator.h>
 #include <tvm/tirx/op_attr_types.h>
 
 #include <initializer_list>
@@ -38,8 +40,10 @@ namespace tirx {
 namespace builtin {
 
 namespace {
+static ffi::Array<Var> RegionNoBodyParams(const CallNode*) { return {}; }
+
 void RegisterNKIIntrinsicAliases();
-}
+}  // namespace
 
 void RegisterTRNTargetBuiltins() {
   static bool registered = false;
@@ -47,6 +51,16 @@ void RegisterTRNTargetBuiltins() {
   registered = true;
 
   RegisterNKIIntrinsicAliases();
+
+  OpDef("tirx.nki.tensorized_instruction", "Tensorize the NKI instructions in the region body.")
+      .signature()
+      .set_attr<FRegionGetBodyParams>(tvm::op_attr::kRegionGetBodyParams,
+                                      FRegionGetBodyParams::FromNative<&RegionNoBodyParams>())
+      .set_attr<TIRxOpCategory>(tvm::tirx::op_attr::kOpCategory, ffi::String("device_intrin"))
+      .set_attr<TDeviceIntrinsicNamespace>(tvm::tirx::op_attr::kDeviceIntrinsicNamespace,
+                                           ffi::String("nki"))
+      .set_attr<TScriptPrinterName>(tvm::script::printer::op_attr::kScriptPrinterName,
+                                    ffi::String("tirx.nki.tensorized_instruction"));
 }
 
 namespace {
@@ -62,14 +76,18 @@ TVM_FFI_NO_INLINE NKIIntrinsicNames MakeNKIIntrinsicNames(const char* op_name) {
   if (suffix.rfind(prefix, 0) == 0) {
     suffix = suffix.substr(prefix.size());
   }
-  return {"tirx.nki." + suffix, "nki." + suffix};
+  return {"tirx.nki." + suffix, "tirx.nki." + suffix};
 }
 
 TVM_FFI_NO_INLINE void RegisterNKIIntrinsicAttrs(OpDef& def, const std::string& printer_name) {
-  def.set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"))
-      .set_attr<TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", ffi::String("nki"))
-      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque))
-      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String(printer_name));
+  def.set_attr<TFixedReturnType>(tvm::op_attr::kFixedReturnType, PrimType::Void())
+      .set_attr<TIRxOpCategory>(tvm::tirx::op_attr::kOpCategory, ffi::String("device_intrin"))
+      .set_attr<TDeviceIntrinsicNamespace>(tvm::tirx::op_attr::kDeviceIntrinsicNamespace,
+                                           ffi::String("nki"))
+      .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
+                                 static_cast<int64_t>(CallEffectKind::kOpaque))
+      .set_attr<TScriptPrinterName>(tvm::script::printer::op_attr::kScriptPrinterName,
+                                    ffi::String(printer_name));
 }
 
 template <typename... Specs>

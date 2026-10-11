@@ -24,6 +24,7 @@
 #ifndef TVM_TOPI_BROADCAST_H_
 #define TVM_TOPI_BROADCAST_H_
 
+#include <tvm/tirx/op/math.h>
 #include <tvm/topi/detail/broadcast.h>
 #include <tvm/topi/detail/constant_utils.h>
 #include <tvm/topi/tags.h>
@@ -273,7 +274,7 @@ TOPI_DEFINE_BCAST_OP(floor_divide, {
  *
  * \return The computed log-sum-exp result.
  */
-TOPI_DEFINE_BCAST_OP(log_add_exp, { return prim::logaddexp(a, b); });
+TOPI_DEFINE_BCAST_OP(log_add_exp, { return tirx::logaddexp(a, b); });
 
 /*!
  * \fn trunc divide

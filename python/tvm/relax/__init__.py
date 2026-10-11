@@ -28,7 +28,7 @@ from .global_info import DummyGlobalInfo, VDevice
 # Expr
 from .expr import (
     Expr,
-    Span,
+    Location,
     GlobalVar,
     Var,
     DataflowVar,
@@ -43,7 +43,7 @@ from .expr import (
     TupleGetItem,
     Function,
     ExternFunc,
-    If,
+    IfExpr,
     prim_value,
 )
 
@@ -68,6 +68,7 @@ from .exec_builder import ExecBuilder
 from .op.base import (
     call_tir,
     call_tir_inplace,
+    call_tir_packed,
     call_pure_packed,
     call_dps_packed,
     call_tir_with_grad,
@@ -134,3 +135,6 @@ def _initialize_script_namespace() -> None:
 from tvm.script.parser import register_namespace_initializer as _register_namespace_initializer
 
 _register_namespace_initializer(_initialize_script_namespace, aliases=("relax",))
+
+# Register the exported operator printer names for compiler diagnostics as well.
+from .script import ir_builder as _script_ir_builder

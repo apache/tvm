@@ -19,7 +19,7 @@
 
 #include "data_type_rewriter.h"
 
-#include <tvm/tirx/op.h>
+#include <tvm/ir/prim/op.h>
 
 #include <functional>
 
@@ -28,7 +28,7 @@ namespace s_tir {
 using namespace tvm::tirx;
 using namespace tvm::prim;
 
-PrimFunc IndexDataTypeNormalizer::Rewrite(PrimFunc func) {
+Function IndexDataTypeNormalizer::Rewrite(Function func) {
   // Keep this short setup local so its collector uses S-TIR block semantics
   // without adding a dialect-specific collector hook to the TIRX normalizer.
   // Collect scalar dtype requirements without changing types.  Buffer definitions
@@ -60,7 +60,7 @@ PrimFunc IndexDataTypeNormalizer::Rewrite(PrimFunc func) {
   auto collector = ffi::make_object<IndexVarCollector>(seed);
   collector->Mutate(func->body);
   for (const Var& param : func->params) {
-    if (param.as<BufferVar>()) {
+    if (param.as<TensorVar>()) {
       collector->WithDefRegionKind(kTVMFFIDefRegionKindSimple,
                                    [&] { return collector->Mutate(param); });
     } else {
@@ -72,7 +72,7 @@ PrimFunc IndexDataTypeNormalizer::Rewrite(PrimFunc func) {
       return Mutate(param).ValueOrUnchanged(param).as_or_throw<Var>();
     });
   });
-  PrimFuncNode* new_func = func.CopyOnWrite();
+  FunctionNode* new_func = func.CopyOnWrite();
   new_func->params = std::move(params);
   new_func->body = Mutate(new_func->body).ValueOrUnchanged(new_func->body);
   return func;
@@ -112,13 +112,13 @@ UnchangedOr<Stmt> IndexDataTypeNormalizer::Mutate_(const SBlockRealizeNode* op,
 UnchangedOr<Stmt> IndexDataTypeNormalizer::Mutate_(const SBlockNode* op, InplaceMode inplace_mode) {
   auto new_alloc_buffers = this->WithDefRegionKind(kTVMFFIDefRegionKindSimple, [&] {
     return this->Mutate(op->alloc_buffers, inplace_mode)
-        .as_or_throw<UnchangedOr<ffi::Array<BufferVar>>>()
+        .as_or_throw<UnchangedOr<ffi::Array<TensorVar>>>()
         .ValueOrUnchanged(op->alloc_buffers);
   });
   auto new_match_buffers = op->match_buffers.Map([this](const MatchBufferRegion& match) {
-    BufferVar buffer = this->WithDefRegionKind(kTVMFFIDefRegionKindSimple, [&] {
+    TensorVar buffer = this->WithDefRegionKind(kTVMFFIDefRegionKindSimple, [&] {
       return this->Mutate(match->buffer, InplaceMode::kDisallow)
-          .as_or_throw<UnchangedOr<BufferVar>>()
+          .as_or_throw<UnchangedOr<TensorVar>>()
           .ValueOrUnchanged(match->buffer);
     });
     TensorRegion source = VisitBufferRegion(match->source);
@@ -131,7 +131,7 @@ UnchangedOr<Stmt> IndexDataTypeNormalizer::Mutate_(const SBlockNode* op, Inplace
       [this](const TensorRegion& buffer_region) { return VisitBufferRegion(buffer_region); });
   ffi::Array<IterVar> new_iter_vars =
       op->iter_vars.Map([this](const IterVar& iter_var) { return VisitIterVar(iter_var); });
-  ffi::Optional<Stmt> new_init = std::nullopt;
+  ffi::Optional<SeqStmt> new_init = std::nullopt;
   if (op->init.has_value()) {
     new_init = this->Mutate(op->init.value(), inplace_mode).ValueOrUnchanged(op->init.value());
   }
@@ -168,10 +168,10 @@ ffi::Map<ffi::String, ffi::Any> IndexDataTypeNormalizer::VisitBlockAnnotations(
     if (obj == nullptr) {
       return obj;
     }
-    if (auto var = obj.as<Var>(); var && var.value()->ty.as<BufferTypeNode>()) {
-      BufferVar buffer = var.value().as_or_throw<BufferVar>();
-      if (BufferVar new_buffer = this->Mutate(buffer, InplaceMode::kDisallow)
-                                     .as_or_throw<UnchangedOr<BufferVar>>()
+    if (auto var = obj.as<Var>(); var && var.value()->ty.as<TensorTypeNode>()) {
+      TensorVar buffer = var.value().as_or_throw<TensorVar>();
+      if (TensorVar new_buffer = this->Mutate(buffer, InplaceMode::kDisallow)
+                                     .as_or_throw<UnchangedOr<TensorVar>>()
                                      .ValueOrUnchanged(buffer);
           !new_buffer.same_as(buffer)) {
         return new_buffer;
@@ -198,16 +198,17 @@ IterVar IndexDataTypeNormalizer::VisitIterVar(const IterVar& iter_var) {
   PrimVar new_var = this->Mutate(iter_var->var, InplaceMode::kDisallow)
                         .ValueOrUnchanged(iter_var->var)
                         .as_or_throw<PrimVar>();
-  PrimExpr min =
-      this->Mutate(iter_var->dom->min, InplaceMode::kDisallow).ValueOrUnchanged(iter_var->dom->min);
-  PrimExpr extent = this->Mutate(iter_var->dom->extent, InplaceMode::kDisallow)
-                        .ValueOrUnchanged(iter_var->dom->extent);
+  PrimExpr min = this->Mutate(iter_var->dom.value()->min, InplaceMode::kDisallow)
+                     .ValueOrUnchanged(iter_var->dom.value()->min);
+  PrimExpr extent = this->Mutate(iter_var->dom.value()->extent, InplaceMode::kDisallow)
+                        .ValueOrUnchanged(iter_var->dom.value()->extent);
   this->is_enabled_ = is_enabled;
-  if (!new_var.same_as(iter_var->var) || !min.same_as(iter_var->dom->min) ||
-      !extent.same_as(iter_var->dom->extent)) {
+  if (!new_var.same_as(iter_var->var) || !min.same_as(iter_var->dom.value()->min) ||
+      !extent.same_as(iter_var->dom.value()->extent)) {
     IterVar new_iter_var = iter_var;
     IterVarNode* n = new_iter_var.CopyOnWrite();
     n->var = std::move(new_var);
+    n->ty = n->var.ty();
     n->dom = Range(min, extent);
     return new_iter_var;
   }
@@ -215,10 +216,10 @@ IterVar IndexDataTypeNormalizer::VisitIterVar(const IterVar& iter_var) {
 }
 
 TensorRegion IndexDataTypeNormalizer::VisitBufferRegion(const TensorRegion& buffer_region) {
-  BufferVar remapped_buffer =
-      this->Mutate(buffer_region->source.as_or_throw<BufferVar>(), InplaceMode::kDisallow)
-          .as_or_throw<UnchangedOr<BufferVar>>()
-          .ValueOrUnchanged(buffer_region->source.as_or_throw<BufferVar>());
+  TensorVar remapped_buffer =
+      this->Mutate(buffer_region->source.as_or_throw<TensorVar>(), InplaceMode::kDisallow)
+          .as_or_throw<UnchangedOr<TensorVar>>()
+          .ValueOrUnchanged(buffer_region->source.as_or_throw<TensorVar>());
 
   bool is_enabled = this->is_enabled_;
   this->is_enabled_ = true;
@@ -229,7 +230,7 @@ TensorRegion IndexDataTypeNormalizer::VisitBufferRegion(const TensorRegion& buff
   });
   this->is_enabled_ = is_enabled;
 
-  if (!remapped_buffer.same_as(buffer_region->source.as_or_throw<BufferVar>()) ||
+  if (!remapped_buffer.same_as(buffer_region->source.as_or_throw<TensorVar>()) ||
       !new_region.same_as(buffer_region->region)) {
     return BufferRegion(remapped_buffer, new_region);
   } else {

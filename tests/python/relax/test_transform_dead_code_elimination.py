@@ -163,11 +163,11 @@ def check_if_func_exists(mod, func_name):
 def test_unused_relax_func():
     @tvm.script.ir_module
     class InputModule:
-        @Ts.prim_func
+        @Ts.function
         def tir_add(
-            x: T.Buffer((16, 16), "float32"),
-            y: T.Buffer((16, 16), "float32"),
-            z: T.Buffer((16, 16), "float32"),
+            x: T.Tensor((16, 16), "float32"),
+            y: T.Tensor((16, 16), "float32"),
+            z: T.Tensor((16, 16), "float32"),
         ) -> None:
             for i, j in T.grid(16, 16):
                 with Ts.sblock("add"):
@@ -183,7 +183,9 @@ def test_unused_relax_func():
         def main(x: R.Tensor((16, 16), "float32"), w: R.Tensor((16, 16), "float32")) -> R.Tensor(
             (16, 16), "float32"
         ):
-            gv0 = R.call_tir(InputModule.tir_add, (x, w), R.Tensor((16, 16), dtype="float32"))
+            gv0 = R.call_tir(
+                InputModule.tir_add, (x, w), ty_args=[R.Tensor((16, 16), dtype="float32")]
+            )
             return gv0
 
     mod = InputModule
@@ -200,11 +202,11 @@ provide_entry_func_name = tvm.testing.parameter(True, False)
 def test_unused_relax_func_custom_entry_func(provide_entry_func_name):
     @tvm.script.ir_module
     class InputModule:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def tir_add(
-            x: T.Buffer((16, 16), "float32"),
-            y: T.Buffer((16, 16), "float32"),
-            z: T.Buffer((16, 16), "float32"),
+            x: T.Tensor((16, 16), "float32"),
+            y: T.Tensor((16, 16), "float32"),
+            z: T.Tensor((16, 16), "float32"),
         ) -> None:
             for i, j in T.grid(16, 16):
                 with Ts.sblock("add"):
@@ -220,7 +222,9 @@ def test_unused_relax_func_custom_entry_func(provide_entry_func_name):
         def foo(x: R.Tensor((16, 16), "float32"), w: R.Tensor((16, 16), "float32")) -> R.Tensor(
             (16, 16), "float32"
         ):
-            gv0 = R.call_tir(InputModule.tir_add, (x, w), R.Tensor((16, 16), dtype="float32"))
+            gv0 = R.call_tir(
+                InputModule.tir_add, (x, w), ty_args=[R.Tensor((16, 16), dtype="float32")]
+            )
             return gv0
 
     mod = InputModule
@@ -241,11 +245,11 @@ def test_unused_relax_func_custom_entry_func(provide_entry_func_name):
 def test_tracking_through_externally_exposed_func(provide_entry_func_name):
     @tvm.script.ir_module
     class InputModule:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def tir_add(
-            x: T.Buffer((16, 16), "float32"),
-            y: T.Buffer((16, 16), "float32"),
-            z: T.Buffer((16, 16), "float32"),
+            x: T.Tensor((16, 16), "float32"),
+            y: T.Tensor((16, 16), "float32"),
+            z: T.Tensor((16, 16), "float32"),
         ) -> None:
             for i, j in T.grid(16, 16):
                 with Ts.sblock("add"):
@@ -261,7 +265,9 @@ def test_tracking_through_externally_exposed_func(provide_entry_func_name):
         def foo(x: R.Tensor((16, 16), "float32"), w: R.Tensor((16, 16), "float32")) -> R.Tensor(
             (16, 16), "float32"
         ):
-            gv0 = R.call_tir(InputModule.tir_add, (x, w), R.Tensor((16, 16), dtype="float32"))
+            gv0 = R.call_tir(
+                InputModule.tir_add, (x, w), ty_args=[R.Tensor((16, 16), dtype="float32")]
+            )
             return gv0
 
         @R.function
@@ -293,11 +299,11 @@ def test_unused_relax_func_symbolic_shape():
 
     @tvm.script.ir_module(check_well_formed=False)
     class InputModule:
-        @Ts.prim_func
+        @Ts.function
         def tir_matmul(
-            x: T.Buffer((m_tir_matmul, n_tir_matmul), "float32"),
-            y: T.Buffer((n_tir_matmul, k_tir_matmul), "float32"),
-            z: T.Buffer((m_tir_matmul, k_tir_matmul), "float32"),
+            x: T.Tensor((m_tir_matmul, n_tir_matmul), "float32"),
+            y: T.Tensor((n_tir_matmul, k_tir_matmul), "float32"),
+            z: T.Tensor((m_tir_matmul, k_tir_matmul), "float32"),
         ) -> None:
             for i, j, k_tir_matmul_index in T.grid(m_tir_matmul, k_tir_matmul, n_tir_matmul):
                 with Ts.sblock("matmul"):
@@ -319,7 +325,9 @@ def test_unused_relax_func_symbolic_shape():
             x: R.Tensor((m_main, n_main), "float32"), w: R.Tensor((n_main, k_main), "float32")
         ):
             gv0 = R.call_tir(
-                InputModule.tir_matmul, (x, w), R.Tensor((m_main, k_main), dtype="float32")
+                InputModule.tir_matmul,
+                (x, w),
+                ty_args=[R.Tensor((m_main, k_main), dtype="float32")],
             )
             return gv0
 
@@ -332,14 +340,14 @@ def test_unused_relax_func_symbolic_shape():
     assert not check_if_func_exists(new_mod, "unused_func")
 
 
-def test_unused_prim_func():
+def test_unused_function():
     @tvm.script.ir_module
     class InputModule:
-        @Ts.prim_func
+        @Ts.function
         def unused_func(
-            x: T.Buffer((16, 16), "float32"),
-            y: T.Buffer((16, 16), "float32"),
-            z: T.Buffer((16, 16), "float32"),
+            x: T.Tensor((16, 16), "float32"),
+            y: T.Tensor((16, 16), "float32"),
+            z: T.Tensor((16, 16), "float32"),
         ) -> None:
             T.func_attr({"global_symbol": "tir_unused"})
             for i, j in T.grid(16, 16):
@@ -368,7 +376,7 @@ def test_unused_prim_func():
     assert check_if_func_exists(new_mod, "unused_func")
 
 
-def test_preserve_indirectly_used_prim_func():
+def test_preserve_indirectly_used_function():
     @tvm.script.ir_module
     class InputModule:
         @R.function
@@ -378,22 +386,22 @@ def test_preserve_indirectly_used_prim_func():
             gv0 = R.call_tir(
                 InputModule.tir_add_tensors,
                 [x, w],
-                out_ty=R.Tensor((16, 16), "float32"),
+                ty_args=[R.Tensor((16, 16), "float32")],
             )
             return gv0
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def tir_add_tensors(
-            x: T.Buffer((16, 16), "float32"),
-            y: T.Buffer((16, 16), "float32"),
-            z: T.Buffer((16, 16), "float32"),
+            x: T.Tensor((16, 16), "float32"),
+            y: T.Tensor((16, 16), "float32"),
+            z: T.Tensor((16, 16), "float32"),
         ):
             for i, j in T.grid(16, 16):
                 with Ts.sblock("add"):
                     vi, vj = Ts.axis.remap("SS", [i, j])
                     z[vi, vj] = InputModule.tir_add_float32(x[vi, vj], y[vi, vj])
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def tir_add_float32(x: T.float32, y: T.float32) -> T.float32:
             return x + y
 
@@ -407,11 +415,11 @@ def test_preserve_indirectly_used_prim_func():
 def test_multiple_unused_funcs():
     @tvm.script.ir_module
     class InputModule:
-        @Ts.prim_func
+        @Ts.function
         def unused_func1(
-            x: T.Buffer((16, 16), "float32"),
-            y: T.Buffer((16, 16), "float32"),
-            z: T.Buffer((16, 16), "float32"),
+            x: T.Tensor((16, 16), "float32"),
+            y: T.Tensor((16, 16), "float32"),
+            z: T.Tensor((16, 16), "float32"),
         ) -> None:
             T.func_attr({"global_symbol": "tir_unused"})
             for i, j in T.grid(16, 16):

@@ -36,10 +36,10 @@ class IndexDataTypeNormalizer : public tirx::IndexDataTypeNormalizer {
   using Parent::Mutate_;
   explicit IndexDataTypeNormalizer(PrimType target_data_type)
       : Parent(std::move(target_data_type), GlobalVTable()) {}
-  tirx::PrimFunc Rewrite(tirx::PrimFunc func);
+  tirx::Function Rewrite(tirx::Function func);
 
-  virtual UnchangedOr<tirx::Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode);
-  virtual UnchangedOr<tirx::Stmt> Mutate_(const SBlockRealizeNode* op, InplaceMode inplace_mode);
+  virtual UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode);
+  virtual UnchangedOr<Stmt> Mutate_(const SBlockRealizeNode* op, InplaceMode inplace_mode);
 
  protected:
   static void InitVTable(VTable* table) {
@@ -60,7 +60,7 @@ class IndexDataTypeNormalizer : public tirx::IndexDataTypeNormalizer {
  private:
   ffi::Map<ffi::String, ffi::Any> VisitBlockAnnotations(
       const ffi::Map<ffi::String, ffi::Any>& annotations);
-  tirx::IterVar VisitIterVar(const tirx::IterVar& iter_var);
+  s_tir::IterVar VisitIterVar(const s_tir::IterVar& iter_var);
   TensorRegion VisitBufferRegion(const TensorRegion& buffer_region);
 };
 

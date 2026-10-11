@@ -35,22 +35,13 @@
 
 namespace tvm {
 namespace s_tir {
-/*!
- * \brief Renew the definition nodes for a TIR, including Var, Buffer and IterVar.
- *        This pass works as a simple DeepCopy to duplicate a function with different Vars and
- *        Buffers but the same behavior
- * \param func The input PrimFunc.
- * \return The renewed func.
- */
-TVM_DLL tirx::PrimFunc RenewDefs(const tirx::PrimFunc& func);
-
 namespace transform {
 
-using tirx::transform::CreatePrimFuncPass;
+using tirx::transform::CreateFunctionPass;
 using tvm::transform::Pass;
 using tvm::transform::PassContext;
 
-/*! \brief De-duplicate definitions, including schedulable block iterators, across PrimFuncs. */
+/*! \brief De-duplicate definitions, including schedulable block iterators, across Functions. */
 TVM_DLL Pass ConvertSSA();
 
 /*! \brief Simplify schedulable TIR using block iteration constraints and shared simplifier options.
@@ -71,7 +62,7 @@ TVM_DLL Pass CanonicalizeLoop();
 TVM_DLL Pass LowerCrossThreadReduction();
 
 /*!
- * \brief Lower block init stmt into IfThenElse stmts
+ * \brief Lower block init stmt into If stmts
  * \return The pass.
  */
 TVM_DLL Pass LowerInitBlock();
@@ -108,7 +99,7 @@ TVM_DLL Pass LiftThreadBinding();
  *
  *  for i in range(0, 16):
  *      with T.sblock():
- *          B = T.alloc_buffer(16, 16)
+ *          B = T.alloc_tensor(16, 16)
  *          for j in range(0, 16):
  *              B[i, j] = A[i, j] + 1
  *          for j in range(0, 16):
@@ -124,7 +115,7 @@ TVM_DLL Pass LiftThreadBinding();
  *
  *  for i in range(0, 16):
  *      with T.sblock():
- *          B = T.alloc_buffer(1, 16)
+ *          B = T.alloc_tensor(1, 16)
  *          for j in range(0, 16):
  *              B[0, j] = A[i, j] + 1
  *          for j in range(0, 16):
@@ -158,21 +149,18 @@ TVM_DLL Pass TransformMmaBufferLayout();
 
 /*!
  * \brief Remove the block to ensure that the TIR can not be scheduled again.
+ * Run LoopPartition first when thread-binding loops carry loop_partition_hint.
  * \return The pass.
  */
 TVM_DLL Pass LowerOpaqueBlock();
 
 /*!
- * \brief Unify all the thread bindings for "blockIdx.x/y/z", "threadIdx.x/y/z", and
- *        "vthread.x/y/z". Before the unification, two vars that are bound to a thread axis (e.g.,
- *        "threadIdx.x") use different IterVars and variables in their AttrStmts. After the
- *        unification, we use a consolidated IterVar and a variable for them.
+ * \brief Lower thread-binding loops to fresh lexical launch regions.
+ * Run after LoopPartition and LowerOpaqueBlock, while retaining loops for scheduling
+ * and feature extraction before this boundary.
  * \return The pass.
- * \note `vthread` is a legacy behavior that will be deprecated, though thread bindings of `vthread`
- *       are still also unified in this pass. Please use `vthread.x`, `vthread.y` and `vthread.z`
- *       instead.
  */
-TVM_DLL Pass UnifyThreadBinding();
+TVM_DLL Pass LowerThreadBinding();
 
 /*!
  * \brief This pass transforms annotated loops into pipelined ones where producers and consumers
@@ -242,58 +230,10 @@ TVM_DLL Pass LoopPartition();
 TVM_DLL Pass InjectVirtualThread();
 
 /*!
- * \brief Inject double buffer statements.
- *
- * \return The pass.
- */
-TVM_DLL Pass InjectDoubleBuffer();
-
-/*!
- * \brief Hoist loop-invariant IfThenElse nodes to
- * outside the eligible loops.
- *
- * \param variant The variant of the pass.
- *        variant can have any one of following values ["basic", ""(Default)].
- * \return The pass.
- */
-TVM_DLL Pass HoistIfThenElse(tvm::ffi::String variant = "");
-
-/*!
- * \brief Hoist loop-invariant expressions to outside the eligible loops.
- *
- * Can hoist conditionals used in IfThenElse statements and
- * expressions, bindings of variables in Let statements and
- * expressions, or boolean expressions, configurable to enable/disable
- * each hoistable type.
- *
- * \return The pass.
- */
-TVM_DLL Pass HoistExpression();
-
-/*!
- * \brief Renormalize the split pattern from floordiv(floormod()) to floormod(floordiv()).
- * \return The pass.
- */
-TVM_DLL Pass RenormalizeSplitPattern();
-
-/*!
  * \brief Detect and rewrite unsafe select that contains memory access.
  * \return The pass.
  */
 TVM_DLL Pass RewriteUnsafeSelect();
-
-/*!
- * \brief Instruments bound checkers.
- * \return The pass.
- */
-TVM_DLL Pass InstrumentBoundCheckers();
-
-/*!
- * \brief Rewrite global to local memory copy on CUDA with ldg32 instruction.
- * \param enable_inject Whether to enable injection.
- * \return The pass.
- */
-TVM_DLL Pass InjectPTXLDG32(bool enable_inject = true);
 
 /*!
  * \brief Lower VTCM allocations.
@@ -307,6 +247,13 @@ TVM_DLL Pass LowerVtcmAlloc();
  * \return The pass.
  */
 TVM_DLL Pass ThreadSync(tvm::ffi::String storage_scope);
+
+/*!
+ * \brief Lower asynchronous queue operations and remove synchronization regions.
+ * Run after ThreadSync and optional InjectPTXAsyncCopy.
+ * \return The pass.
+ */
+TVM_DLL Pass LowerSynchronization();
 
 /*!
  * \brief Infer the TensorCore fragment information using tensor intrinsics.
@@ -333,7 +280,7 @@ TVM_DLL Pass InjectPTXAsyncCopy();
 TVM_DLL Pass MergeSharedMemoryAllocations();
 
 /*!
- * \brief Set default thread bindings for GPU PrimFuncs.
+ * \brief Set default thread bindings for GPU Functions.
  * \return The pass.
  */
 TVM_DLL Pass DefaultGPUSchedule();
@@ -346,7 +293,7 @@ TVM_DLL Pass DefaultGPUSchedule();
 TVM_DLL Pass RemoveWeightLayoutRewriteBlock(bool skip_tensor_rewrite = false);
 
 /*!
- * \brief Remove stores of tirx::builtin::undef.
+ * \brief Remove stores of tirx::undef_op.
  * \return The pass.
  */
 TVM_DLL Pass RemoveStoreUndef();

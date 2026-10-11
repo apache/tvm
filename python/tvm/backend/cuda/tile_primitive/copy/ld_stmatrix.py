@@ -25,11 +25,11 @@ Direction (ld vs st) and exec scope (warp / warpgroup) are decided inside
 from math import prod
 
 from tvm.script import tirx as T
-from tvm.tirx import PrimFunc
+from tvm.tirx import Function
 from tvm.tirx.layout import ComposeLayout, S, TileLayout
-from tvm.tirx.operator.tile_primitive.dispatcher import fail, predicate, register_dispatch
-from tvm.tirx.operator.tile_primitive.registry import DispatchContext
-from tvm.tirx.tile_primitive import TilePrimitiveCall
+from tvm.tirx.operator.tile_primitive.dispatcher import fail
+from tvm.tirx.tensor_instruction import TensorCall
+from tvm.tirx.tile_dispatch import DispatchContext
 
 from ._common import (  # noqa: F401  (_carve_tail reserved for future variants)
     _carve_tail,
@@ -56,7 +56,7 @@ def _compute_r_perm(r):
     return [i for i, _ in sorted(enumerate(r.shard), key=key)]
 
 
-def _is_ldstmatrix(op_call: TilePrimitiveCall, sctx: DispatchContext) -> tuple[bool, str | None]:
+def _is_ldstmatrix(op_call: TensorCall, sctx: DispatchContext) -> tuple[bool, str | None]:
     if not sctx.is_target("cuda"):
         return False, "non-cuda target"
     if sctx.scope_kind not in ("warp", "warpgroup", "cta"):
@@ -72,8 +72,8 @@ def _is_ldstmatrix(op_call: TilePrimitiveCall, sctx: DispatchContext) -> tuple[b
     return True, None
 
 
-def _emit(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
-    op_call = TilePrimitiveCall.downcast(op_call)
+def _emit(op_call: TensorCall, sctx: DispatchContext) -> Function:
+    op_call = TensorCall.decode(op_call)
 
     # Step 1: identify reg / smem sides and pull their tensor shape + layout.
     src_br = op_call.src
@@ -301,14 +301,12 @@ def _emit(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
     # Step 10: emit one ldmatrix/stmatrix per mm, per warp.
 
     def _get_warp_idx_in_T():
-        # T.warp_id_in_wg() / T.warp_id() must be called from inside a
-        # @T.prim_func body — wrap so the prim_func parser calls us at parse
-        # time (Python `if` here is plain control flow, not TIR-intercepted).
+        # Pick the CUDA index call while parsing the instruction implementation.
         if r_lane_axis == "laneid":
             return 0
         if r_lane_axis == "tid_in_wg":
-            return T.warp_id_in_wg()
-        return T.warp_id()  # "tx"
+            return T.cuda.warp_in_warpgroup()
+        return T.cuda.warp_id()  # "tx"
 
     def _seg4_coord(laneid_expr):
         # num=1: seg 4 trivially extent-1, pass 0. num>1: use lane//8 (tile
@@ -360,10 +358,10 @@ def _emit(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
         )[s_mem_axis]
 
     # fmt: off
-    @T.prim_func(check_well_formed=False)
+    @T.function(check_well_formed=False)
     def impl():
         r_local = r_buf.local(m_total, layout=TileLayout(S[(m_total,)]))
-        laneid = T.lane_id()
+        laneid = T.cuda.lane_id()
         warp_idx_in_T = _get_warp_idx_in_T()
         for mm in T.unroll(m_outer):
             smem_off = _apply_s_layout(warp_idx_in_T, laneid, mm)
@@ -376,7 +374,7 @@ def _emit(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
                 r_words[r.apply(0, 0, 0, mm, i, 0, shape=apply_shape)[r_mem_axis] // 2]
                 for i in range(num)
             ]
-            if direction == "ld":
+            if T.constexpr(direction == "ld"):
                 T.ptx[ld_chain](*words, smem_ptr)
             else:
                 # stmatrix reverses ldmatrix's operand order: address first.
@@ -385,14 +383,7 @@ def _emit(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
     return impl
 
 
-@register_dispatch(
-    "copy",
-    "cuda",
-    variant="ldstmatrix",
-    priority=10,
-    when=[predicate("ldstmatrix_applicable", _is_ldstmatrix)],
-)
-def copy_schedule_ldstmatrix(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
+def copy_schedule_ldstmatrix(op_call: TensorCall, sctx: DispatchContext) -> Function:
     return _emit(op_call, sctx)
 
 

@@ -28,7 +28,7 @@
 #include <tvm/ffi/dtype.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/base_expr.h>
-#include <tvm/ir/source_map.h>
+#include <tvm/ir/location.h>
 
 #include <string>
 
@@ -52,9 +52,28 @@ class AnyTypeNode : public TypeNode {
  */
 class AnyType : public Type {
  public:
-  TVM_DLL AnyType(Span span = Span());
+  TVM_DLL AnyType(Location loc = UnknownLoc());
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(AnyType, Type, AnyTypeNode);
+};
+
+/*! \brief The type of a multi-dimensional tensor region expression. */
+class TensorRegionTypeNode : public TypeNode {
+ public:
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<TensorRegionTypeNode>();
+  }
+
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.TensorRegionType", TensorRegionTypeNode, TypeNode);
+};
+
+/*! \brief Managed reference to TensorRegionTypeNode. */
+class TensorRegionType : public Type {
+ public:
+  TVM_DLL TensorRegionType();
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TensorRegionType, Type, TensorRegionTypeNode);
 };
 
 /*! \brief Semantic string type; its physical representation is context dependent. */
@@ -147,9 +166,9 @@ class TupleType : public Type {
   /*!
    * \brief Constructor
    * \param fields Fields in the tuple.
-   * \param span The span of the type.
+   * \param loc The loc of the type.
    */
-  TVM_DLL explicit TupleType(ffi::Array<Type> fields, Span span = Span());
+  TVM_DLL explicit TupleType(ffi::Array<Type> fields, Location loc = UnknownLoc());
 
   /*!
    * \brief Create an empty tuple type that constains nothing.
@@ -208,10 +227,10 @@ class FuncType : public Type {
    * \brief Constructor
    * \param arg_types The types of the arguments.
    * \param ret_type The type of the return value.
-   * \param span The span information.
+   * \param loc The loc information.
    * \sa FuncTypeNode for more docs about these fields.
    */
-  TVM_DLL FuncType(ffi::Array<Type> arg_types, Type ret_type, Span span = Span());
+  TVM_DLL FuncType(ffi::Array<Type> arg_types, Type ret_type, Location loc = UnknownLoc());
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(FuncType, Type, FuncTypeNode);
 };

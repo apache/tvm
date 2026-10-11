@@ -20,12 +20,76 @@
 #include <gtest/gtest.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_equal.h>
+#include <tvm/ir/location.h>
 #include <tvm/ir/prim/expr.h>
-#include <tvm/ir/source_map.h>
+#include <tvm/relax/expr.h>
 #include <tvm/runtime/logging.h>
+#include <tvm/s_tir/stmt.h>
 #include <tvm/te/operation.h>
+#include <tvm/tirx/function.h>
 
 #include <type_traits>
+
+namespace {
+using namespace tvm;
+template <typename Ref>
+void CheckRequiredIRReference() {
+  static_assert(!Ref::_type_is_nullable);
+  static_assert(!std::is_default_constructible_v<Ref>);
+  ffi::Any none;
+  EXPECT_FALSE(none.as<Ref>().has_value());
+  EXPECT_FALSE(none.try_cast<Ref>().has_value());
+  EXPECT_THROW(none.as_or_throw<Ref>(), ffi::Error);
+  EXPECT_THROW(none.cast<Ref>(), ffi::Error);
+  EXPECT_FALSE(none.cast<ffi::Optional<Ref>>().has_value());
+  ffi::Any missing_element = ffi::Array<ffi::Any>({none});
+  EXPECT_THROW(missing_element.cast<ffi::Array<Ref>>(), ffi::Error);
+  ffi::TypedFunction<Ref()> missing_result =
+      ffi::Function::FromTyped([]() -> ffi::Any { return {}; });
+  EXPECT_THROW(missing_result(), ffi::Error);
+  ffi::TypedFunction<Ref(Ref)> required = [](Ref value) { return value; };
+  EXPECT_THROW(required.packed()(none), ffi::Error);
+  ffi::TypedFunction<ffi::Optional<Ref>(ffi::Optional<Ref>)> optional =
+      [](ffi::Optional<Ref> value) { return value; };
+  EXPECT_EQ(optional.packed()(none).type_index(), ffi::TypeIndex::kTVMFFINone);
+}
+}  // namespace
+
+TEST(Expr, RequiredIRReferences) {
+  using namespace tvm;
+  CheckRequiredIRReference<Expr>();
+  CheckRequiredIRReference<PrimExpr>();
+  CheckRequiredIRReference<TypedExpr<PrimType>>();
+  CheckRequiredIRReference<IntExpr>();
+  CheckRequiredIRReference<PrimVar>();
+  CheckRequiredIRReference<tirx::TensorVar>();
+  CheckRequiredIRReference<Stmt>();
+  CheckRequiredIRReference<Evaluate>();
+  CheckRequiredIRReference<s_tir::SBlock>();
+  CheckRequiredIRReference<tirx::Function>();
+  CheckRequiredIRReference<relax::Function>();
+  CheckRequiredIRReference<Type>();
+  CheckRequiredIRReference<PrimType>();
+  EXPECT_TRUE(Type::Missing().as<MissingType>().has_value());
+  EXPECT_TRUE(ffi::Any(Type::Missing()).cast<Type>().as<MissingType>().has_value());
+  EXPECT_THROW(ffi::Array<ffi::Any>({ffi::Any()}).as_or_throw<ffi::Array<Expr>>(), ffi::Error);
+}
+
+TEST(Expr, NonNullablePrimitiveFallbacks) {
+  using namespace tvm;
+  EXPECT_EQ(ffi::Any(false).cast<PrimExpr>().as<IntImmNode>()->value, 0);
+  EXPECT_EQ(ffi::Any(0).cast<PrimExpr>().as<IntImmNode>()->value, 0);
+  EXPECT_EQ(ffi::Any(1.25).cast<PrimExpr>().as<FloatImmNode>()->value, 1.25);
+  EXPECT_TRUE(ffi::Any(0).cast<Expr>().defined());
+  Var primitive("i", PrimType::Int(32));
+  EXPECT_TRUE(ffi::Any(primitive).cast<PrimExpr>().same_as(primitive));
+  EXPECT_TRUE(ffi::Any(primitive).cast<TypedExpr<PrimType>>().same_as(primitive));
+  Var wrong_type("x", AnyType());
+  EXPECT_FALSE(ffi::Any(wrong_type).try_cast<PrimExpr>().has_value());
+  EXPECT_FALSE(ffi::Any(wrong_type).try_cast<TypedExpr<PrimType>>().has_value());
+  auto tensor = te::placeholder({1}, PrimType::Float(32), "input");
+  EXPECT_TRUE(ffi::Any(tensor(0)).cast<PrimExpr>().defined());
+}
 
 TEST(Expr, Basic) {
   using namespace tvm;
@@ -54,31 +118,31 @@ TEST(Expr, VarCopyHelpers) {
   using namespace tvm;
   using namespace tvm::tirx;
 
-  Span span(SourceName::Get("test.cc"), 1, 1, 1, 10);
+  SourceLoc loc(SourceName::Get("test.cc"), 1, 1, 1, 10);
   Type pointer_type = PointerType(PrimType::Float(32), "global");
-  Var var("x", pointer_type, span);
+  Var var("x", pointer_type, loc);
 
   Var renamed = var.CopyWithName("y");
   EXPECT_FALSE(renamed.same_as(var));
   EXPECT_EQ(renamed->name, "y");
   EXPECT_TRUE(renamed->ty.same_as(pointer_type));
-  EXPECT_TRUE(renamed->span.same_as(span));
+  EXPECT_TRUE(renamed->loc.same_as(loc));
 
   PrimType dtype = PrimType::Int(64);
   Var retyped = var.CopyWithDType(dtype);
   EXPECT_FALSE(retyped.same_as(var));
   EXPECT_EQ(retyped->name, "x");
   EXPECT_TRUE(retyped->ty.same_as(dtype));
-  EXPECT_TRUE(retyped->span.same_as(span));
+  EXPECT_TRUE(retyped->loc.same_as(loc));
 
-  PrimVar prim_var("i", PrimType::Int(32), span);
+  PrimVar prim_var("i", PrimType::Int(32), loc);
   static_assert(std::is_same_v<decltype(prim_var.CopyWithDType(PrimType::Float(32))), PrimVar>);
   PrimType prim_dtype = PrimType::Float(32);
   PrimVar retyped_prim_var = prim_var.CopyWithDType(prim_dtype);
   EXPECT_FALSE(retyped_prim_var.same_as(prim_var));
   EXPECT_EQ(retyped_prim_var->name, "i");
   EXPECT_TRUE(retyped_prim_var.ty().same_as(prim_dtype));
-  EXPECT_TRUE(retyped_prim_var->span.same_as(span));
+  EXPECT_TRUE(retyped_prim_var->loc.same_as(loc));
 }
 
 TEST(Expr, PrimTypeBoolLanes) {
@@ -88,6 +152,27 @@ TEST(Expr, PrimTypeBoolLanes) {
   TVM_FFI_ICHECK(boolx4.MatchesCode(DLDataTypeCode::kDLBool));
   TVM_FFI_ICHECK_EQ(boolx4.lanes(), 4);
   TVM_FFI_ICHECK(boolx4.MatchesElementType(DLDataTypeCode::kDLBool, 8));
+}
+
+TEST(Expr, IntegerView) {
+  using namespace tvm;
+  for (PrimType ty : {PrimType::Int(8), PrimType::UInt(64), PrimType::Int(128)}) {
+    ffi::Any value = Var("i", ty);
+    EXPECT_TRUE(value.cast<IntExpr>().same_as(value.cast<PrimExpr>()));
+    EXPECT_TRUE(value.cast<TypedExpr<PrimType>>().ty() == ty);
+  }
+  for (PrimType ty : {PrimType::Float(32), PrimType::Bool(), PrimType::Int(32, 4),
+                      PrimType::ScalableVector(kDLInt, 32, 4)}) {
+    ffi::Any value = Var("x", ty);
+    EXPECT_FALSE(value.try_cast<IntExpr>());
+    EXPECT_TRUE(value.try_cast<PrimExpr>());
+  }
+  ffi::Any nonprimitive = Var("x", AnyType());
+  EXPECT_FALSE(nonprimitive.try_cast<IntExpr>());
+  EXPECT_FALSE(nonprimitive.try_cast<PrimExpr>());
+  EXPECT_FALSE(nonprimitive.try_cast<TypedExpr<PrimType>>());
+  EXPECT_EQ(ffi::Any(1).cast<IntExpr>().ty().bits(), 32);
+  EXPECT_EQ(ffi::Any(int64_t{1} << 40).cast<IntExpr>().ty().bits(), 64);
 }
 
 TEST(ExprNodeRef, Basic) {
@@ -104,9 +189,8 @@ TEST(Expr, DeepEqualTensorLoadSourceIdentity) {
   Var source("source", PointerType(PrimType::Float(32)));
   Var other_source("source", PointerType(PrimType::Float(32)));
   auto load = [](Expr source, PrimExpr index) {
-    auto node = ffi::make_object<TensorLoadNode>();
+    auto node = ffi::make_object<TensorLoadNode>(source);
     node->ty = PrimType::Float(32);
-    node->source = source;
     node->indices = {index};
     return TensorLoad(node);
   };

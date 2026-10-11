@@ -38,21 +38,21 @@ def compare_strings_ignore_whitespace(s1, s2):
 
 def test_nki_add_1():
     # fmt: off
-    @T.prim_func
-    def func(A: T.Buffer((128, 512)), B: T.Buffer((128, 512))):
+    @T.function
+    def func(A: T.Tensor((128, 512)), B: T.Tensor((128, 512))):
         T.func_attr({"num_inputs": 1})
         T.device_entry()
-        A_sbuf = T.alloc_buffer((128, 512), "float32", scope="trn.sbuf",)
-        B_sbuf = T.alloc_buffer((128, 512), "float32", scope="trn.sbuf",)
-        with T.attr(0, "tensorized_nki_instruction", 1):
+        A_sbuf = T.alloc_tensor((128, 512), "float32", scope="trn.sbuf",)
+        B_sbuf = T.alloc_tensor((128, 512), "float32", scope="trn.sbuf",)
+        with T.nki.tensorized_instruction():
             for i in range(0, 128):
                 for j in range(0, 512):
                     T.nki.load(A_sbuf[i, j], A[i, j])
-        with T.attr(0, "tensorized_nki_instruction", 1):
+        with T.nki.tensorized_instruction():
             for i in range(0, 128):
                 for j in range(0, 512):
                     T.nki.tensorscalar(B_sbuf[i, j], A_sbuf[i, j], T.float32(1.0), "add")
-        with T.attr(0, "tensorized_nki_instruction", 1):
+        with T.nki.tensorized_instruction():
             for i in range(0, 128):
                 for j in range(0, 512):
                     T.nki.store(B[i, j], B_sbuf[i, j])
@@ -92,22 +92,22 @@ def func_kernel(A_ptr, B_ptr: nt.mutable_tensor, ):
 
 def test_nki_add_2():
     # fmt: off
-    @T.prim_func
-    def func(A: T.Buffer((128, 2048)), B: T.Buffer((128, 2048))):
+    @T.function
+    def func(A: T.Tensor((128, 2048)), B: T.Tensor((128, 2048))):
         T.func_attr({"num_inputs": 1})
         T.device_entry()
-        A_sbuf = T.alloc_buffer((128, 512), "float32", scope="trn.sbuf",)
-        B_sbuf = T.alloc_buffer((128, 512), "float32", scope="trn.sbuf",)
+        A_sbuf = T.alloc_tensor((128, 512), "float32", scope="trn.sbuf",)
+        B_sbuf = T.alloc_tensor((128, 512), "float32", scope="trn.sbuf",)
         for k in range(0, 4):
-            with T.attr(0, "tensorized_nki_instruction", 1):
+            with T.nki.tensorized_instruction():
                 for i in range(0, 128):
                     for j in range(0, 512):
                         T.nki.load(A_sbuf[i, j], A[i, 512*k+j])
-            with T.attr(0, "tensorized_nki_instruction", 1):
+            with T.nki.tensorized_instruction():
                 for i in range(0, 128):
                     for j in range(0, 512):
                         T.nki.tensorscalar(B_sbuf[i, j], A_sbuf[i, j], T.float32(1.0), "add")
-            with T.attr(0, "tensorized_nki_instruction", 1):
+            with T.nki.tensorized_instruction():
                 for i in range(0, 128):
                     for j in range(0, 512):
                         T.nki.store(B[i, 512*k+j], B_sbuf[i, j])
@@ -168,26 +168,26 @@ def test_nki_matmul_1():
     NUM_BLOCK_N = N // BLOCK_N
     NUM_BLOCK_K = K // BLOCK_K
 
-    @T.prim_func
+    @T.function
     def func(
-        lhsT: T.Buffer((K, M), "float16"),
-        rhs: T.Buffer((K, N), "float16"),
-        result: T.buffer((M, N), "float16"),
+        lhsT: T.Tensor((K, M), "float16"),
+        rhs: T.Tensor((K, N), "float16"),
+        result: T.Tensor((M, N), "float16"),
     ):
         T.func_attr({"num_inputs": 2})
-        result_tiles = T.alloc_buffer(
+        result_tiles = T.alloc_tensor(
             (TILE_M, NUM_BLOCK_M, TILES_IN_BLOCK_M, TILES_IN_BLOCK_N, TILE_N),
             "float32",
             scope="trn.sbuf",
         )
-        rhs_tiles = T.alloc_buffer((TILE_K, TILES_IN_BLOCK_K, BLOCK_N), "float16", scope="trn.sbuf")
-        lhsT_tiles = T.alloc_buffer(
+        rhs_tiles = T.alloc_tensor((TILE_K, TILES_IN_BLOCK_K, BLOCK_N), "float16", scope="trn.sbuf")
+        lhsT_tiles = T.alloc_tensor(
             (TILE_K, TILES_IN_BLOCK_K, BLOCK_M), "float16", scope="trn.sbuf"
         )
-        res_tile = T.alloc_buffer((1, TILE_M, TILE_N), "float32", scope="trn.psum")
-        result_packed = T.alloc_buffer((TILE_K, BLOCK_N), "float32", scope="trn.sbuf")
+        res_tile = T.alloc_tensor((1, TILE_M, TILE_N), "float32", scope="trn.psum")
+        result_packed = T.alloc_tensor((TILE_K, BLOCK_N), "float32", scope="trn.sbuf")
         for n in range(NUM_BLOCK_N):
-            with T.attr(0, "tensorized_nki_instruction", 1):
+            with T.nki.tensorized_instruction():
                 for i0 in range(TILE_M):
                     for i1 in range(NUM_BLOCK_M):
                         for i2 in range(TILES_IN_BLOCK_M):
@@ -196,7 +196,7 @@ def test_nki_matmul_1():
                                     T.nki.memset(result_tiles[i0, i1, i2, i3, i4], T.float32(0.0))
             for k in range(NUM_BLOCK_K):
                 for bk_r in range(TILES_IN_BLOCK_K):
-                    with T.attr(0, "tensorized_nki_instruction", 1):
+                    with T.nki.tensorized_instruction():
                         for i in range(TILE_K):
                             for j in range(BLOCK_N):
                                 T.nki.load(
@@ -208,7 +208,7 @@ def test_nki_matmul_1():
                                 )
                 for m in range(NUM_BLOCK_M):
                     for bk_l in range(TILES_IN_BLOCK_K):
-                        with T.attr(0, "tensorized_nki_instruction", 1):
+                        with T.nki.tensorized_instruction():
                             for i in range(TILE_K):
                                 for j in range(BLOCK_M):
                                     T.nki.load(
@@ -220,12 +220,12 @@ def test_nki_matmul_1():
                                     )
                     for bn in range(TILES_IN_BLOCK_N):
                         for bm in range(TILES_IN_BLOCK_M):
-                            with T.attr(0, "tensorized_nki_instruction", 1):
+                            with T.nki.tensorized_instruction():
                                 for i in range(TILE_M):
                                     for j in range(TILE_N):
                                         T.nki.memset(res_tile[0, i, j], T.float32(0.0))
                             for bk in range(TILES_IN_BLOCK_K):
-                                with T.attr(0, "tensorized_nki_instruction", 1):
+                                with T.nki.tensorized_instruction():
                                     for i in range(TILE_M):
                                         for j in range(TILE_N):
                                             for k in range(TILE_K):
@@ -235,7 +235,7 @@ def test_nki_matmul_1():
                                                     rhs_tiles[k, bk, bn * TILE_N + j],
                                                     1,
                                                 )
-                            with T.attr(0, "tensorized_nki_instruction", 1):
+                            with T.nki.tensorized_instruction():
                                 for i in range(TILE_M):
                                     for j in range(TILE_N):
                                         T.nki.tensortensor(
@@ -247,14 +247,14 @@ def test_nki_matmul_1():
             for m in range(NUM_BLOCK_M):
                 for bm in range(TILES_IN_BLOCK_M):
                     for bn in range(TILES_IN_BLOCK_N):
-                        with T.attr(0, "tensorized_nki_instruction", 1):
+                        with T.nki.tensorized_instruction():
                             for i in range(TILE_K):
                                 for j in range(TILE_N):
                                     T.nki.tensor_copy(
                                         result_packed[i, bn * TILE_N + j],
                                         result_tiles[i, m, bm, bn, j],
                                     )
-                    with T.attr(0, "tensorized_nki_instruction", 1):
+                    with T.nki.tensorized_instruction():
                         for i in range(TILE_K):
                             for j in range(BLOCK_N):
                                 T.nki.store(

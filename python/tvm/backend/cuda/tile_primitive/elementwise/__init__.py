@@ -26,13 +26,3 @@ Each op in ``ops.ALL_OPS`` is registered under both variants. Per-op packed
 PTX/CUDA intrinsics live in ``vec_emit/`` (``binary_f32x2`` / ``cast_vec2``
 / ``fma_f32x2``) and are attached to the relevant ``OpSpec.vec_impls``.
 """
-
-from .register import *
-
-# Suppress submodule-attribute leakage. Without an explicit ``__all__`` here,
-# ``from tvm.backend.cuda.tile_primitive.elementwise import *`` (run by
-# tile_primitive/__init__.py) re-exports the implicit submodule attributes
-# (``ops``, ``reg``, ``smem``, ``vec_emit``) — and ``ops`` in particular
-# shadows the top-level ``tile_primitive/ops.py`` (BinaryReduce / UnaryReduce
-# / ...) when downstream code does ``from tile_primitive import ops``.
-__all__: list[str] = []

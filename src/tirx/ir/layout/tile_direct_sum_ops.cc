@@ -73,7 +73,7 @@ Layout TileLayoutNode::DirectSum(const TileLayout& left_in, const Array<PrimExpr
 
 static bool IterEqualRelaxUnit(const Iter& a, const Iter& b, sym::AnalyzerObj* analyzer) {
   if (!(*analyzer).CanProveEqual(a->extent, b->extent)) return false;
-  if (!is_one(a->extent)) {
+  if (!IsOne(a->extent)) {
     if (!(*analyzer).CanProveEqual(a->stride, b->stride)) return false;
     if (!a->axis.same_as(b->axis)) return false;
   }

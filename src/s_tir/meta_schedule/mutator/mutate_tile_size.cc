@@ -79,7 +79,7 @@ class MutateTileSizeNode : public MutatorNode {
   // Inherit from `MutatorNode`
   Mutator Clone() const final {
     ffi::ObjectPtr<MutateTileSizeNode> n = ffi::make_object<MutateTileSizeNode>(*this);
-    return Mutator(n);
+    return Mutator(ffi::UnsafeInit{}, n);
   }
 };
 
@@ -127,7 +127,7 @@ void FindSampleVectorize(const Trace& trace, std::vector<Instruction>* inst,
       TVM_FFI_ICHECK_EQ(inst->attrs.size(), 1);
       TVM_FFI_ICHECK_EQ(inst->inputs.size(), 2);
       if (inst->attrs[0].as_or_throw<ffi::String>() ==
-          s_tir::attr::meta_schedule_cooperative_fetch) {
+          tvm::s_tir::attr::kMetaScheduleCooperativeFetch) {
         const auto* ann_val = inst->inputs[1].as<s_tir::ExprRVNode>();
         TVM_FFI_ICHECK(ann_val);
         annotated.insert(ann_val);
@@ -279,7 +279,9 @@ ffi::Optional<Trace> MutateTileSizeNode::Apply(const Trace& trace, TRandState* r
   }
 }
 
-Mutator Mutator::MutateTileSize() { return Mutator(ffi::make_object<MutateTileSizeNode>()); }
+Mutator Mutator::MutateTileSize() {
+  return Mutator(ffi::UnsafeInit{}, ffi::make_object<MutateTileSizeNode>());
+}
 
 TVM_FFI_STATIC_INIT_BLOCK() { MutateTileSizeNode::RegisterReflection(); }
 

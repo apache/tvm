@@ -44,11 +44,11 @@ from tvm.script import tirx as T
 
 @I.ir_module
 class MyModule:
-    @Ts.prim_func
+    @Ts.function
     def main(
-        A: T.Buffer((128, 128), "float32"),
-        B: T.Buffer((128, 128), "float32"),
-        C: T.Buffer((128, 128), "float32"),
+        A: T.Tensor((128, 128), "float32"),
+        B: T.Tensor((128, 128), "float32"),
+        C: T.Tensor((128, 128), "float32"),
     ):
         T.func_attr({"tirx.noalias": True})
         with Ts.sblock("root"):

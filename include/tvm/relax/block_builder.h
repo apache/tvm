@@ -96,7 +96,7 @@ class BlockBuilderNode : public ffi::Object {
   virtual IRModule Finalize() = 0;
 
   /*!
-   * \brief Add a Relax function or a TIR PrimFunc to internal context module.
+   * \brief Add a Relax function or a TIR tirx::Function to internal context module.
    * \param func The function to be added.
    * \param func_name_hint The name hint of the function to be added.
    * \note If the function to be added already exists, return its
@@ -106,7 +106,7 @@ class BlockBuilderNode : public ffi::Object {
   virtual GlobalVar AddFunction(const BaseFunc& func, ffi::String func_name_hint) = 0;
 
   /*!
-   * \brief Update a Relax function or a TIR PrimFunc in the internal context module.
+   * \brief Update a Relax function or a TIR tirx::Function in the internal context module.
    * \param gv The global var referring the function to be updated.
    * \param function The updated function.
    */
@@ -311,7 +311,11 @@ class BlockBuilder : public ffi::ObjectRef {
   TVM_DLL static BlockBuilder Create(ffi::Optional<IRModule> ctx_mod,
                                      DisableOperatorSpecificNormalizationForTVMScript tag);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(BlockBuilder, ffi::ObjectRef, BlockBuilderNode);
+  explicit BlockBuilder(ffi::UnsafeInit tag, ffi::ObjectPtr<BlockBuilderNode> n)
+      : ffi::ObjectRef(tag) {
+    data_ = std::move(n);
+  }
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(BlockBuilder, ffi::ObjectRef, BlockBuilderNode);
 };
 
 }  // namespace relax

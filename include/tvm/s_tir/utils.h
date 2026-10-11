@@ -65,7 +65,7 @@ namespace tirx {
  */
 #define TVM_SREF_TO_FOR(SRef)                                                          \
   [&]() {                                                                              \
-    auto result = TVM_SREF_AS_OR_ERR(result, (SRef), ::tvm::tirx::ForNode)             \
+    auto result = TVM_SREF_AS_OR_ERR(result, (SRef), ::tvm::ForNode)                   \
                   << "Expects StmtSRef `" << #SRef << "` points to `Loop`, but gets: " \
                   << ((SRef)->stmt ? (SRef)->stmt->GetTypeKey() : "None");             \
     return result;                                                                     \

@@ -34,8 +34,8 @@ from tvm.script import tirx as T
 # pylint: disable=no-member,invalid-name,unused-variable
 
 
-@Ts.prim_func
-def matmul(A: T.Buffer([128, 128]), B: T.Buffer([128, 128]), C: T.Buffer([128, 128])) -> None:
+@Ts.function
+def matmul(A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 128])) -> None:
     for i, j in T.grid(128, 128):
         with Ts.sblock("init"):
             vi, vj = Ts.axis.remap("SS", [i, j])
@@ -46,9 +46,9 @@ def matmul(A: T.Buffer([128, 128]), B: T.Buffer([128, 128]), C: T.Buffer([128, 1
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
 
-@Ts.prim_func
+@Ts.function
 def matmul_relu(
-    A: T.Buffer((1024, 1024)), B: T.Buffer((1024, 1024)), D: T.Buffer((1024, 1024))
+    A: T.Tensor((1024, 1024)), B: T.Tensor((1024, 1024)), D: T.Tensor((1024, 1024))
 ) -> None:
     C = Ts.sblock_alloc_buffer((1024, 1024))
 
@@ -64,9 +64,9 @@ def matmul_relu(
             D[vi, vj] = T.max(C[vi, vj], 0.0)
 
 
-@Ts.prim_func
+@Ts.function
 def matmul_relu_ann1(
-    A: T.Buffer((1024, 1024)), B: T.Buffer((1024, 1024)), D: T.Buffer((1024, 1024))
+    A: T.Tensor((1024, 1024)), B: T.Tensor((1024, 1024)), D: T.Tensor((1024, 1024))
 ) -> None:
     C = Ts.sblock_alloc_buffer((1024, 1024))
 
@@ -84,9 +84,9 @@ def matmul_relu_ann1(
             D[vi, vj] = T.max(C[vi, vj], 0.0)
 
 
-@Ts.prim_func
+@Ts.function
 def matmul_relu_ann2(
-    A: T.Buffer((1024, 1024)), B: T.Buffer((1024, 1024)), D: T.Buffer((1024, 1024))
+    A: T.Tensor((1024, 1024)), B: T.Tensor((1024, 1024)), D: T.Tensor((1024, 1024))
 ) -> None:
     C = Ts.sblock_alloc_buffer((1024, 1024))
 
@@ -106,20 +106,20 @@ def matmul_relu_ann2(
 
 @tvm.script.ir_module
 class ModuleWithMultipleFuncs:
-    @Ts.prim_func
+    @Ts.function
     def vector_add(
-        A: T.Buffer(128, "float32"),
-        B: T.Buffer(128, "float32"),
+        A: T.Tensor(128, "float32"),
+        B: T.Tensor(128, "float32"),
     ) -> None:
         for i in range(128):
             with Ts.sblock("init"):
                 vi = Ts.axis.remap("S", [i])
                 B[vi] = A[vi]
 
-    @Ts.prim_func
+    @Ts.function
     def vector_add_2(
-        A: T.Buffer(128, "float32"),
-        B: T.Buffer(128, "float32"),
+        A: T.Tensor(128, "float32"),
+        B: T.Tensor(128, "float32"),
     ) -> None:
         for i in range(128):
             with Ts.sblock("init"):
@@ -127,8 +127,8 @@ class ModuleWithMultipleFuncs:
                 B[vi] = A[vi]
 
 
-@Ts.prim_func
-def tuple_reduction(data: T.Buffer((4, 32), "float32"), T_add: T.Buffer((4,), "float32")) -> None:
+@Ts.function
+def tuple_reduction(data: T.Tensor((4, 32), "float32"), T_add: T.Tensor((4,), "float32")) -> None:
     # function attr dict
     T.func_attr({"global_symbol": "main", "tirx.noalias": True})
     # body
@@ -166,7 +166,7 @@ use_block_name = tvm.testing.parameter(by_dict={"block_obj": False, "block_name"
 
 def test_tir_schedule_creation():
     # Tests:
-    # - Schedule.__init__ for PrimFunc and IRModule
+    # - Schedule.__init__ for Function and IRModule
     # - Schedule.mod
     # - Schedule.state
     sch_1 = tvm.s_tir.Schedule(matmul, debug_mask="all")
@@ -187,7 +187,7 @@ def test_tir_schedule_get_sblock():
     assert block.name_hint == "update"
     assert block_sref.stmt.same_as(block)
     assert sch.state.get_sref(block).same_as(block_sref)
-    assert block.same_as(matmul.body.block.body.body.body[1].body.block)
+    assert block.same_as(matmul.body[0].block.body[0].body[0].body[1].body[0].block)
 
 
 def test_tir_schedule_work_on():
@@ -387,10 +387,10 @@ def test_get_output_blocks_multiple_outputs():
 
 
 def test_get_output_blocks_nested():
-    @Ts.prim_func
+    @Ts.function
     def blockized(
-        A: T.Buffer((128, 128), "float32"),
-        B: T.Buffer((128, 128), "float32"),
+        A: T.Tensor((128, 128), "float32"),
+        B: T.Tensor((128, 128), "float32"),
     ) -> None:
         with Ts.sblock("blockized_B"):
             vio = Ts.axis.spatial(1, 0)

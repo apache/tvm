@@ -28,9 +28,10 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/transform.h>
 #include <tvm/relax/analysis.h>
-#include <tvm/relax/attrs/op.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
+#include <tvm/relax/op/op.h>
+#include <tvm/relax/op_attr_types.h>
 #include <tvm/relax/transform.h>
 #include <tvm/relax/utils.h>
 #include <tvm/tirx/stmt_functor.h>
@@ -613,8 +614,8 @@ class InplaceOpportunity : public ffi::ObjectRef {
     data_ = std::move(node);
   }
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(InplaceOpportunity, ffi::ObjectRef,
-                                             InplaceOpportunityNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(InplaceOpportunity, ffi::ObjectRef,
+                                                InplaceOpportunityNode);
 };
 
 // Check for in-place eligibility:
@@ -763,12 +764,12 @@ FindInplaceOpportunities(const DataflowBlock& block, const ffi::Array<Var>& inpu
   return {size_match_list, exact_match_list};
 }
 
-// Replace buffers in a PrimFunc according to the mapping.
-tirx::Stmt RemapBuffers(const tirx::Stmt& stmt,
-                        const ffi::Map<tirx::BufferVar, tirx::BufferVar>& buffer_map) {
+// Replace buffers in a tirx::Function according to the mapping.
+tvm::Stmt RemapBuffers(const tvm::Stmt& stmt,
+                       const ffi::Map<tirx::TensorVar, tirx::TensorVar>& buffer_map) {
   class BufferMapper : public tirx::StmtExprMutator {
    public:
-    explicit BufferMapper(const ffi::Map<tirx::BufferVar, tirx::BufferVar>& buffer_map) {
+    explicit BufferMapper(const ffi::Map<tirx::TensorVar, tirx::TensorVar>& buffer_map) {
       for (const auto& [source, target] : buffer_map) {
         VarRemapSet(source, target);
       }
@@ -848,7 +849,7 @@ class ModuleInplaceTransformer : public ExprMutator {
       return;
     }
     Expr new_value = ReplaceBoundCall(binding_ref);
-    builder_->EmitNormalized(VarBinding(binding->var, new_value, binding->span));
+    builder_->EmitNormalized(VarBinding(binding->var, new_value, binding->loc));
   }
 
   void VisitBinding_(const MatchCastNode* binding) override {
@@ -858,14 +859,14 @@ class ModuleInplaceTransformer : public ExprMutator {
       return;
     }
     Expr new_value = ReplaceBoundCall(binding_ref);
-    builder_->EmitNormalized(MatchCast(binding->var, new_value, binding->ty, binding->span));
+    builder_->EmitNormalized(MatchCast(binding->var, new_value, binding->ty, binding->loc));
   }
 
   // Given the call and indices of arguments that could be done in-place,
-  // replace the call with a call to an in-place PrimFunc.
+  // replace the call with a call to an in-place tirx::Function.
   // (Made public for testing.)
   Call CreateInplaceCall(const Call& call, const ffi::Array<int64_t>& inplace_indices) {
-    static const auto& legalize_map = Op::GetAttrMap<FLegalize>("FLegalize");
+    static const auto& legalize_map = Op::GetAttrMap<FLegalize>(tvm::relax::op_attr::kLegalize);
     static const auto call_tir_inplace_op = Op::Get("relax.call_tir_inplace");
 
     auto op = call->op.as_or_throw<Op>();
@@ -873,18 +874,18 @@ class ModuleInplaceTransformer : public ExprMutator {
     auto* legalized_call_cow = legalized_call.CopyOnWrite();
 
     // The legalized call should be call_tir. We will replace it with call_tir_inplace
-    // and replace the called PrimFunc with an inplace version
+    // and replace the called tirx::Function with an inplace version
     auto legal_op = legalized_call->args[0].as_or_throw<GlobalVar>();
     legalizers_added.push_back(legal_op);
     auto inline_legal_op_name = legal_op->name_hint + "_inplace";
 
     auto mod = builder_->GetContextIRModule();
-    auto old_primfunc = mod->Lookup(legal_op).as_or_throw<tirx::PrimFunc>();
+    auto old_function = mod->Lookup(legal_op).as_or_throw<tirx::Function>();
 
-    tirx::Stmt new_body = old_primfunc->body;
+    tvm::Stmt new_body = old_function->body.value();
 
     size_t num_outs = inplace_indices.size();
-    size_t num_params = old_primfunc->params.size();
+    size_t num_params = old_function->params.size();
 
     // the replacement we must make:
     // 1. For each output var, replace its corresponding buffers with the corresponding inplace
@@ -893,17 +894,17 @@ class ModuleInplaceTransformer : public ExprMutator {
     // 2. For each output var, replace its instances with the corresponding inplace index var
     // 3. Do the same for the *buffer vars* corresponding to the output vars
     // 4. Remove the output vars from the param list
-    ffi::Map<tirx::BufferVar, tirx::BufferVar> buffer_subst_map;
-    ffi::Map<tirx::Var, tirx::Var> var_subst_map;
+    ffi::Map<tirx::TensorVar, tirx::TensorVar> buffer_subst_map;
+    ffi::Map<tvm::Var, tvm::Var> var_subst_map;
     for (size_t i = 0; i < num_outs; i++) {
       // we will substitute output i with the corresponding param indicated by inplace indices
-      auto output_var = old_primfunc->params[num_params - num_outs + i];
-      auto inplace_var = old_primfunc->params[inplace_indices[i]];
+      auto output_var = old_function->params[num_params - num_outs + i];
+      auto inplace_var = old_function->params[inplace_indices[i]];
       var_subst_map.Set(output_var, inplace_var);
 
       // also do the same with the buffer vars
-      auto output_buffer = output_var.as_or_throw<tirx::BufferVar>();
-      auto inplace_buffer = inplace_var.as_or_throw<tirx::BufferVar>();
+      auto output_buffer = output_var.as_or_throw<tirx::TensorVar>();
+      auto inplace_buffer = inplace_var.as_or_throw<tirx::TensorVar>();
       var_subst_map.Set(output_buffer.var(), inplace_buffer.var());
       buffer_subst_map.Set(output_buffer, inplace_buffer);
     }
@@ -911,24 +912,24 @@ class ModuleInplaceTransformer : public ExprMutator {
     // apply substitutions
     new_body = RemapBuffers(new_body, buffer_subst_map);
     auto f_substitute =
-        [&var_subst_map](const tirx::Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+        [&var_subst_map](const tvm::Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
       if (auto repl = var_subst_map.Get(var)) return ffi::Any(*std::move(repl));
       return ffi::Unchanged();
     };
     new_body = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(std::move(new_body), f_substitute)
-                   .as_or_throw<tirx::Stmt>();
+                   .as_or_throw<tvm::Stmt>();
 
     // now get rid of the last num_outputs arguments
     // (couldn't do earlier or else it would have thrown off the indexing)
-    ffi::Array<tirx::Var> new_params(old_primfunc->params.begin(),
-                                     old_primfunc->params.begin() + (num_params - num_outs));
+    ffi::Array<tvm::Var> new_params(old_function->params.begin(),
+                                    old_function->params.begin() + (num_params - num_outs));
 
-    tirx::PrimFunc new_primfunc(new_params, new_body, old_primfunc->ret_type, old_primfunc->attrs,
-                                old_primfunc->span);
+    tirx::Function new_function(new_params, tvm::SeqStmt(new_body), old_function->ret_type,
+                                old_function->attrs, old_function->loc);
 
     // note: this might be a good time to get rid of the old legalized function, but we don't do it
     // now because later ops might need the same one. Instead, we will clean up at the end
-    auto new_gv = builder_->AddFunction(new_primfunc, inline_legal_op_name);
+    auto new_gv = builder_->AddFunction(new_function, inline_legal_op_name);
 
     // update the call (change the op, update the argument, change the attrs)
     legalized_call_cow->op = call_tir_inplace_op;
@@ -999,14 +1000,14 @@ ffi::Array<ffi::ObjectRef> DataflowAliasAnalysis(const DataflowBlock& block,
 }
 
 // this would be preferable to do as a dataflow block pass,
-// but the transformation adds new PrimFuncs, so it affects the module
+// but the transformation adds new Functions, so it affects the module
 tvm::transform::Pass DataflowUseInplaceCalls() {
   return tvm::transform::CreateModulePass(
       [](const IRModule& mod, const PassContext& ctx) -> IRModule {
         ModuleInplaceTransformer transformer(mod);
         return transformer.Transform();
       },
-      0, "DataflowInsertInPlaceCalls", {}, false);
+      0, "DataflowInsertInPlaceCalls");
 }
 
 ffi::Array<ffi::Array<InplaceOpportunity>> DataflowInplaceAnalysis(const DataflowBlock& block,

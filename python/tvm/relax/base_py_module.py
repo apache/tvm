@@ -150,7 +150,7 @@ class BasePyModule:
     def _collect_function_names(self):
         """Collect names of TIR and Relax functions from IRModule."""
         for global_var, func in self.ir_mod.functions_items():
-            if isinstance(func, tirx.PrimFunc):
+            if isinstance(func, tirx.Function):
                 self.tir_func_names.append(global_var.name_hint)
             elif isinstance(func, relax.Function):
                 self.relax_func_names.append(global_var.name_hint)
@@ -162,7 +162,7 @@ class BasePyModule:
             {
                 gv: func
                 for gv, func in self.ir_mod.functions_items()
-                if isinstance(func, tirx.PrimFunc)
+                if isinstance(func, tirx.Function)
             }
         )
         if tir_mod:
@@ -548,8 +548,6 @@ class BasePyModule:
         indent_spaces: int = 4,
         print_line_numbers: bool = False,
         num_context_lines: int = -1,
-        syntax_sugar: bool = True,
-        show_object_address: bool = False,
         show_all_ty: bool = True,
         extra_config: dict | None = None,
     ) -> str:
@@ -570,8 +568,6 @@ class BasePyModule:
             indent_spaces=indent_spaces,
             print_line_numbers=print_line_numbers,
             num_context_lines=num_context_lines,
-            syntax_sugar=syntax_sugar,
-            show_object_address=show_object_address,
             show_all_ty=show_all_ty,
             extra_config=extra_config,
         )

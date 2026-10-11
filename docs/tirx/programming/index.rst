@@ -28,7 +28,7 @@ The examples use a single alias for the TIRx TVMScript dialect::
 
 Core language constructs are written as ``Tx.*``.  Backend-specific helpers
 and direct CUDA instructions are available through ``Tx.cuda.*`` and
-``Tx.ptx.*``.  Reusable tile operations are written as ``Tx.tile.*``.
+``Tx.ptx.*``.  Reusable tile operations are written as ``Tx.cuda.tile.*`` / ``Tx.trn.tile.*``.
 
 .. toctree::
    :maxdepth: 1

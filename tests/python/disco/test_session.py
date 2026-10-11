@@ -231,8 +231,8 @@ def test_vm_module(session_kind):
     # pylint: disable=invalid-name
     @I.ir_module
     class TestMod:
-        @Ts.prim_func
-        def transpose(A: T.Buffer((8, 16), "float32"), B: T.Buffer((16, 8), "float32")):
+        @Ts.function
+        def transpose(A: T.Tensor((8, 16), "float32"), B: T.Tensor((16, 8), "float32")):
             for i, j in T.grid(16, 8):
                 with Ts.sblock("transpose"):
                     vi, vj = Ts.axis.remap("SS", [i, j])
@@ -242,7 +242,7 @@ def test_vm_module(session_kind):
         def main(A: R.Tensor((8, 16), dtype="float32")) -> R.Tensor((16, 8), dtype="float32"):
             cls = TestMod
             with R.dataflow():
-                B = R.call_tir(cls.transpose, (A,), out_ty=R.Tensor((16, 8), dtype="float32"))
+                B = R.call_tir(cls.transpose, (A,), ty_args=[R.Tensor((16, 8), dtype="float32")])
                 R.output(B)
             return B
 
@@ -275,15 +275,15 @@ def test_vm_multi_func(session_kind):
     # pylint: disable=invalid-name
     @I.ir_module
     class TestMod:
-        @Ts.prim_func
-        def t1(A: T.Buffer((8, 16), "float32"), B: T.Buffer((16, 8), "float32")):
+        @Ts.function
+        def t1(A: T.Tensor((8, 16), "float32"), B: T.Tensor((16, 8), "float32")):
             for i, j in T.grid(16, 8):
                 with Ts.sblock("t1"):
                     vi, vj = Ts.axis.remap("SS", [i, j])
                     B[vi, vj] = A[vj, vi]
 
-        @Ts.prim_func
-        def t2(A: T.Buffer((16, 8), "float32"), B: T.Buffer((8, 16), "float32")):
+        @Ts.function
+        def t2(A: T.Tensor((16, 8), "float32"), B: T.Tensor((8, 16), "float32")):
             for i, j in T.grid(8, 16):
                 with Ts.sblock("t2"):
                     vi, vj = Ts.axis.remap("SS", [i, j])
@@ -296,7 +296,7 @@ def test_vm_multi_func(session_kind):
             R.func_attr({"global_symbol": "transpose_1"})
             cls = TestMod
             with R.dataflow():
-                B = R.call_tir(cls.t1, (A,), out_ty=R.Tensor((16, 8), dtype="float32"))
+                B = R.call_tir(cls.t1, (A,), ty_args=[R.Tensor((16, 8), dtype="float32")])
                 R.output(B)
             return B
 
@@ -307,7 +307,7 @@ def test_vm_multi_func(session_kind):
             R.func_attr({"global_symbol": "transpose_2"})
             cls = TestMod
             with R.dataflow():
-                B = R.call_tir(cls.t2, (A,), out_ty=R.Tensor((8, 16), dtype="float32"))
+                B = R.call_tir(cls.t2, (A,), ty_args=[R.Tensor((8, 16), dtype="float32")])
                 R.output(B)
             return B
 

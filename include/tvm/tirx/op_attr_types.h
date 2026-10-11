@@ -29,8 +29,10 @@
 #define TVM_TIR_OP_ATTR_TYPES_H_
 
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/native_function.h>
 #include <tvm/ffi/string.h>
 #include <tvm/ir/expr.h>
+#include <tvm/ir/stmt.h>
 
 namespace tvm {
 namespace tirx {
@@ -55,32 +57,6 @@ using FLowerIntrinsic = ffi::TypedFunction<PrimExpr(PrimExpr)>;
 using FLegalize = ffi::TypedFunction<PrimExpr(PrimExpr)>;
 
 /*!
- * \brief The operator's name in TVMScript printer
- */
-using TScriptPrinterName = ffi::String;
-
-/*!
- * \brief Specifies that TVMScript printer prints the dtype as the first/last argument.
-          If not specified, dtype will not be printed.
- */
-enum class ScriptDtypePrintLocation : int {
-  /*!
-   * \brief Do not print dtype as an argument.
-   */
-  kNone = 0,
-  /*!
-   * \brief Print dtype as the first argument.
-   */
-  kFirst = 1,
-  /*!
-   * \brief FPrint dtype as the last argument.
-   */
-  kLast = 2,
-};
-
-using TScriptDtypePrintLocation = int64_t;
-
-/*!
  * \brief Broad TIRx op category.
  *
  * Expected values:
@@ -96,6 +72,14 @@ using TIRxOpCategory = ffi::String;
  * Expected values include "cuda", "ptx", "nvshmem", "nki", and "metal".
  */
 using TDeviceIntrinsicNamespace = ffi::String;
+
+namespace op_attr {
+inline constexpr const char* kGlobalSymbol = "TGlobalSymbol";
+inline constexpr const char* kVectorizable = "TVectorizable";
+inline constexpr const char* kOpCategory = "TIRxOpCategory";
+inline constexpr const char* kTensorCallValidate = "FTensorCallValidate";
+inline constexpr const char* kDeviceIntrinsicNamespace = "TDeviceIntrinsicNamespace";
+}  // namespace op_attr
 
 }  // namespace tirx
 }  // namespace tvm

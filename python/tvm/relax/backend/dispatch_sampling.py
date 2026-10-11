@@ -20,8 +20,8 @@
 from tvm import relax
 from tvm.ir import Op
 from tvm.ir.module import IRModule
-from tvm.ir.transform import PassContext, module_pass
 from tvm.relax import expr_functor
+from tvm.transform import PassContext, module_pass
 
 from .utils import BackendDispatcher
 
@@ -63,7 +63,7 @@ class SamplingDispatcher(BackendDispatcher):
                 return relax.call_tir(
                     gv,
                     [prob, uniform_sample, sample_indices],
-                    out_ty=call.ty,
+                    ty_args=[call.ty],
                 )
             else:
                 cumsum_prob = relax.op.cumsum(prob, axis=1, dtype=prob_dtype.dtype, exclusive=False)
@@ -74,7 +74,7 @@ class SamplingDispatcher(BackendDispatcher):
                 return relax.call_tir(
                     gv,
                     [cumsum_prob, uniform_sample, sample_indices],
-                    out_ty=call.ty,
+                    ty_args=[call.ty],
                 )
 
         return super().visit_call_(call)

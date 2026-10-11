@@ -495,9 +495,9 @@ struct SamplePerfectTileTraits : public UnpackedInstTraits<SamplePerfectTileTrai
   static constexpr size_t kNumAttrs = 2;
   static constexpr size_t kNumDecisions = 1;
 
-  static ffi::Array<ExprRV> UnpackedApplyToSchedule(Schedule sch, LoopRV loop_rv, IntImm n,
-                                                    IntImm max_innermost_factor,
-                                                    ffi::Optional<ffi::Array<int64_t>> decision) {
+  static ffi::Array<ffi::Optional<ExprRV>> UnpackedApplyToSchedule(
+      Schedule sch, LoopRV loop_rv, IntImm n, IntImm max_innermost_factor,
+      ffi::Optional<ffi::Array<int64_t>> decision) {
     return sch->SamplePerfectTile(loop_rv, n->value.as<int>().value(),
                                   max_innermost_factor->value.as<int>().value(), decision);
   }

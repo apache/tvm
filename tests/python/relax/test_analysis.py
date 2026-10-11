@@ -21,6 +21,7 @@ import pytest
 import tvm
 import tvm.testing
 from tvm import relax as rx
+from tvm.relax import ExternFunc as _ExternFunc
 from tvm.relax.analysis import (
     all_global_vars,
     all_vars,
@@ -91,9 +92,13 @@ def test_chained_remove_all_unused():
         def main(x: R.Tensor((32, 32), "float32")) -> R.Tensor:
             with R.dataflow():
                 lv0 = x
-                unused0 = R.call_dps_packed("my_sigmoid", (x,), R.Tensor((32, 32), dtype="float32"))
+                unused0 = R.call_dps_packed(
+                    _ExternFunc("my_sigmoid"), (x,), ty_args=[R.Tensor((32, 32), dtype="float32")]
+                )
                 unused1 = R.call_dps_packed(
-                    "my_dps_func", (unused0,), R.Tensor((32, 32), dtype="float32")
+                    _ExternFunc("my_dps_func"),
+                    (unused0,),
+                    ty_args=[R.Tensor((32, 32), dtype="float32")],
                 )
                 R.output(lv0)
             return lv0
@@ -126,9 +131,13 @@ def test_binding_block_remove_all_unused():
         def main(x: R.Tensor((32, 32), "float32")) -> R.Tensor:
             with R.dataflow():
                 lv0 = x
-                unused0 = R.call_dps_packed("my_sigmoid", (x,), R.Tensor((32, 32), dtype="float32"))
+                unused0 = R.call_dps_packed(
+                    _ExternFunc("my_sigmoid"), (x,), ty_args=[R.Tensor((32, 32), dtype="float32")]
+                )
                 unused1 = R.call_dps_packed(
-                    "my_dps_func", (unused0,), R.Tensor((32, 32), dtype="float32")
+                    _ExternFunc("my_dps_func"),
+                    (unused0,),
+                    ty_args=[R.Tensor((32, 32), dtype="float32")],
                 )
                 R.output(lv0)
             z = R.call_packed("vm.builtin.copy", lv0, ty_args=(R.Tensor((32, 32), "float32")))
@@ -161,8 +170,12 @@ def test_binding_block_remove_unused_pure_without_dataflow():
     @R.function(private=True)
     def before(x: R.Tensor((32, 32), "float32")) -> R.Tensor:
         lv0 = x
-        unused0 = R.call_dps_packed("my_sigmoid", (x,), R.Tensor((32, 32), dtype="float32"))
-        unused1 = R.call_dps_packed("my_dps_func", (unused0,), R.Tensor((32, 32), dtype="float32"))
+        unused0 = R.call_dps_packed(
+            _ExternFunc("my_sigmoid"), (x,), ty_args=[R.Tensor((32, 32), dtype="float32")]
+        )
+        unused1 = R.call_dps_packed(
+            _ExternFunc("my_dps_func"), (unused0,), ty_args=[R.Tensor((32, 32), dtype="float32")]
+        )
         return x
 
     @R.function(private=True)
@@ -216,7 +229,7 @@ def test_binding_block_keep_pure_func_used_only_for_impure():
         z = R.call_packed(
             "function_maybe_with_side_effects", y, ty_args=(R.Tensor((32, 32), "int32"))
         )
-        return R.tuple()
+        return ()
 
     expected = before
 
@@ -321,9 +334,13 @@ def test_remove_all_unused_from_dataflow_block():
     def before(x: R.Tensor((32, 32), "float32")) -> R.Tensor:
         with R.dataflow():
             lv0 = x
-            unused0 = R.call_dps_packed("my_sigmoid", (x,), R.Tensor((32, 32), dtype="float32"))
+            unused0 = R.call_dps_packed(
+                _ExternFunc("my_sigmoid"), (x,), ty_args=[R.Tensor((32, 32), dtype="float32")]
+            )
             unused1 = R.call_dps_packed(
-                "my_dps_func", (unused0,), R.Tensor((32, 32), dtype="float32")
+                _ExternFunc("my_dps_func"),
+                (unused0,),
+                ty_args=[R.Tensor((32, 32), dtype="float32")],
             )
             R.output(lv0)
         return lv0
@@ -345,8 +362,12 @@ def test_remove_all_unused_from_binding_block():
     @R.function
     def before(x: R.Tensor((32, 32), "float32")) -> R.Tensor:
         lv0 = x
-        unused0 = R.call_dps_packed("my_sigmoid", (x,), R.Tensor((32, 32), dtype="float32"))
-        unused1 = R.call_dps_packed("my_dps_func", (unused0,), R.Tensor((32, 32), dtype="float32"))
+        unused0 = R.call_dps_packed(
+            _ExternFunc("my_sigmoid"), (x,), ty_args=[R.Tensor((32, 32), dtype="float32")]
+        )
+        unused1 = R.call_dps_packed(
+            _ExternFunc("my_dps_func"), (unused0,), ty_args=[R.Tensor((32, 32), dtype="float32")]
+        )
         return lv0
 
     @R.function
@@ -365,7 +386,9 @@ def test_retain_impure_calls_unused_in_binding_block():
     def before(x: R.Tensor((32, 32), "float32")) -> R.Tensor:
         lv0 = x
         unused0 = R.call_packed("my_impure_call", x, ty_args=R.Tensor((32, 32), dtype="float32"))
-        unused1 = R.call_dps_packed("my_unused_call", (lv0,), R.Tensor((32, 32), dtype="float32"))
+        unused1 = R.call_dps_packed(
+            _ExternFunc("my_unused_call"), (lv0,), ty_args=[R.Tensor((32, 32), dtype="float32")]
+        )
         return lv0
 
     @R.function(pure=False)
@@ -383,7 +406,7 @@ def test_retain_calls_to_impure_builtin_ops():
 
     @I.ir_module
     class Module:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def my_tir(A: T.handle, B: T.handle, n: T.int64):
             T.evaluate(0)
 
@@ -555,10 +578,10 @@ def test_all_global_vars():
 
 
 def test_reshape_pattern_reshape():
-    @Ts.prim_func
+    @Ts.function
     def reshape(
-        rxplaceholder: T.Buffer((1, 2, 3, 4), "float32"),
-        T_reshape: T.Buffer((8, 3), "float32"),
+        rxplaceholder: T.Tensor((1, 2, 3, 4), "float32"),
+        T_reshape: T.Tensor((8, 3), "float32"),
     ):
         for i0, i1 in T.grid(8, 3):
             with Ts.sblock("T_reshape"):
@@ -583,10 +606,10 @@ def test_reshape_pattern_reshape():
 
 
 def test_reshape_pattern_reshape_scheduled():
-    @Ts.prim_func
+    @Ts.function
     def reshape_scheduled(
-        rxplaceholder: T.Buffer((1, 2, 3, 4), "float32"),
-        T_reshape: T.Buffer((8, 3), "float32"),
+        rxplaceholder: T.Tensor((1, 2, 3, 4), "float32"),
+        T_reshape: T.Tensor((8, 3), "float32"),
     ):
         for i0_i1_fused_0 in T.thread_binding(1, thread="blockIdx.x"):
             for i0_i1_fused_1 in T.thread_binding(24, thread="threadIdx.x"):
@@ -613,10 +636,10 @@ def test_reshape_pattern_reshape_scheduled():
 
 
 def test_reshape_pattern_zero_extent():
-    @Ts.prim_func
+    @Ts.function
     def transpose_zero(
-        rxplaceholder: T.Buffer((3, 0, 4), "float32"),
-        T_transpose: T.Buffer((0, 3, 4), "float32"),
+        rxplaceholder: T.Tensor((3, 0, 4), "float32"),
+        T_transpose: T.Tensor((0, 3, 4), "float32"),
     ):
         for i0, i1, i2 in T.grid(0, 3, 4):
             with Ts.sblock("T_transpose"):
@@ -629,10 +652,10 @@ def test_reshape_pattern_zero_extent():
 
 
 def test_reshape_pattern_expand_dims():
-    @Ts.prim_func
+    @Ts.function
     def expand_dims(
-        rxplaceholder: T.Buffer((2, 3, 4), "float32"),
-        expand_dims: T.Buffer((2, 1, 1, 1, 3, 1, 4, 1), "float32"),
+        rxplaceholder: T.Tensor((2, 3, 4), "float32"),
+        expand_dims: T.Tensor((2, 1, 1, 1, 3, 1, 4, 1), "float32"),
     ):
         T.func_attr({"tirx.noalias": True})
         for i0, i1, i2, i3, i4, i5, i6, i7 in T.grid(2, 1, 1, 1, 3, 1, 4, 1):
@@ -652,10 +675,10 @@ def test_reshape_pattern_expand_dims():
 def test_reshape_pattern_dyn_1():
     n = T.dynamic("n")
 
-    @Ts.prim_func
+    @Ts.function
     def reshape(
-        A: T.Buffer((n, T.int64(32), T.int64(128)), "float16"),
-        T_reshape: T.Buffer((T.int64(1), n, T.int64(32), T.int64(128)), "float16"),
+        A: T.Tensor((n, T.int64(32), T.int64(128)), "float16"),
+        T_reshape: T.Tensor((T.int64(1), n, T.int64(32), T.int64(128)), "float16"),
     ):
         for ax0, ax1, ax2, ax3 in T.grid(T.int64(1), n, T.int64(32), T.int64(128)):
             with Ts.sblock("T_reshape"):
@@ -680,8 +703,8 @@ def test_reshape_pattern_dyn_1():
 def test_reshape_pattern_dyn_2():
     n = T.dynamic("n")
 
-    @Ts.prim_func
-    def reshape(A: T.Buffer((T.int64(1), n), "int32"), T_reshape: T.Buffer((n,), "int32")):
+    @Ts.function
+    def reshape(A: T.Tensor((T.int64(1), n), "int32"), T_reshape: T.Tensor((n,), "int32")):
         for ax0 in range(n):
             with Ts.sblock("T_reshape"):
                 v_ax0 = Ts.axis.spatial(n, ax0)
@@ -695,10 +718,10 @@ def test_reshape_pattern_dyn_2():
 def test_reshape_pattern_dyn_3():
     n = T.dynamic("n")
 
-    @Ts.prim_func
+    @Ts.function
     def reshape(
-        A: T.Buffer((n, T.int64(4096)), "float16"),
-        T_reshape: T.Buffer((T.int64(1), n, T.int64(4096)), "float16"),
+        A: T.Tensor((n, T.int64(4096)), "float16"),
+        T_reshape: T.Tensor((T.int64(1), n, T.int64(4096)), "float16"),
     ):
         T.func_attr({"op_pattern": 8, "tirx.noalias": True})
 
@@ -717,10 +740,10 @@ def test_reshape_pattern_dyn_3():
 def test_reshape_pattern_dyn_4():
     n = T.dynamic("n")
 
-    @Ts.prim_func
+    @Ts.function
     def reshape(
-        A: T.Buffer((T.int64(1), n, T.int64(4096)), "float16"),
-        T_reshape: T.Buffer((T.int64(1), n, T.int64(32), T.int64(128)), "float16"),
+        A: T.Tensor((T.int64(1), n, T.int64(4096)), "float16"),
+        T_reshape: T.Tensor((T.int64(1), n, T.int64(32), T.int64(128)), "float16"),
     ):
         T.func_attr({"op_pattern": 8, "tirx.noalias": True})
 
@@ -747,10 +770,10 @@ def test_reshape_pattern_dyn_4():
 def test_reshape_pattern_dyn_5():
     n = T.dynamic("n")
 
-    @Ts.prim_func
+    @Ts.function
     def reshape(
-        A: T.Buffer((T.int64(1), n, T.int64(32), T.int64(128)), "float16"),
-        T_reshape: T.Buffer((T.int64(1), n, T.int64(4096)), "float16"),
+        A: T.Tensor((T.int64(1), n, T.int64(32), T.int64(128)), "float16"),
+        T_reshape: T.Tensor((T.int64(1), n, T.int64(4096)), "float16"),
     ):
         T.func_attr({"op_pattern": 8, "tirx.noalias": True})
 
@@ -778,11 +801,11 @@ def test_reshape_pattern_dyn_5():
 
 
 def test_reshape_pattern_with_raggedness():
-    @Ts.prim_func
+    @Ts.function
     def reshape_raggedness(
-        A: T.Buffer((100, 768), "float32"),
-        src_indptr: T.Buffer((9,), "int32"),
-        B: T.Buffer((100, 12, 64), "float32"),
+        A: T.Tensor((100, 768), "float32"),
+        src_indptr: T.Tensor((9,), "int32"),
+        B: T.Tensor((100, 12, 64), "float32"),
     ):
         for b in T.serial(8):
             with Ts.sblock("block0"):
@@ -800,8 +823,8 @@ def test_reshape_pattern_with_raggedness():
 
 
 def test_reshape_pattern_reject_seqstmt():
-    @Ts.prim_func
-    def identity_bias(A: T.Buffer((4, 4), "float32"), B: T.Buffer((4, 4), "float32")):
+    @Ts.function
+    def identity_bias(A: T.Tensor((4, 4), "float32"), B: T.Tensor((4, 4), "float32")):
         C = Ts.sblock_alloc_buffer((128, 128), "float32")
         for i0, i1 in T.grid(4, 4):
             with Ts.sblock("identity"):
@@ -812,8 +835,8 @@ def test_reshape_pattern_reject_seqstmt():
                 vi0, vi1 = Ts.axis.remap("SS", [i0, i1])
                 B[vi0, vi1] = C[vi0, vi1] + T.float32(1)
 
-    @Ts.prim_func
-    def identity_identity(A: T.Buffer((4, 4), "float32"), B: T.Buffer((4, 4), "float32")):
+    @Ts.function
+    def identity_identity(A: T.Tensor((4, 4), "float32"), B: T.Tensor((4, 4), "float32")):
         C = Ts.sblock_alloc_buffer((128, 128), "float32")
         for i0, i1 in T.grid(4, 4):
             with Ts.sblock("identity"):
@@ -829,8 +852,8 @@ def test_reshape_pattern_reject_seqstmt():
 
 
 def test_reshape_pattern_reject_reduction():
-    @Ts.prim_func
-    def reduction(A: T.Buffer((4, 4), "float32"), B: T.Buffer((4,), "float32")):
+    @Ts.function
+    def reduction(A: T.Tensor((4, 4), "float32"), B: T.Tensor((4,), "float32")):
         for i0, i1 in T.grid(4, 4):
             with Ts.sblock("identity"):
                 vi0, vi1 = Ts.axis.remap("SR", [i0, i1])
@@ -842,8 +865,8 @@ def test_reshape_pattern_reject_reduction():
 
 
 def test_reshape_pattern_reject_reduction():
-    @Ts.prim_func
-    def reduction(A: T.Buffer((4, 4), "float32"), B: T.Buffer((4,), "float32")):
+    @Ts.function
+    def reduction(A: T.Tensor((4, 4), "float32"), B: T.Tensor((4,), "float32")):
         for i0, i1 in T.grid(4, 4):
             with Ts.sblock("identity"):
                 vi0, vi1 = Ts.axis.remap("SR", [i0, i1])

@@ -16,527 +16,275 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <tvm/ir/prim/builtin.h>
-#include <tvm/te/operation.h>
-#include <tvm/tirx/attrs.h>
-#include <tvm/tirx/builtin.h>
-#include <tvm/tirx/type.h>
+#include <tvm/ffi/extra/structural_equal.h>
+#include <tvm/ffi/extra/structural_visit.h>
+#include <tvm/ffi/reflection/accessor.h>
+#include <tvm/ir/op.h>
+#include <tvm/ir/prim/op.h>
+#include <tvm/script/printer/doc_translator.h>
+#include <tvm/tirx/exec_scope.h>
+#include <tvm/tirx/function.h>
+#include <tvm/tirx/index_map.h>
+#include <tvm/tirx/layout.h>
+#include <tvm/tirx/op/abi.h>
+#include <tvm/tirx/op_attr_types.h>
+#include <tvm/tirx/stmt.h>
 
-#include "./utils.h"
+#include <algorithm>
+#include <limits>
+#include <optional>
+#include <string>
+#include <utility>
+#include <vector>
+
+#include "../../../script/printer/ir/utils.h"
+#include "../../../script/printer/utils.h"
+#include "utils.h"
 
 namespace tvm {
 namespace script {
 namespace printer {
+namespace details {
 
-TVM_FFI_STATIC_INIT_BLOCK() {
-  IRDocsifier::vtable().set_dispatch<Tuple>(
-      "tirx", [](Tuple tuple, AccessPath tuple_p, IRDocsifier d) -> Doc {
-        return TupleDoc(d->AsDoc<ListDoc>(tuple->fields, tuple_p->Attr("fields"))->elements);
-      });
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  IRDocsifier::vtable().set_dispatch<TupleGetItem>(
-      "tirx", [](TupleGetItem get_item, AccessPath get_item_p, IRDocsifier d) -> Doc {
-        ExprDoc index = LiteralDoc::Int(get_item->index, get_item_p->Attr("index"));
-        return d->AsDoc<ExprDoc>(get_item->tuple, get_item_p->Attr("tuple"))[{index}];
-      });
-}
-
-ExprDoc PrintVarCreation(const tirx::Var& var, const AccessPath& var_p, const IRDocsifier& d) {
-  Type type = var->ty;
-  AccessPath type_p = var_p->Attr("ty");
-  ExprDoc rhs{ffi::UnsafeInit()};
-  ffi::Array<ffi::String> kwargs_keys;
-  ffi::Array<ExprDoc> kwargs_values;
-
-  if (const auto* ptr_type = type.as<PointerTypeNode>()) {
-    if (const auto* prim_type = ptr_type->element_type.as<PrimTypeNode>()) {
-      rhs = TIR(d, "handle");
-      rhs->source_paths.push_back(var_p->Attr("dtype"));
-      if (ffi::GetRef<PrimType>(prim_type).IsVoid()) {
-        if (ptr_type->storage_scope == "global") {
-          rhs = rhs->Call({}, kwargs_keys, kwargs_values);
-        } else {
-          rhs =
-              rhs->Call({}, {"storage_scope"},
-                        {LiteralDoc::Str(ptr_type->storage_scope, type_p->Attr("storage_scope"))});
-        }
-      } else {
-        ExprDoc element_type =
-            LiteralDoc::DataType(prim_type->dtype, type_p->Attr("element_type")->Attr("dtype"));
-        if (ptr_type->storage_scope.empty()) {
-          rhs = rhs->Call({element_type}, kwargs_keys, kwargs_values);
-        } else {
-          rhs = rhs->Call({element_type,
-                           LiteralDoc::Str(ptr_type->storage_scope,  //
-                                           type_p->Attr("storage_scope"))},
-                          kwargs_keys, kwargs_values);
-        }
-      }
-    } else if (ptr_type->element_type->IsInstance<tirx::TensorMapTypeNode>()) {
-      rhs = TIR(d, "TensorMap")->Call({}, {}, {});
-    }
-  } else {
-    rhs = IR(d, "dynamic")
-              ->Call({LiteralDoc::Str(var->name, var_p->Attr("name"))}, {"dtype"},
-                     {LiteralDoc::Str(DType2Str(var->ty.as_or_throw<PrimType>()->dtype), type_p)});
-  }
-  rhs->source_paths.push_back(type_p);
-  return rhs;
-}
-
-Doc PrintVar(const tirx::Var& var, const AccessPath& var_p, const IRDocsifier& d) {
-  if (!d->IsVarDefined(var)) {
-    if (ffi::Optional<Frame> opt_f = FindLowestVarDef(var, d)) {
-      Frame frame = var->ty.as<PrimTypeNode>() ? d->frames.front() : opt_f.value();
-      ExprDoc lhs = DefineVar(var, frame, d);
-      ExprDoc rhs = PrintVarCreation(var, var_p, d);
-      frame->stmts.push_back(AssignDoc(lhs, rhs, std::nullopt));
+ffi::Optional<ExprDoc> VarDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                       const ffi::Object* destination) {
+  const auto* node =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const VarNode>(input);
+  Var var = ffi::GetRef<Var>(node);
+  IdDoc id = d->VarGetOrAllocId(var, false);
+  if (destination == node && d->GetImplicitDefs().count(var)) {
+    // Promote before translating the type, which may refer back to this Var.
+    VarDoc(d, var);
+    ffi::Optional<ExprDoc> rhs = std::nullopt;
+    ffi::Optional<ExprDoc> annotation = std::nullopt;
+    if (auto primitive = var->ty.as<PrimType>()) {
+      rhs = NamespaceDoc("ir")->Attr("dynamic")->Call(
+          {LiteralDoc::Str(var->name, std::nullopt)}, {"dtype"},
+          {LiteralDoc::DataType(primitive.value()->dtype, std::nullopt)});
+    } else if (var->ty.as<tirx::TensorTypeNode>()) {
+      rhs = NamespaceDoc("tirx")->Attr("Var")->Call(
+          {LiteralDoc::Str(var->name, std::nullopt), d->Translate(var->ty).value()});
     } else {
-      LOG(WARNING) << "Didn't find variable definition for: " << var->name;
+      annotation = d->Translate(var->ty).value();
+      if (var->ty.as<PointerTypeNode>()) {
+        // A module-level annotation alone does not bind a Python variable.
+        rhs = annotation.value().as<CallDoc>() ? annotation : annotation.value()->Call({});
+      }
     }
-  }
-  if (ffi::Optional<ExprDoc> doc = d->GetVarDoc(var)) {
-    return doc.value();
-  }
-  TVM_FFI_THROW(InternalError) << "IndexError: Variable is not defined in the environment: "
-                               << var->name;
-  TVM_FFI_UNREACHABLE();
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  IRDocsifier::vtable()  //
-      .set_dispatch<tirx::Var>("", [](tirx::Var var, AccessPath p, IRDocsifier d) -> Doc {
-        if (var->ty.as<tirx::BufferTypeNode>()) {
-          tirx::BufferVar buffer = var.as_or_throw<tirx::BufferVar>();
-          if (!d->IsVarDefined(buffer)) {
-            if (ffi::Optional<Frame> opt_f = FindLowestVarDef(buffer, d)) {
-              ExprDoc lhs = DefineVar(buffer.var(), opt_f.value(), d);
-              ExprDoc rhs = BufferDecl(buffer, "Buffer", {}, p, opt_f.value(), d,
-                                       BufferVarDefinition::DataPointer);
-              opt_f.value()->stmts.push_back(AssignDoc(lhs, rhs, std::nullopt));
+    // Only this type's referenced Vars must precede its declaration.
+    ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(
+        var->ty, [&](const Var& dependency) -> ffi::Expected<ffi::WalkResult> {
+          if (d->GetImplicitDefs().count(dependency)) {
+            if (auto rhs = d->Translate(dependency, dependency)) {
+              d->Emit(AssignDoc(VarDoc(d, dependency), rhs.value(), std::nullopt), dependency);
             }
           }
-          if (ffi::Optional<ExprDoc> doc = d->GetVarDoc(buffer)) {
-            // special case for scalar buffer
-            if (buffer.IsScalar()) {
-              return doc.value()->Attr("source");
-            }
-            return doc.value();
-          }
-          TVM_FFI_THROW(IndexError) << "BufferVar is not defined in the environment: " << buffer;
-        }
-        if (var->ty.as<PrimTypeNode>() || var->ty.as<PointerTypeNode>()) {
-          return PrintVar(var, p, d);
-        }
-        if (!d->IsVarDefined(var)) {
-          ExprDoc ann = d->AsDoc<ExprDoc>(var->ty, p->Attr("ty"));
-          Frame f = d->frames.back();
-          ExprDoc lhs = d->Define(var, f, var->name.empty() ? "v" : var->name);
-          f->stmts.push_back(AssignDoc(lhs, std::nullopt, ann));
-        }
-        return d->GetVarDoc(var).value();
-      });
+          return ffi::WalkResult::Skip();
+        });
+    d->Emit(AssignDoc(VarDoc(d, var), rhs, annotation), var);
+    return std::nullopt;
+  }
+  // Mutable scalar syntax binds a TensorLoad; resource uses need its buffer.
+  if (IsScalarBuffer(d, var)) return IdDoc(id->name)->Attr("source");
+  return IdDoc(id->name);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  IRDocsifier::vtable().set_dispatch<tirx::IterVar>(
-      "", [](tirx::IterVar var, AccessPath var_p, IRDocsifier d) -> Doc {
-        return TIR(d, "iter_var")
-            ->Call({
-                d->AsDoc<ExprDoc>(var->var, var_p->Attr("var")),
-                d->AsDoc<ExprDoc>(var->dom, var_p->Attr("dom")),
-                LiteralDoc::Str(IterVarType2String(var->iter_type), var_p->Attr("iter_type")),
-                LiteralDoc::Str(var->thread_tag, var_p->Attr("thread_tag")),
-            });
-      });
+  ffi::reflection::TypeAttrDef<VarNode>().attr(tvm::script::printer::type_attr::kDocTranslate,
+                                               FDocTranslate::FromNative<&VarDocTranslate>());
 }
 
-TVM_FFI_STATIC_INIT_BLOCK() {
-  IRDocsifier::vtable().set_dispatch<te::CommReducer>(  //
-      "", [](te::CommReducer r, AccessPath p, IRDocsifier d) -> Doc {
-        TVM_FFI_ICHECK_EQ(r->lhs.size(), r->rhs.size());
-        ffi::Optional<LambdaDoc> lambda;
-        {
-          With<TIRFrame> f(d, r);
-          int n_vars = r->lhs.size();
-          ffi::Array<IdDoc> vars;
-          vars.reserve(n_vars + n_vars);
-          for (int i = 0; i < n_vars; ++i) {
-            vars.push_back(DefineVar(r->lhs[i], *f, d).as_or_throw<IdDoc>());
-          }
-          for (int i = 0; i < n_vars; ++i) {
-            vars.push_back(DefineVar(r->rhs[i], *f, d).as_or_throw<IdDoc>());
-          }
-          int n_results = r->result.size();
-          ffi::Array<ExprDoc> results;
-          results.reserve(n_results);
-          for (int i = 0; i < n_results; ++i) {
-            results.push_back(d->AsDoc<ExprDoc>(r->result[i], p->Attr("result")->ArrayItem(i)));
-          }
-          if (results.size() == 1) {
-            lambda = LambdaDoc(vars, results[0]);
-          } else {
-            lambda = LambdaDoc(vars, TupleDoc(results));
-          }
-        }
-        ExprDoc id = d->AsDoc<ExprDoc>(r->identity_element, p->Attr("identity_element"));
-        return TIR(d, "comm_reducer")->Call({lambda.value(), id});
-      });
-}
+namespace {
 
-LambdaDoc PrintIndexMap(const ffi::ObjectRef& map, const ffi::Array<PrimVar>& vs,
-                        const AccessPath& vs_p, const ffi::Array<PrimExpr>& es,
-                        const AccessPath& es_p, const IRDocsifier& d) {
-  With<TIRFrame> f(d, map);
-  ffi::Array<IdDoc> vars;
-  for (int i = 0, l = vs.size(); i < l; ++i) {
-    vars.push_back(DefineVar(static_cast<tirx::Var>(vs[i]), *f, d).as_or_throw<IdDoc>());
-  }
-  ffi::Array<ExprDoc> exprs;
-  for (int i = 0, l = es.size(); i < l; ++i) {
-    exprs.push_back(d->AsDoc<ExprDoc>(es[i], es_p->ArrayItem(i)));
-  }
-  return LambdaDoc(vars, TupleDoc(exprs));
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  IRDocsifier::vtable().set_dispatch<tirx::IndexMap>(  //
-      "", [](tirx::IndexMap m, AccessPath m_p, IRDocsifier d) -> Doc {
-        LambdaDoc map = PrintIndexMap(m, m->initial_indices, m_p->Attr("initial_indices"),
-                                      m->final_indices, m_p->Attr("final_indices"), d);
-        if (m->inverse_index_map.has_value()) {
-          tirx::IndexMap inverse = m->inverse_index_map.value().as_or_throw<tirx::IndexMap>();
-          LambdaDoc inv = PrintIndexMap(inverse, inverse->initial_indices,
-                                        m_p->Attr("inverse_index_map")->Attr("initial_indices"),
-                                        inverse->final_indices,
-                                        m_p->Attr("inverse_index_map")->Attr("final_indices"), d);
-          return TIR(d, "index_map")->Call({map}, {"inverse_index_map"}, {inv});
-        } else {
-          return TIR(d, "index_map")->Call({map});
-        }
-      });
-}
-
-LambdaDoc PrintLambda(const ffi::ObjectRef& pred, const ffi::Array<tirx::Var>& vs,
-                      const AccessPath& vs_p, const PrimExpr& p, const AccessPath& p_p,
-                      const IRDocsifier& d) {
-  With<TIRFrame> f(d, pred);
-  ffi::Array<IdDoc> vars;
-  for (int i = 0, l = vs.size(); i < l; ++i) {
-    vars.push_back(DefineVar(static_cast<tirx::Var>(vs[i]), *f, d).as_or_throw<IdDoc>());
-  }
-  ExprDoc pred_doc = d->AsDoc<ExprDoc>(p, p_p);
-  return LambdaDoc(vars, pred_doc);
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  IRDocsifier::vtable().set_dispatch<tirx::LambdaExpr>(
-      "", [](tirx::LambdaExpr pred, AccessPath p, IRDocsifier d) -> Doc {
-        return PrintLambda(pred, pred->vars, p->Attr("vars"), pred->pred, p->Attr("pred"), d);
-      });
-}
-
-ExprDoc CallAttrsDoc(const ffi::Any& value, const AccessPath& p, const IRDocsifier& d) {
-  if (value == nullptr) return LiteralDoc::None(p);
-  if (const auto* imm = value.as<IntImmNode>()) {
-    return TIR(d, DType2Str(imm->ty.as_or_throw<PrimType>()->dtype))
-        ->Call({LiteralDoc::Int(ffi::GetRef<IntImm>(imm), p->Attr("value"))});
-  }
-  if (const auto* imm = value.as<FloatImmNode>()) {
-    return TIR(d, DType2Str(imm->ty.as_or_throw<PrimType>()->dtype))
-        ->Call({LiteralDoc::Float(imm->value, p->Attr("value"))});
-  }
-  if (const auto* imm = value.as<StringImmNode>()) {
-    return IdDoc("tvm")
-        ->Attr("ir")
-        ->Attr("StringImm")
-        ->Call({LiteralDoc::Str(imm->value, p->Attr("value"))});
-  }
-  if (auto tuple = value.as<Tuple>()) {
-    return IdDoc("tvm")->Attr("ir")->Attr("Tuple")->Call(
-        {CallAttrsDoc(tuple.value()->fields, p->Attr("fields"), d)});
-  }
-  if (const auto* attrs = value.as<DictAttrsNode>()) {
-    return IdDoc("tvm")
-        ->Attr("ir")
-        ->Attr("DictAttrs")
-        ->Call({CallAttrsDoc(attrs->dict, p->Attr("dict"), d)});
-  }
-  if (auto array = value.as<ffi::Array<ffi::Any>>()) {
-    ffi::Array<ExprDoc> items;
-    for (size_t i = 0; i < array.value().size(); ++i) {
-      items.push_back(CallAttrsDoc(array.value()[i], p->ArrayItem(i), d));
-    }
-    return ListDoc(items);
-  }
-  if (auto map = value.as<ffi::Map<ffi::Any, ffi::Any>>()) {
-    ffi::Array<ExprDoc> keys, values;
-    for (const auto& [key, item] : map.value()) {
-      keys.push_back(CallAttrsDoc(key, p->MapItem(key), d));
-      values.push_back(CallAttrsDoc(item, p->MapItem(key), d));
-    }
-    return DictDoc(keys, values);
-  }
-  return d->AsDoc<ExprDoc>(value, p);
-}
-
-Doc PrintTIRCall(Call call, AccessPath call_p, IRDocsifier d) {
-  if (call->op.same_as(tirx::builtin::alloc_buffer()) ||
-      call->op.same_as(tirx::builtin::decl_buffer())) {
-    if (auto doc = BufferOperationCall(call, call_p, d)) return doc.value();
-  }
-  if (call->op.same_as(tirx::builtin::buffer_data())) {
-    TVM_FFI_ICHECK_EQ(call->args.size(), 1);
-    return d->AsDoc<ExprDoc>(call->args[0], call_p->Attr("args")->ArrayItem(0))->Attr("data");
-  }
-  ffi::Optional<PrimType> call_prim_type = call->ty.as<PrimType>();
-  auto get_call_type_doc = [&](AccessPath type_p) -> ExprDoc {
-    if (call_prim_type.has_value()) {
-      return LiteralDoc::DataType(call_prim_type.value()->dtype, type_p);
-    }
-    if (const auto* pointer_type = call->ty.as<PointerTypeNode>()) {
-      ExprDoc pointer_type_doc = d->AsDoc<ExprDoc>(call->ty, type_p);
-      if (const auto* element_type = pointer_type->element_type.as<PrimTypeNode>();
-          element_type && ffi::GetRef<PrimType>(element_type).IsVoid() &&
-          pointer_type->storage_scope == "global") {
-        // The type annotation printer uses the concise bare `T.handle` for
-        // function parameters.  A call's dtype position needs a value, so
-        // materialize the corresponding type expression before selecting
-        // `.ty`.
-        pointer_type_doc = TIR(d, "handle")->Call({});
-      }
-      return pointer_type_doc->Attr("ty");
-    }
-    TVM_FFI_THROW(TypeError) << "Call dtype is only available for primitive or pointer return "
-                                "types, but got "
-                             << call->ty;
+ffi::Optional<ExprDoc> IndexMapDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                            const ffi::Object*) {
+  const auto* map =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const tirx::IndexMapNode>(input);
+  auto translate_lambda = [&](const tirx::IndexMapNode* node) -> ExprDoc {
+    ffi::Array<IdDoc> vars;
+    for (const PrimVar& var : node->initial_indices) vars.push_back(VarDoc(d, var));
+    ffi::Array<ExprDoc> values;
+    for (const PrimExpr& expr : node->final_indices) values.push_back(d->Translate(expr).value());
+    return LambdaDoc(vars, TupleDoc(values));
   };
-  std::function<ExprDoc(const Type&, AccessPath)> type_value_doc;
-  type_value_doc = [&](const Type& type, AccessPath p) -> ExprDoc {
-    if (type.as<tirx::BufferTypeNode>()) return d->AsDoc<ExprDoc>(type, p);
-    if (const auto* tuple = type.as<TupleTypeNode>()) {
-      ffi::Array<ExprDoc> fields;
-      for (size_t i = 0; i < tuple->fields.size(); ++i) {
-        fields.push_back(type_value_doc(tuple->fields[i], p->Attr("fields")->ArrayItem(i)));
-      }
-      return IdDoc("tvm")->Attr("ir")->Attr("TupleType")->Call({ListDoc(fields)});
-    }
-    return d->AddMetadata(type);
-  };
-  auto get_call_return_type_doc = [&]() -> ExprDoc {
-    if (call->ty.IsMissing()) {
-      return IdDoc("tvm")->Attr("ir")->Attr("Type")->Attr("missing")->Call({});
-    }
-    if (call_prim_type || call->ty.as<PointerTypeNode>()) {
-      return get_call_type_doc(call_p->Attr("ty"));
-    }
-    // Annotation spellings such as None for an empty tuple are not type values.
-    return type_value_doc(call->ty, call_p->Attr("ty"));
-  };
-  if (call->attrs.defined() || call->op.same_as(tirx::builtin::alloc_buffer()) ||
-      call->op.same_as(tirx::builtin::decl_buffer())) {
-    ffi::Array<ExprDoc> call_args;
-    int n_args = call->args.size();
-    call_args.reserve(n_args);
-    for (int i = 0; i < n_args; ++i) {
-      AccessPath arg_p = call_p->Attr("args")->ArrayItem(i);
-      if (auto tuple = call->args[i].as<Tuple>()) {
-        call_args.push_back(IdDoc("tvm")->Attr("ir")->Attr("Tuple")->Call(
-            {d->AsDoc<ExprDoc>(tuple.value()->fields, arg_p->Attr("fields"))}));
-      } else {
-        call_args.push_back(d->AsDoc<ExprDoc>(call->args[i], arg_p));
-      }
-    }
-    if (call->op.same_as(tirx::builtin::tensormap_encode_tiled())) {
-      const auto* attrs = call->attrs.as<tirx::TensorMapEncodeTiledAttr>();
-      TVM_FFI_ICHECK(attrs);
-      auto attr_p = call_p->Attr("attrs");
-      return TIR(d, "tensormap_encode_tiled")
-          ->Call(call_args,
-                 {"descriptor_dtype", "rank", "interleave", "swizzle", "l2_promotion", "oob_fill",
-                  "force_cu_dtype"},
-                 {LiteralDoc::Str(ffi::DLDataTypeToString(attrs->descriptor_dtype),
-                                  attr_p->Attr("descriptor_dtype")),
-                  LiteralDoc::Int(attrs->rank, attr_p->Attr("rank")),
-                  LiteralDoc::Int(attrs->interleave, attr_p->Attr("interleave")),
-                  LiteralDoc::Int(attrs->swizzle, attr_p->Attr("swizzle")),
-                  LiteralDoc::Int(attrs->l2_promotion, attr_p->Attr("l2_promotion")),
-                  LiteralDoc::Int(attrs->oob_fill, attr_p->Attr("oob_fill")),
-                  LiteralDoc::Int(attrs->force_cu_dtype, attr_p->Attr("force_cu_dtype"))});
-    }
-    if (call->op.same_as(tirx::builtin::call_ffi_kernel())) {
-      const auto* attrs = call->attrs.as<tirx::CallFFIKernelAttr>();
-      TVM_FFI_ICHECK(attrs);
-      return TIR(d, "call_ffi_kernel")
-          ->Call(call_args, {"launch_params", "ret_ty"},
-                 {d->AsDoc<ExprDoc>(attrs->launch_params,
-                                    call_p->Attr("attrs")->Attr("launch_params")),
-                  get_call_return_type_doc()});
-    }
-    ExprDoc op_doc = call->op.as<Op>()
-                         ? LiteralDoc::Str(call->op.as<Op>().value()->name, call_p->Attr("op"))
-                         : d->AsDoc<ExprDoc>(call->op, call_p->Attr("op"));
-    ExprDoc ret_ty_doc = get_call_return_type_doc();
-    ffi::Array<ffi::String> keys = {"attrs", "ret_ty"};
-    ffi::Array<ExprDoc> values = {CallAttrsDoc(call->attrs, call_p->Attr("attrs"), d), ret_ty_doc};
-    if (!call->ty_args.empty()) {
-      keys.push_back("ty_args");
-      ffi::Array<ExprDoc> type_args;
-      for (size_t i = 0; i < call->ty_args.size(); ++i) {
-        type_args.push_back(
-            type_value_doc(call->ty_args[i], call_p->Attr("ty_args")->ArrayItem(i)));
-      }
-      values.push_back(ListDoc(type_args));
-    }
-    return TIR(d, "Call")->Call({op_doc, ListDoc(call_args)}, keys, values);
+  ExprDoc forward = translate_lambda(map);
+  if (map->inverse_index_map.has_value()) {
+    const auto* inverse = map->inverse_index_map.value().as<tirx::IndexMapNode>();
+    TVM_FFI_CHECK(inverse, TypeError) << "IndexMap inverse must be an IndexMap";
+    return NamespaceDoc("tirx")
+        ->Attr("index_map")
+        ->Call({forward}, {"inverse_index_map"}, {translate_lambda(inverse)});
   }
-  static const OpAttrMap<tirx::TScriptPrinterName>& op_names =
-      Op::GetAttrMap<tirx::TScriptPrinterName>("TScriptPrinterName");
-  static const OpAttrMap<tirx::TScriptDtypePrintLocation> dtype_locations =
-      Op::GetAttrMap<tirx::TScriptDtypePrintLocation>("TScriptDtypePrintLocation");
-  tirx::ScriptDtypePrintLocation dtype_print_location = tirx::ScriptDtypePrintLocation::kNone;
-  ffi::Optional<ExprDoc> prefix;
-  if (auto optional_op = call->op.as<Op>()) {
-    auto op = optional_op.value();
-    ffi::String name = op_names.get(op, op->name);
-    if (op_names.count(op) == 0) {
-      LOG(WARNING) << "No TScriptPrinterName attribute for " << op->name;
-    }
-    prefix = TIR(d, name);
-    if (dtype_locations.count(op)) {
-      dtype_print_location = static_cast<tirx::ScriptDtypePrintLocation>(dtype_locations[op]);
-    }
-    if (name == "call_llvm_pure_intrin" || name == "call_llvm_intrin") {
-      int n_args = call->args.size();
-      int64_t id = static_cast<int64_t>(call->args[0].as<IntImmNode>()->value);
-      auto f_llvm_lookup_intrinsic_name =
-          tvm::ffi::Function::GetGlobal("target.llvm_get_intrinsic_name");
+  return NamespaceDoc("tirx")->Attr("index_map")->Call({forward});
+}
 
-      ffi::Array<ExprDoc> args;
-      args.reserve(n_args + 1);
-      if (dtype_print_location == tirx::ScriptDtypePrintLocation::kFirst) {
-        args.push_back(get_call_type_doc(call_p->Attr("dtype")));
-      }
+TVM_FFI_STATIC_INIT_BLOCK() {
+  ffi::reflection::TypeAttrDef<tirx::IndexMapNode>().attr(
+      tvm::script::printer::type_attr::kDocTranslate,
+      FDocTranslate::FromNative<&IndexMapDocTranslate>());
+}
 
-      for (int i = 0; i < n_args; ++i) {
-        if ((i == 0) && (f_llvm_lookup_intrinsic_name)) {
-          ffi::String name = (*f_llvm_lookup_intrinsic_name)(id).cast<ffi::String>();
-          args.push_back(LiteralDoc::Str(name.c_str(), call_p->Attr("args")->ArrayItem(i)));
-        } else {
-          args.push_back(d->AsDoc<ExprDoc>(call->args[i], call_p->Attr("args")->ArrayItem(i)));
-        }
-      }
-      if (dtype_print_location == tirx::ScriptDtypePrintLocation::kLast) {
-        args.push_back(get_call_type_doc(call_p->Attr("dtype")));
-      }
-      return prefix.value()->Call(args);
-    }
-    // cuda_func_call: last arg is source_code (keyword-only in the Python API).
-    // Print it as source_code=... to enable TVMScript round-trip.
-    if (op->name == "tirx.cuda.func_call") {
-      int n_args = call->args.size();
-      ffi::Array<ExprDoc> args;
-      // All args except the last (source_code) are positional.
-      for (int i = 0; i < n_args - 1; ++i) {
-        args.push_back(d->AsDoc<ExprDoc>(call->args[i], call_p->Attr("args")->ArrayItem(i)));
-      }
-      // source_code is the last arg, printed as keyword.
-      // Extract the string value directly to avoid the StringImm printer
-      // storing multiline source code in metadata (which can't be reparsed).
-      ffi::Array<ffi::String> kw_keys;
-      ffi::Array<ExprDoc> kw_vals;
-      const auto* src_str = call->args[n_args - 1].as<StringImmNode>();
-      TVM_FFI_ICHECK(src_str) << "cuda_func_call: last arg (source_code) must be StringImm";
-      ExprDoc src = LiteralDoc::Str(src_str->value, call_p->Attr("args")->ArrayItem(n_args - 1));
-      kw_keys.push_back("source_code");
-      kw_vals.push_back(src);
-      // If non-void return type, print return_type keyword.
-      if (!call_prim_type || !call_prim_type.value().IsVoid()) {
-        kw_keys.push_back("return_type");
-        kw_vals.push_back(get_call_type_doc(call_p->Attr("dtype")));
-      }
-      return prefix.value()->Call(args, kw_keys, kw_vals);
-    }
-  } else if (call->op.as<GlobalVarNode>()) {
-    prefix = d->AsDoc<ExprDoc>(call->op, call_p->Attr("op"));
-  } else {
-    TVM_FFI_THROW(TypeError) << "Cannot print a Call whose callee has type "
-                             << call->op->GetTypeKey();
+ffi::Optional<ExprDoc> LLVMIntrinsicDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                                 const ffi::Object*) {
+  const auto* call =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const CallNode>(input);
+  if (call->attrs.defined() || !call->ty_args.empty() || call->args.empty() ||
+      !call->ty.as<PrimType>()) {
+    return RawCall(d, call);
   }
+  // The LLVM convenience builders reject direct region operands. Keep their
+  // raw Call representation while ordinary tuple operands recurse normally.
+  if (std::any_of(call->args.begin(), call->args.end(),
+                  [](const Expr& arg) { return arg.as<TensorRegionNode>() != nullptr; })) {
+    return RawCall(d, call);
+  }
+  const auto* id = call->args[0].as<IntImmNode>();
+  // The named constructor uses an int32 intrinsic identifier. Other stored
+  // representations retain their exact operand type through the full Call.
+  if (!id || !ffi::StructuralEqual()(id->ty, PrimType::Int(32))) return RawCall(d, call);
+  auto lookup = ffi::Function::GetGlobal("target.llvm_get_intrinsic_name");
+  auto reverse = ffi::Function::GetGlobal("target.llvm_lookup_intrinsic_id");
+  if (!lookup || !reverse) return RawCall(d, call);
+  ffi::String name;
+  try {
+    name = (*lookup)(static_cast<int64_t>(id->value)).cast<ffi::String>();
+    if (name.empty() || (*reverse)(name).cast<int64_t>() != static_cast<int64_t>(id->value)) {
+      return RawCall(d, call);
+    }
+  } catch (const ffi::Error&) {
+    return RawCall(d, call);
+  }
+  ExprDoc name_doc = LiteralDoc::Str(name, std::nullopt);
+  d->RecordOrigin(name_doc, call->args[0]);
+  ffi::Array<ExprDoc> args = {name_doc};
+  for (size_t i = 1; i < call->args.size(); ++i) {
+    args.push_back(d->Translate(call->args[i]).value());
+  }
+  return NamespaceDoc("tirx")
+      ->Attr(call->op.same_as(tirx::call_llvm_intrin_op()) ? "call_llvm_intrin"
+                                                           : "call_llvm_pure_intrin")
+      ->Call(args, {"ty"}, {TypeValue(d, call->ty)});
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  for (const char* name : {"tirx.call_llvm_intrin", "tirx.call_llvm_pure_intrin"}) {
+    OpDef(name).set_attr<FDocTranslate>(tvm::script::printer::op_attr::kOpCallDocTranslate,
+                                        FDocTranslate::FromNative<&LLVMIntrinsicDocTranslate>());
+  }
+}
+
+bool IsPTXAddressCall(const CallNode* call) {
+  auto op = call->op.as<Op>();
+  return op && op.value()->name == "tirx.ptx.addr";
+}
+
+ffi::Optional<ExprDoc> ConsumedPTXAddressDocTranslate(DocTranslatorObj* d, const CallNode* call) {
+  if (call->args.size() != 2 || call->attrs.defined() || !call->ty_args.empty())
+    return std::nullopt;
+  const Expr& base = call->args[0];
+  const Expr& offset = call->args[1];
+  if (const auto* nested = base.as<CallNode>(); nested && IsPTXAddressCall(nested)) {
+    return std::nullopt;
+  }
+  if ((!base->ty.as<PointerType>() && !ffi::StructuralEqual()(base->ty, PrimType::UInt(32))) ||
+      !ffi::StructuralEqual()(call->ty, base->ty)) {
+    return std::nullopt;
+  }
+  auto offset_type = offset->ty.as<PrimType>();
+  if (!offset_type || !offset_type.value().IsScalar() ||
+      !offset_type.value().MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt) ||
+      (offset_type.value().bits() != 8 && offset_type.value().bits() != 16 &&
+       offset_type.value().bits() != 32 && offset_type.value().bits() != 64)) {
+    return std::nullopt;
+  }
+  if (const auto* value = offset.as<IntImmNode>();
+      value && (!ffi::StructuralEqual()(offset->ty, PrimType::Int(32)) ||
+                value->value < std::numeric_limits<int32_t>::min() ||
+                value->value > std::numeric_limits<int32_t>::max())) {
+    return std::nullopt;
+  }
+  ExprDoc result = NamespaceDoc("tirx")->Attr("ptx")->Attr("addr")->Call(
+      {d->Translate(base).value(), d->Translate(offset).value()});
+  d->RecordOrigin(result, ffi::GetRef<Expr>(call));
+  return result;
+}
+
+}  // namespace
+
+namespace {
+
+ffi::Optional<ExprDoc> TensorDataPtrDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                                 const ffi::Object*) {
+  const auto* call =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const CallNode>(input);
+  if (call->attrs.defined() || !call->ty_args.empty() || call->args.size() != 1)
+    return RawCall(d, call);
+  try {
+    if (!ffi::StructuralEqual()(Call::ReinferType(call), call->ty)) return RawCall(d, call);
+  } catch (const ffi::Error&) {
+    return RawCall(d, call);
+  }
+  return d->Translate(call->args[0]).value()->Attr("data");
+}
+
+// PTX modifiers and operand tags use a dedicated reconstruction surface.
+// This hook is installed by the backend when each table entry is registered.
+ffi::Optional<ExprDoc> PTXCallDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                           const ffi::Object*) {
+  const auto* call =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const CallNode>(input);
+  if (IsPTXAddressCall(call) || call->attrs.defined() || !call->ty_args.empty() ||
+      !ffi::StructuralEqual()(call->ty, PrimType::Void()))
+    return RawCall(d, call);
+  const Op& op = call->op.as_or_throw<Op>();
+  static const auto& names =
+      Op::GetAttrMap<TScriptPrinterName>(tvm::script::printer::op_attr::kScriptPrinterName);
+  if (!names.count(op)) return RawCall(d, call);
+  auto can_roundtrip = ffi::Function::GetGlobal("script.printer.PTXCallCanRoundtrip");
+  if (!can_roundtrip || !(*can_roundtrip)(ffi::GetRef<Call>(call)).cast<bool>())
+    return RawCall(d, call);
   ffi::Array<ExprDoc> args;
-  int n_args = call->args.size();
-  args.reserve(n_args + 1);
-  if (dtype_print_location == tirx::ScriptDtypePrintLocation::kFirst) {
-    args.push_back(get_call_type_doc(call_p->Attr("dtype")));
+  for (const Expr& arg : call->args) {
+    ExprDoc value = d->Translate(arg).value();
+    if (const auto* string = arg.as<StringImmNode>()) {
+      value = LiteralDoc::Str(string->value, std::nullopt);
+    } else if (const auto* address = arg.as<CallNode>(); address && IsPTXAddressCall(address)) {
+      auto translated = ConsumedPTXAddressDocTranslate(d, address);
+      if (!translated) return RawCall(d, call);
+      value = translated.value();
+    } else if (arg.as<IntImmNode>() && ffi::StructuralEqual()(arg->ty, PrimType::Int(32))) {
+      value = NamespaceDoc("tirx")->Attr("int32")->Call({value});
+    } else if (arg->ty.as<MissingType>() || arg.as<TensorRegionNode>()) {
+      return RawCall(d, call);
+    }
+    args.push_back(value);
   }
-
-  for (int i = 0; i < n_args; ++i) {
-    args.push_back(d->AsDoc<ExprDoc>(call->args[i], call_p->Attr("args")->ArrayItem(i)));
-  }
-  if (dtype_print_location == tirx::ScriptDtypePrintLocation::kLast) {
-    args.push_back(get_call_type_doc(call_p->Attr("dtype")));
-  }
-  return prefix.value()->Call(args);
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() { IRDocsifier::vtable().set_dispatch<Call>("tirx", PrintTIRCall); }
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  IRDocsifier::vtable().set_dispatch<te::Reduce>(
-      "", [](te::Reduce r, AccessPath p, IRDocsifier d) -> Doc {
-        ExprDoc combiner = d->AsDoc<ExprDoc>(r->combiner, p->Attr("combiner"));
-        ExprDoc source = d->AsDoc<ExprDoc>(r->source, p->Attr("source"));
-        ExprDoc init = d->AsDoc<ExprDoc>(r->init, p->Attr("init"));
-        ExprDoc axis = d->AsDoc<ExprDoc>(r->axis, p->Attr("axis"));
-        ExprDoc condition = d->AsDoc<ExprDoc>(r->condition, p->Attr("condition"));
-        ExprDoc value_index = LiteralDoc::Int(r->value_index, p->Attr("value_index"));
-        return TIR(d, "reduce")
-            ->Call({combiner}, {"source", "init", "axis", "condition", "value_index"},
-                   {source, init, axis, condition, value_index});
-      });
+  return NamedCallCallee(names[op])->Call(args);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  TVMScriptPrinter::Register<tirx::IterVarNode>(ReprPrintTIR);
-  TVMScriptPrinter::Register<StringImmNode>(ReprPrintTIR);
-  TVMScriptPrinter::Register<prim::CastNode>(ReprPrintTIR);
-  TVMScriptPrinter::Register<prim::AddNode>(ReprPrintTIR);
-  TVMScriptPrinter::Register<prim::SubNode>(ReprPrintTIR);
-  TVMScriptPrinter::Register<prim::MulNode>(ReprPrintTIR);
-  TVMScriptPrinter::Register<prim::DivNode>(ReprPrintTIR);
-  TVMScriptPrinter::Register<prim::ModNode>(ReprPrintTIR);
-  TVMScriptPrinter::Register<prim::FloorDivNode>(ReprPrintTIR);
-  TVMScriptPrinter::Register<prim::FloorModNode>(ReprPrintTIR);
-  TVMScriptPrinter::Register<prim::LShiftNode>(ReprPrintTIR);
-  TVMScriptPrinter::Register<prim::RShiftNode>(ReprPrintTIR);
-  TVMScriptPrinter::Register<prim::BitwiseAndNode>(ReprPrintTIR);
-  TVMScriptPrinter::Register<prim::BitwiseOrNode>(ReprPrintTIR);
-  TVMScriptPrinter::Register<prim::BitwiseXorNode>(ReprPrintTIR);
-  TVMScriptPrinter::Register<prim::BitwiseNotNode>(ReprPrintTIR);
-  TVMScriptPrinter::Register<prim::MinNode>(ReprPrintTIR);
-  TVMScriptPrinter::Register<prim::MaxNode>(ReprPrintTIR);
-  TVMScriptPrinter::Register<prim::LTNode>(ReprPrintTIR);
-  TVMScriptPrinter::Register<prim::LENode>(ReprPrintTIR);
-  TVMScriptPrinter::Register<prim::EQNode>(ReprPrintTIR);
-  TVMScriptPrinter::Register<prim::NENode>(ReprPrintTIR);
-  TVMScriptPrinter::Register<prim::GTNode>(ReprPrintTIR);
-  TVMScriptPrinter::Register<prim::GENode>(ReprPrintTIR);
-  TVMScriptPrinter::Register<prim::AndNode>(ReprPrintTIR);
-  TVMScriptPrinter::Register<prim::OrNode>(ReprPrintTIR);
-  TVMScriptPrinter::Register<prim::NotNode>(ReprPrintTIR);
-  TVMScriptPrinter::Register<prim::SelectNode>(ReprPrintTIR);
-  TVMScriptPrinter::Register<prim::RampNode>(ReprPrintTIR);
-  TVMScriptPrinter::Register<prim::BroadcastNode>(ReprPrintTIR);
-  TVMScriptPrinter::Register<prim::LetNode>(ReprPrintTIR);
-  TVMScriptPrinter::Register<prim::ShuffleNode>(ReprPrintTIR);
-  TVMScriptPrinter::Register<te::CommReducerNode>(ReprPrintTIR);
-  TVMScriptPrinter::Register<tirx::IndexMapNode>(ReprPrintTIR);
-  TVMScriptPrinter::Register<te::ReduceNode>(ReprPrintTIR);
-  TVMScriptPrinter::Register<tirx::LambdaExprNode>(ReprPrintTIR);
+  OpDef("tirx.tensor_data_ptr")
+      .set_attr<FDocTranslate>(tvm::script::printer::op_attr::kOpCallDocTranslate,
+                               FDocTranslate::FromNative<&TensorDataPtrDocTranslate>());
+  ffi::reflection::GlobalDef().def("script.printer.PTXCallDocTranslate", []() {
+    return ffi::Any(FDocTranslate::FromNative<&PTXCallDocTranslate>());
+  });
 }
 
+}  // namespace
+}  // namespace details
 }  // namespace printer
 }  // namespace script
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  using script::printer::details::RegisterScriptRepr;
+  RegisterScriptRepr<tirx::TensorTypeNode>();
+  RegisterScriptRepr<tirx::ComposeLayoutNode>();
+  RegisterScriptRepr<tirx::ExecScopeNode>();
+  RegisterScriptRepr<tirx::IndexMapNode>();
+  RegisterScriptRepr<tirx::IterNode>();
+  RegisterScriptRepr<tirx::FunctionNode>();
+  RegisterScriptRepr<tirx::TileLayoutNode>();
+}
+
 }  // namespace tvm

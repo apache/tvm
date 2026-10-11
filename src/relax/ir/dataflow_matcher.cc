@@ -26,6 +26,7 @@
 
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_equal.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/dataflow_matcher.h>
 #include <tvm/relax/dataflow_pattern.h>
@@ -34,7 +35,6 @@
 #include <tvm/relax/type.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/sym/analyzer.h>
-#include <tvm/tirx/op.h>
 
 #include <array>
 #include <cstddef>
@@ -124,7 +124,7 @@ Expr DFPatternMatcher::UnwrapBindings(Expr expr, const ffi::Map<Var, Expr>& var2
     }
 
     // Unwrap SeqExpr with no bindings.  These can occur due to Relax
-    // IR constraints for the bodies of Function and If nodes.
+    // IR constraints for the bodies of Function and IfExpr nodes.
     if (auto seq = expr.as<SeqExprNode>()) {
       if (seq->blocks.empty()) {
         return seq->body;
@@ -153,13 +153,13 @@ bool DFPatternMatcher::VisitDFPattern(const DFPattern& pattern, const Expr& expr
 
   auto expr = UnwrapBindings(expr0, var2val_);
   if (memoize_ && memo_.count(pattern)) {
-    return expr.same_as(memo_[pattern]);
+    return expr.same_as(memo_.at(pattern));
   } else {
     PrimExpr cached_condition = symbolic_expr_condition_;
     size_t watermark = matched_nodes_.size();
     bool out = DFPatternFunctor::VisitDFPattern(pattern, expr);
     if (out) {
-      memo_[pattern] = expr;
+      memo_.insert_or_assign(pattern, expr);
       matched_nodes_.push_back(pattern);
     } else {
       ClearMap(watermark);
@@ -485,7 +485,7 @@ static bool ShapeEqual(AnalyzerObj* analyzer, const ffi::Array<PrimExpr>& lhs,
                        const ffi::Array<PrimExpr>& rhs) {
   if (lhs.size() != rhs.size()) return false;
   for (size_t i = 0; i < lhs.size(); ++i)
-    if (!tvm::prim::is_one(analyzer->Simplify(lhs[i] == rhs[i]))) return false;
+    if (!tvm::prim::IsOne(analyzer->Simplify(lhs[i] == rhs[i]))) return false;
   return true;
 }
 

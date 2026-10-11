@@ -34,11 +34,11 @@ def test_cp_async_raw_dtype_round_trips():
     # dtype in Call.dtype and must survive a TVMScript print -> parse round-trip
     # (it prints dtype-first via tirx.ptx.cp_async_raw). Guards the regression
     # where the element dtype was dropped after the flat op was phased out.
-    @T.prim_func
-    def f(A: T.Buffer((128,), "float16"), B: T.Buffer((128,), "float16")):
+    @T.function
+    def f(A: T.Tensor((128,), "float16"), B: T.Tensor((128,), "float16")):
         T.func_attr({"global_symbol": "f"})
         for i in T.serial(8):
-            T.s_tir.cp_async_raw("float16", B.data, i * 16, A.data, i * 16, 16)
+            T.s_tir.cp_async_raw(B.data, i * 16, A.data, i * 16, 16, ty="float16")
 
     reparsed = tvm.script.from_source(
         f.script(), extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx, "Ts": tvm.script.s_tir}
@@ -61,24 +61,47 @@ def generate_global_to_shared_vectorized_copy(dtype, vector_size):
     num_iters = 128 // vector_size
     vector_size_expr = tvm.runtime.convert(vector_size)
 
-    @Ts.prim_func
+    @Ts.function
     def ptx_global_to_shared_copy(
-        A: T.Buffer((32, 128), dtype), B: T.Buffer((32, 128), dtype)
+        A: T.Tensor((32, 128), dtype), B: T.Tensor((32, 128), dtype)
     ) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
-        bx = T.env_thread("blockIdx.x")
-        tx = T.env_thread("threadIdx.x")
-        T.launch_thread(bx, 1)
-        T.launch_thread(tx, 32)
+        T.launch_thread("blockIdx.x", 1)
+        tx = T.launch_thread("threadIdx.x", 32)
         with Ts.sblock():
             A_shared = Ts.sblock_alloc_buffer([32, 128], dtype, scope="shared")
             Ts.reads(A[0:32, 0:128])
             Ts.writes(B[0:32, 0:128])
 
-            T.attr("default", "async_scope", 1)
-            for i in T.serial(num_iters):
-                for j in T.vectorized(vector_size):
-                    A_shared[tx, i * vector_size_expr + j] = A[tx, i * vector_size_expr + j]
+            with Ts.async_copy_scope():
+                for i in T.serial(num_iters):
+                    for j in T.vectorized(vector_size):
+                        A_shared[tx, i * vector_size_expr + j] = A[tx, i * vector_size_expr + j]
+
+                T.evaluate(T.ptx.cp.async_.commit_group())
+                T.evaluate(T.ptx.cp.async_.wait_group(0))
+
+                for i in range(128):
+                    B[tx, i] = A_shared[tx, i]
+
+    return ptx_global_to_shared_copy
+
+
+@Ts.function
+def ptx_global_to_shared_copy_fp32x1(
+    A: T.Tensor((32, 128), "float32"), B: T.Tensor((32, 128), "float32")
+) -> None:
+    T.func_attr({"global_symbol": "main", "tirx.noalias": True})
+    T.launch_thread("blockIdx.x", 1)
+    tx = T.launch_thread("threadIdx.x", 32)
+    with Ts.sblock():
+        A_shared = Ts.sblock_alloc_buffer([32, 128], "float32", scope="shared")
+        Ts.reads(A[0:32, 0:128])
+        Ts.writes(B[0:32, 0:128])
+
+        with Ts.async_copy_scope():
+            for i in T.serial(128):
+                A_shared[tx, i] = A[tx, i]
 
             T.evaluate(T.ptx.cp.async_.commit_group())
             T.evaluate(T.ptx.cp.async_.wait_group(0))
@@ -86,62 +109,33 @@ def generate_global_to_shared_vectorized_copy(dtype, vector_size):
             for i in range(128):
                 B[tx, i] = A_shared[tx, i]
 
-    return ptx_global_to_shared_copy
 
-
-@Ts.prim_func
-def ptx_global_to_shared_copy_fp32x1(
-    A: T.Buffer((32, 128), "float32"), B: T.Buffer((32, 128), "float32")
-) -> None:
-    T.func_attr({"global_symbol": "main", "tirx.noalias": True})
-    bx = T.env_thread("blockIdx.x")
-    tx = T.env_thread("threadIdx.x")
-    T.launch_thread(bx, 1)
-    T.launch_thread(tx, 32)
-    with Ts.sblock():
-        A_shared = Ts.sblock_alloc_buffer([32, 128], "float32", scope="shared")
-        Ts.reads(A[0:32, 0:128])
-        Ts.writes(B[0:32, 0:128])
-
-        T.attr("default", "async_scope", 1)
-        for i in T.serial(128):
-            A_shared[tx, i] = A[tx, i]
-
-        T.evaluate(T.ptx.cp.async_.commit_group())
-        T.evaluate(T.ptx.cp.async_.wait_group(0))
-
-        for i in range(128):
-            B[tx, i] = A_shared[tx, i]
-
-
-@Ts.prim_func
+@Ts.function
 def ptx_global_to_shared_dyn_copy_fp16x8(
-    A: T.Buffer((32, 128), "float16"),
-    B: T.Buffer((32, 128), "float16"),
-    C: T.Buffer((32, 128), "float16"),
+    A: T.Tensor((32, 128), "float16"),
+    B: T.Tensor((32, 128), "float16"),
+    C: T.Tensor((32, 128), "float16"),
 ) -> None:
     T.func_attr({"global_symbol": "main", "tirx.noalias": True})
-    bx = T.env_thread("blockIdx.x")
-    tx = T.env_thread("threadIdx.x")
-    T.launch_thread(bx, 1)
-    T.launch_thread(tx, 32)
+    T.launch_thread("blockIdx.x", 1)
+    tx = T.launch_thread("threadIdx.x", 32)
     with Ts.sblock():
         A_shared = Ts.sblock_alloc_buffer([32, 128], "float16", scope="shared.dyn")
         B_shared = Ts.sblock_alloc_buffer([32, 128], "float16", scope="shared.dyn")
         Ts.reads(A[0:32, 0:128], B[0:32, 0:128])
         Ts.writes(C[0:32, 0:128])
 
-        T.attr("default", "async_scope", 1)
-        for i in T.serial(16):
-            for j in T.vectorized(8):
-                A_shared[tx, i * 8 + j] = A[tx, i * 8 + j]
-                B_shared[tx, i * 8 + j] = B[tx, i * 8 + j]
+        with Ts.async_copy_scope():
+            for i in T.serial(16):
+                for j in T.vectorized(8):
+                    A_shared[tx, i * 8 + j] = A[tx, i * 8 + j]
+                    B_shared[tx, i * 8 + j] = B[tx, i * 8 + j]
 
-        T.evaluate(T.ptx.cp.async_.commit_group())
-        T.evaluate(T.ptx.cp.async_.wait_group(0))
+            T.evaluate(T.ptx.cp.async_.commit_group())
+            T.evaluate(T.ptx.cp.async_.wait_group(0))
 
-        for i in range(128):
-            C[tx, i] = A_shared[tx, i] + B_shared[tx, i]
+            for i in range(128):
+                C[tx, i] = A_shared[tx, i] + B_shared[tx, i]
 
 
 @pytest.mark.gpu
@@ -155,6 +149,7 @@ def test_inject_async_copy():
 
         mod = tvm.IRModule.from_expr(f)
         mod = tvm.s_tir.transform.LowerOpaqueBlock()(mod)
+        mod = tvm.s_tir.transform.LowerThreadBinding()(mod)
         mod = tvm.tirx.transform.FlattenBuffer()(mod)
         if vec_size > 1:
             mod = tvm.tirx.transform.VectorizeLoop()(mod)
@@ -188,6 +183,7 @@ def test_inject_async_copy_shared_dyn():
 
     mod = tvm.IRModule.from_expr(f)
     mod = tvm.s_tir.transform.LowerOpaqueBlock()(mod)
+    mod = tvm.s_tir.transform.LowerThreadBinding()(mod)
     mod = tvm.tirx.transform.FlattenBuffer()(mod)
     mod = tvm.tirx.transform.VectorizeLoop()(mod)
     mod = tvm.s_tir.transform.MergeSharedMemoryAllocations()(mod)
@@ -216,7 +212,7 @@ def test_inject_async_copy_shared_dyn():
     tvm.testing.run_with_gpu_lock(run_and_check)
 
 
-# Note: the test_inject_async_copy_barrier case (and its prim_func helper)
+# Note: the test_inject_async_copy_barrier case (and its function helper)
 # was removed — it relied on the indexed barrier API
 # (`create_barriers`, `init_barrier_thread_count`, `arrive_barrier`,
 # `wait_barrier`) which fork does not provide; fork uses the
@@ -288,25 +284,19 @@ extern "C" __global__ void __launch_bounds__(16) main_kernel(float* __restrict__
   _ptr[((int)threadIdx.x)] = 0x0p+0f/*0.000000e+00*/;
   _ptr_1[((int)threadIdx.x)] = 0x0p+0f/*0.000000e+00*/;
   tvm_builtin_ptx_cp_async_commit_group_async_commit_group();
-  int cse_v1 = (((int)threadIdx.x) * 14);
-  int cse_v2 = (((int)threadIdx.x) + 16);
   ptx_cp_async_legacy_ca_4_4_4(_ptr, (((int)threadIdx.x) + 16), A_ptr, (((int)threadIdx.x) * 14));
   ptx_cp_async_legacy_ca_4_4_4(_ptr_1, (((int)threadIdx.x) + 16), B_ptr, (((int)threadIdx.x) * 14));
   tvm_builtin_ptx_cp_async_commit_group_async_commit_group();
-  int cse_v3 = (((int)threadIdx.x) + 32);
-  int cse_v6 = ((((int)threadIdx.x) * 14) + 1);
   ptx_cp_async_legacy_ca_4_4_4(_ptr, (((int)threadIdx.x) + 32), A_ptr, ((((int)threadIdx.x) * 14) + 1));
   ptx_cp_async_legacy_ca_4_4_4(_ptr_1, (((int)threadIdx.x) + 32), B_ptr, ((((int)threadIdx.x) * 14) + 1));
   tvm_builtin_ptx_cp_async_commit_group_async_commit_group();
-  int cse_v4 = (((int)threadIdx.x) * 16);
+  int cse_v1 = (((int)threadIdx.x) * 16);
   for (int i = 0; i < 13; ++i) {
-    int cse_v7 = (((((int)threadIdx.x) * 14) + i) + 2);
-    int cse_v9 = ((((i + 3) & 3) * 16) + ((int)threadIdx.x));
     ptx_cp_async_legacy_pred_ca_4_4_4(_ptr, ((((i + 3) & 3) * 16) + ((int)threadIdx.x)), A_ptr, (((((int)threadIdx.x) * 14) + i) + 2), (i < 12));
     tvm_builtin_ptx_cp_async_commit_group_async_commit_group();
     tvm_builtin_ptx_cp_async_wait_group_async_wait_group_5();
     __syncthreads();
-    int cse_v8 = (((i & 3) * 16) + ((int)threadIdx.x));
+    int cse_v5 = (((i & 3) * 16) + ((int)threadIdx.x));
     C_ptr[((((int)threadIdx.x) * 16) + i)] = (_ptr[(((i & 3) * 16) + ((int)threadIdx.x))] + _ptr_1[(((i & 3) * 16) + ((int)threadIdx.x))]);
     __syncthreads();
     ptx_cp_async_legacy_pred_ca_4_4_4(_ptr_1, ((((i + 3) & 3) * 16) + ((int)threadIdx.x)), B_ptr, (((((int)threadIdx.x) * 14) + i) + 2), (i < 12));
@@ -314,13 +304,15 @@ extern "C" __global__ void __launch_bounds__(16) main_kernel(float* __restrict__
   }
   tvm_builtin_ptx_cp_async_wait_group_async_wait_group_2();
   __syncthreads();
+  int cse_v2 = (((int)threadIdx.x) + 16);
   C_ptr[((((int)threadIdx.x) * 16) + 13)] = (_ptr[(((int)threadIdx.x) + 16)] + _ptr_1[(((int)threadIdx.x) + 16)]);
   tvm_builtin_ptx_cp_async_wait_group_async_wait_group_1();
   __syncthreads();
+  int cse_v3 = (((int)threadIdx.x) + 32);
   C_ptr[((((int)threadIdx.x) * 16) + 14)] = (_ptr[(((int)threadIdx.x) + 32)] + _ptr_1[(((int)threadIdx.x) + 32)]);
   tvm_builtin_ptx_cp_async_wait_group_async_wait_group_0();
   __syncthreads();
-  int cse_v5 = (((int)threadIdx.x) + 48);
+  int cse_v4 = (((int)threadIdx.x) + 48);
   C_ptr[((((int)threadIdx.x) * 16) + 15)] = (_ptr[(((int)threadIdx.x) + 48)] + _ptr_1[(((int)threadIdx.x) + 48)]);
 }
 
@@ -376,11 +368,11 @@ def postproc_if_missing_async_support():
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_cp_async_in_if_then_else(postproc_if_missing_async_support):
-    @Ts.prim_func
+    @Ts.function
     def simple_compute(
-        A: T.Buffer((16, 14), "float32"),
-        B: T.Buffer((16, 14), "float32"),
-        C: T.Buffer((16, 16), "float32"),
+        A: T.Tensor((16, 14), "float32"),
+        B: T.Tensor((16, 14), "float32"),
+        C: T.Tensor((16, 16), "float32"),
     ):
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
@@ -401,13 +393,13 @@ def test_cp_async_in_if_then_else(postproc_if_missing_async_support):
                         Ts.reads(A[tx, i])
                         Ts.writes(A_shared[tx, 0])
                         A_shared[tx, 0] = T.if_then_else(
-                            1 <= i and i < 15, A[tx, i - 1], T.float32(0), dtype="float32"
+                            1 <= i and i < 15, A[tx, i - 1], T.float32(0)
                         )
                     with Ts.sblock():
                         Ts.reads(B[tx, i])
                         Ts.writes(B_shared[tx, 0])
                         B_shared[tx, 0] = T.if_then_else(
-                            1 <= i and i < 15, B[tx, i - 1], T.float32(0), dtype="float32"
+                            1 <= i and i < 15, B[tx, i - 1], T.float32(0)
                         )
                     with Ts.sblock():
                         Ts.reads(A_shared[tx, 0], B_shared[tx, 0])
@@ -459,11 +451,11 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
     C_s0_3 = T.dynamic("C_s0_3", "int32")
     C_s1_3 = T.dynamic("C_s1_3", "int32")
 
-    @Ts.prim_func
+    @Ts.function
     def complex_compute(
-        A: T.Buffer((2, 16, 16, 1280), "float16"),
-        W: T.Buffer((1280, 3, 3, 1280), "float16"),
-        Conv: T.Buffer((512, 1280), "float16"),
+        A: T.Tensor((2, 16, 16, 1280), "float16"),
+        W: T.Tensor((1280, 3, 3, 1280), "float16"),
+        Conv: T.Tensor((512, 1280), "float16"),
     ):
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         # with Ts.sblock("root"):
@@ -506,7 +498,7 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
                                     scope="wmma.accumulator",
                                     offset_factor=16,
                                 )
-                                T.tvm_fill_fragment(
+                                T.gpu_fill_fragment(
                                     C.data,
                                     16,
                                     16,
@@ -698,20 +690,14 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
                                             scope="wmma.matrix_a",
                                             offset_factor=16,
                                         )
-                                        T.tvm_load_matrix_sync(
+                                        T.gpu_load_matrix_sync(
                                             C.data,
                                             16,
                                             16,
                                             16,
                                             C.ty.elem_offset // C_s0_1 // 16 * (C_s0_1 // 16)
                                             + C.ty.elem_offset % C_s0_1 // 16,
-                                            T.tvm_access_ptr(
-                                                T.type_annotation("float16"),
-                                                A_1.data,
-                                                A_1.ty.elem_offset,
-                                                A_s0_0 * 16,
-                                                1,
-                                            ),
+                                            A_1.ptr_to([0] * len(A_1.shape)),
                                             A_s0_0,
                                             "row_major",
                                         )
@@ -755,20 +741,14 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
                                             scope="wmma.matrix_b",
                                             offset_factor=16,
                                         )
-                                        T.tvm_load_matrix_sync(
+                                        T.gpu_load_matrix_sync(
                                             C.data,
                                             16,
                                             16,
                                             16,
                                             C.ty.elem_offset // C_s0_2 // 16 * (C_s0_2 // 16)
                                             + C.ty.elem_offset % C_s0_2 // 16,
-                                            T.tvm_access_ptr(
-                                                T.type_annotation("float16"),
-                                                A_1.data,
-                                                A_1.ty.elem_offset,
-                                                A_s0_1 * 16,
-                                                1,
-                                            ),
+                                            A_1.ptr_to([0] * len(A_1.shape)),
                                             A_s0_1,
                                             "col_major",
                                         )
@@ -830,7 +810,7 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
                                             scope="wmma.accumulator",
                                             offset_factor=16,
                                         )
-                                        T.tvm_mma_sync(
+                                        T.gpu_mma_sync(
                                             C.data,
                                             C.ty.elem_offset // C_s0_3 // 16 * (C_s0_3 // 16)
                                             + C.ty.elem_offset % C_s0_3 // 16,
@@ -873,20 +853,14 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
                                     strides=(C_s0_4, C_s1_4),
                                     offset_factor=16,
                                 )
-                                T.tvm_store_matrix_sync(
+                                T.gpu_store_matrix_sync(
                                     A_1.data,
                                     16,
                                     16,
                                     16,
                                     A_1.ty.elem_offset // A_s0_3 // 16 * (A_s0_3 // 16)
                                     + A_1.ty.elem_offset % A_s0_3 // 16,
-                                    T.tvm_access_ptr(
-                                        T.type_annotation("float16"),
-                                        C.data,
-                                        C.ty.elem_offset,
-                                        C_s0_4 * 16,
-                                        2,
-                                    ),
+                                    C.ptr_to([0] * len(C.shape)),
                                     C_s0_4,
                                     "row_major",
                                 )
@@ -902,37 +876,37 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
 def test_multiplication_nodes_are_inlined():
     @I.ir_module
     class Before:
-        @Ts.prim_func
-        def main(A: T.Buffer((32, 128), "float16")):
+        @Ts.function
+        def main(A: T.Tensor((32, 128), "float16")):
             tx = T.launch_thread("threadIdx.x", T.int64(32))
-            A_flattened = T.decl_buffer((4096,), "float16", data=A.data)
-            A_shared = T.decl_buffer([4096], "float16", scope="shared")
+            A_flattened = T.decl_tensor((4096,), "float16", data=A.data)
+            A_shared = T.decl_tensor([4096], "float16", scope="shared")
 
-            T.attr("default", "async_scope", 1)
-            for i in range(16):
-                cse_v1: T.int64 = T.Cast("int64", i)
-                A_shared[T.Ramp(tx * T.int64(128) + cse_v1 * T.int64(8), T.int64(1), 8)] = (
-                    A_flattened[T.Ramp(tx * T.int64(128) + cse_v1 * T.int64(8), T.int64(1), 8)]
-                )
-            T.ptx.cp.async_.commit_group()
-            T.ptx.cp.async_.wait_group(0)
+            with Ts.async_copy_scope():
+                for i in range(16):
+                    cse_v1: T.int64 = T.Cast("int64", i)
+                    A_shared[T.Ramp(tx * T.int64(128) + cse_v1 * T.int64(8), T.int64(1), 8)] = (
+                        A_flattened[T.Ramp(tx * T.int64(128) + cse_v1 * T.int64(8), T.int64(1), 8)]
+                    )
+                T.ptx.cp.async_.commit_group()
+                T.ptx.cp.async_.wait_group(0)
 
     @I.ir_module
     class Expected:
-        @Ts.prim_func
-        def main(A: T.Buffer((32, 128), "float16")):
+        @Ts.function
+        def main(A: T.Tensor((32, 128), "float16")):
             tx = T.launch_thread("threadIdx.x", T.int64(32))
-            A_flattened = T.decl_buffer((4096,), "float16", data=A.data)
-            A_shared = T.decl_buffer((4096,), "float16", scope="shared")
+            A_flattened = T.decl_tensor((4096,), "float16", data=A.data)
+            A_shared = T.decl_tensor((4096,), "float16", scope="shared")
             for i in range(16):
                 cse_v1: T.int64 = T.Cast("int64", i)
                 T.s_tir.cp_async_raw(
-                    "float16",
                     A_shared.data,
                     tx * T.int64(128) + cse_v1 * T.int64(8),
                     A_flattened.data,
                     tx * T.int64(128) + cse_v1 * T.int64(8),
                     16,
+                    ty="float16",
                 )
             T.ptx.cp.async_.commit_group()
             T.ptx.cp.async_.wait_group(0)

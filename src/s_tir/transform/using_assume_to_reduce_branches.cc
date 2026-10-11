@@ -37,14 +37,12 @@
 
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/ir/prim/builtin.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/op_attr_types.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
-#include <tvm/tirx/builtin.h>
 #include <tvm/tirx/function.h>
-#include <tvm/tirx/op.h>
 
 #include <unordered_map>
 
@@ -61,7 +59,7 @@ class AssumeChecker : public StmtExprVisitor {
  public:
   using StmtExprVisitor::Visit_;
 
-  /* This class checks if the primfunc has assume statement.
+  /* This class checks if the function has assume statement.
   If yes, then only the FuncAnanlyzerMutator class runs. This is to ensure speedup in the pass.*/
   bool has_assume = false;
 
@@ -72,7 +70,7 @@ class AssumeChecker : public StmtExprVisitor {
     return StmtExprVisitor::Visit(stmt);
   }
   ffi::Optional<VisitInterrupt> Visit_(const CallNode* op) override {
-    if (op->op.same_as(tirx::builtin::assume())) {
+    if (op->op.same_as(prim::assume_op())) {
       has_assume = true;
     }
     return std::nullopt;
@@ -84,7 +82,7 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
   using IRMutatorWithAnalyzer::Mutate;
   using IRMutatorWithAnalyzer::Mutate_;
 
-  /* This class analyzes the complete primfunc.
+  /* This class analyzes the complete function.
   It parses the buffer assumptions and eliminates the redundant branch
   introduced due to layout specific padding by leveraging from buffer assumptions.
   On eliminating the branch there are more opportunities to vectorize the code
@@ -92,14 +90,14 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
 
   Example:
   -------------
-  Prim Func Before :
+  Function Before :
   for (...)
     T.assume( assume_condition or A[i] == 0 )
   for (...)
     out = T.if_then_else(if_then_else_condition, 0, function(A))
     # here function(A) is some function on Var A
 
-  Prim Func After :
+  Function After :
     for (...)
     T.assume( assume_condition or A[i] == 0 )
   for (...)
@@ -138,9 +136,8 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
   std::vector<PrimExpr> conditions_;
 
   // Storing all the buffer assumptions data in map
-  std::unordered_map<tirx::BufferVar, assume_struct, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
+  std::unordered_map<tirx::TensorVar, assume_struct, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
       map_buffer_assumption;
-  tirx::BufferVar current_bufferstorenode_name;
 
   struct InternalConstraintContext {
     /* This stuct appends the constraint passed to it in the conditions list.
@@ -200,15 +197,14 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
   }
 
   UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) override {
-    if (map_buffer_assumption.find(op->source.as_or_throw<tvm::tirx::BufferVar>()) !=
+    if (map_buffer_assumption.find(op->source.as_or_throw<tvm::tirx::TensorVar>()) !=
         map_buffer_assumption.end()) {
-      PrimExpr buf_value;
       /* If the cuurent context where the buffer load is present is same as
       the context of the buffer assumption then, return the buffer value present in the assumption.
       This will eventually replace the bufferload value in the complete expresison */
 
       auto buffer_assumption =
-          map_buffer_assumption[op->source.as_or_throw<tvm::tirx::BufferVar>()];
+          map_buffer_assumption.at(op->source.as_or_throw<tvm::tirx::TensorVar>());
       PrimExpr current_predicate_and_context = CurrentScopePredicate();
       PrimExpr buffer_predicate_and_context =
           buffer_assumption.buffer_context && buffer_assumption.buffer_predicate;
@@ -216,30 +212,29 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
           current_predicate_and_context, buffer_predicate_and_context, /*map_free_vars=*/true);
 
       if (current_context_and_buffer_constraint_is_same) {
-        buf_value = buffer_assumption.buffer_value;
-        return buf_value;
+        return buffer_assumption.buffer_value;
       }
     }
     return ffi::Unchanged();
   }
 
-  UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) final {
-    BufferStore store = Parent::Mutate_(op, inplace_mode)
+  UnchangedOr<Stmt> Mutate_(const TensorStoreNode* op, InplaceMode inplace_mode) final {
+    TensorStore store = Parent::Mutate_(op, inplace_mode)
                             .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
-                            .as_or_throw<BufferStore>();
+                            .as_or_throw<TensorStore>();
     if (!op->unique()) inplace_mode = InplaceMode::kDisallow;
 
     // Eliminate the builtin if_then_else statement
     if (auto* call = op->value.as<CallNode>()) {
-      if (call->op.same_as(prim::builtin::if_then_else())) {
+      if (call->op.same_as(prim::if_then_else_op())) {
         PrimExpr cond = call->args[0].as_or_throw<PrimExpr>();
         PrimExpr then_clause = call->args[1].as_or_throw<PrimExpr>();
         PrimExpr else_clause = call->args[2].as_or_throw<PrimExpr>();
 
-        PrimExpr then_clause_in_then_context;
-        PrimExpr else_clause_in_then_context;
-        PrimExpr then_clause_in_else_context;
-        PrimExpr else_clause_in_else_context;
+        PrimExpr then_clause_in_then_context{ffi::UnsafeInit{}};
+        PrimExpr else_clause_in_then_context{ffi::UnsafeInit{}};
+        PrimExpr then_clause_in_else_context{ffi::UnsafeInit{}};
+        PrimExpr else_clause_in_else_context{ffi::UnsafeInit{}};
         {
           // Simplifying expressions in " then context "
           InternalConstraintContext then_ctx(this, cond);
@@ -268,23 +263,23 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
         if (ffi::StructuralEqual()(then_clause_in_then_context, else_clause_in_then_context)) {
           PrimExpr value = analyzer_->Simplify(else_clause);
           if (inplace_mode == InplaceMode::kAllow) {
-            const_cast<BufferStoreNode*>(op)->value = std::move(value);
+            const_cast<TensorStoreNode*>(op)->value = std::move(value);
             return ffi::Unchanged();
           } else {
-            auto copy = ffi::make_object<BufferStoreNode>(*op);
+            auto copy = ffi::make_object<TensorStoreNode>(*op);
             copy->value = std::move(value);
-            return BufferStore(std::move(copy));
+            return TensorStore(std::move(copy));
           }
         } else if (ffi::StructuralEqual()(then_clause_in_else_context,
                                           else_clause_in_else_context)) {
           PrimExpr value = analyzer_->Simplify(then_clause);
           if (inplace_mode == InplaceMode::kAllow) {
-            const_cast<BufferStoreNode*>(op)->value = std::move(value);
+            const_cast<TensorStoreNode*>(op)->value = std::move(value);
             return ffi::Unchanged();
           } else {
-            auto copy = ffi::make_object<BufferStoreNode>(*op);
+            auto copy = ffi::make_object<TensorStoreNode>(*op);
             copy->value = std::move(value);
-            return BufferStore(std::move(copy));
+            return TensorStore(std::move(copy));
           }
         } else {
           return Parent::Mutate_(op, inplace_mode);
@@ -295,7 +290,7 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
   }
 
   UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) override {
-    if (op->op.same_as(tirx::builtin::assume())) {
+    if (op->op.same_as(prim::assume_op())) {
       Assume(op->args[0].as_or_throw<PrimExpr>());
     }
     return Parent::Mutate_(op, inplace_mode);
@@ -309,7 +304,6 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
 
   void AssumeConstraintComponent(PrimExpr assumption) {
     PrimExpr additional_predicate = IntImm::Bool(true);
-    assume_struct buf_data;
 
     std::vector<PrimExpr> buffer_exprs;
     for (const auto& expr : sym::ExtractComponents(assumption)) {
@@ -349,8 +343,8 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
 
     // Parse the statement and store the desired values
     // Ex: A[i]==0, load = A[i], value = 0
-    TensorLoad load;
-    PrimExpr value;
+    TensorLoad load{ffi::UnsafeInit{}};
+    PrimExpr value{ffi::UnsafeInit{}};
     if (auto opt = as_equal_node->a.as<TensorLoad>()) {
       load = opt.value();
       value = as_equal_node->b;
@@ -364,20 +358,17 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
 
     // Populating the assume statement predicate, buffer, value
     // and the context of the assume statement
-    buf_data.buffer_context = CurrentScopePredicate();
-    buf_data.buffer_predicate = additional_predicate;
-    buf_data.buffer_load = load;
-    buf_data.buffer_value = value;
-    buf_data.buffer_indices = load->indices;
+    assume_struct buf_data{CurrentScopePredicate(), additional_predicate, load, value,
+                           load->indices};
     for (size_t i = 0; i < load->indices.size(); i++) {
       buf_data.buffer_indices.push_back(analyzer_->Simplify(load->indices[i]));
     }
-    map_buffer_assumption[buf_data.buffer_load->source.as_or_throw<tvm::tirx::BufferVar>()] =
-        buf_data;
+    map_buffer_assumption.insert_or_assign(
+        buf_data.buffer_load->source.as_or_throw<tvm::tirx::TensorVar>(), buf_data);
 
     auto has_side_effect = SideEffect(value) > CallEffectKind::kPure;
     TVM_FFI_ICHECK(!has_side_effect)
-        << "BufferVar value in constraint must be pure expression, but was " << value;
+        << "TensorVar value in constraint must be pure expression, but was " << value;
     if (has_side_effect) {
       return;
     }
@@ -387,22 +378,22 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
 namespace transform {
 
 Pass UseAssumeToReduceBranches() {
-  auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
+  auto pass_func = [](Function f, IRModule m, PassContext ctx) {
     auto* n = f.CopyOnWrite();
     sym::Analyzer analyzer;
 
     // The pass runs & eliminates pad branch with overcompute only if,
-    // the primfunc has op_pattern defined and is an elementwise op.
-    // AnnotateTIROpPattern pass will set op_pattern in op attributes of the primfunc.
-    if (n->attrs.GetAttr<int64_t>("op_pattern").has_value()) {
-      ffi::Optional<int64_t> opt_pattern = f->GetAttr<int64_t>("op_pattern");
+    // the function has op_pattern defined and is an elementwise op.
+    // AnnotateTIROpPattern pass will set op_pattern in op attributes of the function.
+    if (n->attrs.GetAttr<int64_t>(tvm::relax::attr::kOpPattern).has_value()) {
+      ffi::Optional<int64_t> opt_pattern = f->GetAttr<int64_t>(tvm::relax::attr::kOpPattern);
       if (opt_pattern.has_value()) {
         relax::OpPatternKind pattern;
         pattern = static_cast<relax::OpPatternKind>(opt_pattern.value());
 
         if (pattern == relax::OpPatternKind::kElemWise ||
             pattern == relax::OpPatternKind::kBroadcast) {
-          // If the primfunc contains assume statement then, run the mutator pass.
+          // If the function contains assume statement then, run the mutator pass.
           auto assume_checker = ffi::make_object<AssumeChecker>();
           assume_checker->Visit(std::move(n->body));
 
@@ -417,7 +408,7 @@ Pass UseAssumeToReduceBranches() {
     }
     return f;
   };
-  return CreatePrimFuncPass(pass_func, 0, "s_tir.UseAssumeToReduceBranches", {});
+  return CreateFunctionPass(pass_func, 0, "s_tir.UseAssumeToReduceBranches");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

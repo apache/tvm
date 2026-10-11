@@ -19,10 +19,9 @@ import functools
 
 import tvm_ffi
 
-from tvm.ir import Call, Op
-from tvm.tirx import Bind, IntImm
-from tvm.tirx.buffer import Buffer
-from tvm.tirx.transform.function_pass import prim_func_pass
+from tvm.ir import Bind, Call, Op, Tuple, Var
+from tvm.tirx import IntImm
+from tvm.tirx.transform.function_pass import function_pass
 
 
 def is_const_shape(shape) -> bool:
@@ -32,7 +31,7 @@ def is_const_shape(shape) -> bool:
     return True
 
 
-def get_buffer_size(buffer: Buffer, shape, dtype, scope: str) -> int:
+def get_buffer_size(buffer: Var, shape, dtype, scope: str) -> int:
     if scope == "trn.sbuf":
         if buffer.ty.layout is None:
             # the first dimension is partition size
@@ -46,7 +45,7 @@ def get_buffer_size(buffer: Buffer, shape, dtype, scope: str) -> int:
         return None
     if not is_const_shape(shape):
         raise ValueError(
-            f"Buffer {buffer.name} has non-constant shape. Do not know how to allocate it."
+            f"Var {buffer.name} has non-constant shape. Do not know how to allocate it."
         )
     return int(num_elem * dtype.itemsize)
 
@@ -56,10 +55,11 @@ def _get_alloc_pool_start(stmt) -> int:
 
     def collect_alloc_buffer(op: Bind):
         nonlocal alloc_pool_start
-        if not isinstance(op.value, Call) or op.value.op != Op.get("tirx.alloc_buffer"):
+        if not isinstance(op.value, Call) or op.value.op != Op.get("tirx.alloc_tensor"):
             return
         buffer = op.var
-        if len(buffer.ty.allocated_addr) == 0:
+        allocated_addr = op.value.args[3].fields if len(op.value.args) == 4 else []
+        if len(allocated_addr) == 0:
             return
         shape = op.value.args[0].fields
         dtype = op.value.args[1].value
@@ -67,7 +67,7 @@ def _get_alloc_pool_start(stmt) -> int:
         buffer_size = get_buffer_size(buffer, shape, dtype, scope)
         if buffer_size is None:
             return
-        alloc_pool_start = max(alloc_pool_start, buffer.ty.allocated_addr[-1] + buffer_size)
+        alloc_pool_start = max(alloc_pool_start, allocated_addr[-1] + buffer_size)
 
     tvm_ffi.structural_walk(stmt, (Bind, collect_alloc_buffer), order="post")
     return alloc_pool_start
@@ -75,46 +75,43 @@ def _get_alloc_pool_start(stmt) -> int:
 
 def _allocate_missing_buffers(stmt, alloc_pool_start: int):
     alloc_offset = alloc_pool_start
-    buffer_map = {}
 
     def allocate_buffer(op: Bind):
         nonlocal alloc_offset
-        if not isinstance(op.value, Call) or op.value.op != Op.get("tirx.alloc_buffer"):
+        if not isinstance(op.value, Call) or op.value.op != Op.get("tirx.alloc_tensor"):
             return op
         buffer = op.var
         shape = op.value.args[0].fields
         dtype = op.value.args[1].value
         scope = op.value.args[2].value
         buffer_size = get_buffer_size(buffer, shape, dtype, scope)
-        if len(buffer.ty.allocated_addr) == 0 and buffer_size is not None:
-            new_buffer = buffer.with_allocated_addr([alloc_offset])
-            buffer_map[buffer] = new_buffer
+        allocated_addr = op.value.args[3].fields if len(op.value.args) == 4 else []
+        if len(allocated_addr) == 0 and buffer_size is not None:
+            args = list(op.value.args[:3])
+            args.append(Tuple([IntImm("int32", int(alloc_offset))]))
             alloc_offset += buffer_size
             return Bind(
-                new_buffer,
+                buffer,
                 Call(
                     op.value.op,
-                    op.value.args,
+                    args,
                     attrs=op.value.attrs,
                     ty_args=op.value.ty_args,
-                    span=op.value.span,
-                    ret_ty=new_buffer.ty,
+                    loc=op.value.loc,
+                    ty=op.value.ty,
                 ),
-                op.span,
+                op.loc,
             )
         return op
 
-    def replace_buffer(op):
-        return buffer_map.get(op, op)
-
     return tvm_ffi.structural_map(
         stmt,
-        [(Bind, allocate_buffer), (Buffer, replace_buffer)],
+        (Bind, allocate_buffer),
         order="pre",
     )
 
 
-@prim_func_pass(opt_level=0, name="TrnNaiveAllocator")
+@function_pass(opt_level=0, name="TrnNaiveAllocator")
 class TrnNaiveAllocator:
     def transform_function(self, func, mod, ctx):
         alloc_pool_start = _get_alloc_pool_start(func.body)

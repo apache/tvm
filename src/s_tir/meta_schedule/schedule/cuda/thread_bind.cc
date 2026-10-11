@@ -16,9 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ir/prim/op.h>
 #include <tvm/s_tir/meta_schedule/schedule/cuda/thread_bind.h>
 #include <tvm/s_tir/schedule/schedule.h>
-#include <tvm/tirx/op.h>
 
 #include <algorithm>
 #include <limits>
@@ -127,7 +127,7 @@ void BindBlockThreadIdx(Schedule sch, SBlockRV block_rv,  //
         i_thread_idx = i;
       }
     }
-    if (loop->kind != ForKind::kSerial) {
+    if (loop->kind != ForKind::kDefault) {
       if (i_multi_child == -1) {
         i_multi_child = i;
       }

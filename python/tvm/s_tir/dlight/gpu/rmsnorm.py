@@ -19,10 +19,9 @@
 
 import tvm
 from tvm import tirx
-from tvm.ir import Call, TensorLoad
+from tvm.ir import Call, TensorLoad, TensorStore
 from tvm.s_tir import SBlock
 from tvm.target import Target
-from tvm.tirx import BufferStore
 from tvm.tirx.expr import Cast
 
 from ..base import ScheduleRule
@@ -32,9 +31,9 @@ def identify_cast_or_load_block(block: SBlock) -> bool:
     if len(block.reads) != 1 or len(block.writes) != 1:
         return False
 
-    if not isinstance(block.body, BufferStore):
+    if len(block.body) != 1 or not isinstance(block.body[0], TensorStore):
         return False
-    store = block.body
+    store = block.body[0]
 
     # check types
     if isinstance(store.value, TensorLoad):
@@ -61,16 +60,16 @@ def identify_rsqrt_block(block: SBlock) -> bool:
     if len(block.reads) != 1 or len(block.writes) != 1:
         return False
 
-    if not isinstance(block.body, BufferStore):
+    if len(block.body) != 1 or not isinstance(block.body[0], TensorStore):
         return False
-    store = block.body
+    store = block.body[0]
 
     if not isinstance(store.value, Call):
         return False
     call = store.value
     op = call.op
 
-    return op == tvm.ir.op.Op.get("tirx.rsqrt")
+    return op == tvm.ir.op.Op.get("prim.rsqrt")
 
 
 class RMSNorm(ScheduleRule):
@@ -78,7 +77,7 @@ class RMSNorm(ScheduleRule):
 
     def apply(  # pylint: disable=too-many-locals,missing-docstring
         self,
-        func: tirx.PrimFunc,
+        func: tirx.Function,
         target: Target,
         _: bool,
     ) -> "tvm.s_tir.Schedule":

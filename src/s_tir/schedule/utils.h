@@ -23,6 +23,7 @@
 #include <tvm/ffi/extra/json.h>
 #include <tvm/ffi/extra/serialization.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/s_tir/analysis.h>
 #include <tvm/s_tir/schedule/instruction.h>
 #include <tvm/s_tir/schedule/schedule.h>
@@ -36,7 +37,6 @@
 #include <tvm/sym/iter_affine_map.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/function.h>
-#include <tvm/tirx/op.h>
 
 #include <string>
 #include <unordered_map>
@@ -115,8 +115,7 @@ inline bool CanRelaxStorageUnderThread(const runtime::StorageScope& storage_scop
  * \param to_remove The Stmt to be removed
  * \return The removal result
  */
-inline Stmt RemoveFromSeqStmt(const SeqStmt& seq, const Stmt& to_remove) {
-  TVM_FFI_ICHECK_GT(seq->size(), 1);
+inline SeqStmt RemoveFromSeqStmt(const SeqStmt& seq, const Stmt& to_remove) {
   ffi::Array<Stmt> new_stmts;
   new_stmts.reserve(seq->size());
   for (const Stmt& stmt : seq->seq) {
@@ -130,33 +129,22 @@ inline Stmt RemoveFromSeqStmt(const SeqStmt& seq, const Stmt& to_remove) {
     }
     new_stmts.push_back(stmt);
   }
-  return SeqStmt::Flatten(new_stmts);
+  return SeqStmt(new_stmts, seq->loc);
 }
 
 /*!
- * \brief Convert a Stmt to an Array.
- * \param stmt The Stmt to be converted to
- * \return If the Stmt is SeqStmt, then returns the sequence;
- * Otherwise, returns a single-element Array with the Stmt inside.
+ * \brief Get the statements of a scope body.
+ * \param stmt The scope body.
+ * \return The statements in the body.
  */
-inline ffi::Array<Stmt> AsArray(const Stmt& stmt) {
-  if (const auto* seq_stmt = stmt.as<SeqStmtNode>()) {
-    return seq_stmt->seq;
-  }
-  return {stmt};
-}
+inline ffi::Array<Stmt> AsArray(const SeqStmt& stmt) { return stmt->seq; }
 
 /*!
- * \brief Checks of a statement is a SeqStmt that contains multiple statements
+ * \brief Check whether a scope body contains exactly one statement.
  * \param stmt The statement to be checked
  * \return A boolean indicating the result
  */
-inline bool IsSingleStmt(const Stmt& stmt) {
-  if (const auto* seq_stmt = stmt.as<SeqStmtNode>()) {
-    return seq_stmt->seq.size() == 1;
-  }
-  return true;
-}
+inline bool IsSingleStmt(const SeqStmt& stmt) { return stmt->size() == 1; }
 
 /******** IterVar ********/
 
@@ -178,8 +166,8 @@ inline IterVar IterVarFromLoop(const For& loop, ffi::String name, IterVarType it
  * \return The thread scope bound to the loop
  */
 inline runtime::ThreadScope GetThreadScope(const ForNode* loop) {
-  if (loop->kind == ForKind::kThreadBinding) {
-    return runtime::ThreadScope::Create(loop->thread_binding.value()->thread_tag);
+  if (tvm::tirx::GetThreadBinding(loop).has_value()) {
+    return runtime::ThreadScope::Create(tvm::tirx::GetThreadBinding(loop).value());
   }
   return runtime::ThreadScope{-1, -1};
 }
@@ -319,7 +307,7 @@ inline void ReorderAndFuseReductionLoops(const s_tir::Schedule& sch,
   // Step 1. Add spatial loops.
   *num_spatial_loops = 0;
   for (size_t i = 0; i < loops.size(); ++i) {
-    if (GetLoopIterType(loop_srefs[i]) == tirx::kDataPar) {
+    if (GetLoopIterType(loop_srefs[i]) == s_tir::kDataPar) {
       new_order.push_back(loops[i]);
       (*num_spatial_loops)++;
     }
@@ -327,7 +315,7 @@ inline void ReorderAndFuseReductionLoops(const s_tir::Schedule& sch,
   // Step 2. Add reduction loops.
   ffi::Array<s_tir::LoopRV> reduction_loops;
   for (size_t i = 0; i < loops.size(); ++i) {
-    if (GetLoopIterType(loop_srefs[i]) == tirx::kCommReduce) {
+    if (GetLoopIterType(loop_srefs[i]) == s_tir::kCommReduce) {
       new_order.push_back(loops[i]);
       reduction_loops.push_back(loops[i]);
     }
@@ -385,9 +373,9 @@ inline std::unordered_set<std::string> GetSBlockNames(const IRModule& mod) {
     std::unordered_set<std::string> block_names;
   };
 
-  if (auto prim_func = tirx::FindEntryFunc(mod, nullptr)) {
+  if (auto function = tirx::FindEntryFunc(mod, nullptr)) {
     auto collector = ffi::make_object<BlockNameCollector>();
-    collector->Visit(prim_func->body);
+    collector->Visit(function->body);
     return collector->block_names;
   }
   return {};

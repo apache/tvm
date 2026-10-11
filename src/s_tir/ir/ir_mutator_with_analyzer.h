@@ -34,8 +34,8 @@ class IRMutatorWithAnalyzer : public tirx::IRMutatorWithAnalyzer {
   explicit IRMutatorWithAnalyzer(const sym::Analyzer& analyzer)
       : IRMutatorWithAnalyzer(analyzer.get()) {}
   explicit IRMutatorWithAnalyzer(sym::AnalyzerObj* analyzer) : Parent(analyzer, GlobalVTable()) {}
-  virtual UnchangedOr<tirx::Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode);
-  virtual UnchangedOr<tirx::Stmt> Mutate_(const SBlockRealizeNode* op, InplaceMode inplace_mode) {
+  virtual UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode);
+  virtual UnchangedOr<Stmt> Mutate_(const SBlockRealizeNode* op, InplaceMode inplace_mode) {
     return s_tir::StmtExprMutator::MutateBlockRealize(this, op, inplace_mode);
   }
 

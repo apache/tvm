@@ -42,6 +42,9 @@
 #include <llvm/Support/raw_ostream.h>
 #include <llvm/Target/TargetMachine.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/tirx/op/gpu.h>
+#include <tvm/tirx/op/memory.h>
+#include <tvm/tirx/stmt.h>
 #if TVM_LLVM_VERSION < 170
 #include <llvm/Transforms/IPO/PassManagerBuilder.h>
 #endif
@@ -63,11 +66,11 @@ namespace codegen {
 // NVPTX code generator.
 class CodeGenNVPTX : public CodeGenLLVM {
  public:
-  llvm::Function* DeclareFunction(const GlobalVar& gvar, const PrimFunc& f) final {
+  llvm::Function* DeclareFunction(const GlobalVar& gvar, const Function& f) final {
     // add function as void return value
     return CodeGenLLVM::DeclareFunctionInternal(gvar, f);
   }
-  void AddFunction(const GlobalVar& gvar, const PrimFunc& f) final {
+  void AddFunction(const GlobalVar& gvar, const Function& f) final {
     // add function as void return value
     CodeGenLLVM::AddFunctionInternal(gvar, f);
     // annotate as kernel function
@@ -80,18 +83,18 @@ class CodeGenNVPTX : public CodeGenLLVM {
 
   void Dispatch_(const BindNode* op) final {
     if (const auto* call = op->value.as<CallNode>();
-        call && call->op.same_as(tirx::builtin::alloc_buffer())) {
-      return DispatchAllocBuffer(op, call);
+        call && call->op.same_as(tirx::alloc_tensor_op())) {
+      return DispatchAllocTensor(op, call);
     }
     CodeGenLLVM::Dispatch_(op);
   }
 
-  void DispatchAllocBuffer(const BindNode* op, const CallNode* buffer_call) {
+  void DispatchAllocTensor(const BindNode* op, const CallNode* buffer_call) {
     tvm::Tuple shape = buffer_call->args[0].as_or_throw<tvm::Tuple>();
     DLDataType dtype = buffer_call->args[1].as_or_throw<DataTypeImm>()->value;
     ffi::String scope = buffer_call->args[2].as_or_throw<StringImm>()->value;
-    BufferVar buffer = op->var.as_or_throw<BufferVar>();
-    DictAttrs annotations = buffer_call->attrs.as_or_throw<DictAttrs>();
+    TensorVar buffer = op->var.as_or_throw<TensorVar>();
+    DictAttrs annotations = buffer_call->attrs.value().as_or_throw<DictAttrs>();
     llvm::Value* buf = nullptr;
     StorageInfo& info = alloc_storage_info_[buffer.get()];
     // maximum necessary alignment in the NV devices
@@ -139,14 +142,14 @@ class CodeGenNVPTX : public CodeGenLLVM {
                                                        buf->getType()->getPointerAddressSpace()));
     TVM_FFI_ICHECK(!var_map_.count(buffer.get()));
     var_map_[buffer.get()] = buf;
-    if (annotations->dict.count(tirx::attr::kVolatile)) {
+    if (annotations->dict.count(tvm::tirx::attr::kVolatile)) {
       volatile_buf_.insert(buffer.get());
     }
   }
 
   // Return the thread index via intrinsics.
-  llvm::Value* GetThreadIndex(const IterVar& iv) final {
-    runtime::ThreadScope ts = runtime::ThreadScope::Create(iv->thread_tag);
+  llvm::Value* GetThreadIndex(const PrimVar& var, const ffi::String& thread_tag) final {
+    runtime::ThreadScope ts = runtime::ThreadScope::Create(thread_tag);
     llvm::Intrinsic::ID intrin_id = llvm::Intrinsic::nvvm_read_ptx_sreg_tid_x;
     if (ts.rank == 1) {
       switch (ts.dim_index) {
@@ -185,7 +188,7 @@ class CodeGenNVPTX : public CodeGenLLVM {
     llvm::Function* f = llvm::Intrinsic::getDeclaration(module_.get(), intrin_id);
 #endif
     llvm::Value* result = builder_->CreateCall(f, {});
-    return this->CreateCast(PrimType::Int(32), iv->var.ty(), result);
+    return this->CreateCast(PrimType::Int(32), var.ty(), result);
   }
 
   llvm::Value* CreateStorageSync(const CallNode* op) final {
@@ -260,11 +263,11 @@ static bool GetWarpShuffleIntrinsic(const CallNode* op, llvm::Intrinsic::ID* id)
       llvm::Intrinsic::nvvm_shfl_down_i32, llvm::Intrinsic::nvvm_shfl_down_f32};
 
   int offset = 0;
-  if (op->op.same_as(builtin::tvm_warp_shuffle())) {
+  if (op->op.same_as(tirx::gpu_warp_shuffle_op())) {
     offset = 0;
-  } else if (op->op.same_as(builtin::tvm_warp_shuffle_up())) {
+  } else if (op->op.same_as(tirx::gpu_warp_shuffle_up_op())) {
     offset = 2;
-  } else if (op->op.same_as(builtin::tvm_warp_shuffle_down())) {
+  } else if (op->op.same_as(tirx::gpu_warp_shuffle_down_op())) {
     offset = 4;
   } else {
     return false;
@@ -291,13 +294,13 @@ llvm::Value* CodeGenNVPTX::CreateIntrinsic(const CallNode* op) {
     llvm::Type* return_type = arg_type[0];
     llvm::Function* func = GetIntrinsicDecl(id, return_type, arg_type);
     return builder_->CreateCall(func, arg_value);
-  } else if (op->op.same_as(builtin::tvm_warp_activemask())) {
+  } else if (op->op.same_as(tirx::gpu_warp_activemask_op())) {
     // Only nvptx target may keep this intrinsic at this point.
     // PTX assembly: asm "activemask.b32 r1;"
     auto fty = llvm::FunctionType::get(t_int32_, false);
     auto val = llvm::InlineAsm::get(fty, "activemask.b32 %0", "=r", true);
     return builder_->CreateCall(val);
-  } else if (op->op.same_as(builtin::atomic_add())) {
+  } else if (op->op.same_as(tirx::atomic_add_op())) {
     PrimExpr value = args[1].as_or_throw<PrimExpr>();
     PrimType value_ty = value.ty();
     TVM_FFI_ICHECK(value_ty.bits() == 32) << "Only supports 32 bit atomic for now";

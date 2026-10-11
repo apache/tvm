@@ -22,7 +22,7 @@
 #include <tvm/te/tensor.h>
 #include <tvm/tirx/function.h>
 
-#include "../../te/operation/create_primfunc.h"
+#include "../../te/operation/create_function.h"
 #include "./utils.h"
 
 namespace tvm {
@@ -31,10 +31,9 @@ namespace meta_schedule {
 
 ExtractedTask::ExtractedTask(ffi::String task_name, IRModule mod, Target target,
                              ffi::Array<IRModule> dispatched, int weight) {
-  ffi::ObjectPtr<ExtractedTaskNode> n = ffi::make_object<ExtractedTaskNode>();
+  ffi::ObjectPtr<ExtractedTaskNode> n = ffi::make_object<ExtractedTaskNode>(target);
   n->task_name = task_name;
   n->mod = mod;
-  n->target = target;
   n->dispatched = dispatched;
   n->weight = weight;
   data_ = n;

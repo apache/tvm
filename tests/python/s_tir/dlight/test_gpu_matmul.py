@@ -28,8 +28,8 @@ def test_matmul():
     # fmt: off
     m = T.dynamic("m")
 
-    @Ts.prim_func(private=True)
-    def before(inp0: T.Buffer((T.int64(1), m, T.int64(4096))), inp1: T.Buffer((T.int64(4096), T.int64(4096)), "float32"), matmul: T.Buffer((T.int64(1), m, T.int64(4096)))):
+    @Ts.function(private=True)
+    def before(inp0: T.Tensor((T.int64(1), m, T.int64(4096))), inp1: T.Tensor((T.int64(4096), T.int64(4096)), "float32"), matmul: T.Tensor((T.int64(1), m, T.int64(4096)))):
 
         for i0, i1, i2, k in T.grid(T.int64(1), m, T.int64(4096), T.int64(4096)):
             with Ts.sblock("matmul"):
@@ -40,8 +40,8 @@ def test_matmul():
 
     m = T.dynamic("m")
 
-    @Ts.prim_func(private=True)
-    def expected(inp0: T.Buffer((T.int64(1), m, T.int64(4096))), inp1: T.Buffer((T.int64(4096), T.int64(4096)), "float32"), matmul: T.Buffer((T.int64(1), m, T.int64(4096)))):
+    @Ts.function(private=True)
+    def expected(inp0: T.Tensor((T.int64(1), m, T.int64(4096))), inp1: T.Tensor((T.int64(4096), T.int64(4096)), "float32"), matmul: T.Tensor((T.int64(1), m, T.int64(4096)))):
         T.func_attr({"tirx.is_scheduled": True})
 
         # with Ts.sblock("root"):
@@ -53,7 +53,7 @@ def test_matmul():
                 for ax2_1 in T.thread_binding(T.int64(1), thread="vthread.y"):
                     for ax1_1 in T.thread_binding(T.int64(1), thread="vthread.x"):
                         for ax2_2 in T.thread_binding(T.int64(16), thread="threadIdx.y"):
-                            for ax1_2 in T.thread_binding(T.int64(8), thread="threadIdx.x", annotations={"pragma_auto_unroll_max_step": 256, "pragma_unroll_explicit": 1}):
+                            for ax1_2 in T.thread_binding(T.int64(8), thread="threadIdx.x", annotations={"auto_unroll_max_step": 256, "unroll_explicit": 1}):
                                 for ax1_3_init, ax2_3_0_init in T.grid(T.int64(4), T.int64(2)):
                                     for ax2_3_1_init in T.vectorized(T.int64(2)):
                                         with Ts.sblock("matmul_init"):
@@ -120,8 +120,8 @@ def test_matmul_int32():
     # fmt: off
     m = T.dynamic("m", "int32")
 
-    @Ts.prim_func(private=True)
-    def func(inp0: T.Buffer((1, m, 4096)), inp1: T.Buffer((4096, 4096), "float32"), matmul: T.Buffer((1, m, 4096))):
+    @Ts.function(private=True)
+    def func(inp0: T.Tensor((1, m, 4096)), inp1: T.Tensor((4096, 4096), "float32"), matmul: T.Tensor((1, m, 4096))):
 
         for i0, i1, i2, k in T.grid(1, m, 4096, 4096):
             with Ts.sblock("matmul"):
@@ -132,8 +132,8 @@ def test_matmul_int32():
 
     m = T.dynamic("m", "int32")
 
-    @Ts.prim_func(private=True)
-    def expected(inp0: T.Buffer((1, m, 4096)), inp1: T.Buffer((4096, 4096), "float32"), matmul: T.Buffer((1, m, 4096))):
+    @Ts.function(private=True)
+    def expected(inp0: T.Tensor((1, m, 4096)), inp1: T.Tensor((4096, 4096), "float32"), matmul: T.Tensor((1, m, 4096))):
         T.func_attr({"tirx.is_scheduled": True})
 
         # with Ts.sblock("root"):
@@ -145,7 +145,7 @@ def test_matmul_int32():
                 for ax2_1 in T.thread_binding(1, thread="vthread.y"):
                     for ax1_1 in T.thread_binding(1, thread="vthread.x"):
                         for ax2_2 in T.thread_binding(16, thread="threadIdx.y"):
-                            for ax1_2 in T.thread_binding(8, thread="threadIdx.x", annotations={"pragma_auto_unroll_max_step": 256, "pragma_unroll_explicit": 1}):
+                            for ax1_2 in T.thread_binding(8, thread="threadIdx.x", annotations={"auto_unroll_max_step": 256, "unroll_explicit": 1}):
                                 for ax1_3_init, ax2_3_0_init in T.grid(4, 2):
                                     for ax2_3_1_init in T.vectorized(2):
                                         with Ts.sblock("matmul_init"):
@@ -210,8 +210,8 @@ def test_matmul_int32():
 
 def test_fused_matmul():
     # fmt: off
-    @Ts.prim_func(private=True)
-    def before(W: T.Buffer((T.int64(512), T.int64(4096)), "uint32"), S: T.Buffer((T.int64(128), T.int64(4096)), "uint32"), A: T.Buffer((T.int64(1), T.int64(32), T.int64(4096)), "float32"), C: T.Buffer((T.int64(1), T.int64(32), T.int64(4096)), "float32"), Out: T.Buffer((T.int64(1), T.int64(32), T.int64(4096)), "float32")):
+    @Ts.function(private=True)
+    def before(W: T.Tensor((T.int64(512), T.int64(4096)), "uint32"), S: T.Tensor((T.int64(128), T.int64(4096)), "uint32"), A: T.Tensor((T.int64(1), T.int64(32), T.int64(4096)), "float32"), C: T.Tensor((T.int64(1), T.int64(32), T.int64(4096)), "float32"), Out: T.Tensor((T.int64(1), T.int64(32), T.int64(4096)), "float32")):
         var_decode_intermediate = Ts.sblock_alloc_buffer((T.int64(4096), T.int64(4096)))
         var_matmul_intermediate = Ts.sblock_alloc_buffer((T.int64(1), T.int64(32), T.int64(4096)))
         for i, j in T.grid(T.int64(4096), T.int64(4096)):
@@ -219,7 +219,7 @@ def test_fused_matmul():
                 v_i, v_j = Ts.axis.remap("SS", [i, j])
                 Ts.reads(W[v_i // T.int64(8), v_j], S[v_i // T.int64(32), v_j])
                 Ts.writes(var_decode_intermediate[v_i, v_j])
-                var_decode_intermediate[v_i, v_j] = T.Cast("float32", T.bitwise_and(T.shift_right(W[v_i // T.int64(8), v_j], T.Cast("uint32", v_i % T.int64(8) * T.int64(4))), T.uint32(15))) * T.reinterpret("float32", T.shift_left(T.bitwise_and(S[v_i // T.int64(32), v_j], T.uint32(65535)), T.uint32(16))) + T.reinterpret("float32", T.shift_left(T.bitwise_and(T.shift_right(S[v_i // T.int64(32), v_j], T.uint32(16)), T.uint32(65535)), T.uint32(16)))
+                var_decode_intermediate[v_i, v_j] = T.Cast("float32", T.bitwise_and(T.shift_right(W[v_i // T.int64(8), v_j], T.Cast("uint32", v_i % T.int64(8) * T.int64(4))), T.uint32(15))) * T.reinterpret( T.shift_left(T.bitwise_and(S[v_i // T.int64(32), v_j], T.uint32(65535)), T.uint32(16)), ty="float32") + T.reinterpret( T.shift_left(T.bitwise_and(T.shift_right(S[v_i // T.int64(32), v_j], T.uint32(16)), T.uint32(65535)), T.uint32(16)), ty="float32")
         for i0, i1, i2, k in T.grid(T.int64(1), T.int64(32), T.int64(4096), T.int64(4096)):
             with Ts.sblock("matmul"):
                 v_i0, v_i1, v_i2, v_k = Ts.axis.remap("SSSR", [i0, i1, i2, k])
@@ -235,8 +235,8 @@ def test_fused_matmul():
                 Ts.writes(Out[v_ax0, v_ax1, v_ax2])
                 Out[v_ax0, v_ax1, v_ax2] = C[v_ax0, v_ax1, v_ax2] + var_matmul_intermediate[v_ax0, v_ax1, v_ax2]
 
-    @Ts.prim_func(private=True)
-    def expected(W: T.Buffer((T.int64(512), T.int64(4096)), "uint32"), S: T.Buffer((T.int64(128), T.int64(4096)), "uint32"), A: T.Buffer((T.int64(1), T.int64(32), T.int64(4096)), "float32"), C: T.Buffer((T.int64(1), T.int64(32), T.int64(4096)), "float32"), Out: T.Buffer((T.int64(1), T.int64(32), T.int64(4096)), "float32")):
+    @Ts.function(private=True)
+    def expected(W: T.Tensor((T.int64(512), T.int64(4096)), "uint32"), S: T.Tensor((T.int64(128), T.int64(4096)), "uint32"), A: T.Tensor((T.int64(1), T.int64(32), T.int64(4096)), "float32"), C: T.Tensor((T.int64(1), T.int64(32), T.int64(4096)), "float32"), Out: T.Tensor((T.int64(1), T.int64(32), T.int64(4096)), "float32")):
         T.func_attr({"tirx.is_scheduled": True})
         # with Ts.sblock("root"):
         var_matmul_intermediate_reindex_local = Ts.sblock_alloc_buffer((T.int64(1), T.int64(32), T.int64(4096)), scope="local")
@@ -247,7 +247,7 @@ def test_fused_matmul():
                 for ax2_1 in T.thread_binding(T.int64(1), thread="vthread.y"):
                     for ax1_1 in T.thread_binding(T.int64(1), thread="vthread.x"):
                         for ax2_2 in T.thread_binding(T.int64(16), thread="threadIdx.y"):
-                            for ax1_2 in T.thread_binding(T.int64(8), thread="threadIdx.x", annotations={"pragma_auto_unroll_max_step": 256, "pragma_unroll_explicit": 1}):
+                            for ax1_2 in T.thread_binding(T.int64(8), thread="threadIdx.x", annotations={"auto_unroll_max_step": 256, "unroll_explicit": 1}):
                                 for ax1_3_init, ax2_3_0_init in T.grid(T.int64(4), T.int64(2)):
                                     for ax2_3_1_init in T.vectorized(T.int64(2)):
                                         with Ts.sblock("matmul_init"):
@@ -281,7 +281,7 @@ def test_fused_matmul():
                                                         Ts.reads(W[v2 // T.int64(8), v1], S[v2 // T.int64(32), v1])
                                                         Ts.writes(var_decode_intermediate_reindex_shared[v0, v1, v2])
                                                         Ts.sblock_attr({"buffer_dim_align": [[0, 1, 8, 2]]})
-                                                        var_decode_intermediate_reindex_shared[v0, v1, v2] = T.Cast("float32", T.bitwise_and(T.shift_right(W[v2 // T.int64(8), v1], T.Cast("uint32", v2 % T.int64(8) * T.int64(4))), T.uint32(15))) * T.reinterpret("float32", T.shift_left(T.bitwise_and(S[v2 // T.int64(32), v1], T.uint32(65535)), T.uint32(16))) + T.reinterpret("float32", T.shift_left(T.bitwise_and(T.shift_right(S[v2 // T.int64(32), v1], T.uint32(16)), T.uint32(65535)), T.uint32(16)))
+                                                        var_decode_intermediate_reindex_shared[v0, v1, v2] = T.Cast("float32", T.bitwise_and(T.shift_right(W[v2 // T.int64(8), v1], T.Cast("uint32", v2 % T.int64(8) * T.int64(4))), T.uint32(15))) * T.reinterpret( T.shift_left(T.bitwise_and(S[v2 // T.int64(32), v1], T.uint32(65535)), T.uint32(16)), ty="float32") + T.reinterpret( T.shift_left(T.bitwise_and(T.shift_right(S[v2 // T.int64(32), v1], T.uint32(16)), T.uint32(65535)), T.uint32(16)), ty="float32")
                                     for ax3_1, ax1_3, ax2_3_0 in T.grid(T.int64(16), T.int64(4), T.int64(2)):
                                         for ax2_3_1 in T.vectorized(T.int64(2)):
                                             with Ts.sblock("matmul_update"):
@@ -312,8 +312,8 @@ def test_fused_matmul():
 
 def test_skip_gemv():
     # fmt: off
-    @Ts.prim_func(private=True)
-    def before(W: T.Buffer((T.int64(512), T.int64(4096)), "uint32"), S: T.Buffer((T.int64(128), T.int64(4096)), "uint32"), A: T.Buffer((T.int64(1), T.int64(1), T.int64(4096)), "float32"), C: T.Buffer((T.int64(1), T.int64(1), T.int64(4096)), "float32"), Out: T.Buffer((T.int64(1), T.int64(1), T.int64(4096)), "float32")):
+    @Ts.function(private=True)
+    def before(W: T.Tensor((T.int64(512), T.int64(4096)), "uint32"), S: T.Tensor((T.int64(128), T.int64(4096)), "uint32"), A: T.Tensor((T.int64(1), T.int64(1), T.int64(4096)), "float32"), C: T.Tensor((T.int64(1), T.int64(1), T.int64(4096)), "float32"), Out: T.Tensor((T.int64(1), T.int64(1), T.int64(4096)), "float32")):
         T.func_attr({"tirx.noalias": True})
         var_decode_intermediate = Ts.sblock_alloc_buffer((T.int64(4096), T.int64(4096)))
         var_matmul_intermediate = Ts.sblock_alloc_buffer((T.int64(1), T.int64(1), T.int64(4096)))
@@ -322,7 +322,7 @@ def test_skip_gemv():
                 v_i, v_j = Ts.axis.remap("SS", [i, j])
                 Ts.reads(W[v_i // T.int64(8), v_j], S[v_i // T.int64(32), v_j])
                 Ts.writes(var_decode_intermediate[v_i, v_j])
-                var_decode_intermediate[v_i, v_j] = T.Cast("float32", T.bitwise_and(T.shift_right(W[v_i // T.int64(8), v_j], T.Cast("uint32", v_i % T.int64(8) * T.int64(4))), T.uint32(15))) * T.reinterpret("float32", T.shift_left(T.bitwise_and(S[v_i // T.int64(32), v_j], T.uint32(65535)), T.uint32(16))) + T.reinterpret("float32", T.shift_left(T.bitwise_and(T.shift_right(S[v_i // T.int64(32), v_j], T.uint32(16)), T.uint32(65535)), T.uint32(16)))
+                var_decode_intermediate[v_i, v_j] = T.Cast("float32", T.bitwise_and(T.shift_right(W[v_i // T.int64(8), v_j], T.Cast("uint32", v_i % T.int64(8) * T.int64(4))), T.uint32(15))) * T.reinterpret( T.shift_left(T.bitwise_and(S[v_i // T.int64(32), v_j], T.uint32(65535)), T.uint32(16)), ty="float32") + T.reinterpret( T.shift_left(T.bitwise_and(T.shift_right(S[v_i // T.int64(32), v_j], T.uint32(16)), T.uint32(65535)), T.uint32(16)), ty="float32")
         for i0, i1, i2, k in T.grid(T.int64(1), T.int64(1), T.int64(4096), T.int64(4096)):
             with Ts.sblock("matmul"):
                 v_i0, v_i1, v_i2, v_k = Ts.axis.remap("SSSR", [i0, i1, i2, k])
@@ -352,8 +352,8 @@ def test_output_fp32():
     # fmt: off
     n = T.dynamic("n")
 
-    @Ts.prim_func(private=True)
-    def before(lv13: T.Buffer((T.int64(4096), T.int64(512)), "uint32"), lv14: T.Buffer((T.int64(4096), T.int64(128)), "float16"), lv48: T.Buffer((T.int64(1), n, T.int64(4096)), 'float16'), lv13_1: T.Buffer((T.int64(4096),), "float16"), lv3: T.Buffer((T.int64(1), n, T.int64(4096)), 'float16'), p_output0_intermediate: T.Buffer((T.int64(1), n, T.int64(4096)), 'float16')):
+    @Ts.function(private=True)
+    def before(lv13: T.Tensor((T.int64(4096), T.int64(512)), "uint32"), lv14: T.Tensor((T.int64(4096), T.int64(128)), "float16"), lv48: T.Tensor((T.int64(1), n, T.int64(4096)), 'float16'), lv13_1: T.Tensor((T.int64(4096),), "float16"), lv3: T.Tensor((T.int64(1), n, T.int64(4096)), 'float16'), p_output0_intermediate: T.Tensor((T.int64(1), n, T.int64(4096)), 'float16')):
         T.func_attr({"tirx.noalias": True})
 
         # with Ts.sblock("root"):
@@ -403,8 +403,8 @@ def test_output_fp32():
 
     n = T.dynamic("n")
 
-    @Ts.prim_func(private=True)
-    def expected(lv13: T.Buffer((T.int64(4096), T.int64(512)), "uint32"), lv14: T.Buffer((T.int64(4096), T.int64(128)), "float16"), lv48: T.Buffer((T.int64(1), n, T.int64(4096)), 'float16'), lv13_1: T.Buffer((T.int64(4096),), "float16"), lv3: T.Buffer((T.int64(1), n, T.int64(4096)), 'float16'), p_output0_intermediate: T.Buffer((T.int64(1), n, T.int64(4096)), 'float16')):
+    @Ts.function(private=True)
+    def expected(lv13: T.Tensor((T.int64(4096), T.int64(512)), "uint32"), lv14: T.Tensor((T.int64(4096), T.int64(128)), "float16"), lv48: T.Tensor((T.int64(1), n, T.int64(4096)), 'float16'), lv13_1: T.Tensor((T.int64(4096),), "float16"), lv3: T.Tensor((T.int64(1), n, T.int64(4096)), 'float16'), p_output0_intermediate: T.Tensor((T.int64(1), n, T.int64(4096)), 'float16')):
         T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
 
         # with Ts.sblock("root"):
@@ -416,7 +416,7 @@ def test_output_fp32():
                 for ax2_1 in T.thread_binding(T.int64(1), thread="vthread.y"):
                     for ax1_1 in T.thread_binding(T.int64(1), thread="vthread.x"):
                         for ax2_2 in T.thread_binding(T.int64(16), thread="threadIdx.y"):
-                            for ax1_2 in T.thread_binding(T.int64(8), thread="threadIdx.x", annotations={"pragma_auto_unroll_max_step": 256, "pragma_unroll_explicit": 1}):
+                            for ax1_2 in T.thread_binding(T.int64(8), thread="threadIdx.x", annotations={"auto_unroll_max_step": 256, "unroll_explicit": 1}):
                                 for ax1_3_init, ax2_3_0_init in T.grid(T.int64(4), T.int64(2)):
                                     for ax2_3_1_init in T.vectorized(T.int64(2)):
                                         with Ts.sblock("matmul_init"):
@@ -484,8 +484,8 @@ def test_inline_consumer_chain():
     # fmt: off
     n = T.dynamic("n")
 
-    @Ts.prim_func(private=True)
-    def before(lv26: T.Buffer((n, T.int64(2048)), 'float16'), lv9: T.Buffer((T.int64(2048), T.int64(2048)), "float16"), lv52: T.Buffer((T.int64(1), n, T.int64(2048))), var_T_multiply_intermediate: T.Buffer((n, T.int64(2048)), 'float16')):
+    @Ts.function(private=True)
+    def before(lv26: T.Tensor((n, T.int64(2048)), 'float16'), lv9: T.Tensor((T.int64(2048), T.int64(2048)), "float16"), lv52: T.Tensor((T.int64(1), n, T.int64(2048))), var_T_multiply_intermediate: T.Tensor((n, T.int64(2048)), 'float16')):
         T.func_attr({"tirx.noalias": True})
 
         # with Ts.sblock("root"):
@@ -535,8 +535,8 @@ def test_inline_consumer_chain():
 
     n = T.dynamic("n")
 
-    @Ts.prim_func(private=True)
-    def expected(lv26: T.Buffer((n, T.int64(2048)), 'float16'), lv9: T.Buffer((T.int64(2048), T.int64(2048)), "float16"), lv52: T.Buffer((T.int64(1), n, T.int64(2048))), var_T_multiply_intermediate: T.Buffer((n, T.int64(2048)), 'float16')):
+    @Ts.function(private=True)
+    def expected(lv26: T.Tensor((n, T.int64(2048)), 'float16'), lv9: T.Tensor((T.int64(2048), T.int64(2048)), "float16"), lv52: T.Tensor((T.int64(1), n, T.int64(2048))), var_T_multiply_intermediate: T.Tensor((n, T.int64(2048)), 'float16')):
         T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
 
         # with Ts.sblock("root"):
@@ -548,7 +548,7 @@ def test_inline_consumer_chain():
                 for ax2_1 in T.thread_binding(T.int64(1), thread="vthread.y"):
                     for ax1_1 in T.thread_binding(T.int64(1), thread="vthread.x"):
                         for ax2_2 in T.thread_binding(T.int64(16), thread="threadIdx.y"):
-                            for ax1_2 in T.thread_binding(T.int64(8), thread="threadIdx.x", annotations={"pragma_auto_unroll_max_step": 256, "pragma_unroll_explicit": 1}):
+                            for ax1_2 in T.thread_binding(T.int64(8), thread="threadIdx.x", annotations={"auto_unroll_max_step": 256, "unroll_explicit": 1}):
                                 for ax1_3_init, ax2_3_0_init in T.grid(T.int64(4), T.int64(2)):
                                     for ax2_3_1_init in T.vectorized(T.int64(2)):
                                         with Ts.sblock("NT_matmul_init"):
@@ -616,8 +616,8 @@ def test_matmul_android():
     # fmt: off
     m = T.dynamic("m")
 
-    @Ts.prim_func(private=True)
-    def before(inp0: T.Buffer((T.int64(1), m, T.int64(4096))), inp1: T.Buffer((T.int64(4096), T.int64(4096)), "float32"), matmul: T.Buffer((T.int64(1), m, T.int64(4096)))):
+    @Ts.function(private=True)
+    def before(inp0: T.Tensor((T.int64(1), m, T.int64(4096))), inp1: T.Tensor((T.int64(4096), T.int64(4096)), "float32"), matmul: T.Tensor((T.int64(1), m, T.int64(4096)))):
 
         for i0, i1, i2, k in T.grid(T.int64(1), m, T.int64(4096), T.int64(4096)):
             with Ts.sblock("matmul"):
@@ -628,8 +628,8 @@ def test_matmul_android():
 
     m = T.dynamic("m")
 
-    @Ts.prim_func(private=True)
-    def expected(inp0: T.Buffer((T.int64(1), m, T.int64(4096))), inp1: T.Buffer((T.int64(4096), T.int64(4096)), "float32"), matmul: T.Buffer((T.int64(1), m, T.int64(4096)))):
+    @Ts.function(private=True)
+    def expected(inp0: T.Tensor((T.int64(1), m, T.int64(4096))), inp1: T.Tensor((T.int64(4096), T.int64(4096)), "float32"), matmul: T.Tensor((T.int64(1), m, T.int64(4096)))):
         T.func_attr({"tirx.is_scheduled": True})
 
         # with Ts.sblock("root"):
@@ -709,8 +709,8 @@ def test_fused_dequant_matmul_android():
     # fmt: off
     seq_len = T.dynamic("seq_len")
 
-    @Ts.prim_func(private=True)
-    def before(lv452: T.Buffer((T.int64(512), T.int64(12288)), "uint32"), lv453: T.Buffer((T.int64(128), T.int64(12288)), "float16"), rms_norm130: T.Buffer((T.int64(1), seq_len, T.int64(4096)), 'float16'), transformer_h_0_attn_c_attn_bias3: T.Buffer((T.int64(12288),), "float16"), T_add_intermediate_intermediate: T.Buffer((T.int64(1), seq_len, T.int64(12288)), 'float16')):
+    @Ts.function(private=True)
+    def before(lv452: T.Tensor((T.int64(512), T.int64(12288)), "uint32"), lv453: T.Tensor((T.int64(128), T.int64(12288)), "float16"), rms_norm130: T.Tensor((T.int64(1), seq_len, T.int64(4096)), 'float16'), transformer_h_0_attn_c_attn_bias3: T.Tensor((T.int64(12288),), "float16"), T_add_intermediate_intermediate: T.Tensor((T.int64(1), seq_len, T.int64(12288)), 'float16')):
         T.func_attr({"tirx.noalias": True})
 
         # with Ts.sblock("root"):
@@ -746,8 +746,8 @@ def test_fused_dequant_matmul_android():
 
     seq_len = T.dynamic("seq_len")
 
-    @Ts.prim_func(private=True)
-    def expected(lv452: T.Buffer((T.int64(512), T.int64(12288)), "uint32"), lv453: T.Buffer((T.int64(128), T.int64(12288)), "float16"), rms_norm130: T.Buffer((T.int64(1), seq_len, T.int64(4096)), 'float16'), transformer_h_0_attn_c_attn_bias3: T.Buffer((T.int64(12288),), "float16"), T_add_intermediate_intermediate: T.Buffer((T.int64(1), seq_len, T.int64(12288)), 'float16')):
+    @Ts.function(private=True)
+    def expected(lv452: T.Tensor((T.int64(512), T.int64(12288)), "uint32"), lv453: T.Tensor((T.int64(128), T.int64(12288)), "float16"), rms_norm130: T.Tensor((T.int64(1), seq_len, T.int64(4096)), 'float16'), transformer_h_0_attn_c_attn_bias3: T.Tensor((T.int64(12288),), "float16"), T_add_intermediate_intermediate: T.Tensor((T.int64(1), seq_len, T.int64(12288)), 'float16')):
         T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
 
         # with Ts.sblock("root"):

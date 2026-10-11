@@ -32,9 +32,9 @@ using namespace tvm::tirx;
 
 using support::NDIntSet;
 
-bool HasBuffer(const ffi::Array<TensorRegion>& buffer_regions, const BufferVar& buffer) {
+bool HasBuffer(const ffi::Array<TensorRegion>& buffer_regions, const TensorVar& buffer) {
   for (const TensorRegion& buffer_region : buffer_regions) {
-    if (buffer_region->source.as_or_throw<tvm::tirx::BufferVar>().same_as(buffer)) {
+    if (buffer_region->source.as_or_throw<tvm::tirx::TensorVar>().same_as(buffer)) {
       return true;
     }
   }
@@ -42,7 +42,7 @@ bool HasBuffer(const ffi::Array<TensorRegion>& buffer_regions, const BufferVar& 
 }
 
 void RelaxBufferRegions(const ffi::Array<TensorRegion>& buffer_regions,
-                        const BufferVar& buffer,                    //
+                        const TensorVar& buffer,                    //
                         const ffi::Map<Var, sym::IntSet>& var_dom,  //
                         const ffi::Map<Var, PrimExpr>& bindings,    //
                         std::vector<NDIntSet>* relaxed_regions) {
@@ -51,7 +51,7 @@ void RelaxBufferRegions(const ffi::Array<TensorRegion>& buffer_regions,
     return ffi::Unchanged();
   };
   for (const TensorRegion& buffer_region : buffer_regions) {
-    if (buffer_region->source.as_or_throw<tvm::tirx::BufferVar>().same_as(buffer)) {
+    if (buffer_region->source.as_or_throw<tvm::tirx::TensorVar>().same_as(buffer)) {
       ffi::Array<Range> mapped_region =
           buffer_region->region.Map([&f_substitute](const Range& range) {
             PrimExpr min = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(range->min, f_substitute)
@@ -72,7 +72,7 @@ class ScopeReplacer : public StmtExprMutator {
   using StmtExprMutator::Mutate;
   using StmtExprMutator::Mutate_;
 
-  static SBlock Replace(const SBlockNode* scope_block, const BufferVar& dst,
+  static SBlock Replace(const SBlockNode* scope_block, const TensorVar& dst,
                         const ForNode* old_loop, const ForNode* new_loop) {
     ffi::ObjectPtr<SBlockNode> new_scope_block = ffi::make_object<SBlockNode>(*scope_block);
     new_scope_block->body = ffi::make_object<ScopeReplacer>(old_loop, new_loop)
@@ -111,19 +111,19 @@ class ReadWriteAtBufferReplacer : public StmtExprMutator {
   using StmtExprMutator::Mutate;
   using StmtExprMutator::Mutate_;
 
-  explicit ReadWriteAtBufferReplacer(const BufferVar& src, const BufferVar& dst,
+  explicit ReadWriteAtBufferReplacer(const TensorVar& src, const TensorVar& dst,
                                      ffi::Map<SBlock, SBlock>* block_sref_reuse)
       : src_(src), dst_(dst), block_sref_reuse_(block_sref_reuse) {}
 
  private:
-  UnchangedOr<Stmt> Mutate_(const BufferStoreNode* _store, InplaceMode inplace_mode) final {
-    BufferStore store = StmtExprMutator::Mutate_(_store, inplace_mode)
+  UnchangedOr<Stmt> Mutate_(const TensorStoreNode* _store, InplaceMode inplace_mode) final {
+    TensorStore store = StmtExprMutator::Mutate_(_store, inplace_mode)
                             .ValueOrUnchanged(ffi::GetRef<Stmt>(_store))
-                            .as_or_throw<BufferStore>();
-    if (store->buffer.same_as(src_)) {
-      ffi::ObjectPtr<BufferStoreNode> new_store = ffi::make_object<BufferStoreNode>(*store.get());
-      new_store->buffer = dst_;
-      return BufferStore(new_store);
+                            .as_or_throw<TensorStore>();
+    if (store->dest.as_or_throw<TensorVar>().same_as(src_)) {
+      ffi::ObjectPtr<TensorStoreNode> new_store = ffi::make_object<TensorStoreNode>(*store.get());
+      new_store->dest = dst_;
+      return TensorStore(new_store);
     }
     return store;
   }
@@ -132,8 +132,8 @@ class ReadWriteAtBufferReplacer : public StmtExprMutator {
     TensorLoad load = StmtExprMutator::Mutate_(_load, inplace_mode)
                           .ValueOrUnchanged(ffi::GetRef<PrimExpr>(_load))
                           .as_or_throw<TensorLoad>();
-    if (load->source.as_or_throw<tvm::tirx::BufferVar>().same_as(src_)) {
-      return BufferLoad(dst_, load->indices, load->span);
+    if (load->source.as_or_throw<tvm::tirx::TensorVar>().same_as(src_)) {
+      return MakeTensorLoad(dst_, load->indices, load->loc);
     }
     return load;
   }
@@ -150,8 +150,8 @@ class ReadWriteAtBufferReplacer : public StmtExprMutator {
     return SBlock(new_block);
   }
 
-  const BufferVar& src_;
-  const BufferVar& dst_;
+  const TensorVar& src_;
+  const TensorVar& dst_;
   ffi::Map<SBlock, SBlock>* block_sref_reuse_;
 };
 
@@ -161,9 +161,9 @@ struct ReadWriteAtImpl {
                        int buffer_index, const ffi::String& storage_scope,
                        ffi::Map<ffi::String, Any> annotations) {
     const SBlockNode* block = TVM_SREF_TO_SBLOCK(block_sref);
-    BufferVar src = GetNthAccessBuffer(self, ffi::GetRef<SBlock>(block), buffer_index,
+    TensorVar src = GetNthAccessBuffer(self, ffi::GetRef<SBlock>(block), buffer_index,
                                        is_read ? BufferIndexType::kRead : BufferIndexType::kWrite);
-    BufferVar dst = WithScope(src, storage_scope);
+    TensorVar dst = WithScope(src, storage_scope);
     ReadWriteAtImpl impl(self, loop_sref, src, dst, annotations);
     std::pair<For, SBlockRealize> new_loop_block =
         impl.MakeLoopAndBlock<is_read>(src.name() + "_" + storage_scope);
@@ -252,7 +252,7 @@ struct ReadWriteAtImpl {
       TVM_FFI_ICHECK(w_pos.empty() || w_pos.back() < r_pos.front());
       // Can be inserted at [0, r_pos.front()], i.e. before the first read
       insert_pos = r_pos.front();
-      // BufferVar reads in [insert_pos, +oo) is rewritten
+      // TensorVar reads in [insert_pos, +oo) is rewritten
       st = insert_pos;
       ed = n_subtrees;
     } else {
@@ -279,9 +279,8 @@ struct ReadWriteAtImpl {
     auto replacer = ffi::make_object<ReadWriteAtBufferReplacer>(src_, dst_, &block_sref_reuse_);
     for (int i = st; i < ed; ++i) {
       Stmt stmt = subtrees[i];
-      subtrees.Set(i, Stmt(nullptr));
-      subtrees.Set(i,
-                   replacer->Mutate(stmt, InplaceMode::kAllow).ValueOrUnchanged(std::move(stmt)));
+      subtrees.Set(
+          i, replacer->Mutate(stmt, InplaceMode::kDisallow).ValueOrUnchanged(std::move(stmt)));
     }
     SBlockRealize realize =
         is_read
@@ -293,7 +292,7 @@ struct ReadWriteAtImpl {
     return {For(new_loop), realize};
   }
 
-  SBlockRealize MakeSBlock(const BufferVar& copy_from, const BufferVar& copy_to,
+  SBlockRealize MakeSBlock(const TensorVar& copy_from, const TensorVar& copy_to,
                            const ffi::String& name_hint, const ffi::Map<Var, Range>& loop_domain,
                            ffi::Array<Range> domain) const {
     int n = domain.size();
@@ -317,7 +316,7 @@ struct ReadWriteAtImpl {
           return ffi::Any((*it).second);
         }
         Range range = loop_domain.at(var);
-        Var v("v" + std::to_string(iter_vars.size()), var->ty, var->span);
+        Var v("v" + std::to_string(iter_vars.size()), var->ty, var->loc);
         bindings.Set(var, v.as_or_throw<PrimExpr>());
         iter_values.push_back(var.as_or_throw<PrimExpr>());
         iter_vars.push_back(IterVar(range, v.as_or_throw<PrimVar>(), IterVarType::kDataPar));
@@ -329,15 +328,16 @@ struct ReadWriteAtImpl {
       dom->extent =
           ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(std::move(dom->extent), f_substitute)
               .as_or_throw<PrimExpr>();
-      domain.Set(i, Range(dom));
+      domain.Set(i, Range(ffi::UnsafeInit{}, dom));
     }
     for (int i = 0; i < n; ++i) {
       indices.push_back(domain[i]->min + loop_vars[i].as_or_throw<PrimExpr>());
     }
-    Stmt stmt = BufferStore(copy_to, /*value=*/BufferLoad(copy_from, indices), /*indices=*/indices);
+    Stmt stmt =
+        TensorStore(copy_to, /*indices=*/indices, /*value=*/MakeTensorLoad(copy_from, indices));
     for (int i = n - 1; i >= 0; --i) {
       stmt = For(loop_vars[i].as_or_throw<PrimVar>(), IntImm::Int32(0), domain[i]->extent,
-                 ForKind::kSerial, stmt);
+                 ForKind::kDefault, stmt);
     }
     return SBlockRealize(
         /*values=*/iter_values,
@@ -353,8 +353,8 @@ struct ReadWriteAtImpl {
                /*annotations=*/annotations_));
   }
 
-  explicit ReadWriteAtImpl(ScheduleState self, const StmtSRef& loop_sref, const BufferVar& src,
-                           const BufferVar& dst, ffi::Map<ffi::String, Any> annotations)
+  explicit ReadWriteAtImpl(ScheduleState self, const StmtSRef& loop_sref, const TensorVar& src,
+                           const TensorVar& dst, ffi::Map<ffi::String, Any> annotations)
       : self_(self),
         loop_sref_(loop_sref),
         loop_(nullptr),
@@ -369,8 +369,8 @@ struct ReadWriteAtImpl {
   ScheduleState self_;
   const StmtSRef& loop_sref_;
   const ForNode* loop_;
-  const BufferVar& src_;
-  const BufferVar& dst_;
+  const TensorVar& src_;
+  const TensorVar& dst_;
   ffi::Map<ffi::String, Any> annotations_;
   ffi::Map<SBlock, SBlock> block_sref_reuse_;
   sym::Analyzer analyzer_;
@@ -379,13 +379,13 @@ struct ReadWriteAtImpl {
 StmtSRef ReadAt(ScheduleState self, const StmtSRef& loop_sref, const StmtSRef& block_sref,
                 int read_buffer_index, const ffi::String& storage_scope) {
   return ReadWriteAtImpl::Main<true>(self, loop_sref, block_sref, read_buffer_index, storage_scope,
-                                     {{s_tir::attr::auto_copy, true}});
+                                     {{tvm::s_tir::attr::kAutoCopy, true}});
 }
 
 StmtSRef WriteAt(ScheduleState self, const StmtSRef& loop_sref, const StmtSRef& block_sref,
                  int write_buffer_index, const ffi::String& storage_scope) {
   return ReadWriteAtImpl::Main<false>(self, loop_sref, block_sref, write_buffer_index,
-                                      storage_scope, {{s_tir::attr::auto_copy, true}});
+                                      storage_scope, {{tvm::s_tir::attr::kAutoCopy, true}});
 }
 
 /******** Instruction Registration ********/

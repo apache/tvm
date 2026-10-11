@@ -20,6 +20,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/s_tir/stmt.h>
+#include <tvm/tirx/stmt.h>
 
 #include "../utils.h"
 
@@ -33,7 +34,7 @@ using namespace tvm::tirx;
  * \return Whether the loop has any annotation
  */
 inline bool HasAnnOrBinding(const ForNode* loop) {
-  return loop->kind == ForKind::kThreadBinding || !loop->annotations.empty();
+  return tvm::tirx::GetThreadBinding(loop).has_value() || !loop->annotations.empty();
 }
 
 /*! \brief The visitor for extracting the stride of a var in a PrimExpr. */
@@ -115,22 +116,22 @@ bool ParseAnnotation(const SBlock& block, ParsedAnnotation* parsed) {
   bool found = false;
   *parsed = ParsedAnnotation{-1, -1, -1, -1, -1, -1};
   for (const auto& ann : block->annotations) {
-    if (ann.first == s_tir::attr::meta_schedule_parallel) {
+    if (ann.first == tvm::s_tir::attr::kMetaScheduleParallel) {
       found = true;
       if (auto opt_int_imm = ann.second.try_cast<IntImm>()) {
         parsed->max_parallel_extent = (*opt_int_imm)->value.as<int>().value();
       }
-    } else if (ann.first == s_tir::attr::meta_schedule_vectorize) {
+    } else if (ann.first == tvm::s_tir::attr::kMetaScheduleVectorize) {
       found = true;
       if (auto opt_int_imm = ann.second.try_cast<IntImm>()) {
         parsed->max_vectorize_extent = (*opt_int_imm)->value.as<int>().value();
       }
-    } else if (ann.first == s_tir::attr::meta_schedule_unroll_explicit) {
+    } else if (ann.first == tvm::s_tir::attr::kMetaScheduleUnrollExplicit) {
       found = true;
       if (auto opt_int_imm = ann.second.try_cast<IntImm>()) {
         parsed->unroll_explicit = (*opt_int_imm)->value.as<int>().value();
       }
-    } else if (ann.first == s_tir::attr::meta_schedule_unroll_implicit) {
+    } else if (ann.first == tvm::s_tir::attr::kMetaScheduleUnrollImplicit) {
       found = true;
       if (auto opt_int_imm = ann.second.try_cast<IntImm>()) {
         parsed->unroll_implicit = (*opt_int_imm)->value.as<int>().value();
@@ -143,16 +144,16 @@ bool ParseAnnotation(const SBlock& block, ParsedAnnotation* parsed) {
 void RemoveParsedAnn(const Schedule& sch, const SBlockRV& block_rv,
                      const ParsedAnnotation& parsed) {
   if (parsed.max_parallel_extent != -1) {
-    sch->Unannotate(block_rv, s_tir::attr::meta_schedule_parallel);
+    sch->Unannotate(block_rv, tvm::s_tir::attr::kMetaScheduleParallel);
   }
   if (parsed.max_vectorize_extent != -1) {
-    sch->Unannotate(block_rv, s_tir::attr::meta_schedule_vectorize);
+    sch->Unannotate(block_rv, tvm::s_tir::attr::kMetaScheduleVectorize);
   }
   if (parsed.unroll_explicit != -1) {
-    sch->Unannotate(block_rv, s_tir::attr::meta_schedule_unroll_explicit);
+    sch->Unannotate(block_rv, tvm::s_tir::attr::kMetaScheduleUnrollExplicit);
   }
   if (parsed.unroll_implicit != -1) {
-    sch->Unannotate(block_rv, s_tir::attr::meta_schedule_unroll_implicit);
+    sch->Unannotate(block_rv, tvm::s_tir::attr::kMetaScheduleUnrollImplicit);
   }
 }
 
@@ -214,7 +215,7 @@ void AdjustParallelVectorize(const Schedule& sch, const SBlockRV& block_rv,
                        realize->block->writes.end());
   std::unordered_map<const VarNode*, PrimExpr> binding_map;
   for (size_t i = 0; i < realize->iter_values.size(); i++) {
-    binding_map[realize->block->iter_vars[i]->var.get()] = realize->iter_values[i];
+    binding_map.insert_or_assign(realize->block->iter_vars[i]->var.get(), realize->iter_values[i]);
   }
   auto f_substitute = [&binding_map](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
     if (auto it = binding_map.find(var.get()); it != binding_map.end()) {
@@ -244,7 +245,7 @@ void AdjustParallelVectorize(const Schedule& sch, const SBlockRV& block_rv,
           break;
         }
         const auto* shape =
-            access->source.as_or_throw<tvm::tirx::BufferVar>()->shape[i].as<IntImmNode>();
+            access->source.as_or_throw<tvm::tirx::TensorVar>()->shape[i].as<IntImmNode>();
         if (shape == nullptr) {
           can_analyze_contiguous_access = false;
           break;
@@ -383,8 +384,11 @@ bool FindAnnotatedRootBlock(const Schedule& sch, ParsedAnnotation* parsed, SBloc
   for (const auto& kv : mod->functions) {
     const GlobalVar& g_var = kv.first;
     const BaseFunc& base_func = kv.second;
-    if (const auto* prim_func = base_func.as<PrimFuncNode>()) {
-      const SBlockRealizeNode* block_realize = prim_func->body.as<SBlockRealizeNode>();
+    if (const auto* function = base_func.as<FunctionNode>()) {
+      const SBlockRealizeNode* block_realize =
+          function->body.has_value() && function->body.value()->size() == 1
+              ? function->body.value()->seq[0].as<SBlockRealizeNode>()
+              : nullptr;
       if (block_realize != nullptr) {
         SBlock block = block_realize->block;
         if (ParseAnnotation(block, parsed)) {
@@ -440,8 +444,8 @@ void RewriteUnroll(const Schedule& sch, int unroll_explicit, int max_step, const
     return;
   }
 
-  sch->Annotate(loop, tirx::attr::pragma_auto_unroll_max_step, IntImm::Int32(max_step));
-  sch->Annotate(loop, tirx::attr::pragma_unroll_explicit, IntImm::Int32(unroll_explicit));
+  sch->Annotate(loop, tvm::tirx::attr::kAutoUnrollMaxStep, IntImm::Int32(max_step));
+  sch->Annotate(loop, tvm::tirx::attr::kUnrollExplicit, IntImm::Int32(unroll_explicit));
 }
 
 }  // namespace s_tir
@@ -503,7 +507,7 @@ class RewriteParallelVectorizeUnrollNode : public PostprocNode {
   Postproc Clone() const {
     ffi::ObjectPtr<RewriteParallelVectorizeUnrollNode> n =
         ffi::make_object<RewriteParallelVectorizeUnrollNode>(*this);
-    return Postproc(n);
+    return Postproc(ffi::UnsafeInit{}, n);
   }
 
   static void RegisterReflection() {
@@ -518,7 +522,7 @@ class RewriteParallelVectorizeUnrollNode : public PostprocNode {
 Postproc Postproc::RewriteParallelVectorizeUnroll() {
   ffi::ObjectPtr<RewriteParallelVectorizeUnrollNode> n =
       ffi::make_object<RewriteParallelVectorizeUnrollNode>();
-  return Postproc(n);
+  return Postproc(ffi::UnsafeInit{}, n);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

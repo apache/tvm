@@ -29,8 +29,8 @@ from tvm.script import tirx as T
 # pylint: disable=no-member,invalid-name,unused-variable
 
 
-@Ts.prim_func
-def matmul(A: T.Buffer([128, 128]), B: T.Buffer([128, 128]), C: T.Buffer([128, 128])) -> None:
+@Ts.function
+def matmul(A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 128])) -> None:
     for i, j in T.grid(128, 128):
         with Ts.sblock("init"):
             vi, vj = Ts.axis.remap("SS", [i, j])
@@ -41,10 +41,10 @@ def matmul(A: T.Buffer([128, 128]), B: T.Buffer([128, 128]), C: T.Buffer([128, 1
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
 
-@Ts.prim_func
+@Ts.function
 def two_kernels(
-    A: T.Buffer((1, seq_len * 8), "int32"),  # noqa: F821
-    B: T.Buffer((1, seq_len * 8), "int32", align=8),  # noqa: F821
+    A: T.Tensor((1, seq_len * 8), "int32"),  # noqa: F821
+    B: T.Tensor((1, seq_len * 8), "int32", align=8),  # noqa: F821
     seq_len: T.int32,
 ):
     T.func_attr({"tirx.noalias": True})

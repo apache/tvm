@@ -41,7 +41,7 @@ namespace tirx {
  * type. Otherwise the object is nullopt.
  */
 inline std::optional<PrimType> GetPointerType(const Type& type) {
-  if (!type.IsMissing()) {
+  if (!type.as<MissingType>().has_value()) {
     if (auto* ptr_type = type.as<PointerTypeNode>()) {
       if (auto* prim_type = ptr_type->element_type.as<PrimTypeNode>()) {
         return ffi::GetRef<PrimType>(prim_type);

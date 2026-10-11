@@ -69,8 +69,8 @@ def test_ir():
     x = tvm.tirx.const(1, "int32")
     y = tvm.tirx.IntImm("int32", 1)
     z = x + y
-    stmt = tvm.tirx.Evaluate(z)
-    assert isinstance(stmt, tvm.tirx.Evaluate)
+    stmt = tvm.ir.Evaluate(z)
+    assert isinstance(stmt, tvm.ir.Evaluate)
 
 
 def test_ir2():
@@ -80,19 +80,19 @@ def test_ir2():
     storage_type = ir.PrimType("int32")
     handle_type = ir.PointerType(storage_type)
     array = tvm.tirx.Var("array", handle_type)
-    buf = tvm.tirx.decl_buffer([buf_size], "int32", data=array)
+    buf = tvm.tirx.decl_tensor([buf_size], "int32", data=array)
 
-    st = tvm.tirx.BufferStore(buf, x + 1, [1])
-    assert isinstance(st, tvm.tirx.BufferStore)
-    assert st.buffer == buf
-    assert st.buffer.data.args[0].same_as(buf)
-    assert st.buffer.data.ty == array.ty
+    st = tvm.ir.TensorStore(buf, [1], x + 1)
+    assert isinstance(st, tvm.ir.TensorStore)
+    assert st.dest == buf
+    assert st.dest.data.args[0].same_as(buf)
+    assert st.dest.data.ty == array.ty
 
 
 def test_let():
     x = tvm.tirx.Var("x", "int32")
     y = tvm.tirx.Var("y", "int32")
-    stmt = tvm.tirx.Bind(x, 10)
+    stmt = tvm.ir.Bind(x, 10)
 
 
 def test_cast():
@@ -111,11 +111,6 @@ def test_cast():
 
 
 def test_attr():
-    x = tvm.tirx.Var("x", "int32")
-    y = tvm.tirx.Var("y", "int32")
-    stmt = tvm.tirx.AttrStmt(y, "stride", 10, tvm.tirx.Evaluate(x + 1))
-    assert stmt.node == y
-
     a = tvm.runtime.convert(1)
     assert a == 1
     try:
@@ -133,9 +128,9 @@ def test_basic():
 
 
 def test_stmt():
-    x = tvm.tirx.Evaluate(0)
-    tvm.tirx.For(tvm.tirx.Var("i", "int32"), 0, 1, tvm.tirx.ForKind.SERIAL, x)
-    tvm.tirx.For(tvm.tirx.Var("i", "int32"), 0, 1, tvm.tirx.ForKind.UNROLLED, x, step=2)
+    x = tvm.ir.Evaluate(0)
+    tvm.ir.For(tvm.tirx.Var("i", "int32"), 0, 1, tvm.ir.ForKind.DEFAULT, x)
+    tvm.ir.For(tvm.tirx.Var("i", "int32"), 0, 1, tvm.ir.ForKind.UNROLLED, x, step=2)
 
 
 def test_dir():
@@ -280,9 +275,9 @@ def test_isnan():
     assert str(tvm.tirx.isnan(x)) == "T.isnan(x)"
     assert str(tvm.tirx.isnan(x).ty.dtype) == "bool"
     y = tvm.tirx.Var("y", "float16")
-    assert str(tvm.tirx.isnan(y)) == 'T.isnan(T.Cast("float32", y))'
+    assert str(tvm.tirx.isnan(y)) == "T.isnan(y)"
     z = tvm.tirx.Var("z", "int32")
-    assert str(tvm.tirx.isnan(z)) == "T.bool(False)"
+    assert str(tvm.tirx.isnan(z)) == "T.isnan(z)"
     k = tvm.tirx.Var("k", "int8x2")
     assert str(tvm.tirx.isnan(k).ty.dtype) == "boolx2"
 
@@ -303,19 +298,19 @@ def test_equality_string_imm():
     x == y
 
 
-def test_prim_func():
+def test_function():
     x = tvm.tirx.Var("x", "int32")
     y = tvm.tirx.Var("y", "int32")
-    b = tvm.tirx.decl_buffer((x,), "float32")
-    stmt = tvm.tirx.SeqStmt([tvm.tirx.Bind(x, 10), tvm.tirx.Evaluate(x + 1)])
+    b = tvm.tirx.decl_tensor((x,), "float32")
+    stmt = tvm.ir.SeqStmt([tvm.ir.Bind(x, 10), tvm.ir.Evaluate(x + 1)])
 
-    func = tvm.tirx.PrimFunc([x, y, b], stmt)
+    func = tvm.tirx.Function([x, y, b], stmt)
     # make sure we can print
     assert func.params[2].same_as(b)
     assert not hasattr(func, "buffer_map")
 
-    assert sum(tvm.tirx.is_buffer_var(param) for param in func.params) == 1
-    assert func.with_body(tvm.tirx.Evaluate(0)).params[2].same_as(b)
+    assert sum(tvm.tirx.is_tensor_var(param) for param in func.params) == 1
+    assert func.with_body(tvm.ir.Evaluate(0)).params[2].same_as(b)
     f2 = func.with_attr({"calling_conv": 1, "tirx.noalias": True})
     assert f2.attrs["calling_conv"] == 1
     assert not func.attrs
@@ -341,17 +336,17 @@ def test_scoped_storage_vars():
 
 
 def test_buffer_load_store():
-    b = tvm.tirx.decl_buffer((10,), "float32")
-    x = tvm.tirx.BufferLoad(b, [0])
+    b = tvm.tirx.decl_tensor((10,), "float32")
+    x = tvm.tirx.TensorLoad(b, [0])
     assert isinstance(x, tvm.ir.TensorLoad)
-    assert callable(tvm.tirx.BufferLoad)
+    assert callable(tvm.tirx.TensorLoad)
     assert x.ty.dtype == "float32"
     assert x.source == b
     assert not hasattr(x, "buffer")
     with pytest.raises(TypeError, match="cannot be constructed directly"):
         tvm.ir.TensorLoad(b, [0])
-    s = tvm.tirx.BufferStore(b, 0.1, [0])
-    assert isinstance(s, tvm.tirx.BufferStore)
+    s = tvm.ir.TensorStore(b, [0], 0.1)
+    assert isinstance(s, tvm.ir.TensorStore)
 
 
 def test_intimm_cond():
@@ -415,32 +410,45 @@ def test_broadcast_to_scalable_vec():
 
 
 def test_buffer_load_scalable_vec():
-    buf = tvm.tirx.decl_buffer((24,), "float32")
+    buf = tvm.tirx.decl_tensor((24,), "float32")
     index = tvm.tirx.expr.Ramp(1, 1, 8 * tvm.tirx.vscale())
-    load = tvm.tirx.BufferLoad(buf, [index])
+    load = tvm.tirx.TensorLoad(buf, [index])
 
     assert isinstance(load, tvm.ir.TensorLoad)
     assert load.ty.dtype == "float32xvscalex8"
 
 
-def test_buffer_store_scalable_vec():
-    b = tvm.tirx.decl_buffer((24,), "int32")
+def test_tensor_store_scalable_vec():
+    b = tvm.tirx.decl_tensor((24,), "int32")
     value = tvm.tirx.expr.Broadcast(1, 4 * tvm.tirx.vscale())
     index = tvm.tirx.expr.Ramp(0, 1, 4 * tvm.tirx.vscale())
-    store = tvm.tirx.BufferStore(b, value, [index])
+    store = tvm.ir.TensorStore(b, [index], value)
 
-    assert isinstance(store, tvm.tirx.BufferStore)
+    assert isinstance(store, tvm.ir.TensorStore)
     assert store.value.ty.dtype == "int32xvscalex4"
 
 
 def test_scalable_vec_cast():
-    b = tvm.tirx.decl_buffer((24,), "float32")
+    b = tvm.tirx.decl_tensor((24,), "float32")
     value = tvm.tirx.expr.Broadcast(1, 12 * tvm.tirx.vscale()).astype("float32xvscalex12")
     index = tvm.tirx.expr.Ramp(0, 1, 12 * tvm.tirx.vscale())
 
-    store = tvm.tirx.BufferStore(b, value, [index])
+    store = tvm.ir.TensorStore(b, [index], value)
 
     assert isinstance(store.value.value, tvm.tirx.expr.FloatImm)
+
+
+@pytest.mark.parametrize("dtype", ["float16", "float16x2", "float32x4", "int32", "int32x2"])
+def test_isnan_preserves_canonical_operand(dtype):
+    value = tvm.tirx.Var("value", dtype)
+    result = tvm.tirx.isnan(value)
+    assert result.op.name == "prim.isnan"
+    assert result.args[0].same_as(value)
+    assert result.ty.dtype.lanes == value.ty.dtype.lanes
+    expected_dtype = "bool" + (dtype[dtype.index("x") :] if "x" in dtype else "")
+    assert result.ty.dtype == expected_dtype
+    for constant in (tvm.tirx.const(0, "int32"), tvm.tirx.const(float("nan"), "float16")):
+        assert tvm.tirx.isnan(constant).args[0].same_as(constant)
 
 
 if __name__ == "__main__":

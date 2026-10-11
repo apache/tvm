@@ -58,7 +58,7 @@ CostModel CostModel::PyCostModel(PyCostModelNode::FLoad f_load,      //
   n->f_save = std::move(f_save);
   n->f_update = std::move(f_update);
   n->f_predict = std::move(f_predict);
-  return CostModel(n);
+  return CostModel(ffi::UnsafeInit{}, n);
 }
 
 // Pattern A (RM): auto-default repr from reflection.

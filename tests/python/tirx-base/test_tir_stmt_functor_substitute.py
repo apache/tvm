@@ -27,7 +27,7 @@ def _apply_substitute(mod):
     """Apply substitute transform to replace the first parameter with 16."""
     func = mod["main"]
     vmap = {func.params[0]: T.int32(16)}
-    new_func = tvm.tirx.PrimFunc(
+    new_func = tvm.tirx.Function(
         params=[],
         body=tvm_ffi.structural_map(
             func.body,
@@ -41,14 +41,14 @@ def _apply_substitute(mod):
 def test_basic_substitute():
     @I.ir_module
     class Before:
-        @T.prim_func
+        @T.function
         def main(n: T.int32):
             for i in range(n):
                 T.evaluate(i)
 
     @I.ir_module
     class Expected:
-        @T.prim_func
+        @T.function
         def main():
             for i in range(16):
                 T.evaluate(i)
@@ -60,16 +60,16 @@ def test_basic_substitute():
 def test_substitute_allocate():
     @I.ir_module
     class Before:
-        @T.prim_func
+        @T.function
         def main(n: T.int32):
-            A = T.alloc_buffer((n,), "float32")
+            A = T.alloc_tensor((n,), "float32")
             T.evaluate(A.data)
 
     @I.ir_module
     class Expected:
-        @T.prim_func
+        @T.function
         def main():
-            A = T.alloc_buffer((16,), "float32")
+            A = T.alloc_tensor((16,), "float32")
             T.evaluate(A.data)
 
     After = _apply_substitute(Before)
@@ -79,17 +79,17 @@ def test_substitute_allocate():
 def test_substitute_buffer_load():
     @I.ir_module
     class Before:
-        @T.prim_func
+        @T.function
         def main(n: T.int32):
-            A = T.alloc_buffer((n,), "float32")
+            A = T.alloc_tensor((n,), "float32")
             for i in range(n):
                 T.evaluate(A[i])
 
     @I.ir_module
     class Expected:
-        @T.prim_func
+        @T.function
         def main():
-            A = T.alloc_buffer((16,), "float32")
+            A = T.alloc_tensor((16,), "float32")
             for i in range(16):
                 T.evaluate(A[i])
 
@@ -100,16 +100,16 @@ def test_substitute_buffer_load():
 def test_substitute_decl_buffer():
     @I.ir_module
     class Before:
-        @T.prim_func
+        @T.function
         def main(n: T.int32):
-            A = T.alloc_buffer((n,), "float32")
+            A = T.alloc_tensor((n,), "float32")
             T.evaluate(A.data)
 
     @I.ir_module
     class Expected:
-        @T.prim_func
+        @T.function
         def main():
-            A = T.alloc_buffer((16,), "float32")
+            A = T.alloc_tensor((16,), "float32")
             T.evaluate(A.data)
 
     After = _apply_substitute(Before)

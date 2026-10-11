@@ -22,7 +22,7 @@ TIRx kernels use ``tvm.script.tirx`` for the parser and core IR builders::
 
    from tvm.script import tirx as Tx
 
-   Tx.alloc_buffer(...)
+   Tx.alloc_tensor(...)
 
 Tile primitives and backend-specific namespaces are documented separately in
 :doc:`tile`, :doc:`cuda`, and :doc:`ptx`.  For the relationship between these
@@ -31,12 +31,20 @@ authoring layers and TIRx IR, see :ref:`tirx-programming-model`.
 Parser entry points
 -------------------
 .. automodule:: tvm.script.tirx
-   :members: prim_func, jit, inline, macro
+   :members: function, jit, inline, macro
    :undoc-members:
    :no-index:
 
 Core IR builder
 ---------------
+
+Common statement frames and construction helpers live in
+``tvm.script.ir_builder.frame`` and ``tvm.script.ir_builder.stmt``. The TIRx
+namespace re-exports them alongside its function, tensor/layout, and execution
+scope builders. Native shared statement builders live under
+``include/tvm/script/ir_builder`` and ``src/script/ir_builder``; dialect-specific
+thread-placement and tensor alias policies remain in the TIRx/S-TIR builders.
+
 .. automodule:: tvm.tirx.script.ir_builder.ir
    :members:
    :no-index:
@@ -59,4 +67,4 @@ Core IR builder
       C = tmem_pool.alloc_tcgen05_mma_D(
           (64, 128), "float32", M=128, cta_group=2)
       frag = Tx.alloc_tcgen05_ldst_frag("32x32b", (64, 128), "float32")
-      Tx.tile.wg.copy_async(frag[:, :], C[:, :])
+      Tx.cuda.tile.tcgen05.ld(frag[:, :], C[:, :], scope="warpgroup")

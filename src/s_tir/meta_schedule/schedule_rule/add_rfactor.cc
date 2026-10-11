@@ -43,7 +43,7 @@ class AddRFactorNode : public ScheduleRuleNode {
   // Inherited from ScheduleRuleNode
   ScheduleRule Clone() const final {
     ffi::ObjectPtr<AddRFactorNode> n = ffi::make_object<AddRFactorNode>(*this);
-    return ScheduleRule(n);
+    return ScheduleRule(ffi::UnsafeInit{}, n);
   }
 
  public:
@@ -77,7 +77,7 @@ ScheduleRule ScheduleRule::AddRFactor(int max_jobs_per_core,
   n->max_innermost_factor = max_innermost_factor.value_or(-1);
   n->max_parallel_extent_ = -1;
   n->max_parallel_basic_ = -1;
-  return ScheduleRule(n);
+  return ScheduleRule(ffi::UnsafeInit{}, n);
 }
 
 ffi::Array<s_tir::Schedule> AddRFactorNode::Apply(const s_tir::Schedule& sch,
@@ -99,10 +99,9 @@ ffi::Array<s_tir::Schedule> AddRFactorNode::Apply(const s_tir::Schedule& sch,
   ReorderAndFuseReductionLoops(sch, block_rv, &fused_reduce_loop, &num_spatial_loops);
 
   // Split the fused reduction loop.
-  ffi::Array<s_tir::ExprRV> factors =
+  ffi::Array<ffi::Optional<s_tir::ExprRV>> factors =
       sch->SamplePerfectTile(fused_reduce_loop, 2, max_innermost_factor);
-  ffi::Array<s_tir::LoopRV> split_loops =
-      sch->Split(fused_reduce_loop, {factors.begin(), factors.end()});
+  ffi::Array<s_tir::LoopRV> split_loops = sch->Split(fused_reduce_loop, factors);
 
   ffi::Array<s_tir::Schedule> res;
   for (const s_tir::LoopRV& split_loop : split_loops) {
@@ -115,7 +114,7 @@ ffi::Array<s_tir::Schedule> AddRFactorNode::Apply(const s_tir::Schedule& sch,
 
       // Annotate that the rfactor block, which is now the producer of the original block, needs to
       // be considered by the rule Random-Compute-Location.
-      sch_tmp->Annotate(block_rv, s_tir::attr::meta_schedule_random_compute_producer,
+      sch_tmp->Annotate(block_rv, tvm::s_tir::attr::kMetaScheduleRandomComputeProducer,
                         IntImm::Int32(1));
       res.push_back(sch_tmp);
     } catch (const tvm::ffi::Error& e) {

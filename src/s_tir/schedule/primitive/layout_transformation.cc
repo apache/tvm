@@ -20,6 +20,7 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/extra/structural_visit.h>
+#include <tvm/ir/analysis.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/s_tir/stmt.h>
@@ -41,20 +42,20 @@ using namespace tvm::tirx;
  *
  * There are four ways that transformation may be handled.  Each
  * updates the buffer shape and the indices used to acces the buffer
- * in BufferStore/TensorLoad nodes, but differ in how they handle the
+ * in TensorStore/TensorLoad nodes, but differ in how they handle the
  * `pad_value`.  In order of preference, the different strategies are
  * as follows:
  *
  * 1. NoPaddingRequired.  The transformation does not introduce
  * padding, so only local changes to update the indices of
- * BufferLoad/BufferStore nodes are required.  No blocks are added,
+ * TensorLoad/TensorStore nodes are required.  No blocks are added,
  * removed, or replaced.
  *
  * 2. ProloguePlan.  The transformation introduces padding, but the
  * analyzed block has no write stages for the transformed buffer.
  * This buffer is an input and the caller is responsible for ensuring
  * that the padding contains the specified `pad_value`.  The generated
- * prologue contains `tirx::builtin::assume()` calls that will expose this
+ * prologue contains `prim::assume_op()` calls that will expose this
  * known value during scheduling/simplification, but will be removed
  * during lowering.
  *
@@ -102,7 +103,7 @@ class TransformLayoutPlanner : public StmtExprVisitor {
   using TransformPlan =
       std::variant<ProloguePlan, ReplacementPlan, EpiloguePlan, NoPaddingRequired>;
 
-  static TransformPlan Plan(SBlock block, BufferVar old_buffer, BufferVar new_buffer,
+  static TransformPlan Plan(SBlock block, TensorVar old_buffer, TensorVar new_buffer,
                             IndexMap index_map, IndexMap inverse, PrimExpr padding_predicate,
                             ffi::Optional<IndexMap> pad_value, sym::AnalyzerObj* analyzer) {
     TVM_FFI_ICHECK(!pad_value.has_value() || pad_value.value()->final_indices.size() == 1)
@@ -115,8 +116,8 @@ class TransformLayoutPlanner : public StmtExprVisitor {
 
  private:
   struct WriteInfo {
-    // The BufferStore object
-    BufferStore store;
+    // The TensorStore object
+    TensorStore store;
 
     // The block realize that contains the store, if any.
     ffi::Optional<SBlockRealize> innermost_block_realize;
@@ -134,7 +135,7 @@ class TransformLayoutPlanner : public StmtExprVisitor {
   };
 
  public:
-  explicit TransformLayoutPlanner(BufferVar old_buffer) : old_buffer_(old_buffer) {}
+  explicit TransformLayoutPlanner(TensorVar old_buffer) : old_buffer_(old_buffer) {}
 
  private:
   ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) override {
@@ -152,8 +153,8 @@ class TransformLayoutPlanner : public StmtExprVisitor {
     return StmtExprVisitor::Visit_(op);
   }
 
-  ffi::Optional<VisitInterrupt> Visit_(const BufferStoreNode* op) override {
-    if (!op->buffer.same_as(old_buffer_)) {
+  ffi::Optional<VisitInterrupt> Visit_(const TensorStoreNode* op) override {
+    if (!op->dest.as_or_throw<TensorVar>().same_as(old_buffer_)) {
       return std::nullopt;
     }
 
@@ -170,8 +171,7 @@ class TransformLayoutPlanner : public StmtExprVisitor {
       }
     }
 
-    WriteInfo write_info;
-    write_info.store = ffi::GetRef<BufferStore>(op);
+    WriteInfo write_info{ffi::GetRef<TensorStore>(op)};
     if (loop_dependency_range) {
       size_t i = loop_dependency_range.value().first;
       size_t j = loop_dependency_range.value().second;
@@ -203,9 +203,9 @@ class TransformLayoutPlanner : public StmtExprVisitor {
         const PrimExpr& buffer_dim = old_buffer_->shape[i];
         PrimExpr index = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(op->indices[i], f_substitute)
                              .as_or_throw<PrimExpr>();
-        bool is_loop_over_axis = index.same_as(loop->loop_var) && is_const_int(loop->min, 0) &&
+        bool is_loop_over_axis = index.same_as(loop->loop_var) && IsConstInt(loop->min, 0) &&
                                  prim::ExprDeepEqual()(loop->extent, buffer_dim) &&
-                                 loop->kind == ForKind::kSerial;
+                                 loop->kind == ForKind::kDefault;
         if (!is_loop_over_axis) {
           return false;
         }
@@ -217,7 +217,7 @@ class TransformLayoutPlanner : public StmtExprVisitor {
     write_info_.push_back(write_info);
 
     // Don't need to continue recursing, as the entire goal was to
-    // find the BufferStore.
+    // find the TensorStore.
     return std::nullopt;
   }
 
@@ -238,12 +238,12 @@ class TransformLayoutPlanner : public StmtExprVisitor {
     return prev;
   }
 
-  class BufferStoreReplacer : public StmtExprMutator {
+  class TensorStoreReplacer : public StmtExprMutator {
    public:
     using StmtExprMutator::Mutate;
     using StmtExprMutator::Mutate_;
 
-    BufferStoreReplacer(const WriteInfo& info, const BufferVar& new_buffer,
+    TensorStoreReplacer(const WriteInfo& info, const TensorVar& new_buffer,
                         PrimExpr padding_predicate, const IndexMap& inverse,
                         const ffi::Optional<IndexMap>& pad_value,
                         ffi::Map<SBlock, SBlock>* new_block_to_old, sym::AnalyzerObj* analyzer)
@@ -368,9 +368,9 @@ class TransformLayoutPlanner : public StmtExprVisitor {
       this->new_iter_values = new_iter_values;
     }
 
-    UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) final {
+    UnchangedOr<Stmt> Mutate_(const TensorStoreNode* op, InplaceMode inplace_mode) final {
       bool can_replace = [&]() -> bool {
-        if (!op->buffer.same_as(info.store->buffer)) {
+        if (!op->dest.as_or_throw<TensorVar>().same_as(info.store->dest)) {
           return false;
         }
 
@@ -386,15 +386,14 @@ class TransformLayoutPlanner : public StmtExprVisitor {
         return true;
       }();
 
-      BufferStore store = ffi::GetRef<BufferStore>(op);
+      TensorStore store = ffi::GetRef<TensorStore>(op);
       if (can_replace) {
         ffi::Array<PrimExpr> new_index_exprs =
             new_indices.Map([](const Var& var) { return var.as_or_throw<PrimExpr>(); });
         PrimExpr pad_value_at_index =
             pad_value.value()->MapIndices(new_index_exprs, ffi::GetRef<sym::Analyzer>(analyzer))[0];
-        store =
-            BufferStore(new_buffer, if_then_else(padding_predicate, pad_value_at_index, op->value),
-                        new_index_exprs);
+        store = TensorStore(new_buffer, new_index_exprs,
+                            if_then_else(padding_predicate, pad_value_at_index, op->value));
       } else {
         all_stores_replaced = false;
       }
@@ -461,7 +460,7 @@ class TransformLayoutPlanner : public StmtExprVisitor {
     }
 
     const WriteInfo& info;
-    const BufferVar& new_buffer;
+    const TensorVar& new_buffer;
     ffi::Array<Var> new_indices;
     ffi::Array<IterVar> new_iter_vars;
     ffi::Array<PrimExpr> new_iter_values;
@@ -473,7 +472,7 @@ class TransformLayoutPlanner : public StmtExprVisitor {
     sym::AnalyzerObj* analyzer;
   };
 
-  TransformPlan Finalize(BufferVar new_buffer, IndexMap index_map, IndexMap inverse,
+  TransformPlan Finalize(TensorVar new_buffer, IndexMap index_map, IndexMap inverse,
                          PrimExpr padding_predicate, ffi::Optional<IndexMap> pad_value,
                          sym::AnalyzerObj* analyzer) const {
     if (auto prologue_plan = FinalizeProloguePlan(new_buffer, index_map, inverse, padding_predicate,
@@ -493,11 +492,11 @@ class TransformLayoutPlanner : public StmtExprVisitor {
     }
   }
 
-  std::optional<ProloguePlan> FinalizeProloguePlan(BufferVar new_buffer, IndexMap index_map,
+  std::optional<ProloguePlan> FinalizeProloguePlan(TensorVar new_buffer, IndexMap index_map,
                                                    IndexMap inverse, PrimExpr padding_predicate,
                                                    ffi::Optional<IndexMap> pad_value,
                                                    sym::AnalyzerObj* analyzer) const {
-    if (write_info_.size() || is_zero(padding_predicate) || !pad_value.has_value()) {
+    if (write_info_.size() || IsZero(padding_predicate) || !pad_value.has_value()) {
       return std::nullopt;
     }
 
@@ -527,9 +526,9 @@ class TransformLayoutPlanner : public StmtExprVisitor {
 
     PrimExpr pad_value_at_index =
         pad_value.value()->MapIndices(indices, ffi::GetRef<sym::Analyzer>(analyzer))[0];
-    PrimExpr expr = (!padding_predicate) || (BufferLoad(new_buffer, indices) == pad_value_at_index);
-    Stmt stmt =
-        Evaluate(Call(PrimType::Bool(), tirx::builtin::assume(), {expr}).as_or_throw<PrimExpr>());
+    PrimExpr expr =
+        (!padding_predicate) || (MakeTensorLoad(new_buffer, indices) == pad_value_at_index);
+    Stmt stmt = Evaluate(Call(PrimType::Bool(), prim::assume_op(), {expr}).as_or_throw<PrimExpr>());
 
     std::stringstream block_name;
     block_name << "buffer_" << new_buffer.name() << "_assumptions";
@@ -541,28 +540,28 @@ class TransformLayoutPlanner : public StmtExprVisitor {
       size_t i = (inverse->initial_indices.size() - 1) - rev_i;
       Var loop_var = inverse->initial_indices[i];
       PrimExpr extent = new_buffer->shape[i];
-      stmt = For(loop_var.as_or_throw<PrimVar>(), 0, extent, ForKind::kSerial, stmt);
+      stmt = For(loop_var.as_or_throw<PrimVar>(), 0, extent, ForKind::kDefault, stmt);
     }
     return ProloguePlan{stmt};
   }
 
-  std::optional<ReplacementPlan> FinalizeReplacementPlan(BufferVar new_buffer, IndexMap index_map,
+  std::optional<ReplacementPlan> FinalizeReplacementPlan(TensorVar new_buffer, IndexMap index_map,
                                                          IndexMap inverse,
                                                          PrimExpr padding_predicate,
                                                          ffi::Optional<IndexMap> pad_value,
                                                          sym::AnalyzerObj* analyzer) const {
-    if (write_info_.empty() || is_zero(padding_predicate) || !pad_value.has_value()) {
+    if (write_info_.empty() || IsZero(padding_predicate) || !pad_value.has_value()) {
       return std::nullopt;
     }
 
     ffi::Map<SBlock, SBlock> new_block_to_old;
     auto generate_if_then_else_block = [&](const WriteInfo& info) -> ffi::Optional<Stmt> {
       if (!info.contains_row_major_traversal || !pad_value.has_value() ||
-          is_zero(padding_predicate)) {
+          IsZero(padding_predicate)) {
         return std::nullopt;
       }
 
-      auto replacer = ffi::make_object<BufferStoreReplacer>(
+      auto replacer = ffi::make_object<TensorStoreReplacer>(
           info, new_buffer, padding_predicate, inverse, pad_value, &new_block_to_old, analyzer);
       Stmt stmt = replacer->Mutate(info.dependent_loopnest.back()->body)
                       .ValueOrUnchanged(info.dependent_loopnest.back()->body);
@@ -575,7 +574,7 @@ class TransformLayoutPlanner : public StmtExprVisitor {
         size_t i = (inverse->initial_indices.size() - 1) - rev_i;
         Var loop_var = inverse->initial_indices[i];
         PrimExpr extent = new_buffer->shape[i];
-        stmt = For(loop_var.as_or_throw<PrimVar>(), 0, extent, ForKind::kSerial, stmt);
+        stmt = For(loop_var.as_or_throw<PrimVar>(), 0, extent, ForKind::kDefault, stmt);
       }
 
       return stmt;
@@ -598,11 +597,11 @@ class TransformLayoutPlanner : public StmtExprVisitor {
     }
   }
 
-  std::optional<EpiloguePlan> FinalizeEpiloguePlan(BufferVar new_buffer, IndexMap index_map,
+  std::optional<EpiloguePlan> FinalizeEpiloguePlan(TensorVar new_buffer, IndexMap index_map,
                                                    IndexMap inverse, PrimExpr padding_predicate,
                                                    ffi::Optional<IndexMap> pad_value,
                                                    sym::AnalyzerObj* analyzer) const {
-    if (write_info_.empty() || is_zero(padding_predicate) || !pad_value.has_value()) {
+    if (write_info_.empty() || IsZero(padding_predicate) || !pad_value.has_value()) {
       return std::nullopt;
     }
 
@@ -622,7 +621,7 @@ class TransformLayoutPlanner : public StmtExprVisitor {
 
     PrimExpr pad_value_at_index =
         pad_value.value()->MapIndices(indices, ffi::GetRef<sym::Analyzer>(analyzer))[0];
-    Stmt stmt = BufferStore(new_buffer, pad_value_at_index, indices);
+    Stmt stmt = TensorStore(new_buffer, indices, pad_value_at_index);
 
     std::stringstream block_name;
     block_name << "buffer_" << new_buffer.name() << "_padding";
@@ -635,7 +634,7 @@ class TransformLayoutPlanner : public StmtExprVisitor {
       size_t i = (inverse->initial_indices.size() - 1) - rev_i;
       Var loop_var = inverse->initial_indices[i];
       PrimExpr extent = new_buffer->shape[i];
-      stmt = For(loop_var.as_or_throw<PrimVar>(), 0, extent, ForKind::kSerial, stmt);
+      stmt = For(loop_var.as_or_throw<PrimVar>(), 0, extent, ForKind::kDefault, stmt);
     }
 
     const auto& info = write_info_.back();
@@ -689,9 +688,10 @@ class TransformLayoutPlanner : public StmtExprVisitor {
           }
           return ffi::Unchanged();
         };
-        self->active_var_bindings_[var.get()] =
+        self->active_var_bindings_.insert_or_assign(
+            var.get(),
             ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(prim_value.value(), f_substitute)
-                .as_or_throw<PrimExpr>();
+                .as_or_throw<PrimExpr>());
       }
     }
     ~BindVariableDefinition() {}
@@ -722,7 +722,7 @@ class TransformLayoutPlanner : public StmtExprVisitor {
     std::vector<BindVariableDefinition> bound_vars_;
   };
 
-  /*! \brief Collected information about each BufferStore */
+  /*! \brief Collected information about each TensorStore */
   std::vector<WriteInfo> write_info_;
 
   /*! \brief The loop iterators surrounding the current node
@@ -742,7 +742,7 @@ class TransformLayoutPlanner : public StmtExprVisitor {
 
   /*! \brief The variable mappings that are currently in-scope
    *
-   * Used to determine whether the indices of a BufferStore are a
+   * Used to determine whether the indices of a TensorStore are a
    * row-major traversal, even if they are rebound in let/block
    * mappings.
    */
@@ -755,7 +755,7 @@ class TransformLayoutPlanner : public StmtExprVisitor {
   ffi::Optional<SBlockRealize> innermost_block_realize_{std::nullopt};
 
   /*! \brief The buffer to be replaced */
-  BufferVar old_buffer_;
+  TensorVar old_buffer_;
 };
 
 /*!
@@ -819,7 +819,7 @@ class TransformLayoutRewriter : public s_tir::IRMutatorWithAnalyzer {
    * new block
    */
   static std::pair<Stmt, ffi::Map<SBlock, SBlock>> Rewrite(
-      const SBlock& scope_stmt, const BufferVar& old_buffer, const BufferVar& new_buffer,
+      const SBlock& scope_stmt, const TensorVar& old_buffer, const TensorVar& new_buffer,
       const IndexMap& index_map, const ffi::Optional<IndexMap>& opt_inverse,
       const PrimExpr& padding_predicate, const ffi::Optional<IndexMap>& pad_value) {
     sym::Analyzer analyzer;
@@ -843,7 +843,7 @@ class TransformLayoutRewriter : public s_tir::IRMutatorWithAnalyzer {
     return {result, block_sref_reuse};
   }
 
-  TransformLayoutRewriter(const BufferVar& old_buffer, const BufferVar& new_buffer,
+  TransformLayoutRewriter(const TensorVar& old_buffer, const TensorVar& new_buffer,
                           const IndexMap& index_map,
                           const TransformLayoutPlanner::TransformPlan& plan,
                           const sym::Analyzer& analyzer)
@@ -859,7 +859,7 @@ class TransformLayoutRewriter : public s_tir::IRMutatorWithAnalyzer {
   }
 
  private:
-  void RewriteBufferAccess(BufferVar* buffer, ffi::Array<PrimExpr>* indices) {
+  void RewriteBufferAccess(TensorVar* buffer, ffi::Array<PrimExpr>* indices) {
     *buffer = new_buffer_;
     *indices = index_map_->MapIndices(*indices, index_simplifier_);
     *indices = this->IterMapSimplifyWithContext(*indices, true);
@@ -896,35 +896,37 @@ class TransformLayoutRewriter : public s_tir::IRMutatorWithAnalyzer {
     TensorLoad buffer_load = Parent::Mutate_(op, inplace_mode)
                                  .ValueOrUnchanged(ffi::GetRef<PrimExpr>(op))
                                  .as_or_throw<TensorLoad>();
-    if (buffer_load->source.as_or_throw<tvm::tirx::BufferVar>().same_as(old_buffer_)) {
-      BufferVar buffer = buffer_load->source.as_or_throw<tvm::tirx::BufferVar>();
+    if (buffer_load->source.as_or_throw<tvm::tirx::TensorVar>().same_as(old_buffer_)) {
+      TensorVar buffer = buffer_load->source.as_or_throw<tvm::tirx::TensorVar>();
       ffi::Array<PrimExpr> indices = buffer_load->indices;
       RewriteBufferAccess(&buffer, &indices);
-      return BufferLoad(buffer, indices, buffer_load->span);
+      return MakeTensorLoad(buffer, indices, buffer_load->loc);
     }
     return buffer_load;
   }
 
-  UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) final {
-    BufferStore buffer_store = Parent::Mutate_(op, inplace_mode)
+  UnchangedOr<Stmt> Mutate_(const TensorStoreNode* op, InplaceMode inplace_mode) final {
+    TensorStore tensor_store = Parent::Mutate_(op, inplace_mode)
                                    .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
-                                   .as_or_throw<BufferStore>();
-    if (buffer_store->buffer.same_as(old_buffer_)) {
-      auto* n = buffer_store.CopyOnWrite();
-      RewriteBufferAccess(&n->buffer, &n->indices);
+                                   .as_or_throw<TensorStore>();
+    if (tensor_store->dest.as_or_throw<TensorVar>().same_as(old_buffer_)) {
+      auto* n = tensor_store.CopyOnWrite();
+      TensorVar buffer = n->dest.as_or_throw<TensorVar>();
+      RewriteBufferAccess(&buffer, &n->indices);
+      n->dest = std::move(buffer);
     }
-    return buffer_store;
+    return tensor_store;
   }
 
   void RewriteAccessRegion(ffi::Array<TensorRegion>* old_access_regions,
                            const ffi::Array<TensorRegion>& infered_access_regions) {
     auto fmutate = [this, &infered_access_regions](const TensorRegion& buffer_region) {
-      if (buffer_region->source.as_or_throw<tvm::tirx::BufferVar>().same_as(old_buffer_)) {
+      if (buffer_region->source.as_or_throw<tvm::tirx::TensorVar>().same_as(old_buffer_)) {
         TVM_FFI_ICHECK(infered_access_regions.size() == 1);
         TensorRegion result = infered_access_regions[0];
         // The inferred region may reference old_buffer_ (e.g. when resolved
         // through match_buffer source).  Ensure we use new_buffer_ instead.
-        if (result->source.as_or_throw<tvm::tirx::BufferVar>().same_as(old_buffer_)) {
+        if (result->source.as_or_throw<tvm::tirx::TensorVar>().same_as(old_buffer_)) {
           auto* n = result.CopyOnWrite();
           n->source = new_buffer_;
         }
@@ -958,7 +960,7 @@ class TransformLayoutRewriter : public s_tir::IRMutatorWithAnalyzer {
     RewriteAccessRegion(&n->writes, infered_access_regions[1]);
     // Update match_buffers whose source references old_buffer_
     n->match_buffers.MutateByApply([this](const MatchBufferRegion& match_buf) {
-      if (match_buf->source->source.as_or_throw<tvm::tirx::BufferVar>().same_as(old_buffer_)) {
+      if (match_buf->source->source.as_or_throw<tvm::tirx::TensorVar>().same_as(old_buffer_)) {
         auto new_source = match_buf->source;
         auto* source_n = new_source.CopyOnWrite();
         source_n->source = new_buffer_;
@@ -968,7 +970,7 @@ class TransformLayoutRewriter : public s_tir::IRMutatorWithAnalyzer {
       }
       return match_buf;
     });
-    n->alloc_buffers.MutateByApply([this](const BufferVar& buffer) {
+    n->alloc_buffers.MutateByApply([this](const TensorVar& buffer) {
       if (buffer.same_as(old_buffer_)) {
         return new_buffer_;
       } else {
@@ -998,18 +1000,18 @@ class TransformLayoutRewriter : public s_tir::IRMutatorWithAnalyzer {
     new_block_to_old_.Set(after, before);
   }
 
-  const BufferVar& old_buffer_;
-  const BufferVar& new_buffer_;
+  const TensorVar& old_buffer_;
+  const TensorVar& new_buffer_;
   const IndexMap& index_map_;
   const TransformLayoutPlanner::TransformPlan& plan_;
-  ffi::Map<Var, BufferVar> buffer_data_to_buffer_;
+  ffi::Map<Var, TensorVar> buffer_data_to_buffer_;
   ffi::Map<SBlock, SBlock> new_block_to_old_;
   sym::Analyzer index_simplifier_;
 };
 
 class BufferIsSubregionError : public ScheduleErrorContextObj {
  public:
-  explicit BufferIsSubregionError(IRModule mod, BufferVar buffer) : mod_(mod), buffer_(buffer) {}
+  explicit BufferIsSubregionError(IRModule mod, TensorVar buffer) : mod_(mod), buffer_(buffer) {}
 
   ffi::String FastErrorString() const final {
     return "ScheduleError: The input buffer is defined in `match_buffer` of a block, it is expected"
@@ -1029,7 +1031,7 @@ class BufferIsSubregionError : public ScheduleErrorContextObj {
 
  private:
   IRModule mod_;
-  BufferVar buffer_;
+  TensorVar buffer_;
 };
 
 class TransformationPaddingIndexMapError : public ScheduleErrorContextObj {
@@ -1061,7 +1063,7 @@ class TransformationPaddingIndexMapError : public ScheduleErrorContextObj {
 
 class TransformationPaddingTypeError : public ScheduleErrorContextObj {
  public:
-  TransformationPaddingTypeError(IRModule mod, BufferVar buffer, IndexMap pad_value)
+  TransformationPaddingTypeError(IRModule mod, TensorVar buffer, IndexMap pad_value)
       : mod_(mod), buffer_(buffer), pad_value_(pad_value) {
     TVM_FFI_ICHECK_EQ(pad_value_->final_indices.size(), 1);
     pad_value_dtype_ = pad_value_->final_indices[0].ty()->dtype;
@@ -1086,14 +1088,14 @@ class TransformationPaddingTypeError : public ScheduleErrorContextObj {
 
  private:
   IRModule mod_;
-  BufferVar buffer_;
+  TensorVar buffer_;
   IndexMap pad_value_;
   DLDataType pad_value_dtype_;
 };
 
 class TransformationPaddingExpressionError : public ScheduleErrorContextObj {
  public:
-  static void Check(IRModule mod, BufferVar buffer, IndexMap pad_value) {
+  static void Check(IRModule mod, TensorVar buffer, IndexMap pad_value) {
     auto visitor = ffi::make_object<Visitor>(buffer);
     TVM_FFI_ICHECK_EQ(pad_value->final_indices.size(), 1)
         << "Internal error: Should be caught by ScheduleError checks prior to this point";
@@ -1109,21 +1111,21 @@ class TransformationPaddingExpressionError : public ScheduleErrorContextObj {
    public:
     using StmtExprVisitor::Visit_;
 
-    explicit Visitor(const BufferVar& buffer) : buffer_(buffer) {}
+    explicit Visitor(const TensorVar& buffer) : buffer_(buffer) {}
 
     ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* op) final {
-      if (!op->source.as_or_throw<tvm::tirx::BufferVar>().same_as(buffer_)) {
+      if (!op->source.as_or_throw<tvm::tirx::TensorVar>().same_as(buffer_)) {
         illegal_load = ffi::GetRef<TensorLoad>(op);
       }
       return StmtExprVisitor::Visit_(op);
     }
 
-    const BufferVar& buffer_;
+    const TensorVar& buffer_;
     ffi::Optional<TensorLoad> illegal_load;
   };
 
  public:
-  TransformationPaddingExpressionError(IRModule mod, BufferVar buffer, IndexMap pad_value,
+  TransformationPaddingExpressionError(IRModule mod, TensorVar buffer, IndexMap pad_value,
                                        TensorLoad illegal_load)
       : mod_(mod), buffer_(buffer), pad_value_(pad_value), illegal_load_(illegal_load) {}
 
@@ -1131,7 +1133,7 @@ class TransformationPaddingExpressionError : public ScheduleErrorContextObj {
   ffi::String FastErrorString() const final {
     std::ostringstream ss;
     ss << "ScheduleError: Pad value may not contain load from "
-       << illegal_load_->source.as_or_throw<tvm::tirx::BufferVar>().name();
+       << illegal_load_->source.as_or_throw<tvm::tirx::TensorVar>().name();
     return ss.str();
   }
 
@@ -1147,14 +1149,14 @@ class TransformationPaddingExpressionError : public ScheduleErrorContextObj {
   ffi::Array<ffi::ObjectRef> LocationsOfInterest() const final { return {}; }
 
   IRModule mod_;
-  BufferVar buffer_;
+  TensorVar buffer_;
   IndexMap pad_value_;
   TensorLoad illegal_load_;
 };
 
 class TransformationIntroducesPaddingError : public ScheduleErrorContextObj {
  public:
-  TransformationIntroducesPaddingError(IRModule mod, BufferVar buffer, IndexMap index_map,
+  TransformationIntroducesPaddingError(IRModule mod, TensorVar buffer, IndexMap index_map,
                                        PrimExpr padding_predicate)
       : mod_(std::move(mod)),
         buffer_(std::move(buffer)),
@@ -1182,7 +1184,7 @@ class TransformationIntroducesPaddingError : public ScheduleErrorContextObj {
 
  private:
   IRModule mod_;
-  BufferVar buffer_;
+  TensorVar buffer_;
   IndexMap index_map_;
   PrimExpr padding_predicate_;
 };
@@ -1247,7 +1249,7 @@ void TransformLayout(ScheduleState self, const StmtSRef& block_sref, int buffer_
   AddShapeVarBounds(self, block_sref.get(), analyzer.get());
   // Step 1: Input handling and error checking
   const SBlockNode* block_ptr = TVM_SREF_TO_SBLOCK(block_sref);
-  BufferVar old_buffer =
+  TensorVar old_buffer =
       GetNthAccessBuffer(self, ffi::GetRef<SBlock>(block_ptr), buffer_index, buffer_index_type);
 
   auto index_map = LegalizeIndexMapDType(index_map_orig, old_buffer->shape);
@@ -1285,40 +1287,40 @@ void TransformLayout(ScheduleState self, const StmtSRef& block_sref, int buffer_
     }();
   }
 
-  bool has_padding = !is_zero(padding_predicate);
+  bool has_padding = !IsZero(padding_predicate);
   if (has_padding && !pad_value.has_value()) {
     throw MakeScheduleError<TransformationIntroducesPaddingError>(self->mod, old_buffer, index_map,
                                                                   padding_predicate);
   }
 
   // Step 2: Infer the shape of the new buffer
-  auto new_buffer_type = CopyBufferType(old_buffer);
+  auto new_buffer_type = CopyTensorType(old_buffer);
   new_buffer_type->shape = index_map->MapShape(old_buffer->shape, analyzer);
-  BufferVar new_buffer = RebuildBufferVar(old_buffer, std::move(new_buffer_type));
+  TensorVar new_buffer = RebuildTensorVar(old_buffer, std::move(new_buffer_type));
 
-  // Step 3: Rewrite BufferLoad/BufferStore access indices, block read/write regions, and block
+  // Step 3: Rewrite TensorLoad/TensorStore access indices, block read/write regions, and block
   // alloc_buffers.
   auto [new_stmt, block_sref_reuse] =
       TransformLayoutRewriter::Rewrite(ffi::GetRef<SBlock>(scope_block), old_buffer, new_buffer,
                                        index_map, opt_inverse, padding_predicate, pad_value);
   SBlock new_scope_block = new_stmt.as_or_throw<SBlock>();
 
-  // Step 4: Rewrite the PrimFunc buffer parameter if necessary.
+  // Step 4: Rewrite the Function buffer parameter if necessary.
   if (!defining_site_sref.has_value()) {
-    GlobalVar g_var;
-    const auto* old_func = GetRootPrimFunc(self->mod, scope_block, &g_var);
+    GlobalVar g_var{ffi::UnsafeInit{}};
+    const auto* old_func = GetRootFunction(self->mod, scope_block, &g_var);
     IRModuleNode* new_mod = self->mod.CopyOnWrite();
     ffi::MapObj* new_map = new_mod->functions.CopyOnWrite();
 
     ffi::Array<Var> new_params = old_func->params.Map([&](Var param) -> Var {
-      if (auto buffer = param.as<BufferVar>(); buffer && buffer.value().same_as(old_buffer)) {
+      if (auto buffer = param.as<TensorVar>(); buffer && buffer.value().same_as(old_buffer)) {
         return new_buffer.var();
       }
       return param;
     });
 
-    PrimFunc ref_new_func(new_params, old_func->body, old_func->ret_type, old_func->attrs,
-                          old_func->span);
+    Function ref_new_func(new_params, old_func->body, old_func->ret_type, old_func->attrs,
+                          old_func->loc);
     new_map->at(g_var) = std::move(ref_new_func);
   }
 
@@ -1461,7 +1463,7 @@ void TransformBlockLayout(ScheduleState self, const StmtSRef& block_sref,
 
   // Step 2: Check the all outer loops have a single child and the block bindings are trivial (all
   // binding values are loop vars)
-  StmtSRef scope_sref{nullptr};  // the scope statement for replacement
+  StmtSRef scope_sref{ffi::UnsafeInit{}};  // the scope statement for replacement
   if (!loops.empty()) {
     scope_sref = loops.front();
     CheckGetSingleChildBlockRealizeOnSRefTree(self, loops.front());
@@ -1481,10 +1483,10 @@ void TransformBlockLayout(ScheduleState self, const StmtSRef& block_sref,
       block_iter_range_array;  // array of block iter extents in the same order as block iters
   for (const auto& iter_var : block->iter_vars) {
     block_vars.push_back(iter_var->var);
-    block_iter_dom.Set(iter_var->var, iter_var->dom);
+    block_iter_dom.Set(iter_var->var, iter_var->dom.value());
     block_iter_type[iter_var->var.get()] = iter_var->iter_type;
-    TVM_FFI_ICHECK(is_zero(iter_var->dom->min));
-    block_iter_range_array.push_back(iter_var->dom->extent);
+    TVM_FFI_ICHECK(IsZero(iter_var->dom.value()->min));
+    block_iter_range_array.push_back(iter_var->dom.value()->extent);
   }
 
   // Step 4: Apply the IndexMap to block iters.
@@ -1502,7 +1504,7 @@ void TransformBlockLayout(ScheduleState self, const StmtSRef& block_sref,
     Var new_block_var{"v" + std::to_string(i), transformed_block_iters[i].ty()};
     new_block_vars.push_back(new_block_var.as_or_throw<PrimExpr>());
     IterVarType iter_type;
-    if (is_one(new_block_iter_range[i])) {
+    if (IsOne(new_block_iter_range[i])) {
       iter_type = kDataPar;
     } else {
       iter_type = DetectNewBlockIterType(transformed_block_iters[i], block_iter_type);
@@ -1526,7 +1528,7 @@ void TransformBlockLayout(ScheduleState self, const StmtSRef& block_sref,
     for (const PrimExpr& extent : block_iter_range_array) {
       initial_ranges.push_back(Range::FromMinExtent(IntImm(extent.ty(), 0), extent));
     }
-    IndexMap inverse_index_map{nullptr};
+    IndexMap inverse_index_map{ffi::UnsafeInit{}};
     try {
       inverse_index_map = index_map.Inverse(initial_ranges, analyzer);
     } catch (...) {
@@ -1572,7 +1574,7 @@ void TransformBlockLayout(ScheduleState self, const StmtSRef& block_sref,
   Stmt body = ffi::GetRef<Stmt>(new_block_realize);
   for (int i = static_cast<int>(new_loop_vars.size()) - 1; i >= 0; --i) {
     body = For(new_loop_vars[i].as_or_throw<PrimVar>(), 0, new_block_iter_range[i],
-               ForKind::kSerial, std::move(body));
+               ForKind::kDefault, std::move(body));
   }
 
   // Step 6: Do the actual replacement

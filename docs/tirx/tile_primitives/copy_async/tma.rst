@@ -15,12 +15,13 @@
     specific language governing permissions and limitations
     under the License.
 
-copy_async → tma_auto / tma_explicit
-=====================================
+TMA tensor instructions
+=======================
 
-The ``tma_auto`` and ``tma_explicit`` variants lower ``copy_async`` between
-global and shared memory to CUDA Tensor Memory Accelerator instructions.  Both
-variants:
+``Tx.cuda.tile.cp_async_bulk_tensor_load`` and
+``Tx.cuda.tile.cp_async_bulk_tensor_store`` select the transfer direction.
+``cp_reduce_async_bulk_tensor`` selects a shared-to-global reduction.
+The ``descriptor_mode="auto"`` and ``descriptor_mode="explicit"`` planners:
 
 * require the call to be in a single-thread execution scope (the caller
   normally selects the issuing thread);
@@ -31,7 +32,7 @@ variants:
 * require the source and destination regions to contain the same total number
   of bytes.  Their ranks and per-dimension shapes need not match.
 
-The variants differ only in how the TensorMap and issue count are planned.
+The descriptor modes differ only in how the TensorMap and issue count are planned.
 
 ``tma_auto``
 ------------
@@ -42,10 +43,10 @@ can be proven statically:
 
 .. code-block:: python
 
-    Tx.tile.copy_async(
+    Tx.cuda.tile.cp_async_bulk_tensor_load(
         A_smem[:, :],
         A[tile_m : tile_m + 64, tile_k : tile_k + 64],
-        dispatch="tma_auto",
+        descriptor_mode="auto",
         mbar=mbar.ptr_to([0]),
     )
 
@@ -89,16 +90,16 @@ are only known at runtime.
 * Buffer data plus ``elem_offset`` becomes the TensorMap base.
 
 It never regroups, compresses, promotes, shrinks, or splits a copy.  One
-``Tx.tile.copy_async`` call emits exactly one TMA instruction, so a caller must
+explicit descriptor call emits exactly one TMA instruction, so a caller must
 explicitly tile a wider transfer:
 
 .. code-block:: python
 
     for atom in Tx.unroll(8):
-        Tx.tile.copy_async(
+        Tx.cuda.tile.cp_async_bulk_tensor_store(
             O[:, atom * 64 : (atom + 1) * 64],
             O_smem[:, atom * 64 : (atom + 1) * 64],
-            dispatch="tma_explicit",
+            descriptor_mode="explicit",
         )
 
 The sliced shared layout must canonicalize to a trivial box after its pointer
@@ -116,10 +117,10 @@ coordinates in ``{column, row0, row1, row2, row3}`` order:
 
 .. code-block:: python
 
-    Tx.tile.copy_async(
+    Tx.cuda.tile.cp_async_bulk_tensor_load(
         K_smem[0:4, :],
         K[0:1, :],
-        dispatch="tma_explicit",
+        descriptor_mode="explicit",
         mbar=mbar.ptr_to([0]),
         gather4=[row0, row1, row2, row3],
     )
@@ -136,10 +137,10 @@ the main operand's region and gather coordinates:
 
 .. code-block:: python
 
-    Tx.tile.copy_async(
+    Tx.cuda.tile.cp_async_bulk_tensor_load(
         K_smem[0:4, :],
         K_main[0:1, :],
-        dispatch="tma_explicit",
+        descriptor_mode="explicit",
         mbar=mbar.ptr_to([0]),
         gather4=[row0, row1, row2, row3],
         src_selector=[
@@ -148,6 +149,7 @@ the main operand's region and gather coordinates:
         ],
     )
 
+Candidates must cover the entire tensor view; use a subview to change its base.
 Conditions use first-true priority and the main Buffer is the default.  Every
 candidate gets its own validated and encoded TensorMap.  Candidates may have
 different bases, global shapes, and strides, but must have the same descriptor
@@ -178,9 +180,10 @@ Common configuration
      - ``cta_group`` is ``1`` or ``2``. Group 2 requires SM100+ and a
        precomputed shared mbarrier address. ``cta_mask`` is a uint16 integer or
        TIR expression and is valid only for global-to-shared multicast.
-   * - ``cache_hint``
-     - ``evict_normal``, ``evict_first``, ``evict_last``, or a runtime
-       ``uint64`` cache-policy expression.
+   * - ``cache_hint`` / ``cache_policy``
+     - The static hint is ``evict_normal``, ``evict_first``, or ``evict_last``.
+       A runtime ``uint64`` policy is a separate ``cache_policy`` operand.
+       Supplying both is rejected.
    * - ``prefetch_tensormap``
      - Deduplicated device-side prefetch of the main descriptor. Requires the
        ``warp_id_in_cta`` launch parameter.
@@ -190,8 +193,8 @@ Common configuration
        ``L2::256B``.
    * - ``tma_dtype``
      - ``tf32`` or ``tfloat32`` for a float32 descriptor conversion.
-   * - ``use_tma_reduce``
-     - Shared-to-global reduction operation: ``add``, ``min``, ``max``,
+   * - ``reduce_op``
+     - Operation for ``cp_reduce_async_bulk_tensor``: ``add``, ``min``, ``max``,
        ``inc``, ``dec``, ``and``, ``or``, or ``xor``.
    * - ``oob``
      - ``tma_explicit`` global-to-shared only. ``None`` is the default zero-fill
@@ -233,7 +236,7 @@ choose among alternative boxes or issue loops.
 Completion
 ----------
 
-The dispatch emits the TMA instruction but no completion operation.
+The lowerer emits the TMA instruction but no completion operation.
 Global-to-shared callers initialize the barrier, call
 ``arrive.expect_tx`` with the transferred byte count, and wait for its phase.
 Shared-to-global callers use the bulk-group commit/wait operations required by

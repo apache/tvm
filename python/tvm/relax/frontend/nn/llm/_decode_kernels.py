@@ -65,17 +65,17 @@ def _attention_decode_cpu(num_kv_heads, num_qo_heads, head_dim, qkv_dtype, slidi
     k_rope_pos_offset_elem_offset = T.dynamic("k_rope_pos_offset_elem_offset", "int32")
     q_rope_position_elem_offset = T.dynamic("q_rope_position_elem_offset", "int32")
     length_info_elem_offset = T.dynamic("length_info_elem_offset", "int32")
-    @Ts.prim_func
+    @Ts.function
     def batch_decode_paged_kv(
-        Q: T.Buffer((B, H_qo, D), qkv_dtype),
-        pages: T.Buffer((max_num_pages, 2, H_kv, page_size, D), qkv_dtype),
-        page_table_indptr: T.Buffer((B + 1,), 'int32', elem_offset=page_indptr_elem_offset),
-        page_table_values: T.Buffer((nnz_pages,), 'int32', elem_offset=page_values_elem_offset),
+        Q: T.Tensor((B, H_qo, D), qkv_dtype),
+        pages: T.Tensor((max_num_pages, 2, H_kv, page_size, D), qkv_dtype),
+        page_table_indptr: T.Tensor((B + 1,), 'int32', elem_offset=page_indptr_elem_offset),
+        page_table_values: T.Tensor((nnz_pages,), 'int32', elem_offset=page_values_elem_offset),
         length_info: _length_info_buffer(B, sliding_window, length_info_elem_offset),  # [b] when sliding window = False, or otherwise [3, b]
-        k_rope_pos_offset: T.Buffer((B,), 'int32', elem_offset=k_rope_pos_offset_elem_offset),
-        q_rope_position: T.Buffer((B,), 'int32', elem_offset=q_rope_position_elem_offset),
-        output: T.Buffer((B, H_qo, D), qkv_dtype),
-        lse: T.Buffer((B, H_qo), 'float32'),
+        k_rope_pos_offset: T.Tensor((B,), 'int32', elem_offset=k_rope_pos_offset_elem_offset),
+        q_rope_position: T.Tensor((B,), 'int32', elem_offset=q_rope_position_elem_offset),
+        output: T.Tensor((B, H_qo, D), qkv_dtype),
+        lse: T.Tensor((B, H_qo), 'float32'),
         rotary_mode: T.int32,
         rope_scale: T.float32,
         rope_theta: T.float32,
@@ -212,17 +212,17 @@ def _attention_decode(num_kv_heads, num_qo_heads, head_dim, qkv_dtype, sliding_w
     k_rope_pos_offset_elem_offset = T.dynamic("k_rope_pos_offset_elem_offset", "int32")
     q_rope_position_elem_offset = T.dynamic("q_rope_position_elem_offset", "int32")
     length_info_elem_offset = T.dynamic("length_info_elem_offset", "int32")
-    @Ts.prim_func
+    @Ts.function
     def batch_decode_paged_kv(
-        Q: T.Buffer((B, H_qo, D), qkv_dtype),
-        pages: T.Buffer((max_num_pages, 2, H_kv, page_size, D), qkv_dtype, elem_offset=pages_elem_offset),
-        page_table_indptr: T.Buffer((B + 1,), 'int32', elem_offset=page_indptr_elem_offset),
-        page_table_values: T.Buffer((nnz_pages,), 'int32', elem_offset=page_values_elem_offset),
+        Q: T.Tensor((B, H_qo, D), qkv_dtype),
+        pages: T.Tensor((max_num_pages, 2, H_kv, page_size, D), qkv_dtype, elem_offset=pages_elem_offset),
+        page_table_indptr: T.Tensor((B + 1,), 'int32', elem_offset=page_indptr_elem_offset),
+        page_table_values: T.Tensor((nnz_pages,), 'int32', elem_offset=page_values_elem_offset),
         length_info: _length_info_buffer(B, sliding_window, length_info_elem_offset), # [b] when sliding window = False, or otherwise [3, b]
-        k_rope_pos_offset: T.Buffer((B,), 'int32', elem_offset=k_rope_pos_offset_elem_offset),
-        q_rope_position: T.Buffer((B,), 'int32', elem_offset=q_rope_position_elem_offset),
-        output: T.Buffer((B, H_qo, D), qkv_dtype),
-        lse: T.Buffer((B, H_qo), 'float32'),
+        k_rope_pos_offset: T.Tensor((B,), 'int32', elem_offset=k_rope_pos_offset_elem_offset),
+        q_rope_position: T.Tensor((B,), 'int32', elem_offset=q_rope_position_elem_offset),
+        output: T.Tensor((B, H_qo, D), qkv_dtype),
+        lse: T.Tensor((B, H_qo), 'float32'),
         rotary_mode: T.int32,
         rope_scale: T.float32,
         rope_theta: T.float32,
@@ -310,7 +310,7 @@ def _attention_decode(num_kv_heads, num_qo_heads, head_dim, qkv_dtype, sliding_w
                                                 for vec in T.vectorized(VEC_SIZE):
                                                     K_smem[tile_start_s + j, tx * VEC_SIZE + vec] = 0.0
                                                     V_smem[tile_start_s + j, tx * VEC_SIZE + vec] = 0.0
-                                    T.tvm_storage_sync("shared")
+                                    T.gpu_storage_sync("shared")
                                     # compute QK
                                     m_prev[0] = st_m[0]
                                     for j in T.serial(bdy * tile_size_per_bdx):
@@ -324,12 +324,7 @@ def _attention_decode(num_kv_heads, num_qo_heads, head_dim, qkv_dtype, sliding_w
                                         with Ts.sblock("block_cross_thread"):
                                             Ts.reads(S_reduce_local[0])
                                             Ts.writes(t0[0])
-                                            T.attr(
-                                                T.comm_reducer(lambda x0, y0: x0 + y0, [T.float32(0)]),
-                                                "reduce_scope",
-                                                T.int32(0),
-                                            )
-                                            T.tvm_thread_allreduce(T.uint32(1), S_reduce_local[0], True, t0[0], tx, dtype="void")
+                                            T.gpu_thread_allreduce(T.Lambda([T.float32, T.float32], lambda x0, y0: (x0 + y0,)), (T.float32(0),), (S_reduce_local[0],), True, (t0[0],), (tx,))
 
                                         S_local[j] = -5e4
                                         if (iterator * bdz + tz) * bdy * tile_size_per_bdx + j < kv_chunk_len[0]:
@@ -360,7 +355,7 @@ def _attention_decode(num_kv_heads, num_qo_heads, head_dim, qkv_dtype, sliding_w
                                         O_allreduce[tz, ty, tx * VEC_SIZE + vec] = O_local[vec]
                                     md_allreduce[tz, ty, 0] = st_m[0]
                                     md_allreduce[tz, ty, 1] = st_d[0]
-                                    T.tvm_storage_sync("shared")
+                                    T.gpu_storage_sync("shared")
 
                                     st_m[0] = -5e4
                                     st_d[0] = 1.0
@@ -398,12 +393,12 @@ def _merge_state_inplace_cpu(v_dtype):
     N = T.dynamic("N", "int32")
     H = T.dynamic("H", "int32")
     D = T.dynamic("D", "int32")
-    @Ts.prim_func
+    @Ts.function
     def merge_state_inplace_cpu(
-        V: T.Buffer((N, H, D), v_dtype),
-        S: T.Buffer((N, H), 'float32'),
-        V_other: T.Buffer((N, H, D), v_dtype),
-        S_other: T.Buffer((N, H), 'float32'),
+        V: T.Tensor((N, H, D), v_dtype),
+        S: T.Tensor((N, H), 'float32'),
+        V_other: T.Tensor((N, H, D), v_dtype),
+        S_other: T.Tensor((N, H), 'float32'),
     ):
         T.func_attr({"tirx.is_scheduled": True})
 
@@ -443,12 +438,12 @@ def _merge_state_inplace(num_heads, head_dim, v_dtype, target: Target, global_sy
     N = T.dynamic("N", "int32")
     H = T.dynamic("H", "int32")
     D = T.dynamic("D", "int32")
-    @Ts.prim_func
+    @Ts.function
     def merge_state_inplace(
-        V: T.Buffer((N, H, D), v_dtype),
-        S: T.Buffer((N, H), 'float32'),
-        V_other: T.Buffer((N, H, D), v_dtype),
-        S_other: T.Buffer((N, H), 'float32'),
+        V: T.Tensor((N, H, D), v_dtype),
+        S: T.Tensor((N, H), 'float32'),
+        V_other: T.Tensor((N, H, D), v_dtype),
+        S_other: T.Tensor((N, H), 'float32'),
     ):
         T.func_attr({"tirx.is_scheduled": True})
 
@@ -494,7 +489,7 @@ def _merge_state_inplace(num_heads, head_dim, v_dtype, target: Target, global_sy
                             # above, so none may overwrite it until all of them have read it.
                             # Without this barrier the threads only stay in step while bdx fits
                             # in one warp, and a head_dim above 128 makes bdx wider than that.
-                            T.tvm_storage_sync("shared")
+                            T.gpu_storage_sync("shared")
                             if tx == 0:
                                 S[bx, ty + by * bdy] = T.log2(s_val[0] + s_other_val[0]) + s_max[0]
 

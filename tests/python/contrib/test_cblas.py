@@ -66,7 +66,7 @@ def verify_matmul_add(
         dev = tvm.cpu(0)
         name = "test_matmul_add"
         f = tvm.compile(
-            te.create_prim_func([input1_data, input2_data, final_result, bias]).with_attr(
+            te.create_function([input1_data, input2_data, final_result, bias]).with_attr(
                 "global_symbol", name
             ),
             target=target,
@@ -155,7 +155,7 @@ def verify_quantized_matmul_add(matrix_m, matrix_l, matrix_n, transa=False, tran
             return
         dev = tvm.cpu(0)
         f = tvm.compile(
-            te.create_prim_func([input1_data, input2_data, final_result, bias]), target=target
+            te.create_function([input1_data, input2_data, final_result, bias]), target=target
         )
         matrix_input1 = tvm.runtime.tensor(
             np.random.randint(low=0, high=50, size=ashape).astype(input1_data.dtype), dev
@@ -240,9 +240,7 @@ def verify_batch_matmul(
             return
         dev = tvm.cpu(0)
         name = "test_batch_matmul"
-        f = tvm.compile(
-            te.create_prim_func([input1_data, input2_data, final_result]), target=target
-        )
+        f = tvm.compile(te.create_function([input1_data, input2_data, final_result]), target=target)
         if target == "c":
             f = compiling(f, name)
         matrix_input1 = tvm.runtime.tensor(

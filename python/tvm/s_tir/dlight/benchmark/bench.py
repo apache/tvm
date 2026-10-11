@@ -24,9 +24,9 @@ from tvm import relax
 from tvm.ir import IRModule
 from tvm.s_tir.meta_schedule.runner import EvaluatorConfig
 from tvm.s_tir.meta_schedule.testing.tune_utils import generate_input_data
-from tvm.tirx import PrimFunc
+from tvm.tirx import Function
 
-from .extract import extract_all_func_info_from_relax, extract_func_info_from_prim_func
+from .extract import extract_all_func_info_from_relax, extract_func_info_from_function
 from .utils import (
     default_dym_var_sample_func,
     dym_var_sample_str,
@@ -40,7 +40,7 @@ if TYPE_CHECKING:
 
 
 def benchmark(
-    mod_or_func: PrimFunc | IRModule,
+    mod_or_func: Function | IRModule,
     *,
     dym_var_sample: dict[str, int],
     args: list[relax.TensorType | tuple[tuple[int | str, ...], str]] | None,
@@ -49,17 +49,17 @@ def benchmark(
     evaluator_config: Optional["EvaluatorConfig"] = None,
     rpc_config: Optional["RPCConfig"] = None,
 ) -> tuple[list[tuple[tuple[int, ...], str]], float, float]:
-    """Benchmark a PrimFunc or IRModule with dynamic input shapes.
+    """Benchmark a Function or IRModule with dynamic input shapes.
 
     Parameters
     ----------
-    mod_or_func : Union[PrimFunc, IRModule]
-        The PrimFunc or IRModule to be benchmarked.
+    mod_or_func : Union[Function, IRModule]
+        The Function or IRModule to be benchmarked.
     dym_var_sample : Optional[Dict[str, int]]
         The dynamic shape variable sample, e.g., {"n": 64, "m": 128}.
     args : Optional[List[Union[relax.TensorType, Tuple[Tuple[Union[int, str], ...], str]]]]
         The input tensor information, including shape and dtype. If none, will use
-        the input information from the PrimFunc or IRModule.
+        the input information from the Function or IRModule.
     target : Optional[Union[str, tvm.target.Target]]
         The target to be benchmarked on, if none, will get the target from context.
     func_name : Optional[str]
@@ -81,7 +81,7 @@ def benchmark(
         The standard deviation of the benchmarking results.
     """
     # produce IRModule and function name
-    if isinstance(mod_or_func, PrimFunc):
+    if isinstance(mod_or_func, Function):
         func_name = "main" if func_name is None else func_name
         mod = IRModule.from_expr(mod_or_func.with_attr("global_symbol", func_name))
     else:
@@ -91,7 +91,7 @@ def benchmark(
         func_name = func_name.name_hint
     # produce input shapes
     if args is None:
-        args, _ = extract_func_info_from_prim_func(mod[func_name])
+        args, _ = extract_func_info_from_function(mod[func_name])
     # produce target & device
     target = tvm.target.Target.current() if target is None else tvm.target.Target(target)
     if target is None:
@@ -152,8 +152,8 @@ def benchmark(
     return input_infos, profile_result.median, profile_result.std
 
 
-def benchmark_prim_func(
-    mod_or_func: PrimFunc | IRModule,
+def benchmark_function(
+    mod_or_func: Function | IRModule,
     *,
     dym_var_sample_func: Callable[[dict[str, str]], dict[str, int]] = default_dym_var_sample_func,
     args: list[relax.TensorType | tuple[tuple[int | str, ...], str]] | None = None,
@@ -162,36 +162,36 @@ def benchmark_prim_func(
     target: str | tvm.target.Target | None = None,
     weight: int | None = 1,
     relax_func_name: str | None = None,
-    prim_func_name: str | None = None,
+    function_name: str | None = None,
     evaluator_config: Optional["EvaluatorConfig"] = None,
     rpc_config: Optional["RPCConfig"] = None,
     sort_by: str | None = None,
     desc: bool | None = True,
 ):
-    """Benchmark a PrimFunc or IRModule with dynamic input shapes and show results.
+    """Benchmark a Function or IRModule with dynamic input shapes and show results.
 
     Parameters
     ----------
-    mod_or_func : Union[PrimFunc, IRModule]
-        The PrimFunc or IRModule to be benchmarked.
+    mod_or_func : Union[Function, IRModule]
+        The Function or IRModule to be benchmarked.
     dym_var_sample_func : Callable[[Dict[str, str]], Dict[str, int]]
         The function to sample dynamic shape variables.
     dym_var_dict : Optional[Dict[str, str]]
         Dynamic shape variable dictionary, e.g., {"n": "int32", "m": "int32"}. If none, will use
-        the input information from the PrimFunc or IRModule.
+        the input information from the Function or IRModule.
     args : Optional[List[Union[relax.TensorType, Tuple[Tuple[Union[int, str], ...], str]]]]
         The input tensor information, including shape and dtype. If none, will use
-        the input information from the PrimFunc or IRModule.
+        the input information from the Function or IRModule.
     sample_number : int
         The number of times to sample dynamic shape variables.
     target: Optional[Union[str, tvm.target.Target]]
         The target to be benchmarked on, if none, will get the target from context.
     weight : Optional[int]
-        The weight of this PrimFunc.
+        The weight of this Function.
     relax_func_name : Optional[str]
         The name of the relax function.
-    prim_func_name : Optional[str]
-        The name of the PrimFunc.
+    function_name : Optional[str]
+        The name of the Function.
     evaluator_config : Optional["EvaluatorConfig"]
         The evaluator configuration to use.
         If none, will use default evaluator configuration.
@@ -205,7 +205,7 @@ def benchmark_prim_func(
     """
     results = []
     if dym_var_dict is None or args is None:
-        args, dym_var_dict = extract_func_info_from_prim_func(mod_or_func)
+        args, dym_var_dict = extract_func_info_from_function(mod_or_func)
     for _ in range(sample_number):
         dym_var_sample = dym_var_sample_func(dym_var_dict)
         _, median, std = benchmark(
@@ -223,8 +223,8 @@ def benchmark_prim_func(
         }
         if relax_func_name is not None:
             row["RelaxFunc"] = relax_func_name
-        if prim_func_name is not None:
-            row["PrimFunc"] = prim_func_name
+        if function_name is not None:
+            row["Function"] = function_name
         weight = 1 if weight is None else weight
         row["Weight"] = weight
         row["WxTime(ms)"] = weight * median * 1e3
@@ -298,7 +298,7 @@ def benchmark_relax_func(
                 )
                 bench_results.append(
                     {
-                        f"PrimFuncs in {get_func_name_from_gv(relax_func)}": get_func_name_from_gv(
+                        f"Functions in {get_func_name_from_gv(relax_func)}": get_func_name_from_gv(
                             functor
                         ),
                         f"InputInfo({dym_var_sample_str(dym_var_sample)})": ", ".join(

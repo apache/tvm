@@ -31,8 +31,8 @@ from tvm.script import tirx as T
 # pylint: disable=no-member,invalid-name,unused-variable
 
 
-@Ts.prim_func
-def elementwise(A: T.Buffer((128, 128)), C: T.Buffer((128, 128)), D: T.Buffer((64, 64))) -> None:
+@Ts.function
+def elementwise(A: T.Tensor((128, 128)), C: T.Tensor((128, 128)), D: T.Tensor((64, 64))) -> None:
     B = Ts.sblock_alloc_buffer((128, 128))
     for i, j in T.grid(128, 128):
         with Ts.sblock("B"):
@@ -56,9 +56,9 @@ def elementwise(A: T.Buffer((128, 128)), C: T.Buffer((128, 128)), D: T.Buffer((6
             D[vi, vj] = B[vi, vj] + T.float32(2)
 
 
-@Ts.prim_func
+@Ts.function
 def elementwise_merged(
-    A: T.Buffer((128, 128)), C: T.Buffer((128, 128)), D: T.Buffer((64, 64))
+    A: T.Tensor((128, 128)), C: T.Tensor((128, 128)), D: T.Tensor((64, 64))
 ) -> None:
     B = Ts.sblock_alloc_buffer((128, 128))
     for i, j in T.grid(128, 128):
@@ -84,9 +84,9 @@ def elementwise_merged(
                 D[vi, vj] = B[vi, vj] + T.float32(2)
 
 
-@Ts.prim_func
+@Ts.function
 def elementwise_merged2(
-    A: T.Buffer((128, 128)), C: T.Buffer((128, 128)), D: T.Buffer((64, 64))
+    A: T.Tensor((128, 128)), C: T.Tensor((128, 128)), D: T.Tensor((64, 64))
 ) -> None:
     B = Ts.sblock_alloc_buffer((128, 128))
     for i, j in T.grid(128, 128):
@@ -135,8 +135,8 @@ def test_merge2():
 
 
 def test_merge_fail_not_only_child():
-    @Ts.prim_func
-    def elementwise_with_seq(A: T.Buffer((128, 128, 128)), C: T.Buffer((128, 128, 128))) -> None:
+    @Ts.function
+    def elementwise_with_seq(A: T.Tensor((128, 128, 128)), C: T.Tensor((128, 128, 128))) -> None:
         B = Ts.sblock_alloc_buffer((128, 128, 128))
         D = Ts.sblock_alloc_buffer((128, 128, 128))
         for i, j in T.grid(128, 128):
@@ -164,9 +164,9 @@ def test_merge_fail_not_only_child():
 
 
 def test_merge_fail_not_start_with_zero():
-    @Ts.prim_func
+    @Ts.function
     def elementwise_loops_not_start_with_zero(
-        A: T.Buffer((128, 128, 128)), C: T.Buffer((128, 128, 128))
+        A: T.Tensor((128, 128, 128)), C: T.Tensor((128, 128, 128))
     ) -> None:
         B = Ts.sblock_alloc_buffer((128, 128, 128))
         for i, j in T.grid(128, 128):
@@ -190,9 +190,9 @@ def test_merge_fail_not_start_with_zero():
 
 
 def test_merge_fail_not_same_extent():
-    @Ts.prim_func
+    @Ts.function
     def elementwise_loops_not_same_extent(
-        A: T.Buffer((128, 128, 128)), C: T.Buffer((128, 128, 128))
+        A: T.Tensor((128, 128, 128)), C: T.Tensor((128, 128, 128))
     ) -> None:
         B = Ts.sblock_alloc_buffer((64, 128, 128))
         for i, j in T.grid(64, 128):
@@ -216,9 +216,9 @@ def test_merge_fail_not_same_extent():
 
 
 def test_merge_fail_not_same_level():
-    @Ts.prim_func
+    @Ts.function
     def elementwise_not_same_level(
-        A: T.Buffer((128, 128, 128)), C: T.Buffer((128, 128, 128))
+        A: T.Tensor((128, 128, 128)), C: T.Tensor((128, 128, 128))
     ) -> None:
         B = Ts.sblock_alloc_buffer((128, 128, 128))
         for i, j in T.grid(128, 128):
@@ -242,9 +242,9 @@ def test_merge_fail_not_same_level():
 
 
 def test_merge_fail_with_different_scope():
-    @Ts.prim_func
+    @Ts.function
     def elementwise_with_different_scope(
-        A: T.Buffer((128, 128, 128)), C: T.Buffer((128, 128, 128))
+        A: T.Tensor((128, 128, 128)), C: T.Tensor((128, 128, 128))
     ) -> None:
         B = Ts.sblock_alloc_buffer((128, 128, 128))
         with Ts.sblock("A"):

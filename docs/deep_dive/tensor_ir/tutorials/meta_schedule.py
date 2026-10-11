@@ -129,7 +129,7 @@ target = tvm.target.Target.from_device(device)
 
 if os.getenv("CI", "") != "true":
     with target, tempfile.TemporaryDirectory() as tmp_dir:
-        tuned_mod = tvm.ir.transform.Sequential(
+        tuned_mod = tvm.transform.Sequential(
             [
                 relax.get_pipeline("zero"),
                 relax.transform.MetaScheduleTuneTIR(
@@ -159,7 +159,7 @@ for i, task in enumerate(tasks):
 ######################################################################
 # Each ``ExtractedTask`` has:
 #
-# - ``task_name``: Derived from the PrimFunc name (e.g., ``"fused_matmul_add_relu"``).
+# - ``task_name``: Derived from the Function name (e.g., ``"fused_matmul_add_relu"``).
 # - ``weight``: How many ``call_tir`` sites invoke this workload. The task
 #   scheduler uses weights to allocate more budget to frequently-called operators.
 # - ``dispatched``: List of candidate TIR modules for this workload.
@@ -173,7 +173,7 @@ for i, task in enumerate(tasks):
 # .. code-block:: python
 #
 #     with target:
-#         mod = tvm.ir.transform.Sequential([
+#         mod = tvm.transform.Sequential([
 #             relax.transform.MetaScheduleTuneIRMod(
 #                 params={},
 #                 work_dir="./tuning_logs",

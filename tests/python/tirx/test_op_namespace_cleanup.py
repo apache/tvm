@@ -26,15 +26,17 @@ import tvm_ffi
 import tvm
 from tvm.ir import Op, assert_structural_equal
 from tvm.script import tirx as T
-from tvm.script.tirx import tile as Tx
-from tvm.tirx.tile_primitive import TilePrimitiveCall
 
 
 def _tile_calls(func):
     calls = []
 
     def visit(stmt):
-        if isinstance(stmt, TilePrimitiveCall):
+        if (
+            isinstance(stmt, tvm.ir.Call)
+            and isinstance(stmt.op, Op)
+            and stmt.op.get_attr("TIRxOpCategory") in {"tile_primitive", "tile_composite"}
+        ):
             calls.append(stmt)
 
     tvm_ffi.structural_walk(func.body, visit)
@@ -65,31 +67,6 @@ def _has_path(root, path):
     return True
 
 
-def test_tx_is_tile_shorthand_only():
-    assert T.tile is Tx
-    assert T.tile.copy is Tx.copy
-    assert not hasattr(T, "copy")
-    assert not hasattr(Tx, "SMEMPool")
-    assert not hasattr(Tx, "ScopedOp")
-    assert not hasattr(Tx, "meta_class")
-    assert T.cast is not Tx.cast
-    assert T.sqrt is not Tx.sqrt
-
-
-def test_tx_rejects_expression_overloads():
-    x = tvm.tirx.Var("x", "float32")
-    y = tvm.tirx.Var("y", "int32")
-
-    with pytest.raises(TypeError, match="tile-only"):
-        Tx.sqrt(x)
-    with pytest.raises(TypeError, match="tile-only"):
-        T.tile.sqrt(x)
-    with pytest.raises(TypeError, match="tile-only"):
-        Tx.cast(y, "float32")
-    with pytest.raises(TypeError, match="tile-only"):
-        T.tile.cast(y, "float32")
-
-
 def test_builtin_expression_ops_are_not_tile_primitives():
     x = tvm.tirx.Var("x", "int32")
     y = tvm.tirx.Var("y", "float32")
@@ -99,57 +76,67 @@ def test_builtin_expression_ops_are_not_tile_primitives():
     assert cast.ty.dtype == "float32"
 
     sqrt = T.sqrt(y)
-    assert sqrt.op.name == "tirx.sqrt"
+    assert sqrt.op.name == "prim.sqrt"
 
     fma = T.fma(y, y, y)
-    assert fma.op.name == "tirx.fma"
+    assert fma.op.name == "prim.fma"
+
+
+def test_tensormap_encoding_accepts_attribute_keywords_and_defaults():
+    @T.function
+    def encode(descriptor: T.TensorMap, data: T.handle):
+        T.cuda.tensormap_encode_tiled(
+            descriptor,
+            data,
+            64,
+            32,
+            128,
+            64,
+            32,
+            1,
+            1,
+            descriptor_dtype="bfloat16",
+            rank=2,
+            swizzle=3,
+        )
+
+    (call,) = [c for c in _expr_calls(encode) if c.op.name == "tirx.cuda.tensormap_encode_tiled"]
+    assert call.op.attrs_type_key == "tirx.cuda.TensorMapEncodeTiledAttr"
+    assert str(call.attrs.descriptor_dtype) == "bfloat16"
+    assert call.attrs.rank == 2
+    assert call.attrs.swizzle == 3
+    assert call.attrs.interleave == call.attrs.l2_promotion == call.attrs.oob_fill == 0
+    assert call.attrs.force_cu_dtype == -1
+    call.validate()
+    reparsed = tvm.script.from_source(encode.script(), extra_vars={"T": T})
+    assert_structural_equal(encode, reparsed)
 
 
 def test_kernel_replace_point_is_builtin_marker_not_tile_primitive():
-    assert _op_attr("tirx.tvm_kernel_replace_point", "TIRxOpCategory") == "builtin"
-    assert "tirx.tile.tvm_kernel_replace_point" not in Op.list_op_names()
-    assert hasattr(T, "tvm_kernel_replace_point")
-    assert not hasattr(Tx, "tvm_kernel_replace_point")
+    assert _op_attr("tirx.kernel_replace_point", "TIRxOpCategory") == "builtin"
+    assert "tirx.tile.kernel_replace_point" not in Op.list_op_names()
+    assert hasattr(T, "kernel_replace_point")
+    assert not hasattr(T.cuda.tile, "kernel_replace_point")
 
-    @T.prim_func(check_well_formed=False)
+    @T.function(check_well_formed=False)
     def marker():
-        T.tvm_kernel_replace_point()
+        T.kernel_replace_point()
 
     calls = _expr_calls(marker)
-    assert [call.op.name for call in calls] == ["tirx.tvm_kernel_replace_point"]
+    assert [call.op.name for call in calls] == ["tirx.kernel_replace_point"]
     assert _tile_calls(marker) == []
 
     code = marker.script()
-    assert "T.tvm_kernel_replace_point()" in code
-    assert "tvm_kernel_replace_point" in code
-    assert "T.tile.tvm_kernel_replace_point" not in code
-    assert "Tx.tvm_kernel_replace_point" not in code
+    assert "T.kernel_replace_point()" in code
+    assert "kernel_replace_point" in code
+    assert "T.tile.kernel_replace_point" not in code
+    assert "Tx.kernel_replace_point" not in code
     reparsed = tvm.script.from_source(code, extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx})
     assert_structural_equal(marker, reparsed)
 
 
-def test_tile_shorthand_and_scoped_aliases_use_tile_ops():
-    @T.prim_func(check_well_formed=False)
-    def tile_aliases(A: T.Buffer((16,), "float32"), B: T.Buffer((16,), "float32")):
-        T.tile.copy(A[0:16], B[0:16])
-        Tx.cast(A[0:16], B[0:16])
-        T.cta.cast(A[0:16], B[0:16])
-        Tx.cta.sqrt(A[0:16], B[0:16])
-
-    calls = _tile_calls(tile_aliases)
-    assert [call.op.name for call in calls] == [
-        "tirx.tile.copy",
-        "tirx.tile.cast",
-        "tirx.tile.cast",
-        "tirx.tile.sqrt",
-    ]
-    assert [call.scope.name for call in calls] == ["thread", "thread", "cta", "cta"]
-
-
 def test_device_intrinsic_namespaces_are_canonical_and_classified():
-    from tvm.backend.cuda.script import (
-        CUDANamespace as BackendCUDANamespace,
-    )
+    cuda_script = importlib.import_module("tvm.backend.cuda.script")
     from tvm.backend.cuda.script import (
         NVSHMEMNamespace as BackendNVSHMEMNamespace,
     )
@@ -160,7 +147,7 @@ def test_device_intrinsic_namespaces_are_canonical_and_classified():
     from tvm.backend.trn.script import NKINamespace as BackendNKINamespace
     from tvm.tirx.script.ir_builder import op as builder_op
 
-    assert isinstance(builder_op.cuda, BackendCUDANamespace)
+    assert builder_op.cuda is cuda_script
     assert isinstance(builder_op.s_tir, BackendSTIRNamespace)
     assert isinstance(builder_op.nvshmem, BackendNVSHMEMNamespace)
     assert isinstance(builder_op.metal, BackendMetalNamespace)
@@ -171,7 +158,7 @@ def test_device_intrinsic_namespaces_are_canonical_and_classified():
     assert T.metal is builder_op.metal
     assert T.nki is builder_op.nki
 
-    buffer = tvm.tirx.decl_buffer((1,), "float32")
+    buffer = tvm.tirx.decl_tensor((1,), "float32")
     calls = [
         T.cuda.elect_sync(),
         T.cuda.thread_fence(),
@@ -288,27 +275,22 @@ def test_backend_load_updates_tirx_alias_and_script_facades(monkeypatch):
 
 
 def test_device_intrinsic_printer_roundtrips_canonical_namespaces():
-    @T.prim_func
-    def device_namespaces(dst: T.handle, A: T.Buffer((1,), "float32")):
-        Result = T.alloc_buffer((1,), "float32", scope="local")
+    @T.function
+    def device_namespaces(dst: T.handle, A: T.Tensor((1,), "float32")):
         T.cuda.cta_sync()
-        T.s_tir.ldg32(Result[0], 1, A[0], 0)
         T.metal.simd_shuffle(A[0], 0)
         T.metal.simd_shuffle_up(A[0], 1)
         T.metal.simd_shuffle_down(A[0], 1)
 
     calls = _expr_calls(device_namespaces)
     assert [call.op.name for call in calls] == [
-        "tirx.alloc_buffer",
         "tirx.cuda.cta_sync",
-        "tirx.s_tir.ldg32",
         "tirx.metal.simd_shuffle",
         "tirx.metal.simd_shuffle_up",
         "tirx.metal.simd_shuffle_down",
     ]
     for op_name, namespace in [
         ("tirx.cuda.cta_sync", "cuda"),
-        ("tirx.s_tir.ldg32", "s_tir"),
         ("tirx.metal.simd_shuffle", "metal"),
         ("tirx.metal.simd_shuffle_up", "metal"),
         ("tirx.metal.simd_shuffle_down", "metal"),
@@ -319,7 +301,6 @@ def test_device_intrinsic_printer_roundtrips_canonical_namespaces():
 
     code = device_namespaces.script()
     assert "T.cuda.cta_sync(" in code
-    assert "T.s_tir.ldg32(" in code
     assert "T.metal.simd_shuffle(" in code
     assert "T.metal.simd_shuffle_up(" in code
     assert "T.metal.simd_shuffle_down(" in code
@@ -330,10 +311,10 @@ def test_device_intrinsic_printer_roundtrips_canonical_namespaces():
 
 
 def test_registered_tirx_ops_have_exactly_one_category():
-    if _op_attr("tirx.sqrt", "TIRxOpCategory") is None:
+    if _op_attr("prim.sqrt", "TIRxOpCategory") is None:
         pytest.skip("TIRx op categories require a rebuilt C++ runtime")
 
-    categories = {"builtin", "tile_primitive", "device_intrin"}
+    categories = {"builtin", "tile_primitive", "tile_composite", "device_intrin"}
     device_namespaces = {
         "cuda",
         "ptx",
@@ -385,16 +366,16 @@ def test_registered_tirx_ops_have_exactly_one_category():
         if op_name in flat_tile_only_names:
             lingering_flat_tile.append(op_name)
 
-        if category == "tile_primitive":
-            if not op_name.startswith("tirx.tile."):
+        if category in {"tile_primitive", "tile_composite"}:
+            if not op_name.startswith(("tirx.cuda.tile.", "tirx.trn.tile.")):
                 lingering_flat_tile.append(op_name)
             assert device_namespace is None, op_name
         elif category == "device_intrin":
             assert device_namespace in device_namespaces, op_name
             printer_name = _op_attr(op_name, "TScriptPrinterName")
             assert printer_name is not None, op_name
-            assert printer_name.startswith(device_namespace + "."), op_name
-            assert _has_path(T, printer_name), op_name
+            assert printer_name.startswith("tirx." + device_namespace + "."), op_name
+            assert _has_path(T, printer_name.removeprefix("tirx.")), op_name
         else:
             assert category == "builtin"
             assert device_namespace is None, op_name
@@ -402,3 +383,14 @@ def test_registered_tirx_ops_have_exactly_one_category():
     assert not missing
     assert not invalid
     assert not lingering_flat_tile
+
+
+def test_generic_tile_namespace_and_stmt_are_removed():
+    assert not hasattr(T, "tile")
+    assert not hasattr(tvm.tirx, "TilePrimitiveCall")
+    assert not hasattr(tvm.tirx, "TileOpCall")
+    assert not any(name.startswith("tirx.tile.") for name in Op.list_op_names())
+    for name in ("copy", "copy_async", "sum", "min", "permute_layout"):
+        assert not hasattr(T.cuda.tile, name)
+    for name in ("reduce_sum", "reduce_max", "reduce_min", "permute_layout", "copy_scalar"):
+        assert not hasattr(T.cuda.tile.compose, name)

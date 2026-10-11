@@ -18,63 +18,93 @@
  */
 #include <tvm/ffi/extra/dataclass.h>
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/accessor.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/expr.h>
-#include <tvm/runtime/logging.h>
+#include <tvm/ir/module.h>
+#include <tvm/ir/prim/expr.h>
+#include <tvm/ir/prim/vector_expr.h>
+#include <tvm/ir/stmt.h>
 #include <tvm/script/printer/printer.h>
 
-#include <sstream>
+#include <utility>
+
+#include "utils.h"
 
 namespace tvm {
 
-namespace {
-
-std::string RenderFallbackWithInvisiblePathInfo(const ffi::String& script,
-                                                const PrinterConfig& config) {
-  if (!config->render_invisible_path_info || config->path_to_underline.empty()) {
-    return std::string(script);
-  }
-
-  std::ostringstream os;
-  for (size_t i = 0; i < config->path_to_underline.size(); ++i) {
-    if (i != 0) os << "\n";
-    os << "Access path: " << config->path_to_underline[i]
-       << "\nNote: No visible object for this path is rendered in TVMScript.";
-  }
-  os << "\n\n" << script;
-  return os.str();
-}
-
-}  // namespace
-
-TVMScriptPrinter::FType& TVMScriptPrinter::vtable() {
-  static FType inst;
-  return inst;
-}
-
-std::string Script(const ffi::ObjectRef& node, const ffi::Optional<PrinterConfig>& cfg) {
-  PrinterConfig config = cfg.value_or(PrinterConfig());
-  if (!TVMScriptPrinter::vtable().CanDispatch(node)) {
-    // Fall back to ffi::ReprPrint for types not registered with TVMScriptPrinter.
-    return RenderFallbackWithInvisiblePathInfo(ffi::ReprPrint(ffi::Any(node)), config);
-  }
-  return TVMScriptPrinter::vtable()(node, config);
-}
-
 TVM_FFI_STATIC_INIT_BLOCK() {
-  ffi::reflection::GlobalDef().def("node.TVMScriptPrinterScript", tvm::Script);
-}
+  namespace refl = ffi::reflection;
+  using script::printer::details::RegisterScriptRepr;
+  refl::GlobalDef()
+      .def("node.TVMScriptPrinterScript", tvm::Script)
+      .def("script.printer.Script", tvm::Script);
 
-std::string RedirectedReprPrinterMethod(const ffi::ObjectRef& obj) {
-  try {
-    return tvm::Script(obj, std::nullopt);
-  } catch (const tvm::ffi::Error& e) {
-    LOG(WARNING) << "TVMScript printer falls back to the basic address printer with the error:\n"
-                 << e.what();
-    std::ostringstream os;
-    os << obj->GetTypeKey() << '(' << obj.get() << ')';
-    return os.str();
-  }
+  RegisterScriptRepr<DataTypeImmNode>();
+  RegisterScriptRepr<GenericConstNode>();
+  RegisterScriptRepr<AnyTypeNode>();
+  RegisterScriptRepr<CallNode>();
+  RegisterScriptRepr<DictAttrsNode>();
+  RegisterScriptRepr<FloatImmNode>();
+  RegisterScriptRepr<FuncTypeNode>();
+  RegisterScriptRepr<GlobalVarNode>();
+  RegisterScriptRepr<IRModuleNode>();
+  RegisterScriptRepr<IntImmNode>();
+  RegisterScriptRepr<MissingTypeNode>();
+  RegisterScriptRepr<PointerTypeNode>();
+  RegisterScriptRepr<PrimTypeNode>();
+  RegisterScriptRepr<RangeNode>();
+  RegisterScriptRepr<StringImmNode>();
+  RegisterScriptRepr<TensorLoadNode>();
+  RegisterScriptRepr<TensorRegionTypeNode>();
+  RegisterScriptRepr<TupleNode>();
+  RegisterScriptRepr<TupleGetItemNode>();
+  RegisterScriptRepr<TupleTypeNode>();
+  RegisterScriptRepr<VarNode>();
+  RegisterScriptRepr<prim::AddNode>();
+  RegisterScriptRepr<prim::AndNode>();
+  RegisterScriptRepr<prim::BitwiseAndNode>();
+  RegisterScriptRepr<prim::BitwiseNotNode>();
+  RegisterScriptRepr<prim::BitwiseOrNode>();
+  RegisterScriptRepr<prim::BitwiseXorNode>();
+  RegisterScriptRepr<prim::BroadcastNode>();
+  RegisterScriptRepr<prim::CastNode>();
+  RegisterScriptRepr<prim::DivNode>();
+  RegisterScriptRepr<prim::EQNode>();
+  RegisterScriptRepr<prim::FloorDivNode>();
+  RegisterScriptRepr<prim::FloorModNode>();
+  RegisterScriptRepr<prim::GENode>();
+  RegisterScriptRepr<prim::GTNode>();
+  RegisterScriptRepr<prim::LENode>();
+  RegisterScriptRepr<prim::LShiftNode>();
+  RegisterScriptRepr<prim::LTNode>();
+  RegisterScriptRepr<prim::LetNode>();
+  RegisterScriptRepr<prim::MaxNode>();
+  RegisterScriptRepr<prim::MinNode>();
+  RegisterScriptRepr<prim::ModNode>();
+  RegisterScriptRepr<prim::MulNode>();
+  RegisterScriptRepr<prim::NENode>();
+  RegisterScriptRepr<prim::NotNode>();
+  RegisterScriptRepr<prim::OrNode>();
+  RegisterScriptRepr<prim::RShiftNode>();
+  RegisterScriptRepr<prim::RampNode>();
+  RegisterScriptRepr<prim::SelectNode>();
+  RegisterScriptRepr<prim::ShuffleNode>();
+  RegisterScriptRepr<prim::SubNode>();
+  RegisterScriptRepr<AssertStmtNode>();
+  RegisterScriptRepr<RegionStmtNode>();
+  RegisterScriptRepr<BindNode>();
+  RegisterScriptRepr<BreakNode>();
+  RegisterScriptRepr<TensorStoreNode>();
+  RegisterScriptRepr<ContinueNode>();
+  RegisterScriptRepr<EvaluateNode>();
+  RegisterScriptRepr<ForNode>();
+  RegisterScriptRepr<IfNode>();
+  RegisterScriptRepr<LambdaExprNode>();
+  RegisterScriptRepr<ReturnNode>();
+  RegisterScriptRepr<SeqStmtNode>();
+  RegisterScriptRepr<WhileNode>();
+  RegisterScriptRepr<TensorRegionNode>();
 }
 
 }  // namespace tvm

@@ -15,8 +15,8 @@
     specific language governing permissions and limitations
     under the License.
 
-tvm.ir.transform
------------------
-.. automodule:: tvm.ir.transform
+tvm.transform
+=============
+.. automodule:: tvm.transform
    :members:
    :imported-members:

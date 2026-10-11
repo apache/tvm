@@ -22,12 +22,12 @@ from typing import Literal
 from tvm.s_tir import TensorIntrin
 from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
-from tvm.tirx import Buffer, Expr, PrimFunc
+from tvm.tirx import Expr, Function, Var
 
 ######## simdgroup matrix intrinsics ########
 
 
-def get_simdgroup_index(buffer: Buffer, stride: Expr, col: int, row: int):
+def get_simdgroup_index(buffer: Var, stride: Expr, col: int, row: int):
     """Compute simdgroup index using elem_offset of the buffer"""
 
     # NOTE: Need further check the usage between `col`` and `row`
@@ -41,9 +41,9 @@ def get_simdgroup_index(buffer: Buffer, stride: Expr, col: int, row: int):
 
 def get_make_filled_simdgroup_matrix_intrin(
     dtype: str, col: int = 8, row: int = 8
-) -> tuple[PrimFunc, PrimFunc]:
-    @Ts.prim_func
-    def desc(A: T.Buffer((col, row), dtype, scope="metal.simdgroup", offset_factor=1)) -> None:
+) -> tuple[Function, Function]:
+    @Ts.function
+    def desc(A: T.Tensor((col, row), dtype, scope="metal.simdgroup", offset_factor=1)) -> None:
         with Ts.sblock("root"):
             Ts.reads()
             Ts.writes(A[0:col, 0:row])
@@ -55,9 +55,9 @@ def get_make_filled_simdgroup_matrix_intrin(
     d0 = T.dynamic("d0", "int32")
     d1 = T.dynamic("d1", "int32")
 
-    @Ts.prim_func
+    @Ts.function
     def impl(
-        A: T.Buffer((col, row), dtype, scope="metal.simdgroup", strides=[d1, d0], offset_factor=1),
+        A: T.Tensor((col, row), dtype, scope="metal.simdgroup", strides=[d1, d0], offset_factor=1),
     ) -> None:
         with Ts.sblock("root"):
             Ts.reads()
@@ -79,13 +79,13 @@ def get_simdgroup_load_intrin(
     col: int = 8,
     row: int = 8,
     transpose_matrix: bool = False,
-) -> tuple[PrimFunc, PrimFunc]:
+) -> tuple[Function, Function]:
     align = col * row
 
-    @Ts.prim_func
+    @Ts.function
     def desc(
-        A: T.Buffer((col, row), dtype, align=align, scope=scope, offset_factor=1),
-        C: T.Buffer((col, row), dtype, align=align, scope="metal.simdgroup", offset_factor=1),
+        A: T.Tensor((col, row), dtype, align=align, scope=scope, offset_factor=1),
+        C: T.Tensor((col, row), dtype, align=align, scope="metal.simdgroup", offset_factor=1),
     ) -> None:
         with Ts.sblock("root"):
             Ts.reads(A[0:col, 0:row])
@@ -104,10 +104,10 @@ def get_simdgroup_load_intrin(
     d0 = T.dynamic("d0", "int32")
     d1 = T.dynamic("d1", "int32")
 
-    @Ts.prim_func
+    @Ts.function
     def impl(
-        A: T.Buffer((col, row), dtype, align=align, scope=scope, strides=[s1, s0], offset_factor=1),
-        C: T.Buffer(
+        A: T.Tensor((col, row), dtype, align=align, scope=scope, strides=[s1, s0], offset_factor=1),
+        C: T.Tensor(
             (col, row),
             dtype,
             align=align,
@@ -122,7 +122,7 @@ def get_simdgroup_load_intrin(
             T.metal.simdgroup_load(
                 C.data,
                 index=get_simdgroup_index(C, d1, col, row),
-                ptr=A.access_ptr("r", ptr_type=dtype),
+                ptr=A.ptr_to([0, 0]),
                 stride=s1,
                 col=col,
                 row=row,
@@ -138,13 +138,13 @@ def get_simdgroup_store_intrin(
     col: int = 8,
     row: int = 8,
     transpose_matrix: bool = False,
-) -> tuple[PrimFunc, PrimFunc]:
+) -> tuple[Function, Function]:
     align = col * row
 
-    @Ts.prim_func
+    @Ts.function
     def desc(
-        A: T.Buffer((col, row), dtype, align=align, scope="metal.simdgroup", offset_factor=1),
-        C: T.Buffer((col, row), dtype, align=align, scope=scope, offset_factor=1),
+        A: T.Tensor((col, row), dtype, align=align, scope="metal.simdgroup", offset_factor=1),
+        C: T.Tensor((col, row), dtype, align=align, scope=scope, offset_factor=1),
     ) -> None:
         with Ts.sblock("root"):
             Ts.reads(A[0:col, 0:row])
@@ -162,9 +162,9 @@ def get_simdgroup_store_intrin(
     d0 = T.dynamic("d0", "int32")
     d1 = T.dynamic("d1", "int32")
 
-    @Ts.prim_func
+    @Ts.function
     def impl(
-        A: T.Buffer(
+        A: T.Tensor(
             (col, row),
             dtype,
             align=align,
@@ -172,7 +172,7 @@ def get_simdgroup_store_intrin(
             strides=[s1, s0],
             offset_factor=1,
         ),
-        C: T.Buffer((col, row), dtype, align=align, scope=scope, strides=[d1, d0], offset_factor=1),
+        C: T.Tensor((col, row), dtype, align=align, scope=scope, strides=[d1, d0], offset_factor=1),
     ) -> None:
         with Ts.sblock("root"):
             Ts.reads(A[0:col, 0:row])
@@ -180,7 +180,7 @@ def get_simdgroup_store_intrin(
             T.metal.simdgroup_store(
                 A.data,
                 index=get_simdgroup_index(A, s1, col, row),
-                ptr=C.access_ptr("w", ptr_type=dtype),
+                ptr=C.ptr_to([0, 0]),
                 stride=d1,
                 col=col,
                 row=row,
@@ -192,12 +192,12 @@ def get_simdgroup_store_intrin(
 
 def get_simdgroup_multiply_accumulate_intrin(
     m_dim: int, n_dim: int, k_dim: int, dtype: str
-) -> tuple[PrimFunc, PrimFunc]:
-    @Ts.prim_func
+) -> tuple[Function, Function]:
+    @Ts.function
     def desc(
-        A: T.Buffer((m_dim, k_dim), dtype, scope="metal.simdgroup", offset_factor=1),
-        B: T.Buffer((k_dim, n_dim), dtype, scope="metal.simdgroup", offset_factor=1),
-        C: T.Buffer((m_dim, n_dim), dtype, scope="metal.simdgroup", offset_factor=1),
+        A: T.Tensor((m_dim, k_dim), dtype, scope="metal.simdgroup", offset_factor=1),
+        B: T.Tensor((k_dim, n_dim), dtype, scope="metal.simdgroup", offset_factor=1),
+        C: T.Tensor((m_dim, n_dim), dtype, scope="metal.simdgroup", offset_factor=1),
     ) -> None:
         with Ts.sblock("root"):
             Ts.reads(C[0:m_dim, 0:n_dim], A[0:m_dim, 0:k_dim], B[0:k_dim, 0:n_dim])
@@ -214,15 +214,15 @@ def get_simdgroup_multiply_accumulate_intrin(
     c0 = T.dynamic("c0", "int32")
     c1 = T.dynamic("c1", "int32")
 
-    @Ts.prim_func
+    @Ts.function
     def impl(
-        A: T.Buffer(
+        A: T.Tensor(
             (m_dim, k_dim), dtype, scope="metal.simdgroup", strides=[a1, a0], offset_factor=1
         ),
-        B: T.Buffer(
+        B: T.Tensor(
             (k_dim, n_dim), dtype, scope="metal.simdgroup", strides=[b1, b0], offset_factor=1
         ),
-        C: T.Buffer(
+        C: T.Tensor(
             (m_dim, n_dim), dtype, scope="metal.simdgroup", strides=[c1, c0], offset_factor=1
         ),
     ) -> None:

@@ -45,7 +45,7 @@ ffi::String InstructionAsPythonRepr(const InstructionNode* self) {
       inputs.push_back(obj);
     } else if (auto expr = obj.as<PrimExpr>()) {
       auto f_substitute = [](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
-        return ffi::Any(Var("_", var->ty, var->span).as_or_throw<PrimExpr>());
+        return ffi::Any(Var("_", var->ty, var->loc).as_or_throw<PrimExpr>());
       };
       PrimExpr new_expr = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(expr.value(), f_substitute)
                               .as_or_throw<PrimExpr>();
@@ -77,8 +77,7 @@ bool InstructionKindNode::IsPostproc() const {
 
 Instruction::Instruction(InstructionKind kind, ffi::Array<Any> inputs, ffi::Array<Any> attrs,
                          ffi::Array<Any> outputs) {
-  ffi::ObjectPtr<InstructionNode> n = ffi::make_object<InstructionNode>();
-  n->kind = std::move(kind);
+  ffi::ObjectPtr<InstructionNode> n = ffi::make_object<InstructionNode>(std::move(kind));
   n->inputs = std::move(inputs);
   n->attrs = std::move(attrs);
   n->outputs = std::move(outputs);
@@ -119,7 +118,7 @@ class InstructionKindRegistry {
     if (auto kind = kinds_.Get(name)) {
       return *kind;
     }
-    InstructionKind kind(ffi::make_object<InstructionKindNode>());
+    InstructionKind kind(ffi::UnsafeInit{}, ffi::make_object<InstructionKindNode>());
     kinds_.Set(name, kind);
     return kind;
   }

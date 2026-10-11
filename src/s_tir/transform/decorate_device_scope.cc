@@ -22,8 +22,8 @@
  */
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/s_tir/transform.h>
-#include <tvm/tirx/op.h>
 #include <tvm/tirx/stmt.h>
 
 namespace tvm {
@@ -31,19 +31,20 @@ namespace s_tir {
 using namespace tvm::tirx;
 
 Stmt DecorateDeviceScopeImpl(Stmt&& stmt) {
-  Stmt body = AttrStmt(0, tirx::attr::device_scope, IntImm::Int32(0), stmt);
-  return body;
+  static const Op device_scope = Op::Get("tirx.device_scope");
+  return RegionStmt(device_scope, {}, {}, DictAttrs(), std::move(stmt));
 }
 
 namespace transform {
 
 Pass DecorateDeviceScope() {
-  auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
+  auto pass_func = [](Function f, IRModule m, PassContext ctx) {
+    if (!f->body.has_value()) return f;
     auto* n = f.CopyOnWrite();
-    n->body = DecorateDeviceScopeImpl(std::move(n->body));
+    n->body = DecorateDeviceScopeImpl(std::move(n->body).value());
     return f;
   };
-  return CreatePrimFuncPass(pass_func, 0, "s_tir.DecorateDeviceScope", {});
+  return CreateFunctionPass(pass_func, 0, "s_tir.DecorateDeviceScope");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

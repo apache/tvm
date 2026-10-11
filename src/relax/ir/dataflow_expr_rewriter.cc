@@ -25,6 +25,8 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_equal.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/function.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/ir/transform.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/dataflow_matcher.h>
@@ -32,7 +34,6 @@
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/type.h>
-#include <tvm/tirx/op.h>
 
 #include <algorithm>
 
@@ -273,9 +274,9 @@ ExprPatternRewriter::ExprPatternRewriter(
     DFPattern pattern,
     ffi::TypedFunction<ffi::Optional<Expr>(Expr, ffi::Map<DFPattern, Expr>)> func,
     ffi::Optional<ffi::Array<DFPattern>> additional_bindings,
-    ffi::Map<GlobalVar, BaseFunc> new_subroutines) {
-  auto node = ffi::make_object<ExprPatternRewriterNode>();
-  node->pattern = std::move(pattern);
+    ffi::Map<GlobalVar, BaseFunc> new_subroutines)
+    : PatternMatchingRewriter(ffi::UnsafeInit{}) {
+  auto node = ffi::make_object<ExprPatternRewriterNode>(pattern);
   node->func = std::move(func);
   node->additional_bindings = std::move(additional_bindings);
   node->new_subroutines = std::move(new_subroutines);
@@ -320,10 +321,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                         });
 }
 
-OrRewriter::OrRewriter(PatternMatchingRewriter lhs, PatternMatchingRewriter rhs) {
-  auto node = ffi::make_object<OrRewriterNode>();
-  node->lhs = std::move(lhs);
-  node->rhs = std::move(rhs);
+OrRewriter::OrRewriter(PatternMatchingRewriter lhs, PatternMatchingRewriter rhs)
+    : PatternMatchingRewriter(ffi::UnsafeInit{}) {
+  auto node = ffi::make_object<OrRewriterNode>(std::move(lhs), std::move(rhs));
   data_ = std::move(node);
 }
 
@@ -625,7 +625,8 @@ TupleRewriter::TupleRewriter(
     ffi::Array<DFPattern> patterns,
     ffi::TypedFunction<ffi::Optional<Expr>(Expr, ffi::Map<DFPattern, Expr>)> func,
     ffi::Optional<ffi::Array<DFPattern>> additional_bindings,
-    ffi::Map<GlobalVar, BaseFunc> new_subroutines) {
+    ffi::Map<GlobalVar, BaseFunc> new_subroutines)
+    : PatternMatchingRewriter(ffi::UnsafeInit{}) {
   auto node = ffi::make_object<TupleRewriterNode>();
   node->patterns = std::move(patterns);
   node->func = std::move(func);
@@ -956,7 +957,7 @@ class PatternMatchingMutator : public ExprMutator {
 
       for (const auto& binding : block->bindings) {
         auto value = GetBoundValue(binding);
-        bool is_dataflow = (!value.as<IfNode>()) &&
+        bool is_dataflow = (!value.as<IfExprNode>()) &&
                            (!(value.as<CallNode>() && IsImpureCall(value.as_or_throw<Call>())));
         if (is_dataflow) {
           // This binding satisfies the dataflow constraints.
@@ -1082,7 +1083,7 @@ IRModule PatternMatchingRewriterNode::operator()(
   return mod;
 }
 tvm::transform::PassInfo PatternMatchingRewriterNode::Info() const {
-  return tvm::transform::PassInfo(0, "PatternMatchingRewriter", {}, false);
+  return tvm::transform::PassInfo(0, "PatternMatchingRewriter");
 }
 
 Function RewriteCall(const DFPattern& pat,

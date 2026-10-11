@@ -230,7 +230,7 @@ struct BlockVarDomainInfo {
                analyzer->CanProveEqual(bound.max(), intersect.max())) {
       dom = bound;
       bound = sym::IntSet::Nothing();
-    } else if (is_const_int(intersect.min()) && is_const_int(intersect.max())) {
+    } else if (IsConstInt(intersect.min()) && IsConstInt(intersect.max())) {
       // if the bound induce constant iter range, merge bound to loop domain
       dom = intersect;
       bound = sym::IntSet::Nothing();
@@ -273,8 +273,8 @@ class ScopeReconstructor : public StmtExprMutator {
     iter_values.reserve(n_iters);
     PrimExpr predicate = IntImm::Bool(true);
     for (int i = 0; i < n_iters; ++i) {
-      Range iter_dom = iter_doms[i].dom.CoverRange(block_->iter_vars[i]->dom);
-      if (preserve_unit_loops || !is_one(iter_dom->extent)) {
+      Range iter_dom = iter_doms[i].dom.CoverRange(block_->iter_vars[i]->dom.value()).value();
+      if (preserve_unit_loops || !IsOne(iter_dom->extent)) {
         int bits = std::max(iter_dom->min.ty().bits(), iter_dom->extent.ty().bits());
         Var var("ax" + std::to_string(loop_vars.size()), PrimType::Int(bits));
         loop_vars.push_back(var);
@@ -304,14 +304,14 @@ class ScopeReconstructor : public StmtExprMutator {
     }
     this->new_block_realize_ =
         SBlockRealize(std::move(iter_values), analyzer->Simplify(predicate), std::move(block_));
-    Stmt new_subtree = this->new_block_realize_;
+    Stmt new_subtree = this->new_block_realize_.value();
     for (int i = static_cast<int>(loop_vars.size()) - 1; i >= 0; --i) {
       const Var& loop_var = loop_vars[i];
       const PrimExpr& loop_extent = loop_extents[i];
       new_subtree = For(/*loop_var=*/loop_var.as_or_throw<PrimVar>(),
                         /*min=*/IntImm::Int32(0),
                         /*extent=*/loop_extent,
-                        /*ForKind=*/ForKind::kSerial,
+                        /*ForKind=*/ForKind::kDefault,
                         /*body=*/std::move(new_subtree));
     }
     ffi::Array<Stmt> subtrees = AsArray(loop_->body);
@@ -338,7 +338,7 @@ class ScopeReconstructor : public StmtExprMutator {
       loop = TVM_TYPE_AS(rm_tgt_stmt_, ForNode);
     }
     if (loop == loop_.get()) {
-      return new_loop_;
+      return new_loop_.value();
     }
     return StmtExprMutator::Mutate_(loop, loop->unique() ? inplace_mode : InplaceMode::kDisallow)
         .ValueOrUnchanged(ffi::GetRef<Stmt>(loop));
@@ -352,13 +352,14 @@ class ScopeReconstructor : public StmtExprMutator {
   /*! \brief The given loop the block and its loop nest to be put under */
   For loop_;
   /*! \brief The new loop to replace the original loop */
-  For new_loop_{nullptr};
+  ffi::Optional<For> new_loop_;
   /*! \brief The new block realize to the moved block */
-  SBlockRealize new_block_realize_{nullptr};
+  ffi::Optional<SBlockRealize> new_block_realize_;
   /*! \brief The plan to remove the given block by replacing this loop/block in the AST */
-  Stmt rm_src_stmt_{nullptr};
+  // LeafBlockRemovalPlan initializes both removal statements before this mutator is used.
+  Stmt rm_src_stmt_{ffi::UnsafeInit{}};
   /*! \brief The plan to remove the given block by replacing to this loop/block in the AST */
-  Stmt rm_tgt_stmt_{nullptr};
+  Stmt rm_tgt_stmt_{ffi::UnsafeInit{}};
 };
 
 /*!
@@ -387,7 +388,7 @@ void RelaxBufferRegions(const ffi::Map<Var, PrimExpr>& binding,
   };
   // Enumerate every buffer region
   for (const TensorRegion& buffer_region : buffer_regions) {
-    const BufferVar& buffer = buffer_region->source.as_or_throw<tvm::tirx::BufferVar>();
+    const TensorVar& buffer = buffer_region->source.as_or_throw<tvm::tirx::TensorVar>();
     const ffi::Array<Range>& region = buffer_region->region;
     // Skip the buffer regions we are not interested in
     auto it = relaxed->find(buffer.get());
@@ -435,7 +436,7 @@ std::pair<Var, BlockVarDomainInfo> SolveBlockVarDomain(const sym::IntSet& provid
   PrimExpr provided_max = analyzer->Simplify(provided.max());
   PrimExpr required_min = analyzer->Simplify(required.min());
   PrimExpr required_max = analyzer->Simplify(required.max());
-  sym::IntSet var_dom, var_bound;
+  sym::IntSet var_dom{ffi::UnsafeInit{}}, var_bound{ffi::UnsafeInit{}};
   ffi::Optional<Var> var;
   sym::PVar<Var> p_v;
   sym::PVar<PrimExpr> p_e;
@@ -507,14 +508,14 @@ std::pair<Var, BlockVarDomainInfo> SolveBlockVarDomain(const sym::IntSet& provid
 void UpdateBlockVarDomainDimwise(
     const VarNode* buffer, const NDIntSet& provided_region, const NDIntSet& required_region,
     sym::AnalyzerObj* analyzer, std::unordered_map<const VarNode*, BlockVarDomainInfo>* iter_doms) {
-  size_t ndim = GetBufferVar(buffer)->shape.size();
+  size_t ndim = GetTensorVar(buffer)->shape.size();
   for (size_t i = 0; i < ndim; ++i) {
     sym::IntSet provided = provided_region[i];
     sym::IntSet required = required_region[i];
-    PrimExpr dim_max = max(GetBufferVar(buffer)->shape[i] - 1, 0);
+    PrimExpr dim_max = max(GetTensorVar(buffer)->shape[i] - 1, 0);
     sym::Analyzer analyzer_ref = ffi::GetRef<sym::Analyzer>(analyzer);
 
-    if (provided.CanProveSinglePoint(analyzer_ref) && is_const_int(provided.min())) {
+    if (provided.CanProveSinglePoint(analyzer_ref) && IsConstInt(provided.min())) {
       TVM_FFI_ICHECK(required.CanProveSinglePoint(analyzer_ref) &&
                      analyzer->CanProveEqual(provided.min(), required.min()));
       continue;
@@ -581,9 +582,9 @@ bool UpdateBlockVarDomainAffine(const VarNode* buffer, const ffi::Array<IterVar>
   // calculate forward mapping (block vars -> provided region point)
   ffi::Map<PrimVar, Range> dom_map;
   for (const IterVar& iter_var : iter_vars) {
-    dom_map.Set(iter_var->var, iter_var->dom);
+    dom_map.Set(iter_var->var, iter_var->dom.value());
   }
-  size_t ndim = GetBufferVar(buffer)->shape.size();
+  size_t ndim = GetTensorVar(buffer)->shape.size();
   ffi::Array<PrimExpr> provide_indices;
   provide_indices.reserve(ndim);
   for (size_t i = 0; i < ndim; ++i) {
@@ -597,8 +598,8 @@ bool UpdateBlockVarDomainAffine(const VarNode* buffer, const ffi::Array<IterVar>
   // calculate backward mapping (required region point -> block vars)
   NDIntSet required_bound;
   for (size_t i = 0; i < ndim; ++i) {
-    required_bound.push_back(sym::IntSet::Interval(IntImm(GetBufferVar(buffer)->shape[i].ty(), 0),
-                                                   max(GetBufferVar(buffer)->shape[i] - 1, 0)));
+    required_bound.push_back(sym::IntSet::Interval(IntImm(GetTensorVar(buffer)->shape[i].ty(), 0),
+                                                   max(GetTensorVar(buffer)->shape[i] - 1, 0)));
   }
   ffi::Map<Var, sym::IntSet> var_dom =
       InverseAffineIterMap(res->indices, required_region, analyzer);
@@ -644,8 +645,8 @@ std::vector<BlockVarDomainInfo> CalculateBlockVarDomain(
     }
     NDIntSet required_region = support::NDIntSetUnion(it->second);
     NDIntSet provided_region = support::NDIntSetUnion(many_provided_regions);
-    TVM_FFI_ICHECK_EQ(provided_region.size(), GetBufferVar(buffer)->shape.size());
-    TVM_FFI_ICHECK_EQ(required_region.size(), GetBufferVar(buffer)->shape.size());
+    TVM_FFI_ICHECK_EQ(provided_region.size(), GetTensorVar(buffer)->shape.size());
+    TVM_FFI_ICHECK_EQ(required_region.size(), GetTensorVar(buffer)->shape.size());
     // Try update iter var domains with current required and provided region pair.
     if (!UpdateBlockVarDomainAffine(buffer, iter_vars, provided_region, required_region, analyzer,
                                     &iter_doms)) {
@@ -658,9 +659,9 @@ std::vector<BlockVarDomainInfo> CalculateBlockVarDomain(
   for (const IterVar& iter_var : iter_vars) {
     BlockVarDomainInfo& info = iter_doms.at(iter_var->var.get());
     if (info.bound.IsNothing()) {
-      info.bound = sym::IntSet::FromRange(iter_var->dom);
+      info.bound = sym::IntSet::FromRange(iter_var->dom.value());
     } else {
-      info.bound = sym::Intersect({info.bound, sym::IntSet::FromRange(iter_var->dom)});
+      info.bound = sym::Intersect({info.bound, sym::IntSet::FromRange(iter_var->dom.value())});
     }
     info.Simplify(analyzer);
     TVM_FFI_ICHECK(!info.dom.IsNothing());
@@ -695,7 +696,7 @@ void CalculateProvidedRequiredRegions(
   required_regions->reserve(provided_buffers.size());
   for (const TensorRegion& provided_buffer_region : provided_buffers) {
     const VarNode* buffer =
-        provided_buffer_region->source.as_or_throw<tvm::tirx::BufferVar>().get();
+        provided_buffer_region->source.as_or_throw<tvm::tirx::TensorVar>().get();
     const ffi::Array<Range>& region = provided_buffer_region->region;
     (*provided_regions)[buffer].push_back(support::NDIntSetFromRegion(region));
     (*required_regions)[buffer].clear();
@@ -788,7 +789,7 @@ void ComputeAtOrReverseComputeAtImpl(ScheduleState self, const StmtSRef& block_s
   // Step 8. Update the cached flags
   SBlockInfo& block_info = self->block_info[block_sref];
   block_info.affine_binding = IsAffineBinding(
-      /*realize=*/reconstructor->new_block_realize_,
+      /*realize=*/reconstructor->new_block_realize_.value(),
       /*loop_var_ranges=*/LoopDomainOfSRefTreePath(ffi::GetRef<StmtSRef>(block_sref->parent)),
       /*analyzer=*/analyzer);
 }

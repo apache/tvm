@@ -28,42 +28,55 @@ namespace script {
 namespace ir_builder {
 namespace s_tir {
 
-using tirx::BufferDecl;
-using tirx::ForFrameNode;
-using tvm::tirx::IterVar;
-using tvm::tirx::IterVarType;
+using ir::ForFrameNode;
+using tirx::TensorDecl;
+using tvm::s_tir::IterVar;
+using tvm::s_tir::IterVarType;
 
-PrimFuncFrame PrimFunc(bool is_private, bool persistent) {
-  auto n = ffi::make_object<PrimFuncFrameNode>();
+FunctionFrame Function(bool is_private, bool persistent) {
+  auto n = ffi::make_object<FunctionFrameNode>();
   n->is_private = is_private;
   n->persistent = persistent;
   n->attrs = {};
-  return PrimFuncFrame(std::move(n));
+  return FunctionFrame(std::move(n));
 }
 
-PrimFuncFrame DeclFunction(bool is_private, bool persistent) {
-  PrimFuncFrame frame = PrimFunc(is_private, persistent);
+FunctionFrame DeclFunction(bool is_private, bool persistent) {
+  FunctionFrame frame = Function(is_private, persistent);
   frame->is_declaration = true;
   return frame;
 }
 
-BufferVar MatchBuffer(ffi::ObjectRef param, ffi::Array<PrimExpr> shape, PrimType dtype,
-                      ffi::Optional<Expr> data, ffi::Array<PrimExpr> strides, PrimExpr elem_offset,
-                      ffi::String storage_scope, int align, int offset_factor,
-                      ffi::Optional<Layout> layout, ffi::Array<PrimExpr> allocated_addr) {
-  BufferVar buffer = BufferDecl(shape, dtype, "", data, strides, elem_offset, storage_scope, align,
-                                offset_factor, layout, allocated_addr);
-  tvm::TensorRegion region;
+TensorVar MatchBuffer(ffi::ObjectRef param, ffi::Array<PrimExpr> shape, PrimType dtype,
+                      ffi::Optional<Expr> data, ffi::Array<PrimExpr> strides,
+                      ffi::Optional<PrimExpr> elem_offset, ffi::String storage_scope, int align,
+                      int offset_factor, ffi::Optional<Layout> layout,
+                      ffi::Array<PrimExpr> allocated_addr) {
+  TensorVar buffer = TensorDecl(shape, dtype, "", data, strides, elem_offset, storage_scope, align,
+                                offset_factor, layout);
+  tvm::TensorRegion region{ffi::UnsafeInit{}};
   if (auto load = param.as<TensorLoad>()) {
-    region = BufferRegionFromLoad(load.value());
+    region = TensorRegionFromLoad(load.value());
   } else if (auto view = param.as<tvm::TensorRegion>()) {
     region = view.value();
   } else {
     TVM_FFI_THROW(ValueError) << "Unexpected type for MatchBuffer";
   }
-  auto frame = IRBuilder::Current()->GetLastFrame<tirx::TIRFrame>();
+  auto frame = IRBuilder::Current()->GetLastFrame<ir::StmtFrame>();
   TVM_FFI_CHECK(frame.has_value(), ValueError) << "match_buffer requires a statement frame";
-  frame.value()->BindBufferRegion(buffer, region);
+  if (auto* alias_frame = frame.value().as<tirx::TIRFrameNode>()) {
+    ffi::GetRef<tirx::TIRFrame>(alias_frame)->BindBufferRegion(buffer, region);
+  } else {
+    TVM_FFI_THROW(ValueError) << "match_buffer requires a frame that supports region aliases";
+  }
+  if (!allocated_addr.empty()) {
+    auto* block_frame = frame.value().as<SBlockFrameNode>();
+    TVM_FFI_CHECK(block_frame != nullptr, ValueError)
+        << "match_buffer placement requires an S-TIR block";
+    ffi::GetRef<SBlockFrame>(block_frame)
+        ->allocated_addresses.push_back(
+            ffi::Tuple<Var, ffi::Array<PrimExpr>>(buffer.var(), allocated_addr));
+  }
   return buffer;
 }
 
@@ -107,7 +120,7 @@ void Reads(ffi::Array<ffi::ObjectRef> buffer_slices) {
     if (auto buffer_region = obj.as<TensorRegion>()) {
       reads.push_back(buffer_region.value());
     } else if (auto buffer_load = obj.as<TensorLoad>()) {
-      reads.push_back(BufferRegionFromLoad(buffer_load.value()));
+      reads.push_back(TensorRegionFromLoad(buffer_load.value()));
     } else {
       TVM_FFI_THROW(InternalError) << "Invalid type for buffer reads.";
     }
@@ -127,7 +140,7 @@ void Writes(ffi::Array<ffi::ObjectRef> buffer_slices) {
     if (auto buffer_region = obj.as<TensorRegion>()) {
       writes.push_back(buffer_region.value());
     } else if (auto buffer_load = obj.as<TensorLoad>()) {
-      writes.push_back(BufferRegionFromLoad(buffer_load.value()));
+      writes.push_back(TensorRegionFromLoad(buffer_load.value()));
     } else {
       TVM_FFI_THROW(InternalError) << "Invalid type for buffer writes.";
     }
@@ -184,8 +197,8 @@ void BlockAttrs(ffi::Map<ffi::String, Any> attrs) {
       << "frame, but Ts.sblock_attr occurred outside of any such frame";
 }
 
-BufferVar SBlockAllocBuffer(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::Optional<Expr> data,
-                            ffi::Array<PrimExpr> strides, PrimExpr elem_offset,
+TensorVar SBlockAllocBuffer(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::Optional<Expr> data,
+                            ffi::Array<PrimExpr> strides, ffi::Optional<PrimExpr> elem_offset,
                             ffi::String storage_scope, int align, int offset_factor,
                             ffi::Optional<Layout> layout, ffi::Array<PrimExpr> allocated_addr) {
   std::string scope = static_cast<std::string>(storage_scope);
@@ -195,39 +208,50 @@ BufferVar SBlockAllocBuffer(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::Opt
   if (scope == "global" || scope == "shared" || scope == "shared.dyn" || scope == "local") {
     TVM_FFI_ICHECK(allocated_addr.empty())
         << "ValueError: For `" << scope
-        << "` scope, Ts.alloc_buffer does not accept `allocated_addr`";
+        << "` scope, Ts.alloc_tensor does not accept `allocated_addr`";
   }
-  ffi::Optional<PrimExpr> opt_elem_offset =
-      elem_offset.defined() ? ffi::Optional<PrimExpr>(elem_offset) : std::nullopt;
-  BufferVar buffer = BufferDecl(shape, dtype, "", std::nullopt, strides, opt_elem_offset,
-                                storage_scope, align, offset_factor, layout, allocated_addr);
+  TensorVar buffer = TensorDecl(shape, dtype, "", std::nullopt, strides, elem_offset, storage_scope,
+                                align, offset_factor, layout);
   IRBuilder builder = IRBuilder::Current();
-  auto opt_func_frame = builder->FindFrame<tirx::PrimFuncFrame>();
+  auto opt_func_frame = builder->FindFrame<tirx::FunctionFrame>();
   if (opt_func_frame.has_value()) {
-    TVM_FFI_CHECK(opt_func_frame.value().as<PrimFuncFrameNode>() != nullptr, ValueError)
-        << "ValueError: `Ts.alloc_buffer()` is only for s_tir PrimFuncs. "
-           "Use `T.alloc_buffer()` inside default (tirx) PrimFuncs.";
+    TVM_FFI_CHECK(opt_func_frame.value().as<FunctionFrameNode>() != nullptr, ValueError)
+        << "ValueError: `Ts.alloc_tensor()` is only for s_tir Functions. "
+           "Use `T.alloc_tensor()` inside default (tirx) Functions.";
   }
 
   // Walk up the frame stack: attach to the innermost enclosing s_tir::SBlock (lifting
   // the allocation past any intermediate For/If/While frames). Fall back to the
-  // PrimFunc root when no sblock is in scope. When neither is present (raw
+  // Function root when no sblock is in scope. When neither is present (raw
   // IRBuilder construction used by tests), just return the buffer.
   if (ffi::Optional<SBlockFrame> block_frame = builder->FindFrame<SBlockFrame>()) {
     block_frame.value()->alloc_buffers.push_back(buffer);
+    if (!allocated_addr.empty()) {
+      block_frame.value()->allocated_addresses.push_back(
+          ffi::Tuple<Var, ffi::Array<PrimExpr>>(buffer.var(), allocated_addr));
+    }
   } else if (opt_func_frame.has_value()) {
-    ffi::GetRef<PrimFuncFrame>(opt_func_frame.value().as<PrimFuncFrameNode>())
-        ->root_alloc_buffers.push_back(buffer);
+    auto frame = ffi::GetRef<FunctionFrame>(opt_func_frame.value().as<FunctionFrameNode>());
+    frame->root_alloc_buffers.push_back(buffer);
+    if (!allocated_addr.empty()) {
+      frame->root_allocated_addresses.push_back(
+          ffi::Tuple<Var, ffi::Array<PrimExpr>>(buffer.var(), allocated_addr));
+    }
+  } else {
+    TVM_FFI_CHECK(allocated_addr.empty(), ValueError)
+        << "sblock_alloc_buffer placement requires an owning block or function";
   }
   return buffer;
 }
 namespace axis {
 
-IterVar PushBlockVar(IterVar iter_var, PrimExpr binding) {
+IterVar PushBlockVar(IterVar iter_var, ffi::Optional<PrimExpr> binding) {
   if (ffi::Optional<SBlockFrame> opt_frame = IRBuilder::Current()->GetLastFrame<SBlockFrame>()) {
     SBlockFrame frame = opt_frame.value();
+    TVM_FFI_CHECK(binding.has_value() || frame->no_realize, TypeError)
+        << "Block axes require a binding unless no_realize=True";
     frame->iter_vars.push_back(iter_var);
-    frame->iter_values.push_back(binding);
+    if (binding.has_value()) frame->iter_values.push_back(binding.value());
   } else {
     TVM_FFI_THROW(InternalError) << "TypeError: The last frame is not SBlockFrame";
   }
@@ -235,7 +259,7 @@ IterVar PushBlockVar(IterVar iter_var, PrimExpr binding) {
 }
 
 #define TVM_S_TIR_IR_BUILDER_AXIS(Method, Kind, Name)                                              \
-  Var Method(Range dom, PrimExpr binding, PrimType dtype) {                                        \
+  Var Method(Range dom, ffi::Optional<PrimExpr> binding, PrimType dtype) {                         \
     TVM_FFI_ICHECK(dom.defined()) << Name << " axis must have a domain";                           \
     PrimType min_ty = dom->min.ty();                                                               \
     PrimType extent_ty = dom->extent.ty();                                                         \
@@ -246,10 +270,10 @@ IterVar PushBlockVar(IterVar iter_var, PrimExpr binding) {
                         binding)                                                                   \
         ->var;                                                                                     \
   }
-TVM_S_TIR_IR_BUILDER_AXIS(Spatial, tvm::tirx::IterVarType::kDataPar, "Spatial");
-TVM_S_TIR_IR_BUILDER_AXIS(Reduce, tvm::tirx::IterVarType::kCommReduce, "Reduction");
-TVM_S_TIR_IR_BUILDER_AXIS(Scan, tvm::tirx::IterVarType::kOrdered, "Scan");
-TVM_S_TIR_IR_BUILDER_AXIS(Opaque, tvm::tirx::IterVarType::kOpaque, "Opaque");
+TVM_S_TIR_IR_BUILDER_AXIS(Spatial, tvm::s_tir::IterVarType::kDataPar, "Spatial");
+TVM_S_TIR_IR_BUILDER_AXIS(Reduce, tvm::s_tir::IterVarType::kCommReduce, "Reduction");
+TVM_S_TIR_IR_BUILDER_AXIS(Scan, tvm::s_tir::IterVarType::kOrdered, "Scan");
+TVM_S_TIR_IR_BUILDER_AXIS(Opaque, tvm::s_tir::IterVarType::kOpaque, "Opaque");
 #undef TVM_S_TIR_IR_BUILDER_AXIS
 
 ffi::Array<Var> Remap(ffi::String kinds, ffi::Array<PrimExpr> bindings, PrimType dtype) {
@@ -263,7 +287,7 @@ ffi::Array<Var> Remap(ffi::String kinds, ffi::Array<PrimExpr> bindings, PrimType
     PrimExpr e = bindings[i];
     auto v = e.as<PrimVar>();
     TVM_FFI_ICHECK(v) << "TypeError: Only Var is supported in T.axis.remap";
-    Range dom{nullptr};
+    ffi::Optional<Range> dom;
     for (const auto& frame : IRBuilder::Current()->frames) {
       if (const auto* for_frame = frame.as<ForFrameNode>()) {
         TVM_FFI_ICHECK_EQ(for_frame->doms.size(), for_frame->vars.size());
@@ -305,9 +329,18 @@ ffi::Array<Var> Remap(ffi::String kinds, ffi::Array<PrimExpr> bindings, PrimType
 }  // namespace axis
 
 TVM_FFI_STATIC_INIT_BLOCK() {
+  tvm::script::ir_builder::details::Namer::vtable().SetDispatch<tvm::s_tir::IterVarNode>(
+      [](const ffi::ObjectRef& node, ffi::String name) -> void {
+        using namespace tvm::s_tir;
+        IterVarNode* var = const_cast<IterVarNode*>(node.as<IterVarNode>());
+        tvm::script::ir_builder::details::Namer::Name(var->var, name);
+      });
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("script.ir_builder.s_tir.PrimFunc", PrimFunc)
+      .def("script.ir_builder.s_tir.Function", Function)
       .def("script.ir_builder.s_tir.DeclFunction", DeclFunction)
       .def("script.ir_builder.s_tir.MatchBuffer", MatchBuffer)
       .def("script.ir_builder.s_tir.Block", Block)

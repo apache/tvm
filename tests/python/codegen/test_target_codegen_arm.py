@@ -32,8 +32,8 @@ def test_popcount():
     def check_correct_assembly(type, elements, counts):
         @I.ir_module
         class Module:
-            @T.prim_func
-            def main(A: T.Buffer((elements,), type), B: T.Buffer((elements,), type)):
+            @T.function
+            def main(A: T.Tensor((elements,), type), B: T.Tensor((elements,), type)):
                 T.func_attr({"tirx.noalias": True})
                 for i in T.vectorized(elements):
                     B[i] = T.popcount(A[i])
@@ -66,9 +66,9 @@ def test_vmlal_s16():
 
         @I.ir_module
         class Module:
-            @T.prim_func
+            @T.function
             def main(
-                A: T.Buffer((K, N), "int8"), B: T.Buffer((K, N), "int8"), C: T.Buffer((N,), "int32")
+                A: T.Tensor((K, N), "int8"), B: T.Tensor((K, N), "int8"), C: T.Tensor((N,), "int32")
             ):
                 T.func_attr({"tirx.noalias": True})
 
@@ -94,9 +94,9 @@ def test_vmlal_s16():
 
         @I.ir_module
         class Module:
-            @T.prim_func
+            @T.function
             def main(
-                A: T.Buffer((K, N), "int8"), B: T.Buffer((K,), "int8"), C: T.Buffer((N,), "int32")
+                A: T.Tensor((K, N), "int8"), B: T.Tensor((K,), "int8"), C: T.Tensor((N,), "int32")
             ):
                 T.func_attr({"tirx.noalias": True})
 

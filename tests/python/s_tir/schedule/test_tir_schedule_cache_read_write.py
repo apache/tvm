@@ -37,8 +37,8 @@ from tvm.script import tirx as T
 ########## Function before schedule ##########
 
 
-@Ts.prim_func
-def elementwise(A: T.Buffer((128, 128)), C: T.Buffer((128, 128))) -> None:
+@Ts.function
+def elementwise(A: T.Tensor((128, 128)), C: T.Tensor((128, 128))) -> None:
     B = Ts.sblock_alloc_buffer((128, 128))
 
     for i, j in T.grid(128, 128):
@@ -51,9 +51,9 @@ def elementwise(A: T.Buffer((128, 128)), C: T.Buffer((128, 128))) -> None:
             C[vi, vj] = B[vi, vj] + 1.0
 
 
-@Ts.prim_func
+@Ts.function
 def elementwise_shape_int64(
-    A: T.Buffer((T.int64(128), T.int64(128))), C: T.Buffer((T.int64(128), T.int64(128)))
+    A: T.Tensor((T.int64(128), T.int64(128))), C: T.Tensor((T.int64(128), T.int64(128)))
 ) -> None:
     B = Ts.sblock_alloc_buffer((T.int64(128), T.int64(128)))
 
@@ -67,9 +67,9 @@ def elementwise_shape_int64(
             C[vi, vj] = B[vi, vj] + 1.0
 
 
-@Ts.prim_func
+@Ts.function
 def elementwise_reindex_cache_read(
-    A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float32")
+    A: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "float32")
 ):
     B = Ts.sblock_alloc_buffer((128, 128))
     B_shared = Ts.sblock_alloc_buffer((128, 64, 2), scope="shared")
@@ -93,9 +93,9 @@ def elementwise_reindex_cache_read(
             C[vi, vj] = B_shared[vj, vi // 2, vi % 2] + T.float32(1)
 
 
-@Ts.prim_func
+@Ts.function
 def elementwise_reindex_cache_write(
-    A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float32")
+    A: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "float32")
 ):
     B = Ts.sblock_alloc_buffer((128, 128))
     B_shared = Ts.sblock_alloc_buffer((128, 128), scope="shared")
@@ -119,8 +119,8 @@ def elementwise_reindex_cache_write(
             C[vi, vj] = B[vi, vj] + T.float32(1)
 
 
-@Ts.prim_func
-def reduce(A: T.Buffer((128, 128, 128, 128), "float32"), C: T.Buffer((128, 128), "float32")):
+@Ts.function
+def reduce(A: T.Tensor((128, 128, 128, 128), "float32"), C: T.Tensor((128, 128), "float32")):
     B = Ts.sblock_alloc_buffer((128, 128, 128), dtype="float32")
     for i, j, k in T.grid(128, 128, 128):
         for l in range(128):
@@ -136,9 +136,9 @@ def reduce(A: T.Buffer((128, 128, 128, 128), "float32"), C: T.Buffer((128, 128),
             C[vi, vj] = C[vi, vj] + B[vi, vj, vk]
 
 
-@Ts.prim_func
+@Ts.function
 def reduce_reindex_cache_write_0(
-    A: T.Buffer((128, 128, 128, 128), "float32"), C: T.Buffer((128, 128), "float32")
+    A: T.Tensor((128, 128, 128, 128), "float32"), C: T.Tensor((128, 128), "float32")
 ):
     B = Ts.sblock_alloc_buffer((128, 128, 128))
     B_shared = Ts.sblock_alloc_buffer((128, 128, 128), scope="shared")
@@ -165,9 +165,9 @@ def reduce_reindex_cache_write_0(
             C[vi, vj] = C[vi, vj] + B[vi, vj, vk]
 
 
-@Ts.prim_func
+@Ts.function
 def reduce_reindex_cache_write_1(
-    A: T.Buffer((128, 128, 128, 128), "float32"), C: T.Buffer((128, 128), "float32")
+    A: T.Tensor((128, 128, 128, 128), "float32"), C: T.Tensor((128, 128), "float32")
 ):
     B = Ts.sblock_alloc_buffer((128, 128, 128))
     B_shared = Ts.sblock_alloc_buffer((128, 128, 128), scope="shared")
@@ -201,8 +201,8 @@ def reduce_reindex_cache_write_1(
             C[vi, vj] = C_shared[vj, vi]
 
 
-@Ts.prim_func
-def func_nested_seq(B: T.Buffer((128, 128)), C: T.Buffer((128, 128))) -> None:
+@Ts.function
+def func_nested_seq(B: T.Tensor((128, 128)), C: T.Tensor((128, 128))) -> None:
     A = Ts.sblock_alloc_buffer((128, 128))
 
     for i, j in T.grid(128, 128):
@@ -226,8 +226,8 @@ def func_nested_seq(B: T.Buffer((128, 128)), C: T.Buffer((128, 128))) -> None:
             C[vi, vj] = A[vi, vj] * 2.0
 
 
-@Ts.prim_func
-def access_under_scope(B: T.Buffer((128, 128)), C: T.Buffer((128, 128))) -> None:
+@Ts.function
+def access_under_scope(B: T.Tensor((128, 128)), C: T.Tensor((128, 128))) -> None:
     A = Ts.sblock_alloc_buffer((128, 128))
 
     for i0, j0 in T.grid(8, 8):
@@ -249,12 +249,12 @@ def access_under_scope(B: T.Buffer((128, 128)), C: T.Buffer((128, 128))) -> None
             C[vi, vj] = A[vi, vj] * 2.0
 
 
-@Ts.prim_func
+@Ts.function
 def opaque_access(
-    A: T.Buffer((128, 128), dtype="float16"),
-    B: T.Buffer((128, 128), dtype="float16"),
-    C: T.Buffer((128, 128), dtype="float16"),
-    D: T.Buffer((128, 128), dtype="float16"),
+    A: T.Tensor((128, 128), dtype="float16"),
+    B: T.Tensor((128, 128), dtype="float16"),
+    C: T.Tensor((128, 128), dtype="float16"),
+    D: T.Tensor((128, 128), dtype="float16"),
 ) -> None:
     for i, j in T.grid(128, 128):
         with Ts.sblock("load_store"):
@@ -268,23 +268,15 @@ def opaque_access(
             Ts.reads(A[vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16])
             Ts.writes(B[vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16])
             T.evaluate(
-                T.tvm_load_matrix_sync(
+                T.gpu_load_matrix_sync(
                     B.data,
                     16,
                     16,
                     16,
                     vi * 8 + vj,
-                    T.tvm_access_ptr(
-                        T.type_annotation(dtype="float16"),
-                        A.data,
-                        vi * 2048 + vj * 16,
-                        128,
-                        1,
-                        dtype="handle",
-                    ),
+                    T.ptr_byte_offset(A.data, (vi * 2048 + vj * 16) * 2, ty=A.data.ty),
                     128,
                     "row_major",
-                    dtype="handle",
                 )
             )
     for i, j in T.grid(8, 8):
@@ -313,28 +305,20 @@ def opaque_access(
                 offset_factor=1,
             )
             T.evaluate(
-                T.tvm_load_matrix_sync(
+                T.gpu_load_matrix_sync(
                     C0.data,
                     16,
                     16,
                     16,
                     vi * 8 + vj,
-                    T.tvm_access_ptr(
-                        T.type_annotation(dtype="float16"),
-                        A0.data,
-                        A0.elem_offset,
-                        A0.strides[0],
-                        1,
-                        dtype="handle",
-                    ),
+                    A0.ptr_to([0] * len(A0.shape)),
                     128,
                     "row_major",
-                    dtype="handle",
                 )
             )
 
 
-@Ts.prim_func
+@Ts.function
 def func_multi_consumer() -> None:
     A = Ts.sblock_alloc_buffer(128)
     B = Ts.sblock_alloc_buffer(128)
@@ -354,7 +338,7 @@ def func_multi_consumer() -> None:
             C[vi] = A[vi]
 
 
-@Ts.prim_func
+@Ts.function
 def reindex_cache_read_multi_consumer() -> None:
     A = Ts.sblock_alloc_buffer((128,))
     B = Ts.sblock_alloc_buffer((128,))
@@ -387,7 +371,7 @@ def reindex_cache_read_multi_consumer() -> None:
             C[vi] = A[vi]
 
 
-@Ts.prim_func
+@Ts.function
 def func_multi_producer() -> None:
     A = Ts.sblock_alloc_buffer(128)
     B = Ts.sblock_alloc_buffer(128)
@@ -405,7 +389,7 @@ def func_multi_producer() -> None:
             B[vi] = A[vi]
 
 
-@Ts.prim_func
+@Ts.function
 def func_with_block_predicate() -> None:
     A = Ts.sblock_alloc_buffer(120)
     B = Ts.sblock_alloc_buffer(120)
@@ -421,8 +405,8 @@ def func_with_block_predicate() -> None:
             B[ax] = A[ax] + 1.0
 
 
-@Ts.prim_func
-def inplace_func(data_io: T.Buffer((64), "int32")):
+@Ts.function
+def inplace_func(data_io: T.Tensor((64), "int32")):
     data_1d = Ts.sblock_alloc_buffer([64], dtype="int32")
     for i0 in T.serial(64):
         with Ts.sblock("copy_in"):
@@ -432,25 +416,25 @@ def inplace_func(data_io: T.Buffer((64), "int32")):
         with Ts.sblock("ext_call"):
             Ts.reads(data_1d[:64])
             Ts.writes(data_1d[:64])
-            T.evaluate(T.call_extern("call_impl", data_1d.data, dtype=""))
+            T.evaluate(T.call_extern("call_impl", data_1d.data, ty=""))
     for i0 in T.serial(64):
         with Ts.sblock("copy_out"):
             v0 = Ts.axis.remap("S", [i0])
             data_io[v0] = data_1d[v0]
 
 
-@Ts.prim_func
-def inplace_call(data_io: T.Buffer((64), "int32")):
+@Ts.function
+def inplace_call(data_io: T.Tensor((64), "int32")):
     for i0 in T.serial(1):
         with Ts.sblock("ext_call"):
             Ts.reads(data_io[:64])
             Ts.writes(data_io[:64])
-            T.evaluate(T.call_extern("call_impl", data_io.data, dtype=""))
+            T.evaluate(T.call_extern("call_impl", data_io.data, ty=""))
 
 
-@Ts.prim_func
+@Ts.function
 def cache_read_nested_seq_target(
-    B: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float32")
+    B: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "float32")
 ) -> None:
     A = Ts.sblock_alloc_buffer([128, 128], dtype="float32")
     A_global = Ts.sblock_alloc_buffer([128, 128], dtype="float32")
@@ -489,11 +473,11 @@ def cache_read_nested_seq_target(
             C[vi, vj] = A_global[vi, vj] * T.float32(2)
 
 
-@Ts.prim_func
+@Ts.function
 def nested_buffer_access(
-    A: T.Buffer((T.int64(7), T.int64(512)), dtype="float32"),
-    B: T.Buffer(T.int64(1), dtype="int32"),
-    C: T.Buffer((T.int64(1), T.int64(512)), dtype="float32"),
+    A: T.Tensor((T.int64(7), T.int64(512)), dtype="float32"),
+    B: T.Tensor(T.int64(1), dtype="int32"),
+    C: T.Tensor((T.int64(1), T.int64(512)), dtype="float32"),
 ):
     for ax0, ax1 in T.grid(T.int64(1), T.int64(512)):
         with Ts.sblock("C"):
@@ -506,8 +490,8 @@ def nested_buffer_access(
 ########## Expected function after cache_read ##########
 
 
-@Ts.prim_func
-def cache_read_elementwise(A: T.Buffer((128, 128)), C: T.Buffer((128, 128))) -> None:
+@Ts.function
+def cache_read_elementwise(A: T.Tensor((128, 128)), C: T.Tensor((128, 128))) -> None:
     B = Ts.sblock_alloc_buffer((128, 128))
     A_global = Ts.sblock_alloc_buffer((128, 128))
     B_local = Ts.sblock_alloc_buffer((128, 128), scope="local")
@@ -529,8 +513,8 @@ def cache_read_elementwise(A: T.Buffer((128, 128)), C: T.Buffer((128, 128))) -> 
             C[vi, vj] = B_local[vi, vj] + 1.0
 
 
-@Ts.prim_func
-def cache_read_under_scope(B: T.Buffer((128, 128)), C: T.Buffer((128, 128))) -> None:
+@Ts.function
+def cache_read_under_scope(B: T.Tensor((128, 128)), C: T.Tensor((128, 128))) -> None:
     A = Ts.sblock_alloc_buffer((128, 128))
 
     A_global = Ts.sblock_alloc_buffer((128, 128))
@@ -564,12 +548,12 @@ def cache_read_under_scope(B: T.Buffer((128, 128)), C: T.Buffer((128, 128))) -> 
             C[vi, vj] = A_global[vi, vj] * 2.0
 
 
-@Ts.prim_func
+@Ts.function
 def cache_read_opaque_access(
-    A: T.Buffer((128, 128), dtype="float16"),
-    B: T.Buffer((128, 128), dtype="float16"),
-    C: T.Buffer((128, 128), dtype="float16"),
-    D: T.Buffer((128, 128), dtype="float16"),
+    A: T.Tensor((128, 128), dtype="float16"),
+    B: T.Tensor((128, 128), dtype="float16"),
+    C: T.Tensor((128, 128), dtype="float16"),
+    D: T.Tensor((128, 128), dtype="float16"),
 ) -> None:
     A_global = Ts.sblock_alloc_buffer((128, 128), dtype="float16")
 
@@ -589,23 +573,17 @@ def cache_read_opaque_access(
             Ts.reads(A_global[vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16])
             Ts.writes(B[vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16])
             T.evaluate(
-                T.tvm_load_matrix_sync(
+                T.gpu_load_matrix_sync(
                     B.data,
                     16,
                     16,
                     16,
                     vi * 8 + vj,
-                    T.tvm_access_ptr(
-                        T.type_annotation(dtype="float16"),
-                        A_global.data,
-                        vi * 2048 + vj * 16,
-                        128,
-                        1,
-                        dtype="handle",
+                    T.ptr_byte_offset(
+                        A_global.data, (vi * 2048 + vj * 16) * 2, ty=A_global.data.ty
                     ),
                     128,
                     "row_major",
-                    dtype="handle",
                 )
             )
     for i, j in T.grid(8, 8):
@@ -634,28 +612,20 @@ def cache_read_opaque_access(
                 offset_factor=1,
             )
             T.evaluate(
-                T.tvm_load_matrix_sync(
+                T.gpu_load_matrix_sync(
                     C0.data,
                     16,
                     16,
                     16,
                     vi * 8 + vj,
-                    T.tvm_access_ptr(
-                        T.type_annotation(dtype="float16"),
-                        A0.data,
-                        A0.elem_offset,
-                        A0.strides[0],
-                        1,
-                        dtype="handle",
-                    ),
+                    A0.ptr_to([0] * len(A0.shape)),
                     128,
                     "row_major",
-                    dtype="handle",
                 )
             )
 
 
-@Ts.prim_func
+@Ts.function
 def cache_read_multi_consumer() -> None:
     A = Ts.sblock_alloc_buffer(128)
     B = Ts.sblock_alloc_buffer(128)
@@ -681,7 +651,7 @@ def cache_read_multi_consumer() -> None:
             C[vi] = A_global[vi]
 
 
-@Ts.prim_func
+@Ts.function
 def cache_read_multi_consumer_target() -> None:
     A = Ts.sblock_alloc_buffer(128)
     B = Ts.sblock_alloc_buffer(128)
@@ -707,8 +677,8 @@ def cache_read_multi_consumer_target() -> None:
             C[vi] = A_global[vi]
 
 
-@Ts.prim_func
-def continuous_cache_read(A: T.Buffer((128, 128)), C: T.Buffer((128, 128))) -> None:
+@Ts.function
+def continuous_cache_read(A: T.Tensor((128, 128)), C: T.Tensor((128, 128))) -> None:
     B = Ts.sblock_alloc_buffer((128, 128))
     B_shared = Ts.sblock_alloc_buffer((128, 128), scope="shared")
     B_local = Ts.sblock_alloc_buffer((128, 128), scope="local")
@@ -730,7 +700,7 @@ def continuous_cache_read(A: T.Buffer((128, 128)), C: T.Buffer((128, 128))) -> N
             C[vi, vj] = B_local[vi, vj] + 1.0
 
 
-@Ts.prim_func
+@Ts.function
 def block_predicate_cache_read() -> None:
     A = Ts.sblock_alloc_buffer([120], dtype="float32")
     B = Ts.sblock_alloc_buffer([120], dtype="float32")
@@ -751,10 +721,10 @@ def block_predicate_cache_read() -> None:
             B[ax] = A_shared[ax] + T.float32(1)
 
 
-@Ts.prim_func
+@Ts.function
 def cache_read_shape_int64(
-    A: T.Buffer((T.int64(128), T.int64(128)), dtype="float32"),
-    C: T.Buffer((T.int64(128), T.int64(128)), dtype="float32"),
+    A: T.Tensor((T.int64(128), T.int64(128)), dtype="float32"),
+    C: T.Tensor((T.int64(128), T.int64(128)), dtype="float32"),
 ) -> None:
     B = Ts.sblock_alloc_buffer([T.int64(128), T.int64(128)], dtype="float32")
     A_global = Ts.sblock_alloc_buffer([T.int64(128), T.int64(128)], dtype="float32")
@@ -778,8 +748,8 @@ def cache_read_shape_int64(
             C[vi, vj] = B[vi, vj] + T.float32(1)
 
 
-@Ts.prim_func
-def cache_read_inplace(data_io: T.Buffer(64, "int32")) -> None:
+@Ts.function
+def cache_read_inplace(data_io: T.Tensor(64, "int32")) -> None:
     data_1d = Ts.sblock_alloc_buffer([64], dtype="int32")
     data_io_local = Ts.sblock_alloc_buffer([64], dtype="int32", scope="local")
     for ax0 in T.serial(64):
@@ -798,7 +768,7 @@ def cache_read_inplace(data_io: T.Buffer(64, "int32")) -> None:
         with Ts.sblock("ext_call"):
             Ts.reads(data_1d[0:64])
             Ts.writes(data_1d[0:64])
-            T.evaluate(T.call_extern("call_impl", data_1d.data, dtype=""))
+            T.evaluate(T.call_extern("call_impl", data_1d.data, ty=""))
     for i0 in T.serial(64):
         with Ts.sblock("copy_out"):
             v0 = Ts.axis.spatial(64, i0)
@@ -807,8 +777,8 @@ def cache_read_inplace(data_io: T.Buffer(64, "int32")) -> None:
             data_io[v0] = data_1d[v0]
 
 
-@Ts.prim_func
-def cache_inplace_buffer(data_io: T.Buffer(64, "int32")) -> None:
+@Ts.function
+def cache_inplace_buffer(data_io: T.Tensor(64, "int32")) -> None:
     data_io_local = Ts.sblock_alloc_buffer([64], dtype="int32", scope="local")
     data_io_global = Ts.sblock_alloc_buffer([64], dtype="int32")
     data_io_global_1 = Ts.sblock_alloc_buffer([64], dtype="int32")
@@ -828,7 +798,7 @@ def cache_inplace_buffer(data_io: T.Buffer(64, "int32")) -> None:
         with Ts.sblock("ext_call"):
             Ts.reads(data_io_local[0:64])
             Ts.writes(data_io_local[0:64])
-            T.evaluate(T.call_extern("call_impl", data_io_local.data, dtype=""))
+            T.evaluate(T.call_extern("call_impl", data_io_local.data, ty=""))
         for ax0 in T.serial(64):
             with Ts.sblock("data_io_local"):
                 v0 = Ts.axis.spatial(64, ax0)
@@ -843,11 +813,11 @@ def cache_inplace_buffer(data_io: T.Buffer(64, "int32")) -> None:
             data_io[v0] = data_io_global_1[v0]
 
 
-@Ts.prim_func
+@Ts.function
 def cache_read_nested_buffer_access(
-    A: T.Buffer((T.int64(7), T.int64(512)), dtype="float32"),
-    B: T.Buffer(T.int64(1), dtype="int32"),
-    C: T.Buffer((T.int64(1), T.int64(512)), dtype="float32"),
+    A: T.Tensor((T.int64(7), T.int64(512)), dtype="float32"),
+    B: T.Tensor(T.int64(1), dtype="int32"),
+    C: T.Tensor((T.int64(1), T.int64(512)), dtype="float32"),
 ):
     B_global = Ts.sblock_alloc_buffer((T.int64(1),), "int32")
     for ax0 in range(T.int64(1)):
@@ -867,8 +837,8 @@ def cache_read_nested_buffer_access(
 ########## Expected function after cache_write ##########
 
 
-@Ts.prim_func
-def cache_write_elementwise(A: T.Buffer((128, 128)), C: T.Buffer((128, 128))) -> None:
+@Ts.function
+def cache_write_elementwise(A: T.Tensor((128, 128)), C: T.Tensor((128, 128))) -> None:
     B = Ts.sblock_alloc_buffer((128, 128))
     B_global = Ts.sblock_alloc_buffer((128, 128), scope="local")
     C_local = Ts.sblock_alloc_buffer((128, 128))
@@ -890,8 +860,8 @@ def cache_write_elementwise(A: T.Buffer((128, 128)), C: T.Buffer((128, 128))) ->
             C[vi, vj] = C_local[vi, vj]
 
 
-@Ts.prim_func
-def cache_write_under_scope(B: T.Buffer((128, 128)), C: T.Buffer((128, 128))) -> None:
+@Ts.function
+def cache_write_under_scope(B: T.Tensor((128, 128)), C: T.Tensor((128, 128))) -> None:
     A = Ts.sblock_alloc_buffer((128, 128))
 
     A_global = Ts.sblock_alloc_buffer((128, 128))
@@ -931,12 +901,12 @@ def cache_write_under_scope(B: T.Buffer((128, 128)), C: T.Buffer((128, 128))) ->
             C[vi, vj] = A[vi, vj] * 2.0
 
 
-@Ts.prim_func
+@Ts.function
 def cache_write_opaque_access(
-    A: T.Buffer((128, 128), dtype="float16"),
-    B: T.Buffer((128, 128), dtype="float16"),
-    C: T.Buffer((128, 128), dtype="float16"),
-    D: T.Buffer((128, 128), dtype="float16"),
+    A: T.Tensor((128, 128), dtype="float16"),
+    B: T.Tensor((128, 128), dtype="float16"),
+    C: T.Tensor((128, 128), dtype="float16"),
+    D: T.Tensor((128, 128), dtype="float16"),
 ) -> None:
     D_global = Ts.sblock_alloc_buffer((128, 128), dtype="float16")
     B_global = Ts.sblock_alloc_buffer((128, 128), dtype="float16")
@@ -954,23 +924,15 @@ def cache_write_opaque_access(
             Ts.reads(A[vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16])
             Ts.writes(B_global[vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16])
             T.evaluate(
-                T.tvm_load_matrix_sync(
+                T.gpu_load_matrix_sync(
                     B_global.data,
                     16,
                     16,
                     16,
                     vi * 8 + vj,
-                    T.tvm_access_ptr(
-                        T.type_annotation(dtype="float16"),
-                        A.data,
-                        vi * 2048 + vj * 16,
-                        128,
-                        1,
-                        dtype="handle",
-                    ),
+                    T.ptr_byte_offset(A.data, (vi * 2048 + vj * 16) * 2, ty=A.data.ty),
                     128,
                     "row_major",
-                    dtype="handle",
                 )
             )
     for i, j in T.grid(8, 8):
@@ -999,23 +961,15 @@ def cache_write_opaque_access(
                 offset_factor=1,
             )
             T.evaluate(
-                T.tvm_load_matrix_sync(
+                T.gpu_load_matrix_sync(
                     C0.data,
                     16,
                     16,
                     16,
                     vi * 8 + vj,
-                    T.tvm_access_ptr(
-                        T.type_annotation(dtype="float16"),
-                        A0.data,
-                        A0.elem_offset,
-                        A0.strides[0],
-                        1,
-                        dtype="handle",
-                    ),
+                    A0.ptr_to([0] * len(A0.shape)),
                     128,
                     "row_major",
-                    dtype="handle",
                 )
             )
 
@@ -1033,7 +987,7 @@ def cache_write_opaque_access(
             C[vi, vj] = C_global[vi, vj]
 
 
-@Ts.prim_func
+@Ts.function
 def cache_write_multi_consumer() -> None:
     A = Ts.sblock_alloc_buffer(128)
     B = Ts.sblock_alloc_buffer(128)
@@ -1059,7 +1013,7 @@ def cache_write_multi_consumer() -> None:
             C[vi] = A[vi]
 
 
-@Ts.prim_func
+@Ts.function
 def cache_write_multi_consumer_B_consume_cache():
     A = Ts.sblock_alloc_buffer([128], dtype="float32")
     B = Ts.sblock_alloc_buffer([128], dtype="float32")
@@ -1084,7 +1038,7 @@ def cache_write_multi_consumer_B_consume_cache():
             C[vi] = A[vi]
 
 
-@Ts.prim_func
+@Ts.function
 def cache_write_multi_consumer_C_consume_cache():
     A = Ts.sblock_alloc_buffer([128], dtype="float32")
     B = Ts.sblock_alloc_buffer([128], dtype="float32")
@@ -1109,7 +1063,7 @@ def cache_write_multi_consumer_C_consume_cache():
             C[vi] = A_global[vi]
 
 
-@Ts.prim_func
+@Ts.function
 def cache_write_multi_consumer_all_consume_cache():
     A = Ts.sblock_alloc_buffer([128], dtype="float32")
     B = Ts.sblock_alloc_buffer([128], dtype="float32")
@@ -1134,8 +1088,8 @@ def cache_write_multi_consumer_all_consume_cache():
             A[v0] = A_global[v0]
 
 
-@Ts.prim_func
-def continuous_cache_write(A: T.Buffer((128, 128)), C: T.Buffer((128, 128))) -> None:
+@Ts.function
+def continuous_cache_write(A: T.Tensor((128, 128)), C: T.Tensor((128, 128))) -> None:
     B = Ts.sblock_alloc_buffer((128, 128))
 
     B_shared = Ts.sblock_alloc_buffer((128, 128), scope="shared")
@@ -1158,7 +1112,7 @@ def continuous_cache_write(A: T.Buffer((128, 128)), C: T.Buffer((128, 128))) -> 
             C[vi, vj] = B[vi, vj] + 1.0
 
 
-@Ts.prim_func
+@Ts.function
 def block_predicate_cache_write_intermediate_buf() -> None:
     A = Ts.sblock_alloc_buffer([120], dtype="float32")
     B = Ts.sblock_alloc_buffer([120], dtype="float32")
@@ -1179,7 +1133,7 @@ def block_predicate_cache_write_intermediate_buf() -> None:
             B[ax] = A[ax] + 1.0
 
 
-@Ts.prim_func
+@Ts.function
 def block_predicate_cache_write_output_buf() -> None:
     A = Ts.sblock_alloc_buffer([120], dtype="float32")
     B = Ts.sblock_alloc_buffer([120], dtype="float32")
@@ -1200,11 +1154,11 @@ def block_predicate_cache_write_output_buf() -> None:
             B[v0] = B_shared[v0]
 
 
-@Ts.prim_func
+@Ts.function
 def symbolic_matmul_blocked(
-    A: T.Buffer(((n + 31) // 32 * 32, 4)),  # noqa: F821
-    B: T.Buffer((4, (n + 31) // 32 * 32)),  # noqa: F821
-    C: T.Buffer(((n + 31) // 32 * 32, (n + 31) // 32 * 32)),  # noqa: F821
+    A: T.Tensor(((n + 31) // 32 * 32, 4)),  # noqa: F821
+    B: T.Tensor((4, (n + 31) // 32 * 32)),  # noqa: F821
+    C: T.Tensor(((n + 31) // 32 * 32, (n + 31) // 32 * 32)),  # noqa: F821
     n: T.int32,
 ):
     for i0_0, i1_0 in T.grid((n + 31) // 32, (n + 31) // 32):
@@ -1228,11 +1182,11 @@ def symbolic_matmul_blocked(
                     )
 
 
-@Ts.prim_func
+@Ts.function
 def symbolic_matmul_blocked_cache_read(
-    A: T.Buffer(((n + 31) // 32 * 32, 4)),  # noqa: F821
-    B: T.Buffer((4, (n + 31) // 32 * 32)),  # noqa: F821
-    C: T.Buffer(((n + 31) // 32 * 32, (n + 31) // 32 * 32)),  # noqa: F821
+    A: T.Tensor(((n + 31) // 32 * 32, 4)),  # noqa: F821
+    B: T.Tensor((4, (n + 31) // 32 * 32)),  # noqa: F821
+    C: T.Tensor(((n + 31) // 32 * 32, (n + 31) // 32 * 32)),  # noqa: F821
     n: T.int32,
 ):
     for i0_0, i1_0 in T.grid((n + 31) // 32, (n + 31) // 32):
@@ -1264,11 +1218,11 @@ def symbolic_matmul_blocked_cache_read(
                     )
 
 
-@Ts.prim_func
+@Ts.function
 def symbolic_matmul_blocked_cache_write(
-    A: T.Buffer(((n + 31) // 32 * 32, 4)),  # noqa: F821
-    B: T.Buffer((4, (n + 31) // 32 * 32)),  # noqa: F821
-    C: T.Buffer(((n + 31) // 32 * 32, (n + 31) // 32 * 32)),  # noqa: F821
+    A: T.Tensor(((n + 31) // 32 * 32, 4)),  # noqa: F821
+    B: T.Tensor((4, (n + 31) // 32 * 32)),  # noqa: F821
+    C: T.Tensor(((n + 31) // 32 * 32, (n + 31) // 32 * 32)),  # noqa: F821
     n: T.int32,
 ):
     for i0_0, i1_0 in T.grid((n + 31) // 32, (n + 31) // 32):
@@ -1670,8 +1624,8 @@ def test_symbolic_matmul_blocked_cache_write(use_block_name):
 
 
 def test_cache_write_with_nested_block_predicate():
-    @Ts.prim_func
-    def main(A_buf: T.Buffer((12, 24), "float32"), C_buf: T.Buffer((10, 20), "float32")) -> None:
+    @Ts.function
+    def main(A_buf: T.Tensor((12, 24), "float32"), C_buf: T.Tensor((10, 20), "float32")) -> None:
         for i, j in T.grid(12, 24):
             with Ts.sblock("compute"):
                 vi, vj = Ts.axis.remap("SS", [i, j])
@@ -1680,8 +1634,8 @@ def test_cache_write_with_nested_block_predicate():
                     Ts.where(vi < 10 and vj < 20)
                     C_buf[vi, vj] = A_buf[vi, vj] * 2.0
 
-    @Ts.prim_func
-    def expected(A_buf: T.Buffer((12, 24), "float32"), C_buf: T.Buffer((10, 20), "float32")):
+    @Ts.function
+    def expected(A_buf: T.Tensor((12, 24), "float32"), C_buf: T.Tensor((10, 20), "float32")):
         with Ts.sblock("root"):
             C_buf_local = Ts.sblock_alloc_buffer((10, 20), scope="local")
             for i, j in T.grid(12, 24):
@@ -1708,8 +1662,8 @@ def test_cache_write_with_nested_block_predicate():
 
 
 def test_cache_read_with_nested_block_predicate():
-    @Ts.prim_func
-    def main(A_buf: T.Buffer((12, 24), "float32"), C_buf: T.Buffer((10, 20), "float32")) -> None:
+    @Ts.function
+    def main(A_buf: T.Tensor((12, 24), "float32"), C_buf: T.Tensor((10, 20), "float32")) -> None:
         for i, j in T.grid(12, 24):
             with Ts.sblock("compute"):
                 vi, vj = Ts.axis.remap("SS", [i, j])
@@ -1718,8 +1672,8 @@ def test_cache_read_with_nested_block_predicate():
                     Ts.where(vi < 10 and vj < 20)
                     C_buf[vi, vj] = A_buf[vi, vj] * 2.0
 
-    @Ts.prim_func
-    def expected(A_buf: T.Buffer((12, 24), "float32"), C_buf: T.Buffer((10, 20), "float32")):
+    @Ts.function
+    def expected(A_buf: T.Tensor((12, 24), "float32"), C_buf: T.Tensor((10, 20), "float32")):
         with Ts.sblock("root"):
             A_buf_local = Ts.sblock_alloc_buffer((10, 20), scope="local")
             for ax0, ax1 in T.grid(10, 20):
@@ -1762,8 +1716,8 @@ def test_cache_write_sibling_nested_block_predicates_use_union():
     were never loaded into C_buf_local — resulting in incorrect output.
     """
 
-    @Ts.prim_func
-    def main(A_buf: T.Buffer((12, 24), "float32"), C_buf: T.Buffer((12, 24), "float32")) -> None:
+    @Ts.function
+    def main(A_buf: T.Tensor((12, 24), "float32"), C_buf: T.Tensor((12, 24), "float32")) -> None:
         for i, j in T.grid(12, 24):
             with Ts.sblock("compute"):
                 vi, vj = Ts.axis.remap("SS", [i, j])
@@ -1805,8 +1759,8 @@ def test_cache_read_sibling_nested_block_predicates_use_union():
     is incorrect.
     """
 
-    @Ts.prim_func
-    def main(A_buf: T.Buffer((12, 24), "float32"), C_buf: T.Buffer((12, 24), "float32")) -> None:
+    @Ts.function
+    def main(A_buf: T.Tensor((12, 24), "float32"), C_buf: T.Tensor((12, 24), "float32")) -> None:
         for i, j in T.grid(12, 24):
             with Ts.sblock("compute"):
                 vi, vj = Ts.axis.remap("SS", [i, j])

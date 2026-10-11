@@ -24,11 +24,11 @@ from tvm.script import tirx as T
 
 @tvm.script.ir_module
 class DenseTIRModule:
-    @Ts.prim_func
+    @Ts.function
     def main(
-        placeholder: T.Buffer((1024, 1024), "uint8"),
-        placeholder_1: T.Buffer((64, 256, 16, 4), "int8"),
-        compute: T.Buffer((1024, 1024), "int32"),
+        placeholder: T.Tensor((1024, 1024), "uint8"),
+        placeholder_1: T.Tensor((64, 256, 16, 4), "int8"),
+        compute: T.Tensor((1024, 1024), "int32"),
     ) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         with Ts.sblock("root"):
@@ -48,11 +48,11 @@ class DenseTIRModule:
 
 @tvm.script.ir_module
 class DenseTIRModuleTiled:
-    @Ts.prim_func
+    @Ts.function
     def main(
-        placeholder: T.Buffer((1024, 1024), "uint8"),
-        placeholder_1: T.Buffer((64, 256, 16, 4), "int8"),
-        compute: T.Buffer((1024, 1024), "int32"),
+        placeholder: T.Tensor((1024, 1024), "uint8"),
+        placeholder_1: T.Tensor((64, 256, 16, 4), "int8"),
+        compute: T.Tensor((1024, 1024), "int32"),
     ) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
@@ -74,11 +74,11 @@ class DenseTIRModuleTiled:
 
 @tvm.script.ir_module
 class Conv2dNCHWcTIRModule:
-    @Ts.prim_func
+    @Ts.function
     def main(
-        placeholder: T.Buffer((1, 4, 56, 56, 16), "uint8"),
-        placeholder_1: T.Buffer((16, 4, 1, 1, 4, 16, 4), "int8"),
-        conv2d_NCHWc_int8: T.Buffer((1, 16, 56, 56, 16), "int32"),
+        placeholder: T.Tensor((1, 4, 56, 56, 16), "uint8"),
+        placeholder_1: T.Tensor((16, 4, 1, 1, 4, 16, 4), "int8"),
+        conv2d_NCHWc_int8: T.Tensor((1, 16, 56, 56, 16), "int32"),
     ) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         for i0, i1, i2, i3, i4, i5, i6, i7, i8, i9 in T.grid(1, 16, 56, 56, 16, 1, 1, 4, 4, 4):
@@ -115,11 +115,11 @@ class Conv2dNCHWcTIRModule:
 
 @tvm.script.ir_module
 class Conv2dNCHWcTIRModuleTiled:
-    @Ts.prim_func
+    @Ts.function
     def main(
-        placeholder: T.Buffer((1, 4, 56, 56, 16), "uint8"),
-        placeholder_1: T.Buffer((16, 4, 1, 1, 4, 16, 4), "int8"),
-        conv2d_NCHWc_int8: T.Buffer((1, 16, 56, 56, 16), "int32"),
+        placeholder: T.Tensor((1, 4, 56, 56, 16), "uint8"),
+        placeholder_1: T.Tensor((16, 4, 1, 1, 4, 16, 4), "int8"),
+        conv2d_NCHWc_int8: T.Tensor((1, 16, 56, 56, 16), "int32"),
     ) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})

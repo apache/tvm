@@ -31,12 +31,12 @@ shared buffers across several dtypes, plus a vectorized ``float32x4`` load/store
 
 .. code-block:: python
 
-    @Tx.prim_func
-    def dtypes(A: Tx.Buffer((256,), "float32"), O: Tx.Buffer((256,), "float32")):
+    @Tx.function
+    def dtypes(A: Tx.Tensor((256,), "float32"), O: Tx.Tensor((256,), "float32")):
 
-        Tx.device_entry()
-        bx = Tx.cta_id([1])
-        tx = Tx.thread_id([64])
+        Tx.device_entry(launch=Tx.cuda.LaunchConfig(grid=(1,), block=(64,)))
+        bx = Tx.cuda.block_idx("x")
+        tx = Tx.cuda.thread_idx("x")
         f16 = Tx.alloc_local((1,), "float16")  # per-thread locals ...
         bf16 = Tx.alloc_local((1,), "bfloat16")
         i32 = Tx.alloc_local((1,), "int32")
@@ -44,8 +44,8 @@ shared buffers across several dtypes, plus a vectorized ``float32x4`` load/store
         b1 = Tx.alloc_local((1,), "bool")
         sm = Tx.alloc_shared((64,), "float16")  # ... and a shared tile
         v = Tx.alloc_local((1,), "float32x4")  # a vector-dtype local (float4)
-        v[0] = A.vload([tx * 4], dtype="float32x4")  # vectorized load
-        O.vstore([tx * 4], v[0])  # vectorized store
+        v[0] = A[Tx.Ramp(tx * 4, 1, 4)]  # vectorized load
+        O[Tx.Ramp(tx * 4, 1, 4)] = v[0]  # vectorized store
         # ... (use f16/bf16/i32/u8/b1/sm) ...
 
 lowers to (generated CUDA, elided):
@@ -64,8 +64,8 @@ lowers to (generated CUDA, elided):
 
 A buffer's dtype can itself be a **vector type**: ``Tx.alloc_local((1,), "float32x4")``
 declares a per-thread ``float4`` value (you index it as ``v[0]``), and a
-``float32x4`` ``vload`` / ``vstore`` then moves it as one 16-byte access. The vector
-dtype is not tied to ``vload`` — any buffer or scalar can carry it.
+Indexing a scalar buffer with a four-lane ``Ramp`` moves the vector as one
+16-byte access. Any buffer or scalar can carry a vector dtype.
 
 The dtype → CUDA mapping is:
 
@@ -100,8 +100,8 @@ Pointers (``handle``)
 A buffer's ``data`` — its pointer — is a ``Var`` of pointer type, and it is
 **immutable** (a pointer is never reassigned). That shapes how you obtain one:
 
-- ``Tx.alloc_buffer(...)`` allocates storage **and** defines its ``data`` pointer.
-- ``Tx.decl_buffer(..., data=ptr)`` declares a buffer over an existing pointer
+- ``Tx.alloc_tensor(...)`` allocates storage **and** defines its ``data`` pointer.
+- ``Tx.decl_tensor(..., data=ptr)`` declares a buffer over an existing pointer
   ``Var`` ``ptr``.
 - To back a buffer with a pointer **expression** — e.g. ``Tx.ptx.mapa`` giving
   another cluster CTA's shared address — convert the ``uint64`` address the
@@ -118,7 +118,7 @@ A buffer's ``data`` — its pointer — is a ``Var`` of pointer type, and it is
       Tx.ptx.mapa.u64(mapped[0], mbar.ptr_to([0]), Tx.uint32(0))
       ptr_ty = PointerType(PrimType("uint64"), "shared")
       ptr = Tx.reinterpret(ptr_ty, mapped[0])
-      remote_mbar = Tx.decl_buffer([1], "uint64", data=ptr, scope="shared")
+      remote_mbar = Tx.decl_tensor([1], "uint64", data=ptr, scope="shared")
 
   Pointer bindings cannot be reassigned; use a new name for a different
   pointer value.

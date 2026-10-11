@@ -403,7 +403,7 @@ class RelaxExpressionConverter:
             return self._convert_tuple(expr, args)
         elif isinstance(expr, relax.TupleGetItem):
             return self._convert_tuple_get_item(expr, args)
-        elif isinstance(expr, relax.If):
+        elif isinstance(expr, relax.IfExpr):
             return self._convert_if(expr, args)
         elif isinstance(expr, relax.ShapeExpr):
             return self._convert_shape_expr(expr)
@@ -825,7 +825,7 @@ class RelaxExpressionConverter:
         else:
             return self._create_fallback_tensor()
 
-    def _convert_if(self, if_expr: relax.If, args: list[Any]) -> Any:
+    def _convert_if(self, if_expr: relax.IfExpr, args: list[Any]) -> Any:
         """Convert a Relax if expression to Python equivalent."""
         condition = self.convert_expr(if_expr.cond, args)
         true_branch = self.convert_expr(if_expr.true_branch, args)

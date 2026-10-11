@@ -44,9 +44,9 @@ using tvm::transform::CreateModulePass;
  * \brief This pass is designed to annotate the memory scope information via VDevice attribute.
  * This pass need operator attrbutes which in general vanish aftre legalization.
  * FuseOps and FuseTIR are modified to pass on the operator specific attributes and also
- * op_pattern details as part of the PrimFunc. This pass is Adreno specific and annotates each
+ * op_pattern details as part of the tirx::Function. This pass is Adreno specific and annotates each
  * BindingVar with appropriate HintInDevice. RealizeVDevice pass followed by handles these hints.
- * Followed by this pass we also invoke SpecializePrimFuncBasedOnCallSite which updates the
+ * Followed by this pass we also invoke SpecializeFunctionBasedOnCallSite which updates the
  * var_buffer_map based on this new VDevice information.
  */
 TVM_DLL Pass AnnotateCustomMemoryScope(Target target);

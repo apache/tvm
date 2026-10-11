@@ -33,12 +33,12 @@ import tvm
 from tvm.runtime import DataType
 from tvm.script import tirx as T
 from tvm.sym import Analyzer, ConstIntBound
-from tvm.tirx import Buffer, PrimFunc
+from tvm.tirx import Function, Var
 from tvm.tirx import Var as _TirVar
 from tvm.tirx.expr import IntImm as _IntImm
 from tvm.tirx.layout import ComposeLayout, Iter, TileLayout
-from tvm.tirx.operator.tile_primitive.registry import DispatchContext
-from tvm.tirx.tile_primitive import TilePrimitiveCall
+from tvm.tirx.tensor_instruction import TensorCall
+from tvm.tirx.tile_dispatch import DispatchContext
 
 from ..layout_utils import recompose_swizzle, strip_swizzle_to_tile
 from ._common import _alignment_ok, copy_ptx_form, copy_ptx_ld_chain
@@ -74,9 +74,9 @@ def _all_threads_active(sctx: DispatchContext) -> tuple[bool, str | None]:
         if tx_iv is None:
             return False, "cta scope missing threadIdx.x launch_params"
         try:
-            required["warpid"] = int(tx_iv.dom.extent) // 32
+            required["warpid"] = int(tx_iv[1]) // 32
         except (TypeError, ValueError):
-            return False, f"non-static threadIdx.x extent: {tx_iv.dom.extent}"
+            return False, f"non-static threadIdx.x extent: {tx_iv[1]}"
     for axis_name, expected in required.items():
         if axis_name not in sctx.intra:
             return False, f"sctx.intra missing {axis_name!r}"
@@ -90,12 +90,10 @@ def _all_threads_active(sctx: DispatchContext) -> tuple[bool, str | None]:
     return True, None
 
 
-def _r_side_layout_valid(
-    op_call: TilePrimitiveCall, sctx: DispatchContext
-) -> tuple[bool, str | None]:
-    op_call = TilePrimitiveCall.downcast(op_call)
-    src: Buffer = op_call.src.source
-    dst: Buffer = op_call.dst.source
+def _r_side_layout_valid(op_call: TensorCall, sctx: DispatchContext) -> tuple[bool, str | None]:
+    op_call = TensorCall.decode(op_call)
+    src: Var = op_call.src.source
+    dst: Var = op_call.dst.source
     r_buf = src if src.scope() == "local" else dst
     layout = r_buf.layout
     if layout is None:
@@ -133,13 +131,13 @@ def _r_side_layout_valid(
     return True, None
 
 
-def _s_side_slice_ok(op_call: TilePrimitiveCall) -> tuple[bool, str | None]:
+def _s_side_slice_ok(op_call: TensorCall) -> tuple[bool, str | None]:
     """S is the non-local side (shared* or global). Slice must succeed."""
-    op_call = TilePrimitiveCall.downcast(op_call)
+    op_call = TensorCall.decode(op_call)
     src_br = op_call.src
     dst_br = op_call.dst
     s_br = dst_br if src_br.source.scope() == "local" else src_br
-    s_buf: Buffer = s_br.source
+    s_buf: Var = s_br.source
     layout = s_buf.layout
     if layout is None:
         return False, "S has no layout"
@@ -149,7 +147,7 @@ def _s_side_slice_ok(op_call: TilePrimitiveCall) -> tuple[bool, str | None]:
     return True, None
 
 
-def _is_reg_copy(op_call: TilePrimitiveCall, sctx: DispatchContext) -> tuple[bool, str | None]:
+def _is_reg_copy(op_call: TensorCall, sctx: DispatchContext) -> tuple[bool, str | None]:
     if not sctx.is_target("cuda"):
         return False, "non-cuda target"
     if sctx.scope_kind not in ("thread", "warp", "warpgroup", "cta"):
@@ -266,8 +264,8 @@ def _split_atoms_for_vec(atoms, vec_len):
     raise ValueError(f"tail too short for vec_len {vec_len}")
 
 
-def _align_layouts(op_call: TilePrimitiveCall, sctx: DispatchContext):
-    op_call = TilePrimitiveCall.downcast(op_call)
+def _align_layouts(op_call: TensorCall, sctx: DispatchContext):
+    op_call = TensorCall.decode(op_call)
     src_br = op_call.src
     dst_br = op_call.dst
     if src_br.source.scope() == "local":
@@ -363,31 +361,19 @@ def _choose_vec_len(elem_bits: int, atoms, r_p, s_p, max_vec_len: int | None = N
 
 
 def _axis_decl(axis_name: str, sctx: DispatchContext):
-    """Declare the runtime Var for one thread axis (called inside impl body).
-
-    Each scope_id declarator emits a ``ScopeIdDef`` stmt at the current
-    builder frame. ``TilePrimitiveDispatch`` re-gathers + resolves all
-    ScopeIdDefs after dispatch (see ``ResolveAllScopeBinds`` in
-    ``tile_primitive_dispatch.cc``), so dispatch-introduced vars are bound
-    alongside kernel-declared ones.
-
-    Extents are deferred: the kernel header is expected to declare the full
-    scope-id chain (``cta_id`` / ``warpgroup_id`` / ``warp_id_in_wg`` /
-    ``lane_id`` / ``thread_id`` / ``thread_id_in_wg``) — the verifier then
-    fills our deferred defs from those siblings.
-    """
+    """Return the ordinary CUDA index expression for one thread axis."""
     if axis_name == "tx":
-        return sctx.launch_params["threadIdx.x"].var
+        return sctx.launch_params["threadIdx.x"][0]
     if axis_name == "laneid":
-        return T.lane_id()
+        return T.cuda.lane_id()
     if axis_name == "wid_in_wg":
-        return T.warp_id_in_wg()
+        return T.cuda.warp_in_warpgroup()
     if axis_name == "tid_in_wg":
-        return T.thread_id_in_wg()
+        return T.cuda.thread_in_warpgroup()
     if axis_name == "warpid":
-        return T.warp_id()
+        return T.cuda.warp_id()
     if axis_name == "wgid":
-        return T.warpgroup_id()
+        return T.cuda.warpgroup_id()
     raise ValueError(f"unsupported thread axis {axis_name}")
 
 
@@ -411,7 +397,7 @@ def _thread_axis_extent(axis_name: str, sctx: DispatchContext) -> int | None:
     if tx is None:
         return None
     try:
-        tx_extent = int(tx.dom.extent)
+        tx_extent = int(tx[1])
     except (TypeError, ValueError):
         return None
     divisor = {"tx": 1, "warpid": 32, "wgid": 128}.get(axis_name)
@@ -510,8 +496,8 @@ def _ptr_off(base_ptr, off):
         "tvm_builtin_pointer_offset",
         base_ptr,
         off,
-        source_code=_POINTER_OFFSET_SRC,
-        return_type="handle",
+        _POINTER_OFFSET_SRC,
+        ty="handle",
     )
 
 
@@ -523,10 +509,10 @@ def _outer_const_offsets(outer_atoms, flat_idx: int) -> tuple[int, int]:
     return ds, dr
 
 
-def _emit_reg(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
-    op_call = TilePrimitiveCall.downcast(op_call)
-    src: Buffer = op_call.src.source
-    dst: Buffer = op_call.dst.source
+def _emit_reg(op_call: TensorCall, sctx: DispatchContext) -> Function:
+    op_call = TensorCall.decode(op_call)
+    src: Var = op_call.src.source
+    dst: Var = op_call.dst.source
     if src.scope() == "local":
         r_buf, s_buf, r_is_src = src, dst, True
     else:
@@ -597,9 +583,9 @@ def _emit_reg(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
     # fmt: off
     s_zero_indices = [0] * len(s_buf.shape)
 
-    @T.prim_func(check_well_formed=False)
+    @T.function(check_well_formed=False)
     def impl():
-        if not has_swizzle:
+        if T.constexpr(not has_swizzle):
             s_base = _apply_s_layout(
                 s_apply_layout, thread_coords, 0, s_apply_shape, placeholders, sctx
             )
@@ -612,7 +598,7 @@ def _emit_reg(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
         # replicates per-iter scratch arrays and pressures registers.
         for f in range(total_outer):
             ds, dr = _outer_const_offsets(outer, f)
-            if has_swizzle:
+            if T.constexpr(has_swizzle):
                 s_off = _apply_s_layout(
                     s_apply_layout, thread_coords, f, s_apply_shape, placeholders, sctx
                 )
@@ -623,7 +609,7 @@ def _emit_reg(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
             # element pointer: the container index is the element offset scaled
             # between element and word granularity.
             r_w = (r_off_base + dr) * words_per_elem // elems_per_word
-            if r_is_src:
+            if T.constexpr(r_is_src):
                 T.ptx[st_chain](s_ptr, *[r_words[r_w + i] for i in range(lanes)])
             else:
                 T.ptx[ld_chain](*[r_words[r_w + i] for i in range(lanes)], s_ptr)

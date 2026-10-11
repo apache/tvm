@@ -112,7 +112,7 @@ def py_module(
         their original callables and are not executed during construction.
     **options : _Any
         Options forwarded once to shared ``parse``, including
-        ``check_well_formed`` (True by default) and ``track_span`` (True).
+        ``check_well_formed`` (True by default) and ``track_loc`` (True).
 
     Returns
     -------
@@ -138,7 +138,7 @@ def py_module(
     The decorator captures the original class-definition scope and passes it
     explicitly to shared parsing. It retains no Python frame or scope snapshot.
     ExternFunc metadata uses each original function's source coordinates when
-    span tracking is enabled. Runtime compilation/registration is deferred to
+    loc tracking is enabled. Runtime compilation/registration is deferred to
     BasePyModule construction; plain IRModule construction registers no runtime
     functions. Ordinary shared ``I.ir_module`` never performs these Relax steps.
 
@@ -182,16 +182,16 @@ def py_module(
         for name, function in result.__pyfuncs__.items():
             tree, filename, _ = acquire_source(function)
             node = tree.body[-1]
-            span = None
-            if options.get("track_span", True):
-                span = ir.Span(
+            loc = ir.UnknownLoc()
+            if options.get("track_loc", True):
+                loc = ir.SourceLoc(
                     ir.SourceName(filename),
                     node.lineno,
-                    node.end_lineno,
                     node.col_offset + 1,
+                    node.end_lineno,
                     node.end_col_offset + 1,
                 )
-            result[name] = relax.ExternFunc(name, span=span).with_attrs(
+            result[name] = relax.ExternFunc(name, loc=loc).with_attrs(
                 {
                     "is_pyfunc": True,
                     "function_type": "python",

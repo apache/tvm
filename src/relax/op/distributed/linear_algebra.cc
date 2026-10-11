@@ -20,6 +20,7 @@
 #include "linear_algebra.h"
 
 #include <tvm/ffi/extra/visit_error_context.h>
+#include <tvm/relax/op_attr_types.h>
 
 #include <algorithm>
 namespace tvm {
@@ -99,7 +100,7 @@ Type InferDistTypeMatmul(const Call& call, const BlockBuilder& ctx) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   // clang-format off
   OpDef("relax.matmul")
-      .set_attr<FInferTypeWithBuilder>("relax.dist.FInferTypeWithBuilder", InferDistTypeMatmul);
+      .set_attr<FInferTypeWithBuilder>(tvm::relax::distributed::op_attr::kInferTypeWithBuilder, InferDistTypeMatmul);
   // clang-format on
 }
 

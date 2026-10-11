@@ -73,8 +73,7 @@ class TypeFunctor<R(const Type& n, Args...)> {
    */
   virtual R VisitType(const Type& n, Args... args) {
     TVM_FFI_ICHECK(n.defined());
-    TVM_FFI_ICHECK_NE(n->type_index(), TypeNode::RuntimeTypeIndex())
-        << "TypeFunctor cannot visit Type::Missing()";
+    TVM_FFI_ICHECK(!n.as<MissingType>().has_value()) << "TypeFunctor cannot visit Type::Missing()";
     static FType vtable = InitVTable();
     return vtable(n, this, std::forward<Args>(args)...);
   }
@@ -87,6 +86,7 @@ class TypeFunctor<R(const Type& n, Args...)> {
   virtual R VisitType_(const distributed::DTensorTypeNode* op,
                        Args... args) RELAX_TYPE_FUNCTOR_DEFAULT;
   virtual R VisitType_(const TupleTypeNode* op, Args... args) RELAX_TYPE_FUNCTOR_DEFAULT;
+  virtual R VisitType_(const tvm::FuncTypeNode* op, Args... args) RELAX_TYPE_FUNCTOR_DEFAULT;
   virtual R VisitType_(const FuncTypeNode* op, Args... args) RELAX_TYPE_FUNCTOR_DEFAULT;
   virtual R VisitTypeDefault_(const ffi::Object* op, Args...) {
     TVM_FFI_THROW(InternalError) << "Do not have a default for " << op->GetTypeKey();
@@ -105,6 +105,7 @@ class TypeFunctor<R(const Type& n, Args...)> {
     TVM_RELAX_TYPE_FUNCTOR_DISPATCH(TensorTypeNode);
     TVM_RELAX_TYPE_FUNCTOR_DISPATCH(distributed::DTensorTypeNode);
     TVM_RELAX_TYPE_FUNCTOR_DISPATCH(TupleTypeNode);
+    TVM_RELAX_TYPE_FUNCTOR_DISPATCH(tvm::FuncTypeNode);
     TVM_RELAX_TYPE_FUNCTOR_DISPATCH(FuncTypeNode);
     vtable.Finalize();
     return vtable;
@@ -125,6 +126,7 @@ class TVM_DLL TypeVisitor : public TypeFunctor<void(const Type& n)> {
   void VisitType_(const TensorTypeNode* op) override;
   void VisitType_(const distributed::DTensorTypeNode* op) override;
   void VisitType_(const TupleTypeNode* op) override;
+  void VisitType_(const tvm::FuncTypeNode* op) override;
   void VisitType_(const FuncTypeNode* op) override;
 
  protected:
@@ -145,6 +147,7 @@ class TVM_DLL TypeMutator : public TypeFunctor<Type(const Type& n)> {
   Type VisitType_(const TensorTypeNode* op) override;
   Type VisitType_(const distributed::DTensorTypeNode* op) override;
   Type VisitType_(const TupleTypeNode* op) override;
+  Type VisitType_(const tvm::FuncTypeNode* op) override;
   Type VisitType_(const FuncTypeNode* op) override;
 
  protected:

@@ -33,13 +33,13 @@ def test_compile_tir():
     A = te.placeholder((n,), name="A")
     B = te.placeholder((n,), name="B")
     C = te.compute(A.shape, lambda i: A[i] + B[i], name="C")
-    func = te.create_prim_func([A, B, C])
+    func = te.create_function([A, B, C])
 
-    # Test compile with PrimFunc
+    # Test compile with Function
     exec_prim = tvm.compile(func)
     assert isinstance(exec_prim, Executable)
 
-    # Test compile with IRModule containing PrimFunc
+    # Test compile with IRModule containing Function
     mod = tvm.IRModule.from_expr(func)
     exec_mod = tvm.compile(mod)
     assert isinstance(exec_mod, Executable)
@@ -90,8 +90,8 @@ def test_compile_relax():
 def test_compile_mixed_module():
     @tvm.script.ir_module
     class MyModule:
-        @Ts.prim_func
-        def add_one(X: T.Buffer((4,), "float32"), Y: T.Buffer((4,), "float32")):
+        @Ts.function
+        def add_one(X: T.Tensor((4,), "float32"), Y: T.Tensor((4,), "float32")):
             for i in range(4):
                 Y[i] = X[i] + 1
 
@@ -99,7 +99,7 @@ def test_compile_mixed_module():
         def main(x: R.Tensor((4,), "float32")):
             cls = MyModule
             with R.dataflow():
-                y = R.call_tir(cls.add_one, [x], R.Tensor((4,), "float32"))
+                y = R.call_tir(cls.add_one, [x], ty_args=[R.Tensor((4,), "float32")])
                 return y
 
     # Test with custom pipeline

@@ -66,27 +66,29 @@ def test_normalize_relax_function():
 def test_normalize_tir_function():
     @I.ir_module(check_well_formed=False)
     class Before:
-        @Ts.prim_func(private=True)
-        def f(x: T.Buffer((1,), "int32")):
+        @Ts.function(private=True)
+        def f(x: T.Tensor((1,), "int32")):
             x[0] = T.int32(0)
 
         @R.function
         def f1():
             R.func_attr({"global_symbol": "f"})
             cls = Before
-            gv: R.Tensor((), dtype="int32") = R.call_tir(cls.f, (), R.Tensor((1,), dtype="int32"))
+            gv: R.Tensor((1,), dtype="int32") = R.call_tir(
+                cls.f, (), ty_args=[R.Tensor((1,), dtype="int32")]
+            )
             return gv
 
     @I.ir_module
     class Expected:
-        @Ts.prim_func(private=True)
-        def f1(x: T.Buffer((1,), "int32")):
+        @Ts.function(private=True)
+        def f1(x: T.Tensor((1,), "int32")):
             x[0] = 0
 
         @R.function
         def f() -> R.Tensor((1,), dtype="int32"):
             cls = Expected
-            gv = R.call_tir(cls.f1, R.tuple(), out_ty=R.Tensor((1,), dtype="int32"))
+            gv = R.call_tir(cls.f1, R.tuple(), ty_args=[R.Tensor((1,), dtype="int32")])
             return gv
 
     After = relax.transform.NormalizeGlobalVar()(Before)

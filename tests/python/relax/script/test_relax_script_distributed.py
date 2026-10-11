@@ -63,10 +63,10 @@ def test_call_tir_dtensor():
             }
         )
 
-        @Ts.prim_func
+        @Ts.function
         def tir_func(
-            x: T.Buffer((T.int64(128), T.int64(128)), "float32"),
-            y: T.Buffer((T.int64(128), T.int64(128)), "float32"),
+            x: T.Tensor((T.int64(128), T.int64(128)), "float32"),
+            y: T.Tensor((T.int64(128), T.int64(128)), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
             for i, j in T.grid(T.int64(128), T.int64(128)):
@@ -81,9 +81,14 @@ def test_call_tir_dtensor():
             gv0 = R.dist.call_tir(
                 TestModule.tir_func,
                 x,
-                R.DTensor(
-                    shape=(128, 128), dtype="float32", device_mesh="mesh[0]", placement="S[0], R"
-                ),
+                ty_args=[
+                    R.DTensor(
+                        shape=(128, 128),
+                        dtype="float32",
+                        device_mesh="mesh[0]",
+                        placement="S[0], R",
+                    )
+                ],
             )
             return gv0
 
@@ -126,10 +131,10 @@ def test_explicit_device_id():
             }
         )
 
-        @Ts.prim_func
+        @Ts.function
         def tir_func(
-            x: T.Buffer((T.int64(128), T.int64(128)), "float32"),
-            y: T.Buffer((T.int64(128), T.int64(128)), "float32"),
+            x: T.Tensor((T.int64(128), T.int64(128)), "float32"),
+            y: T.Tensor((T.int64(128), T.int64(128)), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
             for i, j in T.grid(T.int64(128), T.int64(128)):
@@ -144,9 +149,14 @@ def test_explicit_device_id():
             gv0 = R.dist.call_tir(
                 TestModule.tir_func,
                 x,
-                R.DTensor(
-                    shape=(128, 128), dtype="float32", device_mesh="mesh[0]", placement="S[0], R"
-                ),
+                ty_args=[
+                    R.DTensor(
+                        shape=(128, 128),
+                        dtype="float32",
+                        device_mesh="mesh[0]",
+                        placement="S[0], R",
+                    )
+                ],
             )
             return gv0
 
@@ -166,10 +176,10 @@ def test_constant():
             }
         )
 
-        @Ts.prim_func
+        @Ts.function
         def tir_func(
-            x: T.Buffer((T.int64(128), T.int64(128)), "float32"),
-            y: T.Buffer((T.int64(128), T.int64(128)), "float32"),
+            x: T.Tensor((T.int64(128), T.int64(128)), "float32"),
+            y: T.Tensor((T.int64(128), T.int64(128)), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
             for i, j in T.grid(T.int64(128), T.int64(128)):
@@ -184,9 +194,14 @@ def test_constant():
             gv0 = R.dist.call_tir(
                 TestModule.tir_func,
                 x,
-                R.DTensor(
-                    shape=(128, 128), dtype="float32", device_mesh="mesh[0]", placement="S[0], R"
-                ),
+                ty_args=[
+                    R.DTensor(
+                        shape=(128, 128),
+                        dtype="float32",
+                        device_mesh="mesh[0]",
+                        placement="S[0], R",
+                    )
+                ],
             )
             gv1 = R.add(gv0, R.dist.const(1.0, ty=R.DTensor((), "float32", "mesh[0]", "R, R")))
             return gv1

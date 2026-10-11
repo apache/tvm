@@ -17,18 +17,18 @@
 
 """Workspace buffer utilities for TRN operator scheduling."""
 
-from tvm.tirx import Buffer
+from tvm.tirx import Var
 
 largest_psum_per_bank = 512
 max_psum_banks = 8
 
 
-def check_workspace_buffer(buffer: Buffer, shape: tuple[int], scope: str):
+def check_workspace_buffer(buffer: Var, shape: tuple[int], scope: str):
     """Check if a workspace buffer is valid.
 
     Parameters
     ----------
-    buffer : Buffer
+    buffer : Var
         The workspace buffer to check
     shape : Tuple[int]
         The required shape

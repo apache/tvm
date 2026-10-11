@@ -33,6 +33,7 @@
 #include <tvm/runtime/logging.h>
 
 #include <memory>
+#include <optional>
 #include <tuple>
 #include <utility>
 #include <vector>
@@ -264,7 +265,7 @@ class FlashInferPagedPrefillFunc : public PagedPrefillFunc {
            double rotary_theta, double sm_scale, Tensor attn_output, Tensor attn_lse,
            TVMStreamHandle compute_stream) final {
     auto [float_workspace_buffer, int_workspace_buffer, page_locked_int_workspace_buffer,
-          plan_info_vec] = cached_buffers_[depth];
+          plan_info_vec] = cached_buffers_[depth].value();
     double rope_rcp_scale = 1 / rotary_scale;
     double rope_rcp_theta = 1 / rotary_theta;
     attn_func_(
@@ -280,7 +281,7 @@ class FlashInferPagedPrefillFunc : public PagedPrefillFunc {
            Tensor page_indices, Tensor length_info, bool causal, double sm_scale,
            Tensor attn_output, Tensor attn_lse, TVMStreamHandle compute_stream) final {
     auto [float_workspace_buffer, int_workspace_buffer, page_locked_int_workspace_buffer,
-          plan_info_vec] = cached_buffers_[depth];
+          plan_info_vec] = cached_buffers_[depth].value();
     // FlashInfer's MLA run takes the query split into its compressed (nope) and
     // positional-embedding (pe) parts, and the paged cache split into the
     // compressed-kv cache (ckv) and key-positional-embedding cache (kpe). Both
@@ -349,7 +350,8 @@ class FlashInferPagedPrefillFunc : public PagedPrefillFunc {
 
  private:
   ffi::Function plan_func_;
-  std::vector<std::tuple<Tensor, Tensor, Tensor, ffi::Array<int64_t>>> cached_buffers_;
+  std::vector<std::optional<std::tuple<Tensor, Tensor, Tensor, ffi::Array<int64_t>>>>
+      cached_buffers_;
   // MLA-only: the compressed-kv and key-positional-embedding head dims, used to
   // split q/pages in the run. Set during BeginForward for the kMLA attn kind.
   int64_t mla_head_dim_ckv_ = -1;
@@ -413,8 +415,9 @@ class FlashInferRaggedPrefillFunc : public RaggedPrefillFunc {
            TVMStreamHandle compute_stream) final {
     double rope_rcp_scale = 1 / rotary_scale;
     double rope_rcp_theta = 1 / rotary_theta;
-    attn_func_(float_workspace_buffer_, int_workspace_buffer_, plan_info_vec_, q, k, v,
-               ZeroByteOffsetView(qo_indptr), ZeroByteOffsetView(kv_indptr), attn_output, attn_lse,
+    attn_func_(float_workspace_buffer_.value(), int_workspace_buffer_.value(), plan_info_vec_, q, k,
+               v, ZeroByteOffsetView(qo_indptr), ZeroByteOffsetView(kv_indptr), attn_output,
+               attn_lse,
                /*mask_mode_code=*/static_cast<int64_t>(causal),
                /*layout(NHD)=*/0, /*window_left=*/-1, /*enable_pdl=*/false, sm_scale,
                /*rope_rcp_scale=*/rope_rcp_scale,
@@ -458,9 +461,9 @@ class FlashInferRaggedPrefillFunc : public RaggedPrefillFunc {
 
  private:
   ffi::Function plan_func_;
-  Tensor float_workspace_buffer_;
-  Tensor int_workspace_buffer_;
-  Tensor page_locked_int_workspace_buffer_;
+  ffi::Optional<Tensor> float_workspace_buffer_;
+  ffi::Optional<Tensor> int_workspace_buffer_;
+  ffi::Optional<Tensor> page_locked_int_workspace_buffer_;
   ffi::Array<int64_t> plan_info_vec_;
   // MLA self-attention head dims supplied via the backend spec; -1 means use the
   // dims passed by the caller (the regular MHA case).
@@ -534,7 +537,7 @@ class FlashInferPagedDecodeFunc : public PagedDecodeFunc {
            double rotary_scale, double rotary_theta, double sm_scale, Tensor attn_output,
            Tensor attn_lse, TVMStreamHandle compute_stream) final {
     auto [float_workspace_buffer, int_workspace_buffer, page_locked_int_workspace_buffer,
-          plan_info_vec] = cached_buffers_[depth];
+          plan_info_vec] = cached_buffers_[depth].value();
     double rope_rcp_scale = 1 / rotary_scale;
     double rope_rcp_theta = 1 / rotary_theta;
     attn_func_(float_workspace_buffer, int_workspace_buffer, plan_info_vec, q,
@@ -575,7 +578,8 @@ class FlashInferPagedDecodeFunc : public PagedDecodeFunc {
 
  private:
   ffi::Function plan_func_;
-  std::vector<std::tuple<Tensor, Tensor, Tensor, ffi::Array<int64_t>>> cached_buffers_;
+  std::vector<std::optional<std::tuple<Tensor, Tensor, Tensor, ffi::Array<int64_t>>>>
+      cached_buffers_;
 };
 
 /*! \brief The paged prefill with tree mask attention function base class. */

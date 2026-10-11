@@ -31,7 +31,7 @@ namespace tvm {
 namespace s_tir {
 
 /*! \brief Convert a schedulable statement or module to SSA form. */
-tirx::Stmt ConvertSSA(tirx::Stmt stmt);
+Stmt ConvertSSA(Stmt stmt);
 IRModule ConvertSSA(IRModule mod);
 
 /*!
@@ -47,7 +47,8 @@ ffi::Array<PrimExpr> ConvertIndices(const MatchBufferRegion& match_buffer,
  * \param region The sub-region of the target buffer
  * \return The region of source buffer.
  */
-tirx::Region ConvertRegion(const MatchBufferRegion& match_buffer, const tirx::Region& region);
+ffi::Array<Range> ConvertRegion(const MatchBufferRegion& match_buffer,
+                                const ffi::Array<Range>& region);
 
 /*! \brief The quad used by StorageAlign for (buffer_idx, axis, factor, offset) */
 using StorageAlignTuple = ffi::Tuple<int32_t, int32_t, int32_t, int32_t>;
@@ -58,8 +59,8 @@ using StorageAlignAnnotation = ffi::Array<StorageAlignTuple>;
  * \param body The stmt to collect.
  * \return The result dict from buffer var to storage align annotations.
  */
-std::unordered_map<tirx::Var, StorageAlignAnnotation> CollectStorageAlignAnnotation(
-    const tirx::Stmt& body);
+std::unordered_map<tvm::Var, StorageAlignAnnotation> CollectStorageAlignAnnotation(
+    const Stmt& body);
 
 }  // namespace s_tir
 }  // namespace tvm

@@ -30,6 +30,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr_functor.h>
+#include <tvm/relax/op_attr_types.h>
 #include <tvm/relax/transform.h>
 #include <tvm/relax/utils.h>
 #include <tvm/runtime/logging.h>
@@ -165,7 +166,7 @@ class CommonSubexprEliminator : public ExprMutator {
     }
   }
 
-  Expr VisitExpr_(const IfNode* op) override {
+  Expr VisitExpr_(const IfExprNode* op) override {
     Expr cond = VisitExpr(op->cond);
     Expr true_branch = VisitWithInnerScope(op->true_branch);
     Expr false_branch = VisitWithInnerScope(op->false_branch);
@@ -173,7 +174,7 @@ class CommonSubexprEliminator : public ExprMutator {
         op->false_branch.same_as(false_branch) && VisitAndCheckTypeFieldUnchanged(op->ty)) {
       return ffi::GetRef<Expr>(op);
     } else {
-      return If(cond, true_branch, false_branch, op->span);
+      return IfExpr(cond, true_branch, false_branch, op->loc);
     }
   }
 
@@ -193,7 +194,7 @@ class CommonSubexprEliminator : public ExprMutator {
   }
 
   bool IsAllocatorCall(const Expr& expr) {
-    static const auto& allocator_attr_map = Op::GetAttrMap<bool>("TAllocator");
+    static const auto& allocator_attr_map = Op::GetAttrMap<bool>(tvm::relax::op_attr::kAllocator);
     if (const auto* call = expr.as<CallNode>()) {
       if (const auto* op = call->op.as<OpNode>()) {
         bool is_allocator = allocator_attr_map.get(ffi::GetRef<Op>(op), false);
@@ -222,7 +223,7 @@ Pass EliminateCommonSubexpr(bool call_only) {
   auto pass_func = [=](Function func, IRModule m, PassContext pc) {
     return EliminateCommonSubexpr(func, call_only).as_or_throw<Function>();
   };
-  return CreateFunctionPass(pass_func, 1, "EliminateCommonSubexpr", {});
+  return CreateFunctionPass(pass_func, 1, "EliminateCommonSubexpr");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

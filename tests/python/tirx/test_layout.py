@@ -1491,7 +1491,7 @@ def test_mma_shared_layout():
 def test_pool_allocator_alloc_mma():
     def alloc_layout(shape, dtype, swizzle_mode="auto"):
         with IRBuilder():
-            with Tx_builder.prim_func():
+            with Tx_builder.function():
                 pool = T.SMEMPool(Var("smem_ptr", PointerType(PrimType("uint8"))))
                 buf = pool.alloc_tcgen05_mma_AB(shape, dtype, swizzle_mode=swizzle_mode)
         return buf.layout
@@ -2055,7 +2055,7 @@ def test_slice_single_shard_skips_defensive_floormod():
     decomposes ``begin`` into per-shard coordinates via
     ``floormod(floordiv(begin, B[k]), Ek)``. When ``m == 1`` (single shard
     in the group) and ``begin`` is a runtime expression (e.g. a pipeline
-    stage ``BufferLoad``), the analyzer cannot prove ``begin < Ek`` so the
+    stage ``TensorLoad``), the analyzer cannot prove ``begin < Ek`` so the
     defensive ``floormod`` survives codegen.
 
     Concretely, fa4's K_smem with shape ``(SMEM_PIPE_DEPTH_KV=3, 128, 128)``

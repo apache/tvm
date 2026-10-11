@@ -69,11 +69,11 @@ n_main_relax = T.dynamic("n")
 
 @R.py_module
 class AddModuleSymbolic(BasePyModule):
-    @Ts.prim_func
+    @Ts.function
     def add_tir(
-        x: T.Buffer((n_add_tir,), dtype="float32"),
-        y: T.Buffer((n_add_tir,), dtype="float32"),
-        out: T.Buffer((n_add_tir,), dtype="float32"),
+        x: T.Tensor((n_add_tir,), dtype="float32"),
+        y: T.Tensor((n_add_tir,), dtype="float32"),
+        out: T.Tensor((n_add_tir,), dtype="float32"),
     ):
         T.func_attr({"global_symbol": "add_tir"})
 
@@ -207,11 +207,11 @@ n_matmul_relax = T.dynamic("n")
 
 @R.py_module
 class MatrixModuleSymbolic(BasePyModule):
-    @Ts.prim_func
+    @Ts.function
     def matmul_tir(
-        a: T.Buffer((m_matmul_tir, k_matmul_tir), dtype="float32"),
-        b: T.Buffer((k_matmul_tir, n_matmul_tir), dtype="float32"),
-        c: T.Buffer((m_matmul_tir, n_matmul_tir), dtype="float32"),
+        a: T.Tensor((m_matmul_tir, k_matmul_tir), dtype="float32"),
+        b: T.Tensor((k_matmul_tir, n_matmul_tir), dtype="float32"),
+        c: T.Tensor((m_matmul_tir, n_matmul_tir), dtype="float32"),
     ):
         T.func_attr({"global_symbol": "matmul_tir"})
 

@@ -17,23 +17,22 @@
 """Wrapping existing transformations."""
 # pylint: disable=invalid-name, unsupported-binary-operation
 
-import enum
 from collections.abc import Callable
 
 import tvm_ffi as _ffi
 
 from . import _ffi_api
-from . import function_pass as _fpass
+from .function_pass import function_pass
 
 
 def Apply(ftransform):
     """Apply ftransform to each function in the Module.
 
-    This function is a thin wrapper around tvm.tirx.transform.prim_func_pass
+    This function is a thin wrapper around tvm.tirx.transform.function_pass
 
     Parameters
     ----------
-    ftransform: tvm.tirx.PrimFunc -> tvm.tirx.PrimFunc
+    ftransform: tvm.tirx.Function -> tvm.tirx.Function
        The transformation pass.
 
     Returns
@@ -46,11 +45,16 @@ def Apply(ftransform):
     def _transform(func, mod, ctx):
         return ftransform(func)
 
-    return _fpass.prim_func_pass(_transform, opt_level=0, name="Apply")  # type: ignore
+    return function_pass(_transform, opt_level=0, name="Apply")  # type: ignore
 
 
 def VectorizeLoop(enable_vectorize: bool = True):
     """Lower vectorization loops.
+
+    Target-dependent vectorization uses the Function's ``target`` attribute,
+    not an ambient target context or nested target attributes. Target-independent
+    fixed-width loops do not require a target. Code needing different vectorization
+    targets must be separated into functions before this pass.
 
     Parameters
     ----------
@@ -79,17 +83,6 @@ def StorageRewrite():
         The result pass
     """
     return _ffi_api.StorageRewrite()  # type: ignore
-
-
-def InlinePrivateFunctions():
-    """Inline calls to private functions
-
-    Returns
-    -------
-    fpass : tvm.transform.Pass
-        The result pass
-    """
-    return _ffi_api.InlinePrivateFunctions()  # type: ignore
 
 
 def PointerValueTypeRewrite():
@@ -140,8 +133,19 @@ def RemoveNoOp():
     return _ffi_api.RemoveNoOp()  # type: ignore
 
 
+def HoistIf():
+    """Hoist loop-invariant If statements outside eligible loops.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass.
+    """
+    return _ffi_api.HoistIf()
+
+
 def RemoveAssume():
-    """Remove all instances of builtin::assume
+    """Remove all instances of prim::assume_op
 
     Returns
     -------
@@ -211,13 +215,24 @@ def CommonSubexprElim():
     return _ffi_api.CommonSubexprElim()  # type: ignore
 
 
+def RenormalizeSplitPattern():
+    """Renormalize the split pattern from floordiv(floormod()) to floormod(floordiv())
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.RenormalizeSplitPattern()  # type: ignore
+
+
 @_ffi.register_object("tirx.transform.StmtSimplifyConfig")
 class StmtSimplifyConfig(_ffi.Object):
     """Config for stmt simplify pass"""
 
 
 def StmtSimplify():
-    """Run statement-level arithmetic simplifications on the TIR PrimFunc.
+    """Run statement-level arithmetic simplifications on the TIR Function.
 
     Returns
     -------
@@ -236,17 +251,6 @@ def LowerThreadAllreduce():
         The result pass.
     """
     return _ffi_api.LowerThreadAllreduce()
-
-
-def UnifyThreadBinding():
-    """Unify loop and attribute bindings of each thread axis within a kernel.
-
-    Returns
-    -------
-    fpass : tvm.transform.Pass
-        The result pass.
-    """
-    return _ffi_api.UnifyThreadBinding()
 
 
 def ConvertSSA():
@@ -268,23 +272,23 @@ def ConvertSSA():
 
 
 def MakePackedAPI():
-    """Transform the PrimFuncs in the module to a packed func API.
+    """Transform the Functions in the module to a packed func API.
 
-    Prior to this pass, the PrimFunc may have parameters annotated with
-    `BufferType`.  This pass consumes those annotations to generate
+    Prior to this pass, the Function may have parameters annotated with
+    `TensorType`.  This pass consumes those annotations to generate
     arguments that implement the packed based TVM FFI API.
 
-    For static shapes, the `BufferType::shape`, `BufferType::strides`,
-    and `BufferType::elem_offset` fields are used to
+    For static shapes, the `TensorType::shape`, `TensorType::strides`,
+    and `TensorType::elem_offset` fields are used to
     generate runtime checks on the corresponding member variables in
     the user-provided `DLTensor*` or `tvm.runtime.tensor` argument.  (e.g. A
-    PrimFunc that accepts a buffer of shape `[16,32]` validates that
+    Function that accepts a buffer of shape `[16,32]` validates that
     the `DLTensor::shape` array is `[16,32]`.)
 
-    For dynamic Buffers, in which one or more of these `BufferType` fields
-    use `tirx.Var` that are not defined by other PrimFunc
+    For dynamic Buffers, in which one or more of these `TensorType` fields
+    use `tirx.Var` that are not defined by other Function
     parameters, these are instead used to define the variables based on
-    the corresponding `DLTensor` members.  (e.g. A PrimFunc that accepts a
+    the corresponding `DLTensor` members.  (e.g. A Function that accepts a
     buffer of shape `[tirx.Var("n", "int64"), tirx.Var("m", "int64")]`,
     when passed a `DLTensor` of shape `[16, 32]`, will define `n = 16` and
     `m = 32`, based on the argument's shape.
@@ -301,7 +305,7 @@ def SplitHostDevice():
     """Annotate, split, and lower host/device functions.
 
     This pass first annotates device regions within host functions,
-    then splits them into host and device-side PrimFuncs, and finally
+    then splits them into host and device-side Functions, and finally
     lowers host-to-device calls into the device kernel launch ABI.
 
     Returns
@@ -405,68 +409,9 @@ def VerifyMemory():
     return _ffi_api.VerifyMemory()  # type: ignore
 
 
-@_ffi.register_object("s_tir.transform.HoistIfThenElseConfig")
-class HoistIfThenElseConfig(_ffi.Object):
-    """Config for hoist if then else pass"""
-
-
-class HoistedConditionals(enum.Flag):
-    """Flags for use in HoistExpressionConfig.conditional_types
-
-    Each bitflag represents a type of expression that should be
-    hoisted to the outermost loop possible.
-    """
-
-    Never = 0
-    """ No hoisting of conditionals """
-
-    IfElseStmt = 1
-    """ If set, look for hoist candidates in IfElseStmt """
-
-    IfElseExpr = 2
-    """ If set, look for hoist candidates in tirx.if_then_else """
-
-    BooleanExpression = 4
-    """ If set, look for hoist candidates in all boolean expressions """
-
-    UsingBlockVar = 8
-    """ If set, allow hoisting of conditionals that use a block variable (e.g. threadIdx.x)  """
-
-    All = IfElseStmt | IfElseExpr | BooleanExpression | UsingBlockVar
-    """ Enable all hoisting of conditionals"""
-
-
-class HoistedLetBindings(enum.Flag):
-    """Flags for use in HoistExpressionConfig.let_binding_types
-
-    Each bitflag represents a type of let binding expression that should be
-    hoisted to the outermost loop possible.
-    """
-
-    Never = 0
-    """ No hoisting of let bindings """
-
-    RequiredByConditional = 1
-    """ Bindings that are used by a hoisted conditional """
-
-    Bind = 2
-    """ Bindings occurring in Bind nodes """
-
-    LetExpr = 4
-    """ Bindings occurring in Let expressions """
-
-    All = RequiredByConditional | Bind | LetExpr
-    """ Enable all hoisting of let bindings """
-
-
-@_ffi.register_object("s_tir.transform.HoistExpressionConfig")
-class HoistExpressionConfig(_ffi.Object):
-    """Config for hoist expression pass"""
-
-
 def FlattenBuffer():
-    """Flatten the multi-dimensional BufferLoad and BufferStore to single dimensional
-    BufferLoad/BufferStore for the TIR not contains opaque block.
+    """Flatten the multi-dimensional TensorLoad and TensorStore to single dimensional
+    TensorLoad/TensorStore for the TIR not contains opaque block.
 
     Returns
     -------
@@ -477,7 +422,7 @@ def FlattenBuffer():
 
 
 def BindTarget(target):
-    """Annotate a PrimFunc with a given target.
+    """Annotate a Function with a given target.
     Parameters
     -------
     target : tvm.target.Target
@@ -492,7 +437,7 @@ def BindTarget(target):
 
 
 def AnnotateEntryFunc():
-    """Set a PrimFunc as the entry point if it is only function in IRModule.
+    """Set a Function as the entry point if it is only function in IRModule.
 
     Returns
     -------
@@ -503,8 +448,8 @@ def AnnotateEntryFunc():
 
 
 def Filter(fcond: Callable):
-    """Filter out PrimFuncs that does not satisfy the given condition.
-    `fcond` should be a function that takes a primfunc and returns boolean.
+    """Filter out Functions that does not satisfy the given condition.
+    `fcond` should be a function that takes a function and returns boolean.
 
     Returns
     -------
@@ -514,7 +459,7 @@ def Filter(fcond: Callable):
     return _ffi_api.Filter(fcond)  # type: ignore
 
 
-def TilePrimitiveDispatch():
+def TileDispatch():
     """Lower TIRx tile primitive calls through the active backend dispatch table.
 
     Returns
@@ -522,7 +467,7 @@ def TilePrimitiveDispatch():
     fpass : tvm.transform.Pass
         The result pass
     """
-    return _ffi_api.TilePrimitiveDispatch()  # type: ignore
+    return _ffi_api.TileDispatch()  # type: ignore
 
 
 def LowerTIRx():
@@ -539,10 +484,14 @@ def LowerTIRx():
 def LowerTIRxOpaque():
     """Lower opaque constructs in TIRX programs.
 
-    Handles AllocBuffer lowering, For(thread_binding) to AttrStmt(thread_extent)
+    Handles allocation call lowering, For(thread_binding) to RegionStmt(launch_thread)
     conversion, unit loop elimination, and pragma annotation handling.
-    This is the tirx-specific counterpart of s_tir.LowerOpaqueBlock,
+    This is the tirx-specific counterpart of s_tir.LowerOpaqueBlock and
+    s_tir.LowerThreadBinding,
     without any SBlock/SBlockRealize handling.
+
+    Run s_tir.transform.LoopPartition first when thread-binding loops carry
+    loop_partition_hint.
 
     Returns
     -------

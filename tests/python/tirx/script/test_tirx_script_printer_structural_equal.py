@@ -44,13 +44,13 @@ def test_prim_type_hidden_path_exact_message():
     )
 
 
-def test_prim_func_buffer_param():
-    @T.prim_func
-    def func1(A: T.Buffer((128, 128)), B: T.Buffer((128, 128))):
+def test_function_buffer_param():
+    @T.function
+    def func1(A: T.Tensor((128, 128)), B: T.Tensor((128, 128))):
         pass
 
-    @T.prim_func
-    def func2(A: T.Buffer((128, 128)), B: T.Buffer((128, 256))):
+    @T.function
+    def func2(A: T.Tensor((128, 128)), B: T.Tensor((128, 256))):
         pass
 
     func1 = func1.with_attr("global_symbol", "main")
@@ -80,9 +80,9 @@ def test_prim_func_buffer_param():
 
 def _expected_result(func1, func2, objpath1, objpath2):
     return f"""StructuralEqual check failed, caused by lhs at {objpath1}:
-{func1.script(path_to_underline=[objpath1], syntax_sugar=False)}
+{func1.script(path_to_underline=[objpath1])}
 and rhs at {objpath2}:
-{func2.script(path_to_underline=[objpath2], syntax_sugar=False)}"""
+{func2.script(path_to_underline=[objpath2])}"""
 
 
 def _error_message(exception):
@@ -92,13 +92,13 @@ def _error_message(exception):
 def test_evaluate():
     @I.ir_module
     class module1:
-        @T.prim_func
+        @T.function
         def func():
-            T.evaluate(0)
+            T.evaluate(2)
 
     @I.ir_module
     class module2:
-        @T.prim_func
+        @T.function
         def func():
             T.evaluate(1)
 
@@ -111,25 +111,29 @@ def test_evaluate():
         .attr("functions")
         .map_item(module1.get_global_var("func"))
         .attr("body")
+        .attr("seq")
+        .array_item(0)
         .attr("value")
         .attr("value"),
         AccessPath.root()
         .attr("functions")
         .map_item(module2.get_global_var("func"))
         .attr("body")
+        .attr("seq")
+        .array_item(0)
         .attr("value")
         .attr("value"),
     )
 
 
 def test_allocate():
-    @T.prim_func
+    @T.function
     def func1():
-        a = T.alloc_buffer((128, 128), dtype="float32")
+        a = T.alloc_tensor((128, 128), dtype="float32")
 
-    @T.prim_func
+    @T.function
     def func2():
-        a = T.alloc_buffer((256, 128), dtype="float32")
+        a = T.alloc_tensor((256, 128), dtype="float32")
 
     func1 = func1.with_attr("global_symbol", "main")
     func2 = func2.with_attr("global_symbol", "main")
@@ -142,6 +146,8 @@ def test_allocate():
         func2,
         AccessPath.root()
         .attr("body")
+        .attr("seq")
+        .array_item(0)
         .attr("var")
         .attr("ty")
         .attr("shape")
@@ -149,6 +155,8 @@ def test_allocate():
         .attr("value"),
         AccessPath.root()
         .attr("body")
+        .attr("seq")
+        .array_item(0)
         .attr("var")
         .attr("ty")
         .attr("shape")
@@ -158,12 +166,12 @@ def test_allocate():
 
 
 def test_for():
-    @T.prim_func
+    @T.function
     def func1():
         for i, j in T.grid(128, 128):
             T.evaluate(0)
 
-    @T.prim_func
+    @T.function
     def func2():
         for i, j, k in T.grid(128, 128, 128):
             T.evaluate(0)
@@ -176,6 +184,24 @@ def test_for():
     assert _error_message(ve.value) == _expected_result(
         func1,
         func2,
-        AccessPath.root().attr("body").attr("body").attr("body"),
-        AccessPath.root().attr("body").attr("body").attr("body"),
+        AccessPath.root()
+        .attr("body")
+        .attr("seq")
+        .array_item(0)
+        .attr("body")
+        .attr("seq")
+        .array_item(0)
+        .attr("body")
+        .attr("seq")
+        .array_item_missing(0),
+        AccessPath.root()
+        .attr("body")
+        .attr("seq")
+        .array_item(0)
+        .attr("body")
+        .attr("seq")
+        .array_item(0)
+        .attr("body")
+        .attr("seq")
+        .array_item(0),
     )

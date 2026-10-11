@@ -109,18 +109,16 @@ import functools
 import operator
 
 import tvm
-from tvm.ir import Call, DataTypeImm, DictAttrs, StringImm, Tuple
+from tvm.backend.cuda.op import _tmem_address
+from tvm.ir import Bind, Call, DataTypeImm, DictAttrs, Evaluate, SeqStmt, StringImm, Tuple
 from tvm.runtime import DataType
 from tvm.script import tirx as T
 from tvm.sym import Analyzer
-from tvm.tirx import Buffer, PrimFunc
+from tvm.tirx import Function, Var
 from tvm.tirx.layout import ComposeLayout, TCol, TileLayout, TLane
 from tvm.tirx.layout import m as m_axis
-from tvm.tirx.operator.tile_primitive import DispatchContext, predicate, register_dispatch
-from tvm.tirx.stmt import Bind, Evaluate, SeqStmt
-from tvm.tirx.tile_primitive import TilePrimitiveCall
-
-from ..copy import _single_thread_exec
+from tvm.tirx.operator.tile_primitive import DispatchContext
+from tvm.tirx.tensor_instruction import TensorCall
 
 # Allowed .multicast qualifiers per shape (PTX ISA 8.8 §9.7.16.9.2): "" = none,
 # 64x128b needs an explicit warpx2 pick.
@@ -194,10 +192,12 @@ def _cp_lane_replica_pattern(shape: str, multicast: str):
     raise ValueError(f"unknown tcgen05.cp multicast {multicast!r}")
 
 
-def _resolve_cp_shape(op_call: TilePrimitiveCall):
+def _resolve_cp_shape(op_call: TensorCall):
     """Resolve (shape, multicast) from an explicit ``shape=`` config."""
-    shape = str(op_call.config["shape"])
-    multicast = op_call.config.get("multicast")
+    shape = op_call.options["shape"].value
+    multicast = op_call.options.get("multicast")
+    if isinstance(multicast, tvm.ir.StringImm):
+        multicast = multicast.value
     allowed = _CP_SHAPE_MULTICASTS.get(shape)
     if allowed is None:
         raise ValueError(
@@ -313,7 +313,7 @@ def _align_middles(t_middle, s_middle):
 # -----------------------------------------------------------------------------
 # Plan (state object)
 # -----------------------------------------------------------------------------
-def _build_plan(op_call: TilePrimitiveCall):
+def _build_plan(op_call: TensorCall):
     """Run A..H and return a dispatch plan.
 
     Plan fields:
@@ -328,12 +328,14 @@ def _build_plan(op_call: TilePrimitiveCall):
       - t_addr_off (Expr, taddr offset of the first cp: 32-bit col
         offset plus the region row offset in the lane half-word)
     """
-    op_call = TilePrimitiveCall.downcast(op_call)
-    if op_call.config.get("shape") is not None:
+    op_call = TensorCall.decode(op_call)
+    if op_call.options.get("shape") is not None:
         shape, multicast = _resolve_cp_shape(op_call)
         return _plan_for_shape(op_call, shape, multicast)
     # No shape config: infer from the buffer layouts.
-    multicast_cfg = op_call.config.get("multicast")
+    multicast_cfg = op_call.options.get("multicast")
+    if isinstance(multicast_cfg, tvm.ir.StringImm):
+        multicast_cfg = multicast_cfg.value
     errors = []
     for shape, multicast in _CP_SHAPE_CANDIDATES:
         if multicast_cfg is not None and str(multicast_cfg) != multicast:
@@ -347,11 +349,11 @@ def _build_plan(op_call: TilePrimitiveCall):
     )
 
 
-def _plan_for_shape(op_call: TilePrimitiveCall, shape: str, multicast: str):
+def _plan_for_shape(op_call: TensorCall, shape: str, multicast: str):
     """Run A..I for one (shape, multicast); raises ValueError on any mismatch."""
     dst_region, src_region = op_call.args[:2]
-    s_buf: Buffer = src_region.source
-    t_buf: Buffer = dst_region.source
+    s_buf: Var = src_region.source
+    t_buf: Var = dst_region.source
     dtype = s_buf.dtype
     dtype_bits = DataType(dtype).bits
     elem_per_128b = 128 // dtype_bits  # elements per 16B descriptor unit
@@ -676,23 +678,23 @@ def _get_or_create_desc(sctx, s_buf, ldo, sdo, swizzle):
     if cached is not None:
         return cached
 
-    desc_buf = tvm.tirx.decl_buffer((1,), "uint64", name="cp_desc", scope="local")
+    desc_buf = tvm.tirx.decl_tensor((1,), "uint64", name="cp_desc", scope="local")
     encode_call = T.cuda.tcgen05.encode_matrix_descriptor(
-        desc_buf.data, T.reinterpret("handle", T.uint64(0)), ldo, sdo, swizzle
+        desc_buf.data, T.reinterpret(T.uint64(0), ty="handle"), ldo, sdo, swizzle
     )
     wrap = SeqStmt(
         [
             Bind(
                 desc_buf,
                 Call(
-                    "tirx.alloc_buffer",
+                    "tirx.alloc_tensor",
                     [
                         Tuple(desc_buf.ty.shape),
                         DataTypeImm(desc_buf.ty.dtype.dtype),
                         StringImm(desc_buf.scope()),
                     ],
                     attrs=DictAttrs({}),
-                    ret_ty=desc_buf.ty,
+                    ty=desc_buf.ty,
                 ),
             ),
             Evaluate(encode_call),
@@ -716,12 +718,12 @@ def _desc_set_addr(desc_val, addr_ptr):
     return T.bitwise_or(T.bitwise_and(desc_val, T.bitwise_not(T.uint64(0x3FFF))), start_addr)
 
 
-def _validate_smem_tmem_copy(op_call: TilePrimitiveCall, sctx: DispatchContext):
+def _validate_smem_tmem_copy(op_call: TensorCall, sctx: DispatchContext):
     """Memory-scope envelope only; shape resolution/inference and the detailed
     layout validation raise readable ValueErrors in ``_build_plan``."""
     dst_region, src_region = op_call.args[:2]
-    src: Buffer = src_region.source
-    dst: Buffer = dst_region.source
+    src: Var = src_region.source
+    dst: Var = dst_region.source
     return (
         src.scope().startswith("shared")
         and dst.scope() == "tmem"
@@ -730,7 +732,6 @@ def _validate_smem_tmem_copy(op_call: TilePrimitiveCall, sctx: DispatchContext):
         # Byte reinterpret is legal (nvfp4 stages sf as uint8, reads fp8); a
         # true width change needs decompress, rejected in copy_smem_tmem_impl.
         and DataType(src.dtype).bits == DataType(dst.dtype).bits
-        and dst.allocated_addr is not None
     )
 
 
@@ -739,8 +740,11 @@ def _validate_smem_tmem_copy(op_call: TilePrimitiveCall, sctx: DispatchContext):
 # is responsible for issuing ``tcgen05.commit`` against a barrier if they
 # need synchronization.
 # -----------------------------------------------------------------------------
-def copy_smem_tmem_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc | None:
-    if op_call.config.get("decompress"):
+def copy_smem_tmem_impl(op_call: TensorCall, sctx: DispatchContext) -> Function | None:
+    decompress = op_call.options.get("decompress")
+    if isinstance(decompress, StringImm):
+        decompress = decompress.value
+    if decompress:
         # fp4/fp6->fp8 in-flight decompression needs dtype-pair plan derivation
         # the planner can't lower; reject loudly rather than copy undecompressed.
         raise ValueError("tcgen05.cp planner does not support decompress")
@@ -761,14 +765,14 @@ def copy_smem_tmem_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -> Pr
     # keep the legacy LDO=0 encoding. 256b atoms carry the derived field.
     LDO_field = plan["LDO_field"]
 
-    cta_group = op_call.config.get("cta_group", 1)
+    cta_group = op_call.options.get("cta_group", 1)
 
     desc_buf = _get_or_create_desc(sctx, s_buf, LDO_field, SDO_field, sw)
-    t_addr = t_buf.allocated_addr
+    t_addr = [_tmem_address(t_buf)]
     s_rank = len(s_buf.shape)
 
     def _cp_desc(off_16B):
-        addr = T.ptr_byte_offset(s_buf.ptr_to([0] * s_rank), off_16B * 16, s_buf.dtype)
+        addr = T.ptr_byte_offset(s_buf.ptr_to([0] * s_rank), off_16B * 16, ty=s_buf.data.ty)
         return _desc_set_addr(desc_buf[0], addr)
 
     # Flatten the N-D middle loop into one T.unroll: per-dim index is
@@ -784,7 +788,7 @@ def copy_smem_tmem_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -> Pr
 
     # fmt: off
     if total == 1:
-        @T.prim_func(check_well_formed=False)
+        @T.function(check_well_formed=False)
         def impl():
             T.ptx[cp_chain](T.cast(t_addr[0] + t_addr_off, "uint32"), _cp_desc(init_off_16B))
     else:
@@ -799,7 +803,7 @@ def copy_smem_tmem_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -> Pr
                 s_off = s_off + idx * s_step
             return t_off, s_off
 
-        @T.prim_func(check_well_formed=False)
+        @T.function(check_well_formed=False)
         def impl():
             for flat in T.unroll(total):
                 t_off, s_off = T.meta_var(compute_offsets(flat))
@@ -810,18 +814,3 @@ def copy_smem_tmem_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -> Pr
     # fmt: on
 
     return impl
-
-
-# === Variant: copy_async/smem->tmem (priority=10) ===
-@register_dispatch(
-    "copy_async",
-    "cuda",
-    variant="smem->tmem",
-    priority=10,
-    when=[
-        predicate("validate_smem_tmem_copy", _validate_smem_tmem_copy),
-        predicate("exec_scope", _single_thread_exec),
-    ],
-)
-def copy_async_schedule_smem_tmem(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
-    return copy_smem_tmem_impl(op_call, sctx)

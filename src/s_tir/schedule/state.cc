@@ -43,16 +43,17 @@ using SMap = std::unordered_map<K, V, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>;
  * \param dom_high_exclusive The highest node in the sref tree path
  * \return An n-dimensional integer set
  */
-ffi::Array<sym::IntSet> AnalyzeRegionUpperBound(const TensorRegion& region,          //
-                                                const PrimExpr& predicate,           //
-                                                const StmtSRef& dom_low_inclusive,   //
-                                                const StmtSRef& dom_high_exclusive,  //
-                                                sym::AnalyzerObj* analyzer) {
+ffi::Array<sym::IntSet> AnalyzeRegionUpperBound(
+    const TensorRegion& region,                         //
+    const PrimExpr& predicate,                          //
+    const StmtSRef& dom_low_inclusive,                  //
+    const ffi::Optional<StmtSRef>& dom_high_exclusive,  //
+    sym::AnalyzerObj* analyzer) {
   ffi::Map<Var, Range> var_dom = LoopDomainOfSRefTreePath(
       /*low_inclusive=*/dom_low_inclusive,
       /*high_exclusive=*/dom_high_exclusive,
       /*extra_relax_scope=*/
-      runtime::StorageScope::Create(region->source.as_or_throw<tvm::tirx::BufferVar>().scope()));
+      runtime::StorageScope::Create(region->source.as_or_throw<tvm::tirx::TensorVar>().scope()));
   sym::Analyzer analyzer_ref = ffi::GetRef<sym::Analyzer>(analyzer);
   return EstimateRegionUpperBound(
       /*region=*/region->region,
@@ -70,16 +71,17 @@ ffi::Array<sym::IntSet> AnalyzeRegionUpperBound(const TensorRegion& region,     
  * \param analyzer The analyzer
  * \return An n-dimensional integer set
  */
-ffi::Array<sym::IntSet> AnalyzeRegionLowerBound(const TensorRegion& region,          //
-                                                const PrimExpr& predicate,           //
-                                                const StmtSRef& dom_low_inclusive,   //
-                                                const StmtSRef& dom_high_exclusive,  //
-                                                sym::AnalyzerObj* analyzer) {
+ffi::Array<sym::IntSet> AnalyzeRegionLowerBound(
+    const TensorRegion& region,                         //
+    const PrimExpr& predicate,                          //
+    const StmtSRef& dom_low_inclusive,                  //
+    const ffi::Optional<StmtSRef>& dom_high_exclusive,  //
+    sym::AnalyzerObj* analyzer) {
   ffi::Map<Var, Range> var_dom = LoopDomainOfSRefTreePath(
       /*low_inclusive=*/dom_low_inclusive,
       /*high_exclusive=*/dom_high_exclusive,
       /*extra_relax_scope=*/
-      runtime::StorageScope::Create(region->source.as_or_throw<tvm::tirx::BufferVar>().scope()));
+      runtime::StorageScope::Create(region->source.as_or_throw<tvm::tirx::TensorVar>().scope()));
   sym::Analyzer analyzer_ref = ffi::GetRef<sym::Analyzer>(analyzer);
   if (ffi::Optional<ffi::Array<sym::IntSet>> result = EstimateRegionLowerBound(
           /*region=*/region->region,
@@ -87,7 +89,7 @@ ffi::Array<sym::IntSet> AnalyzeRegionLowerBound(const TensorRegion& region,     
           /*predicate=*/predicate, /*analyzer=*/analyzer_ref)) {
     return result.value();
   }
-  return ffi::Array<sym::IntSet>(region->source.as_or_throw<tvm::tirx::BufferVar>()->shape.size(),
+  return ffi::Array<sym::IntSet>(region->source.as_or_throw<tvm::tirx::TensorVar>()->shape.size(),
                                  sym::IntSet::Nothing());
 }
 
@@ -149,7 +151,7 @@ void UpdateSRef(ScheduleStateNode* self, StmtSRefNode* sref, const StmtNode* new
   TVM_FFI_ICHECK(new_stmt->IsInstance<SBlockNode>() || new_stmt->IsInstance<ForNode>());
   const StmtNode* old_stmt = sref->stmt;
   TVM_FFI_ICHECK_NE(new_stmt, old_stmt);
-  self->stmt2ref[new_stmt] = ffi::GetRef<StmtSRef>(sref);
+  self->stmt2ref.insert_or_assign(new_stmt, ffi::GetRef<StmtSRef>(sref));
   self->stmt2ref.erase(sref->stmt);
   sref->stmt = new_stmt;
 }
@@ -242,7 +244,7 @@ class SBlockInfoCollector : public StmtExprVisitor {
           return Range::FromMinExtent(min, extent);
         });
         reads.push_back(
-            BufferRegion(region->source.as_or_throw<tvm::tirx::BufferVar>(), mapped_region));
+            BufferRegion(region->source.as_or_throw<tvm::tirx::TensorVar>(), mapped_region));
       }
       block_reads_unbound.emplace(block_sref.get(), std::move(reads));
       // Step 1.2. Unbind write regions
@@ -258,7 +260,7 @@ class SBlockInfoCollector : public StmtExprVisitor {
           return Range::FromMinExtent(min, extent);
         });
         writes.push_back(
-            BufferRegion(region->source.as_or_throw<tvm::tirx::BufferVar>(), mapped_region));
+            BufferRegion(region->source.as_or_throw<tvm::tirx::TensorVar>(), mapped_region));
       }
       block_writes_unbound.emplace(block_sref.get(), std::move(writes));
     }
@@ -298,20 +300,21 @@ class SBlockInfoCollector : public StmtExprVisitor {
       }
       // Step 2.3. For each LCA, gather the produced regions,
       // then check if it could cover the consumed region
-      for (StmtSRef lca = consumer_block_sref; region_cover && lca.get() != limit;
-           lca = ffi::GetRef<StmtSRef>(lca->parent)) {
+      for (const StmtSRefNode* lca_node = consumer_block_sref.get();
+           region_cover && lca_node != limit; lca_node = lca_node->parent) {
+        StmtSRef lca = ffi::GetRef<StmtSRef>(lca_node);
         const std::vector<const StmtSRefNode*>& producer_block_srefs = lca_loc.at(lca.get());
         // Skip empty LCA positions
         if (producer_block_srefs.empty()) {
           continue;
         }
         // For each buffer, record the regions generated under this loop
-        std::unordered_map<BufferVar, std::vector<ffi::Array<sym::IntSet>>, ffi::ObjectPtrHash,
+        std::unordered_map<TensorVar, std::vector<ffi::Array<sym::IntSet>>, ffi::ObjectPtrHash,
                            ffi::ObjectPtrEqual>
             touched_regions;
         // Step 2.3.1. Find all the regions read by the consumer that we care about
         for (const TensorRegion& region : block_reads_unbound.at(consumer_block_sref.get())) {
-          BufferVar buffer = region->source.as_or_throw<tvm::tirx::BufferVar>();
+          TensorVar buffer = region->source.as_or_throw<tvm::tirx::TensorVar>();
           touched_regions[buffer] = {};
         }
         // Step 2.3.2. Find all the regions written by each producer
@@ -319,7 +322,7 @@ class SBlockInfoCollector : public StmtExprVisitor {
           const SBlockRealize& producer_realize = block2realize_.at(producer_block_sref->stmt);
           StmtSRef parent_sref = ffi::GetRef<StmtSRef>(producer_block_sref->parent);
           for (const TensorRegion& region : block_writes_unbound.at(producer_block_sref)) {
-            BufferVar buffer = region->source.as_or_throw<tvm::tirx::BufferVar>();
+            TensorVar buffer = region->source.as_or_throw<tvm::tirx::TensorVar>();
             auto it = touched_regions.find(buffer);
             // Skip the regions that is not read by the consumer
             if (it != touched_regions.end()) {
@@ -341,7 +344,7 @@ class SBlockInfoCollector : public StmtExprVisitor {
         {
           StmtSRef parent_sref = ffi::GetRef<StmtSRef>(consumer_block_sref->parent);
           for (const TensorRegion& region : block_reads_unbound.at(consumer_block_sref.get())) {
-            BufferVar buffer = region->source.as_or_throw<tvm::tirx::BufferVar>();
+            TensorVar buffer = region->source.as_or_throw<tvm::tirx::TensorVar>();
             const std::vector<ffi::Array<sym::IntSet>>& touched_region = touched_regions.at(buffer);
             if (!touched_region.empty()) {
               ffi::Array<sym::IntSet> produced_region =
@@ -429,10 +432,12 @@ ScheduleState::ScheduleState(IRModule mod, int debug_mask, bool enable_check) {
   // Set `n->block_info`
   for (const auto& kv : n->mod->functions) {
     const BaseFunc& base_func = kv.second;
-    if (auto opt = base_func.as<PrimFunc>()) {
+    if (auto opt = base_func.as<Function>()) {
       auto func = opt.value();
       s_tir::VerifyWellFormed(func);
-      SBlockInfoCollector::Collect(self, func->body);
+      if (func->body.has_value()) {
+        SBlockInfoCollector::Collect(self, func->body.value());
+      }
     }
   }
   data_ = std::move(n);
@@ -689,13 +694,15 @@ class SRefUpdater : public StmtExprVisitor {
 
  private:
   ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) final {
-    StmtSRef& sref = self_->stmt2ref[op];
+    auto existing = self_->stmt2ref.find(op);
     // Detect intact reuse
-    if (sref.defined()) {
+    if (existing != self_->stmt2ref.end()) {
+      const StmtSRef& sref = existing->second;
       sref->parent = ancestors_.back();
       sref->seq_index = -1;  // `seq_index` will be set properly in SetSeqIndex
       return std::nullopt;
     }
+    StmtSRef sref{ffi::UnsafeInit{}};
     // Detect loop reuse
     auto it = reused_srefs_.find(op->loop_var.get());
     if (it != reused_srefs_.end()) {
@@ -709,6 +716,7 @@ class SRefUpdater : public StmtExprVisitor {
       sref = StmtSRef(/*stmt=*/op, /*parent=*/ancestors_.back(),
                       /*seq_index=*/-1);  // `seq_index` will be set properly in SetSeqIndex
     }
+    self_->stmt2ref.emplace(op, sref);
     // Recursive visit
     ancestors_.push_back(sref.get());
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->body));
@@ -717,13 +725,15 @@ class SRefUpdater : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const SBlockNode* op) final {
-    StmtSRef& sref = self_->stmt2ref[op];
+    auto existing = self_->stmt2ref.find(op);
     // Detect intact
-    if (sref.defined()) {
+    if (existing != self_->stmt2ref.end()) {
+      const StmtSRef& sref = existing->second;
       sref->parent = ancestors_.back();
       sref->seq_index = -1;  // `seq_index` will be set properly in SetSeqIndex
       return std::nullopt;
     }
+    StmtSRef sref{ffi::UnsafeInit{}};
     // Detect block reuse
     auto it = reused_srefs_.find(op);
     if (it != reused_srefs_.end()) {
@@ -737,6 +747,7 @@ class SRefUpdater : public StmtExprVisitor {
       sref = StmtSRef(/*stmt=*/op, /*parent=*/ancestors_.back(),
                       /*seq_index=*/-1);  // `seq_index` will be set properly in SetSeqIndex
     }
+    self_->stmt2ref.emplace(op, sref);
     // Recursive visit
     ancestors_.push_back(sref.get());
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->body));
@@ -965,16 +976,37 @@ void ScheduleStateNode::Replace(const tirx::StmtSRef& _src_sref, const Stmt& tgt
   // Variables:
   // 1) `num_copy_steps`. The maximum number of hops until we need to copy. To reach a node that
   //   can be mutated inplace, it needs `num_copy_steps + 1` hops.
-  // 2) `need_module_copy`. If true, need to mutate the PrimFunc and IRModule the sref belongs to.
-  // 3) `g_var` and `g_func`. Indicate which GlobalVar and PrimFunc the sref corresponds to
+  // 2) `need_module_copy`. If true, need to mutate the Function and IRModule the sref belongs to.
+  // 3) `g_var` and `g_func`. Indicate which GlobalVar and Function the sref corresponds to
   int num_copy_steps = -1;
   bool need_module_copy = false;
-  const PrimFuncNode* g_func = nullptr;
-  GlobalVar g_var;
+  const FunctionNode* g_func = nullptr;
+  GlobalVar g_var{ffi::UnsafeInit{}};
   {
     int i = 0;
     const StmtSRefNode* p = src_sref.get();
+    const StmtSRefNode* child = nullptr;
     while (true) {
+      if (child != nullptr) {
+        // The sref tree omits body sequences and BlockRealize wrappers. A shared
+        // container can own a unique child, so include it in the ancestor proof.
+        const auto* loop = p->StmtAs<ForNode>();
+        const SeqStmt& body = loop ? loop->body : TVM_SREF_TO_SBLOCK(p)->body;
+        bool unique_direct_child = false;
+        if (0 <= child->seq_index && child->seq_index < static_cast<int>(body->size())) {
+          ffi::AnyView child_value = body->seq.GetArrayObj()->at(child->seq_index);
+          const auto* child_stmt = child_value.as<StmtNode>();
+          const auto* realize = child_value.as<SBlockRealizeNode>();
+          bool is_direct_child = child_stmt == child->stmt ||
+                                 (realize != nullptr && realize->block.get() == child->stmt);
+          unique_direct_child = is_direct_child && child_stmt->unique();
+        }
+        // Conditional/region bodies also lie outside the sref tree. Copy through
+        // an indirect edge so the recursive mutator checks its complete path.
+        if (!body.unique() || !body->seq.unique() || !unique_direct_child) {
+          num_copy_steps = std::max(num_copy_steps, i - 1);
+        }
+      }
       if (!p->stmt->unique()) {
         num_copy_steps = i;
       }
@@ -982,14 +1014,20 @@ void ScheduleStateNode::Replace(const tirx::StmtSRef& _src_sref, const Stmt& tgt
         break;
       }
       ++i;
+      child = p;
       p = p->parent;
     }
     // Find `g_func` and `g_var` where the `src_sref` is in
-    g_func = GetRootPrimFunc(this->mod, p->stmt, &g_var);
+    g_func = GetRootFunction(this->mod, p->stmt, &g_var);
+    const auto* function_body = g_func->body.as<SeqStmtNode>();
+    TVM_FFI_ICHECK(function_body != nullptr && function_body->size() == 1);
     need_module_copy = num_copy_steps == i ||             //
                        !this->mod.unique() ||             //
                        !this->mod->functions.unique() ||  //
-                       !g_func->unique();
+                       !g_func->unique() ||               //
+                       !function_body->unique() ||        //
+                       !function_body->seq.unique() ||    //
+                       !function_body->seq.GetArrayObj()->at(0).as<StmtNode>()->unique();
   }
   // Loop invariant:
   //
@@ -1046,22 +1084,26 @@ void ScheduleStateNode::Replace(const tirx::StmtSRef& _src_sref, const Stmt& tgt
     // Ensure the uniqueness of `this->mod` and `this->mod->functions`
     IRModuleNode* new_mod = this->mod.CopyOnWrite();
     ffi::MapObj* new_map = new_mod->functions.CopyOnWrite();
-    // Move out the PrimFunc where the sref belong while ensuring uniqueness
-    PrimFunc ref_new_func = std::move(new_map->at(g_var)).as_or_throw<PrimFunc>();
+    // Move out the Function where the sref belong while ensuring uniqueness
+    Function ref_new_func = std::move(new_map->at(g_var)).as_or_throw<Function>();
     TVM_FFI_ICHECK(ref_new_func.get() == g_func);
-    PrimFuncNode* new_func = ref_new_func.CopyOnWrite();
+    FunctionNode* new_func = ref_new_func.CopyOnWrite();
     // If `g_func` was not unique, after the 3 lines above:
-    //   `ref_new_func` points to a unique PrimFunc
-    //   `g_func` points to the previous PrimFunc if it is not unique
+    //   `ref_new_func` points to a unique Function
+    //   `g_func` points to the previous Function if it is not unique
     // If `g_func` was unique, after the 3 lines above:
     //   `ref_new_func` points to the same unique function that `g_func` points to
     // Update the body of the function the sref belongs to Assign
-    const auto* realize = TVM_TYPE_AS(g_func->body, SBlockRealizeNode);
+    TVM_FFI_ICHECK(g_func->body.has_value());
+    TVM_FFI_ICHECK_EQ(g_func->body.value()->size(), 1);
+    const auto* realize = TVM_TYPE_AS(g_func->body.value()->seq[0], SBlockRealizeNode);
     // Make `child_tgt_stmt` the root block
     const auto* child_block = TVM_TYPE_AS(child_tgt_stmt, SBlockNode);
     ffi::ObjectPtr<SBlockRealizeNode> new_realize = ffi::make_object<SBlockRealizeNode>(*realize);
     new_realize->block = ffi::GetRef<SBlock>(child_block);
-    new_func->body = SBlockRealize(std::move(new_realize));
+    new_func->body =
+        SeqStmt({SBlockRealize(std::move(new_realize))}, g_func->body.as<SeqStmtNode>()->loc);
+    SetSeqIndexInChildren(this->stmt2ref, new_func->body.value().get());
     // Finally, move the `ref_new_func` back and update `this->mod`
     new_map->at(g_var) = std::move(ref_new_func);
     this->mod = ffi::GetRef<IRModule>(new_mod);

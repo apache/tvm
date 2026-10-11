@@ -126,7 +126,7 @@ class ConstLoaderModuleObj : public ffi::ModuleObj {
     for (const auto& var : vars) {
       TVM_FFI_ICHECK_GT(const_var_tensor_.count(var), 0U)
           << "No such constant variable '" << var << "' for function '" << symbol << "'";
-      ret.push_back(const_var_tensor_[var]);
+      ret.push_back(const_var_tensor_.at(var));
     }
     return ret;
   }
@@ -211,7 +211,7 @@ class ConstLoaderModuleObj : public ffi::ModuleObj {
     // Load the list of ndarray.
     std::vector<Tensor> arrays;
     for (uint64_t i = 0; i < sz; i++) {
-      Tensor temp;
+      Tensor temp(ffi::UnsafeInit{});
       temp.Load(&stream);
       arrays.push_back(temp);
     }
@@ -219,7 +219,7 @@ class ConstLoaderModuleObj : public ffi::ModuleObj {
     std::unordered_map<std::string, Tensor> const_var_tensor;
     for (uint64_t i = 0; i < sz; i++) {
       TVM_FFI_ICHECK_EQ(const_var_tensor.count(variables[i]), 0U);
-      const_var_tensor[variables[i]] = arrays[i];
+      const_var_tensor.emplace(variables[i], arrays[i]);
     }
 
     // Load the symbol to list of required constant variables mapping
@@ -271,7 +271,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
               ffi::Map<ffi::String, ffi::Array<ffi::String>> const_vars_by_symbol_ffi) {
              std::unordered_map<std::string, Tensor> const_var_tensor;
              for (const auto& kv : const_var_tensor_ffi) {
-               const_var_tensor[std::string(kv.first)] = kv.second;
+               const_var_tensor.emplace(std::string(kv.first), kv.second);
              }
              std::unordered_map<std::string, std::vector<std::string>> const_vars_by_symbol;
              for (const auto& kv : const_vars_by_symbol_ffi) {

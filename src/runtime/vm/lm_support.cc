@@ -35,6 +35,7 @@
  *
  * We can evolve this implementation as we build more LM verticals.
  */
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/container/shape.h>
 #include <tvm/ffi/error.h>
@@ -66,6 +67,8 @@ class AttentionKVCacheLegacyObj : public ffi::Object {
   /*!
    * \brief Underlying support data.
    */
+  explicit AttentionKVCacheLegacyObj(Tensor data) : data(std::move(data)) {}
+
   Tensor data;
 
   /*!
@@ -243,19 +246,19 @@ class AttentionKVCacheLegacy : public ffi::ObjectRef {
    */
   static AttentionKVCacheLegacy Create(Tensor init_data, ffi::Shape reserve_shape,
                                        int init_fill_count) {
-    auto n = ffi::make_object<AttentionKVCacheLegacyObj>();
-    n->data = Tensor::Empty(reserve_shape, init_data->dtype, init_data->device);
+    auto n = ffi::make_object<AttentionKVCacheLegacyObj>(
+        Tensor::Empty(reserve_shape, init_data->dtype, init_data->device));
     n->fill_count = 0;
     n->Append(init_data);
     if (init_fill_count >= 0) {
       n->fill_count = init_fill_count;
       n->window_attention_current_pos = init_fill_count;  // window attention only
     }
-    return AttentionKVCacheLegacy(n);
+    return ffi::GetRef<AttentionKVCacheLegacy>(n.get());
   }
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(AttentionKVCacheLegacy, ffi::ObjectRef,
-                                             AttentionKVCacheLegacyObj);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(AttentionKVCacheLegacy, ffi::ObjectRef,
+                                                AttentionKVCacheLegacyObj);
 };
 
 //-------------------------------------------------

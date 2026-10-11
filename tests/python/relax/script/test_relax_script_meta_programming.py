@@ -19,6 +19,7 @@
 
 from __future__ import annotations
 
+import sys
 from typing import TypeVar
 
 import pytest
@@ -55,13 +56,13 @@ def _check(
         tvm.ir.assert_structural_equal(parsed, expect)
 
 
-def test_emit_te_primfunc_attrs():
+def test_emit_te_function_attrs():
     @I.ir_module
     class TestModule:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def plus_one(
-            x: T.Buffer((T.int64(128), T.int64(128)), "float32"),
-            y: T.Buffer((T.int64(128), T.int64(128)), "float32"),
+            x: T.Tensor((T.int64(128), T.int64(128)), "float32"),
+            y: T.Tensor((T.int64(128), T.int64(128)), "float32"),
         ):
             T.func_attr({"some_attr": "foo", "another_attr": True, "tirx.noalias": True})
             for i, j in T.grid(T.int64(128), T.int64(128)):
@@ -72,7 +73,7 @@ def test_emit_te_primfunc_attrs():
         @R.function
         def foo(x: R.Tensor((128, 128), "float32")) -> R.Tensor((128, 128), "float32"):
             cls = TestModule
-            gv0 = R.call_tir(cls.plus_one, x, R.Tensor((128, 128), dtype="float32"))
+            gv0 = R.call_tir(cls.plus_one, x, ty_args=[R.Tensor((128, 128), dtype="float32")])
             return gv0
 
     x = relax.Var("x", R.Tensor((128, 128), "float32"))
@@ -81,8 +82,8 @@ def test_emit_te_primfunc_attrs():
         out = bb.emit_te(
             lambda x: x + 1,
             x,
-            primfunc_name_hint="plus_one",
-            primfunc_attrs={"some_attr": "foo", "another_attr": True},
+            function_name_hint="plus_one",
+            function_attrs={"some_attr": "foo", "another_attr": True},
         )
         bb.emit_func_output(out)
     _check(TestModule, bb.get())
@@ -163,16 +164,16 @@ def test_local_function():
     assert isinstance(inner_func, relax.Function)
 
 
-def test_inline_prim_func():
+def test_inline_function():
     with pytest.raises(TypeError, match="unexpected keyword argument.*local"):
 
         @I.ir_module
         class TestModule:
             @R.function
             def f(x: R.Tensor((128, 128), "float32"), y: R.Tensor((128, 128), "float32")):
-                @Ts.prim_func
+                @Ts.function
                 def my_matmul(
-                    A: T.Buffer((128, 128)), B: T.Buffer((128, 128)), C: T.Buffer((128, 128))
+                    A: T.Tensor((128, 128)), B: T.Tensor((128, 128)), C: T.Tensor((128, 128))
                 ) -> None:
                     for i, j, k in T.grid(128, 128, 128):
                         with Ts.sblock():
@@ -181,7 +182,9 @@ def test_inline_prim_func():
                                 C[vi, vj] = 0.0
                             C[vi, vj] += A[vi, vk] * B[vj, vk]
 
-                z = relax.call_tir(my_matmul, (x, y), R.Tensor((128, 128), dtype="float32"))
+                z = relax.call_tir(
+                    my_matmul, (x, y), ty_args=[R.Tensor((128, 128), dtype="float32")]
+                )
                 return z
 
 
@@ -239,11 +242,11 @@ def test_class_normalize():
 def test_context_aware_parsing(monkeypatch):
     @tvm.script.ir_module
     class Module:
-        @Ts.prim_func
+        @Ts.function
         def add(
-            X: T.Buffer([T.int64(2), T.int64(4)], "float32"),
-            Y: T.Buffer((), "float32"),
-            Z: T.Buffer([T.int64(2), T.int64(4)], "float32"),
+            X: T.Tensor([T.int64(2), T.int64(4)], "float32"),
+            Y: T.Tensor((), "float32"),
+            Z: T.Tensor([T.int64(2), T.int64(4)], "float32"),
         ):
             T.evaluate(0)
 
@@ -252,7 +255,7 @@ def test_context_aware_parsing(monkeypatch):
             R.func_attr({"relax.force_pure": True})
             cls = Module
             alloc = R.builtin.alloc_tensor(R.shape([2, 4]), dtype="float32", runtime_device_index=0)
-            _: R.Tuple() = cls.add(x, R.const(1, "float32"), alloc)
+            _: R.Tuple() = R.call_tir_packed(cls.add, (x, R.const(1, "float32"), alloc))
             return alloc
 
     _check(Module)
@@ -351,16 +354,16 @@ def test_reused_extern_func():
     @R.function(private=True)
     def parsed(x: R.Tensor((128, 128), "float32")) -> R.Tensor((128, 128), "float32"):
         func = R.ExternFunc("extern_func")
-        gv0 = R.call_dps_packed(func, x, R.Tensor((128, 128), dtype="float32"))
-        gv1 = R.call_dps_packed(func, gv0, R.Tensor((128, 128), dtype="float32"))
+        gv0 = R.call_dps_packed(func, x, ty_args=[R.Tensor((128, 128), dtype="float32")])
+        gv1 = R.call_dps_packed(func, gv0, ty_args=[R.Tensor((128, 128), dtype="float32")])
         return gv1
 
     x = relax.Var("x", R.Tensor((128, 128), "float32"))
     bb = relax.BlockBuilder()
     with bb.function("main", [x], private=True):
         func = bb.emit(relax.ExternFunc("extern_func"))
-        y = bb.emit(relax.call_dps_packed(func, x, out_ty=R.Tensor((128, 128), "float32")))
-        z = bb.emit(relax.call_dps_packed(func, y, out_ty=R.Tensor((128, 128), "float32")))
+        y = bb.emit(relax.call_dps_packed(func, x, ty_args=[R.Tensor((128, 128), "float32")]))
+        z = bb.emit(relax.call_dps_packed(func, y, ty_args=[R.Tensor((128, 128), "float32")]))
         bb.emit_func_output(z)
 
     expected = bb.get()["main"]
@@ -425,6 +428,7 @@ def test_define_relax_function_using_global_var():
     tvm.ir.assert_structural_equal(DefinedAllAtOnce, MainDefinedLater)
 
 
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="PEP 695 requires Python 3.12")
 def test_shared_meta_var_uses_ordinary_relax_bindings():
     """Identity calls retain ordinary fresh Relax bindings and strict roundtrip."""
 

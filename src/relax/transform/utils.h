@@ -26,10 +26,11 @@
 
 #include <builtin_fp16.h>
 #include <tvm/ffi/cast.h>
+#include <tvm/ir/expr_functor.h>
+#include <tvm/ir/function.h>
 #include <tvm/ir/module.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
-#include <tvm/tirx/expr_functor.h>
 
 #include <algorithm>
 #include <string>
@@ -80,13 +81,13 @@ class MemoizedExprTranslator : public ExprFunctor<OutputType(const Expr&)> {
       return it->second;
     }
     auto res = BaseFunctor::VisitExpr(n);
-    memo_[n] = res;
+    memo_.insert_or_assign(n, res);
     return res;
   }
 
   virtual OutputType VisitExpr_(const VarNode* vn) {
     TVM_FFI_ICHECK(memo_.count(ffi::GetRef<Expr>(vn)));
-    return memo_[ffi::GetRef<Expr>(vn)];
+    return memo_.at(ffi::GetRef<Expr>(vn));
   }
 
   virtual OutputType VisitExpr_(const DataflowVarNode* vn) {
@@ -96,7 +97,7 @@ class MemoizedExprTranslator : public ExprFunctor<OutputType(const Expr&)> {
   virtual OutputType VisitBinding_(const VarBindingNode* binding) {
     TVM_FFI_ICHECK_EQ(memo_.count(binding->var), 0);
     auto v = VisitExpr(binding->value);
-    memo_[binding->var] = v;
+    memo_.insert_or_assign(binding->var, v);
     return v;
   }
 
@@ -243,15 +244,16 @@ class SymbolicVarRenewMutator : public ExprMutator {
   using relax::ExprMutator::VisitExpr_;
 
   static Var CopyVar(const VarNode* op, Type ty) {
-    ffi::Optional<Type> ty_annotation = ty.IsMissing() ? std::nullopt : ffi::Optional<Type>(ty);
+    ffi::Optional<Type> ty_annotation =
+        ty.as<MissingType>().has_value() ? std::nullopt : ffi::Optional<Type>(ty);
     if (op->IsInstance<DataflowVarNode>()) {
-      return DataflowVar(op->name, std::move(ty_annotation), op->span);
+      return DataflowVar(op->name, std::move(ty_annotation), op->loc);
     }
-    return Var(op->name, std::move(ty_annotation), op->span);
+    return Var(op->name, std::move(ty_annotation), op->loc);
   }
 
   Type RenewType(const VarNode* op) {
-    return op->ty.IsMissing() ? op->ty : this->VisitExprDepTypeField(op->ty);
+    return op->ty.as<MissingType>().has_value() ? op->ty : this->VisitExprDepTypeField(op->ty);
   }
 
   Var RenewVarDefinition(const VarNode* op) {
@@ -269,7 +271,7 @@ class SymbolicVarRenewMutator : public ExprMutator {
     }
 
     Var renewed = CopyVar(op, std::move(new_ty));
-    var_remap_[old_var] = renewed;
+    var_remap_.insert_or_assign(old_var, renewed);
     return renewed;
   }
 
@@ -283,7 +285,7 @@ class SymbolicVarRenewMutator : public ExprMutator {
     }
 
     Var renewed = CopyVar(op, op->ty);
-    var_remap_[old_var] = renewed;
+    var_remap_.insert_or_assign(old_var, renewed);
     return renewed;
   }
 
@@ -297,7 +299,7 @@ class SymbolicVarRenewMutator : public ExprMutator {
     }
 
     Var renewed = CopyVar(op, op->ty);
-    var_remap_[old_var] = renewed;
+    var_remap_.insert_or_assign(old_var, renewed);
     return renewed;
   }
 
@@ -312,7 +314,7 @@ class SymbolicVarRenewMutator : public ExprMutator {
       Var new_param = this->VisitVarDef(param);
       params.push_back(new_param);
       if (!param.same_as(new_param)) {
-        var_remap_[param] = new_param;
+        var_remap_.insert_or_assign(param, new_param);
         all_params_unchanged = false;
       }
     }

@@ -24,14 +24,66 @@
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/expr.h>
+#include <tvm/ir/op.h>
 #include <tvm/ir/prim/op.h>
+#include <tvm/ir/stmt.h>
 #include <tvm/s_tir/stmt.h>
+#include <tvm/script/printer/doc_translator.h>
 #include <tvm/sym/analyzer.h>
+#include <tvm/tirx/op_attr_types.h>
 
 namespace tvm {
 namespace s_tir {
 using namespace tvm::tirx;
 using namespace tvm::prim;
+
+const Op& async_copy_scope() {
+  static const Op op = Op::Get("s_tir.async_copy_scope");
+  return op;
+}
+
+const Op& async_commit() {
+  static const Op op = Op::Get("s_tir.async_commit");
+  return op;
+}
+
+const Op& async_wait() {
+  static const Op op = Op::Get("s_tir.async_wait");
+  return op;
+}
+
+const Op& manual_sync() {
+  static const Op op = Op::Get("s_tir.manual_sync");
+  return op;
+}
+
+static ffi::Array<Var> RegionNoBodyParams(const CallNode*) { return {}; }
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("s_tir.async_copy_scope", "Mark eligible copies for asynchronous lowering.")
+      .signature()
+      .set_attr<FRegionGetBodyParams>(tvm::op_attr::kRegionGetBodyParams,
+                                      FRegionGetBodyParams::FromNative<&RegionNoBodyParams>());
+  OpDef("s_tir.manual_sync", "Use explicitly authored synchronization within the body.")
+      .signature()
+      .set_attr<FRegionGetBodyParams>(tvm::op_attr::kRegionGetBodyParams,
+                                      FRegionGetBodyParams::FromNative<&RegionNoBodyParams>());
+  OpDef("s_tir.async_commit", "Commit asynchronous copies to a queue.")
+      .signature(sig::arg<IntImm>("queue_id"))
+      .set_attr<TScriptPrinterName>(tvm::script::printer::op_attr::kScriptPrinterName,
+                                    ffi::String("s_tir.async_commit"))
+      .set_attr<TFixedReturnType>(tvm::op_attr::kFixedReturnType, PrimType::Void())
+      .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
+                                 static_cast<int64_t>(CallEffectKind::kUpdateState));
+  OpDef("s_tir.async_wait", "Wait for committed asynchronous copies.")
+      .signature(sig::arg<IntImm>("queue_id"), sig::arg<PrimExpr>("inflight_count"))
+      .set_attr<TScriptPrinterName>(tvm::script::printer::op_attr::kScriptPrinterName,
+                                    ffi::String("s_tir.async_wait"))
+      .set_attr<TFixedReturnType>(tvm::op_attr::kFixedReturnType, PrimType::Void())
+      .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
+                                 static_cast<int64_t>(CallEffectKind::kUpdateState));
+}
 
 namespace {
 
@@ -41,7 +93,7 @@ TVM_FFI_INLINE ffi::Expected<ffi::Optional<ffi::VisitInterrupt>> MatchBufferRegi
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const MatchBufferRegionNode>(
           value);
   TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->WithDefRegionKind(
-      kTVMFFIDefRegionKindSimple, [&]() { return visitor->VisitExpected(self->buffer); }));
+      kTVMFFIDefRegionKindPattern, [&]() { return visitor->VisitExpected(self->buffer); }));
   TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->source));
   return std::nullopt;
 }
@@ -51,8 +103,8 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> MatchBufferRegionMutate
   const MatchBufferRegionNode* self =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const MatchBufferRegionNode>(
           value);
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<BufferVar>, mapped_buffer,
-                                    mutator->WithDefRegionKind(kTVMFFIDefRegionKindSimple, [&]() {
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<TensorVar>, mapped_buffer,
+                                    mutator->WithDefRegionKind(kTVMFFIDefRegionKindPattern, [&]() {
                                       return mutator->MutateExpected(self->buffer);
                                     }));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<TensorRegion>, mapped_source,
@@ -72,8 +124,8 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> MatchBufferRegionMaybeI
   MatchBufferRegionNode* self = const_cast<MatchBufferRegionNode*>(
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const MatchBufferRegionNode>(
           value));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<BufferVar>, mapped_buffer,
-                                    mutator->WithDefRegionKind(kTVMFFIDefRegionKindSimple, [&]() {
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<TensorVar>, mapped_buffer,
+                                    mutator->WithDefRegionKind(kTVMFFIDefRegionKindPattern, [&]() {
                                       return mutator->MutateExpected(self->buffer,
                                                                      ffi::InplaceMode::kAllow);
                                     }));
@@ -117,7 +169,7 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> SBlockMutate(
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const SBlockNode>(value);
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Array<IterVar>>, mapped_iter_vars,
                                     mutator->MutateExpected(self->iter_vars));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Array<BufferVar>>, mapped_alloc_buffers,
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Array<TensorVar>>, mapped_alloc_buffers,
                                     mutator->WithDefRegionKind(kTVMFFIDefRegionKindSimple, [&]() {
                                       return mutator->MutateExpected(self->alloc_buffers);
                                     }));
@@ -141,7 +193,8 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> SBlockMutate(
       mapped_alloc_buffers.UnchangedOrSameAs(self->alloc_buffers) &&
       mapped_match_buffers.UnchangedOrSameAs(self->match_buffers) &&
       mapped_annotations.UnchangedOrSameAs(self->annotations) &&
-      mapped_init.UnchangedOrSameAs(self->init) && mapped_body.UnchangedOrSameAs(self->body)) {
+      (mapped_init.IsUnchanged() || ffi::AnyView(mapped_init).same_as(self->init)) &&
+      mapped_body.UnchangedOrSameAs(self->body)) {
     return ffi::Unchanged();
   }
   ffi::ObjectPtr<SBlockNode> copy = ffi::make_object<SBlockNode>(*self);
@@ -153,7 +206,12 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> SBlockMutate(
   copy->match_buffers =
       std::move(mapped_match_buffers).ValueOrUnchanged(std::move(copy->match_buffers));
   copy->annotations = std::move(mapped_annotations).ValueOrUnchanged(std::move(copy->annotations));
-  copy->init = std::move(mapped_init).ValueOrUnchanged(std::move(copy->init));
+  if (!mapped_init.IsUnchanged()) {
+    auto replacement = std::move(mapped_init).ValueUnchecked();
+    copy->init = replacement.has_value()
+                     ? ffi::Optional<SeqStmt>(SeqStmt(std::move(replacement).value()))
+                     : std::nullopt;
+  }
   copy->body = std::move(mapped_body).ValueOrUnchanged(std::move(copy->body));
   return ffi::Any(std::move(copy));
 }
@@ -168,7 +226,7 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> SBlockMaybeInplaceMutat
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
       ffi::UnchangedOr<ffi::Array<IterVar>>, mapped_iter_vars,
       mutator->MutateExpected(self->iter_vars, ffi::InplaceMode::kAllow));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Array<BufferVar>>, mapped_alloc_buffers,
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Array<TensorVar>>, mapped_alloc_buffers,
                                     mutator->WithDefRegionKind(kTVMFFIDefRegionKindSimple, [&]() {
                                       return mutator->MutateExpected(self->alloc_buffers,
                                                                      ffi::InplaceMode::kAllow);
@@ -195,7 +253,8 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> SBlockMaybeInplaceMutat
       mapped_alloc_buffers.UnchangedOrSameAs(self->alloc_buffers) &&
       mapped_match_buffers.UnchangedOrSameAs(self->match_buffers) &&
       mapped_annotations.UnchangedOrSameAs(self->annotations) &&
-      mapped_init.UnchangedOrSameAs(self->init) && mapped_body.UnchangedOrSameAs(self->body)) {
+      (mapped_init.IsUnchanged() || ffi::AnyView(mapped_init).same_as(self->init)) &&
+      mapped_body.UnchangedOrSameAs(self->body)) {
     return ffi::Unchanged();
   }
   if (!mapped_iter_vars.IsUnchanged())
@@ -210,8 +269,13 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> SBlockMaybeInplaceMutat
   }
   if (!mapped_annotations.IsUnchanged())
     self->annotations = std::move(mapped_annotations).ValueUnchecked();
-  if (!mapped_init.IsUnchanged()) self->init = std::move(mapped_init).ValueUnchecked();
-  if (!mapped_body.IsUnchanged()) self->body = std::move(mapped_body).ValueUnchecked();
+  if (!mapped_init.IsUnchanged()) {
+    auto replacement = std::move(mapped_init).ValueUnchecked();
+    self->init = replacement.has_value()
+                     ? ffi::Optional<SeqStmt>(SeqStmt(std::move(replacement).value()))
+                     : std::nullopt;
+  }
+  if (!mapped_body.IsUnchanged()) self->body = SeqStmt(std::move(mapped_body).ValueUnchecked());
   return ffi::Unchanged();
 }
 
@@ -275,8 +339,8 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> SBlockRealizeMaybeInpla
 }  // namespace
 
 // MatchBufferRegion
-MatchBufferRegion::MatchBufferRegion(BufferVar buffer, TensorRegion source) {
-  const BufferVar& source_buffer = source->source.as_or_throw<BufferVar>();
+MatchBufferRegion::MatchBufferRegion(TensorVar buffer, TensorRegion source) {
+  const TensorVar& source_buffer = source->source.as_or_throw<TensorVar>();
   TVM_FFI_ICHECK_EQ(source_buffer->shape.size(), source->region.size())
       << "MatchBufferRegion source must match its buffer rank";
   sym::Analyzer analyzer;
@@ -315,9 +379,8 @@ MatchBufferRegion::MatchBufferRegion(BufferVar buffer, TensorRegion source) {
     }
   }
   // Note that we do not check elem_offset and strides in this function
-  ffi::ObjectPtr<MatchBufferRegionNode> node = ffi::make_object<MatchBufferRegionNode>();
-  node->buffer = std::move(buffer);
-  node->source = std::move(source);
+  ffi::ObjectPtr<MatchBufferRegionNode> node =
+      ffi::make_object<MatchBufferRegionNode>(std::move(buffer), std::move(source));
   data_ = std::move(node);
 }
 
@@ -332,50 +395,51 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&MatchBufferRegionMaybeInplaceMutate>());
 
-  refl::GlobalDef().def("s_tir.MatchBufferRegion", [](BufferVar buffer, TensorRegion source) {
+  refl::GlobalDef().def("s_tir.MatchBufferRegion", [](TensorVar buffer, TensorRegion source) {
     return MatchBufferRegion(buffer, source);
   });
 }
 
 // Block
 SBlock::SBlock(ffi::Array<IterVar> iter_vars, ffi::Array<TensorRegion> reads,
-               ffi::Array<TensorRegion> writes, ffi::String name_hint, Stmt body,
-               ffi::Optional<Stmt> init, ffi::Array<BufferVar> alloc_buffers,
+               ffi::Array<TensorRegion> writes, ffi::String name_hint, SeqStmt body,
+               ffi::Optional<SeqStmt> init, ffi::Array<TensorVar> alloc_buffers,
                ffi::Array<MatchBufferRegion> match_buffers, ffi::Map<ffi::String, Any> annotations,
-               Span span) {
+               Location loc)
+    : Stmt(ffi::UnsafeInit{}) {
   for (const auto& regions : {reads, writes}) {
     for (const TensorRegion& region : regions) {
-      const auto buffer = region->source.as_or_throw<BufferVar>();
+      const auto buffer = region->source.as_or_throw<TensorVar>();
       TVM_FFI_ICHECK_EQ(buffer->shape.size(), region->region.size())
           << "SBlock region must match its buffer rank";
     }
   }
-  ffi::ObjectPtr<SBlockNode> node = ffi::make_object<SBlockNode>();
+  ffi::ObjectPtr<SBlockNode> node = ffi::make_object<SBlockNode>(std::move(body));
   node->iter_vars = std::move(iter_vars);
   node->reads = std::move(reads);
   node->writes = std::move(writes);
   node->name_hint = std::move(name_hint);
-  node->body = std::move(body);
   node->init = std::move(init);
   node->alloc_buffers = std::move(alloc_buffers);
   node->match_buffers = std::move(match_buffers);
   node->annotations = std::move(annotations);
-  node->span = std::move(span);
+  node->loc = loc;
   data_ = std::move(node);
 }
 
-SBlock::SBlock(ffi::String name_hint, Stmt body, ffi::Array<BufferVar> alloc_buffers, Span span) {
-  ffi::ObjectPtr<SBlockNode> node = ffi::make_object<SBlockNode>();
+SBlock::SBlock(ffi::String name_hint, SeqStmt body, ffi::Array<TensorVar> alloc_buffers,
+               Location loc)
+    : Stmt(ffi::UnsafeInit{}) {
+  ffi::ObjectPtr<SBlockNode> node = ffi::make_object<SBlockNode>(std::move(body));
   node->iter_vars = {};
   node->reads = {};
   node->writes = {};
   node->name_hint = std::move(name_hint);
-  node->body = std::move(body);
   node->init = std::nullopt;
   node->alloc_buffers = std::move(alloc_buffers);
   node->match_buffers = {};
   node->annotations = {};
-  node->span = std::move(span);
+  node->loc = loc;
   data_ = std::move(node);
 }
 
@@ -390,28 +454,28 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
   refl::GlobalDef().def("s_tir.SBlock",
                         [](ffi::Array<IterVar> iter_vars, ffi::Array<TensorRegion> reads,
-                           ffi::Array<TensorRegion> writes, ffi::String name_hint, Stmt body,
-                           ffi::Optional<Stmt> init, ffi::Array<BufferVar> alloc_buffers,
+                           ffi::Array<TensorRegion> writes, ffi::String name_hint, SeqStmt body,
+                           ffi::Optional<SeqStmt> init, ffi::Array<TensorVar> alloc_buffers,
                            ffi::Array<MatchBufferRegion> match_buffers,
-                           ffi::Map<ffi::String, Any> annotations, Span span) {
+                           ffi::Map<ffi::String, Any> annotations, Location loc) {
                           return SBlock(iter_vars, reads, writes, name_hint, body, init,
-                                        alloc_buffers, match_buffers, annotations, span);
+                                        alloc_buffers, match_buffers, annotations, loc);
                         });
 }
 
 // BlockRealize
 SBlockRealize::SBlockRealize(ffi::Array<PrimExpr> values, PrimExpr predicate, SBlock block,
-                             Span span) {
+                             Location loc)
+    : Stmt(ffi::UnsafeInit{}) {
   TVM_FFI_CHECK_EQ(block->iter_vars.size(), values.size(), ValueError)
       << "BlockRealize needs to have the same number of iter_vars and binding values";
   PrimType predicate_ty = predicate.ty();
   TVM_FFI_CHECK(predicate_ty.MatchesCode(DLDataTypeCode::kDLBool), TypeError)
       << "Expect Block.predicate to be a bool expression";
-  ffi::ObjectPtr<SBlockRealizeNode> node = ffi::make_object<SBlockRealizeNode>();
+  ffi::ObjectPtr<SBlockRealizeNode> node =
+      ffi::make_object<SBlockRealizeNode>(std::move(predicate), std::move(block));
   node->iter_values = std::move(values);
-  node->predicate = std::move(predicate);
-  node->block = std::move(block);
-  node->span = std::move(span);
+  node->loc = loc;
   data_ = std::move(node);
 }
 
@@ -427,8 +491,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
             ffi::FStructuralMutate::FromNative<&SBlockRealizeMaybeInplaceMutate>());
 
   refl::GlobalDef().def("s_tir.SBlockRealize", [](ffi::Array<PrimExpr> iter_values,
-                                                  PrimExpr predicate, SBlock block, Span span) {
-    return SBlockRealize(iter_values, predicate, block, span);
+                                                  PrimExpr predicate, SBlock block, Location loc) {
+    return SBlockRealize(iter_values, predicate, block, loc);
   });
 }
 

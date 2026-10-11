@@ -551,7 +551,7 @@ void Trace::ApplyJSONToSchedule(ffi::ObjectRef json, Schedule sch) {
   std::unordered_map<std::string, ffi::ObjectRef> named_rvs{{"None", ffi::ObjectRef{nullptr}}};
   int i = 0;
   for (const Any& inst_entry : json_insts) {
-    InstructionKind kind{nullptr};
+    InstructionKind kind{ffi::UnsafeInit{}};
     ffi::Array<Any> inputs{nullptr};
     ffi::Array<Any> attrs{nullptr};
     ffi::Array<ffi::String> outputs{ffi::ObjectPtr<ffi::Object>{nullptr}};

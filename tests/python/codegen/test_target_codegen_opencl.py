@@ -34,8 +34,8 @@ def test_opencl_ternary_expression():
     def check_if_then_else(n, dtype):
         @I.ir_module
         class Module:
-            @T.prim_func
-            def main(A: T.Buffer((1,), dtype), C: T.Buffer((1,), dtype)):
+            @T.function
+            def main(A: T.Tensor((1,), dtype), C: T.Tensor((1,), dtype)):
                 T.func_attr({"tirx.noalias": True})
                 for i in T.thread_binding(1, thread="threadIdx.x"):
                     C[i] = T.max(
@@ -58,8 +58,8 @@ def test_opencl_ternary_expression():
     def check_select(n, dtype):
         @I.ir_module
         class Module:
-            @T.prim_func
-            def main(A: T.Buffer((1,), dtype), C: T.Buffer((1,), dtype)):
+            @T.function
+            def main(A: T.Tensor((1,), dtype), C: T.Tensor((1,), dtype)):
                 T.func_attr({"tirx.noalias": True})
                 for i in T.thread_binding(1, thread="threadIdx.x"):
                     C[i] = T.max(
@@ -93,8 +93,8 @@ def test_opencl_inf_nan():
     def check_inf_nan(n, value, dtype):
         @I.ir_module
         class Module:
-            @T.prim_func
-            def main(A: T.Buffer((1,), dtype), C: T.Buffer((1,), dtype)):
+            @T.function
+            def main(A: T.Tensor((1,), dtype), C: T.Tensor((1,), dtype)):
                 T.func_attr({"tirx.noalias": True})
                 for i in T.thread_binding(1, thread="threadIdx.x"):
                     C[i] = T.Cast(dtype, value)
@@ -123,8 +123,8 @@ def test_opencl_max():
     def check_max(n, dtype):
         @I.ir_module
         class Module:
-            @T.prim_func
-            def main(A: T.Buffer((1,), dtype), C: T.Buffer((1,), dtype)):
+            @T.function
+            def main(A: T.Tensor((1,), dtype), C: T.Tensor((1,), dtype)):
                 T.func_attr({"tirx.noalias": True})
                 for i in T.thread_binding(1, thread="threadIdx.x"):
                     C[i] = T.max(A[0] + T.Cast(dtype, 1), T.Cast(dtype, 0))
@@ -151,8 +151,8 @@ def test_opencl_erf():
     def check_erf(n, dtype):
         @I.ir_module
         class Module:
-            @T.prim_func
-            def main(A: T.Buffer((1,), dtype), C: T.Buffer((1,), dtype)):
+            @T.function
+            def main(A: T.Tensor((1,), dtype), C: T.Tensor((1,), dtype)):
                 T.func_attr({"tirx.noalias": True})
                 for i0 in T.thread_binding(1, thread="threadIdx.x"):
                     C[i0] = T.erf(A[i0])
@@ -173,8 +173,8 @@ def test_opencl_erf():
 def test_opencl_type_casting():
     @I.ir_module
     class Module:
-        @T.prim_func
-        def main(C: T.Buffer((32,), "float32")):
+        @T.function
+        def main(C: T.Tensor((32,), "float32")):
             T.func_attr({"tirx.noalias": True})
             for i_0 in T.thread_binding(8, thread="threadIdx.x"):
                 for i_1 in T.vectorized(4):
@@ -224,8 +224,8 @@ def test_opencl_ceil_log2(target):
 
         @I.ir_module
         class Module:
-            @T.prim_func
-            def main(C: T.Buffer((n,), "int32")):
+            @T.function
+            def main(C: T.Tensor((n,), "int32")):
                 T.func_attr({"tirx.noalias": True})
                 for i in T.thread_binding(n, thread="threadIdx.x"):
                     C[i] = T.Cast("int32", T.ceil(T.log2(T.Cast(inter_dtype, i))))
@@ -266,8 +266,8 @@ def test_export_load_with_fallback(monkeypatch, tmp_path):
 
     @I.ir_module
     class Module:
-        @T.prim_func
-        def main(A: T.Buffer((n,), "float32"), B: T.Buffer((n,), "float32")):
+        @T.function
+        def main(A: T.Tensor((n,), "float32"), B: T.Tensor((n,), "float32")):
             T.func_attr({"tirx.noalias": True})
             for i_0 in T.thread_binding(n // 32, thread="blockIdx.x"):
                 for i_1 in T.thread_binding(32, thread="threadIdx.x"):

@@ -17,7 +17,7 @@
 """Reusable pipeline state and mbarrier helpers for SM100 kernels.
 
 These classes emit TIR via @T.inline. Decorate with @T.meta_class so that
-instances are automatically treated as meta values inside @T.prim_func.
+instances are automatically treated as meta values inside @T.function.
 """
 
 from tvm.script import tirx as T
@@ -73,7 +73,7 @@ class PipelineState:
 
     @T.inline
     def advance(self):
-        if self.depth > 1:
+        if T.constexpr(self.depth > 1):
             self.stage = self.stage + 1
             if self.stage == self.depth:
                 self.stage = 0
@@ -91,7 +91,7 @@ def _map_addr_into_cta(ptr, rank):
 
     Plain Python rather than ``@T.inline``: the mapa call has to be handed to
     the enclosing frame explicitly or it is discarded, and the scratch it
-    writes into has to be declared in this scope to bind into the PrimFunc.
+    writes into has to be declared in this scope to bind into the Function.
     """
     mapped = T.alloc_local([1], "uint32")
     T.evaluate(
@@ -116,8 +116,8 @@ def _map_buffer_into_cta(ptr, rank, depth):
     mapped = T.alloc_local([1], "uint64")
     T.evaluate(T.ptx.mapa.u64(mapped[0], ptr, T.uint32(rank)))
     remote_ptr = TIRVar("remote_mbar_ptr", ptr_ty)
-    T.bind(T.reinterpret(ptr_ty, mapped[0]), var=remote_ptr)
-    return T.decl_buffer([depth], "uint64", data=remote_ptr, scope="shared")
+    T.bind(T.reinterpret(mapped[0], ty=ptr_ty), var=remote_ptr)
+    return T.decl_tensor([depth], "uint64", data=remote_ptr, scope="shared")
 
 
 def _mbarrier_arrive_remote(bar, pred=None, count=None):
@@ -155,17 +155,10 @@ class MBarrier:
         Boolean predicate selecting the single thread that runs
         ``mbarrier.init``. Defaults to ``T.cuda.thread_rank() == 0`` --
         thread 0 of the enclosing CTA, which always picks exactly one
-        thread regardless of which scope_id vars the caller declared.
+        thread regardless of which index variables the caller binds.
         Override only when you want a different CTA-local thread to do
         the init.
 
-        Note: the default deliberately avoids ``T.warp_id()`` /
-        ``T.lane_id()``. Those introduce deferred ``cta->warp`` /
-        ``warp->thread`` ScopeIdDefs that the verifier cannot pin down
-        unless the kernel header declares the full warp/lane chain (e.g. a
-        single-CTA DSMEM kernel that only declares ``thread_id``). It also
-        avoids the synccheck false-deadlock on kernels that declare a
-        second warp-scope id. The generated CUDA is equivalent.
     """
 
     def __init__(self, pool, depth, phase_offset=0, leader=None):
@@ -219,11 +212,13 @@ class MBarrier:
 
     @T.inline
     def _arrive(self, bar, pred=None, count=None):
-        if pred is None:
-            T.ptx.mbarrier.arrive.shared.b64(bar, T.uint32(1 if count is None else count))
+        if T.constexpr(pred is None):
+            T.ptx.mbarrier.arrive.shared.b64(
+                bar, T.uint32(1 if T.constexpr(count is None) else count)
+            )
         else:
             T.ptx.mbarrier.arrive.shared.b64(
-                bar, T.uint32(1 if count is None else count), pred=pred
+                bar, T.uint32(1 if T.constexpr(count is None) else count), pred=pred
             )
 
     def ptr_to(self, idx):
@@ -280,7 +275,7 @@ class TMABar(MBarrier):
 
     @T.inline
     def _arrive_tma_local(self, bar, tx_count=None):
-        if tx_count is None:
+        if T.constexpr(tx_count is None):
             T.ptx.mbarrier.arrive.shared.b64(bar, T.uint32(1))
         else:
             T.ptx.mbarrier.arrive.expect_tx.shared.b64(bar, T.uint32(tx_count))
@@ -307,7 +302,7 @@ class TCGen05Bar(MBarrier):
         # form cannot depend on it, so a runtime mask always multicasts.
         # ``pred`` rides the ptx keyword: the instruction is emitted
         # predicated (@p) rather than branched around.
-        if _tcgen05_commit_is_unicast(cta_mask):
+        if T.constexpr(_tcgen05_commit_is_unicast(cta_mask)):
             T.evaluate(
                 T.ptx[
                     f"tcgen05.commit.cta_group::{cta_group}"

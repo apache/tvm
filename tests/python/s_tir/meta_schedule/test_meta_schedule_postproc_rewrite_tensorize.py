@@ -25,11 +25,11 @@ from tvm.script import tirx as T
 
 @tvm.script.ir_module
 class Conv2dNCHWcVNNIModuleTiled:
-    @Ts.prim_func
+    @Ts.function
     def main(
-        placeholder: T.Buffer((1, 4, 56, 56, 16), "uint8"),
-        placeholder_1: T.Buffer((16, 4, 1, 1, 4, 16, 4), "int8"),
-        conv2d_NCHWc_int8: T.Buffer((1, 16, 56, 56, 16), "int32"),
+        placeholder: T.Tensor((1, 4, 56, 56, 16), "uint8"),
+        placeholder_1: T.Tensor((16, 4, 1, 1, 4, 16, 4), "int8"),
+        conv2d_NCHWc_int8: T.Tensor((1, 16, 56, 56, 16), "int32"),
     ) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         for (
@@ -145,11 +145,11 @@ class Conv2dNCHWcVNNIModuleTiled:
 
 @tvm.script.ir_module
 class Conv2dNCHWcVNNIModuleTensorized:
-    @Ts.prim_func
+    @Ts.function
     def main(
-        placeholder: T.Buffer((1, 4, 56, 56, 16), "uint8"),
-        placeholder_1: T.Buffer((16, 4, 1, 1, 4, 16, 4), "int8"),
-        conv2d_NCHWc_int8: T.Buffer((1, 16, 56, 56, 16), "int32"),
+        placeholder: T.Tensor((1, 4, 56, 56, 16), "uint8"),
+        placeholder_1: T.Tensor((16, 4, 1, 1, 4, 16, 4), "int8"),
+        conv2d_NCHWc_int8: T.Tensor((1, 16, 56, 56, 16), "int32"),
     ) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
@@ -231,27 +231,27 @@ class Conv2dNCHWcVNNIModuleTensorized:
                         dtype="int32",
                         offset_factor=1,
                     )
-                    A_u8x4: T.uint8x4 = A.vload([0], "uint8x4")
-                    A_i32: T.int32 = T.reinterpret(A_u8x4, dtype="int32")
-                    B_i8x64: T.int8x64 = B.vload([0, 0], dtype="int8x64")
-                    B_i32x16: T.int32x16 = T.reinterpret(B_i8x64, dtype="int32x16")
-                    C_i32x16: T.int32x16 = C.vload([0], dtype="int32x16")
+                    A_u8x4: T.uint8x4 = A[T.Ramp(0, 1, 4)]
+                    A_i32: T.int32 = T.reinterpret(A_u8x4, ty="int32")
+                    B_i8x64: T.int8x64 = B[0, T.Ramp(0, 1, 64)]
+                    B_i32x16: T.int32x16 = T.reinterpret(B_i8x64, ty="int32x16")
+                    C_i32x16: T.int32x16 = C[T.Ramp(0, 1, 16)]
                     C[T.ramp(0, 1, 16)] = T.call_llvm_pure_intrin(
                         T.llvm_lookup_intrinsic_id("llvm.x86.avx512.vpdpbusd.512"),
                         C_i32x16,
                         T.broadcast(A_i32, 16),
                         B_i32x16,
-                        dtype="int32x16",
+                        ty="int32x16",
                     )
 
 
 @tvm.script.ir_module
 class DenseDP4ATiled:
-    @Ts.prim_func
+    @Ts.function
     def main(
-        X: T.Buffer((128, 128), "int8"),
-        W: T.Buffer((128, 128), "int8"),
-        compute: T.Buffer((128, 128), "int32"),
+        X: T.Tensor((128, 128), "int8"),
+        W: T.Tensor((128, 128), "int8"),
+        compute: T.Tensor((128, 128), "int32"),
     ) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         compute_local = Ts.sblock_alloc_buffer([128, 128], dtype="int32", scope="local")
@@ -337,11 +337,11 @@ class DenseDP4ATiled:
 
 @tvm.script.ir_module
 class DenseDP4ATensorized:
-    @Ts.prim_func
+    @Ts.function
     def main(
-        X: T.Buffer((128, 128), "int8"),
-        W: T.Buffer((128, 128), "int8"),
-        compute: T.Buffer((128, 128), "int32"),
+        X: T.Tensor((128, 128), "int8"),
+        W: T.Tensor((128, 128), "int8"),
+        compute: T.Tensor((128, 128), "int32"),
     ) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
@@ -441,7 +441,7 @@ class DenseDP4ATensorized:
                                     A[T.ramp(0, 1, 4)],
                                     B[T.ramp(0, 1, 4)],
                                     0,
-                                    dtype="int32",
+                                    ty="int32",
                                 )
                     for ax0, ax1 in T.grid(16, 16):
                         with Ts.sblock("compute_local"):

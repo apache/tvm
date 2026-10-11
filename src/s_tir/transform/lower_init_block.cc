@@ -22,10 +22,10 @@
  * \file lower_reduction.cc
  */
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
-#include <tvm/tirx/op.h>
 
 #include "../../tirx/transform/ir_utils.h"
 
@@ -49,7 +49,7 @@ class InitBlockLower : public StmtExprMutator {
     }
     Stmt init = DoLowering(block->init.value(), block->iter_vars);
     Stmt body = Mutate(block->body, inplace_mode).ValueOrUnchanged(block->body);
-    body = SeqStmt::Flatten(init, body);
+    body = SeqStmt({init, body});
     if (inplace_mode == InplaceMode::kAllow) {
       auto* writable = const_cast<SBlockNode*>(block);
       writable->init = std::nullopt;
@@ -67,7 +67,7 @@ class InitBlockLower : public StmtExprMutator {
     std::vector<PrimExpr> conditions;
     for (const IterVar& var : iter_vars) {
       if (var->iter_type == IterVarType::kCommReduce) {
-        conditions.push_back(equal(var->var, var->dom->min));
+        conditions.push_back(equal(var->var, var->dom.value()->min));
       }
     }
     // Handle the case where there is no condition
@@ -79,21 +79,21 @@ class InitBlockLower : public StmtExprMutator {
     for (size_t i = 1; i < conditions.size(); ++i) {
       cond = logical_and(cond, conditions[i]);
     }
-    return IfThenElse(cond, init);
+    return If(cond, init);
   }
 };
 
 namespace transform {
 
 Pass LowerInitBlock() {
-  auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
+  auto pass_func = [](Function f, IRModule m, PassContext ctx) {
     auto fptr = f.CopyOnWrite();
     fptr->body = ffi::make_object<InitBlockLower>()
                      ->Mutate(fptr->body, InplaceMode::kAllow)
                      .ValueOrUnchanged(std::move(fptr->body));
     return f;
   };
-  return CreatePrimFuncPass(pass_func, 0, "s_tir.LowerInitBlock", {});
+  return CreateFunctionPass(pass_func, 0, "s_tir.LowerInitBlock");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

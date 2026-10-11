@@ -54,7 +54,7 @@ class MutateComputeLocationNode : public MutatorNode {
   Mutator Clone() const final {
     ffi::ObjectPtr<MutateComputeLocationNode> n =
         ffi::make_object<MutateComputeLocationNode>(*this);
-    return Mutator(n);
+    return Mutator(ffi::UnsafeInit{}, n);
   }
 
  private:
@@ -134,7 +134,7 @@ ffi::Optional<Trace> MutateComputeLocationNode::Apply(const Trace& trace, TRandS
 }
 
 Mutator Mutator::MutateComputeLocation() {
-  return Mutator(ffi::make_object<MutateComputeLocationNode>());
+  return Mutator(ffi::UnsafeInit{}, ffi::make_object<MutateComputeLocationNode>());
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() { MutateComputeLocationNode::RegisterReflection(); }

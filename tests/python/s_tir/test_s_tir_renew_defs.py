@@ -19,21 +19,21 @@ from __future__ import annotations
 
 import tvm
 import tvm.testing
+from tvm.ir import Var
 from tvm.s_tir import SBlock
 from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
-from tvm.tirx.buffer import Buffer
-from tvm.tirx.function import PrimFunc
+from tvm.tirx.function import Function
 
 
-def _check_func_signature_remap(lhs: PrimFunc, rhs: PrimFunc):
+def _check_func_signature_remap(lhs: Function, rhs: Function):
     assert lhs != rhs
     for x, y in zip(lhs.params, rhs.params):
         assert x != y
-        assert tvm.tirx.is_buffer_var(x) == tvm.tirx.is_buffer_var(y)
+        assert tvm.tirx.is_tensor_var(x) == tvm.tirx.is_tensor_var(y)
 
 
-def _check_buffer_decl(lhs: Buffer, rhs: Buffer):
+def _check_buffer_decl(lhs: Var, rhs: Var):
     assert lhs != rhs
     assert lhs.data != rhs.data
 
@@ -51,10 +51,10 @@ def _check_block_signature_remap(lhs: SBlock, rhs: SBlock):
 
 
 def test_simple():
-    @Ts.prim_func
-    # Buffer A should be remapped
-    def elementwise(A: T.Buffer((128, 128), "float32")):
-        # Buffer B should be remapped
+    @Ts.function
+    # Var A should be remapped
+    def elementwise(A: T.Tensor((128, 128), "float32")):
+        # Var B should be remapped
         B = Ts.sblock_alloc_buffer((128, 128), "float32")
         # i, j should be remapped
         for i, j in T.grid(128, 128):
@@ -66,20 +66,20 @@ def test_simple():
                 B[vi, vj] = A[vi, vj] * 2.0
 
     f1 = elementwise
-    f2 = tvm.s_tir.renew_defs(f1)
+    f2 = tvm.tirx.renew_def(f1)
     tvm.ir.assert_structural_equal(f1, f2)
 
     _check_func_signature_remap(f1, f2)
     # check root block
-    _check_block_signature_remap(f1.body.block, f2.body.block)
+    _check_block_signature_remap(f1.body[0].block, f2.body[0].block)
     # check remap of i
-    assert f1.body.block.body.loop_var != f2.body.block.body.loop_var
+    assert f1.body[0].block.body[0].loop_var != f2.body[0].block.body[0].loop_var
     # check remap of j
-    assert f1.body.block.body.body.loop_var != f2.body.block.body.body.loop_var
+    assert f1.body[0].block.body[0].body[0].loop_var != f2.body[0].block.body[0].body[0].loop_var
 
     # check inner block
     def _get_sblock(f):
-        return f.body.block.body.body.body.block
+        return f.body[0].block.body[0].body[0].body[0].block
 
     _check_block_signature_remap(_get_sblock(f1), _get_sblock(f2))
 
@@ -90,9 +90,9 @@ def test_match_buffer():
     s = T.dynamic("s", "int32")
     e = T.dynamic("e", "int32")
 
-    @Ts.prim_func(check_well_formed=False)
+    @Ts.function(check_well_formed=False)
     # A and B should be remapped
-    def func_match_buffer(A: T.Buffer((128, 128), "float32"), B: T.Buffer((128, 128), "float32")):
+    def func_match_buffer(A: T.Tensor((128, 128), "float32"), B: T.Tensor((128, 128), "float32")):
         with Ts.sblock("root"):
             # A0 should be remapped
             A0 = Ts.match_buffer(
@@ -109,15 +109,15 @@ def test_match_buffer():
                     B[vi, vj] = A0[vi, vj] * 2.0
 
     f1 = func_match_buffer
-    f2 = tvm.s_tir.renew_defs(f1)
+    f2 = tvm.tirx.renew_def(f1)
     tvm.ir.assert_structural_equal(f1, f2)
 
     _check_func_signature_remap(f1, f2)
-    _check_block_signature_remap(f1.body.block, f2.body.block)
-    assert f1.body.block.body.loop_var != f2.body.block.body.loop_var
+    _check_block_signature_remap(f1.body[0].block, f2.body[0].block)
+    assert f1.body[0].block.body[0].loop_var != f2.body[0].block.body[0].loop_var
 
     def _get_sblock(f):
-        return f.body.block
+        return f.body[0].block
 
     block1 = _get_sblock(f1)
     block2 = _get_sblock(f2)
@@ -136,75 +136,75 @@ def test_match_buffer():
 
 
 def test_undefined_buffer():
-    @Ts.prim_func
+    @Ts.function
     def access_alloc():
-        # Buffer A should be remapped
-        A = T.alloc_buffer((128,), "float16")
+        # Var A should be remapped
+        A = T.alloc_tensor((128,), "float16")
         T.evaluate(A.data)
         for i in range(128):
             A[i] = A[i] + T.float16(1.0)
 
     f1 = access_alloc
-    f2 = tvm.s_tir.renew_defs(f1)
+    f2 = tvm.tirx.renew_def(f1)
     tvm.ir.assert_structural_equal(f1, f2)
 
-    # AllocBuffer is now a flat statement in SeqStmt
+    # AllocTensor is now a flat statement in SeqStmt
     assert f1.body.seq[0].var.data != f2.body.seq[0].var.data
 
-    def _get_buffer_store_buffer(f):
-        # SeqStmt: [AllocBuffer, Evaluate, For]; For body has the BufferStore
-        return f.body.seq[2].body.buffer
+    def _get_tensor_store_buffer(f):
+        # SeqStmt: [AllocTensor, Evaluate, For]; For body has the TensorStore
+        return f.body.seq[2].body[0].dest
 
-    _check_buffer_decl(_get_buffer_store_buffer(f1), _get_buffer_store_buffer(f2))
+    _check_buffer_decl(_get_tensor_store_buffer(f1), _get_tensor_store_buffer(f2))
 
 
 def test_symbolic_func():
     m = T.dynamic("m", "int32")
 
-    @Ts.prim_func
-    def symbolic_func(A: T.Buffer((n, m)), B: T.Buffer((n, m * 2)), n: T.int32):  # noqa: F821
+    @Ts.function
+    def symbolic_func(A: T.Tensor((n, m)), B: T.Tensor((n, m * 2)), n: T.int32):  # noqa: F821
         for i, j in T.grid(n, m):
             B[i, j * 2] = A[i, j]
             B[i, j * 2 + 1] = A[i, j]
 
     f1 = symbolic_func
-    f2 = tvm.s_tir.renew_defs(f1)
+    f2 = tvm.tirx.renew_def(f1)
     tvm.ir.assert_structural_equal(f1, f2)
 
 
 def test_buffer_params():
     m = T.dynamic("m")
 
-    @Ts.prim_func
-    def main(A: T.Buffer((m * 2,)), B: T.Buffer((m, 2))):
+    @Ts.function
+    def main(A: T.Tensor((m * 2,)), B: T.Tensor((m, 2))):
         for i, j in T.grid(m, 2):
             with Ts.sblock("B"):
                 vi, vj = Ts.axis.remap("SS", [i, j])
                 B[vi, vj] = A[vi * 2 + vj]
 
     f1 = main
-    f2 = tvm.s_tir.renew_defs(main)
+    f2 = tvm.tirx.renew_def(main)
     tvm.ir.assert_structural_equal(f1, f2)
     assert f1.params[1].shape[0] != f2.params[1].shape[0]
 
 
 def test_compound_buffer_param_shape_var():
     n = tvm.tirx.Var("n", "int32")
-    A = tvm.tirx.decl_buffer((tvm.tirx.max(n, 1),), layout=None)
-    f1 = tvm.tirx.PrimFunc([A], tvm.tirx.Evaluate(n))
-    f2 = tvm.s_tir.renew_defs(f1)
+    A = tvm.tirx.decl_tensor((tvm.tirx.max(n, 1),), layout=None)
+    f1 = tvm.tirx.Function([A], tvm.ir.Evaluate(n))
+    f2 = tvm.tirx.renew_def(f1)
 
     tvm.ir.assert_structural_equal(f1, f2)
-    assert not f1.body.value.same_as(f2.body.value)
-    assert f2.params[0].shape[0].a.same_as(f2.body.value)
+    assert not f1.body[0].value.same_as(f2.body[0].value)
+    assert f2.params[0].shape[0].a.same_as(f2.body[0].value)
 
 
 def test_gather():
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def take(
-        A: T.Buffer((4096, 4096), "float16"),
-        B: T.Buffer((1,), "int32"),
-        T_take: T.Buffer((1, 4096), "float16"),
+        A: T.Tensor((4096, 4096), "float16"),
+        B: T.Tensor((1,), "int32"),
+        T_take: T.Tensor((1, 4096), "float16"),
     ):
         for ax0, ax1 in T.grid(1, 4096):
             with Ts.sblock("T_take"):
@@ -214,7 +214,7 @@ def test_gather():
                 T_take[v_ax0, v_ax1] = A[B[v_ax0], v_ax1]
 
     f1 = take
-    f2 = tvm.s_tir.renew_defs(take)
+    f2 = tvm.tirx.renew_def(take)
     tvm.ir.assert_structural_equal(f1, f2)
 
 

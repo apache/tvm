@@ -45,7 +45,6 @@ import tvm
 import tvm.testing
 from tvm.backend.cuda.lang.alloc_pool import _default_tmem_layout
 from tvm.script import tirx as T
-from tvm.script.tirx import tile as Tx
 from tvm.testing import env
 from tvm.tirx.layout import (
     S,
@@ -271,21 +270,19 @@ def _run_roundtrip_16b(
     atom_view = tcgen05_atom_layout(shape, (frag_rows, K_cols_elem), dtype)
     tmem_layout = tmem_datapath_layout(tmem_datapath, tmem_rows, stage_width_elem)
 
-    @T.prim_func
+    @T.function
     def kernel(
-        A: T.Buffer((128, per_thread_elems), dtype), B: T.Buffer((128, per_thread_elems), dtype)
+        A: T.Tensor((128, per_thread_elems), dtype), B: T.Tensor((128, per_thread_elems), dtype)
     ) -> None:
         # Per-thread input/output: A[tid_in_wg, i] feeds register slot i of the
         # warpgroup-collective fragment; B[tid_in_wg, i] is what comes back
         # after a .16x*b.st → .16x*b.ld round-trip.
 
-        T.device_entry()
-        warp_id = T.warp_id([128 // 32])
-        T.cta_id([2])
-        wg_id = T.warpgroup_id([1])
-        T.warp_id_in_wg([4])
-        T.lane_id([32])
-        tid_in_wg = T.thread_id([128])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(2,), block=(128,)))
+        warp_id = T.cuda.warp_id()
+        wg_id = T.cuda.warpgroup_id()
+        _lane = T.cuda.lane_id()
+        tid_in_wg = T.cuda.thread_idx("x")
 
         tmem_addr = T.alloc_shared([1], "uint32")
 
@@ -295,14 +292,13 @@ def _run_roundtrip_16b(
                     T.address_of(tmem_addr), T.uint32(tmem_col_width_32b)
                 )
 
-            T.tvm_storage_sync("shared")
+            T.gpu_storage_sync("shared")
 
-            tmem = T.decl_buffer(
-                (tmem_rows, stage_width_elem),
-                dtype,
-                scope="tmem",
-                allocated_addr=tmem_addr[0],
-                layout=tmem_layout,
+            tmem = T.cuda.decl_tmem(
+                tmem_addr[0],
+                ty_args=[
+                    T.Tensor((tmem_rows, stage_width_elem), dtype, scope="tmem", layout=tmem_layout)
+                ],
             )
 
             # Load per-thread A → reg_in
@@ -313,14 +309,18 @@ def _run_roundtrip_16b(
 
             # reg_in -> TMEM via .<shape>.x<rep>.st.unpack::16b
             frag_in = reg_in.view(frag_rows, K_cols_elem, layout=atom_view)
-            Tx.wg.copy_async(tmem[0:frag_rows, 0:K_cols_elem], frag_in[:, :])
+            T.cuda.tile.tcgen05.st(
+                tmem[0:frag_rows, 0:K_cols_elem], frag_in[:, :], scope="warpgroup"
+            )
             T.ptx.tcgen05.wait__st.sync.aligned()
             T.cuda.cta_sync()
 
             # TMEM -> reg_out via .<shape>.x<rep>.ld.pack::16b
             reg_out = T.alloc_local((per_thread_elems,), dtype)
             frag_out = reg_out.view(frag_rows, K_cols_elem, layout=atom_view)
-            Tx.wg.copy_async(frag_out[:, :], tmem[0:frag_rows, 0:K_cols_elem])
+            T.cuda.tile.tcgen05.ld(
+                frag_out[:, :], tmem[0:frag_rows, 0:K_cols_elem], scope="warpgroup"
+            )
             T.ptx.tcgen05.wait__ld.sync.aligned()
             T.cuda.cta_sync()
             for i in range(per_thread_elems):
@@ -511,72 +511,69 @@ def test_tcgen05_16xnb_sub_slab_view_read(shape, rep):
     layout_f0 = tmem_datapath_layout("F", 64, tmem_cols, sub_slab=0)
     layout_f1 = tmem_datapath_layout("F", 64, tmem_cols, sub_slab=1)
 
-    @T.prim_func
+    @T.function
     def kernel(
-        A: T.Buffer((128, regs128), dtype),
-        B128: T.Buffer((128, regs128), dtype),
-        B0: T.Buffer((128, regs64), dtype),
-        B1: T.Buffer((128, regs64), dtype),
+        A: T.Tensor((128, regs128), dtype),
+        B128: T.Tensor((128, regs128), dtype),
+        B0: T.Tensor((128, regs64), dtype),
+        B1: T.Tensor((128, regs64), dtype),
     ) -> None:
-        T.device_entry()
-        warp_id = T.warp_id([4])
-        T.cta_id([2])
-        wg_id = T.warpgroup_id([1])
-        T.warp_id_in_wg([4])
-        T.lane_id([32])
-        tid = T.thread_id([128])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(2,), block=(128,)))
+        warp_id = T.cuda.warp_id()
+        wg_id = T.cuda.warpgroup_id()
+        _lane = T.cuda.lane_id()
+        tid = T.cuda.thread_idx("x")
         tmem_addr = T.alloc_shared([1], "uint32")
         if wg_id == 0:
             if warp_id == 0:
                 T.ptx.tcgen05.alloc.cta_group__1.sync.aligned.shared__cta.b32(
                     T.address_of(tmem_addr), T.uint32(tmem_cols)
                 )
-            T.tvm_storage_sync("shared")
-            tmem_d = T.decl_buffer(
-                (128, tmem_cols),
-                dtype,
-                scope="tmem",
-                allocated_addr=tmem_addr[0],
-                layout=layout_d,
+            T.gpu_storage_sync("shared")
+            tmem_d = T.cuda.decl_tmem(
+                tmem_addr[0],
+                ty_args=[T.Tensor((128, tmem_cols), dtype, scope="tmem", layout=layout_d)],
             )
-            tmem_f0 = T.decl_buffer(
-                (64, tmem_cols),
-                dtype,
-                scope="tmem",
-                allocated_addr=tmem_addr[0],
-                layout=layout_f0,
+            tmem_f0 = T.cuda.decl_tmem(
+                tmem_addr[0],
+                ty_args=[T.Tensor((64, tmem_cols), dtype, scope="tmem", layout=layout_f0)],
             )
-            tmem_f1 = T.decl_buffer(
-                (64, tmem_cols),
-                dtype,
-                scope="tmem",
-                allocated_addr=tmem_addr[0],
-                layout=layout_f1,
+            tmem_f1 = T.cuda.decl_tmem(
+                tmem_addr[0],
+                ty_args=[T.Tensor((64, tmem_cols), dtype, scope="tmem", layout=layout_f1)],
             )
             source = T.alloc_local((regs128,), dtype)
             for i in range(regs128):
                 source[i] = A[tid, i]
             T.cuda.cta_sync()
-            Tx.wg.copy_async(tmem_d[0:128, 0:cols], source.view(128, cols, layout=atom128))
+            T.cuda.tile.tcgen05.st(
+                tmem_d[0:128, 0:cols], source.view(128, cols, layout=atom128), scope="warpgroup"
+            )
             T.ptx.tcgen05.wait__st.sync.aligned()
             T.cuda.cta_sync()
 
             full = T.alloc_local((regs128,), dtype)
-            Tx.wg.copy_async(full.view(128, cols, layout=atom128), tmem_d[0:128, 0:cols])
+            T.cuda.tile.tcgen05.ld(
+                full.view(128, cols, layout=atom128), tmem_d[0:128, 0:cols], scope="warpgroup"
+            )
             T.ptx.tcgen05.wait__ld.sync.aligned()
             T.cuda.cta_sync()
             for i in range(regs128):
                 B128[tid, i] = full[i]
 
             lower = T.alloc_local((regs64,), dtype)
-            Tx.wg.copy_async(lower.view(64, cols, layout=atom64), tmem_f0[0:64, 0:cols])
+            T.cuda.tile.tcgen05.ld(
+                lower.view(64, cols, layout=atom64), tmem_f0[0:64, 0:cols], scope="warpgroup"
+            )
             T.ptx.tcgen05.wait__ld.sync.aligned()
             T.cuda.cta_sync()
             for i in range(regs64):
                 B0[tid, i] = lower[i]
 
             upper = T.alloc_local((regs64,), dtype)
-            Tx.wg.copy_async(upper.view(64, cols, layout=atom64), tmem_f1[0:64, 0:cols])
+            T.cuda.tile.tcgen05.ld(
+                upper.view(64, cols, layout=atom64), tmem_f1[0:64, 0:cols], scope="warpgroup"
+            )
             T.ptx.tcgen05.wait__ld.sync.aligned()
             T.cuda.cta_sync()
             for i in range(regs64):
@@ -632,28 +629,27 @@ def test_layout_F_rejects_incompatible_atoms(atom_kind, frag_rows):
     tmem_rows = 64
     stage_width_elem = max(32, local_cols)
 
-    @T.prim_func
+    @T.function
     def kernel() -> None:
-        T.device_entry()
-        T.warp_id([128 // 32])
-        T.cta_id([2])
-        wg_id = T.warpgroup_id([1])
-        T.warp_id_in_wg([4])
-        T.lane_id([32])
-        T.thread_id([128])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(2,), block=(128,)))
+        wg_id = T.cuda.warpgroup_id()
+        _lane = T.cuda.lane_id()
         tmem_addr = T.alloc_shared([1], "uint32")
         if wg_id == 0:
-            T.tvm_storage_sync("shared")
-            tmem = T.decl_buffer(
-                (tmem_rows, stage_width_elem),
-                "float32",
-                scope="tmem",
-                allocated_addr=tmem_addr[0],
-                layout=tmem_layout,
+            T.gpu_storage_sync("shared")
+            tmem = T.cuda.decl_tmem(
+                tmem_addr[0],
+                ty_args=[
+                    T.Tensor(
+                        (tmem_rows, stage_width_elem), "float32", scope="tmem", layout=tmem_layout
+                    )
+                ],
             )
             frag = T.alloc_local((local_extent_rows * local_cols // 128,), "float32")
             frag_view = frag.view(local_extent_rows, local_cols, layout=atom_view)
-            Tx.wg.copy_async(frag_view[:, :], tmem[0:local_extent_rows, 0:local_cols])
+            T.cuda.tile.tcgen05.ld(
+                frag_view[:, :], tmem[0:local_extent_rows, 0:local_cols], scope="warpgroup"
+            )
 
     target = tvm.target.Target("cuda")
     with target:
@@ -668,24 +664,18 @@ def test_layout_B_rejects_16xnb_fragment():
     tmem_layout = tmem_datapath_layout("B", 64, n_cols)
     wrong_layout = tcgen05_atom_layout("16x256b", (64, n_cols), "float32")
 
-    @T.prim_func
+    @T.function
     def kernel() -> None:
-        T.device_entry()
-        T.cta_id([1])
-        T.warpgroup_id([1])
-        T.warp_id_in_wg([4])
-        T.lane_id([32])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=1 * 128))
+        _lane = T.cuda.lane_id()
         tmem_addr = T.alloc_shared([1], "uint32")
-        tmem = T.decl_buffer(
-            (64, n_cols),
-            "float32",
-            scope="tmem",
-            allocated_addr=tmem_addr[0],
-            layout=tmem_layout,
+        tmem = T.cuda.decl_tmem(
+            tmem_addr[0],
+            ty_args=[T.Tensor((64, n_cols), "float32", scope="tmem", layout=tmem_layout)],
         )
         frag = T.alloc_local((n_cols // 2,), "float32")
         frag_view = frag.view(64, n_cols, layout=wrong_layout)
-        Tx.wg.copy_async(frag_view[:, :], tmem[:, :])
+        T.cuda.tile.tcgen05.ld(frag_view[:, :], tmem[:, :], scope="warpgroup")
 
     target = tvm.target.Target("cuda")
     with target:
@@ -697,23 +687,24 @@ def test_layout_B_rejects_partial_column_copy():
     """A logical B column slice is not one contiguous physical tcol interval."""
     n_cols = 64
 
-    @T.prim_func
+    @T.function
     def kernel() -> None:
-        T.device_entry()
-        T.cta_id([1])
-        T.warpgroup_id([1])
-        T.warp_id_in_wg([4])
-        T.lane_id([32])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=1 * 128))
+        _lane = T.cuda.lane_id()
         tmem_addr = T.alloc_shared([1], "uint32")
-        tmem = T.decl_buffer(
-            (64, n_cols),
-            "float32",
-            scope="tmem",
-            allocated_addr=tmem_addr[0],
-            layout=tmem_datapath_layout("B", 64, n_cols),
+        tmem = T.cuda.decl_tmem(
+            tmem_addr[0],
+            ty_args=[
+                T.Tensor(
+                    (64, n_cols),
+                    "float32",
+                    scope="tmem",
+                    layout=tmem_datapath_layout("B", 64, n_cols),
+                )
+            ],
         )
         frag = T.alloc_tcgen05_ldst_frag("32x32b", (64, n_cols), "float32")
-        Tx.wg.copy_async(frag[:, : n_cols // 2], tmem[:, : n_cols // 2])
+        T.cuda.tile.tcgen05.ld(frag[:, : n_cols // 2], tmem[:, : n_cols // 2], scope="warpgroup")
 
     target = tvm.target.Target("cuda")
     with target:
@@ -726,26 +717,27 @@ def test_datapath_B_codegen(direction):
     """Both directions emit one physical .32x32b.x32 instruction."""
     n_cols = 64
 
-    @T.prim_func
+    @T.function
     def kernel() -> None:
-        T.device_entry()
-        T.cta_id([1])
-        T.warpgroup_id([1])
-        T.warp_id_in_wg([4])
-        T.lane_id([32])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=1 * 128))
+        _lane = T.cuda.lane_id()
         tmem_addr = T.alloc_shared([1], "uint32")
-        tmem = T.decl_buffer(
-            (64, n_cols),
-            "float32",
-            scope="tmem",
-            allocated_addr=tmem_addr[0] + 32,
-            layout=tmem_datapath_layout("B", 64, n_cols),
+        tmem = T.cuda.decl_tmem(
+            tmem_addr[0] + 32,
+            ty_args=[
+                T.Tensor(
+                    (64, n_cols),
+                    "float32",
+                    scope="tmem",
+                    layout=tmem_datapath_layout("B", 64, n_cols),
+                )
+            ],
         )
         frag = T.alloc_tcgen05_ldst_frag("32x32b", (64, n_cols), "float32")
-        if direction == "ld":
-            Tx.wg.copy_async(frag[:, :], tmem[:, :])
+        if T.constexpr(direction == "ld"):
+            T.cuda.tile.tcgen05.ld(frag[:, :], tmem[:, :], scope="warpgroup")
         else:
-            Tx.wg.copy_async(tmem[:, :], frag[:, :])
+            T.cuda.tile.tcgen05.st(tmem[:, :], frag[:, :], scope="warpgroup")
 
     target = tvm.target.Target("cuda")
     with target:
@@ -764,17 +756,15 @@ def test_datapath_B_ld_st_roundtrip(n_cols, col_offset):
     n_half = n_cols // 2
     tmem_cols = _next_pow2(max(32, col_offset + n_half))
 
-    @T.prim_func
+    @T.function
     def kernel(
-        A: T.Buffer((128, n_half), "float32"), B: T.Buffer((128, n_half), "float32")
+        A: T.Tensor((128, n_half), "float32"), B: T.Tensor((128, n_half), "float32")
     ) -> None:
-        T.device_entry()
-        warp_id = T.warp_id([4])
-        T.cta_id([1])
-        wg_id = T.warpgroup_id([1])
-        T.warp_id_in_wg([4])
-        T.lane_id([32])
-        tid = T.thread_id_in_wg([128])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=4 * 32))
+        warp_id = T.cuda.warp_id()
+        wg_id = T.cuda.warpgroup_id()
+        _lane = T.cuda.lane_id()
+        tid = T.cuda.thread_in_warpgroup()
         tmem_addr = T.alloc_shared([1], "uint32")
 
         if wg_id == 0:
@@ -782,13 +772,17 @@ def test_datapath_B_ld_st_roundtrip(n_cols, col_offset):
                 T.ptx.tcgen05.alloc.cta_group__1.sync.aligned.shared__cta.b32(
                     T.address_of(tmem_addr), T.uint32(tmem_cols)
                 )
-            T.tvm_storage_sync("shared")
-            tmem = T.decl_buffer(
-                (64, n_cols),
-                "float32",
-                scope="tmem",
-                allocated_addr=tmem_addr[0] + col_offset,
-                layout=tmem_datapath_layout("B", 64, n_cols),
+            T.gpu_storage_sync("shared")
+            tmem = T.cuda.decl_tmem(
+                tmem_addr[0] + col_offset,
+                ty_args=[
+                    T.Tensor(
+                        (64, n_cols),
+                        "float32",
+                        scope="tmem",
+                        layout=tmem_datapath_layout("B", 64, n_cols),
+                    )
+                ],
             )
 
             frag_in = T.alloc_tcgen05_ldst_frag("32x32b", (64, n_cols), "float32")
@@ -796,12 +790,12 @@ def test_datapath_B_ld_st_roundtrip(n_cols, col_offset):
             for i in range(n_half):
                 frag_in_local[i] = A[tid, i]
             T.cuda.cta_sync()
-            Tx.wg.copy_async(tmem[:, :], frag_in[:, :])
+            T.cuda.tile.tcgen05.st(tmem[:, :], frag_in[:, :], scope="warpgroup")
             T.ptx.tcgen05.wait__st.sync.aligned()
             T.cuda.cta_sync()
 
             frag_out = T.alloc_tcgen05_ldst_frag("32x32b", (64, n_cols), "float32")
-            Tx.wg.copy_async(frag_out[:, :], tmem[:, :])
+            T.cuda.tile.tcgen05.ld(frag_out[:, :], tmem[:, :], scope="warpgroup")
             T.ptx.tcgen05.wait__ld.sync.aligned()
             T.cuda.cta_sync()
             frag_out_local = frag_out.local()
@@ -870,9 +864,9 @@ def _run_load_test(shape: str, rep: int, dtype: str):
     # ``T.copy_async`` matches when dispatching to the right atom path.
     atom_view = tcgen05_atom_layout(shape, (frag_rows, K_cols_elem), dtype)
 
-    @T.prim_func
+    @T.function
     def kernel(
-        A: T.Buffer((128, stage_width_elem), dtype), B: T.Buffer((128, per_thread_elems), dtype)
+        A: T.Tensor((128, stage_width_elem), dtype), B: T.Tensor((128, per_thread_elems), dtype)
     ) -> None:
         # A is the host data we stage into TMEM via the standard .32x32b path.
 
@@ -880,13 +874,11 @@ def _run_load_test(shape: str, rep: int, dtype: str):
 
         A_flat = A.view(-1)
 
-        T.device_entry()
-        warp_id = T.warp_id([128 // 32])
-        T.cta_id([2])
-        wg_id = T.warpgroup_id([1])
-        T.warp_id_in_wg([4])
-        T.lane_id([32])
-        tid_in_wg = T.thread_id([128])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(2,), block=(128,)))
+        warp_id = T.cuda.warp_id()
+        wg_id = T.cuda.warpgroup_id()
+        _lane = T.cuda.lane_id()
+        tid_in_wg = T.cuda.thread_idx("x")
 
         tmem_addr = T.alloc_shared([1], "uint32")
 
@@ -896,14 +888,18 @@ def _run_load_test(shape: str, rep: int, dtype: str):
                     T.address_of(tmem_addr), T.uint32(tmem_col_width_32b)
                 )
 
-            T.tvm_storage_sync("shared")
+            T.gpu_storage_sync("shared")
 
-            tmem = T.decl_buffer(
-                (128, stage_width_elem),
-                dtype,
-                scope="tmem",
-                allocated_addr=tmem_addr[0],
-                layout=TileLayout(S[(128, stage_width_elem) : (1 @ TLane, 1 @ TCol)]),
+            tmem = T.cuda.decl_tmem(
+                tmem_addr[0],
+                ty_args=[
+                    T.Tensor(
+                        (128, stage_width_elem),
+                        dtype,
+                        scope="tmem",
+                        layout=TileLayout(S[(128, stage_width_elem) : (1 @ TLane, 1 @ TCol)]),
+                    )
+                ],
             )
 
             # Per-thread chunk staging buffer (CHUNK_FP32 fp32 worth).
@@ -918,14 +914,15 @@ def _run_load_test(shape: str, rep: int, dtype: str):
                     # the row, this chunk starts at col_off_elem and each vector
                     # picks up VEC_LEN elements at slot i.
                     g_offset = T.meta_var(tid_in_wg * stage_width_elem + col_off_elem + i * VEC_LEN)
-                    Tx.copy(
+                    T.cuda.tile.ld(
                         stage_reg[i * VEC_LEN : i * VEC_LEN + VEC_LEN],
                         A_flat[g_offset : g_offset + VEC_LEN],
                     )
                 T.cuda.cta_sync()
-                Tx.wg.copy_async(
+                T.cuda.tile.tcgen05.st(
                     tmem[:, col_off_elem : col_off_elem + chunk_width_elem],
                     stage_local[:, :],
+                    scope="warpgroup",
                 )
             T.ptx.tcgen05.wait__st.sync.aligned()
             T.cuda.cta_sync()
@@ -936,7 +933,9 @@ def _run_load_test(shape: str, rep: int, dtype: str):
             # ``frag_reg`` for the per-thread dump below.
             frag_reg = T.alloc_local((per_thread_elems,), dtype)
             frag_local = frag_reg.view(frag_rows, K_cols_elem, layout=atom_view)
-            Tx.wg.copy_async(frag_local[:, :], tmem[0:frag_rows, 0:K_cols_elem])
+            T.cuda.tile.tcgen05.ld(
+                frag_local[:, :], tmem[0:frag_rows, 0:K_cols_elem], scope="warpgroup"
+            )
             T.ptx.tcgen05.wait__ld.sync.aligned()
             T.cuda.cta_sync()
             for i in range(per_thread_elems):
@@ -1038,9 +1037,9 @@ def test_tcgen05_st_16xnb_store(shape, rep, dtype):
     stage_view = TileLayout(S[(128, stage_width_elem) : (1 @ axis_tid_in_wg, 1)])
     atom_view = tcgen05_atom_layout(shape, (frag_rows, K_cols_elem), dtype)
 
-    @T.prim_func
+    @T.function
     def kernel(
-        A: T.Buffer((128, per_thread_elems), dtype), B: T.Buffer((128, stage_width_elem), dtype)
+        A: T.Tensor((128, per_thread_elems), dtype), B: T.Tensor((128, stage_width_elem), dtype)
     ) -> None:
         # A[tid_in_wg, i] is the i-th per-thread element to feed into the atom store.
 
@@ -1048,13 +1047,11 @@ def test_tcgen05_st_16xnb_store(shape, rep, dtype):
 
         B_flat = B.view(-1)
 
-        T.device_entry()
-        warp_id = T.warp_id([128 // 32])
-        T.cta_id([2])
-        wg_id = T.warpgroup_id([1])
-        T.warp_id_in_wg([4])
-        T.lane_id([32])
-        tid_in_wg = T.thread_id([128])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(2,), block=(128,)))
+        warp_id = T.cuda.warp_id()
+        wg_id = T.cuda.warpgroup_id()
+        _lane = T.cuda.lane_id()
+        tid_in_wg = T.cuda.thread_idx("x")
 
         tmem_addr = T.alloc_shared([1], "uint32")
 
@@ -1064,14 +1061,18 @@ def test_tcgen05_st_16xnb_store(shape, rep, dtype):
                     T.address_of(tmem_addr), T.uint32(tmem_col_width_32b)
                 )
 
-            T.tvm_storage_sync("shared")
+            T.gpu_storage_sync("shared")
 
-            tmem = T.decl_buffer(
-                (128, stage_width_elem),
-                dtype,
-                scope="tmem",
-                allocated_addr=tmem_addr[0],
-                layout=TileLayout(S[(128, stage_width_elem) : (1 @ TLane, 1 @ TCol)]),
+            tmem = T.cuda.decl_tmem(
+                tmem_addr[0],
+                ty_args=[
+                    T.Tensor(
+                        (128, stage_width_elem),
+                        dtype,
+                        scope="tmem",
+                        layout=TileLayout(S[(128, stage_width_elem) : (1 @ TLane, 1 @ TCol)]),
+                    )
+                ],
             )
 
             # Load per-thread A → frag_reg
@@ -1082,19 +1083,21 @@ def test_tcgen05_st_16xnb_store(shape, rep, dtype):
 
             # frag_local -> TMEM via .<shape>.x<rep>.st
             frag_local = frag_reg.view(frag_rows, K_cols_elem, layout=atom_view)
-            Tx.wg.copy_async(tmem[0:frag_rows, 0:K_cols_elem], frag_local[:, :])
+            T.cuda.tile.tcgen05.st(
+                tmem[0:frag_rows, 0:K_cols_elem], frag_local[:, :], scope="warpgroup"
+            )
             T.ptx.tcgen05.wait__st.sync.aligned()
             T.cuda.cta_sync()
 
             # TMEM -> readout via .32x32b.ld
             stage_reg = T.alloc_local((stage_width_elem,), dtype)
             stage_local = stage_reg.view(128, stage_width_elem, layout=stage_view)
-            Tx.wg.copy_async(stage_local[:, :], tmem[:, :])
+            T.cuda.tile.tcgen05.ld(stage_local[:, :], tmem[:, :], scope="warpgroup")
             T.ptx.tcgen05.wait__ld.sync.aligned()
             T.cuda.cta_sync()
             for i in range(stage_width_elem // VEC_LEN):
                 g_offset = T.meta_var(g_layout.apply(tid_in_wg, i, 0)["m"])
-                Tx.copy(
+                T.cuda.tile.st(
                     B_flat[g_offset : g_offset + VEC_LEN],
                     stage_reg[i * VEC_LEN : i * VEC_LEN + VEC_LEN],
                 )
@@ -1173,15 +1176,12 @@ def test_alloc_tcgen05_frag_wrapper_compiles(shape, frag_rows, K_cols):
     """Ensure T.alloc_tcgen05_ldst_frag yields a buffer that ``T.copy_async`` accepts
     and lowers to the correct tcgen05 atom for each supported instr_shape."""
 
-    @T.prim_func
-    def kernel(A: T.Buffer((128, K_cols), "float32")) -> None:
-        T.device_entry()
-        warp_id = T.warp_id([4])
-        T.cta_id([2])
-        wg_id = T.warpgroup_id([1])
-        T.warp_id_in_wg([4])
-        T.lane_id([32])
-        T.thread_id([128])
+    @T.function
+    def kernel(A: T.Tensor((128, K_cols), "float32")) -> None:
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(2,), block=(128,)))
+        warp_id = T.cuda.warp_id()
+        wg_id = T.cuda.warpgroup_id()
+        _lane = T.cuda.lane_id()
 
         tmem_addr = T.alloc_shared([1], "uint32")
         if wg_id == 0:
@@ -1189,17 +1189,21 @@ def test_alloc_tcgen05_frag_wrapper_compiles(shape, frag_rows, K_cols):
                 T.ptx.tcgen05.alloc.cta_group__1.sync.aligned.shared__cta.b32(
                     T.address_of(tmem_addr), T.uint32(max(32, K_cols))
                 )
-            T.tvm_storage_sync("shared")
-            tmem = T.decl_buffer(
-                (128, K_cols),
-                "float32",
-                scope="tmem",
-                allocated_addr=tmem_addr[0],
-                layout=TileLayout(S[(128, K_cols) : (1 @ TLane, 1 @ TCol)]),
+            T.gpu_storage_sync("shared")
+            tmem = T.cuda.decl_tmem(
+                tmem_addr[0],
+                ty_args=[
+                    T.Tensor(
+                        (128, K_cols),
+                        "float32",
+                        scope="tmem",
+                        layout=TileLayout(S[(128, K_cols) : (1 @ TLane, 1 @ TCol)]),
+                    )
+                ],
             )
             # One-liner: wrapper handles per-thread storage + layout.
             frag = T.alloc_tcgen05_ldst_frag(shape, (frag_rows, K_cols), "float32")
-            Tx.wg.copy_async(frag[:, :], tmem[0:frag_rows, 0:K_cols])
+            T.cuda.tile.tcgen05.ld(frag[:, :], tmem[0:frag_rows, 0:K_cols], scope="warpgroup")
             T.ptx.tcgen05.wait__ld.sync.aligned()
             if warp_id == 0:
                 T.ptx.tcgen05.relinquish_alloc_permit.cta_group__1.sync.aligned()
@@ -1226,15 +1230,12 @@ def test_tcgen05_32x32b_float32_keeps_typed_register_operands():
 
     K_cols = 32
 
-    @T.prim_func
-    def kernel(A: T.Buffer((128, K_cols), "float32")) -> None:
-        T.device_entry()
-        warp_id = T.warp_id([4])
-        T.cta_id([2])
-        wg_id = T.warpgroup_id([1])
-        T.warp_id_in_wg([4])
-        T.lane_id([32])
-        T.thread_id([128])
+    @T.function
+    def kernel(A: T.Tensor((128, K_cols), "float32")) -> None:
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(2,), block=(128,)))
+        warp_id = T.cuda.warp_id()
+        wg_id = T.cuda.warpgroup_id()
+        _lane = T.cuda.lane_id()
 
         tmem_addr = T.alloc_shared([1], "uint32")
         if wg_id == 0:
@@ -1242,16 +1243,20 @@ def test_tcgen05_32x32b_float32_keeps_typed_register_operands():
                 T.ptx.tcgen05.alloc.cta_group__1.sync.aligned.shared__cta.b32(
                     T.address_of(tmem_addr), T.uint32(K_cols)
                 )
-            T.tvm_storage_sync("shared")
-            tmem = T.decl_buffer(
-                (128, K_cols),
-                "float32",
-                scope="tmem",
-                allocated_addr=tmem_addr[0],
-                layout=TileLayout(S[(128, K_cols) : (1 @ TLane, 1 @ TCol)]),
+            T.gpu_storage_sync("shared")
+            tmem = T.cuda.decl_tmem(
+                tmem_addr[0],
+                ty_args=[
+                    T.Tensor(
+                        (128, K_cols),
+                        "float32",
+                        scope="tmem",
+                        layout=TileLayout(S[(128, K_cols) : (1 @ TLane, 1 @ TCol)]),
+                    )
+                ],
             )
             frag = T.alloc_tcgen05_ldst_frag("32x32b", (128, K_cols), "float32")
-            Tx.wg.copy_async(frag[:, :], tmem[:, :])
+            T.cuda.tile.tcgen05.ld(frag[:, :], tmem[:, :], scope="warpgroup")
             T.ptx.tcgen05.wait__ld.sync.aligned()
             if warp_id == 0:
                 T.ptx.tcgen05.relinquish_alloc_permit.cta_group__1.sync.aligned()
@@ -1282,28 +1287,28 @@ def test_tcgen05_ldst_constant_tmem_address_is_uint32():
 
     K_cols = 32
 
-    @T.prim_func
+    @T.function
     def kernel() -> None:
-        T.device_entry()
-        T.warp_id([4])
-        T.cta_id([1])
-        wg_id = T.warpgroup_id([1])
-        T.warp_id_in_wg([4])
-        T.lane_id([32])
-        T.thread_id([128])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(128,)))
+        wg_id = T.cuda.warpgroup_id()
+        _lane = T.cuda.lane_id()
 
         if wg_id == 0:
-            tmem = T.decl_buffer(
-                (128, K_cols),
-                "float32",
-                scope="tmem",
-                allocated_addr=0,
-                layout=TileLayout(S[(128, K_cols) : (1 @ TLane, 1 @ TCol)]),
+            tmem = T.cuda.decl_tmem(
+                0,
+                ty_args=[
+                    T.Tensor(
+                        (128, K_cols),
+                        "float32",
+                        scope="tmem",
+                        layout=TileLayout(S[(128, K_cols) : (1 @ TLane, 1 @ TCol)]),
+                    )
+                ],
             )
             frag = T.alloc_tcgen05_ldst_frag("32x32b", (128, K_cols), "float32")
-            Tx.wg.copy_async(frag[:, :], tmem[:, :])
+            T.cuda.tile.tcgen05.ld(frag[:, :], tmem[:, :], scope="warpgroup")
             T.ptx.tcgen05.wait__ld.sync.aligned()
-            Tx.wg.copy_async(tmem[:, :], frag[:, :])
+            T.cuda.tile.tcgen05.st(tmem[:, :], frag[:, :], scope="warpgroup")
             T.ptx.tcgen05.wait__st.sync.aligned()
 
     target = tvm.target.Target("cuda")
@@ -1325,8 +1330,8 @@ def test_tcgen05_ldst_constant_tmem_address_is_uint32():
     ]
     assert ld_lines
     assert st_lines
-    assert "(uint)0" in ld_lines[0]
-    assert "(uint)0" in st_lines[0]
+    assert "(uint)reinterpret_cast<uint64_t>(tmem)" in ld_lines[0]
+    assert "(uint)reinterpret_cast<uint64_t>(tmem)" in st_lines[0]
 
 
 # --------------------------------------------------------------------------
@@ -1361,23 +1366,21 @@ def _run_sliced_vs_full_load(shape, full_rep, n_chunks):
     atom_view = tcgen05_atom_layout(shape, (frag_rows, K_cols_fp32), dtype)
     stage_view = TileLayout(S[(128, stage_w) : (1 @ axis_tid_in_wg, 1)])
 
-    @T.prim_func
+    @T.function
     def kernel(
-        A: T.Buffer((128, stage_width_elem), dtype),
-        Bf: T.Buffer((128, per_thread_elems), dtype),
-        Bs: T.Buffer((128, per_thread_elems), dtype),
+        A: T.Tensor((128, stage_width_elem), dtype),
+        Bf: T.Tensor((128, per_thread_elems), dtype),
+        Bs: T.Tensor((128, per_thread_elems), dtype),
     ) -> None:
         # full-load dump
         # sliced-load dump
         A_flat = A.view(-1)
 
-        T.device_entry()
-        warp_id = T.warp_id([4])
-        T.cta_id([2])
-        wg_id = T.warpgroup_id([1])
-        T.warp_id_in_wg([4])
-        T.lane_id([32])
-        tid_in_wg = T.thread_id([128])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(2,), block=(128,)))
+        warp_id = T.cuda.warp_id()
+        wg_id = T.cuda.warpgroup_id()
+        _lane = T.cuda.lane_id()
+        tid_in_wg = T.cuda.thread_idx("x")
 
         tmem_addr = T.alloc_shared([1], "uint32")
         if wg_id == 0:
@@ -1385,13 +1388,17 @@ def _run_sliced_vs_full_load(shape, full_rep, n_chunks):
                 T.ptx.tcgen05.alloc.cta_group__1.sync.aligned.shared__cta.b32(
                     T.address_of(tmem_addr), T.uint32(tmem_col_width_32b)
                 )
-            T.tvm_storage_sync("shared")
-            tmem = T.decl_buffer(
-                (128, stage_width_elem),
-                dtype,
-                scope="tmem",
-                allocated_addr=tmem_addr[0],
-                layout=TileLayout(S[(128, stage_width_elem) : (1 @ TLane, 1 @ TCol)]),
+            T.gpu_storage_sync("shared")
+            tmem = T.cuda.decl_tmem(
+                tmem_addr[0],
+                ty_args=[
+                    T.Tensor(
+                        (128, stage_width_elem),
+                        dtype,
+                        scope="tmem",
+                        layout=TileLayout(S[(128, stage_width_elem) : (1 @ TLane, 1 @ TCol)]),
+                    )
+                ],
             )
             # Stage A -> TMEM via the standard .32x32b path.
             stage_reg = T.alloc_local((stage_w,), dtype)
@@ -1400,16 +1407,20 @@ def _run_sliced_vs_full_load(shape, full_rep, n_chunks):
                 coff = ci * stage_w
                 for i in range(stage_w // VEC_LEN):
                     g = T.meta_var(tid_in_wg * stage_width_elem + coff + i * VEC_LEN)
-                    Tx.copy(stage_reg[i * VEC_LEN : i * VEC_LEN + VEC_LEN], A_flat[g : g + VEC_LEN])
+                    T.cuda.tile.ld(
+                        stage_reg[i * VEC_LEN : i * VEC_LEN + VEC_LEN], A_flat[g : g + VEC_LEN]
+                    )
                 T.cuda.cta_sync()
-                Tx.wg.copy_async(tmem[:, coff : coff + stage_w], stage_local[:, :])
+                T.cuda.tile.tcgen05.st(
+                    tmem[:, coff : coff + stage_w], stage_local[:, :], scope="warpgroup"
+                )
             T.ptx.tcgen05.wait__st.sync.aligned()
             T.cuda.cta_sync()
 
             # (a) one full-width load
             ff = T.alloc_local((per_thread_elems,), dtype)
             ffl = ff.view(frag_rows, K_cols_fp32, layout=atom_view)
-            Tx.wg.copy_async(ffl[:, :], tmem[0:frag_rows, 0:K_cols_fp32])
+            T.cuda.tile.tcgen05.ld(ffl[:, :], tmem[0:frag_rows, 0:K_cols_fp32], scope="warpgroup")
             T.ptx.tcgen05.wait__ld.sync.aligned()
             T.cuda.cta_sync()
             for i in range(per_thread_elems):
@@ -1420,8 +1431,10 @@ def _run_sliced_vs_full_load(shape, full_rep, n_chunks):
             sfl = sf.view(frag_rows, K_cols_fp32, layout=atom_view)
             for ck in range(n_chunks):
                 lo = T.meta_var(ck * chunk_elem)
-                Tx.wg.copy_async(
-                    sfl[:, lo : lo + chunk_elem], tmem[0:frag_rows, lo : lo + chunk_elem]
+                T.cuda.tile.tcgen05.ld(
+                    sfl[:, lo : lo + chunk_elem],
+                    tmem[0:frag_rows, lo : lo + chunk_elem],
+                    scope="warpgroup",
                 )
             T.ptx.tcgen05.wait__ld.sync.aligned()
             T.cuda.cta_sync()
@@ -1504,19 +1517,19 @@ def test_copy_tmem2reg_async(dtype, width_32b):
     local_view = TileLayout(S[(128, WIDTH) : (1 @ axis_tid_in_wg, 1)])
 
     # fmt: off
-    @T.prim_func
-    def copy_async_test(A: T.Buffer((128, WIDTH), dtype), B: T.Buffer((128, WIDTH), dtype)) -> None:
+    @T.function
+    def copy_async_test(A: T.Tensor((128, WIDTH), dtype), B: T.Tensor((128, WIDTH), dtype)) -> None:
 
         A_flat = A.view(-1)
         B_flat = B.view(-1)
 
-        T.device_entry()
-        warp_id = T.warp_id([(128) // 32])
-        cta_id = T.cta_id([2])
-        wg_id = T.warpgroup_id([1])
-        warp_id_in_wg = T.warp_id_in_wg([4])
-        lane_id = T.lane_id([32])
-        tid_in_wg = T.thread_id([128])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(2,), block=(128,)))
+        warp_id = T.cuda.warp_id()
+        cta_id = T.cuda.block_idx('x')
+        wg_id = T.cuda.warpgroup_id()
+        warp_id_in_wg = T.cuda.warp_in_warpgroup()
+        lane_id = T.cuda.lane_id()
+        tid_in_wg = T.cuda.thread_idx('x')
 
         tmem_addr = T.alloc_shared([1], "uint32")
 
@@ -1524,10 +1537,17 @@ def test_copy_tmem2reg_async(dtype, width_32b):
             if warp_id == 0:
                 T.ptx.tcgen05.alloc.cta_group__1.sync.aligned.shared__cta.b32(T.address_of(tmem_addr), T.uint32(max(32, next_power_of_2(width_32b))))  # noqa: E501
 
-            T.tvm_storage_sync("shared")
+            T.gpu_storage_sync("shared")
 
-            tmem = T.decl_buffer((128, WIDTH), dtype, scope="tmem", allocated_addr=tmem_addr[0],
-                                 layout=TileLayout(S[(128, WIDTH) : (1 @ TLane, 1 @ TCol)]))
+            tmem = T.cuda.decl_tmem(
+                tmem_addr[0],
+                ty_args=[T.Tensor(
+                    (128, WIDTH),
+                    dtype,
+                    scope="tmem",
+                    layout=TileLayout(S[(128, WIDTH) : (1 @ TLane, 1 @ TCol)]),
+                )],
+            )
 
             A_reg = T.alloc_local((WIDTH), dtype)
             B_reg = T.alloc_local((WIDTH), dtype)
@@ -1535,23 +1555,23 @@ def test_copy_tmem2reg_async(dtype, width_32b):
             B_local = B_reg.view(128, WIDTH, layout=local_view)
             for i in range(WIDTH // VEC_LEN):
                 g_offset = T.meta_var(g_layout.apply(tid_in_wg, i, 0)["m"])
-                Tx.copy(A_reg[i * VEC_LEN: i * VEC_LEN + VEC_LEN], A_flat[g_offset: g_offset + VEC_LEN])  # noqa: E501
+                T.cuda.tile.ld(A_reg[i * VEC_LEN: i * VEC_LEN + VEC_LEN], A_flat[g_offset: g_offset + VEC_LEN])  # noqa: E501
             for i in range(WIDTH):
                 B_reg[i] = T.cast(0, dtype)
             T.cuda.cta_sync()
 
                     # A_local -> tmem (async)
-            Tx.wg.copy_async(tmem[:, :], A_local[:, :])
+            T.cuda.tile.tcgen05.st(tmem[:, :], A_local[:, :], scope='warpgroup')
             T.ptx.tcgen05.wait__st.sync.aligned()  # explicit wait
             T.cuda.cta_sync()
 
                     # tmem -> B_local (async)
-            Tx.wg.copy_async(B_local[:, :], tmem[:, :])
+            T.cuda.tile.tcgen05.ld(B_local[:, :], tmem[:, :], scope='warpgroup')
             T.ptx.tcgen05.wait__ld.sync.aligned()  # explicit wait
             T.cuda.cta_sync()
             for i in range(WIDTH // VEC_LEN):
                 g_offset = T.meta_var(g_layout.apply(tid_in_wg, i, 0)["m"])
-                Tx.copy(B_flat[g_offset: g_offset + VEC_LEN], B_reg[i * VEC_LEN: i * VEC_LEN + VEC_LEN])  # noqa: E501
+                T.cuda.tile.st(B_flat[g_offset: g_offset + VEC_LEN], B_reg[i * VEC_LEN: i * VEC_LEN + VEC_LEN])  # noqa: E501
 
             if warp_id == 0:
                 T.ptx.tcgen05.relinquish_alloc_permit.cta_group__1.sync.aligned()
@@ -1600,19 +1620,17 @@ def test_copy_tmem2reg(dtype, width_32b, offset_32b):
     local_view = TileLayout(S[(128, WIDTH) : (1 @ axis_tid_in_wg, 1)])
 
     # fmt: off
-    @T.prim_func
-    def copy_sync(A: T.Buffer((128, WIDTH), dtype), B: T.Buffer((128, WIDTH), dtype)) -> None:
+    @T.function
+    def copy_sync(A: T.Tensor((128, WIDTH), dtype), B: T.Tensor((128, WIDTH), dtype)) -> None:
 
         A_flat = A.view(-1)
         B_flat = B.view(-1)
 
-        T.device_entry()
-        warp_id = T.warp_id([(128) // 32])
-        T.cta_id([2])
-        wg_id = T.warpgroup_id([1])
-        T.warp_id_in_wg([4])
-        T.lane_id([32])
-        tid_in_wg = T.thread_id([128])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(2,), block=(128,)))
+        warp_id = T.cuda.warp_id()
+        wg_id = T.cuda.warpgroup_id()
+        _lane = T.cuda.lane_id()
+        tid_in_wg = T.cuda.thread_idx('x')
 
         tmem_addr = T.alloc_shared([1], "uint32")
 
@@ -1620,10 +1638,9 @@ def test_copy_tmem2reg(dtype, width_32b, offset_32b):
             if warp_id == 0:
                 T.ptx.tcgen05.alloc.cta_group__1.sync.aligned.shared__cta.b32(T.address_of(tmem_addr), T.uint32(max(32, next_power_of_2(offset_32b + width_32b))))  # noqa: E501
 
-            T.tvm_storage_sync("shared")
+            T.gpu_storage_sync("shared")
 
-            tmem = T.decl_buffer((128, OFFSET + WIDTH), dtype, scope="tmem", allocated_addr=tmem_addr[0],  # noqa: E501
-                                 layout=TileLayout(S[(128, OFFSET + WIDTH) : (1 @ TLane, 1 @ TCol)]))  # noqa: E501
+            tmem = T.cuda.decl_tmem(tmem_addr[0], ty_args=[T.Tensor((128, OFFSET + WIDTH), dtype, scope="tmem", layout=TileLayout(S[(128, OFFSET + WIDTH) : (1 @ TLane, 1 @ TCol)]))])  # noqa: E501
 
             A_reg = T.alloc_local((WIDTH), dtype)
             B_reg = T.alloc_local((WIDTH), dtype)
@@ -1631,23 +1648,27 @@ def test_copy_tmem2reg(dtype, width_32b, offset_32b):
             B_local = B_reg.view(128, WIDTH, layout=local_view)
             for i in range(WIDTH // VEC_LEN):
                 g_offset = T.meta_var(g_layout.apply(tid_in_wg, i, 0)["m"])
-                Tx.copy(A_reg[i * VEC_LEN: i * VEC_LEN + VEC_LEN], A_flat[g_offset: g_offset + VEC_LEN])  # noqa: E501
+                T.cuda.tile.ld(A_reg[i * VEC_LEN: i * VEC_LEN + VEC_LEN], A_flat[g_offset: g_offset + VEC_LEN])  # noqa: E501
             for i in range(WIDTH):
                 B_reg[i] = T.cast(0, dtype)
             T.cuda.cta_sync()
 
                     # A_local -> tmem
-            Tx.wg.copy_async(tmem[:, OFFSET: OFFSET + WIDTH], A_local[:, :])
+            T.cuda.tile.tcgen05.st(
+                tmem[:, OFFSET : OFFSET + WIDTH], A_local[:, :], scope="warpgroup"
+            )
             T.ptx.tcgen05.wait__st.sync.aligned()
             T.cuda.cta_sync()
 
                     # tmem -> B_local
-            Tx.wg.copy_async(B_local[:, :], tmem[:, OFFSET: OFFSET + WIDTH])
+            T.cuda.tile.tcgen05.ld(
+                B_local[:, :], tmem[:, OFFSET : OFFSET + WIDTH], scope="warpgroup"
+            )
             T.ptx.tcgen05.wait__ld.sync.aligned()
             T.cuda.cta_sync()
             for i in range(WIDTH // VEC_LEN):
                 g_offset = T.meta_var(g_layout.apply(tid_in_wg, i, 0)["m"])
-                Tx.copy(B_flat[g_offset: g_offset + VEC_LEN], B_reg[i * VEC_LEN: i * VEC_LEN + VEC_LEN])  # noqa: E501
+                T.cuda.tile.st(B_flat[g_offset: g_offset + VEC_LEN], B_reg[i * VEC_LEN: i * VEC_LEN + VEC_LEN])  # noqa: E501
 
             if warp_id == 0:
                 T.ptx.tcgen05.relinquish_alloc_permit.cta_group__1.sync.aligned()
@@ -1697,19 +1718,17 @@ def test_copy_tmem2reg_sliced_local(dtype, width_32b, local_offset_32b):
     local_view = TileLayout(S[(128, TOTAL_LOCAL_WIDTH) : (1 @ axis_tid_in_wg, 1)])
 
     # fmt: off
-    @T.prim_func
-    def copy_sync(A: T.Buffer((128, WIDTH), dtype), B: T.Buffer((128, WIDTH), dtype)) -> None:
+    @T.function
+    def copy_sync(A: T.Tensor((128, WIDTH), dtype), B: T.Tensor((128, WIDTH), dtype)) -> None:
 
         A_flat = A.view(-1)
         B_flat = B.view(-1)
 
-        T.device_entry()
-        warp_id = T.warp_id([(128) // 32])
-        T.cta_id([2])
-        wg_id = T.warpgroup_id([1])
-        T.warp_id_in_wg([4])
-        T.lane_id([32])
-        tid_in_wg = T.thread_id([128])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(2,), block=(128,)))
+        warp_id = T.cuda.warp_id()
+        wg_id = T.cuda.warpgroup_id()
+        _lane = T.cuda.lane_id()
+        tid_in_wg = T.cuda.thread_idx('x')
 
         tmem_addr = T.alloc_shared([1], "uint32")
 
@@ -1717,10 +1736,17 @@ def test_copy_tmem2reg_sliced_local(dtype, width_32b, local_offset_32b):
             if warp_id == 0:
                 T.ptx.tcgen05.alloc.cta_group__1.sync.aligned.shared__cta.b32(T.address_of(tmem_addr), T.uint32(max(32, next_power_of_2(width_32b))))  # noqa: E501
 
-            T.tvm_storage_sync("shared")
+            T.gpu_storage_sync("shared")
 
-            tmem = T.decl_buffer((128, WIDTH), dtype, scope="tmem", allocated_addr=tmem_addr[0],
-                                 layout=TileLayout(S[(128, WIDTH) : (1 @ TLane, 1 @ TCol)]))
+            tmem = T.cuda.decl_tmem(
+                tmem_addr[0],
+                ty_args=[T.Tensor(
+                    (128, WIDTH),
+                    dtype,
+                    scope="tmem",
+                    layout=TileLayout(S[(128, WIDTH) : (1 @ TLane, 1 @ TCol)]),
+                )],
+            )
 
             A_reg = T.alloc_local((TOTAL_LOCAL_WIDTH), dtype)
             B_reg = T.alloc_local((TOTAL_LOCAL_WIDTH), dtype)
@@ -1728,23 +1754,27 @@ def test_copy_tmem2reg_sliced_local(dtype, width_32b, local_offset_32b):
             B_local = B_reg.view(128, TOTAL_LOCAL_WIDTH, layout=local_view)
             for i in range(WIDTH // VEC_LEN):
                 g_offset = T.meta_var(g_layout.apply(tid_in_wg, i, 0)["m"])
-                Tx.copy(A_reg[LOCAL_OFFSET + i * VEC_LEN: LOCAL_OFFSET + i * VEC_LEN + VEC_LEN], A_flat[g_offset: g_offset + VEC_LEN])  # noqa: E501
+                T.cuda.tile.ld(A_reg[LOCAL_OFFSET + i * VEC_LEN: LOCAL_OFFSET + i * VEC_LEN + VEC_LEN], A_flat[g_offset: g_offset + VEC_LEN])  # noqa: E501
             for i in range(TOTAL_LOCAL_WIDTH):
                 B_reg[i] = T.cast(0, dtype)
             T.cuda.cta_sync()
 
                     # A_local[sliced] -> tmem (use sliced region)
-            Tx.wg.copy_async(tmem[:, 0:WIDTH], A_local[:, LOCAL_OFFSET:LOCAL_OFFSET + WIDTH])
+            T.cuda.tile.tcgen05.st(
+                tmem[:, 0:WIDTH], A_local[:, LOCAL_OFFSET : LOCAL_OFFSET + WIDTH], scope="warpgroup"
+            )
             T.ptx.tcgen05.wait__st.sync.aligned()
             T.cuda.cta_sync()
 
                     # tmem -> B_local[sliced] (use sliced region)
-            Tx.wg.copy_async(B_local[:, LOCAL_OFFSET:LOCAL_OFFSET + WIDTH], tmem[:, 0:WIDTH])
+            T.cuda.tile.tcgen05.ld(
+                B_local[:, LOCAL_OFFSET : LOCAL_OFFSET + WIDTH], tmem[:, 0:WIDTH], scope="warpgroup"
+            )
             T.ptx.tcgen05.wait__ld.sync.aligned()
             T.cuda.cta_sync()
             for i in range(WIDTH // VEC_LEN):
                 g_offset = T.meta_var(g_layout.apply(tid_in_wg, i, 0)["m"])
-                Tx.copy(B_flat[g_offset: g_offset + VEC_LEN], B_reg[LOCAL_OFFSET + i * VEC_LEN: LOCAL_OFFSET + i * VEC_LEN + VEC_LEN])  # noqa: E501
+                T.cuda.tile.st(B_flat[g_offset: g_offset + VEC_LEN], B_reg[LOCAL_OFFSET + i * VEC_LEN: LOCAL_OFFSET + i * VEC_LEN + VEC_LEN])  # noqa: E501
 
             if warp_id == 0:
                 T.ptx.tcgen05.relinquish_alloc_permit.cta_group__1.sync.aligned()

@@ -21,13 +21,13 @@ import tvm
 from tvm.ir.module import IRModule
 from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
-from tvm.tirx.function import PrimFunc
+from tvm.tirx.function import Function
 
 
 def _check(before, expect):
-    if isinstance(before, PrimFunc):
+    if isinstance(before, Function):
         before = IRModule({"main": before.with_attr("global_symbol", "main")})
-    if isinstance(expect, PrimFunc):
+    if isinstance(expect, Function):
         expect = IRModule({"main": expect.with_attr("global_symbol", "main")})
 
     mod = tvm.s_tir.transform.RemoveWeightLayoutRewriteBlock()(before)
@@ -35,11 +35,11 @@ def _check(before, expect):
 
 
 def test_matmul():
-    @Ts.prim_func
+    @Ts.function
     def before(
-        A: T.Buffer((16, 16), "float32"),
-        B: T.Buffer((16, 16), "float32"),
-        C: T.Buffer((16, 16), "float32"),
+        A: T.Tensor((16, 16), "float32"),
+        B: T.Tensor((16, 16), "float32"),
+        C: T.Tensor((16, 16), "float32"),
     ) -> None:
         T.func_attr({"layout_free_buffers": [1]})
         B_ = Ts.sblock_alloc_buffer([16, 4, 4], dtype="float32")
@@ -61,11 +61,11 @@ def test_matmul():
                     C[vi, vj] = T.float32(0)
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B_[vj, vk // 4, vk % 4]
 
-    @Ts.prim_func
+    @Ts.function
     def after(
-        A: T.Buffer((16, 16), "float32"),
-        B: T.Buffer((16, 4, 4), "float32"),
-        C: T.Buffer((16, 16), "float32"),
+        A: T.Tensor((16, 16), "float32"),
+        B: T.Tensor((16, 4, 4), "float32"),
+        C: T.Tensor((16, 16), "float32"),
     ) -> None:
         T.func_attr({"layout_free_buffers": [1]})
         for i0_o, i1_o in T.grid(16, 16):

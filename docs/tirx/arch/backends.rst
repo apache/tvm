@@ -54,7 +54,7 @@ CUDA ownership
    * - ``op``
      - Define IR builders used by the CUDA script namespaces.
    * - ``tile_primitive``
-     - Register CUDA implementations of common ``Tx.tile`` operations.
+     - Register named ``Tx.cuda.tile`` instruction contracts and lowerers.
    * - ``codegen`` and ``cpp``
      - Register source-generation callbacks and CUDA C++ helpers.
    * - ``transforms``
@@ -73,7 +73,7 @@ Trainium ownership
 ------------------
 
 ``tvm.backend.trn`` follows the same boundary.  ``script`` and ``op`` construct
-the ``Tx.nki`` surface, ``tile_primitive`` registers target dispatches,
+the ``Tx.nki`` surface, ``tensor_instructions`` registers ``Tx.trn.tile`` instruction contracts,
 ``layout`` and ``transform`` lower Trainium-specific memory mappings, and
 ``pipeline`` assembles the Trainium pass sequence.  ``target_tags`` registers
 the named AWS Trainium targets.

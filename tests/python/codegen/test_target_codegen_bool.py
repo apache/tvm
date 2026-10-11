@@ -33,29 +33,29 @@ def test_cmp_load_store(target):
 
     @I.ir_module
     class GPUModule:
-        @T.prim_func
+        @T.function
         def main(
-            A: T.Buffer((32,), "float32"),
-            B: T.Buffer((32,), "float32"),
-            D: T.Buffer((32,), "float32"),
+            A: T.Tensor((32,), "float32"),
+            B: T.Tensor((32,), "float32"),
+            D: T.Tensor((32,), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
             for bx in T.thread_binding(8, thread="blockIdx.x"):
                 for tx in T.thread_binding(4, thread="threadIdx.x"):
-                    C = T.alloc_buffer((1,), "bool", scope="local")
+                    C = T.alloc_tensor((1,), "bool", scope="local")
                     C[0] = B[bx * 4 + tx] < A[bx * 4 + tx]
                     D[bx * 4 + tx] = T.Cast("float32", C[0] and T.float32(1.0) < A[bx * 4 + tx])
 
     @I.ir_module
     class CPUModule:
-        @T.prim_func
+        @T.function
         def main(
-            A: T.Buffer((32,), "float32"),
-            B: T.Buffer((32,), "float32"),
-            D: T.Buffer((32,), "float32"),
+            A: T.Tensor((32,), "float32"),
+            B: T.Tensor((32,), "float32"),
+            D: T.Tensor((32,), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
-            C = T.alloc_buffer((32,), "bool")
+            C = T.alloc_tensor((32,), "bool")
             for i0 in range(32):
                 C[i0] = B[i0] < A[i0]
             for i0 in range(32):
@@ -88,8 +88,8 @@ def test_cmp_load_store(target):
 
 
 def test_bitwise_not_c(tmp_path):
-    @T.prim_func
-    def complement(values: T.Buffer((5,), "int32"), output: T.Buffer((5,), "bool")):
+    @T.function
+    def complement(values: T.Tensor((5,), "int32"), output: T.Tensor((5,), "bool")):
         for i in range(5):
             output[i] = T.bitwise_not(values[i] != 0)
 

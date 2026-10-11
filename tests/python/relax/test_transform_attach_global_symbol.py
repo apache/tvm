@@ -38,11 +38,11 @@ def test_basic():
 
     @tvm.script.ir_module
     class Before:
-        @Ts.prim_func
+        @Ts.function
         def tir_matmul(
-            A: T.Buffer((m_tir_matmul, n_tir_matmul)),
-            B: T.Buffer((n_tir_matmul, k_tir_matmul)),
-            C: T.Buffer((m_tir_matmul, k_tir_matmul)),
+            A: T.Tensor((m_tir_matmul, n_tir_matmul)),
+            B: T.Tensor((n_tir_matmul, k_tir_matmul)),
+            C: T.Tensor((m_tir_matmul, k_tir_matmul)),
         ) -> None:
             for i, j, k_tir_matmul_index in T.grid(m_tir_matmul, k_tir_matmul, n_tir_matmul):
                 with Ts.sblock("matmul"):
@@ -55,7 +55,9 @@ def test_basic():
         def main(
             x: R.Tensor((m_main, n_main), "float32"), w: R.Tensor((n_main, k_main), "float32")
         ) -> R.Tensor:
-            gv0 = R.call_tir(Before.tir_matmul, (x, w), R.Tensor((m_main, k_main), dtype="float32"))
+            gv0 = R.call_tir(
+                Before.tir_matmul, (x, w), ty_args=[R.Tensor((m_main, k_main), dtype="float32")]
+            )
             return gv0
 
     m_tir_matmul = T.dynamic("m")
@@ -67,11 +69,11 @@ def test_basic():
 
     @tvm.script.ir_module
     class Expected:
-        @Ts.prim_func
+        @Ts.function
         def tir_matmul(
-            A: T.Buffer((m_tir_matmul, n_tir_matmul)),
-            B: T.Buffer((n_tir_matmul, k_tir_matmul)),
-            C: T.Buffer((m_tir_matmul, k_tir_matmul)),
+            A: T.Tensor((m_tir_matmul, n_tir_matmul)),
+            B: T.Tensor((n_tir_matmul, k_tir_matmul)),
+            C: T.Tensor((m_tir_matmul, k_tir_matmul)),
         ) -> None:
             T.func_attr({"global_symbol": "tir_matmul"})
 
@@ -87,7 +89,7 @@ def test_basic():
             x: R.Tensor((m_main, n_main), "float32"), w: R.Tensor((n_main, k_main), "float32")
         ) -> R.Tensor:
             gv0 = R.call_tir(
-                Expected.tir_matmul, (x, w), R.Tensor((m_main, k_main), dtype="float32")
+                Expected.tir_matmul, (x, w), ty_args=[R.Tensor((m_main, k_main), dtype="float32")]
             )
             return gv0
 
@@ -102,27 +104,29 @@ def test_system_lib_prefix():
     class Before:
         I.module_attrs({"system_lib_prefix": "hello_"})
 
-        @Ts.prim_func(private=True)
-        def tir_zeros(x: T.Buffer((2), "float32")) -> None:
+        @Ts.function(private=True)
+        def tir_zeros(x: T.Tensor((2), "float32")) -> None:
             x[0] = T.float32(0)
 
         @R.function(private=True)
         def main() -> R.Tensor:
-            gv0 = R.call_tir(Before.tir_zeros, (), R.Tensor((2,), dtype="float32"))
+            gv0 = R.call_tir(Before.tir_zeros, (), ty_args=[R.Tensor((2,), dtype="float32")])
             return gv0
 
     @tvm.script.ir_module
     class Expected:
         I.module_attrs({"system_lib_prefix": "hello_"})
 
-        @Ts.prim_func
-        def hello_tir_zeros(x: T.Buffer((2), "float32")) -> None:
+        @Ts.function
+        def hello_tir_zeros(x: T.Tensor((2), "float32")) -> None:
             T.func_attr({"global_symbol": "hello_tir_zeros"})
             x[0] = T.float32(0)
 
         @R.function
         def main() -> R.Tensor:
-            gv0 = R.call_tir(Expected.hello_tir_zeros, (), R.Tensor((2,), dtype="float32"))
+            gv0 = R.call_tir(
+                Expected.hello_tir_zeros, (), ty_args=[R.Tensor((2,), dtype="float32")]
+            )
             return gv0
 
     before = Before

@@ -32,7 +32,6 @@ except ImportError:
 import tvm_ffi
 from tvm_ffi import DLDeviceType, device
 
-import tvm
 from tvm.runtime import Device
 
 from . import _ffi_api
@@ -357,29 +356,6 @@ def tensor(arr, device=None, mem_scope=None):
     if not isinstance(arr, np.ndarray | Tensor):
         arr = np.asarray(arr)
     return empty(arr.shape, arr.dtype, device, mem_scope).copyfrom(arr)
-
-
-def device_from_target(target, index=None):
-    """Construct a runtime device from a compilation target.
-
-    Parameters
-    ----------
-    target : str or dict or tvm.target.Target
-        The compilation target whose device type should be used.
-
-    index : int, optional
-        The integer device index.
-
-    Returns
-    -------
-    dev : Device
-        The created device.
-    """
-    from tvm.target import Target  # pylint: disable=import-outside-toplevel
-
-    if not isinstance(target, Target):
-        target = Target(target)
-    return device(target.get_target_device_type(), index)
 
 
 def cpu(dev_id=0):

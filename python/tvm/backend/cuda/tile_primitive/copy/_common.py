@@ -27,7 +27,7 @@ to call, allowed vec widths). All the layout/partition logic lives here.
 
 from tvm import sym
 from tvm.tirx.layout import ComposeLayout, Iter, TileLayout
-from tvm.tirx.operator.tile_primitive.registry import DispatchContext
+from tvm.tirx.tile_dispatch import DispatchContext
 
 from ..layout_utils import strip_swizzle_to_tile
 
@@ -53,7 +53,7 @@ def _alignment_ok(vec_len: int, terms) -> bool:
     return True
 
 
-# scope_kind → name of the scope_id that decomposes the scope into per-thread.
+# scope_kind → CUDA index call that decomposes the scope into individual threads.
 _TID_AXIS_FOR_SCOPE = {
     "warp": "laneid",
     "warpgroup": "tid_in_wg",

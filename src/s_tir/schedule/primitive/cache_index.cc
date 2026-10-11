@@ -34,12 +34,13 @@ using namespace tvm::tirx;
 
 /*! \brief The auxiliary info used for the insertion point and content of the cache stage. */
 struct IndexInfo {
+  explicit IndexInfo(StmtSRef target) : target_sblock(std::move(target)) {}
   /*! \brief The target block to perform cache_index */
   StmtSRef target_sblock;
   /*! \brief Record the common subexpr extract threshold */
   size_t cse_thresh;
   /*! \brief The cache buffer to store the precomputed index */
-  std::vector<BufferVar> cache_buffer;
+  std::vector<TensorVar> cache_buffer;
   /*! \brief The expr to be precomputed */
   std::vector<PrimExpr> index_exprs;
   /*! \brief The range of the loop vars relating to index computation */
@@ -51,7 +52,7 @@ struct IndexInfo {
   /*! \brief The index to insert the cache stage. */
   size_t loc_pos;
   /*! \brief The cache stage to be inserted. */
-  Stmt cache_stage;
+  Stmt cache_stage{ffi::UnsafeInit{}};
   /*! \brief The map used for ScheduleStateNode::Replace. */
   ffi::Map<SBlock, SBlock> block_reuse;
 };
@@ -151,7 +152,7 @@ class IndexInfoCollector : public StmtExprVisitor {
     return std::nullopt;
   }
 
-  ffi::Optional<VisitInterrupt> Visit_(const BufferStoreNode* store) final {
+  ffi::Optional<VisitInterrupt> Visit_(const TensorStoreNode* store) final {
     // Only analyze the cache candidate for stores in target block
     if (visiting_target_sblock) {
       auto IsEligibleComputation = [](const PrimExpr& expr) {
@@ -282,8 +283,8 @@ ffi::Array<SBlock> MakeIndexCacheStage(IndexInfo* info, const ffi::String& stora
       buffer_shape.push_back(
           sym::EvalSet(info->var_binding.at(it), sym::AsIntSet(info->range_map)).max() + 1);
     }
-    info->cache_buffer.push_back(BufferVar(
-        index_buffer_name, BufferType(storage_scope, data_ty, buffer_shape, {1}, {0}, 0, 0)));
+    info->cache_buffer.push_back(TensorVar(
+        index_buffer_name, TensorType(storage_scope, data_ty, buffer_shape, {1}, {0}, 0, 0)));
 
     // Create loop vars and block vars' binding_value
     std::vector<PrimVar> loop_vars;
@@ -309,7 +310,7 @@ ffi::Array<SBlock> MakeIndexCacheStage(IndexInfo* info, const ffi::String& stora
     // block variables
     ffi::Array<IterVar> block_vars;
     // block access region for write buffers
-    Region access_region;
+    ffi::Array<Range> access_region;
     // indices used in block body
     ffi::Array<PrimExpr> access_indices;
     ffi::Map<Var, Var> block_var_map;
@@ -344,7 +345,7 @@ ffi::Array<SBlock> MakeIndexCacheStage(IndexInfo* info, const ffi::String& stora
         /*writes=*/{BufferRegion(info->cache_buffer[expr_index], access_region)},
         /*name_hint=*/"index_" + std::to_string(expr_index),
         /*body=*/
-        BufferStore(info->cache_buffer[expr_index], new_expr, access_indices),
+        TensorStore(info->cache_buffer[expr_index], access_indices, new_expr),
         /*init=*/std::nullopt,
         /*alloc_buffers=*/{},
         /*match_buffers=*/{},
@@ -359,7 +360,7 @@ ffi::Array<SBlock> MakeIndexCacheStage(IndexInfo* info, const ffi::String& stora
       body = For(/*loop_var=*/loop_vars[i - 1],
                  /*min=*/0,
                  /*extent=*/info->range_map.at(iter_vars[i - 1])->extent,
-                 /*kind=*/ForKind::kSerial,
+                 /*kind=*/ForKind::kDefault,
                  /*body=*/body);
     }
     bodies.push_back(body);
@@ -378,15 +379,15 @@ ffi::Array<SBlock> MakeIndexCacheStage(IndexInfo* info, const ffi::String& stora
  */
 Stmt InsertIndexStage(const Stmt& stmt, int pos, const Stmt& stage) {
   if (const auto* seq_stmt = stmt.as<SeqStmtNode>()) {
-    ffi::ObjectPtr<SeqStmtNode> result = ffi::make_object<SeqStmtNode>(*seq_stmt);
-    result->seq.insert(result->seq.begin() + pos, stage);
-    return SeqStmt(result);
+    ffi::Array<Stmt> result = seq_stmt->seq;
+    result.insert(result.begin() + pos, stage);
+    return SeqStmt(result, seq_stmt->loc);
   }
   if (pos == 0) {
-    return SeqStmt::Flatten<ffi::Array<Stmt>>({stage, stmt});
+    return SeqStmt({stage, stmt});
   }
   TVM_FFI_ICHECK_EQ(pos, 1);
-  return SeqStmt::Flatten<ffi::Array<Stmt>>({stmt, stage});
+  return SeqStmt({stmt, stage});
 }
 
 /*! \brief Mutator for CacheIndex. */
@@ -433,7 +434,7 @@ class CacheIndexRewriter : public StmtExprMutator {
       // If so, put buffer allocation and insert cache stages on the parent scope
       ffi::ObjectPtr<SBlockNode> n = ffi::make_object<SBlockNode>(*stmt.as<SBlockNode>());
       n->body = InsertIndexStage(n->body, info_->loc_pos, info_->cache_stage);
-      for (const BufferVar& it : info_->cache_buffer) {
+      for (const TensorVar& it : info_->cache_buffer) {
         n->alloc_buffers.push_back(it);
       }
       stmt = SBlock(n);
@@ -442,7 +443,7 @@ class CacheIndexRewriter : public StmtExprMutator {
     return stmt;
   }
 
-  UnchangedOr<Stmt> Mutate_(const BufferStoreNode* store, InplaceMode inplace_mode) final {
+  UnchangedOr<Stmt> Mutate_(const TensorStoreNode* store, InplaceMode inplace_mode) final {
     Stmt ret_stmt =
         StmtExprMutator::Mutate_(store, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(store));
     // Replace common sub expr for target block, with cached buffer load
@@ -453,7 +454,7 @@ class CacheIndexRewriter : public StmtExprMutator {
             [computation](const PrimExpr& current_expr) {
               return (EquivalentTerms(current_expr, computation, true));
             };
-        TensorLoad load = BufferLoad(info_->cache_buffer[i], cache_indices_[i]);
+        TensorLoad load = MakeTensorLoad(info_->cache_buffer[i], cache_indices_[i]);
         ret_stmt = ReplaceSelectedExpr::ReplaceSelectedExprInStmt(
             ret_stmt, predicate_selector, std::move(load),
             [](const PrimExpr& expr) { return true; });
@@ -484,8 +485,7 @@ ffi::Array<StmtSRef> CacheIndex(ScheduleState self, const StmtSRef& block_sref,
    */
 
   // Step 0. Checking index, getting the target buffer and the parent scope
-  IndexInfo info;
-  info.target_sblock = block_sref;
+  IndexInfo info(block_sref);
   TVM_FFI_ICHECK_GE(cse_thresh, 0) << "cse_thresh should not be negative number";
   info.cse_thresh = cse_thresh;
   StmtSRef scope_sref = GetScopeRoot(self, block_sref, /*require_stage_pipeline=*/false);

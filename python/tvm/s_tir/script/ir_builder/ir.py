@@ -24,12 +24,64 @@ from typing import Any
 from tvm import ir
 from tvm import tirx as tir
 from tvm.ir import TensorLoad, TensorRegion, is_prim_expr
+from tvm.ir.location import UNKNOWN_LOC, Location
+from tvm.s_tir.iter_var import IterVar
+from tvm.s_tir.op import comm_reducer
+from tvm.script.ir_builder.base import MISSING
 from tvm.script.parser.protocol_registry import register_mutable_decl as _register_mutable_decl
-from tvm.tirx import Buffer, Expr, IntImm, Var
+from tvm.te import CommReducer, Reduce
+from tvm.tirx import Expr, IntImm, Var
 from tvm.tirx.layout import Layout
 from tvm.tirx.script.ir_builder.ir import _get_layout, _record_meta_resource
+from tvm.tirx.script.ir_builder.parser_protocol import region
 
 from . import _ffi_api
+
+
+def iter_var(v: Var | str, dom: ir.Range, iter_type: str, thread_tag: str) -> IterVar:
+    """The iteration variable.
+
+    Parameters
+    ----------
+    v : Union[Var, str]
+        The internal variable that is used for iteration.
+
+    dom : Range
+        The domain of the iteration.
+
+    iter_type : str
+        The iteration type.
+
+    thread_tag : str
+        The thread type tag.
+
+    Returns
+    -------
+    res : IterVar
+        The iteration variable.
+    """
+    iter_type = getattr(IterVar, iter_type)
+    return IterVar(dom, v, iter_type, thread_tag)
+
+
+def async_copy_scope():
+    """Mark eligible memory copies for asynchronous-copy lowering."""
+    return region("s_tir.async_copy_scope", [])
+
+
+def async_commit(queue_id, *, ty=None, loc: Location = UNKNOWN_LOC):
+    """Commit the preceding asynchronous copies to a queue."""
+    return ir.Call("s_tir.async_commit", [queue_id], ty=ty, loc=loc)
+
+
+def async_wait(queue_id, inflight_count, *, ty=None, loc: Location = UNKNOWN_LOC):
+    """Wait until at most inflight_count committed groups remain in flight."""
+    return ir.Call("s_tir.async_wait", [queue_id, inflight_count], ty=ty, loc=loc)
+
+
+def manual_sync():
+    """Use explicitly authored synchronization within this region."""
+    return region("s_tir.manual_sync", [])
 
 
 @_register_mutable_decl("s_tir.match_buffer")
@@ -43,18 +95,18 @@ def match_buffer(
     scope: str = "global",
     align: int = -1,
     offset_factor: int = 0,
-    layout: str | Layout | None = "default",
+    layout: str | Layout | None = MISSING,
     allocated_addr: Expr | int | tuple[Expr | int, ...] | None = None,
-) -> Buffer:
+) -> Var:
     """Bind a buffer subregion inside an S-TIR block.
 
-    Function inputs use Buffer annotations in the function signature.
+    Function inputs use Tensor annotations in the function signature.
     Shape and dtype are inferred when the source is a TensorRegion.
     """
     if not isinstance(param, TensorLoad | TensorRegion):
-        raise TypeError("match_buffer requires a buffer subregion; use Buffer for function inputs")
-    if isinstance(param, TensorRegion) and not tir.is_buffer_var(param.source):
-        raise TypeError("match_buffer requires a TensorRegion with a BufferVar source")
+        raise TypeError("match_buffer requires a buffer subregion; use Tensor for function inputs")
+    if isinstance(param, TensorRegion) and not tir.is_tensor_var(param.source):
+        raise TypeError("match_buffer requires a TensorRegion with a TensorVar source")
     if shape is None:
         if isinstance(param, TensorRegion):
             dtype = param.source.ty.dtype
@@ -191,9 +243,9 @@ def sblock_alloc_buffer(
     scope: str = "global",
     align: int = -1,
     offset_factor: int = 0,
-    layout: str | Layout | None = "default",
+    layout: str | Layout | None = MISSING,
     allocated_addr: int | tuple[int, ...] | None = None,
-) -> Buffer:
+) -> Var:
     """SBlock-level buffer allocation function.
 
     Parameters
@@ -225,7 +277,7 @@ def sblock_alloc_buffer(
 
     Returns
     -------
-    res : Buffer
+    res : Var
         The allocated buffer.
     """
     shape = (shape,) if is_prim_expr(shape) or isinstance(shape, Integral) else shape
@@ -284,7 +336,7 @@ class axis:  # pylint: disable=invalid-name
     @staticmethod
     def spatial(
         dom: ir.Range | list[Expr] | tuple[Expr],
-        binding: Expr,
+        binding: Expr | None = None,
         dtype: str = "int32",
     ) -> Var:
         """The spatial block axis defining function.
@@ -294,8 +346,9 @@ class axis:  # pylint: disable=invalid-name
         dom : Union[Range, List[Expr], Tuple[Expr]]
             The domain of the iteration variable.
 
-        binding : Expr
-            The binding value of the iteration variable.
+        binding : Expr, optional
+            The binding value of the iteration variable. Omit only inside a
+            block with no_realize=True.
 
         dtype : str
             The data type of the iteration variable.
@@ -312,7 +365,7 @@ class axis:  # pylint: disable=invalid-name
     @staticmethod
     def reduce(
         dom: ir.Range | list[Expr] | tuple[Expr],
-        binding: Expr,
+        binding: Expr | None = None,
         dtype: str = "int32",
     ) -> Var:
         """The reduced block axis defining function.
@@ -322,8 +375,9 @@ class axis:  # pylint: disable=invalid-name
         dom : Union[Range, List[Expr], Tuple[Expr]]
             The domain of the iteration variable.
 
-        binding : Expr
-            The binding value of the iteration variable.
+        binding : Expr, optional
+            The binding value of the iteration variable. Omit only inside a
+            block with no_realize=True.
 
         dtype : str
             The data type of the iteration variable.
@@ -340,7 +394,7 @@ class axis:  # pylint: disable=invalid-name
     @staticmethod
     def scan(
         dom: ir.Range | list[Expr] | tuple[Expr],
-        binding: Expr,
+        binding: Expr | None = None,
         dtype: str = "int32",
     ) -> Var:
         """The scanning block axis defining function.
@@ -350,8 +404,9 @@ class axis:  # pylint: disable=invalid-name
         dom : Union[Range, List[Expr], Tuple[Expr]]
             The domain of the iteration variable.
 
-        binding : Expr
-            The binding value of the iteration variable.
+        binding : Expr, optional
+            The binding value of the iteration variable. Omit only inside a
+            block with no_realize=True.
 
         dtype : str
             The data type of the iteration variable.
@@ -368,7 +423,7 @@ class axis:  # pylint: disable=invalid-name
     @staticmethod
     def opaque(
         dom: ir.Range | list[Expr] | tuple[Expr],
-        binding: Expr,
+        binding: Expr | None = None,
         dtype: str = "int32",
     ) -> Var:
         """The opaque block axis defining function.
@@ -378,8 +433,9 @@ class axis:  # pylint: disable=invalid-name
         dom : Union[Range, List[Expr], Tuple[Expr]]
             The domain of the iteration variable.
 
-        binding : Expr
-            The binding value of the iteration variable.
+        binding : Expr, optional
+            The binding value of the iteration variable. Omit only inside a
+            block with no_realize=True.
 
         dtype : str
             The data type of the iteration variable.
@@ -423,8 +479,17 @@ class axis:  # pylint: disable=invalid-name
 
 
 __all__ = [
+    "CommReducer",
+    "IterVar",
+    "Reduce",
+    "async_commit",
+    "async_copy_scope",
+    "async_wait",
     "axis",
     "block_name_suffix_context",
+    "comm_reducer",
+    "iter_var",
+    "manual_sync",
     "match_buffer",
     "reads",
     "sblock_alloc_buffer",

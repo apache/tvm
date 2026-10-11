@@ -25,12 +25,11 @@
 
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ir/expr_functor.h>
-#include <tvm/ir/prim/builtin.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/s_tir/analysis.h>
 #include <tvm/sym/analyzer.h>
 #include <tvm/sym/pattern.h>
 #include <tvm/tirx/analysis.h>
-#include <tvm/tirx/op.h>
 
 #include <algorithm>
 #include <functional>
@@ -69,7 +68,7 @@ struct IntGroupBounds {
         << "Coefficient in IntGroupBounds must be integers";
   }
 
-  Range FindBestRange(const ffi::Map<Var, Range>& vranges_addl) const;
+  ffi::Optional<Range> FindBestRange(const ffi::Map<Var, Range>& vranges_addl) const;
   IntGroupBounds operator+(const Range& range);
 };
 
@@ -139,7 +138,7 @@ IntGroupBounds IntGroupBounds::operator+(const Range& r) {
   ffi::Array<PrimExpr> lower;
   ffi::Array<PrimExpr> upper;
   const PrimExpr& coef = this->coef;
-  if (tvm::prim::is_one(r->extent)) {
+  if (tvm::prim::IsOne(r->extent)) {
     equal.push_back(analyzer->Simplify(r->min * coef));
   } else {
     lower.push_back(analyzer->Simplify(r->min * coef));
@@ -151,13 +150,13 @@ IntGroupBounds IntGroupBounds::operator+(const Range& r) {
   return IntGroupBounds(coef, lower, equal, upper);
 }
 
-Range IntGroupBounds::FindBestRange(const ffi::Map<Var, Range>& vranges_addl) const {
+ffi::Optional<Range> IntGroupBounds::FindBestRange(const ffi::Map<Var, Range>& vranges_addl) const {
   Analyzer analyzer;
   analyzer->Bind(vranges_addl);
 
   std::unordered_map<const VarNode*, IntSet> var_intsets;
   for (auto kv : vranges_addl) {
-    var_intsets[kv.first.get()] = IntSet::FromRange(kv.second);
+    var_intsets.insert_or_assign(kv.first.get(), IntSet::FromRange(kv.second));
   }
 
   const ffi::Array<PrimExpr>& equal = this->equal;
@@ -172,7 +171,7 @@ Range IntGroupBounds::FindBestRange(const ffi::Map<Var, Range>& vranges_addl) co
     uppers.push_back(expr);
   }
 
-  if (lowers.size() == 1 && uppers.size() == 1 && tvm::prim::is_one(coef)) {
+  if (lowers.size() == 1 && uppers.size() == 1 && tvm::prim::IsOne(coef)) {
     return Range(analyzer->Simplify(lowers[0]), analyzer->Simplify(uppers[0] + 1));
   }
 
@@ -181,9 +180,9 @@ Range IntGroupBounds::FindBestRange(const ffi::Map<Var, Range>& vranges_addl) co
   // Note that the bounds are for v, not for v*coef
 
   // The lower bound of the best pair so far
-  PrimExpr best_lower;
+  ffi::Optional<PrimExpr> best_lower;
   // The difference between the upper and the lower of the best pair, maybe overapproximation
-  PrimExpr best_diff_over;
+  ffi::Optional<PrimExpr> best_diff_over;
 
   for (const PrimExpr& low : lowers) {
     for (const PrimExpr& upp : uppers) {
@@ -212,19 +211,20 @@ Range IntGroupBounds::FindBestRange(const ffi::Map<Var, Range>& vranges_addl) co
 
       // If it is provable that the new one is strictly better than the current best one,
       // then replace it. Note that we are biased towards earlier pairs which should be simpler.
-      if (diff_over.has_value() && (!best_diff_over.defined() ||
-                                    analyzer->CanProve(diff_over.value() - best_diff_over < 0))) {
+      if (diff_over.has_value() &&
+          (!best_diff_over.has_value() ||
+           analyzer->CanProve(diff_over.value() - best_diff_over.value() < 0))) {
         best_lower = low_divided;
         best_diff_over = diff_over.value();
       }
     }
   }
 
-  if (!best_lower.defined()) {
-    TVM_FFI_ICHECK(!best_diff_over.defined());
-    return Range();
+  if (!best_lower.has_value()) {
+    TVM_FFI_ICHECK(!best_diff_over.has_value());
+    return std::nullopt;
   }
-  return Range::FromMinExtent(best_lower, analyzer->Simplify(best_diff_over + 1));
+  return Range::FromMinExtent(best_lower.value(), analyzer->Simplify(best_diff_over.value() + 1));
 }
 
 struct ExprLess {
@@ -518,11 +518,11 @@ PartialSolvedInequalities SolveLinearInequalities(const IntConstraints& system_t
   ffi::Array<PrimExpr> other_conditions;
   for (const PrimExpr& e : current_ineq_set_to_solve) {
     PrimExpr e_simp = analyzer->Simplify(e, kSimplifyRewriteCanonicalRewrite);
-    if (is_const_int(e_simp, 0)) {
+    if (IsConstInt(e_simp, 0)) {
       // contradiction detected
       other_conditions = {IntImm::Bool(false)};
       break;
-    } else if (is_const_int(e_simp, 1)) {
+    } else if (IsConstInt(e_simp, 1)) {
       continue;
     } else {
       other_conditions.push_back(e_simp);
@@ -566,7 +566,7 @@ IntConstraints SolveInequalitiesToRange(const IntConstraints& inequalities) {
     const PrimVar& var = *it;
     TVM_FFI_ICHECK(solved_bounds.count(var));
     auto bnd = solved_bounds.at(var);
-    if (is_one(bnd.coef) && !bnd.equal.empty()) {
+    if (IsOne(bnd.coef) && !bnd.equal.empty()) {
       // There is an equation of the form `v == expr`, so this variable can be completely removed.
       // Note that we use the 0-th expression because they are ordered by complexity,
       // so it must be the simplest one.
@@ -583,14 +583,14 @@ IntConstraints SolveInequalitiesToRange(const IntConstraints& inequalities) {
 
       auto best_range = bnd.FindBestRange(vranges);
 
-      if (best_range.defined()) {
-        if (analyzer->CanProveGreaterEqual(-best_range->extent, 0)) {
+      if (best_range.has_value()) {
+        if (analyzer->CanProveGreaterEqual(-best_range.value()->extent, 0)) {
           // range.extent <= 0 implies the input inequality system is unsolvable
           return IntConstraints(/*variables=*/{}, /*ranges=*/{},
                                 /*relations=*/{IntImm::Bool(false)});
         }
-        res_ranges.Set(var, best_range);
-        vranges.Set(var, best_range);
+        res_ranges.Set(var, best_range.value());
+        vranges.Set(var, best_range.value());
       }
     }
   }
@@ -621,7 +621,7 @@ ffi::Optional<ffi::Map<Var, Range>> ConditionalBoundsContext::TrySolveCondition(
   // currently only extract simple integral equations which could be solvable.
   sym::Analyzer analyzer;
   PrimExpr condition = analyzer->Simplify(condition_);
-  if (is_const_int(condition)) {
+  if (IsConstInt(condition)) {
     return std::nullopt;
   }
   ffi::Array<PrimExpr> equations;
@@ -664,7 +664,7 @@ ffi::Optional<ffi::Map<Var, Range>> ConditionalBoundsContext::TrySolveCondition(
       fvisit(op->b);
     } else if (e->IsInstance<CallNode>()) {
       Call op = e.as_or_throw<Call>();
-      if (op->op.same_as(prim::builtin::likely())) {
+      if (op->op.same_as(prim::likely_op())) {
         fvisit(op->args[0].as_or_throw<PrimExpr>());
       }
     }
@@ -676,7 +676,7 @@ ffi::Optional<ffi::Map<Var, Range>> ConditionalBoundsContext::TrySolveCondition(
   // build dom ranges for related vars
   ffi::Map<Var, Range> ranges;
   for (const Var& v : vars) {
-    sym::IntSet dom;
+    sym::IntSet dom{ffi::UnsafeInit{}};
     auto relax_it = relax_map_->find(v.get());
     if (relax_it != relax_map_->end()) {
       dom = relax_it->second;
@@ -740,7 +740,8 @@ void ConditionalBoundsContext::EnterWithScope() {
 }
 
 void ConditionalBoundsContext::ExitWithScope() {
-  pending_conditions_->resize(origin_pending_conditions_num_);
+  pending_conditions_->erase(pending_conditions_->begin() + origin_pending_conditions_num_,
+                             pending_conditions_->end());
   for (const auto& p : origin_map_) {
     const auto* var = p.first;
     auto relax_it = relax_map_->find(var);

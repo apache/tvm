@@ -16,10 +16,11 @@
     under the License.
 
 tvm.script.printer
-------------------
+-------------------------
 
 tvm.script.printer
-******************
+*************************
 .. automodule:: tvm.script.printer
    :members:
    :imported-members:
+   :exclude-members: Scriptable

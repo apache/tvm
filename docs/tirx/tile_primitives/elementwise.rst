@@ -15,37 +15,26 @@
     specific language governing permissions and limitations
     under the License.
 
-elementwise
-===========
+Elementwise tensor instructions
+===============================
 
-Covers ``cast``, ``fill``, the unary ops (``zero``, ``reciprocal``, ``sqrt``,
-``exp``, ``exp2``, ``log2``, ``silu``), the binary ops (``add``, ``sub``,
-``mul``, ``fdiv``, ``maximum``), and ``fma``. Every op registers **two** variants — ``reg`` and
-``smem`` — both at priority 10; the buffer-operand storage scope (all-local vs
-all-shared) is the mutually-exclusive discriminator. Scalar inputs do not have a
-storage scope. Each op is described by an
-``OpSpec`` (a ``parse`` that builds the destination + source list, optional dtype
-checks, and the scalar expression applied per element).
+``Tx.cuda.tile`` provides ``mov``, ``cvt``, ``add``, ``sub``, ``mul``, ``div``,
+``max``, ``fma``, ``sqrt``, ``ex2``, and ``lg2``. The instruction's tensor layout
+and execution scope determine how its scalar operation is repeated across the tile.
+``mov(dst, 0)`` initializes a tile, and ``div(dst, 1.0, src)`` computes a reciprocal.
 
-This is the current CUDA elementwise set. Other constructors in the global
-``Tx.tile`` catalog, including ``minimum``, ``memset``, and ``select``, do not
-currently have these CUDA ``reg`` / ``smem`` variants; a call needs a variant
-registered by its selected target backend.
+The mathematical compositions ``exp``, ``silu``, and the four
+``*_with_scale_bias`` functions live in ``Tx.cuda.tile.compose`` and remain opaque
+Calls until lowering. Their opcode category is ``tile_composite``.
 
-.. list-table::
-   :header-rows: 1
-   :widths: 24 18 58
+All tensor operands of an elementwise instruction must be local or all shared.
+The corresponding lowerer expands the same operation over the selected storage:
 
-   * - Variant
-     - Operands
-     - Lowering
-   * - :doc:`elementwise/reg`
-     - all buffer operands local
-     - partition induced by the local-buffer layout; op applied per-thread
-   * - :doc:`elementwise/smem`
-     - all buffer operands shared
-     - synthesized ``[outer, threads, vec]`` partition; op applied per (vectorized)
-       element
+* :doc:`elementwise/reg` uses the register layout's per-thread ownership.
+* :doc:`elementwise/smem` constructs a cooperative partition in shared memory.
+
+CUDA reduction algorithms and layout permutation are caller-owned; they have no
+replacement in ``compose``.
 
 .. toctree::
    :maxdepth: 1

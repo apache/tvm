@@ -20,25 +20,26 @@ from tvm.script import tirx as T
 
 
 def test_texture_scope():
-    @T.prim_func
+    @T.function
     def texture_kernel(
         a: T.handle("float32", "global.texture"),
         c: T.handle("float32", "global.texture"),
     ):
         T.func_attr({"global_symbol": "texture_kernel", "calling_conv": 2})
-        tx = T.env_thread("threadIdx.x")
-        T.launch_thread(tx, 128)
-        value = T.call_intrin("float32x4", "tirx.texture2d_load", a, tx, 0, 0, 128, T.Ramp(0, 1, 4))
+        tx = T.launch_thread("threadIdx.x", 128)
+        value = T.call_intrin(
+            "tirx.opencl.texture2d_load", a, tx, 0, 0, 128, T.Ramp(0, 1, 4), ty="float32x4"
+        )
         T.evaluate(
             T.call_intrin(
-                "handle",
-                "tirx.texture2d_store",
+                "tirx.opencl.texture2d_store",
                 c,
                 tx,
                 0,
                 0,
                 128,
                 (value + T.Broadcast(T.float32(1), 4)) * T.Broadcast(T.float32(2), 4),
+                ty="handle",
             )
         )
 

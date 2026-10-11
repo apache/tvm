@@ -76,7 +76,7 @@ def test_ambiguous_function_name():
 
     @R.function
     def func():
-        return R.tuple()
+        return ()
 
     gvar = tvm.ir.GlobalVar("name")
 

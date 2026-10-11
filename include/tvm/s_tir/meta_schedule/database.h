@@ -70,7 +70,9 @@ class WorkloadNode : public ffi::Object {
 class Workload : public ffi::ObjectRef {
  public:
   using THashCode = WorkloadNode::THashCode;
-  explicit Workload(ffi::ObjectPtr<WorkloadNode> data) : ffi::ObjectRef(data) {}
+  explicit Workload(ffi::UnsafeInit tag, ffi::ObjectPtr<WorkloadNode> data) : ffi::ObjectRef(tag) {
+    data_ = std::move(data);
+  }
   /*!
    * \brief Constructor of Workload.
    * \param mod The workload's IRModule.
@@ -545,6 +547,10 @@ class Database : public ffi::ObjectRef {
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Database, ffi::ObjectRef, DatabaseNode);
 };
+
+namespace attr {
+constexpr const char* kTaskName = "task_name";
+}  // namespace attr
 
 }  // namespace meta_schedule
 }  // namespace s_tir

@@ -19,17 +19,17 @@
 from collections.abc import Callable
 
 from tvm.script import tirx as T
-from tvm.tirx import PrimFunc
+from tvm.tirx import Function
 from tvm.tirx.operator.tile_primitive import DispatchContext
-from tvm.tirx.tile_primitive import TilePrimitiveCall
+from tvm.tirx.tensor_instruction import TensorCall
 
 
-def macro_or_prim_func(macro: Callable, need_macro: bool = False) -> Callable:
-    """Wrap a macro in a ``prim_func`` unless the caller explicitly wants the macro."""
+def macro_or_function(macro: Callable, need_macro: bool = False) -> Callable:
+    """Wrap a macro in a ``function`` unless the caller explicitly wants the macro."""
     if need_macro:
         return macro
 
-    @T.prim_func(check_well_formed=False)
+    @T.function(check_well_formed=False)
     def func():
         macro()
 
@@ -51,52 +51,52 @@ def thread_selector(sctx: DispatchContext, inner_impl, macro: bool = False) -> C
     inner_impl : T.inline
         The body to execute inside the selected thread.
     macro : bool
-        If True, return the macro directly; otherwise wrap it in a ``prim_func``.
+        If True, return the macro directly; otherwise wrap it in a ``function``.
     """
-    assert not isinstance(inner_impl, PrimFunc), "inner_impl must be a macro, not a PrimFunc"
+    assert not isinstance(inner_impl, Function), "inner_impl must be a macro, not a Function"
     name = sctx.scope_kind
     if name == "thread":
-        return macro_or_prim_func(inner_impl, need_macro=macro)
+        return macro_or_function(inner_impl, need_macro=macro)
     if name == "cta":
 
         @T.inline()
         def impl():
-            T.lane_id([32])
+            _lane = T.cuda.lane_id()
             if T.cuda.elect_sync():
                 inner_impl()
 
-        return macro_or_prim_func(impl, need_macro=macro)
+        return macro_or_function(impl, need_macro=macro)
     if name == "warp":
 
         @T.inline()
         def impl():
-            T.lane_id([32])
+            _lane = T.cuda.lane_id()
             if T.cuda.elect_sync():
                 inner_impl()
 
-        return macro_or_prim_func(impl, need_macro=macro)
+        return macro_or_function(impl, need_macro=macro)
     if name == "warpgroup":
 
         @T.inline()
         def impl():
-            warp_id = T.warp_id_in_wg([4])
-            T.lane_id([32])
+            warp_id = T.cuda.warp_in_warpgroup()
+            _lane = T.cuda.lane_id()
             if warp_id == 0:
                 if T.cuda.elect_sync():
                     inner_impl()
 
-        return macro_or_prim_func(impl, need_macro=macro)
+        return macro_or_function(impl, need_macro=macro)
     raise ValueError(f"thread_selector: unsupported exec_scope {name!r}")
 
 
-def single_thread(op_call: TilePrimitiveCall, sctx: DispatchContext) -> bool:
+def single_thread(op_call: TensorCall, sctx: DispatchContext) -> bool:
     """Predicate for dispatchers that require a single-thread execution scope."""
     del op_call
     return sctx.is_thread
 
 
 def exec_scope_ok(
-    op_call: TilePrimitiveCall, sctx: DispatchContext, expected_scopes: list[str]
+    op_call: TensorCall, sctx: DispatchContext, expected_scopes: list[str]
 ) -> tuple[bool, str | None]:
     """Predicate helper: check that ``sctx.scope_kind`` is in *expected_scopes*."""
     del op_call

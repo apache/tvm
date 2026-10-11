@@ -38,9 +38,9 @@ from tvm.script import tirx as T
 def test_basic(consume_params):
     @tvm.script.ir_module
     class Before:
-        @Ts.prim_func
+        @Ts.function
         def transform_layout_IOHW_to_OIHW(
-            w1: T.Buffer((3, 16, 3, 3), "float32"), out: T.Buffer((16, 3, 3, 3), "float32")
+            w1: T.Tensor((3, 16, 3, 3), "float32"), out: T.Tensor((16, 3, 3, 3), "float32")
         ) -> None:
             for ax0, ax1, ax2, ax3 in T.grid(16, 3, 3, 3):
                 with Ts.sblock("layout_transform"):
@@ -57,7 +57,9 @@ def test_basic(consume_params):
             cls = Before
             with R.dataflow():
                 w1_transformed = R.call_tir(
-                    cls.transform_layout_IOHW_to_OIHW, w1, R.Tensor((16, 3, 3, 3), "float32")
+                    cls.transform_layout_IOHW_to_OIHW,
+                    w1,
+                    ty_args=[R.Tensor((16, 3, 3, 3), "float32")],
                 )
                 conv1 = R.nn.conv2d(
                     x, w1_transformed, padding=(1, 1), data_layout="NCHW", kernel_layout="OIHW"
@@ -103,9 +105,9 @@ def test_basic(consume_params):
                 R.output(conv2)
             return conv2
 
-        @Ts.prim_func
+        @Ts.function
         def transform_layout_IOHW_to_OIHW(
-            w1: T.Buffer((3, 16, 3, 3), "float32"), out: T.Buffer((16, 3, 3, 3), "float32")
+            w1: T.Tensor((3, 16, 3, 3), "float32"), out: T.Tensor((16, 3, 3, 3), "float32")
         ):
             for ax0, ax1, ax2, ax3 in T.grid(16, 3, 3, 3):
                 with Ts.sblock("layout_transform"):
@@ -129,7 +131,7 @@ def test_basic(consume_params):
                 lv2 = R.call_tir(
                     cls.transform_layout_IOHW_to_OIHW,
                     (lv1,),
-                    out_ty=R.Tensor((16, 3, 3, 3), dtype="float32"),
+                    ty_args=[R.Tensor((16, 3, 3, 3), dtype="float32")],
                 )
                 lv: R.Tensor((16, 16, 3, 3), dtype="float32") = params[1]
                 gv: R.Tuple(
@@ -174,9 +176,9 @@ def test_basic(consume_params):
                 R.output(conv2)
             return conv2
 
-        @Ts.prim_func
+        @Ts.function
         def transform_layout_IOHW_to_OIHW(
-            w1: T.Buffer((3, 16, 3, 3), "float32"), out: T.Buffer((16, 3, 3, 3), "float32")
+            w1: T.Tensor((3, 16, 3, 3), "float32"), out: T.Tensor((16, 3, 3, 3), "float32")
         ):
             for ax0, ax1, ax2, ax3 in T.grid(16, 3, 3, 3):
                 with Ts.sblock("layout_transform"):
@@ -206,7 +208,7 @@ def test_basic(consume_params):
                 lv2 = R.call_tir(
                     cls.transform_layout_IOHW_to_OIHW,
                     (lv1,),
-                    out_ty=R.Tensor((16, 3, 3, 3), dtype="float32"),
+                    ty_args=[R.Tensor((16, 3, 3, 3), dtype="float32")],
                 )
                 lv: R.Tensor((16, 16, 3, 3), dtype="float32") = params[1]
                 _2: R.Tuple = R.call_pure_packed(
@@ -1420,7 +1422,7 @@ def test_symbolic_var_1():
             R.func_attr({"num_input": 0})
             # All instance of the empty tuple are normalized to be
             # in-line.
-            return R.tuple()
+            return ()
 
         @R.function
         def main(shape: R.Shape([n])) -> R.Shape([n]):
@@ -1441,8 +1443,8 @@ def test_symbolic_var_2():
 
     @I.ir_module
     class Before:
-        @Ts.prim_func
-        def zeros(T_full: T.Buffer((n_zeros, n_zeros))):
+        @Ts.function
+        def zeros(T_full: T.Tensor((n_zeros, n_zeros))):
             T.func_attr({"tirx.noalias": True})
 
             for ax0, ax1 in T.grid(n_zeros, n_zeros):
@@ -1458,7 +1460,7 @@ def test_symbolic_var_2():
             cls = Before
             with R.dataflow():
                 zeros = R.call_tir(
-                    cls.zeros, R.tuple(), out_ty=R.Tensor((n_main, n_main), dtype="float32")
+                    cls.zeros, R.tuple(), ty_args=[R.Tensor((n_main, n_main), dtype="float32")]
                 )
                 R.output()
             return shape
@@ -1468,8 +1470,8 @@ def test_symbolic_var_2():
 
     @I.ir_module
     class Expected:
-        @Ts.prim_func
-        def zeros(T_full: T.Buffer((n_zeros, n_zeros))):
+        @Ts.function
+        def zeros(T_full: T.Tensor((n_zeros, n_zeros))):
             T.func_attr({"tirx.noalias": True})
 
             # with Ts.sblock("root"):
@@ -1483,7 +1485,7 @@ def test_symbolic_var_2():
         @R.function
         def main_transform_params(params: R.Tuple) -> R.Tuple:
             R.func_attr({"num_input": 0})
-            return R.tuple()
+            return ()
 
         @R.function
         def main(shape: R.Shape([n_main])) -> R.Shape([n_main]):
@@ -1491,7 +1493,7 @@ def test_symbolic_var_2():
             cls = Expected
             with R.dataflow():
                 zeros = R.call_tir(
-                    cls.zeros, R.tuple(), out_ty=R.Tensor((n_main, n_main), dtype="float32")
+                    cls.zeros, R.tuple(), ty_args=[R.Tensor((n_main, n_main), dtype="float32")]
                 )
                 R.output()
             return shape
@@ -1518,22 +1520,22 @@ def test_symbolic_var_from_shape():
                 B_slice = R.call_tir(
                     cls.slice,
                     [B, slice_index],
-                    out_ty=R.Tensor([16], dtype="int32"),
+                    ty_args=[R.Tensor([16], dtype="int32")],
                 )
                 A_slice = R.call_tir(
                     cls.slice,
                     [A, slice_index],
-                    out_ty=R.Tensor([16], dtype="int32"),
+                    ty_args=[R.Tensor([16], dtype="int32")],
                 )
                 A_scale = R.multiply(A_slice, B_slice)
                 R.output(A_scale)
             return A_scale
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def slice(
-            Input_2d: T.Buffer(shape=[16, 16], dtype="int32"),
+            Input_2d: T.Tensor(shape=[16, 16], dtype="int32"),
             slice_index: T.int64,
-            Output_Slice: T.Buffer(shape=[16], dtype="int32"),
+            Output_Slice: T.Tensor(shape=[16], dtype="int32"),
         ):
             T.func_attr({"tirx.noalias": True})
             for j in range(16):
@@ -1558,7 +1560,7 @@ def test_symbolic_var_from_shape():
                 A_slice = R.call_tir(
                     cls.slice,
                     [A, slice_index_main],
-                    out_ty=R.Tensor([16], dtype="int32"),
+                    ty_args=[R.Tensor([16], dtype="int32")],
                 )
                 A_scale = R.multiply(A_slice, B_slice)
                 R.output(A_scale)
@@ -1578,17 +1580,17 @@ def test_symbolic_var_from_shape():
                 B_slice = R.call_tir(
                     cls.slice,
                     [B, slice_index_main_transform_params],
-                    out_ty=R.Tensor([16], dtype="int32"),
+                    ty_args=[R.Tensor([16], dtype="int32")],
                 )
                 output = (R.ShapeExpr([slice_index_main_transform_params]), B_slice)
                 R.output(output)
             return output
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def slice(
-            Input_2d: T.Buffer(shape=[16, 16], dtype="int32"),
+            Input_2d: T.Tensor(shape=[16, 16], dtype="int32"),
             slice_index: T.int64,
-            Output_Slice: T.Buffer(shape=[16], dtype="int32"),
+            Output_Slice: T.Tensor(shape=[16], dtype="int32"),
         ):
             T.func_attr({"tirx.noalias": True})
             for j in range(16):

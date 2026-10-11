@@ -45,22 +45,22 @@ def test_callback():
 
     @I.ir_module
     class Module:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def slice_A(
-            A: T.Buffer((4, 4), "int32"),
+            A: T.Tensor((4, 4), "int32"),
             rank: T.int64,
-            A_sharded: T.Buffer((2, 4), "int32"),
+            A_sharded: T.Tensor((2, 4), "int32"),
         ):
             for i, j in T.grid(2, 4):
                 with Ts.sblock("slice_A"):
                     vi, vj = Ts.axis.remap("SS", [i, j])
                     A_sharded[vi, vj] = A[rank * 2 + vi, vj]
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def slice_B(
-            B: T.Buffer((2, 2), "float32"),
+            B: T.Tensor((2, 2), "float32"),
             rank: T.int64,
-            B_sharded: T.Buffer((2, 1), "float32"),
+            B_sharded: T.Tensor((2, 1), "float32"),
         ):
             for i in range(2):
                 with Ts.sblock("slice_B"):
@@ -79,7 +79,7 @@ def test_callback():
             A = R.call_tir(
                 cls.slice_A,
                 (A, rank_arg),
-                out_ty=R.Tensor([2, 4], "int32"),
+                ty_args=[R.Tensor([2, 4], "int32")],
             )
 
             B = fget_item(R.str("B"), R.prim_value(1))
@@ -87,12 +87,12 @@ def test_callback():
             B = R.call_tir(
                 cls.slice_B,
                 (B, rank_arg),
-                out_ty=R.Tensor([2, 1], "float32"),
+                ty_args=[R.Tensor([2, 1], "float32")],
             )
 
             return (A, B)
 
-    pipeline = tvm.ir.transform.Sequential(
+    pipeline = tvm.transform.Sequential(
         [
             tvm.relax.transform.LegalizeOps(),
             tvm.s_tir.dlight.ApplyDefaultSchedule(tvm.s_tir.dlight.gpu.Fallback()),

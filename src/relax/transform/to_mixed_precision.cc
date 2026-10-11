@@ -46,7 +46,7 @@ int GetMixedPrecisionInfo(const CallNode* call_node) {
     return -1;
   }
   Op op = ffi::GetRef<Op>(op_node);
-  auto attr_map = Op::GetAttrMap<TMixedPrecisionPolicy>("TMixedPrecisionPolicy");
+  auto attr_map = Op::GetAttrMap<TMixedPrecisionPolicy>(tvm::relax::op_attr::kMixedPrecisionPolicy);
   return attr_map.count(op) ? attr_map[op] : MixedPrecisionPolicyKind::kNever;
 }
 
@@ -232,7 +232,7 @@ class DTypeDecisionCollector : public ExprVisitor {
 
   // override the following methods to visit in backward order
   void VisitExpr_(const SeqExprNode* op) final {
-    this->VisitSpan(op->span);
+    this->VisitLoc(op->loc);
     this->VisitExpr(op->body);
     for (auto it = op->blocks.rbegin(); it != op->blocks.rend(); it++) {
       this->VisitBindingBlock(*it);
@@ -251,8 +251,8 @@ class DTypeDecisionCollector : public ExprVisitor {
     }
   }
 
-  void VisitExpr_(const IfNode* op) final {
-    this->VisitSpan(op->span);
+  void VisitExpr_(const IfExprNode* op) final {
+    this->VisitLoc(op->loc);
     this->VisitExpr(op->true_branch);
     this->VisitExpr(op->false_branch);
     this->VisitExpr(op->cond);
@@ -286,13 +286,13 @@ class ToMixedPrecisionRewriter : public ExprMutator {
       if (fp16_input_names_.count(var->name)) {
         auto ty = GetType(var);
         if (auto tensor_ty = ty.as<TensorTypeNode>()) {
-          VDevice vdev = VDevice();
+          ffi::Optional<VDevice> vdev;
           if (tensor_ty->vdevice.has_value()) {
             vdev = tensor_ty->vdevice.value();
           }
-          TensorType fp16_ty(tensor_ty->shape.value(), PrimType::Float(16), vdev, tensor_ty->span);
-          Var fp16_var(var->name, fp16_ty, var->span);
-          var_remap_[var] = fp16_var;
+          TensorType fp16_ty(tensor_ty->shape.value(), PrimType::Float(16), vdev, tensor_ty->loc);
+          Var fp16_var(var->name, fp16_ty, var->loc);
+          var_remap_.insert_or_assign(var, fp16_var);
           return fp16_var;
         }
       }
@@ -424,7 +424,7 @@ class ToMixedPrecisionRewriter : public ExprMutator {
     // If cur_var is not rewritten, we don't need to emit a new var
     if (!rewrite.same_as(cur_var)) {
       // Emit a new var, and update the var remap
-      var_remap_[var] = builder_->Emit(rewrite);
+      var_remap_.insert_or_assign(var, builder_->Emit(rewrite));
     }
   }
 
@@ -432,7 +432,10 @@ class ToMixedPrecisionRewriter : public ExprMutator {
     // We rewrite the remapped var to the original dtype
     auto it = var_remap_.find(var);
     if (it != var_remap_.end()) {
-      return RewriteExpr(it->second, NTypeFrom(var));
+      if (IsNestedTensor(var)) {
+        return RewriteExpr(it->second, NTypeFrom(var));
+      }
+      return it->second;
     }
     return var;
   }
@@ -483,7 +486,8 @@ class ToMixedPrecisionRewriter : public ExprMutator {
 
     if (policy == kAlways) {
       opt_new_dtype = fp16_;
-      auto attr_map = Op::GetAttrMap<FInferMixedPrecision>("FInferMixedPrecision");
+      auto attr_map =
+          Op::GetAttrMap<FInferMixedPrecision>(tvm::relax::op_attr::kInferMixedPrecision);
       TVM_FFI_ICHECK(attr_map.count(op));
       new_call = attr_map[op](new_call, output_dtype_);
     } else if (policy == kFollow) {
@@ -619,7 +623,7 @@ Pass ToMixedPrecision(DLDataType out_dtype,
   auto pass_func = [=](Function f, IRModule m, PassContext pc) {
     return ToMixedPrecision(f, out_dtype, fp16_input_names).as_or_throw<Function>();
   };
-  return CreateFunctionPass(pass_func, 0, "ToMixedPrecision", {});
+  return CreateFunctionPass(pass_func, 0, "ToMixedPrecision");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

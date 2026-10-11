@@ -19,9 +19,9 @@
 
 from tvm import relax, tirx
 from tvm.ir.module import IRModule
-from tvm.ir.transform import PassContext
 from tvm.relax import Expr
 from tvm.relax.dpl import TupleGetItemPattern, is_const, is_op, rewrite_call, wildcard
+from tvm.transform import PassContext
 
 from . import function_pass
 

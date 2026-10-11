@@ -19,18 +19,18 @@
 
 import tvm
 from tvm import relax
-from tvm.ir.instrument import PrintAfterAll, PrintBeforeAll
 from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
+from tvm.transform.instrument import PrintAfterAll, PrintBeforeAll
 
 # pylint: disable=invalid-name,missing-function-docstring,no-value-for-parameter
 
 
 def test_tir_print_all_passes(capsys):
-    @Ts.prim_func
-    def func(A: T.Buffer((128, 128, 128, 128)), B: T.Buffer((128, 128, 128, 128))) -> None:
+    @Ts.function
+    def func(A: T.Tensor((128, 128, 128, 128)), B: T.Tensor((128, 128, 128, 128))) -> None:
         for i, j, k, l in T.grid(128, 128, 128, 128):
             with Ts.sblock("B"):
                 vi, vj, vk, vl = Ts.axis.remap("SSSS", [i, j, k, l])

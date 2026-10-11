@@ -43,7 +43,11 @@ class SRefTreeVerifier : public StmtExprVisitor {
 
  private:
   void Verify() {
-    VisitPrimFuncs(self_->mod, [this](const PrimFuncNode* func) { this->Visit(func->body); });
+    for (const auto& [_, base_func] : self_->mod->functions) {
+      if (const auto* func = base_func.as<FunctionNode>()) {
+        this->Visit(func->body);
+      }
+    }
     TVM_FFI_ICHECK_EQ(n_sref_visited_, static_cast<int>(self_->stmt2ref.size()));
     for (const auto& kv : self_->block_info) {
       const StmtSRef& sref = kv.first;
@@ -128,7 +132,7 @@ class SRefTreeVerifier : public StmtExprVisitor {
     int n = static_cast<int>(seq_stmt->seq.size());
     for (int i = 0; i < n; ++i) {
       const Stmt& child = seq_stmt->seq[i];
-      StmtSRef sref{nullptr};
+      StmtSRef sref{ffi::UnsafeInit{}};
       if (const auto* realize = child.as<SBlockRealizeNode>()) {
         const auto* block = realize->block.get();
         TVM_FFI_ICHECK(self_->stmt2ref.count(block));

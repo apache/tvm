@@ -25,8 +25,8 @@ def test_lift_tx_beyond_local():
     # fmt: off
     n = T.dynamic("n", "int32")
 
-    @Ts.prim_func
-    def before(A: T.Buffer((32, 1, 128)), B: T.Buffer((32, n, 128)), C: T.Buffer((32, 1, n))):
+    @Ts.function
+    def before(A: T.Tensor((32, 1, 128)), B: T.Tensor((32, n, 128)), C: T.Tensor((32, 1, n))):
 
         for ax0_ax1_fused in T.thread_binding(n * 32, thread="blockIdx.x"):
             with Ts.sblock(""):
@@ -64,8 +64,7 @@ def test_lift_tx_beyond_local():
                             with Ts.sblock("NT_matmul_cross_thread"):
                                 Ts.reads(in_thread_D_local[0])
                                 Ts.writes(cross_thread_D_local[0])
-                                T.attr(T.comm_reducer(lambda x0, y0: x0 + y0, [T.float32(0)]), "reduce_scope", T.int32(0))
-                                T.tvm_thread_allreduce(T.uint32(1), in_thread_D_local[0], T.bool(True), cross_thread_D_local[0], ax0_fused)
+                                T.gpu_thread_allreduce(T.Lambda([T.float32, T.float32], lambda x0, y0: (x0 + y0,)), (T.float32(0),), (in_thread_D_local[0],), T.bool(True), (cross_thread_D_local[0],), (ax0_fused,))
                             with Ts.sblock("NT_matmul_write_back"):
                                 Ts.where(ax0_fused == 0)
                                 Ts.reads(cross_thread_D_local[0])
@@ -79,8 +78,8 @@ def test_lift_tx_beyond_local():
 
     n = T.dynamic("n", "int32")
 
-    @Ts.prim_func
-    def expected(A: T.Buffer((32, 1, 128), "float32"), B: T.Buffer((32, n, 128)), C: T.Buffer((32, 1, n))):
+    @Ts.function
+    def expected(A: T.Tensor((32, 1, 128), "float32"), B: T.Tensor((32, n, 128)), C: T.Tensor((32, 1, n))):
 
         # with Ts.sblock("root"):
         for blockIdx_x in T.thread_binding(n * 32, thread="blockIdx.x"):
@@ -118,8 +117,7 @@ def test_lift_tx_beyond_local():
                             with Ts.sblock("NT_matmul_cross_thread"):
                                 Ts.reads(in_thread_D_local[0])
                                 Ts.writes(cross_thread_D_local[0])
-                                T.attr(T.comm_reducer(lambda x0, y0: x0 + y0, [T.float32(0)]), "reduce_scope", T.int32(0))
-                                T.tvm_thread_allreduce(T.uint32(1), in_thread_D_local[0], T.bool(True), cross_thread_D_local[0], threadIdx_x)
+                                T.gpu_thread_allreduce(T.Lambda([T.float32, T.float32], lambda x0, y0: (x0 + y0,)), (T.float32(0),), (in_thread_D_local[0],), T.bool(True), (cross_thread_D_local[0],), (threadIdx_x,))
                             with Ts.sblock("NT_matmul_write_back"):
                                 Ts.where(threadIdx_x == 0)
                                 Ts.reads(cross_thread_D_local[0])

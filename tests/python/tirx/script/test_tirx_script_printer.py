@@ -23,15 +23,14 @@ from tvm_ffi import get_global_func
 import tvm
 import tvm.script
 import tvm.testing
-from tvm import ir, tirx
+from tvm import ir, s_tir, tirx
 from tvm import tirx as tir
 from tvm.ir import Range, assert_structural_equal
-from tvm.runtime.script_printer import _script
 from tvm.script import ir as I
 from tvm.script import ir_builder as IB
 from tvm.script import tirx as T
 from tvm.script.ir_builder import IRBuilder
-from tvm.script.tirx import tile as Tx
+from tvm.script.printer.scriptable import _script
 from tvm.tirx.cuda import op as cuda_op
 from tvm.tirx.script import ir_builder as TB
 from tvm.tirx.trn import op as trn_op
@@ -40,7 +39,7 @@ from tvm.tirx.trn import op as trn_op
 def test_failed_invalid_prefix():
     with IRBuilder() as ib:  # pylint: disable=invalid-name
         with IB.ir_module():
-            with TB.prim_func():
+            with TB.function():
                 TB.func_name_("foo")
     mod = ib.get()
 
@@ -54,7 +53,7 @@ def test_config_extension_passthrough():
         {
             "extension.option": 7,
             "custom_key": "value",
-            "syntax_sugar": False,
+            "verbose_expr": False,
             "render_invisible_path_info": True,
             "tirx.prefix": "invalid-prefix",
             "extra_config": {
@@ -66,15 +65,15 @@ def test_config_extension_passthrough():
     )
     assert cfg.extra_config["extension.option"] == 9
     assert cfg.extra_config["custom_key"] == "value"
-    assert "syntax_sugar" not in cfg.extra_config
+    assert "verbose_expr" not in cfg.extra_config
     assert "extra_config" not in cfg.extra_config
-    assert not cfg.syntax_sugar
+    assert not cfg.verbose_expr
     assert not cfg.render_invisible_path_info
-    assert make_config({}).syntax_sugar
+    assert not make_config({}).verbose_expr
     assert _script(tirx.Var("Custom", "int32"), cfg) == "Custom_1"
 
 
-@pytest.mark.parametrize("key", ["tirx.prefix", "relax.prefix", "s_tir.prefix"])
+@pytest.mark.parametrize("key", ["ir.prefix", "tirx.prefix", "relax.prefix", "s_tir.prefix"])
 @pytest.mark.parametrize("value", ["2prefix", 17])
 @pytest.mark.parametrize("nested", [False, True])
 def test_config_validates_dialect_prefixes(key, value, nested):
@@ -99,11 +98,42 @@ def test_config_reserves_dialect_prefixes_before_variable_definition(prefixes):
         )
 
 
+@pytest.mark.parametrize(
+    "config, alias",
+    [
+        ({}, "I"),
+        ({"ir_prefix": "TypedI"}, "TypedI"),
+        ({"extra_config": {"ir.prefix": "ExplicitI"}}, "ExplicitI"),
+        (
+            {"ir_prefix": "TypedI", "extra_config": {"ir.prefix": "ExplicitI"}},
+            "ExplicitI",
+        ),
+    ],
+)
+@pytest.mark.parametrize("comment_imports", [False, True])
+def test_ir_prefix_rendering_imports_and_reservations(config, alias, comment_imports):
+    config = dict(config)
+    config["extra_config"] = {
+        **config.get("extra_config", {}),
+        "ir.comment_imports": comment_imports,
+    }
+    var = tirx.Var(alias, "int32")
+    assert var.script(verbose_expr=True, **config).strip() == (
+        f'{alias}_1 = {alias}.dynamic("{alias}", dtype="int32")\n{alias}_1'
+    )
+    mod = tvm.IRModule({})
+    script = mod.script(**config)
+    import_line = f"from tvm.script import ir as {alias}"
+    assert script.splitlines()[0] == ("# " if comment_imports else "") + import_line
+    assert f"@{alias}.ir_module" in script
+    assert_structural_equal(mod, tvm.script.from_source(script, extra_vars={alias: I}))
+
+
 def test_buffer():
-    a = tirx.decl_buffer((128, 128), "float16", name="A")
+    a = tirx.decl_tensor((128, 128), "float16", name="A")
     _assert_print(
         a,
-        """A = T.Buffer((128, 128), "float16")
+        """A = T.Var("A", T.Tensor((128, 128), "float16", layout="default"))
 A""",
     )
 
@@ -113,7 +143,7 @@ def _assert_print(obj, expected):
 
 
 def test_buffer_region():
-    src = tirx.decl_buffer((128, 128), "float32", name="src")
+    src = tirx.decl_tensor((128, 128), "float32", name="src")
     obj = tirx.BufferRegion(
         src,
         [
@@ -124,33 +154,33 @@ def test_buffer_region():
     _assert_print(
         obj,
         """
-src = T.Buffer((128, 128))
+src = T.Var("src", T.Tensor((128, 128), "float32", layout="default"))
 src[64:128, 64:128]
 """,
     )
 
 
 def test_buffer_load():
-    a = tirx.decl_buffer((128, 128), "float16", name="A")
-    obj = tirx.BufferLoad(a, [128, 128])
+    a = tirx.decl_tensor((128, 128), "float16", name="A")
+    obj = tirx.TensorLoad(a, [128, 128])
     _assert_print(
         obj,
         """
-A = T.Buffer((128, 128), "float16")
+A = T.Var("A", T.Tensor((128, 128), "float16", layout="default"))
 A[128, 128]
 """,
     )
 
 
-def test_buffer_store():
-    a = tirx.decl_buffer((128, 128), "float16", name="A")
+def test_tensor_store():
+    a = tirx.decl_tensor((128, 128), "float16", name="A")
     with IRBuilder() as ib:
-        TB.buffer_store(a, a[128, 128] + 1, [128, 128])
+        TB.tensor_store(a, [128, 128], a[128, 128] + 1)
     obj = ib.get()
     _assert_print(
         obj,
         """
-A = T.Buffer((128, 128), "float16")
+A = T.Var("A", T.Tensor((128, 128), "float16", layout="default"))
 A[128, 128] = A[128, 128] + T.float16(1.0)
 """,
     )
@@ -165,37 +195,25 @@ def test_for():
     _assert_print(
         obj,
         """
-for i, j, k in T.grid(128, 128, 128):
-    T.evaluate(0)
-""",
-    )
-
-
-def test_attr_stmt():
-    with IRBuilder() as ib:
-        with TB.attr("pragma", "unroll", 1):
-            TB.evaluate(0)
-    obj = ib.get()
-    _assert_print(
-        obj,
-        """
-with T.attr("pragma", "unroll", 1):
-    T.evaluate(0)
+for i in range(128):
+    for j in range(128):
+        for k in range(128):
+            pass
 """,
     )
 
 
 def test_assert_stmt():
     with IRBuilder() as ib:
-        with TB.prim_func():
+        with TB.function():
             TB.assert_(True, "assertion")
-            TB.evaluate(TB.call_extern("int32", "after_assert"))
+            TB.evaluate(TB.call_extern("after_assert", ty="int32"))
     obj = ib.get().body
     _assert_print(
         obj,
         """
 assert T.bool(True), ("RuntimeError", ["assertion"])
-T.call_extern("int32", "after_assert")
+T.call_extern("after_assert", ty="int32")
 """,
     )
 
@@ -211,97 +229,98 @@ def test_while():
         """
 v = I.dynamic("v", dtype="int32")
 while v < 10:
-    T.evaluate(0)
+    pass
 """,
     )
 
 
-def test_allocate():
+@pytest.mark.parametrize("declare", [TB.alloc_tensor, TB.decl_tensor])
+def test_allocate(declare):
     with IRBuilder() as ib:
-        with TB.prim_func():
+        with TB.function():
             TB.func_name_("test")
-            buf = TB.alloc_buffer([128, 128], "float32")
+            buf = declare([128, 128], "float32")
             TB.evaluate(1)
     obj = ib.get()
     _assert_print(
         obj.body,
         """
-buffer = T.alloc_buffer((128, 128))
+v = T.alloc_tensor((128, 128), "float32", layout="default")
 T.evaluate(1)
 """,
     )
 
 
 def test_allocate_with_decl_buffer_sugar():
-    # AllocBuffer and DeclBuffer are flat siblings
+    # AllocTensor and DeclTensor are flat siblings
     with IRBuilder() as ib:
-        with TB.prim_func():
+        with TB.function():
             TB.func_name_("test")
-            buf = TB.alloc_buffer([128, 128], "float32")
-            buf2 = TB.decl_buffer([128, 128], "float32", data=buf.data)
+            buf = TB.alloc_tensor([128, 128], "float32")
+            buf2 = TB.decl_tensor([128, 128], "float32", data=buf.data)
             TB.evaluate(1)
     obj = ib.get()
     _assert_print(
         obj.body,
         """
-buffer = T.alloc_buffer((128, 128))
-buffer_1 = T.decl_buffer((128, 128), data=buffer.data)
+v = T.alloc_tensor((128, 128), "float32", layout="default")
+v_1 = T.decl_tensor((128, 128), "float32", data=v.data, layout="default")
 T.evaluate(1)
 """,
     )
 
 
 def test_allocate_with_decl_buffer_sugar_multi_usage():
-    # AllocBuffer and DeclBuffer are flat siblings
+    # AllocTensor and DeclTensor are flat siblings
     with IRBuilder() as ib:
-        with TB.prim_func():
+        with TB.function():
             TB.func_name_("test")
-            buf = TB.alloc_buffer([128, 128], "float32")
-            buf2 = TB.decl_buffer([128, 128], "float32", data=buf.data)
+            buf = TB.alloc_tensor([128, 128], "float32")
+            buf2 = TB.decl_tensor([128, 128], "float32", data=buf.data)
             TB.evaluate(buf.data)
     obj = ib.get()
     _assert_print(
         obj.body,
         """
-buffer = T.alloc_buffer((128, 128))
-buffer_1 = T.decl_buffer((128, 128), data=buffer.data)
-T.evaluate(buffer.data)
+v = T.alloc_tensor((128, 128), "float32", layout="default")
+v_1 = T.decl_tensor((128, 128), "float32", data=v.data, layout="default")
+T.evaluate(v.data)
 """,
     )
 
 
 def test_allocate_with_decl_buffer_no_sugar_mismatch():
     with IRBuilder() as ib:
-        with TB.prim_func():
+        with TB.function():
             TB.func_name_("test")
-            buf = TB.alloc_buffer([128, 128], "float32")
-            buf2 = TB.decl_buffer([256, 256], "float32", data=buf.data)
+            buf = TB.alloc_tensor([128, 128], "float32")
+            buf2 = TB.decl_tensor([256, 256], "float32", data=buf.data)
             TB.evaluate(buf.data)
     obj = ib.get()
     _assert_print(
         obj.body,
         """
-buffer = T.alloc_buffer((128, 128))
-buffer_1 = buffer.view(256, 256)
-T.evaluate(buffer.data)
+v = T.alloc_tensor((128, 128), "float32", layout="default")
+v_1 = T.decl_tensor((256, 256), "float32", data=v.data, layout="default")
+T.evaluate(v.data)
 """,
     )
 
 
 def test_decl_buffer():
-    # DeclBuffer is flat: we need a frame to hold multiple stmts
+    # DeclTensor is flat: we need a frame to hold multiple stmts
     with IRBuilder() as ib:
-        with TB.prim_func():
+        with TB.function():
             TB.func_name_("test")
-            buf = TB.decl_buffer((10, 10), data=TB.ptr("float32"))
+            buf = TB.decl_tensor((10, 10), data=TB.ptr("float32"))
             TB.evaluate(1)
     obj = ib.get()
-    # Print only the body (skip PrimFunc wrapper)
+    # Print only the body (skip Function wrapper)
     _assert_print(
         obj.body,
         """
-v = T.handle("float32", "global")
-buffer = T.decl_buffer((10, 10), data=v)
+v_1: T.handle("float32", "global") = T.handle("float32", "global")
+v = T.decl_tensor((10, 10), "float32", data=v_1, layout="default")
 T.evaluate(1)
 """,
     )
@@ -334,7 +353,7 @@ def test_if_then_else():
         """
 v = I.dynamic("v", dtype="int32")
 if v == 1:
-    T.evaluate(0)
+    pass
 """,
     )
 
@@ -364,7 +383,7 @@ a""",
     _assert_print(
         a,
         """
-a = T.handle()
+a: T.handle = T.handle()
 a""",
     )
 
@@ -372,18 +391,18 @@ a""",
     _assert_print(
         a,
         """
-a = T.handle(storage_scope="shared")
+a: T.handle(storage_scope="shared") = T.handle(storage_scope="shared")
 a""",
     )
 
 
 def test_iter_var():
-    a = tirx.IterVar((0, 8), "a", iter_type=tirx.IterVar.DataPar)
+    a = s_tir.IterVar((0, 8), "a", iter_type=s_tir.IterVar.DataPar)
     _assert_print(
         a,
         """
 a = I.dynamic("a", dtype="int32")
-T.iter_var(a, T.Range(0, 8), "DataPar", "")
+Ts.iter_var(a, T.Range(0, 8), "DataPar", "")
 """,
     )
 
@@ -406,9 +425,9 @@ T.Cast("float64", a)
 
 def test_llvm_intrin_imm():
     a = tirx.call_llvm_intrin("int32x4", "llvm.donothing")
-    _assert_print(a, 'T.call_llvm_intrin("int32x4", "llvm.donothing")')
+    _assert_print(a, 'T.call_llvm_intrin("llvm.donothing", ty="int32x4")')
     a = tirx.call_llvm_pure_intrin("int32x4", "llvm.donothing")
-    _assert_print(a, 'T.call_llvm_pure_intrin("int32x4", "llvm.donothing")')
+    _assert_print(a, 'T.call_llvm_pure_intrin("llvm.donothing", ty="int32x4")')
 
 
 def test_binary_arith():
@@ -450,7 +469,7 @@ def test_binary_arith_const():
         (tirx.Sub, "Sub"),
         (tirx.Mul, "Mul"),
         (tirx.Div, "Div"),
-        (tirx.Mod, "truncmod"),
+        (tirx.Mod, "Mod"),
         (tirx.FloorDiv, "FloorDiv"),
         (tirx.FloorMod, "FloorMod"),
         (tirx.LT, "LT"),
@@ -567,11 +586,13 @@ T.atan(T.float32(1.0))
 
 
 def test_comm_reducer():
-    obj = TB.comm_reducer(lambda x, y: x + y, identity=[TB.float32(0)])
+    from tvm.s_tir.script import ir_builder as SB
+
+    obj = SB.comm_reducer(lambda x, y: x + y, identity=[TB.float32(0)])
     _assert_print(
         obj,
         """
-T.comm_reducer(lambda x, y: x + y, [T.float32(0.0)])
+Ts.comm_reducer(lambda x, y: x + y, [T.float32(0.0)])
 """,
     )
 
@@ -639,22 +660,13 @@ def test_nested_seqstmt_roundtrip():
 
 
 def nested_seqstmt():
-    """Nested SeqStmt should be normalized to flat SeqStmt
-
-    Nested SeqStmt are representable in the TIR structures, but are
-    flattened when converted to TVMScript.  Previously, this could
-    cause failures to round-trip through TVMScript, including
-    erroneous use of TVMScript's concise-scoping rules.  This was
-    resolved by normalizing nested SeqStmt in TIR, such that the use
-    of `tirx.SeqStmt` below results in a single flat `tirx.SeqStmt`
-    containing the three `tirx.Evaluate` calls.
-    """
-    func = tvm.tirx.PrimFunc(
+    """Sequence construction flattens nested input and removes no-op statements."""
+    func = tvm.tirx.Function(
         params=[],
-        body=tvm.tirx.SeqStmt(
+        body=tvm.ir.SeqStmt(
             [
-                tvm.tirx.SeqStmt([tvm.tirx.Evaluate(0), tvm.tirx.Evaluate(1)]),
-                tvm.tirx.Evaluate(2),
+                tvm.ir.SeqStmt([tvm.ir.Evaluate(0), tvm.ir.Evaluate(1)]),
+                tvm.ir.Evaluate(2),
             ]
         ),
     )
@@ -664,19 +676,19 @@ def nested_seqstmt():
 
 def test_print_kwargs_schedule_op_full_code():
     # fmt: off
-    @T.prim_func
+    @T.function
     def test():
-        A = T.alloc_buffer((16,), "float32")
-        Tx.memset(A[0:16], T.float32(1.25), dispatch="v10", bar=7, foo=42)
+        A = T.alloc_tensor((16,), "float32")
+        T.cuda.tile.mov(A[0:16], T.float32(1.25), scope="warp")
     # fmt: on
 
     expected = (
         "# from tvm.script import tirx as T\n"
-        "# from tvm.tirx.layout import Axis\n\n"
-        "@T.prim_func\n"
+        "\n"
+        "@T.function\n"
         "def test():\n"
-        "    A = T.alloc_buffer((16,))\n"
-        '    T.tile.memset(A[0:16], T.float32(1.25), dispatch="v10", bar=7, foo=42)'
+        '    A = T.alloc_tensor((16,), "float32", layout="default")\n'
+        '    T.cuda.tile.mov(A[0:16], T.float32(1.25), scope="warp")'
     )
     code = test.script()
     assert code == expected
@@ -689,30 +701,30 @@ def from_source(code):
 
 
 def test_default_script_prefix_tirx_irmodule_non_main():
-    """IRModule with non-main TIRx PrimFunc should default to T prefix."""
-    mod = tvm.IRModule({"foo": _make_minimal_tirx_prim_func()})
+    """IRModule with non-main TIRx Function should default to T prefix."""
+    mod = tvm.IRModule({"foo": _make_minimal_tirx_function()})
     code = mod.script()
     assert "# from tvm.script import tirx as T" in code
     assert "# from tvm.script import tir as T" not in code
-    assert "@T.prim_func" in code
+    assert "@T.function" in code
     assert "def foo(" in code
     parsed = from_source(code)
     assert parsed.script() == code
     assert_structural_equal(mod, parsed)
 
 
-def _make_minimal_tirx_prim_func():
+def _make_minimal_tirx_function():
     source = (
         "# from tvm.script import tirx as T\n\n"
-        "@T.prim_func()\n"
-        'def f(A: T.Buffer((1,), "float32")):\n'
+        "@T.function()\n"
+        'def f(A: T.Tensor((1,), "float32")):\n'
         "    A[0] = T.float32(1)"
     )
     return from_source(source)
 
 
 def test_printer_cuda_namespace_printf():
-    node = tir.Evaluate(cuda_op.cuda_printf("x=%d", tir.IntImm("int32", 1)))
+    node = tvm.ir.Evaluate(cuda_op.cuda_printf("x=%d", tir.IntImm("int32", 1)))
     _assert_namespace_print(node, 'T.cuda.printf("x=%d", 1)')
 
 
@@ -723,17 +735,19 @@ def _assert_namespace_print(obj, expected):
 
 
 def test_printer_cuda_cluster_sync():
-    node = tir.Evaluate(cuda_op.cuda_cluster_sync())
+    node = tvm.ir.Evaluate(cuda_op.cuda_cluster_sync())
     _assert_namespace_print(node, "T.cuda.cluster_sync()")
 
 
 def test_printer_cuda_namespace_mbarrier_wait():
-    node = tir.Evaluate(cuda_op.cuda_mbarrier_wait(tir.IntImm("int32", 0), tir.IntImm("int32", 0)))
+    node = tvm.ir.Evaluate(
+        cuda_op.cuda_mbarrier_wait(tir.IntImm("int32", 0), tir.IntImm("int32", 0))
+    )
     _assert_namespace_print(node, "T.cuda.mbarrier_wait(0, 0)")
 
 
 def test_printer_nvshmem_namespace():
-    node = tir.Evaluate(cuda_op.nvshmem_fence())
+    node = tvm.ir.Evaluate(cuda_op.nvshmem_fence())
     _assert_namespace_print(node, "T.nvshmem.fence()")
 
 
@@ -745,7 +759,8 @@ def test_printer_ptx_more():
     b = tir.Var("b", "handle")
     _assert_namespace_print(
         cuda_op.cuda_tcgen05_encode_matrix_descriptor(d, a, 1, 2, 0),
-        "d = T.handle()\na = T.handle()\nT.cuda.tcgen05.encode_matrix_descriptor(d, a, 1, 2, 0)",
+        "d: T.handle = T.handle()\na: T.handle = T.handle()\n"
+        "T.cuda.tcgen05_encode_matrix_descriptor(d, a, 1, 2, 0)",
     )
     _assert_namespace_print(
         cuda_op.cuda_tcgen05_encode_instr_descriptor(
@@ -764,7 +779,7 @@ def test_printer_ptx_more():
             sat_d=False,
             is_sparse=False,
         ),
-        'd = T.handle()\nT.cuda.tcgen05.encode_instr_descriptor(d, "f16", "f16", "f16", 16, 16, 16, T.bool(True), T.bool(False), 1, T.bool(False), T.bool(False), T.bool(False), T.bool(False))',  # noqa: E501
+        'd: T.handle = T.handle()\nT.cuda.tcgen05_encode_instr_descriptor(d, K=16, M=16, N=16, a_dtype="f16", b_dtype="f16", d_dtype="f16", trans_a=True, trans_b=False)',  # noqa: E501
     )
     _assert_namespace_print(
         cuda_op.cuda_tcgen05_encode_instr_descriptor_block_scaled(
@@ -774,8 +789,6 @@ def test_printer_ptx_more():
             b_dtype="f16",
             sfa_dtype="f16",
             sfb_dtype="f16",
-            sfa_tmem_addr=a,
-            sfb_tmem_addr=b,
             M=16,
             N=16,
             K=16,
@@ -786,17 +799,16 @@ def test_printer_ptx_more():
             neg_a=False,
             neg_b=False,
         ),
-        "d = T.handle()\n"
-        "a = T.handle()\n"
-        "b = T.handle()\n"
-        'T.cuda.tcgen05.encode_instr_descriptor_block_scaled(d, "f16", "f16", "f16", "f16", "f16", a, b, 16, 16, 16, T.bool(True), T.bool(False), 1, T.bool(False), T.bool(False), T.bool(True))',  # noqa: E501
+        "d: T.handle = T.handle()\n"
+        'T.cuda.tcgen05_encode_instr_descriptor_block_scaled(d, K=16, M=16, N=16, a_dtype="f16", b_dtype="f16", d_dtype="f16", is_sparse=True, sfa_dtype="f16", sfb_dtype="f16", trans_a=True, trans_b=False)',  # noqa: E501
     )
 
 
 def test_printer_cuda_mbarrier_wait_var():
     bar = tir.Var("bar", "handle")
     _assert_namespace_print(
-        cuda_op.cuda_mbarrier_wait(bar, 1), "bar = T.handle()\nT.cuda.mbarrier_wait(bar, 1)"
+        cuda_op.cuda_mbarrier_wait(bar, 1),
+        "bar: T.handle = T.handle()\nT.cuda.mbarrier_wait(bar, 1)",
     )
     _assert_namespace_print(cuda_op.cuda_cluster_sync(), "T.cuda.cluster_sync()")
 
@@ -813,21 +825,16 @@ def test_printer_cuda_more():
     _assert_namespace_print(cuda_op.cuda_nano_sleep(100), "T.cuda.nano_sleep(100)")
     _assert_namespace_print(
         cuda_op.cuda_atomic_add(p, tir.IntImm("int32", 1)),
-        "p = T.handle()\nT.cuda.atomic_add(p, 1)",
+        "p: T.handle = T.handle()\nT.cuda.atomic_add(p, 1)",
     )
     _assert_namespace_print(
-        cuda_op.cuda_atomic_cas(p, 1, 2), "p = T.handle()\nT.cuda.atomic_cas(p, 1, 2)"
+        cuda_op.cuda_atomic_cas(p, 1, 2), "p: T.handle = T.handle()\nT.cuda.atomic_cas(p, 1, 2)"
     )
-    _assert_namespace_print(
-        cuda_op.cuda_ldg(p, "float32"), 'p = T.handle()\nT.cuda.ldg(p, "float32")'
-    )
-    _assert_namespace_print(
-        cuda_op.cuda_func_call("f", 1, source_code=""), 'T.cuda.func_call("f", 1, source_code="")'
-    )
+    _assert_namespace_print(cuda_op.cuda_func_call("f", 1, ""), 'T.cuda.func_call("f", 1, "")')
 
 
 def test_printer_cuda_low_level_warp_intrinsics_roundtrip():
-    @T.prim_func
+    @T.function
     def kernel(x: T.int32):
         mask = T.cuda.__activemask()
         T.evaluate(T.cuda.__shfl_sync(mask, x, 0, 32))
@@ -849,7 +856,7 @@ def test_printer_cuda_low_level_warp_intrinsics_roundtrip():
 
 
 def test_printer_webgpu_namespace_roundtrip():
-    @T.prim_func
+    @T.function
     def kernel(x: T.int32):
         T.evaluate(T.webgpu.subgroup_shuffle(x, 0))
         T.evaluate(T.webgpu.subgroup_shuffle_up(x, 1))
@@ -872,130 +879,144 @@ def test_printer_nvshmem_more():
     _assert_namespace_print(cuda_op.nvshmem_n_pes(), "T.nvshmem.n_pes()")
     _assert_namespace_print(
         cuda_op.nvshmem_signal_op(p, 1, "set", 0),
-        'p = T.handle()\nT.nvshmem.signal_op(p, 1, "set", 0)',
+        'p: T.handle = T.handle()\nT.nvshmem.signal_op(p, 1, "set", 0)',
     )
     _assert_namespace_print(
         cuda_op.nvshmem_wait_until(p, "eq", 0),
-        'p = T.handle()\nT.nvshmem.wait_until(p, "eq", 0, "uint64_t")',
+        'p: T.handle = T.handle()\nT.nvshmem.wait_until(p, "eq", 0, "uint64_t")',
     )
     _assert_namespace_print(cuda_op.nvshmem_quiet(), "T.nvshmem.quiet()")
     _assert_namespace_print(cuda_op.nvshmem_barrier_all(), "T.nvshmem.barrier_all()")
     _assert_namespace_print(
         cuda_op.nvshmem_getmem_nbi(p, p, 16, 0),
-        "p = T.handle()\nT.nvshmem.getmem_nbi(p, p, 16, 0)",
+        "p: T.handle = T.handle()\nT.nvshmem.getmem_nbi(p, p, 16, 0)",
     )
     _assert_namespace_print(
         cuda_op.nvshmem_getmem_nbi_warp(p, p, 16, 0),
-        "p = T.handle()\nT.nvshmem.getmem_nbi.warp(p, p, 16, 0)",
+        "p: T.handle = T.handle()\nT.nvshmem.getmem_nbi.warp(p, p, 16, 0)",
     )
     _assert_namespace_print(
         cuda_op.nvshmem_putmem_nbi_block(p, p, 16, 0),
-        "p = T.handle()\nT.nvshmem.putmem_nbi.block(p, p, 16, 0)",
+        "p: T.handle = T.handle()\nT.nvshmem.putmem_nbi.block(p, p, 16, 0)",
     )
     _assert_namespace_print(
         cuda_op.nvshmem_putmem_nbi(p, p, 16, 0),
-        "p = T.handle()\nT.nvshmem.putmem_nbi(p, p, 16, 0)",
+        "p: T.handle = T.handle()\nT.nvshmem.putmem_nbi(p, p, 16, 0)",
     )
     _assert_namespace_print(
         cuda_op.nvshmem_putmem_nbi_warp(p, p, 16, 0),
-        "p = T.handle()\nT.nvshmem.putmem_nbi.warp(p, p, 16, 0)",
+        "p: T.handle = T.handle()\nT.nvshmem.putmem_nbi.warp(p, p, 16, 0)",
     )
     _assert_namespace_print(
         cuda_op.nvshmem_putmem_signal_nbi(p, p, 16, p, 1, "set", 0),
-        'p = T.handle()\nT.nvshmem.putmem_signal_nbi(p, p, 16, p, 1, "set", 0)',
+        'p: T.handle = T.handle()\nT.nvshmem.putmem_signal_nbi(p, p, 16, p, 1, "set", 0)',
     )
     _assert_namespace_print(
         cuda_op.nvshmem_putmem_signal_nbi_warp(p, p, 16, p, 1, "set", 0),
-        'p = T.handle()\nT.nvshmem.putmem_signal_nbi.warp(p, p, 16, p, 1, "set", 0)',
+        'p: T.handle = T.handle()\nT.nvshmem.putmem_signal_nbi.warp(p, p, 16, p, 1, "set", 0)',
     )
     _assert_namespace_print(
         cuda_op.nvshmem_putmem_signal_nbi_block(p, p, 16, p, 1, "set", 0),
-        'p = T.handle()\nT.nvshmem.putmem_signal_nbi.block(p, p, 16, p, 1, "set", 0)',
+        'p: T.handle = T.handle()\nT.nvshmem.putmem_signal_nbi.block(p, p, 16, p, 1, "set", 0)',
     )
 
 
 def test_printer_nki_namespace():
-    A = tir.decl_buffer([1], dtype="float16", name="A")
-    B = tir.decl_buffer([1], dtype="float16", name="B")
+    A = tir.decl_tensor([1], dtype="float16", name="A")
+    B = tir.decl_tensor([1], dtype="float16", name="B")
     a0 = A[0]
     b0 = B[0]
     _assert_namespace_print(
         trn_op.nki_load(a0, b0),
-        'A = T.Buffer((1,), "float16")\nB = T.Buffer((1,), "float16")\nT.nki.load(A, B)',
+        'A = T.Var("A", T.Tensor((1,), "float16", layout="default"))\n'
+        'B = T.Var("B", T.Tensor((1,), "float16", layout="default"))\n'
+        "T.nki.load(A[0], B[0])",
     )
     _assert_namespace_print(
         trn_op.nki_store(a0, b0),
-        'A = T.Buffer((1,), "float16")\nB = T.Buffer((1,), "float16")\nT.nki.store(A, B)',
+        'A = T.Var("A", T.Tensor((1,), "float16", layout="default"))\n'
+        'B = T.Var("B", T.Tensor((1,), "float16", layout="default"))\n'
+        "T.nki.store(A[0], B[0])",
     )
     _assert_namespace_print(
         trn_op.nki_tensor_copy(a0, b0),
-        'A = T.Buffer((1,), "float16")\nB = T.Buffer((1,), "float16")\nT.nki.tensor_copy(A, B)',
+        'A = T.Var("A", T.Tensor((1,), "float16", layout="default"))\n'
+        'B = T.Var("B", T.Tensor((1,), "float16", layout="default"))\n'
+        "T.nki.tensor_copy(A[0], B[0])",
     )
     _assert_namespace_print(
         trn_op.nki_matmul(a0, a0, b0),
-        'A = T.Buffer((1,), "float16")\n'
-        'B = T.Buffer((1,), "float16")\n'
-        "T.nki.matmul(A, A, B, T.bool(True))",
+        'A = T.Var("A", T.Tensor((1,), "float16", layout="default"))\n'
+        'B = T.Var("B", T.Tensor((1,), "float16", layout="default"))\n'
+        "T.nki.matmul(A[0], A[0], B[0], T.bool(True))",
     )
     _assert_namespace_print(
         trn_op.nki_activation(a0, b0, "relu", 0.0, 1.0),
-        'A = T.Buffer((1,), "float16")\n'
-        'B = T.Buffer((1,), "float16")\n'
-        'T.nki.activation(A, B, "relu", T.float32(0.0), T.float32(1.0))',
+        'A = T.Var("A", T.Tensor((1,), "float16", layout="default"))\n'
+        'B = T.Var("B", T.Tensor((1,), "float16", layout="default"))\n'
+        'T.nki.activation(A[0], B[0], "relu", '
+        "T.float32(0.0), T.float32(1.0))",
     )
     _assert_namespace_print(
         trn_op.nki_memset(a0, 0),
-        'A = T.Buffer((1,), "float16")\nT.nki.memset(A, 0)',
+        'A = T.Var("A", T.Tensor((1,), "float16", layout="default"))\nT.nki.memset(A[0], 0)',
     )
     _assert_namespace_print(
         trn_op.nki_identity(a0, 1),
-        'A = T.Buffer((1,), "float16")\nT.nki.identity(A, 1)',
+        'A = T.Var("A", T.Tensor((1,), "float16", layout="default"))\nT.nki.identity(A[0], 1)',
     )
     _assert_namespace_print(
         trn_op.nki_reciprocal(a0, b0),
-        'A = T.Buffer((1,), "float16")\nB = T.Buffer((1,), "float16")\nT.nki.reciprocal(A, B)',
+        'A = T.Var("A", T.Tensor((1,), "float16", layout="default"))\n'
+        'B = T.Var("B", T.Tensor((1,), "float16", layout="default"))\n'
+        "T.nki.reciprocal(A[0], B[0])",
     )
     _assert_namespace_print(
         trn_op.nki_tensorreduce(a0, b0, "sum", False, 0),
-        'A = T.Buffer((1,), "float16")\n'
-        'B = T.Buffer((1,), "float16")\n'
-        'T.nki.tensorreduce(A, B, "sum", T.bool(False), 0)',
+        'A = T.Var("A", T.Tensor((1,), "float16", layout="default"))\n'
+        'B = T.Var("B", T.Tensor((1,), "float16", layout="default"))\n'
+        'T.nki.tensorreduce(A[0], B[0], "sum", '
+        "T.bool(False), 0)",
     )
     _assert_namespace_print(
         trn_op.nki_tensortensor(a0, a0, b0, "add"),
-        'A = T.Buffer((1,), "float16")\n'
-        'B = T.Buffer((1,), "float16")\n'
-        'T.nki.tensortensor(A, A, B, "add")',
+        'A = T.Var("A", T.Tensor((1,), "float16", layout="default"))\n'
+        'B = T.Var("B", T.Tensor((1,), "float16", layout="default"))\n'
+        'T.nki.tensortensor(A[0], A[0], B[0], "add")',
     )
     _assert_namespace_print(
         trn_op.nki_tensorscalar(a0, a0, 1.0, "mul", False),
-        'A = T.Buffer((1,), "float16")\n'
-        'T.nki.tensorscalar(A, A, T.float32(1.0), "mul", T.bool(False))',
+        'A = T.Var("A", T.Tensor((1,), "float16", layout="default"))\n'
+        "T.nki.tensorscalar(A[0], A[0], T.float32(1.0), "
+        '"mul", T.bool(False))',
     )
     _assert_namespace_print(
         trn_op.nki_tensorscalar_reduce(a0, a0, 1.0, "mul", "sum", False),
-        'A = T.Buffer((1,), "float16")\n'
-        'T.nki.tensorscalar_reduce(A, A, T.float32(1.0), "mul", "sum", T.bool(False), T.bool(False))',  # noqa: E501
+        'A = T.Var("A", T.Tensor((1,), "float16", layout="default"))\n'
+        'T.nki.tensorscalar_reduce(A[0], A[0], T.float32(1.0), "mul", "sum", T.bool(False), T.bool(False))',  # noqa: E501
     )
     _assert_namespace_print(
         trn_op.nki_scalar_tensor_tensor(a0, a0, 1.0, a0, "add", "add"),
-        'A = T.Buffer((1,), "float16")\n'
-        'T.nki.scalar_tensor_tensor(A, A, T.float32(1.0), A, "add", "add", T.bool(False), T.bool(False))',  # noqa: E501
+        'A = T.Var("A", T.Tensor((1,), "float16", layout="default"))\n'
+        'T.nki.scalar_tensor_tensor(A[0], A[0], T.float32(1.0), A[0], "add", "add", T.bool(False), T.bool(False))',  # noqa: E501
     )
     _assert_namespace_print(
         trn_op.nki_scalar_tensor_scalar(a0, a0, 1.0, 1.0, "add", "add"),
-        'A = T.Buffer((1,), "float16")\n'
-        'T.nki.scalar_tensor_scalar(A, A, T.float32(1.0), T.float32(1.0), "add", "add", T.bool(False), T.bool(False))',  # noqa: E501
+        'A = T.Var("A", T.Tensor((1,), "float16", layout="default"))\n'
+        'T.nki.scalar_tensor_scalar(A[0], A[0], T.float32(1.0), T.float32(1.0), "add", "add", T.bool(False), T.bool(False))',  # noqa: E501
     )
     _assert_namespace_print(
         trn_op.nki_activation_reduce(a0, a0, b0, "relu", "sum", 0.0, 1.0),
-        'A = T.Buffer((1,), "float16")\n'
-        'B = T.Buffer((1,), "float16")\n'
-        'T.nki.activation_reduce(A, A, B, "relu", "sum", T.float32(0.0), T.float32(1.0))',
+        'A = T.Var("A", T.Tensor((1,), "float16", layout="default"))\n'
+        'B = T.Var("B", T.Tensor((1,), "float16", layout="default"))\n'
+        "T.nki.activation_reduce(A[0], A[0], B[0], "
+        '"relu", "sum", T.float32(0.0), '
+        "T.float32(1.0))",
     )
     _assert_namespace_print(
         trn_op.nki_affine_select(a0, a0, a0, 1.0),
-        'A = T.Buffer((1,), "float16")\nT.nki.affine_select(A, A, A, T.float32(1.0))',
+        'A = T.Var("A", T.Tensor((1,), "float16", layout="default"))\n'
+        "T.nki.affine_select(A[0], A[0], A[0], T.float32(1.0))",
     )
 
 
@@ -1006,6 +1027,7 @@ def test_printer_ptx_mma_and_wgmma():
     tir.Var("b", "handle")
     _assert_namespace_print(
         cuda_op.cuda_wgmma_encode_matrix_descriptor(d, a, 1, 1, 0),
-        "d = T.handle()\na = T.handle()\nT.cuda.wgmma.encode_matrix_descriptor(d, a, 1, 1, 0)",
+        "d: T.handle = T.handle()\na: T.handle = T.handle()\n"
+        "T.cuda.wgmma_encode_matrix_descriptor(d, a, 1, 1, 0)",
     )
-    _assert_namespace_print(cuda_op.cuda_wgmma_noop_barrier(0), "T.cuda.wgmma.noop_barrier(0)")
+    _assert_namespace_print(cuda_op.cuda_wgmma_noop_barrier(0), "T.cuda.wgmma_noop_barrier(0)")

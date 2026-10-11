@@ -17,7 +17,7 @@
 
 """Explicit fixed-width vector copy dispatches.
 
-Cache-semantics config (all variants, read from ``op_call.config``):
+Cache-semantics config (all variants, read from ``op_call.options``):
 
 - ``cache``: ``None`` (default, plain ``T.ptx.ld``) or ``"nc"`` (load via
   ``T.ptx.ld.global_.nc``, i.e. PTX ``ld.global.nc``). Requires a global src.
@@ -36,10 +36,9 @@ from tvm.ir import TensorRegion
 from tvm.runtime import DataType
 from tvm.script import tirx as T
 from tvm.sym.analyzer import Analyzer
-from tvm.tirx import Buffer, PrimFunc
-from tvm.tirx.operator.tile_primitive.dispatcher import predicate, register_dispatch
-from tvm.tirx.operator.tile_primitive.registry import DispatchContext
-from tvm.tirx.tile_primitive import TilePrimitiveCall
+from tvm.tirx import Var
+from tvm.tirx.tensor_instruction import TensorCall
+from tvm.tirx.tile_dispatch import DispatchContext
 
 from ._common import copy_ptx_form, copy_ptx_ld_chain
 from .utils import _scope_allowed
@@ -71,33 +70,31 @@ def _ptx_space(scope: str) -> str:
 _LD_CACHE_HINT_KEYS = ("l1_evict", "l2_evict", "prefetch_size")
 
 
-def _ld_cache_config(op_call: TilePrimitiveCall) -> tuple[str | None, dict[str, str]]:
-    """Read the cache-semantics config from ``op_call.config``.
+def _ld_cache_config(op_call: TensorCall) -> tuple[str | None, dict[str, str]]:
+    """Read the cache-semantics config from ``op_call.options``.
 
     Returns ``(cache, hints)``: ``cache`` is ``None`` or ``"nc"``, and
     ``hints`` maps the ``T.ptx.ld``/``T.ptx.ld.global_.nc`` L1/L2 hint kwargs
     (``l1_evict``, ``l2_evict``, ``prefetch_size``) to their string values.
     """
-    cache = op_call.config.get("cache", None)
+    cache = op_call.options.get("cache", None)
     if cache is not None:
-        cache = str(cache)
+        cache = cache.value
     hints: dict[str, str] = {}
     for key in _LD_CACHE_HINT_KEYS:
-        value = op_call.config.get(key, None)
-        if value is not None and str(value):
-            hints[key] = str(value)
+        value = op_call.options.get(key, None)
+        if value is not None and value.value:
+            hints[key] = value.value
     return cache, hints
 
 
 def _is_forced_vec_copy(
-    op_call: TilePrimitiveCall,
+    op_call: TensorCall,
     sctx: DispatchContext,
     *,
     variant: str,
     num_bytes: int,
 ):
-    if getattr(op_call, "dispatch", None) != variant:
-        return False, f"requires explicit dispatch={variant!r}"
     if sctx.scope_kind != "thread":
         return False, f"expected thread exec_scope, got {sctx.scope_kind}"
 
@@ -105,9 +102,9 @@ def _is_forced_vec_copy(
     if not scope_ok:
         return False, scope_reason
 
-    op_call = TilePrimitiveCall.downcast(op_call)
-    src: Buffer = op_call.src.source
-    dst: Buffer = op_call.dst.source
+    op_call = TensorCall.decode(op_call)
+    src: Var = op_call.src.source
+    dst: Var = op_call.dst.source
     if src.dtype != dst.dtype:
         return False, f"dtype mismatch: src={src.dtype}, dst={dst.dtype}"
 
@@ -135,10 +132,10 @@ def _is_forced_vec_copy(
     return True, None
 
 
-def _emit_forced_vec_copy(op_call: TilePrimitiveCall, _sctx: DispatchContext, num_bytes: int):
-    op_call = TilePrimitiveCall.downcast(op_call)
-    src: Buffer = op_call.src.source
-    dst: Buffer = op_call.dst.source
+def _emit_forced_vec_copy(op_call: TensorCall, _sctx: DispatchContext, num_bytes: int):
+    op_call = TensorCall.decode(op_call)
+    src: Var = op_call.src.source
+    dst: Var = op_call.dst.source
     src_scope = src.scope()
     dst_scope = dst.scope()
     src_is_local = src_scope == "local"
@@ -189,11 +186,11 @@ def _emit_forced_vec_copy(op_call: TilePrimitiveCall, _sctx: DispatchContext, nu
     )
 
     # fmt: off
-    @T.prim_func(check_well_formed=False)
+    @T.function(check_well_formed=False)
     def impl():
-        if src_is_local:
+        if T.constexpr(src_is_local):
             T.ptx[st_chain](dst_ptr, *_words(src, op_call.src))
-        elif dst_is_local:
+        elif T.constexpr(dst_is_local):
             T.ptx[ld_chain](*_words(dst, op_call.dst), src_ptr)
         else:
             tmp = T.alloc_local((lanes,), reg_dtype)
@@ -201,33 +198,3 @@ def _emit_forced_vec_copy(op_call: TilePrimitiveCall, _sctx: DispatchContext, nu
             T.ptx[st_chain](dst_ptr, *[tmp[i] for i in range(lanes)])
     # fmt: on
     return impl
-
-
-def _register_forced_vec_copy(variant: str, num_bytes: int) -> None:
-    @register_dispatch(
-        "copy",
-        "cuda",
-        variant=variant,
-        priority=20,
-        when=[
-            predicate(
-                f"{variant}_applicable",
-                _is_forced_vec_copy,
-                variant=variant,
-                num_bytes=num_bytes,
-            )
-        ],
-    )
-    def _copy_schedule_forced_vec(
-        op_call: TilePrimitiveCall,
-        sctx: DispatchContext,
-        _num_bytes=num_bytes,
-    ) -> PrimFunc:
-        return _emit_forced_vec_copy(op_call, sctx, _num_bytes)
-
-
-_register_forced_vec_copy("vec_256b", 32)
-_register_forced_vec_copy("vec_128b", 16)
-_register_forced_vec_copy("vec_64b", 8)
-_register_forced_vec_copy("vec_32b", 4)
-_register_forced_vec_copy("vec_16b", 2)

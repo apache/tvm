@@ -19,10 +19,10 @@
 
 from tvm.backend.trn.layout import is_trainium_layout
 from tvm.script import tirx as T
-from tvm.tirx import PrimFunc
+from tvm.tirx import Function
 from tvm.tirx.operator.tile_primitive import DispatchContext, fail
 from tvm.tirx.operator.tile_primitive.common import ReduceOpType
-from tvm.tirx.tile_primitive import TilePrimitiveCall
+from tvm.tirx.tensor_instruction import TensorCall
 
 from ..common import init_analyzer, nki_dim
 from ..dim_utils import get_reduction_dim_map
@@ -49,11 +49,9 @@ def generate_intermediate_buffer(
         assert sctx.alloc_only, (
             "Partial reduce buffer must be specified in workspace. Run tvm.tirx.trn.transform.TrnPrivateBufferAlloc first."  # noqa: E501
         )
-        intermediate_buffer = T.buffer(
-            intermediate_shape,
-            dtype=dst_buffer_region.source.ty.dtype,
-            scope="trn.sbuf",
-            buffer_name="partial_reduce",
+        intermediate_buffer = T.Var(
+            "partial_reduce",
+            T.Tensor(intermediate_shape, dtype=dst_buffer_region.source.ty.dtype, scope="trn.sbuf"),
         )
         sctx.add_alloc_buffer(intermediate_buffer)
 
@@ -61,8 +59,8 @@ def generate_intermediate_buffer(
 
 
 def reduction_trn(
-    op: TilePrimitiveCall, reduce_op: ReduceOpType, sctx: DispatchContext, negate: bool = False
-) -> PrimFunc | None:
+    op: TensorCall, reduce_op: ReduceOpType, sctx: DispatchContext, negate: bool = False
+) -> Function | None:
     """Schedule reduction operation on Trainium.
 
     Args:
@@ -72,12 +70,14 @@ def reduction_trn(
         negate: Whether to negate the result.
 
     Returns:
-        Optional[PrimFunc]: The scheduled function, or None if not applicable.
+        Optional[Function]: The scheduled function, or None if not applicable.
     """
     if not (sctx.is_target("trn") and sctx.scope_kind == "thread"):
         fail("requires Trainium target and thread exec_scope")
 
-    dst_buffer_region, src_buffer_region, axes, accum = op.args[:4]
+    op = TensorCall.decode(op)
+    dst_buffer_region, src_buffer_region = op.output, op.input
+    axes, accum = op.reduce_axes, op.accum
     assert not accum, "Accumulation is not supported for reduction on Trainium"
     analyzer = init_analyzer(sctx)
     assert reduce_op in reduce_ops, f"Unsupported reduce operation {reduce_op}"
@@ -85,7 +85,7 @@ def reduction_trn(
     # Extract buffers
     dst = dst_buffer_region.source
     src = src_buffer_region.source
-    axes = [i if i >= 0 else len(src.ty.shape) + i for i in axes]
+    axes = [int(i) if int(i) >= 0 else len(src.ty.shape) + int(i) for i in axes]
     dim_map = get_reduction_dim_map(src_buffer_region, dst_buffer_region, axes, analyzer)
 
     # Layout validation
@@ -104,7 +104,7 @@ def reduction_trn(
     inst_gen = InstructionGenerator([src_buffer_region, dst_buffer_region], analyzer)
     inst_gen.link_buffer_regions(src_buffer_region, dst_buffer_region, dim_map)
     inst_repr = inst_gen.find_max_inst_size_from_one_region(src_buffer_region, axes)
-    inst_size_limit = op.config.get("max_inst_size", None)
+    inst_size_limit = op.options.get("max_inst_size", None)
     inst_repr.bound_inst_size(inst_size_limit, analyzer)
     assert analyzer.can_prove(inst_repr.size > 1), "Instruction size must be greater than 1"
 
@@ -124,17 +124,17 @@ def reduction_trn(
     # Generate intermediate buffer if needed
     if reduction_b_extent != 1:
         intermediate_buffer = generate_intermediate_buffer(
-            dst_buffer_region, reduction_b_extent, op.workspace, sctx
+            dst_buffer_region, reduction_b_extent, op.workspaces, sctx
         )
 
     # fmt: off
     # Single-stage reduction implementation
     if reduction_b_extent == 1:
         # This fragment captures buffers and indices from its insertion scope.
-        @T.prim_func(check_well_formed=False)
+        @T.function(check_well_formed=False)
         def impl():
             for b_loop in T.serial(0, spatial_b_extent):
-                with T.attr(0, "tensorized_nki_instruction", 1):
+                with T.nki.tensorized_instruction():
                     for p_loop in T.serial(0, p_size, annotations={nki_dim: "P"}):
                         for f_loop in T.serial(0, inst_repr.size, annotations={nki_dim: "F"}):
                             inst_gen.set_bind_map_all({p_var: p_loop, f_var: f_loop, spatial_b_var: b_loop})  # noqa: E501
@@ -146,18 +146,18 @@ def reduction_trn(
     # Two-stage reduction implementation
     else:
         # This fragment captures buffers and indices from its insertion scope.
-        @T.prim_func(check_well_formed=False)
+        @T.function(check_well_formed=False)
         def two_stage_reduction():
             for b_loop in T.serial(0, spatial_b_extent):
                 for reduction_b_loop in T.serial(0, reduction_b_extent):
-                    with T.attr(0, "tensorized_nki_instruction", 1):
+                    with T.nki.tensorized_instruction():
                         for p_loop in T.serial(0, p_size, annotations={nki_dim: "P"}):
                             for f_loop in T.serial(0, inst_repr.size, annotations={nki_dim: "F"}):
                                 inst_gen.set_bind_map_all({p_var: p_loop, f_var: f_loop, spatial_b_var: b_loop, reduction_b_var: reduction_b_loop})  # noqa: E501
                                 if inst_gen.make_guard(src_buffer_region):
                                     src_indices = T.meta_var(inst_gen.generate_indices(src_buffer_region))  # noqa: E501
                                     T.evaluate(T.nki.tensorreduce(intermediate_buffer[p_loop, reduction_b_loop], src[src_indices], opcode, False, -1))  # noqa: E501
-                with T.attr(0, "tensorized_nki_instruction", 1):
+                with T.nki.tensorized_instruction():
                     for p_loop in T.serial(0, p_size, annotations={nki_dim: "P"}):
                         for f_loop in T.serial(0, reduction_b_extent, annotations={nki_dim: "F"}):
                             inst_gen.set_bind_map(src_buffer_region, {p_var: p_loop, f_var: 0, spatial_b_var: b_loop, reduction_b_var: f_loop})  # noqa: E501

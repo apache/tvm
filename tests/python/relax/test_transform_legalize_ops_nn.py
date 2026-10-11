@@ -20,6 +20,7 @@ import pytest
 
 import tvm
 import tvm.testing
+from tvm.ir import TupleType as _TupleType
 from tvm.relax.transform import LegalizeOps
 from tvm.script import ir as I
 from tvm.script import relax as R
@@ -42,11 +43,11 @@ def test_conv1d():
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 128, 28), dtype="float32"), w: R.Tensor((64, 16, 3), dtype="float32")) -> R.Tensor((2, 64, 13), dtype="float32"):
-            gv = R.call_tir(Expected.conv1d, (x, w), out_ty=R.Tensor((2, 64, 13), dtype="float32"))
+            gv = R.call_tir(Expected.conv1d, (x, w), ty_args=[R.Tensor((2, 64, 13), dtype="float32")])
             return gv
 
-        @Ts.prim_func(private=True)
-        def conv1d(A: T.Buffer((T.int64(2), T.int64(128), T.int64(28)), "float32"), B: T.Buffer((T.int64(64), T.int64(16), T.int64(3)), "float32"), group_conv1d_ncw: T.Buffer((T.int64(2), T.int64(64), T.int64(13)), "float32")):
+        @Ts.function(private=True)
+        def conv1d(A: T.Tensor((T.int64(2), T.int64(128), T.int64(28)), "float32"), B: T.Tensor((T.int64(64), T.int64(16), T.int64(3)), "float32"), group_conv1d_ncw: T.Tensor((T.int64(2), T.int64(64), T.int64(13)), "float32")):
             T.func_attr({"tirx.noalias": True})
             pad_temp = Ts.sblock_alloc_buffer((T.int64(2), T.int64(128), T.int64(30)))
             for i0, i1, i2 in T.grid(T.int64(2), T.int64(128), T.int64(30)):
@@ -82,11 +83,11 @@ def test_conv1d_with_out_dtype():
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3, 28), dtype="float32"), w: R.Tensor((4, 3, 3), dtype="float32")) -> R.Tensor((2, 4, 26), dtype="float16"):
-            gv = R.call_tir(Expected.conv1d, (x, w), out_ty=R.Tensor((2, 4, 26), dtype="float16"))
+            gv = R.call_tir(Expected.conv1d, (x, w), ty_args=[R.Tensor((2, 4, 26), dtype="float16")])
             return gv
 
-        @Ts.prim_func(private=True)
-        def conv1d(rxplaceholder: T.Buffer((T.int64(2), T.int64(3), T.int64(28)), "float32"), rxplaceholder_1: T.Buffer((T.int64(4), T.int64(3), T.int64(3)), "float32"), conv1d_ncw: T.Buffer((T.int64(2), T.int64(4), T.int64(26)), "float16")):
+        @Ts.function(private=True)
+        def conv1d(rxplaceholder: T.Tensor((T.int64(2), T.int64(3), T.int64(28)), "float32"), rxplaceholder_1: T.Tensor((T.int64(4), T.int64(3), T.int64(3)), "float32"), conv1d_ncw: T.Tensor((T.int64(2), T.int64(4), T.int64(26)), "float16")):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
             pad_temp = Ts.sblock_alloc_buffer((T.int64(2), T.int64(3), T.int64(28)))
@@ -123,11 +124,11 @@ def test_conv1d_nwc():
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 28, 128), dtype="float32"), w: R.Tensor((64, 128, 3), dtype="float32")) -> R.Tensor((2, 26, 64), dtype="float32"):
-            gv = R.call_tir(Expected.conv1d, (x, w), out_ty=R.Tensor((2, 26, 64), dtype="float32"))
+            gv = R.call_tir(Expected.conv1d, (x, w), ty_args=[R.Tensor((2, 26, 64), dtype="float32")])
             return gv
 
-        @Ts.prim_func(private=True)
-        def conv1d(rxplaceholder: T.Buffer((T.int64(2), T.int64(28), T.int64(128)), "float32"), rxplaceholder_1: T.Buffer((T.int64(64), T.int64(128), T.int64(3)), "float32"), conv1d_nwc: T.Buffer((T.int64(2), T.int64(26), T.int64(64)), "float32")):
+        @Ts.function(private=True)
+        def conv1d(rxplaceholder: T.Tensor((T.int64(2), T.int64(28), T.int64(128)), "float32"), rxplaceholder_1: T.Tensor((T.int64(64), T.int64(128), T.int64(3)), "float32"), conv1d_nwc: T.Tensor((T.int64(2), T.int64(26), T.int64(64)), "float32")):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
             pad_temp = Ts.sblock_alloc_buffer((T.int64(2), T.int64(28), T.int64(128)))
@@ -181,11 +182,11 @@ def test_conv1d_symbolic():
     class Expected:
         @R.function
         def main(x: R.Tensor((n_main, c_main, w_main), dtype="float32"), kernel: R.Tensor((f_main, c_main, kw_main), dtype="float32")) -> R.Tensor((n_main, f_main, w_main - kw_main + 1), dtype="float32"):
-            gv = R.call_tir(Expected.conv1d, (x, kernel), out_ty=R.Tensor((n_main, f_main, w_main + 1 - kw_main), dtype="float32"))
+            gv = R.call_tir(Expected.conv1d, (x, kernel), ty_args=[R.Tensor((n_main, f_main, w_main + 1 - kw_main), dtype="float32")])
             return gv
 
-        @Ts.prim_func(private=True)
-        def conv1d(rxplaceholder: T.Buffer((n_conv1d, c_conv1d, w_conv1d)), rxplaceholder_1: T.Buffer((f_conv1d, c_conv1d, kw_conv1d)), conv1d_ncw: T.Buffer((n_conv1d, f_conv1d, w_conv1d + T.int64(1) - kw_conv1d))):
+        @Ts.function(private=True)
+        def conv1d(rxplaceholder: T.Tensor((n_conv1d, c_conv1d, w_conv1d)), rxplaceholder_1: T.Tensor((f_conv1d, c_conv1d, kw_conv1d)), conv1d_ncw: T.Tensor((n_conv1d, f_conv1d, w_conv1d + T.int64(1) - kw_conv1d))):
             T.func_attr({"tirx.noalias": True})
 
             # with Ts.sblock("root"):
@@ -221,8 +222,8 @@ def test_conv1d_transpose():
 
     @I.ir_module
     class Expected:
-        @Ts.prim_func(private=True)
-        def conv1d_transpose(x: T.Buffer((T.int64(2), T.int64(128), T.int64(28)), "float32"), w: T.Buffer((T.int64(128), T.int64(16), T.int64(3)), "float32"), compute: T.Buffer((T.int64(2), T.int64(128), T.int64(56)), "float32")):
+        @Ts.function(private=True)
+        def conv1d_transpose(x: T.Tensor((T.int64(2), T.int64(128), T.int64(28)), "float32"), w: T.Tensor((T.int64(128), T.int64(16), T.int64(3)), "float32"), compute: T.Tensor((T.int64(2), T.int64(128), T.int64(56)), "float32")):
             T.func_attr({"tirx.noalias": True})
             data_dilate = Ts.sblock_alloc_buffer((T.int64(2), T.int64(128), T.int64(55)))
             data_pad = Ts.sblock_alloc_buffer((T.int64(2), T.int64(128), T.int64(58)))
@@ -249,7 +250,7 @@ def test_conv1d_transpose():
         @R.function
         def main(x: R.Tensor((2, 128, 28), dtype="float32"), w: R.Tensor((128, 16, 3), dtype="float32")) -> R.Tensor((2, 128, 56), dtype="float32"):
             cls = Expected
-            gv = R.call_tir(cls.conv1d_transpose, (x, w), out_ty=R.Tensor((2, 128, 56), dtype="float32"))
+            gv = R.call_tir(cls.conv1d_transpose, (x, w), ty_args=[R.Tensor((2, 128, 56), dtype="float32")])
             return gv
     # fmt: on
 
@@ -270,11 +271,11 @@ def test_conv2d():
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 128, 28, 28), "float32"), w: R.Tensor((64, 16, 3, 3), "float32")) -> R.Tensor((2, 64, 13, 13), "float32"):
-            gv = R.call_tir(Expected.conv2d, (x, w), R.Tensor((2, 64, 13, 13), dtype="float32"))
+            gv = R.call_tir(Expected.conv2d, (x, w), ty_args=[R.Tensor((2, 64, 13, 13), dtype="float32")])
             return gv
 
-        @Ts.prim_func(private=True)
-        def conv2d(rxplaceholder: T.Buffer((T.int64(2), T.int64(128), T.int64(28), T.int64(28)), "float32"), rxplaceholder_1: T.Buffer((T.int64(64), T.int64(16), T.int64(3), T.int64(3)), "float32"), group_conv2d_nchw: T.Buffer((T.int64(2), T.int64(64), T.int64(13), T.int64(13)), "float32")):
+        @Ts.function(private=True)
+        def conv2d(rxplaceholder: T.Tensor((T.int64(2), T.int64(128), T.int64(28), T.int64(28)), "float32"), rxplaceholder_1: T.Tensor((T.int64(64), T.int64(16), T.int64(3), T.int64(3)), "float32"), group_conv2d_nchw: T.Tensor((T.int64(2), T.int64(64), T.int64(13), T.int64(13)), "float32")):
             T.func_attr({"tirx.noalias": True})
             pad_temp = Ts.sblock_alloc_buffer([T.int64(2), T.int64(128), T.int64(30), T.int64(30)], dtype="float32")
             for i0, i1, i2, i3 in T.grid(T.int64(2), T.int64(128), T.int64(30), T.int64(30)):
@@ -282,7 +283,7 @@ def test_conv2d():
                     i0_1, i1_1, i2_1, i3_1 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
                     Ts.reads(rxplaceholder[i0_1, i1_1, i2_1 - T.int64(1), i3_1 - T.int64(1)])
                     Ts.writes(pad_temp[i0_1, i1_1, i2_1, i3_1])
-                    pad_temp[i0_1, i1_1, i2_1, i3_1] = T.if_then_else(T.int64(1) <= i2_1 and i2_1 < T.int64(29) and T.int64(1) <= i3_1 and i3_1 < T.int64(29), rxplaceholder[i0_1, i1_1, i2_1 - T.int64(1), i3_1 - T.int64(1)], T.float32(0), dtype="float32")
+                    pad_temp[i0_1, i1_1, i2_1, i3_1] = T.if_then_else(T.int64(1) <= i2_1 and i2_1 < T.int64(29) and T.int64(1) <= i3_1 and i3_1 < T.int64(29), rxplaceholder[i0_1, i1_1, i2_1 - T.int64(1), i3_1 - T.int64(1)], T.float32(0))
             for i0, i1, i2, i3, i4, i5, i6 in T.grid(T.int64(2), T.int64(64), T.int64(13), T.int64(13), T.int64(16), T.int64(3), T.int64(3)):
                 with Ts.sblock("group_conv2d_nchw"):
                     nn, ff, yy, xx, rc, ry, rx = Ts.axis.remap("SSSSRRR", [i0, i1, i2, i3, i4, i5, i6])
@@ -310,11 +311,11 @@ def test_conv2d_with_out_dtype():
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3, 28, 28), "float32"), w: R.Tensor((4, 3, 3, 3), "float32")) -> R.Tensor((2, 4, 26, 26), "float16"):
-            gv = R.call_tir(Expected.conv2d, (x, w), R.Tensor((2, 4, 26, 26), dtype="float16"))
+            gv = R.call_tir(Expected.conv2d, (x, w), ty_args=[R.Tensor((2, 4, 26, 26), dtype="float16")])
             return gv
 
-        @Ts.prim_func(private=True)
-        def conv2d(rxplaceholder: T.Buffer((T.int64(2), T.int64(3), T.int64(28), T.int64(28)), "float32"), rxplaceholder_1: T.Buffer((T.int64(4), T.int64(3), T.int64(3), T.int64(3)), "float32"), conv2d_nchw: T.Buffer((T.int64(2), T.int64(4), T.int64(26), T.int64(26)), "float16")):
+        @Ts.function(private=True)
+        def conv2d(rxplaceholder: T.Tensor((T.int64(2), T.int64(3), T.int64(28), T.int64(28)), "float32"), rxplaceholder_1: T.Tensor((T.int64(4), T.int64(3), T.int64(3), T.int64(3)), "float32"), conv2d_nchw: T.Tensor((T.int64(2), T.int64(4), T.int64(26), T.int64(26)), "float16")):
             T.func_attr({"tirx.noalias": True})
             pad_temp = Ts.sblock_alloc_buffer([T.int64(2), T.int64(3), T.int64(28), T.int64(28)], dtype="float32")
             for i0, i1, i2, i3 in T.grid(T.int64(2), T.int64(3), T.int64(28), T.int64(28)):
@@ -350,11 +351,11 @@ def test_conv2d_nhwc():
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 28, 28, 128), "float32"), w: R.Tensor((64, 128, 3, 3), "float32")) -> R.Tensor((2, 26, 26, 64), "float32"):
-            gv = R.call_tir(Expected.conv2d, (x, w), R.Tensor((2, 26, 26, 64), dtype="float32"))
+            gv = R.call_tir(Expected.conv2d, (x, w), ty_args=[R.Tensor((2, 26, 26, 64), dtype="float32")])
             return gv
 
-        @Ts.prim_func(private=True)
-        def conv2d(rxplaceholder: T.Buffer((T.int64(2), T.int64(28), T.int64(28), T.int64(128)), "float32"), rxplaceholder_1: T.Buffer((T.int64(64), T.int64(128), T.int64(3), T.int64(3)), "float32"), conv2d_nhwc: T.Buffer((T.int64(2), T.int64(26), T.int64(26), T.int64(64)), "float32")):
+        @Ts.function(private=True)
+        def conv2d(rxplaceholder: T.Tensor((T.int64(2), T.int64(28), T.int64(28), T.int64(128)), "float32"), rxplaceholder_1: T.Tensor((T.int64(64), T.int64(128), T.int64(3), T.int64(3)), "float32"), conv2d_nhwc: T.Tensor((T.int64(2), T.int64(26), T.int64(26), T.int64(64)), "float32")):
             T.func_attr({"tirx.noalias": True})
             pad_temp = Ts.sblock_alloc_buffer([T.int64(2), T.int64(28), T.int64(28), T.int64(128)], dtype="float32")
             for i0, i1, i2, i3 in T.grid(T.int64(2), T.int64(28), T.int64(28), T.int64(128)):
@@ -413,11 +414,11 @@ def test_conv2d_symbolic():
     class Expected:
         @R.function
         def main(x: R.Tensor((n_main, c_main, h_main, w_main), "float32"), kernel: R.Tensor((f_main, c_main, kh_main, kw_main), "float32")) -> R.Tensor((n_main, f_main, h_main - kh_main + 1, w_main - kw_main + 1), "float32"):
-            gv = R.call_tir(Expected.conv2d, (x, kernel), R.Tensor((n_main, f_main, h_main + 1 - kh_main, w_main + 1 - kw_main), dtype="float32"))
+            gv = R.call_tir(Expected.conv2d, (x, kernel), ty_args=[R.Tensor((n_main, f_main, h_main + 1 - kh_main, w_main + 1 - kw_main), dtype="float32")])
             return gv
 
-        @Ts.prim_func(private=True)
-        def conv2d(rxplaceholder: T.Buffer([n_conv2d, c_conv2d, h_conv2d, w_conv2d], dtype='float32'), rxplaceholder_1: T.Buffer([f_conv2d, c_conv2d, kh_conv2d, kw_conv2d], dtype='float32'), conv2d_nchw: T.Buffer([n_conv2d, f_conv2d, h_conv2d + T.int64(1) - kh_conv2d, w_conv2d + T.int64(1) - kw_conv2d], dtype='float32')):
+        @Ts.function(private=True)
+        def conv2d(rxplaceholder: T.Tensor([n_conv2d, c_conv2d, h_conv2d, w_conv2d], dtype='float32'), rxplaceholder_1: T.Tensor([f_conv2d, c_conv2d, kh_conv2d, kw_conv2d], dtype='float32'), conv2d_nchw: T.Tensor([n_conv2d, f_conv2d, h_conv2d + T.int64(1) - kh_conv2d, w_conv2d + T.int64(1) - kw_conv2d], dtype='float32')):
             T.func_attr({"tirx.noalias": True})
 
             pad_temp = Ts.sblock_alloc_buffer([n_conv2d, c_conv2d, h_conv2d, w_conv2d], dtype="float32")
@@ -468,11 +469,11 @@ def test_conv2d_symbolic_group():
     class Expected:
         @R.function
         def main(x: R.Tensor((n_main, c_main, 28, 28), dtype="float32"), w: R.Tensor((f_main, c_div_8_main, 3, 3), dtype="float32")) -> R.Tensor((n_main, f_main, 26, 26), dtype="float32"):
-            gv = R.call_tir(Expected.conv2d, (x, w), out_ty=R.Tensor((n_main, f_main, 26, 26), dtype="float32"))
+            gv = R.call_tir(Expected.conv2d, (x, w), ty_args=[R.Tensor((n_main, f_main, 26, 26), dtype="float32")])
             return gv
 
-        @Ts.prim_func(private=True)
-        def conv2d(x: T.Buffer((n_conv2d, c_conv2d, T.int64(28), T.int64(28))), w: T.Buffer((f_conv2d, c_div_8_conv2d, T.int64(3), T.int64(3))), group_conv2d_nchw: T.Buffer((n_conv2d, f_conv2d, T.int64(26), T.int64(26)))):
+        @Ts.function(private=True)
+        def conv2d(x: T.Tensor((n_conv2d, c_conv2d, T.int64(28), T.int64(28))), w: T.Tensor((f_conv2d, c_div_8_conv2d, T.int64(3), T.int64(3))), group_conv2d_nchw: T.Tensor((n_conv2d, f_conv2d, T.int64(26), T.int64(26)))):
             T.func_attr({"tirx.noalias": True})
 
             pad_temp = Ts.sblock_alloc_buffer((n_conv2d, c_conv2d, T.int64(28), T.int64(28)))
@@ -509,11 +510,11 @@ def test_conv2d_transpose():
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 128, 28, 28), dtype="float32"), w: R.Tensor((128, 16, 3, 3), dtype="float32")) -> R.Tensor((2, 128, 56, 84), dtype="float32"):
-            gv = R.call_tir(Expected.conv2d_transpose, (x, w), out_ty=R.Tensor((2, 128, 56, 84), dtype="float32"))
+            gv = R.call_tir(Expected.conv2d_transpose, (x, w), ty_args=[R.Tensor((2, 128, 56, 84), dtype="float32")])
             return gv
 
-        @Ts.prim_func(private=True)
-        def conv2d_transpose(rxplaceholder: T.Buffer((T.int64(2), T.int64(128), T.int64(28), T.int64(28)), "float32"), rxplaceholder_1: T.Buffer((T.int64(128), T.int64(16), T.int64(3), T.int64(3)), "float32"), compute: T.Buffer((T.int64(2), T.int64(128), T.int64(56), T.int64(84)), "float32")):
+        @Ts.function(private=True)
+        def conv2d_transpose(rxplaceholder: T.Tensor((T.int64(2), T.int64(128), T.int64(28), T.int64(28)), "float32"), rxplaceholder_1: T.Tensor((T.int64(128), T.int64(16), T.int64(3), T.int64(3)), "float32"), compute: T.Tensor((T.int64(2), T.int64(128), T.int64(56), T.int64(84)), "float32")):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
             data_dilate = Ts.sblock_alloc_buffer((T.int64(2), T.int64(128), T.int64(55), T.int64(82)))
@@ -564,11 +565,11 @@ def test_conv3d_transpose():
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3, 4, 4, 4), dtype="float32"), w: R.Tensor((3, 4, 3, 3, 3), dtype="float32")) -> R.Tensor((2, 4, 6, 6, 6), dtype="float32"):
-            gv = R.call_tir(Expected.conv3d_transpose, (x, w), out_ty=R.Tensor((2, 4, 6, 6, 6), dtype="float32"))
+            gv = R.call_tir(Expected.conv3d_transpose, (x, w), ty_args=[R.Tensor((2, 4, 6, 6, 6), dtype="float32")])
             return gv
 
-        @Ts.prim_func(private=True)
-        def conv3d_transpose(x: T.Buffer((T.int64(2), T.int64(3), T.int64(4), T.int64(4), T.int64(4)), "float32"), w: T.Buffer((T.int64(3), T.int64(4), T.int64(3), T.int64(3), T.int64(3)), "float32"), compute: T.Buffer((T.int64(2), T.int64(4), T.int64(6), T.int64(6), T.int64(6)), "float32")):
+        @Ts.function(private=True)
+        def conv3d_transpose(x: T.Tensor((T.int64(2), T.int64(3), T.int64(4), T.int64(4), T.int64(4)), "float32"), w: T.Tensor((T.int64(3), T.int64(4), T.int64(3), T.int64(3), T.int64(3)), "float32"), compute: T.Tensor((T.int64(2), T.int64(4), T.int64(6), T.int64(6), T.int64(6)), "float32")):
             T.func_attr({"tirx.noalias": True})
             data_dilate = Ts.sblock_alloc_buffer((T.int64(2), T.int64(3), T.int64(4), T.int64(4), T.int64(4)))
             data_pad = Ts.sblock_alloc_buffer((T.int64(2), T.int64(3), T.int64(8), T.int64(8), T.int64(8)))
@@ -618,11 +619,11 @@ def test_conv3d_transpose_with_out_dtype():
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3, 4, 4, 4), dtype="float32"), w: R.Tensor((3, 4, 3, 3, 3), dtype="float32")) -> R.Tensor((2, 4, 6, 6, 6), dtype="float16"):
-            gv = R.call_tir(Expected.conv3d_transpose, (x, w), out_ty=R.Tensor((2, 4, 6, 6, 6), dtype="float16"))
+            gv = R.call_tir(Expected.conv3d_transpose, (x, w), ty_args=[R.Tensor((2, 4, 6, 6, 6), dtype="float16")])
             return gv
 
-        @Ts.prim_func(private=True)
-        def conv3d_transpose(x: T.Buffer((T.int64(2), T.int64(3), T.int64(4), T.int64(4), T.int64(4)), "float32"), w: T.Buffer((T.int64(3), T.int64(4), T.int64(3), T.int64(3), T.int64(3)), "float32"), compute: T.Buffer((T.int64(2), T.int64(4), T.int64(6), T.int64(6), T.int64(6)), "float16")):
+        @Ts.function(private=True)
+        def conv3d_transpose(x: T.Tensor((T.int64(2), T.int64(3), T.int64(4), T.int64(4), T.int64(4)), "float32"), w: T.Tensor((T.int64(3), T.int64(4), T.int64(3), T.int64(3), T.int64(3)), "float32"), compute: T.Tensor((T.int64(2), T.int64(4), T.int64(6), T.int64(6), T.int64(6)), "float16")):
             T.func_attr({"tirx.noalias": True})
             data_dilate = Ts.sblock_alloc_buffer((T.int64(2), T.int64(3), T.int64(4), T.int64(4), T.int64(4)))
             data_pad = Ts.sblock_alloc_buffer((T.int64(2), T.int64(3), T.int64(8), T.int64(8), T.int64(8)))
@@ -672,11 +673,11 @@ def test_conv2d_transpose_with_out_dtype():
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3, 28, 28), dtype="float32"), w: R.Tensor((3, 4, 3, 3), dtype="float32")) -> R.Tensor((2, 4, 30, 30), dtype="float16"):
-            gv = R.call_tir(Expected.conv2d_transpose, (x, w), out_ty=R.Tensor((2, 4, 30, 30), dtype="float16"))
+            gv = R.call_tir(Expected.conv2d_transpose, (x, w), ty_args=[R.Tensor((2, 4, 30, 30), dtype="float16")])
             return gv
 
-        @Ts.prim_func(private=True)
-        def conv2d_transpose(rxplaceholder: T.Buffer((T.int64(2), T.int64(3), T.int64(28), T.int64(28)), "float32"), rxplaceholder_1: T.Buffer((T.int64(3), T.int64(4), T.int64(3), T.int64(3)), "float32"), compute: T.Buffer((T.int64(2), T.int64(4), T.int64(30), T.int64(30)), "float16")):
+        @Ts.function(private=True)
+        def conv2d_transpose(rxplaceholder: T.Tensor((T.int64(2), T.int64(3), T.int64(28), T.int64(28)), "float32"), rxplaceholder_1: T.Tensor((T.int64(3), T.int64(4), T.int64(3), T.int64(3)), "float32"), compute: T.Tensor((T.int64(2), T.int64(4), T.int64(30), T.int64(30)), "float16")):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
             data_dilate = Ts.sblock_alloc_buffer((T.int64(2), T.int64(3), T.int64(28), T.int64(28)))
@@ -750,11 +751,11 @@ def test_conv2d_transpose_symbolic():
     class Expected:
         @R.function
         def main(x: R.Tensor((n_main, c_main, h_main, w_main), dtype="float32"), kernel: R.Tensor((f_main, c_main, kh_main, kw_main), dtype="float32")) -> R.Tensor((n_main, c_main, h_main * 3 + kh_main - 3, w_main * 3 + kw_main - 3), dtype="float32"):
-            gv = R.call_tir(Expected.conv2d_transpose, (x, kernel), out_ty=R.Tensor((n_main, c_main, h_main * 3 + kh_main - 3, w_main * 3 + kw_main - 3), dtype="float32"))
+            gv = R.call_tir(Expected.conv2d_transpose, (x, kernel), ty_args=[R.Tensor((n_main, c_main, h_main * 3 + kh_main - 3, w_main * 3 + kw_main - 3), dtype="float32")])
             return gv
 
-        @Ts.prim_func(private=True)
-        def conv2d_transpose(rxplaceholder: T.Buffer((n_conv2d_transpose, c_conv2d_transpose, h_conv2d_transpose, w_conv2d_transpose)), rxplaceholder_1: T.Buffer((f_conv2d_transpose, c_conv2d_transpose, kh_conv2d_transpose, kw_conv2d_transpose)), compute: T.Buffer((n_conv2d_transpose, c_conv2d_transpose, h_conv2d_transpose * T.int64(3) + kh_conv2d_transpose - T.int64(3), w_conv2d_transpose * T.int64(3) + kw_conv2d_transpose - T.int64(3)))):
+        @Ts.function(private=True)
+        def conv2d_transpose(rxplaceholder: T.Tensor((n_conv2d_transpose, c_conv2d_transpose, h_conv2d_transpose, w_conv2d_transpose)), rxplaceholder_1: T.Tensor((f_conv2d_transpose, c_conv2d_transpose, kh_conv2d_transpose, kw_conv2d_transpose)), compute: T.Tensor((n_conv2d_transpose, c_conv2d_transpose, h_conv2d_transpose * T.int64(3) + kh_conv2d_transpose - T.int64(3), w_conv2d_transpose * T.int64(3) + kw_conv2d_transpose - T.int64(3)))):
             T.func_attr({"tirx.noalias": True})
 
             # with Ts.sblock("root"):
@@ -804,8 +805,8 @@ def test_conv2d_transpose_dilation():
 
     @I.ir_module
     class Expected:
-        @Ts.prim_func(private=True)
-        def conv2d_transpose(x: T.Buffer((T.int64(1), T.int64(1), T.int64(3), T.int64(3)), "float32"), w: T.Buffer((T.int64(1), T.int64(1), T.int64(2), T.int64(2)), "float32"), compute: T.Buffer((T.int64(1), T.int64(1), T.int64(5), T.int64(5)), "float32")):
+        @Ts.function(private=True)
+        def conv2d_transpose(x: T.Tensor((T.int64(1), T.int64(1), T.int64(3), T.int64(3)), "float32"), w: T.Tensor((T.int64(1), T.int64(1), T.int64(2), T.int64(2)), "float32"), compute: T.Tensor((T.int64(1), T.int64(1), T.int64(5), T.int64(5)), "float32")):
             T.func_attr({"tirx.noalias": True})
             data_dilate = Ts.sblock_alloc_buffer((T.int64(1), T.int64(1), T.int64(3), T.int64(3)))
             data_pad = Ts.sblock_alloc_buffer((T.int64(1), T.int64(1), T.int64(7), T.int64(7)))
@@ -837,7 +838,7 @@ def test_conv2d_transpose_dilation():
         @R.function
         def main(x: R.Tensor((1, 1, 3, 3), dtype="float32"), w: R.Tensor((1, 1, 2, 2), dtype="float32")) -> R.Tensor((1, 1, 5, 5), dtype="float32"):
             cls = Expected
-            gv = R.call_tir(cls.conv2d_transpose, (x, w), out_ty=R.Tensor((1, 1, 5, 5), dtype="float32"))
+            gv = R.call_tir(cls.conv2d_transpose, (x, w), ty_args=[R.Tensor((1, 1, 5, 5), dtype="float32")])
             return gv
     # fmt: on
 
@@ -858,11 +859,11 @@ def test_max_pool2d():
     class Expected:
         @R.function
         def main(x: R.Tensor((4, 112, 112, 6), "float32")) -> R.Tensor((4, 56, 56, 6), "float32"):
-            gv = R.call_tir(Expected.max_pool2d, (x,), R.Tensor((4, 56, 56, 6), dtype="float32"))
+            gv = R.call_tir(Expected.max_pool2d, (x,), ty_args=[R.Tensor((4, 56, 56, 6), dtype="float32")])
             return gv
 
-        @Ts.prim_func(private=True)
-        def max_pool2d(rxplaceholder: T.Buffer((T.int64(4), T.int64(112), T.int64(112), T.int64(6)), "float32"), pool_max: T.Buffer((T.int64(4), T.int64(56), T.int64(56), T.int64(6)), "float32")):
+        @Ts.function(private=True)
+        def max_pool2d(rxplaceholder: T.Tensor((T.int64(4), T.int64(112), T.int64(112), T.int64(6)), "float32"), pool_max: T.Tensor((T.int64(4), T.int64(56), T.int64(56), T.int64(6)), "float32")):
             T.func_attr({"tirx.noalias": True})
             pad_temp = Ts.sblock_alloc_buffer([T.int64(4), T.int64(114), T.int64(114), T.int64(6)], dtype="float32")
             for i0, i1, i2, i3 in T.grid(T.int64(4), T.int64(114), T.int64(114), T.int64(6)):
@@ -870,7 +871,7 @@ def test_max_pool2d():
                     ax0, ax1, ax2, ax3 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
                     Ts.reads(rxplaceholder[ax0, ax1 - T.int64(1), ax2 - T.int64(1), ax3])
                     Ts.writes(pad_temp[ax0, ax1, ax2, ax3])
-                    pad_temp[ax0, ax1, ax2, ax3] = T.if_then_else(T.int64(1) <= ax1 and ax1 < T.int64(113) and T.int64(1) <= ax2 and ax2 < T.int64(113), rxplaceholder[ax0, ax1 - T.int64(1), ax2 - T.int64(1), ax3], T.float32(-3.4028234663852886e+38), dtype="float32")
+                    pad_temp[ax0, ax1, ax2, ax3] = T.if_then_else(T.int64(1) <= ax1 and ax1 < T.int64(113) and T.int64(1) <= ax2 and ax2 < T.int64(113), rxplaceholder[ax0, ax1 - T.int64(1), ax2 - T.int64(1), ax3], T.float32(-3.4028234663852886e+38))
             for i0, i1, i2, i3, i4, i5 in T.grid(T.int64(4), T.int64(56), T.int64(56), T.int64(6), T.int64(3), T.int64(3)):
                 with Ts.sblock("pool_max"):
                     ax0, ax1, ax2, ax3, rv0, rv1 = Ts.axis.remap("SSSSRR", [i0, i1, i2, i3, i4, i5])
@@ -899,11 +900,11 @@ def test_max_pool2d_NCHW16c():
     class Expected:
         @R.function
         def main(x: R.Tensor((4, 4, 112, 112, 16), "float32")) -> R.Tensor((4, 4, 110, 110, 16), "float32"):
-            gv = R.call_tir(Expected.max_pool2d, (x,), R.Tensor((4, 4, 110, 110, 16), dtype="float32"))
+            gv = R.call_tir(Expected.max_pool2d, (x,), ty_args=[R.Tensor((4, 4, 110, 110, 16), dtype="float32")])
             return gv
 
-        @Ts.prim_func(private=True)
-        def max_pool2d(rxplaceholder: T.Buffer((T.int64(4), T.int64(4), T.int64(112), T.int64(112), T.int64(16)), "float32"), pool_max: T.Buffer((T.int64(4), T.int64(4), T.int64(110), T.int64(110), T.int64(16)), "float32")):
+        @Ts.function(private=True)
+        def max_pool2d(rxplaceholder: T.Tensor((T.int64(4), T.int64(4), T.int64(112), T.int64(112), T.int64(16)), "float32"), pool_max: T.Tensor((T.int64(4), T.int64(4), T.int64(110), T.int64(110), T.int64(16)), "float32")):
             T.func_attr({"tirx.noalias": True})
             for i0, i1, i2, i3, i4, i5, i6 in T.grid(T.int64(4), T.int64(4), T.int64(110), T.int64(110), T.int64(16), T.int64(3), T.int64(3)):
                 with Ts.sblock("pool_max"):
@@ -933,11 +934,11 @@ def test_max_pool2d_ceil_mode():
     class Expected:
         @R.function
         def main(x: R.Tensor((4, 6, 112, 112), dtype="float32")) -> R.Tensor((4, 6, 38, 38), dtype="float32"):
-            gv = R.call_tir(Expected.max_pool2d, (x,), R.Tensor((4, 6, 38, 38), dtype="float32"))
+            gv = R.call_tir(Expected.max_pool2d, (x,), ty_args=[R.Tensor((4, 6, 38, 38), dtype="float32")])
             return gv
 
-        @Ts.prim_func(private=True)
-        def max_pool2d(rxplaceholder: T.Buffer((T.int64(4), T.int64(6), T.int64(112), T.int64(112)), "float32"), pool_max: T.Buffer((T.int64(4), T.int64(6), T.int64(38), T.int64(38)), "float32")):
+        @Ts.function(private=True)
+        def max_pool2d(rxplaceholder: T.Tensor((T.int64(4), T.int64(6), T.int64(112), T.int64(112)), "float32"), pool_max: T.Tensor((T.int64(4), T.int64(6), T.int64(38), T.int64(38)), "float32")):
             T.func_attr({"tirx.noalias": True})
             pad_temp = Ts.sblock_alloc_buffer([T.int64(4), T.int64(6), T.int64(116), T.int64(116)], dtype="float32")
             for i0, i1, i2, i3 in T.grid(T.int64(4), T.int64(6), T.int64(116), T.int64(116)):
@@ -945,7 +946,7 @@ def test_max_pool2d_ceil_mode():
                     ax0, ax1, ax2, ax3 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
                     Ts.reads(rxplaceholder[ax0, ax1, ax2 - T.int64(1), ax3 - T.int64(1)])
                     Ts.writes(pad_temp[ax0, ax1, ax2, ax3])
-                    pad_temp[ax0, ax1, ax2, ax3] = T.if_then_else(T.int64(1) <= ax2 and ax2 < T.int64(113) and T.int64(1) <= ax3 and ax3 < T.int64(113), rxplaceholder[ax0, ax1, ax2 - T.int64(1), ax3 - T.int64(1)], T.float32(-3.4028234663852886e+38), dtype="float32")
+                    pad_temp[ax0, ax1, ax2, ax3] = T.if_then_else(T.int64(1) <= ax2 and ax2 < T.int64(113) and T.int64(1) <= ax3 and ax3 < T.int64(113), rxplaceholder[ax0, ax1, ax2 - T.int64(1), ax3 - T.int64(1)], T.float32(-3.4028234663852886e+38))
             for i0, i1, i2, i3, i4, i5 in T.grid(T.int64(4), T.int64(6), T.int64(38), T.int64(38), T.int64(3), T.int64(3)):
                 with Ts.sblock("pool_max"):
                     ax0, ax1, ax2, ax3, rv0, rv1 = Ts.axis.remap("SSSSRR", [i0, i1, i2, i3, i4, i5])
@@ -995,8 +996,8 @@ def test_avg_pool2d():
 
     @I.ir_module
     class Expected:
-        @Ts.prim_func(private=True)
-        def avg_pool2d(rxplaceholder: T.Buffer((T.int64(4), T.int64(112), T.int64(112), T.int64(6)), "float32"), pool_avg: T.Buffer((T.int64(4), T.int64(56), T.int64(56), T.int64(6)), "float32")):
+        @Ts.function(private=True)
+        def avg_pool2d(rxplaceholder: T.Tensor((T.int64(4), T.int64(112), T.int64(112), T.int64(6)), "float32"), pool_avg: T.Tensor((T.int64(4), T.int64(56), T.int64(56), T.int64(6)), "float32")):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
             pad_temp = Ts.sblock_alloc_buffer((T.int64(4), T.int64(114), T.int64(114), T.int64(6)))
@@ -1025,7 +1026,7 @@ def test_avg_pool2d():
 
         @R.function
         def main(x: R.Tensor((4, 112, 112, 6), dtype="float32")) -> R.Tensor((4, 56, 56, 6), dtype="float32"):
-            gv = R.call_tir(Expected.avg_pool2d, (x,), out_ty=R.Tensor((4, 56, 56, 6), dtype="float32"))
+            gv = R.call_tir(Expected.avg_pool2d, (x,), ty_args=[R.Tensor((4, 56, 56, 6), dtype="float32")])
             return gv
     # fmt: on
 
@@ -1044,8 +1045,8 @@ def test_avg_pool2d_NCHW16c():
 
     @I.ir_module
     class Expected:
-        @Ts.prim_func(private=True)
-        def avg_pool2d(rxplaceholder: T.Buffer((T.int64(4), T.int64(4), T.int64(112), T.int64(112), T.int64(16)), "float32"), pool_avg: T.Buffer((T.int64(4), T.int64(4), T.int64(110), T.int64(110), T.int64(16)), "float32")):
+        @Ts.function(private=True)
+        def avg_pool2d(rxplaceholder: T.Tensor((T.int64(4), T.int64(4), T.int64(112), T.int64(112), T.int64(16)), "float32"), pool_avg: T.Tensor((T.int64(4), T.int64(4), T.int64(110), T.int64(110), T.int64(16)), "float32")):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
             pool_sum = Ts.sblock_alloc_buffer((T.int64(4), T.int64(4), T.int64(110), T.int64(110), T.int64(16)))
@@ -1066,7 +1067,7 @@ def test_avg_pool2d_NCHW16c():
                     pool_avg[v_ax0, v_ax1, v_ax2, v_ax3, v_ax4] = pool_sum[v_ax0, v_ax1, v_ax2, v_ax3, v_ax4] / T.Cast("float32", T.max((T.min(T.int64(2), T.int64(111) - v_ax2) + T.int64(1) - T.max(T.int64(0) - v_ax2, T.int64(0))) * (T.min(T.int64(2), T.int64(111) - v_ax3) + T.int64(1) - T.max(T.int64(0) - v_ax3, T.int64(0))), T.int64(1)))
         @R.function
         def main(x: R.Tensor((4, 4, 112, 112, 16), dtype="float32")) -> R.Tensor((4, 4, 110, 110, 16), dtype="float32"):
-            gv = R.call_tir(Expected.avg_pool2d, (x,), out_ty=R.Tensor((4, 4, 110, 110, 16), dtype="float32"))
+            gv = R.call_tir(Expected.avg_pool2d, (x,), ty_args=[R.Tensor((4, 4, 110, 110, 16), dtype="float32")])
             return gv
     # fmt: on
 
@@ -1085,8 +1086,8 @@ def test_avg_pool2d_ceil_mode():
 
     @I.ir_module
     class Expected:
-        @Ts.prim_func(private=True)
-        def avg_pool2d(rxplaceholder: T.Buffer((T.int64(4), T.int64(6), T.int64(112), T.int64(112)), "float32"), pool_avg: T.Buffer((T.int64(4), T.int64(6), T.int64(38), T.int64(38)), "float32")):
+        @Ts.function(private=True)
+        def avg_pool2d(rxplaceholder: T.Tensor((T.int64(4), T.int64(6), T.int64(112), T.int64(112)), "float32"), pool_avg: T.Tensor((T.int64(4), T.int64(6), T.int64(38), T.int64(38)), "float32")):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
             pad_temp = Ts.sblock_alloc_buffer((T.int64(4), T.int64(6), T.int64(116), T.int64(116)))
@@ -1115,7 +1116,7 @@ def test_avg_pool2d_ceil_mode():
 
         @R.function
         def main(x: R.Tensor((4, 6, 112, 112), dtype="float32")) -> R.Tensor((4, 6, 38, 38), dtype="float32"):
-            gv = R.call_tir(Expected.avg_pool2d, (x,), out_ty=R.Tensor((4, 6, 38, 38), dtype="float32"))
+            gv = R.call_tir(Expected.avg_pool2d, (x,), ty_args=[R.Tensor((4, 6, 38, 38), dtype="float32")])
             return gv
 
     # fmt: on
@@ -1160,11 +1161,11 @@ def test_adaptive_avg_pool2d():
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 4, 7, 7, 16), "float32")) -> R.Tensor((2, 4, 1, 1, 16), "float32"):
-            gv = R.call_tir(Expected.adaptive_avg_pool2d, (x,), R.Tensor((2, 4, 1, 1, 16), dtype="float32"))
+            gv = R.call_tir(Expected.adaptive_avg_pool2d, (x,), ty_args=[R.Tensor((2, 4, 1, 1, 16), dtype="float32")])
             return gv
 
-        @Ts.prim_func(private=True)
-        def adaptive_avg_pool2d(rxplaceholder: T.Buffer((T.int64(2), T.int64(4), T.int64(7), T.int64(7), T.int64(16)), "float32"), adaptive_pool_avg: T.Buffer((T.int64(2), T.int64(4), T.int64(1), T.int64(1), T.int64(16)), "float32")):
+        @Ts.function(private=True)
+        def adaptive_avg_pool2d(rxplaceholder: T.Tensor((T.int64(2), T.int64(4), T.int64(7), T.int64(7), T.int64(16)), "float32"), adaptive_pool_avg: T.Tensor((T.int64(2), T.int64(4), T.int64(1), T.int64(1), T.int64(16)), "float32")):
             T.func_attr({"tirx.noalias": True})
             adaptive_pool_sum = Ts.sblock_alloc_buffer([T.int64(2), T.int64(4), T.int64(1), T.int64(1), T.int64(16)], dtype="float32")
             for i0, i1, i2, i3, i4, i5, i6 in T.grid(T.int64(2), T.int64(4), T.int64(1), T.int64(1), T.int64(16), T.int64(7), T.int64(7)):
@@ -1201,11 +1202,11 @@ def test_adaptive_avg_pool2d_without_output_size():
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 16, 7, 7), "float32")) -> R.Tensor((2, 16, 7, 7), "float32"):
-            gv = R.call_tir(Expected.adaptive_avg_pool2d, (x,), R.Tensor((2, 16, 7, 7), dtype="float32"))
+            gv = R.call_tir(Expected.adaptive_avg_pool2d, (x,), ty_args=[R.Tensor((2, 16, 7, 7), dtype="float32")])
             return gv
 
-        @Ts.prim_func(private=True)
-        def adaptive_avg_pool2d(rxplaceholder: T.Buffer((T.int64(2), T.int64(16), T.int64(7), T.int64(7)), "float32"), adaptive_pool_avg: T.Buffer((T.int64(2), T.int64(16), T.int64(7), T.int64(7)), "float32")):
+        @Ts.function(private=True)
+        def adaptive_avg_pool2d(rxplaceholder: T.Tensor((T.int64(2), T.int64(16), T.int64(7), T.int64(7)), "float32"), adaptive_pool_avg: T.Tensor((T.int64(2), T.int64(16), T.int64(7), T.int64(7)), "float32")):
             T.func_attr({"tirx.noalias": True})
             adaptive_pool_sum = Ts.sblock_alloc_buffer([T.int64(2), T.int64(16), T.int64(7), T.int64(7)], dtype="float32")
             for i0, i1, i2, i3, i4, i5 in T.grid(T.int64(2), T.int64(16), T.int64(7), T.int64(7), T.int64(1), T.int64(1)):
@@ -1264,11 +1265,11 @@ def test_relu():
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3), "float32")) -> R.Tensor((2, 3), "float32"):
-            gv = R.call_tir(Expected.relu, (x,), R.Tensor((2, 3), dtype="float32"))
+            gv = R.call_tir(Expected.relu, (x,), ty_args=[R.Tensor((2, 3), dtype="float32")])
             return gv
 
-        @Ts.prim_func(private=True)
-        def relu(rxplaceholder: T.Buffer((T.int64(2), T.int64(3)), "float32"), compute: T.Buffer((T.int64(2), T.int64(3)), "float32")):
+        @Ts.function(private=True)
+        def relu(rxplaceholder: T.Tensor((T.int64(2), T.int64(3)), "float32"), compute: T.Tensor((T.int64(2), T.int64(3)), "float32")):
             T.func_attr({"tirx.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
                 with Ts.sblock("compute"):
@@ -1303,11 +1304,11 @@ def test_relu_symbolic():
     class Expected:
         @R.function
         def main(x: R.Tensor((m_main, n_main), "float32")) -> R.Tensor((m_main, n_main), "float32"):
-            gv = R.call_tir(Expected.relu, (x,), R.Tensor((m_main, n_main), dtype="float32"))
+            gv = R.call_tir(Expected.relu, (x,), ty_args=[R.Tensor((m_main, n_main), dtype="float32")])
             return gv
 
-        @Ts.prim_func(private=True)
-        def relu(rxplaceholder: T.Buffer([m_relu, n_relu], dtype='float32'), compute: T.Buffer([m_relu, n_relu], dtype='float32')):
+        @Ts.function(private=True)
+        def relu(rxplaceholder: T.Tensor([m_relu, n_relu], dtype='float32'), compute: T.Tensor([m_relu, n_relu], dtype='float32')):
             T.func_attr({"tirx.noalias": True})
 
             for i0, i1 in T.grid(m_relu, n_relu):
@@ -1335,11 +1336,11 @@ def test_leakyrelu():
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3), "float32")) -> R.Tensor((2, 3), "float32"):
-            gv = R.call_tir(Expected.leaky_relu, (x,), R.Tensor((2, 3), dtype="float32"))
+            gv = R.call_tir(Expected.leaky_relu, (x,), ty_args=[R.Tensor((2, 3), dtype="float32")])
             return gv
 
-        @Ts.prim_func(private=True)
-        def leaky_relu(x: T.Buffer((T.int64(2), T.int64(3)), "float32"), compute: T.Buffer((T.int64(2), T.int64(3)), "float32")):
+        @Ts.function(private=True)
+        def leaky_relu(x: T.Tensor((T.int64(2), T.int64(3)), "float32"), compute: T.Tensor((T.int64(2), T.int64(3)), "float32")):
             T.func_attr({"tirx.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
                 with Ts.sblock("compute"):
@@ -1374,11 +1375,11 @@ def test_leakyrelu_symbolic():
     class Expected:
         @R.function
         def main(x: R.Tensor((m_main, n_main), "float32")) -> R.Tensor((m_main, n_main), "float32"):
-            gv = R.call_tir(Expected.leaky_relu, (x, ), R.Tensor((m_main, n_main), dtype="float32"))
+            gv = R.call_tir(Expected.leaky_relu, (x, ), ty_args=[R.Tensor((m_main, n_main), dtype="float32")])
             return gv
 
-        @Ts.prim_func(private=True)
-        def leaky_relu(x: T.Buffer((m_leaky_relu, n_leaky_relu)), compute: T.Buffer((m_leaky_relu, n_leaky_relu))):
+        @Ts.function(private=True)
+        def leaky_relu(x: T.Tensor((m_leaky_relu, n_leaky_relu)), compute: T.Tensor((m_leaky_relu, n_leaky_relu))):
             T.func_attr({"tirx.noalias": True})
 
             for i0, i1 in T.grid(m_leaky_relu, n_leaky_relu):
@@ -1406,11 +1407,11 @@ def test_prelu():
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3), dtype="float32"), y: R.Tensor((1,), dtype="float32")) -> R.Tensor((2, 3), dtype="float32"):
-            gv = R.call_tir(Expected.prelu, (x, y), out_ty=R.Tensor((2, 3), dtype="float32"))
+            gv = R.call_tir(Expected.prelu, (x, y), ty_args=[R.Tensor((2, 3), dtype="float32")])
             return gv
 
-        @Ts.prim_func(private=True)
-        def prelu(x: T.Buffer((T.int64(2), T.int64(3)), "float32"), y: T.Buffer((T.int64(1),), "float32"), compute: T.Buffer((T.int64(2), T.int64(3)), "float32")):
+        @Ts.function(private=True)
+        def prelu(x: T.Tensor((T.int64(2), T.int64(3)), "float32"), y: T.Tensor((T.int64(1),), "float32"), compute: T.Tensor((T.int64(2), T.int64(3)), "float32")):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
             slope_broadcasted = Ts.sblock_alloc_buffer((T.int64(3),))
@@ -1450,11 +1451,11 @@ def test_prelu_symbolic():
     class Expected:
         @R.function
         def main(x: R.Tensor((m_main, 7), dtype="float32"), y: R.Tensor((1,), dtype="float32")) -> R.Tensor((m_main, 7), dtype="float32"):
-            gv = R.call_tir(Expected.prelu, (x, y), out_ty=R.Tensor((m_main, 7), dtype="float32"))
+            gv = R.call_tir(Expected.prelu, (x, y), ty_args=[R.Tensor((m_main, 7), dtype="float32")])
             return gv
 
-        @Ts.prim_func(private=True)
-        def prelu(x: T.Buffer((m_prelu, T.int64(7))), y: T.Buffer((T.int64(1),), "float32"), compute: T.Buffer((m_prelu, T.int64(7)))):
+        @Ts.function(private=True)
+        def prelu(x: T.Tensor((m_prelu, T.int64(7))), y: T.Tensor((T.int64(1),), "float32"), compute: T.Tensor((m_prelu, T.int64(7)))):
             T.func_attr({"tirx.noalias": True})
 
             # with Ts.sblock("root"):
@@ -1490,11 +1491,11 @@ def test_gelu():
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3), "float32")) -> R.Tensor((2, 3), "float32"):
-            gv = R.call_tir(Expected.gelu, (x,), R.Tensor((2, 3), dtype="float32"))
+            gv = R.call_tir(Expected.gelu, (x,), ty_args=[R.Tensor((2, 3), dtype="float32")])
             return gv
 
-        @Ts.prim_func(private=True)
-        def gelu(x: T.Buffer((T.int64(2), T.int64(3)), "float32"), T_multiply: T.Buffer((T.int64(2), T.int64(3)), "float32")):
+        @Ts.function(private=True)
+        def gelu(x: T.Tensor((T.int64(2), T.int64(3)), "float32"), T_multiply: T.Tensor((T.int64(2), T.int64(3)), "float32")):
             T.func_attr({"tirx.noalias": True})
             T_multiply_1 = Ts.sblock_alloc_buffer((T.int64(2), T.int64(3)))
             compute = Ts.sblock_alloc_buffer((T.int64(2), T.int64(3)))
@@ -1557,11 +1558,11 @@ def test_gelu_symbolic():
     class Expected:
         @R.function
         def main(x: R.Tensor((m_main, n_main), "float32")) -> R.Tensor((m_main, n_main), "float32"):
-            gv = R.call_tir(Expected.gelu, (x,), R.Tensor((m_main, n_main), dtype="float32"))
+            gv = R.call_tir(Expected.gelu, (x,), ty_args=[R.Tensor((m_main, n_main), dtype="float32")])
             return gv
 
-        @Ts.prim_func(private=True)
-        def gelu(x: T.Buffer((m_gelu, n_gelu)), T_multiply: T.Buffer((m_gelu, n_gelu))):
+        @Ts.function(private=True)
+        def gelu(x: T.Tensor((m_gelu, n_gelu)), T_multiply: T.Tensor((m_gelu, n_gelu))):
             T.func_attr({"tirx.noalias": True})
 
             T_multiply_1 = Ts.sblock_alloc_buffer((m_gelu, n_gelu))
@@ -1617,11 +1618,11 @@ def test_gelu_tanh():
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3), dtype="float32")) -> R.Tensor((2, 3), dtype="float32"):
-            gv = R.call_tir(Expected.gelu_tanh, (x,), out_ty=R.Tensor((2, 3), dtype="float32"))
+            gv = R.call_tir(Expected.gelu_tanh, (x,), ty_args=[R.Tensor((2, 3), dtype="float32")])
             return gv
 
-        @Ts.prim_func(private=True)
-        def gelu_tanh(A: T.Buffer((T.int64(2), T.int64(3)), "float32"), T_multiply: T.Buffer((T.int64(2), T.int64(3)), "float32")):
+        @Ts.function(private=True)
+        def gelu_tanh(A: T.Tensor((T.int64(2), T.int64(3)), "float32"), T_multiply: T.Tensor((T.int64(2), T.int64(3)), "float32")):
             T.func_attr({"tirx.noalias": True})
             T_multiply_1 = Ts.sblock_alloc_buffer((T.int64(2), T.int64(3)))
             T_multiply_2 = Ts.sblock_alloc_buffer((T.int64(2), T.int64(3)))
@@ -1711,11 +1712,11 @@ def test_gelu_tanh_symbolic():
     class Expected:
         @R.function
         def main(x: R.Tensor((m_main, n_main), dtype="float32")) -> R.Tensor((m_main, n_main), dtype="float32"):
-            gv = R.call_tir(Expected.gelu_tanh, (x,), out_ty=R.Tensor((m_main, n_main), dtype="float32"))
+            gv = R.call_tir(Expected.gelu_tanh, (x,), ty_args=[R.Tensor((m_main, n_main), dtype="float32")])
             return gv
 
-        @Ts.prim_func(private=True)
-        def gelu_tanh(A: T.Buffer((m_gelu_tanh, n_gelu_tanh)), T_multiply: T.Buffer((m_gelu_tanh, n_gelu_tanh))):
+        @Ts.function(private=True)
+        def gelu_tanh(A: T.Tensor((m_gelu_tanh, n_gelu_tanh)), T_multiply: T.Tensor((m_gelu_tanh, n_gelu_tanh))):
             T.func_attr({"tirx.noalias": True})
 
             # with Ts.sblock("root"):
@@ -1799,11 +1800,11 @@ def test_silu():
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3), "float32")) -> R.Tensor((2, 3), "float32"):
-            gv = R.call_tir(Expected.silu, (x,), R.Tensor((2, 3), dtype="float32"))
+            gv = R.call_tir(Expected.silu, (x,), ty_args=[R.Tensor((2, 3), dtype="float32")])
             return gv
 
-        @Ts.prim_func(private=True)
-        def silu(rxplaceholder: T.Buffer((T.int64(2), T.int64(3)), "float32"), T_multiply: T.Buffer((T.int64(2), T.int64(3)), "float32")):
+        @Ts.function(private=True)
+        def silu(rxplaceholder: T.Tensor((T.int64(2), T.int64(3)), "float32"), T_multiply: T.Tensor((T.int64(2), T.int64(3)), "float32")):
             T.func_attr({"tirx.noalias": True})
             compute = Ts.sblock_alloc_buffer([T.int64(2), T.int64(3)], dtype="float32")
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
@@ -1845,11 +1846,11 @@ def test_silu_symbolic():
     class Expected:
         @R.function
         def main(x: R.Tensor((m_main, n_main), "float32")) -> R.Tensor((m_main, n_main), "float32"):
-            gv = R.call_tir(Expected.silu, (x,), R.Tensor((m_main, n_main), dtype="float32"))
+            gv = R.call_tir(Expected.silu, (x,), ty_args=[R.Tensor((m_main, n_main), dtype="float32")])
             return gv
 
-        @Ts.prim_func(private=True)
-        def silu(rxplaceholder: T.Buffer([m_silu, n_silu], dtype='float32'), T_multiply: T.Buffer([m_silu, n_silu], dtype='float32')):
+        @Ts.function(private=True)
+        def silu(rxplaceholder: T.Tensor([m_silu, n_silu], dtype='float32'), T_multiply: T.Tensor([m_silu, n_silu], dtype='float32')):
             T.func_attr({"tirx.noalias": True})
 
             compute = Ts.sblock_alloc_buffer([m_silu, n_silu], dtype="float32")
@@ -1884,11 +1885,11 @@ def test_softmax():
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3, 16, 32), "float32")) -> R.Tensor((2, 3, 16, 32), "float32"):
-            gv = R.call_tir(Expected.softmax, (x,), R.Tensor((2, 3, 16, 32), dtype="float32"))
+            gv = R.call_tir(Expected.softmax, (x,), ty_args=[R.Tensor((2, 3, 16, 32), dtype="float32")])
             return gv
 
-        @Ts.prim_func(private=True)
-        def softmax(rxplaceholder: T.Buffer((T.int64(2), T.int64(3), T.int64(16), T.int64(32)), "float32"), T_softmax_norm: T.Buffer((T.int64(2), T.int64(3), T.int64(16), T.int64(32)), "float32")):
+        @Ts.function(private=True)
+        def softmax(rxplaceholder: T.Tensor((T.int64(2), T.int64(3), T.int64(16), T.int64(32)), "float32"), T_softmax_norm: T.Tensor((T.int64(2), T.int64(3), T.int64(16), T.int64(32)), "float32")):
             T.func_attr({"tirx.noalias": True})
             T_softmax_maxelem = Ts.sblock_alloc_buffer([T.int64(2), T.int64(3), T.int64(32)], dtype="float32")
             T_softmax_exp = Ts.sblock_alloc_buffer([T.int64(2), T.int64(3), T.int64(16), T.int64(32)], dtype="float32")
@@ -1906,7 +1907,7 @@ def test_softmax():
                     i0_2, i1_2, i2_2, i3_1 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
                     Ts.reads(rxplaceholder[i0_2, i1_2, i2_2, i3_1], T_softmax_maxelem[i0_2, i1_2, i3_1])
                     Ts.writes(T_softmax_exp[i0_2, i1_2, i2_2, i3_1])
-                    T_softmax_exp[i0_2, i1_2, i2_2, i3_1] = T.exp(rxplaceholder[i0_2, i1_2, i2_2, i3_1] - T_softmax_maxelem[i0_2, i1_2, i3_1], dtype="float32")
+                    T_softmax_exp[i0_2, i1_2, i2_2, i3_1] = T.exp(rxplaceholder[i0_2, i1_2, i2_2, i3_1] - T_softmax_maxelem[i0_2, i1_2, i3_1])
             for i0_3, i1_3, i2_3, i3 in T.grid(T.int64(2), T.int64(3), T.int64(32), T.int64(16)):
                 with Ts.sblock("T_softmax_expsum"):
                     i0_4, i1_4, i2_4, k = Ts.axis.remap("SSSR", [i0_3, i1_3, i2_3, i3])
@@ -1952,11 +1953,11 @@ def test_softmax_symbolic():
     class Expected:
         @R.function
         def main(x: R.Tensor((a_main, b_main, c_main), "float32")) -> R.Tensor((a_main, b_main, c_main), "float32"):
-            gv = R.call_tir(Expected.softmax, (x,), R.Tensor((a_main, b_main, c_main), dtype="float32"))
+            gv = R.call_tir(Expected.softmax, (x,), ty_args=[R.Tensor((a_main, b_main, c_main), dtype="float32")])
             return gv
 
-        @Ts.prim_func(private=True)
-        def softmax(rxplaceholder: T.Buffer([a_softmax, b_softmax, c_softmax], dtype='float32'), T_softmax_norm: T.Buffer([a_softmax, b_softmax, c_softmax], dtype='float32')):
+        @Ts.function(private=True)
+        def softmax(rxplaceholder: T.Tensor([a_softmax, b_softmax, c_softmax], dtype='float32'), T_softmax_norm: T.Tensor([a_softmax, b_softmax, c_softmax], dtype='float32')):
             T.func_attr({"tirx.noalias": True})
 
             T_softmax_maxelem = Ts.sblock_alloc_buffer([a_softmax, b_softmax], dtype="float32")
@@ -1975,7 +1976,7 @@ def test_softmax_symbolic():
                     i0_2, i1_2, i2_1 = Ts.axis.remap("SSS", [i0, i1, i2])
                     Ts.reads(rxplaceholder[i0_2, i1_2, i2_1], T_softmax_maxelem[i0_2, i1_2])
                     Ts.writes(T_softmax_exp[i0_2, i1_2, i2_1])
-                    T_softmax_exp[i0_2, i1_2, i2_1] = T.exp(rxplaceholder[i0_2, i1_2, i2_1] - T_softmax_maxelem[i0_2, i1_2], dtype="float32")
+                    T_softmax_exp[i0_2, i1_2, i2_1] = T.exp(rxplaceholder[i0_2, i1_2, i2_1] - T_softmax_maxelem[i0_2, i1_2])
             for i0_3, i1_3, i2 in T.grid(a_softmax, b_softmax, c_softmax):
                 with Ts.sblock("T_softmax_expsum"):
                     i0_4, i1_4, k = Ts.axis.remap("SSR", [i0_3, i1_3, i2])
@@ -2010,11 +2011,11 @@ def test_log_softmax():
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3, 16, 32), dtype="float32")) -> R.Tensor((2, 3, 16, 32), dtype="float32"):
-            gv = R.call_tir(Expected.log_softmax, (x,), R.Tensor((2, 3, 16, 32), dtype="float32"))
+            gv = R.call_tir(Expected.log_softmax, (x,), ty_args=[R.Tensor((2, 3, 16, 32), dtype="float32")])
             return gv
 
-        @Ts.prim_func(private=True)
-        def log_softmax(rxplaceholder: T.Buffer((T.int64(2), T.int64(3), T.int64(16), T.int64(32)), "float32"), compute: T.Buffer((T.int64(2), T.int64(3), T.int64(16), T.int64(32)), "float32"),):
+        @Ts.function(private=True)
+        def log_softmax(rxplaceholder: T.Tensor((T.int64(2), T.int64(3), T.int64(16), T.int64(32)), "float32"), compute: T.Tensor((T.int64(2), T.int64(3), T.int64(16), T.int64(32)), "float32"),):
             T.func_attr({"tirx.noalias": True})
             T_softmax_maxelem = Ts.sblock_alloc_buffer([T.int64(2), T.int64(3), T.int64(32)], dtype="float32")
             compute_1 = Ts.sblock_alloc_buffer([T.int64(2), T.int64(3), T.int64(32)], dtype="float32")
@@ -2033,14 +2034,14 @@ def test_log_softmax():
                     Ts.writes(compute_1[i0_2, i1_2, i2_2])
                     with Ts.init():
                         compute_1[i0_2, i1_2, i2_2] = T.float32(0)
-                    compute_1[i0_2, i1_2, i2_2] = compute_1[i0_2, i1_2, i2_2] + T.exp(rxplaceholder[i0_2, i1_2, k, i2_2] - T_softmax_maxelem[i0_2, i1_2, i2_2], dtype="float32")
+                    compute_1[i0_2, i1_2, i2_2] = compute_1[i0_2, i1_2, i2_2] + T.exp(rxplaceholder[i0_2, i1_2, k, i2_2] - T_softmax_maxelem[i0_2, i1_2, i2_2])
             for i0_3, i1_3, i2_3, i3 in T.grid(T.int64(2), T.int64(3), T.int64(16), T.int64(32)):
                 with Ts.sblock("compute_1"):
                     i0_4, i1_4, i2_4, i3_1 = Ts.axis.remap("SSSS", [i0_3, i1_3, i2_3, i3])
                     Ts.reads(rxplaceholder[i0_4, i1_4, i2_4, i3_1], T_softmax_maxelem[i0_4, i1_4, i3_1], compute_1[i0_4, i1_4, i3_1])
                     Ts.writes(compute[i0_4, i1_4, i2_4, i3_1])
                     Ts.sblock_attr({"axis": 2})
-                    compute[i0_4, i1_4, i2_4, i3_1] = (rxplaceholder[i0_4, i1_4, i2_4, i3_1] - T_softmax_maxelem[i0_4, i1_4, i3_1] - T.log(compute_1[i0_4, i1_4, i3_1], dtype="float32"))
+                    compute[i0_4, i1_4, i2_4, i3_1] = (rxplaceholder[i0_4, i1_4, i2_4, i3_1] - T_softmax_maxelem[i0_4, i1_4, i3_1] - T.log(compute_1[i0_4, i1_4, i3_1]))
     # fmt: on
 
     mod = LegalizeOps()(LogSoftmax)
@@ -2072,11 +2073,11 @@ def test_log_softmax_symbolic():
         @R.function
         def main(x: R.Tensor((a_main, b_main, c_main), dtype="float32")) -> R.Tensor((a_main, b_main, c_main), dtype="float32"):
             # block 0
-            gv = R.call_tir(Expected.log_softmax, (x,), R.Tensor((a_main, b_main, c_main), dtype="float32"))
+            gv = R.call_tir(Expected.log_softmax, (x,), ty_args=[R.Tensor((a_main, b_main, c_main), dtype="float32")])
             return gv
 
-        @Ts.prim_func(private=True)
-        def log_softmax(rxplaceholder: T.Buffer([a_log_softmax, b_log_softmax, c_log_softmax], dtype='float32'), compute: T.Buffer([a_log_softmax, b_log_softmax, c_log_softmax], dtype='float32')):
+        @Ts.function(private=True)
+        def log_softmax(rxplaceholder: T.Tensor([a_log_softmax, b_log_softmax, c_log_softmax], dtype='float32'), compute: T.Tensor([a_log_softmax, b_log_softmax, c_log_softmax], dtype='float32')):
             T.func_attr({"tirx.noalias": True})
 
             T_softmax_maxelem = Ts.sblock_alloc_buffer([a_log_softmax, b_log_softmax], dtype="float32")
@@ -2096,14 +2097,14 @@ def test_log_softmax_symbolic():
                     Ts.writes(compute_1[v_i0, v_i1])
                     with Ts.init():
                         compute_1[v_i0, v_i1] = T.float32(0)
-                    compute_1[v_i0, v_i1] = compute_1[v_i0, v_i1] + T.exp(rxplaceholder[v_i0, v_i1, v_k] - T_softmax_maxelem[v_i0, v_i1], dtype="float32")
+                    compute_1[v_i0, v_i1] = compute_1[v_i0, v_i1] + T.exp(rxplaceholder[v_i0, v_i1, v_k] - T_softmax_maxelem[v_i0, v_i1])
             for i0, i1, i2 in T.grid(a_log_softmax, b_log_softmax, c_log_softmax):
                 with Ts.sblock("compute_1"):
                     v_i0, v_i1, v_i2 = Ts.axis.remap("SSS", [i0, i1, i2])
                     Ts.reads(rxplaceholder[v_i0, v_i1, v_i2], T_softmax_maxelem[v_i0, v_i1], compute_1[v_i0, v_i1],)
                     Ts.writes(compute[v_i0, v_i1, v_i2])
                     Ts.sblock_attr({"axis": 2})
-                    compute[v_i0, v_i1, v_i2] = (rxplaceholder[v_i0, v_i1, v_i2] - T_softmax_maxelem[v_i0, v_i1] - T.log(compute_1[v_i0, v_i1], dtype="float32"))
+                    compute[v_i0, v_i1, v_i2] = (rxplaceholder[v_i0, v_i1, v_i2] - T_softmax_maxelem[v_i0, v_i1] - T.log(compute_1[v_i0, v_i1]))
     # fmt: on
 
     mod = LegalizeOps()(LogSoftmax)
@@ -2123,11 +2124,11 @@ def test_cross_entropy_with_logits():
     class Expected:
         @R.function
         def main(x: R.Tensor((3,), dtype="float32"), y: R.Tensor((3,), dtype="float32")):
-            gv = R.call_tir(Expected.cross_entropy_with_logits, (x, y), R.Tensor((), dtype="float32"))
+            gv = R.call_tir(Expected.cross_entropy_with_logits, (x, y), ty_args=[R.Tensor((), dtype="float32")])
             return gv
 
-        @Ts.prim_func(private=True)
-        def cross_entropy_with_logits(x: T.Buffer((T.int64(3),), "float32"), y: T.Buffer((T.int64(3),), "float32"), T_multiply: T.Buffer((), "float32")):
+        @Ts.function(private=True)
+        def cross_entropy_with_logits(x: T.Tensor((T.int64(3),), "float32"), y: T.Tensor((T.int64(3),), "float32"), T_multiply: T.Tensor((), "float32")):
             T.func_attr({"tirx.noalias": True})
             T_multiply_1 = Ts.sblock_alloc_buffer((T.int64(3),))
             T_multiply_red = Ts.sblock_alloc_buffer(())
@@ -2169,11 +2170,11 @@ def test_cross_entropy_with_logits_batch():
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3), dtype="float32"), y: R.Tensor((2, 3), dtype="float32")):
-            gv = R.call_tir(Expected.cross_entropy_with_logits, (x, y), R.Tensor((), dtype="float32"))
+            gv = R.call_tir(Expected.cross_entropy_with_logits, (x, y), ty_args=[R.Tensor((), dtype="float32")])
             return gv
 
-        @Ts.prim_func(private=True)
-        def cross_entropy_with_logits(x: T.Buffer((T.int64(2), T.int64(3)), "float32"), y: T.Buffer((T.int64(2), T.int64(3)), "float32"), T_divide: T.Buffer((), "float32")):
+        @Ts.function(private=True)
+        def cross_entropy_with_logits(x: T.Tensor((T.int64(2), T.int64(3)), "float32"), y: T.Tensor((T.int64(2), T.int64(3)), "float32"), T_divide: T.Tensor((), "float32")):
             T.func_attr({"tirx.noalias": True})
             T_multiply = Ts.sblock_alloc_buffer((T.int64(2), T.int64(3)))
             T_multiply_red = Ts.sblock_alloc_buffer(())
@@ -2229,11 +2230,11 @@ def test_cross_entropy_with_logits_batch_symbolic():
     class Expected:
         @R.function
         def main(x: R.Tensor((n_main, m_main), dtype="float32"), y: R.Tensor((n_main, m_main), dtype="float32")):
-            gv = R.call_tir(Expected.cross_entropy_with_logits, (x, y), R.Tensor((), dtype="float32"))
+            gv = R.call_tir(Expected.cross_entropy_with_logits, (x, y), ty_args=[R.Tensor((), dtype="float32")])
             return gv
 
-        @Ts.prim_func(private=True)
-        def cross_entropy_with_logits(x: T.Buffer((n_cross_entropy_with_logits, m_cross_entropy_with_logits)), y: T.Buffer((n_cross_entropy_with_logits, m_cross_entropy_with_logits)), T_divide: T.Buffer((), "float32")):
+        @Ts.function(private=True)
+        def cross_entropy_with_logits(x: T.Tensor((n_cross_entropy_with_logits, m_cross_entropy_with_logits)), y: T.Tensor((n_cross_entropy_with_logits, m_cross_entropy_with_logits)), T_divide: T.Tensor((), "float32")):
             T.func_attr({"tirx.noalias": True})
 
             T_multiply = Ts.sblock_alloc_buffer((n_cross_entropy_with_logits, m_cross_entropy_with_logits))
@@ -2280,8 +2281,8 @@ def test_batch_norm():
 
     @tvm.script.ir_module
     class Expected:
-        @Ts.prim_func(private=True)
-        def batch_norm(x: T.Buffer((T.int64(2), T.int64(3), T.int64(28), T.int64(28))), gamma: T.Buffer((T.int64(3),)), beta: T.Buffer((T.int64(3),)), moving_mean: T.Buffer((T.int64(3),)), moving_var: T.Buffer((T.int64(3),)), T_add: T.Buffer((T.int64(2), T.int64(3), T.int64(28), T.int64(28))), T_add_1: T.Buffer((T.int64(3),)), T_add_2: T.Buffer((T.int64(3),))):
+        @Ts.function(private=True)
+        def batch_norm(x: T.Tensor((T.int64(2), T.int64(3), T.int64(28), T.int64(28))), gamma: T.Tensor((T.int64(3),)), beta: T.Tensor((T.int64(3),)), moving_mean: T.Tensor((T.int64(3),)), moving_var: T.Tensor((T.int64(3),)), T_add: T.Tensor((T.int64(2), T.int64(3), T.int64(28), T.int64(28))), T_add_1: T.Tensor((T.int64(3),)), T_add_2: T.Tensor((T.int64(3),))):
             T.func_attr({"tirx.noalias": True})
 
             with Ts.sblock("root"):
@@ -2543,7 +2544,7 @@ def test_batch_norm():
         @R.function
         def main(x: R.Tensor((2, 3, 28, 28), dtype="float32"), gamma: R.Tensor((3,), dtype="float32"), beta: R.Tensor((3,), dtype="float32"), moving_mean: R.Tensor((3,), dtype="float32"), moving_var: R.Tensor((3,), dtype="float32")) -> R.Tuple(R.Tensor((2, 3, 28, 28), dtype="float32"), R.Tensor((3,), dtype="float32"), R.Tensor((3,), dtype="float32")):
             cls = Expected
-            gv = R.call_tir(cls.batch_norm, (x, gamma, beta, moving_mean, moving_var), out_ty=[R.Tensor((2, 3, 28, 28), dtype="float32"), R.Tensor((3,), dtype="float32"), R.Tensor((3,), dtype="float32")])
+            gv = R.call_tir(cls.batch_norm, (x, gamma, beta, moving_mean, moving_var), ty_args=[_TupleType([R.Tensor((2, 3, 28, 28), dtype="float32"), R.Tensor((3,), dtype="float32"), R.Tensor((3,), dtype="float32")])])
             return gv
     # fmt: on
 
@@ -2576,8 +2577,8 @@ def test_batch_norm_symbolic():
 
     @tvm.script.ir_module
     class Expected:
-        @Ts.prim_func(private=True)
-        def batch_norm(x: T.Buffer((n_batch_norm, h_batch_norm, w_batch_norm, c_batch_norm)), gamma: T.Buffer((c_batch_norm,)), beta: T.Buffer((c_batch_norm,)), moving_mean: T.Buffer((c_batch_norm,)), moving_var: T.Buffer((c_batch_norm,)), T_add: T.Buffer((n_batch_norm, h_batch_norm, w_batch_norm, c_batch_norm)), T_add_1: T.Buffer((T.max(c_batch_norm, h_batch_norm),)), T_add_2: T.Buffer((T.max(c_batch_norm, h_batch_norm),))):
+        @Ts.function(private=True)
+        def batch_norm(x: T.Tensor((n_batch_norm, h_batch_norm, w_batch_norm, c_batch_norm)), gamma: T.Tensor((c_batch_norm,)), beta: T.Tensor((c_batch_norm,)), moving_mean: T.Tensor((c_batch_norm,)), moving_var: T.Tensor((c_batch_norm,)), T_add: T.Tensor((n_batch_norm, h_batch_norm, w_batch_norm, c_batch_norm)), T_add_1: T.Tensor((T.max(c_batch_norm, h_batch_norm),)), T_add_2: T.Tensor((T.max(c_batch_norm, h_batch_norm),))):
             T.func_attr({"tirx.noalias": True})
 
             with Ts.sblock("root"):
@@ -2839,7 +2840,7 @@ def test_batch_norm_symbolic():
         @R.function
         def main(x: R.Tensor((n_main, h_main, w_main, c_main), dtype="float32"), gamma: R.Tensor((c_main,), dtype="float32"), beta: R.Tensor((c_main,), dtype="float32"), moving_mean: R.Tensor((c_main,), dtype="float32"), moving_var: R.Tensor((c_main,), dtype="float32")) -> R.Tuple(R.Tensor((n_main, h_main, w_main, c_main), dtype="float32"), R.Tensor((T.max(c_main, h_main),), dtype="float32"), R.Tensor((T.max(c_main, h_main),), dtype="float32")):
             cls = Expected
-            gv = R.call_tir(cls.batch_norm, (x, gamma, beta, moving_mean, moving_var), out_ty=[R.Tensor((n_main, h_main, w_main, c_main), dtype="float32"), R.Tensor((T.max(c_main, h_main),), dtype="float32"), R.Tensor((T.max(c_main, h_main),), dtype="float32")])
+            gv = R.call_tir(cls.batch_norm, (x, gamma, beta, moving_mean, moving_var), ty_args=[_TupleType([R.Tensor((n_main, h_main, w_main, c_main), dtype="float32"), R.Tensor((T.max(c_main, h_main),), dtype="float32"), R.Tensor((T.max(c_main, h_main),), dtype="float32")])])
             return gv
 
     mod = LegalizeOps()(BatchNorm)
@@ -2859,11 +2860,11 @@ def test_layer_norm():
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3, 4, 5), "float32"), gamma: R.Tensor((4, 5), "float32"), beta: R.Tensor((4, 5), "float32")) -> R.Tensor((2, 3, 4, 5), "float32"):
-            gv = R.call_tir(Expected.layer_norm, (x, gamma, beta), R.Tensor((2, 3, 4, 5), dtype="float32"))
+            gv = R.call_tir(Expected.layer_norm, (x, gamma, beta), ty_args=[R.Tensor((2, 3, 4, 5), dtype="float32")])
             return gv
 
-        @Ts.prim_func(private=True)
-        def layer_norm(x: T.Buffer((T.int64(2), T.int64(3), T.int64(4), T.int64(5)), "float32"), gamma: T.Buffer((T.int64(4), T.int64(5)), "float32"), beta: T.Buffer((T.int64(4), T.int64(5)), "float32"), T_layer_norm: T.Buffer((T.int64(2), T.int64(3), T.int64(4), T.int64(5)), "float32")):
+        @Ts.function(private=True)
+        def layer_norm(x: T.Tensor((T.int64(2), T.int64(3), T.int64(4), T.int64(5)), "float32"), gamma: T.Tensor((T.int64(4), T.int64(5)), "float32"), beta: T.Tensor((T.int64(4), T.int64(5)), "float32"), T_layer_norm: T.Tensor((T.int64(2), T.int64(3), T.int64(4), T.int64(5)), "float32")):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
             x_sum = Ts.sblock_alloc_buffer((T.int64(2), T.int64(3)))
@@ -2917,8 +2918,8 @@ def test_layer_norm_1d():
 
     @I.ir_module
     class LayerNorm_1D_Expected:
-        @Ts.prim_func(private=True)
-        def layer_norm(x: T.Buffer((T.int64(3),), "float32"), layer_norm_weight: T.Buffer((T.int64(3),), "float32"), layer_norm_bias: T.Buffer((T.int64(3),), "float32"), T_layer_norm: T.Buffer((T.int64(3),), "float32")):
+        @Ts.function(private=True)
+        def layer_norm(x: T.Tensor((T.int64(3),), "float32"), layer_norm_weight: T.Tensor((T.int64(3),), "float32"), layer_norm_bias: T.Tensor((T.int64(3),), "float32"), T_layer_norm: T.Tensor((T.int64(3),), "float32")):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
             x_sum = Ts.sblock_alloc_buffer(())
@@ -2957,7 +2958,7 @@ def test_layer_norm_1d():
             R.func_attr({"num_input": 1})
             cls = LayerNorm_1D_Expected
             with R.dataflow():
-                layer_norm = R.call_tir(cls.layer_norm, (x, layer_norm_weight, layer_norm_bias), out_ty=R.Tensor((3,), dtype="float32"))
+                layer_norm = R.call_tir(cls.layer_norm, (x, layer_norm_weight, layer_norm_bias), ty_args=[R.Tensor((3,), dtype="float32")])
                 gv: R.Tensor((3,), dtype="float32") = layer_norm
                 R.output(gv)
             return gv
@@ -2977,12 +2978,12 @@ def test_layer_norm_fp16():
 
     @I.ir_module
     class Expected:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def layer_norm(
-            x: T.Buffer((T.int64(2), T.int64(3), T.int64(4), T.int64(5)), "float16"),
-            gamma: T.Buffer((T.int64(4), T.int64(5)), "float16"),
-            beta: T.Buffer((T.int64(4), T.int64(5)), "float16"),
-            T_layer_norm: T.Buffer((T.int64(2), T.int64(3), T.int64(4), T.int64(5)), "float16"),
+            x: T.Tensor((T.int64(2), T.int64(3), T.int64(4), T.int64(5)), "float16"),
+            gamma: T.Tensor((T.int64(4), T.int64(5)), "float16"),
+            beta: T.Tensor((T.int64(4), T.int64(5)), "float16"),
+            T_layer_norm: T.Tensor((T.int64(2), T.int64(3), T.int64(4), T.int64(5)), "float16"),
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -3020,7 +3021,7 @@ def test_layer_norm_fp16():
 
         @R.function
         def main(x: R.Tensor((2, 3, 4, 5), dtype="float16"), gamma: R.Tensor((4, 5), dtype="float16"), beta: R.Tensor((4, 5), dtype="float16")) -> R.Tensor((2, 3, 4, 5), dtype="float16"):
-            gv = R.call_tir(Expected.layer_norm, (x, gamma, beta), out_ty=R.Tensor((2, 3, 4, 5), dtype="float16"))
+            gv = R.call_tir(Expected.layer_norm, (x, gamma, beta), ty_args=[R.Tensor((2, 3, 4, 5), dtype="float16")])
             return gv
     # fmt: on
     mod = LegalizeOps()(LayerNorm)
@@ -3051,11 +3052,11 @@ def test_layer_norm_symbolic():
     class Expected:
         @R.function
         def main(x: R.Tensor((n_main, s_main, f_main), "float32"), gamma: R.Tensor((s_main, f_main), "float32"), beta: R.Tensor((s_main, f_main), "float32")) -> R.Tensor((n_main, s_main, f_main), "float32"):
-            gv = R.call_tir(Expected.layer_norm, (x, gamma, beta), R.Tensor((n_main, s_main, f_main), dtype="float32"))
+            gv = R.call_tir(Expected.layer_norm, (x, gamma, beta), ty_args=[R.Tensor((n_main, s_main, f_main), dtype="float32")])
             return gv
 
-        @Ts.prim_func(private=True)
-        def layer_norm(x: T.Buffer((n_layer_norm, s_layer_norm, f_layer_norm)), gamma: T.Buffer((s_layer_norm, f_layer_norm)), beta: T.Buffer((s_layer_norm, f_layer_norm)), T_layer_norm: T.Buffer((n_layer_norm, s_layer_norm, f_layer_norm))):
+        @Ts.function(private=True)
+        def layer_norm(x: T.Tensor((n_layer_norm, s_layer_norm, f_layer_norm)), gamma: T.Tensor((s_layer_norm, f_layer_norm)), beta: T.Tensor((s_layer_norm, f_layer_norm)), T_layer_norm: T.Tensor((n_layer_norm, s_layer_norm, f_layer_norm))):
             T.func_attr({"tirx.noalias": True})
 
             # with Ts.sblock("root"):
@@ -3106,8 +3107,8 @@ def test_group_norm():
 
     @tvm.script.ir_module
     class Expected:
-        @Ts.prim_func(private=True)
-        def group_norm(rxplaceholder: T.Buffer((T.int64(2), T.int64(4), T.int64(4), T.int64(5)), "float32"), rxplaceholder_1: T.Buffer((T.int64(4),), "float32"), rxplaceholder_2: T.Buffer((T.int64(4),), "float32"), T_reshape: T.Buffer((T.int64(2), T.int64(4), T.int64(4), T.int64(5)), "float32")):
+        @Ts.function(private=True)
+        def group_norm(rxplaceholder: T.Tensor((T.int64(2), T.int64(4), T.int64(4), T.int64(5)), "float32"), rxplaceholder_1: T.Tensor((T.int64(4),), "float32"), rxplaceholder_2: T.Tensor((T.int64(4),), "float32"), T_reshape: T.Tensor((T.int64(2), T.int64(4), T.int64(4), T.int64(5)), "float32")):
             T.func_attr({"tirx.noalias": True})
             T_reshape_1 = Ts.sblock_alloc_buffer((T.int64(2), T.int64(2), T.int64(2), T.int64(4), T.int64(5)))
             rxplaceholder_red_temp_v0 = Ts.sblock_alloc_buffer((T.int64(2), T.int64(2)))
@@ -3160,7 +3161,7 @@ def test_group_norm():
 
         @R.function
         def main(x: R.Tensor((2, 4, 4, 5), dtype="float32"), gamma: R.Tensor((4,), dtype="float32"), beta: R.Tensor((4,), dtype="float32")) -> R.Tensor((2, 4, 4, 5), dtype="float32"):
-            gv = R.call_tir(Expected.group_norm, (x, gamma, beta), out_ty=R.Tensor((2, 4, 4, 5), dtype="float32"))
+            gv = R.call_tir(Expected.group_norm, (x, gamma, beta), ty_args=[R.Tensor((2, 4, 4, 5), dtype="float32")])
             return gv
     # fmt: on
     mod = LegalizeOps()(GroupNorm)
@@ -3180,11 +3181,11 @@ def test_group_norm_fp16():
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 4, 4, 5), dtype="float16"), gamma: R.Tensor((4,), dtype="float16"), beta: R.Tensor((4,), dtype="float16")) -> R.Tensor((2, 4, 4, 5), dtype="float16"):
-            gv = R.call_tir(Expected.group_norm, (x, gamma, beta), out_ty=R.Tensor((2, 4, 4, 5), dtype="float16"))
+            gv = R.call_tir(Expected.group_norm, (x, gamma, beta), ty_args=[R.Tensor((2, 4, 4, 5), dtype="float16")])
             return gv
 
-        @Ts.prim_func(private=True)
-        def group_norm(rxplaceholder: T.Buffer((T.int64(2), T.int64(4), T.int64(4), T.int64(5)), "float16"), rxplaceholder_1: T.Buffer((T.int64(4),), "float16"), rxplaceholder_2: T.Buffer((T.int64(4),), "float16"), T_reshape: T.Buffer((T.int64(2), T.int64(4), T.int64(4), T.int64(5)), "float16")):
+        @Ts.function(private=True)
+        def group_norm(rxplaceholder: T.Tensor((T.int64(2), T.int64(4), T.int64(4), T.int64(5)), "float16"), rxplaceholder_1: T.Tensor((T.int64(4),), "float16"), rxplaceholder_2: T.Tensor((T.int64(4),), "float16"), T_reshape: T.Tensor((T.int64(2), T.int64(4), T.int64(4), T.int64(5)), "float16")):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
             T_reshape_1 = Ts.sblock_alloc_buffer((T.int64(2), T.int64(2), T.int64(2), T.int64(4), T.int64(5)), "float16")
@@ -3274,8 +3275,8 @@ def test_group_norm_symbolic():
     class Expected:
         group_norm_c = T.int64()
 
-        @Ts.prim_func(private=True)
-        def group_norm(rxplaceholder: T.Buffer((n_group_norm, T.int64(4) * group_norm_c, h_group_norm, w_group_norm)), rxplaceholder_1: T.Buffer((T.int64(4) * group_norm_c,)), rxplaceholder_2: T.Buffer((T.int64(4) * group_norm_c,)), c: group_norm_c, T_reshape: T.Buffer((n_group_norm, T.int64(4) * group_norm_c, h_group_norm, w_group_norm))):
+        @Ts.function(private=True)
+        def group_norm(rxplaceholder: T.Tensor((n_group_norm, T.int64(4) * group_norm_c, h_group_norm, w_group_norm)), rxplaceholder_1: T.Tensor((T.int64(4) * group_norm_c,)), rxplaceholder_2: T.Tensor((T.int64(4) * group_norm_c,)), c: group_norm_c, T_reshape: T.Tensor((n_group_norm, T.int64(4) * group_norm_c, h_group_norm, w_group_norm))):
             T.func_attr({"tirx.noalias": True})
 
             # with Ts.sblock("root"):
@@ -3330,7 +3331,7 @@ def test_group_norm_symbolic():
 
         @R.function
         def main(s: R.Shape([c]), x: R.Tensor((n_main, 4 * c, h_main, w_main), dtype="float32"), gamma: R.Tensor((4 * c,), dtype="float32"), beta: R.Tensor((4 * c,), dtype="float32")) -> R.Tensor((n_main, 4 * c, h_main, w_main), dtype="float32"):
-            gv = R.call_tir(Expected.group_norm, (x, gamma, beta, c), out_ty=R.Tensor((n_main, 4 * c, h_main, w_main), dtype="float32"))
+            gv = R.call_tir(Expected.group_norm, (x, gamma, beta, c), ty_args=[R.Tensor((n_main, 4 * c, h_main, w_main), dtype="float32")])
             return gv
     # fmt: on
     mod = LegalizeOps()(GroupNorm)
@@ -3348,8 +3349,8 @@ def test_rms_norm():
 
     @tvm.script.ir_module
     class Expected:
-        @Ts.prim_func(private=True)
-        def rms_norm(A: T.Buffer((T.int64(2), T.int64(3), T.int64(4), T.int64(5)), "float32"), B: T.Buffer((T.int64(4), T.int64(5)), "float32"), T_cast: T.Buffer((T.int64(2), T.int64(3), T.int64(4), T.int64(5)), "float32")):
+        @Ts.function(private=True)
+        def rms_norm(A: T.Tensor((T.int64(2), T.int64(3), T.int64(4), T.int64(5)), "float32"), B: T.Tensor((T.int64(4), T.int64(5)), "float32"), T_cast: T.Tensor((T.int64(2), T.int64(3), T.int64(4), T.int64(5)), "float32")):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
             T_cast_1 = Ts.sblock_alloc_buffer((T.int64(2), T.int64(3), T.int64(4), T.int64(5)))
@@ -3406,7 +3407,7 @@ def test_rms_norm():
         @R.function
         def main(x: R.Tensor((2, 3, 4, 5), dtype="float32"), weight: R.Tensor((4, 5), dtype="float32")) -> R.Tensor((2, 3, 4, 5), dtype="float32"):
             cls = Expected
-            gv = R.call_tir(cls.rms_norm, (x, weight), out_ty=R.Tensor((2, 3, 4, 5), dtype="float32"))
+            gv = R.call_tir(cls.rms_norm, (x, weight), ty_args=[R.Tensor((2, 3, 4, 5), dtype="float32")])
             return gv
     # fmt: on
     mod = LegalizeOps()(RMSNorm)
@@ -3424,8 +3425,8 @@ def test_rms_norm_fp16():
 
     @tvm.script.ir_module
     class Expected:
-        @Ts.prim_func(private=True)
-        def rms_norm(A: T.Buffer((T.int64(2), T.int64(3), T.int64(4), T.int64(5)), "float16"), B: T.Buffer((T.int64(4), T.int64(5)), "float16"), T_cast: T.Buffer((T.int64(2), T.int64(3), T.int64(4), T.int64(5)), "float16")):
+        @Ts.function(private=True)
+        def rms_norm(A: T.Tensor((T.int64(2), T.int64(3), T.int64(4), T.int64(5)), "float16"), B: T.Tensor((T.int64(4), T.int64(5)), "float16"), T_cast: T.Tensor((T.int64(2), T.int64(3), T.int64(4), T.int64(5)), "float16")):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
             T_cast_1 = Ts.sblock_alloc_buffer((T.int64(2), T.int64(3), T.int64(4), T.int64(5)))
@@ -3482,7 +3483,7 @@ def test_rms_norm_fp16():
         @R.function
         def main(x: R.Tensor((2, 3, 4, 5), dtype="float16"), weight: R.Tensor((4, 5), dtype="float16")) -> R.Tensor((2, 3, 4, 5), dtype="float16"):
             cls = Expected
-            gv = R.call_tir(cls.rms_norm, (x, weight), out_ty=R.Tensor((2, 3, 4, 5), dtype="float16"))
+            gv = R.call_tir(cls.rms_norm, (x, weight), ty_args=[R.Tensor((2, 3, 4, 5), dtype="float16")])
             return gv
     # fmt: on
     mod = LegalizeOps()(RMSNorm)
@@ -3511,8 +3512,8 @@ def test_rms_norm_symbolic():
 
     @tvm.script.ir_module
     class Expected:
-        @Ts.prim_func(private=True)
-        def rms_norm(A: T.Buffer((n_rms_norm, s_rms_norm, f_rms_norm)), B: T.Buffer((s_rms_norm, f_rms_norm)), T_cast: T.Buffer((n_rms_norm, s_rms_norm, f_rms_norm))):
+        @Ts.function(private=True)
+        def rms_norm(A: T.Tensor((n_rms_norm, s_rms_norm, f_rms_norm)), B: T.Tensor((s_rms_norm, f_rms_norm)), T_cast: T.Tensor((n_rms_norm, s_rms_norm, f_rms_norm))):
             T.func_attr({"tirx.noalias": True})
 
             # with Ts.sblock("root"):
@@ -3570,7 +3571,7 @@ def test_rms_norm_symbolic():
         @R.function
         def main(x: R.Tensor((n_main, s_main, f_main), dtype="float32"), weight: R.Tensor((s_main, f_main), dtype="float32")) -> R.Tensor((n_main, s_main, f_main), dtype="float32"):
             cls = Expected
-            gv = R.call_tir(cls.rms_norm, (x, weight), out_ty=R.Tensor((n_main, s_main, f_main), dtype="float32"))
+            gv = R.call_tir(cls.rms_norm, (x, weight), ty_args=[R.Tensor((n_main, s_main, f_main), dtype="float32")])
             return gv
     # fmt: on
     mod = LegalizeOps()(RMSNorm)
@@ -3588,8 +3589,8 @@ def test_rms_norm_no_bias():
 
     @tvm.script.ir_module
     class Expected:
-        @Ts.prim_func(private=True)
-        def rms_norm(A: T.Buffer((T.int64(2), T.int64(3), T.int64(4), T.int64(5)), "float32"), B: T.Buffer((T.int64(4), T.int64(5)), "float32"), T_cast: T.Buffer((T.int64(2), T.int64(3), T.int64(4), T.int64(5)), "float32")):
+        @Ts.function(private=True)
+        def rms_norm(A: T.Tensor((T.int64(2), T.int64(3), T.int64(4), T.int64(5)), "float32"), B: T.Tensor((T.int64(4), T.int64(5)), "float32"), T_cast: T.Tensor((T.int64(2), T.int64(3), T.int64(4), T.int64(5)), "float32")):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
             T_cast_1 = Ts.sblock_alloc_buffer((T.int64(2), T.int64(3), T.int64(4), T.int64(5)))
@@ -3646,7 +3647,7 @@ def test_rms_norm_no_bias():
         @R.function
         def main(x: R.Tensor((2, 3, 4, 5), dtype="float32"), weight: R.Tensor((4, 5), dtype="float32")) -> R.Tensor((2, 3, 4, 5), dtype="float32"):
             cls = Expected
-            gv = R.call_tir(cls.rms_norm, (x, weight), out_ty=R.Tensor((2, 3, 4, 5), dtype="float32"))
+            gv = R.call_tir(cls.rms_norm, (x, weight), ty_args=[R.Tensor((2, 3, 4, 5), dtype="float32")])
             return gv
     # fmt: on
     mod = LegalizeOps()(RMSNorm)
@@ -3664,8 +3665,8 @@ def test_attention():
 
     @tvm.script.ir_module
     class Expected:
-        @Ts.prim_func(private=True)
-        def attention_bias(q: T.Buffer((T.int64(4), T.int64(16), T.int64(32), T.int64(8)), "float32"), k: T.Buffer((T.int64(4), T.int64(8), T.int64(32), T.int64(8)), "float32"), v: T.Buffer((T.int64(4), T.int64(8), T.int64(32), T.int64(16)), "float32"), bias: T.Buffer((T.int64(4), T.int64(32), T.int64(16), T.int64(8)), "float32"), T_transpose: T.Buffer((T.int64(4), T.int64(16), T.int64(32), T.int64(16)), "float32")):
+        @Ts.function(private=True)
+        def attention_bias(q: T.Tensor((T.int64(4), T.int64(16), T.int64(32), T.int64(8)), "float32"), k: T.Tensor((T.int64(4), T.int64(8), T.int64(32), T.int64(8)), "float32"), v: T.Tensor((T.int64(4), T.int64(8), T.int64(32), T.int64(16)), "float32"), bias: T.Tensor((T.int64(4), T.int64(32), T.int64(16), T.int64(8)), "float32"), T_transpose: T.Tensor((T.int64(4), T.int64(16), T.int64(32), T.int64(16)), "float32")):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
             T_transpose_1 = Ts.sblock_alloc_buffer((T.int64(4), T.int64(32), T.int64(16), T.int64(8)))
@@ -3828,7 +3829,7 @@ def test_attention():
         @R.function
         def main(q: R.Tensor((4, 16, 32, 8), dtype="float32"), k: R.Tensor((4, 8, 32, 8), dtype="float32"), v: R.Tensor((4, 8, 32, 16), dtype="float32"), bias: R.Tensor((4, 32, 16, 8), dtype="float32")) -> R.Tensor((4, 16, 32, 16), dtype="float32"):
             cls = Expected
-            gv = R.call_tir(cls.attention_bias, (q, k, v, bias), out_ty=R.Tensor((4, 16, 32, 16), dtype="float32"))
+            gv = R.call_tir(cls.attention_bias, (q, k, v, bias), ty_args=[R.Tensor((4, 16, 32, 16), dtype="float32")])
             return gv
     # fmt: on
     mod = LegalizeOps()(Attention)
@@ -3924,15 +3925,15 @@ def test_nll_loss():
                 targets: R.Tensor((2, 4, 5), dtype="int64"),
                 weights: R.Tensor((3,), dtype="float32"),
         ) -> R.Tensor((), dtype="float32"):
-            gv = R.call_tir(Expected.nll_loss, (predictions, targets, weights), R.Tensor((), dtype="float32"))
+            gv = R.call_tir(Expected.nll_loss, (predictions, targets, weights), ty_args=[R.Tensor((), dtype="float32")])
             return gv
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def nll_loss(
-                predictions: T.Buffer((T.int64(2), T.int64(3), T.int64(4), T.int64(5)), "float32"),
-                targets: T.Buffer((T.int64(2), T.int64(4), T.int64(5)), "int64"),
-                weights: T.Buffer(T.int64(3), "float32"),
-                output: T.Buffer((), "float32"),
+                predictions: T.Tensor((T.int64(2), T.int64(3), T.int64(4), T.int64(5)), "float32"),
+                targets: T.Tensor((T.int64(2), T.int64(4), T.int64(5)), "int64"),
+                weights: T.Tensor(T.int64(3), "float32"),
+                output: T.Tensor((), "float32"),
         ):
             # function attr dict
             T.func_attr({"tirx.noalias": True})
@@ -3994,11 +3995,11 @@ def test_nll_no_weight():
         @R.function
         def main(predictions: R.Tensor((2, 3, 4, 5), dtype="float32"), targets: R.Tensor((2, 4, 5), dtype="int64"),) -> R.Tensor((), dtype="float32"):
             # block 0
-            gv = R.call_tir(Expected.nll_loss_without_weight, (predictions, targets), R.Tensor((), dtype="float32"))
+            gv = R.call_tir(Expected.nll_loss_without_weight, (predictions, targets), ty_args=[R.Tensor((), dtype="float32")])
             return gv
 
-        @Ts.prim_func(private=True)
-        def nll_loss_without_weight(rxplaceholder: T.Buffer((T.int64(2), T.int64(3), T.int64(4), T.int64(5)), "float32"), rxplaceholder_1: T.Buffer((T.int64(2), T.int64(4), T.int64(5)), "int64"), T_divide: T.Buffer((), "float32"),):
+        @Ts.function(private=True)
+        def nll_loss_without_weight(rxplaceholder: T.Tensor((T.int64(2), T.int64(3), T.int64(4), T.int64(5)), "float32"), rxplaceholder_1: T.Tensor((T.int64(2), T.int64(4), T.int64(5)), "int64"), T_divide: T.Tensor((), "float32"),):
             # function attr dict
             T.func_attr({"tirx.noalias": True})
             # body
@@ -4071,11 +4072,11 @@ def test_nll_no_batch():
     class Expected:
         @R.function
         def main(predictions: R.Tensor((C_main,), dtype="float32"), targets: R.Tensor((), dtype="int64"), weights: R.Tensor((C_main,), dtype="float32")) -> R.Tensor((), dtype="float32"):
-            gv = R.call_tir(Expected.nll_loss, (predictions, targets, weights), out_ty=R.Tensor((), dtype="float32"))
+            gv = R.call_tir(Expected.nll_loss, (predictions, targets, weights), ty_args=[R.Tensor((), dtype="float32")])
             return gv
 
-        @Ts.prim_func(private=True)
-        def nll_loss(rxplaceholder_1: T.Buffer((C_nll_loss,)), rxplaceholder: T.Buffer((), "int64"), rxplaceholder_2: T.Buffer((C_nll_loss,)), T_divide: T.Buffer((), "float32")):
+        @Ts.function(private=True)
+        def nll_loss(rxplaceholder_1: T.Tensor((C_nll_loss,)), rxplaceholder: T.Tensor((), "int64"), rxplaceholder_2: T.Tensor((C_nll_loss,)), T_divide: T.Tensor((), "float32")):
             T.func_attr({"tirx.noalias": True})
 
             # with Ts.sblock("root"):
@@ -4130,11 +4131,11 @@ def test_nll_loss_symbolic():
         @R.function
         def main(predictions: R.Tensor((N_main, C_main, d1_main, d2_main), dtype="float32"), targets: R.Tensor((N_main, d1_main, d2_main), dtype="int64"), weights: R.Tensor((C_main,), dtype="float32")) -> R.Tensor((), dtype="float32"):
             # block 0
-            gv = R.call_tir(Expected.nll_loss, (predictions, targets, weights), R.Tensor((), dtype="float32"))
+            gv = R.call_tir(Expected.nll_loss, (predictions, targets, weights), ty_args=[R.Tensor((), dtype="float32")])
             return gv
 
-        @Ts.prim_func(private=True)
-        def nll_loss(rxplaceholder: T.Buffer([N_nll_loss, C_nll_loss, d1_nll_loss, d2_nll_loss], dtype='float32'), rxplaceholder_1: T.Buffer([N_nll_loss, d1_nll_loss, d2_nll_loss], dtype='int64'), rxplaceholder_2: T.Buffer([C_nll_loss], dtype='float32'), T_divide: T.Buffer((), "float32"),):
+        @Ts.function(private=True)
+        def nll_loss(rxplaceholder: T.Tensor([N_nll_loss, C_nll_loss, d1_nll_loss, d2_nll_loss], dtype='float32'), rxplaceholder_1: T.Tensor([N_nll_loss, d1_nll_loss, d2_nll_loss], dtype='int64'), rxplaceholder_2: T.Tensor([C_nll_loss], dtype='float32'), T_divide: T.Tensor((), "float32"),):
             # function attr dict
             T.func_attr({"tirx.noalias": True})
 
@@ -4196,13 +4197,13 @@ def test_pad():
         def main(
             x: R.Tensor((2, 128, 28), dtype="float32"),
         ) -> R.Tensor((2, 130, 30), dtype="float32"):
-            gv = R.call_tir(Expected.pad, (x), out_ty=R.Tensor((2, 130, 30), dtype="float32"))
+            gv = R.call_tir(Expected.pad, (x), ty_args=[R.Tensor((2, 130, 30), dtype="float32")])
             return gv
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def pad(
-            A: T.Buffer((T.int64(2), T.int64(128), T.int64(28)), "float32"),
-            PadInput: T.Buffer((T.int64(2), T.int64(130), T.int64(30)), "float32"),
+            A: T.Tensor((T.int64(2), T.int64(128), T.int64(28)), "float32"),
+            PadInput: T.Tensor((T.int64(2), T.int64(130), T.int64(30)), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -4237,11 +4238,11 @@ def test_batch_flatten():
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3, 4, 5), dtype="float32")) -> R.Tensor((2, 60), dtype="float32"):
-            gv = R.call_tir(Expected.reshape, (x,), out_ty=R.Tensor((2, 60), dtype="float32"))
+            gv = R.call_tir(Expected.reshape, (x,), ty_args=[R.Tensor((2, 60), dtype="float32")])
             return gv
 
-        @Ts.prim_func(private=True)
-        def reshape(x: T.Buffer((T.int64(2), T.int64(3), T.int64(4), T.int64(5)), "float32"), T_reshape: T.Buffer((T.int64(2), T.int64(60)), "float32")):
+        @Ts.function(private=True)
+        def reshape(x: T.Tensor((T.int64(2), T.int64(3), T.int64(4), T.int64(5)), "float32"), T_reshape: T.Tensor((T.int64(2), T.int64(60)), "float32")):
             T.func_attr({"tirx.noalias": True})
             for ax0, ax1 in T.grid(T.int64(2), T.int64(60)):
                 with Ts.sblock("T_reshape"):
@@ -4278,8 +4279,8 @@ def test_dropout():
 
     @tvm.script.ir_module
     class Expected:
-        @Ts.prim_func(private=True)
-        def dropout(x: T.Buffer((T.int64(2), T.int64(3)), "float32"), compute: T.Buffer((T.int64(2), T.int64(3)), "float32"), T_full_like: T.Buffer((T.int64(2), T.int64(3)), "float32")):
+        @Ts.function(private=True)
+        def dropout(x: T.Tensor((T.int64(2), T.int64(3)), "float32"), compute: T.Tensor((T.int64(2), T.int64(3)), "float32"), T_full_like: T.Tensor((T.int64(2), T.int64(3)), "float32")):
             T.func_attr({"tirx.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
                 with Ts.sblock("compute"):
@@ -4297,7 +4298,7 @@ def test_dropout():
         @R.function
         def main(x: R.Tensor((2, 3), dtype="float32")) -> R.Tuple(R.Tensor((2, 3), dtype="float32"), R.Tensor((2, 3), dtype="float32")):
             cls = Expected
-            gv = R.call_tir(cls.dropout, (x,), out_ty=[R.Tensor((2, 3), dtype="float32"), R.Tensor((2, 3), dtype="float32")])
+            gv = R.call_tir(cls.dropout, (x,), ty_args=[_TupleType([R.Tensor((2, 3), dtype="float32"), R.Tensor((2, 3), dtype="float32")])])
             return gv
     # fmt: on
 

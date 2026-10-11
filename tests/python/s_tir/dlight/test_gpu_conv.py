@@ -26,11 +26,11 @@ from tvm.target import Target
 
 def test_conv3d():
     # fmt: off
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def before(
-        A: T.Buffer((14308, 3, 2, 14, 14), "float16"),
-        W: T.Buffer((1280, 3, 2, 14, 14), "float16"),
-        C: T.Buffer((14308, 1280, 1, 1, 1), "float16"),
+        A: T.Tensor((14308, 3, 2, 14, 14), "float16"),
+        W: T.Tensor((1280, 3, 2, 14, 14), "float16"),
+        C: T.Tensor((14308, 1280, 1, 1, 1), "float16"),
     ):
         pad_A = Ts.sblock_alloc_buffer((14308, 3, 2, 14, 14), "float16")
         for i0, i1, i2, i3, i4 in T.grid(14308, 3, 2, 14, 14):
@@ -44,8 +44,8 @@ def test_conv3d():
                     C[v_nn, v_ff, v_yy, v_xx, v_zz] = T.float16(0.0)
                 C[v_nn, v_ff, v_yy, v_xx, v_zz] += pad_A[v_nn, v_rc, v_yy * 2 + v_ry, v_xx * 14 + v_rx, v_zz * 14 + v_rz]* W[v_ff, v_rc, v_ry, v_rx, v_rz]
 
-    @Ts.prim_func(private=True)
-    def expected(A: T.Buffer((14308, 3, 2, 14, 14), "float16"), W: T.Buffer((1280, 3, 2, 14, 14), "float16"), C: T.Buffer((14308, 1280, 1, 1, 1), "float16")):
+    @Ts.function(private=True)
+    def expected(A: T.Tensor((14308, 3, 2, 14, 14), "float16"), W: T.Tensor((1280, 3, 2, 14, 14), "float16"), C: T.Tensor((14308, 1280, 1, 1, 1), "float16")):
         T.func_attr({"tirx.is_scheduled": True})
         # with Ts.sblock("root"):
         C_reindex_pad_local = Ts.sblock_alloc_buffer((1, 14336, 1280), "float16", scope="local")
@@ -56,7 +56,7 @@ def test_conv3d():
                 for ax2_1 in T.thread_binding(1, thread="vthread.y"):
                     for ax1_1 in T.thread_binding(1, thread="vthread.x"):
                         for ax2_2 in T.thread_binding(16, thread="threadIdx.y"):
-                            for ax1_2 in T.thread_binding(8, thread="threadIdx.x", annotations={"pragma_auto_unroll_max_step": 256, "pragma_unroll_explicit": 1}):
+                            for ax1_2 in T.thread_binding(8, thread="threadIdx.x", annotations={"auto_unroll_max_step": 256, "unroll_explicit": 1}):
                                 for ax1_3_init, ax2_3_0_init in T.grid(4, 2):
                                     for ax2_3_1_init in T.vectorized(2):
                                         with Ts.sblock("C_init"):

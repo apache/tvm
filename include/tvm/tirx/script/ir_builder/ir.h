@@ -21,13 +21,13 @@
 
 #include <tvm/ffi/container/tuple.h>
 #include <tvm/ffi/container/variant.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/runtime/tensor.h>
-#include <tvm/script/ir_builder/base.h>
+#include <tvm/script/ir_builder/ir.h>
 #include <tvm/tirx/exec_scope.h>
 #include <tvm/tirx/layout.h>
-#include <tvm/tirx/op.h>
 #include <tvm/tirx/script/ir_builder/frame.h>
-#include <tvm/tirx/tile_primitive.h>
+#include <tvm/tirx/stmt.h>
 #include <tvm/tirx/type.h>
 
 namespace tvm {
@@ -35,13 +35,26 @@ namespace script {
 namespace ir_builder {
 namespace tirx {
 
+using ir::Assert;
+using ir::Bind;
+using ir::Break;
+using ir::Continue;
+using ir::Else;
+using ir::Evaluate;
+using ir::Grid;
+using ir::If;
+using ir::Region;
+using ir::Return;
+using ir::Then;
+using ir::While;
+
+using tvm::Var;
 using tvm::ffi::Tuple;
 using tvm::ffi::Variant;
 using tvm::runtime::Tensor;
-using tvm::tirx::BufferVar;
 using tvm::tirx::ExecScope;
 using tvm::tirx::Layout;
-using tvm::tirx::Var;
+using tvm::tirx::TensorVar;
 
 /*!
  * \brief The buffer declaration function.
@@ -56,23 +69,22 @@ using tvm::tirx::Var;
  * \param offset_factor The factor of elem_offset field.
  * \return The declared buffer.
  */
-BufferVar BufferDecl(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String buffer_name,
+TensorVar TensorDecl(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String buffer_name,
                      ffi::Optional<Expr> data, ffi::Optional<ffi::Array<PrimExpr>> strides,
                      ffi::Optional<PrimExpr> elem_offset, ffi::String storage_scope, int align,
-                     int offset_factor, ffi::Optional<Layout> layout = std::nullopt,
-                     ffi::Array<PrimExpr> allocated_addr = {});
+                     int offset_factor, ffi::Optional<Layout> layout = std::nullopt);
 
 /*!
  * \brief The primitive function statement.
- * \return The PrimFuncFrame.
+ * \return The FunctionFrame.
  */
-PrimFuncFrame PrimFunc(bool is_private, bool persistent = false);
+FunctionFrame Function(bool is_private, bool persistent = false);
 
 /*! \brief Construct a bodyless function signature using the ordinary signature operations. */
-PrimFuncFrame DeclFunction(bool is_private = false, bool persistent = false);
+FunctionFrame DeclFunction(bool is_private = false, bool persistent = false);
 
 /*!
- * \brief The PrimFunc variable arguments adding function.
+ * \brief The Function variable arguments adding function.
  * \param name The name of the variable.
  * \param var The variable argument.
  * \return The variable.
@@ -80,65 +92,31 @@ PrimFuncFrame DeclFunction(bool is_private = false, bool persistent = false);
 Var Arg(ffi::String name, Var var);
 
 /*!
- * \brief The PrimFunc buffer arguments adding function.
+ * \brief The Function buffer arguments adding function.
  * \param name The name of the buffer.
  * \param buffer The buffer argument.
  * \return The buffer.
  */
-BufferVar Arg(ffi::String name, BufferVar buffer);
+TensorVar Arg(ffi::String name, TensorVar buffer);
 
 /*!
- * \brief The PrimFunc naming statement.
- * \param name The name of the PrimFunc.
+ * \brief The Function naming statement.
+ * \param name The name of the Function.
  */
 void FuncName(ffi::String name);
 
 /*!
- * \brief The PrimFunc annotation statement.
- * \param attrs The annotations of the PrimFunc.
+ * \brief The Function annotation statement.
+ * \param attrs The annotations of the Function.
  */
 void FuncAttrs(ffi::Map<ffi::String, ffi::Any> attrs);
 
 /*!
- * \brief The PrimFunc return type statement.
- * \param ret_type The return type of the PrimFunc.
+ * \brief The Function return type statement.
+ * \param ret_type The return type of the Function.
  * \return The return type.
  */
 Type FuncRet(Type ret_type);
-
-void TilePrimitiveCall(tvm::tirx::TilePrimitiveCall op_call);
-
-/*!
- * \brief Define a scope id. Pass `extents=std::nullopt` to defer the extent; it is
- *        inferred at LowerTIRx from the sibling ScopeIdDef closure.
- * \param extents The optional extents of the scope id.
- * \param parent The parent scope name.
- * \param name The user-facing API name, used in error messages.
- * \param cur The current scope name.
- * \param dtype The dtype of the introduced scope id vars ("int32" or "uint32").
- * \return The introduced scope id vars.
- */
-ffi::Array<tvm::tirx::Var> ScopeId(ffi::Optional<ffi::Array<PrimExpr>> extents, ffi::String parent,
-                                   ffi::String name, ffi::String cur,
-                                   PrimType dtype = PrimType::Int(32));
-
-ffi::Array<tvm::tirx::Var> ClusterId(ffi::Optional<ffi::Array<PrimExpr>> extents,
-                                     ffi::String parent, PrimType dtype = PrimType::Int(32));
-
-ffi::Array<tvm::tirx::Var> CtaId(ffi::Optional<ffi::Array<PrimExpr>> extents, ffi::String parent,
-                                 ffi::Optional<ffi::Array<PrimExpr>> preferred = std::nullopt,
-                                 PrimType dtype = PrimType::Int(32));
-
-ffi::Array<tvm::tirx::Var> CtaIdInPair(PrimType dtype = PrimType::Int(32));
-
-ffi::Array<tvm::tirx::Var> WarpgroupId(ffi::Optional<ffi::Array<PrimExpr>> extents,
-                                       ffi::String parent, PrimType dtype = PrimType::Int(32));
-
-ffi::Array<tvm::tirx::Var> WarpId(ffi::Optional<ffi::Array<PrimExpr>> extents, ffi::String parent,
-                                  PrimType dtype = PrimType::Int(32));
-
-ffi::Array<tvm::tirx::Var> ThreadId(ffi::Optional<ffi::Array<PrimExpr>> extents, ffi::String parent,
-                                    PrimType dtype = PrimType::Int(32));
 
 /*!
  * \brief The serial For statement.
@@ -204,107 +182,7 @@ ForFrame Unroll(PrimExpr start, PrimExpr stop,
 ForFrame ThreadBinding(PrimExpr start, PrimExpr stop, ffi::String thread,
                        ffi::Optional<ffi::Map<ffi::String, Any>> annotations = std::nullopt);
 /*!
- * \brief The grid For statement.
- * \param extents The extents of the iteration.
- * \param dtype The optional dtype of every loop var ("int32" or "uint32"). When omitted
- *              each loop var takes the dtype of its own extent.
- * \return The ForFrame.
- */
-ForFrame Grid(ffi::Array<Variant<PrimExpr, ffi::Tuple<PrimExpr, PrimExpr>>> extents,
-              ffi::Optional<PrimType> dtype = std::nullopt);
-
-/*!
- * \brief The assertion statement.
- * \param condition The assertion condition.
- * \param error_kind The error kind (e.g. "RuntimeError", "TypeError", "ValueError").
- * \param message_parts The error message parts (stored as separate fragments in the IR).
- * \return The AssertFrame.
- */
-AssertFrame Assert(PrimExpr condition, ffi::String error_kind,
-                   ffi::Array<ffi::String> message_parts);
-
-/*!
- * \brief Create a Bind (variable binding).
- *
- * Emits a flat Bind statement to the current frame and returns the bound variable.
- *
- * \param value The value to be bound.
- * \param type_annotation  The type annotation of the binding.
- *                         Usually it is used for fine-grained var typing,
- *                         particularly, PointerType.
- * \param var The variable to be bound. If not specified, a new variable will be created.
- * \return The bound Var.
- */
-Var Bind(Expr value, ffi::Optional<Type> type_annotation = std::nullopt,
-         ffi::Optional<Var> var = std::nullopt);
-
-/*!
- * \brief Create an attribute.
- * \param node The node to annotate the attribute.
- * \param attr_key Attribute type key.
- * \param value The value of the attribute.
- * \return The result AttrFrame.
- */
-AttrFrame Attr(ffi::Any node, ffi::String attr_key, Expr value);
-
-/*!
- * \brief Mark the device-region entry within the enclosing PrimFunc body.
- * Returns an AttrFrame keyed ``tirx.device_entry`` (value ``Bool(true)``).
- * Subsequent stmts accumulate into the frame's body; the frame is closed
- * by ``PrimFuncFrameNode::ExitWithScope`` which drains leftover frames.
- *
- * Python sugar: ``Tx.device_entry()`` is a flat-call (no ``with``), which
- * auto-enters the frame.
- */
-AttrFrame DeviceEntry();
-
-/*!
- * \brief Create a while loop.
- * \param condition The termination condition of the loop.
- * \return The result WhileFrame.
- */
-WhileFrame While(PrimExpr condition);
-
-/*!
- * \brief Create a return statement.
- * \param value The value to return.
- * \return The same statement that was added to the parent frame.
- */
-tvm::tirx::Stmt Return(Expr value);
-
-/*!
- * \brief Create a break statement.
- * \return The same statement that was added to the parent frame.
- */
-tvm::tirx::Stmt Break();
-
-/*!
- * \brief Create a continue statement.
- * \return The same statement that was added to the parent frame.
- */
-tvm::tirx::Stmt Continue();
-
-/*!
- * \brief Create an if statement.
- * \param condition The condition of if statement.
- * \return The result IfFrame.
- */
-IfFrame If(PrimExpr condition);
-
-/*!
- * \brief Create a then.
- * \return The result ThenFrame.
- */
-ThenFrame Then();
-
-/*!
- * \brief Create an else.
- * \return The result ElseFrame.
- */
-ElseFrame Else();
-
-/*!
- * \brief The buffer declaration frame.
+ * \brief Declare a tensor binding or allocate its storage.
  * \param shape The type of the buffer prior to flattening.
  * \param dtype The data type in the content of the buffer.
  * \param buffer_name The name of the buffer.
@@ -315,14 +193,13 @@ ElseFrame Else();
  * \param align The alignment requirement of data pointer in bytes.
  * \param offset_factor The factor of elem_offset field.
  * \param layout The layout of the buffer.
- * \return The declaration frame.
+ * \return The declared tensor.
  */
-DeclBufferFrame DeclBuffer(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String buffer_name,
-                           ffi::Optional<Expr> data, ffi::Optional<ffi::Array<PrimExpr>> strides,
-                           ffi::Optional<PrimExpr> elem_offset, ffi::String storage_scope,
-                           int align, int offset_factor,
-                           ffi::Optional<Layout> layout = std::nullopt,
-                           ffi::Optional<PrimExpr> allocated_addr = std::nullopt);
+TensorVar DeclTensor(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String buffer_name,
+                     ffi::Optional<Expr> data, ffi::Optional<ffi::Array<PrimExpr>> strides,
+                     ffi::Optional<PrimExpr> elem_offset, ffi::String storage_scope, int align,
+                     int offset_factor, ffi::Optional<Layout> layout = std::nullopt,
+                     ffi::Optional<PrimExpr> allocated_addr = std::nullopt);
 
 /*!
  * \brief Statement-level buffer allocation (binds a buffer-returning allocation Call).
@@ -332,49 +209,18 @@ DeclBufferFrame DeclBuffer(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::Stri
  * \param annotations Optional annotations for the allocation.
  * \return The allocated buffer.
  */
-BufferVar AllocBuffer(ffi::Array<PrimExpr> shape, PrimType dtype = PrimType::Float(32),
+TensorVar AllocTensor(ffi::Array<PrimExpr> shape, PrimType dtype = PrimType::Float(32),
                       ffi::String storage_scope = "global",
                       ffi::Optional<ffi::Map<ffi::String, ffi::Any>> annotations = std::nullopt);
 
 /*!
- * \brief Launch a thread.
- * \param var The iteration variable.
- * \param extent The extent of environment thread.
- * \return The result LaunchThreadFrame.
- */
-LaunchThreadFrame LaunchThread(Var var, PrimExpr extent);
-
-/*!
- * \brief Launch a new thread.
- * \param thread_tag The thread type tag.
- * \param extent The extent of environment thread.
- * \return The result LaunchThreadFrame.
- */
-LaunchThreadFrame LaunchThread(ffi::String thread_tag, PrimExpr extent);
-
-/*!
- * \brief Bind a var to thread env.
- * \param thread_tag The thread type tag.
- * \param dtype The data type of the variable.
- * \return The result variable which gets bound to the thread env.
- */
-Var EnvThread(ffi::String thread_tag, PrimType dtype = PrimType::Int(32));
-
-/*!
- * \brief Store data in a buffer.
- * \param buffer The buffer.
- * \param value The value to be stored.
+ * \brief Store data in a tensor destination.
+ * \param dest The destination expression.
  * \param indices The indices location to be stored.
+ * \param value The value to be stored.
  * \return The same statement that was added to the parent frame.
  */
-tvm::tirx::Stmt BufferStore(BufferVar buffer, PrimExpr value, ffi::Array<PrimExpr> indices);
-
-/*!
- * \brief Evaluate the input expression.
- * \param value The input expression to evaluate.
- * \return The same statement that was added to the parent frame.
- */
-tvm::tirx::Stmt Evaluate(Expr value);
+tvm::Stmt TensorStore(Expr dest, ffi::Array<PrimExpr> indices, PrimExpr value);
 
 /*!
  * \brief Create a TIR var that represents a pointer
@@ -390,16 +236,16 @@ inline Var Handle(ffi::Optional<PrimType> dtype = std::nullopt,
                   ffi::String storage_scope = "global") {
   Type type_annotation = dtype.has_value() ? Type(PointerType(dtype.value(), storage_scope))
                                            : Type(PointerType::VoidPointerTy(storage_scope));
-  return tvm::tirx::Var("", type_annotation);
+  return tvm::Var("", type_annotation);
 }
 
-inline Var TensorMap() { return tvm::tirx::Var("", PointerType(tvm::tirx::TensorMapType())); }
+inline Var TensorMap() { return tvm::Var("", PointerType(tvm::tirx::TensorMapType())); }
 
-#define TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(FuncName, DType)                      \
-  inline PrimExpr FuncName(ffi::Optional<PrimExpr> expr = std::nullopt) {        \
-    PrimType dtype = DType;                                                      \
-    return expr.has_value() ? tvm::prim::cast(dtype, expr.value())               \
-                            : tvm::tirx::Var("", dtype).as_or_throw<PrimExpr>(); \
+#define TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(FuncName, DType)                \
+  inline PrimExpr FuncName(ffi::Optional<PrimExpr> expr = std::nullopt) {  \
+    PrimType dtype = DType;                                                \
+    return expr.has_value() ? tvm::prim::cast(dtype, expr.value())         \
+                            : tvm::Var("", dtype).as_or_throw<PrimExpr>(); \
   }
 
 #define TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_SIZES(DType, Code)                         \

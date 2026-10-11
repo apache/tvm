@@ -32,7 +32,7 @@ from typing import Any
 
 from tvm.ir import TensorRegion
 from tvm.ir.expr import Expr
-from tvm.tirx import TilePrimitiveCall
+from tvm.tirx.tensor_instruction import TensorCall
 
 
 @dataclass
@@ -78,12 +78,12 @@ class VecImpl:
     """
 
     vec_len: int  # elements per packed call
-    applies: Callable[[TilePrimitiveCall, Any, Plan], tuple[bool, str | None]]
+    applies: Callable[[TensorCall, Any, Plan], tuple[bool, str | None]]
     # emit(dst_ptr, src_ptrs, extras) -> Stmt
     #   dst_ptr: typed ptr to ``vec_len`` consecutive dst elements
     #   src_ptrs[i]: typed ptr to ``vec_len`` consecutive src[i] elements,
     #                OR a scalar Expr if src[i].is_scalar.
-    # Runs in Python at @T.prim_func build time -- branching on src kind is a
+    # Runs in Python at @T.function build time -- branching on src kind is a
     # normal Python ``if``, not a TVMScript shape limitation. This is what
     # collapses the old 4x2 shape-explosion in schema.py's factories.
     emit: Callable
@@ -95,7 +95,7 @@ class OpSpec:
 
     name: str
     # parse(op_call) -> (Plan, msg|None); msg explains why parse failed.
-    parse: Callable[[TilePrimitiveCall], tuple[Plan | None, str | None]]
+    parse: Callable[[TensorCall], tuple[Plan | None, str | None]]
     # Scalar compute used by the fallback emit path (wrapped in Tx.vectorized).
     # compute_scalar(src_vals_at_one_idx, extras, dst_dtype) -> Expr
     compute_scalar: Callable[[list, dict, str], Any]

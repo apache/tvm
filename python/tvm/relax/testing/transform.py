@@ -29,7 +29,7 @@ from tvm.relax.expr import DataflowBlock, Var
 from tvm.runtime import Object
 
 
-def ApplyEmptyCppMutator() -> tvm.ir.transform.Pass:
+def ApplyEmptyCppMutator() -> tvm.transform.Pass:
     """Create empty cpp mutator"""
     packed_func = tvm.get_global_func("relax.testing.transform.ApplyEmptyCppMutator")
     return packed_func()

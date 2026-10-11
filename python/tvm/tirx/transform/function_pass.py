@@ -22,14 +22,14 @@ from collections.abc import Callable
 
 import tvm_ffi
 
-from tvm.ir.transform import Pass, PassInfo
+from tvm.transform import Pass, PassInfo
 
 from . import _ffi_api
 
 
-@tvm_ffi.register_object("tirx.PrimFuncPass")
-class PrimFuncPass(Pass):
-    """A pass that works on each :py:func:`tvm.tirx.PrimFunc` in a module. A function
+@tvm_ffi.register_object("tirx.FunctionPass")
+class FunctionPass(Pass):
+    """A pass that works on each :py:func:`tvm.tirx.Function` in a module. A function
     pass class should be created through py:func:`tvm.tirx.transform.function_pass`.
     """
 
@@ -37,7 +37,7 @@ class PrimFuncPass(Pass):
 def _wrap_class_function_pass(pass_cls, pass_info):
     """Wrap a python class as function pass"""
 
-    class PyFunctionPass(PrimFuncPass):
+    class PyFunctionPass(FunctionPass):
         """Internal wrapper class to create a class instance."""
 
         def __init__(self, *args, **kwargs):
@@ -49,7 +49,7 @@ def _wrap_class_function_pass(pass_cls, pass_info):
                 return inst.transform_function(func, mod, ctx)
 
             self.__init_handle_by_constructor__(
-                _ffi_api.CreatePrimFuncPass,
+                _ffi_api.CreateFunctionPass,
                 _pass_func,
                 pass_info,  # type: ignore
             )
@@ -67,13 +67,11 @@ def _wrap_class_function_pass(pass_cls, pass_info):
     return PyFunctionPass
 
 
-def prim_func_pass(
+def function_pass(
     pass_func=None,
     opt_level: int | None = None,
     name: str | None = None,
-    required: list[str] | None = None,
-    traceable=False,
-) -> Callable | PrimFuncPass:
+) -> Callable | FunctionPass:
     """Decorate a function pass.
 
     This function returns a callback when pass_func
@@ -82,7 +80,7 @@ def prim_func_pass(
 
     Parameters
     ----------
-    pass_func : Optional[Callable[(tvm.tirx.PrimFunc, IRModule, PassContext) -> tvm.tirx.PrimFunc]]
+    pass_func : Optional[Callable[(tvm.tirx.Function, IRModule, PassContext) -> tvm.tirx.Function]]
         The transformation function or class.
 
     opt_level : int
@@ -91,9 +89,6 @@ def prim_func_pass(
     name : Optional[str]
         The name of the function pass. The name could be empty. In this case, the
         name of the optimization function will be used as the pass name.
-
-    required : Optional[List[str]]
-        The list of passes that the function pass is dependent on.
 
     Returns
     -------
@@ -111,7 +106,7 @@ def prim_func_pass(
 
     .. code-block:: python
 
-        @tvm.tirx.transform.prim_func_pass(opt_level=1)
+        @tvm.tirx.transform.function_pass(opt_level=1)
         class TestReplaceFunc:
             def __init__(self, new_func):
                 self.new_func = new_func
@@ -126,7 +121,7 @@ def prim_func_pass(
 
     .. code-block:: python
 
-        @tvm.tirx.transform.prim_func_pass(opt_level=2)
+        @tvm.tirx.transform.function_pass(opt_level=2)
         def transform(func, mod, ctx):
             # my transformations here.
             return func
@@ -144,19 +139,15 @@ def prim_func_pass(
     if opt_level is None:
         raise ValueError("Please provide opt_level for the function pass.")
 
-    required = required if required else []
-    if not isinstance(required, list | tuple):
-        raise TypeError("Required is expected to be the type of " + "list/tuple.")
-
     def create_function_pass(pass_arg):
         """Internal function that creates a function pass"""
         fname = name if name else pass_arg.__name__
-        info = PassInfo(opt_level, fname, required, traceable)
+        info = PassInfo(opt_level, fname)
         if inspect.isclass(pass_arg):
             return _wrap_class_function_pass(pass_arg, info)
         if not callable(pass_arg):
             raise TypeError("pass_func must be a callable for Module pass")
-        return _ffi_api.CreatePrimFuncPass(pass_arg, info)  # type: ignore
+        return _ffi_api.CreateFunctionPass(pass_arg, info)  # type: ignore
 
     if pass_func:
         return create_function_pass(pass_func)

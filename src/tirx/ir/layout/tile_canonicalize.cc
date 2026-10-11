@@ -33,7 +33,7 @@ TileLayout RemoveUnitIters(TileLayout layout) {
   auto new_layout = layout.CopyOnWrite();
   std::vector<Iter> new_shard;
   std::copy_if(layout->shard.begin(), layout->shard.end(), std::back_inserter(new_shard),
-               [](const Iter& iter) { return !is_one(iter->extent); });
+               [](const Iter& iter) { return !IsOne(iter->extent); });
   // if new_shard is empty, add a unit iter (using axis from original shard)
   if (new_shard.empty() && !layout->shard.empty()) {
     new_shard.push_back(Iter(1, 1, layout->shard[0]->axis));
@@ -46,7 +46,7 @@ TileLayout RemoveZeroOffsets(TileLayout layout) {
   auto new_layout = layout.CopyOnWrite();
   ffi::Map<Axis, PrimExpr> new_offset;
   for (const auto& [axis, off] : layout->offset) {
-    if (!is_zero(off)) {
+    if (!IsZero(off)) {
       new_offset.Set(axis, off);
     }
   }
@@ -82,7 +82,7 @@ TileLayout FuseContiguousShardIters(TileLayout layout) {
 TileLayout FuseAxesByScope(TileLayout layout) {
   // Step 1: Get the target and scope information
   auto scope_pair_opt = layout->GetScope();
-  Target target = Target::Current();
+  ffi::Optional<Target> target = Target::Current();
   if (!scope_pair_opt.has_value() || !target.defined()) {
     return layout;
   }
@@ -97,7 +97,8 @@ TileLayout FuseAxesByScope(TileLayout layout) {
   // Step 3: Define the axis fusion function
   auto try_fuse_axis = [&](const Iter& iter) -> Iter {
     const auto& fuser = iter->axis->GetFuser();
-    return fuser.has_value() ? fuser.value()(target, subscope, scope, iter).value_or(iter) : iter;
+    return fuser.has_value() ? fuser.value()(target.value(), subscope, scope, iter).value_or(iter)
+                             : iter;
   };
 
   // Step 4: Process shard iterators

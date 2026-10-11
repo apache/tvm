@@ -29,7 +29,6 @@
 #include <tvm/ffi/container/array.h>
 #include <tvm/ir/expr.h>
 #include <tvm/runtime/tensor.h>
-#include <tvm/tirx/var.h>
 
 #include <utility>
 
@@ -269,7 +268,7 @@ class IndexMap : public ffi::ObjectRef {
   std::pair<IndexMap, PrimExpr> NonSurjectiveInverse(ffi::Array<Range> initial_ranges,
                                                      const sym::Analyzer& analyzer) const;
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(IndexMap, ffi::ObjectRef, IndexMapNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(IndexMap, ffi::ObjectRef, IndexMapNode);
 };
 
 }  // namespace tirx

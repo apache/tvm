@@ -474,7 +474,7 @@ class EvolutionarySearchNode : public SearchStrategyNode {
     n->ctx_ = this->ctx_;
     n->rand_state_ = this->rand_state_;
     n->state_ = nullptr;  // cleared the state
-    return SearchStrategy(n);
+    return SearchStrategy(ffi::UnsafeInit{}, n);
   }
 };
 
@@ -488,15 +488,15 @@ std::vector<Schedule> EvolutionarySearchNode::State::PickBestFromDatabase(int nu
   }
   int actual_num = measured_traces.size();
   ThreadedTraceApply pp(self->postprocs_);
-  std::vector<Schedule> results(actual_num, Schedule{nullptr});
+  std::vector<ffi::Optional<Schedule>> results(actual_num);
   auto f_proc_measured = [this, &measured_traces, &results, &pp](int thread_id,
                                                                  int trace_id) -> void {
     PerThreadData& data = this->per_thread_data_.at(thread_id);
     TRandState* rand_state = &data.rand_state;
     const IRModule& mod = data.mod;
     s_tir::Trace trace = measured_traces.at(trace_id);
-    Schedule& result = results.at(trace_id);
-    TVM_FFI_ICHECK(!result.defined());
+    ffi::Optional<Schedule>& result = results.at(trace_id);
+    TVM_FFI_ICHECK(!result.has_value());
     if (ffi::Optional<Schedule> sch = pp.Apply(mod, trace, rand_state)) {
       result = sch.value();
     }
@@ -511,9 +511,9 @@ std::vector<Schedule> EvolutionarySearchNode::State::PickBestFromDatabase(int nu
   }
   std::vector<Schedule> filtered;
   filtered.reserve(actual_num);
-  for (const Schedule& sch : results) {
-    if (sch.defined()) {
-      filtered.push_back(sch);
+  for (const ffi::Optional<Schedule>& sch : results) {
+    if (sch.has_value()) {
+      filtered.push_back(sch.value());
     }
   }
   return filtered;
@@ -526,13 +526,13 @@ std::vector<Schedule> EvolutionarySearchNode::State::SampleInitPopulation(int nu
   int fail_count = 0;
   while (static_cast<int>(out_schs.size()) < self->init_min_unmeasured &&
          fail_count < self->max_fail_count) {
-    std::vector<Schedule> results(num, Schedule{nullptr});
+    std::vector<ffi::Optional<Schedule>> results(num);
     auto f_proc_unmeasured = [this, &results, &pp](int thread_id, int trace_id) -> void {
       PerThreadData& data = this->per_thread_data_.at(thread_id);
       TRandState* rand_state = &data.rand_state;
       const IRModule& mod = data.mod;
-      Schedule& result = results.at(trace_id);
-      TVM_FFI_ICHECK(!result.defined());
+      ffi::Optional<Schedule>& result = results.at(trace_id);
+      TVM_FFI_ICHECK(!result.has_value());
       int design_space_index = s_tir::SampleInt(rand_state, 0, design_spaces.size());
       s_tir::Trace trace(design_spaces[design_space_index]->insts, {});
       if (ffi::Optional<Schedule> sch = pp.Apply(mod, trace, rand_state)) {
@@ -542,9 +542,9 @@ std::vector<Schedule> EvolutionarySearchNode::State::SampleInitPopulation(int nu
     support::parallel_for_dynamic(0, num, self->ctx_->num_threads, f_proc_unmeasured);
     bool found_new = false;
     for (int i = 0; i < num; i++) {
-      if (results[i].defined()) {
+      if (results[i].has_value()) {
         found_new = true;
-        out_schs.push_back(results[i]);
+        out_schs.push_back(results[i].value());
       }
     }
     fail_count += !found_new;
@@ -600,7 +600,7 @@ std::vector<Schedule> EvolutionarySearchNode::State::EvolveWithCostModel(
       auto _ = Profiler::TimedScope("EvoSearch/Evolve/Mutation");
       ThreadedTraceApply pp(self->postprocs_);
       ConcurrentBitmask cbmask(self->population_size);
-      std::vector<Schedule> next_population(self->population_size, Schedule{nullptr});
+      std::vector<ffi::Optional<Schedule>> next_population(self->population_size);
       // The worker function
       auto f_find_candidate = [&cbmask, &population, &next_population, &pp, this](int thread_id,
                                                                                   int trace_id) {
@@ -610,7 +610,7 @@ std::vector<Schedule> EvolutionarySearchNode::State::EvolveWithCostModel(
         const IRModule& mod = data.mod;
         std::function<int()>& trace_sampler = data.trace_sampler;
         std::function<ffi::Optional<Mutator>()>& mutator_sampler = data.mutator_sampler;
-        Schedule& result = next_population.at(trace_id);
+        ffi::Optional<Schedule>& result = next_population.at(trace_id);
         int sampled_trace_id = -1;
         // Loop until success
         for (int fail_count = 0; fail_count <= self->genetic_max_fail_count; ++fail_count) {
@@ -634,14 +634,17 @@ std::vector<Schedule> EvolutionarySearchNode::State::EvolveWithCostModel(
           }
         }
         // if retry count exceeds the limit, reuse an old sample
-        if (!result.defined()) {
+        if (!result.has_value()) {
           result = population.at(sampled_trace_id);
         }
       };
       support::parallel_for_dynamic(0, self->population_size, self->ctx_->num_threads,
                                     f_find_candidate);
 
-      population.swap(next_population);
+      population.clear();
+      for (const auto& sch : next_population) {
+        population.push_back(sch.value());
+      }
       TVM_PY_LOG(INFO, self->ctx_->logger) << "Evolve iter #" << iter << " done. Summary:\n"
                                            << pp.SummarizeFailures();
     }
@@ -690,7 +693,7 @@ std::vector<Schedule> EvolutionarySearchNode::State::PickWithEpsGreedy(
     bool has_best = i_bests < static_cast<int>(bests.size());
     bool has_rand = i_rands < static_cast<int>(rands.size());
     // Pick a schedule
-    Schedule sch{nullptr};
+    Schedule sch{ffi::UnsafeInit{}};
     // If needs `bests`, then prefer `bests`
     if (i < num_bests) {
       if (has_best) {
@@ -795,7 +798,7 @@ SearchStrategy SearchStrategy::EvolutionarySearch(int population_size,         /
   n->genetic_max_fail_count = genetic_max_fail_count;
   n->genetic_mutate_prob = genetic_mutate_prob;
   n->eps_greedy = eps_greedy;
-  return SearchStrategy(n);
+  return SearchStrategy(ffi::UnsafeInit{}, n);
 }
 
 class EvolutionarySearch : public SearchStrategy {

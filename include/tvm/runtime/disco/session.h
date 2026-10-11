@@ -312,7 +312,11 @@ class Session : public ffi::ObjectRef {
                                                 ffi::String process_pool_creator,
                                                 ffi::String entrypoint);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Session, ffi::ObjectRef, SessionObj);
+  explicit Session(ffi::UnsafeInit tag, ffi::ObjectPtr<SessionObj> n) : ffi::ObjectRef(tag) {
+    data_ = std::move(n);
+  }
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Session, ffi::ObjectRef, SessionObj);
 };
 
 /*!

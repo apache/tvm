@@ -40,8 +40,8 @@ def test_rms_norm_with_casting():
 
     @I.ir_module
     class Before:
-        @Ts.prim_func
-        def main(data: T.Buffer((1, n, 4096), 'float16'), weight: T.Buffer((4096,), "float16"), T_cast: T.Buffer((1, n, 4096), 'float16')):
+        @Ts.function
+        def main(data: T.Tensor((1, n, 4096), 'float16'), weight: T.Tensor((4096,), "float16"), T_cast: T.Tensor((1, n, 4096), 'float16')):
             T.func_attr({"tirx.noalias": True})
 
             # with Ts.sblock("root"):
@@ -100,8 +100,8 @@ def test_rms_norm_with_casting():
 
     @I.ir_module
     class After:
-        @Ts.prim_func
-        def main(data: T.Buffer((1, n, 4096), 'float16'), weight: T.Buffer((4096,), "float16"), T_cast: T.Buffer((1, n, 4096), 'float16')):
+        @Ts.function
+        def main(data: T.Tensor((1, n, 4096), 'float16'), weight: T.Tensor((4096,), "float16"), T_cast: T.Tensor((1, n, 4096), 'float16')):
             T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
 
             # with Ts.sblock("root"):
@@ -172,8 +172,8 @@ def test_rms_norm_without_casting():
 
     @I.ir_module
     class Before:
-        @Ts.prim_func
-        def main(data: T.Buffer((1, n, 4096)), weight: T.Buffer((4096,), "float32"), T_cast: T.Buffer((1, n, 4096))):
+        @Ts.function
+        def main(data: T.Tensor((1, n, 4096)), weight: T.Tensor((4096,), "float32"), T_cast: T.Tensor((1, n, 4096))):
             T.func_attr({"tirx.noalias": True})
 
             # with Ts.sblock("root"):
@@ -218,8 +218,8 @@ def test_rms_norm_without_casting():
 
     @I.ir_module
     class After:
-        @Ts.prim_func
-        def main(data: T.Buffer((1, n, 4096)), weight: T.Buffer((4096,), "float32"), T_cast: T.Buffer((1, n, 4096))):
+        @Ts.function
+        def main(data: T.Tensor((1, n, 4096)), weight: T.Tensor((4096,), "float32"), T_cast: T.Tensor((1, n, 4096))):
             T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
 
             # with Ts.sblock("root"):

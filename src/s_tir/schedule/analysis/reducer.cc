@@ -19,9 +19,10 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/te/operation.h>
-#include <tvm/tirx/builtin.h>
+#include <tvm/tirx/op/memory.h>
 
 #include "../utils.h"
 
@@ -64,7 +65,7 @@ class PatternMatcher : public StmtExprVisitor {
   ffi::Optional<VisitInterrupt> Visit_(const VarNode* op) final {
     auto it = filled_map_.find(op);
     if (it == filled_map_.end()) {
-      filled_map_[op] = expr_to_match_;
+      filled_map_.insert_or_assign(op, expr_to_match_);
     } else {
       if (it->second.same_as(expr_to_match_) ||
           ffi::StructuralEqual()(it->second, expr_to_match_)) {
@@ -270,8 +271,8 @@ class PatternMatcher : public StmtExprVisitor {
     if (ptr == nullptr) {
       match_success_ = false;
     } else {
-      if (!op->source.as_or_throw<tvm::tirx::BufferVar>().same_as(
-              ptr->source.as_or_throw<tvm::tirx::BufferVar>()) ||
+      if (!op->source.as_or_throw<tvm::tirx::TensorVar>().same_as(
+              ptr->source.as_or_throw<tvm::tirx::TensorVar>()) ||
           op->indices.size() != ptr->indices.size()) {
         match_success_ = false;
       } else {
@@ -310,7 +311,7 @@ class PatternMatcher : public StmtExprVisitor {
  private:
   bool match_success_{true};
   ffi::Array<PrimExpr> pattern_;
-  Expr expr_to_match_;
+  Expr expr_to_match_{ffi::UnsafeInit{}};
   std::unordered_map<const VarNode*, Expr> filled_map_;
 };
 
@@ -318,18 +319,18 @@ class PatternMatcher : public StmtExprVisitor {
 
 static const char* kRFactorCrossThreadReductionApplicableBlockDef =
     R"(Definition of a reduction block that is applicable by RFactor and Cross-Thread Reduction:
-1) The block init should be a single BufferStore or a SeqStmt of BufferStores
+1) The block init should be a single TensorStore or a SeqStmt of TensorStores
 2) The buffers initialized in the block init should be all different
-3) The number of consecutive Binds in the block body (if any) should equal the number of BufferStores in the block init
+3) The number of consecutive Binds in the block body (if any) should equal the number of TensorStores in the block init
 4) The variables of the Binds in the block body should be all different
-5) The statement after the innermost Bind should be a single BufferStore or a SeqStmt of BufferStores
-6) The number of BufferStores under the block body should equal the number of BufferStores in the block init, and thereby equal the number of Binds above
-7) The variables bound by the Binds in the block body must all directly serve as values of the BufferStores inside, and the stored values of the BufferStores can only be those variables
-8) The variables stored by the BufferStores in the block body should be all different
-9) The buffers written by the BufferStores in the block body should be all different
+5) The statement after the innermost Bind should be a single TensorStore or a SeqStmt of TensorStores
+6) The number of TensorStores under the block body should equal the number of TensorStores in the block init, and thereby equal the number of Binds above
+7) The variables bound by the Binds in the block body must all directly serve as values of the TensorStores inside, and the stored values of the TensorStores can only be those variables
+8) The variables stored by the TensorStores in the block body should be all different
+9) The buffers written by the TensorStores in the block body should be all different
 10) The buffers initialized in the block init and written in the block body should match
 11) The buffers written by the block should have same shape
-12) The indices of all BufferStores in the reduction block should be the same)";
+12) The indices of all TensorStores in the reduction block should be the same)";
 
 void ErrorRFactorCrossThreadReductionNotApplicable(const ffi::Optional<ScheduleState>& self,
                                                    SBlock block, int violated_cond) {
@@ -371,8 +372,8 @@ void ErrorRFactorCrossThreadReductionNotApplicable(const ffi::Optional<ScheduleS
 }
 
 /*!
- * \brief Extract the BufferStores, which serve as the reduction updates, from the given Bind nodes
- * and the BufferStores inside. And meanwhile set the buffer order of the reduction
+ * \brief Extract the TensorStores, which serve as the reduction updates, from the given Bind nodes
+ * and the TensorStores inside. And meanwhile set the buffer order of the reduction
  * \param self The schedule state, used for error reporting
  * \param block The reduction block, used for error reporting
  * \param let The Bind nodes from which the reduction updates are extracted
@@ -383,7 +384,7 @@ void ErrorRFactorCrossThreadReductionNotApplicable(const ffi::Optional<ScheduleS
  */
 void ExtractReductionUpdates(const ffi::Optional<ScheduleState>& self, SBlock block,
                              const ffi::Array<Stmt>& stmts, int n_buffers,
-                             ffi::Array<BufferStore>* updates,
+                             ffi::Array<TensorStore>* updates,
                              std::unordered_map<const VarNode*, int>* buf2index) {
   std::unordered_map<const VarNode*, int> var2index;
   ffi::Array<PrimExpr> let_values;
@@ -414,7 +415,7 @@ void ExtractReductionUpdates(const ffi::Optional<ScheduleState>& self, SBlock bl
     ErrorRFactorCrossThreadReductionNotApplicable(self, std::move(block), /*violated_cond=*/3);
   }
 
-  // The remaining stmts after the Bind nodes should be BufferStores.
+  // The remaining stmts after the Bind nodes should be TensorStores.
   // Collect them into a sequence.
   ffi::Array<Stmt> seq;
   for (int i = n_buffers; i < static_cast<int>(stmts.size()); ++i) {
@@ -425,10 +426,10 @@ void ExtractReductionUpdates(const ffi::Optional<ScheduleState>& self, SBlock bl
   }
 
   // Step 2.
-  // - Create BufferStores according to the variables being stored.
+  // - Create TensorStores according to the variables being stored.
   // - Construct the mapping from reduction buffers to the index.
   for (const Stmt& stmt : seq) {
-    const auto* buf_store = stmt.as<BufferStoreNode>();
+    const auto* buf_store = stmt.as<TensorStoreNode>();
     if (buf_store == nullptr) {
       ErrorRFactorCrossThreadReductionNotApplicable(self, std::move(block), /*violated_cond=*/5);
     }
@@ -445,8 +446,9 @@ void ExtractReductionUpdates(const ffi::Optional<ScheduleState>& self, SBlock bl
     if ((*updates)[idx].defined()) {
       ErrorRFactorCrossThreadReductionNotApplicable(self, std::move(block), /*violated_cond=*/8);
     }
-    updates->Set(idx, BufferStore(buf_store->buffer, let_values[idx], buf_store->indices));
-    auto insert_result = buf2index->insert(std::make_pair(buf_store->buffer.get(), idx));
+    updates->Set(idx, TensorStore(buf_store->dest, buf_store->indices, let_values[idx]));
+    auto insert_result =
+        buf2index->insert(std::make_pair(buf_store->dest.as_or_throw<TensorVar>().get(), idx));
     if (!insert_result.second) {
       ErrorRFactorCrossThreadReductionNotApplicable(self, std::move(block), /*violated_cond=*/9);
     }
@@ -456,22 +458,21 @@ void ExtractReductionUpdates(const ffi::Optional<ScheduleState>& self, SBlock bl
   }
 }
 
-std::pair<ffi::Array<PrimExpr>, ffi::Array<BufferStore>> GetInitValuesAndUpdatesFromReductionBlock(
+std::pair<ffi::Array<PrimExpr>, ffi::Array<TensorStore>> GetInitValuesAndUpdatesFromReductionBlock(
     const ffi::Optional<ScheduleState>& self, SBlock block) {
-  ffi::Array<BufferStore> inits;
-  ffi::Array<BufferStore> updates;
+  ffi::Array<TensorStore> inits;
+  ffi::Array<TensorStore> updates;
 
-  // Step 1. Extract the BufferStores serving as block inits.
-  if (auto init = block->init.as<BufferStore>()) {
-    inits.push_back(init.value());
-  } else if (const auto* seq_init = block->init.as<SeqStmtNode>()) {
+  // Step 1. Extract the TensorStores serving as block inits.
+  if (block->init.has_value() && !block->init.value()->seq.empty()) {
+    const SeqStmt& seq_init = block->init.value();
     std::unordered_set<const VarNode*> init_buffers;
     for (const Stmt& stmt : seq_init->seq) {
-      auto init = stmt.as<BufferStore>();
+      auto init = stmt.as<TensorStore>();
       if (!init) {
         ErrorRFactorCrossThreadReductionNotApplicable(self, std::move(block), /*violated_cond=*/1);
       }
-      auto insert_result = init_buffers.insert(init.value()->buffer.get());
+      auto insert_result = init_buffers.insert(init.value()->dest.as_or_throw<TensorVar>().get());
       if (!insert_result.second) {
         ErrorRFactorCrossThreadReductionNotApplicable(self, std::move(block), /*violated_cond=*/2);
       }
@@ -481,16 +482,15 @@ std::pair<ffi::Array<PrimExpr>, ffi::Array<BufferStore>> GetInitValuesAndUpdates
     ErrorRFactorCrossThreadReductionNotApplicable(self, std::move(block), /*violated_cond=*/1);
   }
 
-  // Step 2. Extract the block updates, in the form of BufferStores.
+  // Step 2. Extract the block updates, in the form of TensorStores.
   int n_buffers = inits.size();
   std::unordered_map<const VarNode*, int> buf2index;
-  if (const auto* update = block->body.as<BufferStoreNode>()) {
-    updates.push_back(ffi::GetRef<BufferStore>(update));
-    buf2index[update->buffer.get()] = 0;
-  } else if (const auto* seq = block->body.as<SeqStmtNode>()) {
-    ExtractReductionUpdates(self, block, seq->seq, n_buffers, &updates, &buf2index);
+  if (const auto* update =
+          block->body->size() == 1 ? block->body->seq[0].as<TensorStoreNode>() : nullptr) {
+    updates.push_back(ffi::GetRef<TensorStore>(update));
+    buf2index[update->dest.as_or_throw<TensorVar>().get()] = 0;
   } else {
-    ErrorRFactorCrossThreadReductionNotApplicable(self, std::move(block), /*violated_cond=*/3);
+    ExtractReductionUpdates(self, block, block->body->seq, n_buffers, &updates, &buf2index);
   }
   TVM_FFI_ICHECK_EQ(updates.size(), n_buffers);
 
@@ -500,16 +500,16 @@ std::pair<ffi::Array<PrimExpr>, ffi::Array<BufferStore>> GetInitValuesAndUpdates
   init_values.resize(n_buffers);
 
   // - Check all buffers have the same shape
-  // - Check all indices of the BufferStores are the same
+  // - Check all indices of the TensorStores are the same
   // - Check buffers written in the block init and the block body can match
   // - Check buffers do not duplicate
-  const ffi::Array<PrimExpr>& expected_shape = updates[0]->buffer->shape;
+  const ffi::Array<PrimExpr>& expected_shape = updates[0]->dest.as_or_throw<TensorVar>()->shape;
   const ffi::Array<PrimExpr>& expected_indices = updates[0]->indices;
   TVM_FFI_ICHECK_EQ(expected_shape.size(), expected_indices.size());
   int n_dim = expected_indices.size();
   sym::Analyzer ana;
   for (int i = 0; i < n_buffers; ++i) {
-    if (static_cast<int>(updates[i]->buffer->shape.size()) != n_dim) {
+    if (static_cast<int>(updates[i]->dest.as_or_throw<TensorVar>()->shape.size()) != n_dim) {
       ErrorRFactorCrossThreadReductionNotApplicable(self, std::move(block), /*violated_cond=*/11);
     }
     if (static_cast<int>(inits[i]->indices.size()) != n_dim ||
@@ -517,7 +517,8 @@ std::pair<ffi::Array<PrimExpr>, ffi::Array<BufferStore>> GetInitValuesAndUpdates
       ErrorRFactorCrossThreadReductionNotApplicable(self, std::move(block), /*violated_cond=*/12);
     }
     for (int d = 0; d < n_dim; ++d) {
-      if (!ana->CanProveEqual(updates[i]->buffer->shape[d], expected_shape[d])) {
+      if (!ana->CanProveEqual(updates[i]->dest.as_or_throw<TensorVar>()->shape[d],
+                              expected_shape[d])) {
         ErrorRFactorCrossThreadReductionNotApplicable(self, std::move(block), /*violated_cond=*/11);
       }
       if (!ana->CanProveEqual(inits[i]->indices[d], expected_indices[d]) ||
@@ -526,12 +527,13 @@ std::pair<ffi::Array<PrimExpr>, ffi::Array<BufferStore>> GetInitValuesAndUpdates
       }
     }
 
-    auto it = buf2index.find(inits[i]->buffer.get());
+    auto it = buf2index.find(inits[i]->dest.as_or_throw<TensorVar>().get());
     if (it == buf2index.end()) {
       ErrorRFactorCrossThreadReductionNotApplicable(self, std::move(block), /*violated_cond=*/10);
     }
     int idx = it->second;
-    TVM_FFI_ICHECK(updates[idx]->buffer.same_as(inits[i]->buffer));
+    TVM_FFI_ICHECK(updates[idx]->dest.as_or_throw<TensorVar>().same_as(
+        inits[i]->dest.as_or_throw<TensorVar>()));
     TVM_FFI_ICHECK(!init_values[idx].defined());
     init_values.Set(idx, inits[i]->value);
   }
@@ -564,12 +566,12 @@ bool ReductionIterNotIndexOutputBuffer(const SBlock& block) {
   std::unordered_set<const VarNode*> buffer_written;
   buffer_written.reserve(block->writes.size());
   for (const TensorRegion& write_region : block->writes) {
-    buffer_written.insert(write_region->source.as_or_throw<tvm::tirx::BufferVar>().get());
+    buffer_written.insert(write_region->source.as_or_throw<tvm::tirx::TensorVar>().get());
   }
 
   std::unordered_set<const VarNode*> buffer_allocated;
   buffer_allocated.reserve(block->alloc_buffers.size());
-  for (const BufferVar& buffer : block->alloc_buffers) {
+  for (const TensorVar& buffer : block->alloc_buffers) {
     buffer_allocated.insert(buffer.get());
   }
 
@@ -585,34 +587,36 @@ bool ReductionIterNotIndexOutputBuffer(const SBlock& block) {
   std::unordered_map<const VarNode*, const VarNode*> match_buffer_sources;
   for (const MatchBufferRegion& region : block->match_buffers) {
     match_buffer_sources[region->buffer.get()] =
-        region->source->source.as_or_throw<tvm::tirx::BufferVar>().get();
+        region->source->source.as_or_throw<tvm::tirx::TensorVar>().get();
   }
   auto visit_block = [&](const SBlock& nested_block) -> ffi::Expected<ffi::WalkResult> {
     for (const MatchBufferRegion& region : nested_block->match_buffers) {
       match_buffer_sources[region->buffer.get()] =
-          region->source->source.as_or_throw<tvm::tirx::BufferVar>().get();
+          region->source->source.as_or_throw<tvm::tirx::TensorVar>().get();
     }
     return ffi::WalkResult::Advance();
   };
-  auto visit_alloc = [&](const tirx::Bind& alloc) -> ffi::Expected<ffi::WalkResult> {
-    // Inline AllocBuffer statements (e.g. `T.local_scalar(...)` expansions)
+  auto visit_alloc = [&](const tvm::Bind& alloc) -> ffi::Expected<ffi::WalkResult> {
+    // Inline AllocTensor statements (e.g. `T.local_scalar(...)` expansions)
     // declare buffer-local scratch storage inside the block body; treat them
     // the same as block->alloc_buffers entries for the "write-without-signature"
     // check below.
     if (const auto* call = alloc->value.as<CallNode>();
-        call && call->op.same_as(tirx::builtin::alloc_buffer())) {
+        call && call->op.same_as(tirx::alloc_tensor_op())) {
       buffer_allocated.insert(alloc->var.get());
     }
     return ffi::WalkResult::Advance();
   };
-  auto visit_store = [&](const BufferStore& store) -> ffi::Expected<ffi::WalkResult> {
+  auto visit_store = [&](const TensorStore& store) -> ffi::Expected<ffi::WalkResult> {
     bool write_is_covered_by_match_buffer =
-        match_buffer_sources.count(store->buffer.get()) &&
-        buffer_written.count(match_buffer_sources.find(store->buffer.get())->second);
-    TVM_FFI_CHECK(buffer_written.count(store->buffer.get()) || write_is_covered_by_match_buffer ||
-                      buffer_allocated.count(store->buffer.get()),
+        match_buffer_sources.count(store->dest.as_or_throw<TensorVar>().get()) &&
+        buffer_written.count(
+            match_buffer_sources.find(store->dest.as_or_throw<TensorVar>().get())->second);
+    TVM_FFI_CHECK(buffer_written.count(store->dest.as_or_throw<TensorVar>().get()) ||
+                      write_is_covered_by_match_buffer ||
+                      buffer_allocated.count(store->dest.as_or_throw<TensorVar>().get()),
                   ValueError)
-        << "The buffer \"" << store->buffer
+        << "The buffer \"" << store->dest.as_or_throw<TensorVar>()
         << "\" is written in the block but is not in the block's signature nor is it covered "
            "by a match_buffer";
     for (const PrimExpr& index : store->indices) {
@@ -630,7 +634,7 @@ bool ReductionIterNotIndexOutputBuffer(const SBlock& block) {
 class NoMatchedReducerError : public ScheduleErrorContextObj {
  public:
   explicit NoMatchedReducerError(IRModule mod, ffi::Array<PrimExpr> identities,
-                                 ffi::Array<BufferStore> combiners)
+                                 ffi::Array<TensorStore> combiners)
       : mod_(std::move(mod)),
         identities_(std::move(identities)),
         combiners_(std::move(combiners)) {}
@@ -653,13 +657,13 @@ class NoMatchedReducerError : public ScheduleErrorContextObj {
 
   IRModule mod_;
   ffi::Array<PrimExpr> identities_;
-  ffi::Array<BufferStore> combiners_;
+  ffi::Array<TensorStore> combiners_;
 };
 
 std::tuple<te::CommReducer, ffi::Array<PrimExpr>, ffi::Array<PrimExpr>> GetReducerAndCombinerLhsRhs(
     const ffi::Optional<ScheduleState>& self, const ffi::Array<PrimExpr>& identities,
-    const ffi::Array<BufferStore>& combiners) {
-  te::CommReducer reducer{nullptr};
+    const ffi::Array<TensorStore>& combiners) {
+  te::CommReducer reducer{ffi::UnsafeInit{}};
   ffi::Array<PrimExpr> combiner_lhs, combiner_rhs;
   bool matched =
       FromIdentityCombiner(identities, combiners, &reducer, &combiner_lhs, &combiner_rhs);
@@ -714,7 +718,7 @@ bool MatchReducer(const te::CommReducer& reducer, const ffi::Array<PrimExpr>& id
 }
 
 bool FromIdentityCombiner(const ffi::Array<PrimExpr>& identities,
-                          const ffi::Array<BufferStore>& combiners, te::CommReducer* result_reducer,
+                          const ffi::Array<TensorStore>& combiners, te::CommReducer* result_reducer,
                           ffi::Array<PrimExpr>* lhs, ffi::Array<PrimExpr>* rhs) {
   int n = identities.size();
   ffi::Array<TensorLoad> buf_loads;
@@ -723,7 +727,8 @@ bool FromIdentityCombiner(const ffi::Array<PrimExpr>& identities,
   stored_values.reserve(n);
 
   for (int i = 0; i < n; ++i) {
-    buf_loads.push_back(BufferLoad(combiners[i]->buffer, combiners[i]->indices));
+    buf_loads.push_back(
+        MakeTensorLoad(combiners[i]->dest.as_or_throw<TensorVar>(), combiners[i]->indices));
     stored_values.push_back(combiners[i]->value);
   }
 

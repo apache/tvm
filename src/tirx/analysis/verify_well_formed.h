@@ -20,8 +20,13 @@
 #ifndef TVM_TIRX_ANALYSIS_VERIFY_WELL_FORMED_H_
 #define TVM_TIRX_ANALYSIS_VERIFY_WELL_FORMED_H_
 
+#include <tvm/ir/prim/op.h>
 #include <tvm/tirx/analysis.h>
-#include <tvm/tirx/builtin.h>
+#include <tvm/tirx/exec_scope.h>
+#include <tvm/tirx/op/region.h>
+#include <tvm/tirx/op_attr_types.h>
+
+#include <utility>
 
 #include "../ir/tir_visitor_with_path.h"
 namespace tvm {
@@ -41,23 +46,10 @@ class UndefinedVarVerifier : public Verifier<UndefinedVarVerifier<PathVisitor>, 
 
  private:
   using Verifier::Visit;
-  void Visit(const PrimFunc& prim_func, AccessPath path) override {
-    Verifier::Visit(prim_func, path);
-    redefine_allowed_within_function_.clear();
-  }
-
-  void EnterDef(const IterVar& iter_var, AccessPath path) override {
-    Verifier::EnterDef(iter_var, path);
-    if (iter_var->iter_type == IterVarType::kThreadIndex) {
-      redefine_allowed_within_function_.insert(iter_var->var);
-    }
-  }
-
   void EnterDef(const Var& var, AccessPath path) override {
-    bool redefine_is_allowed = redefine_allowed_within_function_.count(var);
     {
       auto it = currently_defined_.find(var);
-      auto verify = Verify(it == currently_defined_.end() || redefine_is_allowed);
+      auto verify = Verify(it == currently_defined_.end());
       verify << "ValueError: "
              << "TIR is ill-formed, "
              << "due to multiple nested definitions of variable " << var->name << ".";
@@ -68,7 +60,7 @@ class UndefinedVarVerifier : public Verifier<UndefinedVarVerifier<PathVisitor>, 
 
     {
       auto it = previously_defined_.find(var);
-      auto verify = Verify(it == previously_defined_.end() || redefine_is_allowed);
+      auto verify = Verify(it == previously_defined_.end());
       verify << "ValueError: "
              << "TIR is ill-formed, "
              << "due to multiple definitions of variable " << var->name << ".";
@@ -84,7 +76,7 @@ class UndefinedVarVerifier : public Verifier<UndefinedVarVerifier<PathVisitor>, 
   void ExitDef(const Var& var, AccessPath path) override {
     auto active_def = currently_defined_.find(var);
 
-    currently_defined_.erase(active_def);
+    if (active_def != currently_defined_.end()) currently_defined_.erase(active_def);
     previously_defined_.insert({var, path});
   }
 
@@ -112,23 +104,19 @@ class UndefinedVarVerifier : public Verifier<UndefinedVarVerifier<PathVisitor>, 
 
   // Variables that were previously defined, and are now out of scope.
   std::unordered_map<Var, AccessPath> previously_defined_;
-
-  // Special variables that are allowed to be re-defined, so long as
-  // that re-definition occurs within the same PrimFunc.  For example
-  std::unordered_set<Var> redefine_allowed_within_function_;
 };
 
 /*! \brief Verify that buffers with a declaration are not used outside their declared scope.
  *
  * When a buffer is declared via one of the following sites:
- *   - BufferType-annotated PrimFunc parameters
- *   - DeclBuffer statement
+ *   - TensorType-annotated Function parameters
+ *   - DeclTensor statement
  *   - Dialect-specific definitions exposed by PathVisitor
  *
- * it must not appear in a BufferLoad, BufferStore, or BufferRegion outside that declaration's
+ * it must not appear in a TensorLoad, TensorStore, or BufferRegion outside that declaration's
  * scope.
  *
- * All buffers that appear in TensorLoad or BufferStore must have a prior declaration.
+ * All buffers that appear in TensorLoad or TensorStore must have a prior declaration.
  */
 template <typename PathVisitor>
 class UndefinedBufferVerifier : public Verifier<UndefinedBufferVerifier<PathVisitor>, PathVisitor> {
@@ -141,22 +129,22 @@ class UndefinedBufferVerifier : public Verifier<UndefinedBufferVerifier<PathVisi
  private:
   using Verifier::Visit;
 
-  void Visit(const PrimFunc& prim_func, AccessPath path) override {
-    Verifier::Visit(prim_func, path);
+  void Visit(const Function& function, AccessPath path) override {
+    Verifier::Visit(function, path);
     // Clear per-function state (buffers should not cross function boundaries).
     currently_defined_.clear();
     previously_defined_.clear();
   }
 
   void EnterDef(const Var& var, AccessPath path) override {
-    if (auto buffer = var.as<BufferVar>()) {
+    if (auto buffer = var.as<TensorVar>()) {
       currently_defined_.insert({buffer.value(), path});
     }
   }
 
   void ExitDef(const Var& var, AccessPath path) override {
-    if (!var->ty.as<BufferTypeNode>()) return;
-    auto buffer = var.as_or_throw<BufferVar>();
+    if (!var->ty.as<TensorTypeNode>()) return;
+    auto buffer = var.as_or_throw<TensorVar>();
     auto active_def = currently_defined_.find(buffer);
     if (active_def != currently_defined_.end()) {
       currently_defined_.erase(active_def);
@@ -164,30 +152,30 @@ class UndefinedBufferVerifier : public Verifier<UndefinedBufferVerifier<PathVisi
     previously_defined_.insert({buffer, path});
   }
 
-  void VisitBufferUse(const BufferVar& buffer, AccessPath path) override {
+  void VisitBufferUse(const TensorVar& buffer, AccessPath path) override {
     bool is_declared = currently_defined_.count(buffer);
     bool was_declared = previously_defined_.count(buffer);
 
     if (was_declared && !is_declared) {
-      // BufferVar was previously declared but is now out of scope — always an error.
+      // TensorVar was previously declared but is now out of scope — always an error.
       auto prev_def = previously_defined_.find(buffer);
       Verify(false) << "TIR is ill-formed: buffer " << buffer.name() << " is used at " << path
                     << " but its declaration is no longer in-scope. "
                     << "It was declared at " << prev_def->second << ".";
     } else if (!is_declared && !was_declared) {
-      // BufferVar was never declared — error.
+      // TensorVar was never declared — error.
       Verify(false) << "TIR is ill-formed: buffer " << buffer.name() << " is used at " << path
-                    << " without a prior DeclBuffer or other declaration.";
+                    << " without a prior DeclTensor or other declaration.";
     }
-    // BufferVar fields are visited at definition site (EnterDef), not here.
+    // TensorVar fields are visited at definition site (EnterDef), not here.
     Verifier::VisitBufferUse(buffer, path);
   }
 
   // Buffers defined in the currently-visited scope.
-  std::unordered_map<BufferVar, AccessPath, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
+  std::unordered_map<TensorVar, AccessPath, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
       currently_defined_;
   // Buffers that were previously defined and are now out of scope.
-  std::unordered_map<BufferVar, AccessPath, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
+  std::unordered_map<TensorVar, AccessPath, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
       previously_defined_;
 };
 
@@ -203,10 +191,10 @@ class TensorLoadTypeVerifier : public Verifier<TensorLoadTypeVerifier<PathVisito
  private:
   using Verifier::Visit;
   void Dispatch_(const TensorLoadNode* op, AccessPath path) override {
-    auto buffer = op->source.as<BufferVar>();
+    auto buffer = op->source.as<TensorVar>();
     auto valid_source = Verify(buffer.has_value());
     valid_source << "TypeError: TIR TensorLoad source at " << path->Attr("source")
-                 << " must be a BufferVar.";
+                 << " must be a TensorVar.";
     if (!buffer.has_value()) {
       Visit(op->indices, path->Attr("indices"));
       return;
@@ -259,7 +247,7 @@ class TensorLoadTypeVerifier : public Verifier<TensorLoadTypeVerifier<PathVisito
       return;
     }
 
-    TensorLoad expected = BufferLoad(buffer.value(), op->indices, op->span);
+    TensorLoad expected = MakeTensorLoad(buffer.value(), op->indices, op->loc);
     ffi::Optional<PrimType> asserted_ty = op->ty.as<PrimType>();
     ffi::Optional<PrimType> expected_ty = expected->ty.as<PrimType>();
     auto valid_type = Verify(asserted_ty.has_value() && expected_ty.has_value() &&
@@ -282,10 +270,10 @@ class LoopControlVerifier : public Verifier<LoopControlVerifier<PathVisitor>, Pa
  private:
   using Verifier::Visit;
 
-  void Visit(const PrimFunc& prim_func, AccessPath path) override {
+  void Visit(const Function& function, AccessPath path) override {
     int enclosing_depth = loop_depth_;
     loop_depth_ = 0;
-    Verifier::Visit(prim_func, path);
+    Verifier::Visit(function, path);
     loop_depth_ = enclosing_depth;
   }
 

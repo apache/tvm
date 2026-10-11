@@ -26,9 +26,11 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/function.h>
 #include <tvm/ir/scope_stack.h>
 #include <tvm/sym/analyzer.h>
 #include <tvm/tirx/analysis.h>
+#include <tvm/tirx/function.h>
 #include <tvm/tirx/layout.h>
 #include <tvm/tirx/stmt_functor.h>
 #include <tvm/tirx/transform.h>
@@ -47,28 +49,21 @@ Stmt MergeNest(const std::vector<Stmt>& nest, Stmt body) {
     Stmt s = *ri;
     if (const auto* for_ = s.as<ForNode>()) {
       auto n = ffi::make_object<ForNode>(*for_);
-      TVM_FFI_ICHECK(is_no_op(n->body));
+      TVM_FFI_ICHECK(tirx::IsNoOp(n->body));
       n->body = body;
       body = Stmt(n);
     } else if (const auto* bind = s.as<BindNode>()) {
       // Bind has no body -- prepend it before the accumulated body in a SeqStmt.
-      body = SeqStmt::Flatten(ffi::GetRef<Stmt>(bind), body);
-    } else if (const auto* attr = s.as<AttrStmtNode>()) {
-      auto n = ffi::make_object<AttrStmtNode>(*attr);
-      TVM_FFI_ICHECK(is_no_op(n->body));
-      n->body = body;
-      body = Stmt(n);
-    } else if (const auto* ite = s.as<IfThenElseNode>()) {
-      auto n = ffi::make_object<IfThenElseNode>(*ite);
-      TVM_FFI_ICHECK(is_no_op(n->then_case));
+      body = SeqStmt({ffi::GetRef<Stmt>(bind), body});
+    } else if (const auto* ite = s.as<IfNode>()) {
+      auto n = ffi::make_object<IfNode>(*ite);
+      TVM_FFI_ICHECK(tirx::IsNoOp(n->then_case));
       TVM_FFI_ICHECK(!n->else_case);
       n->then_case = body;
       body = Stmt(n);
     } else if (const auto* seq = s.as<SeqStmtNode>()) {
-      auto n = ffi::make_object<SeqStmtNode>(*seq);
-      TVM_FFI_ICHECK(n->size() != 0 && is_no_op(n->seq[n->size() - 1]));
-      n->seq.Set(n->size() - 1, body);
-      body = Stmt(n);
+      // A sequence nest is a prefix, followed by the accumulated body.
+      body = SeqStmt({s, body}, seq->loc);
     } else if (s.as<AssertStmtNode>()) {
       body = SeqStmt({s, body});
     } else {
@@ -85,7 +80,7 @@ Stmt MergeNest(const std::vector<std::vector<Stmt>>& nest, Stmt body) {
   return body;
 }
 
-PrimFunc IRConvertSSA::VisitPrimFunc(PrimFunc func) {
+Function IRConvertSSA::VisitFunction(Function func) {
   std::unordered_set<const VarNode*> parameter_symbols;
   // Define explicit parameters before the symbolic values in their types.
   for (const Var& param : func->params) {
@@ -144,12 +139,11 @@ PrimFunc IRConvertSSA::VisitPrimFunc(PrimFunc func) {
 
   // If anything changed, update the returned function
   if (!params.same_as(func->params) || !attrs.same_as(func->attrs) || !body_unchanged) {
-    func = PrimFunc(params, body, func->ret_type, attrs);
+    func = Function(params, body, func->ret_type, attrs);
   }
 
   // Pop function-scope remaps in reverse order
   PopAllRemapsInCurrentScope();
-  function_scope_var_remap_.clear();
   return func;
 }
 
@@ -197,9 +191,6 @@ Var IRConvertSSA::GetRemappedVar(Var var) {
   if (auto it = scoped_var_remap_.find(var.get());
       it != scoped_var_remap_.end() && it->second.size()) {
     return it->second.back();
-  } else if (auto it = function_scope_var_remap_.find(var.get());
-             it != function_scope_var_remap_.end()) {
-    return it->second;
   } else {
     return var;
   }
@@ -216,7 +207,7 @@ UnchangedOr<Stmt> IRConvertSSA::Mutate_(const BindNode* op, InplaceMode inplace_
   return stmt;
 }
 
-UnchangedOr<Stmt> IRConvertSSA::Mutate_(const IfThenElseNode* op, InplaceMode inplace_mode) {
+UnchangedOr<Stmt> IRConvertSSA::Mutate_(const IfNode* op, InplaceMode inplace_mode) {
   // Each branch gets its own scope so Bind remaps in one branch
   // do not leak into the other.
   auto condition_result = Mutate(op->condition, inplace_mode);
@@ -225,16 +216,16 @@ UnchangedOr<Stmt> IRConvertSSA::Mutate_(const IfThenElseNode* op, InplaceMode in
   Stmt then_case = scope_.WithNewScope([&]() -> Stmt {
     return Mutate(op->then_case, inplace_mode).ValueOrUnchanged(op->then_case);
   });
-  ffi::Optional<Stmt> else_case;
+  ffi::Optional<SeqStmt> else_case;
   if (op->else_case) {
-    else_case = scope_.WithNewScope([&]() -> Stmt {
+    else_case = scope_.WithNewScope([&]() -> SeqStmt {
       return Mutate(op->else_case.value(), inplace_mode).ValueOrUnchanged(op->else_case.value());
     });
   }
   if (condition_unchanged && then_case.same_as(op->then_case) && else_case.same_as(op->else_case)) {
     return ffi::Unchanged();
   }
-  return IfThenElse(condition, then_case, else_case);
+  return If(condition, then_case, else_case);
 }
 
 UnchangedOr<Stmt> IRConvertSSA::Mutate_(const ForNode* op, InplaceMode inplace_mode) {
@@ -263,96 +254,26 @@ UnchangedOr<Stmt> IRConvertSSA::Mutate_(const WhileNode* op, InplaceMode inplace
   });
 }
 
-UnchangedOr<Stmt> IRConvertSSA::Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) {
-  if (const IterVarNode* iter_var = op->node.as<IterVarNode>()) {
-    Range dom = iter_var->dom;
-    if (dom.defined()) {
-      // Retain the original domain while comparing and rebuilding its replacement.
-      auto min = Mutate(dom->min, InplaceMode::kDisallow).ValueOrUnchanged(dom->min);
-      auto extent = Mutate(dom->extent, InplaceMode::kDisallow).ValueOrUnchanged(dom->extent);
-      if (!min.same_as(iter_var->dom->min) || !extent.same_as(iter_var->dom->extent)) {
-        dom = Range::FromMinExtent(min, extent);
-      }
-    }
-
-    Var var = iter_var->var;
-    bool delayed_define = false;
-    if (auto it = function_scope_var_remap_.find(var.get());
-        it != function_scope_var_remap_.end()) {
-      var = it->second;
-    } else if (defined_.count(var.get())) {
-      Var new_var(var->name, var->ty);
-
-      function_scope_var_remap_.insert({var.get(), new_var});
-      var = new_var;
-    } else {
-      // The AttrStmt refers to an undefined variable.  This is
-      // allowed for some attributes, such as
-      // "pragma_parallel_launch_point", which annotates a variable
-      // that is about to occur in a ForNode.  In these cases, the
-      // ForNode and the AttrStmt must continue using the same
-      // variable defintion.
-      //
-      // However, other AttrStmt, such as "thread_extent", act as
-      // points of definition for the variable they annotate.  If
-      // the variable has not been defined after visiting the body,
-      // we should mark it as defined before exiting.  This ensures
-      // correct de-duplication between multiple functions.
-      //
-      // This implementation may be simplified in the future by
-      // moving "pragma_parallel_launch_point" to be an annotation
-      // on the `ForNode`, rather than an `AttrStmt`.
-      delayed_define = true;
-    }
-
-    IterVar new_iter_var;
-    if (dom.same_as(iter_var->dom) && var.same_as(iter_var->var)) {
-      new_iter_var = ffi::GetRef<IterVar>(iter_var);
-    } else {
-      new_iter_var = IterVar(dom, var.as_or_throw<PrimVar>(), iter_var->iter_type,
-                             iter_var->thread_tag, iter_var->span);
-    }
-    auto value_result = Mutate(op->value, inplace_mode);
-    bool value_unchanged = value_result.UnchangedOrSameAs(op->value);
-    auto value = std::move(value_result).ValueOrUnchanged(op->value);
-    auto body = scope_.WithNewScope(
-        [&]() -> Stmt { return Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body); });
-
-    Stmt output;
-    if (new_iter_var.get() == iter_var && body.same_as(op->body) && value_unchanged) {
-      output = ffi::GetRef<Stmt>(op);
-    } else {
-      output = AttrStmt(new_iter_var, op->attr_key, value, body, iter_var->span);
-    }
-
-    if (delayed_define) {
-      if (!defined_.count(var.get())) {
-        function_scope_var_remap_.insert({var.get(), var});
-        defined_.insert(var.get());
-      }
-    }
-
-    return output;
-
-  } else if (const VarNode* v = op->node.as<VarNode>()) {
-    Stmt stmt = scope_.WithNewScope([&]() -> Stmt {
-      return StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
-    });
-    op = stmt.as<AttrStmtNode>();
-    if (scoped_var_remap_.count(v) && scoped_var_remap_[v].size() != 0) {
-      return AttrStmt(scoped_var_remap_[v].back(), op->attr_key, op->value, op->body);
-    } else {
-      return stmt;
-    }
-  } else {
-    return scope_.WithNewScope([&]() -> Stmt {
-      return StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
-    });
-  }
+UnchangedOr<Stmt> IRConvertSSA::Mutate_(const RegionStmtNode* op, InplaceMode inplace_mode) {
+  auto attrs = Mutate(op->attrs, InplaceMode::kDisallow)
+                   .as_or_throw<UnchangedOr<DictAttrs>>()
+                   .ValueOrUnchanged(op->attrs);
+  auto args = Mutate(op->args, InplaceMode::kDisallow)
+                  .as_or_throw<UnchangedOr<ffi::Array<Expr>>>()
+                  .ValueOrUnchanged(op->args);
+  ffi::Array<Var> params;
+  Stmt body = scope_.WithNewScope([&]() -> Stmt {
+    for (const Var& var : op->body_params) params.push_back(DefineVar(var));
+    return Mutate(op->body, InplaceMode::kDisallow).ValueOrUnchanged(op->body);
+  });
+  ffi::Array<Var> results;
+  for (const Var& var : op->result_vars) results.push_back(DefineVar(var));
+  return RegionStmt(op->op, std::move(args), std::move(params), std::move(attrs), std::move(body),
+                    std::move(results), op->loc);
 }
 
 Var IRConvertSSA::MakeNewVar(const Var& old_var) {
-  return Var(old_var->name, old_var->ty, old_var->span);
+  return Var(old_var->name, old_var->ty, old_var->loc);
 }
 
 void IRConvertSSA::PushVarRemap(const Var& old_var, const Var& new_var) {
@@ -376,7 +297,7 @@ Stmt ConvertSSA(Stmt stmt) {
 }
 
 ffi::String GetPtrStorageScope(Var buffer_var) {
-  if (const auto* buffer_type = buffer_var->ty.as<BufferTypeNode>()) {
+  if (const auto* buffer_type = buffer_var->ty.as<TensorTypeNode>()) {
     return buffer_type->storage_scope;
   }
   const auto* ptr_type = buffer_var->ty.as<PointerTypeNode>();
@@ -385,7 +306,7 @@ ffi::String GetPtrStorageScope(Var buffer_var) {
   return ptr_type->storage_scope;
 }
 
-ffi::Array<PrimExpr> GetBufferAllocationShape(const BufferVar& buffer) {
+ffi::Array<PrimExpr> GetBufferAllocationShape(const TensorVar& buffer) {
   ffi::Array<PrimExpr> alloc_shape = buffer->shape;
   if (buffer->strides.size()) {
     TVM_FFI_ICHECK_EQ(buffer->shape.size(), buffer->strides.size());
@@ -396,14 +317,6 @@ ffi::Array<PrimExpr> GetBufferAllocationShape(const BufferVar& buffer) {
     }
   }
   return alloc_shape;
-}
-
-// Attribute strings are the metadata protocol shared by lowered and schedulable statements.
-std::pair<PrimExpr, PrimExpr> GetAsyncWaitAttributes(const AttrStmtNode* op) {
-  TVM_FFI_ICHECK(op && op->attr_key == tvm::tirx::attr::async_wait_queue_scope);
-  auto inner = op->body.as<AttrStmtNode>();
-  TVM_FFI_ICHECK(inner && inner->attr_key == tvm::tirx::attr::async_wait_inflight_count);
-  return std::make_pair(op->value.as_or_throw<PrimExpr>(), inner->value.as_or_throw<PrimExpr>());
 }
 
 int Stoi(const std::string& str) {
@@ -436,7 +349,7 @@ std::pair<int32_t, int32_t> GetWmmaFragmentDimSize(const std::string& shape_str,
   return std::pair<int32_t, int32_t>(0, 0);
 }
 
-std::optional<bool> IsHostFunc(const PrimFunc& func) {
+std::optional<bool> IsHostFunc(const Function& func) {
   if (func->HasNonzeroAttr(tvm::tirx::attr::kIsHostFunc)) {
     return true;
   } else if (auto target = func->GetAttr<Target>(tvm::attr::kTarget)) {
@@ -450,8 +363,8 @@ IRModule IRConvertSSA::VisitIRModule(IRModule mod) {
   ffi::Map<GlobalVar, BaseFunc> functions;
   bool made_change = false;
   for (auto [gvar, base_func] : mod->functions) {
-    if (auto* ptr = base_func.as<tirx::PrimFuncNode>()) {
-      auto updated = VisitPrimFunc(ffi::GetRef<tirx::PrimFunc>(ptr));
+    if (auto* ptr = base_func.as<tirx::FunctionNode>()) {
+      auto updated = VisitFunction(ffi::GetRef<tirx::Function>(ptr));
       if (!updated.same_as(base_func)) {
         made_change = true;
         base_func = updated;
@@ -470,7 +383,7 @@ Pass ConvertSSA() {
   auto pass_func = [](IRModule mod, PassContext ctx) {
     return ffi::make_object<tirx::IRConvertSSA>()->VisitIRModule(std::move(mod));
   };
-  return tvm::transform::CreateModulePass(pass_func, 0, "tirx.ConvertSSA", {});
+  return tvm::transform::CreateModulePass(pass_func, 0, "tirx.ConvertSSA");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

@@ -454,9 +454,8 @@ class CLMLRuntime : public JSONRuntimeBase {
     if (cws->is_recordable_queue) {
       LOG_CLML << "Execution by Rec Queue";
       if (cws->workspace->IsProfiling(cws->tentry->device)) {
-        Timer t;
         auto f = tvm::ffi::Function::GetGlobal(std::string("runtime.timer.opencl"));
-        t = f->operator()(cws->tentry->device).cast<Timer>();
+        Timer t = f->operator()(cws->tentry->device).cast<Timer>();
         t->Start();
         queue = CLML_QUEUE;
         evts.resize(evts.size() + 1);
@@ -482,9 +481,8 @@ class CLMLRuntime : public JSONRuntimeBase {
         }
 #endif
         if (cws->workspace->IsProfiling(cws->tentry->device)) {
-          Timer t;
           auto f = tvm::ffi::Function::GetGlobal(std::string("runtime.timer.opencl"));
-          t = f->operator()(cws->tentry->device).cast<Timer>();
+          Timer t = f->operator()(cws->tentry->device).cast<Timer>();
           t->Start();
           queue = CLML_QUEUE;
           evts.resize(evts.size() + 1);

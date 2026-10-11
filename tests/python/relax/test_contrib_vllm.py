@@ -21,6 +21,7 @@ import tvm_ffi
 import tvm
 import tvm.testing
 from tvm import relax
+from tvm.relax import ExternFunc as _ExternFunc
 from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import tirx as T
@@ -89,7 +90,7 @@ def test_attention():
             with R.dataflow():
                 max_len = R.to_vdevice(R.max(context_lens), "llvm:0")
                 out = R.call_dps_packed(
-                    "tvm.contrib.vllm.single_query_cached_kv_attention_v1",
+                    _ExternFunc("tvm.contrib.vllm.single_query_cached_kv_attention_v1"),
                     [
                         query,
                         key_cache,
@@ -99,7 +100,7 @@ def test_attention():
                         16,
                         max_len,
                     ],
-                    out_ty=query.ty,
+                    ty_args=[query.ty],
                 )
                 R.output(out)
             return out
@@ -134,7 +135,7 @@ def test_attention():
                 tmp_out = R.zeros((num_seqs, 1, 1, 64), "float16")
 
                 out = R.call_dps_packed(
-                    "tvm.contrib.vllm.single_query_cached_kv_attention_v2",
+                    _ExternFunc("tvm.contrib.vllm.single_query_cached_kv_attention_v2"),
                     [
                         query,
                         key_cache,
@@ -147,7 +148,7 @@ def test_attention():
                         max_logits,
                         tmp_out,
                     ],
-                    out_ty=query.ty,
+                    ty_args=[query.ty],
                 )
                 R.output(out)
             return out

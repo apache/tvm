@@ -53,7 +53,8 @@ def _write_event(event_bits: str) -> str:
 
 
 device_intrinsic(
-    "timer_init_cuda",
+    "cuda.timer_init",
+    helper_name="tvm_builtin_timer_init_cuda",
     c_signature=(
         "(uint64_t* profiler_buffer, uint64_t* profiler_tag, "
         "uint32_t* profiler_write_offset, int num_groups, int group_id)"
@@ -75,7 +76,8 @@ device_intrinsic(
 )
 
 device_intrinsic(
-    "timer_start_cuda",
+    "cuda.timer_start",
+    helper_name="tvm_builtin_timer_start_cuda",
     c_signature=f"({_EVENT_PARAMS})",
     body=(
         f"    if (leader_cond) {{\n        {_write_event('(uint32_t)event_type << 2 | 0x0')}\n    }}\n"
@@ -85,7 +87,8 @@ device_intrinsic(
 )
 
 device_intrinsic(
-    "timer_end_cuda",
+    "cuda.timer_end",
+    helper_name="tvm_builtin_timer_end_cuda",
     c_signature=f"({_EVENT_PARAMS})",
     body=(
         "    __threadfence_block();\n"
@@ -95,7 +98,8 @@ device_intrinsic(
 )
 
 device_intrinsic(
-    "timer_finalize_cuda",
+    "cuda.timer_finalize",
+    helper_name="tvm_builtin_timer_finalize_cuda",
     c_signature=f"({_COMMON_PARAMS})",
     body=(
         f"    __threadfence_block();\n    if (leader_cond) {{\n        {_write_event('0x3')}\n    }}"
@@ -117,8 +121,8 @@ def codegen_cuda_iket_official_event(event_id, source_code, payload=None):
     return cuda_func_call(
         "tvm_builtin_iket_official_event",
         *args,
-        source_code=source_code,
-        return_type="uint32",
+        source_code,
+        ty="uint32",
     )
 
 
@@ -171,7 +175,7 @@ __noinline__ __device__ void {func_name}({params}) {{
     printf({fmt_literal}{comma_call_args});
 }}
 """
-    return cuda_func_call(func_name, *args, source_code=source_code)
+    return cuda_func_call(func_name, *args, source_code)
 
 
 device_intrinsic(

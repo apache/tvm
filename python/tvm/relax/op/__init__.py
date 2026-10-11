@@ -18,11 +18,16 @@
 # pylint: disable= redefined-builtin
 """Relax core operators."""
 
-# Register operator gradient functions
-from . import _op_gradient, builtin, ccl, distributed, grad, image, memory, nn, op_attrs
+# Operator families register their attrs before exposure.
+from . import builtin, ccl, distributed, grad, image, memory, nn
 
 # Operators
 from .base import (
+    CallTIRWithGradAttrs,
+    CallInplacePackedAttrs,
+    CallTIRInplaceAttrs,
+    ToVDeviceAttrs,
+    HintOnDeviceAttrs,
     assert_op,
     call_builtin_with_ctx,
     call_dps_packed,
@@ -31,6 +36,7 @@ from .base import (
     call_py_func,
     call_tir,
     call_tir_inplace,
+    call_tir_packed,
     call_tir_with_grad,
     hint_on_device,
     invoke_closure,
@@ -74,6 +80,8 @@ from .binary import (
     subtract,
 )
 from .create import (
+    InitAttrs,
+    TriluAttrs,
     arange,
     full,
     full_like,
@@ -87,10 +95,47 @@ from .create import (
     zeros,
     zeros_like,
 )
-from .datatype import astype, wrap_param
-from .index import dynamic_strided_slice, strided_slice, take
-from .linear_algebra import einsum, linear, matmul, outer
+from .datatype import (
+    AstypeAttrs,
+    WrapParamAttrs,
+    astype,
+    wrap_param,
+)
+from .index import (
+    TakeAttrs,
+    StridedSliceAttrs,
+    dynamic_strided_slice,
+    strided_slice,
+    take,
+)
+from .linear_algebra import (
+    MatmulAttrs,
+    EinsumAttrs,
+    einsum,
+    linear,
+    matmul,
+    outer,
+)
 from .manipulate import (
+    ConcatAttrs,
+    ExpandDimsAttrs,
+    PermuteDimsAttrs,
+    SplitAttrs,
+    SqueezeAttrs,
+    StackAttrs,
+    IndexPutAttrs,
+    LayoutTransformAttrs,
+    RepeatAttrs,
+    TileAttrs,
+    FlipAttrs,
+    ReverseSequenceAttrs,
+    GatherElementsAttrs,
+    GatherNDAttrs,
+    MeshgridAttrs,
+    ScatterElementsAttrs,
+    ScatterNDAttrs,
+    SliceScatterAttrs,
+    OneHotAttrs,
     broadcast_to,
     collapse_sum_like,
     collapse_sum_to,
@@ -118,12 +163,45 @@ from .manipulate import (
     tile,
 )
 from .mask import masked_fill
-from .qdq import dequantize, quantize
-from .sampling import multinomial_from_uniform
-from .search import argmax, argmin, where, bucketize
+from .qdq import (
+    QuantizeAttrs,
+    dequantize,
+    quantize,
+)
+from .sampling import (
+    MultinomialFromUniformAttrs,
+    multinomial_from_uniform,
+)
+from .search import (
+    ArgmaxArgminAttrs,
+    argmax,
+    argmin,
+    where,
+    bucketize,
+)
 from .set import nonzero, unique
-from .sorting import argsort, sort, topk
-from .statistical import cumprod, cumsum, max, mean, min, prod, std, sum, variance, median
+from .sorting import (
+    SortAttrs,
+    ArgsortAttrs,
+    TopKAttrs,
+    argsort,
+    sort,
+    topk,
+)
+from .statistical import (
+    StatisticalAttrs,
+    ScanopAttrs,
+    cumprod,
+    cumsum,
+    max,
+    mean,
+    min,
+    prod,
+    std,
+    sum,
+    variance,
+    median,
+)
 from .ternary import ewise_fma
 from .unary import (
     abs,
@@ -169,6 +247,10 @@ from .vision import (
 )
 
 
+# Register gradients after the operator families and their attrs are available.
+from . import _op_gradient
+
+
 def _register_op_make():
     # pylint: disable=import-outside-toplevel
     from .. import expr
@@ -193,14 +275,13 @@ def _register_op_make():
         return op(lhs)
 
     def _call(func, *args, attrs=None):
-        if not (
-            isinstance(func.ty, expr.tvm.ir.FuncType | expr.tvm.relax.FuncType)
-            or func.ty.is_missing()
+        if not isinstance(
+            func.ty, expr.tvm.ir.FuncType | expr.tvm.relax.FuncType | expr.tvm.ir.MissingType
         ):
             return NotImplemented
         return expr.tvm.ir.Call(func, args, attrs=attrs)
 
-    _tensor_expr_overload.astype = lambda lhs, dtype, _span=None: (
+    _tensor_expr_overload.astype = lambda lhs, dtype, _loc=None: (
         _ffi_api.astype(lhs, dtype) if expr._is_tensor_or_missing_type(lhs.ty) else NotImplemented
     )
     _tensor_expr_overload.__call__ = _call

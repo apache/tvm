@@ -25,10 +25,11 @@
 #define TVM_TIRX_IR_TIR_VISITOR_WITH_PATH_H_
 
 #include <tvm/ffi/extra/structural_visit.h>
+#include <tvm/ir/expr_functor.h>
 #include <tvm/ir/module.h>
 #include <tvm/ir/scope_stack.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/tirx/expr_functor.h>
+#include <tvm/tirx/stmt.h>
 #include <tvm/tirx/stmt_functor.h>
 
 #include <exception>
@@ -70,6 +71,10 @@ class TIRVisitorWithPath : protected ExprFunctor<void(const Expr&, ffi::reflecti
       Dispatch_(str, path);
     } else if (auto* str = obj.as<DataTypeImmNode>()) {
       Dispatch_(str, path);
+    } else if (obj.as<OpNode>()) {
+      // Registered operations are atomic expression inputs.
+    } else if (auto global_var = obj.as<GlobalVar>()) {
+      Visit(global_var.value(), path);
     } else if (auto* var = obj.as<VarNode>()) {
       Dispatch_(var, path);
     } else if (auto* call = obj.as<CallNode>()) {
@@ -80,6 +85,8 @@ class TIRVisitorWithPath : protected ExprFunctor<void(const Expr&, ffi::reflecti
       Dispatch_(tuple_get_item, path);
     } else if (auto* buffer_region = obj.as<TensorRegionNode>()) {
       Dispatch_(buffer_region, path);
+    } else if (auto* lambda = obj.as<LambdaExprNode>()) {
+      VisitLambda(lambda, path);
     } else if (obj.as<OpaqueExprNode>()) {
       Dispatch(obj, path);
     } else {
@@ -91,36 +98,30 @@ class TIRVisitorWithPath : protected ExprFunctor<void(const Expr&, ffi::reflecti
     Dispatch(obj, path);
   }
 
-  // Visit a buffer at a use site (BufferLoad, BufferStore, reads/writes).
+  // Visit a buffer at a use site (TensorLoad, TensorStore, reads/writes).
   // By default, does not re-visit buffer fields (shape, strides, elem_offset),
   // as those are visited at the definition site via EnterDef.
-  virtual void VisitBufferUse(const BufferVar& obj, ffi::reflection::AccessPath path);
+  virtual void VisitBufferUse(const TensorVar& obj, ffi::reflection::AccessPath path);
 
   // Visit type metadata through its reflected fields, preserving source access paths.
   virtual void Visit(const Type& obj, ffi::reflection::AccessPath path);
   virtual void Visit(ffi::AnyView obj, ffi::reflection::AccessPath path);
+  void VisitLambda(const LambdaExprNode* op, ffi::reflection::AccessPath path);
 
   // Visitors for TIR constructs that are neither PrimExpr nor Stmt
   virtual void Visit(const IRModule& obj, ffi::reflection::AccessPath path);
-  virtual void Visit(const PrimFunc& obj, ffi::reflection::AccessPath path);
+  virtual void Visit(const Function& obj, ffi::reflection::AccessPath path);
   virtual void Visit(const GlobalVar& obj, ffi::reflection::AccessPath path) {}
   virtual void Visit(const Range& obj, ffi::reflection::AccessPath path);
   virtual void Visit(const TensorRegion& obj, ffi::reflection::AccessPath path);
-  virtual void Visit(const IterVar& obj, ffi::reflection::AccessPath path);
 
   // Called when entering/exiting the scope of a GlobalVar definition.
   virtual void EnterDef(const GlobalVar& var, ffi::reflection::AccessPath path) {}
   virtual void ExitDef(const GlobalVar& var, ffi::reflection::AccessPath path) {}
 
-  // Called when entering/exiting the scope of a tirx::Var definition.
+  // Called when entering/exiting the scope of a tvm::Var definition.
   virtual void EnterDef(const Var& var, ffi::reflection::AccessPath path) {}
   virtual void ExitDef(const Var& var, ffi::reflection::AccessPath path) {}
-
-  // Called when entering/exiting the scope of an IterVar definition.
-  // By default, visits the `Range IterVarNode::dom`, then enters the
-  // scope of the internal `tirx::Var`.
-  virtual void EnterDef(const IterVar& var, ffi::reflection::AccessPath path);
-  virtual void ExitDef(const IterVar& var, ffi::reflection::AccessPath path);
 
   // Utility to visit an array of nodes
   template <typename T>
@@ -140,19 +141,17 @@ class TIRVisitorWithPath : protected ExprFunctor<void(const Expr&, ffi::reflecti
 
   using StmtFunctor::Dispatch;
   void Dispatch_(const BindNode* op, ffi::reflection::AccessPath path) override;
-  void Dispatch_(const AttrStmtNode* op, ffi::reflection::AccessPath path) override;
-  void Dispatch_(const IfThenElseNode* op, ffi::reflection::AccessPath path) override;
+  void Dispatch_(const RegionStmtNode* op, ffi::reflection::AccessPath path) override;
+  void Dispatch_(const IfNode* op, ffi::reflection::AccessPath path) override;
   void Dispatch_(const ForNode* op, ffi::reflection::AccessPath path) override;
   void Dispatch_(const WhileNode* op, ffi::reflection::AccessPath path) override;
   void Dispatch_(const ReturnNode* op, ffi::reflection::AccessPath path) override;
   void Dispatch_(const BreakNode* op, ffi::reflection::AccessPath path) override;
   void Dispatch_(const ContinueNode* op, ffi::reflection::AccessPath path) override;
-  void Dispatch_(const BufferStoreNode* op, ffi::reflection::AccessPath path) override;
+  void Dispatch_(const TensorStoreNode* op, ffi::reflection::AccessPath path) override;
   void Dispatch_(const AssertStmtNode* op, ffi::reflection::AccessPath path) override;
   void Dispatch_(const SeqStmtNode* op, ffi::reflection::AccessPath path) override;
   void Dispatch_(const EvaluateNode* op, ffi::reflection::AccessPath path) override;
-  void Dispatch_(const tirx::TilePrimitiveCallNode* op, ffi::reflection::AccessPath path) override;
-  void Dispatch_(const ScopeIdDefStmtNode* op, ffi::reflection::AccessPath path) override;
 
   using ExprFunctor::Dispatch;
   void Dispatch_(const VarNode* op, ffi::reflection::AccessPath path) override;
@@ -203,7 +202,7 @@ class TIRVisitorWithPath : protected ExprFunctor<void(const Expr&, ffi::reflecti
   template <typename T>
   class DefContext {
    public:
-    DefContext(DefContext&& other) { swap(std::move(other)); }
+    DefContext(DefContext&& other) : obj_(other.obj_) { swap(std::move(other)); }
     DefContext& operator=(DefContext&& other) {
       swap(std::move(other));
       return *this;
@@ -228,9 +227,9 @@ class TIRVisitorWithPath : protected ExprFunctor<void(const Expr&, ffi::reflecti
    private:
     friend class TIRVisitorWithPath;
 
-    DefContext(TIRVisitorWithPath* self, T obj, ffi::reflection::AccessPath path)
+    DefContext(TIRVisitorWithPath* self, T obj, ffi::reflection::AccessPath path, bool visit_type)
         : self_(self), obj_(obj), path_(path), uncaught_exceptions_(std::uncaught_exceptions()) {
-      if (auto var = obj_.template as<Var>()) {
+      if (auto var = obj_.template as<Var>(); var && visit_type) {
         self_->Visit(var.value()->ty, path_->Attr("ty"));
       }
       self_->in_scope_definitions_.insert(obj_);
@@ -252,8 +251,8 @@ class TIRVisitorWithPath : protected ExprFunctor<void(const Expr&, ffi::reflecti
 
   // Utility to track the scope of a node's definition.
   template <typename T>
-  DefContext<T> WithDef(T obj, ffi::reflection::AccessPath path) {
-    return DefContext(this, obj, path);
+  DefContext<T> WithDef(T obj, ffi::reflection::AccessPath path, bool visit_type = true) {
+    return DefContext(this, obj, path, visit_type);
   }
 
   /* \brief Utility to track the scope of a node's definition. */
@@ -266,7 +265,7 @@ class TIRVisitorWithPath : protected ExprFunctor<void(const Expr&, ffi::reflecti
     }
   }
 
-  std::vector<DefContext<Var>> WithMatchBufferDefs(BufferVar buf,
+  std::vector<DefContext<Var>> WithMatchBufferDefs(TensorVar buf,
                                                    ffi::reflection::AccessPath path) {
     std::vector<DefContext<Var>> context;
 
@@ -309,7 +308,7 @@ class TIRVisitorWithPath : protected ExprFunctor<void(const Expr&, ffi::reflecti
 
   /*! \brief Scope stack for Bind variable definitions.
    *
-   * Body-carrying statements (For, IfThenElse, etc.) push a new scope.
+   * Body-carrying statements (For, If, etc.) push a new scope.
    * BindNode pushes its WithDef into the current scope.  When the
    * scope exits, all Bind defs are cleaned up automatically.
    */

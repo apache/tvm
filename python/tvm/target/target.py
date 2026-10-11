@@ -20,7 +20,7 @@ import tvm_ffi
 from tvm_ffi import Map
 from tvm_ffi.core import String
 
-from tvm.runtime import Device, Object, convert
+from tvm.runtime import Device, Object, convert, device
 
 from . import _ffi_api
 
@@ -227,3 +227,24 @@ class Target(Object):
         if target is None:
             raise ValueError("Target is not set in env or passed as argument.")
         return target
+
+
+def device_from_target(target, index=None):
+    """Construct a runtime device from a compilation target.
+
+    Parameters
+    ----------
+    target : str or dict or tvm.target.Target
+        The compilation target whose device type should be used.
+
+    index : int, optional
+        The integer device index.
+
+    Returns
+    -------
+    dev : Device
+        The created device.
+    """
+    if not isinstance(target, Target):
+        target = Target(target)
+    return device(target.get_target_device_type(), index)

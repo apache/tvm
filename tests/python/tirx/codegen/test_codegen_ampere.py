@@ -38,7 +38,7 @@ from tvm.script import tirx as T
 from tvm.testing import env
 
 
-def _get_source(func: tvm.tirx.PrimFunc):
+def _get_source(func: tvm.tirx.Function):
     target = tvm.target.Target("cuda")
     mod = tvm.IRModule({"main": func})
     mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
@@ -88,16 +88,16 @@ def test_ptx_mma_m16n8k16(a_type, no_c_ptr):
     _elem = "f16" if a_type == "float16" else "bf16"
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def main(
-        D: T.Buffer((16, 8), "float32"),
-        A: T.Buffer((16, 16), a_type),
-        B: T.Buffer((16, 8), b_type),
-        C: T.Buffer((16, 8), "float32"),
+        D: T.Tensor((16, 8), "float32"),
+        A: T.Tensor((16, 16), a_type),
+        B: T.Tensor((16, 8), b_type),
+        C: T.Tensor((16, 8), "float32"),
     ):
-        T.device_entry()
-        cta_id = T.cta_id([1])
-        tx = T.thread_id([32])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(32,)))
+        cta_id = T.cuda.block_idx('x')
+        tx = T.cuda.thread_idx('x')
         D_local = T.alloc_local([4], "float32")
         A_local = T.alloc_local([8], a_type)
         B_local = T.alloc_local([4], b_type)
@@ -105,13 +105,13 @@ def test_ptx_mma_m16n8k16(a_type, no_c_ptr):
 
         @T.inline
         def G2L(buf_local, buf_global, block_8x8, mode="row"):
-            if mode == "row":
+            if T.constexpr(mode == "row"):
                 for i in range(block_8x8):
                     row = T.meta_var(i % 2 * 8 + tx // 4)
                     col = T.meta_var(i // 2 * 8 + (tx % 4) * 2)
                     for j in range(2):
                         buf_local[i * 2 + j] = buf_global[row, col + j]
-            elif mode == "col":
+            elif T.constexpr(mode == "col"):
                 for i in range(block_8x8):
                     row = T.meta_var(i % 2 * 8 + (tx % 4) * 2)
                     col = T.meta_var(i // 2 * 8 + tx // 4)
@@ -129,7 +129,7 @@ def test_ptx_mma_m16n8k16(a_type, no_c_ptr):
         B_words = B_local.view("uint32")
         # ptx takes the accumulator as an operand; the legacy "omit c" form
         # fed literal zeros, which is now spelled at the call site.
-        if no_c_ptr:
+        if T.constexpr(no_c_ptr):
             for i in range(4):
                 C_local[i] = T.float32(0)
         T.ptx[f"mma.sync.aligned.m16n8k16.row.col.f32.{_elem}.{_elem}.f32"](
@@ -165,16 +165,16 @@ def test_ptx_mma_m16n8k8(a_type, no_c_ptr):
     _elem = "f16" if a_type == "float16" else "bf16"
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def main(
-        D: T.Buffer((16, 8), "float32"),
-        A: T.Buffer((16, 8), a_type),
-        B: T.Buffer((8, 8), b_type),
-        C: T.Buffer((16, 8), "float32"),
+        D: T.Tensor((16, 8), "float32"),
+        A: T.Tensor((16, 8), a_type),
+        B: T.Tensor((8, 8), b_type),
+        C: T.Tensor((16, 8), "float32"),
     ):
-        T.device_entry()
-        cta_id = T.cta_id([1])
-        tx = T.thread_id([32])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(32,)))
+        cta_id = T.cuda.block_idx('x')
+        tx = T.cuda.thread_idx('x')
         D_local = T.alloc_local([4], "float32")
         A_local = T.alloc_local([4], a_type)
         B_local = T.alloc_local([2], b_type)
@@ -182,13 +182,13 @@ def test_ptx_mma_m16n8k8(a_type, no_c_ptr):
 
         @T.inline
         def G2L(buf_local, buf_global, block_8x8, mode="row"):
-            if mode == "row":
+            if T.constexpr(mode == "row"):
                 for i in range(block_8x8):
                     row = T.meta_var(i % 2 * 8 + tx // 4)
                     col = T.meta_var(i // 2 * 8 + (tx % 4) * 2)
                     for j in range(2):
                         buf_local[i * 2 + j] = buf_global[row, col + j]
-            elif mode == "col":
+            elif T.constexpr(mode == "col"):
                 for i in range(block_8x8):
                     row = T.meta_var(i % 2 * 8 + (tx % 4) * 2)
                     col = T.meta_var(i // 2 * 8 + tx // 4)
@@ -205,7 +205,7 @@ def test_ptx_mma_m16n8k8(a_type, no_c_ptr):
         B_words = B_local.view("uint32")
         # ptx takes the accumulator as an operand; the legacy "omit c" form
         # fed literal zeros, which is now spelled at the call site.
-        if no_c_ptr:
+        if T.constexpr(no_c_ptr):
             for i in range(4):
                 C_local[i] = T.float32(0)
         T.ptx[f"mma.sync.aligned.m16n8k8.row.col.f32.{_elem}.{_elem}.f32"](

@@ -25,10 +25,9 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/op.h>
-#include <tvm/s_tir/stmt.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/sym/analyzer.h>
 #include <tvm/tirx/analysis.h>
-#include <tvm/tirx/op.h>
 #include <tvm/tirx/stmt.h>
 #include <tvm/tirx/stmt_functor.h>
 #include <tvm/tirx/transform.h>
@@ -36,7 +35,6 @@
 #include <unordered_map>
 
 #include "../../sym/const_fold.h"
-#include "../analysis/var_use_def_analysis.h"
 #include "../ir/ir_mutator_with_analyzer.h"
 #include "ir_utils.h"
 
@@ -71,7 +69,9 @@ class RemoveNoOpConfig : public ffi::ObjectRef {
 
 TVM_FFI_STATIC_INIT_BLOCK() { RemoveNoOpConfigNode::RegisterReflection(); }
 
-TVM_REGISTER_PASS_CONFIG_OPTION("tirx.RemoveNoOp", RemoveNoOpConfig);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  ::tvm::transform::PassContext::RegisterConfigOption<RemoveNoOpConfig>("tirx.RemoveNoOp");
+}
 
 // Mark the statement of each stage.
 class NoOpRemover : public IRMutatorWithAnalyzer {
@@ -91,50 +91,28 @@ class NoOpRemover : public IRMutatorWithAnalyzer {
       : Parent(analyzer), ignore_profiler_call_(ignore_profiler_call) {}
 
  private:
-  UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final {
-    if (op->attr_key == tvm::tirx::attr::async_wait_queue_scope) {
-      auto wait_attrs = GetAsyncWaitAttributes(op);
-      auto wait_cnt = wait_attrs.second;
-      sym::Analyzer ana;
-      if (ana->CanProve(wait_cnt < 0)) {
-        // A negative wait count can arise if it depends on a loop variable.
-        // For example, a wait count 1 - i can be negative after loop unrolling.
-        // We assume that such wait is a nop.
-        auto inner = op->body.as<AttrStmtNode>();
-        TVM_FFI_ICHECK(inner);
-        return Parent::Mutate(ffi::AnyView(inner->body),
-                              inner->unique() ? inplace_mode : InplaceMode::kDisallow)
-            .ValueOrUnchanged(inner->body)
-            .as_or_throw<Stmt>();
-      }
-    }
-
+  UnchangedOr<Stmt> Mutate_(const IfNode* op, InplaceMode inplace_mode) final {
     Stmt stmt = Parent::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
-    op = stmt.as<AttrStmtNode>();
-    return is_no_op(op->body) ? MakeEvaluate(op->value) : stmt;
-  }
-  UnchangedOr<Stmt> Mutate_(const IfThenElseNode* op, InplaceMode inplace_mode) final {
-    Stmt stmt = Parent::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
-    op = stmt.as<IfThenElseNode>();
+    op = stmt.as<IfNode>();
     // Sometimes the condition can be statically determined,
-    // in which the type of the `stmt` will not be IfThenElseNode.
+    // in which the type of the `stmt` will not be IfNode.
     if (!op) {
       return stmt;
     }
     if (op->else_case) {
-      bool no_op_else = is_no_op(op->else_case.value());
-      bool no_op_then = is_no_op(op->then_case);
+      bool no_op_else = tirx::IsNoOp(op->else_case.value());
+      bool no_op_then = tirx::IsNoOp(op->then_case);
       if (no_op_else && no_op_then) {
         return MakeEvaluate(op->condition);
       } else if (no_op_else) {
-        return IfThenElse(op->condition, op->then_case);
+        return If(op->condition, op->then_case);
       } else if (no_op_then) {
-        return IfThenElse(!op->condition, op->else_case.value());
+        return If(!op->condition, op->else_case.value());
       } else {
         return stmt;
       }
     } else {
-      if (is_no_op(op->then_case)) {
+      if (tirx::IsNoOp(op->then_case)) {
         return MakeEvaluate(op->condition);
       } else {
         return stmt;
@@ -147,14 +125,15 @@ class NoOpRemover : public IRMutatorWithAnalyzer {
         analyzer_->CanProve(extent_range.max() <= 0)) {
       return Evaluate(0);
     }
-    var_range_map_[op->loop_var.get()] = sym::IntSet::FromMinExtent(op->min, op->extent);
+    var_range_map_.insert_or_assign(op->loop_var.get(),
+                                    sym::IntSet::FromMinExtent(op->min, op->extent));
     Stmt stmt = Parent::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     var_range_map_.erase(op->loop_var.get());
     op = stmt.as<ForNode>();
-    if (is_zero(op->extent)) {
+    if (IsZero(op->extent)) {
       return Evaluate(0);
     }
-    return is_no_op(op->body) ? MakeEvaluate({op->min, op->extent}) : stmt;
+    return tirx::IsNoOp(op->body) ? MakeEvaluate({op->min, op->extent}) : stmt;
   }
 
   UnchangedOr<Stmt> Mutate_(const EvaluateNode* op, InplaceMode inplace_mode) final {
@@ -173,11 +152,11 @@ class NoOpRemover : public IRMutatorWithAnalyzer {
     return value.as<CallNode>() != nullptr;
   }
 
-  UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) final {
-    BufferStore store = ffi::GetRef<BufferStore>(op);
+  UnchangedOr<Stmt> Mutate_(const TensorStoreNode* op, InplaceMode inplace_mode) final {
+    TensorStore store = ffi::GetRef<TensorStore>(op);
 
     // Helper function that returns a statement containing only the
-    // side effects of evaluating this BufferStore, but not the store
+    // side effects of evaluating this TensorStore, but not the store
     // itself.
     auto only_side_effects = [&]() {
       ffi::Array<Stmt> statements;
@@ -191,20 +170,22 @@ class NoOpRemover : public IRMutatorWithAnalyzer {
 
     // A write whose destination is known to already contain the
     // values to be written is a no-op.
-    PrimExpr stores_existing_value = store->value - BufferLoad(store->buffer, store->indices) == 0;
+    PrimExpr stores_existing_value =
+        store->value - MakeTensorLoad(store->dest.as_or_throw<TensorVar>(), store->indices) == 0;
     stores_existing_value = analyzer_->Simplify(stores_existing_value);
-    if (is_one(stores_existing_value)) {
+    if (IsOne(stores_existing_value)) {
       return only_side_effects();
     }
 
     // If the stored value is a load from the same location, the
     // statement is a no-op, regardless of contextual information.
     if (const TensorLoadNode* load = store->value.as<TensorLoadNode>()) {
-      BufferVar buffer = load->source.as_or_throw<tvm::tirx::BufferVar>();
-      if (buffer.same_as(store->buffer) &&
-          analyzer_->CanProveEqual(buffer->elem_offset, store->buffer->elem_offset) &&
-          ArrayValueEqual(buffer->shape, store->buffer->shape) &&
-          ArrayValueEqual(buffer->strides, store->buffer->strides) &&
+      TensorVar buffer = load->source.as_or_throw<tvm::tirx::TensorVar>();
+      if (buffer.same_as(store->dest.as_or_throw<TensorVar>()) &&
+          analyzer_->CanProveEqual(buffer->elem_offset,
+                                   store->dest.as_or_throw<TensorVar>()->elem_offset) &&
+          ArrayValueEqual(buffer->shape, store->dest.as_or_throw<TensorVar>()->shape) &&
+          ArrayValueEqual(buffer->strides, store->dest.as_or_throw<TensorVar>()->strides) &&
           ArrayValueEqual(load->indices, store->indices)) {
         return only_side_effects();
       }
@@ -228,12 +209,12 @@ class NoOpRemover : public IRMutatorWithAnalyzer {
   bool HasSideEffect(const PrimExpr& value) {
     if (ignore_profiler_call_) {
       if (const CallNode* call = value.as<CallNode>()) {
-        static const Op timer_init_cuda_op = Op::Get("tirx.timer_init_cuda");
-        static const Op timer_start_cuda_op = Op::Get("tirx.timer_start_cuda");
-        static const Op timer_end_cuda_op = Op::Get("tirx.timer_end_cuda");
-        static const Op timer_finalize_cuda_op = Op::Get("tirx.timer_finalize_cuda");
-        if (call->op.same_as(timer_init_cuda_op) || call->op.same_as(timer_start_cuda_op) ||
-            call->op.same_as(timer_end_cuda_op) || call->op.same_as(timer_finalize_cuda_op)) {
+        static const Op timer_init_op = Op::Get("tirx.cuda.timer_init");
+        static const Op timer_start_op = Op::Get("tirx.cuda.timer_start");
+        static const Op timer_end_op = Op::Get("tirx.cuda.timer_end");
+        static const Op timer_finalize_op = Op::Get("tirx.cuda.timer_finalize");
+        if (call->op.same_as(timer_init_op) || call->op.same_as(timer_start_op) ||
+            call->op.same_as(timer_end_op) || call->op.same_as(timer_finalize_op)) {
           return false;
         }
       }
@@ -256,13 +237,7 @@ class NoOpRemover : public IRMutatorWithAnalyzer {
       }
     }
 
-    if (stmts.size() == 0) {
-      return Evaluate(0);
-    } else if (stmts.size() == 1) {
-      return stmts[0];
-    } else {
-      return SeqStmt(stmts);
-    }
+    return SeqStmt(stmts);
   }
 
   std::unordered_map<const VarNode*, sym::IntSet> var_range_map_;
@@ -276,10 +251,9 @@ Stmt RemoveNoOp(Stmt stmt, const sym::Analyzer& analyzer, bool ignore_profiler_c
 namespace transform {
 
 Pass RemoveNoOp() {
-  auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
-    RemoveNoOpConfig config =
-        ctx->GetConfig<RemoveNoOpConfig>("tirx.RemoveNoOp")
-            .value_or(tvm::transform::PassConfigWithDefaults<RemoveNoOpConfig>());
+  auto pass_func = [](Function f, IRModule m, PassContext ctx) {
+    if (!f->body.has_value()) return f;
+    RemoveNoOpConfig config = ctx->GetConfigOrDefault<RemoveNoOpConfig>("tirx.RemoveNoOp");
 
     sym::Analyzer analyzer;
     analyzer->rewrite_simplify.SetMaximumRewriteSteps(config->max_simplification_steps);
@@ -289,11 +263,11 @@ Pass RemoveNoOp() {
     {
       auto* write_ptr = f.CopyOnWrite();
       write_ptr->body =
-          NoOpRemover::Apply(std::move(write_ptr->body), analyzer, ignore_profiler_call);
+          NoOpRemover::Apply(std::move(write_ptr->body).value(), analyzer, ignore_profiler_call);
     }
     return f;
   };
-  return CreatePrimFuncPass(pass_func, 0, "tirx.RemoveNoOp", {});
+  return CreateFunctionPass(pass_func, 0, "tirx.RemoveNoOp");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

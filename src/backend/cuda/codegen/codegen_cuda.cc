@@ -23,11 +23,17 @@
 
 #include "codegen_cuda.h"
 
+#include <tvm/backend/cuda/attr.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/s_tir/stmt.h>
+#include <tvm/ir/function.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/sym/analyzer.h>
 #include <tvm/tirx/index_map.h>
+#include <tvm/tirx/op/gpu.h>
+#include <tvm/tirx/op/memory.h>
+#include <tvm/tirx/op/region.h>
+#include <tvm/tirx/stmt.h>
 #include <tvm/tirx/stmt_functor.h>
 
 #include <cmath>
@@ -38,7 +44,6 @@
 
 #include "../../../runtime/thread_storage_scope.h"
 #include "../../../target/build_common.h"
-#include "../../../tirx/transform/ir_utils.h"
 #include "cuda_fallback_module.h"
 #include "literal/cuda_half_t.h"
 #include "literal/cuda_int8_t.h"
@@ -172,8 +177,13 @@ std::string GetFP4Type(const PrimType& type_ty) {
 
 CodeGenCUDA::CodeGenCUDA(Target target) : target(target) { restrict_keyword_ = "__restrict__"; }
 
-void CodeGenCUDA::PrintFunctionSignature(const ffi::String& function_name, const PrimFunc& func,
+void CodeGenCUDA::PrintFunctionSignature(const ffi::String& function_name, const Function& func,
                                          std::ostream& os) {
+  PrintFunctionPrefix(func, os);
+  CodeGenC::PrintFunctionSignature(function_name, func, os);
+}
+
+void CodeGenCUDA::PrintFunctionPrefix(const Function& func, std::ostream& os) {
   CallingConv calling_conv =
       func->GetAttr<CallingConv>(tvm::attr::kCallingConv, CallingConv::kDefault).value();
   in_kernel_launch_ = (calling_conv == CallingConv::kDeviceKernelLaunch);
@@ -185,7 +195,6 @@ void CodeGenCUDA::PrintFunctionSignature(const ffi::String& function_name, const
     TVM_FFI_THROW(InternalError) << "Unsupported calling convention for cuda codegen: "
                                  << static_cast<int>(calling_conv);
   }
-  CodeGenC::PrintFunctionSignature(function_name, func, os);
 }
 
 class ThreadIdxExtractor : public tirx::StmtExprVisitor {
@@ -196,30 +205,38 @@ class ThreadIdxExtractor : public tirx::StmtExprVisitor {
   }
 
  private:
-  ffi::Optional<VisitInterrupt> Visit_(const AttrStmtNode* op) final {
-    if (op->attr_key == tirx::attr::thread_extent) {
-      IterVar iv = op->node.as_or_throw<IterVar>();
-      if (iv->var->name == "threadIdx.x" || iv->thread_tag == "threadIdx.x") {
-        threadIdx_x_ext = op->value.as_or_throw<PrimExpr>();
+  ffi::Optional<VisitInterrupt> Visit_(const RegionStmtNode* op) final {
+    if (op->op.same_as(tirx::launch_thread_op())) {
+      TVM_FFI_CHECK(
+          std::string(op->args[0].as_or_throw<StringImm>()->value).rfind("vthread", 0) != 0,
+          ValueError)
+          << "Virtual thread launches must be lowered before code generation";
+      ffi::String tag = op->args[0].as_or_throw<StringImm>()->value;
+      PrimExpr extent = op->args[1].as_or_throw<PrimExpr>();
+      auto [it, inserted] = thread_extents_.emplace(tag, extent);
+      TVM_FFI_CHECK(inserted || analyzer_->CanProveEqual(it->second, extent), ValueError)
+          << "Conflicting launch extents for " << tag;
+      if (tag == "threadIdx.x") {
+        threadIdx_x_ext = extent;
+      } else if (tag == "threadIdx.y") {
+        threadIdx_y_ext = extent;
+      } else if (tag == "threadIdx.z") {
+        threadIdx_z_ext = extent;
+      } else if (tag == "clusterCtaIdx.x") {
+        clusterCtaIdx_x_ext = extent;
+      } else if (tag == "clusterCtaIdx.y") {
+        clusterCtaIdx_y_ext = extent;
+      } else if (tag == "clusterCtaIdx.z") {
+        clusterCtaIdx_z_ext = extent;
       }
-      if (iv->var->name == "threadIdx.y" || iv->thread_tag == "threadIdx.y") {
-        threadIdx_y_ext = op->value.as_or_throw<PrimExpr>();
-      }
-      if (iv->var->name == "threadIdx.z" || iv->thread_tag == "threadIdx.z") {
-        threadIdx_z_ext = op->value.as_or_throw<PrimExpr>();
-      }
-      if (iv->var->name == "clusterCtaIdx.x" || iv->thread_tag == "clusterCtaIdx.x") {
-        clusterCtaIdx_x_ext = op->value.as_or_throw<PrimExpr>();
-      }
-      if (iv->var->name == "clusterCtaIdx.y" || iv->thread_tag == "clusterCtaIdx.y") {
-        clusterCtaIdx_y_ext = op->value.as_or_throw<PrimExpr>();
-      }
-      if (iv->var->name == "clusterCtaIdx.z" || iv->thread_tag == "clusterCtaIdx.z") {
-        clusterCtaIdx_z_ext = op->value.as_or_throw<PrimExpr>();
-      }
+      return StmtExprVisitor::Visit_(op);
+    } else {
+      TVM_FFI_THROW(ValueError) << "Unsupported region op " << op->op;
     }
-    return StmtExprVisitor::Visit_(op);
   }
+
+  sym::Analyzer analyzer_;
+  std::unordered_map<std::string, PrimExpr> thread_extents_;
 
  public:
   PrimExpr threadIdx_x_ext = IntImm::Int32(1);
@@ -230,71 +247,124 @@ class ThreadIdxExtractor : public tirx::StmtExprVisitor {
   PrimExpr clusterCtaIdx_z_ext = IntImm::Int32(1);
 };
 
-void CodeGenCUDA::PrintExtraAttrs(const PrimFunc& f, std::ostream& os) {
+void CodeGenCUDA::InitFuncState(const Function& func) {
+  CodeGenC::InitFuncState(func);
+  min_blocks_per_sm_.reset();
+  max_blocks_per_cluster_.reset();
+  max_registers_per_thread_.reset();
+  required_block_size_.reset();
+  in_kernel_launch_ =
+      func->GetAttr<CallingConv>(tvm::attr::kCallingConv, CallingConv::kDefault).value() ==
+      CallingConv::kDeviceKernelLaunch;
+  // Thread metadata is also needed while emitting cluster index accesses.
   auto extractor = ffi::make_object<ThreadIdxExtractor>();
-  extractor->Visit(f->body);
-  sym::Analyzer analyzer;
-  PrimExpr threadIdx_ext = analyzer->Simplify(
-      extractor->threadIdx_x_ext * extractor->threadIdx_y_ext * extractor->threadIdx_z_ext);
-  PrimExpr cluster_cta_yz_ext =
-      analyzer->Simplify(extractor->clusterCtaIdx_y_ext * extractor->clusterCtaIdx_z_ext);
-  if (const IntImmNode* const cluster_cta_yz_ext_int = cluster_cta_yz_ext.as<IntImmNode>()) {
-    cluster_cta_x_is_linear_rank_ = cluster_cta_yz_ext_int->value == 1;
-  } else {
-    cluster_cta_x_is_linear_rank_ = false;
+  extractor->Visit(func->body);
+  launch_dimensions_ = {extractor->threadIdx_x_ext,     extractor->threadIdx_y_ext,
+                        extractor->threadIdx_z_ext,     extractor->clusterCtaIdx_x_ext,
+                        extractor->clusterCtaIdx_y_ext, extractor->clusterCtaIdx_z_ext};
+  if (auto dimensions =
+          func->GetAttr<ffi::Array<PrimExpr>>(tvm::backend::cuda::attr::kLaunchDimensions)) {
+    TVM_FFI_ICHECK_EQ(dimensions.value().size(), launch_dimensions_.size());
+    for (size_t i = 0; i < launch_dimensions_.size(); ++i)
+      launch_dimensions_[i] = dimensions.value()[i];
   }
-  auto max_registers = f->GetAttr<int64_t>(tirx::attr::kMaxRegisters);
-  auto required_block_size = f->GetAttr<int64_t>(tirx::attr::kRequiredBlockSize);
-  if (required_block_size.has_value()) {
-    TVM_FFI_ICHECK_EQ(required_block_size.value(), 1);
-    TVM_FFI_ICHECK(!max_registers.has_value())
-        << tirx::attr::kRequiredBlockSize << " cannot be combined with maximum registers";
-    const auto* tx = extractor->threadIdx_x_ext.as<IntImmNode>();
-    const auto* ty = extractor->threadIdx_y_ext.as<IntImmNode>();
-    const auto* tz = extractor->threadIdx_z_ext.as<IntImmNode>();
-    const auto* cx = extractor->clusterCtaIdx_x_ext.as<IntImmNode>();
-    const auto* cy = extractor->clusterCtaIdx_y_ext.as<IntImmNode>();
-    const auto* cz = extractor->clusterCtaIdx_z_ext.as<IntImmNode>();
-    TVM_FFI_ICHECK(tx && ty && tz && cx && cy && cz)
-        << tirx::attr::kRequiredBlockSize << " requires static thread and cluster dimensions";
-    os << " __block_size__((" << tx->value << ", " << ty->value << ", " << tz->value << "), ("
-       << cx->value << ", " << cy->value << ", " << cz->value << "))";
-    if (!f->GetAttr<int64_t>(tirx::attr::kLaunchBoundsMinBlocksPerSM).has_value()) {
-      TVM_FFI_ICHECK(!f->GetAttr<int64_t>(tirx::attr::kLaunchBoundsMaxBlocksPerCluster).has_value())
-          << tirx::attr::kLaunchBoundsMaxBlocksPerCluster << " requires "
-          << tirx::attr::kLaunchBoundsMinBlocksPerSM;
-      return;
+  if (auto kernel_attrs =
+          func->GetAttr<ffi::Map<ffi::String, int64_t>>(tvm::backend::cuda::attr::kKernelAttrs)) {
+    if (auto value = kernel_attrs.value().Get("min_blocks_per_sm")) min_blocks_per_sm_ = *value;
+    if (auto value = kernel_attrs.value().Get("max_blocks_per_cluster"))
+      max_blocks_per_cluster_ = *value;
+    if (auto value = kernel_attrs.value().Get("max_registers_per_thread"))
+      max_registers_per_thread_ = *value;
+    if (kernel_attrs.value().Get("required_block_size").value_or(0)) {
+      std::array<int64_t, 6> dimensions;
+      size_t i = 0;
+      for (const char* prefix : {"required_block_", "required_cluster_"}) {
+        for (char axis : {'x', 'y', 'z'})
+          dimensions[i++] = kernel_attrs.value().at(std::string(prefix) + axis);
+      }
+      required_block_size_ = dimensions;
     }
   }
-  if (max_registers.has_value()) {
-    TVM_FFI_ICHECK_GT(max_registers.value(), 0);
-    TVM_FFI_ICHECK(!f->GetAttr<int64_t>(tirx::attr::kLaunchBoundsMinBlocksPerSM).has_value() &&
-                   !f->GetAttr<int64_t>(tirx::attr::kLaunchBoundsMaxBlocksPerCluster).has_value())
-        << tirx::attr::kMaxRegisters << " cannot be combined with CUDA launch bounds";
-    os << " __maxnreg__(" << max_registers.value() << ")";
+  sym::Analyzer analyzer;
+  cluster_cta_x_is_linear_rank_ =
+      IsOne(analyzer->Simplify(launch_dimensions_[4] * launch_dimensions_[5]));
+}
+
+void CodeGenCUDA::DeclareFunction(const GlobalVar& gvar, const Function& func) {
+  if (!RegisterFunctionName(gvar, func)) return;
+  // Definitions supply their body-derived qualifiers in AddFunction.
+  if (!func->body.has_value()) {
+    InitFuncState(func);
+    PrintFunctionSignature(GetFunctionName(gvar), func, fwd_decl_stream);
+    fwd_decl_stream << ";\n";
+  }
+}
+
+void CodeGenCUDA::AddFunction(const GlobalVar& gvar, const Function& func) {
+  DeclareFunction(gvar, func);
+  if (!func->body.has_value()) return;
+  InitFuncState(func);
+  std::ostringstream parameters;
+  PrintFunctionParameters(func, parameters);
+
+  // Generate the body once before assembling the complete definition.
+  std::ostringstream previous_functions;
+  stream.swap(previous_functions);
+  stream << " {\n";
+  PreFunctionBody(func);
+  int func_scope = BeginScope();
+  PrintStmt(func->body.value());
+  EndScope(func_scope);
+  PrintIndent();
+  stream << "}\n\n";
+  std::string body = stream.str();
+  stream.swap(previous_functions);
+
+  std::ostringstream signature;
+  PrintFunctionPrefix(func, signature);
+  PrintType(func->ret_type, signature);
+  PrintExtraAttrs(func, signature);
+  signature << " " << GetFunctionName(gvar) << parameters.str();
+  fwd_decl_stream << signature.str() << ";\n";
+  stream << signature.str() << body;
+}
+
+void CodeGenCUDA::PrintExtraAttrs(const Function& f, std::ostream& os) {
+  TVM_FFI_ICHECK(!max_blocks_per_cluster_ || min_blocks_per_sm_)
+      << "CUDA maximum blocks per cluster requires minimum blocks per SM";
+  TVM_FFI_ICHECK(!max_registers_per_thread_ || (!min_blocks_per_sm_ && !max_blocks_per_cluster_))
+      << "Maximum registers per thread cannot be combined with CUDA launch bounds";
+  TVM_FFI_ICHECK(!max_registers_per_thread_ || !required_block_size_)
+      << "Required block size cannot be combined with maximum registers";
+  if (required_block_size_) {
+    for (size_t i = 0; i < launch_dimensions_.size(); ++i) {
+      const auto* dim = launch_dimensions_[i].as<IntImmNode>();
+      TVM_FFI_ICHECK(dim) << "Required block size requires static thread and cluster dimensions";
+      TVM_FFI_ICHECK_EQ(dim->value, (*required_block_size_)[i])
+          << "Required block size must agree with declared launch extents";
+    }
+    const auto& dims = *required_block_size_;
+    os << " __block_size__((" << dims[0] << ", " << dims[1] << ", " << dims[2] << "), (" << dims[3]
+       << ", " << dims[4] << ", " << dims[5] << "))";
+    if (!min_blocks_per_sm_) return;
+  }
+  if (max_registers_per_thread_) {
+    os << " __maxnreg__(" << *max_registers_per_thread_ << ")";
     return;
   }
-  if (const IntImmNode* const threadIdx_ext_int = threadIdx_ext.as<IntImmNode>()) {
-    if (threadIdx_ext_int->value == 1) {
-      // unable to extract the number of threads per block, hence directly return
-      return;
+  sym::Analyzer analyzer;
+  PrimExpr threads =
+      analyzer->Simplify(launch_dimensions_[0] * launch_dimensions_[1] * launch_dimensions_[2]);
+  const auto* count = threads.as<IntImmNode>();
+  TVM_FFI_CHECK(!min_blocks_per_sm_ || (count && count->value > 0), ValueError)
+      << "min_blocks_per_sm requires static block dimensions";
+  if (count && count->value > 0 && (count->value != 1 || min_blocks_per_sm_)) {
+    os << " __launch_bounds__(" << count->value;
+    if (min_blocks_per_sm_) {
+      os << ", " << *min_blocks_per_sm_;
+      if (max_blocks_per_cluster_) os << ", " << *max_blocks_per_cluster_;
     }
-    auto min_blocks_per_sm = f->GetAttr<int64_t>(tirx::attr::kLaunchBoundsMinBlocksPerSM);
-    auto max_blocks_per_cluster = f->GetAttr<int64_t>(tirx::attr::kLaunchBoundsMaxBlocksPerCluster);
-    if (min_blocks_per_sm.has_value()) {
-      TVM_FFI_ICHECK_GT(min_blocks_per_sm.value(), 0);
-      os << " __launch_bounds__(" << threadIdx_ext_int->value << ", " << min_blocks_per_sm.value();
-      if (max_blocks_per_cluster.has_value()) {
-        TVM_FFI_ICHECK_GT(max_blocks_per_cluster.value(), 0);
-        os << ", " << max_blocks_per_cluster.value();
-      }
-      os << ")";
-    } else {
-      TVM_FFI_ICHECK(!max_blocks_per_cluster.has_value())
-          << tirx::attr::kLaunchBoundsMaxBlocksPerCluster << " requires "
-          << tirx::attr::kLaunchBoundsMinBlocksPerSM;
-      os << " __launch_bounds__(" << threadIdx_ext_int->value << ")";
-    }
+    os << ")";
   }
 }
 
@@ -329,23 +399,24 @@ std::string CodeGenCUDA::Finish() {
   return CodeGenC::Finish();
 }
 
-void CodeGenCUDA::Dispatch_(const tirx::ForNode* op) {
+void CodeGenCUDA::Dispatch_(const ForNode* op) {
   // Materialize the loop bounds before emitting an unroll pragma.  PrintExpr
   // may introduce temporaries (for example, for a Select expression).  CUDA
   // requires #pragma unroll to immediately precede the loop it controls; if
   // those declarations are printed between the pragma and the for statement,
   // nvcc is free to unroll the loop despite disable_unroll.
   std::string begin_str = PrintExpr(op->min);
-  PrimExpr end = is_zero(op->min) ? op->extent : sym::Analyzer()->Simplify(op->min + op->extent);
+  PrimExpr end = IsZero(op->min) ? op->extent : sym::Analyzer()->Simplify(op->min + op->extent);
   std::string end_str = PrintExpr(end);
   std::string step_str = op->step.has_value() ? PrintExpr(*op->step) : "";
-  if (op->annotations.count("disable_unroll")) {
+  if (op->annotations.count(tvm::tirx::attr::kDisableUnroll)) {
     PrintIndent();
     stream << "#pragma unroll 1\n";
-  } else if (op->kind == tirx::ForKind::kUnrolled) {
+  } else if (op->kind == ForKind::kUnrolled) {
     PrintIndent();
     stream << "#pragma unroll\n";
-  } else if (auto it = op->annotations.find("pragma_unroll"); it != op->annotations.end()) {
+  } else if (auto it = op->annotations.find(tvm::tirx::attr::kPragmaUnroll);
+             it != op->annotations.end()) {
     PrintIndent();
     stream << "#pragma unroll";
     if (auto count = (*it).second.as<int64_t>()) {
@@ -389,12 +460,12 @@ void CodeGenCUDA::Dispatch_(const WhileNode* op) {
   stream << "}\n";
 }
 
-void CodeGenCUDA::BindThreadIndex(const IterVar& iv) {
-  TVM_FFI_ICHECK(!var_idmap_.count(iv->var.get()));
-  const auto& scope = runtime::ThreadScope::Create(iv->thread_tag);
+void CodeGenCUDA::BindThreadIndex(const PrimVar& var, const ffi::String& thread_tag) {
+  TVM_FFI_ICHECK(!var_idmap_.count(var.get()));
+  const auto& scope = runtime::ThreadScope::Create(thread_tag);
+  TVM_FFI_ICHECK_GE(scope.dim_index, 0);
+  TVM_FFI_ICHECK_LT(scope.dim_index, 3);
   if (scope.IsClusterCtaIdx()) {
-    TVM_FFI_ICHECK_GE(scope.dim_index, 0);
-    TVM_FFI_ICHECK_LT(scope.dim_index, 3);
     const char dim = static_cast<char>('x' + scope.dim_index);
     const std::string sreg = (scope.dim_index == 0 && cluster_cta_x_is_linear_rank_)
                                  ? "cluster_ctarank"
@@ -408,9 +479,9 @@ void CodeGenCUDA::BindThreadIndex(const IterVar& iv) {
                                    ";\" : \"=r\"(ctaid) :);\n"
                                    "  return ctaid;\n"
                                    "}\n");
-    var_idmap_[iv->var.get()] = CastFromTo(func_name + "()", PrimType::UInt(32), iv->var.ty());
+    var_idmap_[var.get()] = CastFromTo(func_name + "()", PrimType::UInt(32), var.ty());
   } else {
-    var_idmap_[iv->var.get()] = CastFromTo(iv->thread_tag, PrimType::UInt(32), iv->var.ty());
+    var_idmap_[var.get()] = CastFromTo(thread_tag, PrimType::UInt(32), var.ty());
   }
 }
 
@@ -986,6 +1057,26 @@ void CodeGenCUDA::PrintCallExtern(Type ret_type, ffi::String global_symbol,
 }
 
 void CodeGenCUDA::Dispatch_(const CallNode* op, std::ostream& os) {
+  if (auto intrinsic = op->op.as<OpNode>()) {
+    const std::string name(intrinsic->name);
+    const char* vector = nullptr;
+    if (name == "tirx.cuda.block_idx") vector = "blockIdx";
+    if (name == "tirx.cuda.thread_idx") vector = "threadIdx";
+    if (name == "tirx.cuda.block_dim") vector = "blockDim";
+    if (name == "tirx.cuda.grid_dim") vector = "gridDim";
+    if (vector) {
+      os << "((int)" << vector << "." << op->args[0].as_or_throw<StringImm>()->value << ")";
+      return;
+    }
+  }
+
+  if (op->op.same_as(prim::isnan_op()) && op->ty.as_or_throw<PrimType>().lanes() > 1) {
+    // CUDA vector comparisons do not produce a lane-wise boolean vector.
+    // Reuse the scalar comparison path for every lane, including packed half.
+    PrimExpr value = op->args[0].as_or_throw<PrimExpr>();
+    PrintVecBinaryOp("!=", op->ty.as_or_throw<PrimType>(), value, value, os);
+    return;
+  }
   if (auto opt_call_opt = op->op.as<Op>()) {
     Op call_op = opt_call_opt.value();
     // This is only for backward compatibility with __shfl_{up/down}.
@@ -1025,7 +1116,7 @@ void CodeGenCUDA::Dispatch_(const CallNode* op, std::ostream& os) {
     auto codegen = codegen_getter.value()(call_op->name).cast<ffi::Optional<tvm::ffi::Function>>();
     if (codegen.has_value()) {
       // codegen is registered, it should return a Call to cuda_func_call
-      auto func_call = codegen.value()(op->args);
+      auto func_call = codegen.value()(op->args, op->attrs);
       auto res = func_call.cast<ffi::Tuple<Call, ffi::Array<ffi::String>>>();
       print_cuda_func_call(res.get<0>().get(), os);
       for (const auto& tag : res.get<1>()) {
@@ -1035,80 +1126,13 @@ void CodeGenCUDA::Dispatch_(const CallNode* op, std::ostream& os) {
     }
   }
 
-  static const Op tvm_fill_fragment_op = Op::Get("tirx.tvm_fill_fragment");
-  static const Op tvm_load_matrix_sync_op = Op::Get("tirx.tvm_load_matrix_sync");
-  static const Op tvm_store_matrix_sync_op = Op::Get("tirx.tvm_store_matrix_sync");
-  static const Op tvm_mma_sync_op = Op::Get("tirx.tvm_mma_sync");
-  static const Op tvm_bmma_sync_op = Op::Get("tirx.tvm_bmma_sync");
-  static const Op mma_store_op = Op::Get("tirx.mma_store");
-  static const Op mma_fill_op = Op::Get("tirx.mma_fill");
+  static const Op mma_store_op = Op::Get("tirx.cuda.mma_store");
+  static const Op mma_fill_op = Op::Get("tirx.cuda.mma_fill");
   static const Op ptx_mma_legacy_op = Op::Get("tirx.ptx_legacy.mma");
   static const Op ptx_ldmatrix_legacy_op = Op::Get("tirx.ptx_legacy.ldmatrix");
-  static const Op mma_store_legacy_op = Op::Get("tirx.mma_store_legacy");
-  static const Op mma_fill_legacy_op = Op::Get("tirx.mma_fill_legacy");
-  static const Op ptx_ldg32_op = Op::Get("tirx.s_tir.ldg32");
   static const Op cuda_func_call_op = Op::Get("tirx.cuda.func_call");
 
-  if (op->op.same_as(tvm_fill_fragment_op)) {
-    codegen_tags_.insert("mma");
-    TVM_FFI_ICHECK_EQ(op->args.size(), 6U);
-    os << "nvcuda::wmma::fill_fragment(";
-    this->PrintExpr(op->args[0], os);
-    os << "[";
-    this->PrintExpr(op->args[4], os);
-    os << "], ";
-    this->PrintExpr(op->args[5], os);
-    os << ")";
-  } else if (op->op.same_as(tvm_load_matrix_sync_op)) {
-    codegen_tags_.insert("mma");
-    TVM_FFI_ICHECK_EQ(op->args.size(), 8U);
-    os << "nvcuda::wmma::load_matrix_sync(";
-    this->PrintExpr(op->args[0], os);
-    os << "[";
-    this->PrintExpr(op->args[4], os);
-    os << "], ";
-    this->PrintExpr(op->args[5], os);
-    os << ", ";
-    this->PrintExpr(op->args[6], os);
-    os << ")";
-  } else if (op->op.same_as(tvm_store_matrix_sync_op)) {
-    codegen_tags_.insert("mma");
-    TVM_FFI_ICHECK_EQ(op->args.size(), 8U);
-    os << "nvcuda::wmma::store_matrix_sync(";
-    this->PrintExpr(op->args[5], os);
-    os << ", ";
-    this->PrintExpr(op->args[0], os);
-    os << "[";
-    this->PrintExpr(op->args[4], os);
-    os << "], ";
-    this->PrintExpr(op->args[6], os);
-    if (const StringImmNode* str = op->args[7].as<StringImmNode>()) {
-      os << ", nvcuda::wmma::mem_" << str->value;
-    } else {
-      TVM_FFI_THROW(InternalError) << "Invalid parameters";
-    }
-    os << ")";
-  } else if (op->op.same_as(tvm_mma_sync_op)) {
-    codegen_tags_.insert("mma");
-    TVM_FFI_ICHECK_EQ(op->args.size(), 8U);
-    os << "nvcuda::wmma::mma_sync(";
-    for (int i = 0; i < 4; ++i) {
-      this->PrintExpr(op->args[i * 2], os);
-      os << "[";
-      this->PrintExpr(op->args[i * 2 + 1], os);
-      os << "]" << ((i < 3) ? ", " : ")");
-    }
-  } else if (op->op.same_as(tvm_bmma_sync_op)) {
-    codegen_tags_.insert("mma");
-    TVM_FFI_ICHECK_EQ(op->args.size(), 8U);
-    os << "nvcuda::wmma::bmma_sync(";
-    for (int i = 0; i < 4; ++i) {
-      this->PrintExpr(op->args[i * 2], os);
-      os << "[";
-      this->PrintExpr(op->args[i * 2 + 1], os);
-      os << "]" << ((i < 3) ? ", " : ")");
-    }
-  } else if (op->op.same_as(mma_store_op)) {
+  if (op->op.same_as(mma_store_op)) {
     int m = op->args[0].as_or_throw<IntImm>()->value.as<int>().value();
     int n = op->args[1].as_or_throw<IntImm>()->value.as<int>().value();
     std::string dst = this->PrintExpr(op->args[2]);
@@ -1221,92 +1245,7 @@ void CodeGenCUDA::Dispatch_(const CallNode* op, std::ostream& os) {
       this->stream << PrintLoadMatrixAssembly(trans, num, type_str, local_ptr, local_offset,
                                               smem_ptr, smem_offset);
     }
-  } else if (op->op.same_as(mma_store_legacy_op)) {
-    // args: m, n, dst_ptr, src_ptr_var, src_offset, dst_stride
-    // (dst_ptr is typically an access_ptr Call that already encodes
-    // dst.elem_offset and the global pointer cast.)
-    int m = op->args[0].as_or_throw<IntImm>()->value.as<int>().value();
-    int n = op->args[1].as_or_throw<IntImm>()->value.as<int>().value();
-    std::string dst = this->PrintExpr(op->args[2]);
-    std::string src = this->PrintExpr(op->args[3]);
-    std::string src_offset = this->PrintExpr(op->args[4]);
-    PrimExpr stride = op->args[5].as_or_throw<PrimExpr>();
-
-    TVM_FFI_ICHECK(m == 16 && n == 16) << "Only m == 16 && n == 16 case supported for now";
-
-    const auto index_map_func =
-        tvm::ffi::Function::GetGlobal("tirx.index_map.shared_16x16_to_ldmatrix_32x8_layout");
-    TVM_FFI_ICHECK(index_map_func.has_value());
-
-    sym::Analyzer analyzer;
-    auto inverse_index_map =
-        IndexMap::FromFunc(2, *index_map_func).Inverse({Range(0, m), Range(0, n)}, analyzer);
-    auto indices_16x16 = inverse_index_map->final_indices;
-
-    class LowerFloorDivMod : public tirx::StmtExprMutator {
-     public:
-      UnchangedOr<PrimExpr> Mutate_(const prim::FloorDivNode* op, InplaceMode inplace_mode) {
-        return prim::Div(this->Mutate(op->a, inplace_mode).ValueOrUnchanged(op->a),
-                         this->Mutate(op->b, inplace_mode).ValueOrUnchanged(op->b));
-      }
-      UnchangedOr<PrimExpr> Mutate_(const prim::FloorModNode* op, InplaceMode inplace_mode) {
-        return prim::Mod(this->Mutate(op->a, inplace_mode).ValueOrUnchanged(op->a),
-                         this->Mutate(op->b, inplace_mode).ValueOrUnchanged(op->b));
-      }
-    };
-
-    PrimExpr dst_expr = indices_16x16[0] * stride + indices_16x16[1];
-    auto dst_ind =
-        ffi::make_object<LowerFloorDivMod>()->Mutate(dst_expr).ValueOrUnchanged(dst_expr);
-
-    var_idmap_[inverse_index_map->initial_indices[0].get()] = "threadIdx.x";
-    var_idmap_[inverse_index_map->initial_indices[1].get()] = "local_id";
-
-    os << "for (int local_id = 0; local_id < 8; ++local_id) {\n";
-    os << dst << "[" << this->PrintExpr(dst_ind) << "] = " << src << "[" << src_offset
-       << " + local_id];\n";
-    os << "}\n";
-  } else if (op->op.same_as(mma_fill_legacy_op)) {
-    // args: local_size, local_ptr_var, offset
-    std::string num_elem = this->PrintExpr(op->args[0]);
-    std::string dst = this->PrintExpr(op->args[1]);
-    std::string dst_offset = this->PrintExpr(op->args[2]);
-    os << "for (int i = 0; i < " << num_elem << "; ++i) {\n";
-    os << dst << "[" << dst_offset << " + i] = 0.0;";
-    os << "}\n";
-  } else if (IsOp(op, ptx_ldg32_op, "tirx.s_tir.ldg32")) {
-    /*
-    asm volatile (
-        "{.reg .pred p;\n"
-        " setp.ne.b32 p, %2, 0;\n"
-        // " @p ld.global.nc.f32 %0, [%1];}\n"t
-        " @p ld.global.nc.L2::128B.f32 %0, [%1];}\n"
-        : "=f"(reg)
-        : "l"(addr), "r"((int)guard)
-    );
-    */
-
-    // get local
-    std::string reg = this->PrintExpr(op->args[0]);
-    // get guard
-    std::string guard = this->PrintExpr(op->args[1]);
-    const TensorLoadNode* addr_buffer = op->args[2].as<TensorLoadNode>();
-    std::string global_addr = this->PrintExpr(addr_buffer->indices[0]);
-    std::string global_buffer =
-        this->PrintExpr(addr_buffer->source.as_or_throw<tvm::tirx::BufferVar>().data());
-    std::string local_addr = this->PrintExpr(op->args[3]);
-    this->stream << "asm volatile (\n";
-    this->stream << "\"{.reg .pred p;\\n\"\n";
-    this->stream << "\" setp.ne.b32 p, %2, 0;\\n\"\n";
-    this->stream << "\" @!p mov.b32 %0, 0;\\n\"\n";
-    this->stream << "\" @p ld.global.nc.f32 %0, [%1];}\\n\"\n";
-    // stream << "\" @p ld.global.nc.L2::128B.f32 %0, [%1];}\\n\"\n" ;
-    stream << ": \"=f\"(" << reg << "[" << local_addr << "]"
-           << ")\n";
-    stream << ": \"l\"((void*)(" << global_buffer << "+" << global_addr << ")), \"r\"((int)"
-           << guard << ")\n";
-    stream << ");\n";
-  } else if (op->op.same_as(tirx::builtin::reinterpret())) {
+  } else if (op->op.same_as(tirx::reinterpret_op())) {
     // Compile-time pointer reinterpret of a literal (e.g. a tcgen05 descriptor
     // template encoded at address 0): emit C++-style reinterpret_cast<T*>(...)
     // to match the encoded template. Runtime pointer reinterprets fall through
@@ -1372,8 +1311,7 @@ void CodeGenCUDA::Dispatch_(const CallNode* op, std::ostream& os) {
       if (IsFloat4(tgt_ty)) {
         // We view the source as an uint16, and then extract bits of two fp4 numbers,
         // and finally reinterpret the result as fp4x2.
-        value =
-            Call(PrimType::UInt(16), tirx::builtin::reinterpret(), {value}).as_or_throw<PrimExpr>();
+        value = Call(PrimType::UInt(16), tirx::reinterpret_op(), {value}).as_or_throw<PrimExpr>();
         PrimVar temp_var("temp_var", PrimType::UInt(16));
         value = prim::Let(temp_var, value,
                           prim::Cast(PrimType::UInt(8),
@@ -1382,19 +1320,18 @@ void CodeGenCUDA::Dispatch_(const CallNode* op, std::ostream& os) {
       } else {
         value = prim::Cast(
             PrimType::UInt(16),
-            Call(PrimType::UInt(8), tirx::builtin::reinterpret(), {value}).as_or_throw<PrimExpr>());
+            Call(PrimType::UInt(8), tirx::reinterpret_op(), {value}).as_or_throw<PrimExpr>());
         PrimVar temp_var("temp_var", PrimType::UInt(16));
         value = prim::Let(temp_var, value,
                           (temp_var & IntImm(PrimType::UInt(16), 0xF)) |
                               ((temp_var & IntImm(PrimType::UInt(16), 0xF0)) << 4));
       }
-      os << PrintExpr(Call(tgt_ty, tirx::builtin::reinterpret(), {value}).as_or_throw<PrimExpr>());
+      os << PrintExpr(Call(tgt_ty, tirx::reinterpret_op(), {value}).as_or_throw<PrimExpr>());
     } else if (lanes == 4) {
       if (IsFloat4(tgt_ty)) {
         // We view the source as an uint32, and then extract bits of four fp4 numbers,
         // and finally reinterpret the result as fp4x4.
-        value =
-            Call(PrimType::UInt(32), tirx::builtin::reinterpret(), {value}).as_or_throw<PrimExpr>();
+        value = Call(PrimType::UInt(32), tirx::reinterpret_op(), {value}).as_or_throw<PrimExpr>();
         PrimVar temp_var("temp_var", PrimType::UInt(32));
         value = prim::Let(temp_var, value,
                           prim::Cast(PrimType::UInt(16),
@@ -1403,9 +1340,9 @@ void CodeGenCUDA::Dispatch_(const CallNode* op, std::ostream& os) {
                                          ((temp_var >> 8) & IntImm(PrimType::UInt(32), 0xF00)) |
                                          ((temp_var >> 12) & IntImm(PrimType::UInt(32), 0xF000))));
       } else {
-        value = prim::Cast(PrimType::UInt(32),
-                           Call(PrimType::UInt(16), tirx::builtin::reinterpret(), {value})
-                               .as_or_throw<PrimExpr>());
+        value = prim::Cast(
+            PrimType::UInt(32),
+            Call(PrimType::UInt(16), tirx::reinterpret_op(), {value}).as_or_throw<PrimExpr>());
         PrimVar temp_var("temp_var", PrimType::UInt(32));
         value = prim::Let(temp_var, value,
                           (temp_var & IntImm(PrimType::UInt(32), 0xF)) |
@@ -1413,268 +1350,53 @@ void CodeGenCUDA::Dispatch_(const CallNode* op, std::ostream& os) {
                               ((temp_var & IntImm(PrimType::UInt(32), 0xF00)) << 8) |
                               ((temp_var & IntImm(PrimType::UInt(32), 0xF000)) << 12));
       }
-      os << PrintExpr(Call(tgt_ty, tirx::builtin::reinterpret(), {value}).as_or_throw<PrimExpr>());
+      os << PrintExpr(Call(tgt_ty, tirx::reinterpret_op(), {value}).as_or_throw<PrimExpr>());
     } else {
       TVM_FFI_THROW(InternalError)
           << "Invalid number of lanes for float4_e2m1fn reinterpret: " << lanes;
     }
     EndScope(ssa_scope);
-  } else if (op->op.same_as(tirx::builtin::print_buffer())) {
-    TVM_FFI_ICHECK_GE(op->args.size(), 5U) << "Print operation expects at least 5 arguments";
-
-    Expr arg = op->args[0];
-    const auto* var_node = arg.as<VarNode>();
-    if (const auto* call = arg.as<CallNode>();
-        call && call->op.same_as(tirx::builtin::buffer_data()) && call->args.size() == 1) {
-      var_node = call->args[0].as<VarNode>();
-      TVM_FFI_ICHECK(var_node && var_node->ty.as<tirx::BufferTypeNode>())
-          << "print_buffer expects buffer_data to project a BufferVar";
-    }
-    PrimType dtype_ty = op->ty.as_or_throw<PrimType>();
-    bool is_string = op->args[2].as<IntImmNode>()->value != 0;
-    bool is_scalar = op->args[3].as<IntImmNode>()->value != 0;
-    int num_dims = op->args[4].as<IntImmNode>()->value.as<int>().value();
-
-    TVM_FFI_ICHECK(!(is_string && is_scalar)) << "Cannot have both is_string and is_scalar true";
-    if (is_string) {
-      // String printing logic
-      std::string print_arg = var_node ? GetVarID(var_node) : PrintExpr(arg);
-      std::string buffer_name = var_node ? GetVarID(var_node) : "string_literal";
-      os << "// print_buffer starts (string)\n"
-         << "if (threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0) {\n"
-         << "  printf(\"" << buffer_name << ": %s\\n\\n\", (char*)" << print_arg << ");\n"
-         << "}\n"
-         << "// print_buffer ends\n";
-      return;
-    }
-
-    if (is_scalar) {
-      // Scalar printing logic
-      std::string format_specifier;
-      bool is_float16 = dtype_ty.MatchesElementType(DLDataTypeCode::kDLFloat, 16);
-      if (dtype_ty.MatchesCode(DLDataTypeCode::kDLFloat))
-        format_specifier = "%f";
-      else if (dtype_ty.MatchesCode(DLDataTypeCode::kDLInt))
-        format_specifier = "%d";
-      else if (dtype_ty.MatchesCode(DLDataTypeCode::kDLUInt))
-        format_specifier = "%u";
-      else
-        TVM_FFI_THROW(InternalError) << "Unsupported data type for scalar print: " << dtype_ty;
-
-      std::string print_arg = var_node ? ("*" + GetVarID(var_node)) : PrintExpr(arg);
-      os << "// print_buffer starts (scalar)\n"
-         << "if (threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0) {\n"
-         << "  printf(\"Scalar (dtype: " << dtype_ty << "): " << format_specifier << "\\n\\n\", "
-         << (is_float16 ? "static_cast<float>(" : "") << print_arg << (is_float16 ? ")" : "")
-         << ");\n"
-         << "}\n"
-         << "// print_buffer ends\n";
-      return;
-    }
-
-    Array<PrimExpr> shape;
-    for (size_t i = 5; i < op->args.size(); ++i) {
-      shape.push_back(op->args[i].as_or_throw<PrimExpr>());
-    }
-
-    std::string format_specifier;
-    bool is_float16 = false;
-    if (dtype_ty.MatchesCode(DLDataTypeCode::kDLFloat)) {
-      if (dtype_ty.bits() == 16) {
-        format_specifier = "%f";
-        is_float16 = true;
-      } else {
-        format_specifier = "%f";
-      }
-    } else if (dtype_ty.MatchesCode(DLDataTypeCode::kDLInt)) {
-      format_specifier = "%d";
-    } else if (dtype_ty.MatchesCode(DLDataTypeCode::kDLUInt)) {
-      format_specifier = "%u";
-    } else {
-      TVM_FFI_THROW(InternalError) << "Unsupported data type for print: " << dtype_ty;
-    }
-
-    TVM_FFI_ICHECK(var_node) << "Formatted print is only supported for buffer variables.";
-    std::string buffer_name = GetVarID(var_node);
-
-    os << "// print_buffer starts (buffer)\n"
-       << "if (threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0) {\n";
-
-    os << "  printf(\"(" << buffer_name << ", shape=(";
-    for (int i = 0; i < num_dims; ++i) {
-      os << PrintExpr(shape[i]) << (i < num_dims - 1 ? "," : "");
-    }
-    os << "), dtype=" << dtype_ty << "):\\n\");\n";
-
-    std::vector<std::string> loop_vars;
-    for (int i = 0; i < num_dims; ++i) {
-      loop_vars.push_back("i" + std::to_string(i));
-    }
-
-    std::function<void(int)> GenerateLoops;
-    GenerateLoops = [&](int dim) {
-      if (dim == num_dims) {
-        std::string idx_calculation;
-        if (num_dims > 0) {
-          idx_calculation = loop_vars[0];
-          for (int i = 1; i < num_dims; ++i) {
-            idx_calculation =
-                "(" + idx_calculation + " * " + PrintExpr(shape[i]) + " + " + loop_vars[i] + ")";
-          }
-        } else {
-          idx_calculation = "0";
-        }
-
-        os << std::string(num_dims * 2 + 4, ' ') << "printf(\"" << format_specifier << "\", ";
-        if (is_float16) {
-          os << "static_cast<float>(" << buffer_name << "[" << idx_calculation << "]));\n";
-        } else {
-          os << buffer_name << "[" << idx_calculation << "]);\n";
-        }
-        return;
-      }
-
-      std::string indent(dim * 2 + 2, ' ');
-      os << indent << "for (int " << loop_vars[dim] << " = 0; " << loop_vars[dim] << " < "
-         << PrintExpr(shape[dim]) << "; ++" << loop_vars[dim] << ") {\n";
-
-      if (dim < num_dims - 1) {
-        os << indent << "  printf(\"[\");\n";
-      }
-      GenerateLoops(dim + 1);
-
-      if (dim < num_dims - 1) {
-        os << indent << "  printf(\"]\");\n";
-      }
-
-      os << indent << "  if (" << loop_vars[dim] << " < " << PrintExpr(shape[dim]) << " - 1) {\n";
-      if (dim == num_dims - 1) {
-        os << indent << "    printf(\" \");\n";
-      } else {
-        os << indent << "    printf(\"\\n" << std::string(dim + 2, ' ') << "\");\n";
-      }
-      os << indent << "  }\n";
-
-      os << indent << "}\n";
-    };
-
-    os << "  printf(\"[\");\n";
-    if (num_dims > 0) {
-      GenerateLoops(0);
-    }
-    os << "  printf(\"]\\n\");\n";
-
-    os << "}\n"
-       << "// print_buffer ends\n";
   } else if (op->op.same_as(cuda_func_call_op) ||
              (op->op.as<Op>() && op->op.as<Op>().value()->name == "tirx.cuda.func_call")) {
     print_cuda_func_call(op, os);
-  } else if (op->op.same_as(tirx::builtin::thread_return())) {
+  } else if (op->op.same_as(tirx::gpu_thread_return_op())) {
     os << "return";
   } else {
     CodeGenC::Dispatch_(op, os);
   }
 }
 
-void CodeGenCUDA::Dispatch_(const AttrStmtNode* op) {
-  if (op->attr_key == s_tir::attr::fragment_shape) {
-    const VarNode* buffer = op->node.as<VarNode>();
-    const StringImmNode* shape_str = op->value.as<StringImmNode>();
-    fragment_shapes[buffer] = shape_str->value;
-  } else if (op->attr_key == s_tir::attr::fragment_layout) {
-    const VarNode* buffer = op->node.as<VarNode>();
-    const StringImmNode* layout_str = op->value.as<StringImmNode>();
-    fragment_layouts[buffer] = layout_str->value;
-  } else if (op->attr_key == s_tir::attr::async_commit_queue_scope) {
-    const IntImmNode* queue_id = op->value.as<IntImmNode>();
-    TVM_FFI_ICHECK(queue_id && queue_id->value == 0)
-        << "For CUDA, the index of an async queue must be 0.";
-    this->Dispatch(op->body);
-    static const Op ptx_cp_async_commit_group_op = Op::Get("tirx.ptx.cp_async_commit_group");
-    // ptx Call layout: [operands...] [slot tokens] [pred marker ""].
-    auto commit_group = Call(PrimType::Void(), ptx_cp_async_commit_group_op,
-                             {StringImm("async"), StringImm("commit_group"), StringImm("")})
-                            .as_or_throw<PrimExpr>();
-    this->PrintIndent();
-    this->Dispatch(commit_group, this->stream);
-    this->stream << ";\n";
-    return;
-  } else if (op->attr_key == s_tir::attr::async_wait_queue_scope) {
-    auto wait_attrs = GetAsyncWaitAttributes(op);
-    auto queue_id = wait_attrs.first.as<IntImmNode>();
-    TVM_FFI_ICHECK(queue_id && queue_id->value == 0)
-        << "For CUDA, the index of an async queue must be 0.";
-    auto wait_cnt = wait_attrs.second;
-    static const Op ptx_cp_async_wait_group_op = Op::Get("tirx.ptx.cp_async_wait_group");
-    // ptx Call layout: [operands...] [slot tokens] [pred marker ""]. The group
-    // count is a role="imm" operand baked into the instruction text, so it must
-    // already be a compile-time constant here (the pipeline pass guarantees it).
-    auto wait_group = Call(PrimType::Void(), ptx_cp_async_wait_group_op,
-                           {wait_cnt, StringImm("async"), StringImm("wait_group"), StringImm("")})
-                          .as_or_throw<PrimExpr>();
-    this->PrintIndent();
-    this->Dispatch(wait_group, this->stream);
-    this->stream << ";\n";
-    auto inner = op->body.as<AttrStmtNode>();
-    TVM_FFI_ICHECK(inner);
-    this->Dispatch(inner->body);
-    return;
-  } else if (op->attr_key == tirx::attr::thread_extent) {
-  }
-  CodeGenC::Dispatch_(op);
-}
-
 void CodeGenCUDA::Dispatch_(const BindNode* op) {
   if (const auto* call = op->value.as<CallNode>(); call) {
-    if (call->op.same_as(tirx::builtin::alloc_buffer())) return DispatchAllocBuffer(op, call);
+    if (call->op.same_as(tirx::alloc_tensor_op())) return DispatchAllocTensor(op, call);
   }
   CodeGenC::Dispatch_(op);
 }
 
-void CodeGenCUDA::DispatchAllocBuffer(const BindNode* op, const CallNode* buffer_call) {
+void CodeGenCUDA::DispatchAllocTensor(const BindNode* op, const CallNode* buffer_call) {
   tvm::Tuple shape = buffer_call->args[0].as_or_throw<tvm::Tuple>();
   DLDataType dtype = buffer_call->args[1].as_or_throw<DataTypeImm>()->value;
   ffi::String scope = buffer_call->args[2].as_or_throw<StringImm>()->value;
-  BufferVar buffer = op->var.as_or_throw<BufferVar>();
-  DictAttrs annotations = buffer_call->attrs.as_or_throw<DictAttrs>();
+  TensorVar buffer = op->var.as_or_throw<TensorVar>();
+  DictAttrs annotations = buffer_call->attrs.value().as_or_throw<DictAttrs>();
   TVM_FFI_ICHECK(buffer.defined());
   std::string vid = AllocVarID(buffer.get(), buffer.name() + "_ptr");
 
   this->PrintIndent();
-  if (std::string(scope).find("wmma.") == 0) {
-    if (scope == "wmma.matrix_a" || scope == "wmma.matrix_b") {
-      bool supported_wmma_input_dtype =
-          PrimType(dtype) == PrimType::Float(16) || PrimType(dtype) == PrimType::Int(8) ||
-          PrimType(dtype) == PrimType::UInt(8) || PrimType(dtype) == PrimType::Int(4) ||
-          PrimType(dtype) == PrimType::UInt(4) || PrimType(dtype) == PrimType::Int(1) ||
-          PrimType(dtype) == PrimType::BFloat(16);
-      TVM_FFI_ICHECK(supported_wmma_input_dtype)
-          << "Matrix_a and matrix_b only support half or char or unsigned char "
-          << "or uint4 or int4 or int1 type for now";
-    } else {
-      bool supported_wmma_accumulator_dtype = PrimType(dtype) == PrimType::Float(16) ||
-                                              PrimType(dtype) == PrimType::Float(32) ||
-                                              PrimType(dtype) == PrimType::Int(32);
-      TVM_FFI_ICHECK(supported_wmma_accumulator_dtype)
-          << "Accumulator only support half, float and int type for now";
+  PrintStorageScope(scope, stream);
+  int align = buffer->data_alignment;
+  auto it = annotations->dict.find(tvm::tirx::attr::kBufferDataAlignment);
+  if (it != annotations->dict.end()) {
+    if (const auto* n = (*it).second.as<IntImmNode>()) {
+      align = n->value.as<int>().value();
     }
-    PrintWmmaScope(scope, PrimType(dtype), buffer.get(), stream);
-  } else {
-    PrintStorageScope(scope, stream);
-    int align = buffer->data_alignment;
-    auto it = annotations->dict.find(tirx::attr::buffer_data_alignment);
-    if (it != annotations->dict.end()) {
-      if (const auto* n = (*it).second.as<IntImmNode>()) {
-        align = n->value.as<int>().value();
-      }
-    }
-    if (align > 0 && scope == "shared.dyn") {
-      stream << "__align__(" << align << ") ";
-    } else if (align > 0) {
-      stream << "alignas(" << align << ") ";
-    }
-    PrintType(PrimType(dtype), stream);
   }
+  if (align > 0 && scope == "shared.dyn") {
+    stream << "__align__(" << align << ") ";
+  } else if (align > 0) {
+    stream << "alignas(" << align << ") ";
+  }
+  PrintType(PrimType(dtype), stream);
 
   if (scope == "shared.dyn") {
     stream << ' ' << vid << "[];\n";
@@ -1688,9 +1410,6 @@ void CodeGenCUDA::DispatchAllocBuffer(const BindNode* op, const CallNode* buffer
     }
     TVM_FFI_ICHECK_GT(constant_size, 0) << "Can only handle constant size stack allocation for now";
 
-    if (std::string(scope).find("wmma.") == 0) {
-      constant_size = GetWmmaFragmentSize(scope, buffer.get(), constant_size);
-    }
     bool is_packed_integer_dtype = PrimType(dtype) == PrimType::Int(4) ||
                                    PrimType(dtype) == PrimType::UInt(4) ||
                                    PrimType(dtype) == PrimType::Int(1);
@@ -1701,13 +1420,13 @@ void CodeGenCUDA::DispatchAllocBuffer(const BindNode* op, const CallNode* buffer
   }
 
   RegisterHandleType(buffer.get(), PrimType(dtype));
-  if (annotations->dict.count(tirx::attr::kVolatile)) {
+  if (annotations->dict.count(tvm::tirx::attr::kVolatile)) {
     MarkVolatile(buffer.get());
   }
 }
 
 void CodeGenCUDA::Dispatch_(const EvaluateNode* op) {
-  if (auto value = op->value.as<PrimExpr>(); value && is_const_int(value.value())) return;
+  if (auto value = op->value.as<PrimExpr>(); value && IsConstInt(value.value())) return;
   CodeGenC::Dispatch_(op);
 }
 
@@ -1984,72 +1703,6 @@ void CodeGenCUDA::Dispatch_(const FloatImmNode* op, std::ostream& os) {  // NOLI
   PrintConst(op, os, this);
 }
 
-void CodeGenCUDA::PrintWmmaScope(const std::string& scope, const PrimType& t,
-                                 const VarNode* variable, std::ostream& os) {
-  std::stringstream type;
-  PrintType(t, type);
-  TVM_FFI_ICHECK(fragment_shapes.count(variable))
-      << "Cannot find shape of the wmma fragment " << variable->name;
-  std::string shape_str = fragment_shapes.at(variable);
-  if ((t.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) && t.bits() < 8 &&
-      t.lanes() == 1) {
-    type.str(std::string());
-    if (t.MatchesCode(DLDataTypeCode::kDLInt)) {
-      if (t.bits() == 4) {
-        type << "nvcuda::wmma::experimental::precision::s4";
-      } else if (t.bits() == 1) {
-        type << "nvcuda::wmma::experimental::precision::b1";
-      } else {
-        TVM_FFI_THROW(InternalError) << "Unhandled interger type for wmma fragment!";
-      }
-    } else if (t.MatchesCode(DLDataTypeCode::kDLUInt)) {
-      if (t.bits() == 4) {
-        type << "nvcuda::wmma::experimental::precision::u4";
-      } else {
-        TVM_FFI_THROW(InternalError) << "Unhandled interger type for wmma fragment!";
-      }
-    }
-  }
-  if (scope == "wmma.matrix_a") {
-    codegen_tags_.insert("mma");
-    std::string layout_str = fragment_layouts[variable];
-    TVM_FFI_ICHECK_NE(layout_str, "") << "Layout must be defined for matrix_a";
-    os << "nvcuda::wmma::fragment<nvcuda::wmma::matrix_a, " << shape_str << ", " << type.str()
-       << ", nvcuda::wmma::" << layout_str << ">";
-  } else if (scope == "wmma.matrix_b") {
-    codegen_tags_.insert("mma");
-    std::string layout_str = fragment_layouts[variable];
-    TVM_FFI_ICHECK_NE(layout_str, "") << "Layout must be defined for matrix_b";
-    os << "nvcuda::wmma::fragment<nvcuda::wmma::matrix_b, " << shape_str << ", " << type.str()
-       << ", nvcuda::wmma::" << layout_str << ">";
-  } else if (scope == "wmma.accumulator") {
-    codegen_tags_.insert("mma");
-    os << "nvcuda::wmma::fragment<nvcuda::wmma::accumulator, " << shape_str << ", " << type.str()
-       << ">";
-  }
-}
-
-int stoi(const std::string& str) {
-  try {
-    return std::stoi(str);
-  } catch (std::invalid_argument& e) {
-    TVM_FFI_THROW(InternalError) << "Cannot convert \"" << str << "\" to int";
-    throw;
-  }
-}
-
-int32_t CodeGenCUDA::GetWmmaFragmentSize(const std::string& scope, const VarNode* variable,
-                                         int32_t size) {
-  TVM_FFI_ICHECK(fragment_shapes.count(variable))
-      << "Cannot find shape of the wmma fragment " << variable->name;
-  std::string shape_str = fragment_shapes.at(variable);
-  std::pair<int32_t, int32_t> dim = GetWmmaFragmentDimSize(shape_str, scope);
-  if (dim.first * dim.second != 0)
-    return size / dim.first / dim.second;
-  else
-    return 0;
-}
-
 void CodeGenCUDA::HandleVolatileLoads(const std::string& value, const TensorLoadNode* op,
                                       std::ostream& os) {
   // Cast away volatile qualifier for fp16 types. That is, only loads and
@@ -2058,7 +1711,7 @@ void CodeGenCUDA::HandleVolatileLoads(const std::string& value, const TensorLoad
   PrimType op_ty = op->ty.as_or_throw<PrimType>();
   if ((op_ty.MatchesElementType(DLDataTypeCode::kDLFloat, 16) ||
        op_ty.MatchesElementType(DLDataTypeCode::kDLBfloat, 16)) &&
-      IsVolatile(op->source.as_or_throw<tvm::tirx::BufferVar>().get())) {
+      IsVolatile(op->source.as_or_throw<tvm::tirx::TensorVar>().get())) {
     os << "(";
     PrintType(op_ty, os);
     os << ")(" << value << ")";
@@ -2123,7 +1776,7 @@ void CodeGenCUDA::PrintVecElemLoadExpr(const PrimType& t, int i, const std::stri
 // CUDA codegen entry point.  Generates CUDA C++ source, optionally lets a
 // Python postproc hook rewrite it, and hands the source bytes off to the
 // fallback-aware module factory.  The factory may JIT to PTX/cubin via
-// `tvm_callback_cuda_compile` (CUDAModuleNode::JitCompileFromSource) when
+// `tvm_callback_cuda_compile` when
 // USE_CUDA=ON; on USE_CUDA=OFF builds (or when TVM_COMPILE_FORCE_FALLBACK is
 // set), it returns a `CUDAFallbackModuleNode` carrying the raw source for
 // later cross-compile.
@@ -2132,24 +1785,24 @@ ffi::Module BuildCUDA(IRModule mod, Target target) {
   CodeGenCUDA cg(target);
   cg.Init(output_ssa);
 
-  ffi::Map<GlobalVar, PrimFunc> functions;
+  ffi::Map<GlobalVar, Function> functions;
   for (auto [gvar, base_func] : mod->functions) {
-    TVM_FFI_ICHECK(base_func->IsInstance<PrimFuncNode>()) << "CodeGenCUDA: Can only take PrimFunc";
-    auto prim_func = base_func.as_or_throw<PrimFunc>();
+    TVM_FFI_ICHECK(base_func->IsInstance<FunctionNode>()) << "CodeGenCUDA: Can only take Function";
+    auto function = base_func.as_or_throw<Function>();
     CallingConv calling_conv =
-        prim_func->GetAttr<CallingConv>(tvm::attr::kCallingConv, CallingConv::kDefault).value();
+        function->GetAttr<CallingConv>(tvm::attr::kCallingConv, CallingConv::kDefault).value();
     TVM_FFI_ICHECK(calling_conv == CallingConv::kDeviceKernelLaunch ||
                    calling_conv == CallingConv::kDefault)
         << "CodeGenCUDA: expect calling_conv equals CallingConv::kDeviceKernelLaunch or "
            "CallingConv::kDefault";
-    functions.Set(gvar, prim_func);
+    functions.Set(gvar, function);
   }
 
-  for (auto [gvar, prim_func] : functions) {
-    cg.DeclareFunction(gvar, prim_func);
+  for (auto [gvar, function] : functions) {
+    cg.DeclareFunction(gvar, function);
   }
-  for (auto [gvar, prim_func] : functions) {
-    cg.AddFunction(gvar, prim_func);
+  for (auto [gvar, function] : functions) {
+    cg.AddFunction(gvar, function);
   }
 
   std::string code = cg.Finish();
@@ -2160,10 +1813,19 @@ ffi::Module BuildCUDA(IRModule mod, Target target) {
 
   // Hand off raw CUDA source to the fallback-aware factory.  When the real
   // CUDA runtime is registered (USE_CUDA=ON and not forced-fallback) the
-  // factory invokes JitCompileFromSource via tvm_callback_cuda_compile and
+  // factory invokes tvm_callback_cuda_compile and
   // builds a real CUDAModuleNode.  Otherwise it stores the source in a
   // CUDAFallbackModuleNode for later cross-compile.
   ffi::Map<ffi::String, ffi::String> source_map;
+  auto config = mod->GetAttr<ffi::String>("backend_config");
+  if (!config.has_value()) {
+    // Direct codegen callers still resolve an explicit target, without relying
+    // on a current Target scope or compiler environment variables.
+    auto resolve = ffi::Function::GetGlobalRequired("cuda.resolve_backend_config");
+    auto resolved = resolve("", "", target).cast<ffi::Array<ffi::Any>>();
+    config = resolved[1].cast<ffi::String>();
+  }
+  source_map.Set("backend_config", config.value());
   return ::tvm::target::CUDAModuleCreateWithFallback(
       ffi::Bytes(code.data(), code.size()), ffi::String("cuda"), ExtractFuncInfo(mod), source_map);
 }

@@ -32,8 +32,8 @@ def test_large_uint_imm():
 
     @I.ir_module
     class Module:
-        @T.prim_func
-        def main(A: T.Buffer((12,), "uint64")):
+        @T.function
+        def main(A: T.Tensor((12,), "uint64")):
             T.func_attr({"tirx.noalias": True})
             for i0_0 in T.thread_binding(6, thread="blockIdx.x"):
                 for i0_1 in T.thread_binding(2, thread="threadIdx.x"):
@@ -64,11 +64,11 @@ def test_add_pipeline():
 
     @I.ir_module
     class Module:
-        @T.prim_func
-        def main(A: T.Buffer((n,)), B: T.Buffer((), "float32"), D: T.Buffer((n,))):
+        @T.function
+        def main(A: T.Tensor((n,)), B: T.Tensor((), "float32"), D: T.Tensor((n,))):
             T.func_attr({"tirx.noalias": True})
 
-            C = T.alloc_buffer((n,))
+            C = T.alloc_tensor((n,))
             for i0_0 in T.thread_binding((n + 255) // 256, thread="blockIdx.x"):
                 for i0_1 in T.thread_binding(256, thread="threadIdx.x"):
                     if i0_0 * 256 + i0_1 < n:

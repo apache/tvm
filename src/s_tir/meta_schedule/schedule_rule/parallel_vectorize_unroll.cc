@@ -31,9 +31,9 @@ bool IsRootBlock(const Schedule& sch, const SBlockRV& block_rv) {
   return block_sref->parent == nullptr;
 }
 
-bool CheckSpatialPrimFunc(const Schedule& sch, const SBlockRV& root_block_rv) {
-  return IsSpatialPrimFunc(
-      ffi::GetRef<PrimFunc>(GetRootPrimFunc(sch->mod(), sch->Get(root_block_rv).get(), nullptr)));
+bool CheckSpatialFunction(const Schedule& sch, const SBlockRV& root_block_rv) {
+  return IsSpatialFunction(
+      ffi::GetRef<Function>(GetRootFunction(sch->mod(), sch->Get(root_block_rv).get(), nullptr)));
 }
 
 }  // namespace s_tir
@@ -63,24 +63,24 @@ class ParallelizeVectorizeUnrollNode : public ScheduleRuleNode {
 
     // Parallelization
     if (max_jobs_per_core != -1) {
-      sch->Annotate(root_rv, s_tir::attr::meta_schedule_parallel,
+      sch->Annotate(root_rv, tvm::s_tir::attr::kMetaScheduleParallel,
                     IntImm::Int32(this->max_parallel_extent_));
     }
     // Vectorization
     if (max_vectorize_extent != -1) {
-      sch->Annotate(root_rv, s_tir::attr::meta_schedule_vectorize,
+      sch->Annotate(root_rv, tvm::s_tir::attr::kMetaScheduleVectorize,
                     IntImm::Int32(max_vectorize_extent));
     }
     // Unroll
-    if (!unroll_max_steps.empty() && !s_tir::CheckSpatialPrimFunc(sch, root_rv)) {
+    if (!unroll_max_steps.empty() && !s_tir::CheckSpatialFunction(sch, root_rv)) {
       int n = unroll_max_steps.size();
       double prob = 1.0 / n;
       ffi::Array<FloatImm> probs(n, FloatImm(PrimType::Float(32), prob));
       PrimExpr max_step = sch->SampleCategorical(unroll_max_steps, probs);
       if (unroll_explicit) {
-        sch->Annotate(root_rv, s_tir::attr::meta_schedule_unroll_explicit, max_step);
+        sch->Annotate(root_rv, tvm::s_tir::attr::kMetaScheduleUnrollExplicit, max_step);
       } else {
-        sch->Annotate(root_rv, s_tir::attr::meta_schedule_unroll_implicit, max_step);
+        sch->Annotate(root_rv, tvm::s_tir::attr::kMetaScheduleUnrollImplicit, max_step);
       }
     }
     return {sch};
@@ -90,7 +90,7 @@ class ParallelizeVectorizeUnrollNode : public ScheduleRuleNode {
   ScheduleRule Clone() const final {
     ffi::ObjectPtr<ParallelizeVectorizeUnrollNode> n =
         ffi::make_object<ParallelizeVectorizeUnrollNode>(*this);
-    return ScheduleRule(n);
+    return ScheduleRule(ffi::UnsafeInit{}, n);
   }
 
  public:
@@ -138,7 +138,7 @@ ScheduleRule ScheduleRule::ParallelizeVectorizeUnroll(int max_jobs_per_core,
   n->unroll_max_steps = unroll_max_steps;
   n->unroll_explicit = unroll_explicit;
   n->max_parallel_extent_ = -1;
-  return ScheduleRule(n);
+  return ScheduleRule(ffi::UnsafeInit{}, n);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() { ParallelizeVectorizeUnrollNode::RegisterReflection(); }

@@ -24,6 +24,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>
+#include <tvm/tirx/op/memory.h>
 
 #include "utils.h"
 
@@ -92,7 +93,7 @@ class Mutator : public ExprMutator {
       ffi::Optional<VDevice> vdevice = GetGlobalVDevice(ctx_mod_, vdevice_index);
 
       if (vdevice.has_value()) {
-        std::string dev_kind = vdevice.value()->target->kind->name;
+        std::string dev_kind = vdevice.value()->target.value()->kind->name;
         PrimExpr dev_size = IntImm::Int64(1);
         if (vdevice.value()->memory_scope != "global") {
           auto device_size_handler =
@@ -105,9 +106,9 @@ class Mutator : public ExprMutator {
           auto device_scope_handler =
               tvm::ffi::Function::GetGlobal(std::string("DeviceScopeCompatibility.") + dev_kind);
           if (device_scope_handler.has_value()) {
-            ffi::String dev_scope =
-                (*device_scope_handler)(vdevice.value()->target, vdevice.value()->memory_scope)
-                    .cast<ffi::String>();
+            ffi::String dev_scope = (*device_scope_handler)(vdevice.value()->target.value(),
+                                                            vdevice.value()->memory_scope)
+                                        .cast<ffi::String>();
             storage_scope = StringImm(dev_scope);
           }
         }
@@ -119,8 +120,8 @@ class Mutator : public ExprMutator {
           Type::Missing(), mem_alloc_storage_op,
           {size, runtime_device_index, storage_scope, DataTypeImm((DLDataType{kDLUInt, 8, 1}))});
       storage = builder_->Emit(storage, "storage");
-      Expr tensor = Call::Unchecked(Type::Missing(), mem_alloc_tensor_op,
-                                    {storage, offset, shape_arg, dtype, op->args[2]});
+      Expr tensor = Call(Type::Missing(), mem_alloc_tensor_op,
+                         {storage, offset, shape_arg, dtype, op->args[2]});
       return tensor;
     } else {
       return ExprMutator::VisitExpr_(op);
@@ -143,7 +144,7 @@ Pass LowerAllocTensor() {
   auto pass_func = [=](Function func, IRModule m, PassContext pc) {
     return relax::LowerAllocTensor(m, std::move(func)).as_or_throw<Function>();
   };
-  return CreateFunctionPass(pass_func, /*opt_level=*/0, "LowerAllocTensor", {});
+  return CreateFunctionPass(pass_func, /*opt_level=*/0, "LowerAllocTensor");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

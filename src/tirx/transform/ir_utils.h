@@ -24,16 +24,17 @@
 #ifndef TVM_TIR_TRANSFORM_IR_UTILS_H_
 #define TVM_TIR_TRANSFORM_IR_UTILS_H_
 
-#include <tvm/ir/prim/builtin.h>
+#include <tvm/ir/function.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/ir/scope_stack.h>
 #include <tvm/ir/with_context.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/sym/int_set.h>
-#include <tvm/tirx/builtin.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/layout.h>
-#include <tvm/tirx/op.h>
+#include <tvm/tirx/op/abi.h>
+#include <tvm/tirx/op/memory.h>
 #include <tvm/tirx/stmt_functor.h>
 
 #include <functional>
@@ -49,16 +50,16 @@ namespace tvm {
 namespace tirx {
 
 /*!
- * \brief combine the nest stmt, whose body is not defined.
- * \param nest A list of For and Bind, whose body is not defined.
+ * \brief Fill empty loop/conditional bodies and prepend statement prefixes.
+ * \param nest Loops, conditionals with empty bodies, or Bind/Assert/SeqStmt prefixes.
  * \param body body
  * \return The combined Stmt
  */
 Stmt MergeNest(const std::vector<Stmt>& nest, Stmt body);
 
 /*!
- * \brief combine the nest stmt, whose body is not defined.
- * \param nest A list of For and Bind, whose body is not defined.
+ * \brief Fill empty loop/conditional bodies and prepend statement prefixes.
+ * \param nest Groups of loops, conditionals with empty bodies, or statement prefixes.
  * \param body body
  * \return The combined Stmt
  */
@@ -98,13 +99,12 @@ inline ffi::Array<T> UpdateArray(ffi::Array<T> arr, F fupdate) {
  * \param kind The data kind.
  * \return the get expression.
  */
-inline Expr TVMStructGet(Type type, Var handle, int index, builtin::TVMStructFieldKind kind) {
+inline Expr TVMStructGet(Type type, Var handle, int index, tirx::TVMStructFieldKind kind) {
   ffi::Array<Expr> args = {handle, IntImm::Int32(index), IntImm::Int32(static_cast<int>(kind))};
-  return Call(std::move(type), builtin::tvm_struct_get(), args);
+  return Call(std::move(type), tirx::abi_field_get_op(), args);
 }
 
-inline PrimExpr TVMStructGet(PrimType type, Var handle, int index,
-                             builtin::TVMStructFieldKind kind) {
+inline PrimExpr TVMStructGet(PrimType type, Var handle, int index, tirx::TVMStructFieldKind kind) {
   return TVMStructGet(Type(type), std::move(handle), index, kind).as_or_throw<PrimExpr>();
 }
 
@@ -118,11 +118,11 @@ inline Call AddressOffset(Var handle, PrimType dtype, int offset) {
   PrimExpr offset_expr = IntImm::Int32(offset * dtype.lanes());
   ffi::Array<PrimExpr> shape = {offset_expr + 1};
   auto pointer_type = handle->ty.as_or_throw<PointerType>();
-  BufferVar dummy_buf(handle->name,
-                      BufferType(pointer_type->storage_scope, dtype, shape, {}, 0, 0, 0));
-  TensorLoad buf_load = BufferLoad(dummy_buf, {offset_expr});
+  TensorVar dummy_buf(handle->name,
+                      TensorType(pointer_type->storage_scope, dtype, shape, {}, 0, 0, 0));
+  TensorLoad buf_load = MakeTensorLoad(dummy_buf, {offset_expr});
 
-  return Call(handle->ty, builtin::address_of(), {buf_load});
+  return Call(handle->ty, tirx::address_of_op(), {buf_load});
 }
 
 /*!
@@ -140,11 +140,11 @@ inline Call AddressOffset(Var handle, PrimType dtype, PrimExpr offset) {
 
   ffi::Array<PrimExpr> shape = {offset + 1};
   auto pointer_type = handle->ty.as_or_throw<PointerType>();
-  BufferVar dummy_buf(handle->name, BufferType(pointer_type->storage_scope, dtype.WithLanes(1),
+  TensorVar dummy_buf(handle->name, TensorType(pointer_type->storage_scope, dtype.WithLanes(1),
                                                shape, {}, 0, 0, 0));
-  TensorLoad buf_load = BufferLoad(dummy_buf, {offset});
+  TensorLoad buf_load = MakeTensorLoad(dummy_buf, {offset});
 
-  return Call(handle->ty, builtin::address_of(), {buf_load});
+  return Call(handle->ty, tirx::address_of_op(), {buf_load});
 }
 
 /*!
@@ -155,10 +155,10 @@ inline Call AddressOffset(Var handle, PrimType dtype, PrimExpr offset) {
  * \param value The value to be set.
  * \return the set stmt.
  */
-inline Stmt TVMStructSet(Var handle, int index, builtin::TVMStructFieldKind kind, Expr value) {
+inline Stmt TVMStructSet(Var handle, int index, tirx::TVMStructFieldKind kind, Expr value) {
   ffi::Array<Expr> args = {handle, IntImm::Int32(index), IntImm::Int32(static_cast<int>(kind)),
                            value};
-  return Evaluate(Call(PrimType::Int(32), builtin::tvm_struct_set(), args).as_or_throw<PrimExpr>());
+  return Evaluate(Call(PrimType::Int(32), tirx::abi_field_set_op(), args).as_or_throw<PrimExpr>());
 }
 
 /*!
@@ -172,7 +172,7 @@ inline PrimType APIType(const PrimType& t) {
   if (t.MatchesCode(DLDataTypeCode::kDLBool, DLDataTypeCode::kDLUInt, DLDataTypeCode::kDLInt)) {
     return PrimType::Int(64);
   }
-  TVM_FFI_ICHECK_EQ(t.code(), DLDataTypeCode::kDLFloat);
+  TVM_FFI_ICHECK(t.MatchesCode(DLDataTypeCode::kDLFloat, DLDataTypeCode::kDLBfloat));
   return PrimType::Float(64);
 }
 
@@ -217,7 +217,7 @@ inline PrimExpr ConstInt32(size_t index) {
  */
 inline Call StackAlloca(Type ret_type, std::string type, size_t num) {
   ffi::Array<Expr> args = {StringImm(type), ConstInt32(num)};
-  return Call(std::move(ret_type), builtin::tvm_stack_alloca(), args);
+  return Call(std::move(ret_type), tirx::stack_alloca_op(), args);
 }
 
 /*!
@@ -233,7 +233,7 @@ class IRConvertSSA : public StmtExprMutator {
   TVM_DEFINE_OBJECT_FUNCTOR_DEFAULT_CONSTRUCTOR(IRConvertSSA, StmtExprMutator)
   using StmtExprMutator::Mutate;
   using StmtExprMutator::Mutate_;
-  PrimFunc VisitPrimFunc(PrimFunc func);
+  Function VisitFunction(Function func);
   IRModule VisitIRModule(IRModule mod);
 
  protected:
@@ -243,10 +243,10 @@ class IRConvertSSA : public StmtExprMutator {
   Var DefineVar(Var var);
   Var GetRemappedVar(Var var);
   UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final;
-  UnchangedOr<Stmt> Mutate_(const IfThenElseNode* op, InplaceMode inplace_mode) final;
+  UnchangedOr<Stmt> Mutate_(const IfNode* op, InplaceMode inplace_mode) final;
   UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final;
   UnchangedOr<Stmt> Mutate_(const WhileNode* op, InplaceMode inplace_mode) final;
-  UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final;
+  UnchangedOr<Stmt> Mutate_(const RegionStmtNode* op, InplaceMode inplace_mode) final;
   UnchangedOr<PrimExpr> Mutate_(const prim::LetNode* op, InplaceMode inplace_mode) final;
   static Var MakeNewVar(const Var& old_var);
   void PushVarRemap(const Var& old_var, const Var& new_var);
@@ -306,7 +306,6 @@ class IRConvertSSA : public StmtExprMutator {
 
   std::unordered_map<const VarNode*, std::vector<Var>> scoped_var_remap_;
   std::unordered_set<const VarNode*> defined_;
-  std::unordered_map<const VarNode*, Var> function_scope_var_remap_;
   ScopeStack<ScopeLevel> scope_;
 };
 
@@ -322,7 +321,7 @@ ffi::String GetPtrStorageScope(Var buffer_var);
  * \param buffer The buffer object.
  * \return shape The shape considering buffer strides.
  */
-ffi::Array<PrimExpr> GetBufferAllocationShape(const BufferVar& buffer);
+ffi::Array<PrimExpr> GetBufferAllocationShape(const TensorVar& buffer);
 
 // Information of tensor core fragment.
 struct FragmentInfo {
@@ -357,10 +356,6 @@ struct FragmentInfo {
  */
 std::unordered_map<const VarNode*, FragmentInfo> GetTensorCoreFragmentInfo(const Stmt& stmt);
 
-// Return the queue id and the in-flight count associated with the given
-// tvm::tirx::attr::async_wait_queue_scope annotation.
-std::pair<PrimExpr, PrimExpr> GetAsyncWaitAttributes(const AttrStmtNode* op);
-
 /*!
  * \brief Split string separated by "," to get wmma fragment dimension size.
  * \param  shape_str The string to split.
@@ -370,7 +365,7 @@ std::pair<PrimExpr, PrimExpr> GetAsyncWaitAttributes(const AttrStmtNode* op);
 std::pair<int32_t, int32_t> GetWmmaFragmentDimSize(const std::string& shape_str,
                                                    const std::string& scope);
 
-/*! \brief Check if a PrimFunc is a host function
+/*! \brief Check if a Function is a host function
  *
  * \param func The function to be inspected
  *
@@ -379,7 +374,7 @@ std::pair<int32_t, int32_t> GetWmmaFragmentDimSize(const std::string& shape_str,
  * determined (e.g. a function without a tvm::attr::kTarget
  * attribute), returns std::nullopt.
  */
-std::optional<bool> IsHostFunc(const PrimFunc& func);
+std::optional<bool> IsHostFunc(const Function& func);
 
 }  // namespace tirx
 }  // namespace tvm

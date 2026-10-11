@@ -31,9 +31,10 @@ codegen time. Packed-vec emit requires the innermost dim to have stride 1
 from __future__ import annotations
 
 from tvm.script import tirx as T
-from tvm.tirx import PrimFunc, TilePrimitiveCall
+from tvm.tirx import Function
 from tvm.tirx.operator.tile_primitive import DispatchContext
 from tvm.tirx.operator.tile_primitive.dispatcher import fail
+from tvm.tirx.tensor_instruction import TensorCall
 
 from ..common import get_indices, get_st_extent, get_thread_cnt
 from ._common import (
@@ -60,7 +61,7 @@ from .vec_emit import _emit_vec
 def is_smem_ewise(spec):
     """Predicate factory: dispatch accepted iff all operands in ``shared*``."""
 
-    def check(op_call: TilePrimitiveCall, sctx: DispatchContext) -> tuple[bool, str | None]:
+    def check(op_call: TensorCall, sctx: DispatchContext) -> tuple[bool, str | None]:
         if not sctx.is_target("cuda"):
             return False, "non-cuda target"
         if sctx.scope_kind not in ("thread", "warp", "warpgroup", "cta"):
@@ -129,7 +130,7 @@ def _max_layout_vec(plan, total: int, thread_cnt: int) -> int:
 # -----------------------------------------------------------------------------
 # Main entry
 # -----------------------------------------------------------------------------
-def emit_smem(op_call: TilePrimitiveCall, spec, sctx: DispatchContext) -> PrimFunc:
+def emit_smem(op_call: TensorCall, spec, sctx: DispatchContext) -> Function:
     plan, msg = spec.parse(op_call)
     if msg is not None or plan is None:
         fail(msg or "parse failed")
@@ -137,7 +138,7 @@ def emit_smem(op_call: TilePrimitiveCall, spec, sctx: DispatchContext) -> PrimFu
     # Use cuda/common.py:get_thread_cnt rather than copy/_common.py:_thread_cnt
     # — the latter computes ``∏ sctx.intra`` which silently returns 0 for
     # sub-warp counts at cta scope (warpid extent rounds down to 0). The
-    # former reads launch_params["threadIdx.x"].dom.extent and is correct
+    # former reads launch_params["threadIdx.x"][1] and is correct
     # for all scopes.
     thread_cnt = get_thread_cnt(sctx)
     if thread_cnt is None:
@@ -145,9 +146,10 @@ def emit_smem(op_call: TilePrimitiveCall, spec, sctx: DispatchContext) -> PrimFu
     thread_cnt = int(thread_cnt)
     if thread_cnt <= 0:
         fail(f"non-positive thread_cnt {thread_cnt}")
-    assert "threadIdx.y" not in sctx.launch_params and "threadIdx.z" not in sctx.launch_params, (
-        "smem emit currently assumes 1D threadIdx"
-    )
+    assert all(
+        axis not in sctx.launch_params or int(sctx.launch_params[axis][1]) == 1
+        for axis in ("threadIdx.y", "threadIdx.z")
+    ), "smem emit currently assumes 1D threadIdx"
 
     total = n_elements(plan.dst)
     vec_max = _max_layout_vec(plan, total, thread_cnt)
@@ -190,7 +192,7 @@ def _src_lane_indices(src_br, dst_lane_indices, dst_st, dst_ext, vec_chunk, fuse
 # -----------------------------------------------------------------------------
 # Emit — packed
 # -----------------------------------------------------------------------------
-def _emit_packed(plan, vec_impl, vec_chunk, total, thread_cnt, sctx) -> PrimFunc:
+def _emit_packed(plan, vec_impl, vec_chunk, total, thread_cnt, sctx) -> Function:
     extras = plan.extras
     srcs = plan.srcs
     dst_buf = plan.dst.source
@@ -198,7 +200,7 @@ def _emit_packed(plan, vec_impl, vec_chunk, total, thread_cnt, sctx) -> PrimFunc
     sync = emit_scope_sync(sctx.scope_kind)
     n_outer = (total + vec_chunk * thread_cnt - 1) // (vec_chunk * thread_cnt)
 
-    @T.prim_func(check_well_formed=False)
+    @T.function(check_well_formed=False)
     def impl():
         tid = _tid_expr(sctx)
         for s in T.serial(0, n_outer):
@@ -212,7 +214,7 @@ def _emit_packed(plan, vec_impl, vec_chunk, total, thread_cnt, sctx) -> PrimFunc
                 src_args = T.meta_var(
                     [
                         srcs[i].scalar
-                        if srcs[i].is_scalar
+                        if T.constexpr(srcs[i].is_scalar)
                         else (
                             srcs[i].buf_region.source,
                             _src_lane_indices(
@@ -236,7 +238,7 @@ def _emit_packed(plan, vec_impl, vec_chunk, total, thread_cnt, sctx) -> PrimFunc
 # -----------------------------------------------------------------------------
 # Emit — scalar fallback
 # -----------------------------------------------------------------------------
-def _emit_scalar(plan, spec, vec_chunk, total, thread_cnt, sctx) -> PrimFunc:
+def _emit_scalar(plan, spec, vec_chunk, total, thread_cnt, sctx) -> Function:
     extras = plan.extras
     srcs = plan.srcs
     dst_buf = plan.dst.source
@@ -246,7 +248,7 @@ def _emit_scalar(plan, spec, vec_chunk, total, thread_cnt, sctx) -> PrimFunc:
     sync = emit_scope_sync(sctx.scope_kind)
     n_outer = (total + vec_chunk * thread_cnt - 1) // (vec_chunk * thread_cnt)
 
-    @T.prim_func(check_well_formed=False)
+    @T.function(check_well_formed=False)
     def impl():
         tid = _tid_expr(sctx)
         for s in T.serial(0, n_outer):

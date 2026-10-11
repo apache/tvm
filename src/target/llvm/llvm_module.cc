@@ -37,7 +37,9 @@
 #include <llvm/IRReader/IRReader.h>
 #include <llvm/Support/FileSystem.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/function.h>
 #include <tvm/support/io.h>
+#include <tvm/tirx/function.h>
 #if TVM_LLVM_VERSION >= 180
 #include <llvm/TargetParser/Host.h>
 #else
@@ -258,13 +260,13 @@ void LLVMModuleNode::Init(const IRModule& mod, const Target& target) {
       mod->GetAttr<ffi::String>(tvm::attr::kSystemLibPrefix);
 
   for (auto kv : mod->functions) {
-    if (!kv.second->IsInstance<PrimFuncNode>()) {
-      DLOG(INFO) << "Can only lower IR Module with PrimFuncs, but got " << kv.second->GetTypeKey();
+    if (!kv.second->IsInstance<tirx::FunctionNode>()) {
+      DLOG(INFO) << "Can only lower IR Module with Functions, but got " << kv.second->GetTypeKey();
       continue;
     }
-    auto f = kv.second.as_or_throw<PrimFunc>();
+    auto f = kv.second.as_or_throw<tirx::Function>();
     auto global_symbol = f->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol);
-    bool is_entry_func = f->HasNonzeroAttr(tirx::attr::kIsEntryFunc);
+    bool is_entry_func = f->HasNonzeroAttr(tvm::tirx::attr::kIsEntryFunc);
 
     TVM_FFI_ICHECK(global_symbol || !is_entry_func) << "The entry func must be exposed externally.";
 
@@ -397,7 +399,11 @@ static void LLVMReflectionRegister() {
 #endif
            })
       .def("target.llvm_get_intrinsic_name",
-           [](int64_t id) -> ffi::String { return llvmGetIntrinName(id); })
+           [](int64_t id) -> ffi::String {
+             TVM_FFI_CHECK(id > 0 && id < llvm::Intrinsic::num_intrinsics, ValueError)
+                 << "Invalid LLVM intrinsic id: " << id;
+             return llvmGetIntrinName(id);
+           })
       .def("target.llvm_get_system_x86_vendor",
            []() -> ffi::String {
 #if defined(__i386__) || defined(_M_IX86) || defined(__x86_64__) || defined(_M_X64)
@@ -413,11 +419,11 @@ static void LLVMReflectionRegister() {
              return "unimplemented";
            })
       .def("target.llvm_get_vector_width",
-           [](const Target& target) -> int {
-             auto use_target = target.defined() ? target : Target::Current(false);
+           [](const ffi::Optional<Target>& target) -> int {
+             auto use_target = target.has_value() ? target.value() : Target::Current(false).value();
              // ignore non "llvm" target
              if (target.defined()) {
-               if (target->kind->name != "llvm") {
+               if (target.value()->kind->name != "llvm") {
                  return -1;
                }
              }
@@ -436,11 +442,11 @@ static void LLVMReflectionRegister() {
              return llvm_backend.GetAllLLVMTargets();
            })
       .def("target.llvm_get_cpu_archlist",
-           [](const Target& target) -> ffi::Array<ffi::String> {
-             auto use_target = target.defined() ? target : Target::Current(false);
+           [](const ffi::Optional<Target>& target) -> ffi::Array<ffi::String> {
+             auto use_target = target.has_value() ? target.value() : Target::Current(false).value();
              // ignore non "llvm" target
              if (target.defined()) {
-               if (target->kind->name != "llvm") {
+               if (target.value()->kind->name != "llvm") {
                  return ffi::Array<ffi::String>{};
                }
              }
@@ -449,11 +455,11 @@ static void LLVMReflectionRegister() {
              return llvm_backend.GetAllLLVMTargetArches();
            })
       .def("target.llvm_get_cpu_features",
-           [](const Target& target) -> ffi::Map<ffi::String, ffi::String> {
-             auto use_target = target.defined() ? target : Target::Current(false);
+           [](const ffi::Optional<Target>& target) -> ffi::Map<ffi::String, ffi::String> {
+             auto use_target = target.has_value() ? target.value() : Target::Current(false).value();
              // ignore non "llvm" target
              if (target.defined()) {
-               if (target->kind->name != "llvm") {
+               if (target.value()->kind->name != "llvm") {
                  return {};
                }
              }
@@ -462,11 +468,11 @@ static void LLVMReflectionRegister() {
              return llvm_backend.GetAllLLVMCpuFeatures();
            })
       .def("target.llvm_cpu_has_feature",
-           [](const ffi::String feature, const Target& target) -> bool {
-             auto use_target = target.defined() ? target : Target::Current(false);
+           [](const ffi::String feature, const ffi::Optional<Target>& target) -> bool {
+             auto use_target = target.has_value() ? target.value() : Target::Current(false).value();
              // ignore non "llvm" target
              if (target.defined()) {
-               if (target->kind->name != "llvm") {
+               if (target.value()->kind->name != "llvm") {
                  return false;
                }
              }
@@ -477,11 +483,11 @@ static void LLVMReflectionRegister() {
              return has_feature;
            })
       .def("target.target_has_feature",
-           [](const ffi::String feature, const Target& target) -> bool {
-             auto use_target = target.defined() ? target : Target::Current(false);
+           [](const ffi::String feature, const ffi::Optional<Target>& target) -> bool {
+             auto use_target = target.has_value() ? target.value() : Target::Current(false).value();
              // ignore non "llvm" target
              if (target.defined()) {
-               if (target->kind->name != "llvm") {
+               if (target.value()->kind->name != "llvm") {
                  return false;
                }
              }

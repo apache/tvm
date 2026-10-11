@@ -15,11 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-"""CUDA synchronous ``gemm`` lowerings (warp-level ``mma.sync`` tensor core).
-
-Importing this package registers every synchronous CUDA ``gemm`` dispatch
-candidate as a side effect (each submodule calls ``register_dispatch`` at
-import time).  It is the synchronous counterpart to ``gemm_async``.
-"""
+"""CUDA warp-level mma.sync tensor instruction lowering."""
 
 from .mma_m16n8k_ import *

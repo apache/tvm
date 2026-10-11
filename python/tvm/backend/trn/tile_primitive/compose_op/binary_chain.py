@@ -19,9 +19,10 @@
 
 from tvm.ir import TensorRegion
 from tvm.script import tirx as T
-from tvm.tirx import PrimFunc, TilePrimitiveCall
-from tvm.tirx.operator.tile_primitive import DispatchContext, predicate, register_dispatch
-from tvm.tirx.operator.tile_primitive.ops import BinaryChain
+from tvm.tirx import Function
+from tvm.tirx.op.tile import BinaryChain
+from tvm.tirx.operator.tile_primitive import DispatchContext
+from tvm.tirx.tensor_instruction import TensorCall
 
 from ..binary.utils import InstType, try_find_inst_nary
 from ..common import init_analyzer, nki_dim
@@ -29,9 +30,9 @@ from ..instruction_generator import InstructionGenerator
 from .utils import opcode_table
 
 
-def binary_chain_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc | None:
+def binary_chain_trn(op: TensorCall, sctx: DispatchContext) -> Function | None:
     """Generate a TRN schedule for binary chain operations."""
-    op = TilePrimitiveCall.downcast(op)
+    op = TensorCall.decode(op)
     assert isinstance(op, BinaryChain), f"invalid operator downcast: {op}"
 
     # Extract operation components
@@ -61,7 +62,7 @@ def binary_chain_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc |
     b_var = T.Var("B", "int32")
     f_var = T.Var("F", "int32")
     p_size = output.source.ty.layout.size("P")
-    inst_size_limit = op.config.get("max_inst_size", 512)
+    inst_size_limit = op.options.get("max_inst_size", 512)
     inst_repr.bound_inst_size(inst_size_limit, analyzer)
     inst_gen.bind_inst_iter(output, p_var, p_size, 1, False)
     inst_gen.bind_inst_iter(output, f_var, inst_repr.size, inst_repr.stride, True)
@@ -78,6 +79,14 @@ def binary_chain_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc |
         else T.nki.scalar_tensor_tensor
     )
 
+    instruction = (
+        "scalar_tensor_scalar"
+        if inst_types[1] == InstType.TENSOR_SCALAR
+        else "scalar_tensor_tensor"
+    )
+    if not op.op.name.endswith("." + instruction):
+        raise ValueError(f"{op.op.name} operands require {instruction}")
+
     # Helper function to get source indices
     def get_srcs(inst_gen):
         return [
@@ -92,10 +101,10 @@ def binary_chain_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc |
     # Create implementation
     # fmt: off
     # This fragment captures buffers and indices from its insertion scope.
-    @T.prim_func(check_well_formed=False)
+    @T.function(check_well_formed=False)
     def impl():
         for b_loop in T.serial(0, b_extent):
-            with T.attr(0, "tensorized_nki_instruction", 1):
+            with T.nki.tensorized_instruction():
                 for p_loop in T.serial(0, p_size, annotations={nki_dim: "P"}):
                     for f_loop in T.serial(0, inst_repr.size, annotations={nki_dim: "F"}):
                         inst_gen.set_bind_map_all({p_var: p_loop, f_var: f_loop, b_var: b_loop})
@@ -106,22 +115,3 @@ def binary_chain_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc |
     # fmt: on
 
     return impl
-
-
-@register_dispatch(
-    "binary_chain",
-    "trn",
-    variant="default",
-    priority=10,
-    when=[
-        predicate(
-            "exec_scope",
-            lambda op, sctx: (
-                sctx.scope_kind == "thread",
-                f"unsupported exec_scope {sctx.scope_kind}",
-            ),
-        )
-    ],
-)
-def binary_chain_trn_dispatch(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
-    return binary_chain_trn(op, sctx)

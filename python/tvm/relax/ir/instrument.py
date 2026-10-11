@@ -20,7 +20,7 @@ import tvm
 from tvm import relax
 
 
-@tvm.instrument.pass_instrument
+@tvm.transform.pass_instrument
 class WellFormedInstrument:
     """An instrument that checks the input/output IRModule of the Pass
     is well formed. It will skip specific passes, like Normalize.

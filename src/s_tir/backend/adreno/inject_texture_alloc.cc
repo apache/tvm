@@ -21,12 +21,15 @@
  * \file inject_texture_alloc.cc
  */
 
+#include <tvm/backend/opencl/op/memory.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/s_tir/analysis.h>
 #include <tvm/s_tir/backend/adreno/transform.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/sym/iter_affine_map.h>
 #include <tvm/tirx/analysis.h>
-#include <tvm/tirx/builtin.h>
+#include <tvm/tirx/op/abi.h>
+#include <tvm/tirx/op/memory.h>
 
 #include "../../../backend/opencl/runtime/texture.h"
 #include "../../../s_tir/ir/ir_mutator_with_analyzer.h"
@@ -49,7 +52,7 @@ class TextureAllocInjector : public s_tir::IRMutatorWithAnalyzer {
   using s_tir::IRMutatorWithAnalyzer::Mutate;
   using s_tir::IRMutatorWithAnalyzer::Mutate_;
 
-  static PrimFunc Inject(PrimFunc func) {
+  static Function Inject(Function func) {
     sym::Analyzer ana;
     auto pass = ffi::make_object<TextureAllocInjector>(ana);
     auto writer = func.CopyOnWrite();
@@ -63,20 +66,20 @@ class TextureAllocInjector : public s_tir::IRMutatorWithAnalyzer {
  private:
   UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final {
     if (const auto* call = op->value.as<CallNode>();
-        call && call->op.same_as(tirx::builtin::alloc_buffer())) {
-      return Mutate_AllocBuffer(op, call, inplace_mode);
+        call && call->op.same_as(tirx::alloc_tensor_op())) {
+      return Mutate_AllocTensor(op, call, inplace_mode);
     }
     return StmtExprMutator::Mutate_(op, inplace_mode);
   }
 
-  UnchangedOr<Stmt> Mutate_AllocBuffer(const BindNode* op, const CallNode* call,
+  UnchangedOr<Stmt> Mutate_AllocTensor(const BindNode* op, const CallNode* call,
                                        InplaceMode inplace_mode) {
     Stmt stmt = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     ffi::String scope = call->args[2].as_or_throw<StringImm>()->value;
     if (IsTextureStorage(scope)) {
       op = stmt.as<BindNode>();
       if (const auto* call = op ? op->value.as<CallNode>() : nullptr;
-          !call || !call->op.same_as(tirx::builtin::alloc_buffer())) {
+          !call || !call->op.same_as(tirx::alloc_tensor_op())) {
         TVM_FFI_THROW(InternalError) << "Expected an allocation binding after buffer mutation";
       }
       const auto* allocation = op->value.as<CallNode>();
@@ -96,18 +99,18 @@ class TextureAllocInjector : public s_tir::IRMutatorWithAnalyzer {
       ffi::Array<Expr> args;
       args.push_back(StringImm(scope));
       args.push_back(IntImm::Int64(3));
-      args.push_back(Call(PointerType(PrimType::Int(64)), tirx::builtin::tvm_stack_make_shape(),
+      args.push_back(Call(PointerType(PrimType::Int(64)), tirx::stack_make_shape_op(),
                           {texture.width, texture.height, texture.depth}));
       args.push_back(IntImm::Int64(channel_size));
-      stmt = Bind(op->var.as_or_throw<BufferVar>(),
-                  Call(op->var.as_or_throw<BufferVar>().type(), tirx::builtin::decl_buffer(),
-                       {Call(op->var.as_or_throw<BufferVar>().DataPointerType(),
-                             tirx::builtin::nd_mem_alloc_with_scope(), args),
-                        tvm::Tuple(op->var.as_or_throw<BufferVar>()->shape),
-                        DataTypeImm(op->var.as_or_throw<BufferVar>()->dtype->dtype),
-                        StringImm(op->var.as_or_throw<BufferVar>().scope())},
-                       {}, allocation->ty_args, allocation->span),
-                  op->span);
+      stmt = Bind(op->var.as_or_throw<TensorVar>(),
+                  Call(op->var.as_or_throw<TensorVar>().type(), tirx::decl_tensor_op(),
+                       {Call(op->var.as_or_throw<TensorVar>().type()->DataPointerType(),
+                             tvm::backend::opencl::nd_mem_alloc_with_scope_op(), args),
+                        tvm::Tuple(op->var.as_or_throw<TensorVar>()->shape),
+                        DataTypeImm(op->var.as_or_throw<TensorVar>()->dtype->dtype),
+                        StringImm(op->var.as_or_throw<TensorVar>().scope())},
+                       {}, allocation->ty_args, allocation->loc),
+                  op->loc);
     }
     return stmt;
   }
@@ -123,11 +126,11 @@ class TextureAllocInjector : public s_tir::IRMutatorWithAnalyzer {
 namespace transform {
 
 Pass InjectTextureAlloc() {
-  auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
+  auto pass_func = [=](Function f, IRModule m, PassContext ctx) {
     return TextureAllocInjector::Inject(std::move(f));
   };
-  return tirx::transform::CreatePrimFuncPass(pass_func, 0,
-                                             "s_tir.backend.adreno.InjectTextureAlloc", {});
+  return tirx::transform::CreateFunctionPass(pass_func, 0,
+                                             "s_tir.backend.adreno.InjectTextureAlloc");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

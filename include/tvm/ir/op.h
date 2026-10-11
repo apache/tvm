@@ -43,8 +43,19 @@ namespace tvm {
 template <typename>
 class OpAttrMap;
 
+/*!
+ * \brief An operator's result type independent of operands, attributes, and type arguments.
+ * When present, this concrete type takes precedence over FInferType.
+ */
+using TFixedReturnType = Type;
+
 /*! \brief Infer a Call's result type from its explicit inputs without builder state. */
 using FInferType = ffi::reflection::NativeFunctionView<Type(const CallNode* call)>;
+
+/*!
+ * \brief The fully qualified TVMScript name, including its dialect namespace.
+ */
+using TScriptPrinterName = ffi::String;
 
 /*! \brief An operator argument's name and documentation. */
 class ArgumentInfoNode : public ffi::Object {
@@ -68,7 +79,12 @@ class ArgumentInfoNode : public ffi::Object {
 /*! \brief Managed reference to an argument descriptor. */
 class ArgumentInfo : public ffi::ObjectRef {
  public:
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(ArgumentInfo, ffi::ObjectRef, ArgumentInfoNode);
+  explicit ArgumentInfo(ffi::UnsafeInit tag, ffi::ObjectPtr<ArgumentInfoNode> n)
+      : ffi::ObjectRef(tag) {
+    data_ = std::move(n);
+  }
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ArgumentInfo, ffi::ObjectRef, ArgumentInfoNode);
 };
 
 /*! \brief Metadata for a canonical primitive operator invoked through Call. */
@@ -164,6 +180,7 @@ class Op : public Expr {
   TVM_DLL static Op Get(const ffi::String& op_name);
   /*! \brief List registered operator names. \return Names in unspecified order. */
   TVM_DLL static ffi::Array<ffi::String> ListNames();
+
   /*! \brief Validate a Call with this Op's callback, when one is registered. */
   TVM_FFI_INLINE void Validate(const CallNode* call) const {
     const auto& validator = get()->validator;
@@ -256,7 +273,7 @@ struct arg : SignatureTrait {
     auto info = ffi::make_object<ArgumentInfoNode>();
     info->name = name;
     info->doc = doc;
-    op->args_info.push_back(ArgumentInfo(std::move(info)));
+    op->args_info.push_back(ArgumentInfo(ffi::UnsafeInit{}, std::move(info)));
   }
 
   static bool Validate(ValidateState* state, ffi::Expected<void>* out) {
@@ -291,7 +308,7 @@ struct var_args : SignatureTrait {
     auto info = ffi::make_object<ArgumentInfoNode>();
     info->name = name;
     info->doc = doc;
-    op->var_args_info = ArgumentInfo(std::move(info));
+    op->var_args_info = ArgumentInfo(ffi::UnsafeInit{}, std::move(info));
   }
 
   static bool Validate(ValidateState* state, ffi::Expected<void>* out) {
@@ -330,7 +347,7 @@ struct ty_arg : SignatureTrait {
     auto info = ffi::make_object<ArgumentInfoNode>();
     info->name = name;
     info->doc = doc;
-    op->ty_args_info.push_back(ArgumentInfo(std::move(info)));
+    op->ty_args_info.push_back(ArgumentInfo(ffi::UnsafeInit{}, std::move(info)));
   }
 
   static bool Validate(ValidateState* state, ffi::Expected<void>* out) {
@@ -365,7 +382,7 @@ struct var_ty_args : SignatureTrait {
     auto info = ffi::make_object<ArgumentInfoNode>();
     info->name = name;
     info->doc = doc;
-    op->var_ty_args_info = ArgumentInfo(std::move(info));
+    op->var_ty_args_info = ArgumentInfo(ffi::UnsafeInit{}, std::move(info));
   }
 
   static bool Validate(ValidateState* state, ffi::Expected<void>* out) {
@@ -482,11 +499,10 @@ class OpDef {
    * Fixed descriptors require exactly one value/type argument each. A variadic
    * tail accepts zero or more trailing arguments of its category. Validation
    * throws on arity or class mismatch; it does not infer types or mutate the
-   * Call. Call construction invokes the validator unless Call::Unchecked is
-   * used. Without call_attrs<T>, Call.attrs is unconstrained. Repeated
-   * registration replaces metadata but retains any existing validator,
-   * including a generated one. Replace the callback explicitly if its
-   * executable checks must change.
+   * Call. Call::Validate invokes the validator separately from construction. Without call_attrs<T>,
+   * Call.attrs is unconstrained. Repeated registration replaces metadata but retains any existing
+   * validator, including a generated one. Replace the callback explicitly if its executable checks
+   * must change.
    *
    * \code
    * OpDef("example.op")
@@ -538,8 +554,8 @@ class OpDef {
    * can be bound with NativeFunctionView::FromNative. A borrowed packed function
    * may also be passed while it remains alive for this call. The setter retains an owning
    * copy, so the original packed function may then be destroyed.
-   * Ordinary Call construction invokes it; Call::Unchecked skips that initial
-   * check, while Relax normalization and well-formedness may validate later.
+   * Call::Validate invokes it explicitly; Relax normalization and
+   * well-formedness also validate when inputs are ready.
    * A signature installs its generated validator only if none is registered,
    * so a custom validator registered first takes precedence. Replacing a
    * generated or custom validator requires override; duplicate registration
@@ -690,6 +706,11 @@ template <typename ValueType>
 OpAttrMap<ValueType> Op::GetAttrMap(const ffi::String& attr_name) {
   return OpAttrMap<ValueType>(GetAttrColumn(attr_name), attr_name);
 }
+
+namespace op_attr {
+inline constexpr const char* kInferType = "FInferType";
+inline constexpr const char* kFixedReturnType = "TFixedReturnType";
+}  // namespace op_attr
 
 }  // namespace tvm
 #endif  // TVM_IR_OP_H_

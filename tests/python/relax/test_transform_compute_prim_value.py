@@ -39,11 +39,15 @@ def test_prim_value_in_assert_condition():
     class Expected:
         @R.function(pure=False)
         def main(A: R.Tensor([N])):
-            condition: T.bool = Expected.compute_symbolic_expr(R.prim_value(N))
+            condition: T.bool = R.call_pure_packed(
+                tvm.ir.Op.get("relax.call_tir_packed"),
+                Expected.compute_symbolic_expr,
+                (R.prim_value(N),),
+            )
             _ = R.assert_op(condition)
             return A
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def compute_symbolic_expr(N: T.int64) -> T.bool:
             T.func_attr({"tirx.is_host_func": True})
             return N % 16 == 0
@@ -71,14 +75,18 @@ def test_prim_value_in_branch_condition():
     class Expected:
         @R.function(pure=False)
         def main(A: R.Tensor([N])):
-            condition: T.bool = Expected.compute_symbolic_expr(R.prim_value(N))
+            condition: T.bool = R.call_pure_packed(
+                tvm.ir.Op.get("relax.call_tir_packed"),
+                Expected.compute_symbolic_expr,
+                (R.prim_value(N),),
+            )
             if condition:
                 out = R.call_packed("fast_vectorized_impl", A, ty_args=[A.ty])
             else:
                 out = R.call_packed("slow_non_vectorized_impl", A, ty_args=[A.ty])
             return out
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def compute_symbolic_expr(N: T.int64) -> T.bool:
             T.func_attr({"tirx.is_host_func": True})
             return N % 16 == 0

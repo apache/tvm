@@ -30,9 +30,9 @@ def test_nesting_parsing():
 
         @tvm.script.ir_module
         class Module:
-            @Ts.prim_func
+            @Ts.function
             def impl(
-                A: T.Buffer((12, 196, 64), "float32"),
+                A: T.Tensor((12, 196, 64), "float32"),
             ) -> None:
                 T.evaluate(0)
 

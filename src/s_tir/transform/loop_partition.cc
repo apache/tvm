@@ -25,8 +25,8 @@
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/ir/prim/builtin.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/s_tir/analysis.h>
 #include <tvm/s_tir/stmt.h>
@@ -35,7 +35,9 @@
 #include <tvm/sym/analyzer.h>
 #include <tvm/sym/bound.h>
 #include <tvm/tirx/analysis.h>
-#include <tvm/tirx/builtin.h>
+#include <tvm/tirx/op/annotation.h>
+#include <tvm/tirx/op/gpu.h>
+#include <tvm/tirx/op/region.h>
 
 #include <optional>
 #include <unordered_map>
@@ -65,8 +67,7 @@ struct LoopPartitionConfigNode : public ffi::Object {
                 "Don't unroll loops with extent 1", refl::DefaultValue(false))
         .def_ro("unroll_loop_with_partition_hint_no_interval",
                 &LoopPartitionConfigNode::unroll_loop_with_partition_hint_no_interval,
-                "Unroll loops with pragma_loop_partition_hint and no interval",
-                refl::DefaultValue(false));
+                "Unroll loops with loop_partition_hint and no interval", refl::DefaultValue(false));
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.transform.LoopPartitionConfig", LoopPartitionConfigNode,
                                     ffi::Object);
@@ -80,7 +81,9 @@ class LoopPartitionConfig : public ffi::ObjectRef {
                                                 LoopPartitionConfigNode);
 };
 
-TVM_REGISTER_PASS_CONFIG_OPTION("s_tir.LoopPartition", LoopPartitionConfig);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  ::tvm::transform::PassContext::RegisterConfigOption<LoopPartitionConfig>("s_tir.LoopPartition");
+}
 
 using sym::DeduceBound;
 using sym::Intersect;
@@ -108,6 +111,47 @@ using Partition = std::unordered_map<PartitionKey, IntSet, PartitionKeyHash, Par
 
 using ExpressionSet = std::unordered_set<PrimExpr, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>;
 
+// Virtual threads are lowered separately and are not hardware partition scopes.
+static bool IsVirtualThread(const ForNode* op) {
+  if (!tvm::tirx::GetThreadBinding(op).has_value()) return false;
+  const auto tag = tvm::tirx::GetThreadBinding(op).value();
+  return std::string(tag).rfind("vthread", 0) == 0;
+}
+
+static bool HasPartitionHint(const ForNode* op) {
+  auto it = op->annotations.find(tvm::s_tir::attr::kLoopPartitionHint);
+  return it != op->annotations.end() && IsOne((*it).second.as_or_throw<PrimExpr>());
+}
+
+// Resolve expression-valued hints before partitioning clones or renames loops.
+// Like the original hint selection, this proof does not assume loop bounds.
+class NormalizePartitionHints : public StmtExprMutator {
+ public:
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
+
+  UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
+    For loop = StmtExprMutator::Mutate_(op, inplace_mode)
+                   .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
+                   .as_or_throw<For>();
+    auto it = loop->annotations.find(tvm::s_tir::attr::kLoopPartitionHint);
+    if (it != loop->annotations.end()) {
+      auto value = (*it).second;
+      if (value == nullptr) {
+        loop.CopyOnWrite()->annotations.erase(tvm::s_tir::attr::kLoopPartitionHint);
+      } else {
+        bool enabled = analyzer_->CanProve(value.cast<PrimExpr>());
+        loop.CopyOnWrite()->annotations.Set(tvm::s_tir::attr::kLoopPartitionHint,
+                                            IntImm::Bool(enabled));
+      }
+    }
+    return loop;
+  }
+
+ private:
+  sym::Analyzer analyzer_;
+};
+
 // Select potential candidate IRs that can be partitioned.
 // Rule:
 //   - the range should not be const
@@ -120,14 +164,18 @@ class CandidateSelector final : public StmtExprVisitor {
       : partition_const_loop_(partition_const_loop) {}
 
   ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) final {
-    // always treat var with hint to be partitioned
+    if (IsVirtualThread(op)) return StmtExprVisitor::Visit_(op);
     const VarNode* var = op->loop_var.get();
-    if (partition_hint_vars.count(var)) {
+    if (HasPartitionHint(op)) {
       candidates.insert(ffi::GetRef<Stmt>(op));
       return StmtExprVisitor::Visit_(op);
     }
+    if (tvm::tirx::GetThreadBinding(op).has_value() &&
+        runtime::ThreadScope::Create(tvm::tirx::GetThreadBinding(op).value()).rank != 0) {
+      return StmtExprVisitor::Visit_(op);
+    }
     // partition const loop when sets partition_const_loop_
-    if (!is_const_int(op->min) || !is_const_int(op->extent) || partition_const_loop_) {
+    if (!IsConstInt(op->min) || !IsConstInt(op->extent) || partition_const_loop_) {
       record_.insert({var, false});
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
       if (record_.at(var) && !no_split_) {
@@ -140,19 +188,14 @@ class CandidateSelector final : public StmtExprVisitor {
     return std::nullopt;
   }
 
-  ffi::Optional<VisitInterrupt> Visit_(const AttrStmtNode* op) final {
-    if (op->attr_key == tirx::attr::thread_extent) {
-      const IterVarNode* iv = op->node.as<IterVarNode>();
-      TVM_FFI_ICHECK(iv);
-      Var var = iv->var;
-      // always treat var with hint to be partitioned
-      if (partition_hint_vars.count(var.get())) {
-        candidates.insert(ffi::GetRef<Stmt>(op));
-        return StmtExprVisitor::Visit_(op);
-      }
-      runtime::ThreadScope scope = runtime::ThreadScope::Create(iv->thread_tag);
-      auto value = op->value.as<PrimExpr>();
-      if ((scope.rank == 0) && (!value || !is_const_int(value.value()) || partition_const_loop_)) {
+  ffi::Optional<VisitInterrupt> Visit_(const RegionStmtNode* op) final {
+    if (op->op.same_as(tirx::launch_thread_op()) &&
+        std::string(op->args[0].as_or_throw<StringImm>()->value).rfind("vthread", 0) != 0) {
+      Var var = op->body_params[0].as_or_throw<PrimVar>();
+      runtime::ThreadScope scope =
+          runtime::ThreadScope::Create(op->args[0].as_or_throw<StringImm>()->value);
+      PrimExpr extent = op->args[1].as_or_throw<PrimExpr>();
+      if ((scope.rank == 0) && (!IsConstInt(extent) || partition_const_loop_)) {
         record_.insert({var.get(), false});
         TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
         if (record_.at(var.get()) && !no_split_) {
@@ -160,17 +203,6 @@ class CandidateSelector final : public StmtExprVisitor {
         }
         record_.erase(var.get());
         return std::nullopt;
-      }
-    } else if (op->attr_key == s_tir::attr::pragma_loop_partition_hint) {
-      if (analyzer_->CanProve(op->value.as_or_throw<PrimExpr>())) {
-        const VarNode* var = nullptr;
-        if (op->node.as<VarNode>()) {
-          var = op->node.as<VarNode>();
-        } else if (op->node.as<IterVarNode>()) {
-          var = op->node.as<IterVarNode>()->var.get();
-        }
-        TVM_FFI_ICHECK(var);
-        partition_hint_vars.insert(var);
       }
     }
     return StmtExprVisitor::Visit_(op);
@@ -190,11 +222,11 @@ class CandidateSelector final : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const CallNode* op) final {
-    if (op->op.same_as(prim::builtin::likely())) {
+    if (op->op.same_as(prim::likely_op())) {
       in_likely_ = true;
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
       in_likely_ = false;
-    } else if (op->op.same_as(tirx::builtin::tvm_thread_allreduce())) {
+    } else if (op->op.same_as(tirx::gpu_thread_allreduce_op())) {
       // no split if the body contains allreduce.
       no_split_ = true;
       return std::nullopt;
@@ -212,14 +244,12 @@ class CandidateSelector final : public StmtExprVisitor {
   }
 
   std::unordered_set<Stmt, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> candidates;
-  std::unordered_set<const VarNode*> partition_hint_vars;
 
  private:
   bool in_likely_{false};
   bool no_split_{false};
   bool partition_const_loop_{false};
   std::unordered_map<const VarNode*, VarIsUsed> record_;
-  sym::Analyzer analyzer_;
 };
 
 // Finder try best to find partitions for hinted vars
@@ -254,6 +284,7 @@ class PartitionFinder : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) final {
+    if (IsVirtualThread(op)) return StmtExprVisitor::Visit_(op);
     auto f_vset_contains = [this](const VarNode* var) { return out_vars_.count(var); };
     auto walkfn = [&](const Var& var) -> ffi::Expected<ffi::WalkResult> {
       return f_vset_contains(var.get()) ? ffi::WalkResult::Interrupt(ffi::VisitInterrupt(var))
@@ -273,13 +304,12 @@ class PartitionFinder : public StmtExprVisitor {
     return std::nullopt;
   }
 
-  ffi::Optional<VisitInterrupt> Visit_(const AttrStmtNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const RegionStmtNode* op) final {
     // handle thread_axis
-    if (op->attr_key == tirx::attr::thread_extent) {
-      const IterVarNode* thread_axis = op->node.as<IterVarNode>();
-      TVM_FFI_ICHECK(thread_axis);
-      const VarNode* var = thread_axis->var.get();
-      PrimExpr extent = op->value.as_or_throw<PrimExpr>();
+    if (op->op.same_as(tirx::launch_thread_op()) &&
+        std::string(op->args[0].as_or_throw<StringImm>()->value).rfind("vthread", 0) != 0) {
+      const VarNode* var = op->body_params[0].as_or_throw<PrimVar>().get();
+      PrimExpr extent = op->args[1].as_or_throw<PrimExpr>();
       IntSet dom = IntSet::FromRange(Range(IntImm(extent.ty(), 0), extent));
       hint_map_.insert({var, dom});
       relax_map_.insert({var, dom});
@@ -293,9 +323,9 @@ class PartitionFinder : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const CallNode* op) final {
-    if (op->op.same_as(prim::builtin::likely())) {
+    if (op->op.same_as(prim::likely_op())) {
       DeduceCondition(op->args[0].as_or_throw<PrimExpr>());
-    } else if (op->op.same_as(tirx::builtin::ignore_loop_partition())) {
+    } else if (op->op.same_as(tirx::ignore_loop_partition_op())) {
       return std::nullopt;
     } else {
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
@@ -326,7 +356,7 @@ class PartitionFinder : public StmtExprVisitor {
           DeduceBound(current_var_.as_or_throw<PrimExpr>(), cond, hint_map_, relax_map_);
       if (!interval.IsNothing()) {
         // cond is true within interval
-        partitions[{cond, true}] = interval;
+        partitions.insert_or_assign({cond, true}, interval);
       }
 
       if (interval.IsNothing()) {
@@ -340,26 +370,26 @@ class PartitionFinder : public StmtExprVisitor {
           interval = sym::Intersect({part1, part2});
           if (!interval.IsNothing()) {
             // cond is true within interval
-            partitions[{cond, true}] = interval;
+            partitions.insert_or_assign({cond, true}, interval);
             return;
           }
         }
       }
 
-      PrimExpr inverse_cond = InverseCond(cond);
-      if (inverse_cond.defined()) {
-        IntSet interval =
-            DeduceBound(current_var_.as_or_throw<PrimExpr>(), inverse_cond, hint_map_, relax_map_);
+      auto inverse_cond = InverseCond(cond);
+      if (inverse_cond.has_value()) {
+        IntSet interval = DeduceBound(current_var_.as_or_throw<PrimExpr>(), inverse_cond.value(),
+                                      hint_map_, relax_map_);
         if (!interval.IsNothing()) {
           // cond is false within interval
-          partitions[{cond, false}] = interval;
+          partitions.insert_or_assign({cond, false}, interval);
         }
       }
     }
   }
 
-  PrimExpr InverseCond(const PrimExpr& cond) {
-    PrimExpr inverse_cond;
+  ffi::Optional<PrimExpr> InverseCond(const PrimExpr& cond) {
+    ffi::Optional<PrimExpr> inverse_cond;
     if (const LTNode* op = cond.as<LTNode>()) {
       // a < b -> a >= b
       inverse_cond = GE(op->a, op->b);
@@ -425,8 +455,28 @@ class ThreadPartitionInserter : public StmtExprMutator {
   explicit ThreadPartitionInserter(const ExpressionSet& ps, PrimExpr cond)
       : ps_(ps), cond_(cond), innermost_thread_scope_(false) {}
 
-  UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final {
-    if (op->attr_key == tirx::attr::thread_extent) {
+  UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
+    if (!tvm::tirx::GetThreadBinding(op).has_value() || IsVirtualThread(op)) {
+      return StmtExprMutator::Mutate_(op, inplace_mode);
+    }
+    innermost_thread_scope_ = true;
+    For loop = StmtExprMutator::Mutate_(op, inplace_mode)
+                   .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
+                   .as_or_throw<For>();
+    if (innermost_thread_scope_) {
+      Stmt body = loop->body;
+      Stmt simplified_body = ffi::make_object<ConditionEliminator>(ps_)
+                                 ->Mutate(body, InplaceMode::kDisallow)
+                                 .ValueOrUnchanged(body);
+      loop.CopyOnWrite()->body = If(cond_, simplified_body, SeqStmt(body));
+    }
+    innermost_thread_scope_ = false;
+    return loop;
+  }
+
+  UnchangedOr<Stmt> Mutate_(const RegionStmtNode* op, InplaceMode inplace_mode) final {
+    if (op->op.same_as(tirx::launch_thread_op()) &&
+        std::string(op->args[0].as_or_throw<StringImm>()->value).rfind("vthread", 0) != 0) {
       innermost_thread_scope_ = true;
       Stmt stmt =
           StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
@@ -434,9 +484,10 @@ class ThreadPartitionInserter : public StmtExprMutator {
       if (innermost_thread_scope_) {
         Stmt simplified_body =
             ffi::make_object<ConditionEliminator>(ps_)->Mutate(op->body).ValueOrUnchanged(op->body);
-        Stmt body = IfThenElse(cond_, simplified_body, op->body);
-        Expr value = this->Mutate(op->value, inplace_mode).ValueOrUnchanged(op->value);
-        stmt = AttrStmt(op->node, op->attr_key, value, body);
+        Stmt body = If(cond_, simplified_body, op->body);
+        auto region = stmt.as_or_throw<RegionStmt>();
+        region.CopyOnWrite()->body = body;
+        stmt = region;
       }
       innermost_thread_scope_ = false;
       return stmt;
@@ -474,40 +525,45 @@ class LoopPartitioner : public StmtExprMutator {
   }
 
   UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
+    if (IsVirtualThread(op)) return StmtExprMutator::Mutate_(op, inplace_mode);
+    bool thread_scope = tvm::tirx::GetThreadBinding(op).has_value();
     analyzer_->Bind(op->loop_var, Range::FromMinExtent(op->min, op->extent), true);
     auto fs = ffi::GetRef<Stmt>(op);
     if (selector->candidates.count(fs)) {
-      Stmt s = TryPartition(fs, op->loop_var, op->min, op->min + op->extent - 1, op->body, false);
-      if (s.defined()) return s;
+      auto s =
+          TryPartition(fs, op->loop_var, op->min, op->min + op->extent - 1, op->body, thread_scope);
+      if (s.has_value()) return s.value();
     }
 
-    // normal path when loop partition fails
-    // normal loop variable can be put into hint map.
-    hint_map_.insert({op->loop_var.get(), IntSet::Interval(op->min, op->min + op->extent - 1)});
+    // Relax threadIdx ranges to avoid introducing divergent partition branches.
+    bool relax = thread_scope &&
+                 runtime::ThreadScope::Create(tvm::tirx::GetThreadBinding(op).value()).rank == 1;
+    auto& ranges = relax ? relax_map_ : hint_map_;
+    ranges.insert({op->loop_var.get(), IntSet::Interval(op->min, op->min + op->extent - 1)});
     Stmt res = StmtExprMutator::Mutate_(op, InplaceMode::kDisallow)
                    .ValueOrUnchanged(ffi::GetRef<Stmt>(op));
-    hint_map_.erase(op->loop_var.get());
+    ranges.erase(op->loop_var.get());
     return res;
   }
 
-  UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final {
-    if (op->attr_key != tirx::attr::thread_extent) {
+  UnchangedOr<Stmt> Mutate_(const RegionStmtNode* op, InplaceMode inplace_mode) final {
+    if (!op->op.same_as(tirx::launch_thread_op()) ||
+        std::string(op->args[0].as_or_throw<StringImm>()->value).rfind("vthread", 0) == 0) {
       return StmtExprMutator::Mutate_(op, inplace_mode);
     }
 
-    const IterVarNode* iv = op->node.as<IterVarNode>();
-    TVM_FFI_ICHECK(iv);
-    Var var = iv->var;
-    PrimExpr extent = op->value.as_or_throw<PrimExpr>();
+    Var var = op->body_params[0].as_or_throw<PrimVar>();
+    PrimExpr extent = op->args[1].as_or_throw<PrimExpr>();
     auto as = ffi::GetRef<Stmt>(op);
     if (selector->candidates.count(as)) {
-      Stmt s = TryPartition(as, var, 0, extent - 1, op->body, true);
-      if (s.defined()) return s;
+      auto s = TryPartition(as, var, 0, extent - 1, op->body, true);
+      if (s.has_value()) return s.value();
     }
 
     // normal path when loop parittion fails.
-    runtime::ThreadScope scope = runtime::ThreadScope::Create(iv->thread_tag);
-    Stmt res;
+    runtime::ThreadScope scope =
+        runtime::ThreadScope::Create(op->args[0].as_or_throw<StringImm>()->value);
+    Stmt res{ffi::UnsafeInit{}};
     if (scope.rank == 1) {
       // threadIdx should be put into relax map, in case of divergence.
       relax_map_.insert(
@@ -526,8 +582,8 @@ class LoopPartitioner : public StmtExprMutator {
   }
 
  private:
-  Stmt TryPartition(const Stmt& stmt, Var var, PrimExpr min, PrimExpr max, Stmt body,
-                    bool partition_thread_scope);
+  ffi::Optional<Stmt> TryPartition(const Stmt& stmt, Var var, PrimExpr min, PrimExpr max, Stmt body,
+                                   bool partition_thread_scope);
 
   std::pair<IntSet, ExpressionSet> GetIntervalAndCondset(const Partition& partitions,
                                                          const sym::IntervalSet& for_interval,
@@ -640,23 +696,25 @@ std::pair<IntSet, ExpressionSet> LoopPartitioner::GetIntervalAndCondset(
  * which will eventually be simplified to empty code. And because only one loop was generated
  * from loop 2 we stop recursing.
  */
-Stmt LoopPartitioner::TryPartition(const Stmt& stmt, Var var, PrimExpr min, PrimExpr max, Stmt body,
-                                   bool partition_thread_scope) {
+ffi::Optional<Stmt> LoopPartitioner::TryPartition(const Stmt& stmt, Var var, PrimExpr min,
+                                                  PrimExpr max, Stmt body,
+                                                  bool partition_thread_scope) {
   using namespace sym;
   // include hint of var.
   hint_map_.insert({var.get(), IntSet::Interval(min, max)});
 
-  bool has_partition_hint_ = selector->partition_hint_vars.count(var.get());
+  const auto* loop = stmt.as<ForNode>();
+  bool has_partition_hint_ = loop && HasPartitionHint(loop);
   auto finder = ffi::make_object<PartitionFinder>(var, hint_map_, relax_map_, has_partition_hint_);
   finder->Visit(body);
 
   hint_map_.erase(var.get());
-  if (finder->partitions.empty()) return Stmt();
+  if (finder->partitions.empty()) return std::nullopt;
 
   sym::IntervalSet for_interval(min, max);
 
-  auto [middle_interval, cond_set,
-        opt_cond_value] = [&]() -> std::tuple<IntSet, ExpressionSet, std::optional<bool>> {
+  auto [middle_interval, cond_set, opt_cond_value] =
+      [&]() -> std::tuple<ffi::Optional<IntSet>, ExpressionSet, std::optional<bool>> {
     {
       // find an interval in which all conditions on var are true
       auto [middle_interval, cond_set] =
@@ -713,21 +771,24 @@ Stmt LoopPartitioner::TryPartition(const Stmt& stmt, Var var, PrimExpr min, Prim
     return {{}, {}, std::nullopt};
   }();
 
-  if (middle_interval.IsNothing() && opt_cond_value == false) {
-    return Stmt();
+  if (opt_cond_value == false && middle_interval.value().IsNothing()) {
+    return std::nullopt;
   }
 
   if (!opt_cond_value.has_value()) {
-    if (has_partition_hint_ && unroll_loop_with_partition_hint_no_interval_ &&
-        analyzer_->CanProve(max - min > 0)) {
+    if (!partition_thread_scope && has_partition_hint_ &&
+        unroll_loop_with_partition_hint_no_interval_ && analyzer_->CanProve(max - min > 0)) {
       auto new_body = VisitAndMutate(body);
-      return For(var.as_or_throw<PrimVar>(), min, max - min + 1, ForKind::kUnrolled, new_body);
+      auto unrolled = ffi::make_object<ForNode>(*loop);
+      unrolled->kind = ForKind::kUnrolled;
+      unrolled->body = std::move(new_body);
+      return For(unrolled);
     }
-    return Stmt();
+    return std::nullopt;
   }
   bool cond_value = opt_cond_value.value();
 
-  IntervalSet middle_interval_i = middle_interval.as_or_throw<IntervalSet>();
+  IntervalSet middle_interval_i = middle_interval.value().as_or_throw<IntervalSet>();
   // middle_interval is the subrange of the loop variable range for which a
   // set of conditions are true (or false resp.)
   // The part of the loop variable range that is before (after resp.) that
@@ -735,11 +796,11 @@ Stmt LoopPartitioner::TryPartition(const Stmt& stmt, Var var, PrimExpr min, Prim
 
   // Calculating pre-subrange and generating code for it.
   // pre-subrange = [min, body_begin)
-  PrimExpr body_begin;
-  Stmt pre_stmt;
+  PrimExpr body_begin = min;
+  ffi::Optional<Stmt> pre_stmt;
   bool pre_stmt_recurse = true;
   if (middle_interval_i->HasLowerBound()) {
-    body_begin = analyzer_->Simplify(middle_interval.min());
+    body_begin = analyzer_->Simplify(middle_interval.value().min());
     if (!analyzer_->CanProve(body_begin == min)) {
       PrimExpr extent = analyzer_->Simplify(body_begin - min);
       if (!analyzer_->CanProve(extent > 0)) {
@@ -768,12 +829,12 @@ Stmt LoopPartitioner::TryPartition(const Stmt& stmt, Var var, PrimExpr min, Prim
 
   // Calculating post-subrange and generating code for it.
   // post-subrange = [post_doubt_begin, max+1)
-  PrimExpr post_doubt_begin;
-  Stmt post_stmt;
+  PrimExpr post_doubt_begin = max + 1;
+  ffi::Optional<Stmt> post_stmt;
   bool post_stmt_recurse = true;
   if (middle_interval_i->HasUpperBound()) {
-    post_doubt_begin = analyzer_->Simplify(middle_interval.max() + 1);
-    if (!analyzer_->CanProve(middle_interval.max() == max)) {
+    post_doubt_begin = analyzer_->Simplify(middle_interval.value().max() + 1);
+    if (!analyzer_->CanProve(middle_interval.value().max() == max)) {
       // require the extent to be non-negative
       PrimExpr extent = analyzer_->Simplify(max - post_doubt_begin + 1);
       if (!analyzer_->CanProve(extent > 0)) {
@@ -801,11 +862,11 @@ Stmt LoopPartitioner::TryPartition(const Stmt& stmt, Var var, PrimExpr min, Prim
     post_doubt_begin = max + 1;
   }
 
-  Stmt s;
+  Stmt s{ffi::UnsafeInit{}};
 
   // Generating code for middle subrange
   if (!partition_thread_scope) {
-    Stmt mid_stmt;
+    ffi::Optional<Stmt> mid_stmt;
     if (!analyzer_->CanProve(body_begin >= post_doubt_begin)) {
       // [body_begin, post_doubt_begin)
       Stmt simplified_body = ffi::make_object<ConditionEliminator>(cond_set, cond_value)
@@ -822,19 +883,23 @@ Stmt LoopPartitioner::TryPartition(const Stmt& stmt, Var var, PrimExpr min, Prim
                           .as_or_throw<Stmt>();
       mid_stmt = MakeFor(stmt.get(), post_doubt_begin - body_begin, new_body);
       // Recurse until partitions is empty
-      mid_stmt = VisitAndMutate(mid_stmt);
+      mid_stmt = VisitAndMutate(mid_stmt.value());
       // Recurse for each non-empty subrange only if there are at least
       // two non-empty subranges
-      if (pre_stmt.defined() || post_stmt.defined()) {
-        if (pre_stmt.defined() && pre_stmt_recurse) {
-          pre_stmt = VisitAndMutate(pre_stmt);
+      if (pre_stmt.has_value() || post_stmt.has_value()) {
+        if (pre_stmt.has_value() && pre_stmt_recurse) {
+          pre_stmt = VisitAndMutate(pre_stmt.value());
         }
-        if (post_stmt.defined() && post_stmt_recurse) {
-          post_stmt = VisitAndMutate(post_stmt);
+        if (post_stmt.has_value() && post_stmt_recurse) {
+          post_stmt = VisitAndMutate(post_stmt.value());
         }
       }
     }
-    s = SeqStmt::Flatten(pre_stmt, mid_stmt, post_stmt);
+    ffi::Array<Stmt> partitions;
+    if (pre_stmt.has_value()) partitions.push_back(pre_stmt.value());
+    if (mid_stmt.has_value()) partitions.push_back(mid_stmt.value());
+    if (post_stmt.has_value()) partitions.push_back(post_stmt.value());
+    s = SeqStmt(partitions);
   } else {
     PrimExpr cond = IntImm::Bool(true);
     if (!analyzer_->CanProve(body_begin == min)) {
@@ -855,7 +920,8 @@ inline Stmt LoopPartitioner::MakeFor(const ffi::Object* node, PrimExpr extent, S
   TVM_FFI_ICHECK(for_node);
 
   if (analyzer_->CanProve(extent == IntImm::Int32(1)) && !no_unroll_loop_with_extent_one_ &&
-      for_node->annotations.empty()) {
+      for_node->annotations.size() ==
+          for_node->annotations.count(tvm::s_tir::attr::kLoopPartitionHint)) {
     // If the loop extent is 1, do not create the loop anymore
     auto f_substitute = [loop_var = for_node->loop_var](
                             const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
@@ -864,7 +930,7 @@ inline Stmt LoopPartitioner::MakeFor(const ffi::Object* node, PrimExpr extent, S
     };
     return ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(body, f_substitute).as_or_throw<Stmt>();
   } else {
-    TVM_FFI_ICHECK(for_node->kind != ForKind::kThreadBinding);
+    TVM_FFI_ICHECK(!tvm::tirx::GetThreadBinding(for_node).has_value());
     auto new_loop = ffi::make_object<ForNode>(*for_node);
     new_loop->min = IntImm(for_node->min.ty(), 0);
     new_loop->extent = extent;
@@ -879,10 +945,10 @@ class RemoveLikelyTagsAndHints : public StmtExprMutator {
   using StmtExprMutator::Mutate_;
 
   UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) final {
-    if (op->op.same_as(prim::builtin::likely())) {
+    if (op->op.same_as(prim::likely_op())) {
       TVM_FFI_ICHECK_EQ(op->args.size(), 1);
       return StmtExprMutator::Mutate(op->args[0]).ValueOrUnchanged(op->args[0]).as_or_throw<Expr>();
-    } else if (op->op.same_as(tirx::builtin::ignore_loop_partition())) {
+    } else if (op->op.same_as(tirx::ignore_loop_partition_op())) {
       TVM_FFI_ICHECK_EQ(op->args.size(), 1);
       return StmtExprMutator::Mutate(op->args[0]).ValueOrUnchanged(op->args[0]).as_or_throw<Expr>();
     } else {
@@ -890,16 +956,22 @@ class RemoveLikelyTagsAndHints : public StmtExprMutator {
     }
   }
 
-  UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final {
-    if (op->attr_key == s_tir::attr::pragma_loop_partition_hint) {
-      return Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
+  UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
+    For loop = StmtExprMutator::Mutate_(op, inplace_mode)
+                   .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
+                   .as_or_throw<For>();
+    if (loop->annotations.count(tvm::s_tir::attr::kLoopPartitionHint)) {
+      loop.CopyOnWrite()->annotations.erase(tvm::s_tir::attr::kLoopPartitionHint);
     }
-    return StmtExprMutator::Mutate_(op, inplace_mode);
+    return loop;
   }
 };
 
 Stmt LoopPartition(Stmt stmt, bool partition_const_loop, bool no_unroll_loop_with_extent_one,
                    bool unroll_loop_with_partition_hint_no_interval) {
+  stmt = ffi::make_object<NormalizePartitionHints>()
+             ->Mutate(stmt, InplaceMode::kAllow)
+             .ValueOrUnchanged(std::move(stmt));
   stmt = ffi::make_object<LoopPartitioner>(partition_const_loop, no_unroll_loop_with_extent_one,
                                            unroll_loop_with_partition_hint_no_interval)
              ->VisitAndMutate(std::move(stmt));
@@ -912,18 +984,16 @@ Stmt LoopPartition(Stmt stmt, bool partition_const_loop, bool no_unroll_loop_wit
 namespace transform {
 
 Pass LoopPartition() {
-  auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
+  auto pass_func = [=](Function f, IRModule m, PassContext ctx) {
+    if (!f->body.has_value()) return f;
     auto* n = f.CopyOnWrite();
-    auto cfg = ctx->GetConfig<LoopPartitionConfig>("s_tir.LoopPartition");
-    if (!cfg.has_value()) {
-      cfg = tvm::transform::PassConfigWithDefaults<LoopPartitionConfig>();
-    }
-    n->body = s_tir::LoopPartition(std::move(n->body), cfg.value()->partition_const_loop,
-                                   cfg.value()->no_unroll_loop_with_extent_one,
-                                   cfg.value()->unroll_loop_with_partition_hint_no_interval);
+    auto cfg = ctx->GetConfigOrDefault<LoopPartitionConfig>("s_tir.LoopPartition");
+    n->body = s_tir::LoopPartition(std::move(n->body).value(), cfg->partition_const_loop,
+                                   cfg->no_unroll_loop_with_extent_one,
+                                   cfg->unroll_loop_with_partition_hint_no_interval);
     return f;
   };
-  return CreatePrimFuncPass(pass_func, 0, "s_tir.LoopPartition", {});
+  return CreateFunctionPass(pass_func, 0, "s_tir.LoopPartition");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

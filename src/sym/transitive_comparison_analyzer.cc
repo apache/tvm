@@ -34,7 +34,7 @@ namespace tvm {
 namespace sym {
 using namespace tvm::prim;
 
-using prim::is_const_int;
+using prim::IsConstInt;
 
 class TransitiveComparisonAnalyzer::Impl {
  public:
@@ -297,9 +297,9 @@ class TransitiveComparisonAnalyzer::Impl {
 
   /*! \brief Known comparisons based on scoped conditions
    *
-   * For example, the condition of an IfThenElse.  These known
+   * For example, the condition of an If.  These known
    * statements may only be used within the scope of the statement
-   * from which they were derived.  e.g. After exiting an IfThenElse,
+   * from which they were derived.  e.g. After exiting an If,
    * the condition may no longer be true.
    */
   std::vector<Comparison> scoped_knowns_;
@@ -597,7 +597,7 @@ void TransitiveComparisonAnalyzer::Impl::Bind(const Var& var, const Range& range
   prev_bindings_.Set(var, range);
 
   PrimExpr prim_var = var.as_or_throw<PrimExpr>();
-  if (is_const_int(range->extent, 1)) {
+  if (IsConstInt(range->extent, 1)) {
     AddKnown(prim_var == range->min, &knowns_);
   } else {
     AddKnown(prim_var >= range->min, &knowns_);

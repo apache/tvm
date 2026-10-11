@@ -16,31 +16,42 @@
 # under the License.
 """Unified type system in the project."""
 
+from collections.abc import Callable
+from typing import ClassVar
+
 import tvm_ffi
 
-from tvm.runtime import Scriptable
+from tvm.ir.location import UNKNOWN_LOC, Location
 
 from . import _ffi_api
-from .base import Node
+from .base import Node, Scriptable
 
 
 @tvm_ffi.register_object("ir.Type")
 class Type(Node, Scriptable):
-    """The base class of all types."""
+    """The base class of all types.
+
+    ``__expr_methods__`` names methods exposed on expressions of this type.
+    Each method receives the type instance and then the expression operand:
+    ``expr.method(...)`` is equivalent to ``expr.ty.method(expr, ...)``.
+    ``__expr_properties__`` maps read-only expression property names to
+    getters taking ``(type_instance, expression)``. Ordinary expression
+    attributes take precedence, then declared properties, then methods.
+    Subclasses inherit these declarations or replace them explicitly.
+    """
+
+    __expr_methods__: tuple[str, ...] = ()
+    __expr_properties__: ClassVar[dict[str, Callable]] = {}
 
     @staticmethod
     def missing():
-        """Return the sentinel for missing type information."""
+        """Construct a MissingType for missing type information."""
         return _ffi_api.TypeMissing()
 
     @staticmethod
     def Missing():
-        """Return the sentinel for missing type information."""
+        """Construct a MissingType for missing type information."""
         return _ffi_api.TypeMissing()
-
-    def is_missing(self):
-        """Return whether this is the missing-type sentinel."""
-        return _ffi_api.TypeIsMissing(self)
 
     def __eq__(self, other):
         """Compare two types for structural equivalence."""
@@ -54,12 +65,32 @@ class Type(Node, Scriptable):
         return self.is_(other)
 
 
+@tvm_ffi.register_object("ir.MissingType")
+class MissingType(Type):
+    """Type information that has not been supplied or computed.
+
+    Unlike AnyType or Void, this is not a concrete type and must be resolved
+    before a boundary that requires fully typed IR.
+    """
+
+    def __init__(self):
+        self.__init_handle_by_constructor__(_ffi_api.MissingType)
+
+
 @tvm_ffi.register_object("ir.AnyType")
 class AnyType(Type):
     """The top type, which admits any value."""
 
-    def __init__(self, span=None) -> None:
-        self.__init_handle_by_constructor__(_ffi_api.AnyType, span)
+    def __init__(self, loc: Location = UNKNOWN_LOC) -> None:
+        self.__init_handle_by_constructor__(_ffi_api.AnyType, loc)
+
+
+@tvm_ffi.register_object("ir.TensorRegionType")
+class TensorRegionType(Type):
+    """The type of a multi-dimensional :class:`tvm.ir.TensorRegion`."""
+
+    def __init__(self):
+        self.__init_handle_by_constructor__(_ffi_api.TensorRegionType)
 
 
 @tvm_ffi.register_object("ir.OpaqueType")
@@ -148,8 +179,8 @@ class TupleType(Type):
         The fields in the tuple
     """
 
-    def __init__(self, fields, span=None):
-        self.__init_handle_by_constructor__(_ffi_api.TupleType, fields, span)
+    def __init__(self, fields, loc: Location = UNKNOWN_LOC):
+        self.__init_handle_by_constructor__(_ffi_api.TupleType, fields, loc)
 
 
 @tvm_ffi.register_object("ir.FuncType")

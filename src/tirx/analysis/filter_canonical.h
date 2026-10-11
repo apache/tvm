@@ -30,20 +30,20 @@
  *         | Call("tirx.cuda.elect_sync")
  *
  * Consumers:
- *   1. tile_primitive_dispatch routes a bare `if cond:` to atom-based
+ *   1. tile_dispatch routes a bare `if cond:` to atom-based
  *      narrowing when cond is canonical; otherwise treats it as a regular
  *      data-dependent branch (no narrowing).
- *   2. The `tirx.filter(var, pred)` escape-hatch wrapper is intended for the
+ *   2. The `tirx.gpu_thread_filter(var, pred)` escape-hatch wrapper is intended for the
  *      *non-canonical* case -- callers who want thread-filter semantics on a
  *      predicate the classifier cannot decode. A canonical predicate inside
- *      `tirx.filter` is redundant: the wrapper can be dropped in favor of a
+ *      `tirx.gpu_thread_filter` is redundant: the wrapper can be dropped in favor of a
  *      bare `if`.
  */
 #ifndef TVM_TIRX_ANALYSIS_FILTER_CANONICAL_H_
 #define TVM_TIRX_ANALYSIS_FILTER_CANONICAL_H_
 
+#include <tvm/ir/expr.h>
 #include <tvm/ir/prim/expr.h>
-#include <tvm/tirx/var.h>
 
 #include <cstdint>
 #include <functional>
@@ -69,7 +69,7 @@ enum class FilterAtomKind {
  * \brief One atomic predicate. Variant keyed by `kind`.
  *
  * For `kRange`:
- *   - `scopeid_var`: the ScopeIdDef-declared variable on the LHS of the
+ *   - `scopeid_var`: the CUDA-index-bound variable on the LHS of the
  *     comparison (mirrored automatically if the input had `const <op> var`).
  *   - `lo`, `hi`: half-open bounds. `lo` may be
  *     `sym::ConstIntBound::kNegInf` for an unbounded lower side; `hi` may
@@ -79,15 +79,15 @@ enum class FilterAtomKind {
  * For `kElectSync`:
  *   - `elect_sync_call`: the original `Call("tirx.cuda.elect_sync")` PrimExpr,
  *     preserved verbatim so downstream consumers (e.g. selector construction
- *     in tile_primitive_dispatch) can reuse it without re-synthesizing.
+ *     in tile_dispatch) can reuse it without re-synthesizing.
  *   - `scopeid_var`, `lo`, `hi` are unset.
  */
 struct FilterAtom {
   FilterAtomKind kind;
-  Var scopeid_var;
+  ffi::Optional<Var> scopeid_var;
   int64_t lo = 0;
   int64_t hi = 0;
-  PrimExpr elect_sync_call;
+  ffi::Optional<PrimExpr> elect_sync_call;
 };
 
 /*!
@@ -103,13 +103,13 @@ struct CanonicalForm {
 };
 
 /*!
- * \brief Callback: returns true iff `var` is a ScopeIdDef-declared scope id.
+ * \brief Callback: returns true iff `var` is a CUDA-index-bound scope id.
  *
  * The classifier consults this for every variable that appears on the LHS
  * of a comparison atom. The callback abstracts over how scope ids are
  * tracked in the caller's context:
- *   - TilePrimitiveDispatcher passes a lambda that walks its
- *     `scope_id_defs_at_level_` stack.
+ *   - TileDispatcher passes a lambda that walks its
+ *     index binding provenance map.
  *   - Tests may pass a simpler lambda over a fixed allow-list of vars.
  *
  * A var that fails this check causes the enclosing predicate to be classified
@@ -128,14 +128,14 @@ using ScopeIdPredicate = std::function<bool(const Var&)>;
  * Returns:
  *   - `std::nullopt` if `cond` does not match the grammar. The caller should
  *     treat the enclosing if-statement as either a regular data-dependent
- *     branch (no narrowing) or -- if wrapped in `tirx.filter(var, cond)` --
+ *     branch (no narrowing) or -- if wrapped in `tirx.gpu_thread_filter(var, cond)` --
  *     an explicit escape-hatch (binding-var-driven singleton fallback).
  *   - A `CanonicalForm` with the parsed atom list otherwise.
  *
  * Implementation notes:
  *   - Conjunction is recognized via both `tir::And` nodes and
  *     `prim.BitwiseAnd` nodes (matching existing FlattenConjuncts behavior
- *     in tile_primitive_dispatch.cc).
+ *     in tile_dispatch.cc).
  *   - Comparison atoms with `const <op> var` are mirrored so the
  *     `scopeid_var` is on the LHS of the returned atom.
  *   - `c1 == c2` (two constants), `v1 == v2` (two vars), and any other
@@ -143,9 +143,9 @@ using ScopeIdPredicate = std::function<bool(const Var&)>;
  *   - The classifier is purely syntactic: it does NOT call
  *     `sym::Analyzer::Simplify` on subexpressions. Callers that want
  *     `2 + 1` to collapse to `3` should pre-simplify their input.
- *   - This function does NOT unwrap `tirx.filter` Calls. The caller is
+ *   - This function does NOT unwrap `tirx.gpu_thread_filter` Calls. The caller is
  *     responsible for extracting the inner predicate (`call->args[1]`)
- *     before passing it here. A `tirx.filter` Call passed in directly is
+ *     before passing it here. A `tirx.gpu_thread_filter` Call passed in directly is
  *     classified as non-canonical.
  *
  * Thread safety: pure function; safe to call concurrently provided the

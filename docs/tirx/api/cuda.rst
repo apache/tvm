@@ -61,7 +61,7 @@ The current ``Tx.cuda`` surface includes:
        ``get_tmem_addr``, ``cvta_generic_to_shared``,
        ``smem_addr_from_uint64``, ``sm100_2sm_leader_smem_addr``, and ``mov_sreg``
    * - Loads, calls, and diagnostics
-     - ``ldg``, ``func_call``, ``printf``, ``trap_when_assert_failed``,
+     - ``func_call``, ``printf``, ``trap_when_assert_failed``,
        ``nano_sleep``, ``clock64``, and ``ffs_u32``
    * - Numeric conversion and packed math
      - ``half2float``, ``bfloat162float``, ``float22half2``,
@@ -74,8 +74,7 @@ The current ``Tx.cuda`` surface includes:
      - ``iket.mark``, ``iket.range_start``, ``iket.range_end``,
        ``iket.range_push``, ``iket.range_pop``, ``iket.sentinel_token``,
        ``iket.official_event``, ``timer_init``, ``timer_start``, ``timer_end``,
-       ``timer_finalize``, ``mma_store``, ``mma_fill``, ``mma_store_legacy``,
-       and ``mma_fill_legacy``
+       ``timer_finalize``, ``mma_store``, and ``mma_fill``
 
 NVSHMEM namespace
 -----------------

@@ -40,10 +40,10 @@ have a primitive yet.
 The authoring model
 -------------------
 
-- ``@Tx.prim_func`` (or ``@Tx.jit`` for compile-time-specialized) kernels, written
+- ``@Tx.function`` (or ``@Tx.jit`` for compile-time-specialized) kernels, written
   with ``from tvm.script import tirx as Tx``;
-- ``Tx.device_entry()`` plus *scope-id* intrinsics for thread binding;
-- ``Tx.Buffer`` parameter annotations and ``Tx.alloc_*`` scratch buffers;
+- ``Tx.device_entry(launch=Tx.cuda.LaunchConfig(grid=(1,), block=(32,)))`` plus *scope-id* intrinsics for thread binding;
+- ``Tx.Tensor`` parameter annotations and ``Tx.alloc_*`` scratch buffers;
 - ordinary loops, branches, and scalar math;
 - ``tvm.compile(mod, target=..., tir_pipeline="tirx")`` to build, then call the
   result directly.

@@ -41,9 +41,11 @@ class UnboundBlockFinder : public StmtExprVisitor {
     for (const auto& kv : self->mod->functions) {
       GlobalVar g_var = kv.first;
       BaseFunc base_func = kv.second;
-      if (const auto* prim_func = base_func.as<PrimFuncNode>()) {
+      if (const auto* function = base_func.as<FunctionNode>()) {
         finder->global_var_name_ = g_var->name_hint;
-        finder->Visit(prim_func->body.as_or_throw<SBlockRealize>()->block->body);
+        TVM_FFI_ICHECK(function->body.has_value());
+        TVM_FFI_ICHECK_EQ(function->body.value()->size(), 1);
+        finder->Visit(function->body.value()->seq[0].as_or_throw<SBlockRealize>()->block->body);
       }
     }
     return std::move(finder->blocks_);
@@ -115,7 +117,7 @@ class RewriteUnboundBlockNode : public PostprocNode {
 
   Postproc Clone() const {
     ffi::ObjectPtr<RewriteUnboundBlockNode> n = ffi::make_object<RewriteUnboundBlockNode>(*this);
-    return Postproc(n);
+    return Postproc(ffi::UnsafeInit{}, n);
   }
 
  public:
@@ -156,7 +158,7 @@ Postproc Postproc::RewriteUnboundBlock(int max_threadblocks) {
   ffi::ObjectPtr<RewriteUnboundBlockNode> n = ffi::make_object<RewriteUnboundBlockNode>();
   n->max_threadblocks_ = max_threadblocks;
   n->max_threads_per_block_ = -1;
-  return Postproc(n);
+  return Postproc(ffi::UnsafeInit{}, n);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() { RewriteUnboundBlockNode::RegisterReflection(); }

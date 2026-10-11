@@ -68,12 +68,11 @@ def _compile_and_run(kernel, n_out):
 def test_smem_descriptor_matches_runtime_encoder(ldo, sdo, swizzle):
     """`base | (addr >> 4)` must reproduce the C bitfield fill exactly."""
 
-    @T.prim_func
-    def kernel(out: T.Buffer((2,), "uint64")):
-        T.device_entry()
-        T.cta_id([1])
-        tx = T.thread_id([32])
-        smem = T.alloc_buffer((64,), "uint32", scope="shared")
+    @T.function
+    def kernel(out: T.Tensor((2,), "uint64")):
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(32,)))
+        tx = T.cuda.thread_idx("x")
+        smem = T.alloc_tensor((64,), "uint32", scope="shared")
         smem[tx] = T.uint32(0)
         smem[tx + 32] = T.uint32(0)
         if tx == 0:
@@ -111,11 +110,10 @@ def test_smem_descriptor_matches_runtime_encoder(ldo, sdo, swizzle):
 def test_instr_descriptor_block_scaled_matches_runtime_encoder(
     m, n, k, a_dtype, b_dtype, trans_a, trans_b, cta_group
 ):
-    @T.prim_func
-    def kernel(out: T.Buffer((1,), "uint64")):
-        T.device_entry()
-        T.cta_id([1])
-        tx = T.thread_id([32])
+    @T.function
+    def kernel(out: T.Tensor((1,), "uint64")):
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(32,)))
+        tx = T.cuda.thread_idx("x")
         if tx == 0:
             desc = T.local_scalar("uint32")
             T.cuda.tcgen05.encode_instr_descriptor_block_scaled(
@@ -125,8 +123,6 @@ def test_instr_descriptor_block_scaled_matches_runtime_encoder(
                 b_dtype=b_dtype,
                 sfa_dtype="float8_e8m0fnu",
                 sfb_dtype="float8_e8m0fnu",
-                sfa_tmem_addr=0,
-                sfb_tmem_addr=0,
                 M=m,
                 N=n,
                 K=k,

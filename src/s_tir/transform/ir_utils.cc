@@ -20,11 +20,12 @@
 #include "ir_utils.h"
 
 #include <tvm/ir/attrs.h>
+#include <tvm/ir/prim/op.h>
+#include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/sym/analyzer.h>
-#include <tvm/tirx/builtin.h>
-#include <tvm/tirx/op.h>
+#include <tvm/tirx/op/memory.h>
 
 namespace tvm {
 namespace s_tir {
@@ -79,7 +80,7 @@ IRModule ConvertSSA(IRModule mod) {
 namespace transform {
 Pass ConvertSSA() {
   auto pass_func = [](IRModule mod, PassContext ctx) { return s_tir::ConvertSSA(std::move(mod)); };
-  return tvm::transform::CreateModulePass(pass_func, 0, "s_tir.ConvertSSA", {});
+  return tvm::transform::CreateModulePass(pass_func, 0, "s_tir.ConvertSSA");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -89,7 +90,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 ffi::Array<PrimExpr> ConvertIndices(const MatchBufferRegion& match_buffer,
                                     const ffi::Array<PrimExpr>& indices) {
-  const BufferVar& target = match_buffer->buffer;
+  const TensorVar& target = match_buffer->buffer;
   const TensorRegion& source = match_buffer->source;
   TVM_FFI_ICHECK_EQ(indices.size(), target->shape.size());
 
@@ -110,13 +111,14 @@ ffi::Array<PrimExpr> ConvertIndices(const MatchBufferRegion& match_buffer,
   return result;
 }
 
-Region ConvertRegion(const MatchBufferRegion& match_buffer, const Region& region) {
-  const BufferVar& target = match_buffer->buffer;
+ffi::Array<Range> ConvertRegion(const MatchBufferRegion& match_buffer,
+                                const ffi::Array<Range>& region) {
+  const TensorVar& target = match_buffer->buffer;
   const TensorRegion& source = match_buffer->source;
   TVM_FFI_ICHECK_EQ(region.size(), target->shape.size());
 
   sym::Analyzer analyzer;
-  Region result;
+  ffi::Array<Range> result;
   result.reserve(source->region.size());
   size_t offset = source->region.size() - region.size();
   for (size_t i = 0; i < offset; ++i) {
@@ -147,29 +149,29 @@ class StorageAlignCollector : public StmtExprVisitor {
 
   /*! \brief SBlock: resolve each annotation's buffer index through the write regions. */
   ffi::Optional<VisitInterrupt> Visit_(const SBlockNode* op) final {
-    auto it = op->annotations.find(attr::buffer_dim_align);
+    auto it = op->annotations.find(tvm::s_tir::attr::kBufferDimAlign);
     if (it != op->annotations.end()) {
       auto annotation = (*it).second.as_or_throw<StorageAlignAnnotation>();
       for (const auto& item : annotation) {
-        storage_align_[op->writes[item.get<0>()]->source.as_or_throw<BufferVar>().var()].push_back(
+        storage_align_[op->writes[item.get<0>()]->source.as_or_throw<TensorVar>().var()].push_back(
             item);
       }
     }
     return StmtExprVisitor::Visit_(op);
   }
 
-  /*! \brief AllocBuffer: check for buffer_dim_align annotations. */
+  /*! \brief AllocTensor: check for buffer_dim_align annotations. */
   ffi::Optional<VisitInterrupt> Visit_(const BindNode* op) final {
     if (const auto* call = op->value.as<CallNode>();
-        call && call->op.same_as(tirx::builtin::alloc_buffer())) {
-      return DispatchAllocBuffer(op, call);
+        call && call->op.same_as(tirx::alloc_tensor_op())) {
+      return DispatchAllocTensor(op, call);
     }
     return StmtExprVisitor::Visit_(op);
   }
 
-  ffi::Optional<VisitInterrupt> DispatchAllocBuffer(const BindNode* op, const CallNode* call) {
+  ffi::Optional<VisitInterrupt> DispatchAllocTensor(const BindNode* op, const CallNode* call) {
     DictAttrs annotations = call->attrs.as_or_throw<DictAttrs>();
-    auto it = annotations->dict.find(attr::buffer_dim_align);
+    auto it = annotations->dict.find(tvm::s_tir::attr::kBufferDimAlign);
     if (it != annotations->dict.end()) {
       auto storage_align_annotation = (*it).second.as_or_throw<StorageAlignAnnotation>();
       for (const auto& storage_align_tuple : storage_align_annotation) {
@@ -177,7 +179,7 @@ class StorageAlignCollector : public StmtExprVisitor {
         // the first buffer idx info is meaningless for alloc
         // stmt and should set as negative intentionally.
         TVM_FFI_ICHECK_EQ(buffer_index, -1);
-        storage_align_[op->var.as_or_throw<BufferVar>().var()].push_back(storage_align_tuple);
+        storage_align_[op->var.as_or_throw<TensorVar>().var()].push_back(storage_align_tuple);
       }
     }
     return StmtExprVisitor::Visit_(op);

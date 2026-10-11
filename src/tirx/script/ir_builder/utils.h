@@ -20,109 +20,51 @@
 #define TVM_TIRX_SCRIPT_IR_BUILDER_UTILS_H_
 
 #include <tvm/ffi/cast.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/tirx/op.h>
 #include <tvm/tirx/script/ir_builder/frame.h>
 #include <tvm/tirx/script/ir_builder/ir.h>
 #include <tvm/tirx/stmt.h>
+
+#include "../../../script/ir_builder/utils.h"
 
 namespace tvm {
 namespace script {
 namespace ir_builder {
 namespace tirx {
 
-/*!
- * \brief Add tirx Stmt to the top frame in IRBuilder frame stack.
- * \param stmt The Stmt.
- * \param span The stored result location, which may be undefined.
- */
-inline void AddToParent(tvm::tirx::Stmt stmt, Span span) {
-  IRBuilder builder = IRBuilder::Current();
-  // A deferred frame owns its location even when that location is undefined.
-  // Preserve an existing body location when flattening returns the body itself.
-  if (stmt.defined() && !stmt->span.defined()) stmt->span = std::move(span);
-  if (builder->frames.empty()) {
-    TVM_FFI_CHECK(!builder->result.has_value(), ValueError)
-        << "Builder.result has already been set";
-    builder->result = stmt;
-  } else if (const auto* tir_frame = builder->frames.back().as<TIRFrameNode>()) {
-    ffi::GetRef<TIRFrame>(tir_frame)->stmts.push_back(stmt);
-  } else {
-    TVM_FFI_THROW(TypeError) << "Unsupported frame type: " << builder->frames.back();
-  }
-}
-
-/*! \brief Add an eager statement under the current source-call context. */
-inline void AddToParent(tvm::tirx::Stmt stmt) {
-  // Some builder paths use an undefined statement as an omitted branch.
-  if (stmt.defined()) IRBuilder::Current()->SetCurrentSourceSpan(stmt);
-  AddToParent(std::move(stmt), Span());
-}
+using ir::AddToParent;
+using ir::AsStmt;
 
 /*!
- * \brief Convert array of tirx Stmt to single Stmt.
- * \param stmt The array of Stmt.
- * \return The SeqStmt.
- */
-inline tvm::tirx::Stmt AsStmt(const ffi::Array<tvm::tirx::Stmt>& stmt) {
-  return tvm::tirx::SeqStmt::Flatten(stmt);
-}
-
-/*!
- * \brief Check whether the top frame in IRBuilder frame stack is PrimFuncFrame.
+ * \brief Check whether the top frame in IRBuilder frame stack is FunctionFrame.
  * \param method The method name to be printed when throwing exception.
- * \return The top frame of PrimFuncFrame.
+ * \return The top frame of FunctionFrame.
  */
-inline PrimFuncFrame FindPrimFuncFrame(const ffi::String& method) {
-  if (ffi::Optional<PrimFuncFrame> frame = IRBuilder::Current()->GetLastFrame<PrimFuncFrame>()) {
+inline FunctionFrame FindFunctionFrame(const ffi::String& method) {
+  if (ffi::Optional<FunctionFrame> frame = IRBuilder::Current()->GetLastFrame<FunctionFrame>()) {
     return frame.value();
-  } else if (ffi::Optional<PrimFuncFrame> frame =
-                 IRBuilder::Current()->FindFrame<PrimFuncFrame>()) {
+  } else if (ffi::Optional<FunctionFrame> frame =
+                 IRBuilder::Current()->FindFrame<FunctionFrame>()) {
     TVM_FFI_THROW(ValueError)
-        << method << " must be called at the top of a PrimFunc.  "
-        << "While " << method << " did occur within the PrimFunc \"" << frame.value()->name
+        << method << " must be called at the top of a Function.  "
+        << "While " << method << " did occur within the Function \"" << frame.value()->name
         << "\", other frames (e.g. block/if/else/let) had been introduced since the "
-        << "PrimFunc's frame";
+        << "Function's frame";
   } else {
-    TVM_FFI_THROW(ValueError) << method << " must be called at the top of a PrimFunc, "
-                              << "but " << method << " occurred outside of any T.prim_func() frame";
-  }
-  throw;
-}
-
-/*!
- * \brief Check whether the top frame in IRBuilder frame stack is IfFrame.
- * \param method The method name to be printed when throwing exception.
- * \return The top frame of IfFrame.
- */
-inline IfFrame FindIfFrame(const ffi::String& method) {
-  if (ffi::Optional<IfFrame> frame = IRBuilder::Current()->GetLastFrame<IfFrame>()) {
-    return frame.value();
-  } else if (ffi::Optional<IfFrame> frame = IRBuilder::Current()->FindFrame<IfFrame>()) {
-    TVM_FFI_THROW(ValueError) << method << " must be called at the top of a T.if_().  "
-                              << "While " << method
-                              << " did occur within the conditional based on ("
-                              << frame.value()->condition
-                              << "), other frames (e.g. if/else/let) had been introduced since the "
-                              << "IfThenElse frame";
-  } else {
-    TVM_FFI_THROW(ValueError) << "IfThenElse frame not find. Please ensure '" << method
-                              << "' is called under T.if_()";
+    TVM_FFI_THROW(ValueError) << method << " must be called at the top of a Function, "
+                              << "but " << method << " occurred outside of any T.function() frame";
   }
   throw;
 }
 
 /*!
  * \brief Convert TensorLoad to TensorRegion.
- * \param buffer_load The BufferLoad.
+ * \param buffer_load The TensorLoad.
  * \return The converted TensorRegion.
  */
-inline tvm::TensorRegion BufferRegionFromLoad(tvm::TensorLoad buffer_load) {
-  ffi::Array<Range> ranges;
-  for (const PrimExpr& index : buffer_load->indices) {
-    ranges.push_back(Range::FromMinExtent(index, IntImm(index.ty(), 1)));
-  }
-  return tvm::tirx::BufferRegion(buffer_load->source.as_or_throw<tvm::tirx::BufferVar>(), ranges);
+inline tvm::TensorRegion TensorRegionFromLoad(tvm::TensorLoad buffer_load) {
+  return ffi::TypeTraits<tvm::TensorRegion>::ConvertFallbackValue(buffer_load);
 }
 
 }  // namespace tirx

@@ -46,12 +46,13 @@ ffi::Array<PrimExpr> ExternOpNode::output_shape(size_t i) const {
 }
 
 ExternOp::ExternOp(std::string name, std::string tag, ffi::Map<ffi::String, ffi::Any> attrs,
-                   ffi::Array<Tensor> inputs, ffi::Array<BufferVar> input_placeholders,
-                   ffi::Array<BufferVar> output_placeholders, Stmt body) {
+                   ffi::Array<Tensor> inputs, ffi::Array<TensorVar> input_placeholders,
+                   ffi::Array<TensorVar> output_placeholders, SeqStmt body)
+    : Operation(ffi::UnsafeInit{}) {
   if (!attrs.defined()) {
     attrs = ffi::Map<ffi::String, ffi::Any>();
   }
-  auto n = ffi::make_object<ExternOpNode>();
+  auto n = ffi::make_object<ExternOpNode>(std::move(body));
   n->name = std::move(name);
   n->tag = std::move(tag);
   n->attrs = std::move(attrs);
@@ -67,7 +68,6 @@ ExternOp::ExternOp(std::string name, std::string tag, ffi::Map<ffi::String, ffi:
   n->inputs = std::move(inputs);
   n->input_placeholders = std::move(input_placeholders);
   n->output_placeholders = std::move(output_placeholders);
-  n->body = std::move(body);
   data_ = std::move(n);
 }
 
@@ -76,8 +76,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def(
       "te.ExternOp",
       [](std::string name, std::string tag, ffi::Optional<ffi::Map<ffi::String, ffi::Any>> attrs,
-         ffi::Array<Tensor> inputs, ffi::Array<BufferVar> input_placeholders,
-         ffi::Array<BufferVar> output_placeholders, Stmt body) {
+         ffi::Array<Tensor> inputs, ffi::Array<TensorVar> input_placeholders,
+         ffi::Array<TensorVar> output_placeholders, SeqStmt body) {
         return ExternOp(name, tag, attrs.value_or({}), inputs, input_placeholders,
                         output_placeholders, body);
       });

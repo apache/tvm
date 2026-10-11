@@ -387,7 +387,7 @@ def test_dispatch_topk_gpu():
         @R.function
         def foo(x: R.Tensor((2, 3), "float32", "vulkan")):
             with R.dataflow():
-                # Two same calls should have only one PrimFunc
+                # Two same calls should have only one Function
                 lv0 = R.topk(x, k=2, axis=1, largest=True)
                 lv1 = R.topk(x, k=2, axis=1, largest=True)
                 gv = (lv0, lv1)
@@ -683,7 +683,7 @@ def test_dispatch_cumsum_webgpu_axes_and_dtypes(
     assert called_kernels == [expected_kernel]
 
     cumsum = mod[expected_kernel]
-    buffers = [param for param in cumsum.params if tvm.tirx.is_buffer_var(param)]
+    buffers = [param for param in cumsum.params if tvm.tirx.is_tensor_var(param)]
     assert len(buffers) == 2
     assert all(len(buffer.shape) == expected_kernel_rank for buffer in buffers)
     assert str(buffers[0].dtype) == in_dtype

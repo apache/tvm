@@ -18,21 +18,20 @@
 
 import tvm_ffi
 
-from tvm.ir import Call, Op, is_prim_expr
-from tvm.tirx import Evaluate, Expr, Stmt, TilePrimitiveCall, Var, decl_buffer
-from tvm.tirx.buffer import Buffer, is_buffer_var
+from tvm.ir import Call, Evaluate, Op, Stmt, Var
+from tvm.tirx import Expr, decl_tensor, is_tensor_var
 from tvm.tirx.layout import Iter, TileLayout
 
 
 class BufferReplacer:
     """
-    Replace buffer with another buffer.
-    Buffer values are ordinary Vars, so the same mapping also rewrites
-    ``buffer_data`` projections.
+    Replace tensor variables with other tensor variables.
+    Tensor variables are ordinary Vars, so the same mapping also rewrites
+    ``tensor_data_ptr`` projections.
     """
 
     def __init__(
-        self, buffer_map: dict[Buffer, Buffer] | None = None, var_map: dict[Var, Var] | None = None
+        self, buffer_map: dict[Var, Var] | None = None, var_map: dict[Var, Var] | None = None
     ):
         super().__init__()
         self.buffer_map = buffer_map if buffer_map is not None else {}
@@ -42,28 +41,13 @@ class BufferReplacer:
 
     def __call__(self, node):
         def replace_var(op: Var):
-            if is_buffer_var(op):
+            if is_tensor_var(op):
                 return self._mutate_buffer(op)
             return self.var_map.get(op, op)
 
-        def replace_op_call(op: TilePrimitiveCall):
-            new_workspace = {key: self._mutate_buffer(value) for key, value in op.workspace.items()}
-            new_config = {
-                key: self._replace_expr(value) if is_prim_expr(value) else value
-                for key, value in op.config.items()
-            }
-            return TilePrimitiveCall(
-                *op.args,
-                op=op.op,
-                workspace=new_workspace,
-                config=new_config,
-                dispatch=op.dispatch,
-                scope=op.scope,
-            )
-
         return tvm_ffi.structural_map(
             node,
-            [(TilePrimitiveCall, replace_op_call), (Var, replace_var)],
+            (Var, replace_var),
             order="post",
         )
 
@@ -74,7 +58,7 @@ class BufferReplacer:
             order="post",
         )
 
-    def _mutate_buffer(self, buffer: Buffer):
+    def _mutate_buffer(self, buffer: Var):
         if buffer in self.buffer_map:
             return self.buffer_map[buffer]
 
@@ -99,19 +83,17 @@ class BufferReplacer:
             )
         else:
             new_layout = buffer.ty.layout
-        new_allocated_addr = [self._replace_expr(expr) for expr in buffer.ty.allocated_addr]
 
         unchanged = (
             all(old is new for old, new in zip(buffer.ty.shape, new_shape))
             and all(old is new for old, new in zip(buffer.ty.strides, new_strides))
             and buffer.ty.elem_offset is new_elem_offset
             and buffer.ty.layout is new_layout
-            and all(old is new for old, new in zip(buffer.ty.allocated_addr, new_allocated_addr))
         )
         if unchanged:
             return buffer
 
-        new_buffer = decl_buffer(
+        new_buffer = decl_tensor(
             new_shape,
             buffer.ty.dtype,
             buffer.name,
@@ -123,8 +105,6 @@ class BufferReplacer:
             buffer.ty.offset_factor,
             layout=new_layout,
         )
-        if new_allocated_addr:
-            new_buffer = new_buffer.with_allocated_addr(new_allocated_addr)
         self.buffer_map[buffer] = new_buffer
         self.var_map[buffer] = new_buffer
         return new_buffer
@@ -135,7 +115,7 @@ def seek_kernel_replace_point(stmt: Stmt, body: Stmt) -> Stmt:
 
     def replace_evaluate(op: Evaluate):
         value = op.value
-        if isinstance(value, Call) and value.op.same_as(Op.get("tirx.tvm_kernel_replace_point")):
+        if isinstance(value, Call) and value.op.same_as(Op.get("tirx.kernel_replace_point")):
             return body
         return op
 

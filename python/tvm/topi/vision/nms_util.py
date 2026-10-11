@@ -26,20 +26,20 @@ from tvm.tirx.script import ir_builder as T
 
 def _get_boundaries(output, box_idx):
     l = tvm.te.min(
-        output[T.buffer_indices(output, box_idx)],
-        output[T.buffer_indices(output, box_idx + 2)],
+        output[T.tensor_indices(output, box_idx)],
+        output[T.tensor_indices(output, box_idx + 2)],
     )
     t = tvm.te.min(
-        output[T.buffer_indices(output, box_idx + 1)],
-        output[T.buffer_indices(output, box_idx + 3)],
+        output[T.tensor_indices(output, box_idx + 1)],
+        output[T.tensor_indices(output, box_idx + 3)],
     )
     r = tvm.te.max(
-        output[T.buffer_indices(output, box_idx)],
-        output[T.buffer_indices(output, box_idx + 2)],
+        output[T.tensor_indices(output, box_idx)],
+        output[T.tensor_indices(output, box_idx + 2)],
     )
     b = tvm.te.max(
-        output[T.buffer_indices(output, box_idx + 1)],
-        output[T.buffer_indices(output, box_idx + 3)],
+        output[T.tensor_indices(output, box_idx + 1)],
+        output[T.tensor_indices(output, box_idx + 3)],
     )
     return l, t, r, b
 
@@ -67,20 +67,20 @@ def binary_search(y, num_boxes, scores, score_threshold, out):
 
     Must be called within an IRBuilder context.
     """
-    lo_buf = T.decl_buffer([1], "int32", scope="local")
-    hi_buf = T.decl_buffer([1], "int32", scope="local")
+    lo_buf = T.decl_tensor([1], "int32", scope="local")
+    hi_buf = T.decl_tensor([1], "int32", scope="local")
     lo = lo_buf
     hi = hi_buf
-    T.buffer_store(lo, T.int32(0), T.buffer_indices(lo, 0))
-    T.buffer_store(hi, tvm.tirx.Cast("int32", num_boxes), T.buffer_indices(hi, 0))
-    with T.while_(lo[T.buffer_indices(lo, 0)] < hi[T.buffer_indices(hi, 0)]):
-        mid = (hi[T.buffer_indices(hi, 0)] + lo[T.buffer_indices(lo, 0)]) >> 1
+    T.tensor_store(lo, T.tensor_indices(lo, 0), T.int32(0))
+    T.tensor_store(hi, T.tensor_indices(hi, 0), tvm.tirx.Cast("int32", num_boxes))
+    with T.while_(lo[T.tensor_indices(lo, 0)] < hi[T.tensor_indices(hi, 0)]):
+        mid = (hi[T.tensor_indices(hi, 0)] + lo[T.tensor_indices(lo, 0)]) >> 1
         with T.if_(scores[y, mid] > score_threshold):
             with T.then_():
-                T.buffer_store(lo, mid + 1, T.buffer_indices(lo, 0))
+                T.tensor_store(lo, T.tensor_indices(lo, 0), mid + 1)
             with T.else_():
-                T.buffer_store(hi, mid, T.buffer_indices(hi, 0))
-    T.buffer_store(out, lo[T.buffer_indices(lo, 0)], T.buffer_indices(out, y))
+                T.tensor_store(hi, T.tensor_indices(hi, 0), mid)
+    T.tensor_store(out, T.tensor_indices(out, y), lo[T.tensor_indices(lo, 0)])
 
 
 def _estimate_max_detections(batch_class, input_image_size=None):
@@ -338,16 +338,16 @@ def _all_class_nms_ir(
         def on_new_valid_box(tid, num_current_valid_box, i, j):
             with T.if_(tid + 0 == 0):
                 with T.then_():
-                    T.buffer_store(
+                    T.tensor_store(
                         box_indices,
-                        sorted_indices[i, j],
                         (i, num_current_valid_box),
+                        sorted_indices[i, j],
                     )
                     if selected_scores is not None:
-                        T.buffer_store(
+                        T.tensor_store(
                             selected_scores,
-                            sorted_scores[i, j],
                             (i, num_current_valid_box),
+                            sorted_scores[i, j],
                         )
 
         def on_new_invalidated_box(*_):
@@ -423,10 +423,10 @@ def run_all_class_nms(
     num_class = batch_class // batch
 
     if return_scores is False:
-        all_class_num0_buf = tvm.tirx.decl_buffer(
+        all_class_num0_buf = tvm.tirx.decl_tensor(
             (batch_class, num_boxes), "int32", "all_class_nms0", data_alignment=8, layout=None
         )
-        all_class_num1_buf = tvm.tirx.decl_buffer(
+        all_class_num1_buf = tvm.tirx.decl_tensor(
             (batch_class,), "int32", "all_class_nms1", data_alignment=8, layout=None
         )
         extern_inputs = [boxes, sorted_scores, sorted_indices, valid_count]

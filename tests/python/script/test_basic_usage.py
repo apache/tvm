@@ -19,6 +19,7 @@
 from __future__ import annotations
 
 import inspect
+import linecache
 
 import pytest
 
@@ -26,6 +27,7 @@ import pytest
 # ruff: noqa: F841
 from minilang import Value
 
+import tvm
 from tvm import DataType, error, ir
 from tvm.ir import prim
 from tvm.ir._overload_prim_expr import EqualOp
@@ -258,7 +260,6 @@ def test_body_annotation_reads_a_preceding_ordinary_local(language):
 
 def test_native_concise_scopes_unwind_with_their_parent():
     # Nested concise thread scopes must preserve the original variables in the constructed IR.
-    from tvm import tirx
     from tvm.script import tirx as T
 
     variables = []
@@ -266,7 +267,7 @@ def test_native_concise_scopes_unwind_with_their_parent():
     def observe(*items):
         variables.extend(items)
 
-    @T.prim_func
+    @T.function
     def main():
         bx = T.launch_thread("blockIdx.x", 2)
         tx = T.launch_thread("threadIdx.x", 32)
@@ -274,10 +275,10 @@ def test_native_concise_scopes_unwind_with_their_parent():
         T.evaluate(bx + tx)
 
     bx, tx = variables
-    body = main.body
-    assert isinstance(body, tirx.AttrStmt) and isinstance(body.body, tirx.AttrStmt)
-    assert body.node.var.same_as(bx) and body.body.node.var.same_as(tx)
-    assert body.body.body.value.a.same_as(bx) and body.body.body.value.b.same_as(tx)
+    body = main.body[0]
+    assert isinstance(body, tvm.ir.RegionStmt) and isinstance(body.body[0], tvm.ir.RegionStmt)
+    assert body.body_params[0].same_as(bx) and body.body[0].body_params[0].same_as(tx)
+    assert body.body[0].body[0].value.a.same_as(bx) and body.body[0].body[0].value.b.same_as(tx)
 
 
 def test_loop_control_validation_preserves_valid_and_unchecked_ir():
@@ -285,19 +286,19 @@ def test_loop_control_validation_preserves_valid_and_unchecked_ir():
     from tvm import ir, tirx
     from tvm.script import tirx as T
 
-    invalid = tirx.PrimFunc(params=[], body=tirx.Break())
-    ir.assert_structural_equal(invalid.body, tirx.Break())
+    invalid = tirx.Function(params=[], body=tvm.ir.Break())
+    ir.assert_structural_equal(invalid.body, tvm.ir.SeqStmt([tvm.ir.Break()]))
     assert not tirx.analysis.verify_well_formed(invalid, assert_mode=False)
     with pytest.raises(error.InternalError, match="requires an enclosing loop"):
         tirx.analysis.verify_well_formed(invalid)
 
-    @T.prim_func
+    @T.function
     def valid():
         for i in range(2):
             break
 
-    assert isinstance(valid.body, tirx.For)
-    ir.assert_structural_equal(valid.body.body, invalid.body)
+    assert isinstance(valid.body[0], tvm.ir.For)
+    ir.assert_structural_equal(valid.body[0].body, invalid.body)
 
     @I.ir_module(check_well_formed=False, extra_vars={"invalid": invalid})
     class Unchecked:
@@ -312,7 +313,7 @@ def test_loop_control_validation_preserves_valid_and_unchecked_ir():
 
 
 def test_written_comparison_order(primitive_language):
-    # A leading host literal must not reverse the written native comparison or its source span.
+    # A leading host literal must not reverse the written native comparison or its source location.
     M = primitive_language.M
     x = ir.Var("x", "int32")
 
@@ -324,7 +325,12 @@ def test_written_comparison_order(primitive_language):
     ir.assert_structural_equal(actual, prim.LT(0, x))
     lines, start = inspect.getsourcelines(test_written_comparison_order)
     line = start + next(i for i, text in enumerate(lines) if text.strip() == "0 < x")
-    assert (actual.span.line, actual.span.end_line, actual.span.column, actual.span.end_column) == (
+    assert (
+        actual.loc.start_line,
+        actual.loc.end_line,
+        actual.loc.start_column,
+        actual.loc.end_column,
+    ) == (
         line,
         line,
         9,
@@ -430,7 +436,14 @@ def test_symbolic_equality_reaches_typed_consumer_once_in_order(primitive_langua
     assert seen == [0, 1]
     assert len(comparisons) == 1
     assert comparisons[0].a.same_as(values[0]) and comparisons[0].b.same_as(values[1])
-    assert comparisons[0].span is not None
+    loc = comparisons[0].loc
+    assert isinstance(loc, ir.SourceLoc)
+    assert loc.source_name.name == __file__
+    assert loc.start_line == loc.end_line
+    assert (
+        linecache.getline(__file__, loc.start_line)[loc.start_column - 1 : loc.end_column - 1]
+        == "operand(0) == operand(1)"
+    )
 
 
 def test_python_comparisons_remain_python_booleans(primitive_language):

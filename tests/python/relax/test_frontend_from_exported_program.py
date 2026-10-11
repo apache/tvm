@@ -3316,7 +3316,8 @@ def test_einsum():
     # in either direction check that negative diagonal lengths are clamped to zero.
     for offset in [1, 4, 6, -3, -6]:
         verify_model_numerically(DirectDiagonal(offset), (torch.randn(3, 4),))
-    verify_model_numerically(DirectTrace(), (torch.randn(4, 4),))
+    # Float32 trace reductions may accumulate diagonal entries in a different order.
+    verify_model_numerically(DirectTrace(), (torch.randn(4, 4),), rtol=1e-6, atol=1e-6)
 
     # A square diagonal must read the input directly without O(N^2) copies,
     # both before and after legalization.

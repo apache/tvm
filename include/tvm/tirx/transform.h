@@ -24,6 +24,7 @@
 #ifndef TVM_TIR_TRANSFORM_H_
 #define TVM_TIR_TRANSFORM_H_
 
+#include <tvm/ir/function.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/transform.h>
 #include <tvm/target/target.h>
@@ -46,21 +47,25 @@ using tvm::transform::PassNode;
 using tvm::transform::Sequential;
 
 /*
- * \brief Create a function pass that optimizes PrimFuncs.
+ * \brief Create a function pass that optimizes Functions.
  *
  * \param pass_func The packed function that contains the optimization.
  * \param opt_level The optimization level of the function pass.
  * \param name The name of the function pass.
- * \param required The list of the passes that the function pass is dependent on.
  *
  * \return The created function pass.
  */
-TVM_DLL Pass CreatePrimFuncPass(std::function<PrimFunc(PrimFunc, IRModule, PassContext)> pass_func,
-                                int opt_level, ffi::String name,
-                                tvm::ffi::Array<ffi::String> required, bool traceable = false);
+TVM_DLL Pass CreateFunctionPass(
+    std::function<ffi::Optional<Function>(Function, IRModule, PassContext)> pass_func,
+    int opt_level, ffi::String name);
 
 /*!
  * \brief Lower vectorization loops.
+ *
+ * Target-dependent vectorization uses the Function's target attribute, not an
+ * ambient target context or nested target attributes. Target-independent
+ * fixed-width loops do not require a target. Code needing different vectorization
+ * targets must be separated into functions before this pass.
  *
  * \param enable_vectorize Whether vectorization is enabled.
  *
@@ -94,7 +99,19 @@ TVM_DLL Pass UnrollLoop();
 TVM_DLL Pass RemoveNoOp();
 
 /*!
- * \brief Run statement-level arithmetic simplifications on the TIR PrimFunc.
+ * \brief Hoist loop-invariant If statements outside eligible loops.
+ * \return The pass.
+ */
+TVM_DLL Pass HoistIf();
+
+/*!
+ * \brief Renormalize the split pattern from floordiv(floormod()) to floormod(floordiv()).
+ * \return The pass.
+ */
+TVM_DLL Pass RenormalizeSplitPattern();
+
+/*!
+ * \brief Run statement-level arithmetic simplifications on the TIR Function.
  *
  * \return The pass.
  */
@@ -103,27 +120,21 @@ TVM_DLL Pass StmtSimplify();
 /*!
  * \brief Convert an IRModule to be SSA form.
  *
- * This pass handles cases where the same tirx::Var appears in
+ * This pass handles cases where the same tvm::Var appears in
  * multiple functions within the same module.  For example, after
  * extracting a fragment from one function into another, where the
- * same `tirx::Var` may be defined both as within the body of the
+ * same `tvm::Var` may be defined both as within the body of the
  * original function, and as a parameter within the hoisted function.
  *
  * \return The pass.
  */
 TVM_DLL Pass ConvertSSA();
 
-/*!
- * \brief Unify loop and attribute bindings of each thread axis within a kernel.
- * \return The pass.
- */
-TVM_DLL Pass UnifyThreadBinding();
-
 /*! \brief Lower cross-thread reductions to target-specific communication. */
 TVM_DLL Pass LowerThreadAllreduce();
 
 /*!
- * \brief Transform the high-level PrimFunc to a low-level version
+ * \brief Transform the high-level Function to a low-level version
  *        that can be used as an API function.
  *
  *
@@ -151,22 +162,10 @@ TVM_DLL Pass LowerThreadAllreduce();
 TVM_DLL Pass MakePackedAPI();
 
 /*!
- * \brief Remap the thread axis
- *
- *  This can be used to get equivalent program which uses
- *  threadIdx.y in place of threadIdx.x by passing
- *  {"threadIdx.x": thread_axis("threadIdx.y")}
- *
- *
- * \return The pass.
- */
-TVM_DLL Pass RemapThreadAxis(ffi::Map<ffi::String, IterVar> axis_map);
-
-/*!
  * \brief Annotate, split, and lower host/device functions.
  *
  * This pass first annotates device regions within host functions,
- * then splits them into host and device-side PrimFuncs, and finally
+ * then splits them into host and device-side Functions, and finally
  * lowers host-to-device calls into the device kernel launch ABI.
  *
  * The resulting host-side function will keep the same
@@ -245,7 +244,7 @@ TVM_DLL Pass BF16ComputeLegalize();
  * \brief Legalize fp8 compute Ops. Add a cast to fp16/fp32
  *   before Ops, then add a cast back to fp8.
  * \param promote_dtype The data type used for type promotion, defaults to float16
- * \note Must be run after BindTarget, as it relies on target attributes for PrimFuncs
+ * \note Must be run after BindTarget, as it relies on target attributes for Functions
  * \return The pass.
  */
 TVM_DLL Pass FP8ComputeLegalize(ffi::String promote_dtype = "float16");
@@ -258,17 +257,10 @@ TVM_DLL Pass BF16StorageLegalize();
 
 /*!
  * \brief Legalize fp8 storage types to u8.
- * \note Must be run after BindTarget, as it relies on target attributes for PrimFuncs
+ * \note Must be run after BindTarget, as it relies on target attributes for Functions
  * \return The pass.
  */
 TVM_DLL Pass FP8StorageLegalize();
-
-/*!
- * \brief Inline calls to private functions
- *
- * \return The pass.
- */
-TVM_DLL Pass InlinePrivateFunctions();
 
 /*!
  * \brief Rewrite the pointer content type of arguments,
@@ -281,8 +273,8 @@ TVM_DLL Pass InlinePrivateFunctions();
 TVM_DLL Pass PointerValueTypeRewrite();
 
 /*!
- * \brief Flatten the multi-dimensional TensorLoad and BufferStore to single dimensional
- *        BufferLoad/BufferStore for the TIR not contains opaque block.
+ * \brief Flatten the multi-dimensional TensorLoad and TensorStore to single dimensional
+ *        TensorLoad/TensorStore for the TIR not contains opaque block.
  * \return The pass.
  */
 TVM_DLL Pass FlattenBuffer();
@@ -295,40 +287,31 @@ TVM_DLL Pass FlattenBuffer();
 TVM_DLL Pass CommonSubexprElim();
 
 /*!
- * \brief This is the unified static memory planner pass that will
- * plan for memory intra- and inter- PrimFuncs together. The pass
- * requires all the function to be PrimFuncs including the main.
- * \return The pass.
- */
-TVM_DLL Pass UnifiedStaticMemoryPlanner();
-
-/*!
- * \brief Annotate a PrimFunc with a given target.
+ * \brief Annotate a Function with a given target.
  * \return The pass.
  */
 TVM_DLL Pass BindTarget(Target target);
 
 /*!
- * \brief Set a PrimFunc as the entry point if it is only function in IRModule.
+ * \brief Set a Function as the entry point if it is only function in IRModule.
  * \return The pass.
  */
 TVM_DLL Pass AnnotateEntryFunc();
 
 /*!
- * \brief Filter PrimFuncs with a given condition.
+ * \brief Filter Functions with a given condition.
  * \return The pass.
  */
-TVM_DLL Pass Filter(ffi::TypedFunction<bool(PrimFunc)> fcond);
+TVM_DLL Pass Filter(ffi::TypedFunction<bool(Function)> fcond);
 
 /*!
  * \brief Lower TIRx op calls using registered op dispatchers for the given target.
  *
- * Also resolves ScopeIdDef declarations: gathers them at kernel scope, verifies
- * consistency, extracts launch parameters, and emits Bind statements +
- * thread_extent AttrStmts wrapping the dispatched body.
+ * Lowers CUDA index calls to ordinary bindings using the independent device-entry
+ * launch configuration, preserving execution-context information during dispatch.
  * \return The pass.
  */
-TVM_DLL Pass TilePrimitiveDispatch();
+TVM_DLL Pass TileDispatch();
 
 /*!
  * \brief Finalize TIRx lowering by applying layout rewriters and cleanup passes.
@@ -337,9 +320,10 @@ TVM_DLL Pass TilePrimitiveDispatch();
 TVM_DLL Pass LowerTIRxCleanup();
 
 /*!
- * \brief Lower opaque constructs in TIRX programs: AllocBuffer, For(thread_binding),
+ * \brief Lower opaque constructs in TIRX programs: allocation calls, For(thread_binding),
  *        unit loop elimination. This is the tirx-specific counterpart of
- *        s_tir::LowerOpaqueBlock, without any SBlock handling.
+ *        s_tir::LowerOpaqueBlock and LowerThreadBinding, without any SBlock handling.
+ * Run LoopPartition first when thread-binding loops carry loop_partition_hint.
  * \return The pass.
  */
 TVM_DLL Pass LowerTIRxOpaque();

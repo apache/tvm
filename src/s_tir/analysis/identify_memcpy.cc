@@ -25,12 +25,12 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/optional.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/s_tir/analysis.h>
 #include <tvm/sym/int_set.h>
 #include <tvm/sym/iter_affine_map.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/expr.h>
-#include <tvm/tirx/op.h>
 #include <tvm/tirx/stmt.h>
 
 #include <optional>
@@ -59,36 +59,37 @@ std::variant<MemCpyDetails, std::string> IdentifyMemCpyImpl(const For& loop,
                        sym::IntSet::FromMinExtent(for_node->min, for_node->extent));
     total_loop_iterations = total_loop_iterations * for_node->extent;
 
-    stmt = for_node->body;
+    stmt = for_node->body->size() == 1 ? for_node->body->seq[0] : for_node->body;
   }
 
-  BufferStore store;
-  if (auto opt = stmt.as<BufferStore>()) {
+  TensorStore store{ffi::UnsafeInit{}};
+  if (auto opt = stmt.as<TensorStore>()) {
     store = opt.value();
   } else {
     return static_cast<const std::stringstream&>(
                std::stringstream()
-               << "Expected innermost loop to have BufferStore body, but instead found " << stmt)
+               << "Expected innermost loop to have TensorStore body, but instead found " << stmt)
         .str();
   }
 
-  TensorLoad load;
+  TensorLoad load{ffi::UnsafeInit{}};
   if (auto opt = store->value.as<TensorLoad>()) {
     load = opt.value();
   } else {
     return static_cast<const std::stringstream&>(
                std::stringstream()
-               << "Expected BufferStore's value to be BufferLoad, but instead found "
+               << "Expected TensorStore's value to be TensorLoad, but instead found "
                << store->value)
         .str();
   }
 
-  // Now, we have a BufferStore whose value is a BufferLoad.  Because
+  // Now, we have a TensorStore whose value is a TensorLoad.  Because
   // non-flat physical indices are target-dependent, only handle cases
   // where the buffer will be flattened to a 1-d physical buffer.
-  ffi::Array<PrimExpr> flattened_dst = store->buffer.OffsetOf(store->indices);
+  ffi::Array<PrimExpr> flattened_dst =
+      store->dest.as_or_throw<TensorVar>().type()->ElemOffset(store->indices);
   ffi::Array<PrimExpr> flattened_src =
-      load->source.as_or_throw<tvm::tirx::BufferVar>().OffsetOf(load->indices);
+      load->source.as_or_throw<tvm::tirx::TensorVar>().type()->ElemOffset(load->indices);
 
   if (flattened_dst.size() != 1 || flattened_src.size() != 1) {
     return static_cast<const std::stringstream&>(
@@ -273,11 +274,14 @@ std::variant<MemCpyDetails, std::string> IdentifyMemCpyImpl(const For& loop,
     }
   }
 
-  TensorRegion src_region = BufferRegion(
-      load->source.as_or_throw<tvm::tirx::BufferVar>(),
-      DomainTouched(loop, load->source.as_or_throw<tvm::tirx::BufferVar>(), true, true));
+  TensorRegion src_region =
+      BufferRegion(load->source.as_or_throw<tvm::tirx::TensorVar>(),
+                   DomainTouched(loop, load->source.as_or_throw<tvm::tirx::TensorVar>(), true, true)
+                       .Map([](const ffi::Optional<Range>& range) { return range.value(); }));
   TensorRegion dst_region =
-      BufferRegion(store->buffer, DomainTouched(loop, store->buffer, true, true));
+      BufferRegion(store->dest.as_or_throw<TensorVar>(),
+                   DomainTouched(loop, store->dest.as_or_throw<TensorVar>(), true, true)
+                       .Map([](const ffi::Optional<Range>& range) { return range.value(); }));
 
   return MemCpyDetails{src_region, dst_region};
 }

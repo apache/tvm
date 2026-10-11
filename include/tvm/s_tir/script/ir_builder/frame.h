@@ -31,27 +31,30 @@ using tirx::TIRFrame;
 using tirx::TIRFrameNode;
 
 /*! \brief Function frame owning schedulable TIR construction. */
-class PrimFuncFrameNode : public tirx::PrimFuncFrameNode {
+class FunctionFrameNode : public tirx::FunctionFrameNode {
  public:
   /*! \brief Buffers allocated in the implicit root block. */
-  ffi::Array<tvm::tirx::BufferVar> root_alloc_buffers;
+  ffi::Array<tvm::tirx::TensorVar> root_alloc_buffers;
+  /*! \brief Placement of allocations owned by the implicit root block. */
+  tvm::s_tir::BufferAllocatedAddresses root_allocated_addresses;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<PrimFuncFrameNode>().def_ro("root_alloc_buffers",
-                                                &PrimFuncFrameNode::root_alloc_buffers);
+    refl::ObjectDef<FunctionFrameNode>()
+        .def_ro("root_alloc_buffers", &FunctionFrameNode::root_alloc_buffers)
+        .def_ro("root_allocated_addresses", &FunctionFrameNode::root_allocated_addresses);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.s_tir.PrimFuncFrame", PrimFuncFrameNode,
-                                    tirx::PrimFuncFrameNode);
-  tvm::tirx::PrimFunc FinalizeFunction(tvm::tirx::PrimFunc func) final;
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.s_tir.FunctionFrame", FunctionFrameNode,
+                                    tirx::FunctionFrameNode);
+  tvm::tirx::Function FinalizeFunction(tvm::tirx::Function func) final;
 };
 
-class PrimFuncFrame : public tirx::PrimFuncFrame {
+class FunctionFrame : public tirx::FunctionFrame {
  public:
-  explicit PrimFuncFrame(ffi::ObjectPtr<PrimFuncFrameNode> data)
-      : tirx::PrimFuncFrame(std::move(data)) {}
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(PrimFuncFrame, tirx::PrimFuncFrame,
-                                                PrimFuncFrameNode);
+  explicit FunctionFrame(ffi::ObjectPtr<FunctionFrameNode> data)
+      : tirx::FunctionFrame(std::move(data)) {}
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(FunctionFrame, tirx::FunctionFrame,
+                                                FunctionFrameNode);
 };
 
 /*!
@@ -64,17 +67,19 @@ class SBlockFrameNode : public TIRFrameNode {
   /*! \brief The name of the block. */
   ffi::String name;
   /*! \brief The variables of the block. */
-  ffi::Array<tvm::tirx::IterVar> iter_vars;
+  ffi::Array<tvm::s_tir::IterVar> iter_vars;
   /*! \brief The read buffer regions of the block. */
   ffi::Optional<ffi::Array<tvm::TensorRegion>> reads;
   /*! \brief The write buffer regions of the block. */
   ffi::Optional<ffi::Array<tvm::TensorRegion>> writes;
   /*! \brief The init statement of the bolck. */
-  ffi::Optional<tvm::tirx::Stmt> init;
+  ffi::Optional<tvm::SeqStmt> init;
   /*! \brief The buffer allocated in the block. */
-  ffi::Array<tvm::tirx::BufferVar> alloc_buffers;
+  ffi::Array<tvm::tirx::TensorVar> alloc_buffers;
   /*! \brief The match buffer regions. */
   ffi::Array<tvm::s_tir::MatchBufferRegion> match_buffers;
+  /*! \brief Placement attached to the block's allocations and aliases. */
+  tvm::s_tir::BufferAllocatedAddresses allocated_addresses;
   /*! \brief The annotation of the block. */
   ffi::Optional<ffi::Map<ffi::String, Any>> annotations;
   /*! \brief The corresponding values of the iter vars. */
@@ -97,6 +102,7 @@ class SBlockFrameNode : public TIRFrameNode {
         .def_ro("init", &SBlockFrameNode::init)
         .def_ro("alloc_buffers", &SBlockFrameNode::alloc_buffers)
         .def_ro("match_buffers", &SBlockFrameNode::match_buffers)
+        .def_ro("allocated_addresses", &SBlockFrameNode::allocated_addresses)
         .def_ro("annotations", &SBlockFrameNode::annotations)
         .def_ro("iter_values", &SBlockFrameNode::iter_values)
         .def_ro("predicate", &SBlockFrameNode::predicate)
@@ -110,7 +116,7 @@ class SBlockFrameNode : public TIRFrameNode {
    * \brief The method called when exiting RAII scope.
    * \sa tvm::support::With
    */
-  void BindBufferRegion(tvm::tirx::BufferVar buffer, tvm::TensorRegion region) final;
+  void BindBufferRegion(tvm::tirx::TensorVar buffer, tvm::TensorRegion region) final;
   void ExitWithScope() final;
 };
 

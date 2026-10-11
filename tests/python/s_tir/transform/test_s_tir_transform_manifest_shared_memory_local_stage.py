@@ -27,8 +27,8 @@ from tvm.script import tirx as T
 
 @tvm.script.ir_module
 class MatmulBefore:
-    @Ts.prim_func
-    def main(A: T.Buffer((1024, 1024), "float32"), B: T.Buffer((1024, 1024), "float32"), C: T.Buffer((1024, 1024), "float32")) -> None:
+    @Ts.function
+    def main(A: T.Tensor((1024, 1024), "float32"), B: T.Tensor((1024, 1024), "float32"), C: T.Tensor((1024, 1024), "float32")) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
         # body
@@ -68,8 +68,8 @@ class MatmulBefore:
 
 @tvm.script.ir_module
 class MatmulAfter:
-    @Ts.prim_func
-    def main(A: T.Buffer((1024, 1024), "float32"), B: T.Buffer((1024, 1024), "float32"), C: T.Buffer((1024, 1024), "float32")) -> None:
+    @Ts.function
+    def main(A: T.Tensor((1024, 1024), "float32"), B: T.Tensor((1024, 1024), "float32"), C: T.Tensor((1024, 1024), "float32")) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
         # body

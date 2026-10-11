@@ -28,9 +28,9 @@
 
 #include <tvm/ffi/extra/structural_hash.h>
 #include <tvm/ffi/string.h>
+#include <tvm/ir/expr_functor.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/stmt_functor.h>  // For the class s_tir::StmtExprVisitor
-#include <tvm/tirx/expr_functor.h>
 #include <tvm/tirx/stmt.h>
 
 #include <unordered_map>
@@ -96,7 +96,7 @@ class ComputationsDoneBy : public s_tir::StmtExprVisitor {
  protected:
   ffi::Optional<VisitInterrupt> Visit(ffi::AnyView expr) override;
 
-  ffi::Optional<VisitInterrupt> Visit_(const IfThenElseNode* op) override;
+  ffi::Optional<VisitInterrupt> Visit_(const IfNode* op) override;
   ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) override;
   ffi::Optional<VisitInterrupt> Visit_(const WhileNode* op) override;
 

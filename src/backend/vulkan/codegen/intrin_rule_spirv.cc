@@ -22,10 +22,9 @@
  */
 #include <GLSL.std.450.h>
 #include <tvm/ffi/function.h>
-#include <tvm/ir/prim/builtin.h>
 #include <tvm/ir/prim/expr.h>
-#include <tvm/tirx/builtin.h>
-#include <tvm/tirx/op.h>
+#include <tvm/ir/prim/op.h>
+#include <tvm/tirx/op/abi.h>
 #include <tvm/tirx/op_attr_types.h>
 
 #include "../../../target/intrin_rule.h"
@@ -45,7 +44,7 @@ PrimExpr CallGLSLIntrin(PrimExpr e, const ffi::Array<PrimExpr>& args) {
   for (PrimExpr arg : args) {
     cargs.push_back(arg);
   }
-  return Call(call->ty.as_or_throw<PrimType>(), tirx::builtin::call_spirv_pure_glsl450(), cargs)
+  return Call(call->ty.as_or_throw<PrimType>(), tirx::call_spirv_pure_glsl450_op(), cargs)
       .as_or_throw<PrimExpr>();
 }
 
@@ -70,84 +69,84 @@ void RegisterVulkanLowerIntrinRules() {
   if (registered) return;
   registered = true;
 
-  OpDef("tirx.floor")
+  OpDef("prim.floor")
       .set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic", DispatchGLSLPureIntrin<GLSLstd450Floor>);
 
   OpDef("prim.ceil")
       .set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic", DispatchGLSLPureIntrin<GLSLstd450Ceil>);
 
-  OpDef("tirx.round")
+  OpDef("prim.round")
       .set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic",
                                  DispatchGLSLPureIntrin<GLSLstd450RoundEven>);
 
-  OpDef("tirx.nearbyint")
+  OpDef("prim.nearbyint")
       .set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic",
                                  DispatchGLSLPureIntrin<GLSLstd450RoundEven>);
 
-  OpDef("tirx.trunc")
+  OpDef("prim.trunc")
       .set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic", DispatchGLSLPureIntrin<GLSLstd450Trunc>);
 
-  OpDef("tirx.fabs")
+  OpDef("prim.fabs")
       .set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic", DispatchGLSLPureIntrin<GLSLstd450FAbs>);
 
-  OpDef("tirx.exp")
+  OpDef("prim.exp")
       .set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic", DispatchGLSLPureIntrin<GLSLstd450Exp>);
 
-  OpDef("tirx.exp2")
+  OpDef("prim.exp2")
       .set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic", DispatchGLSLPureIntrin<GLSLstd450Exp2>);
 
-  OpDef("tirx.sin")
+  OpDef("prim.sin")
       .set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic", DispatchGLSLPureIntrin<GLSLstd450Sin>);
 
-  OpDef("tirx.cos")
+  OpDef("prim.cos")
       .set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic", DispatchGLSLPureIntrin<GLSLstd450Cos>);
 
-  OpDef("tirx.tan")
+  OpDef("prim.tan")
       .set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic", DispatchGLSLPureIntrin<GLSLstd450Tan>);
 
-  OpDef("tirx.asin")
+  OpDef("prim.asin")
       .set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic", DispatchGLSLPureIntrin<GLSLstd450Asin>);
 
-  OpDef("tirx.acos")
+  OpDef("prim.acos")
       .set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic", DispatchGLSLPureIntrin<GLSLstd450Acos>);
 
-  OpDef("tirx.atan")
+  OpDef("prim.atan")
       .set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic", DispatchGLSLPureIntrin<GLSLstd450Atan>);
 
-  OpDef("tirx.sinh")
+  OpDef("prim.sinh")
       .set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic", DispatchGLSLPureIntrin<GLSLstd450Sinh>);
 
-  OpDef("tirx.cosh")
+  OpDef("prim.cosh")
       .set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic", DispatchGLSLPureIntrin<GLSLstd450Cosh>);
 
-  OpDef("tirx.tanh")
+  OpDef("prim.tanh")
       .set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic", DispatchGLSLPureIntrin<GLSLstd450Tanh>);
 
-  OpDef("tirx.asinh")
+  OpDef("prim.asinh")
       .set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic", DispatchGLSLPureIntrin<GLSLstd450Asinh>);
 
-  OpDef("tirx.acosh")
+  OpDef("prim.acosh")
       .set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic", DispatchGLSLPureIntrin<GLSLstd450Acosh>);
 
-  OpDef("tirx.atanh")
+  OpDef("prim.atanh")
       .set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic", DispatchGLSLPureIntrin<GLSLstd450Atanh>);
 
-  OpDef("tirx.atan2")
+  OpDef("prim.atan2")
       .set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic", DispatchGLSLPureIntrin<GLSLstd450Atan2>);
 
-  OpDef("tirx.log")
+  OpDef("prim.log")
       .set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic", DispatchGLSLPureIntrin<GLSLstd450Log>);
 
   OpDef("prim.log2")
       .set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic", DispatchGLSLPureIntrin<GLSLstd450Log2>);
 
-  OpDef("tirx.sqrt")
+  OpDef("prim.sqrt")
       .set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic", DispatchGLSLPureIntrin<GLSLstd450Sqrt>);
 
-  OpDef("tirx.pow")
+  OpDef("prim.pow")
       .set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic", DispatchGLSLPureIntrin<GLSLstd450Pow>);
 
-  OpDef("tirx.erf")
+  OpDef("prim.erf")
       .set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic", codegen::intrin ::DispatchFastErf);
 }
 }  // namespace intrin
@@ -168,20 +167,21 @@ void RegisterVulkanLegalizeRules() {
     TVM_FFI_ICHECK_EQ(call->args.size(), 1);
     PrimExpr arg = call->args[0].as_or_throw<PrimExpr>();
     PrimType arg_ty = arg.ty();
-    PrimExpr msb;
-    if (arg_ty.bits() == 64) {
-      // SPIR-V FindUMsb intrinsic only supports 32 bit input
-      auto int32 = PrimType::Int(32);
-      PrimExpr arg_hi32 = tvm::prim::Cast(int32, arg >> 32);
-      PrimExpr arg_lo32 = tvm::prim::Cast(int32, arg);
-      PrimExpr msb_hi = CallGLSLIntrin<GLSLstd450FindUMsb>(e, {arg_hi32});
-      PrimExpr msb_lo = CallGLSLIntrin<GLSLstd450FindUMsb>(e, {arg_lo32});
-      msb = tvm::if_then_else(arg_hi32 == 0, msb_lo, msb_hi + 32);
-    } else if (arg_ty.bits() == 32) {
-      msb = CallGLSLIntrin<GLSLstd450FindUMsb>(e);
-    } else {
-      TVM_FFI_THROW(InternalError) << "SPIR-V clz only supports a 32 bit or 64 bit integer.";
-    }
+    PrimExpr msb = [&]() -> PrimExpr {
+      if (arg_ty.bits() == 64) {
+        // SPIR-V FindUMsb intrinsic only supports 32 bit input
+        auto int32 = PrimType::Int(32);
+        PrimExpr arg_hi32 = tvm::prim::Cast(int32, arg >> 32);
+        PrimExpr arg_lo32 = tvm::prim::Cast(int32, arg);
+        PrimExpr msb_hi = CallGLSLIntrin<GLSLstd450FindUMsb>(e, {arg_hi32});
+        PrimExpr msb_lo = CallGLSLIntrin<GLSLstd450FindUMsb>(e, {arg_lo32});
+        return tvm::if_then_else(arg_hi32 == 0, msb_lo, msb_hi + 32);
+      } else if (arg_ty.bits() == 32) {
+        return CallGLSLIntrin<GLSLstd450FindUMsb>(e);
+      } else {
+        TVM_FFI_THROW(InternalError) << "SPIR-V clz only supports a 32 bit or 64 bit integer.";
+      }
+    }();
     return PrimExpr(arg_ty.bits() - 1) - msb;
   });
   // clang-format on

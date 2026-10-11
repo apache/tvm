@@ -701,10 +701,10 @@ def test_multiple_entries_multiple_calls_same_extern():
 def test_ignore_call_tir():
     @I.ir_module
     class Conv2dReLUCallTIR:
-        @Ts.prim_func
+        @Ts.function
         def relu(
-            data: T.Buffer((1, 64, 56, 56), "float32"),
-            out: T.Buffer((1, 64, 56, 56), "float32"),
+            data: T.Tensor((1, 64, 56, 56), "float32"),
+            out: T.Tensor((1, 64, 56, 56), "float32"),
         ):
             for ax0, ax1, ax2, ax3 in T.grid(1, 64, 56, 56):
                 with Ts.sblock("root"):
@@ -721,7 +721,7 @@ def test_ignore_call_tir():
                 relu1 = R.call_tir(
                     Conv2dReLUCallTIR.relu,
                     (conv1,),
-                    R.Tensor((1, 64, 56, 56), "float32"),
+                    ty_args=[R.Tensor((1, 64, 56, 56), "float32")],
                 )
                 R.output(relu1)
 
@@ -729,10 +729,10 @@ def test_ignore_call_tir():
 
     @I.ir_module
     class Conv2dReLUCallTIR_partitioned:
-        @Ts.prim_func
+        @Ts.function
         def relu(
-            data: T.Buffer((1, 64, 56, 56), "float32"),
-            out: T.Buffer((1, 64, 56, 56), "float32"),
+            data: T.Tensor((1, 64, 56, 56), "float32"),
+            out: T.Tensor((1, 64, 56, 56), "float32"),
         ):
             # with Ts.sblock("root"):
             for ax0, ax1, ax2, ax3 in T.grid(1, 64, 56, 56):
@@ -770,7 +770,7 @@ def test_ignore_call_tir():
                 relu1 = R.call_tir(
                     cls.relu,
                     (lv,),
-                    out_ty=R.Tensor((1, 64, 56, 56), dtype="float32"),
+                    ty_args=[R.Tensor((1, 64, 56, 56), dtype="float32")],
                 )
                 R.output(relu1)
             return relu1

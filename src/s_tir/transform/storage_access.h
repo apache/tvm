@@ -30,6 +30,7 @@
 #include <tvm/sym/int_set.h>
 
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include "../../runtime/thread_storage_scope.h"
@@ -73,8 +74,6 @@ class StorageAccessVisitor : public StmtExprVisitor {
     AccessType type;
     /*! \brief The storage scope */
     StorageScope scope;
-    /*! \brief Whether the access is double buffer write */
-    bool double_buffer_write = false;
   };
   /*! \brief Access pattern about a single statement */
   struct StmtEntry {
@@ -85,14 +84,15 @@ class StorageAccessVisitor : public StmtExprVisitor {
   };
   // override visitor pattern
   ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* op) final;
-  ffi::Optional<VisitInterrupt> Visit_(const BufferStoreNode* op) final;
+  ffi::Optional<VisitInterrupt> Visit_(const TensorStoreNode* op) final;
   ffi::Optional<VisitInterrupt> Visit_(const EvaluateNode* op) final;
   ffi::Optional<VisitInterrupt> Visit_(const BindNode* op) final;
-  ffi::Optional<VisitInterrupt> Visit_(const AttrStmtNode* op) final;
+  ffi::Optional<VisitInterrupt> Visit_(const RegionStmtNode* op) final;
   ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) final;
-  ffi::Optional<VisitInterrupt> Visit_(const IfThenElseNode* op) final;
+  ffi::Optional<VisitInterrupt> Visit_(const IfNode* op) final;
   ffi::Optional<VisitInterrupt> Visit_(const WhileNode* op) final;
   ffi::Optional<VisitInterrupt> Visit_(const CallNode* op) final;
+  ffi::Optional<VisitInterrupt> Visit_(const VarNode* op) final;
 
  protected:
   StorageAccessVisitor() { scope_.push_back(std::vector<StmtEntry>()); }
@@ -132,20 +132,26 @@ class StorageAccessVisitor : public StmtExprVisitor {
   std::vector<std::vector<StmtEntry>> scope_;
 
  private:
+  void RecordOpaqueAccess(Var source);
+  bool HasOffsetPointer(const Expr& value) const;
   // whether access appending is enabled.
   bool allow_append_{false};
+  // Pointer operands of an opaque call may be read or written by that call.
+  bool in_opaque_call_{false};
   // Whether we are in device environment
   bool in_device_env_{false};
   // Whether we are inside condition.
   int condition_counter_{0};
-  // The current double buffer write scope.
-  const VarNode* double_buffer_write_{nullptr};
   // the current free stmt entry.
   StmtEntry curr_stmt_;
   // The involving threads
   ffi::Array<IterVar> env_threads_;
   // Physical storage root for each declared logical buffer view.
   std::unordered_map<const VarNode*, Var> buffer_aliases_;
+  // Resolve pointer bindings at their use, without treating address construction as access.
+  std::unordered_map<const VarNode*, Expr> pointer_values_;
+  // Shifted or retyped aliases cannot compare coordinates with their storage root.
+  std::unordered_set<const VarNode*> offset_aliases_;
 };
 }  // namespace s_tir
 }  // namespace tvm

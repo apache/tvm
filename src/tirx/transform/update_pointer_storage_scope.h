@@ -25,7 +25,7 @@
 #define TVM_TIR_TRANSFORM_UPDATE_POINTER_STORAGE_SCOPE_H_
 
 #include <tvm/ir/prim/expr.h>
-#include <tvm/tirx/op.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/tirx/stmt_functor.h>
 
 #include <unordered_map>

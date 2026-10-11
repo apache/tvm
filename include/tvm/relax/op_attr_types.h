@@ -123,6 +123,29 @@ using FLowerBuiltin = ffi::TypedFunction<Expr(const BlockBuilder& bb, const Call
 using FPrimalGradient = ffi::TypedFunction<tvm::ffi::Array<Expr>(
     const Var& orig_var, const Call& orig_call, const Var& output_grad, const BlockBuilder& ctx)>;
 
+namespace op_attr {
+inline constexpr const char* kPurity = "FPurity";
+
+inline constexpr const char* kCallPacked = "FCallPacked";
+inline constexpr const char* kNormalize = "FNormalize";
+inline constexpr const char* kLegalize = "FLegalize";
+inline constexpr const char* kLowerBuiltin = "FLowerBuiltin";
+inline constexpr const char* kPrimalGradient = "FPrimalGradient";
+inline constexpr const char* kInferTypeWithBuilder = "relax.FInferTypeWithBuilder";
+inline constexpr const char* kDataDependent = "FDataDependent";
+inline constexpr const char* kRequiresArgumentShapes = "RequiresArgumentShapes";
+inline constexpr const char* kAllocator = "TAllocator";
+inline constexpr const char* kInferMixedPrecision = "FInferMixedPrecision";
+inline constexpr const char* kMixedPrecisionPolicy = "TMixedPrecisionPolicy";
+inline constexpr const char* kInferLayout = "FRelaxInferLayout";
+}  // namespace op_attr
+
+namespace distributed {
+namespace op_attr {
+inline constexpr const char* kInferTypeWithBuilder = "relax.dist.FInferTypeWithBuilder";
+}  // namespace op_attr
+}  // namespace distributed
+
 }  // namespace relax
 }  // namespace tvm
 #endif  // TVM_RELAX_OP_ATTR_TYPES_H_

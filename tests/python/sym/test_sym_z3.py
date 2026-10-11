@@ -688,10 +688,10 @@ def test_z3_memo_pool_reuse_survives_clone():
     analyzer = Analyzer()
     _require_z3(analyzer)
 
-    # BufferLoad is read-state, so these expressions are memoized only for the
+    # TensorLoad is read-state, so these expressions are memoized only for the
     # duration of the query and then erased.  This leaves holes in the Z3 memo
     # pool that subsequent pure expressions must be able to reuse safely.
-    buffer = tirx.decl_buffer((16,), "int32")
+    buffer = tirx.decl_tensor((16,), "int32")
     read_expr = tirx.all(*(buffer[i] >= 0 for i in range(16)))
     assert not analyzer.can_prove(read_expr, SB)
 

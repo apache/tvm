@@ -42,7 +42,7 @@ struct NKIInstructionCtx {
   int buffer_index = -1;
   int used_var_cnt = 0;
   PrimType dst_dtype = PrimType::Void();
-  PrimExpr mask;
+  ffi::Optional<PrimExpr> mask;
   bool tensorizing = false;
 };
 
@@ -53,16 +53,16 @@ class CodeGenTrainium final : public CodeGenC {
   using CodeGenC::PrintType;
   // override print thread tag.
   void PrintArgUnionDecl();
-  void AddFunction(const GlobalVar& gvar, const PrimFunc& func) final;
-  void InitFuncState(const PrimFunc& f) final;
+  void AddFunction(const GlobalVar& gvar, const Function& func) final;
+  void InitFuncState(const Function& f) final;
   std::string GetStorageScopeStr(const std::string& scope);   // NOLINT(*)
   void Dispatch_(const VarNode* op, std::ostream& os) final;  // NOLINT(*)
   void PrintType(const PrimType& t, std::ostream& os) final;  // NOLINT(*)
   void Dispatch_(const BindNode* op) final;
-  void DispatchAllocBuffer(const BindNode* op, const CallNode* buffer_call);
-  void Dispatch_(const AttrStmtNode* op) final;                          // NOLINT(*)
+  void DispatchAllocTensor(const BindNode* op, const CallNode* buffer_call);
+  void Dispatch_(const RegionStmtNode* op) final;                        // NOLINT(*)
   void Dispatch_(const ForNode* op) final;                               // NOLINT(*)
-  void Dispatch_(const BufferStoreNode* op) final;                       // NOLINT(*)=
+  void Dispatch_(const TensorStoreNode* op) final;                       // NOLINT(*)=
   void Dispatch_(const EvaluateNode* op) final;                          // NOLINT(*)
   std::string PrintIndices(const ffi::Array<PrimExpr>& indices);         // NOLINT(*)
   void Dispatch_(const TensorLoadNode* op, std::ostream& os) final;      // NOLINT(*)
@@ -71,8 +71,8 @@ class CodeGenTrainium final : public CodeGenC {
   void Dispatch_(const prim::CastNode* op, std::ostream& os) final;      // NOLINT(*)
   void Dispatch_(const prim::FloorDivNode* op, std::ostream& os) final;  // NOLINT(*)
   void Dispatch_(const prim::FloorModNode* op, std::ostream& os) final;  // NOLINT(*)
-  void DispatchDeclBuffer(const BindNode* op, const CallNode* buffer_call);
-  void Dispatch_(const IfThenElseNode* op) final;                   // NOLINT(*)
+  void DispatchDeclTensor(const BindNode* op, const CallNode* buffer_call);
+  void Dispatch_(const IfNode* op) final;                           // NOLINT(*)
   void Dispatch_(const prim::AndNode* op, std::ostream& os) final;  // NOLINT(*)
   void Dispatch_(const prim::OrNode* op, std::ostream& os) final;   // NOLINT(*)
 
@@ -80,14 +80,23 @@ class CodeGenTrainium final : public CodeGenC {
   Target target_;
   NKIInstructionCtx ctx_;
   std::unordered_map<std::string, std::string> opcode_map_;
-  std::unordered_map<BufferVar, std::string, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> buffer_idmap_;
-  std::unordered_map<BufferVar, const VarNode*, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
+  std::unordered_map<TensorVar, std::string, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> buffer_idmap_;
+  std::unordered_map<TensorVar, const VarNode*, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
       buffer_data_varmap_;
   std::unordered_map<const VarNode*, std::string> data_buffer_idmap_;
-  std::unordered_map<const VarNode*, BufferVar> data_decl_buffer_map_;
+  std::unordered_map<const VarNode*, TensorVar> data_decl_buffer_map_;
   bool is_outermost_loop_ = true;
 };
 }  // namespace codegen
+namespace backend {
+namespace trn {
+namespace attr {
+
+constexpr const char* kNkiDim = "nki_dim";
+}  // namespace attr
+}  // namespace trn
+}  // namespace backend
+
 }  // namespace tvm
 
 #endif  // TVM_TARGET_SOURCE_CODEGEN_TRN_H_

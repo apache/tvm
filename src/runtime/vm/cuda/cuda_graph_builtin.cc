@@ -22,6 +22,7 @@
  * \brief The CUDA graph related builtin functions for Relax virtual machine.
  */
 
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/extra/c_env_api.h>
 #include <tvm/ffi/extra/cuda/base.h>
@@ -248,11 +249,11 @@ class CUDAGraphExtensionNode : public VMExtensionNode {
 /*! Managed reference to CUDAGraphExtensionNode */
 class CUDAGraphExtension : public VMExtension {
  public:
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(CUDAGraphExtension, VMExtension,
-                                             CUDAGraphExtensionNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(CUDAGraphExtension, VMExtension,
+                                                CUDAGraphExtensionNode);
   static CUDAGraphExtension Create() {
     auto data_ = ffi::make_object<CUDAGraphExtensionNode>();
-    return CUDAGraphExtension(std::move(data_));
+    return ffi::GetRef<CUDAGraphExtension>(data_.get());
   }
 };
 

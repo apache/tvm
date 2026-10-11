@@ -35,18 +35,12 @@ from itertools import pairwise
 import tvm
 from tvm.script import tirx as T
 from tvm.sym import Analyzer
-from tvm.tirx import Buffer, IntImm, PrimFunc, is_buffer_var
+from tvm.tirx import Function, IntImm, Var, is_tensor_var
 from tvm.tirx.layout import Layout, TileLayout
-from tvm.tirx.operator.tile_primitive import (
-    DispatchContext,
-    fail,
-    predicate,
-    register_dispatch,
-)
-from tvm.tirx.tile_primitive import TilePrimitiveCall
+from tvm.tirx.operator.tile_primitive import DispatchContext, fail
+from tvm.tirx.tensor_instruction import TensorCall
 
 from ...op import _is_static_unicast_cta_mask, _resolve_cache_policy
-from ..exec_scope_utils import single_thread
 from ..layout_utils import strip_swizzle_to_tile
 from ..tma_utils import SwizzleMode, get_swizzle_mode_from_layout
 
@@ -96,7 +90,7 @@ class TensorMapSpec:
     target_arch: str
     coordinates: tuple
     gather4: tuple
-    smem_buffer: Buffer
+    smem_buffer: Var
     smem_start: tuple
     smem_base_offset: object
     mbar: object | None
@@ -244,7 +238,7 @@ def _require_proven(predicate, analyzer: Analyzer, stage: str, detail: str) -> N
 
 def _auto_fail(stage: str, detail: str):
     fail(
-        f'tma_auto stage={stage}: {detail}; use dispatch="tma_explicit" '
+        f'tma_auto stage={stage}: {detail}; use descriptor_mode="explicit" '
         "when the mapping or hardware legality is only known at runtime"
     )
 
@@ -278,7 +272,7 @@ def _layout_offset(layout: TileLayout):
     return Analyzer().simplify(value)
 
 
-def _slice_layout(buffer: Buffer, starts, extents, label: str) -> tuple[TileLayout, TileLayout]:
+def _slice_layout(buffer: Var, starts, extents, label: str) -> tuple[TileLayout, TileLayout]:
     tile = _to_tile_layout(buffer.layout, buffer.shape)
     _assert_plain_memory_layout(tile, label)
     region = [(start, start + extent) for start, extent in zip(starts, extents)]
@@ -293,7 +287,7 @@ def _slice_layout(buffer: Buffer, starts, extents, label: str) -> tuple[TileLayo
     return tile, sliced
 
 
-def _slice_global_layout(buffer: Buffer, starts, extents) -> tuple[TileLayout, TileLayout]:
+def _slice_global_layout(buffer: Var, starts, extents) -> tuple[TileLayout, TileLayout]:
     """Slice each logical global dimension without fusing across its boundary.
 
     ``TileLayout.slice`` canonicalizes the complete layout before grouping it
@@ -339,6 +333,8 @@ def _target_sm(arch: str) -> int:
 
 
 def _normalize_l2_promotion(value) -> int:
+    if isinstance(value, tvm.ir.StringImm):
+        value = value.value
     if value is None:
         return 2
     if isinstance(value, IntImm):
@@ -360,6 +356,10 @@ def _normalize_l2_promotion(value) -> int:
 
 
 def _normalize_oob(value) -> int:
+    if isinstance(value, int | IntImm) and int(value) in (0, 1):
+        return int(value)
+    if isinstance(value, tvm.ir.StringImm):
+        value = value.value
     if value is None or value == "zero":
         return 0
     if value == "nan":
@@ -368,6 +368,8 @@ def _normalize_oob(value) -> int:
 
 
 def _normalize_cache_hint(cache_hint):
+    if isinstance(cache_hint, tvm.ir.StringImm):
+        cache_hint = cache_hint.value
     if cache_hint is None:
         return "", None
     if isinstance(cache_hint, str):
@@ -428,7 +430,7 @@ def _elements_to_bytes(
     return analyzer.simplify(tvm.tirx.floordiv(total_bits, 8))
 
 
-def _buffer_base(buffer: Buffer, *, auto: bool, stage: str):
+def _buffer_base(buffer: Var, *, auto: bool, stage: str):
     analyzer = Analyzer()
     layout = _to_tile_layout(buffer.layout, buffer.shape)
     layout_offset = _layout_offset(layout)
@@ -909,7 +911,7 @@ def _copy_region_parts(region):
 
 
 def _build_auto_gt(
-    g_buf: Buffer,
+    g_buf: Var,
     g_starts,
     g_extents,
     sliced_smem: TileLayout,
@@ -1535,26 +1537,37 @@ def _repair_auto_candidate(plan: TMAPlan):
 
 
 def _runtime_config(op_call, sctx, direction: str, *, explicit: bool):
+    op_call = TensorCall.decode(op_call)
+    # Fixed named Call operands are decoded once into the planner's semantic view.
+    op_call.options.pop("descriptor_mode", None)
+    reduction = op_call.options.pop("reduce_op", None)
+    if reduction is not None:
+        op_call.options["use_tma_reduce"] = reduction
+    policy = op_call.options.pop("cache_policy", None)
+    if policy is not None:
+        if op_call.call.attrs.cache_hint:
+            fail("cache_hint and cache_policy are mutually exclusive")
+        op_call.options["cache_hint"] = policy
     allowed = _EXPLICIT_CONFIG if explicit else _COMMON_CONFIG
-    unknown = sorted(set(op_call.config) - allowed)
+    unknown = sorted(set(op_call.options) - allowed)
     if unknown:
         fail(
             f"dispatch={'tma_explicit' if explicit else 'tma_auto'} does not support "
             f"config key(s) {unknown}"
         )
 
-    if not explicit and op_call.config.get("oob") is not None:
-        fail('tma_auto does not support non-default oob; use dispatch="tma_explicit"')
-    if direction != "g2s" and op_call.config.get("oob") is not None:
+    if not explicit and op_call.options.get("oob") is not None:
+        fail('tma_auto does not support non-default oob; use descriptor_mode="explicit"')
+    if direction != "g2s" and op_call.options.get("oob") is not None:
         fail("TensorMap oob is only valid for explicit global-to-shared copies")
 
-    cta_group = op_call.config.get("cta_group", 1)
+    cta_group = op_call.options.get("cta_group", 1)
     if isinstance(cta_group, IntImm):
         cta_group = int(cta_group)
     if cta_group not in (1, 2):
         fail(f"cta_group must be 1 or 2, got {cta_group}")
 
-    cta_mask = op_call.config.get("cta_mask", 0)
+    cta_mask = op_call.options.get("cta_mask", 0)
     if isinstance(cta_mask, IntImm):
         cta_mask_value = int(cta_mask)
         if not 0 <= cta_mask_value <= 0xFFFF:
@@ -1564,8 +1577,8 @@ def _runtime_config(op_call, sctx, direction: str, *, explicit: bool):
             fail(f"cta_mask must fit uint16, got {cta_mask}")
     elif not isinstance(cta_mask, tvm.tirx.Expr):
         fail("cta_mask must be an integer or TIR expression")
-    mbar = op_call.config.get("mbar")
-    mbarrier_addr = op_call.config.get("mbarrier_addr", False)
+    mbar = op_call.options.get("mbar")
+    mbarrier_addr = op_call.options.get("mbarrier_addr", False)
     if isinstance(mbarrier_addr, IntImm):
         mbarrier_addr = bool(int(mbarrier_addr))
     if not isinstance(mbarrier_addr, bool | tvm.tirx.Expr):
@@ -1584,14 +1597,16 @@ def _runtime_config(op_call, sctx, direction: str, *, explicit: bool):
         ):
             fail("cta_mask is only valid for global-to-shared TMA")
 
-    use_tma_reduce = op_call.config.get("use_tma_reduce")
+    use_tma_reduce = op_call.options.get("use_tma_reduce")
+    if isinstance(use_tma_reduce, tvm.ir.StringImm):
+        use_tma_reduce = use_tma_reduce.value
     if use_tma_reduce is not None:
         if direction != "s2g":
             fail("use_tma_reduce is only valid for shared-to-global TMA")
         if use_tma_reduce not in ("add", "min", "max", "inc", "dec", "and", "or", "xor"):
             fail(f"unsupported TMA reduce operation {use_tma_reduce!r}")
 
-    cache_hint, cache_policy = _normalize_cache_hint(op_call.config.get("cache_hint", ""))
+    cache_hint, cache_policy = _normalize_cache_hint(op_call.options.get("cache_hint", ""))
     return {
         "cta_group": cta_group,
         "cta_mask": cta_mask,
@@ -1609,16 +1624,18 @@ def _runtime_config(op_call, sctx, direction: str, *, explicit: bool):
         "use_tma_reduce": use_tma_reduce,
         "cache_hint": cache_hint,
         "cache_policy": cache_policy,
-        "l2_promotion": _normalize_l2_promotion(op_call.config.get("tensormap_l2_promotion")),
-        "oob_fill": _normalize_oob(op_call.config.get("oob")),
-        "prefetch": bool(op_call.config.get("prefetch_tensormap", False)),
-        "tma_dtype": op_call.config.get("tma_dtype"),
+        "l2_promotion": _normalize_l2_promotion(op_call.options.get("tensormap_l2_promotion")),
+        "oob_fill": _normalize_oob(op_call.options.get("oob")),
+        "prefetch": bool(op_call.options.get("prefetch_tensormap", False)),
+        "tma_dtype": (
+            op_call.options["tma_dtype"].value if "tma_dtype" in op_call.options else None
+        ),
         "target_arch": sctx.target.arch,
     }
 
 
 def _copy_direction(op_call):
-    op_call = TilePrimitiveCall.downcast(op_call)
+    op_call = TensorCall.decode(op_call)
     dst_region, src_region = op_call.dst, op_call.src
     src_scope = src_region.source.scope()
     dst_scope = dst_region.source.scope()
@@ -1629,7 +1646,8 @@ def _copy_direction(op_call):
     fail(f"TMA requires global<->shared operands, got src={src_scope}, dst={dst_scope}")
 
 
-def _build_auto_plan(op_call: TilePrimitiveCall, sctx: DispatchContext) -> TMAPlan:
+def _build_auto_plan(op_call: TensorCall, sctx: DispatchContext) -> TMAPlan:
+    op_call = TensorCall.decode(op_call)
     direction, shared_region, global_region = _copy_direction(op_call)
     s_buf = shared_region.source
     g_buf = global_region.source
@@ -1639,8 +1657,8 @@ def _build_auto_plan(op_call: TilePrimitiveCall, sctx: DispatchContext) -> TMAPl
             f"shared dtype={s_buf.dtype} and global dtype={g_buf.dtype} differ",
         )
     runtime = _runtime_config(op_call, sctx, direction, explicit=False)
-    if "gather4" in op_call.config or "src_selector" in op_call.config:
-        fail('gather4 and src_selector are only supported by dispatch="tma_explicit"')
+    if "gather4" in op_call.options or "src_selector" in op_call.options:
+        fail('gather4 and src_selector are only supported by descriptor_mode="explicit"')
 
     s_starts, s_extents = _copy_region_parts(shared_region.region)
     g_starts, g_extents = _copy_region_parts(global_region.region)
@@ -1714,7 +1732,7 @@ def _build_auto_plan(op_call: TilePrimitiveCall, sctx: DispatchContext) -> TMAPl
     return best
 
 
-def _explicit_smem_layout(s_buf: Buffer, starts, extents, swizzle: SwizzleMode):
+def _explicit_smem_layout(s_buf: Var, starts, extents, swizzle: SwizzleMode):
     _, sliced = _slice_layout(s_buf, starts, extents, "shared")
     # LayoutSlice preserves the layout's physical base and adds the selected
     # region offset, so the sliced offset is already the complete layout-side
@@ -1749,11 +1767,11 @@ def _explicit_smem_layout(s_buf: Buffer, starts, extents, swizzle: SwizzleMode):
     )
 
 
-def _direct_global_layout(g_buf: Buffer):
+def _direct_global_layout(g_buf: Var):
     layout = g_buf.layout
     if not isinstance(layout, TileLayout):
         fail(
-            "tma_explicit stage=global-layout: global Buffer/view layout must be "
+            "tma_explicit stage=global-layout: global Var/view layout must be "
             f"TileLayout, got {type(layout).__name__}"
         )
     _assert_plain_memory_layout(layout, "explicit global")
@@ -1860,12 +1878,12 @@ def _explicit_spec_for_gmem(
 def _normalize_gather4(value):
     if value is None:
         return ()
-    if not isinstance(value, list | tuple | tvm.ir.Array) or len(value) != 4:
+    if not isinstance(value, list | tuple | tvm.ir.Array | tvm.ir.Tuple) or len(value) != 4:
         fail("tma_explicit gather4 must contain exactly four row coordinates")
     return tuple(value)
 
 
-def _validate_gather4_dst(s_buf: Buffer, s_starts, s_extents, spec: TensorMapSpec) -> None:
+def _validate_gather4_dst(s_buf: Var, s_starts, s_extents, spec: TensorMapSpec) -> None:
     analyzer = Analyzer()
     if len(s_extents) < 1:
         fail("tma_explicit gather4 requires a non-scalar shared destination")
@@ -1899,19 +1917,21 @@ def _validate_gather4_dst(s_buf: Buffer, s_starts, s_extents, spec: TensorMapSpe
 def _normalize_src_selector(value):
     if value is None:
         return ()
-    if not isinstance(value, list | tuple | tvm.ir.Array):
-        fail("tma_explicit src_selector must be a list of (condition, global Buffer/view)")
+    if not isinstance(value, list | tuple | tvm.ir.Array | tvm.ir.Tuple) or len(value) == 0:
+        fail("tma_explicit src_selector must be a nonempty list of (condition, global Var/view)")
     result = []
     for idx, item in enumerate(value):
-        if not isinstance(item, list | tuple | tvm.ir.Array) or len(item) != 2:
-            fail(f"tma_explicit src_selector[{idx}] must be a (condition, Buffer/view) pair")
+        if not isinstance(item, list | tuple | tvm.ir.Array | tvm.ir.Tuple) or len(item) != 2:
+            fail(f"tma_explicit src_selector[{idx}] must be a (condition, Var/view) pair")
         condition, buffer = item
         if not isinstance(condition, tvm.tirx.Expr):
             fail(f"tma_explicit src_selector[{idx}] condition must be a TIR expression")
-        if not is_buffer_var(buffer):
+        if isinstance(buffer, tvm.ir.TensorRegion):
+            buffer = buffer.source
+        if not is_tensor_var(buffer):
             fail(
                 f"tma_explicit src_selector[{idx}] candidate must be a global "
-                "Buffer/view, not a region"
+                "Var/view, not a region"
             )
         if buffer.scope() != "global":
             fail(
@@ -1951,13 +1971,14 @@ def _selector_compatibility(main: TensorMapSpec, candidate: TensorMapSpec, index
             )
 
 
-def _build_explicit_plan(op_call: TilePrimitiveCall, sctx: DispatchContext):
+def _build_explicit_plan(op_call: TensorCall, sctx: DispatchContext):
+    op_call = TensorCall.decode(op_call)
     direction, shared_region, global_region = _copy_direction(op_call)
     s_buf = shared_region.source
     g_buf = global_region.source
     runtime = _runtime_config(op_call, sctx, direction, explicit=True)
-    gather4 = _normalize_gather4(op_call.config.get("gather4"))
-    selectors = _normalize_src_selector(op_call.config.get("src_selector"))
+    gather4 = _normalize_gather4(op_call.options.get("gather4"))
+    selectors = _normalize_src_selector(op_call.options.get("src_selector"))
     if (gather4 or selectors) and direction != "g2s":
         fail("tma_explicit gather4 and src_selector are only valid for global-to-shared")
     if gather4 and len(g_buf.shape) != 2:
@@ -2045,10 +2066,10 @@ def _get_or_encode_descriptor(spec: TensorMapSpec, sctx: DispatchContext):
     tensor_map = T.Var(f"{spec.descriptor_name}_tensormap", ty=T.handle("tensormap").ty)
 
     # fmt: off
-    @T.prim_func(check_well_formed=False)
+    @T.function(check_well_formed=False)
     def create_tensor_map():
-        T.bind(T.tvm_stack_alloca("tensormap", 1), var=tensor_map)
-        T.tensormap_encode_tiled(
+        T.bind(T.stack_alloca("tensormap", 1), var=tensor_map)
+        T.cuda.tensormap_encode_tiled(
             tensor_map,
             spec.base,
             *spec.global_dims,
@@ -2063,7 +2084,7 @@ def _get_or_encode_descriptor(spec: TensorMapSpec, sctx: DispatchContext):
             oob_fill=spec.oob_fill,
             force_cu_dtype=spec.force_cu_dtype,
         )
-        T.tvm_kernel_replace_point()
+        T.kernel_replace_point()
     # fmt: on
 
     sctx.add_init_stmt(create_tensor_map.body, host=True)
@@ -2075,17 +2096,15 @@ def _prefetch_main_descriptor(tensor_map, key: str, sctx: DispatchContext) -> No
     cache_key = f"prefetch_tensormap:{key}"
     if sctx.cache_get(cache_key) is not None:
         return
-    if "warp_id_in_cta" not in sctx.launch_params:
-        fail("prefetch_tensormap requires warp_id_in_cta launch param")
-    warp_id = sctx.launch_params["warp_id_in_cta"].var
 
     # fmt: off
-    @T.prim_func(check_well_formed=False)
+    @T.function(check_well_formed=False)
     def prefetch_tensor_map():
+        warp_id = T.cuda.warp_id()
         if warp_id == 0:
             if T.cuda.elect_sync() != T.uint32(0):
                 T.ptx.prefetch.tensormap(T.address_of(tensor_map))
-        T.tvm_kernel_replace_point()
+        T.kernel_replace_point()
     # fmt: on
 
     sctx.add_init_stmt(prefetch_tensor_map.body)
@@ -2103,7 +2122,7 @@ def _selected_descriptor(main_map, candidate_maps):
             selected_expr,
         )
     selected = T.Var("selected_tensormap", "uint64")
-    return selected, tvm.tirx.Bind(selected, selected_expr), True
+    return selected, tvm.ir.Bind(selected, selected_expr), True
 
 
 def _emit_plan(
@@ -2112,7 +2131,7 @@ def _emit_plan(
     selector_bind,
     tensor_map_is_address: bool,
     sctx: DispatchContext,
-) -> PrimFunc:
+) -> Function:
     spec = plan.spec
     tensor_map_address = tensor_map if tensor_map_is_address else T.address_of(tensor_map)
 
@@ -2167,11 +2186,11 @@ def _emit_plan(
             T.evaluate(T.ptx[chain](*args))
 
     def shared_ptr(element_offset=0):
-        # Keep the sliced offset in the pointer index instead of the Buffer's
-        # elem_offset.  The latter is part of a flat DeclBuffer definition;
+        # Keep the sliced offset in the pointer index instead of the Var's
+        # elem_offset.  The latter is part of a flat DeclTensor definition;
         # after loop unrolling, CSE may otherwise lift an offset containing a
         # locally bound coordinate above that coordinate's Bind statement.
-        smem_view = T.decl_buffer(
+        smem_view = T.decl_tensor(
             (1,),
             spec.smem_buffer.dtype,
             spec.smem_buffer.data,
@@ -2182,7 +2201,7 @@ def _emit_plan(
 
     if not plan.issue_axes:
         # fmt: off
-        @T.prim_func(check_well_formed=False)
+        @T.function(check_well_formed=False)
         def impl():
             emit_at(shared_ptr(), spec.coordinates)
         # fmt: on
@@ -2191,7 +2210,7 @@ def _emit_plan(
         flat_extent = plan.issue_extent()
 
         # fmt: off
-        @T.prim_func(check_well_formed=False)
+        @T.function(check_well_formed=False)
         def impl():
             for issue in T.unroll(flat_extent):
                 smem_offset, coordinates = T.meta_var(plan.offsets_and_coords(issue))
@@ -2207,24 +2226,26 @@ def _emit_plan(
         # fmt: on
 
     if selector_bind is not None:
-        body = tvm.tirx.SeqStmt([selector_bind, impl.body])
-        impl = PrimFunc([], body, ret_type=None).with_attr("global_symbol", "impl")
+        body = tvm.ir.SeqStmt([selector_bind, impl.body])
+        impl = Function([], body, ret_type=None).with_attr("global_symbol", "impl")
     return impl
 
 
-def copy_tma_auto_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
-    """Lower one ``tma_auto`` call."""
+def copy_tma_auto_impl(op_call: TensorCall, sctx: DispatchContext) -> Function:
+    """Lower one automatic TensorMap instruction call."""
+    op_call = TensorCall.decode(op_call)
 
     plan = _build_auto_plan(op_call, sctx)
     tensor_map, key = _get_or_encode_descriptor(plan.spec, sctx)
     impl = _emit_plan(plan, tensor_map, None, False, sctx)
-    if bool(op_call.config.get("prefetch_tensormap", False)):
+    if bool(op_call.options.get("prefetch_tensormap", False)):
         _prefetch_main_descriptor(tensor_map, key, sctx)
     return impl
 
 
-def copy_tma_explicit_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
+def copy_tma_explicit_impl(op_call: TensorCall, sctx: DispatchContext) -> Function:
     """Lower one direct TensorMap and exactly one TMA instruction."""
+    op_call = TensorCall.decode(op_call)
 
     plan, candidates = _build_explicit_plan(op_call, sctx)
     main_map, main_key = _get_or_encode_descriptor(plan.spec, sctx)
@@ -2236,12 +2257,12 @@ def copy_tma_explicit_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) ->
         main_map, candidate_maps
     )
     impl = _emit_plan(plan, selected_map, selector_bind, selected_is_address, sctx)
-    if bool(op_call.config.get("prefetch_tensormap", False)):
+    if bool(op_call.options.get("prefetch_tensormap", False)):
         _prefetch_main_descriptor(main_map, main_key, sctx)
     return impl
 
 
-def _validate_tma_copy_op(op_call: TilePrimitiveCall, _sctx: DispatchContext) -> bool:
+def _validate_tma_copy_op(op_call: TensorCall, _sctx: DispatchContext) -> bool:
     dst_region, src_region = op_call.args[:2]
     src = src_region.source
     dst = dst_region.source
@@ -2251,40 +2272,3 @@ def _validate_tma_copy_op(op_call: TilePrimitiveCall, _sctx: DispatchContext) ->
     return (src_scope == "global" and dst_scope.startswith("shared")) or (
         src_scope.startswith("shared") and dst_scope == "global"
     )
-
-
-_COMMON_PREDICATES = [
-    predicate(
-        "validate_tma_copy_op",
-        lambda op, sctx: (_validate_tma_copy_op(op, sctx), "not a global<->shared TMA copy"),
-    ),
-    predicate(
-        "single_thread",
-        lambda op, sctx: (
-            single_thread(op, sctx),
-            f"unsupported exec_scope {sctx.exec_scope}, expected single thread",
-        ),
-    ),
-]
-
-
-@register_dispatch(
-    "copy_async",
-    "cuda",
-    variant="tma_auto",
-    priority=10,
-    when=_COMMON_PREDICATES,
-)
-def copy_async_dispatch_tma_auto(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
-    return copy_tma_auto_impl(op, sctx)
-
-
-@register_dispatch(
-    "copy_async",
-    "cuda",
-    variant="tma_explicit",
-    priority=10,
-    when=_COMMON_PREDICATES,
-)
-def copy_async_dispatch_tma_explicit(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
-    return copy_tma_explicit_impl(op, sctx)

@@ -88,7 +88,7 @@ class StmtSRefNode : public ffi::Object {
    * It serves the same purpose as `ffi::ObjectRef::as`, but does not acquire strong reference to
    * `stmt`
    * \tparam StmtType The type that `this->stmt` to be downcasted to. Presumably
-   * tvm::s_tir::SBlockNode or tvm::tirx::ForNode
+   * tvm::s_tir::SBlockNode or tvm::ForNode
    * \return nullptr if type check fails, otherwise the casted result for `this->stmt`
    */
   template <typename StmtType>
@@ -116,7 +116,7 @@ class StmtSRef : public ffi::ObjectRef {
    */
   TVM_DLL explicit StmtSRef(const StmtNode* stmt, StmtSRefNode* parent, int64_t seq_index);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(StmtSRef, ffi::ObjectRef, StmtSRefNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(StmtSRef, ffi::ObjectRef, StmtSRefNode);
 
  public:
   /*!
@@ -164,7 +164,7 @@ class SRefTreeCreator : public s_tir::StmtExprVisitor {
     auto creator = ffi::make_object<SRefTreeCreator>(include_loops);
     for (const auto& kv : mod->functions) {
       const BaseFunc& base_func = kv.second;
-      if (auto opt = base_func.as<PrimFunc>()) {
+      if (auto opt = base_func.as<Function>()) {
         auto func = opt.value();
         creator->Visit(func->body);
       }
@@ -218,6 +218,10 @@ enum class DepKind : int32_t {
  */
 class DependencyNode : public ffi::Object {
  public:
+  explicit DependencyNode(ffi::UnsafeInit tag) : src(tag), dst(tag) {}
+
+  explicit DependencyNode(StmtSRef src, StmtSRef dst, DepKind kind)
+      : src(std::move(src)), dst(std::move(dst)), kind(kind) {}
   /*! \brief The source of the dependency relation */
   StmtSRef src;
   /*! \brief The destination of the dependency relation */
@@ -272,7 +276,7 @@ class SBlockScopeNode : public ffi::Object {
   std::unordered_map<StmtSRef, ffi::Array<Dependency>, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
       dst2deps;
   /*! \brief The mapping from the buffer to the blocks who write it */
-  std::unordered_map<BufferVar, ffi::Array<StmtSRef>, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
+  std::unordered_map<TensorVar, ffi::Array<StmtSRef>, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
       buffer_writers;
 
   static void RegisterReflection() {

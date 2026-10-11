@@ -39,6 +39,8 @@
 #include <llvm/Support/raw_ostream.h>
 #include <llvm/Target/TargetMachine.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/tirx/op/memory.h>
+#include <tvm/tirx/stmt.h>
 #if TVM_LLVM_VERSION < 170
 #include <llvm/Transforms/IPO/PassManagerBuilder.h>
 #endif
@@ -87,7 +89,7 @@ class CodeGenAMDGPU : public CodeGenLLVM {
   CodeGenAMDGPU() = default;
   virtual ~CodeGenAMDGPU() = default;
 
-  void AddFunction(const GlobalVar& gvar, const PrimFunc& f) final {
+  void AddFunction(const GlobalVar& gvar, const Function& f) final {
     // add function as void return value
     CodeGenLLVM::AddFunctionInternal(gvar, f);
     function_->setCallingConv(llvm::CallingConv::AMDGPU_KERNEL);
@@ -98,18 +100,18 @@ class CodeGenAMDGPU : public CodeGenLLVM {
 
   void Dispatch_(const BindNode* op) final {
     if (const auto* call = op->value.as<CallNode>();
-        call && call->op.same_as(tirx::builtin::alloc_buffer())) {
-      return DispatchAllocBuffer(op, call);
+        call && call->op.same_as(tirx::alloc_tensor_op())) {
+      return DispatchAllocTensor(op, call);
     }
     CodeGenLLVM::Dispatch_(op);
   }
 
-  void DispatchAllocBuffer(const BindNode* op, const CallNode* buffer_call) {
+  void DispatchAllocTensor(const BindNode* op, const CallNode* buffer_call) {
     tvm::Tuple shape = buffer_call->args[0].as_or_throw<tvm::Tuple>();
     DLDataType dtype = buffer_call->args[1].as_or_throw<DataTypeImm>()->value;
     ffi::String scope = buffer_call->args[2].as_or_throw<StringImm>()->value;
-    BufferVar buffer = op->var.as_or_throw<BufferVar>();
-    DictAttrs annotations = buffer_call->attrs.as_or_throw<DictAttrs>();
+    TensorVar buffer = op->var.as_or_throw<TensorVar>();
+    DictAttrs annotations = buffer_call->attrs.value().as_or_throw<DictAttrs>();
     llvm::Value* buf = nullptr;
     StorageInfo& info = alloc_storage_info_[buffer.get()];
     auto storage_scope = runtime::StorageScope::Create(scope);
@@ -156,14 +158,14 @@ class CodeGenAMDGPU : public CodeGenLLVM {
                                                        buf->getType()->getPointerAddressSpace()));
     TVM_FFI_ICHECK(!var_map_.count(buffer.get()));
     var_map_[buffer.get()] = buf;
-    if (annotations->dict.count(tirx::attr::kVolatile)) {
+    if (annotations->dict.count(tvm::tirx::attr::kVolatile)) {
       volatile_buf_.insert(buffer.get());
     }
   }
 
   // Return the thread index via intrinsics.
-  llvm::Value* GetThreadIndex(const IterVar& iv) final {
-    runtime::ThreadScope ts = runtime::ThreadScope::Create(iv->thread_tag);
+  llvm::Value* GetThreadIndex(const PrimVar& var, const ffi::String& thread_tag) final {
+    runtime::ThreadScope ts = runtime::ThreadScope::Create(thread_tag);
     llvm::Intrinsic::ID intrin_id = llvm::Intrinsic::amdgcn_workitem_id_x;
     if (ts.rank == 1) {
       switch (ts.dim_index) {
@@ -202,7 +204,7 @@ class CodeGenAMDGPU : public CodeGenLLVM {
     llvm::Function* f = llvm::Intrinsic::getDeclaration(module_.get(), intrin_id);
 #endif
     llvm::Value* result = builder_->CreateCall(f, {});
-    return this->CreateCast(PrimType::Int(32), iv->var.ty(), result);
+    return this->CreateCast(PrimType::Int(32), var.ty(), result);
   }
 
   llvm::Value* CreateStorageSync(const CallNode* op) final {
@@ -233,7 +235,7 @@ class CodeGenAMDGPU : public CodeGenLLVM {
   unsigned GetGlobalAddressSpace() const final { return 1; }
 
   llvm::Value* CreateIntrinsic(const CallNode* op) final {
-    if (op->op.same_as(builtin::atomic_add())) {
+    if (op->op.same_as(tirx::atomic_add_op())) {
       const ffi::Array<Expr>& args = op->args;
       PrimExpr value = args[1].as_or_throw<PrimExpr>();
       PrimType value_ty = value.ty();

@@ -32,11 +32,13 @@ from tvm.script import tirx as T
 def test_op_correctness():
     x = relax.Var("x", R.Tensor((2, 3), "float32"))
     idx = relax.Var("idx", R.Tensor((2,), "float32"))
-    assert relax.op.take(x, idx, axis=1).op == Op.get("relax.take")
+    assert relax.op.take(x, idx, axis=1, ty=tvm.ir.Type.missing()).op == Op.get("relax.take")
     assert relax.op.strided_slice(x, axes=[0], begin=[0], end=[2]).op == Op.get(
         "relax.strided_slice"
     )
-    assert relax.op.dynamic_strided_slice(x, x, x, x).op == Op.get("relax.dynamic_strided_slice")
+    assert relax.op.dynamic_strided_slice(x, x, x, x, ty=tvm.ir.Type.missing()).op == Op.get(
+        "relax.dynamic_strided_slice"
+    )
 
 
 def _check_inference(bb: relax.BlockBuilder, call: relax.Call, expected_ty: relax.Type):
@@ -916,14 +918,14 @@ def test_legalize_dynamic_begin_end():
             return R.call_tir(
                 expected.strided_slice,
                 (A, index),
-                out_ty=R.Tensor((1, 16), "float32"),
+                ty_args=[R.Tensor((1, 16), "float32")],
             )
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def strided_slice(
-            A: T.Buffer((T.int64(16), T.int64(16))),
+            A: T.Tensor((T.int64(16), T.int64(16))),
             index: T.int64,
-            B: T.Buffer((T.int64(1), T.int64(16))),
+            B: T.Tensor((T.int64(1), T.int64(16))),
         ):
             T.func_attr({"tirx.noalias": True})
             for (*iters,) in T.grid(*B.shape):
@@ -955,8 +957,8 @@ def test_legalize_dynamic_begin_inf_end():
     class expected:
         strided_slice_index = T.int64()
 
-        @Ts.prim_func(private=True)
-        def strided_slice(A: T.Buffer((T.int64(16), T.int64(16)), "float32"), index: strided_slice_index, T_dynamic_strided_slice_with_axes: T.Buffer((T.max(T.int64(16) - T.max(T.if_then_else(strided_slice_index < T.int64(0), strided_slice_index + T.int64(16), strided_slice_index), T.int64(0)), T.int64(0)), T.int64(16)))):
+        @Ts.function(private=True)
+        def strided_slice(A: T.Tensor((T.int64(16), T.int64(16)), "float32"), index: strided_slice_index, T_dynamic_strided_slice_with_axes: T.Tensor((T.max(T.int64(16) - T.max(T.if_then_else(strided_slice_index < T.int64(0), strided_slice_index + T.int64(16), strided_slice_index), T.int64(0)), T.int64(0)), T.int64(16)))):
             T.func_attr({"tirx.noalias": True})
 
             # with Ts.sblock("root"):
@@ -970,7 +972,7 @@ def test_legalize_dynamic_begin_inf_end():
         @R.function
         def main(A: R.Tensor((16, 16), dtype="float32"), B: R.Shape([index])) -> R.Tensor((T.max(16 - T.max(T.if_then_else(index < 0, index + 16, index), 0), 0), 16), dtype="float32"):
             cls = expected
-            gv = R.call_tir(cls.strided_slice, (A, index), out_ty=R.Tensor((T.max(16 - T.max(T.if_then_else(index < 0, index + 16, index), 0), 0), 16), dtype="float32"))
+            gv = R.call_tir(cls.strided_slice, (A, index), ty_args=[R.Tensor((T.max(16 - T.max(T.if_then_else(index < 0, index + 16, index), 0), 0), 16), dtype="float32")])
             return gv
     # fmt: on
 

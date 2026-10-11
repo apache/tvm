@@ -25,7 +25,6 @@ import pytest
 import tvm
 import tvm.testing
 from tvm.script import tirx as T
-from tvm.script.tirx import tile as Tx
 from tvm.testing import env
 from tvm.tirx.layout import S, TileLayout, wg_local_layout
 
@@ -56,15 +55,15 @@ def test_fma_scalar_scalar():
     scale_val = 0.5
     bias_val = -1.0
 
-    @T.prim_func
-    def test_func(A: T.Buffer((N,), dtype, layout=TileLayout(S[N]))) -> None:
-        T.device_entry()
-        _bx = T.cta_id([1])
-        tx = T.thread_id([N])
-        buf = T.alloc_buffer((1,), dtype, scope="local", layout=TileLayout(S[1]))
-        Tx.copy(buf, A[tx : tx + 1])
-        Tx.fma(buf, buf, T.float32(scale_val), T.float32(bias_val))
-        Tx.copy(A[tx : tx + 1], buf)
+    @T.function
+    def test_func(A: T.Tensor((N,), dtype, layout=TileLayout(S[N]))) -> None:
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(N,)))
+        _bx = T.cuda.block_idx("x")
+        tx = T.cuda.thread_idx("x")
+        buf = T.alloc_tensor((1,), dtype, scope="local", layout=TileLayout(S[1]))
+        T.cuda.tile.ld(buf, A[tx : tx + 1])
+        T.cuda.tile.fma(buf, buf, T.float32(scale_val), T.float32(bias_val))
+        T.cuda.tile.st(A[tx : tx + 1], buf)
 
     with target:
         A_np = np.random.rand(N).astype(dtype)
@@ -97,20 +96,20 @@ def test_fma_buffer_scale_scalar_bias():
 
     coeff = 0.695
 
-    @T.prim_func
+    @T.function
     def test_func(
-        A: T.Buffer((N,), dtype, layout=TileLayout(S[N])),
-        B: T.Buffer((N,), dtype, layout=TileLayout(S[N])),
+        A: T.Tensor((N,), dtype, layout=TileLayout(S[N])),
+        B: T.Tensor((N,), dtype, layout=TileLayout(S[N])),
     ) -> None:
-        T.device_entry()
-        _bx = T.cta_id([1])
-        _tx = T.thread_id([1])
-        acc = T.alloc_buffer((N,), dtype, scope="local", layout=TileLayout(S[N]))
-        frac = T.alloc_buffer((N,), dtype, scope="local", layout=TileLayout(S[N]))
-        Tx.copy(acc, A[0:N])
-        Tx.copy(frac, B[0:N])
-        Tx.fma(acc, acc, frac, T.float32(coeff))
-        Tx.copy(A[0:N], acc)
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(1,)))
+        _bx = T.cuda.block_idx("x")
+        _tx = T.cuda.thread_idx("x")
+        acc = T.alloc_tensor((N,), dtype, scope="local", layout=TileLayout(S[N]))
+        frac = T.alloc_tensor((N,), dtype, scope="local", layout=TileLayout(S[N]))
+        T.cuda.tile.ld(acc, A[0:N])
+        T.cuda.tile.ld(frac, B[0:N])
+        T.cuda.tile.fma(acc, acc, frac, T.float32(coeff))
+        T.cuda.tile.st(A[0:N], acc)
 
     with target:
         A_np = np.random.rand(N).astype(dtype)
@@ -130,7 +129,7 @@ def test_fma_buffer_scale_scalar_bias():
 
 
 # ---------------------------------------------------------------------------
-# Binary op with scalar broadcast (Expr scalar, e.g. BufferLoad)
+# Binary op with scalar broadcast (Expr scalar, e.g. TensorLoad)
 # ---------------------------------------------------------------------------
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
@@ -143,20 +142,20 @@ def test_mul_scalar_broadcast():
     dtype = "float32"
     target = tvm.target.Target("cuda")
 
-    @T.prim_func
+    @T.function
     def test_func(
-        A: T.Buffer((N,), dtype, layout=TileLayout(S[N])),
-        Scale: T.Buffer((1,), dtype, layout=TileLayout(S[1])),
+        A: T.Tensor((N,), dtype, layout=TileLayout(S[N])),
+        Scale: T.Tensor((1,), dtype, layout=TileLayout(S[1])),
     ) -> None:
-        T.device_entry()
-        _bx = T.cta_id([1])
-        _tx = T.thread_id([1])
-        a_local = T.alloc_buffer((N,), dtype, scope="local", layout=TileLayout(S[N]))
-        s_local = T.alloc_buffer((1,), dtype, scope="local", layout=TileLayout(S[1]))
-        Tx.copy(a_local, A[0:N])
-        Tx.copy(s_local, Scale[0:1])
-        Tx.mul(a_local, a_local, s_local[0])
-        Tx.copy(A[0:N], a_local)
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(1,)))
+        _bx = T.cuda.block_idx("x")
+        _tx = T.cuda.thread_idx("x")
+        a_local = T.alloc_tensor((N,), dtype, scope="local", layout=TileLayout(S[N]))
+        s_local = T.alloc_tensor((1,), dtype, scope="local", layout=TileLayout(S[1]))
+        T.cuda.tile.ld(a_local, A[0:N])
+        T.cuda.tile.ld(s_local, Scale[0:1])
+        T.cuda.tile.mul(a_local, a_local, s_local[0])
+        T.cuda.tile.st(A[0:N], a_local)
 
     with target:
         A_np = np.random.rand(N).astype(dtype)
@@ -191,15 +190,15 @@ def test_add_rounding_mode():
 
     round_const = float(2**23 + 2**22)
 
-    @T.prim_func
-    def test_func(A: T.Buffer((N,), dtype, layout=TileLayout(S[N]))) -> None:
-        T.device_entry()
-        _bx = T.cta_id([1])
-        _tx = T.thread_id([1])
-        buf = T.alloc_buffer((N,), dtype, scope="local", layout=TileLayout(S[N]))
-        Tx.copy(buf, A[0:N])
-        Tx.add(buf, buf, T.float32(round_const), rounding_mode="rm")
-        Tx.copy(A[0:N], buf)
+    @T.function
+    def test_func(A: T.Tensor((N,), dtype, layout=TileLayout(S[N]))) -> None:
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(1,)))
+        _bx = T.cuda.block_idx("x")
+        _tx = T.cuda.thread_idx("x")
+        buf = T.alloc_tensor((N,), dtype, scope="local", layout=TileLayout(S[N]))
+        T.cuda.tile.ld(buf, A[0:N])
+        T.cuda.tile.add(buf, buf, T.float32(round_const), rounding_mode="rm")
+        T.cuda.tile.st(A[0:N], buf)
 
     with target:
         A_np = np.array([1.3, 2.7], dtype=dtype)
@@ -238,15 +237,15 @@ def test_fma_no_layout():
     scale_val = 2.0
     bias_val = 1.0
 
-    @T.prim_func
-    def test_func(A: T.Buffer((N,), dtype, layout=TileLayout(S[N]))) -> None:
-        T.device_entry()
-        _bx = T.cta_id([1])
-        _tx = T.thread_id([1])
+    @T.function
+    def test_func(A: T.Tensor((N,), dtype, layout=TileLayout(S[N]))) -> None:
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(1,)))
+        _bx = T.cuda.block_idx("x")
+        _tx = T.cuda.thread_idx("x")
         buf = T.alloc_local([N], dtype)
         for i in T.serial(N):
             buf[i] = A[i]
-        Tx.fma(buf[0:N], buf[0:N], T.float32(scale_val), T.float32(bias_val))
+        T.cuda.tile.fma(buf[0:N], buf[0:N], T.float32(scale_val), T.float32(bias_val))
         for i in T.serial(N):
             A[i] = buf[i]
 
@@ -279,20 +278,20 @@ def test_sub_buffer_buffer_rounding():
     dtype = "float32"
     target = tvm.target.Target("cuda")
 
-    @T.prim_func
+    @T.function
     def test_func(
-        A: T.Buffer((N,), dtype, layout=TileLayout(S[N])),
-        B: T.Buffer((N,), dtype, layout=TileLayout(S[N])),
+        A: T.Tensor((N,), dtype, layout=TileLayout(S[N])),
+        B: T.Tensor((N,), dtype, layout=TileLayout(S[N])),
     ) -> None:
-        T.device_entry()
-        _bx = T.cta_id([1])
-        _tx = T.thread_id([1])
-        a_buf = T.alloc_buffer((N,), dtype, scope="local", layout=TileLayout(S[N]))
-        b_buf = T.alloc_buffer((N,), dtype, scope="local", layout=TileLayout(S[N]))
-        Tx.copy(a_buf, A[0:N])
-        Tx.copy(b_buf, B[0:N])
-        Tx.sub(a_buf, a_buf, b_buf, rounding_mode="rn")
-        Tx.copy(A[0:N], a_buf)
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(1,)))
+        _bx = T.cuda.block_idx("x")
+        _tx = T.cuda.thread_idx("x")
+        a_buf = T.alloc_tensor((N,), dtype, scope="local", layout=TileLayout(S[N]))
+        b_buf = T.alloc_tensor((N,), dtype, scope="local", layout=TileLayout(S[N]))
+        T.cuda.tile.ld(a_buf, A[0:N])
+        T.cuda.tile.ld(b_buf, B[0:N])
+        T.cuda.tile.sub(a_buf, a_buf, b_buf, rounding_mode="rn")
+        T.cuda.tile.st(A[0:N], a_buf)
 
     with target:
         A_np = np.array([3.14, 2.71], dtype=dtype)
@@ -324,21 +323,21 @@ def test_fma_warpgroup_wg_local_layout():
     bias_val = -0.25
     target = tvm.target.Target("cuda")
 
-    @T.prim_func
+    @T.function
     def test_func(
-        A: T.Buffer((rows, cols), dtype, layout=TileLayout(S[rows, cols])),
-        B: T.Buffer((rows, cols), dtype, layout=TileLayout(S[rows, cols])),
+        A: T.Tensor((rows, cols), dtype, layout=TileLayout(S[rows, cols])),
+        B: T.Tensor((rows, cols), dtype, layout=TileLayout(S[rows, cols])),
     ) -> None:
-        T.device_entry()
-        _bx = T.cta_id([1])
-        wg_id = T.warpgroup_id([1])
-        tid = T.thread_id_in_wg([rows])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=1 * 128))
+        _bx = T.cuda.block_idx("x")
+        wg_id = T.cuda.warpgroup_id()
+        tid = T.cuda.thread_in_warpgroup()
 
-        reg = T.alloc_buffer((rows, cols), dtype, scope="local", layout=wg_local_layout(cols))
+        reg = T.alloc_tensor((rows, cols), dtype, scope="local", layout=wg_local_layout(cols))
         reg_row = reg.local(cols)
         for i in T.serial(cols):
             reg_row[i] = A[tid, i]
-        Tx.wg.fma(reg, reg, T.float32(scale_val), T.float32(bias_val))
+        T.cuda.tile.fma(reg, reg, T.float32(scale_val), T.float32(bias_val), scope="warpgroup")
         reg_row_1 = reg.local(cols)
         for i in T.serial(cols):
             B[tid, i] = reg_row_1[i]
@@ -371,25 +370,25 @@ def test_fma_f32_sm100_packed_f32x2_dispatch():
     shape = (64, 32)
     lay = TileLayout(S[shape])
 
-    @T.prim_func
+    @T.function
     def k(
-        A: T.Buffer(shape, "float32", layout=lay),
-        B: T.Buffer(shape, "float32", layout=lay),
-        C: T.Buffer(shape, "float32", layout=lay),
-        D: T.Buffer(shape, "float32", layout=lay),
+        A: T.Tensor(shape, "float32", layout=lay),
+        B: T.Tensor(shape, "float32", layout=lay),
+        C: T.Tensor(shape, "float32", layout=lay),
+        D: T.Tensor(shape, "float32", layout=lay),
     ) -> None:
-        T.device_entry()
-        _bx = T.cta_id([1])
-        tx = T.thread_id([64])
-        ra = T.alloc_buffer(shape[1:], "float32", scope="local", layout=TileLayout(S[shape[1:]]))
-        rb = T.alloc_buffer(shape[1:], "float32", scope="local", layout=TileLayout(S[shape[1:]]))
-        rc = T.alloc_buffer(shape[1:], "float32", scope="local", layout=TileLayout(S[shape[1:]]))
-        rd = T.alloc_buffer(shape[1:], "float32", scope="local", layout=TileLayout(S[shape[1:]]))
-        Tx.copy(ra, A[tx])
-        Tx.copy(rb, B[tx])
-        Tx.copy(rc, C[tx])
-        Tx.fma(rd, ra, rb, rc)
-        Tx.copy(D[tx], rd)
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(64,)))
+        _bx = T.cuda.block_idx("x")
+        tx = T.cuda.thread_idx("x")
+        ra = T.alloc_tensor(shape[1:], "float32", scope="local", layout=TileLayout(S[shape[1:]]))
+        rb = T.alloc_tensor(shape[1:], "float32", scope="local", layout=TileLayout(S[shape[1:]]))
+        rc = T.alloc_tensor(shape[1:], "float32", scope="local", layout=TileLayout(S[shape[1:]]))
+        rd = T.alloc_tensor(shape[1:], "float32", scope="local", layout=TileLayout(S[shape[1:]]))
+        T.cuda.tile.ld(ra, A[tx])
+        T.cuda.tile.ld(rb, B[tx])
+        T.cuda.tile.ld(rc, C[tx])
+        T.cuda.tile.fma(rd, ra, rb, rc)
+        T.cuda.tile.st(D[tx], rd)
 
     target = tvm.target.Target({"kind": "cuda", "arch": "sm_100a"})
     with target:

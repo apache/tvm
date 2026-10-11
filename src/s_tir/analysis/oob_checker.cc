@@ -32,7 +32,7 @@ namespace s_tir {
 using namespace tvm::tirx;
 namespace transform {
 struct OOBLocation {
-  BufferVar buf;
+  TensorVar buf;
   size_t dimension;
   ffi::ObjectRef index;
   sym::IntSet index_bounds;
@@ -73,14 +73,14 @@ class OOBCheckerVisitor final : public s_tir::IRVisitorWithAnalyzer {
  public:
   using s_tir::IRVisitorWithAnalyzer::Visit_;
 
-  ffi::Optional<VisitInterrupt> Visit_(const BufferStoreNode* node) final {
-    for (size_t i = 0; i < node->buffer->shape.size(); i++) {
-      CheckBounds(node, node->buffer, i);
+  ffi::Optional<VisitInterrupt> Visit_(const TensorStoreNode* node) final {
+    for (size_t i = 0; i < node->dest.as_or_throw<TensorVar>()->shape.size(); i++) {
+      CheckBounds(node, node->dest.as_or_throw<TensorVar>(), i);
     }
     return IRVisitorWithAnalyzer::Visit_(node);
   }
   ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* node) final {
-    BufferVar buffer = node->source.as_or_throw<tvm::tirx::BufferVar>();
+    TensorVar buffer = node->source.as_or_throw<tvm::tirx::TensorVar>();
     for (size_t i = 0; i < buffer->shape.size(); i++) {
       CheckBounds(node, buffer, i);
     }
@@ -88,11 +88,11 @@ class OOBCheckerVisitor final : public s_tir::IRVisitorWithAnalyzer {
   }
 
   template <class T>
-  void CheckBounds(const T* node, const BufferVar& buffer, size_t i) {
+  void CheckBounds(const T* node, const TensorVar& buffer, size_t i) {
     auto ind_bounds = analyzer_->int_set(node->indices[i]);
     auto shape_bounds = analyzer_->int_set(buffer->shape[i]);
     // We would expect that
-    // `analyzer_.CanProve(node->indices[i] < 0 || node->indices[i] >= node->buffer->shape[i])`
+    // `analyzer_.CanProve(node->indices[i] < 0 || node->indices[i] >= buffer->shape[i])`
     // would be the way to check if any out of bounds access occurs here, but `CanProve` checks if
     // the statement is true for all possible values (universal quantification). For a mix of in
     // bounds and out of bounds access, no out of bounds access would be reported. We instead want
@@ -112,7 +112,7 @@ class OOBCheckerVisitor final : public s_tir::IRVisitorWithAnalyzer {
 };
 
 tvm::transform::Pass OOBChecker() {
-  auto pass_func = [=](tirx::PrimFunc func, IRModule mod, tvm::transform::PassContext ctx) {
+  auto pass_func = [=](tirx::Function func, IRModule mod, tvm::transform::PassContext ctx) {
     auto checker = ffi::make_object<OOBCheckerVisitor>();
     checker->Visit(func->body);
     if (checker->errors.size() > 0) {
@@ -123,7 +123,7 @@ tvm::transform::Pass OOBChecker() {
     }
     return func;
   };
-  return tirx::transform::CreatePrimFuncPass(pass_func, 0, "s_tir.analysis.OOBChecker", {});
+  return tirx::transform::CreateFunctionPass(pass_func, 0, "s_tir.analysis.OOBChecker");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

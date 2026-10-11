@@ -19,15 +19,17 @@
 
 /*!
  * \file is_pure_function.cc
- * \brief PrimFunc purity analysis
+ * \brief Function purity analysis
  */
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/expr.h>
 #include <tvm/ir/op.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/s_tir/analysis.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/tirx/analysis.h>
-#include <tvm/tirx/builtin.h>
+#include <tvm/tirx/op/memory.h>
 
 #include "../ir/tir_visitor_with_path.h"
 
@@ -38,7 +40,7 @@ using namespace tvm::tirx;
 namespace {
 class PurityChecker : TIRVisitorWithPath {
  public:
-  static bool Check(const PrimFunc& func, bool assert_on_error) {
+  static bool Check(const Function& func, bool assert_on_error) {
     PurityChecker visitor(assert_on_error);
     visitor(func);
     return visitor.is_pure_;
@@ -49,28 +51,29 @@ class PurityChecker : TIRVisitorWithPath {
 
   void Dispatch_(const BindNode* op, ffi::reflection::AccessPath path) final {
     if (const auto* call = op->value.as<CallNode>();
-        call && call->op.same_as(tirx::builtin::alloc_buffer())) {
-      return DispatchAllocBuffer(op, call, path);
+        call && call->op.same_as(tirx::alloc_tensor_op())) {
+      return DispatchAllocTensor(op, call, path);
     }
     return TIRVisitorWithPath::Dispatch_(op, path);
   }
 
-  void DispatchAllocBuffer(const BindNode* op, const CallNode* call,
+  void DispatchAllocTensor(const BindNode* op, const CallNode* call,
                            ffi::reflection::AccessPath path) {
     internal_allocations_.insert(op->var);
     allocation_calls_.insert(call);
     TIRVisitorWithPath::Dispatch_(op, path);
   }
 
-  void Dispatch_(const BufferStoreNode* op, ffi::reflection::AccessPath path) override {
+  void Dispatch_(const TensorStoreNode* op, ffi::reflection::AccessPath path) override {
     TIRVisitorWithPath::Dispatch_(op, path);
 
-    if (!internal_allocations_.count(op->buffer.var())) {
+    if (!internal_allocations_.count(op->dest.as_or_throw<TensorVar>().var())) {
       is_pure_ = false;
       if (assert_on_error_) {
-        TVM_FFI_THROW(AssertionError) << "Pure functions must not write to buffers, "
-                                      << ", but function contains store to " << op->buffer
-                                      << op->indices << " of value " << op->value;
+        TVM_FFI_THROW(AssertionError)
+            << "Pure functions must not write to buffers, "
+            << ", but function contains store to " << op->dest.as_or_throw<TensorVar>()
+            << op->indices << " of value " << op->value;
       }
     }
   }
@@ -79,7 +82,7 @@ class PurityChecker : TIRVisitorWithPath {
     TIRVisitorWithPath::Dispatch_(call, path);
     if (allocation_calls_.count(call)) return;
 
-    static auto op_call_effect = Op::GetAttrMap<TCallEffectKind>("TCallEffectKind");
+    static auto op_call_effect = Op::GetAttrMap<TCallEffectKind>(tvm::op_attr::kCallEffectKind);
     CallEffectKind effect = [&]() {
       if (auto opt = call->op.as<Op>()) {
         return static_cast<CallEffectKind>(op_call_effect[opt.value()]);
@@ -106,7 +109,7 @@ class PurityChecker : TIRVisitorWithPath {
 };
 }  // namespace
 
-bool IsPureFunction(const PrimFunc& func, bool assert_on_error) {
+bool IsPureFunction(const Function& func, bool assert_on_error) {
   return PurityChecker::Check(func, assert_on_error);
 }
 

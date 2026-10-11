@@ -139,7 +139,7 @@ class ReplayTraceNode : public SearchStrategyNode {
     n->max_fail_count = this->max_fail_count;
     n->rand_state_ = this->rand_state_;
     n->state_ = nullptr;  // cleared the state
-    return SearchStrategy(n);
+    return SearchStrategy(ffi::UnsafeInit{}, n);
   }
 };
 
@@ -188,7 +188,7 @@ inline void ReplayTraceNode::State::NotifyRunnerResults(const ffi::Array<RunnerR
 SearchStrategy SearchStrategy::ReplayTrace(int max_fail_count) {
   ffi::ObjectPtr<ReplayTraceNode> n = ffi::make_object<ReplayTraceNode>();
   n->max_fail_count = max_fail_count;
-  return SearchStrategy(n);
+  return SearchStrategy(ffi::UnsafeInit{}, n);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() { ReplayTraceNode::RegisterReflection(); }

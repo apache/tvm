@@ -15,16 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# ruff: noqa: I001
+from tvm.tirx.tile_dispatch import DispatchContext
 
-# Op class declarations (Add, Sub, Gemm, ...) — must run first so their
-# `op = Op.get("tirx.<name>")` registrations execute before any dispatch
-# code refers to the same ops.
-from .ops import *
+from .dispatcher import fail
+from .registry import f_op_dispatcher
 
-# Dispatch infrastructure. Per-backend schedule registrations are loaded via
-# ``tvm.backend.load(<name>)``.
-from .dispatcher import fail, list_registered_schedules, predicate, register_dispatch
-from ...tile_primitive import DispatchContext
-
-__all__ = ["DispatchContext", "fail", "list_registered_schedules", "predicate", "register_dispatch"]
+__all__ = ["DispatchContext", "fail"]

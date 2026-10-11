@@ -38,7 +38,7 @@ from tvm.tirx.layout import Axis, Iter, TileLayout
 
 from ..common import get_indices, get_st_extent
 
-# Re-use copy's primitives (PR-640) — same algorithm, same scope_id machinery.
+# Re-use copy's primitives (PR-640) — same algorithm and CUDA index calls.
 from ..copy._common import _TID_AXIS_FOR_SCOPE, _extract_tile, _thread_cnt
 from ..copy.vec_auto_reg import _all_threads_active, _axis_decl, _compute_perm_r
 
@@ -379,11 +379,11 @@ def emit_scope_sync(scope_kind: str):
 
     @T.inline
     def sync():
-        if scope_kind == "cta":
+        if T.constexpr(scope_kind == "cta"):
             T.cuda.cta_sync()
-        elif scope_kind == "warpgroup":
+        elif T.constexpr(scope_kind == "warpgroup"):
             T.cuda.warpgroup_sync(8)
-        elif scope_kind == "warp":
+        elif T.constexpr(scope_kind == "warp"):
             T.cuda.warp_sync()
 
     return sync

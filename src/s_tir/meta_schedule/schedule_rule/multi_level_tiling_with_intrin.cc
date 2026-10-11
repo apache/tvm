@@ -42,7 +42,8 @@ ffi::Optional<s_tir::SBlockRV> TileForIntrin(s_tir::Schedule sch, s_tir::SBlockR
   }
   TVM_FFI_ICHECK(tiled_loop_rv.has_value());
   s_tir::SBlockRV outer_block = sch->Blockize(tiled_loop_rv.value());
-  sch->Annotate(outer_block, s_tir::attr::meta_schedule_auto_tensorize, ffi::String(intrin_name));
+  sch->Annotate(outer_block, tvm::s_tir::attr::kMetaScheduleAutoTensorize,
+                ffi::String(intrin_name));
   return outer_block;
 }
 
@@ -73,7 +74,7 @@ class MultiLevelTilingWithIntrinNode : public MultiLevelTilingNode {
   ScheduleRule Clone() const final {
     ffi::ObjectPtr<MultiLevelTilingWithIntrinNode> n =
         ffi::make_object<MultiLevelTilingWithIntrinNode>(*this);
-    return ScheduleRule(n);
+    return ScheduleRule(ffi::UnsafeInit{}, n);
   }
 
   // Override ApplySubRules to tile the inner loops according to the given tensor intrinsic, then
@@ -112,7 +113,7 @@ ScheduleRule ScheduleRule::MultiLevelTilingWithIntrin(
   auto node = MultiLevelTilingInitCommon<MultiLevelTilingWithIntrinNode>(
       structure, tile_binds, max_innermost_factor, vector_load_lens, reuse_read, reuse_write);
   node->intrin_name = intrin_name;
-  return ScheduleRule(node);
+  return ScheduleRule(ffi::UnsafeInit{}, node);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

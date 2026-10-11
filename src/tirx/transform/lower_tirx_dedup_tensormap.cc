@@ -22,9 +22,11 @@
  * \brief Deduplicate identical cuTensorMap objects created by TIRx schedules.
  */
 
+#include <tvm/backend/cuda/op/tensormap.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/sym/analyzer.h>
-#include <tvm/tirx/op.h>
+#include <tvm/tirx/op/abi.h>
 #include <tvm/tirx/stmt_functor.h>
 #include <tvm/tirx/transform.h>
 
@@ -42,7 +44,7 @@ inline bool IsBuiltin(const CallNode* call, const Op& op) { return call && call-
 // Is a stack allocation for a tensormap handle?
 inline bool IsTensorMapAlloca(const BindNode* bind) {
   if (const auto* call = bind->value.as<CallNode>()) {
-    if (IsBuiltin(call, builtin::tvm_stack_alloca())) {
+    if (IsBuiltin(call, tirx::stack_alloca_op())) {
       if (call->args.size() == 2) {
         if (const auto* type_str = call->args[0].as<StringImmNode>()) {
           return type_str->value == "tensormap";
@@ -57,8 +59,8 @@ inline bool IsTensorMapAlloca(const BindNode* bind) {
 inline const CallNode* AsCuTensorMapEncode(const EvaluateNode* eval) {
   const CallNode* call = eval->value.as<CallNode>();
   if (!call) return nullptr;
-  if (call->op.same_as(builtin::tensormap_encode_tiled())) return call;
-  if (!call->op.same_as(builtin::tvm_call_packed())) return nullptr;
+  if (call->op.same_as(backend::cuda::tensormap_encode_tiled_op())) return call;
+  if (!call->op.same_as(tirx::call_packed_op())) return nullptr;
   if (call->args.empty()) return nullptr;
   if (const auto* s = call->args[0].as<StringImmNode>()) {
     if (s->value == "runtime.cuTensorMapEncodeTiled") return call;
@@ -69,7 +71,7 @@ inline const CallNode* AsCuTensorMapEncode(const EvaluateNode* eval) {
 // Exclude only the output pointer; retain op, attributes and all input operands
 // so descriptor dtype, forced dtype and encoding modes participate in equality.
 inline std::pair<ffi::Optional<Var>, Call> ExtractEncodeKey(const CallNode* call) {
-  size_t output_index = call->op.same_as(builtin::tensormap_encode_tiled()) ? 0 : 1;
+  size_t output_index = call->op.same_as(backend::cuda::tensormap_encode_tiled_op()) ? 0 : 1;
   TVM_FFI_ICHECK_GT(call->args.size(), output_index);
   ffi::Optional<Var> tensormap = call->args[output_index].as<Var>();
   ffi::Array<Expr> args;
@@ -103,7 +105,7 @@ class CuTensorMapDedupAnalyzer : public StmtExprVisitor {
     return std::nullopt;
   }
 
-  ffi::Optional<VisitInterrupt> Visit_(const IfThenElseNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const IfNode* op) final {
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit(op->condition));
     canonical_list_.emplace_back(std::vector<std::pair<Call, Var>>());
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit(op->then_case));
@@ -128,7 +130,7 @@ class CuTensorMapDedupAnalyzer : public StmtExprVisitor {
             if (ffi::StructuralEqual()(kv.first, key)) {
               const Var& canonical = kv.second;
               if (!canonical.same_as(v)) {
-                tensormap_var_remap_[v] = canonical;
+                tensormap_var_remap_.insert_or_assign(v, canonical);
               }
               found = true;
               break;
@@ -218,7 +220,7 @@ class CuTensorMapDedupRewriter : public StmtExprMutator {
     }
   }
 
-  UnchangedOr<Stmt> Mutate_(const IfThenElseNode* op, InplaceMode inplace_mode) {
+  UnchangedOr<Stmt> Mutate_(const IfNode* op, InplaceMode inplace_mode) {
     auto condition_result = Mutate(op->condition, inplace_mode);
     bool condition_unchanged = condition_result.UnchangedOrSameAs(op->condition);
     PrimExpr condition = std::move(condition_result).ValueOrUnchanged(op->condition);
@@ -227,7 +229,7 @@ class CuTensorMapDedupRewriter : public StmtExprMutator {
     emitted_keys_.pop_back();
     bool then_case_unchanged = then_case_result.UnchangedOrSameAs(op->then_case);
     Stmt then_case = std::move(then_case_result).ValueOrUnchanged(op->then_case);
-    ffi::Optional<Stmt> else_case = std::nullopt;
+    ffi::Optional<SeqStmt> else_case = std::nullopt;
     if (op->else_case) {
       emitted_keys_.emplace_back();
       else_case =
@@ -238,13 +240,13 @@ class CuTensorMapDedupRewriter : public StmtExprMutator {
       return ffi::Unchanged();
     } else {
       if (inplace_mode == InplaceMode::kAllow) {
-        auto* n = const_cast<IfThenElseNode*>(op);
+        auto* n = const_cast<IfNode*>(op);
         n->condition = std::move(condition);
         n->then_case = std::move(then_case);
         n->else_case = std::move(else_case);
         return ffi::Unchanged();
       }
-      auto n = ffi::make_object<IfThenElseNode>(*op);
+      auto n = ffi::make_object<IfNode>(*op);
       n->condition = std::move(condition);
       n->then_case = std::move(then_case);
       n->else_case = std::move(else_case);
@@ -289,7 +291,7 @@ class CuTensorMapDedupRewriter : public StmtExprMutator {
 namespace transform {
 
 Pass LowerTIRxDedupCuTensorMaps() {
-  auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
+  auto pass_func = [](Function f, IRModule m, PassContext ctx) {
     // Analyze usage to find duplicates
     auto analyzer = ffi::make_object<CuTensorMapDedupAnalyzer>();
     analyzer->Visit(f->body);
@@ -302,7 +304,7 @@ Pass LowerTIRxDedupCuTensorMaps() {
                   .ValueOrUnchanged(n->body);
     return f;
   };
-  return CreatePrimFuncPass(pass_func, 0, "tirx.LowerTIRxDedupCuTensorMaps", {});
+  return CreateFunctionPass(pass_func, 0, "tirx.LowerTIRxDedupCuTensorMaps");
 }
 
 }  // namespace transform

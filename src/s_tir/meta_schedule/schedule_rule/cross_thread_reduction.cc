@@ -123,7 +123,7 @@ class CrossThreadReductionNode : public ScheduleRuleNode {
   // Inherited from ScheduleRuleNode
   ScheduleRule Clone() const final {
     ffi::ObjectPtr<CrossThreadReductionNode> n = ffi::make_object<CrossThreadReductionNode>(*this);
-    return ScheduleRule(n);
+    return ScheduleRule(ffi::UnsafeInit{}, n);
   }
 
  private:
@@ -137,7 +137,7 @@ class CrossThreadReductionNode : public ScheduleRuleNode {
   bool InThreadScope(const s_tir::Schedule& sch, const s_tir::SBlockRV& block) {
     const ffi::Array<s_tir::LoopRV>& axes = sch->GetLoops(block);
     for (const s_tir::LoopRV& loop_rv : axes) {
-      const tirx::For& loop = sch->Get(loop_rv);
+      const For& loop = sch->Get(loop_rv);
       runtime::ThreadScope thread_scope = s_tir::GetThreadScope(loop.get());
       if (s_tir::IsThreadIdx(thread_scope)) {
         return true;
@@ -262,7 +262,7 @@ class CrossThreadReductionNode : public ScheduleRuleNode {
     int n_tgt_block_loop = static_cast<int>(tgt_block_loops.size());
 
     for (int i = 0; i < n_block_loop && i < n_tgt_block_loop; ++i) {
-      if (s_tir::GetLoopIterType(sch->GetSRef(block_loops[i])) != tirx::IterVarType::kDataPar) {
+      if (s_tir::GetLoopIterType(sch->GetSRef(block_loops[i])) != s_tir::IterVarType::kDataPar) {
         return i - 1;
       } else if (sch->GetSRef(tgt_block_loops[i]).same_as(lca_sref)) {
         // If the lowest common ancestor is a loop, the compute location of the input block should
@@ -298,7 +298,7 @@ ScheduleRule ScheduleRule::CrossThreadReduction(ffi::Array<int64_t> thread_exten
   }
   ffi::ObjectPtr<CrossThreadReductionNode> n = ffi::make_object<CrossThreadReductionNode>();
   n->thread_extents = std::move(thread_extents);
-  return ScheduleRule(n);
+  return ScheduleRule(ffi::UnsafeInit{}, n);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() { CrossThreadReductionNode::RegisterReflection(); }

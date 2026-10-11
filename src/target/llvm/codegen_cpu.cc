@@ -49,9 +49,15 @@
 #include <llvm/Transforms/Utils/ModuleUtils.h>
 #include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/analysis.h>
+#include <tvm/ir/function.h>
 #include <tvm/runtime/base.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/tirx/analysis.h>
+#include <tvm/tirx/op/abi.h>
+#include <tvm/tirx/op/cpu.h>
+#include <tvm/tirx/op/memory.h>
+#include <tvm/tirx/op/region.h>
 
 #include <algorithm>
 #include <memory>
@@ -216,15 +222,15 @@ llvm::DISubprogram* CodeGenCPU::CreateDebugFunction(llvm::StringRef name,
   return DIFunction;
 }
 
-llvm::DISubprogram* CodeGenCPU::CreateDebugFunction(const GlobalVar& gvar, const PrimFunc& func) {
+llvm::DISubprogram* CodeGenCPU::CreateDebugFunction(const GlobalVar& gvar, const Function& func) {
   std::string name = func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol).value_or(gvar->name_hint);
   return CreateDebugFunction(name, func->params.Map([](const Var& var) { return var->ty; }),
                              func->ret_type);
 }
 
-void CodeGenCPU::AddFunction(const GlobalVar& gvar, const PrimFunc& func) {
+void CodeGenCPU::AddFunction(const GlobalVar& gvar, const Function& func) {
   di_subprogram_ = CreateDebugFunction(gvar, func);
-  EmitDebugLocation(func->span);
+  EmitDebugLocation(func->loc);
   CodeGenLLVM::AddFunction(gvar, func);
   if (f_tvm_register_system_symbol_ != nullptr) {
     if (auto global_symbol = func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol)) {
@@ -289,7 +295,7 @@ std::unique_ptr<llvm::Module> CodeGenCPU::Finish() {
 
 CodeGenLLVM::TypedPointer CodeGenCPU::CreateStructRefPtr(Type type, llvm::Value* buf,
                                                          llvm::Value* index, int kind) {
-  if (kind < tirx::builtin::kDLTensorKindBound_) {
+  if (kind < tirx::kDLTensorKindBound_) {
     if (buf->getType() == t_void_p_) {
       buf = builder_->CreatePointerCast(buf, llvmGetPointerTo(t_tvm_array_, 0));
     } else {
@@ -297,80 +303,80 @@ CodeGenLLVM::TypedPointer CodeGenCPU::CreateStructRefPtr(Type type, llvm::Value*
     }
   }
   switch (kind) {
-    case tirx::builtin::kDLTensorAddr: {
+    case tirx::kDLTensorAddr: {
       return TypedPointer(t_tvm_array_, builder_->CreateInBoundsGEP(t_tvm_array_, buf, index));
     }
-    case tirx::builtin::kDLTensorData: {
+    case tirx::kDLTensorData: {
       llvm::Type* member_type = t_tvm_array_->getStructElementType(0);
       llvm::Value* member_addr =
           builder_->CreateInBoundsGEP(t_tvm_array_, buf, {index, ConstInt32(0)});
       return TypedPointer(member_type, member_addr);
     }
-    case tirx::builtin::kDLTensorShape: {
+    case tirx::kDLTensorShape: {
       llvm::Type* member_type = t_tvm_array_->getStructElementType(4);
       llvm::Value* member_addr =
           builder_->CreateInBoundsGEP(t_tvm_array_, buf, {index, ConstInt32(4)});
       return TypedPointer(member_type, member_addr);
     }
-    case tirx::builtin::kDLTensorStrides: {
+    case tirx::kDLTensorStrides: {
       llvm::Type* member_type = t_tvm_array_->getStructElementType(5);
       llvm::Value* member_addr =
           builder_->CreateInBoundsGEP(t_tvm_array_, buf, {index, ConstInt32(5)});
       return TypedPointer(member_type, member_addr);
     }
-    case tirx::builtin::kDLTensorNDim: {
+    case tirx::kDLTensorNDim: {
       llvm::Type* member_type = t_tvm_array_->getStructElementType(2);
       llvm::Value* member_addr =
           builder_->CreateInBoundsGEP(t_tvm_array_, buf, {index, ConstInt32(2)});
       return TypedPointer(member_type, member_addr);
     }
-    case tirx::builtin::kDLTensorTypeCode: {
+    case tirx::kDLTensorTypeCode: {
       llvm::Type* member_type = t_tvm_array_->getStructElementType(3)->getStructElementType(0);
       llvm::Value* member_addr =
           builder_->CreateInBoundsGEP(t_tvm_array_, buf, {index, ConstInt32(3), ConstInt32(0)});
       return TypedPointer(member_type, member_addr);
     }
-    case tirx::builtin::kDLTensorTypeBits: {
+    case tirx::kDLTensorTypeBits: {
       llvm::Type* member_type = t_tvm_array_->getStructElementType(3)->getStructElementType(1);
       llvm::Value* member_addr =
           builder_->CreateInBoundsGEP(t_tvm_array_, buf, {index, ConstInt32(3), ConstInt32(1)});
       return TypedPointer(member_type, member_addr);
     }
-    case tirx::builtin::kDLTensorTypeLanes: {
+    case tirx::kDLTensorTypeLanes: {
       llvm::Type* member_type = t_tvm_array_->getStructElementType(3)->getStructElementType(2);
       llvm::Value* member_addr =
           builder_->CreateInBoundsGEP(t_tvm_array_, buf, {index, ConstInt32(3), ConstInt32(2)});
       return TypedPointer(member_type, member_addr);
     }
-    case tirx::builtin::kDLTensorByteOffset: {
+    case tirx::kDLTensorByteOffset: {
       llvm::Type* member_type = t_tvm_array_->getStructElementType(6);
       llvm::Value* member_addr =
           builder_->CreateInBoundsGEP(t_tvm_array_, buf, {index, ConstInt32(6)});
       return TypedPointer(member_type, member_addr);
     }
-    case tirx::builtin::kDLTensorDeviceId: {
+    case tirx::kDLTensorDeviceId: {
       llvm::Type* member_type = t_tvm_array_->getStructElementType(1)->getStructElementType(1);
       llvm::Value* member_addr =
           builder_->CreateInBoundsGEP(t_tvm_array_, buf, {index, ConstInt32(1), ConstInt32(1)});
       return TypedPointer(member_type, member_addr);
     }
-    case tirx::builtin::kDLTensorDeviceType: {
+    case tirx::kDLTensorDeviceType: {
       llvm::Type* member_type = t_tvm_array_->getStructElementType(1)->getStructElementType(0);
       llvm::Value* member_addr =
           builder_->CreateInBoundsGEP(t_tvm_array_, buf, {index, ConstInt32(1), ConstInt32(0)});
       return TypedPointer(member_type, member_addr);
     }
-    case tirx::builtin::kTVMFFIAnyTypeIndex: {
+    case tirx::kTVMFFIAnyTypeIndex: {
       buf = builder_->CreatePointerCast(buf, llvmGetPointerTo(t_tvm_ffi_any_, 0));
       buf = builder_->CreateInBoundsGEP(t_tvm_ffi_any_, buf, {index, ConstInt32(0)});
       return TypedPointer(t_int32_, buf);
     }
-    case tirx::builtin::kTVMFFIAnyZeroPadding: {
+    case tirx::kTVMFFIAnyZeroPadding: {
       buf = builder_->CreatePointerCast(buf, llvmGetPointerTo(t_tvm_ffi_any_, 0));
       buf = builder_->CreateInBoundsGEP(t_tvm_ffi_any_, buf, {index, ConstInt32(1)});
       return TypedPointer(t_int32_, buf);
     }
-    case tirx::builtin::kTVMFFIAnyUnionValue: {
+    case tirx::kTVMFFIAnyUnionValue: {
       buf = builder_->CreatePointerCast(buf, llvmGetPointerTo(t_tvm_ffi_any_, 0));
       // field 2 is the union value
       buf = builder_->CreateInBoundsGEP(t_tvm_ffi_any_, buf, {index, ConstInt32(2)});
@@ -395,7 +401,7 @@ CodeGenLLVM::TypedPointer CodeGenCPU::CreateStructRefPtr(Type type, llvm::Value*
       TVM_FFI_THROW(InternalError)
           << "Type " << type << " cannot be stored into a TVMFFIAny's value field";
     }
-    case tirx::builtin::kInt64ArrayElem: {
+    case tirx::kInt64ArrayElem: {
       buf = builder_->CreatePointerCast(buf, llvmGetPointerTo(t_int64_, 0));
       llvm::Value* elem_addr = builder_->CreateInBoundsGEP(t_int64_, buf, index);
       return TypedPointer(t_int64_, elem_addr);
@@ -508,13 +514,15 @@ llvm::BasicBlock* CodeGenCPU::CheckCallSuccess(llvm::Value* retcode) {
   return end_block;
 }
 
-void CodeGenCPU::CreateComputeScope(const AttrStmtNode* op) {
+void CodeGenCPU::CreateComputeScope(const RegionStmtNode* op) {
   EmitDebugLocation(op);
   /*! \brief maintain states that should be guarded when step into compute scope */
   struct ComputeScopeStates {
     explicit ComputeScopeStates(CodeGenCPU* parent) : parent_(parent) {}
 
     void EnterWithScope() {
+      // Inherit caller alignment facts without exporting helper-local assumptions.
+      alloc_storage_info_ = parent_->alloc_storage_info_;
       std::swap(function_, parent_->function_);
       std::swap(analyzer_, parent_->analyzer_);
       std::swap(var_map_, parent_->var_map_);
@@ -523,6 +531,7 @@ void CodeGenCPU::CreateComputeScope(const AttrStmtNode* op) {
     }
 
     void ExitWithScope() {
+      std::swap(alloc_storage_info_, parent_->alloc_storage_info_);
       std::swap(function_, parent_->function_);
       std::swap(analyzer_, parent_->analyzer_);
       std::swap(var_map_, parent_->var_map_);
@@ -533,6 +542,7 @@ void CodeGenCPU::CreateComputeScope(const AttrStmtNode* op) {
     llvm::Function* function_{nullptr};
     llvm::DISubprogram* di_subprogram_{nullptr};
     std::unordered_map<const VarNode*, llvm::Value*> var_map_;
+    std::unordered_map<const VarNode*, StorageInfo> alloc_storage_info_;
     std::vector<std::pair<llvm::BasicBlock*, llvm::BasicBlock*>> loop_frame_jump_tgts_;
     sym::Analyzer analyzer_{sym::Analyzer()};
     CodeGenCPU* parent_;
@@ -542,7 +552,7 @@ void CodeGenCPU::CreateComputeScope(const AttrStmtNode* op) {
   // - Make sure the generated compute function is clearly separately(though it can get inlined)
   // - Set noalias on all the pointer arguments, some of them are loaded from ffi::PackedArgs.
   //   This is easier than set the alias scope manually.
-  ffi::Array<Var> vargs = tirx::UndefinedVars(op->body, {});
+  ffi::Array<Var> vargs = tvm::UndefinedVars(op->body, {});
   std::vector<llvm::Value*> arg_values;
   std::vector<llvm::Type*> arg_types;
   for (Var v : vargs) {
@@ -555,11 +565,10 @@ void CodeGenCPU::CreateComputeScope(const AttrStmtNode* op) {
   // $xxx_compute_ functions are not global. They should be marked as static (via InternalLinkage)
   // to call them correctly on MIPS platform (CALL16 issue)
   // Linkage ld Error: CALL16 reloc at 0x290 not against global symbol
-  const StringImmNode* value = op->value.as<StringImmNode>();
-  TVM_FFI_ICHECK(value != nullptr);
+  const auto* value = op->args[0].as<StringImmNode>();
   llvm::Function* fcompute = llvm::Function::Create(ftype, llvm::Function::InternalLinkage,
                                                     MakeStringRef(value->value), module_.get());
-  SetTargetAttributes(fcompute);
+  SetComputeScopeAttributes(fcompute);
   for (auto it = fcompute->arg_begin(); it != fcompute->arg_end(); it++) {
     const Var& var = vargs[std::distance(fcompute->arg_begin(), it)];
     it->setName(std::string(var->name));
@@ -574,15 +583,15 @@ void CodeGenCPU::CreateComputeScope(const AttrStmtNode* op) {
     llvm::Argument* v = &(*it);
     const Var& var = vargs[idx];
     var_map_[var.get()] = v;
-    if ((var->ty.as<PointerTypeNode>() || var->ty.as<BufferTypeNode>()) &&
+    if ((var->ty.as<PointerTypeNode>() || var->ty.as<TensorTypeNode>()) &&
         !alias_var_set_.count(var.get())) {
       // set non alias.
       fcompute->addParamAttr(idx, llvm::Attribute::NoAlias);
       // always not inline compute function to make the code structure clean
       fcompute->addFnAttr(llvm::Attribute::NoInline);
     }
-    // Add alignment attribute if needed.
-    auto f = alloc_storage_info_.find(var.get());
+    // Alignment facts are shared by aliases of the same physical pointer.
+    auto f = alloc_storage_info_.find(GetBufferPhysicalRoot(var.get()));
     if (f != alloc_storage_info_.end()) {
       unsigned align = f->second.alignment;
       if (align > 1) {
@@ -594,7 +603,7 @@ void CodeGenCPU::CreateComputeScope(const AttrStmtNode* op) {
 
   function_ = fcompute;
   ffi::Array<Type> debug_param_types = vargs.Map([](const Var& var) -> Type {
-    if (const auto* buffer_type = var->ty.as<BufferTypeNode>()) {
+    if (const auto* buffer_type = var->ty.as<TensorTypeNode>()) {
       // Compute-scope captures use their physical LLVM pointer values.
       return buffer_type->DataPointerType();
     }
@@ -656,7 +665,7 @@ void CodeGenCPU::CreateParallelLaunch(const Stmt& body, int num_task, std::strin
   SetTargetAttributes(f);
 
   // allocate and setup the closure, call the closure.
-  ffi::Array<Var> vfields = tirx::UndefinedVars(body, {});
+  ffi::Array<Var> vfields = tvm::UndefinedVars(body, {});
   uint64_t nbytes;
   TypedPointer cdata = PackClosureData(vfields, &nbytes, "closure_" + name);
   auto launch_callee = llvm::FunctionCallee(ftype_tvm_parallel_launch_, RuntimeTVMParallelLaunch());
@@ -679,8 +688,8 @@ void CodeGenCPU::CreateParallelLaunch(const Stmt& body, int num_task, std::strin
   ParallelEnv par_env;
   par_env.task_id = Var("task_id", PrimType::Int(32));
   par_env.num_task = Var("num_task", PrimType::Int(32));
-  new_vmap[par_env.task_id.get()] = task_id;
-  new_vmap[par_env.num_task.get()] = builder_->CreateLoad(
+  new_vmap[par_env.task_id.value().get()] = task_id;
+  new_vmap[par_env.num_task.value().get()] = builder_->CreateLoad(
       t_int32_,
       builder_->CreateInBoundsGEP(t_tvm_parallel_group_env_, penv, {ConstInt32(0), ConstInt32(1)}),
       "num_task");
@@ -861,7 +870,7 @@ CodeGenCPU::PackedCall CodeGenCPU::MakeCallPackedLowered(const ffi::Array<Expr>&
 
 llvm::Value* CodeGenCPU::CreateCallPacked(const CallNode* op) {
   TVM_FFI_ICHECK_EQ(op->args.size(), 4U);
-  bool use_string_lookup = op->op.same_as(tirx::builtin::tvm_call_packed_lowered());
+  bool use_string_lookup = op->op.same_as(tirx::call_packed_lowered_op());
   PackedCall pc = MakeCallPackedLowered(
       op->args, op->ty, static_cast<int64_t>(op->args[2].as<IntImmNode>()->value),
       static_cast<int64_t>(op->args[3].as<IntImmNode>()->value), use_string_lookup);
@@ -996,25 +1005,34 @@ void CodeGenCPU::AddStartupFunction() {
 
 llvm::Value* CodeGenCPU::CreateIntrinsic(const CallNode* op) {
   const ffi::Array<Expr>& args = op->args;
-  if (op->op.same_as(tirx::builtin::tvm_call_packed_lowered())) {
+  if (op->op.same_as(tirx::call_packed_lowered_op())) {
     return CreateCallPacked(op);
-  } else if (op->op.same_as(tirx::builtin::tvm_call_cpacked_lowered())) {
+  } else if (op->op.same_as(tirx::call_cpacked_lowered_op())) {
     return CreateCallPacked(op);
-  } else if (op->op.same_as(tirx::builtin::tvm_static_handle())) {
+  } else if (op->op.same_as(tirx::cpu_parallel_barrier_op())) {
+    TVM_FFI_ICHECK_EQ(args.size(), 0U);
+    TVM_FFI_ICHECK(parallel_env_.penv != nullptr)
+        << "cpu_parallel_barrier requires a parallel launch";
+    TVM_FFI_ICHECK(!parallel_env_.in_parallel_loop)
+        << "cpu_parallel_barrier must be outside parallel loops so every worker reaches it";
+    auto callee = llvm::FunctionCallee(ftype_tvm_parallel_barrier_, RuntimeTVMParallelBarrier());
+    return builder_->CreateCall(callee,
+                                {MakeValue(parallel_env_.task_id.value()), parallel_env_.penv});
+  } else if (op->op.same_as(tirx::static_handle_op())) {
     return CreateStaticHandle();
-  } else if (op->op.same_as(tirx::builtin::tvm_throw_last_error())) {
+  } else if (op->op.same_as(tirx::throw_last_error_op())) {
     builder_->CreateRet(ConstInt32(-1));
     auto next_block = std::next(builder_->GetInsertBlock()->getIterator());
     llvm::BasicBlock* new_bb =
         llvm::BasicBlock::Create(*llvm_target_->GetContext(), "cont", function_, &*next_block);
     builder_->SetInsertPoint(new_bb);
     return ConstInt32(-1);
-  } else if (op->op.same_as(tirx::builtin::tvm_struct_get())) {
+  } else if (op->op.same_as(tirx::abi_field_get_op())) {
     TVM_FFI_ICHECK_EQ(args.size(), 3U);
     int kind = args[2].as<IntImm>().value()->value.as<int>().value();
     Type op_type = op->ty;
     TypedPointer ref = CreateStructRefPtr(op_type, MakeValue(args[0]), MakeValue(args[1]), kind);
-    if (kind == tirx::builtin::kDLTensorAddr) {
+    if (kind == tirx::kDLTensorAddr) {
       TVM_FFI_ICHECK(op_type.as<PointerTypeNode>())
           << "The address of a DLTensor must have pointer type, but got " << op_type;
       return builder_->CreatePointerCast(ref.addr, GetLLVMType(op_type));
@@ -1037,18 +1055,18 @@ llvm::Value* CodeGenCPU::CreateIntrinsic(const CallNode* op) {
     }
 
     return struct_value;
-  } else if (op->op.same_as(tirx::builtin::tvm_struct_set())) {
+  } else if (op->op.same_as(tirx::abi_field_set_op())) {
     TVM_FFI_ICHECK_EQ(args.size(), 4U);
     int kind = args[2].as<IntImm>().value()->value.as<int>().value();
     llvm::Value* value = MakeValue(args[3]);
     TypedPointer ref =
         CreateStructRefPtr(args[3]->ty, MakeValue(args[0]), MakeValue(args[1]), kind);
-    TVM_FFI_ICHECK(kind != tirx::builtin::kDLTensorAddr);
+    TVM_FFI_ICHECK(kind != tirx::kDLTensorAddr);
     if (value->getType()->isPointerTy()) {
       value = builder_->CreatePointerCast(value, ref.type);
     }
 
-    if (kind == tirx::builtin::kTVMFFIAnyUnionValue) {
+    if (kind == tirx::kTVMFFIAnyUnionValue) {
       // when we set any union value, we need to be careful to
       // clear off the union value to zero if the set size is less than 64 bits
       if (data_layout_->getTypeAllocSize(ref.type) != 8) {
@@ -1059,7 +1077,7 @@ llvm::Value* CodeGenCPU::CreateIntrinsic(const CallNode* op) {
     }
     builder_->CreateStore(value, ref.addr);
     return ConstInt32(0);
-  } else if (op->op.same_as(tirx::builtin::tvm_stack_alloca())) {
+  } else if (op->op.same_as(tirx::stack_alloca_op())) {
     TVM_FFI_ICHECK_EQ(args.size(), 2U);
     std::string type = args[0].as<StringImm>().value()->value;
     return WithFunctionEntry([&]() -> llvm::AllocaInst* {
@@ -1122,37 +1140,12 @@ void CodeGenCPU::Dispatch_(const AssertStmtNode* op) {
   CodeGenLLVM::Dispatch_(op);
 }
 
-void CodeGenCPU::Dispatch_(const AttrStmtNode* op) {
+void CodeGenCPU::Dispatch_(const RegionStmtNode* op) {
   EmitDebugLocation(op);
-  if (op->attr_key == tirx::attr::compute_scope) {
-    this->CreateComputeScope(op);
-  } else if (tirx::attr::IsPragmaKey(op->attr_key)) {
-    if (op->attr_key == "pragma_parallel_stride_pattern") {
-      TVM_FFI_ICHECK(parallel_env_.penv != nullptr)
-          << "Pragma parallel_stride_pattern only valid in parallel launch";
-      parallel_env_.stride_pattern = true;
-      this->Dispatch(op->body);
-    } else if (op->attr_key == "pragma_parallel_launch_point") {
-      CreateParallelLaunch(op->body, 0, "pragma_parallel");
-    } else if (op->attr_key == "pragma_parallel_barrier_when_finish") {
-      TVM_FFI_ICHECK(parallel_env_.penv != nullptr)
-          << "Cannot run barrier without parallel environment";
-      TVM_FFI_ICHECK(!parallel_env_.in_parallel_loop)
-          << "Cannot not place within parallel loop as the workload may differ, "
-          << " place it between parallel and parallel_launch_point";
-      this->Dispatch(op->body);
-      auto bar_callee =
-          llvm::FunctionCallee(ftype_tvm_parallel_barrier_, RuntimeTVMParallelBarrier());
-      builder_->CreateCall(bar_callee, {MakeValue(parallel_env_.task_id), parallel_env_.penv});
-    } else if (op->attr_key == tirx::attr::pragma_import_llvm) {
-      const StringImmNode* value = op->value.as<StringImmNode>();
-      TVM_FFI_ICHECK(value != nullptr);
-      this->HandleImport(value->value);
-      this->Dispatch(op->body);
-    } else {
-      LOG(WARNING) << "Unknown pragma " << op->attr_key;
-      this->Dispatch(op->body);
-    }
+  if (op->op.same_as(tirx::compute_scope_op())) {
+    CreateComputeScope(op);
+  } else if (op->op.same_as(tirx::parallel_launch_op())) {
+    CreateParallelLaunch(op->body, 0, "pragma_parallel");
   } else {
     CodeGenLLVM::Dispatch_(op);
   }
@@ -1160,10 +1153,10 @@ void CodeGenCPU::Dispatch_(const AttrStmtNode* op) {
 
 void CodeGenCPU::Dispatch_(const ForNode* op) {
   EmitDebugLocation(op);
-  if (op->kind == ForKind::kSerial || op->kind == ForKind::kUnrolled) {
+  if (op->kind == ForKind::kDefault || op->kind == ForKind::kUnrolled) {
     CodeGenLLVM::Dispatch_(op);
-  } else if (op->kind == ForKind::kParallel) {
-    TVM_FFI_ICHECK(is_zero(op->min))
+  } else if (op->kind == ForKind::kParallel && !tvm::tirx::GetThreadBinding(op).has_value()) {
+    TVM_FFI_ICHECK(IsZero(op->min))
         << "Parallel launch require canonical loop with zero start index";
     TVM_FFI_ICHECK(op->HasTrivialStep())
         << "Parallel launch require canonical loop with trivial loop step";
@@ -1177,13 +1170,26 @@ void CodeGenCPU::Dispatch_(const ForNode* op) {
       TVM_FFI_ICHECK(parallel_env_.num_task.defined());
       TVM_FFI_ICHECK(parallel_env_.penv != nullptr);
       PrimType t(op->extent.ty()->dtype);
-      PrimExpr num_task = cast(t, parallel_env_.num_task.as_or_throw<PrimExpr>());
-      PrimExpr task_id = cast(t, parallel_env_.task_id.as_or_throw<PrimExpr>());
+      PrimExpr num_task = cast(t, parallel_env_.num_task.value().as_or_throw<PrimExpr>());
+      PrimExpr task_id = cast(t, parallel_env_.task_id.value().as_or_throw<PrimExpr>());
       TVM_FFI_ICHECK(!parallel_env_.in_parallel_loop)
           << "Nested parallel loop is not supported by threadpool, try fuse them instead";
       parallel_env_.in_parallel_loop = true;
-      PrimExpr end = is_zero(op->min) ? op->extent : analyzer_->Simplify(op->min + op->extent);
-      if (parallel_env_.stride_pattern) {
+      PrimExpr end = IsZero(op->min) ? op->extent : analyzer_->Simplify(op->min + op->extent);
+      bool stride_pattern = false;
+      if (auto it = op->annotations.find(tvm::codegen::attr::kParallelStridePattern);
+          it != op->annotations.end()) {
+        ffi::Any annotation = (*it).second;
+        if (auto value = annotation.as<bool>()) {
+          stride_pattern = value.value();
+        } else if (auto value = annotation.try_cast<IntImm>();
+                   value && value.value().ty() == PrimType::Bool()) {
+          stride_pattern = IsOne(value.value());
+        } else {
+          TVM_FFI_THROW(ValueError) << "parallel_stride_pattern must be a constant boolean";
+        }
+      }
+      if (stride_pattern) {
         CreateSerialFor(MakeValue(task_id), MakeValue(end), MakeValue(num_task), op->loop_var,
                         op->body);
       } else {

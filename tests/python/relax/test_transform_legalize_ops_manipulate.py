@@ -20,6 +20,7 @@ import pytest
 import tvm
 import tvm.testing
 from tvm import relax
+from tvm.ir import TupleType as _TupleType
 from tvm.relax.transform import LegalizeOps
 from tvm.script import ir as I
 from tvm.script import relax as R
@@ -42,11 +43,11 @@ def test_broadcast_to():
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 1, 3), "float32")) -> R.Tensor((4, 2, 5, 3), "float32"):
-            gv = R.call_tir(Expected.broadcast_to, (x,), R.Tensor((4, 2, 5, 3), dtype="float32"))
+            gv = R.call_tir(Expected.broadcast_to, (x,), ty_args=[R.Tensor((4, 2, 5, 3), dtype="float32")])
             return gv
 
-        @Ts.prim_func(private=True)
-        def broadcast_to(rxplaceholder: T.Buffer((T.int64(2), T.int64(1), T.int64(3)), "float32"), T_broadcast_to: T.Buffer((T.int64(4), T.int64(2), T.int64(5), T.int64(3)), "float32")):
+        @Ts.function(private=True)
+        def broadcast_to(rxplaceholder: T.Tensor((T.int64(2), T.int64(1), T.int64(3)), "float32"), T_broadcast_to: T.Tensor((T.int64(4), T.int64(2), T.int64(5), T.int64(3)), "float32")):
             T.func_attr({"tirx.noalias": True})
             for i0, i1, i2, i3 in T.grid(T.int64(4), T.int64(2), T.int64(5), T.int64(3)):
                 with Ts.sblock("T_broadcast_to"):
@@ -87,11 +88,11 @@ def test_broadcast_to_symbolic():
     class Expected:
         @R.function
         def main(dumb_param: R.Tensor((a_main, c_main)), x: R.Tensor((b_main, 1, d_main), "float32")) -> R.Tensor((a_main, b_main, c_main, d_main), "float32"):
-            gv = R.call_tir(Expected.broadcast_to, (x,), R.Tensor((a_main, b_main, c_main, d_main), dtype="float32"))
+            gv = R.call_tir(Expected.broadcast_to, (x,), ty_args=[R.Tensor((a_main, b_main, c_main, d_main), dtype="float32")])
             return gv
 
-        @Ts.prim_func(private=True)
-        def broadcast_to(rxplaceholder: T.Buffer([b_broadcast_to, T.int64(1), d_broadcast_to], dtype='float32'), T_broadcast_to: T.Buffer([a_broadcast_to, b_broadcast_to, c_broadcast_to, d_broadcast_to], dtype='float32')):
+        @Ts.function(private=True)
+        def broadcast_to(rxplaceholder: T.Tensor([b_broadcast_to, T.int64(1), d_broadcast_to], dtype='float32'), T_broadcast_to: T.Tensor([a_broadcast_to, b_broadcast_to, c_broadcast_to, d_broadcast_to], dtype='float32')):
             T.func_attr({"tirx.noalias": True})
 
             for i0, i1, i2, i3 in T.grid(a_broadcast_to, b_broadcast_to, c_broadcast_to, d_broadcast_to):
@@ -119,11 +120,11 @@ def test_concat():
     class Expected:
         @R.function
         def main(x1: R.Tensor((1, 2, 3), "float32"), x2: R.Tensor((1, 3, 3), "float32"), x3: R.Tensor((1, 4, 3), "float32")) -> R.Tensor((1, 9, 3), "float32"):
-            gv = R.call_tir(Expected.concatenate, (x1, x2, x3), R.Tensor((1, 9, 3), dtype="float32"))
+            gv = R.call_tir(Expected.concatenate, (x1, x2, x3), ty_args=[R.Tensor((1, 9, 3), dtype="float32")])
             return gv
 
-        @Ts.prim_func(private=True)
-        def concatenate(rxplaceholder: T.Buffer((T.int64(1), T.int64(2), T.int64(3)), "float32"), rxplaceholder_1: T.Buffer((T.int64(1), T.int64(3), T.int64(3)), "float32"), rxplaceholder_2: T.Buffer((T.int64(1), T.int64(4), T.int64(3)), "float32"), T_concat: T.Buffer((T.int64(1), T.int64(9), T.int64(3)), "float32")):
+        @Ts.function(private=True)
+        def concatenate(rxplaceholder: T.Tensor((T.int64(1), T.int64(2), T.int64(3)), "float32"), rxplaceholder_1: T.Tensor((T.int64(1), T.int64(3), T.int64(3)), "float32"), rxplaceholder_2: T.Tensor((T.int64(1), T.int64(4), T.int64(3)), "float32"), T_concat: T.Tensor((T.int64(1), T.int64(9), T.int64(3)), "float32")):
             T.func_attr({"tirx.noalias": True})
             for i0, i1, i2 in T.grid(T.int64(1), T.int64(9), T.int64(3)):
                 with Ts.sblock("T_concat"):
@@ -152,11 +153,11 @@ def test_concat_input_tuple_var():
         def main(t: R.Tuple(R.Tensor((3, 4), "float32"), R.Tensor((3, 5), "float32"))) -> R.Tensor((3, 9), "float32"):
             gv: R.Tensor((3, 4), dtype="float32") = t[0]
             gv1: R.Tensor((3, 5), dtype="float32") = t[1]
-            gv2 = R.call_tir(Expected.concatenate, (gv, gv1), R.Tensor((3, 9), dtype="float32"))
+            gv2 = R.call_tir(Expected.concatenate, (gv, gv1), ty_args=[R.Tensor((3, 9), dtype="float32")])
             return gv2
 
-        @Ts.prim_func(private=True)
-        def concatenate(rxplaceholder: T.Buffer((T.int64(3), T.int64(4)), "float32"), rxplaceholder_1: T.Buffer((T.int64(3), T.int64(5)), "float32"), T_concat: T.Buffer((T.int64(3), T.int64(9)), "float32")):
+        @Ts.function(private=True)
+        def concatenate(rxplaceholder: T.Tensor((T.int64(3), T.int64(4)), "float32"), rxplaceholder_1: T.Tensor((T.int64(3), T.int64(5)), "float32"), T_concat: T.Tensor((T.int64(3), T.int64(9)), "float32")):
             T.func_attr({"tirx.noalias": True})
             for i0, i1 in T.grid(T.int64(3), T.int64(9)):
                 with Ts.sblock("T_concat"):
@@ -200,11 +201,11 @@ def test_concat_input_tuple_var_symbolic():
             gv: R.Tensor((a_main, b0_main), dtype="float32") = t[0]
             gv1: R.Tensor((a_main, b1_main), dtype="float32") = t[1]
             gv2: R.Tensor((a_main, b2_main), dtype="float32") = t[2]
-            gv3 = R.call_tir(Expected.concatenate, (gv, gv1, gv2), R.Tensor((a_main, ((b0_main + b1_main) + b2_main)), dtype="float32"))
+            gv3 = R.call_tir(Expected.concatenate, (gv, gv1, gv2), ty_args=[R.Tensor((a_main, ((b0_main + b1_main) + b2_main)), dtype="float32")])
             return gv3
 
-        @Ts.prim_func(private=True)
-        def concatenate(rxplaceholder: T.Buffer([a_concatenate, b0_concatenate], dtype='float32'), rxplaceholder_1: T.Buffer([a_concatenate, b1_concatenate], dtype='float32'), rxplaceholder_2: T.Buffer([a_concatenate, b2_concatenate], dtype='float32'), T_concat: T.Buffer([a_concatenate, b0_concatenate + b1_concatenate + b2_concatenate], dtype='float32')):
+        @Ts.function(private=True)
+        def concatenate(rxplaceholder: T.Tensor([a_concatenate, b0_concatenate], dtype='float32'), rxplaceholder_1: T.Tensor([a_concatenate, b1_concatenate], dtype='float32'), rxplaceholder_2: T.Tensor([a_concatenate, b2_concatenate], dtype='float32'), T_concat: T.Tensor([a_concatenate, b0_concatenate + b1_concatenate + b2_concatenate], dtype='float32')):
             T.func_attr({"tirx.noalias": True})
 
             for i0, i1 in T.grid(a_concatenate, b0_concatenate + b1_concatenate + b2_concatenate):
@@ -232,11 +233,11 @@ def test_expand_dims():
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3, 4), "float32")) -> R.Tensor((2, 1, 1, 1, 3, 1, 4, 1), "float32"):
-            gv = R.call_tir(Expected.expand_dims, (x,), R.Tensor((2, 1, 1, 1, 3, 1, 4, 1), dtype="float32"))
+            gv = R.call_tir(Expected.expand_dims, (x,), ty_args=[R.Tensor((2, 1, 1, 1, 3, 1, 4, 1), dtype="float32")])
             return gv
 
-        @Ts.prim_func(private=True)
-        def expand_dims(rxplaceholder: T.Buffer((T.int64(2), T.int64(3), T.int64(4)), "float32"), expand_dims: T.Buffer((T.int64(2), T.int64(1), T.int64(1), T.int64(1), T.int64(3), T.int64(1), T.int64(4), T.int64(1)), "float32")):
+        @Ts.function(private=True)
+        def expand_dims(rxplaceholder: T.Tensor((T.int64(2), T.int64(3), T.int64(4)), "float32"), expand_dims: T.Tensor((T.int64(2), T.int64(1), T.int64(1), T.int64(1), T.int64(3), T.int64(1), T.int64(4), T.int64(1)), "float32")):
             T.func_attr({"tirx.noalias": True})
             for i0, i1, i2, i3, i4, i5, i6, i7 in T.grid(T.int64(2), T.int64(1), T.int64(1), T.int64(1), T.int64(3), T.int64(1), T.int64(4), T.int64(1)):
                 with Ts.sblock("expand_dims"):
@@ -274,11 +275,11 @@ def test_expand_dims_symbolic():
     class Expected:
         @R.function
         def main(x: R.Tensor((a_main, b_main, c_main), "float32")) -> R.Tensor((a_main, 1, b_main, 1, c_main, 1), "float32"):
-            gv = R.call_tir(Expected.expand_dims, (x,), R.Tensor((a_main, 1, b_main, 1, c_main, 1), dtype="float32"))
+            gv = R.call_tir(Expected.expand_dims, (x,), ty_args=[R.Tensor((a_main, 1, b_main, 1, c_main, 1), dtype="float32")])
             return gv
 
-        @Ts.prim_func(private=True)
-        def expand_dims(rxplaceholder: T.Buffer([a_expand_dims, b_expand_dims, c_expand_dims], dtype='float32'), expand_dims: T.Buffer([a_expand_dims, T.int64(1), b_expand_dims, T.int64(1), c_expand_dims, T.int64(1)], dtype='float32')):
+        @Ts.function(private=True)
+        def expand_dims(rxplaceholder: T.Tensor([a_expand_dims, b_expand_dims, c_expand_dims], dtype='float32'), expand_dims: T.Tensor([a_expand_dims, T.int64(1), b_expand_dims, T.int64(1), c_expand_dims, T.int64(1)], dtype='float32')):
             T.func_attr({"tirx.noalias": True})
 
             for i0, i1, i2, i3, i4, i5 in T.grid(a_expand_dims, T.int64(1), b_expand_dims, T.int64(1), c_expand_dims, T.int64(1)):
@@ -306,11 +307,11 @@ def test_flatten():
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3, 4), "float32")) -> R.Tensor((24,), "float32"):
-            gv = R.call_tir(Expected.reshape, (x,), R.Tensor((24,), dtype="float32"))
+            gv = R.call_tir(Expected.reshape, (x,), ty_args=[R.Tensor((24,), dtype="float32")])
             return gv
 
-        @Ts.prim_func(private=True)
-        def reshape(rxplaceholder: T.Buffer((T.int64(2), T.int64(3), T.int64(4)), "float32"), T_reshape: T.Buffer(T.int64(24), "float32")):
+        @Ts.function(private=True)
+        def reshape(rxplaceholder: T.Tensor((T.int64(2), T.int64(3), T.int64(4)), "float32"), T_reshape: T.Tensor(T.int64(24), "float32")):
             T.func_attr({"tirx.noalias": True})
             for i0 in T.serial(T.int64(24)):
                 with Ts.sblock("T_reshape"):
@@ -337,11 +338,11 @@ def test_flatten_zero_rank():
     class Expected:
         @R.function
         def main(x: R.Tensor((), "float32")) -> R.Tensor((1,), "float32"):
-            gv = R.call_tir(Expected.reshape, (x,), R.Tensor((1,), dtype="float32"))
+            gv = R.call_tir(Expected.reshape, (x,), ty_args=[R.Tensor((1,), dtype="float32")])
             return gv
 
-        @Ts.prim_func(private=True)
-        def reshape(rxplaceholder: T.Buffer((), "float32"), T_reshape: T.Buffer(T.int64(1), "float32")):
+        @Ts.function(private=True)
+        def reshape(rxplaceholder: T.Tensor((), "float32"), T_reshape: T.Tensor(T.int64(1), "float32")):
             T.func_attr({"tirx.noalias": True})
             for i0 in T.serial(T.int64(1)):
                 with Ts.sblock("T_reshape"):
@@ -379,11 +380,11 @@ def test_flatten_symbolic():
     class Expected:
         @R.function
         def main(x: R.Tensor((a_main, b_main, c_main), "float32")) -> R.Tensor((a_main * b_main * c_main,), "float32"):
-            gv = R.call_tir(Expected.reshape, (x,), R.Tensor((((a_main * b_main) * c_main),), dtype="float32"))
+            gv = R.call_tir(Expected.reshape, (x,), ty_args=[R.Tensor((((a_main * b_main) * c_main),), dtype="float32")])
             return gv
 
-        @Ts.prim_func(private=True)
-        def reshape(rxplaceholder: T.Buffer([a_reshape, b_reshape, c_reshape], dtype='float32'), T_reshape: T.Buffer([a_reshape * b_reshape * c_reshape], dtype='float32')):
+        @Ts.function(private=True)
+        def reshape(rxplaceholder: T.Tensor([a_reshape, b_reshape, c_reshape], dtype='float32'), T_reshape: T.Tensor([a_reshape * b_reshape * c_reshape], dtype='float32')):
             T.func_attr({"tirx.noalias": True})
 
             for i0 in T.serial(a_reshape * b_reshape * c_reshape):
@@ -411,11 +412,11 @@ def test_permute_dims():
     class Expected:
         @R.function
         def main(x: R.Tensor((1, 2, 3, 4), "float32")) -> R.Tensor((2, 4, 3, 1), "float32"):
-            gv = R.call_tir(Expected.transpose, (x,), R.Tensor((2, 4, 3, 1), dtype="float32"))
+            gv = R.call_tir(Expected.transpose, (x,), ty_args=[R.Tensor((2, 4, 3, 1), dtype="float32")])
             return gv
 
-        @Ts.prim_func(private=True)
-        def transpose(rxplaceholder: T.Buffer((T.int64(1), T.int64(2), T.int64(3), T.int64(4)), "float32"), T_transpose: T.Buffer((T.int64(2), T.int64(4), T.int64(3), T.int64(1)), "float32")):
+        @Ts.function(private=True)
+        def transpose(rxplaceholder: T.Tensor((T.int64(1), T.int64(2), T.int64(3), T.int64(4)), "float32"), T_transpose: T.Tensor((T.int64(2), T.int64(4), T.int64(3), T.int64(1)), "float32")):
             T.func_attr({"tirx.noalias": True})
             for i0, i1, i2, i3 in T.grid(T.int64(2), T.int64(4), T.int64(3), T.int64(1)):
                 with Ts.sblock("T_transpose"):
@@ -456,11 +457,11 @@ def test_permute_dims_symbolic():
     class Expected:
         @R.function
         def main(x: R.Tensor((a_main, b_main, c_main, d_main), dtype="float32")) -> R.Tensor((b_main, d_main, c_main, a_main), dtype="float32"):
-            gv = R.call_tir(Expected.transpose, (x,), R.Tensor((b_main, d_main, c_main, a_main), dtype="float32"))
+            gv = R.call_tir(Expected.transpose, (x,), ty_args=[R.Tensor((b_main, d_main, c_main, a_main), dtype="float32")])
             return gv
 
-        @Ts.prim_func(private=True)
-        def transpose(rxplaceholder: T.Buffer([a_transpose, b_transpose, c_transpose, d_transpose], dtype='float32'), T_transpose: T.Buffer([b_transpose, d_transpose, c_transpose, a_transpose], dtype='float32')):
+        @Ts.function(private=True)
+        def transpose(rxplaceholder: T.Tensor([a_transpose, b_transpose, c_transpose, d_transpose], dtype='float32'), T_transpose: T.Tensor([b_transpose, d_transpose, c_transpose, a_transpose], dtype='float32')):
             T.func_attr({"tirx.noalias": True})
 
             for i0, i1, i2, i3 in T.grid(b_transpose, d_transpose, c_transpose, a_transpose):
@@ -488,11 +489,11 @@ def test_reshape():
     class Expected:
         @R.function
         def main(x: R.Tensor((1, 2, 3, 4), "float32")) -> R.Tensor((8, 3), "float32"):
-            gv = R.call_tir(Expected.reshape, (x,), R.Tensor((8, 3), dtype="float32"))
+            gv = R.call_tir(Expected.reshape, (x,), ty_args=[R.Tensor((8, 3), dtype="float32")])
             return gv
 
-        @Ts.prim_func(private=True)
-        def reshape(rxplaceholder: T.Buffer((T.int64(1), T.int64(2), T.int64(3), T.int64(4)), "float32"), T_reshape: T.Buffer((T.int64(8), T.int64(3)), "float32")):
+        @Ts.function(private=True)
+        def reshape(rxplaceholder: T.Tensor((T.int64(1), T.int64(2), T.int64(3), T.int64(4)), "float32"), T_reshape: T.Tensor((T.int64(8), T.int64(3)), "float32")):
             T.func_attr({"tirx.noalias": True})
             for i0, i1 in T.grid(T.int64(8), T.int64(3)):
                 with Ts.sblock("T_reshape"):
@@ -518,10 +519,10 @@ def test_reshape():
     # After lowering, redundant var might be removed by later dead code elimination
     @tvm.script.ir_module
     class Expected2:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def reshape(
-            rxplaceholder: T.Buffer((T.int64(1), T.int64(2), T.int64(3), T.int64(4)), "float32"),
-            T_reshape: T.Buffer((T.int64(8), T.int64(3)), "float32"),
+            rxplaceholder: T.Tensor((T.int64(1), T.int64(2), T.int64(3), T.int64(4)), "float32"),
+            T_reshape: T.Tensor((T.int64(8), T.int64(3)), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -547,7 +548,7 @@ def test_reshape():
         @R.function
         def main(x: R.Tensor((1, 2, 3, 4), dtype="float32")) -> R.Tensor((8, 3), dtype="float32"):
             lv: R.Shape((8, 3)) = R.shape((8, 3))
-            gv = R.call_tir(Expected2.reshape, (x,), out_ty=R.Tensor((8, 3), dtype="float32"))
+            gv = R.call_tir(Expected2.reshape, (x,), ty_args=[R.Tensor((8, 3), dtype="float32")])
             return gv
     # fmt: on
 
@@ -576,11 +577,11 @@ def test_reshape_symbolic():
     class Expected:
         @R.function
         def main(x: R.Tensor((a_main, b_main), "float32")) -> R.Tensor((a_main // 2, b_main * 2), "float32"):
-            gv = R.call_tir(Expected.reshape, (x,), R.Tensor(((a_main // 2), (b_main * 2)), dtype="float32"))
+            gv = R.call_tir(Expected.reshape, (x,), ty_args=[R.Tensor(((a_main // 2), (b_main * 2)), dtype="float32")])
             return gv
 
-        @Ts.prim_func(private=True)
-        def reshape(rxplaceholder: T.Buffer([a_reshape, b_reshape], dtype='float32'), T_reshape: T.Buffer([a_reshape // T.int64(2), b_reshape * T.int64(2)], dtype='float32')):
+        @Ts.function(private=True)
+        def reshape(rxplaceholder: T.Tensor([a_reshape, b_reshape], dtype='float32'), T_reshape: T.Tensor([a_reshape // T.int64(2), b_reshape * T.int64(2)], dtype='float32')):
             T.func_attr({"tirx.noalias": True})
 
             for i0, i1 in T.grid(a_reshape // T.int64(2), b_reshape * T.int64(2)):
@@ -620,14 +621,16 @@ def test_reshape_symbolic():
         ):
             lv: R.Shape((a_main // 2, b_main * 2)) = R.shape((a_main // 2, b_main * 2))
             gv = R.call_tir(
-                Expected2.reshape, (x,), R.Tensor(((a_main // 2), (b_main * 2)), dtype="float32")
+                Expected2.reshape,
+                (x,),
+                ty_args=[R.Tensor(((a_main // 2), (b_main * 2)), dtype="float32")],
             )
             return gv
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def reshape(
-            rxplaceholder: T.Buffer([a_reshape, b_reshape], dtype="float32"),
-            T_reshape: T.Buffer([a_reshape // T.int64(2), b_reshape * T.int64(2)], dtype="float32"),
+            rxplaceholder: T.Tensor([a_reshape, b_reshape], dtype="float32"),
+            T_reshape: T.Tensor([a_reshape // T.int64(2), b_reshape * T.int64(2)], dtype="float32"),
         ):
             T.func_attr({"tirx.noalias": True})
 
@@ -667,10 +670,10 @@ def test_reshape_symbolic():
 
     @I.ir_module
     class Expected3:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def reshape(
-            rxplaceholder: T.Buffer((T.int64(10), b_reshape)),
-            T_reshape: T.Buffer((T.int64(5), b_reshape * T.int64(2))),
+            rxplaceholder: T.Tensor((T.int64(10), b_reshape)),
+            T_reshape: T.Tensor((T.int64(5), b_reshape * T.int64(2))),
         ):
             T.func_attr({"tirx.noalias": True})
 
@@ -696,7 +699,7 @@ def test_reshape_symbolic():
         ) -> R.Tensor((5, b_main * 2), dtype="float32"):
             lv: R.Shape([5, b_main * 2]) = R.shape([5, b_main * 2])
             gv = R.call_tir(
-                Expected3.reshape, (x,), out_ty=R.Tensor((5, b_main * 2), dtype="float32")
+                Expected3.reshape, (x,), ty_args=[R.Tensor((5, b_main * 2), dtype="float32")]
             )
             return gv
 
@@ -738,13 +741,13 @@ def test_data_dependent_reshape():
             gv = R.call_pure_packed("vm.builtin.tensor_to_shape", x, ty_args=(R.Shape(ndim=2),))
             _ = R.match_cast(gv, R.Shape([M_main,N_main]))
             _ = R.shape([M_main,N_main])
-            gv_1 = R.call_tir(Expected.reshape, (y,), out_ty=R.Tensor([M_main,N_main], dtype="float32"))
+            gv_1 = R.call_tir(Expected.reshape, (y,), ty_args=[R.Tensor([M_main,N_main], dtype="float32")])
             return gv_1
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def reshape(
-            rxplaceholder: T.Buffer(T.int64(16), "float32"),
-            T_reshape: T.Buffer([M_reshape, N_reshape], 'float32'),
+            rxplaceholder: T.Tensor(T.int64(16), "float32"),
+            T_reshape: T.Tensor([M_reshape, N_reshape], 'float32'),
         ):
             T.func_attr({"tirx.noalias": True})
 
@@ -772,11 +775,11 @@ def test_split_by_indices():
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 10, 4), "float32")) -> R.Tuple([R.Tensor((2, 3, 4), "float32"), R.Tensor((2, 4, 4), "float32"), R.Tensor((2, 3, 4), "float32")]):
-            gv = R.call_tir(Expected.split, (x,), [R.Tensor((2, 3, 4), "float32"), R.Tensor((2, 4, 4), "float32"), R.Tensor((2, 3, 4), "float32")])
+            gv = R.call_tir(Expected.split, (x,), ty_args=[_TupleType([R.Tensor((2, 3, 4), "float32"), R.Tensor((2, 4, 4), "float32"), R.Tensor((2, 3, 4), "float32")])])
             return gv
 
-        @Ts.prim_func(private=True)
-        def split(rxplaceholder: T.Buffer((T.int64(2), T.int64(10), T.int64(4)), "float32"), T_split: T.Buffer((T.int64(2), T.int64(3), T.int64(4)), "float32"), T_split_1: T.Buffer((T.int64(2), T.int64(4), T.int64(4)), "float32"), T_split_2: T.Buffer((T.int64(2), T.int64(3), T.int64(4)), "float32")):
+        @Ts.function(private=True)
+        def split(rxplaceholder: T.Tensor((T.int64(2), T.int64(10), T.int64(4)), "float32"), T_split: T.Tensor((T.int64(2), T.int64(3), T.int64(4)), "float32"), T_split_1: T.Tensor((T.int64(2), T.int64(4), T.int64(4)), "float32"), T_split_2: T.Tensor((T.int64(2), T.int64(3), T.int64(4)), "float32")):
             T.func_attr({"tirx.noalias": True})
             for i0, i1, i2 in T.grid(T.int64(2), T.int64(3), T.int64(4)):
                 with Ts.sblock("T_split"):
@@ -815,11 +818,11 @@ def test_split_by_indices_n_section_indivisible():
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 10, 4), "float32")) -> R.Tuple([R.Tensor((2, 4, 4), "float32"), R.Tensor((2, 4, 4), "float32"), R.Tensor((2, 2, 4), "float32")]):
-            gv = R.call_tir(Expected.split, (x,), [R.Tensor((2, 4, 4), "float32"), R.Tensor((2, 4, 4), "float32"), R.Tensor((2, 2, 4), "float32")])
+            gv = R.call_tir(Expected.split, (x,), ty_args=[_TupleType([R.Tensor((2, 4, 4), "float32"), R.Tensor((2, 4, 4), "float32"), R.Tensor((2, 2, 4), "float32")])])
             return gv
 
-        @Ts.prim_func(private=True)
-        def split(rxplaceholder: T.Buffer((T.int64(2), T.int64(10), T.int64(4)), "float32"), T_split_sections: T.Buffer((T.int64(2), T.int64(4), T.int64(4)), "float32"), T_split_sections_1: T.Buffer((T.int64(2), T.int64(4), T.int64(4)), "float32"), T_split_sections_2: T.Buffer((T.int64(2), T.int64(2), T.int64(4)), "float32")):
+        @Ts.function(private=True)
+        def split(rxplaceholder: T.Tensor((T.int64(2), T.int64(10), T.int64(4)), "float32"), T_split_sections: T.Tensor((T.int64(2), T.int64(4), T.int64(4)), "float32"), T_split_sections_1: T.Tensor((T.int64(2), T.int64(4), T.int64(4)), "float32"), T_split_sections_2: T.Tensor((T.int64(2), T.int64(2), T.int64(4)), "float32")):
             T.func_attr({"tirx.noalias": True})
             for i0, i1, i2 in T.grid(T.int64(2), T.int64(4), T.int64(4)):
                 with Ts.sblock("T_split_sections"):
@@ -859,11 +862,11 @@ def test_split_by_indices_n_section_divisible():
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 10, 4), "float32")) -> R.Tuple([R.Tensor((2, 5, 4), "float32"), R.Tensor((2, 5, 4), "float32")]):
-            gv = R.call_tir(Expected.split, (x,), [R.Tensor((2, 5, 4), "float32"), R.Tensor((2, 5, 4), "float32")])
+            gv = R.call_tir(Expected.split, (x,), ty_args=[_TupleType([R.Tensor((2, 5, 4), "float32"), R.Tensor((2, 5, 4), "float32")])])
             return gv
 
-        @Ts.prim_func(private=True)
-        def split(rxplaceholder: T.Buffer((T.int64(2), T.int64(10), T.int64(4)), "float32"), T_split_sections: T.Buffer((T.int64(2), T.int64(5), T.int64(4)), "float32"), T_split_sections_1: T.Buffer((T.int64(2), T.int64(5), T.int64(4)), "float32")):
+        @Ts.function(private=True)
+        def split(rxplaceholder: T.Tensor((T.int64(2), T.int64(10), T.int64(4)), "float32"), T_split_sections: T.Tensor((T.int64(2), T.int64(5), T.int64(4)), "float32"), T_split_sections_1: T.Tensor((T.int64(2), T.int64(5), T.int64(4)), "float32")):
             T.func_attr({"tirx.noalias": True})
             for i0, i1, i2 in T.grid(T.int64(2), T.int64(5), T.int64(4)):
                 with Ts.sblock("T_split_sections"):
@@ -903,13 +906,13 @@ def test_split_by_indices_n_section_divisible_symbolic():
     class Expected:
         @R.function
         def main(dumb_param: R.Tensor((n,)), x: R.Tensor((m_main, n * 3), "float32")) -> R.Tuple(R.Tensor((m_main, n * 3 // 3), "float32"), R.Tensor((m_main, n * 3 // 3 * 2 - n * 3 // 3), "float32"), R.Tensor((m_main, n * 3 - n * 3 // 3 * 2), "float32")):
-            gv = R.call_tir(Expected.split, (x, n), [R.Tensor((m_main, ((n * 3 + 3 - 1) // 3)), "float32"), R.Tensor((m_main, ((((n * 3 + 3 - 1) // 3) * 2) - ((n * 3 + 3 - 1) // 3))), "float32"), R.Tensor((m_main, ((n * 3) - (((n * 3 + 3 - 1) // 3) * 2))), "float32")])
+            gv = R.call_tir(Expected.split, (x, n), ty_args=[_TupleType([R.Tensor((m_main, ((n * 3 + 3 - 1) // 3)), "float32"), R.Tensor((m_main, ((((n * 3 + 3 - 1) // 3) * 2) - ((n * 3 + 3 - 1) // 3))), "float32"), R.Tensor((m_main, ((n * 3) - (((n * 3 + 3 - 1) // 3) * 2))), "float32")])])
             return gv
 
         split_n = T.int64()
 
-        @Ts.prim_func(private=True)
-        def split(rxplaceholder: T.Buffer([m_split, split_n * T.int64(3)], dtype='float32'), n: split_n, T_split_sections: T.Buffer([m_split, (split_n * T.int64(3) + T.int64(3) - T.int64(1)) // T.int64(3)], dtype='float32'), T_split_sections_1: T.Buffer([m_split, (split_n * T.int64(3) + T.int64(3) - T.int64(1)) // T.int64(3) * T.int64(2) - (split_n * T.int64(3) + T.int64(3) - T.int64(1)) // T.int64(3)], dtype='float32'), T_split_sections_2: T.Buffer([m_split, split_n * T.int64(3) - (split_n * T.int64(3) + T.int64(3) - T.int64(1)) // T.int64(3) * T.int64(2)], dtype='float32')):
+        @Ts.function(private=True)
+        def split(rxplaceholder: T.Tensor([m_split, split_n * T.int64(3)], dtype='float32'), n: split_n, T_split_sections: T.Tensor([m_split, (split_n * T.int64(3) + T.int64(3) - T.int64(1)) // T.int64(3)], dtype='float32'), T_split_sections_1: T.Tensor([m_split, (split_n * T.int64(3) + T.int64(3) - T.int64(1)) // T.int64(3) * T.int64(2) - (split_n * T.int64(3) + T.int64(3) - T.int64(1)) // T.int64(3)], dtype='float32'), T_split_sections_2: T.Tensor([m_split, split_n * T.int64(3) - (split_n * T.int64(3) + T.int64(3) - T.int64(1)) // T.int64(3) * T.int64(2)], dtype='float32')):
             T.func_attr({"tirx.noalias": True})
 
             for i0, i1 in T.grid(m_split, n):
@@ -949,11 +952,11 @@ def test_squeeze():
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 1, 3, 1, 1, 4), "float32")) -> R.Tensor((2, 3, 1, 4), "float32"):
-            gv = R.call_tir(Expected.squeeze, (x,), R.Tensor((2, 3, 1, 4), dtype="float32"))
+            gv = R.call_tir(Expected.squeeze, (x,), ty_args=[R.Tensor((2, 3, 1, 4), dtype="float32")])
             return gv
 
-        @Ts.prim_func(private=True)
-        def squeeze(rxplaceholder: T.Buffer((T.int64(2), T.int64(1), T.int64(3), T.int64(1), T.int64(1), T.int64(4)), "float32"), T_squeeze: T.Buffer((T.int64(2), T.int64(3), T.int64(1), T.int64(4)), "float32")):
+        @Ts.function(private=True)
+        def squeeze(rxplaceholder: T.Tensor((T.int64(2), T.int64(1), T.int64(3), T.int64(1), T.int64(1), T.int64(4)), "float32"), T_squeeze: T.Tensor((T.int64(2), T.int64(3), T.int64(1), T.int64(4)), "float32")):
             T.func_attr({"tirx.noalias": True})
             for i0, i1, i2, i3 in T.grid(T.int64(2), T.int64(3), T.int64(1), T.int64(4)):
                 with Ts.sblock("T_squeeze"):
@@ -980,11 +983,11 @@ def test_squeeze_no_axis():
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 1, 3, 1, 1, 4), "float32")) :
-            gv = R.call_tir(Expected.squeeze, (x,), R.Tensor((2, 3, 4), dtype="float32"))
+            gv = R.call_tir(Expected.squeeze, (x,), ty_args=[R.Tensor((2, 3, 4), dtype="float32")])
             return gv
 
-        @Ts.prim_func(private=True)
-        def squeeze(rxplaceholder: T.Buffer((T.int64(2), T.int64(1), T.int64(3), T.int64(1), T.int64(1), T.int64(4)), "float32"), T_squeeze: T.Buffer((T.int64(2), T.int64(3), T.int64(4)), "float32")):
+        @Ts.function(private=True)
+        def squeeze(rxplaceholder: T.Tensor((T.int64(2), T.int64(1), T.int64(3), T.int64(1), T.int64(1), T.int64(4)), "float32"), T_squeeze: T.Tensor((T.int64(2), T.int64(3), T.int64(4)), "float32")):
             T.func_attr({"tirx.noalias": True})
             for i0, i1, i2 in T.grid(T.int64(2), T.int64(3), T.int64(4)):
                 with Ts.sblock("T_squeeze"):
@@ -1019,11 +1022,11 @@ def test_squeeze_symbolic():
     class Expected:
         @R.function
         def main(x: R.Tensor((a_main, 1, b_main, 1), "float32")) -> R.Tensor((a_main, b_main, 1), "float32"):
-            gv = R.call_tir(Expected.squeeze, (x,), R.Tensor((a_main, b_main, 1), dtype="float32"))
+            gv = R.call_tir(Expected.squeeze, (x,), ty_args=[R.Tensor((a_main, b_main, 1), dtype="float32")])
             return gv
 
-        @Ts.prim_func(private=True)
-        def squeeze(rxplaceholder: T.Buffer([a_squeeze, T.int64(1), b_squeeze, T.int64(1)], dtype='float32'), T_squeeze: T.Buffer([a_squeeze, b_squeeze, T.int64(1)], dtype='float32')):
+        @Ts.function(private=True)
+        def squeeze(rxplaceholder: T.Tensor([a_squeeze, T.int64(1), b_squeeze, T.int64(1)], dtype='float32'), T_squeeze: T.Tensor([a_squeeze, b_squeeze, T.int64(1)], dtype='float32')):
             T.func_attr({"tirx.noalias": True})
 
             for i0, i1, i2 in T.grid(a_squeeze, b_squeeze, T.int64(1)):
@@ -1051,11 +1054,11 @@ def test_collapse_sum_like():
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3), "float32"), y: R.Tensor((1, 3), "float32")) -> R.Tensor((1, 3), "float32"):
-            gv = R.call_tir(Expected.collapse_sum, (x,), R.Tensor((1, 3), dtype="float32"))
+            gv = R.call_tir(Expected.collapse_sum, (x,), ty_args=[R.Tensor((1, 3), dtype="float32")])
             return gv
 
-        @Ts.prim_func(private=True)
-        def collapse_sum(rxplaceholder: T.Buffer((T.int64(2), T.int64(3)), "float32"), rxplaceholder_red: T.Buffer((T.int64(1), T.int64(3)), "float32")):
+        @Ts.function(private=True)
+        def collapse_sum(rxplaceholder: T.Tensor((T.int64(2), T.int64(3)), "float32"), rxplaceholder_red: T.Tensor((T.int64(1), T.int64(3)), "float32")):
             T.func_attr({"tirx.noalias": True})
             for i0, i1, i2 in T.grid(T.int64(1), T.int64(3), T.int64(2)):
                 with Ts.sblock("rxplaceholder_red"):
@@ -1087,11 +1090,11 @@ def test_collapse_sum_to():
             x: R.Tensor((3, 2, 3), dtype="float32")
         ) -> R.Tensor((2, 1), dtype="float32"):
             # block 0
-            gv = R.call_tir(Expected.collapse_sum, (x,), R.Tensor((2, 1), dtype="float32"))
+            gv = R.call_tir(Expected.collapse_sum, (x,), ty_args=[R.Tensor((2, 1), dtype="float32")])
             return gv
 
-        @Ts.prim_func(private=True)
-        def collapse_sum(rxplaceholder: T.Buffer((T.int64(3), T.int64(2), T.int64(3)), "float32"), rxplaceholder_red: T.Buffer((T.int64(2), T.int64(1)), "float32")):
+        @Ts.function(private=True)
+        def collapse_sum(rxplaceholder: T.Tensor((T.int64(3), T.int64(2), T.int64(3)), "float32"), rxplaceholder_red: T.Tensor((T.int64(2), T.int64(1)), "float32")):
             T.func_attr({"tirx.noalias": True})
             for ax0, ax1, k0, k2 in T.grid(T.int64(2), T.int64(1), T.int64(3), T.int64(3)):
                 with Ts.sblock("rxplaceholder_red"):
@@ -1120,11 +1123,11 @@ def test_repeat():
     class Expected:
         @R.function
         def main(x: R.Tensor((3, 2, 3), dtype="float32")) -> R.Tensor((6, 2, 3), dtype="float32"):
-            gv = R.call_tir(Expected.repeat, (x,), out_ty=R.Tensor((6, 2, 3), dtype="float32"))
+            gv = R.call_tir(Expected.repeat, (x,), ty_args=[R.Tensor((6, 2, 3), dtype="float32")])
             return gv
 
-        @Ts.prim_func(private=True)
-        def repeat(rxplaceholder: T.Buffer((T.int64(3), T.int64(2), T.int64(3)), "float32"), T_repeat: T.Buffer((T.int64(6), T.int64(2), T.int64(3)), "float32")):
+        @Ts.function(private=True)
+        def repeat(rxplaceholder: T.Tensor((T.int64(3), T.int64(2), T.int64(3)), "float32"), T_repeat: T.Tensor((T.int64(6), T.int64(2), T.int64(3)), "float32")):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
             for ax0, ax1, ax2 in T.grid(T.int64(6), T.int64(2), T.int64(3)):
@@ -1154,13 +1157,13 @@ def test_repeat_no_axis():
         def main(
             x: R.Tensor((3, 2, 3), dtype="float32")
         ) -> R.Tensor((36,), dtype="float32"):
-            gv = R.call_tir(Expected.repeat, (x,), out_ty=R.Tensor((36,), dtype="float32"))
+            gv = R.call_tir(Expected.repeat, (x,), ty_args=[R.Tensor((36,), dtype="float32")])
             return gv
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def repeat(
-            rxplaceholder: T.Buffer((T.int64(3), T.int64(2), T.int64(3)), "float32"),
-            T_repeat: T.Buffer((T.int64(36),), "float32"),
+            rxplaceholder: T.Tensor((T.int64(3), T.int64(2), T.int64(3)), "float32"),
+            T_repeat: T.Tensor((T.int64(36),), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -1215,8 +1218,8 @@ def test_repeat_symbolic():
 
     @I.ir_module
     class Expected:
-        @Ts.prim_func(private=True)
-        def repeat(rxplaceholder: T.Buffer((a_repeat, b_repeat, c_repeat)), T_repeat: T.Buffer((T.int64(2) * a_repeat, b_repeat, c_repeat))):
+        @Ts.function(private=True)
+        def repeat(rxplaceholder: T.Tensor((a_repeat, b_repeat, c_repeat)), T_repeat: T.Tensor((T.int64(2) * a_repeat, b_repeat, c_repeat))):
             T.func_attr({"tirx.noalias": True})
 
             # with Ts.sblock("root"):
@@ -1229,7 +1232,7 @@ def test_repeat_symbolic():
 
         @R.function
         def main(x: R.Tensor((a_main, b_main, c_main), dtype="float32")) -> R.Tensor((2 * a_main, b_main, c_main), dtype="float32"):
-            gv = R.call_tir(Expected.repeat, (x,), out_ty=R.Tensor((2 * a_main, b_main, c_main), dtype="float32"))
+            gv = R.call_tir(Expected.repeat, (x,), ty_args=[R.Tensor((2 * a_main, b_main, c_main), dtype="float32")])
             return gv
     # fmt: on
 
@@ -1248,8 +1251,8 @@ def test_tile():
 
     @I.ir_module
     class Expected:
-        @Ts.prim_func(private=True)
-        def tile(rxplaceholder: T.Buffer((T.int64(3), T.int64(2), T.int64(3)), "float32"), T_tile: T.Buffer((T.int64(2), T.int64(3), T.int64(4), T.int64(9)), "float32")):
+        @Ts.function(private=True)
+        def tile(rxplaceholder: T.Tensor((T.int64(3), T.int64(2), T.int64(3)), "float32"), T_tile: T.Tensor((T.int64(2), T.int64(3), T.int64(4), T.int64(9)), "float32")):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
             for ax0, ax1, ax2, ax3 in T.grid(T.int64(2), T.int64(3), T.int64(4), T.int64(9)):
@@ -1261,7 +1264,7 @@ def test_tile():
 
         @R.function
         def main(x: R.Tensor((3, 2, 3), dtype="float32")) -> R.Tensor((2, 3, 4, 9), dtype="float32"):
-            gv = R.call_tir(Expected.tile, (x,), out_ty=R.Tensor((2, 3, 4, 9), dtype="float32"))
+            gv = R.call_tir(Expected.tile, (x,), ty_args=[R.Tensor((2, 3, 4, 9), dtype="float32")])
             return gv
     # fmt: on
 
@@ -1291,8 +1294,8 @@ def test_tile_symbolic():
 
     @I.ir_module
     class Expected:
-        @Ts.prim_func(private=True)
-        def tile(rxplaceholder: T.Buffer((a_tile, b_tile, c_tile)), T_tile: T.Buffer((T.int64(2), a_tile, b_tile * T.int64(2), c_tile * T.int64(3)))):
+        @Ts.function(private=True)
+        def tile(rxplaceholder: T.Tensor((a_tile, b_tile, c_tile)), T_tile: T.Tensor((T.int64(2), a_tile, b_tile * T.int64(2), c_tile * T.int64(3)))):
             T.func_attr({"tirx.noalias": True})
 
             # with Ts.sblock("root"):
@@ -1305,7 +1308,7 @@ def test_tile_symbolic():
 
         @R.function
         def main(x: R.Tensor((a_main, b_main, c_main), dtype="float32")) -> R.Tensor((2, a_main, b_main * 2, c_main * 3), dtype="float32"):
-            gv = R.call_tir(Expected.tile, (x,), out_ty=R.Tensor((2, a_main, b_main * 2, c_main * 3), dtype="float32"))
+            gv = R.call_tir(Expected.tile, (x,), ty_args=[R.Tensor((2, a_main, b_main * 2, c_main * 3), dtype="float32")])
             return gv
     # fmt: on
     mod = LegalizeOps()(Tile)
@@ -1326,13 +1329,13 @@ def test_flip():
         @R.function
         def main(x: R.Tensor((2, 3), dtype="float32")) -> R.Tensor((2, 3), dtype="float32"):
             cls = Expected
-            gv = R.call_tir(cls.flip, (x,), out_ty=R.Tensor((2, 3), dtype="float32"))
+            gv = R.call_tir(cls.flip, (x,), ty_args=[R.Tensor((2, 3), dtype="float32")])
             return gv
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def flip(
-            rxplaceholder: T.Buffer((T.int64(2), T.int64(3)), "float32"),
-            T_reverse_sequence: T.Buffer((T.int64(2), T.int64(3)), "float32"),
+            rxplaceholder: T.Tensor((T.int64(2), T.int64(3)), "float32"),
+            T_reverse_sequence: T.Tensor((T.int64(2), T.int64(3)), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
             for ax0, ax1 in T.grid(T.int64(2), T.int64(3)):
@@ -1374,11 +1377,11 @@ def test_flip_symbolic():
             x: R.Tensor((a_main, b_main), dtype="float32")
         ) -> R.Tensor((a_main, b_main), dtype="float32"):
             cls = Expected
-            gv = R.call_tir(cls.flip, (x,), out_ty=R.Tensor((a_main, b_main), dtype="float32"))
+            gv = R.call_tir(cls.flip, (x,), ty_args=[R.Tensor((a_main, b_main), dtype="float32")])
             return gv
 
-        @Ts.prim_func(private=True)
-        def flip(rxplaceholder: T.Buffer((a_flip, b_flip)), T_reverse_sequence: T.Buffer((a_flip, b_flip))):
+        @Ts.function(private=True)
+        def flip(rxplaceholder: T.Tensor((a_flip, b_flip)), T_reverse_sequence: T.Tensor((a_flip, b_flip))):
             T.func_attr({"tirx.noalias": True})
 
             for ax0, ax1 in T.grid(a_flip, b_flip):
@@ -1416,15 +1419,15 @@ def test_reverse_sequence():
             gv = R.call_tir(
                 cls.reverse_sequence,
                 (x, seq_lengths),
-                out_ty=R.Tensor((4, 2, 3), dtype="float32"),
+                ty_args=[R.Tensor((4, 2, 3), dtype="float32")],
             )
             return gv
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def reverse_sequence(
-            rxplaceholder: T.Buffer((T.int64(4), T.int64(2), T.int64(3)), "float32"),
-            seq_lengths: T.Buffer((T.int64(2),), "int64"),
-            T_reverse_sequence: T.Buffer((T.int64(4), T.int64(2), T.int64(3)), "float32"),
+            rxplaceholder: T.Tensor((T.int64(4), T.int64(2), T.int64(3)), "float32"),
+            seq_lengths: T.Tensor((T.int64(2),), "int64"),
+            T_reverse_sequence: T.Tensor((T.int64(4), T.int64(2), T.int64(3)), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
             for ax0, ax1, ax2 in T.grid(T.int64(4), T.int64(2), T.int64(3)):
@@ -1462,17 +1465,16 @@ def test_scatter_elements():
             return gv
     @I.ir_module
     class Expected:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def scatter_elements(
-            rxplaceholder: T.Buffer((T.int64(4), T.int64(4)), offset_factor=1),
-            rxplaceholder_1: T.Buffer((T.int64(2), T.int64(2)), 'int64', offset_factor=1),
-            rxplaceholder_2: T.Buffer((T.int64(2), T.int64(2)), offset_factor=1),
-            out_buf: T.Buffer((T.int64(4), T.int64(4)), "float32"),
+            rxplaceholder: T.Tensor((T.int64(4), T.int64(4)), offset_factor=1),
+            rxplaceholder_1: T.Tensor((T.int64(2), T.int64(2)), 'int64', offset_factor=1),
+            rxplaceholder_2: T.Tensor((T.int64(2), T.int64(2)), offset_factor=1),
+            out_buf: T.Tensor((T.int64(4), T.int64(4)), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
 
             with Ts.sblock("scatter_elements_generic"):
-                T.attr(0, "pragma_scope", "seq")
                 for i in T.parallel(T.int64(16)):
                     out_buf[i // T.int64(4), i % T.int64(4)] = rxplaceholder[
                         i // T.int64(4), i % T.int64(4)
@@ -1532,7 +1534,7 @@ def test_scatter_elements():
             gv = R.call_tir(
                 Expected.scatter_elements,
                 (x, indices, updates),
-                out_ty=R.Tensor((4, 4), dtype="float32"),
+                ty_args=[R.Tensor((4, 4), dtype="float32")],
             )
             return gv
 
@@ -1565,17 +1567,16 @@ def test_scatter_elements_symbolic():
 
     @I.ir_module
     class Expected:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def scatter_elements(
-            rxplaceholder: T.Buffer((a_scatter_elements, b_scatter_elements), offset_factor=1),
-            rxplaceholder_1: T.Buffer((m_scatter_elements, n_scatter_elements), 'int64', offset_factor=1),
-            rxplaceholder_2: T.Buffer((m_scatter_elements, n_scatter_elements), offset_factor=1),
-            out_buf: T.Buffer((a_scatter_elements, b_scatter_elements)),
+            rxplaceholder: T.Tensor((a_scatter_elements, b_scatter_elements), offset_factor=1),
+            rxplaceholder_1: T.Tensor((m_scatter_elements, n_scatter_elements), 'int64', offset_factor=1),
+            rxplaceholder_2: T.Tensor((m_scatter_elements, n_scatter_elements), offset_factor=1),
+            out_buf: T.Tensor((a_scatter_elements, b_scatter_elements)),
         ):
             T.func_attr({"tirx.noalias": True})
 
             with Ts.sblock("scatter_elements_generic"):
-                T.attr(0, "pragma_scope", "seq")
                 for i in T.parallel(a_scatter_elements * b_scatter_elements):
                     out_buf[i // b_scatter_elements, i % b_scatter_elements] = rxplaceholder[i // b_scatter_elements, i % b_scatter_elements]
                 for fused in T.parallel(m_scatter_elements):
@@ -1626,7 +1627,7 @@ def test_scatter_elements_symbolic():
             gv = R.call_tir(
                 Expected.scatter_elements,
                 (x, indices, updates),
-                out_ty=R.Tensor((a_main, b_main), dtype="float32"),
+                ty_args=[R.Tensor((a_main, b_main), dtype="float32")],
             )
             return gv
     # fmt: on
@@ -1676,8 +1677,8 @@ def test_layout_transform():
 
     @I.ir_module
     class Expected:
-        @Ts.prim_func(private=True)
-        def te_layout_transform(A: T.Buffer((T.int64(10), T.int64(21), T.int64(30)), "float32"), te_layout_transform_1: T.Buffer((T.int64(10), T.int64(30), T.int64(7), T.int64(3)), "float32")):
+        @Ts.function(private=True)
+        def te_layout_transform(A: T.Tensor((T.int64(10), T.int64(21), T.int64(30)), "float32"), te_layout_transform_1: T.Tensor((T.int64(10), T.int64(30), T.int64(7), T.int64(3)), "float32")):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
             for i0, i1, i2 in T.grid(T.int64(10), T.int64(21), T.int64(30)):
@@ -1690,7 +1691,7 @@ def test_layout_transform():
         @R.function
         def main(x: R.Tensor((10, 21, 30), dtype="float32")) -> R.Tensor((10, 30, 7, 3), dtype="float32"):
             cls = Expected
-            gv = R.call_tir(cls.te_layout_transform, (x,), out_ty=R.Tensor((10, 30, 7, 3), dtype="float32"))
+            gv = R.call_tir(cls.te_layout_transform, (x,), ty_args=[R.Tensor((10, 30, 7, 3), dtype="float32")])
             return gv
     # fmt: on
 
@@ -1714,8 +1715,8 @@ def test_layout_transform_with_pad():
 
     @I.ir_module
     class Expected:
-        @Ts.prim_func(private=True)
-        def te_layout_transform_with_pad(A: T.Buffer((T.int64(10), T.int64(20), T.int64(30)), "float32"), te_layout_transform_with_pad_1: T.Buffer((T.int64(10), T.int64(30), T.int64(7), T.int64(3)), "float32")):
+        @Ts.function(private=True)
+        def te_layout_transform_with_pad(A: T.Tensor((T.int64(10), T.int64(20), T.int64(30)), "float32"), te_layout_transform_with_pad_1: T.Tensor((T.int64(10), T.int64(30), T.int64(7), T.int64(3)), "float32")):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
             for axis0, axis1, axis2, axis3 in T.grid(T.int64(10), T.int64(30), T.int64(7), T.int64(3)):
@@ -1728,7 +1729,7 @@ def test_layout_transform_with_pad():
         @R.function
         def main(x: R.Tensor((10, 20, 30), dtype="float32")) -> R.Tensor((10, 30, 7, 3), dtype="float32"):
             cls = Expected
-            gv = R.call_tir(cls.te_layout_transform_with_pad, (x,), out_ty=R.Tensor((10, 30, 7, 3), dtype="float32"))
+            gv = R.call_tir(cls.te_layout_transform_with_pad, (x,), ty_args=[R.Tensor((10, 30, 7, 3), dtype="float32")])
             return gv
     # fmt: on
 
@@ -1763,8 +1764,8 @@ def test_layout_transform_symbolic():
 
     @I.ir_module
     class Expected:
-        @Ts.prim_func(private=True)
-        def te_layout_transform_with_pad(A: T.Buffer((a_te_layout_transform_with_pad, b_te_layout_transform_with_pad, c_te_layout_transform_with_pad)), te_layout_transform_with_pad_1: T.Buffer((a_te_layout_transform_with_pad, c_te_layout_transform_with_pad, (b_te_layout_transform_with_pad - b_te_layout_transform_with_pad % T.int64(-3)) // T.int64(3), T.int64(3)))):
+        @Ts.function(private=True)
+        def te_layout_transform_with_pad(A: T.Tensor((a_te_layout_transform_with_pad, b_te_layout_transform_with_pad, c_te_layout_transform_with_pad)), te_layout_transform_with_pad_1: T.Tensor((a_te_layout_transform_with_pad, c_te_layout_transform_with_pad, (b_te_layout_transform_with_pad - b_te_layout_transform_with_pad % T.int64(-3)) // T.int64(3), T.int64(3)))):
             T.func_attr({"tirx.noalias": True})
 
             # with Ts.sblock("root"):
@@ -1778,7 +1779,7 @@ def test_layout_transform_symbolic():
         @R.function
         def main(x: R.Tensor((a_main, b_main, c_main), dtype="float32")) -> R.Tensor((a_main, c_main, (b_main - b_main % -3) // 3, 3), dtype="float32"):
             cls = Expected
-            gv = R.call_tir(cls.te_layout_transform_with_pad, (x,), out_ty=R.Tensor((a_main, c_main, (b_main - b_main % -3) // 3, 3), dtype="float32"))
+            gv = R.call_tir(cls.te_layout_transform_with_pad, (x,), ty_args=[R.Tensor((a_main, c_main, (b_main - b_main % -3) // 3, 3), dtype="float32")])
             return gv
     # fmt: on
 
@@ -1787,10 +1788,10 @@ def test_layout_transform_symbolic():
 
 
 def test_func_ty_of_legalized_layout_transform():
-    """PrimFunc shape information must be correct
+    """Function shape information must be correct
 
     This is a regression test.  Previously, the legalization of
-    `R.layout_transform` produced a PrimFunc with `FuncType`
+    `R.layout_transform` produced a Function with `FuncType`
     different than its actual signature.  This resulted in errors
     when later passes attempted to infer the Type.
     """
@@ -1810,7 +1811,7 @@ def test_func_ty_of_legalized_layout_transform():
                 R.output(gv)
             return gv
 
-    After = tvm.ir.transform.Sequential(
+    After = tvm.transform.Sequential(
         [
             relax.transform.LegalizeOps(),
             relax.transform.ToNonDataflow(),
@@ -1833,15 +1834,15 @@ def test_func_ty_of_legalized_layout_transform():
                 (R.shape([4, 4]), R.dtype("float32"), R.prim_value(0), R.str("global")),
                 (R.Tensor((4, 4), dtype="float32"),),
             )
-            cls.te_layout_transform(x, alloc)
+            R.call_tir_packed(cls.te_layout_transform, (x, alloc))
             lv = alloc
             gv = lv
             return gv
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def te_layout_transform(
-            A: T.Buffer((T.int64(16),), "float32"),
-            te_layout_transform: T.Buffer((T.int64(4), T.int64(4)), "float32"),
+            A: T.Tensor((T.int64(16),), "float32"),
+            te_layout_transform: T.Tensor((T.int64(4), T.int64(4)), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
             for i in range(T.int64(16)):
@@ -1876,12 +1877,12 @@ def test_scatter_nd():
             updates: R.Tensor((4,), "float32"),
         ) -> R.Tensor((8,), "float32"):
             gv = R.call_tir(
-                Expected.scatter_nd, (data, indices, updates), R.Tensor((8,), dtype="float32")
+                Expected.scatter_nd, (data, indices, updates), ty_args=[R.Tensor((8,), dtype="float32")]
             )
             return gv
 
-        @Ts.prim_func(private=True)
-        def scatter_nd(data: T.Buffer((T.int64(8),), offset_factor=1), indices: T.Buffer((T.int64(4), T.int64(1)), 'int64'), updates: T.Buffer((T.int64(4),), offset_factor=1), out_buf: T.Buffer((T.int64(8),))):
+        @Ts.function(private=True)
+        def scatter_nd(data: T.Tensor((T.int64(8),), offset_factor=1), indices: T.Tensor((T.int64(4), T.int64(1)), 'int64'), updates: T.Tensor((T.int64(4),), offset_factor=1), out_buf: T.Tensor((T.int64(8),))):
             T.func_attr({"tirx.noalias": True})
 
             with Ts.sblock("root"):
@@ -1899,7 +1900,6 @@ def test_scatter_nd():
                 with Ts.sblock("scatter_nd_generic"):
                     Ts.reads()
                     Ts.writes()
-                    T.attr(0, "pragma_scope", "seq")
                     for i in range(T.int64(8)):
                         out_buf[i] = data[i]
                     for j in range(T.int64(4)):

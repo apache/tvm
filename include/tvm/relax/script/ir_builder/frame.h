@@ -57,7 +57,7 @@ class RelaxFrame : public IRBuilderFrame {
 };
 
 /*! \brief The base ir_builder frame for frames with SeqExpr
-           i.e. Functions, If branches
+           i.e. Functions, IfExpr branches
   */
 class SeqExprFrameNode : public RelaxFrameNode {
  public:
@@ -91,6 +91,9 @@ class SeqExprFrame : public RelaxFrame {
 /*! \brief The ir_builder frame for the relax function. */
 class FunctionFrameNode : public SeqExprFrameNode {
  public:
+  explicit FunctionFrameNode(tvm::relax::BlockBuilder builder)
+      : block_builder(std::move(builder)) {}
+  explicit FunctionFrameNode(ffi::UnsafeInit) : block_builder(ffi::UnsafeInit{}) {}
   /*!
    * \brief The function name.
    * \note The name will not be specified in constructor, so it is "Optional",
@@ -174,7 +177,7 @@ class BindingBlockFrameNode : public RelaxFrameNode {
    */
   ffi::Array<tvm::Var> output_vars;
   /*! \brief Statement ranges for explicitly emitted bindings. */
-  ffi::Map<tvm::Var, Span> binding_spans;
+  ffi::Map<tvm::Var, Location> binding_locs;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -208,6 +211,9 @@ class BindingBlockFrame : public RelaxFrame {
  */
 class IfFrameNode : public RelaxFrameNode {
  public:
+  explicit IfFrameNode(tvm::relax::Expr condition) : condition(std::move(condition)) {}
+  explicit IfFrameNode(ffi::UnsafeInit) : condition(ffi::UnsafeInit{}) {}
+
   /*! \brief The condition of the if statement. */
   tvm::relax::Expr condition;
   /*! \brief The Bindings in the true branch. */
@@ -215,7 +221,7 @@ class IfFrameNode : public RelaxFrameNode {
   /*! \brief The Bindings in the false branch. */
   ffi::Optional<tvm::relax::Expr> else_expr;
   /*! \brief The Binding var. */
-  tvm::Var var;
+  ffi::Optional<tvm::Var> var;
   /*! \brief The binding var name. */
   ffi::String var_name;
 

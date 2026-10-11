@@ -27,6 +27,7 @@ import tvm
 import tvm.script
 import tvm.testing
 from tvm import IRModule, relax, tirx
+from tvm.relax import ExternFunc as _ExternFunc
 from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import s_tir as Ts
@@ -38,6 +39,7 @@ M = I.dynamic("M")
 UNUSED_GENERIC = I.dynamic("UNUSED_GENERIC")
 
 
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="PEP 695 requires Python 3.12")
 def test_type_vars_roundtrip():
     @R.function(private=True)
     def func(
@@ -46,31 +48,26 @@ def test_type_vars_roundtrip():
         return x
 
     script = func.script()
-    if sys.version_info >= (3, 12):
-        assert script.startswith("from __future__ import annotations\n\n")
-        assert "def main[M](" in script
-        assert 'R.Tensor((M, M * 2), dtype="float32")' in script
-        assert "M = T.int64()" not in script
-        typed = tvm.script.from_source(
-            """
+    assert script.startswith("from __future__ import annotations\n\n")
+    assert "def main[M](" in script
+    assert 'R.Tensor((M, M * 2), dtype="float32")' in script
+    assert "M = T.int64()" not in script
+    typed = tvm.script.from_source(
+        """
 @R.function(private=True)
 def func[M: int](x: R.Tensor((M, M * 2), "float32")):
     return x
 """,
-            extra_vars={"I": tvm.script.ir, "R": tvm.script.relax},
-        )
-        tvm.ir.assert_structural_equal(func, typed)
-    else:
-        assert "from __future__ import annotations" not in script
-        assert 'M = I.dynamic("M", dtype="int64")' in script
-        assert "M = T.int64()" not in script
-        assert 'R.Tensor((M, M * 2), dtype="float32")' in script
+        extra_vars={"I": tvm.script.ir, "R": tvm.script.relax},
+    )
+    tvm.ir.assert_structural_equal(func, typed)
+    assert 'M = I.dynamic("M", dtype="int64")' not in script
 
-    portable = func.script(extra_config={"relax.use_pep695": False})
-    assert "from __future__ import annotations" not in portable
-    assert 'M = I.dynamic("M", dtype="int64")' in portable
-    assert 'R.Tensor((M, M * 2), dtype="float32")' in portable
-    assert "M = T.int64()" not in portable
+    repeated = func.script()
+    assert "from __future__ import annotations" in repeated
+    assert "def main[M](" in repeated
+    assert 'R.Tensor((M, M * 2), dtype="float32")' in repeated
+    assert "M = T.int64()" not in repeated
     assert "UNUSED_GENERIC" not in script
     assert [param.name for param in func.params] == ["x"]
     assert not hasattr(func, "type_params")
@@ -80,7 +77,7 @@ def func[M: int](x: R.Tensor((M, M * 2), "float32")):
     )
     tvm.ir.assert_structural_equal(
         func,
-        tvm.script.from_source(portable, extra_vars={"I": tvm.script.ir, "R": tvm.script.relax}),
+        tvm.script.from_source(repeated, extra_vars={"I": tvm.script.ir, "R": tvm.script.relax}),
     )
 
 
@@ -132,13 +129,16 @@ def _check(
         tvm.ir.assert_structural_equal(parsed, expect)
 
 
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="PEP 695 requires Python 3.12")
 def test_symbolic_shape():
     m = T.dynamic("m", "int64")
     n = T.dynamic("n", "int64")
 
     @R.function
     def foo(x: R.Tensor((m, n), "float32")) -> R.Tensor((m, n), "float32"):
-        gv0 = R.call_dps_packed("extern_func", x, R.Tensor((m, n), dtype="float32"))
+        gv0 = R.call_dps_packed(
+            _ExternFunc("extern_func"), x, ty_args=[R.Tensor((m, n), dtype="float32")]
+        )
         return gv0
 
     m = T.dynamic("m", "int64")
@@ -146,7 +146,9 @@ def test_symbolic_shape():
 
     @R.function
     def bar(x: R.Tensor((m, n), "float32")) -> R.Tensor((m, n), "float32"):
-        gv0 = R.call_dps_packed("extern_func", x, R.Tensor((m, n), dtype="float32"))
+        gv0 = R.call_dps_packed(
+            _ExternFunc("extern_func"), x, ty_args=[R.Tensor((m, n), dtype="float32")]
+        )
         return gv0
 
     with pytest.raises(tvm.error.InternalError):
@@ -155,7 +157,9 @@ def test_symbolic_shape():
 
         @R.function
         def mismatch_dtype(x: R.Tensor((m, n), "float32")) -> R.Tensor(None, "float32", ndim=2):
-            gv0 = R.call_dps_packed("extern_func", x, R.Tensor((m, n), dtype="float32"))
+            gv0 = R.call_dps_packed(
+                _ExternFunc("extern_func"), x, ty_args=[R.Tensor((m, n), dtype="float32")]
+            )
             return gv0
 
     def _expected(name: str):
@@ -164,7 +168,9 @@ def test_symbolic_shape():
         bb = relax.BlockBuilder()
         with bb.function(name, (x,)):
             out = bb.emit(
-                relax.call_dps_packed("extern_func", x, R.Tensor((m, n), dtype="float32"))
+                relax.call_dps_packed(
+                    _ExternFunc("extern_func"), x, ty_args=[R.Tensor((m, n), dtype="float32")]
+                )
             )
             bb.emit_func_output(out)
         return bb.get()[name]
@@ -212,16 +218,16 @@ def test_call_tir_with_tir_var():
             dumb_param: R.Tensor((n,), "float32"), x: R.Tensor((n * 2,), "float32")
         ) -> R.Tensor((n * 2,), "float32"):
             cls = Module
-            y = R.call_tir(cls.copy, (x, n), R.Tensor((n * 2,), dtype="float32"))
+            y = R.call_tir(cls.copy, (x, n), ty_args=[R.Tensor((n * 2,), dtype="float32")])
             return y
 
         copy_n = T.int64()
 
-        @Ts.prim_func
+        @Ts.function
         def copy(
-            X: T.Buffer((copy_n * 2,), dtype="float32"),
+            X: T.Tensor((copy_n * 2,), dtype="float32"),
             n: copy_n,
-            Y: T.Buffer((copy_n * 2,), dtype="float32"),
+            Y: T.Tensor((copy_n * 2,), dtype="float32"),
         ):
             for i in T.grid(n * 2):
                 with Ts.sblock("block"):
@@ -229,11 +235,11 @@ def test_call_tir_with_tir_var():
                     Y[vi] = X[vi]
 
     _check(Module)
-    portable = Module.script(show_meta=True, extra_config={"script.use_pep695": False})
+    repeated = Module.script(show_meta=True)
     tvm.ir.assert_structural_equal(
         Module,
         tvm.script.from_source(
-            portable,
+            repeated,
             extra_vars={
                 "I": tvm.script.ir,
                 "R": tvm.script.relax,
@@ -245,7 +251,7 @@ def test_call_tir_with_tir_var():
 
 
 def test_if_branch_with_match_cast():
-    """The last branch of a relax::If node may be a MatchCast
+    """The last branch of a relax::IfExpr node may be a MatchCast
 
     This is a regression test.  In previous implementations, using
     R.match_cast as the last binding would cause a segfault while
@@ -270,7 +276,7 @@ def test_if_branch_with_match_cast():
     assert B_var.name == "B"
 
     if_then_else = B_binding.value
-    assert isinstance(if_then_else, relax.If)
+    assert isinstance(if_then_else, relax.IfExpr)
     assert isinstance(if_then_else.true_branch, relax.SeqExpr)
     assert isinstance(if_then_else.false_branch, relax.SeqExpr)
 
@@ -301,6 +307,7 @@ def test_erase_to_well_defined_removes_internal_vars():
     _check(foo)
 
 
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="PEP 695 requires Python 3.12")
 def test_erase_to_well_defined_keeps_variables_exposed_by_tensor_shape():
     m = T.dynamic("m", "int64")
     n = T.dynamic("n", "int64")
@@ -316,6 +323,7 @@ def test_erase_to_well_defined_keeps_variables_exposed_by_tensor_shape():
     _check(foo)
 
 
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="PEP 695 requires Python 3.12")
 def test_erase_to_well_defined_keeps_variants_exposed_by_shape_expr():
     m = T.dynamic("m", "int64")
     n = T.dynamic("n", "int64")
@@ -360,6 +368,7 @@ def test_erase_to_well_defined_infers_from_shape_expr():
     _check(Module)
 
 
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="PEP 695 requires Python 3.12")
 def test_symbolic_vars_in_tensor_shape_with_usage_first():
     """A captured symbol can first appear inside a compound dimension."""
 
@@ -381,6 +390,7 @@ def test_symbolic_vars_in_tensor_shape_with_usage_first():
     _check(foo, bb.get()["foo"])
 
 
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="PEP 695 requires Python 3.12")
 def test_symbolic_vars_in_tensor_shape_with_definition_first():
     """A captured symbol is shared across direct and compound dimensions."""
 
@@ -390,7 +400,11 @@ def test_symbolic_vars_in_tensor_shape_with_definition_first():
     def bar(x: R.Tensor((m,), "float32"), y: R.Tensor((T.max(m, 20),), "float32")) -> R.Tensor(
         (T.max(m, 20) + 1,), "float32"
     ):
-        z = R.call_dps_packed("test_intrin", (x, y), R.Tensor((T.max(m, 20) + 1,), dtype="float32"))
+        z = R.call_dps_packed(
+            _ExternFunc("test_intrin"),
+            (x, y),
+            ty_args=[R.Tensor((T.max(m, 20) + 1,), dtype="float32")],
+        )
         return z
 
     m = tirx.Var("m", "int64")
@@ -400,7 +414,9 @@ def test_symbolic_vars_in_tensor_shape_with_definition_first():
     with bb.function("bar", (x, y)):
         z = bb.emit(
             relax.call_dps_packed(
-                "test_intrin", (x, y), R.Tensor((tirx.max(m, 20) + 1,), dtype="float32")
+                _ExternFunc("test_intrin"),
+                (x, y),
+                ty_args=[R.Tensor((tirx.max(m, 20) + 1,), dtype="float32")],
             )
         )
         bb.emit_func_output(z)
@@ -474,6 +490,7 @@ def test_recursive_local_function_reuses_earlier_prim_param_in_signature():
     relax.analysis.well_formed(func)
 
 
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="PEP 695 requires Python 3.12")
 def test_symbolic_vars_in_shape():
     """Symbolic variable may be defined in R.Shape"""
 
@@ -481,7 +498,9 @@ def test_symbolic_vars_in_shape():
 
     @R.function
     def baz(x: R.Shape((m,)), y: R.Tensor((m * 2,), "float32")):
-        z = R.call_dps_packed("test_intrin", y, R.Tensor((m * 2,), dtype="float32"))
+        z = R.call_dps_packed(
+            _ExternFunc("test_intrin"), y, ty_args=[R.Tensor((m * 2,), dtype="float32")]
+        )
         return z
 
     m = tirx.Var("m", "int64")
@@ -489,7 +508,11 @@ def test_symbolic_vars_in_shape():
     y = relax.Var("y", relax.TensorType([m * 2], "float32"))
     bb = relax.BlockBuilder()
     with bb.function("baz", (x, y)):
-        z = bb.emit(relax.call_dps_packed("test_intrin", (y), R.Tensor((m * 2,), dtype="float32")))
+        z = bb.emit(
+            relax.call_dps_packed(
+                _ExternFunc("test_intrin"), (y), ty_args=[R.Tensor((m * 2,), dtype="float32")]
+            )
+        )
         bb.emit_func_output(z)
 
     _check(baz, bb.get()["baz"])
@@ -530,6 +553,7 @@ def test_function_symbolic_variables_are_annotated():
     tvm.ir.assert_structural_equal(inferred_ty, expected)
 
 
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="PEP 695 requires Python 3.12")
 def test_non_declaration_prim_expr_emits_binding():
     """Dtype casts emit ordinary bindings without replacing shape symbols."""
 
@@ -555,7 +579,7 @@ def test_conditional_may_use_symbolic_variables_from_function_scope():
     """Symbolic variables from function scope may be used in branch
 
     This is a regression test.  In earlier implementations, the
-    branches of `relax::If` were normalized with
+    branches of `relax::IfExpr` were normalized with
     `EraseToWellDefinedInScope`, using a fresh variable scope.  While
     this had the intended behavior of preventing variables defined in
     a single branch from being usable outside of the conditional, it
@@ -610,6 +634,7 @@ def relax_symbolic_var():
 
 
 @pytest.mark.parametrize("ir_generator", [relax_symbolic_var], ids=lambda factory: factory.__name__)
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="PEP 695 requires Python 3.12")
 def test_roundtrip_dynamic_shape(ir_generator):
     original = ir_generator()
     after_roundtrip = tvm.script.from_source(

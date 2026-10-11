@@ -38,8 +38,8 @@ def _unary_kernel(op, dtype="float32", out_dtype=None, gpu=False):
 
     n = T.int32()
 
-    @T.prim_func
-    def kernel(A: T.Buffer((n,), dtype), B: T.Buffer((n,), out_dtype)):
+    @T.function
+    def kernel(A: T.Tensor((n,), dtype), B: T.Tensor((n,), out_dtype)):
         if I.constexpr(gpu):
             for bx in T.thread_binding(T.ceildiv(n, 64), thread="blockIdx.x"):
                 for tx in T.thread_binding(64, thread="threadIdx.x"):
@@ -55,9 +55,9 @@ def _unary_kernel(op, dtype="float32", out_dtype=None, gpu=False):
 def _binary_kernel(op, rhs_dtype="float32"):
     n = T.int32()
 
-    @T.prim_func
+    @T.function
     def kernel(
-        A: T.Buffer((n,), "float32"), B: T.Buffer((n,), rhs_dtype), C: T.Buffer((n,), "float32")
+        A: T.Tensor((n,), "float32"), B: T.Tensor((n,), rhs_dtype), C: T.Tensor((n,), "float32")
     ):
         for i in range(n):
             C[i] = op(A[i], B[i])
@@ -112,7 +112,7 @@ def test_round_intrinsics_on_int():
         assert op(tvm.tirx.const(True, "bool")).value == True
         assert op(i).same_as(i)
 
-    assert tvm.tirx.isnan(tvm.tirx.const(10, "int32")).value == False
+    assert tvm.tirx.isnan(tvm.tirx.const(10, "int32")).op.name == "prim.isnan"
 
 
 def test_unary_intrin():
@@ -316,12 +316,12 @@ stride_3 = T.dynamic("stride_3", "int32")
 
 @tvm.script.ir_module
 class Module:
-    @T.prim_func
+    @T.function
     def test_tir_fma(
-        A_1: T.Buffer([n], strides=[stride], elem_offset=0, align=64, offset_factor=1),
-        B_1: T.Buffer([n], strides=[stride_1], elem_offset=0, align=64, offset_factor=1),
-        C_1: T.Buffer([n], strides=[stride_2], elem_offset=0, align=64, offset_factor=1),
-        d_1: T.Buffer([n], strides=[stride_3], elem_offset=0, align=64, offset_factor=1),
+        A_1: T.Tensor([n], strides=[stride], elem_offset=0, align=64, offset_factor=1),
+        B_1: T.Tensor([n], strides=[stride_1], elem_offset=0, align=64, offset_factor=1),
+        C_1: T.Tensor([n], strides=[stride_2], elem_offset=0, align=64, offset_factor=1),
+        d_1: T.Tensor([n], strides=[stride_3], elem_offset=0, align=64, offset_factor=1),
     ) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "test_fma", "tirx.noalias": True})
@@ -339,7 +339,7 @@ def test_fma():
         ]
     )
     mod = opt(Module)
-    assert mod["test_tir_fma"].body.body.value.op.name == "tirx.call_llvm_pure_intrin"
+    assert mod["test_tir_fma"].body[0].body[0].value.op.name == "tirx.call_llvm_pure_intrin"
 
 
 if __name__ == "__main__":

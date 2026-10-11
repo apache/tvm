@@ -330,11 +330,11 @@ def test_multi_func():
 def test_no_local_func():
     @I.ir_module
     class Before:
-        @Ts.prim_func
+        @Ts.function
         def sub(
-            A: T.Buffer((16, 16), "float32"),
-            B: T.Buffer((16, 16), "float32"),
-            C: T.Buffer((16, 16), "float32"),
+            A: T.Tensor((16, 16), "float32"),
+            B: T.Tensor((16, 16), "float32"),
+            C: T.Tensor((16, 16), "float32"),
         ) -> None:
             for i, j in T.grid(16, 16):
                 with Ts.sblock("sub"):
@@ -343,7 +343,7 @@ def test_no_local_func():
 
         @R.function
         def before(c0: R.Tensor((16, 16), "float32"), x: R.Tensor(dtype="float32", ndim=2)):
-            s = R.call_tir(Before.sub, (c0, x), R.Tensor((16, 16), dtype="float32"))
+            s = R.call_tir(Before.sub, (c0, x), ty_args=[R.Tensor((16, 16), dtype="float32")])
             return s
 
     before = Before
@@ -359,7 +359,7 @@ def test_impure_function():
     class Expected:
         @R.function(pure=False, private=True)
         def main_inner() -> R.Tuple:
-            y = R.print(format="Wow!")
+            y = R.print("Wow!")
             return y
 
         @R.function(pure=False)
@@ -373,7 +373,7 @@ def test_impure_function():
         def main(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
             @R.function(pure=False)
             def inner() -> R.Tuple:
-                y = R.print(format="Wow!")
+                y = R.print("Wow!")
                 return y
 
             gv1 = inner()
@@ -413,7 +413,7 @@ def test_lambda_function_with_same_name_as_global():
 
         @R.function
         def main_inner():
-            return R.tuple()
+            return ()
 
     @I.ir_module
     class Expected:
@@ -433,7 +433,7 @@ def test_lambda_function_with_same_name_as_global():
 
         @R.function
         def main_inner():
-            return R.tuple()
+            return ()
 
     after = transform.LambdaLift()(Before)
     assert_structural_equal(Expected, after)

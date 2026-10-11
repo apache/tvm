@@ -186,7 +186,7 @@ class ActiveSet:
 
 @dataclass(frozen=True)
 class LaneBinding:
-    """Resolution of a user-declared ScopeIdDef Var to one active-set axis."""
+    """Resolution of a user-declared CUDA index binding to one active-set axis."""
 
     axis: str
     kind: str
@@ -194,7 +194,7 @@ class LaneBinding:
 
 
 def initial_A(*, lane_ext: int = 32, warp_ext: int, cta_ext: int = 1) -> ActiveSet:
-    """Build A at PrimFunc device entry: all threads active, offsets all zero."""
+    """Build A at Function device entry: all threads active, offsets all zero."""
     return ActiveSet.from_axes(
         [
             ("laneid", AxisRange(lane_ext, 0)),

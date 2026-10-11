@@ -19,21 +19,20 @@
 
 #include <gtest/gtest.h>
 #include <tvm/ir/expr.h>
-#include <tvm/ir/op_attr_types.h>
-#include <tvm/ir/prim/builtin.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/te/operation.h>
-#include <tvm/tirx/builtin.h>
 #include <tvm/tirx/expr.h>
+#include <tvm/tirx/op/gpu.h>
 
 TEST(SimplePasses, SideEffect) {
   using namespace tvm::prim;
   using namespace tvm;
-  auto buf = tirx::decl_buffer({16}, PrimType::Float(32));
+  auto buf = tirx::decl_tensor({16}, PrimType::Float(32));
   auto i = PrimVar("i", PrimType::Int(32));
-  TVM_FFI_ICHECK(SideEffect(tirx::BufferLoad(buf, {i})) == CallEffectKind::kReadState);
+  TVM_FFI_ICHECK(SideEffect(tirx::MakeTensorLoad(buf, {i})) == CallEffectKind::kReadState);
   TVM_FFI_ICHECK(SideEffect(exp(prim::Cast(PrimType::Float(32), i + 1))) == CallEffectKind::kPure);
-  TVM_FFI_ICHECK(SideEffect(tvm::Call(PrimType::Void(), tirx::builtin::tvm_storage_sync(),
-                                      {StringImm("shared")})
-                                .as_or_throw<PrimExpr>()) == CallEffectKind::kUpdateState);
+  TVM_FFI_ICHECK(
+      SideEffect(tvm::Call(PrimType::Void(), tirx::gpu_storage_sync_op(), {StringImm("shared")})
+                     .as_or_throw<PrimExpr>()) == CallEffectKind::kUpdateState);
 }

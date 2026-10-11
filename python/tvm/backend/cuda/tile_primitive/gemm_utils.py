@@ -18,17 +18,17 @@
 """GEMM-related utilities for CUDA op dispatches."""
 
 from tvm.sym.analyzer import Analyzer
-from tvm.tirx import Buffer
+from tvm.tirx import Var
 from tvm.tirx.operator.tile_primitive import DispatchContext
-from tvm.tirx.tile_primitive import TilePrimitiveCall
+from tvm.tirx.tensor_instruction import TensorCall
 
 
-def validate_gemm_op(op_call: TilePrimitiveCall, sctx: DispatchContext) -> bool:
+def validate_gemm_op(op_call: TensorCall, sctx: DispatchContext) -> bool:
     """Sanity check for gemm op"""
     C_buffer_region, A_buffer_region, B_buffer_region = op_call.args[:3]
-    C: Buffer = C_buffer_region.source
-    A: Buffer = A_buffer_region.source
-    B: Buffer = B_buffer_region.source
+    C: Var = C_buffer_region.source
+    A: Var = A_buffer_region.source
+    B: Var = B_buffer_region.source
     if not (C.layout and A.layout and B.layout and A.dtype == B.dtype):
         return False
     # Extract regions and validate dimensions

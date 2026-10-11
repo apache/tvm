@@ -35,7 +35,7 @@ def apply_transformations(func, suggested_transfoms, print_transformation=False)
                     print("Block transformation: ", block_name, " :: ", index_map)
                 sch.transform_block_layout(block_name, index_map)
             else:
-                assert tirx.is_buffer_var(obj)
+                assert tirx.is_tensor_var(obj)
                 buffer = obj
                 if print_transformation:
                     print("Buffer transformation: ", buffer, " :: ", index_map)
@@ -44,10 +44,10 @@ def apply_transformations(func, suggested_transfoms, print_transformation=False)
 
 
 def test_nested_blocks():
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def nested_block(
-        arg: T.Buffer((32, 64, 224, 224), "float32"),
-        relu: T.Buffer((32, 64, 224, 224), "float32"),
+        arg: T.Tensor((32, 64, 224, 224), "float32"),
+        relu: T.Tensor((32, 64, 224, 224), "float32"),
     ):
         for i, j in T.grid(32, 64):
             with Ts.sblock("outer"):
@@ -69,10 +69,10 @@ def test_nested_blocks():
 
 
 def test_mismatch_transformations_and_num_params():
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def elemwise(
-        arg: T.Buffer((32, 64, 224, 224), "float32"),
-        relu: T.Buffer((32, 64, 224, 224), "float32"),
+        arg: T.Tensor((32, 64, 224, 224), "float32"),
+        relu: T.Tensor((32, 64, 224, 224), "float32"),
     ):
         for i0, i1, i2, i3 in T.grid(32, 64, 224, 224):
             with Ts.sblock("compute"):
@@ -81,7 +81,7 @@ def test_mismatch_transformations_and_num_params():
                 Ts.writes(relu[v_i0, v_i1, v_i2, v_i3])
                 relu[v_i0, v_i1, v_i2, v_i3] = T.max(arg[v_i0, v_i1, v_i2, v_i3], T.float32(0))
 
-    with pytest.raises(RuntimeError, match="Incompatible PrimFunc and write_transformations"):
+    with pytest.raises(RuntimeError, match="Incompatible Function and write_transformations"):
         _ = relax.analysis.suggest_layout_transforms(
             func=elemwise,
             write_buffer_transforms=[
@@ -93,10 +93,10 @@ def test_mismatch_transformations_and_num_params():
 
 
 def test_empty_write_transformations():
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def elemwise(
-        arg: T.Buffer((32, 64, 224, 224), "float32"),
-        relu: T.Buffer((32, 64, 224, 224), "float32"),
+        arg: T.Tensor((32, 64, 224, 224), "float32"),
+        relu: T.Tensor((32, 64, 224, 224), "float32"),
     ):
         for i0, i1, i2, i3 in T.grid(32, 64, 224, 224):
             with Ts.sblock("compute"):
@@ -112,10 +112,10 @@ def test_empty_write_transformations():
 
 
 def test_non_bijective_block_transform():
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def before(
-        arg: T.Buffer((32, 64), "float32"),
-        output: T.Buffer((32, 64), "float32"),
+        arg: T.Tensor((32, 64), "float32"),
+        output: T.Tensor((32, 64), "float32"),
     ):
         for ax0, ax1 in T.grid(32, 64):
             with Ts.sblock("compute"):
@@ -131,10 +131,10 @@ def test_non_bijective_block_transform():
 
 
 def test_non_affine_access():
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def before(
-        arg: T.Buffer((32, 64), "float32"),
-        output: T.Buffer((32 * 64, 10), "float32"),
+        arg: T.Tensor((32, 64), "float32"),
+        output: T.Tensor((32 * 64, 10), "float32"),
     ):
         for ax0, ax1, ax2 in T.grid(32, 64, 10):
             with Ts.sblock("compute"):
@@ -150,10 +150,10 @@ def test_non_affine_access():
 
 
 def test_unsupported_write_spatial_layout():
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def before(
-        arg: T.Buffer((4, 4), "float32"),
-        output: T.Buffer((16), "float32"),
+        arg: T.Tensor((4, 4), "float32"),
+        output: T.Tensor((16), "float32"),
     ):
         for ax0, ax1 in T.grid(4, 4):
             with Ts.sblock("flatten"):
@@ -169,10 +169,10 @@ def test_unsupported_write_spatial_layout():
 
 
 def test_unpacked_iter_used_in_read_access():
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def before(
-        arg: T.Buffer((8, 4), "float32"),
-        output: T.Buffer((4, 8), "float32"),
+        arg: T.Tensor((8, 4), "float32"),
+        output: T.Tensor((4, 8), "float32"),
     ):
         for ax0, ax1, ax2 in T.grid(4, 8, 4):
             with Ts.sblock("compute"):
@@ -181,10 +181,10 @@ def test_unpacked_iter_used_in_read_access():
                 Ts.writes(output[v_ax0, v_ax1])
                 output[v_ax0, v_ax1] = arg[v_ax1, v_ax2]
 
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def expected(
-        arg: T.Buffer((8, 4), "float32"),
-        output: T.Buffer((32), "float32"),
+        arg: T.Tensor((8, 4), "float32"),
+        output: T.Tensor((32), "float32"),
     ):
         for ax0, ax2 in T.grid(32, 4):
             with Ts.sblock("compute"):
@@ -201,10 +201,10 @@ def test_unpacked_iter_used_in_read_access():
 
 
 def test_invalid_index_map():
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def elemwise(
-        arg: T.Buffer((32, 64, 224, 224), "float32"),
-        relu: T.Buffer((32, 64, 224, 224), "float32"),
+        arg: T.Tensor((32, 64, 224, 224), "float32"),
+        relu: T.Tensor((32, 64, 224, 224), "float32"),
     ):
         for i0, i1, i2, i3 in T.grid(32, 64, 224, 224):
             with Ts.sblock("compute"):
@@ -222,10 +222,10 @@ def test_invalid_index_map():
 
 
 def test_SRSR_block():
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def before(
-        arg: T.Buffer((32, 224, 64, 224), "float32"),
-        sum: T.Buffer((32, 64), "float32"),
+        arg: T.Tensor((32, 224, 64, 224), "float32"),
+        sum: T.Tensor((32, 64), "float32"),
     ):
         for ax0, k2, ax1, k3 in T.grid(32, 224, 64, 224):
             with Ts.sblock("rxplaceholder_red"):
@@ -236,10 +236,10 @@ def test_SRSR_block():
                     sum[v_ax0, v_ax1] = T.float32(0)
                 sum[v_ax0, v_ax1] = sum[v_ax0, v_ax1] + arg[v_ax0, v_k2, v_ax1, v_k3]
 
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def expected(
-        arg: T.Buffer((32, 224, 16, 224, 4), "float32"),
-        sum: T.Buffer((32, 16, 4), "float32"),
+        arg: T.Tensor((32, 224, 16, 224, 4), "float32"),
+        sum: T.Tensor((32, 16, 4), "float32"),
     ):
         for ax0, ax1, ax2, ax3, ax4 in T.grid(32, 224, 16, 224, 4):
             with Ts.sblock("rxplaceholder_red"):
@@ -263,8 +263,8 @@ def test_op_elemwise_symbolic():
     H = T.dynamic("H")
     W = T.dynamic("W")
 
-    @Ts.prim_func(private=True)
-    def before(Arg: T.Buffer((N, C, H, W)), Relu: T.Buffer((N, C, H, W))):
+    @Ts.function(private=True)
+    def before(Arg: T.Tensor((N, C, H, W)), Relu: T.Tensor((N, C, H, W))):
         for i0, i1, i2, i3 in T.grid(N, C, H, W):
             with Ts.sblock("compute"):
                 v_i0, v_i1, v_i2, v_i3 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
@@ -277,8 +277,8 @@ def test_op_elemwise_symbolic():
     H = T.dynamic("H")
     W = T.dynamic("W")
 
-    @Ts.prim_func(private=True)
-    def expected(Arg: T.Buffer((N, H, W, C)), Relu: T.Buffer((N, H, W, C))):
+    @Ts.function(private=True)
+    def expected(Arg: T.Tensor((N, H, W, C)), Relu: T.Tensor((N, H, W, C))):
         # with Ts.sblock("root"):
         for ax0, ax1, ax2, ax3 in T.grid(N, H, W, C):
             with Ts.sblock("compute"):
@@ -295,10 +295,10 @@ def test_op_elemwise_symbolic():
 
 
 def test_op_elemwise():
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def before(
-        arg: T.Buffer((32, 64, 224, 224), "float32"),
-        relu: T.Buffer((32, 64, 224, 224), "float32"),
+        arg: T.Tensor((32, 64, 224, 224), "float32"),
+        relu: T.Tensor((32, 64, 224, 224), "float32"),
     ):
         for i0, i1, i2, i3 in T.grid(32, 64, 224, 224):
             with Ts.sblock("compute"):
@@ -307,10 +307,10 @@ def test_op_elemwise():
                 Ts.writes(relu[v_i0, v_i1, v_i2, v_i3])
                 relu[v_i0, v_i1, v_i2, v_i3] = T.max(arg[v_i0, v_i1, v_i2, v_i3], T.float32(0))
 
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def expected(
-        arg: T.Buffer((32, 224, 224, 64), "float32"),
-        relu: T.Buffer((32, 224, 224, 64), "float32"),
+        arg: T.Tensor((32, 224, 224, 64), "float32"),
+        relu: T.Tensor((32, 224, 224, 64), "float32"),
     ):
         for ax0, ax1, ax2, ax3 in T.grid(32, 224, 224, 64):
             with Ts.sblock("compute"):
@@ -327,10 +327,10 @@ def test_op_elemwise():
 
 
 def test_op_pool_nchw_nhwc():
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def before(
-        arg: T.Buffer((32, 64, 224, 224), "float32"),
-        pool_max: T.Buffer((32, 64, 111, 223), "float32"),
+        arg: T.Tensor((32, 64, 224, 224), "float32"),
+        pool_max: T.Tensor((32, 64, 111, 223), "float32"),
     ):
         for ax0, ax1, ax2, ax3, rv0, rv1 in T.grid(32, 64, 111, 223, 2, 2):
             with Ts.sblock("pool_max"):
@@ -359,10 +359,10 @@ def test_op_pool_nchw_nhwc():
                     ],
                 )
 
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def expected(
-        arg: T.Buffer((32, 224, 224, 64), "float32"),
-        pool_max: T.Buffer((32, 111, 223, 64), "float32"),
+        arg: T.Tensor((32, 224, 224, 64), "float32"),
+        pool_max: T.Tensor((32, 111, 223, 64), "float32"),
     ):
         # with Ts.sblock("root"):
         for ax0, ax1, ax2, ax3, ax4, ax5 in T.grid(32, 111, 223, 64, 2, 2):
@@ -387,13 +387,13 @@ def test_op_pool_nchw_nhwc():
 
 
 def test_op_pool_nchw16c_nhwc():
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def before(
-        arg: T.Buffer(
+        arg: T.Tensor(
             (32, 4, 224, 224, 16),
             "float32",
         ),
-        pool_max: T.Buffer(
+        pool_max: T.Tensor(
             (32, 4, 110, 220, 16),
             "float32",
         ),
@@ -413,10 +413,10 @@ def test_op_pool_nchw16c_nhwc():
                     arg[v_ax0, v_ax1, v_ax2 * 2 + v_rv0, v_ax3 + v_rv1, v_ax4],
                 )
 
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def expected(
-        arg: T.Buffer((32, 224, 224, 64), "float32"),
-        pool_max: T.Buffer((32, 110, 220, 64), "float32"),
+        arg: T.Tensor((32, 224, 224, 64), "float32"),
+        pool_max: T.Tensor((32, 110, 220, 64), "float32"),
     ):
         for ax0, ax1, ax2, ax3, ax4, ax5 in T.grid(32, 110, 220, 64, 5, 5):
             with Ts.sblock("pool_max"):
@@ -440,10 +440,10 @@ def test_op_pool_nchw16c_nhwc():
 
 
 def test_op_reduce():
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def before(
-        arg: T.Buffer((32, 64, 224, 224), "float32"),
-        sum: T.Buffer((32, 64), "float32"),
+        arg: T.Tensor((32, 64, 224, 224), "float32"),
+        sum: T.Tensor((32, 64), "float32"),
     ):
         for ax0, ax1, k2, k3 in T.grid(32, 64, 224, 224):
             with Ts.sblock("rxplaceholder_red"):
@@ -454,10 +454,10 @@ def test_op_reduce():
                     sum[v_ax0, v_ax1] = T.float32(0)
                 sum[v_ax0, v_ax1] = sum[v_ax0, v_ax1] + arg[v_ax0, v_ax1, v_k2, v_k3]
 
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def expected(
-        arg: T.Buffer((32, 4, 224, 224, 16), "float32"),
-        sum: T.Buffer((32, 4, 16), "float32"),
+        arg: T.Tensor((32, 4, 224, 224, 16), "float32"),
+        sum: T.Tensor((32, 4, 16), "float32"),
     ):
         for ax0, ax1, ax2, ax3, ax4 in T.grid(32, 4, 224, 224, 16):
             with Ts.sblock("rxplaceholder_red"):
@@ -477,10 +477,10 @@ def test_op_reduce():
 
 def test_op_upsampling():
     # relax materializes the layout if H, W or D dimensions are moved or tiled.
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def before(
-        arg: T.Buffer((32, 64, 224, 224), "float32"),
-        resize: T.Buffer((32, 64, 202, 246), "float32"),
+        arg: T.Tensor((32, 64, 224, 224), "float32"),
+        resize: T.Tensor((32, 64, 202, 246), "float32"),
     ):
         for i0, i1, i2, i3 in T.grid(32, 64, 202, 246):
             with Ts.sblock("resize"):
@@ -518,10 +518,10 @@ def test_op_upsampling():
                     ),
                 ]
 
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def expected(
-        arg: T.Buffer((32, 64, 224, 224), "float32"),
-        resize: T.Buffer((32, 202, 246, 64), "float32"),
+        arg: T.Tensor((32, 64, 224, 224), "float32"),
+        resize: T.Tensor((32, 202, 246, 64), "float32"),
     ):
         # with Ts.sblock("root"):
         for ax0, ax1, ax2, ax3 in T.grid(32, 202, 246, 64):
@@ -568,10 +568,10 @@ def test_op_upsampling():
 
 
 def test_op_strided_slice():
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def before(
-        arg: T.Buffer((32, 64, 224, 224), "float32"),
-        T_strided_slice_with_axes: T.Buffer((32, 64, 10, 8), "float32"),
+        arg: T.Tensor((32, 64, 224, 224), "float32"),
+        T_strided_slice_with_axes: T.Tensor((32, 64, 10, 8), "float32"),
     ):
         for ax0, ax1, ax2, ax3 in T.grid(32, 64, 10, 8):
             with Ts.sblock("T_strided_slice_with_axes"):
@@ -592,10 +592,10 @@ def test_op_strided_slice():
                     v_ax3 * 7 + 4,
                 ]
 
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def expected(
-        arg: T.Buffer((32, 224, 224, 16, 4), "float32"),
-        T_strided_slice_with_axes: T.Buffer((32, 10, 8, 16, 4), "float32"),
+        arg: T.Tensor((32, 224, 224, 16, 4), "float32"),
+        T_strided_slice_with_axes: T.Tensor((32, 10, 8, 16, 4), "float32"),
     ):
         # with Ts.sblock("root"):
         for ax0, ax1, ax2, ax3, ax4 in T.grid(32, 10, 8, 16, 4):
@@ -615,11 +615,11 @@ def test_op_strided_slice():
 
 
 def test_op_binary_broadcast():
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def before(
-        arg0: T.Buffer((32, 64, 224, 224), "float32"),
-        arg1: T.Buffer((64, 224, 224), "float32"),
-        T_add: T.Buffer((32, 64, 224, 224), "float32"),
+        arg0: T.Tensor((32, 64, 224, 224), "float32"),
+        arg1: T.Tensor((64, 224, 224), "float32"),
+        T_add: T.Tensor((32, 64, 224, 224), "float32"),
     ):
         T.func_attr({"tirx.noalias": True})
         # with Ts.sblock("root"):
@@ -635,11 +635,11 @@ def test_op_binary_broadcast():
                     arg0[v_ax0, v_ax1, v_ax2, v_ax3] + arg1[v_ax1, v_ax2, v_ax3]
                 )
 
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def expected(
-        arg0: T.Buffer((32, 224, 224, 16, 4), "float32"),
-        arg1: T.Buffer((224, 224, 16, 4), "float32"),
-        T_add: T.Buffer((32, 224, 224, 16, 4), "float32"),
+        arg0: T.Tensor((32, 224, 224, 16, 4), "float32"),
+        arg1: T.Tensor((224, 224, 16, 4), "float32"),
+        T_add: T.Tensor((32, 224, 224, 16, 4), "float32"),
     ):
         T.func_attr({"tirx.noalias": True})
         # with Ts.sblock("root"):
@@ -658,10 +658,10 @@ def test_op_binary_broadcast():
 
 
 def test_op_transpose():
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def before(
-        arg: T.Buffer((32, 64, 224, 224), "float32"),
-        T_transpose: T.Buffer((32, 224, 224, 64), "float32"),
+        arg: T.Tensor((32, 64, 224, 224), "float32"),
+        T_transpose: T.Tensor((32, 224, 224, 64), "float32"),
     ):
         for ax0, ax1, ax2, ax3 in T.grid(32, 224, 224, 64):
             with Ts.sblock("T_transpose"):
@@ -670,10 +670,10 @@ def test_op_transpose():
                 Ts.writes(T_transpose[v_ax0, v_ax1, v_ax2, v_ax3])
                 T_transpose[v_ax0, v_ax1, v_ax2, v_ax3] = arg[v_ax0, v_ax3, v_ax1, v_ax2]
 
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def expected(
-        arg: T.Buffer((32, 64, 224, 224), "float32"),
-        T_transpose: T.Buffer((32, 224, 64, 224), "float32"),
+        arg: T.Tensor((32, 64, 224, 224), "float32"),
+        T_transpose: T.Tensor((32, 224, 64, 224), "float32"),
     ):
         for ax0, ax1, ax2, ax3 in T.grid(32, 224, 64, 224):
             with Ts.sblock("T_transpose"):
@@ -690,10 +690,10 @@ def test_op_transpose():
 
 
 def test_op_pad():
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def before(
-        arg: T.Buffer((32, 64, 224, 224), "float32"),
-        PadInput: T.Buffer((32, 64, 230, 230), "float32"),
+        arg: T.Tensor((32, 64, 224, 224), "float32"),
+        PadInput: T.Tensor((32, 64, 230, 230), "float32"),
     ):
         for i0, i1, i2, i3 in T.grid(32, 64, 230, 230):
             with Ts.sblock("PadInput"):
@@ -706,10 +706,10 @@ def test_op_pad():
                     T.float32(2),
                 )
 
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def expected(
-        arg: T.Buffer((32, 224, 224, 16, 4), "float32"),
-        PadInput: T.Buffer((32, 230, 230, 16, 4), "float32"),
+        arg: T.Tensor((32, 224, 224, 16, 4), "float32"),
+        PadInput: T.Tensor((32, 230, 230, 16, 4), "float32"),
     ):
         for ax0, ax1, ax2, ax3, ax4 in T.grid(32, 230, 230, 16, 4):
             with Ts.sblock("PadInput"):
@@ -730,11 +730,11 @@ def test_op_pad():
 
 
 def test_op_split():
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def before(
-        arg: T.Buffer((32, 64, 224, 224), "float32"),
-        split0: T.Buffer((32, 32, 224, 224), "float32"),
-        split1: T.Buffer((32, 32, 224, 224), "float32"),
+        arg: T.Tensor((32, 64, 224, 224), "float32"),
+        split0: T.Tensor((32, 32, 224, 224), "float32"),
+        split1: T.Tensor((32, 32, 224, 224), "float32"),
     ):
         for ax0, ax1, ax2, ax3 in T.grid(32, 32, 224, 224):
             with Ts.sblock("T_split_sections"):
@@ -749,11 +749,11 @@ def test_op_split():
                 Ts.writes(split1[v_ax0, v_ax1, v_ax2, v_ax3])
                 split1[v_ax0, v_ax1, v_ax2, v_ax3] = arg[v_ax0, v_ax1 + 32, v_ax2, v_ax3]
 
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def expected(
-        arg: T.Buffer((32, 224, 224, 64), "float32"),
-        split0: T.Buffer((32, 224, 224, 32), "float32"),
-        split1: T.Buffer((32, 224, 224, 32), "float32"),
+        arg: T.Tensor((32, 224, 224, 64), "float32"),
+        split0: T.Tensor((32, 224, 224, 32), "float32"),
+        split1: T.Tensor((32, 224, 224, 32), "float32"),
     ):
         for ax0, ax1, ax2, ax3 in T.grid(32, 224, 224, 32):
             with Ts.sblock("T_split_sections"):
@@ -778,11 +778,11 @@ def test_op_split():
 
 @pytest.mark.skip("temp disable, due to minor sym regression")
 def test_op_split_tiling_split_dim():
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def before(
-        arg: T.Buffer((32, 64, 224, 224), "float32"),
-        split0: T.Buffer((32, 32, 224, 224), "float32"),
-        split1: T.Buffer((32, 32, 224, 224), "float32"),
+        arg: T.Tensor((32, 64, 224, 224), "float32"),
+        split0: T.Tensor((32, 32, 224, 224), "float32"),
+        split1: T.Tensor((32, 32, 224, 224), "float32"),
     ):
         for ax0, ax1, ax2, ax3 in T.grid(32, 32, 224, 224):
             with Ts.sblock("T_split_sections"):
@@ -797,11 +797,11 @@ def test_op_split_tiling_split_dim():
                 Ts.writes(split1[v_ax0, v_ax1, v_ax2, v_ax3])
                 split1[v_ax0, v_ax1, v_ax2, v_ax3] = arg[v_ax0, v_ax1 + 32, v_ax2, v_ax3]
 
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def expected(
-        arg: T.Buffer((32, 224, 224, 16, 4), "float32"),
-        split0: T.Buffer((32, 224, 224, 8, 4), "float32"),
-        split1: T.Buffer((32, 224, 224, 8, 4), "float32"),
+        arg: T.Tensor((32, 224, 224, 16, 4), "float32"),
+        split0: T.Tensor((32, 224, 224, 8, 4), "float32"),
+        split1: T.Tensor((32, 224, 224, 8, 4), "float32"),
     ):
         # with Ts.sblock("root"):
         for ax0, ax1, ax2, ax3, ax4 in T.grid(32, 224, 224, 8, 4):

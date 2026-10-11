@@ -108,11 +108,11 @@ def test_ordinary_calls_preserve_literal_arguments(language):
 
 def test_initial_import_alias_and_symbolic_range():
     source = """from tvm.script import tirx as Script
-@Script.prim_func
+@Script.function
 def main(n: Script.int32):
     for i in range(n):
         Script.evaluate(i)
 """
     function = entry.parse(source)
-    assert function.body.extent.same_as(function.params[0])
-    assert function.body.body.value.same_as(function.body.loop_var)
+    assert function.body[0].extent.same_as(function.params[0])
+    assert function.body[0].body[0].value.same_as(function.body[0].loop_var)

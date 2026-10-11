@@ -59,8 +59,8 @@ class IRMutatorWithAnalyzer : public StmtExprMutator {
   // override functions that need to populate the context information.
   UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) override;
   UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) override;
-  UnchangedOr<Stmt> Mutate_(const IfThenElseNode* op, InplaceMode inplace_mode) override;
-  UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<Stmt> Mutate_(const IfNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<Stmt> Mutate_(const RegionStmtNode* op, InplaceMode inplace_mode) override;
   UnchangedOr<Stmt> Mutate_(const AssertStmtNode* op, InplaceMode inplace_mode) override;
   UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) override;
   UnchangedOr<PrimExpr> Mutate_(const prim::LetNode* op, InplaceMode inplace_mode) override;
@@ -77,7 +77,7 @@ class IRMutatorWithAnalyzer : public StmtExprMutator {
    * \note call this function before Visit function's body to maximize
    *       simplification efficiency
    */
-  void MarkBufferParamShapes(const PrimFunc& func);
+  void MarkBufferParamShapes(const Function& func);
 
   /*!
    * \brief Use internal bound information to perform inter map simplification of indices.
@@ -109,10 +109,10 @@ class IRMutatorWithAnalyzer : public StmtExprMutator {
     for (const auto& [var, _] : iter_vars_) {
       iter_var_nodes.insert(var.get());
     }
-    auto f_use_itervar = [&iter_var_nodes](const tirx::VarNode* v) {
+    auto f_use_itervar = [&iter_var_nodes](const tvm::VarNode* v) {
       return iter_var_nodes.count(v);
     };
-    auto walkfn = [&](const tirx::Var& var) -> ffi::Expected<ffi::WalkResult> {
+    auto walkfn = [&](const tvm::Var& var) -> ffi::Expected<ffi::WalkResult> {
       return f_use_itervar(var.get()) ? ffi::WalkResult::Interrupt(ffi::VisitInterrupt(var))
                                       : ffi::WalkResult::Advance();
     };

@@ -42,19 +42,21 @@ ffi::ObjectPtr<ffi::Object> CreateEnvNode(const std::string& name) {
   return n;
 }
 
-EnvFunc EnvFunc::Get(const ffi::String& name) { return EnvFunc(CreateEnvNode(name)); }
+EnvFunc EnvFunc::Get(const ffi::String& name) {
+  return EnvFunc(ffi::UnsafeInit{}, CreateEnvNode(name));
+}
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   EnvFuncNode::RegisterReflection();
   // override EnvFuncNode to use name as the repr
   refl::TypeAttrDef<EnvFuncNode>()
-      .def("__data_to_json__",
+      .def(tvm::ffi::reflection::type_attr::kDataToJson,
            [](const EnvFuncNode* node) {
              // simply save as the string
              return node->name;
            })
-      .def("__data_from_json__", EnvFunc::Get);
+      .def(tvm::ffi::reflection::type_attr::kDataFromJson, EnvFunc::Get);
 
   refl::GlobalDef().def("ir.EnvFuncGet", EnvFunc::Get);
 }

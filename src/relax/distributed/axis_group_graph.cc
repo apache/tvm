@@ -18,13 +18,13 @@
  */
 #include <tvm/ffi/cast.h>
 #include <tvm/relax/analysis.h>
-#include <tvm/relax/attrs/distributed.h>
-#include <tvm/relax/attrs/linear_algebra.h>
-#include <tvm/relax/attrs/manipulate.h>
-#include <tvm/relax/attrs/nn.h>
-#include <tvm/relax/attrs/statistical.h>
 #include <tvm/relax/distributed/axis_group_graph.h>
 #include <tvm/relax/expr.h>
+#include <tvm/relax/op/distributed.h>
+#include <tvm/relax/op/linear_algebra.h>
+#include <tvm/relax/op/manipulate.h>
+#include <tvm/relax/op/nn.h>
+#include <tvm/relax/op/statistical.h>
 
 #include <numeric>
 
@@ -32,33 +32,33 @@ namespace tvm {
 namespace tirx {
 using namespace tvm::prim;
 
-Var GetShardingVarFromIndex(PrimExpr index, ffi::Map<Var, Range> var_range,
-                            const sym::Analyzer& analyzer) {
+ffi::Optional<Var> GetShardingVarFromIndex(PrimExpr index, ffi::Map<Var, Range> var_range,
+                                           const sym::Analyzer& analyzer) {
   if (auto prim_var = index.as<PrimVar>()) {
-    return prim_var.value();
+    return Var(prim_var.value());
   }
   ffi::Map<PrimVar, Range> primitive_var_range;
   for (const auto& [var, range] : var_range) {
     primitive_var_range.Set(var.as_or_throw<PrimVar>(), range);
   }
   sym::IterSumExpr iter_sum = sym::NormalizeToIterSum(index, primitive_var_range, analyzer);
-  if (!is_zero(iter_sum->base)) {
-    return Var();
+  if (!IsZero(iter_sum->base)) {
+    return std::nullopt;
   }
   if (iter_sum->args.empty()) {
-    return Var();
+    return std::nullopt;
   }
   // floormod(floordiv(source, lower_factor), extent) * scale
   sym::IterSplitExpr highest_iter_split = iter_sum->args[0];
   auto source_var = highest_iter_split->source->source.as<PrimVar>();
   if (!source_var) {
-    return Var();
+    return std::nullopt;
   }
   Var var = source_var.value();
   // the floormod must take no effect
   if (!analyzer->CanProve(floordiv(var_range[var]->extent, highest_iter_split->lower_factor) <=
                           highest_iter_split->extent)) {
-    return Var();
+    return std::nullopt;
   }
   return var;
 }
@@ -352,14 +352,14 @@ inline int GetNumOutput(Call call) {
   }
 }
 
-void BuildAxisGraphCallTIR(const Var& output_var, const Call& call, const tirx::PrimFunc& func,
+void BuildAxisGraphCallTIR(const Var& output_var, const Call& call, const tirx::Function& func,
                            distributed::AxisGroupGraph* axis_group_graph) {
   auto tir_var_axis_group_list = tirx::BufferAxisGraphExtractor::GetTIRVarAxisGraph(func);
-  ffi::Map<tirx::Var, Expr> input_var_to_relax_expr;
+  ffi::Map<tvm::Var, Expr> input_var_to_relax_expr;
   ffi::Array<Expr> input_list = call->args[1].as_or_throw<Tuple>()->fields;
   input_list.push_back(output_var);
   for (int i = 0; i < static_cast<int>(input_list.size()); i++) {
-    if (func->params[i]->ty.as<tirx::BufferTypeNode>()) {
+    if (func->params[i]->ty.as<tirx::TensorTypeNode>()) {
       input_var_to_relax_expr.Set(func->params[i], input_list[i]);
     }
   }

@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Private implementation of derived :class:`Buffer` views."""
+"""Private implementation of derived :class:`Var` views."""
 
 from __future__ import annotations
 
@@ -26,34 +26,34 @@ from typing import TYPE_CHECKING
 import tvm
 
 if TYPE_CHECKING:
-    from .buffer import Buffer
+    from tvm.ir import Var
 
 
-def _redecl(buf: Buffer, shape, layout, *, dtype=None, elem_offset=None, addr_offset=None):
+def _redecl(buf: Var, shape, layout, *, dtype=None, elem_offset=None, addr_offset=None):
     """Re-declare a derived view over ``buf`` storage.
 
     Routes the buffer identity by storage kind: a ``tmem`` buffer aliases by
     column address, while every other scope carries
     ``data``/``strides``/``elem_offset`` through.
     """
-    if buf.scope() == "tmem" and buf.allocated_addr is not None and len(buf.allocated_addr) > 0:
-        addr = buf.allocated_addr[0]
+    if buf.scope() == "tmem":
+        from tvm.backend.cuda.op import _tmem_address  # pylint: disable=import-outside-toplevel
+        from tvm.tirx.script.ir_builder.parser_protocol import (
+            bind_,  # pylint: disable=import-outside-toplevel
+        )
+
+        addr = _tmem_address(buf)
         if addr_offset is not None:
             addr = addr + addr_offset
-        return tvm.tirx.script.ir_builder.decl_buffer(
+        ty = tvm.tirx.script.ir_builder.Tensor(
             shape,
             buf.dtype if dtype is None else dtype,
-            None,
-            None,
-            None,
-            None,
-            buf.scope(),
-            buf.data_alignment,
-            0,
-            layout,
-            allocated_addr=addr,
+            scope="tmem",
+            align=buf.data_alignment,
+            layout=layout,
         )
-    return tvm.tirx.script.ir_builder.decl_buffer(
+        return bind_(tvm.ir.Call("tirx.cuda.decl_tmem", [addr], ty_args=[ty]))
+    return tvm.tirx.script.ir_builder.decl_tensor(
         shape,
         buf.dtype if dtype is None else dtype,
         buf.data,
@@ -67,8 +67,8 @@ def _redecl(buf: Buffer, shape, layout, *, dtype=None, elem_offset=None, addr_of
     )
 
 
-def view(buf: Buffer, *args, **kwargs) -> Buffer:
-    """Implement :meth:`Buffer.view`."""
+def view(buf: Var, *args, **kwargs) -> Var:
+    """Implement :meth:`TensorType.view`."""
 
     def _infer_shape(shape):
         shape = list(shape)
@@ -123,12 +123,12 @@ def view(buf: Buffer, *args, **kwargs) -> Buffer:
     return _redecl(buf, shape, buf.layout if layout is None else layout)
 
 
-def local(buf: Buffer, *shape, layout=None) -> Buffer:
-    """Implement :meth:`Buffer.local`."""
+def local(buf: Var, *shape, layout=None) -> Var:
+    """Implement :meth:`TensorType.local`."""
     if not shape:
         if buf.layout is None:
             raise ValueError(
-                "Buffer.local cannot infer a shape because the parent buffer has layout=None; "
+                "Var.local cannot infer a shape because the parent buffer has layout=None; "
                 "pass an explicit shape together with layout=..."
             )
         storage_layout = buf.layout.storage()
@@ -137,7 +137,7 @@ def local(buf: Buffer, *shape, layout=None) -> Buffer:
     elif layout is None:
         if buf.layout is None:
             raise ValueError(
-                "Buffer.local without layout= cannot validate the physical storage span "
+                "Var.local without layout= cannot validate the physical storage span "
                 "because the parent buffer has layout=None; pass an explicit layout=..."
             )
         local_extent = buf.layout.storage().span()
@@ -150,8 +150,8 @@ def local(buf: Buffer, *shape, layout=None) -> Buffer:
     return _redecl(buf, shape, "default" if layout is None else layout)
 
 
-def permute(buf: Buffer, *dims) -> Buffer:
-    """Implement :meth:`Buffer.permute`."""
+def permute(buf: Var, *dims) -> Var:
+    """Implement :meth:`TensorType.permute`."""
     new_shape = [buf.shape[d] for d in dims]
     layout, swizzle = _surgery_parts(buf)
     grouped, seps = layout.group(list(buf.shape))
@@ -161,8 +161,8 @@ def permute(buf: Buffer, *dims) -> Buffer:
     return _redecl(buf, new_shape, new_layout)
 
 
-def rearrange(buf: Buffer, pattern: str, /, **sizes) -> Buffer:
-    """Implement :meth:`Buffer.rearrange`."""
+def rearrange(buf: Var, pattern: str, /, **sizes) -> Var:
+    """Implement :meth:`TensorType.rearrange`."""
 
     def _groups(side):
         out = []
@@ -219,13 +219,13 @@ def rearrange(buf: Buffer, pattern: str, /, **sizes) -> Buffer:
     return out.view(*merged_shape)
 
 
-def sub(buf: Buffer) -> SubIndexer:
-    """Return the indexer used by :attr:`Buffer.sub`."""
+def sub(buf: Var) -> SubIndexer:
+    """Return the indexer used by ``expr.sub``."""
     return SubIndexer(buf)
 
 
-def tile(buf: Buffer, *specs) -> TileIndexer:
-    """Implement :meth:`Buffer.tile`."""
+def tile(buf: Var, *specs) -> TileIndexer:
+    """Implement :meth:`TensorType.tile`."""
     if specs and isinstance(specs[0], int | Integral):
         if len(specs) != 2:
             raise ValueError("tile(dim, factors) takes a dim and a factors tuple")
@@ -246,8 +246,8 @@ def tile(buf: Buffer, *specs) -> TileIndexer:
     return TileIndexer(buf, normalized)
 
 
-def chunk(buf: Buffer, spec) -> ChunkIndexer:
-    """Implement :meth:`Buffer.chunk`."""
+def chunk(buf: Var, spec) -> ChunkIndexer:
+    """Implement :meth:`TensorType.chunk`."""
     if not isinstance(spec, tuple | list):
         raise ValueError(f"chunk: spec must be a per-dim tuple, got {spec!r}")
     if len(spec) != len(buf.shape):
@@ -258,7 +258,7 @@ def chunk(buf: Buffer, spec) -> ChunkIndexer:
     return ChunkIndexer(buf, tuple(spec))
 
 
-def _normalized_dim(buf: Buffer, dim, name):
+def _normalized_dim(buf: Var, dim, name):
     ndim = len(buf.shape)
     if dim < 0:
         dim += ndim
@@ -278,7 +278,7 @@ def _concrete_int(value):
     return None
 
 
-def _surgery_parts(buf: Buffer):
+def _surgery_parts(buf: Var):
     """Split a layout into its inner tile layout and optional swizzle params."""
     layout = buf.layout
     swizzle = None
@@ -347,12 +347,10 @@ def _swizzle_offset_commutes(swizzle, extra_offset):
     return Analyzer().can_prove_equal(tvm.tirx.floormod(extra_offset, period), 0)
 
 
-def _rebuild_view(buf: Buffer, new_shape, new_shard, grouped, swizzle, extra_offset):
+def _rebuild_view(buf: Var, new_shape, new_shard, grouped, swizzle, extra_offset):
     """Rebuild a derived view while preserving its physical addresses."""
     offset_map = dict(grouped.offset.items())
-    is_tmem = (
-        buf.scope() == "tmem" and buf.allocated_addr is not None and len(buf.allocated_addr) > 0
-    )
+    is_tmem = buf.scope() == "tmem"
     if (
         not is_tmem
         and extra_offset is not None
@@ -373,7 +371,7 @@ def _rebuild_view(buf: Buffer, new_shape, new_shard, grouped, swizzle, extra_off
     return _redecl(buf, new_shape, new_layout, elem_offset=elem_offset)
 
 
-def _tmem_element_offset_to_column_offset(buf: Buffer, element_offset):
+def _tmem_element_offset_to_column_offset(buf: Var, element_offset):
     """Convert a TCol element offset to a physical 32-bit column offset."""
     if element_offset is None:
         return None
@@ -400,9 +398,9 @@ def _tmem_element_offset_to_column_offset(buf: Buffer, element_offset):
     return analyzer.simplify(tvm.tirx.floordiv(bit_offset, 32))
 
 
-def _tmem_offset_axis_check(buf: Buffer, group_iters, start_c, what):
-    """Check that a tmem view offset can move into ``allocated_addr``."""
-    if buf.allocated_addr is None or len(buf.allocated_addr) == 0:
+def _tmem_offset_axis_check(buf: Var, group_iters, start_c, what):
+    """Check that a tmem view offset can move into the declaration address."""
+    if buf.scope() != "tmem":
         return
     if start_c == 0:
         return
@@ -412,11 +410,11 @@ def _tmem_offset_axis_check(buf: Buffer, group_iters, start_c, what):
             raise ValueError(
                 f"sub: tmem {what} with nonzero offset requires TCol-stride "
                 f"layout iters; dim iter has axis {axis_name!r} (a lane-axis "
-                f"offset cannot fold into the column allocated_addr)"
+                f"offset cannot fold into the column address)"
             )
 
 
-def _view_drop(buf: Buffer, dim, index):
+def _view_drop(buf: Var, dim, index):
     """Drop one logical dimension while preserving the selected storage offset."""
     dim = _normalized_dim(buf, dim, "index")
     index_c = _concrete_int(index)
@@ -437,7 +435,7 @@ def _view_drop(buf: Buffer, dim, index):
     return _rebuild_view(buf, new_shape, new_shard, grouped, swizzle, offset)
 
 
-def _view_narrow(buf: Buffer, dim, start, length):
+def _view_narrow(buf: Var, dim, start, length):
     """Narrow one logical dimension while preserving its storage offset."""
     dim = _normalized_dim(buf, dim, "index")
     start_c = _concrete_int(start)
@@ -497,12 +495,12 @@ def _view_narrow(buf: Buffer, dim, start, length):
 
 
 class SubIndexer:
-    """Indexer returned by :attr:`Buffer.sub`."""
+    """Indexer returned by ``expr.sub``."""
 
-    def __init__(self, buffer: Buffer):
+    def __init__(self, buffer: Var):
         self._buffer = buffer
 
-    def __getitem__(self, indices) -> Buffer:
+    def __getitem__(self, indices) -> Var:
         if not isinstance(indices, tuple):
             indices = (indices,)
         buf = self._buffer
@@ -548,9 +546,9 @@ class SubIndexer:
 
 
 class ChunkIndexer:
-    """Indexer returned by :meth:`Buffer.chunk`."""
+    """Indexer returned by :meth:`TensorType.chunk`."""
 
-    def __init__(self, buffer: Buffer, spec):
+    def __init__(self, buffer: Var, spec):
         self._buffer = buffer
         self._spec = spec
 
@@ -576,13 +574,13 @@ class ChunkIndexer:
 
 
 class TileIndexer:
-    """Indexer returned by :meth:`Buffer.tile`."""
+    """Indexer returned by :meth:`TensorType.tile`."""
 
-    def __init__(self, buffer: Buffer, specs):
+    def __init__(self, buffer: Var, specs):
         self._buffer = buffer
         self._specs = specs
 
-    def __getitem__(self, picks) -> Buffer:
+    def __getitem__(self, picks) -> Var:
         if not isinstance(picks, tuple):
             picks = (picks,)
         n_factors = sum(len(factors) for _, factors in self._specs)

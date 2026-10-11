@@ -23,7 +23,7 @@ from . import _ffi_api
 
 
 def ConvertSSA():
-    """De-duplicate definitions, including schedulable block iterators, across PrimFuncs."""
+    """De-duplicate definitions, including schedulable block iterators, across Functions."""
     return _ffi_api.ConvertSSA()
 
 
@@ -56,7 +56,7 @@ def LowerCrossThreadReduction():
 
 
 def LowerInitBlock():
-    """Lower block init stmt into IfThenElse statements.
+    """Lower block init stmt into If statements.
 
     Returns
     -------
@@ -136,6 +136,8 @@ def LowerMatchBuffer():
 def LowerOpaqueBlock():
     """Remove the block to ensure that the TIR can not be scheduled again.
 
+    Run LoopPartition first when thread-binding loops carry loop_partition_hint.
+
     Returns
     -------
     fpass : tvm.transform.Pass
@@ -166,16 +168,18 @@ def InjectPermutedLayout():
     return _ffi_api.InjectPermutedLayout()  # type: ignore
 
 
-def UnifyThreadBinding():
-    """Unify all the thread bindings for "blockIdx.x/y/z",
-    "threadIdx.x/y/z", and "vthread.x/y/z".
+def LowerThreadBinding():
+    """Lower thread-binding loops to fresh lexical launch regions.
+
+    Run after LoopPartition and LowerOpaqueBlock. Each loop keeps its own
+    lexical binding, including loops that use the same hardware axis.
 
     Returns
     -------
     fpass : tvm.transform.Pass
         The result pass
     """
-    return _ffi_api.UnifyThreadBinding()  # type: ignore
+    return _ffi_api.LowerThreadBinding()  # type: ignore
 
 
 def InjectSoftwarePipeline():
@@ -230,6 +234,10 @@ class LoopPartitionConfig(_ffi.Object):
 def LoopPartition():
     """Partition loops in the stmt.
 
+    Consumes the owning For's ``loop_partition_hint`` annotation. A provably
+    true value enables partitioning even without likely tags. Run this pass
+    before opaque lowering when hinting thread-binding loops.
+
     Returns
     -------
     fpass : tvm.transform.Pass
@@ -249,66 +257,6 @@ def InjectVirtualThread():
     return _ffi_api.InjectVirtualThread()  # type: ignore
 
 
-@_ffi.register_object("s_tir.transform.InjectDoubleBufferConfig")
-class InjectDoubleBufferConfig(_ffi.Object):
-    """Config for inject double buffer pass"""
-
-
-def InjectDoubleBuffer():
-    """Inject double buffer statements.
-
-    Returns
-    -------
-    fpass : tvm.transform.Pass
-        The result pass
-    """
-    return _ffi_api.InjectDoubleBuffer()  # type: ignore
-
-
-def HoistIfThenElse(variant=None):
-    """Hoist loop-invariant IfThenElse nodes to outside the eligible loops.
-
-    Parameters
-    ----------
-    variant : Optional[String]
-        The variant of the pass.
-        variant can have any one of following values ["basic", None(Default)].
-
-    Returns
-    -------
-    fpass : tvm.transform.Pass
-        The result pass
-    """
-    if variant == "basic":
-        return _ffi_api.HoistIfThenElseBasic()  # type: ignore
-    elif variant is None:
-        return _ffi_api.HoistIfThenElse()  # type: ignore
-    else:
-        raise ValueError("wrong variant of HoistIfThenElse, " + variant)
-
-
-def HoistExpression():
-    """Hoist loop-invariant expressions to outside the eligible loops.
-
-    Returns
-    -------
-    fpass : tvm.transform.Pass
-        The result pass
-    """
-    return _ffi_api.HoistExpression()  # type: ignore
-
-
-def RenormalizeSplitPattern():
-    """Renormalize the split pattern from floordiv(floormod()) to floormod(floordiv())
-
-    Returns
-    -------
-    fpass : tvm.transform.Pass
-        The result pass
-    """
-    return _ffi_api.RenormalizeSplitPattern()  # type: ignore
-
-
 def RewriteUnsafeSelect():
     """Detect and rewrite unsafe select that contains memory access.
 
@@ -320,28 +268,6 @@ def RewriteUnsafeSelect():
     return _ffi_api.RewriteUnsafeSelect()  # type: ignore
 
 
-def InstrumentBoundCheckers():
-    """Instruments bound checkers.
-
-    Returns
-    -------
-    fpass : tvm.transform.Pass
-        The result pass
-    """
-    return _ffi_api.InstrumentBoundCheckers()  # type: ignore
-
-
-def InjectPTXLDG32(enable_inject_ptx_intrin=True):
-    """Inject ptx.ldg.32 intrinsics.
-
-    Parameters
-    ----------
-    enable_inject_ptx_intrin : bool
-        If True, inject ptx.ldg.32 intrinsics.
-    """
-    return _ffi_api.InjectPTXLDG32(enable_inject_ptx_intrin)  # type: ignore
-
-
 def VerifyVTCMLimit(default_target=None):
     """Verify if the size of the allocated vtcm memory satisfies the limit.
 
@@ -350,7 +276,7 @@ def VerifyVTCMLimit(default_target=None):
     Parameters
     ----------
     default_target : Optional[tvm.target.Target]
-        The default target to use if a PrimFunc does not have a target attribute.
+        The default target to use if a Function does not have a target attribute.
 
     Returns
     -------
@@ -385,6 +311,11 @@ def ThreadSync(storage_scope):
         The result pass
     """
     return _ffi_api.ThreadSync(storage_scope)  # type: ignore
+
+
+def LowerSynchronization():
+    """Lower async queue operations and erase regions after synchronization planning."""
+    return _ffi_api.LowerSynchronization()  # type: ignore
 
 
 def InferFragment():
@@ -433,7 +364,7 @@ def MergeSharedMemoryAllocations():
 
 
 def DefaultGPUSchedule():
-    """Set default thread bindings for GPU PrimFuncs.
+    """Set default thread bindings for GPU Functions.
 
     Returns
     -------

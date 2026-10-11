@@ -19,7 +19,7 @@
 
 """Prefill attention kernels for (paged/ragged/MLA/dense) KV storage.
 
-All of the ``@T.prim_func`` factories below share the same online-softmax
+All of the ``@T.function`` factories below share the same online-softmax
 skeleton that is built up from ``@T.macro`` helpers in
 ``_kernel_common._make_prefill_macros``. Each kernel only supplies the
 K/V loading path that is specific to its storage layout.
@@ -79,18 +79,18 @@ def _attention_prefill_cpu(
     k_rope_pos_offset_elem_offset = T.dynamic("k_rope_pos_offset_elem_offset", "int32")
     q_rope_position_elem_offset = T.dynamic("q_rope_position_elem_offset", "int32")
     length_info_elem_offset = T.dynamic("length_info_elem_offset", "int32")
-    @Ts.prim_func
+    @Ts.function
     def batch_prefill_paged_kv_cpu(
-        q: T.Buffer((total_len, h_q, d), dtype), # [total_len, h_q, d]
-        q_indptr: T.Buffer((batch_size + 1,), 'int32', elem_offset=q_indptr_elem_offset), # [batch_size + 1]
-        pages: T.Buffer((max_num_pages, 2, h_kv, page_size, d), dtype), # [max_num_pages, 2, h_kv, page_size, d]
-        page_indptr: T.Buffer((batch_size + 1,), 'int32', elem_offset=page_indptr_elem_offset), # [batch_size + 1]
-        page_values: T.Buffer((nnz_pages,), 'int32', elem_offset=page_values_elem_offset), # [nnz_pages]
+        q: T.Tensor((total_len, h_q, d), dtype), # [total_len, h_q, d]
+        q_indptr: T.Tensor((batch_size + 1,), 'int32', elem_offset=q_indptr_elem_offset), # [batch_size + 1]
+        pages: T.Tensor((max_num_pages, 2, h_kv, page_size, d), dtype), # [max_num_pages, 2, h_kv, page_size, d]
+        page_indptr: T.Tensor((batch_size + 1,), 'int32', elem_offset=page_indptr_elem_offset), # [batch_size + 1]
+        page_values: T.Tensor((nnz_pages,), 'int32', elem_offset=page_values_elem_offset), # [nnz_pages]
         length_info: _length_info_buffer(batch_size, sliding_window, length_info_elem_offset), # [b] when sliding window = False, or otherwise [3, b]
-        k_rope_pos_offset: T.Buffer((batch_size,), 'int32', elem_offset=k_rope_pos_offset_elem_offset), # [b]
-        q_rope_position: T.Buffer((total_len,), 'int32', elem_offset=q_rope_position_elem_offset), # [total_len]
-        output: T.Buffer((total_len, h_q, d), dtype), # [total_len, h_q, d]
-        lse: T.Buffer((total_len, h_q), 'float32'), # [total_len, h_q]
+        k_rope_pos_offset: T.Tensor((batch_size,), 'int32', elem_offset=k_rope_pos_offset_elem_offset), # [b]
+        q_rope_position: T.Tensor((total_len,), 'int32', elem_offset=q_rope_position_elem_offset), # [total_len]
+        output: T.Tensor((total_len, h_q, d), dtype), # [total_len, h_q, d]
+        lse: T.Tensor((total_len, h_q), 'float32'), # [total_len, h_q]
         causal: T.int32,
         rotary_mode: T.int32,
         rope_scale: T.float32,
@@ -233,18 +233,18 @@ def _attention_prefill(
     k_rope_pos_offset_elem_offset = T.dynamic("k_rope_pos_offset_elem_offset", "int32")
     q_rope_position_elem_offset = T.dynamic("q_rope_position_elem_offset", "int32")
     length_info_elem_offset = T.dynamic("length_info_elem_offset", "int32")
-    @Ts.prim_func
+    @Ts.function
     def batch_prefill_paged_kv(
-        q: T.Buffer((total_len, h_q, d), dtype), # [total_len, h_q, d]
-        q_indptr: T.Buffer((batch_size + 1,), 'int32', elem_offset=q_indptr_elem_offset), # [batch_size + 1]
-        pages: T.Buffer((max_num_pages, 2, h_kv, page_size, d), dtype, elem_offset=pages_elem_offset), # [max_num_pages, 2, h_kv, page_size, d]
-        page_indptr: T.Buffer((batch_size + 1,), 'int32', elem_offset=page_indptr_elem_offset), # [batch_size + 1]
-        page_values: T.Buffer((nnz_pages,), 'int32', elem_offset=page_values_elem_offset), # [nnz_pages]
+        q: T.Tensor((total_len, h_q, d), dtype), # [total_len, h_q, d]
+        q_indptr: T.Tensor((batch_size + 1,), 'int32', elem_offset=q_indptr_elem_offset), # [batch_size + 1]
+        pages: T.Tensor((max_num_pages, 2, h_kv, page_size, d), dtype, elem_offset=pages_elem_offset), # [max_num_pages, 2, h_kv, page_size, d]
+        page_indptr: T.Tensor((batch_size + 1,), 'int32', elem_offset=page_indptr_elem_offset), # [batch_size + 1]
+        page_values: T.Tensor((nnz_pages,), 'int32', elem_offset=page_values_elem_offset), # [nnz_pages]
         length_info: _length_info_buffer(batch_size, sliding_window, length_info_elem_offset), # [b] when sliding window = False, or otherwise [3, b]
-        k_rope_pos_offset: T.Buffer((batch_size,), 'int32', elem_offset=k_rope_pos_offset_elem_offset), # [b]
-        q_rope_position: T.Buffer((total_len,), 'int32', elem_offset=q_rope_position_elem_offset), # [total_len]
-        output: T.Buffer((total_len, h_q, d), dtype), # [total_len, h_q, d]
-        lse: T.Buffer((total_len, h_q), 'float32'), # [total_len, h_q]
+        k_rope_pos_offset: T.Tensor((batch_size,), 'int32', elem_offset=k_rope_pos_offset_elem_offset), # [b]
+        q_rope_position: T.Tensor((total_len,), 'int32', elem_offset=q_rope_position_elem_offset), # [total_len]
+        output: T.Tensor((total_len, h_q, d), dtype), # [total_len, h_q, d]
+        lse: T.Tensor((total_len, h_q), 'float32'), # [total_len, h_q]
         causal: T.int32,
         rotary_mode: T.int32,
         rope_scale: T.float32,
@@ -282,10 +282,10 @@ def _attention_prefill(
                             batch_idx[0] = 0
                             batch_rows[0] = (q_indptr[1] - q_indptr[0]) * group_size
                             batch_tiles[0] = T.ceildiv(batch_rows[0], tile_x)
-                            while T.tvm_thread_invariant(batch_idx[0] < batch_size):
+                            while T.gpu_thread_invariant(batch_idx[0] < batch_size):
                                 advance_tile_batch(tile_id, batch_idx, batch_tiles, batch_rows, q_indptr, batch_size)
 
-                                if T.tvm_thread_invariant(batch_idx[0] < batch_size):
+                                if T.gpu_thread_invariant(batch_idx[0] < batch_size):
                                     b_idx: T.let[T.int32] = batch_idx[0]
                                     LH_start: T.let[T.int32] = tile_id[0] * tile_x
                                     q_indptr_val: T.let[T.int32] = q_indptr[b_idx]
@@ -297,7 +297,7 @@ def _attention_prefill(
                                         _get_kv_chunk_len(cur_page_indptr_end - cur_page_indptr_begin, page_size, b_idx, length_info, sliding_window),
                                         0
                                     )
-                                    T.tvm_storage_sync("shared")
+                                    T.gpu_storage_sync("shared")
 
                                     init_states(m_smem, d_smem, O_local, ty, tx)
 
@@ -317,7 +317,7 @@ def _attention_prefill(
                                                 )
                                             else:
                                                 Q_smem[i, j] = 0.0
-                                    T.tvm_storage_sync("shared")
+                                    T.gpu_storage_sync("shared")
 
                                     for iterator in T.serial(T.ceildiv(kv_chunk_len[0], tile_z)):
                                         L_kv_start: T.let[T.int32] = iterator * tile_z
@@ -338,7 +338,7 @@ def _attention_prefill(
                                                     )
                                                 else:
                                                     K_smem[i, j] = 0.0
-                                        T.tvm_storage_sync("shared")
+                                        T.gpu_storage_sync("shared")
                                         for lz, ly in T.grid(tile_z, tile_y):
                                             with Ts.sblock("V_load"):
                                                 i, j = Ts.axis.remap("SS", [lz, ly])
@@ -352,7 +352,7 @@ def _attention_prefill(
                                                     V_smem[i, j] = pages[page_no, 1, by, page_offset, j]
                                                 else:
                                                     V_smem[i, j] = 0.0
-                                        T.tvm_storage_sync("shared")
+                                        T.gpu_storage_sync("shared")
 
                                         compute_s_gemm(Q_smem, K_smem, S_local, S_smem, sm_scale)
                                         softmax_update_causal(S_smem, m_smem, d_smem, m_prev_smem, m_new, m_prev, d_new, ty, tx, LH_start, L_kv_start, causal, kv_chunk_len[0], q_indptr[b_idx + 1] - q_indptr[b_idx], sliding_window_size if sliding_window else 0)
@@ -376,13 +376,13 @@ def _attention_sequence_prefill(h_kv, h_q, d, dtype, target: Target, causal=0, s
     batch_size = T.dynamic("batch_size", "int32")
     qo_len = T.dynamic("qo_len", "int32")
     kv_len = T.dynamic("kv_len", "int32")
-    @Ts.prim_func
+    @Ts.function
     def batch_sequence_prefill_kv(  # pylint: disable=too-many-branches
-        q: T.Buffer((batch_size, qo_len, h_q, d), dtype), # [total_len, h_q, d]
-        k: T.Buffer((batch_size, kv_len, h_kv, d), dtype), # [total_len, h_kv, d]
-        v: T.Buffer((batch_size, kv_len, h_kv, d), dtype), # [total_len, h_kv, d]
-        output: T.Buffer((batch_size, qo_len, h_q, d), dtype), # [total_len, h_q, d]
-        lse: T.Buffer((batch_size, qo_len, h_q), dtype) # [total_len, h_q]
+        q: T.Tensor((batch_size, qo_len, h_q, d), dtype), # [total_len, h_q, d]
+        k: T.Tensor((batch_size, kv_len, h_kv, d), dtype), # [total_len, h_kv, d]
+        v: T.Tensor((batch_size, kv_len, h_kv, d), dtype), # [total_len, h_kv, d]
+        output: T.Tensor((batch_size, qo_len, h_q, d), dtype), # [total_len, h_q, d]
+        lse: T.Tensor((batch_size, qo_len, h_q), dtype) # [total_len, h_q]
     ):
 
           # pylint: disable=unused-variable
@@ -407,7 +407,7 @@ def _attention_sequence_prefill(h_kv, h_q, d, dtype, target: Target, causal=0, s
                             b_idx: T.let[T.int32] = vbx // batch_tiles
                             tile_id: T.let[T.int32] = vbx % batch_tiles
                             LH_start: T.let[T.int32] = tile_id * tile_x
-                            T.tvm_storage_sync("shared")
+                            T.gpu_storage_sync("shared")
 
                             init_states(m_smem, d_smem, O_local, ty, tx)
 
@@ -423,7 +423,7 @@ def _attention_sequence_prefill(h_kv, h_q, d, dtype, target: Target, causal=0, s
                                         Q_smem[i, j] = q[b_idx, cur_L, cur_H_qo, j]
                                     else:
                                         Q_smem[i, j] = 0.0
-                            T.tvm_storage_sync("shared")
+                            T.gpu_storage_sync("shared")
 
                             for iterator in T.serial(T.ceildiv(kv_len, tile_z)):
                                 L_kv_start: T.let[T.int32] = iterator * tile_z
@@ -440,7 +440,7 @@ def _attention_sequence_prefill(h_kv, h_q, d, dtype, target: Target, causal=0, s
                                             ]
                                         else:
                                             K_smem[i, j] = 0.0
-                                T.tvm_storage_sync("shared")
+                                T.gpu_storage_sync("shared")
                                 for lz, ly in T.grid(tile_z, tile_y):
                                     with Ts.sblock("V_load"):
                                         i, j = Ts.axis.remap("SS", [lz, ly])
@@ -451,7 +451,7 @@ def _attention_sequence_prefill(h_kv, h_q, d, dtype, target: Target, causal=0, s
                                             V_smem[i, j] = v[b_idx, L_kv_base + cur_L, by, j]
                                         else:
                                             V_smem[i, j] = 0.0
-                                T.tvm_storage_sync("shared")
+                                T.gpu_storage_sync("shared")
 
                                 compute_s_gemm(Q_smem, K_smem, S_local, S_smem, sm_scale)
                                 softmax_update_causal(S_smem, m_smem, d_smem, m_prev_smem, m_new, m_prev, d_new, ty, tx, LH_start, L_kv_start, causal, kv_len, qo_len, 0)
@@ -522,7 +522,7 @@ def _attention_sequence_prefill_with_mask(
 
     def _q_row_valid(row, valid_len, qo_len):
         # Row-validity predicate for Q load (TIR expression); mask_mode is
-        # captured at closure time so the prim_func body stays specialised.
+        # captured at closure time so the function body stays specialised.
         if mask_mode == "padded":
             return tirx.And(row < qo_len, row < valid_len)
         pad = qo_len - valid_len
@@ -538,14 +538,14 @@ def _attention_sequence_prefill_with_mask(
     batch_size = T.dynamic("batch_size", "int32")
     qo_len = T.dynamic("qo_len", "int32")
     kv_len = T.dynamic("kv_len", "int32")
-    @Ts.prim_func
+    @Ts.function
     def batch_sequence_prefill_kv_masked(  # pylint: disable=too-many-branches
-        q: T.Buffer((batch_size, qo_len, h_q, d), dtype), # [batch_size, qo_len, h_q, d]
-        k: T.Buffer((batch_size, kv_len, h_kv, d), dtype), # [batch_size, kv_len, h_kv, d]
-        v: T.Buffer((batch_size, kv_len, h_kv, d), dtype), # [batch_size, kv_len, h_kv, d]
-        valid_lens: T.Buffer((batch_size,), 'int32'), # [batch_size], int32
-        output: T.Buffer((batch_size, qo_len, h_q, d), dtype), # [batch_size, qo_len, h_q, d]
-        lse: T.Buffer((batch_size, qo_len, h_q), dtype) # [batch_size, qo_len, h_q]
+        q: T.Tensor((batch_size, qo_len, h_q, d), dtype), # [batch_size, qo_len, h_q, d]
+        k: T.Tensor((batch_size, kv_len, h_kv, d), dtype), # [batch_size, kv_len, h_kv, d]
+        v: T.Tensor((batch_size, kv_len, h_kv, d), dtype), # [batch_size, kv_len, h_kv, d]
+        valid_lens: T.Tensor((batch_size,), 'int32'), # [batch_size], int32
+        output: T.Tensor((batch_size, qo_len, h_q, d), dtype), # [batch_size, qo_len, h_q, d]
+        lse: T.Tensor((batch_size, qo_len, h_q), dtype) # [batch_size, qo_len, h_q]
     ):
 
         batch_tiles: T.let[T.int32] = T.ceildiv(qo_len * group_size, tile_x)
@@ -568,7 +568,7 @@ def _attention_sequence_prefill_with_mask(
                             valid_len: T.let[T.int32] = valid_lens[b_idx]
                             tile_id: T.let[T.int32] = vbx % batch_tiles
                             LH_start: T.let[T.int32] = tile_id * tile_x
-                            T.tvm_storage_sync("shared")
+                            T.gpu_storage_sync("shared")
 
                             init_states(m_smem, d_smem, O_local, ty, tx)
 
@@ -584,7 +584,7 @@ def _attention_sequence_prefill_with_mask(
                                         Q_smem[i, j] = q[b_idx, cur_L, cur_H_qo, j]
                                     else:
                                         Q_smem[i, j] = 0.0
-                            T.tvm_storage_sync("shared")
+                            T.gpu_storage_sync("shared")
 
                             for iterator in T.serial(T.ceildiv(kv_len, tile_z)):
                                 L_kv_start: T.let[T.int32] = iterator * tile_z
@@ -599,7 +599,7 @@ def _attention_sequence_prefill_with_mask(
                                             K_smem[i, j] = k[b_idx, L_kv_base + cur_L, by, j]
                                         else:
                                             K_smem[i, j] = 0.0
-                                T.tvm_storage_sync("shared")
+                                T.gpu_storage_sync("shared")
                                 for lz, ly in T.grid(tile_z, tile_y):
                                     with Ts.sblock("V_load"):
                                         i, j = Ts.axis.remap("SS", [lz, ly])
@@ -610,7 +610,7 @@ def _attention_sequence_prefill_with_mask(
                                             V_smem[i, j] = v[b_idx, L_kv_base + cur_L, by, j]
                                         else:
                                             V_smem[i, j] = 0.0
-                                T.tvm_storage_sync("shared")
+                                T.gpu_storage_sync("shared")
 
                                 compute_s_gemm(Q_smem, K_smem, S_local, S_smem, sm_scale)
                                 softmax_update(S_smem, m_smem, d_smem, m_prev_smem, m_new, m_prev, d_new, ty, tx, LH_start, L_kv_start, valid_len, qo_len, kv_len)
@@ -648,17 +648,17 @@ def _attention_prefill_ragged_cpu(h_kv, h_q, d_qk, d_v, dtype, rope_scaling: dic
     kv_indptr_elem_offset = T.dynamic("kv_indptr_elem_offset", "int32")
     q_rope_position_elem_offset = T.dynamic("q_rope_position_elem_offset", "int32")
     k_rope_pos_offset_elem_offset = T.dynamic("k_rope_pos_offset_elem_offset", "int32")
-    @Ts.prim_func
+    @Ts.function
     def batch_prefill_ragged_kv(  # pylint: disable=too-many-branches
-        q: T.Buffer((qo_len, h_q, d_qk), dtype),  # [total_len, h_q, d_qk]
-        q_indptr: T.Buffer((batch_size + 1,), 'int32', elem_offset=q_indptr_elem_offset),  # [batch_size + 1]
-        k: T.Buffer((kv_len, h_kv, d_qk), dtype),  # [total_len, h_kv, d_qk]
-        v: T.Buffer((kv_len, h_kv, d_v), dtype),  # [total_len, h_kv, d_v]
-        kv_indptr: T.Buffer((batch_size + 1,), 'int32', elem_offset=kv_indptr_elem_offset),  # [batch_size + 1]
-        q_rope_position: T.Buffer((qo_len,), 'int32', elem_offset=q_rope_position_elem_offset),  # [total_q_len]
-        k_rope_pos_offset: T.Buffer((batch_size,), 'int32', elem_offset=k_rope_pos_offset_elem_offset),  # [b]
-        output: T.Buffer((qo_len, h_q, d_v), dtype),  # [total_len, h_q, d_v]
-        lse: T.Buffer((qo_len, h_q), 'float32'),  # [total_len, h_q]
+        q: T.Tensor((qo_len, h_q, d_qk), dtype),  # [total_len, h_q, d_qk]
+        q_indptr: T.Tensor((batch_size + 1,), 'int32', elem_offset=q_indptr_elem_offset),  # [batch_size + 1]
+        k: T.Tensor((kv_len, h_kv, d_qk), dtype),  # [total_len, h_kv, d_qk]
+        v: T.Tensor((kv_len, h_kv, d_v), dtype),  # [total_len, h_kv, d_v]
+        kv_indptr: T.Tensor((batch_size + 1,), 'int32', elem_offset=kv_indptr_elem_offset),  # [batch_size + 1]
+        q_rope_position: T.Tensor((qo_len,), 'int32', elem_offset=q_rope_position_elem_offset),  # [total_q_len]
+        k_rope_pos_offset: T.Tensor((batch_size,), 'int32', elem_offset=k_rope_pos_offset_elem_offset),  # [b]
+        output: T.Tensor((qo_len, h_q, d_v), dtype),  # [total_len, h_q, d_v]
+        lse: T.Tensor((qo_len, h_q), 'float32'),  # [total_len, h_q]
         causal: T.int32,
         rotary_mode: T.int32,
         rope_scale: T.float32,
@@ -757,17 +757,17 @@ def _attention_prefill_ragged(h_kv, h_q, d_qk, d_v, dtype, rope_scaling: dict[st
     kv_indptr_elem_offset = T.dynamic("kv_indptr_elem_offset", "int32")
     q_rope_position_elem_offset = T.dynamic("q_rope_position_elem_offset", "int32")
     k_rope_pos_offset_elem_offset = T.dynamic("k_rope_pos_offset_elem_offset", "int32")
-    @Ts.prim_func
+    @Ts.function
     def batch_prefill_ragged_kv(  # pylint: disable=too-many-branches
-        q: T.Buffer((qo_len, h_q, d_qk), dtype), # [total_len, h_q, d_qk]
-        q_indptr: T.Buffer((batch_size + 1,), 'int32', elem_offset=q_indptr_elem_offset), # [batch_size + 1]
-        k: T.Buffer((kv_len, h_kv, d_qk), dtype), # [total_len, h_kv, d_qk]
-        v: T.Buffer((kv_len, h_kv, d_v), dtype), # [total_len, h_kv, d_v]
-        kv_indptr: T.Buffer((batch_size + 1,), 'int32', elem_offset=kv_indptr_elem_offset), # [batch_size + 1]
-        q_rope_position: T.Buffer((qo_len,), 'int32', elem_offset=q_rope_position_elem_offset), # [total_q_len]
-        k_rope_pos_offset: T.Buffer((batch_size,), 'int32', elem_offset=k_rope_pos_offset_elem_offset), # [b]
-        output: T.Buffer((qo_len, h_q, d_v), dtype), # [total_len, h_q, d_v]
-        lse: T.Buffer((qo_len, h_q), 'float32'), # [total_len, h_q]
+        q: T.Tensor((qo_len, h_q, d_qk), dtype), # [total_len, h_q, d_qk]
+        q_indptr: T.Tensor((batch_size + 1,), 'int32', elem_offset=q_indptr_elem_offset), # [batch_size + 1]
+        k: T.Tensor((kv_len, h_kv, d_qk), dtype), # [total_len, h_kv, d_qk]
+        v: T.Tensor((kv_len, h_kv, d_v), dtype), # [total_len, h_kv, d_v]
+        kv_indptr: T.Tensor((batch_size + 1,), 'int32', elem_offset=kv_indptr_elem_offset), # [batch_size + 1]
+        q_rope_position: T.Tensor((qo_len,), 'int32', elem_offset=q_rope_position_elem_offset), # [total_q_len]
+        k_rope_pos_offset: T.Tensor((batch_size,), 'int32', elem_offset=k_rope_pos_offset_elem_offset), # [b]
+        output: T.Tensor((qo_len, h_q, d_v), dtype), # [total_len, h_q, d_v]
+        lse: T.Tensor((qo_len, h_q), 'float32'), # [total_len, h_q]
         causal: T.int32,
         rotary_mode: T.int32,
         rope_scale: T.float32,
@@ -796,16 +796,16 @@ def _attention_prefill_ragged(h_kv, h_q, d_qk, d_v, dtype, rope_scaling: dict[st
                             batch_idx[0] = 0
                             batch_rows[0] = (q_indptr[1] - q_indptr[0]) * group_size
                             batch_tiles[0] = T.ceildiv(batch_rows[0], tile_x)
-                            while T.tvm_thread_invariant(batch_idx[0] < batch_size):
+                            while T.gpu_thread_invariant(batch_idx[0] < batch_size):
                                 advance_tile_batch(tile_id, batch_idx, batch_tiles, batch_rows, q_indptr, batch_size)
 
-                                if T.tvm_thread_invariant(batch_idx[0] < batch_size):
+                                if T.gpu_thread_invariant(batch_idx[0] < batch_size):
                                     b_idx: T.let[T.int32] = batch_idx[0]
                                     q_indptr_val: T.let[T.int32] = q_indptr[b_idx]
                                     LH_start: T.let[T.int32] = tile_id[0] * tile_x
 
                                     kv_chunk_len[0] = kv_indptr[b_idx + 1] - kv_indptr[b_idx]
-                                    T.tvm_storage_sync("shared")
+                                    T.gpu_storage_sync("shared")
 
                                     init_states(m_smem, d_smem, O_local, ty, tx)
 
@@ -825,7 +825,7 @@ def _attention_prefill_ragged(h_kv, h_q, d_qk, d_v, dtype, rope_scaling: dict[st
                                                 )
                                             else:
                                                 Q_smem[i, j] = 0.0
-                                    T.tvm_storage_sync("shared")
+                                    T.gpu_storage_sync("shared")
 
                                     for iterator in T.serial(T.ceildiv(kv_chunk_len[0], tile_z)):
                                         L_kv_start: T.let[T.int32] = iterator * tile_z
@@ -842,7 +842,7 @@ def _attention_prefill_ragged(h_kv, h_q, d_qk, d_v, dtype, rope_scaling: dict[st
                                                     )
                                                 else:
                                                     K_smem[i, j] = 0.0
-                                        T.tvm_storage_sync("shared")
+                                        T.gpu_storage_sync("shared")
                                         for lz, ly in T.grid(tile_z, d_v):
                                             with Ts.sblock("V_load"):
                                                 i, j = Ts.axis.remap("SS", [lz, ly])
@@ -853,7 +853,7 @@ def _attention_prefill_ragged(h_kv, h_q, d_qk, d_v, dtype, rope_scaling: dict[st
                                                     V_smem[i, j] = v[L_kv_base + cur_L, by, j]
                                                 else:
                                                     V_smem[i, j] = 0.0
-                                        T.tvm_storage_sync("shared")
+                                        T.gpu_storage_sync("shared")
 
                                         compute_s_gemm(Q_smem, K_smem, S_local, S_smem, sm_scale)
                                         softmax_update_causal(S_smem, m_smem, d_smem, m_prev_smem, m_new, m_prev, d_new, ty, tx, LH_start, L_kv_start, causal, kv_chunk_len[0], q_indptr[b_idx + 1] - q_indptr[b_idx], 0)
@@ -887,16 +887,16 @@ def _attention_prefill_mla(h_q, d_latent, d_rope, dtype, sliding_window: bool, t
     page_indptr_elem_offset = T.dynamic("page_indptr_elem_offset", "int32")
     page_values_elem_offset = T.dynamic("page_values_elem_offset", "int32")
     length_info_elem_offset = T.dynamic("length_info_elem_offset", "int32")
-    @Ts.prim_func
+    @Ts.function
     def batch_prefill_paged_kv_mla(
-        q: T.Buffer((total_len, h_q, d_qk), dtype), # [total_len, h_q, d_qk]
-        q_indptr: T.Buffer((batch_size + 1,), 'int32', elem_offset=q_indptr_elem_offset), # [batch_size + 1]
-        pages: T.Buffer((max_num_pages, page_size, d_qk), dtype, elem_offset=pages_elem_offset), # [max_num_pages, page_size, d_qk]
-        page_indptr: T.Buffer((batch_size + 1,), 'int32', elem_offset=page_indptr_elem_offset), # [batch_size + 1]
-        page_values: T.Buffer((nnz_pages,), 'int32', elem_offset=page_values_elem_offset), # [nnz_pages]
+        q: T.Tensor((total_len, h_q, d_qk), dtype), # [total_len, h_q, d_qk]
+        q_indptr: T.Tensor((batch_size + 1,), 'int32', elem_offset=q_indptr_elem_offset), # [batch_size + 1]
+        pages: T.Tensor((max_num_pages, page_size, d_qk), dtype, elem_offset=pages_elem_offset), # [max_num_pages, page_size, d_qk]
+        page_indptr: T.Tensor((batch_size + 1,), 'int32', elem_offset=page_indptr_elem_offset), # [batch_size + 1]
+        page_values: T.Tensor((nnz_pages,), 'int32', elem_offset=page_values_elem_offset), # [nnz_pages]
         length_info: _length_info_buffer(batch_size, sliding_window, length_info_elem_offset), # [b] when sliding window = False, or otherwise [3, b]
-        output: T.Buffer((total_len, h_q, d_latent), dtype), # [total_len, h_q, d_latent]
-        lse: T.Buffer((total_len, h_q), 'float32'), # [total_len, h_q]
+        output: T.Tensor((total_len, h_q, d_latent), dtype), # [total_len, h_q, d_latent]
+        lse: T.Tensor((total_len, h_q), 'float32'), # [total_len, h_q]
         causal: T.int32,
         sm_scale: T.float32,
     ):
@@ -930,10 +930,10 @@ def _attention_prefill_mla(h_q, d_latent, d_rope, dtype, sliding_window: bool, t
                         batch_idx[0] = 0
                         batch_rows[0] = (q_indptr[1] - q_indptr[0]) * group_size
                         batch_tiles[0] = T.ceildiv(batch_rows[0], tile_x)
-                        while T.tvm_thread_invariant(batch_idx[0] < batch_size):
+                        while T.gpu_thread_invariant(batch_idx[0] < batch_size):
                             advance_tile_batch(tile_id, batch_idx, batch_tiles, batch_rows, q_indptr, batch_size)
 
-                            if T.tvm_thread_invariant(batch_idx[0] < batch_size):
+                            if T.gpu_thread_invariant(batch_idx[0] < batch_size):
                                 b_idx: T.let[T.int32] = batch_idx[0]
                                 LH_start: T.let[T.int32] = tile_id[0] * tile_x
                                 q_indptr_val: T.let[T.int32] = q_indptr[b_idx]
@@ -945,7 +945,7 @@ def _attention_prefill_mla(h_q, d_latent, d_rope, dtype, sliding_window: bool, t
                                     _get_kv_chunk_len(cur_page_indptr_end - cur_page_indptr_begin, page_size, b_idx, length_info, sliding_window),
                                     0
                                 )
-                                T.tvm_storage_sync("shared")
+                                T.gpu_storage_sync("shared")
 
                                 init_states(m_smem, d_smem, O_local, ty, tx)
 
@@ -961,7 +961,7 @@ def _attention_prefill_mla(h_q, d_latent, d_rope, dtype, sliding_window: bool, t
                                             Q_smem[i, j] = q[cur_L, cur_H_qo, j]
                                         else:
                                             Q_smem[i, j] = 0.0
-                                T.tvm_storage_sync("shared")
+                                T.gpu_storage_sync("shared")
 
                                 for iterator in T.serial(T.ceildiv(kv_chunk_len[0], tile_z)):
                                     L_kv_start: T.let[T.int32] = iterator * tile_z
@@ -978,7 +978,7 @@ def _attention_prefill_mla(h_q, d_latent, d_rope, dtype, sliding_window: bool, t
                                                 KV_smem[i, j] = pages[page_no, page_offset, j]
                                             else:
                                                 KV_smem[i, j] = 0.0
-                                    T.tvm_storage_sync("shared")
+                                    T.gpu_storage_sync("shared")
 
                                     # MLA shares the same buffer for K and V (V = KV_smem[:, :d_latent])
                                     compute_s_gemm(Q_smem, KV_smem, S_local, S_smem, sm_scale)

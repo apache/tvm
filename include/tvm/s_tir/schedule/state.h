@@ -212,6 +212,11 @@ class ScheduleStateNode : public ffi::Object {
  */
 class ScheduleState : public ffi::ObjectRef {
  public:
+  explicit ScheduleState(ffi::UnsafeInit tag, ffi::ObjectPtr<ScheduleStateNode> data)
+      : ffi::ObjectRef(tag) {
+    data_ = std::move(data);
+  }
+
   /*!
    * \brief Construct a schedule state from an IRModule
    * \param mod The IRModule to be scheduled
@@ -221,7 +226,7 @@ class ScheduleState : public ffi::ObjectRef {
    */
   TVM_DLL explicit ScheduleState(IRModule mod, int debug_mask = 0, bool enable_check = true);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(ScheduleState, ffi::ObjectRef, ScheduleStateNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ScheduleState, ffi::ObjectRef, ScheduleStateNode);
 };
 
 }  // namespace s_tir

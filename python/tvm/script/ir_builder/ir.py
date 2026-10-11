@@ -19,11 +19,12 @@
 from typing import NoReturn, TypeVar
 
 from tvm import DataType
-from tvm.ir import DataTypeImm, GlobalInfo, Span, Var
+from tvm.ir import DataTypeImm, GlobalInfo, LambdaExpr, Location, Var
+from tvm.ir.location import UNKNOWN_LOC
 from tvm.runtime import Object as tvm_Object
 
 from . import _ffi_api
-from .base import IRBuilder, SpanEntry
+from .base import IRBuilder, LocationEntry
 from .frame import IRModuleFrame
 
 T = TypeVar("T")
@@ -38,7 +39,7 @@ def dtype(value: str | DataType) -> DataTypeImm:
     return DataTypeImm(value)
 
 
-def dynamic(name: str, dtype: str = "int64", *, span: SpanEntry | Span | None = None) -> Var:
+def dynamic(name: str, dtype: str = "int64", *, loc: LocationEntry | Location = UNKNOWN_LOC) -> Var:
     """Create a fresh primitive symbolic variable, independently of builder scope.
 
     Parameters
@@ -47,7 +48,7 @@ def dynamic(name: str, dtype: str = "int64", *, span: SpanEntry | Span | None = 
         The symbol's display name. Repeated names do not share identity.
     dtype : str
         Primitive dtype, defaulting to int64.
-    span : SpanEntry, Span or None
+    loc : LocationEntry or Location, optional
         Source location of the symbol.
 
     Returns
@@ -56,7 +57,7 @@ def dynamic(name: str, dtype: str = "int64", *, span: SpanEntry | Span | None = 
         A fresh symbol. Reuse this object to share dimensions across annotations
         and function bodies, including outside an ``I.ir_module`` definition.
     """
-    return Var(name, dtype, span.span if isinstance(span, SpanEntry) else span)
+    return Var(name, dtype, loc.loc if isinstance(loc, LocationEntry) else loc)
 
 
 def constexpr(value: object) -> NoReturn:
@@ -189,3 +190,12 @@ def _get_dialect_builder(name: str):
         setattr(sys.modules["tvm.script.ir_builder"], name, module)
         return module
     raise AttributeError(f"module 'tvm.script.ir_builder' has no attribute {name!r}")
+
+
+def Lambda(parameter_types, function, *, ret_type=None):  # pylint: disable=invalid-name
+    """Build a shared staging lambda from explicit types and a Python callable.
+
+    Scalar constructors such as ``T.float32`` may be used as parameter types.
+    An optional return annotation checks the body type without inserting casts.
+    """
+    return LambdaExpr(parameter_types, function, ret_type=ret_type)

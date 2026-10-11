@@ -43,9 +43,11 @@
 #include <llvm/Transforms/Utils/Cloning.h>
 #include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/function.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/target/codegen.h>
 #include <tvm/tirx/analysis.h>
+#include <tvm/tirx/function.h>
 
 #include <cstdio>
 #include <cstdlib>
@@ -107,7 +109,7 @@ class CodeGenHexagon final : public CodeGenCPU {
 
   bool IsQHLFunction(const std::string& func);
 
-  llvm::Value* VectorLookupLoad(BufferVar buffer, PrimType buffer_type,
+  llvm::Value* VectorLookupLoad(TensorVar buffer, PrimType buffer_type,
                                 ffi::Array<PrimExpr> indices);
   llvm::Value* Intrinsic(llvm::Intrinsic::ID, llvm::ArrayRef<llvm::Value*> args);
   std::vector<std::string> fqhl_list_ = {
@@ -202,7 +204,7 @@ llvm::Value* CodeGenHexagon::CreateCallExtern(Type ret_type, ffi::String global_
 llvm::Value* CodeGenHexagon::Dispatch_(const TensorLoadNode* op) {
   // Check if we can generate a vector lookup.
   if (!op->indices[0].as<prim::RampNode>()) {
-    if (auto* vlut = VectorLookupLoad(op->source.as_or_throw<tvm::tirx::BufferVar>(),
+    if (auto* vlut = VectorLookupLoad(op->source.as_or_throw<tvm::tirx::TensorVar>(),
                                       op->ty.as_or_throw<PrimType>(), op->indices)) {
       return vlut;
     }
@@ -306,7 +308,7 @@ llvm::Value* CodeGenHexagon::Intrinsic(llvm::Intrinsic::ID IntID,
   return builder_->CreateCall(intf_callee, conv_args);
 }
 
-llvm::Value* CodeGenHexagon::VectorLookupLoad(BufferVar buffer, PrimType buffer_type,
+llvm::Value* CodeGenHexagon::VectorLookupLoad(TensorVar buffer, PrimType buffer_type,
                                               ffi::Array<PrimExpr> indices) {
   PrimExpr index = indices[0];
   PrimType index_ty = index.ty();
@@ -332,9 +334,9 @@ llvm::Value* CodeGenHexagon::VectorLookupLoad(BufferVar buffer, PrimType buffer_
   PrimType table_type = buffer_type.WithLanes(table_elem_count);
 
   auto table_all = MakeValue(
-      BufferLoad(buffer, {
-                             prim::Ramp(IntImm(int32, 0), IntImm(int32, 1), table_elem_count),
-                         }));
+      MakeTensorLoad(buffer, {
+                                 prim::Ramp(IntImm(int32, 0), IntImm(int32, 1), table_elem_count),
+                             }));
 
   // The number of value vectors should be a power of 2.
   int table_vec_count = llvm::PowerOf2Ceil(GetVectorBytes(table_type) / native_vector_bytes);
@@ -464,13 +466,13 @@ ffi::Module BuildHexagon(IRModule mod, Target target) {
   std::string entry_func;
 
   for (auto kv : mod->functions) {
-    if (!kv.second->IsInstance<PrimFuncNode>()) {
+    if (!kv.second->IsInstance<FunctionNode>()) {
       // (@jroesch): we relax constraints here, relax functions will just be ignored.
-      DLOG(INFO) << "Can only lower IR Module with PrimFuncs, but got " << kv.second->GetTypeKey();
+      DLOG(INFO) << "Can only lower IR Module with Functions, but got " << kv.second->GetTypeKey();
       continue;
     }
-    auto f = kv.second.as_or_throw<PrimFunc>();
-    if (f->HasNonzeroAttr(tirx::attr::kIsEntryFunc)) {
+    auto f = kv.second.as_or_throw<Function>();
+    if (f->HasNonzeroAttr(tvm::tirx::attr::kIsEntryFunc)) {
       auto global_symbol = f->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol);
       TVM_FFI_ICHECK(global_symbol.has_value());
       entry_func = global_symbol.value();

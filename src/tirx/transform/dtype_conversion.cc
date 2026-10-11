@@ -23,12 +23,14 @@
  */
 #include "dtype_conversion.h"
 
+#include <tvm/tirx/op/memory.h>
+
 namespace tvm {
 namespace tirx {
 using namespace tvm::prim;
 
 PrimExpr ReinterpretAsUInt(PrimExpr value) {
-  return reinterpret(GetStorageUIntDType(value.ty()), value);
+  return tirx::reinterpret(GetStorageUIntDType(value.ty()), value);
 }
 
 PrimType GetStorageUIntDType(PrimType dtype) {
@@ -83,7 +85,7 @@ PrimExpr DTypeConversion(PrimExpr src_value, PrimType tgt_dtype, RoundingMode ro
     } else if (bias_delta < 0) {
       ret = ret - (MakeConst(tgt_uint, -bias_delta) << tgt_fp.mantissa);
     }
-    return reinterpret(tgt_dtype, ret);
+    return tirx::reinterpret(tgt_dtype, ret);
   } else {
     // number of exponent bits mismatch.
     PrimExpr ret_mantissa =
@@ -97,14 +99,14 @@ PrimExpr DTypeConversion(PrimExpr src_value, PrimType tgt_dtype, RoundingMode ro
       PrimExpr ret_exponent =
           (bias_delta > 0) ? (cast(tgt_uint, exponent_before_delta + bias_delta) << tgt_fp.mantissa)
                            : (cast(tgt_uint, exponent_before_delta) << tgt_fp.mantissa);
-      return reinterpret(tgt_dtype, ret_mantissa | ret_exponent | ret_sign);
+      return tirx::reinterpret(tgt_dtype, ret_mantissa | ret_exponent | ret_sign);
     } else {  // bias_delta < 0
       PrimExpr round_to_zero = exponent_before_delta < (-bias_delta);
       PrimExpr ret_exponent = cast(tgt_uint, exponent_before_delta - (-bias_delta))
                               << tgt_fp.mantissa;
       // MakeConst can handle both vector and scalar types.
-      return reinterpret(tgt_dtype, if_then_else(round_to_zero, MakeConst(tgt_uint, 0),
-                                                 ret_mantissa | ret_exponent | ret_sign));
+      return tirx::reinterpret(tgt_dtype, if_then_else(round_to_zero, MakeConst(tgt_uint, 0),
+                                                       ret_mantissa | ret_exponent | ret_sign));
     }
   }
 }

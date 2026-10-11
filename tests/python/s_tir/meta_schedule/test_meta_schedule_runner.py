@@ -71,11 +71,11 @@ MATMUL_M = 32
 
 @tvm.script.ir_module
 class MatmulModule:
-    @Ts.prim_func
+    @Ts.function
     def main(
-        A: T.Buffer((16, 16), "float32"),
-        B: T.Buffer((16, 16), "float32"),
-        C: T.Buffer((16, 16), "float32"),
+        A: T.Tensor((16, 16), "float32"),
+        B: T.Tensor((16, 16), "float32"),
+        C: T.Tensor((16, 16), "float32"),
     ) -> None:  # pylint: disable=no-self-argument
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
 
@@ -89,11 +89,11 @@ class MatmulModule:
 
 @tvm.script.ir_module
 class MatmulReluModule:
-    @Ts.prim_func
+    @Ts.function
     def main(
-        A: T.Buffer((16, 16), "float32"),
-        B: T.Buffer((16, 16), "float32"),
-        D: T.Buffer((16, 16), "float32"),
+        A: T.Tensor((16, 16), "float32"),
+        B: T.Tensor((16, 16), "float32"),
+        D: T.Tensor((16, 16), "float32"),
     ) -> None:  # pylint: disable=no-self-argument
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
 
@@ -112,9 +112,9 @@ class MatmulReluModule:
 
 @tvm.script.ir_module
 class BatchMatmulModule:
-    @Ts.prim_func
+    @Ts.function
     def main(
-        A: T.Buffer([16, 32, 32]), B: T.Buffer([16, 32, 32]), C: T.Buffer([16, 32, 32])
+        A: T.Tensor([16, 32, 32]), B: T.Tensor([16, 32, 32]), C: T.Tensor([16, 32, 32])
     ) -> None:  # pylint: disable=no-self-argument
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
 
@@ -128,9 +128,9 @@ class BatchMatmulModule:
 
 @tvm.script.ir_module
 class AddModule:
-    @Ts.prim_func
+    @Ts.function
     def main(
-        A: T.Buffer([32], "float32"), B: T.Buffer([32], "float32"), C: T.Buffer([32], "float32")
+        A: T.Tensor([32], "float32"), B: T.Tensor([32], "float32"), C: T.Tensor([32], "float32")
     ) -> None:  # pylint: disable=no-self-argument
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
 
@@ -143,11 +143,11 @@ class AddModule:
 # A huge matmul that must cause timeout in the timeout test below.
 @tvm.script.ir_module
 class MatmulHugeModule:
-    @Ts.prim_func
+    @Ts.function
     def main(
-        A: T.Buffer((4096, 4096), "float32"),
-        B: T.Buffer((4096, 4096), "float32"),
-        C: T.Buffer((4096, 4096), "float32"),
+        A: T.Tensor((4096, 4096), "float32"),
+        B: T.Tensor((4096, 4096), "float32"),
+        C: T.Tensor((4096, 4096), "float32"),
     ) -> None:  # pylint: disable=no-self-argument
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
 

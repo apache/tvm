@@ -250,7 +250,7 @@ def default_input_generator(  # pylint: disable=unused-variable
         The generated input data.
     """
 
-    args_info = ms.arg_info.TensorInfo.from_prim_func(mod["main"])
+    args_info = ms.arg_info.TensorInfo.from_function(mod["main"])
     inputs = [
         tvm.runtime.tensor(
             generate_input_data(input_shape=arg_info.shape, input_dtype=arg_info.dtype)

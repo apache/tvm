@@ -39,8 +39,8 @@ def test_const_shape_arg():
             R.func_attr({"relax.force_pure": True})
             return x
 
-        @Ts.prim_func
-        def extra_func(H: T.Buffer(T.int64(4), "int64")):
+        @Ts.function
+        def extra_func(H: T.Tensor(T.int64(4), "int64")):
             """Extra function, checks if the pass preserves it."""
             H[T.int64(1)] = H[T.int64(0)] + T.int64(1)
 
@@ -66,8 +66,8 @@ def test_const_shape_arg():
             )
             return x
 
-        @Ts.prim_func
-        def extra_func(H: T.Buffer(T.int64(4), "int64")):
+        @Ts.function
+        def extra_func(H: T.Tensor(T.int64(4), "int64")):
             H[T.int64(1)] = H[T.int64(0)] + T.int64(1)
 
     before = Before
@@ -204,8 +204,8 @@ def test_symbolic_compute():
 
     @tvm.script.ir_module
     class Expected:
-        @Ts.prim_func(private=True)
-        def shape_func(H: T.Buffer(T.int64(4), "int64")):
+        @Ts.function(private=True)
+        def shape_func(H: T.Tensor(T.int64(4), "int64")):
             # generated compute function
             T.func_attr({"tirx.is_host_func": True})
             H[T.int64(sindex["k+1"])] = H[T.int64(sindex["k"])] + T.int64(1)
@@ -257,7 +257,7 @@ def test_symbolic_compute():
                 "",
                 ty_args=[R.Tuple()],
             )
-            _ = cls.shape_func(shape_heap)
+            _ = R.call_tir_packed(cls.shape_func, (shape_heap,))
             # extra assertion on y's shape after shape computation
             _ = R.call_packed(
                 "vm.builtin.match_shape",
@@ -522,7 +522,7 @@ def test_return_match_check_with_new_expr():
                 ty_args=[R.Tuple()],
             )
 
-            _ = Expected.shape_func(shape_heap)
+            _ = R.call_tir_packed(Expected.shape_func, (shape_heap,))
 
             out = R.call_packed("flatten_matrix", x, ty_args=R.Any)
             _ = R.call_packed(
@@ -545,8 +545,8 @@ def test_return_match_check_with_new_expr():
             )
             return out
 
-        @Ts.prim_func(private=True)
-        def shape_func(H: T.Buffer(T.int64(2), "int64")):
+        @Ts.function(private=True)
+        def shape_func(H: T.Tensor(T.int64(2), "int64")):
             # generated compute function
             T.func_attr({"tirx.is_host_func": True})
             H[T.int64(sindex["n * n"])] = H[T.int64(sindex["n"])] * H[T.int64(sindex["n"])]

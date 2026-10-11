@@ -21,7 +21,7 @@ import math
 
 from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
-from tvm.tirx import PrimFunc
+from tvm.tirx import Function
 
 
 def _is_power_of_two(n: int):
@@ -45,7 +45,7 @@ def gpu_2d_continuous_cumsum(
     in_dtype: str = "int32",
     out_dtype: str | None = None,
     index_bits: int = 64,
-) -> PrimFunc:
+) -> Function:
     """Generate GPU kernel for 2D continuous cumsum, i.e. The cumsum axis is -1
 
     Parameters
@@ -70,7 +70,7 @@ def gpu_2d_continuous_cumsum(
 
     Returns
     -------
-    cumsum : PrimFunc
+    cumsum : Function
         The generated cumsum kernel
     """
 
@@ -101,9 +101,9 @@ def gpu_2d_continuous_cumsum(
         batch: T.int64,
         cur_len: T.int64,
         num_blocks: T.int64,
-        source: T.Buffer,
-        output: T.Buffer,
-        tmp_buf: T.Buffer,
+        source: T.Tensor,
+        output: T.Tensor,
+        tmp_buf: T.Tensor,
         src_offset: T.int64,
         tmp_offset: T.int64,
     ):
@@ -158,8 +158,8 @@ def gpu_2d_continuous_cumsum(
         batch: T.int64,
         cur_len: T.int64,
         num_blocks: T.int64,
-        source: T.Buffer,
-        output: T.Buffer,
+        source: T.Tensor,
+        output: T.Tensor,
         src_offset: T.int64,
         out_offset: T.int64,
     ):
@@ -177,11 +177,11 @@ def gpu_2d_continuous_cumsum(
     m = T.dynamic("m")
     n = T.dynamic("n")
 
-    @Ts.prim_func(private=True)
-    def cumsum(A: T.Buffer([m, n], dtype=in_dtype), Out: T.Buffer([m, n], dtype=out_dtype)):
+    @Ts.function(private=True)
+    def cumsum(A: T.Tensor([m, n], dtype=in_dtype), Out: T.Tensor([m, n], dtype=out_dtype)):
         T.func_attr({"tirx.is_scheduled": True})  # prevent further scheduling
 
-        Tmp = T.alloc_buffer([m, n], dtype=out_dtype)
+        Tmp = T.alloc_tensor([m, n], dtype=out_dtype)
         # LowerIntrin may implement signed FloorDiv using a sign-bit shift.  Keep
         # hierarchy counting division-free so WebGPU can narrow indices to int32.
         total_rounds: T.let[T.int64] = _get_total_rounds(n, log_block_n, index_bits)
@@ -241,7 +241,7 @@ def gpu_3d_axis_1_cumsum(
     tx_len: int = 128,
     in_dtype: str = "int32",
     out_dtype: str | None = None,
-) -> PrimFunc:
+) -> Function:
     """Generate a correctness fallback that scans axis 1 of a contiguous 3D tensor.
 
     Each thread handles one pair of outer and inner indices and scans the
@@ -258,10 +258,10 @@ def gpu_3d_axis_1_cumsum(
     scan = T.dynamic("scan")
     inner = T.dynamic("inner")
 
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def cumsum(
-        A: T.Buffer([outer, scan, inner], dtype=in_dtype),
-        Out: T.Buffer([outer, scan, inner], dtype=out_dtype),
+        A: T.Tensor([outer, scan, inner], dtype=in_dtype),
+        Out: T.Tensor([outer, scan, inner], dtype=out_dtype),
     ):
         T.func_attr({"tirx.is_scheduled": True})
 

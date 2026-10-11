@@ -22,6 +22,7 @@ import tvm.script
 import tvm.testing
 from tvm import relax
 from tvm.ir.base import assert_structural_equal
+from tvm.relax import ExternFunc as _ExternFunc
 from tvm.script import relax as R
 from tvm.script import tirx as T
 
@@ -56,7 +57,7 @@ def test_normalize_function():
 def test_normalize_if():
     cond = relax.Var("cond", R.Tensor([], "bool"))
     x = relax.Var("x", R.Tensor([1], "float32"))
-    # TODO(relax-team): add type and shape inference for IfNode
+    # TODO(relax-team): add type and shape inference for IfExprNode
     y = relax.Var("y")
 
     # Note: the parser automatically normalize the IR written in TVMScript,
@@ -69,7 +70,7 @@ def test_normalize_if():
                     [
                         relax.VarBinding(
                             y,
-                            relax.If(
+                            relax.IfExpr(
                                 cond,
                                 relax.op.multiply(relax.op.add(x, x), relax.op.add(x, x)),
                                 relax.op.add(relax.op.multiply(x, x), relax.op.multiply(x, x)),
@@ -126,9 +127,15 @@ def test_normalize_no_op():
         @R.function
         def foo(x: R.Tensor((m, n), "float32")):
             with R.dataflow():
-                lv0 = R.call_dps_packed("test.op.identity", (x,), R.Tensor((m, n), dtype="float32"))
+                lv0 = R.call_dps_packed(
+                    _ExternFunc("test.op.identity"),
+                    (x,),
+                    ty_args=[R.Tensor((m, n), dtype="float32")],
+                )
                 gv0 = R.call_dps_packed(
-                    "test.op.identity", (lv0,), R.Tensor((m, n), dtype="float32")
+                    _ExternFunc("test.op.identity"),
+                    (lv0,),
+                    ty_args=[R.Tensor((m, n), dtype="float32")],
                 )
                 R.output(gv0)
             return gv0
@@ -198,7 +205,7 @@ def test_normalize_if_branches():
     cond = relax.Var("cond", R.Tensor([], "bool"))
     plus = relax.op.add(x, y)
     mult = relax.op.multiply(x, y)
-    if_node = relax.If(cond, plus, mult)
+    if_node = relax.IfExpr(cond, plus, mult)
     seq = relax.SeqExpr([relax.BindingBlock([relax.VarBinding(z, if_node)])], z)
     f = relax.Function(
         [cond, x, y],
@@ -230,7 +237,7 @@ def test_normalize_if_branches():
 def test_normalize_if_condition():
     cond = relax.Var("cond", R.Tensor([], "bool"))
     x = relax.Var("x", R.Tensor([1], "float32"))
-    # TODO(relax-team): add type and shape inference for IfNode
+    # TODO(relax-team): add type and shape inference for IfExprNode
     y = relax.Var("y")
 
     # The condition is wrapped in a tuple and then indexed
@@ -242,7 +249,7 @@ def test_normalize_if_condition():
                     [
                         relax.VarBinding(
                             y,
-                            relax.If(
+                            relax.IfExpr(
                                 relax.TupleGetItem(relax.Tuple([cond]), 0),
                                 relax.op.add(x, x),
                                 relax.op.multiply(x, x),
@@ -566,7 +573,7 @@ def test_remove_usage_of_void_type_variables():
     `void_var` may require a binding.
 
     This is avoided by normalizing all usage of a void-type
-    variable with an in-line `R.tuple()`.
+    variable with an in-line empty tuple.
     """
     x = relax.Var("x", R.Tuple([]))
     bindings = [
@@ -580,7 +587,7 @@ def test_remove_usage_of_void_type_variables():
     @R.function(private=True, pure=False)
     def expected():
         x = R.assert_op(R.const(True, "bool"))
-        return R.tuple()
+        return ()
 
 
 if __name__ == "__main__":
