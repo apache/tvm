@@ -1155,9 +1155,19 @@ void CodeGenCPU::Dispatch_(const RegionStmtNode* op) {
 
 void CodeGenCPU::Dispatch_(const ForNode* op) {
   EmitDebugLocation(op);
+  // A single iteration needs no nested threadpool launch.  Keep an explicit
+  // parallel_launch region's first loop distributed across its existing tasks.
+  if (op->kind == ForKind::kParallel && IsOne(op->extent) && op->HasTrivialStep() &&
+      op->annotations.empty() &&
+      (parallel_env_.penv == nullptr || parallel_env_.in_parallel_loop)) {
+    auto serial = ffi::make_object<ForNode>(*op);
+    serial->kind = ForKind::kDefault;
+    CodeGenLLVM::Dispatch_(serial.get());
+    return;
+  }
   if (op->kind == ForKind::kDefault || op->kind == ForKind::kUnrolled) {
     CodeGenLLVM::Dispatch_(op);
-  } else if (op->kind == ForKind::kParallel && !tvm::tirx::GetThreadBinding(op).has_value()) {
+  } else if (op->kind == ForKind::kParallel) {
     TVM_FFI_ICHECK(IsZero(op->min))
         << "Parallel launch require canonical loop with zero start index";
     TVM_FFI_ICHECK(op->HasTrivialStep())

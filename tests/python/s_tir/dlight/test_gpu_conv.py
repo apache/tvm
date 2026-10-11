@@ -51,12 +51,12 @@ def test_conv3d():
         C_reindex_pad_local = Ts.sblock_alloc_tensor((1, 14336, 1280), "float16", scope="local")
         pad_A_reindex_pad_shared = Ts.sblock_alloc_tensor((1, 14336, 1184), "float16", scope="shared")
         W_reindex_pad_shared = Ts.sblock_alloc_tensor((1, 1280, 1184), "float16", scope="shared")
-        for ax0_ax2_0_fused in T.thread_binding(20, thread="blockIdx.y"):
-            for ax1_0 in T.thread_binding(448, thread="blockIdx.x"):
-                for ax2_1 in T.thread_binding(1, thread="vthread.y"):
-                    for ax1_1 in T.thread_binding(1, thread="vthread.x"):
-                        for ax2_2 in T.thread_binding(16, thread="threadIdx.y"):
-                            for ax1_2 in T.thread_binding(8, thread="threadIdx.x", annotations={"auto_unroll_max_step": 256, "unroll_explicit": 1}):
+        for ax0_ax2_0_fused in T.parallel(20, annotations={"thread_binding": "blockIdx.y"}):
+            for ax1_0 in T.parallel(448, annotations={"thread_binding": "blockIdx.x"}):
+                for ax2_1 in T.parallel(1, annotations={"thread_binding": "vthread.y"}):
+                    for ax1_1 in T.parallel(1, annotations={"thread_binding": "vthread.x"}):
+                        for ax2_2 in T.parallel(16, annotations={"thread_binding": "threadIdx.y"}):
+                            for ax1_2 in T.parallel(8, annotations={"thread_binding": "threadIdx.x", "auto_unroll_max_step": 256, "unroll_explicit": 1}):
                                 for ax1_3_init, ax2_3_0_init in T.grid(4, 2):
                                     for ax2_3_1_init in T.vectorized(2):
                                         with Ts.sblock("C_init"):
@@ -65,8 +65,8 @@ def test_conv3d():
                                             v2 = Ts.axis.spatial(1280, ax0_ax2_0_fused * 64 + ax2_1 * 64 + ax2_2 * 4 + ax2_3_0_init * 2 + ax2_3_1_init)
                                             C_reindex_pad_local[0, v1, v2] = T.float16(0.0)
                                 for ax3_0 in range(74):
-                                    for ax0_ax1_ax2_fused_0 in T.thread_binding(16, thread="threadIdx.y"):
-                                        for ax0_ax1_ax2_fused_1 in T.thread_binding(8, thread="threadIdx.x"):
+                                    for ax0_ax1_ax2_fused_0 in T.parallel(16, annotations={"thread_binding": "threadIdx.y"}):
+                                        for ax0_ax1_ax2_fused_1 in T.parallel(8, annotations={"thread_binding": "threadIdx.x"}):
                                             for ax0_ax1_ax2_fused_2 in range(2):
                                                 for ax0_ax1_ax2_fused_3 in T.vectorized(2):
                                                     with Ts.sblock("pad_A_reindex_pad_shared"):
@@ -75,8 +75,8 @@ def test_conv3d():
                                                         v2 = Ts.axis.spatial(1184, ax3_0 * 16 + (ax0_ax1_ax2_fused_0 * 32 + ax0_ax1_ax2_fused_1 * 4 + ax0_ax1_ax2_fused_2 * 2 + ax0_ax1_ax2_fused_3) % 16)
                                                         Ts.sblock_attr({"tensor_dim_align": [[0, 1, 8, 2]]})
                                                         pad_A_reindex_pad_shared[v0, v1, v2] = T.if_then_else(v1 < 14308 and v2 < 1176, A[v1, v2 // 392, v2 // 196 % 2, v2 // 14 % 14, v2 % 14], T.float16(0.0))
-                                    for ax0_ax1_ax2_fused_0 in T.thread_binding(16, thread="threadIdx.y"):
-                                        for ax0_ax1_ax2_fused_1 in T.thread_binding(8, thread="threadIdx.x"):
+                                    for ax0_ax1_ax2_fused_0 in T.parallel(16, annotations={"thread_binding": "threadIdx.y"}):
+                                        for ax0_ax1_ax2_fused_1 in T.parallel(8, annotations={"thread_binding": "threadIdx.x"}):
                                             for ax0_ax1_ax2_fused_2 in range(4):
                                                 for ax0_ax1_ax2_fused_3 in T.vectorized(2):
                                                     with Ts.sblock("W_reindex_pad_shared"):

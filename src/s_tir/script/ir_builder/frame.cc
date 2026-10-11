@@ -60,12 +60,22 @@ tvm::tirx::Function FunctionFrameNode::FinalizeFunction(tvm::tirx::Function func
   return func;
 }
 
-void SBlockFrameNode::BindTensorRegion(tvm::tirx::TensorVar tensor, tvm::TensorRegion region) {
-  match_tensors.push_back(tvm::s_tir::MatchTensorRegion(std::move(tensor), std::move(region)));
+void FunctionFrameNode::BindTensorRegion(tvm::tirx::TensorVar tensor, tvm::TensorRegion region,
+                                         ffi::Array<PrimExpr> allocated_addr) {
+  if (auto function = IRBuilder::Current()->FindFrame<tirx::FunctionFrame>()) {
+    TVM_FFI_CHECK(function.value().as<FunctionFrameNode>() != nullptr, ValueError)
+        << "match_tensor requires Ts.function; T.function only accepts TIRx";
+  }
+  SBlockFrame frame = FindSBlockFrame("Ts.match_tensor");
+  frame->match_tensors.push_back(tvm::s_tir::MatchTensorRegion(tensor, std::move(region)));
+  if (!allocated_addr.empty()) {
+    frame->allocated_addresses.push_back(
+        ffi::Tuple<Var, ffi::Array<PrimExpr>>(tensor.var(), std::move(allocated_addr)));
+  }
 }
 
 void SBlockFrameNode::ExitWithScope() {
-  TIRFrameNode::ExitWithScope();
+  ir::StmtFrameNode::ExitWithScope();
 
   // Shared operations remain usable in S-TIR and raw builder contexts, but
   // a TIRx function cannot contain an S-TIR block, even with validation disabled.
@@ -108,11 +118,11 @@ void BlockInitFrameNode::EnterWithScope() {
   if (frame->init.has_value()) {
     TVM_FFI_THROW(ValueError) << "Duplicate block init declaration";
   }
-  TIRFrameNode::EnterWithScope();
+  ir::StmtFrameNode::EnterWithScope();
 }
 
 void BlockInitFrameNode::ExitWithScope() {
-  TIRFrameNode::ExitWithScope();
+  ir::StmtFrameNode::ExitWithScope();
   SBlockFrame frame = FindSBlockFrame("Ts.init");
   frame->init = AsStmt(stmts);
 }

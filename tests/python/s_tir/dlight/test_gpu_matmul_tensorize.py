@@ -53,12 +53,12 @@ def test_matmul_tensorize_too_small():
         compute_reindex_pad_local = Ts.sblock_alloc_tensor((1, (m + 31) // 32 * 32, 64), scope="local")
         X_reindex_pad_shared = Ts.sblock_alloc_tensor((1, (m + 31) // 32 * 32, 256), "float16", scope="shared")
         W_reindex_pad_shared = Ts.sblock_alloc_tensor((1, 64, 256), "float16", scope="shared")
-        for ax0_ax2_0_fused in T.thread_binding(1, thread="blockIdx.y"):
-            for ax1_0 in T.thread_binding((m + 31) // 32, thread="blockIdx.x"):
-                for ax2_1 in T.thread_binding(1, thread="vthread.y"):
-                    for ax1_1 in T.thread_binding(1, thread="vthread.x"):
-                        for ax2_2 in T.thread_binding(16, thread="threadIdx.y"):
-                            for ax1_2 in T.thread_binding(8, thread="threadIdx.x", annotations={"auto_unroll_max_step": 256, "unroll_explicit": 1}):
+        for ax0_ax2_0_fused in T.parallel(1, annotations={"thread_binding": "blockIdx.y"}):
+            for ax1_0 in T.parallel((m + 31) // 32, annotations={"thread_binding": "blockIdx.x"}):
+                for ax2_1 in T.parallel(1, annotations={"thread_binding": "vthread.y"}):
+                    for ax1_1 in T.parallel(1, annotations={"thread_binding": "vthread.x"}):
+                        for ax2_2 in T.parallel(16, annotations={"thread_binding": "threadIdx.y"}):
+                            for ax1_2 in T.parallel(8, annotations={"thread_binding": "threadIdx.x", "auto_unroll_max_step": 256, "unroll_explicit": 1}):
                                 for ax1_3_init, ax2_3_0_init in T.grid(4, 2):
                                     for ax2_3_1_init in T.vectorized(2):
                                         with Ts.sblock("compute_init"):
@@ -69,8 +69,8 @@ def test_matmul_tensorize_too_small():
                                             Ts.writes(compute_reindex_pad_local[0, v1, v2])
                                             compute_reindex_pad_local[0, v1, v2] = T.float32(0)
                                 for ax3_0 in range(16):
-                                    for ax0_ax1_ax2_fused_0 in T.thread_binding(16, thread="threadIdx.y"):
-                                        for ax0_ax1_ax2_fused_1 in T.thread_binding(8, thread="threadIdx.x"):
+                                    for ax0_ax1_ax2_fused_0 in T.parallel(16, annotations={"thread_binding": "threadIdx.y"}):
+                                        for ax0_ax1_ax2_fused_1 in T.parallel(8, annotations={"thread_binding": "threadIdx.x"}):
                                             for ax0_ax1_ax2_fused_2 in range(2):
                                                 for ax0_ax1_ax2_fused_3 in T.vectorized(2):
                                                     with Ts.sblock("X_reindex_pad_shared"):
@@ -81,8 +81,8 @@ def test_matmul_tensorize_too_small():
                                                         Ts.writes(X_reindex_pad_shared[v0, v1, v2])
                                                         Ts.sblock_attr({"tensor_dim_align": [[0, 1, 8, 2]]})
                                                         X_reindex_pad_shared[v0, v1, v2] = T.if_then_else(v1 < m, X[v1, v2], T.float16(0))
-                                    for ax0_ax1_ax2_fused_0 in T.thread_binding(16, thread="threadIdx.y"):
-                                        for ax0_ax1_ax2_fused_1 in T.thread_binding(8, thread="threadIdx.x"):
+                                    for ax0_ax1_ax2_fused_0 in T.parallel(16, annotations={"thread_binding": "threadIdx.y"}):
+                                        for ax0_ax1_ax2_fused_1 in T.parallel(8, annotations={"thread_binding": "threadIdx.x"}):
                                             for ax0_ax1_ax2_fused_2 in range(4):
                                                 for ax0_ax1_ax2_fused_3 in T.vectorized(2):
                                                     with Ts.sblock("W_reindex_pad_shared"):
@@ -173,11 +173,11 @@ def test_matmul_metal():
         B_reindex_shared_metal_simdgroup = Ts.sblock_alloc_tensor((1, 4096, 28672), "float16", scope="metal.simdgroup")
         C_reindex_pad_metal_simdgroup = Ts.sblock_alloc_tensor((1, (batch_size + 15) // 16 * 16, 28672), "float16", scope="metal.simdgroup")
         C_reindex_pad_shared = Ts.sblock_alloc_tensor((1, (batch_size + 15) // 16 * 16, 28672), "float16", scope="shared")
-        for ax0 in T.thread_binding(1, thread="blockIdx.z"):
-            for ax1_0 in T.thread_binding((batch_size + 15) // 16, thread="blockIdx.x"):
-                for ax2_0 in T.thread_binding(448, thread="blockIdx.y"):
-                    for ax1_1 in T.thread_binding(1, thread="threadIdx.y"):
-                        for ax2_1 in T.thread_binding(4, thread="threadIdx.z"):
+        for ax0 in T.parallel(1, annotations={"thread_binding": "blockIdx.z"}):
+            for ax1_0 in T.parallel((batch_size + 15) // 16, annotations={"thread_binding": "blockIdx.x"}):
+                for ax2_0 in T.parallel(448, annotations={"thread_binding": "blockIdx.y"}):
+                    for ax1_1 in T.parallel(1, annotations={"thread_binding": "threadIdx.y"}):
+                        for ax2_1 in T.parallel(4, annotations={"thread_binding": "threadIdx.z"}):
                             for ax1_2_init, ax2_2_init, ax1_3_init_0, ax2_3_init_0 in T.grid(2, 2, 1, 1):
                                 with Ts.sblock("C_init_o"):
                                     v0_o = Ts.axis.spatial(1, ax0)
@@ -189,9 +189,9 @@ def test_matmul_metal():
                                     T.metal.make_filled_simdgroup_matrix(A_1.data, A_1.elem_offset // A_1.strides[0] // 8 * (A_1.strides[0] // 8) + A_1.elem_offset % A_1.strides[0] // 8, T.float32(0), 8, 8)
                             for ax3_0 in range(128):
                                 for ax0_1, ax1_ax2_fused_0 in T.grid(1, 1):
-                                    for ax1_ax2_fused_1 in T.thread_binding(4, thread="threadIdx.z"):
-                                        for ax1_ax2_fused_2 in T.thread_binding(1, thread="threadIdx.y"):
-                                            for ax1_ax2_fused_3 in T.thread_binding(32, thread="threadIdx.x"):
+                                    for ax1_ax2_fused_1 in T.parallel(4, annotations={"thread_binding": "threadIdx.z"}):
+                                        for ax1_ax2_fused_2 in T.parallel(1, annotations={"thread_binding": "threadIdx.y"}):
+                                            for ax1_ax2_fused_3 in T.parallel(32, annotations={"thread_binding": "threadIdx.x"}):
                                                 for ax1_ax2_fused_4 in T.vectorized(4):
                                                     with Ts.sblock("A_reindex_pad_shared"):
                                                         v0 = Ts.axis.spatial(1, ax0_1)
@@ -201,9 +201,9 @@ def test_matmul_metal():
                                                         Ts.writes(A_reindex_pad_shared[v0, v1, v2])
                                                         A_reindex_pad_shared[v0, v1, v2] = T.if_then_else(v1 < batch_size, A[v1, 0, v2], T.float16(0))
                                 for ax0_1, ax1_ax2_fused_0 in T.grid(1, 4):
-                                    for ax1_ax2_fused_1 in T.thread_binding(4, thread="threadIdx.z"):
-                                        for ax1_ax2_fused_2 in T.thread_binding(1, thread="threadIdx.y"):
-                                            for ax1_ax2_fused_3 in T.thread_binding(32, thread="threadIdx.x"):
+                                    for ax1_ax2_fused_1 in T.parallel(4, annotations={"thread_binding": "threadIdx.z"}):
+                                        for ax1_ax2_fused_2 in T.parallel(1, annotations={"thread_binding": "threadIdx.y"}):
+                                            for ax1_ax2_fused_3 in T.parallel(32, annotations={"thread_binding": "threadIdx.x"}):
                                                 for ax1_ax2_fused_4 in T.vectorized(4):
                                                     with Ts.sblock("B_reindex_shared"):
                                                         v0 = Ts.axis.spatial(1, ax0_1)
@@ -256,9 +256,9 @@ def test_matmul_metal():
                                     C_1 = Ts.match_tensor(C_reindex_pad_shared[v0_o, v1_o * 8:v1_o * 8 + 8, v2_o * 8:v2_o * 8 + 8], (8, 8), "float16", strides=(C_3_s0, C_3_s1), scope="shared", offset_factor=1)
                                     T.metal.simdgroup_store(A_1.data, A_1.elem_offset // A_1.strides[0] // 8 * (A_1.strides[0] // 8) + A_1.elem_offset % A_1.strides[0] // 8, C_1.ptr_to([0] * len(C_1.shape)), C_1.strides[0], 8, 8, T.bool(False))
                     for ax0_1, ax1_ax2_fused_0 in T.grid(1, 2):
-                        for ax1_ax2_fused_1 in T.thread_binding(4, thread="threadIdx.z"):
-                            for ax1_ax2_fused_2 in T.thread_binding(1, thread="threadIdx.y"):
-                                for ax1_ax2_fused_3 in T.thread_binding(32, thread="threadIdx.x"):
+                        for ax1_ax2_fused_1 in T.parallel(4, annotations={"thread_binding": "threadIdx.z"}):
+                            for ax1_ax2_fused_2 in T.parallel(1, annotations={"thread_binding": "threadIdx.y"}):
+                                for ax1_ax2_fused_3 in T.parallel(32, annotations={"thread_binding": "threadIdx.x"}):
                                     for ax1_ax2_fused_4 in T.vectorized(4):
                                         with Ts.sblock("C_reindex_pad_shared"):
                                             v0 = Ts.axis.spatial(1, ax0_1)
@@ -338,11 +338,11 @@ def test_matmul_metal_int4_quant():
         B_reindex_shared_metal_simdgroup = Ts.sblock_alloc_tensor((1, 4096, 28672), "float16", scope="metal.simdgroup")
         C_reindex_pad_metal_simdgroup = Ts.sblock_alloc_tensor((1, (batch_size + 15) // 16 * 16, 28672), "float16", scope="metal.simdgroup")
         C_reindex_pad_shared = Ts.sblock_alloc_tensor((1, (batch_size + 15) // 16 * 16, 28672), "float16", scope="shared")
-        for ax0 in T.thread_binding(1, thread="blockIdx.z"):
-            for ax1_0 in T.thread_binding((batch_size + 15) // 16, thread="blockIdx.x"):
-                for ax2_0 in T.thread_binding(448, thread="blockIdx.y"):
-                    for ax1_1 in T.thread_binding(1, thread="threadIdx.y"):
-                        for ax2_1 in T.thread_binding(4, thread="threadIdx.z"):
+        for ax0 in T.parallel(1, annotations={"thread_binding": "blockIdx.z"}):
+            for ax1_0 in T.parallel((batch_size + 15) // 16, annotations={"thread_binding": "blockIdx.x"}):
+                for ax2_0 in T.parallel(448, annotations={"thread_binding": "blockIdx.y"}):
+                    for ax1_1 in T.parallel(1, annotations={"thread_binding": "threadIdx.y"}):
+                        for ax2_1 in T.parallel(4, annotations={"thread_binding": "threadIdx.z"}):
                             for ax1_2_init, ax2_2_init, ax1_3_init_0, ax2_3_init_0 in T.grid(2, 2, 1, 1):
                                 with Ts.sblock("NT_matmul_init_o"):
                                     v0_o = Ts.axis.spatial(1, ax0)
@@ -354,9 +354,9 @@ def test_matmul_metal_int4_quant():
                                     T.metal.make_filled_simdgroup_matrix(A_1.data, A_1.elem_offset // A_1.strides[0] // 8 * (A_1.strides[0] // 8) + A_1.elem_offset % A_1.strides[0] // 8, T.float32(0), 8, 8)
                             for ax3_0 in range(128):
                                 for ax0_1, ax1_ax2_fused_0 in T.grid(1, 1):
-                                    for ax1_ax2_fused_1 in T.thread_binding(4, thread="threadIdx.z"):
-                                        for ax1_ax2_fused_2 in T.thread_binding(1, thread="threadIdx.y"):
-                                            for ax1_ax2_fused_3 in T.thread_binding(32, thread="threadIdx.x"):
+                                    for ax1_ax2_fused_1 in T.parallel(4, annotations={"thread_binding": "threadIdx.z"}):
+                                        for ax1_ax2_fused_2 in T.parallel(1, annotations={"thread_binding": "threadIdx.y"}):
+                                            for ax1_ax2_fused_3 in T.parallel(32, annotations={"thread_binding": "threadIdx.x"}):
                                                 for ax1_ax2_fused_4 in T.vectorized(4):
                                                     with Ts.sblock("A_reindex_pad_shared"):
                                                         v0 = Ts.axis.spatial(1, ax0_1)
@@ -366,9 +366,9 @@ def test_matmul_metal_int4_quant():
                                                         Ts.writes(A_reindex_pad_shared[v0, v1, v2])
                                                         A_reindex_pad_shared[v0, v1, v2] = T.if_then_else(v1 < batch_size, A[v1, 0, v2], T.float16(0))
                                 for ax0_1, ax1_ax2_fused_0 in T.grid(1, 4):
-                                    for ax1_ax2_fused_1 in T.thread_binding(4, thread="threadIdx.z"):
-                                        for ax1_ax2_fused_2 in T.thread_binding(1, thread="threadIdx.y"):
-                                            for ax1_ax2_fused_3 in T.thread_binding(32, thread="threadIdx.x"):
+                                    for ax1_ax2_fused_1 in T.parallel(4, annotations={"thread_binding": "threadIdx.z"}):
+                                        for ax1_ax2_fused_2 in T.parallel(1, annotations={"thread_binding": "threadIdx.y"}):
+                                            for ax1_ax2_fused_3 in T.parallel(32, annotations={"thread_binding": "threadIdx.x"}):
                                                 for ax1_ax2_fused_4 in T.vectorized(4):
                                                     with Ts.sblock("B_reindex_shared"):
                                                         v0 = Ts.axis.spatial(1, ax0_1)
@@ -421,9 +421,9 @@ def test_matmul_metal_int4_quant():
                                     C_1 = Ts.match_tensor(C_reindex_pad_shared[v0_o, v1_o * 8:v1_o * 8 + 8, v2_o * 8:v2_o * 8 + 8], (8, 8), "float16", strides=(C_3_s0, C_3_s1), scope="shared", offset_factor=1)
                                     T.metal.simdgroup_store(A_1.data, A_1.elem_offset // A_1.strides[0] // 8 * (A_1.strides[0] // 8) + A_1.elem_offset % A_1.strides[0] // 8, C_1.ptr_to([0] * len(C_1.shape)), C_1.strides[0], 8, 8, T.bool(False))
                     for ax0_1, ax1_ax2_fused_0 in T.grid(1, 2):
-                        for ax1_ax2_fused_1 in T.thread_binding(4, thread="threadIdx.z"):
-                            for ax1_ax2_fused_2 in T.thread_binding(1, thread="threadIdx.y"):
-                                for ax1_ax2_fused_3 in T.thread_binding(32, thread="threadIdx.x"):
+                        for ax1_ax2_fused_1 in T.parallel(4, annotations={"thread_binding": "threadIdx.z"}):
+                            for ax1_ax2_fused_2 in T.parallel(1, annotations={"thread_binding": "threadIdx.y"}):
+                                for ax1_ax2_fused_3 in T.parallel(32, annotations={"thread_binding": "threadIdx.x"}):
                                     for ax1_ax2_fused_4 in T.vectorized(4):
                                         with Ts.sblock("C_reindex_pad_shared"):
                                             v0 = Ts.axis.spatial(1, ax0_1)

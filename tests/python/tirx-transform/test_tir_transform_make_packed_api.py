@@ -234,7 +234,7 @@ def test_return_from_parallel_scope_is_rejected():
     """A parallel loop cannot return from its enclosing function."""
 
     i = tirx.Var("i", "int32")
-    body = tvm.ir.For(i, 0, 1, tvm.ir.ForKind.PARALLEL, tvm.ir.Return(i))
+    body = tvm.ir.For(i, 0, 2, tvm.ir.ForKind.PARALLEL, tvm.ir.Return(i))
     func = tirx.Function([], body, tvm.ir.PrimType("int32"))
     func = func.with_attr("global_symbol", "main")
     func = func.with_attr("target", tvm.target.Target("llvm", host="llvm"))

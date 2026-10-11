@@ -31,7 +31,7 @@ void Annotate(ScheduleState self, const StmtSRef& sref, const ffi::String& ann_k
   // Extract annotation
   const ffi::Map<ffi::String, ffi::Any>* annotations = nullptr;
   if (const auto* loop = sref->StmtAs<ForNode>()) {
-    TVM_FFI_CHECK(ann_key != tvm::tirx::attr::kThreadBinding, ValueError)
+    TVM_FFI_CHECK(ann_key != tvm::s_tir::attr::kThreadBinding, ValueError)
         << "Use loop scheduling primitives to change thread binding";
     annotations = &loop->annotations;
   } else if (const auto* block = sref->StmtAs<SBlockNode>()) {
@@ -66,7 +66,7 @@ void Unannotate(ScheduleState self, const StmtSRef& sref, const ffi::String& ann
   // Extract annotation
   const ffi::Map<ffi::String, ffi::Any>* annotations = nullptr;
   if (const auto* loop = sref->StmtAs<ForNode>()) {
-    TVM_FFI_CHECK(ann_key != tvm::tirx::attr::kThreadBinding, ValueError)
+    TVM_FFI_CHECK(ann_key != tvm::s_tir::attr::kThreadBinding, ValueError)
         << "Use loop scheduling primitives to change thread binding";
     annotations = &loop->annotations;
   } else if (const auto* block = sref->StmtAs<SBlockNode>()) {

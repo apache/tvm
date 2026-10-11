@@ -104,9 +104,9 @@ class MultiLevelTiledConv2D:
             with Ts.sblock("pad_temp"):
                 i0_1, i1_1, i2_1, i3_1 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
                 pad_temp[i0_1, i1_1, i2_1, i3_1] = T.if_then_else(i2_1 >= 1 and i2_1 < 57 and i3_1 >= 1 and i3_1 < 57, X[i0_1, i1_1, i2_1 - 1, i3_1 - 1], T.float32(0))
-        for i0_0_i1_0_i2_0_i3_0_fused in T.thread_binding(0, 224, thread="blockIdx.x"):
-            for i0_1_i1_1_i2_1_i3_1_fused in T.thread_binding(0, 2, thread="vthread.x"):
-                for i0_2_i1_2_i2_2_i3_2_fused in T.thread_binding(0, 8, thread="threadIdx.x"):
+        for i0_0_i1_0_i2_0_i3_0_fused in T.parallel(0, 224, annotations={"thread_binding": "blockIdx.x"}):
+            for i0_1_i1_1_i2_1_i3_1_fused in T.parallel(0, 2, annotations={"thread_binding": "vthread.x"}):
+                for i0_2_i1_2_i2_2_i3_2_fused in T.parallel(0, 8, annotations={"thread_binding": "threadIdx.x"}):
                     for i4_0, i5_0, i6_0 in T.grid(1, 3, 1):
                         for ax0_ax1_ax2_ax3_fused_0 in T.serial(0, 40960, annotations={"meta_schedule.cooperative_fetch":1}):
                             for ax0_ax1_ax2_ax3_fused_1 in T.vectorized(0, 3):
@@ -152,9 +152,9 @@ class MultiLevelTiledConv2DAfterInline:
     @Ts.function
     def main(X: T.Tensor((1, 512, 56, 56), "float32"), W: T.Tensor((512, 512, 3, 3), "float32"), B: T.Tensor((512, 1, 1), "float32"), bn_scale: T.Tensor((512, 1, 1), "float32"), bn_offset: T.Tensor((512, 1, 1), "float32"), compute: T.Tensor((1, 512, 56, 56), "float32")) -> None:
         compute_local = Ts.sblock_alloc_tensor([1, 512, 56, 56], dtype="float32", scope="local")
-        for i0_0_i1_0_i2_0_i3_0_fused in T.thread_binding(224, thread="blockIdx.x"):
-            for i0_1_i1_1_i2_1_i3_1_fused in T.thread_binding(2, thread="vthread.x"):
-                for i0_2_i1_2_i2_2_i3_2_fused in T.thread_binding(8, thread="threadIdx.x"):
+        for i0_0_i1_0_i2_0_i3_0_fused in T.parallel(224, annotations={"thread_binding": "blockIdx.x"}):
+            for i0_1_i1_1_i2_1_i3_1_fused in T.parallel(2, annotations={"thread_binding": "vthread.x"}):
+                for i0_2_i1_2_i2_2_i3_2_fused in T.parallel(8, annotations={"thread_binding": "threadIdx.x"}):
                     for i4_0, i5_0, i6_0, i4_1, i5_1, i6_1, i0_3, i1_3, i2_3, i3_3, i4_2, i5_2, i6_2, i0_4, i1_4, i2_4, i3_4 in T.grid(1, 3, 1, 32, 1, 1, 1, 1, 1, 1, 16, 1, 3, 1, 8, 2, 28):
                         with Ts.sblock("compute"):
                             nn = Ts.axis.spatial(1, 0)

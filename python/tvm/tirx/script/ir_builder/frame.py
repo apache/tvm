@@ -28,12 +28,8 @@ from tvm.script.ir_builder.frame import ThenFrame as ThenFrame
 from tvm.script.ir_builder.frame import WhileFrame as WhileFrame
 
 
-@_register_object("script.ir_builder.tirx.TIRFrame")
-class TIRFrame(StmtFrame): ...
-
-
 @_register_object("script.ir_builder.tirx.FunctionFrame")
-class FunctionFrame(TIRFrame):
+class FunctionFrame(StmtFrame):
     """Native function frame retaining signature and finalized results."""
 
     @property

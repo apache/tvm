@@ -43,8 +43,8 @@ def _run_tensormap_encode(shape, dtype, encode_args):
         T.call_packed("runtime.cuTensorMapEncodeTiled", A_map, dtype, len(shape), A.data, *encode_args)  # noqa: E501
 
         T.device_entry()
-        for blockIdx in T.thread_binding(1, thread="blockIdx.x"):
-            for threadIdx in T.thread_binding(1, thread="threadIdx.x"):
+        with T.launch_thread("blockIdx.x", 1) as blockIdx:
+            with T.launch_thread("threadIdx.x", 1) as threadIdx:
                 T.evaluate(blockIdx + threadIdx)
         # fmt: on
 
@@ -450,8 +450,8 @@ def test_cp_async_bulk_tensor_global_to_shared_unicast(dtype, inputs):
             )
 
             T.device_entry()
-            for blockIdx in T.thread_binding(1, thread="blockIdx.x"):
-                for threadIdx in T.thread_binding(128, thread="threadIdx.x"):
+            with T.launch_thread("blockIdx.x", 1) as blockIdx:
+                with T.launch_thread("threadIdx.x", 128) as threadIdx:
                     bar = T.shared_scalar("uint64")
                     phase: T.int32
                     A_smem = T.alloc_tensor(
@@ -654,8 +654,8 @@ def test_cp_async_bulk_tensor_global_to_shared_swizzle(swizzle, dtype):
             )
 
             T.device_entry()
-            for blockIdx in T.thread_binding(1, thread="blockIdx.x"):
-                for threadIdx in T.thread_binding(128, thread="threadIdx.x"):
+            with T.launch_thread("blockIdx.x", 1) as blockIdx:
+                with T.launch_thread("threadIdx.x", 128) as threadIdx:
                     A_smem = T.alloc_tensor(
                         ty_args=[T.Tensor((total_elems,), dtype, scope="shared", align=128)]
                     )
@@ -758,9 +758,9 @@ def test_cp_async_bulk_tensor_global_to_shared_multicast1(inputs):
             )
 
             T.device_entry()
-            for clusterCtaIdx in T.thread_binding(4, thread="clusterCtaIdx.x"):
-                for bx in T.thread_binding(4, thread="blockIdx.x"):
-                    for tx in T.thread_binding(128, thread="threadIdx.x"):
+            with T.launch_thread("clusterCtaIdx.x", 4) as clusterCtaIdx:
+                with T.launch_thread("blockIdx.x", 4) as bx:
+                    with T.launch_thread("threadIdx.x", 128) as tx:
                         bar = T.shared_scalar("uint64")
                         phase: T.int32
                         A_smem = T.alloc_tensor(
@@ -871,9 +871,9 @@ def test_cp_async_bulk_tensor_global_to_shared_multicast2(inputs):
             )
 
             T.device_entry()
-            for clusterCtaIdx in T.thread_binding(4, thread="clusterCtaIdx.x"):
-                for bx in T.thread_binding(4, thread="blockIdx.x"):
-                    for tx in T.thread_binding(128, thread="threadIdx.x"):
+            with T.launch_thread("clusterCtaIdx.x", 4) as clusterCtaIdx:
+                with T.launch_thread("blockIdx.x", 4) as bx:
+                    with T.launch_thread("threadIdx.x", 128) as tx:
                         bar = T.shared_scalar("uint64")
                         phase: T.int32
                         A_smem = T.alloc_tensor(

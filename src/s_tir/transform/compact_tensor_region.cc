@@ -187,9 +187,9 @@ class TensorAccessRegionCollector : public StmtExprVisitor {
 
   ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) final {
     Range loop_range = Range::FromMinExtent(op->min, op->extent);
-    IterVar iter = tvm::tirx::GetThreadBinding(op).has_value()
+    IterVar iter = tvm::s_tir::GetThreadBinding(op).has_value()
                        ? IterVar(std::nullopt, op->loop_var, IterVarType::kThreadIndex,
-                                 tvm::tirx::GetThreadBinding(op).value())
+                                 tvm::s_tir::GetThreadBinding(op).value())
                        : IterVar(std::nullopt, op->loop_var, IterVarType::kDataPar);
     ancestor_iters_.push_back(iter);
     dom_analyzer_->Bind(op->loop_var, loop_range);

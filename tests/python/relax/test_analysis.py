@@ -611,8 +611,8 @@ def test_reshape_pattern_reshape_scheduled():
         rxplaceholder: T.Tensor((1, 2, 3, 4), "float32"),
         T_reshape: T.Tensor((8, 3), "float32"),
     ):
-        for i0_i1_fused_0 in T.thread_binding(1, thread="blockIdx.x"):
-            for i0_i1_fused_1 in T.thread_binding(24, thread="threadIdx.x"):
+        for i0_i1_fused_0 in T.parallel(1, annotations={"thread_binding": "blockIdx.x"}):
+            for i0_i1_fused_1 in T.parallel(24, annotations={"thread_binding": "threadIdx.x"}):
                 with Ts.sblock("T_reshape"):
                     ax0 = Ts.axis.spatial(8, (i0_i1_fused_0 * 24 + i0_i1_fused_1) // 3)
                     ax1 = Ts.axis.spatial(3, (i0_i1_fused_0 * 24 + i0_i1_fused_1) % 3)

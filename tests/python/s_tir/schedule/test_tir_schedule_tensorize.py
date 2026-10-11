@@ -830,10 +830,10 @@ def test_tensorize_arith_simplification():
     def decode_i4s_to_int32_to_f16():
         B_decode_local = Ts.sblock_alloc_tensor((16384, 16384), "float16", scope="local")
         B_local = Ts.sblock_alloc_tensor((16384, 2048), "int32", scope="local")
-        for ax0_0 in T.thread_binding(8192, thread="blockIdx.x"):
-            for ax0_1 in T.thread_binding(2, thread="threadIdx.y"):
+        for ax0_0 in T.parallel(8192, annotations={"thread_binding": "blockIdx.x"}):
+            for ax0_1 in T.parallel(2, annotations={"thread_binding": "threadIdx.y"}):
                 for ax1_0 in range(32):
-                    for ax1_1 in T.thread_binding(64, thread="threadIdx.x"):
+                    for ax1_1 in T.parallel(64, annotations={"thread_binding": "threadIdx.x"}):
                         for ax0, ax1 in T.grid(1, 8):
                             with Ts.sblock("B_decode_local"):
                                 v0 = Ts.axis.spatial(16384, ax0_0 * 2 + ax0_1 + ax0)
@@ -846,10 +846,10 @@ def test_tensorize_arith_simplification():
     def tensorized_decode_i4s_to_int32_to_f16():
         B_decode_local = Ts.sblock_alloc_tensor((16384, 16384), "float16", scope="local")
         B_local = Ts.sblock_alloc_tensor((16384, 2048), "int32", scope="local")
-        for ax0_0 in T.thread_binding(8192, thread="blockIdx.x"):
-            for ax0_1 in T.thread_binding(2, thread="threadIdx.y"):
+        for ax0_0 in T.parallel(8192, annotations={"thread_binding": "blockIdx.x"}):
+            for ax0_1 in T.parallel(2, annotations={"thread_binding": "threadIdx.y"}):
                 for ax1_0 in range(32):
-                    for ax1_1 in T.thread_binding(64, thread="threadIdx.x"):
+                    for ax1_1 in T.parallel(64, annotations={"thread_binding": "threadIdx.x"}):
                         for ax0 in range(1):
                             with Ts.sblock("B_decode_local_o"):
                                 v0_o = Ts.axis.spatial(16384, ax0_0 * 2 + ax0_1 + ax0)

@@ -272,8 +272,6 @@ class ForMatcher : public TensorizeComparator {
     if (!DefEqual(op->loop_var, rhs->loop_var)) return false;
     // Only handle the case where the loop start from 0
     if (!IsZero(op->min) || !IsZero(rhs->min)) return false;
-    if (tvm::tirx::GetThreadBinding(op).has_value() || tvm::tirx::GetThreadBinding(rhs).has_value())
-      return false;
     if (op->kind != ForKind::kDefault || op->kind != rhs->kind) return false;
     if (!op->annotations.empty() || !rhs->annotations.empty()) return false;
     // Match the extents of loops

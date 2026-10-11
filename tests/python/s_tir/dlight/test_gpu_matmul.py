@@ -48,12 +48,12 @@ def test_matmul():
         matmul_reindex_pad_local = Ts.sblock_alloc_tensor((T.int64(1), (m + T.int64(31)) // T.int64(32) * T.int64(32), T.int64(4096)), scope="local")
         inp0_reindex_pad_shared = Ts.sblock_alloc_tensor((T.int64(1), (m + T.int64(31)) // T.int64(32) * T.int64(32), T.int64(4096)), scope="shared")
         inp1_reindex_shared = Ts.sblock_alloc_tensor((T.int64(1), T.int64(4096), T.int64(4096)), scope="shared")
-        for ax0_ax2_0_fused in T.thread_binding(T.int64(64), thread="blockIdx.y"):
-            for ax1_0 in T.thread_binding((m + T.int64(31)) // T.int64(32), thread="blockIdx.x"):
-                for ax2_1 in T.thread_binding(T.int64(1), thread="vthread.y"):
-                    for ax1_1 in T.thread_binding(T.int64(1), thread="vthread.x"):
-                        for ax2_2 in T.thread_binding(T.int64(16), thread="threadIdx.y"):
-                            for ax1_2 in T.thread_binding(T.int64(8), thread="threadIdx.x", annotations={"auto_unroll_max_step": 256, "unroll_explicit": 1}):
+        for ax0_ax2_0_fused in T.parallel(T.int64(64), annotations={"thread_binding": "blockIdx.y"}):
+            for ax1_0 in T.parallel((m + T.int64(31)) // T.int64(32), annotations={"thread_binding": "blockIdx.x"}):
+                for ax2_1 in T.parallel(T.int64(1), annotations={"thread_binding": "vthread.y"}):
+                    for ax1_1 in T.parallel(T.int64(1), annotations={"thread_binding": "vthread.x"}):
+                        for ax2_2 in T.parallel(T.int64(16), annotations={"thread_binding": "threadIdx.y"}):
+                            for ax1_2 in T.parallel(T.int64(8), annotations={"thread_binding": "threadIdx.x", "auto_unroll_max_step": 256, "unroll_explicit": 1}):
                                 for ax1_3_init, ax2_3_0_init in T.grid(T.int64(4), T.int64(2)):
                                     for ax2_3_1_init in T.vectorized(T.int64(2)):
                                         with Ts.sblock("matmul_init"):
@@ -64,8 +64,8 @@ def test_matmul():
                                             Ts.writes(matmul_reindex_pad_local[T.int64(0), v1, v2])
                                             matmul_reindex_pad_local[T.int64(0), v1, v2] = T.float32(0)
                                 for ax3_0 in range(T.int64(256)):
-                                    for ax0_ax1_ax2_fused_0 in T.thread_binding(T.int64(16), thread="threadIdx.y"):
-                                        for ax0_ax1_ax2_fused_1 in T.thread_binding(T.int64(8), thread="threadIdx.x"):
+                                    for ax0_ax1_ax2_fused_0 in T.parallel(T.int64(16), annotations={"thread_binding": "threadIdx.y"}):
+                                        for ax0_ax1_ax2_fused_1 in T.parallel(T.int64(8), annotations={"thread_binding": "threadIdx.x"}):
                                             for ax0_ax1_ax2_fused_2 in range(T.int64(2)):
                                                 for ax0_ax1_ax2_fused_3 in T.vectorized(T.int64(2)):
                                                     with Ts.sblock("inp0_reindex_pad_shared"):
@@ -76,8 +76,8 @@ def test_matmul():
                                                         Ts.writes(inp0_reindex_pad_shared[v0, v1, v2])
                                                         Ts.sblock_attr({"tensor_dim_align": [[0, 1, 8, 2]]})
                                                         inp0_reindex_pad_shared[v0, v1, v2] = T.if_then_else(v1 < m, inp0[v0, v1, v2], T.float32(0))
-                                    for ax0_ax1_ax2_fused_0 in T.thread_binding(T.int64(16), thread="threadIdx.y"):
-                                        for ax0_ax1_ax2_fused_1 in T.thread_binding(T.int64(8), thread="threadIdx.x"):
+                                    for ax0_ax1_ax2_fused_0 in T.parallel(T.int64(16), annotations={"thread_binding": "threadIdx.y"}):
+                                        for ax0_ax1_ax2_fused_1 in T.parallel(T.int64(8), annotations={"thread_binding": "threadIdx.x"}):
                                             for ax0_ax1_ax2_fused_2 in range(T.int64(4)):
                                                 for ax0_ax1_ax2_fused_3 in T.vectorized(T.int64(2)):
                                                     with Ts.sblock("inp1_reindex_shared"):
@@ -140,12 +140,12 @@ def test_matmul_int32():
         matmul_reindex_pad_local = Ts.sblock_alloc_tensor((1, (m + 31) // 32 * 32, 4096), scope="local")
         inp0_reindex_pad_shared = Ts.sblock_alloc_tensor((1, (m + 31) // 32 * 32, 4096), scope="shared")
         inp1_reindex_shared = Ts.sblock_alloc_tensor((1, 4096, 4096), scope="shared")
-        for ax0_ax2_0_fused in T.thread_binding(64, thread="blockIdx.y"):
-            for ax1_0 in T.thread_binding((m + 31) // 32, thread="blockIdx.x"):
-                for ax2_1 in T.thread_binding(1, thread="vthread.y"):
-                    for ax1_1 in T.thread_binding(1, thread="vthread.x"):
-                        for ax2_2 in T.thread_binding(16, thread="threadIdx.y"):
-                            for ax1_2 in T.thread_binding(8, thread="threadIdx.x", annotations={"auto_unroll_max_step": 256, "unroll_explicit": 1}):
+        for ax0_ax2_0_fused in T.parallel(64, annotations={"thread_binding": "blockIdx.y"}):
+            for ax1_0 in T.parallel((m + 31) // 32, annotations={"thread_binding": "blockIdx.x"}):
+                for ax2_1 in T.parallel(1, annotations={"thread_binding": "vthread.y"}):
+                    for ax1_1 in T.parallel(1, annotations={"thread_binding": "vthread.x"}):
+                        for ax2_2 in T.parallel(16, annotations={"thread_binding": "threadIdx.y"}):
+                            for ax1_2 in T.parallel(8, annotations={"thread_binding": "threadIdx.x", "auto_unroll_max_step": 256, "unroll_explicit": 1}):
                                 for ax1_3_init, ax2_3_0_init in T.grid(4, 2):
                                     for ax2_3_1_init in T.vectorized(2):
                                         with Ts.sblock("matmul_init"):
@@ -156,8 +156,8 @@ def test_matmul_int32():
                                             Ts.writes(matmul_reindex_pad_local[0, v1, v2])
                                             matmul_reindex_pad_local[0, v1, v2] = T.float32(0)
                                 for ax3_0 in range(256):
-                                    for ax0_ax1_ax2_fused_0 in T.thread_binding(16, thread="threadIdx.y"):
-                                        for ax0_ax1_ax2_fused_1 in T.thread_binding(8, thread="threadIdx.x"):
+                                    for ax0_ax1_ax2_fused_0 in T.parallel(16, annotations={"thread_binding": "threadIdx.y"}):
+                                        for ax0_ax1_ax2_fused_1 in T.parallel(8, annotations={"thread_binding": "threadIdx.x"}):
                                             for ax0_ax1_ax2_fused_2 in range(2):
                                                 for ax0_ax1_ax2_fused_3 in T.vectorized(2):
                                                     with Ts.sblock("inp0_reindex_pad_shared"):
@@ -168,8 +168,8 @@ def test_matmul_int32():
                                                         Ts.writes(inp0_reindex_pad_shared[v0, v1, v2])
                                                         Ts.sblock_attr({"tensor_dim_align": [[0, 1, 8, 2]]})
                                                         inp0_reindex_pad_shared[v0, v1, v2] = T.if_then_else(v1 < m, inp0[v0, v1, v2], T.float32(0))
-                                    for ax0_ax1_ax2_fused_0 in T.thread_binding(16, thread="threadIdx.y"):
-                                        for ax0_ax1_ax2_fused_1 in T.thread_binding(8, thread="threadIdx.x"):
+                                    for ax0_ax1_ax2_fused_0 in T.parallel(16, annotations={"thread_binding": "threadIdx.y"}):
+                                        for ax0_ax1_ax2_fused_1 in T.parallel(8, annotations={"thread_binding": "threadIdx.x"}):
                                             for ax0_ax1_ax2_fused_2 in range(4):
                                                 for ax0_ax1_ax2_fused_3 in T.vectorized(2):
                                                     with Ts.sblock("inp1_reindex_shared"):
@@ -242,12 +242,12 @@ def test_fused_matmul():
         var_matmul_intermediate_reindex_local = Ts.sblock_alloc_tensor((T.int64(1), T.int64(32), T.int64(4096)), scope="local")
         A_reindex_shared = Ts.sblock_alloc_tensor((T.int64(1), T.int64(32), T.int64(4096)), scope="shared")
         var_decode_intermediate_reindex_shared = Ts.sblock_alloc_tensor((T.int64(1), T.int64(4096), T.int64(4096)), scope="shared")
-        for ax0_ax2_0_fused in T.thread_binding(T.int64(64), thread="blockIdx.y"):
-            for ax1_0 in T.thread_binding(T.int64(1), thread="blockIdx.x"):
-                for ax2_1 in T.thread_binding(T.int64(1), thread="vthread.y"):
-                    for ax1_1 in T.thread_binding(T.int64(1), thread="vthread.x"):
-                        for ax2_2 in T.thread_binding(T.int64(16), thread="threadIdx.y"):
-                            for ax1_2 in T.thread_binding(T.int64(8), thread="threadIdx.x", annotations={"auto_unroll_max_step": 256, "unroll_explicit": 1}):
+        for ax0_ax2_0_fused in T.parallel(T.int64(64), annotations={"thread_binding": "blockIdx.y"}):
+            for ax1_0 in T.parallel(T.int64(1), annotations={"thread_binding": "blockIdx.x"}):
+                for ax2_1 in T.parallel(T.int64(1), annotations={"thread_binding": "vthread.y"}):
+                    for ax1_1 in T.parallel(T.int64(1), annotations={"thread_binding": "vthread.x"}):
+                        for ax2_2 in T.parallel(T.int64(16), annotations={"thread_binding": "threadIdx.y"}):
+                            for ax1_2 in T.parallel(T.int64(8), annotations={"thread_binding": "threadIdx.x", "auto_unroll_max_step": 256, "unroll_explicit": 1}):
                                 for ax1_3_init, ax2_3_0_init in T.grid(T.int64(4), T.int64(2)):
                                     for ax2_3_1_init in T.vectorized(T.int64(2)):
                                         with Ts.sblock("matmul_init"):
@@ -258,8 +258,8 @@ def test_fused_matmul():
                                             Ts.writes(var_matmul_intermediate_reindex_local[T.int64(0), v1, v2])
                                             var_matmul_intermediate_reindex_local[T.int64(0), v1, v2] = T.float32(0)
                                 for ax3_0 in range(T.int64(256)):
-                                    for ax0_ax1_ax2_fused_0 in T.thread_binding(T.int64(16), thread="threadIdx.y"):
-                                        for ax0_ax1_ax2_fused_1 in T.thread_binding(T.int64(8), thread="threadIdx.x"):
+                                    for ax0_ax1_ax2_fused_0 in T.parallel(T.int64(16), annotations={"thread_binding": "threadIdx.y"}):
+                                        for ax0_ax1_ax2_fused_1 in T.parallel(T.int64(8), annotations={"thread_binding": "threadIdx.x"}):
                                             for ax0_ax1_ax2_fused_2 in range(T.int64(2)):
                                                 for ax0_ax1_ax2_fused_3 in T.vectorized(T.int64(2)):
                                                     with Ts.sblock("A_reindex_shared"):
@@ -270,8 +270,8 @@ def test_fused_matmul():
                                                         Ts.writes(A_reindex_shared[v0, v1, v2])
                                                         Ts.sblock_attr({"tensor_dim_align": [[0, 1, 8, 2]]})
                                                         A_reindex_shared[v0, v1, v2] = A[v0, v1, v2]
-                                    for ax0_ax1_ax2_fused_0 in T.thread_binding(T.int64(16), thread="threadIdx.y"):
-                                        for ax0_ax1_ax2_fused_1 in T.thread_binding(T.int64(8), thread="threadIdx.x"):
+                                    for ax0_ax1_ax2_fused_0 in T.parallel(T.int64(16), annotations={"thread_binding": "threadIdx.y"}):
+                                        for ax0_ax1_ax2_fused_1 in T.parallel(T.int64(8), annotations={"thread_binding": "threadIdx.x"}):
                                             for ax0_ax1_ax2_fused_2 in range(T.int64(4)):
                                                 for ax0_ax1_ax2_fused_3 in T.vectorized(T.int64(2)):
                                                     with Ts.sblock("var_decode_intermediate_reindex_shared"):
@@ -411,12 +411,12 @@ def test_output_fp32():
         var_matmul_intermediate_reindex_pad_local = Ts.sblock_alloc_tensor((T.int64(1), (n + T.int64(31)) // T.int64(32) * T.int64(32), T.int64(4096)), scope="local")
         lv48_reindex_pad_shared = Ts.sblock_alloc_tensor((T.int64(1), (n + T.int64(31)) // T.int64(32) * T.int64(32), T.int64(4096)), "float16", scope="shared")
         p_output0_intermediate_1_reindex_shared = Ts.sblock_alloc_tensor((T.int64(1), T.int64(4096), T.int64(4096)), "float16", scope="shared")
-        for ax0_ax2_0_fused in T.thread_binding(T.int64(64), thread="blockIdx.y"):
-            for ax1_0 in T.thread_binding((n + T.int64(31)) // T.int64(32), thread="blockIdx.x"):
-                for ax2_1 in T.thread_binding(T.int64(1), thread="vthread.y"):
-                    for ax1_1 in T.thread_binding(T.int64(1), thread="vthread.x"):
-                        for ax2_2 in T.thread_binding(T.int64(16), thread="threadIdx.y"):
-                            for ax1_2 in T.thread_binding(T.int64(8), thread="threadIdx.x", annotations={"auto_unroll_max_step": 256, "unroll_explicit": 1}):
+        for ax0_ax2_0_fused in T.parallel(T.int64(64), annotations={"thread_binding": "blockIdx.y"}):
+            for ax1_0 in T.parallel((n + T.int64(31)) // T.int64(32), annotations={"thread_binding": "blockIdx.x"}):
+                for ax2_1 in T.parallel(T.int64(1), annotations={"thread_binding": "vthread.y"}):
+                    for ax1_1 in T.parallel(T.int64(1), annotations={"thread_binding": "vthread.x"}):
+                        for ax2_2 in T.parallel(T.int64(16), annotations={"thread_binding": "threadIdx.y"}):
+                            for ax1_2 in T.parallel(T.int64(8), annotations={"thread_binding": "threadIdx.x", "auto_unroll_max_step": 256, "unroll_explicit": 1}):
                                 for ax1_3_init, ax2_3_0_init in T.grid(T.int64(4), T.int64(2)):
                                     for ax2_3_1_init in T.vectorized(T.int64(2)):
                                         with Ts.sblock("matmul_init"):
@@ -427,8 +427,8 @@ def test_output_fp32():
                                             Ts.writes(var_matmul_intermediate_reindex_pad_local[T.int64(0), v1, v2])
                                             var_matmul_intermediate_reindex_pad_local[T.int64(0), v1, v2] = T.float32(0)
                                 for ax3_0 in range(T.int64(256)):
-                                    for ax0_ax1_ax2_fused_0 in T.thread_binding(T.int64(16), thread="threadIdx.y"):
-                                        for ax0_ax1_ax2_fused_1 in T.thread_binding(T.int64(8), thread="threadIdx.x"):
+                                    for ax0_ax1_ax2_fused_0 in T.parallel(T.int64(16), annotations={"thread_binding": "threadIdx.y"}):
+                                        for ax0_ax1_ax2_fused_1 in T.parallel(T.int64(8), annotations={"thread_binding": "threadIdx.x"}):
                                             for ax0_ax1_ax2_fused_2 in range(T.int64(2)):
                                                 for ax0_ax1_ax2_fused_3 in T.vectorized(T.int64(2)):
                                                     with Ts.sblock("lv48_reindex_pad_shared"):
@@ -439,8 +439,8 @@ def test_output_fp32():
                                                         Ts.writes(lv48_reindex_pad_shared[v0, v1, v2])
                                                         Ts.sblock_attr({"tensor_dim_align": [[0, 1, 8, 2]]})
                                                         lv48_reindex_pad_shared[v0, v1, v2] = T.if_then_else(v1 < n, lv48[v0, v1, v2], T.float16(0))
-                                    for ax0_ax1_ax2_fused_0 in T.thread_binding(T.int64(16), thread="threadIdx.y"):
-                                        for ax0_ax1_ax2_fused_1 in T.thread_binding(T.int64(8), thread="threadIdx.x"):
+                                    for ax0_ax1_ax2_fused_0 in T.parallel(T.int64(16), annotations={"thread_binding": "threadIdx.y"}):
+                                        for ax0_ax1_ax2_fused_1 in T.parallel(T.int64(8), annotations={"thread_binding": "threadIdx.x"}):
                                             for ax0_ax1_ax2_fused_2 in range(T.int64(4)):
                                                 for ax0_ax1_ax2_fused_3 in T.vectorized(T.int64(2)):
                                                     with Ts.sblock("p_output0_intermediate_1_reindex_shared"):
@@ -543,12 +543,12 @@ def test_inline_consumer_chain():
         var_NT_matmul_intermediate_reindex_pad_local = Ts.sblock_alloc_tensor((T.int64(1), (n + T.int64(31)) // T.int64(32) * T.int64(32), T.int64(2048)), "float16", scope="local")
         lv26_reindex_pad_shared = Ts.sblock_alloc_tensor((T.int64(1), (n + T.int64(31)) // T.int64(32) * T.int64(32), T.int64(2048)), "float16", scope="shared")
         lv9_reindex_shared = Ts.sblock_alloc_tensor((T.int64(1), T.int64(2048), T.int64(2048)), "float16", scope="shared")
-        for ax0_ax2_0_fused in T.thread_binding(T.int64(32), thread="blockIdx.y"):
-            for ax1_0 in T.thread_binding((n + T.int64(31)) // T.int64(32), thread="blockIdx.x"):
-                for ax2_1 in T.thread_binding(T.int64(1), thread="vthread.y"):
-                    for ax1_1 in T.thread_binding(T.int64(1), thread="vthread.x"):
-                        for ax2_2 in T.thread_binding(T.int64(16), thread="threadIdx.y"):
-                            for ax1_2 in T.thread_binding(T.int64(8), thread="threadIdx.x", annotations={"auto_unroll_max_step": 256, "unroll_explicit": 1}):
+        for ax0_ax2_0_fused in T.parallel(T.int64(32), annotations={"thread_binding": "blockIdx.y"}):
+            for ax1_0 in T.parallel((n + T.int64(31)) // T.int64(32), annotations={"thread_binding": "blockIdx.x"}):
+                for ax2_1 in T.parallel(T.int64(1), annotations={"thread_binding": "vthread.y"}):
+                    for ax1_1 in T.parallel(T.int64(1), annotations={"thread_binding": "vthread.x"}):
+                        for ax2_2 in T.parallel(T.int64(16), annotations={"thread_binding": "threadIdx.y"}):
+                            for ax1_2 in T.parallel(T.int64(8), annotations={"thread_binding": "threadIdx.x", "auto_unroll_max_step": 256, "unroll_explicit": 1}):
                                 for ax1_3_init, ax2_3_0_init in T.grid(T.int64(4), T.int64(2)):
                                     for ax2_3_1_init in T.vectorized(T.int64(2)):
                                         with Ts.sblock("NT_matmul_init"):
@@ -559,8 +559,8 @@ def test_inline_consumer_chain():
                                             Ts.writes(var_NT_matmul_intermediate_reindex_pad_local[T.int64(0), v1, v2])
                                             var_NT_matmul_intermediate_reindex_pad_local[T.int64(0), v1, v2] = T.float16(0)
                                 for ax3_0 in range(T.int64(128)):
-                                    for ax0_ax1_ax2_fused_0 in T.thread_binding(T.int64(16), thread="threadIdx.y"):
-                                        for ax0_ax1_ax2_fused_1 in T.thread_binding(T.int64(8), thread="threadIdx.x"):
+                                    for ax0_ax1_ax2_fused_0 in T.parallel(T.int64(16), annotations={"thread_binding": "threadIdx.y"}):
+                                        for ax0_ax1_ax2_fused_1 in T.parallel(T.int64(8), annotations={"thread_binding": "threadIdx.x"}):
                                             for ax0_ax1_ax2_fused_2 in range(T.int64(2)):
                                                 for ax0_ax1_ax2_fused_3 in T.vectorized(T.int64(2)):
                                                     with Ts.sblock("lv26_reindex_pad_shared"):
@@ -571,8 +571,8 @@ def test_inline_consumer_chain():
                                                         Ts.writes(lv26_reindex_pad_shared[v0, v1, v2])
                                                         Ts.sblock_attr({"tensor_dim_align": [[0, 1, 8, 2]]})
                                                         lv26_reindex_pad_shared[v0, v1, v2] = T.if_then_else(v1 < n, lv26[v1, v2], T.float16(0))
-                                    for ax0_ax1_ax2_fused_0 in T.thread_binding(T.int64(16), thread="threadIdx.y"):
-                                        for ax0_ax1_ax2_fused_1 in T.thread_binding(T.int64(8), thread="threadIdx.x"):
+                                    for ax0_ax1_ax2_fused_0 in T.parallel(T.int64(16), annotations={"thread_binding": "threadIdx.y"}):
+                                        for ax0_ax1_ax2_fused_1 in T.parallel(T.int64(8), annotations={"thread_binding": "threadIdx.x"}):
                                             for ax0_ax1_ax2_fused_2 in range(T.int64(4)):
                                                 for ax0_ax1_ax2_fused_3 in T.vectorized(T.int64(2)):
                                                     with Ts.sblock("lv9_reindex_shared"):
@@ -636,11 +636,11 @@ def test_matmul_android():
         inp0_reindex_pad = Ts.sblock_alloc_tensor((T.int64(1), (m + T.int64(15)) // T.int64(16), T.int64(4096), T.int64(16)))
         matmul_pad_local = Ts.sblock_alloc_tensor((T.int64(1), (m + T.int64(15)) // T.int64(16) * T.int64(16), T.int64(4096)), scope="local")
         inp0_reindex_pad_local = Ts.sblock_alloc_tensor((T.int64(1), (m + T.int64(15)) // T.int64(16), T.int64(4096), T.int64(16)), scope="local")
-        for i0 in T.thread_binding(T.int64(1), thread="blockIdx.z"):
-            for i1_0 in T.thread_binding(((m + T.int64(15)) // T.int64(16) * T.int64(16) + T.int64(63)) // T.int64(64), thread="blockIdx.y"):
-                for i2_0 in T.thread_binding(T.int64(128), thread="blockIdx.x"):
-                    for i1_1 in T.thread_binding(T.int64(4), thread="threadIdx.y"):
-                        for i2_1 in T.thread_binding(T.int64(32), thread="threadIdx.x"):
+        for i0 in T.parallel(T.int64(1), annotations={"thread_binding": "blockIdx.z"}):
+            for i1_0 in T.parallel(((m + T.int64(15)) // T.int64(16) * T.int64(16) + T.int64(63)) // T.int64(64), annotations={"thread_binding": "blockIdx.y"}):
+                for i2_0 in T.parallel(T.int64(128), annotations={"thread_binding": "blockIdx.x"}):
+                    for i1_1 in T.parallel(T.int64(4), annotations={"thread_binding": "threadIdx.y"}):
+                        for i2_1 in T.parallel(T.int64(32), annotations={"thread_binding": "threadIdx.x"}):
                             for i1_2 in T.vectorized(T.int64(16)):
                                 with Ts.sblock("inp0_reindex_pad"):
                                     v0 = Ts.axis.spatial(T.int64(1), i0)
@@ -650,10 +650,10 @@ def test_matmul_android():
                                     Ts.reads(inp0[v0, v1, v2])
                                     Ts.writes(inp0_reindex_pad[v0, v1 // T.int64(16), v2, v1 % T.int64(16)])
                                     inp0_reindex_pad[v0, v1 // T.int64(16), v2, v1 % T.int64(16)] = T.if_then_else(v1 < m, inp0[v0, v1, v2], T.float32(0))
-        for i2_0 in T.thread_binding(T.int64(16), thread="blockIdx.x"):
-            for i0_i1_fused_0 in T.thread_binding(((m + T.int64(15)) // T.int64(16) * T.int64(16) + T.int64(63)) // T.int64(64), thread="blockIdx.y"):
-                for i2_1 in T.thread_binding(T.int64(32), thread="threadIdx.x"):
-                    for i0_i1_fused_1 in T.thread_binding(T.int64(4), thread="threadIdx.y"):
+        for i2_0 in T.parallel(T.int64(16), annotations={"thread_binding": "blockIdx.x"}):
+            for i0_i1_fused_0 in T.parallel(((m + T.int64(15)) // T.int64(16) * T.int64(16) + T.int64(63)) // T.int64(64), annotations={"thread_binding": "blockIdx.y"}):
+                for i2_1 in T.parallel(T.int64(32), annotations={"thread_binding": "threadIdx.x"}):
+                    for i0_i1_fused_1 in T.parallel(T.int64(4), annotations={"thread_binding": "threadIdx.y"}):
                         for i0_i1_fused_2_init in T.unroll(T.int64(16)):
                             for i2_2_init in T.vectorized(T.int64(8)):
                                 with Ts.sblock("matmul_init"):
@@ -757,11 +757,11 @@ def test_fused_dequant_matmul_android():
         rms_norm130_reindex_pad_local = Ts.sblock_alloc_tensor((T.int64(1), (seq_len + T.int64(15)) // T.int64(16), T.int64(4096), T.int64(16)), "float16", scope="local")
         lv452_local = Ts.sblock_alloc_tensor((T.int64(512), T.int64(12288)), "uint32", scope="local")
         lv453_local = Ts.sblock_alloc_tensor((T.int64(128), T.int64(12288)), "float16", scope="local")
-        for i0 in T.thread_binding(T.int64(1), thread="blockIdx.z"):
-            for i1_0 in T.thread_binding(((seq_len + T.int64(15)) // T.int64(16) * T.int64(16) + T.int64(63)) // T.int64(64), thread="blockIdx.y"):
-                for i2_0 in T.thread_binding(T.int64(128), thread="blockIdx.x"):
-                    for i1_1 in T.thread_binding(T.int64(4), thread="threadIdx.y"):
-                        for i2_1 in T.thread_binding(T.int64(32), thread="threadIdx.x"):
+        for i0 in T.parallel(T.int64(1), annotations={"thread_binding": "blockIdx.z"}):
+            for i1_0 in T.parallel(((seq_len + T.int64(15)) // T.int64(16) * T.int64(16) + T.int64(63)) // T.int64(64), annotations={"thread_binding": "blockIdx.y"}):
+                for i2_0 in T.parallel(T.int64(128), annotations={"thread_binding": "blockIdx.x"}):
+                    for i1_1 in T.parallel(T.int64(4), annotations={"thread_binding": "threadIdx.y"}):
+                        for i2_1 in T.parallel(T.int64(32), annotations={"thread_binding": "threadIdx.x"}):
                             for i1_2 in T.vectorized(T.int64(16)):
                                 with Ts.sblock("rms_norm130_reindex_pad"):
                                     v0 = Ts.axis.spatial(T.int64(1), i0)
@@ -771,10 +771,10 @@ def test_fused_dequant_matmul_android():
                                     Ts.reads(rms_norm130[v0, v1, v2])
                                     Ts.writes(rms_norm130_reindex_pad[v0, v1 // T.int64(16), v2, v1 % T.int64(16)])
                                     rms_norm130_reindex_pad[v0, v1 // T.int64(16), v2, v1 % T.int64(16)] = T.if_then_else(v1 < seq_len, rms_norm130[v0, v1, v2], T.float16(0))
-        for i2_0 in T.thread_binding(T.int64(48), thread="blockIdx.x"):
-            for i0_i1_fused_0 in T.thread_binding(((seq_len + T.int64(15)) // T.int64(16) * T.int64(16) + T.int64(63)) // T.int64(64), thread="blockIdx.y"):
-                for i2_1 in T.thread_binding(T.int64(32), thread="threadIdx.x"):
-                    for i0_i1_fused_1 in T.thread_binding(T.int64(4), thread="threadIdx.y"):
+        for i2_0 in T.parallel(T.int64(48), annotations={"thread_binding": "blockIdx.x"}):
+            for i0_i1_fused_0 in T.parallel(((seq_len + T.int64(15)) // T.int64(16) * T.int64(16) + T.int64(63)) // T.int64(64), annotations={"thread_binding": "blockIdx.y"}):
+                for i2_1 in T.parallel(T.int64(32), annotations={"thread_binding": "threadIdx.x"}):
+                    for i0_i1_fused_1 in T.parallel(T.int64(4), annotations={"thread_binding": "threadIdx.y"}):
                         for i0_i1_fused_2_init in T.unroll(T.int64(16)):
                             for i2_2_init in T.vectorized(T.int64(8)):
                                 with Ts.sblock("matmul_init"):

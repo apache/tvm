@@ -137,7 +137,7 @@ Stmt SplitBindVectorize(const Stmt& stmt, const ConstraintSet& constraints) {
   for (int i = n - 2; i >= 1; i--) {
     body = For(new_loop_vars[i].as_or_throw<PrimVar>(), 0, factors[i], ForKind::kParallel,
                std::move(body),
-               {{tvm::tirx::attr::kThreadBinding, ffi::String(thread_axis[i - 1])}}, std::nullopt);
+               {{tvm::s_tir::attr::kThreadBinding, ffi::String(thread_axis[i - 1])}}, std::nullopt);
   }
   return For(new_loop_vars[0].as_or_throw<PrimVar>(), 0, factors[0], ForKind::kDefault,
              std::move(body));

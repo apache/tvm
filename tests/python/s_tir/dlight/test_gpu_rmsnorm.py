@@ -110,8 +110,8 @@ def test_rms_norm_with_casting():
             rsqrt_shared = Ts.sblock_alloc_tensor((1, n), scope="shared")
             T_rms_norm_local = Ts.sblock_alloc_tensor((1, n, 4096), scope="local")
             data_local = Ts.sblock_alloc_tensor((1, n, 4096), "float16", scope="local")
-            for ax0_ax1_fused in T.thread_binding(n, thread="blockIdx.x"):
-                for ax2_0 in T.thread_binding(512, thread="threadIdx.x"):
+            for ax0_ax1_fused in T.parallel(n, annotations={"thread_binding": "blockIdx.x"}):
+                for ax2_0 in T.parallel(512, annotations={"thread_binding": "threadIdx.x"}):
                     for ax2_1 in range(1):
                         for ax2_2 in T.vectorized(8):
                             with Ts.sblock("data_local"):
@@ -145,7 +145,7 @@ def test_rms_norm_with_casting():
                     Ts.reads(T_multiply_red_local[v_ax0, v_ax1])
                     Ts.writes(rsqrt_shared[v_ax0, v_ax1])
                     rsqrt_shared[v_ax0, v_ax1] = T.rsqrt(T_multiply_red_local[v_ax0, v_ax1] * T.float32(0.000244140625) + T.float32(9.9999999999999995e-07))
-                for ax0_0 in T.thread_binding(512, thread="threadIdx.x"):
+                for ax0_0 in T.parallel(512, annotations={"thread_binding": "threadIdx.x"}):
                     for ax0_1, ax0_2 in T.grid(1, 8):
                         with Ts.sblock("T_rms_norm"):
                             v_ax0 = Ts.axis.spatial(1, 0)
@@ -228,8 +228,8 @@ def test_rms_norm_without_casting():
             rsqrt_shared = Ts.sblock_alloc_tensor((1, n), scope="shared")
             T_rms_norm_local = Ts.sblock_alloc_tensor((1, n, 4096), scope="local")
             data_local = Ts.sblock_alloc_tensor((1, n, 4096), scope="local")
-            for ax0_ax1_fused in T.thread_binding(n, thread="blockIdx.x"):
-                for ax2_0 in T.thread_binding(512, thread="threadIdx.x"):
+            for ax0_ax1_fused in T.parallel(n, annotations={"thread_binding": "blockIdx.x"}):
+                for ax2_0 in T.parallel(512, annotations={"thread_binding": "threadIdx.x"}):
                     for ax2_1 in range(1):
                         for ax2_2 in T.vectorized(8):
                             with Ts.sblock("data_local"):
@@ -263,7 +263,7 @@ def test_rms_norm_without_casting():
                     Ts.reads(T_multiply_red_local[v_ax0, v_ax1])
                     Ts.writes(rsqrt_shared[v_ax0, v_ax1])
                     rsqrt_shared[v_ax0, v_ax1] = T.rsqrt(T_multiply_red_local[v_ax0, v_ax1] * T.float32(0.000244140625) + T.float32(9.9999999999999995e-07))
-                for ax0_0 in T.thread_binding(512, thread="threadIdx.x"):
+                for ax0_0 in T.parallel(512, annotations={"thread_binding": "threadIdx.x"}):
                     for ax0_1, ax0_2 in T.grid(1, 8):
                         with Ts.sblock("T_rms_norm"):
                             v_ax0 = Ts.axis.spatial(1, 0)

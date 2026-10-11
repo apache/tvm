@@ -209,7 +209,7 @@ def copy_vec_load_impl(
         def impl():
             """Implement copy operation with vectorized loads/stores."""
             for s in T.serial(0, n_elements // (tx * vec_len)):
-                for tid_x in T.thread_binding(tx, "threadIdx.x"):
+                with T.launch_thread("threadIdx.x", tx) as tid_x:
                     if T.constexpr(inst_type == CopyInstType.NORMAL):
                         for vec in T.vectorized(vec_len):
                             fused = T.meta_var((s * tx + tid_x) * vec_len + vec)

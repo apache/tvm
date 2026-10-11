@@ -196,7 +196,7 @@ def get_ldmatrix_intrin(
         with Ts.sblock("root"):
             Ts.reads(shared[0:smem_tile_row, 0:smem_tile_col])
             Ts.writes(warp[0:WARP_SIZE, 0:local_size])
-            for tx in T.thread_binding(0, WARP_SIZE, "threadIdx.x"):
+            for tx in T.parallel(0, WARP_SIZE, annotations={"thread_binding": "threadIdx.x"}):
                 T.evaluate(
                     T.ptx_legacy.ldmatrix(
                         transpose_in_ldmatrix,
@@ -397,7 +397,7 @@ def get_mma_intrin(
             )
             Ts.writes(C[0:WARP_SIZE, 0:local_size_out])
 
-            for tx in T.thread_binding(0, WARP_SIZE, "threadIdx.x"):
+            for tx in T.parallel(0, WARP_SIZE, annotations={"thread_binding": "threadIdx.x"}):
                 T.evaluate(
                     T.ptx_legacy.mma(
                         mma_prefix,
@@ -543,7 +543,7 @@ def get_mma_fill_intrin(dtype, local_size):
             Ts.reads()
             Ts.writes(C_warp[0:WARP_SIZE, 0:local_size])
 
-            for tx in T.thread_binding(0, WARP_SIZE, "threadIdx.x"):
+            for tx in T.parallel(0, WARP_SIZE, annotations={"thread_binding": "threadIdx.x"}):
                 T.evaluate(T.cuda.mma_fill(local_size, C_warp.data, C_warp.elem_offset, ty=dtype))
 
     return mma_fill_desc, mma_fill_impl
@@ -595,7 +595,7 @@ def get_mma_store_intrin(dtype, local_size, scope="global", use_mma_store_intrin
                 Ts.reads(C_warp[0:WARP_SIZE, 0:local_size])
                 Ts.writes(C[0:M_DIM, 0:N_DIM])
 
-                for tx in T.thread_binding(0, WARP_SIZE, "threadIdx.x"):
+                for tx in T.parallel(0, WARP_SIZE, annotations={"thread_binding": "threadIdx.x"}):
                     T.evaluate(
                         T.cuda.mma_store(
                             M_DIM,
@@ -623,7 +623,7 @@ def get_mma_store_intrin(dtype, local_size, scope="global", use_mma_store_intrin
                 Ts.reads(C_warp[0:WARP_SIZE, 0:local_size])
                 Ts.writes(C[0:M_DIM, 0:N_DIM])
 
-                for tx in T.thread_binding(0, WARP_SIZE, "threadIdx.x"):
+                for tx in T.parallel(0, WARP_SIZE, annotations={"thread_binding": "threadIdx.x"}):
                     for local_id in T.serial(local_size):
                         matrix_indices = index_map_rev(tx, local_id)
                         C[matrix_indices[0], matrix_indices[1]] = C_warp[tx, local_id]
@@ -823,7 +823,7 @@ def get_mma_init_intrin(
             Ts.reads()
             Ts.writes(dst[0:m_dim, 0:n_dim])
 
-            for tx in T.thread_binding(0, WARP_SIZE, "threadIdx.x"):
+            for tx in T.parallel(0, WARP_SIZE, annotations={"thread_binding": "threadIdx.x"}):
                 for b in range(m_dim // 8):
                     for v in T.vectorized(n_dim // 4):
                         dst[b * 8 + tx // 4, (tx % 4) * (n_dim // 4) + v] = zero
@@ -887,7 +887,7 @@ def get_mma_load_intrin(
             Ts.reads(src[0:frag_m, 0:frag_n])
             Ts.writes(dst[0:frag_m, 0:frag_n])
 
-            for tx in T.thread_binding(0, WARP_SIZE, "threadIdx.x"):
+            for tx in T.parallel(0, WARP_SIZE, annotations={"thread_binding": "threadIdx.x"}):
                 T.evaluate(
                     T.ptx_legacy.ldmatrix(
                         trans,

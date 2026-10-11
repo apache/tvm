@@ -163,8 +163,8 @@ def _copy_single_page(num_heads, page_size, head_dim, dtype, target: Target):
     def copy_single_page(pages: T.Tensor((num_pages, 2, num_heads, page_size, head_dim), dtype, elem_offset=pages_elem_offset), src_page_id: T.int64, tgt_page_id: T.int64, copy_length: T.int64):
         T.func_attr({"tirx.is_scheduled": True})
 
-        for b in T.thread_binding((copy_length * num_heads * head_dim + tx - 1) // tx, thread="blockIdx.x"):
-            for t in T.thread_binding(tx, thread="threadIdx.x"):
+        for b in T.parallel((copy_length * num_heads * head_dim + tx - 1) // tx, annotations={"thread_binding": "blockIdx.x"}):
+            for t in T.parallel(tx, annotations={"thread_binding": "threadIdx.x"}):
                 with Ts.sblock("copy"):
                     Ts.where(b * tx + t < copy_length * num_heads * head_dim)
                     vh = Ts.axis.spatial(num_heads, T.Cast("int32", (b * tx + t) // (copy_length * head_dim)))
@@ -184,8 +184,8 @@ def _copy_single_page_mla(page_size, head_dim, dtype, target: Target):
     def copy_single_page_mla(pages: T.Tensor((num_pages, page_size, head_dim), dtype, elem_offset=pages_elem_offset), src_page_id: T.int64, tgt_page_id: T.int64, copy_length: T.int64):
         T.func_attr({"tirx.is_scheduled": True})
 
-        for b in T.thread_binding((copy_length * head_dim + tx - 1) // tx, thread="blockIdx.x"):
-            for t in T.thread_binding(tx, thread="threadIdx.x"):
+        for b in T.parallel((copy_length * head_dim + tx - 1) // tx, annotations={"thread_binding": "blockIdx.x"}):
+            for t in T.parallel(tx, annotations={"thread_binding": "threadIdx.x"}):
                 with Ts.sblock("copy"):
                     Ts.where(b * tx + t < copy_length * head_dim)
                     vp = Ts.axis.spatial(copy_length, (b * tx + t) // head_dim)
@@ -227,8 +227,8 @@ def _compact_kv_copy(num_heads, head_dim, dtype, target: Target, page_size: int 
         T.func_attr({"tirx.is_scheduled": True})
 
         with Ts.sblock("root"):
-            for bhd_o in T.thread_binding((batch_size * num_heads * head_dim + tx - 1) // tx, thread="blockIdx.x"):
-                for bhd_i in T.thread_binding(tx, thread="threadIdx.x"):
+            for bhd_o in T.parallel((batch_size * num_heads * head_dim + tx - 1) // tx, annotations={"thread_binding": "blockIdx.x"}):
+                for bhd_i in T.parallel(tx, annotations={"thread_binding": "threadIdx.x"}):
                     b: T.int32 = (bhd_o * tx + bhd_i) // (num_heads * head_dim)
                     h: T.int32 = (bhd_o * tx + bhd_i) // head_dim % num_heads
                     d: T.int32 = (bhd_o * tx + bhd_i) % head_dim

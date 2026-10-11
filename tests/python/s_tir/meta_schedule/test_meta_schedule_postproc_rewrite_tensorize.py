@@ -257,9 +257,9 @@ class DenseDP4ATiled:
         compute_local = Ts.sblock_alloc_tensor([128, 128], dtype="int32", scope="local")
         X_shared = Ts.sblock_alloc_tensor([128, 128], dtype="int8", scope="shared")
         W_shared = Ts.sblock_alloc_tensor([128, 128], dtype="int8", scope="shared")
-        for i0_0_i1_0_fused in T.thread_binding(16, thread="blockIdx.x"):
-            for i0_1_i1_1_fused in T.thread_binding(2, thread="vthread.x"):
-                for i0_2_i1_2_fused in T.thread_binding(2, thread="threadIdx.x"):
+        for i0_0_i1_0_fused in T.parallel(16, annotations={"thread_binding": "blockIdx.x"}):
+            for i0_1_i1_1_fused in T.parallel(2, annotations={"thread_binding": "vthread.x"}):
+                for i0_2_i1_2_fused in T.parallel(2, annotations={"thread_binding": "threadIdx.x"}):
                     for i2_0_0 in T.serial(2):
                         for ax0_ax1_fused in T.serial(1024):
                             with Ts.sblock("X_shared"):
@@ -350,9 +350,9 @@ class DenseDP4ATensorized:
         compute_local = Ts.sblock_alloc_tensor([128, 128], dtype="int32", scope="local")
         X_shared = Ts.sblock_alloc_tensor([128, 128], dtype="int8", scope="shared")
         W_shared = Ts.sblock_alloc_tensor([128, 128], dtype="int8", scope="shared")
-        for i0_0_i1_0_fused in T.thread_binding(16, thread="blockIdx.x"):
-            for i0_1_i1_1_fused in T.thread_binding(2, thread="vthread.x"):
-                for i0_2_i1_2_fused in T.thread_binding(2, thread="threadIdx.x"):
+        for i0_0_i1_0_fused in T.parallel(16, annotations={"thread_binding": "blockIdx.x"}):
+            for i0_1_i1_1_fused in T.parallel(2, annotations={"thread_binding": "vthread.x"}):
+                for i0_2_i1_2_fused in T.parallel(2, annotations={"thread_binding": "threadIdx.x"}):
                     for i0_3_init, i1_3_init, i0_4_init in T.grid(4, 16, 4):
                         with Ts.sblock("compute_o_init"):
                             i = Ts.axis.spatial(

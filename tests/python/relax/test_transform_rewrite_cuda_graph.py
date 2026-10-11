@@ -43,8 +43,8 @@ def test_rewrite_cuda_graph():
         def exp(rxplaceholder: T.Tensor((T.int64(2), T.int64(4)), "float32"), compute: T.Tensor((T.int64(2), T.int64(4)), "float32")):
             # function attr dict
             T.func_attr({"tirx.noalias": True, "global_symbol": "exp"})
-            for i0_i1_fused_0 in T.thread_binding(T.int64(1), thread="blockIdx.x"):
-                for i0_i1_fused_1 in T.thread_binding(T.int64(8), thread="threadIdx.x"):
+            for i0_i1_fused_0 in T.parallel(T.int64(1), annotations={"thread_binding": "blockIdx.x"}):
+                for i0_i1_fused_1 in T.parallel(T.int64(8), annotations={"thread_binding": "threadIdx.x"}):
                     with Ts.sblock("compute"):
                         i0 = Ts.axis.spatial(T.int64(2), (i0_i1_fused_0 * T.int64(8) + i0_i1_fused_1) // T.int64(4))
                         i1 = Ts.axis.spatial(T.int64(4), (i0_i1_fused_0 * T.int64(8) + i0_i1_fused_1) % T.int64(4))
@@ -85,8 +85,8 @@ def test_rewrite_cuda_graph():
             T.func_attr({"tirx.noalias": True, "global_symbol": "exp"})
             # body
             # with Ts.sblock("root")
-            for i0_i1_fused_0 in T.thread_binding(T.int64(1), thread="blockIdx.x"):
-                for i0_i1_fused_1 in T.thread_binding(T.int64(8), thread="threadIdx.x"):
+            for i0_i1_fused_0 in T.parallel(T.int64(1), annotations={"thread_binding": "blockIdx.x"}):
+                for i0_i1_fused_1 in T.parallel(T.int64(8), annotations={"thread_binding": "threadIdx.x"}):
                     with Ts.sblock("compute"):
                         i0 = Ts.axis.spatial(T.int64(2), (i0_i1_fused_0 * T.int64(8) + i0_i1_fused_1) // T.int64(4))
                         i1 = Ts.axis.spatial(T.int64(4), (i0_i1_fused_0 * T.int64(8) + i0_i1_fused_1) % T.int64(4))
@@ -155,8 +155,8 @@ def test_tuple():
             T.func_attr({"tirx.noalias": True, "global_symbol": "exp"})
             # body
             # with Ts.sblock("root")
-            for i0_i1_fused_0 in T.thread_binding(T.int64(1), thread="blockIdx.x"):
-                for i0_i1_fused_1 in T.thread_binding(T.int64(8), thread="threadIdx.x"):
+            for i0_i1_fused_0 in T.parallel(T.int64(1), annotations={"thread_binding": "blockIdx.x"}):
+                for i0_i1_fused_1 in T.parallel(T.int64(8), annotations={"thread_binding": "threadIdx.x"}):
                     with Ts.sblock("compute"):
                         i0 = Ts.axis.spatial(T.int64(2), (i0_i1_fused_0 * T.int64(8) + i0_i1_fused_1) // T.int64(4))
                         i1 = Ts.axis.spatial(T.int64(4), (i0_i1_fused_0 * T.int64(8) + i0_i1_fused_1) % T.int64(4))
@@ -195,8 +195,8 @@ def test_tuple():
         def exp(rxplaceholder: T.Tensor((T.int64(2), T.int64(4)), "float32"), compute: T.Tensor((T.int64(2), T.int64(4)), "float32")):
             T.func_attr({"global_symbol": "exp", "tirx.noalias": True})
             # with Ts.sblock("root"):
-            for i0_i1_fused_0 in T.thread_binding(T.int64(1), thread="blockIdx.x"):
-                for i0_i1_fused_1 in T.thread_binding(T.int64(8), thread="threadIdx.x"):
+            for i0_i1_fused_0 in T.parallel(T.int64(1), annotations={"thread_binding": "blockIdx.x"}):
+                for i0_i1_fused_1 in T.parallel(T.int64(8), annotations={"thread_binding": "threadIdx.x"}):
                     with Ts.sblock("compute"):
                         i0 = Ts.axis.spatial(T.int64(2), (i0_i1_fused_0 * T.int64(8) + i0_i1_fused_1) // T.int64(4))
                         i1 = Ts.axis.spatial(T.int64(4), (i0_i1_fused_0 * T.int64(8) + i0_i1_fused_1) % T.int64(4))
@@ -260,8 +260,8 @@ def test_vm_builtin():
         def exp(rxplaceholder: T.Tensor((T.int64(2), T.int64(4)), "float32"), compute: T.Tensor((T.int64(2), T.int64(4)), "float32")):
             # function attr dict
             T.func_attr({"tirx.noalias": True, "global_symbol": "exp"})
-            for i0_i1_fused_0 in T.thread_binding(T.int64(1), thread="blockIdx.x"):
-                for i0_i1_fused_1 in T.thread_binding(T.int64(8), thread="threadIdx.x"):
+            for i0_i1_fused_0 in T.parallel(T.int64(1), annotations={"thread_binding": "blockIdx.x"}):
+                for i0_i1_fused_1 in T.parallel(T.int64(8), annotations={"thread_binding": "threadIdx.x"}):
                     with Ts.sblock("compute"):
                         i0 = Ts.axis.spatial(T.int64(2), (i0_i1_fused_0 * T.int64(8) + i0_i1_fused_1) // T.int64(4))
                         i1 = Ts.axis.spatial(T.int64(4), (i0_i1_fused_0 * T.int64(8) + i0_i1_fused_1) % T.int64(4))
@@ -295,8 +295,8 @@ def test_vm_builtin():
         def exp(rxplaceholder: T.Tensor((T.int64(2), T.int64(4)), "float32"), compute: T.Tensor((T.int64(2), T.int64(4)), "float32")):
             T.func_attr({"global_symbol": "exp", "tirx.noalias": True})
             # with Ts.sblock("root"):
-            for i0_i1_fused_0 in T.thread_binding(T.int64(1), thread="blockIdx.x"):
-                for i0_i1_fused_1 in T.thread_binding(T.int64(8), thread="threadIdx.x"):
+            for i0_i1_fused_0 in T.parallel(T.int64(1), annotations={"thread_binding": "blockIdx.x"}):
+                for i0_i1_fused_1 in T.parallel(T.int64(8), annotations={"thread_binding": "threadIdx.x"}):
                     with Ts.sblock("compute"):
                         i0 = Ts.axis.spatial(T.int64(2), (i0_i1_fused_0 * T.int64(8) + i0_i1_fused_1) // T.int64(4))
                         i1 = Ts.axis.spatial(T.int64(4), (i0_i1_fused_0 * T.int64(8) + i0_i1_fused_1) % T.int64(4))

@@ -505,7 +505,7 @@ def test_blockized_gemv():
     @Ts.function(private=True)
     def before(x: T.Tensor((1, 4096), "float16"), w: T.Tensor((8, 16384, 4096), "float16"), indptr: T.Tensor((2,), "int32"), o: T.Tensor((2, 16384), "float16")):
         # with Ts.sblock("root"):
-        for expert_id in T.thread_binding(2, thread="blockIdx.y"):
+        for expert_id in T.parallel(2, annotations={"thread_binding": "blockIdx.y"}):
             with Ts.sblock("gemv_o"):
                 v_expert_id_o = Ts.axis.spatial(2, expert_id)
                 vi_o = Ts.axis.spatial(1, 0)
@@ -525,7 +525,7 @@ def test_blockized_gemv():
     def expected(x: T.Tensor((1, 4096), "float16"), w: T.Tensor((8, 16384, 4096), "float16"), indptr: T.Tensor((2,), "int32"), o: T.Tensor((2, 16384), "float16")):
         T.func_attr({"tirx.is_scheduled": True})
         # with Ts.sblock("root"):
-        for expert_id in T.thread_binding(2, thread="blockIdx.y"):
+        for expert_id in T.parallel(2, annotations={"thread_binding": "blockIdx.y"}):
             with Ts.sblock("gemv_o"):
                 v_expert_id_o = Ts.axis.spatial(2, expert_id)
                 vi_o = Ts.axis.spatial(1, 0)

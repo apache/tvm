@@ -193,8 +193,8 @@ def test_tir_empty_tuple_index():
 def test_thread_binding_dtype():
     @Ts.function(private=True)
     def func(A: T.Tensor((128, 128)), B: T.Tensor((128, 128))):
-        for i in T.thread_binding(T.int64(128), "threadIdx.x"):
-            for j in T.thread_binding(128, "threadIdx.y"):
+        for i in T.parallel(T.int64(128), annotations={"thread_binding": "threadIdx.x"}):
+            for j in T.parallel(128, annotations={"thread_binding": "threadIdx.y"}):
                 B[i, j] = A[i, j]
 
     loop_i = func.body[0]
@@ -446,9 +446,9 @@ def for_thread_binding():
     def for_thread_binding(
         A: T.Tensor((16, 16), "float32"), B: T.Tensor((16, 16), "float32")
     ) -> None:
-        for i in T.thread_binding(0, 16, thread="threadIdx.x"):
-            for j in T.thread_binding(
-                0, 16, thread="threadIdx.y", annotations={"attr_key": "attr_value"}
+        for i in T.parallel(0, 16, annotations={"thread_binding": "threadIdx.x"}):
+            for j in T.parallel(
+                0, 16, annotations={"thread_binding": "threadIdx.y", "attr_key": "attr_value"}
             ):
                 A[i, j] = B[i, j] + T.float32(1)
 
@@ -758,8 +758,8 @@ def loop_no_syntax_sugar(A: T.Tensor((128, 128, 128, 128))) -> None:
         for j in T.parallel(0, 128):
             for k in T.vectorized(0, 128):
                 for x in T.unroll(0, 128):
-                    for y in T.thread_binding(0, 128, thread="threadIdx.x"):
-                        for z in T.thread_binding(0, 128, thread="threadIdx.x"):
+                    for y in T.parallel(0, 128, annotations={"thread_binding": "threadIdx.x"}):
+                        for z in T.parallel(0, 128, annotations={"thread_binding": "threadIdx.x"}):
                             A[i, j, k, x] = A[i, j, k, x] * 2.0
 
 
@@ -769,8 +769,8 @@ def loop_syntax_sugar(A: T.Tensor((128, 128, 128, 128))) -> None:
         for j in T.parallel(128):
             for k in T.vectorized(128):
                 for x in T.unroll(128):
-                    for y in T.thread_binding(128, "threadIdx.x"):
-                        for z in T.thread_binding(128, thread="threadIdx.x"):
+                    for y in T.parallel(128, annotations={"thread_binding": "threadIdx.x"}):
+                        for z in T.parallel(128, annotations={"thread_binding": "threadIdx.x"}):
                             A[i, j, k, x] = A[i, j, k, x] * 2.0
 
 
@@ -1076,8 +1076,8 @@ def element_wise_env_thread_x(
     j0_0 = T.launch_thread("threadIdx.x", 4)
     j1_0 = T.launch_thread("threadIdx.x", 4)
 
-    for blockIdx_x in T.thread_binding(0, 128, "blockIdx.x"):
-        for threadIdx_x in T.thread_binding(0, 4, "threadIdx.x"):
+    for blockIdx_x in T.parallel(0, 128, annotations={"thread_binding": "blockIdx.x"}):
+        for threadIdx_x in T.parallel(0, 4, annotations={"thread_binding": "threadIdx.x"}):
             for j0_1 in T.serial(0, 32):
                 with Ts.sblock(""):
                     B[blockIdx_x, threadIdx_x * 32 + j0_1] = (

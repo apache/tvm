@@ -245,8 +245,8 @@ def test_bind_target_with_device_host_call_same_func():
         ):
             T.func_attr({"global_symbol": "main"})
             length: T.let[T.int32] = Before.add(64, 64)  # Call from host
-            for bx in T.thread_binding(length, "blockIdx.x"):
-                for tx in T.thread_binding(length, "threadIdx.x"):
+            with T.launch_thread("blockIdx.x", length) as bx:
+                with T.launch_thread("threadIdx.x", length) as tx:
                     C[bx, tx] = Before.add(A[bx, tx], B[bx, tx])  # Call from device
 
     @I.ir_module
@@ -274,8 +274,8 @@ def test_bind_target_with_device_host_call_same_func():
                 }
             )
             length: T.let[T.int32] = Expected.add_host(64, 64)  # Call from host
-            for bx in T.thread_binding(length, "blockIdx.x"):
-                for tx in T.thread_binding(length, "threadIdx.x"):
+            with T.launch_thread("blockIdx.x", length) as bx:
+                with T.launch_thread("threadIdx.x", length) as tx:
                     C[bx, tx] = Expected.add(A[bx, tx], B[bx, tx])  # Call from device
 
     After = tvm.tirx.transform.BindTarget(

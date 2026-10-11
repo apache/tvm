@@ -18,8 +18,8 @@
 
 from tvm_ffi import register_object
 
+from tvm.script.ir_builder.frame import StmtFrame
 from tvm.tirx.script.ir_builder.frame import FunctionFrame as TIRxFunctionFrame
-from tvm.tirx.script.ir_builder.frame import TIRFrame
 
 
 @register_object("script.ir_builder.s_tir.FunctionFrame")
@@ -30,10 +30,10 @@ class FunctionFrame(TIRxFunctionFrame):
 
 
 @register_object("script.ir_builder.s_tir.SBlockFrame")
-class SBlockFrame(TIRFrame):
+class SBlockFrame(StmtFrame):
     pass
 
 
 @register_object("script.ir_builder.s_tir.BlockInitFrame")
-class BlockInitFrame(TIRFrame):
+class BlockInitFrame(StmtFrame):
     pass

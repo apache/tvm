@@ -53,6 +53,12 @@ class ScriptCompleter : public s_tir::StmtExprMutator {
 
  private:
   ffi::Map<Var, TensorVar>* tensor_var_map_;
+
+  UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
+    GetThreadBinding(op);
+    return s_tir::StmtExprMutator::Mutate_(op, inplace_mode);
+  }
+
   UnchangedOr<Stmt> Mutate_(const s_tir::SBlockRealizeNode* op, InplaceMode inplace_mode) final {
     for (const PrimExpr& value : op->iter_values) {
       PrimType value_ty = value.ty();

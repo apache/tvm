@@ -42,7 +42,7 @@ class Transpose:
     def main(A: T.Tensor([1024, 1024]), B: T.Tensor([1024, 1024])) -> None:
         with Ts.sblock("root"):
             Ts.sblock_attr({"warp_execution": True})
-            for ty in T.thread_binding(8, thread="threadIdx.y"):
+            for ty in T.parallel(8, annotations={"thread_binding": "threadIdx.y"}):
                 with Ts.sblock():
                     A_shared_dyn = Ts.sblock_alloc_tensor(
                         [16, 128], dtype="float32", scope="shared.dyn"
@@ -63,9 +63,9 @@ class GlobalToShared:
     def main(A: T.Tensor([1024, 1024]), B: T.Tensor([1024, 1024])) -> None:
         with Ts.sblock("root"):
             Ts.sblock_attr({"warp_execution": True})
-            for bx in T.thread_binding(8, thread="blockIdx.x"):
-                for by in T.thread_binding(8, thread="blockIdx.y"):
-                    for ty in T.thread_binding(8, thread="threadIdx.y"):
+            for bx in T.parallel(8, annotations={"thread_binding": "blockIdx.x"}):
+                for by in T.parallel(8, annotations={"thread_binding": "blockIdx.y"}):
+                    for ty in T.parallel(8, annotations={"thread_binding": "threadIdx.y"}):
                         with Ts.sblock():
                             A_shared_dyn = Ts.sblock_alloc_tensor(
                                 [128, 128], dtype="float32", scope="shared.dyn"
@@ -85,9 +85,9 @@ class SharedToGlobal:
     def main(A: T.Tensor([1024, 1024]), B: T.Tensor([1024, 1024])) -> None:
         with Ts.sblock("root"):
             Ts.sblock_attr({"warp_execution": True})
-            for bx in T.thread_binding(8, thread="blockIdx.x"):
-                for by in T.thread_binding(8, thread="blockIdx.y"):
-                    for ty in T.thread_binding(8, thread="threadIdx.y"):
+            for bx in T.parallel(8, annotations={"thread_binding": "blockIdx.x"}):
+                for by in T.parallel(8, annotations={"thread_binding": "blockIdx.y"}):
+                    for ty in T.parallel(8, annotations={"thread_binding": "threadIdx.y"}):
                         with Ts.sblock():
                             A_shared_dyn = Ts.sblock_alloc_tensor(
                                 [128, 128], dtype="float32", scope="shared.dyn"
@@ -107,9 +107,9 @@ class GlobalToSharedWithLocalStage:
     def main(A: T.Tensor([1024, 1024]), B: T.Tensor([1024, 1024])) -> None:
         with Ts.sblock("root"):
             Ts.sblock_attr({"warp_execution": True})
-            for bx in T.thread_binding(8, thread="blockIdx.x"):
-                for by in T.thread_binding(8, thread="blockIdx.y"):
-                    for ty in T.thread_binding(8, thread="threadIdx.y"):
+            for bx in T.parallel(8, annotations={"thread_binding": "blockIdx.x"}):
+                for by in T.parallel(8, annotations={"thread_binding": "blockIdx.y"}):
+                    for ty in T.parallel(8, annotations={"thread_binding": "threadIdx.y"}):
                         with Ts.sblock():
                             A_shared_dyn = Ts.sblock_alloc_tensor(
                                 [128, 128], dtype="float32", scope="shared.dyn"
@@ -131,9 +131,9 @@ class SharedToWmma:
     def main() -> None:
         with Ts.sblock("root"):
             Ts.sblock_attr({"warp_execution": True})
-            for bx in T.thread_binding(8, thread="blockIdx.x"):
-                for by in T.thread_binding(8, thread="blockIdx.y"):
-                    for ty in T.thread_binding(8, thread="threadIdx.y"):
+            for bx in T.parallel(8, annotations={"thread_binding": "blockIdx.x"}):
+                for by in T.parallel(8, annotations={"thread_binding": "blockIdx.y"}):
+                    for ty in T.parallel(8, annotations={"thread_binding": "threadIdx.y"}):
                         with Ts.sblock():
                             A_shared_dyn = Ts.sblock_alloc_tensor(
                                 [128, 128], dtype="float16", scope="shared.dyn"
@@ -153,9 +153,9 @@ class WmmaToShared:
     def main() -> None:
         with Ts.sblock("root"):
             Ts.sblock_attr({"warp_execution": True})
-            for bx in T.thread_binding(8, thread="blockIdx.x"):
-                for by in T.thread_binding(8, thread="blockIdx.y"):
-                    for ty in T.thread_binding(8, thread="threadIdx.y"):
+            for bx in T.parallel(8, annotations={"thread_binding": "blockIdx.x"}):
+                for by in T.parallel(8, annotations={"thread_binding": "blockIdx.y"}):
+                    for ty in T.parallel(8, annotations={"thread_binding": "threadIdx.y"}):
                         with Ts.sblock():
                             C_accum = Ts.sblock_alloc_tensor(
                                 [128, 128], dtype="float32", scope="wmma.accumulator"
@@ -175,9 +175,9 @@ class WmmaToGlobal:
     def main(C: T.Tensor([1024, 1024])) -> None:
         with Ts.sblock("root"):
             Ts.sblock_attr({"warp_execution": True})
-            for bx in T.thread_binding(8, thread="blockIdx.x"):
-                for by in T.thread_binding(8, thread="blockIdx.y"):
-                    for ty in T.thread_binding(8, thread="threadIdx.y"):
+            for bx in T.parallel(8, annotations={"thread_binding": "blockIdx.x"}):
+                for by in T.parallel(8, annotations={"thread_binding": "blockIdx.y"}):
+                    for ty in T.parallel(8, annotations={"thread_binding": "threadIdx.y"}):
                         with Ts.sblock():
                             C_accum = Ts.sblock_alloc_tensor(
                                 [128, 128], dtype="float32", scope="wmma.accumulator"
@@ -194,9 +194,9 @@ class WmmaToGlobalWithFusion:
     def main(A: T.Tensor([1024]), C: T.Tensor([1024, 1024])) -> None:
         with Ts.sblock("root"):
             Ts.sblock_attr({"warp_execution": True})
-            for bx in T.thread_binding(8, thread="blockIdx.x"):
-                for by in T.thread_binding(8, thread="blockIdx.y"):
-                    for ty in T.thread_binding(8, thread="threadIdx.y"):
+            for bx in T.parallel(8, annotations={"thread_binding": "blockIdx.x"}):
+                for by in T.parallel(8, annotations={"thread_binding": "blockIdx.y"}):
+                    for ty in T.parallel(8, annotations={"thread_binding": "threadIdx.y"}):
                         with Ts.sblock():
                             C_accum = Ts.sblock_alloc_tensor(
                                 [128, 128], dtype="float32", scope="wmma.accumulator"
@@ -215,9 +215,9 @@ class MmaToGlobal:
     def main(C: T.Tensor([1024, 1024])) -> None:
         with Ts.sblock("root"):
             Ts.sblock_attr({"warp_execution": True})
-            for bx in T.thread_binding(8, thread="blockIdx.x"):
-                for by in T.thread_binding(8, thread="blockIdx.y"):
-                    for ty in T.thread_binding(8, thread="threadIdx.y"):
+            for bx in T.parallel(8, annotations={"thread_binding": "blockIdx.x"}):
+                for by in T.parallel(8, annotations={"thread_binding": "blockIdx.y"}):
+                    for ty in T.parallel(8, annotations={"thread_binding": "threadIdx.y"}):
                         with Ts.sblock():
                             C_accum = Ts.sblock_alloc_tensor(
                                 [128, 128], dtype="float32", scope="m16n8k8.matrixC"
@@ -234,9 +234,9 @@ class TransformedGlobalToShared:
     def main(A: T.Tensor([1024, 1024]), B: T.Tensor([1024, 1024])) -> None:
         with Ts.sblock("root"):
             Ts.sblock_attr({"warp_execution": True})
-            for bx in T.thread_binding(8, thread="blockIdx.x"):
-                for by in T.thread_binding(8, thread="blockIdx.y"):
-                    for ty in T.thread_binding(8, thread="threadIdx.y"):
+            for bx in T.parallel(8, annotations={"thread_binding": "blockIdx.x"}):
+                for by in T.parallel(8, annotations={"thread_binding": "blockIdx.y"}):
+                    for ty in T.parallel(8, annotations={"thread_binding": "threadIdx.y"}):
                         with Ts.sblock():
                             A_shared_dyn = Ts.sblock_alloc_tensor(
                                 [128, 128], dtype="float32", strides=[128, 1], scope="shared.dyn"
@@ -244,8 +244,12 @@ class TransformedGlobalToShared:
                             with Ts.sblock("A_shared"):
                                 Ts.sblock_attr({"auto_copy": True, "vector_bytes": 16})
                                 for outer in T.serial(16):
-                                    for ty_1 in T.thread_binding(8, thread="threadIdx.y"):
-                                        for tx in T.thread_binding(32, thread="threadIdx.x"):
+                                    for ty_1 in T.parallel(
+                                        8, annotations={"thread_binding": "threadIdx.y"}
+                                    ):
+                                        for tx in T.parallel(
+                                            32, annotations={"thread_binding": "threadIdx.x"}
+                                        ):
                                             for vec in T.vectorized(4):
                                                 A_shared_dyn[
                                                     (((outer * 8 + ty_1) * 32 + tx) * 4 + vec)
@@ -273,9 +277,9 @@ class TransformedSharedToGlobal:
     def main(A: T.Tensor([1024, 1024]), B: T.Tensor([1024, 1024])) -> None:
         with Ts.sblock("root"):
             Ts.sblock_attr({"warp_execution": True})
-            for bx in T.thread_binding(8, thread="blockIdx.x"):
-                for by in T.thread_binding(8, thread="blockIdx.y"):
-                    for ty in T.thread_binding(8, thread="threadIdx.y"):
+            for bx in T.parallel(8, annotations={"thread_binding": "blockIdx.x"}):
+                for by in T.parallel(8, annotations={"thread_binding": "blockIdx.y"}):
+                    for ty in T.parallel(8, annotations={"thread_binding": "threadIdx.y"}):
                         with Ts.sblock():
                             A_shared_dyn = Ts.sblock_alloc_tensor(
                                 [128, 128], dtype="float32", strides=[129, 1], scope="shared.dyn"
@@ -288,8 +292,12 @@ class TransformedSharedToGlobal:
                             with Ts.sblock("B"):
                                 Ts.sblock_attr({"auto_copy": True, "vector_bytes": 16})
                                 for outer in T.serial(16):
-                                    for ty_1 in T.thread_binding(8, thread="threadIdx.y"):
-                                        for tx in T.thread_binding(32, thread="threadIdx.x"):
+                                    for ty_1 in T.parallel(
+                                        8, annotations={"thread_binding": "threadIdx.y"}
+                                    ):
+                                        for tx in T.parallel(
+                                            32, annotations={"thread_binding": "threadIdx.x"}
+                                        ):
                                             for vec in T.vectorized(4):
                                                 B[
                                                     bx * 128
@@ -314,9 +322,9 @@ class TransformedGlobalToSharedWithLocalStage:
     def main(A: T.Tensor((1024, 1024)), B: T.Tensor((1024, 1024))):
         with Ts.sblock("root"):
             Ts.sblock_attr({"warp_execution": True})
-            for bx in T.thread_binding(8, thread="blockIdx.x"):
-                for by in T.thread_binding(8, thread="blockIdx.y"):
-                    for ty in T.thread_binding(8, thread="threadIdx.y"):
+            for bx in T.parallel(8, annotations={"thread_binding": "blockIdx.x"}):
+                for by in T.parallel(8, annotations={"thread_binding": "blockIdx.y"}):
+                    for ty in T.parallel(8, annotations={"thread_binding": "threadIdx.y"}):
                         with Ts.sblock(""):
                             Ts.reads(A[bx * 128 : bx * 128 + 128, by * 128 : by * 128 + 128])
                             Ts.writes(B[bx * 128 : bx * 128 + 128, by * 128 : by * 128 + 128])
@@ -330,9 +338,11 @@ class TransformedGlobalToSharedWithLocalStage:
                                     {"auto_copy": True, "local_stage": True, "vector_bytes": 16}
                                 )
                                 A_shared_dyn_local = Ts.sblock_alloc_tensor((16, 4), scope="local")
-                                for ax0_ax1_fused_1 in T.thread_binding(8, thread="threadIdx.y"):
-                                    for ax0_ax1_fused_2 in T.thread_binding(
-                                        32, thread="threadIdx.x"
+                                for ax0_ax1_fused_1 in T.parallel(
+                                    8, annotations={"thread_binding": "threadIdx.y"}
+                                ):
+                                    for ax0_ax1_fused_2 in T.parallel(
+                                        32, annotations={"thread_binding": "threadIdx.x"}
                                     ):
                                         for ax0_ax1_fused_0_cache in range(16):
                                             for ax0_ax1_fused_3_cache in T.vectorized(4):
@@ -423,9 +433,9 @@ class TransformedSharedToWmma:
         # body
         with Ts.sblock("root"):
             Ts.sblock_attr({"warp_execution": True})
-            for bx in T.thread_binding(8, thread="blockIdx.x"):
-                for by in T.thread_binding(8, thread="blockIdx.y"):
-                    for ty in T.thread_binding(8, thread="threadIdx.y"):
+            for bx in T.parallel(8, annotations={"thread_binding": "blockIdx.x"}):
+                for by in T.parallel(8, annotations={"thread_binding": "blockIdx.y"}):
+                    for ty in T.parallel(8, annotations={"thread_binding": "threadIdx.y"}):
                         with Ts.sblock():
                             A_shared_dyn = Ts.sblock_alloc_tensor(
                                 [128, 128], dtype="float16", strides=[136, 1], scope="shared.dyn"
@@ -498,9 +508,9 @@ class TransformedWmmaToShared:
         # body
         with Ts.sblock("root"):
             Ts.sblock_attr({"warp_execution": True})
-            for bx in T.thread_binding(8, thread="blockIdx.x"):
-                for by in T.thread_binding(8, thread="blockIdx.y"):
-                    for ty in T.thread_binding(8, thread="threadIdx.y"):
+            for bx in T.parallel(8, annotations={"thread_binding": "blockIdx.x"}):
+                for by in T.parallel(8, annotations={"thread_binding": "blockIdx.y"}):
+                    for ty in T.parallel(8, annotations={"thread_binding": "threadIdx.y"}):
                         with Ts.sblock():
                             C_accum = Ts.sblock_alloc_tensor(
                                 [128, 128], dtype="float32", scope="wmma.accumulator"
@@ -572,9 +582,9 @@ class TransformedWmmaToGlobal:
     def main(C: T.Tensor((1024, 1024), "float32")):
         with Ts.sblock("root"):
             Ts.sblock_attr({"warp_execution": True})
-            for bx in T.thread_binding(8, thread="blockIdx.x"):
-                for by in T.thread_binding(8, thread="blockIdx.y"):
-                    for ty in T.thread_binding(8, thread="threadIdx.y"):
+            for bx in T.parallel(8, annotations={"thread_binding": "blockIdx.x"}):
+                for by in T.parallel(8, annotations={"thread_binding": "blockIdx.y"}):
+                    for ty in T.parallel(8, annotations={"thread_binding": "threadIdx.y"}):
                         with Ts.sblock(""):
                             Ts.reads()
                             Ts.writes(C[bx * 128 : bx * 128 + 128, by * 128 : by * 128 + 128])
@@ -628,10 +638,14 @@ class TransformedWmmaToGlobal:
                                     ) in range(16):
                                         for (
                                             ty_cache_ax1_0_cache_ax0_1_cache_ax1_1_cache_fused_1
-                                        ) in T.thread_binding(8, thread="threadIdx.y"):
+                                        ) in T.parallel(
+                                            8, annotations={"thread_binding": "threadIdx.y"}
+                                        ):
                                             for (
                                                 ty_cache_ax1_0_cache_ax0_1_cache_ax1_1_cache_fused_2
-                                            ) in T.thread_binding(32, thread="threadIdx.x"):
+                                            ) in T.parallel(
+                                                32, annotations={"thread_binding": "threadIdx.x"}
+                                            ):
                                                 for ty_cache_ax1_0_cache_ax0_1_cache_ax1_1_cache_fused_3 in T.vectorized(
                                                     4
                                                 ):
@@ -768,9 +782,9 @@ class TransformedWmmaToGlobalWithFusion:
         # body
         with Ts.sblock("root"):
             Ts.sblock_attr({"warp_execution": True})
-            for bx in T.thread_binding(8, thread="blockIdx.x"):
-                for by in T.thread_binding(8, thread="blockIdx.y"):
-                    for ty in T.thread_binding(8, thread="threadIdx.y"):
+            for bx in T.parallel(8, annotations={"thread_binding": "blockIdx.x"}):
+                for by in T.parallel(8, annotations={"thread_binding": "blockIdx.y"}):
+                    for ty in T.parallel(8, annotations={"thread_binding": "threadIdx.y"}):
                         with Ts.sblock():
                             Ts.reads(A[bx * 128 : bx * 128 + 128])
                             Ts.writes(C[bx * 128 : bx * 128 + 128, by * 128 : by * 128 + 128])
@@ -826,10 +840,14 @@ class TransformedWmmaToGlobalWithFusion:
                                     ) in range(16):
                                         for (
                                             ty_cache_ax1_0_cache_ax0_1_cache_ax1_1_cache_fused_1
-                                        ) in T.thread_binding(8, thread="threadIdx.y"):
+                                        ) in T.parallel(
+                                            8, annotations={"thread_binding": "threadIdx.y"}
+                                        ):
                                             for (
                                                 ty_cache_ax1_0_cache_ax0_1_cache_ax1_1_cache_fused_2
-                                            ) in T.thread_binding(32, thread="threadIdx.x"):
+                                            ) in T.parallel(
+                                                32, annotations={"thread_binding": "threadIdx.x"}
+                                            ):
                                                 for ty_cache_ax1_0_cache_ax0_1_cache_ax1_1_cache_fused_3 in T.vectorized(
                                                     4
                                                 ):
@@ -986,9 +1004,9 @@ class TransformedMmaToGlobal:
     def main(C: T.Tensor((1024, 1024), "float32")):
         with Ts.sblock("root"):
             Ts.sblock_attr({"warp_execution": True})
-            for bx in T.thread_binding(8, thread="blockIdx.x"):
-                for by in T.thread_binding(8, thread="blockIdx.y"):
-                    for ty in T.thread_binding(8, thread="threadIdx.y"):
+            for bx in T.parallel(8, annotations={"thread_binding": "blockIdx.x"}):
+                for by in T.parallel(8, annotations={"thread_binding": "blockIdx.y"}):
+                    for ty in T.parallel(8, annotations={"thread_binding": "threadIdx.y"}):
                         with Ts.sblock(""):
                             Ts.reads()
                             Ts.writes(C[bx * 128 : bx * 128 + 128, by * 128 : by * 128 + 128])
@@ -1032,8 +1050,12 @@ class TransformedMmaToGlobal:
                                                     tx // 4, tx % 4 * 2 + vec
                                                 ]
                                     for ax1_1 in range(8):
-                                        for ty_0 in T.thread_binding(8, thread="threadIdx.y"):
-                                            for tx_0 in T.thread_binding(32, thread="threadIdx.x"):
+                                        for ty_0 in T.parallel(
+                                            8, annotations={"thread_binding": "threadIdx.y"}
+                                        ):
+                                            for tx_0 in T.parallel(
+                                                32, annotations={"thread_binding": "threadIdx.x"}
+                                            ):
                                                 for v in T.vectorized(4):
                                                     C[
                                                         bx * 128

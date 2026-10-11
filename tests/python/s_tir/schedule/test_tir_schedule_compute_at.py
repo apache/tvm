@@ -231,12 +231,12 @@ def cuda_matmul_0(A: T.Tensor([2048, 2048], 'float32'), B: T.Tensor([2048, 2048]
             with Ts.init():
                 C_local[vi, vj] = 0.0
             C_local[vi, vj] = C_local[vi, vj] + A_shared_local[vk, vi] * B_shared_local[vk, vj]
-    for by in T.thread_binding(0, 32, thread = "blockIdx.y"):
-        for bx in T.thread_binding(0, 32, thread = "blockIdx.x"):
-            for vy in T.thread_binding(0, 2, thread = "vthread.y"):
-                for vx in T.thread_binding(0, 2, thread = "vthread.x"):
-                    for ty in T.thread_binding(0, 8, thread = "threadIdx.y"):
-                        for tx in T.thread_binding(0, 8, thread = "threadIdx.x"):
+    for by in T.parallel(0, 32, annotations={"thread_binding": "blockIdx.y"}):
+        for bx in T.parallel(0, 32, annotations={"thread_binding": "blockIdx.x"}):
+            for vy in T.parallel(0, 2, annotations={"thread_binding": "vthread.y"}):
+                for vx in T.parallel(0, 2, annotations={"thread_binding": "vthread.x"}):
+                    for ty in T.parallel(0, 8, annotations={"thread_binding": "threadIdx.y"}):
+                        for tx in T.parallel(0, 8, annotations={"thread_binding": "threadIdx.x"}):
                             for i, j in T.grid(4, 4):
                                 with Ts.sblock("C_local"):
                                     v0_4 = Ts.axis.S(2048, by * 64 + vy * 32 + ty * 4 + i)
@@ -267,12 +267,12 @@ def cuda_matmul_0_after_compute_at(A: T.Tensor([2048, 2048], 'float32'), B: T.Te
         with Ts.sblock("B_shared_local"):
             v0, v1 = Ts.axis.remap("SS", [i, j])
             B_shared_local[v0, v1] = B_shared[v0, v1]
-    for by in T.thread_binding(0, 32, thread = "blockIdx.y"):
-        for bx in T.thread_binding(0, 32, thread = "blockIdx.x"):
-            for vy in T.thread_binding(0, 2, thread = "vthread.y"):
-                for vx in T.thread_binding(0, 2, thread = "vthread.x"):
-                    for ty in T.thread_binding(0, 8, thread = "threadIdx.y"):
-                        for tx in T.thread_binding(0, 8, thread = "threadIdx.x"):
+    for by in T.parallel(0, 32, annotations={"thread_binding": "blockIdx.y"}):
+        for bx in T.parallel(0, 32, annotations={"thread_binding": "blockIdx.x"}):
+            for vy in T.parallel(0, 2, annotations={"thread_binding": "vthread.y"}):
+                for vx in T.parallel(0, 2, annotations={"thread_binding": "vthread.x"}):
+                    for ty in T.parallel(0, 8, annotations={"thread_binding": "threadIdx.y"}):
+                        for tx in T.parallel(0, 8, annotations={"thread_binding": "threadIdx.x"}):
                             for i, j, k in T.grid(4, 4, 2048):
                                 with Ts.sblock("C"):
                                     vi = Ts.axis.S(2048, by * 64 + vy * 32 + ty * 4 + i)
@@ -311,12 +311,12 @@ def cuda_matmul_1(A: T.Tensor([2048, 2048], 'float32'), B: T.Tensor([2048, 2048]
         with Ts.sblock("B_shared_local"):
             v0, v1 = Ts.axis.remap("SS", [i, j])
             B_shared_local[v0, v1] = B_shared[v0, v1]
-    for by in T.thread_binding(0, 32, thread = "blockIdx.y"):
-        for bx in T.thread_binding(0, 32, thread = "blockIdx.x"):
-            for vy in T.thread_binding(0, 2, thread = "vthread.y"):
-                for vx in T.thread_binding(0, 2, thread = "vthread.x"):
-                    for ty in T.thread_binding(0, 8, thread = "threadIdx.y"):
-                        for tx in T.thread_binding(0, 8, thread = "threadIdx.x"):
+    for by in T.parallel(0, 32, annotations={"thread_binding": "blockIdx.y"}):
+        for bx in T.parallel(0, 32, annotations={"thread_binding": "blockIdx.x"}):
+            for vy in T.parallel(0, 2, annotations={"thread_binding": "vthread.y"}):
+                for vx in T.parallel(0, 2, annotations={"thread_binding": "vthread.x"}):
+                    for ty in T.parallel(0, 8, annotations={"thread_binding": "threadIdx.y"}):
+                        for tx in T.parallel(0, 8, annotations={"thread_binding": "threadIdx.x"}):
                             for k_0 in T.serial(0, 256):
                                 for k_1 in T.unroll(0, 8):
                                     for _, i, j in T.grid(1, 4, 4):
@@ -353,12 +353,12 @@ def cuda_matmul_2(A: T.Tensor([2048, 2048], 'float32'), B: T.Tensor([2048, 2048]
         with Ts.sblock("B_shared_local"):
             v0, v1 = Ts.axis.remap("SS", [i, j])
             B_shared_local[v0, v1] = B_shared[v0, v1]
-    for by in T.thread_binding(0, 32, thread = "blockIdx.y"):
-        for bx in T.thread_binding(0, 32, thread = "blockIdx.x"):
-            for vy in T.thread_binding(0, 2, thread = "vthread.y"):
-                for vx in T.thread_binding(0, 2, thread = "vthread.x"):
-                    for ty in T.thread_binding(0, 8, thread = "threadIdx.y"):
-                        for tx in T.thread_binding(0, 8, thread = "threadIdx.x"):
+    for by in T.parallel(0, 32, annotations={"thread_binding": "blockIdx.y"}):
+        for bx in T.parallel(0, 32, annotations={"thread_binding": "blockIdx.x"}):
+            for vy in T.parallel(0, 2, annotations={"thread_binding": "vthread.y"}):
+                for vx in T.parallel(0, 2, annotations={"thread_binding": "vthread.x"}):
+                    for ty in T.parallel(0, 8, annotations={"thread_binding": "threadIdx.y"}):
+                        for tx in T.parallel(0, 8, annotations={"thread_binding": "threadIdx.x"}):
                             for k_0 in T.serial(0, 256):
                                 for k_1 in T.unroll(0, 8):
                                     for i, j in T.grid(1, 4):
@@ -396,12 +396,12 @@ def cuda_matmul_3(A: T.Tensor([2048, 2048], 'float32'), B: T.Tensor([2048, 2048]
         with Ts.sblock("B_shared"):
             v0, v1 = Ts.axis.remap("SS", [i, j])
             B_shared[v0, v1] = B[v0, v1]
-    for by in T.thread_binding(0, 32, thread = "blockIdx.y"):
-        for bx in T.thread_binding(0, 32, thread = "blockIdx.x"):
-            for vy in T.thread_binding(0, 2, thread = "vthread.y"):
-                for vx in T.thread_binding(0, 2, thread = "vthread.x"):
-                    for ty in T.thread_binding(0, 8, thread = "threadIdx.y"):
-                        for tx in T.thread_binding(0, 8, thread = "threadIdx.x"):
+    for by in T.parallel(0, 32, annotations={"thread_binding": "blockIdx.y"}):
+        for bx in T.parallel(0, 32, annotations={"thread_binding": "blockIdx.x"}):
+            for vy in T.parallel(0, 2, annotations={"thread_binding": "vthread.y"}):
+                for vx in T.parallel(0, 2, annotations={"thread_binding": "vthread.x"}):
+                    for ty in T.parallel(0, 8, annotations={"thread_binding": "threadIdx.y"}):
+                        for tx in T.parallel(0, 8, annotations={"thread_binding": "threadIdx.x"}):
                             for k0 in T.serial(0, 256):
                                 for k1 in T.unroll(0, 8):
                                     for i, j in T.grid(1, 4):
@@ -440,12 +440,12 @@ def cuda_matmul_4(A: T.Tensor([2048, 2048], 'float32'), B: T.Tensor([2048, 2048]
         with Ts.sblock("B_shared"):
             v0, v1 = Ts.axis.remap("SS", [i, j])
             B_shared[v0, v1] = B[v0, v1]
-    for by in T.thread_binding(0, 32, thread = "blockIdx.y"):
-        for bx in T.thread_binding(0, 32, thread = "blockIdx.x"):
-            for vy in T.thread_binding(0, 2, thread = "vthread.y"):
-                for vx in T.thread_binding(0, 2, thread = "vthread.x"):
-                    for ty in T.thread_binding(0, 8, thread = "threadIdx.y"):
-                        for tx in T.thread_binding(0, 8, thread = "threadIdx.x"):
+    for by in T.parallel(0, 32, annotations={"thread_binding": "blockIdx.y"}):
+        for bx in T.parallel(0, 32, annotations={"thread_binding": "blockIdx.x"}):
+            for vy in T.parallel(0, 2, annotations={"thread_binding": "vthread.y"}):
+                for vx in T.parallel(0, 2, annotations={"thread_binding": "vthread.x"}):
+                    for ty in T.parallel(0, 8, annotations={"thread_binding": "threadIdx.y"}):
+                        for tx in T.parallel(0, 8, annotations={"thread_binding": "threadIdx.x"}):
                             for k0 in T.serial(0, 256):
                                 for i, j in T.grid(8, 64):
                                     with Ts.sblock("A_shared"):
@@ -485,12 +485,12 @@ def cuda_matmul_5(A: T.Tensor([2048, 2048], 'float32'), B: T.Tensor([2048, 2048]
     A_shared_local = Ts.sblock_alloc_tensor([2048, 2048], "float32", scope="local")
     B_shared_local = Ts.sblock_alloc_tensor([2048, 2048], "float32", scope="local")
     C_local = Ts.sblock_alloc_tensor([2048, 2048], "float32", scope="local")
-    for by in T.thread_binding(0, 32, thread = "blockIdx.y"):
-        for bx in T.thread_binding(0, 32, thread = "blockIdx.x"):
-            for vy in T.thread_binding(0, 2, thread = "vthread.y"):
-                for vx in T.thread_binding(0, 2, thread = "vthread.x"):
-                    for ty in T.thread_binding(0, 8, thread = "threadIdx.y"):
-                        for tx in T.thread_binding(0, 8, thread = "threadIdx.x"):
+    for by in T.parallel(0, 32, annotations={"thread_binding": "blockIdx.y"}):
+        for bx in T.parallel(0, 32, annotations={"thread_binding": "blockIdx.x"}):
+            for vy in T.parallel(0, 2, annotations={"thread_binding": "vthread.y"}):
+                for vx in T.parallel(0, 2, annotations={"thread_binding": "vthread.x"}):
+                    for ty in T.parallel(0, 8, annotations={"thread_binding": "threadIdx.y"}):
+                        for tx in T.parallel(0, 8, annotations={"thread_binding": "threadIdx.x"}):
                             for k0 in T.serial(0, 256):
                                 for i, j in T.grid(8, 64):
                                     with Ts.sblock("A_shared"):
@@ -595,8 +595,8 @@ def tiled_trivial_binding_after_reverse_compute_at(A: T.Tensor([1, 128, 128], 'f
 def factorized(A: T.Tensor([16, 16, 16], 'float32'), B: T.Tensor([16], 'float32')) -> None:
 
     B_rf_local = Ts.sblock_alloc_tensor([16, 16], "float32", scope="local")
-    for j in T.thread_binding(0, 16, thread = "blockIdx.x"):
-        for i_o in T.thread_binding(0, 4, thread = "threadIdx.x"):
+    for j in T.parallel(0, 16, annotations={"thread_binding": "blockIdx.x"}):
+        for i_o in T.parallel(0, 4, annotations={"thread_binding": "threadIdx.x"}):
             for i_i, k in T.grid(4, 16):
                 with Ts.sblock("B_rf"):
                     vi = Ts.axis.S(16, i_o * 4 + i_i)
@@ -615,8 +615,8 @@ def factorized(A: T.Tensor([16, 16, 16], 'float32'), B: T.Tensor([16], 'float32'
 def factorized_after_reverse_compute_at(A: T.Tensor([16, 16, 16], 'float32'), B: T.Tensor([16], 'float32')) -> None:
 
     B_rf_local = Ts.sblock_alloc_tensor([16, 16], "float32", scope="local")
-    for j in T.thread_binding(0, 16, thread = "blockIdx.x"):
-        for i_o in T.thread_binding(0, 4, thread = "threadIdx.x"):
+    for j in T.parallel(0, 16, annotations={"thread_binding": "blockIdx.x"}):
+        for i_o in T.parallel(0, 4, annotations={"thread_binding": "threadIdx.x"}):
             for i_i, k in T.grid(4, 16):
                 with Ts.sblock("B_rf"):
                     vi = Ts.axis.S(16, i_o * 4 + i_i)

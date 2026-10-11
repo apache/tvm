@@ -32,7 +32,7 @@ def test_codegen_buffer_access_modes():
     class Module:
         @T.function
         def main(A: T.Tensor((8,), "float32"), B: T.Tensor((8,), "float32")):
-            for tx in T.thread_binding(8, thread="threadIdx.x"):
+            with T.launch_thread("threadIdx.x", 8) as tx:
                 B[tx] = A[tx]
 
     executable = tvm.compile(Module, target="webgpu")
@@ -383,8 +383,8 @@ def test_grid_pack_guard_rejects_id_equal_to_workgroup_count():
     class Module:
         @T.function
         def main(B: T.Tensor((8,), "int32")):
-            for i in T.thread_binding(8, thread="blockIdx.x"):
-                for j in T.thread_binding(1, thread="threadIdx.x"):
+            with T.launch_thread("blockIdx.x", 8) as i:
+                with T.launch_thread("threadIdx.x", 1) as j:  # noqa: F841
                     B[i] = i
 
     executable = tvm.compile(Module, target="webgpu")

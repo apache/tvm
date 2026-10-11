@@ -222,7 +222,7 @@ def elementwise_subblock_uncovered(A: T.Tensor((128, 128), 'float32'), C: T.Tens
 def bound_to_thread(A: T.Tensor([128, 128]), C: T.Tensor([128, 128])) -> None:
 
     B = Ts.sblock_alloc_tensor([128, 128], scope="shared")
-    for i in T.thread_binding(0, 128, thread="threadIdx.x"):
+    for i in T.parallel(0, 128, annotations={"thread_binding": "threadIdx.x"}):
         for j in T.serial(0, 128):
             with Ts.sblock("B"):
                 vi, vj = Ts.axis.remap("SS", [i, j])
@@ -236,8 +236,8 @@ def bound_to_thread(A: T.Tensor([128, 128]), C: T.Tensor([128, 128])) -> None:
 def equal_ranked_threads(A: T.Tensor([128, 128]), C: T.Tensor([128, 128])) -> None:
 
     B = Ts.sblock_alloc_tensor([128, 128], scope="shared")
-    for i_o in T.thread_binding(0, 16, thread="threadIdx.x"):
-        for i_i in T.thread_binding(0, 8, thread="threadIdx.y"):
+    for i_o in T.parallel(0, 16, annotations={"thread_binding": "threadIdx.x"}):
+        for i_i in T.parallel(0, 8, annotations={"thread_binding": "threadIdx.y"}):
             for j in T.serial(0, 128):
                 with Ts.sblock("B"):
                     vi = Ts.axis.S(128, i_o * 8 + i_i)
@@ -253,8 +253,8 @@ def equal_ranked_threads(A: T.Tensor([128, 128]), C: T.Tensor([128, 128])) -> No
 def warp_memory(A: T.Tensor([128, 128]), C: T.Tensor([128, 128])) -> None:
 
     B = Ts.sblock_alloc_tensor([128, 4, 32], scope="warp")
-    for i_o in T.thread_binding(0, 4, thread="threadIdx.y"):
-        for i_i in T.thread_binding(0, 32, thread="threadIdx.x"):
+    for i_o in T.parallel(0, 4, annotations={"thread_binding": "threadIdx.y"}):
+        for i_i in T.parallel(0, 32, annotations={"thread_binding": "threadIdx.x"}):
             for j in T.serial(0, 128):
                 with Ts.sblock("B"):
                     warp_id, lane_id, vj = Ts.axis.remap("SSS", [i_o, i_i, j])
@@ -268,13 +268,13 @@ def warp_memory(A: T.Tensor([128, 128]), C: T.Tensor([128, 128])) -> None:
 def warp_memory_negative(A: T.Tensor([128, 128]), C: T.Tensor([128, 128])) -> None:
 
     B = Ts.sblock_alloc_tensor([128, 4, 32], scope="warp")
-    for i_o in T.thread_binding(0, 4, thread="threadIdx.y"):
-        for i_i in T.thread_binding(0, 32, thread="threadIdx.x"):
+    for i_o in T.parallel(0, 4, annotations={"thread_binding": "threadIdx.y"}):
+        for i_i in T.parallel(0, 32, annotations={"thread_binding": "threadIdx.x"}):
             for j in T.serial(0, 128):
                 with Ts.sblock("B"):
                     warp_id, lane_id, vj = Ts.axis.remap("SSS", [i_o, i_i, j])
                     B[vj, warp_id, lane_id] = A[warp_id * 32 + lane_id, vj] * 2.0
-            for i_o_prime in T.thread_binding(0, 4, thread="threadIdx.y"):
+            for i_o_prime in T.parallel(0, 4, annotations={"thread_binding": "threadIdx.y"}):
                 for j in T.serial(0, 128):
                     with Ts.sblock("C"):
                         _warp_id, warp_id, lane_id, vj = Ts.axis.remap(
@@ -353,9 +353,9 @@ def matmul_relu_padding(A: T.Tensor((127, 127), "float16"), B: T.Tensor((127, 12
             Ts.reads(B[v2, v1])
             Ts.writes(B_reindex[v2, v1])
             B_reindex[v2, v1] = T.if_then_else(v2 < 127 and v1 < 127, B[v2, v1], T.float16(0))
-    for ax0_0_0_ax1_0_0_fused in T.thread_binding(2, thread="blockIdx.y"):
-        for ax0_0_1_ax1_0_1_fused in T.thread_binding(1, thread="blockIdx.x"):
-            for ax0_0_2_ax1_0_2_fused in T.thread_binding(16, thread="threadIdx.y"):
+    for ax0_0_0_ax1_0_0_fused in T.parallel(2, annotations={"thread_binding": "blockIdx.y"}):
+        for ax0_0_1_ax1_0_1_fused in T.parallel(1, annotations={"thread_binding": "blockIdx.x"}):
+            for ax0_0_2_ax1_0_2_fused in T.parallel(16, annotations={"thread_binding": "threadIdx.y"}):
                 for ax2_0_0, ax2_0_1, ax0_0_3, ax1_0_3, ax2_0_2, ax0_0_4, ax1_0_4 in T.grid(2, 2, 1, 2, 2, 1, 1):
                     with Ts.sblock("C_o"):
                         v0_o = Ts.axis.spatial(8, ax0_0_2_ax1_0_2_fused // 2 + ax0_0_3 + ax0_0_4)

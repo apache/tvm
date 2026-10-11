@@ -152,9 +152,9 @@ class TestParamTensorAccess(BaseCompactTest):
 class TestSharedMem(BaseCompactTest):
     @Ts.function
     def before(A: T.Tensor((16, 16), "float32"), C: T.Tensor((16, 16), "float32")) -> None:
-        for i0 in T.thread_binding(0, 2, thread="blockIdx.x"):
-            for i1 in T.thread_binding(0, 2, thread="vthread"):
-                for i2 in T.thread_binding(0, 4, thread="threadIdx.x"):
+        for i0 in T.parallel(0, 2, annotations={"thread_binding": "blockIdx.x"}):
+            for i1 in T.parallel(0, 2, annotations={"thread_binding": "vthread"}):
+                for i2 in T.parallel(0, 4, annotations={"thread_binding": "threadIdx.x"}):
                     with Ts.sblock():
                         Ts.reads(A[i0 * 8 + i1 * 4 + i2, 0:16])
                         Ts.writes(C[i0 * 8 + i1 * 4 + i2, 0:16])
@@ -172,9 +172,9 @@ class TestSharedMem(BaseCompactTest):
 
     @Ts.function
     def expected(A: T.Tensor((16, 16), "float32"), C: T.Tensor((16, 16), "float32")) -> None:
-        for i0 in T.thread_binding(0, 2, thread="blockIdx.x"):
-            for i1 in T.thread_binding(0, 2, thread="vthread"):
-                for i2 in T.thread_binding(0, 4, thread="threadIdx.x"):
+        for i0 in T.parallel(0, 2, annotations={"thread_binding": "blockIdx.x"}):
+            for i1 in T.parallel(0, 2, annotations={"thread_binding": "vthread"}):
+                for i2 in T.parallel(0, 4, annotations={"thread_binding": "threadIdx.x"}):
                     with Ts.sblock():
                         Ts.reads(A[i0 * 8 + i1 * 4 + i2, 0:16])
                         Ts.writes(C[i0 * 8 + i1 * 4 + i2, 0:16])
@@ -194,9 +194,9 @@ class TestSharedMem(BaseCompactTest):
 class TestWrapMem(BaseCompactTest):
     @Ts.function
     def before(A: T.Tensor((16, 16), "float32"), C: T.Tensor((16, 16), "float32")) -> None:
-        for i0 in T.thread_binding(0, 2, thread="blockIdx.x"):
-            for i1 in T.thread_binding(0, 2, thread="vthread"):
-                for i2 in T.thread_binding(0, 4, thread="threadIdx.x"):
+        for i0 in T.parallel(0, 2, annotations={"thread_binding": "blockIdx.x"}):
+            for i1 in T.parallel(0, 2, annotations={"thread_binding": "vthread"}):
+                for i2 in T.parallel(0, 4, annotations={"thread_binding": "threadIdx.x"}):
                     with Ts.sblock():
                         Ts.reads(A[i0 * 8 + i1 * 4 + i2, 0:16])
                         Ts.writes(C[i0 * 8 + i1 * 4 + i2, 0:16])
@@ -214,9 +214,9 @@ class TestWrapMem(BaseCompactTest):
 
     @Ts.function
     def expected(A: T.Tensor((16, 16), "float32"), C: T.Tensor((16, 16), "float32")) -> None:
-        for i0 in T.thread_binding(0, 2, thread="blockIdx.x"):
-            for i1 in T.thread_binding(0, 2, thread="vthread"):
-                for i2 in T.thread_binding(0, 4, thread="threadIdx.x"):
+        for i0 in T.parallel(0, 2, annotations={"thread_binding": "blockIdx.x"}):
+            for i1 in T.parallel(0, 2, annotations={"thread_binding": "vthread"}):
+                for i2 in T.parallel(0, 4, annotations={"thread_binding": "threadIdx.x"}):
                     with Ts.sblock():
                         Ts.reads(A[i0 * 8 + i1 * 4 + i2, 0:16])
                         Ts.writes(C[i0 * 8 + i1 * 4 + i2, 0:16])
@@ -836,22 +836,22 @@ class TestComplexCase1(BaseCompactTest):
     # fmt: off
     @Ts.function
     def before(A: T.Tensor((960, 770), "float32"), B: T.Tensor((770, 2304), "float32"), C: T.Tensor((960, 2304), "float32")) -> None:
-        for bx in T.thread_binding(144, thread="blockIdx.x"):
-            for vx in T.thread_binding(2, thread="vthread.x"):
-                for tx_p in T.thread_binding(256, thread="threadIdx.x"):
+        for bx in T.parallel(144, annotations={"thread_binding": "blockIdx.x"}):
+            for vx in T.parallel(2, annotations={"thread_binding": "vthread.x"}):
+                for tx_p in T.parallel(256, annotations={"thread_binding": "threadIdx.x"}):
                     with Ts.sblock():
                         for k_0 in T.serial(193):
                             with Ts.sblock():
                                 A_shared = Ts.sblock_alloc_tensor([960, 770], dtype="float32", scope="shared")
                                 B_shared = Ts.sblock_alloc_tensor([770, 2304], dtype="float32", scope="shared")
                                 for _u in T.serial(1):
-                                    for tx in T.thread_binding(256, thread="threadIdx.x"):
+                                    for tx in T.parallel(256, annotations={"thread_binding": "threadIdx.x"}):
                                         for vec in T.vectorized(3):
                                             with Ts.sblock("A_shared"):
                                                 Ts.where(bx // 18 * 128 + ((_u * 256 + tx) * 3 + vec) // 4 < 960 and k_0 * 4 + ((_u * 256 + tx) * 3 + vec) % 4 < 770 and (_u * 256 + tx) * 3 + vec < 512)
                                                 A_shared[bx // 18 * 128 + (_u * 768 + tx * 3 + vec) // 4, k_0 * 4 + (_u * 768 + tx * 3 + vec) % 4] = A[bx // 18 * 128 + (_u * 768 + tx * 3 + vec) // 4, k_0 * 4 + (_u * 768 + tx * 3 + vec) % 4]
                                 for _u in T.serial(1):
-                                    for tx in T.thread_binding(256, thread="threadIdx.x"):
+                                    for tx in T.parallel(256, annotations={"thread_binding": "threadIdx.x"}):
                                         for vec in T.vectorized(4):
                                             with Ts.sblock("B_shared"):
                                                 Ts.where(k_0 * 4 + ((_u * 256 + tx) * 4 + vec) // 128 < 770 and (_u * 256 + tx) * 4 + vec < 512)
@@ -862,22 +862,22 @@ class TestComplexCase1(BaseCompactTest):
 
     @Ts.function
     def expected(A: T.Tensor((960, 770), "float32"), B: T.Tensor((770, 2304), "float32"), C: T.Tensor((960, 2304), "float32")) -> None:
-        for bx in T.thread_binding(144, thread="blockIdx.x"):
-            for vx in T.thread_binding(2, thread="vthread.x"):
-                for tx_p in T.thread_binding(256, thread="threadIdx.x"):
+        for bx in T.parallel(144, annotations={"thread_binding": "blockIdx.x"}):
+            for vx in T.parallel(2, annotations={"thread_binding": "vthread.x"}):
+                for tx_p in T.parallel(256, annotations={"thread_binding": "threadIdx.x"}):
                     with Ts.sblock():
                         for k_0 in T.serial(193):
                             with Ts.sblock():
                                 A_shared = Ts.sblock_alloc_tensor([128, 4], dtype="float32", scope="shared")
                                 B_shared = Ts.sblock_alloc_tensor([4, 128], dtype="float32", scope="shared")
                                 for v_u in T.serial(1):
-                                    for tx in T.thread_binding(256, thread="threadIdx.x"):
+                                    for tx in T.parallel(256, annotations={"thread_binding": "threadIdx.x"}):
                                         for vec in T.vectorized(3):
                                             with Ts.sblock("A_shared"):
                                                 Ts.where(bx // 18 * 128 + (tx * 3 + vec) // 4 < 960 and k_0 * 4 + (tx * 3 + vec) % 4 < 770 and tx * 3 + vec < 512)
                                                 A_shared[(tx * 3 + vec) // 4, (tx * 3 + vec) % 4] = A[bx // 18 * 128 + (tx * 3 + vec) // 4, k_0 * 4 + (tx * 3 + vec) % 4]
                                 for v_u in T.serial(1):
-                                    for tx in T.thread_binding(256, thread="threadIdx.x"):
+                                    for tx in T.parallel(256, annotations={"thread_binding": "threadIdx.x"}):
                                         for vec in T.vectorized(4):
                                             with Ts.sblock("B_shared"):
                                                 Ts.where(k_0 * 4 + tx // 32 < 770 and tx * 4 + vec < 512)
@@ -1343,8 +1343,8 @@ class TestSymbolicDiagMaskCase:
     @Ts.function
     def before(A: T.Tensor((1, 1, n, n)), n: T.int32):  # noqa: F821
         B = Ts.sblock_alloc_tensor((n, n))
-        for i in T.thread_binding(256, thread="blockIdx.x"):
-            for j in T.thread_binding(256, thread="threadIdx.x"):
+        for i in T.parallel(256, annotations={"thread_binding": "blockIdx.x"}):
+            for j in T.parallel(256, annotations={"thread_binding": "threadIdx.x"}):
                 for k in range((n * n + 65535) // 65536):
                     with Ts.sblock("make_diag_mask_te"):
                         Ts.where((k * 256 + i) * 256 + j < n * n)
@@ -1355,8 +1355,8 @@ class TestSymbolicDiagMaskCase:
                             T.float32(-3.4028234663852886e38),
                             T.float32(3.4028234663852886e38),
                         )
-        for i in T.thread_binding(256, thread="blockIdx.x"):
-            for j in T.thread_binding(256, thread="threadIdx.x"):
+        for i in T.parallel(256, annotations={"thread_binding": "blockIdx.x"}):
+            for j in T.parallel(256, annotations={"thread_binding": "threadIdx.x"}):
                 for k in range((n * n + 65535) // 65536):
                     with Ts.sblock("T_broadcast_to"):
                         Ts.where((k * 256 + i) * 256 + j < n * n)
@@ -1371,8 +1371,8 @@ class TestSymbolicDiagMaskCase:
     @Ts.function
     def expected(A: T.Tensor((1, 1, n, n)), n: T.int32):  # noqa: F821
         B = Ts.sblock_alloc_tensor((n, n))
-        for i in T.thread_binding(256, thread="blockIdx.x"):
-            for j in T.thread_binding(256, thread="threadIdx.x"):
+        for i in T.parallel(256, annotations={"thread_binding": "blockIdx.x"}):
+            for j in T.parallel(256, annotations={"thread_binding": "threadIdx.x"}):
                 for k in range((n * n + 65535) // 65536):
                     with Ts.sblock("make_diag_mask_te"):
                         Ts.where(k * 65536 + i * 256 + j < n * n)
@@ -1383,8 +1383,8 @@ class TestSymbolicDiagMaskCase:
                             T.float32(-3.4028234663852886e38),
                             T.float32(3.4028234663852886e38),
                         )
-        for i in T.thread_binding(256, thread="blockIdx.x"):
-            for k in T.thread_binding(256, thread="threadIdx.x"):
+        for i in T.parallel(256, annotations={"thread_binding": "blockIdx.x"}):
+            for k in T.parallel(256, annotations={"thread_binding": "threadIdx.x"}):
                 for k in range((n * n + 65535) // 65536):
                     with Ts.sblock("T_broadcast_to"):
                         Ts.where(k * 65536 + i * 256 + k < n * n)
