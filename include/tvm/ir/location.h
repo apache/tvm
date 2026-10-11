@@ -71,7 +71,11 @@ class SourceName : public ffi::ObjectRef {
    */
   TVM_DLL static SourceName Get(const ffi::String& name);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(SourceName, ffi::ObjectRef, SourceNameNode);
+  explicit SourceName(ffi::UnsafeInit tag, ffi::ObjectPtr<SourceNameNode> n) : ffi::ObjectRef(tag) {
+    data_ = std::move(n);
+  }
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(SourceName, ffi::ObjectRef, SourceNameNode);
 };
 
 /*! \brief Base class for immutable source-location metadata. */
@@ -108,6 +112,8 @@ class UnknownLoc : public Location {
 /*! \brief A range in one source, retaining frontend coordinate conventions. */
 class SourceLocNode : public LocationNode {
  public:
+  explicit SourceLocNode(SourceName source_name) : source_name(std::move(source_name)) {}
+  explicit SourceLocNode(ffi::UnsafeInit tag) : source_name(tag) {}
   /*! \brief The source name. */
   SourceName source_name;
   /*! \brief The starting line number. */
@@ -177,6 +183,8 @@ class Source;
 
 class SourceNode : public ffi::Object {
  public:
+  explicit SourceNode(SourceName source_name) : source_name(std::move(source_name)) {}
+  explicit SourceNode(ffi::UnsafeInit tag) : source_name(tag) {}
   /*! \brief The source name. */
   SourceName source_name;
 

@@ -52,7 +52,7 @@ using prim::MakeConst;
 
 TVM_FFI_STATIC_INIT_BLOCK() { IntervalSetNode::RegisterReflection(); }
 
-IntervalSet::IntervalSet(PrimExpr min_value, PrimExpr max_value) {
+IntervalSet::IntervalSet(PrimExpr min_value, PrimExpr max_value) : IntSet(ffi::UnsafeInit{}) {
   auto node = ffi::make_object<IntervalSetNode>(std::move(min_value), std::move(max_value));
   data_ = std::move(node);
 }
@@ -476,7 +476,7 @@ class IntervalSetEvaluator : public tvm::ExprFunctor<IntervalSet(const Expr&)> {
     relax_in_progress_.insert(op);
     IntervalSet relaxed = Eval(res);
     relax_in_progress_.erase(op);
-    relax_memo_[op] = relaxed;
+    relax_memo_.insert_or_assign(op, relaxed);
     return relaxed;
   }
 
@@ -782,8 +782,7 @@ std::function<void()> IntSetAnalyzer::Impl::EnterConstraint(const PrimExpr& cons
 
 // Quickly adapt to IntSet interface
 // TODO(tqchen): revisit IntSet interface as well.
-Range IntSet::CoverRange(Range max_range) const {
-  IntSet temp;
+ffi::Optional<Range> IntSet::CoverRange(ffi::Optional<Range> max_range) const {
   Analyzer analyzer;
   const IntervalSetNode* s_int = (*this).as<IntervalSetNode>();
   TVM_FFI_ICHECK(s_int != nullptr);
@@ -1100,7 +1099,7 @@ class SubExprIntervalSetEvaluator : public IntervalSetEvaluator {
 
   IntervalSet Dispatch(const Expr& n) final {
     IntervalSet ret = IntervalSetEvaluator::Dispatch(n);
-    expr_map[n.as_or_throw<PrimExpr>()] = ret;
+    expr_map.insert_or_assign(n.as_or_throw<PrimExpr>(), ret);
     return ret;
   }
 

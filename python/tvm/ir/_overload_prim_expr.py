@@ -202,8 +202,8 @@ class ExprOp:
 
     def __nonzero__(self):
         raise ValueError(
-            "Cannot use and / or / not operator to Expr, hint: use tvm.tirx.all / "
-            "tvm.tirx.any, if it is None checking, use node is not None"
+            "Cannot use and / or / not operator to Expr, hint: use tvm.ir.prim.all / "
+            "tvm.ir.prim.any, if it is None checking, use node is not None"
         )
 
     def __bool__(self) -> bool:

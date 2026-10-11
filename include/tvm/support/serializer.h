@@ -250,7 +250,13 @@ struct Serializer<ffi::Array<T>> {
     if (!Serializer<uint64_t>::Read(strm, &sz)) return false;
     *arr = ffi::Array<T>();
     for (uint64_t i = 0; i < sz; ++i) {
-      T val;
+      T val = [] {
+        if constexpr (std::is_default_constructible_v<T>) {
+          return T();
+        } else {
+          return T(ffi::UnsafeInit{});
+        }
+      }();
       if (!Serializer<T>::Read(strm, &val)) return false;
       arr->push_back(std::move(val));
     }
@@ -277,8 +283,20 @@ struct Serializer<ffi::Map<K, V>> {
     if (!Serializer<uint64_t>::Read(strm, &sz)) return false;
     *data = ffi::Map<K, V>();
     for (uint64_t i = 0; i < sz; ++i) {
-      K key;
-      V val;
+      K key = [] {
+        if constexpr (std::is_default_constructible_v<K>) {
+          return K();
+        } else {
+          return K(ffi::UnsafeInit{});
+        }
+      }();
+      V val = [] {
+        if constexpr (std::is_default_constructible_v<V>) {
+          return V();
+        } else {
+          return V(ffi::UnsafeInit{});
+        }
+      }();
       if (!Serializer<K>::Read(strm, &key)) return false;
       if (!Serializer<V>::Read(strm, &val)) return false;
       data->Set(std::move(key), std::move(val));

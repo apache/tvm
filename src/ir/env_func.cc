@@ -42,7 +42,9 @@ ffi::ObjectPtr<ffi::Object> CreateEnvNode(const std::string& name) {
   return n;
 }
 
-EnvFunc EnvFunc::Get(const ffi::String& name) { return EnvFunc(CreateEnvNode(name)); }
+EnvFunc EnvFunc::Get(const ffi::String& name) {
+  return EnvFunc(ffi::UnsafeInit{}, CreateEnvNode(name));
+}
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;

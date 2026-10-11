@@ -72,8 +72,8 @@ struct RewriteSimplifierStats : ffi::ObjectRef {
     data_ = ffi::make_object<RewriteSimplifierStatsNode>(data);
   }
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(RewriteSimplifierStats, ffi::ObjectRef,
-                                             RewriteSimplifierStatsNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(RewriteSimplifierStats, ffi::ObjectRef,
+                                                RewriteSimplifierStatsNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(RewriteSimplifierStatsNode);
 };
 

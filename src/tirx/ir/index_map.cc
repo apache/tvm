@@ -254,7 +254,7 @@ ffi::Array<Range> IndexMapNode::MapRanges(const ffi::Array<Range>& ranges,
     // results in a shape [1, N].
     std::unordered_map<const VarNode*, sym::IntSet> dom_map;
     for (size_t i = 0; i < initial_indices.size(); i++) {
-      dom_map[initial_indices[i].get()] = sym::IntSet::FromRange(ranges[i]);
+      dom_map.insert_or_assign(initial_indices[i].get(), sym::IntSet::FromRange(ranges[i]));
     }
 
     for (const auto& final_index : final_indices) {

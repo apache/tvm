@@ -60,7 +60,9 @@ class DefaultTimerNode : public TimerNode {
   Device device_;
 };
 
-static Timer DefaultTimer(Device dev) { return Timer(ffi::make_object<DefaultTimerNode>(dev)); }
+static Timer DefaultTimer(Device dev) {
+  return Timer(ffi::UnsafeInit{}, ffi::make_object<DefaultTimerNode>(dev));
+}
 
 class CPUTimerNode : public TimerNode {
  public:
@@ -77,8 +79,9 @@ class CPUTimerNode : public TimerNode {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("runtime.timer.cpu",
-                        [](Device dev) { return Timer(ffi::make_object<CPUTimerNode>()); });
+  refl::GlobalDef().def("runtime.timer.cpu", [](Device dev) {
+    return Timer(ffi::UnsafeInit{}, ffi::make_object<CPUTimerNode>());
+  });
 }
 
 Timer Timer::Start(Device dev) {
@@ -123,7 +126,7 @@ ffi::Function WrapTimeEvaluator(ffi::Function pf, Device dev, int number, int re
     pf.CallPacked(args, num_args, &temp);
 
     // allocate two large arrays to flush L2 cache
-    Tensor arr1, arr2;
+    ffi::Optional<Tensor> arr1, arr2;
     if (cache_flush_bytes > 0) {
       arr1 = Tensor::Empty({cache_flush_bytes / 4}, {kDLInt, 32, 1}, dev);
       arr2 = Tensor::Empty({cache_flush_bytes / 4}, {kDLInt, 32, 1}, dev);
@@ -144,7 +147,7 @@ ffi::Function WrapTimeEvaluator(ffi::Function pf, Device dev, int number, int re
               std::max((min_repeat_ms / (duration_ms / number) + 1), number * golden_ratio));
         }
         if (cache_flush_bytes > 0) {
-          arr1.CopyFrom(arr2);
+          arr1.value().CopyFrom(arr2.value());
         }
         DeviceAPI::Get(dev)->StreamSync(dev, nullptr);
         // start timing

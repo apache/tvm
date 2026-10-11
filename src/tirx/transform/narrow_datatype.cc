@@ -90,7 +90,7 @@ class DataTypeVisitor final : public StmtExprVisitor {
       if (bound_.find(e) == bound_.end()) {
         analyzer_->const_int_bound(e, &bound_);
       }
-      ConstIntBound bound = bound_[e];
+      ConstIntBound bound = bound_.at(e);
       int64_t ubound =
           static_cast<int64_t>(max_value(PrimType::Int(target_bits_)).as_or_throw<IntImm>()->value);
       int64_t lbound =

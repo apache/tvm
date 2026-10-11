@@ -383,7 +383,7 @@ namespace {
 Target ResolveTarget(const Function& f) {
   auto target = f->GetAttr<Target>(tvm::attr::kTarget);
   if (!target.has_value()) {
-    target = Target::Current(false);
+    target = Target::Current(false).value();
   }
   return target.value();
 }

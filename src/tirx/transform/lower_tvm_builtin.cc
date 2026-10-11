@@ -278,7 +278,7 @@ class BuiltinLower : public StmtExprMutator {
     DLDataType dtype = buffer_call->args[1].as_or_throw<DataTypeImm>()->value;
     PrimType element_type(dtype);
     ffi::String scope = buffer_call->args[2].as_or_throw<StringImm>()->value;
-    DictAttrs annotations = buffer_call->attrs.as_or_throw<DictAttrs>();
+    DictAttrs annotations = buffer_call->attrs.value().as_or_throw<DictAttrs>();
     if (annotations->dict.count(transform::kDisableLowerTVMBuiltin)) {
       if (annotations->dict[transform::kDisableLowerTVMBuiltin].as_or_throw<IntImm>()->value) {
         return stmt;
@@ -432,7 +432,9 @@ class BuiltinLower : public StmtExprMutator {
 
   UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) final {
     if (op->op.same_as(backend::cuda::tensormap_encode_tiled_op()) && !preserve_ffi_kernel_) {
-      const auto* attr = op->attrs.as<backend::cuda::TensorMapEncodeTiledAttr>();
+      const auto* attr =
+          (op->attrs.has_value() ? op->attrs.value().as<backend::cuda::TensorMapEncodeTiledAttr>()
+                                 : nullptr);
       TVM_FFI_CHECK(attr && attr->rank >= 1 && attr->rank <= 5 &&
                         op->args.size() == static_cast<size_t>(4 * attr->rank + 1),
                     ValueError)

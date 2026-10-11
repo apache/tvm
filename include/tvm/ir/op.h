@@ -79,7 +79,12 @@ class ArgumentInfoNode : public ffi::Object {
 /*! \brief Managed reference to an argument descriptor. */
 class ArgumentInfo : public ffi::ObjectRef {
  public:
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(ArgumentInfo, ffi::ObjectRef, ArgumentInfoNode);
+  explicit ArgumentInfo(ffi::UnsafeInit tag, ffi::ObjectPtr<ArgumentInfoNode> n)
+      : ffi::ObjectRef(tag) {
+    data_ = std::move(n);
+  }
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ArgumentInfo, ffi::ObjectRef, ArgumentInfoNode);
 };
 
 /*! \brief Metadata for a canonical primitive operator invoked through Call. */
@@ -268,7 +273,7 @@ struct arg : SignatureTrait {
     auto info = ffi::make_object<ArgumentInfoNode>();
     info->name = name;
     info->doc = doc;
-    op->args_info.push_back(ArgumentInfo(std::move(info)));
+    op->args_info.push_back(ArgumentInfo(ffi::UnsafeInit{}, std::move(info)));
   }
 
   static bool Validate(ValidateState* state, ffi::Expected<void>* out) {
@@ -303,7 +308,7 @@ struct var_args : SignatureTrait {
     auto info = ffi::make_object<ArgumentInfoNode>();
     info->name = name;
     info->doc = doc;
-    op->var_args_info = ArgumentInfo(std::move(info));
+    op->var_args_info = ArgumentInfo(ffi::UnsafeInit{}, std::move(info));
   }
 
   static bool Validate(ValidateState* state, ffi::Expected<void>* out) {
@@ -342,7 +347,7 @@ struct ty_arg : SignatureTrait {
     auto info = ffi::make_object<ArgumentInfoNode>();
     info->name = name;
     info->doc = doc;
-    op->ty_args_info.push_back(ArgumentInfo(std::move(info)));
+    op->ty_args_info.push_back(ArgumentInfo(ffi::UnsafeInit{}, std::move(info)));
   }
 
   static bool Validate(ValidateState* state, ffi::Expected<void>* out) {
@@ -377,7 +382,7 @@ struct var_ty_args : SignatureTrait {
     auto info = ffi::make_object<ArgumentInfoNode>();
     info->name = name;
     info->doc = doc;
-    op->var_ty_args_info = ArgumentInfo(std::move(info));
+    op->var_ty_args_info = ArgumentInfo(ffi::UnsafeInit{}, std::move(info));
   }
 
   static bool Validate(ValidateState* state, ffi::Expected<void>* out) {

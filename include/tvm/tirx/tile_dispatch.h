@@ -48,6 +48,11 @@ constexpr const char* kPostBufferDefStmt = "post_buffer_def_stmt";
  */
 class DispatchContextNode : public ffi::Object {
  public:
+  DispatchContextNode(Target target, ExecScope exec_scope)
+      : target(std::move(target)), exec_scope(std::move(exec_scope)) {}
+  explicit DispatchContextNode(ffi::UnsafeInit)
+      : target(ffi::UnsafeInit{}), exec_scope(ffi::UnsafeInit{}) {}
+
   /*! \brief The target of the kernel. */
   Target target;
   /*! \brief The exec scope of the operator */
@@ -125,7 +130,8 @@ class DispatchContext : public ffi::ObjectRef {
                           ffi::Map<ffi::String, ffi::Array<PrimExpr>> intra = {},
                           ffi::String scope_kind = "");
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(DispatchContext, ffi::ObjectRef, DispatchContextNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(DispatchContext, ffi::ObjectRef,
+                                                DispatchContextNode);
 };
 
 }  // namespace tirx

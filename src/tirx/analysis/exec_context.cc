@@ -598,8 +598,7 @@ ExecContext ExecContext::AtKernelEntry(int64_t lane_ext, int64_t warp_ext, int64
 ExecContext ExecContext::AtKernelEntry(
     int64_t lane_ext, int64_t warp_ext, int64_t cta_ext,
     const std::vector<std::pair<std::string, int64_t>>& cta_axes) {
-  ExecContext ctx;
-  ctx.A = InitialActiveSet(lane_ext, warp_ext, cta_ext, cta_axes);
+  ExecContext ctx{InitialActiveSet(lane_ext, warp_ext, cta_ext, cta_axes), ScopeKind::kThread, {}};
   ctx.scope_kind = ScopeKind::kThread;
   std::string err;
   bool ok = ScopeSwitch(ctx.A, ctx.scope_kind, &ctx.split, &err);
@@ -609,7 +608,7 @@ ExecContext ExecContext::AtKernelEntry(
 
 bool ExecContext::WithFilter(ScopeBinding binding, int64_t lo, int64_t hi, ExecContext* out,
                              std::string* err) const {
-  ActiveSet new_A;
+  ActiveSet new_A = A;
   if (!FilterNarrow(A, binding, lo, hi, &new_A, err)) return false;
   ExecSplit new_split;
   if (!ScopeSwitch(new_A, scope_kind, &new_split, err)) return false;
@@ -640,7 +639,7 @@ bool ExecContext::WithCtaAxisFilter(const std::string& axis, int64_t lo, int64_t
     *err = "filter range is empty or inverted";
     return false;
   }
-  ActiveSet new_A;
+  ActiveSet new_A = A;
   if (!NarrowAxis(A, axis, lo, hi, &new_A, err)) return false;
   ExecSplit new_split;
   if (!ScopeSwitch(new_A, scope_kind, &new_split, err)) return false;
@@ -652,7 +651,7 @@ bool ExecContext::WithCtaAxisFilter(const std::string& axis, int64_t lo, int64_t
 
 bool ExecContext::WithCtaAxisModulo(const std::string& axis, int64_t modulus, int64_t residue,
                                     ExecContext* out, std::string* err) const {
-  ActiveSet new_A;
+  ActiveSet new_A = A;
   if (!ModuloAxis(A, axis, modulus, residue, &new_A, err)) return false;
   ExecSplit new_split;
   if (!ScopeSwitch(new_A, scope_kind, &new_split, err)) return false;

@@ -82,7 +82,7 @@ TileLayout FuseContiguousShardIters(TileLayout layout) {
 TileLayout FuseAxesByScope(TileLayout layout) {
   // Step 1: Get the target and scope information
   auto scope_pair_opt = layout->GetScope();
-  Target target = Target::Current();
+  ffi::Optional<Target> target = Target::Current();
   if (!scope_pair_opt.has_value() || !target.defined()) {
     return layout;
   }
@@ -97,7 +97,8 @@ TileLayout FuseAxesByScope(TileLayout layout) {
   // Step 3: Define the axis fusion function
   auto try_fuse_axis = [&](const Iter& iter) -> Iter {
     const auto& fuser = iter->axis->GetFuser();
-    return fuser.has_value() ? fuser.value()(target, subscope, scope, iter).value_or(iter) : iter;
+    return fuser.has_value() ? fuser.value()(target.value(), subscope, scope, iter).value_or(iter)
+                             : iter;
   };
 
   // Step 4: Process shard iterators
