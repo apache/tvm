@@ -169,10 +169,10 @@ jobject newTVMNull(JNIEnv* env) {
 
 jobject newTVMObject(JNIEnv* env, jlong handle, jint type_index) {
   const char* class_name = "org/apache/tvm/TVMObject";
-  const char* type_key = reinterpret_cast<tvm::ffi::Object*>(handle)->GetTypeKey();
-  if (std::strcmp(type_key, "rpc.RemoteDevice") == 0) {
+  std::string type_key = reinterpret_cast<tvm::ffi::Object*>(handle)->GetTypeKey();
+  if (type_key == "rpc.RemoteDevice") {
     class_name = "org/apache/tvm/rpc/TVMRemoteDevice";
-  } else if (std::strcmp(type_key, "rpc.RemoteTensor") == 0) {
+  } else if (type_key == "rpc.RemoteTensor") {
     class_name = "org/apache/tvm/rpc/RemoteTensor";
   }
   jclass cls = env->FindClass(class_name);

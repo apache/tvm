@@ -35,9 +35,16 @@
 namespace tvm {
 namespace runtime {
 
+/*! \brief Session-owned device descriptor for an RPC execution endpoint.
+ *
+ * The endpoint descriptor never carries session identity. Only this object
+ * binds it to a session, and all device operations must use that session.
+ */
 class RemoteDeviceObj : public ffi::Object {
  public:
+  /*! \brief Keeps the transport alive; explicit session closure still invalidates operations. */
   std::shared_ptr<RPCSession> sess;
+  /*! \brief Ordinary device type/index in the remote endpoint, not the client process. */
   Device endpoint_device;
   RPCSession* session() const {
     sess->EnsureOpen();
@@ -46,6 +53,7 @@ class RemoteDeviceObj : public ffi::Object {
   static constexpr bool _type_mutable = true;
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("rpc.RemoteDevice", RemoteDeviceObj, ffi::Object);
 };
+/*! \brief Owning reference to a session-bound remote device. */
 class RemoteDevice : public ffi::ObjectRef {
  public:
   explicit RemoteDevice(ffi::ObjectPtr<RemoteDeviceObj> data) : ffi::ObjectRef(std::move(data)) {}
@@ -61,10 +69,15 @@ inline RemoteDevice MakeRemoteDevice(std::shared_ptr<RPCSession> sess, Device de
 
 /*! \brief Shared ownership of a remote allocation or returned tensor object. */
 struct RemoteTensorStorage {
+  /*! \brief Session that allocated the storage or returned the owning tensor handle. */
   std::shared_ptr<RPCSession> sess;
+  /*! \brief Endpoint device identifying the session-owned tensor allocation. */
   Device device;
+  /*! \brief Opaque endpoint data address, usable only in temporary RPC wire descriptors. */
   void* data{nullptr};
+  /*! \brief Non-null returned tensor handle; FreeHandle releases its remote owner. */
   void* object_handle{nullptr};
+  /*! \brief True for session allocations released with FreeTensor, not returned objects. */
   bool owns_allocation{false};
   ~RemoteTensorStorage() {
     try {
@@ -80,14 +93,27 @@ struct RemoteTensorStorage {
   }
 };
 
+/*! \brief Logical contiguous tensor metadata over shared remote storage.
+ *
+ * Views copy metadata and retain the same storage owner. Neither this object
+ * nor its descriptor may be exported as a locally usable ffi::Tensor/DLPack.
+ */
 class RemoteTensorObj : public ffi::Object {
  public:
+  /*! \brief Session-bound endpoint device, always from the storage owner's session. */
   RemoteDevice device{ffi::UnsafeInit{}};
+  /*! \brief Independently owned logical shape, never borrowed from a remote return frame. */
   ffi::Shape shape;
+  /*! \brief Element type for shape/byte-size validation and wire descriptors. */
   DLDataType dtype;
+  /*! \brief Byte displacement from storage->data; bounded views accumulate this offset. */
   uint64_t byte_offset{0};
+  /*! \brief Shared allocation/object owner; the last view releases the remote resource. */
   std::shared_ptr<RemoteTensorStorage> storage;
-  /*! \brief Temporary descriptor for RPC transport only, never a local tensor. */
+  /*! \brief Borrowed descriptor valid while this tensor remains alive during an RPC call.
+   * Its data is an endpoint address and shape is local metadata; neither may
+   * escape into a locally usable tensor or a DLPack export.
+   */
   DLTensor descriptor() const {
     device->sess->EnsureOpen();
     return {storage->data,
@@ -101,6 +127,7 @@ class RemoteTensorObj : public ffi::Object {
   static constexpr bool _type_mutable = true;
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("rpc.RemoteTensor", RemoteTensorObj, ffi::Object);
 };
+/*! \brief Owning reference to remote metadata and its shared storage lifetime. */
 class RemoteTensor : public ffi::ObjectRef {
  public:
   explicit RemoteTensor(ffi::ObjectPtr<RemoteTensorObj> data) : ffi::ObjectRef(std::move(data)) {}
@@ -124,13 +151,17 @@ inline RemoteTensor RemoteTensorFromHandle(std::shared_ptr<RPCSession> sess, con
   return RemoteTensor(n);
 }
 
+/*! \brief Session-checked stream wrapper; aliases share one release state. */
 class RemoteStreamObj : public ffi::Object {
  public:
+  /*! \brief Owning session and exact endpoint device accepted by stream operations. */
   RemoteDevice device{ffi::UnsafeInit{}};
+  /*! \brief Shared handle/closure state also retained by the session until release. */
   std::shared_ptr<RPCStreamState> state;
   static constexpr bool _type_mutable = true;
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("rpc.RemoteStream", RemoteStreamObj, ffi::Object);
 };
+/*! \brief Owning reference to a session-bound stream alias. */
 class RemoteStream : public ffi::ObjectRef {
  public:
   explicit RemoteStream(ffi::ObjectPtr<RemoteStreamObj> data) : ffi::ObjectRef(std::move(data)) {}

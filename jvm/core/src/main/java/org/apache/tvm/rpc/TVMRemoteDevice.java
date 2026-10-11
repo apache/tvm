@@ -23,7 +23,12 @@ import org.apache.tvm.TVMType;
 import org.apache.tvm.TVMValue;
 import org.apache.tvm.TVMValueNull;
 
-/** A session-owned remote device, distinct from a local Device. */
+/**
+ * A session-owned remote device, distinct from a local Device.
+ * Its native object retains the session and an ordinary endpoint device type and
+ * index. The endpoint descriptor has no session identity by itself. Allocation,
+ * queries and synchronization use the owning session and fail after its closure.
+ */
 public class TVMRemoteDevice extends TVMObject {
   public TVMRemoteDevice(long handle, int typeIndex) {
     super(handle, typeIndex);

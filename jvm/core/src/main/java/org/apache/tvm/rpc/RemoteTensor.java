@@ -21,7 +21,12 @@ import org.apache.tvm.TVMObject;
 import org.apache.tvm.TVMValueNull;
 import org.apache.tvm.TensorBase;
 
-/** Remote storage whose opaque address cannot be used as a local Tensor. */
+/**
+ * Remote storage whose opaque address cannot be used as a local Tensor.
+ * The native object retains the allocation or returned tensor handle and its
+ * session. Releasing this reference releases one owner; shared views retain the
+ * backing allocation. Transfers use explicit local or same-session destinations.
+ */
 public class RemoteTensor extends TVMObject {
   public RemoteTensor(long handle, int typeIndex) {
     super(handle, typeIndex);
