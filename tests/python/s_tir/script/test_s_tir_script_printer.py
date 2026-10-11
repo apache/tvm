@@ -1407,7 +1407,7 @@ def multiple_commreducer():
         reduce_temp1 = T.Var(
             "reduce_temp1", T.Tensor([1], dtype="float32", strides=[1], scope="local")
         )
-        for ax0_1 in T.thread_binding(0, 32, thread="threadIdx.x"):
+        for ax0_1 in T.parallel(0, 32, annotations={"thread_binding": "threadIdx.x"}):
             with Ts.sblock("T_softmax_maxelem_cross_thread_reduction"):
                 T.evaluate(
                     T.gpu_thread_allreduce(
@@ -1419,7 +1419,7 @@ def multiple_commreducer():
                         (ax0_1,),
                     )
                 )
-        for ax0_1 in T.thread_binding(0, 32, thread="threadIdx.x"):
+        for ax0_1 in T.parallel(0, 32, annotations={"thread_binding": "threadIdx.x"}):
             with Ts.sblock("T_softmax_expsum_cross_thread_reduction"):
                 T.evaluate(
                     T.gpu_thread_allreduce(
@@ -1863,9 +1863,9 @@ def multi_env_threads():
     @Ts.function
     def func(A: T.Tensor(128, "float32"), C: T.Tensor(128, "float32")):
         B = Ts.sblock_alloc_tensor([128], dtype="float32")
-        for i in T.thread_binding(128, thread="threadIdx.x"):
+        for i in T.parallel(128, annotations={"thread_binding": "threadIdx.x"}):
             B[i] = A[i] + 1.0
-        for i in T.thread_binding(128, thread="threadIdx.x"):
+        for i in T.parallel(128, annotations={"thread_binding": "threadIdx.x"}):
             C[i] = B[i] + 2.0
 
     mod = tvm.s_tir.transform.LowerOpaqueBlock()(
@@ -2329,7 +2329,7 @@ def lowered_loop_split(
     reduce_temp0 = Ts.sblock_alloc_tensor([1], dtype="float32", strides=[1], scope="local")
     normal_reduce_temp0 = Ts.sblock_alloc_tensor([1], dtype="float32", strides=[1], scope="local")
     for i in T.serial(0, 128):
-        for ki in T.thread_binding(0, 32, thread="threadIdx.x"):
+        for ki in T.parallel(0, 32, annotations={"thread_binding": "threadIdx.x"}):
             normal_reduce_temp0[0] = T.float32(0)
             for ko in T.serial(0, 4):
                 with Ts.sblock("B_normal_reduction"):

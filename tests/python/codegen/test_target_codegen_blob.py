@@ -46,8 +46,8 @@ def test_cuda_multi_lib():
         @T.function
         def my_inplace_update(x: T.Tensor((12), "float32")) -> None:
             T.func_attr({"global_symbol": "modA_my_inplace_update"})
-            for bx in T.thread_binding(T.int64(1), thread="blockIdx.x"):
-                for tx in T.thread_binding(T.int64(12), thread="threadIdx.x"):
+            with T.launch_thread("blockIdx.x", T.int64(1)) as bx:  # noqa: F841
+                with T.launch_thread("threadIdx.x", T.int64(12)) as tx:
                     x[tx] = x[tx] + 1
 
     @tvm.script.ir_module
@@ -57,8 +57,8 @@ def test_cuda_multi_lib():
         @T.function
         def my_inplace_update(x: T.Tensor((12), "float32")) -> None:
             T.func_attr({"global_symbol": "modB_my_inplace_update"})
-            for bx in T.thread_binding(T.int64(1), thread="blockIdx.x"):
-                for tx in T.thread_binding(T.int64(12), thread="threadIdx.x"):
+            with T.launch_thread("blockIdx.x", T.int64(1)) as bx:  # noqa: F841
+                with T.launch_thread("threadIdx.x", T.int64(12)) as tx:
                     x[tx] = x[tx] + 2
 
     temp = utils.tempdir()

@@ -50,42 +50,11 @@ using ir::WhileFrame;
 using ir::WhileFrameNode;
 
 /*!
- * \brief A statement frame with dialect-specific tensor alias policy.
- *
- * \sa TIRFrame
- */
-class TIRFrameNode : public ir::StmtFrameNode {
- public:
-  /*! \brief Bind a view in frames that support region aliases. */
-  virtual void BindTensorRegion(tvm::tirx::TensorVar tensor, tvm::TensorRegion region);
-
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<TIRFrameNode>();
-  }
-  TVM_FFI_DECLARE_OBJECT_INFO("script.ir_builder.tirx.TIRFrame", TIRFrameNode, ir::StmtFrameNode);
-};
-
-/*!
- * \brief Managed reference to TIRFrameNode.
- *
- * \sa TIRFrameNode
- */
-class TIRFrame : public ir::StmtFrame {
- public:
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TIRFrame, ir::StmtFrame, TIRFrameNode);
-
- protected:
-  TIRFrame() = default;
-  explicit TIRFrame(ffi::ObjectPtr<TIRFrameNode> data) : ir::StmtFrame(data) {}
-};
-
-/*!
  * \brief A frame that represents the Function containing TIR statements.
  *
  * \sa FunctionFrame
  */
-class FunctionFrameNode : public TIRFrameNode {
+class FunctionFrameNode : public ir::StmtFrameNode {
  public:
   /*! \brief The name of the block. */
   ffi::Optional<ffi::String> name;
@@ -119,7 +88,7 @@ class FunctionFrameNode : public TIRFrameNode {
         .def_ro("global_var", &FunctionFrameNode::global_var);
   }
   TVM_FFI_DECLARE_OBJECT_INFO("script.ir_builder.tirx.FunctionFrame", FunctionFrameNode,
-                              TIRFrameNode);
+                              ir::StmtFrameNode);
 
  public:
   /*!
@@ -142,13 +111,14 @@ class FunctionFrameNode : public TIRFrameNode {
  *
  * \sa FunctionFrameNode
  */
-class FunctionFrame : public TIRFrame {
+class FunctionFrame : public ir::StmtFrame {
  public:
-  explicit FunctionFrame(ffi::ObjectPtr<FunctionFrameNode> data) : TIRFrame(ffi::UnsafeInit{}) {
+  explicit FunctionFrame(ffi::ObjectPtr<FunctionFrameNode> data)
+      : ir::StmtFrame(ffi::UnsafeInit{}) {
     TVM_FFI_ICHECK(data != nullptr);
     data_ = std::move(data);
   }
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(FunctionFrame, TIRFrame, FunctionFrameNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(FunctionFrame, ir::StmtFrame, FunctionFrameNode);
 };
 
 }  // namespace tirx

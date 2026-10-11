@@ -51,8 +51,8 @@ def test_thread_extent_simplify():
         A_ptr = T.decl_tensor(A, ty_args=[T.Tensor((10,), "float32", data=A)])
         C_ptr = T.decl_tensor(C, ty_args=[T.Tensor((10,), "float32", data=C)])
         n_val: T.let[T.int32] = 10
-        for tx in T.thread_binding(n_val, thread="threadIdx.x"):
-            for ty in T.thread_binding(1, thread="threadIdx.y"):
+        with T.launch_thread("threadIdx.x", n_val) as tx:
+            with T.launch_thread("threadIdx.y", 1) as ty:
                 if tx + ty < 12:
                     A_ptr[tx] = C_ptr[tx + ty]
 
@@ -61,13 +61,12 @@ def test_thread_extent_simplify():
     # After simplification: Bind is kept but the if is eliminated
     # since tx + ty < 12 is always true for tx in 0..10 and ty = 0.
     stmts = list(body) if isinstance(body, tvm.ir.SeqStmt) else [body]
-    for_stmts = [s for s in stmts if isinstance(s, tvm.ir.For)]
-    assert len(for_stmts) >= 1, f"Expected For loop, got stmts: {[type(s).__name__ for s in stmts]}"
-    # The outermost For is the tx loop
-    tx_loop = for_stmts[0]
-    assert isinstance(tx_loop, tvm.ir.For)  # tx loop
-    assert isinstance(tx_loop.body[0], tvm.ir.For)  # ty loop
-    assert isinstance(tx_loop.body[0].body[0], tvm.ir.TensorStore)  # The if was eliminated
+    launches = [s for s in stmts if isinstance(s, tvm.ir.RegionStmt)]
+    assert len(launches) == 1
+    tx_launch = launches[0]
+    assert tx_launch.op.name == "tirx.launch_thread"
+    assert tx_launch.body[0].op.name == "tirx.launch_thread"
+    assert isinstance(tx_launch.body[0].body[0], tvm.ir.TensorStore)  # The if was eliminated
 
 
 def test_if_likely():
@@ -75,19 +74,19 @@ def test_if_likely():
     def func(A: T.handle("float32"), C: T.handle("float32"), n: T.int32):
         A_ptr = T.decl_tensor(A, ty_args=[T.Tensor((32,), "float32", data=A)])
         C_ptr = T.decl_tensor(C, ty_args=[T.Tensor((1024,), "float32", data=C)])
-        for tx in T.thread_binding(32, thread="threadIdx.x"):
-            for ty in T.thread_binding(32, thread="threadIdx.y"):
+        with T.launch_thread("threadIdx.x", 32) as tx:
+            with T.launch_thread("threadIdx.y", 32) as ty:
                 if T.likely(tx * 32 + ty < n):
                     if T.likely(tx * 32 + ty < n):
                         A_ptr[tx] = C_ptr[tx * 32 + ty]
 
     mod = tvm.IRModule.from_expr(func)
     body = tvm.tirx.transform.StmtSimplify()(mod)["main"].body
-    # With flat semantics, skip DeclTensor/AllocTensor siblings to find the For
+    # With flat semantics, skip DeclTensor/AllocTensor siblings to find the launch.
     if isinstance(body, tvm.ir.SeqStmt):
-        for_stmts = [s for s in body.seq if isinstance(s, tvm.ir.For)]
-        body = for_stmts[0] if for_stmts else body
-    # Structure: For(tx) -> For(ty) -> If
+        launches = [s for s in body.seq if isinstance(s, tvm.ir.RegionStmt)]
+        body = launches[0] if launches else body
+    # Structure: launch_thread(tx) -> launch_thread(ty) -> If
     assert isinstance(body.body[0].body[0], tvm.ir.If)
     assert not isinstance(body.body[0].body[0].then_case[0], tvm.ir.If)
 

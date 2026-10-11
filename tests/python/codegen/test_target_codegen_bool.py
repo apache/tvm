@@ -40,8 +40,8 @@ def test_cmp_load_store(target):
             D: T.Tensor((32,), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
-            for bx in T.thread_binding(8, thread="blockIdx.x"):
-                for tx in T.thread_binding(4, thread="threadIdx.x"):
+            with T.launch_thread("blockIdx.x", 8) as bx:
+                with T.launch_thread("threadIdx.x", 4) as tx:
                     C = T.alloc_tensor(ty_args=[T.Tensor((1,), "bool", scope="local")])
                     C[0] = B[bx * 4 + tx] < A[bx * 4 + tx]
                     D[bx * 4 + tx] = T.Cast("float32", C[0] and T.float32(1.0) < A[bx * 4 + tx])

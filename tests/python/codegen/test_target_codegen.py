@@ -62,7 +62,7 @@ def test_tensor_store_predicate_not_supported_gpu(target):
     @T.function
     def func(A: T.Tensor((2, 3), "float32"), B: T.Tensor((6,), "float32")):
         T.func_attr({"global_symbol": "main"})
-        for i_0 in T.thread_binding(3, thread="threadIdx.x"):
+        with T.launch_thread("threadIdx.x", 3) as i_0:
             T.evaluate(
                 T.call_intrin(
                     "tirx.masked_store",
@@ -116,7 +116,7 @@ def test_buffer_load_predicate_not_supported_gpu(target):
 
     @T.function
     def func(A: T.Tensor((8,), "float32"), B: T.Tensor((8,), "float32")):
-        for i_0 in T.thread_binding(3, thread="threadIdx.x"):
+        with T.launch_thread("threadIdx.x", 3) as i_0:
             B[T.Ramp(0, 2, 4)] = T.call_intrin(
                 "tirx.masked_load",
                 A,

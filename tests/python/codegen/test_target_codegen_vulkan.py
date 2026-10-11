@@ -67,8 +67,8 @@ def test_vector_comparison(dtype):
     class Module:
         @T.function
         def main(A: T.Tensor((1024,), dtype), B: T.Tensor((1024,), dtype)):
-            for i_0 in T.thread_binding(8, thread="blockIdx.x"):
-                for i_1 in T.thread_binding(32, thread="threadIdx.x"):
+            with T.launch_thread("blockIdx.x", 8) as i_0:
+                with T.launch_thread("threadIdx.x", 32) as i_1:
                     for i_2 in T.vectorized(4):
                         B[i_0 * 128 + i_1 * 4 + i_2] = T.Select(
                             A[i_0 * 128 + i_1 * 4 + i_2] >= zero,
@@ -138,8 +138,8 @@ def test_array_vectorize_add(dtype):
     class Module:
         @T.function
         def main(A: T.Tensor((64,), vec_dtype), B: T.Tensor((64,), vec_dtype)):
-            for i_0 in T.thread_binding(16, thread="blockIdx.x"):
-                for i_1 in T.thread_binding(4, thread="threadIdx.x"):
+            with T.launch_thread("blockIdx.x", 16) as i_0:
+                with T.launch_thread("threadIdx.x", 4) as i_1:
                     B[i_0 * 4 + i_1] = A[i_0 * 4 + i_1] + one
 
     f = tvm.compile(Module, target=target)
@@ -170,8 +170,8 @@ def test_vulkan_bool_load():
     class Module:
         @T.function
         def main(A: T.Tensor((1024,), "bool"), B: T.Tensor((1024,), "int32")):
-            for i_0 in T.thread_binding(8, thread="blockIdx.x"):
-                for i_1 in T.thread_binding(128, thread="threadIdx.x"):
+            with T.launch_thread("blockIdx.x", 8) as i_0:
+                with T.launch_thread("threadIdx.x", 128) as i_1:
                     B[i_0 * 128 + i_1] = T.Cast("int32", A[i_0 * 128 + i_1])
 
     f = tvm.compile(Module, target=target)
@@ -240,10 +240,8 @@ def test_vulkan_constant_passing(vulkan_parameter_impl, vulkan_parameter_dtype):
                 scalar_sum = scalar_vars[0]
                 for s in scalar_vars[1:]:
                     scalar_sum = scalar_sum + s
-                with T_builder.thread_binding(
-                    tvm.tirx.ceildiv(n_var, 64), thread="blockIdx.x"
-                ) as i_0:
-                    with T_builder.thread_binding(64, thread="threadIdx.x") as i_1:
+                with T_builder.launch_thread("blockIdx.x", tvm.tirx.ceildiv(n_var, 64)) as i_0:
+                    with T_builder.launch_thread("threadIdx.x", 64) as i_1:
                         v_i = i_0 * 64 + i_1
                         with T_builder.if_(v_i < n_var):
                             with T_builder.then_():
@@ -277,7 +275,7 @@ def test_vulkan_while_if():
 
     @T.function
     def while_if_gpu(A: T.Tensor((1,), "int32"), B: T.Tensor((1,), "int32")):
-        for bx in T.thread_binding(1, thread="blockIdx.x"):
+        with T.launch_thread("blockIdx.x", 1) as bx:
             iterations = T.alloc_tensor(ty_args=[T.Tensor((1,), "int32", scope="local")])
             iterations[0] = 0
             B[0] = 0
@@ -313,11 +311,11 @@ def test_vulkan_local_threadidx():
     def local_threadidx_func(A: T.Tensor((32,), "int32"), B: T.Tensor((32,), "int32")):
         # First block with thread extent 16
         for _ in range(1):
-            for tx in T.thread_binding(16, thread="threadIdx.x"):
+            with T.launch_thread("threadIdx.x", 16) as tx:
                 B[tx + 0] = A[tx + 0]
         # Second block with thread extent 16
         for _ in range(1):
-            for tx in T.thread_binding(16, thread="threadIdx.x"):
+            with T.launch_thread("threadIdx.x", 16) as tx:
                 B[tx + 16] = A[tx + 16]
 
     mod = tvm.IRModule.from_expr(local_threadidx_func)
@@ -438,7 +436,7 @@ def test_negative_operand_divmod():
 
     @T.function
     def func(A: T.Tensor((N, 2), "int32")):
-        for i in T.thread_binding(N, thread="threadIdx.x"):
+        with T.launch_thread("threadIdx.x", N) as i:
             A[i, 0] = T.floordiv(i - offset, divisor)
             A[i, 1] = T.floormod(i - offset, divisor)
 
@@ -470,11 +468,11 @@ def test_cooperative_matrix(out_dtype):
             X_shared_wmma_matrix_a = T.alloc_tensor(ty_args=[T.Tensor((16, 32), "float16", scope="wmma.matrix_a")])
             W_shared_wmma_matrix_b = T.alloc_tensor(ty_args=[T.Tensor((32, 16), "float16", scope="wmma.matrix_b")])
             compute_wmma_accumulator = T.alloc_tensor(ty_args=[T.Tensor((16, 16), out_dtype, scope="wmma.accumulator")])
-            for i_0_j_0_fused in T.thread_binding(1, thread="blockIdx.x"):
+            with T.launch_thread("blockIdx.x", 1) as i_0_j_0_fused:
                 T.gpu_fill_fragment(compute_wmma_accumulator.data, 16, 16, 16, 0, T.float32(0.0))
                 for k_0 in range(2):
                     for fused_outer in range(2):
-                        for tx in T.thread_binding(32, thread="threadIdx.x"):
+                        with T.launch_thread("threadIdx.x", 32) as tx:
                             for lane in T.vectorized(4):
                                 index = fused_outer * 128 + tx * 4 + lane
                                 X_shared[index // 16, k_0 * 16 + index % 16] = X[index // 16, k_0 * 16 + index % 16]
@@ -536,7 +534,7 @@ def test_codegen_decl_buffer():
         def main(A: T.Tensor((1,), "float32"), B: T.Tensor((1,), "float32")):
             A_buf = T.decl_tensor(A.data, ty_args=[T.Tensor([1], "float32", data=A.data)])
             B_buf = T.decl_tensor(B.data, ty_args=[T.Tensor([1], "float32", data=B.data)])
-            for tx in T.thread_binding(1, thread="threadIdx.x"):
+            with T.launch_thread("threadIdx.x", 1) as tx:
                 B_buf[tx] = A_buf[tx]
 
     tvm.compile(ParameterBacked, target=target)
@@ -553,8 +551,8 @@ def test_codegen_static_shared_memory():
         def main(A: T.Tensor((128,), "float32"), B: T.Tensor((128,), "float32")):
             A_shared = T.alloc_tensor(ty_args=[T.Tensor((128,), "float32", scope="shared")])
 
-            for bx in T.thread_binding(1, thread="blockIdx.x"):
-                for tx in T.thread_binding(128, thread="threadIdx.x"):
+            with T.launch_thread("blockIdx.x", 1) as bx:
+                with T.launch_thread("threadIdx.x", 128) as tx:
                     A_shared[tx] = A[tx]
                     B[tx] = A_shared[tx]
 
@@ -588,8 +586,8 @@ def test_unary():
         class Module:
             @T.function
             def main(A: T.Tensor((m,), "float32"), B: T.Tensor((m,), "float32")):
-                for i_0 in T.thread_binding((m + 63) // 64, thread="blockIdx.x"):
-                    for i_1 in T.thread_binding(64, thread="threadIdx.x"):
+                with T.launch_thread("blockIdx.x", (m + 63) // 64) as i_0:
+                    with T.launch_thread("threadIdx.x", 64) as i_1:
                         if i_0 * 64 + i_1 < m:
                             B[i_0 * 64 + i_1] = tvm_intrin(A[i_0 * 64 + i_1])
 
@@ -629,8 +627,8 @@ def test_export_load_with_fallback(monkeypatch, tmp_path):
         @T.function
         def main(A: T.Tensor((n,), "float32"), B: T.Tensor((n,), "float32")):
             T.func_attr({"tirx.noalias": True})
-            for i_0 in T.thread_binding(n // 32, thread="blockIdx.x"):
-                for i_1 in T.thread_binding(32, thread="threadIdx.x"):
+            with T.launch_thread("blockIdx.x", n // 32) as i_0:
+                with T.launch_thread("threadIdx.x", 32) as i_1:
                     B[i_0 * 32 + i_1] = A[i_0 * 32 + i_1] + 1.0
 
     monkeypatch.setenv("TVM_COMPILE_FORCE_FALLBACK", "1")

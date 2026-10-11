@@ -233,8 +233,8 @@ def _compile():
 
     @Ts.function
     def main(A: T.Tensor((8, 16), "float32"), B: T.Tensor((16, 8), "float32")):
-        for i in T.thread_binding(T.int64(8), thread="threadIdx.y"):
-            for j in T.thread_binding(T.int64(16), thread="threadIdx.x"):
+        for i in T.parallel(T.int64(8), annotations={"thread_binding": "threadIdx.y"}):
+            for j in T.parallel(T.int64(16), annotations={"thread_binding": "threadIdx.x"}):
                 with Ts.sblock("T_transpose"):
                     v0 = Ts.axis.spatial(T.int64(8), i)
                     v1 = Ts.axis.spatial(T.int64(16), j)
