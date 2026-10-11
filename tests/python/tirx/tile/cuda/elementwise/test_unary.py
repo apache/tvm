@@ -1404,8 +1404,26 @@ def test_cast_warpgroup_local_view(A_dtype, B_dtype):
         cta_id = T.cuda.block_idx('x')
         wg_id = T.cuda.warpgroup_id()
         tid_in_wg = T.cuda.thread_in_warpgroup()
-        reg_src = T.alloc_tensor(ty_args=[T.Tensor((LOCAL_LEN,), A_dtype, scope="local", layout="default")])
-        reg_dst = T.alloc_tensor(ty_args=[T.Tensor((LOCAL_LEN,), B_dtype, scope="local", layout="default")])
+        reg_src = T.alloc_tensor(
+            ty_args=[
+                T.Tensor(
+                    (LOCAL_LEN,),
+                    A_dtype,
+                    scope="local",
+                    layout="default",
+                )
+            ],
+        )
+        reg_dst = T.alloc_tensor(
+            ty_args=[
+                T.Tensor(
+                    (LOCAL_LEN,),
+                    B_dtype,
+                    scope="local",
+                    layout="default",
+                )
+            ],
+        )
         for i in T.serial(LOCAL_LEN):
             reg_src[i] = A[tid_in_wg, i]
         reg_src_view = reg_src.view(N_THREADS, LOCAL_LEN, layout=cast_layout)
@@ -1463,8 +1481,26 @@ def test_cast_warpgroup_src_layout_to_flat_uses_vec2_intrinsic(A_dtype, B_dtype)
         wg_id = T.cuda.warpgroup_id()
         tid = T.cuda.thread_in_warpgroup()
         for no in T.unroll(N_CHUNKS):
-            reg_src = T.alloc_tensor(ty_args=[T.Tensor((LOCAL_LEN,), A_dtype, scope="local", layout="default")])
-            Dreg_chunk = T.alloc_tensor(ty_args=[T.Tensor((LOCAL_LEN,), B_dtype, scope="local", layout="default")])
+            reg_src = T.alloc_tensor(
+                ty_args=[
+                    T.Tensor(
+                        (LOCAL_LEN,),
+                        A_dtype,
+                        scope="local",
+                        layout="default",
+                    )
+                ],
+            )
+            Dreg_chunk = T.alloc_tensor(
+                ty_args=[
+                    T.Tensor(
+                        (LOCAL_LEN,),
+                        B_dtype,
+                        scope="local",
+                        layout="default",
+                    )
+                ],
+            )
             for i in T.serial(LOCAL_LEN):
                 reg_src[i] = A[tid, no * LOCAL_LEN + i]
             reg_src_view = reg_src.view(N_THREADS, LOCAL_LEN, layout=wg_local_layout(LOCAL_LEN))
@@ -1520,8 +1556,26 @@ def test_cast_cta_local_view(A_dtype, B_dtype):
         T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(N_THREADS,)))
         cta_id = T.cuda.block_idx('x')
         tx_var = T.cuda.thread_idx('x')
-        reg_src = T.alloc_tensor(ty_args=[T.Tensor((LOCAL_LEN,), A_dtype, scope="local", layout="default")])
-        reg_dst = T.alloc_tensor(ty_args=[T.Tensor((LOCAL_LEN,), B_dtype, scope="local", layout="default")])
+        reg_src = T.alloc_tensor(
+            ty_args=[
+                T.Tensor(
+                    (LOCAL_LEN,),
+                    A_dtype,
+                    scope="local",
+                    layout="default",
+                )
+            ],
+        )
+        reg_dst = T.alloc_tensor(
+            ty_args=[
+                T.Tensor(
+                    (LOCAL_LEN,),
+                    B_dtype,
+                    scope="local",
+                    layout="default",
+                )
+            ],
+        )
         for i in T.serial(LOCAL_LEN):
             reg_src[i] = A[tx_var, i]
         reg_src_view = reg_src.view(N_THREADS, LOCAL_LEN, layout=cast_layout)
@@ -1572,8 +1626,26 @@ def test_cast_local_view_sliced(A_dtype, B_dtype, slice_start, slice_end):
         T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(N_THREADS,)))
         _bx = T.cuda.block_idx('x')
         tx = T.cuda.thread_idx('x')
-        reg_src = T.alloc_tensor(ty_args=[T.Tensor((LOCAL_LEN,), A_dtype, scope="local", layout="default")])
-        reg_dst = T.alloc_tensor(ty_args=[T.Tensor((LOCAL_LEN,), B_dtype, scope="local", layout="default")])
+        reg_src = T.alloc_tensor(
+            ty_args=[
+                T.Tensor(
+                    (LOCAL_LEN,),
+                    A_dtype,
+                    scope="local",
+                    layout="default",
+                )
+            ],
+        )
+        reg_dst = T.alloc_tensor(
+            ty_args=[
+                T.Tensor(
+                    (LOCAL_LEN,),
+                    B_dtype,
+                    scope="local",
+                    layout="default",
+                )
+            ],
+        )
         for i in T.serial(LOCAL_LEN):
             reg_src[i] = A[tx, i]
         reg_src_view = reg_src.view(N_THREADS, LOCAL_LEN, layout=cast_layout)
@@ -1685,8 +1757,12 @@ def test_cast_mixed_axes_and_subregion(slice_start, slice_end):
         cta_id = T.cuda.block_idx("x")
         warp_id = T.cuda.warp_id()
         lane_id = T.cuda.lane_id()
-        reg_src = T.alloc_tensor(ty_args=[T.Tensor((LOCAL_LEN,), "float32", scope="local", layout="default")])
-        reg_dst = T.alloc_tensor(ty_args=[T.Tensor((LOCAL_LEN,), "float16", scope="local", layout="default")])
+        reg_src = T.alloc_tensor(
+            ty_args=[T.Tensor((LOCAL_LEN,), "float32", scope="local", layout="default")]
+        )
+        reg_dst = T.alloc_tensor(
+            ty_args=[T.Tensor((LOCAL_LEN,), "float16", scope="local", layout="default")]
+        )
         j, k = lane_id // 4, lane_id % 4
         for i in T.serial(LOCAL_LEN):
             reg_src[i] = A[j, warp_id, k, i]
@@ -1768,8 +1844,12 @@ def test_cast_validate_extent_mismatch_rejected():
         cta_id = T.cuda.block_idx("x")
         warp_id = T.cuda.warp_id()
         lane_id = T.cuda.lane_id()
-        reg_src = T.alloc_tensor(ty_args=[T.Tensor((8,), "float32", scope="local", layout="default")])
-        reg_dst = T.alloc_tensor(ty_args=[T.Tensor((8,), "float16", scope="local", layout="default")])
+        reg_src = T.alloc_tensor(
+            ty_args=[T.Tensor((8,), "float32", scope="local", layout="default")]
+        )
+        reg_dst = T.alloc_tensor(
+            ty_args=[T.Tensor((8,), "float16", scope="local", layout="default")]
+        )
         j, k = lane_id // 4, lane_id % 4
         for i in T.serial(8):
             reg_src[i] = A[warp_id, j, k, i]

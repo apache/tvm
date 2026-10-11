@@ -157,7 +157,9 @@ def _make_cp_kernel(
         wg_id = T.cuda.warpgroup_id()
         tid_in_wg = T.cuda.thread_in_warpgroup()
         _lane = T.cuda.lane_id()
-        A_smem = T.alloc_tensor(ty_args=[T.Tensor(s_full_shape, dtype, scope="shared", layout=s_full, align=1024)])
+        A_smem = T.alloc_tensor(
+            ty_args=[T.Tensor(s_full_shape, dtype, scope="shared", layout=s_full, align=1024)]
+        )
         tmem_addr = T.alloc_shared([1], "uint32", layout="default")
         cp_mbar = T.alloc_shared([1], "uint64", layout="default")
         if wg_id == 0:
@@ -206,7 +208,9 @@ def _make_cp_kernel(
                 tmem_addr[0], ty_args=[T.Tensor(t_full_shape, dtype, scope="tmem", layout=t_full)]
             )
             if T.constexpr(pre_zero):
-                zero_reg = T.alloc_tensor(ty_args=[T.Tensor((W32,), "uint32", scope="local", layout="default")])
+                zero_reg = T.alloc_tensor(
+                    ty_args=[T.Tensor((W32,), "uint32", scope="local", layout="default")]
+                )
                 for i in range(W32):
                     zero_reg[i] = T.uint32(0)
                 for i in range(W32):
@@ -226,7 +230,9 @@ def _make_cp_kernel(
             T.ptx.tcgen05.fence__after_thread_sync()
             # Each of the 4 warps reads its own 32-lane slab (taddr lane 0 is
             # warp-slab-relative for .32x32b), covering all 128 TMEM lanes.
-            reg = T.alloc_tensor(ty_args=[T.Tensor((W32,), "uint32", scope="local", layout="default")])
+            reg = T.alloc_tensor(
+                ty_args=[T.Tensor((W32,), "uint32", scope="local", layout="default")]
+            )
             for i in range(W32):
                 T.ptx["tcgen05.ld.sync.aligned.32x32b.x1.b32"](
                     reg[i], T.cuda.get_tmem_addr(tmem_addr[0], 0, i)
@@ -512,7 +518,9 @@ def _make_cp_kernel_cta2(s_full, s_shape, t_full, t_shape, dtype, cfg, W32, n_co
         cta_id = T.cuda.block_idx("x")
         wg_id = T.cuda.warpgroup_id()
         tid_in_wg = T.cuda.thread_in_warpgroup()
-        A_smem = T.alloc_tensor(ty_args=[T.Tensor(s_shape, dtype, scope="shared", layout=s_full, align=1024)])
+        A_smem = T.alloc_tensor(
+            ty_args=[T.Tensor(s_shape, dtype, scope="shared", layout=s_full, align=1024)]
+        )
         tmem_addr = T.alloc_shared([1], "uint32", layout="default")
         cp_mbar = T.alloc_shared([1], "uint64", layout="default")
         if tid_in_wg == 0:
@@ -530,7 +538,9 @@ def _make_cp_kernel_cta2(s_full, s_shape, t_full, t_shape, dtype, cfg, W32, n_co
         )
         # Pre-zero both CTAs' tmem: alloc does not clear it, and the
         # 128x256b test asserts the odd CTA stays untouched.
-        zero_reg = T.alloc_tensor(ty_args=[T.Tensor((W32,), "uint32", scope="local", layout="default")])
+        zero_reg = T.alloc_tensor(
+            ty_args=[T.Tensor((W32,), "uint32", scope="local", layout="default")]
+        )
         for i in range(W32):
             zero_reg[i] = T.uint32(0)
         for i in range(W32):
@@ -710,7 +720,9 @@ def test_cp_default_32x128b_instruction_sequence_unchanged():
         wg_id = T.cuda.warpgroup_id()
         tid_in_wg = T.cuda.thread_in_warpgroup()
         _lane = T.cuda.lane_id()
-        A_smem = T.alloc_tensor(ty_args=[T.Tensor((4, 32, 16), "uint8", scope="shared", layout=s_full, align=1024)])
+        A_smem = T.alloc_tensor(
+            ty_args=[T.Tensor((4, 32, 16), "uint8", scope="shared", layout=s_full, align=1024)]
+        )
         tmem_addr = T.alloc_shared([1], "uint32", layout="default")
         if wg_id == 0:
             if warp_id == 0:
@@ -1029,7 +1041,9 @@ def _make_2d_kernel(
         wg_id = T.cuda.warpgroup_id()
         tid_in_wg = T.cuda.thread_in_warpgroup()
         lane_id = T.cuda.lane_id()
-        A_smem = T.alloc_tensor(ty_args=[T.Tensor(s_full_shape, dtype, scope="shared", layout=s_full, align=1024)])
+        A_smem = T.alloc_tensor(
+            ty_args=[T.Tensor(s_full_shape, dtype, scope="shared", layout=s_full, align=1024)]
+        )
         tmem_addr = T.alloc_shared([1], "uint32", layout="default")
         cp_mbar = T.alloc_shared([1], "uint64", layout="default")
         if wg_id == 0:
@@ -1088,7 +1102,9 @@ def _make_2d_kernel(
             T.cuda.cta_sync()
             T.ptx.tcgen05.fence__after_thread_sync()
             if warp_id == 0:
-                reg = T.alloc_tensor(ty_args=[T.Tensor((4,), "uint32", scope="local", layout="default")])
+                reg = T.alloc_tensor(
+                    ty_args=[T.Tensor((4,), "uint32", scope="local", layout="default")]
+                )
                 for i in range(4):
                     T.ptx["tcgen05.ld.sync.aligned.32x32b.x1.b32"](
                         reg[i],
@@ -1120,7 +1136,9 @@ def _make_3d_4tile_kernel(s_full, t_full, s_full_shape, t_full_shape, dtype, cta
         wg_id = T.cuda.warpgroup_id()
         tid_in_wg = T.cuda.thread_in_warpgroup()
         lane_id = T.cuda.lane_id()
-        A_smem = T.alloc_tensor(ty_args=[T.Tensor(s_full_shape, dtype, scope="shared", layout=s_full, align=1024)])
+        A_smem = T.alloc_tensor(
+            ty_args=[T.Tensor(s_full_shape, dtype, scope="shared", layout=s_full, align=1024)]
+        )
         tmem_addr = T.alloc_shared([1], "uint32", layout="default")
         cp_mbar = T.alloc_shared([1], "uint64", layout="default")
         if wg_id == 0:
@@ -1177,7 +1195,9 @@ def _make_3d_4tile_kernel(s_full, t_full, s_full_shape, t_full_shape, dtype, cta
             T.cuda.cta_sync()
             T.ptx.tcgen05.fence__after_thread_sync()
             if warp_id == 0:
-                reg = T.alloc_tensor(ty_args=[T.Tensor((4,), "uint32", scope="local", layout="default")])
+                reg = T.alloc_tensor(
+                    ty_args=[T.Tensor((4,), "uint32", scope="local", layout="default")]
+                )
                 for i in range(4):
                     T.ptx["tcgen05.ld.sync.aligned.32x32b.x1.b32"](
                         reg[i],
@@ -1324,7 +1344,9 @@ def test_align_middle_2_to_1_nvfp4_sfb():
         wg_id = T.cuda.warpgroup_id()
         tid_in_wg = T.cuda.thread_in_warpgroup()
         lane_id = T.cuda.lane_id()
-        A_smem = T.alloc_tensor(ty_args=[T.Tensor(s_full_shape, "uint8", scope="shared", layout=s_full, align=1024)])
+        A_smem = T.alloc_tensor(
+            ty_args=[T.Tensor(s_full_shape, "uint8", scope="shared", layout=s_full, align=1024)]
+        )
         tmem_addr = T.alloc_shared([1], "uint32", layout="default")
         cp_mbar = T.alloc_shared([1], "uint64", layout="default")
         if wg_id == 0:
@@ -1381,7 +1403,9 @@ def test_align_middle_2_to_1_nvfp4_sfb():
             T.cuda.cta_sync()
             T.ptx.tcgen05.fence__after_thread_sync()
             if warp_id == 0:
-                reg = T.alloc_tensor(ty_args=[T.Tensor((4,), "uint32", scope="local", layout="default")])
+                reg = T.alloc_tensor(
+                    ty_args=[T.Tensor((4,), "uint32", scope="local", layout="default")]
+                )
                 for i in range(4):
                     T.ptx["tcgen05.ld.sync.aligned.32x32b.x1.b32"](
                         reg[i],

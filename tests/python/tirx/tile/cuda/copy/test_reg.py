@@ -645,7 +645,9 @@ def test_copy_forced_vec_width_codegen(variant, dtype, n_elements, expected_st, 
     @T.function
     def kernel(B: T.Tensor((n_elements,), dtype)) -> None:
         T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(1,)))
-        smem = T.alloc_tensor(ty_args=[T.Tensor((n_elements,), dtype, scope="shared", layout="default")])
+        smem = T.alloc_tensor(
+            ty_args=[T.Tensor((n_elements,), dtype, scope="shared", layout="default")]
+        )
         reg = T.alloc_local((n_elements,), dtype, layout="default")
         out = T.alloc_local((n_elements,), dtype, layout="default")
         for i in range(n_elements):
@@ -687,7 +689,9 @@ def test_copy_forced_vec_dynamic_swizzled_shared_uses_vector_ptx():
     def kernel(B: T.Tensor((128, 4), "float32")) -> None:
         T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(128,)))
         tid = T.cuda.thread_idx("x")
-        smem = T.alloc_tensor(ty_args=[T.Tensor((64, 256), "float32", scope="shared", layout=smem_layout)])
+        smem = T.alloc_tensor(
+            ty_args=[T.Tensor((64, 256), "float32", scope="shared", layout=smem_layout)]
+        )
         reg = T.alloc_local((4,), "float32", layout="default")
         out = T.alloc_local((4,), "float32", layout="default")
         for i in range(4):
@@ -724,8 +728,12 @@ def test_copy_explicit_vec_auto_uses_auto_family():
     def kernel(B: T.Tensor((4,), "float32")) -> None:
         T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(1,)))
         smem = T.alloc_tensor(ty_args=[T.Tensor((4,), "float32", scope="shared", layout="default")])
-        reg = T.alloc_tensor(ty_args=[T.Tensor((4,), "float32", scope="local", layout=TileLayout(S[4]))])
-        out = T.alloc_tensor(ty_args=[T.Tensor((4,), "float32", scope="local", layout=TileLayout(S[4]))])
+        reg = T.alloc_tensor(
+            ty_args=[T.Tensor((4,), "float32", scope="local", layout=TileLayout(S[4]))]
+        )
+        out = T.alloc_tensor(
+            ty_args=[T.Tensor((4,), "float32", scope="local", layout=TileLayout(S[4]))]
+        )
         for i in range(4):
             reg[i] = T.cast(i + 1, "float32")
         T.cuda.tile.st(smem[:], reg[:])
@@ -771,7 +779,9 @@ def test_copy_forced_vec_rejects_non_thread_scope():
         T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(32,)))
         _lane = T.cuda.lane_id()
         smem = T.alloc_tensor(ty_args=[T.Tensor((4,), "float32", scope="shared", layout="default")])
-        reg = T.alloc_tensor(ty_args=[T.Tensor((4,), "float32", scope="local", layout=TileLayout(S[4]))])
+        reg = T.alloc_tensor(
+            ty_args=[T.Tensor((4,), "float32", scope="local", layout=TileLayout(S[4]))]
+        )
         T.cuda.tile.st(smem[:], reg[:], vec_bits=128, scope="warp")
         B[0] = T.cast(0, "float32")
 

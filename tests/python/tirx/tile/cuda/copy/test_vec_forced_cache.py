@@ -60,7 +60,9 @@ def _build_g2s2g_kernel(n_elements, dtype, dispatch, **copy_config):
     def kernel(A: T.Tensor((n_elements,), dtype), B: T.Tensor((n_elements,), dtype)) -> None:
         T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(1,)))
         copy_thread_id = T.cuda.thread_idx("x")
-        smem = T.alloc_tensor(ty_args=[T.Tensor((n_elements,), dtype, scope="shared", layout="default")])
+        smem = T.alloc_tensor(
+            ty_args=[T.Tensor((n_elements,), dtype, scope="shared", layout="default")]
+        )
         reg = T.alloc_local((n_elements,), dtype, layout="default")
         T.cuda.tile.ld(
             reg[:],

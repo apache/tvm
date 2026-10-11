@@ -598,9 +598,7 @@ def alloc_scalar(
     annotations: dict[str, Any] | None = None,
 ) -> _ir.TensorLoad:
     """Allocate a zero-dimensional tensor (scalar), with optional allocation annotations."""
-    buf = _alloc_tensor(
-        shape=(1,), dtype=dtype, scope=scope, layout=None, annotations=annotations
-    )
+    buf = _alloc_tensor(shape=(1,), dtype=dtype, scope=scope, layout=None, annotations=annotations)
     assert is_tensor_var(buf)
     scalar = buf[0]
     return scalar

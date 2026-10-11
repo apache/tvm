@@ -862,10 +862,46 @@ def test_unary_reduce_complex():
     @T.function
     def unary_reduce():
         T.device_entry()
-        p = T.alloc_tensor(ty_args=[T.Tensor((128, 8192), "float16", scope="trn.sbuf", layout=trainium_layout("PF", (128, 8192)))])
-        rowsum_p = T.alloc_tensor(ty_args=[T.Tensor((2, 128, 1), "float32", scope="trn.sbuf", layout=trainium_layout("FPF", (2, 128, 1)))])
-        qk = T.alloc_tensor(ty_args=[T.Tensor((2, 128, 8192), "float32", scope="trn.sbuf", layout=trainium_layout("FPF", (2, 128, 8192)))])
-        running_max = T.alloc_tensor(ty_args=[T.Tensor((16384, 1), "float32", scope="trn.sbuf", layout=trainium_layout("PF", (16384, 1)))])
+        p = T.alloc_tensor(
+            ty_args=[
+                T.Tensor(
+                    (128, 8192),
+                    "float16",
+                    scope="trn.sbuf",
+                    layout=trainium_layout("PF", (128, 8192)),
+                )
+            ],
+        )
+        rowsum_p = T.alloc_tensor(
+            ty_args=[
+                T.Tensor(
+                    (2, 128, 1),
+                    "float32",
+                    scope="trn.sbuf",
+                    layout=trainium_layout("FPF", (2, 128, 1)),
+                )
+            ],
+        )
+        qk = T.alloc_tensor(
+            ty_args=[
+                T.Tensor(
+                    (2, 128, 8192),
+                    "float32",
+                    scope="trn.sbuf",
+                    layout=trainium_layout("FPF", (2, 128, 8192)),
+                )
+            ],
+        )
+        running_max = T.alloc_tensor(
+            ty_args=[
+                T.Tensor(
+                    (16384, 1),
+                    "float32",
+                    scope="trn.sbuf",
+                    layout=trainium_layout("PF", (16384, 1)),
+                )
+            ],
+        )
         for i in range(4):
             T.trn.tile.activation_reduce(p[0:128, 0:8192], rowsum_p[i % 2, 0:128, 0], qk[i % 2, 0:128, 0:8192], bias=running_max[i * 128:i * 128 + 128, 0], scale=1.0, opcode="exp", reduce_op="sum", axes=[-1])  # noqa: E501
 

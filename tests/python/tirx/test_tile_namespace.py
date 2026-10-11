@@ -101,8 +101,9 @@ def test_omitted_and_explicit_none_layout(scope):
     assert_structural_equal(explicit.layout, TileLayout(S[4, 8]))
     with IRBuilder():
         with I.function():
-            allocated = I.alloc_tensor((4, 8), "float32", scope=scope)
-            declared = I.decl_tensor((4, 8), "float32", scope=scope)
+            tensor_type = I.Tensor((4, 8), "float32", scope=scope)
+            allocated = I.bind(I.alloc_tensor(ty_args=[tensor_type]))
+            declared = I.bind(I.decl_tensor(allocated.data, ty_args=[tensor_type]))
             assert allocated.layout is None and declared.layout is None
 
 
@@ -131,7 +132,11 @@ def test_none_layout_views_keep_offsets_and_strides():
     builder = IRBuilder()
     with builder:
         with I.function():
-            source = I.decl_tensor((4, 8), "float32", elem_offset=5)
+            source = I.bind(
+                I.decl_tensor(
+                    I.ptr("float32"), ty_args=[I.Tensor((4, 8), "float32", elem_offset=5)]
+                )
+            )
             reshaped = source.view(2, 2, 8)
             permuted = source.permute(1, 0)
             sliced = source.sub[1:3, 2:6]
@@ -170,7 +175,7 @@ def test_none_layout_dtype_views(dtype, new_dtype, old_shape, new_shape):
     builder = IRBuilder()
     with builder:
         with I.function():
-            source = I.decl_tensor(old_shape, dtype)
+            source = I.bind(I.decl_tensor(I.ptr(dtype), ty_args=[I.Tensor(old_shape, dtype)]))
             viewed = source.view(new_dtype)
             assert viewed.layout is None
             assert list(map(int, viewed.shape)) == list(new_shape)
@@ -181,11 +186,13 @@ def test_none_layout_dtype_view_accepts_symbolic_extent():
     with IRBuilder():
         with I.function():
             size = tvm.tirx.Var("size", "int32")
-            source = I.decl_tensor((size,), "float32")
+            source = I.bind(I.decl_tensor(I.ptr("float32"), ty_args=[I.Tensor((size,), "float32")]))
             viewed = source.view("uint64")
             assert viewed.layout is None
             assert_structural_equal(viewed.shape[0], size // 2)
-            misaligned = I.decl_tensor((8,), "float32", elem_offset=1)
+            misaligned = I.bind(
+                I.decl_tensor(I.ptr("float32"), ty_args=[I.Tensor((8,), "float32", elem_offset=1)])
+            )
             with pytest.raises(ValueError, match="align"):
                 misaligned.view("uint64")
 

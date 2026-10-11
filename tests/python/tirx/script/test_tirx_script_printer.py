@@ -254,8 +254,7 @@ def test_allocate(declare):
             'v = T.decl_tensor(v_1, ty_args=[T.Tensor((128, 128), "float32")])\n'
             "T.evaluate(1)\n"
             if declare is TB.decl_tensor
-            else 'v = T.alloc_tensor(ty_args=[T.Tensor((128, 128), "float32")])\n'
-            "T.evaluate(1)\n"
+            else 'v = T.alloc_tensor(ty_args=[T.Tensor((128, 128), "float32")])\nT.evaluate(1)\n'
         ),
     )
 

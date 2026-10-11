@@ -60,8 +60,26 @@ def test_two_alloc():
     @T.function
     def copy(A_ptr: T.handle) -> None:
         T.device_entry()
-        A_sbuf = T.alloc_tensor(ty_args=[T.Tensor([256, 512], "float32", scope="trn.sbuf", layout=trainium_layout("PF", [256, 512]))])
-        B_sbuf = T.alloc_tensor(ty_args=[T.Tensor([512, 512], "float32", scope="trn.sbuf", layout=trainium_layout("PF", [512, 512]))])
+        A_sbuf = T.alloc_tensor(
+            ty_args=[
+                T.Tensor(
+                    [256, 512],
+                    "float32",
+                    scope="trn.sbuf",
+                    layout=trainium_layout("PF", [256, 512]),
+                )
+            ],
+        )
+        B_sbuf = T.alloc_tensor(
+            ty_args=[
+                T.Tensor(
+                    [512, 512],
+                    "float32",
+                    scope="trn.sbuf",
+                    layout=trainium_layout("PF", [512, 512]),
+                )
+            ],
+        )
         T.trn.tile.tensor_copy(B_sbuf[0:256, :], A_sbuf)
 
     @T.function
@@ -83,7 +101,16 @@ def test_existing_alloc():
     @T.function
     def copy(A_ptr: T.handle) -> None:
         T.device_entry()
-        A_sbuf = T.alloc_tensor(ty_args=[T.Tensor([256, 512], "float32", scope="trn.sbuf", layout=trainium_layout("PF", [256, 512]))])
+        A_sbuf = T.alloc_tensor(
+            ty_args=[
+                T.Tensor(
+                    [256, 512],
+                    "float32",
+                    scope="trn.sbuf",
+                    layout=trainium_layout("PF", [256, 512]),
+                )
+            ],
+        )
         B_sbuf = T.alloc_tensor([1], ty_args=[T.Tensor([512, 512], "float32", scope="trn.sbuf", layout=trainium_layout('PF', [512, 512]))])  # noqa: E501
         T.trn.tile.tensor_copy(B_sbuf[0:256, :], A_sbuf)
 
@@ -106,8 +133,26 @@ def test_workspace():
     @T.function
     def copy(A_ptr: T.handle) -> None:
         T.device_entry()
-        A_sbuf = T.alloc_tensor(ty_args=[T.Tensor([256, 512], "float32", scope="trn.sbuf", layout=trainium_layout("PF", [256, 512]))])
-        B_sbuf = T.alloc_tensor(ty_args=[T.Tensor([512, 512], "float32", scope="trn.sbuf", layout=trainium_layout("PF", [512, 512]))])
+        A_sbuf = T.alloc_tensor(
+            ty_args=[
+                T.Tensor(
+                    [256, 512],
+                    "float32",
+                    scope="trn.sbuf",
+                    layout=trainium_layout("PF", [256, 512]),
+                )
+            ],
+        )
+        B_sbuf = T.alloc_tensor(
+            ty_args=[
+                T.Tensor(
+                    [512, 512],
+                    "float32",
+                    scope="trn.sbuf",
+                    layout=trainium_layout("PF", [512, 512]),
+                )
+            ],
+        )
         C_sbuf = T.alloc_tensor(ty_args=[T.Tensor([128, 1024], "float32", scope="trn.sbuf")])
         T.trn.tile.activation(B_sbuf[0:256, :], A_sbuf, const_bias=C_sbuf)
 
@@ -131,8 +176,26 @@ def test_other_scope_alloc():
     @T.function
     def copy(A_ptr: T.handle) -> None:
         T.device_entry()
-        A_sbuf = T.alloc_tensor(ty_args=[T.Tensor([256, 512], "float32", scope="trn.sbuf", layout=trainium_layout("PF", [256, 512]))])
-        B_sbuf = T.alloc_tensor(ty_args=[T.Tensor([512, 512], "float32", scope="trn.sbuf", layout=trainium_layout("PF", [512, 512]))])
+        A_sbuf = T.alloc_tensor(
+            ty_args=[
+                T.Tensor(
+                    [256, 512],
+                    "float32",
+                    scope="trn.sbuf",
+                    layout=trainium_layout("PF", [256, 512]),
+                )
+            ],
+        )
+        B_sbuf = T.alloc_tensor(
+            ty_args=[
+                T.Tensor(
+                    [512, 512],
+                    "float32",
+                    scope="trn.sbuf",
+                    layout=trainium_layout("PF", [512, 512]),
+                )
+            ],
+        )
         C_sbuf = T.alloc_tensor(ty_args=[T.Tensor([8, 128, 512], "float32", scope="global")])
         T.trn.tile.activation(B_sbuf[0:256, :], A_sbuf, const_bias=C_sbuf)
 
@@ -156,8 +219,26 @@ def test_tensor_views():
     @T.function
     def copy(A_ptr: T.handle) -> None:
         T.device_entry()
-        A_sbuf = T.alloc_tensor(ty_args=[T.Tensor([256, 512], "float32", scope="trn.sbuf", layout=trainium_layout("PF", [256, 512]))])
-        B_sbuf = T.alloc_tensor(ty_args=[T.Tensor([512, 512], "float32", scope="trn.sbuf", layout=trainium_layout("PF", [512, 512]))])
+        A_sbuf = T.alloc_tensor(
+            ty_args=[
+                T.Tensor(
+                    [256, 512],
+                    "float32",
+                    scope="trn.sbuf",
+                    layout=trainium_layout("PF", [256, 512]),
+                )
+            ],
+        )
+        B_sbuf = T.alloc_tensor(
+            ty_args=[
+                T.Tensor(
+                    [512, 512],
+                    "float32",
+                    scope="trn.sbuf",
+                    layout=trainium_layout("PF", [512, 512]),
+                )
+            ],
+        )
         B_view = B_sbuf.view(2, 256, 512)
         T.trn.tile.tensor_copy(B_view[0], A_sbuf)
 

@@ -244,8 +244,26 @@ def test_gemm_tcgen05_cta_group_1(task):
         wg_id = T.cuda.warpgroup_id()
         tid_in_wg = T.cuda.thread_in_warpgroup()
 
-        A_smem = T.alloc_tensor(ty_args=[T.Tensor(A_shape, A_dtype, scope="shared", layout=A_layout)])
-        B_smem = T.alloc_tensor(ty_args=[T.Tensor(B_shape, B_dtype, scope="shared", layout=B_layout)])
+        A_smem = T.alloc_tensor(
+            ty_args=[
+                T.Tensor(
+                    A_shape,
+                    A_dtype,
+                    scope="shared",
+                    layout=A_layout,
+                )
+            ],
+        )
+        B_smem = T.alloc_tensor(
+            ty_args=[
+                T.Tensor(
+                    B_shape,
+                    B_dtype,
+                    scope="shared",
+                    layout=B_layout,
+                )
+            ],
+        )
         tmem_addr = T.alloc_shared([1], "uint32", layout="default")
         tma_mbar = T.alloc_shared([1], "uint64", layout="default")
         mma_mbar = T.alloc_shared([1], "uint64", layout="default")
@@ -377,8 +395,26 @@ def test_gemm_tcgen05_cta_group_1_layout_f_m64():
         tid_in_wg = T.cuda.thread_in_warpgroup()
         lane_id = T.cuda.lane_id()
 
-        A_smem = T.alloc_tensor(ty_args=[T.Tensor(A_shape, A_dtype, scope="shared", layout=A_layout)])
-        B_smem = T.alloc_tensor(ty_args=[T.Tensor(B_shape, B_dtype, scope="shared", layout=B_layout)])
+        A_smem = T.alloc_tensor(
+            ty_args=[
+                T.Tensor(
+                    A_shape,
+                    A_dtype,
+                    scope="shared",
+                    layout=A_layout,
+                )
+            ],
+        )
+        B_smem = T.alloc_tensor(
+            ty_args=[
+                T.Tensor(
+                    B_shape,
+                    B_dtype,
+                    scope="shared",
+                    layout=B_layout,
+                )
+            ],
+        )
         tmem_addr = T.alloc_shared([1], "uint32", layout="default")
         tma_mbar = T.alloc_shared([1], "uint64", layout="default")
         mma_mbar = T.alloc_shared([1], "uint64", layout="default")
@@ -532,8 +568,26 @@ def test_gemm_tcgen05_cta_group_2(task):
         wg_id = T.cuda.warpgroup_id()
         tid_in_wg = T.cuda.thread_in_warpgroup()
 
-        A_smem = T.alloc_tensor(ty_args=[T.Tensor(A_shape_per_cta, A_dtype, scope="shared", layout=A_layout)])
-        B_smem = T.alloc_tensor(ty_args=[T.Tensor(B_shape_per_cta, B_dtype, scope="shared", layout=B_layout)])
+        A_smem = T.alloc_tensor(
+            ty_args=[
+                T.Tensor(
+                    A_shape_per_cta,
+                    A_dtype,
+                    scope="shared",
+                    layout=A_layout,
+                )
+            ],
+        )
+        B_smem = T.alloc_tensor(
+            ty_args=[
+                T.Tensor(
+                    B_shape_per_cta,
+                    B_dtype,
+                    scope="shared",
+                    layout=B_layout,
+                )
+            ],
+        )
         tmem_addr = T.alloc_shared([1], "uint32", layout="default")
         tma_mbar = T.alloc_shared([1], "uint64", layout="default")
         mma_mbar = T.alloc_shared([1], "uint64", layout="default")
@@ -541,7 +595,17 @@ def test_gemm_tcgen05_cta_group_2(task):
         ptr: T.let[T.Var(name="ptr", ty=PtrType(PrimType("uint64"), "shared"))] = T.reinterpret(
              _mapa(tma_mbar.ptr_to([0]), 0)
         , ty=PtrType(PrimType("uint64"), "shared"))
-        tma_mbar_cta_0 = T.decl_tensor(ptr, ty_args=[T.Tensor([1], "uint64", scope="shared", layout="default")])
+        tma_mbar_cta_0 = T.decl_tensor(
+            ptr,
+            ty_args=[
+                T.Tensor(
+                    [1],
+                    "uint64",
+                    scope="shared",
+                    layout="default",
+                )
+            ],
+        )
 
         if tid_in_wg == 0:
             T.ptx.mbarrier.init.shared.b64(tma_mbar.ptr_to([0]), T.uint32(1))
@@ -705,8 +769,26 @@ def test_gemm_tcgen05_cta_group_2_layout_b():
         wg_id = T.cuda.warpgroup_id()
         tid_in_wg = T.cuda.thread_in_warpgroup()
 
-        A_smem = T.alloc_tensor(ty_args=[T.Tensor(A_shape, A_dtype, scope="shared", layout=A_layout)])
-        B_smem = T.alloc_tensor(ty_args=[T.Tensor(B_shape, B_dtype, scope="shared", layout=B_layout)])
+        A_smem = T.alloc_tensor(
+            ty_args=[
+                T.Tensor(
+                    A_shape,
+                    A_dtype,
+                    scope="shared",
+                    layout=A_layout,
+                )
+            ],
+        )
+        B_smem = T.alloc_tensor(
+            ty_args=[
+                T.Tensor(
+                    B_shape,
+                    B_dtype,
+                    scope="shared",
+                    layout=B_layout,
+                )
+            ],
+        )
         tmem_addr = T.alloc_shared([1], "uint32", layout="default")
         tma_mbar = T.alloc_shared([1], "uint64", layout="default")
         mma_mbar = T.alloc_shared([1], "uint64", layout="default")
@@ -714,7 +796,17 @@ def test_gemm_tcgen05_cta_group_2_layout_b():
         ptr: T.let[T.Var(name="ptr", ty=PtrType(PrimType("uint64"), "shared"))] = T.reinterpret(
              _mapa(tma_mbar.ptr_to([0]), 0)
         , ty=PtrType(PrimType("uint64"), "shared"))
-        tma_mbar_cta_0 = T.decl_tensor(ptr, ty_args=[T.Tensor([1], "uint64", scope="shared", layout="default")])
+        tma_mbar_cta_0 = T.decl_tensor(
+            ptr,
+            ty_args=[
+                T.Tensor(
+                    [1],
+                    "uint64",
+                    scope="shared",
+                    layout="default",
+                )
+            ],
+        )
 
         if tid_in_wg == 0:
             T.ptx.mbarrier.init.shared.b64(tma_mbar.ptr_to([0]), T.uint32(1))
@@ -865,8 +957,26 @@ def test_gemm_tcgen05_cta_group_2_datapath_b_readback():
         wg_id = T.cuda.warpgroup_id()
         tid = T.cuda.thread_in_warpgroup()
 
-        A_smem = T.alloc_tensor(ty_args=[T.Tensor(a_shape, a_dtype, scope="shared", layout=a_layout)])
-        B_smem = T.alloc_tensor(ty_args=[T.Tensor(b_shape, b_dtype, scope="shared", layout=b_layout)])
+        A_smem = T.alloc_tensor(
+            ty_args=[
+                T.Tensor(
+                    a_shape,
+                    a_dtype,
+                    scope="shared",
+                    layout=a_layout,
+                )
+            ],
+        )
+        B_smem = T.alloc_tensor(
+            ty_args=[
+                T.Tensor(
+                    b_shape,
+                    b_dtype,
+                    scope="shared",
+                    layout=b_layout,
+                )
+            ],
+        )
         tmem_addr = T.alloc_shared([1], "uint32", layout="default")
         mma_mbar = T.alloc_shared([1], "uint64", layout="default")
 
@@ -1057,8 +1167,26 @@ def test_gemm_block_scaled_fp8_cta_group_1(task):
         tmem_addr = T.alloc_shared([1], "uint32", layout="default")
         tma_mbar = T.alloc_shared([1], "uint64", layout="default")
         mma_mbar = T.alloc_shared([1], "uint64", layout="default")
-        descSFA = T.alloc_tensor(ty_args=[T.Tensor((1,), "uint64", scope="local", layout="default")])
-        descSFB = T.alloc_tensor(ty_args=[T.Tensor((1,), "uint64", scope="local", layout="default")])
+        descSFA = T.alloc_tensor(
+            ty_args=[
+                T.Tensor(
+                    (1,),
+                    "uint64",
+                    scope="local",
+                    layout="default",
+                )
+            ],
+        )
+        descSFB = T.alloc_tensor(
+            ty_args=[
+                T.Tensor(
+                    (1,),
+                    "uint64",
+                    scope="local",
+                    layout="default",
+                )
+            ],
+        )
 
         if tid_in_wg == 0:
             T.ptx.mbarrier.init.shared.b64(tma_mbar.ptr_to([0]), T.uint32(1))
@@ -1288,11 +1416,39 @@ def test_gemm_block_scaled_fp8_cta_group_2(task):
         tmem_addr = T.alloc_shared([1], "uint32", layout="default")
         tma_mbar = T.alloc_shared([1], "uint64", layout="default")
         mma_mbar = T.alloc_shared([1], "uint64", layout="default")
-        descSFA = T.alloc_tensor(ty_args=[T.Tensor((1,), "uint64", scope="local", layout="default")])
-        descSFB = T.alloc_tensor(ty_args=[T.Tensor((1,), "uint64", scope="local", layout="default")])
+        descSFA = T.alloc_tensor(
+            ty_args=[
+                T.Tensor(
+                    (1,),
+                    "uint64",
+                    scope="local",
+                    layout="default",
+                )
+            ],
+        )
+        descSFB = T.alloc_tensor(
+            ty_args=[
+                T.Tensor(
+                    (1,),
+                    "uint64",
+                    scope="local",
+                    layout="default",
+                )
+            ],
+        )
 
         ptr: T.let[T.Var(name="ptr", ty=PtrType(PrimType("uint64"), "shared"))] = T.reinterpret( _mapa(tma_mbar.ptr_to([0]), 0), ty=PtrType(PrimType("uint64"), "shared"))  # noqa: E501
-        tma_mbar_cta_0 = T.decl_tensor(ptr, ty_args=[T.Tensor([1], "uint64", scope="shared", layout="default")])
+        tma_mbar_cta_0 = T.decl_tensor(
+            ptr,
+            ty_args=[
+                T.Tensor(
+                    [1],
+                    "uint64",
+                    scope="shared",
+                    layout="default",
+                )
+            ],
+        )
 
         if tid_in_wg == 0:
             T.ptx.mbarrier.init.shared.b64(tma_mbar.ptr_to([0]), T.uint32(1))
@@ -1514,8 +1670,26 @@ def test_gemm_block_scaled_nvfp4_cta_group_1():
         tmem_addr = T.alloc_shared([1], "uint32", layout="default")
         tma_mbar = T.alloc_shared([1], "uint64", layout="default")
         mma_mbar = T.alloc_shared([1], "uint64", layout="default")
-        descSFA = T.alloc_tensor(ty_args=[T.Tensor((1,), "uint64", scope="local", layout="default")])
-        descSFB = T.alloc_tensor(ty_args=[T.Tensor((1,), "uint64", scope="local", layout="default")])
+        descSFA = T.alloc_tensor(
+            ty_args=[
+                T.Tensor(
+                    (1,),
+                    "uint64",
+                    scope="local",
+                    layout="default",
+                )
+            ],
+        )
+        descSFB = T.alloc_tensor(
+            ty_args=[
+                T.Tensor(
+                    (1,),
+                    "uint64",
+                    scope="local",
+                    layout="default",
+                )
+            ],
+        )
 
         if tid_in_wg == 0:
             T.ptx.mbarrier.init.shared.b64(tma_mbar.ptr_to([0]), T.uint32(1))
@@ -1721,11 +1895,39 @@ def test_gemm_block_scaled_nvfp4_cta_group_2():
         tmem_addr = T.alloc_shared([1], "uint32", layout="default")
         tma_mbar = T.alloc_shared([1], "uint64", layout="default")
         mma_mbar = T.alloc_shared([1], "uint64", layout="default")
-        descSFA = T.alloc_tensor(ty_args=[T.Tensor((1,), "uint64", scope="local", layout="default")])
-        descSFB = T.alloc_tensor(ty_args=[T.Tensor((1,), "uint64", scope="local", layout="default")])
+        descSFA = T.alloc_tensor(
+            ty_args=[
+                T.Tensor(
+                    (1,),
+                    "uint64",
+                    scope="local",
+                    layout="default",
+                )
+            ],
+        )
+        descSFB = T.alloc_tensor(
+            ty_args=[
+                T.Tensor(
+                    (1,),
+                    "uint64",
+                    scope="local",
+                    layout="default",
+                )
+            ],
+        )
 
         ptr: T.let[T.Var(name="ptr", ty=PtrType(PrimType("uint64"), "shared"))] = T.reinterpret( _mapa(tma_mbar.ptr_to([0]), 0), ty=PtrType(PrimType("uint64"), "shared"))  # noqa: E501
-        tma_mbar_cta_0 = T.decl_tensor(ptr, ty_args=[T.Tensor([1], "uint64", scope="shared", layout="default")])
+        tma_mbar_cta_0 = T.decl_tensor(
+            ptr,
+            ty_args=[
+                T.Tensor(
+                    [1],
+                    "uint64",
+                    scope="shared",
+                    layout="default",
+                )
+            ],
+        )
 
         if tid_in_wg == 0:
             T.ptx.mbarrier.init.shared.b64(tma_mbar.ptr_to([0]), T.uint32(1))
@@ -1956,8 +2158,26 @@ def test_gemm_block_scaled_fp8_sf_id():
         tmem_addr = T.alloc_shared([1], "uint32", layout="default")
         tma_mbar = T.alloc_shared([1], "uint64", layout="default")
         mma_mbar = T.alloc_shared([1], "uint64", layout="default")
-        descSFA = T.alloc_tensor(ty_args=[T.Tensor((1,), "uint64", scope="local", layout="default")])
-        descSFB = T.alloc_tensor(ty_args=[T.Tensor((1,), "uint64", scope="local", layout="default")])
+        descSFA = T.alloc_tensor(
+            ty_args=[
+                T.Tensor(
+                    (1,),
+                    "uint64",
+                    scope="local",
+                    layout="default",
+                )
+            ],
+        )
+        descSFB = T.alloc_tensor(
+            ty_args=[
+                T.Tensor(
+                    (1,),
+                    "uint64",
+                    scope="local",
+                    layout="default",
+                )
+            ],
+        )
 
         if tid_in_wg == 0:
             T.ptx.mbarrier.init.shared.b64(tma_mbar.ptr_to([0]), T.uint32(1))
@@ -2321,8 +2541,28 @@ def test_gemm_tcgen05_arbitrary_tiles(task):
         wg_id = T.cuda.warpgroup_id()
         tid_in_wg = T.cuda.thread_in_warpgroup()
 
-        A_smem = T.alloc_tensor(ty_args=[T.Tensor(A_shape, A_dtype, scope="shared", layout=A_layout, align=1024)])
-        B_smem = T.alloc_tensor(ty_args=[T.Tensor(B_shape, B_dtype, scope="shared", layout=B_layout, align=1024)])
+        A_smem = T.alloc_tensor(
+            ty_args=[
+                T.Tensor(
+                    A_shape,
+                    A_dtype,
+                    scope="shared",
+                    layout=A_layout,
+                    align=1024,
+                )
+            ],
+        )
+        B_smem = T.alloc_tensor(
+            ty_args=[
+                T.Tensor(
+                    B_shape,
+                    B_dtype,
+                    scope="shared",
+                    layout=B_layout,
+                    align=1024,
+                )
+            ],
+        )
         tmem_addr = T.alloc_shared([1], "uint32", layout="default")
         tma_mbar = T.alloc_shared([1], "uint64", layout="default")
         mma_mbar = T.alloc_shared([1], "uint64", layout="default")
@@ -2464,7 +2704,9 @@ def test_gemm_tcgen05_no_swizzle_smem_descriptor_codegen(a_layout_kind):
         warp_id = T.cuda.warp_id()
         tid_in_wg = T.cuda.thread_in_warpgroup()
         A_smem = T.alloc_tensor(ty_args=[T.Tensor((M, K), dtype, scope="shared", layout=A_layout)])
-        B_smem = T.alloc_tensor(ty_args=[T.Tensor((K, B_N), dtype, scope="shared", layout=B_layout)])
+        B_smem = T.alloc_tensor(
+            ty_args=[T.Tensor((K, B_N), dtype, scope="shared", layout=B_layout)]
+        )
         tmem_addr = T.alloc_shared([1], "uint32", layout="default")
         if warp_id == 0:
             T.ptx.tcgen05.alloc.cta_group__2.sync.aligned.shared__cta.b32(
@@ -2513,7 +2755,9 @@ def test_gemm_tcgen05_cta_group_2_accepts_replicated_tmem_a_codegen():
         T.device_entry(launch=T.cuda.LaunchConfig(grid=1, block=(128,)))
         warp_id = T.cuda.warp_id()
         tid_in_wg = T.cuda.thread_in_warpgroup()
-        B_smem = T.alloc_tensor(ty_args=[T.Tensor((N_half, K), dtype, scope="shared", layout=B_layout)])
+        B_smem = T.alloc_tensor(
+            ty_args=[T.Tensor((N_half, K), dtype, scope="shared", layout=B_layout)]
+        )
         tmem_addr = T.alloc_shared([1], "uint32", layout="default")
         if warp_id == 0:
             T.ptx.tcgen05.alloc.cta_group__2.sync.aligned.shared__cta.b32(
@@ -2561,7 +2805,9 @@ def test_gemm_tcgen05_cta_group_2_rejects_flat_tmem_a_codegen():
         T.device_entry(launch=T.cuda.LaunchConfig(grid=1, block=(128,)))
         warp_id = T.cuda.warp_id()
         tid_in_wg = T.cuda.thread_in_warpgroup()
-        B_smem = T.alloc_tensor(ty_args=[T.Tensor((N_half, K), dtype, scope="shared", layout=B_layout)])
+        B_smem = T.alloc_tensor(
+            ty_args=[T.Tensor((N_half, K), dtype, scope="shared", layout=B_layout)]
+        )
         tmem_addr = T.alloc_shared([1], "uint32", layout="default")
         if warp_id == 0:
             T.ptx.tcgen05.alloc.cta_group__2.sync.aligned.shared__cta.b32(
@@ -2868,8 +3114,12 @@ def _run_dense_gemm(
         warp_id = T.cuda.warp_id()
         wg_id = T.cuda.warpgroup_id()
         tid_in_wg = T.cuda.thread_in_warpgroup()
-        A_smem = T.alloc_tensor(ty_args=[T.Tensor(A_shape, A_dtype, scope="shared", layout=A_layout)])
-        B_smem = T.alloc_tensor(ty_args=[T.Tensor(B_shape, B_dtype, scope="shared", layout=B_layout)])
+        A_smem = T.alloc_tensor(
+            ty_args=[T.Tensor(A_shape, A_dtype, scope="shared", layout=A_layout)]
+        )
+        B_smem = T.alloc_tensor(
+            ty_args=[T.Tensor(B_shape, B_dtype, scope="shared", layout=B_layout)]
+        )
         tmem_addr = T.alloc_shared([1], "uint32", layout="default")
         tma_mbar = T.alloc_shared([1], "uint64", layout="default")
         mma_mbar = T.alloc_shared([1], "uint64", layout="default")
@@ -2998,8 +3248,12 @@ def _run_dense_gemm(
         warp_id = T.cuda.warp_id()
         wg_id = T.cuda.warpgroup_id()
         tid_in_wg = T.cuda.thread_in_warpgroup()
-        A_smem = T.alloc_tensor(ty_args=[T.Tensor(A_shape, A_dtype, scope="shared", layout=A_layout)])
-        B_smem = T.alloc_tensor(ty_args=[T.Tensor(B_shape, B_dtype, scope="shared", layout=B_layout)])
+        A_smem = T.alloc_tensor(
+            ty_args=[T.Tensor(A_shape, A_dtype, scope="shared", layout=A_layout)]
+        )
+        B_smem = T.alloc_tensor(
+            ty_args=[T.Tensor(B_shape, B_dtype, scope="shared", layout=B_layout)]
+        )
         tmem_addr = T.alloc_shared([1], "uint32", layout="default")
         tma_mbar = T.alloc_shared([1], "uint64", layout="default")
         mma_mbar = T.alloc_shared([1], "uint64", layout="default")
@@ -3102,8 +3356,26 @@ def _build_smem_desc_kernel(smem_desc, weight_stationary=False, pass_descI=False
         cta_id = T.cuda.block_idx('x')
         wg_id = T.cuda.warpgroup_id()
         tid_in_wg = T.cuda.thread_in_warpgroup()
-        A_smem = T.alloc_tensor(ty_args=[T.Tensor(A_shape, A_dtype, scope="shared", layout=A_layout)])
-        B_smem = T.alloc_tensor(ty_args=[T.Tensor(B_shape, B_dtype, scope="shared", layout=B_layout)])
+        A_smem = T.alloc_tensor(
+            ty_args=[
+                T.Tensor(
+                    A_shape,
+                    A_dtype,
+                    scope="shared",
+                    layout=A_layout,
+                )
+            ],
+        )
+        B_smem = T.alloc_tensor(
+            ty_args=[
+                T.Tensor(
+                    B_shape,
+                    B_dtype,
+                    scope="shared",
+                    layout=B_layout,
+                )
+            ],
+        )
         tmem_addr = T.alloc_shared([1], "uint32", layout="default")
         tma_mbar = T.alloc_shared([1], "uint64", layout="default")
         mma_mbar = T.alloc_shared([1], "uint64", layout="default")
@@ -3468,7 +3740,9 @@ def _build_cta1_m64_packed_c_kernel(weight_stationary=None, mma_config=None):
         warp_id = T.cuda.warp_id()
         copy_thread_id = T.cuda.thread_idx("x")
         tid = T.cuda.thread_in_warpgroup()
-        B_smem = T.alloc_tensor(ty_args=[T.Tensor((N, K), B_dtype, scope="shared", layout=B_layout)])
+        B_smem = T.alloc_tensor(
+            ty_args=[T.Tensor((N, K), B_dtype, scope="shared", layout=B_layout)]
+        )
         tmem_addr = T.alloc_shared([1], "uint32", layout="default")
         if warp_id == 0:
             T.ptx.tcgen05.alloc.cta_group__1.sync.aligned.shared__cta.b32(
@@ -3584,7 +3858,9 @@ def _build_cta1_m64_batched_c_kernel():
         warp_id = T.cuda.warp_id()
         copy_thread_id = T.cuda.thread_idx("x")
         tid = T.cuda.thread_in_warpgroup()
-        B_smem = T.alloc_tensor(ty_args=[T.Tensor((N, K), B_dtype, scope="shared", layout=B_layout)])
+        B_smem = T.alloc_tensor(
+            ty_args=[T.Tensor((N, K), B_dtype, scope="shared", layout=B_layout)]
+        )
         tmem_addr = T.alloc_shared([1], "uint32", layout="default")
         if warp_id == 0:
             T.ptx.tcgen05.alloc.cta_group__1.sync.aligned.shared__cta.b32(
@@ -3660,7 +3936,9 @@ def _build_cta1_m64_identity_c_ws_kernel():
         warp_id = T.cuda.warp_id()
         copy_thread_id = T.cuda.thread_idx("x")
         tid = T.cuda.thread_in_warpgroup()
-        B_smem = T.alloc_tensor(ty_args=[T.Tensor((N, K), B_dtype, scope="shared", layout=B_layout)])
+        B_smem = T.alloc_tensor(
+            ty_args=[T.Tensor((N, K), B_dtype, scope="shared", layout=B_layout)]
+        )
         tmem_addr = T.alloc_shared([1], "uint32", layout="default")
         if warp_id == 0:
             T.ptx.tcgen05.alloc.cta_group__1.sync.aligned.shared__cta.b32(
@@ -3761,7 +4039,9 @@ def _build_cta1_m64_flat_a_ws_kernel():
         warp_id = T.cuda.warp_id()
         copy_thread_id = T.cuda.thread_idx("x")
         tid = T.cuda.thread_in_warpgroup()
-        B_smem = T.alloc_tensor(ty_args=[T.Tensor((N, K), B_dtype, scope="shared", layout=B_layout)])
+        B_smem = T.alloc_tensor(
+            ty_args=[T.Tensor((N, K), B_dtype, scope="shared", layout=B_layout)]
+        )
         tmem_addr = T.alloc_shared([1], "uint32", layout="default")
         if warp_id == 0:
             T.ptx.tcgen05.alloc.cta_group__1.sync.aligned.shared__cta.b32(
@@ -3854,7 +4134,9 @@ def _build_m128_batched_a_kernel():
         warp_id = T.cuda.warp_id()
         copy_thread_id = T.cuda.thread_idx("x")
         tid = T.cuda.thread_in_warpgroup()
-        B_smem = T.alloc_tensor(ty_args=[T.Tensor((N, K), B_dtype, scope="shared", layout=B_layout)])
+        B_smem = T.alloc_tensor(
+            ty_args=[T.Tensor((N, K), B_dtype, scope="shared", layout=B_layout)]
+        )
         tmem_addr = T.alloc_shared([1], "uint32", layout="default")
         if warp_id == 0:
             T.ptx.tcgen05.alloc.cta_group__1.sync.aligned.shared__cta.b32(
@@ -4185,7 +4467,7 @@ def test_gemm_tcgen05_preserves_block_scale_tmem_lane_bases():
     assert "sfb_linear % 128 // 4 + 2" in script
     assert "T.cuda.get_tmem_addr(T.uint32(256), sfa_tlane, sfa_tcol // 4)" in script
     assert "T.cuda.get_tmem_addr(T.uint32(320), sfb_tlane, sfb_tcol // 4)" in script
-    assert "descI_local, sfa_addr, sfb_addr, should_accum" in script
+    assert "descI_local[0], sfa_addr, sfb_addr, should_accum" in script
 
 
 @pytest.mark.parametrize(

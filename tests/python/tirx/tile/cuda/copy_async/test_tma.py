@@ -1741,7 +1741,16 @@ def _build_sparse_decode_qo_tma_regression():
             launch=T.cuda.LaunchConfig(grid=(1,), block=(128,), dynamic_smem_bytes=shared_bytes + 8)
         )
         tid = T.cuda.thread_idx('x')
-        dyn = T.alloc_tensor(ty_args=[T.Tensor((shared_bytes + 8,), "uint8", scope="shared.dyn", layout="default")])
+        dyn = T.alloc_tensor(
+            ty_args=[
+                T.Tensor(
+                    (shared_bytes + 8,),
+                    "uint8",
+                    scope="shared.dyn",
+                    layout="default",
+                )
+            ],
+        )
         q_smem = T.decl_tensor(
             dyn.data, ty_args=[T.Tensor((64, 512), "bfloat16", scope="shared.dyn", layout=q_layout)]
         )
@@ -1769,7 +1778,18 @@ def _build_sparse_decode_qo_tma_regression():
                 )
             ],
         )
-        mbar = T.decl_tensor(dyn.data, ty_args=[T.Tensor((1,), "uint64", elem_offset=shared_bytes // 8, scope="shared.dyn", layout="default")])
+        mbar = T.decl_tensor(
+            dyn.data,
+            ty_args=[
+                T.Tensor(
+                    (1,),
+                    "uint64",
+                    elem_offset=shared_bytes // 8,
+                    scope="shared.dyn",
+                    layout="default",
+                )
+            ],
+        )
         q_tail_smem_tma = q_tail_smem.view(64, 2, 32).permute(1, 0, 2)
         q_tail_gmem_tma = Q.sub[0, 0, :, 512:576].view(64, 2, 32).permute(1, 0, 2)
         if tid == 0:
@@ -2023,7 +2043,16 @@ def _build_selector_gather_gpu_kernel(dtype="float16"):
             )
         )
         tid = T.cuda.thread_idx('x')
-        dyn = T.alloc_tensor(ty_args=[T.Tensor((shared_bytes + 64,), "uint8", scope="shared.dyn", layout="default")])
+        dyn = T.alloc_tensor(
+            ty_args=[
+                T.Tensor(
+                    (shared_bytes + 64,),
+                    "uint8",
+                    scope="shared.dyn",
+                    layout="default",
+                )
+            ],
+        )
         A_smem = T.decl_tensor(
             dyn.data,
             ty_args=[T.Tensor((4, cols), dtype, layout=T.TileLayout(T.S[4, cols]), data=dyn.data)],
