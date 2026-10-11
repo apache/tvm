@@ -51,8 +51,8 @@ class TargetInternal {
   static void ConstructorDispatcher(ffi::PackedArgs args, ffi::Any* rv);
   static Target WithHost(const Target& target, const ffi::Optional<Target>& target_host) {
     ffi::ObjectPtr<TargetObj> n = ffi::make_object<TargetObj>(*target.get());
-    n->host = target_host.has_value() ? ffi::Optional<ffi::ObjectRef>(target_host.value())
-                                      : std::nullopt;
+    n->host =
+        target_host.has_value() ? ffi::Optional<ffi::ObjectRef>(target_host.value()) : std::nullopt;
     return Target(ffi::UnsafeInit{}, std::move(n));
   }
 
@@ -127,8 +127,8 @@ Target::Target(const ffi::Map<ffi::String, ffi::Any>& config) {
 
 Target::Target(Target target, ffi::Optional<Target> host) {
   ffi::ObjectPtr<TargetObj> n = ffi::make_object<TargetObj>(*target.get());
-  n->host = host.has_value() ? ffi::Optional<ffi::ObjectRef>(std::move(host).value())
-                             : std::nullopt;
+  n->host =
+      host.has_value() ? ffi::Optional<ffi::ObjectRef>(std::move(host).value()) : std::nullopt;
   data_ = std::move(n);
 }
 

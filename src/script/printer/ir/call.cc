@@ -44,7 +44,7 @@ ffi::Optional<ExprDoc> StandardCallDocTranslate(DocTranslatorObj* d, const CallN
       Op::GetAttrMap<TScriptPrinterName>(tvm::script::printer::op_attr::kScriptPrinterName);
   if (!names.count(op) || names[op].empty()) return std::nullopt;
   if (call->attrs.has_value() ? op->attrs_type_key != call->attrs->GetTypeKey()
-                            : !op->attrs_type_key.empty()) {
+                              : !op->attrs_type_key.empty()) {
     return RawCall(d, call);
   }
   ffi::Array<ExprDoc> args;

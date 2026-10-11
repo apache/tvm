@@ -992,7 +992,7 @@ class ReverseComputeInliner : public BaseInliner {
   /*! \brief The indices of the consumer's TensorLoad */
   ffi::Array<PrimExpr> tensor_load_indices_;
   /*! \brief The IterMap representing the indices of the consumer's TensorLoad */
-  ffi::Array<sym::IterSumExpr> tensor_load_iter_map_{nullptr};
+  ffi::Array<sym::IterSumExpr> tensor_load_iter_map_;
   /*! \brief The producer block */
   const SBlockNode* producer_block_{nullptr};
   /* \brief The consumer block */
@@ -1184,11 +1184,11 @@ class ReductionEpilogueFuser : public BaseInliner {
       ffi::UnsafeInit{}};  // The entire epilogue expression (e.g., temp + C, max(temp + C, 0))
   const TensorLoadNode* reduction_tensor_load_{
       nullptr};  // The reduction tensor load in epilogue expression
-  TensorVar epilogue_output_tensor_{ffi::UnsafeInit{}};    // Output tensor D
-  ffi::Array<PrimExpr> epilogue_output_indices_{nullptr};  // Indices of D[vi, vj]
-  ffi::Optional<TensorRegion> epilogue_output_region_;     // Write region of D
-  ffi::Optional<TensorVar> epilogue_addend_tensor_;     // Additional tensor (e.g., bias tensor C)
-  ffi::Optional<TensorRegion> epilogue_addend_region_;  // Read region of additional tensor
+  TensorVar epilogue_output_tensor_{ffi::UnsafeInit{}};  // Output tensor D
+  ffi::Array<PrimExpr> epilogue_output_indices_;         // Indices of D[vi, vj]
+  ffi::Optional<TensorRegion> epilogue_output_region_;   // Write region of D
+  ffi::Optional<TensorVar> epilogue_addend_tensor_;      // Additional tensor (e.g., bias tensor C)
+  ffi::Optional<TensorRegion> epilogue_addend_region_;   // Read region of additional tensor
 };
 
 bool ReductionEpilogueFuser::BodyPatternAllowFusion(const SBlockRealize& epilogue_block_realize) {

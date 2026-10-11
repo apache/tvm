@@ -491,7 +491,7 @@ bool HasReshapePattern(const tirx::Function& func) {
         return true;
       };
 
-      ffi::Array<PrimExpr> nontrivial_indices{nullptr};
+      ffi::Array<PrimExpr> nontrivial_indices;
       ffi::Optional<TensorVar> nontrivial_tensor;
       if (f_is_trivial_indices(dst_tensor_, tensor_store->indices)) {
         nontrivial_indices = tensor_load->indices;
@@ -507,7 +507,7 @@ bool HasReshapePattern(const tirx::Function& func) {
             return this->ana_->CanProveEqual(v->dom.value()->extent, 0);
           });
 
-      if (nontrivial_indices.defined() && !has_zero_extent) {
+      if (nontrivial_tensor.has_value() && !has_zero_extent) {
         PrimType dtype =
             !block->iter_vars.empty() ? block->iter_vars[0]->var.ty() : PrimType::Int(64);
         PrimVar fused_var("fused", dtype);

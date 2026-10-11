@@ -199,7 +199,8 @@ ffi::Expected<void> ValidateTensorInstruction(const CallNode* call) noexcept try
       << op->name << " has an invalid operand count";
   TVM_FFI_CHECK(call->ty == PrimType::Void(), TypeError) << op->name << " must return void";
   TVM_FFI_CHECK(call->ty_args.empty(), TypeError) << op->name << " does not take type arguments";
-  TVM_FFI_CHECK(call->attrs.has_value() && call->attrs->GetTypeKey() == op->attrs_type_key, TypeError)
+  TVM_FFI_CHECK(call->attrs.has_value() && call->attrs->GetTypeKey() == op->attrs_type_key,
+                TypeError)
       << op->name << " requires its registered static attributes";
   static const auto& validators = Op::GetAttrMap<ffi::Function>(op_attr::kTensorCallValidate);
   validators[op](ffi::GetRef<Call>(call));

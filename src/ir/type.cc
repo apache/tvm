@@ -345,8 +345,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .attr(refl::type_attr::kAnyHash,
             refl::NativeFunction<int64_t(const ffi::Any&)>::FromNative<&PrimTypeAnyHash>())
       .attr(refl::type_attr::kAnyEqual,
-            refl::NativeFunction<bool(const ffi::Any&, const ffi::Any&)>::FromNative<
-                &PrimTypeAnyEqual>())
+            refl::NativeFunction<bool(const ffi::Any&,
+                                      const ffi::Any&)>::FromNative<&PrimTypeAnyEqual>())
       .attr(refl::type_attr::kStructuralVisit, ffi::FStructuralVisit::FromNative<&PrimTypeVisit>())
       .attr(refl::type_attr::kStructuralMutate,
             ffi::FStructuralMutate::FromNative<&PrimTypeMutate>())

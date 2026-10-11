@@ -522,7 +522,8 @@ InferLayoutOutput InferLayoutConcat(
             << " expects the input to be a Tuple of Tensors. However, the given input is "
             << call->args[0]->ty;
         auto t_ty = ffi::GetRef<TensorType>(field_tensor_ty);
-        ffi::Optional<ShapeExpr> t_shape = ffi::GetRef<ShapeExpr>(ffi::AnyView(t_ty->shape).as<ShapeExprNode>());
+        ffi::Optional<ShapeExpr> t_shape =
+            ffi::GetRef<ShapeExpr>(ffi::AnyView(t_ty->shape).as<ShapeExprNode>());
         LayoutDecision curr_layout = nlayout_array[i].LeafValue();
         if (!CanProveLayoutTransform(curr_layout->layout, in_layout->layout,
                                      t_shape.value()->values)) {
@@ -1372,7 +1373,8 @@ InferLayoutOutput InferLayoutSplit(
                                                           "output structinfo, but got "
                                                        << si;
       auto ty = si.as_or_throw<TensorType>();
-      ffi::Optional<ShapeExpr> shape_expr = ffi::GetRef<ShapeExpr>(ffi::AnyView(ty->shape).as<ShapeExprNode>());
+      ffi::Optional<ShapeExpr> shape_expr =
+          ffi::GetRef<ShapeExpr>(ffi::AnyView(ty->shape).as<ShapeExprNode>());
       TVM_FFI_ICHECK(shape_expr.has_value());
       auto shape_arr = shape_expr.value();
       if (!CanProveLayoutTransform(InitialLayout(tensor_ty->ndim), existing_layout->layout,

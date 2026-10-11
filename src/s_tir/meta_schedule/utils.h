@@ -579,7 +579,7 @@ inline bool IsGPUTarget(const std::string& target_name) {
  * \return The AutoInline schedule rule for the given target.
  */
 inline ScheduleRule GetDefaultAutoInline(const std::string& target_name) {
-  ffi::Array<ScheduleRule> rules{nullptr};
+  ffi::Array<ScheduleRule> rules;
   if (target_name == "llvm") {
     rules = ScheduleRule::DefaultLLVM();
   } else if (target_name == "hexagon") {

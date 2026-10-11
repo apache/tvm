@@ -1407,11 +1407,11 @@ StmtSRef RFactor(ScheduleState self, const StmtSRef& rf_loop_sref, int factor_ax
   // commutative reducer, combiner lhs and combiner rhs from the reduction identity and the
   // reduction combiner. The lhs will be used when constructing the write-back block, and the rhs
   // will be used when constructing the rfactor block.
-  ffi::Array<PrimExpr> init_values{nullptr};
-  ffi::Array<TensorStore> updates{nullptr};
+  ffi::Array<PrimExpr> init_values;
+  ffi::Array<TensorStore> updates;
   te::CommReducer reducer{ffi::UnsafeInit{}};
-  ffi::Array<PrimExpr> combiner_lhs{nullptr};
-  ffi::Array<PrimExpr> combiner_rhs{nullptr};
+  ffi::Array<PrimExpr> combiner_lhs;
+  ffi::Array<PrimExpr> combiner_rhs;
   std::tie(init_values, updates) = GetInitValuesAndUpdatesFromReductionBlock(self, block);
   std::tie(reducer, combiner_lhs, combiner_rhs) =
       GetReducerAndCombinerLhsRhs(self, init_values, updates);

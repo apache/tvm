@@ -426,8 +426,9 @@ std::pair<bool, bool> SizeMatches(const Type& target_info, const Type& arg_info,
   if (target_info.as<TensorTypeNode>() && arg_info.as<TensorTypeNode>()) {
     auto target_tensor = target_info.as_or_throw<TensorType>();
     auto arg_tensor = arg_info.as_or_throw<TensorType>();
-    if (target_tensor->shape.has_value() && ffi::AnyView(target_tensor->shape).as<ShapeExprNode>() &&
-        arg_tensor->shape.has_value() && ffi::AnyView(arg_tensor->shape).as<ShapeExprNode>()) {
+    if (target_tensor->shape.has_value() &&
+        ffi::AnyView(target_tensor->shape).as<ShapeExprNode>() && arg_tensor->shape.has_value() &&
+        ffi::AnyView(arg_tensor->shape).as<ShapeExprNode>()) {
       if (target_tensor->dtype != arg_tensor->dtype) {
         return {false, false};
       }

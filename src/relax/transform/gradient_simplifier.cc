@@ -185,8 +185,8 @@ class GradientSimplifier : private ExprMutator {
 
       auto a = GetTransposeAccordingToCtx(prev_call_node->args[0]);
       auto b = GetTransposeAccordingToCtx(prev_call_node->args[1]);
-      result =
-          ExprMutator::VisitExpr(matmul(b, a, prev_call_node->attrs.as<MatmulAttrs>()->out_dtype));
+      result = ExprMutator::VisitExpr(
+          matmul(b, a, ffi::AnyView(prev_call_node->attrs).as<MatmulAttrs>()->out_dtype));
       ReEmitBinding(binding, result);
       return;
     } else {

@@ -43,7 +43,7 @@ class AddToDatabaseObj : public MeasureCallbackObj {
     for (int i = 0; i < n; ++i) {
       RunnerResult result = runner_results[i];
       MeasureCandidate candidate = measure_candidates[i];
-      ffi::Array<FloatImm> run_secs{nullptr};
+      ffi::Array<FloatImm> run_secs;
       if (result->run_secs.has_value()) {
         run_secs = result->run_secs.value();
       } else {

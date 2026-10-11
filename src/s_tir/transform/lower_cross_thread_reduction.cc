@@ -444,9 +444,9 @@ Stmt TransformReductionBlock(const SBlockRealizeNode* realize,                  
                                 tvm::Tuple(destinations),
                                 tvm::Tuple(thread_axes)};
     // Step 3.2. Create the block and the block-realize.
-    ffi::Array<IterVar> iter_vars{nullptr};
-    ffi::Array<PrimExpr> bindings{nullptr};
-    ffi::Array<TensorRegion> reads{nullptr};
+    ffi::Array<IterVar> iter_vars;
+    ffi::Array<PrimExpr> bindings;
+    ffi::Array<TensorRegion> reads;
     if (it_tensors.has_value()) {
       iter_vars = ffi::Array<IterVar>{};
       bindings = ffi::Array<PrimExpr>{};
@@ -740,11 +740,11 @@ class CrossThreadReductionTransformer : public StmtExprMutator {
     // Condition 3. Get the identity values of the block init and the TensorStore block combiner
     // updates of the reduction. Extract the commutative reducer, combiner lhs and combiner rhs from
     // the reduction identities and the reduction combiner.
-    ffi::Array<PrimExpr> init_values{nullptr};
-    ffi::Array<TensorStore> updates{nullptr};
+    ffi::Array<PrimExpr> init_values;
+    ffi::Array<TensorStore> updates;
     te::CommReducer reducer{ffi::UnsafeInit{}};
-    ffi::Array<PrimExpr> combiner_lhs{nullptr};
-    ffi::Array<PrimExpr> combiner_rhs{nullptr};
+    ffi::Array<PrimExpr> combiner_lhs;
+    ffi::Array<PrimExpr> combiner_rhs;
     std::tie(init_values, updates) =
         GetInitValuesAndUpdatesFromReductionBlock(std::nullopt, ffi::GetRef<SBlock>(block));
     std::tie(reducer, combiner_lhs, combiner_rhs) =
@@ -876,9 +876,9 @@ class CrossThreadReductionTransformer : public StmtExprMutator {
     // which condition the block violates.
     int n_bound_reduction_loops = 0;
     te::CommReducer reducer{ffi::UnsafeInit{}};
-    ffi::Array<TensorVar> reduction_tensors{nullptr};
-    ffi::Array<PrimExpr> combiner_rhs{nullptr};
-    ffi::Array<PrimExpr> wb_indices{nullptr};
+    ffi::Array<TensorVar> reduction_tensors;
+    ffi::Array<PrimExpr> combiner_rhs;
+    ffi::Array<PrimExpr> wb_indices;
     std::tie(n_bound_reduction_loops, reducer, reduction_tensors, combiner_rhs, wb_indices) =
         CheckCanApplyCrossThreadReduction(block, reduction_loops);
     // Step 2. Before doing the cross-thread reduction, in-thread reduction is needed when
