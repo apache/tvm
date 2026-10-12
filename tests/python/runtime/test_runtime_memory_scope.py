@@ -156,3 +156,13 @@ assert custom.same_as(MemoryScope(custom.name))
         env=env,
         check=True,
     )
+
+
+def test_relax_allocation_scope_operands():
+    scope = MemoryScope("global")
+    for make_call in (
+        lambda value: tvm.relax.op.builtin.alloc_tensor((4,), "float32", 0, value),
+        lambda value: tvm.relax.op.memory.alloc_storage((16,), 0, value, "float32"),
+        lambda value: tvm.relax.op.vm.alloc_storage((16,), 0, "float32", value),
+    ):
+        tvm.ir.assert_structural_equal(make_call(scope), make_call(scope.name))

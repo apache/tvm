@@ -342,10 +342,9 @@ class ThreadSyncInserter : public StmtExprMutator {
   const std::unordered_set<const ffi::Object*>& syncs_;
 };
 
-Stmt ThreadSync(Stmt stmt, std::string storage_scope) {
+Stmt ThreadSync(Stmt stmt, MemoryScope sync_scope) {
   static const auto scope_shared = runtime::MemoryScope::Get("shared");
 
-  MemoryScope sync_scope = runtime::MemoryScope::FromString(storage_scope);
   if (sync_scope == scope_shared) {
     stmt = ffi::make_object<ThreadSyncAfterWaitQueueInserter>(sync_scope)
                ->Mutate(stmt)
@@ -400,7 +399,7 @@ class SynchronizationLowerer : public StmtExprMutator {
 
 namespace transform {
 
-Pass ThreadSync(ffi::String storage_scope) {
+Pass ThreadSync(runtime::MemoryScope storage_scope) {
   auto pass_func = [storage_scope](Function f, IRModule m, PassContext ctx) {
     if (!f->body.has_value()) return f;
     auto* n = f.CopyOnWrite();
@@ -427,7 +426,7 @@ Pass LowerSynchronization() {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("s_tir.transform.ThreadSync", static_cast<Pass (*)(ffi::String)>(ThreadSync))
+      .def("s_tir.transform.ThreadSync", static_cast<Pass (*)(runtime::MemoryScope)>(ThreadSync))
       .def("s_tir.transform.LowerSynchronization", LowerSynchronization);
 }
 

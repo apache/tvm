@@ -384,7 +384,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("script.ir_builder.tirx.Boolean", Boolean)
-      .def("script.ir_builder.tirx.Handle", Handle)
+      .def("script.ir_builder.tirx.Handle",
+           static_cast<Var (*)(ffi::Optional<PrimType>, runtime::MemoryScope)>(Handle))
       .def("script.ir_builder.tirx.TensorMap", TensorMap)
       .def("script.ir_builder.tirx.Void", Void)
       .def("script.ir_builder.tirx.min",

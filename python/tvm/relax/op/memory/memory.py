@@ -18,6 +18,7 @@
 from tvm.ir import Call, DataTypeImm, GenericConst, StringImm
 from tvm.ir import Call as _Call
 from tvm.ir.location import UNKNOWN_LOC, Location
+from tvm.runtime import MemoryScope
 
 from ...expr import Expr, prim_value
 from ...utils import convert_to_expr
@@ -26,7 +27,7 @@ from ...utils import convert_to_expr
 def alloc_storage(
     size: Expr,
     virtual_device_index: int | Expr,
-    storage_scope: str | Expr,
+    storage_scope: str | MemoryScope | Expr,
     dtype: str | Expr,
     *,
     ty=None,
@@ -44,7 +45,7 @@ def alloc_storage(
         The virtual device index indicating on which device the storage is to be allocated.
         Index -1 is reserved for the host device.
 
-    storage_scope : Union[str, Expr]
+    storage_scope : Union[str, MemoryScope, Expr]
         The storage scope to allocate the storage to.
 
     dtype : Union[str, Expr]
@@ -58,6 +59,8 @@ def alloc_storage(
     size = convert_to_expr(size)
     if isinstance(dtype, str | GenericConst):
         dtype = DataTypeImm(dtype.value if isinstance(dtype, GenericConst) else dtype)
+    if isinstance(storage_scope, MemoryScope):
+        storage_scope = storage_scope.name
     if isinstance(storage_scope, str):
         storage_scope = StringImm(storage_scope)
     if isinstance(virtual_device_index, int):
