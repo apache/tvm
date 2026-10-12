@@ -19,7 +19,7 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/extra/structural_visit.h>
-#include <tvm/tirx/gpu_thread_tag.h>
+#include <tvm/support/gpu_thread_tag.h>
 
 #include "memhammer_rewrite_rule.h"
 

@@ -22,7 +22,7 @@
 #include <tvm/ir/analysis.h>
 #include <tvm/ir/op.h>
 #include <tvm/s_tir/stmt.h>
-#include <tvm/tirx/gpu_thread_tag.h>
+#include <tvm/support/gpu_thread_tag.h>
 
 #include "../ir_comparator.h"
 #include "../utils.h"

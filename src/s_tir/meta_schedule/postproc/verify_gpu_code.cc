@@ -21,8 +21,8 @@
 #include <tvm/ir/function.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/transform.h>
+#include <tvm/support/gpu_thread_tag.h>
 #include <tvm/tirx/function.h>
-#include <tvm/tirx/gpu_thread_tag.h>
 #include <tvm/tirx/transform.h>
 
 #include "../utils.h"
@@ -55,7 +55,7 @@ class ThreadExtentChecker : public StmtExprVisitor {
 
  private:
   ffi::Optional<VisitInterrupt> Visit_(const ForNode* loop) {
-    tirx::GPUThreadTag thread_scope = GetThreadBindingTag(loop);
+    support::GPUThreadTag thread_scope = GetThreadBindingTag(loop);
     if (IsThreadIdx(thread_scope)) {
       const auto* p_ext_imm = loop->extent.as<IntImmNode>();
       if (auto p_ext = p_ext_imm ? p_ext_imm->value.as<int64_t>() : std::nullopt;

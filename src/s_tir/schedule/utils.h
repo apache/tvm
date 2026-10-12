@@ -32,12 +32,12 @@
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/utils.h>
+#include <tvm/support/gpu_thread_tag.h>
 #include <tvm/sym/analyzer.h>
 #include <tvm/sym/int_set.h>
 #include <tvm/sym/iter_affine_map.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/function.h>
-#include <tvm/tirx/gpu_thread_tag.h>
 
 #include <string>
 #include <unordered_map>
@@ -99,7 +99,7 @@ inline ffi::Array<StmtSRef> SBlockRVs2StmtSRefs(const Schedule& sch,
  * \return A boolean indicating the result
  */
 inline bool CanRelaxStorageUnderThread(const runtime::StorageScope& storage_scope,
-                                       const tirx::GPUThreadTag& thread_scope) {
+                                       const support::GPUThreadTag& thread_scope) {
   if (storage_scope.rank == runtime::StorageRank::kWarp) {
     // for warp memory, we only relax threadIdx.x
     return thread_scope.rank == 1 && thread_scope.dim_index == 0;
@@ -162,11 +162,11 @@ inline IterVar IterVarFromLoop(const For& loop, ffi::String name, IterVarType it
 }
 
 /*! \brief Interpret physical and virtual thread bindings for S-TIR scheduling. */
-inline tirx::GPUThreadTag ParseThreadBindingTag(const std::string& tag) {
-  if (tag.compare(0, 7, "vthread") == 0) {
+inline support::GPUThreadTag ParseThreadBindingTag(const ffi::String& tag) {
+  if (tag.starts_with("vthread")) {
     return {1, -1};
   }
-  return tirx::GPUThreadTag::Parse(tag);
+  return support::GPUThreadTag::Parse(tag);
 }
 
 /*!
@@ -174,11 +174,11 @@ inline tirx::GPUThreadTag ParseThreadBindingTag(const std::string& tag) {
  * \param loop The loop to be inspected
  * \return The thread scope bound to the loop
  */
-inline tirx::GPUThreadTag GetThreadBindingTag(const ForNode* loop) {
+inline support::GPUThreadTag GetThreadBindingTag(const ForNode* loop) {
   if (tvm::s_tir::GetThreadBinding(loop).has_value()) {
     return ParseThreadBindingTag(tvm::s_tir::GetThreadBinding(loop).value());
   }
-  return tirx::GPUThreadTag{-1, -1};
+  return support::GPUThreadTag{-1, -1};
 }
 
 /*!
@@ -186,7 +186,7 @@ inline tirx::GPUThreadTag GetThreadBindingTag(const ForNode* loop) {
  * \param thread_scope The thread scope to be checked
  * \return True if the thread scope is blockIdx
  */
-inline bool IsBlockIdx(const tirx::GPUThreadTag& thread_scope) {
+inline bool IsBlockIdx(const support::GPUThreadTag& thread_scope) {
   return thread_scope.rank == 0;  // The rank of blockIdx is 0
 }
 
@@ -195,7 +195,7 @@ inline bool IsBlockIdx(const tirx::GPUThreadTag& thread_scope) {
  * \param thread_scope The thread scope to be checked
  * \return True if the thread scope is threadIdx
  */
-inline bool IsThreadIdx(const tirx::GPUThreadTag& thread_scope) {
+inline bool IsThreadIdx(const support::GPUThreadTag& thread_scope) {
   return thread_scope.rank == 1 && thread_scope.dim_index >= 0;
 }
 

@@ -39,7 +39,7 @@
 #include <llvm/Support/raw_ostream.h>
 #include <llvm/Target/TargetMachine.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/tirx/gpu_thread_tag.h>
+#include <tvm/support/gpu_thread_tag.h>
 #include <tvm/tirx/op/memory.h>
 #include <tvm/tirx/stmt.h>
 #if TVM_LLVM_VERSION < 170
@@ -163,7 +163,7 @@ class CodeGenAMDGPU : public CodeGenLLVM {
 
   // Return the thread index via intrinsics.
   llvm::Value* GetThreadIndex(const PrimVar& var, const ffi::String& thread_tag) final {
-    tirx::GPUThreadTag ts = tirx::GPUThreadTag::Parse(thread_tag);
+    support::GPUThreadTag ts = support::GPUThreadTag::Parse(thread_tag);
     llvm::Intrinsic::ID intrin_id = llvm::Intrinsic::amdgcn_workitem_id_x;
     if (ts.rank == 1) {
       switch (ts.dim_index) {

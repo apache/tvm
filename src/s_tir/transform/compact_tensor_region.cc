@@ -30,8 +30,8 @@
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
+#include <tvm/support/gpu_thread_tag.h>
 #include <tvm/sym/int_set.h>
-#include <tvm/tirx/gpu_thread_tag.h>
 #include <tvm/tirx/op/memory.h>
 #include <tvm/tirx/op/region.h>
 

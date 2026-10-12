@@ -18,18 +18,17 @@
  */
 
 /*!
- * \file tvm/tirx/gpu_thread_tag.h
+ * \file tvm/support/gpu_thread_tag.h
  * \brief Parse GPU thread tags used by compiler passes and code generation.
  */
-#ifndef TVM_TIRX_GPU_THREAD_TAG_H_
-#define TVM_TIRX_GPU_THREAD_TAG_H_
+#ifndef TVM_SUPPORT_GPU_THREAD_TAG_H_
+#define TVM_SUPPORT_GPU_THREAD_TAG_H_
 
 #include <tvm/ffi/error.h>
-
-#include <string>
+#include <tvm/ffi/string.h>
 
 namespace tvm {
-namespace tirx {
+namespace support {
 
 /*! \brief The rank and dimension of a physical GPU thread tag. */
 struct GPUThreadTag {
@@ -47,15 +46,15 @@ struct GPUThreadTag {
    * \param tag The thread tag to parse.
    * \return The parsed rank and dimension.
    */
-  static GPUThreadTag Parse(const std::string& tag) {
-    if (tag.compare(0, 9, "blockIdx.") == 0) {
-      return {0, static_cast<int>(tag[9] - 'x')};
-    } else if (tag.compare(0, 10, "threadIdx.") == 0) {
-      return {1, static_cast<int>(tag[10] - 'x')};
-    } else if (tag.compare(0, 14, "clusterCtaIdx.") == 0) {
-      return {2, static_cast<int>(tag[14] - 'x')};
-    } else if (tag.compare(0, 23, "preferredClusterCtaIdx.") == 0) {
-      return {3, static_cast<int>(tag[23] - 'x')};
+  static GPUThreadTag Parse(const ffi::String& tag) {
+    if (tag.starts_with("blockIdx.")) {
+      return {0, static_cast<int>(tag.c_str()[9] - 'x')};
+    } else if (tag.starts_with("threadIdx.")) {
+      return {1, static_cast<int>(tag.c_str()[10] - 'x')};
+    } else if (tag.starts_with("clusterCtaIdx.")) {
+      return {2, static_cast<int>(tag.c_str()[14] - 'x')};
+    } else if (tag.starts_with("preferredClusterCtaIdx.")) {
+      return {3, static_cast<int>(tag.c_str()[23] - 'x')};
     } else {
       TVM_FFI_THROW(InternalError) << "Unknown threadscope " << tag;
       return {};
@@ -63,6 +62,6 @@ struct GPUThreadTag {
   }
 };
 
-}  // namespace tirx
+}  // namespace support
 }  // namespace tvm
-#endif  // TVM_TIRX_GPU_THREAD_TAG_H_
+#endif  // TVM_SUPPORT_GPU_THREAD_TAG_H_

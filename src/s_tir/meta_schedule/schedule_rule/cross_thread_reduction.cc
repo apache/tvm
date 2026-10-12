@@ -18,7 +18,7 @@
  */
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/s_tir/stmt.h>
-#include <tvm/tirx/gpu_thread_tag.h>
+#include <tvm/support/gpu_thread_tag.h>
 
 #include "../utils.h"
 
@@ -139,7 +139,7 @@ class CrossThreadReductionObj : public ScheduleRuleObj {
     const ffi::Array<s_tir::LoopRV>& axes = sch->GetLoops(block);
     for (const s_tir::LoopRV& loop_rv : axes) {
       const For& loop = sch->Get(loop_rv);
-      tirx::GPUThreadTag thread_scope = s_tir::GetThreadBindingTag(loop.get());
+      support::GPUThreadTag thread_scope = s_tir::GetThreadBindingTag(loop.get());
       if (s_tir::IsThreadIdx(thread_scope)) {
         return true;
       }

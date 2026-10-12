@@ -26,9 +26,9 @@
 #include <tvm/ir/function.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/prim/op.h>
+#include <tvm/support/gpu_thread_tag.h>
 #include <tvm/sym/analyzer.h>
 #include <tvm/target/target.h>
-#include <tvm/tirx/gpu_thread_tag.h>
 #include <tvm/tirx/op/gpu.h>
 #include <tvm/tirx/op/memory.h>
 #include <tvm/tirx/op/region.h>
@@ -78,7 +78,7 @@ class ThreadAllreduceBuilder final : public DialectMutator {
 
   UnchangedOr<Stmt> Mutate_(const RegionStmtNode* op, InplaceMode inplace_mode) final {
     if (!op->op.same_as(tirx::launch_thread_op()) ||
-        std::string(op->args[0].as_or_throw<StringImm>()->value).rfind("vthread", 0) == 0) {
+        op->args[0].as_or_throw<StringImm>()->value.starts_with("vthread")) {
       return DialectMutator::Mutate_(op, inplace_mode);
     }
     thread_extents_.push_back(op);
@@ -207,7 +207,7 @@ class ThreadAllreduceBuilder final : public DialectMutator {
  private:
   // Thread entry
   struct ThreadEntry {
-    tirx::GPUThreadTag scope;
+    support::GPUThreadTag scope;
     ffi::Optional<PrimVar> var;
     int extent;
     // comparator
@@ -288,9 +288,9 @@ class ThreadAllreduceBuilder final : public DialectMutator {
       ThreadEntry e;
       PrimVar var = launch->body_params[0].as_or_throw<PrimVar>();
       ffi::String tag = launch->args[0].as_or_throw<StringImm>()->value;
-      TVM_FFI_ICHECK(std::string(tag).rfind("vthread", 0) != 0)
+      TVM_FFI_ICHECK(!tag.starts_with("vthread"))
           << "vthread do not work with cross thread reduction";
-      e.scope = tirx::GPUThreadTag::Parse(tag);
+      e.scope = support::GPUThreadTag::Parse(tag);
       e.var = var;
       TVM_FFI_ICHECK_LE(e.scope.rank, 1);
       TVM_FFI_ICHECK_GE(e.scope.dim_index, 0) << "vthread do not work with cross thread reduction";

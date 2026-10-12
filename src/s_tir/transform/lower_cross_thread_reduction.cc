@@ -30,10 +30,10 @@
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
+#include <tvm/support/gpu_thread_tag.h>
 #include <tvm/sym/analyzer.h>
 #include <tvm/te/operation.h>
 #include <tvm/tirx/analysis.h>
-#include <tvm/tirx/gpu_thread_tag.h>
 #include <tvm/tirx/op/gpu.h>
 #include <tvm/tirx/stmt.h>
 
@@ -47,8 +47,8 @@ namespace s_tir {
 using namespace tvm::prim;
 
 using namespace tvm::tirx;
+using support::GPUThreadTag;
 using support::StartsWith;
-using tirx::GPUThreadTag;
 
 // Implement a hash and equality function for GPUThreadTag so that
 // GPUThreadTag can serve as map key class
@@ -73,7 +73,7 @@ bool IsBoundToThreadIdx(const ForNode* loop) {
   if (!tvm::s_tir::GetThreadBinding(loop).has_value()) {
     return false;
   }
-  tirx::GPUThreadTag scope = ParseThreadBindingTag(tvm::s_tir::GetThreadBinding(loop).value());
+  support::GPUThreadTag scope = ParseThreadBindingTag(tvm::s_tir::GetThreadBinding(loop).value());
   return scope.rank == 1 && scope.dim_index >= 0;
 }
 

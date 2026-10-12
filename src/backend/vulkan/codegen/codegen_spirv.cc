@@ -25,8 +25,8 @@
 
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/prim/op.h>
+#include <tvm/support/gpu_thread_tag.h>
 #include <tvm/tirx/function.h>
-#include <tvm/tirx/gpu_thread_tag.h>
 #include <tvm/tirx/op/abi.h>
 #include <tvm/tirx/op/gpu.h>
 #include <tvm/tirx/op/memory.h>
@@ -176,7 +176,7 @@ void CodeGenSPIRV::InitFuncState() {
 
 spirv::Value CodeGenSPIRV::GetThreadIndex(const PrimVar& var, const ffi::String& thread_tag,
                                           const PrimExpr& extent) {
-  tirx::GPUThreadTag ts = tirx::GPUThreadTag::Parse(thread_tag);
+  support::GPUThreadTag ts = support::GPUThreadTag::Parse(thread_tag);
   TVM_FFI_ICHECK_GE(ts.dim_index, 0);
   TVM_FFI_ICHECK_LT(ts.dim_index, 3);
   spirv::Value v;
@@ -991,8 +991,7 @@ void CodeGenSPIRV::DispatchDeclTensor(const BindNode* op, const CallNode* buffer
 
 void CodeGenSPIRV::Dispatch_(const RegionStmtNode* op) {
   if (op->op.same_as(tirx::launch_thread_op())) {
-    TVM_FFI_CHECK(std::string(op->args[0].as_or_throw<StringImm>()->value).rfind("vthread", 0) != 0,
-                  ValueError)
+    TVM_FFI_CHECK(!op->args[0].as_or_throw<StringImm>()->value.starts_with("vthread"), ValueError)
         << "Virtual thread launches must be lowered before code generation";
     PrimVar var = op->body_params[0].as_or_throw<PrimVar>();
     PrimExpr extent = op->args[1].as_or_throw<PrimExpr>();

@@ -19,7 +19,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/s_tir/meta_schedule/schedule/cuda/thread_bind.h>
 #include <tvm/s_tir/stmt.h>
-#include <tvm/tirx/gpu_thread_tag.h>
+#include <tvm/support/gpu_thread_tag.h>
 
 #include "../utils.h"
 
@@ -54,7 +54,7 @@ class UnboundBlockFinder : public StmtExprVisitor {
 
  private:
   ffi::Optional<VisitInterrupt> Visit_(const ForNode* loop) final {
-    tirx::GPUThreadTag thread_scope = GetThreadBindingTag(loop);
+    support::GPUThreadTag thread_scope = GetThreadBindingTag(loop);
     if (IsBlockIdx(thread_scope)) {
       ++n_block_idx_;
     } else if (IsThreadIdx(thread_scope)) {

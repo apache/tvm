@@ -19,7 +19,7 @@
 #include <tvm/ir/prim/op.h>
 #include <tvm/s_tir/meta_schedule/schedule/cuda/thread_bind.h>
 #include <tvm/s_tir/schedule/schedule.h>
-#include <tvm/tirx/gpu_thread_tag.h>
+#include <tvm/support/gpu_thread_tag.h>
 
 #include <algorithm>
 #include <limits>
@@ -117,7 +117,7 @@ void BindBlockThreadIdx(Schedule sch, SBlockRV block_rv,  //
   for (int i = 0; i < n; ++i) {
     const StmtSRef& loop_sref = loops[i];
     const ForNode* loop = TVM_SREF_TO_FOR(loop_sref);
-    tirx::GPUThreadTag thread_scope = GetThreadBindingTag(loop);
+    support::GPUThreadTag thread_scope = GetThreadBindingTag(loop);
     if (IsBlockIdx(thread_scope)) {
       if (i_block_idx == -1) {
         i_block_idx = i;
