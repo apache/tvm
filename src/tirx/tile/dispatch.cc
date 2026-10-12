@@ -21,10 +21,13 @@
 namespace tvm::tirx::tile {
 
 Function Dispatch(const Call& call, const DispatchContext& context) {
-  static auto dispatcher = ffi::Function::GetGlobal("tirx.f_op_dispatcher");
-  TVM_FFI_ICHECK(dispatcher.has_value())
-      << "Internal Error: tirx.f_op_dispatcher is not registered";
-  Function implementation = dispatcher.value()(call, context).cast<Function>();
+  Op op = call->op.as_or_throw<Op>();
+  TVM_FFI_CHECK(Op::HasAttrMap(op_attr::kTileOpDispatch), ValueError)
+      << "No FTileOpDispatch registered for " << op->name;
+  static const auto& dispatchers = Op::GetAttrMap<FTileOpDispatch>(op_attr::kTileOpDispatch);
+  TVM_FFI_CHECK(dispatchers.count(op), ValueError)
+      << "No FTileOpDispatch registered for " << op->name;
+  Function implementation = dispatchers[op](call, context);
   TVM_FFI_ICHECK(implementation.defined()) << "TIRx dispatcher did not return a Function";
   return implementation;
 }

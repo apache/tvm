@@ -67,8 +67,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<FRegionGetBodyParams>(tvm::op_attr::kRegionGetBodyParams,
                                       FRegionGetBodyParams::FromNative<&RegionNoBodyParams>())
       .set_attr<FRegionValidate>(tvm::op_attr::kRegionValidate,
-                                 FRegionValidate::FromNative<&ValidateDeviceScopeRegion>())
-      .set_attr<TIRxOpCategory>(tvm::tirx::op_attr::kOpCategory, ffi::String("builtin"));
+                                 FRegionValidate::FromNative<&ValidateDeviceScopeRegion>());
 }
 
 // Device-region annotation

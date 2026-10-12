@@ -408,7 +408,7 @@ def test_public_interface_is_official_only():
 )
 def test_annotation_ops_are_cuda_owned(name):
     op = tvm.ir.Op.get(f"tirx.cuda.iket_{name}")
-    assert op.get_attr("TIRxOpCategory") == "device_intrin"
+    assert op.get_attr("FTileOpDispatch") is None
     assert op.get_attr("TDeviceIntrinsicNamespace") == "cuda"
 
 

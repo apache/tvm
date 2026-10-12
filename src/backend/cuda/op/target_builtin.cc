@@ -106,7 +106,6 @@ void RegisterCudaTargetBuiltins() {
                      true)
       .set_attr<TScriptPrinterName>(tvm::script::printer::op_attr::kScriptPrinterName,
                                     ffi::String("tirx.cuda.decl_tmem"))
-      .set_attr<TIRxOpCategory>(tvm::tirx::op_attr::kOpCategory, ffi::String("builtin"))
       .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
                                  static_cast<int64_t>(CallEffectKind::kPure));
 
@@ -122,7 +121,6 @@ void RegisterCudaTargetBuiltins() {
                  sig::arg<IntExpr>("index_c", "The C fragment index."))
       .set_attr<TScriptPrinterName>(tvm::script::printer::op_attr::kScriptPrinterName,
                                     ffi::String("tirx.cuda.bmma_sync"))
-      .set_attr<TIRxOpCategory>(tvm::tirx::op_attr::kOpCategory, ffi::String("builtin"))
       .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
                                  static_cast<int64_t>(CallEffectKind::kOpaque));
 
@@ -137,7 +135,6 @@ void RegisterCudaTargetBuiltins() {
                  sig::arg<IntExpr>("cp_size", "The copy size."), sig::var_args("args"))
       .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
                                  static_cast<int64_t>(CallEffectKind::kOpaque))
-      .set_attr<TIRxOpCategory>(tvm::tirx::op_attr::kOpCategory, ffi::String("device_intrin"))
       .set_attr<TDeviceIntrinsicNamespace>(tvm::tirx::op_attr::kDeviceIntrinsicNamespace,
                                            ffi::String("s_tir"))
       .set_attr<TScriptPrinterName>(tvm::script::printer::op_attr::kScriptPrinterName,
@@ -152,7 +149,6 @@ void RegisterCudaTargetBuiltins() {
                  sig::arg<IntExpr>("dst_stride", "The destination stride."))
       .set_attr<TScriptPrinterName>(tvm::script::printer::op_attr::kScriptPrinterName,
                                     ffi::String("tirx.cuda.mma_store"))
-      .set_attr<TIRxOpCategory>(tvm::tirx::op_attr::kOpCategory, ffi::String("builtin"))
       .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
                                  static_cast<int64_t>(CallEffectKind::kOpaque));
 
@@ -162,7 +158,6 @@ void RegisterCudaTargetBuiltins() {
                  sig::arg<IntExpr>("offset", "The offset."))
       .set_attr<TScriptPrinterName>(tvm::script::printer::op_attr::kScriptPrinterName,
                                     ffi::String("tirx.cuda.mma_fill"))
-      .set_attr<TIRxOpCategory>(tvm::tirx::op_attr::kOpCategory, ffi::String("builtin"))
       .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
                                  static_cast<int64_t>(CallEffectKind::kOpaque));
 
@@ -174,7 +169,6 @@ void RegisterCudaTargetBuiltins() {
                  sig::arg<IntExpr>("group_id", "The group identifier."))
       .set_attr<TScriptPrinterName>(tvm::script::printer::op_attr::kScriptPrinterName,
                                     ffi::String("tirx.cuda.timer_init"))
-      .set_attr<TIRxOpCategory>(tvm::tirx::op_attr::kOpCategory, ffi::String("builtin"))
       .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
                                  static_cast<int64_t>(CallEffectKind::kOpaque));
 
@@ -187,7 +181,6 @@ void RegisterCudaTargetBuiltins() {
                  sig::arg("leader_cond", "The leader condition."))
       .set_attr<TScriptPrinterName>(tvm::script::printer::op_attr::kScriptPrinterName,
                                     ffi::String("tirx.cuda.timer_start"))
-      .set_attr<TIRxOpCategory>(tvm::tirx::op_attr::kOpCategory, ffi::String("builtin"))
       .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
                                  static_cast<int64_t>(CallEffectKind::kOpaque));
 
@@ -200,7 +193,6 @@ void RegisterCudaTargetBuiltins() {
                  sig::arg("leader_cond", "The leader condition."))
       .set_attr<TScriptPrinterName>(tvm::script::printer::op_attr::kScriptPrinterName,
                                     ffi::String("tirx.cuda.timer_end"))
-      .set_attr<TIRxOpCategory>(tvm::tirx::op_attr::kOpCategory, ffi::String("builtin"))
       .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
                                  static_cast<int64_t>(CallEffectKind::kOpaque));
 
@@ -212,7 +204,6 @@ void RegisterCudaTargetBuiltins() {
                  sig::arg("leader_cond", "The leader condition."))
       .set_attr<TScriptPrinterName>(tvm::script::printer::op_attr::kScriptPrinterName,
                                     ffi::String("tirx.cuda.timer_finalize"))
-      .set_attr<TIRxOpCategory>(tvm::tirx::op_attr::kOpCategory, ffi::String("builtin"))
       .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
                                  static_cast<int64_t>(CallEffectKind::kOpaque));
 
@@ -231,9 +222,8 @@ TVM_FFI_NO_INLINE void RegisterDeviceIntrinsicAttrs(OpDef& def, const char* op_n
         printer_name.compare(printer_name.size() - 5, 5, "_warp") == 0))) {
     printer_name[printer_name.rfind('_')] = '.';
   }
-  def.set_attr<TIRxOpCategory>(tvm::tirx::op_attr::kOpCategory, ffi::String("device_intrin"))
-      .set_attr<TDeviceIntrinsicNamespace>(tvm::tirx::op_attr::kDeviceIntrinsicNamespace,
-                                           ffi::String(op_namespace))
+  def.set_attr<TDeviceIntrinsicNamespace>(tvm::tirx::op_attr::kDeviceIntrinsicNamespace,
+                                          ffi::String(op_namespace))
       .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(effect_kind));
   if (std::string(op_namespace) != "cuda") {
     def.set_attr<TScriptPrinterName>(tvm::script::printer::op_attr::kScriptPrinterName,

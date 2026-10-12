@@ -56,7 +56,6 @@ void RegisterTRNTargetBuiltins() {
       .signature()
       .set_attr<FRegionGetBodyParams>(tvm::op_attr::kRegionGetBodyParams,
                                       FRegionGetBodyParams::FromNative<&RegionNoBodyParams>())
-      .set_attr<TIRxOpCategory>(tvm::tirx::op_attr::kOpCategory, ffi::String("device_intrin"))
       .set_attr<TDeviceIntrinsicNamespace>(tvm::tirx::op_attr::kDeviceIntrinsicNamespace,
                                            ffi::String("nki"))
       .set_attr<TScriptPrinterName>(tvm::script::printer::op_attr::kScriptPrinterName,
@@ -81,7 +80,6 @@ TVM_FFI_NO_INLINE NKIIntrinsicNames MakeNKIIntrinsicNames(const char* op_name) {
 
 TVM_FFI_NO_INLINE void RegisterNKIIntrinsicAttrs(OpDef& def, const std::string& printer_name) {
   def.set_attr<TFixedReturnType>(tvm::op_attr::kFixedReturnType, PrimType::Void())
-      .set_attr<TIRxOpCategory>(tvm::tirx::op_attr::kOpCategory, ffi::String("device_intrin"))
       .set_attr<TDeviceIntrinsicNamespace>(tvm::tirx::op_attr::kDeviceIntrinsicNamespace,
                                            ffi::String("nki"))
       .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,

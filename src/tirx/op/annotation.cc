@@ -42,7 +42,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<TFixedReturnType>(tvm::op_attr::kFixedReturnType, PrimType::Void())
       .set_attr<TScriptPrinterName>(tvm::script::printer::op_attr::kScriptPrinterName,
                                     ffi::String("tirx.kernel_replace_point"))
-      .set_attr<TIRxOpCategory>(tvm::tirx::op_attr::kOpCategory, ffi::String("builtin"))
       .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
                                  static_cast<int64_t>(CallEffectKind::kOpaque));
 }
@@ -58,7 +57,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .signature(sig::arg<PrimExpr>("predicate", "The predicate."))
       .set_attr<TScriptPrinterName>(tvm::script::printer::op_attr::kScriptPrinterName,
                                     ffi::String("tirx.ignore_loop_partition"))
-      .set_attr<TIRxOpCategory>(tvm::tirx::op_attr::kOpCategory, ffi::String("builtin"))
       .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
                                  static_cast<int64_t>(CallEffectKind::kPure));
 }
