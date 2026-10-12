@@ -25,7 +25,6 @@
 
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/logging.h>
-#include "memory_manager.h"
 
 #include <algorithm>
 #include <atomic>
@@ -34,6 +33,8 @@
 #include <mutex>
 #include <string>
 #include <unordered_map>
+
+#include "memory_manager.h"
 
 namespace tvm {
 namespace runtime {

@@ -47,8 +47,6 @@
 #include "../src/runtime/device_api.cc"
 #include "../src/runtime/file_utils.cc"
 #include "../src/runtime/logging.cc"
-#include "../src/runtime/vm/memory/memory_manager.cc"
-#include "../src/runtime/vm/memory/opencl_allocator.cc"
 #include "../src/runtime/registry.cc"
 #include "../src/runtime/rpc/rpc_channel.cc"
 #include "../src/runtime/rpc/rpc_endpoint.cc"
@@ -62,6 +60,8 @@
 #include "../src/runtime/thread_pool.cc"
 #include "../src/runtime/threading_backend.cc"
 #include "../src/runtime/timer.cc"
+#include "../src/runtime/vm/memory/memory_manager.cc"
+#include "../src/runtime/vm/memory/opencl_allocator.cc"
 #include "../src/runtime/workspace_pool.cc"
 
 #ifdef TVM_OPENCL_RUNTIME
