@@ -72,7 +72,7 @@ class OpenCLWrappedFunc {
       kernel = m_->InstallKernel(w_, t, func_name_, entry_);
     }
     ThreadWorkLoad wl = launch_param_config_.Extract(args);
-    cl_uint work_dim = static_cast<cl_uint>(launch_param_config_.work_dim());
+    cl_uint work_dim = static_cast<cl_uint>(launch_param_config_.WorkDim());
     // setup arguments.
     for (cl_uint i = 0; i < arg_size_.size(); ++i) {
       void* arg = nullptr;
