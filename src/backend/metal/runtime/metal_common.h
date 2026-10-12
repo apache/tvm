@@ -41,6 +41,8 @@
 #include <utility>
 #include <vector>
 
+#include "../../../runtime/workspace_pool.h"
+
 /* Macro for convenience in using AutoReleasePoolWrapper.
  * With this macro we can add AutoReleasePoolWrapper to our ObjC code in more
  * native way.
@@ -317,6 +319,8 @@ class MetalWorkspace final : public DeviceAPI {
   TVMStreamHandle CreateStream(Device dev) final;
   void FreeStream(Device dev, TVMStreamHandle stream) final;
   void StreamSync(Device dev, TVMStreamHandle stream) final;
+  void* AllocWorkspace(Device dev, size_t size, DLDataType type_hint) final;
+  void FreeWorkspace(Device dev, void* data) final;
   void ReinitializeDefaultStreams();
 
   /**
@@ -413,7 +417,8 @@ class MetalThreadEntry {
   };
   std::vector<StagingBufferPool> staging_pools_;  // per device
   // constructor
-  MetalThreadEntry() {
+  WorkspacePool pool;
+  MetalThreadEntry() : pool(kDLMetal, MetalWorkspace::Global()) {
     device.device_id = 0;
     device.device_type = static_cast<DLDeviceType>(kDLMetal);
     MetalWorkspace* global_ws = MetalWorkspace::Global();
