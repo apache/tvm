@@ -135,15 +135,15 @@ class LaunchParamConfig {
     return w;
   }
   // return the work dim
-  size_t WorkDim() const { return work_dim_; }
+  size_t work_dim() const { return work_dim_; }
 
-  bool UseProgrammaticDependentLaunch() const { return use_programmatic_dependent_launch_; }
+  bool use_programmatic_dependent_launch() const { return use_programmatic_dependent_launch_; }
 
-  bool UseCooperativeLaunch() const { return use_cooperative_launch_; }
+  bool use_cooperative_launch() const { return use_cooperative_launch_; }
 
-  bool UseRequiredBlockDimension() const { return use_required_block_dimension_; }
+  bool use_required_block_dimension() const { return use_required_block_dimension_; }
 
-  bool UseClusterLaunch() const { return use_cluster_launch_; }
+  bool use_cluster_launch() const { return use_cluster_launch_; }
 
  private:
   /*! \brief base axis */
