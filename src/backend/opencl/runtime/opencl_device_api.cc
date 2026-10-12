@@ -246,8 +246,6 @@ void* OpenCLWorkspace::CreateHostPtrIfEnabled(cl::BufferDescriptor* desc, Device
 // Reuse follows the workspace's existing in-order command queue per device.
 class OpenCLTensorMemoryPool final : public TensorMemoryPool {
  public:
-  explicit OpenCLTensorMemoryPool(size_t page_size = 4096) : TensorMemoryPool(page_size) {}
-
   ffi::Tensor Empty(ffi::ShapeView shape, DLDataType dtype, DLDevice device,
                     ffi::Optional<ffi::String> mem_scope = std::nullopt) final {
     if (!mem_scope.has_value() || (*mem_scope).empty() || *mem_scope == "global") {
@@ -922,9 +920,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
              return ffi::make_object<OpenCLTensorMemoryPool>()->CreateView(
                  std::move(backing), std::move(shape), dtype, 0, scope);
            })
-      .def("runtime.create_tensor_memory_pool.opencl", [](DLDevice, size_t page_size) {
-        return ffi::ObjectPtr<TensorMemoryPool>(
-            ffi::make_object<OpenCLTensorMemoryPool>(page_size));
+      .def("runtime.create_tensor_memory_pool.opencl", [](DLDevice) {
+        return ffi::ObjectPtr<TensorMemoryPool>(ffi::make_object<OpenCLTensorMemoryPool>());
       });
 }
 

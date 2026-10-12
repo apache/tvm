@@ -201,9 +201,8 @@ inline Device GetPreferredHostDevice(Device device) {
 
 class TensorMemoryPool;
 
-/*! \brief Create a device pool; a zero page size disables caching. */
-TVM_RUNTIME_DLL ffi::ObjectPtr<TensorMemoryPool> CreateTensorMemoryPool(DLDevice device,
-                                                                        size_t page_size = 4096);
+/*! \brief Create the default pool for a device. */
+TVM_RUNTIME_DLL ffi::ObjectPtr<TensorMemoryPool> CreateTensorMemoryPool(DLDevice device);
 
 /*!
  * \brief A cache of owning device tensors.
@@ -219,6 +218,7 @@ TVM_RUNTIME_DLL ffi::ObjectPtr<TensorMemoryPool> CreateTensorMemoryPool(DLDevice
 class TensorMemoryPool : public ffi::Object {
  public:
   explicit TensorMemoryPool(size_t page_size = 4096) : page_size_(page_size), used_memory_(0) {
+    TVM_FFI_CHECK_GT(page_size_, 0, ValueError) << "Pool page size must be positive";
     TVM_FFI_CHECK_LE(page_size_, static_cast<size_t>(std::numeric_limits<int64_t>::max()),
                      ValueError);
   }
@@ -232,13 +232,12 @@ class TensorMemoryPool : public ffi::Object {
     if (mem_scope.has_value() && !(*mem_scope).empty() && *mem_scope != "global") {
       return DeviceAPI::Get(device)->Empty(shape, dtype, device, mem_scope);
     }
-    size_t page_size = std::max<size_t>(page_size_, 1);
     size_t nbytes = ffi::GetDataSize(shape.Product(), dtype);
     TVM_FFI_CHECK_LE(std::max<size_t>(nbytes, 1),
-                     static_cast<size_t>(std::numeric_limits<int64_t>::max()) - (page_size - 1),
+                     static_cast<size_t>(std::numeric_limits<int64_t>::max()) - (page_size_ - 1),
                      ValueError)
         << "Rounded tensor allocation size overflows";
-    size_t size = ((std::max<size_t>(nbytes, 1) + page_size - 1) / page_size) * page_size;
+    size_t size = ((std::max<size_t>(nbytes, 1) + page_size_ - 1) / page_size_) * page_size_;
     size_t alignment = kAllocAlignment;
     size_t element_bytes = (static_cast<size_t>(dtype.bits) * dtype.lanes + 7) / 8;
     while (alignment < element_bytes) alignment *= 2;
@@ -352,10 +351,6 @@ class TensorMemoryPool : public ffi::Object {
   void Recycle(ffi::Tensor backing) {
     std::lock_guard<std::recursive_mutex> lock(mu_);
     size_t size = ffi::GetDataSize(backing);
-    if (page_size_ == 0) {
-      used_memory_.fetch_sub(size, std::memory_order_relaxed);
-      return;
-    }
     try {
       memory_pool_[size].push_back(std::move(backing));
     } catch (const std::bad_alloc&) {

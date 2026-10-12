@@ -89,15 +89,15 @@ ffi::Tensor Empty(ffi::Shape shape, DLDataType dtype, Device dev,
   return DeviceAPI::Get(dev)->Empty(shape, dtype, dev, mem_scope);
 }
 
-ffi::ObjectPtr<TensorMemoryPool> CreateTensorMemoryPool(DLDevice device, size_t page_size) {
+ffi::ObjectPtr<TensorMemoryPool> CreateTensorMemoryPool(DLDevice device) {
   auto factory = ffi::Function::GetGlobal(std::string("runtime.create_tensor_memory_pool.") +
                                           DLDeviceType2Str(device.device_type));
   if (factory.has_value()) {
-    auto pool = (*factory)(device, page_size).cast<ffi::ObjectPtr<TensorMemoryPool>>();
+    auto pool = (*factory)(device).cast<ffi::ObjectPtr<TensorMemoryPool>>();
     TVM_FFI_CHECK(pool != nullptr, ValueError) << "Tensor memory pool factory returned null";
     return pool;
   }
-  return ffi::make_object<TensorMemoryPool>(page_size);
+  return ffi::make_object<TensorMemoryPool>();
 }
 
 ffi::Tensor CreateView(ffi::Tensor source, ffi::Shape shape, DLDataType dtype,

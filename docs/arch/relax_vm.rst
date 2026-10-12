@@ -226,9 +226,8 @@ Under the hood:
 
 1. **LoadExecutable**: the bytecode and metadata are loaded from the ``VMExecutable``.
 2. **Init**: devices and owning tensor pools are set up. Each device gets a
-   ``TensorMemoryPool`` with either uncached (``NAIVE_ALLOCATOR``) or pooled
-   (``POOLED_ALLOCATOR``, the default) allocation. A CPU device is always added for
-   shape computations.
+   ``TensorMemoryPool`` from the shared device factory. A CPU device is always
+   added for shape computations.
 3. **InitFuncPool**: the function pool is populated — ``kPackedFunc`` entries are resolved from
    imports or the global registry; ``kVMFunc`` entries are wrapped in
    ``VMClosure`` objects.

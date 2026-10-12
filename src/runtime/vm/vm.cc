@@ -193,7 +193,7 @@ class VirtualMachineImpl : public VirtualMachine {
   // Public facing functions overloading
   //---------------------------------------------------
   void LoadExecutable(ffi::ObjectPtr<VMExecutable> exec) final;
-  void Init(const std::vector<Device>& devices, const std::vector<int>& alloc_types) final;
+  void Init(const std::vector<Device>& devices) final;
   VMClosure GetClosure(const ffi::String& func_name) final {
     return this->GetClosureInternal(func_name, false).value();
   }
@@ -461,19 +461,12 @@ void VirtualMachineImpl::LoadExecutable(ffi::ObjectPtr<VMExecutable> exec) {
   this->imports_ = exec->imports();
 }
 
-void VirtualMachineImpl::Init(const std::vector<Device>& devices,
-                              const std::vector<int>& alloc_types) {
-  TVM_FFI_ICHECK_EQ(devices.size(), alloc_types.size());
-
+void VirtualMachineImpl::Init(const std::vector<Device>& devices) {
   this->devices.reserve(devices.size());
-  this->memory_pools.reserve(alloc_types.size());
-  for (size_t i = 0; i < devices.size(); i++) {
-    auto config = static_cast<MemoryConfig>(alloc_types[i]);
-    TVM_FFI_CHECK(config == MemoryConfig::kNaive || config == MemoryConfig::kPooled, ValueError)
-        << "Unknown VM memory configuration: " << alloc_types[i];
-    auto pool = CreateTensorMemoryPool(devices[i], config == MemoryConfig::kNaive ? 0 : 4096);
-    this->devices.push_back(devices[i]);
-    this->memory_pools.push_back(std::move(pool));
+  this->memory_pools.reserve(devices.size());
+  for (Device device : devices) {
+    this->devices.push_back(device);
+    this->memory_pools.push_back(CreateTensorMemoryPool(device));
   }
   // Setup constant sections.
   this->const_pool_.reserve(exec_->constants.size());
@@ -838,17 +831,14 @@ ffi::ObjectPtr<VirtualMachine> VirtualMachine::Create() {
 //--------------------------------------------------------------------
 
 void VirtualMachineImpl::_Init(ffi::PackedArgs args, ffi::Any* rv) {
-  TVM_FFI_ICHECK_EQ(args.size() % 3, 0);
+  TVM_FFI_ICHECK_EQ(args.size() % 2, 0);
   std::vector<Device> devices;
-  std::vector<int> alloc_types;
-  for (int i = 0; i < args.size(); i += 3) {
+  for (int i = 0; i < args.size(); i += 2) {
     int device_type = args[i].cast<int>();
     int device_id = args[i + 1].cast<int>();
-    int alloc_type = args[i + 2].cast<int>();
     devices.push_back(Device{DLDeviceType(device_type), device_id});
-    alloc_types.push_back(alloc_type);
   }
-  this->Init(devices, alloc_types);
+  this->Init(devices);
 }
 
 void VirtualMachineImpl::_SaveClosure(ffi::PackedArgs args, ffi::Any* rv) {

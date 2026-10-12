@@ -39,9 +39,6 @@ namespace tvm {
 namespace runtime {
 namespace vm {
 
-/*! \brief VM allocation policy, matching the Python memory configuration. */
-enum class MemoryConfig { kNaive = 1, kPooled = 2 };
-
 /*!
  * \brief Possible instrument actions.
  */
@@ -125,9 +122,8 @@ class VirtualMachine : public ffi::ModuleObj {
   /*!
    * \brief Initialize the virtual machine for a set of devices.
    * \param devices The set of TVM devices.
-   * \param alloc_types The allocator types for each device.
    */
-  virtual void Init(const std::vector<Device>& devices, const std::vector<int>& alloc_types) = 0;
+  virtual void Init(const std::vector<Device>& devices) = 0;
   /*!
    * \brief Load the executable for the virtual machine.
    * \param exec The executable.

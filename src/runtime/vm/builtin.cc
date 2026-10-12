@@ -47,9 +47,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("vm.builtin.initialize_default", [](ffi::Module mod, DLDevice dev) {
     auto init = mod->GetFunction("vm_initialization");
     TVM_FFI_CHECK(init.has_value(), ValueError) << "Module has no VM initialization function";
-    (*init)(static_cast<int>(dev.device_type), dev.device_id,
-            static_cast<int>(MemoryConfig::kPooled), static_cast<int>(kDLCPU), 0,
-            static_cast<int>(MemoryConfig::kPooled));
+    (*init)(static_cast<int>(dev.device_type), dev.device_id, static_cast<int>(kDLCPU), 0);
   });
 }
 
