@@ -26,7 +26,6 @@
 #include <tvm/ir/expr.h>
 #include <tvm/ir/op.h>
 #include <tvm/ir/prim/op.h>
-#include <tvm/script/printer/doc_translator.h>
 #include <tvm/tirx/op/gpu.h>
 #include <tvm/tirx/op_attr_types.h>
 
@@ -290,9 +289,6 @@ void RegisterCudaIntrinRules() {
           sig::arg<IntExpr>("lane", "The source thread id."),
           sig::arg<IntExpr>("width", "The warp thread width, must be a power of 2."))
       .set_attr<FInferType>(tvm::op_attr::kInferType, FInferType::FromNative<&InferTypeReturnArgType<1>>())
-      .set_attr<tirx::TDeviceIntrinsicNamespace>(tvm::tirx::op_attr::kDeviceIntrinsicNamespace, ffi::String("cuda"))
-      .set_attr<TScriptPrinterName>(tvm::script::printer::op_attr::kScriptPrinterName,
-                                          ffi::String("tirx.cuda.__shfl_sync"))
       .set_attr<TGlobalSymbol>(tvm::tirx::op_attr::kGlobalSymbol, "__shfl_sync")
       .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kOpaque))
       .set_attr<bool>(tvm::backend::cuda::op_attr::kNeedWarpShuffle, true);
@@ -303,9 +299,6 @@ void RegisterCudaIntrinRules() {
           sig::arg<IntExpr>("delta", "The source lane id offset to be added."),
           sig::arg<IntExpr>("width", "The warp thread width, must be a power of 2."))
       .set_attr<FInferType>(tvm::op_attr::kInferType, FInferType::FromNative<&InferTypeReturnArgType<1>>())
-      .set_attr<tirx::TDeviceIntrinsicNamespace>(tvm::tirx::op_attr::kDeviceIntrinsicNamespace, ffi::String("cuda"))
-      .set_attr<TScriptPrinterName>(tvm::script::printer::op_attr::kScriptPrinterName,
-                                          ffi::String("tirx.cuda.__shfl_up_sync"))
       .set_attr<TGlobalSymbol>(tvm::tirx::op_attr::kGlobalSymbol, "__shfl_up_sync")
       .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kOpaque))
       .set_attr<bool>(tvm::backend::cuda::op_attr::kNeedWarpShuffle, true);
@@ -316,9 +309,6 @@ void RegisterCudaIntrinRules() {
           sig::arg<IntExpr>("delta", "The source lane id offset to be subtracted."),
           sig::arg<IntExpr>("width", "The warp thread width, must be a power of 2."))
       .set_attr<FInferType>(tvm::op_attr::kInferType, FInferType::FromNative<&InferTypeReturnArgType<1>>())
-      .set_attr<tirx::TDeviceIntrinsicNamespace>(tvm::tirx::op_attr::kDeviceIntrinsicNamespace, ffi::String("cuda"))
-      .set_attr<TScriptPrinterName>(tvm::script::printer::op_attr::kScriptPrinterName,
-                                          ffi::String("tirx.cuda.__shfl_down_sync"))
       .set_attr<TGlobalSymbol>(tvm::tirx::op_attr::kGlobalSymbol, "__shfl_down_sync")
       .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kOpaque))
       .set_attr<bool>(tvm::backend::cuda::op_attr::kNeedWarpShuffle, true);
@@ -329,18 +319,12 @@ void RegisterCudaIntrinRules() {
           sig::arg<IntExpr>("lane_mask", "The lane mask."),
           sig::arg<IntExpr>("width", "The warp thread width, must be a power of 2."))
       .set_attr<FInferType>(tvm::op_attr::kInferType, FInferType::FromNative<&InferTypeReturnArgType<1>>())
-      .set_attr<tirx::TDeviceIntrinsicNamespace>(tvm::tirx::op_attr::kDeviceIntrinsicNamespace, ffi::String("cuda"))
-      .set_attr<TScriptPrinterName>(tvm::script::printer::op_attr::kScriptPrinterName,
-                                          ffi::String("tirx.cuda.__shfl_xor_sync"))
       .set_attr<TGlobalSymbol>(tvm::tirx::op_attr::kGlobalSymbol, "__shfl_xor_sync")
       .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kOpaque))
       .set_attr<bool>(tvm::backend::cuda::op_attr::kNeedWarpShuffle, true);
 
   OpDef("tirx.cuda.__activemask")
       .set_attr<TFixedReturnType>(tvm::op_attr::kFixedReturnType, PrimType::UInt(32))
-      .set_attr<tirx::TDeviceIntrinsicNamespace>(tvm::tirx::op_attr::kDeviceIntrinsicNamespace, ffi::String("cuda"))
-      .set_attr<TScriptPrinterName>(tvm::script::printer::op_attr::kScriptPrinterName,
-                                          ffi::String("tirx.cuda.__activemask"))
       .set_attr<TGlobalSymbol>(tvm::tirx::op_attr::kGlobalSymbol, "__activemask")
       .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kPure))
       .set_attr<bool>(tvm::backend::cuda::op_attr::kNeedWarpShuffle, true);

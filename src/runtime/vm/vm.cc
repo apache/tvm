@@ -25,7 +25,6 @@
 #include <tvm/ffi/container/tensor.h>
 #include <tvm/ffi/function.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/runtime/memory/memory_manager.h>
 #include <tvm/runtime/vm/vm.h>
 #include <tvm/support/cuda/nvtx.h>
 
@@ -87,27 +86,27 @@ ffi::Any IndexIntoNestedObject(ffi::Any obj, ffi::PackedArgs args, int starting_
   return obj;
 }
 
-ffi::Tensor ConvertTensorToDevice(ffi::Tensor src, const DLDevice& dev, Allocator* alloc,
+ffi::Tensor ConvertTensorToDevice(ffi::Tensor src, const DLDevice& dev, TensorMemoryPool* pool,
                                   ffi::String scope = "global") {
   TVM_FFI_ICHECK(src.defined());
   if (src.device().device_type == dev.device_type && src.device().device_id == dev.device_id) {
     return src;
   } else {
-    auto res = alloc->Empty(src.shape(), src.dtype(), dev, scope);
+    auto res = pool->Empty(src.shape(), src.dtype(), dev, scope);
     tvm::runtime::CopyFromTo(src, res);
     return res;
   }
 }
 
-Any ConvertObjectToDevice(Any src, const Device& dev, Allocator* alloc,
+Any ConvertObjectToDevice(Any src, const Device& dev, TensorMemoryPool* pool,
                           ffi::String scope = "global") {
   if (src.as<ffi::Tensor::ContainerType>()) {
-    return ConvertTensorToDevice(src.cast<ffi::Tensor>(), dev, alloc, scope);
+    return ConvertTensorToDevice(src.cast<ffi::Tensor>(), dev, pool, scope);
   } else if (src.as<ffi::ArrayObj>()) {
     std::vector<Any> ret;
     auto arr = src.cast<ffi::Array<Any>>();
     for (size_t i = 0; i < arr.size(); i++) {
-      ret.push_back(ConvertObjectToDevice(arr[i], dev, alloc));
+      ret.push_back(ConvertObjectToDevice(arr[i], dev, pool));
     }
     return ffi::Array<Any>(ret.begin(), ret.end());
   } else {
@@ -115,18 +114,18 @@ Any ConvertObjectToDevice(Any src, const Device& dev, Allocator* alloc,
   }
 }
 
-ffi::Any ConvertArgToDevice(ffi::AnyView input, Device dev, Allocator* alloc) {
+ffi::Any ConvertArgToDevice(ffi::AnyView input, Device dev, TensorMemoryPool* pool) {
   // in terms of memory-behavior.
   // To be extra careful, we copy DLTensor.
   // The developer can still explicitly allocate Tensor
   // in TVM Native API or Tensor::FromDLPack to regain zero copy behavior.
   ffi::Any ret;
   if (auto opt_obj = input.as<ffi::ObjectRef>()) {
-    ret = ConvertObjectToDevice(opt_obj.value(), dev, alloc);
+    ret = ConvertObjectToDevice(opt_obj.value(), dev, pool);
   } else if (auto opt_dltensor = input.as<DLTensor*>()) {
     DLTensor* tensor = opt_dltensor.value();
-    std::vector<int64_t> shape(tensor->shape, tensor->shape + tensor->ndim);
-    auto dst = alloc->Empty(shape, tensor->dtype, dev);
+    ffi::ShapeView shape(tensor->shape, tensor->ndim);
+    auto dst = pool->Empty(shape, tensor->dtype, dev);
     tvm::runtime::CopyFromTo(tensor, dst);
     ret = dst;
   } else {
@@ -135,11 +134,11 @@ ffi::Any ConvertArgToDevice(ffi::AnyView input, Device dev, Allocator* alloc) {
   return ret;
 }
 
-ffi::Any ConvertRegToDevice(ffi::Any input, Device dev, Allocator* alloc,
+ffi::Any ConvertRegToDevice(ffi::Any input, Device dev, TensorMemoryPool* pool,
                             ffi::String scope = "global") {
   ffi::Any ret;
   if (auto opt_obj = input.as<ffi::ObjectRef>()) {
-    ret = ConvertObjectToDevice(opt_obj.value(), dev, alloc, scope);
+    ret = ConvertObjectToDevice(opt_obj.value(), dev, pool, scope);
   } else {
     ret = input;
   }
@@ -194,8 +193,7 @@ class VirtualMachineImpl : public VirtualMachine {
   // Public facing functions overloading
   //---------------------------------------------------
   void LoadExecutable(ffi::ObjectPtr<VMExecutable> exec) final;
-  void Init(const std::vector<Device>& devices,
-            const std::vector<AllocatorType>& alloc_types) final;
+  void Init(const std::vector<Device>& devices) final;
   VMClosure GetClosure(const ffi::String& func_name) final {
     return this->GetClosureInternal(func_name, false).value();
   }
@@ -463,23 +461,19 @@ void VirtualMachineImpl::LoadExecutable(ffi::ObjectPtr<VMExecutable> exec) {
   this->imports_ = exec->imports();
 }
 
-void VirtualMachineImpl::Init(const std::vector<Device>& devices,
-                              const std::vector<AllocatorType>& alloc_types) {
-  TVM_FFI_ICHECK_EQ(devices.size(), alloc_types.size());
-
+void VirtualMachineImpl::Init(const std::vector<Device>& devices) {
   this->devices.reserve(devices.size());
-  this->allocators.reserve(alloc_types.size());
-  for (size_t i = 0; i < devices.size(); i++) {
-    auto alloc = MemoryManager::GetOrCreateAllocator(devices[i], alloc_types[i]);
-    this->devices.push_back(devices[i]);
-    this->allocators.push_back(alloc);
+  this->memory_pools.reserve(devices.size());
+  for (Device device : devices) {
+    this->devices.push_back(device);
+    this->memory_pools.push_back(CreateTensorMemoryPool(device));
   }
   // Setup constant sections.
   this->const_pool_.reserve(exec_->constants.size());
   for (size_t i = 0; i < exec_->constants.size(); ++i) {
     if (auto opt_nd = exec_->constants[i].as<ffi::Tensor>(); opt_nd && opt_nd->defined()) {
-      this->const_pool_.push_back(
-          ConvertRegToDevice(opt_nd.value(), devices[0], allocators[0], exec_->memory_scopes[i]));
+      this->const_pool_.push_back(ConvertRegToDevice(
+          opt_nd.value(), devices[0], memory_pools[0].get(), exec_->memory_scopes[i]));
     } else {
       this->const_pool_.push_back(exec_->constants[i]);
     }
@@ -519,7 +513,7 @@ void VirtualMachineImpl::SetInput(std::string func_name, bool with_param_module,
         // call param func to get the arguments(usually corresponds to param pack.)
         func_args[i] = (args[i].cast<ffi::Module>())->GetFunction("get_params").value()();
       } else {
-        func_args[i] = ConvertArgToDevice(args[i], devices[0], allocators[0]);
+        func_args[i] = ConvertArgToDevice(args[i], devices[0], memory_pools[0].get());
       }
     }
     inputs_[func_name] = func_args;
@@ -585,7 +579,7 @@ void VirtualMachineImpl::SaveClosure(const ffi::String& func_name, const ffi::St
   VMClosure clo = this->GetClosure(func_name);
   std::vector<RegType> inputs(args.size());
   for (int i = 0; i < args.size(); ++i) {
-    inputs[i] = ConvertArgToDevice(args[i], this->devices[0], this->allocators[0]);
+    inputs[i] = ConvertArgToDevice(args[i], this->devices[0], this->memory_pools[0].get());
   }
   ffi::Function impl = VMClosure::BindLastArgs(clo->impl, inputs);
   if (!include_return) {
@@ -837,17 +831,14 @@ ffi::ObjectPtr<VirtualMachine> VirtualMachine::Create() {
 //--------------------------------------------------------------------
 
 void VirtualMachineImpl::_Init(ffi::PackedArgs args, ffi::Any* rv) {
-  TVM_FFI_ICHECK_EQ(args.size() % 3, 0);
+  TVM_FFI_ICHECK_EQ(args.size() % 2, 0);
   std::vector<Device> devices;
-  std::vector<AllocatorType> alloc_types;
-  for (int i = 0; i < args.size(); i += 3) {
+  for (int i = 0; i < args.size(); i += 2) {
     int device_type = args[i].cast<int>();
     int device_id = args[i + 1].cast<int>();
-    int alloc_type = args[i + 2].cast<int>();
     devices.push_back(Device{DLDeviceType(device_type), device_id});
-    alloc_types.push_back(AllocatorType(alloc_type));
   }
-  this->Init(devices, alloc_types);
+  this->Init(devices);
 }
 
 void VirtualMachineImpl::_SaveClosure(ffi::PackedArgs args, ffi::Any* rv) {

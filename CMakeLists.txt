@@ -367,7 +367,6 @@ list(APPEND COMPILER_SRCS ${CODEGEN_SRCS})
 
 tvm_file_glob(GLOB RUNTIME_SRCS
   src/runtime/*.cc
-  src/runtime/memory/*.cc
   src/runtime/rpc/minrpc/*.cc
 )
 # VM-owned runtime implementations, including external-module constant loading.

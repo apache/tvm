@@ -39,14 +39,10 @@ class VMInstrumentReturnKind(IntEnum):
 class VirtualMachine:
     """Relax VM runtime."""
 
-    NAIVE_ALLOCATOR = 1
-    POOLED_ALLOCATOR = 2
-
     def __init__(
         self,
         rt_mod: tvm.runtime.Module | tvm.runtime.Executable,
         device: Device | list[Device],
-        memory_cfg: str | dict[Device, str] | None = None,
     ) -> None:
         """
         Construct a VirtualMachine wrapper object.
@@ -58,14 +54,6 @@ class VirtualMachine:
 
         device : Union[Device, List[Device]]
             The device to deploy the module.
-
-        memory_cfg : Optional[Union[str, Dict[Device, str]]]
-            Config the type of memory allocator. The allocator type can be ["naive",
-            "pooled"]. If memory_cfg is None, all devices will use pooled allocator
-            by default. If memory_cfg is string, all devices will use the specified
-            allocator type. If memory_cfg is a dict, each device uses the allocator
-            type specified in the dict, or pooled allocator if not specified in the
-            dict.
         """
         if not isinstance(rt_mod, tvm.runtime.Module):
             if isinstance(rt_mod, tvm.runtime.Executable):
@@ -83,10 +71,10 @@ class VirtualMachine:
         self._get_function_arity = self.module["get_function_arity"]
         self._get_function_param_name = self.module["get_function_param_name"]
         self._set_instrument = self.module["set_instrument"]
-        self._setup_device(device, memory_cfg)
+        self._setup_device(device)
 
-    def _setup_device(self, dev: Device, memory_cfg: str | dict[Device, str]) -> None:
-        """init devices and allocators."""
+    def _setup_device(self, dev: Device | list[Device]) -> None:
+        """Initialize devices and owning tensor pools."""
         devs = dev
         if not isinstance(dev, list | tuple):
             if not isinstance(dev, tvm.runtime.Device):
@@ -97,25 +85,10 @@ class VirtualMachine:
         if devs[-1].dlpack_device_type() != tvm.cpu().dlpack_device_type():
             devs.append(tvm.cpu())
 
-        default_alloc_type = VirtualMachine.POOLED_ALLOCATOR
-        if memory_cfg is None:
-            memory_cfg = {}
-        elif isinstance(memory_cfg, str):
-            assert memory_cfg in ["naive", "pooled"]
-            if memory_cfg == "naive":
-                default_alloc_type = VirtualMachine.NAIVE_ALLOCATOR
-            memory_cfg = {}
-        elif not isinstance(memory_cfg, dict):
-            raise TypeError(
-                "memory_cfg is expected be string or dictionary, "
-                + f"but received {type(memory_cfg)}"
-            )
         init_args = []
         for device in devs:
             init_args.append(device.dlpack_device_type())
             init_args.append(device.index)
-            alloc_type = memory_cfg[device] if device in memory_cfg else default_alloc_type
-            init_args.append(alloc_type)
         self.module["vm_initialization"](*init_args)
 
     def __getitem__(self, key: str) -> Function:

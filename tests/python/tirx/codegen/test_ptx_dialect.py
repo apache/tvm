@@ -71,11 +71,11 @@ def test_ptx_registration():
     for entry in TABLE.values():
         op = Op.get(entry.op_name)  # raises if unregistered
         assert op.get_attr("TCallEffectKind") is not None, entry.name
-        # The printer name is the attribute path a program types, so it is the
+        # The family is the attribute path a program types, so it uses the
         # *escaped* family: `and`/`or`/`not` (ISA 9.7.9) are Python keywords and
         # print as `T.ptx.and_`. Identity for every other family.
         family = escape_token(entry.family)  # several entries may share a mnemonic
-        assert op.get_attr("TScriptPrinterName") == f"tirx.ptx.{family}", entry.name
+        assert hasattr(T.ptx, family), entry.name
         assert entry.op_name in CODEGEN_REGISTRY, entry.name
 
 

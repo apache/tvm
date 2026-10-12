@@ -494,6 +494,8 @@ def test_call_dps_packed_canonical_roundtrip(tuple_size, callee_kind, result_kin
     else:
         assert isinstance(call.args[0], relax.ExternFunc)
     tvm.ir.assert_structural_equal(call.ty, output_type if result_type is None else result_type)
+    # Roundtrip printing requires a type-consistent Call after constructor checks.
+    call = tvm.ir.Call(call.op, call.args, attrs=call.attrs, ty_args=call.ty_args, loc=call.loc)
     printed = call.script()
     assert printed.startswith("R.call_dps_packed(")
     if callee_kind in ("string", "extern"):

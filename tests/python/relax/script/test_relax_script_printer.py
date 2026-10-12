@@ -973,8 +973,8 @@ class Module:
 """,
     )
 
-    # empty module alias
-    module_str = TestModule.script(module_alias="")
+    # Rendered text retains module-qualified references.
+    module_str = TestModule.script()
     _assert_print_lines(
         module_str,
         """

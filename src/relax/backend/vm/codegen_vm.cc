@@ -364,6 +364,7 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
   void EmitAllocTensor(const Call& call_node, RegName dst_reg) {
     TVM_FFI_ICHECK_EQ(call_node->args.size(), 5);
     std::vector<Instruction::Arg> args;
+    args.push_back(Instruction::Arg::Register(Instruction::kVMRegister));
     for (int i = 0; i < 4; ++i) {
       args.push_back(this->VisitExpr(call_node->args[i]));
     }

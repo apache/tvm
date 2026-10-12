@@ -269,7 +269,7 @@ def test_match_tensor_region():
     _assert_print(
         obj,
         """
-src = T.Var("src", T.Tensor((128, 128), "float32"))
+src = I.Var("src", T.Tensor((128, 128), "float32"))
 tgt = Ts.match_tensor(src[64:128, 64:128], (64, 64), "float32")
 """,
     )

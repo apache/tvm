@@ -21,7 +21,7 @@
 #define TVM_RUNTIME_DISCO_CUDA_IPC_MEMORY_H_
 
 #include <tvm/runtime/base.h>
-#include <tvm/runtime/memory/memory_manager.h>
+#include <tvm/runtime/tensor.h>
 
 #include <vector>
 
@@ -79,8 +79,8 @@ class CUDAIPCMemoryObj : public ffi::Object {
  */
 class CUDAIPCMemory : public ffi::ObjectRef {
  public:
-  /*! \brief Get the global singleton CUDAIPCMemory allocator. */
-  TVM_RUNTIME_DLL static memory::Allocator* GlobalAllocator();
+  /*! \brief Get the global singleton CUDAIPCMemory pool. */
+  TVM_RUNTIME_DLL static TensorMemoryPool* GlobalMemoryPool();
   /*!
    * \brief Given a local CUDA data pointer, return the CUDAIPCMemory object of the pointer.
    * \note The pointer's CUDAIPCMemory is expected to have been allocated

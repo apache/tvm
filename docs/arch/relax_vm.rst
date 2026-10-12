@@ -225,9 +225,9 @@ At runtime, a ``VirtualMachine`` is created and initialized:
 Under the hood:
 
 1. **LoadExecutable**: the bytecode and metadata are loaded from the ``VMExecutable``.
-2. **Init**: devices and memory allocators are set up. Each device gets an ``Allocator``
-   (either ``NAIVE_ALLOCATOR`` or ``POOLED_ALLOCATOR``, defaulting to pooled). A CPU device
-   is always added for shape computations.
+2. **Init**: devices and owning tensor pools are set up. Each device gets a
+   ``TensorMemoryPool`` from the shared device factory. A CPU device is always
+   added for shape computations.
 3. **InitFuncPool**: the function pool is populated — ``kPackedFunc`` entries are resolved from
    imports or the global registry; ``kVMFunc`` entries are wrapped in
    ``VMClosure`` objects.

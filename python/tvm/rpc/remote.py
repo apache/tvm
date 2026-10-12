@@ -250,14 +250,10 @@ def time_evaluator(
     )
 
 
-def virtual_machine(module, device, memory_cfg=None):
+def virtual_machine(module, device):
     """Initialize a remote VM with session-checked endpoint device descriptors."""
     from tvm.runtime.vm import VirtualMachine
 
     devices = list(device) if isinstance(device, list | tuple) else [device]
     local = [_ffi_api.ValidateDevice(module, dev) for dev in devices]
-    if isinstance(memory_cfg, dict):
-        memory_cfg = {
-            _ffi_api.ValidateDevice(module, dev): value for dev, value in memory_cfg.items()
-        }
-    return VirtualMachine(module, local, memory_cfg)
+    return VirtualMachine(module, local)

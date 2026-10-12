@@ -173,12 +173,9 @@ def test_device_intrinsic_namespaces_are_canonical_and_classified():
         ("tirx.nvshmem.fence", "nvshmem"),
         ("tirx.nki.identity", "nki"),
     ]
-    assert [
-        (call.op.name, _op_attr(call.op.name, "TDeviceIntrinsicNamespace")) for call in calls
-    ] == expected
-    for op_name, namespace in expected:
+    assert [(call.op.name, call.op.name.split(".")[1]) for call in calls] == expected
+    for op_name, _ in expected:
         assert _op_attr(op_name, "FTileOpDispatch") is None
-        assert _op_attr(op_name, "TDeviceIntrinsicNamespace") == namespace
 
 
 def test_backend_specific_wrappers_are_not_root_exports():
@@ -297,7 +294,7 @@ def test_device_intrinsic_printer_roundtrips_canonical_namespaces():
         ("tirx.metal.simd_shuffle_down", "metal"),
     ]:
         assert _op_attr(op_name, "FTileOpDispatch") is None
-        assert _op_attr(op_name, "TDeviceIntrinsicNamespace") == namespace
+        assert op_name.split(".")[1] == namespace
         assert _op_attr(op_name, "TCallEffectKind") in (1, 3)
 
     code = device_namespaces.script()
@@ -312,6 +309,8 @@ def test_device_intrinsic_printer_roundtrips_canonical_namespaces():
 
 
 def test_registered_tirx_ops_use_dispatch_attributes():
+    from tvm.backend.cuda.ptx.table import TABLE, escape_token
+
     assert not Op.get("prim.sqrt").has_attr("TIRxOpCategory")
     device_namespaces = {
         "cuda",
@@ -351,7 +350,6 @@ def test_registered_tirx_ops_use_dispatch_attributes():
     lingering_flat_tile = []
     for op_name in sorted(name for name in Op.list_op_names() if name.startswith("tirx.")):
         dispatcher = _op_attr(op_name, "FTileOpDispatch")
-        device_namespace = _op_attr(op_name, "TDeviceIntrinsicNamespace")
 
         if op_name in flat_tile_only_names:
             lingering_flat_tile.append(op_name)
@@ -360,15 +358,15 @@ def test_registered_tirx_ops_use_dispatch_attributes():
             assert callable(dispatcher), op_name
             if not op_name.startswith(("tirx.cuda.tile.", "tirx.trn.tile.")):
                 lingering_flat_tile.append(op_name)
-            assert device_namespace is None, op_name
-        elif device_namespace is not None:
-            assert device_namespace in device_namespaces, op_name
-            printer_name = _op_attr(op_name, "TScriptPrinterName")
-            assert printer_name is not None, op_name
-            assert printer_name.startswith("tirx." + device_namespace + "."), op_name
-            assert _has_path(T, printer_name.removeprefix("tirx.")), op_name
         else:
             assert not op_name.startswith(("tirx.cuda.tile.", "tirx.trn.tile.")), op_name
+            if op_name.split(".")[1] in device_namespaces:
+                surface_name = op_name.removeprefix("tirx.")
+                if op_name.startswith("tirx.ptx."):
+                    entry = TABLE.get(op_name.removeprefix("tirx.ptx."))
+                    if entry is not None:
+                        surface_name = "ptx." + escape_token(entry.family)
+                assert _has_path(T, surface_name), op_name
 
     assert not lingering_flat_tile
 
