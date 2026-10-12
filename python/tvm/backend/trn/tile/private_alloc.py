@@ -22,7 +22,7 @@ from tvm.ir import Bind, Call, DictAttrs, Stmt, Tuple
 from tvm.script import tirx as T
 from tvm.tirx import FloatImm, IntImm, Var
 from tvm.tirx.tile import DispatchContext
-from tvm.tirx.tile.dispatch import f_op_dispatcher
+from tvm.tirx.tile.dispatch import run_dispatch
 from tvm.tirx.tile.instruction import TensorCall
 from tvm.tirx.tile.views import (
     BinaryReduce,
@@ -105,7 +105,7 @@ def alloc_partial_reduce_trn(
 ) -> dict[str, Any]:
     if "partial_reduce" in op.workspaces:
         return {}
-    f_op_dispatcher(op, sctx)
+    run_dispatch(op, sctx)
     partial_reduce_tensor = None
     if DispatchContext.kPrivateAlloc not in sctx.callbacks:
         return {}
@@ -145,7 +145,7 @@ def alloc_unary_reduce_trn(
     else:
         if "const_bias" in op.workspaces and "partial_reduce" in op.workspaces:
             return {}
-        f_op_dispatcher(op, sctx)
+        run_dispatch(op, sctx)
         partial_reduce_tensor = None
         const_bias_tensor = None
         if DispatchContext.kPrivateAlloc not in sctx.callbacks:

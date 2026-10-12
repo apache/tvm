@@ -43,7 +43,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                  sig::arg<IntExpr>("cols", "The number of columns."))
       .set_attr<TScriptPrinterName>(tvm::script::printer::op_attr::kScriptPrinterName,
                                     ffi::String("tirx.metal.cooperative_tensor_fill"))
-      .set_attr<TIRxOpCategory>(tvm::tirx::op_attr::kOpCategory, ffi::String("builtin"))
       .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
                                  static_cast<int64_t>(CallEffectKind::kOpaque));
 }
@@ -67,7 +66,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                  sig::arg<IntExpr>("operand_role", "The matrix operand role."))
       .set_attr<TScriptPrinterName>(tvm::script::printer::op_attr::kScriptPrinterName,
                                     ffi::String("tirx.metal.cooperative_tensor_load"))
-      .set_attr<TIRxOpCategory>(tvm::tirx::op_attr::kOpCategory, ffi::String("builtin"))
       .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
                                  static_cast<int64_t>(CallEffectKind::kOpaque));
 }
@@ -91,7 +89,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                  sig::arg<IntExpr>("operand_role", "The matrix operand role."))
       .set_attr<TScriptPrinterName>(tvm::script::printer::op_attr::kScriptPrinterName,
                                     ffi::String("tirx.metal.cooperative_tensor_store"))
-      .set_attr<TIRxOpCategory>(tvm::tirx::op_attr::kOpCategory, ffi::String("builtin"))
       .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
                                  static_cast<int64_t>(CallEffectKind::kOpaque));
 }
@@ -116,7 +113,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<TScriptPrinterName>(
           tvm::script::printer::op_attr::kScriptPrinterName,
           ffi::String("tirx.metal.cooperative_tensor_multiply_accumulate"))
-      .set_attr<TIRxOpCategory>(tvm::tirx::op_attr::kOpCategory, ffi::String("builtin"))
       .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
                                  static_cast<int64_t>(CallEffectKind::kOpaque));
 }

@@ -290,7 +290,6 @@ void RegisterCudaIntrinRules() {
           sig::arg<IntExpr>("lane", "The source thread id."),
           sig::arg<IntExpr>("width", "The warp thread width, must be a power of 2."))
       .set_attr<FInferType>(tvm::op_attr::kInferType, FInferType::FromNative<&InferTypeReturnArgType<1>>())
-      .set_attr<tirx::TIRxOpCategory>(tvm::tirx::op_attr::kOpCategory, ffi::String("device_intrin"))
       .set_attr<tirx::TDeviceIntrinsicNamespace>(tvm::tirx::op_attr::kDeviceIntrinsicNamespace, ffi::String("cuda"))
       .set_attr<TScriptPrinterName>(tvm::script::printer::op_attr::kScriptPrinterName,
                                           ffi::String("tirx.cuda.__shfl_sync"))
@@ -304,7 +303,6 @@ void RegisterCudaIntrinRules() {
           sig::arg<IntExpr>("delta", "The source lane id offset to be added."),
           sig::arg<IntExpr>("width", "The warp thread width, must be a power of 2."))
       .set_attr<FInferType>(tvm::op_attr::kInferType, FInferType::FromNative<&InferTypeReturnArgType<1>>())
-      .set_attr<tirx::TIRxOpCategory>(tvm::tirx::op_attr::kOpCategory, ffi::String("device_intrin"))
       .set_attr<tirx::TDeviceIntrinsicNamespace>(tvm::tirx::op_attr::kDeviceIntrinsicNamespace, ffi::String("cuda"))
       .set_attr<TScriptPrinterName>(tvm::script::printer::op_attr::kScriptPrinterName,
                                           ffi::String("tirx.cuda.__shfl_up_sync"))
@@ -318,7 +316,6 @@ void RegisterCudaIntrinRules() {
           sig::arg<IntExpr>("delta", "The source lane id offset to be subtracted."),
           sig::arg<IntExpr>("width", "The warp thread width, must be a power of 2."))
       .set_attr<FInferType>(tvm::op_attr::kInferType, FInferType::FromNative<&InferTypeReturnArgType<1>>())
-      .set_attr<tirx::TIRxOpCategory>(tvm::tirx::op_attr::kOpCategory, ffi::String("device_intrin"))
       .set_attr<tirx::TDeviceIntrinsicNamespace>(tvm::tirx::op_attr::kDeviceIntrinsicNamespace, ffi::String("cuda"))
       .set_attr<TScriptPrinterName>(tvm::script::printer::op_attr::kScriptPrinterName,
                                           ffi::String("tirx.cuda.__shfl_down_sync"))
@@ -332,7 +329,6 @@ void RegisterCudaIntrinRules() {
           sig::arg<IntExpr>("lane_mask", "The lane mask."),
           sig::arg<IntExpr>("width", "The warp thread width, must be a power of 2."))
       .set_attr<FInferType>(tvm::op_attr::kInferType, FInferType::FromNative<&InferTypeReturnArgType<1>>())
-      .set_attr<tirx::TIRxOpCategory>(tvm::tirx::op_attr::kOpCategory, ffi::String("device_intrin"))
       .set_attr<tirx::TDeviceIntrinsicNamespace>(tvm::tirx::op_attr::kDeviceIntrinsicNamespace, ffi::String("cuda"))
       .set_attr<TScriptPrinterName>(tvm::script::printer::op_attr::kScriptPrinterName,
                                           ffi::String("tirx.cuda.__shfl_xor_sync"))
@@ -342,7 +338,6 @@ void RegisterCudaIntrinRules() {
 
   OpDef("tirx.cuda.__activemask")
       .set_attr<TFixedReturnType>(tvm::op_attr::kFixedReturnType, PrimType::UInt(32))
-      .set_attr<tirx::TIRxOpCategory>(tvm::tirx::op_attr::kOpCategory, ffi::String("device_intrin"))
       .set_attr<tirx::TDeviceIntrinsicNamespace>(tvm::tirx::op_attr::kDeviceIntrinsicNamespace, ffi::String("cuda"))
       .set_attr<TScriptPrinterName>(tvm::script::printer::op_attr::kScriptPrinterName,
                                           ffi::String("tirx.cuda.__activemask"))
