@@ -33,9 +33,8 @@
 #include <tvm/sym/analyzer.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/op/memory.h>
+#include <tvm/tirx/stmt_functor_with_analyzer.h>
 #include <tvm/tirx/transform.h>
-
-#include "../ir/ir_mutator_with_analyzer.h"
 
 namespace tvm {
 namespace tirx {

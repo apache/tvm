@@ -29,11 +29,11 @@
 #include <tvm/tirx/layout.h>
 #include <tvm/tirx/op/memory.h>
 #include <tvm/tirx/stmt_functor.h>
+#include <tvm/tirx/stmt_functor_with_analyzer.h>
 #include <tvm/tirx/transform.h>
 
 #include <unordered_set>
 
-#include "../ir/ir_mutator_with_analyzer.h"
 #include "flattened_tensor.h"
 #include "ir_utils.h"
 
@@ -60,10 +60,10 @@ using namespace tvm::prim;
  *  Every use site then only looks the pair up; a use before its definition is
  *  a hard error instead of a silently stale reference.
  */
-class TensorFlattener : public IRMutatorWithAnalyzer {
+class TensorFlattener : public StmtExprMutatorWithAnalyzer {
  public:
-  using IRMutatorWithAnalyzer::Mutate;
-  using IRMutatorWithAnalyzer::Mutate_;
+  using StmtExprMutatorWithAnalyzer::Mutate;
+  using StmtExprMutatorWithAnalyzer::Mutate_;
   static Function Flatten(Function func) {
     if (!func->body.has_value()) return func;
     sym::Analyzer ana;
@@ -103,7 +103,7 @@ class TensorFlattener : public IRMutatorWithAnalyzer {
   }
 
  public:
-  explicit TensorFlattener(const sym::Analyzer& ana) : IRMutatorWithAnalyzer(ana) {}
+  explicit TensorFlattener(const sym::Analyzer& ana) : StmtExprMutatorWithAnalyzer(ana) {}
 
  private:
   struct FlatInfo {
@@ -188,7 +188,7 @@ class TensorFlattener : public IRMutatorWithAnalyzer {
       if (call->op.same_as(alloc_tensor_op())) return MutateAllocTensor(op, call, inplace_mode);
       if (call->op.same_as(decl_tensor_op())) return MutateDeclTensor(op, call, inplace_mode);
     }
-    return IRMutatorWithAnalyzer::Mutate_(op, inplace_mode);
+    return StmtExprMutatorWithAnalyzer::Mutate_(op, inplace_mode);
   }
 
   UnchangedOr<Stmt> MutateAllocTensor(const BindNode* op, const CallNode* tensor_call,
@@ -287,7 +287,7 @@ class TensorFlattener : public IRMutatorWithAnalyzer {
         }
       }
     }
-    return IRMutatorWithAnalyzer::Mutate_(op, inplace_mode);
+    return StmtExprMutatorWithAnalyzer::Mutate_(op, inplace_mode);
   }
 
   ffi::Array<PrimExpr> FoldIndices(const FlatInfo& info, const ffi::Array<PrimExpr>& indices) {

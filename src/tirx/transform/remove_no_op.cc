@@ -30,12 +30,12 @@
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/stmt.h>
 #include <tvm/tirx/stmt_functor.h>
+#include <tvm/tirx/stmt_functor_with_analyzer.h>
 #include <tvm/tirx/transform.h>
 
 #include <unordered_map>
 
 #include "../../sym/const_fold.h"
-#include "../ir/ir_mutator_with_analyzer.h"
 #include "ir_utils.h"
 
 namespace tvm {
@@ -74,17 +74,17 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // Mark the statement of each stage.
-class NoOpRemover : public IRMutatorWithAnalyzer {
+class NoOpRemover : public StmtExprMutatorWithAnalyzer {
  public:
-  using IRMutatorWithAnalyzer::Mutate;
-  using IRMutatorWithAnalyzer::Mutate_;
+  using StmtExprMutatorWithAnalyzer::Mutate;
+  using StmtExprMutatorWithAnalyzer::Mutate_;
   static Stmt Apply(Stmt stmt, const sym::Analyzer& analyzer, bool ignore_profiler_call = false) {
     auto visitor = ffi::make_object<NoOpRemover>(analyzer, ignore_profiler_call);
     return visitor->Mutate(stmt, InplaceMode::kAllow).ValueOrUnchanged(stmt);
   }
 
  private:
-  using Parent = IRMutatorWithAnalyzer;
+  using Parent = StmtExprMutatorWithAnalyzer;
 
  public:
   NoOpRemover(const sym::Analyzer& analyzer, bool ignore_profiler_call = false)
