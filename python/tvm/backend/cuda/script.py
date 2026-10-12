@@ -167,6 +167,10 @@ class NVSHMEMNamespace:
         self.getmem_nbi = NVSHMEMGetMemNBINamespace()
         self.putmem_nbi = NVSHMEMPutMemNBINamespace()
         self.putmem_signal_nbi = NVSHMEMPutMemSignalNBINamespace()
+        # Canonical Op names are also exposed directly for reconstruction.
+        for name in ("getmem_nbi", "putmem_nbi", "putmem_signal_nbi"):
+            for scope in ("warp", "block"):
+                setattr(self, f"{name}_{scope}", getattr(_cuda_op, f"nvshmem_{name}_{scope}"))
 
 
 class NVSHMEMGetMemNBINamespace:

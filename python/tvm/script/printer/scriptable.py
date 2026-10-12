@@ -39,9 +39,6 @@ class PrinterConfig(Object):
 
     binding_names: Sequence[str]
     show_meta: bool
-    ir_prefix: str
-    module_alias: str
-    buffer_dtype: str
     verbose_expr: bool
     indent_spaces: int
     print_line_numbers: bool
@@ -57,9 +54,6 @@ class PrinterConfig(Object):
         *,
         name: str | None = None,
         show_meta: bool = False,
-        ir_prefix: str = "I",
-        module_alias: str = "cls",
-        buffer_dtype: str = "float32",
         int_dtype: str = "int32",
         float_dtype: str = "void",
         verbose_expr: bool = False,
@@ -77,9 +71,6 @@ class PrinterConfig(Object):
             num_context_lines = -1
         cfg: dict = {
             "show_meta": show_meta,
-            "ir_prefix": ir_prefix,
-            "module_alias": module_alias,
-            "buffer_dtype": buffer_dtype,
             "ir.int_dtype": int_dtype,
             "ir.float_dtype": float_dtype,
             "verbose_expr": verbose_expr,
@@ -120,8 +111,6 @@ class _ScriptableMethods:
         *,
         name: str | None = None,
         show_meta: bool = False,
-        ir_prefix: str = "I",
-        module_alias: str = "cls",
         int_dtype: str = "int32",
         float_dtype: str = "void",
         verbose_expr: bool = False,
@@ -143,10 +132,6 @@ class _ScriptableMethods:
             The name of the object
         show_meta : bool = False
             Whether to print the meta data of the object
-        ir_prefix : str = "I"
-            The prefix of AST nodes from tvm.ir
-        module_alias : str = "cls"
-            Retained for compatibility. Cross-function calls use the module name directly.
         int_dtype : str = "int32"
             The default data type of integer
         float_dtype : str = "void"
@@ -164,7 +149,8 @@ class _ScriptableMethods:
             info of that variable.  If False, only add annotations where
             required for unambiguous round-trip of Relax -> TVMScript -> Relax.
         extra_config : Optional[dict] = None
-            Dialect-specific configuration passed through to PrinterConfig.extra_config.
+            Dialect-specific configuration passed through to PrinterConfig.extra_config,
+            including ``ir.prefix`` for the IR namespace alias (default ``"I"``).
             Keys are conventionally namespaced as "<dialect>.<knob>", e.g.
             ``{"tirx.prefix": "T"}``.
         path_to_underline : Optional[List[AccessPath]] = None
@@ -194,8 +180,6 @@ class _ScriptableMethods:
             PrinterConfig(
                 name=name,
                 show_meta=show_meta,
-                ir_prefix=ir_prefix,
-                module_alias=module_alias,
                 int_dtype=int_dtype,
                 float_dtype=float_dtype,
                 verbose_expr=verbose_expr,
@@ -216,8 +200,6 @@ class _ScriptableMethods:
         *,
         name: str | None = None,
         show_meta: bool = False,
-        ir_prefix: str = "I",
-        module_alias: str = "cls",
         int_dtype: str = "int32",
         float_dtype: str = "void",
         verbose_expr: bool = False,
@@ -236,8 +218,6 @@ class _ScriptableMethods:
             PrinterConfig(
                 name=name,
                 show_meta=show_meta,
-                ir_prefix=ir_prefix,
-                module_alias=module_alias,
                 int_dtype=int_dtype,
                 float_dtype=float_dtype,
                 verbose_expr=verbose_expr,
@@ -259,8 +239,6 @@ class _ScriptableMethods:
         *,
         name: str | None = None,
         show_meta: bool = False,
-        ir_prefix: str = "I",
-        module_alias: str = "cls",
         int_dtype: str = "int32",
         float_dtype: str = "void",
         verbose_expr: bool = False,
@@ -305,10 +283,6 @@ class _ScriptableMethods:
             The name of the object
         show_meta : bool = False
             Whether to print the meta data of the object
-        ir_prefix : str = "I"
-            The prefix of AST nodes from tvm.ir
-        module_alias : str = "cls"
-            Retained for compatibility. Cross-function calls use the module name directly.
         int_dtype : str = "int32"
             The default data type of integer
         float_dtype : str = "void"
@@ -326,7 +300,8 @@ class _ScriptableMethods:
             info of that variable.  If False, only add annotations where
             required for unambiguous round-trip of Relax -> TVMScript -> Relax.
         extra_config : Optional[dict] = None
-            Dialect-specific configuration passed through to PrinterConfig.extra_config.
+            Dialect-specific configuration passed through to PrinterConfig.extra_config,
+            including ``ir.prefix`` for the IR namespace alias (default ``"I"``).
         path_to_underline : Optional[List[AccessPath]] = None
             Object path to be underlined
         path_to_annotate : Optional[Dict[AccessPath, str]] = None
@@ -347,8 +322,6 @@ class _ScriptableMethods:
             self.script(
                 name=name,
                 show_meta=show_meta,
-                ir_prefix=ir_prefix,
-                module_alias=module_alias,
                 int_dtype=int_dtype,
                 float_dtype=float_dtype,
                 verbose_expr=verbose_expr,
