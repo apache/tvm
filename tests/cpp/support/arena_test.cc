@@ -17,34 +17,14 @@
  * under the License.
  */
 
+#include "../../../src/support/arena.h"
+
 #include <gtest/gtest.h>
-#include <tvm/runtime/logging.h>
 
 #include <memory>
 
-#include "../../src/support/arena.h"
-#include "../../src/support/utils.h"
-
 namespace tvm {
 namespace test {
-
-TEST(HashTests, HashStability) {
-  size_t a = 345292;
-  int b = 795620;
-  EXPECT_EQ(::tvm::support::HashCombine(a, b), 2677237020);
-  uint64_t c = 12345;
-  int d = 987654432;
-  EXPECT_EQ(::tvm::support::HashCombine(c, d), 3642871070);
-  size_t e = 1010101;
-  size_t f = 3030303;
-  EXPECT_EQ(::tvm::support::HashCombine(e, f), 2722928432);
-}
-
-TEST(StartsWithTests, Basic) {
-  EXPECT_TRUE(::tvm::support::StartsWith("abc", "abc"));
-  EXPECT_TRUE(::tvm::support::StartsWith("abcd", "abc"));
-  EXPECT_FALSE(::tvm::support::StartsWith("abc", "abcd"));
-}
 
 namespace {
 // A non-trivially-destructible type: destructing it has an observable
