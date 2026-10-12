@@ -37,7 +37,6 @@
 #include <string>
 #include <unordered_map>
 #include <utility>
-#include "../../../runtime/file_utils.h"
 #include "../../../runtime/launch_param.h"
 #include "../../../runtime/metadata.h"
 #include "../../../runtime/pack_args.h"

@@ -27,6 +27,7 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/tensor.h>
+#include <tvm/support/file_utils.h>
 #include <tvm/support/io.h>
 
 #include <algorithm>
@@ -35,7 +36,6 @@
 #include <unordered_set>
 #include <vector>
 
-#include "../../runtime/file_utils.h"
 #include "../../support/bytes_io.h"
 #include "codegen_source_base.h"
 
@@ -47,9 +47,7 @@ using ffi::Function;
 using ffi::PackedArgs;
 
 using runtime::FunctionInfo;
-using runtime::GetFileFormat;
-using runtime::GetMetaFilePath;
-using runtime::SaveBinaryToFile;
+using support::GetFileFormat;
 
 // Simulator function
 class SourceModuleObj : public ffi::ModuleObj {
@@ -150,10 +148,9 @@ class CSourceModuleObj : public ffi::ModuleObj {
 
   void WriteToFile(const ffi::String& file_name, const ffi::String& format) const final {
     std::string fmt = GetFileFormat(file_name, format);
-    std::string meta_file = GetMetaFilePath(file_name);
     if (fmt == "c" || fmt == "cc" || fmt == "cpp" || fmt == "cu") {
       TVM_FFI_ICHECK_NE(code_.length(), 0);
-      SaveBinaryToFile(file_name, code_);
+      support::WriteBytesToFile(file_name, code_);
     } else {
       TVM_FFI_ICHECK_EQ(fmt, fmt_) << "Can only save to format=" << fmt_;
     }
@@ -231,9 +228,7 @@ class DeviceSourceModuleObj final : public ffi::ModuleObj {
   void WriteToFile(const ffi::String& file_name, const ffi::String& format) const final {
     std::string fmt = GetFileFormat(file_name, format);
     TVM_FFI_ICHECK_EQ(fmt, fmt_) << "Can only save to format=" << fmt_;
-    std::string meta_file = GetMetaFilePath(file_name);
-    SaveMetaDataToFile(meta_file, fmap_);
-    SaveBinaryToFile(file_name, data_);
+    support::WriteBytesToFile(file_name, data_);
   }
 
   ffi::Bytes SaveToBytes() const final {

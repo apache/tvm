@@ -30,8 +30,6 @@
 #include <cstring>
 #include <unordered_set>
 
-#include "file_utils.h"
-
 namespace tvm {
 namespace runtime {
 
