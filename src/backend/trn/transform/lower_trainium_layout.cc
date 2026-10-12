@@ -30,6 +30,7 @@
 #include <tvm/tirx/op/memory.h>
 #include <tvm/tirx/stmt.h>
 #include <tvm/tirx/stmt_functor.h>
+#include <tvm/tirx/stmt_functor_with_analyzer.h>
 #include <tvm/tirx/transform.h>
 
 #include <algorithm>
@@ -37,7 +38,6 @@
 #include <utility>
 #include <vector>
 
-#include "../../../tirx/ir/ir_mutator_with_analyzer.h"
 #include "../../../tirx/transform/flattened_tensor.h"
 
 namespace tvm {
@@ -53,7 +53,7 @@ static bool IsTrainiumLayout(const TileLayoutNode* layout) {
   });
 }
 
-class TrainiumLayoutApplier : public tirx::IRMutatorWithAnalyzer {
+class TrainiumLayoutApplier : public tirx::StmtExprMutatorWithAnalyzer {
  public:
   static std::pair<Stmt, ffi::Array<Var>> Lower(const Stmt& stmt, const ffi::Array<Var>& params) {
     sym::Analyzer ana;
@@ -88,10 +88,10 @@ class TrainiumLayoutApplier : public tirx::IRMutatorWithAnalyzer {
   }
 
   explicit TrainiumLayoutApplier(const sym::Analyzer& analyzer)
-      : tirx::IRMutatorWithAnalyzer(analyzer) {}
+      : tirx::StmtExprMutatorWithAnalyzer(analyzer) {}
 
  protected:
-  using IRMutatorWithAnalyzer::Mutate_;
+  using StmtExprMutatorWithAnalyzer::Mutate_;
 
   ffi::Any MutateTileArgument(const ffi::Any& any) {
     if (auto tensor = any.as<TensorVar>()) {
@@ -142,7 +142,7 @@ class TrainiumLayoutApplier : public tirx::IRMutatorWithAnalyzer {
                        {tensor.type()}, call->loc),
                   op->loc);
     }
-    return IRMutatorWithAnalyzer::Mutate_(op, inplace_mode);
+    return StmtExprMutatorWithAnalyzer::Mutate_(op, inplace_mode);
   }
 
   TensorVar GetFlattenedTensor(TensorVar buf, bool is_alloc = false) {

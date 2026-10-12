@@ -25,10 +25,10 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/tirx/stmt.h>
+#include <tvm/tirx/stmt_functor_with_analyzer.h>
 #include <tvm/tirx/transform.h>
 
 #include "../../sym/pattern_match.h"
-#include "../ir/ir_mutator_with_analyzer.h"
 
 namespace tvm {
 namespace tirx {
@@ -47,12 +47,13 @@ using namespace sym;
     return RecursiveRewrite((ResExpr).Eval());               \
   }
 
-class SplitPatternReNormalizer : public IRMutatorWithAnalyzer {
+class SplitPatternReNormalizer : public StmtExprMutatorWithAnalyzer {
  public:
-  using IRMutatorWithAnalyzer::Mutate;
-  using IRMutatorWithAnalyzer::Mutate_;
+  using StmtExprMutatorWithAnalyzer::Mutate;
+  using StmtExprMutatorWithAnalyzer::Mutate_;
 
-  explicit SplitPatternReNormalizer(const Analyzer& analyzer) : IRMutatorWithAnalyzer(analyzer) {}
+  explicit SplitPatternReNormalizer(const Analyzer& analyzer)
+      : StmtExprMutatorWithAnalyzer(analyzer) {}
 
   UnchangedOr<PrimExpr> Mutate_(const prim::FloorDivNode* op, InplaceMode inplace_mode) final {
     PrimExpr a = Mutate(op->a, inplace_mode).ValueOrUnchanged(op->a);
@@ -172,7 +173,7 @@ class SplitPatternReNormalizer : public IRMutatorWithAnalyzer {
   }
 
   UnchangedOr<PrimExpr> Mutate_(const prim::NotNode* op, InplaceMode inplace_mode) {
-    PrimExpr ret = IRMutatorWithAnalyzer::Mutate_(op, inplace_mode)
+    PrimExpr ret = StmtExprMutatorWithAnalyzer::Mutate_(op, inplace_mode)
                        .ValueOrUnchanged(ffi::GetRef<PrimExpr>(op));
     // Pattern var to match any expression
     PVar<PrimExpr> x, y;
@@ -189,7 +190,7 @@ class SplitPatternReNormalizer : public IRMutatorWithAnalyzer {
     With<ConstraintContext> ctx1(analyzer_, op->loop_var >= op->min);
     With<ConstraintContext> ctx2(analyzer_,
                                  static_cast<PrimExpr>(op->loop_var) < op->min + op->extent);
-    return IRMutatorWithAnalyzer::Mutate_(op, inplace_mode);
+    return StmtExprMutatorWithAnalyzer::Mutate_(op, inplace_mode);
   }
 
   // Recursive rewrite x

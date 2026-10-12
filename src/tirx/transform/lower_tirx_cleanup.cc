@@ -31,6 +31,7 @@
 #include <tvm/tirx/op/memory.h>
 #include <tvm/tirx/stmt.h>
 #include <tvm/tirx/stmt_functor.h>
+#include <tvm/tirx/stmt_functor_with_analyzer.h>
 #include <tvm/tirx/transform.h>
 
 #include <tuple>
@@ -39,17 +40,16 @@
 #include <utility>
 #include <vector>
 
-#include "../ir/ir_mutator_with_analyzer.h"
 #include "flattened_tensor.h"
 #include "ir_utils.h"
 
 namespace tvm {
 namespace tirx {
 
-class LayoutApplier : public IRMutatorWithAnalyzer {
+class LayoutApplier : public StmtExprMutatorWithAnalyzer {
  public:
-  using IRMutatorWithAnalyzer::Mutate;
-  using IRMutatorWithAnalyzer::Mutate_;
+  using StmtExprMutatorWithAnalyzer::Mutate;
+  using StmtExprMutatorWithAnalyzer::Mutate_;
   static std::pair<Stmt, ffi::Array<Var>> Flatten(const Stmt& stmt, const ffi::Array<Var>& params,
                                                   const Target& target) {
     sym::Analyzer ana;
@@ -87,7 +87,7 @@ class LayoutApplier : public IRMutatorWithAnalyzer {
 
  public:
   explicit LayoutApplier(const sym::Analyzer& analyzer, const Target& target)
-      : IRMutatorWithAnalyzer(analyzer), target_(target) {}
+      : StmtExprMutatorWithAnalyzer(analyzer), target_(target) {}
 
  protected:
   ffi::Any VisitAny(const ffi::Any& any) {
@@ -120,7 +120,7 @@ class LayoutApplier : public IRMutatorWithAnalyzer {
         return root.as_or_throw<TensorVar>().data();
       }
     }
-    return IRMutatorWithAnalyzer::Mutate_(op, inplace_mode);
+    return StmtExprMutatorWithAnalyzer::Mutate_(op, inplace_mode);
   }
 
   UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final {
@@ -147,7 +147,7 @@ class LayoutApplier : public IRMutatorWithAnalyzer {
             .ValueOrUnchanged(binding);
       }
     }
-    return IRMutatorWithAnalyzer::Mutate_(op, inplace_mode);
+    return StmtExprMutatorWithAnalyzer::Mutate_(op, inplace_mode);
   }
 
   UnchangedOr<Stmt> MutateAllocTensor(const BindNode* op, const CallNode* tensor_call,
