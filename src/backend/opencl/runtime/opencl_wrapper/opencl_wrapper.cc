@@ -25,6 +25,7 @@
 
 #define CL_TARGET_OPENCL_VERSION 120
 #include <CL/cl.h>
+#include <CL/cl_ext.h>
 #include <CL/cl_gl.h>
 
 #if defined(_WIN32)
@@ -78,17 +79,22 @@ class LibOpenCLWrapper {
   }
   LibOpenCLWrapper(const LibOpenCLWrapper&) = delete;
   LibOpenCLWrapper& operator=(const LibOpenCLWrapper&) = delete;
-  void* getOpenCLFunction(const char* funcName) {
+  void* getOpenCLFunction(const char* funcName, bool allow_missing_library = false) {
     if (m_libHandler == nullptr) openLibOpenCL();
-#if defined(_WIN32)
-    return GetProcAddress(m_libHandler, funcName);
-#else
-    if (loadOpenCLPointer != nullptr) {
-      return loadOpenCLPointer(funcName);
-    } else {
-      return dlsym(m_libHandler, funcName);
+    if (m_libHandler == nullptr) {
+      TVM_FFI_ICHECK(allow_missing_library) << "Error! Cannot open libOpenCL!";
+      return nullptr;
     }
+#if defined(_WIN32)
+    void* function = reinterpret_cast<void*>(GetProcAddress(m_libHandler, funcName));
+#else
+    void* function =
+        loadOpenCLPointer != nullptr ? loadOpenCLPointer(funcName) : dlsym(m_libHandler, funcName);
 #endif
+    // Missing platform discovery in an installed loader is a real error.
+    TVM_FFI_ICHECK(!allow_missing_library || function != nullptr)
+        << "OpenCL library is missing required function " << funcName;
+    return function;
   }
 
  private:
@@ -106,17 +112,22 @@ class LibOpenCLWrapper {
       m_libHandler = LoadLibrary(it);
 #else
       m_libHandler = dlopen(it, RTLD_LAZY);
+      if (m_libHandler == nullptr) continue;
 
       if (std::strcmp(it, "libOpenCL-pixel.so") == 0) {
         enableOpenCL_t enableOpenCL =
             reinterpret_cast<enableOpenCL_t>(dlsym(m_libHandler, "enableOpenCL"));
         if (enableOpenCL == nullptr) {
+          dlclose(m_libHandler);
+          m_libHandler = nullptr;
           continue;
         }
         enableOpenCL();
         loadOpenCLPointer =
             reinterpret_cast<loadOpenCLPointer_t>(dlsym(m_libHandler, "loadOpenCLPointer"));
         if (loadOpenCLPointer == nullptr) {
+          dlclose(m_libHandler);
+          m_libHandler = nullptr;
           continue;
         }
       }
@@ -124,7 +135,6 @@ class LibOpenCLWrapper {
 #endif
       if (m_libHandler != nullptr) return;
     }
-    TVM_FFI_ICHECK(m_libHandler != nullptr) << "Error! Cannot open libOpenCL!";
   }
 
  private:
@@ -132,7 +142,7 @@ class LibOpenCLWrapper {
   HMODULE m_libHandler = nullptr;
 #else
   void* m_libHandler = nullptr;
-  loadOpenCLPointer_t loadOpenCLPointer;
+  loadOpenCLPointer_t loadOpenCLPointer = nullptr;
 
 #endif
 };
@@ -208,11 +218,12 @@ using f_clEnqueueMapBuffer = void* (*)(cl_command_queue, cl_mem, cl_bool, cl_map
 
 cl_int clGetPlatformIDs(cl_uint num_entries, cl_platform_id* platforms, cl_uint* num_platforms) {
   auto& lib = LibOpenCLWrapper::getInstance();
-  auto func = (f_clGetPlatformIDs)lib.getOpenCLFunction("clGetPlatformIDs");
+  auto func = (f_clGetPlatformIDs)lib.getOpenCLFunction("clGetPlatformIDs", true);
   if (func) {
     return func(num_entries, platforms, num_platforms);
   } else {
-    return CL_INVALID_PLATFORM;
+    if (num_platforms != nullptr) *num_platforms = 0;
+    return CL_PLATFORM_NOT_FOUND_KHR;
   }
 }
 

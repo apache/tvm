@@ -68,12 +68,9 @@ static inline int DetectROCMmaxThreadsPerBlock() {
   tvm_dev.device_type = kDLROCM;
   tvm_dev.device_id = 0;
   tvm::runtime::DeviceAPI* api = tvm::runtime::DeviceAPI::Get(tvm_dev, true);
-  if (api != nullptr) {
-    ffi::Any val;
-    api->GetAttr(tvm_dev, tvm::runtime::kExist, &val);
-    if (val.cast<int>() == 1) {
-      tvm::runtime::DeviceAPI::Get(tvm_dev)->GetAttr(tvm_dev, tvm::runtime::kMaxThreadsPerBlock,
-                                                     &val);
+  if (api != nullptr && api->GetAttr(tvm_dev, "exist").cast<bool>()) {
+    ffi::Any val = api->GetAttr(tvm_dev, "max_threads_per_block");
+    if (val.type_index() != kTVMFFINone) {
       return val.cast<int>();
     }
   }

@@ -49,9 +49,9 @@ using ir::Then;
 using ir::While;
 
 using tvm::Var;
+using tvm::ffi::Tensor;
 using tvm::ffi::Tuple;
 using tvm::ffi::Variant;
-using tvm::runtime::Tensor;
 using tvm::tirx::ExecScope;
 using tvm::tirx::TensorVar;
 

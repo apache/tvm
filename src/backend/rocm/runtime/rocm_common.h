@@ -30,8 +30,6 @@
 
 #include <string>
 
-#include "../../../runtime/workspace_pool.h"
-
 namespace tvm {
 namespace runtime {
 
@@ -55,8 +53,6 @@ class ROCMThreadEntry {
  public:
   /*! \brief The hip stream */
   hipStream_t stream{nullptr};
-  /*! \brief thread local pool*/
-  WorkspacePool pool;
   /*! \brief constructor */
   ROCMThreadEntry();
   // get the threadlocal workspace

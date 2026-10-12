@@ -27,10 +27,20 @@ from . import _ffi_api
 class Device(tvm_ffi.core.Device):
     """TVM device strucure."""
 
-    def _GetDeviceAttr(self, device_type, device_id, attr_id):
+    def _GetDeviceAttr(self, device_type, device_id, name):
         """Internal helper function to invoke runtime.GetDeviceAttr"""
         # pylint: disable=import-outside-toplevel
-        return _ffi_api.GetDeviceAttr(device_type, device_id, attr_id)
+        return _ffi_api.GetDeviceAttr(device_type, device_id, name)
+
+    def get_attr(self, name):
+        """Query a named device attribute, returning None when unsupported.
+
+        ``exist`` returns a bool.  ``max_thread_dimensions`` returns a JSON
+        string; the property of the same name decodes it to a list.
+        Vulkan exposes numeric version values as ``vulkan_api_version`` and
+        ``vulkan_driver_version``, separately from its formatted version strings.
+        """
+        return self._GetDeviceAttr(self.dlpack_device_type(), self.index, name)
 
     @property
     def exist(self):
@@ -46,7 +56,7 @@ class Device(tvm_ffi.core.Device):
             True if the device exists
 
         """
-        return self._GetDeviceAttr(self.dlpack_device_type(), self.index, 0) != 0
+        return self.get_attr("exist")
 
     @property
     def max_threads_per_block(self):
@@ -61,7 +71,7 @@ class Device(tvm_ffi.core.Device):
             The number of threads on each block
 
         """
-        return self._GetDeviceAttr(self.dlpack_device_type(), self.index, 1)
+        return self.get_attr("max_threads_per_block")
 
     @property
     def warp_size(self):
@@ -78,7 +88,7 @@ class Device(tvm_ffi.core.Device):
             Number of threads that execute concurrently
 
         """
-        return self._GetDeviceAttr(self.dlpack_device_type(), self.index, 2)
+        return self.get_attr("warp_size")
 
     @property
     def max_shared_memory_per_block(self):
@@ -94,7 +104,7 @@ class Device(tvm_ffi.core.Device):
             Total amount of shared memory per block in bytes
 
         """
-        return self._GetDeviceAttr(self.dlpack_device_type(), self.index, 3)
+        return self.get_attr("max_shared_memory_per_block")
 
     @property
     def compute_version(self):
@@ -113,7 +123,7 @@ class Device(tvm_ffi.core.Device):
             The version string in `major.minor` format.
 
         """
-        return self._GetDeviceAttr(self.dlpack_device_type(), self.index, 4)
+        return self.get_attr("compute_version")
 
     @property
     def device_name(self):
@@ -129,7 +139,7 @@ class Device(tvm_ffi.core.Device):
             The name of the device.
 
         """
-        return self._GetDeviceAttr(self.dlpack_device_type(), self.index, 5)
+        return self.get_attr("device_name")
 
     @property
     def max_clock_rate(self):
@@ -145,7 +155,7 @@ class Device(tvm_ffi.core.Device):
             The maximum clock frequency of the device (kHz)
 
         """
-        return self._GetDeviceAttr(self.dlpack_device_type(), self.index, 6)
+        return self.get_attr("max_clock_rate")
 
     @property
     def multi_processor_count(self):
@@ -161,7 +171,7 @@ class Device(tvm_ffi.core.Device):
             Thee number of compute units in the device
 
         """
-        return self._GetDeviceAttr(self.dlpack_device_type(), self.index, 7)
+        return self.get_attr("multi_processor_count")
 
     @property
     def max_thread_dimensions(self):
@@ -177,7 +187,8 @@ class Device(tvm_ffi.core.Device):
             The maximum length of threadIdx.x, threadIdx.y, threadIdx.z
 
         """
-        return json.loads(self._GetDeviceAttr(self.dlpack_device_type(), self.index, 8))
+        value = self.get_attr("max_thread_dimensions")
+        return json.loads(value) if value is not None else None
 
     @property
     def api_version(self):
@@ -196,7 +207,7 @@ class Device(tvm_ffi.core.Device):
             The version of the SDK
 
         """
-        return self._GetDeviceAttr(self.dlpack_device_type(), self.index, 11)
+        return self.get_attr("api_version")
 
     @property
     def driver_version(self):
@@ -214,7 +225,7 @@ class Device(tvm_ffi.core.Device):
             The version string in `major.minor.patch` format.
 
         """
-        return self._GetDeviceAttr(self.dlpack_device_type(), self.index, 12)
+        return self.get_attr("driver_version")
 
     @property
     def l2_cache_size_bytes(self):
@@ -232,7 +243,7 @@ class Device(tvm_ffi.core.Device):
         ----
         The value returned by opencl's API is smaller than actual device L2 cache size.
         """
-        return self._GetDeviceAttr(self.dlpack_device_type(), self.index, 13)
+        return self.get_attr("l2_cache_size_bytes")
 
     @property
     def total_global_memory(self):
@@ -246,7 +257,17 @@ class Device(tvm_ffi.core.Device):
             Return the total size of global memory on device in bytes.
             Return None if the device does not support this feature.
         """
-        return self._GetDeviceAttr(self.dlpack_device_type(), self.index, 14)
+        return self.get_attr("total_global_memory")
+
+    @property
+    def max_registers_per_block(self):
+        """Return the block register limit, or None when unsupported."""
+        return self.get_attr("max_registers_per_block")
+
+    @property
+    def gcn_arch(self):
+        """Return the ROCm architecture name, or None when unsupported."""
+        return self.get_attr("gcn_arch")
 
     @property
     def available_global_memory(self):
@@ -260,7 +281,7 @@ class Device(tvm_ffi.core.Device):
             Return the amount of unallocated global memory on device in bytes.
             Return None if the device does not support this feature.
         """
-        return self._GetDeviceAttr(self.dlpack_device_type(), self.index, 15)
+        return self.get_attr("available_global_memory")
 
     def texture_spatial_limit(self):
         """Returns limits for textures by spatial dimensions
@@ -271,7 +292,7 @@ class Device(tvm_ffi.core.Device):
             Maximum size of the texture by spatial dimensions
 
         """
-        return self._GetDeviceAttr(self.dlpack_device_type(), self.index, 12)
+        return self.get_attr("driver_version")
 
     def create_raw_stream(self):
         """Create a new runtime stream at the context.
