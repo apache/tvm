@@ -22,9 +22,9 @@
  */
 
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/s_tir/stmt_functor_with_analyzer.h>
 #include <tvm/tirx/transform.h>
 
-#include "../../s_tir/ir/ir_visitor_with_analyzer.h"
 #include "../schedule/error.h"
 
 namespace tvm {
@@ -69,22 +69,22 @@ class OOBError : public s_tir::ScheduleErrorContextObj {
   IRModule mod_;
   std::vector<OOBLocation> locations_;
 };
-class OOBCheckerVisitor final : public s_tir::IRVisitorWithAnalyzer {
+class OOBCheckerVisitor final : public s_tir::StmtExprVisitorWithAnalyzer {
  public:
-  using s_tir::IRVisitorWithAnalyzer::Visit_;
+  using s_tir::StmtExprVisitorWithAnalyzer::Visit_;
 
   ffi::Optional<VisitInterrupt> Visit_(const TensorStoreNode* node) final {
     for (size_t i = 0; i < node->dest.as_or_throw<TensorVar>()->shape.size(); i++) {
       CheckBounds(node, node->dest.as_or_throw<TensorVar>(), i);
     }
-    return IRVisitorWithAnalyzer::Visit_(node);
+    return StmtExprVisitorWithAnalyzer::Visit_(node);
   }
   ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* node) final {
     TensorVar tensor = node->source.as_or_throw<tvm::tirx::TensorVar>();
     for (size_t i = 0; i < tensor->shape.size(); i++) {
       CheckBounds(node, tensor, i);
     }
-    return IRVisitorWithAnalyzer::Visit_(node);
+    return StmtExprVisitorWithAnalyzer::Visit_(node);
   }
 
   template <class T>

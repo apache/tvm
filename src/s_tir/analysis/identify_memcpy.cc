@@ -27,6 +27,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/s_tir/analysis.h>
+#include <tvm/s_tir/stmt_functor_with_analyzer.h>
 #include <tvm/sym/int_set.h>
 #include <tvm/sym/iter_affine_map.h>
 #include <tvm/tirx/analysis.h>
@@ -37,8 +38,6 @@
 #include <sstream>
 #include <string>
 #include <variant>
-
-#include "../../s_tir/ir/ir_visitor_with_analyzer.h"
 
 namespace tvm {
 namespace s_tir {
@@ -303,9 +302,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("s_tir.analysis._identify_memcpy", [](const Stmt& stmt) {
     ffi::Array<ffi::ObjectRef> output;
 
-    struct Visitor : s_tir::IRVisitorWithAnalyzer {
+    struct Visitor : s_tir::StmtExprVisitorWithAnalyzer {
      public:
-      using s_tir::IRVisitorWithAnalyzer::Visit_;
+      using s_tir::StmtExprVisitorWithAnalyzer::Visit_;
 
       explicit Visitor(ffi::Array<ffi::ObjectRef>* output) : output(output) {}
       ffi::Array<ffi::ObjectRef>* output;
@@ -322,7 +321,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
           TVM_FFI_THROW(InternalError) << "Internal error, unhandled std::variant type";
         }
 
-        return IRVisitorWithAnalyzer::Visit_(op);
+        return StmtExprVisitorWithAnalyzer::Visit_(op);
       }
     };
 

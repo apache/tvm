@@ -27,14 +27,13 @@
 #include <tvm/runtime/logging.h>
 #include <tvm/s_tir/analysis.h>
 #include <tvm/s_tir/stmt_functor.h>
+#include <tvm/s_tir/stmt_functor_with_analyzer.h>
 #include <tvm/sym/int_set.h>
 #include <tvm/te/tensor.h>
 
 #include <tuple>
 #include <unordered_map>
 #include <unordered_set>
-
-#include "../../s_tir/ir/ir_visitor_with_analyzer.h"
 
 namespace tvm {
 namespace s_tir {
@@ -63,9 +62,9 @@ using TensorDomainAccess = std::tuple<LoadAccess, StoreAccess, CombinedAccess>;
 }  // namespace
 
 // Find Read region of the tensor in the stmt.
-class TensorTouchedDomain final : public s_tir::IRVisitorWithAnalyzer {
+class TensorTouchedDomain final : public s_tir::StmtExprVisitorWithAnalyzer {
  public:
-  using s_tir::IRVisitorWithAnalyzer::Visit_;
+  using s_tir::StmtExprVisitorWithAnalyzer::Visit_;
 
   std::unordered_map<const VarNode*, TensorDomainAccess>& GetAccessedTensorRegions() {
     return tensor_access_map_;
@@ -99,7 +98,7 @@ class TensorTouchedDomain final : public s_tir::IRVisitorWithAnalyzer {
   }
 
  private:
-  using Parent = s_tir::IRVisitorWithAnalyzer;
+  using Parent = s_tir::StmtExprVisitorWithAnalyzer;
 
   ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* op) final {
     TensorVar tensor = op->source.as_or_throw<tvm::tirx::TensorVar>();

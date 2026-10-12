@@ -32,27 +32,27 @@
 #include <tvm/target/target.h>
 #include <tvm/tirx/expr.h>
 #include <tvm/tirx/op/memory.h>
+#include <tvm/tirx/stmt_functor_with_analyzer.h>
 #include <tvm/tirx/transform.h>
 
 #include <limits>
 #include <unordered_set>
 
 #include "../../sym/pattern_match.h"
-#include "../ir/ir_mutator_with_analyzer.h"
 
 namespace tvm {
 namespace tirx {
 using namespace tvm::prim;
 
-class IntrinInjecter : public IRMutatorWithAnalyzer {
+class IntrinInjecter : public StmtExprMutatorWithAnalyzer {
  public:
-  using IRMutatorWithAnalyzer::Mutate;
-  using IRMutatorWithAnalyzer::Mutate_;
+  using StmtExprMutatorWithAnalyzer::Mutate;
+  using StmtExprMutatorWithAnalyzer::Mutate_;
 
   using FLowerGeneral = ffi::TypedFunction<PrimExpr(PrimExpr)>;
 
   IntrinInjecter(const sym::Analyzer& analyzer, const Target& tgt, bool enable_fast_math)
-      : IRMutatorWithAnalyzer(analyzer) {
+      : StmtExprMutatorWithAnalyzer(analyzer) {
     std::string target = tgt->kind->name;
     ffi::String mtriple = tgt->GetAttr<ffi::String>("mtriple").value_or("");
 
@@ -104,7 +104,7 @@ class IntrinInjecter : public IRMutatorWithAnalyzer {
         }
       }
     }
-    return IRMutatorWithAnalyzer::Mutate_(op, inplace_mode);
+    return StmtExprMutatorWithAnalyzer::Mutate_(op, inplace_mode);
   }
 
   UnchangedOr<PrimExpr> Mutate_(const prim::AddNode* op, InplaceMode inplace_mode) final {
@@ -113,14 +113,14 @@ class IntrinInjecter : public IRMutatorWithAnalyzer {
     } else if (const prim::MulNode* ma = op->a.as<prim::MulNode>()) {
       return MakeFMA(ma->a, ma->b, op->b, op);
     }
-    return IRMutatorWithAnalyzer::Mutate_(op, inplace_mode);
+    return StmtExprMutatorWithAnalyzer::Mutate_(op, inplace_mode);
   }
 
   // We use floordiv for integer analysis,
   // but will need to lower them to native truncdiv instructions
   UnchangedOr<PrimExpr> Mutate_(const prim::FloorDivNode* op, InplaceMode inplace_mode) final {
     auto e = ffi::GetRef<PrimExpr>(op);
-    PrimExpr ret = IRMutatorWithAnalyzer::Mutate_(op, inplace_mode)
+    PrimExpr ret = StmtExprMutatorWithAnalyzer::Mutate_(op, inplace_mode)
                        .ValueOrUnchanged(ffi::GetRef<PrimExpr>(op));
     op = ret.as<prim::FloorDivNode>();
     if (op == nullptr) return ret;
@@ -184,7 +184,7 @@ class IntrinInjecter : public IRMutatorWithAnalyzer {
   }
 
   UnchangedOr<PrimExpr> Mutate_(const prim::FloorModNode* op, InplaceMode inplace_mode) final {
-    PrimExpr ret = IRMutatorWithAnalyzer::Mutate_(op, inplace_mode)
+    PrimExpr ret = StmtExprMutatorWithAnalyzer::Mutate_(op, inplace_mode)
                        .ValueOrUnchanged(ffi::GetRef<PrimExpr>(op));
     op = ret.as<prim::FloorModNode>();
     if (op == nullptr) return ret;
@@ -258,7 +258,7 @@ class IntrinInjecter : public IRMutatorWithAnalyzer {
       PrimExpr input = truncdiv(x, y).Eval();
       return max(Mutate(input, inplace_mode).ValueOrUnchanged(input), c.Eval());
     }
-    return IRMutatorWithAnalyzer::Mutate_(op, inplace_mode);
+    return StmtExprMutatorWithAnalyzer::Mutate_(op, inplace_mode);
   }
 
   UnchangedOr<PrimExpr> Mutate_(const prim::EQNode* op, InplaceMode inplace_mode) final {
@@ -269,7 +269,7 @@ class IntrinInjecter : public IRMutatorWithAnalyzer {
       PrimExpr input = (truncmod(x, y) == 0).Eval();
       return Mutate(input, inplace_mode).ValueOrUnchanged(input);
     }
-    return IRMutatorWithAnalyzer::Mutate_(op, inplace_mode);
+    return StmtExprMutatorWithAnalyzer::Mutate_(op, inplace_mode);
   }
 
   UnchangedOr<PrimExpr> Mutate_(const prim::NENode* op, InplaceMode inplace_mode) final {
@@ -280,7 +280,7 @@ class IntrinInjecter : public IRMutatorWithAnalyzer {
       PrimExpr input = (truncmod(x, y) != 0).Eval();
       return Mutate(input, inplace_mode).ValueOrUnchanged(input);
     }
-    return IRMutatorWithAnalyzer::Mutate_(op, inplace_mode);
+    return StmtExprMutatorWithAnalyzer::Mutate_(op, inplace_mode);
   }
 
  private:
@@ -337,7 +337,7 @@ class IntrinInjecter : public IRMutatorWithAnalyzer {
         return prim::Add(mul, this->Mutate(c, InplaceMode::kDisallow).ValueOrUnchanged(c));
       }
     }
-    return IRMutatorWithAnalyzer::Mutate_(op, InplaceMode::kDisallow)
+    return StmtExprMutatorWithAnalyzer::Mutate_(op, InplaceMode::kDisallow)
         .ValueOrUnchanged(ffi::GetRef<PrimExpr>(op));
   }
 

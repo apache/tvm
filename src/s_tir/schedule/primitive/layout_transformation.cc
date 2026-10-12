@@ -24,12 +24,12 @@
 #include <tvm/ir/prim/expr.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/s_tir/stmt.h>
+#include <tvm/s_tir/stmt_functor_with_analyzer.h>
 #include <tvm/sym/analyzer.h>
 
 #include <optional>
 #include <variant>
 
-#include "../../../s_tir/ir/ir_mutator_with_analyzer.h"
 #include "../utils.h"
 
 namespace tvm {
@@ -804,10 +804,10 @@ class ReuseBlocksCollector : public s_tir::StmtExprVisitor {
   ffi::Map<SBlock, SBlock> new_block_to_old_;
 };
 
-class TransformLayoutRewriter : public s_tir::IRMutatorWithAnalyzer {
+class TransformLayoutRewriter : public s_tir::StmtExprMutatorWithAnalyzer {
  public:
-  using s_tir::IRMutatorWithAnalyzer::Mutate;
-  using s_tir::IRMutatorWithAnalyzer::Mutate_;
+  using s_tir::StmtExprMutatorWithAnalyzer::Mutate;
+  using s_tir::StmtExprMutatorWithAnalyzer::Mutate_;
 
   /*!
    * \brief Rewrite the access to the tensor after the transformation
@@ -847,7 +847,7 @@ class TransformLayoutRewriter : public s_tir::IRMutatorWithAnalyzer {
                           const IndexMap& index_map,
                           const TransformLayoutPlanner::TransformPlan& plan,
                           const sym::Analyzer& analyzer)
-      : IRMutatorWithAnalyzer(analyzer),
+      : StmtExprMutatorWithAnalyzer(analyzer),
         old_tensor_(old_tensor),
         new_tensor_(new_tensor),
         index_map_(index_map),
@@ -865,7 +865,7 @@ class TransformLayoutRewriter : public s_tir::IRMutatorWithAnalyzer {
     *indices = this->IterMapSimplifyWithContext(*indices, true);
   }
 
-  using Parent = s_tir::IRMutatorWithAnalyzer;
+  using Parent = s_tir::StmtExprMutatorWithAnalyzer;
 
   UnchangedOr<ffi::Any> Mutate(ffi::AnyView value, InplaceMode inplace_mode) final {
     const auto* stmt = value.as<StmtNode>();

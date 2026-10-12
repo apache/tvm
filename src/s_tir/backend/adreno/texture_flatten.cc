@@ -28,6 +28,7 @@
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/s_tir/backend/adreno/transform.h>
+#include <tvm/s_tir/stmt_functor_with_analyzer.h>
 #include <tvm/te/operation.h>
 #include <tvm/tirx/op/memory.h>
 #include <tvm/tirx/stmt.h>
@@ -36,7 +37,6 @@
 
 #include "../../../backend/opencl/runtime/texture.h"
 #include "../../../runtime/thread_storage_scope.h"
-#include "../../../s_tir/ir/ir_visitor_with_analyzer.h"
 
 namespace tvm {
 namespace s_tir {
@@ -52,7 +52,8 @@ class TextureLoweringBase : public StmtExprMutator {
   using StmtExprMutator::Mutate;
   using StmtExprMutator::Mutate_;
 
-  explicit TextureLoweringBase(const ffi::Array<Var>& params, IRVisitorWithAnalyzer* bound_analyzer)
+  explicit TextureLoweringBase(const ffi::Array<Var>& params,
+                               StmtExprVisitorWithAnalyzer* bound_analyzer)
       : bound_analyzer_{bound_analyzer} {
     for (const Var& param : params) {
       if (auto tensor = param.as<TensorVar>()) {
@@ -81,7 +82,7 @@ class TextureLoweringBase : public StmtExprMutator {
   // Set of all external input and output tensors
   std::unordered_set<TensorVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> extern_tensor_;
   // Bound analzer
-  IRVisitorWithAnalyzer* bound_analyzer_;
+  StmtExprVisitorWithAnalyzer* bound_analyzer_;
 };
 
 // Lower Nd storage access to 2d texture access using lowering convention
@@ -91,7 +92,8 @@ class TextureFlattener : public TextureLoweringBase {
   using TextureLoweringBase::Mutate;
   using TextureLoweringBase::Mutate_;
 
-  explicit TextureFlattener(const ffi::Array<Var>& params, IRVisitorWithAnalyzer* bound_analyzer)
+  explicit TextureFlattener(const ffi::Array<Var>& params,
+                            StmtExprVisitorWithAnalyzer* bound_analyzer)
       : TextureLoweringBase(params, bound_analyzer) {}
 
   UnchangedOr<Stmt> Mutate_(const TensorStoreNode* op, InplaceMode inplace_mode) final {
@@ -168,7 +170,7 @@ class TextureFlattener : public TextureLoweringBase {
 
 Function TextureFlattenHandler(Function func) {
   auto fptr = func.CopyOnWrite();
-  auto bound_analyzer = ffi::make_object<IRVisitorWithAnalyzer>();
+  auto bound_analyzer = ffi::make_object<StmtExprVisitorWithAnalyzer>();
   bound_analyzer->Visit(fptr->body);
   fptr->body = ffi::make_object<TextureFlattener>(fptr->params, bound_analyzer.get())
                    ->Mutate(fptr->body, InplaceMode::kAllow)

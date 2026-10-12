@@ -26,8 +26,7 @@
 
 #include <tvm/sym/analyzer.h>
 #include <tvm/tirx/function.h>
-
-#include "../ir/ir_mutator_with_analyzer.h"
+#include <tvm/tirx/stmt_functor_with_analyzer.h>
 
 namespace tvm {
 namespace tirx {
@@ -50,18 +49,18 @@ class StmtSimplifyConfig : public ffi::ObjectRef {
                                                 StmtSimplifyConfigObj);
 };
 
-class StmtSimplifier : public IRMutatorWithAnalyzer {
+class StmtSimplifier : public StmtExprMutatorWithAnalyzer {
  public:
-  using IRMutatorWithAnalyzer::Mutate;
-  using IRMutatorWithAnalyzer::Mutate_;
+  using StmtExprMutatorWithAnalyzer::Mutate;
+  using StmtExprMutatorWithAnalyzer::Mutate_;
   static Function Apply(Function func, const sym::Analyzer& analyzer,
                         ffi::Optional<StmtSimplifyConfig> config_opt = std::nullopt);
 
   explicit StmtSimplifier(const sym::Analyzer& analyzer, StmtSimplifyConfig config)
-      : IRMutatorWithAnalyzer(analyzer), config_(config) {}
+      : StmtExprMutatorWithAnalyzer(analyzer), config_(config) {}
 
  protected:
-  using Parent = IRMutatorWithAnalyzer;
+  using Parent = StmtExprMutatorWithAnalyzer;
   StmtSimplifier(const VTable* vtable, const sym::Analyzer& analyzer, StmtSimplifyConfig config)
       : Parent(analyzer.get(), vtable), config_(config) {}
   Function Run(Function func);

@@ -467,7 +467,7 @@ void BlockTensorAccessSimplifier::SimplifyTensorIndices(ffi::Array<PrimExpr>* in
 
 UnchangedOr<Stmt> BlockTensorAccessSimplifier::Mutate_(const SBlockNode* op,
                                                        InplaceMode inplace_mode) {
-  SBlock block = s_tir::IRMutatorWithAnalyzer::Mutate_(op, inplace_mode)
+  SBlock block = s_tir::StmtExprMutatorWithAnalyzer::Mutate_(op, inplace_mode)
                      .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
                      .as_or_throw<SBlock>();
   auto* n = block.CopyOnWrite();
@@ -478,7 +478,7 @@ UnchangedOr<Stmt> BlockTensorAccessSimplifier::Mutate_(const SBlockNode* op,
 
 UnchangedOr<Stmt> BlockTensorAccessSimplifier::Mutate_(const TensorStoreNode* op,
                                                        InplaceMode inplace_mode) {
-  TensorStore node = s_tir::IRMutatorWithAnalyzer::Mutate_(op, inplace_mode)
+  TensorStore node = s_tir::StmtExprMutatorWithAnalyzer::Mutate_(op, inplace_mode)
                          .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
                          .as_or_throw<TensorStore>();
   SimplifyTensorIndices(&node.CopyOnWrite()->indices);
@@ -487,7 +487,7 @@ UnchangedOr<Stmt> BlockTensorAccessSimplifier::Mutate_(const TensorStoreNode* op
 
 UnchangedOr<PrimExpr> BlockTensorAccessSimplifier::Mutate_(const TensorLoadNode* op,
                                                            InplaceMode inplace_mode) {
-  TensorLoad node = s_tir::IRMutatorWithAnalyzer::Mutate_(op, inplace_mode)
+  TensorLoad node = s_tir::StmtExprMutatorWithAnalyzer::Mutate_(op, inplace_mode)
                         .ValueOrUnchanged(ffi::GetRef<PrimExpr>(op))
                         .as_or_throw<TensorLoad>();
   SimplifyTensorIndices(&node.CopyOnWrite()->indices);
