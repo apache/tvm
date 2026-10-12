@@ -64,7 +64,7 @@ tvm::tirx::TensorType TensorTypeDecl(ffi::Array<PrimExpr> shape, PrimType dtype,
 }  // namespace
 
 FunctionFrame Function(bool is_private, bool persistent) {
-  ffi::ObjectPtr<FunctionFrameNode> n = ffi::make_object<FunctionFrameNode>();
+  ffi::ObjectPtr<FunctionFrameObj> n = ffi::make_object<FunctionFrameObj>();
   n->name = std::nullopt;
   n->is_private = is_private;
   n->args.clear();

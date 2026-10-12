@@ -41,24 +41,24 @@ namespace tvm {
 namespace tirx {
 using namespace tvm::prim;
 
-void StmtSimplifyConfigNode::RegisterReflection() {
+void StmtSimplifyConfigObj::RegisterReflection() {
   namespace refl = tvm::ffi::reflection;
-  refl::ObjectDef<StmtSimplifyConfigNode>()
+  refl::ObjectDef<StmtSimplifyConfigObj>()
       .def_ro("transitively_prove_inequalities",
-              &StmtSimplifyConfigNode::transitively_prove_inequalities,
+              &StmtSimplifyConfigObj::transitively_prove_inequalities,
               "If true, simplify conditionals with transitive combinations of scoped constraints",
               refl::DefaultValue(false))
       .def_ro("convert_boolean_to_and_of_ors",
-              &StmtSimplifyConfigNode::convert_boolean_to_and_of_ors,
+              &StmtSimplifyConfigObj::convert_boolean_to_and_of_ors,
               "If true, simplify conditionals into an AND of ORs", refl::DefaultValue(false))
       .def_ro("apply_constraints_to_boolean_branches",
-              &StmtSimplifyConfigNode::apply_constraints_to_boolean_branches,
+              &StmtSimplifyConfigObj::apply_constraints_to_boolean_branches,
               "If true, simplify each branch of AND/OR under constraints provided by the other "
               "branch",
               refl::DefaultValue(false));
 }
 
-sym::RewriteSimplifier::Extension StmtSimplifyConfigNode::GetEnabledExtensions() const {
+sym::RewriteSimplifier::Extension StmtSimplifyConfigObj::GetEnabledExtensions() const {
   sym::RewriteSimplifier::Extension flags = sym::RewriteSimplifier::kNone;
   if (transitively_prove_inequalities) {
     flags = sym::RewriteSimplifier::Extension(
@@ -79,7 +79,7 @@ static StmtSimplifyConfig MakeDefaultStmtSimplifyConfig() {
   return tvm::transform::PassConfigWithDefaults<StmtSimplifyConfig>();
 }
 
-TVM_FFI_STATIC_INIT_BLOCK() { StmtSimplifyConfigNode::RegisterReflection(); }
+TVM_FFI_STATIC_INIT_BLOCK() { StmtSimplifyConfigObj::RegisterReflection(); }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ::tvm::transform::PassContext::RegisterConfigOption<StmtSimplifyConfig>("tirx.StmtSimplify");

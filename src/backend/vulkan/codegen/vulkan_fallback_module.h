@@ -24,7 +24,7 @@
  *   `VulkanModuleCreateWithFallback` is the ONLY entry point codegen uses
  *   to construct a Vulkan `ffi::Module`.  It tries the runtime-registered
  *   factory "ffi.Module.create.vulkan" via the FFI registry; on miss it
- *   constructs a `VulkanFallbackModuleNode` directly.  The fallback exists
+ *   constructs a `VulkanFallbackModuleObj` directly.  The fallback exists
  *   so that codegen can succeed on a build where the Vulkan runtime is
  *   not linked.  This setup is helpful for cross compilation where we
  *   compile on one env and run on another.
@@ -45,7 +45,7 @@ namespace tvm {
 namespace target {
 
 /*!
- * \brief Construct a `VulkanFallbackModuleNode` directly (no FFI registry
+ * \brief Construct a `VulkanFallbackModuleObj` directly (no FFI registry
  *        round-trip).  Used by `VulkanModuleCreateWithFallback` and by
  *        tests that explicitly want a fallback instance.
  */
@@ -58,8 +58,8 @@ ffi::Module VulkanFallbackModuleCreate(ffi::Map<ffi::String, ffi::Bytes> smap, f
  *        "ffi.Module.create.vulkan"; on miss or when forced via env var,
  *        falls back to `VulkanFallbackModuleCreate`.
  *
- *   - Registry hit (USE_VULKAN=ON build) → real `VulkanModuleNode` returned.
- *   - Registry miss (USE_VULKAN=OFF build) → `VulkanFallbackModuleNode`
+ *   - Registry hit (USE_VULKAN=ON build) → real `VulkanModuleObj` returned.
+ *   - Registry miss (USE_VULKAN=OFF build) → `VulkanFallbackModuleObj`
  *     returned.
  *   - `TVM_COMPILE_FORCE_FALLBACK` env var truthy → fallback regardless of
  *     registry state (used by per-backend fallback tests on a USE_X=ON CI

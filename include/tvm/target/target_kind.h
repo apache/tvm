@@ -49,7 +49,7 @@ using FTargetCanonicalizer =
 class TargetInternal;
 
 /*! \brief Target kind, specifies the kind of the target */
-class TargetKindNode : public ffi::Object {
+class TargetKindObj : public ffi::Object {
  public:
   /*! \brief Name of the target kind */
   ffi::String name;
@@ -62,16 +62,16 @@ class TargetKindNode : public ffi::Object {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<TargetKindNode>()
-        .def_ro("name", &TargetKindNode::name)
-        .def_ro("default_device_type", &TargetKindNode::default_device_type,
+    refl::ObjectDef<TargetKindObj>()
+        .def_ro("name", &TargetKindObj::name)
+        .def_ro("default_device_type", &TargetKindObj::default_device_type,
                 refl::AttachFieldFlag::SEqHashIgnore())
-        .def_ro("default_keys", &TargetKindNode::default_keys,
+        .def_ro("default_keys", &TargetKindObj::default_keys,
                 refl::AttachFieldFlag::SEqHashIgnore());
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindUniqueInstance;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("target.TargetKind", TargetKindNode, ffi::Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("target.TargetKind", TargetKindObj, ffi::Object);
 
  private:
   /*! \brief ConfigSchema for validating and resolving target attributes */
@@ -82,12 +82,12 @@ class TargetKindNode : public ffi::Object {
 };
 
 /*!
- * \brief Managed reference class to TargetKindNode
- * \sa TargetKindNode
+ * \brief Managed reference class to TargetKindObj
+ * \sa TargetKindObj
  */
 class TargetKind : public ffi::ObjectRef {
  public:
-  explicit TargetKind(ffi::ObjectPtr<TargetKindNode> data) : ffi::ObjectRef(data) {
+  explicit TargetKind(ffi::ObjectPtr<TargetKindObj> data) : ffi::ObjectRef(data) {
     TVM_FFI_ICHECK(data != nullptr);
   }
   /*!
@@ -97,9 +97,9 @@ class TargetKind : public ffi::ObjectRef {
    */
   TVM_DLL static ffi::Optional<TargetKind> Get(const ffi::String& target_kind_name);
   /*! \brief Mutable access to the container class  */
-  TargetKindNode* operator->() { return static_cast<TargetKindNode*>(data_.get()); }
+  TargetKindObj* operator->() { return static_cast<TargetKindObj*>(data_.get()); }
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TargetKind, ffi::ObjectRef, TargetKindNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TargetKind, ffi::ObjectRef, TargetKindObj);
 
  private:
   friend class TargetInternal;

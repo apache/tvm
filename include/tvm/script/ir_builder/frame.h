@@ -38,7 +38,7 @@ namespace ir {
  *
  * \sa IRModuleFrame
  */
-class IRModuleFrameNode : public IRBuilderFrameNode {
+class IRModuleFrameObj : public IRBuilderFrameObj {
  public:
   /*! \brief A map from string names to global variables that ensures global uniqueness. */
   ffi::Map<ffi::String, GlobalVar> global_var_map;
@@ -54,52 +54,52 @@ class IRModuleFrameNode : public IRBuilderFrameNode {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<IRModuleFrameNode>()
-        .def_ro("global_vars", &IRModuleFrameNode::global_var_map)
-        .def_ro("functions", &IRModuleFrameNode::functions)
-        .def_ro("attrs", &IRModuleFrameNode::attrs)
-        .def_ro("global_infos", &IRModuleFrameNode::global_infos);
+    refl::ObjectDef<IRModuleFrameObj>()
+        .def_ro("global_vars", &IRModuleFrameObj::global_var_map)
+        .def_ro("functions", &IRModuleFrameObj::functions)
+        .def_ro("attrs", &IRModuleFrameObj::attrs)
+        .def_ro("global_infos", &IRModuleFrameObj::global_infos);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.IRModuleFrame", IRModuleFrameNode,
-                                    IRBuilderFrameNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.IRModuleFrame", IRModuleFrameObj,
+                                    IRBuilderFrameObj);
 
  public:
   void ExitWithScope() final;
 };
 
 /*!
- * \brief Managed reference to IRModuleFrameNode.
+ * \brief Managed reference to IRModuleFrameObj.
  *
- * \sa IRModuleFrameNode
+ * \sa IRModuleFrameObj
  */
 class IRModuleFrame : public IRBuilderFrame {
  public:
-  explicit IRModuleFrame(ffi::ObjectPtr<IRModuleFrameNode> data) : IRBuilderFrame(data) {
+  explicit IRModuleFrame(ffi::ObjectPtr<IRModuleFrameObj> data) : IRBuilderFrame(data) {
     TVM_FFI_ICHECK(data != nullptr);
   }
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(IRModuleFrame, IRBuilderFrame, IRModuleFrameNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(IRModuleFrame, IRBuilderFrame, IRModuleFrameObj);
 };
 
 /*! \brief A shared frame containing a sequence of core IR statements. */
-class StmtFrameNode : public IRBuilderFrameNode {
+class StmtFrameObj : public IRBuilderFrameObj {
  public:
   /*! \brief The statements within this frame. */
   ffi::Array<tvm::Stmt> stmts;
 
   static void RegisterReflection() {
-    ffi::reflection::ObjectDef<StmtFrameNode>().def_ro("stmts", &StmtFrameNode::stmts);
+    ffi::reflection::ObjectDef<StmtFrameObj>().def_ro("stmts", &StmtFrameObj::stmts);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO("script.ir_builder.StmtFrame", StmtFrameNode, IRBuilderFrameNode);
+  TVM_FFI_DECLARE_OBJECT_INFO("script.ir_builder.StmtFrame", StmtFrameObj, IRBuilderFrameObj);
 };
 
-/*! \brief Managed reference to StmtFrameNode. */
+/*! \brief Managed reference to StmtFrameObj. */
 class StmtFrame : public IRBuilderFrame {
  public:
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(StmtFrame, IRBuilderFrame, StmtFrameNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(StmtFrame, IRBuilderFrame, StmtFrameObj);
 
  protected:
   StmtFrame() = default;
-  explicit StmtFrame(ffi::ObjectPtr<StmtFrameNode> data) : IRBuilderFrame(data) {}
+  explicit StmtFrame(ffi::ObjectPtr<StmtFrameObj> data) : IRBuilderFrame(data) {}
 };
 
 /*!
@@ -107,7 +107,7 @@ class StmtFrame : public IRBuilderFrame {
  *
  * \sa ForFrame
  */
-class ForFrameNode : public StmtFrameNode {
+class ForFrameObj : public StmtFrameObj {
  public:
   /*!
    * \brief Functions that generate loop nests.
@@ -130,12 +130,12 @@ class ForFrameNode : public StmtFrameNode {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<ForFrameNode>()
-        .def_ro("vars", &ForFrameNode::vars)
-        .def_ro("doms", &ForFrameNode::doms);
+    refl::ObjectDef<ForFrameObj>()
+        .def_ro("vars", &ForFrameObj::vars)
+        .def_ro("doms", &ForFrameObj::doms);
     // `f_make_for_loop` is not registered as it's not visited.
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tirx.ForFrame", ForFrameNode, StmtFrameNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tirx.ForFrame", ForFrameObj, StmtFrameObj);
 
  public:
   /*! \brief Apply source target names before entry, preserving variable identity. */
@@ -145,17 +145,17 @@ class ForFrameNode : public StmtFrameNode {
 };
 
 /*!
- * \brief Managed reference to ForFrameNode.
+ * \brief Managed reference to ForFrameObj.
  *
- * \sa ForFrameNode
+ * \sa ForFrameObj
  */
 class ForFrame : public StmtFrame {
  public:
-  explicit ForFrame(ffi::ObjectPtr<ForFrameNode> data) : StmtFrame(ffi::UnsafeInit{}) {
+  explicit ForFrame(ffi::ObjectPtr<ForFrameObj> data) : StmtFrame(ffi::UnsafeInit{}) {
     TVM_FFI_ICHECK(data != nullptr);
     data_ = std::move(data);
   }
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ForFrame, StmtFrame, ForFrameNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ForFrame, StmtFrame, ForFrameObj);
 };
 
 /*!
@@ -164,11 +164,11 @@ class ForFrame : public StmtFrame {
  *
  * \sa AssertFrame
  */
-class AssertFrameNode : public StmtFrameNode {
+class AssertFrameObj : public StmtFrameObj {
  public:
-  explicit AssertFrameNode(ffi::UnsafeInit tag) : condition(tag), error_kind(tag) {}
+  explicit AssertFrameObj(ffi::UnsafeInit tag) : condition(tag), error_kind(tag) {}
 
-  AssertFrameNode(PrimExpr condition, tvm::StringImm error_kind)
+  AssertFrameObj(PrimExpr condition, tvm::StringImm error_kind)
       : condition(std::move(condition)), error_kind(std::move(error_kind)) {}
 
   /*! \brief The PrimExpr to test. */
@@ -180,13 +180,13 @@ class AssertFrameNode : public StmtFrameNode {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<AssertFrameNode>()
-        .def_ro("condition", &AssertFrameNode::condition)
-        .def_ro("error_kind", &AssertFrameNode::error_kind)
-        .def_ro("message_parts", &AssertFrameNode::message_parts);
+    refl::ObjectDef<AssertFrameObj>()
+        .def_ro("condition", &AssertFrameObj::condition)
+        .def_ro("error_kind", &AssertFrameObj::error_kind)
+        .def_ro("message_parts", &AssertFrameObj::message_parts);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tirx.AssertFrame", AssertFrameNode,
-                                    StmtFrameNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tirx.AssertFrame", AssertFrameObj,
+                                    StmtFrameObj);
 
  public:
   /*!
@@ -197,27 +197,27 @@ class AssertFrameNode : public StmtFrameNode {
 };
 
 /*!
- * \brief Managed reference to AssertFrameNode.
+ * \brief Managed reference to AssertFrameObj.
  *
- * \sa AssertFrameNode
+ * \sa AssertFrameObj
  */
 class AssertFrame : public StmtFrame {
  public:
-  explicit AssertFrame(ffi::ObjectPtr<AssertFrameNode> data) : StmtFrame(ffi::UnsafeInit{}) {
+  explicit AssertFrame(ffi::ObjectPtr<AssertFrameObj> data) : StmtFrame(ffi::UnsafeInit{}) {
     TVM_FFI_ICHECK(data != nullptr);
     data_ = std::move(data);
   }
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(AssertFrame, StmtFrame, AssertFrameNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(AssertFrame, StmtFrame, AssertFrameObj);
 };
 
 /*!
  * \brief A result-free region with lexical body parameters.
  * \sa RegionFrame
  */
-class RegionFrameNode : public StmtFrameNode {
+class RegionFrameObj : public StmtFrameObj {
  public:
-  explicit RegionFrameNode(ffi::UnsafeInit tag) : op(tag) {}
-  explicit RegionFrameNode(Op op) : op(std::move(op)) {}
+  explicit RegionFrameObj(ffi::UnsafeInit tag) : op(tag) {}
+  explicit RegionFrameObj(Op op) : op(std::move(op)) {}
 
   /*! \brief The operation represented by this region. */
   Op op;
@@ -230,27 +230,27 @@ class RegionFrameNode : public StmtFrameNode {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<RegionFrameNode>()
-        .def_ro("op", &RegionFrameNode::op)
-        .def_ro("args", &RegionFrameNode::args)
-        .def_ro("body_params", &RegionFrameNode::body_params)
-        .def_ro("attrs", &RegionFrameNode::attrs);
+    refl::ObjectDef<RegionFrameObj>()
+        .def_ro("op", &RegionFrameObj::op)
+        .def_ro("args", &RegionFrameObj::args)
+        .def_ro("body_params", &RegionFrameObj::body_params)
+        .def_ro("attrs", &RegionFrameObj::attrs);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tirx.RegionFrame", RegionFrameNode,
-                                    StmtFrameNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tirx.RegionFrame", RegionFrameObj,
+                                    StmtFrameObj);
 
   /*! \brief Construct the region and add it to the enclosing builder frame. */
   void ExitWithScope() final;
 };
 
-/*! \brief Managed reference to RegionFrameNode. */
+/*! \brief Managed reference to RegionFrameObj. */
 class RegionFrame : public StmtFrame {
  public:
-  explicit RegionFrame(ffi::ObjectPtr<RegionFrameNode> data) : StmtFrame(ffi::UnsafeInit{}) {
+  explicit RegionFrame(ffi::ObjectPtr<RegionFrameObj> data) : StmtFrame(ffi::UnsafeInit{}) {
     TVM_FFI_ICHECK(data != nullptr);
     data_ = std::move(data);
   }
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(RegionFrame, StmtFrame, RegionFrameNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(RegionFrame, StmtFrame, RegionFrameObj);
 };
 
 /*!
@@ -258,21 +258,21 @@ class RegionFrame : public StmtFrame {
  *
  * \sa WhileFrame
  */
-class WhileFrameNode : public StmtFrameNode {
+class WhileFrameObj : public StmtFrameObj {
  public:
-  explicit WhileFrameNode(ffi::UnsafeInit tag) : condition(tag) {}
+  explicit WhileFrameObj(ffi::UnsafeInit tag) : condition(tag) {}
 
-  explicit WhileFrameNode(PrimExpr condition) : condition(std::move(condition)) {}
+  explicit WhileFrameObj(PrimExpr condition) : condition(std::move(condition)) {}
 
   /*! \brief The termination condition of while. */
   PrimExpr condition;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<WhileFrameNode>().def_ro("condition", &WhileFrameNode::condition);
+    refl::ObjectDef<WhileFrameObj>().def_ro("condition", &WhileFrameObj::condition);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tirx.WhileFrame", WhileFrameNode,
-                                    StmtFrameNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tirx.WhileFrame", WhileFrameObj,
+                                    StmtFrameObj);
 
  public:
   /*!
@@ -283,17 +283,17 @@ class WhileFrameNode : public StmtFrameNode {
 };
 
 /*!
- * \brief Managed reference to WhileFrameNode.
+ * \brief Managed reference to WhileFrameObj.
  *
- * \sa WhileFrameNode
+ * \sa WhileFrameObj
  */
 class WhileFrame : public StmtFrame {
  public:
-  explicit WhileFrame(ffi::ObjectPtr<WhileFrameNode> data) : StmtFrame(ffi::UnsafeInit{}) {
+  explicit WhileFrame(ffi::ObjectPtr<WhileFrameObj> data) : StmtFrame(ffi::UnsafeInit{}) {
     TVM_FFI_ICHECK(data != nullptr);
     data_ = std::move(data);
   }
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(WhileFrame, StmtFrame, WhileFrameNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(WhileFrame, StmtFrame, WhileFrameObj);
 };
 
 /*!
@@ -301,11 +301,11 @@ class WhileFrame : public StmtFrame {
  *
  * \sa IfFrame
  */
-class IfFrameNode : public StmtFrameNode {
+class IfFrameObj : public StmtFrameObj {
  public:
-  explicit IfFrameNode(ffi::UnsafeInit tag) : condition(tag) {}
+  explicit IfFrameObj(ffi::UnsafeInit tag) : condition(tag) {}
 
-  explicit IfFrameNode(PrimExpr condition) : condition(std::move(condition)) {}
+  explicit IfFrameObj(PrimExpr condition) : condition(std::move(condition)) {}
 
   /*! \brief The condition of the if statement. */
   PrimExpr condition;
@@ -316,12 +316,12 @@ class IfFrameNode : public StmtFrameNode {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<IfFrameNode>()
-        .def_ro("condition", &IfFrameNode::condition)
-        .def_ro("then_stmts", &IfFrameNode::then_stmts)
-        .def_ro("else_stmts", &IfFrameNode::else_stmts);
+    refl::ObjectDef<IfFrameObj>()
+        .def_ro("condition", &IfFrameObj::condition)
+        .def_ro("then_stmts", &IfFrameObj::then_stmts)
+        .def_ro("else_stmts", &IfFrameObj::else_stmts);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tirx.IfFrame", IfFrameNode, StmtFrameNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tirx.IfFrame", IfFrameObj, StmtFrameObj);
 
  public:
   /*!
@@ -332,16 +332,16 @@ class IfFrameNode : public StmtFrameNode {
 };
 
 /*!
- * \brief Managed reference to IfFrameNode.
+ * \brief Managed reference to IfFrameObj.
  *
- * \sa IfFrameNode
+ * \sa IfFrameObj
  */
 class IfFrame : public StmtFrame {
  public:
-  explicit IfFrame(ffi::ObjectPtr<IfFrameNode> data) : StmtFrame(data) {
+  explicit IfFrame(ffi::ObjectPtr<IfFrameObj> data) : StmtFrame(data) {
     TVM_FFI_ICHECK(data != nullptr);
   }
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(IfFrame, StmtFrame, IfFrameNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(IfFrame, StmtFrame, IfFrameObj);
 };
 
 /*!
@@ -349,14 +349,13 @@ class IfFrame : public StmtFrame {
  *
  * \sa ThenFrame
  */
-class ThenFrameNode : public StmtFrameNode {
+class ThenFrameObj : public StmtFrameObj {
  public:
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<ThenFrameNode>();
+    refl::ObjectDef<ThenFrameObj>();
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tirx.ThenFrame", ThenFrameNode,
-                                    StmtFrameNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tirx.ThenFrame", ThenFrameObj, StmtFrameObj);
 
  public:
   /*!
@@ -372,16 +371,16 @@ class ThenFrameNode : public StmtFrameNode {
 };
 
 /*!
- * \brief Managed reference to ThenFrameNode.
+ * \brief Managed reference to ThenFrameObj.
  *
- * \sa ThenFrameNode
+ * \sa ThenFrameObj
  */
 class ThenFrame : public StmtFrame {
  public:
-  explicit ThenFrame(ffi::ObjectPtr<ThenFrameNode> data) : StmtFrame(data) {
+  explicit ThenFrame(ffi::ObjectPtr<ThenFrameObj> data) : StmtFrame(data) {
     TVM_FFI_ICHECK(data != nullptr);
   }
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ThenFrame, StmtFrame, ThenFrameNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ThenFrame, StmtFrame, ThenFrameObj);
 };
 
 /*!
@@ -389,14 +388,13 @@ class ThenFrame : public StmtFrame {
  *
  * \sa ElseFrame
  */
-class ElseFrameNode : public StmtFrameNode {
+class ElseFrameObj : public StmtFrameObj {
  public:
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<ElseFrameNode>();
+    refl::ObjectDef<ElseFrameObj>();
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tirx.ElseFrame", ElseFrameNode,
-                                    StmtFrameNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tirx.ElseFrame", ElseFrameObj, StmtFrameObj);
 
  public:
   /*!
@@ -412,17 +410,17 @@ class ElseFrameNode : public StmtFrameNode {
 };
 
 /*!
- * \brief Managed reference to ElseFrameNode.
+ * \brief Managed reference to ElseFrameObj.
  *
- * \sa ElseFrameNode
+ * \sa ElseFrameObj
  */
 class ElseFrame : public StmtFrame {
  public:
-  explicit ElseFrame(ffi::ObjectPtr<ElseFrameNode> data) : StmtFrame(data) {
+  explicit ElseFrame(ffi::ObjectPtr<ElseFrameObj> data) : StmtFrame(data) {
     TVM_FFI_ICHECK(data != nullptr);
   }
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ElseFrame, StmtFrame, ElseFrameNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ElseFrame, StmtFrame, ElseFrameObj);
 };
 
 }  // namespace ir

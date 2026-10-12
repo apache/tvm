@@ -905,7 +905,7 @@ void CodeGenWebGPU::Dispatch_(const ContinueNode* op) {
 // Build logic.
 //-------------------------------------------------
 //
-// The "C++ side" canonical WebGPU module is `WebGPUFallbackModuleNode` in
+// The "C++ side" canonical WebGPU module is `WebGPUFallbackModuleObj` in
 // src/backend/webgpu/codegen/webgpu_fallback_module.{h,cc} — there is no native
 // WebGPU runtime in the C++ tree (the real receiver is the wasm runtime
 // in web/emcc/webgpu_runtime.cc).

@@ -48,11 +48,11 @@ constexpr const char* kPostTensorDefStmt = "post_tensor_def_stmt";
 /*!
  * \brief The context information of the kernel required by op dispatch.
  */
-class DispatchContextNode : public ffi::Object {
+class DispatchContextObj : public ffi::Object {
  public:
-  DispatchContextNode(Target target, ExecScope exec_scope)
+  DispatchContextObj(Target target, ExecScope exec_scope)
       : target(std::move(target)), exec_scope(std::move(exec_scope)) {}
-  explicit DispatchContextNode(ffi::UnsafeInit)
+  explicit DispatchContextObj(ffi::UnsafeInit)
       : target(ffi::UnsafeInit{}), exec_scope(ffi::UnsafeInit{}) {}
 
   /*! \brief The target of the kernel. */
@@ -86,17 +86,17 @@ class DispatchContextNode : public ffi::Object {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<DispatchContextNode>()
-        .def_ro("target", &DispatchContextNode::target)
-        .def_ro("exec_scope", &DispatchContextNode::exec_scope)
-        .def_ro("launch_params", &DispatchContextNode::launch_params)
-        .def_ro("var_range_map", &DispatchContextNode::var_range_map)
-        .def_ro("alloc_only", &DispatchContextNode::alloc_only)
-        .def_ro("callbacks", &DispatchContextNode::callbacks)
-        .def_ro("shared_state", &DispatchContextNode::shared_state)
-        .def_ro("inter", &DispatchContextNode::inter)
-        .def_ro("intra", &DispatchContextNode::intra)
-        .def_ro("scope_kind", &DispatchContextNode::scope_kind);
+    refl::ObjectDef<DispatchContextObj>()
+        .def_ro("target", &DispatchContextObj::target)
+        .def_ro("exec_scope", &DispatchContextObj::exec_scope)
+        .def_ro("launch_params", &DispatchContextObj::launch_params)
+        .def_ro("var_range_map", &DispatchContextObj::var_range_map)
+        .def_ro("alloc_only", &DispatchContextObj::alloc_only)
+        .def_ro("callbacks", &DispatchContextObj::callbacks)
+        .def_ro("shared_state", &DispatchContextObj::shared_state)
+        .def_ro("inter", &DispatchContextObj::inter)
+        .def_ro("intra", &DispatchContextObj::intra)
+        .def_ro("scope_kind", &DispatchContextObj::scope_kind);
   }
 
   /*! \brief Add a tensor to be allocated in the kernel. */
@@ -115,11 +115,11 @@ class DispatchContextNode : public ffi::Object {
   /*! \brief Get a value from the shared state cache. */
   ffi::Optional<ffi::ObjectRef> SharedStateGet(ffi::String key);
 
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.DispatchContext", DispatchContextNode, ffi::Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.DispatchContext", DispatchContextObj, ffi::Object);
 };
 
 /*!
- * \brief Managed reference to DispatchContextNode.
+ * \brief Managed reference to DispatchContextObj.
  */
 class DispatchContext : public ffi::ObjectRef {
  public:
@@ -133,7 +133,7 @@ class DispatchContext : public ffi::ObjectRef {
                           ffi::String scope_kind = "");
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(DispatchContext, ffi::ObjectRef,
-                                                DispatchContextNode);
+                                                DispatchContextObj);
 };
 
 }  // namespace tile

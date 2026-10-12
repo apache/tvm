@@ -24,7 +24,7 @@
  *   `MetalModuleCreateWithFallback` is the ONLY entry point codegen uses to
  *   construct a Metal `ffi::Module`.  It tries the runtime-registered factory
  *   "ffi.Module.create.metal" via the FFI registry; on miss it constructs a
- *   `MetalFallbackModuleNode` directly.  The fallback exists so that codegen
+ *   `MetalFallbackModuleObj` directly.  The fallback exists so that codegen
  *   can succeed on a build where the Metal runtime is not linked.  This
  *   setup is helpful for cross compilation where we compile on one env
  *   and run on another.
@@ -45,7 +45,7 @@ namespace tvm {
 namespace target {
 
 /*!
- * \brief Construct a `MetalFallbackModuleNode` directly (no FFI registry
+ * \brief Construct a `MetalFallbackModuleObj` directly (no FFI registry
  *        round-trip).  Used by `MetalModuleCreateWithFallback` and by tests
  *        that explicitly want a fallback instance.
  */
@@ -58,9 +58,9 @@ ffi::Module MetalFallbackModuleCreate(ffi::Map<ffi::String, ffi::Bytes> smap, ff
  *        "ffi.Module.create.metal"; on miss or when forced via env var,
  *        falls back to `MetalFallbackModuleCreate`.
  *
- *   - Registry hit (USE_METAL=ON build, macOS) → real `MetalModuleNode`
+ *   - Registry hit (USE_METAL=ON build, macOS) → real `MetalModuleObj`
  *     returned.
- *   - Registry miss (USE_METAL=OFF build) → `MetalFallbackModuleNode`
+ *   - Registry miss (USE_METAL=OFF build) → `MetalFallbackModuleObj`
  *     returned.
  *   - `TVM_COMPILE_FORCE_FALLBACK` env var truthy → fallback regardless of
  *     registry state (used by per-backend fallback tests on a USE_X=ON CI

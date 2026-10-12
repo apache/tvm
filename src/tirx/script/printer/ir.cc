@@ -46,13 +46,13 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 ffi::Optional<ExprDoc> TargetDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
                                           const ffi::Object*) {
   const auto* target =
-      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const TargetNode>(input);
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const TargetObj>(input);
   return NamespaceDoc("tirx")->Attr("target")->Call({AnyValue(d, target->ToConfig())});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  ffi::reflection::TypeAttrDef<TargetNode>().attr(tvm::script::printer::type_attr::kDocTranslate,
-                                                  FDocTranslate::FromNative<&TargetDocTranslate>());
+  ffi::reflection::TypeAttrDef<TargetObj>().attr(tvm::script::printer::type_attr::kDocTranslate,
+                                                 FDocTranslate::FromNative<&TargetDocTranslate>());
 }
 
 }  // namespace

@@ -20,7 +20,7 @@
  * \file tvm/script/printer/config.h
  * \brief Configuration object for the TVMScript printer.
  *
- * Contains PrinterConfig / PrinterConfigNode, GetBuiltinKeywords, GetExtraConfig,
+ * Contains PrinterConfig / PrinterConfigObj, GetBuiltinKeywords, GetExtraConfig,
  * and RedirectedReprPrinterMethod. Translation APIs live in doc_translator.h,
  * and text entry points live in printer.h.
  */
@@ -40,7 +40,7 @@
 
 namespace tvm {
 
-class PrinterConfigNode : public ffi::Object {
+class PrinterConfigObj : public ffi::Object {
  public:
   /*! \brief A stack that tracks the names of the binding hierarchy */
   ffi::Array<ffi::String> binding_names = {};
@@ -102,28 +102,28 @@ class PrinterConfigNode : public ffi::Object {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<PrinterConfigNode>()
-        .def_ro("binding_names", &PrinterConfigNode::binding_names)
-        .def_ro("show_meta", &PrinterConfigNode::show_meta)
-        .def_ro("ir_prefix", &PrinterConfigNode::ir_prefix)
-        .def_ro("module_alias", &PrinterConfigNode::module_alias)
-        .def_ro("buffer_dtype", &PrinterConfigNode::buffer_dtype)
-        .def_ro("verbose_expr", &PrinterConfigNode::verbose_expr)
-        .def_ro("indent_spaces", &PrinterConfigNode::indent_spaces)
-        .def_ro("print_line_numbers", &PrinterConfigNode::print_line_numbers)
-        .def_ro("num_context_lines", &PrinterConfigNode::num_context_lines)
-        .def_ro("render_invisible_path_info", &PrinterConfigNode::render_invisible_path_info)
-        .def_ro("path_to_underline", &PrinterConfigNode::path_to_underline)
-        .def_ro("path_to_annotate", &PrinterConfigNode::path_to_annotate)
-        .def_ro("obj_to_underline", &PrinterConfigNode::obj_to_underline)
-        .def_ro("obj_to_annotate", &PrinterConfigNode::obj_to_annotate)
-        .def_ro("extra_config", &PrinterConfigNode::extra_config);
+    refl::ObjectDef<PrinterConfigObj>()
+        .def_ro("binding_names", &PrinterConfigObj::binding_names)
+        .def_ro("show_meta", &PrinterConfigObj::show_meta)
+        .def_ro("ir_prefix", &PrinterConfigObj::ir_prefix)
+        .def_ro("module_alias", &PrinterConfigObj::module_alias)
+        .def_ro("buffer_dtype", &PrinterConfigObj::buffer_dtype)
+        .def_ro("verbose_expr", &PrinterConfigObj::verbose_expr)
+        .def_ro("indent_spaces", &PrinterConfigObj::indent_spaces)
+        .def_ro("print_line_numbers", &PrinterConfigObj::print_line_numbers)
+        .def_ro("num_context_lines", &PrinterConfigObj::num_context_lines)
+        .def_ro("render_invisible_path_info", &PrinterConfigObj::render_invisible_path_info)
+        .def_ro("path_to_underline", &PrinterConfigObj::path_to_underline)
+        .def_ro("path_to_annotate", &PrinterConfigObj::path_to_annotate)
+        .def_ro("obj_to_underline", &PrinterConfigObj::obj_to_underline)
+        .def_ro("obj_to_annotate", &PrinterConfigObj::obj_to_annotate)
+        .def_ro("extra_config", &PrinterConfigObj::extra_config);
   }
 
   ffi::Array<ffi::String> GetBuiltinKeywords();
 
   static constexpr const bool _type_mutable = true;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.PrinterConfig", PrinterConfigNode, ffi::Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.PrinterConfig", PrinterConfigObj, ffi::Object);
 };
 
 class TVM_DLL PrinterConfig : public ffi::ObjectRef {
@@ -131,7 +131,7 @@ class TVM_DLL PrinterConfig : public ffi::ObjectRef {
   explicit PrinterConfig(
       ffi::Map<ffi::String, ffi::Any> config_dict = ffi::Map<ffi::String, ffi::Any>());
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(PrinterConfig, ffi::ObjectRef, PrinterConfigNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(PrinterConfig, ffi::ObjectRef, PrinterConfigObj);
 };
 
 /*!
