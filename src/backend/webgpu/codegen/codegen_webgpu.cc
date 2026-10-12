@@ -27,6 +27,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/function.h>
 #include <tvm/ir/prim/op.h>
+#include <tvm/support/gpu_thread_tag.h>
 #include <tvm/support/io.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/function.h>
@@ -139,16 +140,14 @@ class WebGPUWorkgroupInfoCollector : public StmtExprVisitor {
 
   ffi::Optional<VisitInterrupt> Visit_(const RegionStmtNode* op) final {
     if (op->op.same_as(tirx::launch_thread_op())) {
-      TVM_FFI_CHECK(
-          std::string(op->args[0].as_or_throw<StringImm>()->value).rfind("vthread", 0) != 0,
-          ValueError)
+      TVM_FFI_CHECK(!op->args[0].as_or_throw<StringImm>()->value.starts_with("vthread"), ValueError)
           << "Virtual thread launches must be lowered before code generation";
       ffi::String tag = op->args[0].as_or_throw<StringImm>()->value;
       PrimExpr extent = op->args[1].as_or_throw<PrimExpr>();
       auto [it, inserted] = thread_extents_.emplace(tag, extent);
       TVM_FFI_CHECK(inserted || analyzer_->CanProveEqual(it->second, extent), ValueError)
           << "Conflicting launch extents for " << tag;
-      runtime::ThreadScope ts = runtime::ThreadScope::Create(tag);
+      support::GPUThreadTag ts = support::GPUThreadTag::Parse(tag);
       TVM_FFI_ICHECK_GE(ts.dim_index, 0);
       TVM_FFI_ICHECK_LT(ts.dim_index, 3);
       if (ts.rank == 1) {
@@ -365,8 +364,7 @@ runtime::FunctionInfo CodeGenWebGPU::AddFunction(const Function& f, bool skip_re
 
 void CodeGenWebGPU::Dispatch_(const RegionStmtNode* op) {
   if (op->op.same_as(tirx::launch_thread_op())) {
-    TVM_FFI_CHECK(std::string(op->args[0].as_or_throw<StringImm>()->value).rfind("vthread", 0) != 0,
-                  ValueError)
+    TVM_FFI_CHECK(!op->args[0].as_or_throw<StringImm>()->value.starts_with("vthread"), ValueError)
         << "Virtual thread launches must be lowered before code generation";
     PrimVar var = op->body_params[0].as_or_throw<PrimVar>();
     PrimExpr extent = op->args[1].as_or_throw<PrimExpr>();

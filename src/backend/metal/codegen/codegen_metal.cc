@@ -28,6 +28,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/function.h>
 #include <tvm/runtime/logging.h>
+#include <tvm/support/gpu_thread_tag.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/op/memory.h>
@@ -42,7 +43,6 @@
 #include <unordered_map>
 #include <utility>
 
-#include "../../../runtime/thread_storage_scope.h"
 #include "../../../target/build_common.h"
 #include "metal_fallback_module.h"
 
@@ -189,7 +189,7 @@ void CodeGenMetal::AddFunction(const GlobalVar& gvar, const Function& func) {
       func->GetAttr<ffi::Array<ffi::String>>(tvm::tirx::attr::kKernelLaunchParams).value();
   for (const auto& tag : launch_params) {
     if (tag != runtime::launch_param::kUseDynamicSharedMemoryTag) {
-      runtime::ThreadScope scope = runtime::ThreadScope::Create(tag);
+      support::GPUThreadTag scope = support::GPUThreadTag::Parse(tag);
       work_dim = std::max(work_dim, scope.dim_index + 1);
     }
   }
@@ -216,7 +216,7 @@ void CodeGenMetal::AddFunction(const GlobalVar& gvar, const Function& func) {
 
 void CodeGenMetal::BindThreadIndex(const PrimVar& var, const ffi::String& thread_tag) {
   TVM_FFI_ICHECK(!var_idmap_.count(var.get()));
-  runtime::ThreadScope ts = runtime::ThreadScope::Create(thread_tag);
+  support::GPUThreadTag ts = support::GPUThreadTag::Parse(thread_tag);
   TVM_FFI_ICHECK(ts.rank == 0 || ts.rank == 1) << "Unsupported Metal thread tag " << thread_tag;
   TVM_FFI_ICHECK_GE(ts.dim_index, 0);
   TVM_FFI_ICHECK_LT(ts.dim_index, 3);
