@@ -298,7 +298,7 @@ class DocTranslatorObj : public ffi::Object {
                                           const ffi::Object* destination = nullptr);
 
   /*! \brief Translate a Type constructor from its reflected fields and fixed defaults. */
-  TVM_DLL ExprDoc DefaultTypeTranslate(const Type& type);
+  TVM_TIRX_DLL ExprDoc DefaultTypeTranslate(const Type& type);
 
   static constexpr bool _type_mutable = true;
   TVM_FFI_DECLARE_OBJECT_INFO("script.printer.DocTranslator", DocTranslatorObj, ffi::Object);

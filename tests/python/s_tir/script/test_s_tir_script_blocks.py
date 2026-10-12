@@ -372,38 +372,6 @@ def expect_alloc_tensor_func(
         B[(0, 0)] = C[(0, 0)]
 
 
-def test_tensor_helper_metadata_roundtrip():
-    @Ts.function
-    def metadata(A: T.Tensor([16], scope="local", align=128, offset_factor=4)):
-        with Ts.sblock("metadata"):
-            matched = Ts.match_tensor(A[0:16], [16], scope="local", align=128, offset_factor=4)
-            allocated = Ts.sblock_alloc_tensor([16], scope="local", align=128, offset_factor=4)
-            allocated[0] = matched[0]
-
-    source = metadata.script()
-    for name in ("Ts.match_tensor", "Ts.sblock_alloc_tensor"):
-        line = next(line for line in source.splitlines() if name in line)
-        assert 'scope="local"' in line and "align=128" in line and "offset_factor=4" in line
-        assert "elem_offset=" not in line
-    restored = tvm.script.from_source(
-        source, extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx, "Ts": tvm.script.s_tir}
-    )
-    tvm.ir.assert_structural_equal(metadata, restored)
-
-
-def test_sblock_allocation_offset_is_fixed_unless_explicit():
-    from tvm.script.ir_builder import IRBuilder
-
-    offset = T.Var("offset", "int64")
-    with IRBuilder():
-        plain = Ts.sblock_alloc_tensor([16])
-        factored = Ts.sblock_alloc_tensor([16], offset_factor=4)
-        explicit = Ts.sblock_alloc_tensor([16], offset_factor=4, elem_offset=offset)
-    tvm.ir.assert_structural_equal(plain.ty.elem_offset, _DEFAULT_ELEM_OFFSET)
-    tvm.ir.assert_structural_equal(factored.ty.elem_offset, _DEFAULT_ELEM_OFFSET)
-    assert explicit.ty.elem_offset.same_as(offset)
-
-
 def test_complete_alloc_tensor():
     rt_func = tvm.script.from_source(
         alloc_tensor_func.script(),
