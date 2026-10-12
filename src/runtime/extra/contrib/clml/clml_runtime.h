@@ -34,6 +34,7 @@
 #include <stdlib.h>
 #include <tvm/ffi/function.h>
 #include <tvm/runtime/tensor.h>
+#include <tvm/support/file_utils.h>
 
 #include <fstream>
 #include <map>
@@ -43,7 +44,6 @@
 #include <vector>
 
 #include "../../../../backend/opencl/runtime/opencl_common.h"
-#include "../../../file_utils.h"
 #include "../../../thread_storage_scope.h"
 #include "../json/json_node.h"
 #include "../json/json_runtime.h"

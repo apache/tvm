@@ -35,16 +35,17 @@
  * runtime builtin provide as in this file.
  */
 #include <tvm/ffi/extra/json.h>
+#include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/tensor.h>
 #include <tvm/runtime/vm/tensor_cache_support.h>
+#include <tvm/support/file_utils.h>
 
 #include <string>
 #include <vector>
 
 #include "../../support/utils.h"
-#include "../file_utils.h"
 
 namespace tvm {
 namespace runtime {
@@ -111,8 +112,7 @@ TensorCacheMetadata TensorCacheMetadata::LoadFromStr(const std::string& json_str
 }
 
 TVM_RUNTIME_DLL TensorCacheMetadata TensorCacheMetadata::Load(const std::string& path) {
-  std::string json_str;
-  LoadBinaryFromFile(path + "/tensor-cache.json", &json_str);
+  std::string json_str = support::ReadBytesFromFile(path + "/tensor-cache.json");
   ffi::String err;
   json::Value json_info = json::Parse(json_str, &err);
   if (!err.empty()) {
@@ -176,7 +176,7 @@ TVM_RUNTIME_DLL ffi::Array<ffi::Tensor> TensorCacheMetadata::FileRecord::Load(
     const std::string& path_prefix,  //
     std::string* raw_data_buffer,    //
     ffi::Optional<ffi::Tensor>* staging_buffer) const {
-  LoadBinaryFromFile(path_prefix + "/" + this->data_path, raw_data_buffer);
+  *raw_data_buffer = support::ReadBytesFromFile(path_prefix + "/" + this->data_path);
   TVM_FFI_CHECK_EQ(this->format, "raw-shard", ValueError) << "Only `raw-shard` format is supported";
   TVM_FFI_CHECK_EQ(this->nbytes, raw_data_buffer->length(), ValueError)
       << "Encountered an corrupted parameter shard. It means it is not downloaded "

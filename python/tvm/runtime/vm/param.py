@@ -14,10 +14,12 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name
-"""Helper utility to save and load parameter dicts."""
+# pylint: disable=invalid-name, redefined-builtin, no-else-return, consider-using-dict-items
+"""VM parameter dictionary serialization."""
 
-from . import Tensor, _ffi_api, tensor
+from tvm_ffi import get_global_func
+
+from .. import Tensor, tensor
 
 
 def _to_tensor(params):
@@ -35,8 +37,7 @@ def _to_tensor(params):
 def save_param_dict(params):
     """Save parameter dictionary to binary bytes.
 
-    The result binary bytes can be loaded by the
-    GraphModule with API "load_params".
+    The resulting bytes can be loaded with :func:`load_param_dict`.
 
     Parameters
     ----------
@@ -55,12 +56,12 @@ def save_param_dict(params):
        # set up the parameter dict
        params = {"param0": arr0, "param1": arr1}
        # save the parameters as byte array
-       param_bytes = tvm.runtime.save_param_dict(params)
+       param_bytes = tvm.runtime.vm.save_param_dict(params)
        # We can serialize the param_bytes and load it back later.
-       # Pass in byte array to module to directly set parameters
-       tvm.runtime.load_param_dict(param_bytes)
+       # Recover the parameter dictionary from the serialized bytes.
+       tvm.runtime.vm.load_param_dict(param_bytes)
     """
-    return _ffi_api.SaveParams(_to_tensor(params))
+    return get_global_func("vm.SaveParams")(_to_tensor(params))
 
 
 def save_param_dict_to_file(params, path):
@@ -74,7 +75,7 @@ def save_param_dict_to_file(params, path):
     path: str
         The path to the parameter file.
     """
-    return _ffi_api.SaveParamsToFile(_to_tensor(params), path)
+    return get_global_func("vm.SaveParamsToFile")(_to_tensor(params), path)
 
 
 def load_param_dict(param_bytes):
@@ -92,7 +93,7 @@ def load_param_dict(param_bytes):
     """
     if isinstance(param_bytes, bytes | str):
         param_bytes = bytearray(param_bytes)
-    return _ffi_api.LoadParams(param_bytes)
+    return get_global_func("vm.LoadParams")(param_bytes)
 
 
 def load_param_dict_from_file(path):
@@ -108,4 +109,4 @@ def load_param_dict_from_file(path):
     params : dict of str to Tensor
         The parameter dictionary.
     """
-    return _ffi_api.LoadParamsFromFile(path)
+    return get_global_func("vm.LoadParamsFromFile")(path)

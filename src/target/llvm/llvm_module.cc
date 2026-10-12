@@ -58,6 +58,7 @@
 #include <tvm/ir/module.h>
 #include <tvm/ir/with_context.h>
 #include <tvm/runtime/logging.h>
+#include <tvm/support/file_utils.h>
 #include <tvm/target/codegen.h>
 #include <tvm/target/target.h>
 
@@ -66,7 +67,6 @@
 #include <system_error>
 #include <utility>
 
-#include "../../runtime/file_utils.h"
 #include "codegen_blob.h"
 #include "codegen_cpu.h"
 #include "codegen_llvm.h"
@@ -180,7 +180,7 @@ bool LLVMAddPassesToEmitFile(llvm::TargetMachine* tm, llvm::legacy::PassManager*
 void LLVMModuleObj::WriteToFile(const ffi::String& file_name_str, const ffi::String& format) const {
   // TVM_FFI_ICHECK(imports_.empty()) << "SaveToFile does not handle imported modules";
   std::string file_name = file_name_str;
-  std::string fmt = runtime::GetFileFormat(file_name, format);
+  std::string fmt = support::GetFileFormat(file_name, format);
   std::error_code ecode;
   llvm::raw_fd_ostream dest(file_name, ecode, llvm_open_output_flag);
   TVM_FFI_ICHECK_EQ(ecode.value(), 0)
@@ -214,7 +214,7 @@ ffi::Bytes LLVMModuleObj::SaveToBytes() const {
 }
 
 ffi::String LLVMModuleObj::InspectSource(const ffi::String& format) const {
-  std::string fmt = runtime::GetFileFormat("", format);
+  std::string fmt = support::GetFileFormat("", format);
   std::string type_str;
   llvm::SmallString<256> str;
   llvm::raw_svector_ostream rso(str);

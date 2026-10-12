@@ -409,7 +409,9 @@ Source Code Map
      - Built-in operations (shape matching, allocation)
    * - ``src/relax/backend/vm/codegen_vm.cc``
      - CodeGenVM: Relax IR → bytecode
-   * - ``python/tvm/runtime/vm.py``
+   * - ``python/tvm/runtime/vm/vm.py``
      - Python VirtualMachine wrapper
+   * - ``python/tvm/runtime/vm/param.py``
+     - Parameter dictionary serialization
    * - ``python/tvm/relax/vm_build.py``
      - ``relax.build()`` and VMExecutable Python class
