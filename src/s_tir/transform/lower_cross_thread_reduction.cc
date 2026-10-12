@@ -30,35 +30,36 @@
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
+#include <tvm/support/gpu_thread_tag.h>
 #include <tvm/sym/analyzer.h>
 #include <tvm/te/operation.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/op/gpu.h>
 #include <tvm/tirx/stmt.h>
 
-#include "../../runtime/thread_storage_scope.h"
 #include "../../support/utils.h"
 #include "../../tirx/transform/ir_utils.h"
 #include "../schedule/analysis.h"
+#include "../schedule/utils.h"
 
 namespace tvm {
 namespace s_tir {
 using namespace tvm::prim;
 
 using namespace tvm::tirx;
-using runtime::ThreadScope;
+using support::GPUThreadTag;
 using support::StartsWith;
 
-// Implement a hash and equality function for ThreadScope so that
-// ThreadScope can serve as map key class
-struct ThreadScopeHash {
-  size_t operator()(const ThreadScope& scope) const {
+// Implement a hash and equality function for GPUThreadTag so that
+// GPUThreadTag can serve as map key class
+struct GPUThreadTagHash {
+  size_t operator()(const GPUThreadTag& scope) const {
     return static_cast<size_t>(scope.rank * 30 + scope.dim_index);
   }
 };
 
-struct ThreadScopeEqual {
-  bool operator()(const ThreadScope& a, const ThreadScope& b) const {
+struct GPUThreadTagEqual {
+  bool operator()(const GPUThreadTag& a, const GPUThreadTag& b) const {
     return a.rank == b.rank && a.dim_index == b.dim_index;
   }
 };
@@ -72,8 +73,7 @@ bool IsBoundToThreadIdx(const ForNode* loop) {
   if (!tvm::s_tir::GetThreadBinding(loop).has_value()) {
     return false;
   }
-  runtime::ThreadScope scope =
-      runtime::ThreadScope::Create(tvm::s_tir::GetThreadBinding(loop).value());
+  support::GPUThreadTag scope = ParseThreadBindingTag(tvm::s_tir::GetThreadBinding(loop).value());
   return scope.rank == 1 && scope.dim_index >= 0;
 }
 
@@ -646,7 +646,7 @@ class CrossThreadReductionTransformer : public StmtExprMutator {
   // 2. it writes to non-local memory,
   // 3. at least one of the reduction thread vars of the cross-thread reduction
   // is free to this block (i.e., not bound to the block).
-  std::vector<std::pair<ThreadScope, Range>> NeedCrossThreadBroadcast(
+  std::vector<std::pair<GPUThreadTag, Range>> NeedCrossThreadBroadcast(
       const SBlockRealizeNode* realize) {
     SBlock block = realize->block;
 
@@ -659,7 +659,7 @@ class CrossThreadReductionTransformer : public StmtExprMutator {
 
     // Find out the reduction threads for the read-tensors which are produced by
     // cross-thread reduction.
-    std::unordered_map<ThreadScope, Range, ThreadScopeHash, ThreadScopeEqual> thread2range;
+    std::unordered_map<GPUThreadTag, Range, GPUThreadTagHash, GPUThreadTagEqual> thread2range;
     for (TensorRegion read_region : block->reads) {
       auto tensor_it =
           crt_tensor2threads_.find(read_region->source.as_or_throw<tvm::tirx::TensorVar>().get());
@@ -674,11 +674,11 @@ class CrossThreadReductionTransformer : public StmtExprMutator {
     // Erase those threads which are not free to this block.
     for (const ForNode* loop : loop_stack_) {
       if (tvm::s_tir::GetThreadBinding(loop).has_value()) {
-        ThreadScope scope = ThreadScope::Create(tvm::s_tir::GetThreadBinding(loop).value());
+        GPUThreadTag scope = ParseThreadBindingTag(tvm::s_tir::GetThreadBinding(loop).value());
         thread2range.erase(scope);
       }
     }
-    std::vector<std::pair<ThreadScope, Range>> unbound_thread2range_list;
+    std::vector<std::pair<GPUThreadTag, Range>> unbound_thread2range_list;
     for (auto [scope, range] : thread2range) {
       unbound_thread2range_list.emplace_back(scope, range);
     }
@@ -812,7 +812,7 @@ class CrossThreadReductionTransformer : public StmtExprMutator {
     bool is_block_idx = false;
     bool is_thread_idx = false;
     if (tvm::s_tir::GetThreadBinding(loop).has_value()) {
-      ThreadScope scope = ThreadScope::Create(tvm::s_tir::GetThreadBinding(loop).value());
+      GPUThreadTag scope = ParseThreadBindingTag(tvm::s_tir::GetThreadBinding(loop).value());
       if (scope.rank == 1 && scope.dim_index >= 0) {
         is_thread_idx = true;
         ++thread_idx_depth;
@@ -906,12 +906,12 @@ class CrossThreadReductionTransformer : public StmtExprMutator {
 
     // Step 5. Record the reduction thread dims for the write-back tensors.
     // The information is used for consumer block broadcasting detection.
-    std::vector<std::pair<ThreadScope, Range>> reduction_threads;
+    std::vector<std::pair<GPUThreadTag, Range>> reduction_threads;
     reduction_threads.reserve(reduction_loops.size());
     for (const ForNode* loop : reduction_loops) {
       if (tvm::s_tir::GetThreadBinding(loop).has_value()) {
         reduction_threads.emplace_back(
-            ThreadScope::Create(tvm::s_tir::GetThreadBinding(loop).value()),
+            ParseThreadBindingTag(tvm::s_tir::GetThreadBinding(loop).value()),
             Range::FromMinExtent(loop->min, loop->extent));
       }
     }
@@ -922,7 +922,7 @@ class CrossThreadReductionTransformer : public StmtExprMutator {
 
   Stmt MakeCrossThreadBroadcast(
       const SBlockRealizeNode* realize,
-      const std::vector<std::pair<ThreadScope, Range>>& unbound_thread2range) {
+      const std::vector<std::pair<GPUThreadTag, Range>>& unbound_thread2range) {
     // Step 1. Generate loop var for each unbound thread.
     // Update the block predicate with clauses of `thread_var == min`.
     PrimExpr predicate = realize->predicate;
@@ -973,7 +973,7 @@ class CrossThreadReductionTransformer : public StmtExprMutator {
 
     // Part 2. Check if the block needs all-thread broadcasting rewrite.
     // We only check this when cross-thread reduction was detected.
-    std::vector<std::pair<ThreadScope, Range>> unbound_thread2range =
+    std::vector<std::pair<GPUThreadTag, Range>> unbound_thread2range =
         NeedCrossThreadBroadcast(realize);
     if (!unbound_thread2range.empty()) {
       return MakeCrossThreadBroadcast(realize, unbound_thread2range);
@@ -993,7 +993,7 @@ class CrossThreadReductionTransformer : public StmtExprMutator {
 
   int block_idx_depth = 0;
   int thread_idx_depth = 0;
-  std::unordered_map<const VarNode*, std::vector<std::pair<ThreadScope, Range>>>
+  std::unordered_map<const VarNode*, std::vector<std::pair<GPUThreadTag, Range>>>
       crt_tensor2threads_;
 };
 

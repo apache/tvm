@@ -32,6 +32,7 @@
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
+#include <tvm/support/gpu_thread_tag.h>
 #include <tvm/sym/analyzer.h>
 #include <tvm/sym/bound.h>
 #include <tvm/tirx/analysis.h>
@@ -43,7 +44,6 @@
 #include <unordered_map>
 #include <unordered_set>
 
-#include "../../runtime/thread_storage_scope.h"
 #include "../../sym/interval_set.h"
 #include "ir_utils.h"
 
@@ -115,7 +115,7 @@ using ExpressionSet = std::unordered_set<PrimExpr, ffi::ObjectPtrHash, ffi::Obje
 static bool IsVirtualThread(const ForNode* op) {
   if (!tvm::s_tir::GetThreadBinding(op).has_value()) return false;
   const auto tag = tvm::s_tir::GetThreadBinding(op).value();
-  return std::string(tag).rfind("vthread", 0) == 0;
+  return tag.starts_with("vthread");
 }
 
 static bool HasPartitionHint(const ForNode* op) {
@@ -171,7 +171,7 @@ class CandidateSelector final : public StmtExprVisitor {
       return StmtExprVisitor::Visit_(op);
     }
     if (tvm::s_tir::GetThreadBinding(op).has_value() &&
-        runtime::ThreadScope::Create(tvm::s_tir::GetThreadBinding(op).value()).rank != 0) {
+        support::GPUThreadTag::Parse(tvm::s_tir::GetThreadBinding(op).value()).rank != 0) {
       return StmtExprVisitor::Visit_(op);
     }
     // partition const loop when sets partition_const_loop_
@@ -190,10 +190,10 @@ class CandidateSelector final : public StmtExprVisitor {
 
   ffi::Optional<VisitInterrupt> Visit_(const RegionStmtNode* op) final {
     if (op->op.same_as(tirx::launch_thread_op()) &&
-        std::string(op->args[0].as_or_throw<StringImm>()->value).rfind("vthread", 0) != 0) {
+        !op->args[0].as_or_throw<StringImm>()->value.starts_with("vthread")) {
       Var var = op->body_params[0].as_or_throw<PrimVar>();
-      runtime::ThreadScope scope =
-          runtime::ThreadScope::Create(op->args[0].as_or_throw<StringImm>()->value);
+      support::GPUThreadTag scope =
+          support::GPUThreadTag::Parse(op->args[0].as_or_throw<StringImm>()->value);
       PrimExpr extent = op->args[1].as_or_throw<PrimExpr>();
       if ((scope.rank == 0) && (!IsConstInt(extent) || partition_const_loop_)) {
         record_.insert({var.get(), false});
@@ -307,7 +307,7 @@ class PartitionFinder : public StmtExprVisitor {
   ffi::Optional<VisitInterrupt> Visit_(const RegionStmtNode* op) final {
     // handle thread_axis
     if (op->op.same_as(tirx::launch_thread_op()) &&
-        std::string(op->args[0].as_or_throw<StringImm>()->value).rfind("vthread", 0) != 0) {
+        !op->args[0].as_or_throw<StringImm>()->value.starts_with("vthread")) {
       const VarNode* var = op->body_params[0].as_or_throw<PrimVar>().get();
       PrimExpr extent = op->args[1].as_or_throw<PrimExpr>();
       IntSet dom = IntSet::FromRange(Range(IntImm(extent.ty(), 0), extent));
@@ -476,7 +476,7 @@ class ThreadPartitionInserter : public StmtExprMutator {
 
   UnchangedOr<Stmt> Mutate_(const RegionStmtNode* op, InplaceMode inplace_mode) final {
     if (op->op.same_as(tirx::launch_thread_op()) &&
-        std::string(op->args[0].as_or_throw<StringImm>()->value).rfind("vthread", 0) != 0) {
+        !op->args[0].as_or_throw<StringImm>()->value.starts_with("vthread")) {
       innermost_thread_scope_ = true;
       Stmt stmt =
           StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
@@ -537,7 +537,7 @@ class LoopPartitioner : public StmtExprMutator {
 
     // Relax threadIdx ranges to avoid introducing divergent partition branches.
     bool relax = thread_scope &&
-                 runtime::ThreadScope::Create(tvm::s_tir::GetThreadBinding(op).value()).rank == 1;
+                 support::GPUThreadTag::Parse(tvm::s_tir::GetThreadBinding(op).value()).rank == 1;
     auto& ranges = relax ? relax_map_ : hint_map_;
     ranges.insert({op->loop_var.get(), IntSet::Interval(op->min, op->min + op->extent - 1)});
     Stmt res = StmtExprMutator::Mutate_(op, InplaceMode::kDisallow)
@@ -548,7 +548,7 @@ class LoopPartitioner : public StmtExprMutator {
 
   UnchangedOr<Stmt> Mutate_(const RegionStmtNode* op, InplaceMode inplace_mode) final {
     if (!op->op.same_as(tirx::launch_thread_op()) ||
-        std::string(op->args[0].as_or_throw<StringImm>()->value).rfind("vthread", 0) == 0) {
+        op->args[0].as_or_throw<StringImm>()->value.starts_with("vthread")) {
       return StmtExprMutator::Mutate_(op, inplace_mode);
     }
 
@@ -561,8 +561,8 @@ class LoopPartitioner : public StmtExprMutator {
     }
 
     // normal path when loop parittion fails.
-    runtime::ThreadScope scope =
-        runtime::ThreadScope::Create(op->args[0].as_or_throw<StringImm>()->value);
+    support::GPUThreadTag scope =
+        support::GPUThreadTag::Parse(op->args[0].as_or_throw<StringImm>()->value);
     Stmt res{ffi::UnsafeInit{}};
     if (scope.rank == 1) {
       // threadIdx should be put into relax map, in case of divergence.

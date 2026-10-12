@@ -28,7 +28,6 @@
 #include <tvm/s_tir/transform.h>
 #include <tvm/tirx/stmt.h>
 
-#include "../../runtime/thread_storage_scope.h"
 #include "../../tirx/transform/ir_utils.h"
 
 namespace tvm {
@@ -105,15 +104,7 @@ FindLoopLCA(const Stmt& root) {
     sorted_thread_tags.push_back(kv.first);
   }
   std::sort(sorted_thread_tags.begin(), sorted_thread_tags.end(),
-            [](const std::string& lhs, const std::string& rhs) {
-              return lhs.size() > rhs.size();
-              runtime::ThreadScope lhs_scope = runtime::ThreadScope::Create(lhs);
-              runtime::ThreadScope rhs_scope = runtime::ThreadScope::Create(rhs);
-              if (lhs_scope.rank != rhs_scope.rank) {
-                return lhs_scope.rank < rhs_scope.rank;
-              }
-              return lhs_scope.dim_index < rhs_scope.dim_index;
-            });
+            [](const std::string& lhs, const std::string& rhs) { return lhs.size() > rhs.size(); });
   for (const auto& thread_tag : sorted_thread_tags) {
     Stmt lca = finder->lca[thread_tag].back();
     const IterVar& iter = finder->iters.at(thread_tag);

@@ -19,6 +19,7 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/s_tir/stmt.h>
+#include <tvm/support/gpu_thread_tag.h>
 #include <tvm/tirx/stmt.h>
 
 #include "../utils.h"
@@ -87,7 +88,7 @@ class WrongBlockIterTypeError : public ScheduleErrorContextObj {
  */
 void CheckLoopParallelizableInBlock(const ScheduleState& self, ForKind for_kind,
                                     const Var& loop_var, const SBlockRealize& block_realize,
-                                    runtime::ThreadScope thread_scope) {
+                                    support::GPUThreadTag thread_scope) {
   const SBlock& block = block_realize->block;
 
   // Cond 1. The block is required to have affine bindings.
@@ -132,7 +133,7 @@ void CheckLoopParallelizableInBlock(const ScheduleState& self, ForKind for_kind,
  * the operation is not "bind"
  */
 void CheckParallelizability(const ScheduleState& self, const For& loop, ForKind for_kind,
-                            runtime::ThreadScope thread_scope) {
+                            support::GPUThreadTag thread_scope) {
   auto walk_fn = [&](const SBlockRealize& realize) -> ffi::Expected<ffi::WalkResult> {
     // If this block doesn't have corresponding StmtSRef in the schedule state, it must be a
     // block inside `tirx.init()`. We don't check the condition for such blocks.
@@ -175,8 +176,8 @@ void ParallelizeComputation(const ScheduleState& self, const StmtSRef& loop_sref
   // Step 2. Check whether the loop can be parallelized/vectorized/bound with regard to each
   // underlying block.
   CheckParallelizability(self, ffi::GetRef<For>(loop), for_kind,
-                         thread_axis.has_value() ? runtime::ThreadScope::Create(thread_axis.value())
-                                                 : runtime::ThreadScope{-1, -1});
+                         thread_axis.has_value() ? ParseThreadBindingTag(thread_axis.value())
+                                                 : support::GPUThreadTag{-1, -1});
 
   // Step 3. Loop update and IR replacement
   ffi::ObjectPtr<ForNode> new_loop = ffi::make_object<ForNode>(*loop);

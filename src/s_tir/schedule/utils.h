@@ -32,6 +32,7 @@
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/utils.h>
+#include <tvm/support/gpu_thread_tag.h>
 #include <tvm/sym/analyzer.h>
 #include <tvm/sym/int_set.h>
 #include <tvm/sym/iter_affine_map.h>
@@ -98,7 +99,7 @@ inline ffi::Array<StmtSRef> SBlockRVs2StmtSRefs(const Schedule& sch,
  * \return A boolean indicating the result
  */
 inline bool CanRelaxStorageUnderThread(const runtime::StorageScope& storage_scope,
-                                       const runtime::ThreadScope& thread_scope) {
+                                       const support::GPUThreadTag& thread_scope) {
   if (storage_scope.rank == runtime::StorageRank::kWarp) {
     // for warp memory, we only relax threadIdx.x
     return thread_scope.rank == 1 && thread_scope.dim_index == 0;
@@ -160,16 +161,24 @@ inline IterVar IterVarFromLoop(const For& loop, ffi::String name, IterVarType it
                  PrimVar(std::move(name), loop->loop_var.ty()), iter_var_type);
 }
 
+/*! \brief Interpret physical and virtual thread bindings for S-TIR scheduling. */
+inline support::GPUThreadTag ParseThreadBindingTag(const ffi::String& tag) {
+  if (tag.starts_with("vthread")) {
+    return {1, -1};
+  }
+  return support::GPUThreadTag::Parse(tag);
+}
+
 /*!
  * \brief Get the thread scope bound to the specific loop
  * \param loop The loop to be inspected
  * \return The thread scope bound to the loop
  */
-inline runtime::ThreadScope GetThreadScope(const ForNode* loop) {
+inline support::GPUThreadTag GetThreadBindingTag(const ForNode* loop) {
   if (tvm::s_tir::GetThreadBinding(loop).has_value()) {
-    return runtime::ThreadScope::Create(tvm::s_tir::GetThreadBinding(loop).value());
+    return ParseThreadBindingTag(tvm::s_tir::GetThreadBinding(loop).value());
   }
-  return runtime::ThreadScope{-1, -1};
+  return support::GPUThreadTag{-1, -1};
 }
 
 /*!
@@ -177,7 +186,7 @@ inline runtime::ThreadScope GetThreadScope(const ForNode* loop) {
  * \param thread_scope The thread scope to be checked
  * \return True if the thread scope is blockIdx
  */
-inline bool IsBlockIdx(const runtime::ThreadScope& thread_scope) {
+inline bool IsBlockIdx(const support::GPUThreadTag& thread_scope) {
   return thread_scope.rank == 0;  // The rank of blockIdx is 0
 }
 
@@ -186,7 +195,7 @@ inline bool IsBlockIdx(const runtime::ThreadScope& thread_scope) {
  * \param thread_scope The thread scope to be checked
  * \return True if the thread scope is threadIdx
  */
-inline bool IsThreadIdx(const runtime::ThreadScope& thread_scope) {
+inline bool IsThreadIdx(const support::GPUThreadTag& thread_scope) {
   return thread_scope.rank == 1 && thread_scope.dim_index >= 0;
 }
 
