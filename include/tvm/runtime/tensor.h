@@ -200,7 +200,7 @@ inline Device GetPreferredHostDevice(Device device) {
 }
 
 /*!
- * \brief A cache of owning device tensors, independent of VM storage policy.
+ * \brief A cache of owning device tensors.
  *
  * Construct pools with ffi::make_object. Live tensors retain the pool directly;
  * only unpooled backing tensors enter its cache. A backend supplies independent
