@@ -23,8 +23,6 @@
 #include <tvm/s_tir/analysis.h>
 #include <tvm/s_tir/stmt_functor.h>
 
-#include "../ir/tir_visitor_with_path.h"
-
 namespace tvm {
 namespace s_tir {
 using tirx::Function;
@@ -136,42 +134,87 @@ class BlockVarAccessVerifier : public StmtExprVisitor {
   bool has_error_{false};
 };
 
-/*! \brief Validate the scheduling annotation before thread-binding lowering. */
-class ThreadBindingVerifier : public tirx::Verifier<ThreadBindingVerifier, TIRVisitorWithPath> {
-  using Verifier = tirx::Verifier<ThreadBindingVerifier, TIRVisitorWithPath>;
+// S-TIR definitions and scopes are part of this verifier, not its visitor base.
+class WellFormednessVerifier : public tirx::WellFormednessVerifier<StmtExprVisitor> {
+  using Parent = tirx::WellFormednessVerifier<StmtExprVisitor>;
 
  public:
-  using Verifier::Verifier;
-  using Verifier::Verify;
+  WellFormednessVerifier(Check check, bool assert_mode)
+      : Parent(GlobalVTable(), check, assert_mode) {}
+
+ protected:
+  using Parent::Visit_;
+  Result Visit_(const ForNode* op) override {
+    if (check_ == Check::kThreadBinding) {
+      if (auto tag = op->annotations.Get(attr::kThreadBinding)) {
+        Verify(op->kind == ForKind::kParallel)
+            << "ValueError: thread_binding requires a parallel loop at <current location>";
+        Verify(tag->as<ffi::String>().has_value())
+            << "TypeError: thread_binding annotation must be a string at <current location>";
+        Verify(op->HasTrivialStep())
+            << "ValueError: Thread binding loops require a unit step at <current location>";
+      }
+    }
+    return Parent::Visit_(op);
+  }
+
+  Result Visit_(const SBlockNode* op) override {
+    return WithScope([&]() -> Result {
+      for (size_t i = 0; i < op->iter_vars.size(); ++i) {
+        const auto& axis = op->iter_vars[i];
+        this->Visit(axis->dom);
+        Define(axis->var.as_or_throw<Var>(),
+               AccessPath::Root()->Attr("iter_vars")->ArrayItem(i)->Attr("var"));
+      }
+      for (size_t i = 0; i < op->alloc_tensors.size(); ++i) {
+        Define(op->alloc_tensors[i].var(), AccessPath::Root()->Attr("alloc_tensors")->ArrayItem(i));
+      }
+      for (size_t i = 0; i < op->match_tensors.size(); ++i) {
+        const auto& match = op->match_tensors[i];
+        this->Visit(match->source);
+        auto site = AccessPath::Root()->Attr("match_tensors")->ArrayItem(i)->Attr("tensor");
+        MatchTensorDefinitions(match->tensor, site->Attr("ty"));
+        Define(match->tensor.var(), site);
+      }
+      this->Visit(op->reads);
+      this->Visit(op->writes);
+      WithScope([&]() { return this->Visit(op->init); });
+      return WithScope([&]() { return this->Visit(op->body); });
+    });
+  }
 
  private:
-  void Dispatch_(const ForNode* op, AccessPath path) override {
-    if (auto tag = op->annotations.Get(attr::kThreadBinding)) {
-      Verify(op->kind == ForKind::kParallel)
-          << "ValueError: thread_binding requires a parallel loop at " << path;
-      Verify(tag->as<ffi::String>().has_value())
-          << "TypeError: thread_binding annotation must be a string at " << path;
-      Verify(op->HasTrivialStep())
-          << "ValueError: Thread binding loops require a unit step at " << path;
-    }
-    Verifier::Dispatch_(op, path);
+  static const VTable* GlobalVTable() {
+    static const VTable table = [] {
+      VTable table;
+      Parent::InitVTable(&table);
+      table.Finalize();
+      return table;
+    }();
+    return &table;
   }
 };
 
+bool VerifyThreadBindings(const ffi::ObjectRef& node, bool assert_mode) {
+  return ffi::make_object<WellFormednessVerifier>(WellFormednessVerifier::Check::kThreadBinding,
+                                                  assert_mode)
+      ->Run(node);
+}
+
 bool VerifyWellFormed(const tirx::Function& func, bool assert_mode) {
-  return ThreadBindingVerifier::Verify(func, assert_mode) &&
+  return VerifyThreadBindings(func, assert_mode) &&
          BlockVarAccessVerifier::Verify(func, assert_mode) &&
-         tirx::VerifyWellFormedCommon<TIRVisitorWithPath>(func, assert_mode);
+         tirx::VerifyWellFormedCommon<WellFormednessVerifier>(func, assert_mode);
 }
 
 bool VerifyWellFormed(const IRModule& mod, bool assert_mode) {
-  if (!ThreadBindingVerifier::Verify(mod, assert_mode)) return false;
+  if (!VerifyThreadBindings(mod, assert_mode)) return false;
   for (const auto& [gvar, base_func] : mod->functions) {
     if (auto func = base_func.as<tirx::Function>()) {
       if (!BlockVarAccessVerifier::Verify(func.value(), assert_mode)) return false;
     }
   }
-  return tirx::VerifyWellFormedCommon<TIRVisitorWithPath>(mod, assert_mode);
+  return tirx::VerifyWellFormedCommon<WellFormednessVerifier>(mod, assert_mode);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
