@@ -24,26 +24,26 @@
            with a predicate by another expression.
  */
 
-#ifndef TVM_TIR_TRANSFORM_REPLACE_SELECTED_EXPR_H_
-#define TVM_TIR_TRANSFORM_REPLACE_SELECTED_EXPR_H_
+#ifndef TVM_S_TIR_TRANSFORM_REPLACE_SELECTED_EXPR_H_
+#define TVM_S_TIR_TRANSFORM_REPLACE_SELECTED_EXPR_H_
 
 #include <tvm/ir/expr_functor.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/tirx/stmt.h>
-#include <tvm/tirx/stmt_functor.h>  // For the class StmtExprMutator
+#include <tvm/tirx/stmt_functor.h>  // For the class tirx::StmtExprMutator
 
 namespace tvm {
-namespace tirx {
+namespace s_tir {
 
 /*!
  * \brief Mutator for replacing the expressions selected by a predicate in a statement and/or
           in an expression, which only replace inside of nodes in which it is allowed to perform
           replacecements (given by a second predicate)
  */
-class ReplaceSelectedExpr : public StmtExprMutator {
+class ReplaceSelectedExpr : public tirx::StmtExprMutator {
  public:
-  using StmtExprMutator::Mutate;
-  using StmtExprMutator::Mutate_;
+  using tirx::StmtExprMutator::Mutate;
+  using tirx::StmtExprMutator::Mutate_;
   // Toplevel (static) functions
   static PrimExpr ReplaceSelectedExprInExpr(
       const PrimExpr& expr, std::function<bool(const PrimExpr&)> predicate_selector,
@@ -69,7 +69,7 @@ class ReplaceSelectedExpr : public StmtExprMutator {
   std::function<bool(const PrimExpr&)> can_replace_inside_;
 };
 
-}  // namespace tirx
+}  // namespace s_tir
 }  // namespace tvm
 
-#endif  // TVM_TIR_TRANSFORM_REPLACE_SELECTED_EXPR_H_
+#endif  // TVM_S_TIR_TRANSFORM_REPLACE_SELECTED_EXPR_H_

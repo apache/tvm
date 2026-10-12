@@ -41,7 +41,6 @@
 #include <limits>
 
 #include "../../sym/pattern_match.h"
-#include "../../tirx/ir/pointer_type.h"
 #include "codegen_params.h"
 
 namespace tvm {
@@ -436,13 +435,15 @@ void CodeGenC::RegisterHandleType(const VarNode* buf_var, const PrimType& t) {
 
 void CodeGenC::RegisterHandleTypeFromPointer(const tvm::Var& var, const Expr* value) {
   if (value == nullptr) return;
-  std::optional<PrimType> value_dtype = tirx::GetPtrElementType((*value)->ty);
-  if (!value_dtype.has_value()) return;
+  const auto* pointer_type = (*value)->ty.as<PtrTypeNode>();
+  if (!pointer_type) return;
+  const auto* value_dtype = pointer_type->element_type.as<PrimTypeNode>();
+  if (!value_dtype) return;
   auto* call = value->as<CallNode>();
   if (call != nullptr && call->op.same_as(tirx::ptr_byte_offset_op())) {
     pointer_offset_vars_.insert(var.get());
   }
-  RegisterHandleType(var.get(), value_dtype.value());
+  RegisterHandleType(var.get(), ffi::GetRef<PrimType>(value_dtype));
 }
 
 void CodeGenC::PrintVecElemLoad(const std::string& vec, const PrimType& t, int i,

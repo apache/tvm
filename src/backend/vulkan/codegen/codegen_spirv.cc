@@ -32,10 +32,11 @@
 #include <tvm/tirx/op/region.h>
 #include <tvm/tirx/stmt.h>
 
+#include <stdexcept>
 #include <string>
+#include <utility>
 
 #include "../../../runtime/pack_args.h"
-#include "../../../tirx/transform/ir_utils.h"
 #include "../runtime/vulkan_common.h"
 
 namespace tvm {
@@ -43,6 +44,36 @@ namespace codegen {
 using namespace tvm::prim;
 
 namespace {
+
+int Stoi(const std::string& str) {
+  try {
+    return std::stoi(str);
+  } catch (std::invalid_argument& e) {
+    TVM_FFI_THROW(InternalError) << "Cannot convert \"" << str << "\" to int";
+    throw;
+  }
+}
+
+std::pair<int32_t, int32_t> GetWmmaFragmentDimSize(const std::string& shape_str,
+                                                   const std::string& scope) {
+  size_t m, n, k;
+  size_t last_pos = 0, pos = 0;
+  pos = shape_str.find(", ", last_pos);
+  m = Stoi(shape_str.substr(last_pos, pos - last_pos));
+  last_pos = pos + 2;
+  pos = shape_str.find(", ", last_pos);
+  n = Stoi(shape_str.substr(last_pos, pos - last_pos));
+  last_pos = pos + 2;
+  k = Stoi(shape_str.substr(last_pos, shape_str.length() - last_pos));
+  if (scope == "wmma.matrix_a") {
+    return std::pair<int32_t, int32_t>(m, k);
+  } else if (scope == "wmma.matrix_b") {
+    return std::pair<int32_t, int32_t>(k, n);
+  } else if (scope == "wmma.accumulator") {
+    return std::pair<int32_t, int32_t>(m, n);
+  }
+  return std::pair<int32_t, int32_t>(0, 0);
+}
 
 const IntImmNode* AsIntImmNode(const Expr& expr) {
   const IntImmNode* node = expr.as<IntImmNode>();

@@ -712,8 +712,9 @@ void CodeGenLLVM::GetAlignment(PrimType t, const VarNode* buf_var, const PrimExp
   auto it = alloc_storage_info_.find(buf_var);
   if (it != alloc_storage_info_.end()) {
     const StorageInfo& info = it->second;
-    *p_native_bits = NativeVectorBits(
-        runtime::StorageScope::Create(GetPtrStorageScope(ffi::GetRef<Var>(buf_var))));
+    *p_native_bits = NativeVectorBits(runtime::StorageScope::Create(
+        (buf_var->ty.as<TensorTypeNode>() ? buf_var->ty.as<TensorTypeNode>()->storage_scope
+                                          : buf_var->ty.as_or_throw<PtrType>()->storage_scope)));
     max_align_bits = info.alignment * 8;
   } else {
     *p_native_bits = native_vector_bits_;

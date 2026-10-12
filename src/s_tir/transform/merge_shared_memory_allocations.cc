@@ -34,6 +34,7 @@
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/tirx/op/memory.h>
 #include <tvm/tirx/op/region.h>
 #include <tvm/tirx/stmt.h>
@@ -45,7 +46,6 @@
 
 #include "../../runtime/thread_storage_scope.h"
 #include "../../support/arena.h"
-#include "../../tirx/transform/ir_utils.h"
 
 namespace tvm {
 namespace s_tir {
@@ -55,6 +55,19 @@ using runtime::StorageRank;
 using runtime::StorageScope;
 
 namespace {
+
+ffi::Array<PrimExpr> GetTensorAllocationShape(const TensorVar& tensor) {
+  ffi::Array<PrimExpr> alloc_shape = tensor->shape;
+  if (tensor->strides.size()) {
+    TVM_FFI_ICHECK_EQ(tensor->shape.size(), tensor->strides.size());
+    for (size_t i = tensor->strides.size() - 1; i > 0; --i) {
+      TVM_FFI_ICHECK(
+          sym::Analyzer()->CanProveEqual(floormod(tensor->strides[i - 1], tensor->strides[i]), 0));
+      alloc_shape.Set(i, tensor->strides[i - 1] / tensor->strides[i]);
+    }
+  }
+  return alloc_shape;
+}
 
 ffi::Optional<Var> GetBufferDataVar(const ffi::Any& data) {
   if (auto var = data.as<Var>()) {
@@ -70,12 +83,16 @@ ffi::Optional<Var> GetBufferDataVar(const ffi::Any& data) {
 }  // namespace
 
 bool IsDynamicSharedMemory(Var buffer_var) {
-  StorageScope storage_scope = runtime::StorageScope::Create(GetPtrStorageScope(buffer_var));
+  StorageScope storage_scope = runtime::StorageScope::Create(
+      (buffer_var->ty.as<TensorTypeNode>() ? buffer_var->ty.as<TensorTypeNode>()->storage_scope
+                                           : buffer_var->ty.as_or_throw<PtrType>()->storage_scope));
   return storage_scope.rank == runtime::StorageRank::kShared && storage_scope.tag == ".dyn";
 }
 
 bool IsStaticSharedMemory(Var buffer_var) {
-  StorageScope storage_scope = runtime::StorageScope::Create(GetPtrStorageScope(buffer_var));
+  StorageScope storage_scope = runtime::StorageScope::Create(
+      (buffer_var->ty.as<TensorTypeNode>() ? buffer_var->ty.as<TensorTypeNode>()->storage_scope
+                                           : buffer_var->ty.as_or_throw<PtrType>()->storage_scope));
   return storage_scope.rank == runtime::StorageRank::kShared && storage_scope.tag == "";
 }
 

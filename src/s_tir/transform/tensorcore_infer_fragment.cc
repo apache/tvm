@@ -79,7 +79,9 @@ class FragmentGetter : public s_tir::StmtExprVisitor {
       TVM_FFI_ICHECK(k);
       TVM_FFI_ICHECK(layout);
 
-      std::string scope = GetPtrStorageScope(ffi::GetRef<Var>(buffer_var));
+      std::string scope = (buffer_var->ty.as<TensorTypeNode>()
+                               ? buffer_var->ty.as<TensorTypeNode>()->storage_scope
+                               : buffer_var->ty.as_or_throw<PtrType>()->storage_scope);
       if (fragments.count(buffer_var)) {
         // check if the fragment has met before
         FragmentInfo info = fragments[buffer_var];
@@ -114,7 +116,9 @@ class FragmentGetter : public s_tir::StmtExprVisitor {
       TVM_FFI_ICHECK(n);
       TVM_FFI_ICHECK(k);
 
-      std::string scope = GetPtrStorageScope(ffi::GetRef<Var>(buffer_var));
+      std::string scope = (buffer_var->ty.as<TensorTypeNode>()
+                               ? buffer_var->ty.as<TensorTypeNode>()->storage_scope
+                               : buffer_var->ty.as_or_throw<PtrType>()->storage_scope);
       if (fragments.count(buffer_var)) {
         FragmentInfo info = fragments[buffer_var];
         TVM_FFI_ICHECK_EQ(m->value, info.m);

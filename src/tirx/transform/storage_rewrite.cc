@@ -47,7 +47,6 @@
 
 #include "../../runtime/thread_storage_scope.h"
 #include "../../sym/int_operator.h"
-#include "../ir/pointer_type.h"
 #include "ir_utils.h"
 
 namespace tvm {
@@ -825,7 +824,11 @@ class StoragePlanRewriter : public StmtExprMutator {
 
   Stmt MakeAttach(const std::vector<StorageEntry*>& svec, Stmt body) {
     for (auto it = svec.rbegin(); it != svec.rend(); it++) {
-      body = MergeNest((*it)->alloc_nest, body);
+      if (!(*it)->alloc_nest.empty()) {
+        ffi::Array<Stmt> prefix((*it)->alloc_nest);
+        prefix.push_back(body);
+        body = SeqStmt(prefix);
+      }
     }
     return body;
   }
@@ -1450,12 +1453,15 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
                            BufferVarInfo::kFunctionTensorParam);
         continue;
       }
-      auto pointer_type = GetPtrElementType(buffer_var->ty);
-      if (pointer_type.has_value() && !pointer_type.value().IsVoid()) {
-        PrimType dtype = pointer_type.value();
+      const auto* pointer_type = buffer_var->ty.as<PtrTypeNode>();
+      if (!pointer_type) continue;
+      const auto* element_type = pointer_type->element_type.as<PrimTypeNode>();
+      if (!element_type) continue;
+      PrimType dtype = ffi::GetRef<PrimType>(element_type);
+      if (!dtype.IsVoid()) {
         PrimExpr extent = 0;
         OnArrayDeclaration(buffer_var, dtype, extent, BufferVarInfo::kFunctionPointerParam);
-      } else if (pointer_type.has_value() && allow_untyped_pointers_) {
+      } else if (allow_untyped_pointers_) {
         OnArrayDeclaration(buffer_var, PrimType::Void(), 0, BufferVarInfo::kFunctionPointerParam);
       }
     }
@@ -1536,14 +1542,15 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
   }
 
   void HandleLetNode(Var let_var) {
-    auto pointer_type = GetPtrElementType(let_var->ty);
-    if (pointer_type.has_value()) {
-      if (!pointer_type.value().IsVoid()) {
-        OnArrayDeclaration(let_var, pointer_type.value(), 0, BufferVarInfo::kLetNode);
-      } else if (allow_untyped_pointers_) {
-        OnArrayDeclaration(let_var, PrimType::Void(), 0, BufferVarInfo::kLetNode);
-      }
-      return;
+    const auto* pointer_type = let_var->ty.as<PtrTypeNode>();
+    if (!pointer_type) return;
+    const auto* element_type = pointer_type->element_type.as<PrimTypeNode>();
+    if (!element_type) return;
+    PrimType dtype = ffi::GetRef<PrimType>(element_type);
+    if (!dtype.IsVoid()) {
+      OnArrayDeclaration(let_var, dtype, 0, BufferVarInfo::kLetNode);
+    } else if (allow_untyped_pointers_) {
+      OnArrayDeclaration(let_var, PrimType::Void(), 0, BufferVarInfo::kLetNode);
     }
   }
 
@@ -1792,7 +1799,8 @@ class VectorTypeRewriter : public StmtExprMutator {
             type->layout = std::nullopt;
             return RebuildTensorVar(old_tensor, std::move(type)).var();
           }
-          return Var(old_tensor_var->name, PtrType(preferred, GetPtrStorageScope(old_tensor_var)),
+          return Var(old_tensor_var->name,
+                     PtrType(preferred, old_tensor_var->ty.as_or_throw<PtrType>()->storage_scope),
                      old_tensor_var->loc);
         }();
 
