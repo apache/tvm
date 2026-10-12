@@ -36,19 +36,19 @@ namespace tvm {
 /*!
  * \brief UniqueNameSupply can be used to generate unique names.
  */
-class UniqueNameSupplyNode : public ffi::Object {
+class UniqueNameSupplyObj : public ffi::Object {
  public:
   /*!
    * \brief Empty constructor. Needed by the TVM_REGISTER_NODE_TYPE macro.
    */
-  UniqueNameSupplyNode() = default;
+  UniqueNameSupplyObj() = default;
 
   /*!
    * \brief Constructor.
    * \param prefix The prefix to be used with this UniqueNameSupply.
    * \param name_map The map used to guarantee uniqueness.
    */
-  UniqueNameSupplyNode(const ffi::String& prefix, ffi::Map<ffi::String, int64_t> name_map)
+  UniqueNameSupplyObj(const ffi::String& prefix, ffi::Map<ffi::String, int64_t> name_map)
       : prefix_(prefix), name_map(std::move(name_map)) {}
 
   /*!
@@ -87,10 +87,10 @@ class UniqueNameSupplyNode : public ffi::Object {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<UniqueNameSupplyNode>();
+    refl::ObjectDef<UniqueNameSupplyObj>();
   }
 
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.UniqueNameSupply", UniqueNameSupplyNode, ffi::Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.UniqueNameSupply", UniqueNameSupplyObj, ffi::Object);
 
  private:
   /*! \brief Helper function to add the UniqueNameSupply prefix to the name. */
@@ -109,8 +109,8 @@ class UniqueNameSupplyNode : public ffi::Object {
 };
 
 /*!
- * \brief Managed reference class to UniqueNameSupplyNode.
- * \sa UniqueNameSupplyNode
+ * \brief Managed reference class to UniqueNameSupplyObj.
+ * \sa UniqueNameSupplyObj
  */
 class UniqueNameSupply : public ffi::ObjectRef {
  public:
@@ -135,7 +135,7 @@ class UniqueNameSupply : public ffi::ObjectRef {
   }
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(UniqueNameSupply, ffi::ObjectRef,
-                                                UniqueNameSupplyNode);
+                                                UniqueNameSupplyObj);
 };
 
 }  // namespace tvm

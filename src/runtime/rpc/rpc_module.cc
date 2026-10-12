@@ -135,12 +135,12 @@ class RPCWrappedFunc : public ffi::Object {
 };
 
 // RPC that represents a remote module session.
-class RPCModuleNode final : public ffi::ModuleObj {
+class RPCModuleObj final : public ffi::ModuleObj {
  public:
-  RPCModuleNode(void* module_handle, std::shared_ptr<RPCSession> sess)
+  RPCModuleObj(void* module_handle, std::shared_ptr<RPCSession> sess)
       : module_handle_(module_handle), sess_(sess) {}
 
-  ~RPCModuleNode() {
+  ~RPCModuleObj() {
     if (module_handle_ != nullptr) {
       try {
         sess_->FreeHandle(module_handle_);
@@ -240,7 +240,7 @@ void* RPCWrappedFunc::UnwrapRemoteValueToHandle(const AnyView& arg) const {
     ffi::Module mod = arg.cast<ffi::Module>();
     std::string tkey = mod->kind();
     TVM_FFI_CHECK_EQ(tkey, "rpc", ValueError) << "Cannot pass a non-RPC module to remote";
-    auto* rmod = static_cast<RPCModuleNode*>(mod.operator->());
+    auto* rmod = static_cast<RPCModuleObj*>(mod.operator->());
     TVM_FFI_CHECK(rmod->sess() == sess_, ValueError)
         << "Cannot pass in module into a different remote session";
     return rmod->module_handle();
@@ -267,7 +267,7 @@ void RPCWrappedFunc::WrapRemoteReturnToValue(ffi::PackedArgs args, ffi::Any* rv)
   } else if (type_index == ffi::TypeIndex::kTVMFFIModule) {
     TVM_FFI_ICHECK_EQ(args.size(), 2);
     void* handle = args[1].cast<void*>();
-    auto n = ffi::make_object<RPCModuleNode>(handle, sess_);
+    auto n = ffi::make_object<RPCModuleObj>(handle, sess_);
     *rv = ffi::Module(n);
   } else if (type_index == ffi::TypeIndex::kTVMFFITensor ||
              type_index == ffi::TypeIndex::kTVMFFIDLTensorPtr) {
@@ -293,14 +293,14 @@ void RPCWrappedFunc::WrapRemoteReturnToValue(ffi::PackedArgs args, ffi::Any* rv)
 }
 
 ffi::Module CreateRPCSessionModule(std::shared_ptr<RPCSession> sess) {
-  auto n = ffi::make_object<RPCModuleNode>(nullptr, sess);
+  auto n = ffi::make_object<RPCModuleObj>(nullptr, sess);
   return ffi::Module(n);
 }
 
 std::shared_ptr<RPCSession> RPCModuleGetSession(ffi::Module mod) {
   std::string tkey = mod->kind();
   TVM_FFI_CHECK_EQ(tkey, "rpc", ValueError) << "Cannot pass a non-RPC module to remote";
-  auto* rmod = static_cast<RPCModuleNode*>(mod.operator->());
+  auto* rmod = static_cast<RPCModuleObj*>(mod.operator->());
   return rmod->sess();
 }
 
@@ -369,7 +369,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                ffi::Module m = opt_mod.value();
                std::string tkey = m->kind();
                if (tkey == "rpc") {
-                 return static_cast<RPCModuleNode*>(m.operator->())
+                 return static_cast<RPCModuleObj*>(m.operator->())
                      ->GetTimeEvaluator(name, dev, number, repeat, min_repeat_ms,
                                         limit_zero_time_iterations, cooldown_interval_ms,
                                         repeats_to_cooldown, cache_flush_bytes, f_preproc_name);
@@ -428,13 +428,13 @@ TVM_FFI_STATIC_INIT_BLOCK() {
            [](ffi::Module sess, std::string name) {
              std::string tkey = sess->kind();
              TVM_FFI_ICHECK_EQ(tkey, "rpc");
-             return static_cast<RPCModuleNode*>(sess.operator->())->LoadModule(name);
+             return static_cast<RPCModuleObj*>(sess.operator->())->LoadModule(name);
            })
       .def("rpc.ImportRemoteModule",
            [](ffi::Module parent, ffi::Module child) {
              std::string tkey = parent->kind();
              TVM_FFI_ICHECK_EQ(tkey, "rpc");
-             static_cast<RPCModuleNode*>(parent.operator->())->ImportModule(child);
+             static_cast<RPCModuleObj*>(parent.operator->())->ImportModule(child);
            })
       .def("rpc.ValidateDevice",
            [](ffi::Module mod, RemoteDevice dev) {
@@ -461,7 +461,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
              sess->EnsureOpen();
              TVM_FFI_CHECK(sess == dev->sess, ValueError)
                  << "Device belongs to a different remote session";
-             return static_cast<RPCModuleNode*>(mod.operator->())
+             return static_cast<RPCModuleObj*>(mod.operator->())
                  ->GetTimeEvaluator(name, dev->endpoint_device, number, repeat, min_repeat_ms,
                                     limit_zero_time_iterations, cooldown_interval_ms,
                                     repeats_to_cooldown, cache_flush_bytes, f_preproc_name);

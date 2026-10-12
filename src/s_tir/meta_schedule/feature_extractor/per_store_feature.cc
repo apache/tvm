@@ -1508,7 +1508,7 @@ namespace tvm {
 namespace s_tir {
 namespace meta_schedule {
 
-class PerStoreFeatureNode : public FeatureExtractorNode {
+class PerStoreFeatureObj : public FeatureExtractorObj {
  public:
   int tensors_per_store;
   int arith_intensity_curve_num_samples;
@@ -1518,13 +1518,13 @@ class PerStoreFeatureNode : public FeatureExtractorNode {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<PerStoreFeatureNode>()
-        .def_ro("tensors_per_store", &PerStoreFeatureNode::tensors_per_store)
+    refl::ObjectDef<PerStoreFeatureObj>()
+        .def_ro("tensors_per_store", &PerStoreFeatureObj::tensors_per_store)
         .def_ro("arith_intensity_curve_num_samples",
-                &PerStoreFeatureNode::arith_intensity_curve_num_samples)
-        .def_ro("cache_line_bytes", &PerStoreFeatureNode::cache_line_bytes)
-        .def_ro("extract_workload", &PerStoreFeatureNode::extract_workload)
-        .def_ro("feature_vector_length", &PerStoreFeatureNode::feature_vector_length);
+                &PerStoreFeatureObj::arith_intensity_curve_num_samples)
+        .def_ro("cache_line_bytes", &PerStoreFeatureObj::cache_line_bytes)
+        .def_ro("extract_workload", &PerStoreFeatureObj::extract_workload)
+        .def_ro("feature_vector_length", &PerStoreFeatureObj::feature_vector_length);
   }
 
   void ExtractSingle(IRModule mod, bool is_gpu, std::vector<std::vector<double>>* results) {
@@ -1573,14 +1573,14 @@ class PerStoreFeatureNode : public FeatureExtractorNode {
     for (auto& result : results) features.push_back(std::move(result).value());
     return features;
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.meta_schedule.PerStoreFeature", PerStoreFeatureNode,
-                                    FeatureExtractorNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.meta_schedule.PerStoreFeature", PerStoreFeatureObj,
+                                    FeatureExtractorObj);
 };
 
 FeatureExtractor FeatureExtractor::PerStoreFeature(int tensors_per_store,
                                                    int arith_intensity_curve_num_samples,
                                                    int cache_line_bytes, bool extract_workload) {
-  ffi::ObjectPtr<PerStoreFeatureNode> n = ffi::make_object<PerStoreFeatureNode>();
+  ffi::ObjectPtr<PerStoreFeatureObj> n = ffi::make_object<PerStoreFeatureObj>();
   n->tensors_per_store = tensors_per_store;
   n->arith_intensity_curve_num_samples = arith_intensity_curve_num_samples;
   n->cache_line_bytes = cache_line_bytes;
@@ -1596,7 +1596,7 @@ FeatureExtractor FeatureExtractor::PerStoreFeature(int tensors_per_store,
   return FeatureExtractor(ffi::UnsafeInit{}, n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK() { PerStoreFeatureNode::RegisterReflection(); }
+TVM_FFI_STATIC_INIT_BLOCK() { PerStoreFeatureObj::RegisterReflection(); }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;

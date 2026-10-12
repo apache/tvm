@@ -28,7 +28,7 @@ namespace meta_schedule {
 
 BuilderInput::BuilderInput(IRModule mod, Target target,
                            ffi::Optional<ffi::Map<ffi::String, runtime::Tensor>> params) {
-  ffi::ObjectPtr<BuilderInputNode> n = ffi::make_object<BuilderInputNode>(target);
+  ffi::ObjectPtr<BuilderInputObj> n = ffi::make_object<BuilderInputObj>(target);
   n->mod = std::move(mod);
   n->params = std::move(params);
   data_ = std::move(n);
@@ -36,14 +36,14 @@ BuilderInput::BuilderInput(IRModule mod, Target target,
 
 BuilderResult::BuilderResult(ffi::Optional<ffi::String> artifact_path,
                              ffi::Optional<ffi::String> error_msg) {
-  ffi::ObjectPtr<BuilderResultNode> n = ffi::make_object<BuilderResultNode>();
+  ffi::ObjectPtr<BuilderResultObj> n = ffi::make_object<BuilderResultObj>();
   n->artifact_path = std::move(artifact_path);
   n->error_msg = std::move(error_msg);
   data_ = std::move(n);
 }
 
-Builder Builder::PyBuilder(BuilderNode::FBuild f_build) {
-  ffi::ObjectPtr<PyBuilderNode> n = ffi::make_object<PyBuilderNode>();
+Builder Builder::PyBuilder(BuilderObj::FBuild f_build) {
+  ffi::ObjectPtr<PyBuilderObj> n = ffi::make_object<PyBuilderObj>();
   n->f_build = std::move(f_build);
   return Builder(std::move(n));
 }
@@ -51,9 +51,9 @@ Builder Builder::PyBuilder(BuilderNode::FBuild f_build) {
 /******** FFI ********/
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  BuilderInputNode::RegisterReflection();
-  BuilderResultNode::RegisterReflection();
-  PyBuilderNode::RegisterReflection();
+  BuilderInputObj::RegisterReflection();
+  BuilderResultObj::RegisterReflection();
+  PyBuilderObj::RegisterReflection();
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -67,7 +67,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("s_tir.meta_schedule.BuilderResult",
            [](ffi::Optional<ffi::String> artifact_path, ffi::Optional<ffi::String> error_msg)
                -> BuilderResult { return BuilderResult(artifact_path, error_msg); })
-      .def_method("s_tir.meta_schedule.BuilderBuild", &BuilderNode::Build)
+      .def_method("s_tir.meta_schedule.BuilderBuild", &BuilderObj::Build)
       .def("s_tir.meta_schedule.BuilderPyBuilder", Builder::PyBuilder);
 }
 

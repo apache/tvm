@@ -27,7 +27,7 @@ namespace tvm {
 namespace runtime {
 namespace vulkan {
 
-VulkanTimerNode::VulkanTimerNode(Device dev) : dev_(dev) {
+VulkanTimerObj::VulkanTimerObj(Device dev) : dev_(dev) {
   // Get the Vulkan device and stream
   auto& vk_dev = VulkanDeviceAPI::Global()->device(dev_.device_id);
   stream_ = &vk_dev.ThreadLocalStream();
@@ -40,9 +40,9 @@ VulkanTimerNode::VulkanTimerNode(Device dev) : dev_(dev) {
   CreateQueryPool();
 }
 
-VulkanTimerNode::~VulkanTimerNode() { Cleanup(); }
+VulkanTimerObj::~VulkanTimerObj() { Cleanup(); }
 
-void VulkanTimerNode::CreateQueryPool() {
+void VulkanTimerObj::CreateQueryPool() {
   VkQueryPoolCreateInfo query_pool_info{};
   query_pool_info.sType = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO;
   query_pool_info.queryType = VK_QUERY_TYPE_TIMESTAMP;
@@ -52,7 +52,7 @@ void VulkanTimerNode::CreateQueryPool() {
   TVM_FFI_ICHECK(res == VK_SUCCESS) << "Failed to create Vulkan query pool.";
 }
 
-void VulkanTimerNode::Start() {
+void VulkanTimerObj::Start() {
   stream_->Launch([this](VulkanStreamState* state) {
     // Reset the query pool before writing timestamps
     vkCmdResetQueryPool(state->cmd_buffer_, query_pool_, start_query_, 2);
@@ -61,7 +61,7 @@ void VulkanTimerNode::Start() {
   });
 }
 
-void VulkanTimerNode::Stop() {
+void VulkanTimerObj::Stop() {
   stream_->Launch([this](VulkanStreamState* state) {
     vkCmdWriteTimestamp(state->cmd_buffer_, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, query_pool_,
                         end_query_);
@@ -72,9 +72,9 @@ void VulkanTimerNode::Stop() {
   CollectTimestamps();
 }
 
-int64_t VulkanTimerNode::SyncAndGetElapsedNanos() { return duration_; }
+int64_t VulkanTimerObj::SyncAndGetElapsedNanos() { return duration_; }
 
-void VulkanTimerNode::CollectTimestamps() {
+void VulkanTimerObj::CollectTimestamps() {
   uint64_t timestamps[2] = {0};
 
   VkResult result =
@@ -88,7 +88,7 @@ void VulkanTimerNode::CollectTimestamps() {
   duration_ = static_cast<int64_t>(static_cast<double>(diff) * timestamp_period_);
 }
 
-void VulkanTimerNode::Cleanup() {
+void VulkanTimerObj::Cleanup() {
   if (query_pool_ != VK_NULL_HANDLE) {
     vkDestroyQueryPool(device_, query_pool_, nullptr);
     query_pool_ = VK_NULL_HANDLE;

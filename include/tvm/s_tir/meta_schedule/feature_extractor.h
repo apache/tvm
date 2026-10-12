@@ -35,14 +35,14 @@ namespace meta_schedule {
 class TuneContext;
 
 /*! \brief Extractor for features from measure candidates for use in cost model. */
-class FeatureExtractorNode : public ffi::Object {
+class FeatureExtractorObj : public ffi::Object {
  public:
   /*! \brief Virtual destructor. */
-  virtual ~FeatureExtractorNode() = default;
+  virtual ~FeatureExtractorObj() = default;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<FeatureExtractorNode>();
+    refl::ObjectDef<FeatureExtractorObj>();
   }
 
   /*!
@@ -53,12 +53,12 @@ class FeatureExtractorNode : public ffi::Object {
    */
   virtual ffi::Array<tvm::runtime::Tensor> ExtractFrom(
       const TuneContext& context, const ffi::Array<MeasureCandidate>& candidates) = 0;
-  TVM_FFI_DECLARE_OBJECT_INFO("s_tir.meta_schedule.FeatureExtractor", FeatureExtractorNode,
+  TVM_FFI_DECLARE_OBJECT_INFO("s_tir.meta_schedule.FeatureExtractor", FeatureExtractorObj,
                               ffi::Object);
 };
 
 /*! \brief The feature extractor with customized methods on the python-side. */
-class PyFeatureExtractorNode : public FeatureExtractorNode {
+class PyFeatureExtractorObj : public FeatureExtractorObj {
  public:
   /*!
    * \brief Extract features from the given measure candidate.
@@ -74,22 +74,22 @@ class PyFeatureExtractorNode : public FeatureExtractorNode {
   static void RegisterReflection() {
     // `f_extract_from` is not registered
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<PyFeatureExtractorNode>();
+    refl::ObjectDef<PyFeatureExtractorObj>();
   }
 
   ffi::Array<tvm::runtime::Tensor> ExtractFrom(
       const TuneContext& context, const ffi::Array<MeasureCandidate>& candidates) final;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.meta_schedule.PyFeatureExtractor",
-                                    PyFeatureExtractorNode, FeatureExtractorNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.meta_schedule.PyFeatureExtractor", PyFeatureExtractorObj,
+                                    FeatureExtractorObj);
 };
 
 /*!
- * \brief Managed reference to FeatureExtractorNode
- * \sa FeatureExtractorNode
+ * \brief Managed reference to FeatureExtractorObj
+ * \sa FeatureExtractorObj
  */
 class FeatureExtractor : public ffi::ObjectRef {
  public:
-  explicit FeatureExtractor(ffi::UnsafeInit tag, ffi::ObjectPtr<FeatureExtractorNode> data)
+  explicit FeatureExtractor(ffi::UnsafeInit tag, ffi::ObjectPtr<FeatureExtractorObj> data)
       : ffi::ObjectRef(tag) {
     data_ = std::move(data);
   }
@@ -114,9 +114,9 @@ class FeatureExtractor : public ffi::ObjectRef {
    * \return The feature extractor created.
    */
   TVM_DLL static FeatureExtractor PyFeatureExtractor(
-      PyFeatureExtractorNode::FExtractFrom f_extract_from);
+      PyFeatureExtractorObj::FExtractFrom f_extract_from);
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(FeatureExtractor, ffi::ObjectRef,
-                                                FeatureExtractorNode);
+                                                FeatureExtractorObj);
 };
 
 }  // namespace meta_schedule

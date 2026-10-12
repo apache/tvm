@@ -51,12 +51,12 @@ struct VulkanPipeline {
   bool use_ubo{false};
 };
 
-class VulkanModuleNode;
+class VulkanModuleObj;
 
 // a wrapped function class to get packed func.
 class VulkanWrappedFunc {
  public:
-  void Init(VulkanModuleNode* m, ffi::ObjectPtr<ffi::Object> sptr, const std::string& func_name,
+  void Init(VulkanModuleObj* m, ffi::ObjectPtr<ffi::Object> sptr, const std::string& func_name,
             size_t num_buffer_args, size_t num_pack_args,
             const ffi::Array<ffi::String>& launch_param_tags);
 
@@ -64,7 +64,7 @@ class VulkanWrappedFunc {
 
  private:
   // internal module
-  VulkanModuleNode* m_;
+  VulkanModuleObj* m_;
   // the resource holder
   ffi::ObjectPtr<ffi::Object> sptr_;
   // v The name of the function.
@@ -80,18 +80,18 @@ class VulkanWrappedFunc {
   mutable std::array<std::shared_ptr<VulkanPipeline>, kVulkanMaxNumDevice> scache_;
 };
 
-class VulkanModuleNode final : public ffi::ModuleObj {
+class VulkanModuleObj final : public ffi::ModuleObj {
  public:
-  explicit VulkanModuleNode(std::unordered_map<std::string, SPIRVShader> internal_smap,
-                            ffi::Map<ffi::String, ffi::Bytes> smap, ffi::String fmt,
-                            ffi::Map<ffi::String, FunctionInfo> fmap,
-                            ffi::Map<ffi::String, ffi::String> source)
+  explicit VulkanModuleObj(std::unordered_map<std::string, SPIRVShader> internal_smap,
+                           ffi::Map<ffi::String, ffi::Bytes> smap, ffi::String fmt,
+                           ffi::Map<ffi::String, FunctionInfo> fmap,
+                           ffi::Map<ffi::String, ffi::String> source)
       : internal_smap_(std::move(internal_smap)),
         smap_(std::move(smap)),
         fmt_(std::move(fmt)),
         fmap_(std::move(fmap)),
         source_(std::move(source)) {}
-  ~VulkanModuleNode();
+  ~VulkanModuleObj();
 
   const char* kind() const final { return "vulkan"; }
 
@@ -112,7 +112,7 @@ class VulkanModuleNode final : public ffi::ModuleObj {
   // Deserialized SPIRV shaders, used by GetPipeline at runtime.
   std::unordered_map<std::string, SPIRVShader> internal_smap_;
   // Per-kernel serialized SPIRVShader bytes, kept for byte-identical
-  // SaveToBytes vs target::VulkanFallbackModuleNode.  Both forms carry
+  // SaveToBytes vs target::VulkanFallbackModuleObj.  Both forms carry
   // the same shaders; internal_smap_ is the deserialized cache.
   ffi::Map<ffi::String, ffi::Bytes> smap_;
   // The format identifier — always "vulkan" today.

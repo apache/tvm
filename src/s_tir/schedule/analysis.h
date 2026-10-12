@@ -83,7 +83,7 @@ StmtSRef GetSRefTreeRoot(const StmtSRef& sref);
  * \param sref The given sref
  * \param analyzer The analyzer to be bound
  */
-void AddShapeVarBounds(const ScheduleState& state, const StmtSRefNode* sref,
+void AddShapeVarBounds(const ScheduleState& state, const StmtSRefObj* sref,
                        sym::AnalyzerObj* analyzer);
 
 /******** Scope ********/
@@ -741,7 +741,7 @@ ffi::Array<sym::IntSet> AnalyzeRegionLowerBound(const TensorRegion& region,
 PrimExpr SimplifyNonTrivialExpr(const PrimExpr& expr, sym::AnalyzerObj* analyzer);
 
 /*! \brief Necessary information used for tensorization */
-class TensorizeInfoNode : public ffi::Object {
+class TensorizeInfoObj : public ffi::Object {
  public:
   /*! \brief Maps loops in a target block to the ones in an intrinsic description */
   ffi::Map<tirx::StmtSRef, For> loop_map;
@@ -754,20 +754,20 @@ class TensorizeInfoNode : public ffi::Object {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<TensorizeInfoNode>()
-        .def_ro("loop_map", &TensorizeInfoNode::loop_map)
-        .def_ro("desc_loop_indexer", &TensorizeInfoNode::desc_loop_indexer)
-        .def_ro("block_iter_paddings", &TensorizeInfoNode::block_iter_paddings);
+    refl::ObjectDef<TensorizeInfoObj>()
+        .def_ro("loop_map", &TensorizeInfoObj::loop_map)
+        .def_ro("desc_loop_indexer", &TensorizeInfoObj::desc_loop_indexer)
+        .def_ro("block_iter_paddings", &TensorizeInfoObj::block_iter_paddings);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.schedule.TensorizeInfo", TensorizeInfoNode, ffi::Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.schedule.TensorizeInfo", TensorizeInfoObj, ffi::Object);
 };
 
 class TensorizeInfo : public ffi::ObjectRef {
  public:
-  explicit TensorizeInfo(ffi::ObjectPtr<TensorizeInfoNode> data) : ffi::ObjectRef(data) {
+  explicit TensorizeInfo(ffi::ObjectPtr<TensorizeInfoObj> data) : ffi::ObjectRef(data) {
     TVM_FFI_ICHECK(data != nullptr);
   }
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TensorizeInfo, ffi::ObjectRef, TensorizeInfoNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TensorizeInfo, ffi::ObjectRef, TensorizeInfoObj);
 };
 
 /*!
@@ -784,7 +784,7 @@ ffi::Optional<TensorizeInfo> GetTensorizeLoopMapping(const s_tir::ScheduleState&
                                                      bool allow_padding);
 
 /*！\brief Necessary information used to perform transformations for tensorization */
-class AutoTensorizeMappingInfoNode : public ffi::Object {
+class AutoTensorizeMappingInfoObj : public ffi::Object {
  public:
   /*! \brief Possible mappings to apply to block iters */
   ffi::Array<IndexMap> mappings;
@@ -802,25 +802,25 @@ class AutoTensorizeMappingInfoNode : public ffi::Object {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<AutoTensorizeMappingInfoNode>()
-        .def_ro("mappings", &AutoTensorizeMappingInfoNode::mappings)
-        .def_ro("lhs_tensor_map", &AutoTensorizeMappingInfoNode::lhs_tensor_map)
-        .def_ro("rhs_tensor_indices", &AutoTensorizeMappingInfoNode::rhs_tensor_indices)
-        .def_ro("lhs_iters", &AutoTensorizeMappingInfoNode::lhs_iters)
-        .def_ro("rhs_iters", &AutoTensorizeMappingInfoNode::rhs_iters);
+    refl::ObjectDef<AutoTensorizeMappingInfoObj>()
+        .def_ro("mappings", &AutoTensorizeMappingInfoObj::mappings)
+        .def_ro("lhs_tensor_map", &AutoTensorizeMappingInfoObj::lhs_tensor_map)
+        .def_ro("rhs_tensor_indices", &AutoTensorizeMappingInfoObj::rhs_tensor_indices)
+        .def_ro("lhs_iters", &AutoTensorizeMappingInfoObj::lhs_iters)
+        .def_ro("rhs_iters", &AutoTensorizeMappingInfoObj::rhs_iters);
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.schedule.AutoTensorizeMappingInfo",
-                                    AutoTensorizeMappingInfoNode, ffi::Object);
+                                    AutoTensorizeMappingInfoObj, ffi::Object);
 };
 
 class AutoTensorizeMappingInfo : public ffi::ObjectRef {
  public:
-  explicit AutoTensorizeMappingInfo(ffi::ObjectPtr<AutoTensorizeMappingInfoNode> data)
+  explicit AutoTensorizeMappingInfo(ffi::ObjectPtr<AutoTensorizeMappingInfoObj> data)
       : ffi::ObjectRef(data) {
     TVM_FFI_ICHECK(data != nullptr);
   }
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(AutoTensorizeMappingInfo, ffi::ObjectRef,
-                                                AutoTensorizeMappingInfoNode);
+                                                AutoTensorizeMappingInfoObj);
 };
 
 /*!

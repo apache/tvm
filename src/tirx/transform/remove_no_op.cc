@@ -42,32 +42,32 @@ namespace tvm {
 namespace tirx {
 using namespace tvm::prim;
 
-struct RemoveNoOpConfigNode : public ffi::Object {
+struct RemoveNoOpConfigObj : public ffi::Object {
   int64_t max_simplification_steps;
   bool ignore_profiler_call;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<RemoveNoOpConfigNode>()
-        .def_ro("max_simplification_steps", &RemoveNoOpConfigNode::max_simplification_steps,
+    refl::ObjectDef<RemoveNoOpConfigObj>()
+        .def_ro("max_simplification_steps", &RemoveNoOpConfigObj::max_simplification_steps,
                 "If non-zero, RewriteSimplifier will throw an error "
                 "after the number of steps specified.  "
                 "For use in debug and testing purposes.",
                 refl::DefaultValue(0))
-        .def_ro("ignore_profiler_call", &RemoveNoOpConfigNode::ignore_profiler_call,
+        .def_ro("ignore_profiler_call", &RemoveNoOpConfigObj::ignore_profiler_call,
                 "If true, profiler calls are rendered as no-ops.", refl::DefaultValue(false));
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.transform.RemoveNoOpConfig", RemoveNoOpConfigNode,
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.transform.RemoveNoOpConfig", RemoveNoOpConfigObj,
                                     ffi::Object);
 };
 
 class RemoveNoOpConfig : public ffi::ObjectRef {
  public:
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(RemoveNoOpConfig, ffi::ObjectRef,
-                                                RemoveNoOpConfigNode);
+                                                RemoveNoOpConfigObj);
 };
 
-TVM_FFI_STATIC_INIT_BLOCK() { RemoveNoOpConfigNode::RegisterReflection(); }
+TVM_FFI_STATIC_INIT_BLOCK() { RemoveNoOpConfigObj::RegisterReflection(); }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ::tvm::transform::PassContext::RegisterConfigOption<RemoveNoOpConfig>("tirx.RemoveNoOp");

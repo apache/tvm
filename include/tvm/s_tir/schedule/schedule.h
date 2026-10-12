@@ -106,14 +106,14 @@ using ExprRVNode = ExprNode;
 class Schedule;
 
 /*! \brief The user-facing schedule class */
-class ScheduleNode : public ffi::Object {
+class ScheduleObj : public ffi::Object {
   friend class Schedule;
 
  public:
-  virtual ~ScheduleNode() = default;
+  virtual ~ScheduleObj() = default;
 
   static constexpr const bool _type_mutable = true;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.Schedule", ScheduleNode, ffi::Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.Schedule", ScheduleObj, ffi::Object);
 
  public:
   /*! \brief Get the IRModule associated with this schedule. */
@@ -870,7 +870,7 @@ class ScheduleNode : public ffi::Object {
 };
 
 /*!
- * \brief Managed reference to ScheduleNode
+ * \brief Managed reference to ScheduleObj
  *
  * A schedule is a set of transformations that change the order of computation but
  * preserve the semantics of computation. Some example of schedules:
@@ -882,11 +882,11 @@ class ScheduleNode : public ffi::Object {
  *
  * Link to tutorial: https://tvm.apache.org/docs/tutorials/language/schedule_primitives.html
  *
- * \sa ScheduleNode
+ * \sa ScheduleObj
  */
 class Schedule : public ffi::ObjectRef {
  public:
-  explicit Schedule(ffi::UnsafeInit tag, ffi::ObjectPtr<ScheduleNode> data) : ffi::ObjectRef(tag) {
+  explicit Schedule(ffi::UnsafeInit tag, ffi::ObjectPtr<ScheduleObj> data) : ffi::ObjectRef(tag) {
     data_ = std::move(data);
   }
 
@@ -923,7 +923,7 @@ class Schedule : public ffi::ObjectRef {
   TVM_DLL static Schedule Traced(IRModule mod, LinearCongruentialEngine::TRandState seed,
                                  int debug_mask, ScheduleErrorRenderLevel error_render_level,
                                  bool enable_check = true);
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Schedule, ffi::ObjectRef, ScheduleNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Schedule, ffi::ObjectRef, ScheduleObj);
 };
 
 }  // namespace s_tir

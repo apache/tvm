@@ -38,10 +38,10 @@ namespace tvm {
 namespace sym {
 using namespace tvm::prim;
 
-TVM_FFI_STATIC_INIT_BLOCK() { ModularSetNode::RegisterReflection(); }
+TVM_FFI_STATIC_INIT_BLOCK() { ModularSetObj::RegisterReflection(); }
 
 ModularSet::ModularSet(int64_t coeff, int64_t base) {
-  auto node = ffi::make_object<ModularSetNode>();
+  auto node = ffi::make_object<ModularSetObj>();
   node->coeff = coeff;
   node->base = base;
   // finish construction.

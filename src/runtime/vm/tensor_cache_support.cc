@@ -290,7 +290,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 // This param module node can be useful to get param dict in RPC mode
 // when the remote already have loaded parameters from file.
-class ParamModuleNode : public ffi::ModuleObj {
+class ParamModuleObj : public ffi::ModuleObj {
  public:
   const char* kind() const final { return "param_module"; }
 
@@ -332,13 +332,13 @@ class ParamModuleNode : public ffi::ModuleObj {
   }
 
   static ffi::Module Create(const std::string& prefix, int num_params) {
-    auto n = ffi::make_object<ParamModuleNode>();
+    auto n = ffi::make_object<ParamModuleObj>();
     n->params_ = GetParams(prefix, num_params);
     return ffi::Module(n);
   }
 
   static ffi::Module CreateByName(const ffi::Array<ffi::String>& names) {
-    auto n = ffi::make_object<ParamModuleNode>();
+    auto n = ffi::make_object<ParamModuleObj>();
     n->params_ = GetParamByName(names);
     return ffi::Module(n);
   }
@@ -350,10 +350,10 @@ class ParamModuleNode : public ffi::ModuleObj {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("vm.builtin.param_module_from_cache", ParamModuleNode::Create)
-      .def("vm.builtin.param_module_from_cache_by_name", ParamModuleNode::CreateByName)
-      .def("vm.builtin.param_array_from_cache", ParamModuleNode::GetParams)
-      .def("vm.builtin.param_array_from_cache_by_name", ParamModuleNode::GetParamByName)
+      .def("vm.builtin.param_module_from_cache", ParamModuleObj::Create)
+      .def("vm.builtin.param_module_from_cache_by_name", ParamModuleObj::CreateByName)
+      .def("vm.builtin.param_array_from_cache", ParamModuleObj::GetParams)
+      .def("vm.builtin.param_array_from_cache_by_name", ParamModuleObj::GetParamByName)
       .def_packed("vm.builtin.param_array_from_cache_by_name_unpacked",
                   [](ffi::PackedArgs args, ffi::Any* rv) {
                     ffi::Array<ffi::String> names;
@@ -365,7 +365,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                       }
                       names.push_back(args[i].cast<ffi::String>());
                     }
-                    *rv = ParamModuleNode::GetParamByName(names);
+                    *rv = ParamModuleObj::GetParamByName(names);
                   });
 }
 

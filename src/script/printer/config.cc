@@ -64,7 +64,7 @@ const ffi::Map<ffi::String, ffi::String>& GetNamespaceAliases() { return Namespa
 }  // namespace script
 
 PrinterConfig::PrinterConfig(ffi::Map<ffi::String, Any> config_dict) {
-  ffi::ObjectPtr<PrinterConfigNode> n = ffi::make_object<PrinterConfigNode>();
+  ffi::ObjectPtr<PrinterConfigObj> n = ffi::make_object<PrinterConfigObj>();
   std::unordered_set<ffi::String> core_keys;
   auto get = [&](const char* key) {
     core_keys.insert(key);
@@ -161,7 +161,7 @@ PrinterConfig::PrinterConfig(ffi::Map<ffi::String, Any> config_dict) {
   this->data_ = std::move(n);
 }
 
-ffi::Array<ffi::String> PrinterConfigNode::GetBuiltinKeywords() {
+ffi::Array<ffi::String> PrinterConfigObj::GetBuiltinKeywords() {
   TVM_FFI_ICHECK(IsIdentifier(std::string(ir_prefix))) << "Invalid `ir_prefix`: " << ir_prefix;
   TVM_FFI_ICHECK(module_alias.empty() || IsIdentifier(std::string(module_alias)))
       << "Invalid `module_alias`: " << module_alias;
@@ -181,7 +181,7 @@ ffi::Array<ffi::String> PrinterConfigNode::GetBuiltinKeywords() {
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  PrinterConfigNode::RegisterReflection();
+  PrinterConfigObj::RegisterReflection();
   auto make_config = [](ffi::Map<ffi::String, Any> config_dict) {
     return PrinterConfig(config_dict);
   };

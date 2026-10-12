@@ -45,7 +45,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 IRModuleFrame IRModule() {
-  ffi::ObjectPtr<IRModuleFrameNode> n = ffi::make_object<IRModuleFrameNode>();
+  ffi::ObjectPtr<IRModuleFrameObj> n = ffi::make_object<IRModuleFrameObj>();
   n->global_var_map.clear();
   n->functions.clear();
   return IRModuleFrame(n);
@@ -216,7 +216,7 @@ ForFrame For(ForKind kind, PrimExpr start, PrimExpr stop, ffi::Optional<PrimExpr
   if (step.has_value()) {
     step = ConvertLoopBound(step.value(), var_ty);
   }
-  ffi::ObjectPtr<ForFrameNode> n = ffi::make_object<ForFrameNode>();
+  ffi::ObjectPtr<ForFrameObj> n = ffi::make_object<ForFrameObj>();
   n->vars = {Var("v", var_ty)};
   n->doms = {Range::FromMinExtent(min, extent)};
   n->steps = {step};
@@ -237,7 +237,7 @@ ForFrame Grid(ffi::Array<ffi::Variant<PrimExpr, ffi::Tuple<PrimExpr, PrimExpr>>>
   if (dtype.has_value()) {
     ir::CheckExplicitIndexDtype(dtype.value());
   }
-  ffi::ObjectPtr<ForFrameNode> n = ffi::make_object<ForFrameNode>();
+  ffi::ObjectPtr<ForFrameObj> n = ffi::make_object<ForFrameObj>();
   n->vars.reserve(extents.size());
   n->doms.reserve(extents.size());
   n->steps.resize(extents.size());
@@ -278,8 +278,8 @@ ForFrame Grid(ffi::Array<ffi::Variant<PrimExpr, ffi::Tuple<PrimExpr, PrimExpr>>>
 
 AssertFrame Assert(PrimExpr condition, ffi::String error_kind,
                    ffi::Array<ffi::String> message_parts) {
-  ffi::ObjectPtr<AssertFrameNode> n =
-      ffi::make_object<AssertFrameNode>(condition, tvm::StringImm(error_kind));
+  ffi::ObjectPtr<AssertFrameObj> n =
+      ffi::make_object<AssertFrameObj>(condition, tvm::StringImm(error_kind));
   ffi::Array<tvm::StringImm> parts;
   for (const auto& p : message_parts) {
     parts.push_back(tvm::StringImm(p));
@@ -309,7 +309,7 @@ RegionFrame Region(Op op, ffi::Array<Expr> args, ffi::Optional<ffi::Array<Var>> 
       << op->name << " does not support region construction: FRegionGetBodyParams is required";
   auto params =
       body_params.has_value() ? body_params.value() : tvm::GetRegionBodyParams(op, args, attrs);
-  auto n = ffi::make_object<RegionFrameNode>(std::move(op));
+  auto n = ffi::make_object<RegionFrameObj>(std::move(op));
   n->args = std::move(args);
   n->body_params = std::move(params);
   n->attrs = std::move(attrs);
@@ -317,7 +317,7 @@ RegionFrame Region(Op op, ffi::Array<Expr> args, ffi::Optional<ffi::Array<Var>> 
 }
 
 WhileFrame While(PrimExpr condition) {
-  ffi::ObjectPtr<WhileFrameNode> n = ffi::make_object<WhileFrameNode>(condition);
+  ffi::ObjectPtr<WhileFrameObj> n = ffi::make_object<WhileFrameObj>(condition);
   return WhileFrame(n);
 }
 
@@ -340,19 +340,19 @@ tvm::Stmt Continue() {
 }
 
 IfFrame If(PrimExpr condition) {
-  ffi::ObjectPtr<IfFrameNode> n = ffi::make_object<IfFrameNode>(condition);
+  ffi::ObjectPtr<IfFrameObj> n = ffi::make_object<IfFrameObj>(condition);
   n->then_stmts = std::nullopt;
   n->else_stmts = std::nullopt;
   return IfFrame(n);
 }
 
 ThenFrame Then() {
-  ffi::ObjectPtr<ThenFrameNode> n = ffi::make_object<ThenFrameNode>();
+  ffi::ObjectPtr<ThenFrameObj> n = ffi::make_object<ThenFrameObj>();
   return ThenFrame(n);
 }
 
 ElseFrame Else() {
-  ffi::ObjectPtr<ElseFrameNode> n = ffi::make_object<ElseFrameNode>();
+  ffi::ObjectPtr<ElseFrameObj> n = ffi::make_object<ElseFrameObj>();
   return ElseFrame(n);
 }
 

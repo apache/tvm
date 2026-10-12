@@ -174,7 +174,7 @@ struct ReadWriteAtImpl {
   }
 
  private:
-  static ffi::Map<Var, Range> GetLoopDomain(const StmtSRefNode* loop_sref) {
+  static ffi::Map<Var, Range> GetLoopDomain(const StmtSRefObj* loop_sref) {
     ffi::Map<Var, Range> result;
     for (const ForNode* loop; (loop = loop_sref->StmtAs<ForNode>()) != nullptr;
          loop_sref = loop_sref->parent) {

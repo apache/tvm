@@ -141,7 +141,7 @@ struct ExecContext {
 
 /*!
  * \brief Encode one side of an ExecSplit (inter or intra) as the FFI map used
- * by ``DispatchContextNode::{inter, intra}``: axis name -> [extent, offset]
+ * by ``DispatchContextObj::{inter, intra}``: axis name -> [extent, offset]
  * for unit-stride axes, or [extent, offset, stride] for strided axes.
  */
 TVM_DLL ffi::Map<ffi::String, ffi::Array<PrimExpr>> EncodeSplitSide(

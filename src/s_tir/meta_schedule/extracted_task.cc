@@ -31,7 +31,7 @@ namespace meta_schedule {
 
 ExtractedTask::ExtractedTask(ffi::String task_name, IRModule mod, Target target,
                              ffi::Array<IRModule> dispatched, int weight) {
-  ffi::ObjectPtr<ExtractedTaskNode> n = ffi::make_object<ExtractedTaskNode>(target);
+  ffi::ObjectPtr<ExtractedTaskObj> n = ffi::make_object<ExtractedTaskObj>(target);
   n->task_name = task_name;
   n->mod = mod;
   n->dispatched = dispatched;
@@ -39,7 +39,7 @@ ExtractedTask::ExtractedTask(ffi::String task_name, IRModule mod, Target target,
   data_ = n;
 }
 
-TVM_FFI_STATIC_INIT_BLOCK() { ExtractedTaskNode::RegisterReflection(); }
+TVM_FFI_STATIC_INIT_BLOCK() { ExtractedTaskObj::RegisterReflection(); }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;

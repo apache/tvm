@@ -26,9 +26,9 @@ namespace tvm {
 namespace tirx {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  StmtSRefNode::RegisterReflection();
-  DependencyNode::RegisterReflection();
-  SBlockScopeNode::RegisterReflection();
+  StmtSRefObj::RegisterReflection();
+  DependencyObj::RegisterReflection();
+  SBlockScopeObj::RegisterReflection();
 }
 
 /******** Utility functions ********/
@@ -43,7 +43,7 @@ using SMap = std::unordered_map<K, V, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>;
  * \param kind Type of the dependency
  * \note This method is effectively NOP on self-loops
  */
-void AddDependency(SBlockScopeNode* self, const StmtSRef& src, const StmtSRef& dst, DepKind kind) {
+void AddDependency(SBlockScopeObj* self, const StmtSRef& src, const StmtSRef& dst, DepKind kind) {
   if (!src.same_as(dst)) {
     Dependency dep(src, dst, kind);
     self->src2deps[src].push_back(dep);
@@ -53,8 +53,8 @@ void AddDependency(SBlockScopeNode* self, const StmtSRef& src, const StmtSRef& d
 
 /******** Constructors ********/
 
-StmtSRef::StmtSRef(const StmtNode* stmt, StmtSRefNode* parent, int64_t seq_index) {
-  ffi::ObjectPtr<StmtSRefNode> n = ffi::make_object<StmtSRefNode>();
+StmtSRef::StmtSRef(const StmtNode* stmt, StmtSRefObj* parent, int64_t seq_index) {
+  ffi::ObjectPtr<StmtSRefObj> n = ffi::make_object<StmtSRefObj>();
   n->stmt = stmt;
   n->parent = parent;
   n->seq_index = seq_index;
@@ -72,15 +72,15 @@ StmtSRef StmtSRef::RootMark() {
 }
 
 Dependency::Dependency(StmtSRef src, StmtSRef dst, DepKind kind) {
-  ffi::ObjectPtr<DependencyNode> node =
-      ffi::make_object<DependencyNode>(std::move(src), std::move(dst), kind);
+  ffi::ObjectPtr<DependencyObj> node =
+      ffi::make_object<DependencyObj>(std::move(src), std::move(dst), kind);
   data_ = std::move(node);
 }
 
-SBlockScope::SBlockScope() { data_ = ffi::make_object<SBlockScopeNode>(); }
+SBlockScope::SBlockScope() { data_ = ffi::make_object<SBlockScopeObj>(); }
 
 SBlockScope::SBlockScope(const ffi::Array<StmtSRef>& child_block_srefs) {
-  ffi::ObjectPtr<SBlockScopeNode> n = ffi::make_object<SBlockScopeNode>();
+  ffi::ObjectPtr<SBlockScopeObj> n = ffi::make_object<SBlockScopeObj>();
   SMap<TensorVar, ffi::Array<StmtSRef>> tensor_readers;
   SMap<TensorVar, ffi::Array<StmtSRef>>& tensor_writers = n->tensor_writers;
   for (const StmtSRef& child_block_sref : child_block_srefs) {
@@ -127,7 +127,7 @@ SBlockScope::SBlockScope(const ffi::Array<StmtSRef>& child_block_srefs) {
 
 /******** Dependency ********/
 
-ffi::Array<Dependency> SBlockScopeNode::GetDepsBySrc(const StmtSRef& block_sref) const {
+ffi::Array<Dependency> SBlockScopeObj::GetDepsBySrc(const StmtSRef& block_sref) const {
   auto iter = this->src2deps.find(block_sref);
   if (iter != this->src2deps.end()) {
     return iter->second;
@@ -136,7 +136,7 @@ ffi::Array<Dependency> SBlockScopeNode::GetDepsBySrc(const StmtSRef& block_sref)
   }
 }
 
-ffi::Array<Dependency> SBlockScopeNode::GetDepsByDst(const StmtSRef& block_sref) const {
+ffi::Array<Dependency> SBlockScopeObj::GetDepsByDst(const StmtSRef& block_sref) const {
   auto iter = this->dst2deps.find(block_sref);
   if (iter != this->dst2deps.end()) {
     return iter->second;
@@ -156,7 +156,7 @@ void SRefTreeCreator::PushSRef(const StmtNode* stmt) {
                  /*parent=*/nullptr,
                  /*seq_index=*/-1));  // `seq_index` will be set properly in SetSeqIndex
   } else {
-    StmtSRefNode* parent = srefs_.back().get();
+    StmtSRefObj* parent = srefs_.back().get();
     srefs_.push_back(
         StmtSRef(stmt, parent,
                  /*seq_index=*/-1));  // `seq_index` will be set properly in SetSeqIndex
@@ -212,8 +212,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
            })
       .def("s_tir.StmtSRefRootMark", StmtSRef::RootMark)
       .def("s_tir.StmtSRefInlineMark", StmtSRef::InlineMark)
-      .def_method("s_tir.SBlockScopeGetDepsBySrc", &SBlockScopeNode::GetDepsBySrc)
-      .def_method("s_tir.SBlockScopeGetDepsByDst", &SBlockScopeNode::GetDepsByDst);
+      .def_method("s_tir.SBlockScopeGetDepsBySrc", &SBlockScopeObj::GetDepsBySrc)
+      .def_method("s_tir.SBlockScopeGetDepsByDst", &SBlockScopeObj::GetDepsByDst);
 }
 
 }  // namespace tirx

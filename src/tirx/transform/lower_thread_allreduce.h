@@ -65,7 +65,7 @@ class ThreadAllreduceBuilder final : public DialectMutator {
   using DialectMutator::Mutate;
   using DialectMutator::Mutate_;
 
-  explicit ThreadAllreduceBuilder(const TargetNode* target, const ffi::Array<Var>& params)
+  explicit ThreadAllreduceBuilder(const TargetObj* target, const ffi::Array<Var>& params)
       : target_(target),
         warp_size_(target->GetAttr<int64_t>("thread_warp_size", 1).value()),
         max_num_threads_(target->GetAttr<int64_t>("max_num_threads", -1).value()) {
@@ -897,7 +897,7 @@ class ThreadAllreduceBuilder final : public DialectMutator {
   }
 
   // The target.
-  const TargetNode* target_ = nullptr;
+  const TargetObj* target_ = nullptr;
 
   // The warp size of the device.
   int warp_size_{1};
@@ -1036,7 +1036,7 @@ Function LowerThreadAllreduce(Function f) {
   auto* n = f.CopyOnWrite();
   auto target = f->GetAttr<Target>(tvm::attr::kTarget);
   TVM_FFI_ICHECK(target.has_value()) << "LowerThreadAllreduce: Require the target attribute";
-  const TargetNode* target_node = target.as<TargetNode>();
+  const TargetObj* target_node = target.as<TargetObj>();
   auto thread_all_reduce =
       ffi::make_object<ThreadAllreduceBuilder<DialectMutator>>(target_node, f->params);
   n->body = thread_all_reduce->Mutate(n->body).ValueOrUnchanged(n->body);

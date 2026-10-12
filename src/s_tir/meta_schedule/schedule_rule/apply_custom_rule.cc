@@ -26,9 +26,9 @@ namespace tvm {
 namespace s_tir {
 namespace meta_schedule {
 
-class ApplyCustomRuleNode : public ScheduleRuleNode {
+class ApplyCustomRuleObj : public ScheduleRuleObj {
  public:
-  // Inherited from ScheduleRuleNode
+  // Inherited from ScheduleRuleObj
   void InitializeWithTuneContext(const TuneContext& context) final {
     TVM_FFI_CHECK(context->target.has_value(), ValueError)
         << "Target is not defined in the tune context.";
@@ -39,7 +39,7 @@ class ApplyCustomRuleNode : public ScheduleRuleNode {
     return "s_tir.meta_schedule." + key + "." + name;
   }
 
-  // Inherited from ScheduleRuleNode
+  // Inherited from ScheduleRuleObj
   ffi::Array<s_tir::Schedule> Apply(const s_tir::Schedule& sch,
                                     const s_tir::SBlockRV& block_rv) final {
     TVM_FFI_CHECK(this->target_.has_value(), ValueError)
@@ -69,9 +69,9 @@ class ApplyCustomRuleNode : public ScheduleRuleNode {
     return {sch};
   }
 
-  // Inherited from ScheduleRuleNode
+  // Inherited from ScheduleRuleObj
   ScheduleRule Clone() const final {
-    ffi::ObjectPtr<ApplyCustomRuleNode> n = ffi::make_object<ApplyCustomRuleNode>(*this);
+    ffi::ObjectPtr<ApplyCustomRuleObj> n = ffi::make_object<ApplyCustomRuleObj>(*this);
     n->target_ = target_;
     return ScheduleRule(ffi::UnsafeInit{}, n);
   }
@@ -81,22 +81,22 @@ class ApplyCustomRuleNode : public ScheduleRuleNode {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<ApplyCustomRuleNode>().def_ro("target_", &ApplyCustomRuleNode::target_);
+    refl::ObjectDef<ApplyCustomRuleObj>().def_ro("target_", &ApplyCustomRuleObj::target_);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.meta_schedule.ApplyCustomRule", ApplyCustomRuleNode,
-                                    ScheduleRuleNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.meta_schedule.ApplyCustomRule", ApplyCustomRuleObj,
+                                    ScheduleRuleObj);
 };
 
 ScheduleRule ScheduleRule::ApplyCustomRule() {
-  ffi::ObjectPtr<ApplyCustomRuleNode> n = ffi::make_object<ApplyCustomRuleNode>();
+  ffi::ObjectPtr<ApplyCustomRuleObj> n = ffi::make_object<ApplyCustomRuleObj>();
   return ScheduleRule(ffi::UnsafeInit{}, n);
 }
 
 bool ScheduleRule::IsApplyCustomRule(const ScheduleRule& rule) {
-  return rule->IsInstance<ApplyCustomRuleNode>();
+  return rule->IsInstance<ApplyCustomRuleObj>();
 }
 
-TVM_FFI_STATIC_INIT_BLOCK() { ApplyCustomRuleNode::RegisterReflection(); }
+TVM_FFI_STATIC_INIT_BLOCK() { ApplyCustomRuleObj::RegisterReflection(); }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;

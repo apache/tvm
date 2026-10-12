@@ -455,7 +455,7 @@ namespace meta_schedule {
 
 using s_tir::Schedule;
 
-class RewriteParallelVectorizeUnrollNode : public PostprocNode {
+class RewriteParallelVectorizeUnrollObj : public PostprocObj {
  public:
   void InitializeWithTuneContext(const TuneContext& context) final {}
 
@@ -505,29 +505,29 @@ class RewriteParallelVectorizeUnrollNode : public PostprocNode {
   }
 
   Postproc Clone() const {
-    ffi::ObjectPtr<RewriteParallelVectorizeUnrollNode> n =
-        ffi::make_object<RewriteParallelVectorizeUnrollNode>(*this);
+    ffi::ObjectPtr<RewriteParallelVectorizeUnrollObj> n =
+        ffi::make_object<RewriteParallelVectorizeUnrollObj>(*this);
     return Postproc(ffi::UnsafeInit{}, n);
   }
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<RewriteParallelVectorizeUnrollNode>();
+    refl::ObjectDef<RewriteParallelVectorizeUnrollObj>();
   }
 
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.meta_schedule.RewriteParallelVectorizeUnroll",
-                                    RewriteParallelVectorizeUnrollNode, PostprocNode);
+                                    RewriteParallelVectorizeUnrollObj, PostprocObj);
 };
 
 Postproc Postproc::RewriteParallelVectorizeUnroll() {
-  ffi::ObjectPtr<RewriteParallelVectorizeUnrollNode> n =
-      ffi::make_object<RewriteParallelVectorizeUnrollNode>();
+  ffi::ObjectPtr<RewriteParallelVectorizeUnrollObj> n =
+      ffi::make_object<RewriteParallelVectorizeUnrollObj>();
   return Postproc(ffi::UnsafeInit{}, n);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  RewriteParallelVectorizeUnrollNode::RegisterReflection();
+  RewriteParallelVectorizeUnrollObj::RegisterReflection();
   refl::GlobalDef().def("s_tir.meta_schedule.PostprocRewriteParallelVectorizeUnroll",
                         Postproc::RewriteParallelVectorizeUnroll);
 }

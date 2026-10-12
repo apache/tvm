@@ -88,7 +88,7 @@ struct CacheStageInfo {
   size_t loc_pos;
   /*! \brief The cache_read/cache_write stage to be inserted. */
   Stmt cache_stage{ffi::UnsafeInit{}};
-  /*! \brief The map used for ScheduleStateNode::Replace. */
+  /*! \brief The map used for ScheduleStateObj::Replace. */
   ffi::Map<SBlock, SBlock> block_reuse;
   /*! \brief A set of blocks that will consume the new cache. */
   std::unordered_set<StmtSRef, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> consumer_blocks;
@@ -2165,7 +2165,7 @@ StmtSRef CacheWrite(ScheduleState self, const StmtSRef& block_sref, int write_te
 ffi::Array<StmtSRef> GetLoopsUnderScope(const StmtSRef& block_sref,
                                         const ffi::Optional<StmtSRef>& top_sref) {
   std::vector<StmtSRef> result;
-  for (StmtSRefNode* parent = block_sref->parent; parent && parent->stmt->IsInstance<ForNode>();
+  for (StmtSRefObj* parent = block_sref->parent; parent && parent->stmt->IsInstance<ForNode>();
        parent = parent->parent) {
     if (top_sref.has_value() && parent == top_sref.value().get()) break;
     result.push_back(ffi::GetRef<StmtSRef>(parent));
@@ -2600,7 +2600,7 @@ StmtSRef ReIndex(ScheduleState self, const StmtSRef& block_sref, int tensor_inde
 
   // Step 3. Check the block belongs to a chain loop nesting under the scope,
   //         and get the insert location
-  const StmtSRefNode* loop;
+  const StmtSRefObj* loop;
   for (loop = block_sref->parent; loop->parent != scope_sref.get();) {
     const ForNode* outer = loop->parent->StmtAs<ForNode>();
     const ForNode* inner = loop->StmtAs<ForNode>();

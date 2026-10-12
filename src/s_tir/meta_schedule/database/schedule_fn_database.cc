@@ -24,20 +24,20 @@ namespace tvm {
 namespace s_tir {
 namespace meta_schedule {
 
-class ScheduleFnDatabaseNode : public DatabaseNode {
+class ScheduleFnDatabaseObj : public DatabaseObj {
  public:
-  explicit ScheduleFnDatabaseNode(ffi::String mod_eq_name = "structural")
-      : DatabaseNode(mod_eq_name) {}
+  explicit ScheduleFnDatabaseObj(ffi::String mod_eq_name = "structural")
+      : DatabaseObj(mod_eq_name) {}
 
   ffi::TypedFunction<bool(s_tir::Schedule)> schedule_fn;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<ScheduleFnDatabaseNode>().def_ro("schedule_fn",
-                                                     &ScheduleFnDatabaseNode::schedule_fn);
+    refl::ObjectDef<ScheduleFnDatabaseObj>().def_ro("schedule_fn",
+                                                    &ScheduleFnDatabaseObj::schedule_fn);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.meta_schedule.ScheduleFnDatabase",
-                                    ScheduleFnDatabaseNode, DatabaseNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.meta_schedule.ScheduleFnDatabase", ScheduleFnDatabaseObj,
+                                    DatabaseObj);
 
  public:
   ffi::Optional<TuningRecord> QueryTuningRecord(const IRModule& mod, const Target& target,
@@ -98,7 +98,7 @@ class ScheduleFnDatabaseNode : public DatabaseNode {
 
 Database Database::ScheduleFnDatabase(ffi::TypedFunction<bool(s_tir::Schedule)> schedule_fn,
                                       ffi::String mod_eq_name) {
-  ffi::ObjectPtr<ScheduleFnDatabaseNode> n = ffi::make_object<ScheduleFnDatabaseNode>(mod_eq_name);
+  ffi::ObjectPtr<ScheduleFnDatabaseObj> n = ffi::make_object<ScheduleFnDatabaseObj>(mod_eq_name);
   n->schedule_fn = std::move(schedule_fn);
   return Database(n);
 }
@@ -109,7 +109,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                         Database::ScheduleFnDatabase);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK() { ScheduleFnDatabaseNode::RegisterReflection(); }
+TVM_FFI_STATIC_INIT_BLOCK() { ScheduleFnDatabaseObj::RegisterReflection(); }
 
 }  // namespace meta_schedule
 }  // namespace s_tir

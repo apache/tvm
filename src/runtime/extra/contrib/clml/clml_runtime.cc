@@ -471,7 +471,7 @@ class CLMLRuntime : public JSONRuntimeBase {
     } else {
       LOG_CLML << "Execution by Normal Queue";
       for (size_t i = 0; i < this->layer_.function.size(); ++i) {
-        // Make CLML subgraphs accounted by OpenCLTimerNode.
+        // Make CLML subgraphs accounted by OpenCLTimerObj.
         LOG_CLML << "Run Layer:" << this->layer_.function[i].layer_name;
 #if (CL_QCOM_ML_OPS_H_MAJOR_VERSION >= 5)
         if (this->layer_.function[i].op_props.size() && this->layer_.function[i].op_props[1]) {

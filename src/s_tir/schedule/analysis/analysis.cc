@@ -32,8 +32,8 @@ using namespace tvm::prim;
 using namespace tvm::tirx;
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  TensorizeInfoNode::RegisterReflection();
-  AutoTensorizeMappingInfoNode::RegisterReflection();
+  TensorizeInfoObj::RegisterReflection();
+  AutoTensorizeMappingInfoObj::RegisterReflection();
 }
 
 /******** IR Module ********/
@@ -106,8 +106,8 @@ Definition of a scope that is a stage pipeline:
   StmtSRef scope_root_subtree{ffi::UnsafeInit{}};
   // Step 1. Find the scope root and the subtree that the given sref is in
   {
-    const StmtSRefNode* p = sref->parent;
-    const StmtSRefNode* subtree = sref.get();
+    const StmtSRefObj* p = sref->parent;
+    const StmtSRefObj* subtree = sref.get();
     for (; p != nullptr; subtree = p, p = p->parent) {
       if (p->stmt->IsInstance<SBlockNode>()) {
         scope_root_sref = ffi::GetRef<StmtSRef>(p);
@@ -176,7 +176,7 @@ ScopeBlockLoopInfo GetScopeBlockLoopInfo(const SBlock& scope_block) {
  * \brief Check whether the given sref_a is higher than or equal to sref_b.
  */
 void CheckSRefHigherOrEqual(const StmtSRef& sref_a, const StmtSRef& sref_b) {
-  const StmtSRefNode* p = sref_b.get();
+  const StmtSRefObj* p = sref_b.get();
   for (; p != nullptr; p = p->parent) {
     if (p == sref_a.get()) {
       return;
@@ -694,8 +694,8 @@ ffi::Map<Var, Range> LoopDomainOfSRefTreePath(const StmtSRef& low_inclusive,
                                               const ffi::Optional<StmtSRef>& high_exclusive,
                                               const runtime::StorageScope& extra_relax_scope) {
   ffi::Map<Var, Range> result;
-  const StmtSRefNode* p = low_inclusive.get();
-  const StmtSRefNode* limit = high_exclusive.has_value() ? high_exclusive.value().get() : nullptr;
+  const StmtSRefObj* p = low_inclusive.get();
+  const StmtSRefObj* limit = high_exclusive.has_value() ? high_exclusive.value().get() : nullptr;
   for (; p != limit; p = p->parent) {
     const ForNode* loop = p->StmtAs<ForNode>();
     if (loop == nullptr) {
@@ -978,16 +978,16 @@ StmtSRef GetSRefLowestCommonAncestor(const ffi::Array<StmtSRef>& srefs) {
   TVM_FFI_CHECK(!srefs.empty(), ValueError)
       << "The input array is required to have at least one sref";
 
-  std::unordered_map<const StmtSRefNode*, size_t> sref_visited_cnt;
+  std::unordered_map<const StmtSRefObj*, size_t> sref_visited_cnt;
   for (const StmtSRef& sref : srefs) {
-    const StmtSRefNode* p = sref.get();
+    const StmtSRefObj* p = sref.get();
     while (p != nullptr) {
       ++sref_visited_cnt[p];
       p = p->parent;
     }
   }
   size_t n_sref = srefs.size();
-  const StmtSRefNode* p = srefs[0].get();
+  const StmtSRefObj* p = srefs[0].get();
   while (p != nullptr && sref_visited_cnt[p] != n_sref) {
     p = p->parent;
   }
@@ -1320,7 +1320,7 @@ std::pair<ffi::Optional<StmtSRef>, bool> GetTensorDefiningSite(const StmtSRef& b
                                                                const TensorVar& tensor) {
   // Climb up along the sref tree, and find the block where `tensor` is in alloc_tensors or
   // match_tensors.
-  const StmtSRefNode* defining_site_sref = block_sref.get();
+  const StmtSRefObj* defining_site_sref = block_sref.get();
   while (defining_site_sref != nullptr) {
     const auto* block = defining_site_sref->StmtAs<SBlockNode>();
     // If this sref is not a block sref, skip it.
@@ -1350,13 +1350,13 @@ std::pair<ffi::Optional<StmtSRef>, bool> GetTensorDefiningSite(const StmtSRef& b
 /******** SRef Tree Related ********/
 
 StmtSRef GetSRefTreeRoot(const StmtSRef& sref) {
-  const StmtSRefNode* p = sref.get();
+  const StmtSRefObj* p = sref.get();
   for (; p->parent != nullptr; p = p->parent) {
   }
   return ffi::GetRef<StmtSRef>(p);
 }
 
-void AddShapeVarBounds(const ScheduleState& state, const StmtSRefNode* sref,
+void AddShapeVarBounds(const ScheduleState& state, const StmtSRefObj* sref,
                        sym::AnalyzerObj* analyzer) {
   while (sref->parent != nullptr) {
     sref = sref->parent;
@@ -1809,7 +1809,7 @@ ffi::Optional<TensorizeInfo> GetTensorizeLoopMapping(const s_tir::ScheduleState&
   std::vector<const ForNode*> block_loops;
   std::unordered_set<const tvm::VarNode*> block_loop_vars;
   {
-    for (const tirx::StmtSRefNode* loop_sref = block_sref->parent;; loop_sref = loop_sref->parent) {
+    for (const tirx::StmtSRefObj* loop_sref = block_sref->parent;; loop_sref = loop_sref->parent) {
       const auto* loop = loop_sref->StmtAs<ForNode>();
       if (loop == nullptr || loop->body->size() != 1) {
         break;
@@ -1826,7 +1826,7 @@ ffi::Optional<TensorizeInfo> GetTensorizeLoopMapping(const s_tir::ScheduleState&
   const std::vector<const ForNode*>& desc_loops = desc_info.desc_loops;
   const std::unordered_set<const VarNode*>& desc_loop_vars = desc_info.desc_loop_vars;
   const SBlockRealizeNode* desc_block = desc_info.desc_block;
-  ffi::ObjectPtr<TensorizeInfoNode> ret = ffi::make_object<TensorizeInfoNode>();
+  ffi::ObjectPtr<TensorizeInfoObj> ret = ffi::make_object<TensorizeInfoObj>();
   const int n_block_vars = block->iter_values.size();
   const int n_desc_vars = desc_block->iter_values.size();
   const int offset = n_block_vars - n_desc_vars;
@@ -2188,8 +2188,7 @@ ffi::Optional<AutoTensorizeMappingInfo> GetAutoTensorizeMappingInfo(
   if (mappings.empty()) {
     return std::nullopt;
   }
-  ffi::ObjectPtr<AutoTensorizeMappingInfoNode> ret =
-      ffi::make_object<AutoTensorizeMappingInfoNode>();
+  ffi::ObjectPtr<AutoTensorizeMappingInfoObj> ret = ffi::make_object<AutoTensorizeMappingInfoObj>();
   ret->mappings = std::move(mappings);
   ret->lhs_tensor_map = std::move(extractor.lhs_tensor_map_);
   ret->rhs_tensor_indices = std::move(extractor.rhs_tensor_indices_map_);

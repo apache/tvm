@@ -79,7 +79,7 @@ using ffi::Any;
 using ffi::Function;
 using ffi::PackedArgs;
 
-class LLVMModuleNode final : public ffi::ModuleObj {
+class LLVMModuleObj final : public ffi::ModuleObj {
  public:
   const char* kind() const final { return "llvm"; }
 
@@ -117,7 +117,7 @@ class LLVMModuleNode final : public ffi::ModuleObj {
   ffi::Array<ffi::String> function_names_;
 };
 
-ffi::Optional<ffi::Function> LLVMModuleNode::GetFunction(const ffi::String& name) {
+ffi::Optional<ffi::Function> LLVMModuleObj::GetFunction(const ffi::String& name) {
   ffi::ObjectPtr<ffi::Object> sptr_to_self = ffi::GetObjectPtr<ffi::Object>(this);
   if (name == "__tvm_is_system_module") {
     bool flag = (module_->getFunction("__tvm_module_startup") != nullptr);
@@ -147,7 +147,7 @@ ffi::Optional<ffi::Function> LLVMModuleNode::GetFunction(const ffi::String& name
   return tvm_ffi_orcjit_module_.value()->GetFunction(name);
 }
 
-void LLVMModuleNode::ImportModule(const ffi::Module& other) {
+void LLVMModuleObj::ImportModule(const ffi::Module& other) {
   ffi::ModuleObj::ImportModule(other);
   if (tvm_ffi_orcjit_module_.has_value()) {
     tvm_ffi_orcjit_module_.value()->ImportModule(other);
@@ -177,8 +177,7 @@ bool LLVMAddPassesToEmitFile(llvm::TargetMachine* tm, llvm::legacy::PassManager*
 
 }  // namespace
 
-void LLVMModuleNode::WriteToFile(const ffi::String& file_name_str,
-                                 const ffi::String& format) const {
+void LLVMModuleObj::WriteToFile(const ffi::String& file_name_str, const ffi::String& format) const {
   // TVM_FFI_ICHECK(imports_.empty()) << "SaveToFile does not handle imported modules";
   std::string file_name = file_name_str;
   std::string fmt = runtime::GetFileFormat(file_name, format);
@@ -210,11 +209,11 @@ void LLVMModuleNode::WriteToFile(const ffi::String& file_name_str,
   dest.close();
 }
 
-ffi::Bytes LLVMModuleNode::SaveToBytes() const {
+ffi::Bytes LLVMModuleObj::SaveToBytes() const {
   TVM_FFI_THROW(InternalError) << "LLVMModule: SaveToBytes not supported";
 }
 
-ffi::String LLVMModuleNode::InspectSource(const ffi::String& format) const {
+ffi::String LLVMModuleObj::InspectSource(const ffi::String& format) const {
   std::string fmt = runtime::GetFileFormat("", format);
   std::string type_str;
   llvm::SmallString<256> str;
@@ -248,7 +247,7 @@ ffi::String LLVMModuleNode::InspectSource(const ffi::String& format) const {
   return "";
 }
 
-void LLVMModuleNode::Init(const IRModule& mod, const Target& target) {
+void LLVMModuleObj::Init(const IRModule& mod, const Target& target) {
   llvm_instance_ = std::make_unique<LLVMInstance>();
   With<LLVMTarget> llvm_target(*llvm_instance_, target);
   llvm::TargetMachine* tm = llvm_target->GetOrCreateTargetMachine();
@@ -303,19 +302,19 @@ void LLVMModuleNode::Init(const IRModule& mod, const Target& target) {
                          tm->getTargetTriple().isOSDarwin() ? 2 : 4);
 }
 
-void LLVMModuleNode::Init(std::unique_ptr<llvm::Module> module,
-                          std::unique_ptr<LLVMInstance> llvm_instance) {
+void LLVMModuleObj::Init(std::unique_ptr<llvm::Module> module,
+                         std::unique_ptr<LLVMInstance> llvm_instance) {
   module_ = std::move(module);
   llvm_instance_ = std::move(llvm_instance);
 }
 
-void LLVMModuleNode::LoadIR(const std::string& file_name) {
+void LLVMModuleObj::LoadIR(const std::string& file_name) {
   auto llvm_instance = std::make_unique<LLVMInstance>();
   std::unique_ptr<llvm::Module> module = llvm_instance->LoadIR(file_name);
   Init(std::move(module), std::move(llvm_instance));
 }
 
-void LLVMModuleNode::EnsureOrcJITModule() {
+void LLVMModuleObj::EnsureOrcJITModule() {
   if (tvm_ffi_orcjit_module_.has_value()) {
     return;
   }
@@ -369,7 +368,7 @@ static void LLVMReflectionRegister() {
   refl::GlobalDef()
       .def("target.build.llvm",
            [](IRModule mod, Target target) -> ffi::Module {
-             auto n = ffi::make_object<LLVMModuleNode>();
+             auto n = ffi::make_object<LLVMModuleObj>();
              n->Init(mod, target);
              return ffi::Module(n);
            })
@@ -377,7 +376,7 @@ static void LLVMReflectionRegister() {
            [](std::string target_str, std::string module_name) -> ffi::Module {
              auto llvm_instance = std::make_unique<LLVMInstance>();
              With<LLVMTarget> llvm_target(*llvm_instance, target_str);
-             auto n = ffi::make_object<LLVMModuleNode>();
+             auto n = ffi::make_object<LLVMModuleObj>();
              // Generate a LLVM module from an input target string
              auto module = std::make_unique<llvm::Module>(module_name, *llvm_target->GetContext());
              llvm_target->SetTargetMetadata(module.get());
@@ -507,7 +506,7 @@ static void LLVMReflectionRegister() {
       .def("target.llvm_version_major", []() -> int { return TVM_LLVM_VERSION / 10; })
       .def("ffi.Module.load_from_file.ll",
            [](std::string filename, std::string fmt) -> ffi::Module {
-             auto n = ffi::make_object<LLVMModuleNode>();
+             auto n = ffi::make_object<LLVMModuleObj>();
              n->LoadIR(filename);
              return ffi::Module(n);
            })
@@ -521,7 +520,7 @@ static void LLVMReflectionRegister() {
       .def("codegen.codegen_blob",
            [](std::string data, bool system_lib, std::string llvm_target_string,
               std::string c_symbol_prefix) -> ffi::Module {
-             auto n = ffi::make_object<LLVMModuleNode>();
+             auto n = ffi::make_object<LLVMModuleObj>();
              auto llvm_instance = std::make_unique<LLVMInstance>();
              With<LLVMTarget> llvm_target(*llvm_instance, llvm_target_string);
              std::unique_ptr<llvm::Module> blob =

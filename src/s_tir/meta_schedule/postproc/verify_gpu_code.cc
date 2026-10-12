@@ -129,7 +129,7 @@ IntImm Extract(const Target& target, const char* name) {
 }
 
 /*! \brief Verify the correctness of the generated GPU code. */
-class VerifyGPUCodeNode : public PostprocNode {
+class VerifyGPUCodeObj : public PostprocObj {
  public:
   ffi::Optional<Target> target_;
   ffi::Map<ffi::String, PrimExpr> target_constraints_{ffi::UnsafeInit()};
@@ -220,28 +220,28 @@ class VerifyGPUCodeNode : public PostprocNode {
   }
 
   Postproc Clone() const {
-    ffi::ObjectPtr<VerifyGPUCodeNode> n = ffi::make_object<VerifyGPUCodeNode>(*this);
+    ffi::ObjectPtr<VerifyGPUCodeObj> n = ffi::make_object<VerifyGPUCodeObj>(*this);
     n->target_constraints_ = this->target_constraints_;
     return Postproc(ffi::UnsafeInit{}, n);
   }
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<VerifyGPUCodeNode>();
+    refl::ObjectDef<VerifyGPUCodeObj>();
   }
 
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.meta_schedule.VerifyGPUCode", VerifyGPUCodeNode,
-                                    PostprocNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.meta_schedule.VerifyGPUCode", VerifyGPUCodeObj,
+                                    PostprocObj);
 };
 
 Postproc Postproc::VerifyGPUCode() {
-  ffi::ObjectPtr<VerifyGPUCodeNode> n = ffi::make_object<VerifyGPUCodeNode>();
+  ffi::ObjectPtr<VerifyGPUCodeObj> n = ffi::make_object<VerifyGPUCodeObj>();
   return Postproc(ffi::UnsafeInit{}, n);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  VerifyGPUCodeNode::RegisterReflection();
+  VerifyGPUCodeObj::RegisterReflection();
   refl::GlobalDef().def("s_tir.meta_schedule.PostprocVerifyGPUCode", Postproc::VerifyGPUCode);
 }
 

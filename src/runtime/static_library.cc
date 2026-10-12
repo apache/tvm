@@ -47,7 +47,7 @@ namespace {
  * \brief A '.o' library which can be linked into the final output library by export_library.
  * Can be used by external codegen tools which can produce a ready-to-link artifact.
  */
-class StaticLibraryNode final : public ffi::ModuleObj {
+class StaticLibraryObj final : public ffi::ModuleObj {
  public:
   const char* kind() const final { return "static_library"; }
 
@@ -73,7 +73,7 @@ class StaticLibraryNode final : public ffi::ModuleObj {
 
   static ffi::Module LoadFromBytes(ffi::Bytes bytes) {
     support::BytesInStream stream(bytes);
-    auto n = ffi::make_object<StaticLibraryNode>();
+    auto n = ffi::make_object<StaticLibraryObj>();
     // load data
     std::string data;
     TVM_FFI_ICHECK(stream.Read(&data)) << "Loading data failed";
@@ -127,7 +127,7 @@ class StaticLibraryNode final : public ffi::ModuleObj {
 }  // namespace
 
 ffi::Module LoadStaticLibrary(const std::string& filename, ffi::Array<ffi::String> func_names) {
-  auto node = ffi::make_object<StaticLibraryNode>();
+  auto node = ffi::make_object<StaticLibraryObj>();
   LoadBinaryFromFile(filename, &node->data_);
   node->func_names_ = std::move(func_names);
   VLOG(0) << "Loaded static library from '" << filename << "' implementing " << node->FuncNames();
@@ -138,7 +138,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("runtime.ModuleLoadStaticLibrary", LoadStaticLibrary)
-      .def("ffi.Module.load_from_bytes.static_library", StaticLibraryNode::LoadFromBytes);
+      .def("ffi.Module.load_from_bytes.static_library", StaticLibraryObj::LoadFromBytes);
 }
 
 }  // namespace runtime

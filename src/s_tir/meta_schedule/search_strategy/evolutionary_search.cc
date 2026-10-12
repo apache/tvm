@@ -250,12 +250,12 @@ std::vector<double> PredictNormalizedScore(const std::vector<Schedule>& candidat
 /**************** Evolutionary Search ****************/
 
 /*!\brief A search strategy that generates measure candidates using evolutionary search. */
-class EvolutionarySearchNode : public SearchStrategyNode {
+class EvolutionarySearchObj : public SearchStrategyObj {
  public:
   /*! \brief The state of the search strategy. */
   struct State {
     /*! \brief The search strategy itself */
-    EvolutionarySearchNode* self;
+    EvolutionarySearchObj* self;
     /*! \brief The number of total trials. */
     int max_trials;
     /*! \brief The number of trials per iteration. */
@@ -282,7 +282,7 @@ class EvolutionarySearchNode : public SearchStrategyNode {
     /*! \brief The token registered for the given workload in database. */
     Workload token_{ffi::UnsafeInit()};
 
-    explicit State(EvolutionarySearchNode* self, int max_trials, int num_trials_per_iter,
+    explicit State(EvolutionarySearchObj* self, int max_trials, int num_trials_per_iter,
                    ffi::Array<Schedule> design_space_schedules, Database database,
                    CostModel cost_model)
         : self(self),
@@ -296,7 +296,7 @@ class EvolutionarySearchNode : public SearchStrategyNode {
       for (const Schedule& space : design_space_schedules) {
         design_spaces.push_back(space->trace().value()->Simplified(true));
       }
-      const TuneContextNode* ctx = self->ctx_;
+      const TuneContextObj* ctx = self->ctx_;
       IRModule mod = ctx->mod.value();
       this->per_thread_data_.resize(ctx->num_threads);
       for (PerThreadData& data : this->per_thread_data_) {
@@ -337,9 +337,9 @@ class EvolutionarySearchNode : public SearchStrategyNode {
      */
     inline std::vector<Schedule> PickWithEpsGreedy(const std::vector<Schedule>& inits,
                                                    const std::vector<Schedule>& bests, int num);
-    /*! \brief An interface method to be called by it's counterpart in EvolutionarySearchNode */
+    /*! \brief An interface method to be called by it's counterpart in EvolutionarySearchObj */
     inline ffi::Optional<ffi::Array<MeasureCandidate>> GenerateMeasureCandidates();
-    /*! \brief An interface method to be called by it's counterpart in EvolutionarySearchNode */
+    /*! \brief An interface method to be called by it's counterpart in EvolutionarySearchObj */
     inline void NotifyRunnerResults(const ffi::Array<MeasureCandidate>& measure_candidates,
                                     const ffi::Array<RunnerResult>& results);
     /*!
@@ -351,7 +351,7 @@ class EvolutionarySearchNode : public SearchStrategyNode {
   };
 
   /*! \brief The tuning context of the evolutionary search strategy. */
-  const TuneContextNode* ctx_{nullptr};
+  const TuneContextObj* ctx_{nullptr};
   /*! \brief The postprocessors */
   ffi::Array<Postproc> postprocs_;
   /*! \brief The mutators and their probability. */
@@ -389,20 +389,20 @@ class EvolutionarySearchNode : public SearchStrategyNode {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<EvolutionarySearchNode>()
-        .def_ro("population_size", &EvolutionarySearchNode::population_size)
+    refl::ObjectDef<EvolutionarySearchObj>()
+        .def_ro("population_size", &EvolutionarySearchObj::population_size)
         .def_ro("num_empty_iters_before_early_stop",
-                &EvolutionarySearchNode::num_empty_iters_before_early_stop)
-        .def_ro("init_measured_ratio", &EvolutionarySearchNode::init_measured_ratio)
-        .def_ro("init_min_unmeasured", &EvolutionarySearchNode::init_min_unmeasured)
-        .def_ro("max_fail_count", &EvolutionarySearchNode::max_fail_count)
-        .def_ro("genetic_num_iters", &EvolutionarySearchNode::genetic_num_iters)
-        .def_ro("genetic_mutate_prob", &EvolutionarySearchNode::genetic_mutate_prob)
-        .def_ro("genetic_max_fail_count", &EvolutionarySearchNode::genetic_max_fail_count)
-        .def_ro("eps_greedy", &EvolutionarySearchNode::eps_greedy);
+                &EvolutionarySearchObj::num_empty_iters_before_early_stop)
+        .def_ro("init_measured_ratio", &EvolutionarySearchObj::init_measured_ratio)
+        .def_ro("init_min_unmeasured", &EvolutionarySearchObj::init_min_unmeasured)
+        .def_ro("max_fail_count", &EvolutionarySearchObj::max_fail_count)
+        .def_ro("genetic_num_iters", &EvolutionarySearchObj::genetic_num_iters)
+        .def_ro("genetic_mutate_prob", &EvolutionarySearchObj::genetic_mutate_prob)
+        .def_ro("genetic_max_fail_count", &EvolutionarySearchObj::genetic_max_fail_count)
+        .def_ro("eps_greedy", &EvolutionarySearchObj::eps_greedy);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.meta_schedule.EvolutionarySearch",
-                                    EvolutionarySearchNode, SearchStrategyNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.meta_schedule.EvolutionarySearch", EvolutionarySearchObj,
+                                    SearchStrategyObj);
 
   void InitializeWithTuneContext(const TuneContext& ctx) final {
     TVM_FFI_CHECK(ctx->num_threads > 0, ValueError) << "`TuneContext.num_threads` must be > 0";
@@ -461,7 +461,7 @@ class EvolutionarySearchNode : public SearchStrategyNode {
   }
 
   SearchStrategy Clone() const final {
-    ffi::ObjectPtr<EvolutionarySearchNode> n = ffi::make_object<EvolutionarySearchNode>();
+    ffi::ObjectPtr<EvolutionarySearchObj> n = ffi::make_object<EvolutionarySearchObj>();
     n->population_size = this->population_size;
     n->num_empty_iters_before_early_stop = this->num_empty_iters_before_early_stop;
     n->init_measured_ratio = this->init_measured_ratio;
@@ -478,7 +478,7 @@ class EvolutionarySearchNode : public SearchStrategyNode {
   }
 };
 
-std::vector<Schedule> EvolutionarySearchNode::State::PickBestFromDatabase(int num) {
+std::vector<Schedule> EvolutionarySearchObj::State::PickBestFromDatabase(int num) {
   auto _ = Profiler::TimedScope("EvoSearch/PickBestFromDatabase");
   std::vector<s_tir::Trace> measured_traces;
   measured_traces.reserve(num);
@@ -519,7 +519,7 @@ std::vector<Schedule> EvolutionarySearchNode::State::PickBestFromDatabase(int nu
   return filtered;
 }
 
-std::vector<Schedule> EvolutionarySearchNode::State::SampleInitPopulation(int num) {
+std::vector<Schedule> EvolutionarySearchObj::State::SampleInitPopulation(int num) {
   auto _ = Profiler::TimedScope("EvoSearch/SampleInitPopulation");
   ThreadedTraceApply pp(self->postprocs_);
   std::vector<Schedule> out_schs;
@@ -559,7 +559,7 @@ std::vector<Schedule> EvolutionarySearchNode::State::SampleInitPopulation(int nu
   return out_schs;
 }
 
-std::vector<Schedule> EvolutionarySearchNode::State::EvolveWithCostModel(
+std::vector<Schedule> EvolutionarySearchObj::State::EvolveWithCostModel(
     std::vector<Schedule> population, int num) {
   IRModuleSet exists(database_->GetModuleEquality());
   {
@@ -679,7 +679,7 @@ std::vector<Schedule> EvolutionarySearchNode::State::EvolveWithCostModel(
   }
 }
 
-std::vector<Schedule> EvolutionarySearchNode::State::PickWithEpsGreedy(
+std::vector<Schedule> EvolutionarySearchObj::State::PickWithEpsGreedy(
     const std::vector<Schedule>& unmeasured, const std::vector<Schedule>& bests, int num) {
   auto _ = Profiler::TimedScope("EvoSearch/PickWithEpsGreedy");
   int num_rands = num * self->eps_greedy;
@@ -724,7 +724,7 @@ std::vector<Schedule> EvolutionarySearchNode::State::PickWithEpsGreedy(
 }
 
 ffi::Optional<ffi::Array<MeasureCandidate>>
-EvolutionarySearchNode::State::GenerateMeasureCandidates() {
+EvolutionarySearchObj::State::GenerateMeasureCandidates() {
   if (st >= max_trials) {
     return std::nullopt;
   }
@@ -766,14 +766,14 @@ EvolutionarySearchNode::State::GenerateMeasureCandidates() {
   return AssembleCandidates(picks);
 }
 
-void EvolutionarySearchNode::State::NotifyRunnerResults(
+void EvolutionarySearchObj::State::NotifyRunnerResults(
     const ffi::Array<MeasureCandidate>& measure_candidates,
     const ffi::Array<RunnerResult>& results) {
   st += results.size();
   ed += results.size();
 }
 
-size_t EvolutionarySearchNode::State::ModuleHash(const IRModule& mod) const {
+size_t EvolutionarySearchObj::State::ModuleHash(const IRModule& mod) const {
   return database_->GetModuleEquality().Hash(mod);
 }
 
@@ -788,7 +788,7 @@ SearchStrategy SearchStrategy::EvolutionarySearch(int population_size,         /
   TVM_META_SCHEDULE_CHECK_PROB_RANGE(init_measured_ratio, "Initial measured ratio");
   TVM_META_SCHEDULE_CHECK_PROB_RANGE(genetic_mutate_prob, "Mutation probability");
   TVM_META_SCHEDULE_CHECK_PROB_RANGE(eps_greedy, "Greedy pick probability");
-  ffi::ObjectPtr<EvolutionarySearchNode> n = ffi::make_object<EvolutionarySearchNode>();
+  ffi::ObjectPtr<EvolutionarySearchObj> n = ffi::make_object<EvolutionarySearchObj>();
   n->population_size = population_size;
   n->num_empty_iters_before_early_stop = 5;
   n->init_measured_ratio = init_measured_ratio;
@@ -804,7 +804,7 @@ SearchStrategy SearchStrategy::EvolutionarySearch(int population_size,         /
 class EvolutionarySearch : public SearchStrategy {
  public:
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(EvolutionarySearch, SearchStrategy,
-                                                EvolutionarySearchNode);
+                                                EvolutionarySearchObj);
 };
 
 ffi::Array<Schedule> EvolutionarySearchSampleInitPopulation(EvolutionarySearch self, int num) {
@@ -830,7 +830,7 @@ ffi::Array<Schedule> EvolutionarySearchEvolveWithCostModel(EvolutionarySearch se
   return result;
 }
 
-TVM_FFI_STATIC_INIT_BLOCK() { EvolutionarySearchNode::RegisterReflection(); }
+TVM_FFI_STATIC_INIT_BLOCK() { EvolutionarySearchObj::RegisterReflection(); }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;

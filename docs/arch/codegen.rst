@@ -292,7 +292,7 @@ Source Code Map
    * - ``src/target/llvm/codegen_amdgpu.cc``
      - ``CodeGenAMDGPU``: AMD GPU via LLVM
    * - ``src/target/llvm/llvm_module.cc``
-     - ``LLVMModuleNode``: runtime module with JIT compilation
+     - ``LLVMModuleObj``: runtime module with JIT compilation
    * - ``src/target/source/codegen_c.h``
      - ``CodeGenC``: TIR → C-like source base class
    * - ``src/target/source/codegen_cuda.h``

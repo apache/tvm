@@ -88,15 +88,15 @@ namespace s_tir {
 namespace meta_schedule {
 
 /*! \brief Check if the IRModule has any loop with non-constant extent. */
-class DisallowAsyncStridedMemCopyNode : public PostprocNode {
+class DisallowAsyncStridedMemCopyObj : public PostprocObj {
  public:
-  // Inherited from PostprocNode
+  // Inherited from PostprocObj
   void InitializeWithTuneContext(const TuneContext& context) final {
     /* Null check */
     TVM_FFI_ICHECK(context->target) << "Context must contain a target";
     this->target = context->target.value();
   }
-  // Inherited from PostprocNode
+  // Inherited from PostprocObj
   bool Apply(const s_tir::Schedule& sch) final {
     IRModule mod = sch->mod();
     for (const auto& kv : mod->functions) {
@@ -137,34 +137,34 @@ class DisallowAsyncStridedMemCopyNode : public PostprocNode {
     }
     return true;
   }
-  // Inherited from PostprocNode
+  // Inherited from PostprocObj
   Postproc Clone() const {
-    ffi::ObjectPtr<DisallowAsyncStridedMemCopyNode> n =
-        ffi::make_object<DisallowAsyncStridedMemCopyNode>(*this);
+    ffi::ObjectPtr<DisallowAsyncStridedMemCopyObj> n =
+        ffi::make_object<DisallowAsyncStridedMemCopyObj>(*this);
     return Postproc(ffi::UnsafeInit{}, n);
   }
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<DisallowAsyncStridedMemCopyNode>();
+    refl::ObjectDef<DisallowAsyncStridedMemCopyObj>();
   }
 
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.meta_schedule.DisallowAsyncStridedMemCopy",
-                                    DisallowAsyncStridedMemCopyNode, PostprocNode);
+                                    DisallowAsyncStridedMemCopyObj, PostprocObj);
 
  private:
   ffi::Optional<tvm::Target> target;
 };
 
 Postproc Postproc::DisallowAsyncStridedMemCopy() {
-  ffi::ObjectPtr<DisallowAsyncStridedMemCopyNode> n =
-      ffi::make_object<DisallowAsyncStridedMemCopyNode>();
+  ffi::ObjectPtr<DisallowAsyncStridedMemCopyObj> n =
+      ffi::make_object<DisallowAsyncStridedMemCopyObj>();
   return Postproc(ffi::UnsafeInit{}, n);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  DisallowAsyncStridedMemCopyNode::RegisterReflection();
+  DisallowAsyncStridedMemCopyObj::RegisterReflection();
   refl::GlobalDef().def("s_tir.meta_schedule.PostprocDisallowAsyncStridedMemCopy",
                         Postproc::DisallowAsyncStridedMemCopy);
 }

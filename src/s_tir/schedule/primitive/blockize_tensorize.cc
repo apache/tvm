@@ -176,7 +176,7 @@ ffi::Array<ffi::Array<sym::IterMark>> SubspaceDivide(const SBlockRealize& realiz
   ffi::Array<PrimVar> primitive_inner_vars;
   ffi::Map<PrimVar, Range> primitive_loop_var_domain;
   bool inner = true;
-  for (StmtSRefNode* sref = block_sref->parent;    //
+  for (StmtSRefObj* sref = block_sref->parent;     //
        sref && sref->stmt->IsInstance<ForNode>();  //
        sref = sref->parent) {
     const ForNode* loop = static_cast<const ForNode*>(sref->stmt);

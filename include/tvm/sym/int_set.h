@@ -51,14 +51,14 @@ enum SignType { kPositive, kNegative, kZero, kUnknown };
  *        represent a set of integers in one dimension.
  * \sa IntSet
  */
-class IntSetNode : public ffi::Object {
+class IntSetObj : public ffi::Object {
  public:
-  TVM_FFI_DECLARE_OBJECT_INFO("ir.IntSet", IntSetNode, ffi::Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("ir.IntSet", IntSetObj, ffi::Object);
 };
 
 /*!
- * \brief Managed reference to IntSetNode.
- * \sa IntSetNode
+ * \brief Managed reference to IntSetObj.
+ * \sa IntSetObj
  */
 class IntSet : public ffi::ObjectRef {
  public:
@@ -158,7 +158,7 @@ class IntSet : public ffi::ObjectRef {
    */
   static IntSet Interval(PrimExpr min, PrimExpr max);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(IntSet, ffi::ObjectRef, IntSetNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(IntSet, ffi::ObjectRef, IntSetObj);
 };
 
 //-----------------------------------------------

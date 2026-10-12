@@ -44,10 +44,10 @@ struct VarIdentityLess {
 
 using VarIdentitySet = std::set<Var, VarIdentityLess>;
 
-TVM_FFI_STATIC_INIT_BLOCK() { DataflowBlockRewriteNode::RegisterReflection(); }
+TVM_FFI_STATIC_INIT_BLOCK() { DataflowBlockRewriteObj::RegisterReflection(); }
 
 DataflowBlockRewrite::DataflowBlockRewrite(DataflowBlock dfb, Function root_fn) {
-  auto n = ffi::make_object<DataflowBlockRewriteNode>(dfb);
+  auto n = ffi::make_object<DataflowBlockRewriteObj>(dfb);
   n->root_fn_ = root_fn;
   n->original_fn_ptr_ = root_fn.get();
   auto p = FunctionUseDef(root_fn);
@@ -66,7 +66,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   });
 }
 
-void DataflowBlockRewriteNode::ReplaceAllUses(Var old_var, Var new_var) {
+void DataflowBlockRewriteObj::ReplaceAllUses(Var old_var, Var new_var) {
   class ReplaceAllUsePass : public ExprMutator {
     Var old_var, new_var;
     const DataflowBlockNode* const to_catch;
@@ -147,7 +147,7 @@ class UpdateDFB : public ExprMutator {
   }
 };
 
-void DataflowBlockRewriteNode::Add(Binding binding) {
+void DataflowBlockRewriteObj::Add(Binding binding) {
   auto [var, val] = [binding] {
     if (auto vb = binding.as<VarBindingNode>()) {
       return std::make_pair(vb->var, vb->value);
@@ -283,7 +283,7 @@ class RemoveUnusedVars : public ExprMutator {
   bool in_dataflow_block_{false};
 };
 
-void DataflowBlockRewriteNode::RemoveUnused(Var unused, bool allow_undef) {
+void DataflowBlockRewriteObj::RemoveUnused(Var unused, bool allow_undef) {
   // first need to check if this var is used.
   if (to_users_.count(unused) == 0) {  // no def.
     if (allow_undef) return;
@@ -315,7 +315,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                         });
 }
 
-void DataflowBlockRewriteNode::RemoveAllUnused() {
+void DataflowBlockRewriteObj::RemoveAllUnused() {
   RemoveUnusedVars remover(to_users_, fn_outputs_);
   remover.caught_rewrite = dfb_;
 
@@ -360,7 +360,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.analysis.remove_all_unused", RemoveAllUnused);
 }
 
-IRModule DataflowBlockRewriteNode::MutateIRModule(IRModule irmod) {
+IRModule DataflowBlockRewriteObj::MutateIRModule(IRModule irmod) {
   BlockBuilder builder = BlockBuilder::Create(irmod);
 
   for (auto& [gvar, fn] : irmod->functions) {

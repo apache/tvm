@@ -100,9 +100,9 @@ namespace s_tir {
 namespace meta_schedule {
 
 /*! \brief Add thread binding to unbound blocks */
-class RewriteUnboundBlockNode : public PostprocNode {
+class RewriteUnboundBlockObj : public PostprocObj {
  public:
-  // Inherited from PostprocNode
+  // Inherited from PostprocObj
   void InitializeWithTuneContext(const TuneContext& context) final {
     TVM_FFI_CHECK(context->target.has_value(), ValueError) << "target is not defined";
     ffi::Optional<int64_t> max_threads_per_block =
@@ -112,11 +112,11 @@ class RewriteUnboundBlockNode : public PostprocNode {
     this->max_threads_per_block_ = max_threads_per_block.value();
   }
 
-  // Inherited from PostprocNode
+  // Inherited from PostprocObj
   bool Apply(const s_tir::Schedule& sch) final;
 
   Postproc Clone() const {
-    ffi::ObjectPtr<RewriteUnboundBlockNode> n = ffi::make_object<RewriteUnboundBlockNode>(*this);
+    ffi::ObjectPtr<RewriteUnboundBlockObj> n = ffi::make_object<RewriteUnboundBlockObj>(*this);
     return Postproc(ffi::UnsafeInit{}, n);
   }
 
@@ -128,13 +128,13 @@ class RewriteUnboundBlockNode : public PostprocNode {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<RewriteUnboundBlockNode>();
+    refl::ObjectDef<RewriteUnboundBlockObj>();
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.meta_schedule.RewriteUnboundBlock",
-                                    RewriteUnboundBlockNode, PostprocNode);
+                                    RewriteUnboundBlockObj, PostprocObj);
 };
 
-bool RewriteUnboundBlockNode::Apply(const s_tir::Schedule& sch) {
+bool RewriteUnboundBlockObj::Apply(const s_tir::Schedule& sch) {
   using s_tir::ExprRV;
   using s_tir::LoopRV;
   using s_tir::SBlockRV;
@@ -155,13 +155,13 @@ bool RewriteUnboundBlockNode::Apply(const s_tir::Schedule& sch) {
 }
 
 Postproc Postproc::RewriteUnboundBlock(int max_threadblocks) {
-  ffi::ObjectPtr<RewriteUnboundBlockNode> n = ffi::make_object<RewriteUnboundBlockNode>();
+  ffi::ObjectPtr<RewriteUnboundBlockObj> n = ffi::make_object<RewriteUnboundBlockObj>();
   n->max_threadblocks_ = max_threadblocks;
   n->max_threads_per_block_ = -1;
   return Postproc(ffi::UnsafeInit{}, n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK() { RewriteUnboundBlockNode::RegisterReflection(); }
+TVM_FFI_STATIC_INIT_BLOCK() { RewriteUnboundBlockObj::RegisterReflection(); }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;

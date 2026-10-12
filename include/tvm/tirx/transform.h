@@ -40,10 +40,10 @@ namespace transform {
 using tvm::transform::CreateModulePass;
 using tvm::transform::Pass;
 using tvm::transform::PassContext;
-using tvm::transform::PassContextNode;
+using tvm::transform::PassContextObj;
 using tvm::transform::PassInfo;
-using tvm::transform::PassInfoNode;
-using tvm::transform::PassNode;
+using tvm::transform::PassInfoObj;
+using tvm::transform::PassObj;
 using tvm::transform::Sequential;
 
 /*
