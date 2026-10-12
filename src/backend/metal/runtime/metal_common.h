@@ -41,8 +41,6 @@
 #include <utility>
 #include <vector>
 
-#include "../../../runtime/workspace_pool.h"
-
 /* Macro for convenience in using AutoReleasePoolWrapper.
  * With this macro we can add AutoReleasePoolWrapper to our ObjC code in more
  * native way.
@@ -313,14 +311,12 @@ class MetalWorkspace final : public DeviceAPI {
   }
   // override device API
   void SetDevice(Device dev) final;
-  void GetAttr(Device dev, DeviceAttrKind kind, ffi::Any* rv) final;
-  void* AllocDataSpace(Device dev, size_t nbytes, size_t alignment, DLDataType type_hint) final;
-  void FreeDataSpace(Device dev, void* ptr) final;
+  ffi::Any GetAttr(Device dev, const ffi::String& name) final;
+  ffi::Tensor Empty(ffi::ShapeView shape, DLDataType dtype, DLDevice device,
+                    ffi::Optional<ffi::String> mem_scope = std::nullopt) final;
   TVMStreamHandle CreateStream(Device dev) final;
   void FreeStream(Device dev, TVMStreamHandle stream) final;
   void StreamSync(Device dev, TVMStreamHandle stream) final;
-  void* AllocWorkspace(Device dev, size_t size, DLDataType type_hint) final;
-  void FreeWorkspace(Device dev, void* data) final;
   void ReinitializeDefaultStreams();
 
   /**
@@ -341,6 +337,9 @@ class MetalWorkspace final : public DeviceAPI {
                       TVMStreamHandle stream) final;
 
  private:
+  void* AllocDataSpace(Device dev, size_t nbytes, size_t alignment, DLDataType type_hint);
+  void FreeDataSpace(Device dev, void* ptr);
+
   // Pointers to default allocated streams
   std::vector<Stream*> default_streams_;
 };
@@ -413,10 +412,8 @@ class MetalThreadEntry {
     size_t next_index_ = 0;  // sequential within current batch, reset on sync
   };
   std::vector<StagingBufferPool> staging_pools_;  // per device
-  /*! \brief workspace pool */
-  WorkspacePool pool;
   // constructor
-  MetalThreadEntry() : pool(static_cast<DLDeviceType>(kDLMetal), MetalWorkspace::Global()) {
+  MetalThreadEntry() {
     device.device_id = 0;
     device.device_type = static_cast<DLDeviceType>(kDLMetal);
     MetalWorkspace* global_ws = MetalWorkspace::Global();

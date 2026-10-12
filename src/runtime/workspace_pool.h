@@ -27,10 +27,14 @@
 #include <tvm/runtime/device_api.h>
 
 #include <memory>
+#include <mutex>
 #include <vector>
 
 namespace tvm {
 namespace runtime {
+// Invalidate cached workspace owners when a backend tears down a resource session.
+TVM_RUNTIME_DLL void ResetWorkspacePool(DLDeviceType device_type);
+
 /*!
  * \brief A workspace pool to manage
  *
@@ -42,7 +46,7 @@ namespace runtime {
  *  - The release order is usually in reverse order of allocate
  *  - Repeative pattern of same allocations over different runs.
  */
-class TVM_RUNTIME_DLL WorkspacePool {
+class WorkspacePool {
  public:
   /*!
    * \brief Create pool with specific device type and device.
@@ -68,6 +72,9 @@ class TVM_RUNTIME_DLL WorkspacePool {
 
  private:
   class Pool;
+  friend void ResetWorkspacePool(DLDeviceType device_type);
+  void Reset();
+  std::mutex mutex_;
   /*! \brief pool of device local array */
   std::vector<Pool*> array_;
   /*! \brief device type this pool support */

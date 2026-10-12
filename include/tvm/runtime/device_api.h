@@ -25,6 +25,7 @@
 #define TVM_RUNTIME_DEVICE_API_H_
 
 #include <tvm/ffi/any.h>
+#include <tvm/ffi/container/tensor.h>
 #include <tvm/ffi/device.h>
 #include <tvm/ffi/error.h>
 #include <tvm/ffi/optional.h>
@@ -79,29 +80,6 @@ typedef enum {
   TVMDeviceExtType_End = 36,  // sentinel value
 } TVMDeviceExtType;
 
-/*!
- * \brief the query type into GetAttr
- */
-enum DeviceAttrKind : int {
-  kExist = 0,
-  kMaxThreadsPerBlock = 1,
-  kWarpSize = 2,
-  kMaxSharedMemoryPerBlock = 3,
-  kComputeVersion = 4,
-  kDeviceName = 5,
-  kMaxClockRate = 6,
-  kMultiProcessorCount = 7,
-  kMaxThreadDimensions = 8,
-  kMaxRegistersPerBlock = 9,
-  kGcnArch = 10,
-  kApiVersion = 11,
-  kDriverVersion = 12,
-  kL2CacheSizeBytes = 13,
-  kTotalGlobalMemory = 14,
-  kAvailableGlobalMemory = 15,
-  kImagePitchAlignment = 16,
-};
-
 #ifdef TVM_KALLOC_ALIGNMENT
 /*! \brief Number of bytes each allocation must align to */
 constexpr int kAllocAlignment = TVM_KALLOC_ALIGNMENT;
@@ -149,59 +127,25 @@ class TVM_RUNTIME_DLL DeviceAPI {
    */
   virtual int GetDeviceIndex();
   /*!
-   * \brief Get attribute of specified device.
-   * \param dev The device device
-   * \param kind The result kind
-   * \param rv The return value.
-   * \sa DeviceAttrKind
+   * \brief Query an attribute of a device.
+   * \param dev The device to query.
+   * \param name Attribute name. "exist" returns a boolean; unsupported optional
+   * attributes return None. Errors querying a supported attribute are propagated.
+   * \return The attribute value.
    */
-  virtual void GetAttr(Device dev, DeviceAttrKind kind, ffi::Any* rv) = 0;
+  virtual ffi::Any GetAttr(DLDevice dev, const ffi::String& name) = 0;
 
   /*!
-   * \brief Get the physical memory size required.
-   * \param arr the tensor object.
-   * \param mem_scope the memory scope if any
-   * \return the memory size.
+   * \brief Create an owning, compact tensor with uninitialized contents.
+   * \param shape Logical shape, copied into the returned tensor.
+   * \param dtype Element datatype.
+   * \param device Device on which to allocate storage.
+   * \param mem_scope Optional backend memory scope.
+   * \return A tensor whose deleter owns the backend allocation and its resources.
    */
-  virtual size_t GetDataSize(const DLTensor& arr,
-                             ffi::Optional<ffi::String> mem_scope = std::nullopt);
+  virtual ffi::Tensor Empty(ffi::ShapeView shape, DLDataType dtype, DLDevice device,
+                            ffi::Optional<ffi::String> mem_scope = std::nullopt) = 0;
 
-  /*!
-   * \brief Query the device for specified properties.
-   *
-   * This is used to expand "-from_device=N" in the target string to
-   * all properties that can be determined from that device.
-   */
-  virtual void GetTargetProperty(Device dev, const std::string& property, ffi::Any* rv) {}
-
-  /*!
-   * \brief Allocate a data space on device.
-   * \param dev The device device to perform operation.
-   * \param nbytes The number of bytes in memory.
-   * \param alignment The alignment of the memory.
-   * \param type_hint The type of elements. Only needed by certain backends such
-   * as OpenGL, as nbytes & alignment are sufficient for most backends.
-   * \return The allocated device pointer.
-   */
-  virtual void* AllocDataSpace(Device dev, size_t nbytes, size_t alignment,
-                               DLDataType type_hint) = 0;
-  /*!
-   * \brief Allocate a data space on device with memory scope support.
-   * \param dev The device device to perform operation.
-   * \param ndim The number of dimension of allocated tensor.
-   * \param shape The shape of allocated tensor.
-   * \param dtype The type of elements.
-   * \param mem_scope The memory scope of allocated tensor.
-   * \return The allocated device pointer.
-   */
-  virtual void* AllocDataSpace(Device dev, int ndim, const int64_t* shape, DLDataType dtype,
-                               ffi::Optional<ffi::String> mem_scope = std::nullopt);
-  /*!
-   * \brief Free a data space on device.
-   * \param dev The device device to perform operation.
-   * \param ptr The data space.
-   */
-  virtual void FreeDataSpace(Device dev, void* ptr) = 0;
   /*!
    * \brief copy data from one place to another
    * \note This API is designed to support special memory with shape dependent layout.
@@ -259,31 +203,6 @@ class TVM_RUNTIME_DLL DeviceAPI {
    * \param event_dst The destination stream to synchronize.
    */
   virtual void SyncStreamFromTo(Device dev, TVMStreamHandle event_src, TVMStreamHandle event_dst);
-  /*!
-   * \brief Allocate temporal workspace for backend execution.
-   *
-   *  \note We have the following assumption about backend temporal
-   *   workspace allocation, and backend will optimize for such assumption:
-   *
-   *  - Only a few allocation will happen, and space will be released after use.
-   *  - The release order is usually in reverse order of allocate (stack style).
-   *  - Repeative pattern of same allocations over different runs.
-   *  - Workspace should not overlap between different threads(i.e. be threadlocal)
-   *
-   * \param dev The device of allocation.
-   * \param nbytes The size to be allocated.
-   * \param type_hint The type of elements. Only needed by certain backends such
-   * as OpenGL, as nbytes is sufficient for most backends.
-   */
-  virtual void* AllocWorkspace(Device dev, size_t nbytes, DLDataType type_hint = {});
-  /*!
-   * \brief Free temporal workspace in backend execution.
-   *
-   * \param dev The device of allocation.
-   * \param ptr The pointer to be freed.
-   */
-  virtual void FreeWorkspace(Device dev, void* ptr);
-
   /*!
    * \brief Get device API based on device.
    * \param dev The device
