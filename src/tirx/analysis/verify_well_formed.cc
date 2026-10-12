@@ -35,18 +35,17 @@
 #include <tuple>
 #include <variant>
 
-#include "../ir/tir_visitor_with_path.h"
 #include "tvm/ir/module.h"
 
 namespace tvm {
 namespace tirx {
 
 bool VerifyWellFormed(const Function& func, bool assert_mode) {
-  return VerifyWellFormedCommon<TIRVisitorWithPath>(func, assert_mode);
+  return VerifyWellFormedCommon<WellFormednessVerifier<StmtExprVisitor>>(func, assert_mode);
 }
 
 bool VerifyWellFormed(const IRModule& mod, bool assert_mode) {
-  return VerifyWellFormedCommon<TIRVisitorWithPath>(mod, assert_mode);
+  return VerifyWellFormedCommon<WellFormednessVerifier<StmtExprVisitor>>(mod, assert_mode);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
