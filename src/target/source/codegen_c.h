@@ -234,7 +234,7 @@ class CodeGenC : public tvm::ExprFunctor<void(const Expr&, std::ostream&)>,
   virtual void BindThreadIndex(const PrimVar& var, const ffi::String& thread_tag);  // NOLINT(*)
   virtual void PrintStorageQualifier(const VarNode* var, std::ostream& os);
   virtual void PrintStorageScope(const runtime::MemoryScope& scope, std::ostream& os);  // NOLINT(*)
-  virtual void PrintStorageSync(const CallNode* op);                                // NOLINT(*)
+  virtual void PrintStorageSync(const CallNode* op);                                    // NOLINT(*)
   // Binary vector op.
   virtual void PrintVecBinaryOp(const std::string& op, const PrimType& op_type, PrimExpr lhs,
                                 PrimExpr rhs,

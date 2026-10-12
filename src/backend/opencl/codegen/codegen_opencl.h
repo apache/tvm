@@ -47,7 +47,7 @@ class CodeGenOpenCL final : public CodeGenC {
   void BindThreadIndex(const PrimVar& var, const ffi::String& thread_tag) final;  // NOLINT(*)
   void PrintStorageQualifier(const VarNode* var, std::ostream& os) final;
   void PrintStorageScope(const runtime::MemoryScope& scope, std::ostream& os) final;  // NOLINT(*)
-  void PrintStorageSync(const CallNode* op) final;                                // NOLINT(*)
+  void PrintStorageSync(const CallNode* op) final;                                    // NOLINT(*)
   using CodeGenC::PrintType;
   void PrintType(const PrimType& t, std::ostream& os) final;  // NOLINT(*)
   void PrintType(const Type& type, std::ostream& os) final;   // NOLINT(*)

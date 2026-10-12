@@ -149,14 +149,15 @@ class TensorTypeNode : public TypeNode {
  */
 class TensorType : public Type {
  public:
-  TVM_TIRX_DLL TensorType(runtime::MemoryScope storage_scope, PrimType dtype, ffi::Array<PrimExpr> shape,
-                     ffi::Array<PrimExpr> strides, ffi::Optional<PrimExpr> elem_offset,
-                     int data_alignment, int offset_factor,
-                     ffi::Optional<Layout> layout = std::nullopt, Location loc = UnknownLoc());
+  TVM_TIRX_DLL TensorType(runtime::MemoryScope storage_scope, PrimType dtype,
+                          ffi::Array<PrimExpr> shape, ffi::Array<PrimExpr> strides,
+                          ffi::Optional<PrimExpr> elem_offset, int data_alignment,
+                          int offset_factor, ffi::Optional<Layout> layout = std::nullopt,
+                          Location loc = UnknownLoc());
   TVM_TIRX_DLL TensorType(ffi::String storage_scope, PrimType dtype, ffi::Array<PrimExpr> shape,
-                     ffi::Array<PrimExpr> strides, ffi::Optional<PrimExpr> elem_offset,
-                     int data_alignment, int offset_factor,
-                     ffi::Optional<Layout> layout = std::nullopt, Location loc = UnknownLoc());
+                          ffi::Array<PrimExpr> strides, ffi::Optional<PrimExpr> elem_offset,
+                          int data_alignment, int offset_factor,
+                          ffi::Optional<Layout> layout = std::nullopt, Location loc = UnknownLoc());
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TensorType, Type, TensorTypeNode);
 

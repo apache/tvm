@@ -57,8 +57,8 @@ class CodeGenTrainium final : public CodeGenC {
   void AddFunction(const GlobalVar& gvar, const Function& func) final;
   void InitFuncState(const Function& f) final;
   std::string GetStorageScopeStr(const runtime::MemoryScope& scope);  // NOLINT(*)
-  void Dispatch_(const VarNode* op, std::ostream& os) final;  // NOLINT(*)
-  void PrintType(const PrimType& t, std::ostream& os) final;  // NOLINT(*)
+  void Dispatch_(const VarNode* op, std::ostream& os) final;          // NOLINT(*)
+  void PrintType(const PrimType& t, std::ostream& os) final;          // NOLINT(*)
   void Dispatch_(const BindNode* op) final;
   void DispatchAllocTensor(const BindNode* op, const CallNode* buffer_call);
   void Dispatch_(const RegionStmtNode* op) final;                        // NOLINT(*)
