@@ -242,13 +242,15 @@ def _normalize_type(value) -> Type:
 def _init_type_api(namespace: str, target_module: str | ModuleType) -> None:
     """Expose loaded Type bindings as short aliases in a builder namespace.
 
-    Dialect bindings precede root ``ir`` bindings. Existing exports always win.
+    Dialect bindings precede root ``ir`` bindings. Explicit exports always win.
     This only aliases registered classes: it never imports bindings, constructs
     instances, or generates constructors. Call it again after loading additional
-    bindings to fill missing names; previously exported names remain unchanged.
+    bindings to fill missing names or replace generated root aliases with dialect
+    aliases. Module-local provenance distinguishes generated aliases from exports.
     """
     module = sys.modules[target_module] if isinstance(target_module, str) else target_module
     exports = vars(module)
+    generated = exports.setdefault("_generated_type_aliases", {})
     root_index = Type.__tvm_ffi_type_info__.type_index
     type_keys = [str(key) for key in tvm_ffi.registry.get_registered_type_keys()]
     dialect_aliases = set()
@@ -266,8 +268,15 @@ def _init_type_api(namespace: str, target_module: str | ModuleType) -> None:
                 dialect_aliases.add(alias)
             elif alias in dialect_aliases:
                 continue
-            if info.type_cls is None or not alias or alias in exports:
+            if info.type_cls is None or not alias:
                 continue
+            if alias in exports:
+                previous = generated.get(alias)
+                if previous is None or exports[alias] is not previous[1]:
+                    continue
+                if prefix != namespace or previous[0] != "ir" or namespace == "ir":
+                    continue
             exports[alias] = info.type_cls
-            if "__all__" in exports:
+            generated[alias] = (prefix, info.type_cls)
+            if "__all__" in exports and alias not in exports["__all__"]:
                 exports["__all__"] = [*exports["__all__"], alias]

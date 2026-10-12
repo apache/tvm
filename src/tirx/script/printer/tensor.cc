@@ -36,7 +36,38 @@ namespace script {
 namespace printer {
 namespace details {
 
-namespace {}  // namespace
+namespace {
+
+ffi::Optional<ExprDoc> TensorTypeDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                              const ffi::Object*) {
+  const auto* tensor =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const tirx::TensorTypeNode>(input);
+  // The tensor type constructor normalizes these fields.
+  // Keep the explicit type constructor when that normalization would change the IR.
+  if (tensor->storage_scope.empty() || tensor->data_alignment <= 0 || tensor->offset_factor == 0) {
+    return NamespaceDoc("ir")
+        ->Attr("make_node")
+        ->Call({LiteralDoc::Str("tirx.TensorType", std::nullopt)},
+               {"dtype", "storage_scope", "shape", "strides", "elem_offset", "data_alignment",
+                "offset_factor", "layout"},
+               {TypeValue(d, tensor->dtype, false),
+                LiteralDoc::Str(tensor->storage_scope, std::nullopt), AnyValue(d, tensor->shape),
+                AnyValue(d, tensor->strides), d->Translate(tensor->elem_offset).value(),
+                LiteralDoc::Int(tensor->data_alignment, std::nullopt),
+                LiteralDoc::Int(tensor->offset_factor, std::nullopt),
+                tensor->layout.has_value() ? d->Translate(tensor->layout.value()).value()
+                                           : LiteralDoc::None(std::nullopt)});
+  }
+  return d->DefaultTypeTranslate(ffi::GetRef<tirx::TensorType>(tensor));
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  ffi::reflection::TypeAttrDef<tirx::TensorTypeNode>().attr(
+      tvm::script::printer::type_attr::kDocTranslate,
+      FDocTranslate::FromNative<&TensorTypeDocTranslate>());
+}
+
+}  // namespace
 
 namespace {
 

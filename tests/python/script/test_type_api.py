@@ -69,6 +69,7 @@ def test_namespace_filter_collision_and_exports():
         "__loader__",
         "__spec__",
         "__all__",
+        "_generated_type_aliases",
     }
 
     dialect = ModuleType("dialect_types")
@@ -123,6 +124,30 @@ def test_new_binding_is_discovered_without_a_type_suffix():
     root = ModuleType("root_without_dialect")
     _init_type_api("ir", root)
     assert "LateBound" not in vars(root)
+
+
+def test_late_dialect_registration_replaces_only_generated_root_alias():
+    module = ModuleType("late_collision_types")
+    module.__all__ = []
+    explicit = ModuleType("late_explicit_types")
+    explicit.Func = ir.FuncType
+    overwritten = ModuleType("late_overwritten_types")
+    for target in (module, explicit, overwritten):
+        _init_type_api("type_api_late_collision", target)
+        assert target.Func is ir.FuncType
+    sentinel = object()
+    overwritten.Func = sentinel
+
+    @tvm_ffi.dataclasses.py_class("type_api_late_collision.FuncType")
+    class FuncType(ir.Type):
+        value: int
+
+    for target in (module, explicit, overwritten):
+        _init_type_api("type_api_late_collision", target)
+    assert module.Func is FuncType
+    assert module.__all__.count("Func") == 1
+    assert explicit.Func is ir.FuncType
+    assert overwritten.Func is sentinel
 
 
 def test_late_binding_and_repeat_do_not_instantiate(monkeypatch):

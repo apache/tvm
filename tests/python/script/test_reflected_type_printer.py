@@ -169,6 +169,21 @@ def test_tensor_reflected_defaults_and_nondefaults():
     assert "elem_offset=" not in source
 
 
+@pytest.mark.parametrize(
+    "fields",
+    [
+        {"storage_scope": ""},
+        {"data_alignment": 0},
+        {"data_alignment": -1},
+        {"offset_factor": 0},
+    ],
+)
+def test_noncanonical_tensor_fields_roundtrip_without_normalization(fields):
+    value = ir.make_node("tirx.TensorType", shape=[], **fields)
+    assert _roundtrip(value).startswith('I.make_node("tirx.TensorType"')
+    assert "I.make_node" in _roundtrip(ir.FuncType([value], value))
+
+
 def test_tensor_offset_is_fixed_and_explicit_offsets_roundtrip():
     int32_shape = [tirx.IntImm("int32", 2)]
     plain = T.Tensor(int32_shape)
