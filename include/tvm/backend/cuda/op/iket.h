@@ -48,7 +48,7 @@ namespace cuda {
  * Operands: [0] name, the marker name; [1...] args, the optional payload tail.
  * Result: void. Effects: opaque marker annotation.
  */
-TVM_DLL const Op& iket_mark_op();
+TVM_TIRX_DLL const Op& iket_mark_op();
 
 /*!
  * \brief Get the NVIDIA IKET token-range start operator, tirx.cuda.iket_range_start.
@@ -57,7 +57,7 @@ TVM_DLL const Op& iket_mark_op();
  * Operands: [0] name, the range name; [1...] args, the optional payload tail.
  * Result: uint32 range token. Effects: opaque range-start annotation.
  */
-TVM_DLL const Op& iket_range_start_op();
+TVM_TIRX_DLL const Op& iket_range_start_op();
 
 /*!
  * \brief Get the NVIDIA IKET token-range end operator, tirx.cuda.iket_range_end.
@@ -67,7 +67,7 @@ TVM_DLL const Op& iket_range_start_op();
  * [1...] args, the optional payload tail. IKET lowering requires a uint32 token.
  * Result: void. Effects: opaque range-end annotation.
  */
-TVM_DLL const Op& iket_range_end_op();
+TVM_TIRX_DLL const Op& iket_range_end_op();
 
 /*!
  * \brief Get the NVIDIA IKET stack-range push operator, tirx.cuda.iket_range_push.
@@ -76,7 +76,7 @@ TVM_DLL const Op& iket_range_end_op();
  * Operands: [0] name, the range name; [1...] args, the optional payload tail.
  * Result: void. Effects: opaque stack-range push annotation.
  */
-TVM_DLL const Op& iket_range_push_op();
+TVM_TIRX_DLL const Op& iket_range_push_op();
 
 /*!
  * \brief Get the NVIDIA IKET stack-range pop operator, tirx.cuda.iket_range_pop.
@@ -84,7 +84,7 @@ TVM_DLL const Op& iket_range_push_op();
  * Operands: none; IKET lowering enforces the empty operand list.
  * Result: void. Effects: opaque stack-range pop annotation.
  */
-TVM_DLL const Op& iket_range_pop_op();
+TVM_TIRX_DLL const Op& iket_range_pop_op();
 
 /*!
  * \brief Get the NVIDIA IKET sentinel-token operator, tirx.cuda.iket_sentinel_token.
@@ -93,7 +93,7 @@ TVM_DLL const Op& iket_range_pop_op();
  * Result: uint32 sentinel token. Registered effects: opaque. The sentinel carries
  * token-flow identity; IKET lowering emits no runtime event for it.
  */
-TVM_DLL const Op& iket_sentinel_token_op();
+TVM_TIRX_DLL const Op& iket_sentinel_token_op();
 
 /*! \} */
 

@@ -284,7 +284,7 @@ def test_dsmem(shape, dtype, src_spec, dst_spec, expected):
     target = tvm.target.Target("cuda")
     with target:
         mod = tvm.IRModule({"main": dsmem_copy})
-        mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
+        mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
 
         cuda_src = mod.mod.imports[0].inspect_source()
         assert "cp.async.bulk.shared::cluster.shared::cta" in cuda_src

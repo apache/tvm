@@ -83,7 +83,7 @@ def _compile(kernel):
     target = tvm.target.Target("cuda")
     with target:
         mod = tvm.IRModule({"main": kernel})
-        ex = tvm.compile(mod, target=target, tir_pipeline="tirx")
+        ex = tvm.tirx.compile(mod, target=target, pipeline="tirx")
     return ex, ex.mod.imports[0].inspect_source()
 
 
@@ -170,7 +170,7 @@ def test_copy_vec_nc_rejects_non_global_src():
     with target:
         mod = tvm.IRModule({"main": kernel})
         with pytest.raises(RuntimeError, match="requires src scope 'global'"):
-            tvm.compile(mod, target=target, tir_pipeline="tirx")
+            tvm.tirx.compile(mod, target=target, pipeline="tirx")
 
 
 if __name__ == "__main__":

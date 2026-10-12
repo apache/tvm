@@ -176,7 +176,7 @@ class Axis : public ffi::Enum {
    * \param name Name of the axis to look up or register.
    * \return The registered axis singleton.
    */
-  TVM_DLL static Axis Get(const ffi::String& name);
+  TVM_TIRX_DLL static Axis Get(const ffi::String& name);
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Axis, ffi::Enum, AxisNode);
 };
@@ -206,7 +206,7 @@ class IterNode : public ffi::Object {
 
 class Iter : public ffi::ObjectRef {
  public:
-  TVM_DLL explicit Iter(PrimExpr extent, PrimExpr stride, Axis axis);
+  TVM_TIRX_DLL explicit Iter(PrimExpr extent, PrimExpr stride, Axis axis);
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Iter, ffi::ObjectRef, IterNode);
 };
 
@@ -301,8 +301,8 @@ class TileLayoutNode : public LayoutNode {
 
 class TileLayout : public Layout {
  public:
-  TVM_DLL explicit TileLayout(ffi::Array<Iter> shard, ffi::Array<Iter> replica,
-                              ffi::Map<Axis, PrimExpr> offset);
+  TVM_TIRX_DLL explicit TileLayout(ffi::Array<Iter> shard, ffi::Array<Iter> replica,
+                                   ffi::Map<Axis, PrimExpr> offset);
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TileLayout, Layout, TileLayoutNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(TileLayoutNode);
@@ -391,8 +391,8 @@ class ComposeLayoutNode : public LayoutNode {
 
 class ComposeLayout : public Layout {
  public:
-  TVM_DLL explicit ComposeLayout(int per_element, int swizzle_len, int atom_len,
-                                 TileLayout tile_layout, bool swizzle_inner = true);
+  TVM_TIRX_DLL explicit ComposeLayout(int per_element, int swizzle_len, int atom_len,
+                                      TileLayout tile_layout, bool swizzle_inner = true);
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ComposeLayout, Layout, ComposeLayoutNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(ComposeLayoutNode);

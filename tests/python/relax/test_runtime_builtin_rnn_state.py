@@ -81,7 +81,7 @@ def set_global_func():
         mod = tvm.IRModule({"main": tir_func})
         with target:
             mod = dl.ApplyDefaultSchedule(dl.gpu.Fallback())(mod)  # pylint: disable=not-callable
-        f = tvm.tirx.build(mod["main"], target=target)
+        f = tvm.tirx.compile(mod["main"], target=target).mod
         return f.main
 
     _f_tir_gets, _f_tir_sets = [], []

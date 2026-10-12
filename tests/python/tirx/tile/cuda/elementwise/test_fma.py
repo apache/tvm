@@ -71,7 +71,7 @@ def test_fma_scalar_scalar():
     with target:
         A_np = np.random.rand(N).astype(dtype)
         mod = tvm.IRModule({"main": test_func})
-        mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
+        mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
 
         def run_and_check():
             dev = tvm.cuda(0)
@@ -122,7 +122,7 @@ def test_fma_tensor_scale_scalar_bias():
         A_np = np.random.rand(N).astype(dtype)
         B_np = np.random.rand(N).astype(dtype)
         mod = tvm.IRModule({"main": test_func})
-        mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
+        mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
 
         def run_and_check():
             dev = tvm.cuda(0)
@@ -172,7 +172,7 @@ def test_mul_scalar_broadcast():
         A_np = np.random.rand(N).astype(dtype)
         S_np = np.array([2.5], dtype=dtype)
         mod = tvm.IRModule({"main": test_func})
-        mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
+        mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
 
         def run_and_check():
             dev = tvm.cuda(0)
@@ -216,7 +216,7 @@ def test_add_rounding_mode():
     with target:
         A_np = np.array([1.3, 2.7], dtype=dtype)
         mod = tvm.IRModule({"main": test_func})
-        mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
+        mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
         # Check that the PTX uses the rounding mode
         src = mod.mod.imports[0].inspect_source()
         assert re.search(r"add\.rm\.ftz\.f32x2", src), (
@@ -265,7 +265,7 @@ def test_fma_no_layout():
     with target:
         A_np = np.array([1.0, 2.0, 3.0, 4.0], dtype=dtype)
         mod = tvm.IRModule({"main": test_func})
-        mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
+        mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
 
         def run_and_check():
             dev = tvm.cuda(0)
@@ -314,7 +314,7 @@ def test_sub_tensor_tensor_rounding():
         A_np = np.array([3.14, 2.71], dtype=dtype)
         B_np = np.array([1.41, 0.57], dtype=dtype)
         mod = tvm.IRModule({"main": test_func})
-        mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
+        mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
         src = mod.mod.imports[0].inspect_source()
         assert re.search(r"sub\.rn\.ftz\.f32x2", src), (
             f"Expected packed sub with rn rounding in PTX:\n{src}"
@@ -366,7 +366,7 @@ def test_fma_warpgroup_wg_local_layout():
         A_np = np.random.rand(rows, cols).astype(dtype)
         B_np = np.zeros((rows, cols), dtype=dtype)
         mod = tvm.IRModule({"main": test_func})
-        mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
+        mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
 
         def run_and_check():
             dev = tvm.cuda(0)
@@ -420,7 +420,7 @@ def test_fma_f32_sm100_packed_f32x2_dispatch():
     target = tvm.target.Target({"kind": "cuda", "arch": "sm_100a"})
     with target:
         mod = tvm.IRModule({"main": k})
-        mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
+        mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
         src = mod.mod.imports[0].inspect_source()
     assert re.search(r"fma\.[a-z]+\.ftz\.f32x2", src), (
         f"expected packed fma_f32x2; got:\n{src[:2000]}"

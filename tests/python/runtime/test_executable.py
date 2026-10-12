@@ -42,7 +42,7 @@ class MyModule:
 
 def test_executable_init():
     """Test initialization of Executable class."""
-    lib = tvm.tirx.build(MyModule, target="llvm")
+    lib = tvm.tirx.compile(MyModule, target="llvm").mod
     executable = Executable(lib)
 
     assert executable.mod is lib
@@ -51,7 +51,7 @@ def test_executable_init():
 
 def test_executable_getitem():
     """Test __getitem__ method of Executable class."""
-    lib = tvm.tirx.build(MyModule, target="llvm")
+    lib = tvm.tirx.compile(MyModule, target="llvm").mod
     executable = Executable(lib)
 
     # Jit the module first
@@ -73,7 +73,7 @@ def test_executable_getitem():
 
 def test_executable_jit_already_jitted():
     """Test jit method when module is already jitted."""
-    lib = tvm.tirx.build(MyModule, target="llvm")
+    lib = tvm.tirx.compile(MyModule, target="llvm").mod
     executable = Executable(lib)
 
     # First jit call
@@ -102,7 +102,7 @@ def test_executable_jit_already_jitted():
 
 def test_executable_export_library():
     """Test export_library method."""
-    lib = tvm.tirx.build(MyModule, target="llvm")
+    lib = tvm.tirx.compile(MyModule, target="llvm").mod
     executable = Executable(lib)
 
     # Create a temporary directory for the library
@@ -137,7 +137,7 @@ def test_executable_export_library():
 
 def test_executable_export_library_with_workspace():
     """Test export_library method with workspace_dir."""
-    lib = tvm.tirx.build(MyModule, target="llvm")
+    lib = tvm.tirx.compile(MyModule, target="llvm").mod
     executable = Executable(lib)
 
     # Create temporary directories
@@ -177,7 +177,7 @@ def test_executable_integration():
     """Integration test for Executable with a simple TVM module."""
     # Create target and build
     target = tvm.target.Target("llvm")
-    lib = tvm.tirx.build(MyModule, target=target)
+    lib = tvm.tirx.compile(MyModule, target=target).mod
 
     # Create an executable
     executable = Executable(lib)
@@ -233,7 +233,7 @@ def test_executable_jit_force_recompile():
     """Test jit method with force_recompile=True."""
     # Create target and build
     target = tvm.target.Target("c")
-    lib = tvm.tirx.build(MyModule, target=target)
+    lib = tvm.tirx.compile(MyModule, target=target).mod
 
     # Create an executable
     executable = Executable(lib)

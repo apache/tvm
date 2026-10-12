@@ -38,7 +38,7 @@ def test_popcount():
                 for i in T.vectorized(elements):
                     B[i] = T.popcount(A[i])
 
-        f = tvm.tirx.build(Module, target=target)
+        f = tvm.tirx.compile(Module, target=target).mod
         # Verify we see the correct number of vpaddl and vcnt instructions in the assembly
         assembly = f.inspect_source("asm")
         matches = re.findall("vpaddl", assembly)
@@ -77,7 +77,7 @@ def test_vmlal_s16():
                     for rv in range(K):
                         C[n] = C[n] + T.Cast("int32", A[rv, n]) * T.Cast("int32", B[rv, n])
 
-        f = tvm.tirx.build(Module, target=target)
+        f = tvm.tirx.compile(Module, target=target).mod
 
         # Verify we see the correct number of vmlal.s16 instructions
         assembly = f.inspect_source("asm")
@@ -105,7 +105,7 @@ def test_vmlal_s16():
                     for rv in range(K):
                         C[n] = C[n] + T.Cast("int32", A[rv, n]) * T.Cast("int32", B[rv])
 
-        f = tvm.tirx.build(Module, target=target)
+        f = tvm.tirx.compile(Module, target=target).mod
 
         # Verify we see the correct number of vmlal.s16 instructions
         assembly = f.inspect_source("asm")

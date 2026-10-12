@@ -88,7 +88,7 @@ def test_allreduce_sum(dims, target):
         pytest.skip(f"{target} not enabled")
     d1, d2, d3 = dims
     mod = _reduce_sum_module(d1, d2, d3)
-    f = tvm.compile(mod, target=target)
+    f = tvm.tirx.compile(mod, target=target)
 
     # prepare input and output array
     a_np = np.random.rand(1, d1, d2, d3).astype("float32")
@@ -138,7 +138,7 @@ def test_allreduce_sum_compile(optional_metal_compile_callback):
 
     d1, d2, d3 = dims
     mod = _reduce_sum_module(d1, d2, d3)
-    tvm.compile(mod, target=target)
+    tvm.tirx.compile(mod, target=target)
 
 
 @pytest.mark.parametrize(
@@ -153,7 +153,7 @@ def test_allreduce_max(dims, target):
         pytest.skip(f"{target} not enabled")
     d1, d2, d3 = dims
     mod = _reduce_max_module(d1, d2, d3)
-    f = tvm.compile(mod, target=target)
+    f = tvm.tirx.compile(mod, target=target)
 
     # prepare input and output array
     a_np = -np.random.rand(1, d1, d2, d3).astype("float32")

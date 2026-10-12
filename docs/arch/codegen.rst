@@ -36,7 +36,7 @@ When a user calls ``tvm.compile()``, the compilation proceeds in two phases:
    ``VMCodeGen`` translates Relax functions into VM bytecode (see :ref:`relax-vm-arch`).
 2. **TIR phase**: TIR ``Function``\ s (the actual compute kernels) are compiled to native code.
 
-The TIR phase is handled internally by ``tirx.build()`` (called from ``relax.build()``).
+The TIR phase is handled internally by ``tirx.compile()`` (called from ``relax.build()``).
 It performs these steps:
 
 .. code-block:: text
@@ -46,11 +46,11 @@ It performs these steps:
         ▼  TIR pipeline                   ← lowering passes (flatten buffers, lower intrinsics, etc.)
    TIR Functions (lowered)
         │
-        ▼  split_host_device_mods()        ← separate host and device functions
+        ▼  _split_host_device_modules()        ← separate host and device functions
    Host IRModule + Device IRModule(s)
         │                    │
         ▼                    ▼
-   codegen_build()      codegen_build()    ← target-specific code generation
+   _build_for_target()      _build_for_target()    ← target-specific code generation
         │                    │
         ▼                    ▼
    Host Module          Device Module(s)
@@ -65,7 +65,7 @@ Target Dispatch
 ---------------
 
 The core dispatch logic lives in ``codegen::Build()`` (``src/target/codegen.cc``), which is
-called from the Python-side ``codegen_build()`` in ``tirx/build.py``. It selects the correct
+called from the Python-side ``_build_for_target()`` in ``tirx/_compile.py``. It selects the correct
 backend based on the ``Target`` object:
 
 .. code-block:: cpp
@@ -221,7 +221,7 @@ When compiling for GPU targets, TIR functions are split into two categories:
 - **Device functions** — the actual compute kernels that run on the GPU. Compiled with the
   target-specific codegen (``target.build.cuda``, etc.).
 
-``split_host_device_mods()`` (``python/tvm/tirx/build.py``) separates functions by their
+``_split_host_device_modules()`` (``python/tvm/tirx/_compile.py``) separates functions by their
 ``target`` attribute: functions whose target kind is ``"llvm"`` or ``"c"`` go to the host
 module; all others go to device modules grouped by target.
 
@@ -279,8 +279,8 @@ Source Code Map
 
    * - Path
      - Contents
-   * - ``python/tvm/tirx/build.py``
-     - ``tirx.build()``: TIR compilation entry, host/device split, module linking
+   * - ``python/tvm/tirx/_compile.py``
+     - ``tirx.compile()``: TIR compilation entry, host/device split, module linking
    * - ``src/target/codegen.cc``
      - ``codegen::Build()``: target dispatch via ``"target.build.<kind>"``
    * - ``src/target/llvm/codegen_llvm.h``

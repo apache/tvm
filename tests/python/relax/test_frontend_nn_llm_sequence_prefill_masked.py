@@ -124,7 +124,7 @@ def _build_masked_prefill(h_kv, h_q, d, dtype, target, mask_mode="padded"):
         mask_mode=mask_mode,
     )
     mod = tvm.IRModule({"main": tir_func})
-    return tvm.tirx.build(mod["main"], target=target), sm_scale
+    return tvm.tirx.compile(mod["main"], target=target).mod, sm_scale
 
 
 def _run_case(

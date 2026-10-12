@@ -18,11 +18,11 @@
 Compilation
 ===========
 
-tvm.tirx.build
---------------
+tvm.tirx.compile
+----------------
 .. currentmodule:: tvm.tirx
 
-.. autofunction:: build
+.. autofunction:: compile
    :no-index:
 
 tvm.tirx.compilation_pipeline

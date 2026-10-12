@@ -138,3 +138,5 @@ _register_namespace_initializer(_initialize_script_namespace, aliases=("relax",)
 
 # Register the exported operator printer names for compiler diagnostics as well.
 from .script import ir_builder as _script_ir_builder
+
+from .script import printer as _script_printer

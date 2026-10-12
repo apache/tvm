@@ -141,7 +141,7 @@ def _s_tir_pipeline(*, prepare_only=False, target=None, adreno=False):
         if scheduled:
             prepared.update(_lower_s_tir(adreno=adreno)(_submodule(mod, scheduled)))
         if native:
-            prepared.update(tir_pipeline._lower_thread_binding()(_submodule(mod, native)))
+            prepared.update(_submodule(mod, native))
 
         # Classification sees every caller after each dialect has explicit launches.
         prepared = tir_pipeline._bind_target(prepared, target)
@@ -152,9 +152,7 @@ def _s_tir_pipeline(*, prepare_only=False, target=None, adreno=False):
         if scheduled:
             lowered.update(_lower_s_tir_tail(adreno=adreno)(_submodule(prepared, scheduled)))
         if native:
-            lower_native, _, _ = tir_pipeline.tirx_pipeline(
-                prepare_only=True, _bindings_lowered=True
-            )
+            lower_native, _, _ = tir_pipeline.tirx_pipeline(prepare_only=True)
             lowered.update(lower_native(_submodule(prepared, native)))
         if prepare_only:
             return lowered
@@ -175,7 +173,7 @@ def _s_tir_pipeline(*, prepare_only=False, target=None, adreno=False):
 
 def _prepare_legacy_target_binding(mod):
     """Keep custom scheduling pipelines intact when prebinding is unambiguous."""
-    scheduled, native = _partition_dialects(mod)
+    scheduled, _ = _partition_dialects(mod)
     in_binding = False
     in_device_region = False
 
@@ -218,10 +216,6 @@ def _prepare_legacy_target_binding(mod):
                 (tvm.ir.Call, visit_call),
             ],
         )
-    if native:
-        prepared = _submodule(mod, scheduled)
-        prepared.update(tir_pipeline._lower_thread_binding()(_submodule(mod, native)))
-        return prepared
     return mod
 
 
@@ -259,3 +253,4 @@ def _select_default_pipeline(mod, target, *, target_to_bind=None):
 
 
 tir_pipeline.register_default_tir_pipeline_selector(_select_default_pipeline)
+tir_pipeline._LEGACY_TARGET_PREPARERS.append(_prepare_legacy_target_binding)

@@ -33,7 +33,7 @@ def build_tir_func(func):
     if pass_ctx.config.get("tirx.noalias", True):
         func = func.with_attr("tirx.noalias", True)
     mod = tvm.IRModule({"main": func})
-    func = tvm.compile(mod)
+    func = tvm.tirx.compile(mod)
     return func
 
 

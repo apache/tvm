@@ -84,7 +84,7 @@ class SeqStmtNode : public StmtNode {
    */
   Stmt operator[](size_t index) const { return seq[index]; }
 
-  TVM_DLL static void RegisterReflection();
+  TVM_TIRX_DLL static void RegisterReflection();
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.SeqStmt", SeqStmtNode, StmtNode);
 };
 
@@ -96,9 +96,9 @@ class SeqStmt : public Stmt {
    * \param seq The sequence.
    * \param loc The location of this object in the source code.
    */
-  TVM_DLL explicit SeqStmt(ffi::Array<Stmt> seq, Location loc = UnknownLoc());
+  TVM_TIRX_DLL explicit SeqStmt(ffi::Array<Stmt> seq, Location loc = UnknownLoc());
   /*! \brief Wrap a statement, reusing an existing sequence when possible. */
-  TVM_DLL SeqStmt(Stmt stmt, ffi::Optional<Location> loc = std::nullopt);
+  TVM_TIRX_DLL SeqStmt(Stmt stmt, ffi::Optional<Location> loc = std::nullopt);
   SeqStmt(std::initializer_list<Stmt> seq, Location loc = UnknownLoc())
       : SeqStmt(ffi::Array<Stmt>(seq), std::move(loc)) {}
 
@@ -158,7 +158,7 @@ class BindNode : public StmtNode {
  */
 class Bind : public Stmt {
  public:
-  TVM_DLL Bind(Var var, Expr value, Location loc = UnknownLoc());
+  TVM_TIRX_DLL Bind(Var var, Expr value, Location loc = UnknownLoc());
 
   explicit Bind(ffi::ObjectPtr<BindNode> node) : Stmt(std::move(node)) {}
 
@@ -169,7 +169,7 @@ class Bind : public Stmt {
 /*!
  * \brief Check FRegionGetBodyParams registration without invoking it or creating variables.
  */
-TVM_DLL bool IsRegionOp(const Op& op);
+TVM_TIRX_DLL bool IsRegionOp(const Op& op);
 
 /*!
  * \brief Validate region operands and construct fresh typed body parameters.
@@ -179,7 +179,7 @@ TVM_DLL bool IsRegionOp(const Op& op);
  * \return Parameters from the required FRegionGetBodyParams hook.
  * \throws ValueError if the operation has no registered region hook.
  */
-TVM_DLL ffi::Array<Var> GetRegionBodyParams(Op op, ffi::Array<Expr> args, DictAttrs attrs);
+TVM_TIRX_DLL ffi::Array<Var> GetRegionBodyParams(Op op, ffi::Array<Expr> args, DictAttrs attrs);
 
 /*!
  * \brief A single-body statement whose semantics are defined by an operator.
@@ -223,8 +223,9 @@ class RegionStmtNode : public StmtNode {
 /*! \brief Managed reference to RegionStmtNode. */
 class RegionStmt : public Stmt {
  public:
-  TVM_DLL RegionStmt(Op op, ffi::Array<Expr> args, ffi::Array<Var> body_params, DictAttrs attrs,
-                     SeqStmt body, ffi::Array<Var> result_vars = {}, Location loc = UnknownLoc());
+  TVM_TIRX_DLL RegionStmt(Op op, ffi::Array<Expr> args, ffi::Array<Var> body_params,
+                          DictAttrs attrs, SeqStmt body, ffi::Array<Var> result_vars = {},
+                          Location loc = UnknownLoc());
 
   explicit RegionStmt(ffi::ObjectPtr<RegionStmtNode> node) : Stmt(std::move(node)) {}
 
@@ -286,8 +287,8 @@ class AssertStmtNode : public StmtNode {
  */
 class AssertStmt : public Stmt {
  public:
-  TVM_DLL AssertStmt(PrimExpr condition, StringImm error_kind, ffi::Array<StringImm> message_parts,
-                     Location loc = UnknownLoc());
+  TVM_TIRX_DLL AssertStmt(PrimExpr condition, StringImm error_kind,
+                          ffi::Array<StringImm> message_parts, Location loc = UnknownLoc());
 
   explicit AssertStmt(ffi::ObjectPtr<AssertStmtNode> node) : Stmt(std::move(node)) {}
 
@@ -333,8 +334,8 @@ class TensorStoreNode : public StmtNode {
  */
 class TensorStore : public Stmt {
  public:
-  TVM_DLL explicit TensorStore(Expr dest, ffi::Array<PrimExpr> indices, PrimExpr value,
-                               Location loc = UnknownLoc());
+  TVM_TIRX_DLL explicit TensorStore(Expr dest, ffi::Array<PrimExpr> indices, PrimExpr value,
+                                    Location loc = UnknownLoc());
 
   explicit TensorStore(ffi::ObjectPtr<TensorStoreNode> node) : Stmt(std::move(node)) {}
 
@@ -370,7 +371,7 @@ class EvaluateNode : public StmtNode {
  */
 class Evaluate : public Stmt {
  public:
-  TVM_DLL explicit Evaluate(Expr value, Location loc = UnknownLoc());
+  TVM_TIRX_DLL explicit Evaluate(Expr value, Location loc = UnknownLoc());
 
   explicit Evaluate(int value, Location loc = UnknownLoc()) : Evaluate(PrimExpr(value), loc) {}
 
@@ -413,8 +414,8 @@ class IfNode : public StmtNode {
  */
 class If : public Stmt {
  public:
-  TVM_DLL If(PrimExpr condition, SeqStmt then_case, ffi::Optional<SeqStmt> else_case = std::nullopt,
-             Location loc = UnknownLoc());
+  TVM_TIRX_DLL If(PrimExpr condition, SeqStmt then_case,
+                  ffi::Optional<SeqStmt> else_case = std::nullopt, Location loc = UnknownLoc());
 
   explicit If(ffi::ObjectPtr<IfNode> node) : Stmt(std::move(node)) {}
 
@@ -509,9 +510,9 @@ class ForNode : public StmtNode {
  */
 class For : public Stmt {
  public:
-  TVM_DLL For(PrimVar loop_var, PrimExpr min, PrimExpr extent, ForKind kind, SeqStmt body,
-              ffi::Map<ffi::String, ffi::Any> annotations = {},
-              ffi::Optional<PrimExpr> step = std::nullopt, Location loc = UnknownLoc());
+  TVM_TIRX_DLL For(PrimVar loop_var, PrimExpr min, PrimExpr extent, ForKind kind, SeqStmt body,
+                   ffi::Map<ffi::String, ffi::Any> annotations = {},
+                   ffi::Optional<PrimExpr> step = std::nullopt, Location loc = UnknownLoc());
 
   explicit For(ffi::ObjectPtr<ForNode> node) : Stmt(std::move(node)) {}
 
@@ -556,7 +557,7 @@ class WhileNode : public StmtNode {
  */
 class While : public Stmt {
  public:
-  TVM_DLL While(PrimExpr condition, SeqStmt body, Location loc = UnknownLoc());
+  TVM_TIRX_DLL While(PrimExpr condition, SeqStmt body, Location loc = UnknownLoc());
 
   explicit While(ffi::ObjectPtr<WhileNode> node) : Stmt(std::move(node)) {}
 
@@ -590,7 +591,7 @@ class ReturnNode : public StmtNode {
  */
 class Return : public Stmt {
  public:
-  TVM_DLL explicit Return(Expr value, Location loc = UnknownLoc());
+  TVM_TIRX_DLL explicit Return(Expr value, Location loc = UnknownLoc());
 
   explicit Return(ffi::ObjectPtr<ReturnNode> node) : Stmt(std::move(node)) {}
 
@@ -617,7 +618,7 @@ class BreakNode : public StmtNode {
  */
 class Break : public Stmt {
  public:
-  TVM_DLL explicit Break(Location loc);
+  TVM_TIRX_DLL explicit Break(Location loc);
 
   explicit Break(ffi::ObjectPtr<BreakNode> node) : Stmt(std::move(node)) {}
 
@@ -644,7 +645,7 @@ class ContinueNode : public StmtNode {
  */
 class Continue : public Stmt {
  public:
-  TVM_DLL explicit Continue(Location loc);
+  TVM_TIRX_DLL explicit Continue(Location loc);
 
   explicit Continue(ffi::ObjectPtr<ContinueNode> node) : Stmt(std::move(node)) {}
 
@@ -653,7 +654,7 @@ class Continue : public Stmt {
 };
 
 // overload printing of for type.
-TVM_DLL std::ostream& operator<<(std::ostream& os, ForKind kind);
+TVM_TIRX_DLL std::ostream& operator<<(std::ostream& os, ForKind kind);
 
 // inline implementations
 inline const char* ForKind2String(ForKind t) {

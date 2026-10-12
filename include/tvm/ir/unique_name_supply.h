@@ -119,8 +119,8 @@ class UniqueNameSupply : public ffi::ObjectRef {
    * \param prefix The prefix to be used with this UniqueNameSupply.
    * \param name_map An optional map.
    */
-  TVM_DLL explicit UniqueNameSupply(const ffi::String& prefix = "",
-                                    ffi::Map<ffi::String, int64_t> name_map = {});
+  TVM_TIRX_DLL explicit UniqueNameSupply(const ffi::String& prefix = "",
+                                         ffi::Map<ffi::String, int64_t> name_map = {});
 
   /*!
    * \brief Construct UniqueNameSupply by reserving names from the given iterator range.
@@ -128,7 +128,7 @@ class UniqueNameSupply : public ffi::ObjectRef {
    * The functor should return the name of the dereferenced object.
    */
   template <typename Iter, typename Lambda>
-  TVM_DLL UniqueNameSupply(Iter begin, Iter end, Lambda f) : UniqueNameSupply("") {
+  TVM_TIRX_DLL UniqueNameSupply(Iter begin, Iter end, Lambda f) : UniqueNameSupply("") {
     for (auto it = begin; it != end; ++it) {
       this->operator->()->ReserveName(f(*it), false);
     }

@@ -361,7 +361,7 @@ def test_vectorize_while_fail():
                     i[0] = i[0] + 1
 
     try:
-        tvm.compile(Module, target="llvm")
+        tvm.tirx.compile(Module, target="llvm")
         assert False
     except RuntimeError as e:
         error_msg = str(e).split("\n")[-1]
@@ -786,7 +786,7 @@ def test_vectorize_llvm_pure_intrin(extent, vec_str, target):
 
     mod = tvm.tirx.transform.VectorizeLoop()(Before)
     tvm.ir.assert_structural_equal(mod, After)
-    mod = tvm.compile(mod, target=target)
+    mod = tvm.tirx.compile(mod, target=target)
 
 
 @pytest.mark.parametrize(
@@ -817,10 +817,10 @@ def test_vectorize_llvm_pure_intrin_fail(extent, vec_str, target):
     # "Intrinsic does not support vectors" check was removed in release/20.x, so
     # compilation only fails on LLVM <= 19.
     if llvm_version_major() >= 20:
-        tvm.compile(mod, target=target)
+        tvm.tirx.compile(mod, target=target)
     else:
         with pytest.raises(Exception, match="Intrinsic does not support vectors"):
-            tvm.compile(mod, target=target)
+            tvm.tirx.compile(mod, target=target)
 
 
 if __name__ == "__main__":

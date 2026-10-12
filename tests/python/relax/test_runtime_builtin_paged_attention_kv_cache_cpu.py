@@ -194,7 +194,7 @@ def set_global_func(head_dim, dtype, layer_sliding_window_size=1024):
             mod = tvm.IRModule({"main": tir_func})
             with target:
                 mod = dl.ApplyDefaultSchedule(dl.gpu.Fallback())(mod)
-            f = tvm.tirx.build(mod["main"], target=target)
+            f = tvm.tirx.compile(mod["main"], target=target).mod
             builts.append(f.main)
         builts = tuple(builts)
         _COMPILED_KERNEL_CACHE[cache_key] = builts

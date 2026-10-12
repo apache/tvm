@@ -25,7 +25,7 @@
 namespace tvm::tirx {
 
 /*! \brief Register a backend's execution hierarchy. Smaller rank means wider scope. */
-TVM_DLL void RegisterExecScope(const ffi::String& backend, const ffi::String& name, int rank);
+TVM_TIRX_DLL void RegisterExecScope(const ffi::String& backend, const ffi::String& name, int rank);
 
 class ExecScopeNode : public ffi::Object {
  public:
@@ -46,12 +46,12 @@ class ExecScopeNode : public ffi::Object {
 
 class ExecScope : public ffi::ObjectRef {
  public:
-  TVM_DLL ExecScope(ffi::String backend, ffi::String name);
+  TVM_TIRX_DLL ExecScope(ffi::String backend, ffi::String name);
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ExecScope, ffi::ObjectRef, ExecScopeNode);
 };
 
 /*! \brief Compare scopes within the same backend's hierarchy. */
-TVM_DLL bool ScopeHigher(const ExecScope& a, const ExecScope& b);
+TVM_TIRX_DLL bool ScopeHigher(const ExecScope& a, const ExecScope& b);
 
 }  // namespace tvm::tirx
 #endif  // TVM_TIRX_TILE_EXEC_SCOPE_H_

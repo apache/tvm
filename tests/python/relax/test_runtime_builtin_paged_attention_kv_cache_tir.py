@@ -117,7 +117,7 @@ def test_paged_prefill_layer_sliding_window_mask(device_type):
         page_size=page_size,
         sliding_window_size=3,
     )
-    built = tvm.tirx.build(tir_func, target=target)
+    built = tvm.tirx.compile(tir_func, target=target).mod
 
     q = np.zeros((2, num_qo_heads, head_dim), dtype="float16")
     q_indptr = np.array([0, 2], dtype="int32")
@@ -269,7 +269,7 @@ def set_global_func(head_dim, dtype, target):
             mod = tvm.IRModule({"main": tir_func})
             with target:
                 mod = dl.ApplyDefaultSchedule(dl.gpu.Fallback())(mod)
-            f = tvm.tirx.build(mod["main"], target=target)
+            f = tvm.tirx.compile(mod["main"], target=target).mod
             builts.append(f.main)
         builts = tuple(builts)
         _COMPILED_KERNEL_CACHE[cache_key] = builts

@@ -36,7 +36,7 @@ namespace ir {
  * \brief The IRModule declaration statement.
  * \return The IRModuleFrame.
  */
-TVM_DLL IRModuleFrame IRModule();
+TVM_TIRX_DLL IRModuleFrame IRModule();
 
 /*!
  * \brief Declare a Function without given the specific function implementation.
@@ -46,14 +46,14 @@ TVM_DLL IRModuleFrame IRModule();
  *                       (i.e. func params and func return type/shape).
  * \return The corresponding GlobalVar.
  */
-TVM_DLL GlobalVar DeclFunction(const ffi::String& func_name, const BaseFunc& func_signature);
+TVM_TIRX_DLL GlobalVar DeclFunction(const ffi::String& func_name, const BaseFunc& func_signature);
 
 /*!
  * \brief Define the function which is declared before.
  * \param func_name The function unique name.
  * \param func The given function implementation
  */
-TVM_DLL void DefFunction(const ffi::String& func_name, const BaseFunc& func);
+TVM_TIRX_DLL void DefFunction(const ffi::String& func_name, const BaseFunc& func);
 
 /*!
  * \brief Construct a For statement of the given kind.

@@ -514,7 +514,7 @@ def test_cuda_gemm_mma_numerical(dtype):
             D_g[lane // 4 + 8 * rM, 2 * (lane % 4) + rN] = D_reg[s]
 
     with tvm.target.Target("cuda"):
-        mod = tvm.compile(tvm.IRModule({"main": gemm}), target="cuda", tir_pipeline="tirx")
+        mod = tvm.tirx.compile(tvm.IRModule({"main": gemm}), target="cuda", pipeline="tirx")
 
     np.random.seed(0)
     A_np = np.random.uniform(-1, 1, (16, 16)).astype(np.float32)
@@ -573,7 +573,7 @@ def test_cuda_gemm_mma_numerical_tiled(dtype, beta, Mt, Nt, Kt, kinst):
 
     func, M, N, K = _build_tiled_numeric(Mt, Nt, Kt, kinst, beta, dtype)
     with tvm.target.Target("cuda"):
-        mod = tvm.compile(tvm.IRModule({"main": func}), target="cuda", tir_pipeline="tirx")
+        mod = tvm.tirx.compile(tvm.IRModule({"main": func}), target="cuda", pipeline="tirx")
 
     np.random.seed(0)
     A_np = np.random.uniform(-1, 1, (M, K)).astype(np.float32)
@@ -613,7 +613,7 @@ def test_cuda_gemm_mma_numerical_transpose(transpose_A, transpose_B, dtype):
 
     func = _build_transpose_numeric(transpose_A, transpose_B, dtype)
     with tvm.target.Target("cuda"):
-        mod = tvm.compile(tvm.IRModule({"main": func}), target="cuda", tir_pipeline="tirx")
+        mod = tvm.tirx.compile(tvm.IRModule({"main": func}), target="cuda", pipeline="tirx")
 
     np.random.seed(0)
     A_log = np.random.uniform(-1, 1, (16, 16)).astype(np.float32)  # logical A[M, K]
@@ -676,10 +676,10 @@ def test_cuda_gemm_mma_codegen_issue_count(Mt, Nt, Kt, kinst):
     tile; K-tiles accumulate in place, so D is cleared once per output tile."""
     target = tvm.target.Target({"kind": "cuda", "arch": "sm_80"})
     with target:
-        mod = tvm.compile(
+        mod = tvm.tirx.compile(
             tvm.IRModule({"main": _build_tiled(Mt, Nt, Kt, kinst, store=True)}),
             target=target,
-            tir_pipeline="tirx",
+            pipeline="tirx",
         )
     src = mod.mod.imports[0].inspect_source()
     assert f"mma.sync.aligned.m16n8k{kinst}" in src
@@ -711,10 +711,10 @@ def test_cuda_gemm_mma_codegen_transpose(transpose_A, transpose_B):
     """Every orientation codegens to a valid m16n8k16 kernel."""
     target = tvm.target.Target({"kind": "cuda", "arch": "sm_80"})
     with target:
-        mod = tvm.compile(
+        mod = tvm.tirx.compile(
             tvm.IRModule({"main": _build_transpose(transpose_A, transpose_B, store=True)}),
             target=target,
-            tir_pipeline="tirx",
+            pipeline="tirx",
         )
     assert "mma.sync.aligned.m16n8k16" in mod.mod.imports[0].inspect_source()
 

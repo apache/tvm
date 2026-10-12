@@ -75,5 +75,4 @@ def compile(  # pylint: disable=redefined-builtin
             relax_pipeline=relax_pipeline,
             tir_pipeline=tir_pipeline,
         )
-    lib = tvm.tirx.build(mod, target, pipeline=tir_pipeline)
-    return Executable(lib)
+    return tvm.tirx.compile(mod, target, pipeline=tir_pipeline)

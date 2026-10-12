@@ -30,6 +30,20 @@ class Scriptable:
     """Marker for display methods installed by the TVMScript owner."""
 
 
+def register_script_printer(*, script, show, node_repr):
+    """Attach shared printer behavior without replacing native IR wrappers."""
+    Scriptable.script = script
+    Scriptable.show = show
+    Node.__repr__ = node_repr
+
+
+def register_dialect_script_method(name, method):
+    """Register a dialect-owned private printing convenience method."""
+    if not name.startswith("_") or not name.endswith("_script") or not callable(method):
+        raise ValueError(f"Invalid dialect script method: {name}")
+    setattr(Scriptable, name, method)
+
+
 class Node(Object):
     """Base class of all IR Nodes."""
 

@@ -59,7 +59,7 @@ def test_e2m1_vector_conversions(promoted_dtype):
                     )
 
     target = "cuda"
-    fadd = tvm.compile(Module, target=target)
+    fadd = tvm.tirx.compile(Module, target=target)
 
     if "x" in native_dtype:
         lanes = int(native_dtype.split("x")[-1])
@@ -212,7 +212,7 @@ def test_e2m1_dequantize():
         else:
             mod = _scalar_reinterpret_module(n, num_blocks, vector_length, num_elem_per_storage)
 
-        tvm.compile(mod, target=target)
+        tvm.tirx.compile(mod, target=target)
 
 
 @pytest.mark.gpu
@@ -240,7 +240,7 @@ def test_e2m1_scalar_buffer_offset():
                 B[bx * 32 + tx] = T.Cast("float16", A[bx * 32 + tx])
 
     target = "cuda"
-    fadd = tvm.compile(func, target=target)
+    fadd = tvm.tirx.compile(func, target=target)
 
     # float4_e2m1fn: 4-bit values 0..15, two packed per byte.
     # Encoding (sign | exp1 | man1 man0):

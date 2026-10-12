@@ -297,7 +297,7 @@ def test_gmem_smem_roundtrip(scope, n_threads, shape, dtype):
     target = tvm.target.Target("cuda")
     with target:
         mod = tvm.IRModule({"main": kernel})
-        compiled = tvm.compile(mod, target=target, tir_pipeline="tirx")
+        compiled = tvm.tirx.compile(mod, target=target, pipeline="tirx")
 
     np_dtype = tvm.testing.np_dtype_from_str(dtype)
     A_np = tvm.testing.generate_random_array(dtype, shape)
@@ -471,7 +471,7 @@ def test_copy_g2s_s2g(task, dtype, scope):
     target = tvm.target.Target("cuda")
     with target:
         mod = tvm.IRModule({"main": copy_sync})
-        mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
+        mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
 
         np.random.seed(0)
         A_np = tvm.testing.generate_random_array(dtype, g_shape)
@@ -643,7 +643,7 @@ def test_swizzled_smem_emit_must_be_swizzle_aware():
     target = tvm.target.Target({"kind": "cuda", "arch": "sm_90"})
     with target:
         mod = tvm.IRModule({"main": kernel})
-        compiled = tvm.compile(mod, target=target, tir_pipeline="tirx")
+        compiled = tvm.tirx.compile(mod, target=target, pipeline="tirx")
     src = "".join(im.inspect_source() for im in compiled.mod.imports)
 
     # If emit is swizzle-aware, two ways it shows up in the generated

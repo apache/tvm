@@ -62,7 +62,7 @@ def find_wasm_lib(name, optional=False):
     return found
 
 
-def create_tvmjs_wasm(output, objects, options=None, cc="emcc", libs=None):
+def create_wasm(output, objects, options=None, cc="emcc", libs=None):
     """Create wasm that is supposed to run with the tvmjs.
 
     Parameters
@@ -142,4 +142,4 @@ def create_tvmjs_wasm(output, objects, options=None, cc="emcc", libs=None):
         raise RuntimeError(msg)
 
 
-create_tvmjs_wasm.object_format = "bc"
+create_wasm.object_format = "bc"

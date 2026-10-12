@@ -36,32 +36,32 @@ namespace tirx {
  * The sole body parameter is a fresh thread-index PrimVar matching the extent type.
  * Tags starting with vthread denote virtual threads. There are no attrs or results.
  */
-TVM_DLL const Op& launch_thread_op();
+TVM_TIRX_DLL const Op& launch_thread_op();
 
 /*!
  * \brief Mark a user-facing device entry containing device scope definitions.
  * Takes no operands, body parameters, attributes or results.
  */
-TVM_DLL const Op& device_entry_op();
+TVM_TIRX_DLL const Op& device_entry_op();
 
 /*!
  * \brief Supply lexical device context for allocation and packed-call lowering.
  * Operands are integer device type and device ID; there are no body parameters,
  * attributes or results. The region does not change the active runtime device.
  */
-TVM_DLL const Op& device_context_op();
+TVM_TIRX_DLL const Op& device_context_op();
 
 /*!
  * \brief Outline the body as a CPU compute helper named by a StringImm operand.
  * There are no body parameters, attributes or results.
  */
-TVM_DLL const Op& compute_scope_op();
+TVM_TIRX_DLL const Op& compute_scope_op();
 
 /*!
  * \brief Launch a CPU worker team around parallel loops and team barriers.
  * Takes no operands, body parameters, attributes or results.
  */
-TVM_DLL const Op& parallel_launch_op();
+TVM_TIRX_DLL const Op& parallel_launch_op();
 
 }  // namespace tirx
 }  // namespace tvm

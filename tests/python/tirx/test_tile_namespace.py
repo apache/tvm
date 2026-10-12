@@ -246,7 +246,7 @@ def test_none_layout_views_execute_with_offsets_and_strides():
             D[2, i * 4 + j] = window[i, j]
 
     target = tvm.target.Target({"kind": "cuda", "arch": env.cuda_arch()})
-    compiled = tvm.compile(kernel, target=target, tir_pipeline="tirx")
+    compiled = tvm.tirx.compile(kernel, target=target, pipeline="tirx")
     data = np.arange(32, dtype="float32").reshape(4, 8)
     expected = np.stack([data.T[:4].flatten(), data[:, 1::2].flatten(), data[2:].flatten()])
     expected[2, :8] = data[1:3, 2:6].flatten()
@@ -272,7 +272,7 @@ def test_tile_load_infers_full_global_layout_with_offset():
 
     assert kernel.params[0].ty.layout is None
     target = tvm.target.Target({"kind": "cuda", "arch": env.cuda_arch()})
-    compiled = tvm.compile(kernel, target=target, tir_pipeline="tirx")
+    compiled = tvm.tirx.compile(kernel, target=target, pipeline="tirx")
     data = np.arange(144, dtype="float32")
 
     def run():

@@ -95,7 +95,7 @@ class EnvFunc : public ffi::ObjectRef {
    * \return The created global function.
    * \note The function can be unique
    */
-  TVM_DLL static EnvFunc Get(const ffi::String& name);
+  TVM_TIRX_DLL static EnvFunc Get(const ffi::String& name);
   /*! \brief specify container node */
   using ContainerType = EnvFuncObj;
 };

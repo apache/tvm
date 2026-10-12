@@ -25,7 +25,7 @@ from tvm.ir.module import IRModule
 from tvm.s_tir.backend.adreno import pipeline as adreno_pipeline
 from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
-from tvm.tirx.build import split_host_device_mods
+from tvm.tirx._compile import _split_host_device_modules
 from tvm.tirx.compilation_pipeline import finalize_device_passes
 
 
@@ -67,7 +67,7 @@ def test_texture_scope():
     lowered = tirx.transform.BindTarget(target.with_host("c"))(sch.mod)
     pipeline, _, _ = adreno_pipeline.default_tir_pipeline()
     lowered = pipeline(lowered)
-    _, device_mods = split_host_device_mods(lowered)
+    _, device_mods = _split_host_device_modules(lowered)
     assert len(device_mods) == 1
     (device_target, _backend_config), device_mod = next(iter(device_mods.items()))
     device_mod = finalize_device_passes()(device_mod)

@@ -135,15 +135,15 @@ class PresburgerSet : public IntSet {
    * \param vars The variables that the constraint describes about.
    * \return The created PresburgerSet.
    */
-  TVM_DLL PresburgerSet(const std::vector<IntegerRelation>& disjuncts,
-                        const ffi::Array<PrimVar>& vars);
+  TVM_TIRX_DLL PresburgerSet(const std::vector<IntegerRelation>& disjuncts,
+                             const ffi::Array<PrimVar>& vars);
 
   /*!
    * \brief Make a new instance of PresburgerSet, collect all vars as space vars.
    * \param constraint The constraint to construct the set.
    * \return The created PresburgerSet.
    */
-  TVM_DLL PresburgerSet(const PrimExpr& constraint);
+  TVM_TIRX_DLL PresburgerSet(const PrimExpr& constraint);
 
   TVM_DEFINE_OBJECT_REF_COW_METHOD(PresburgerSetObj);
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(PresburgerSet, IntSet, PresburgerSetObj);
@@ -168,7 +168,7 @@ class PresburgerSet : public IntSet {
    * \param constraint The constraint to construct the set.
    * \return The created set.
    */
-  TVM_DLL PresburgerSet(const PrimExpr& constraint) : IntSet(ffi::UnsafeInit{}) {
+  TVM_TIRX_DLL PresburgerSet(const PrimExpr& constraint) : IntSet(ffi::UnsafeInit{}) {
     TVM_FFI_THROW(InternalError) << "MLIR is not enabled!";
   }
 };

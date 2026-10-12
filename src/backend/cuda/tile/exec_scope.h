@@ -32,10 +32,10 @@ enum class ScopeKind : int {
 };
 
 /*! \brief Convert a ScopeKind to its string name (e.g. kThread -> "thread"). */
-TVM_DLL std::string ScopeKindToString(ScopeKind kind);
+TVM_TIRX_DLL std::string ScopeKindToString(ScopeKind kind);
 
 /*! \brief Parse a string name to a ScopeKind. FATAL if unknown. */
-TVM_DLL ScopeKind StringToScopeKind(const ffi::String& name);
+TVM_TIRX_DLL ScopeKind StringToScopeKind(const ffi::String& name);
 
 /*!
  * \brief The binding between a parent scope and a child scope as used by a
@@ -71,10 +71,11 @@ enum class ScopeBinding : int {
 };
 
 /*! \brief Convert a ScopeBinding to its (parent, cur) string pair. */
-TVM_DLL std::pair<ffi::String, ffi::String> ScopeBindingToStringPair(ScopeBinding binding);
+TVM_TIRX_DLL std::pair<ffi::String, ffi::String> ScopeBindingToStringPair(ScopeBinding binding);
 
 /*! \brief Parse a (parent, cur) string pair to a ScopeBinding. FATAL if unknown. */
-TVM_DLL ScopeBinding StringPairToScopeBinding(const ffi::String& parent, const ffi::String& cur);
+TVM_TIRX_DLL ScopeBinding StringPairToScopeBinding(const ffi::String& parent,
+                                                   const ffi::String& cur);
 
 /*!
  * \brief Strict-weak "a is wider than b" on scope kinds: ``world > kernel >

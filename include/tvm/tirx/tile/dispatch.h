@@ -45,7 +45,7 @@ inline constexpr const char* kTileOpDispatch = "FTileOpDispatch";
  * \param context The operator's execution context and accumulated callbacks.
  * \return The instruction implementation, whose body is expanded by TileDispatch.
  */
-TVM_DLL Function Dispatch(const Call& call, const DispatchContext& context);
+TVM_TIRX_DLL Function Dispatch(const Call& call, const DispatchContext& context);
 
 }  // namespace tvm::tirx::tile
 #endif  // TVM_TIRX_TILE_DISPATCH_H_

@@ -123,14 +123,14 @@ class DispatchContextObj : public ffi::Object {
  */
 class DispatchContext : public ffi::ObjectRef {
  public:
-  TVM_DLL DispatchContext(Target target, ExecScope exec_scope,
-                          ffi::Map<ffi::String, ffi::Tuple<PrimVar, PrimExpr>> launch_params = {},
-                          ffi::Map<Var, Range> var_range_map = {}, bool alloc_only = false,
-                          ffi::Map<ffi::String, ffi::ObjectRef> callbacks = {},
-                          ffi::Map<ffi::String, ffi::ObjectRef> shared_state = {},
-                          ffi::Map<ffi::String, ffi::Array<PrimExpr>> inter = {},
-                          ffi::Map<ffi::String, ffi::Array<PrimExpr>> intra = {},
-                          ffi::String scope_kind = "");
+  TVM_TIRX_DLL DispatchContext(
+      Target target, ExecScope exec_scope,
+      ffi::Map<ffi::String, ffi::Tuple<PrimVar, PrimExpr>> launch_params = {},
+      ffi::Map<Var, Range> var_range_map = {}, bool alloc_only = false,
+      ffi::Map<ffi::String, ffi::ObjectRef> callbacks = {},
+      ffi::Map<ffi::String, ffi::ObjectRef> shared_state = {},
+      ffi::Map<ffi::String, ffi::Array<PrimExpr>> inter = {},
+      ffi::Map<ffi::String, ffi::Array<PrimExpr>> intra = {}, ffi::String scope_kind = "");
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(DispatchContext, ffi::ObjectRef,
                                                 DispatchContextObj);

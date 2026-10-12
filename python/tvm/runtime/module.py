@@ -177,6 +177,9 @@ class Module(_Module):
             module is "llvm," this is used to link all produced artifacts
             into a final dynamic library.
 
+            For WASM/TVMJS export, explicitly pass
+            ``tvm.contrib.emcc.create_wasm`` as the compilation callback.
+
             This behavior is controlled by the type of object exported.
             If fcompile has attribute object_format, will compile host library
             to that format. Otherwise, will use default format "o".
@@ -205,15 +208,13 @@ class Module(_Module):
             If the compilation function returns an artifact it would be returned via
             export_library, if any.
         """
-        # NOTE: this function depends on contrib library features
-        # which are only available in when TVM function is available.
+        # Exporting compiled artifacts requires the compiler runtime.
         if _RUNTIME_ONLY:
             raise RuntimeError("Cannot call export_library in runtime only mode")
 
         # Extra dependencies during runtime.
         from pathlib import Path
 
-        from tvm.contrib import tvmjs as _tvmjs
         from tvm.support import cc as _cc
         from tvm.support import tar as _tar
         from tvm.support import utils as _utils
@@ -270,8 +271,6 @@ class Module(_Module):
         if not fcompile:
             if file_name.endswith(".tar"):
                 fcompile = _tar.tar
-            elif file_name.endswith(".wasm"):
-                fcompile = _tvmjs.create_tvmjs_wasm
             else:
                 fcompile = _cc.create_shared
 
@@ -392,32 +391,29 @@ class Module(_Module):
             The function that takes same argument as func and returns a BenchmarkResult.
             The ProfileResult reports `repeat` time costs in seconds.
         """
-        try:
-            feval = _ffi_api.ModuleTimeEvaluator(
-                self,
-                func_name,
-                dev,
-                number,
-                repeat,
-                min_repeat_ms,
-                limit_zero_time_iterations,
-                cooldown_interval_ms,
-                repeats_to_cooldown,
-                cache_flush_bytes,
-                f_preproc,
-            )
+        feval = _ffi_api.ModuleTimeEvaluator(
+            self,
+            func_name,
+            dev,
+            number,
+            repeat,
+            min_repeat_ms,
+            limit_zero_time_iterations,
+            cooldown_interval_ms,
+            repeats_to_cooldown,
+            cache_flush_bytes,
+            f_preproc,
+        )
 
-            def evaluator(*args):
-                """Internal wrapped evaluator."""
-                # Wrap feval so we can add more stats in future.
-                blob = feval(*args)
-                fmt = "@" + ("d" * repeat)
-                results = struct.unpack(fmt, blob)
-                return BenchmarkResult(results)
+        def evaluator(*args):
+            """Internal wrapped evaluator."""
+            # Wrap feval so we can add more stats in future.
+            blob = feval(*args)
+            fmt = "@" + ("d" * repeat)
+            results = struct.unpack(fmt, blob)
+            return BenchmarkResult(results)
 
-            return evaluator
-        except NameError:
-            raise NameError("time_evaluator is only supported when RPC is enabled")
+        return evaluator
 
 
 def load_module(path):

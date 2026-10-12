@@ -31,7 +31,7 @@ inline constexpr const char* kTensorCallValidate = "FTensorCallValidate";
 }  // namespace op_attr
 
 /*! \brief Attach the native Call contract and backend validator to a tile instruction. */
-TVM_DLL void ConfigureTensorInstruction(Op op, ffi::Function validator);
+TVM_TIRX_DLL void ConfigureTensorInstruction(Op op, ffi::Function validator);
 
 }  // namespace tvm::tirx::tile
 #endif  // TVM_TIRX_TILE_OP_H_

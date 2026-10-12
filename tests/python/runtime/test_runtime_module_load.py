@@ -64,7 +64,7 @@ def test_dso_module_load():
         mod = tvm.IRModule.from_expr(
             tvm.tirx.Function([Ab], stmt).with_attr("global_symbol", "main")
         )
-        m = tvm.tirx.build(mod, target="llvm")
+        m = tvm.tirx.compile(mod, target="llvm").mod
         for name in names:
             m.write_to_file(name)
 
@@ -181,8 +181,8 @@ def test_combine_module_llvm():
     def check_llvm():
         dev = tvm.cpu(0)
         temp = utils.tempdir()
-        fadd1 = tvm.tirx.build(mod1, "llvm")
-        fadd2 = tvm.tirx.build(mod2, "llvm")
+        fadd1 = tvm.tirx.compile(mod1, "llvm").mod
+        fadd2 = tvm.tirx.compile(mod2, "llvm").mod
         path1 = temp.relpath("myadd1.o")
         path2 = temp.relpath("myadd2.o")
         path_dso = temp.relpath("mylib.so")
@@ -207,8 +207,8 @@ def test_combine_module_llvm():
             return
         temp = utils.tempdir()
         print("Running popen check")
-        fadd1 = tvm.tirx.build(mod1.with_attr("system_lib_prefix", ""), "llvm")
-        fadd2 = tvm.tirx.build(mod2.with_attr("system_lib_prefix", ""), "llvm")
+        fadd1 = tvm.tirx.compile(mod1.with_attr("system_lib_prefix", ""), "llvm").mod
+        fadd2 = tvm.tirx.compile(mod2.with_attr("system_lib_prefix", ""), "llvm").mod
         path1 = temp.relpath("myadd1.o")
         path2 = temp.relpath("myadd2.o")
         path_dso = temp.relpath("mylib.so")

@@ -426,7 +426,7 @@ def test_present_optional_param_still_rejects_ffi_none():
     def kernel(A: T.Tensor((1,), "int32")):
         A[0] = 0
 
-    executable = tvm.compile(kernel.specialize(), target="llvm", tir_pipeline="tirx")
+    executable = tvm.tirx.compile(kernel.specialize(), target="llvm", pipeline="tirx")
     with pytest.raises(TypeError, match="expected Tensor"):
         executable(None)
 

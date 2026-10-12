@@ -20,7 +20,7 @@ import numpy as np
 
 import tvm
 from tvm import relax, rpc
-from tvm.contrib import tvmjs
+from tvm.contrib import emcc
 from tvm.script import relax as R
 from tvm.support import utils
 
@@ -62,7 +62,7 @@ def test_rpc():
 
     mod = get_model()
     ex = relax.build(mod, target)
-    ex.export_library(wasm_path, fcompile=tvmjs.create_tvmjs_wasm)
+    ex.export_library(wasm_path, fcompile=emcc.create_wasm)
     wasm_binary = open(wasm_path, "rb").read()
 
     remote = rpc.connect(

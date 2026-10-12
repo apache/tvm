@@ -248,7 +248,7 @@ def test_reg_roundtrip(scope, n_threads, k, dtype, non_r_scope):
     target = tvm.target.Target("cuda")
     with target:
         mod = tvm.IRModule({"main": kernel})
-        compiled = tvm.compile(mod, target=target, tir_pipeline="tirx")
+        compiled = tvm.tirx.compile(mod, target=target, pipeline="tirx")
 
     np_dtype = tvm.testing.np_dtype_from_str(dtype)
     B_np = np.zeros(shape, dtype=np_dtype)
@@ -292,8 +292,8 @@ def test_reg_roundtrip_gapped_permuted_storage():
 
     target = tvm.target.Target("cuda")
     with target:
-        compiled = tvm.compile(
-            tvm.IRModule({"main": kernel}), target=target, tir_pipeline="tirx"
+        compiled = tvm.tirx.compile(
+            tvm.IRModule({"main": kernel}), target=target, pipeline="tirx"
         )
     source = compiled.mod.imports[0].inspect_source()
     assert "tvm_builtin_ptx_ld" in source
@@ -360,7 +360,7 @@ def test_copy_g2l_l2g_vec_load(task, dtype):
     target = tvm.target.Target("cuda")
     with target:
         mod = tvm.IRModule({"main": copy_sync})
-        mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
+        mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
         np.random.seed(0)
         A_np = tvm.testing.generate_random_array(dtype, g_shape)
         B_np = np.zeros(g_shape, dtype=np_dtype)
@@ -414,7 +414,7 @@ def test_vec_auto_reg_honors_cache_nc():
 
     def _src(f):
         with target:
-            mod = tvm.compile(tvm.IRModule({"main": f}), target=target, tir_pipeline="tirx")
+            mod = tvm.tirx.compile(tvm.IRModule({"main": f}), target=target, pipeline="tirx")
         return mod.mod.imports[0].inspect_source()
 
     nc_src = _src(_nc_strided_reg_copy)
@@ -470,7 +470,7 @@ def test_reg_copy_linear_shared_hoists_thread_base():
 
     target = tvm.target.Target("cuda")
     with target, tvm.transform.PassContext(instruments=[CaptureDispatch()]):
-        ex = tvm.compile(tvm.IRModule({"main": kernel}), target=target, tir_pipeline="tirx")
+        ex = tvm.tirx.compile(tvm.IRModule({"main": kernel}), target=target, pipeline="tirx")
         src = ex.mod.imports[0].inspect_source()
 
     nodes = []
@@ -553,7 +553,7 @@ def test_reg_copy_wg_local_to_swizzled_shared_uses_structured_compose_apply():
     target = tvm.target.Target("cuda")
     with target:
         mod = tvm.IRModule({"main": kernel})
-        ex = tvm.compile(mod, target=target, tir_pipeline="tirx")
+        ex = tvm.tirx.compile(mod, target=target, pipeline="tirx")
         src = ex.mod.imports[0].inspect_source()
 
     # (1) Widest variant: 8 fp16 elements per call (16 bytes → v4.u32 st).
@@ -598,7 +598,7 @@ def test_ptx_st_from_src_f32_vector_preserves_values():
     target = tvm.target.Target("cuda")
     with target:
         mod = tvm.IRModule({"main": kernel})
-        ex = tvm.compile(mod, target=target, tir_pipeline="tirx")
+        ex = tvm.tirx.compile(mod, target=target, pipeline="tirx")
         src = ex.mod.imports[0].inspect_source()
 
     assert "st.shared.v4.f32" in src
@@ -624,7 +624,7 @@ def test_mov_handles_scalar_regions():
     target = tvm.target.Target("cuda")
     with target:
         mod = tvm.IRModule({"main": kernel})
-        ex = tvm.compile(mod, target=target, tir_pipeline="tirx")
+        ex = tvm.tirx.compile(mod, target=target, pipeline="tirx")
         src = ex.mod.imports[0].inspect_source()
 
     assert "dst_ptr[2] = src_ptr[0];" in src
@@ -665,7 +665,7 @@ def test_copy_forced_vec_width_codegen(variant, dtype, n_elements, expected_st, 
     target = tvm.target.Target("cuda")
     with target:
         mod = tvm.IRModule({"main": kernel})
-        ex = tvm.compile(mod, target=target, tir_pipeline="tirx")
+        ex = tvm.tirx.compile(mod, target=target, pipeline="tirx")
         src = ex.mod.imports[0].inspect_source()
 
     assert expected_st in src
@@ -707,7 +707,7 @@ def test_copy_forced_vec_dynamic_swizzled_shared_uses_vector_ptx():
     target = tvm.target.Target("cuda")
     with target:
         mod = tvm.IRModule({"main": kernel})
-        ex = tvm.compile(mod, target=target, tir_pipeline="tirx")
+        ex = tvm.tirx.compile(mod, target=target, pipeline="tirx")
         src = ex.mod.imports[0].inspect_source()
 
     assert "copy/fallback" not in src
@@ -745,7 +745,7 @@ def test_copy_explicit_vec_auto_uses_auto_family():
     target = tvm.target.Target("cuda")
     with target:
         mod = tvm.IRModule({"main": kernel})
-        ex = tvm.compile(mod, target=target, tir_pipeline="tirx")
+        ex = tvm.tirx.compile(mod, target=target, pipeline="tirx")
         src = ex.mod.imports[0].inspect_source()
 
     assert "tvm_builtin_copy_" not in src
@@ -768,7 +768,7 @@ def test_copy_forced_vec_rejects_size_mismatch():
     with target:
         mod = tvm.IRModule({"main": kernel})
         with pytest.raises(RuntimeError, match="src region does not contain exactly 2 elements"):
-            tvm.compile(mod, target=target, tir_pipeline="tirx")
+            tvm.tirx.compile(mod, target=target, pipeline="tirx")
 
 
 @pytest.mark.gpu
@@ -789,7 +789,7 @@ def test_copy_forced_vec_rejects_non_thread_scope():
     with target:
         mod = tvm.IRModule({"main": kernel})
         with pytest.raises(RuntimeError, match="expected thread exec_scope"):
-            tvm.compile(mod, target=target, tir_pipeline="tirx")
+            tvm.tirx.compile(mod, target=target, pipeline="tirx")
 
 
 def test_reg_swizzle_chunk_caps_vector_width():
@@ -989,7 +989,7 @@ def _compile_tcgen05_d_epilogue_deposit():
     target = tvm.target.Target("cuda")
     with target:
         mod = tvm.IRModule({"main": _build_tcgen05_d_epilogue_deposit()})
-        return tvm.compile(mod, target=target, tir_pipeline="tirx")
+        return tvm.tirx.compile(mod, target=target, pipeline="tirx")
 
 
 def test_reg_copy_tcgen05_d_epilogue_deposit_layout_pairing():
@@ -1127,10 +1127,10 @@ def test_reg_copy_tcgen05_d_epilogue_deposit_gpu():
     m, n = _TCGEN05_D_SHAPE
     target = tvm.target.Target("cuda")
     with target:
-        mod = tvm.compile(
+        mod = tvm.tirx.compile(
             tvm.IRModule({"main": _build_tcgen05_d_epilogue_deposit_roundtrip()}),
             target=target,
-            tir_pipeline="tirx",
+            pipeline="tirx",
         )
 
     rows = np.arange(m, dtype=np.int32)[:, None]
