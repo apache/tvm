@@ -33,7 +33,7 @@
 #include <algorithm>
 
 #include "../support/utils.h"
-#include "./canonicalizer/llvm/canonicalize.h"
+#include "./llvm/canonicalizer/canonicalize.h"
 
 namespace tvm {
 

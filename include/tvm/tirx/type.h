@@ -121,10 +121,10 @@ class TensorTypeNode : public TypeNode {
   PtrType DataPtrType() const { return PtrType(dtype, storage_scope); }
 
   /*! \brief Whether this type supports scalar tensor syntax. */
-  TVM_DLL bool IsScalar(bool alloc_or_decl = true) const;
+  TVM_TIRX_DLL bool IsScalar(bool alloc_or_decl = true) const;
 
   /*! \brief Return the constant element count, or nullopt for symbolic extents or overflow. */
-  TVM_DLL std::optional<int64_t> ConstantAllocationSize() const;
+  TVM_TIRX_DLL std::optional<int64_t> ConstantAllocationSize() const;
 
   /*! \brief Determine the offset in the tensor of the given index.
    *
@@ -145,10 +145,10 @@ class TensorTypeNode : public TypeNode {
  */
 class TensorType : public Type {
  public:
-  TVM_DLL TensorType(ffi::String storage_scope, PrimType dtype, ffi::Array<PrimExpr> shape,
-                     ffi::Array<PrimExpr> strides, ffi::Optional<PrimExpr> elem_offset,
-                     int data_alignment, int offset_factor,
-                     ffi::Optional<Layout> layout = std::nullopt, Location loc = UnknownLoc());
+  TVM_TIRX_DLL TensorType(ffi::String storage_scope, PrimType dtype, ffi::Array<PrimExpr> shape,
+                          ffi::Array<PrimExpr> strides, ffi::Optional<PrimExpr> elem_offset,
+                          int data_alignment, int offset_factor,
+                          ffi::Optional<Layout> layout = std::nullopt, Location loc = UnknownLoc());
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TensorType, Type, TensorTypeNode);
 
@@ -177,7 +177,7 @@ class TensorMapTypeNode : public TypeNode {
  */
 class TensorMapType : public Type {
  public:
-  TVM_DLL TensorMapType(Location loc = UnknownLoc());
+  TVM_TIRX_DLL TensorMapType(Location loc = UnknownLoc());
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TensorMapType, Type, TensorMapTypeNode);
 };

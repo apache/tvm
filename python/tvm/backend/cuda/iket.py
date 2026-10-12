@@ -316,7 +316,7 @@ class IketProfiler:
         if not isinstance(mod, tvm.IRModule):
             raise TypeError("IketProfiler.compile expects a TIRx Function or IRModule")
         enabled_mod = mod.with_attr("tirx.iket.enabled", True)
-        executable = tvm.compile(enabled_mod, target=target, tir_pipeline=tir_pipeline)
+        executable = tvm.tirx.compile(enabled_mod, target=target, pipeline=tir_pipeline)
         return _OfficialIketExecutable(executable)
 
 

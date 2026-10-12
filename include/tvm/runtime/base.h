@@ -75,6 +75,14 @@
 #define TVM_DLL_EXPORT __attribute__((visibility("default")))
 #endif
 
+// Core IR, TIRx and shared compiler infrastructure are currently linked into
+// libtvm_compiler. Keep their ownership explicit while inheriting the compiler
+// export policy, including downstream TVM_DLL overrides. Embedders may override
+// TVM_TIRX_DLL independently.
+#ifndef TVM_TIRX_DLL
+#define TVM_TIRX_DLL TVM_DLL
+#endif
+
 // --- TVM_RUNTIME_DLL family (libtvm_runtime) ---
 #if !defined(TVM_RUNTIME_DLL) && defined(__EMSCRIPTEN__)
 #define TVM_RUNTIME_DLL EMSCRIPTEN_KEEPALIVE

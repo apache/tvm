@@ -53,7 +53,7 @@ struct TensorMapEncodeTiledAttr : public AttrsNode {
  * Arguments are descriptor and data pointers, global dimensions (rank), byte
  * strides (rank - 1), box dimensions (rank), then element strides (rank).
  */
-TVM_DLL const Op& tensormap_encode_tiled_op();
+TVM_TIRX_DLL const Op& tensormap_encode_tiled_op();
 
 }  // namespace cuda
 }  // namespace backend

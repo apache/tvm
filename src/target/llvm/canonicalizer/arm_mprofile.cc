@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file tvm/target/canonicalizer/llvm/arm_mprofile.cc
+ * \file tvm/target/llvm/canonicalizer/arm_mprofile.cc
  * \brief Target canonicalizer for Arm(R) Cortex(R) M-Profile CPUs
  */
 

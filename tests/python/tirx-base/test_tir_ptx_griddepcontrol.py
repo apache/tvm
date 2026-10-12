@@ -38,7 +38,7 @@ def ptx_griddepcontrol(A: T.Tensor((32,), "float32"), B: T.Tensor((32,), "float3
 @pytest.mark.skipif(not env.has_cuda_compute(9), reason="need cuda compute >= 9.0")
 def test_ptx_griddepcontrol():
     f = ptx_griddepcontrol
-    mod = tvm.compile(f, target="cuda")
+    mod = tvm.tirx.compile(f, target="cuda")
     A_np = np.random.default_rng(0).standard_normal(32).astype("float32")
     B_np = np.zeros((32,), dtype="float32")
 

@@ -38,8 +38,8 @@ namespace tvm {
  * \param config Optional translation and rendering configuration.
  * \return The rendered script or fallback representation.
  */
-TVM_DLL std::string Script(const ffi::ObjectRef& node,
-                           const ffi::Optional<PrinterConfig>& config = std::nullopt);
+TVM_TIRX_DLL std::string Script(const ffi::ObjectRef& node,
+                                const ffi::Optional<PrinterConfig>& config = std::nullopt);
 
 namespace script {
 namespace printer {
@@ -49,10 +49,10 @@ namespace printer {
  * \param key The existing prefix configuration key, such as "tirx.prefix".
  * \param default_alias The alias reserved before translation assigns variable names.
  */
-TVM_DLL void RegisterNamespaceAlias(const ffi::String& key, const ffi::String& default_alias);
+TVM_TIRX_DLL void RegisterNamespaceAlias(const ffi::String& key, const ffi::String& default_alias);
 
 /*! \brief Read the registered namespace aliases. */
-TVM_DLL const ffi::Map<ffi::String, ffi::String>& GetNamespaceAliases();
+TVM_TIRX_DLL const ffi::Map<ffi::String, ffi::String>& GetNamespaceAliases();
 
 }  // namespace printer
 }  // namespace script

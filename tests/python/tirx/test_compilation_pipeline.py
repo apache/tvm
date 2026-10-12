@@ -36,33 +36,12 @@ def test_default_pipeline_allocations(pipeline):
         for i in range(16):
             B[i] = temp[i]
 
-    module = tvm.tirx.build(add_one, target="llvm", pipeline=pipeline)
+    module = tvm.tirx.compile(add_one, target="llvm", pipeline=pipeline)
     source = np.arange(16, dtype="float32")
     a = tvm.runtime.tensor(source)
     b = tvm.runtime.tensor(np.zeros(16, dtype="float32"))
     module(a, b)
     np.testing.assert_equal(b.numpy(), source + 1)
-
-
-def test_lower_thread_binding():
-    @T.function
-    def before(A: T.Tensor((32,), "int32")):
-        for bx in T.parallel(1, annotations={"thread_binding": "blockIdx.x"}):
-            for tx in T.parallel(32, annotations={"thread_binding": "threadIdx.x"}):
-                A[tx] = tx
-            for tx in T.parallel(32, annotations={"thread_binding": "threadIdx.x"}):
-                A[tx] = A[tx] + 1
-
-    @T.function
-    def expected(A: T.Tensor((32,), "int32")):
-        with T.launch_thread("blockIdx.x", 1) as bx:
-            with T.launch_thread("threadIdx.x", 32) as tx:
-                A[tx] = tx
-            with T.launch_thread("threadIdx.x", 32) as tx:
-                A[tx] = A[tx] + 1
-
-    actual = tvm.s_tir.transform.LowerThreadBinding()(tvm.IRModule({"main": before}))
-    tvm.ir.assert_structural_equal(actual["main"], expected.with_attr("global_symbol", "before"))
 
 
 if __name__ == "__main__":

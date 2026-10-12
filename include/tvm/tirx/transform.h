@@ -46,6 +46,9 @@ using tvm::transform::PassInfoObj;
 using tvm::transform::PassObj;
 using tvm::transform::Sequential;
 
+/*! \brief Wrap a function body in a device scope region. */
+TVM_TIRX_DLL Pass DecorateDeviceScope();
+
 /*
  * \brief Create a function pass that optimizes Functions.
  *
@@ -55,7 +58,7 @@ using tvm::transform::Sequential;
  *
  * \return The created function pass.
  */
-TVM_DLL Pass CreateFunctionPass(
+TVM_TIRX_DLL Pass CreateFunctionPass(
     std::function<ffi::Optional<Function>(Function, IRModule, PassContext)> pass_func,
     int opt_level, ffi::String name);
 
@@ -71,7 +74,7 @@ TVM_DLL Pass CreateFunctionPass(
  *
  * \return The pass.
  */
-TVM_DLL Pass VectorizeLoop(bool enable_vectorize = true);
+TVM_TIRX_DLL Pass VectorizeLoop(bool enable_vectorize = true);
 
 /*!
  * \brief Rewrite storage allocation pattern.
@@ -81,7 +84,7 @@ TVM_DLL Pass VectorizeLoop(bool enable_vectorize = true);
  *
  * \return The pass.
  */
-TVM_DLL Pass StorageRewrite();
+TVM_TIRX_DLL Pass StorageRewrite();
 
 /*!
  * \brief unroll the constant loop marked by unroll.
@@ -89,33 +92,33 @@ TVM_DLL Pass StorageRewrite();
  *
  * \return The pass.
  */
-TVM_DLL Pass UnrollLoop();
+TVM_TIRX_DLL Pass UnrollLoop();
 
 /*!
  * \brief Remove No Op from the Stmt.
  *
  * \return The pass.
  */
-TVM_DLL Pass RemoveNoOp();
+TVM_TIRX_DLL Pass RemoveNoOp();
 
 /*!
  * \brief Hoist loop-invariant If statements outside eligible loops.
  * \return The pass.
  */
-TVM_DLL Pass HoistIf();
+TVM_TIRX_DLL Pass HoistIf();
 
 /*!
  * \brief Renormalize the split pattern from floordiv(floormod()) to floormod(floordiv()).
  * \return The pass.
  */
-TVM_DLL Pass RenormalizeSplitPattern();
+TVM_TIRX_DLL Pass RenormalizeSplitPattern();
 
 /*!
  * \brief Run statement-level arithmetic simplifications on the TIR Function.
  *
  * \return The pass.
  */
-TVM_DLL Pass StmtSimplify();
+TVM_TIRX_DLL Pass StmtSimplify();
 
 /*!
  * \brief Convert an IRModule to be SSA form.
@@ -128,10 +131,10 @@ TVM_DLL Pass StmtSimplify();
  *
  * \return The pass.
  */
-TVM_DLL Pass ConvertSSA();
+TVM_TIRX_DLL Pass ConvertSSA();
 
 /*! \brief Lower cross-thread reductions to target-specific communication. */
-TVM_DLL Pass LowerThreadAllreduce();
+TVM_TIRX_DLL Pass LowerThreadAllreduce();
 
 /*!
  * \brief Transform the high-level Function to a low-level version
@@ -159,7 +162,7 @@ TVM_DLL Pass LowerThreadAllreduce();
  *
  * \return The pass.
  */
-TVM_DLL Pass MakePackedAPI();
+TVM_TIRX_DLL Pass MakePackedAPI();
 
 /*!
  * \brief Annotate, split, and lower host/device functions.
@@ -179,14 +182,14 @@ TVM_DLL Pass MakePackedAPI();
  *
  * \return The pass.
  */
-TVM_DLL Pass SplitHostDevice();
+TVM_TIRX_DLL Pass SplitHostDevice();
 
 /*!
  * \brief skip assert stmt.
  *
  * \return The pass.
  */
-TVM_DLL Pass SkipAssert();
+TVM_TIRX_DLL Pass SkipAssert();
 
 /*!
  * \brief This annotation is for nodes to be disabled for builtin lowering
@@ -197,20 +200,20 @@ static constexpr const char* kDisableLowerTVMBuiltin = "disable_lower_builtin";
  * \brief Lower builtin intrinsics.
  * \return The pass.
  */
-TVM_DLL Pass LowerTVMBuiltin();
+TVM_TIRX_DLL Pass LowerTVMBuiltin();
 
 /*!
  * \brief Lower the target specific function intrinsics in each of the function.
  *
  * \return The pass.
  */
-TVM_DLL Pass LowerIntrin();
+TVM_TIRX_DLL Pass LowerIntrin();
 
 /*!
  * \brief Lower warp memory access to low-level device related function calls.
  * \return The pass.
  */
-TVM_DLL Pass LowerWarpMemory();
+TVM_TIRX_DLL Pass LowerWarpMemory();
 
 /*!
  * \brief Narrow down PrimExpr datatype in stmt to target_bits.
@@ -220,7 +223,7 @@ TVM_DLL Pass LowerWarpMemory();
  * \note Run this pass after storage flatten.
  * \return The pass.
  */
-TVM_DLL Pass NarrowDataType(int target_bits);
+TVM_TIRX_DLL Pass NarrowDataType(int target_bits);
 
 /*!
  * \brief Force to narrow down indexing expressions and integer tensors to int32 dtype.
@@ -231,14 +234,14 @@ TVM_DLL Pass NarrowDataType(int target_bits);
  * \return The pass.
  * \note This pass should not be used in default cases.
  */
-TVM_DLL Pass ForceNarrowIndexToInt32();
+TVM_TIRX_DLL Pass ForceNarrowIndexToInt32();
 
 /*!
  * \brief Legalize bf16 compute Ops. Add a cast to fp32
  *   before Ops, then add a cast back to bf16.
  * \return The pass.
  */
-TVM_DLL Pass BF16ComputeLegalize();
+TVM_TIRX_DLL Pass BF16ComputeLegalize();
 
 /*!
  * \brief Legalize fp8 compute Ops. Add a cast to fp16/fp32
@@ -247,20 +250,20 @@ TVM_DLL Pass BF16ComputeLegalize();
  * \note Must be run after BindTarget, as it relies on target attributes for Functions
  * \return The pass.
  */
-TVM_DLL Pass FP8ComputeLegalize(ffi::String promote_dtype = "float16");
+TVM_TIRX_DLL Pass FP8ComputeLegalize(ffi::String promote_dtype = "float16");
 
 /*!
  * \brief Legalize bf16 storage types to u16.
  * \return The pass.
  */
-TVM_DLL Pass BF16StorageLegalize();
+TVM_TIRX_DLL Pass BF16StorageLegalize();
 
 /*!
  * \brief Legalize fp8 storage types to u8.
  * \note Must be run after BindTarget, as it relies on target attributes for Functions
  * \return The pass.
  */
-TVM_DLL Pass FP8StorageLegalize();
+TVM_TIRX_DLL Pass FP8StorageLegalize();
 
 /*!
  * \brief Rewrite the pointer content type of arguments,
@@ -270,21 +273,21 @@ TVM_DLL Pass FP8StorageLegalize();
  *
  * \return The pass.
  */
-TVM_DLL Pass PointerValueTypeRewrite();
+TVM_TIRX_DLL Pass PointerValueTypeRewrite();
 
 /*!
  * \brief Flatten the multi-dimensional TensorLoad and TensorStore to single dimensional
  *        TensorLoad/TensorStore for the TIR not contains opaque block.
  * \return The pass.
  */
-TVM_DLL Pass FlattenTensor();
+TVM_TIRX_DLL Pass FlattenTensor();
 
 /*!
  * \brief Implements Common Subexpression Elimination (CSE) for TIR
  *        which introduces Bind statements for duplicated sub-expressions.
  * \return The pass.
  */
-TVM_DLL Pass CommonSubexprElim();
+TVM_TIRX_DLL Pass CommonSubexprElim();
 
 /*!
  * \brief Annotate a Function with a given target.
@@ -292,19 +295,19 @@ TVM_DLL Pass CommonSubexprElim();
  *       Lower dialect-specific thread bindings before classifying host/device calls.
  * \return The pass.
  */
-TVM_DLL Pass BindTarget(Target target);
+TVM_TIRX_DLL Pass BindTarget(Target target);
 
 /*!
  * \brief Set a Function as the entry point if it is only function in IRModule.
  * \return The pass.
  */
-TVM_DLL Pass AnnotateEntryFunc();
+TVM_TIRX_DLL Pass AnnotateEntryFunc();
 
 /*!
  * \brief Filter Functions with a given condition.
  * \return The pass.
  */
-TVM_DLL Pass Filter(ffi::TypedFunction<bool(Function)> fcond);
+TVM_TIRX_DLL Pass Filter(ffi::TypedFunction<bool(Function)> fcond);
 
 /*!
  * \brief Lower TIRx op calls using registered op dispatchers for the given target.
@@ -313,19 +316,19 @@ TVM_DLL Pass Filter(ffi::TypedFunction<bool(Function)> fcond);
  * launch configuration, preserving execution-context information during dispatch.
  * \return The pass.
  */
-TVM_DLL Pass TileDispatch();
+TVM_TIRX_DLL Pass TileDispatch();
 
 /*!
  * \brief Finalize TIRx lowering by applying layout rewriters and cleanup passes.
  * \return The pass.
  */
-TVM_DLL Pass LowerTIRxCleanup();
+TVM_TIRX_DLL Pass LowerTIRxCleanup();
 
 /*!
  * \brief Lower the TIR to a lower level IR for the given target.
  * \return The pass.
  */
-TVM_DLL Pass LowerTIRx();
+TVM_TIRX_DLL Pass LowerTIRx();
 
 }  // namespace transform
 }  // namespace tirx

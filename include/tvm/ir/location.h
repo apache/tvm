@@ -69,7 +69,7 @@ class SourceName : public ffi::ObjectRef {
    * \param name Name of the operator.
    * \return SourceName valid throughout program lifetime.
    */
-  TVM_DLL static SourceName Get(const ffi::String& name);
+  TVM_TIRX_DLL static SourceName Get(const ffi::String& name);
 
   explicit SourceName(ffi::UnsafeInit tag, ffi::ObjectPtr<SourceNameNode> n) : ffi::ObjectRef(tag) {
     data_ = std::move(n);
@@ -104,7 +104,7 @@ class UnknownLocNode : public LocationNode {
 /*! \brief Reference to the shared immutable unknown location. */
 class UnknownLoc : public Location {
  public:
-  TVM_DLL UnknownLoc();
+  TVM_TIRX_DLL UnknownLoc();
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(UnknownLoc, Location, UnknownLocNode);
 };
@@ -141,11 +141,11 @@ class SourceLocNode : public LocationNode {
 /*! \brief A concrete source range. */
 class SourceLoc : public Location {
  public:
-  TVM_DLL SourceLoc(SourceName source_name, int start_line, int start_column, int end_line,
-                    int end_column);
+  TVM_TIRX_DLL SourceLoc(SourceName source_name, int start_line, int start_column, int end_line,
+                         int end_column);
 
   /*! \brief Merge two ranges in the same source. */
-  TVM_DLL SourceLoc Merge(const SourceLoc& other) const;
+  TVM_TIRX_DLL SourceLoc Merge(const SourceLoc& other) const;
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(SourceLoc, Location, SourceLocNode);
 };
@@ -169,7 +169,7 @@ class CallSiteLocNode : public LocationNode {
 /*! \brief Explicit inline callee/caller provenance. */
 class CallSiteLoc : public Location {
  public:
-  TVM_DLL CallSiteLoc(Location callee, Location caller);
+  TVM_TIRX_DLL CallSiteLoc(Location callee, Location caller);
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(CallSiteLoc, Location, CallSiteLocNode);
 };
@@ -205,8 +205,8 @@ class SourceObj : public ffi::Object {
 
 class Source : public ffi::ObjectRef {
  public:
-  TVM_DLL Source(SourceName src_name, std::string source);
-  TVM_DLL tvm::ffi::String GetLine(int line);
+  TVM_TIRX_DLL Source(SourceName src_name, std::string source);
+  TVM_TIRX_DLL tvm::ffi::String GetLine(int line);
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Source, ffi::ObjectRef, SourceObj);
 };

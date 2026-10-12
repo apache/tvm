@@ -38,7 +38,7 @@ def run_function(sess, function, *args):
     target = tvm.target.Target("cuda")
     with tempfile.TemporaryDirectory() as tmpdir:
         path = f"{tmpdir}/test.so"
-        mod = tvm.compile(function, target=target, tir_pipeline="tirx")
+        mod = tvm.tirx.compile(function, target=target, pipeline="tirx")
         print(mod.mod.imports[0].inspect_source())
         mod.export_library(path)
         rt_mod = sess.load_vm_module(path)

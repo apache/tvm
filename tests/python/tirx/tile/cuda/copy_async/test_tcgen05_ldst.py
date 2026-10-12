@@ -329,7 +329,7 @@ def _run_roundtrip_16b(
     target = tvm.target.Target("cuda")
     with target:
         mod = tvm.IRModule({"main": kernel})
-        mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
+        mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
         A_np = tvm.testing.generate_random_array(dtype, (128, per_thread_elems))
         B_np = np.zeros((128, per_thread_elems), dtype=dtype)
 
@@ -574,7 +574,7 @@ def test_tcgen05_16xnb_sub_slab_view_read(shape, rep):
 
     target = tvm.target.Target("cuda")
     with target:
-        mod = tvm.compile(tvm.IRModule({"main": kernel}), target=target, tir_pipeline="tirx")
+        mod = tvm.tirx.compile(tvm.IRModule({"main": kernel}), target=target, pipeline="tirx")
         source_np = tvm.testing.generate_random_array(dtype, (128, regs128))
 
         def run_and_check():
@@ -644,7 +644,7 @@ def test_layout_F_rejects_incompatible_atoms(atom_kind, frag_rows):
     with target:
         mod = tvm.IRModule({"main": kernel})
         with pytest.raises((ValueError, RuntimeError), match="datapath"):
-            tvm.compile(mod, target=target, tir_pipeline="tirx")
+            tvm.tirx.compile(mod, target=target, pipeline="tirx")
 
 
 def test_layout_B_rejects_16xnb_fragment():
@@ -669,7 +669,7 @@ def test_layout_B_rejects_16xnb_fragment():
     target = tvm.target.Target("cuda")
     with target:
         with pytest.raises((ValueError, RuntimeError), match="datapath B"):
-            tvm.compile(tvm.IRModule({"main": kernel}), target=target, tir_pipeline="tirx")
+            tvm.tirx.compile(tvm.IRModule({"main": kernel}), target=target, pipeline="tirx")
 
 
 def test_layout_B_rejects_partial_column_copy():
@@ -698,7 +698,7 @@ def test_layout_B_rejects_partial_column_copy():
     target = tvm.target.Target("cuda")
     with target:
         with pytest.raises((ValueError, RuntimeError), match=r"full \(64, N\)"):
-            tvm.compile(tvm.IRModule({"main": kernel}), target=target, tir_pipeline="tirx")
+            tvm.tirx.compile(tvm.IRModule({"main": kernel}), target=target, pipeline="tirx")
 
 
 @pytest.mark.parametrize("direction", ["ld", "st"])
@@ -730,7 +730,7 @@ def test_datapath_B_codegen(direction):
 
     target = tvm.target.Target("cuda")
     with target:
-        mod = tvm.compile(tvm.IRModule({"main": kernel}), target=target, tir_pipeline="tirx")
+        mod = tvm.tirx.compile(tvm.IRModule({"main": kernel}), target=target, pipeline="tirx")
     source = mod.mod.imports[0].inspect_source()
     assert f"tcgen05.{direction}" in source
     assert "32x32b.x32" in source
@@ -799,7 +799,7 @@ def test_datapath_B_ld_st_roundtrip(n_cols, col_offset):
 
     target = tvm.target.Target("cuda")
     with target:
-        mod = tvm.compile(tvm.IRModule({"main": kernel}), target=target, tir_pipeline="tirx")
+        mod = tvm.tirx.compile(tvm.IRModule({"main": kernel}), target=target, pipeline="tirx")
         source_np = tvm.testing.generate_random_array("float32", (128, n_half))
 
         def run_and_check():
@@ -939,7 +939,7 @@ def _run_load_test(shape: str, rep: int, dtype: str):
     target = tvm.target.Target("cuda")
     with target:
         mod = tvm.IRModule({"main": kernel})
-        mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
+        mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
         A_np = tvm.testing.generate_random_array(dtype, (128, stage_width_elem))
         B_np = np.zeros((128, per_thread_elems), dtype=dtype)
 
@@ -1100,7 +1100,7 @@ def test_tcgen05_st_16xnb_store(shape, rep, dtype):
     target = tvm.target.Target("cuda")
     with target:
         mod = tvm.IRModule({"main": kernel})
-        mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
+        mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
         A_np = tvm.testing.generate_random_array(dtype, (128, per_thread_elems))
         B_np = np.zeros((128, stage_width_elem), dtype=dtype)
 
@@ -1203,7 +1203,7 @@ def test_alloc_tcgen05_frag_wrapper_compiles(shape, frag_rows, K_cols):
     target = tvm.target.Target("cuda")
     with target:
         mod = tvm.IRModule({"main": kernel})
-        mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
+        mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
     # Compiles cleanly + the generated CUDA contains the expected PTX shape.
     src = mod.mod.imports[0].inspect_source()
     assert shape in src, (
@@ -1254,7 +1254,7 @@ def test_tcgen05_32x32b_float32_keeps_typed_register_operands():
     target = tvm.target.Target("cuda")
     with target:
         mod = tvm.IRModule({"main": kernel})
-        mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
+        mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
     src = mod.mod.imports[0].inspect_source()
     call_lines = [
         line
@@ -1303,7 +1303,7 @@ def test_tcgen05_ldst_constant_tmem_address_is_uint32():
     target = tvm.target.Target("cuda")
     with target:
         mod = tvm.IRModule({"main": kernel})
-        mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
+        mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
     src = mod.mod.imports[0].inspect_source()
     ld_lines = [
         line
@@ -1439,7 +1439,7 @@ def _run_sliced_vs_full_load(shape, full_rep, n_chunks):
     target = tvm.target.Target("cuda")
     with target:
         mod = tvm.IRModule({"main": kernel})
-        mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
+        mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
         A_np = tvm.testing.generate_random_array(dtype, (128, stage_width_elem))
         Bf_np = np.zeros((128, per_thread_elems), dtype=dtype)
         Bs_np = np.zeros((128, per_thread_elems), dtype=dtype)
@@ -1570,7 +1570,7 @@ def test_copy_tmem2reg_async(dtype, width_32b):
     target = tvm.target.Target("cuda")
     with target:
         mod = tvm.IRModule({"main": copy_async_test})
-        mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
+        mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
         A_np = tvm.testing.generate_random_array(dtype, (128, WIDTH))
         B_np = np.zeros((128, WIDTH), dtype=dtype)
         DEV = tvm.cuda(0)
@@ -1667,7 +1667,7 @@ def test_copy_tmem2reg(dtype, width_32b, offset_32b):
     target = tvm.target.Target("cuda")
     with target:
         mod = tvm.IRModule({"main": copy_sync})
-        mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
+        mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
         A_np = tvm.testing.generate_random_array(dtype, (128, WIDTH))
         B_np = np.zeros((128, WIDTH), dtype=dtype)
         DEV = tvm.cuda(0)
@@ -1773,7 +1773,7 @@ def test_copy_tmem2reg_sliced_local(dtype, width_32b, local_offset_32b):
     target = tvm.target.Target("cuda")
     with target:
         mod = tvm.IRModule({"main": copy_sync})
-        mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
+        mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
         A_np = tvm.testing.generate_random_array(dtype, (128, WIDTH))
         B_np = np.zeros((128, WIDTH), dtype=dtype)
         DEV = tvm.cuda(0)

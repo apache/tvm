@@ -30,14 +30,12 @@ def default_tir_pipeline(*, target=None):
     return tirx_pipeline(target=target)
 
 
-def tirx_pipeline(*, prepare_only=False, target=None, _bindings_lowered=False):
-    """The TIRX pipeline used in tvm.tirx.build"""
+def tirx_pipeline(*, prepare_only=False, target=None):
+    """The TIRX pipeline used in tvm.tirx.compile"""
 
     @tvm.transform.module_pass(opt_level=0)
     def _pipeline(mod: tvm.ir.IRModule, _ctx: tvm.transform.PassContext) -> tvm.ir.IRModule:
         """The default lowering passes for TIR backend."""
-        if not _bindings_lowered:
-            mod = _lower_thread_binding()(mod)
         mod = _bind_target(mod, target)
         pass_ctx = tvm.transform.PassContext.current()
         config = pass_ctx.config
@@ -64,11 +62,6 @@ def tirx_pipeline(*, prepare_only=False, target=None, _bindings_lowered=False):
     return _pipeline, finalize_host_passes, finalize_device_passes
 
 
-def _lower_thread_binding():
-    """Finish S-TIR loop annotations before generic TIRx consumers."""
-    return tvm.s_tir.transform.LowerThreadBinding()
-
-
 def _bind_target(mod, target):
     if target is None:
         return mod
@@ -82,9 +75,9 @@ def _bind_target(mod, target):
 
 
 def _bind_legacy_target(mod, target):
-    from tvm.s_tir.pipeline import _prepare_legacy_target_binding
-
-    return _bind_target(_prepare_legacy_target_binding(mod), target)
+    for prepare in _LEGACY_TARGET_PREPARERS:
+        mod = prepare(mod)
+    return _bind_target(mod, target)
 
 
 def _with_target_binding(pipeline, target, *, original_mod=None, prepared_mod=None):
@@ -207,6 +200,8 @@ def get_tir_pipeline(name: str | None = None, *, target=None, **kwargs):
 
 # Dialects register their own default selection without introducing imports here.
 _DEFAULT_PIPELINE_SELECTORS = []
+# Dialects validate their own scheduling constructs before legacy target binding.
+_LEGACY_TARGET_PREPARERS = []
 
 
 def register_default_tir_pipeline_selector(selector) -> None:
