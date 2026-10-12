@@ -45,7 +45,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   IterMarkNode::RegisterReflection();
   IterSplitExprNode::RegisterReflection();
   IterSumExprNode::RegisterReflection();
-  IterMapResultNode::RegisterReflection();
+  IterMapResultObj::RegisterReflection();
 }
 
 IterMark::IterMark(PrimExpr source, PrimExpr extent) {

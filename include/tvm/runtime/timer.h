@@ -19,7 +19,7 @@
 
 /*!
  * \file include/tvm/runtime/timer.h
- * \brief Runtime timer primitives: Timer, TimerNode, WrapTimeEvaluator.
+ * \brief Runtime timer primitives: Timer, TimerObj, WrapTimeEvaluator.
  */
 #ifndef TVM_RUNTIME_TIMER_H_
 #define TVM_RUNTIME_TIMER_H_
@@ -38,7 +38,7 @@ namespace runtime {
  * are as lightweight as possible. Expensive state synchronization should be
  * done in `SyncAndGetElapsedNanos`.
  */
-class TimerNode : public ffi::Object {
+class TimerObj : public ffi::Object {
  public:
   /*! \brief Start the timer.
    *
@@ -62,17 +62,17 @@ class TimerNode : public ffi::Object {
    */
   virtual int64_t SyncAndGetElapsedNanos() = 0;
 
-  virtual ~TimerNode() {}
+  virtual ~TimerObj() {}
 
   static constexpr const bool _type_mutable = true;
-  TVM_FFI_DECLARE_OBJECT_INFO("runtime.TimerNode", TimerNode, ffi::Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("runtime.TimerNode", TimerObj, ffi::Object);
 };
 
 /*! \brief Timer for a specific device.
  *
- * This is a managed reference to a TimerNode.
+ * This is a managed reference to a TimerObj.
  *
- * \sa TimerNode
+ * \sa TimerObj
  */
 class Timer : public ffi::ObjectRef {
  public:
@@ -107,15 +107,15 @@ class Timer : public ffi::ObjectRef {
    *
    * For example, this is how the CPU timer is implemented:
    * \code{.cpp}
-   *  class CPUTimerNode : public TimerNode {
+   *  class CPUTimerObj : public TimerObj {
    *   public:
    *    virtual void Start() { start_ = std::chrono::high_resolution_clock::now(); }
    *    virtual void Stop() { duration_ = std::chrono::high_resolution_clock::now() - start_; }
    *    virtual int64_t SyncAndGetElapsedNanos() { return duration_.count(); }
-   *    virtual ~CPUTimerNode() {}
+   *    virtual ~CPUTimerObj() {}
    *
-   *    static constexpr const char* _type_key = "runtime.CPUTimerNode";
-   *    TVM_FFI_DECLARE_OBJECT_INFO_FINAL(CPUTimerNode, TimerNode);
+   *    static constexpr const char* _type_key = "runtime.CPUTimerObj";
+   *    TVM_FFI_DECLARE_OBJECT_INFO_FINAL(CPUTimerObj, TimerObj);
    *
    *   private:
    *    std::chrono::high_resolution_clock::time_point start_;
@@ -126,18 +126,18 @@ class Timer : public ffi::ObjectRef {
    *  TVM_FFI_STATIC_INIT_BLOCK() {
    *    namespace refl = tvm::ffi::reflection;
    *    refl::GlobalDef().def("runtime.timer.cpu", [](Device dev) {
-   *      return Timer(ffi::UnsafeInit{}, ffi::make_object<CPUTimerNode>());
+   *      return Timer(ffi::UnsafeInit{}, ffi::make_object<CPUTimerObj>());
    *    });
    *  }
    * \endcode
    */
   static TVM_RUNTIME_DLL Timer Start(Device dev);
 
-  explicit Timer(ffi::UnsafeInit tag, ffi::ObjectPtr<TimerNode> n) : ffi::ObjectRef(tag) {
+  explicit Timer(ffi::UnsafeInit tag, ffi::ObjectPtr<TimerObj> n) : ffi::ObjectRef(tag) {
     data_ = std::move(n);
   }
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Timer, ffi::ObjectRef, TimerNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Timer, ffi::ObjectRef, TimerObj);
 };
 
 /*!

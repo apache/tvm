@@ -29,7 +29,7 @@ namespace ir_builder {
 namespace ir {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  IRModuleFrameNode::RegisterReflection();
+  IRModuleFrameObj::RegisterReflection();
   ffi::reflection::GlobalDef().def("script.ir_builder.ir.IRModuleFrameAbort",
                                    [](const IRModuleFrame& frame) {
                                      if (!IRBuilder::IsInScope()) return;
@@ -45,8 +45,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                                    });
 }
 
-void IRModuleFrameNode::ExitWithScope() {
-  IRBuilderFrameNode::ExitWithScope();
+void IRModuleFrameObj::ExitWithScope() {
+  IRBuilderFrameObj::ExitWithScope();
   ffi::Map<GlobalVar, BaseFunc> func_map;
   TVM_FFI_ICHECK_EQ(functions.size(), global_var_map.size())
       << "All functions must be defined in the IRModule. Got " << global_var_map.size()
@@ -64,22 +64,22 @@ void IRModuleFrameNode::ExitWithScope() {
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  StmtFrameNode::RegisterReflection();
-  ForFrameNode::RegisterReflection();
-  AssertFrameNode::RegisterReflection();
-  RegionFrameNode::RegisterReflection();
-  WhileFrameNode::RegisterReflection();
-  IfFrameNode::RegisterReflection();
-  ThenFrameNode::RegisterReflection();
-  ElseFrameNode::RegisterReflection();
+  StmtFrameObj::RegisterReflection();
+  ForFrameObj::RegisterReflection();
+  AssertFrameObj::RegisterReflection();
+  RegionFrameObj::RegisterReflection();
+  WhileFrameObj::RegisterReflection();
+  IfFrameObj::RegisterReflection();
+  ThenFrameObj::RegisterReflection();
+  ElseFrameObj::RegisterReflection();
 }
 
-void ForFrameNode::ExitWithScope() {
-  StmtFrameNode::ExitWithScope();
+void ForFrameObj::ExitWithScope() {
+  StmtFrameObj::ExitWithScope();
   AddToParent(this->f_make_for_loop(vars, doms, steps, AsStmt(stmts), loc), loc);
 }
 
-void ForFrameNode::SetNames(
+void ForFrameObj::SetNames(
     ffi::Optional<ffi::Variant<ffi::String, ffi::Array<ffi::String>>> names) {
   if (!names.has_value()) return;
   if (IRBuilder::IsInScope()) {
@@ -124,11 +124,11 @@ void ForFrameNode::SetNames(
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   tvm::ffi::reflection::GlobalDef().def_method("script.ir_builder.tirx.ForFrameSetNames",
-                                               &ForFrameNode::SetNames);
+                                               &ForFrameObj::SetNames);
 }
 
-void AssertFrameNode::ExitWithScope() {
-  StmtFrameNode::ExitWithScope();
+void AssertFrameObj::ExitWithScope() {
+  StmtFrameObj::ExitWithScope();
   if (stmts.empty()) {
     AddToParent(tvm::AssertStmt(condition, error_kind, message_parts, loc), loc);
   } else {
@@ -141,18 +141,18 @@ void AssertFrameNode::ExitWithScope() {
   }
 }
 
-void RegionFrameNode::ExitWithScope() {
-  StmtFrameNode::ExitWithScope();
+void RegionFrameObj::ExitWithScope() {
+  StmtFrameObj::ExitWithScope();
   AddToParent(tvm::RegionStmt(op, args, body_params, attrs, AsStmt(stmts), {}, loc), loc);
 }
 
-void WhileFrameNode::ExitWithScope() {
-  StmtFrameNode::ExitWithScope();
+void WhileFrameObj::ExitWithScope() {
+  StmtFrameObj::ExitWithScope();
   AddToParent(tvm::While(condition, AsStmt(stmts), loc), loc);
 }
 
-void IfFrameNode::ExitWithScope() {
-  StmtFrameNode::ExitWithScope();
+void IfFrameObj::ExitWithScope() {
+  StmtFrameObj::ExitWithScope();
   if (!stmts.empty()) {
     TVM_FFI_THROW(InternalError)
         << "stmt within If frame should be either in ThenFrame or ElseFrame";
@@ -168,21 +168,21 @@ void IfFrameNode::ExitWithScope() {
       loc);
 }
 
-void ThenFrameNode::EnterWithScope() {
+void ThenFrameObj::EnterWithScope() {
   IfFrame frame = FindIfFrame("T.then_");
   if (frame->then_stmts.has_value()) {
     TVM_FFI_THROW(ValueError) << "Duplicate then branch declaration, previous one is "
                               << frame->then_stmts.value();
   }
-  StmtFrameNode::EnterWithScope();
+  StmtFrameObj::EnterWithScope();
 }
 
-void ThenFrameNode::ExitWithScope() {
-  StmtFrameNode::ExitWithScope();
+void ThenFrameObj::ExitWithScope() {
+  StmtFrameObj::ExitWithScope();
   FindIfFrame("T.then_")->then_stmts = stmts;
 }
 
-void ElseFrameNode::EnterWithScope() {
+void ElseFrameObj::EnterWithScope() {
   IfFrame frame = FindIfFrame("T.else_");
   if (!frame->then_stmts.has_value()) {
     TVM_FFI_THROW(InternalError) << "The else branch should follow then branch";
@@ -191,11 +191,11 @@ void ElseFrameNode::EnterWithScope() {
     TVM_FFI_THROW(ValueError) << "Duplicate else branch declaration, previous one is "
                               << frame->else_stmts.value();
   }
-  StmtFrameNode::EnterWithScope();
+  StmtFrameObj::EnterWithScope();
 }
 
-void ElseFrameNode::ExitWithScope() {
-  StmtFrameNode::ExitWithScope();
+void ElseFrameObj::ExitWithScope() {
+  StmtFrameObj::ExitWithScope();
   FindIfFrame("T.else_")->else_stmts = stmts;
 }
 

@@ -424,10 +424,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       });
 }
 
-class MetalTimerNode : public TimerNode {
+class MetalTimerObj : public TimerObj {
  public:
-  MetalTimerNode() {}
-  explicit MetalTimerNode(Device dev) : dev_(dev) {
+  MetalTimerObj() {}
+  explicit MetalTimerObj(Device dev) : dev_(dev) {
     mtl_dev_ = MetalWorkspace::Global()->GetDevice(dev_);
   }
 
@@ -440,7 +440,7 @@ class MetalTimerNode : public TimerNode {
     [mtl_dev_ sampleTimestamps:&stop_cpu_time_ gpuTimestamp:&stop_gpu_time_];
   }
   virtual int64_t SyncAndGetElapsedNanos() { return stop_gpu_time_ - start_gpu_time_; }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("runtime.metal.MetalTimerNode", MetalTimerNode, TimerNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("runtime.metal.MetalTimerNode", MetalTimerObj, TimerObj);
 
  private:
   Device dev_;
@@ -455,7 +455,7 @@ class MetalTimerNode : public TimerNode {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("runtime.timer.metal",
-                        [](Device dev) { return Timer(ffi::make_object<MetalTimerNode>(dev)); });
+                        [](Device dev) { return Timer(ffi::make_object<MetalTimerObj>(dev)); });
 }
 
 }  // namespace metal

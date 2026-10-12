@@ -50,7 +50,7 @@ TVM_FFI_INLINE bool IsVectorExpr(const ExprNode* expr) {
 }
 }  // namespace
 
-TVM_FFI_STATIC_INIT_BLOCK() { RewriteSimplifierStatsNode::RegisterReflection(); }
+TVM_FFI_STATIC_INIT_BLOCK() { RewriteSimplifierStatsObj::RegisterReflection(); }
 
 // Note: When using matches_one_of or PMatchesOneOf alongside these
 // macros, be careful which patterns are used in the ResExpr.  While

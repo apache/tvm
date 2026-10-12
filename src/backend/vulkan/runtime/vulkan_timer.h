@@ -36,18 +36,18 @@ namespace vulkan {
  * This class uses Vulkan timestamp queries to measure the time taken
  * by GPU operations between `Start()` and `Stop()` calls.
  */
-class VulkanTimerNode : public TimerNode {
+class VulkanTimerObj : public TimerObj {
  public:
   /*!
-   * \brief Constructs a VulkanTimerNode for the specified device.
+   * \brief Constructs a VulkanTimerObj for the specified device.
    * \param dev The TVM device to be used for timing.
    */
-  explicit VulkanTimerNode(Device dev);
+  explicit VulkanTimerObj(Device dev);
 
   /*!
    * \brief Destructor to clean up Vulkan resources.
    */
-  ~VulkanTimerNode() override;
+  ~VulkanTimerObj() override;
 
   /*!
    * \brief Starts the timer by recording a timestamp.
@@ -65,7 +65,7 @@ class VulkanTimerNode : public TimerNode {
    */
   int64_t SyncAndGetElapsedNanos() override;
 
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("runtime.vulkan.VulkanTimerNode", VulkanTimerNode, TimerNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("runtime.vulkan.VulkanTimerNode", VulkanTimerObj, TimerObj);
 
  private:
   Device dev_;                              ///< The TVM device being used.

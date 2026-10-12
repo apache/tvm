@@ -36,11 +36,11 @@ UniqueNameSupply::UniqueNameSupply(const ffi::String& prefix,
   if (!name_map.defined()) {
     name_map = ffi::Map<ffi::String, int64_t>();
   }
-  auto n = ffi::make_object<UniqueNameSupplyNode>(prefix, std::move(name_map));
+  auto n = ffi::make_object<UniqueNameSupplyObj>(prefix, std::move(name_map));
   data_ = std::move(n);
 }
 
-ffi::String UniqueNameSupplyNode::ReserveName(const ffi::String& name, bool add_prefix) {
+ffi::String UniqueNameSupplyObj::ReserveName(const ffi::String& name, bool add_prefix) {
   ffi::String final_name = name;
   if (add_prefix) {
     final_name = AddPrefixToName(name);
@@ -49,8 +49,8 @@ ffi::String UniqueNameSupplyNode::ReserveName(const ffi::String& name, bool add_
   return final_name;
 }
 
-ffi::String UniqueNameSupplyNode::FreshName(const ffi::String& name, bool add_prefix,
-                                            bool add_underscore) {
+ffi::String UniqueNameSupplyObj::FreshName(const ffi::String& name, bool add_prefix,
+                                           bool add_underscore) {
   ffi::String unique_name = name;
   if (unique_name.empty()) {
     unique_name = "v";
@@ -61,7 +61,7 @@ ffi::String UniqueNameSupplyNode::FreshName(const ffi::String& name, bool add_pr
   return GetUniqueName(unique_name, add_underscore);
 }
 
-bool UniqueNameSupplyNode::ContainsName(const ffi::String& name, bool add_prefix) {
+bool UniqueNameSupplyObj::ContainsName(const ffi::String& name, bool add_prefix) {
   ffi::String unique_name = name;
   if (add_prefix) {
     unique_name = AddPrefixToName(name);
@@ -69,7 +69,7 @@ bool UniqueNameSupplyNode::ContainsName(const ffi::String& name, bool add_prefix
   return name_map.count(unique_name);
 }
 
-ffi::String UniqueNameSupplyNode::AddPrefixToName(const ffi::String& name) {
+ffi::String UniqueNameSupplyObj::AddPrefixToName(const ffi::String& name) {
   if (prefix_.empty()) {
     return name;
   }
@@ -79,7 +79,7 @@ ffi::String UniqueNameSupplyNode::AddPrefixToName(const ffi::String& name) {
   return ss.str();
 }
 
-std::string UniqueNameSupplyNode::GetUniqueName(std::string name, bool add_underscore) {
+std::string UniqueNameSupplyObj::GetUniqueName(std::string name, bool add_underscore) {
   for (size_t i = 0; i < name.size(); ++i) {
     if (name[i] == '.') name[i] = '_';
   }
@@ -103,12 +103,12 @@ std::string UniqueNameSupplyNode::GetUniqueName(std::string name, bool add_under
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  UniqueNameSupplyNode::RegisterReflection();
+  UniqueNameSupplyObj::RegisterReflection();
   refl::GlobalDef()
       .def("ir.UniqueNameSupply", [](ffi::String prefix) { return UniqueNameSupply(prefix); })
-      .def_method("ir.UniqueNameSupply_FreshName", &UniqueNameSupplyNode::FreshName)
-      .def_method("ir.UniqueNameSupply_ReserveName", &UniqueNameSupplyNode::ReserveName)
-      .def_method("ir.UniqueNameSupply_ContainsName", &UniqueNameSupplyNode::ContainsName);
+      .def_method("ir.UniqueNameSupply_FreshName", &UniqueNameSupplyObj::FreshName)
+      .def_method("ir.UniqueNameSupply_ReserveName", &UniqueNameSupplyObj::ReserveName)
+      .def_method("ir.UniqueNameSupply_ContainsName", &UniqueNameSupplyObj::ContainsName);
 }
 
 }  // namespace tvm

@@ -181,10 +181,10 @@ class CallSiteLoc : public Location {
  */
 class Source;
 
-class SourceNode : public ffi::Object {
+class SourceObj : public ffi::Object {
  public:
-  explicit SourceNode(SourceName source_name) : source_name(std::move(source_name)) {}
-  explicit SourceNode(ffi::UnsafeInit tag) : source_name(tag) {}
+  explicit SourceObj(SourceName source_name) : source_name(std::move(source_name)) {}
+  explicit SourceObj(ffi::UnsafeInit tag) : source_name(tag) {}
   /*! \brief The source name. */
   SourceName source_name;
 
@@ -196,11 +196,11 @@ class SourceNode : public ffi::Object {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<SourceNode>()
-        .def_ro("source_name", &SourceNode::source_name)
-        .def_ro("source", &SourceNode::source);
+    refl::ObjectDef<SourceObj>()
+        .def_ro("source_name", &SourceObj::source_name)
+        .def_ro("source", &SourceObj::source);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.Source", SourceNode, ffi::Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.Source", SourceObj, ffi::Object);
 };
 
 class Source : public ffi::ObjectRef {
@@ -208,7 +208,7 @@ class Source : public ffi::ObjectRef {
   TVM_DLL Source(SourceName src_name, std::string source);
   TVM_DLL tvm::ffi::String GetLine(int line);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Source, ffi::ObjectRef, SourceNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Source, ffi::ObjectRef, SourceObj);
 };
 
 /*!

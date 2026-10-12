@@ -41,10 +41,10 @@ namespace refl = ffi::reflection;
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  TargetKindNode::RegisterReflection();
-  refl::TypeAttrDef<TargetKindNode>()
+  TargetKindObj::RegisterReflection();
+  refl::TypeAttrDef<TargetKindObj>()
       .def(tvm::ffi::reflection::type_attr::kDataToJson,
-           [](const TargetKindNode* node) {
+           [](const TargetKindObj* node) {
              // simply save as the string
              return node->name;
            })
@@ -53,7 +53,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
         TVM_FFI_ICHECK(kind.has_value()) << "Cannot find target kind \'" << name << '\'';
         return kind.value();
       });
-  refl::TypeAttrDef<TargetKindNode>().def(
+  refl::TypeAttrDef<TargetKindObj>().def(
       refl::type_attr::kRepr,
       [](TargetKind kind, ffi::Function) -> ffi::String { return kind->name; });
 }
@@ -68,7 +68,7 @@ TargetKind TargetKindRegistry::RegisterOrGet(const ffi::String& name) {
   if (auto it = kinds_.find(name); it != kinds_.end()) {
     return (*it).second;
   }
-  TargetKind kind(ffi::make_object<TargetKindNode>());
+  TargetKind kind(ffi::make_object<TargetKindObj>());
   kind->name = name;
   kind->default_device_type = kDLCPU;
   kind->schema_.def_option<ffi::String>("kind")

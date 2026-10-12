@@ -1777,7 +1777,7 @@ void CodeGenCUDA::PrintVecElemLoadExpr(const PrimType& t, int i, const std::stri
 // fallback-aware module factory.  The factory may JIT to PTX/cubin via
 // `tvm_callback_cuda_compile` when
 // USE_CUDA=ON; on USE_CUDA=OFF builds (or when TVM_COMPILE_FORCE_FALLBACK is
-// set), it returns a `CUDAFallbackModuleNode` carrying the raw source for
+// set), it returns a `CUDAFallbackModuleObj` carrying the raw source for
 // later cross-compile.
 ffi::Module BuildCUDA(IRModule mod, Target target) {
   bool output_ssa = false;
@@ -1813,8 +1813,8 @@ ffi::Module BuildCUDA(IRModule mod, Target target) {
   // Hand off raw CUDA source to the fallback-aware factory.  When the real
   // CUDA runtime is registered (USE_CUDA=ON and not forced-fallback) the
   // factory invokes tvm_callback_cuda_compile and
-  // builds a real CUDAModuleNode.  Otherwise it stores the source in a
-  // CUDAFallbackModuleNode for later cross-compile.
+  // builds a real CUDAModuleObj.  Otherwise it stores the source in a
+  // CUDAFallbackModuleObj for later cross-compile.
   ffi::Map<ffi::String, ffi::String> source_map;
   auto config = mod->GetAttr<ffi::String>("backend_config");
   if (!config.has_value()) {

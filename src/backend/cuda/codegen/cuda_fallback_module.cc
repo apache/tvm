@@ -19,8 +19,8 @@
 
 /*!
  * \file cuda_fallback_module.cc
- * \brief CUDAFallbackModuleNode — codegen-time placeholder used when the CUDA
- *        runtime is not linked.  Mirrors `CUDAModuleNode`'s save/load format
+ * \brief CUDAFallbackModuleObj — codegen-time placeholder used when the CUDA
+ *        runtime is not linked.  Mirrors `CUDAModuleObj`'s save/load format
  *        byte-for-byte, including the backend configuration string.
  *        Always compiled (independent of USE_CUDA); never registered as an
  *        FFI factory or loader.
@@ -40,11 +40,11 @@
 namespace tvm {
 namespace target {
 
-class CUDAFallbackModuleNode : public ffi::ModuleObj {
+class CUDAFallbackModuleObj : public ffi::ModuleObj {
  public:
-  CUDAFallbackModuleNode(ffi::Bytes code, ffi::String fmt,
-                         ffi::Map<ffi::String, runtime::FunctionInfo> fmap,
-                         ffi::Map<ffi::String, ffi::String> source)
+  CUDAFallbackModuleObj(ffi::Bytes code, ffi::String fmt,
+                        ffi::Map<ffi::String, runtime::FunctionInfo> fmap,
+                        ffi::Map<ffi::String, ffi::String> source)
       : code_(std::move(code)),
         fmt_(std::move(fmt)),
         fmap_(std::move(fmap)),
@@ -52,7 +52,7 @@ class CUDAFallbackModuleNode : public ffi::ModuleObj {
         backend_config_(source_.Get("backend_config").value_or("{}")) {}
 
   // Mirror the real module's kind so consumers cannot distinguish at the
-  // kind/api layer.  Saved bytes load back as a real CUDAModuleNode on a
+  // kind/api layer.  Saved bytes load back as a real CUDAModuleObj on a
   // CUDA-equipped receiver.
   const char* kind() const final { return "cuda"; }
 
@@ -119,8 +119,8 @@ class CUDAFallbackModuleNode : public ffi::ModuleObj {
 ffi::Module CUDAFallbackModuleCreate(ffi::Bytes code, ffi::String fmt,
                                      ffi::Map<ffi::String, runtime::FunctionInfo> fmap,
                                      ffi::Map<ffi::String, ffi::String> source) {
-  auto n = ffi::make_object<CUDAFallbackModuleNode>(std::move(code), std::move(fmt),
-                                                    std::move(fmap), std::move(source));
+  auto n = ffi::make_object<CUDAFallbackModuleObj>(std::move(code), std::move(fmt), std::move(fmap),
+                                                   std::move(source));
   return ffi::Module(n);
 }
 

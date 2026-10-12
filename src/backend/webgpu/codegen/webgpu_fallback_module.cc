@@ -19,7 +19,7 @@
 
 /*!
  * \file webgpu_fallback_module.cc
- * \brief WebGPUFallbackModuleNode — the canonical C++-side module for
+ * \brief WebGPUFallbackModuleObj — the canonical C++-side module for
  *        WebGPU.  There is no native WebGPU runtime in the C++ tree; the
  *        real receiver is the wasm runtime in
  *        `web/emcc/webgpu_runtime.cc`, which registers only the
@@ -45,11 +45,11 @@
 namespace tvm {
 namespace target {
 
-class WebGPUFallbackModuleNode : public ffi::ModuleObj {
+class WebGPUFallbackModuleObj : public ffi::ModuleObj {
  public:
-  WebGPUFallbackModuleNode(ffi::Map<ffi::String, ffi::Bytes> smap, ffi::String fmt,
-                           ffi::Map<ffi::String, runtime::FunctionInfo> fmap,
-                           ffi::Map<ffi::String, ffi::String> source)
+  WebGPUFallbackModuleObj(ffi::Map<ffi::String, ffi::Bytes> smap, ffi::String fmt,
+                          ffi::Map<ffi::String, runtime::FunctionInfo> fmap,
+                          ffi::Map<ffi::String, ffi::String> source)
       : smap_(std::move(smap)),
         fmt_(std::move(fmt)),
         fmap_(std::move(fmap)),
@@ -57,7 +57,7 @@ class WebGPUFallbackModuleNode : public ffi::ModuleObj {
 
   // The canonical C++-side WebGPU module — kind matches what the wasm
   // runtime registers (`web/emcc/webgpu_runtime.cc`).  Saved bytes load
-  // back as a real `WebGPUModuleNode` on the wasm side.
+  // back as a real `WebGPUModuleObj` on the wasm side.
   const char* kind() const final { return "webgpu"; }
 
   int GetPropertyMask() const final { return ffi::Module::kBinarySerializable; }
@@ -130,8 +130,8 @@ class WebGPUFallbackModuleNode : public ffi::ModuleObj {
 ffi::Module WebGPUFallbackModuleCreate(ffi::Map<ffi::String, ffi::Bytes> smap, ffi::String fmt,
                                        ffi::Map<ffi::String, runtime::FunctionInfo> fmap,
                                        ffi::Map<ffi::String, ffi::String> source) {
-  auto n = ffi::make_object<WebGPUFallbackModuleNode>(std::move(smap), std::move(fmt),
-                                                      std::move(fmap), std::move(source));
+  auto n = ffi::make_object<WebGPUFallbackModuleObj>(std::move(smap), std::move(fmt),
+                                                     std::move(fmap), std::move(source));
   return ffi::Module(n);
 }
 

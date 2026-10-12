@@ -113,7 +113,7 @@ OpDef::OpDef(const ffi::String& name) : op_(OpRegistry::Global()->GetOrCreate(na
 OpDef::OpDef(const ffi::String& name, const ffi::String& doc) : OpDef(name) { get()->doc = doc; }
 
 OpDef& OpDef::add_arg(const ffi::String& name, const ffi::String& doc) {
-  auto node = ffi::make_object<ArgumentInfoNode>();
+  auto node = ffi::make_object<ArgumentInfoObj>();
   node->name = name;
   node->doc = doc;
   get()->args_info.push_back(ArgumentInfo(ffi::UnsafeInit{}, std::move(node)));
@@ -121,7 +121,7 @@ OpDef& OpDef::add_arg(const ffi::String& name, const ffi::String& doc) {
 }
 
 OpDef& OpDef::add_ty_arg(const ffi::String& name, const ffi::String& doc) {
-  auto node = ffi::make_object<ArgumentInfoNode>();
+  auto node = ffi::make_object<ArgumentInfoObj>();
   node->name = name;
   node->doc = doc;
   get()->ty_args_info.push_back(ArgumentInfo(ffi::UnsafeInit{}, std::move(node)));
@@ -151,7 +151,7 @@ ffi::Array<ArgumentInfo> MakeArgumentInfos(const ffi::Array<ffi::String>& names,
   TVM_FFI_CHECK_EQ(names.size(), docs.size(), ValueError);
   ffi::Array<ArgumentInfo> infos;
   for (size_t i = 0; i < names.size(); ++i) {
-    auto info = ffi::make_object<ArgumentInfoNode>();
+    auto info = ffi::make_object<ArgumentInfoObj>();
     info->name = names[i];
     info->doc = docs[i];
     infos.push_back(ArgumentInfo(ffi::UnsafeInit{}, std::move(info)));
@@ -163,7 +163,7 @@ ffi::Optional<ArgumentInfo> MakeTailInfo(const ffi::Array<ffi::String>& tail) {
   TVM_FFI_CHECK(tail.empty() || tail.size() == 2, ValueError)
       << "A variadic signature entry must have a name and documentation";
   if (tail.empty()) return std::nullopt;
-  auto info = ffi::make_object<ArgumentInfoNode>();
+  auto info = ffi::make_object<ArgumentInfoObj>();
   info->name = tail[0];
   info->doc = tail[1];
   return ArgumentInfo(ffi::UnsafeInit{}, std::move(info));
@@ -313,7 +313,7 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> OpMaybeInplaceMutate(
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = ffi::reflection;
-  ArgumentInfoNode::RegisterReflection();
+  ArgumentInfoObj::RegisterReflection();
   OpNode::RegisterReflection();
   refl::TypeAttrDef<OpNode>()
       .attr(refl::type_attr::kStructuralVisit, ffi::FStructuralVisit::FromNative<&OpVisit>())
