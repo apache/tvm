@@ -28,6 +28,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/function.h>
 #include <tvm/ir/prim/op.h>
+#include <tvm/support/gpu_thread_tag.h>
 #include <tvm/sym/analyzer.h>
 #include <tvm/tirx/index_map.h>
 #include <tvm/tirx/op/gpu.h>
@@ -42,7 +43,6 @@
 #include <utility>
 #include <vector>
 
-#include "../../../runtime/thread_storage_scope.h"
 #include "../../../target/build_common.h"
 #include "cuda_fallback_module.h"
 #include "literal/cuda_half_t.h"
@@ -207,9 +207,7 @@ class ThreadIdxExtractor : public tirx::StmtExprVisitor {
  private:
   ffi::Optional<VisitInterrupt> Visit_(const RegionStmtNode* op) final {
     if (op->op.same_as(tirx::launch_thread_op())) {
-      TVM_FFI_CHECK(
-          std::string(op->args[0].as_or_throw<StringImm>()->value).rfind("vthread", 0) != 0,
-          ValueError)
+      TVM_FFI_CHECK(!op->args[0].as_or_throw<StringImm>()->value.starts_with("vthread"), ValueError)
           << "Virtual thread launches must be lowered before code generation";
       ffi::String tag = op->args[0].as_or_throw<StringImm>()->value;
       PrimExpr extent = op->args[1].as_or_throw<PrimExpr>();
@@ -462,10 +460,10 @@ void CodeGenCUDA::Dispatch_(const WhileNode* op) {
 
 void CodeGenCUDA::BindThreadIndex(const PrimVar& var, const ffi::String& thread_tag) {
   TVM_FFI_ICHECK(!var_idmap_.count(var.get()));
-  const auto& scope = runtime::ThreadScope::Create(thread_tag);
+  const auto& scope = support::GPUThreadTag::Parse(thread_tag);
   TVM_FFI_ICHECK_GE(scope.dim_index, 0);
   TVM_FFI_ICHECK_LT(scope.dim_index, 3);
-  if (scope.IsClusterCtaIdx()) {
+  if (scope.rank == 2) {
     const char dim = static_cast<char>('x' + scope.dim_index);
     const std::string sreg = (scope.dim_index == 0 && cluster_cta_x_is_linear_rank_)
                                  ? "cluster_ctarank"

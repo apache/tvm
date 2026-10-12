@@ -42,6 +42,7 @@
 #include <llvm/Support/raw_ostream.h>
 #include <llvm/Target/TargetMachine.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/support/gpu_thread_tag.h>
 #include <tvm/tirx/op/gpu.h>
 #include <tvm/tirx/op/memory.h>
 #include <tvm/tirx/stmt.h>
@@ -149,7 +150,7 @@ class CodeGenNVPTX : public CodeGenLLVM {
 
   // Return the thread index via intrinsics.
   llvm::Value* GetThreadIndex(const PrimVar& var, const ffi::String& thread_tag) final {
-    runtime::ThreadScope ts = runtime::ThreadScope::Create(thread_tag);
+    support::GPUThreadTag ts = support::GPUThreadTag::Parse(thread_tag);
     llvm::Intrinsic::ID intrin_id = llvm::Intrinsic::nvvm_read_ptx_sreg_tid_x;
     if (ts.rank == 1) {
       switch (ts.dim_index) {
