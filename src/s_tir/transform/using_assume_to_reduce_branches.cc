@@ -41,12 +41,12 @@
 #include <tvm/relax/expr.h>
 #include <tvm/relax/op_attr_types.h>
 #include <tvm/s_tir/stmt_functor.h>
+#include <tvm/s_tir/stmt_functor_with_analyzer.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/tirx/function.h>
 
 #include <unordered_map>
 
-#include "../../s_tir/ir/ir_mutator_with_analyzer.h"
 #include "../../sym/constraint_extract.h"
 #include "tvm/ir/expr.h"
 namespace tvm {
@@ -77,10 +77,10 @@ class AssumeChecker : public StmtExprVisitor {
   }
 };
 
-class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
+class ParseAssumeAndOvercompute : public StmtExprMutatorWithAnalyzer {
  public:
-  using IRMutatorWithAnalyzer::Mutate;
-  using IRMutatorWithAnalyzer::Mutate_;
+  using StmtExprMutatorWithAnalyzer::Mutate;
+  using StmtExprMutatorWithAnalyzer::Mutate_;
 
   /* This class analyzes the complete function.
   It parses the tensor assumptions and eliminates the redundant branch
@@ -119,7 +119,7 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
     else_condition_context.
   This class handles all these scenarios.*/
 
-  using Parent = IRMutatorWithAnalyzer;
+  using Parent = StmtExprMutatorWithAnalyzer;
   explicit ParseAssumeAndOvercompute(const Analyzer& analyzer) : Parent(analyzer) {}
 
  private:

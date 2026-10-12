@@ -24,11 +24,10 @@
 #include <tvm/s_tir/schedule/state.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/stmt_functor.h>
+#include <tvm/s_tir/stmt_functor_with_analyzer.h>
 
 #include <unordered_map>
 #include <utility>
-
-#include "../../s_tir/ir/ir_mutator_with_analyzer.h"
 
 namespace tvm {
 namespace s_tir {
@@ -211,10 +210,10 @@ ffi::Optional<s_tir::LoopRV> TileWithTensorIntrin(const s_tir::Schedule& sch,
 /*!
  * \brief Simplifier for indices of tensor access and block tensor access regions.
  */
-class BlockTensorAccessSimplifier : public s_tir::IRMutatorWithAnalyzer {
+class BlockTensorAccessSimplifier : public s_tir::StmtExprMutatorWithAnalyzer {
  public:
-  using s_tir::IRMutatorWithAnalyzer::Mutate;
-  using s_tir::IRMutatorWithAnalyzer::Mutate_;
+  using s_tir::StmtExprMutatorWithAnalyzer::Mutate;
+  using s_tir::StmtExprMutatorWithAnalyzer::Mutate_;
 
   /*!
    * \brief Simplify indices of tensor access and block tensor access regions in the statement
@@ -228,7 +227,7 @@ class BlockTensorAccessSimplifier : public s_tir::IRMutatorWithAnalyzer {
   }
 
   explicit BlockTensorAccessSimplifier(const sym::Analyzer& analyzer)
-      : IRMutatorWithAnalyzer(analyzer) {}
+      : StmtExprMutatorWithAnalyzer(analyzer) {}
 
  private:
   void SimplifyAccessRegion(ffi::Array<TensorRegion>* old_access_regions);

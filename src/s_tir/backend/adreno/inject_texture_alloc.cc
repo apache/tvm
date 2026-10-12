@@ -26,13 +26,13 @@
 #include <tvm/s_tir/analysis.h>
 #include <tvm/s_tir/backend/adreno/transform.h>
 #include <tvm/s_tir/stmt_functor.h>
+#include <tvm/s_tir/stmt_functor_with_analyzer.h>
 #include <tvm/sym/iter_affine_map.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/op/abi.h>
 #include <tvm/tirx/op/memory.h>
 
 #include "../../../backend/opencl/runtime/texture.h"
-#include "../../../s_tir/ir/ir_mutator_with_analyzer.h"
 #include "../../../tirx/transform/ir_utils.h"
 
 namespace tvm {
@@ -47,10 +47,10 @@ using runtime::IsTextureStorage;
 /*!
  * \brief Inject Texture Alloc Intrinsic right after tensor allocations are realized.
  */
-class TextureAllocInjector : public s_tir::IRMutatorWithAnalyzer {
+class TextureAllocInjector : public s_tir::StmtExprMutatorWithAnalyzer {
  public:
-  using s_tir::IRMutatorWithAnalyzer::Mutate;
-  using s_tir::IRMutatorWithAnalyzer::Mutate_;
+  using s_tir::StmtExprMutatorWithAnalyzer::Mutate;
+  using s_tir::StmtExprMutatorWithAnalyzer::Mutate_;
 
   static Function Inject(Function func) {
     sym::Analyzer ana;
@@ -61,7 +61,7 @@ class TextureAllocInjector : public s_tir::IRMutatorWithAnalyzer {
     return func;
   }
 
-  explicit TextureAllocInjector(const sym::Analyzer& ana) : IRMutatorWithAnalyzer(ana) {}
+  explicit TextureAllocInjector(const sym::Analyzer& ana) : StmtExprMutatorWithAnalyzer(ana) {}
 
  private:
   UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final {

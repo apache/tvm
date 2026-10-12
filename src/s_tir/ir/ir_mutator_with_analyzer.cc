@@ -17,12 +17,13 @@
  * under the License.
  */
 
-#include "ir_mutator_with_analyzer.h"
+#include <tvm/s_tir/stmt_functor_with_analyzer.h>
 
 namespace tvm {
 namespace s_tir {
 using namespace tirx;
-UnchangedOr<Stmt> IRMutatorWithAnalyzer::Mutate_(const SBlockNode* op, InplaceMode inplace_mode) {
+UnchangedOr<Stmt> StmtExprMutatorWithAnalyzer::Mutate_(const SBlockNode* op,
+                                                       InplaceMode inplace_mode) {
   return constraint_scope_.WithNewScope([&]() -> UnchangedOr<Stmt> {
     for (const auto& iter_var : op->iter_vars) {
       analyzer_->Bind(iter_var->var, iter_var->dom.value());

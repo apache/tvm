@@ -18,14 +18,16 @@
  */
 
 /*!
- * \file tirx/ir/ir_mutator_with_analyzer.h
- * \brief IR mutator base-class with an analyzer context.
+ * \file tvm/tirx/stmt_functor_with_analyzer.h
+ * \brief Statement and expression functors with an analyzer context.
  */
-#ifndef TVM_TIRX_IR_IR_MUTATOR_WITH_ANALYZER_H_
-#define TVM_TIRX_IR_IR_MUTATOR_WITH_ANALYZER_H_
+
+#ifndef TVM_TIRX_STMT_FUNCTOR_WITH_ANALYZER_H_
+#define TVM_TIRX_STMT_FUNCTOR_WITH_ANALYZER_H_
 
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_visit.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/ir/scope_stack.h>
 #include <tvm/ir/with_context.h>
 #include <tvm/sym/analyzer.h>
@@ -38,6 +40,43 @@
 namespace tvm {
 namespace tirx {
 
+class StmtExprVisitorWithAnalyzer : public StmtExprVisitor {
+ public:
+  TVM_DEFINE_OBJECT_FUNCTOR_DEFAULT_CONSTRUCTOR(StmtExprVisitorWithAnalyzer, StmtExprVisitor)
+
+  PrimExpr Simplify(const PrimExpr& expr) { return analyzer_->Simplify(expr); }
+
+  using StmtExprVisitor::Visit_;
+
+  ffi::Optional<VisitInterrupt> Visit_(const ForNode* op);
+  ffi::Optional<VisitInterrupt> Visit_(const BindNode* op);
+  ffi::Optional<VisitInterrupt> Visit_(const IfNode* op);
+  ffi::Optional<VisitInterrupt> Visit_(const RegionStmtNode* op);
+  ffi::Optional<VisitInterrupt> Visit_(const AssertStmtNode* op);
+  ffi::Optional<VisitInterrupt> Visit_(const CallNode* op);
+  ffi::Optional<VisitInterrupt> Visit_(const prim::LetNode* op);
+
+  // StmtExprVisitorWithAnalyzer deliberately does not handle Select nodes,
+  // because both sides of a Select node are visited regardless of the
+  // condition.
+
+ protected:
+  static void InitVTable(VTable* vtable);
+  explicit StmtExprVisitorWithAnalyzer(const VTable* vtable) : StmtExprVisitor(vtable) {}
+  /*! \brief internal analyzer field. */
+  sym::Analyzer analyzer_;
+
+  /*! \brief Scope stack for accumulated assert constraints. */
+  ScopeStack<WithGroup<sym::ConstraintContext>> constraint_scope_;
+
+  /*! \brief Extract a constraint from a conditional statement
+   *
+   * Intended for preparing argument for use in
+   * `With<ConstraintContext>`.
+   */
+  PrimExpr ExtractRealCondition(PrimExpr condition) const;
+};
+
 /*!
  * \brief IRMutator with an analyzer context.
  *
@@ -47,14 +86,14 @@ namespace tirx {
  *
  * \sa src/tirx/ir/ir_mutator_with_analyzer.cc
  */
-class IRMutatorWithAnalyzer : public StmtExprMutator {
+class StmtExprMutatorWithAnalyzer : public StmtExprMutator {
  public:
   using StmtExprMutator::Mutate;
   using StmtExprMutator::Mutate_;
-  explicit IRMutatorWithAnalyzer(const sym::Analyzer& analyzer)
-      : IRMutatorWithAnalyzer(analyzer.get()) {}
-  explicit IRMutatorWithAnalyzer(sym::AnalyzerObj* analyzer)
-      : IRMutatorWithAnalyzer(analyzer, GlobalVTable()) {}
+  explicit StmtExprMutatorWithAnalyzer(const sym::Analyzer& analyzer)
+      : StmtExprMutatorWithAnalyzer(analyzer.get()) {}
+  explicit StmtExprMutatorWithAnalyzer(sym::AnalyzerObj* analyzer)
+      : StmtExprMutatorWithAnalyzer(analyzer, GlobalVTable()) {}
 
   // override functions that need to populate the context information.
   UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) override;
@@ -68,7 +107,7 @@ class IRMutatorWithAnalyzer : public StmtExprMutator {
 
  protected:
   static void InitVTable(VTable* vtable);
-  IRMutatorWithAnalyzer(sym::AnalyzerObj* analyzer, const VTable* vtable)
+  StmtExprMutatorWithAnalyzer(sym::AnalyzerObj* analyzer, const VTable* vtable)
       : StmtExprMutator(vtable), analyzer_(analyzer) {}
   static const VTable* GlobalVTable();
   /*!
@@ -126,6 +165,7 @@ class IRMutatorWithAnalyzer : public StmtExprMutator {
     }
   }
 };
+
 }  // namespace tirx
 }  // namespace tvm
-#endif  // TVM_TIRX_IR_IR_MUTATOR_WITH_ANALYZER_H_
+#endif  // TVM_TIRX_STMT_FUNCTOR_WITH_ANALYZER_H_

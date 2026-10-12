@@ -29,13 +29,13 @@
 #include <tvm/ir/prim/op.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/stmt_functor.h>
+#include <tvm/s_tir/stmt_functor_with_analyzer.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/tirx/op/memory.h>
 #include <tvm/tirx/op/region.h>
 
 #include <unordered_set>
 
-#include "../../s_tir/ir/ir_mutator_with_analyzer.h"
 #include "ir_utils.h"
 
 namespace tvm {
@@ -244,15 +244,15 @@ class VarTouchedAnalysis : public StmtExprVisitor {
 
 // Inject virtual thread loop
 // rewrite the buffer access pattern when necessary.
-class VTInjector : public s_tir::IRMutatorWithAnalyzer {
+class VTInjector : public s_tir::StmtExprMutatorWithAnalyzer {
  public:
-  using s_tir::IRMutatorWithAnalyzer::Mutate;
-  using s_tir::IRMutatorWithAnalyzer::Mutate_;
+  using s_tir::StmtExprMutatorWithAnalyzer::Mutate;
+  using s_tir::StmtExprMutatorWithAnalyzer::Mutate_;
 
   // constructor
   VTInjector(sym::AnalyzerObj* analyzer, Var var, int num_threads,
              const std::unordered_set<const VarNode*>& touched_var, bool allow_share)
-      : IRMutatorWithAnalyzer(analyzer),
+      : StmtExprMutatorWithAnalyzer(analyzer),
         var_(var),
         num_threads_(num_threads),
         touched_var_(touched_var),
@@ -699,12 +699,12 @@ class VTInjector : public s_tir::IRMutatorWithAnalyzer {
    */
 };
 
-class VirtualThreadInjector : public s_tir::IRMutatorWithAnalyzer {
+class VirtualThreadInjector : public s_tir::StmtExprMutatorWithAnalyzer {
  public:
-  using s_tir::IRMutatorWithAnalyzer::Mutate;
-  using s_tir::IRMutatorWithAnalyzer::Mutate_;
+  using s_tir::StmtExprMutatorWithAnalyzer::Mutate;
+  using s_tir::StmtExprMutatorWithAnalyzer::Mutate_;
 
-  using IRMutatorWithAnalyzer::IRMutatorWithAnalyzer;
+  using StmtExprMutatorWithAnalyzer::StmtExprMutatorWithAnalyzer;
 
   UnchangedOr<Stmt> Mutate_(const RegionStmtNode* op, InplaceMode inplace_mode) final {
     Stmt stmt = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
