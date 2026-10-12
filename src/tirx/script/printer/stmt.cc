@@ -91,50 +91,17 @@ ffi::Optional<ExprDoc> RegionStmtDocTranslate(DocTranslatorObj* d, ffi::AnyView 
   TVM_FFI_CHECK(stmt->result_vars.empty(), ValueError)
       << "RegionStmt with result_vars has no supported outward-result script syntax";
 
-  // Inputs, attributes, and parameter types are evaluated before the body
-  // parameters enter scope. Explicit Var constructors preserve their exact types.
+  // Inputs and attributes are evaluated before the body parameters enter scope.
+  // Region construction infers and validates the parameter types.
   ffi::Array<ExprDoc> args;
   for (const Expr& arg : stmt->args) args.push_back(d->Translate(arg).value());
   ffi::Array<ffi::String> keys;
   ffi::Array<ExprDoc> values;
-  bool infer_params = false;
-  try {
-    auto inferred = GetRegionBodyParams(stmt->op, stmt->args, stmt->attrs);
-    infer_params = inferred.size() == stmt->body_params.size();
-    for (size_t i = 0; infer_params && i < inferred.size(); ++i) {
-      infer_params = ffi::StructuralEqual()(inferred[i]->ty, stmt->body_params[i]->ty);
-    }
-  } catch (const ffi::Error&) {
-    // Explicit parameters preserve regions whose inference is unavailable.
-  }
-  if (!infer_params) {
-    ffi::Array<ExprDoc> params;
-    for (const Var& param : stmt->body_params) {
-      ExprDoc value = NamespaceDoc("tirx")->Attr("Var")->Call(
-          {LiteralDoc::Str("", std::nullopt), TypeValue(d, param->ty)});
-      d->RecordOrigin(value, param);
-      params.push_back(value);
-    }
-    keys.push_back("body_params");
-    values.push_back(ListDoc(params));
-  }
   if (!stmt->attrs->dict.empty()) {
     keys.push_back("attrs");
     values.push_back(AnyValue(d, stmt->attrs));
   }
-  ExprDoc rhs(ffi::UnsafeInit{});
-  ffi::Optional<ffi::String> name;
-  if (Op::HasAttrMap(tvm::script::printer::op_attr::kScriptPrinterName)) {
-    auto names =
-        Op::GetAttrMap<TScriptPrinterName>(tvm::script::printer::op_attr::kScriptPrinterName);
-    if (names.count(stmt->op)) name = names[stmt->op];
-  }
-  if (name.has_value() && !name.value().empty()) {
-    rhs = NamedCallCallee(name.value())->Call(args, keys, values);
-  } else {
-    rhs = NamespaceDoc("tirx")->Attr("region")->Call(
-        {LiteralDoc::Str(stmt->op->name, std::nullopt), ListDoc(args)}, keys, values);
-  }
+  ExprDoc rhs = NamedCallCallee(stmt->op->name)->Call(args, keys, values);
 
   VarScope vars(d);
   ffi::Optional<ExprDoc> lhs = std::nullopt;

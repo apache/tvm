@@ -80,8 +80,6 @@ def _make_op_api(op, module_name):
     call.__name__ = op.name.rsplit(".", 1)[-1]
     call.__module__ = module_name
     call.__doc__ = op.doc or f"Construct a call to {op.name}."
-    if op.get_attr("TScriptPrinterName") is None:
-        op.set_attr("TScriptPrinterName", op.name)
     return call
 
 
@@ -106,8 +104,7 @@ def _init_op_api(namespace, target_module_name=None):
     Existing Python callables retain ownership of their names; only missing
     exposures are generated. Existing functions must accept printed calls or
     have an appropriate exceptional printer hook. Non-callable collisions fail
-    before any functions are installed. Generated constructors publish a canonical
-    printer name when no explicit alias is registered. Returns None.
+    before any functions are installed. Returns None.
     """
     if not namespace or any(
         not part.isidentifier() or keyword.iskeyword(part) for part in namespace.split(".")
@@ -115,7 +112,6 @@ def _init_op_api(namespace, target_module_name=None):
         raise ValueError(f"Invalid Op namespace {namespace!r}")
     target = sys.modules[target_module_name or namespace]
     pending = []
-    existing = []
     destinations = set()
     for name in sorted(Op.list_op_names()):
         if not name.startswith(namespace + "."):
@@ -137,14 +133,10 @@ def _init_op_api(namespace, target_module_name=None):
             current = vars(container)[parts[-1]]
             if not callable(current):
                 raise ValueError(f"Op {name!r} conflicts with an existing Python attribute")
-            existing.append(op)
         else:
             pending.append((container, parts[-1], _make_op_api(op, target.__name__)))
     for container, name, call in pending:
         setattr(container, name, call)
-    for op in existing:
-        if op.get_attr("TScriptPrinterName") is None:
-            op.set_attr("TScriptPrinterName", op.name)
 
 
 @tvm_ffi.register_object("ir.Op")

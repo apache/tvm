@@ -107,11 +107,7 @@ ffi::Optional<ExprDoc> VarBindingDocTranslate(DocTranslatorObj* d, ffi::AnyView 
       static const auto fixed = Op::GetAttrMap<TFixedReturnType>(tvm::op_attr::kFixedReturnType);
       static const auto context_free = Op::GetAttrMap<FInferType>(tvm::op_attr::kInferType);
       if (fixed.count(op.value()) || context_free.count(op.value())) {
-        try {
-          inferred = Call::ReinferType(call);
-        } catch (const ffi::Error&) {
-          // Contextual inference remains the parser's responsibility.
-        }
+        inferred = call->ty;
       }
     }
   }

@@ -77,7 +77,7 @@ IdDoc VarDoc(DocTranslatorObj* d, const Var& var, bool explicit_def) {
 ExprDoc NamedCallCallee(const ffi::String& canonical_name) {
   std::string name = canonical_name;
   size_t end = name.find('.');
-  ExprDoc callee = NamespaceDoc(name.substr(0, end));
+  ExprDoc callee = NamespaceDoc(name.substr(0, end) == "prim" ? "tirx" : name.substr(0, end));
   while (end != std::string::npos) {
     size_t start = end + 1;
     end = name.find('.', start);
