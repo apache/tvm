@@ -45,16 +45,6 @@ TEST(ConfigSchema, BasicTypes) {
   ASSERT_EQ(resolved.at("name").cast<ffi::String>(), "test");
 }
 
-// Type coercion: correct type passes
-TEST(ConfigSchema, TypeCoercionPasses) {
-  ConfigSchema schema;
-  schema.def_option<int64_t>("count");
-
-  ffi::Map<ffi::String, ffi::Any> config = {{"count", int64_t(42)}};
-  auto resolved = schema.Resolve(config);
-  ASSERT_EQ(resolved.at("count").cast<int64_t>(), 42);
-}
-
 // Type mismatch rejection (TypeError)
 TEST(ConfigSchema, TypeMismatchRejection) {
   ConfigSchema schema;
@@ -97,16 +87,6 @@ TEST(ConfigSchema, DefaultValueMaterialization) {
   auto resolved = schema.Resolve(config);
   ASSERT_EQ(resolved.at("max_threads").cast<int64_t>(), 256);
   ASSERT_EQ(resolved.at("debug").cast<bool>(), false);
-}
-
-// Default value materialization via refl::DefaultValue
-TEST(ConfigSchema, DefaultValueViaTrait) {
-  ConfigSchema schema;
-  schema.def_option<int64_t>("max_threads", refl::DefaultValue(int64_t(128)));
-
-  ffi::Map<ffi::String, ffi::Any> config = {};
-  auto resolved = schema.Resolve(config);
-  ASSERT_EQ(resolved.at("max_threads").cast<int64_t>(), 128);
 }
 
 // Explicit value overrides default
@@ -196,14 +176,16 @@ TEST(ConfigSchema, DeclarationOrderPreserved) {
   ASSERT_EQ(std::string(options[2].key), "middle");
 }
 
-// Doc string trait accepted without affecting behavior
+// Documentation traits work with explicit values and defaults
 TEST(ConfigSchema, DocStringTrait) {
   ConfigSchema schema;
   schema.def_option<int64_t>("count", "Number of items to process");
+  schema.def_option<int64_t>("num_cores", "CPU core count", refl::DefaultValue(int64_t(4)));
 
   ffi::Map<ffi::String, ffi::Any> config = {{"count", int64_t(5)}};
   auto resolved = schema.Resolve(config);
   ASSERT_EQ(resolved.at("count").cast<int64_t>(), 5);
+  ASSERT_EQ(resolved.at("num_cores").cast<int64_t>(), 4);
 }
 
 // Array option type
@@ -309,14 +291,4 @@ TEST(ConfigSchema, CanonicalizerWithDefaults) {
   ffi::Map<ffi::String, ffi::Any> config = {};
   auto resolved = schema.Resolve(config);
   ASSERT_EQ(resolved.at("threads").cast<int64_t>(), 8);
-}
-
-// Combined doc + default traits
-TEST(ConfigSchema, DocAndDefaultTraits) {
-  ConfigSchema schema;
-  schema.def_option<int64_t>("num_cores", "CPU core count", refl::DefaultValue(int64_t(4)));
-
-  ffi::Map<ffi::String, ffi::Any> config = {};
-  auto resolved = schema.Resolve(config);
-  ASSERT_EQ(resolved.at("num_cores").cast<int64_t>(), 4);
 }
