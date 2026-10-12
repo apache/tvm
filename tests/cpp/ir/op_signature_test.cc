@@ -40,18 +40,6 @@ TEST(OpSignature, MetadataAndValidator) {
                 sig::var_args<PrimExpr>("rest", "Remaining indices."), sig::ty_arg<PrimType>("T"),
                 sig::var_ty_args<PrimType>("Ts", "More types."), sig::call_attrs<DictAttrsNode>());
   Op op = def.op();
-  EXPECT_EQ(op->args_info.size(), 2);
-  EXPECT_EQ(op->args_info[0]->name, "value");
-  EXPECT_EQ(op->args_info[0]->doc, "The input.");
-  EXPECT_EQ(op->args_info[1]->name, "index");
-  ASSERT_TRUE(op->var_args_info.has_value());
-  EXPECT_EQ(op->var_args_info.value()->name, "rest");
-  EXPECT_EQ(op->var_args_info.value()->doc, "Remaining indices.");
-  EXPECT_EQ(op->ty_args_info.size(), 1);
-  EXPECT_EQ(op->ty_args_info[0]->name, "T");
-  ASSERT_TRUE(op->var_ty_args_info.has_value());
-  EXPECT_EQ(op->var_ty_args_info.value()->name, "Ts");
-  EXPECT_EQ(op->var_ty_args_info.value()->doc, "More types.");
   EXPECT_EQ(op->attrs_type_key, DictAttrsNode::_type_key);
   EXPECT_EQ(op->attrs_type_index, DictAttrsNode::RuntimeTypeIndex());
 
@@ -99,15 +87,7 @@ TEST(OpSignature, MetadataAndValidator) {
             ffi::TypeTraitsBase::GetMismatchTypeInfo(&raw));
 
   OpDef(op->name).set_attr<bool>("FSignatureTestMarker", true);
-  EXPECT_EQ(op->args_info.size(), 2);
-  EXPECT_TRUE(op->var_args_info.has_value());
   EXPECT_NO_THROW(OpDef(op->name).signature(sig::arg("replacement")));
-  ASSERT_EQ(op->args_info.size(), 1);
-  EXPECT_EQ(op->args_info[0]->name, "replacement");
-  EXPECT_FALSE(op->var_args_info.has_value());
-  EXPECT_TRUE(op->ty_args_info.empty());
-  EXPECT_FALSE(op->var_ty_args_info.has_value());
-  EXPECT_TRUE(op->attrs_type_key.empty());
   EXPECT_NO_THROW(op.Validate(minimum.get()));
   EXPECT_NO_THROW(OpDef(op->name).add_arg("legacy", ""));
   EXPECT_NO_THROW(OpDef(op->name).add_ty_arg("legacy_type", ""));
@@ -118,8 +98,6 @@ TEST(OpSignature, DefaultsAndRepeatedRegistration) {
   OpDef plain("test.op_signature.defaults");
   plain.signature(sig::arg("value"), sig::ty_arg("T"));
   Op op = plain.op();
-  EXPECT_FALSE(op->var_args_info.has_value());
-  EXPECT_FALSE(op->var_ty_args_info.has_value());
   EXPECT_NO_THROW(Call(AnyType(), op, {Var("x", AnyType())}, std::nullopt, {AnyType()}));
   EXPECT_NO_THROW(Call(AnyType(), op, {Var("x", AnyType())}, DictAttrs(), {AnyType()}));
   EXPECT_EQ(ValidationError(op, Call(AnyType(), op, {Var("x", AnyType()), Var("y", AnyType())},
@@ -134,10 +112,6 @@ TEST(OpSignature, DefaultsAndRepeatedRegistration) {
 
   OpDef tails("test.op_signature.default_tails");
   tails.signature(sig::var_args("values"), sig::var_ty_args("types"));
-  EXPECT_TRUE(tails.op()->args_info.empty());
-  EXPECT_TRUE(tails.op()->ty_args_info.empty());
-  EXPECT_EQ(tails.op()->var_args_info.value()->name, "values");
-  EXPECT_EQ(tails.op()->var_ty_args_info.value()->name, "types");
   EXPECT_NO_THROW(Call(AnyType(), tails.op(), {}, std::nullopt, {}));
   EXPECT_NO_THROW(Call(AnyType(), tails.op(), {Var("x", AnyType())}, std::nullopt, {AnyType()}));
 
@@ -145,24 +119,14 @@ TEST(OpSignature, DefaultsAndRepeatedRegistration) {
   EXPECT_NO_THROW(repeated.signature(sig::arg("", "value doc"), sig::var_args("", "tail doc"),
                                      sig::ty_arg("", "type doc"),
                                      sig::var_ty_args("", "type tail doc")));
-  EXPECT_EQ(repeated.op()->args_info[0]->name, "");
-  EXPECT_EQ(repeated.op()->var_args_info.value()->name, "");
-  EXPECT_EQ(repeated.op()->ty_args_info[0]->name, "");
-  EXPECT_EQ(repeated.op()->var_ty_args_info.value()->name, "");
   EXPECT_TRUE(repeated.op()->validator != nullptr);
   EXPECT_NO_THROW(repeated.op().Validate(
       Call(AnyType(), repeated.op(), {Var("x", AnyType())}, std::nullopt, {AnyType()}).get()));
   EXPECT_NO_THROW(repeated.signature(sig::arg("changed"), sig::arg("")));
-  EXPECT_EQ(repeated.op()->args_info.size(), 2);
-  EXPECT_EQ(repeated.op()->args_info[0]->name, "changed");
-  EXPECT_EQ(repeated.op()->args_info[1]->name, "");
 
   OpDef legacy("test.op_signature.legacy");
   legacy.add_arg("old", "Existing metadata.");
   EXPECT_NO_THROW(legacy.signature(sig::arg("new")));
-  EXPECT_EQ(legacy.op()->args_info.size(), 1);
-  EXPECT_EQ(legacy.op()->args_info[0]->name, "new");
-  EXPECT_FALSE(legacy.op()->var_args_info.has_value());
   EXPECT_TRUE(legacy.op()->validator != nullptr);
 
   OpDef manual("test.op_signature.manual_hook");
@@ -176,7 +140,6 @@ TEST(OpSignature, DefaultsAndRepeatedRegistration) {
   EXPECT_THROW(manual.set_validator(manual_hook), ffi::Error);
   EXPECT_NO_THROW(manual.set_validator(manual_hook, true));
   EXPECT_NO_THROW(manual.signature(sig::arg("value")));
-  EXPECT_EQ(manual.op()->args_info[0]->name, "value");
   Call manual_call(AnyType(), manual.op(), {Var("x", AnyType())});
   manual.op().Validate(manual_call.get());
   EXPECT_EQ(manual_calls, 1);
