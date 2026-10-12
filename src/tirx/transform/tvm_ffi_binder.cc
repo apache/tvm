@@ -650,9 +650,8 @@ Var TVMFFIABIBuilder::DLTensorGetFieldPtr(const Var& handle, int field_kind,
                                           const std::string& var_name) {
   Type pointer_type = PtrType(DefaultIndexPrimType());
   Var ptr(var_name, pointer_type);
-  init_nest_.emplace_back(Bind(
-      ptr,
-      TVMStructGet(pointer_type, handle, 0, static_cast<tirx::TVMStructFieldKind>(field_kind))));
+  init_nest_.emplace_back(Bind(ptr, Call(pointer_type, tirx::abi_field_get_op(),
+                                         {handle, IntImm::Int32(0), IntImm::Int32(field_kind)})));
   return ptr;
 }
 
@@ -661,7 +660,9 @@ Var TVMFFIABIBuilder::DLTensorGetFieldPtr(const Var& handle, int field_kind,
 // ============================================================
 
 PrimExpr TVMFFIABIBuilder::LoadInt64ArrayElem(const Var& ptr, int index) {
-  return TVMStructGet(DefaultIndexPrimType(), ptr, index, tirx::kInt64ArrayElem);
+  return Call(DefaultIndexPrimType(), tirx::abi_field_get_op(),
+              {ptr, IntImm::Int32(index), IntImm::Int32(tirx::kInt64ArrayElem)})
+      .as_or_throw<PrimExpr>();
 }
 
 // ============================================================
@@ -730,7 +731,9 @@ Expr TVMFFIABIBuilder::DecodeParamDLTensor(const TensorVar& tensor, const PrimEx
       "Tensor");
 
   // ── Section: ndim ────────────────────────────────────────────
-  PrimExpr v_ndim = TVMStructGet(tvm_ndim_type, handle, 0, tirx::kDLTensorNDim);
+  PrimExpr v_ndim = Call(tvm_ndim_type, tirx::abi_field_get_op(),
+                         {handle, IntImm::Int32(0), IntImm::Int32(tirx::kDLTensorNDim)})
+                        .as_or_throw<PrimExpr>();
   PrimExpr a_ndim = IntImm(tvm_ndim_type, static_cast<int64_t>(tensor->shape.size()));
   EmitAssert(a_ndim == v_ndim, "ValueError",  //
              "Mismatched ", buf_name, ".ndim on argument #", std::to_string(param_index),
@@ -738,13 +741,18 @@ Expr TVMFFIABIBuilder::DecodeParamDLTensor(const TensorVar& tensor, const PrimEx
 
   // ── Section: dtype ───────────────────────────────────────────
   {
-    PrimExpr code_matches = TVMStructGet(PrimType::UInt(8), handle, 0, tirx::kDLTensorTypeCode) ==
-                            IntImm(PrimType::UInt(8), tensor->dtype.code());
-    PrimExpr bits_matches = TVMStructGet(PrimType::UInt(8), handle, 0, tirx::kDLTensorTypeBits) ==
-                            IntImm(PrimType::UInt(8), tensor->dtype.bits());
+    PrimExpr code_matches =
+        Call(PrimType::UInt(8), tirx::abi_field_get_op(),
+             {handle, IntImm::Int32(0), IntImm::Int32(tirx::kDLTensorTypeCode)})
+            .as_or_throw<PrimExpr>() == IntImm(PrimType::UInt(8), tensor->dtype.code());
+    PrimExpr bits_matches =
+        Call(PrimType::UInt(8), tirx::abi_field_get_op(),
+             {handle, IntImm::Int32(0), IntImm::Int32(tirx::kDLTensorTypeBits)})
+            .as_or_throw<PrimExpr>() == IntImm(PrimType::UInt(8), tensor->dtype.bits());
     PrimExpr lanes_matches =
-        TVMStructGet(PrimType::UInt(16), handle, 0, tirx::kDLTensorTypeLanes) ==
-        IntImm(PrimType::UInt(16), tensor->dtype.lanes());
+        Call(PrimType::UInt(16), tirx::abi_field_get_op(),
+             {handle, IntImm::Int32(0), IntImm::Int32(tirx::kDLTensorTypeLanes)})
+            .as_or_throw<PrimExpr>() == IntImm(PrimType::UInt(16), tensor->dtype.lanes());
     PrimExpr cond = code_matches && bits_matches && lanes_matches;
     if (!(tensor->dtype == PrimType::Int(1) || tensor->dtype == PrimType::Int(4) ||
           tensor->dtype == PrimType::UInt(4))) {
@@ -783,16 +791,23 @@ Expr TVMFFIABIBuilder::DecodeParamDLTensor(const TensorVar& tensor, const PrimEx
   ffi::reflection::AccessPath byte_offset_path = param_path->Attr(ffi::String("byte_offset"));
   if (const auto* const_offset = tensor->elem_offset.as<IntImmNode>()) {
     BindScalar(IntImm(PrimType::UInt(64), const_offset->value * data_bytes),
-               TVMStructGet(PrimType::UInt(64), handle, 0, tirx::kDLTensorByteOffset),
+               Call(PrimType::UInt(64), tirx::abi_field_get_op(),
+                    {handle, IntImm::Int32(0), IntImm::Int32(tirx::kDLTensorByteOffset)})
+                   .as_or_throw<PrimExpr>(),
                byte_offset_path, true);
   } else {
-    PrimExpr byte_offset = TVMStructGet(PrimType::UInt(64), handle, 0, tirx::kDLTensorByteOffset);
+    PrimExpr byte_offset =
+        Call(PrimType::UInt(64), tirx::abi_field_get_op(),
+             {handle, IntImm::Int32(0), IntImm::Int32(tirx::kDLTensorByteOffset)})
+            .as_or_throw<PrimExpr>();
     EmitAssert(truncmod(byte_offset, MakeConst(PrimType::UInt(64), data_bytes)) ==
                    MakeConst(PrimType::UInt(64), 0),
                "ValueError", "Tensor byte offset must be divisible by its element size");
     if (BindScalar(tensor->elem_offset,
                    cast(tensor->elem_offset.ty(),
-                        (TVMStructGet(PrimType::UInt(64), handle, 0, tirx::kDLTensorByteOffset) /
+                        (Call(PrimType::UInt(64), tirx::abi_field_get_op(),
+                              {handle, IntImm::Int32(0), IntImm::Int32(tirx::kDLTensorByteOffset)})
+                             .as_or_throw<PrimExpr>() /
                          MakeConst(PrimType::UInt(64), data_bytes))),
                    byte_offset_path, true)) {
       if (tensor->offset_factor > 1) {
@@ -817,7 +832,9 @@ Expr TVMFFIABIBuilder::DecodeParamDLTensor(const TensorVar& tensor, const PrimEx
   // ── Section: device ──────────────────────────────────────────
   {
     PrimExpr actual_device_type =
-        TVMStructGet(PrimType::Int(32), handle, 0, tirx::kDLTensorDeviceType);
+        Call(PrimType::Int(32), tirx::abi_field_get_op(),
+             {handle, IntImm::Int32(0), IntImm::Int32(tirx::kDLTensorDeviceType)})
+            .as_or_throw<PrimExpr>();
     // Use custom assertion for device_type to show human-readable device name
     if (const auto* const_dt = device_type_.as<IntImmNode>()) {
       PrimExpr cond = analyzer_->Simplify(IntImm::Int32(const_dt->value) == actual_device_type);
@@ -833,14 +850,18 @@ Expr TVMFFIABIBuilder::DecodeParamDLTensor(const TensorVar& tensor, const PrimEx
       BindScalar(device_type_, actual_device_type, device_type_path, true);
     }
     ffi::reflection::AccessPath device_id_path = param_path->Attr(ffi::String("device_id"));
-    BindScalar(device_id_, TVMStructGet(PrimType::Int(32), handle, 0, tirx::kDLTensorDeviceId),
+    BindScalar(device_id_,
+               Call(PrimType::Int(32), tirx::abi_field_get_op(),
+                    {handle, IntImm::Int32(0), IntImm::Int32(tirx::kDLTensorDeviceId)})
+                   .as_or_throw<PrimExpr>(),
                device_id_path, true);
   }
 
   // ── Section: data pointer ────────────────────────────────────
   {
     ffi::reflection::AccessPath data_path = param_path->Attr(ffi::String("data"));
-    Expr raw_data = TVMStructGet(PtrType::VoidPtrType(), handle, 0, tirx::kDLTensorData);
+    Expr raw_data = Call(PtrType::VoidPtrType(), tirx::abi_field_get_op(),
+                         {handle, IntImm::Int32(0), IntImm::Int32(tirx::kDLTensorData)});
     Expr typed_data = Call(tensor.type()->DataPtrType(), tirx::reinterpret_op(), {raw_data});
     {
       Expr vptr = typed_data;
