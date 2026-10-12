@@ -132,7 +132,7 @@ def test_copy_g2s_s2g_cta_vec_load(task, dtype):
     with target:
         mod = tvm.IRModule({"main": copy_async})
         mod = tvm.tirx.transform.LowerTIRx()(mod)
-        mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
+        mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
 
         np.random.seed(0)
         A_np = np.random.rand(*g_shape).astype(np_dtype)
@@ -173,7 +173,7 @@ def test_copy_ldgsts_predicate_zero_fill_codegen():
 
     target = tvm.target.Target({"kind": "cuda", "arch": "sm_100a"})
     with target:
-        mod = tvm.compile(tvm.IRModule({"main": copy_async}), target=target, tir_pipeline="tirx")
+        mod = tvm.tirx.compile(tvm.IRModule({"main": copy_async}), target=target, pipeline="tirx")
     src = mod.mod.imports[0].inspect_source()
     assert "cp.async.cg.shared.global.L2::128B" in src
     # the src-size arity: four operands, the last the zero-fill boundary

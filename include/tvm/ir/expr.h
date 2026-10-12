@@ -76,7 +76,7 @@ class GenericConstNode : public ConstantNode {
 /*! \brief Managed reference to a generic constant. */
 class GenericConst : public Constant {
  public:
-  TVM_DLL GenericConst(ffi::Any value, Type ty, Location loc = UnknownLoc());
+  TVM_TIRX_DLL GenericConst(ffi::Any value, Type ty, Location loc = UnknownLoc());
 
   explicit GenericConst(ffi::ObjectPtr<GenericConstNode> node) : Constant(std::move(node)) {}
 
@@ -98,7 +98,7 @@ class StringImmNode : public ConstantNode {
 /*! \brief Managed reference to a string literal. */
 class StringImm : public Constant {
  public:
-  TVM_DLL explicit StringImm(ffi::String value, Location loc = UnknownLoc());
+  TVM_TIRX_DLL explicit StringImm(ffi::String value, Location loc = UnknownLoc());
 
   explicit StringImm(ffi::ObjectPtr<StringImmNode> node) : Constant(std::move(node)) {}
 
@@ -120,7 +120,7 @@ class DataTypeImmNode : public ConstantNode {
 /*! \brief Managed reference to a data type literal. */
 class DataTypeImm : public Constant {
  public:
-  TVM_DLL explicit DataTypeImm(DLDataType value, Location loc = UnknownLoc());
+  TVM_TIRX_DLL explicit DataTypeImm(DLDataType value, Location loc = UnknownLoc());
 
   explicit DataTypeImm(ffi::ObjectPtr<DataTypeImmNode> node) : Constant(std::move(node)) {}
 
@@ -157,7 +157,7 @@ class IntImm : public PrimExpr {
    * \param value The internal value.
    * \param loc The location of this object in the source code.
    */
-  TVM_DLL IntImm(PrimType value_ty, ffi::BigInt value, Location loc = UnknownLoc());
+  TVM_TIRX_DLL IntImm(PrimType value_ty, ffi::BigInt value, Location loc = UnknownLoc());
 
   template <typename Enum, std::enable_if_t<std::is_enum_v<Enum>, int> = 0>
   IntImm(PrimType value_ty, Enum value, Location loc = UnknownLoc())
@@ -237,7 +237,7 @@ class FloatImm : public PrimExpr {
    * \param value The internal value.
    * \param loc The location in the source code.
    */
-  TVM_DLL FloatImm(PrimType value_ty, double value, Location loc = UnknownLoc());
+  TVM_TIRX_DLL FloatImm(PrimType value_ty, double value, Location loc = UnknownLoc());
 
   explicit FloatImm(ffi::ObjectPtr<FloatImmNode> node) : PrimExpr(std::move(node)) {}
 
@@ -381,7 +381,7 @@ class Tuple : public Expr {
    * \param fields The fields of the tuple.
    * \param loc The source location of the expression.
    */
-  TVM_DLL explicit Tuple(ffi::Array<Expr> fields, Location loc = UnknownLoc());
+  TVM_TIRX_DLL explicit Tuple(ffi::Array<Expr> fields, Location loc = UnknownLoc());
 
   explicit Tuple(ffi::ObjectPtr<TupleNode> node) : Expr(std::move(node)) {}
 
@@ -431,7 +431,7 @@ class TupleGetItem : public Expr {
    * \param index The field index.
    * \param loc The source location of the expression.
    */
-  TVM_DLL TupleGetItem(Expr tuple, int index, Location loc = UnknownLoc());
+  TVM_TIRX_DLL TupleGetItem(Expr tuple, int index, Location loc = UnknownLoc());
 
   explicit TupleGetItem(ffi::ObjectPtr<TupleGetItemNode> node) : Expr(std::move(node)) {}
 
@@ -479,7 +479,7 @@ class TensorLoad : public PrimExpr {
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr operator+(PrimExpr a, PrimExpr b);
+TVM_TIRX_DLL PrimExpr operator+(PrimExpr a, PrimExpr b);
 
 /*!
  * \brief subtraction operator
@@ -490,7 +490,7 @@ TVM_DLL PrimExpr operator+(PrimExpr a, PrimExpr b);
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr operator-(PrimExpr a, PrimExpr b);
+TVM_TIRX_DLL PrimExpr operator-(PrimExpr a, PrimExpr b);
 
 /*!
  * \brief negation.
@@ -500,7 +500,7 @@ TVM_DLL PrimExpr operator-(PrimExpr a, PrimExpr b);
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr operator-(PrimExpr a);
+TVM_TIRX_DLL PrimExpr operator-(PrimExpr a);
 
 /*!
  * \brief multiplication operator
@@ -511,7 +511,7 @@ TVM_DLL PrimExpr operator-(PrimExpr a);
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr operator*(PrimExpr a, PrimExpr b);
+TVM_TIRX_DLL PrimExpr operator*(PrimExpr a, PrimExpr b);
 
 /*!
  * \brief division operator
@@ -522,7 +522,7 @@ TVM_DLL PrimExpr operator*(PrimExpr a, PrimExpr b);
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr operator/(PrimExpr a, PrimExpr b);
+TVM_TIRX_DLL PrimExpr operator/(PrimExpr a, PrimExpr b);
 
 /*!
  * \brief left shift operator
@@ -533,7 +533,7 @@ TVM_DLL PrimExpr operator/(PrimExpr a, PrimExpr b);
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr operator<<(PrimExpr a, PrimExpr b);
+TVM_TIRX_DLL PrimExpr operator<<(PrimExpr a, PrimExpr b);
 
 /*!
  * \brief right shift operator
@@ -544,7 +544,7 @@ TVM_DLL PrimExpr operator<<(PrimExpr a, PrimExpr b);
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr operator>>(PrimExpr a, PrimExpr b);
+TVM_TIRX_DLL PrimExpr operator>>(PrimExpr a, PrimExpr b);
 
 /*!
  * \brief greater
@@ -555,7 +555,7 @@ TVM_DLL PrimExpr operator>>(PrimExpr a, PrimExpr b);
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr operator>(PrimExpr a, PrimExpr b);
+TVM_TIRX_DLL PrimExpr operator>(PrimExpr a, PrimExpr b);
 
 /*!
  * \brief greater_equal
@@ -566,7 +566,7 @@ TVM_DLL PrimExpr operator>(PrimExpr a, PrimExpr b);
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr operator>=(PrimExpr a, PrimExpr b);
+TVM_TIRX_DLL PrimExpr operator>=(PrimExpr a, PrimExpr b);
 
 /*!
  * \brief less
@@ -577,7 +577,7 @@ TVM_DLL PrimExpr operator>=(PrimExpr a, PrimExpr b);
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr operator<(PrimExpr a, PrimExpr b);
+TVM_TIRX_DLL PrimExpr operator<(PrimExpr a, PrimExpr b);
 
 /*!
  * \brief less_equal
@@ -588,7 +588,7 @@ TVM_DLL PrimExpr operator<(PrimExpr a, PrimExpr b);
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr operator<=(PrimExpr a, PrimExpr b);
+TVM_TIRX_DLL PrimExpr operator<=(PrimExpr a, PrimExpr b);
 
 /*!
  * \brief equal
@@ -599,7 +599,7 @@ TVM_DLL PrimExpr operator<=(PrimExpr a, PrimExpr b);
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr operator==(PrimExpr a, PrimExpr b);
+TVM_TIRX_DLL PrimExpr operator==(PrimExpr a, PrimExpr b);
 
 /*!
  * \brief not_equal
@@ -610,7 +610,7 @@ TVM_DLL PrimExpr operator==(PrimExpr a, PrimExpr b);
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr operator!=(PrimExpr a, PrimExpr b);
+TVM_TIRX_DLL PrimExpr operator!=(PrimExpr a, PrimExpr b);
 
 /*!
  * \brief and
@@ -620,7 +620,7 @@ TVM_DLL PrimExpr operator!=(PrimExpr a, PrimExpr b);
  * \return The result expression.
  * \note This operator does eager constant folding.
  */
-TVM_DLL PrimExpr operator&&(PrimExpr a, PrimExpr b);
+TVM_TIRX_DLL PrimExpr operator&&(PrimExpr a, PrimExpr b);
 
 /*!
  * \brief or
@@ -630,7 +630,7 @@ TVM_DLL PrimExpr operator&&(PrimExpr a, PrimExpr b);
  * \return The result expression.
  * \note This operator does eager constant folding.
  */
-TVM_DLL PrimExpr operator||(PrimExpr a, PrimExpr b);
+TVM_TIRX_DLL PrimExpr operator||(PrimExpr a, PrimExpr b);
 
 /*!
  * \brief not
@@ -639,7 +639,7 @@ TVM_DLL PrimExpr operator||(PrimExpr a, PrimExpr b);
  * \return The result expression.
  * \note This operator does eager constant folding.
  */
-TVM_DLL PrimExpr operator!(PrimExpr a);
+TVM_TIRX_DLL PrimExpr operator!(PrimExpr a);
 
 /*!
  * \brief take bitwise and of two values
@@ -650,7 +650,7 @@ TVM_DLL PrimExpr operator!(PrimExpr a);
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr operator&(PrimExpr a, PrimExpr b);
+TVM_TIRX_DLL PrimExpr operator&(PrimExpr a, PrimExpr b);
 
 /*!
  * \brief take bitwise or of two values
@@ -661,7 +661,7 @@ TVM_DLL PrimExpr operator&(PrimExpr a, PrimExpr b);
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr operator|(PrimExpr a, PrimExpr b);
+TVM_TIRX_DLL PrimExpr operator|(PrimExpr a, PrimExpr b);
 
 /*!
  * \brief take bitwise xor of two values
@@ -672,7 +672,7 @@ TVM_DLL PrimExpr operator|(PrimExpr a, PrimExpr b);
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr operator^(PrimExpr a, PrimExpr b);
+TVM_TIRX_DLL PrimExpr operator^(PrimExpr a, PrimExpr b);
 
 /*!
  * \brief take bitwise negation of two values
@@ -682,7 +682,7 @@ TVM_DLL PrimExpr operator^(PrimExpr a, PrimExpr b);
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr operator~(PrimExpr a);
+TVM_TIRX_DLL PrimExpr operator~(PrimExpr a);
 
 /*!
  * \brief A local variable in the IR.
@@ -713,20 +713,20 @@ class VarNode : public ExprNode {
 /*! \brief Managed reference to VarNode. */
 class Var : public Expr {
  public:
-  TVM_DLL explicit Var(ffi::String name, ffi::Optional<Type> ty_annotation,
-                       Location loc = UnknownLoc());
+  TVM_TIRX_DLL explicit Var(ffi::String name, ffi::Optional<Type> ty_annotation,
+                            Location loc = UnknownLoc());
 
   /*! \brief Return a fresh ordinary Var with the same type and a new name. */
-  TVM_DLL Var CopyWithName(const ffi::String& name) const;
+  TVM_TIRX_DLL Var CopyWithName(const ffi::String& name) const;
 
   /*! \brief Return a fresh ordinary Var with a suffix appended to its name. */
-  TVM_DLL Var CopyWithSuffix(const ffi::String& suffix) const;
+  TVM_TIRX_DLL Var CopyWithSuffix(const ffi::String& suffix) const;
 
   /*! \brief Return a fresh ordinary Var with a new primitive type. */
-  TVM_DLL Var CopyWithDType(PrimType dtype) const;
+  TVM_TIRX_DLL Var CopyWithDType(PrimType dtype) const;
 
   /*! \brief Return a fresh ordinary Var with a new type, retaining its metadata. */
-  TVM_DLL Var CopyWithType(Type type) const;
+  TVM_TIRX_DLL Var CopyWithType(Type type) const;
 
   explicit Var(ffi::ObjectPtr<VarNode> node) : Expr(std::move(node)) {}
 
@@ -790,7 +790,7 @@ class LambdaExprNode : public StagingExprNode {
   explicit LambdaExprNode(ffi::UnsafeInit tag) : body(tag) {}
   explicit LambdaExprNode(Expr body) : body(std::move(body)) {}
   /*! \brief Simultaneously substitute arguments for the bound parameters. */
-  TVM_DLL Expr Apply(const ffi::Array<Expr>& arguments) const;
+  TVM_TIRX_DLL Expr Apply(const ffi::Array<Expr>& arguments) const;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -805,7 +805,7 @@ class LambdaExprNode : public StagingExprNode {
 /*! \brief Managed reference to a typed staging lambda. */
 class LambdaExpr : public StagingExpr {
  public:
-  TVM_DLL explicit LambdaExpr(ffi::Array<Var> vars, Expr body);
+  TVM_TIRX_DLL explicit LambdaExpr(ffi::Array<Var> vars, Expr body);
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(LambdaExpr, StagingExpr, LambdaExprNode);
 };
 
@@ -852,7 +852,7 @@ class GlobalVarNode : public ExprNode {
  */
 class GlobalVar : public Expr {
  public:
-  TVM_DLL explicit GlobalVar(ffi::String name_hint, Location loc = UnknownLoc());
+  TVM_TIRX_DLL explicit GlobalVar(ffi::String name_hint, Location loc = UnknownLoc());
 
   explicit GlobalVar(ffi::ObjectPtr<GlobalVarNode> node) : Expr(std::move(node)) {}
 
@@ -974,19 +974,19 @@ class Call : public Expr {
   /*! \brief Construct a Call, inferring only when ret_ty is absent.
    * Construction preserves provisional IR; invoke Validate separately when needed.
    */
-  TVM_DLL Call(ffi::Optional<Type> ret_ty, Expr op, ffi::Array<Expr> args,
-               ffi::Optional<Attrs> attrs = std::nullopt,
-               ffi::Array<Type> ty_args = ffi::Array<Type>(), Location loc = UnknownLoc());
+  TVM_TIRX_DLL Call(ffi::Optional<Type> ret_ty, Expr op, ffi::Array<Expr> args,
+                    ffi::Optional<Attrs> attrs = std::nullopt,
+                    ffi::Array<Type> ty_args = ffi::Array<Type>(), Location loc = UnknownLoc());
 
   /*! \brief Check this Call against its registered operator contract. */
-  TVM_DLL void Validate() const;
+  TVM_TIRX_DLL void Validate() const;
   /*! \brief Recompute a result type from the Call's current explicit inputs.
    *
    * This ignores the Call's stored result type and does not mutate the Call.
    * Returns Missing when no deduction is available; inference errors propagate.
    * This does not invoke the operator's validator.
    */
-  TVM_DLL static Type ReinferType(const CallNode* call);
+  TVM_TIRX_DLL static Type ReinferType(const CallNode* call);
 
   explicit Call(ffi::ObjectPtr<CallNode> node) : Expr(std::move(node)) {}
 
@@ -1030,7 +1030,7 @@ class Range : public ffi::ObjectRef {
    * \param end The end of the range.
    * \param loc The location of the Range in the source.
    */
-  TVM_DLL Range(PrimExpr begin, PrimExpr end, Location loc = UnknownLoc());
+  TVM_TIRX_DLL Range(PrimExpr begin, PrimExpr end, Location loc = UnknownLoc());
   /*!
    * \brief construct a new range with min and extent
    *  The corresponding constructor is removed,
@@ -1041,7 +1041,8 @@ class Range : public ffi::ObjectRef {
    * \param extent The extent of the range.
    * \param loc The location of the Range in the source.
    */
-  TVM_DLL static Range FromMinExtent(PrimExpr min, PrimExpr extent, Location loc = UnknownLoc());
+  TVM_TIRX_DLL static Range FromMinExtent(PrimExpr min, PrimExpr extent,
+                                          Location loc = UnknownLoc());
   // declare range.
   explicit Range(ffi::UnsafeInit tag, ffi::ObjectPtr<RangeNode> n) : ffi::ObjectRef(tag) {
     data_ = std::move(n);
@@ -1077,7 +1078,8 @@ class TensorRegionNode : public ExprNode {
 /*! \brief Managed reference to TensorRegionNode. */
 class TensorRegion : public Expr {
  public:
-  TVM_DLL TensorRegion(Expr source, ffi::Array<Range> region, Type ty, Location loc = UnknownLoc());
+  TVM_TIRX_DLL TensorRegion(Expr source, ffi::Array<Range> region, Type ty,
+                            Location loc = UnknownLoc());
 
   explicit TensorRegion(ffi::ObjectPtr<TensorRegionNode> node) : Expr(std::move(node)) {}
 
@@ -1099,7 +1101,7 @@ class TensorRegion : public Expr {
  * \param expr The expression to inspect.
  * \return The strongest runtime effect of the expression.
  */
-TVM_DLL CallEffectKind SideEffect(const Expr& expr);
+TVM_TIRX_DLL CallEffectKind SideEffect(const Expr& expr);
 
 namespace ffi {
 
@@ -1108,7 +1110,7 @@ inline constexpr bool use_default_type_traits_v<TensorRegion> = false;
 
 template <>
 struct TypeTraits<TensorRegion> : public ObjectRefWithFallbackTraitsBase<TensorRegion, TensorLoad> {
-  TVM_DLL static TensorRegion ConvertFallbackValue(TensorLoad value);
+  TVM_TIRX_DLL static TensorRegion ConvertFallbackValue(TensorLoad value);
 };
 
 template <>

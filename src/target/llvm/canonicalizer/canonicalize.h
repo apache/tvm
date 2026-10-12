@@ -18,12 +18,12 @@
  */
 
 /*!
- * \file tvm/target/canonicalizer/llvm/canonicalize.h
+ * \file tvm/target/llvm/canonicalizer/canonicalize.h
  * \brief Target canonicalizer for LLVM-based CPU targets
  */
 
-#ifndef TVM_TARGET_CANONICALIZER_LLVM_CANONICALIZE_H_
-#define TVM_TARGET_CANONICALIZER_LLVM_CANONICALIZE_H_
+#ifndef TVM_TARGET_LLVM_CANONICALIZER_CANONICALIZE_H_
+#define TVM_TARGET_LLVM_CANONICALIZER_CANONICALIZE_H_
 
 #include <tvm/target/target.h>
 
@@ -39,4 +39,4 @@ ffi::Map<ffi::String, ffi::Any> Canonicalize(ffi::Map<ffi::String, ffi::Any> tar
 }  // namespace target
 }  // namespace tvm
 
-#endif  // TVM_TARGET_CANONICALIZER_LLVM_CANONICALIZE_H_
+#endif  // TVM_TARGET_LLVM_CANONICALIZER_CANONICALIZE_H_

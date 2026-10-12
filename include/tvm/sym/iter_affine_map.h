@@ -125,7 +125,7 @@ class IterMark : public ffi::ObjectRef {
    * \param source The source expression.
    * \param extent The extent of the iterator.
    */
-  TVM_DLL IterMark(PrimExpr source, PrimExpr extent);
+  TVM_TIRX_DLL IterMark(PrimExpr source, PrimExpr extent);
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(IterMark, ffi::ObjectRef, IterMarkNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(IterMarkNode);
@@ -182,13 +182,13 @@ class IterSplitExpr : public IterMapExpr {
    * \brief constructor from just source.
    * \param source The source expression.
    */
-  TVM_DLL explicit IterSplitExpr(IterMark source);
+  TVM_TIRX_DLL explicit IterSplitExpr(IterMark source);
   /*!
    * \brief constructor from just source.
    * \param source The source expression.
    * \param scale The additional scaling factor.
    */
-  TVM_DLL explicit IterSplitExpr(IterMark source, PrimExpr scale);
+  TVM_TIRX_DLL explicit IterSplitExpr(IterMark source, PrimExpr scale);
   /*!
    * \brief constructor
    * \param source The source expression.
@@ -196,8 +196,8 @@ class IterSplitExpr : public IterMapExpr {
    * \param extent The extent of the split.
    * \param scale The additional scaling factor.
    */
-  TVM_DLL explicit IterSplitExpr(IterMark source, PrimExpr lower_factor, PrimExpr extent,
-                                 PrimExpr scale);
+  TVM_TIRX_DLL explicit IterSplitExpr(IterMark source, PrimExpr lower_factor, PrimExpr extent,
+                                      PrimExpr scale);
 
   explicit IterSplitExpr(ffi::ObjectPtr<IterSplitExprNode> node) : IterMapExpr(std::move(node)) {}
 
@@ -242,7 +242,7 @@ class IterSumExpr : public IterMapExpr {
    * \param args The args to the sum.
    * \param base The base offset.
    */
-  TVM_DLL IterSumExpr(ffi::Array<IterSplitExpr> args, PrimExpr base);
+  TVM_TIRX_DLL IterSumExpr(ffi::Array<IterSplitExpr> args, PrimExpr base);
 
   explicit IterSumExpr(ffi::ObjectPtr<IterSumExprNode> node) : IterMapExpr(std::move(node)) {}
 

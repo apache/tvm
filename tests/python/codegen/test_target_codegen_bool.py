@@ -65,7 +65,7 @@ def test_cmp_load_store(target):
     is_gpu = tvm.target.Target(target).kind.name != "llvm"
     mod = GPUModule if is_gpu else CPUModule
 
-    f = tvm.compile(mod, target=target)
+    f = tvm.tirx.compile(mod, target=target)
 
     a_np = np.random.uniform(size=arr_size).astype("float32")
     b_np = np.random.uniform(size=arr_size).astype("float32")
@@ -93,7 +93,7 @@ def test_bitwise_not_c(tmp_path):
         for i in range(5):
             output[i] = T.bitwise_not(values[i] != 0)
 
-    built = tvm.compile(complement, target="c")
+    built = tvm.tirx.compile(complement, target="c")
     library = str(tmp_path / "complement.so")
     built.export_library(library)
     built = tvm.runtime.load_module(library)

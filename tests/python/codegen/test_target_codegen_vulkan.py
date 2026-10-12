@@ -77,7 +77,7 @@ def test_vector_comparison(dtype):
                         )
 
     # Build
-    f = tvm.tirx.build(Module, target=target)
+    f = tvm.tirx.compile(Module, target=target).mod
 
     # Verify we generate the boolx4 type declaration and the OpSelect
     # v4{float,half,int} instruction
@@ -142,7 +142,7 @@ def test_array_vectorize_add(dtype):
                 with T.launch_thread("threadIdx.x", 4) as i_1:
                     B[i_0 * 4 + i_1] = A[i_0 * 4 + i_1] + one
 
-    f = tvm.compile(Module, target=target)
+    f = tvm.tirx.compile(Module, target=target)
 
     def run_and_check():
         dev = tvm.vulkan()
@@ -174,7 +174,7 @@ def test_vulkan_bool_load():
                 with T.launch_thread("threadIdx.x", 128) as i_1:
                     B[i_0 * 128 + i_1] = T.Cast("int32", A[i_0 * 128 + i_1])
 
-    f = tvm.compile(Module, target=target)
+    f = tvm.tirx.compile(Module, target=target)
 
     a_np = np.random.uniform(size=arr_size) > 0.5
     b_np = np.zeros((arr_size,), dtype="int32")
@@ -247,7 +247,7 @@ def test_vulkan_constant_passing(vulkan_parameter_impl, vulkan_parameter_dtype):
                             with T_builder.then_():
                                 T_builder.tensor_store(B, [v_i], scalar_sum + A[v_i])
     mod = ib.get()
-    f_add = tvm.compile(mod, target=target)
+    f_add = tvm.tirx.compile(mod, target=target)
 
     n = 1024
     scalars = np.array([1 for _ in range(num_int_params)]).astype(dtype)
@@ -284,7 +284,7 @@ def test_vulkan_while_if():
                 B[0] = B[0] + iterations[0]
 
     mod = tvm.IRModule.from_expr(while_if_gpu.with_attr("target", target))
-    compiled_func = tvm.compile(mod, target=target)
+    compiled_func = tvm.tirx.compile(mod, target=target)
 
     def run_and_check():
         dev = tvm.vulkan()
@@ -319,7 +319,7 @@ def test_vulkan_local_threadidx():
                 B[tx + 16] = A[tx + 16]
 
     mod = tvm.IRModule.from_expr(local_threadidx_func)
-    func = tvm.compile(mod, target=target)
+    func = tvm.tirx.compile(mod, target=target)
 
     a_np = np.arange(n).astype(dtype="int32")
     b_np = np.zeros((n,), dtype="int32")
@@ -356,7 +356,7 @@ def test_vectorized_index_ramp():
             bx = T.launch_thread("blockIdx.x", 1)
             B[ramp_index] = A[ramp_index]
 
-    f = tvm.compile(Module, target=target)
+    f = tvm.tirx.compile(Module, target=target)
 
     a_np = np.random.randint(np.iinfo("int32").max, size=n).astype("int32")
     b_np = np.zeros(n, dtype="int32")
@@ -394,7 +394,7 @@ def test_vectorized_index_broadcast():
             bx = T.launch_thread("blockIdx.x", 1)
             B[ramp_index] = A[broadcast_index]
 
-    f = tvm.compile(Module, target=target)
+    f = tvm.tirx.compile(Module, target=target)
 
     a_np = np.random.randint(np.iinfo("int32").max, size=n).astype("int32")
     b_np = np.zeros(n, dtype="int32")
@@ -440,7 +440,7 @@ def test_negative_operand_divmod():
             A[i, 0] = T.floordiv(i - offset, divisor)
             A[i, 1] = T.floormod(i - offset, divisor)
 
-    built = tvm.compile(func, target=target)
+    built = tvm.tirx.compile(func, target=target)
 
     def run_and_check():
         dev = tvm.vulkan()
@@ -493,7 +493,7 @@ def test_cooperative_matrix(out_dtype):
     tgt_attrs = tvm.target.Target(target).attrs
 
     if tgt_attrs.get("supports_cooperative_matrix"):
-        f = tvm.compile(Module, target=target)
+        f = tvm.tirx.compile(Module, target=target)
 
         def run_and_check():
             dev = tvm.vulkan(0)
@@ -537,7 +537,7 @@ def test_codegen_decl_buffer():
             with T.launch_thread("threadIdx.x", 1) as tx:
                 B_buf[tx] = A_buf[tx]
 
-    tvm.compile(ParameterBacked, target=target)
+    tvm.tirx.compile(ParameterBacked, target=target)
 
 
 @pytest.mark.gpu
@@ -556,7 +556,7 @@ def test_codegen_static_shared_memory():
                     A_shared[tx] = A[tx]
                     B[tx] = A_shared[tx]
 
-    tvm.compile(Module, target="vulkan")
+    tvm.tirx.compile(Module, target="vulkan")
 
 
 @pytest.mark.gpu
@@ -592,7 +592,7 @@ def test_unary():
                             B[i_0 * 64 + i_1] = tvm_intrin(A[i_0 * 64 + i_1])
 
         target = tvm.target.Target("vulkan")
-        func = tvm.compile(Module, target=target)
+        func = tvm.tirx.compile(Module, target=target)
 
         if tvm_intrin in [tvm.tirx.asin, tvm.tirx.acos]:
             data = np.random.uniform(-1.0, 1.0, size=n)
@@ -632,7 +632,7 @@ def test_export_load_with_fallback(monkeypatch, tmp_path):
                     B[i_0 * 32 + i_1] = A[i_0 * 32 + i_1] + 1.0
 
     monkeypatch.setenv("TVM_COMPILE_FORCE_FALLBACK", "1")
-    host_lib = tvm.compile(Module, target="vulkan")
+    host_lib = tvm.tirx.compile(Module, target="vulkan")
     monkeypatch.delenv("TVM_COMPILE_FORCE_FALLBACK")
 
     lib_path = str(tmp_path / "lib.so")

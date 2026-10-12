@@ -41,7 +41,7 @@ namespace metal {
  * - args[3]: rows, The number of rows.
  * - args[4]: cols, The number of columns.
  */
-TVM_DLL const Op& cooperative_tensor_fill_op();
+TVM_TIRX_DLL const Op& cooperative_tensor_fill_op();
 
 /*!
  * \brief Load data from device or threadgroup memory into a cooperative_tensor.
@@ -59,7 +59,7 @@ TVM_DLL const Op& cooperative_tensor_fill_op();
  * - args[9]: mma_K, The K dimension of the matrix operation.
  * - args[10]: operand_role, 0 for left (A), 1 for right (B), 2 for destination (C).
  */
-TVM_DLL const Op& cooperative_tensor_load_op();
+TVM_TIRX_DLL const Op& cooperative_tensor_load_op();
 
 /*!
  * \brief Store data from a cooperative_tensor to device or threadgroup memory.
@@ -77,7 +77,7 @@ TVM_DLL const Op& cooperative_tensor_load_op();
  * - args[9]: mma_K, The K dimension of the matrix operation.
  * - args[10]: operand_role, 0 for left (A), 1 for right (B), 2 for destination (C).
  */
-TVM_DLL const Op& cooperative_tensor_store_op();
+TVM_TIRX_DLL const Op& cooperative_tensor_store_op();
 
 /*!
  * \brief Multiply and accumulate two matrices using cooperative_tensor
@@ -98,7 +98,7 @@ TVM_DLL const Op& cooperative_tensor_store_op();
  * - args[11]: transpose_a, Whether to transpose A.
  * - args[12]: transpose_b, Whether to transpose B.
  */
-TVM_DLL const Op& cooperative_tensor_multiply_accumulate_op();
+TVM_TIRX_DLL const Op& cooperative_tensor_multiply_accumulate_op();
 
 }  // namespace metal
 }  // namespace backend

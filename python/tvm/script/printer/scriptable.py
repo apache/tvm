@@ -22,7 +22,7 @@ from collections.abc import Sequence
 from tvm_ffi import register_object
 from tvm_ffi.access_path import AccessPath
 
-from tvm.ir.base import Node, Scriptable
+from tvm.ir.base import register_script_printer
 from tvm.runtime import Object
 
 from . import _ffi_api
@@ -97,10 +97,6 @@ class PrinterConfig(Object):
 
 def _script(obj: Object, config: PrinterConfig) -> str:
     return _ffi_api.Script(obj, config)  # type: ignore # pylint: disable=no-member
-
-
-def _relax_script(obj: Object, config: PrinterConfig) -> str:
-    return _ffi_api.ReprPrintRelax(obj, config)
 
 
 class _ScriptableMethods:
@@ -188,43 +184,6 @@ class _ScriptableMethods:
                 num_context_lines=num_context_lines,
                 show_all_ty=show_all_ty,
                 extra_config=merged_extra if merged_extra else None,
-                path_to_underline=path_to_underline,
-                path_to_annotate=path_to_annotate,
-                obj_to_underline=obj_to_underline,
-                obj_to_annotate=obj_to_annotate,
-            ),
-        )
-
-    def _relax_script(
-        self,
-        *,
-        name: str | None = None,
-        show_meta: bool = False,
-        int_dtype: str = "int32",
-        float_dtype: str = "void",
-        verbose_expr: bool = False,
-        indent_spaces: int = 4,
-        print_line_numbers: bool = False,
-        num_context_lines: int = -1,
-        extra_config: dict | None = None,
-        path_to_underline: list[AccessPath] | None = None,
-        path_to_annotate: dict[AccessPath, str] | None = None,
-        obj_to_underline: list[Object] | None = None,
-        obj_to_annotate: dict[Object, str] | None = None,
-    ) -> str:
-        merged_extra = dict(extra_config or {})
-        return _relax_script(
-            self,
-            PrinterConfig(
-                name=name,
-                show_meta=show_meta,
-                int_dtype=int_dtype,
-                float_dtype=float_dtype,
-                verbose_expr=verbose_expr,
-                indent_spaces=indent_spaces,
-                print_line_numbers=print_line_numbers,
-                num_context_lines=num_context_lines,
-                extra_config=merged_extra,
                 path_to_underline=path_to_underline,
                 path_to_annotate=path_to_annotate,
                 obj_to_underline=obj_to_underline,
@@ -351,7 +310,6 @@ def _repr(self) -> str:
 
 
 # The printer supplies its explicit display capability to existing IR wrappers.
-Scriptable.script = _ScriptableMethods.script
-Scriptable.show = _ScriptableMethods.show
-Scriptable._relax_script = _ScriptableMethods._relax_script
-Node.__repr__ = _repr
+register_script_printer(
+    script=_ScriptableMethods.script, show=_ScriptableMethods.show, node_repr=_repr
+)

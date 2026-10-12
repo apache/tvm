@@ -547,7 +547,7 @@ ffi::Module BuildHexagon(IRModule mod, Target target) {
 
   const auto f = tvm::ffi::Function::GetGlobal("tvm.contrib.hexagon.link_shared");
   TVM_FFI_ICHECK(f.has_value()) << "tvm.contrib.hexagon.link_shared does not to exist, "
-                                   "do import tvm.contrib.hexagon";
+                                   "load the Hexagon backend linker";
 
   ffi::Array<Expr> o_names = {StringImm(o_name)};
   ffi::Map<ffi::String, ffi::String> extra_args;

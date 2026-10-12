@@ -96,7 +96,7 @@ class IntervalSet : public IntSet {
    * \param max_value The maximum value in the interval.
    * \return The created set.
    */
-  TVM_DLL IntervalSet(PrimExpr min_value, PrimExpr max_value);
+  TVM_TIRX_DLL IntervalSet(PrimExpr min_value, PrimExpr max_value);
 
   /*!
    * \brief Create an IntervalSet that represents a single point.
@@ -127,7 +127,7 @@ class IntervalSet : public IntSet {
  * \param b The second set.
  * \return The result set.
  */
-TVM_DLL IntervalSet Union(AnalyzerObj* analyzer, IntervalSet a, IntervalSet b);
+TVM_TIRX_DLL IntervalSet Union(AnalyzerObj* analyzer, IntervalSet a, IntervalSet b);
 
 /*!
  * \brief Create insersection of two IntervalSets.
@@ -136,7 +136,7 @@ TVM_DLL IntervalSet Union(AnalyzerObj* analyzer, IntervalSet a, IntervalSet b);
  * \param b The second set.
  * \return The result set.
  */
-TVM_DLL IntervalSet Intersect(AnalyzerObj* analzyer, IntervalSet a, IntervalSet b);
+TVM_TIRX_DLL IntervalSet Intersect(AnalyzerObj* analzyer, IntervalSet a, IntervalSet b);
 
 }  // namespace sym
 }  // namespace tvm

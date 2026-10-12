@@ -36,16 +36,16 @@ namespace prim {
  * \brief Get the target's vscale value. It will be lowered to llvm.vscale intrinsic
  * (https://llvm.org/docs/LangRef.html#llvm-vscale-intrinsic)
  */
-TVM_DLL const Op& vscale_op();
+TVM_TIRX_DLL const Op& vscale_op();
 
 /*! \brief Round up to the nearest integral value. */
-TVM_DLL const Op& ceil_op();
+TVM_TIRX_DLL const Op& ceil_op();
 
 /*! \brief Base-two logarithm. */
-TVM_DLL const Op& log2_op();
+TVM_TIRX_DLL const Op& log2_op();
 
 /*! \brief Count leading zero bits. */
-TVM_DLL const Op& clz_op();
+TVM_TIRX_DLL const Op& clz_op();
 
 /*!
  * \brief Same as select, used for unsafe memory access.
@@ -54,10 +54,10 @@ TVM_DLL const Op& clz_op();
  *    return cond ? a : b;
  *  }
  */
-TVM_DLL const Op& if_then_else_op();
+TVM_TIRX_DLL const Op& if_then_else_op();
 
 /*! \brief Marks a condition is likely going to happen. */
-TVM_DLL const Op& likely_op();
+TVM_TIRX_DLL const Op& likely_op();
 
 }  // namespace prim
 
@@ -71,7 +71,7 @@ TVM_DLL const Op& likely_op();
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr add(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
+TVM_TIRX_DLL PrimExpr add(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
 
 /*!
  * \brief subtraction operator
@@ -83,7 +83,7 @@ TVM_DLL PrimExpr add(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr sub(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
+TVM_TIRX_DLL PrimExpr sub(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
 
 /*!
  * \brief negation.
@@ -94,7 +94,7 @@ TVM_DLL PrimExpr sub(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr neg(PrimExpr a, Location loc = UnknownLoc());
+TVM_TIRX_DLL PrimExpr neg(PrimExpr a, Location loc = UnknownLoc());
 
 /*!
  * \brief multiplication operator
@@ -106,7 +106,7 @@ TVM_DLL PrimExpr neg(PrimExpr a, Location loc = UnknownLoc());
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr mul(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
+TVM_TIRX_DLL PrimExpr mul(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
 
 /*!
  * \brief left shift operator
@@ -118,7 +118,7 @@ TVM_DLL PrimExpr mul(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr left_shift(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
+TVM_TIRX_DLL PrimExpr left_shift(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
 
 /*!
  * \brief right shift operator
@@ -130,7 +130,7 @@ TVM_DLL PrimExpr left_shift(PrimExpr a, PrimExpr b, Location loc = UnknownLoc())
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr right_shift(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
+TVM_TIRX_DLL PrimExpr right_shift(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
 
 /*!
  * \brief greater
@@ -142,7 +142,7 @@ TVM_DLL PrimExpr right_shift(PrimExpr a, PrimExpr b, Location loc = UnknownLoc()
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr greater(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
+TVM_TIRX_DLL PrimExpr greater(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
 
 /*!
  * \brief greater_equal
@@ -154,7 +154,7 @@ TVM_DLL PrimExpr greater(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr greater_equal(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
+TVM_TIRX_DLL PrimExpr greater_equal(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
 
 /*!
  * \brief less
@@ -166,7 +166,7 @@ TVM_DLL PrimExpr greater_equal(PrimExpr a, PrimExpr b, Location loc = UnknownLoc
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr less(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
+TVM_TIRX_DLL PrimExpr less(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
 
 /*!
  * \brief less_equal
@@ -178,7 +178,7 @@ TVM_DLL PrimExpr less(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr less_equal(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
+TVM_TIRX_DLL PrimExpr less_equal(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
 
 /*!
  * \brief equal
@@ -190,7 +190,7 @@ TVM_DLL PrimExpr less_equal(PrimExpr a, PrimExpr b, Location loc = UnknownLoc())
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr equal(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
+TVM_TIRX_DLL PrimExpr equal(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
 
 /*!
  * \brief not_equal
@@ -202,7 +202,7 @@ TVM_DLL PrimExpr equal(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr not_equal(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
+TVM_TIRX_DLL PrimExpr not_equal(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
 
 /*!
  * \brief and
@@ -213,7 +213,7 @@ TVM_DLL PrimExpr not_equal(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
  * \return The result expression.
  * \note This operator does eager constant folding.
  */
-TVM_DLL PrimExpr logical_and(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
+TVM_TIRX_DLL PrimExpr logical_and(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
 
 /*!
  * \brief or
@@ -224,7 +224,7 @@ TVM_DLL PrimExpr logical_and(PrimExpr a, PrimExpr b, Location loc = UnknownLoc()
  * \return The result expression.
  * \note This operator does eager constant folding.
  */
-TVM_DLL PrimExpr logical_or(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
+TVM_TIRX_DLL PrimExpr logical_or(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
 
 /*!
  * \brief not
@@ -234,7 +234,7 @@ TVM_DLL PrimExpr logical_or(PrimExpr a, PrimExpr b, Location loc = UnknownLoc())
  * \return The result expression.
  * \note This operator does eager constant folding.
  */
-TVM_DLL PrimExpr logical_not(PrimExpr a, Location loc = UnknownLoc());
+TVM_TIRX_DLL PrimExpr logical_not(PrimExpr a, Location loc = UnknownLoc());
 
 /*!
  * \brief compute division in C semantics.
@@ -250,7 +250,7 @@ TVM_DLL PrimExpr logical_not(PrimExpr a, Location loc = UnknownLoc());
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr div(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
+TVM_TIRX_DLL PrimExpr div(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
 
 /*!
  * \brief compute trunc(a / b)
@@ -264,7 +264,7 @@ TVM_DLL PrimExpr div(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr truncdiv(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
+TVM_TIRX_DLL PrimExpr truncdiv(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
 
 /*!
  * \brief compute the remainder of truncdiv
@@ -278,7 +278,7 @@ TVM_DLL PrimExpr truncdiv(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr truncmod(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
+TVM_TIRX_DLL PrimExpr truncmod(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
 
 /*!
  * \brief compute floor(a / b) where a and b are non-negative.
@@ -295,7 +295,7 @@ TVM_DLL PrimExpr truncmod(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr indexdiv(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
+TVM_TIRX_DLL PrimExpr indexdiv(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
 
 /*!
  * \brief compute ceil(a / b) where a and b are non-negative.
@@ -312,7 +312,7 @@ TVM_DLL PrimExpr indexdiv(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
  * \note this function does eager constant folding for
  *       shape types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr shapediv(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
+TVM_TIRX_DLL PrimExpr shapediv(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
 
 /*!
  * \brief compute the remainder floor(a / b) where a and b are non-negative.
@@ -328,7 +328,7 @@ TVM_DLL PrimExpr shapediv(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr indexmod(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
+TVM_TIRX_DLL PrimExpr indexmod(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
 
 /*!
  * \brief compute floor(a / b)
@@ -340,7 +340,7 @@ TVM_DLL PrimExpr indexmod(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr floordiv(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
+TVM_TIRX_DLL PrimExpr floordiv(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
 
 /*!
  * \brief compute ceil(a / b)
@@ -353,7 +353,7 @@ TVM_DLL PrimExpr floordiv(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
  *       index types(int32, int64) when possible.
  */
 
-TVM_DLL PrimExpr ceildiv(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
+TVM_TIRX_DLL PrimExpr ceildiv(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
 
 /*!
  * \brief compute the remainder of floordiv
@@ -365,7 +365,7 @@ TVM_DLL PrimExpr ceildiv(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr floormod(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
+TVM_TIRX_DLL PrimExpr floormod(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
 
 /*!
  * \brief take maximum of two values
@@ -377,7 +377,7 @@ TVM_DLL PrimExpr floormod(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr max(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
+TVM_TIRX_DLL PrimExpr max(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
 
 /*!
  * \brief take minimum of two values
@@ -389,7 +389,7 @@ TVM_DLL PrimExpr max(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr min(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
+TVM_TIRX_DLL PrimExpr min(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
 
 /*!
  * \brief take bitwise and of two values
@@ -401,7 +401,7 @@ TVM_DLL PrimExpr min(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr bitwise_and(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
+TVM_TIRX_DLL PrimExpr bitwise_and(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
 
 /*!
  * \brief take bitwise or of two values
@@ -413,7 +413,7 @@ TVM_DLL PrimExpr bitwise_and(PrimExpr a, PrimExpr b, Location loc = UnknownLoc()
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr bitwise_or(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
+TVM_TIRX_DLL PrimExpr bitwise_or(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
 
 /*!
  * \brief take bitwise xor of two values
@@ -425,7 +425,7 @@ TVM_DLL PrimExpr bitwise_or(PrimExpr a, PrimExpr b, Location loc = UnknownLoc())
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr bitwise_xor(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
+TVM_TIRX_DLL PrimExpr bitwise_xor(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
 
 /*!
  * \brief take bitwise negation of two values
@@ -436,7 +436,7 @@ TVM_DLL PrimExpr bitwise_xor(PrimExpr a, PrimExpr b, Location loc = UnknownLoc()
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr bitwise_neg(PrimExpr a, Location loc = UnknownLoc());
+TVM_TIRX_DLL PrimExpr bitwise_neg(PrimExpr a, Location loc = UnknownLoc());
 
 /*!
  * \brief Conditional expression.
@@ -449,8 +449,8 @@ TVM_DLL PrimExpr bitwise_neg(PrimExpr a, Location loc = UnknownLoc());
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr if_then_else(PrimExpr cond, PrimExpr true_value, PrimExpr false_value,
-                              Location loc = UnknownLoc());
+TVM_TIRX_DLL PrimExpr if_then_else(PrimExpr cond, PrimExpr true_value, PrimExpr false_value,
+                                   Location loc = UnknownLoc());
 
 /*!
  * \brief Mark condition as likely.
@@ -458,21 +458,21 @@ TVM_DLL PrimExpr if_then_else(PrimExpr cond, PrimExpr true_value, PrimExpr false
  * \param loc The location of this operation in the source.
  * \return The marked expression.
  */
-TVM_DLL PrimExpr likely(PrimExpr cond, Location loc = UnknownLoc());
+TVM_TIRX_DLL PrimExpr likely(PrimExpr cond, Location loc = UnknownLoc());
 /*! \brief Round up to the nearest integral value, preserving the input type. */
-TVM_DLL PrimExpr ceil(PrimExpr x, Location loc = UnknownLoc());
+TVM_TIRX_DLL PrimExpr ceil(PrimExpr x, Location loc = UnknownLoc());
 /*! \brief Construct a base-two logarithm with the input's primitive type. */
-TVM_DLL PrimExpr log2(PrimExpr x, Location loc = UnknownLoc());
+TVM_TIRX_DLL PrimExpr log2(PrimExpr x, Location loc = UnknownLoc());
 namespace prim {
 /*! \brief Count leading zero bits, preserving the input primitive type. */
-TVM_DLL PrimExpr clz(PrimExpr x, Location loc = UnknownLoc());
+TVM_TIRX_DLL PrimExpr clz(PrimExpr x, Location loc = UnknownLoc());
 /*!
  * Query the minimum possible value of dtype.
  * \param dtype The primitive type.
  * \param loc The location of this operation in the source.
  * \return the minimum possible value in this format.
  */
-TVM_DLL PrimExpr min_value(PrimType dtype, Location loc = UnknownLoc());
+TVM_TIRX_DLL PrimExpr min_value(PrimType dtype, Location loc = UnknownLoc());
 
 /*!
  * Query the maximum possible value of dtype.
@@ -480,7 +480,7 @@ TVM_DLL PrimExpr min_value(PrimType dtype, Location loc = UnknownLoc());
  * \param loc The location of this operation in the source.
  * \return the maximum possible value in this format.
  */
-TVM_DLL PrimExpr max_value(PrimType dtype, Location loc = UnknownLoc());
+TVM_TIRX_DLL PrimExpr max_value(PrimType dtype, Location loc = UnknownLoc());
 
 /*!
  * \brief cast value to type.
@@ -492,10 +492,10 @@ TVM_DLL PrimExpr max_value(PrimType dtype, Location loc = UnknownLoc());
  * \note This function may return value if the type is the same. Constant folding
  * uses MakeConst for scalar and vector constants.
  */
-TVM_DLL PrimExpr cast(PrimType t, PrimExpr value, Location loc = UnknownLoc());
-TVM_DLL PrimExpr cast(DLDataType t, PrimExpr value, Location loc = UnknownLoc());
+TVM_TIRX_DLL PrimExpr cast(PrimType t, PrimExpr value, Location loc = UnknownLoc());
+TVM_TIRX_DLL PrimExpr cast(DLDataType t, PrimExpr value, Location loc = UnknownLoc());
 /*! \brief Construct integer absolute value; floating absolute value belongs to TIRX. */
-TVM_DLL PrimExpr IntegerAbs(PrimExpr x, Location loc = UnknownLoc());
+TVM_TIRX_DLL PrimExpr IntegerAbs(PrimExpr x, Location loc = UnknownLoc());
 /*!
  * \brief Make a const value with certain data type.
  *
@@ -752,7 +752,7 @@ inline bool IsConstNumber(const PrimExpr& x);
  * \param shift The output shift if x is power of two.
  * \return whether x is constant power of two
  */
-TVM_DLL bool IsPowerOfTwoInt(const PrimExpr& x, int* shift);
+TVM_TIRX_DLL bool IsPowerOfTwoInt(const PrimExpr& x, int* shift);
 
 /*! \brief Check whether a is a positive integer constant. */
 inline bool IsPositiveConst(const PrimExpr& a);
@@ -799,7 +799,7 @@ inline bool IsZero(const PrimExpr& x) { return IsConstInt(x, 0); }
  * \param loc The location of this operation in the source.
  * \return the infinity value in this format.
  */
-TVM_DLL PrimExpr infinity(PrimType dtype, Location loc = UnknownLoc());
+TVM_TIRX_DLL PrimExpr infinity(PrimType dtype, Location loc = UnknownLoc());
 
 /*!
  * \brief Calculate power(x, y)
@@ -807,7 +807,7 @@ TVM_DLL PrimExpr infinity(PrimType dtype, Location loc = UnknownLoc());
  * \param y The right operand.
  * \param loc The location of this operation in the source.
  */
-TVM_DLL PrimExpr pow(PrimExpr x, PrimExpr y, Location loc = UnknownLoc());
+TVM_TIRX_DLL PrimExpr pow(PrimExpr x, PrimExpr y, Location loc = UnknownLoc());
 
 /*!
  * \brief Calculate absolute value of x.
@@ -816,7 +816,7 @@ TVM_DLL PrimExpr pow(PrimExpr x, PrimExpr y, Location loc = UnknownLoc());
  *
  * \return The absolute value of input data x
  */
-TVM_DLL PrimExpr abs(PrimExpr x, Location loc = UnknownLoc());
+TVM_TIRX_DLL PrimExpr abs(PrimExpr x, Location loc = UnknownLoc());
 
 /*!
  * \brief Check if x is NaN.
@@ -824,7 +824,7 @@ TVM_DLL PrimExpr abs(PrimExpr x, Location loc = UnknownLoc());
  * \param loc The location of this operation in the source.
  * \return The result expression.
  */
-TVM_DLL PrimExpr isnan(PrimExpr x, Location loc = UnknownLoc());
+TVM_TIRX_DLL PrimExpr isnan(PrimExpr x, Location loc = UnknownLoc());
 
 /*!
  * \brief Check if x is finite.
@@ -832,7 +832,7 @@ TVM_DLL PrimExpr isnan(PrimExpr x, Location loc = UnknownLoc());
  * \param loc The location of this operation in the source.
  * \return The result expression.
  */
-TVM_DLL PrimExpr isfinite(PrimExpr x, Location loc = UnknownLoc());
+TVM_TIRX_DLL PrimExpr isfinite(PrimExpr x, Location loc = UnknownLoc());
 
 /*!
  * \brief Check if x is infinite.
@@ -840,7 +840,7 @@ TVM_DLL PrimExpr isfinite(PrimExpr x, Location loc = UnknownLoc());
  * \param loc The location of this operation in the source.
  * \return The result expression.
  */
-TVM_DLL PrimExpr isinf(PrimExpr x, Location loc = UnknownLoc());
+TVM_TIRX_DLL PrimExpr isinf(PrimExpr x, Location loc = UnknownLoc());
 
 /*!
  * \brief Calculate floor(x)
@@ -848,7 +848,7 @@ TVM_DLL PrimExpr isinf(PrimExpr x, Location loc = UnknownLoc());
  * \param loc The location of this operation in the source.
  * \return The result expression.
  */
-TVM_DLL PrimExpr floor(PrimExpr x, Location loc = UnknownLoc());
+TVM_TIRX_DLL PrimExpr floor(PrimExpr x, Location loc = UnknownLoc());
 
 /*!
  * \brief Round x to the nearest integer, ties to even.
@@ -860,7 +860,7 @@ TVM_DLL PrimExpr floor(PrimExpr x, Location loc = UnknownLoc());
  * \param loc The location of this operation in the source.
  * \return The result expression.
  */
-TVM_DLL PrimExpr round(PrimExpr x, Location loc = UnknownLoc());
+TVM_TIRX_DLL PrimExpr round(PrimExpr x, Location loc = UnknownLoc());
 
 /*!
  * \brief Round x to the nearest integer, ties to even.
@@ -871,7 +871,7 @@ TVM_DLL PrimExpr round(PrimExpr x, Location loc = UnknownLoc());
  * \param loc The location of this operation in the source.
  * \return The result expression.
  */
-TVM_DLL PrimExpr nearbyint(PrimExpr x, Location loc = UnknownLoc());
+TVM_TIRX_DLL PrimExpr nearbyint(PrimExpr x, Location loc = UnknownLoc());
 
 /*!
  * \brief Calculate trunc(x)
@@ -879,88 +879,88 @@ TVM_DLL PrimExpr nearbyint(PrimExpr x, Location loc = UnknownLoc());
  * \param loc The location of this operation in the source.
  * \return The result expression.
  */
-TVM_DLL PrimExpr trunc(PrimExpr x, Location loc = UnknownLoc());
+TVM_TIRX_DLL PrimExpr trunc(PrimExpr x, Location loc = UnknownLoc());
 
 /*! \brief Floating-point remainder of x divided by y. */
-TVM_DLL PrimExpr fmod(PrimExpr x, PrimExpr y, Location loc = UnknownLoc());
+TVM_TIRX_DLL PrimExpr fmod(PrimExpr x, PrimExpr y, Location loc = UnknownLoc());
 /*! \brief Raise x to the power y. Arguments: x, y. */
-TVM_DLL const Op& pow_op();
+TVM_TIRX_DLL const Op& pow_op();
 /*! \brief Absolute value. Argument: x. */
-TVM_DLL const Op& fabs_op();
+TVM_TIRX_DLL const Op& fabs_op();
 /*! \brief Floating-point remainder. Arguments: x, y. */
-TVM_DLL const Op& fmod_op();
+TVM_TIRX_DLL const Op& fmod_op();
 /*! \brief Round toward negative infinity. Argument: x. */
-TVM_DLL const Op& floor_op();
+TVM_TIRX_DLL const Op& floor_op();
 /*! \brief Round to nearest integer, ties to even. Argument: x. */
-TVM_DLL const Op& round_op();
+TVM_TIRX_DLL const Op& round_op();
 /*! \brief Round to nearest integer, ties to even. Argument: x. */
-TVM_DLL const Op& nearbyint_op();
+TVM_TIRX_DLL const Op& nearbyint_op();
 /*! \brief Round toward zero. Argument: x. */
-TVM_DLL const Op& trunc_op();
+TVM_TIRX_DLL const Op& trunc_op();
 /*! \brief Natural exponential. Argument: x. */
-TVM_DLL const Op& exp_op();
+TVM_TIRX_DLL const Op& exp_op();
 /*! \brief Base-two exponential. Argument: x. */
-TVM_DLL const Op& exp2_op();
+TVM_TIRX_DLL const Op& exp2_op();
 /*! \brief Base-ten exponential. Argument: x. */
-TVM_DLL const Op& exp10_op();
+TVM_TIRX_DLL const Op& exp10_op();
 /*! \brief Error function. Argument: x. */
-TVM_DLL const Op& erf_op();
+TVM_TIRX_DLL const Op& erf_op();
 /*! \brief Hyperbolic tangent. Argument: x. */
-TVM_DLL const Op& tanh_op();
+TVM_TIRX_DLL const Op& tanh_op();
 /*! \brief Logistic sigmoid. Argument: x. */
-TVM_DLL const Op& sigmoid_op();
+TVM_TIRX_DLL const Op& sigmoid_op();
 /*! \brief Square root. Argument: x. */
-TVM_DLL const Op& sqrt_op();
+TVM_TIRX_DLL const Op& sqrt_op();
 /*! \brief Reciprocal square root. Argument: x. */
-TVM_DLL const Op& rsqrt_op();
+TVM_TIRX_DLL const Op& rsqrt_op();
 /*! \brief Natural logarithm. Argument: x. */
-TVM_DLL const Op& log_op();
+TVM_TIRX_DLL const Op& log_op();
 /*! \brief Natural logarithm of one plus x. Argument: x. */
-TVM_DLL const Op& log1p_op();
+TVM_TIRX_DLL const Op& log1p_op();
 /*! \brief Base-ten logarithm. Argument: x. */
-TVM_DLL const Op& log10_op();
+TVM_TIRX_DLL const Op& log10_op();
 /*! \brief Tangent. Argument: x. */
-TVM_DLL const Op& tan_op();
+TVM_TIRX_DLL const Op& tan_op();
 /*! \brief Cosine. Argument: x. */
-TVM_DLL const Op& cos_op();
+TVM_TIRX_DLL const Op& cos_op();
 /*! \brief Hyperbolic cosine. Argument: x. */
-TVM_DLL const Op& cosh_op();
+TVM_TIRX_DLL const Op& cosh_op();
 /*! \brief Sine. Argument: x. */
-TVM_DLL const Op& sin_op();
+TVM_TIRX_DLL const Op& sin_op();
 /*! \brief Hyperbolic sine. Argument: x. */
-TVM_DLL const Op& sinh_op();
+TVM_TIRX_DLL const Op& sinh_op();
 /*! \brief Inverse sine. Argument: x. */
-TVM_DLL const Op& asin_op();
+TVM_TIRX_DLL const Op& asin_op();
 /*! \brief Inverse cosine. Argument: x. */
-TVM_DLL const Op& acos_op();
+TVM_TIRX_DLL const Op& acos_op();
 /*! \brief Inverse tangent. Argument: x. */
-TVM_DLL const Op& atan_op();
+TVM_TIRX_DLL const Op& atan_op();
 /*! \brief Inverse hyperbolic cosine. Argument: x. */
-TVM_DLL const Op& acosh_op();
+TVM_TIRX_DLL const Op& acosh_op();
 /*! \brief Inverse hyperbolic sine. Argument: x. */
-TVM_DLL const Op& asinh_op();
+TVM_TIRX_DLL const Op& asinh_op();
 /*! \brief Inverse hyperbolic tangent. Argument: x. */
-TVM_DLL const Op& atanh_op();
+TVM_TIRX_DLL const Op& atanh_op();
 /*! \brief Inverse tangent of y/x with quadrant selection. Arguments: y, x. */
-TVM_DLL const Op& atan2_op();
+TVM_TIRX_DLL const Op& atan2_op();
 /*! \brief Next representable value from x toward y. Arguments: x, y. */
-TVM_DLL const Op& nextafter_op();
+TVM_TIRX_DLL const Op& nextafter_op();
 /*! \brief Euclidean length of x and y. Arguments: x, y. */
-TVM_DLL const Op& hypot_op();
+TVM_TIRX_DLL const Op& hypot_op();
 /*! \brief Magnitude of x with the sign of y. Arguments: x, y. */
-TVM_DLL const Op& copysign_op();
+TVM_TIRX_DLL const Op& copysign_op();
 /*! \brief Multiply x by two raised to exponent. Arguments: x, exponent. */
-TVM_DLL const Op& ldexp_op();
+TVM_TIRX_DLL const Op& ldexp_op();
 /*! \brief Check for NaN, preserving the lane count. Argument: x. */
-TVM_DLL const Op& isnan_op();
+TVM_TIRX_DLL const Op& isnan_op();
 /*! \brief Count set bits. Argument: x. */
-TVM_DLL const Op& popcount_op();
+TVM_TIRX_DLL const Op& popcount_op();
 /*! \brief Fused multiply-add, x * y + z. Arguments: x, y, z. */
-TVM_DLL const Op& fma_op();
+TVM_TIRX_DLL const Op& fma_op();
 /*! \brief Record a known condition for simplification. Argument: condition. */
-TVM_DLL const Op& assume_op();
+TVM_TIRX_DLL const Op& assume_op();
 /*! \brief Record a known condition for compile-time simplification. */
-TVM_DLL PrimExpr assume(PrimExpr condition, Location loc = UnknownLoc());
+TVM_TIRX_DLL PrimExpr assume(PrimExpr condition, Location loc = UnknownLoc());
 
 /*! \brief Fused multiply-add of x, y and z, in that order. */
 inline PrimExpr fma(PrimExpr x, PrimExpr y, PrimExpr z, Location loc = UnknownLoc()) {

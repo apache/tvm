@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file tvm/target/canonicalizer/llvm/arm_aprofile.cc
+ * \file tvm/target/llvm/canonicalizer/arm_aprofile.cc
  * \brief Target canonicalizer for Arm(R) Cortex(R) A-Profile CPUs
  */
 
@@ -30,7 +30,7 @@
 #include <string>
 
 #include "../../../support/utils.h"
-#include "../../llvm/llvm_instance.h"
+#include "../llvm_instance.h"
 
 namespace tvm {
 namespace target {

@@ -20,8 +20,8 @@ import re
 import pytest
 
 import tvm
-import tvm.contrib.hexagon as hexagon
 import tvm.testing
+from tvm.backend.hexagon import linker as hexagon
 from tvm.script import ir as I
 from tvm.script import tirx as T
 from tvm.testing import env
@@ -29,7 +29,7 @@ from tvm.testing import env
 
 @pytest.fixture(autouse=True)
 def register_linker():
-    original_linker = hexagon.hexagon_link()
+    original_linker = tvm.get_global_func("tvm.contrib.hexagon.hexagon_link")
     # Register a phony linker, so that we can test codegen without a Hexagon toolchain.
     hexagon.register_linker(lambda: "/bin/true")
     yield None
@@ -53,7 +53,7 @@ def test_basic():
             for i in range(128):
                 C[i] = A[i] + A_1[i]
 
-    hexm = tvm.compile(Module, target=tvm.target.Target(target, target))
+    hexm = tvm.tirx.compile(Module, target=tvm.target.Target(target, target))
     asm = hexm.inspect_source("s")
     vadds = re.findall(r"v[0-9]+.b = vadd\(v[0-9]+.b,v[0-9]+.b\)", asm)
     assert vadds  # Check that it's non-empty
@@ -71,7 +71,7 @@ def test_llvm_target_features():
             for i in range(128):
                 C[i] = T.Cast("int32", A[i]) + 1
 
-    m = tvm.compile(Module, target=tvm.target.Target(target, target))
+    m = tvm.tirx.compile(Module, target=tvm.target.Target(target, target))
     llvm_ir = m.inspect_source("ll")
     # Make sure we find +hvx-length128b in "attributes".
     fs = re.findall(r"attributes.*\+hvx-length128b", llvm_ir)
@@ -102,7 +102,7 @@ def test_llvm_options():
 
     # Check that BuildHexagon hasn't crashed because of target attribute
     # type mismatch.
-    tvm.compile(Module, target=tvm.target.Target(target, target))
+    tvm.tirx.compile(Module, target=tvm.target.Target(target, target))
     assert re.search("-hexagon-noopt", str(target))
 
 

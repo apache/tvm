@@ -18,12 +18,12 @@
  */
 
 /*!
- * \file tvm/target/canonicalizer/llvm/arm_aprofile.h
- * \brief Target canonicalizer for Arm(R) Cortex(R) A-Profile CPUs
+ * \file tvm/target/llvm/canonicalizer/arm_mprofile.h
+ * \brief Target canonicalizer for Arm(R) Cortex(R) M-Profile CPUs
  */
 
-#ifndef TVM_TARGET_CANONICALIZER_LLVM_ARM_APROFILE_H_
-#define TVM_TARGET_CANONICALIZER_LLVM_ARM_APROFILE_H_
+#ifndef TVM_TARGET_LLVM_CANONICALIZER_ARM_MPROFILE_H_
+#define TVM_TARGET_LLVM_CANONICALIZER_ARM_MPROFILE_H_
 
 #include <tvm/target/target.h>
 
@@ -31,15 +31,15 @@ namespace tvm {
 namespace target {
 namespace canonicalizer {
 namespace llvm {
-namespace aprofile {
+namespace mprofile {
 
 bool IsArch(ffi::Map<ffi::String, ffi::Any> target);
 ffi::Map<ffi::String, ffi::Any> Canonicalize(ffi::Map<ffi::String, ffi::Any> target);
 
-}  // namespace aprofile
+}  // namespace mprofile
 }  // namespace llvm
 }  // namespace canonicalizer
 }  // namespace target
 }  // namespace tvm
 
-#endif  // TVM_TARGET_CANONICALIZER_LLVM_ARM_APROFILE_H_
+#endif  // TVM_TARGET_LLVM_CANONICALIZER_ARM_MPROFILE_H_

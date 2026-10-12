@@ -41,7 +41,7 @@ namespace opencl {
  * - args[4]: channel_size, The number of channels.
  * - args[5]: value, The value to use.
  */
-TVM_DLL const Op& texture2d_store_op();
+TVM_TIRX_DLL const Op& texture2d_store_op();
 
 /*!
  * \brief Load from texture 2d memory.
@@ -54,7 +54,7 @@ TVM_DLL const Op& texture2d_store_op();
  * - args[4]: channel_size, The number of channels.
  * - args[5]: element_index, The element index within a texture channel.
  */
-TVM_DLL const Op& texture2d_load_op();
+TVM_TIRX_DLL const Op& texture2d_load_op();
 
 /*!
  * \brief Create an Nd memory allocation with storage scope.
@@ -65,7 +65,7 @@ TVM_DLL const Op& texture2d_load_op();
  * - args[2]: shape, The shape.
  * - args[3...]: args, trailing Expr operands.
  */
-TVM_DLL const Op& nd_mem_alloc_with_scope_op();
+TVM_TIRX_DLL const Op& nd_mem_alloc_with_scope_op();
 
 }  // namespace opencl
 }  // namespace backend

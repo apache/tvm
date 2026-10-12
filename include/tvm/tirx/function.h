@@ -93,7 +93,7 @@ class FunctionNode : public BaseFuncNode {
    * \note The function type annotation of PrimExpr is
    *       directly derived from the Vars without the need of type inference.
    */
-  TVM_DLL FuncType func_type_annotation() const;
+  TVM_TIRX_DLL FuncType func_type_annotation() const;
 
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.Function", FunctionNode, BaseFuncNode);
 };
@@ -117,9 +117,9 @@ class Function : public BaseFunc {
    *
    * \param loc The location of this object in the source code.
    */
-  TVM_DLL Function(ffi::Array<tvm::Var> params, ffi::Optional<SeqStmt> body,
-                   Type ret_type = VoidType(), DictAttrs attrs = DictAttrs(),
-                   Location loc = UnknownLoc());
+  TVM_TIRX_DLL Function(ffi::Array<tvm::Var> params, ffi::Optional<SeqStmt> body,
+                        Type ret_type = VoidType(), DictAttrs attrs = DictAttrs(),
+                        Location loc = UnknownLoc());
 
   explicit Function(ffi::ObjectPtr<FunctionNode> node) : BaseFunc(std::move(node)) {}
 
@@ -136,7 +136,7 @@ class Function : public BaseFunc {
  * \param func The function to renew.
  * \return The function with fresh variable definitions.
  */
-TVM_DLL Function RenewDef(Function func);
+TVM_TIRX_DLL Function RenewDef(Function func);
 
 /*!
  * \brief Specialize parameters of Function.

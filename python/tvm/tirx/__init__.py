@@ -90,7 +90,7 @@ from . import backend
 from tvm.base import _RUNTIME_ONLY as _RUNTIME_ONLY_TIRX  # pylint: disable=wrong-import-position
 
 if not _RUNTIME_ONLY_TIRX:
-    from .build import build
+    from ._compile import compile
     from .compilation_pipeline import (
         get_tir_pipeline,
         get_default_tir_pipeline,

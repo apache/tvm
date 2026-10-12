@@ -30,7 +30,7 @@ TARGET = tvm.target.Target({"kind": "cuda", "arch": env.cuda_arch() or "sm_90"})
 
 def _cuda_source(func) -> str:
     with TARGET:
-        mod = tvm.compile(tvm.IRModule({"main": func}), target=TARGET, tir_pipeline="tirx")
+        mod = tvm.tirx.compile(tvm.IRModule({"main": func}), target=TARGET, pipeline="tirx")
     return mod.mod.imports[0].inspect_source("cuda")
 
 

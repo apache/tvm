@@ -85,32 +85,32 @@ class PassContext : public ffi::ObjectRef {
    * \brief Construct a PassContext containing the default configurations.
    * \return The new PassContext.
    */
-  TVM_DLL static PassContext Create();
+  TVM_TIRX_DLL static PassContext Create();
   /*!
    * \brief Get the default pass context in the current scope.
    * \return The pass context.
    */
-  TVM_DLL static PassContext Current();
+  TVM_TIRX_DLL static PassContext Current();
 
   /*!
    * \brief Get all supported configuration names and metadata, registered within the PassContext.
    * \return Map indexed by the config name, pointing to the metadata map as key-value
    */
-  TVM_DLL static ffi::Map<ffi::String, ffi::Map<ffi::String, ffi::String>> ListConfigs();
+  TVM_TIRX_DLL static ffi::Map<ffi::String, ffi::Map<ffi::String, ffi::String>> ListConfigs();
 
   /*!
    * \brief Call instrument implementations' callbacks when entering PassContext.
    *        The callbacks are called in order, and if one raises an exception, the rest will not be
    *        called.
    */
-  TVM_DLL void InstrumentEnterPassContext();
+  TVM_TIRX_DLL void InstrumentEnterPassContext();
 
   /*!
    * \brief Call instrument implementations' callbacks when exiting PassContext.
    *        The callbacks are called in order, and if one raises an exception, the rest will not be
    *        called.
    */
-  TVM_DLL void InstrumentExitPassContext();
+  TVM_TIRX_DLL void InstrumentExitPassContext();
 
   /*!
    * \brief Call instrument implementations' callbacks before a pass run.
@@ -122,7 +122,7 @@ class PassContext : public ffi::ObjectRef {
    *
    * \return false: the pass is skipped; true: the pass runs.
    */
-  TVM_DLL bool InstrumentBeforePass(const IRModule& mod, const PassInfo& info) const;
+  TVM_TIRX_DLL bool InstrumentBeforePass(const IRModule& mod, const PassInfo& info) const;
 
   /*!
    * \brief Call instrument implementations callbacks after a pass run.
@@ -132,14 +132,14 @@ class PassContext : public ffi::ObjectRef {
    * \param mod The module that an optimization pass runs on.
    * \param info The pass information.
    */
-  TVM_DLL void InstrumentAfterPass(const IRModule& mod, const PassInfo& info) const;
+  TVM_TIRX_DLL void InstrumentAfterPass(const IRModule& mod, const PassInfo& info) const;
 
   /*!
    * \brief Check whether a pass is enabled.
    * \param info The pass information.
    * \return true if the pass is enabled. Otherwise, false.
    */
-  TVM_DLL bool PassEnabled(const PassInfo& info) const;
+  TVM_TIRX_DLL bool PassEnabled(const PassInfo& info) const;
 
   /*!
    * \brief Register a valid configuration option and its ValueType for validation.
@@ -190,12 +190,12 @@ class PassContext : public ffi::ObjectRef {
 
  private:
   // The entry of a pass context scope.
-  TVM_DLL void EnterWithScope();
+  TVM_TIRX_DLL void EnterWithScope();
   // The exit of a pass context scope.
-  TVM_DLL void ExitWithScope();
+  TVM_TIRX_DLL void ExitWithScope();
   // Register configuration key value type.
-  TVM_DLL static void RegisterConfigOption(const char* key, ffi::String value_type_str,
-                                           std::function<ffi::Any(ffi::Any)> legalization);
+  TVM_TIRX_DLL static void RegisterConfigOption(const char* key, ffi::String value_type_str,
+                                                std::function<ffi::Any(ffi::Any)> legalization);
 
   // Classes to get the Python `with` like syntax.
   friend class Internal;
@@ -255,7 +255,7 @@ class PassInfo : public ffi::ObjectRef {
    * \param opt_level The optimization level
    * \param name Name of the pass.
    */
-  TVM_DLL PassInfo(int opt_level, ffi::String name);
+  TVM_TIRX_DLL PassInfo(int opt_level, ffi::String name);
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(PassInfo, ffi::ObjectRef, PassInfoObj);
 };
@@ -384,7 +384,7 @@ class Sequential : public Pass {
    * \param passes The passes to apply.
    * \param pass_info The pass metadata.
    */
-  TVM_DLL Sequential(ffi::Array<Pass> passes, PassInfo pass_info);
+  TVM_TIRX_DLL Sequential(ffi::Array<Pass> passes, PassInfo pass_info);
 
   /*!
    * \brief The constructor of `Sequential`.
@@ -394,7 +394,7 @@ class Sequential : public Pass {
    *        This allows users to only provide a list of passes and execute them
    *        under a given context.
    */
-  TVM_DLL Sequential(ffi::Array<Pass> passes, ffi::String name = "sequential");
+  TVM_TIRX_DLL Sequential(ffi::Array<Pass> passes, ffi::String name = "sequential");
 
   explicit Sequential(ffi::UnsafeInit tag) : Pass(tag) {}
 
@@ -411,15 +411,15 @@ class Sequential : public Pass {
  *
  * \return The created module pass.
  */
-TVM_DLL Pass CreateModulePass(std::function<IRModule(IRModule, PassContext)> pass_func,
-                              int opt_level, ffi::String name);
+TVM_TIRX_DLL Pass CreateModulePass(std::function<IRModule(IRModule, PassContext)> pass_func,
+                                   int opt_level, ffi::String name);
 
 /*!
  * \brief A special trace pass that prints the header and IR to LOG(INFO).
  * \param header The header to be attached to the output.
  * \return The pass.
  */
-TVM_DLL Pass PrintIR(ffi::String header = "");
+TVM_TIRX_DLL Pass PrintIR(ffi::String header = "");
 
 /*!
  * \brief Enrich a pass-time error with a TVMScript-rendered, underlined source
@@ -442,7 +442,7 @@ TVM_DLL Pass PrintIR(ffi::String header = "");
  *             \p mod->functions[func]; otherwise use the whole module.
  * \return The enriched (or, on any fallback, the original) error.
  */
-TVM_DLL ffi::Error EnrichPassErrorWithContext(
+TVM_TIRX_DLL ffi::Error EnrichPassErrorWithContext(
     const ffi::Error& err, const IRModule& mod, ffi::String pass_name,
     ffi::Optional<GlobalVar> func = ffi::Optional<GlobalVar>(std::nullopt));
 

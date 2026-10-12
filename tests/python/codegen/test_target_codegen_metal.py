@@ -42,7 +42,7 @@ def test_metal_inf_nan():
                 with T.launch_thread("threadIdx.x", 1) as i:
                     C[i] = T.Cast(dtype, value)
 
-        fun = tvm.compile(Module, target=target)
+        fun = tvm.tirx.compile(Module, target=target)
 
         def run_and_check():
             dev = tvm.metal(0)
@@ -74,7 +74,7 @@ def test_unaligned_vectorize():
 
     target = "metal"
     a = (np.arange(6).reshape(2, 3)).astype("float32")
-    f = tvm.compile(IRModule, target=target)
+    f = tvm.tirx.compile(IRModule, target=target)
 
     def run_and_check():
         dev = tvm.metal()
@@ -103,7 +103,7 @@ def test_metal_erf():
                 with T.launch_thread("threadIdx.x", 1) as i0:
                     C[i0] = T.erf(A[i0])
 
-        fun = tvm.compile(Module, target=target)
+        fun = tvm.tirx.compile(Module, target=target)
 
         def run_and_check():
             dev = tvm.metal(0)
@@ -131,7 +131,7 @@ def test_ramp():
                 r: T.let = T.ramp(i, 3, 2)
                 A[0, T.ramp(0, 1, 2)] = r
 
-    f = tvm.compile(IRModule, target=target)
+    f = tvm.tirx.compile(IRModule, target=target)
 
     def run_and_check():
         dev = tvm.metal()
@@ -158,7 +158,7 @@ def test_select_vectorize():
 
     target = "metal"
     a = np.arange(6).astype("float32")
-    f = tvm.compile(IRModule, target=target)
+    f = tvm.tirx.compile(IRModule, target=target)
     a.reshape(3, 2)[:, 1] = 0
 
     def run_and_check():
@@ -181,7 +181,7 @@ def test_vectorized_uint8():
                 B[i * 4 + j] = T.Cast("float32", A[i * 4 + j])
 
     a = np.arange(16).astype("uint8")
-    f = tvm.compile(func, target="metal")
+    f = tvm.tirx.compile(func, target="metal")
 
     def run_and_check():
         dev = tvm.metal()
@@ -209,7 +209,7 @@ def test_func_with_trailing_pod_params():
 
     mod = tvm.IRModule({"main": func})
 
-    f = tvm.tirx.build(mod, target="metal")
+    f = tvm.tirx.compile(mod, target="metal").mod
     src: str = f.imports[0].inspect_source()
     occurrences = src.count("struct func_kernel_args_t")
     assert occurrences == 1, occurrences
@@ -239,7 +239,7 @@ def test_metal_compile_callback_source_passthrough():
 
     tvm.register_global_func("tvm_callback_metal_compile", inspect_callback, override=True)
     try:
-        f = tvm.compile(Module, target="metal")
+        f = tvm.tirx.compile(Module, target="metal")
         dev = tvm.metal()
         a = np.random.rand(n).astype("float32")
         a_nd = tvm.runtime.tensor(a, dev)
@@ -289,7 +289,7 @@ def test_metal_compile_callback_mixed_formats_rejected():
     tvm.register_global_func("tvm_callback_metal_compile", mixed_callback, override=True)
     try:
         with pytest.raises(Exception, match="inconsistent formats"):
-            tvm.compile(Module, target="metal")
+            tvm.tirx.compile(Module, target="metal")
     finally:
         tvm_ffi.registry.remove_global_func("tvm_callback_metal_compile")
 
@@ -310,7 +310,7 @@ def test_export_load_with_fallback(monkeypatch, tmp_path):
                     B[i_0 * 32 + i_1] = A[i_0 * 32 + i_1] + 1.0
 
     monkeypatch.setenv("TVM_COMPILE_FORCE_FALLBACK", "1")
-    host_lib = tvm.compile(Module, target="metal")
+    host_lib = tvm.tirx.compile(Module, target="metal")
     monkeypatch.delenv("TVM_COMPILE_FORCE_FALLBACK")
 
     lib_path = str(tmp_path / "lib.so")
@@ -652,7 +652,7 @@ def test_pointer_byte_offsets_execute_in_threadgroup_memory():
                     B[1] = typed_buffer[0]
                     B[2] = void_buffer[0]
 
-    executable = tvm.compile(Module, target="metal")
+    executable = tvm.tirx.compile(Module, target="metal")
     source = executable.mod.imports[0].inspect_source()
 
     assert "threadgroup float shared[16]" in source
