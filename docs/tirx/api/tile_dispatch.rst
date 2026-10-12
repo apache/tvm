@@ -24,7 +24,7 @@ The shared implementation is ``tvm.tirx.tile.instruction``; CUDA and
 Trainium's ``tile/instructions.py`` files contain the concrete contracts.
 
 Registration installs the fixed argument count, void return type, opaque
-side effects, category, printer name, and native Call validator on the Op.
+side effects, ``FTileOpDispatch``, printer name, and native Call validator on the Op.
 The validator also runs for directly constructed Calls and printer entry.
 Runtime expressions must be operands. New static qualifiers require a typed
 attribute field rather than an arbitrary dictionary.
@@ -33,6 +33,15 @@ Lowerers receive a semantic view and ``DispatchContext`` and return a
 ``tvm.tirx.Function`` body. They can prepare pointers/descriptors and expand
 layouts for the selected core instruction. They must report unsupported
 contracts rather than select a different instruction family.
+
+``FTileOpDispatch`` has the signature
+``(tvm.ir.Call, DispatchContext) -> tvm.tirx.Function``. Its presence identifies
+a tile Op; no separate category registration is required. ``Instruction``
+registers an adapter that decodes the semantic view and invokes its lowerer.
+Custom implementations can register the callback directly using
+``tvm.ir.register_op_attr(op_name, "FTileOpDispatch", dispatch)`` or C++
+``OpDef::set_attr<tile::FTileOpDispatch>``. The Call must carry reflected
+attributes with a string ``scope`` field in the target's execution hierarchy.
 
 Named workspace operands have fixed optional slots. Declare a workspace policy
 only for instructions that own such scratch storage; do not use it to hide

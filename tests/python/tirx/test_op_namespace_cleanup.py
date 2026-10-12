@@ -36,7 +36,7 @@ def _tile_calls(func):
         if (
             isinstance(stmt, tvm.ir.Call)
             and isinstance(stmt.op, Op)
-            and stmt.op.get_attr("TIRxOpCategory") in {"tile_primitive", "tile_composite"}
+            and stmt.op.get_attr("FTileOpDispatch") is not None
         ):
             calls.append(stmt)
 
@@ -114,7 +114,7 @@ def test_tensormap_encoding_accepts_attribute_keywords_and_defaults():
 
 
 def test_kernel_replace_point_is_builtin_marker_not_tile_primitive():
-    assert _op_attr("tirx.kernel_replace_point", "TIRxOpCategory") == "builtin"
+    assert _op_attr("tirx.kernel_replace_point", "FTileOpDispatch") is None
     assert "tirx.tile.kernel_replace_point" not in Op.list_op_names()
     assert hasattr(T, "kernel_replace_point")
     assert not hasattr(T.cuda.tile, "kernel_replace_point")
@@ -177,7 +177,7 @@ def test_device_intrinsic_namespaces_are_canonical_and_classified():
         (call.op.name, _op_attr(call.op.name, "TDeviceIntrinsicNamespace")) for call in calls
     ] == expected
     for op_name, namespace in expected:
-        assert _op_attr(op_name, "TIRxOpCategory") == "device_intrin"
+        assert _op_attr(op_name, "FTileOpDispatch") is None
         assert _op_attr(op_name, "TDeviceIntrinsicNamespace") == namespace
 
 
@@ -296,7 +296,7 @@ def test_device_intrinsic_printer_roundtrips_canonical_namespaces():
         ("tirx.metal.simd_shuffle_up", "metal"),
         ("tirx.metal.simd_shuffle_down", "metal"),
     ]:
-        assert _op_attr(op_name, "TIRxOpCategory") == "device_intrin"
+        assert _op_attr(op_name, "FTileOpDispatch") is None
         assert _op_attr(op_name, "TDeviceIntrinsicNamespace") == namespace
         assert _op_attr(op_name, "TCallEffectKind") in (1, 3)
 
@@ -311,11 +311,8 @@ def test_device_intrinsic_printer_roundtrips_canonical_namespaces():
     assert_structural_equal(device_namespaces, reparsed)
 
 
-def test_registered_tirx_ops_have_exactly_one_category():
-    if _op_attr("prim.sqrt", "TIRxOpCategory") is None:
-        pytest.skip("TIRx op categories require a rebuilt C++ runtime")
-
-    categories = {"builtin", "tile_primitive", "tile_composite", "device_intrin"}
+def test_registered_tirx_ops_use_dispatch_attributes():
+    assert not Op.get("prim.sqrt").has_attr("TIRxOpCategory")
     device_namespaces = {
         "cuda",
         "ptx",
@@ -351,38 +348,28 @@ def test_registered_tirx_ops_have_exactly_one_category():
         "tirx.zero",
     }
 
-    missing = []
-    invalid = []
     lingering_flat_tile = []
     for op_name in sorted(name for name in Op.list_op_names() if name.startswith("tirx.")):
-        category = _op_attr(op_name, "TIRxOpCategory")
+        dispatcher = _op_attr(op_name, "FTileOpDispatch")
         device_namespace = _op_attr(op_name, "TDeviceIntrinsicNamespace")
 
-        if category is None:
-            missing.append(op_name)
-            continue
-        if category not in categories:
-            invalid.append((op_name, category))
-            continue
         if op_name in flat_tile_only_names:
             lingering_flat_tile.append(op_name)
 
-        if category in {"tile_primitive", "tile_composite"}:
+        if dispatcher is not None:
+            assert callable(dispatcher), op_name
             if not op_name.startswith(("tirx.cuda.tile.", "tirx.trn.tile.")):
                 lingering_flat_tile.append(op_name)
             assert device_namespace is None, op_name
-        elif category == "device_intrin":
+        elif device_namespace is not None:
             assert device_namespace in device_namespaces, op_name
             printer_name = _op_attr(op_name, "TScriptPrinterName")
             assert printer_name is not None, op_name
             assert printer_name.startswith("tirx." + device_namespace + "."), op_name
             assert _has_path(T, printer_name.removeprefix("tirx.")), op_name
         else:
-            assert category == "builtin"
-            assert device_namespace is None, op_name
+            assert not op_name.startswith(("tirx.cuda.tile.", "tirx.trn.tile.")), op_name
 
-    assert not missing
-    assert not invalid
     assert not lingering_flat_tile
 
 

@@ -23,6 +23,7 @@
  */
 
 #include <tvm/backend/cuda/attr.h>
+#include <tvm/ffi/reflection/accessor.h>
 #include <tvm/ir/function.h>
 #include <tvm/ir/op.h>
 #include <tvm/ir/prim/op.h>
@@ -35,7 +36,6 @@
 #include <tvm/tirx/op/gpu.h>
 #include <tvm/tirx/op/memory.h>
 #include <tvm/tirx/op/region.h>
-#include <tvm/tirx/op_attr_types.h>
 #include <tvm/tirx/stmt.h>
 #include <tvm/tirx/stmt_functor.h>
 #include <tvm/tirx/tile/dispatch.h>
@@ -64,11 +64,10 @@ class NoOpCallVerifier : public Verifier<NoOpCallVerifier> {
   using Verifier::Visit;
 
   void Dispatch_(const CallNode* call, ffi::reflection::AccessPath path) final {
-    if (auto op = call->op.as<Op>()) {
-      static const auto& categories =
-          Op::GetAttrMap<TIRxOpCategory>(tvm::tirx::op_attr::kOpCategory);
-      auto category = categories.get(op.value(), ffi::String(""));
-      Verify(category != "tile_primitive" && category != "tile_composite")
+    if (auto op = call->op.as<Op>(); op && Op::HasAttrMap(tile::op_attr::kTileOpDispatch)) {
+      static const auto& dispatchers =
+          Op::GetAttrMap<tile::FTileOpDispatch>(tile::op_attr::kTileOpDispatch);
+      Verify(!dispatchers.count(op.value()))
           << "Unlowered tensor instruction " << op.value()->name << " at " << path;
     }
     Verifier::Dispatch_(call, path);
@@ -383,15 +382,21 @@ class TileDispatcher : public StmtExprMutator {
 
   UnchangedOr<Stmt> Mutate_(const EvaluateNode* stmt, InplaceMode inplace_mode) final {
     const auto* op = stmt->value.as<CallNode>();
-    if (!op || !op->op.as<Op>()) return StmtExprMutator::Mutate_(stmt, inplace_mode);
-    static const auto& categories = Op::GetAttrMap<TIRxOpCategory>(tvm::tirx::op_attr::kOpCategory);
-    auto category = categories.get(op->op.as_or_throw<Op>(), ffi::String(""));
-    if (category != "tile_primitive" && category != "tile_composite") {
+    if (!op || !op->op.as<Op>() || !Op::HasAttrMap(tile::op_attr::kTileOpDispatch)) {
+      return StmtExprMutator::Mutate_(stmt, inplace_mode);
+    }
+    static const auto& dispatchers =
+        Op::GetAttrMap<tile::FTileOpDispatch>(tile::op_attr::kTileOpDispatch);
+    if (!dispatchers.count(op->op.as_or_throw<Op>())) {
       return StmtExprMutator::Mutate_(stmt, inplace_mode);
     }
     op->op.as_or_throw<Op>().Validate(op);
-    static auto get_scope = ffi::Function::GetGlobalRequired("tirx.TensorCallScope");
-    ExecScope scope = get_scope(ffi::GetRef<Call>(op)).cast<ExecScope>();
+    TVM_FFI_CHECK(op->attrs.has_value(), ValueError)
+        << "A tile instruction must have scope attributes";
+    auto scope_name =
+        ffi::reflection::FieldGetter(op->attrs->GetTypeKey(), "scope")(op->attrs.value())
+            .cast<ffi::String>();
+    ExecScope scope(target_->kind->name, scope_name);
     ffi::Map<ffi::String, ffi::Array<PrimExpr>> inter_map, intra_map;
     ffi::String scope_kind = scope->name();
     if (cuda_analysis_) {
