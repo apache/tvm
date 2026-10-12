@@ -191,6 +191,7 @@ def _init_finalize(session_kind, num_workers):
 
 
 def _empty(session_kind, num_workers):
+    device = tvm.cuda()
     sess = session_kind(num_workers=num_workers)
     f_init_nvshmem_uid = tvm.get_global_func("runtime.disco.nvshmem.init_nvshmem_uid")
     uid = f_init_nvshmem_uid()
@@ -198,10 +199,9 @@ def _empty(session_kind, num_workers):
     init_dfunc(uid, num_workers, 0)
     sess.sync_worker_0()
     empty_dfunc = sess.get_global_func("runtime.disco.nvshmem.empty")
-    _a = empty_dfunc(Shape((32, 64)), "float32", None)
-    _b = empty_dfunc(Shape((64, 32)), "float32", None)
+    _a = empty_dfunc(Shape((32, 64)), "float32", device)
+    _b = empty_dfunc(Shape((64, 32)), "float32", device)
     sess.sync_worker_0()
-    del _a, _b
     finalize_dfunc = sess.get_global_func("runtime.disco.nvshmem.finalize_nvshmem")
     finalize_dfunc()
     sess.sync_worker_0()

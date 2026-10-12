@@ -18,14 +18,14 @@
  */
 
 /*!
- * \file src/runtime/memory/naive_allocator.h
+ * \file src/runtime/vm/memory/naive_allocator.h
  */
 #ifndef TVM_RUNTIME_MEMORY_NAIVE_ALLOCATOR_H_
 #define TVM_RUNTIME_MEMORY_NAIVE_ALLOCATOR_H_
 
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/runtime/memory/memory_manager.h>
+#include "memory_manager.h"
 
 #include <algorithm>
 #include <atomic>

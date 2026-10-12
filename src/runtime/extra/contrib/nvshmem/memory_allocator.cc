@@ -18,15 +18,10 @@
  */
 #include <nvshmem.h>
 #include <nvshmemx.h>
-#include <tvm/ffi/extra/c_env_api.h>
-#include <tvm/ffi/extra/cuda/device_guard.h>
+#include <tvm/ffi/extra/cuda/base.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/tensor.h>
-
-#include <memory>
-#include <mutex>
-#include <vector>
 
 #include "../../disco/utils.h"
 
@@ -34,144 +29,65 @@ namespace tvm {
 namespace runtime {
 
 /*!
- * \brief Tensor pool for the process-wide NVSHMEM symmetric heap.
- *
- * Allocations, tensor lifetimes and finalization must be collective and ordered
- * consistently across PEs, as required by nvshmem_align/nvshmem_free. In particular,
- * allocation failure must not trigger a unilateral cache eviction and retry.
- * Corresponding calls on every PE must use matching thread/stream pool histories.
+ * \brief Tensor pool for NVSHMEM symmetric memory.
+ * Allocations, releases and finalization retain NVSHMEM's collective ordering
+ * requirements. All tensor owners must be released before finalization.
  */
 class NVSHMEMPool final : public TensorMemoryPool {
  public:
-  NVSHMEMPool(uint64_t thread, TVMStreamHandle stream) : thread_(thread), stream_(stream) {}
+  explicit NVSHMEMPool() = default;
 
-  static ffi::Tensor EmptyForSession(ffi::ShapeView shape, DLDataType dtype, DLDevice device) {
-    auto* heap = Heap::Global();
-    std::lock_guard<std::mutex> lock(heap->mutex);
-    CheckInitialized();
-    TVM_FFI_CHECK(device.device_type == kDLCUDA, ValueError)
-        << "NVSHMEM can only allocate CUDA device memory";
-    int current_device;
-    TVM_FFI_CHECK_CUDA_ERROR(cudaGetDevice(&current_device));
-    TVM_FFI_CHECK_EQ(device.device_id, current_device, ValueError)
-        << "NVSHMEM tensors must use the current device of the symmetric heap";
-    TVM_FFI_CHECK(heap->device_id == -1 || heap->device_id == device.device_id, ValueError)
-        << "NVSHMEM tensors cannot share a symmetric heap across devices";
-    heap->device_id = device.device_id;
-    // Native thread identifiers may be reused after a worker exits.
-    static thread_local uint64_t thread = heap->next_thread_id++;
-    auto stream = TVMFFIEnvGetStream(device.device_type, device.device_id);
-    for (auto& pool : heap->pools) {
-      if (pool->thread_ == thread && pool->stream_ == stream) {
-        return pool->Empty(shape, dtype, device);
-      }
-    }
-    auto pool = ffi::make_object<NVSHMEMPool>(thread, stream);
-    heap->pools.push_back(pool);
-    return pool->Empty(shape, dtype, device);
+  /*! \brief Return the global NVSHMEM singleton pool. */
+  static NVSHMEMPool* Global() {
+    static auto* pool = new ffi::ObjectPtr<NVSHMEMPool>(ffi::make_object<NVSHMEMPool>());
+    return pool->get();
   }
 
   ffi::Tensor Empty(ffi::ShapeView shape, DLDataType dtype, DLDevice device,
                     ffi::Optional<ffi::String> mem_scope = std::nullopt) final {
-    TVM_FFI_CHECK(device.device_type == kDLCUDA, ValueError)
-        << "NVSHMEM can only allocate CUDA device memory";
+    TVM_FFI_ICHECK_EQ(device.device_type, DLDeviceType::kDLCUDA)
+        << "nvshmem can only allocate cuda device memory space.";
+    TVM_FFI_ICHECK(dtype.code == kDLInt || dtype.code == kDLUInt || dtype.code == kDLFloat ||
+                   dtype.code == kDLBfloat)
+        << "nvshmem can only allocate tensor with int, unsigned int, float, or bfloat data types.";
     TVM_FFI_CHECK(!mem_scope.has_value() || mem_scope.value() == "nvshmem", ValueError)
         << "NVSHMEM memory requires the nvshmem scope";
-    TVM_FFI_CHECK(dtype.code == kDLInt || dtype.code == kDLUInt || dtype.code == kDLFloat ||
-                      dtype.code == kDLBfloat,
-                  ValueError)
-        << "NVSHMEM supports int, unsigned int, float, and bfloat tensors";
     return TensorMemoryPool::Empty(shape, dtype, device);
   }
 
-  static void Finalize() {
-    auto* heap = Heap::Global();
-    std::lock_guard<std::mutex> lock(heap->mutex);
-    CheckInitialized();
-    for (auto& pool : heap->pools) {
-      TVM_FFI_CHECK(!pool->HasLiveAllocations(), ValueError)
-          << "Release all NVSHMEM tensors and views before finalizing NVSHMEM";
-    }
-    // Finalization is collective. Complete kernels before releasing the symmetric
-    // heap, including work enqueued on a stream other than the finalizing thread's.
-    int device_id = heap->device_id;
-    if (device_id == -1) TVM_FFI_CHECK_CUDA_ERROR(cudaGetDevice(&device_id));
-    ffi::CUDADeviceGuard guard(device_id);
-    TVM_FFI_CHECK_CUDA_ERROR(cudaDeviceSynchronize());
-    // Pools follow first-use order; each pool releases backing in allocation order.
-    // The application must issue the same collective allocation sequence on all PEs.
-    for (auto& pool : heap->pools) pool->Clear();
-    heap->pools.clear();
-    nvshmem_finalize();
-    heap->device_id = -1;
-  }
-
  private:
-  struct Heap {
-    std::mutex mutex;
-    int device_id = -1;
-    uint64_t next_thread_id = 0;
-    std::vector<ffi::ObjectPtr<NVSHMEMPool>> pools;
-    static Heap* Global() {
-      // Collective teardown is explicit, never part of process static destruction.
-      static auto* heap = new Heap();
-      return heap;
-    }
-  };
-
-  static void CheckInitialized() {
-    int status = nvshmemx_init_status();
-    TVM_FFI_CHECK(status == NVSHMEM_STATUS_IS_INITIALIZED || status == NVSHMEM_STATUS_LIMITED_MPG ||
-                      status == NVSHMEM_STATUS_FULL_MPG,
-                  ValueError)
-        << "NVSHMEM must be initialized before allocating or finalizing tensors";
-  }
-
-  ffi::Tensor AllocBacking(size_t nbytes, size_t alignment, DLDevice device) final {
-    struct Allocation {
-      void* data;
-      int device_id;
-      ~Allocation() {
-        // The owner is independent of the pool; finalize forbids outstanding leases.
-        if (data) {
-          ffi::CUDADeviceGuard guard(device_id);
-          nvshmem_free(data);
-        }
-      }
-    };
-    ffi::CUDADeviceGuard guard(device.device_id);
-    // Construct the independent owner before allocating the collective resource.
-    auto owner = std::make_shared<Allocation>();
-    owner->device_id = device.device_id;
-    owner->data = nvshmem_align(alignment, nbytes);
-    TVM_FFI_CHECK(owner->data != nullptr, InternalError) << "NVSHMEM allocation failed";
+  ffi::Tensor AllocBacking(size_t size, size_t alignment, DLDevice device) final {
     struct Backing {
-      std::shared_ptr<Allocation> owner;
-      void AllocData(DLTensor* tensor) { tensor->data = owner->data; }
-      void FreeData(DLTensor*) { owner.reset(); }
+      size_t size;
+      size_t alignment;
+      void AllocData(DLTensor* tensor) { tensor->data = nvshmem_align(alignment, size); }
+      void FreeData(DLTensor* tensor) { nvshmem_free(tensor->data); }
     };
-    int64_t extent = static_cast<int64_t>(nbytes);
-    return ffi::Tensor::FromNDAlloc(Backing{std::move(owner)}, ffi::ShapeView(&extent, 1),
+    int64_t extent = static_cast<int64_t>(size);
+    return ffi::Tensor::FromNDAlloc(Backing{size, alignment}, ffi::ShapeView(&extent, 1),
                                     DLDataType{kDLUInt, 8, 1}, device);
   }
-
-  uint64_t thread_;
-  TVMStreamHandle stream_;
 };
 
 ffi::Tensor NVSHMEMEmpty(ffi::Shape shape, DLDataType dtype, ffi::Optional<Device> device) {
   Device resolved_device =
       device.has_value() ? device.value() : UseDefaultDeviceIfNone(std::nullopt);
-  return NVSHMEMPool::EmptyForSession(shape, dtype, resolved_device);
+  return NVSHMEMPool::Global()->Empty(shape, dtype, resolved_device);
 }
-
-void NVSHMEMFinalize() { NVSHMEMPool::Finalize(); }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef()
-      .def("runtime.disco.nvshmem.empty", NVSHMEMEmpty)
-      .def("runtime.disco.nvshmem.finalize_nvshmem", NVSHMEMFinalize);
+  refl::GlobalDef().def("runtime.disco.nvshmem.empty", NVSHMEMEmpty);
+}
+
+void NVSHMEMFinalize() {
+  NVSHMEMPool::Global()->Clear();
+  nvshmem_finalize();
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("runtime.disco.nvshmem.finalize_nvshmem", NVSHMEMFinalize);
 }
 
 }  // namespace runtime

@@ -25,13 +25,13 @@
 #include <tvm/ffi/container/tensor.h>
 #include <tvm/ffi/function.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/runtime/memory/memory_manager.h>
 #include <tvm/runtime/vm/vm.h>
 #include <tvm/support/cuda/nvtx.h>
 
 #include <thread>
 
 #include "./module_utils.h"
+#include "memory/memory_manager.h"
 
 namespace tvm {
 namespace runtime {
@@ -194,8 +194,7 @@ class VirtualMachineImpl : public VirtualMachine {
   // Public facing functions overloading
   //---------------------------------------------------
   void LoadExecutable(ffi::ObjectPtr<VMExecutable> exec) final;
-  void Init(const std::vector<Device>& devices,
-            const std::vector<AllocatorType>& alloc_types) final;
+  void Init(const std::vector<Device>& devices, const std::vector<int>& alloc_types) final;
   VMClosure GetClosure(const ffi::String& func_name) final {
     return this->GetClosureInternal(func_name, false).value();
   }
@@ -464,13 +463,14 @@ void VirtualMachineImpl::LoadExecutable(ffi::ObjectPtr<VMExecutable> exec) {
 }
 
 void VirtualMachineImpl::Init(const std::vector<Device>& devices,
-                              const std::vector<AllocatorType>& alloc_types) {
+                              const std::vector<int>& alloc_types) {
   TVM_FFI_ICHECK_EQ(devices.size(), alloc_types.size());
 
   this->devices.reserve(devices.size());
   this->allocators.reserve(alloc_types.size());
   for (size_t i = 0; i < devices.size(); i++) {
-    auto alloc = MemoryManager::GetOrCreateAllocator(devices[i], alloc_types[i]);
+    auto alloc =
+        MemoryManager::GetOrCreateAllocator(devices[i], static_cast<AllocatorType>(alloc_types[i]));
     this->devices.push_back(devices[i]);
     this->allocators.push_back(alloc);
   }
@@ -839,13 +839,13 @@ ffi::ObjectPtr<VirtualMachine> VirtualMachine::Create() {
 void VirtualMachineImpl::_Init(ffi::PackedArgs args, ffi::Any* rv) {
   TVM_FFI_ICHECK_EQ(args.size() % 3, 0);
   std::vector<Device> devices;
-  std::vector<AllocatorType> alloc_types;
+  std::vector<int> alloc_types;
   for (int i = 0; i < args.size(); i += 3) {
     int device_type = args[i].cast<int>();
     int device_id = args[i + 1].cast<int>();
     int alloc_type = args[i + 2].cast<int>();
     devices.push_back(Device{DLDeviceType(device_type), device_id});
-    alloc_types.push_back(AllocatorType(alloc_type));
+    alloc_types.push_back(alloc_type);
   }
   this->Init(devices, alloc_types);
 }

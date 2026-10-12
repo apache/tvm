@@ -28,7 +28,6 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/disco/disco_worker.h>
-#include <tvm/runtime/memory/memory_manager.h>
 #include <tvm/runtime/tensor.h>
 #include <tvm/support/cuda/nvtx.h>
 
@@ -45,6 +44,7 @@
 #include "attn_backend.h"
 #include "attn_utils.h"
 #include "kv_state.h"
+#include "memory/memory_manager.h"
 
 namespace tvm {
 namespace runtime {

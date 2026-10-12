@@ -65,9 +65,6 @@ inline bool CanApplyTwoShotAllReduce(int64_t num_elements, DLDataType dtype, int
 void CustomAllReduce(DLTensor* send, int strategy, DLTensor* recv) {
   int64_t num_elements = TensorSize(send);
   nccl::CCLThreadLocalContext* ctx = nccl::CCLThreadLocalContext::Get();
-  TVM_FFI_CHECK(ctx->worker && ctx->global_comm, ValueError)
-      << "CUDA IPC all-reduce requires an initialized NCCL worker";
-  deviceStream_t stream = ctx->GetDefaultStream();
   TVM_FFI_ICHECK_EQ(ctx->worker->num_groups, 1)
       << "Custom AllReduce for multiple group is not yet implemented.";
 
@@ -81,27 +78,20 @@ void CustomAllReduce(DLTensor* send, int strategy, DLTensor* recv) {
   if (strategy_ == tensorrt_llm::AllReduceStrategyType::RING ||
       !CanApplyCustomAllReduce(num_elements, send->dtype)) {
     // Dispatch to nccl AllReduce if the customized all-reduce cannot apply.
+    deviceStream_t stream = ctx->GetDefaultStream();
     NCCL_CALL(ncclAllReduce(send->data, recv->data, num_elements,
                             /*datatype=*/nccl::AsNCCLDataType(send->dtype),
                             /*op=*/ncclSum, ctx->global_comm, stream));
     return;
   }
 
-  CUDAIPCMemory ipc_memory = CUDAIPCMemory::GetIPCMemoryFromDevicePtr(send->data);
-  TVM_FFI_ICHECK_EQ(ipc_memory->num_workers, ctx->worker->num_workers);
-  TVM_FFI_ICHECK_EQ(ipc_memory->worker_id, ctx->worker->worker_id);
-  TVM_FFI_CHECK(ipc_memory->device_id == ctx->device_id &&
-                    ipc_memory->generation == ctx->generation &&
-                    ipc_memory->communicator == ctx->global_comm && ipc_memory->stream == stream,
-                ValueError)
-      << "CUDA IPC memory belongs to another communicator, device, or stream";
-
   // Initialize the all-reduce kernel arguments.
   tensorrt_llm::AllReduceParams params;
   params.ranks_per_node = ctx->worker->num_workers;
   params.rank = ctx->worker->worker_id;
   params.local_rank = ctx->worker->worker_id;
-  params.barrier_flag = ipc_memory->barrier_flag.fetch_add(1, std::memory_order_relaxed);
+  CUDAIPCMemory ipc_memory = CUDAIPCMemory::GetIPCMemoryFromDevicePtr(send->data);
+  params.barrier_flag = ipc_memory->barrier_flag++;
   for (int i = 0; i < ctx->worker->num_workers; ++i) {
     params.peer_comm_buffer_ptrs[i] = ipc_memory->remote_data[i];
   }
@@ -118,7 +108,8 @@ void CustomAllReduce(DLTensor* send, int strategy, DLTensor* recv) {
     strategy_ = tensorrt_llm::AllReduceStrategyType::ONESHOT;
   }
 
-  tensorrt_llm::customAllReduce(params, recv->data, num_elements, send->dtype, strategy_, stream);
+  tensorrt_llm::customAllReduce(params, recv->data, num_elements, send->dtype, strategy_,
+                                ctx->GetDefaultStream());
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

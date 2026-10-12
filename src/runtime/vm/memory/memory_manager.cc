@@ -18,14 +18,14 @@
  */
 
 /*!
- * \file tvm/runtime/memory/memory_manager.cc
+ * \file src/runtime/vm/memory/memory_manager.cc
  * \brief Allocate and manage memory for the runtime.
  */
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/runtime/memory/memory_manager.h>
+#include "memory_manager.h"
 
 #include <memory>
 #include <utility>
@@ -41,20 +41,6 @@ Storage::Storage(Buffer buffer, Allocator* allocator) {
   auto n = ffi::make_object<StorageObj>();
   n->buffer = std::move(buffer);
   n->allocator = allocator;
-  data_ = std::move(n);
-}
-
-Storage::Storage(ffi::Tensor backing) {
-  TVM_FFI_CHECK(backing.defined(), ValueError) << "VM storage requires a defined backing tensor";
-  TVM_FFI_CHECK(ffi::IsContiguous(*backing.GetDLTensorPtr()) && backing.byte_offset() == 0,
-                ValueError)
-      << "VM storage requires compact backing with zero byte offset";
-  auto n = ffi::make_object<StorageObj>();
-  n->buffer.data = backing.data_ptr();
-  n->buffer.size = ffi::GetDataSize(backing);
-  n->buffer.device = backing.device();
-  n->buffer.alloc_type = kPooled;
-  n->backing = std::move(backing);
   data_ = std::move(n);
 }
 
@@ -82,8 +68,6 @@ ffi::Tensor StorageObj::AllocTensorScoped(int64_t offset, ffi::Shape shape, DLDa
     return AllocTensor(offset, shape, dtype);
   }
   VerifyDataType(dtype);
-  TVM_FFI_CHECK(allocator != nullptr, ValueError)
-      << "This tensor-backed VM storage does not support physical scoped views";
 
   struct StorageScopedAlloc {
    public:
@@ -149,105 +133,45 @@ MemoryManager* MemoryManager::Global() {
   return inst;
 }
 
-// The VM owns its legacy Buffer/Storage adaptation. Backends expose only owning
-// tensors and physical views, so ordinary backend allocations never depend on it.
-class OpenCLVMAllocator final : public Allocator {
- public:
-  explicit OpenCLVMAllocator(AllocatorType type) : Allocator(type) {}
-
-  Buffer Alloc(Device dev, size_t nbytes, size_t alignment, DLDataType dtype) final {
-    alignment = std::max<size_t>(alignment, kAllocAlignment);
-    TVM_FFI_CHECK_LE(alignment, std::numeric_limits<uint16_t>::max(), ValueError)
-        << "OpenCL allocation alignment cannot be represented";
-    TVM_FFI_CHECK_LE(nbytes, static_cast<size_t>(std::numeric_limits<int64_t>::max()), ValueError)
-        << "OpenCL allocation size overflows";
-    int64_t size = static_cast<int64_t>(nbytes / alignment + (nbytes % alignment != 0));
-    return Keep(
-        dev, nbytes,
-        Allocate({size}, DLDataType{kDLUInt, 8, static_cast<uint16_t>(alignment)}, dev, "global"));
+std::string DeviceTypeStr(DLDeviceType type) {
+  switch (type) {
+    case kDLOpenCL:
+      return "opencl";
+      break;
+    case kDLVulkan:
+      return "vulkan";
+      break;
+    default:
+      return "";
   }
-
-  Buffer Alloc(Device dev, ffi::Shape shape, DLDataType dtype, const std::string& scope) final {
-    auto owner = Allocate(shape, dtype, dev, scope);
-    size_t nbytes = ffi::GetDataSize(owner);
-    return Keep(dev, nbytes, std::move(owner));
-  }
-
-  void Free(const Buffer& buffer) final {
-    ffi::Tensor owner;
-    {
-      std::lock_guard<std::mutex> lock(mutex_);
-      auto it = owners_.find(buffer.data);
-      TVM_FFI_ICHECK(it != owners_.end());
-      owner = std::move(it->second);
-      owners_.erase(it);
-      used_memory_ -= buffer.size;
-    }
-  }
-
-  void* CreateView(const Buffer& buffer, ffi::Shape shape, DLDataType dtype,
-                   const std::string& scope) final {
-    ffi::Tensor backing;
-    {
-      std::lock_guard<std::mutex> lock(mutex_);
-      auto it = owners_.find(buffer.data);
-      TVM_FFI_ICHECK(it != owners_.end());
-      backing = it->second;
-    }
-    auto f = ffi::Function::GetGlobalRequired("runtime.opencl.create_view");
-    auto view = f(backing, shape, dtype, ffi::String(scope)).cast<ffi::Tensor>();
-    void* data = view.data_ptr();
-    std::lock_guard<std::mutex> lock(mutex_);
-    views_.emplace(data, std::move(view));
-    return data;
-  }
-
-  void FreeView(Device, void* data) final {
-    ffi::Tensor owner;
-    {
-      std::lock_guard<std::mutex> lock(mutex_);
-      auto it = views_.find(data);
-      TVM_FFI_ICHECK(it != views_.end());
-      owner = std::move(it->second);
-      views_.erase(it);
-    }
-  }
-
-  void Clear() final { ffi::Function::GetGlobalRequired("runtime.opencl.clear_pool")(); }
-  size_t UsedMemory() const final { return used_memory_.load(std::memory_order_relaxed); }
-
- private:
-  static ffi::Tensor Allocate(ffi::Shape shape, DLDataType dtype, Device dev,
-                              const std::string& scope) {
-    return ffi::Function::GetGlobalRequired("runtime.opencl.alloc_tensor")(shape, dtype, dev,
-                                                                           ffi::String(scope))
-        .cast<ffi::Tensor>();
-  }
-
-  Buffer Keep(Device dev, size_t nbytes, ffi::Tensor owner) {
-    Buffer result{owner.data_ptr(), nbytes, dev, type()};
-    std::lock_guard<std::mutex> lock(mutex_);
-    owners_.emplace(result.data, std::move(owner));
-    used_memory_ += nbytes;
-    return result;
-  }
-
-  std::atomic<size_t> used_memory_{0};
-  std::mutex mutex_;
-  std::unordered_multimap<void*, ffi::Tensor> owners_;
-  std::unordered_multimap<void*, ffi::Tensor> views_;
-};
+}
 
 Allocator* GetDeviceSpecificAllocator(Device dev, AllocatorType type) {
-  if (dev.device_type == kDLOpenCL) return new OpenCLVMAllocator(type);
-  switch (type) {
-    case kNaive:
-      return new NaiveAllocator();
-    case kPooled:
-      return new PooledAllocator();
-    default:
-      TVM_FFI_THROW(InternalError) << "Unknown allocator type: " << type;
+  std::string dev_str = DeviceTypeStr(dev.device_type);
+  auto device_alloc_helper = tvm::ffi::Function::GetGlobal("DeviceAllocator." + dev_str);
+  void* valloc;
+  Allocator* allocator = nullptr;
+  if (device_alloc_helper) {
+    valloc = (*device_alloc_helper)(dev, static_cast<int>(type)).cast<void*>();
+    allocator = static_cast<Allocator*>(valloc);
   }
+  if (nullptr == allocator) {
+    switch (type) {
+      case kNaive: {
+        VLOG(1) << "New naive allocator for " << dev;
+        allocator = new NaiveAllocator();
+        break;
+      }
+      case kPooled: {
+        VLOG(1) << "New pooled allocator for " << dev;
+        allocator = new PooledAllocator();
+        break;
+      }
+      default:
+        TVM_FFI_THROW(InternalError) << "Unknown allocator type: " << type;
+    }
+  }
+  return allocator;
 }
 
 Allocator* MemoryManager::GetOrCreateAllocator(Device dev, AllocatorType type) {

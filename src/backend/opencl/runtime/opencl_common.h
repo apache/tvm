@@ -263,6 +263,8 @@ class OpenCLWorkspace : public DeviceAPI {
   // the mutex for initialization
   std::mutex mu;
 
+  OpenCLWorkspace();
+
   // destructor
   ~OpenCLWorkspace() {
     for (auto& it : contexts) {
@@ -385,8 +387,6 @@ class OpenCLWorkspace : public DeviceAPI {
     return "";
   }
   std::string noDevicesErrorMsg = "";
-  ffi::ObjectPtr<TensorMemoryPool> GetMemoryPool();
-  std::mutex pool_mutex_;
   ffi::ObjectPtr<TensorMemoryPool> memory_pool_;
 };
 
@@ -450,8 +450,7 @@ struct BufferDescriptor {
   cl::BufferDescriptor* back_buffer{nullptr};
   cl_uchar* host_ptr{nullptr};
   MemoryLayout layout{MemoryLayout::kBuffer1D};
-  // Images release their physical view before this owning buffer tensor.
-  ffi::Tensor backing;
+  ffi::Tensor backing;  // Owns the pooled buffer underlying an image.
   bool is_compat_view{false};
 };
 }  // namespace cl

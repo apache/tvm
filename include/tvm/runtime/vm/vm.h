@@ -24,24 +24,23 @@
 #define TVM_RUNTIME_VM_VM_H_
 
 #include <tvm/ffi/extra/module.h>
+#include <tvm/runtime/device_api.h>
 
 #include <memory>
 #include <string>
 #include <unordered_map>
 #include <vector>
 
-#include "../memory/memory_manager.h"
 #include "./bytecode.h"
 #include "./executable.h"
 
 namespace tvm {
 namespace runtime {
+namespace memory {
+class Allocator;
+}  // namespace memory
 
 using memory::Allocator;
-using memory::AllocatorType;
-using memory::MemoryManager;
-using memory::Storage;
-using memory::StorageObj;
 
 namespace vm {
 
@@ -130,8 +129,7 @@ class VirtualMachine : public ffi::ModuleObj {
    * \param devices The set of TVM devices.
    * \param alloc_types The allocator types for each device.
    */
-  virtual void Init(const std::vector<Device>& devices,
-                    const std::vector<AllocatorType>& alloc_types) = 0;
+  virtual void Init(const std::vector<Device>& devices, const std::vector<int>& alloc_types) = 0;
   /*!
    * \brief Load the executable for the virtual machine.
    * \param exec The executable.

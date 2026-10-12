@@ -39,8 +39,8 @@
 #include <atomic>
 #include <functional>
 #include <limits>
-#include <map>
 #include <mutex>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -60,180 +60,110 @@ namespace runtime {
  */
 class TensorMemoryPool : public ffi::Object {
  public:
+  explicit TensorMemoryPool(size_t page_size = 4096) : page_size_(page_size), used_memory_(0) {
+    TVM_FFI_CHECK_GT(page_size_, 0, ValueError) << "Pool page size must be positive";
+    TVM_FFI_CHECK_LE(page_size_, static_cast<size_t>(std::numeric_limits<int64_t>::max()),
+                     ValueError);
+  }
+
   virtual ~TensorMemoryPool() { Clear(); }
 
   /*! \brief Return an owning compact tensor in ordinary global memory. */
   virtual ffi::Tensor Empty(ffi::ShapeView shape, DLDataType dtype, DLDevice device,
                             ffi::Optional<ffi::String> mem_scope = std::nullopt) {
+    std::lock_guard<std::recursive_mutex> lock(mu_);
     TVM_FFI_CHECK(!mem_scope.has_value() || (*mem_scope).empty() || *mem_scope == "global",
                   ValueError)
         << "TensorMemoryPool only supports global memory";
-    TVM_FFI_CHECK_GE(device.device_id, 0, ValueError) << "Invalid device index";
-    size_t nbytes = DataSize(shape, dtype);
-    constexpr size_t kPageSize = 4096;
-    const uint64_t max_capacity =
-        std::min<uint64_t>(std::numeric_limits<size_t>::max(), std::numeric_limits<int64_t>::max());
-    TVM_FFI_CHECK_LE(std::max<size_t>(nbytes, 1), max_capacity - (kPageSize - 1), ValueError)
+    size_t nbytes = ffi::GetDataSize(shape.Product(), dtype);
+    TVM_FFI_CHECK_LE(std::max<size_t>(nbytes, 1),
+                     static_cast<size_t>(std::numeric_limits<int64_t>::max()) - (page_size_ - 1),
+                     ValueError)
         << "Rounded tensor allocation size overflows";
-    size_t capacity = (std::max<size_t>(nbytes, 1) + kPageSize - 1) / kPageSize * kPageSize;
-    // Backends may encode vector alignment through dtype. Round up instead of
-    // passing a non-power-of-two alignment to a raw allocator.
+    size_t size = ((std::max<size_t>(nbytes, 1) + page_size_ - 1) / page_size_) * page_size_;
     size_t alignment = kAllocAlignment;
     size_t element_bytes = (static_cast<size_t>(dtype.bits) * dtype.lanes + 7) / 8;
     while (alignment < element_bytes) alignment *= 2;
 
-    Lease lease;
-    lease.pool = ffi::GetObjectPtr<TensorMemoryPool>(this);
-    {
-      std::lock_guard<std::mutex> lock(mutex_);
-      lease.generation = generation_;
-      lease.entry.device = device;
-      lease.entry.alignment = alignment;
-      lease.entry.capacity = capacity;
-      auto best = cache_.end();
-      for (auto it = cache_.begin(); it != cache_.end(); ++it) {
-        const Entry& e = it->second;
-        if (e.device.device_type == device.device_type && e.device.device_id == device.device_id &&
-            e.alignment >= alignment && e.capacity >= capacity &&
-            (best == cache_.end() || e.capacity < best->second.capacity)) {
-          best = it;
-        }
+    ffi::Tensor backing;
+    auto it = memory_pool_.find(size);
+    if (it != memory_pool_.end()) {
+      auto& pool = it->second;
+      bool addressable = DeviceAPI::Get(device)->SupportsDevicePointerArithmeticsOnHost();
+      auto candidate = std::find_if(pool.begin(), pool.end(), [&](const ffi::Tensor& tensor) {
+        return tensor.device().device_type == device.device_type &&
+               tensor.device().device_id == device.device_id &&
+               (!addressable || reinterpret_cast<uintptr_t>(tensor.data_ptr()) % alignment == 0);
+      });
+      if (candidate != pool.end()) {
+        backing = std::move(*candidate);
+        pool.erase(candidate);
       }
-      if (best != cache_.end()) {
-        lease.id = best->first;
-        lease.entry = std::move(best->second);
-        cache_.erase(best);
-      } else {
-        lease.id = next_id_++;
-      }
-      ++live_allocations_;
     }
+    if (!backing.defined()) {
+      // Collective backends cannot retry by unilaterally releasing cached buffers.
+      // Any allocation-pressure retry belongs to the non-collective adapter.
+      backing = AllocBacking(size, alignment, device);
+      used_memory_.fetch_add(size, std::memory_order_relaxed);
+    }
+    Lease lease{ffi::GetObjectPtr<TensorMemoryPool>(this), std::move(backing)};
     try {
-      if (!lease.entry.backing.defined()) {
-        lease.entry.backing = AllocBacking(capacity, alignment, device);
-        TVM_FFI_CHECK(lease.entry.backing.defined(), ValueError)
-            << "AllocBacking returned an undefined tensor";
-        try {
-          const DLTensor& t = *lease.entry.backing.GetDLTensorPtr();
-          TVM_FFI_CHECK(t.device.device_type == device.device_type &&
-                            t.device.device_id == device.device_id && t.ndim == 1 &&
-                            t.dtype.code == kDLUInt && t.dtype.bits == 8 && t.dtype.lanes == 1 &&
-                            t.shape[0] == static_cast<int64_t>(capacity) && t.byte_offset == 0 &&
-                            ffi::IsContiguous(t) && t.data != nullptr,
-                        ValueError)
-              << "AllocBacking must return an owning uint8[capacity] tensor";
-        } catch (...) {
-          lease.entry.backing = ffi::Tensor();
-          throw;
-        }
-      }
       return ffi::Tensor::FromNDAlloc(lease, shape, dtype, device);
     } catch (...) {
-      Recycle(lease.id, lease.generation, std::move(lease.entry));
+      // Tensor metadata allocation may fail before the owning tensor exists.
+      Recycle(std::move(lease.backing));
       throw;
     }
   }
 
-  /*!
-   * \brief Release cached allocations. Live tensors remain valid.
-   * \note Live allocations from before Clear are released, not cached, on return.
-   */
+  /*! \brief Release cached backing; live tensors remain valid and may return later. */
   void Clear() {
-    std::map<uint64_t, Entry> old;
-    {
-      std::lock_guard<std::mutex> lock(mutex_);
-      ++generation_;
-      old.swap(cache_);
+    std::lock_guard<std::recursive_mutex> lock(mu_);
+    for (const auto& [size, pool] : memory_pool_) {
+      used_memory_.fetch_sub(size * pool.size(), std::memory_order_relaxed);
     }
-    // Explicit allocation order also keeps collective backend frees deterministic.
-    // Do not rely on an STL container's unspecified element destruction order.
-    while (!old.empty()) old.erase(old.begin());
+    memory_pool_.clear();
   }
+
+  /*! \brief Bytes held by this pool, including checked-out backing. */
+  size_t UsedMemory() const { return used_memory_.load(std::memory_order_relaxed); }
 
   static constexpr bool _type_mutable = true;
   TVM_FFI_DECLARE_OBJECT_INFO("runtime.TensorMemoryPool", TensorMemoryPool, ffi::Object);
 
  protected:
-  TensorMemoryPool() = default;
-
   /*!
    * \brief Allocate fresh owning uint8[nbytes] backing at the requested alignment.
-   * \note Backing may contain an opaque device handle. Its deleter must own its
-   * resources independently of the pool and may not route back through a pooled
-   * DeviceAPI::Empty implementation.
+   * \note Opaque handles must satisfy backend alignment requirements. The backing
+   * owner releases its resources independently of the pool and must not allocate
+   * through a DeviceAPI::Empty implementation that routes back to this pool.
    */
   virtual ffi::Tensor AllocBacking(size_t nbytes, size_t alignment, DLDevice device) = 0;
 
-  /*! \brief Whether a backend must defer resource-session teardown. */
-  bool HasLiveAllocations() const {
-    std::lock_guard<std::mutex> lock(mutex_);
-    return live_allocations_ != 0;
-  }
-
  private:
-  struct Entry {
-    DLDevice device{};
-    size_t alignment{0};
-    size_t capacity{0};
-    ffi::Tensor backing;
-  };
   struct Lease {
     ffi::ObjectPtr<TensorMemoryPool> pool;
-    uint64_t id{0};
-    uint64_t generation{0};
-    Entry entry;
-    void AllocData(DLTensor* tensor) { tensor->data = entry.backing.data_ptr(); }
-    void FreeData(DLTensor*) noexcept { pool->Recycle(id, generation, std::move(entry)); }
+    ffi::Tensor backing;
+
+    void AllocData(DLTensor* tensor) { tensor->data = backing.data_ptr(); }
+    void FreeData(DLTensor*) { pool->Recycle(std::move(backing)); }
   };
 
-  void Recycle(uint64_t id, uint64_t generation, Entry entry) noexcept {
+  void Recycle(ffi::Tensor backing) {
+    std::lock_guard<std::recursive_mutex> lock(mu_);
+    size_t size = ffi::GetDataSize(backing);
     try {
-      std::lock_guard<std::mutex> lock(mutex_);
-      if (generation == generation_ && entry.backing.defined()) {
-        cache_.emplace(id, std::move(entry));
-        --live_allocations_;
-        return;
-      }
-    } catch (...) {
-      // A failed cache insertion must not escape tensor destruction.
+      memory_pool_[size].push_back(std::move(backing));
+    } catch (const std::bad_alloc&) {
+      // A cache insertion failure must not escape tensor destruction.
+      used_memory_.fetch_sub(size, std::memory_order_relaxed);
     }
-    // Backend finalizers use live ownership to exclude concurrent teardown. Keep
-    // this lease live until uncached resources have finished releasing, outside
-    // the cache mutex.
-    entry.backing = ffi::Tensor();
-    std::lock_guard<std::mutex> lock(mutex_);
-    --live_allocations_;
   }
 
-  static size_t DataSize(ffi::ShapeView shape, DLDataType dtype) {
-    TVM_FFI_CHECK_LE(shape.size(), static_cast<size_t>(std::numeric_limits<int>::max()), ValueError)
-        << "Tensor rank is too large";
-    TVM_FFI_CHECK(dtype.bits != 0 && dtype.lanes != 0, ValueError)
-        << "Tensor dtype must have a fixed nonzero element size";
-    uint64_t numel = 1;
-    // FFI materializes compact int64 strides, including suffixes of empty shapes.
-    for (size_t i = shape.size(); i != 0; --i) {
-      int64_t dim = shape[i - 1];
-      TVM_FFI_CHECK_GE(dim, 0, ValueError) << "Tensor dimensions must be nonnegative";
-      TVM_FFI_CHECK(dim == 0 || numel <= uint64_t(std::numeric_limits<int64_t>::max()) / dim,
-                    ValueError)
-          << "Tensor shape or compact strides overflow";
-      numel *= static_cast<uint64_t>(dim);
-    }
-    uint64_t element_bits = uint64_t(dtype.bits) * dtype.lanes;
-    TVM_FFI_CHECK_LE(numel, (std::numeric_limits<uint64_t>::max() - 7) / element_bits, ValueError)
-        << "Tensor byte size overflows";
-    uint64_t nbytes = (numel * element_bits + 7) / 8;
-    TVM_FFI_CHECK_LE(nbytes, std::numeric_limits<size_t>::max(), ValueError)
-        << "Tensor byte size exceeds addressable memory";
-    return static_cast<size_t>(nbytes);
-  }
-
-  mutable std::mutex mutex_;
-  std::map<uint64_t, Entry> cache_;
-  uint64_t next_id_{0};
-  uint64_t generation_{0};
-  size_t live_allocations_{0};
+  size_t page_size_;
+  std::atomic<size_t> used_memory_;
+  std::unordered_map<size_t, std::vector<ffi::Tensor>> memory_pool_;
+  std::recursive_mutex mu_;
 };
 
 /*!

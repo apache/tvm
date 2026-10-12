@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file tvm/runtime/memory/memory_manager.h
+ * \file src/runtime/vm/memory/memory_manager.h
  * \brief Abstract device memory management API
  */
 #ifndef TVM_RUNTIME_MEMORY_MEMORY_MANAGER_H_
@@ -160,8 +160,6 @@ class StorageObj : public ffi::Object {
   Buffer buffer;
   /*! \brief The allocator where the storage buffer is allocated from. */
   Allocator* allocator = nullptr;
-  /*! \brief Owning backend tensor for VM-side compatibility allocations. */
-  ffi::Tensor backing;
 
   /*! \brief Allocate an Tensor from a given piece of storage. */
   TVM_RUNTIME_DLL ffi::Tensor AllocTensor(int64_t offset, ffi::Shape shape, DLDataType dtype);
@@ -184,7 +182,6 @@ class StorageObj : public ffi::Object {
 class Storage : public ffi::ObjectRef {
  public:
   TVM_RUNTIME_DLL explicit Storage(Buffer buffer, Allocator* allocator);
-  TVM_RUNTIME_DLL explicit Storage(ffi::Tensor backing);
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Storage, ffi::ObjectRef, StorageObj);
 };
