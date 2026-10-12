@@ -47,22 +47,22 @@ struct ThreadWorkLoad {
    * \param i The block dimension.
    * \return i-th block dim
    */
-  inline size_t block_dim(size_t i) const { return work_size[i + 3]; }
+  inline size_t BlockDim(size_t i) const { return work_size[i + 3]; }
   /*!
    * \param i The grid dimension.
    * \return i-th grid dim
    */
-  inline size_t grid_dim(size_t i) const { return work_size[i]; }
+  inline size_t GridDim(size_t i) const { return work_size[i]; }
   /*!
    * \param i The cluster dimension.
    * \return i-th cluster dim
    */
-  inline size_t cluster_dim(size_t i) const { return work_size[i + 6]; }
+  inline size_t ClusterDim(size_t i) const { return work_size[i + 6]; }
   /*!
    * \param i The preferred cluster dimension.
    * \return i-th preferred cluster dim
    */
-  inline size_t preferred_cluster_dim(size_t i) const { return work_size[i + 9]; }
+  inline size_t PreferredClusterDim(size_t i) const { return work_size[i + 9]; }
 };
 
 /*! \brief Launch parameters configuration */
@@ -85,7 +85,7 @@ class LaunchParamConfig {
       } else if (tag == launch_param::kUseRequiredBlockDimension) {
         use_required_block_dimension_ = true;
       } else {
-        static constexpr const char* dimension_tags[] = {"blockIdx.x",
+        static constexpr const char* kDimensionTags[] = {"blockIdx.x",
                                                          "blockIdx.y",
                                                          "blockIdx.z",
                                                          "threadIdx.x",
@@ -98,7 +98,7 @@ class LaunchParamConfig {
                                                          "preferredClusterCtaIdx.y",
                                                          "preferredClusterCtaIdx.z"};
         uint32_t index = 0;
-        while (index < 12 && tag != dimension_tags[index]) {
+        while (index < 12 && tag != kDimensionTags[index]) {
           ++index;
         }
         TVM_FFI_ICHECK_LT(index, 12) << "Unsupported launch parameter tag: " << tag;
@@ -137,7 +137,7 @@ class LaunchParamConfig {
   // return the work dim
   size_t work_dim() const { return work_dim_; }
 
-  bool use_programtic_dependent_launch() const { return use_programmatic_dependent_launch_; }
+  bool use_programmatic_dependent_launch() const { return use_programmatic_dependent_launch_; }
 
   bool use_cooperative_launch() const { return use_cooperative_launch_; }
 

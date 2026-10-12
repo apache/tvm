@@ -180,9 +180,9 @@ class ROCMWrappedFunc {
     void* config[] = {HIP_LAUNCH_PARAM_BUFFER_POINTER, packed_args, HIP_LAUNCH_PARAM_BUFFER_SIZE,
                       &packed_nbytes, HIP_LAUNCH_PARAM_END};
     // HIP supports only extra_args.
-    ROCM_DRIVER_CALL(hipModuleLaunchKernel(fcache_[device_id], wl.grid_dim(0), wl.grid_dim(1),
-                                           wl.grid_dim(2), wl.block_dim(0), wl.block_dim(1),
-                                           wl.block_dim(2), wl.dyn_shmem_size, strm, nullptr,
+    ROCM_DRIVER_CALL(hipModuleLaunchKernel(fcache_[device_id], wl.GridDim(0), wl.GridDim(1),
+                                           wl.GridDim(2), wl.BlockDim(0), wl.BlockDim(1),
+                                           wl.BlockDim(2), wl.dyn_shmem_size, strm, nullptr,
                                            reinterpret_cast<void**>(&config)));
   }
 

@@ -250,7 +250,7 @@ class MetalWrappedFunc {
         scache_[device_id] = m_->GetPipelineState(device_id, func_name_);
       }
       ThreadWorkLoad wl = launch_param_config_.Extract(args);
-      int blockSize = wl.block_dim(0) * wl.block_dim(1) * wl.block_dim(2);
+      int blockSize = wl.BlockDim(0) * wl.BlockDim(1) * wl.BlockDim(2);
       auto maxTotalThreadsPerThreadgroup = scache_[device_id].maxTotalThreadsPerThreadgroup;
       TVM_FFI_ICHECK_LE(blockSize, maxTotalThreadsPerThreadgroup);
       // Reuse the pending compute encoder to batch dispatches.
@@ -267,8 +267,8 @@ class MetalWrappedFunc {
                   atIndex:num_buffer_args_];
       }
       // launch
-      MTLSize dimGrid = MTLSizeMake(wl.grid_dim(0), wl.grid_dim(1), wl.grid_dim(2));
-      MTLSize dimBlock = MTLSizeMake(wl.block_dim(0), wl.block_dim(1), wl.block_dim(2));
+      MTLSize dimGrid = MTLSizeMake(wl.GridDim(0), wl.GridDim(1), wl.GridDim(2));
+      MTLSize dimBlock = MTLSizeMake(wl.BlockDim(0), wl.BlockDim(1), wl.BlockDim(2));
       [encoder dispatchThreadgroups:dimGrid threadsPerThreadgroup:dimBlock];
     };
   }
