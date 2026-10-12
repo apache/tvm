@@ -18,14 +18,10 @@
  */
 
 /*!
- * \file src/runtime/const_loader_module.cc
+ * \file src/runtime/vm/const_loader_module.cc
  * \brief A wrapper for initializing imported modules using constant Tensor. This
- * module is intended to be used by various runtime in the TVM stack, i.e.
- * graph executor, relax VM, AOT runtime, and various user defined runtimes. It
- * paves the way to separate the code and metedata, which makes compilation
- * and/or interpretation more convenient. In addition, the clear separation of
- * code and constants significantly reduces the efforts for handling external
- * codegen and runtimes.
+ * module belongs to the VM runtime and separates executable code from the
+ * constants used to initialize external modules.
  */
 #include "const_loader_module.h"
 
@@ -45,7 +41,7 @@
 #include <unordered_map>
 #include <vector>
 
-#include "../support/bytes_io.h"
+#include "../../support/bytes_io.h"
 
 namespace tvm {
 namespace runtime {

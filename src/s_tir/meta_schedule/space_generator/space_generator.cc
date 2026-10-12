@@ -19,7 +19,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/logging.h>
 
-#include "../../../target/canonicalizer/llvm/arm_aprofile.h"
+#include "../../../target/llvm/canonicalizer/arm_aprofile.h"
 #include "../utils.h"
 
 namespace tvm {

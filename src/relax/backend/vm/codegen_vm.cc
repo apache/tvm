@@ -36,7 +36,7 @@
 #include <unordered_map>
 #include <vector>
 
-#include "../../../runtime/const_loader_module.h"
+#include "../../../runtime/vm/const_loader_module.h"
 #include "../../../target/source/codegen_source_base.h"
 #include "../../transform/utils.h"
 

@@ -342,7 +342,7 @@ tvm_file_glob(GLOB CODEGEN_SRCS
   src/target/*.cc
   src/target/source/*.cc
   src/target/canonicalizer/*.cc
-  src/target/canonicalizer/llvm/*.cc
+  src/target/llvm/canonicalizer/*.cc
   src/backend/cuda/codegen/*.cc
   src/backend/cuda/op/*.cc
   src/backend/cuda/transforms/*.cc
@@ -367,10 +367,12 @@ list(APPEND COMPILER_SRCS ${CODEGEN_SRCS})
 
 tvm_file_glob(GLOB RUNTIME_SRCS
   src/runtime/*.cc
-  src/runtime/vm/*.cc
   src/runtime/memory/*.cc
   src/runtime/rpc/minrpc/*.cc
 )
+# VM-owned runtime implementations, including external-module constant loading.
+tvm_file_glob(GLOB RUNTIME_VM_SRCS src/runtime/vm/*.cc)
+list(APPEND RUNTIME_SRCS ${RUNTIME_VM_SRCS})
 # Note: src/runtime/extra/disco/** moves to libtvm_runtime_extra.
 # Note: src/backend/*/runtime sources move to per-backend DSOs.
 set(TVM_RUNTIME_EXT_OBJS "")
