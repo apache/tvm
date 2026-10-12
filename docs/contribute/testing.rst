@@ -185,27 +185,6 @@ persistent lock file that every contender can write, or enforce exclusivity
 through the runner.  A per-user lock path cannot protect a GPU shared across
 users because each user would lock a different file.
 
-There also exists a ``tvm.testing.enabled_targets()`` that returns
-all targets that are enabled and runnable on the current machine,
-based on the environment variable ``TVM_TEST_TARGETS``, the build
-configuration, and the physical hardware present.  Some legacy tests
-explicitly loop over the targets returned from ``enabled_targets()``,
-but this style should not be used for new tests.  The pytest output
-for this style silently skips runtimes that are disabled in
-``config.cmake``, or do not have a device on which they can run.  In
-addition, the test halts on the first target to fail, which is
-ambiguous as to whether the error occurs on a particular target, or on
-every target.
-
-.. code-block:: python
-
-    # Old style, do not use.
-    def test_function():
-        for target, dev in tvm.testing.enabled_targets():
-            # Test code goes here
-
-
-
 Running Locally
 ~~~~~~~~~~~~~~~
 

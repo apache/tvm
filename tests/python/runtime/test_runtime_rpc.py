@@ -19,6 +19,7 @@
 import gc
 import multiprocessing
 import os
+import platform
 import stat
 import sys
 import tempfile
@@ -175,7 +176,7 @@ def test_rpc_large_array():
     check_remote()
 
 
-@tvm.testing.skip_if_32bit(reason="skipping test for i386.")
+@pytest.mark.skipif("32bit" in platform.architecture()[0], reason="skipping test for i386.")
 @pytest.mark.skipif(
     tvm.get_global_func("rpc.LocalSession", allow_missing=True) is None, reason="need rpc"
 )

@@ -27,9 +27,9 @@ import tvm.testing
 from tvm import relax
 from tvm.ir import Call
 from tvm.ir.op import Op
+from tvm.relax.testing.gradient import check_numerical_grads
 from tvm.relax.transform import LegalizeOps
 from tvm.relax.type import TensorType, TupleType
-from tvm.testing.utils import check_numerical_grads
 
 
 def relax_check_gradients(

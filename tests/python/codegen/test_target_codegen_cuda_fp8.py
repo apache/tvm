@@ -399,69 +399,27 @@ class TestFP8e4x4QuantDequantScale(BaseFP8E4M3QuantScaleOnly):
     # weight_shape = tvm.testing.parameter((32000, 4096), (4096, 14336))
     weight_shape = tvm.testing.parameter((128, 256), (128, 64))
 
-    @tvm.testing.fixture
-    def group_size(self):
-        return 64
-
-    @tvm.testing.fixture
-    def axis(self):
-        return 1
-
-    @tvm.testing.fixture
-    def model_dtype(self):
-        return "float16"
-
-    @tvm.testing.fixture
-    def storage_dtype(self):
-        return "uint32"
-
-    @tvm.testing.fixture
-    def quantize_dtype(self):
-        return "float8_e4m3fn"
-
-    @tvm.testing.fixture
-    def num_el_per_storage(self):
-        return 4
-
-    @tvm.testing.fixture
-    def max_int_value(self):
-        return 448
-
-    @tvm.testing.fixture
-    def target_str(self):
-        return "cuda"
-
-    @tvm.testing.fixture
-    def scale_shape(self, weight_shape, group_size, axis):
-        return [
+    @pytest.mark.gpu
+    @pytest.mark.skipif(not env.has_cuda_compute(8, 9), reason="need cuda compute >= 8.9")
+    def test_main(self, weight_shape):
+        group_size = 64
+        axis = 1
+        model_dtype = "float16"
+        storage_dtype = "uint32"
+        quantize_dtype = "float8_e4m3fn"
+        num_el_per_storage = 4
+        max_int_value = 448
+        target_str = "cuda"
+        scale_shape = [
             (d + group_size - 1) // group_size if axis == i else d
             for i, d in enumerate(weight_shape)
         ]
-
-    @tvm.testing.fixture
-    def quant_weight_shape(self, weight_shape, num_el_per_storage, axis):
-        return [
+        quant_weight_shape = [
             (d + num_el_per_storage - 1) // num_el_per_storage if axis == i else d
             for i, d in enumerate(weight_shape)
         ]
-
-    @tvm.testing.fixture
-    def compiled_functions(
-        self,
-        weight_shape,
-        scale_shape,
-        quant_weight_shape,
-        model_dtype,
-        quantize_dtype,
-        storage_dtype,
-        group_size,
-        num_el_per_storage,
-        max_int_value,
-        axis,
-        target_str,
-    ):
         dev = tvm.cuda(0)
-        return self.compile_quant_and_dequant_by_scale(
+        quant, dequant = self.compile_quant_and_dequant_by_scale(
             weight_shape,
             scale_shape,
             quant_weight_shape,
@@ -475,12 +433,6 @@ class TestFP8e4x4QuantDequantScale(BaseFP8E4M3QuantScaleOnly):
             target_str,
             dev,
         )
-
-    @pytest.mark.gpu
-    @pytest.mark.skipif(not env.has_cuda_compute(8, 9), reason="need cuda compute >= 8.9")
-    def test_main(self, weight_shape, model_dtype, target_str, compiled_functions):
-        quant, dequant = compiled_functions
-        dev = tvm.cuda(0)
 
         weight_np = np.random.uniform(-100, 100, weight_shape).astype(model_dtype)
         weight = tvm.runtime.tensor(weight_np, device=dev)

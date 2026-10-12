@@ -320,7 +320,7 @@ The following code snippet gives an example of PassContext configuration.
 .. code-block:: python
 
     # configure the behavior of the tirx.UnrollLoop pass
-    with tvm.transform.PassContext(config={"tirx.UnrollLoop": { "auto_max_step": 10 }}):
+    with tvm.ir.transform.PassContext(config={"tirx.UnrollLoop": { "auto_max_step": 10 }}):
         # code affected by the pass context
 
 

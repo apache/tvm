@@ -29,10 +29,10 @@ from typing import Literal
 from tvm_ffi import get_global_func, register_global_func
 
 from tvm.ir import IRModule
+from tvm.ir.transform import PassContext
 from tvm.runtime import Tensor
 from tvm.target import Target
 from tvm.tirx.expr import IntImm
-from tvm.transform import PassContext
 
 from .builder import Builder
 from .cost_model import CostModel
@@ -465,8 +465,8 @@ def compile_relax(
 
     is_gpu_target = relax_pipeline_mod.BackendDispatcher.is_gpu_target(target)
 
-    @tvm.transform.module_pass(opt_level=3)
-    def _ms_pipeline(mod: tvm.ir.IRModule, _ctx: tvm.transform.PassContext) -> tvm.ir.IRModule:
+    @tvm.ir.transform.module_pass(opt_level=3)
+    def _ms_pipeline(mod: tvm.ir.IRModule, _ctx: tvm.ir.transform.PassContext) -> tvm.ir.IRModule:
         fuse_seq = [
             *dispatch_passes,
             relax.transform.LegalizeOps(enable_warning=enable_warning),
@@ -475,7 +475,7 @@ def compile_relax(
             relax.transform.FuseOps(),
             relax.transform.FuseTIR(),
         ]
-        mod = tvm.transform.Sequential(fuse_seq)(mod)
+        mod = tvm.ir.transform.Sequential(fuse_seq)(mod)
         mod = MetaScheduleApplyDatabase(enable_warning=enable_warning)(mod)
         # DLight handles functions not covered by the database.
         # GPU rules apply only for GPU targets.
@@ -487,7 +487,7 @@ def compile_relax(
                 dl.gpu.GeneralReduction(),
                 dl.gpu.Fallback(),
             )(mod)
-        mod = tvm.transform.Sequential(lower_passes + finalize_passes)(mod)
+        mod = tvm.ir.transform.Sequential(lower_passes + finalize_passes)(mod)
         return mod
 
     with target, database, PassContext(opt_level=3):

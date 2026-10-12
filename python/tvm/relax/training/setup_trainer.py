@@ -30,7 +30,7 @@ from .loss import Loss
 from .optimizer import Optimizer
 
 
-@tvm.transform.module_pass(opt_level=0, name="SetupTrainer")
+@tvm.ir.transform.module_pass(opt_level=0, name="SetupTrainer")
 class SetupTrainer:
     """Transform a backbone module to a complete, legalized trainer module.
 
@@ -170,7 +170,7 @@ class SetupTrainer:
                     "tuple of length more than the number of states"
                 )
 
-    def transform_module(self, mod: IRModule, ctx: tvm.transform.PassContext) -> IRModule:
+    def transform_module(self, mod: IRModule, ctx: tvm.ir.transform.PassContext) -> IRModule:
         """Transform the backbone module into a trainer module."""
         self._check_well_formed(mod)
 

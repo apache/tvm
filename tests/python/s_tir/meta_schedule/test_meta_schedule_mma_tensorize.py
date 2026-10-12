@@ -74,7 +74,7 @@ def test_run_target(mod=None, tgt_str=None, in_dtype="float16", out_dtype="float
         return
     tgt_str = tgt_str or "cuda"
     target = tvm.target.Target(target=tgt_str)
-    with tvm.transform.PassContext(opt_level=3):
+    with tvm.ir.transform.PassContext(opt_level=3):
         lib: tvm.runtime.Module = tvm.compile(mod, target=target)
 
     a_np = np.random.rand(M, K).astype(in_dtype)

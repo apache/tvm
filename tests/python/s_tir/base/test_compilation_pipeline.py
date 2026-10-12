@@ -46,13 +46,13 @@ def test_default_pipeline_selects_dialect(mixed):
         functions["native"] = native
     finalized_modules = []
 
-    @tvm.transform.pass_instrument
+    @tvm.ir.transform.pass_instrument
     class RecordFinalization:
         def run_before_pass(self, mod, info):
             if info.name == "tirx.MakePackedAPI":
                 finalized_modules.append({gv.name_hint for gv in mod.functions})
 
-    with tvm.transform.PassContext(instruments=[RecordFinalization()]):
+    with tvm.ir.transform.PassContext(instruments=[RecordFinalization()]):
         module = tvm.tirx.compile(tvm.IRModule(functions), target="llvm").mod
     assert finalized_modules == [set(functions)]
     source = np.arange(16, dtype="float32")

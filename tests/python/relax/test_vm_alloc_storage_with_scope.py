@@ -62,7 +62,7 @@ def test_alloc_storage_with_scope_global():
     output_ref = arg0 + arg0
     mod = Module
     target = "llvm"
-    with tvm.transform.PassContext(opt_level=3):
+    with tvm.ir.transform.PassContext(opt_level=3):
         lib = tvm.relax.build(mod, target=target)
 
     dev = tvm.cpu()

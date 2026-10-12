@@ -18,6 +18,7 @@
 """Test various CI scripts and GitHub Actions workflows"""
 
 import json
+import os
 import subprocess
 from pathlib import Path
 
@@ -169,7 +170,10 @@ def assert_in(needle: str, haystack: str):
         raise AssertionError(f"item not found:\n{needle}\nin:\n{haystack}")
 
 
-@tvm.testing.skip_if_wheel_test
+@pytest.mark.skipif(
+    os.getenv("WHEEL_TEST", "").lower() in {"true", "1", "yes"},
+    reason="Test not supported in wheel.",
+)
 @parameterize_named(
     same_tags=dict(
         tlcpackstaging_body={

@@ -76,9 +76,9 @@ def assert_iter_sum_pattern(
             assert len(sum_expr.args) == 0
         else:
             assert len(sum_expr.args) == 1
-            tvm.testing.assert_prim_expr_equal(sum_expr.args[0].extent, extent)
-            tvm.testing.assert_prim_expr_equal(sum_expr.args[0].scale, scale)
-        tvm.testing.assert_prim_expr_equal(sum_expr.base, base)
+            assert tvm.sym.Analyzer().can_prove_equal(sum_expr.args[0].extent, extent)
+            assert tvm.sym.Analyzer().can_prove_equal(sum_expr.args[0].scale, scale)
+        assert tvm.sym.Analyzer().can_prove_equal(sum_expr.base, base)
         if expect_iter is not None:
             if not isinstance(expect_iter, tvm.sym.IterMapExpr):
                 sum_expr = convert_iter_expr(sum_expr)
@@ -1344,11 +1344,11 @@ def assert_normalize_to_iter_sum(index, input_iters, args, base):
         if isinstance(item, tvm.sym.IterSplitExpr):
             tvm.ir.assert_structural_equal(split, item)
             continue
-        tvm.testing.assert_prim_expr_equal(split.scale, item[1])
-        tvm.testing.assert_prim_expr_equal(
+        assert tvm.sym.Analyzer().can_prove_equal(split.scale, item[1])
+        assert tvm.sym.Analyzer().can_prove_equal(
             tvm.sym.normalize_iter_map_to_expr(split), item[0] * item[1]
         )
-    tvm.testing.assert_prim_expr_equal(res.base, base)
+    assert tvm.sym.Analyzer().can_prove_equal(res.base, base)
 
 
 def test_normalize_to_iter_sum():
@@ -1432,8 +1432,8 @@ def test_normalize_to_iter_sum_accepts_external_analyzer():
     res = tvm.sym.normalize_to_iter_sum(i // tile, input_iters, analyzer=analyzer)
 
     assert len(res.args) == 1
-    tvm.testing.assert_prim_expr_equal(res.args[0].lower_factor, tile)
-    tvm.testing.assert_prim_expr_equal(res.args[0].extent, T.int32(4))
+    assert tvm.sym.Analyzer().can_prove_equal(res.args[0].lower_factor, tile)
+    assert tvm.sym.Analyzer().can_prove_equal(res.args[0].extent, T.int32(4))
 
 
 def test_detect_iter_map_with_bufferload_recursion():

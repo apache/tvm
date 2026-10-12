@@ -44,7 +44,7 @@ class PassTimingInstrument(PassInstrument):
         .. code-block:: python
 
             timing_inst = PassTimingInstrument()
-            with tvm.transform.PassContext(instruments=[timing_inst]):
+            with tvm.ir.transform.PassContext(instruments=[timing_inst]):
                 relax_mod = relax.transform.FuseOps()(relax_mod)
                 # before exiting the context, get profile results.
                 profiles = timing_inst.render()

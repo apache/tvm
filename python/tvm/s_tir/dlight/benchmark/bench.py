@@ -139,7 +139,7 @@ def benchmark(
             ),
         )(*input_tensors)
     else:
-        from tvm.testing import rpc_run  # pylint: disable=import-outside-toplevel
+        from tvm.s_tir.testing.runner import rpc_run  # pylint: disable=import-outside-toplevel
 
         _, profile_result = rpc_run(
             rt_mod,

@@ -382,9 +382,9 @@ def _pipeline(  # pylint: disable=too-many-arguments
 ):
     ext_mods = ext_mods or []
 
-    @tvm.transform.module_pass(opt_level=0)
-    def _pipeline(mod: tvm.ir.IRModule, _ctx: tvm.transform.PassContext) -> tvm.ir.IRModule:
-        seq = tvm.transform.Sequential(
+    @tvm.ir.transform.module_pass(opt_level=0)
+    def _pipeline(mod: tvm.ir.IRModule, _ctx: tvm.ir.transform.PassContext) -> tvm.ir.IRModule:
+        seq = tvm.ir.transform.Sequential(
             [
                 # Phase 1. Passes on high-level operator graph
                 # We can enable cublas for further optimization

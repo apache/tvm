@@ -58,13 +58,13 @@ def _lower_s_tir(*, adreno=False):
             s_tir.transform.LowerThreadBinding(),
         ]
     )
-    return tvm.transform.Sequential(passes)
+    return tvm.ir.transform.Sequential(passes)
 
 
 def _lower_s_tir_tail(*, adreno=False):
-    @tvm.transform.module_pass(opt_level=0)
+    @tvm.ir.transform.module_pass(opt_level=0)
     def _pipeline(mod, _ctx):
-        config = tvm.transform.PassContext.current().config
+        config = tvm.ir.transform.PassContext.current().config
         passes = []
         if adreno:
             passes.append(s_tir.backend.adreno.transform.InjectTextureAlloc())
@@ -115,7 +115,7 @@ def _lower_s_tir_tail(*, adreno=False):
             passes.append(s_tir.transform.InjectPTXAsyncCopy())
         passes.append(s_tir.transform.LowerSynchronization())
         passes.append(s_tir.transform.MergeSharedMemoryAllocations())
-        return tvm.transform.Sequential(passes)(mod)
+        return tvm.ir.transform.Sequential(passes)(mod)
 
     return _pipeline
 
@@ -134,7 +134,7 @@ def _submodule(mod, functions):
 
 
 def _s_tir_pipeline(*, prepare_only=False, target=None, adreno=False):
-    @tvm.transform.module_pass(opt_level=0)
+    @tvm.ir.transform.module_pass(opt_level=0)
     def _pipeline(mod, _ctx):
         scheduled, native = _partition_dialects(mod)
         prepared = _submodule(mod, {})
@@ -158,7 +158,7 @@ def _s_tir_pipeline(*, prepare_only=False, target=None, adreno=False):
             return lowered
         if native:
             return tir_pipeline.finalize_tir_pipeline()(lowered)
-        return tvm.transform.Sequential(
+        return tvm.ir.transform.Sequential(
             [
                 tirx.transform.AnnotateEntryFunc(),
                 tirx.transform.SplitHostDevice(),
@@ -225,7 +225,7 @@ def finalize_host_passes():  # pylint: disable=unused-argument
         tirx.transform.LowerTVMBuiltin(),
         tirx.transform.LowerIntrin(),
     ]
-    return tvm.transform.Sequential(host_pass_list)
+    return tvm.ir.transform.Sequential(host_pass_list)
 
 
 def finalize_device_passes():  # pylint: disable=unused-argument
@@ -235,7 +235,7 @@ def finalize_device_passes():  # pylint: disable=unused-argument
         tirx.transform.StmtSimplify(),
         tirx.transform.LowerIntrin(),
     ]
-    return tvm.transform.Sequential(device_pass_list)
+    return tvm.ir.transform.Sequential(device_pass_list)
 
 
 tir_pipeline.PIPELINE_MAP["s_tir"] = default_s_tir_pipeline

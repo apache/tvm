@@ -42,14 +42,6 @@ from .expr import Tuple as rx_Tuple
 from .type import ShapeType, TensorType
 
 
-def _substitute_tir_vars(value, var_map):
-    return tvm_ffi.structural_map(
-        value,
-        (tvm.ir.Var, lambda var: var_map.get(var, var)),
-        order="post",
-    )
-
-
 def metadata_partitioner(rx_txt: str) -> list[str]:
     """Extract Relax program and metadata section.
 
@@ -230,7 +222,9 @@ def gen_call_tir_inputs(
 
             if tvm.ir.is_prim_expr(arg):
                 _copy_undefined_var(arg)
-                new_arg = _substitute_tir_vars(arg, tir_var_map)
+                new_arg = tvm_ffi.structural_map(
+                    arg, (tvm.ir.Var, lambda var: tir_var_map.get(var, var)), order="post"
+                )
                 extra_tir_args_list.append(new_arg)
                 return new_arg
 
@@ -332,7 +326,12 @@ def gen_call_tir_inputs(
         shape_values: list[tirx.Expr], tir_var_inverse_map: dict[tirx.Var, tirx.Expr]
     ):
         return ShapeExpr(
-            [_substitute_tir_vars(value, tir_var_inverse_map) for value in shape_values]
+            [
+                tvm_ffi.structural_map(
+                    value, (tvm.ir.Var, lambda var: tir_var_inverse_map.get(var, var)), order="post"
+                )
+                for value in shape_values
+            ]
         )
 
     function_attrs = kwargs.pop("function_attrs", None)
@@ -377,7 +376,10 @@ def gen_call_tir_inputs(
         output_ty = output_ty[0] if len(output_ty) == 1 else tvm.ir.TupleType(output_ty)
 
     call_tir_args.extend(
-        _substitute_tir_vars(value, tir_var_inverse_map) for value in unbound_tir_vars
+        tvm_ffi.structural_map(
+            value, (tvm.ir.Var, lambda var: tir_var_inverse_map.get(var, var)), order="post"
+        )
+        for value in unbound_tir_vars
     )
 
     return (tir_func, call_tir_args, output_ty)

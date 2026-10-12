@@ -14,16 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Configure pytest for TVM's Python test suite."""
+"""FFI APIs for tvm.ir.transform.instrument"""
 
-import os
-from pathlib import Path
+import tvm_ffi
 
-
-def pytest_sessionstart():
-    if os.getenv("CI", "") == "true":
-        from tvm.testing.utils import (
-            install_request_hook,  # pylint: disable=import-outside-toplevel
-        )
-
-        install_request_hook(Path(__file__).with_name("request_hook.py"))
+tvm_ffi.init_ffi_api("transform.instrument", __name__)

@@ -40,8 +40,8 @@ def compile(  # pylint: disable=redefined-builtin
     mod: Function | IRModule,
     target: Target | None = None,
     *,
-    relax_pipeline: tvm.transform.Pass | Callable | str | None = "default",
-    tir_pipeline: tvm.transform.Pass | Callable | str | None = "default",
+    relax_pipeline: tvm.ir.transform.Pass | Callable | str | None = "default",
+    tir_pipeline: tvm.ir.transform.Pass | Callable | str | None = "default",
 ) -> Executable:
     """
     Compile an IRModule to a runtime executable.
@@ -56,10 +56,10 @@ def compile(  # pylint: disable=redefined-builtin
         TIR or Relax functions.
     target : Optional[Target]
         The target platform and its backend compilation configuration.
-    relax_pipeline : Optional[Union[tvm.transform.Pass, Callable, str]]
+    relax_pipeline : Optional[Union[tvm.ir.transform.Pass, Callable, str]]
         The compilation pipeline to use for Relax functions.
         Only used if the module contains Relax functions.
-    tir_pipeline : Optional[Union[tvm.transform.Pass, Callable, str]]
+    tir_pipeline : Optional[Union[tvm.ir.transform.Pass, Callable, str]]
         The compilation pipeline to use for TIR functions.
 
     Returns

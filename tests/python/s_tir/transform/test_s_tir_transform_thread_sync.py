@@ -268,7 +268,7 @@ def test_hoist_if_preserves_sync_placement(loop):
 
     # Each iteration must keep its own guard so synchronization can be inserted
     # between shared-memory accesses, outside conditional control flow.
-    finish = tvm.transform.Sequential(
+    finish = tvm.ir.transform.Sequential(
         [tvm.tirx.transform.UnrollLoop(), tvm.s_tir.transform.ThreadSync("shared")]
     )
     Expected = finish(Before)

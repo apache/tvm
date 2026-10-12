@@ -462,14 +462,14 @@ def test_reg_copy_linear_shared_hoists_thread_base():
 
     dispatched = []
 
-    @tvm.transform.pass_instrument
+    @tvm.ir.transform.pass_instrument
     class CaptureDispatch:
         def run_after_pass(self, mod, info):
             if info.name == "tirx.TileDispatch":
                 dispatched.append(mod["main"])
 
     target = tvm.target.Target("cuda")
-    with target, tvm.transform.PassContext(instruments=[CaptureDispatch()]):
+    with target, tvm.ir.transform.PassContext(instruments=[CaptureDispatch()]):
         ex = tvm.tirx.compile(tvm.IRModule({"main": kernel}), target=target, pipeline="tirx")
         src = ex.mod.imports[0].inspect_source()
 

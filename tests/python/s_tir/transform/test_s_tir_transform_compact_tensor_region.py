@@ -39,7 +39,7 @@ class BaseCompactTest:
 
         before = tvm.IRModule.from_expr(self.before.with_attr("global_symbol", "main"))
         expected = tvm.IRModule.from_expr(self.expected.with_attr("global_symbol", "main"))
-        simplify = tvm.transform.Sequential(
+        simplify = tvm.ir.transform.Sequential(
             [s_tir.transform.StmtSimplify(), tirx.transform.RemoveNoOp()]
         )
         after = simplify(s_tir.transform.CompactTensorAllocation(is_strict=is_strict)(before))
@@ -1031,7 +1031,7 @@ class TestTileAwareCompaction(BaseCompactTest):
 
         # Get partitioned workload to compact
         mod = tvm.IRModule.from_expr(main)
-        with tvm.transform.PassContext(
+        with tvm.ir.transform.PassContext(
             config={"s_tir.LoopPartition": {"partition_const_loop": True}}
         ):
             mod = tvm.s_tir.transform.LowerOpaqueBlock()(mod)

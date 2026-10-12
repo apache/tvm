@@ -19,11 +19,11 @@
 
 import tvm
 from tvm import relax
+from tvm.ir.transform.instrument import PrintAfterAll, PrintBeforeAll
 from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
-from tvm.transform.instrument import PrintAfterAll, PrintBeforeAll
 
 # pylint: disable=invalid-name,missing-function-docstring,no-value-for-parameter
 
@@ -38,7 +38,7 @@ def test_tir_print_all_passes(capsys):
                 vi, vj, vk, vl = Ts.axis.remap("SSSS", [i, j, k, l])
                 B[vi, vj, vk, vl] = A[vi, vj, vk, vl] * 2.0
 
-    with tvm.transform.PassContext(opt_level=3, instruments=[PrintBeforeAll(), PrintAfterAll()]):
+    with tvm.ir.transform.PassContext(opt_level=3, instruments=[PrintBeforeAll(), PrintAfterAll()]):
         tvm.compile(func)
     all_passes_output = capsys.readouterr().out
     assert "Before Running Pass:" in all_passes_output
@@ -56,7 +56,7 @@ def test_relax_print_all_passes(capsys):
             return y
 
     pipeline = relax.get_pipeline("default_build")
-    with tvm.transform.PassContext(opt_level=3, instruments=[PrintBeforeAll(), PrintAfterAll()]):
+    with tvm.ir.transform.PassContext(opt_level=3, instruments=[PrintBeforeAll(), PrintAfterAll()]):
         pipeline(Module)
     all_passes_output = capsys.readouterr().out
     assert "Before Running Pass:" in all_passes_output
