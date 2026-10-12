@@ -24,100 +24,10 @@ from numbers import Integral, Number
 from typing import Any
 
 import numpy as np  # type: ignore
-from tvm_ffi import Function, get_global_func, register_global_func
+from tvm_ffi import Function, register_global_func
 
 import tvm
-from tvm.runtime import Device, Object, Tensor, tensor
-
-
-def _to_tensor(params):
-    transformed = {}
-
-    for k, v in params.items():
-        if not isinstance(v, Tensor):
-            transformed[k] = tensor(v)
-        else:
-            transformed[k] = v
-
-    return transformed
-
-
-def save_param_dict(params):
-    """Save parameter dictionary to binary bytes.
-
-    The resulting bytes can be loaded with :func:`load_param_dict`.
-
-    Parameters
-    ----------
-    params : dict of str to Tensor
-        The parameter dictionary.
-
-    Returns
-    -------
-    param_bytes: bytearray
-        Serialized parameters.
-
-    Examples
-    --------
-    .. code-block:: python
-
-       # set up the parameter dict
-       params = {"param0": arr0, "param1": arr1}
-       # save the parameters as byte array
-       param_bytes = tvm.runtime.vm.save_param_dict(params)
-       # We can serialize the param_bytes and load it back later.
-       # Recover the parameter dictionary from the serialized bytes.
-       tvm.runtime.vm.load_param_dict(param_bytes)
-    """
-    return get_global_func("vm.SaveParams")(_to_tensor(params))
-
-
-def save_param_dict_to_file(params, path):
-    """Save parameter dictionary to file.
-
-    Parameters
-    ----------
-    params : dict of str to Tensor
-        The parameter dictionary.
-
-    path: str
-        The path to the parameter file.
-    """
-    return get_global_func("vm.SaveParamsToFile")(_to_tensor(params), path)
-
-
-def load_param_dict(param_bytes):
-    """Load parameter dictionary from binary bytes.
-
-    Parameters
-    ----------
-    param_bytes: bytearray
-        Serialized parameters.
-
-    Returns
-    -------
-    params : dict of str to Tensor
-        The parameter dictionary.
-    """
-    if isinstance(param_bytes, bytes | str):
-        param_bytes = bytearray(param_bytes)
-    return get_global_func("vm.LoadParams")(param_bytes)
-
-
-def load_param_dict_from_file(path):
-    """Load parameter dictionary from file.
-
-    Parameters
-    ----------
-    path: str
-        The path to the parameter file to load from.
-
-    Returns
-    -------
-    params : dict of str to Tensor
-        The parameter dictionary.
-    """
-    return get_global_func("vm.LoadParamsFromFile")(path)
+from tvm.runtime import Device, Object
 
 
 class VMInstrumentReturnKind(IntEnum):
