@@ -83,7 +83,7 @@ TileLayout FuseAxesByScope(TileLayout layout) {
   // Step 1: Get the target and scope information
   auto scope_pair_opt = layout->GetScope();
   ffi::Optional<Target> target = Target::Current();
-  if (!scope_pair_opt.has_value() || !target.defined()) {
+  if (!scope_pair_opt.has_value() || !target.has_value()) {
     return layout;
   }
   auto subscope = scope_pair_opt.value().get<0>()->name();

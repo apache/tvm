@@ -962,7 +962,7 @@ class StoragePlanRewriter : public StmtExprMutator {
             }
             // transform to bits
             auto sz_nbits = sz * nbits;
-            if (max_size.defined()) {
+            if (max_size.has_value()) {
               max_size = max(max_size.value(), sz_nbits);
             } else {
               max_size = sz_nbits;

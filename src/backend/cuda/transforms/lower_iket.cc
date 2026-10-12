@@ -1210,7 +1210,7 @@ IRModule LowerIketImpl(IRModule module) {
           strip->Mutate(function->body.value()).ValueOrUnchanged(function->body.value());
       Stmt body =
           ffi::make_object<RemoveStrippedIketNoOps>()->Mutate(stripped).ValueOrUnchanged(stripped);
-      if (!body.same_as(function->body)) {
+      if (!function->body.same_as(body)) {
         function.CopyOnWrite()->body = body;
         module->Update(global_var, function);
       }

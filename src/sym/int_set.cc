@@ -1169,7 +1169,7 @@ ffi::Optional<ffi::Array<IntSet>> EstimateRegionStrictBound(const ffi::Array<Ran
   }
   AnalyzerObj* analyzer_ptr = analyzer.get();
   int ndim = region.size();
-  ffi::Array<IterSumExpr> iter_sum_exprs{nullptr};
+  ffi::Array<IterSumExpr> iter_sum_exprs;
   {
     ffi::Array<PrimExpr> affine_indices;
     affine_indices.reserve(ndim);

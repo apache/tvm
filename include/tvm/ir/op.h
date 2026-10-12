@@ -424,10 +424,10 @@ struct call_attrs : SignatureTrait {
 
   static bool Validate(ValidateState* state, ffi::Expected<void>* out) {
     ffi::AnyView attrs(state->call->attrs);
-    if (TVM_FFI_PREDICT_FALSE(!state->call->attrs.defined() ||
+    if (TVM_FFI_PREDICT_FALSE(!state->call->attrs.has_value() ||
                               !ffi::details::AnyUnsafe::CheckAnyViewStrict<const T*>(attrs))) {
       TVMFFIAny raw = attrs.CopyToTVMFFIAny();
-      std::string actual = state->call->attrs.defined()
+      std::string actual = state->call->attrs.has_value()
                                ? "`" + ffi::TypeTraits<const T*>::GetMismatchTypeInfo(&raw) + "`"
                                : "None";
       *out = TVM_FFI_UNEXPECTED(TypeError)
