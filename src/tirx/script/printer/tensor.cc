@@ -38,25 +38,6 @@ namespace details {
 
 namespace {
 
-ffi::Optional<ExprDoc> TensorVarDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
-                                             const ffi::Object* destination) {
-  Var var = input.cast<Var>();
-  IdDoc id = d->VarGetOrAllocId(var, false);
-  if (destination == var.get() && d->GetImplicitDefs().count(var)) {
-    VarDoc(d, var);
-    ExprDoc rhs = NamespaceDoc("tirx")->Attr("Var")->Call(
-        {LiteralDoc::Str(var->name, std::nullopt), d->Translate(var->ty).value()});
-    EmitVarDefinition(d, var, rhs);
-    return std::nullopt;
-  }
-  return IdDoc(id->name);
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  ffi::reflection::TypeAttrDef<tirx::TensorTypeNode>().attr(
-      type_attr::kDocTranslateVarByTy, FDocTranslate::FromNative<&TensorVarDocTranslate>());
-}
-
 ffi::Optional<ExprDoc> TensorTypeDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
                                               const ffi::Object*) {
   const auto* tensor =
@@ -146,20 +127,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<TensorStoreNode>().attr(
       tvm::script::printer::type_attr::kDocTranslate,
       FDocTranslate::FromNative<&TensorStoreDocTranslate>());
-}
-
-ffi::Optional<ExprDoc> TIRxTensorLoadDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
-                                                  const ffi::Object*) {
-  const auto* load =
-      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const TensorLoadNode>(input);
-  ExprDoc source = d->Translate(load->source).value();
-  return IndexDoc(source, TensorIndices(d, load->indices));
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  ffi::reflection::TypeAttrDef<tirx::TensorTypeNode>().attr(
-      tvm::script::printer::type_attr::kDocTranslateTensorLoadBySourceTy,
-      FDocTranslate::FromNative<&TIRxTensorLoadDocTranslate>());
 }
 
 ffi::Optional<ExprDoc> IterDocTranslate(DocTranslatorObj* d, ffi::AnyView input,

@@ -111,8 +111,7 @@ ffi::Map<ffi::String, ffi::Array<ffi::Any>> CollectMetadata(
 ffi::Array<ffi::String> DisplayAliases(const PrinterConfig& config) {
   ffi::Array<ffi::String> aliases;
   for (const auto& [key, fallback] : GetNamespaceAliases()) {
-    aliases.push_back(config->GetExtraConfig<ffi::String>(
-        key, key == "ir.prefix" ? config->ir_prefix : fallback));
+    aliases.push_back(config->GetExtraConfig<ffi::String>(key, fallback));
   }
   return aliases;
 }
@@ -411,8 +410,7 @@ ffi::String RenderScript(const ffi::ObjectRef& obj, const PrinterConfig& config)
       std::string canonical = key;
       canonical.resize(canonical.size() - std::string(".prefix").size());
       if (!namespaces.count(canonical)) continue;
-      ffi::String alias = config->GetExtraConfig<ffi::String>(
-          key, canonical == "ir" ? config->ir_prefix : fallback);
+      ffi::String alias = config->GetExtraConfig<ffi::String>(key, fallback);
       ffi::String import = "from tvm.script import " + canonical + " as " + std::string(alias);
       if (config->GetExtraConfig<bool>("ir.comment_imports", false) && !config->show_meta) {
         header.push_back(CommentDoc(import));

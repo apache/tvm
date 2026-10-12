@@ -256,6 +256,16 @@ acosh = _tir_op.acosh
 
 address_of = _tir_op.address_of
 
+atomic_add = _ir.op._make_op_api(_ir.Op.get("tirx.atomic_add"), __name__)
+
+call_spirv_pure_glsl450 = _ir.op._make_op_api(_ir.Op.get("tirx.call_spirv_pure_glsl450"), __name__)
+
+device_scope = _ir.op._make_op_api(_ir.Op.get("tirx.device_scope"), __name__)
+
+prefetch = _ir.op._make_op_api(_ir.Op.get("tirx.prefetch"), __name__)
+
+static_handle = _ir.op._make_op_api(_ir.Op.get("tirx.static_handle"), __name__)
+
 
 asin = _tir_op.asin
 
@@ -759,6 +769,7 @@ __all__ = [
     "atan",
     "atan2",
     "atanh",
+    "atomic_add",
     "bitwise_and",
     "bitwise_not",
     "bitwise_or",
@@ -775,6 +786,7 @@ __all__ = [
     "call_packed",
     "call_packed_lowered",
     "call_pure_extern",
+    "call_spirv_pure_glsl450",
     "cast",
     "ceil",
     "ceildiv",
@@ -783,6 +795,7 @@ __all__ = [
     "cos",
     "cosh",
     "cpu_parallel_barrier",
+    "device_scope",
     "erf",
     "exp",
     "exp2",
@@ -841,6 +854,7 @@ __all__ = [
     "nextafter",
     "popcount",
     "pow",
+    "prefetch",
     "ptr_byte_offset",
     "ramp",
     "register_script_namespace",
@@ -857,6 +871,7 @@ __all__ = [
     "stack_alloca",
     "stack_make_dltensor",
     "stack_make_shape",
+    "static_handle",
     "tan",
     "tanh",
     "tensor_data_ptr",

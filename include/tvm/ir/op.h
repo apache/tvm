@@ -52,11 +52,6 @@ using TFixedReturnType = Type;
 /*! \brief Infer a Call's result type from its explicit inputs without builder state. */
 using FInferType = ffi::reflection::NativeFunctionView<Type(const CallNode* call)>;
 
-/*!
- * \brief The fully qualified TVMScript name, including its dialect namespace.
- */
-using TScriptPrinterName = ffi::String;
-
 /*! \brief An operator argument's name and documentation. */
 class ArgumentInfoObj : public ffi::Object {
  public:

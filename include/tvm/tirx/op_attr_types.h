@@ -56,17 +56,9 @@ using FLowerIntrinsic = ffi::TypedFunction<PrimExpr(PrimExpr)>;
  */
 using FLegalize = ffi::TypedFunction<PrimExpr(PrimExpr)>;
 
-/*!
- * \brief Device intrinsic namespace.
- *
- * Expected values include "cuda", "ptx", "nvshmem", "nki", and "metal".
- */
-using TDeviceIntrinsicNamespace = ffi::String;
-
 namespace op_attr {
 inline constexpr const char* kGlobalSymbol = "TGlobalSymbol";
 inline constexpr const char* kVectorizable = "TVectorizable";
-inline constexpr const char* kDeviceIntrinsicNamespace = "TDeviceIntrinsicNamespace";
 }  // namespace op_attr
 
 }  // namespace tirx

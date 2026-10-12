@@ -25,7 +25,6 @@
 #include <tvm/ir/expr.h>
 #include <tvm/ir/op.h>
 #include <tvm/ir/prim/op.h>
-#include <tvm/script/printer/doc_translator.h>
 #include <tvm/tirx/op/vector.h>
 #include <tvm/tirx/op_attr_types.h>
 
@@ -61,8 +60,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .signature(sig::arg<PrimExpr>("vec", "The input vector."))
       .set_attr<FInferType>(tvm::op_attr::kInferType,
                             FInferType::FromNative<&InferTypeVectorPart<false>>())
-      .set_attr<TScriptPrinterName>(tvm::script::printer::op_attr::kScriptPrinterName,
-                                    ffi::String("tirx.vector_high"))
       .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
                                  static_cast<int64_t>(CallEffectKind::kPure));
 }
@@ -77,8 +74,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .signature(sig::arg<PrimExpr>("vec", "The input vector."))
       .set_attr<FInferType>(tvm::op_attr::kInferType,
                             FInferType::FromNative<&InferTypeVectorPart<false>>())
-      .set_attr<TScriptPrinterName>(tvm::script::printer::op_attr::kScriptPrinterName,
-                                    ffi::String("tirx.vector_low"))
       .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
                                  static_cast<int64_t>(CallEffectKind::kPure));
 }
@@ -94,8 +89,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                  sig::arg<PrimExpr>("vec2", "The second input vector."))
       .set_attr<FInferType>(tvm::op_attr::kInferType,
                             FInferType::FromNative<&InferTypeVectorPart<true>>())
-      .set_attr<TScriptPrinterName>(tvm::script::printer::op_attr::kScriptPrinterName,
-                                    ffi::String("tirx.vector_combine"))
       .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
                                  static_cast<int64_t>(CallEffectKind::kPure));
 }
@@ -109,8 +102,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("tirx.get_active_lane_mask")
       .signature(sig::arg<IntExpr>("base", "The base value."),
                  sig::arg<IntExpr>("limit", "The limit value."))
-      .set_attr<TScriptPrinterName>(tvm::script::printer::op_attr::kScriptPrinterName,
-                                    ffi::String("tirx.get_active_lane_mask"))
       .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
                                  static_cast<int64_t>(CallEffectKind::kPure));
 }
