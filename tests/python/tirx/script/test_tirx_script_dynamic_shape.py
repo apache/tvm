@@ -136,7 +136,7 @@ def test_type_vars_roundtrip():
     script = func.script()
     assert script.startswith("from __future__ import annotations\n\n")
     assert "def main[M](" in script
-    assert 'T.Tensor((M, M * T.int64(2)), "float32", layout="default")' in script
+    assert 'T.Tensor((M, M * T.int64(2)), "float32")' in script
     assert "M = T.int64()" not in script
     typed = tvm.script.from_source(
         """
