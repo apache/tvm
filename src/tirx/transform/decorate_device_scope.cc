@@ -20,6 +20,8 @@
 /*!
  * \file decorate_device_scope.cc
  */
+#include "decorate_device_scope.h"
+
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/op.h>
@@ -29,19 +31,19 @@
 namespace tvm {
 namespace tirx {
 
-Stmt DecorateDeviceScopeImpl(Stmt&& stmt) {
+Function DecorateDeviceScopeImpl(Function f) {
+  if (!f->body.has_value()) return f;
   static const Op device_scope = Op::Get("tirx.device_scope");
-  return RegionStmt(device_scope, {}, {}, DictAttrs(), std::move(stmt));
+  auto* n = f.CopyOnWrite();
+  n->body = RegionStmt(device_scope, {}, {}, DictAttrs(), std::move(n->body).value());
+  return f;
 }
 
 namespace transform {
 
 Pass DecorateDeviceScope() {
   auto pass_func = [](Function f, IRModule m, PassContext ctx) {
-    if (!f->body.has_value()) return f;
-    auto* n = f.CopyOnWrite();
-    n->body = DecorateDeviceScopeImpl(std::move(n->body).value());
-    return f;
+    return DecorateDeviceScopeImpl(std::move(f));
   };
   return CreateFunctionPass(pass_func, 0, "tirx.DecorateDeviceScope");
 }

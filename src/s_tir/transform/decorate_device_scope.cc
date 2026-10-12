@@ -20,11 +20,12 @@
 /*!
  * \file decorate_device_scope.cc
  */
+#include "../../tirx/transform/decorate_device_scope.h"
+
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/s_tir/transform.h>
-#include <tvm/tirx/transform.h>
 
 namespace tvm {
 namespace s_tir {
@@ -32,7 +33,12 @@ using namespace tvm::tirx;
 
 namespace transform {
 
-Pass DecorateDeviceScope() { return tirx::transform::DecorateDeviceScope(); }
+Pass DecorateDeviceScope() {
+  auto pass_func = [](Function f, IRModule m, PassContext ctx) {
+    return tirx::DecorateDeviceScopeImpl(std::move(f));
+  };
+  return CreateFunctionPass(pass_func, 0, "s_tir.DecorateDeviceScope");
+}
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
