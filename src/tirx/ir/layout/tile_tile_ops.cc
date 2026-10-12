@@ -429,7 +429,7 @@ std::vector<int64_t> EvenSeparatorIndices(std::vector<int64_t> seps) {
 // Split axes according to a split scope on the target.
 TileLayout SplitAxesByScope(TileLayout layout, const ffi::String& split_scope) {
   ffi::Optional<Target> target = Target::Current();
-  if (!target.defined()) {
+  if (!target.has_value()) {
     return layout;
   }
   auto split_iter = [&](const Iter& iter) -> ffi::Array<Iter> {

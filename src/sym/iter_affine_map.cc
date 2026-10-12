@@ -1895,7 +1895,7 @@ std::optional<std::pair<IterSplitExpr, PrimExpr>> IterMapRewriter::PadDividendTo
       << "The padding factor " << info.padding_factor << " is not divisible by " << divisor
       << " for the split " << split;
 
-  if (!info.padded.defined()) {
+  if (!info.padded.has_value()) {
     // the first time encounter the iter mark to pad, update the padded mark.
     PrimExpr mark_left_pad = info.left_pad;
     if (CanProveDivisible(mark_left_pad, split->lower_factor)) {

@@ -71,7 +71,7 @@ void ValidateDeclTmem(const CallNode* call) {
   Type inferred = InferTypeDeclTmem(call);
   TVM_FFI_CHECK(ffi::StructuralEqual()(call->ty, inferred), TypeError)
       << "decl_tmem result must match its TensorType argument";
-  TVM_FFI_CHECK(!call->attrs.defined(), ValueError) << "decl_tmem does not accept attributes";
+  TVM_FFI_CHECK(!call->attrs.has_value(), ValueError) << "decl_tmem does not accept attributes";
 }
 
 Type InferTypeCudaAxis(const CallNode* call) {
