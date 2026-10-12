@@ -46,14 +46,6 @@ class PrinterConfigObj : public ffi::Object {
   ffi::Array<ffi::String> binding_names = {};
   /*! \brief Whether or not to show metadata. */
   bool show_meta = false;
-  /*! \brief The prefix of IR nodes */
-  ffi::String ir_prefix = "I";
-  /*!
-   * \brief Compatibility option; global references use the actual module name.
-   */
-  ffi::String module_alias = "cls";
-  /*! \brief Compatibility option; buffer hooks print the actual dtype. */
-  DLDataType buffer_dtype = DLDataType{kDLFloat, 32, 1};
   /*! \brief Whether or not to verbose print expressions. */
   bool verbose_expr = false;
   /*! \brief Number of spaces used for indentation*/
@@ -79,6 +71,7 @@ class PrinterConfigObj : public ffi::Object {
    * \brief Generic extension map for dialect-specific config knobs.
    *
    * Keys are conventionally namespaced as "<dialect>.<knob>", e.g.:
+   *   "ir.prefix"                — the IR prefix (default "I")
    *   "tirx.prefix"              — the TIR prefix (default "T")
    *   "relax.prefix"             — the Relax prefix (default "R")
    *   "relax.show_all_ty" — whether to show all Relax type annotations (default true)
@@ -105,9 +98,6 @@ class PrinterConfigObj : public ffi::Object {
     refl::ObjectDef<PrinterConfigObj>()
         .def_ro("binding_names", &PrinterConfigObj::binding_names)
         .def_ro("show_meta", &PrinterConfigObj::show_meta)
-        .def_ro("ir_prefix", &PrinterConfigObj::ir_prefix)
-        .def_ro("module_alias", &PrinterConfigObj::module_alias)
-        .def_ro("buffer_dtype", &PrinterConfigObj::buffer_dtype)
         .def_ro("verbose_expr", &PrinterConfigObj::verbose_expr)
         .def_ro("indent_spaces", &PrinterConfigObj::indent_spaces)
         .def_ro("print_line_numbers", &PrinterConfigObj::print_line_numbers)

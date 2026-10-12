@@ -81,7 +81,6 @@ class Instruction:
         register_op_attr(self.name, "TCallEffectKind", 3)
         register_op_attr(self.name, "TFixedReturnType", PrimType("void"))
         register_op_attr(self.name, "FTileOpDispatch", run_dispatch)
-        register_op_attr(self.name, "TScriptPrinterName", self.name)
         op = Op.get(self.name)
         op.set_signature(args=[arg.name for arg in self.operands])
         op.set_attrs_type_key("tirx.tensor." + self.schema)

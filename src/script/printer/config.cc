@@ -76,15 +76,6 @@ PrinterConfig::PrinterConfig(ffi::Map<ffi::String, Any> config_dict) {
   if (auto v = get("show_meta")) {
     n->show_meta = v.value().cast<bool>();
   }
-  if (auto v = get("ir_prefix")) {
-    n->ir_prefix = v.value().as_or_throw<ffi::String>();
-  }
-  if (auto v = get("module_alias")) {
-    n->module_alias = v.value().as_or_throw<ffi::String>();
-  }
-  if (auto v = get("buffer_dtype")) {
-    n->buffer_dtype = ffi::StringToDLDataType(v.value().as_or_throw<ffi::String>());
-  }
   if (auto v = get("int_dtype")) {
     n->extra_config.Set(
         "ir.int_dtype",
@@ -162,10 +153,7 @@ PrinterConfig::PrinterConfig(ffi::Map<ffi::String, Any> config_dict) {
 }
 
 ffi::Array<ffi::String> PrinterConfigObj::GetBuiltinKeywords() {
-  TVM_FFI_ICHECK(IsIdentifier(std::string(ir_prefix))) << "Invalid `ir_prefix`: " << ir_prefix;
-  TVM_FFI_ICHECK(module_alias.empty() || IsIdentifier(std::string(module_alias)))
-      << "Invalid `module_alias`: " << module_alias;
-  ffi::Array<ffi::String> result{ir_prefix};
+  ffi::Array<ffi::String> result;
   const auto& aliases = NamespaceAliases();
   std::vector<std::pair<ffi::String, ffi::String>> ordered(aliases.begin(), aliases.end());
   std::sort(ordered.begin(), ordered.end());
@@ -173,9 +161,6 @@ ffi::Array<ffi::String> PrinterConfigObj::GetBuiltinKeywords() {
     ffi::String prefix = GetExtraConfig<ffi::String>(key, default_prefix);
     TVM_FFI_ICHECK(IsIdentifier(std::string(prefix))) << "Invalid `" << key << "`: " << prefix;
     result.push_back(prefix);
-  }
-  if (!module_alias.empty()) {
-    result.push_back(module_alias);
   }
   return result;
 }

@@ -51,10 +51,6 @@ ffi::Optional<ExprDoc> VarDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
                                        const ffi::Object* destination) {
   const auto* node =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const VarNode>(input);
-  static ffi::reflection::TypeAttrColumn column(type_attr::kDocTranslateVarByTy);
-  if (auto hook = column[node->ty->type_index()]; hook != nullptr) {
-    return InvokeDocHook(hook, d, input, destination);
-  }
   Var var = ffi::GetRef<Var>(node);
   IdDoc id = d->VarGetOrAllocId(var, false);
   if (destination == node && d->GetImplicitDefs().count(var)) {
@@ -77,8 +73,6 @@ ffi::Optional<ExprDoc> VarDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  ffi::reflection::EnsureTypeAttrColumn(type_attr::kDocTranslateVarByTy);
-  ffi::reflection::EnsureTypeAttrColumn(type_attr::kDocTranslateTensorLoadBySourceTy);
   ffi::reflection::TypeAttrDef<VarNode>().attr(tvm::script::printer::type_attr::kDocTranslate,
                                                FDocTranslate::FromNative<&VarDocTranslate>());
 }
@@ -206,14 +200,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 ffi::Optional<ExprDoc> TensorLoadDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
-                                              const ffi::Object* destination) {
+                                              const ffi::Object*) {
   const auto* load =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const TensorLoadNode>(input);
-  static ffi::reflection::TypeAttrColumn column(
-      tvm::script::printer::type_attr::kDocTranslateTensorLoadBySourceTy);
-  ffi::AnyView hook = column[load->source->ty->type_index()];
-  ffi::Any value = ffi::GetRef<TensorLoad>(load);
-  if (hook != nullptr) return InvokeDocHook(hook, d, value, destination);
   return IndexDoc(d->Translate(load->source).value(), TensorIndices(d, load->indices));
 }
 

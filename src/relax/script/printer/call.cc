@@ -65,8 +65,53 @@ ffi::Optional<ExprDoc> InlineTupleCallDocTranslate(DocTranslatorObj* d, ffi::Any
 TVM_FFI_STATIC_INIT_BLOCK() {
   for (const char* name : {"relax.call_builtin_with_ctx", "relax.make_closure",
                            "relax.invoke_closure", "relax.invoke_pure_closure"}) {
-    OpDef(name).set_attr<FDocTranslate>(tvm::script::printer::op_attr::kOpCallDocTranslate,
+    OpDef(name).set_attr<FDocTranslate>(tvm::script::printer::op_attr::kDocTranslateOpCall,
                                         FDocTranslate::FromNative<&InlineTupleCallDocTranslate>());
+  }
+}
+
+// Script logical operators also serve as primitive aliases. A Relax Call
+// containing a primitive operand must not take that alternate construction path.
+ffi::Optional<ExprDoc> LogicalCallDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                               const ffi::Object*) {
+  const auto* call =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const CallNode>(input);
+  for (const Expr& arg : call->args) {
+    if (arg->ty.as<PrimType>()) return RawCall(d, call);
+  }
+  if (auto doc = StandardCallDocTranslate(d, call)) return doc;
+  return RawCall(d, call);
+}
+
+// VM allocation wrappers convert bare integer offsets/device indices to int64.
+// Keep explicit construction when the renderer would hide a different width.
+ffi::Optional<ExprDoc> VMAllocCallDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                               const ffi::Object*) {
+  const auto* call =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const CallNode>(input);
+  auto needs_raw = [&](size_t index) {
+    if (index >= call->args.size()) return false;
+    const auto* imm = call->args[index].as<IntImmNode>();
+    if (!imm) return false;
+    DLDataType dtype = imm->ty.as_or_throw<PrimType>()->dtype;
+    auto implicit =
+        ffi::StringToDLDataType(d->GetExtraConfig<ffi::String>("ir.int_dtype", "int32"));
+    return dtype == implicit && dtype != ffi::StringToDLDataType("int64") &&
+           dtype != ffi::StringToDLDataType("bool");
+  };
+  if (needs_raw(1) || needs_raw(4)) return RawCall(d, call);
+  if (auto doc = StandardCallDocTranslate(d, call)) return doc;
+  return RawCall(d, call);
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  for (const char* name : {"relax.logical_and", "relax.logical_or", "relax.logical_not"}) {
+    OpDef(name).set_attr<FDocTranslate>(tvm::script::printer::op_attr::kDocTranslateOpCall,
+                                        FDocTranslate::FromNative<&LogicalCallDocTranslate>());
+  }
+  for (const char* name : {"relax.vm.alloc_storage", "relax.vm.alloc_tensor"}) {
+    OpDef(name).set_attr<FDocTranslate>(tvm::script::printer::op_attr::kDocTranslateOpCall,
+                                        FDocTranslate::FromNative<&VMAllocCallDocTranslate>());
   }
 }
 
@@ -92,23 +137,12 @@ ffi::Optional<ExprDoc> CallDPSPackedDocTranslate(DocTranslatorObj* d, ffi::AnyVi
   ExprDoc args = d->Translate(call->args[1]).value();
   ffi::Array<ffi::String> keys = {"ty_args"};
   ffi::Array<ExprDoc> values = {ListDoc({TypeValue(d, call->ty_args[0], false)})};
-  bool omit_result = false;
-  try {
-    Call inferred(std::nullopt, call->op, call->args, call->attrs, call->ty_args);
-    omit_result = ffi::StructuralEqual()(inferred->ty, call->ty);
-  } catch (const ffi::Error&) {
-    // An explicit result must also survive when result inference is unavailable.
-  }
-  if (!omit_result) {
-    keys.push_back("ty");
-    values.push_back(TypeValue(d, call->ty));
-  }
   return NamespaceDoc("relax")->Attr("call_dps_packed")->Call({callee, args}, keys, values);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.call_dps_packed")
-      .set_attr<FDocTranslate>(tvm::script::printer::op_attr::kOpCallDocTranslate,
+      .set_attr<FDocTranslate>(tvm::script::printer::op_attr::kDocTranslateOpCall,
                                FDocTranslate::FromNative<&CallDPSPackedDocTranslate>());
 }
 

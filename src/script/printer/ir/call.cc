@@ -33,16 +33,11 @@ namespace script {
 namespace printer {
 namespace details {
 
-// The name is published only for a callable implementing the shared Op contract.
-// Semantic wrappers register their own Op hooks.
+// Semantic wrappers register their own Op hooks; ordinary calls use canonical exposure.
 ffi::Optional<ExprDoc> StandardCallDocTranslate(DocTranslatorObj* d, const CallNode* call) {
   auto maybe_op = call->op.as<Op>();
-  if (!maybe_op || !Op::HasAttrMap(tvm::script::printer::op_attr::kScriptPrinterName))
-    return std::nullopt;
+  if (!maybe_op) return std::nullopt;
   const Op& op = maybe_op.value();
-  static const auto& names =
-      Op::GetAttrMap<TScriptPrinterName>(tvm::script::printer::op_attr::kScriptPrinterName);
-  if (!names.count(op) || names[op].empty()) return std::nullopt;
   if (call->attrs.has_value() ? op->attrs_type_key != call->attrs->GetTypeKey()
                               : !op->attrs_type_key.empty()) {
     return RawCall(d, call);
@@ -107,7 +102,7 @@ ffi::Optional<ExprDoc> StandardCallDocTranslate(DocTranslatorObj* d, const CallN
     keys.push_back("ty");
     values.push_back(TypeValue(d, call->ty));
   }
-  return NamedCallCallee(names[op])->Call(args, keys, values);
+  return NamedCallCallee(op->name)->Call(args, keys, values);
 }
 
 namespace {
@@ -117,9 +112,9 @@ ffi::Optional<ExprDoc> CallDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
   const auto* call =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const CallNode>(input);
   if (auto op = call->op.as<Op>();
-      op && Op::HasAttrMap(tvm::script::printer::op_attr::kOpCallDocTranslate)) {
+      op && Op::HasAttrMap(tvm::script::printer::op_attr::kDocTranslateOpCall)) {
     static const auto& overrides =
-        Op::GetAttrMap<ffi::Any>(tvm::script::printer::op_attr::kOpCallDocTranslate);
+        Op::GetAttrMap<ffi::Any>(tvm::script::printer::op_attr::kDocTranslateOpCall);
     if (overrides.count(op.value())) {
       ffi::Any hook = overrides[op.value()];
       if (hook.type_index() == ffi::TypeIndex::kTVMFFIOpaquePtr) {

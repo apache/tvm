@@ -119,7 +119,7 @@ ffi::Optional<ExprDoc> LLVMIntrinsicDocTranslate(DocTranslatorObj* d, ffi::AnyVi
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   for (const char* name : {"tirx.call_llvm_intrin", "tirx.call_llvm_pure_intrin"}) {
-    OpDef(name).set_attr<FDocTranslate>(tvm::script::printer::op_attr::kOpCallDocTranslate,
+    OpDef(name).set_attr<FDocTranslate>(tvm::script::printer::op_attr::kDocTranslateOpCall,
                                         FDocTranslate::FromNative<&LLVMIntrinsicDocTranslate>());
   }
 }
@@ -170,11 +170,6 @@ ffi::Optional<ExprDoc> TensorDataPtrDocTranslate(DocTranslatorObj* d, ffi::AnyVi
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const CallNode>(input);
   if (call->attrs.has_value() || !call->ty_args.empty() || call->args.size() != 1)
     return RawCall(d, call);
-  try {
-    if (!ffi::StructuralEqual()(Call::ReinferType(call), call->ty)) return RawCall(d, call);
-  } catch (const ffi::Error&) {
-    return RawCall(d, call);
-  }
   return d->Translate(call->args[0]).value()->Attr("data");
 }
 
@@ -187,13 +182,10 @@ ffi::Optional<ExprDoc> PTXCallDocTranslate(DocTranslatorObj* d, ffi::AnyView inp
   if (IsPTXAddressCall(call) || call->attrs.has_value() || !call->ty_args.empty() ||
       !ffi::StructuralEqual()(call->ty, PrimType::Void()))
     return RawCall(d, call);
-  const Op& op = call->op.as_or_throw<Op>();
-  static const auto& names =
-      Op::GetAttrMap<TScriptPrinterName>(tvm::script::printer::op_attr::kScriptPrinterName);
-  if (!names.count(op)) return RawCall(d, call);
-  auto can_roundtrip = ffi::Function::GetGlobal("script.printer.PTXCallCanRoundtrip");
-  if (!can_roundtrip || !(*can_roundtrip)(ffi::GetRef<Call>(call)).cast<bool>())
-    return RawCall(d, call);
+  auto surface_name = ffi::Function::GetGlobal("script.printer.PTXCallSurfaceName");
+  if (!surface_name) return RawCall(d, call);
+  auto name = (*surface_name)(ffi::GetRef<Call>(call)).cast<ffi::Optional<ffi::String>>();
+  if (!name) return RawCall(d, call);
   ffi::Array<ExprDoc> args;
   for (const Expr& arg : call->args) {
     ExprDoc value = d->Translate(arg).value();
@@ -210,12 +202,12 @@ ffi::Optional<ExprDoc> PTXCallDocTranslate(DocTranslatorObj* d, ffi::AnyView inp
     }
     args.push_back(value);
   }
-  return NamedCallCallee(names[op])->Call(args);
+  return NamedCallCallee(name.value())->Call(args);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("tirx.tensor_data_ptr")
-      .set_attr<FDocTranslate>(tvm::script::printer::op_attr::kOpCallDocTranslate,
+      .set_attr<FDocTranslate>(tvm::script::printer::op_attr::kDocTranslateOpCall,
                                FDocTranslate::FromNative<&TensorDataPtrDocTranslate>());
   ffi::reflection::GlobalDef().def("script.printer.PTXCallDocTranslate", []() {
     return ffi::Any(FDocTranslate::FromNative<&PTXCallDocTranslate>());

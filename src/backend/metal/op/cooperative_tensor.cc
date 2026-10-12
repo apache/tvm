@@ -20,7 +20,6 @@
 #include <tvm/backend/metal/op/cooperative_tensor.h>
 #include <tvm/ir/expr.h>
 #include <tvm/ir/op.h>
-#include <tvm/script/printer/doc_translator.h>
 #include <tvm/tirx/op_attr_types.h>
 
 namespace tvm {
@@ -41,8 +40,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                  sig::arg<PrimExpr>("value", "The value to use."),
                  sig::arg<IntExpr>("rows", "The number of rows."),
                  sig::arg<IntExpr>("cols", "The number of columns."))
-      .set_attr<TScriptPrinterName>(tvm::script::printer::op_attr::kScriptPrinterName,
-                                    ffi::String("tirx.metal.cooperative_tensor_fill"))
       .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
                                  static_cast<int64_t>(CallEffectKind::kOpaque));
 }
@@ -64,8 +61,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                  sig::arg<IntExpr>("mma_N", "The N dimension of the matrix operation."),
                  sig::arg<IntExpr>("mma_K", "The K dimension of the matrix operation."),
                  sig::arg<IntExpr>("operand_role", "The matrix operand role."))
-      .set_attr<TScriptPrinterName>(tvm::script::printer::op_attr::kScriptPrinterName,
-                                    ffi::String("tirx.metal.cooperative_tensor_load"))
       .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
                                  static_cast<int64_t>(CallEffectKind::kOpaque));
 }
@@ -87,8 +82,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                  sig::arg<IntExpr>("mma_N", "The N dimension of the matrix operation."),
                  sig::arg<IntExpr>("mma_K", "The K dimension of the matrix operation."),
                  sig::arg<IntExpr>("operand_role", "The matrix operand role."))
-      .set_attr<TScriptPrinterName>(tvm::script::printer::op_attr::kScriptPrinterName,
-                                    ffi::String("tirx.metal.cooperative_tensor_store"))
       .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
                                  static_cast<int64_t>(CallEffectKind::kOpaque));
 }
@@ -110,9 +103,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
           sig::arg<IntExpr>("K", "The K dimension."),
           sig::arg<PrimExpr>("transpose_a", "Whether to transpose A."),
           sig::arg<PrimExpr>("transpose_b", "Whether to transpose B."))
-      .set_attr<TScriptPrinterName>(
-          tvm::script::printer::op_attr::kScriptPrinterName,
-          ffi::String("tirx.metal.cooperative_tensor_multiply_accumulate"))
       .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
                                  static_cast<int64_t>(CallEffectKind::kOpaque));
 }

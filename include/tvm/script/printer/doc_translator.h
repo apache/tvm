@@ -382,25 +382,13 @@ namespace type_attr {
  * \brief Type attribute containing a native or packed translation hook.
  */
 inline constexpr const char* kDocTranslate = "__tvm_doc_translate__";
-/*!
- * \brief Optional hook dispatched by load->source->ty, receiving the TensorLoad and binder.
- */
-inline constexpr const char* kDocTranslateTensorLoadBySourceTy =
-    "__tvm_doc_translate_tensor_load_by_source_ty__";
-/*!
- * \brief Optional hook dispatched by var->ty, receiving the Var and binder.
- * Types without an override use the generic Var reference and definition syntax.
- */
-inline constexpr const char* kDocTranslateVarByTy = "__tvm_doc_translate_var_by_ty__";
 }  // namespace type_attr
 
 namespace op_attr {
-inline constexpr const char* kScriptPrinterName = "TScriptPrinterName";
-
 /*!
  * \brief Op-specific Call translation hook with the FDocTranslate contract.
  */
-inline constexpr const char* kOpCallDocTranslate = "__tvm_doc_translate_op_call__";
+inline constexpr const char* kDocTranslateOpCall = "__tvm_doc_translate_op_call__";
 }  // namespace op_attr
 
 inline ffi::Optional<ExprDoc> DocTranslatorObj::DefaultTranslate(ffi::AnyView value,
