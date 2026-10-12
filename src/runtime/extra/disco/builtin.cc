@@ -23,7 +23,7 @@
 #include <tvm/runtime/disco/builtin.h>
 #include <tvm/runtime/disco/disco_worker.h>
 #include <tvm/runtime/disco/session.h>
-#include <tvm/runtime/vm/vm.h>
+#include <tvm/runtime/tensor.h>
 
 #include <sstream>
 
@@ -65,9 +65,7 @@ ffi::Module LoadVMModule(std::string path, ffi::Optional<Device> device) {
         << "File `" << path
         << "` is not built by RelaxVM, because `vm_initialization` does not exist";
   }
-  (*vm_initialization)(static_cast<int>(dev.device_type), static_cast<int>(dev.device_id),
-                       static_cast<int>(AllocatorType::kPooled), static_cast<int>(kDLCPU), 0,
-                       static_cast<int>(AllocatorType::kPooled));
+  ffi::Function::GetGlobalRequired("vm.builtin.initialize_default")(mod, dev);
   return mod;
 }
 

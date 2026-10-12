@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Test Naive allocator with memory scope for Relax VM"""
+"""Test tensor allocation with memory scope for Relax VM"""
 
 import numpy as np
 
@@ -66,8 +66,7 @@ def test_alloc_storage_with_scope_global():
         lib = tvm.relax.build(mod, target=target)
 
     dev = tvm.cpu()
-    # This is the important line which tests nd allocator
-    vm_rt = relax.VirtualMachine(lib, dev, memory_cfg="naive")
+    vm_rt = relax.VirtualMachine(lib, dev)
     x = tvm.runtime.tensor(arg0, dev)
     vm_rt.set_input("main", x)
     vm_rt.invoke_stateful("main")

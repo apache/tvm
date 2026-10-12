@@ -233,6 +233,18 @@ class ROCMDeviceAPI final : public DeviceAPI {
     ROCM_CALL(hipStreamSynchronize(static_cast<hipStream_t>(stream)));
   }
 
+  void* AllocWorkspace(Device dev, size_t size, DLDataType type_hint) final {
+    auto* entry = ROCMThreadEntry::ThreadLocal();
+    auto& pool = dev.device_type == kDLROCMHost ? entry->host_pool : entry->pool;
+    return pool.AllocWorkspace(dev, size);
+  }
+
+  void FreeWorkspace(Device dev, void* data) final {
+    auto* entry = ROCMThreadEntry::ThreadLocal();
+    auto& pool = dev.device_type == kDLROCMHost ? entry->host_pool : entry->pool;
+    pool.FreeWorkspace(dev, data);
+  }
+
   static ROCMDeviceAPI* Global() {
     static ROCMDeviceAPI* inst = new ROCMDeviceAPI();
     return inst;
@@ -249,7 +261,8 @@ class ROCMDeviceAPI final : public DeviceAPI {
   }
 };
 
-ROCMThreadEntry::ROCMThreadEntry() {}
+ROCMThreadEntry::ROCMThreadEntry()
+    : pool(kDLROCM, ROCMDeviceAPI::Global()), host_pool(kDLROCMHost, ROCMDeviceAPI::Global()) {}
 
 ROCMThreadEntry* ROCMThreadEntry::ThreadLocal() {
   static thread_local ROCMThreadEntry inst;

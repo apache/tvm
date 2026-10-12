@@ -27,14 +27,11 @@
 #include <tvm/runtime/device_api.h>
 
 #include <memory>
-#include <mutex>
+#include <unordered_map>
 #include <vector>
 
 namespace tvm {
 namespace runtime {
-// Invalidate cached workspace owners when a backend tears down a resource session.
-TVM_RUNTIME_DLL void ResetWorkspacePool(DLDeviceType device_type);
-
 /*!
  * \brief A workspace pool to manage
  *
@@ -46,14 +43,16 @@ TVM_RUNTIME_DLL void ResetWorkspacePool(DLDeviceType device_type);
  *  - The release order is usually in reverse order of allocate
  *  - Repeative pattern of same allocations over different runs.
  */
-class WorkspacePool {
+class TVM_RUNTIME_DLL WorkspacePool {
  public:
   /*!
    * \brief Create pool with specific device type and device.
    * \param device_type The device type.
    * \param device_api The device API.
+   * \param alloc Optional backend allocation for unpooled owning workspace tensors.
    */
-  WorkspacePool(DLDeviceType device_type, DeviceAPI* device_api);
+  using Allocator = ffi::Tensor (*)(DeviceAPI*, Device, size_t);
+  WorkspacePool(DLDeviceType device_type, DeviceAPI* device_api, Allocator alloc = nullptr);
   /*! \brief destructor */
   ~WorkspacePool();
   /*!
@@ -69,18 +68,18 @@ class WorkspacePool {
    * \param ptr The pointer to be freed.
    */
   void FreeWorkspace(Device dev, void* ptr);
+  /*! \brief Release cached allocations; outstanding allocations remain valid until freed. */
+  void Clear();
 
  private:
   class Pool;
-  friend void ResetWorkspacePool(DLDeviceType device_type);
-  void Reset();
-  std::mutex mutex_;
   /*! \brief pool of device local array */
-  std::vector<Pool*> array_;
+  std::vector<std::unordered_map<TVMStreamHandle, Pool*>> array_;
   /*! \brief device type this pool support */
   DLDeviceType device_type_;
   /*! \brief The device API */
   DeviceAPI* device_;
+  Allocator alloc_;
 };
 
 }  // namespace runtime

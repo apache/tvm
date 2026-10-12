@@ -29,6 +29,8 @@
 #include <cstdlib>
 #include <cstring>
 
+#include "workspace_pool.h"
+
 #ifdef __ANDROID__
 #include <android/api-level.h>
 #endif
@@ -132,6 +134,9 @@ class CPUDeviceAPI final : public DeviceAPI {
  public:
   void StreamSync(Device dev, TVMStreamHandle stream) final {}
 
+  void* AllocWorkspace(Device dev, size_t size, DLDataType type_hint) final;
+  void FreeWorkspace(Device dev, void* data) final;
+
   bool SupportsDevicePointerArithmeticsOnHost() final { return true; }
 
   static CPUDeviceAPI* Global() {
@@ -148,6 +153,23 @@ class CPUDeviceAPI final : public DeviceAPI {
     memcpy(static_cast<char*>(to) + to_offset, static_cast<const char*>(from) + from_offset, size);
   }
 };
+
+struct CPUWorkspacePool : public WorkspacePool {
+  CPUWorkspacePool() : WorkspacePool(kDLCPU, CPUDeviceAPI::Global()) {}
+};
+
+static CPUWorkspacePool* CPUWorkspacePoolThreadLocal() {
+  static thread_local CPUWorkspacePool inst;
+  return &inst;
+}
+
+void* CPUDeviceAPI::AllocWorkspace(Device dev, size_t size, DLDataType type_hint) {
+  return CPUWorkspacePoolThreadLocal()->AllocWorkspace(dev, size);
+}
+
+void CPUDeviceAPI::FreeWorkspace(Device dev, void* data) {
+  CPUWorkspacePoolThreadLocal()->FreeWorkspace(dev, data);
+}
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
