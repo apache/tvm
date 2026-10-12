@@ -126,6 +126,8 @@ inline ncclDataType_t AsNCCLDataType(DLDataType dtype) {
 }
 
 struct CCLThreadLocalContext {
+  // Distinguish communicator lifetimes even when worker/communicator addresses are reused.
+  uint64_t generation = 0;
   DiscoWorker* worker = nullptr;
   int device_id;
   deviceStream_t default_stream = nullptr;
@@ -135,6 +137,7 @@ struct CCLThreadLocalContext {
   ~CCLThreadLocalContext() { Clear(); }
 
   void Clear() {
+    ++generation;
     if (group_comm) {
       NCCL_CALL(ncclCommDestroy(group_comm));
       if (global_comm == group_comm) {

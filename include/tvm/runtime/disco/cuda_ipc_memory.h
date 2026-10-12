@@ -20,14 +20,18 @@
 #ifndef TVM_RUNTIME_DISCO_CUDA_IPC_MEMORY_H_
 #define TVM_RUNTIME_DISCO_CUDA_IPC_MEMORY_H_
 
+#include <tvm/ffi/object.h>
 #include <tvm/runtime/base.h>
-#include <tvm/runtime/memory/memory_manager.h>
 
+#include <atomic>
+#include <memory>
 #include <vector>
 
 namespace tvm {
 namespace runtime {
 namespace cuda_ipc {
+
+class CUDAIPCAllocation;
 
 /*!
  * \brief The CUDA IPC (interprocess communication) memory object,
@@ -39,6 +43,8 @@ namespace cuda_ipc {
  */
 class CUDAIPCMemoryObj : public ffi::Object {
  public:
+  explicit CUDAIPCMemoryObj(std::shared_ptr<CUDAIPCAllocation> allocation);
+
   /*! \brief The number of GPU workers. */
   int num_workers;
   /*! \brief The worker id corresponding to this IPC memory object. */
@@ -67,10 +73,14 @@ class CUDAIPCMemoryObj : public ffi::Object {
    */
   std::vector<void*> barrier_out;
   /*! \brief The integer buffer flag for all-reduce. */
-  int barrier_flag;
+  std::atomic<int> barrier_flag{1};
 
   static constexpr const bool _type_mutable = true;
   TVM_FFI_DECLARE_OBJECT_INFO("tvm.runtime.disco.cuda_ipc_memory", CUDAIPCMemoryObj, ffi::Object);
+
+ private:
+  // Keep mappings and barriers alive while an all-reduce is preparing its arguments.
+  std::shared_ptr<CUDAIPCAllocation> allocation_;
 };
 
 /*!
@@ -79,8 +89,6 @@ class CUDAIPCMemoryObj : public ffi::Object {
  */
 class CUDAIPCMemory : public ffi::ObjectRef {
  public:
-  /*! \brief Get the global singleton CUDAIPCMemory allocator. */
-  TVM_RUNTIME_DLL static memory::Allocator* GlobalAllocator();
   /*!
    * \brief Given a local CUDA data pointer, return the CUDAIPCMemory object of the pointer.
    * \note The pointer's CUDAIPCMemory is expected to have been allocated

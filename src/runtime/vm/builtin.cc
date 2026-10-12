@@ -43,6 +43,25 @@ namespace vm {
 
 using tvm::ffi::Tensor;
 
+// Preserve generated-code Storage results at the VM boundary. The distributed
+// backend exposes owning tensors and has no dependency on the VM allocator.
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def("runtime.disco.cuda_ipc.alloc_storage",
+           [](ffi::Shape shape, DLDataType dtype) {
+             auto empty = ffi::Function::GetGlobalRequired("runtime.disco.cuda_ipc.empty");
+             return memory::Storage(empty(shape, dtype).cast<ffi::Tensor>());
+           })
+      .def("vm.builtin.initialize_default", [](ffi::Module mod, DLDevice dev) {
+        auto init = mod->GetFunction("vm_initialization");
+        TVM_FFI_CHECK(init.has_value(), ValueError) << "Module has no VM initialization function";
+        (*init)(static_cast<int>(dev.device_type), dev.device_id,
+                static_cast<int>(AllocatorType::kPooled), static_cast<int>(kDLCPU), 0,
+                static_cast<int>(AllocatorType::kPooled));
+      });
+}
+
 //-------------------------------------------------
 //  Shape/Type handling.
 //-------------------------------------------------

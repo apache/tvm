@@ -21,7 +21,6 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/disco/cuda_ipc_memory.h>
-#include <tvm/runtime/memory/memory_manager.h>
 
 #include "../../../../../3rdparty/tensorrt_llm/custom_allreduce_kernels.h"
 #include "../nccl/nccl_context.h"
@@ -92,7 +91,9 @@ void CustomAllReduce(DLTensor* send, int strategy, DLTensor* recv) {
   params.rank = ctx->worker->worker_id;
   params.local_rank = ctx->worker->worker_id;
   CUDAIPCMemory ipc_memory = CUDAIPCMemory::GetIPCMemoryFromDevicePtr(send->data);
-  params.barrier_flag = ipc_memory->barrier_flag++;
+  TVM_FFI_ICHECK_EQ(ipc_memory->num_workers, ctx->worker->num_workers);
+  TVM_FFI_ICHECK_EQ(ipc_memory->worker_id, ctx->worker->worker_id);
+  params.barrier_flag = ipc_memory->barrier_flag.fetch_add(1, std::memory_order_relaxed);
   for (int i = 0; i < ctx->worker->num_workers; ++i) {
     params.peer_comm_buffer_ptrs[i] = ipc_memory->remote_data[i];
   }

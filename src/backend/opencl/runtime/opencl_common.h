@@ -28,7 +28,6 @@
 #include <tvm/ffi/function.h>
 #include <tvm/runtime/base.h>
 #include <tvm/runtime/device_api.h>
-#include <tvm/runtime/memory/memory_manager.h>
 #include <tvm/runtime/tensor.h>
 #include <tvm/runtime/timer.h>
 
@@ -79,8 +78,6 @@
 namespace tvm {
 namespace runtime {
 namespace cl {
-
-using tvm::runtime::memory::Buffer;
 
 static_assert(sizeof(cl_mem) == sizeof(void*), "Required to store cl_mem inside void*");
 
@@ -363,6 +360,7 @@ class OpenCLWorkspace : public DeviceAPI {
   void SetNativePtr(const tvm::ffi::Tensor& narr, void* host_ptr, size_t buf_size);
   void SetPerfHint(Device dev, cl_uint perf_hint);
   void FreeDataSpace(Device dev, void* ptr);
+  void ClearMemoryPool();
   void StreamSync(Device dev, TVMStreamHandle stream) final;
   // cl_mem alloc utils
   void* AllocCLBuffer(Device dev, size_t size, size_t alignment, DLDataType type_hint);
@@ -387,6 +385,9 @@ class OpenCLWorkspace : public DeviceAPI {
     return "";
   }
   std::string noDevicesErrorMsg = "";
+  ffi::ObjectPtr<TensorMemoryPool> GetMemoryPool();
+  std::mutex pool_mutex_;
+  ffi::ObjectPtr<TensorMemoryPool> memory_pool_;
 };
 
 /*! \brief Thread local workspace */
@@ -449,7 +450,8 @@ struct BufferDescriptor {
   cl::BufferDescriptor* back_buffer{nullptr};
   cl_uchar* host_ptr{nullptr};
   MemoryLayout layout{MemoryLayout::kBuffer1D};
-  Buffer mbuf{nullptr};  // MemoryManager ref.
+  // Images release their physical view before this owning buffer tensor.
+  ffi::Tensor backing;
   bool is_compat_view{false};
 };
 }  // namespace cl

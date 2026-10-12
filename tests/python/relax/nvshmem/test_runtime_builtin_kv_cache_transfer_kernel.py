@@ -22,7 +22,6 @@ from tvm_ffi import Shape
 
 import tvm
 import tvm.testing
-from tvm.runtime import Device
 from tvm.runtime import disco as di
 
 page_size = 4
@@ -110,6 +109,9 @@ def test_kv_transfer_without_disco():
             original_v = v_np[i]
             transferred_v = pages_np[layer_id, page_id, 1, :, offset_in_page, :]
             tvm.testing.assert_allclose(original_v, transferred_v)
+    if rank == 0:
+        del layer_view
+    del pages
     finalize_func = tvm.get_global_func("runtime.disco.nvshmem.finalize_nvshmem")
     finalize_func()
     comm.Barrier()
@@ -177,6 +179,9 @@ def test_kv_transfer_page_to_page_without_disco():
             rank_0_entry = pages_np[layer_id, rank_0_page_id, :, :, rank_0_offset_in_page, :]
             transferred_entry = new_pages_np[layer_id, page_id, :, :, offset_in_page, :]
             tvm.testing.assert_allclose(rank_0_entry, transferred_entry)
+    if rank == 0:
+        del layer_view
+    del pages
     finalize_func = tvm.get_global_func("runtime.disco.nvshmem.finalize_nvshmem")
     finalize_func()
     comm.Barrier()
@@ -200,7 +205,7 @@ def test_kv_transfer_with_disco():
     pages = empty_func(
         Shape((num_layers, num_pages, 2, num_kv_heads, page_size, head_dim)),
         "float16",
-        Device(device_type=0, device_id=0),
+        None,
     )
     position_map_array = [0, 1, 2, 3, 4, 5, 10, 11, 12, 15, 16, 17, 18, 19, 25, 27]
     np.random.seed(0)
@@ -260,6 +265,9 @@ def test_kv_transfer_with_disco():
             original_v = v_np_1[i]
             transferred_v = pages_np[layer_id, page_id, 1, :, offset_in_page, :]
             tvm.testing.assert_allclose(original_v, transferred_v)
+    if rank == 0:
+        del layer_view
+    del pages
     finalize_dfunc = sess.get_global_func("runtime.disco.nvshmem.finalize_nvshmem")
     finalize_dfunc()
     for i in range(2):
