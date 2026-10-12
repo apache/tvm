@@ -96,10 +96,10 @@ class CodeGenRunner : ExprMutator {
 
     if (constant_names.size()) {
       // Some backends (e.g. TensorRT) expect constants to be passed when they are instantiated
-      ffi::Map<ffi::String, runtime::Tensor> constants;
+      ffi::Map<ffi::String, ffi::Tensor> constants;
       for (const auto& [constant, name] : constant_names) {
         TVM_FFI_ICHECK(!constants.count(name)) << "More than one constant with the name " << name;
-        constants.Set(name, constant->value.cast<runtime::Tensor>());
+        constants.Set(name, constant->value.cast<ffi::Tensor>());
       }
       out_mod = WithAttr(out_mod, tvm::attr::kConstNameToConstant, std::move(constants));
     }
@@ -171,7 +171,7 @@ class CodeGenRunner : ExprMutator {
       size_t count = 0;
       PostOrderVisit(func->body, [=, this, &count](Expr e) {
         if (auto constant = e.as<GenericConst>();
-            constant && constant.value()->value.as<runtime::Tensor>()) {
+            constant && constant.value()->value.as<ffi::TensorObj>()) {
           // Make sure to pick a unique name
           auto name = ext_symbol + "_" + opt_codegen.value() + "_const_" + std::to_string(count++);
           constant_names.Set(constant.value(), name);

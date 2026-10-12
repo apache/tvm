@@ -187,7 +187,7 @@ class CollectLastUsage : public ExprVisitor {
   }
 
   void VisitBinding_(const VarBindingNode* binding, const GenericConstNode* val) override {
-    if (val->value.as<runtime::Tensor>()) constant_tensors_.insert(binding->var.get());
+    if (val->value.as<ffi::TensorObj>()) constant_tensors_.insert(binding->var.get());
   }
 
  private:

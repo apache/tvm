@@ -31,9 +31,8 @@
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/timer.h>
 
+#include <algorithm>
 #include <cstring>
-
-#include "../../../runtime/workspace_pool.h"
 
 namespace tvm {
 namespace runtime {
@@ -53,112 +52,125 @@ namespace runtime {
 class CUDADeviceAPI final : public DeviceAPI {
  public:
   void SetDevice(Device dev) final { TVM_FFI_CHECK_CUDA_ERROR(cudaSetDevice(dev.device_id)); }
-  void GetAttr(Device dev, DeviceAttrKind kind, ffi::Any* rv) final {
+  ffi::Any GetAttr(Device dev, const ffi::String& name) final {
+    ffi::Any rv;
     int value = 0;
-    switch (kind) {
-      case kExist: {
-        int count;
-        auto err = cudaGetDeviceCount(&count);
-        value = (err == cudaSuccess && static_cast<int>(dev.device_id < count));
-        break;
-      }
-      case kMaxThreadsPerBlock: {
-        TVM_FFI_CHECK_CUDA_ERROR(
-            cudaDeviceGetAttribute(&value, cudaDevAttrMaxThreadsPerBlock, dev.device_id));
-        break;
-      }
-      case kWarpSize: {
-        TVM_FFI_CHECK_CUDA_ERROR(
-            cudaDeviceGetAttribute(&value, cudaDevAttrWarpSize, dev.device_id));
-        break;
-      }
-      case kMaxSharedMemoryPerBlock: {
-        TVM_FFI_CHECK_CUDA_ERROR(
-            cudaDeviceGetAttribute(&value, cudaDevAttrMaxSharedMemoryPerBlock, dev.device_id));
-        break;
-      }
-      case kComputeVersion: {
-        std::ostringstream os;
-        TVM_FFI_CHECK_CUDA_ERROR(
-            cudaDeviceGetAttribute(&value, cudaDevAttrComputeCapabilityMajor, dev.device_id));
-        os << value << ".";
-        TVM_FFI_CHECK_CUDA_ERROR(
-            cudaDeviceGetAttribute(&value, cudaDevAttrComputeCapabilityMinor, dev.device_id));
-        os << value;
-        *rv = os.str();
-        return;
-      }
-      case kDeviceName: {
-        std::string name(256, 0);
-        CUDA_DRIVER_CALL(cuDeviceGetName(&name[0], name.size(), dev.device_id));
-        name.resize(strlen(name.c_str()));
-        *rv = std::move(name);
-        return;
-      }
-      case kMaxClockRate: {
-        TVM_FFI_CHECK_CUDA_ERROR(
-            cudaDeviceGetAttribute(&value, cudaDevAttrClockRate, dev.device_id));
-        break;
-      }
-      case kMultiProcessorCount: {
-        TVM_FFI_CHECK_CUDA_ERROR(
-            cudaDeviceGetAttribute(&value, cudaDevAttrMultiProcessorCount, dev.device_id));
-        break;
-      }
-      case kMaxThreadDimensions: {
-        int dims[3];
-        TVM_FFI_CHECK_CUDA_ERROR(
-            cudaDeviceGetAttribute(&dims[0], cudaDevAttrMaxBlockDimX, dev.device_id));
-        TVM_FFI_CHECK_CUDA_ERROR(
-            cudaDeviceGetAttribute(&dims[1], cudaDevAttrMaxBlockDimY, dev.device_id));
-        TVM_FFI_CHECK_CUDA_ERROR(
-            cudaDeviceGetAttribute(&dims[2], cudaDevAttrMaxBlockDimZ, dev.device_id));
-
-        std::stringstream ss;  // use json string to return multiple int values;
-        ss << "[" << dims[0] << ", " << dims[1] << ", " << dims[2] << "]";
-        *rv = ss.str();
-        return;
-      }
-      case kMaxRegistersPerBlock: {
-        TVM_FFI_CHECK_CUDA_ERROR(
-            cudaDeviceGetAttribute(&value, cudaDevAttrMaxRegistersPerBlock, dev.device_id));
-        break;
-      }
-      case kGcnArch:
-        return;
-      case kApiVersion: {
-        *rv = CUDA_VERSION;
-        return;
-      }
-      case kDriverVersion:
-        return;
-      case kL2CacheSizeBytes: {
-        // Get size of device l2 cache size in bytes.
-        int l2_size = 0;
-        TVM_FFI_CHECK_CUDA_ERROR(
-            cudaDeviceGetAttribute(&l2_size, cudaDevAttrL2CacheSize, dev.device_id));
-        *rv = l2_size;
-        return;
-      }
-      case kTotalGlobalMemory: {
-        cudaDeviceProp prop;
-        TVM_FFI_CHECK_CUDA_ERROR(cudaGetDeviceProperties(&prop, dev.device_id));
-        int64_t total_global_memory = prop.totalGlobalMem;
-        *rv = total_global_memory;
-        return;
-      }
-      case kAvailableGlobalMemory: {
-        size_t free_mem, total_mem;
-        TVM_FFI_CHECK_CUDA_ERROR(cudaMemGetInfo(&free_mem, &total_mem));
-        *rv = static_cast<int64_t>(free_mem);
-        return;
-      }
-      case kImagePitchAlignment:
-        return;
+    if (name == "exist") {
+      int count;
+      auto err = cudaGetDeviceCount(&count);
+      value = (err == cudaSuccess && (dev.device_id >= 0 && dev.device_id < count));
+      return bool(value);
     }
-    *rv = value;
+    if (name == "max_threads_per_block") {
+      TVM_FFI_CHECK_CUDA_ERROR(
+          cudaDeviceGetAttribute(&value, cudaDevAttrMaxThreadsPerBlock, dev.device_id));
+      return value;
+    }
+    if (name == "warp_size") {
+      TVM_FFI_CHECK_CUDA_ERROR(cudaDeviceGetAttribute(&value, cudaDevAttrWarpSize, dev.device_id));
+      return value;
+    }
+    if (name == "max_shared_memory_per_block") {
+      TVM_FFI_CHECK_CUDA_ERROR(
+          cudaDeviceGetAttribute(&value, cudaDevAttrMaxSharedMemoryPerBlock, dev.device_id));
+      return value;
+    }
+    if (name == "compute_version") {
+      std::ostringstream os;
+      TVM_FFI_CHECK_CUDA_ERROR(
+          cudaDeviceGetAttribute(&value, cudaDevAttrComputeCapabilityMajor, dev.device_id));
+      os << value << ".";
+      TVM_FFI_CHECK_CUDA_ERROR(
+          cudaDeviceGetAttribute(&value, cudaDevAttrComputeCapabilityMinor, dev.device_id));
+      os << value;
+      rv = os.str();
+      return rv;
+    }
+    if (name == "device_name") {
+      std::string name(256, 0);
+      CUDA_DRIVER_CALL(cuDeviceGetName(&name[0], name.size(), dev.device_id));
+      name.resize(strlen(name.c_str()));
+      rv = std::move(name);
+      return rv;
+    }
+    if (name == "max_clock_rate") {
+      TVM_FFI_CHECK_CUDA_ERROR(cudaDeviceGetAttribute(&value, cudaDevAttrClockRate, dev.device_id));
+      return value;
+    }
+    if (name == "multi_processor_count") {
+      TVM_FFI_CHECK_CUDA_ERROR(
+          cudaDeviceGetAttribute(&value, cudaDevAttrMultiProcessorCount, dev.device_id));
+      return value;
+    }
+    if (name == "max_thread_dimensions") {
+      int dims[3];
+      TVM_FFI_CHECK_CUDA_ERROR(
+          cudaDeviceGetAttribute(&dims[0], cudaDevAttrMaxBlockDimX, dev.device_id));
+      TVM_FFI_CHECK_CUDA_ERROR(
+          cudaDeviceGetAttribute(&dims[1], cudaDevAttrMaxBlockDimY, dev.device_id));
+      TVM_FFI_CHECK_CUDA_ERROR(
+          cudaDeviceGetAttribute(&dims[2], cudaDevAttrMaxBlockDimZ, dev.device_id));
+
+      std::stringstream ss;  // use json string to return multiple int values;
+      ss << "[" << dims[0] << ", " << dims[1] << ", " << dims[2] << "]";
+      rv = ss.str();
+      return rv;
+    }
+    if (name == "max_registers_per_block") {
+      TVM_FFI_CHECK_CUDA_ERROR(
+          cudaDeviceGetAttribute(&value, cudaDevAttrMaxRegistersPerBlock, dev.device_id));
+      return value;
+    }
+    if (name == "api_version") {
+      rv = CUDA_VERSION;
+      return rv;
+    }
+    if (name == "l2_cache_size_bytes") {
+      // Get size of device l2 cache size in bytes.
+      int l2_size = 0;
+      TVM_FFI_CHECK_CUDA_ERROR(
+          cudaDeviceGetAttribute(&l2_size, cudaDevAttrL2CacheSize, dev.device_id));
+      rv = l2_size;
+      return rv;
+    }
+    if (name == "total_global_memory") {
+      cudaDeviceProp prop;
+      TVM_FFI_CHECK_CUDA_ERROR(cudaGetDeviceProperties(&prop, dev.device_id));
+      int64_t total_global_memory = prop.totalGlobalMem;
+      rv = total_global_memory;
+      return rv;
+    }
+    if (name == "available_global_memory") {
+      size_t free_mem, total_mem;
+      TVM_FFI_CHECK_CUDA_ERROR(cudaMemGetInfo(&free_mem, &total_mem));
+      rv = static_cast<int64_t>(free_mem);
+      return rv;
+    }
+
+    return rv;
   }
-  void* AllocDataSpace(Device dev, size_t nbytes, size_t alignment, DLDataType type_hint) final {
+  ffi::Tensor Empty(ffi::ShapeView shape, DLDataType dtype, DLDevice device,
+                    ffi::Optional<ffi::String> mem_scope = std::nullopt) final {
+    TVM_FFI_CHECK(
+        !mem_scope.has_value() || mem_scope.value().empty() || mem_scope.value() == "global",
+        ValueError)
+        << "Unsupported memory scope: " << mem_scope.value_or("");
+    struct Allocator {
+      CUDADeviceAPI* api;
+      void AllocData(DLTensor* tensor) {
+        size_t alignment =
+            std::max(static_cast<size_t>(kAllocAlignment),
+                     static_cast<size_t>((tensor->dtype.bits / 8) * tensor->dtype.lanes));
+        tensor->data = api->AllocDataSpace(tensor->device, ffi::GetDataSize(*tensor), alignment,
+                                           tensor->dtype);
+      }
+      void FreeData(DLTensor* tensor) { api->FreeDataSpace(tensor->device, tensor->data); }
+    };
+    return ffi::Tensor::FromNDAlloc(Allocator{this}, shape, dtype, device);
+  }
+
+ private:
+  void* AllocDataSpace(Device dev, size_t nbytes, size_t alignment, DLDataType type_hint) {
     TVM_FFI_ICHECK_EQ(256 % alignment, 0U) << "CUDA space is aligned at 256 bytes";
     void* ret;
     if (dev.device_type == kDLCUDAHost) {
@@ -175,7 +187,7 @@ class CUDADeviceAPI final : public DeviceAPI {
     return ret;
   }
 
-  void FreeDataSpace(Device dev, void* ptr) final {
+  void FreeDataSpace(Device dev, void* ptr) {
     if (std::uncaught_exceptions() && cudaPeekAtLastError() == cudaErrorIllegalAddress) {
       // For most CUDA calls, an error from an API call will be
       // immediately reported, and raised as an exception.  However,
@@ -279,14 +291,6 @@ class CUDADeviceAPI final : public DeviceAPI {
     TVM_FFI_CHECK_CUDA_ERROR(cudaStreamSynchronize(static_cast<cudaStream_t>(stream)));
   }
 
-  void* AllocWorkspace(Device dev, size_t size, DLDataType type_hint) final {
-    return ThreadLocalWorkspacePool()->AllocWorkspace(dev, size);
-  }
-
-  void FreeWorkspace(Device dev, void* data) final {
-    ThreadLocalWorkspacePool()->FreeWorkspace(dev, data);
-  }
-
   bool SupportsDevicePointerArithmeticsOnHost() final { return true; }
 
   static CUDADeviceAPI* Global() {
@@ -297,18 +301,11 @@ class CUDADeviceAPI final : public DeviceAPI {
   }
 
  private:
-  static WorkspacePool* ThreadLocalWorkspacePool();
-
   static void GPUCopy(const void* from, void* to, size_t size, cudaMemcpyKind kind,
                       cudaStream_t stream) {
     TVM_FFI_CHECK_CUDA_ERROR(cudaMemcpyAsync(to, from, size, kind, stream));
   }
 };
-
-WorkspacePool* CUDADeviceAPI::ThreadLocalWorkspacePool() {
-  static thread_local WorkspacePool pool(kDLCUDA, CUDADeviceAPI::Global());
-  return &pool;
-}
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;

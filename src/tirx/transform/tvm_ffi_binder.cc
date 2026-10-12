@@ -625,12 +625,18 @@ void TVMFFIABIBuilder::DecodeAllParams() {
       Stmt alignment =
           Evaluate(Call(PrimType::Void(), tirx::assume_aligned_op(),
                         {tensor.value(), IntImm::Int32(tensor.value()->data_alignment)}));
-      // Empty tensors may have arbitrary data pointers. Their checks must not
-      // be strengthened into an unconditional alignment promise.
-      if (IsConstInt(size)) {
-        if (!IsZero(size)) decl_tensors_.push_back(alignment);
-      } else {
-        decl_tensors_.push_back(If(size != 0, alignment));
+      // Empty tensors and opaque device handles carry no data-address alignment promise.
+      // DecodeParamDLTensor has already checked or bound the expected device type.
+      PrimExpr device_type = device_type_;
+      PrimExpr direct_address = device_type <= IntImm::Int32(kDLCUDAHost) ||
+                                device_type == IntImm::Int32(kDLCUDAManaged) ||
+                                device_type == IntImm::Int32(kDLROCM) ||
+                                device_type == IntImm::Int32(kDLROCMHost);
+      PrimExpr aligned_storage = analyzer_->Simplify(size != 0 && direct_address);
+      if (IsOne(aligned_storage)) {
+        decl_tensors_.push_back(alignment);
+      } else if (!IsZero(aligned_storage)) {
+        decl_tensors_.push_back(If(aligned_storage, alignment));
       }
     }
   }
@@ -780,6 +786,10 @@ Expr TVMFFIABIBuilder::DecodeParamDLTensor(const TensorVar& tensor, const PrimEx
                TVMStructGet(PrimType::UInt(64), handle, 0, tirx::kDLTensorByteOffset),
                byte_offset_path, true);
   } else {
+    PrimExpr byte_offset = TVMStructGet(PrimType::UInt(64), handle, 0, tirx::kDLTensorByteOffset);
+    EmitAssert(truncmod(byte_offset, MakeConst(PrimType::UInt(64), data_bytes)) ==
+                   MakeConst(PrimType::UInt(64), 0),
+               "ValueError", "Tensor byte offset must be divisible by its element size");
     if (BindScalar(tensor->elem_offset,
                    cast(tensor->elem_offset.ty(),
                         (TVMStructGet(PrimType::UInt(64), handle, 0, tirx::kDLTensorByteOffset) /
@@ -854,8 +864,17 @@ Expr TVMFFIABIBuilder::DecodeParamDLTensor(const TensorVar& tensor, const PrimEx
                                  StringImm(std::to_string(param_index)), when_calling_imm_,
                                  sig_imm_, StringImm("`,\n  expected non-NULL data pointer")})));
 
-      if (check_alignment_) {
-        // Check data pointer alignment
+      {
+        // Only direct-address devices expose the data address in DLTensor::data.
+        // Opaque device handles (such as OpenCL buffer descriptors) have no such alignment.
+        // Reuse the checked device type so fixed-target guards simplify statically.
+        PrimExpr device_type = device_type_;
+        PrimExpr direct_address = device_type <= IntImm::Int32(kDLCUDAHost) ||
+                                  device_type == IntImm::Int32(kDLCUDAManaged) ||
+                                  device_type == IntImm::Int32(kDLROCM) ||
+                                  device_type == IntImm::Int32(kDLROCMHost);
+        // Keep this predicate consistent with ffi::IsDirectAddressDevice.
+        // Check the allocation base, matching the assume_aligned on tensor data.
         if (tensor->data_alignment > 1) {
           Expr handle =
               Call(PtrType::VoidPtrType(), tirx::reinterpret_op(), ffi::Array<Expr>{vptr});
@@ -866,7 +885,7 @@ Expr TVMFFIABIBuilder::DecodeParamDLTensor(const TensorVar& tensor, const PrimEx
               truncmod(ptr_as_int, IntImm(PrimType::UInt(64), tensor->data_alignment)) ==
               IntImm(PrimType::UInt(64), 0);
           asserts_.emplace_back(AssertStmt(
-              alloc_size == 0 || align_cond, StringImm("ValueError"),
+              empty_alloc || !direct_address || align_cond, StringImm("ValueError"),
               ffi::Array<StringImm>({StringImm("Misaligned Tensor data on argument #"),
                                      StringImm(std::to_string(param_index)), when_calling_imm_,
                                      sig_imm_, StringImm("`,\n  expected data alignment="),

@@ -404,7 +404,7 @@ class DistributedIRBuilder : public ExprMutator {
       Var new_param(var->name, new_ty);
       return new_param;
     } else if (const auto* constant = tensor.as<GenericConstNode>()) {
-      GenericConst new_constant(constant->value.cast<runtime::Tensor>(), new_ty);
+      GenericConst new_constant(constant->value.cast<ffi::Tensor>(), new_ty);
       return new_constant;
     } else {
       TVM_FFI_THROW(InternalError) << "Cannot rewrite tensor which is not a Var or GenericConst";

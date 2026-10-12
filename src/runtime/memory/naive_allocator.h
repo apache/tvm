@@ -27,8 +27,13 @@
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/memory/memory_manager.h>
 
+#include <algorithm>
 #include <atomic>
+#include <limits>
+#include <memory>
+#include <mutex>
 #include <string>
+#include <unordered_map>
 
 namespace tvm {
 namespace runtime {
@@ -43,7 +48,40 @@ class NaiveAllocator final : public Allocator {
     buf.device = dev;
     buf.size = nbytes;
     buf.alloc_type = kNaive;
-    buf.data = DeviceAPI::Get(dev)->AllocDataSpace(dev, nbytes, alignment, type_hint);
+    TVM_FFI_CHECK(alignment && (alignment & (alignment - 1)) == 0, ValueError)
+        << "Allocation alignment must be a power of two";
+    size_t natural_alignment = std::max(static_cast<size_t>(kAllocAlignment),
+                                        static_cast<size_t>(type_hint.bits / 8) * type_hint.lanes);
+    DLDataType storage_dtype = type_hint;
+    size_t storage_bytes = nbytes;
+    bool align_cpu = dev.device_type == kDLCPU && alignment > natural_alignment;
+    if (align_cpu) {
+      TVM_FFI_CHECK_LE(nbytes, std::numeric_limits<size_t>::max() - (alignment - 1), ValueError)
+          << "Aligned allocation size overflow";
+      storage_bytes += alignment - 1;
+    } else if (alignment > natural_alignment) {
+      TVM_FFI_CHECK_LE(alignment, std::numeric_limits<uint16_t>::max(), ValueError)
+          << "Backend allocation alignment cannot be represented";
+      storage_dtype = DLDataType{kDLUInt, 8, static_cast<uint16_t>(alignment)};
+    }
+    size_t element_bits = static_cast<size_t>(storage_dtype.bits) * storage_dtype.lanes;
+    TVM_FFI_CHECK_GT(element_bits, 0, ValueError) << "Invalid allocation datatype";
+    TVM_FFI_CHECK_LE(storage_bytes, (std::numeric_limits<int64_t>::max() - element_bits) / 8,
+                     ValueError)
+        << "Allocation size overflow";
+    int64_t length = static_cast<int64_t>(
+        (static_cast<uint64_t>(storage_bytes) * 8 + element_bits - 1) / element_bits);
+    ffi::Tensor owner = DeviceAPI::Get(dev)->Empty(ffi::ShapeView(&length, 1), storage_dtype, dev);
+    void* data = owner.data_ptr();
+    if (align_cpu) {
+      size_t space = ffi::GetDataSize(owner);
+      TVM_FFI_ICHECK(std::align(alignment, nbytes, data, space) != nullptr);
+    }
+    buf.data = data;
+    {
+      std::lock_guard<std::mutex> lock(mu_);
+      owners_.emplace(buf.data, std::move(owner));
+    }
     used_memory_.fetch_add(nbytes, std::memory_order_relaxed);
     DLOG(INFO) << "allocate " << nbytes << " B, used memory " << used_memory_ << " B";
     return buf;
@@ -67,8 +105,12 @@ class NaiveAllocator final : public Allocator {
     }
 
     buf.size = nbytes;
-    buf.data = DeviceAPI::Get(dev)->AllocDataSpace(dev, shape.size(), shape.data(), type_hint,
-                                                   ffi::String(mem_scope));
+    auto owner = DeviceAPI::Get(dev)->Empty(shape, type_hint, dev, ffi::String(mem_scope));
+    buf.data = owner.data_ptr();
+    {
+      std::lock_guard<std::mutex> lock(mu_);
+      owners_.emplace(buf.data, std::move(owner));
+    }
     used_memory_.fetch_add(nbytes, std::memory_order_relaxed);
     DLOG(INFO) << "allocate " << nbytes << " B, used memory " << used_memory_ << " B";
     buf.alloc_type = kNaive;
@@ -76,7 +118,12 @@ class NaiveAllocator final : public Allocator {
   }
 
   void Free(const Buffer& buffer) override {
-    DeviceAPI::Get(buffer.device)->FreeDataSpace(buffer.device, buffer.data);
+    {
+      std::lock_guard<std::mutex> lock(mu_);
+      auto it = owners_.find(buffer.data);
+      TVM_FFI_ICHECK(it != owners_.end()) << "Unknown allocation owner";
+      owners_.erase(it);
+    }
     used_memory_.fetch_sub(buffer.size, std::memory_order_relaxed);
     DLOG(INFO) << "free " << buffer.size << " B, used memory " << used_memory_ << " B";
   }
@@ -85,6 +132,8 @@ class NaiveAllocator final : public Allocator {
 
  private:
   std::atomic<size_t> used_memory_;
+  std::mutex mu_;
+  std::unordered_multimap<void*, ffi::Tensor> owners_;
 };
 
 }  // namespace memory

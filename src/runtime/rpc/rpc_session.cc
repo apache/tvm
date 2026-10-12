@@ -76,7 +76,7 @@ void RPCSession::AsyncStreamWait(Device dev, TVMStreamHandle stream,
   AnyView packed_args[1] = {nullptr};
 
   try {
-    this->GetDeviceAPI(dev)->StreamSync(dev, stream);
+    this->StreamSync(dev, stream);
     callback(RPCCode::kReturn, ffi::PackedArgs(packed_args, 1));
   } catch (const std::exception& e) {
     this->SendException(callback, e.what());

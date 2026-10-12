@@ -173,7 +173,7 @@ public class Device {
     TVMValue ret = APIInternal.get("runtime.GetDeviceAttr")
                        .pushArg(deviceType)
                        .pushArg(deviceId)
-                       .pushArg(0)
+                       .pushArg("exist")
                        .invoke();
     return ((TVMValueLong) ret).value != 0;
   }
@@ -186,7 +186,7 @@ public class Device {
     TVMValue ret = APIInternal.get("runtime.GetDeviceAttr")
                        .pushArg(deviceType)
                        .pushArg(deviceId)
-                       .pushArg(1)
+                       .pushArg("max_threads_per_block")
                        .invoke();
     return ((TVMValueLong) ret).value;
   }
@@ -199,7 +199,7 @@ public class Device {
     TVMValue ret = APIInternal.get("runtime.GetDeviceAttr")
                        .pushArg(deviceType)
                        .pushArg(deviceId)
-                       .pushArg(2)
+                       .pushArg("warp_size")
                        .invoke();
     return ret.asLong();
   }

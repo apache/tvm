@@ -28,6 +28,7 @@
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/tensor.h>
 
+#include <algorithm>
 #include <cstdlib>
 #include <cstring>
 
@@ -43,10 +44,29 @@ HexagonDeviceAPI* HexagonDeviceAPI::Global() {
   return inst;
 }
 
-void HexagonDeviceAPI::GetAttr(Device dev, DeviceAttrKind kind, ffi::Any* rv) {
-  if (kind == kExist) {
-    *rv = 1;
+ffi::Any HexagonDeviceAPI::GetAttr(Device dev, const ffi::String& name) {
+  if (name == "exist") {
+    return IsValidDevice(dev) && dev.device_id == 0;
   }
+  return {};
+}
+
+ffi::Tensor HexagonDeviceAPI::Empty(ffi::ShapeView shape, DLDataType dtype, DLDevice device,
+                                    ffi::Optional<ffi::String> mem_scope) {
+  TVM_FFI_ICHECK(runtime_hexbuffs) << "Call AcquireResources before allocating Hexagon tensors";
+  struct NDAlloc {
+    HexagonDeviceAPI* api;
+    // Each VTCM allocation retains its device resources; DDR tensors need only
+    // their original buffer manager, even after the creating session ends.
+    std::shared_ptr<HexagonBufferManager> buffers;
+    ffi::Optional<ffi::String> scope;
+    void AllocData(DLTensor* tensor) {
+      tensor->data =
+          api->AllocDataSpace(tensor->device, tensor->ndim, tensor->shape, tensor->dtype, scope);
+    }
+    void FreeData(DLTensor* tensor) { buffers->FreeHexagonBuffer(tensor->data); }
+  };
+  return ffi::Tensor::FromNDAlloc(NDAlloc{this, runtime_hexbuffs, mem_scope}, shape, dtype, device);
 }
 
 // DataSpace: static allocations for Hexagon
@@ -75,7 +95,14 @@ void* HexagonDeviceAPI::AllocDataSpace(Device dev, int ndim, const int64_t* shap
   //         - shape[0] indicates the number of tensor-content memory allocations.
   //         - shape[1] indicates the size of each tensor-content memory allocation.
   if (!mem_scope.has_value() || mem_scope.value().empty() || mem_scope.value() == "global") {
-    return DeviceAPI::AllocDataSpace(dev, ndim, shape, dtype, mem_scope);
+    DLTensor tensor{};
+    tensor.device = dev;
+    tensor.ndim = ndim;
+    tensor.shape = const_cast<int64_t*>(shape);
+    tensor.dtype = dtype;
+    size_t alignment = std::max(static_cast<size_t>(kAllocAlignment),
+                                static_cast<size_t>((dtype.bits * dtype.lanes + 7) / 8));
+    return AllocDataSpace(dev, std::max(size_t{1}, ffi::GetDataSize(tensor)), alignment, dtype);
   }
 
   // NOTE: This check should be superfluous, but it's probably a good idea to leave it in
@@ -87,7 +114,7 @@ void* HexagonDeviceAPI::AllocDataSpace(Device dev, int ndim, const int64_t* shap
   TVM_FFI_ICHECK(ndim >= 0 && ndim <= 2)
       << "Hexagon Device API supports only 1d and 2d allocations, but received ndim = " << ndim;
 
-  const size_t typesize = (dtype.bits / 8) * dtype.lanes;
+  const size_t typesize = (dtype.bits * dtype.lanes + 7) / 8;
 
   TVM_FFI_ICHECK(runtime_hexbuffs)
       << "Attempted to allocate Hexagon data with "
@@ -99,12 +126,12 @@ void* HexagonDeviceAPI::AllocDataSpace(Device dev, int ndim, const int64_t* shap
     return runtime_hexbuffs->AllocateHexagonBuffer(typesize, kHexagonAllocAlignment, mem_scope);
   } else if (ndim == 1) {
     // Allocate a single, contiguous memory region.
-    size_t nbytes = shape[0] * typesize;
+    size_t nbytes = std::max(size_t{1}, shape[0] * typesize);
     return runtime_hexbuffs->AllocateHexagonBuffer(nbytes, kHexagonAllocAlignment, mem_scope);
   } else if (ndim == 2) {
     // Allocate the region(s) needed for Hexagon's indirect-tensor format.
-    size_t nallocs = shape[0];
-    size_t nbytes = shape[1] * typesize;
+    size_t nallocs = std::max(int64_t{1}, shape[0]);
+    size_t nbytes = std::max(size_t{1}, shape[1] * typesize);
     return runtime_hexbuffs->AllocateHexagonBuffer(nallocs, nbytes, kHexagonAllocAlignment,
                                                    mem_scope);
   } else {
@@ -137,32 +164,6 @@ void HexagonDeviceAPI::FreeDataSpace(Device dev, void* ptr) {
     // occur in the normal course of shutdown, log a message and continue.
     DLOG(INFO) << "FreeDataSpace called outside a session for " << ptr;
   }
-}
-
-// WorkSpace: runtime allocations for Hexagon
-struct HexagonWorkspacePool : public WorkspacePool {
-  HexagonWorkspacePool()
-      : WorkspacePool(static_cast<DLDeviceType>(kDLHexagon), HexagonDeviceAPI::Global()) {}
-};
-
-static HexagonWorkspacePool* HexagonWorkspacePoolThreadLocal() {
-  static thread_local HexagonWorkspacePool inst;
-  return &inst;
-}
-
-void* HexagonDeviceAPI::AllocWorkspace(Device dev, size_t size, DLDataType type_hint) {
-  TVM_FFI_ICHECK(IsValidDevice(dev)) << "dev.device_type: " << dev.device_type;
-  return HexagonWorkspacePoolThreadLocal()->AllocWorkspace(dev, size);
-}
-
-void HexagonDeviceAPI::FreeWorkspace(Device dev, void* data) {
-  TVM_FFI_ICHECK(IsValidDevice(dev)) << "dev.device_type: " << dev.device_type;
-  TVM_FFI_ICHECK(runtime_hexbuffs) << "Attempted to free Hexagon workspace with "
-                                   << "HexagonDeviceAPI::FreeWorkspace outside of a session.  "
-                                   << "Please call HexagonDeviceAPI::AcquireResources";
-  TVM_FFI_ICHECK(runtime_hexbuffs->FindHexagonBuffer(data) != nullptr)
-      << "Attempt made to free unknown or already freed workspace allocation";
-  HexagonWorkspacePoolThreadLocal()->FreeWorkspace(dev, data);
 }
 
 void HexagonDeviceAPI::CopyDataFromTo(DLTensor* from, DLTensor* to, TVMStreamHandle stream) {

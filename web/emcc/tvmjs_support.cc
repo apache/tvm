@@ -201,7 +201,7 @@ class AsyncLocalSession : public LocalSession {
       local_from.dtype = remote_to->dtype;
       local_from.strides = nullptr;
       local_from.byte_offset = 0;
-      this->GetDeviceAPI(remote_to->device)->CopyDataFromTo(&local_from, remote_to, nullptr);
+      this->CopyDataFromTo(&local_from, remote_to, nullptr);
       this->AsyncStreamWait(remote_to->device, nullptr, on_complete);
     } catch (const std::runtime_error& e) {
       this->SendException(on_complete, e.what());
@@ -219,7 +219,7 @@ class AsyncLocalSession : public LocalSession {
       local_to.dtype = remote_from->dtype;
       local_to.strides = nullptr;
       local_to.byte_offset = 0;
-      this->GetDeviceAPI(remote_from->device)->CopyDataFromTo(remote_from, &local_to, nullptr);
+      this->CopyDataFromTo(remote_from, &local_to, nullptr);
       this->AsyncStreamWait(remote_from->device, nullptr, on_complete);
     } catch (const std::runtime_error& e) {
       this->SendException(on_complete, e.what());

@@ -44,16 +44,9 @@ class _RemoteDeviceAttributeQuery:
 
     def __init__(self, remote):
         self.remote = remote
-        self.index = remote.index
-
-    def dlpack_device_type(self):
-        return self.remote.endpoint_device.dlpack_device_type()
 
     def get_attr(self, attr):
         return self.remote.get_attr(attr)
-
-    def _GetDeviceAttr(self, device_type, device_id, attr):
-        return self.get_attr(attr)
 
 
 @_register_remote_object("rpc.RemoteDevice")
@@ -80,7 +73,7 @@ class RemoteDevice(tvm_ffi.Object):
         return f"RemoteDevice({self.endpoint_device})"
 
     def get_attr(self, attr):
-        """Query the shared DeviceAttrKind API through the owning session.
+        """Query named device attributes through the owning session.
 
         Results and backend errors are those of DeviceAPI.GetAttr; named Python
         capabilities additionally use Device's existing result conversions.

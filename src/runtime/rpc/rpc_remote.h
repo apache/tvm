@@ -46,9 +46,9 @@ class RemoteDeviceObj : public ffi::Object {
   std::shared_ptr<RPCSession> sess;
   /*! \brief Ordinary device type/index in the remote endpoint, not the client process. */
   Device endpoint_device;
-  DeviceAPI* api() const {
+  RPCSession* session() const {
     sess->EnsureOpen();
-    return sess->GetDeviceAPI(endpoint_device);
+    return sess.get();
   }
   static constexpr bool _type_mutable = true;
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("rpc.RemoteDevice", RemoteDeviceObj, ffi::Object);
@@ -71,20 +71,21 @@ inline RemoteDevice MakeRemoteDevice(std::shared_ptr<RPCSession> sess, Device de
 struct RemoteTensorStorage {
   /*! \brief Session that allocated the storage or returned the owning tensor handle. */
   std::shared_ptr<RPCSession> sess;
-  /*! \brief Endpoint device needed to release a raw allocation through its DeviceAPI. */
+  /*! \brief Endpoint device identifying the session-owned tensor allocation. */
   Device device;
   /*! \brief Opaque endpoint data address, usable only in temporary RPC wire descriptors. */
   void* data{nullptr};
   /*! \brief Non-null returned tensor handle; FreeHandle releases its remote owner. */
   void* object_handle{nullptr};
-  /*! \brief True for raw allocations released with FreeDataSpace, not returned objects. */
+  /*! \brief True for session allocations released with FreeTensor, not returned objects. */
   bool owns_allocation{false};
   ~RemoteTensorStorage() {
     try {
       if (object_handle != nullptr) {
         sess->FreeHandle(object_handle);
-      } else if (owns_allocation && data != nullptr) {
-        sess->GetDeviceAPI(device)->FreeDataSpace(device, data);
+      } else if (owns_allocation) {
+        sess->EnsureOpen();
+        sess->FreeTensor(device, data);
       }
     } catch (const ffi::Error&) {
       // A closed transport has already released its remote resources.

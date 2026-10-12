@@ -27,6 +27,7 @@
 #include <tvm/ir/module.h>
 #include <tvm/relax/expr.h>
 
+#include <cstring>
 #include <string>
 
 #include "../codegen_json/codegen_json.h"
@@ -87,13 +88,21 @@ class CublasJSONSerializer : public JSONSerializer {
       if (dequantize_call->args[1]->IsInstance<GenericConstNode>()) {
         const auto* const_expr = dequantize_call->args[1].as<GenericConstNode>();
         auto ty = const_expr->ty.as_or_throw<TensorType>();
+        ffi::Tensor scale = const_expr->value.cast<ffi::Tensor>();
+        TVM_FFI_ICHECK(scale.defined());
+        TVM_FFI_ICHECK_EQ(scale.device().device_type, kDLCPU);
+        TVM_FFI_ICHECK_NE(scale.data_ptr(), nullptr);
+        const char* scale_data = static_cast<const char*>(scale.data_ptr()) + scale.byte_offset();
         float alpha = 1.0;
         if (ty->dtype == PrimType::Float(16)) {
-          alpha = __extendXfYf2__<uint16_t, uint16_t, 10, float, uint32_t, 23>(
-              static_cast<uint16_t*>(const_expr->value.cast<runtime::Tensor>()->data)[0]);
+          TVM_FFI_ICHECK_GE(ffi::GetDataSize(*scale.GetDLTensorPtr()), sizeof(uint16_t));
+          uint16_t value;
+          std::memcpy(&value, scale_data, sizeof(value));
+          alpha = __extendXfYf2__<uint16_t, uint16_t, 10, float, uint32_t, 23>(value);
         } else {
           TVM_FFI_ICHECK(ty->dtype == PrimType::Float(32));
-          alpha = static_cast<float*>(const_expr->value.cast<runtime::Tensor>()->data)[0];
+          TVM_FFI_ICHECK_GE(ffi::GetDataSize(*scale.GetDLTensorPtr()), sizeof(alpha));
+          std::memcpy(&alpha, scale_data, sizeof(alpha));
         }
 
         node->SetAttr("dq_scale", static_cast<double>(alpha));

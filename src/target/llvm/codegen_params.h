@@ -43,7 +43,7 @@ namespace codegen {
  * \param arr Tensor to convert.
  * \return LLVM array containing the array data.
  */
-llvm::ConstantArray* TensorToLLVMArray(llvm::LLVMContext* ctx, tvm::runtime::Tensor arr);
+llvm::ConstantArray* TensorToLLVMArray(llvm::LLVMContext* ctx, tvm::ffi::Tensor arr);
 
 }  // namespace codegen
 }  // namespace tvm
