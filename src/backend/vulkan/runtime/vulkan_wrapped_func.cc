@@ -89,7 +89,7 @@ void VulkanWrappedFunc::operator()(ffi::PackedArgs args, ffi::Any* rv,
                            pack_args);
       }
 
-      vkCmdDispatch(state->cmd_buffer_, wl.grid_dim(0), wl.grid_dim(1), wl.grid_dim(2));
+      vkCmdDispatch(state->cmd_buffer_, wl.GridDim(0), wl.GridDim(1), wl.GridDim(2));
       VkMemoryBarrier barrier_info;
       barrier_info.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
       barrier_info.pNext = nullptr;
@@ -156,7 +156,7 @@ void VulkanWrappedFunc::operator()(ffi::PackedArgs args, ffi::Any* rv,
                          pack_args_storage.data());
     }
 
-    vkCmdDispatch(state->cmd_buffer_, wl.grid_dim(0), wl.grid_dim(1), wl.grid_dim(2));
+    vkCmdDispatch(state->cmd_buffer_, wl.GridDim(0), wl.GridDim(1), wl.GridDim(2));
     VkMemoryBarrier barrier_info;
     barrier_info.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
     barrier_info.pNext = nullptr;
