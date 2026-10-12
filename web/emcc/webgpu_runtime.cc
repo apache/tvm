@@ -55,11 +55,9 @@ class WebGPUDeviceAPI : public DeviceAPI {
   }
 
   ffi::Tensor Empty(ffi::ShapeView shape, DLDataType dtype, DLDevice device,
-                    ffi::Optional<ffi::String> mem_scope = std::nullopt) final {
-    TVM_FFI_CHECK(
-        !mem_scope.has_value() || mem_scope.value().empty() || mem_scope.value() == "global",
-        ValueError)
-        << "Unsupported memory scope: " << mem_scope.value_or("");
+                    ffi::Optional<MemoryScope> mem_scope = std::nullopt) final {
+    TVM_FFI_CHECK(!mem_scope.has_value() || mem_scope.value() == MemoryScope::Global(), ValueError)
+        << "Unsupported memory scope: " << mem_scope.value_or(MemoryScope::Global());
     struct Allocator {
       WebGPUDeviceAPI* api;
       void AllocData(DLTensor* tensor) {
