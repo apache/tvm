@@ -365,14 +365,14 @@ def test_scalar_alloctensor_annotation_and_init_merge():
 
     code = test.script()
     assert (
-        'phase_mma = T.alloc_tensor(ty_args=[T.Tensor((1,), "int32", '
-        'scope="local")])'
+        ('phase_mma = T.alloc_tensor(ty_args=[T.Tensor([T.IntImm("int32", '
+        '1)], dtype=I.PrimType("int32"), storage_scope="local")])')
         in code
     )
     assert "phase_mma[0] = 0" in code
     assert (
-        'phase_aux = T.alloc_tensor(ty_args=[T.Tensor((1,), "int32", '
-        'scope="local")])'
+        ('phase_aux = T.alloc_tensor(ty_args=[T.Tensor([T.IntImm("int32", '
+        '1)], dtype=I.PrimType("int32"), storage_scope="local")])')
         in code
     )
     assert "phase_mma = T.alloc_local" not in code
@@ -393,7 +393,8 @@ def test_scalar_alloctensor_layout_none_roundtrips_as_tensor():
 
     code = test.script()
     assert (
-        'phase_mma = T.alloc_tensor(ty_args=[T.Tensor((1,), "int32", scope="local")])'
+        ('phase_mma = T.alloc_tensor(ty_args=[T.Tensor([T.IntImm("int32", '
+        '1)], dtype=I.PrimType("int32"), storage_scope="local")])')
         in code
     )
     assert "phase_mma: T.int32" not in code
@@ -411,7 +412,10 @@ def test_scalar_alloctensor_annotation_sugar():
     # fmt: on
 
     code = test.script()
-    assert 'x = T.alloc_tensor(ty_args=[T.Tensor((1,), "int32", scope="local")])' in code
+    assert (
+        'x = T.alloc_tensor(ty_args=[T.Tensor([T.IntImm("int32", 1)], '
+        'dtype=I.PrimType("int32"), storage_scope="local")])'
+    ) in code
     assert "x[0] = 0" in code
     assert "x: T.int32" not in code
     assert from_source(code).script() == code
@@ -482,8 +486,10 @@ def test_tensor_local_ir():
     # Round-trip
     code = func.script()
     assert (
-        'v_1 = T.decl_tensor(v.data, ty_args=[T.Tensor((2,), "float16", '
-        'scope="local", layout="default")])'
+        'v_1 = T.decl_tensor(v.data, ty_args=[T.Tensor([T.IntImm("int32", '
+        '2)], dtype=I.PrimType("float16"), storage_scope="local", '
+        'layout=T.TileLayout.from_iters(shard=[T.Iter(2, 1, "m")], '
+        'replica=[]))])'
     ) in code
     assert from_source(code).script() == code
     assert_structural_equal(func, from_source(code))
@@ -558,12 +564,16 @@ def test_tensor_local_physical_order():
 
     code = func.script()
     assert (
-        'v_1 = T.decl_tensor(v.data, ty_args=[T.Tensor((32,), "float32", '
-        'scope="local", layout="default")])'
+        'v_1 = T.decl_tensor(v.data, ty_args=[T.Tensor([T.IntImm("int32", '
+        '32)], storage_scope="local", '
+        'layout=T.TileLayout.from_iters(shard=[T.Iter(32, 1, "m")], '
+        'replica=[]))])'
     ) in code
     assert (
-        'v_2 = T.decl_tensor(v.data, ty_args=[T.Tensor((4, 8), "float32", '
-        'scope="local", layout="default")])'
+        'v_2 = T.decl_tensor(v.data, ty_args=[T.Tensor([T.IntImm("int32", '
+        '4), T.IntImm("int32", 8)], storage_scope="local", '
+        'layout=T.TileLayout.from_iters(shard=[T.Iter(4, 8, "m"), T.Iter(8, '
+        '1, "m")], replica=[]))])'
     ) in code
     assert from_source(code).script() == code
     assert_structural_equal(func, from_source(code))
@@ -596,10 +606,12 @@ def test_tensor_local_layout_overrides_roundtrip():
     storage_line = next(line for line in code.splitlines() if "v_1 =" in line)
     custom_line = next(line for line in code.splitlines() if "v_2 =" in line)
     assert (
-        'T.decl_tensor(v.data, ty_args=[T.Tensor((32,), "float32", scope="local", layout='
+        'T.decl_tensor(v.data, ty_args=[T.Tensor([T.IntImm("int32", 32)], '
+        'storage_scope="local", layout='
     ) in storage_line
     assert (
-        'T.decl_tensor(v.data, ty_args=[T.Tensor((2, 4), "float32", scope="local", layout='
+        'T.decl_tensor(v.data, ty_args=[T.Tensor([T.IntImm("int32", 2), '
+        'T.IntImm("int32", 4)], storage_scope="local", layout='
     ) in custom_line
     assert_structural_equal(func, from_source(code))
     assert from_source(code).script() == code
@@ -653,7 +665,8 @@ def test_tensor_local_compose_layout_printer_roundtrip():
     code = func.script()
     local_line = next(line for line in code.splitlines() if "v =" in line)
     assert (
-        'T.decl_tensor(A.data, ty_args=[T.Tensor((64,), "float32", scope="local", layout='
+        ('T.decl_tensor(A.data, ty_args=[T.Tensor([T.IntImm("int32", 64)], '
+        'storage_scope="local", layout=')
         in local_line
     )
     parsed = from_source(code)
@@ -709,7 +722,8 @@ def test_tensor_local_physical_span_includes_gaps_and_offset():
     code = func.script()
     storage_line = next(line for line in code.splitlines() if "v_3 =" in line)
     assert (
-        'T.decl_tensor(v.data, ty_args=[T.Tensor((2,), "float32", scope="local", layout='
+        ('T.decl_tensor(v.data, ty_args=[T.Tensor([T.IntImm("int32", 2)], '
+        'storage_scope="local", layout=')
         in storage_line
     )
     assert_structural_equal(func, from_source(code))
@@ -734,16 +748,21 @@ def test_tensor_local_printer_is_stable_with_multiple_aliases():
 
     expected = func.script()
     assert (
-        'v_1 = T.decl_tensor(v.data, ty_args=[T.Tensor((32,), "float32", '
-        'scope="local", layout="default")])'
+        'v_1 = T.decl_tensor(v.data, ty_args=[T.Tensor([T.IntImm("int32", '
+        '32)], storage_scope="local", '
+        'layout=T.TileLayout.from_iters(shard=[T.Iter(32, 1, "m")], '
+        'replica=[]))])'
     ) in expected
     assert (
-        'v_2 = T.decl_tensor(v.data, ty_args=[T.Tensor((4, 8), "float32", '
-        'scope="local", layout="default")])'
+        'v_2 = T.decl_tensor(v.data, ty_args=[T.Tensor([T.IntImm("int32", '
+        '4), T.IntImm("int32", 8)], storage_scope="local", '
+        'layout=T.TileLayout.from_iters(shard=[T.Iter(4, 8, "m"), T.Iter(8, '
+        '1, "m")], replica=[]))])'
     ) in expected
     storage_line = next(line for line in expected.splitlines() if "v_3 =" in line)
     assert (
-        'T.decl_tensor(v.data, ty_args=[T.Tensor((32,), "float32", scope="local", layout='
+        'T.decl_tensor(v.data, ty_args=[T.Tensor([T.IntImm("int32", 32)], '
+        'storage_scope="local", layout='
     ) in storage_line
     for _ in range(20):
         parsed = from_source(expected)
@@ -782,7 +801,7 @@ def test_tensor_local_printer_preserves_inherited_metadata():
     code = func.script()
     align_line = next(line for line in code.splitlines() if "B_align =" in line)
     factor_line = next(line for line in code.splitlines() if "B_factor =" in line)
-    assert "T.decl_tensor" in align_line and "align=128" in align_line
+    assert "T.decl_tensor" in align_line and 'data_alignment=128' in align_line
     assert "T.decl_tensor" in factor_line and "offset_factor=8" in factor_line
     assert ".local(" not in align_line
     assert ".local(" not in factor_line

@@ -446,7 +446,8 @@ def test_vector_annotation_syntax_multidim():
         # fmt: on
 
     code = func.script()
-    assert 'alloc_tensor(ty_args=[T.Tensor((4, 8), "float32", scope="local"' in code
+    assert ('alloc_tensor(ty_args=[T.Tensor([T.IntImm("int32", 4), '
+           'T.IntImm("int32", 8)], storage_scope="local"') in code
     assert from_source(code).script() == code
     assert_structural_equal(func, from_source(code))
 

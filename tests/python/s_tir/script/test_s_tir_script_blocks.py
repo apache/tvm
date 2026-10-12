@@ -28,6 +28,9 @@ from tvm.s_tir.schedule.testing import assert_structural_equal_ignore_global_sym
 from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
+# Expected completed types use the configured fixed index dtype, not shape dtype.
+_DEFAULT_ELEM_OFFSET = T.IntImm(T.Tensor(()).elem_offset.ty.dtype, 0)
+
 
 @Ts.function
 def matmul(A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 128])) -> None:
@@ -228,13 +231,17 @@ def func_with_tensorslice_indices(
 
 @Ts.function
 def expected_tensorslice_indices(
-    data_buf: T.Tensor([16, 16], elem_offset=0, align=64, offset_factor=1),
-    index_buf: T.Tensor([1], dtype="int32", elem_offset=0, align=64, offset_factor=1),
+    data_buf: T.Tensor([16, 16], elem_offset=_DEFAULT_ELEM_OFFSET, align=64, offset_factor=1),
+    index_buf: T.Tensor(
+        [1], dtype="int32", elem_offset=_DEFAULT_ELEM_OFFSET, align=64, offset_factor=1
+    ),
 ) -> None:
     with Ts.sblock("root"):
         Ts.reads([])
         Ts.writes([])
-        out_buf = Ts.sblock_alloc_tensor([16, 16], elem_offset=0, align=64, offset_factor=1)
+        out_buf = Ts.sblock_alloc_tensor(
+            [16, 16], elem_offset=_DEFAULT_ELEM_OFFSET, align=64, offset_factor=1
+        )
         for i0, i1 in T.grid(16, 16):
             with Ts.sblock():
                 vi, vj = Ts.axis.remap("SS", [i0, i1])
@@ -257,13 +264,17 @@ def func_with_recursive_tensorslice_indices(
 
 @Ts.function
 def expected_recursive_tensorslice_indices(
-    data_buf: T.Tensor([16, 16], elem_offset=0, align=64, offset_factor=1),
-    index_buf: T.Tensor([1], dtype="int32", elem_offset=0, align=64, offset_factor=1),
+    data_buf: T.Tensor([16, 16], elem_offset=_DEFAULT_ELEM_OFFSET, align=64, offset_factor=1),
+    index_buf: T.Tensor(
+        [1], dtype="int32", elem_offset=_DEFAULT_ELEM_OFFSET, align=64, offset_factor=1
+    ),
 ) -> None:
     with Ts.sblock("root"):
         Ts.reads([])
         Ts.writes([])
-        out_buf = Ts.sblock_alloc_tensor([16, 16], elem_offset=0, align=64, offset_factor=1)
+        out_buf = Ts.sblock_alloc_tensor(
+            [16, 16], elem_offset=_DEFAULT_ELEM_OFFSET, align=64, offset_factor=1
+        )
         for i0, i1 in T.grid(16, 16):
             with Ts.sblock():
                 vi, vj = Ts.axis.remap("SS", [i0, i1])
@@ -343,18 +354,54 @@ def alloc_tensor_func(
 
 @Ts.function
 def expect_alloc_tensor_func(
-    A: T.Tensor([2, 2], dtype="float32", elem_offset=0, align=64, offset_factor=1),
-    B: T.Tensor([2, 2], dtype="float32", elem_offset=0, align=64, offset_factor=1),
+    A: T.Tensor(
+        [2, 2], dtype="float32", elem_offset=_DEFAULT_ELEM_OFFSET, align=64, offset_factor=1
+    ),
+    B: T.Tensor(
+        [2, 2], dtype="float32", elem_offset=_DEFAULT_ELEM_OFFSET, align=64, offset_factor=1
+    ),
 ) -> None:
     with Ts.sblock("root"):
         Ts.reads([])
         Ts.writes([])
         C = Ts.sblock_alloc_tensor(
-            [2, 2], dtype="float32", elem_offset=0, align=64, offset_factor=1
+            [2, 2], dtype="float32", elem_offset=_DEFAULT_ELEM_OFFSET, align=64, offset_factor=1
         )
         A[(0, 0)] = T.float32(2)
         C[(0, 0)] = A[(0, 0)] + B[(0, 0)]
         B[(0, 0)] = C[(0, 0)]
+
+
+def test_tensor_helper_metadata_roundtrip():
+    @Ts.function
+    def metadata(A: T.Tensor([16], scope="local", align=128, offset_factor=4)):
+        with Ts.sblock("metadata"):
+            matched = Ts.match_tensor(A[0:16], [16], scope="local", align=128, offset_factor=4)
+            allocated = Ts.sblock_alloc_tensor([16], scope="local", align=128, offset_factor=4)
+            allocated[0] = matched[0]
+
+    source = metadata.script()
+    for name in ("Ts.match_tensor", "Ts.sblock_alloc_tensor"):
+        line = next(line for line in source.splitlines() if name in line)
+        assert 'scope="local"' in line and "align=128" in line and "offset_factor=4" in line
+        assert "elem_offset=" not in line
+    restored = tvm.script.from_source(
+        source, extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx, "Ts": tvm.script.s_tir}
+    )
+    tvm.ir.assert_structural_equal(metadata, restored)
+
+
+def test_sblock_allocation_offset_is_fixed_unless_explicit():
+    from tvm.script.ir_builder import IRBuilder
+
+    offset = T.Var("offset", "int64")
+    with IRBuilder():
+        plain = Ts.sblock_alloc_tensor([16])
+        factored = Ts.sblock_alloc_tensor([16], offset_factor=4)
+        explicit = Ts.sblock_alloc_tensor([16], offset_factor=4, elem_offset=offset)
+    tvm.ir.assert_structural_equal(plain.ty.elem_offset, _DEFAULT_ELEM_OFFSET)
+    tvm.ir.assert_structural_equal(factored.ty.elem_offset, _DEFAULT_ELEM_OFFSET)
+    assert explicit.ty.elem_offset.same_as(offset)
 
 
 def test_complete_alloc_tensor():
