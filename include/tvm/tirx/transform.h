@@ -228,8 +228,7 @@ TVM_TIRX_DLL Pass NarrowDataType(int target_bits);
 /*!
  * \brief Force to narrow down indexing expressions and integer tensors to int32 dtype.
  *
- * The function must not contain S-TIR blocks. Use s_tir::transform::ForceNarrowIndexToInt32
- * before block lowering.
+ * The function must not contain S-TIR blocks.
  *
  * \return The pass.
  * \note This pass should not be used in default cases.
