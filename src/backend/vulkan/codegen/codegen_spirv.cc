@@ -26,6 +26,7 @@
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/tirx/function.h>
+#include <tvm/tirx/gpu_thread_tag.h>
 #include <tvm/tirx/op/abi.h>
 #include <tvm/tirx/op/gpu.h>
 #include <tvm/tirx/op/memory.h>
@@ -175,7 +176,7 @@ void CodeGenSPIRV::InitFuncState() {
 
 spirv::Value CodeGenSPIRV::GetThreadIndex(const PrimVar& var, const ffi::String& thread_tag,
                                           const PrimExpr& extent) {
-  runtime::ThreadScope ts = runtime::ThreadScope::Create(thread_tag);
+  tirx::GPUThreadTag ts = tirx::GPUThreadTag::Parse(thread_tag);
   TVM_FFI_ICHECK_GE(ts.dim_index, 0);
   TVM_FFI_ICHECK_LT(ts.dim_index, 3);
   spirv::Value v;

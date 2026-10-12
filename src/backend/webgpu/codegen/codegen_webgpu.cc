@@ -30,6 +30,7 @@
 #include <tvm/support/io.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/function.h>
+#include <tvm/tirx/gpu_thread_tag.h>
 #include <tvm/tirx/op/gpu.h>
 #include <tvm/tirx/op/memory.h>
 #include <tvm/tirx/op/region.h>
@@ -148,7 +149,7 @@ class WebGPUWorkgroupInfoCollector : public StmtExprVisitor {
       auto [it, inserted] = thread_extents_.emplace(tag, extent);
       TVM_FFI_CHECK(inserted || analyzer_->CanProveEqual(it->second, extent), ValueError)
           << "Conflicting launch extents for " << tag;
-      runtime::ThreadScope ts = runtime::ThreadScope::Create(tag);
+      tirx::GPUThreadTag ts = tirx::GPUThreadTag::Parse(tag);
       TVM_FFI_ICHECK_GE(ts.dim_index, 0);
       TVM_FFI_ICHECK_LT(ts.dim_index, 3);
       if (ts.rank == 1) {

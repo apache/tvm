@@ -205,51 +205,6 @@ struct StorageScope {
   }
 };
 
-/*! \brief class to represent thread scope */
-struct ThreadScope {
-  /*! \brief The rank of thread scope */
-  int rank{0};
-  /*! \brief the dimension index under the rank */
-  int dim_index{0};
-  /*!
-   * \brief Create storage scope from string
-   * \param s The string to be parsed.
-   * \return The storage scope.
-   */
-  static ThreadScope Create(const std::string& s) {
-    ThreadScope r;
-    if (s.compare(0, 7, "vthread") == 0) {
-      // virtual thread at the same level as local
-      r.rank = 1;
-      r.dim_index = -1;
-    } else if (s.compare(0, 9, "blockIdx.") == 0) {
-      r.rank = 0;
-      r.dim_index = static_cast<int>(s[9] - 'x');
-    } else if (s.compare(0, 10, "threadIdx.") == 0) {
-      r.rank = 1;
-      r.dim_index = static_cast<int>(s[10] - 'x');
-    } else if (s.compare(0, 14, "clusterCtaIdx.") == 0) {
-      r.rank = 2;
-      r.dim_index = static_cast<int>(s[14] - 'x');
-    } else if (s.compare(0, 23, "preferredClusterCtaIdx.") == 0) {
-      r.rank = 3;
-      r.dim_index = static_cast<int>(s[23] - 'x');
-    } else {
-      TVM_FFI_THROW(InternalError) << "Unknown threadscope " << s;
-    }
-    return r;
-  }
-
-  /*! \brief Whether the thread scope is a virtual thread */
-  bool IsVirtualThread() const { return rank == 1 && dim_index == -1; }
-  /*! \brief Whether the thread scope is a block */
-  bool IsBlockIdx() const { return rank == 0; }
-  /*! \brief Whether the thread scope is a thread */
-  bool IsThreadIdx() const { return rank == 1 && dim_index != -1; }
-  /*! \brief Whether the thread scope is a cluster */
-  bool IsClusterCtaIdx() const { return rank == 2; }
-};
-
 }  // namespace runtime
 }  // namespace tvm
 

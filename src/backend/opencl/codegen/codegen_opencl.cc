@@ -26,13 +26,13 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/function.h>
+#include <tvm/tirx/gpu_thread_tag.h>
 #include <tvm/tirx/op/memory.h>
 
 #include <cmath>
 #include <string>
 #include <vector>
 
-#include "../../../runtime/thread_storage_scope.h"
 #include "../../../target/build_common.h"
 #include "../runtime/texture.h"
 #include "opencl_fallback_module.h"
@@ -238,7 +238,7 @@ std::string CodeGenOpenCL::Finish() {
 
 void CodeGenOpenCL::BindThreadIndex(const PrimVar& var, const ffi::String& thread_tag) {
   TVM_FFI_ICHECK(!var_idmap_.count(var.get()));
-  runtime::ThreadScope ts = runtime::ThreadScope::Create(thread_tag);
+  tirx::GPUThreadTag ts = tirx::GPUThreadTag::Parse(thread_tag);
   TVM_FFI_ICHECK_GE(ts.dim_index, 0);
   TVM_FFI_ICHECK_LT(ts.dim_index, 3);
   std::ostringstream os;

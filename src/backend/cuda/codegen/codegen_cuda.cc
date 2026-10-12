@@ -29,6 +29,7 @@
 #include <tvm/ir/function.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/sym/analyzer.h>
+#include <tvm/tirx/gpu_thread_tag.h>
 #include <tvm/tirx/index_map.h>
 #include <tvm/tirx/op/gpu.h>
 #include <tvm/tirx/op/memory.h>
@@ -42,7 +43,6 @@
 #include <utility>
 #include <vector>
 
-#include "../../../runtime/thread_storage_scope.h"
 #include "../../../target/build_common.h"
 #include "cuda_fallback_module.h"
 #include "literal/cuda_half_t.h"
@@ -462,10 +462,10 @@ void CodeGenCUDA::Dispatch_(const WhileNode* op) {
 
 void CodeGenCUDA::BindThreadIndex(const PrimVar& var, const ffi::String& thread_tag) {
   TVM_FFI_ICHECK(!var_idmap_.count(var.get()));
-  const auto& scope = runtime::ThreadScope::Create(thread_tag);
+  const auto& scope = tirx::GPUThreadTag::Parse(thread_tag);
   TVM_FFI_ICHECK_GE(scope.dim_index, 0);
   TVM_FFI_ICHECK_LT(scope.dim_index, 3);
-  if (scope.IsClusterCtaIdx()) {
+  if (scope.rank == 2) {
     const char dim = static_cast<char>('x' + scope.dim_index);
     const std::string sreg = (scope.dim_index == 0 && cluster_cta_x_is_linear_rank_)
                                  ? "cluster_ctarank"

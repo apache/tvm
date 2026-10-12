@@ -22,6 +22,7 @@
 #include <tvm/ir/analysis.h>
 #include <tvm/ir/op.h>
 #include <tvm/s_tir/stmt.h>
+#include <tvm/tirx/gpu_thread_tag.h>
 
 #include "../ir_comparator.h"
 #include "../utils.h"
@@ -708,8 +709,7 @@ ffi::Map<Var, Range> LoopDomainOfSRefTreePath(const StmtSRef& low_inclusive,
       if (const ForNode* loop = p->StmtAs<ForNode>()) {
         if (tvm::s_tir::GetThreadBinding(loop).has_value()) {
           const ffi::String thread_tag = tvm::s_tir::GetThreadBinding(loop).value();
-          if (CanRelaxStorageUnderThread(extra_relax_scope,
-                                         runtime::ThreadScope::Create(thread_tag))) {
+          if (CanRelaxStorageUnderThread(extra_relax_scope, ParseThreadBindingTag(thread_tag))) {
             result.Set(loop->loop_var, Range::FromMinExtent(loop->min, loop->extent));
           }
         }

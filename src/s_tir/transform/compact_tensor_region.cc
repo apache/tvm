@@ -31,6 +31,7 @@
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/sym/int_set.h>
+#include <tvm/tirx/gpu_thread_tag.h>
 #include <tvm/tirx/op/memory.h>
 #include <tvm/tirx/op/region.h>
 
@@ -459,7 +460,7 @@ class TensorAccessRegionCollector : public StmtExprVisitor {
     }
     // When there is warp memory
     // threadIdx.x must be set to be warp index.
-    return CanRelaxStorageUnderThread(scope, runtime::ThreadScope::Create((iter->thread_tag)));
+    return CanRelaxStorageUnderThread(scope, ParseThreadBindingTag((iter->thread_tag)));
   }
 
   /*!

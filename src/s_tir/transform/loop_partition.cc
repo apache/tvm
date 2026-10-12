@@ -35,6 +35,7 @@
 #include <tvm/sym/analyzer.h>
 #include <tvm/sym/bound.h>
 #include <tvm/tirx/analysis.h>
+#include <tvm/tirx/gpu_thread_tag.h>
 #include <tvm/tirx/op/annotation.h>
 #include <tvm/tirx/op/gpu.h>
 #include <tvm/tirx/op/region.h>
@@ -43,7 +44,6 @@
 #include <unordered_map>
 #include <unordered_set>
 
-#include "../../runtime/thread_storage_scope.h"
 #include "../../sym/interval_set.h"
 #include "ir_utils.h"
 
@@ -171,7 +171,7 @@ class CandidateSelector final : public StmtExprVisitor {
       return StmtExprVisitor::Visit_(op);
     }
     if (tvm::s_tir::GetThreadBinding(op).has_value() &&
-        runtime::ThreadScope::Create(tvm::s_tir::GetThreadBinding(op).value()).rank != 0) {
+        tirx::GPUThreadTag::Parse(tvm::s_tir::GetThreadBinding(op).value()).rank != 0) {
       return StmtExprVisitor::Visit_(op);
     }
     // partition const loop when sets partition_const_loop_
@@ -192,8 +192,8 @@ class CandidateSelector final : public StmtExprVisitor {
     if (op->op.same_as(tirx::launch_thread_op()) &&
         std::string(op->args[0].as_or_throw<StringImm>()->value).rfind("vthread", 0) != 0) {
       Var var = op->body_params[0].as_or_throw<PrimVar>();
-      runtime::ThreadScope scope =
-          runtime::ThreadScope::Create(op->args[0].as_or_throw<StringImm>()->value);
+      tirx::GPUThreadTag scope =
+          tirx::GPUThreadTag::Parse(op->args[0].as_or_throw<StringImm>()->value);
       PrimExpr extent = op->args[1].as_or_throw<PrimExpr>();
       if ((scope.rank == 0) && (!IsConstInt(extent) || partition_const_loop_)) {
         record_.insert({var.get(), false});
@@ -537,7 +537,7 @@ class LoopPartitioner : public StmtExprMutator {
 
     // Relax threadIdx ranges to avoid introducing divergent partition branches.
     bool relax = thread_scope &&
-                 runtime::ThreadScope::Create(tvm::s_tir::GetThreadBinding(op).value()).rank == 1;
+                 tirx::GPUThreadTag::Parse(tvm::s_tir::GetThreadBinding(op).value()).rank == 1;
     auto& ranges = relax ? relax_map_ : hint_map_;
     ranges.insert({op->loop_var.get(), IntSet::Interval(op->min, op->min + op->extent - 1)});
     Stmt res = StmtExprMutator::Mutate_(op, InplaceMode::kDisallow)
@@ -561,8 +561,8 @@ class LoopPartitioner : public StmtExprMutator {
     }
 
     // normal path when loop parittion fails.
-    runtime::ThreadScope scope =
-        runtime::ThreadScope::Create(op->args[0].as_or_throw<StringImm>()->value);
+    tirx::GPUThreadTag scope =
+        tirx::GPUThreadTag::Parse(op->args[0].as_or_throw<StringImm>()->value);
     Stmt res{ffi::UnsafeInit{}};
     if (scope.rank == 1) {
       // threadIdx should be put into relax map, in case of divergence.

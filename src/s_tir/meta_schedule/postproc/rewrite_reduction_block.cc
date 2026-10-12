@@ -19,6 +19,7 @@
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/s_tir/stmt.h>
+#include <tvm/tirx/gpu_thread_tag.h>
 
 #include "../utils.h"
 
@@ -54,7 +55,7 @@ struct ReductionBlockFinder : public StmtExprVisitor {
 
  private:
   ffi::Optional<VisitInterrupt> Visit_(const ForNode* loop) final {
-    runtime::ThreadScope thread_scope = GetThreadScope(loop);
+    tirx::GPUThreadTag thread_scope = GetThreadBindingTag(loop);
     if (IsThreadIdx(thread_scope) || IsBlockIdx(thread_scope)) {
       thread_bound_loop_vars_.insert(loop->loop_var.get());
     }

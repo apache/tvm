@@ -19,6 +19,7 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/extra/structural_visit.h>
+#include <tvm/tirx/gpu_thread_tag.h>
 
 #include "memhammer_rewrite_rule.h"
 
@@ -277,7 +278,7 @@ std::pair<Stmt, SeqStmt> InsertCacheStage(Stmt stmt, bool is_write_cache, ffi::S
   for (const For& loop : outer_loops) {
     if (tvm::s_tir::GetThreadBinding(loop).has_value()) {
       const ffi::String thread_tag = tvm::s_tir::GetThreadBinding(loop).value();
-      auto thread_scope = runtime::ThreadScope::Create(thread_tag);
+      auto thread_scope = ParseThreadBindingTag(thread_tag);
       if (CanRelaxStorageUnderThread(runtime::StorageScope::Create(storage_scope), thread_scope)) {
         if (is_write_cache && thread_scope.dim_index == 0) {
           // writing C_reindex_m16n8k8_matrixC_shared_dyn is warp execution

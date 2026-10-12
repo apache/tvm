@@ -30,6 +30,7 @@
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/tirx/analysis.h>
+#include <tvm/tirx/gpu_thread_tag.h>
 #include <tvm/tirx/op/region.h>
 
 #include "../../runtime/thread_storage_scope.h"
@@ -102,9 +103,8 @@ class LCADetector : public s_tir::StmtExprVisitor {
     auto* current_scope = arena_.make<ScopeInfo>(parent_scope, op, n);
 
     if (tvm::s_tir::GetThreadBinding(op).has_value()) {
-      const runtime::ThreadScope& scope =
-          runtime::ThreadScope::Create(tvm::s_tir::GetThreadBinding(op).value());
-      if (scope.rank == 0) {
+      const std::string tag = tvm::s_tir::GetThreadBinding(op).value();
+      if (tag.rfind("vthread", 0) != 0 && tirx::GPUThreadTag::Parse(tag).rank == 0) {
         blockidx_scopes_.push_back(current_scope);
       }
     }
@@ -266,7 +266,7 @@ class LCADetector : public s_tir::StmtExprVisitor {
     auto* current_scope = arena_.make<ScopeInfo>(parent_scope, op, ancestor_scopes_.size());
     if (op->op.same_as(tirx::launch_thread_op()) &&
         std::string(op->args[0].as_or_throw<StringImm>()->value).rfind("vthread", 0) != 0 &&
-        runtime::ThreadScope::Create(op->args[0].as_or_throw<StringImm>()->value).rank == 0) {
+        tirx::GPUThreadTag::Parse(op->args[0].as_or_throw<StringImm>()->value).rank == 0) {
       blockidx_scopes_.push_back(parent_scope);
     }
     ancestor_scopes_.push_back(current_scope);

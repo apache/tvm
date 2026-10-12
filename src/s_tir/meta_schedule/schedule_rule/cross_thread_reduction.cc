@@ -18,6 +18,7 @@
  */
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/s_tir/stmt.h>
+#include <tvm/tirx/gpu_thread_tag.h>
 
 #include "../utils.h"
 
@@ -91,7 +92,7 @@ class CrossThreadReductionObj : public ScheduleRuleObj {
       //   bound the innermost outer loop of `target_sblock` to threadIdx. Possibly we need to split
       //   the loop before binding.
       // - Otherwise, we search for the extent of "threadIdx.x" and use it as the split factor.
-      if (!InThreadScope(tmp_sch, target_sblock)) {
+      if (!InThreadBinding(tmp_sch, target_sblock)) {
         const ffi::Array<s_tir::LoopRV>& split_res =
             tmp_sch->Split(tgt_block_innermost_loop, {std::nullopt, thread_extent});
         tmp_sch->Bind(split_res[1], "threadIdx.x");
@@ -134,11 +135,11 @@ class CrossThreadReductionObj : public ScheduleRuleObj {
    * \param block The block to be checked
    * \return A boolean indicating whether the block is in thread scope.
    */
-  bool InThreadScope(const s_tir::Schedule& sch, const s_tir::SBlockRV& block) {
+  bool InThreadBinding(const s_tir::Schedule& sch, const s_tir::SBlockRV& block) {
     const ffi::Array<s_tir::LoopRV>& axes = sch->GetLoops(block);
     for (const s_tir::LoopRV& loop_rv : axes) {
       const For& loop = sch->Get(loop_rv);
-      runtime::ThreadScope thread_scope = s_tir::GetThreadScope(loop.get());
+      tirx::GPUThreadTag thread_scope = s_tir::GetThreadBindingTag(loop.get());
       if (s_tir::IsThreadIdx(thread_scope)) {
         return true;
       }
