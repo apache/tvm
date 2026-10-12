@@ -37,7 +37,6 @@
 #include <mutex>
 #include <string>
 
-#include "../../src/runtime/file_utils.h"
 #include "../../src/runtime/metadata.h"
 #include "../../src/support/bytes_io.h"
 

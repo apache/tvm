@@ -31,12 +31,6 @@ from .executable import Executable
 from ._tensor import device, cpu, cuda, opencl, vulkan, metal
 from ._tensor import vpi, rocm, ext_dev, from_dlpack
 from .module import load_module, enabled, system_lib, load_static_library, num_threads
-from .params import (
-    save_param_dict,
-    load_param_dict,
-    save_param_dict_to_file,
-    load_param_dict_from_file,
-)
 
 try:
     from . import disco

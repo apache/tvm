@@ -240,7 +240,7 @@ class CLMLRuntime : public JSONRuntimeBase {
     if (!cws->is_tuning_run && cws->tuning_file) {
       std::vector<unsigned char> tune_buffer;
       std::string tune_blob;
-      LoadBinaryFromFile(cws->tuning_file, &tune_blob);
+      tune_blob = support::ReadFile(cws->tuning_file);
       support::BytesInStream strm(tune_blob);
 
       uint64_t header, reserve;
@@ -319,9 +319,9 @@ class CLMLRuntime : public JSONRuntimeBase {
       dump_tensors.Set(node_name, narr);
     }
 
-    const auto f = tvm::ffi::Function::GetGlobal("runtime.SaveParams");
+    const auto f = tvm::ffi::Function::GetGlobal("vm.SaveParams");
     if (f.has_value()) {
-      std::string dump_bytes = (*f)(dump_tensors).cast<ffi::String>();
+      std::string dump_bytes = (*f)(dump_tensors).cast<ffi::Bytes>();
       std::ostringstream oss;
       /*TODO(Siva) HEX encoding doubles the size, look for better encode that can cross the RPC. */
       for (size_t i = 0; i < dump_bytes.size(); ++i) {

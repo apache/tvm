@@ -45,6 +45,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/function.h>
 #include <tvm/runtime/logging.h>
+#include <tvm/support/file_utils.h>
 #include <tvm/target/codegen.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/function.h>
@@ -58,7 +59,6 @@
 #include <utility>
 #include <vector>
 
-#include "../../../../runtime/file_utils.h"
 #include "../../../../runtime/metadata.h"
 #include "../../../../target/build_common.h"
 #include "../../../../target/llvm/codegen_cpu.h"
@@ -567,8 +567,7 @@ ffi::Module BuildHexagon(IRModule mod, Target target) {
   // The new design takes Bytes (not a filename); slurp the linked .so into
   // memory.  Receiver materializes the bytes back to a tempfile internally
   // before dlopen.
-  std::string so_data;
-  runtime::LoadBinaryFromFile(so_name, &so_data);
+  std::string so_data = support::ReadFile(so_name);
 
   // Pack auxiliaries into the unified source map.  Variant lets text blobs
   // (asm/ll) and binary blobs (obj/bc) coexist in their natural form.

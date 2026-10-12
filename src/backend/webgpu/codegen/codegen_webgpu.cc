@@ -44,7 +44,6 @@
 #include <utility>
 #include <vector>
 
-#include "../../../runtime/file_utils.h"
 #include "../../../runtime/metadata.h"
 #include "../../../runtime/thread_storage_scope.h"
 #include "../../../support/bytes_io.h"

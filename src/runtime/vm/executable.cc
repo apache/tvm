@@ -26,13 +26,13 @@
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/vm/executable.h>
 #include <tvm/runtime/vm/vm.h>
+#include <tvm/support/file_utils.h>
 #include <tvm/support/io.h>
 
 #include <functional>
 #include <sstream>
 
 #include "../../support/bytes_io.h"
-#include "../file_utils.h"
 #include "./module_utils.h"
 
 namespace tvm {
@@ -203,7 +203,7 @@ ffi::Bytes VMExecutable::SaveToBytes() const {
 }
 
 void VMExecutable::WriteToFile(const ffi::String& file_name, const ffi::String& format) const {
-  runtime::SaveBinaryToFile(file_name, VMExecutable::SaveToBytes());
+  support::WriteFile(file_name, VMExecutable::SaveToBytes());
 }
 
 ffi::Module VMExecutable::LoadFromBytes(const ffi::Bytes& bytes) {
@@ -232,8 +232,7 @@ ffi::Module VMExecutable::LoadFromBytes(const ffi::Bytes& bytes) {
 }
 
 ffi::Module VMExecutable::LoadFromFile(const ffi::String& file_name) {
-  std::string data;
-  runtime::LoadBinaryFromFile(file_name, &data);
+  std::string data = support::ReadFile(file_name);
   return VMExecutable::LoadFromBytes(ffi::Bytes(data));
 }
 

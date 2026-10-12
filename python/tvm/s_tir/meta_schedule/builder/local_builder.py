@@ -26,7 +26,8 @@ from tvm_ffi import register_global_func
 
 from tvm.ir import IRModule
 from tvm.ir.utils import derived_object
-from tvm.runtime import Module, Tensor, load_param_dict, save_param_dict
+from tvm.runtime import Module, Tensor
+from tvm.runtime.vm import load_param_dict, save_param_dict
 from tvm.support.popen_pool import MapResult, PopenPoolExecutor, StatusKind
 from tvm.target import Target
 

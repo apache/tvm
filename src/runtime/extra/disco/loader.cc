@@ -23,6 +23,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/disco/builtin.h>
 #include <tvm/runtime/vm/tensor_cache_support.h>
+#include <tvm/support/file_utils.h>
 
 #include <functional>
 #include <numeric>
@@ -30,7 +31,6 @@
 #include <unordered_map>
 #include <vector>
 
-#include "../../file_utils.h"
 #include "./utils.h"
 
 namespace tvm {
@@ -240,7 +240,7 @@ ffi::Tensor ShardLoaderObj::LoadParamOnWorker0(int weight_index) const {
     if (file != current_file_) {
       current_file_ = file;
       std::string file_name = GetSiblingPath(this->metadata_.path, file->data_path);
-      LoadBinaryFromFile(file_name, &this->current_file_stream_);
+      this->current_file_stream_ = support::ReadFile(file_name);
     }
     return param->Load(device, &this->current_file_stream_);
   };
@@ -287,7 +287,7 @@ ffi::Tensor ShardLoaderObj::LoadDirect(int weight_index) const {
   if (file != current_file_) {
     current_file_ = file;
     std::string file_name = GetSiblingPath(this->metadata_.path, file->data_path);
-    LoadBinaryFromFile(file_name, &this->current_file_stream_);
+    this->current_file_stream_ = support::ReadFile(file_name);
   }
   return param->Load(device, &this->current_file_stream_);
 }

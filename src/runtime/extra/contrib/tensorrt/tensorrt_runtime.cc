@@ -27,6 +27,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/tensor.h>
+#include <tvm/support/file_utils.h>
 
 #include <cstdint>
 #include <fstream>
@@ -38,7 +39,6 @@
 #include <vector>
 
 #include "../../../../support/env.h"
-#include "../../../file_utils.h"
 #include "../json/json_node.h"
 #include "../json/json_runtime.h"
 
@@ -606,8 +606,7 @@ class TensorRTRuntime : public JSONRuntimeBase {
     if (!infile.good()) return false;
     LOG(INFO) << "Loading cached TensorRT engine from " << path;
     infile.close();
-    std::string serialized_engine;
-    LoadBinaryFromFile(path, &serialized_engine);
+    std::string serialized_engine = support::ReadFile(path);
     // Deserialize engine. TensorRT 10 dropped the trailing IPluginFactory* argument and the runtime
     // must outlive the engine, so it is owned by the cached TensorRTEngineAndContext.
     nvinfer1::IRuntime* runtime = nvinfer1::createInferRuntime(GetTensorRTLogger());
@@ -626,8 +625,7 @@ class TensorRTRuntime : public JSONRuntimeBase {
     // Load metadata
     namespace json = ::tvm::ffi::json;
     std::string meta_path = cache_dir + "/" + key + ".meta";
-    std::string serialized_meta;
-    LoadBinaryFromFile(meta_path, &serialized_meta);
+    std::string serialized_meta = support::ReadFile(meta_path);
     auto meta_obj = json::Parse(serialized_meta).cast<json::Object>();
     int batch_size;
     // Read inputs
@@ -667,8 +665,8 @@ class TensorRTRuntime : public JSONRuntimeBase {
     // Serialize engine to disk
     nvinfer1::IHostMemory* serialized_engine =
         trt_engine_cache_[std::make_pair(symbol_name_, batch_size)].engine->serialize();
-    SaveBinaryToFile(path, std::string(static_cast<const char*>(serialized_engine->data()),
-                                       serialized_engine->size()));
+    support::WriteFile(path, std::string(static_cast<const char*>(serialized_engine->data()),
+                                         serialized_engine->size()));
     delete serialized_engine;
     // Serialize metadata
     namespace json = ::tvm::ffi::json;
@@ -689,7 +687,7 @@ class TensorRTRuntime : public JSONRuntimeBase {
     }
     meta_obj.Set(ffi::String("batch_size"), static_cast<int64_t>(batch_size));
     std::string meta_path = cache_dir + "/" + key + ".meta";
-    SaveBinaryToFile(meta_path, std::string(json::Stringify(meta_obj)));
+    support::WriteFile(meta_path, std::string(json::Stringify(meta_obj)));
   }
 
   std::string GetSubgraphKey() {
