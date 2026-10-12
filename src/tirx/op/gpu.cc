@@ -54,7 +54,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<TFixedReturnType>(tvm::op_attr::kFixedReturnType, PrimType::Void())
       .set_attr<TScriptPrinterName>(tvm::script::printer::op_attr::kScriptPrinterName,
                                     ffi::String("tirx.gpu_thread_return"))
-      .set_attr<TIRxOpCategory>(tvm::tirx::op_attr::kOpCategory, ffi::String("builtin"))
       .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
                                  static_cast<int64_t>(CallEffectKind::kControlJump));
 }
@@ -71,7 +70,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                  sig::arg<PrimExpr>("pred", "The predicate."))
       .set_attr<TScriptPrinterName>(tvm::script::printer::op_attr::kScriptPrinterName,
                                     ffi::String("tirx.gpu_thread_filter"))
-      .set_attr<TIRxOpCategory>(tvm::tirx::op_attr::kOpCategory, ffi::String("builtin"))
       .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
                                  static_cast<int64_t>(CallEffectKind::kPure));
 }
@@ -89,7 +87,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                             FInferType::FromNative<&InferTypeReturnArgType<0>>())
       .set_attr<TScriptPrinterName>(tvm::script::printer::op_attr::kScriptPrinterName,
                                     ffi::String("tirx.gpu_active_thread_selector"))
-      .set_attr<TIRxOpCategory>(tvm::tirx::op_attr::kOpCategory, ffi::String("builtin"))
       .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
                                  static_cast<int64_t>(CallEffectKind::kOpaque));
 }
@@ -106,7 +103,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .signature(sig::arg<PrimExpr>("cond", "The condition."))
       .set_attr<TScriptPrinterName>(tvm::script::printer::op_attr::kScriptPrinterName,
                                     ffi::String("tirx.gpu_thread_invariant"))
-      .set_attr<TIRxOpCategory>(tvm::tirx::op_attr::kOpCategory, ffi::String("builtin"))
       .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
                                  static_cast<int64_t>(CallEffectKind::kPure));
 }
@@ -122,7 +118,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<TFixedReturnType>(tvm::op_attr::kFixedReturnType, PrimType::Void())
       .set_attr<TScriptPrinterName>(tvm::script::printer::op_attr::kScriptPrinterName,
                                     ffi::String("tirx.gpu_storage_sync"))
-      .set_attr<TIRxOpCategory>(tvm::tirx::op_attr::kOpCategory, ffi::String("builtin"))
       .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
                                  static_cast<int64_t>(CallEffectKind::kOpaque));
 }
@@ -143,7 +138,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                             FInferType::FromNative<&InferTypeReturnArgType<1>>())
       .set_attr<TScriptPrinterName>(tvm::script::printer::op_attr::kScriptPrinterName,
                                     ffi::String("tirx.gpu_warp_shuffle"))
-      .set_attr<TIRxOpCategory>(tvm::tirx::op_attr::kOpCategory, ffi::String("builtin"))
       .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
                                  static_cast<int64_t>(CallEffectKind::kOpaque));
 }
@@ -163,7 +157,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                             FInferType::FromNative<&InferTypeReturnArgType<1>>())
       .set_attr<TScriptPrinterName>(tvm::script::printer::op_attr::kScriptPrinterName,
                                     ffi::String("tirx.gpu_warp_shuffle_up"))
-      .set_attr<TIRxOpCategory>(tvm::tirx::op_attr::kOpCategory, ffi::String("builtin"))
       .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
                                  static_cast<int64_t>(CallEffectKind::kOpaque));
 }
@@ -183,7 +176,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                             FInferType::FromNative<&InferTypeReturnArgType<1>>())
       .set_attr<TScriptPrinterName>(tvm::script::printer::op_attr::kScriptPrinterName,
                                     ffi::String("tirx.gpu_warp_shuffle_down"))
-      .set_attr<TIRxOpCategory>(tvm::tirx::op_attr::kOpCategory, ffi::String("builtin"))
       .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
                                  static_cast<int64_t>(CallEffectKind::kOpaque));
 }
@@ -204,7 +196,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                             FInferType::FromNative<&InferTypeReturnArgType<1>>())
       .set_attr<TScriptPrinterName>(tvm::script::printer::op_attr::kScriptPrinterName,
                                     ffi::String("tirx.gpu_warp_shuffle_xor"))
-      .set_attr<TIRxOpCategory>(tvm::tirx::op_attr::kOpCategory, ffi::String("builtin"))
       .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
                                  static_cast<int64_t>(CallEffectKind::kOpaque));
 }
@@ -219,7 +210,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<TFixedReturnType>(tvm::op_attr::kFixedReturnType, PrimType::UInt(32))
       .set_attr<TScriptPrinterName>(tvm::script::printer::op_attr::kScriptPrinterName,
                                     ffi::String("tirx.gpu_warp_activemask"))
-      .set_attr<TIRxOpCategory>(tvm::tirx::op_attr::kOpCategory, ffi::String("builtin"))
       .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
                                  static_cast<int64_t>(CallEffectKind::kOpaque));
 }
@@ -240,7 +230,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<TFixedReturnType>(tvm::op_attr::kFixedReturnType, PrimType::Void())
       .set_attr<TScriptPrinterName>(tvm::script::printer::op_attr::kScriptPrinterName,
                                     ffi::String("tirx.gpu_thread_allreduce"))
-      .set_attr<TIRxOpCategory>(tvm::tirx::op_attr::kOpCategory, ffi::String("builtin"))
       .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
                                  static_cast<int64_t>(CallEffectKind::kOpaque));
 }
@@ -258,7 +247,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<TFixedReturnType>(tvm::op_attr::kFixedReturnType, PrimType::Int(32))
       .set_attr<TScriptPrinterName>(tvm::script::printer::op_attr::kScriptPrinterName,
                                     ffi::String("tirx.gpu_dp4a"))
-      .set_attr<TIRxOpCategory>(tvm::tirx::op_attr::kOpCategory, ffi::String("builtin"))
       .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
                                  static_cast<int64_t>(CallEffectKind::kPure));
 }
@@ -273,7 +261,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
           sig::arg<IntExpr>("stride", "The stride."), sig::arg("layout", "The layout."))
       .set_attr<TScriptPrinterName>(tvm::script::printer::op_attr::kScriptPrinterName,
                                     ffi::String("tirx.gpu_load_matrix_sync"))
-      .set_attr<TIRxOpCategory>(tvm::tirx::op_attr::kOpCategory, ffi::String("builtin"))
       .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
                                  static_cast<int64_t>(CallEffectKind::kReadState));
 }
@@ -291,7 +278,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                  sig::arg<IntExpr>("index_c", "The C fragment index."))
       .set_attr<TScriptPrinterName>(tvm::script::printer::op_attr::kScriptPrinterName,
                                     ffi::String("tirx.gpu_mma_sync"))
-      .set_attr<TIRxOpCategory>(tvm::tirx::op_attr::kOpCategory, ffi::String("builtin"))
       .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
                                  static_cast<int64_t>(CallEffectKind::kOpaque));
 }
@@ -305,7 +291,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
           sig::arg<IntExpr>("index", "The index."), sig::arg("value", "The value to use."))
       .set_attr<TScriptPrinterName>(tvm::script::printer::op_attr::kScriptPrinterName,
                                     ffi::String("tirx.gpu_fill_fragment"))
-      .set_attr<TIRxOpCategory>(tvm::tirx::op_attr::kOpCategory, ffi::String("builtin"))
       .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
                                  static_cast<int64_t>(CallEffectKind::kOpaque));
 }
@@ -320,7 +305,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
           sig::arg<IntExpr>("stride", "The stride."), sig::arg("layout", "The layout."))
       .set_attr<TScriptPrinterName>(tvm::script::printer::op_attr::kScriptPrinterName,
                                     ffi::String("tirx.gpu_store_matrix_sync"))
-      .set_attr<TIRxOpCategory>(tvm::tirx::op_attr::kOpCategory, ffi::String("builtin"))
       .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
                                  static_cast<int64_t>(CallEffectKind::kOpaque));
 }

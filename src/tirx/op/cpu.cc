@@ -43,7 +43,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<TFixedReturnType>(tvm::op_attr::kFixedReturnType, PrimType::Void())
       .set_attr<TScriptPrinterName>(tvm::script::printer::op_attr::kScriptPrinterName,
                                     ffi::String("tirx.cpu_parallel_barrier"))
-      .set_attr<TIRxOpCategory>(tvm::tirx::op_attr::kOpCategory, ffi::String("builtin"))
       .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
                                  static_cast<int64_t>(CallEffectKind::kOpaque));
 }

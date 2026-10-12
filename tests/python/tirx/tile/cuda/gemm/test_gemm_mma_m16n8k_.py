@@ -379,7 +379,7 @@ def _lower(func):
 
 def test_cuda_mma_sync_is_a_registered_instruction():
     op = tvm.ir.Op.get("tirx.cuda.tile.mma_sync")
-    assert op.get_attr("TIRxOpCategory") == "tile_primitive"
+    assert callable(op.get_attr("FTileOpDispatch"))
     assert op.get_attr("TCallEffectKind") == 3
 
 

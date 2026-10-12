@@ -47,7 +47,6 @@ void RegisterMetalTargetBuiltins() {
                  sig::arg<IntExpr>("row", "The row index."))
       .set_attr<TScriptPrinterName>(tvm::script::printer::op_attr::kScriptPrinterName,
                                     ffi::String("tirx.metal.make_filled_simdgroup_matrix"))
-      .set_attr<TIRxOpCategory>(tvm::tirx::op_attr::kOpCategory, ffi::String("builtin"))
       .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
                                  static_cast<int64_t>(CallEffectKind::kOpaque));
 
@@ -60,7 +59,6 @@ void RegisterMetalTargetBuiltins() {
                  sig::arg("transpose_matrix", "Whether to transpose the matrix."))
       .set_attr<TScriptPrinterName>(tvm::script::printer::op_attr::kScriptPrinterName,
                                     ffi::String("tirx.metal.simdgroup_load"))
-      .set_attr<TIRxOpCategory>(tvm::tirx::op_attr::kOpCategory, ffi::String("builtin"))
       .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
                                  static_cast<int64_t>(CallEffectKind::kOpaque));
 
@@ -73,7 +71,6 @@ void RegisterMetalTargetBuiltins() {
                  sig::arg("transpose_matrix", "Whether to transpose the matrix."))
       .set_attr<TScriptPrinterName>(tvm::script::printer::op_attr::kScriptPrinterName,
                                     ffi::String("tirx.metal.simdgroup_store"))
-      .set_attr<TIRxOpCategory>(tvm::tirx::op_attr::kOpCategory, ffi::String("builtin"))
       .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
                                  static_cast<int64_t>(CallEffectKind::kOpaque));
 
@@ -86,7 +83,6 @@ void RegisterMetalTargetBuiltins() {
           sig::arg("c", "The C operand."), sig::arg<IntExpr>("index_c", "The C fragment index."))
       .set_attr<TScriptPrinterName>(tvm::script::printer::op_attr::kScriptPrinterName,
                                     ffi::String("tirx.metal.simdgroup_multiply_accumulate"))
-      .set_attr<TIRxOpCategory>(tvm::tirx::op_attr::kOpCategory, ffi::String("builtin"))
       .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
                                  static_cast<int64_t>(CallEffectKind::kOpaque));
 }

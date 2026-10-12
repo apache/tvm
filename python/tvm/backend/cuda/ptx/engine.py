@@ -107,7 +107,6 @@ def register_table(table: dict[str, InstructionEntry]) -> None:
         # other family, and `gen_stubs` already spells the attribute this way.
         family = escape_token(entry.family)
         register_op_attr(entry.op_name, "TScriptPrinterName", f"tirx.ptx.{family}")
-        register_op_attr(entry.op_name, "TIRxOpCategory", "device_intrin")
         register_op_attr(entry.op_name, "TDeviceIntrinsicNamespace", "ptx")
         register_op_attr(entry.op_name, "TFixedReturnType", PrimType("void"))
         if Op.get(entry.op_name).get_attr("__tvm_doc_translate_op_call__") is None:
@@ -126,7 +125,6 @@ def register_addr() -> None:
     op.add_arg("base", "The base pointer.")
     op.add_arg("byte_offset", "The offset in bytes.")
     register_op_attr(_ADDR_OP_NAME, "TScriptPrinterName", "tirx.ptx.addr")
-    register_op_attr(_ADDR_OP_NAME, "TIRxOpCategory", "device_intrin")
     register_op_attr(_ADDR_OP_NAME, "TDeviceIntrinsicNamespace", "ptx")
     register_op_attr(_ADDR_OP_NAME, "FInferType", _infer_addr_type)
     if op.get_attr("__tvm_doc_translate_op_call__") is None:

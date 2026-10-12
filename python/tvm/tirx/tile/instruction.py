@@ -76,13 +76,11 @@ class Instruction:
     def register(self):
         if self.name in SPECS:
             return SPECS[self.name]._factory
+        from .dispatch import run_dispatch
+
         register_op_attr(self.name, "TCallEffectKind", 3)
         register_op_attr(self.name, "TFixedReturnType", PrimType("void"))
-        register_op_attr(
-            self.name,
-            "TIRxOpCategory",
-            "tile_composite" if ".compose." in self.name else "tile_primitive",
-        )
+        register_op_attr(self.name, "FTileOpDispatch", run_dispatch)
         register_op_attr(self.name, "TScriptPrinterName", self.name)
         op = Op.get(self.name)
         op.set_signature(args=[arg.name for arg in self.operands])
@@ -365,11 +363,6 @@ class TensorCall:
             index = next(i for i, arg in enumerate(self.spec.operands) if arg.name == name)
             args[index] = value
         return Call(self.op, args, attrs=self.call.attrs, ty=self.call.ty, loc=self.call.loc)
-
-
-@tvm_ffi.register_global_func("tirx.TensorCallScope")
-def _scope(call):
-    return ExecScope(SPECS[call.op.name].backend, str(call.attrs.scope))
 
 
 for _name in (

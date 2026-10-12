@@ -73,7 +73,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
   OpDef("tirx.cuda.tcgen05_encode_instr_descriptor")
       .signature(sig::arg("desc"), sig::call_attrs<backend::cuda::TCGen05InstrDescriptorAttrs>())
-      .set_attr<TIRxOpCategory>(tvm::tirx::op_attr::kOpCategory, ffi::String("device_intrin"))
       .set_attr<TDeviceIntrinsicNamespace>(tvm::tirx::op_attr::kDeviceIntrinsicNamespace,
                                            ffi::String("cuda"))
       .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
@@ -82,7 +81,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("tirx.cuda.tcgen05_encode_instr_descriptor_block_scaled")
       .signature(sig::arg("desc"),
                  sig::call_attrs<backend::cuda::TCGen05InstrDescriptorBlockScaledAttrs>())
-      .set_attr<TIRxOpCategory>(tvm::tirx::op_attr::kOpCategory, ffi::String("device_intrin"))
       .set_attr<TDeviceIntrinsicNamespace>(tvm::tirx::op_attr::kDeviceIntrinsicNamespace,
                                            ffi::String("cuda"))
       .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
@@ -91,7 +89,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("tirx.cuda.tcgen05_encode_matrix_descriptor")
       .signature(sig::arg("desc"), sig::arg("addr"), sig::arg<IntExpr>("ldo"),
                  sig::arg<IntExpr>("sdo"), sig::arg<IntExpr>("swizzle"))
-      .set_attr<TIRxOpCategory>(tvm::tirx::op_attr::kOpCategory, ffi::String("device_intrin"))
       .set_attr<TDeviceIntrinsicNamespace>(tvm::tirx::op_attr::kDeviceIntrinsicNamespace,
                                            ffi::String("cuda"))
       .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,

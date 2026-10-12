@@ -57,16 +57,6 @@ using FLowerIntrinsic = ffi::TypedFunction<PrimExpr(PrimExpr)>;
 using FLegalize = ffi::TypedFunction<PrimExpr(PrimExpr)>;
 
 /*!
- * \brief Broad TIRx op category.
- *
- * Expected values:
- * - "builtin"
- * - "tile_primitive"
- * - "device_intrin"
- */
-using TIRxOpCategory = ffi::String;
-
-/*!
  * \brief Device intrinsic namespace.
  *
  * Expected values include "cuda", "ptx", "nvshmem", "nki", and "metal".
@@ -76,7 +66,6 @@ using TDeviceIntrinsicNamespace = ffi::String;
 namespace op_attr {
 inline constexpr const char* kGlobalSymbol = "TGlobalSymbol";
 inline constexpr const char* kVectorizable = "TVectorizable";
-inline constexpr const char* kOpCategory = "TIRxOpCategory";
 inline constexpr const char* kDeviceIntrinsicNamespace = "TDeviceIntrinsicNamespace";
 }  // namespace op_attr
 

@@ -175,7 +175,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .signature(sig::arg("x", "The input value."))
       .set_attr<TScriptPrinterName>(tvm::script::printer::op_attr::kScriptPrinterName,
                                     ffi::String("tirx.reinterpret"))
-      .set_attr<TIRxOpCategory>(tvm::tirx::op_attr::kOpCategory, ffi::String("builtin"))
       .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
                                  static_cast<int64_t>(CallEffectKind::kPure));
 }
@@ -191,7 +190,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<FInferType>(tvm::op_attr::kInferType, FInferType::FromNative<&InferTypeAddressOf>())
       .set_attr<TScriptPrinterName>(tvm::script::printer::op_attr::kScriptPrinterName,
                                     ffi::String("tirx.address_of"))
-      .set_attr<TIRxOpCategory>(tvm::tirx::op_attr::kOpCategory, ffi::String("builtin"))
       .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
                                  static_cast<int64_t>(CallEffectKind::kPure));
 }
@@ -207,7 +205,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .signature(sig::arg("x", "The input value."))
       .set_attr<TScriptPrinterName>(tvm::script::printer::op_attr::kScriptPrinterName,
                                     ffi::String("tirx.isnullptr"))
-      .set_attr<TIRxOpCategory>(tvm::tirx::op_attr::kOpCategory, ffi::String("builtin"))
       .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
                                  static_cast<int64_t>(CallEffectKind::kPure));
 }
@@ -222,7 +219,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .signature(sig::arg("ptr", "The pointer."), sig::arg<IntExpr>("rw", "The read/write mode."),
                  sig::arg<IntExpr>("locality", "The locality hint."),
                  sig::arg<IntExpr>("cache_type", "The cache policy."))
-      .set_attr<TIRxOpCategory>(tvm::tirx::op_attr::kOpCategory, ffi::String("builtin"))
       .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
                                  static_cast<int64_t>(CallEffectKind::kOpaque));
 }
@@ -238,7 +234,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                  sig::arg<IntExpr>("byte_offset", "Offset in bytes."))
       .set_attr<TScriptPrinterName>(tvm::script::printer::op_attr::kScriptPrinterName,
                                     ffi::String("tirx.ptr_byte_offset"))
-      .set_attr<TIRxOpCategory>(tvm::tirx::op_attr::kOpCategory, ffi::String("builtin"))
       .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
                                  static_cast<int64_t>(CallEffectKind::kPure));
 }
@@ -250,7 +245,6 @@ const Op& static_handle_op() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("tirx.static_handle")
-      .set_attr<TIRxOpCategory>(tvm::tirx::op_attr::kOpCategory, ffi::String("builtin"))
       .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
                                  static_cast<int64_t>(CallEffectKind::kSpecialCallArg));
 }
@@ -267,7 +261,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                                     ffi::String("tirx.handle_add_byte_offset"))
       .set_attr<FInferType>(tvm::op_attr::kInferType,
                             FInferType::FromNative<&InferTypePointerOffset<0, -1>>())
-      .set_attr<TIRxOpCategory>(tvm::tirx::op_attr::kOpCategory, ffi::String("builtin"))
       .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
                                  static_cast<int64_t>(CallEffectKind::kPure));
 }
@@ -280,7 +273,6 @@ const Op& atomic_add_op() {
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("tirx.atomic_add")
       .signature(sig::arg("ptr", "The pointer."), sig::arg("value", "The value to use."))
-      .set_attr<TIRxOpCategory>(tvm::tirx::op_attr::kOpCategory, ffi::String("builtin"))
       .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
                                  static_cast<int64_t>(CallEffectKind::kOpaque));
 }
@@ -297,7 +289,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<TFixedReturnType>(tvm::op_attr::kFixedReturnType, PrimType::Void())
       .set_attr<TScriptPrinterName>(tvm::script::printer::op_attr::kScriptPrinterName,
                                     ffi::String("tirx.assume_aligned"))
-      .set_attr<TIRxOpCategory>(tvm::tirx::op_attr::kOpCategory, ffi::String("builtin"))
       .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
                                  static_cast<int64_t>(CallEffectKind::kEmbedInfo));
 }
@@ -312,7 +303,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<TFixedReturnType>(tvm::op_attr::kFixedReturnType, PrimType::Int(32))
       .set_attr<TScriptPrinterName>(tvm::script::printer::op_attr::kScriptPrinterName,
                                     ffi::String("tirx.undef"))
-      .set_attr<TIRxOpCategory>(tvm::tirx::op_attr::kOpCategory, ffi::String("builtin"))
       .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
                                  static_cast<int64_t>(CallEffectKind::kReadState));
 }
@@ -330,7 +320,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                             FInferType::FromNative<&InferTypeMaskedLoad>())
       .set_attr<TScriptPrinterName>(tvm::script::printer::op_attr::kScriptPrinterName,
                                     ffi::String("tirx.masked_load"))
-      .set_attr<TIRxOpCategory>(tvm::tirx::op_attr::kOpCategory, ffi::String("builtin"))
       .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
                                  static_cast<int64_t>(CallEffectKind::kReadState));
 }
@@ -348,7 +337,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<TFixedReturnType>(tvm::op_attr::kFixedReturnType, PrimType::Void())
       .set_attr<TScriptPrinterName>(tvm::script::printer::op_attr::kScriptPrinterName,
                                     ffi::String("tirx.masked_store"))
-      .set_attr<TIRxOpCategory>(tvm::tirx::op_attr::kOpCategory, ffi::String("builtin"))
       .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
                                  static_cast<int64_t>(CallEffectKind::kUpdateState));
 }
@@ -360,7 +348,6 @@ const Op& alloc_tensor_op() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("tirx.alloc_tensor")
-      .set_attr<TIRxOpCategory>(tvm::tirx::op_attr::kOpCategory, ffi::String("builtin"))
       .set_attr<FInferType>(tvm::op_attr::kInferType,
                             FInferType::FromNative<&InferTypeTensor<true>>())
       .set_validator(ffi::reflection::NativeFunctionView<void(
@@ -382,7 +369,6 @@ const Op& decl_tensor_op() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("tirx.decl_tensor")
-      .set_attr<TIRxOpCategory>(tvm::tirx::op_attr::kOpCategory, ffi::String("builtin"))
       .set_attr<FInferType>(tvm::op_attr::kInferType,
                             FInferType::FromNative<&InferTypeTensor<false>>())
       .set_validator(ffi::reflection::NativeFunctionView<void(
@@ -406,7 +392,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .signature(sig::arg("tensor", "The tensor variable."))
       .set_attr<FInferType>(tvm::op_attr::kInferType,
                             FInferType::FromNative<&InferTypeTensorDataPtr>())
-      .set_attr<TIRxOpCategory>(tvm::tirx::op_attr::kOpCategory, ffi::String("builtin"))
       .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
                                  static_cast<int64_t>(CallEffectKind::kPure));
 }

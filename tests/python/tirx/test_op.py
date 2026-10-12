@@ -34,7 +34,7 @@ def test_instruction_is_a_void_call():
     assert isinstance(call, Call)
     assert call.ty == tvm.ir.PrimType("void")
     assert call.op.get_attr("TCallEffectKind") == 3
-    assert call.op.get_attr("TIRxOpCategory") == "tile_primitive"
+    assert callable(call.op.get_attr("FTileOpDispatch"))
     assert call.attrs.scope == "warp"
     assert call.attrs.vec_bits == 128
     assert not hasattr(call, "config")
@@ -54,8 +54,7 @@ def test_roundtrip_and_exactly_one_evaluate(composite):
     assert len(nodes) == 1
     call = nodes[0].value
     assert isinstance(call, Call)
-    expected = "tile_composite" if composite else "tile_primitive"
-    assert call.op.get_attr("TIRxOpCategory") == expected
+    assert callable(call.op.get_attr("FTileOpDispatch"))
     parsed = tvm.script.from_source(func.script(), extra_vars={"T": T})
     assert_structural_equal(func, parsed)
     assert_structural_equal(func, load_json(save_json(func)))

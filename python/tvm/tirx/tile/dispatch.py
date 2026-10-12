@@ -20,7 +20,6 @@ Mirrors the C++ header ``include/tvm/tirx/tile/context.h``.
 """
 # pylint: disable=no-member
 
-import tvm_ffi
 from tvm_ffi import register_object
 
 from tvm.ir import Expr, Range, Scriptable, Stmt, Var
@@ -251,8 +250,3 @@ def run_dispatch(call, sctx):
             f"target={sctx.target.kind.name} scope={sctx.scope_kind}\n"
             f"{error}\ncall: {view.call}"
         ) from error
-
-
-@tvm_ffi.register_global_func("tirx.f_op_dispatcher")
-def f_op_dispatcher(call, sctx):
-    return run_dispatch(call, sctx)

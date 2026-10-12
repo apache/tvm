@@ -62,8 +62,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<FRegionGetBodyParams>(tvm::op_attr::kRegionGetBodyParams,
                                       FRegionGetBodyParams::FromNative<&LaunchThreadBodyParams>())
       .set_attr<FRegionValidate>(tvm::op_attr::kRegionValidate,
-                                 FRegionValidate::FromNative<&ValidateBuiltinRegion>())
-      .set_attr<TIRxOpCategory>(tvm::tirx::op_attr::kOpCategory, ffi::String("builtin"));
+                                 FRegionValidate::FromNative<&ValidateBuiltinRegion>());
 }
 
 const Op& device_entry_op() {
@@ -91,8 +90,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<FRegionGetBodyParams>(tvm::op_attr::kRegionGetBodyParams,
                                       FRegionGetBodyParams::FromNative<&RegionNoBodyParams>())
       .set_attr<FRegionValidate>(tvm::op_attr::kRegionValidate,
-                                 FRegionValidate::FromNative<&ValidateDeviceEntry>())
-      .set_attr<TIRxOpCategory>(tvm::tirx::op_attr::kOpCategory, ffi::String("builtin"));
+                                 FRegionValidate::FromNative<&ValidateDeviceEntry>());
 }
 
 const Op& device_context_op() {
@@ -108,8 +106,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<FRegionGetBodyParams>(tvm::op_attr::kRegionGetBodyParams,
                                       FRegionGetBodyParams::FromNative<&RegionNoBodyParams>())
       .set_attr<FRegionValidate>(tvm::op_attr::kRegionValidate,
-                                 FRegionValidate::FromNative<&ValidateBuiltinRegion>())
-      .set_attr<TIRxOpCategory>(tvm::tirx::op_attr::kOpCategory, ffi::String("builtin"));
+                                 FRegionValidate::FromNative<&ValidateBuiltinRegion>());
 }
 
 const Op& compute_scope_op() {
@@ -125,8 +122,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<FRegionGetBodyParams>(tvm::op_attr::kRegionGetBodyParams,
                                       FRegionGetBodyParams::FromNative<&RegionNoBodyParams>())
       .set_attr<FRegionValidate>(tvm::op_attr::kRegionValidate,
-                                 FRegionValidate::FromNative<&ValidateBuiltinRegion>())
-      .set_attr<TIRxOpCategory>(tvm::tirx::op_attr::kOpCategory, ffi::String("builtin"));
+                                 FRegionValidate::FromNative<&ValidateBuiltinRegion>());
 }
 
 const Op& parallel_launch_op() {
@@ -142,8 +138,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<FRegionGetBodyParams>(tvm::op_attr::kRegionGetBodyParams,
                                       FRegionGetBodyParams::FromNative<&RegionNoBodyParams>())
       .set_attr<FRegionValidate>(tvm::op_attr::kRegionValidate,
-                                 FRegionValidate::FromNative<&ValidateBuiltinRegion>())
-      .set_attr<TIRxOpCategory>(tvm::tirx::op_attr::kOpCategory, ffi::String("builtin"));
+                                 FRegionValidate::FromNative<&ValidateBuiltinRegion>());
 }
 
 }  // namespace tirx

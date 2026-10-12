@@ -20,13 +20,27 @@
 #ifndef TVM_TIRX_TILE_DISPATCH_H_
 #define TVM_TIRX_TILE_DISPATCH_H_
 
+#include <tvm/ffi/function.h>
+#include <tvm/ir/op.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/tile/context.h>
 
 namespace tvm::tirx::tile {
 
 /*!
- * \brief Invoke the registered tile dispatcher.
+ * \brief Lower a tile instruction Call using its execution context.
+ *
+ * Registering this attribute identifies an Op as a tile instruction. The
+ * dispatcher can be implemented in C++ or registered from Python.
+ */
+using FTileOpDispatch = ffi::TypedFunction<Function(const Call&, const DispatchContext&)>;
+
+namespace op_attr {
+inline constexpr const char* kTileOpDispatch = "FTileOpDispatch";
+}  // namespace op_attr
+
+/*!
+ * \brief Invoke the Call's FTileOpDispatch attribute.
  * \param call The tile instruction to lower.
  * \param context The operator's execution context and accumulated callbacks.
  * \return The instruction implementation, whose body is expanded by TileDispatch.

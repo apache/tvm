@@ -27,7 +27,7 @@ types and the native Call validator are in ``src/tirx/tile/op.cc``.
 The public C++ tile interfaces are grouped under ``include/tvm/tirx/tile/``:
 
 - ``op.h`` declares the instruction registration and validation contract.
-- ``dispatch.h`` declares the dispatcher entry point.
+- ``dispatch.h`` declares ``FTileOpDispatch`` and the dispatcher entry point.
 - ``exec_scope.h`` defines backend execution hierarchy nodes used by layouts
   and tile calls. The shared ``tirx::ExecScope`` type remains unchanged.
 - ``context.h`` defines the backend-neutral ``tile::DispatchContext`` and its
@@ -39,9 +39,10 @@ active-thread execution contexts, and predicate analysis remain private to
 ``include/tvm/tirx/layout.h``.
 
 ``tirx.TileDispatch`` remains the first phase of ``LowerTIRx``.
-The pass recognizes ``Evaluate(Call)`` by the operator's ``TIRxOpCategory``:
-``tile_primitive`` or ``tile_composite``. It validates the call, resolves the
-scope against the active thread set, constructs a ``DispatchContext``, and
+The pass recognizes ``Evaluate(Call)`` by the presence of the operator's
+``FTileOpDispatch`` attribute. It validates the call, reads its reflected
+``scope`` attribute, resolves the scope against the active thread set,
+constructs a ``DispatchContext``, and
 invokes the instruction's registered lowerer. It replaces the Evaluate with
 the returned function body and lowers any nested tensor calls.
 
@@ -49,8 +50,13 @@ This preserves launch parameters, inter/intra scope maps, value ranges,
 descriptor caches, host initialization, and allocation/initialization
 callbacks. Lowering occurs at a statement boundary because one instruction
 may require address preparation, layout expansion, and multiple occurrences
-of the same core instruction. A residual-call verifier rejects either
-category after expansion.
+of the same core instruction. A residual-call verifier rejects any remaining
+tile instruction after expansion using the same dispatch attribute.
+
+The dispatch table is the native Op attribute registry. Python registers
+callbacks on individual Ops; C++ implementations can register the same typed
+attribute directly. The pass does not call a global Python dispatcher or
+consult a Python instruction table to identify tile Ops or resolve their scope.
 
 There is one lowerer per instruction identity. Unsupported layouts and scopes
 produce an error that includes the instruction, target, scope, and original
