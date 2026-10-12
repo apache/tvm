@@ -447,4 +447,8 @@ def make_namespace():
                 lower=_elementwise,
             )
         ]
-    return namespace("cuda", result)
+    from .patterns import apply
+
+    result = namespace("cuda", result)
+    result.apply = apply
+    return result

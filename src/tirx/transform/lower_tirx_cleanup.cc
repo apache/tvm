@@ -189,9 +189,9 @@ class LayoutApplier : public StmtExprMutatorWithAnalyzer {
     TensorVar flattened = buf;
     ffi::ObjectPtr<TensorTypeNode> type;
     if (is_alloc) {
-      if (auto tile_layout = buf->layout.as<TileLayoutNode>();
-          tile_layout && tile_layout->HasThreadAxis()) {
-        // Logical alloc_tensor with thread axes: physical shape = memory-axis span
+      if (auto tile_layout = buf->layout.as<TileLayoutNode>()) {
+        // Allocation must cover the memory-axis span, including gaps, whether
+        // or not the layout also distributes elements across threads.
         sym::Analyzer ana;
         PrimExpr mem_span = IntImm::Int32(1);
         for (const auto& iter : tile_layout->shard) {

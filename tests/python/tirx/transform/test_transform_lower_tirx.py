@@ -2038,3 +2038,29 @@ def _register_probe(name):
         return lower
 
     return decorate
+
+
+@pytest.mark.parametrize("scope", ["local", "shared"])
+def test_alloc_tensor_layout_span_without_threads(scope):
+    """A layout's holes consume storage even when it has no thread axes."""
+    layout = T.TileLayout(T.S[(3, 4) : (16, 2)])
+
+    @T.function(private=True)
+    def before():
+        A = T.alloc_tensor(ty_args=[T.Tensor((3, 4), "uint32", scope=scope, layout=layout)])
+        A[2, 3] = T.uint32(7)
+
+    target = tvm.target.Target({"kind": "cuda", "arch": "sm_100a"})
+    with target:
+        lowered = LowerTIRx()(tvm.IRModule({"main": before}))
+    allocations = []
+
+    def collect(node):
+        if isinstance(node, tvm.ir.Bind) and isinstance(node.value, tvm.ir.Call):
+            if node.value.op.name == "tirx.alloc_tensor":
+                allocations.append(node.var.ty)
+
+    tvm_ffi.structural_walk(lowered["main"].body, collect)
+    assert len(allocations) == 1
+    assert tuple(int(x) for x in allocations[0].shape) == (39,)
+    assert allocations[0].layout is None

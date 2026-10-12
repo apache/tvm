@@ -666,7 +666,7 @@ def _coerce_pred(entry, pred):
     raise ValueError(f"{entry.name}: pred must be a bool/uint32/int32 expression")
 
 
-def _emit(entry, filled, operands, pred=None, preserve_dst=False):
+def _resolve_modifiers(entry, filled):
     # Modifiers resolve before the operands are looked at: the attribute chain
     # is parsed before the call happens, and a register group's length may be a
     # function of the modifiers, so the expected arity needs the modifier map.
@@ -680,6 +680,35 @@ def _emit(entry, filled, operands, pred=None, preserve_dst=False):
         error = entry.check(mod_map)
         if error:
             raise ValueError(f"{entry.name}: {error}")
+    return mod_map
+
+
+def instruction_name(instruction):
+    """Return validated PTX text in table slot order, without binding operands.
+
+    Accept a ``T.ptx`` chain or its string spelling. Operand overloads remain
+    unresolved: this identifies the opcode and modifiers, not an operand form.
+    Tile patterns can use it without inspecting the frontend's candidates.
+    """
+    if isinstance(instruction, str):
+        instruction = PTXNamespace()[instruction]
+    if not isinstance(instruction, _InstrChain):
+        raise TypeError("Expected a T.ptx instruction or PTX instruction string")
+    names, errors = set(), []
+    for entry, filled in instruction._cands:
+        try:
+            _resolve_modifiers(entry, filled)
+        except ValueError as error:
+            errors.append(str(error))
+        else:
+            names.add(".".join([entry.ptx_name, *(tok for tok in filled if tok)]))
+    if len(names) != 1:
+        raise ValueError("PTX instruction is not fully specified: " + "; ".join(errors))
+    return names.pop()
+
+
+def _emit(entry, filled, operands, pred=None, preserve_dst=False):
+    mod_map = _resolve_modifiers(entry, filled)
     layout = operand_layout(entry, mod_map)
     n_args = sum(n for _, _, n in layout)
     if len(operands) != n_args:

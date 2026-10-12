@@ -43,6 +43,14 @@ Layouts and the active thread set must satisfy the instruction's contract.
 There is no generic ``copy``/``gemm`` operation or priority dispatch, and no
 ``config``, ``workspace``, or ``dispatch`` keyword bag.
 
+The :doc:`explicit CUDA tile pattern prototype <cuda_tile_patterns>` adds an
+instruction-first ``T.cuda.tile.apply`` path for reviewing two fixed contracts.
+
+.. toctree::
+   :hidden:
+
+   cuda_tile_patterns
+
 CUDA instructions
 -----------------
 
