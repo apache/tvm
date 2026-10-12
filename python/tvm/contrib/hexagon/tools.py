@@ -31,6 +31,18 @@ from tvm_ffi import register_global_func
 
 import tvm
 import tvm.support.cc as cc
+from tvm.backend.hexagon.linker import (
+    HEXAGON_LINK_MAIN as HEXAGON_LINK_MAIN,
+)
+from tvm.backend.hexagon.linker import (
+    hexagon_link as hexagon_link,
+)
+from tvm.backend.hexagon.linker import (
+    link_shared as link_shared,
+)
+from tvm.backend.hexagon.linker import (
+    register_linker as register_linker,
+)
 
 # Linking Hexagon shared libraries.
 #
