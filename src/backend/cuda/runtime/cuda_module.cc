@@ -43,7 +43,6 @@
 
 #include "../../../runtime/metadata.h"
 #include "../../../runtime/pack_args.h"
-#include "../../../runtime/thread_storage_scope.h"
 #include "../../../support/bytes_io.h"
 #include "../launch/launch_config.h"
 #include "../launch/launch_plan.h"
