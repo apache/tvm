@@ -25,6 +25,7 @@
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/tensor.h>
 
+#include <cstdio>
 #include <cstring>
 #include <memory>
 #include <mutex>
@@ -42,7 +43,6 @@ using tensorrt_llm::MAX_RANKS_PER_NODE;
 
 namespace {
 
-// Weak entries allow lookup without retaining either the pool or its backing tensors.
 struct IPCMemoryRegistry {
   std::mutex mutex;
   std::unordered_map<void*, std::weak_ptr<CUDAIPCMemory>> allocations;
@@ -53,76 +53,167 @@ struct IPCMemoryRegistry {
   }
 };
 
-void CheckCleanup(cudaError_t error) {
-  if (error != cudaSuccess) {
-    LOG(WARNING) << "CUDA IPC cleanup: " << cudaGetErrorString(error);
-  }
+bool CheckCleanup(cudaError_t error) noexcept {
+  if (error == cudaSuccess) return true;
+  std::fprintf(stderr, "CUDA IPC cleanup: %s\n", cudaGetErrorString(error));
+  return false;
 }
 
-struct CUDAAllocation {
-  void* data = nullptr;
-  ~CUDAAllocation() {
-    if (data) CheckCleanup(cudaFree(data));
+bool CheckCleanup(ncclResult_t error) noexcept {
+  if (error == ncclSuccess) return true;
+  std::fprintf(stderr, "CUDA IPC collective cleanup: %s\n", ncclGetErrorString(error));
+  return false;
+}
+
+/*!
+ * \brief Independently retained collective resources for IPC handle lifetime.
+ *
+ * Backings own this session. The pool retains only a weak reference, and neither
+ * destruction nor handle exchange depends on a thread-local NCCL context. All
+ * workers must issue corresponding allocations and releases in the same order.
+ */
+class IPCResourceSession {
+ public:
+  struct Message {
+    uint64_t ordinal{0};
+    uint64_t phase{0};
+    uint64_t success{0};
+    char payload[sizeof(ncclUniqueId)]{};
+  };
+
+  explicit IPCResourceSession(nccl::CCLThreadLocalContext* ctx)
+      : device_id(ctx->device_id),
+        worker_id(ctx->worker->worker_id),
+        num_workers(ctx->worker->num_workers),
+        received(num_workers) {}
+
+  void Init(nccl::CCLThreadLocalContext* ctx) {
+    TVM_FFI_CHECK_CUDA_ERROR(cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking));
+    TVM_FFI_CHECK_CUDA_ERROR(cudaMalloc(&send, sizeof(Message)));
+    TVM_FFI_CHECK_CUDA_ERROR(cudaMalloc(&receive, sizeof(Message) * num_workers));
+    if (worker_id == 0) NCCL_CALL(ncclGetUniqueId(&unique_id));
+    TVM_FFI_CHECK_CUDA_ERROR(
+        cudaMemcpyAsync(send, &unique_id, sizeof(unique_id), cudaMemcpyHostToDevice, stream));
+    NCCL_CALL(
+        ncclBroadcast(send, receive, sizeof(unique_id), ncclChar, 0, ctx->global_comm, stream));
+    TVM_FFI_CHECK_CUDA_ERROR(
+        cudaMemcpyAsync(&unique_id, receive, sizeof(unique_id), cudaMemcpyDeviceToHost, stream));
+    TVM_FFI_CHECK_CUDA_ERROR(cudaStreamSynchronize(stream));
+    // Do not require ncclCommSplit: older supported NCCL versions have InitRank.
+    NCCL_CALL(ncclCommInitRank(&communicator, num_workers, unique_id, worker_id));
+    healthy = true;
   }
+
+  ~IPCResourceSession() noexcept {
+    int previous = 0;
+    bool queried = CheckCleanup(cudaGetDevice(&previous));
+    if (!CheckCleanup(cudaSetDevice(device_id))) return;
+    if (communicator) {
+      CheckCleanup(healthy ? ncclCommDestroy(communicator) : ncclCommAbort(communicator));
+    }
+    if (stream) CheckCleanup(cudaStreamSynchronize(stream));
+    if (send) CheckCleanup(cudaFree(send));
+    if (receive) CheckCleanup(cudaFree(receive));
+    if (stream) CheckCleanup(cudaStreamDestroy(stream));
+    if (queried) CheckCleanup(cudaSetDevice(previous));
+  }
+
+  // The caller holds mutex. A fixed envelope size lets mismatched allocation and
+  // teardown phases fail closed instead of interpreting one another's payloads.
+  bool Exchange(uint64_t ordinal, uint64_t phase, bool success,
+                const cudaIpcMemHandle_t* handle = nullptr) noexcept {
+    if (!healthy) return false;
+    message = Message{};
+    message.ordinal = ordinal;
+    message.phase = phase;
+    message.success = success;
+    if (handle) std::memcpy(message.payload, handle, sizeof(*handle));
+    if (!CheckCleanup(
+            cudaMemcpyAsync(send, &message, sizeof(message), cudaMemcpyHostToDevice, stream)) ||
+        !CheckCleanup(
+            ncclAllGather(send, receive, sizeof(message), ncclChar, communicator, stream)) ||
+        !CheckCleanup(cudaMemcpyAsync(received.data(), receive, sizeof(message) * num_workers,
+                                      cudaMemcpyDeviceToHost, stream)) ||
+        !CheckCleanup(cudaStreamSynchronize(stream))) {
+      healthy = false;
+      return false;
+    }
+    bool agreed = true;
+    for (const auto& peer : received) {
+      if (peer.ordinal != ordinal || peer.phase != phase) {
+        std::fprintf(stderr,
+                     "CUDA IPC collective allocation/release order differs across workers\n");
+        healthy = false;
+        return false;
+      }
+      agreed &= peer.success != 0;
+    }
+    return agreed;
+  }
+
+  std::mutex mutex;
+  const int device_id;
+  const int worker_id;
+  const int num_workers;
+  uint64_t next_ordinal{0};
+  std::vector<Message> received;
+
+ private:
+  ncclUniqueId unique_id{};
+  Message message;
+  ncclComm_t communicator{nullptr};
+  cudaStream_t stream{nullptr};
+  void* send{nullptr};
+  void* receive{nullptr};
+  bool healthy{false};
 };
 
-/*! \brief All-gather IPC handles, retaining temporary buffers on failure. */
-std::vector<cudaIpcMemHandle_t> AllGatherIPCHandles(nccl::CCLThreadLocalContext* ctx,
-                                                    cudaIpcMemHandle_t local_handle) {
-  CUDAAllocation src, dst;
-  size_t bytes = CUDA_IPC_HANDLE_SIZE * ctx->worker->num_workers;
-  TVM_FFI_CHECK_CUDA_ERROR(cudaMalloc(&src.data, CUDA_IPC_HANDLE_SIZE));
-  TVM_FFI_CHECK_CUDA_ERROR(cudaMalloc(&dst.data, bytes));
-  TVM_FFI_CHECK_CUDA_ERROR(
-      cudaMemcpy(src.data, &local_handle, CUDA_IPC_HANDLE_SIZE, cudaMemcpyHostToDevice));
-  NCCL_CALL(ncclAllGather(src.data, dst.data, CUDA_IPC_HANDLE_SIZE, ncclChar, ctx->global_comm,
-                          /*stream=*/nullptr));
-  std::vector<cudaIpcMemHandle_t> handles(ctx->worker->num_workers);
-  TVM_FFI_CHECK_CUDA_ERROR(cudaMemcpy(handles.data(), dst.data, bytes, cudaMemcpyDeviceToHost));
-  return handles;
-}
-
 struct IPCBuffer {
-  int device_id;
-  int worker_id;
   void* local = nullptr;
   std::vector<void*> peers;
 
-  IPCBuffer(int device_id, int worker_id, int num_workers)
-      : device_id(device_id), worker_id(worker_id), peers(num_workers, nullptr) {}
+  explicit IPCBuffer(int num_workers) : peers(num_workers, nullptr) {}
 
-  ~IPCBuffer() {
-    // Destruction may run on another thread, or after its NCCL context has been cleared.
-    int previous = 0;
-    cudaError_t queried = cudaGetDevice(&previous);
-    CheckCleanup(queried);
-    CheckCleanup(cudaSetDevice(device_id));
+  // Resources are released only by CUDAIPCAllocation's acknowledged protocol.
+  bool CloseImports(int worker_id) noexcept {
+    bool success = true;
     for (size_t i = 0; i < peers.size(); ++i) {
       if (static_cast<int>(i) != worker_id && peers[i]) {
-        CheckCleanup(cudaIpcCloseMemHandle(peers[i]));
+        bool closed = CheckCleanup(cudaIpcCloseMemHandle(peers[i]));
+        success &= closed;
+        if (closed) peers[i] = nullptr;
       }
     }
-    if (local) CheckCleanup(cudaFree(local));
-    if (queried == cudaSuccess) CheckCleanup(cudaSetDevice(previous));
+    return success;
   }
 
-  void Allocate(size_t size, bool reset, nccl::CCLThreadLocalContext* ctx) {
-    TVM_FFI_CHECK_CUDA_ERROR(cudaMalloc(&local, size));
-    peers[worker_id] = local;
-    if (reset) {
-      TVM_FFI_CHECK_CUDA_ERROR(cudaMemset(local, 0, size));
-      // Peers must not observe a barrier before its initialization finishes.
-      TVM_FFI_CHECK_CUDA_ERROR(cudaDeviceSynchronize());
+  void FreeExport() noexcept {
+    if (local) CheckCleanup(cudaFree(local));
+    local = nullptr;
+  }
+
+  void Allocate(size_t size, bool reset, IPCResourceSession* session, uint64_t ordinal,
+                uint64_t phase) {
+    bool success = CheckCleanup(cudaMalloc(&local, size));
+    peers[session->worker_id] = local;
+    if (success && reset) {
+      success = CheckCleanup(cudaMemset(local, 0, size));
+      // Peers cannot access barriers until their initialization completes.
+      if (success) success = CheckCleanup(cudaDeviceSynchronize());
     }
-    cudaIpcMemHandle_t local_handle;
-    TVM_FFI_CHECK_CUDA_ERROR(cudaIpcGetMemHandle(&local_handle, local));
-    auto handles = AllGatherIPCHandles(ctx, local_handle);
-    for (size_t i = 0; i < handles.size(); ++i) {
-      if (static_cast<int>(i) != worker_id) {
-        TVM_FFI_CHECK_CUDA_ERROR(
-            cudaIpcOpenMemHandle(&peers[i], handles[i], cudaIpcMemLazyEnablePeerAccess));
+    cudaIpcMemHandle_t handle{};
+    if (success) success = CheckCleanup(cudaIpcGetMemHandle(&handle, local));
+    TVM_FFI_CHECK(session->Exchange(ordinal, phase, success, &handle), InternalError)
+        << "CUDA IPC allocation/handle exchange failed on a worker";
+    for (int i = 0; i < session->num_workers; ++i) {
+      if (i != session->worker_id) {
+        std::memcpy(&handle, session->received[i].payload, sizeof(handle));
+        success &=
+            CheckCleanup(cudaIpcOpenMemHandle(&peers[i], handle, cudaIpcMemLazyEnablePeerAccess));
       }
     }
+    TVM_FFI_CHECK(session->Exchange(ordinal, phase + 1, success), InternalError)
+        << "CUDA IPC peer mapping failed on a worker";
   }
 };
 
@@ -131,35 +222,67 @@ struct IPCBuffer {
 /*! \brief Resource owner independent of the allocating thread and its pool. */
 class CUDAIPCAllocation {
  public:
+  const std::shared_ptr<IPCResourceSession> session;
+  const uint64_t ordinal;
+  const uint64_t generation;
+  void* const communicator;
+  void* const stream;
   IPCBuffer data;
   IPCBuffer barrier_in;
   IPCBuffer barrier_out;
 
-  CUDAIPCAllocation(int device_id, int worker_id, int num_workers)
-      : data(device_id, worker_id, num_workers),
-        barrier_in(device_id, worker_id, num_workers),
-        barrier_out(device_id, worker_id, num_workers) {}
+  CUDAIPCAllocation(std::shared_ptr<IPCResourceSession> session, uint64_t ordinal,
+                    uint64_t generation, void* communicator, void* stream)
+      : session(std::move(session)),
+        ordinal(ordinal),
+        generation(generation),
+        communicator(communicator),
+        stream(stream),
+        data(this->session->num_workers),
+        barrier_in(this->session->num_workers),
+        barrier_out(this->session->num_workers) {}
 
-  ~CUDAIPCAllocation() {
-    auto* registry = IPCMemoryRegistry::Global();
-    {
-      std::lock_guard<std::mutex> lock(registry->mutex);
-      registry->allocations.erase(data.local);
-    }
-    // Complete local kernels before closing any peer mappings. The original
-    // stream or NCCL context need no longer exist on this destruction thread.
+  ~CUDAIPCAllocation() noexcept {
+    // Never release an export until every importer confirms all its mappings closed.
+    // In a failed runtime/collective, retaining exports is safer than dangling peer memory.
     int previous = 0;
-    cudaError_t queried = cudaGetDevice(&previous);
-    CheckCleanup(queried);
-    CheckCleanup(cudaSetDevice(data.device_id));
-    CheckCleanup(cudaDeviceSynchronize());
-    if (queried == cudaSuccess) CheckCleanup(cudaSetDevice(previous));
+    bool queried = CheckCleanup(cudaGetDevice(&previous));
+    try {
+      auto* registry = IPCMemoryRegistry::Global();
+      {
+        std::lock_guard<std::mutex> lock(registry->mutex);
+        registry->allocations.erase(data.local);
+      }
+      std::lock_guard<std::mutex> lock(session->mutex);
+      bool ready = CheckCleanup(cudaSetDevice(session->device_id));
+      if (ready) ready = CheckCleanup(cudaDeviceSynchronize());
+      if (ready) {
+        ready = data.CloseImports(session->worker_id);
+        ready &= barrier_in.CloseImports(session->worker_id);
+        ready &= barrier_out.CloseImports(session->worker_id);
+      }
+      if (session->Exchange(ordinal, /*teardown=*/7, ready)) {
+        data.FreeExport();
+        barrier_in.FreeExport();
+        barrier_out.FreeExport();
+      } else {
+        std::fprintf(stderr,
+                     "CUDA IPC retaining exports: peer mapping closure was not confirmed\n");
+      }
+    } catch (...) {
+      std::fprintf(stderr, "CUDA IPC retaining exports after unexpected cleanup failure\n");
+    }
+    if (queried) CheckCleanup(cudaSetDevice(previous));
   }
 };
 
 CUDAIPCMemoryObj::CUDAIPCMemoryObj(std::shared_ptr<CUDAIPCAllocation> allocation)
-    : num_workers(static_cast<int>(allocation->data.peers.size())),
-      worker_id(allocation->data.worker_id),
+    : num_workers(allocation->session->num_workers),
+      worker_id(allocation->session->worker_id),
+      device_id(allocation->session->device_id),
+      generation(allocation->generation),
+      communicator(allocation->communicator),
+      stream(allocation->stream),
       remote_data(allocation->data.peers),
       barrier_in(allocation->barrier_in.peers),
       barrier_out(allocation->barrier_out.peers),
@@ -224,11 +347,25 @@ class CUDAIPCMemoryPool final : public TensorMemoryPool {
     ffi::CUDADeviceGuard guard(device.device_id);
     auto* ctx = nccl::CCLThreadLocalContext::Get();
     TVM_FFI_ICHECK(Matches(ctx));
-    auto allocation = std::make_shared<CUDAIPCAllocation>(device_id_, worker_id_, num_workers_);
-    allocation->data.Allocate(nbytes, false, ctx);
-    size_t barrier_bytes = sizeof(uint32_t) * (MAX_ALL_REDUCE_BLOCKS + 2) * MAX_RANKS_PER_NODE;
-    allocation->barrier_in.Allocate(barrier_bytes, true, ctx);
-    allocation->barrier_out.Allocate(barrier_bytes, true, ctx);
+    auto session = resource_session_.lock();
+    if (!session) {
+      session = std::make_shared<IPCResourceSession>(ctx);
+      session->Init(ctx);
+      resource_session_ = session;
+    }
+    // Keep the allocation outside the lock's scope: an error unwinds the lock
+    // before the allocation's destructor enters its collective cleanup protocol.
+    std::shared_ptr<CUDAIPCAllocation> allocation;
+    {
+      std::lock_guard<std::mutex> lock(session->mutex);
+      uint64_t ordinal = session->next_ordinal++;
+      allocation = std::make_shared<CUDAIPCAllocation>(session, ordinal, generation_, communicator_,
+                                                       stream_);
+      allocation->data.Allocate(nbytes, false, session.get(), ordinal, 1);
+      size_t barrier_bytes = sizeof(uint32_t) * (MAX_ALL_REDUCE_BLOCKS + 2) * MAX_RANKS_PER_NODE;
+      allocation->barrier_in.Allocate(barrier_bytes, true, session.get(), ordinal, 3);
+      allocation->barrier_out.Allocate(barrier_bytes, true, session.get(), ordinal, 5);
+    }
     auto memory = std::make_shared<CUDAIPCMemory>(
         ffi::UnsafeInit{}, ffi::make_object<CUDAIPCMemoryObj>(std::move(allocation)));
     struct Backing {
@@ -247,6 +384,7 @@ class CUDAIPCMemoryPool final : public TensorMemoryPool {
     return backing;
   }
 
+  std::weak_ptr<IPCResourceSession> resource_session_;
   uint64_t generation_;
   ncclComm_t communicator_;
   int device_id_;

@@ -26,6 +26,8 @@
 #include <tvm/runtime/disco/builtin.h>
 #include <tvm/runtime/disco/session.h>
 
+#include <atomic>
+
 #include "../../../../support/process_id.h"
 #include "../utils.h"
 
@@ -127,7 +129,11 @@ inline ncclDataType_t AsNCCLDataType(DLDataType dtype) {
 
 struct CCLThreadLocalContext {
   // Distinguish communicator lifetimes even when worker/communicator addresses are reused.
-  uint64_t generation = 0;
+  static uint64_t NextGeneration() {
+    static std::atomic<uint64_t> next{1};
+    return next.fetch_add(1, std::memory_order_relaxed);
+  }
+  uint64_t generation = NextGeneration();
   DiscoWorker* worker = nullptr;
   int device_id;
   deviceStream_t default_stream = nullptr;
@@ -137,7 +143,7 @@ struct CCLThreadLocalContext {
   ~CCLThreadLocalContext() { Clear(); }
 
   void Clear() {
-    ++generation;
+    generation = NextGeneration();
     if (group_comm) {
       NCCL_CALL(ncclCommDestroy(group_comm));
       if (global_comm == group_comm) {

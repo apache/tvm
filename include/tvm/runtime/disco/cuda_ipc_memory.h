@@ -46,9 +46,14 @@ class CUDAIPCMemoryObj : public ffi::Object {
   explicit CUDAIPCMemoryObj(std::shared_ptr<CUDAIPCAllocation> allocation);
 
   /*! \brief The number of GPU workers. */
-  int num_workers;
+  const int num_workers;
   /*! \brief The worker id corresponding to this IPC memory object. */
-  int worker_id;
+  const int worker_id;
+  /*! \brief Immutable allocation context, checked before custom all-reduce. */
+  const int device_id;
+  const uint64_t generation;
+  void* const communicator;
+  void* const stream;
   /*!
    * \brief The data pointers of all all-reduce inputs.
    * It has "num_workers" pointers. The i-th pointer is the data pointer on worker i.
