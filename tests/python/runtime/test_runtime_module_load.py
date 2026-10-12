@@ -132,7 +132,7 @@ def test_device_module_dump():
 
                 f1 = tvm.runtime.load_module(path_dso)
                 a = tvm.runtime.tensor(np.random.uniform(size=1024).astype(str(A.dtype)), dev)
-                b = tvm.runtime.tensor(np.zeros(1024, dtype=A.dtype), dev)
+                b = tvm.runtime.tensor(np.zeros(1024, dtype=str(A.dtype)), dev)
                 f1(a, b)
                 np.testing.assert_equal(b.numpy(), a.numpy() + 1)
 
@@ -154,7 +154,7 @@ def test_device_module_dump():
         def run_and_check():
             dev = tvm.device(device, 0)
             a = tvm.runtime.tensor(np.random.uniform(size=1024).astype(str(A.dtype)), dev)
-            b = tvm.runtime.tensor(np.zeros(1024, dtype=A.dtype), dev)
+            b = tvm.runtime.tensor(np.zeros(1024, dtype=str(A.dtype)), dev)
             f["main"](a, b)
             np.testing.assert_equal(b.numpy(), a.numpy() + 1)
 
@@ -194,7 +194,7 @@ def test_combine_module_llvm():
         fadd1 = m["myadd1"]
         fadd2 = m["myadd2"]
         a = tvm.runtime.tensor(np.random.uniform(size=nn).astype(str(A.dtype)), dev)
-        b = tvm.runtime.tensor(np.zeros(nn, dtype=A.dtype), dev)
+        b = tvm.runtime.tensor(np.zeros(nn, dtype=str(A.dtype)), dev)
         fadd1(a, b)
         np.testing.assert_equal(b.numpy(), a.numpy() + 1)
         fadd2(a, b)
@@ -226,7 +226,7 @@ def test_combine_module_llvm():
             # Load the system wide library
             mm = tvm.runtime.system_lib()
             a = tvm.runtime.tensor(np.random.uniform(size=nn).astype(str(A.dtype)), dev)
-            b = tvm.runtime.tensor(np.zeros(nn, dtype=A.dtype), dev)
+            b = tvm.runtime.tensor(np.zeros(nn, dtype=str(A.dtype)), dev)
             mm["myadd1"](a, b)
             np.testing.assert_equal(b.numpy(), a.numpy() + 1)
             mm["myadd2"](a, b)
