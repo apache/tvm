@@ -52,7 +52,7 @@ class AnyTypeNode : public TypeNode {
  */
 class AnyType : public Type {
  public:
-  TVM_DLL AnyType(Location loc = UnknownLoc());
+  TVM_TIRX_DLL AnyType(Location loc = UnknownLoc());
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(AnyType, Type, AnyTypeNode);
 };
@@ -71,7 +71,7 @@ class TensorRegionTypeNode : public TypeNode {
 /*! \brief Managed reference to TensorRegionTypeNode. */
 class TensorRegionType : public Type {
  public:
-  TVM_DLL TensorRegionType();
+  TVM_TIRX_DLL TensorRegionType();
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TensorRegionType, Type, TensorRegionTypeNode);
 };
@@ -86,7 +86,7 @@ class StringTypeNode : public TypeNode {
 /*! \brief Managed reference to StringTypeNode. */
 class StringType : public Type {
  public:
-  TVM_DLL StringType();
+  TVM_TIRX_DLL StringType();
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(StringType, Type, StringTypeNode);
 };
 
@@ -131,10 +131,10 @@ class PtrType : public Type {
    * \param element_type The type of the element which the pointer points to.
    * \param storage_scope The storage scope into which the pointer addresses
    */
-  TVM_DLL explicit PtrType(Type element_type, ffi::String storage_scope = "");
+  TVM_TIRX_DLL explicit PtrType(Type element_type, ffi::String storage_scope = "");
 
   /*! \brief Construct an opaque pointer with void element type. */
-  TVM_DLL static PtrType VoidPtrType(ffi::String storage_scope = "");
+  TVM_TIRX_DLL static PtrType VoidPtrType(ffi::String storage_scope = "");
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(PtrType, Type, PtrTypeNode);
 };
@@ -168,13 +168,13 @@ class TupleType : public Type {
    * \param fields Fields in the tuple.
    * \param loc The loc of the type.
    */
-  TVM_DLL explicit TupleType(ffi::Array<Type> fields, Location loc = UnknownLoc());
+  TVM_TIRX_DLL explicit TupleType(ffi::Array<Type> fields, Location loc = UnknownLoc());
 
   /*!
    * \brief Create an empty tuple type that constains nothing.
    * \return A empty tuple type.
    */
-  TVM_DLL TupleType static Empty();
+  TVM_TIRX_DLL TupleType static Empty();
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TupleType, Type, TupleTypeNode);
 };
@@ -230,7 +230,7 @@ class FuncType : public Type {
    * \param loc The loc information.
    * \sa FuncTypeNode for more docs about these fields.
    */
-  TVM_DLL FuncType(ffi::Array<Type> arg_types, Type ret_type, Location loc = UnknownLoc());
+  TVM_TIRX_DLL FuncType(ffi::Array<Type> arg_types, Type ret_type, Location loc = UnknownLoc());
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(FuncType, Type, FuncTypeNode);
 };

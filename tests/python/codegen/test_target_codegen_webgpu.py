@@ -35,7 +35,7 @@ def test_codegen_buffer_access_modes():
             with T.launch_thread("threadIdx.x", 8) as tx:
                 B[tx] = A[tx]
 
-    executable = tvm.compile(Module, target="webgpu")
+    executable = tvm.tirx.compile(Module, target="webgpu")
     source = executable.mod.imports[0].inspect_source("wgsl")
 
     assert "var<storage, read> A_ptr" in source
@@ -387,7 +387,7 @@ def test_grid_pack_guard_rejects_id_equal_to_workgroup_count():
                 with T.launch_thread("threadIdx.x", 1) as j:  # noqa: F841
                     B[i] = i
 
-    executable = tvm.compile(Module, target="webgpu")
+    executable = tvm.tirx.compile(Module, target="webgpu")
     source = executable.mod.imports[0].inspect_source("wgsl")
     assert re.search(r"blockIdx\.x >= \w+\.packGridDimX\) \{ return; \}", source)
 

@@ -37,7 +37,7 @@ namespace tirx {
  * \param loc The location of this operation in the source.
  * \return The result expression.
  */
-TVM_DLL PrimExpr logaddexp(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
+TVM_TIRX_DLL PrimExpr logaddexp(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
 
 TVM_DEFINE_INT_OP_CONST_VAL_OVERLOAD_SPANNED(logaddexp);
 
@@ -48,7 +48,7 @@ TVM_DEFINE_INT_OP_CONST_VAL_OVERLOAD_SPANNED(logaddexp);
  * \param bits The number of bits in the type.
  * \return The constructed expression.
  */
-TVM_DLL PrimExpr fast_erf_float_expr(PrimExpr arg, int bits);
+TVM_TIRX_DLL PrimExpr fast_erf_float_expr(PrimExpr arg, int bits);
 
 }  // namespace tirx
 }  // namespace tvm

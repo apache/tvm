@@ -109,7 +109,7 @@ class BasePassInstrument : public PassInstrument {
    * \param run_before_pass_callback Callback to call before a pass run.
    * \param run_after_pass_callback Callback to call after a pass run.
    */
-  TVM_DLL BasePassInstrument(
+  TVM_TIRX_DLL BasePassInstrument(
       ffi::String name, ffi::TypedFunction<void()> enter_pass_ctx_callback,
       ffi::TypedFunction<void()> exit_pass_ctx_callback,
       ffi::TypedFunction<bool(const IRModule&, const PassInfo&)> should_run_callback,

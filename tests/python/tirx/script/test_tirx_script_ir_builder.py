@@ -566,7 +566,7 @@ def test_imperative_tensors_numerical(kind):
     inputs = [te.placeholder(array.shape, str(array.dtype)) for array in arrays]
     outputs = build(*inputs)
     outputs = list(outputs) if isinstance(outputs, list | tuple | tvm.ir.Array) else [outputs]
-    executable = tvm.compile(te.create_function([*inputs, *outputs]), target="llvm")
+    executable = tvm.tirx.compile(te.create_function([*inputs, *outputs]), target="llvm")
     actual = [tvm.runtime.empty(tuple(int(dim) for dim in out.shape), out.dtype) for out in outputs]
     executable(*[tvm.runtime.tensor(array) for array in arrays], *actual)
     for result, reference in zip(actual, expected):

@@ -279,7 +279,7 @@ ffi::Map<Var, sym::IntSet> AsIntSet(const ffi::Map<Var, Range>& var_dom);
  * \return std::nullopt if the detection fails, or an array of sym::IntSet as the result of
  * analysis
  */
-TVM_DLL ffi::Optional<ffi::Array<IntSet>> EstimateRegionStrictBound(
+TVM_TIRX_DLL ffi::Optional<ffi::Array<IntSet>> EstimateRegionStrictBound(
     const ffi::Array<Range>& region, const ffi::Map<Var, Range>& var_dom, const PrimExpr& predicate,
     const sym::Analyzer& analyzer);
 
@@ -293,7 +293,7 @@ TVM_DLL ffi::Optional<ffi::Array<IntSet>> EstimateRegionStrictBound(
  * \return std::nullopt if the detection fails, or an array of sym::IntSet as the result of
  * analysis
  */
-TVM_DLL ffi::Optional<ffi::Array<IntSet>> EstimateRegionLowerBound(
+TVM_TIRX_DLL ffi::Optional<ffi::Array<IntSet>> EstimateRegionLowerBound(
     const ffi::Array<Range>& region, const ffi::Map<Var, Range>& var_dom, const PrimExpr& predicate,
     const sym::Analyzer& analyzer);
 
@@ -307,10 +307,10 @@ TVM_DLL ffi::Optional<ffi::Array<IntSet>> EstimateRegionLowerBound(
  * \param analyzer The analyzer used
  * \return an array of sym::IntSet as the result of analysis
  */
-TVM_DLL ffi::Array<IntSet> EstimateRegionUpperBound(const ffi::Array<Range>& region,
-                                                    const ffi::Map<Var, Range>& var_dom,
-                                                    const PrimExpr& predicate,
-                                                    const sym::Analyzer& analyzer);
+TVM_TIRX_DLL ffi::Array<IntSet> EstimateRegionUpperBound(const ffi::Array<Range>& region,
+                                                         const ffi::Map<Var, Range>& var_dom,
+                                                         const PrimExpr& predicate,
+                                                         const sym::Analyzer& analyzer);
 
 }  // namespace sym
 }  // namespace tvm

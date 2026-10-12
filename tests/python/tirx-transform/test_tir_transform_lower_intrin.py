@@ -96,7 +96,7 @@ def test_nested_byte_pointer_offset():
         targets.append("llvm")
     for target in targets:
         func = tvm.tirx.Function([data], body).with_attr("global_symbol", "main")
-        tvm.tirx.build(tvm.IRModule.from_expr(func), target=target)
+        tvm.tirx.compile(tvm.IRModule.from_expr(func), target=target).mod
 
 
 @pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
@@ -106,7 +106,7 @@ def test_vector_byte_pointer_offset(dtype, byte_offset):
     pointer = tvm.tirx.ptr_byte_offset(tensor.data, byte_offset, ty=tensor.data.ty)
     body = tvm.ir.Evaluate(tvm.tirx.call_extern("void", "consume", pointer))
     func = tvm.tirx.Function([tensor], body).with_attr("global_symbol", "main")
-    tvm.tirx.build(tvm.IRModule.from_expr(func), target="llvm")
+    tvm.tirx.compile(tvm.IRModule.from_expr(func), target="llvm").mod
 
 
 @pytest.mark.parametrize("shape, indices", [((), []), ((16,), [3]), ((2, 4), [1, 2])])

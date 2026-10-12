@@ -33,8 +33,8 @@ def test_import_static_library():
     irmod0 = tvm.IRModule.from_expr(te.create_function([A, B]).with_attr("global_symbol", "myadd0"))
     irmod1 = tvm.IRModule.from_expr(te.create_function([A, B]).with_attr("global_symbol", "myadd1"))
 
-    mod0 = tvm.tirx.build(irmod0, target="llvm")
-    mod1 = tvm.tirx.build(irmod1, target="llvm")
+    mod0 = tvm.tirx.compile(irmod0, target="llvm").mod
+    mod1 = tvm.tirx.compile(irmod1, target="llvm").mod
 
     assert mod0.implements_function("myadd0")
     assert mod1.implements_function("myadd1")

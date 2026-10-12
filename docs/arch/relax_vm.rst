@@ -47,7 +47,7 @@ The end-to-end flow from model to execution is:
         ▼  VMCodeGen
    ExecBuilder (bytecode) + IRModule (TIR only)
         │                        │
-        │                        ▼  tirx.build()
+        │                        ▼  tirx.compile()
         │                   runtime.Module (native kernels)
         │                        │
         ▼  VMLink               ▼
@@ -87,7 +87,7 @@ Internally, ``relax.build()`` performs these steps:
 2. Create an ``ExecBuilder`` and run **VMCodeGen** (``src/relax/backend/vm/codegen_vm.cc``),
    which walks each ``relax.Function`` and emits bytecode instructions. The Relax functions are
    removed from the IRModule; only TIR functions remain.
-3. Compile the remaining TIR functions to native code via ``tirx.build()``.
+3. Compile the remaining TIR functions to native code via ``tirx.compile()``.
 4. **Link** the bytecode executable with the compiled native module using ``VMLink``, producing
    a ``VMExecutable``.
 

@@ -48,20 +48,20 @@ namespace tirx {
  * \param func The function to be verified.
  * \return Success of memory verification.
  */
-TVM_DLL bool VerifyMemory(const Function& func);
+TVM_TIRX_DLL bool VerifyMemory(const Function& func);
 
 /*!
  * \brief Calculate the expression complexity based on number of symbols it contains.
  * \param expr The expr to be calculated.
  */
-TVM_DLL size_t CalculateExprComplexity(const PrimExpr& expr);
+TVM_TIRX_DLL size_t CalculateExprComplexity(const PrimExpr& expr);
 
 /*!
  * \brief Calculate the constants size in bytes needed by the TIR allocates inside the TIR Function
  * \param func The TIR Function for which the constants size to be calculated
  * \param constant_byte_alignment The byte alignment required for each constant allocated
  */
-TVM_DLL size_t CalculateConstantBytes(const Function& func, int64_t constant_byte_alignment);
+TVM_TIRX_DLL size_t CalculateConstantBytes(const Function& func, int64_t constant_byte_alignment);
 
 /*!
  * \brief Calculate the workspace size in bytes needed by the TIR allocates inside the TIR Function
@@ -69,7 +69,7 @@ TVM_DLL size_t CalculateConstantBytes(const Function& func, int64_t constant_byt
  * \param workspace_byte_alignment The byte alignment required for each tensor allocated in this
  * workspace
  */
-TVM_DLL size_t CalculateWorkspaceBytes(const Function& func, int64_t workspace_byte_alignment);
+TVM_TIRX_DLL size_t CalculateWorkspaceBytes(const Function& func, int64_t workspace_byte_alignment);
 
 /*!
  * \brief Verify if the given TIR is well-formed. The verification includes:
@@ -90,7 +90,7 @@ TVM_DLL size_t CalculateWorkspaceBytes(const Function& func, int64_t workspace_b
  * \param assert_mode The indicator if it raises an error when the function is not well-formed.
  * \return Whether it is a well-formed TIR function.
  */
-TVM_DLL bool VerifyWellFormed(const Function& func, bool assert_mode = true);
+TVM_TIRX_DLL bool VerifyWellFormed(const Function& func, bool assert_mode = true);
 
 /*!
  * \brief Verify if the TIR in the given IRMOdule is well-formed.
@@ -104,7 +104,7 @@ TVM_DLL bool VerifyWellFormed(const Function& func, bool assert_mode = true);
  * \param assert_mode The indicator if it raises an error when the function is not well-formed.
  * \return Whether it is a well-formed TIR module.
  */
-TVM_DLL bool VerifyWellFormed(const IRModule& mod, bool assert_mode = true);
+TVM_TIRX_DLL bool VerifyWellFormed(const IRModule& mod, bool assert_mode = true);
 
 /*!
  * \brief Find the entry function of the given IRModule, i.e, functions marked by
@@ -128,7 +128,7 @@ using tvm::transform::PassContext;
  * \returns The pass.
  * \sa tvm::tirx::VerifyMemory
  */
-TVM_DLL Pass VerifyMemory();
+TVM_TIRX_DLL Pass VerifyMemory();
 
 }  // namespace transform
 }  // namespace tirx

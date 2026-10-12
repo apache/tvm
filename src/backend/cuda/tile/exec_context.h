@@ -84,9 +84,10 @@ struct ExecSplit {
 };
 
 /*! \brief Initial A at Function device entry: all threads active, offsets zero. */
-TVM_DLL ActiveSet InitialActiveSet(int64_t lane_ext, int64_t warp_ext, int64_t cta_ext);
-TVM_DLL ActiveSet InitialActiveSet(int64_t lane_ext, int64_t warp_ext, int64_t cta_ext,
-                                   const std::vector<std::pair<std::string, int64_t>>& cta_axes);
+TVM_TIRX_DLL ActiveSet InitialActiveSet(int64_t lane_ext, int64_t warp_ext, int64_t cta_ext);
+TVM_TIRX_DLL ActiveSet
+InitialActiveSet(int64_t lane_ext, int64_t warp_ext, int64_t cta_ext,
+                 const std::vector<std::pair<std::string, int64_t>>& cta_axes);
 
 /*!
  * \brief Narrow A on the lane bound to ``binding``.
@@ -99,8 +100,8 @@ TVM_DLL ActiveSet InitialActiveSet(int64_t lane_ext, int64_t warp_ext, int64_t c
  * not a filter target; flat thread ids are accepted only when the range can be
  * represented as a rectangular lane/warp active set.
  */
-TVM_DLL bool FilterNarrow(const ActiveSet& A, ScopeBinding binding, int64_t lo, int64_t hi,
-                          ActiveSet* out, std::string* err);
+TVM_TIRX_DLL bool FilterNarrow(const ActiveSet& A, ScopeBinding binding, int64_t lo, int64_t hi,
+                               ActiveSet* out, std::string* err);
 
 /*!
  * \brief Factor A into (inter, intra) for target scope_kind.
@@ -108,8 +109,8 @@ TVM_DLL bool FilterNarrow(const ActiveSet& A, ScopeBinding binding, int64_t lo, 
  * Returns false on factoring failure (warpgroup with warpid lane that
  * crosses a warpgroup boundary unaligned) and writes reason to *err.
  */
-TVM_DLL bool ScopeSwitch(const ActiveSet& A, ScopeKind scope_kind, ExecSplit* out,
-                         std::string* err);
+TVM_TIRX_DLL bool ScopeSwitch(const ActiveSet& A, ScopeKind scope_kind, ExecSplit* out,
+                              std::string* err);
 
 /*! \brief Per-program-point ExecContext: active set + scope kind + split. */
 struct ExecContext {
@@ -144,7 +145,7 @@ struct ExecContext {
  * by ``DispatchContextObj::{inter, intra}``: axis name -> [extent, offset]
  * for unit-stride axes, or [extent, offset, stride] for strided axes.
  */
-TVM_DLL ffi::Map<ffi::String, ffi::Array<PrimExpr>> EncodeSplitSide(
+TVM_TIRX_DLL ffi::Map<ffi::String, ffi::Array<PrimExpr>> EncodeSplitSide(
     const std::unordered_map<std::string, AxisRange>& side);
 
 }  // namespace tvm::backend::cuda

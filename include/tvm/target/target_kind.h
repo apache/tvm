@@ -95,7 +95,7 @@ class TargetKind : public ffi::ObjectRef {
    * \param target_kind_name Name of the target kind
    * \return The canonical kind, or nullopt when the name is unknown.
    */
-  TVM_DLL static ffi::Optional<TargetKind> Get(const ffi::String& target_kind_name);
+  TVM_TIRX_DLL static ffi::Optional<TargetKind> Get(const ffi::String& target_kind_name);
   /*! \brief Mutable access to the container class  */
   TargetKindObj* operator->() { return static_cast<TargetKindObj*>(data_.get()); }
 
@@ -120,31 +120,31 @@ class TargetKindRegistry {
    * \brief Access the process-wide registry.
    * \return The singleton registry.
    */
-  TVM_DLL static TargetKindRegistry* Global();
+  TVM_TIRX_DLL static TargetKindRegistry* Global();
   /*!
    * \brief Register a name or return its existing canonical kind.
    * \param name Target kind name.
    * \return The canonical target kind for name. Standard target options are
    * declared when the name is first registered.
    */
-  TVM_DLL TargetKind RegisterOrGet(const ffi::String& name);
+  TVM_TIRX_DLL TargetKind RegisterOrGet(const ffi::String& name);
   /*!
    * \brief Look up a registered kind.
    * \param name Target kind name.
    * \return The canonical kind, or nullopt when name is unknown.
    */
-  TVM_DLL ffi::Optional<TargetKind> Get(const ffi::String& name);
+  TVM_TIRX_DLL ffi::Optional<TargetKind> Get(const ffi::String& name);
   /*!
    * \brief List registered kind names.
    * \return Names of all registered target kinds.
    */
-  TVM_DLL ffi::Array<ffi::String> ListTargetKinds();
+  TVM_TIRX_DLL ffi::Array<ffi::String> ListTargetKinds();
   /*!
    * \brief List declared option names and types for a kind.
    * \param kind Registered target kind.
    * \return Map from option name to type string.
    */
-  TVM_DLL ffi::Map<ffi::String, ffi::String> ListTargetKindOptions(const TargetKind& kind);
+  TVM_TIRX_DLL ffi::Map<ffi::String, ffi::String> ListTargetKindOptions(const TargetKind& kind);
 
  private:
   ffi::Map<ffi::String, TargetKind> kinds_;

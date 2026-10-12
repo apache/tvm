@@ -33,7 +33,7 @@ namespace tirx {
 /*!
  * \brief Marker where a transform should replace generated kernel initialization.
  */
-TVM_DLL const Op& kernel_replace_point_op();
+TVM_TIRX_DLL const Op& kernel_replace_point_op();
 
 /*!
  * \brief Annotate a predicate not be considered as target condition of loop partition.
@@ -41,7 +41,7 @@ TVM_DLL const Op& kernel_replace_point_op();
  * Arguments, in order:
  * - args[0]: predicate, The predicate.
  */
-TVM_DLL const Op& ignore_loop_partition_op();
+TVM_TIRX_DLL const Op& ignore_loop_partition_op();
 
 }  // namespace tirx
 }  // namespace tvm

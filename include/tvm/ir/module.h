@@ -145,10 +145,10 @@ class IRModuleNode : public ffi::Object {
         .def(tvm::ffi::reflection::type_attr::kSHash, &IRModuleNode::SHash);
   }
 
-  TVM_DLL bool SEqual(const IRModuleNode* other,
-                      ffi::TypedFunction<bool(AnyView, AnyView, bool, AnyView)> equal) const;
-  TVM_DLL int64_t SHash(int64_t init_hash,
-                        ffi::TypedFunction<int64_t(AnyView, int64_t, bool)> hash) const;
+  TVM_TIRX_DLL bool SEqual(const IRModuleNode* other,
+                           ffi::TypedFunction<bool(AnyView, AnyView, bool, AnyView)> equal) const;
+  TVM_TIRX_DLL int64_t SHash(int64_t init_hash,
+                             ffi::TypedFunction<int64_t(AnyView, int64_t, bool)> hash) const;
 
   /*!
    * \brief Add a function to the global environment.
@@ -157,7 +157,7 @@ class IRModuleNode : public ffi::Object {
    * \param update Controls whether you can replace a definition in the
    * environment.
    */
-  TVM_DLL void Add(const GlobalVar& var, const BaseFunc& func, bool update = false);
+  TVM_TIRX_DLL void Add(const GlobalVar& var, const BaseFunc& func, bool update = false);
 
   /*!
    * \brief Add a function to the global environment.
@@ -166,79 +166,79 @@ class IRModuleNode : public ffi::Object {
    *
    * It does not do type inference as Add does.
    */
-  TVM_DLL void AddUnchecked(const GlobalVar& var, const BaseFunc& func);
+  TVM_TIRX_DLL void AddUnchecked(const GlobalVar& var, const BaseFunc& func);
 
   /*!
    * \brief Update a function in the global environment.
    * \param var The name of the global function to update.
    * \param func The new function.
    */
-  TVM_DLL void Update(const GlobalVar& var, const BaseFunc& func);
+  TVM_TIRX_DLL void Update(const GlobalVar& var, const BaseFunc& func);
 
   /*!
    * \brief Update an array of global infos in the global environment.
    * \param name The name of the global info.
    * \param info The new array of global infos.
    */
-  TVM_DLL void UpdateGlobalInfo(const ffi::String& name, const ffi::Array<GlobalInfo>& info);
+  TVM_TIRX_DLL void UpdateGlobalInfo(const ffi::String& name, const ffi::Array<GlobalInfo>& info);
 
   /*!
    * \brief Remove a function from the global environment.
    * \param var The name of the global function to update.
    */
-  TVM_DLL void Remove(const GlobalVar& var);
+  TVM_TIRX_DLL void Remove(const GlobalVar& var);
 
   /*!
    * \brief Check if the global_var_map_ contains a global variable.
    * \param name The variable name.
    * \returns true if contains, otherise false.
    */
-  TVM_DLL bool ContainGlobalVar(const ffi::String& name) const;
+  TVM_TIRX_DLL bool ContainGlobalVar(const ffi::String& name) const;
 
   /*!
    * \brief Lookup a global function by its variable.
    * \param str The unique string specifying the global variable.
    * \returns The global variable.
    */
-  TVM_DLL GlobalVar GetGlobalVar(const ffi::String& str) const;
+  TVM_TIRX_DLL GlobalVar GetGlobalVar(const ffi::String& str) const;
 
   /*!
    * \brief Collect all global vars defined in this module, ordered by
    *        the global variable name.
    * \returns An array of global vars
    */
-  TVM_DLL ffi::Array<GlobalVar> GetGlobalVars() const;
+  TVM_TIRX_DLL ffi::Array<GlobalVar> GetGlobalVars() const;
 
   /*!
    * \brief Look up a global function by its variable.
    * \param var The global var to lookup.
    * \returns The function named by the variable argument.
    */
-  TVM_DLL BaseFunc Lookup(const GlobalVar& var) const;
+  TVM_TIRX_DLL BaseFunc Lookup(const GlobalVar& var) const;
 
   /*!
    * \brief Look up a global function by its string name
    * \param name The name of the function.
    * \returns The function named by the argument.
    */
-  TVM_DLL BaseFunc Lookup(const ffi::String& name) const;
+  TVM_TIRX_DLL BaseFunc Lookup(const ffi::String& name) const;
 
   /*!
    * \brief Update the functions inside this environment by
    *        functions in another environment.
    * \param other The other environment.
    */
-  TVM_DLL void Update(const IRModule& other);
+  TVM_TIRX_DLL void Update(const IRModule& other);
 
   /*!
    * \brief Create a shallow copy of this IRModule.
    * \returns The shallow copy of the IRModule.
    */
-  TVM_DLL IRModule ShallowCopy();
+  TVM_TIRX_DLL IRModule ShallowCopy();
   /*!
    * \brief The set of imported files.
    */
-  TVM_DLL std::unordered_set<ffi::String> Imports() const;
+  TVM_TIRX_DLL std::unordered_set<ffi::String> Imports() const;
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
 
@@ -262,9 +262,9 @@ class IRModule : public ffi::ObjectRef {
    * \param attrs The module meta-data attributes.
    * \param global_infos Global infos in the module.
    */
-  TVM_DLL explicit IRModule(ffi::Map<GlobalVar, BaseFunc> functions, SourceMap map = {},
-                            DictAttrs attrs = DictAttrs(),
-                            ffi::Map<ffi::String, ffi::Array<GlobalInfo>> global_infos = {});
+  TVM_TIRX_DLL explicit IRModule(ffi::Map<GlobalVar, BaseFunc> functions, SourceMap map = {},
+                                 DictAttrs attrs = DictAttrs(),
+                                 ffi::Map<ffi::String, ffi::Array<GlobalInfo>> global_infos = {});
 
   /*! \brief default constructor */
   IRModule() : IRModule(ffi::Map<GlobalVar, BaseFunc>({})) {}
@@ -287,8 +287,8 @@ class IRModule : public ffi::ObjectRef {
    * \brief As for \p FromExprInContext, but assuming \p expr is bound to 'main' and no
    * imports.
    */
-  TVM_DLL static IRModule FromExpr(const Expr& expr,
-                                   const ffi::Map<GlobalVar, BaseFunc>& global_funcs = {});
+  TVM_TIRX_DLL static IRModule FromExpr(const Expr& expr,
+                                        const ffi::Map<GlobalVar, BaseFunc>& global_funcs = {});
 
   /*!
    * \brief Create a shallow copy of an IRModule.

@@ -429,7 +429,7 @@ def test_build_with_optional_unroll_explicit():
                     for ax1, ax2 in T.grid(5, 6):
                         B[ax0, ax1, ax2] = A[ax0, ax1, ax2]
 
-        tvm.tirx.build(Module, target="llvm")
+        tvm.tirx.compile(Module, target="llvm").mod
 
     for value in [None, True, False]:
         check(value)

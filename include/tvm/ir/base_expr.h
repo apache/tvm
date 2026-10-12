@@ -80,7 +80,7 @@ class TypeNode : public ffi::Object {
 class Type : public ffi::ObjectRef {
  public:
   /*! \brief Construct a MissingType for type information not yet populated. */
-  TVM_DLL static Type Missing();
+  TVM_TIRX_DLL static Type Missing();
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Type, ffi::ObjectRef, TypeNode);
 };
@@ -104,7 +104,7 @@ class MissingTypeNode final : public TypeNode {
 /*! \brief Managed reference to the MissingTypeNode singleton. */
 class MissingType final : public Type {
  public:
-  TVM_DLL MissingType();
+  TVM_TIRX_DLL MissingType();
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(MissingType, Type, MissingTypeNode);
 };
@@ -128,7 +128,7 @@ class OpaqueTypeNode final : public TypeNode {
 /*! \brief Managed reference to OpaqueTypeNode. */
 class OpaqueType final : public Type {
  public:
-  TVM_DLL OpaqueType();
+  TVM_TIRX_DLL OpaqueType();
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(OpaqueType, Type, OpaqueTypeNode);
 };
@@ -164,7 +164,7 @@ class PrimType final : public Type {
    * \brief Construct from a raw DLPack dtype.
    * \param dtype The corresponding DLPack dtype.
    */
-  TVM_DLL explicit PrimType(DLDataType dtype);
+  TVM_TIRX_DLL explicit PrimType(DLDataType dtype);
 
   /*!
    * \brief Construct from DLPack dtype fields.
@@ -172,27 +172,27 @@ class PrimType final : public Type {
    * \param bits The scalar bit width.
    * \param lanes The fixed lane count.
    */
-  TVM_DLL PrimType(DLDataTypeCode code, int bits, int lanes = 1);
+  TVM_TIRX_DLL PrimType(DLDataTypeCode code, int bits, int lanes = 1);
 
   /*! \brief Construct a signed integer type with fixed lanes. */
-  TVM_DLL static PrimType Int(int bits, int lanes = 1);
+  TVM_TIRX_DLL static PrimType Int(int bits, int lanes = 1);
   /*! \brief Construct an unsigned integer type with fixed lanes. */
-  TVM_DLL static PrimType UInt(int bits, int lanes = 1);
+  TVM_TIRX_DLL static PrimType UInt(int bits, int lanes = 1);
   /*! \brief Construct a floating-point type with fixed lanes. */
-  TVM_DLL static PrimType Float(int bits, int lanes = 1);
+  TVM_TIRX_DLL static PrimType Float(int bits, int lanes = 1);
   /*! \brief Construct a bfloat type with fixed lanes. */
-  TVM_DLL static PrimType BFloat(int bits, int lanes = 1);
+  TVM_TIRX_DLL static PrimType BFloat(int bits, int lanes = 1);
   /*! \brief Construct a boolean type with fixed lanes. */
-  TVM_DLL static PrimType Bool(int lanes = 1);
+  TVM_TIRX_DLL static PrimType Bool(int lanes = 1);
   /*! \brief Construct the void sentinel type, encoded as handle(0, 0). */
-  TVM_DLL static PrimType Void();
+  TVM_TIRX_DLL static PrimType Void();
   /*!
    * \brief Construct a scalable vector type.
    * \param code The DLPack dtype code.
    * \param bits The scalar bit width.
    * \param lanes The positive vscale factor to encode in the DLPack lane field.
    */
-  TVM_DLL static PrimType ScalableVector(DLDataTypeCode code, int bits, int lanes);
+  TVM_TIRX_DLL static PrimType ScalableVector(DLDataTypeCode code, int bits, int lanes);
 
   /*! \return The DLPack dtype code. */
   TVM_FFI_INLINE DLDataTypeCode code() const {
@@ -453,18 +453,18 @@ class PrimExpr : public TypedExpr<PrimType> {
    * PrimType.
    * \param call The call to view as a primitive expression.
    */
-  TVM_DLL PrimExpr(Call call);  // NOLINT(*)
+  TVM_TIRX_DLL PrimExpr(Call call);  // NOLINT(*)
 
   /*!
    * \brief construct from integer.
    * \param value The value to be constructed.
    */
-  TVM_DLL PrimExpr(int32_t value);  // NOLINT(*)
+  TVM_TIRX_DLL PrimExpr(int32_t value);  // NOLINT(*)
   /*!
    * \brief construct from float.
    * \param value The value to be constructed.
    */
-  TVM_DLL PrimExpr(float value);  // NOLINT(*)
+  TVM_TIRX_DLL PrimExpr(float value);  // NOLINT(*)
 
   explicit PrimExpr(ffi::ObjectPtr<ExprNode> node) : TypedExpr<PrimType>(std::move(node)) {}
 

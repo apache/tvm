@@ -54,7 +54,7 @@ def test_add_pipeline():
             return
         mod = ModuleGPU if target in ["opencl", "cuda"] else ModuleCPU
         # build and invoke the kernel.
-        f = tvm.compile(mod, target=target)
+        f = tvm.tirx.compile(mod, target=target)
         n = nn
 
         def run_and_check():
@@ -92,7 +92,7 @@ def test_pack_buffer_simple():
         if not tvm.testing.device_enabled(target):
             return
         # build and invoke the kernel.
-        f = tvm.compile(Module, target=target)
+        f = tvm.tirx.compile(Module, target=target)
         dev = tvm.cpu(0)
         # launch the kernel.
         n = nn

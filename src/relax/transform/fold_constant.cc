@@ -122,7 +122,7 @@ class ConstantFolder : public ExprMutator {
       // already scheduled to only work on GPU, we will need to skip this in the const folder for
       // now
       // TODO(Hongyi): further check and narrow the scope of foldable function
-      const auto pf = tvm::ffi::Function::GetGlobalRequired("tirx.build");
+      const auto pf = tvm::ffi::Function::GetGlobalRequired("tirx.compile");
       func = WithAttr(func, tvm::attr::kGlobalSymbol, ffi::String("tir_function"));
       ffi::Module rt_module = pf(func, eval_cpu_target).cast<ffi::Module>();
       build_func = rt_module->GetFunction("tir_function");

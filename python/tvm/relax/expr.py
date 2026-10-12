@@ -95,7 +95,6 @@ Type.is_base_of = _relax_type_is_base_of  # type: ignore[attr-defined]
 
 
 # will be registered afterwards in python/tvm/relax/op/init.py
-_op_ffi_api = None  # pylint: disable=invalid-name
 
 
 def _is_tensor_or_missing_type(ty: Type) -> bool:

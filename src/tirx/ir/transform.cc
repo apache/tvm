@@ -95,7 +95,7 @@ class FunctionPass : public Pass {
    * \param pass_func The packed function which implements a pass.
    * \param pass_info The pass info.
    */
-  TVM_DLL FunctionPass(
+  TVM_TIRX_DLL FunctionPass(
       std::function<ffi::Optional<Function>(Function, IRModule, PassContext)> pass_func,
       PassInfo pass_info);
 

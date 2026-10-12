@@ -382,7 +382,7 @@ def test_binary_op_shared(input, op_type, operands_type, dtype):
         A_np = np.random.rand(*g_shape).astype(dtype)
         B_np = np.random.rand(*g_shape).astype(dtype)
         mod = tvm.IRModule({"main": get_function(operands_type)})
-        mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
+        mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
         print(f"compiled source code: {mod.mod.imports[0].inspect_source()}")
         A_ref = get_ref(A_np, B_np)
         atol = 1e-3
@@ -420,7 +420,7 @@ def test_binary_non_commutative_const_lhs_rejected(op_type):
         target = tvm.target.Target("cuda")
         with target:
             mod = tvm.IRModule({"main": bad_kernel})
-            tvm.compile(mod, target=target, tir_pipeline="tirx")
+            tvm.tirx.compile(mod, target=target, pipeline="tirx")
 
 
 @pytest.mark.gpu
@@ -561,7 +561,7 @@ def test_binary_op_shared_subcta_scope(exec_scope, op_type):
         A_np = np.random.rand(*g_shape).astype(dtype)
         B_np = np.random.rand(*g_shape).astype(dtype)
         mod = tvm.IRModule({"main": kernel})
-        mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
+        mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
         np_op = {"add": np.add, "mul": np.multiply}[op_type]
         A_ref = np_op(A_np, B_np).astype(dtype)
 
@@ -665,7 +665,7 @@ def test_binary_op_local_subcta_trivial(exec_scope, rhs_kind, op_type):
         B_np = np.random.rand(*b_shape).astype(dtype)
         C_np = np.zeros(c_shape, dtype=dtype)
         mod = tvm.IRModule({"main": kernel})
-        mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
+        mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
         print(f"compiled source code: {mod.mod.imports[0].inspect_source()}")
         np_op = {"add": np.add, "sub": np.subtract, "mul": np.multiply, "fdiv": np.divide}[op_type]
         if rhs_kind == "region":
@@ -1001,7 +1001,7 @@ def test_binary_op_vectorized(input, storage_scope, exec_scope, op_type, dtype):
         A_np = np.random.rand(*a_shape).astype(dtype)
         B_np = np.random.rand(*b_shape).astype(dtype)
         mod = tvm.IRModule({"main": get_function()})
-        mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
+        mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
         print(f"compiled source code: {mod.mod.imports[0].inspect_source()}")
         np_op = {"add": np.add, "sub": np.subtract, "mul": np.multiply, "fdiv": np.divide}[op_type]
         A_ref = np_op(A_np, B_np)
@@ -1064,7 +1064,7 @@ def test_binary_op_packed_f32x2_auto_dispatch(op_type):
         A_np = np.random.rand(*a_shape).astype(dtype)
         B_np = np.random.rand(*b_shape).astype(dtype)
         mod = tvm.IRModule({"main": test_func})
-        mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
+        mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
         src = mod.mod.imports[0].inspect_source()
         ptx_pat = {
             "add": r"add\.[a-z]+\.ftz\.f32x2",
@@ -1141,7 +1141,7 @@ def test_binary_op_warpgroup_wg_local_layout(op_name):
         C_np = np.zeros((rows, cols), dtype=dtype)
 
         mod = tvm.IRModule({"main": test_func})
-        mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
+        mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
         if op_name == "add":
             C_ref = A_np + B_np
         elif op_name == "sub":
@@ -1219,7 +1219,7 @@ def test_binary_op_warpgroup_wg_local_emits_packed_f32x2(op_name, ptx_op):
 
     with target:
         mod = tvm.IRModule({"main": test_func})
-        ex = tvm.compile(mod, target=target, tir_pipeline="tirx")
+        ex = tvm.tirx.compile(mod, target=target, pipeline="tirx")
         src = ex.mod.imports[0].inspect_source()
 
     # Codegen must use the packed f32x2 path, not scalar fallback.
@@ -1264,7 +1264,7 @@ def test_fma_warpgroup_wg_local_emits_packed_f32x2():
 
     with target:
         mod = tvm.IRModule({"main": test_func})
-        ex = tvm.compile(mod, target=target, tir_pipeline="tirx")
+        ex = tvm.tirx.compile(mod, target=target, pipeline="tirx")
         src = ex.mod.imports[0].inspect_source()
 
     assert re.search(r"fma\.[a-z]+\.ftz\.f32x2", src), (
@@ -1304,7 +1304,7 @@ def test_binary_add_f32_sm100_packed_f32x2_dispatch():
     target = tvm.target.Target({"kind": "cuda", "arch": "sm_100a"})
     with target:
         mod = tvm.IRModule({"main": k})
-        mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
+        mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
         src = mod.mod.imports[0].inspect_source()
     assert re.search(r"add\.[a-z]+\.ftz\.f32x2", src), (
         f"expected packed add_f32x2; got:\n{src[:2000]}"
@@ -1331,7 +1331,7 @@ def test_binary_maximum_reg():
 
     target = tvm.target.Target("cuda")
     with target:
-        mod = tvm.compile(tvm.IRModule({"main": relu_max}), target=target, tir_pipeline="tirx")
+        mod = tvm.tirx.compile(tvm.IRModule({"main": relu_max}), target=target, pipeline="tirx")
     np.random.seed(0)
     a = np.random.randn(N).astype("float32")
     b = np.random.randn(N).astype("float32")
@@ -1372,7 +1372,7 @@ def test_binary_add_f16_scalar_fallback_dispatch():
     target = tvm.target.Target({"kind": "cuda", "arch": "sm_80"})
     with target:
         mod = tvm.IRModule({"main": k})
-        mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
+        mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
         src = mod.mod.imports[0].inspect_source()
     assert "half" in src or "__half" in src, f"expected scalar half add; got:\n{src[:2000]}"
     assert not re.search(r"add\.[a-z]+\.ftz\.f(32|16)x2", src), (
@@ -1410,7 +1410,7 @@ def test_mul_tcgen05_16x256b_atom_warpgroup_dispatch():
 
     target = tvm.target.Target({"kind": "cuda", "arch": "sm_100a"})
     with target:
-        mod = tvm.compile(tvm.IRModule({"main": kernel}), target=target, tir_pipeline="tirx")
+        mod = tvm.tirx.compile(tvm.IRModule({"main": kernel}), target=target, pipeline="tirx")
         src = mod.mod.imports[0].inspect_source()
     assert re.search(r"mul\.[a-z]+\.ftz\.f32x2", src), (
         f"expected packed mul_f32x2 for tcgen05 atom; got:\n{src[:2000]}"

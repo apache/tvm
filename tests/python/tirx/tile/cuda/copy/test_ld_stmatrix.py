@@ -47,7 +47,7 @@ def _compile_src(kernel):
     target = tvm.target.Target("cuda")
     mod = tvm.IRModule({"main": kernel})
     with target:
-        compiled = tvm.compile(mod, target=target, tir_pipeline="tirx")
+        compiled = tvm.tirx.compile(mod, target=target, pipeline="tirx")
     return compiled, compiled.mod.imports[0].inspect_source()
 
 

@@ -268,7 +268,7 @@ def test_unary_op_shared(input, op_type, src_dtype, dst_dtype):
         np.random.seed(0)
         A_np = np.abs(np.random.rand(*g_shape).astype(src_dtype)) + 0.1
         mod = tvm.IRModule({"main": unary_op})
-        mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
+        mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
 
         def run_and_check():
             dev = tvm.cuda(device_id)
@@ -382,7 +382,7 @@ def test_unary_op_shared_subcta_scope(exec_scope):
         np.random.seed(0)
         A_np = np.random.rand(*g_shape).astype(dtype)
         mod = tvm.IRModule({"main": unary_op_subcta})
-        mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
+        mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
 
         def run_and_check():
             dev = tvm.cuda(0)
@@ -800,7 +800,7 @@ def test_unary_op_shared_with_bias_scale(input, op_type, bias_type, src_dtype, d
         A_np = np.abs(np.random.rand(*g_shape).astype(src_dtype)) + 0.1
         bias_np = np.random.rand(*g_shape).astype(src_dtype)
         mod = tvm.IRModule({"main": unary_op_with_bias})
-        mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
+        mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
         atol = (
             1e-1
             if src_dtype == "float16" and op_type == "exp"
@@ -936,7 +936,7 @@ def test_unary_op_local(input, op_type, src_dtype, dst_dtype):
     target = tvm.target.Target("cuda")
     with target:
         mod = tvm.IRModule({"main": test_unary})
-        mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
+        mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
 
         np.random.seed(0)
         A_np = np.abs(np.random.rand(*g_shape_a).astype(src_dtype)) + 0.1
@@ -1129,7 +1129,7 @@ def test_unary_op_local_with_bias_scale(input, op_type, bias_type, src_dtype, ds
         bias_np = np.random.rand(*g_shape_bias).astype(src_dtype)
         B_np = np.zeros(g_shape_b, dtype=dst_dtype)
         mod = tvm.IRModule({"main": test_unary_with_bias})
-        mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
+        mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
         B_ref = get_ref(A_np, bias_np)
         atol = 1e-3 if src_dtype == dst_dtype else 2e-2
 
@@ -1258,7 +1258,7 @@ def test_unary_op_vectorized(shape, op_type, exec_scope, storage_scope):
         mod = tvm.IRModule(
             {"main": test_unary_thread if exec_scope == "thread" else test_unary_cta}
         )
-        mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
+        mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
         print(mod.mod.imports[0].inspect_source())
         def run_and_check():
             dev = tvm.cuda(0)
@@ -1304,7 +1304,7 @@ def test_unary_op_local_thread_wise(op_type, dtype):
         np.random.seed(0)
         A_np = np.abs(np.random.rand(*shape).astype(dtype)) + 0.1
         mod = tvm.IRModule({"main": kernel})
-        mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
+        mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
         if op_type == "zero":
             A_ref = np.zeros_like(A_np)
         elif op_type == "sqrt":
@@ -1358,7 +1358,7 @@ def test_cast_thread_local(shape, A_dtype, B_dtype):
     target = tvm.target.Target("cuda")
     with target:
         mod = tvm.IRModule({"main": test_cast})
-        mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
+        mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
         print(mod.mod.imports[0].inspect_source())
 
         def run_and_check():
@@ -1436,7 +1436,7 @@ def test_cast_warpgroup_local_view(A_dtype, B_dtype):
     target = tvm.target.Target("cuda")
     with target:
         mod = tvm.IRModule({"main": test_cast})
-        mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
+        mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
         print(mod.mod.imports[0].inspect_source())
 
         def run_and_check():
@@ -1515,7 +1515,7 @@ def test_cast_warpgroup_src_layout_to_flat_uses_vec2_intrinsic(A_dtype, B_dtype)
     target = tvm.target.Target("cuda")
     with target:
         mod = tvm.IRModule({"main": test_cast})
-        mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
+        mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
         src = mod.mod.imports[0].inspect_source()
         # The packed vec2 cast intrinsic must be present — guards against
         # falling back to scalar T.cast inside T.vectorized.
@@ -1588,7 +1588,7 @@ def test_cast_cta_local_view(A_dtype, B_dtype):
     target = tvm.target.Target("cuda")
     with target:
         mod = tvm.IRModule({"main": test_cast})
-        mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
+        mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
         print(mod.mod.imports[0].inspect_source())
 
         def run_and_check():
@@ -1662,7 +1662,7 @@ def test_cast_local_view_sliced(A_dtype, B_dtype, slice_start, slice_end):
     target = tvm.target.Target("cuda")
     with target:
         mod = tvm.IRModule({"main": kernel})
-        mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
+        mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
 
     def run_and_check():
         dev = tvm.cuda(0)
@@ -1780,7 +1780,7 @@ def test_cast_mixed_axes_and_subregion(slice_start, slice_end):
     target = tvm.target.Target("cuda")
     with target:
         mod = tvm.IRModule({"main": kernel})
-        mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
+        mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
 
     def run_and_check():
         dev = tvm.cuda(0)
@@ -1870,7 +1870,7 @@ def test_cast_validate_extent_mismatch_rejected():
             match="tile_local_valid|layout signature mismatch|thread part mismatch"
             "|do not tile a complete|not the full",
         ):
-            tvm.compile(mod, target=target, tir_pipeline="tirx")
+            tvm.tirx.compile(mod, target=target, pipeline="tirx")
 
 
 # -----------------------------------------------------------------------------
@@ -1959,7 +1959,7 @@ def test_unary_exp_f16_shared_scalar_fallback_dispatch():
     target = tvm.target.Target({"kind": "cuda", "arch": "sm_80"})
     with target:
         mod = tvm.IRModule({"main": k})
-        mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
+        mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
         src = mod.mod.imports[0].inspect_source()
     assert re.search(r"hexp|exp\(|expf", src), f"expected scalar exp; got:\n{src[:2000]}"
 
@@ -1996,7 +1996,7 @@ def test_cast_vec2_packed_dispatch(src_dtype, dst_dtype, intrinsic):
     target = tvm.target.Target({"kind": "cuda", "arch": "sm_80"})
     with target:
         mod = tvm.IRModule({"main": k})
-        mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
+        mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
         src = mod.mod.imports[0].inspect_source()
     assert re.search(
         rf"{re.escape(intrinsic)}|tvm_builtin_cast_{src_dtype}x2_{dst_dtype}x2", src
@@ -2013,7 +2013,7 @@ _SL_ROWS, _SL_COLS = 128, 8
 def _sl_compile(fn):
     target = tvm.target.Target("cuda")
     with target:
-        tvm.compile(tvm.IRModule({"main": fn}), target=target, tir_pipeline="tirx")
+        tvm.tirx.compile(tvm.IRModule({"main": fn}), target=target, pipeline="tirx")
 
 
 def test_cast_wg_rejects_thread_local_view():
@@ -2288,10 +2288,10 @@ def test_cast_tcgen05_atom_warpgroup_gpu():
     m, k = _TCGEN05_M, _TCGEN05_K
     target = tvm.target.Target("cuda")
     with target:
-        mod = tvm.compile(
+        mod = tvm.tirx.compile(
             tvm.IRModule({"main": _tcgen05_cast_warpgroup_kernel()}),
             target=target,
-            tir_pipeline="tirx",
+            pipeline="tirx",
         )
 
     np.random.seed(0)

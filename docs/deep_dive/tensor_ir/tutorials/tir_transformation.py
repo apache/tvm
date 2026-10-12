@@ -83,7 +83,7 @@ c_nd = tvm.runtime.tensor(np.zeros((128, 128), dtype="float32"))
 
 
 def evaluate(mod: tvm.IRModule):
-    lib = tvm.tirx.build(mod, target="llvm")
+    lib = tvm.tirx.compile(mod, target="llvm").mod
     # check correctness
     lib(a_nd, b_nd, c_nd)
     np.testing.assert_allclose(c_nd.numpy(), c_np, rtol=1e-5)

@@ -24,7 +24,7 @@ import numpy as np
 
 import tvm
 from tvm import rpc, te
-from tvm.contrib import tvmjs
+from tvm.contrib import emcc
 from tvm.support import utils
 
 proxy_host = "127.0.0.1"
@@ -49,11 +49,11 @@ def test_rpc():
     sch.bind(i0, "blockIdx.x")
     sch.bind(i1, "threadIdx.x")
 
-    fadd = tvm.tirx.build(sch.mod.with_attr("system_lib_prefix", ""), target=target)
+    fadd = tvm.tirx.compile(sch.mod.with_attr("system_lib_prefix", ""), target=target).mod
     temp = utils.tempdir()
 
     wasm_path = temp.relpath("addone_gpu.wasm")
-    fadd.export_library(wasm_path, fcompile=tvmjs.create_tvmjs_wasm)
+    fadd.export_library(wasm_path, fcompile=emcc.create_wasm)
 
     wasm_binary = open(wasm_path, "rb").read()
     remote = rpc.connect(

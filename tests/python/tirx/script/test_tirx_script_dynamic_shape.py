@@ -136,7 +136,7 @@ def test_type_vars_roundtrip():
     script = func.script()
     assert script.startswith("from __future__ import annotations\n\n")
     assert "def main[M](" in script
-    assert 'T.Tensor((M, M * T.int64(2)), "float32", layout="default")' in script
+    assert 'T.Tensor((M, M * T.int64(2)), "float32")' in script
     assert "M = T.int64()" not in script
     typed = tvm.script.from_source(
         """
@@ -152,7 +152,7 @@ def func[M: int](A: T.Tensor((M, M * 2), "float32")):
     repeated = func.script()
     assert "from __future__ import annotations" in repeated
     assert "def main[M](" in repeated
-    assert 'T.Tensor((M, M * T.int64(2)), "float32", layout="default")' in repeated
+    assert 'T.Tensor((M, M * T.int64(2)), "float32")' in repeated
     assert "UNUSED" not in script
     assert "M = T.int64()" not in repeated
     assert len(func.params) == 1

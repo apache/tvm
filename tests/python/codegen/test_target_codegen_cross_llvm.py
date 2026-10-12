@@ -64,7 +64,7 @@ def test_llvm_add_pipeline():
             print(f"Skip because {target} is not enabled..")
             return
         temp = utils.tempdir()
-        f = tvm.tirx.build(AddModule, target=target)
+        f = tvm.tirx.compile(AddModule, target=target).mod
         path = temp.relpath("myadd.o")
         f.write_to_file(path)
         verify_elf(path, 0x28)

@@ -371,10 +371,10 @@ def _lower_module(func, arch="sm_100a"):
 def _compile_module(func, arch="sm_100a"):
     target = tvm.target.Target({"kind": "cuda", "arch": arch})
     with target:
-        return tvm.compile(
+        return tvm.tirx.compile(
             tvm.IRModule({"main": func}),
             target=target,
-            tir_pipeline="tirx",
+            pipeline="tirx",
         )
 
 

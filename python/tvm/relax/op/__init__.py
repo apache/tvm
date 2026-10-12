@@ -257,8 +257,6 @@ def _register_op_make():
     from tvm.ir import _tensor_expr_overload
     from . import _ffi_api
 
-    expr._op_ffi_api = _ffi_api  # type: ignore
-
     def _add(lhs, rhs):
         if isinstance(lhs.ty, expr.tvm.relax.TupleType) and isinstance(rhs, tuple):
             return tuple([*lhs, *rhs])
@@ -281,47 +279,37 @@ def _register_op_make():
             return NotImplemented
         return expr.tvm.ir.Call(func, args, attrs=attrs)
 
-    _tensor_expr_overload.astype = lambda lhs, dtype, _loc=None: (
-        _ffi_api.astype(lhs, dtype) if expr._is_tensor_or_missing_type(lhs.ty) else NotImplemented
+    operators = {}
+    operators["astype"] = (
+        lambda lhs, dtype, _loc=None: _ffi_api.astype(lhs, dtype)
+        if expr._is_tensor_or_missing_type(lhs.ty)
+        else NotImplemented
     )
-    _tensor_expr_overload.__call__ = _call
-    _tensor_expr_overload.__neg__ = lambda lhs: _unary(lhs, _ffi_api.negative)
-    _tensor_expr_overload.__lt__ = lambda lhs, rhs: expr._binary_op_helper(lhs, rhs, _ffi_api.less)
-    _tensor_expr_overload.__le__ = lambda lhs, rhs: expr._binary_op_helper(
-        lhs, rhs, _ffi_api.less_equal
-    )
-    _tensor_expr_overload.__gt__ = lambda lhs, rhs: expr._binary_op_helper(
-        lhs, rhs, _ffi_api.greater
-    )
-    _tensor_expr_overload.__ge__ = lambda lhs, rhs: expr._binary_op_helper(
-        lhs, rhs, _ffi_api.greater_equal
-    )
-    _tensor_expr_overload.__add__ = _add
-    _tensor_expr_overload.__radd__ = _add
-    _tensor_expr_overload.__sub__ = lambda lhs, rhs: expr._binary_op_helper(
-        lhs, rhs, _ffi_api.subtract
-    )
-    _tensor_expr_overload.__rsub__ = _rhs
-    _tensor_expr_overload.__mul__ = lambda lhs, rhs: expr._binary_op_helper(
-        lhs, rhs, _ffi_api.multiply
-    )
-    _tensor_expr_overload.__rmul__ = _tensor_expr_overload.__mul__
-    _tensor_expr_overload.__div__ = lambda lhs, rhs: expr._binary_op_helper(
-        lhs, rhs, _ffi_api.divide
-    )
-    _tensor_expr_overload.__rdiv__ = _rhs
-    _tensor_expr_overload.__truediv__ = _tensor_expr_overload.__div__
-    _tensor_expr_overload.__rtruediv__ = _rhs
-    _tensor_expr_overload.__floordiv__ = lambda lhs, rhs: expr._binary_op_helper(
+    operators["__call__"] = _call
+    operators["__neg__"] = lambda lhs: _unary(lhs, _ffi_api.negative)
+    operators["__lt__"] = lambda lhs, rhs: expr._binary_op_helper(lhs, rhs, _ffi_api.less)
+    operators["__le__"] = lambda lhs, rhs: expr._binary_op_helper(lhs, rhs, _ffi_api.less_equal)
+    operators["__gt__"] = lambda lhs, rhs: expr._binary_op_helper(lhs, rhs, _ffi_api.greater)
+    operators["__ge__"] = lambda lhs, rhs: expr._binary_op_helper(lhs, rhs, _ffi_api.greater_equal)
+    operators["__add__"] = _add
+    operators["__radd__"] = _add
+    operators["__sub__"] = lambda lhs, rhs: expr._binary_op_helper(lhs, rhs, _ffi_api.subtract)
+    operators["__rsub__"] = _rhs
+    operators["__mul__"] = lambda lhs, rhs: expr._binary_op_helper(lhs, rhs, _ffi_api.multiply)
+    operators["__rmul__"] = operators["__mul__"]
+    operators["__div__"] = lambda lhs, rhs: expr._binary_op_helper(lhs, rhs, _ffi_api.divide)
+    operators["__rdiv__"] = _rhs
+    operators["__truediv__"] = operators["__div__"]
+    operators["__rtruediv__"] = _rhs
+    operators["__floordiv__"] = lambda lhs, rhs: expr._binary_op_helper(
         lhs, rhs, _ffi_api.floor_divide
     )
-    _tensor_expr_overload.__rfloordiv__ = _rhs
-    _tensor_expr_overload.__mod__ = lambda lhs, rhs: expr._binary_op_helper(lhs, rhs, _ffi_api.mod)
-    _tensor_expr_overload.__rmod__ = _rhs
-    _tensor_expr_overload.__pow__ = lambda lhs, rhs: expr._binary_op_helper(
-        lhs, rhs, _ffi_api.power
-    )
-    _tensor_expr_overload.__rpow__ = _rhs
+    operators["__rfloordiv__"] = _rhs
+    operators["__mod__"] = lambda lhs, rhs: expr._binary_op_helper(lhs, rhs, _ffi_api.mod)
+    operators["__rmod__"] = _rhs
+    operators["__pow__"] = lambda lhs, rhs: expr._binary_op_helper(lhs, rhs, _ffi_api.power)
+    operators["__rpow__"] = _rhs
+    _tensor_expr_overload.register_tensor_expr_operators(operators)
 
 
 _register_op_make()

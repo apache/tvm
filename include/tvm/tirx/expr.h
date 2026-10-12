@@ -50,7 +50,7 @@ namespace tirx {
 class TensorVar : public Var {
  public:
   /*! \brief Construct a fresh tensor variable from an explicit TensorType. */
-  TVM_DLL explicit TensorVar(ffi::String name, TensorType type, Location loc = UnknownLoc());
+  TVM_TIRX_DLL explicit TensorVar(ffi::String name, TensorType type, Location loc = UnknownLoc());
 
   /*! \brief Create a checked tensor view over an existing ordinary Var. */
   explicit TensorVar(Var var) : Var(std::move(var)) {
@@ -85,7 +85,7 @@ class TensorVar : public Var {
    * \param alloc_or_decl Whether to consider alloc_scalar and decl_scalar as scalar. True for
    * alloc_scalar, False for decl_scalar.
    */
-  TVM_DLL bool IsScalar(bool alloc_or_decl = true) const;
+  TVM_TIRX_DLL bool IsScalar(bool alloc_or_decl = true) const;
 
   /*! \return primitive element type for compiler-side uses. */
   PrimType ElementType() const { return (*this)->ElementType(); }
@@ -138,9 +138,9 @@ inline TensorVar RebuildTensorVar(const TensorVar& var, ffi::ObjectPtr<TensorTyp
  * \return The created tensor.
  * \sa TensorVar for complete constructor.
  */
-TVM_DLL TensorVar decl_tensor(ffi::Array<PrimExpr> shape, PrimType dtype = PrimType::Float(32),
-                              ffi::String name = "tensor", ffi::String storage_scope = "",
-                              Location loc = UnknownLoc());
+TVM_TIRX_DLL TensorVar decl_tensor(ffi::Array<PrimExpr> shape, PrimType dtype = PrimType::Float(32),
+                                   ffi::String name = "tensor", ffi::String storage_scope = "",
+                                   Location loc = UnknownLoc());
 
 /*!
  * \brief Creates a TIR tensor for the provided parameters.
@@ -154,9 +154,10 @@ TVM_DLL TensorVar decl_tensor(ffi::Array<PrimExpr> shape, PrimType dtype = PrimT
  *                      A default value will be picked.
  * \param memory_scope memory scope of the tensor
  */
-TVM_DLL tirx::TensorVar TensorWithOffsetAlignment(ffi::Array<PrimExpr> shape, PrimType dtype,
-                                                  std::string name, int data_alignment,
-                                                  int offset_factor, std::string memory_scope = "");
+TVM_TIRX_DLL tirx::TensorVar TensorWithOffsetAlignment(ffi::Array<PrimExpr> shape, PrimType dtype,
+                                                       std::string name, int data_alignment,
+                                                       int offset_factor,
+                                                       std::string memory_scope = "");
 
 /*!
  * \brief Construct a TensorLoad from a TensorVar.
@@ -165,13 +166,13 @@ TVM_DLL tirx::TensorVar TensorWithOffsetAlignment(ffi::Array<PrimExpr> shape, Pr
  * is derived from the tensor element type and index lanes, and every tirx
  * TensorLoad is required to have a TensorVar source.
  */
-TVM_DLL TensorLoad MakeTensorLoad(TensorVar tensor, ffi::Array<PrimExpr> indices,
-                                  Location loc = UnknownLoc());
+TVM_TIRX_DLL TensorLoad MakeTensorLoad(TensorVar tensor, ffi::Array<PrimExpr> indices,
+                                       Location loc = UnknownLoc());
 
 /*! \brief Select the entire tensor. */
-TVM_DLL TensorRegion FullTensorRegion(TensorVar tensor);
+TVM_TIRX_DLL TensorRegion FullTensorRegion(TensorVar tensor);
 /*! \brief Construct unit or vector-lane ranges from point indices. */
-TVM_DLL TensorRegion TensorRegionFromPoint(TensorVar tensor, ffi::Array<PrimExpr> indices);
+TVM_TIRX_DLL TensorRegion TensorRegionFromPoint(TensorVar tensor, ffi::Array<PrimExpr> indices);
 
 }  // namespace tirx
 }  // namespace tvm

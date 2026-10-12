@@ -55,7 +55,7 @@ def test_mul(dtype):
                 C[i] = A[i] * B[i]
 
     with tvm.target.Target(target):
-        f = tvm.tirx.build(Module)
+        f = tvm.tirx.compile(Module).mod
 
     assembly = f.inspect_source("asm")
     loads = re.findall("ld1[whdb]	{ z", assembly)
@@ -93,7 +93,7 @@ def test_add(dtype):
                 C[i] = A[i] + B[i]
 
     with tvm.target.Target(target):
-        f = tvm.tirx.build(Module)
+        f = tvm.tirx.compile(Module).mod
 
     assembly = f.inspect_source("asm")
     loads = re.findall("ld1[whdb]	{ z", assembly)
@@ -131,7 +131,7 @@ def test_sub(dtype):
                 C[i] = A[i] - B[i]
 
     with tvm.target.Target(target):
-        f = tvm.tirx.build(Module)
+        f = tvm.tirx.compile(Module).mod
 
     assembly = f.inspect_source("asm")
     loads = re.findall("ld1[whdb]	{ z", assembly)
@@ -170,7 +170,7 @@ def test_muladd(dtype):
                 D[i] = A[i] * B[i] + C[i]
 
     with tvm.target.Target(target):
-        f = tvm.tirx.build(Module)
+        f = tvm.tirx.compile(Module).mod
 
     assembly = f.inspect_source("asm")
     loads = re.findall("ld1[whdb]	{ z", assembly)
@@ -218,7 +218,7 @@ def test_max(dtype):
                 C[i] = T.max(A[i], B[i])
 
     with tvm.target.Target(target):
-        f = tvm.tirx.build(Module)
+        f = tvm.tirx.compile(Module).mod
 
     assembly = f.inspect_source("asm")
     loads = re.findall("ld1[whdb]	{ z", assembly)
@@ -260,7 +260,7 @@ def test_min(dtype):
                 C[i] = T.min(A[i], B[i])
 
     with tvm.target.Target(target):
-        f = tvm.tirx.build(Module)
+        f = tvm.tirx.compile(Module).mod
 
     assembly = f.inspect_source("asm")
     loads = re.findall("ld1[whdb]	{ z", assembly)
@@ -302,7 +302,7 @@ def test_div(dtype):
                 C[i] = tvm.tirx.div(A[i], B[i])
 
     with tvm.target.Target(target):
-        f = tvm.tirx.build(Module)
+        f = tvm.tirx.compile(Module).mod
 
     assembly = f.inspect_source("asm")
     loads = re.findall("ld1[whdb]	{ z", assembly)
@@ -339,7 +339,7 @@ def test_mod(dtype):
                 C[i] = T.floormod(A[i], B[i])
 
     with tvm.target.Target(target):
-        f = tvm.tirx.build(Module)
+        f = tvm.tirx.compile(Module).mod
 
     assembly = f.inspect_source("asm")
     loads = re.findall("ld1[whdb]	{ z", assembly)
@@ -377,7 +377,7 @@ def test_eq(dtype):
                 C[i] = A[i] == B[i]
 
     with tvm.target.Target(target):
-        f = tvm.tirx.build(Module)
+        f = tvm.tirx.compile(Module).mod
 
     assembly = f.inspect_source("asm")
     loads = re.findall("ld1[whdb]	{ z", assembly)
@@ -418,7 +418,7 @@ def test_neq(dtype):
                 C[i] = A[i] != B[i]
 
     with tvm.target.Target(target):
-        f = tvm.tirx.build(Module)
+        f = tvm.tirx.compile(Module).mod
 
     assembly = f.inspect_source("asm")
     loads = re.findall("ld1[whdb]	{ z", assembly)
@@ -458,7 +458,7 @@ def test_or(dtype):
                 C[i] = A[i] | B[i]
 
     with tvm.target.Target(target):
-        f = tvm.tirx.build(Module)
+        f = tvm.tirx.compile(Module).mod
 
     assembly = f.inspect_source("asm")
     loads = re.findall("ld1[whdb]	{ z", assembly)
@@ -495,7 +495,7 @@ def test_and(dtype):
                 C[i] = A[i] & B[i]
 
     with tvm.target.Target(target):
-        f = tvm.tirx.build(Module)
+        f = tvm.tirx.compile(Module).mod
 
     assembly = f.inspect_source("asm")
     loads = re.findall("ld1[whdb]	{ z", assembly)
@@ -528,7 +528,7 @@ def test_not(dtype):
                 C[i] = ~A[i]
 
     with tvm.target.Target(target):
-        f = tvm.tirx.build(Module)
+        f = tvm.tirx.compile(Module).mod
 
     assembly = f.inspect_source("asm")
     loads = re.findall("ld1[whdb]	{ z", assembly)
@@ -569,7 +569,7 @@ def test_memcpy(dtype):
                 C[i] = A[B[i]]
 
     with tvm.target.Target(target):
-        f = tvm.tirx.build(Module)
+        f = tvm.tirx.compile(Module).mod
 
     assembly = f.inspect_source("asm")
     loads = re.findall("ld1[whdb]	{ z", assembly)
@@ -608,7 +608,7 @@ def test_vscale_range_function_attribute(mattr, expect_attr):
                 C[i] = A[i] + T.float32(1)
 
     with tvm.target.Target(target):
-        f = tvm.tirx.build(Module)
+        f = tvm.tirx.compile(Module).mod
 
     # Check if the vscale_range() attribute exists
     ll = f.inspect_source("ll")

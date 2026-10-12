@@ -33,9 +33,6 @@
 #include <cstring>
 #include <memory>
 #include <thread>
-#if defined(_M_X64) || defined(__x86_64__)
-#include <immintrin.h>
-#endif
 
 #include "rpc_endpoint.h"
 #include "rpc_remote.h"
@@ -304,108 +301,27 @@ std::shared_ptr<RPCSession> RPCModuleGetSession(ffi::Module mod) {
   return rmod->sess();
 }
 
-/*!
- * \brief Flush the cache.
- * \param addr The address of data we want to flush
- * \param len The length of data
- */
-/*
- * When we are in the tuning of TVM, we will make TVM occupy
- * the cache fully and doesn't flush it during iteration.
- * This has problems then in e2e testing, since arrays that
- * we assume exist in cache (ie. weights) are evicted during e2e runs,
- * which leads to lower performance.
- */
-inline void CPUCacheFlushImpl(const char* addr, unsigned int len) {
-#if (defined(_M_X64) || defined(__x86_64__) || defined(__aarch64__))
-
-#if defined(__aarch64__)
-  size_t ctr_el0 = 0;
-  asm volatile("mrs %0, ctr_el0" : "=r"(ctr_el0));
-  const size_t cache_line = 4 << ((ctr_el0 >> 16) & 15);
-#else
-  const size_t cache_line = 64;
-#endif
-
-  if (addr == nullptr || len <= 0) {
-    return;
-  }
-
-  for (uintptr_t uptr = (uintptr_t)addr & ~(cache_line - 1); uptr < (uintptr_t)addr + len;
-       uptr += cache_line) {
-#if defined(__aarch64__)
-    asm volatile("dc civac, %0\n\t" : : "r"(reinterpret_cast<const void*>(uptr)) : "memory");
-#else
-    _mm_clflush(reinterpret_cast<const void*>(uptr));
-#endif
-  }
-
-#if defined(__aarch64__)
-  asm volatile("dmb ishst" : : : "memory");
-#endif
-
-#endif
-}
-
-inline void CPUCacheFlush(int begin_index, const ffi::PackedArgs& args) {
-  for (int i = begin_index; i < args.size(); i++) {
-    CPUCacheFlushImpl(static_cast<char*>((args[i].cast<DLTensor*>()->data)),
-                      ffi::GetDataSize(*(args[i].cast<DLTensor*>())));
-  }
-}
-
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef()
-      .def("runtime.RPCTimeEvaluator",
-           [](ffi::Optional<ffi::Module> opt_mod, std::string name, int device_type, int device_id,
-              int number, int repeat, int min_repeat_ms, int limit_zero_time_iterations,
-              int cooldown_interval_ms, int repeats_to_cooldown, int cache_flush_bytes,
-              std::string f_preproc_name) {
-             Device dev;
-             dev.device_type = static_cast<DLDeviceType>(device_type);
-             dev.device_id = device_id;
-             if (opt_mod.has_value()) {
-               ffi::Module m = opt_mod.value();
-               std::string tkey = m->kind();
-               if (tkey == "rpc") {
-                 return static_cast<RPCModuleObj*>(m.operator->())
-                     ->GetTimeEvaluator(name, dev, number, repeat, min_repeat_ms,
-                                        limit_zero_time_iterations, cooldown_interval_ms,
-                                        repeats_to_cooldown, cache_flush_bytes, f_preproc_name);
-               } else {
-                 ffi::Function f_preproc;
-                 if (!f_preproc_name.empty()) {
-                   auto pf_preproc = tvm::ffi::Function::GetGlobal(f_preproc_name);
-                   TVM_FFI_ICHECK(pf_preproc.has_value())
-                       << "Cannot find " << f_preproc_name << " in the global function";
-                   f_preproc = *pf_preproc;
-                 }
-                 ffi::Optional<ffi::Function> pf = m->GetFunction(name);
-                 TVM_FFI_ICHECK(pf.has_value())
-                     << "Cannot find " << name << "` in the global registry";
-                 return WrapTimeEvaluator(*pf, dev, number, repeat, min_repeat_ms,
-                                          limit_zero_time_iterations, cooldown_interval_ms,
-                                          repeats_to_cooldown, cache_flush_bytes, f_preproc);
-               }
-             } else {
-               auto pf = tvm::ffi::Function::GetGlobal(name);
-               TVM_FFI_ICHECK(pf.has_value())
-                   << "Cannot find " << name << " in the global function";
-               ffi::Function f_preproc;
-               if (!f_preproc_name.empty()) {
-                 auto pf_preproc = tvm::ffi::Function::GetGlobal(f_preproc_name);
-                 TVM_FFI_ICHECK(pf_preproc.has_value())
-                     << "Cannot find " << f_preproc_name << " in the global function";
-                 f_preproc = *pf_preproc;
-               }
-               return WrapTimeEvaluator(*pf, dev, number, repeat, min_repeat_ms,
-                                        limit_zero_time_iterations, cooldown_interval_ms,
-                                        repeats_to_cooldown, cache_flush_bytes, f_preproc);
-             }
-           })
-      .def_packed("cache_flush_cpu_non_first_arg",
-                  [](ffi::PackedArgs args, ffi::Any* rv) { CPUCacheFlush(1, args); });
+  refl::GlobalDef().def(
+      "runtime.RPCTimeEvaluator",
+      [](ffi::Optional<ffi::Module> opt_mod, std::string name, int device_type, int device_id,
+         int number, int repeat, int min_repeat_ms, int limit_zero_time_iterations,
+         int cooldown_interval_ms, int repeats_to_cooldown, int cache_flush_bytes,
+         std::string f_preproc_name) {
+        Device dev{static_cast<DLDeviceType>(device_type), device_id};
+        if (opt_mod.has_value() && std::string(opt_mod.value()->kind()) == "rpc") {
+          return static_cast<RPCModuleObj*>(opt_mod.value().operator->())
+              ->GetTimeEvaluator(name, dev, number, repeat, min_repeat_ms,
+                                 limit_zero_time_iterations, cooldown_interval_ms,
+                                 repeats_to_cooldown, cache_flush_bytes, f_preproc_name);
+        }
+        return ffi::Function::GetGlobalRequired("runtime.LocalTimeEvaluator")(
+                   opt_mod, name, device_type, device_id, number, repeat, min_repeat_ms,
+                   limit_zero_time_iterations, cooldown_interval_ms, repeats_to_cooldown,
+                   cache_flush_bytes, f_preproc_name)
+            .cast<ffi::Function>();
+      });
 }
 
 // server function registration.
@@ -444,18 +360,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                  << "Device belongs to a different remote session";
              return dev->endpoint_device;
            })
-      .def("runtime.ModuleTimeEvaluator",
+      .def("rpc.ModuleTimeEvaluator",
            [](ffi::Module mod, std::string name, ffi::AnyView device, int number, int repeat,
               int min_repeat_ms, int limit_zero_time_iterations, int cooldown_interval_ms,
               int repeats_to_cooldown, int cache_flush_bytes, std::string f_preproc_name) {
-             if (std::string(mod->kind()) != "rpc") {
-               auto dev = device.cast<DLDevice>();
-               return ffi::Function::GetGlobalRequired("runtime.RPCTimeEvaluator")(
-                          mod, name, static_cast<int>(dev.device_type), dev.device_id, number,
-                          repeat, min_repeat_ms, limit_zero_time_iterations, cooldown_interval_ms,
-                          repeats_to_cooldown, cache_flush_bytes, f_preproc_name)
-                   .cast<ffi::Function>();
-             }
              auto dev = device.cast<RemoteDevice>();
              auto sess = RPCModuleGetSession(mod);
              sess->EnsureOpen();

@@ -147,7 +147,7 @@ def test_lower_call_packed_raw_string(call):
     tvm.ir.assert_structural_equal(After, Expected)
 
     # The typed pointer is required by the LLVM TVMFFIAny lowering.
-    tvm.compile(Before, target="llvm")
+    tvm.tirx.compile(Before, target="llvm")
 
 
 @pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
@@ -182,7 +182,7 @@ def test_call_packed_return_non_i32():
         )
 
     mod = build_tir()
-    f = tvm.compile(mod, None)
+    f = tvm.tirx.compile(mod, None)
     a = tvm.runtime.tensor(np.zeros(2, dtype="float32"))
     f(a)
     tvm.testing.assert_allclose(a.numpy(), expected_value)
@@ -208,7 +208,7 @@ def test_lower_overflow_int32():
             T_subtract_1[cse_v1] = rxplaceholder_1[cse_v1] - rxplaceholder_red_1[ax1]
 
     func = variance4
-    tvm.compile(func, target="llvm")  # should not crash
+    tvm.tirx.compile(func, target="llvm")  # should not crash
 
 
 def test_lower_device_allocate():

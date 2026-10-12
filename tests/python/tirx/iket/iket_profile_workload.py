@@ -153,7 +153,7 @@ def _profile_workload(args):
     for workload, offset in workloads:
         # Plain JIT compilation is intentionally used here.  The validated
         # run-iket child enables LowerIket automatically for these modules.
-        executable = tvm.compile(workload, target=target, tir_pipeline="tirx")
+        executable = tvm.tirx.compile(workload, target=target, pipeline="tirx")
         module = executable.jit()
         out = tvm.runtime.empty((32,), "int32", device=tvm.cuda())
         module.main(out)

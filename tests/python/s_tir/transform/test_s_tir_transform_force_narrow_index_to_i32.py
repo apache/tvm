@@ -170,7 +170,7 @@ def test_metal_simdgroup_matmul_builds():
         mod = dl.ApplyDefaultSchedule(dl.gpu.Matmul())(tvm.IRModule({"main": main}))
     assert "metal.simdgroup" in mod.script()
     mod = tvm.s_tir.transform.ForceNarrowIndexToInt32()(mod)
-    tvm.tirx.build(mod, target=target)
+    tvm.tirx.compile(mod, target=target).mod
 
 
 if __name__ == "__main__":

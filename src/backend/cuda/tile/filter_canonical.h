@@ -150,8 +150,8 @@ using ScopeIdPredicate = std::function<bool(const Var&)>;
  * Thread safety: pure function; safe to call concurrently provided the
  * callback `is_scope_id` is itself thread-safe.
  */
-TVM_DLL std::optional<CanonicalForm> TryClassifyCanonical(const PrimExpr& cond,
-                                                          const ScopeIdPredicate& is_scope_id);
+TVM_TIRX_DLL std::optional<CanonicalForm> TryClassifyCanonical(const PrimExpr& cond,
+                                                               const ScopeIdPredicate& is_scope_id);
 
 }  // namespace tvm::backend::cuda
 

@@ -22,8 +22,8 @@
  * \brief Defines an interface to use the ConstLoaderModule.
  */
 
-#ifndef TVM_RUNTIME_CONST_LOADER_MODULE_H_
-#define TVM_RUNTIME_CONST_LOADER_MODULE_H_
+#ifndef TVM_RUNTIME_VM_CONST_LOADER_MODULE_H_
+#define TVM_RUNTIME_VM_CONST_LOADER_MODULE_H_
 
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/container/map.h>
@@ -46,19 +46,19 @@ namespace runtime {
  * \return The created ConstLoaderModule.
  *
  * Dispatches through the FFI registry ("ffi.Module.create.const_loader").
- * The creator is always available (ConstLoaderModule is a runtime-universal module).
+ * The creator is registered by the VM runtime.
  */
 inline ffi::Module ConstLoaderModuleCreate(
     const ffi::Map<ffi::String, ffi::Tensor>& const_var_tensor,
     const ffi::Map<ffi::String, ffi::Array<ffi::String>>& const_vars_by_symbol) {
   static const auto fcreate = ffi::Function::GetGlobal("ffi.Module.create.const_loader");
   TVM_FFI_CHECK(fcreate.has_value(), RuntimeError)
-      << "ffi.Module.create.const_loader is not registered in runtime. "
-      << "Ensure libtvm_runtime is loaded.";
+      << "ffi.Module.create.const_loader is not registered by the VM runtime. "
+      << "Ensure the runtime includes VM support.";
   return (*fcreate)(const_var_tensor, const_vars_by_symbol).cast<ffi::Module>();
 }
 
 }  // namespace runtime
 }  // namespace tvm
 
-#endif  // TVM_RUNTIME_CONST_LOADER_MODULE_H_
+#endif  // TVM_RUNTIME_VM_CONST_LOADER_MODULE_H_

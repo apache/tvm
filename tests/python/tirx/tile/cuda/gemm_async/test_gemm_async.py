@@ -337,7 +337,7 @@ def test_gemm_tcgen05_cta_group_1(task):
     with target:
         mod = tvm.IRModule({"main": gemm_async})
         # mod.show()
-        mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
+        mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
         # print(mod.mod.imports[0].inspect_source())
 
         A_np = np.random.randn(*A_shape).astype(A_dtype)
@@ -489,7 +489,9 @@ def test_gemm_tcgen05_cta_group_1_layout_f_m64():
     np.random.seed(0)
     target = tvm.target.Target("cuda")
     with target:
-        mod = tvm.compile(tvm.IRModule({"main": gemm_layout_f}), target=target, tir_pipeline="tirx")
+        mod = tvm.tirx.compile(
+            tvm.IRModule({"main": gemm_layout_f}), target=target, pipeline="tirx"
+        )
 
     A_np = np.random.randn(*A_shape).astype(A_dtype)
     B_np = np.random.randn(*B_shape).astype(B_dtype)
@@ -695,7 +697,7 @@ def test_gemm_tcgen05_cta_group_2(task):
     with target:
         mod = tvm.IRModule({"main": gemm_async})
         mod.show()
-        mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
+        mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
         # print(mod.mod.imports[0].inspect_source())
 
         A_np = np.random.randn(*A_shape).astype(A_dtype)
@@ -905,7 +907,7 @@ def test_gemm_tcgen05_cta_group_2_layout_b():
     with target:
         mod = tvm.IRModule({"main": gemm_async})
         mod.show()
-        mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
+        mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
 
         A_np = np.random.randn(M_per_cta * 2, K).astype(A_dtype)
         B_np = np.random.randn(N_logical, K).astype(B_dtype)
@@ -1048,8 +1050,8 @@ def test_gemm_tcgen05_cta_group_2_datapath_b_readback():
 
     target = tvm.target.Target("cuda")
     with target:
-        mod = tvm.compile(
-            tvm.IRModule({"main": gemm_async}), target=target, tir_pipeline="tirx"
+        mod = tvm.tirx.compile(
+            tvm.IRModule({"main": gemm_async}), target=target, pipeline="tirx"
         )
 
     np.random.seed(0)
@@ -1281,7 +1283,7 @@ def test_gemm_block_scaled_fp8_cta_group_1(task):
     target = tvm.target.Target("cuda")
     with target:
         mod = tvm.IRModule({"main": gemm_async_fn})
-        mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
+        mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
 
         # Generate random float32 data and quantize per-row
         A_f32 = np.random.randn(*A_shape).astype(np.float32)
@@ -1553,7 +1555,7 @@ def test_gemm_block_scaled_fp8_cta_group_2(task):
     target = tvm.target.Target("cuda")
     with target:
         mod = tvm.IRModule({"main": gemm_async_fn})
-        mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
+        mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
 
         # Generate random float32 data and quantize
         A_f32 = np.random.randn(*A_shape).astype(np.float32)
@@ -1780,7 +1782,7 @@ def test_gemm_block_scaled_nvfp4_cta_group_1():
     target = tvm.target.Target("cuda")
     with target:
         mod = tvm.IRModule({"main": gemm_async_fn})
-        mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
+        mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
 
         # Generate random float32 data and quantize per-row
         A_f32 = np.random.randn(M, K).astype(np.float32)
@@ -2032,7 +2034,7 @@ def test_gemm_block_scaled_nvfp4_cta_group_2():
     target = tvm.target.Target("cuda")
     with target:
         mod = tvm.IRModule({"main": gemm_async_fn})
-        mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
+        mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
 
         # Generate random float32 data
         A_f32 = np.random.randn(M_total, K).astype(np.float32)
@@ -2287,7 +2289,7 @@ def test_gemm_block_scaled_fp8_sf_id():
     target = tvm.target.Target("cuda")
     with target:
         mod = tvm.IRModule({"main": gemm_async_fn})
-        mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
+        mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
 
         # Create data with very different per-block ranges to ensure sf_id matters
         A_f32 = np.random.randn(M, K).astype(np.float32)
@@ -2647,7 +2649,7 @@ def test_gemm_tcgen05_arbitrary_tiles(task):
     target = tvm.target.Target("cuda")
     with target:
         mod = tvm.IRModule({"main": gemm_async})
-        mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
+        mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
 
         A_np = np.random.randn(*A_shape).astype(A_dtype)
         B_np = np.random.randn(*B_shape).astype(B_dtype)
@@ -2723,8 +2725,8 @@ def test_gemm_tcgen05_no_swizzle_smem_descriptor_codegen(a_layout_kind):
 
     target = tvm.target.Target({"kind": "cuda", "arch": "sm_100a"})
     with target:
-        mod = tvm.compile(
-            tvm.IRModule({"main": gemm_async_no_swizzle}), target=target, tir_pipeline="tirx"
+        mod = tvm.tirx.compile(
+            tvm.IRModule({"main": gemm_async_no_swizzle}), target=target, pipeline="tirx"
         )
 
     src = mod.mod.imports[0].inspect_source()
@@ -2776,10 +2778,10 @@ def test_gemm_tcgen05_cta_group_2_accepts_replicated_tmem_a_codegen():
 
     target = tvm.target.Target({"kind": "cuda", "arch": "sm_100a"})
     with target:
-        mod = tvm.compile(
+        mod = tvm.tirx.compile(
             tvm.IRModule({"main": gemm_async_replicated_a}),
             target=target,
-            tir_pipeline="tirx",
+            pipeline="tirx",
         )
 
     src = mod.mod.imports[0].inspect_source()
@@ -2827,10 +2829,10 @@ def test_gemm_tcgen05_cta_group_2_rejects_flat_tmem_a_codegen():
     target = tvm.target.Target({"kind": "cuda", "arch": "sm_100a"})
     with target:
         with pytest.raises(Exception, match="TMEM A layout"):
-            tvm.compile(
+            tvm.tirx.compile(
                 tvm.IRModule({"main": gemm_async_flat_a}),
                 target=target,
-                tir_pipeline="tirx",
+                pipeline="tirx",
             )
 
 
@@ -2950,7 +2952,7 @@ def test_gemm_tcgen05_no_swizzle_col_major_a_ws_local_idesc():
     # fmt: on
 
     with tvm.target.Target("cuda"):
-        mod = tvm.compile(tvm.IRModule({"main": gemm_ws}), target="cuda", tir_pipeline="tirx")
+        mod = tvm.tirx.compile(tvm.IRModule({"main": gemm_ws}), target="cuda", pipeline="tirx")
 
     src = mod.mod.imports[0].inspect_source()
     # Descriptor construction: no-swizzle col-major A -> (ldo=64, sdo=8, swizzle=0).
@@ -3068,7 +3070,7 @@ def test_gemm_tcgen05_contiguous_kslice_partial_k(k_lo, k_hi):
 
     np.random.seed(0)
     with tvm.target.Target("cuda"):
-        mod = tvm.compile(tvm.IRModule({"main": gemm_async}), target="cuda", tir_pipeline="tirx")
+        mod = tvm.tirx.compile(tvm.IRModule({"main": gemm_async}), target="cuda", pipeline="tirx")
     A_np = np.random.randn(*A_shape).astype(dtype)
     B_np = np.random.randn(*B_shape).astype(dtype)
     C_np = np.zeros(C_shape, "float32")
@@ -3176,7 +3178,7 @@ def _run_dense_gemm(
     np.random.seed(0)
     target = tvm.target.Target("cuda")
     with target:
-        mod = tvm.compile(tvm.IRModule({"main": gemm_async}), target=target, tir_pipeline="tirx")
+        mod = tvm.tirx.compile(tvm.IRModule({"main": gemm_async}), target=target, pipeline="tirx")
 
     def _rand(shape, dtype):
         f = np.random.randn(*shape).astype("float32")
@@ -3311,7 +3313,7 @@ def _run_dense_gemm(
     np.random.seed(0)
     target = tvm.target.Target("cuda")
     with target:
-        mod = tvm.compile(tvm.IRModule({"main": gemm_async}), target=target, tir_pipeline="tirx")
+        mod = tvm.tirx.compile(tvm.IRModule({"main": gemm_async}), target=target, pipeline="tirx")
 
     def _rand(shape, dtype):
         f = np.random.randn(*shape).astype("float32")
@@ -3544,10 +3546,10 @@ def _build_explicit_block_scaled_split_n_kernel():
 def _compile_cuda_source(func):
     target = tvm.target.Target("cuda")
     with target:
-        mod = tvm.compile(
+        mod = tvm.tirx.compile(
             tvm.IRModule({"main": func}),
             target=target,
-            tir_pipeline="tirx",
+            pipeline="tirx",
         )
     return mod.mod.imports[0].inspect_source()
 
@@ -3620,7 +3622,7 @@ def test_gemm_tcgen05_explicit_mma_tile_rejects_invalid_config(mma_config, messa
     target = tvm.target.Target("cuda")
     with target:
         with pytest.raises(Exception, match=message):
-            tvm.compile(
+            tvm.tirx.compile(
                 tvm.IRModule(
                     {
                         "main": _build_smem_desc_kernel(
@@ -3630,7 +3632,7 @@ def test_gemm_tcgen05_explicit_mma_tile_rejects_invalid_config(mma_config, messa
                     }
                 ),
                 target=target,
-                tir_pipeline="tirx",
+                pipeline="tirx",
             )
 
 
@@ -3656,10 +3658,10 @@ def test_gemm_smem_desc_modes_codegen(smem_desc):
     """
     target = tvm.target.Target("cuda")
     with target:
-        mod = tvm.compile(
+        mod = tvm.tirx.compile(
             tvm.IRModule({"main": _build_smem_desc_kernel(smem_desc)}),
             target=target,
-            tir_pipeline="tirx",
+            pipeline="tirx",
         )
     src = mod.mod.imports[0].inspect_source()
     assert "tcgen05.mma" in src, f"mma not emitted; src=\n{src}"
@@ -3680,10 +3682,10 @@ def test_gemm_tcgen05_weight_stationary_codegen():
 
     target = tvm.target.Target("cuda")
     with target:
-        mod = tvm.compile(
+        mod = tvm.tirx.compile(
             tvm.IRModule({"main": _build_smem_desc_kernel("hoist", weight_stationary=True)}),
             target=target,
-            tir_pipeline="tirx",
+            pipeline="tirx",
         )
     src = mod.mod.imports[0].inspect_source()
     assert "tcgen05.mma.ws.cta_group::1.kind::f16" in src
@@ -3706,7 +3708,7 @@ def test_gemm_tcgen05_dense_descI_rejected():
     target = tvm.target.Target("cuda")
     with target:
         with pytest.raises(Exception, match="descI was removed"):
-            tvm.compile(
+            tvm.tirx.compile(
                 tvm.IRModule(
                     {
                         "main": _build_smem_desc_kernel(
@@ -3715,7 +3717,7 @@ def test_gemm_tcgen05_dense_descI_rejected():
                     }
                 ),
                 target=target,
-                tir_pipeline="tirx",
+                pipeline="tirx",
             )
 
 
@@ -3814,10 +3816,10 @@ def test_gemm_tcgen05_cta1_m64_accepts_packed_c_layout_ws():
 
     target = tvm.target.Target("cuda")
     with target:
-        mod = tvm.compile(
+        mod = tvm.tirx.compile(
             tvm.IRModule({"main": _build_cta1_m64_packed_c_kernel(weight_stationary=True)}),
             target=target,
-            tir_pipeline="tirx",
+            pipeline="tirx",
         )
 
     src = mod.mod.imports[0].inspect_source()
@@ -4015,10 +4017,10 @@ def test_gemm_tcgen05_cta1_m64_ws_requires_layout_e_c():
     target = tvm.target.Target("cuda")
     with target:
         with pytest.raises(Exception, match="Layout-E"):
-            tvm.compile(
+            tvm.tirx.compile(
                 tvm.IRModule({"main": _build_cta1_m64_identity_c_ws_kernel()}),
                 target=target,
-                tir_pipeline="tirx",
+                pipeline="tirx",
             )
 
 
@@ -4111,10 +4113,10 @@ def test_gemm_tcgen05_cta1_m64_ws_requires_batched_a():
     target = tvm.target.Target("cuda")
     with target:
         with pytest.raises(Exception, match="both 64-lane halves"):
-            tvm.compile(
+            tvm.tirx.compile(
                 tvm.IRModule({"main": _build_cta1_m64_flat_a_ws_kernel()}),
                 target=target,
-                tir_pipeline="tirx",
+                pipeline="tirx",
             )
 
 
@@ -4209,10 +4211,10 @@ def test_gemm_tcgen05_batched_a_rejects_unproven_datapath():
     target = tvm.target.Target("cuda")
     with target:
         with pytest.raises(Exception, match="only valid for Layout E"):
-            tvm.compile(
+            tvm.tirx.compile(
                 tvm.IRModule({"main": _build_m128_batched_a_kernel()}),
                 target=target,
-                tir_pipeline="tirx",
+                pipeline="tirx",
             )
 
 
@@ -4225,7 +4227,7 @@ def test_gemm_tcgen05_cta1_m64_accepts_batched_c_layout_ws():
 
     def _compile(kernel):
         with target:
-            mod = tvm.compile(tvm.IRModule({"main": kernel}), target=target, tir_pipeline="tirx")
+            mod = tvm.tirx.compile(tvm.IRModule({"main": kernel}), target=target, pipeline="tirx")
         return mod.mod.imports[0].inspect_source()
 
     batched_src = _compile(_build_cta1_m64_batched_c_kernel())
@@ -4252,18 +4254,18 @@ def test_gemm_tcgen05_cta1_m64_packed_c_infers_weight_stationary():
     target = tvm.target.Target("cuda")
     with target:
         # omitted flag -> .ws inferred, compiles to a .ws MMA
-        mod = tvm.compile(
+        mod = tvm.tirx.compile(
             tvm.IRModule({"main": _build_cta1_m64_packed_c_kernel()}),
             target=target,
-            tir_pipeline="tirx",
+            pipeline="tirx",
         )
         assert "tcgen05.mma.ws.cta_group::1.kind::f16" in mod.mod.imports[0].inspect_source()
         # explicit False contradicts the Layout-E fold -> rejected
         with pytest.raises(Exception, match="weight_stationary=False"):
-            tvm.compile(
+            tvm.tirx.compile(
                 tvm.IRModule({"main": _build_cta1_m64_packed_c_kernel(weight_stationary=False)}),
                 target=target,
-                tir_pipeline="tirx",
+                pipeline="tirx",
             )
 
 

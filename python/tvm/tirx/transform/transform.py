@@ -25,6 +25,11 @@ from . import _ffi_api
 from .function_pass import function_pass
 
 
+def DecorateDeviceScope():
+    """Wrap a function body in a device scope region."""
+    return _ffi_api.DecorateDeviceScope()
+
+
 def Apply(ftransform):
     """Apply ftransform to each function in the Module.
 

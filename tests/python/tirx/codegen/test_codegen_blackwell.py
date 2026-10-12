@@ -41,7 +41,7 @@ def _is_tensor_binding(node, *op_names):
 def _get_source(func: tvm.tirx.Function) -> str:
     target = tvm.target.Target("cuda")
     mod = tvm.IRModule({"main": func})
-    mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
+    mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
     src = mod.mod.imports[0].inspect_source()
     return src, mod
 
