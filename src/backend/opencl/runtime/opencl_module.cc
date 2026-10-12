@@ -35,6 +35,7 @@
 #include <utility>
 #include <vector>
 
+#include "../../../runtime/launch_param.h"
 #include "../../../support/bytes_io.h"
 #include "opencl_common.h"
 #include "source_utils.h"

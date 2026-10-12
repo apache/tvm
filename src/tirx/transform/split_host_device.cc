@@ -46,6 +46,7 @@
 
 #include <optional>
 
+#include "../../runtime/metadata.h"
 #include "../../runtime/thread_storage_scope.h"
 #include "ir_utils.h"
 
