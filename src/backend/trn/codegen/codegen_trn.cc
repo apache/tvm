@@ -450,7 +450,7 @@ void CodeGenTrainium::Dispatch_(const CallNode* op, std::ostream& os) {  // NOLI
     TVM_FFI_ICHECK_GE(op->args.size(), 2);
     // result, value
     os << PrintExpr(op->args[0]) << " = " << PrintExpr(op->args[1]);
-    TVM_FFI_ICHECK(!ctx_.mask.defined()) << "memset cannot have mask";
+    TVM_FFI_ICHECK(!ctx_.mask.has_value()) << "memset cannot have mask";
     return;
   } else if (is_op(nki_tensorreduce_op, "tirx.nki.tensorreduce")) {
     TVM_FFI_ICHECK(op->args.size() >= 5)
@@ -538,7 +538,7 @@ void CodeGenTrainium::Dispatch_(const CallNode* op, std::ostream& os) {  // NOLI
   } else {
     LOG(FATAL) << "Trainium codegen does not support call to " << op->op;
   }
-  if (ctx_.mask.defined()) {
+  if (ctx_.mask.has_value()) {
     auto walk_fn = [&](const Var& var) -> ffi::Expected<ffi::WalkResult> {
       const VarNode* v = var.get();
       if (ctx_.tensorized_loop_vars.count(v)) {
@@ -709,7 +709,7 @@ ffi::Module BuildTrainium(IRModule mod, Target target) {
 void CodeGenTrainium::Dispatch_(const IfNode* op) {
   if (ctx_.tensorizing) {
     TVM_FFI_ICHECK(!op->else_case.has_value()) << "Else not allowed in tensorized instruction";
-    TVM_FFI_ICHECK(!ctx_.mask.defined()) << "Only one if stmt allowed in tensorized instruction";
+    TVM_FFI_ICHECK(!ctx_.mask.has_value()) << "Only one if stmt allowed in tensorized instruction";
     ctx_.mask = op->condition;
     Dispatch(op->then_case);
     return;

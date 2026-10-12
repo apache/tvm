@@ -609,8 +609,8 @@ SBlockRealize BlockizeBlocks(const ScheduleState& self, const ffi::Array<StmtSRe
                              bool preserve_unit_iters) {
   ffi::Array<Stmt> seq_body;
   ffi::Optional<PrimExpr> outer_predicate;
-  ffi::Array<IterVar> outer_iter_vars{nullptr};
-  ffi::Array<PrimExpr> outer_bindings{nullptr};
+  ffi::Array<IterVar> outer_iter_vars;
+  ffi::Array<PrimExpr> outer_bindings;
   ffi::Array<TensorRegion> read_regions;
   ffi::Array<TensorRegion> write_regions;
   std::string outer_block_name = "outer_";
@@ -636,7 +636,7 @@ SBlockRealize BlockizeBlocks(const ScheduleState& self, const ffi::Array<StmtSRe
         DeriveBlockBinding(block->iter_vars, division,         //
                            &outer_iter_vars, &outer_bindings,  //
                            &inner_iter_vars, &inner_bindings,  //
-                           preserve_unit_iters, outer_iter_vars.defined());
+                           preserve_unit_iters, !outer_iter_vars.empty());
     // Step 3: Do var substitution to adjust to the new block bindings
     for (size_t i = 0; i < outer_iter_vars.size(); ++i) {
       if (outer_bindings[i].as<Var>()) {

@@ -115,7 +115,7 @@ void CodeGenAArch64::SetTargetAttributes(llvm::Function* func) {
     static auto llvm_get_vector_width_fn =
         tvm::ffi::Function::GetGlobalRequired("target.llvm_get_vector_width");
     unsigned int max_val = 0;
-    if (auto target = Target::Current(); target.defined()) {
+    if (auto target = Target::Current(); target.has_value()) {
       unsigned int vector_width =
           static_cast<unsigned int>(llvm_get_vector_width_fn(target).cast<int>());
       for (unsigned int i = 0;; ++i) {

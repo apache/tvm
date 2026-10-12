@@ -554,7 +554,7 @@ void Trace::ApplyJSONToSchedule(ffi::ObjectRef json, Schedule sch) {
     InstructionKind kind{ffi::UnsafeInit{}};
     ffi::Array<Any> inputs{nullptr};
     ffi::Array<Any> attrs{nullptr};
-    ffi::Array<ffi::String> outputs{ffi::ObjectPtr<ffi::Object>{nullptr}};
+    ffi::Array<ffi::String> outputs;
     // Parse the entry
     try {
       const auto* arr = inst_entry.as<ffi::ArrayObj>();

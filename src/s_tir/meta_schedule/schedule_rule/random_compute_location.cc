@@ -43,7 +43,7 @@ class RandomComputeLocationObj : public ScheduleRuleObj {
     // decision of Sample-Compute-Location is "compute-inline" for the input block, we can no longer
     // access the input block. Hence we collect its producer ahead of time.
     // - Note that only single producer is allowed in this case.
-    ffi::Array<s_tir::SBlockRV> producers{nullptr};
+    ffi::Array<s_tir::SBlockRV> producers;
     if (s_tir::HasAnn(sch->GetSRef(block_rv), tvm::s_tir::attr::kMetaScheduleRandomComputeProducer,
                       true)) {
       producers = sch->GetProducers(block_rv);
@@ -55,7 +55,7 @@ class RandomComputeLocationObj : public ScheduleRuleObj {
     s_tir::Schedule res = RandomlyComputeAt(sch, block_rv);
 
     // Step 3. Transform the producer block if compute-location sampling is needed.
-    if (producers.defined()) {
+    if (!producers.empty()) {
       res = RandomlyComputeAt(res, producers[0]);
     }
 

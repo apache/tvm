@@ -227,7 +227,7 @@ Type InferTypeEinsum(const CallNode* call_node) {
           vdev = ty->vdevice.value();
         } else if (ty->vdevice.value()->target.has_value()) {
           // mismatch
-          if (ty->vdevice.value() != vdev) {
+          if (ty->vdevice.value() != vdev.value()) {
             vdevice_unknown = true;
           }
         }

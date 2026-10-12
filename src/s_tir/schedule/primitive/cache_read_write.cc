@@ -412,10 +412,10 @@ SBlock MakeReIndexStage(const SBlock& block, CacheStageInfo* info,
   // Step 3: Create the reindex block
 
   // The src and the dst region and indices of the data copy
-  ffi::Array<Range> src_region{nullptr};
-  ffi::Array<Range> dst_region{nullptr};
-  ffi::Array<PrimExpr> src_indices{nullptr};
-  ffi::Array<PrimExpr> dst_indices{nullptr};
+  ffi::Array<Range> src_region;
+  ffi::Array<Range> dst_region;
+  ffi::Array<PrimExpr> src_indices;
+  ffi::Array<PrimExpr> dst_indices;
 
   if (tensor_index_type == TensorIndexType::kWrite) {
     src_indices = reindex_indices;

@@ -724,10 +724,9 @@ inline Tensor nll_loss(const Tensor& predictions, const Tensor& targets, const T
                                    tvm::prim::MakeConst(tvm::PrimType(predictions->dtype), 0));
         },
         name, tag);
-    return topi::divide(topi::sum(T, tvm::ffi::Array<int64_t>(nullptr)),
-                        topi::sum(W, tvm::ffi::Array<int64_t>(nullptr)));
+    return topi::divide(topi::sum(T, std::nullopt), topi::sum(W, std::nullopt));
   } else if (reduction == "sum") {
-    return topi::sum(T, tvm::ffi::Array<int64_t>(nullptr));
+    return topi::sum(T, std::nullopt);
   } else {  // reduction == "none"
     return T;
   }

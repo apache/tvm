@@ -88,7 +88,7 @@ class ExternFunctionRewriter : ExprMutator {
         // Append the workspace argument to this call. The callee should have been updated to accept
         // a workspace as the last parameter.
         auto new_args = call_node->args;
-        TVM_FFI_ICHECK(workspace_var_param_.defined());
+        TVM_FFI_ICHECK(workspace_var_param_.has_value());
         new_args.push_back(workspace_var_param_.value());
         return Call(Type::Missing(), new_op, new_args, call_node->attrs, call_node->ty_args,
                     call_node->loc);
@@ -151,7 +151,7 @@ class WorkspaceProvider : ExprMutator {
 
   BindingBlock VisitBindingBlock_(const DataflowBlockNode* block_node) final {
     builder_->BeginDataflowBlock();
-    if (!workspace_var_main_.defined()) {
+    if (!workspace_var_main_.has_value()) {
       auto shape = ShapeExpr({IntImm::Int32(max_workspace_size_)});
       auto ty = DataTypeImm((DLDataType{kDLUInt, 8, 1}));
       auto workspace = MakeAllocTensor(shape, ty, IntImm::Int64(0));
@@ -176,7 +176,7 @@ class WorkspaceProvider : ExprMutator {
     if (auto gv = new_op.as<GlobalVar>()) {
       if (new_gvars_.count(gv.value())) {
         auto new_args = call_node->args;
-        TVM_FFI_ICHECK(workspace_var_main_.defined());
+        TVM_FFI_ICHECK(workspace_var_main_.has_value());
         new_args.push_back(workspace_var_main_.value());
         return Call(Type::Missing(), new_op, new_args, call_node->attrs, call_node->ty_args,
                     call_node->loc);

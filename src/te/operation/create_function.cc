@@ -109,9 +109,9 @@ class TensorLoadToTensorTransformer : public s_tir::StmtExprMutator {
   }
 
   s_tir::IterVar NormalizeAxisDomain(const s_tir::IterVar& axis) {
-    if (!axis->dom.defined()) return axis;
+    if (!axis->dom.has_value()) return axis;
     auto domain = Mutate(axis->dom).ValueOrUnchanged(axis->dom).cast<Range>();
-    if (domain.same_as(axis->dom)) return axis;
+    if (axis->dom.same_as(domain)) return axis;
     auto copy = ffi::make_object<s_tir::IterVarNode>(*axis.get());
     copy->dom = std::move(domain);
     return s_tir::IterVar(std::move(copy));

@@ -43,7 +43,7 @@ class ReplayTraceObj : public SearchStrategyObj {
     int ed;
 
     /*! \brief The module to be tuned. */
-    ffi::Array<IRModule> per_thread_mod_{nullptr};
+    ffi::Array<IRModule> per_thread_mod_;
 
     explicit State(ReplayTraceObj* self, ffi::Array<s_tir::Trace> design_spaces, int max_trials,
                    int num_trials_per_iter)

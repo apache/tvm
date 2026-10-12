@@ -421,7 +421,7 @@ static void LLVMReflectionRegister() {
            [](const ffi::Optional<Target>& target) -> int {
              auto use_target = target.has_value() ? target.value() : Target::Current(false).value();
              // ignore non "llvm" target
-             if (target.defined()) {
+             if (target.has_value()) {
                if (target.value()->kind->name != "llvm") {
                  return -1;
                }
@@ -444,7 +444,7 @@ static void LLVMReflectionRegister() {
            [](const ffi::Optional<Target>& target) -> ffi::Array<ffi::String> {
              auto use_target = target.has_value() ? target.value() : Target::Current(false).value();
              // ignore non "llvm" target
-             if (target.defined()) {
+             if (target.has_value()) {
                if (target.value()->kind->name != "llvm") {
                  return ffi::Array<ffi::String>{};
                }
@@ -457,7 +457,7 @@ static void LLVMReflectionRegister() {
            [](const ffi::Optional<Target>& target) -> ffi::Map<ffi::String, ffi::String> {
              auto use_target = target.has_value() ? target.value() : Target::Current(false).value();
              // ignore non "llvm" target
-             if (target.defined()) {
+             if (target.has_value()) {
                if (target.value()->kind->name != "llvm") {
                  return {};
                }
@@ -470,7 +470,7 @@ static void LLVMReflectionRegister() {
            [](const ffi::String feature, const ffi::Optional<Target>& target) -> bool {
              auto use_target = target.has_value() ? target.value() : Target::Current(false).value();
              // ignore non "llvm" target
-             if (target.defined()) {
+             if (target.has_value()) {
                if (target.value()->kind->name != "llvm") {
                  return false;
                }
@@ -485,7 +485,7 @@ static void LLVMReflectionRegister() {
            [](const ffi::String feature, const ffi::Optional<Target>& target) -> bool {
              auto use_target = target.has_value() ? target.value() : Target::Current(false).value();
              // ignore non "llvm" target
-             if (target.defined()) {
+             if (target.has_value()) {
                if (target.value()->kind->name != "llvm") {
                  return false;
                }
