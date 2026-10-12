@@ -27,6 +27,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/attrs.h>
 #include <tvm/ir/prim/op.h>
+#include <tvm/runtime/memory_scope.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
@@ -402,7 +403,7 @@ class TensorAccessRegionCollector : public StmtExprVisitor {
       for (size_t i = 0; i < n_ancestor_loops; ++i) {
         const IterVar& iter = ancestor_iters_[i];
         const VarNode* v = iter->var.get();
-        if (NeedRelaxThread(iter, runtime::StorageScope::Create(tensor.scope()))) {
+        if (NeedRelaxThread(iter, tensor.scope())) {
           continue;
         }
         auto dom_it = dom_map_.find(v);
@@ -459,7 +460,7 @@ class TensorAccessRegionCollector : public StmtExprVisitor {
   }
 
   /*! \brief Check whether the thread binding iter should be relaxed with given storage scope. */
-  static bool NeedRelaxThread(const IterVar& iter, const runtime::StorageScope& scope) {
+  static bool NeedRelaxThread(const IterVar& iter, const runtime::MemoryScope& scope) {
     if (iter->iter_type != IterVarType::kThreadIndex) {
       return false;
     }

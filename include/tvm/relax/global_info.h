@@ -25,6 +25,7 @@
 #define TVM_RELAX_GLOBAL_INFO_H_
 
 #include <tvm/ir/global_info.h>
+#include <tvm/runtime/memory_scope.h>
 #include <tvm/target/target.h>
 
 namespace tvm {
@@ -33,7 +34,7 @@ namespace relax {
 /*!
  * \brief Abstract label for an area of memory.
  */
-using MemoryScope = ffi::String;
+using runtime::MemoryScope;
 
 /*!
  * \brief A global info subclass for virtual devices.
@@ -66,6 +67,8 @@ class VDeviceNode : public GlobalInfoNode {
 class VDevice : public GlobalInfo {
  public:
   TVM_DLL explicit VDevice(ffi::Optional<Target> tgt, int dev_id, MemoryScope mem_scope);
+  explicit VDevice(ffi::Optional<Target> tgt, int dev_id, ffi::String mem_scope)
+      : VDevice(std::move(tgt), dev_id, MemoryScope::FromString(mem_scope)) {}
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(VDevice, GlobalInfo, VDeviceNode);
 };
 

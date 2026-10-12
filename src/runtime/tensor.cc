@@ -85,7 +85,7 @@ void CopyFromBytes(ffi::TensorView destination, const void* data, size_t nbytes,
 }
 
 ffi::Tensor Empty(ffi::Shape shape, DLDataType dtype, Device dev,
-                  ffi::Optional<ffi::String> mem_scope) {
+                  ffi::Optional<MemoryScope> mem_scope) {
   return DeviceAPI::Get(dev)->Empty(shape, dtype, dev, mem_scope);
 }
 
@@ -162,7 +162,7 @@ ffi::Tensor CreateView(ffi::Tensor source, ffi::Shape shape, DLDataType dtype,
   return ret;
 }
 
-ffi::Tensor CopyTo(ffi::TensorView source, Device dev, ffi::Optional<ffi::String> mem_scope) {
+ffi::Tensor CopyTo(ffi::TensorView source, Device dev, ffi::Optional<MemoryScope> mem_scope) {
   ffi::Tensor ret = Empty(ffi::Shape(source.shape()), source.dtype(), dev, mem_scope);
   CopyFromTo(source, ret);
   Device copy_gpu_dev = source.device().device_type != kDLCPU ? source.device() : dev;

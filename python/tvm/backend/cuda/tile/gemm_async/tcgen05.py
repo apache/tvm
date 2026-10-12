@@ -32,7 +32,7 @@ from tvm.ir import (
     SeqStmt,
     TensorRegion,
 )
-from tvm.runtime import DataType
+from tvm.runtime import DataType, MemoryScope
 from tvm.script import tirx as T
 from tvm.sym.analyzer import Analyzer
 from tvm.tirx import Function, IntImm
@@ -56,6 +56,10 @@ from ..tma_utils import (
     mma_atom_layout,
     mma_atom_shape,
 )
+
+_SCOPE_SHARED = MemoryScope("shared")
+_SCOPE_SHARED_DYN = MemoryScope("shared.dyn")
+_SCOPE_TMEM = MemoryScope("tmem")
 
 
 def sf_smem_layout(rows, SF_K, sf_per_mma, sf_reuse=1, pipe_depth=None):
@@ -395,14 +399,18 @@ def gemm_async_tcgen05_impl(op_call: TensorCall, sctx: DispatchContext) -> Funct
     )
 
     C_scope, A_scope, B_scope = C_buffer.scope(), A_buffer.scope(), B_buffer.scope()
-    a_is_tmem = A_scope == "tmem"
+    a_is_tmem = A_scope == _SCOPE_TMEM
     if a_is_tmem:
-        if not (C_scope == "tmem" and B_scope.startswith("shared")):
+        if not (C_scope == _SCOPE_TMEM and (B_scope in (_SCOPE_SHARED, _SCOPE_SHARED_DYN))):
             raise ValueError(
                 f"tcgen05 schedule expected C_scope=tmem, B_scope=shared when A is tmem, "
                 f"got C_scope={C_scope}, B_scope={B_scope}"
             )
-    elif not (C_scope == "tmem" and A_scope.startswith("shared") and B_scope.startswith("shared")):
+    elif not (
+        C_scope == _SCOPE_TMEM
+        and (A_scope in (_SCOPE_SHARED, _SCOPE_SHARED_DYN))
+        and (B_scope in (_SCOPE_SHARED, _SCOPE_SHARED_DYN))
+    ):
         raise ValueError(
             f"tcgen05 schedule expected C_scope=tmem, A_scope=shared, B_scope=shared, got C_scope={C_scope}, A_scope={A_scope}, B_scope={B_scope}"  # noqa: E501
         )
@@ -464,7 +472,7 @@ def gemm_async_tcgen05_impl(op_call: TensorCall, sctx: DispatchContext) -> Funct
         SFA_buffer: tvm.ir.Var = SFA_buffer_region.source
         SFB_buffer: tvm.ir.Var = SFB_buffer_region.source
         SFA_scope, SFB_scope = SFA_buffer.scope(), SFB_buffer.scope()
-        if not (SFA_scope == "tmem" and SFB_scope == "tmem"):
+        if not (SFA_scope == _SCOPE_TMEM and SFB_scope == _SCOPE_TMEM):
             raise ValueError(
                 f"tcgen05 block-scaled schedule expected SFA_scope=tmem, SFB_scope=tmem, "
                 f"got SFA_scope={SFA_scope}, SFB_scope={SFB_scope}"

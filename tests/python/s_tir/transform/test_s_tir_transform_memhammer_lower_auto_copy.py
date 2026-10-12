@@ -1136,7 +1136,9 @@ def verify_single_allocation(stmt, alloc_size=None):
     alloc_extents = []
 
     def verify(n):
-        if _is_tensor_binding(n, "tirx.alloc_tensor") and n.var.scope() == "shared.dyn":
+        if _is_tensor_binding(n, "tirx.alloc_tensor") and n.var.scope() == tvm.runtime.MemoryScope(
+            "shared.dyn"
+        ):
             num_alloc[0] += 1
             alloc_extents.append(n.var.shape)
 

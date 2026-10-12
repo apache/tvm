@@ -22,6 +22,7 @@
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ir/op.h>
 #include <tvm/ir/prim/op.h>
+#include <tvm/runtime/memory_scope.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/tirx/op/memory.h>
 #include <tvm/tirx/op/region.h>
@@ -121,6 +122,8 @@ ffi::Array<Range> RelaxIndices(const ffi::Array<PrimExpr>& indices,
  * \return The stmt after rewrite
  */
 Stmt RewriteWmmaLoad(Stmt stmt) {
+  static const auto scope_wmma_matrix_a = runtime::MemoryScope::Get("wmma.matrix_a");
+
   using sym::IntSet;
   const PrimType dtype_ty = PrimType::Float(16);
   const PrimType& dtype = dtype_ty;
@@ -144,7 +147,7 @@ Stmt RewriteWmmaLoad(Stmt stmt) {
 
   TensorVar src_tensor = tensor_load->source.as_or_throw<tvm::tirx::TensorVar>();
   TensorVar tgt_tensor = tensor_store->dest.as_or_throw<TensorVar>();
-  std::string layout = tgt_tensor.scope() == "wmma.matrix_a" ? "row_major" : "col_major";
+  std::string layout = tgt_tensor.scope() == scope_wmma_matrix_a ? "row_major" : "col_major";
   TensorVar new_src_tensor(
       /*name=*/"src", TensorType(/*storage_scope=*/src_tensor.scope(),
                                  /*dtype=*/dtype,
@@ -214,6 +217,8 @@ Stmt RewriteWmmaLoad(Stmt stmt) {
  * \return The stmt after rewrite
  */
 Stmt RewriteWmmaStore(Stmt stmt) {
+  static const auto scope_wmma_accumulator = runtime::MemoryScope::Get("wmma.accumulator");
+
   using sym::IntSet;
   const PrimType int32_ty = PrimType::Int(32);
 
@@ -233,7 +238,7 @@ Stmt RewriteWmmaStore(Stmt stmt) {
   const TensorStoreNode* tensor_store = TVM_TYPE_AS(body, TensorStoreNode);
   const TensorLoadNode* tensor_load = nullptr;
   auto walk_fn = [&](const TensorLoad& load) -> ffi::Expected<ffi::WalkResult> {
-    if (load->source.as_or_throw<tvm::tirx::TensorVar>().scope() == "wmma.accumulator") {
+    if (load->source.as_or_throw<tvm::tirx::TensorVar>().scope() == scope_wmma_accumulator) {
       TVM_FFI_ICHECK(tensor_load == nullptr ||
                      tensor_load->source.as_or_throw<tvm::tirx::TensorVar>().same_as(
                          load->source.as_or_throw<tvm::tirx::TensorVar>()))
@@ -424,6 +429,8 @@ std::pair<Stmt, ffi::Optional<For>> TileMmaToGlobalBlock(Stmt stmt) {
  * \return The stmt after rewrite
  */
 Stmt RewriteMmaStore(Stmt stmt) {
+  static const auto scope_m16n8k8_matrixC = runtime::MemoryScope::Get("m16n8k8.matrixC");
+
   using sym::IntSet;
   const PrimType int32_ty = PrimType::Int(32);
 
@@ -445,7 +452,7 @@ Stmt RewriteMmaStore(Stmt stmt) {
   const TensorStoreNode* tensor_store = TVM_TYPE_AS(body, TensorStoreNode);
   const TensorLoadNode* tensor_load = nullptr;
   auto walk_fn = [&](const TensorLoad& load) -> ffi::Expected<ffi::WalkResult> {
-    if (load->source.as_or_throw<tvm::tirx::TensorVar>().scope() == "m16n8k8.matrixC") {
+    if (load->source.as_or_throw<tvm::tirx::TensorVar>().scope() == scope_m16n8k8_matrixC) {
       TVM_FFI_ICHECK(tensor_load == nullptr ||
                      tensor_load->source.as_or_throw<tvm::tirx::TensorVar>().same_as(
                          load->source.as_or_throw<tvm::tirx::TensorVar>()))

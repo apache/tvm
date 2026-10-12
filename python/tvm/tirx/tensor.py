@@ -25,8 +25,11 @@ import tvm_ffi
 import tvm
 from tvm.ir import Call, PrimType, PtrType, Type, Var
 from tvm.ir.location import UNKNOWN_LOC, Location
+from tvm.runtime import MemoryScope
 
 from . import _ffi_api, _tensor_view
+
+_SCOPE_GLOBAL = MemoryScope("global")
 
 _REARRANGE_PATTERN_UNSET = object()
 
@@ -50,7 +53,7 @@ class TensorType(Type):
     """
 
     dtype: PrimType
-    scope: str
+    scope: MemoryScope
     shape: list
     strides: list
     elem_offset: tvm.ir.Expr
@@ -164,7 +167,7 @@ class TensorType(Type):
         """
         if self.layout is not None:
             return self.layout
-        if self.storage_scope != "global":
+        if self.storage_scope != _SCOPE_GLOBAL:
             raise ValueError(f"An explicit layout is required for {self.storage_scope} tensors")
 
         from tvm.sym import Analyzer
@@ -191,7 +194,7 @@ class TensorType(Type):
         """Return the storage scope associated with this tensor.
         Returns
         -------
-        scope : str
+        scope : tvm.runtime.MemoryScope
             The storage scope associated with this tensor.
         """
         _check_tensor_receiver(self, expr)

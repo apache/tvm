@@ -73,8 +73,9 @@ class CUDAIPCMemoryPool final : public TensorMemoryPool {
   explicit CUDAIPCMemoryPool() = default;
 
   ffi::Tensor Empty(ffi::ShapeView shape, DLDataType dtype, DLDevice device,
-                    ffi::Optional<ffi::String> mem_scope = std::nullopt) final {
-    TVM_FFI_CHECK(!mem_scope.has_value() || mem_scope.value() == "ipc_memory", ValueError)
+                    ffi::Optional<MemoryScope> mem_scope = std::nullopt) final {
+    static const auto scope = MemoryScope::Get("ipc_memory");
+    TVM_FFI_CHECK(!mem_scope.has_value() || mem_scope.value() == scope, ValueError)
         << "CUDA IPC memory requires the ipc_memory scope";
     return TensorMemoryPool::Empty(shape, dtype, device);
   }

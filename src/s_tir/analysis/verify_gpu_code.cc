@@ -28,6 +28,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/prim/op.h>
+#include <tvm/runtime/memory_scope.h>
 #include <tvm/s_tir/analysis.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/stmt_functor.h>
@@ -38,7 +39,7 @@
 
 #include <algorithm>
 
-#include "../../runtime/thread_storage_scope.h"
+#include <tvm/runtime/memory_scope.h>
 #include "../../tirx/transform/ir_utils.h"
 
 namespace tvm {
@@ -81,11 +82,15 @@ class GPUCodeVerifier : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> DispatchAllocTensor(const BindNode* op, const CallNode* call) {
+    static const auto scope_local = runtime::MemoryScope::Get("local");
+    static const auto scope_shared = runtime::MemoryScope::Get("shared");
+    static const auto scope_shared_dyn = runtime::MemoryScope::Get("shared.dyn");
+
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     tvm::Tuple shape = tvm::Tuple(call->ty_args[0].as_or_throw<TensorType>()->shape);
     DLDataType dtype = call->ty_args[0].as_or_throw<TensorType>()->dtype->dtype;
-    ffi::String scope = call->ty_args[0].as_or_throw<TensorType>()->storage_scope;
-    runtime::StorageScope storage_scope = runtime::StorageScope::Create(scope);
+    runtime::MemoryScope scope = call->ty_args[0].as_or_throw<TensorType>()->storage_scope;
+    runtime::MemoryScope storage_scope = scope;
     int64_t const_size = 1;
     for (const Expr& e : shape->fields) {
       if (auto* imm = e.as<IntImmNode>()) {
@@ -98,9 +103,9 @@ class GPUCodeVerifier : public StmtExprVisitor {
     PrimType dtype_ty(dtype);
     TVM_FFI_ICHECK(!dtype_ty.IsScalableVector())
         << "Cannot verify GPU memory usage for scalable vector dtype " << dtype_ty;
-    if (storage_scope.rank == runtime::StorageRank::kLocal) {
+    if (storage_scope == scope_local) {
       local_memory_per_block_ += static_cast<size_t>(const_size) * ElementBytes(dtype_ty);
-    } else if (storage_scope.rank == runtime::StorageRank::kShared) {
+    } else if ((storage_scope == scope_shared || storage_scope == scope_shared_dyn)) {
       shared_memory_per_block_ += static_cast<size_t>(const_size) * ElementBytes(dtype_ty);
     }
     if (dtype_ty.IsFixedLengthVector()) {

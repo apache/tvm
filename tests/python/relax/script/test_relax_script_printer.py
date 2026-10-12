@@ -36,6 +36,8 @@ from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.script.printer.scriptable import PrinterConfig, _script
 
+tvm.runtime.MemoryScope.register("global:workspace")
+
 
 def _assert_print(obj, expected):
     if not isinstance(obj, str):
@@ -100,7 +102,7 @@ def test_vdevice_selector_preserves_registry_identity(memory_scope):
     restored = tvm.script.from_source(script, extra_vars={"I": I, "R": R, "T": T})
     tvm.ir.assert_structural_equal(Module, restored)
     selected = restored.global_infos["vdevice"][2]
-    assert selected.memory_scope == memory_scope
+    assert selected.memory_scope == tvm.runtime.MemoryScope(memory_scope or "global")
     assert restored["main"].params[0].ty.vdevice.is_(selected)
     assert restored["main"].ret_ty.vdevice.is_(selected)
     assert not selected.is_(restored.global_infos["vdevice"][1])

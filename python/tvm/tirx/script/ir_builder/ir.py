@@ -35,6 +35,7 @@ from tvm import tirx as tir
 from tvm.ir import Range, TensorRegion, Type
 from tvm.ir.location import UNKNOWN_LOC, Location
 from tvm.ir.type import _init_type_api, _normalize_type
+from tvm.runtime import MemoryScope
 from tvm.script.ir_builder.base import MISSING
 from tvm.script.ir_builder.ir import Lambda, meta_var
 from tvm.script.parser.protocol_registry import (
@@ -58,6 +59,11 @@ from tvm.tirx.expr import (
 from tvm.tirx.layout import Axis, ComposeLayout, Iter, Layout, R, S, TileLayout
 
 from . import _ffi_api
+
+_SCOPE_GLOBAL = MemoryScope("global")
+_SCOPE_LOCAL = MemoryScope("local")
+_SCOPE_SHARED = MemoryScope("shared")
+_SCOPE_SHARED_DYN = MemoryScope("shared.dyn")
 
 # pylint: enable=unused-import
 
@@ -282,8 +288,9 @@ def _alloc_tensor(
     annotations=None,
 ):
     """Implement separately named allocation conveniences using the canonical Op."""
+    scope = MemoryScope("global" if scope == "" else scope)
     if allocated_addr is not None:
-        if scope in ("", "global", "shared", "shared.dyn", "local"):
+        if scope in (_SCOPE_GLOBAL, _SCOPE_SHARED, _SCOPE_SHARED_DYN, _SCOPE_LOCAL):
             raise ValueError(f"{scope} does not support allocation placement")
         if data is not None or elem_offset is not None or byte_offset is not None or offset_factor:
             raise ValueError(
@@ -1080,7 +1087,7 @@ def handle(
         return _ffi_api.TensorMap()  # type: ignore[attr-defined] # pylint: disable=no-member
     return _ffi_api.Handle(  # type: ignore[attr-defined] # pylint: disable=no-member
         dtype,
-        storage_scope,
+        "global" if storage_scope == "" else storage_scope,
     )
 
 
@@ -1120,7 +1127,7 @@ def ptr(dtype: str, storage_scope: str = "global") -> Var:
     res : Var
         The pointer.
     """
-    return _ffi_api.Ptr(dtype, storage_scope)  # type: ignore[attr-defined] # pylint: disable=no-member
+    return _ffi_api.Ptr(dtype, "global" if storage_scope == "" else storage_scope)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
 def index_map(

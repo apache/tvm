@@ -18,6 +18,7 @@
  */
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_mutate.h>
+#include <tvm/runtime/memory_scope.h>
 #include <tvm/s_tir/stmt.h>
 
 #include "../utils.h"
@@ -378,9 +379,9 @@ void RelaxTensorRegions(const ffi::Map<Var, PrimExpr>& binding,
                         const StmtSRef& relax_path_low_inclusive,
                         const StmtSRef& relax_path_high_exclusive,
                         std::unordered_map<const VarNode*, std::vector<NDIntSet>>* relaxed) {
-  runtime::StorageScope global_scope{runtime::StorageRank::kGlobal, ""};
+  runtime::MemoryScope global_scope = runtime::MemoryScope::Global();
   // We cache the variable domains
-  runtime::StorageRank previous_rank = runtime::StorageRank::kGlobal;
+  runtime::MemoryScope previous_scope = global_scope;
   ffi::Optional<ffi::Map<Var, sym::IntSet>> var_dom = std::nullopt;
   auto f_substitute = [&binding](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
     if (auto repl = binding.Get(var)) return ffi::Any(*std::move(repl));
@@ -397,11 +398,9 @@ void RelaxTensorRegions(const ffi::Map<Var, PrimExpr>& binding,
     }
     std::vector<NDIntSet>& relaxed_regions = it->second;
     // Check and update the cached `var_dom`
-    runtime::StorageScope scope =
-        relax_storage_scope ? runtime::StorageScope::Create(tensor.scope()) : global_scope;
-    runtime::StorageRank rank = scope.rank;
-    if (rank != previous_rank || !var_dom.has_value()) {
-      previous_rank = rank;
+    runtime::MemoryScope scope = relax_storage_scope ? tensor.scope() : global_scope;
+    if (scope != previous_scope || !var_dom.has_value()) {
+      previous_scope = scope;
       var_dom = sym::AsIntSet(LoopDomainOfSRefTreePath(
           /*low_inclusive=*/relax_path_low_inclusive,
           /*high_exclusive=*/relax_path_high_exclusive,

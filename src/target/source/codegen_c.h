@@ -28,6 +28,7 @@
 #include <tvm/ir/op.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/prim/op.h>
+#include <tvm/runtime/memory_scope.h>
 #include <tvm/target/codegen.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/function.h>
@@ -231,7 +232,8 @@ class CodeGenC : public tvm::ExprFunctor<void(const Expr&, std::ostream&)>,
    * \param thread_tag The hardware thread axis.
    */
   virtual void BindThreadIndex(const PrimVar& var, const ffi::String& thread_tag);  // NOLINT(*)
-  virtual void PrintStorageScope(const std::string& scope, std::ostream& os);       // NOLINT(*)
+  virtual void PrintStorageQualifier(const VarNode* var, std::ostream& os);
+  virtual void PrintStorageScope(const runtime::MemoryScope& scope, std::ostream& os);  // NOLINT(*)
   virtual void PrintStorageSync(const CallNode* op);                                // NOLINT(*)
   // Binary vector op.
   virtual void PrintVecBinaryOp(const std::string& op, const PrimType& op_type, PrimExpr lhs,
@@ -351,7 +353,7 @@ class CodeGenC : public tvm::ExprFunctor<void(const Expr&, std::ostream&)>,
   /*! \brief Extents of physical thread axes in the current function. */
   std::unordered_map<std::string, PrimExpr> thread_extents_;
   /*! \brief the storage scope of allocation */
-  std::unordered_map<const VarNode*, std::string> alloc_storage_scope_;
+  std::unordered_map<const VarNode*, runtime::MemoryScope> alloc_storage_scope_;
   /*! \brief the data type of allocated buffers */
   std::unordered_map<const VarNode*, PrimType> handle_data_type_;
   /*! \brief Handle vars whose address_of(buffer[index]) should print as ptr + index. */

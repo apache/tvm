@@ -41,7 +41,7 @@ for ``commit_group`` / ``wait_group`` / ``cta_sync`` plumbing around the
 async pipeline.
 """
 
-from tvm.runtime import DataType
+from tvm.runtime import DataType, MemoryScope
 from tvm.script import tirx as T
 from tvm.tirx import Function, Var
 from tvm.tirx.expr import IntImm as _IntImm
@@ -57,8 +57,16 @@ from ..copy.utils import _is_valid_copy, _scope_allowed
 from ..copy.vec_auto_reg import _all_threads_active, _axis_decl, _ptr_off
 from ..layout_utils import recompose_swizzle
 
+_SCOPE_SHARED = MemoryScope("shared")
+_SCOPE_SHARED_DYN = MemoryScope("shared.dyn")
+
+_SCOPE_GLOBAL = MemoryScope("global")
+
 # cp.async is unidirectional: global → shared.
-_LDGSTS_PAIRS = [("global", "shared*")]
+_LDGSTS_PAIRS = (
+    (_SCOPE_GLOBAL, _SCOPE_SHARED),
+    (_SCOPE_GLOBAL, _SCOPE_SHARED_DYN),
+)
 # cp.async cp_size ∈ {4, 8, 16} bytes ⇒ vec_bits ∈ {32, 64, 128}.
 _LDGSTS_VEC_BITS = (128, 64, 32)
 
@@ -106,7 +114,7 @@ def _divides_thread_cnt_ldgsts(
     thread_cnt = _thread_cnt(sctx)
     if thread_cnt <= 0:
         return False, f"degenerate thread_cnt={thread_cnt} (scope has empty intra)"
-    g_br = op_call.src if op_call.src.source.scope() == "global" else op_call.dst
+    g_br = op_call.src if op_call.src.source.scope() == _SCOPE_GLOBAL else op_call.dst
     n_elements = 1
     for r in g_br.region:
         ext = r.extent

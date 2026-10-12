@@ -114,6 +114,7 @@ def match_tensor(
             shape = [region.extent for region in param.region]
         else:
             raise ValueError("Shape must be specified when binding a scalar tensor access")
+    scope = "global" if scope == "" else scope
     shape = (shape,) if is_prim_expr(shape) or isinstance(shape, Integral) else shape
     if strides is None:
         strides = []
@@ -281,6 +282,7 @@ def sblock_alloc_tensor(
     res : Var
         The allocated tensor.
     """
+    scope = "global" if scope == "" else scope
     shape = (shape,) if is_prim_expr(shape) or isinstance(shape, Integral) else shape
     if strides is None:
         strides = []

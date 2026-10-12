@@ -45,6 +45,7 @@ from tvm.backend.cuda.op import cuda_cvta_generic_to_shared, cuda_func_call
 from tvm.ir import Call, Op, StringImm, TensorLoad, const
 from tvm.ir.op import register_op_attr
 from tvm.ir.type import PrimType, PtrType
+from tvm.runtime import MemoryScope
 from tvm.tirx.expr import CallEffectKind, IntImm
 from tvm.tirx.op import call_intrin, reinterpret
 
@@ -59,6 +60,9 @@ from .table import (
     operand_type,
     unescape_token,
 )
+
+_SCOPE_SHARED = MemoryScope("shared")
+_SCOPE_SHARED_DYN = MemoryScope("shared.dyn")
 
 # Every ptx call is a void statement, and RemoveNoOp deletes any Evaluate()
 # whose value is <= kReadState, so kOpaque is what keeps the instruction alive.
@@ -583,7 +587,7 @@ def _coerce_address(entry, slot, value, mod_map):
             f"or a uint32 shared address"
         )
     if isinstance(ty, PtrType):
-        if ty.storage_scope.startswith("shared"):
+        if ty.storage_scope in (_SCOPE_SHARED, _SCOPE_SHARED_DYN):
             raise ValueError(
                 f"{entry.name}: operand '{slot.name}' is a {space or 'generic'} address "
                 f"but got a shared-scope pointer"

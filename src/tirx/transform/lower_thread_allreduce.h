@@ -133,7 +133,8 @@ class ThreadAllreduceBuilder final : public DialectMutator {
   Stmt RemapAllocTensor(Bind node, const TensorVar& replacement) {
     const CallNode* call = node->value.template as<CallNode>();
     DictAttrs annotations = call->attrs.value().as_or_throw<DictAttrs>();
-    if (replacement.scope() == "shared") {
+    static const auto shared = runtime::MemoryScope::Get("shared");
+    if (replacement.scope() == shared) {
       annotations.CopyOnWrite()->dict.Set(tvm::tirx::attr::kVolatile, true);
     }
     ffi::Array<Expr> args = call->args;
@@ -986,7 +987,8 @@ class DeferredRemapper : public DialectMutator {
         const TensorVar& replacement = it->second;
         const CallNode* call = node->value.template as<CallNode>();
         DictAttrs annotations = call->attrs.value().as_or_throw<DictAttrs>();
-        if (replacement.scope() == "shared") {
+        static const auto shared = runtime::MemoryScope::Get("shared");
+        if (replacement.scope() == shared) {
           annotations.CopyOnWrite()->dict.Set(tvm::tirx::attr::kVolatile, true);
         }
         ffi::Array<Expr> args = call->args;

@@ -85,8 +85,8 @@ def test_scalar_argmin_reduction_value_scope():
             )(_make_scalar_argmin(length))
 
         index_temp, value_temp = mod["main"].body[0].block.alloc_tensors
-        assert index_temp.scope() == "global"
-        assert value_temp.scope() == expected_scope
+        assert index_temp.scope() == tvm.runtime.MemoryScope("global")
+        assert value_temp.scope() == tvm.runtime.MemoryScope(expected_scope)
 
 
 def test_softmax_1():

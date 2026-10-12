@@ -23,6 +23,7 @@
 
 #include <tvm/backend/opencl/op/memory.h>
 #include <tvm/ir/prim/op.h>
+#include <tvm/runtime/memory_scope.h>
 #include <tvm/s_tir/analysis.h>
 #include <tvm/s_tir/backend/adreno/transform.h>
 #include <tvm/s_tir/stmt_functor.h>
@@ -75,7 +76,7 @@ class TextureAllocInjector : public s_tir::StmtExprMutatorWithAnalyzer {
   UnchangedOr<Stmt> Mutate_AllocTensor(const BindNode* op, const CallNode* call,
                                        InplaceMode inplace_mode) {
     Stmt stmt = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
-    ffi::String scope = call->ty_args[0].as_or_throw<TensorType>()->storage_scope;
+    runtime::MemoryScope scope = call->ty_args[0].as_or_throw<TensorType>()->storage_scope;
     if (IsTextureStorage(scope)) {
       op = stmt.as<BindNode>();
       if (const auto* call = op ? op->value.as<CallNode>() : nullptr;
@@ -97,7 +98,7 @@ class TextureAllocInjector : public s_tir::StmtExprMutatorWithAnalyzer {
       size_t axis = DefaultTextureLayoutSeparator(extents.size(), scope);
       auto texture = ApplyTexture2DFlattening<PrimExpr>(extents, extents.size(), axis);
       ffi::Array<Expr> args;
-      args.push_back(StringImm(scope));
+      args.push_back(StringImm(scope.name()));
       args.push_back(IntImm::Int64(3));
       args.push_back(Call(PtrType(PrimType::Int(64)), tirx::stack_make_shape_op(),
                           {texture.width, texture.height, texture.depth}));
@@ -113,7 +114,7 @@ class TextureAllocInjector : public s_tir::StmtExprMutatorWithAnalyzer {
   }
 
  protected:
-  std::string GetStorageScope(const Var& buffer_var) {
+  runtime::MemoryScope GetStorageScope(const Var& buffer_var) {
     auto* ptr = buffer_var->ty.as<PtrTypeNode>();
     TVM_FFI_ICHECK(ptr) << "Buffer Var's type annotation must be of PtrType";
     return ptr->storage_scope;

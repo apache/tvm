@@ -26,6 +26,7 @@
 
 #include <tvm/ir/attrs.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/runtime/memory_scope.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/sym/int_set.h>
 
@@ -33,14 +34,13 @@
 #include <unordered_set>
 #include <vector>
 
-#include "../../runtime/thread_storage_scope.h"
+#include <tvm/runtime/memory_scope.h>
 
 namespace tvm {
 namespace s_tir {
 using namespace tirx;
 
-using runtime::StorageRank;
-using runtime::StorageScope;
+using runtime::MemoryScope;
 /*!
  * \brief Base class of storage access analysis
  */
@@ -73,7 +73,7 @@ class StorageAccessVisitor : public StmtExprVisitor {
     /*! \brief The type of access */
     AccessType type;
     /*! \brief The storage scope */
-    StorageScope scope;
+    MemoryScope scope;
   };
   /*! \brief Access pattern about a single statement */
   struct StmtEntry {
@@ -108,7 +108,7 @@ class StorageAccessVisitor : public StmtExprVisitor {
    * \param scope The scope of the buffer.
    * \return Whether the analysis of buffer is enabled.
    */
-  virtual bool Enabled(const VarNode* buffer, const StorageScope& scope) const { return true; }
+  virtual bool Enabled(const VarNode* buffer, const MemoryScope& scope) const { return true; }
   /*!
    * \brief Summarize the sequence of operations into parent.
    *
@@ -125,7 +125,7 @@ class StorageAccessVisitor : public StmtExprVisitor {
    * \brief Get the scope of the buffer array.
    * \return The scope of the final buffer array.
    */
-  StorageScope GetScope(Var buffer_var) const;
+  MemoryScope GetScope(Var buffer_var) const;
   /*! \brief Resolve a logical buffer view to its physical storage root. */
   Var ResolveBuffer(Var buffer_var) const;
   // access scope

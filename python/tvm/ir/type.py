@@ -163,7 +163,7 @@ class PtrType(Type):
     element_type : tvm.ir.Type
         The type of pointer's element.
 
-    storage_scope : str
+    storage_scope : str or tvm.runtime.MemoryScope
         The storage scope into which the pointer addresses.
     """
 

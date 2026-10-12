@@ -24,6 +24,7 @@
 #include <tvm/ir/analysis.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/prim/op.h>
+#include <tvm/runtime/memory_scope.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/tirx/op/memory.h>
 
@@ -2280,7 +2281,7 @@ void CollectReindexCacheStageInfoAndCreateTensor(
 
   // Create new tensor
   ffi::ObjectPtr<TensorTypeNode> new_tensor = CopyTensorType(old_tensor);
-  new_tensor->storage_scope = storage_scope;
+  new_tensor->storage_scope = runtime::MemoryScope::FromString(storage_scope);
   new_tensor->shape = new_shape;
   TensorVar rebuilt =
       RebuildTensorVar(old_tensor, std::move(new_tensor), old_tensor.name() + "_" + storage_scope);

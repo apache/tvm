@@ -20,11 +20,14 @@
 import tvm_ffi
 
 from tvm import s_tir, sym, tirx
+from tvm.runtime import MemoryScope
 from tvm.target import Target
 
 from ..analysis import get_root_block, normalize_function
 from ..base import try_inline_contiguous_spatial
 from .base import GPUScheduleRule
+
+_SCOPE_GLOBAL = MemoryScope("global")
 
 
 class GeneralReduction(GPUScheduleRule):
@@ -89,7 +92,7 @@ class GeneralReduction(GPUScheduleRule):
                         tensor = write.source
                         is_allocated = any(tensor.same_as(other) for other in alloc_tensors)
                         is_cross_block = any(tensor.same_as(other) for other in other_block_tensors)
-                        if tensor.scope() == "global" and is_allocated and not is_cross_block:
+                        if tensor.scope() == _SCOPE_GLOBAL and is_allocated and not is_cross_block:
                             sch.set_scope(block_infos[block_index].block_rv, tensor_index, "local")
 
                 # Put every block (both the running reductions and the final

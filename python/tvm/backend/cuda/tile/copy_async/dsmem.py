@@ -21,6 +21,7 @@ import functools
 import operator
 
 import tvm
+from tvm.runtime import MemoryScope
 from tvm.script import tirx as T
 from tvm.tirx import Function, Var
 from tvm.tirx.tile import DispatchContext, fail
@@ -28,13 +29,18 @@ from tvm.tirx.tile.instruction import TensorCall
 
 from .utils import find_contiguous_region, to_tile_layout
 
+_SCOPE_SHARED = MemoryScope("shared")
+_SCOPE_SHARED_DYN = MemoryScope("shared.dyn")
+
 
 def _is_shared_to_shared(op_call: TensorCall) -> bool:
     """Check if both src and dst are in shared memory."""
     op_call = TensorCall.decode(op_call)
     src_scope = op_call.src.source.scope()
     dst_scope = op_call.dst.source.scope()
-    return src_scope.startswith("shared") and dst_scope.startswith("shared")
+    return (src_scope in (_SCOPE_SHARED, _SCOPE_SHARED_DYN)) and (
+        dst_scope in (_SCOPE_SHARED, _SCOPE_SHARED_DYN)
+    )
 
 
 def copy_dsmem_impl(op_call: TensorCall, sctx: DispatchContext) -> Function:

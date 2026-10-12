@@ -37,7 +37,7 @@
 #include <utility>
 #include <vector>
 
-#include "../../../runtime/thread_storage_scope.h"
+#include <tvm/runtime/memory_scope.h>
 #include "../runtime/spirv_shader.h"
 #include "ir_builder.h"
 #include "spirv_support.h"
@@ -188,7 +188,7 @@ class CodeGenSPIRV : public tvm::ExprFunctor<spirv::Value(const Expr&)>,
 
   struct FragmentInfo {
     std::string shape;
-    std::string scope;
+    runtime::MemoryScope scope;
     spirv::SType stype;
     spv::StorageClass sclass;
   };

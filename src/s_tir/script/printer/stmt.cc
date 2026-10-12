@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/ir/prim/op.h>
+#include <tvm/runtime/memory_scope.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/script/printer/doc_translator.h>
 
@@ -69,6 +70,10 @@ void PrintMatchTensor(DocTranslatorObj* d, const s_tir::MatchTensorRegionNode* m
 ffi::Array<StmtDoc> SBlockBody(DocTranslatorObj* d, const s_tir::SBlockNode* block,
                                const s_tir::SBlockRealizeNode* realize) {
   auto docs = d->WithDocScope([&]() {
+    static const auto scope_shared = runtime::MemoryScope::Get("shared");
+    static const auto scope_shared_dyn = runtime::MemoryScope::Get("shared.dyn");
+    static const auto scope_local = runtime::MemoryScope::Get("local");
+
     TVM_FFI_CHECK(!realize || realize->iter_values.size() == block->iter_vars.size(), TypeError)
         << "SBlockRealize binding count must match its iter vars";
     ffi::Array<AssignDoc> axes;
@@ -143,9 +148,10 @@ ffi::Array<StmtDoc> SBlockBody(DocTranslatorObj* d, const s_tir::SBlockNode* blo
       const auto* tensor_type = tensor.var()->ty.as<tirx::TensorTypeNode>();
       auto allocated_addr = addresses.Get(tensor.var()).value_or(ffi::Array<PrimExpr>{});
       TVM_FFI_CHECK(
-          allocated_addr.empty() ||
-              (tensor_type->storage_scope != "global" && tensor_type->storage_scope != "shared" &&
-               tensor_type->storage_scope != "shared.dyn" && tensor_type->storage_scope != "local"),
+          allocated_addr.empty() || (tensor_type->storage_scope != runtime::MemoryScope::Global() &&
+                                     tensor_type->storage_scope != scope_shared &&
+                                     tensor_type->storage_scope != scope_shared_dyn &&
+                                     tensor_type->storage_scope != scope_local),
           TypeError)
           << "Ts.sblock_alloc_tensor does not accept allocated_addr in "
           << tensor_type->storage_scope;

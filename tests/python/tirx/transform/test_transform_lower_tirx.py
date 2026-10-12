@@ -1794,8 +1794,10 @@ def test_lower_remaps_tensor_memory_address_metadata(offset):
     tvm.tirx.analysis.verify_well_formed(lowered)
     bindings = []
     tvm_ffi.structural_walk(lowered.body, (tvm.ir.Bind, bindings.append))
-    address = next(node.var for node in bindings if node.var.scope() == "shared")
-    tensor = next(node for node in bindings if node.var.scope() == "tmem")
+    address = next(
+        node.var for node in bindings if node.var.scope() == tvm.runtime.MemoryScope("shared")
+    )
+    tensor = next(node for node in bindings if node.var.scope() == tvm.runtime.MemoryScope("tmem"))
     loads = []
     tvm_ffi.structural_walk(tensor.value.args[0], (tvm.ir.TensorLoad, loads.append))
     assert len(loads) == 1

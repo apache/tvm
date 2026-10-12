@@ -31,6 +31,7 @@
 #include <tvm/ir/prim/op.h>
 #include <tvm/ir/type.h>
 #include <tvm/runtime/logging.h>
+#include <tvm/runtime/memory_scope.h>
 #include <tvm/sym/analyzer.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/layout.h>
@@ -45,7 +46,7 @@
 #include <unordered_map>
 #include <unordered_set>
 
-#include "../../runtime/thread_storage_scope.h"
+#include <tvm/runtime/memory_scope.h>
 #include "../../sym/int_operator.h"
 #include "ir_utils.h"
 
@@ -53,8 +54,7 @@ namespace tvm {
 namespace tirx {
 using namespace tvm::prim;
 
-using runtime::StorageRank;
-using runtime::StorageScope;
+using runtime::MemoryScope;
 
 namespace {
 
@@ -762,7 +762,7 @@ class StoragePlanRewriter : public StmtExprMutator {
     // The constant size of the buffer in bits, only used if it is constant
     uint64_t const_nbits{0};
     // The storage scope.
-    StorageScope scope;
+    MemoryScope scope;
     // The physical dimensionality of the allocations.  Since
     // StorageRewrite is applied after FlattenTensor,
     // this is the number of extent dimensions.
@@ -806,11 +806,42 @@ class StoragePlanRewriter : public StmtExprMutator {
     return false;
   }
 
-  // Checks whether the storage_scope is especially tagged for a specific memory.
-  // Special memory is all combined into a single allocation.
-  bool IsSpecialTaggedMemory(const StorageScope& scope) {
-    return scope.tag.length() != 0 && scope.tag != ".dyn" && scope.tag != ".workspace" &&
-           scope.tag != ".vtcm";
+  // Backends may opt a scope into combining allocations in storage rewrite.
+  // A registered name alone never implies this allocation policy.
+  bool ShouldMergeAllocations(const MemoryScope& scope) {
+    static ffi::reflection::TypeAttrColumn state_column(ffi::reflection::type_attr::kEnumState);
+    auto state = state_column[runtime::MemoryScopeNode::RuntimeTypeIndex()].cast<ffi::EnumState>();
+    if (auto column = state->attrs.Get("tirx.storage_rewrite_merge")) {
+      if (auto value = column->Get(scope)) return value->cast<bool>();
+    }
+    return false;
+  }
+
+  // Register and fragment spaces retain individual allocations.  Extension
+  // scopes opt into merging separately; their spelling implies no policy.
+  bool KeepSeparateAllocation(const MemoryScope& scope) {
+    static const auto scope_warp = runtime::MemoryScope::Get("warp");
+    static const auto scope_local = runtime::MemoryScope::Get("local");
+    static const auto scope_wmma_matrix_a = runtime::MemoryScope::Get("wmma.matrix_a");
+    static const auto scope_wmma_matrix_b = runtime::MemoryScope::Get("wmma.matrix_b");
+    static const auto scope_wmma_accumulator = runtime::MemoryScope::Get("wmma.accumulator");
+    static const auto scope_texture = runtime::MemoryScope::Get("texture");
+    static const auto scope_amx_tmm = runtime::MemoryScope::Get("amx.tmm");
+    static const auto scope_m16n8k8_matrixA = runtime::MemoryScope::Get("m16n8k8.matrixA");
+    static const auto scope_m16n8k8_matrixB = runtime::MemoryScope::Get("m16n8k8.matrixB");
+    static const auto scope_m16n8k8_matrixC = runtime::MemoryScope::Get("m16n8k8.matrixC");
+    static const auto scope_metal_simdgroup = runtime::MemoryScope::Get("metal.simdgroup");
+    static const auto scope_metal_cooperative_tensor =
+        runtime::MemoryScope::Get("metal.cooperative_tensor");
+    static const auto scope_trn_sbuf = runtime::MemoryScope::Get("trn.sbuf");
+    static const auto scope_trn_psum = runtime::MemoryScope::Get("trn.psum");
+
+    return scope == scope_warp || scope == scope_local || scope == scope_wmma_matrix_a ||
+           scope == scope_wmma_matrix_b || scope == scope_wmma_accumulator ||
+           scope == scope_texture || scope == scope_amx_tmm || scope == scope_m16n8k8_matrixA ||
+           scope == scope_m16n8k8_matrixB || scope == scope_m16n8k8_matrixC ||
+           scope == scope_metal_simdgroup || scope == scope_metal_cooperative_tensor ||
+           scope == scope_trn_sbuf || scope == scope_trn_psum;
   }
 
   // Alllocate entry of node.
@@ -852,7 +883,7 @@ class StoragePlanRewriter : public StmtExprMutator {
       // try to find merge, for tagged memory
       for (size_t i = 0; i < vec.size(); ++i) {
         StorageEntry* e = vec[i];
-        if (!e->requires_exact_allocation && IsSpecialTaggedMemory(e->scope)) {
+        if (!e->requires_exact_allocation && ShouldMergeAllocations(e->scope)) {
           TVM_FFI_ICHECK_NE(e->const_nbits, 0U) << "Special tagged memory must be const size";
           for (size_t j = 0; j < i; ++j) {
             if (!vec[j]->requires_exact_allocation && e->scope == vec[j]->scope) {
@@ -875,7 +906,7 @@ class StoragePlanRewriter : public StmtExprMutator {
         // already merged
         if (e->bits_offset != 0) continue;
         if (e->merged_children.size() != 0) {
-          NewAllocTagMerged(e);
+          NewAllocMerged(e);
           continue;
         }
         const auto* first_call = e->allocs[0]->value.as<CallNode>();
@@ -981,8 +1012,8 @@ class StoragePlanRewriter : public StmtExprMutator {
             combo_size = combo_size + IntImm::Int32(1);
           }
           combo_size = analyzer_->Simplify(combo_size);
-          TensorVar buf(e->alloc_var->name, TensorType(e->scope.to_string(), alloc_type,
-                                                       {combo_size}, {}, std::nullopt, 0, 0));
+          TensorVar buf(e->alloc_var->name,
+                        TensorType(e->scope, alloc_type, {combo_size}, {}, std::nullopt, 0, 0));
           e->alloc_var = buf.var();
           ffi::Map<ffi::String, ffi::Any> annotations;
           if (e->is_volatile) {
@@ -995,8 +1026,8 @@ class StoragePlanRewriter : public StmtExprMutator {
     }
   }
   // New allocation for merged data
-  void NewAllocTagMerged(StorageEntry* e) {
-    TVM_FFI_ICHECK_NE(e->scope.tag.length(), 0U);
+  void NewAllocMerged(StorageEntry* e) {
+    TVM_FFI_ICHECK(ShouldMergeAllocations(e->scope));
     // allocate with element type.
     TVM_FFI_ICHECK_NE(e->const_nbits, 0U);
     uint64_t total_bits = e->const_nbits;
@@ -1023,8 +1054,8 @@ class StoragePlanRewriter : public StmtExprMutator {
     tvm::Tuple shape = tvm::Tuple(call->ty_args[0].as_or_throw<TensorType>()->shape);
     PrimExpr alloc_size = MakeConst(shape->fields[0].as_or_throw<PrimExpr>().ty(),
                                     (total_bits + type_bits - 1) / type_bits);
-    TensorVar buf(e->alloc_var->name, TensorType(e->scope.to_string(), e->elem_type, {alloc_size},
-                                                 {}, std::nullopt, 0, 0));
+    TensorVar buf(e->alloc_var->name,
+                  TensorType(e->scope, e->elem_type, {alloc_size}, {}, std::nullopt, 0, 0));
     e->alloc_var = buf.var();
     for (StorageEntry* child : e->merged_children) {
       child->alloc_var = e->alloc_var;
@@ -1117,8 +1148,8 @@ class StoragePlanRewriter : public StmtExprMutator {
           const AllocEntry& entry = alloc_info.at(var);
           const BindNode* alloc = entry.alloc;
           const auto* call = alloc->value.as<CallNode>();
-          ffi::String scope = call->ty_args[0].as_or_throw<TensorType>()->storage_scope;
-          auto storage_scope = StorageScope::Create(scope);
+          runtime::MemoryScope scope = call->ty_args[0].as_or_throw<TensorType>()->storage_scope;
+          auto storage_scope = scope;
           StorageEntry* dst_entry = nullptr;
           // inplace detection
           if (detect_inplace && !RequiresExactAllocation(call)) {
@@ -1189,7 +1220,7 @@ class StoragePlanRewriter : public StmtExprMutator {
   }
   // Allocate new storage entry.
   StorageEntry* NewAlloc(const BindNode* op, const ffi::Object* attach_scope,
-                         const StorageScope& scope, size_t const_nbits) {
+                         const MemoryScope& scope, size_t const_nbits) {
     TVM_FFI_ICHECK(op != nullptr);
     const auto* call = op->value.as<CallNode>();
     DLDataType dtype = call->ty_args[0].as_or_throw<TensorType>()->dtype->dtype;
@@ -1207,8 +1238,10 @@ class StoragePlanRewriter : public StmtExprMutator {
   }
 
   StorageEntry* FindAlloc(const BindNode* op, const ffi::Object* attach_scope,
-                          const StorageScope& scope, size_t num_physical_dimensions,
+                          const MemoryScope& scope, size_t num_physical_dimensions,
                           bool enable_reuse, bool reuse_require_exact_matched_dtype) {
+    static const auto scope_shared = runtime::MemoryScope::Get("shared");
+
     TVM_FFI_ICHECK(op != nullptr);
     const auto* call = op->value.as<CallNode>();
     DLDataType dtype = call->ty_args[0].as_or_throw<TensorType>()->dtype->dtype;
@@ -1234,8 +1267,9 @@ class StoragePlanRewriter : public StmtExprMutator {
 
     // disable reuse of small arrays, they will be lowered to registers in LLVM
     // This rules only apply if we are using non special memory
-    bool is_small_array = (scope.tag.length() == 0) && (scope.rank >= StorageRank::kWarp ||
-                                                        (is_known_size && const_nbits <= 32));
+    bool is_small_array = KeepSeparateAllocation(scope) ||
+                          ((scope == MemoryScope::Global() || scope == scope_shared) &&
+                           is_known_size && const_nbits <= 32);
 
     if (RequiresExactAllocation(call) || is_scalable_vector || !enable_reuse || is_small_array ||
         !is_flat_memory_space) {
@@ -1290,6 +1324,8 @@ class StoragePlanRewriter : public StmtExprMutator {
   }
   // simulated free.
   void Free(const VarNode* var) {
+    static const auto scope_shared = runtime::MemoryScope::Get("shared");
+
     auto it = alloc_map_.find(var);
     TVM_FFI_ICHECK(it != alloc_map_.end());
     StorageEntry* e = it->second;
@@ -1298,12 +1334,13 @@ class StoragePlanRewriter : public StmtExprMutator {
 
     // disable reuse of small arrays, they will be lowered to registers in LLVM
     // This rules only apply if we are using non special memory
-    if (e->scope.tag.length() == 0) {
+    if (KeepSeparateAllocation(e->scope) || e->scope == MemoryScope::Global() ||
+        e->scope == scope_shared) {
       const auto* call = e->allocs[0]->value.as<CallNode>();
       DLDataType dtype = call->ty_args[0].as_or_throw<TensorType>()->dtype->dtype;
       PrimType element_type(dtype);
       // Disable sharing of local memory.
-      if (e->scope.rank >= StorageRank::kWarp || element_type.IsScalableVector()) {
+      if (KeepSeparateAllocation(e->scope) || element_type.IsScalableVector()) {
         return;
       }
       // disable reuse of small arrays

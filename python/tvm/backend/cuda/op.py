@@ -28,14 +28,17 @@ from tvm.ir import Attrs, Call, Op, StringImm, const
 from tvm.ir.location import UNKNOWN_LOC, Location
 from tvm.ir.op import _init_op_api, _make_op_api
 from tvm.ir.type import PrimType, PtrType
+from tvm.runtime import MemoryScope
 from tvm.tirx.op import bitwise_and, call_intrin, ptr_byte_offset
+
+_SCOPE_TMEM = MemoryScope("tmem")
 
 tir = tirx
 
 
 def _tmem_address(tensor):
     """Recover the encoded 32-bit address from an explicit TMEM backing pointer."""
-    if tensor.scope() != "tmem":
+    if tensor.scope() != _SCOPE_TMEM:
         raise ValueError("Expected a TMEM tensor")
     return tirx.Cast("uint32", tirx.reinterpret("uint64", tensor.data))
 

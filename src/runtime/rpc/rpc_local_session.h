@@ -60,7 +60,7 @@ class LocalSession : public RPCSession {
   void SetDevice(Device dev) override;
   ffi::Any GetAttr(Device dev, const ffi::String& name) override;
   void* AllocTensor(Device dev, ffi::ShapeView shape, DLDataType dtype,
-                    ffi::Optional<ffi::String> mem_scope) override;
+                    ffi::Optional<MemoryScope> mem_scope) override;
   void FreeTensor(Device dev, void* handle) override;
   void CopyDataFromTo(DLTensor* from, DLTensor* to, TVMStreamHandle stream) override;
   TVMStreamHandle CreateStream(Device dev) override;

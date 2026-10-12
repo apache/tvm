@@ -44,7 +44,7 @@
 #include <vector>
 
 #include "../../../../backend/opencl/runtime/opencl_common.h"
-#include "../../../thread_storage_scope.h"
+#include <tvm/runtime/memory_scope.h>
 #include "../json/json_node.h"
 #include "../json/json_runtime.h"
 

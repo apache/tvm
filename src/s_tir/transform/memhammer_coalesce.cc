@@ -19,7 +19,7 @@
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/tirx/stmt.h>
 
-#include "../../runtime/thread_storage_scope.h"
+#include <tvm/runtime/memory_scope.h>
 #include "./memhammer_rewrite_rule.h"
 
 namespace tvm {

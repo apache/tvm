@@ -87,7 +87,7 @@ ffi::Any IndexIntoNestedObject(ffi::Any obj, ffi::PackedArgs args, int starting_
 }
 
 ffi::Tensor ConvertTensorToDevice(ffi::Tensor src, const DLDevice& dev, TensorMemoryPool* pool,
-                                  ffi::String scope = "global") {
+                                  MemoryScope scope = {}) {
   TVM_FFI_ICHECK(src.defined());
   if (src.device().device_type == dev.device_type && src.device().device_id == dev.device_id) {
     return src;
@@ -99,7 +99,7 @@ ffi::Tensor ConvertTensorToDevice(ffi::Tensor src, const DLDevice& dev, TensorMe
 }
 
 Any ConvertObjectToDevice(Any src, const Device& dev, TensorMemoryPool* pool,
-                          ffi::String scope = "global") {
+                          MemoryScope scope = {}) {
   if (src.as<ffi::Tensor::ContainerType>()) {
     return ConvertTensorToDevice(src.cast<ffi::Tensor>(), dev, pool, scope);
   } else if (src.as<ffi::ArrayObj>()) {
@@ -135,7 +135,7 @@ ffi::Any ConvertArgToDevice(ffi::AnyView input, Device dev, TensorMemoryPool* po
 }
 
 ffi::Any ConvertRegToDevice(ffi::Any input, Device dev, TensorMemoryPool* pool,
-                            ffi::String scope = "global") {
+                            MemoryScope scope = {}) {
   ffi::Any ret;
   if (auto opt_obj = input.as<ffi::ObjectRef>()) {
     ret = ConvertObjectToDevice(opt_obj.value(), dev, pool, scope);

@@ -57,7 +57,7 @@ class VDeviceLookup {
     TVM_FFI_ICHECK(attrs);
     int32_t device_type = attrs->device_type;
     int32_t device_id = attrs->index;
-    ffi::String memory_scope = attrs->memory_scope;
+    auto memory_scope = attrs->memory_scope;
 
     TVM_FFI_CHECK(opt_vdevices_.has_value(), ValueError)
         << "The target VDevice in the GlobalInfos was not found.";

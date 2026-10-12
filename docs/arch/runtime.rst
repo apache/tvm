@@ -271,6 +271,74 @@ To support extension types, we used a registry system to register type related i
 in C++. See the ``tvm-ffi`` subproject under ``3rdparty/tvm-ffi/`` for more details on the FFI type system.
 
 
+Memory scopes
+=============
+
+``tvm.runtime.MemoryScope`` represents a canonical memory-space identity shared
+by Python and C++. Tensor and pointer types, compiler allocation state, and
+runtime device allocation APIs carry this identity. The global scope is the
+default. Registration order is not a memory hierarchy.
+
+Names are looked up strictly: using an unknown name does not register it.
+Register extension scopes before constructing types or allocating tensors that
+refer to them. For example:
+
+.. code-block:: python
+
+    from tvm.runtime import MemoryScope
+    from tvm.ir import PrimType, PtrType
+
+    scratch = MemoryScope.register("my_accelerator.scratch")
+    assert MemoryScope("my_accelerator.scratch") == scratch
+    assert PtrType(PrimType("float32"), scratch).storage_scope == scratch
+    assert PtrType(PrimType("float32"), "my_accelerator.scratch").storage_scope == scratch
+
+The corresponding C++ extension uses the same FFI enum registry:
+
+.. code-block:: cpp
+
+    #include <tvm/ffi/reflection/enum_def.h>
+    #include <tvm/runtime/memory_scope.h>
+
+    TVM_FFI_STATIC_INIT_BLOCK() {
+      tvm::ffi::reflection::EnumDef<tvm::runtime::MemoryScopeNode>(
+          "my_accelerator.scratch");
+    }
+
+    // Cache known identities in the function that uses them.
+    bool UsesScratch(tvm::runtime::MemoryScope scope) {
+      static const auto scratch =
+          tvm::runtime::MemoryScope::Get("my_accelerator.scratch");
+      return scope == scratch;
+    }
+
+These two registration examples are alternatives: registering the same name
+again raises ``ValueError``. A C++ registration is visible to Python lookup and
+a Python registration is visible to C++ lookup. ``MemoryScope::Global()`` is the
+only named C++ scope accessor; other names use ``MemoryScope::Get``. Typed FFI
+arguments accept a scope object or a registered string name. Printers emit the
+canonical quoted name in scope positions, and JSON decoding looks it up in the
+same registry. An extension must therefore be registered before deserialization.
+
+Registration does not give a backend an allocator or execution policy for the
+new memory space. Backend support is explicit. In particular, ``shared`` and
+``shared.dyn`` remain distinct identities. Optional DeviceAPI arguments preserve
+backend-specific defaults when omitted, including image and collective memory
+allocators; an explicit global scope requests global memory.
+
+A pass can attach a narrowly scoped policy through enum attributes. For example,
+an extension that uses the storage-rewrite pass's tagged-allocation merging can
+explicitly opt in:
+
+.. code-block:: python
+
+    merge_allocations = MemoryScope.def_attr("tirx.storage_rewrite_merge")
+    merge_allocations[scratch] = True
+
+This affects that pass only. It does not define a base scope, storage rank,
+capacity, alignment, or backend allocation capability.
+
+
 Runtime-Specific Information
 ============================
 

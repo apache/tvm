@@ -26,6 +26,8 @@ from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.target import Target
 
+tvm.runtime.MemoryScope.register("global2")
+
 
 def _target() -> Target:
     return Target("cuda", host="llvm")

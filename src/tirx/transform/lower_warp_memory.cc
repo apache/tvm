@@ -45,7 +45,7 @@
 
 #include <unordered_set>
 
-#include "../../runtime/thread_storage_scope.h"
+#include <tvm/runtime/memory_scope.h>
 #include "../../sym/pattern_match.h"
 #include "ir_utils.h"
 #include "update_pointer_storage_scope.h"
@@ -371,7 +371,8 @@ class WarpAccessRewriter : public StmtExprMutator {
     alloc_size = warp_group_ * factor;
 
     auto type = CopyTensorType(op->var.as_or_throw<TensorVar>());
-    type->storage_scope = "local";
+    static const auto local = runtime::MemoryScope::Get("local");
+    type->storage_scope = local;
     type->shape = {IntImm::Int32(alloc_size / width_)};
     type->strides = {};
     type->elem_offset = IntImm(op->var.as_or_throw<TensorVar>()->elem_offset.ty(), 0);
@@ -643,7 +644,8 @@ class WarpMemoryRewriter : public StmtExprMutator {
   }
 
   // Keep the old variables alive until UpdatePointerStorageScope reads their types.
-  std::unordered_map<Var, ffi::String, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> new_storage_scopes_;
+  std::unordered_map<Var, runtime::MemoryScope, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
+      new_storage_scopes_;
 
  private:
   UnchangedOr<Stmt> Mutate_(const RegionStmtNode* op, InplaceMode inplace_mode) final {
@@ -668,10 +670,12 @@ class WarpMemoryRewriter : public StmtExprMutator {
     bool changed = false;
     for (size_t i = 0; i < op->seq.size(); ++i) {
       const auto* alloc = op->seq[i].as<BindNode>();
+      static const auto warp = runtime::MemoryScope::Get("warp");
+      static const auto local = runtime::MemoryScope::Get("local");
       if (const auto* call = alloc ? alloc->value.as<CallNode>() : nullptr;
           call && call->op.same_as(alloc_tensor_op()) &&
-          call->ty_args[0].as_or_throw<TensorType>()->storage_scope == "warp") {
-        new_storage_scopes_[alloc->var] = "local";
+          call->ty_args[0].as_or_throw<TensorType>()->storage_scope == warp) {
+        new_storage_scopes_[alloc->var] = local;
         // Gather remaining siblings as the "body" for rewriting.
         ffi::Array<Stmt> remaining;
         for (size_t j = i + 1; j < op->seq.size(); ++j) {

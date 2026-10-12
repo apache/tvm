@@ -29,6 +29,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/base_expr.h>
 #include <tvm/ir/location.h>
+#include <tvm/runtime/memory_scope.h>
 
 #include <string>
 
@@ -109,7 +110,7 @@ class PtrTypeNode : public TypeNode {
   /*!
    * \brief The storage scope of the pointer
    */
-  ffi::String storage_scope;
+  runtime::MemoryScope storage_scope;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -131,10 +132,15 @@ class PtrType : public Type {
    * \param element_type The type of the element which the pointer points to.
    * \param storage_scope The storage scope into which the pointer addresses
    */
-  TVM_TIRX_DLL explicit PtrType(Type element_type, ffi::String storage_scope = "");
+  TVM_TIRX_DLL explicit PtrType(Type element_type, runtime::MemoryScope storage_scope = {});
+  explicit PtrType(Type element_type, ffi::String storage_scope)
+      : PtrType(std::move(element_type), runtime::MemoryScope::FromString(storage_scope)) {}
 
   /*! \brief Construct an opaque pointer with void element type. */
-  TVM_TIRX_DLL static PtrType VoidPtrType(ffi::String storage_scope = "");
+  TVM_TIRX_DLL static PtrType VoidPtrType(runtime::MemoryScope storage_scope = {});
+  static PtrType VoidPtrType(ffi::String storage_scope) {
+    return VoidPtrType(runtime::MemoryScope::FromString(storage_scope));
+  }
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(PtrType, Type, PtrTypeNode);
 };

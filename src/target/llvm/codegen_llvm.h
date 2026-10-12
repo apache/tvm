@@ -43,6 +43,7 @@
 #include <tvm/ir/module.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/prim/op.h>
+#include <tvm/runtime/memory_scope.h>
 #include <tvm/sym/analyzer.h>
 #include <tvm/target/codegen.h>
 #include <tvm/tirx/analysis.h>
@@ -61,7 +62,7 @@
 #include <utility>
 #include <vector>
 
-#include "../../runtime/thread_storage_scope.h"
+#include <tvm/runtime/memory_scope.h>
 #include "../../tirx/transform/ir_utils.h"
 #include "codegen_params.h"
 #include "llvm_instance.h"
@@ -386,7 +387,7 @@ class CodeGenLLVM : public tvm::ExprFunctor<llvm::Value*(const Expr&)>,
   // apply optimization on the module.
   virtual void Optimize();
   // Get the maximim storage align bits of buffer pointer given storage scope.
-  virtual int NativeVectorBits(const runtime::StorageScope& storage_scope) const;
+  virtual int NativeVectorBits(const runtime::MemoryScope& storage_scope) const;
   // Get correct address space depending on the backend
   virtual unsigned GetGlobalAddressSpace() const;
 

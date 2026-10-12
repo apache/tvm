@@ -47,7 +47,7 @@ ffi::ObjectPtr<VMExecutable> ExecBuilderObj::Get() {
   return exec_;
 }
 
-void ExecBuilderObj::SaveMemoryScope(vm::Instruction::Arg idx, ffi::String scope) {
+void ExecBuilderObj::SaveMemoryScope(vm::Instruction::Arg idx, runtime::MemoryScope scope) {
   exec_->memory_scopes[idx.value()] = scope;
 }
 

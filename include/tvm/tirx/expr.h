@@ -74,7 +74,7 @@ class TensorVar : public Var {
   Expr data() const { return Call(type()->DataPtrType(), tensor_data_ptr_op(), {var()}); }
 
   /*! \brief Return the storage scope associated with this tensor. */
-  ffi::String scope() const { return (*this)->storage_scope; }
+  runtime::MemoryScope scope() const { return (*this)->storage_scope; }
 
   /*!
    * \brief Return a new tensor with the allocated address.
@@ -139,8 +139,13 @@ inline TensorVar RebuildTensorVar(const TensorVar& var, ffi::ObjectPtr<TensorTyp
  * \sa TensorVar for complete constructor.
  */
 TVM_TIRX_DLL TensorVar decl_tensor(ffi::Array<PrimExpr> shape, PrimType dtype = PrimType::Float(32),
-                                   ffi::String name = "tensor", ffi::String storage_scope = "",
-                                   Location loc = UnknownLoc());
+                              ffi::String name = "tensor", runtime::MemoryScope storage_scope = {},
+                              Location loc = UnknownLoc());
+inline TensorVar decl_tensor(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String name,
+                             ffi::String storage_scope, Location loc = UnknownLoc()) {
+  return decl_tensor(std::move(shape), std::move(dtype), std::move(name),
+                     runtime::MemoryScope::FromString(storage_scope), std::move(loc));
+}
 
 /*!
  * \brief Creates a TIR tensor for the provided parameters.

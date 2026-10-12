@@ -30,7 +30,7 @@ vectorized copy loop. Direction-symmetric: covers R2S / S2R / R2G / G2R.
 import tvm_ffi
 
 import tvm
-from tvm.runtime import DataType
+from tvm.runtime import DataType, MemoryScope
 from tvm.script import tirx as T
 from tvm.sym import Analyzer, ConstIntBound
 from tvm.tirx import Function, Var
@@ -45,18 +45,26 @@ from ._common import _alignment_ok, copy_ptx_form, copy_ptx_ld_chain
 from .utils import _is_valid_copy, _scope_allowed
 from .vec_forced import _ld_cache_config
 
+_SCOPE_GLOBAL = MemoryScope("global")
+
+_SCOPE_LOCAL = MemoryScope("local")
+_SCOPE_SHARED = MemoryScope("shared")
+_SCOPE_SHARED_DYN = MemoryScope("shared.dyn")
+
 
 def _extract_tile(layout, region):
     """Strip swizzle off ``layout`` so it can be perm/grouped as a TileLayout."""
     return strip_swizzle_to_tile(layout, lambda: [int(end - start) for (start, end) in region])
 
 
-_REG_PAIRS = [
-    ("local", "shared*"),
-    ("shared*", "local"),
-    ("local", "global"),
-    ("global", "local"),
-]
+_REG_PAIRS = (
+    (_SCOPE_LOCAL, _SCOPE_SHARED),
+    (_SCOPE_LOCAL, _SCOPE_SHARED_DYN),
+    (_SCOPE_SHARED, _SCOPE_LOCAL),
+    (_SCOPE_SHARED_DYN, _SCOPE_LOCAL),
+    (_SCOPE_LOCAL, _SCOPE_GLOBAL),
+    (_SCOPE_GLOBAL, _SCOPE_LOCAL),
+)
 _SCOPE_RANK = {"thread": 0, "warp": 1, "warpgroup": 2, "cta": 3}
 _VALID_R_SUBSCOPES = {"thread", "warp", "warpgroup"}
 
@@ -94,7 +102,7 @@ def _r_side_layout_valid(op_call: TensorCall, sctx: DispatchContext) -> tuple[bo
     op_call = TensorCall.decode(op_call)
     src: Var = op_call.src.source
     dst: Var = op_call.dst.source
-    r_buf = src if src.scope() == "local" else dst
+    r_buf = src if src.scope() == _SCOPE_LOCAL else dst
     layout = r_buf.ty.effective_layout()
     if layout is None:
         return False, "R has no layout"
@@ -119,7 +127,7 @@ def _r_side_layout_valid(op_call: TensorCall, sctx: DispatchContext) -> tuple[bo
                 False,
                 f"R thread axis {ax.name!r} scope={ax_scope.name!r} > exec {sctx.scope_kind!r}",
             )
-    r_br = op_call.src if src.scope() == "local" else op_call.dst
+    r_br = op_call.src if src.scope() == _SCOPE_LOCAL else op_call.dst
     region = [(r.min, r.min + r.extent) for r in r_br.region]
     sliced = layout.slice(list(r_buf.shape), region)
     if sliced is None:
@@ -136,7 +144,7 @@ def _s_side_slice_ok(op_call: TensorCall) -> tuple[bool, str | None]:
     op_call = TensorCall.decode(op_call)
     src_br = op_call.src
     dst_br = op_call.dst
-    s_br = dst_br if src_br.source.scope() == "local" else src_br
+    s_br = dst_br if src_br.source.scope() == _SCOPE_LOCAL else src_br
     s_buf: Var = s_br.source
     layout = s_buf.ty.effective_layout()
     if layout is None:
@@ -268,7 +276,7 @@ def _align_layouts(op_call: TensorCall, sctx: DispatchContext):
     op_call = TensorCall.decode(op_call)
     src_br = op_call.src
     dst_br = op_call.dst
-    if src_br.source.scope() == "local":
+    if src_br.source.scope() == _SCOPE_LOCAL:
         r_br, s_br = src_br, dst_br
     else:
         r_br, s_br = dst_br, src_br
@@ -513,7 +521,7 @@ def _emit_reg(op_call: TensorCall, sctx: DispatchContext) -> Function:
     op_call = TensorCall.decode(op_call)
     src: Var = op_call.src.source
     dst: Var = op_call.dst.source
-    if src.scope() == "local":
+    if src.scope() == _SCOPE_LOCAL:
         r_buf, s_buf, r_is_src = src, dst, True
     else:
         r_buf, s_buf, r_is_src = dst, src, False
@@ -548,7 +556,7 @@ def _emit_reg(op_call: TensorCall, sctx: DispatchContext) -> Function:
     for _ax, val in r_p.offset.items():
         r_off_base = r_off_base + val
 
-    s_is_shared = s_buf.scope().startswith("shared")
+    s_is_shared = s_buf.scope() in (_SCOPE_SHARED, _SCOPE_SHARED_DYN)
     num_bytes = vec_bits // 8
     tail, lanes, reg_dtype = copy_ptx_form(num_bytes)
     space = "shared" if s_is_shared else "global"

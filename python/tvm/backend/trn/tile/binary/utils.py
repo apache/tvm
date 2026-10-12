@@ -21,12 +21,16 @@ from enum import Enum
 
 from tvm.backend.trn.layout import is_trainium_layout
 from tvm.ir import TensorRegion
+from tvm.runtime import MemoryScope
 from tvm.sym.analyzer import Analyzer
 from tvm.tirx import FloatImm
 from tvm.tirx.tile.common import MapOpType
 
 from ..dim_utils import get_ewise_dim_map
 from ..instruction_generator import InstructionGenerator
+
+_SCOPE_TRN_PSUM = MemoryScope("trn.psum")
+_SCOPE_TRN_SBUF = MemoryScope("trn.sbuf")
 
 binary_map_ops = {
     MapOpType.ADD: "add",
@@ -77,8 +81,10 @@ def try_find_inst_nary(
             and all(src.ty.effective_layout() for src in srcs if src is not None),
             is_trainium_layout(dst.ty.effective_layout()),
             all(is_trainium_layout(src.ty.effective_layout()) for src in srcs if src is not None),
-            dst.scope() == "trn.sbuf",
-            all(src.scope() in ["trn.sbuf", "trn.psum"] for src in srcs if src is not None),
+            dst.scope() == _SCOPE_TRN_SBUF,
+            all(
+                src.scope() in [_SCOPE_TRN_SBUF, _SCOPE_TRN_PSUM] for src in srcs if src is not None
+            ),
         ]
     )
 

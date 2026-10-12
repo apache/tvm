@@ -19,6 +19,7 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/op.h>
+#include <tvm/runtime/memory_scope.h>
 #include <tvm/s_tir/meta_schedule/schedule_rule.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/tensor_intrin.h>
@@ -937,6 +938,9 @@ ScheduleRule ScheduleRule::MultiLevelTilingTensorCore(
     ffi::Optional<ffi::Array<int64_t>> vector_load_lens,
     ffi::Optional<ffi::Map<ffi::String, ffi::Any>> reuse_read,
     ffi::Optional<ffi::Map<ffi::String, ffi::Any>> reuse_write, bool use_software_pipeline) {
+  static const auto scope_shared = runtime::MemoryScope::Get("shared");
+  static const auto scope_shared_dyn = runtime::MemoryScope::Get("shared.dyn");
+
   if (tile_binds.has_value()) {
     for (const ffi::String& tile_bind : tile_binds.value()) {
       TVM_FFI_ICHECK_NE(tile_bind, "threadIdx.x")
@@ -957,9 +961,9 @@ ScheduleRule ScheduleRule::MultiLevelTilingTensorCore(
   }
 
   if (have_wmma_intrin_group) {
+    auto reuse_scope = runtime::MemoryScope::FromString(node->reuse_write_.scope);
     TVM_FFI_CHECK(node->reuse_write_.req == ReuseType::kMustReuse &&
-                      runtime::StorageScope::Create(node->reuse_write_.scope).rank ==
-                          runtime::StorageRank::kShared,
+                      (reuse_scope == scope_shared || reuse_scope == scope_shared_dyn),
                   ValueError)
         << "Shared memory write reuse must be enabled for MultiLevelTilingTensorCore.";
   }

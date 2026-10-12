@@ -24,6 +24,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/op.h>
 #include <tvm/ir/prim/op.h>
+#include <tvm/runtime/memory_scope.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/stmt_functor_with_analyzer.h>
@@ -32,7 +33,7 @@
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/op/memory.h>
 
-#include "../../runtime/thread_storage_scope.h"
+#include <tvm/runtime/memory_scope.h>
 #include "../../tirx/transform/ir_utils.h"
 
 namespace tvm {
@@ -206,6 +207,9 @@ class PermutedLayoutInjector : public StmtExprMutatorWithAnalyzer {
   }
 
   UnchangedOr<Stmt> Mutate_(const TensorStoreNode* op, InplaceMode inplace_mode) final {
+    static const auto scope_shared = runtime::MemoryScope::Get("shared");
+    static const auto scope_shared_dyn = runtime::MemoryScope::Get("shared.dyn");
+
     // Rewrite write from global to shared.dyn or shared
     // We assume the shape of the shared memory is [..., row_size, col_size],
     // where row_size is divisible by 64, or divisible by 32 and col_size is divisible by 2.
@@ -217,8 +221,8 @@ class PermutedLayoutInjector : public StmtExprMutatorWithAnalyzer {
       return store;
     }
 
-    auto scope = StorageScope::Create(store->dest.as_or_throw<TensorVar>().scope());
-    if (scope.rank != StorageRank::kShared) {
+    auto scope = store->dest.as_or_throw<TensorVar>().scope();
+    if ((scope != scope_shared && scope != scope_shared_dyn)) {
       return store;
     }
 
@@ -229,6 +233,9 @@ class PermutedLayoutInjector : public StmtExprMutatorWithAnalyzer {
   }
 
   UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) final {
+    static const auto scope_shared = runtime::MemoryScope::Get("shared");
+    static const auto scope_shared_dyn = runtime::MemoryScope::Get("shared.dyn");
+
     // Rewrite load from shared or shared.dyn to global
     auto load = StmtExprMutatorWithAnalyzer::Mutate_(op, inplace_mode)
                     .ValueOrUnchanged(ffi::GetRef<PrimExpr>(op))
@@ -238,8 +245,8 @@ class PermutedLayoutInjector : public StmtExprMutatorWithAnalyzer {
       return load;
     }
 
-    auto scope = StorageScope::Create(load->source.as_or_throw<tvm::tirx::TensorVar>().scope());
-    if (scope.rank != StorageRank::kShared) {
+    auto scope = load->source.as_or_throw<tvm::tirx::TensorVar>().scope();
+    if ((scope != scope_shared && scope != scope_shared_dyn)) {
       return load;
     }
 

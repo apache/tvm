@@ -29,6 +29,7 @@
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/ir/scope_stack.h>
+#include <tvm/runtime/memory_scope.h>
 #include <tvm/sym/analyzer.h>
 #include <tvm/tirx/stmt.h>
 #include <tvm/tirx/stmt_functor.h>
@@ -36,7 +37,7 @@
 
 #include <unordered_set>
 
-#include "../../runtime/thread_storage_scope.h"
+#include <tvm/runtime/memory_scope.h>
 #include "ir_utils.h"
 
 namespace tvm {
@@ -199,11 +200,12 @@ class LoopUnroller : public StmtExprMutator {
   }
 
   UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) final {
+    static const auto scope_local = runtime::MemoryScope::Get("local");
+    static const auto scope_warp = runtime::MemoryScope::Get("warp");
+
     if (unroll_local_access_) {
-      auto storage_scope =
-          runtime::StorageScope::Create(op->source.as_or_throw<tvm::tirx::TensorVar>().scope());
-      if (storage_scope.rank == runtime::StorageRank::kLocal ||
-          storage_scope.rank == runtime::StorageRank::kWarp) {
+      auto storage_scope = op->source.as_or_throw<tvm::tirx::TensorVar>().scope();
+      if (storage_scope == scope_local || storage_scope == scope_warp) {
         auto marker = ffi::make_object<VarLocalAccessMarker>(&var_touched_local_);
         for (PrimExpr e : op->indices) {
           marker->Visit(e);
@@ -214,11 +216,13 @@ class LoopUnroller : public StmtExprMutator {
   }
 
   UnchangedOr<Stmt> Mutate_(const TensorStoreNode* op, InplaceMode inplace_mode) final {
+    static const auto scope_local = runtime::MemoryScope::Get("local");
+    static const auto scope_warp = runtime::MemoryScope::Get("warp");
+
     ++step_count_;
     if (unroll_local_access_) {
-      auto storage_scope = runtime::StorageScope::Create(op->dest.as_or_throw<TensorVar>().scope());
-      if (storage_scope.rank == runtime::StorageRank::kLocal ||
-          storage_scope.rank == runtime::StorageRank::kWarp) {
+      auto storage_scope = op->dest.as_or_throw<TensorVar>().scope();
+      if (storage_scope == scope_local || storage_scope == scope_warp) {
         auto marker = ffi::make_object<VarLocalAccessMarker>(&var_touched_local_);
         for (PrimExpr e : op->indices) {
           marker->Visit(e);

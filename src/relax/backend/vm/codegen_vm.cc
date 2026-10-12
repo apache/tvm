@@ -375,7 +375,7 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
     auto vdevice = GetGlobalVDevice(ctx_mod_, vdevice_index);
 
     if (vdevice.has_value()) {
-      args.push_back(this->VisitExpr(StringImm(vdevice.value()->memory_scope)));
+      args.push_back(this->VisitExpr(StringImm(vdevice.value()->memory_scope.name())));
     }
     builder_->EmitCall("vm.builtin.alloc_tensor", args, dst_reg);
   }

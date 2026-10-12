@@ -27,6 +27,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/prim/op.h>
+#include <tvm/runtime/memory_scope.h>
 #include <tvm/s_tir/backend/adreno/transform.h>
 #include <tvm/s_tir/stmt_functor_with_analyzer.h>
 #include <tvm/te/operation.h>
@@ -36,7 +37,7 @@
 #include <unordered_map>
 
 #include "../../../backend/opencl/runtime/texture.h"
-#include "../../../runtime/thread_storage_scope.h"
+#include <tvm/runtime/memory_scope.h>
 
 namespace tvm {
 namespace s_tir {
@@ -77,7 +78,7 @@ class TextureLoweringBase : public StmtExprMutator {
   }
 
  protected:
-  std::string GetStorageScope(const TensorVar& tensor) { return tensor->storage_scope; }
+  runtime::MemoryScope GetStorageScope(const TensorVar& tensor) { return tensor->storage_scope; }
 
   // Set of all external input and output tensors
   std::unordered_set<TensorVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> extern_tensor_;
@@ -99,7 +100,7 @@ class TextureFlattener : public TextureLoweringBase {
   UnchangedOr<Stmt> Mutate_(const TensorStoreNode* op, InplaceMode inplace_mode) final {
     Stmt stmt = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     op = stmt.as<TensorStoreNode>();
-    std::string storage_scope = GetStorageScope(op->dest.as_or_throw<TensorVar>());
+    runtime::MemoryScope storage_scope = GetStorageScope(op->dest.as_or_throw<TensorVar>());
     // Lower to two dimensional access
     if (IsTextureStorage(storage_scope)) {
       ffi::Array<Expr> args = GetTextureAccessArgs(op, op->dest.as_or_throw<TensorVar>());
@@ -115,7 +116,8 @@ class TextureFlattener : public TextureLoweringBase {
         StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<PrimExpr>(op));
     op = expr.as<TensorLoadNode>();
     // Lower to two dimensional access
-    std::string storage_scope = GetStorageScope(op->source.as_or_throw<tvm::tirx::TensorVar>());
+    runtime::MemoryScope storage_scope =
+        GetStorageScope(op->source.as_or_throw<tvm::tirx::TensorVar>());
     if (IsTextureStorage(storage_scope)) {
       ffi::Array<Expr> args =
           GetTextureAccessArgs(op, op->source.as_or_throw<tvm::tirx::TensorVar>());

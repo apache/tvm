@@ -30,6 +30,7 @@ codegen time. Packed-vec emit requires the innermost dim to have stride 1
 
 from __future__ import annotations
 
+from tvm.runtime import MemoryScope
 from tvm.script import tirx as T
 from tvm.tirx import Function
 from tvm.tirx.tile import DispatchContext
@@ -54,6 +55,9 @@ from ._common import (
 )
 from .vec_emit import _emit_vec
 
+_SCOPE_SHARED = MemoryScope("shared")
+_SCOPE_SHARED_DYN = MemoryScope("shared.dyn")
+
 
 # -----------------------------------------------------------------------------
 # Predicate
@@ -73,7 +77,7 @@ def is_smem_ewise(spec):
         if msg is not None or plan is None:
             return False, msg
         for br in buffer_regions(plan):
-            if not br.source.scope().startswith("shared"):
+            if br.source.scope() not in (_SCOPE_SHARED, _SCOPE_SHARED_DYN):
                 return False, f"operand scope {br.source.scope()} != shared*"
             if br.source.ty.effective_layout() is None:
                 return False, "shared operand has no layout"

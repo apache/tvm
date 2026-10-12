@@ -22,12 +22,16 @@ from typing import Literal
 
 from tvm_ffi import register_global_func
 
-from tvm.runtime import convert
+from tvm.runtime import MemoryScope, convert
 from tvm.s_tir import TensorIntrin
 from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.tirx import Cast, IntImm
 from tvm.tirx.function import Function
+
+_SCOPE_GLOBAL = MemoryScope("global")
+_SCOPE_SHARED = MemoryScope("shared")
+_SCOPE_SHARED_DYN = MemoryScope("shared.dyn")
 
 
 def shared_16x16_to_ldmatrix_32x8_layout(i, j):
@@ -774,8 +778,10 @@ def get_mma_intrin_group(
     ret : Dict[str, str]
         A group of tensor intrinsics.
     """
-    assert load_scope in ["shared", "shared.dyn"]
-    assert store_scope in ["global", "shared", "shared.dyn"]
+    load_scope = MemoryScope(load_scope)
+    store_scope = MemoryScope(store_scope)
+    assert load_scope in [_SCOPE_SHARED, _SCOPE_SHARED_DYN]
+    assert store_scope in [_SCOPE_GLOBAL, _SCOPE_SHARED, _SCOPE_SHARED_DYN]
     assert in_dtype in ["float16", "int8", "float8_e4m3fn", "float8_e5m2"]
     assert out_dtype in ["float16", "float32", "int32"]
 
@@ -799,7 +805,7 @@ def get_mma_intrin_group(
     # e.g. mma_ldmatrix_f16_a_trans_dyn, mma_ldmatrix_f16_b_trans_dyn
     trans_a = "_trans" if trans_a else ""
     trans_b = "_trans" if trans_b else ""
-    load_scope = "_dyn" if load_scope == "shared.dyn" else ""
+    load_scope = "_dyn" if load_scope == _SCOPE_SHARED_DYN else ""
     load_a_intrin = f"mma_ldmatrix_{a_dtype}_a{trans_a}{load_scope}"
     load_b_intrin = f"mma_ldmatrix_{b_dtype}_b{trans_b}{load_scope}"
 
@@ -809,7 +815,7 @@ def get_mma_intrin_group(
     compute_intrin = f"mma_{a_dtype}{b_dtype}{out_dtype}{trans_a_str}{trans_b_str}"
 
     # e.g. mma_store_16x16_f32_shared_dyn_simple_
-    store_scope = store_scope.replace(".", "_")
+    store_scope = store_scope.name.replace(".", "_")
     store_to_smem_dtype = dtype_mapping[store_to_smem_dtype] if store_to_smem_dtype else out_dtype
     suffix = "simple_" if not_use_mma_store_intrinic else ""
     store_intrin = f"mma_store_{shape}_{store_to_smem_dtype}_{store_scope}_{suffix}"

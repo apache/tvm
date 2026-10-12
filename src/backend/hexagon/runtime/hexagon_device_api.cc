@@ -26,6 +26,7 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/logging.h>
+#include <tvm/runtime/memory_scope.h>
 #include <tvm/runtime/tensor.h>
 
 #include <algorithm>
@@ -52,14 +53,14 @@ ffi::Any HexagonDeviceAPI::GetAttr(Device dev, const ffi::String& name) {
 }
 
 ffi::Tensor HexagonDeviceAPI::Empty(ffi::ShapeView shape, DLDataType dtype, DLDevice device,
-                                    ffi::Optional<ffi::String> mem_scope) {
+                                    ffi::Optional<runtime::MemoryScope> mem_scope) {
   TVM_FFI_ICHECK(runtime_hexbuffs) << "Call AcquireResources before allocating Hexagon tensors";
   struct NDAlloc {
     HexagonDeviceAPI* api;
     // Each VTCM allocation retains its device resources; DDR tensors need only
     // their original buffer manager, even after the creating session ends.
     std::shared_ptr<HexagonBufferManager> buffers;
-    ffi::Optional<ffi::String> scope;
+    ffi::Optional<runtime::MemoryScope> scope;
     void AllocData(DLTensor* tensor) {
       tensor->data =
           api->AllocDataSpace(tensor->device, tensor->ndim, tensor->shape, tensor->dtype, scope);
@@ -71,7 +72,7 @@ ffi::Tensor HexagonDeviceAPI::Empty(ffi::ShapeView shape, DLDataType dtype, DLDe
 
 // DataSpace: static allocations for Hexagon
 void* HexagonDeviceAPI::AllocDataSpace(Device dev, int ndim, const int64_t* shape, DLDataType dtype,
-                                       ffi::Optional<ffi::String> mem_scope) {
+                                       ffi::Optional<runtime::MemoryScope> mem_scope) {
   TVM_FFI_ICHECK(shape || ndim == 0)
       << "shape array is null for a non-scalar tensor, ndim = " << ndim;
   TVM_FFI_ICHECK(IsValidDevice(dev)) << "dev.device_type: " << dev.device_type;
@@ -94,7 +95,7 @@ void* HexagonDeviceAPI::AllocDataSpace(Device dev, int ndim, const int64_t* shap
   //         in Hexagon's "indirect tensor" format:
   //         - shape[0] indicates the number of tensor-content memory allocations.
   //         - shape[1] indicates the size of each tensor-content memory allocation.
-  if (!mem_scope.has_value() || mem_scope.value().empty() || mem_scope.value() == "global") {
+  if (!mem_scope.has_value() || mem_scope.value() == runtime::MemoryScope::Global()) {
     DLTensor tensor{};
     tensor.device = dev;
     tensor.ndim = ndim;
@@ -151,7 +152,7 @@ void* HexagonDeviceAPI::AllocDataSpace(Device dev, size_t nbytes, size_t alignme
       << "Attempted to allocate Hexagon data with "
       << "HexagonDeviceAPI::AllocDataSpace before initializing resources.  "
       << "Please call HexagonDeviceAPI::AcquireResources";
-  return runtime_hexbuffs->AllocateHexagonBuffer(nbytes, alignment, ffi::String("global"));
+  return runtime_hexbuffs->AllocateHexagonBuffer(nbytes, alignment, runtime::MemoryScope::Global());
 }
 
 void HexagonDeviceAPI::FreeDataSpace(Device dev, void* ptr) {
@@ -279,12 +280,13 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                   })
       .def_packed("device_api.hexagon.alloc_nd",
                   [](ffi::PackedArgs args, ffi::Any* rv) {
+                    static const auto scope_global_vtcm = runtime::MemoryScope::Get("global.vtcm");
                     int32_t device_type = args[0].cast<int32_t>();
                     int32_t device_id = args[1].cast<int32_t>();
                     int32_t dtype_code_hint = args[2].cast<int32_t>();
                     int32_t dtype_bits_hint = args[3].cast<int32_t>();
-                    auto scope = args[4].cast<std::string>();
-                    TVM_FFI_ICHECK(scope.find("global.vtcm") != std::string::npos);
+                    auto scope = args[4].cast<runtime::MemoryScope>();
+                    TVM_FFI_ICHECK(scope == scope_global_vtcm);
                     int64_t ndim = args[5].cast<int64_t>();
                     TVM_FFI_ICHECK((ndim == 1 || ndim == 2) &&
                                    "Hexagon Device API supports only 1d and 2d allocations");
@@ -300,14 +302,15 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                     type_hint.lanes = 1;
 
                     HexagonDeviceAPI* hexapi = HexagonDeviceAPI::Global();
-                    *rv = hexapi->AllocDataSpace(dev, ndim, shape, type_hint, ffi::String(scope));
+                    *rv = hexapi->AllocDataSpace(dev, ndim, shape, type_hint, scope);
                   })
       .def_packed("device_api.hexagon.free_nd",
                   [](ffi::PackedArgs args, ffi::Any* rv) {
+                    static const auto scope_global_vtcm = runtime::MemoryScope::Get("global.vtcm");
                     int32_t device_type = args[0].cast<int32_t>();
                     int32_t device_id = args[1].cast<int32_t>();
-                    auto scope = args[2].cast<std::string>();
-                    TVM_FFI_ICHECK(scope.find("global.vtcm") != std::string::npos);
+                    auto scope = args[2].cast<runtime::MemoryScope>();
+                    TVM_FFI_ICHECK(scope == scope_global_vtcm);
                     void* ptr = args[3].cast<void*>();
 
                     Device dev;

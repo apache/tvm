@@ -24,6 +24,7 @@
 #include <tvm/ir/op.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/prim/op.h>
+#include <tvm/runtime/memory_scope.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
@@ -33,7 +34,7 @@
 #include <array>
 #include <stack>
 
-#include "../../runtime/thread_storage_scope.h"
+#include <tvm/runtime/memory_scope.h>
 #include "../../tirx/transform/ir_utils.h"
 #include "../schedule/utils.h"
 #include "./memhammer_rewrite_rule.h"
@@ -96,11 +97,14 @@ class AutoPadder {
    * \return the list of new padded tensors
    */
   ffi::Array<TensorVar> PadSharedMemory(const ffi::Array<TensorVar>& tensors) {
+    static const auto scope_shared = runtime::MemoryScope::Get("shared");
+    static const auto scope_shared_dyn = runtime::MemoryScope::Get("shared.dyn");
+
     ffi::Array<TensorVar> result;
 
     for (const TensorVar& tensor : tensors) {
-      runtime::StorageScope scope = runtime::StorageScope::Create(tensor.scope());
-      if (scope.rank == runtime::StorageRank::kShared) {
+      runtime::MemoryScope scope = tensor.scope();
+      if ((scope == scope_shared || scope == scope_shared_dyn)) {
         auto iter_spaces = iter_spaces_[tensor.get()];
         if (iter_spaces.empty()) {
           result.push_back(tensor);
@@ -545,9 +549,11 @@ class AutoPadder {
      * \param op the tensor store
      */
     ffi::Optional<VisitInterrupt> Visit_(const TensorStoreNode* op) final {
-      runtime::StorageScope scope =
-          runtime::StorageScope::Create(op->dest.as_or_throw<TensorVar>().scope());
-      if (scope.rank == runtime::StorageRank::kShared) {
+      static const auto scope_shared = runtime::MemoryScope::Get("shared");
+      static const auto scope_shared_dyn = runtime::MemoryScope::Get("shared.dyn");
+
+      runtime::MemoryScope scope = op->dest.as_or_throw<TensorVar>().scope();
+      if ((scope == scope_shared || scope == scope_shared_dyn)) {
         ffi::Array<PrimExpr> substitued_indices;
         sym::Analyzer analyzer;
         auto f_substitute = [this](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
@@ -581,9 +587,12 @@ class AutoPadder {
      * \param op the tensor load
      */
     ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* op) final {
+      static const auto scope_shared = runtime::MemoryScope::Get("shared");
+      static const auto scope_shared_dyn = runtime::MemoryScope::Get("shared.dyn");
+
       TensorVar tensor = op->source.as_or_throw<tvm::tirx::TensorVar>();
-      runtime::StorageScope scope = runtime::StorageScope::Create(tensor.scope());
-      if (scope.rank == runtime::StorageRank::kShared) {
+      runtime::MemoryScope scope = tensor.scope();
+      if ((scope == scope_shared || scope == scope_shared_dyn)) {
         ffi::Array<PrimExpr> substitued_indices;
         sym::Analyzer analyzer;
         auto f_substitute = [this](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
@@ -617,6 +626,9 @@ class AutoPadder {
      * \param op the call node
      */
     ffi::Optional<VisitInterrupt> Visit_(const SBlockNode* op) final {
+      static const auto scope_shared = runtime::MemoryScope::Get("shared");
+      static const auto scope_shared_dyn = runtime::MemoryScope::Get("shared.dyn");
+
       if (const auto* eval =
               op->body->size() == 1 ? op->body->seq[0].as<EvaluateNode>() : nullptr) {
         if (const auto* call = eval->value.as<CallNode>()) {
@@ -626,8 +638,8 @@ class AutoPadder {
               call->op.same_as(gpu_store_matrix_sync_op)) {
             for (const MatchTensorRegion& r : op->match_tensors) {
               TensorVar src_tensor = r->source->source.as_or_throw<tvm::tirx::TensorVar>();
-              runtime::StorageScope scope = runtime::StorageScope::Create(src_tensor.scope());
-              if (scope.rank == runtime::StorageRank::kShared) {
+              runtime::MemoryScope scope = src_tensor.scope();
+              if ((scope == scope_shared || scope == scope_shared_dyn)) {
                 ffi::Array<Range> region = r->source->region;
                 ffi::Array<PrimExpr> indices;
                 for (int i = 0; i < static_cast<int>(region.size()); i++) {
@@ -732,6 +744,8 @@ class AutoCopyMutator : public StmtExprMutator {
 
  private:
   UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) final {
+    static const auto scope_wmma_accumulator = runtime::MemoryScope::Get("wmma.accumulator");
+
     SBlock block = StmtExprMutator::Mutate_(op, inplace_mode)
                        .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
                        .as_or_throw<SBlock>();
@@ -749,7 +763,7 @@ class AutoCopyMutator : public StmtExprMutator {
       bool found = false;
       for (size_t i = 0; i < block->reads.size(); i++) {
         if (block->reads[i]->source.as_or_throw<tvm::tirx::TensorVar>().scope() ==
-            "wmma.accumulator") {
+            scope_wmma_accumulator) {
           found = true;
           target_read = block->reads[i];
         }

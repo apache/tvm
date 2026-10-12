@@ -23,6 +23,7 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/logging.h>
+#include <tvm/runtime/memory_scope.h>
 #include <tvm/runtime/timer.h>
 #include <tvm/support/env.h>
 
@@ -75,34 +76,43 @@ ImageInfo GetImageInfo(const cl::BufferDescriptor* desc, const DLTensor* tensor)
 }
 
 cl::BufferDescriptor::MemoryLayout cl::BufferDescriptor::MemoryLayoutFromScope(
-    ffi::Optional<ffi::String> mem_scope) {
+    ffi::Optional<runtime::MemoryScope> mem_scope) {
+  static const auto scope_global_texture = runtime::MemoryScope::Get("global.texture");
+  static const auto scope_global_texture_weight =
+      runtime::MemoryScope::Get("global.texture-weight");
+  static const auto scope_global_texture_nhwc = runtime::MemoryScope::Get("global.texture-nhwc");
   if (!mem_scope.has_value()) {
     return cl::BufferDescriptor::MemoryLayout::kBuffer1D;
-  } else if (mem_scope.value() == "global.texture") {
+  } else if (mem_scope.value() == scope_global_texture) {
     return cl::BufferDescriptor::MemoryLayout::kImage2DActivation;
-  } else if (mem_scope.value() == "global.texture-weight") {
+  } else if (mem_scope.value() == scope_global_texture_weight) {
     return cl::BufferDescriptor::MemoryLayout::kImage2DWeight;
-  } else if (mem_scope.value() == "global.texture-nhwc") {
+  } else if (mem_scope.value() == scope_global_texture_nhwc) {
     return cl::BufferDescriptor::MemoryLayout::kImage2DNHWC;
   }
   TVM_FFI_THROW(InternalError) << "No memory layout defined for memory of scope: "
-                               << mem_scope.value();
+                               << mem_scope.value().name();
 }
 
-ffi::String cl::BufferDescriptor::ScopeFromMemoryLayout(cl::BufferDescriptor::MemoryLayout layout) {
+runtime::MemoryScope cl::BufferDescriptor::ScopeFromMemoryLayout(
+    cl::BufferDescriptor::MemoryLayout layout) {
+  static const auto scope_global_texture = runtime::MemoryScope::Get("global.texture");
+  static const auto scope_global_texture_weight =
+      runtime::MemoryScope::Get("global.texture-weight");
+  static const auto scope_global_texture_nhwc = runtime::MemoryScope::Get("global.texture-nhwc");
   switch (layout) {
     case cl::BufferDescriptor::MemoryLayout::kBuffer1D:
-      return "global";
+      return runtime::MemoryScope::Global();
     case cl::BufferDescriptor::MemoryLayout::kImage2DActivation:
-      return "global.texture";
+      return scope_global_texture;
     case cl::BufferDescriptor::MemoryLayout::kImage2DWeight:
-      return "global.texture-weight";
+      return scope_global_texture_weight;
     case cl::BufferDescriptor::MemoryLayout::kImage2DNHWC:
-      return "global.texture-nhwc";
+      return scope_global_texture_nhwc;
   }
   TVM_FFI_THROW(InternalError) << "No scope corresponding to the provided memory layout: "
                                << static_cast<int>(layout);
-  return "";
+  return runtime::MemoryScope::Global();
 }
 
 static size_t GetMemObjectSize(Device dev, int ndim, const int64_t* shape, DLDataType dtype) {
@@ -247,13 +257,13 @@ void* OpenCLWorkspace::CreateHostPtrIfEnabled(cl::BufferDescriptor* desc, Device
 class OpenCLTensorMemoryPool final : public TensorMemoryPool {
  public:
   ffi::Tensor Empty(ffi::ShapeView shape, DLDataType dtype, DLDevice device,
-                    ffi::Optional<ffi::String> mem_scope = std::nullopt) final {
-    if (!mem_scope.has_value() || (*mem_scope).empty() || *mem_scope == "global") {
+                    ffi::Optional<runtime::MemoryScope> mem_scope = std::nullopt) final {
+    if (!mem_scope.has_value() || *mem_scope == runtime::MemoryScope::Global()) {
       return TensorMemoryPool::Empty(shape, dtype, device);
     }
     struct NDAlloc {
       OpenCLTensorMemoryPool* pool;
-      ffi::Optional<ffi::String> scope;
+      ffi::Optional<runtime::MemoryScope> scope;
       void AllocData(DLTensor* tensor) {
         tensor->data = OpenCLWorkspace::Global()->AllocDataSpace(
             tensor->device, tensor->ndim, tensor->shape, tensor->dtype, scope, pool);
@@ -267,11 +277,11 @@ class OpenCLTensorMemoryPool final : public TensorMemoryPool {
 
   ffi::Tensor CreateView(ffi::Tensor backing, ffi::Shape shape, DLDataType dtype,
                          uint64_t byte_offset = 0,
-                         ffi::Optional<ffi::String> mem_scope = std::nullopt) final {
+                         ffi::Optional<runtime::MemoryScope> mem_scope = std::nullopt) final {
     TVM_FFI_CHECK_EQ(backing.device().device_type, kDLOpenCL, ValueError);
     TVM_FFI_CHECK(backing.IsContiguous(), ValueError) << "OpenCL views require compact backing";
     auto* desc = static_cast<BufferDescriptor*>(backing.data_ptr());
-    if ((!mem_scope.has_value() || (*mem_scope).empty() || *mem_scope == "global") &&
+    if ((!mem_scope.has_value() || *mem_scope == runtime::MemoryScope::Global()) &&
         desc->layout == BufferDescriptor::MemoryLayout::kBuffer1D) {
       return runtime::CreateView(std::move(backing), std::move(shape), dtype, byte_offset);
     }
@@ -282,7 +292,7 @@ class OpenCLTensorMemoryPool final : public TensorMemoryPool {
         << "OpenCL view exceeds its backing tensor";
     auto* api = OpenCLWorkspace::Global();
     auto device = backing.device();
-    if (mem_scope.has_value() && !(*mem_scope).empty() && *mem_scope != "global") {
+    if (mem_scope.has_value() && *mem_scope != runtime::MemoryScope::Global()) {
       TVM_FFI_CHECK_GE(shape.size(), 2, ValueError);
       TVM_FFI_CHECK_EQ(shape.back(), 4, ValueError) << "OpenCL textures require four channels";
       // Physical image rows include backend padding, which must also fit the buffer.
@@ -301,7 +311,7 @@ class OpenCLTensorMemoryPool final : public TensorMemoryPool {
     }
     struct NDAlloc {
       ffi::Tensor backing;
-      ffi::Optional<ffi::String> scope;
+      ffi::Optional<runtime::MemoryScope> scope;
       void AllocData(DLTensor* tensor) {
         tensor->data = OpenCLWorkspace::Global()->AllocDataSpaceView(
             tensor->device, backing.data_ptr(),
@@ -348,13 +358,15 @@ OpenCLWorkspace::OpenCLWorkspace() : memory_pool_(ffi::make_object<OpenCLTensorM
 void OpenCLWorkspace::ClearMemoryPool() { memory_pool_->Clear(); }
 
 ffi::Tensor OpenCLWorkspace::Empty(ffi::ShapeView shape, DLDataType dtype, DLDevice device,
-                                   ffi::Optional<ffi::String> mem_scope) {
+                                   ffi::Optional<runtime::MemoryScope> mem_scope) {
   return memory_pool_->Empty(shape, dtype, device, mem_scope);
 }
 
 void* OpenCLWorkspace::AllocDataSpace(Device dev, size_t width, size_t height, size_t depth,
-                                      DLDataType type_hint, ffi::Optional<ffi::String> mem_scope,
+                                      DLDataType type_hint,
+                                      ffi::Optional<runtime::MemoryScope> mem_scope,
                                       TensorMemoryPool* pool) {
+  static const auto scope_global_texture = runtime::MemoryScope::Get("global.texture");
   // Texture allocation given width and height
   cl_uint row_align = GetImageAlignment(dev.device_id);
   size_t pixel_size = (type_hint.bits * type_hint.lanes + 7) / 8;
@@ -371,7 +383,7 @@ void* OpenCLWorkspace::AllocDataSpace(Device dev, size_t width, size_t height, s
   }
 
   if (!mem_scope.has_value()) {
-    mem_scope = ffi::String("global.texture");
+    mem_scope = scope_global_texture;
   }
   auto* image = static_cast<cl::BufferDescriptor*>(
       AllocCLImage(dev, back_buffer, width, height, depth, row_pitch, type_hint, mem_scope));
@@ -380,10 +392,10 @@ void* OpenCLWorkspace::AllocDataSpace(Device dev, size_t width, size_t height, s
 }
 
 void* OpenCLWorkspace::AllocDataSpace(Device dev, int ndim, const int64_t* shape, DLDataType dtype,
-                                      ffi::Optional<ffi::String> mem_scope,
+                                      ffi::Optional<runtime::MemoryScope> mem_scope,
                                       TensorMemoryPool* pool) {
   this->Init();
-  if (!mem_scope.has_value() || (*mem_scope).empty() || (*mem_scope) == "global") {
+  if (!mem_scope.has_value() || (*mem_scope) == runtime::MemoryScope::Global()) {
     size_t size = GetMemObjectSize(dev, ndim, shape, dtype);
     return AllocCLBuffer(dev, size, kTempAllocaAlignment, dtype);
   }
@@ -413,9 +425,9 @@ void* OpenCLWorkspace::AllocCLBuffer(Device dev, size_t size, size_t alignment,
 
 void* OpenCLWorkspace::AllocCLImage(Device dev, void* back_buffer, size_t width, size_t height,
                                     size_t depth, size_t row_pitch, DLDataType type_hint,
-                                    ffi::Optional<ffi::String> mem_scope) {
+                                    ffi::Optional<runtime::MemoryScope> mem_scope) {
   this->Init();
-  TVM_FFI_ICHECK(std::string(mem_scope.value()).find("texture") != std::string::npos)
+  TVM_FFI_ICHECK(IsTextureStorage(mem_scope.value()))
       << "Expect texture scope while creating an Image object";
   cl::BufferDescriptor* back_desc = static_cast<cl::BufferDescriptor*>(back_buffer);
   cl_device_id device_id = GetCLDeviceID(dev.device_id);
@@ -440,13 +452,14 @@ void* OpenCLWorkspace::AllocCLImage(Device dev, void* back_buffer, size_t width,
 }
 
 void* OpenCLWorkspace::AllocDataSpaceView(Device dev, void* data, ffi::Shape shape,
-                                          DLDataType dtype, ffi::Optional<ffi::String> mem_scope) {
+                                          DLDataType dtype,
+                                          ffi::Optional<runtime::MemoryScope> mem_scope) {
   cl::BufferDescriptor* desc = static_cast<cl::BufferDescriptor*>(data);
 
   // Fall back for devices w/o "cl_khr_image2d_from_buffer"
   if (!IsBufferToImageSupported(dev.device_id)) {
     cl::BufferDescriptor* ret_desc = desc;  // buffer -> buffer
-    if (!mem_scope.has_value() || (*mem_scope).empty() || (*mem_scope) == "global") {
+    if (!mem_scope.has_value() || (*mem_scope) == runtime::MemoryScope::Global()) {
       if (desc->layout != cl::BufferDescriptor::MemoryLayout::kBuffer1D) {
         // image -> buffer
         size_t nbytes = GetMemObjectSize(dev, shape.size(), shape.data(), dtype);
@@ -469,7 +482,7 @@ void* OpenCLWorkspace::AllocDataSpaceView(Device dev, void* data, ffi::Shape sha
     return ret_desc;
   }
 
-  if (!mem_scope.has_value() || (*mem_scope).empty() || (*mem_scope) == "global") {
+  if (!mem_scope.has_value() || (*mem_scope) == runtime::MemoryScope::Global()) {
     if (desc->layout == cl::BufferDescriptor::MemoryLayout::kBuffer1D) {
       //  buffer -> buffer
       return desc;
@@ -856,10 +869,12 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef()
       .def_packed("device_api.opencl.alloc_nd",
                   [](ffi::PackedArgs args, ffi::Any* rv) {
+                    static const auto scope_global_texture =
+                        runtime::MemoryScope::Get("global.texture");
                     int32_t device_type = args[0].cast<int32_t>();
                     int32_t device_id = args[1].cast<int32_t>();
-                    auto scope = args[4].cast<std::string>();
-                    TVM_FFI_ICHECK(scope.find("texture") != std::string::npos);
+                    auto scope = args[4].cast<runtime::MemoryScope>();
+                    TVM_FFI_ICHECK(IsTextureStorage(scope));
                     int64_t ndim = args[5].cast<int64_t>();
                     TVM_FFI_ICHECK_EQ(ndim, 3);
                     int64_t* shape = static_cast<int64_t*>(args[6].cast<void*>());
@@ -876,14 +891,14 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
                     *rv = OpenCLWorkspace::Global()->AllocDataSpace(
                         dev, static_cast<size_t>(width), static_cast<size_t>(height),
-                        static_cast<size_t>(depth), type_hint, ffi::String("global.texture"));
+                        static_cast<size_t>(depth), type_hint, scope_global_texture);
                   })
       .def_packed("device_api.opencl.free_nd",
                   [](ffi::PackedArgs args, ffi::Any* rv) {
                     int32_t device_type = args[0].cast<int32_t>();
                     int32_t device_id = args[1].cast<int32_t>();
-                    auto scope = args[2].cast<std::string>();
-                    TVM_FFI_ICHECK(scope.find("texture") != std::string::npos);
+                    auto scope = args[2].cast<runtime::MemoryScope>();
+                    TVM_FFI_ICHECK(IsTextureStorage(scope));
                     void* data = args[3].cast<void*>();
                     OpenCLWorkspace* ptr = OpenCLWorkspace::Global();
                     Device dev;
@@ -911,12 +926,12 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("runtime.opencl.clear_pool", []() { OpenCLWorkspace::Global()->ClearMemoryPool(); })
       .def("runtime.opencl.alloc_tensor",
            [](ffi::Shape shape, DLDataType dtype, DLDevice device,
-              ffi::Optional<ffi::String> scope) {
+              ffi::Optional<runtime::MemoryScope> scope) {
              return OpenCLWorkspace::Global()->Empty(shape, dtype, device, scope);
            })
       .def("runtime.opencl.create_view",
            [](ffi::Tensor backing, ffi::Shape shape, DLDataType dtype,
-              ffi::Optional<ffi::String> scope) {
+              ffi::Optional<runtime::MemoryScope> scope) {
              return ffi::make_object<OpenCLTensorMemoryPool>()->CreateView(
                  std::move(backing), std::move(shape), dtype, 0, scope);
            })

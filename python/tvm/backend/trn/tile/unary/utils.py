@@ -19,6 +19,7 @@
 
 from tvm.backend.trn.layout import is_trainium_layout
 from tvm.ir import TensorRegion
+from tvm.runtime import MemoryScope
 from tvm.script import tirx as T
 from tvm.sym.analyzer import Analyzer
 from tvm.tirx import FloatImm
@@ -28,6 +29,9 @@ from ..common import nki_dim
 from ..dim_utils import get_ewise_dim_map
 from ..instruction_generator import InstructionGenerator
 from ..workspace_utils import check_workspace_tensor
+
+_SCOPE_TRN_PSUM = MemoryScope("trn.psum")
+_SCOPE_TRN_SBUF = MemoryScope("trn.sbuf")
 
 # Operation type classifications
 non_activation_unary_map_ops = [MapOpType.RECIPROCAL, MapOpType.FILL]
@@ -56,8 +60,8 @@ def try_find_inst_unary(
     valid_layout_scope = all(
         [
             src.ty.effective_layout() and dst.ty.effective_layout(),
-            src.scope() in ("trn.sbuf", "trn.psum"),
-            dst.scope() == "trn.sbuf",
+            src.scope() in (_SCOPE_TRN_SBUF, _SCOPE_TRN_PSUM),
+            dst.scope() == _SCOPE_TRN_SBUF,
             is_trainium_layout(src.ty.effective_layout()),
             is_trainium_layout(dst.ty.effective_layout()),
         ]

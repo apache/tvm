@@ -170,11 +170,19 @@ TensorType::TensorType(ffi::String storage_scope, PrimType dtype, ffi::Array<Pri
                        ffi::Array<PrimExpr> strides, ffi::Optional<PrimExpr> elem_offset,
                        int data_alignment, int offset_factor, ffi::Optional<Layout> layout,
                        Location loc)
+    : TensorType(runtime::MemoryScope::FromString(storage_scope), std::move(dtype),
+                 std::move(shape), std::move(strides), std::move(elem_offset), data_alignment,
+                 offset_factor, std::move(layout), std::move(loc)) {}
+
+TensorType::TensorType(runtime::MemoryScope storage_scope, PrimType dtype,
+                       ffi::Array<PrimExpr> shape, ffi::Array<PrimExpr> strides,
+                       ffi::Optional<PrimExpr> elem_offset, int data_alignment, int offset_factor,
+                       ffi::Optional<Layout> layout, Location loc)
     : Type(ffi::UnsafeInit{}) {
   PrimExpr offset = elem_offset.value_or(IntImm(DefaultIndexPrimType(), 0));
   auto n = ffi::make_object<TensorTypeNode>(std::move(offset));
   n->dtype = std::move(dtype);
-  n->storage_scope = storage_scope.empty() ? ffi::String("global") : std::move(storage_scope);
+  n->storage_scope = std::move(storage_scope);
   n->shape = std::move(shape);
   n->strides = std::move(strides);
   n->data_alignment =
@@ -198,7 +206,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
   refl::GlobalDef().def(
       "tirx.TensorType",
-      [](ffi::String storage_scope, PrimType dtype, ffi::Array<PrimExpr> shape,
+      [](runtime::MemoryScope storage_scope, PrimType dtype, ffi::Array<PrimExpr> shape,
          ffi::Array<PrimExpr> strides, ffi::AnyView elem_offset, int data_alignment,
          int offset_factor, ffi::Optional<Layout> layout, Location loc) {
         ffi::Optional<PrimExpr> offset;

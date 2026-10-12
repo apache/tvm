@@ -225,7 +225,7 @@ ffi::Array<PrimExpr> SimplifyArray(sym::AnalyzerObj* ana, ffi::Array<PrimExpr> a
 }
 
 TensorVar decl_tensor(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String name,
-                      ffi::String storage_scope, Location loc) {
+                      runtime::MemoryScope storage_scope, Location loc) {
   return TensorVar(name, TensorType(storage_scope, dtype, shape, {}, std::nullopt, 0, 0), loc);
 }
 

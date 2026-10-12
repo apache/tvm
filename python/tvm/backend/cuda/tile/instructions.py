@@ -17,7 +17,14 @@
 """CUDA tensor instruction interfaces and their fixed lowering contracts."""
 
 from tvm.ir import TensorRegion
+from tvm.runtime import MemoryScope
 from tvm.tirx.tile.instruction import Instruction, Operand, namespace
+
+_SCOPE_GLOBAL = MemoryScope("global")
+_SCOPE_LOCAL = MemoryScope("local")
+_SCOPE_SHARED = MemoryScope("shared")
+_SCOPE_SHARED_DYN = MemoryScope("shared.dyn")
+_SCOPE_TMEM = MemoryScope("tmem")
 
 
 def _check(result):
@@ -49,12 +56,20 @@ def _memory(view, sctx):
     name = view.op.name.rsplit(".", 1)[-1]
     dst_scope, src_scope = dst.source.scope(), src.source.scope()
     if name in {"ld", "ldmatrix"}:
-        if dst_scope != "local" or src_scope not in {"global", "shared", "shared.dyn"}:
+        if dst_scope != _SCOPE_LOCAL or src_scope not in {
+            _SCOPE_GLOBAL,
+            _SCOPE_SHARED,
+            _SCOPE_SHARED_DYN,
+        }:
             raise ValueError(f"{name} requires memory -> local operands")
     elif name in {"st", "stmatrix"}:
-        if src_scope != "local" or dst_scope not in {"global", "shared", "shared.dyn"}:
+        if src_scope != _SCOPE_LOCAL or dst_scope not in {
+            _SCOPE_GLOBAL,
+            _SCOPE_SHARED,
+            _SCOPE_SHARED_DYN,
+        }:
             raise ValueError(f"{name} requires local -> memory operands")
-    elif dst_scope != "local" or src_scope != "local":
+    elif dst_scope != _SCOPE_LOCAL or src_scope != _SCOPE_LOCAL:
         raise ValueError("register mov requires local -> local operands")
     if name in {"ldmatrix", "stmatrix"}:
         _check(ld_stmatrix._is_ldstmatrix(view, sctx))
@@ -77,7 +92,7 @@ def _elementwise(view, sctx):
     from .elementwise.smem import emit_smem, is_smem_ewise
 
     spec = ALL_OPS[view.kind]
-    if view.args[0].source.scope() == "local":
+    if view.args[0].source.scope() == _SCOPE_LOCAL:
         _check(is_reg_ewise(spec)(view, sctx))
         return emit_reg(view, spec, sctx)
     _check(is_smem_ewise(spec)(view, sctx))
@@ -91,7 +106,7 @@ def _mov_project(values, attrs):
 
 def _mov(view, sctx):
     if view.kind == "copy":
-        if any(region.source.scope() != "local" for region in view.args):
+        if any(region.source.scope() != _SCOPE_LOCAL for region in view.args):
             raise ValueError("register mov requires local -> local operands")
         view.kind = "cast"
     return _elementwise(view, sctx)
@@ -109,7 +124,7 @@ def _dsmem(view, sctx):
     from .copy_async.dsmem import copy_dsmem_impl
 
     _check(validate_copy_op(view, sctx))
-    if any(not region.source.scope().startswith("shared") for region in view.args):
+    if any(region.source.scope() not in (_SCOPE_SHARED, _SCOPE_SHARED_DYN) for region in view.args):
         raise ValueError("cp_async_bulk requires shared -> shared operands")
     return copy_dsmem_impl(view, sctx)
 
@@ -124,7 +139,9 @@ def _tma(view, sctx):
     name = view.op.name.rsplit(".", 1)[-1]
     dst, src = view.args
     load = name == "cp_async_bulk_tensor_load"
-    if (src.source.scope() == "global") != load or (dst.source.scope() == "global") == load:
+    if (src.source.scope() == _SCOPE_GLOBAL) != load or (
+        dst.source.scope() == _SCOPE_GLOBAL
+    ) == load:
         raise ValueError(f"{name}: incompatible transfer direction")
     view.options.pop("descriptor_mode", None)
     reduction = view.options.pop("reduce_op", None)
@@ -163,7 +180,7 @@ def _tc_ldst(view, sctx):
     dst, src = view.args
     load = view.op.name.endswith(".ld")
     if (dst.source.scope(), src.source.scope()) != (
-        ("local", "tmem") if load else ("tmem", "local")
+        (_SCOPE_LOCAL, _SCOPE_TMEM) if load else (_SCOPE_TMEM, _SCOPE_LOCAL)
     ):
         raise ValueError("tcgen05.ld/st requires the named TMEM transfer direction")
     return copy_tmem_local_impl(view, sctx)

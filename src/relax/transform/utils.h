@@ -427,7 +427,7 @@ inline ffi::String GetCodegenName(const std::string& composite_name) {
   return composite_name.substr(0, delim_pos);
 }
 
-inline int GetDeviceIndexByScope(const IRModule& mod, const ffi::String& scope) {
+inline int GetDeviceIndexByScope(const IRModule& mod, runtime::MemoryScope scope) {
   if (mod->global_infos.find("vdevice") == mod->global_infos.end()) {
     return 0;
   }

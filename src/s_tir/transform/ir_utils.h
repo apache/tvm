@@ -22,6 +22,7 @@
 
 #include <tvm/ffi/container/tuple.h>
 #include <tvm/ir/module.h>
+#include <tvm/runtime/memory_scope.h>
 #include <tvm/s_tir/stmt.h>
 
 #include <string>
@@ -57,17 +58,21 @@ struct FragmentInfo {
   // fragment layout (row-major or column-major)
   std::string layout;
   // scope of the fragment (wmma.matrix_a, wmma.matrix_b, or wmma.accumulator)
-  std::string scope;
+  runtime::MemoryScope scope;
   FragmentInfo() = default;
-  FragmentInfo(int _m, int _n, int _k, const std::string& _layout, const std::string& _scope)
+  FragmentInfo(int _m, int _n, int _k, const std::string& _layout, runtime::MemoryScope _scope)
       : m(_m), n(_n), k(_k), layout(_layout), scope(_scope) {}
 
   int GetSize() const {
-    if (scope == "wmma.matrix_a") {
+    static const auto scope_wmma_matrix_a = runtime::MemoryScope::Get("wmma.matrix_a");
+    static const auto scope_wmma_matrix_b = runtime::MemoryScope::Get("wmma.matrix_b");
+    static const auto scope_wmma_accumulator = runtime::MemoryScope::Get("wmma.accumulator");
+
+    if (scope == scope_wmma_matrix_a) {
       return m * k;
-    } else if (scope == "wmma.matrix_b") {
+    } else if (scope == scope_wmma_matrix_b) {
       return n * k;
-    } else if (scope == "wmma.accumulator") {
+    } else if (scope == scope_wmma_accumulator) {
       return m * n;
     } else {
       TVM_FFI_ICHECK(0);

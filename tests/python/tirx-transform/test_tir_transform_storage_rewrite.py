@@ -25,6 +25,10 @@ import tvm.testing
 from tvm.script import ir as I
 from tvm.script import tirx as T
 
+for _scope_name in ("local.L0A", "local.L0A2"):
+    _scope = tvm.runtime.MemoryScope.register(_scope_name)
+    tvm.runtime.MemoryScope.def_attr("tirx.storage_rewrite_merge")[_scope] = True
+
 
 def _is_tensor_binding(node, *op_names):
     return (

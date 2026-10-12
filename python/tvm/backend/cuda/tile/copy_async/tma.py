@@ -33,6 +33,7 @@ from enum import Enum
 from itertools import pairwise
 
 import tvm
+from tvm.runtime import MemoryScope
 from tvm.script import tirx as T
 from tvm.sym import Analyzer
 from tvm.tirx import Function, IntImm, Var, is_tensor_var
@@ -43,6 +44,10 @@ from tvm.tirx.tile.instruction import TensorCall
 from ...op import _is_static_unicast_cta_mask, _resolve_cache_policy
 from ..layout_utils import strip_swizzle_to_tile
 from ..tma_utils import SwizzleMode, get_swizzle_mode_from_layout
+
+_SCOPE_GLOBAL = MemoryScope("global")
+_SCOPE_SHARED = MemoryScope("shared")
+_SCOPE_SHARED_DYN = MemoryScope("shared.dyn")
 
 
 class ProofStatus(Enum):
@@ -1639,9 +1644,9 @@ def _copy_direction(op_call):
     dst_region, src_region = op_call.dst, op_call.src
     src_scope = src_region.source.scope()
     dst_scope = dst_region.source.scope()
-    if src_scope == "global" and dst_scope.startswith("shared"):
+    if src_scope == _SCOPE_GLOBAL and (dst_scope in (_SCOPE_SHARED, _SCOPE_SHARED_DYN)):
         return "g2s", dst_region, src_region
-    if src_scope.startswith("shared") and dst_scope == "global":
+    if (src_scope in (_SCOPE_SHARED, _SCOPE_SHARED_DYN)) and dst_scope == _SCOPE_GLOBAL:
         return "s2g", src_region, dst_region
     fail(f"TMA requires global<->shared operands, got src={src_scope}, dst={dst_scope}")
 
@@ -1935,7 +1940,7 @@ def _normalize_src_selector(value):
                 f"tma_explicit src_selector[{idx}] candidate must be a global "
                 "Var/view, not a region"
             )
-        if buffer.scope() != "global":
+        if buffer.scope() != _SCOPE_GLOBAL:
             fail(
                 f"tma_explicit src_selector[{idx}] candidate scope must be global, "
                 f"got {buffer.scope()}"
@@ -2274,6 +2279,6 @@ def _validate_tma_copy_op(op_call: TensorCall, _sctx: DispatchContext) -> bool:
     if src.ty.effective_layout() is None or dst.ty.effective_layout() is None:
         return False
     src_scope, dst_scope = src.scope(), dst.scope()
-    return (src_scope == "global" and dst_scope.startswith("shared")) or (
-        src_scope.startswith("shared") and dst_scope == "global"
+    return (src_scope == _SCOPE_GLOBAL and (dst_scope in (_SCOPE_SHARED, _SCOPE_SHARED_DYN))) or (
+        (src_scope in (_SCOPE_SHARED, _SCOPE_SHARED_DYN)) and dst_scope == _SCOPE_GLOBAL
     )

@@ -27,6 +27,7 @@
 #include <tvm/backend/cuda/op_attr_types.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/prim/op.h>
+#include <tvm/runtime/memory_scope.h>
 #include <tvm/target/codegen.h>
 
 #include <array>
@@ -60,7 +61,7 @@ class CodeGenCUDA final : public CodeGenC {
   void Dispatch_(const ForNode* op) final;
   void Dispatch_(const WhileNode* op) final;
   void PrintStorageSync(const CallNode* op) final;
-  void PrintStorageScope(const std::string& scope, std::ostream& os) final;  // NOLINT(*)
+  void PrintStorageScope(const runtime::MemoryScope& scope, std::ostream& os) final;  // NOLINT(*)
   using CodeGenC::PrintType;
   void PrintVecBinaryOp(const std::string& op, const PrimType& t, PrimExpr lhs, PrimExpr rhs,
                         std::ostream& os) final;              // NOLINT(*)

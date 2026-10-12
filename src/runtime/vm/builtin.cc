@@ -386,7 +386,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 //  Storage management.
 //-------------------------------------------------
 ffi::Tensor VMAllocStorage(void* ctx_ptr, ffi::Shape buffer_shape, Index device_index,
-                           DLDataType dtype_hint, ffi::String mem_scope) {
+                           DLDataType dtype_hint, MemoryScope mem_scope) {
   VirtualMachine* vm = static_cast<VirtualMachine*>(ctx_ptr);
   if (device_index == -1) {
     // Allocate on host. Host is always the last element of vm->devices.
@@ -410,9 +410,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
         int64_t offset = args[2].cast<int64_t>();
         ffi::Shape shape = args[3].cast<ffi::Shape>();
         DLDataType dtype = args[4].cast<DLDataType>();
-        ffi::Optional<ffi::String> scope = std::nullopt;
+        ffi::Optional<MemoryScope> scope = std::nullopt;
         if (args.size() == 6) {
-          scope = args[5].cast<ffi::String>();
+          scope = args[5].cast<MemoryScope>();
         }
         TVM_FFI_CHECK_GE(offset, 0, ValueError) << "Tensor byte offset must be nonnegative";
         DLDevice device = backing.device();
@@ -594,9 +594,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
         int dev_type = args[1].cast<int>();
         int dev_id = args[2].cast<int>();
         Device dst_device = {(DLDeviceType)dev_type, dev_id};
-        ffi::String mem_scope = "global";
+        MemoryScope mem_scope = MemoryScope::Global();
         if (args.size() == 4) {
-          mem_scope = args[3].cast<ffi::String>();
+          mem_scope = args[3].cast<MemoryScope>();
         }
         *rv = tvm::runtime::CopyTo(data, dst_device, mem_scope);
       });

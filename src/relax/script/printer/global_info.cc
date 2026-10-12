@@ -73,7 +73,7 @@ ffi::Optional<ExprDoc> VDeviceDocTranslate(DocTranslatorObj* d, ffi::AnyView inp
   return NamespaceDoc("relax")->Attr("vdevice")->Call(
       {d->Translate(device->target).value()}, {"vdevice_id", "memory_scope"},
       {LiteralDoc::Int(device->vdevice_id, std::nullopt),
-       LiteralDoc::Str(device->memory_scope, std::nullopt)});
+       d->Translate(device->memory_scope).value()});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

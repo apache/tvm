@@ -24,6 +24,7 @@
 #ifndef TVM_TARGET_OPENCL_CODEGEN_OPENCL_H_
 #define TVM_TARGET_OPENCL_CODEGEN_OPENCL_H_
 
+#include <tvm/runtime/memory_scope.h>
 #include <tvm/target/codegen.h>
 
 #include <string>
@@ -44,7 +45,8 @@ class CodeGenOpenCL final : public CodeGenC {
   void PrintFuncPrefix(std::ostream& os) final;                                   // NOLINT(*)
   void PreFunctionBody(const Function& f) final;                                  // NOLINT(*)
   void BindThreadIndex(const PrimVar& var, const ffi::String& thread_tag) final;  // NOLINT(*)
-  void PrintStorageScope(const std::string& scope, std::ostream& os) final;       // NOLINT(*)
+  void PrintStorageQualifier(const VarNode* var, std::ostream& os) final;
+  void PrintStorageScope(const runtime::MemoryScope& scope, std::ostream& os) final;  // NOLINT(*)
   void PrintStorageSync(const CallNode* op) final;                                // NOLINT(*)
   using CodeGenC::PrintType;
   void PrintType(const PrimType& t, std::ostream& os) final;  // NOLINT(*)
@@ -80,6 +82,7 @@ class CodeGenOpenCL final : public CodeGenC {
   void Dispatch_(const prim::ModNode* op, std::ostream& os) final;
 
  private:
+  std::unordered_map<const VarNode*, std::string> texture_access_qualifiers_;
   // whether enable fp16 and fp64 extension
   bool enable_fp16_{false};
   bool enable_fp64_{false};

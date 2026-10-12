@@ -142,11 +142,11 @@ void HexagonThreadManager::SpawnThreads(unsigned thread_stack_size_bytes,
                                         unsigned thread_pipe_size_words) {
   // allocate all stack space for threads
   stack_buffer_ = hexbuffs_.AllocateHexagonBuffer(thread_stack_size_bytes * nthreads_,
-                                                  MEM_ALIGNMENT, ffi::String("global"));
+                                                  MEM_ALIGNMENT, runtime::MemoryScope::Global());
   // allocate space for pipe buffers (command queues)
   unsigned thread_pipe_size_bytes = thread_pipe_size_words * sizeof(qurt_pipe_data_t);
   pipe_buffer_ = hexbuffs_.AllocateHexagonBuffer(thread_pipe_size_bytes * nthreads_, MEM_ALIGNMENT,
-                                                 ffi::String("global"));
+                                                 runtime::MemoryScope::Global());
 
   threads_.resize(nthreads_);
   pipes_.resize(nthreads_);

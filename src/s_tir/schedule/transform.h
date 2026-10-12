@@ -20,6 +20,7 @@
 #define TVM_S_TIR_SCHEDULE_TRANSFORM_H_
 
 #include <tvm/ir/prim/expr.h>
+#include <tvm/runtime/memory_scope.h>
 #include <tvm/s_tir/schedule/schedule.h>
 #include <tvm/s_tir/schedule/state.h>
 #include <tvm/s_tir/stmt.h>
@@ -53,7 +54,10 @@ SBlock WithAnnotation(const SBlockNode* block, const ffi::String& attr_key,
  * \param scope The target storage scope.
  * \return The new tensor with target storage scope.
  */
-TensorVar WithScope(const TensorVar& tensor, const ffi::String& scope);
+TensorVar WithScope(const TensorVar& tensor, runtime::MemoryScope scope);
+inline TensorVar WithScope(const TensorVar& tensor, const ffi::String& scope) {
+  return WithScope(tensor, runtime::MemoryScope::FromString(scope));
+}
 
 /*!
  * \brief Create a new tensor by changint the data type.

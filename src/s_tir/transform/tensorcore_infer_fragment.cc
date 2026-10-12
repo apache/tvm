@@ -27,6 +27,7 @@
 #include <tvm/ir/op.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/prim/op.h>
+#include <tvm/runtime/memory_scope.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
@@ -35,7 +36,6 @@
 #include <unordered_map>
 #include <unordered_set>
 
-#include "../../runtime/thread_storage_scope.h"
 #include "ir_utils.h"
 #include "storage_access.h"
 
@@ -59,6 +59,10 @@ class FragmentGetter : public s_tir::StmtExprVisitor {
  public:
   using s_tir::StmtExprVisitor::Visit_;
   ffi::Optional<VisitInterrupt> Visit_(const CallNode* op) final {
+    static const auto scope_wmma_matrix_a = runtime::MemoryScope::Get("wmma.matrix_a");
+    static const auto scope_wmma_matrix_b = runtime::MemoryScope::Get("wmma.matrix_b");
+    static const auto scope_wmma_accumulator = runtime::MemoryScope::Get("wmma.accumulator");
+
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(s_tir::StmtExprVisitor::Visit_(op));
 
     static const Op gpu_load_matrix_sync_op = Op::Get("tirx.gpu_load_matrix_sync");
@@ -79,25 +83,25 @@ class FragmentGetter : public s_tir::StmtExprVisitor {
       TVM_FFI_ICHECK(k);
       TVM_FFI_ICHECK(layout);
 
-      std::string scope = (buffer_var->ty.as<TensorTypeNode>()
-                               ? buffer_var->ty.as<TensorTypeNode>()->storage_scope
-                               : buffer_var->ty.as_or_throw<PtrType>()->storage_scope);
+      runtime::MemoryScope scope = (buffer_var->ty.as<TensorTypeNode>()
+                                        ? buffer_var->ty.as<TensorTypeNode>()->storage_scope
+                                        : buffer_var->ty.as_or_throw<PtrType>()->storage_scope);
       if (fragments.count(buffer_var)) {
         // check if the fragment has met before
         FragmentInfo info = fragments[buffer_var];
         TVM_FFI_ICHECK_EQ(m->value, info.m);
         TVM_FFI_ICHECK_EQ(n->value, info.n);
         TVM_FFI_ICHECK_EQ(k->value, info.k);
-        if (scope == "wmma.matrix_a" || scope == "wmma.matrix_b") {
+        if (scope == scope_wmma_matrix_a || scope == scope_wmma_matrix_b) {
           TVM_FFI_ICHECK_EQ(layout->value, info.layout);
         }
       } else {
         // store metadata
         FragmentInfo info;
-        if (scope == "wmma.matrix_a" || scope == "wmma.matrix_b") {
+        if (scope == scope_wmma_matrix_a || scope == scope_wmma_matrix_b) {
           info = FragmentInfo(m->value.as<int>().value(), n->value.as<int>().value(),
                               k->value.as<int>().value(), layout->value, scope);
-        } else if (scope == "wmma.accumulator") {
+        } else if (scope == scope_wmma_accumulator) {
           info = FragmentInfo(m->value.as<int>().value(), n->value.as<int>().value(),
                               k->value.as<int>().value(), "", scope);
         }
@@ -116,9 +120,9 @@ class FragmentGetter : public s_tir::StmtExprVisitor {
       TVM_FFI_ICHECK(n);
       TVM_FFI_ICHECK(k);
 
-      std::string scope = (buffer_var->ty.as<TensorTypeNode>()
-                               ? buffer_var->ty.as<TensorTypeNode>()->storage_scope
-                               : buffer_var->ty.as_or_throw<PtrType>()->storage_scope);
+      runtime::MemoryScope scope = (buffer_var->ty.as<TensorTypeNode>()
+                                        ? buffer_var->ty.as<TensorTypeNode>()->storage_scope
+                                        : buffer_var->ty.as_or_throw<PtrType>()->storage_scope);
       if (fragments.count(buffer_var)) {
         FragmentInfo info = fragments[buffer_var];
         TVM_FFI_ICHECK_EQ(m->value, info.m);

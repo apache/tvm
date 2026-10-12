@@ -21,6 +21,7 @@
 #include <tvm/ffi/extra/structural_equal.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/op.h>
+#include <tvm/runtime/memory_scope.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/tensor_intrin.h>
 #include <tvm/tirx/op/memory.h>
@@ -45,10 +46,10 @@ SBlock WithAnnotation(const SBlockNode* block, const ffi::String& attr_key,
 }
 
 /******** Tensor Related ********/
-TensorVar WithScope(const TensorVar& tensor, const ffi::String& scope) {
+TensorVar WithScope(const TensorVar& tensor, runtime::MemoryScope scope) {
   TensorType new_type(scope, tensor->dtype, tensor->shape, tensor->strides, tensor->elem_offset,
                       tensor->data_alignment, tensor->offset_factor, tensor->layout);
-  return TensorVar(tensor.name() + "_" + scope, new_type, tensor.loc());
+  return TensorVar(tensor.name() + "_" + scope.name(), new_type, tensor.loc());
 }
 
 TensorVar WithDType(const TensorVar& tensor, PrimType dtype) {

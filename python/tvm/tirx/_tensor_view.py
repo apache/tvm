@@ -24,6 +24,9 @@ from numbers import Integral
 from typing import TYPE_CHECKING
 
 import tvm
+from tvm.runtime import MemoryScope
+
+_SCOPE_TMEM = MemoryScope("tmem")
 
 if TYPE_CHECKING:
     from tvm.ir import Var
@@ -38,7 +41,7 @@ def _redecl(
     column address, while every other scope carries
     ``data``/``strides``/``elem_offset`` through.
     """
-    if buf.scope() == "tmem":
+    if buf.scope() == _SCOPE_TMEM:
         from tvm.backend.cuda.op import _tmem_address  # pylint: disable=import-outside-toplevel
         from tvm.tirx.script.ir_builder.parser_protocol import (
             bind_,  # pylint: disable=import-outside-toplevel
@@ -432,7 +435,7 @@ def _swizzle_offset_commutes(swizzle, extra_offset):
 def _rebuild_view(buf: Var, new_shape, new_shard, grouped, swizzle, extra_offset):
     """Rebuild a derived view while preserving its physical addresses."""
     offset_map = dict(grouped.offset.items())
-    is_tmem = buf.scope() == "tmem"
+    is_tmem = buf.scope() == _SCOPE_TMEM
     if (
         not is_tmem
         and extra_offset is not None
@@ -482,7 +485,7 @@ def _tmem_element_offset_to_column_offset(buf: Var, element_offset):
 
 def _tmem_offset_axis_check(buf: Var, group_iters, start_c, what):
     """Check that a tmem view offset can move into the declaration address."""
-    if buf.scope() != "tmem":
+    if buf.scope() != _SCOPE_TMEM:
         return
     if start_c == 0:
         return

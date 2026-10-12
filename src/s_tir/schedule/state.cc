@@ -19,6 +19,7 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/runtime/memory_scope.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/sym/int_set.h>
 
@@ -53,7 +54,7 @@ ffi::Array<sym::IntSet> AnalyzeRegionUpperBound(
       /*low_inclusive=*/dom_low_inclusive,
       /*high_exclusive=*/dom_high_exclusive,
       /*extra_relax_scope=*/
-      runtime::StorageScope::Create(region->source.as_or_throw<tvm::tirx::TensorVar>().scope()));
+      region->source.as_or_throw<tvm::tirx::TensorVar>().scope());
   sym::Analyzer analyzer_ref = ffi::GetRef<sym::Analyzer>(analyzer);
   return EstimateRegionUpperBound(
       /*region=*/region->region,
@@ -81,7 +82,7 @@ ffi::Array<sym::IntSet> AnalyzeRegionLowerBound(
       /*low_inclusive=*/dom_low_inclusive,
       /*high_exclusive=*/dom_high_exclusive,
       /*extra_relax_scope=*/
-      runtime::StorageScope::Create(region->source.as_or_throw<tvm::tirx::TensorVar>().scope()));
+      region->source.as_or_throw<tvm::tirx::TensorVar>().scope());
   sym::Analyzer analyzer_ref = ffi::GetRef<sym::Analyzer>(analyzer);
   if (ffi::Optional<ffi::Array<sym::IntSet>> result = EstimateRegionLowerBound(
           /*region=*/region->region,

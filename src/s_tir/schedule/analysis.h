@@ -21,6 +21,7 @@
 
 #include <tvm/ir/op.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/runtime/memory_scope.h>
 #include <tvm/s_tir/schedule/schedule.h>
 #include <tvm/s_tir/schedule/state.h>
 #include <tvm/s_tir/stmt.h>
@@ -34,7 +35,7 @@
 #include <utility>
 #include <vector>
 
-#include "../../runtime/thread_storage_scope.h"
+#include <tvm/runtime/memory_scope.h>
 
 namespace tvm {
 namespace s_tir {
@@ -269,8 +270,8 @@ void CheckPartialAffineBinding(const ScheduleState& self, SBlock block,
  */
 ffi::Map<Var, Range> LoopDomainOfSRefTreePath(
     const StmtSRef& low_inclusive, const ffi::Optional<StmtSRef>& high_exclusive = std::nullopt,
-    const runtime::StorageScope& extra_relax_scope =  //
-    runtime::StorageScope{runtime::StorageRank::kGlobal, ""});
+    const runtime::MemoryScope& extra_relax_scope =  //
+    runtime::MemoryScope::Global());
 
 /*!
  * \brief Returns the block var binding

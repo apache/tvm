@@ -25,6 +25,7 @@
 #define TVM_RUNTIME_OPENCL_TEXTURE_H_
 
 #include <tvm/runtime/device_api.h>
+#include <tvm/runtime/memory_scope.h>
 
 #include <memory>
 #include <string>
@@ -49,24 +50,32 @@ struct Texture2DShape {
  * \param convention Storage scope convention to use for flattening
  * \return The axis separator that defines the Nd shape partitioning in 2d
  */
-inline size_t DefaultTextureLayoutSeparator(size_t shape_rank,
-                                            std::string convention = "global.texture") {
+inline size_t DefaultTextureLayoutSeparator(size_t shape_rank, MemoryScope convention) {
+  static const auto scope_global_texture = runtime::MemoryScope::Get("global.texture");
+  static const auto scope_global_texture_weight =
+      runtime::MemoryScope::Get("global.texture-weight");
+  static const auto scope_global_texture_nhwc = runtime::MemoryScope::Get("global.texture-nhwc");
   // Texture activation:
   // e.g. [N,C,H,W,c] -> Texture2d[N*C*H, W, c]
   // Texture weight:
   // e.g. [O,I,H,W,c] -> Texture2d[O, I*H*W, c]
   size_t separator = 0;
-  if (convention == "global.texture") {
+  if (convention == scope_global_texture) {
     separator = shape_rank - 2;
-  } else if (convention == "global.texture-weight") {
+  } else if (convention == scope_global_texture_weight) {
     separator = 1;
-  } else if (convention == "global.texture-nhwc") {
+  } else if (convention == scope_global_texture_nhwc) {
     separator = 2;
   } else {
     TVM_FFI_THROW(InternalError) << "Encountered unknown texture lowering convention: "
-                                 << convention;
+                                 << convention.name();
   }
   return separator;
+}
+
+inline size_t DefaultTextureLayoutSeparator(size_t shape_rank) {
+  static const auto texture = MemoryScope::Get("global.texture");
+  return DefaultTextureLayoutSeparator(shape_rank, texture);
 }
 
 /*!
@@ -92,8 +101,15 @@ Texture2DShape<T> ApplyTexture2DFlattening(const S& shape, size_t rank, size_t a
   return texture;
 }
 
-inline bool IsTextureStorage(std::string scope) {
-  return scope.find("texture") != std::string::npos;
+inline bool IsTextureStorage(MemoryScope scope) {
+  static const auto texture = MemoryScope::Get("texture");
+  static const auto global_texture = MemoryScope::Get("global.texture");
+  static const auto texture_1d = MemoryScope::Get("global.texture-1d");
+  static const auto texture_nchw = MemoryScope::Get("global.texture-nchw");
+  static const auto texture_nhwc = MemoryScope::Get("global.texture-nhwc");
+  static const auto texture_weight = MemoryScope::Get("global.texture-weight");
+  return scope == texture || scope == global_texture || scope == texture_1d ||
+         scope == texture_nchw || scope == texture_nhwc || scope == texture_weight;
 }
 
 /*!
@@ -106,7 +122,7 @@ inline bool IsTextureStorage(std::string scope) {
  * \return returns the backing memory size
  */
 template <typename T>
-size_t GetTextureMemorySize(T shape, int bits, int lanes, std::string mem_scope,
+size_t GetTextureMemorySize(T shape, int bits, int lanes, MemoryScope mem_scope,
                             int image_row_align) {
   size_t axis = DefaultTextureLayoutSeparator(shape.size(), mem_scope);
   auto tshape = ApplyTexture2DFlattening<int64_t>(shape, shape.size(), axis);

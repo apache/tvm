@@ -19,6 +19,7 @@
 
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/runtime/memory_scope.h>
 #include <tvm/s_tir/analysis.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/stmt_functor.h>
@@ -54,11 +55,16 @@ class MmaTensorLayoutTransformer : public StmtExprMutator {
     SBlock block = ffi::GetRef<SBlock>(op);
     auto* n = block.CopyOnWrite();
     auto fmutate = [this](const TensorVar& tensor) {
+      static const auto scope_local = runtime::MemoryScope::Get("local");
+      static const auto scope_m16n8k8_matrixC = runtime::MemoryScope::Get("m16n8k8.matrixC");
+      static const auto scope_m16n8k8_matrixA = runtime::MemoryScope::Get("m16n8k8.matrixA");
+      static const auto scope_m16n8k8_matrixB = runtime::MemoryScope::Get("m16n8k8.matrixB");
+
       // m16n8k8.matrix[A/B/C] tensors are composed ofseveral small blocks. Assume the block's
       // shape is [bi, bj]. Inside each small block, we have 8 threads in stride dimension and 4
       // threads in contiguous dimension, so we change the tensor's shape from [i, j]
       // to [i // bi, j // bj, bi // 8, bj // 4].
-      if (tensor.scope() == "m16n8k8.matrixC") {
+      if (tensor.scope() == scope_m16n8k8_matrixC) {
         // m16n8k8.matrixC
         // bi = 16, bj = 8
         size_t size = tensor->shape.size();
@@ -76,11 +82,11 @@ class MmaTensorLayoutTransformer : public StmtExprMutator {
                          {IntImm::Int32(dim0->value / 16), IntImm::Int32(dim1->value / 8), 2, 2});
 
         TensorVar new_tensor =
-            decl_tensor(std::move(new_shape), tensor->dtype, tensor.name(), "local");
+            decl_tensor(std::move(new_shape), tensor->dtype, tensor.name(), scope_local);
         VarRemapSet(tensor, new_tensor);
         return new_tensor;
 
-      } else if (tensor.scope() == "m16n8k8.matrixA") {
+      } else if (tensor.scope() == scope_m16n8k8_matrixA) {
         // m16n8k8.matrixA
         // bi = 32, bj = 8
         size_t size = tensor->shape.size();
@@ -97,11 +103,11 @@ class MmaTensorLayoutTransformer : public StmtExprMutator {
                          {IntImm::Int32(dim0->value / 32), IntImm::Int32(dim1->value / 8), 4, 2});
 
         TensorVar new_tensor =
-            decl_tensor(std::move(new_shape), tensor->dtype, tensor.name(), "local");
+            decl_tensor(std::move(new_shape), tensor->dtype, tensor.name(), scope_local);
         VarRemapSet(tensor, new_tensor);
         return new_tensor;
 
-      } else if (tensor.scope() == "m16n8k8.matrixB") {
+      } else if (tensor.scope() == scope_m16n8k8_matrixB) {
         // m16n8k8.matrixB
         // bj = 8, bj = 32
         size_t size = tensor->shape.size();
@@ -118,7 +124,7 @@ class MmaTensorLayoutTransformer : public StmtExprMutator {
                          {IntImm::Int32(dim0->value / 8), IntImm::Int32(dim1->value / 32), 1, 8});
 
         TensorVar new_tensor =
-            decl_tensor(std::move(new_shape), tensor->dtype, tensor.name(), "local");
+            decl_tensor(std::move(new_shape), tensor->dtype, tensor.name(), scope_local);
         VarRemapSet(tensor, new_tensor);
         return new_tensor;
       }
@@ -130,6 +136,10 @@ class MmaTensorLayoutTransformer : public StmtExprMutator {
   }
 
   UnchangedOr<Stmt> Mutate_(const TensorStoreNode* op, InplaceMode inplace_mode) {
+    static const auto scope_m16n8k8_matrixC = runtime::MemoryScope::Get("m16n8k8.matrixC");
+    static const auto scope_m16n8k8_matrixA = runtime::MemoryScope::Get("m16n8k8.matrixA");
+    static const auto scope_m16n8k8_matrixB = runtime::MemoryScope::Get("m16n8k8.matrixB");
+
     TensorVar original_tensor = op->dest.as_or_throw<TensorVar>();
     auto value = Mutate(op->value, inplace_mode);
     auto indices =
@@ -142,15 +152,15 @@ class MmaTensorLayoutTransformer : public StmtExprMutator {
     }
     if (auto replacement = VarRemapGet(original_tensor).as<TensorVar>()) {
       auto* n = store.CopyOnWrite();
-      if (original_tensor.scope() == "m16n8k8.matrixC") {
+      if (original_tensor.scope() == scope_m16n8k8_matrixC) {
         const auto index_map_func = tvm::ffi::Function::GetGlobal("tirx.index_map_m16n8k8.matrixC");
         TVM_FFI_ICHECK(index_map_func.has_value());
         auto index_map = IndexMap::FromFunc(2, *index_map_func);
         auto new_indices = index_map->MapIndices(store->indices, analyzer);
         n->dest = replacement.value();
         n->indices = std::move(new_indices);
-      } else if (original_tensor.scope() == "m16n8k8.matrixA" ||
-                 original_tensor.scope() == "m16n8k8.matrixB") {
+      } else if (original_tensor.scope() == scope_m16n8k8_matrixA ||
+                 original_tensor.scope() == scope_m16n8k8_matrixB) {
         TVM_FFI_ICHECK(false)
             << "TransformMmaTensorLayout requires " << original_tensor.scope()
             << " tensors to be accessed through opaque ldmatrix/mma_sync operations, but found "
@@ -161,6 +171,8 @@ class MmaTensorLayoutTransformer : public StmtExprMutator {
   }
 
   UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) {
+    static const auto scope_m16n8k8_matrixC = runtime::MemoryScope::Get("m16n8k8.matrixC");
+
     TensorVar tensor = op->source.as_or_throw<TensorVar>();
     // Remap the source together with its indices below, after the scope checks.
     auto indices_result =
@@ -171,7 +183,7 @@ class MmaTensorLayoutTransformer : public StmtExprMutator {
     }
     if (auto replacement = VarRemapGet(tensor).as<TensorVar>()) {
       ffi::Array<PrimExpr> indices = load->indices;
-      if (tensor.scope() == "m16n8k8.matrixC") {
+      if (tensor.scope() == scope_m16n8k8_matrixC) {
         const auto index_map_func = tvm::ffi::Function::GetGlobal("tirx.index_map_m16n8k8.matrixC");
         TVM_FFI_ICHECK(index_map_func.has_value());
         auto index_map = IndexMap::FromFunc(2, *index_map_func);

@@ -24,6 +24,7 @@ Direction (ld vs st) and exec scope (warp / warpgroup) are decided inside
 
 from math import prod
 
+from tvm.runtime import MemoryScope
 from tvm.script import tirx as T
 from tvm.tirx import Function
 from tvm.tirx.layout import ComposeLayout, S, TileLayout
@@ -37,10 +38,17 @@ from ._common import (  # noqa: F401  (_carve_tail reserved for future variants)
 from .utils import _is_valid_copy, _scope_allowed
 from .vec_auto_reg import _all_threads_active, _ptr_off
 
-_REG_SMEM_PAIRS = [
-    ("local", "shared*"),
-    ("shared*", "local"),
-]
+_SCOPE_SHARED = MemoryScope("shared")
+_SCOPE_SHARED_DYN = MemoryScope("shared.dyn")
+
+_SCOPE_LOCAL = MemoryScope("local")
+
+_REG_SMEM_PAIRS = (
+    (_SCOPE_LOCAL, _SCOPE_SHARED),
+    (_SCOPE_LOCAL, _SCOPE_SHARED_DYN),
+    (_SCOPE_SHARED, _SCOPE_LOCAL),
+    (_SCOPE_SHARED_DYN, _SCOPE_LOCAL),
+)
 
 _VALID_R_LANE_AXES = {"laneid", "tid_in_wg", "tx"}
 
@@ -77,7 +85,7 @@ def _emit(op_call: TensorCall, sctx: DispatchContext) -> Function:
     # Step 1: identify reg / smem sides and pull their tensor shape + layout.
     src_br = op_call.src
     dst_br = op_call.dst
-    if src_br.source.scope() == "local":
+    if src_br.source.scope() == _SCOPE_LOCAL:
         r_br, s_br = src_br, dst_br
         direction = "st"  # reg -> smem (stmatrix)
     else:

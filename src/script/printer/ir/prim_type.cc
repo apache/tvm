@@ -32,6 +32,17 @@ namespace details {
 
 namespace {
 
+ffi::Optional<ExprDoc> MemoryScopeDocTranslate(DocTranslatorObj*, ffi::AnyView input,
+                                               const ffi::Object*) {
+  return LiteralDoc::Str(input.cast<runtime::MemoryScope>().name(), std::nullopt);
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  ffi::reflection::TypeAttrDef<runtime::MemoryScopeNode>().attr(
+      tvm::script::printer::type_attr::kDocTranslate,
+      FDocTranslate::FromNative<&MemoryScopeDocTranslate>());
+}
+
 ffi::Optional<ExprDoc> IntImmDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
                                           const ffi::Object*) {
   const auto* imm =

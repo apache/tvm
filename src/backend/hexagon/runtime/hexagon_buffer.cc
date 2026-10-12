@@ -19,6 +19,7 @@
 #include "hexagon_buffer.h"
 
 #include <tvm/runtime/logging.h>
+#include <tvm/runtime/memory_scope.h>
 
 #include <algorithm>
 #include <string>
@@ -112,7 +113,8 @@ std::unique_ptr<Allocation> Allocator<HexagonBuffer::StorageScope::kVTCM>(size_t
   return std::make_unique<VTCMAllocation>(nbytes, alignment);
 }
 
-HexagonBuffer::HexagonBuffer(size_t nbytes, size_t alignment, ffi::Optional<ffi::String> scope)
+HexagonBuffer::HexagonBuffer(size_t nbytes, size_t alignment,
+                             ffi::Optional<runtime::MemoryScope> scope)
     : ndim_(1), nbytes_per_allocation_(nbytes) {
   SetStorageScope(scope);
 
@@ -128,7 +130,7 @@ HexagonBuffer::HexagonBuffer(size_t nbytes, size_t alignment, ffi::Optional<ffi:
 }
 
 HexagonBuffer::HexagonBuffer(size_t nallocs, size_t nbytes, size_t alignment,
-                             ffi::Optional<ffi::String> scope)
+                             ffi::Optional<runtime::MemoryScope> scope)
     : ndim_(2), nbytes_per_allocation_(nbytes) {
   SetStorageScope(scope);
 
@@ -170,17 +172,19 @@ void* HexagonBuffer::GetPointer() {
 
 HexagonBuffer::StorageScope HexagonBuffer::GetStorageScope() const { return storage_scope_; }
 
-void HexagonBuffer::SetStorageScope(ffi::Optional<ffi::String> scope) {
-  const std::string s = scope.value_or("global");
+void HexagonBuffer::SetStorageScope(ffi::Optional<runtime::MemoryScope> scope) {
+  static const auto scope_global_ddr = runtime::MemoryScope::Get("global.ddr");
+  static const auto scope_global_vtcm = runtime::MemoryScope::Get("global.vtcm");
+  const auto s = scope.value_or(runtime::MemoryScope::Global());
 
-  if (s == "global") {
+  if (s == runtime::MemoryScope::Global()) {
     storage_scope_ = StorageScope::kDDR;
-  } else if (s == "global.ddr") {
+  } else if (s == scope_global_ddr) {
     storage_scope_ = StorageScope::kDDR;
-  } else if (s == "global.vtcm") {
+  } else if (s == scope_global_vtcm) {
     storage_scope_ = StorageScope::kVTCM;
   } else {
-    TVM_FFI_ICHECK(false) << "Encountered unknown HexagonBuffer storage scope: " << std::string(s);
+    TVM_FFI_ICHECK(false) << "Encountered unknown HexagonBuffer storage scope: " << s.name();
   }
 }
 

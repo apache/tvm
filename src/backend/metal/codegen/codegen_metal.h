@@ -24,6 +24,7 @@
 #ifndef TVM_TARGET_METAL_CODEGEN_METAL_H_
 #define TVM_TARGET_METAL_CODEGEN_METAL_H_
 
+#include <tvm/runtime/memory_scope.h>
 #include <tvm/sym/analyzer.h>
 #include <tvm/target/codegen.h>
 
@@ -42,7 +43,7 @@ class CodeGenMetal final : public CodeGenC {
   void PrintArgUnionDecl();
   void AddFunction(const GlobalVar& gvar, const Function& func) final;
   void InitFuncState(const Function& f) final;
-  void PrintStorageScope(const std::string& scope, std::ostream& os) final;       // NOLINT(*)
+  void PrintStorageScope(const runtime::MemoryScope& scope, std::ostream& os) final;  // NOLINT(*)
   void PrintStorageSync(const CallNode* op) final;                                // NOLINT(*)
   void PrintType(const PrimType& t, std::ostream& os) final;                      // NOLINT(*)
   void BindThreadIndex(const PrimVar& var, const ffi::String& thread_tag) final;  // NOLINT(*)

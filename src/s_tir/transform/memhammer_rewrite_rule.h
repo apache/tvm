@@ -22,6 +22,7 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/prim/op.h>
+#include <tvm/runtime/memory_scope.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
@@ -116,16 +117,36 @@ class RewriteRule {
   }
 };
 
-inline bool IsCopyBetweenScope(const TensorVar& src_tensor, const TensorVar& tgt_tensor,
-                               runtime::StorageRank src_rank, runtime::StorageRank tgt_rank) {
-  runtime::StorageScope src_scope = runtime::StorageScope::Create(src_tensor.scope());
-  runtime::StorageScope tgt_scope = runtime::StorageScope::Create(tgt_tensor.scope());
-  return src_scope.rank == src_rank && tgt_scope.rank == tgt_rank;
+inline bool IsScope(const TensorVar& tensor, runtime::MemoryScope expected) {
+  static const auto scope_shared = runtime::MemoryScope::Get("shared");
+  static const auto scope_shared_dyn = runtime::MemoryScope::Get("shared.dyn");
+  static const auto scope_global_ddr = runtime::MemoryScope::Get("global.ddr");
+  static const auto scope_global_vtcm = runtime::MemoryScope::Get("global.vtcm");
+  static const auto scope_global_workspace = runtime::MemoryScope::Get("global.workspace");
+  static const auto scope_global_texture = runtime::MemoryScope::Get("global.texture");
+  static const auto scope_global_texture_1d = runtime::MemoryScope::Get("global.texture-1d");
+  static const auto scope_global_texture_nchw = runtime::MemoryScope::Get("global.texture-nchw");
+  static const auto scope_global_texture_nhwc = runtime::MemoryScope::Get("global.texture-nhwc");
+  static const auto scope_global_texture_weight =
+      runtime::MemoryScope::Get("global.texture-weight");
+
+  auto scope = tensor.scope();
+  if (scope == expected) return true;
+  if (expected == scope_shared) {
+    return scope == scope_shared_dyn;
+  }
+  if (expected == runtime::MemoryScope::Global()) {
+    return scope == scope_global_ddr || scope == scope_global_vtcm ||
+           scope == scope_global_workspace || scope == scope_global_texture ||
+           scope == scope_global_texture_1d || scope == scope_global_texture_nchw ||
+           scope == scope_global_texture_nhwc || scope == scope_global_texture_weight;
+  }
+  return false;
 }
 
-inline bool IsScope(const TensorVar& src_tensor, runtime::StorageRank src_rank) {
-  runtime::StorageScope src_scope = runtime::StorageScope::Create(src_tensor.scope());
-  return src_scope.rank == src_rank;
+inline bool IsCopyBetweenScope(const TensorVar& src_tensor, const TensorVar& tgt_tensor,
+                               runtime::MemoryScope src_scope, runtime::MemoryScope tgt_scope) {
+  return IsScope(src_tensor, src_scope) && IsScope(tgt_tensor, tgt_scope);
 }
 
 /*!
@@ -136,12 +157,13 @@ class CoalescedAccess : public RewriteRule {
   CoalescedAccess() = default;
   Stmt Rewrite(const Stmt& stmt, const ConstraintSet& constraints, OutputSet* output) const final;
   bool CanApply(const Stmt& stmt, const ConstraintSet& constraints) const final {
+    static const auto scope_shared = runtime::MemoryScope::Get("shared");
+
     TensorVar src_tensor = constraints.read_region->source.as_or_throw<tvm::tirx::TensorVar>();
     TensorVar tgt_tensor = constraints.write_region->source.as_or_throw<tvm::tirx::TensorVar>();
-    return IsCopyBetweenScope(src_tensor, tgt_tensor, runtime::StorageRank::kGlobal,
-                              runtime::StorageRank::kShared) ||
-           IsCopyBetweenScope(src_tensor, tgt_tensor, runtime::StorageRank::kShared,
-                              runtime::StorageRank::kGlobal);
+    return IsCopyBetweenScope(src_tensor, tgt_tensor, runtime::MemoryScope::Global(),
+                              scope_shared) ||
+           IsCopyBetweenScope(src_tensor, tgt_tensor, scope_shared, runtime::MemoryScope::Global());
   }
 };
 
@@ -153,10 +175,11 @@ class InverseMapping : public RewriteRule {
   InverseMapping() = default;
   Stmt Rewrite(const Stmt& stmt, const ConstraintSet& constraints, OutputSet* output) const final;
   bool CanApply(const Stmt& stmt, const ConstraintSet& constraints) const final {
+    static const auto scope_shared = runtime::MemoryScope::Get("shared");
+
     TensorVar src_tensor = constraints.read_region->source.as_or_throw<tvm::tirx::TensorVar>();
     TensorVar tgt_tensor = constraints.write_region->source.as_or_throw<tvm::tirx::TensorVar>();
-    return IsCopyBetweenScope(src_tensor, tgt_tensor, runtime::StorageRank::kShared,
-                              runtime::StorageRank::kGlobal);
+    return IsCopyBetweenScope(src_tensor, tgt_tensor, scope_shared, runtime::MemoryScope::Global());
   }
 };
 
@@ -168,10 +191,12 @@ class CreateLocalStage : public RewriteRule {
   CreateLocalStage() = default;
   Stmt Rewrite(const Stmt& stmt, const ConstraintSet& constraints, OutputSet* output) const final;
   bool CanApply(const Stmt& stmt, const ConstraintSet& constraints) const final {
+    static const auto scope_shared = runtime::MemoryScope::Get("shared");
+
     TensorVar src_tensor = constraints.read_region->source.as_or_throw<tvm::tirx::TensorVar>();
     TensorVar tgt_tensor = constraints.write_region->source.as_or_throw<tvm::tirx::TensorVar>();
-    return IsCopyBetweenScope(src_tensor, tgt_tensor, runtime::StorageRank::kGlobal,
-                              runtime::StorageRank::kShared) &&
+    return IsCopyBetweenScope(src_tensor, tgt_tensor, runtime::MemoryScope::Global(),
+                              scope_shared) &&
            IsOne(constraints.add_local_stage);
   }
 };
@@ -185,10 +210,12 @@ class WmmaToGlobal : public RewriteRule {
   WmmaToGlobal() = default;
   Stmt Rewrite(const Stmt& stmt, const ConstraintSet& constraints, OutputSet* output) const final;
   bool CanApply(const Stmt& stmt, const ConstraintSet& constraints) const final {
+    static const auto scope_wmma_accumulator = runtime::MemoryScope::Get("wmma.accumulator");
+
     TensorVar src_tensor = constraints.read_region->source.as_or_throw<tvm::tirx::TensorVar>();
     TensorVar tgt_tensor = constraints.write_region->source.as_or_throw<tvm::tirx::TensorVar>();
-    return IsCopyBetweenScope(src_tensor, tgt_tensor, runtime::StorageRank::kWMMAAccumulator,
-                              runtime::StorageRank::kGlobal);
+    return IsCopyBetweenScope(src_tensor, tgt_tensor, scope_wmma_accumulator,
+                              runtime::MemoryScope::Global());
   }
 };
 
@@ -201,10 +228,12 @@ class MmaToGlobal : public RewriteRule {
   MmaToGlobal() = default;
   Stmt Rewrite(const Stmt& stmt, const ConstraintSet& constraints, OutputSet* output) const final;
   bool CanApply(const Stmt& stmt, const ConstraintSet& constraints) const final {
+    static const auto scope_m16n8k8_matrixC = runtime::MemoryScope::Get("m16n8k8.matrixC");
+
     TensorVar src_tensor = constraints.read_region->source.as_or_throw<tvm::tirx::TensorVar>();
     TensorVar tgt_tensor = constraints.write_region->source.as_or_throw<tvm::tirx::TensorVar>();
-    return IsCopyBetweenScope(src_tensor, tgt_tensor, runtime::StorageRank::kMMAMatrixC,
-                              runtime::StorageRank::kGlobal);
+    return IsCopyBetweenScope(src_tensor, tgt_tensor, scope_m16n8k8_matrixC,
+                              runtime::MemoryScope::Global());
   }
 };
 
@@ -216,12 +245,14 @@ class SharedToWmma : public RewriteRule {
   SharedToWmma() = default;
   Stmt Rewrite(const Stmt& stmt, const ConstraintSet& constraints, OutputSet* output) const final;
   bool CanApply(const Stmt& stmt, const ConstraintSet& constraints) const final {
+    static const auto scope_shared = runtime::MemoryScope::Get("shared");
+    static const auto scope_wmma_matrix_a = runtime::MemoryScope::Get("wmma.matrix_a");
+    static const auto scope_wmma_matrix_b = runtime::MemoryScope::Get("wmma.matrix_b");
+
     TensorVar src_tensor = constraints.read_region->source.as_or_throw<tvm::tirx::TensorVar>();
     TensorVar tgt_tensor = constraints.write_region->source.as_or_throw<tvm::tirx::TensorVar>();
-    return IsCopyBetweenScope(src_tensor, tgt_tensor, runtime::StorageRank::kShared,
-                              runtime::StorageRank::kWMMAMatrixA) ||
-           IsCopyBetweenScope(src_tensor, tgt_tensor, runtime::StorageRank::kShared,
-                              runtime::StorageRank::kWMMAMatrixB);
+    return IsCopyBetweenScope(src_tensor, tgt_tensor, scope_shared, scope_wmma_matrix_a) ||
+           IsCopyBetweenScope(src_tensor, tgt_tensor, scope_shared, scope_wmma_matrix_b);
   }
 };
 
@@ -233,10 +264,12 @@ class WmmaToShared : public RewriteRule {
   WmmaToShared() = default;
   Stmt Rewrite(const Stmt& stmt, const ConstraintSet& constraints, OutputSet* output) const final;
   bool CanApply(const Stmt& stmt, const ConstraintSet& constraints) const final {
+    static const auto scope_wmma_accumulator = runtime::MemoryScope::Get("wmma.accumulator");
+    static const auto scope_shared = runtime::MemoryScope::Get("shared");
+
     TensorVar src_tensor = constraints.read_region->source.as_or_throw<tvm::tirx::TensorVar>();
     TensorVar tgt_tensor = constraints.write_region->source.as_or_throw<tvm::tirx::TensorVar>();
-    return IsCopyBetweenScope(src_tensor, tgt_tensor, runtime::StorageRank::kWMMAAccumulator,
-                              runtime::StorageRank::kShared);
+    return IsCopyBetweenScope(src_tensor, tgt_tensor, scope_wmma_accumulator, scope_shared);
   }
 };
 

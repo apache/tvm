@@ -44,13 +44,14 @@ class NVSHMEMPool final : public TensorMemoryPool {
   }
 
   ffi::Tensor Empty(ffi::ShapeView shape, DLDataType dtype, DLDevice device,
-                    ffi::Optional<ffi::String> mem_scope = std::nullopt) final {
+                    ffi::Optional<MemoryScope> mem_scope = std::nullopt) final {
     TVM_FFI_ICHECK_EQ(device.device_type, DLDeviceType::kDLCUDA)
         << "nvshmem can only allocate cuda device memory space.";
     TVM_FFI_ICHECK(dtype.code == kDLInt || dtype.code == kDLUInt || dtype.code == kDLFloat ||
                    dtype.code == kDLBfloat)
         << "nvshmem can only allocate tensor with int, unsigned int, float, or bfloat data types.";
-    TVM_FFI_CHECK(!mem_scope.has_value() || mem_scope.value() == "nvshmem", ValueError)
+    static const auto scope = MemoryScope::Get("nvshmem");
+    TVM_FFI_CHECK(!mem_scope.has_value() || mem_scope.value() == scope, ValueError)
         << "NVSHMEM memory requires the nvshmem scope";
     return TensorMemoryPool::Empty(shape, dtype, device);
   }

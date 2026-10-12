@@ -27,6 +27,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/function.h>
 #include <tvm/ir/prim/op.h>
+#include <tvm/runtime/memory_scope.h>
 #include <tvm/support/bytes_io.h>
 #include <tvm/support/gpu_thread_tag.h>
 #include <tvm/support/io.h>
@@ -47,7 +48,6 @@
 #include <vector>
 
 #include "../../../runtime/metadata.h"
-#include "../../../runtime/thread_storage_scope.h"
 #include "../../../sym/pattern_match.h"
 #include "../../../target/build_common.h"
 #include "webgpu_fallback_module.h"
@@ -191,7 +191,7 @@ void CodeGenWebGPU::InitFuncState(const Function& f) {
   // analyze the data;
   for (Var arg : f->params) {
     if (arg->ty.as<PtrTypeNode>()) {
-      alloc_storage_scope_[arg.get()] = "global";
+      alloc_storage_scope_[arg.get()] = runtime::MemoryScope::Global();
     }
   }
 }
@@ -782,9 +782,13 @@ void CodeGenWebGPU::DispatchDeclTensor(const BindNode* op, const CallNode* buffe
 }
 
 void CodeGenWebGPU::DispatchAllocTensor(const BindNode* op, const CallNode* buffer_call) {
+  static const auto scope_shared = runtime::MemoryScope::Get("shared");
+  static const auto scope_shared_dyn = runtime::MemoryScope::Get("shared.dyn");
+  static const auto scope_local = runtime::MemoryScope::Get("local");
   tvm::Tuple shape = tvm::Tuple(buffer_call->ty_args[0].as_or_throw<tirx::TensorType>()->shape);
   DLDataType dtype = buffer_call->ty_args[0].as_or_throw<tirx::TensorType>()->dtype->dtype;
-  ffi::String scope = buffer_call->ty_args[0].as_or_throw<tirx::TensorType>()->storage_scope;
+  runtime::MemoryScope scope =
+      buffer_call->ty_args[0].as_or_throw<tirx::TensorType>()->storage_scope;
   TensorVar buffer = op->var.as_or_throw<TensorVar>();
   TVM_FFI_ICHECK(buffer.defined());
   std::string vid = AllocVarID(buffer.get());
@@ -812,9 +816,8 @@ void CodeGenWebGPU::DispatchAllocTensor(const BindNode* op, const CallNode* buff
   TVM_FFI_ICHECK_LE(constant_size, std::numeric_limits<size_t>::max() / element_stride)
       << "WebGPU allocation byte size is too large to represent";
   size_t allocation_bytes = constant_size * element_stride;
-  auto storage_scope = runtime::StorageScope::Create(scope);
 
-  if (storage_scope.rank == runtime::StorageRank::kShared) {
+  if (scope == scope_shared || scope == scope_shared_dyn) {
     // WebGPU rounds the size of each workgroup variable up to 16 bytes before
     // summing the storage used by an entry point.
     constexpr size_t kWorkgroupVariableAlignment = 16;
@@ -837,14 +840,13 @@ void CodeGenWebGPU::DispatchAllocTensor(const BindNode* op, const CallNode* buff
     this->decl_stream << "var<workgroup> " << vid << " : array<";
     PrintType(PrimType(dtype), this->decl_stream);
     this->decl_stream << ", " << constant_size << ">;\n";
-  } else if (storage_scope.rank == runtime::StorageRank::kLocal) {
+  } else if (scope == scope_local) {
     this->PrintIndent();
     this->stream << "var " << vid << " : array<";
     PrintType(PrimType(dtype), this->stream);
     this->stream << ", " << constant_size << ">;\n";
   } else {
-    TVM_FFI_THROW(InternalError) << "WebGPU: Do not support storage scope: "
-                                 << storage_scope.to_string();
+    TVM_FFI_THROW(InternalError) << "WebGPU: Do not support storage scope: " << scope.name();
   }
 }
 

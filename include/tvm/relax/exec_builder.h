@@ -131,7 +131,7 @@ class ExecBuilderObj : public ffi::Object {
    * \param idx Index of the constant
    * \param scope The memory scope.
    */
-  void SaveMemoryScope(vm::Instruction::Arg idx, ffi::String scope);
+  void SaveMemoryScope(vm::Instruction::Arg idx, runtime::MemoryScope scope);
   /*!
    * \brief Raw access to underlying executable build in progress.
    */
