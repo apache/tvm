@@ -188,7 +188,7 @@ class Module:
     I.module_attrs({"device_num": 10})
     I.module_global_infos({"mesh": [R.device_mesh((2, 2), I.Range(0, 4)), R.device_mesh((1,), I.Range(4, 5))]})
     @Ts.function
-    def tir_func(x: T.Tensor((T.int64(128), T.int64(128)), "float32"), y: T.Tensor((T.int64(128), T.int64(128)), "float32")):
+    def tir_func(x: T.Tensor([T.IntImm("int64", 128), T.IntImm("int64", 128)]), y: T.Tensor([T.IntImm("int64", 128), T.IntImm("int64", 128)])):
         T.func_attr({"s_tir": True, "script.namespace": "s_tir", "tirx.noalias": True})
         with Ts.sblock("root"):
             Ts.reads()
@@ -442,7 +442,7 @@ def test_object_ty():
     obj = relax.AnyType()
     _assert_print_lines(
         obj,
-        "R.Any",
+        "I.Any",
     )
 
 
@@ -496,7 +496,7 @@ def test_tuple_ty():
     _assert_print_lines(
         obj._relax_script(),  # pylint: disable=protected-access
         """
-R.Tuple(T.float32, R.Any, R.Shape([1, a, 3]))
+R.Tuple(T.float32, I.Any, R.Shape([1, a, 3]))
 """,
     )
 
@@ -517,7 +517,7 @@ def test_func_ty():
     _assert_print_lines(
         obj,
         'a = I.dynamic("a", dtype="int64")\n'
-        "R.Callable((T.float32, R.Any, R.Shape([1, a, 3]), T.int64), "
+        "R.Callable((T.float32, I.Any, R.Shape([1, a, 3]), T.int64), "
         'R.Tensor((1, 2, 3), dtype="float32"), True)',
     )
 
@@ -529,7 +529,7 @@ def test_shape_type():
 
 def test_object_type():
     obj = relax.AnyType()
-    _assert_print_lines(obj, "R.Any")
+    _assert_print_lines(obj, "I.Any")
 
 
 def test_dyn_tensor_type():
@@ -546,7 +546,7 @@ def test_tuple_type():
     obj = relax.TupleType([relax.ShapeType(ndim=3), relax.AnyType()])
     _assert_print_lines(
         obj._relax_script(),  # pylint: disable=protected-access
-        "R.Tuple(R.Shape(ndim=3), R.Any)",
+        "R.Tuple(R.Shape(ndim=3), I.Any)",
     )
 
 
@@ -563,7 +563,7 @@ def test_func_type():
     )
     _assert_print_lines(
         obj._relax_script(),  # pylint: disable=protected-access
-        'R.Callable((R.Any, R.Shape(ndim=3)), R.Tensor(dtype="float32", ndim=3), True)',
+        'R.Callable((I.Any, R.Shape(ndim=3)), R.Tensor(dtype="float32", ndim=3), True)',
     )
 
 
@@ -963,7 +963,7 @@ from __future__ import annotations
 @I.ir_module
 class Module:
     @Ts.function
-    def tir_func(x: T.Tensor((T.int64(128),), "float32"), y: T.Tensor((T.int64(128),), "float32")):
+    def tir_func(x: T.Tensor([T.IntImm("int64", 128)]), y: T.Tensor([T.IntImm("int64", 128)])):
         T.func_attr({"s_tir": True, "script.namespace": "s_tir"})
 
     @R.function
@@ -988,7 +988,7 @@ from __future__ import annotations
 @I.ir_module
 class Module:
     @Ts.function
-    def tir_func(x: T.Tensor((T.int64(128),), "float32"), y: T.Tensor((T.int64(128),), "float32")):
+    def tir_func(x: T.Tensor([T.IntImm("int64", 128)]), y: T.Tensor([T.IntImm("int64", 128)])):
         T.func_attr({"s_tir": True, "script.namespace": "s_tir"})
 
     @R.function

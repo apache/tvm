@@ -21,6 +21,7 @@ from typing import NoReturn, TypeVar
 from tvm import DataType
 from tvm.ir import DataTypeImm, GlobalInfo, LambdaExpr, Location, Var
 from tvm.ir.location import UNKNOWN_LOC
+from tvm.ir.type import _init_type_api
 from tvm.runtime import Object as tvm_Object
 
 from . import _ffi_api
@@ -199,3 +200,6 @@ def Lambda(parameter_types, function, *, ret_type=None):  # pylint: disable=inva
     An optional return annotation checks the body type without inserting casts.
     """
     return LambdaExpr(parameter_types, function, ret_type=ret_type)
+
+
+_init_type_api("ir", __name__)

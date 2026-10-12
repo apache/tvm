@@ -128,8 +128,9 @@ def test_tensor():
     a = tirx.decl_tensor((128, 128), "float16", name="A")
     _assert_print(
         a,
-        """A = I.Var("A", T.Tensor((128, 128), "float16"))
-A""",
+        'A = I.Var("A", T.Tensor([T.IntImm("int32", 128), T.IntImm("int32", 128)], '
+        'dtype=I.PrimType("float16")))\n'
+        "A",
     )
 
 
@@ -150,7 +151,7 @@ def test_tensor_region():
     _assert_print(
         obj,
         """
-src = I.Var("src", T.Tensor((128, 128), "float32"))
+src = I.Var("src", T.Tensor([T.IntImm("int32", 128), T.IntImm("int32", 128)]))
 src[64:128, 64:128]
 """,
     )
@@ -161,10 +162,9 @@ def test_tensor_load():
     obj = tirx.TensorLoad(a, [128, 128])
     _assert_print(
         obj,
-        """
-A = I.Var("A", T.Tensor((128, 128), "float16"))
-A[128, 128]
-""",
+        'A = I.Var("A", T.Tensor([T.IntImm("int32", 128), T.IntImm("int32", 128)], '
+        'dtype=I.PrimType("float16")))\n'
+        "A[128, 128]",
     )
 
 
@@ -175,10 +175,9 @@ def test_tensor_store():
     obj = ib.get()
     _assert_print(
         obj,
-        """
-A = I.Var("A", T.Tensor((128, 128), "float16"))
-A[128, 128] = A[128, 128] + T.float16(1.0)
-""",
+        'A = I.Var("A", T.Tensor([T.IntImm("int32", 128), T.IntImm("int32", 128)], '
+        'dtype=I.PrimType("float16")))\n'
+        "A[128, 128] = A[128, 128] + T.float16(1.0)",
     )
 
 
@@ -245,11 +244,14 @@ def test_allocate(declare):
     _assert_print(
         obj.body,
         (
-            'v_1 = I.Var("", T.Ptr(T.float32))\n'
-            'v = T.decl_tensor(v_1, ty_args=[T.Tensor((128, 128), "float32")])\n'
+            'v_1 = I.Var("", I.Ptr(I.PrimType("float32")))\n'
+            "v = T.decl_tensor(v_1, ty_args=[T.Tensor(["
+            'T.IntImm("int32", 128), T.IntImm("int32", 128)])])\n'
             "T.evaluate(1)\n"
             if declare is TB.decl_tensor
-            else 'v = T.alloc_tensor(ty_args=[T.Tensor((128, 128), "float32")])\nT.evaluate(1)\n'
+            else "v = T.alloc_tensor(ty_args=[T.Tensor(["
+            'T.IntImm("int32", 128), T.IntImm("int32", 128)])])\n'
+            "T.evaluate(1)\n"
         ),
     )
 
@@ -268,8 +270,8 @@ def test_allocate_with_decl_tensor_sugar():
     _assert_print(
         obj.body,
         """
-v = T.alloc_tensor(ty_args=[T.Tensor((128, 128), "float32")])
-v_1 = T.decl_tensor(v.data, ty_args=[T.Tensor((128, 128), "float32")])
+v = T.alloc_tensor(ty_args=[T.Tensor([T.IntImm("int32", 128), T.IntImm("int32", 128)])])
+v_1 = T.decl_tensor(v.data, ty_args=[T.Tensor([T.IntImm("int32", 128), T.IntImm("int32", 128)])])
 T.evaluate(1)
 """,
     )
@@ -289,8 +291,8 @@ def test_allocate_with_decl_tensor_sugar_multi_usage():
     _assert_print(
         obj.body,
         """
-v = T.alloc_tensor(ty_args=[T.Tensor((128, 128), "float32")])
-v_1 = T.decl_tensor(v.data, ty_args=[T.Tensor((128, 128), "float32")])
+v = T.alloc_tensor(ty_args=[T.Tensor([T.IntImm("int32", 128), T.IntImm("int32", 128)])])
+v_1 = T.decl_tensor(v.data, ty_args=[T.Tensor([T.IntImm("int32", 128), T.IntImm("int32", 128)])])
 T.evaluate(v.data)
 """,
     )
@@ -309,8 +311,8 @@ def test_allocate_with_decl_tensor_no_sugar_mismatch():
     _assert_print(
         obj.body,
         """
-v = T.alloc_tensor(ty_args=[T.Tensor((128, 128), "float32")])
-v_1 = T.decl_tensor(v.data, ty_args=[T.Tensor((256, 256), "float32")])
+v = T.alloc_tensor(ty_args=[T.Tensor([T.IntImm("int32", 128), T.IntImm("int32", 128)])])
+v_1 = T.decl_tensor(v.data, ty_args=[T.Tensor([T.IntImm("int32", 256), T.IntImm("int32", 256)])])
 T.evaluate(v.data)
 """,
     )
@@ -332,8 +334,8 @@ def test_decl_tensor():
     _assert_print(
         obj.body,
         """
-v_1 = I.Var("", T.Ptr(T.float32))
-v = T.decl_tensor(v_1, ty_args=[T.Tensor((10, 10), "float32")])
+v_1 = I.Var("", I.Ptr(I.PrimType("float32")))
+v = T.decl_tensor(v_1, ty_args=[T.Tensor([T.IntImm("int32", 10), T.IntImm("int32", 10)])])
 T.evaluate(1)
 """,
     )
@@ -396,7 +398,7 @@ a""",
     _assert_print(
         a,
         """
-a = I.Var("a", T.Ptr(I.PrimType("void")))
+a = I.Var("a", I.Ptr(I.PrimType("void")))
 a
 """,
     )
@@ -405,7 +407,7 @@ a
     _assert_print(
         a,
         """
-a = I.Var("a", T.Ptr(I.PrimType("void"), "shared"))
+a = I.Var("a", I.Ptr(I.PrimType("void"), storage_scope="shared"))
 a
 """,
     )
@@ -650,13 +652,13 @@ def test_prim_type():
 
 def test_pointer_type():
     obj = ir.PtrType(ir.PrimType("int32"), "global")
-    _assert_print(obj, "T.Ptr(T.int32)")
+    _assert_print(obj, 'I.Ptr(I.PrimType("int32"))')
 
     obj = ir.PtrType(ir.PrimType("void"))
-    _assert_print(obj, 'T.Ptr(I.PrimType("void"))')
+    _assert_print(obj, 'I.Ptr(I.PrimType("void"))')
 
     obj = ir.PtrType(ir.PrimType("void"), "shared")
-    _assert_print(obj, 'T.Ptr(I.PrimType("void"), "shared")')
+    _assert_print(obj, 'I.Ptr(I.PrimType("void"), storage_scope="shared")')
 
 
 def test_tuple_type():
@@ -702,7 +704,7 @@ def test_print_kwargs_schedule_op_full_code():
         "\n"
         "@T.function\n"
         "def test():\n"
-        '    A = T.alloc_tensor(ty_args=[T.Tensor((16,), "float32")])\n'
+        '    A = T.alloc_tensor(ty_args=[T.Tensor([T.IntImm("int32", 16)])])\n'
         '    T.cuda.tile.mov(A[0:16], T.float32(1.25), scope="warp")'
     )
     code = test.script()
@@ -775,8 +777,8 @@ def test_printer_ptx_more():
     _assert_namespace_print(
         cuda_op.cuda_tcgen05_encode_matrix_descriptor(d, a, 1, 2, 0),
         """
-d = I.Var("d", T.Ptr(I.PrimType("void")))
-a = I.Var("a", T.Ptr(I.PrimType("void")))
+d = I.Var("d", I.Ptr(I.PrimType("void")))
+a = I.Var("a", I.Ptr(I.PrimType("void")))
 T.cuda.tcgen05_encode_matrix_descriptor(d, a, 1, 2, 0)
 """,
     )
@@ -798,7 +800,7 @@ T.cuda.tcgen05_encode_matrix_descriptor(d, a, 1, 2, 0)
             is_sparse=False,
         ),
         """
-d = I.Var("d", T.Ptr(I.PrimType("void")))
+d = I.Var("d", I.Ptr(I.PrimType("void")))
 T.cuda.tcgen05_encode_instr_descriptor(d, K=16, M=16, N=16, a_dtype="f16", b_dtype="f16", d_dtype="f16", trans_a=True, trans_b=False)
 """,  # noqa: E501
     )
@@ -821,7 +823,7 @@ T.cuda.tcgen05_encode_instr_descriptor(d, K=16, M=16, N=16, a_dtype="f16", b_dty
             neg_b=False,
         ),
         """
-d = I.Var("d", T.Ptr(I.PrimType("void")))
+d = I.Var("d", I.Ptr(I.PrimType("void")))
 T.cuda.tcgen05_encode_instr_descriptor_block_scaled(d, K=16, M=16, N=16, a_dtype="f16", b_dtype="f16", d_dtype="f16", is_sparse=True, sfa_dtype="f16", sfb_dtype="f16", trans_a=True, trans_b=False)
 """,  # noqa: E501
     )
@@ -832,7 +834,7 @@ def test_printer_cuda_mbarrier_wait_var():
     _assert_namespace_print(
         cuda_op.cuda_mbarrier_wait(bar, 1),
         """
-bar = I.Var("bar", T.Ptr(I.PrimType("void")))
+bar = I.Var("bar", I.Ptr(I.PrimType("void")))
 T.cuda.mbarrier_wait(bar, 1)
 """,
     )
@@ -852,14 +854,14 @@ def test_printer_cuda_more():
     _assert_namespace_print(
         cuda_op.cuda_atomic_add(p, tir.IntImm("int32", 1)),
         """
-p = I.Var("p", T.Ptr(I.PrimType("void")))
+p = I.Var("p", I.Ptr(I.PrimType("void")))
 T.cuda.atomic_add(p, 1)
 """,
     )
     _assert_namespace_print(
         cuda_op.cuda_atomic_cas(p, 1, 2),
         """
-p = I.Var("p", T.Ptr(I.PrimType("void")))
+p = I.Var("p", I.Ptr(I.PrimType("void")))
 T.cuda.atomic_cas(p, 1, 2)
 """,
     )
@@ -913,14 +915,14 @@ def test_printer_nvshmem_more():
     _assert_namespace_print(
         cuda_op.nvshmem_signal_op(p, 1, "set", 0),
         """
-p = I.Var("p", T.Ptr(I.PrimType("void")))
+p = I.Var("p", I.Ptr(I.PrimType("void")))
 T.nvshmem.signal_op(p, 1, "set", 0)
 """,
     )
     _assert_namespace_print(
         cuda_op.nvshmem_wait_until(p, "eq", 0),
         """
-p = I.Var("p", T.Ptr(I.PrimType("void")))
+p = I.Var("p", I.Ptr(I.PrimType("void")))
 T.nvshmem.wait_until(p, "eq", 0, "uint64_t")
 """,
     )
@@ -929,56 +931,56 @@ T.nvshmem.wait_until(p, "eq", 0, "uint64_t")
     _assert_namespace_print(
         cuda_op.nvshmem_getmem_nbi(p, p, 16, 0),
         """
-p = I.Var("p", T.Ptr(I.PrimType("void")))
+p = I.Var("p", I.Ptr(I.PrimType("void")))
 T.nvshmem.getmem_nbi(p, p, 16, 0)
 """,
     )
     _assert_namespace_print(
         cuda_op.nvshmem_getmem_nbi_warp(p, p, 16, 0),
         """
-p = I.Var("p", T.Ptr(I.PrimType("void")))
+p = I.Var("p", I.Ptr(I.PrimType("void")))
 T.nvshmem.getmem_nbi_warp(p, p, 16, 0)
 """,
     )
     _assert_namespace_print(
         cuda_op.nvshmem_putmem_nbi_block(p, p, 16, 0),
         """
-p = I.Var("p", T.Ptr(I.PrimType("void")))
+p = I.Var("p", I.Ptr(I.PrimType("void")))
 T.nvshmem.putmem_nbi_block(p, p, 16, 0)
 """,
     )
     _assert_namespace_print(
         cuda_op.nvshmem_putmem_nbi(p, p, 16, 0),
         """
-p = I.Var("p", T.Ptr(I.PrimType("void")))
+p = I.Var("p", I.Ptr(I.PrimType("void")))
 T.nvshmem.putmem_nbi(p, p, 16, 0)
 """,
     )
     _assert_namespace_print(
         cuda_op.nvshmem_putmem_nbi_warp(p, p, 16, 0),
         """
-p = I.Var("p", T.Ptr(I.PrimType("void")))
+p = I.Var("p", I.Ptr(I.PrimType("void")))
 T.nvshmem.putmem_nbi_warp(p, p, 16, 0)
 """,
     )
     _assert_namespace_print(
         cuda_op.nvshmem_putmem_signal_nbi(p, p, 16, p, 1, "set", 0),
         """
-p = I.Var("p", T.Ptr(I.PrimType("void")))
+p = I.Var("p", I.Ptr(I.PrimType("void")))
 T.nvshmem.putmem_signal_nbi(p, p, 16, p, 1, "set", 0)
 """,
     )
     _assert_namespace_print(
         cuda_op.nvshmem_putmem_signal_nbi_warp(p, p, 16, p, 1, "set", 0),
         """
-p = I.Var("p", T.Ptr(I.PrimType("void")))
+p = I.Var("p", I.Ptr(I.PrimType("void")))
 T.nvshmem.putmem_signal_nbi_warp(p, p, 16, p, 1, "set", 0)
 """,
     )
     _assert_namespace_print(
         cuda_op.nvshmem_putmem_signal_nbi_block(p, p, 16, p, 1, "set", 0),
         """
-p = I.Var("p", T.Ptr(I.PrimType("void")))
+p = I.Var("p", I.Ptr(I.PrimType("void")))
 T.nvshmem.putmem_signal_nbi_block(p, p, 16, p, 1, "set", 0)
 """,
     )
@@ -991,94 +993,96 @@ def test_printer_nki_namespace():
     b0 = B[0]
     _assert_namespace_print(
         trn_op.nki_load(a0, b0),
-        'A = I.Var("A", T.Tensor((1,), "float16"))\n'
-        'B = I.Var("B", T.Tensor((1,), "float16"))\n'
+        'A = I.Var("A", T.Tensor([T.IntImm("int32", 1)], dtype=I.PrimType("float16")))\n'
+        'B = I.Var("B", T.Tensor([T.IntImm("int32", 1)], dtype=I.PrimType("float16")))\n'
         "T.nki.load(A[0], B[0])",
     )
     _assert_namespace_print(
         trn_op.nki_store(a0, b0),
-        'A = I.Var("A", T.Tensor((1,), "float16"))\n'
-        'B = I.Var("B", T.Tensor((1,), "float16"))\n'
+        'A = I.Var("A", T.Tensor([T.IntImm("int32", 1)], dtype=I.PrimType("float16")))\n'
+        'B = I.Var("B", T.Tensor([T.IntImm("int32", 1)], dtype=I.PrimType("float16")))\n'
         "T.nki.store(A[0], B[0])",
     )
     _assert_namespace_print(
         trn_op.nki_tensor_copy(a0, b0),
-        'A = I.Var("A", T.Tensor((1,), "float16"))\n'
-        'B = I.Var("B", T.Tensor((1,), "float16"))\n'
+        'A = I.Var("A", T.Tensor([T.IntImm("int32", 1)], dtype=I.PrimType("float16")))\n'
+        'B = I.Var("B", T.Tensor([T.IntImm("int32", 1)], dtype=I.PrimType("float16")))\n'
         "T.nki.tensor_copy(A[0], B[0])",
     )
     _assert_namespace_print(
         trn_op.nki_matmul(a0, a0, b0),
-        'A = I.Var("A", T.Tensor((1,), "float16"))\n'
-        'B = I.Var("B", T.Tensor((1,), "float16"))\n'
+        'A = I.Var("A", T.Tensor([T.IntImm("int32", 1)], dtype=I.PrimType("float16")))\n'
+        'B = I.Var("B", T.Tensor([T.IntImm("int32", 1)], dtype=I.PrimType("float16")))\n'
         "T.nki.matmul(A[0], A[0], B[0], T.bool(True))",
     )
     _assert_namespace_print(
         trn_op.nki_activation(a0, b0, "relu", 0.0, 1.0),
-        'A = I.Var("A", T.Tensor((1,), "float16"))\n'
-        'B = I.Var("B", T.Tensor((1,), "float16"))\n'
+        'A = I.Var("A", T.Tensor([T.IntImm("int32", 1)], dtype=I.PrimType("float16")))\n'
+        'B = I.Var("B", T.Tensor([T.IntImm("int32", 1)], dtype=I.PrimType("float16")))\n'
         'T.nki.activation(A[0], B[0], "relu", '
         "T.float32(0.0), T.float32(1.0))",
     )
     _assert_namespace_print(
         trn_op.nki_memset(a0, 0),
-        'A = I.Var("A", T.Tensor((1,), "float16"))\nT.nki.memset(A[0], 0)',
+        'A = I.Var("A", T.Tensor([T.IntImm("int32", 1)], dtype=I.PrimType("float16")))\n'
+        "T.nki.memset(A[0], 0)",
     )
     _assert_namespace_print(
         trn_op.nki_identity(a0, 1),
-        'A = I.Var("A", T.Tensor((1,), "float16"))\nT.nki.identity(A[0], 1)',
+        'A = I.Var("A", T.Tensor([T.IntImm("int32", 1)], dtype=I.PrimType("float16")))\n'
+        "T.nki.identity(A[0], 1)",
     )
     _assert_namespace_print(
         trn_op.nki_reciprocal(a0, b0),
-        'A = I.Var("A", T.Tensor((1,), "float16"))\n'
-        'B = I.Var("B", T.Tensor((1,), "float16"))\n'
+        'A = I.Var("A", T.Tensor([T.IntImm("int32", 1)], dtype=I.PrimType("float16")))\n'
+        'B = I.Var("B", T.Tensor([T.IntImm("int32", 1)], dtype=I.PrimType("float16")))\n'
         "T.nki.reciprocal(A[0], B[0])",
     )
     _assert_namespace_print(
         trn_op.nki_tensorreduce(a0, b0, "sum", False, 0),
-        'A = I.Var("A", T.Tensor((1,), "float16"))\n'
-        'B = I.Var("B", T.Tensor((1,), "float16"))\n'
+        'A = I.Var("A", T.Tensor([T.IntImm("int32", 1)], dtype=I.PrimType("float16")))\n'
+        'B = I.Var("B", T.Tensor([T.IntImm("int32", 1)], dtype=I.PrimType("float16")))\n'
         'T.nki.tensorreduce(A[0], B[0], "sum", '
         "T.bool(False), 0)",
     )
     _assert_namespace_print(
         trn_op.nki_tensortensor(a0, a0, b0, "add"),
-        'A = I.Var("A", T.Tensor((1,), "float16"))\n'
-        'B = I.Var("B", T.Tensor((1,), "float16"))\n'
+        'A = I.Var("A", T.Tensor([T.IntImm("int32", 1)], dtype=I.PrimType("float16")))\n'
+        'B = I.Var("B", T.Tensor([T.IntImm("int32", 1)], dtype=I.PrimType("float16")))\n'
         'T.nki.tensortensor(A[0], A[0], B[0], "add")',
     )
     _assert_namespace_print(
         trn_op.nki_tensorscalar(a0, a0, 1.0, "mul", False),
-        'A = I.Var("A", T.Tensor((1,), "float16"))\n'
+        'A = I.Var("A", T.Tensor([T.IntImm("int32", 1)], dtype=I.PrimType("float16")))\n'
         "T.nki.tensorscalar(A[0], A[0], T.float32(1.0), "
         '"mul", T.bool(False))',
     )
     _assert_namespace_print(
         trn_op.nki_tensorscalar_reduce(a0, a0, 1.0, "mul", "sum", False),
-        'A = I.Var("A", T.Tensor((1,), "float16"))\n'
+        'A = I.Var("A", T.Tensor([T.IntImm("int32", 1)], dtype=I.PrimType("float16")))\n'
         'T.nki.tensorscalar_reduce(A[0], A[0], T.float32(1.0), "mul", "sum", T.bool(False), T.bool(False))',  # noqa: E501
     )
     _assert_namespace_print(
         trn_op.nki_scalar_tensor_tensor(a0, a0, 1.0, a0, "add", "add"),
-        'A = I.Var("A", T.Tensor((1,), "float16"))\n'
+        'A = I.Var("A", T.Tensor([T.IntImm("int32", 1)], dtype=I.PrimType("float16")))\n'
         'T.nki.scalar_tensor_tensor(A[0], A[0], T.float32(1.0), A[0], "add", "add", T.bool(False), T.bool(False))',  # noqa: E501
     )
     _assert_namespace_print(
         trn_op.nki_scalar_tensor_scalar(a0, a0, 1.0, 1.0, "add", "add"),
-        'A = I.Var("A", T.Tensor((1,), "float16"))\n'
+        'A = I.Var("A", T.Tensor([T.IntImm("int32", 1)], dtype=I.PrimType("float16")))\n'
         'T.nki.scalar_tensor_scalar(A[0], A[0], T.float32(1.0), T.float32(1.0), "add", "add", T.bool(False), T.bool(False))',  # noqa: E501
     )
     _assert_namespace_print(
         trn_op.nki_activation_reduce(a0, a0, b0, "relu", "sum", 0.0, 1.0),
-        'A = I.Var("A", T.Tensor((1,), "float16"))\n'
-        'B = I.Var("B", T.Tensor((1,), "float16"))\n'
+        'A = I.Var("A", T.Tensor([T.IntImm("int32", 1)], dtype=I.PrimType("float16")))\n'
+        'B = I.Var("B", T.Tensor([T.IntImm("int32", 1)], dtype=I.PrimType("float16")))\n'
         "T.nki.activation_reduce(A[0], A[0], B[0], "
         '"relu", "sum", T.float32(0.0), '
         "T.float32(1.0))",
     )
     _assert_namespace_print(
         trn_op.nki_affine_select(a0, a0, a0, 1.0),
-        'A = I.Var("A", T.Tensor((1,), "float16"))\n'
+        'A = I.Var("A", T.Tensor([T.IntImm("int32", 1)], dtype=I.PrimType("float16")))\n'
         "T.nki.affine_select(A[0], A[0], A[0], T.float32(1.0))",
     )
 
@@ -1091,8 +1095,8 @@ def test_printer_ptx_mma_and_wgmma():
     _assert_namespace_print(
         cuda_op.cuda_wgmma_encode_matrix_descriptor(d, a, 1, 1, 0),
         """
-d = I.Var("d", T.Ptr(I.PrimType("void")))
-a = I.Var("a", T.Ptr(I.PrimType("void")))
+d = I.Var("d", I.Ptr(I.PrimType("void")))
+a = I.Var("a", I.Ptr(I.PrimType("void")))
 T.cuda.wgmma_encode_matrix_descriptor(d, a, 1, 1, 0)
 """,
     )

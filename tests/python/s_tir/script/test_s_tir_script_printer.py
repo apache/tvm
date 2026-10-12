@@ -50,7 +50,7 @@ def test_function_symbolic_tensor_param_roundtrip():
     )
 
     source = func.script()
-    assert "T.Tensor((n + 1, n)" in source
+    assert "T.Tensor([n + 1, n]" in source
     assert source.index("def main[n: T.int32](") < source.index("T.evaluate(n)")
     tvm.ir.assert_structural_equal(
         tvm.script.from_source(
@@ -71,7 +71,7 @@ def test_function_compound_tensor_shape_first_use_roundtrip():
     )
 
     source = func.script()
-    assert "T.Tensor((T.max(n, 1),)" in source
+    assert "T.Tensor([T.max(n, 1)]" in source
     assert source.index("def main[n: T.int32](") < source.index("T.evaluate(n)")
     tvm.ir.assert_structural_equal(
         tvm.script.from_source(
@@ -103,7 +103,7 @@ def test_function_symbolic_alloc_tensor_roundtrip():
     ).with_attr({"s_tir": True, "script.namespace": "s_tir"})
 
     source = func.script()
-    assert 'T.alloc_tensor(ty_args=[T.Tensor((size,), "float32")])' in source
+    assert "T.alloc_tensor(ty_args=[T.Tensor([size])])" in source
     tvm.ir.assert_structural_equal(
         tvm.script.from_source(
             source,
@@ -135,7 +135,7 @@ from __future__ import annotations
 # from tvm.script import tirx as T
 
 @Ts.function
-def main(A: T.Tensor((128, 128), "float32"), B: T.Tensor((256, 256), "float32")):
+def main(A: T.Tensor([T.IntImm("int32", 128), T.IntImm("int32", 128)]), B: T.Tensor([T.IntImm("int32", 256), T.IntImm("int32", 256)])):
     T.func_attr({"s_tir": True, "script.namespace": "s_tir"})
 """,
     )
@@ -162,7 +162,7 @@ from __future__ import annotations
 # from tvm.script import tirx as T
 
 @Ts.function
-def main(A: T.Tensor((128, 128), "float32"), B: T.Tensor((256, 256), "float32")):
+def main(A: T.Tensor([T.IntImm("int32", 128), T.IntImm("int32", 128)]), B: T.Tensor([T.IntImm("int32", 256), T.IntImm("int32", 256)])):
     T.func_attr({"s_tir": True, "script.namespace": "s_tir"})
     T.evaluate(A.data)
 """,
@@ -191,7 +191,7 @@ from __future__ import annotations
 # from tvm.script import tirx as T
 
 @Ts.function
-def main(A: T.Tensor((128, 128), "float32"), B: T.Tensor((256, 256), "float32")):
+def main(A: T.Tensor([T.IntImm("int32", 128), T.IntImm("int32", 128)]), B: T.Tensor([T.IntImm("int32", 256), T.IntImm("int32", 256)])):
     T.func_attr({"s_tir": True, "script.namespace": "s_tir"})
 """,
     )
@@ -269,8 +269,8 @@ def test_match_tensor_region():
     _assert_print(
         obj,
         """
-src = I.Var("src", T.Tensor((128, 128), "float32"))
-tgt = Ts.match_tensor(src[64:128, 64:128], (64, 64), "float32")
+src = I.Var("src", T.Tensor([T.IntImm("int32", 128), T.IntImm("int32", 128)]))
+tgt = Ts.match_tensor(src[64:128, 64:128], [T.IntImm("int32", 64), T.IntImm("int32", 64)])
 """,
     )
 
@@ -378,7 +378,7 @@ def main():
     with Ts.sblock("root"):
         Ts.reads()
         Ts.writes()
-        v = Ts.sblock_alloc_tensor((128, 128), "float32")
+        v = Ts.sblock_alloc_tensor([T.IntImm("int32", 128), T.IntImm("int32", 128)])
         for i in range(128):
             for j in range(128):
                 with Ts.sblock(""):
@@ -406,7 +406,7 @@ from __future__ import annotations
 # from tvm.script import tirx as T
 
 @Ts.function(private=True)
-def main(A: T.Tensor((128, 128), "float32"), B: T.Tensor((256, 256), "float32")):
+def main(A: T.Tensor([T.IntImm("int32", 128), T.IntImm("int32", 128)]), B: T.Tensor([T.IntImm("int32", 256), T.IntImm("int32", 256)])):
     T.func_attr({"s_tir": True, "script.namespace": "s_tir"})
 """,
     )
@@ -427,7 +427,7 @@ from __future__ import annotations
 # from tvm.script import tirx as T
 
 @Ts.function
-def func(A: T.Tensor((128, 128), "float32"), B: T.Tensor((256, 256), "float32")):
+def func(A: T.Tensor([T.IntImm("int32", 128), T.IntImm("int32", 128)]), B: T.Tensor([T.IntImm("int32", 256), T.IntImm("int32", 256)])):
     T.func_attr({"s_tir": True, "script.namespace": "s_tir"})
 """
     _assert_print(main, expected_output)
@@ -526,7 +526,7 @@ from __future__ import annotations
 # from tvm.script import tirx as T
 
 @Ts.function
-def func(A: T.Tensor((128, 128), "float32"), B: T.Tensor((256, 256), "float32")):
+def func(A: T.Tensor([T.IntImm("int32", 128), T.IntImm("int32", 128)]), B: T.Tensor([T.IntImm("int32", 256), T.IntImm("int32", 256)])):
     T.func_attr({"s_tir": True, "script.namespace": "s_tir"})
     a_load: T.let[T.float32x4] = T.masked_load(A, 0, T.Ramp(0, 4, 4), T.Broadcast(T.bool(False), 4))
     T.masked_store(A, a_load, 0, T.Ramp(0, 2, 4), T.Broadcast(T.bool(False), 4))
@@ -573,7 +573,7 @@ from __future__ import annotations
 # from tvm.script import tirx as T
 
 @Ts.function(private=True)
-def main(A: T.Tensor((128, 128), "float32"), B: T.Tensor((256, 256), "float32")):
+def main(A: T.Tensor([T.IntImm("int32", 128), T.IntImm("int32", 128)]), B: T.Tensor([T.IntImm("int32", 256), T.IntImm("int32", 256)])):
     T.func_attr({"s_tir": True, "script.namespace": "s_tir"})
     T.masked_store(A, T.masked_load(B, 0, T.Ramp(0, 4, 4), T.Broadcast(T.bool(False), 4)), 0, T.Ramp(0, 2, 4), T.Broadcast(T.bool(False), 4))
 """
@@ -610,7 +610,7 @@ from __future__ import annotations
 # from tvm.script import tirx as T
 
 @Ts.function
-def func(A: T.Tensor((128, 128), "float32"), B: T.Tensor((256, 256), "float32")):
+def func(A: T.Tensor([T.IntImm("int32", 128), T.IntImm("int32", 128)]), B: T.Tensor([T.IntImm("int32", 256), T.IntImm("int32", 256)])):
     T.func_attr({"s_tir": True, "script.namespace": "s_tir"})
     mask: T.let["uint1xvscalex4"] = T.get_active_lane_mask(0, 13, ty="uint1xvscalex4")
     a_load: T.let["float32xvscalex4"] = T.masked_load(A, 0, T.Ramp(0, 4, T.vscale() * 4), mask)
@@ -652,7 +652,7 @@ from __future__ import annotations
 # from tvm.script import tirx as T
 
 @Ts.function
-def main(A: T.Tensor((128,), "float32"), B: T.Tensor((128,), "float32")):
+def main(A: T.Tensor([T.IntImm("int32", 128)]), B: T.Tensor([T.IntImm("int32", 128)])):
     T.func_attr({"s_tir": True, "script.namespace": "s_tir"})
     B[0:T.vscale() * 4] = A[T.Ramp(0, 1, T.vscale() * 4)]
 """
@@ -675,7 +675,7 @@ from __future__ import annotations
 # from tvm.script import tirx as T
 
 @Ts.function
-def main(A: T.Tensor((4,), "float32"), B: T.Tensor((4,), "float32")):
+def main(A: T.Tensor([T.IntImm("int32", 4)]), B: T.Tensor([T.IntImm("int32", 4)])):
     T.func_attr({"s_tir": True, "script.namespace": "s_tir"})
     A[0:4] = T.call_llvm_pure_intrin("llvm.sqrt", B[T.Ramp(0, 1, 4)], ty="float32x4")
 """
@@ -701,7 +701,7 @@ from __future__ import annotations
 # from tvm.script import tirx as T
 
 @Ts.function
-def main(A: T.Tensor((4,), "float32"), B: T.Tensor((4,), "float32")):
+def main(A: T.Tensor([T.IntImm("int32", 4)]), B: T.Tensor([T.IntImm("int32", 4)])):
     T.func_attr({"s_tir": True, "script.namespace": "s_tir"})
     for i in range(1000):
         if i % 13 == 0:
@@ -1688,7 +1688,7 @@ def test_void_ptr_vs_handle():
 
     tvm.ir.assert_structural_equal(void_ptr.params[0].ty, handle.params[0].ty)
     script = void_ptr.script()
-    assert 'out_ret_value: T.Ptr(I.PrimType("void"))' in script
+    assert 'out_ret_value: I.Ptr(I.PrimType("void"))' in script
     assert 'T.handle("void")' not in script
     tvm.ir.assert_structural_equal(
         void_ptr,
@@ -1708,7 +1708,7 @@ def test_void_ptr_vs_handle():
         T.evaluate(out_ret_value)
 
     scoped_script = scoped_void_ptr.script()
-    assert 'out_ret_value: T.Ptr(I.PrimType("void"), "shared")' in scoped_script
+    assert 'out_ret_value: I.Ptr(I.PrimType("void"), storage_scope="shared")' in scoped_script
     assert 'T.handle("void"' not in scoped_script
     tvm.ir.assert_structural_equal(
         scoped_void_ptr,
@@ -2130,15 +2130,16 @@ def test_disable_concise_scoping_when_scope_annotated():
     )
     assert (
         result
-        == """# from tvm.script import s_tir as Ts
+        == """# from tvm.script import ir as I
+# from tvm.script import s_tir as Ts
 # from tvm.script import tirx as T
 
 @Ts.function
 def main():
     T.func_attr({"s_tir": True, "script.namespace": "s_tir"})
-    x = T.alloc_tensor(ty_args=[T.Tensor((1,), "int32", scope="local")])
+    x = T.alloc_tensor(ty_args=[T.Tensor([T.IntImm("int32", 1)], dtype=I.PrimType("int32"), storage_scope="local")])
     x[0] = 1
-    y = T.alloc_tensor(ty_args=[T.Tensor((1,), "int32", scope="local")])  # annotation 1
+    y = T.alloc_tensor(ty_args=[T.Tensor([T.IntImm("int32", 1)], dtype=I.PrimType("int32"), storage_scope="local")])  # annotation 1
     y[0] = x[0] + 1
     T.evaluate(y[0] - 1)"""
     )

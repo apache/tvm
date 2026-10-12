@@ -16,6 +16,7 @@
 # under the License.
 """Concrete TIRx construction operations over the shared native IRBuilder stack."""
 
+from tvm.ir.type import _init_type_api
 from tvm.script.ir_builder.ir import constexpr as constexpr
 from tvm.script.ir_builder.ir import dtype as dtype
 from tvm.script.ir_builder.ir import dynamic as dynamic
@@ -50,3 +51,6 @@ __all__ = [
     "frame_scope",
     "supports_mutable_declarations",
 ]
+
+
+_init_type_api("tirx", __name__)
