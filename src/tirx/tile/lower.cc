@@ -49,29 +49,125 @@
 #include <vector>
 
 #include "../../backend/cuda/tile/exec_analysis.h"
-#include "../ir/tir_visitor_with_path.h"
 
 namespace tvm {
 namespace tirx {
 
 namespace {
 
-class NoOpCallVerifier : public Verifier<NoOpCallVerifier> {
+class NoOpCallVerifier : public StmtExprVisitor {
+  friend class tvm::ObjectVisitor;
+  using Result = ffi::Optional<VisitInterrupt>;
+
  public:
-  using Verifier::Verifier;
+  NoOpCallVerifier() : StmtExprVisitor(GlobalVTable()) {}
+  static bool Verify(const Stmt& stmt) {
+    auto verifier = ffi::make_object<NoOpCallVerifier>();
+    verifier->Visit(stmt);
+    return verifier->valid_;
+  }
 
  private:
-  using Verifier::Visit;
+  using StmtExprVisitor::Visit_;
+  Result Visit(ffi::AnyView value) override {
+    if (value.as<Stmt>() && !GlobalVTable()->CanDispatch(value)) {
+      valid_ = false;
+      return std::nullopt;
+    }
+    if (auto expr = value.as<Expr>(); expr && !GlobalVTable()->CanDispatch(value)) {
+      if (value.as<OpaqueExprNode>() || value.as<VarNode>()) return std::nullopt;
+      TVM_FFI_VISIT_THROW(TypeError, expr.value())
+          << "Unsupported non-primitive TIR expression " << expr.value()->GetTypeKey();
+    }
+    return StmtExprVisitor::Visit(value);
+  }
 
-  void Dispatch_(const CallNode* call, ffi::reflection::AccessPath path) final {
+  Result Visit_(const CallNode* call) final {
     if (auto op = call->op.as<Op>(); op && Op::HasAttrMap(tile::op_attr::kTileOpDispatch)) {
       static const auto& dispatchers =
           Op::GetAttrMap<tile::FTileOpDispatch>(tile::op_attr::kTileOpDispatch);
-      Verify(!dispatchers.count(op.value()))
-          << "Unlowered tensor instruction " << op.value()->name << " at " << path;
+      valid_ &= !dispatchers.count(op.value());
     }
-    Verifier::Dispatch_(call, path);
+    if (call->op.as<GlobalVar>() || call->op.as<OpaqueExprNode>()) this->Visit(call->op);
+    return this->Visit(call->args);
   }
+
+  Result Visit_(const BindNode* op) override {
+    this->Visit(op->value);
+    return this->Visit(op->var->ty);
+  }
+
+  Result Visit_(const RegionStmtNode* op) override {
+    this->Visit(op->args);
+    this->Visit(op->attrs);
+    for (const auto& param : op->body_params) this->Visit(param->ty);
+    this->Visit(op->body);
+    for (const auto& var : op->result_vars) this->Visit(var->ty);
+    return std::nullopt;
+  }
+
+  Result Visit_(const ForNode* op) override {
+    this->Visit(op->min);
+    this->Visit(op->extent);
+    this->Visit(op->loop_var->ty);
+    return this->Visit(op->body);
+  }
+
+  Result Visit_(const prim::LetNode* op) override {
+    this->Visit(op->value);
+    this->Visit(op->var->ty);
+    return this->Visit(op->body);
+  }
+
+  Result Visit_(const LambdaExprNode* op) {
+    this->Visit(op->ty);
+    for (const auto& var : op->vars) this->Visit(var->ty);
+    return this->Visit(op->body);
+  }
+
+  Result Visit_(const TensorLoadNode* op) override { return this->Visit(op->indices); }
+
+  Result Visit_(const TensorStoreNode* op) override {
+    this->Visit(op->value);
+    return this->Visit(op->indices);
+  }
+
+  Result Visit_(const TensorRegionNode* op) override {
+    if (!op->source.as<TensorVar>()) this->Visit(op->source);
+    return this->Visit(op->region);
+  }
+
+  Result Visit_(const prim::RampNode* op) override {
+    this->Visit(op->base);
+    this->Visit(op->stride);
+    return this->Visit(op->lanes);
+  }
+
+  Result Visit_(const prim::BroadcastNode* op) override {
+    this->Visit(op->value);
+    return this->Visit(op->lanes);
+  }
+
+  Result Visit_(const GenericConstNode* op) override { return std::nullopt; }
+
+  Result Visit_(const AssertStmtNode* op) override {
+    this->Visit(op->condition);
+    this->Visit(op->error_kind);
+    return this->Visit(op->message_parts);
+  }
+
+  static const VTable* GlobalVTable() {
+    static const VTable table = [] {
+      VTable table;
+      StmtExprVisitor::InitVTable(&table);
+      SetDispatch<NoOpCallVerifier, LambdaExprNode>(&table);
+      table.Finalize();
+      return table;
+    }();
+    return &table;
+  }
+
+  bool valid_{true};
 };
 
 class TileDispatcher : public StmtExprMutator {
@@ -543,7 +639,7 @@ Pass TileDispatch() {
     Target target = ResolveTarget(f);
     auto* n = f.CopyOnWrite();
     n->body = TileDispatcher::LowerOpCalls(n->body.value(), target);
-    if (!NoOpCallVerifier::Verify(n->body.value(), false)) {
+    if (!NoOpCallVerifier::Verify(n->body.value())) {
       LOG(FATAL) << "Failed to lower the TIRx program: " << f;
     }
     return f;
