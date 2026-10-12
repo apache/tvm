@@ -50,11 +50,11 @@ class MemoryScope : public ffi::Enum {
   /*! \brief Return the canonical spelling. */
   const ffi::String& name() const { return get()->_str_index; }
   /*! \brief Look up a registered name. Unknown names raise ValueError. */
-  TVM_DLL static MemoryScope Get(const ffi::String& name);
+  TVM_RUNTIME_DLL static MemoryScope Get(const ffi::String& name);
   /*! \brief Register a new name. Duplicate names raise ValueError. */
-  TVM_DLL static MemoryScope Register(const ffi::String& name);
+  TVM_RUNTIME_DLL static MemoryScope Register(const ffi::String& name);
   /*! \brief Return the canonical global singleton. */
-  TVM_DLL static MemoryScope Global();
+  TVM_RUNTIME_DLL static MemoryScope Global();
   /*! \brief Normalize legacy string input at an API boundary. */
   static MemoryScope FromString(const ffi::String& name) {
     return name.empty() ? Global() : Get(name);
