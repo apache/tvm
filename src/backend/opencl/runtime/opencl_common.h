@@ -28,7 +28,6 @@
 #include <tvm/ffi/function.h>
 #include <tvm/runtime/base.h>
 #include <tvm/runtime/device_api.h>
-#include <tvm/runtime/memory/memory_manager.h>
 #include <tvm/runtime/tensor.h>
 #include <tvm/runtime/timer.h>
 
@@ -74,13 +73,12 @@
 #include "../../../runtime/metadata.h"
 #include "../../../runtime/pack_args.h"
 #include "../../../runtime/thread_storage_scope.h"
+#include "../../../runtime/workspace_pool.h"
 #include "texture.h"
 
 namespace tvm {
 namespace runtime {
 namespace cl {
-
-using tvm::runtime::memory::Buffer;
 
 static_assert(sizeof(cl_mem) == sizeof(void*), "Required to store cl_mem inside void*");
 
@@ -266,6 +264,8 @@ class OpenCLWorkspace : public DeviceAPI {
   // the mutex for initialization
   std::mutex mu;
 
+  OpenCLWorkspace();
+
   // destructor
   ~OpenCLWorkspace() {
     for (auto& it : contexts) {
@@ -356,13 +356,19 @@ class OpenCLWorkspace : public DeviceAPI {
   ffi::Tensor Empty(ffi::ShapeView shape, DLDataType dtype, DLDevice device,
                     ffi::Optional<ffi::String> mem_scope = std::nullopt) final;
   void* AllocDataSpace(Device dev, int ndim, const int64_t* shape, DLDataType dtype,
-                       ffi::Optional<ffi::String> mem_scope = std::nullopt);
+                       ffi::Optional<ffi::String> mem_scope = std::nullopt,
+                       TensorMemoryPool* pool = nullptr);
   void* AllocDataSpace(Device dev, size_t width, size_t height, size_t depth, DLDataType type_hint,
-                       ffi::Optional<ffi::String> mem_scope = std::nullopt);
+                       ffi::Optional<ffi::String> mem_scope = std::nullopt,
+                       TensorMemoryPool* pool = nullptr);
   void* GetNativePtr(const tvm::ffi::Tensor& narr);
   void SetNativePtr(const tvm::ffi::Tensor& narr, void* host_ptr, size_t buf_size);
   void SetPerfHint(Device dev, cl_uint perf_hint);
   void FreeDataSpace(Device dev, void* ptr);
+  void ClearMemoryPool();
+  void* AllocWorkspace(Device dev, size_t size, DLDataType type_hint) final;
+  void FreeWorkspace(Device dev, void* data) final;
+  static ffi::Tensor AllocWorkspaceTensor(DeviceAPI* api, Device dev, size_t size);
   void StreamSync(Device dev, TVMStreamHandle stream) final;
   // cl_mem alloc utils
   void* AllocCLBuffer(Device dev, size_t size, size_t alignment, DLDataType type_hint);
@@ -387,6 +393,7 @@ class OpenCLWorkspace : public DeviceAPI {
     return "";
   }
   std::string noDevicesErrorMsg = "";
+  ffi::ObjectPtr<TensorMemoryPool> memory_pool_;
 };
 
 /*! \brief Thread local workspace */
@@ -401,10 +408,13 @@ class OpenCLThreadEntry {
   };
   /*! \brief The current device */
   Device device;
+  /*! \brief Thread-local linear workspace allocation cache. */
+  WorkspacePool pool;
   /*! \brief The thread-local kernel table */
   std::vector<KTEntry> kernel_table;
   // constructor
-  OpenCLThreadEntry(DLDeviceType device_type, DeviceAPI* device_api) {
+  OpenCLThreadEntry(DLDeviceType device_type, DeviceAPI* device_api)
+      : pool(device_type, device_api, OpenCLWorkspace::AllocWorkspaceTensor) {
     device.device_id = 0;
     device.device_type = device_type;
   }
@@ -449,7 +459,7 @@ struct BufferDescriptor {
   cl::BufferDescriptor* back_buffer{nullptr};
   cl_uchar* host_ptr{nullptr};
   MemoryLayout layout{MemoryLayout::kBuffer1D};
-  Buffer mbuf{nullptr};  // MemoryManager ref.
+  ffi::Tensor backing;  // Owns the pooled buffer underlying an image.
   bool is_compat_view{false};
 };
 }  // namespace cl

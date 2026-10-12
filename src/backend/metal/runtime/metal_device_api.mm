@@ -319,6 +319,14 @@ void MetalWorkspace::StreamSync(Device dev, TVMStreamHandle stream) {
   };
 }
 
+void* MetalWorkspace::AllocWorkspace(Device dev, size_t size, DLDataType type_hint) {
+  return MetalThreadEntry::ThreadLocal()->pool.AllocWorkspace(dev, size);
+}
+
+void MetalWorkspace::FreeWorkspace(Device dev, void* data) {
+  MetalThreadEntry::ThreadLocal()->pool.FreeWorkspace(dev, data);
+}
+
 MetalThreadEntry::~MetalThreadEntry() {
   for (auto x : temp_buffer_) {
     if (x != nil) {
