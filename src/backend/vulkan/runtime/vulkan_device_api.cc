@@ -286,6 +286,18 @@ void VulkanDeviceAPI::FreeDataSpace(Device dev, void* ptr) {
   delete pbuf;
 }
 
+void* VulkanDeviceAPI::AllocWorkspace(Device dev, size_t size, DLDataType type_hint) {
+  auto& pool = pool_per_thread.GetOrMake(kDLVulkan, this);
+  return pool.AllocWorkspace(dev, size);
+}
+
+void VulkanDeviceAPI::FreeWorkspace(Device dev, void* data) {
+  auto* pool = pool_per_thread.Get();
+  TVM_FFI_ICHECK(pool) << "Attempted to free a vulkan workspace on a CPU-thread "
+                       << "that has never allocated a workspace";
+  pool->FreeWorkspace(dev, data);
+}
+
 TVMStreamHandle VulkanDeviceAPI::CreateStream(Device dev) { return nullptr; }
 
 void VulkanDeviceAPI::FreeStream(Device dev, TVMStreamHandle stream) {

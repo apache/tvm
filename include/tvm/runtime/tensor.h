@@ -199,6 +199,12 @@ inline Device GetPreferredHostDevice(Device device) {
   }
 }
 
+class TensorMemoryPool;
+
+/*! \brief Create a device pool; a zero page size disables caching. */
+TVM_RUNTIME_DLL ffi::ObjectPtr<TensorMemoryPool> CreateTensorMemoryPool(DLDevice device,
+                                                                        size_t page_size = 4096);
+
 /*!
  * \brief A cache of owning device tensors.
  *
@@ -213,7 +219,6 @@ inline Device GetPreferredHostDevice(Device device) {
 class TensorMemoryPool : public ffi::Object {
  public:
   explicit TensorMemoryPool(size_t page_size = 4096) : page_size_(page_size), used_memory_(0) {
-    TVM_FFI_CHECK_GT(page_size_, 0, ValueError) << "Pool page size must be positive";
     TVM_FFI_CHECK_LE(page_size_, static_cast<size_t>(std::numeric_limits<int64_t>::max()),
                      ValueError);
   }
@@ -224,15 +229,16 @@ class TensorMemoryPool : public ffi::Object {
   virtual ffi::Tensor Empty(ffi::ShapeView shape, DLDataType dtype, DLDevice device,
                             ffi::Optional<ffi::String> mem_scope = std::nullopt) {
     std::lock_guard<std::recursive_mutex> lock(mu_);
-    TVM_FFI_CHECK(!mem_scope.has_value() || (*mem_scope).empty() || *mem_scope == "global",
-                  ValueError)
-        << "TensorMemoryPool only supports global memory";
+    if (mem_scope.has_value() && !(*mem_scope).empty() && *mem_scope != "global") {
+      return DeviceAPI::Get(device)->Empty(shape, dtype, device, mem_scope);
+    }
+    size_t page_size = std::max<size_t>(page_size_, 1);
     size_t nbytes = ffi::GetDataSize(shape.Product(), dtype);
     TVM_FFI_CHECK_LE(std::max<size_t>(nbytes, 1),
-                     static_cast<size_t>(std::numeric_limits<int64_t>::max()) - (page_size_ - 1),
+                     static_cast<size_t>(std::numeric_limits<int64_t>::max()) - (page_size - 1),
                      ValueError)
         << "Rounded tensor allocation size overflows";
-    size_t size = ((std::max<size_t>(nbytes, 1) + page_size_ - 1) / page_size_) * page_size_;
+    size_t size = ((std::max<size_t>(nbytes, 1) + page_size - 1) / page_size) * page_size;
     size_t alignment = kAllocAlignment;
     size_t element_bytes = (static_cast<size_t>(dtype.bits) * dtype.lanes + 7) / 8;
     while (alignment < element_bytes) alignment *= 2;
@@ -268,6 +274,28 @@ class TensorMemoryPool : public ffi::Object {
     }
   }
 
+  /*! \brief Create a bounded owning view of a backing tensor. */
+  virtual ffi::Tensor CreateView(ffi::Tensor backing, ffi::Shape shape, DLDataType dtype,
+                                 uint64_t byte_offset = 0,
+                                 ffi::Optional<ffi::String> mem_scope = std::nullopt) {
+    TVM_FFI_CHECK(!mem_scope.has_value() || (*mem_scope).empty() || *mem_scope == "global" ||
+                      (backing.device().device_type == kDLHexagon &&
+                       (*mem_scope == "global.vtcm" || *mem_scope == "global.ddr")),
+                  ValueError)
+        << "Unsupported tensor view memory scope";
+    auto view = runtime::CreateView(std::move(backing), std::move(shape), dtype, byte_offset);
+    if (view.device().device_type == kDLHexagon &&
+        (!mem_scope.has_value() || (*mem_scope).empty() || *mem_scope == "global")) {
+      // Hexagon kernels receive the adjusted pointer rather than a byte offset.
+      auto* tensor = const_cast<DLTensor*>(view.GetDLTensorPtr());
+      if (tensor->byte_offset != 0) {
+        tensor->data = static_cast<char*>(tensor->data) + tensor->byte_offset;
+      }
+      tensor->byte_offset = 0;
+    }
+    return view;
+  }
+
   /*! \brief Release cached backing; live tensors remain valid and may return later. */
   void Clear() {
     std::lock_guard<std::recursive_mutex> lock(mu_);
@@ -290,7 +318,27 @@ class TensorMemoryPool : public ffi::Object {
    * owner releases its resources independently of the pool and must not allocate
    * through a DeviceAPI::Empty implementation that routes back to this pool.
    */
-  virtual ffi::Tensor AllocBacking(size_t nbytes, size_t alignment, DLDevice device) = 0;
+  virtual ffi::Tensor AllocBacking(size_t nbytes, size_t alignment, DLDevice device) {
+    auto allocate = [&]() {
+      auto* api = DeviceAPI::Get(device);
+      DLDataType bytes{kDLUInt, 8, 1};
+      if (alignment <= kAllocAlignment) {
+        return api->Empty({static_cast<int64_t>(nbytes)}, bytes, device);
+      }
+      // Preserve the backend's dtype alignment contract for wide vector elements.
+      TVM_FFI_CHECK_LE(alignment, std::numeric_limits<uint16_t>::max(), ValueError);
+      auto owner = api->Empty({static_cast<int64_t>((nbytes + alignment - 1) / alignment)},
+                              DLDataType{kDLUInt, 8, static_cast<uint16_t>(alignment)}, device);
+      return runtime::CreateView(std::move(owner), {static_cast<int64_t>(nbytes)}, bytes);
+    };
+    try {
+      return allocate();
+    } catch (const ffi::Error&) {
+      // This default allocator is non-collective; release cached memory and retry.
+      Clear();
+      return allocate();
+    }
+  }
 
  private:
   struct Lease {
@@ -304,6 +352,10 @@ class TensorMemoryPool : public ffi::Object {
   void Recycle(ffi::Tensor backing) {
     std::lock_guard<std::recursive_mutex> lock(mu_);
     size_t size = ffi::GetDataSize(backing);
+    if (page_size_ == 0) {
+      used_memory_.fetch_sub(size, std::memory_order_relaxed);
+      return;
+    }
     try {
       memory_pool_[size].push_back(std::move(backing));
     } catch (const std::bad_alloc&) {

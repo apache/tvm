@@ -86,7 +86,7 @@ class VirtualMachine:
         self._setup_device(device, memory_cfg)
 
     def _setup_device(self, dev: Device, memory_cfg: str | dict[Device, str]) -> None:
-        """init devices and allocators."""
+        """Initialize devices and owning tensor pools."""
         devs = dev
         if not isinstance(dev, list | tuple):
             if not isinstance(dev, tvm.runtime.Device):

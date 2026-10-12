@@ -34,6 +34,8 @@
 #include <algorithm>
 #include <cstring>
 
+#include "../../../runtime/workspace_pool.h"
+
 namespace tvm {
 namespace runtime {
 
@@ -291,6 +293,14 @@ class CUDADeviceAPI final : public DeviceAPI {
     TVM_FFI_CHECK_CUDA_ERROR(cudaStreamSynchronize(static_cast<cudaStream_t>(stream)));
   }
 
+  void* AllocWorkspace(Device dev, size_t size, DLDataType type_hint) final {
+    return ThreadLocalWorkspacePool(dev.device_type)->AllocWorkspace(dev, size);
+  }
+
+  void FreeWorkspace(Device dev, void* data) final {
+    ThreadLocalWorkspacePool(dev.device_type)->FreeWorkspace(dev, data);
+  }
+
   bool SupportsDevicePointerArithmeticsOnHost() final { return true; }
 
   static CUDADeviceAPI* Global() {
@@ -301,11 +311,22 @@ class CUDADeviceAPI final : public DeviceAPI {
   }
 
  private:
+  static WorkspacePool* ThreadLocalWorkspacePool(DLDeviceType device_type);
+
   static void GPUCopy(const void* from, void* to, size_t size, cudaMemcpyKind kind,
                       cudaStream_t stream) {
     TVM_FFI_CHECK_CUDA_ERROR(cudaMemcpyAsync(to, from, size, kind, stream));
   }
 };
+
+WorkspacePool* CUDADeviceAPI::ThreadLocalWorkspacePool(DLDeviceType device_type) {
+  if (device_type == kDLCUDAHost) {
+    static thread_local WorkspacePool pool(kDLCUDAHost, CUDADeviceAPI::Global());
+    return &pool;
+  }
+  static thread_local WorkspacePool pool(kDLCUDA, CUDADeviceAPI::Global());
+  return &pool;
+}
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;

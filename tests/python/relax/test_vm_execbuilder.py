@@ -183,7 +183,9 @@ def test_vm_storage():
             dst=ib.r(1),
         )
         ib.emit_call(
-            "vm.builtin.alloc_tensor", args=[ib.r(1), ib.imm(0), shape, dtype], dst=ib.r(2)
+            "vm.builtin.alloc_tensor",
+            args=[ib.vm_state(), ib.r(1), ib.imm(0), shape, dtype],
+            dst=ib.r(2),
         )
         ib.emit_ret(ib.r(2))
     ex = ib.get()

@@ -207,7 +207,7 @@ class CUDAIPCMemoryPool final : public TensorMemoryPool {
 };
 
 /*!
- * \brief Allocate owning CUDA IPC backing for the VM storage adapter.
+ * \brief Allocate owning CUDA IPC backing for VM tensors.
  */
 ffi::Tensor IPCAllocTensor(ffi::Shape buffer_shape, DLDataType dtype_hint) {
   nccl::CCLThreadLocalContext* nccl_ctx = nccl::CCLThreadLocalContext::Get();
@@ -220,6 +220,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("runtime.disco.cuda_ipc.empty", IPCAllocTensor)
+      .def("runtime.disco.cuda_ipc.alloc_storage", IPCAllocTensor)
       .def("runtime.disco.cuda_ipc.cuda_ipc_memory_allocator_clear",
            []() { CUDAIPCMemoryPool::Global()->Clear(); });
 }

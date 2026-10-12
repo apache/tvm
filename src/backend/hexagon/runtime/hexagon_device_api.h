@@ -27,6 +27,7 @@
 #include <memory>
 #include <mutex>
 #include <string>
+#include <thread>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -84,7 +85,10 @@ class HexagonDeviceAPI final : public DeviceAPI {
     TVM_FFI_ICHECK(runtime_threads) << "runtime_threads was not created in AcquireResources";
     runtime_threads.reset();
 
-    ResetWorkspacePool(kDLHexagon);
+    {
+      std::lock_guard<std::mutex> lock(workspace_mutex_);
+      for (auto& [thread, pool] : workspace_pools_) pool->Clear();
+    }
     TVM_FFI_ICHECK(runtime_hexbuffs) << "runtime_hexbuffs was not created in AcquireResources";
     runtime_hexbuffs.reset();
 
@@ -113,6 +117,12 @@ class HexagonDeviceAPI final : public DeviceAPI {
   //! \note Backend-local allocation helpers for generated Hexagon operators.
   //! \brief Allocate a flat allocation of global memory wrapped in a HexagonBuffer.
   void* AllocDataSpace(Device dev, size_t nbytes, size_t alignment, DLDataType type_hint);
+
+  //! \brief Request a dynamically allocated buffer from the thread's workspace pool.
+  void* AllocWorkspace(Device dev, size_t size, DLDataType type_hint) final;
+
+  //! \brief Return a workspace allocation to its owning pool.
+  void FreeWorkspace(Device dev, void* data) final;
 
   //! \brief Free the allocated HexagonBuffer.
   void FreeDataSpace(Device dev, void* ptr);
@@ -232,6 +242,11 @@ class HexagonDeviceAPI final : public DeviceAPI {
   // AcquireResources. Owning tensors retain their original manager after ReleaseResources,
   // so a late deleter never frees an allocation through a replacement session.
   std::shared_ptr<HexagonBufferManager> runtime_hexbuffs;
+
+  // Backend ownership permits session teardown to clear every thread's cached workspace.
+  // Outstanding owners retain their original buffer manager until FreeWorkspace.
+  std::unordered_map<std::thread::id, std::unique_ptr<WorkspacePool>> workspace_pools_;
+  std::mutex workspace_mutex_;
 
   //! \brief Thread manager
   std::unique_ptr<HexagonThreadManager> runtime_threads;

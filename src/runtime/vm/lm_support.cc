@@ -47,8 +47,6 @@
 
 #include <cmath>
 
-#include "memory/memory_manager.h"
-
 namespace tvm {
 namespace runtime {
 namespace vm {

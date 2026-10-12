@@ -166,6 +166,24 @@ void HexagonDeviceAPI::FreeDataSpace(Device dev, void* ptr) {
   }
 }
 
+void* HexagonDeviceAPI::AllocWorkspace(Device dev, size_t size, DLDataType type_hint) {
+  TVM_FFI_ICHECK(IsValidDevice(dev)) << "dev.device_type: " << dev.device_type;
+  TVM_FFI_ICHECK(runtime_hexbuffs) << "Call AcquireResources before allocating Hexagon workspace";
+  std::lock_guard<std::mutex> lock(workspace_mutex_);
+  auto& pool = workspace_pools_[std::this_thread::get_id()];
+  if (!pool) pool = std::make_unique<WorkspacePool>(kDLHexagon, this);
+  return pool->AllocWorkspace(dev, size);
+}
+
+void HexagonDeviceAPI::FreeWorkspace(Device dev, void* data) {
+  TVM_FFI_ICHECK(IsValidDevice(dev)) << "dev.device_type: " << dev.device_type;
+  std::lock_guard<std::mutex> lock(workspace_mutex_);
+  auto it = workspace_pools_.find(std::this_thread::get_id());
+  TVM_FFI_ICHECK(it != workspace_pools_.end())
+      << "Attempt made to free unknown workspace allocation";
+  it->second->FreeWorkspace(dev, data);
+}
+
 void HexagonDeviceAPI::CopyDataFromTo(DLTensor* from, DLTensor* to, TVMStreamHandle stream) {
   TVM_FFI_ICHECK_EQ(from->byte_offset, 0);
   TVM_FFI_ICHECK_EQ(to->byte_offset, 0);

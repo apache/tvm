@@ -36,13 +36,10 @@
 #include <cstring>
 #include <unordered_map>
 
-#include "memory/memory_manager.h"
-
 namespace tvm {
 namespace runtime {
 namespace vm {
 
-using memory::Storage;
 using tvm::ffi::Tensor;
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -51,8 +48,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
     auto init = mod->GetFunction("vm_initialization");
     TVM_FFI_CHECK(init.has_value(), ValueError) << "Module has no VM initialization function";
     (*init)(static_cast<int>(dev.device_type), dev.device_id,
-            static_cast<int>(AllocatorType::kPooled), static_cast<int>(kDLCPU), 0,
-            static_cast<int>(AllocatorType::kPooled));
+            static_cast<int>(MemoryConfig::kPooled), static_cast<int>(kDLCPU), 0,
+            static_cast<int>(MemoryConfig::kPooled));
   });
 }
 
@@ -67,7 +64,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
  */
 ffi::Tensor AllocShapeHeap(void* ctx_ptr, int64_t size) {
   VirtualMachine* vm = static_cast<VirtualMachine*>(ctx_ptr);
-  // use host allocator, which is always last element.
+  // Use the host pool, which is always the last element.
   size_t host_device_index = vm->devices.size() - 1;
   // specially handle hexagon on-device RT.
   // TODO(relax-team): visit and consider other possible choices.
@@ -76,8 +73,8 @@ ffi::Tensor AllocShapeHeap(void* ctx_ptr, int64_t size) {
   } else {
     TVM_FFI_ICHECK_EQ(vm->devices[host_device_index].device_type, kDLCPU);
   }
-  auto* alloc = vm->allocators[host_device_index];
-  return alloc->Empty({size}, DLDataType{kDLInt, 64, 1}, vm->devices[host_device_index]);
+  auto& pool = vm->memory_pools[host_device_index];
+  return pool->Empty({size}, DLDataType{kDLInt, 64, 1}, vm->devices[host_device_index]);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -390,24 +387,19 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 //-------------------------------------------------
 //  Storage management.
 //-------------------------------------------------
-Storage VMAllocStorage(void* ctx_ptr, ffi::Shape buffer_shape, Index device_index,
-                       DLDataType dtype_hint, ffi::String mem_scope) {
+ffi::Tensor VMAllocStorage(void* ctx_ptr, ffi::Shape buffer_shape, Index device_index,
+                           DLDataType dtype_hint, ffi::String mem_scope) {
   VirtualMachine* vm = static_cast<VirtualMachine*>(ctx_ptr);
-
-  TVM_FFI_ICHECK_LT(device_index, vm->devices.size())
-      << "The device index is out of VM physical devices list";
-
   if (device_index == -1) {
     // Allocate on host. Host is always the last element of vm->devices.
     device_index = vm->devices.size() - 1;
   }
-
-  auto* alloc = vm->allocators[device_index];
-  TVM_FFI_ICHECK(alloc) << "Did you forget to init the VirtualMachine with devices?";
-
-  auto buffer = alloc->Alloc(vm->devices[device_index], buffer_shape, dtype_hint, mem_scope);
-
-  return Storage(buffer, alloc);
+  TVM_FFI_ICHECK_GE(device_index, 0);
+  TVM_FFI_ICHECK_LT(device_index, vm->devices.size())
+      << "The device index is out of VM physical devices list";
+  auto& pool = vm->memory_pools[device_index];
+  TVM_FFI_ICHECK(pool) << "Did you forget to init the VirtualMachine with devices?";
+  return pool->Empty(buffer_shape, dtype_hint, vm->devices[device_index], mem_scope);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -415,16 +407,25 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef()
       .def("vm.builtin.alloc_storage", VMAllocStorage)
       .def_packed("vm.builtin.alloc_tensor", [](ffi::PackedArgs args, ffi::Any* rv) {
-        Storage sobj = args[0].cast<Storage>();
-        int64_t offset = args[1].cast<int64_t>();
-        ffi::Shape shape = args[2].cast<ffi::Shape>();
-        DLDataType dtype = args[3].cast<DLDataType>();
-        if (args.size() == 5) {
-          ffi::String scope = args[4].cast<ffi::String>();
-          *rv = sobj->AllocTensorScoped(offset, shape, dtype, scope);
-        } else {
-          *rv = sobj->AllocTensor(offset, shape, dtype);
+        VirtualMachine* vm = VirtualMachine::GetContextPtr(args[0]);
+        ffi::Tensor backing = args[1].cast<ffi::Tensor>();
+        int64_t offset = args[2].cast<int64_t>();
+        ffi::Shape shape = args[3].cast<ffi::Shape>();
+        DLDataType dtype = args[4].cast<DLDataType>();
+        ffi::Optional<ffi::String> scope = std::nullopt;
+        if (args.size() == 6) {
+          scope = args[5].cast<ffi::String>();
         }
+        TVM_FFI_CHECK_GE(offset, 0, ValueError) << "Tensor byte offset must be nonnegative";
+        DLDevice device = backing.device();
+        for (size_t i = 0; i < vm->devices.size(); ++i) {
+          if (vm->devices[i].device_type == device.device_type &&
+              vm->devices[i].device_id == device.device_id) {
+            *rv = vm->memory_pools[i]->CreateView(std::move(backing), shape, dtype, offset, scope);
+            return;
+          }
+        }
+        TVM_FFI_THROW(ValueError) << "Tensor backing device is not initialized in the VM";
       });
 }
 

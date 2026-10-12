@@ -245,6 +245,79 @@ void* OpenCLWorkspace::CreateHostPtrIfEnabled(cl::BufferDescriptor* desc, Device
 
 // Reuse follows the workspace's existing in-order command queue per device.
 class OpenCLTensorMemoryPool final : public TensorMemoryPool {
+ public:
+  explicit OpenCLTensorMemoryPool(size_t page_size = 4096) : TensorMemoryPool(page_size) {}
+
+  ffi::Tensor Empty(ffi::ShapeView shape, DLDataType dtype, DLDevice device,
+                    ffi::Optional<ffi::String> mem_scope = std::nullopt) final {
+    if (!mem_scope.has_value() || (*mem_scope).empty() || *mem_scope == "global") {
+      return TensorMemoryPool::Empty(shape, dtype, device);
+    }
+    struct NDAlloc {
+      OpenCLTensorMemoryPool* pool;
+      ffi::Optional<ffi::String> scope;
+      void AllocData(DLTensor* tensor) {
+        tensor->data = OpenCLWorkspace::Global()->AllocDataSpace(
+            tensor->device, tensor->ndim, tensor->shape, tensor->dtype, scope, pool);
+      }
+      void FreeData(DLTensor* tensor) {
+        OpenCLWorkspace::Global()->FreeDataSpace(tensor->device, tensor->data);
+      }
+    };
+    return ffi::Tensor::FromNDAlloc(NDAlloc{this, mem_scope}, shape, dtype, device);
+  }
+
+  ffi::Tensor CreateView(ffi::Tensor backing, ffi::Shape shape, DLDataType dtype,
+                         uint64_t byte_offset = 0,
+                         ffi::Optional<ffi::String> mem_scope = std::nullopt) final {
+    TVM_FFI_CHECK_EQ(backing.device().device_type, kDLOpenCL, ValueError);
+    TVM_FFI_CHECK(backing.IsContiguous(), ValueError) << "OpenCL views require compact backing";
+    auto* desc = static_cast<BufferDescriptor*>(backing.data_ptr());
+    if ((!mem_scope.has_value() || (*mem_scope).empty() || *mem_scope == "global") &&
+        desc->layout == BufferDescriptor::MemoryLayout::kBuffer1D) {
+      return runtime::CreateView(std::move(backing), std::move(shape), dtype, byte_offset);
+    }
+    TVM_FFI_CHECK(byte_offset == 0 && backing.GetDLTensorPtr()->byte_offset == 0, ValueError)
+        << "OpenCL physical views require a zero byte offset";
+    TVM_FFI_CHECK_LE(ffi::GetDataSize(shape.Product(), dtype), ffi::GetDataSize(backing),
+                     ValueError)
+        << "OpenCL view exceeds its backing tensor";
+    auto* api = OpenCLWorkspace::Global();
+    auto device = backing.device();
+    if (mem_scope.has_value() && !(*mem_scope).empty() && *mem_scope != "global") {
+      TVM_FFI_CHECK_GE(shape.size(), 2, ValueError);
+      TVM_FFI_CHECK_EQ(shape.back(), 4, ValueError) << "OpenCL textures require four channels";
+      // Physical image rows include backend padding, which must also fit the buffer.
+      if (api->IsBufferToImageSupported(device.device_id)) {
+        auto scope = BufferDescriptor::ScopeFromMemoryLayout(desc->layout);
+        size_t capacity =
+            desc->layout == BufferDescriptor::MemoryLayout::kBuffer1D
+                ? ffi::GetDataSize(backing)
+                : GetTextureMemorySize(backing.shape(), backing.dtype().bits, backing.dtype().lanes,
+                                       scope, api->GetImageAlignment(device.device_id));
+        size_t needed = GetTextureMemorySize(shape, dtype.bits, dtype.lanes, *mem_scope,
+                                             api->GetImageAlignment(device.device_id));
+        TVM_FFI_CHECK_LE(needed, capacity, ValueError)
+            << "OpenCL image view exceeds its backing buffer";
+      }
+    }
+    struct NDAlloc {
+      ffi::Tensor backing;
+      ffi::Optional<ffi::String> scope;
+      void AllocData(DLTensor* tensor) {
+        tensor->data = OpenCLWorkspace::Global()->AllocDataSpaceView(
+            tensor->device, backing.data_ptr(),
+            ffi::Shape(tensor->shape, tensor->shape + tensor->ndim), tensor->dtype, scope);
+      }
+      void FreeData(DLTensor* tensor) {
+        if (tensor->data != backing.data_ptr()) {
+          OpenCLWorkspace::Global()->FreeDataSpaceView(tensor->device, tensor->data);
+        }
+      }
+    };
+    return ffi::Tensor::FromNDAlloc(NDAlloc{std::move(backing), mem_scope}, shape, dtype, device);
+  }
+
  protected:
   ffi::Tensor AllocBacking(size_t nbytes, size_t alignment, DLDevice device) final {
     struct NDAlloc {
@@ -278,23 +351,12 @@ void OpenCLWorkspace::ClearMemoryPool() { memory_pool_->Clear(); }
 
 ffi::Tensor OpenCLWorkspace::Empty(ffi::ShapeView shape, DLDataType dtype, DLDevice device,
                                    ffi::Optional<ffi::String> mem_scope) {
-  if (!mem_scope.has_value() || (*mem_scope).empty() || *mem_scope == "global") {
-    return memory_pool_->Empty(shape, dtype, device);
-  }
-  struct NDAlloc {
-    OpenCLWorkspace* api;
-    ffi::Optional<ffi::String> scope;
-    void AllocData(DLTensor* tensor) {
-      tensor->data =
-          api->AllocDataSpace(tensor->device, tensor->ndim, tensor->shape, tensor->dtype, scope);
-    }
-    void FreeData(DLTensor* tensor) { api->FreeDataSpace(tensor->device, tensor->data); }
-  };
-  return ffi::Tensor::FromNDAlloc(NDAlloc{this, mem_scope}, shape, dtype, device);
+  return memory_pool_->Empty(shape, dtype, device, mem_scope);
 }
 
 void* OpenCLWorkspace::AllocDataSpace(Device dev, size_t width, size_t height, size_t depth,
-                                      DLDataType type_hint, ffi::Optional<ffi::String> mem_scope) {
+                                      DLDataType type_hint, ffi::Optional<ffi::String> mem_scope,
+                                      TensorMemoryPool* pool) {
   // Texture allocation given width and height
   cl_uint row_align = GetImageAlignment(dev.device_id);
   size_t pixel_size = (type_hint.bits * type_hint.lanes + 7) / 8;
@@ -305,7 +367,8 @@ void* OpenCLWorkspace::AllocDataSpace(Device dev, size_t width, size_t height, s
   ffi::Tensor backing;
   cl::BufferDescriptor* back_buffer = nullptr;
   if (IsBufferToImageSupported(dev.device_id)) {
-    backing = memory_pool_->Empty({static_cast<int64_t>(mem_size)}, DLDataType{kDLUInt, 8, 1}, dev);
+    backing = (pool ? pool : memory_pool_.get())
+                  ->Empty({static_cast<int64_t>(mem_size)}, DLDataType{kDLUInt, 8, 1}, dev);
     back_buffer = static_cast<cl::BufferDescriptor*>(backing.data_ptr());
   }
 
@@ -319,7 +382,8 @@ void* OpenCLWorkspace::AllocDataSpace(Device dev, size_t width, size_t height, s
 }
 
 void* OpenCLWorkspace::AllocDataSpace(Device dev, int ndim, const int64_t* shape, DLDataType dtype,
-                                      ffi::Optional<ffi::String> mem_scope) {
+                                      ffi::Optional<ffi::String> mem_scope,
+                                      TensorMemoryPool* pool) {
   this->Init();
   if (!mem_scope.has_value() || (*mem_scope).empty() || (*mem_scope) == "global") {
     size_t size = GetMemObjectSize(dev, ndim, shape, dtype);
@@ -328,7 +392,7 @@ void* OpenCLWorkspace::AllocDataSpace(Device dev, int ndim, const int64_t* shape
   size_t axis = DefaultTextureLayoutSeparator(ndim, mem_scope.value());
   auto texture = ApplyTexture2DFlattening<int64_t>(shape, ndim, axis);
 
-  return AllocDataSpace(dev, texture.width, texture.height, texture.depth, dtype, mem_scope);
+  return AllocDataSpace(dev, texture.width, texture.height, texture.depth, dtype, mem_scope, pool);
 }
 
 void* OpenCLWorkspace::AllocCLBuffer(Device dev, size_t size, size_t alignment,
@@ -602,6 +666,27 @@ void OpenCLWorkspace::CopyDataFromTo(DLTensor* from, DLTensor* to, TVMStreamHand
   }
 }
 
+ffi::Tensor OpenCLWorkspace::AllocWorkspaceTensor(DeviceAPI* api, Device dev, size_t size) {
+  struct NDAlloc {
+    OpenCLWorkspace* api;
+    void AllocData(DLTensor* tensor) {
+      tensor->data = api->AllocCLBuffer(tensor->device, ffi::GetDataSize(*tensor),
+                                        kTempAllocaAlignment, tensor->dtype);
+    }
+    void FreeData(DLTensor* tensor) { api->FreeDataSpace(tensor->device, tensor->data); }
+  };
+  return ffi::Tensor::FromNDAlloc(NDAlloc{static_cast<OpenCLWorkspace*>(api)},
+                                  {static_cast<int64_t>(size)}, DLDataType{kDLUInt, 8, 1}, dev);
+}
+
+void* OpenCLWorkspace::AllocWorkspace(Device dev, size_t size, DLDataType) {
+  return GetThreadEntry()->pool.AllocWorkspace(dev, size);
+}
+
+void OpenCLWorkspace::FreeWorkspace(Device dev, void* data) {
+  GetThreadEntry()->pool.FreeWorkspace(dev, data);
+}
+
 void OpenCLWorkspace::StreamSync(Device dev, TVMStreamHandle stream) {
   this->Init();
   TVM_FFI_ICHECK(stream == nullptr);
@@ -831,26 +916,15 @@ TVM_FFI_STATIC_INIT_BLOCK() {
               ffi::Optional<ffi::String> scope) {
              return OpenCLWorkspace::Global()->Empty(shape, dtype, device, scope);
            })
-      .def("runtime.opencl.create_view", [](ffi::Tensor backing, ffi::Shape shape, DLDataType dtype,
-                                            ffi::Optional<ffi::String> scope) {
-        TVM_FFI_ICHECK_EQ(backing.GetDLTensorPtr()->byte_offset, 0)
-            << "OpenCL physical views require a zero byte offset";
-        struct NDAlloc {
-          ffi::Tensor backing;
-          ffi::Optional<ffi::String> scope;
-          void AllocData(DLTensor* tensor) {
-            tensor->data = OpenCLWorkspace::Global()->AllocDataSpaceView(
-                tensor->device, backing.GetDLTensorPtr()->data,
-                ffi::Shape(tensor->shape, tensor->shape + tensor->ndim), tensor->dtype, scope);
-          }
-          void FreeData(DLTensor* tensor) {
-            if (tensor->data != backing.GetDLTensorPtr()->data) {
-              OpenCLWorkspace::Global()->FreeDataSpaceView(tensor->device, tensor->data);
-            }
-          }
-        };
-        auto device = backing.device();
-        return ffi::Tensor::FromNDAlloc(NDAlloc{std::move(backing), scope}, shape, dtype, device);
+      .def("runtime.opencl.create_view",
+           [](ffi::Tensor backing, ffi::Shape shape, DLDataType dtype,
+              ffi::Optional<ffi::String> scope) {
+             return ffi::make_object<OpenCLTensorMemoryPool>()->CreateView(
+                 std::move(backing), std::move(shape), dtype, 0, scope);
+           })
+      .def("runtime.create_tensor_memory_pool.opencl", [](DLDevice, size_t page_size) {
+        return ffi::ObjectPtr<TensorMemoryPool>(
+            ffi::make_object<OpenCLTensorMemoryPool>(page_size));
       });
 }
 

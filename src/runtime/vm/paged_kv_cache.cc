@@ -44,7 +44,6 @@
 #include "attn_backend.h"
 #include "attn_utils.h"
 #include "kv_state.h"
-#include "memory/memory_manager.h"
 
 namespace tvm {
 namespace runtime {

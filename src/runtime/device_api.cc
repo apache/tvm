@@ -37,15 +37,13 @@
 #include <cctype>
 #include <cstdlib>
 #include <limits>
-#include <memory>
+#include <map>
 #include <mutex>
 #include <sstream>
 #include <string>
 #include <tuple>
 #include <unordered_map>
 #include <variant>
-
-#include "workspace_pool.h"
 
 namespace tvm {
 namespace runtime {
@@ -97,6 +95,28 @@ DeviceAPI* DeviceAPI::Get(Device dev, bool allow_missing) {
 
 int DeviceAPI::GetDeviceIndex() {
   TVM_FFI_THROW(NotImplementedError) << "Device does not support GetDeviceIndex.";
+}
+
+namespace {
+// Default workspace allocation has no cache.  Backends with reuse own their pools.
+std::unordered_map<void*, ffi::Tensor>& DefaultWorkspaces(Device dev) {
+  static thread_local std::map<std::pair<int, int>, std::unordered_map<void*, ffi::Tensor>>
+      allocations;
+  return allocations[{dev.device_type, dev.device_id}];
+}
+}  // namespace
+
+void* DeviceAPI::AllocWorkspace(Device dev, size_t size, DLDataType type_hint) {
+  int64_t count =
+      static_cast<int64_t>(size / kTempAllocaAlignment + (size % kTempAllocaAlignment != 0));
+  auto owner = Empty(ffi::ShapeView(&count, 1), DLDataType{kDLUInt, 8, kTempAllocaAlignment}, dev);
+  void* ptr = owner.data_ptr();
+  DefaultWorkspaces(dev).emplace(ptr, std::move(owner));
+  return ptr;
+}
+
+void DeviceAPI::FreeWorkspace(Device dev, void* ptr) {
+  TVM_FFI_ICHECK_EQ(DefaultWorkspaces(dev).erase(ptr), 1);
 }
 
 void DeviceAPI::CopyDataFromTo(DLTensor* from, DLTensor* to, TVMStreamHandle stream) {
@@ -200,25 +220,18 @@ int TVMBackendGetDeviceIndex(int device_type, int* out_device_index) {
   TVM_FFI_SAFE_CALL_END();
 }
 
-namespace {
-WorkspacePool* BackendWorkspacePool(DLDevice dev) {
-  static thread_local std::unordered_map<int, std::unique_ptr<WorkspacePool>> pools;
-  auto& pool = pools[static_cast<int>(dev.device_type)];
-  if (!pool) pool = std::make_unique<WorkspacePool>(dev.device_type, DeviceAPI::Get(dev));
-  return pool.get();
-}
-}  // namespace
-
 void* TVMBackendAllocWorkspace(int device_type, int device_id, uint64_t size, int dtype_code_hint,
                                int dtype_bits_hint) {
   DLDevice dev{static_cast<DLDeviceType>(device_type), device_id};
   TVM_FFI_CHECK_LE(size, std::numeric_limits<size_t>::max(), ValueError)
       << "Workspace size exceeds addressable memory";
-  return BackendWorkspacePool(dev)->AllocWorkspace(dev, static_cast<size_t>(size));
+  DLDataType type_hint{static_cast<uint8_t>(dtype_code_hint), static_cast<uint8_t>(dtype_bits_hint),
+                       1};
+  return DeviceAPI::Get(dev)->AllocWorkspace(dev, static_cast<size_t>(size), type_hint);
 }
 
 int TVMBackendFreeWorkspace(int device_type, int device_id, void* ptr) {
   DLDevice dev{static_cast<DLDeviceType>(device_type), device_id};
-  BackendWorkspacePool(dev)->FreeWorkspace(dev, ptr);
+  DeviceAPI::Get(dev)->FreeWorkspace(dev, ptr);
   return 0;
 }

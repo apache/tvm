@@ -25,6 +25,7 @@
 
 #include <tvm/ffi/extra/module.h>
 #include <tvm/runtime/device_api.h>
+#include <tvm/runtime/tensor.h>
 
 #include <memory>
 #include <string>
@@ -36,13 +37,10 @@
 
 namespace tvm {
 namespace runtime {
-namespace memory {
-class Allocator;
-}  // namespace memory
-
-using memory::Allocator;
-
 namespace vm {
+
+/*! \brief VM allocation policy, matching the Python memory configuration. */
+enum class MemoryConfig { kNaive = 1, kPooled = 2 };
 
 /*!
  * \brief Possible instrument actions.
@@ -208,8 +206,8 @@ class VirtualMachine : public ffi::ModuleObj {
   //--------------------------------------------------------------------------
   // The following section contains states that other builtin can depend on
   //--------------------------------------------------------------------------
-  /*! \brief The memory allocators. */
-  std::vector<Allocator*> allocators;
+  /*! \brief Owning memory pools for the physical devices. */
+  std::vector<ffi::ObjectPtr<TensorMemoryPool>> memory_pools;
   /*! \brief Runtime physical device list. */
   std::vector<Device> devices;
   /*! \brief The VM extensions. Mapping from the type index of the extension to the extension
