@@ -17,7 +17,7 @@
  * under the License.
  */
 
-#include "../src/sym/pattern_match.h"
+#include "../../../src/sym/pattern_match.h"
 
 #include <gtest/gtest.h>
 #include <tvm/ir/prim/expr.h>
