@@ -27,9 +27,9 @@
 #include <unordered_map>
 #include <vector>
 
+#include "../../../runtime/launch_param.h"
 #include "../../../runtime/metadata.h"
 #include "../../../runtime/pack_args.h"
-#include "../../../runtime/thread_storage_scope.h"
 #include "spirv_shader.h"
 #include "vulkan/vulkan_core.h"
 #include "vulkan_common.h"

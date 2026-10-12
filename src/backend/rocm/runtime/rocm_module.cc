@@ -36,9 +36,9 @@
 #include <string>
 #include <vector>
 
+#include "../../../runtime/launch_param.h"
 #include "../../../runtime/metadata.h"
 #include "../../../runtime/pack_args.h"
-#include "../../../runtime/thread_storage_scope.h"
 #include "../../../support/bytes_io.h"
 #include "rocm_common.h"
 
