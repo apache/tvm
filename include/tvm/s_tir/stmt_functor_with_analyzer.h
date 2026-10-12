@@ -31,7 +31,7 @@
 namespace tvm {
 namespace s_tir {
 
-class StmtExprVisitorWithAnalyzer : public tirx::StmtExprVisitorWithAnalyzer {
+class TVM_DLL StmtExprVisitorWithAnalyzer : public tirx::StmtExprVisitorWithAnalyzer {
  public:
   using Parent = tirx::StmtExprVisitorWithAnalyzer;
   using Parent::Visit;
@@ -50,7 +50,7 @@ class StmtExprVisitorWithAnalyzer : public tirx::StmtExprVisitorWithAnalyzer {
   }
 };
 
-class StmtExprMutatorWithAnalyzer : public tirx::StmtExprMutatorWithAnalyzer {
+class TVM_DLL StmtExprMutatorWithAnalyzer : public tirx::StmtExprMutatorWithAnalyzer {
  public:
   using Parent = tirx::StmtExprMutatorWithAnalyzer;
   using Parent::Mutate;

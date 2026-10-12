@@ -40,7 +40,7 @@
 namespace tvm {
 namespace tirx {
 
-class StmtExprVisitorWithAnalyzer : public StmtExprVisitor {
+class TVM_TIRX_DLL StmtExprVisitorWithAnalyzer : public StmtExprVisitor {
  public:
   TVM_DEFINE_OBJECT_FUNCTOR_DEFAULT_CONSTRUCTOR(StmtExprVisitorWithAnalyzer, StmtExprVisitor)
 
@@ -86,7 +86,7 @@ class StmtExprVisitorWithAnalyzer : public StmtExprVisitor {
  *
  * \sa src/tirx/ir/ir_mutator_with_analyzer.cc
  */
-class StmtExprMutatorWithAnalyzer : public StmtExprMutator {
+class TVM_TIRX_DLL StmtExprMutatorWithAnalyzer : public StmtExprMutator {
  public:
   using StmtExprMutator::Mutate;
   using StmtExprMutator::Mutate_;
