@@ -203,7 +203,7 @@ ffi::Bytes VMExecutable::SaveToBytes() const {
 }
 
 void VMExecutable::WriteToFile(const ffi::String& file_name, const ffi::String& format) const {
-  support::WriteFile(file_name, VMExecutable::SaveToBytes());
+  support::WriteBytesToFile(file_name, VMExecutable::SaveToBytes());
 }
 
 ffi::Module VMExecutable::LoadFromBytes(const ffi::Bytes& bytes) {
@@ -232,7 +232,7 @@ ffi::Module VMExecutable::LoadFromBytes(const ffi::Bytes& bytes) {
 }
 
 ffi::Module VMExecutable::LoadFromFile(const ffi::String& file_name) {
-  std::string data = support::ReadFile(file_name);
+  std::string data = support::ReadBytesFromFile(file_name);
   return VMExecutable::LoadFromBytes(ffi::Bytes(data));
 }
 

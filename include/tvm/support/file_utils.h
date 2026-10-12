@@ -43,7 +43,7 @@ inline ffi::String GetFileFormat(const ffi::String& path, const ffi::String& for
 }
 
 /*! \brief Read a file as binary bytes. */
-inline ffi::Bytes ReadFile(const ffi::String& path) {
+inline ffi::Bytes ReadBytesFromFile(const ffi::String& path) {
   std::ifstream fs(path.c_str(), std::ios::in | std::ios::binary);
   TVM_FFI_ICHECK(!fs.fail()) << "Cannot open " << path;
   fs.seekg(0, std::ios::end);
@@ -55,7 +55,7 @@ inline ffi::Bytes ReadFile(const ffi::String& path) {
 }
 
 /*! \brief Write binary bytes to a file. */
-inline void WriteFile(const ffi::String& path, const ffi::Bytes& data) {
+inline void WriteBytesToFile(const ffi::String& path, const ffi::Bytes& data) {
   std::ofstream fs(path.c_str(), std::ios::out | std::ios::binary);
   TVM_FFI_ICHECK(!fs.fail()) << "Cannot open " << path;
   fs.write(data.data(), data.size());

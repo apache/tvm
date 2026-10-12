@@ -52,12 +52,12 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                   [](ffi::PackedArgs args, ffi::Any* rv) {
                     std::string file_name = RPCGetPath(args[0].cast<std::string>());
                     auto data = args[1].cast<std::string>();
-                    support::WriteFile(file_name, data);
+                    support::WriteBytesToFile(file_name, data);
                   })
       .def_packed("tvm.rpc.server.download",
                   [](ffi::PackedArgs args, ffi::Any* rv) {
                     std::string file_name = RPCGetPath(args[0].cast<std::string>());
-                    std::string data = support::ReadFile(file_name);
+                    std::string data = support::ReadBytesFromFile(file_name);
                     LOG(INFO) << "Download " << file_name << "... nbytes=" << data.size();
                     *rv = ffi::Bytes(data);
                   })

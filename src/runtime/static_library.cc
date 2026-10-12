@@ -90,7 +90,7 @@ class StaticLibraryObj final : public ffi::ModuleObj {
   void WriteToFile(const ffi::String& file_name, const ffi::String& format) const final {
     VLOG(0) << "Saving static library of " << data_.size() << " bytes implementing " << FuncNames()
             << " to '" << file_name << "'";
-    support::WriteFile(file_name, data_);
+    support::WriteBytesToFile(file_name, data_);
   }
 
   /*! \brief Get the property of the runtime module .*/
@@ -128,7 +128,7 @@ class StaticLibraryObj final : public ffi::ModuleObj {
 
 ffi::Module LoadStaticLibrary(const std::string& filename, ffi::Array<ffi::String> func_names) {
   auto node = ffi::make_object<StaticLibraryObj>();
-  node->data_ = support::ReadFile(filename);
+  node->data_ = support::ReadBytesFromFile(filename);
   node->func_names_ = std::move(func_names);
   VLOG(0) << "Loaded static library from '" << filename << "' implementing " << node->FuncNames();
   return ffi::Module(node);

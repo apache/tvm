@@ -567,7 +567,7 @@ ffi::Module BuildHexagon(IRModule mod, Target target) {
   // The new design takes Bytes (not a filename); slurp the linked .so into
   // memory.  Receiver materializes the bytes back to a tempfile internally
   // before dlopen.
-  std::string so_data = support::ReadFile(so_name);
+  std::string so_data = support::ReadBytesFromFile(so_name);
 
   // Pack auxiliaries into the unified source map.  Variant lets text blobs
   // (asm/ll) and binary blobs (obj/bc) coexist in their natural form.

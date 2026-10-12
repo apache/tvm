@@ -240,7 +240,7 @@ class CLMLRuntime : public JSONRuntimeBase {
     if (!cws->is_tuning_run && cws->tuning_file) {
       std::vector<unsigned char> tune_buffer;
       std::string tune_blob;
-      tune_blob = support::ReadFile(cws->tuning_file);
+      tune_blob = support::ReadBytesFromFile(cws->tuning_file);
       support::BytesInStream strm(tune_blob);
 
       uint64_t header, reserve;

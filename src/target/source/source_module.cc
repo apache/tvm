@@ -150,7 +150,7 @@ class CSourceModuleObj : public ffi::ModuleObj {
     std::string fmt = GetFileFormat(file_name, format);
     if (fmt == "c" || fmt == "cc" || fmt == "cpp" || fmt == "cu") {
       TVM_FFI_ICHECK_NE(code_.length(), 0);
-      support::WriteFile(file_name, code_);
+      support::WriteBytesToFile(file_name, code_);
     } else {
       TVM_FFI_ICHECK_EQ(fmt, fmt_) << "Can only save to format=" << fmt_;
     }
@@ -228,7 +228,7 @@ class DeviceSourceModuleObj final : public ffi::ModuleObj {
   void WriteToFile(const ffi::String& file_name, const ffi::String& format) const final {
     std::string fmt = GetFileFormat(file_name, format);
     TVM_FFI_ICHECK_EQ(fmt, fmt_) << "Can only save to format=" << fmt_;
-    support::WriteFile(file_name, data_);
+    support::WriteBytesToFile(file_name, data_);
   }
 
   ffi::Bytes SaveToBytes() const final {
