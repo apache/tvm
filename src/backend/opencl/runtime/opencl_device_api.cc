@@ -166,6 +166,7 @@ OpenCLWorkspace* OpenCLWorkspace::Global() {
 
 cl_device_id OpenCLWorkspace::GetCLDeviceID(int device_id) {
   this->Init();
+  TVM_FFI_ICHECK_GE(device_id, 0) << "Invalid OpenCL device id " << device_id;
   TVM_FFI_ICHECK_LT(device_id, devices.size())
       << "Invalid device id " << device_id << ". " << GetError();
   return devices[device_id];

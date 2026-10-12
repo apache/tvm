@@ -164,6 +164,7 @@ using f_clCreateBuffer = cl_mem (*)(cl_context, cl_mem_flags, size_t, void*, cl_
 using f_clCreateImage = cl_mem (*)(cl_context, cl_mem_flags, const cl_image_format*,
                                    const cl_image_desc*, void*, cl_int*);
 using f_clReleaseMemObject = cl_int (*)(cl_mem);
+using f_clGetMemObjectInfo = cl_int (*)(cl_mem, cl_mem_info, size_t, void*, size_t*);
 using f_clCreateProgramWithSource = cl_program (*)(cl_context, cl_uint, const char**, const size_t*,
                                                    cl_int*);
 using f_clCreateProgramWithBinary = cl_program (*)(cl_context, cl_uint, const cl_device_id*,
@@ -333,6 +334,17 @@ cl_int clReleaseMemObject(cl_mem memobj) {
   auto func = (f_clReleaseMemObject)lib.getOpenCLFunction("clReleaseMemObject");
   if (func) {
     return func(memobj);
+  } else {
+    return CL_INVALID_PLATFORM;
+  }
+}
+
+cl_int clGetMemObjectInfo(cl_mem memobj, cl_mem_info param_name, size_t param_value_size,
+                          void* param_value, size_t* param_value_size_ret) {
+  auto& lib = LibOpenCLWrapper::getInstance();
+  auto func = (f_clGetMemObjectInfo)lib.getOpenCLFunction("clGetMemObjectInfo");
+  if (func) {
+    return func(memobj, param_name, param_value_size, param_value, param_value_size_ret);
   } else {
     return CL_INVALID_PLATFORM;
   }

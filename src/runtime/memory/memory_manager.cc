@@ -46,7 +46,8 @@ Storage::Storage(Buffer buffer, Allocator* allocator) {
 
 Storage::Storage(ffi::Tensor backing) {
   TVM_FFI_CHECK(backing.defined(), ValueError) << "VM storage requires a defined backing tensor";
-  TVM_FFI_CHECK(ffi::IsContiguous(*backing.GetDLTensorPtr()) && backing.byte_offset() == 0, ValueError)
+  TVM_FFI_CHECK(ffi::IsContiguous(*backing.GetDLTensorPtr()) && backing.byte_offset() == 0,
+                ValueError)
       << "VM storage requires compact backing with zero byte offset";
   auto n = ffi::make_object<StorageObj>();
   n->buffer.data = backing.data_ptr();
