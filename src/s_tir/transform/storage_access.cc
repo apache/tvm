@@ -32,7 +32,6 @@
 #include <string>
 #include <utility>
 
-#include "../../tirx/transform/ir_utils.h"
 
 namespace tvm {
 namespace s_tir {
@@ -410,8 +409,8 @@ StorageScope StorageAccessVisitor::GetScope(Var buffer_var) const {
   if (auto tensor_type = buffer_var->ty.as<TensorType>()) {
     return StorageScope::Create(tensor_type.value()->storage_scope);
   }
-  if (buffer_var->ty.as<PtrTypeNode>()) {
-    return StorageScope::Create(GetPtrStorageScope(buffer_var));
+  if (const auto* pointer_type = buffer_var->ty.as<PtrTypeNode>()) {
+    return StorageScope::Create(pointer_type->storage_scope);
   }
   return StorageScope();  // global by default
 }

@@ -43,43 +43,6 @@ namespace tvm {
 namespace tirx {
 using namespace tvm::prim;
 
-Stmt MergeNest(const std::vector<Stmt>& nest, Stmt body) {
-  // use reverse iteration
-  for (auto ri = nest.rbegin(); ri != nest.rend(); ++ri) {
-    Stmt s = *ri;
-    if (const auto* for_ = s.as<ForNode>()) {
-      auto n = ffi::make_object<ForNode>(*for_);
-      TVM_FFI_ICHECK(tirx::IsNoOp(n->body));
-      n->body = body;
-      body = Stmt(n);
-    } else if (const auto* bind = s.as<BindNode>()) {
-      // Bind has no body -- prepend it before the accumulated body in a SeqStmt.
-      body = SeqStmt({ffi::GetRef<Stmt>(bind), body});
-    } else if (const auto* ite = s.as<IfNode>()) {
-      auto n = ffi::make_object<IfNode>(*ite);
-      TVM_FFI_ICHECK(tirx::IsNoOp(n->then_case));
-      TVM_FFI_ICHECK(!n->else_case);
-      n->then_case = body;
-      body = Stmt(n);
-    } else if (const auto* seq = s.as<SeqStmtNode>()) {
-      // A sequence nest is a prefix, followed by the accumulated body.
-      body = SeqStmt({s, body}, seq->loc);
-    } else if (s.as<AssertStmtNode>()) {
-      body = SeqStmt({s, body});
-    } else {
-      TVM_FFI_THROW(InternalError) << "not supported nest type";
-    }
-  }
-  return body;
-}
-
-Stmt MergeNest(const std::vector<std::vector<Stmt>>& nest, Stmt body) {
-  for (auto ri = nest.rbegin(); ri != nest.rend(); ++ri) {
-    body = MergeNest(*ri, body);
-  }
-  return body;
-}
-
 Function IRConvertSSA::VisitFunction(Function func) {
   std::unordered_set<const VarNode*> parameter_symbols;
   // Define explicit parameters before the symbolic values in their types.
@@ -294,69 +257,6 @@ void IRConvertSSA::PopAllRemapsInCurrentScope() {
 
 Stmt ConvertSSA(Stmt stmt) {
   return ffi::make_object<IRConvertSSA>()->Mutate(stmt, InplaceMode::kAllow).ValueOrUnchanged(stmt);
-}
-
-ffi::String GetPtrStorageScope(Var buffer_var) {
-  if (const auto* tensor_type = buffer_var->ty.as<TensorTypeNode>()) {
-    return tensor_type->storage_scope;
-  }
-  const auto* ptr_type = buffer_var->ty.as<PtrTypeNode>();
-  TVM_FFI_ICHECK(ptr_type)
-      << "The provided variable is neither a pointer nor a tensor-typed variable";
-  return ptr_type->storage_scope;
-}
-
-ffi::Array<PrimExpr> GetTensorAllocationShape(const TensorVar& tensor) {
-  ffi::Array<PrimExpr> alloc_shape = tensor->shape;
-  if (tensor->strides.size()) {
-    TVM_FFI_ICHECK_EQ(tensor->shape.size(), tensor->strides.size());
-    for (size_t i = tensor->strides.size() - 1; i > 0; --i) {
-      TVM_FFI_ICHECK(
-          sym::Analyzer()->CanProveEqual(floormod(tensor->strides[i - 1], tensor->strides[i]), 0));
-      alloc_shape.Set(i, tensor->strides[i - 1] / tensor->strides[i]);
-    }
-  }
-  return alloc_shape;
-}
-
-int Stoi(const std::string& str) {
-  try {
-    return std::stoi(str);
-  } catch (std::invalid_argument& e) {
-    TVM_FFI_THROW(InternalError) << "Cannot convert \"" << str << "\" to int";
-    throw;
-  }
-}
-
-std::pair<int32_t, int32_t> GetWmmaFragmentDimSize(const std::string& shape_str,
-                                                   const std::string& scope) {
-  size_t m, n, k;
-  size_t last_pos = 0, pos = 0;
-  pos = shape_str.find(", ", last_pos);
-  m = Stoi(shape_str.substr(last_pos, pos - last_pos));
-  last_pos = pos + 2;
-  pos = shape_str.find(", ", last_pos);
-  n = Stoi(shape_str.substr(last_pos, pos - last_pos));
-  last_pos = pos + 2;
-  k = Stoi(shape_str.substr(last_pos, shape_str.length() - last_pos));
-  if (scope == "wmma.matrix_a") {
-    return std::pair<int32_t, int32_t>(m, k);
-  } else if (scope == "wmma.matrix_b") {
-    return std::pair<int32_t, int32_t>(k, n);
-  } else if (scope == "wmma.accumulator") {
-    return std::pair<int32_t, int32_t>(m, n);
-  }
-  return std::pair<int32_t, int32_t>(0, 0);
-}
-
-std::optional<bool> IsHostFunc(const Function& func) {
-  if (func->HasNonzeroAttr(tvm::tirx::attr::kIsHostFunc)) {
-    return true;
-  } else if (auto target = func->GetAttr<Target>(tvm::attr::kTarget)) {
-    return target.value()->HasKey("cpu");
-  } else {
-    return std::nullopt;
-  }
 }
 
 IRModule IRConvertSSA::VisitIRModule(IRModule mod) {

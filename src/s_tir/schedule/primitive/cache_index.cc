@@ -22,7 +22,7 @@
 #include <tvm/s_tir/stmt.h>
 #include <tvm/sym/int_set.h>
 
-#include "../../../tirx/transform/replace_selected_expr.h"
+#include "../../transform/replace_selected_expr.h"
 #include "../utils.h"
 #include "cache_index_helpers.h"
 

@@ -35,7 +35,7 @@
 #include <tvm/tirx/transform.h>  // For the declaration of the pass
 
 namespace tvm {
-namespace tirx {
+namespace s_tir {
 
 /*!
  * \brief Toplevel (static) function that replace in an expression
@@ -87,7 +87,7 @@ ReplaceSelectedExpr::ReplaceSelectedExpr(std::function<bool(const PrimExpr&)> pr
       can_replace_inside_(can_replace_inside) {}
 
 /*!
- * \brief The method which overrides the generic dispatcher of StmtExprMutator
+ * \brief The method which overrides the generic dispatcher of tirx::StmtExprMutator
  * \param expr The expression to mutate
  */
 UnchangedOr<ffi::Any> ReplaceSelectedExpr::Mutate(ffi::AnyView input, InplaceMode inplace_mode) {
@@ -95,8 +95,8 @@ UnchangedOr<ffi::Any> ReplaceSelectedExpr::Mutate(ffi::AnyView input, InplaceMod
     if (predicate_selector_(prim_expr.value())) return new_expr_;
     if (!can_replace_inside_(prim_expr.value())) return ffi::Unchanged();
   }
-  return StmtExprMutator::Mutate(input, inplace_mode);
+  return tirx::StmtExprMutator::Mutate(input, inplace_mode);
 }
 
-}  // namespace tirx
+}  // namespace s_tir
 }  // namespace tvm

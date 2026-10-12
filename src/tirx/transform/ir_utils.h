@@ -38,7 +38,6 @@
 #include <tvm/tirx/stmt_functor.h>
 
 #include <functional>
-#include <limits>
 #include <optional>
 #include <string>
 #include <unordered_map>
@@ -48,118 +47,6 @@
 
 namespace tvm {
 namespace tirx {
-
-/*!
- * \brief Fill empty loop/conditional bodies and prepend statement prefixes.
- * \param nest Loops, conditionals with empty bodies, or Bind/Assert/SeqStmt prefixes.
- * \param body body
- * \return The combined Stmt
- */
-Stmt MergeNest(const std::vector<Stmt>& nest, Stmt body);
-
-/*!
- * \brief Fill empty loop/conditional bodies and prepend statement prefixes.
- * \param nest Groups of loops, conditionals with empty bodies, or statement prefixes.
- * \param body body
- * \return The combined Stmt
- */
-Stmt MergeNest(const std::vector<std::vector<Stmt>>& nest, Stmt body);
-
-/*!
- * \brief update array with an unary function
- * \param arr array
- * \param fupdate an unary function
- * \tparam T type of array element
- * \tparam F type of the unary function
- * \return if update happens, return the new array, else return the
- *  original array
- */
-template <typename T, typename F>
-inline ffi::Array<T> UpdateArray(ffi::Array<T> arr, F fupdate) {
-  std::vector<T> new_arr(arr.size());
-  bool changed = false;
-  for (size_t i = 0; i < arr.size(); ++i) {
-    T old_elem = arr[i];
-    T new_elem = fupdate(old_elem);
-    if (!new_elem.same_as(old_elem)) changed = true;
-    new_arr[i] = new_elem;
-  }
-  if (!changed) {
-    return arr;
-  } else {
-    return ffi::Array<T>(new_arr);
-  }
-}
-
-/*!
- * \brief Get construct from struct
- * \param dtype The data type.
- * \param handle the struct handle.
- * \param index the offset index.
- * \param kind The data kind.
- * \return the get expression.
- */
-inline Expr TVMStructGet(Type type, Var handle, int index, tirx::TVMStructFieldKind kind) {
-  ffi::Array<Expr> args = {handle, IntImm::Int32(index), IntImm::Int32(static_cast<int>(kind))};
-  return Call(std::move(type), tirx::abi_field_get_op(), args);
-}
-
-inline PrimExpr TVMStructGet(PrimType type, Var handle, int index, tirx::TVMStructFieldKind kind) {
-  return TVMStructGet(Type(type), std::move(handle), index, kind).as_or_throw<PrimExpr>();
-}
-
-/*!
- * \brief Address of handle + offset
- * \param handle the array handle.
- * \param dtype The data type.
- * \param offset the offset index.
- */
-inline Call AddressOffset(Var handle, PrimType dtype, int offset) {
-  PrimExpr offset_expr = IntImm::Int32(offset * dtype.lanes());
-  ffi::Array<PrimExpr> shape = {offset_expr + 1};
-  auto pointer_type = handle->ty.as_or_throw<PtrType>();
-  TensorVar dummy_buf(handle->name,
-                      TensorType(pointer_type->storage_scope, dtype, shape, {}, 0, 0, 0));
-  TensorLoad buf_load = MakeTensorLoad(dummy_buf, {offset_expr});
-
-  return Call(handle->ty, tirx::address_of_op(), {buf_load});
-}
-
-/*!
- * \brief Address of handle + offset
- * \param handle the array handle.
- * \param dtype The data type.
- * \param offset the offset index.
- */
-inline Call AddressOffset(Var handle, PrimType dtype, PrimExpr offset) {
-  if (dtype.lanes() != 1) {
-    PrimType offset_ty = offset.ty();
-    offset = offset * IntImm(offset_ty, dtype.lanes());
-    offset = prim::Ramp(offset, IntImm(offset_ty, 1), dtype.lanes());
-  }
-
-  ffi::Array<PrimExpr> shape = {offset + 1};
-  auto pointer_type = handle->ty.as_or_throw<PtrType>();
-  TensorVar dummy_buf(handle->name, TensorType(pointer_type->storage_scope, dtype.WithLanes(1),
-                                               shape, {}, 0, 0, 0));
-  TensorLoad buf_load = MakeTensorLoad(dummy_buf, {offset});
-
-  return Call(handle->ty, tirx::address_of_op(), {buf_load});
-}
-
-/*!
- * \brief Set value into struct.
- * \param handle the struct handle.
- * \param index the offset index.
- * \param kind The data kind.
- * \param value The value to be set.
- * \return the set stmt.
- */
-inline Stmt TVMStructSet(Var handle, int index, tirx::TVMStructFieldKind kind, Expr value) {
-  ffi::Array<Expr> args = {handle, IntImm::Int32(index), IntImm::Int32(static_cast<int>(kind)),
-                           value};
-  return Evaluate(Call(PrimType::Int(32), tirx::abi_field_set_op(), args).as_or_throw<PrimExpr>());
-}
 
 /*!
  * \brief Get the type that is passed around TVM ffi::Function API.
@@ -196,28 +83,6 @@ inline int GetTempAllocaAlignment(const PrimType& type, int64_t const_size) {
     }
   }
   return align;
-}
-
-/*!
- * \brief Create an int32 constant
- * \param index the value of the constant
- * \return the PrimExpr that represents the constant
- */
-inline PrimExpr ConstInt32(size_t index) {
-  TVM_FFI_ICHECK_LE(index, std::numeric_limits<int>::max());
-  return IntImm::Int32(static_cast<int>(index));
-}
-
-/*!
- * \brief Allocate TVMValues on the stack
- * \param ret_type exact pointer type returned by the allocation
- * \param type type of allocation
- * \param num number of TVMValues to allocate
- * \return Call representing the allocated pointer
- */
-inline Call StackAlloca(Type ret_type, std::string type, size_t num) {
-  ffi::Array<Expr> args = {StringImm(type), ConstInt32(num)};
-  return Call(std::move(ret_type), tirx::stack_alloca_op(), args);
 }
 
 /*!
@@ -308,40 +173,6 @@ class IRConvertSSA : public StmtExprMutator {
   std::unordered_set<const VarNode*> defined_;
   ScopeStack<ScopeLevel> scope_;
 };
-
-/*!
- * \brief Return the storage scope associated with a buffer variable.
- * \param buffer_var The input buffer variable.
- * \return A string representing the storage scope of this buffer variable.
- */
-ffi::String GetPtrStorageScope(Var buffer_var);
-
-/*!
- * \brief Get stride aware tensor allocation shape from tensor.
- * \param tensor The tensor object.
- * \return shape The shape considering tensor strides.
- */
-ffi::Array<PrimExpr> GetTensorAllocationShape(const TensorVar& tensor);
-
-/*!
- * \brief Split string separated by "," to get wmma fragment dimension size.
- * \param  shape_str The string to split.
- * \param  scope The scope to match.
- * \return The result pair of fragment dimension size.
- */
-std::pair<int32_t, int32_t> GetWmmaFragmentDimSize(const std::string& shape_str,
-                                                   const std::string& scope);
-
-/*! \brief Check if a Function is a host function
- *
- * \param func The function to be inspected
- *
- * \return True if the function is known to run on the host, false if
- * the function is known to run on the device.  If it cannot be
- * determined (e.g. a function without a tvm::attr::kTarget
- * attribute), returns std::nullopt.
- */
-std::optional<bool> IsHostFunc(const Function& func);
 
 }  // namespace tirx
 }  // namespace tvm
