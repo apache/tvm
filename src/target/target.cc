@@ -45,19 +45,19 @@ class TargetInternal {
   static void EnterScope(Target target) { target.EnterWithScope(); }
   static void ExitScope(Target target) { target.ExitWithScope(); }
   static ffi::Map<ffi::String, ffi::Any> ToConfig(Target target) { return target->ToConfig(); }
-  static ffi::ObjectPtr<TargetNode> FromString(const ffi::String& tag_or_config_or_target_str);
-  static ffi::ObjectPtr<TargetNode> FromConfigString(const ffi::String& config_str);
-  static ffi::ObjectPtr<TargetNode> FromConfig(ffi::Map<ffi::String, ffi::Any> config);
+  static ffi::ObjectPtr<TargetObj> FromString(const ffi::String& tag_or_config_or_target_str);
+  static ffi::ObjectPtr<TargetObj> FromConfigString(const ffi::String& config_str);
+  static ffi::ObjectPtr<TargetObj> FromConfig(ffi::Map<ffi::String, ffi::Any> config);
   static void ConstructorDispatcher(ffi::PackedArgs args, ffi::Any* rv);
   static Target WithHost(const Target& target, const ffi::Optional<Target>& target_host) {
-    ffi::ObjectPtr<TargetNode> n = ffi::make_object<TargetNode>(*target.get());
+    ffi::ObjectPtr<TargetObj> n = ffi::make_object<TargetObj>(*target.get());
     n->host = target_host;
     return Target(ffi::UnsafeInit{}, std::move(n));
   }
 
  private:
   static std::unordered_map<ffi::String, ffi::Any> QueryDevice(int device_id,
-                                                               const TargetNode* target);
+                                                               const TargetObj* target);
 };
 
 /**********  Helper functions  **********/
@@ -91,7 +91,7 @@ static TargetKind GetTargetKind(const ffi::String& name) {
   return kind.value();
 }
 
-const std::string& TargetNode::str() const {
+const std::string& TargetObj::str() const {
   if (str_repr_.empty()) {
     str_repr_ = std::string(ffi::json::Stringify(ToConfig()));
   }
@@ -125,14 +125,14 @@ Target::Target(const ffi::Map<ffi::String, ffi::Any>& config) {
 }
 
 Target::Target(Target target, ffi::Optional<Target> host) {
-  ffi::ObjectPtr<TargetNode> n = ffi::make_object<TargetNode>(*target.get());
+  ffi::ObjectPtr<TargetObj> n = ffi::make_object<TargetObj>(*target.get());
   n->host = std::move(host);
   data_ = std::move(n);
 }
 
 Target::Target(TargetKind kind, ffi::Optional<ffi::ObjectRef> host, ffi::String tag,
                ffi::Array<ffi::String> keys, ffi::Map<ffi::String, ffi::Any> attrs) {
-  auto data = ffi::make_object<TargetNode>(std::move(kind));
+  auto data = ffi::make_object<TargetObj>(std::move(kind));
   data->host = std::move(host);
   data->tag = std::move(tag);
   data->keys = std::move(keys);
@@ -142,14 +142,14 @@ Target::Target(TargetKind kind, ffi::Optional<ffi::ObjectRef> host, ffi::String 
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  TargetNode::RegisterReflection();
+  TargetObj::RegisterReflection();
   // Register __ffi_repr__ so that ffi.ReprPrint uses JSON format for Target
-  refl::TypeAttrDef<TargetNode>().def(
+  refl::TypeAttrDef<TargetObj>().def(
       refl::type_attr::kRepr,
       [](Target target, ffi::Function) -> ffi::String { return target->str(); });
 }
 
-ffi::Map<ffi::String, ffi::Any> TargetNode::ToConfig() const {
+ffi::Map<ffi::String, ffi::Any> TargetObj::ToConfig() const {
   ffi::Map<ffi::String, ffi::Any> result = {
       {"kind", this->kind->name},
       {"tag", this->tag},
@@ -164,11 +164,11 @@ ffi::Map<ffi::String, ffi::Any> TargetNode::ToConfig() const {
   return result;
 }
 
-ffi::Optional<Target> TargetNode::GetHost() const { return this->host.as<Target>(); }
+ffi::Optional<Target> TargetObj::GetHost() const { return this->host.as<Target>(); }
 
 Target Target::WithoutHost() const {
   if ((*this)->GetHost()) {
-    auto output = ffi::make_object<TargetNode>(*get());
+    auto output = ffi::make_object<TargetObj>(*get());
     output->host = std::nullopt;
     return Target(ffi::UnsafeInit{}, std::move(output));
   } else {
@@ -176,14 +176,14 @@ Target Target::WithoutHost() const {
   }
 }
 
-int TargetNode::GetTargetDeviceType() const {
+int TargetObj::GetTargetDeviceType() const {
   if (ffi::Optional<int64_t> device_type = GetAttr<int64_t>("target_device_type")) {
     return static_cast<int>(device_type.value());
   }
   return kind->default_device_type;
 }
 
-bool TargetNode::HasKey(const std::string& query_key) const {
+bool TargetObj::HasKey(const std::string& query_key) const {
   return std::any_of(keys.begin(), keys.end(),
                      [&query_key](const auto& key) { return key == query_key; });
 }
@@ -252,12 +252,12 @@ void TargetInternal::ConstructorDispatcher(ffi::PackedArgs args, ffi::Any* rv) {
                             << args.size();
 }
 
-ffi::ObjectPtr<TargetNode> TargetInternal::FromString(
+ffi::ObjectPtr<TargetObj> TargetInternal::FromString(
     const ffi::String& tag_or_config_or_target_str) {
   if (ffi::Optional<Target> target =
           TargetTagRegistry::Global()->Get(tag_or_config_or_target_str)) {
     Target value = target.value();
-    return ffi::details::ObjectUnsafe::ObjectPtrFromObjectRef<TargetNode>(value);
+    return ffi::details::ObjectUnsafe::ObjectPtrFromObjectRef<TargetObj>(value);
   }
   if (!tag_or_config_or_target_str.empty() && tag_or_config_or_target_str.data()[0] == '{') {
     return TargetInternal::FromConfigString(tag_or_config_or_target_str);
@@ -273,7 +273,7 @@ ffi::ObjectPtr<TargetNode> TargetInternal::FromString(
   return TargetInternal::FromConfig(ffi::Map<ffi::String, ffi::Any>{{"kind", ffi::String(s)}});
 }
 
-ffi::ObjectPtr<TargetNode> TargetInternal::FromConfigString(const ffi::String& config_str) {
+ffi::ObjectPtr<TargetObj> TargetInternal::FromConfigString(const ffi::String& config_str) {
   ffi::String error_msg;
   ffi::json::Value parsed = ffi::json::Parse(config_str, &error_msg);
   if (error_msg.size() > 0) {
@@ -286,14 +286,14 @@ ffi::ObjectPtr<TargetNode> TargetInternal::FromConfigString(const ffi::String& c
   return TargetInternal::FromConfig(config.value());
 }
 
-ffi::ObjectPtr<TargetNode> TargetInternal::FromConfig(ffi::Map<ffi::String, ffi::Any> config) {
+ffi::ObjectPtr<TargetObj> TargetInternal::FromConfig(ffi::Map<ffi::String, ffi::Any> config) {
   const ffi::String kKind = "kind";
   const ffi::String kTag = "tag";
   const ffi::String kKeys = "keys";
   const ffi::String kDeviceName = "device";
   const ffi::String kHost = "host";
   const ffi::String kFromDevice = "from_device";
-  ffi::ObjectPtr<TargetNode> target;
+  ffi::ObjectPtr<TargetObj> target;
 
   // Step 0: If "tag" is present without "kind", look up the tag config and merge overrides on top
   if (!config.count(kKind) && config.count(kTag)) {
@@ -316,7 +316,7 @@ ffi::ObjectPtr<TargetNode> TargetInternal::FromConfig(ffi::Map<ffi::String, ffi:
   // Step 1: Parse 'kind' (needed to look up the schema, but kept in config for canonicalizer)
   if (config.count(kKind)) {
     if (auto kind = config[kKind].try_cast<ffi::String>()) {
-      target = ffi::make_object<TargetNode>(GetTargetKind(kind.value()));
+      target = ffi::make_object<TargetObj>(GetTargetKind(kind.value()));
     } else {
       TVM_FFI_THROW(TypeError) << "Expect type of field \"kind\" is String, but get type: "
                                << config[kKind].GetTypeKey();
@@ -428,7 +428,7 @@ ffi::ObjectPtr<TargetNode> TargetInternal::FromConfig(ffi::Map<ffi::String, ffi:
 }
 
 std::unordered_map<ffi::String, ffi::Any> TargetInternal::QueryDevice(int device_id,
-                                                                      const TargetNode* target) {
+                                                                      const TargetObj* target) {
   std::unordered_map<ffi::String, ffi::Any> output;
 
   Device device{static_cast<DLDeviceType>(target->GetTargetDeviceType()), device_id};
@@ -493,6 +493,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
            [](const Target& target) -> ffi::String { return target->str(); });
 }
 
-// AC: kRepr already registered above at refl::TypeAttrDef<TargetNode>().def(kRepr, ...)
+// AC: kRepr already registered above at refl::TypeAttrDef<TargetObj>().def(kRepr, ...)
 
 }  // namespace tvm

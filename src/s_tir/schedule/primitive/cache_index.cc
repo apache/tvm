@@ -53,7 +53,7 @@ struct IndexInfo {
   size_t loc_pos;
   /*! \brief The cache stage to be inserted. */
   Stmt cache_stage{ffi::UnsafeInit{}};
-  /*! \brief The map used for ScheduleStateNode::Replace. */
+  /*! \brief The map used for ScheduleStateObj::Replace. */
   ffi::Map<SBlock, SBlock> block_reuse;
 };
 

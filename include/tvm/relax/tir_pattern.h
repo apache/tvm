@@ -36,10 +36,10 @@ using TIRPattern = tirx::Function;
 /*
  * \brief The match result of a TIR pattern.
  */
-class MatchResultNode : public ffi::Object {
+class MatchResultObj : public ffi::Object {
  public:
-  explicit MatchResultNode(TIRPattern pattern) : pattern(std::move(pattern)) {}
-  explicit MatchResultNode(ffi::UnsafeInit) : pattern(ffi::UnsafeInit{}) {}
+  explicit MatchResultObj(TIRPattern pattern) : pattern(std::move(pattern)) {}
+  explicit MatchResultObj(ffi::UnsafeInit) : pattern(ffi::UnsafeInit{}) {}
 
   /*! The matched tirx pattern*/
   TIRPattern pattern;
@@ -50,16 +50,16 @@ class MatchResultNode : public ffi::Object {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<MatchResultNode>()
-        .def_ro("pattern", &MatchResultNode::pattern)
-        .def_ro("symbol_values", &MatchResultNode::symbol_values)
-        .def_ro("matched_tensors", &MatchResultNode::matched_tensors);
+    refl::ObjectDef<MatchResultObj>()
+        .def_ro("pattern", &MatchResultObj::pattern)
+        .def_ro("symbol_values", &MatchResultObj::symbol_values)
+        .def_ro("matched_tensors", &MatchResultObj::matched_tensors);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.MatchResult", MatchResultNode, ffi::Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.MatchResult", MatchResultObj, ffi::Object);
 };
 
 /*!
- * \brief Managed reference to MatchResultNode.
+ * \brief Managed reference to MatchResultObj.
  */
 class MatchResult : public ffi::ObjectRef {
  public:
@@ -72,7 +72,7 @@ class MatchResult : public ffi::ObjectRef {
   TVM_DLL explicit MatchResult(TIRPattern pattern, ffi::Array<PrimExpr> symbol_values,
                                ffi::Array<tirx::TensorVar> matched_tensors);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(MatchResult, ffi::ObjectRef, MatchResultNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(MatchResult, ffi::ObjectRef, MatchResultObj);
 };
 
 using FCodegen = ffi::TypedFunction<ffi::Array<ffi::Any>(ffi::Array<MatchResult> match_results)>;

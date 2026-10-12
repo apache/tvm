@@ -156,10 +156,10 @@ class WebGPUDeviceAPI : public DeviceAPI {
       copy_within_gpu_;
 };
 
-class WebGPUModuleNode final : public ffi::ModuleObj {
+class WebGPUModuleObj final : public ffi::ModuleObj {
  public:
-  explicit WebGPUModuleNode(std::unordered_map<std::string, std::string> smap,
-                            ffi::Map<ffi::String, FunctionInfo> fmap)
+  explicit WebGPUModuleObj(std::unordered_map<std::string, std::string> smap,
+                           ffi::Map<ffi::String, FunctionInfo> fmap)
       : smap_(smap), fmap_(fmap) {
     auto fp = tvm::ffi::Function::GetGlobal("wasm.WebGPUCreateShader");
     TVM_FFI_ICHECK(fp.has_value());
@@ -243,7 +243,7 @@ ffi::Module WebGPUModuleLoadFromBytes(const ffi::Bytes& bytes) {
   ffi::Map<ffi::String, FunctionInfo> fmap;
   TVM_FFI_ICHECK(stream.Read(&fmap));
   stream.Read(&smap);
-  return ffi::Module(ffi::make_object<WebGPUModuleNode>(smap, fmap));
+  return ffi::Module(ffi::make_object<WebGPUModuleObj>(smap, fmap));
 }
 
 // for now webgpu is hosted via a vulkan module.

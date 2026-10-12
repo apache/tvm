@@ -52,33 +52,33 @@ namespace s_tir {
 using namespace tvm::prim;
 using namespace tvm::tirx;
 
-struct LoopPartitionConfigNode : public ffi::Object {
+struct LoopPartitionConfigObj : public ffi::Object {
   bool partition_const_loop;
   bool no_unroll_loop_with_extent_one;
   bool unroll_loop_with_partition_hint_no_interval;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<LoopPartitionConfigNode>()
-        .def_ro("partition_const_loop", &LoopPartitionConfigNode::partition_const_loop,
+    refl::ObjectDef<LoopPartitionConfigObj>()
+        .def_ro("partition_const_loop", &LoopPartitionConfigObj::partition_const_loop,
                 "Split constant loop", refl::DefaultValue(false))
         .def_ro("no_unroll_loop_with_extent_one",
-                &LoopPartitionConfigNode::no_unroll_loop_with_extent_one,
+                &LoopPartitionConfigObj::no_unroll_loop_with_extent_one,
                 "Don't unroll loops with extent 1", refl::DefaultValue(false))
         .def_ro("unroll_loop_with_partition_hint_no_interval",
-                &LoopPartitionConfigNode::unroll_loop_with_partition_hint_no_interval,
+                &LoopPartitionConfigObj::unroll_loop_with_partition_hint_no_interval,
                 "Unroll loops with loop_partition_hint and no interval", refl::DefaultValue(false));
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.transform.LoopPartitionConfig", LoopPartitionConfigNode,
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.transform.LoopPartitionConfig", LoopPartitionConfigObj,
                                     ffi::Object);
 };
 
-TVM_FFI_STATIC_INIT_BLOCK() { LoopPartitionConfigNode::RegisterReflection(); }
+TVM_FFI_STATIC_INIT_BLOCK() { LoopPartitionConfigObj::RegisterReflection(); }
 
 class LoopPartitionConfig : public ffi::ObjectRef {
  public:
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(LoopPartitionConfig, ffi::ObjectRef,
-                                                LoopPartitionConfigNode);
+                                                LoopPartitionConfigObj);
 };
 
 TVM_FFI_STATIC_INIT_BLOCK() {

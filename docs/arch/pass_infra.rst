@@ -37,7 +37,7 @@ level controls whether a pass in a ``Sequential`` runs under the current
 
 .. code:: c++
 
-    class PassInfoNode : public Object {
+    class PassInfoObj : public Object {
       int opt_level;
       ffi::String name;
     };
@@ -61,7 +61,7 @@ Python APIs to create a compilation pipeline using pass context.
 
 .. code:: c++
 
-    class PassContextNode : public Object {
+    class PassContextObj : public Object {
      public:
       int opt_level{2};
       ffi::Array<ffi::String> required_pass;
@@ -96,7 +96,7 @@ Python APIs to create a compilation pipeline using pass context.
       /*! \brief The current pass context. */
       std::stack<PassContext> context_stack;
       PassContextThreadLocalEntry() {
-        default_context = PassContext(ffi::make_object<PassContextNode>());
+        default_context = PassContext(ffi::make_object<PassContextObj>());
       }
     };
 
@@ -104,14 +104,14 @@ Pass Constructs
 ^^^^^^^^^^^^^^^
 
 The pass infra is designed in a hierarchical manner, and it could work at
-different granularities of Relax/TensorIR programs. A pure virtual class ``PassNode`` is
+different granularities of Relax/TensorIR programs. A pure virtual class ``PassObj`` is
 introduced to serve as the base of the different optimization passes. This class
 contains several virtual methods that must be implemented by the
 subclasses at the level of modules, functions, or sequences of passes.
 
 .. code:: c++
 
-    class PassNode : Object {
+    class PassObj : Object {
       virtual PassInfo Info() const = 0;
       virtual Module operator()(const IRModule& mod
                                 const PassContext& pass_ctx) const = 0;
@@ -139,7 +139,7 @@ passes
 
 .. code:: c++
 
-    class ModulePassNode : PassNode {
+    class ModulePassObj : PassObj {
       PassInfo pass_info;
       std::function<Module(Module, PassContext)> pass_func;
       Module operator()(const Module& mod, const PassContext& pass_ctx) const final;
@@ -170,7 +170,7 @@ the global information.
 
 .. code:: c++
 
-    class FunctionPassNode : PassNode {
+    class FunctionPassObj : PassObj {
       PassInfo pass_info;
       std::function<Function(Function, Module, PassContext)> pass_func;
       Module operator()(const Module& mod, const PassContext& pass_ctx) const final;
@@ -191,7 +191,7 @@ Sequential Passes
 
 .. code:: c++
 
-    class SequentialNode : PassNode {
+    class SequentialObj : PassObj {
       PassInfo pass_info;
       // Passes need to be executed.
       ffi::Array<Pass> passes;
@@ -204,7 +204,7 @@ order that they were appended to the pass list.
 
 .. code:: c++
 
-    Module SequentialNode::operator()(const Module& module,
+    Module SequentialObj::operator()(const Module& module,
                                       const PassContext& pass_ctx) const {
       Module mod = module;
       for (const Pass& pass : passes) {
@@ -354,7 +354,7 @@ Multiple ``PassInstrument`` instances can be registed into a single
 
     namespace transform {
 
-    class PassInstrumentNode : public Object {
+    class PassInstrumentObj : public Object {
      public:
       ffi::String name;
       virtual void EnterPassContext() const = 0;
@@ -367,7 +367,7 @@ Multiple ``PassInstrument`` instances can be registed into a single
 
     class PassInstrument : public ObjectRef {
      public:
-      TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(PassInstrument, ObjectRef, PassInstrumentNode);
+      TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(PassInstrument, ObjectRef, PassInstrumentObj);
     };
 
     }  // namespace transform

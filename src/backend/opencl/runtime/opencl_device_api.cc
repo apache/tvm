@@ -802,7 +802,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("runtime.timer.opencl", [](Device dev) {
-    return Timer(ffi::UnsafeInit{}, ffi::make_object<OpenCLTimerNode>(dev));
+    return Timer(ffi::UnsafeInit{}, ffi::make_object<OpenCLTimerObj>(dev));
   });
 }
 
@@ -910,7 +910,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 }  // namespace cl
-size_t OpenCLTimerNode::count_timer_execs = 0;
-std::vector<size_t> OpenCLTimerNode::event_start_idxs;
+size_t OpenCLTimerObj::count_timer_execs = 0;
+std::vector<size_t> OpenCLTimerObj::event_start_idxs;
 }  // namespace runtime
 }  // namespace tvm

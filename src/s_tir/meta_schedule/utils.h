@@ -537,7 +537,7 @@ struct SortTuningRecordByMeanRunSecs {
  * \param src The source space generator.
  * \param dst The destination space generator.
  */
-inline void CloneRules(const SpaceGeneratorNode* src, SpaceGeneratorNode* dst) {
+inline void CloneRules(const SpaceGeneratorObj* src, SpaceGeneratorObj* dst) {
   if (src->sch_rules.has_value()) {
     ffi::Array<ScheduleRule> original = src->sch_rules.value();
     ffi::Array<ScheduleRule> sch_rules;

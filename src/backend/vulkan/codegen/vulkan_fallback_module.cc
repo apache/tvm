@@ -19,8 +19,8 @@
 
 /*!
  * \file vulkan_fallback_module.cc
- * \brief VulkanFallbackModuleNode — codegen-time placeholder used when the
- *        Vulkan runtime is not linked.  Mirrors `VulkanModuleNode`'s
+ * \brief VulkanFallbackModuleObj — codegen-time placeholder used when the
+ *        Vulkan runtime is not linked.  Mirrors `VulkanModuleObj`'s
  *        save/load format byte-for-byte; see one-way comment in
  *        `SaveToBytes` below.  Always compiled (independent of
  *        USE_VULKAN); never registered as an FFI factory or loader.
@@ -39,18 +39,18 @@
 namespace tvm {
 namespace target {
 
-class VulkanFallbackModuleNode : public ffi::ModuleObj {
+class VulkanFallbackModuleObj : public ffi::ModuleObj {
  public:
-  VulkanFallbackModuleNode(ffi::Map<ffi::String, ffi::Bytes> smap, ffi::String fmt,
-                           ffi::Map<ffi::String, runtime::FunctionInfo> fmap,
-                           ffi::Map<ffi::String, ffi::String> source)
+  VulkanFallbackModuleObj(ffi::Map<ffi::String, ffi::Bytes> smap, ffi::String fmt,
+                          ffi::Map<ffi::String, runtime::FunctionInfo> fmap,
+                          ffi::Map<ffi::String, ffi::String> source)
       : smap_(std::move(smap)),
         fmt_(std::move(fmt)),
         fmap_(std::move(fmap)),
         source_(std::move(source)) {}
 
   // Mirror the real module's kind so consumers cannot distinguish at the
-  // kind/api layer.  Saved bytes load back as a real VulkanModuleNode on
+  // kind/api layer.  Saved bytes load back as a real VulkanModuleObj on
   // a Vulkan-equipped (USE_VULKAN=ON) receiver.
   const char* kind() const final { return "vulkan"; }
 
@@ -66,7 +66,7 @@ class VulkanFallbackModuleNode : public ffi::ModuleObj {
 
   ffi::Bytes SaveToBytes() const final {
     // NOTE: serialization format MUST remain byte-identical to
-    // VulkanModuleNode::SaveToBytes in src/backend/vulkan/runtime/vulkan_module.cc
+    // VulkanModuleObj::SaveToBytes in src/backend/vulkan/runtime/vulkan_module.cc
     // (the source of truth).  Both produce a kind="vulkan" artifact that
     // the loader (ffi.Module.load_from_bytes.vulkan, registered only when
     // USE_VULKAN=ON) deserializes.  If the real impl's format changes,
@@ -116,8 +116,8 @@ class VulkanFallbackModuleNode : public ffi::ModuleObj {
 ffi::Module VulkanFallbackModuleCreate(ffi::Map<ffi::String, ffi::Bytes> smap, ffi::String fmt,
                                        ffi::Map<ffi::String, runtime::FunctionInfo> fmap,
                                        ffi::Map<ffi::String, ffi::String> source) {
-  auto n = ffi::make_object<VulkanFallbackModuleNode>(std::move(smap), std::move(fmt),
-                                                      std::move(fmap), std::move(source));
+  auto n = ffi::make_object<VulkanFallbackModuleObj>(std::move(smap), std::move(fmt),
+                                                     std::move(fmap), std::move(source));
   return ffi::Module(n);
 }
 

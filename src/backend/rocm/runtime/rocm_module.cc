@@ -19,7 +19,7 @@
 
 /*!
  * \file rocm_module.cc
- * \brief ROCMModuleNode — runtime-side, plugin-only.  Reachable from C++ only
+ * \brief ROCMModuleObj — runtime-side, plugin-only.  Reachable from C++ only
  *        through the FFI registry keys "ffi.Module.create.rocm" and
  *        "ffi.Module.load_from_bytes.hsaco" / "ffi.Module.load_from_bytes.hip".
  *        No exported header — codegen-side construction goes through
@@ -52,15 +52,15 @@ static constexpr const int kMaxNumGPUs = 32;
 // hipModule_t is a per-GPU module
 // The runtime will contain a per-device module table
 // The modules will be lazily loaded
-class ROCMModuleNode : public ffi::ModuleObj {
+class ROCMModuleObj : public ffi::ModuleObj {
  public:
-  ROCMModuleNode(ffi::Bytes code, ffi::String fmt, ffi::Map<ffi::String, FunctionInfo> fmap,
-                 ffi::Map<ffi::String, ffi::String> source)
+  ROCMModuleObj(ffi::Bytes code, ffi::String fmt, ffi::Map<ffi::String, FunctionInfo> fmap,
+                ffi::Map<ffi::String, ffi::String> source)
       : code_(code), fmt_(fmt), fmap_(fmap), source_(source) {
     std::fill(module_.begin(), module_.end(), nullptr);
   }
   // destructor
-  ~ROCMModuleNode() {
+  ~ROCMModuleObj() {
     for (size_t i = 0; i < module_.size(); ++i) {
       if (module_[i] != nullptr) {
         ROCM_CALL(hipSetDevice(static_cast<int>(i)));
@@ -79,7 +79,7 @@ class ROCMModuleNode : public ffi::ModuleObj {
     // Format: [fmt][fmap][code].  Source map is in-memory inspection only and
     // is NEVER serialized — it is lost on save/load round-trip (matches
     // upstream behavior; the receiver rebuilds source from code bytes if
-    // possible).  ROCmFallbackModuleNode::SaveToBytes (in
+    // possible).  ROCmFallbackModuleObj::SaveToBytes (in
     // src/target/rocm/rocm_fallback_module.cc) MUST mirror this format
     // byte-for-byte; see one-way comment there.
     std::string result;
@@ -157,7 +157,7 @@ class ROCMModuleNode : public ffi::ModuleObj {
 class ROCMWrappedFunc {
  public:
   // initialize the ROCM function.
-  void Init(ROCMModuleNode* m, ffi::ObjectPtr<ffi::Object> sptr, const std::string& func_name,
+  void Init(ROCMModuleObj* m, ffi::ObjectPtr<ffi::Object> sptr, const std::string& func_name,
             size_t num_void_args, const ffi::Array<ffi::String>& launch_param_tags) {
     m_ = m;
     sptr_ = sptr;
@@ -188,7 +188,7 @@ class ROCMWrappedFunc {
 
  private:
   // internal module
-  ROCMModuleNode* m_;
+  ROCMModuleObj* m_;
   // the resource holder
   ffi::ObjectPtr<ffi::Object> sptr_;
   // The name of the function.
@@ -200,7 +200,7 @@ class ROCMWrappedFunc {
   LaunchParamConfig launch_param_config_;
 };
 
-ffi::Optional<ffi::Function> ROCMModuleNode::GetFunction(const ffi::String& name) {
+ffi::Optional<ffi::Function> ROCMModuleObj::GetFunction(const ffi::String& name) {
   ffi::ObjectPtr<ffi::Object> sptr_to_self = ffi::GetObjectPtr<ffi::Object>(this);
   TVM_FFI_ICHECK_EQ(sptr_to_self.get(), this);
   auto opt_info = fmap_.Get(name);
@@ -214,7 +214,7 @@ ffi::Optional<ffi::Function> ROCMModuleNode::GetFunction(const ffi::String& name
 static ffi::Module ROCMModuleCreateImpl(ffi::Bytes code, ffi::String fmt,
                                         ffi::Map<ffi::String, FunctionInfo> fmap,
                                         ffi::Map<ffi::String, ffi::String> source) {
-  auto n = ffi::make_object<ROCMModuleNode>(code, fmt, fmap, source);
+  auto n = ffi::make_object<ROCMModuleObj>(code, fmt, fmap, source);
   return ffi::Module(n);
 }
 

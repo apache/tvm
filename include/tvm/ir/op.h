@@ -58,7 +58,7 @@ using FInferType = ffi::reflection::NativeFunctionView<Type(const CallNode* call
 using TScriptPrinterName = ffi::String;
 
 /*! \brief An operator argument's name and documentation. */
-class ArgumentInfoNode : public ffi::Object {
+class ArgumentInfoObj : public ffi::Object {
  public:
   /*! \brief Argument name. */
   ffi::String name;
@@ -67,24 +67,24 @@ class ArgumentInfoNode : public ffi::Object {
 
   static void RegisterReflection() {
     namespace refl = ffi::reflection;
-    refl::ObjectDef<ArgumentInfoNode>()
-        .def_ro("name", &ArgumentInfoNode::name)
-        .def_ro("doc", &ArgumentInfoNode::doc);
+    refl::ObjectDef<ArgumentInfoObj>()
+        .def_ro("name", &ArgumentInfoObj::name)
+        .def_ro("doc", &ArgumentInfoObj::doc);
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.ArgumentInfo", ArgumentInfoNode, ffi::Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.ArgumentInfo", ArgumentInfoObj, ffi::Object);
 };
 
 /*! \brief Managed reference to an argument descriptor. */
 class ArgumentInfo : public ffi::ObjectRef {
  public:
-  explicit ArgumentInfo(ffi::UnsafeInit tag, ffi::ObjectPtr<ArgumentInfoNode> n)
+  explicit ArgumentInfo(ffi::UnsafeInit tag, ffi::ObjectPtr<ArgumentInfoObj> n)
       : ffi::ObjectRef(tag) {
     data_ = std::move(n);
   }
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ArgumentInfo, ffi::ObjectRef, ArgumentInfoNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ArgumentInfo, ffi::ObjectRef, ArgumentInfoObj);
 };
 
 /*! \brief Metadata for a canonical primitive operator invoked through Call. */
@@ -270,7 +270,7 @@ struct arg : SignatureTrait {
       : name(std::move(name)), doc(std::move(doc)) {}
 
   void CollectMetadata(OpNode* op) const {
-    auto info = ffi::make_object<ArgumentInfoNode>();
+    auto info = ffi::make_object<ArgumentInfoObj>();
     info->name = name;
     info->doc = doc;
     op->args_info.push_back(ArgumentInfo(ffi::UnsafeInit{}, std::move(info)));
@@ -305,7 +305,7 @@ struct var_args : SignatureTrait {
       : name(std::move(name)), doc(std::move(doc)) {}
 
   void CollectMetadata(OpNode* op) const {
-    auto info = ffi::make_object<ArgumentInfoNode>();
+    auto info = ffi::make_object<ArgumentInfoObj>();
     info->name = name;
     info->doc = doc;
     op->var_args_info = ArgumentInfo(ffi::UnsafeInit{}, std::move(info));
@@ -344,7 +344,7 @@ struct ty_arg : SignatureTrait {
       : name(std::move(name)), doc(std::move(doc)) {}
 
   void CollectMetadata(OpNode* op) const {
-    auto info = ffi::make_object<ArgumentInfoNode>();
+    auto info = ffi::make_object<ArgumentInfoObj>();
     info->name = name;
     info->doc = doc;
     op->ty_args_info.push_back(ArgumentInfo(ffi::UnsafeInit{}, std::move(info)));
@@ -379,7 +379,7 @@ struct var_ty_args : SignatureTrait {
       : name(std::move(name)), doc(std::move(doc)) {}
 
   void CollectMetadata(OpNode* op) const {
-    auto info = ffi::make_object<ArgumentInfoNode>();
+    auto info = ffi::make_object<ArgumentInfoObj>();
     info->name = name;
     info->doc = doc;
     op->var_ty_args_info = ArgumentInfo(ffi::UnsafeInit{}, std::move(info));

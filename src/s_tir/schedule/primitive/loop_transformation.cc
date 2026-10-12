@@ -181,8 +181,8 @@ class BlockPropertyError : public ScheduleErrorContextObj {
    * \param self The state of the schedule
    * \param sref The sref to the specific stmt
    */
-  static void CheckBlockIterTypeAndAffineBinding(const ScheduleState& self, const StmtSRefNode* top,
-                                                 const StmtSRefNode* sref) {
+  static void CheckBlockIterTypeAndAffineBinding(const ScheduleState& self, const StmtSRefObj* top,
+                                                 const StmtSRefObj* sref) {
     class BlockIterTypeAndAffineBindingChecker : public StmtExprVisitor {
      public:
       using StmtExprVisitor::Visit_;
@@ -193,7 +193,7 @@ class BlockPropertyError : public ScheduleErrorContextObj {
       }
 
       explicit BlockIterTypeAndAffineBindingChecker(const ScheduleState& state,
-                                                    const StmtSRefNode* top)
+                                                    const StmtSRefObj* top)
           : state_(state), top_(top) {}
 
      private:
@@ -210,7 +210,7 @@ class BlockPropertyError : public ScheduleErrorContextObj {
         return std::nullopt;
       }
       const ScheduleState& state_;
-      const StmtSRefNode* top_;
+      const StmtSRefObj* top_;
     };
 
     auto checker = ffi::make_object<BlockIterTypeAndAffineBindingChecker>(self, top);
@@ -1052,9 +1052,9 @@ StmtSRef Fuse(ScheduleState self, const ffi::Array<StmtSRef>& loop_srefs,
  * \return A set containing all loops in the array
  * \throws ScheduleError If there are duplicate loops in the array
  */
-std::unordered_set<const StmtSRefNode*> CollectLoopsIntoSet(
+std::unordered_set<const StmtSRefObj*> CollectLoopsIntoSet(
     const ScheduleState& self, const ffi::Array<StmtSRef>& ordered_loop_srefs) {
-  std::unordered_set<const StmtSRefNode*> loop_srefs;
+  std::unordered_set<const StmtSRefObj*> loop_srefs;
   loop_srefs.reserve(ordered_loop_srefs.size());
   for (const StmtSRef& loop_sref : ordered_loop_srefs) {
     auto inserted = loop_srefs.insert(loop_sref.get());
@@ -1073,18 +1073,18 @@ std::unordered_set<const StmtSRefNode*> CollectLoopsIntoSet(
  * \return A pair containing the top and bottom boundary of the reorder range
  * \throws ScheduleError If the loops to be reordered is not in a chain
  */
-std::pair<const StmtSRefNode*, const StmtSRefNode*> GetBoundaryOfReorderRange(
-    const ScheduleState& self, const std::unordered_set<const StmtSRefNode*>& loop_srefs) {
-  const StmtSRefNode* top = nullptr;
-  const StmtSRefNode* bottom = *loop_srefs.begin();
-  std::unordered_set<const StmtSRefNode*> visited;
+std::pair<const StmtSRefObj*, const StmtSRefObj*> GetBoundaryOfReorderRange(
+    const ScheduleState& self, const std::unordered_set<const StmtSRefObj*>& loop_srefs) {
+  const StmtSRefObj* top = nullptr;
+  const StmtSRefObj* bottom = *loop_srefs.begin();
+  std::unordered_set<const StmtSRefObj*> visited;
   bool scope_block_visited = false;
   bool first_traversal = true;
-  for (const StmtSRefNode* loop_sref : loop_srefs) {
+  for (const StmtSRefObj* loop_sref : loop_srefs) {
     if (visited.count(loop_sref)) {
       continue;
     }
-    for (const StmtSRefNode* v = loop_sref;; v = v->parent) {
+    for (const StmtSRefObj* v = loop_sref;; v = v->parent) {
       // Case 1. If `v` corresponds to a block, stop traversal.
       if (v->stmt->IsInstance<SBlockNode>()) {
         if (scope_block_visited) {
@@ -1126,12 +1126,12 @@ std::pair<const StmtSRefNode*, const StmtSRefNode*> GetBoundaryOfReorderRange(
  * \return An array containing all the loops in the reorder range
  * \throws ScheduleError If some loop in the reorder range is not single-branch
  */
-std::vector<const StmtSRefNode*> GetLoopsInReorderRange(const ScheduleState& self,
-                                                        const StmtSRefNode* top,
-                                                        const StmtSRefNode* bottom) {
-  std::vector<const StmtSRefNode*> chain;
-  for (const StmtSRefNode* loop_sref = bottom; loop_sref != top;) {
-    const StmtSRefNode* parent_loop_sref = loop_sref->parent;
+std::vector<const StmtSRefObj*> GetLoopsInReorderRange(const ScheduleState& self,
+                                                       const StmtSRefObj* top,
+                                                       const StmtSRefObj* bottom) {
+  std::vector<const StmtSRefObj*> chain;
+  for (const StmtSRefObj* loop_sref = bottom; loop_sref != top;) {
+    const StmtSRefObj* parent_loop_sref = loop_sref->parent;
     const ForNode* outer = parent_loop_sref->StmtAs<ForNode>();
     const ForNode* inner = loop_sref->StmtAs<ForNode>();
     TVM_FFI_ICHECK(outer != nullptr && inner != nullptr);
@@ -1157,14 +1157,14 @@ std::vector<const StmtSRefNode*> GetLoopsInReorderRange(const ScheduleState& sel
  * \throws ScheduleError If the domain of an outer loop depends on any of the inner loops after
  * reordering
  */
-For ConstructNewLoopChain(const ScheduleState& self, std::vector<const StmtSRefNode*> chain,
+For ConstructNewLoopChain(const ScheduleState& self, std::vector<const StmtSRefObj*> chain,
                           const ffi::Array<StmtSRef>& ordered_loop_srefs,
-                          const std::unordered_set<const StmtSRefNode*>& loop_srefs) {
+                          const std::unordered_set<const StmtSRefObj*>& loop_srefs) {
   std::unordered_set<const VarNode*> inner_vars;
   inner_vars.reserve(chain.size());
   ffi::Optional<For> new_loop;
   int index = static_cast<int>(ordered_loop_srefs.size()) - 1;
-  for (const StmtSRefNode* loop_sref : chain) {
+  for (const StmtSRefObj* loop_sref : chain) {
     const ForNode* copy = nullptr;
     if (loop_srefs.count(loop_sref)) {
       copy = ordered_loop_srefs[index]->StmtAs<ForNode>();
@@ -1203,8 +1203,7 @@ void Reorder(ScheduleState self, const ffi::Array<StmtSRef>& ordered_loop_srefs)
     return;
   }
   // Step 1. Check uniqueness and collect the input loop srefs into a set
-  std::unordered_set<const StmtSRefNode*> loop_srefs =
-      CollectLoopsIntoSet(self, ordered_loop_srefs);
+  std::unordered_set<const StmtSRefObj*> loop_srefs = CollectLoopsIntoSet(self, ordered_loop_srefs);
   // Step 2. Gather loops to be reordered
   // For each loop sref in the input sref array, traverse upwards along its parent pointer in the
   // sref tree, and stop on either a block, or a previously-visited loop
@@ -1214,7 +1213,7 @@ void Reorder(ScheduleState self, const ffi::Array<StmtSRef>& ordered_loop_srefs)
   // the previous traversals
   auto [top, bottom] = GetBoundaryOfReorderRange(self, loop_srefs);
   // Step 3. Collect all loops in the chain and check the loops are single-branch
-  std::vector<const StmtSRefNode*> chain = GetLoopsInReorderRange(self, top, bottom);
+  std::vector<const StmtSRefObj*> chain = GetLoopsInReorderRange(self, top, bottom);
   // Step 4. Check the block below has all its block_var to be data-parallel or reduction,
   // and the block has an affine binding wrt top of the loop range.
   BlockPropertyError::CheckBlockIterTypeAndAffineBinding(self, top, bottom);

@@ -119,14 +119,14 @@ namespace meta_schedule {
  * \brief Rewrite the cooperative fetch annotation to actual vectorized cooperative fetching
  * in loop bindings.
  */
-class RewriteCooperativeFetchNode : public PostprocNode {
+class RewriteCooperativeFetchObj : public PostprocObj {
  public:
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<RewriteCooperativeFetchNode>();
+    refl::ObjectDef<RewriteCooperativeFetchObj>();
   }
 
-  // Inherited from PostprocNode
+  // Inherited from PostprocObj
   void InitializeWithTuneContext(const TuneContext& context) final {
     if (ffi::Optional<int64_t> v = context->target.value()->GetAttr<int64_t>("thread_warp_size")) {
       this->thread_warp_size_ = v.value();
@@ -135,23 +135,23 @@ class RewriteCooperativeFetchNode : public PostprocNode {
     }
   }
 
-  // Inherited from PostprocNode
+  // Inherited from PostprocObj
   bool Apply(const s_tir::Schedule& sch) final;
 
   Postproc Clone() const {
-    ffi::ObjectPtr<RewriteCooperativeFetchNode> n =
-        ffi::make_object<RewriteCooperativeFetchNode>(*this);
+    ffi::ObjectPtr<RewriteCooperativeFetchObj> n =
+        ffi::make_object<RewriteCooperativeFetchObj>(*this);
     return Postproc(ffi::UnsafeInit{}, n);
   }
 
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.meta_schedule.RewriteCooperativeFetch",
-                                    RewriteCooperativeFetchNode, PostprocNode);
+                                    RewriteCooperativeFetchObj, PostprocObj);
 
  private:
   int thread_warp_size_ = -1;
 };
 
-bool RewriteCooperativeFetchNode::Apply(const s_tir::Schedule& sch) {
+bool RewriteCooperativeFetchObj::Apply(const s_tir::Schedule& sch) {
   s_tir::Trace trace = sch->trace().value();
   int64_t thread_extent_x = -1;
   int64_t thread_extent_y = -1;
@@ -237,11 +237,11 @@ bool RewriteCooperativeFetchNode::Apply(const s_tir::Schedule& sch) {
 }
 
 Postproc Postproc::RewriteCooperativeFetch() {
-  ffi::ObjectPtr<RewriteCooperativeFetchNode> n = ffi::make_object<RewriteCooperativeFetchNode>();
+  ffi::ObjectPtr<RewriteCooperativeFetchObj> n = ffi::make_object<RewriteCooperativeFetchObj>();
   return Postproc(ffi::UnsafeInit{}, n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK() { RewriteCooperativeFetchNode::RegisterReflection(); }
+TVM_FFI_STATIC_INIT_BLOCK() { RewriteCooperativeFetchObj::RegisterReflection(); }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;

@@ -32,13 +32,13 @@
 namespace tvm {
 namespace tirx {
 
-struct StmtSimplifyConfigNode : public ffi::Object {
+struct StmtSimplifyConfigObj : public ffi::Object {
   bool transitively_prove_inequalities;
   bool convert_boolean_to_and_of_ors;
   bool apply_constraints_to_boolean_branches;
 
   static void RegisterReflection();
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.transform.StmtSimplifyConfig", StmtSimplifyConfigNode,
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.transform.StmtSimplifyConfig", StmtSimplifyConfigObj,
                                     ffi::Object);
 
   sym::RewriteSimplifier::Extension GetEnabledExtensions() const;
@@ -47,7 +47,7 @@ struct StmtSimplifyConfigNode : public ffi::Object {
 class StmtSimplifyConfig : public ffi::ObjectRef {
  public:
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(StmtSimplifyConfig, ffi::ObjectRef,
-                                                StmtSimplifyConfigNode);
+                                                StmtSimplifyConfigObj);
 };
 
 class StmtSimplifier : public IRMutatorWithAnalyzer {

@@ -42,7 +42,7 @@
 namespace tvm {
 namespace tirx {
 
-struct UnrollLoopConfigNode : public ffi::Object {
+struct UnrollLoopConfigObj : public ffi::Object {
   int auto_max_step;
   int auto_max_depth;
   int auto_max_extent;
@@ -51,32 +51,32 @@ struct UnrollLoopConfigNode : public ffi::Object {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<UnrollLoopConfigNode>()
-        .def_ro("auto_max_step", &UnrollLoopConfigNode::auto_max_step,
+    refl::ObjectDef<UnrollLoopConfigObj>()
+        .def_ro("auto_max_step", &UnrollLoopConfigObj::auto_max_step,
                 "Threshold of number of steps in the loop to be automatically unrolled",
                 refl::DefaultValue(0))
-        .def_ro("auto_max_depth", &UnrollLoopConfigNode::auto_max_depth,
+        .def_ro("auto_max_depth", &UnrollLoopConfigObj::auto_max_depth,
                 "The maximum nested level of loops that can be automatically unrolled.",
                 refl::DefaultValue(8))
-        .def_ro("auto_max_extent", &UnrollLoopConfigNode::auto_max_extent,
+        .def_ro("auto_max_extent", &UnrollLoopConfigObj::auto_max_extent,
                 "The maximum extent` of loop that will be unrolled.", refl::DefaultValue(0))
-        .def_ro("explicit_unroll", &UnrollLoopConfigNode::explicit_unroll,
+        .def_ro("explicit_unroll", &UnrollLoopConfigObj::explicit_unroll,
                 "Whether to explicitly unroll the loop instead of setting a pragma",
                 refl::DefaultValue(true))
-        .def_ro("unroll_local_access", &UnrollLoopConfigNode::unroll_local_access,
+        .def_ro("unroll_local_access", &UnrollLoopConfigObj::unroll_local_access,
                 "Whether to always unroll local access", refl::DefaultValue(false));
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.transform.UnrollLoopConfig", UnrollLoopConfigNode,
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.transform.UnrollLoopConfig", UnrollLoopConfigObj,
                                     ffi::Object);
 };
 
 class UnrollLoopConfig : public ffi::ObjectRef {
  public:
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(UnrollLoopConfig, ffi::ObjectRef,
-                                                UnrollLoopConfigNode);
+                                                UnrollLoopConfigObj);
 };
 
-TVM_FFI_STATIC_INIT_BLOCK() { UnrollLoopConfigNode::RegisterReflection(); }
+TVM_FFI_STATIC_INIT_BLOCK() { UnrollLoopConfigObj::RegisterReflection(); }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ::tvm::transform::PassContext::RegisterConfigOption<UnrollLoopConfig>("tirx.UnrollLoop");

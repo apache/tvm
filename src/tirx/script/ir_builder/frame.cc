@@ -36,31 +36,31 @@ namespace script {
 namespace ir_builder {
 namespace tirx {
 
-TVM_FFI_STATIC_INIT_BLOCK() { FunctionFrameNode::RegisterReflection(); }
+TVM_FFI_STATIC_INIT_BLOCK() { FunctionFrameObj::RegisterReflection(); }
 
 namespace {
-std::map<ffi::String, FunctionFrameNode::AttrValidator>& AttrValidators() {
-  static std::map<ffi::String, FunctionFrameNode::AttrValidator> validators;
+std::map<ffi::String, FunctionFrameObj::AttrValidator>& AttrValidators() {
+  static std::map<ffi::String, FunctionFrameObj::AttrValidator> validators;
   return validators;
 }
 }  // namespace
 
-void FunctionFrameNode::RegisterAttrValidator(ffi::String key, AttrValidator validator) {
+void FunctionFrameObj::RegisterAttrValidator(ffi::String key, AttrValidator validator) {
   TVM_FFI_ICHECK(AttrValidators().emplace(std::move(key), std::move(validator)).second)
       << "Duplicate function attribute validator";
 }
 
-void FunctionFrameNode::ValidateAttrs() const {
+void FunctionFrameObj::ValidateAttrs() const {
   for (const auto& [key, value] : attrs) {
     auto it = AttrValidators().find(key);
     if (it != AttrValidators().end()) it->second(this, value);
   }
 }
 
-tvm::tirx::Function FunctionFrameNode::FinalizeFunction(tvm::tirx::Function func) { return func; }
+tvm::tirx::Function FunctionFrameObj::FinalizeFunction(tvm::tirx::Function func) { return func; }
 
-void FunctionFrameNode::ExitWithScope() {
-  ir::StmtFrameNode::ExitWithScope();
+void FunctionFrameObj::ExitWithScope() {
+  ir::StmtFrameObj::ExitWithScope();
   ValidateAttrs();
   // if the function is not private and there isn't already a global symbol,
   // add a global symbol

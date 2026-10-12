@@ -58,11 +58,11 @@ namespace relax {
  * in mind when using and developing BlockBuilder, we can group
  * the code in a logically clean way.
  *
- * BlockBuilderNode is implemented as a virtual interface to
+ * BlockBuilderObj is implemented as a virtual interface to
  * allow logically grouped implementation and internal data
  * structures that are hidden from the users.
  */
-class BlockBuilderNode : public ffi::Object {
+class BlockBuilderObj : public ffi::Object {
  public:
   //-------------------------------
   // Global Context management
@@ -251,7 +251,7 @@ class BlockBuilderNode : public ffi::Object {
   virtual sym::Analyzer GetAnalyzer() = 0;
 
   static constexpr const bool _type_mutable = true;
-  TVM_FFI_DECLARE_OBJECT_INFO("relax.BlockBuilder", BlockBuilderNode, ffi::Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("relax.BlockBuilder", BlockBuilderObj, ffi::Object);
 };
 
 class BlockBuilder : public ffi::ObjectRef {
@@ -311,11 +311,11 @@ class BlockBuilder : public ffi::ObjectRef {
   TVM_DLL static BlockBuilder Create(ffi::Optional<IRModule> ctx_mod,
                                      DisableOperatorSpecificNormalizationForTVMScript tag);
 
-  explicit BlockBuilder(ffi::UnsafeInit tag, ffi::ObjectPtr<BlockBuilderNode> n)
+  explicit BlockBuilder(ffi::UnsafeInit tag, ffi::ObjectPtr<BlockBuilderObj> n)
       : ffi::ObjectRef(tag) {
     data_ = std::move(n);
   }
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(BlockBuilder, ffi::ObjectRef, BlockBuilderNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(BlockBuilder, ffi::ObjectRef, BlockBuilderObj);
 };
 
 }  // namespace relax

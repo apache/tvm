@@ -31,7 +31,7 @@ namespace tvm {
 namespace runtime {
 namespace vulkan {
 
-void VulkanWrappedFunc::Init(VulkanModuleNode* m, ffi::ObjectPtr<ffi::Object> sptr,
+void VulkanWrappedFunc::Init(VulkanModuleObj* m, ffi::ObjectPtr<ffi::Object> sptr,
                              const std::string& func_name, size_t num_buffer_args,
                              size_t num_pack_args,
                              const ffi::Array<ffi::String>& launch_param_tags) {
@@ -185,7 +185,7 @@ void VulkanWrappedFunc::operator()(ffi::PackedArgs args, ffi::Any* rv,
   }
 }
 
-VulkanModuleNode::~VulkanModuleNode() {
+VulkanModuleObj::~VulkanModuleObj() {
   // cleanup vulkan related caches.
   for (size_t device_id = 0; device_id < ecache_.size(); ++device_id) {
     for (auto& kv : ecache_[device_id]) {
@@ -206,7 +206,7 @@ VulkanModuleNode::~VulkanModuleNode() {
   }
 }
 
-ffi::Optional<ffi::Function> VulkanModuleNode::GetFunction(const ffi::String& name) {
+ffi::Optional<ffi::Function> VulkanModuleObj::GetFunction(const ffi::String& name) {
   ffi::ObjectPtr<ffi::Object> sptr_to_self = ffi::GetObjectPtr<ffi::Object>(this);
   TVM_FFI_ICHECK_EQ(sptr_to_self.get(), this);
   auto opt_info = fmap_.Get(name);
@@ -219,9 +219,9 @@ ffi::Optional<ffi::Function> VulkanModuleNode::GetFunction(const ffi::String& na
   return PackFuncNonBufferArg(std::move(f), info->arg_types);
 }
 
-std::shared_ptr<VulkanPipeline> VulkanModuleNode::GetPipeline(size_t device_id,
-                                                              const std::string& func_name,
-                                                              size_t num_pack_args) {
+std::shared_ptr<VulkanPipeline> VulkanModuleObj::GetPipeline(size_t device_id,
+                                                             const std::string& func_name,
+                                                             size_t num_pack_args) {
   auto& device = VulkanDeviceAPI::Global()->device(device_id);
   std::lock_guard<std::mutex> lock(mutex_);
   const auto& cp = ecache_[device_id][func_name];
@@ -405,9 +405,9 @@ std::shared_ptr<VulkanPipeline> VulkanModuleNode::GetPipeline(size_t device_id,
   return pe;
 }
 
-ffi::Bytes VulkanModuleNode::SaveToBytes() const {
+ffi::Bytes VulkanModuleObj::SaveToBytes() const {
   // NOTE: serialization format MUST remain byte-identical to
-  // target::VulkanFallbackModuleNode::SaveToBytes in
+  // target::VulkanFallbackModuleObj::SaveToBytes in
   // src/backend/vulkan/codegen/vulkan_fallback_module.cc.  This file is the
   // source of truth; the fallback follows.
   // 3 fields only — the source map is in-memory inspection material and
@@ -420,7 +420,7 @@ ffi::Bytes VulkanModuleNode::SaveToBytes() const {
   return ffi::Bytes(std::move(result));
 }
 
-ffi::String VulkanModuleNode::InspectSource(const ffi::String& format) const {
+ffi::String VulkanModuleObj::InspectSource(const ffi::String& format) const {
   if (auto it = source_.find(format); it != source_.end()) {
     return (*it).second;
   }

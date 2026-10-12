@@ -274,7 +274,7 @@ enum IterMapLevel {
 /*!
  * \brief Result of DetectIterMap.
  */
-class IterMapResultNode : public ffi::Object {
+class IterMapResultObj : public ffi::Object {
  public:
   // The detected pattern if a match exists.
   ffi::Array<IterSumExpr> indices;
@@ -295,26 +295,26 @@ class IterMapResultNode : public ffi::Object {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<IterMapResultNode>()
-        .def_ro("indices", &IterMapResultNode::indices)
-        .def_ro("errors", &IterMapResultNode::errors)
-        .def_ro("padding_predicate", &IterMapResultNode::padding_predicate);
+    refl::ObjectDef<IterMapResultObj>()
+        .def_ro("indices", &IterMapResultObj::indices)
+        .def_ro("errors", &IterMapResultObj::errors)
+        .def_ro("padding_predicate", &IterMapResultObj::padding_predicate);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("sym.IterMapResult", IterMapResultNode, ffi::Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("sym.IterMapResult", IterMapResultObj, ffi::Object);
 };
 
 /*!
- * \brief Managed reference to IterMapResultNode.
- * \sa IterMapResultNode
+ * \brief Managed reference to IterMapResultObj.
+ * \sa IterMapResultObj
  */
 class IterMapResult : public ffi::ObjectRef {
  public:
   static constexpr bool _type_is_nullable = false;
   // constructor
-  IterMapResult() { data_ = ffi::make_object<IterMapResultNode>(); }
+  IterMapResult() { data_ = ffi::make_object<IterMapResultObj>(); }
 
   /*! \return mutable pointers to the node. */
-  IterMapResultNode* operator->() const { return static_cast<IterMapResultNode*>(get_mutable()); }
+  IterMapResultObj* operator->() const { return static_cast<IterMapResultObj*>(get_mutable()); }
 };
 
 /*!

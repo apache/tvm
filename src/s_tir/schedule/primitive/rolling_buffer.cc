@@ -39,7 +39,7 @@ struct RollingBufferInfo {
   PrimExpr rolling_extent;
   std::vector<int> axis_overlaps;
   std::vector<ffi::Optional<Var>> axis_iter_vars;
-  /*! \brief The map used for ScheduleStateNode::Replace. */
+  /*! \brief The map used for ScheduleStateObj::Replace. */
   ffi::Map<SBlock, SBlock> block_reuse;
 };
 

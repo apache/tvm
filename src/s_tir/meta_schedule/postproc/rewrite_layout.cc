@@ -279,12 +279,12 @@ bool RewriteLayout(const Schedule& sch) {
 namespace s_tir {
 namespace meta_schedule {
 /*! \brief Layout Rewrite. */
-class RewriteLayoutNode : public PostprocNode {
+class RewriteLayoutObj : public PostprocObj {
  public:
-  // Inherited from PostprocNode
+  // Inherited from PostprocObj
   void InitializeWithTuneContext(const TuneContext& context) final {}
 
-  // Inherited from PostprocNode
+  // Inherited from PostprocObj
   bool Apply(const s_tir::Schedule& sch) final {
     try {
       return s_tir::RewriteLayout(sch);
@@ -294,27 +294,27 @@ class RewriteLayoutNode : public PostprocNode {
   }
 
   Postproc Clone() const {
-    ffi::ObjectPtr<RewriteLayoutNode> n = ffi::make_object<RewriteLayoutNode>(*this);
+    ffi::ObjectPtr<RewriteLayoutObj> n = ffi::make_object<RewriteLayoutObj>(*this);
     return Postproc(ffi::UnsafeInit{}, n);
   }
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<RewriteLayoutNode>();
+    refl::ObjectDef<RewriteLayoutObj>();
   }
 
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.meta_schedule.RewriteLayout", RewriteLayoutNode,
-                                    PostprocNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.meta_schedule.RewriteLayout", RewriteLayoutObj,
+                                    PostprocObj);
 };
 
 Postproc Postproc::RewriteLayout() {
-  auto n = ffi::make_object<RewriteLayoutNode>();
+  auto n = ffi::make_object<RewriteLayoutObj>();
   return Postproc(ffi::UnsafeInit{}, n);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  RewriteLayoutNode::RegisterReflection();
+  RewriteLayoutObj::RegisterReflection();
   refl::GlobalDef().def("s_tir.meta_schedule.PostprocRewriteLayout", Postproc::RewriteLayout);
 }
 

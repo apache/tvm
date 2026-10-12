@@ -26,28 +26,28 @@ namespace tvm {
 namespace s_tir {
 namespace meta_schedule {
 
-void PyScheduleRuleNode::InitializeWithTuneContext(const TuneContext& context) {
+void PyScheduleRuleObj::InitializeWithTuneContext(const TuneContext& context) {
   TVM_FFI_ICHECK(f_initialize_with_tune_context != nullptr)
       << "PyScheduleRule's InitializeWithTuneContext method not implemented!";
   f_initialize_with_tune_context(context);
 }
 
-ffi::Array<s_tir::Schedule> PyScheduleRuleNode::Apply(const s_tir::Schedule& sch,
-                                                      const s_tir::SBlockRV& block) {
+ffi::Array<s_tir::Schedule> PyScheduleRuleObj::Apply(const s_tir::Schedule& sch,
+                                                     const s_tir::SBlockRV& block) {
   TVM_FFI_ICHECK(f_apply != nullptr) << "PyScheduleRule's Apply method not implemented!";
   return f_apply(sch, block);
 }
 
-ScheduleRule PyScheduleRuleNode::Clone() const {
+ScheduleRule PyScheduleRuleObj::Clone() const {
   TVM_FFI_ICHECK(f_clone != nullptr) << "PyScheduleRule's Clone method not implemented!";
   return f_clone();
 }
 
 ScheduleRule ScheduleRule::PyScheduleRule(
-    PyScheduleRuleNode::FInitializeWithTuneContext f_initialize_with_tune_context,  //
-    PyScheduleRuleNode::FApply f_apply,                                             //
-    PyScheduleRuleNode::FClone f_clone) {
-  ffi::ObjectPtr<PyScheduleRuleNode> n = ffi::make_object<PyScheduleRuleNode>();
+    PyScheduleRuleObj::FInitializeWithTuneContext f_initialize_with_tune_context,  //
+    PyScheduleRuleObj::FApply f_apply,                                             //
+    PyScheduleRuleObj::FClone f_clone) {
+  ffi::ObjectPtr<PyScheduleRuleObj> n = ffi::make_object<PyScheduleRuleObj>();
   n->f_initialize_with_tune_context = std::move(f_initialize_with_tune_context);
   n->f_apply = std::move(f_apply);
   n->f_clone = std::move(f_clone);
@@ -391,17 +391,17 @@ ffi::Array<ScheduleRule> ScheduleRule::DefaultARM(const ffi::String& type) {
 // Pattern A (RM): auto-default repr from reflection.
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  ScheduleRuleNode::RegisterReflection();
-  PyScheduleRuleNode::RegisterReflection();
+  ScheduleRuleObj::RegisterReflection();
+  PyScheduleRuleObj::RegisterReflection();
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def_method("s_tir.meta_schedule.ScheduleRuleInitializeWithTuneContext",
-                  &ScheduleRuleNode::InitializeWithTuneContext)
-      .def_method("s_tir.meta_schedule.ScheduleRuleApply", &ScheduleRuleNode::Apply)
-      .def_method("s_tir.meta_schedule.ScheduleRuleClone", &ScheduleRuleNode::Clone)
+                  &ScheduleRuleObj::InitializeWithTuneContext)
+      .def_method("s_tir.meta_schedule.ScheduleRuleApply", &ScheduleRuleObj::Apply)
+      .def_method("s_tir.meta_schedule.ScheduleRuleClone", &ScheduleRuleObj::Clone)
       .def("s_tir.meta_schedule.ScheduleRulePyScheduleRule", ScheduleRule::PyScheduleRule)
       .def("s_tir.meta_schedule.ScheduleRuleDefaultLLVM", ScheduleRule::DefaultLLVM)
       .def("s_tir.meta_schedule.ScheduleRuleDefaultCUDA", ScheduleRule::DefaultCUDA)

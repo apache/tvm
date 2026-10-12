@@ -55,7 +55,7 @@ using namespace tvm::prim;
 namespace contrib {
 
 /*! \brief Attributes to store the compiler options for TensorRT. */
-struct TensorRTCompilerConfigNode : public ffi::Object {
+struct TensorRTCompilerConfigObj : public ffi::Object {
   ffi::Array<int64_t> tensorrt_version;
   bool use_implicit_batch;
   size_t max_workspace_size;
@@ -66,36 +66,36 @@ struct TensorRTCompilerConfigNode : public ffi::Object {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<TensorRTCompilerConfigNode>()
-        .def_ro("tensorrt_version", &TensorRTCompilerConfigNode::tensorrt_version,
+    refl::ObjectDef<TensorRTCompilerConfigObj>()
+        .def_ro("tensorrt_version", &TensorRTCompilerConfigObj::tensorrt_version,
                 "TensorRT version as (major, minor, patch).",
                 refl::DefaultValue(ffi::Array<int64_t>({6, 0, 1})))
-        .def_ro("use_implicit_batch", &TensorRTCompilerConfigNode::use_implicit_batch,
+        .def_ro("use_implicit_batch", &TensorRTCompilerConfigObj::use_implicit_batch,
                 "Use implicit batch (removed in TensorRT 10; networks are always explicit-batch)",
                 refl::DefaultValue(false))
-        .def_ro("max_workspace_size", &TensorRTCompilerConfigNode::max_workspace_size,
+        .def_ro("max_workspace_size", &TensorRTCompilerConfigObj::max_workspace_size,
                 "Max workspace size", refl::DefaultValue(size_t(1) << 30))
-        .def_ro("remove_no_mac_subgraphs", &TensorRTCompilerConfigNode::remove_no_mac_subgraphs,
+        .def_ro("remove_no_mac_subgraphs", &TensorRTCompilerConfigObj::remove_no_mac_subgraphs,
                 "Remove no-mac subgraphs", refl::DefaultValue(false))
-        .def_ro("use_fp16", &TensorRTCompilerConfigNode::use_fp16, "Use FP16",
+        .def_ro("use_fp16", &TensorRTCompilerConfigObj::use_fp16, "Use FP16",
                 refl::DefaultValue(false))
-        .def_ro("use_uint8", &TensorRTCompilerConfigNode::use_uint8, "Use uint8",
+        .def_ro("use_uint8", &TensorRTCompilerConfigObj::use_uint8, "Use uint8",
                 refl::DefaultValue(false))
-        .def_ro("build_at_compile_time", &TensorRTCompilerConfigNode::build_at_compile_time,
+        .def_ro("build_at_compile_time", &TensorRTCompilerConfigObj::build_at_compile_time,
                 "Build and embed TensorRT engines during code generation",
                 refl::DefaultValue(false));
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.ext.attrs.TensorRTCompilerConfig",
-                                    TensorRTCompilerConfigNode, ffi::Object);
+                                    TensorRTCompilerConfigObj, ffi::Object);
 };
 
 class TensorRTCompilerConfig : public ffi::ObjectRef {
  public:
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TensorRTCompilerConfig, ffi::ObjectRef,
-                                                TensorRTCompilerConfigNode);
+                                                TensorRTCompilerConfigObj);
 };
 
-TVM_FFI_STATIC_INIT_BLOCK() { TensorRTCompilerConfigNode::RegisterReflection(); }
+TVM_FFI_STATIC_INIT_BLOCK() { TensorRTCompilerConfigObj::RegisterReflection(); }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ::tvm::transform::PassContext::RegisterConfigOption<TensorRTCompilerConfig>(

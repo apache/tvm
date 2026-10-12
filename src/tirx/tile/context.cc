@@ -29,7 +29,7 @@ namespace tvm {
 namespace tirx {
 namespace tile {
 
-TVM_FFI_STATIC_INIT_BLOCK() { DispatchContextNode::RegisterReflection(); }
+TVM_FFI_STATIC_INIT_BLOCK() { DispatchContextObj::RegisterReflection(); }
 
 template <typename Key, typename Value>
 Value getOrSetDefault(ffi::Map<ffi::String, ffi::ObjectRef>& m, const Key& key,
@@ -43,8 +43,8 @@ Value getOrSetDefault(ffi::Map<ffi::String, ffi::ObjectRef>& m, const Key& key,
   return (*it).second.template as_or_throw<Value>();
 }
 
-void DispatchContextNode::AddAllocTensor(TensorVar tensor, ffi::Array<PrimExpr> allocated_addr,
-                                         ffi::Map<ffi::String, ffi::Any> annotations) {
+void DispatchContextObj::AddAllocTensor(TensorVar tensor, ffi::Array<PrimExpr> allocated_addr,
+                                        ffi::Map<ffi::String, ffi::Any> annotations) {
   auto tensors = getOrSetDefault(callbacks, callback::kPrivateAlloc, ffi::Array<Bind>());
   ffi::Array<Expr> args;
   if (!allocated_addr.empty()) args.push_back(tvm::Tuple(allocated_addr));
@@ -53,14 +53,14 @@ void DispatchContextNode::AddAllocTensor(TensorVar tensor, ffi::Array<PrimExpr> 
   callbacks.Set(callback::kPrivateAlloc, tensors);
 }
 
-void DispatchContextNode::AddInitStmt(Stmt stmt, bool host) {
+void DispatchContextObj::AddInitStmt(Stmt stmt, bool host) {
   auto tag = host ? callback::kHostInitStmt : callback::kDeviceInitStmt;
   auto stmts = getOrSetDefault(callbacks, tag, ffi::Array<Stmt>());
   stmts.push_back(stmt);
   callbacks.Set(tag, stmts);
 }
 
-void DispatchContextNode::AddPostTensorDefStmt(TensorVar tensor, Stmt stmt) {
+void DispatchContextObj::AddPostTensorDefStmt(TensorVar tensor, Stmt stmt) {
   auto mapping = getOrSetDefault(callbacks, callback::kPostTensorDefStmt,
                                  ffi::Map<TensorVar, ffi::Array<Stmt>>());
   auto it = mapping.find(tensor);
@@ -73,11 +73,11 @@ void DispatchContextNode::AddPostTensorDefStmt(TensorVar tensor, Stmt stmt) {
   callbacks.Set(callback::kPostTensorDefStmt, mapping);
 }
 
-void DispatchContextNode::SharedStateSet(ffi::String key, ffi::ObjectRef value) {
+void DispatchContextObj::SharedStateSet(ffi::String key, ffi::ObjectRef value) {
   shared_state.Set(key, value);
 }
 
-ffi::Optional<ffi::ObjectRef> DispatchContextNode::SharedStateGet(ffi::String key) {
+ffi::Optional<ffi::ObjectRef> DispatchContextObj::SharedStateGet(ffi::String key) {
   auto it = shared_state.find(key);
   if (it != shared_state.end()) {
     return (*it).second;
@@ -93,7 +93,7 @@ DispatchContext::DispatchContext(Target target, ExecScope exec_scope,
                                  ffi::Map<ffi::String, ffi::Array<PrimExpr>> inter,
                                  ffi::Map<ffi::String, ffi::Array<PrimExpr>> intra,
                                  ffi::String scope_kind) {
-  auto n = ffi::make_object<DispatchContextNode>(std::move(target), std::move(exec_scope));
+  auto n = ffi::make_object<DispatchContextObj>(std::move(target), std::move(exec_scope));
   for (const auto& [tag, binding] : launch_params) {
     PrimType var_ty = binding.get<0>().ty();
     PrimType extent_ty = binding.get<1>().ty();
@@ -125,12 +125,12 @@ TVM_FFI_STATIC_INIT_BLOCK() {
              return DispatchContext(target, exec_scope, launch_params, var_range_map, alloc_only,
                                     callbacks, shared_state, inter, intra, scope_kind);
            })
-      .def_method("tirx.DispatchContextAddAllocTensor", &DispatchContextNode::AddAllocTensor)
-      .def_method("tirx.DispatchContextAddInitStmt", &DispatchContextNode::AddInitStmt)
+      .def_method("tirx.DispatchContextAddAllocTensor", &DispatchContextObj::AddAllocTensor)
+      .def_method("tirx.DispatchContextAddInitStmt", &DispatchContextObj::AddInitStmt)
       .def_method("tirx.DispatchContextAddPostTensorDefStmt",
-                  &DispatchContextNode::AddPostTensorDefStmt)
-      .def_method("tirx.DispatchContextSharedStateSet", &DispatchContextNode::SharedStateSet)
-      .def_method("tirx.DispatchContextSharedStateGet", &DispatchContextNode::SharedStateGet);
+                  &DispatchContextObj::AddPostTensorDefStmt)
+      .def_method("tirx.DispatchContextSharedStateSet", &DispatchContextObj::SharedStateSet)
+      .def_method("tirx.DispatchContextSharedStateGet", &DispatchContextObj::SharedStateGet);
 }
 
 }  // namespace tile

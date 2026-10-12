@@ -62,23 +62,23 @@ int64_t Product(const std::vector<int64_t>& array) {
 }
 
 /*! \brief A mutator that mutates the tile size */
-class MutateTileSizeNode : public MutatorNode {
+class MutateTileSizeObj : public MutatorObj {
  public:
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<MutateTileSizeNode>();
+    refl::ObjectDef<MutateTileSizeObj>();
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.meta_schedule.MutateTileSize", MutateTileSizeNode,
-                                    MutatorNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.meta_schedule.MutateTileSize", MutateTileSizeObj,
+                                    MutatorObj);
 
  public:
-  // Inherit from `MutatorNode`
+  // Inherit from `MutatorObj`
   void InitializeWithTuneContext(const TuneContext& context) final {}
-  // Inherit from `MutatorNode`
+  // Inherit from `MutatorObj`
   ffi::Optional<Trace> Apply(const Trace& trace, TRandState* rand_state) final;
-  // Inherit from `MutatorNode`
+  // Inherit from `MutatorObj`
   Mutator Clone() const final {
-    ffi::ObjectPtr<MutateTileSizeNode> n = ffi::make_object<MutateTileSizeNode>(*this);
+    ffi::ObjectPtr<MutateTileSizeObj> n = ffi::make_object<MutateTileSizeObj>(*this);
     return Mutator(ffi::UnsafeInit{}, n);
   }
 };
@@ -256,7 +256,7 @@ ffi::Optional<Trace> MutateSampleVectorize(const Trace& trace, Instruction inst,
   return trace->WithDecision(inst, static_cast<int64_t>(result), /*remove_postproc=*/true);
 }
 
-ffi::Optional<Trace> MutateTileSizeNode::Apply(const Trace& trace, TRandState* rand_state) {
+ffi::Optional<Trace> MutateTileSizeObj::Apply(const Trace& trace, TRandState* rand_state) {
   std::vector<Instruction> sample_perfect_tile_insts;
   std::vector<Instruction> sample_vectorize_insts;
   std::vector<std::vector<int64_t>> sample_perfect_tile_tiles;
@@ -280,10 +280,10 @@ ffi::Optional<Trace> MutateTileSizeNode::Apply(const Trace& trace, TRandState* r
 }
 
 Mutator Mutator::MutateTileSize() {
-  return Mutator(ffi::UnsafeInit{}, ffi::make_object<MutateTileSizeNode>());
+  return Mutator(ffi::UnsafeInit{}, ffi::make_object<MutateTileSizeObj>());
 }
 
-TVM_FFI_STATIC_INIT_BLOCK() { MutateTileSizeNode::RegisterReflection(); }
+TVM_FFI_STATIC_INIT_BLOCK() { MutateTileSizeObj::RegisterReflection(); }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;

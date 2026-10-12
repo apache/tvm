@@ -19,8 +19,8 @@
 
 /*!
  * \file hexagon_fallback_module.cc
- * \brief HexagonFallbackModuleNode — codegen-time placeholder used when the
- *        Hexagon runtime is not linked.  Mirrors `HexagonModuleNode`'s
+ * \brief HexagonFallbackModuleObj — codegen-time placeholder used when the
+ *        Hexagon runtime is not linked.  Mirrors `HexagonModuleObj`'s
  *        save/load format byte-for-byte; see one-way comment in
  *        `SaveToBytes` below.  Always compiled (independent of USE_HEXAGON);
  *        never registered as an FFI factory or loader.
@@ -38,18 +38,18 @@
 namespace tvm {
 namespace target {
 
-class HexagonFallbackModuleNode : public ffi::ModuleObj {
+class HexagonFallbackModuleObj : public ffi::ModuleObj {
  public:
-  HexagonFallbackModuleNode(ffi::Bytes code, ffi::String fmt,
-                            ffi::Map<ffi::String, runtime::FunctionInfo> fmap,
-                            HexagonSourceMap source)
+  HexagonFallbackModuleObj(ffi::Bytes code, ffi::String fmt,
+                           ffi::Map<ffi::String, runtime::FunctionInfo> fmap,
+                           HexagonSourceMap source)
       : code_(std::move(code)),
         fmt_(std::move(fmt)),
         fmap_(std::move(fmap)),
         source_(std::move(source)) {}
 
   // Mirror the real module's kind so consumers cannot distinguish at the
-  // kind/api layer.  Saved bytes load back as a real HexagonModuleNode on
+  // kind/api layer.  Saved bytes load back as a real HexagonModuleObj on
   // a Hexagon-equipped receiver.
   const char* kind() const final { return "hexagon"; }
 
@@ -64,7 +64,7 @@ class HexagonFallbackModuleNode : public ffi::ModuleObj {
 
   ffi::Bytes SaveToBytes() const final {
     // NOTE: serialization format MUST remain byte-identical to
-    // HexagonModuleNode::SaveToBytes in src/backend/hexagon/runtime/hexagon_module.cc
+    // HexagonModuleObj::SaveToBytes in src/backend/hexagon/runtime/hexagon_module.cc
     // (the source of truth).  Both produce a kind="hexagon" artifact that
     // the loader (ffi.Module.load_from_bytes.hexagon, registered only when
     // USE_HEXAGON=ON) deserializes.  If the real impl's format changes,
@@ -94,7 +94,7 @@ class HexagonFallbackModuleNode : public ffi::ModuleObj {
         return ffi::String(b->data(), b->size());
       }
     }
-    // Backward compat: legacy HexagonModuleNode treated "asm" as alias of
+    // Backward compat: legacy HexagonModuleObj treated "asm" as alias of
     // "s".  Keep both keys discoverable.
     if (format == "asm") {
       if (auto it = source_.find("s"); it != source_.end()) {
@@ -121,8 +121,8 @@ class HexagonFallbackModuleNode : public ffi::ModuleObj {
 ffi::Module HexagonFallbackModuleCreate(ffi::Bytes code, ffi::String fmt,
                                         ffi::Map<ffi::String, runtime::FunctionInfo> fmap,
                                         HexagonSourceMap source) {
-  auto n = ffi::make_object<HexagonFallbackModuleNode>(std::move(code), std::move(fmt),
-                                                       std::move(fmap), std::move(source));
+  auto n = ffi::make_object<HexagonFallbackModuleObj>(std::move(code), std::move(fmt),
+                                                      std::move(fmap), std::move(source));
   return ffi::Module(n);
 }
 

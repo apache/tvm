@@ -146,7 +146,7 @@ class CUDACaptureStream {
 }  // namespace
 
 /*! \brief The VM extension of CUDA graph. */
-class CUDAGraphExtensionNode : public VMExtensionNode {
+class CUDAGraphExtensionObj : public VMExtensionObj {
  public:
   /*!
    * \brief Launch the cuda graph if it has been cached, otherwise execute it in capture mode.
@@ -228,8 +228,7 @@ class CUDAGraphExtensionNode : public VMExtensionNode {
   }
 
   static constexpr const bool _type_mutable = true;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("vm.CUDAGraphExtension", CUDAGraphExtensionNode,
-                                    VMExtensionNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("vm.CUDAGraphExtension", CUDAGraphExtensionObj, VMExtensionObj);
 
  private:
   /*!
@@ -246,13 +245,13 @@ class CUDAGraphExtensionNode : public VMExtensionNode {
   std::unordered_map<int64_t, ffi::ObjectRef> alloc_cache_;
 };
 
-/*! Managed reference to CUDAGraphExtensionNode */
+/*! Managed reference to CUDAGraphExtensionObj */
 class CUDAGraphExtension : public VMExtension {
  public:
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(CUDAGraphExtension, VMExtension,
-                                                CUDAGraphExtensionNode);
+                                                CUDAGraphExtensionObj);
   static CUDAGraphExtension Create() {
-    auto data_ = ffi::make_object<CUDAGraphExtensionNode>();
+    auto data_ = ffi::make_object<CUDAGraphExtensionObj>();
     return ffi::GetRef<CUDAGraphExtension>(data_.get());
   }
 };

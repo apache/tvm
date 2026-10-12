@@ -513,7 +513,7 @@ ffi::Optional<PatternContext> PatternContext::Current() {
 }
 
 PatternContext::PatternContext(bool incremental) {
-  auto n = ffi::make_object<PatternContextNode>();
+  auto n = ffi::make_object<PatternContextObj>();
   if (incremental) {
     TVM_FFI_ICHECK(!pattern_ctx_stack().empty())
         << "Incremental context needs to be built inside a existing context.";

@@ -42,26 +42,26 @@ namespace relax {
 namespace contrib {
 
 /*! \brief Attributes to store the compiler options for OpenCLML. */
-struct OpenCLMLCompilerConfigNode : public ffi::Object {
+struct OpenCLMLCompilerConfigObj : public ffi::Object {
   IntImm clml_version = IntImm::Int32(3);
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<OpenCLMLCompilerConfigNode>().def_ro(
-        "clml_version", &OpenCLMLCompilerConfigNode::clml_version,
+    refl::ObjectDef<OpenCLMLCompilerConfigObj>().def_ro(
+        "clml_version", &OpenCLMLCompilerConfigObj::clml_version,
         "OpenCLML version as (major, minor, patch).", refl::DefaultValue(IntImm::Int32(3)));
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.ext.attrs.OpenCLMLCompilerConfig",
-                                    OpenCLMLCompilerConfigNode, ffi::Object);
+                                    OpenCLMLCompilerConfigObj, ffi::Object);
 };
 
 class OpenCLMLCompilerConfig : public ffi::ObjectRef {
  public:
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(OpenCLMLCompilerConfig, ffi::ObjectRef,
-                                                OpenCLMLCompilerConfigNode);
+                                                OpenCLMLCompilerConfigObj);
 };
 
-TVM_FFI_STATIC_INIT_BLOCK() { OpenCLMLCompilerConfigNode::RegisterReflection(); }
+TVM_FFI_STATIC_INIT_BLOCK() { OpenCLMLCompilerConfigObj::RegisterReflection(); }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ::tvm::transform::PassContext::RegisterConfigOption<OpenCLMLCompilerConfig>(

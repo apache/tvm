@@ -78,34 +78,33 @@ ffi::Module Finalize(const std::string& code, const ffi::Array<ffi::String>& fun
       .cast<ffi::Module>();
 }
 
-class CodegenResultNode : public ffi::Object {
+class CodegenResultObj : public ffi::Object {
  public:
   ffi::String code;
   ffi::Array<ffi::String> headers;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<CodegenResultNode>()
-        .def_ro("code", &CodegenResultNode::code)
-        .def_ro("headers", &CodegenResultNode::headers);
+    refl::ObjectDef<CodegenResultObj>()
+        .def_ro("code", &CodegenResultObj::code)
+        .def_ro("headers", &CodegenResultObj::headers);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("contrib.cutlass.CodegenResult", CodegenResultNode,
-                                    ffi::Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("contrib.cutlass.CodegenResult", CodegenResultObj, ffi::Object);
 };
 
 class CodegenResult : public ffi::ObjectRef {
  public:
   CodegenResult(ffi::String code, ffi::Array<ffi::String> headers) {
-    auto n = ffi::make_object<CodegenResultNode>();
+    auto n = ffi::make_object<CodegenResultObj>();
     n->code = std::move(code);
     n->headers = std::move(headers);
     data_ = std::move(n);
   }
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(CodegenResult, ffi::ObjectRef, CodegenResultNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(CodegenResult, ffi::ObjectRef, CodegenResultObj);
 };
 
-TVM_FFI_STATIC_INIT_BLOCK() { CodegenResultNode::RegisterReflection(); }
+TVM_FFI_STATIC_INIT_BLOCK() { CodegenResultObj::RegisterReflection(); }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;

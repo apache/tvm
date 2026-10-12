@@ -32,7 +32,7 @@
 namespace tvm {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  SourceNode::RegisterReflection();
+  SourceObj::RegisterReflection();
   SourceMapObj::RegisterReflection();
 }
 
@@ -156,7 +156,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 /*! \brief Construct a source from a string. */
 Source::Source(SourceName src_name, std::string source) {
-  auto n = ffi::make_object<SourceNode>(std::move(src_name));
+  auto n = ffi::make_object<SourceObj>(std::move(src_name));
   n->source = std::move(source);
 
   int index = 0;

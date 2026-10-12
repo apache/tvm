@@ -273,7 +273,7 @@ void LeafBlockRemovalPlan(const ScheduleState& self, const StmtSRef& leaf_block_
 
   // Go upwards until find an ancestor with more than one child
   const StmtNode* last_stmt = leaf_block_sref->stmt;
-  StmtSRefNode* sref = leaf_block_sref->parent;
+  StmtSRefObj* sref = leaf_block_sref->parent;
   for (;; last_stmt = sref->stmt, sref = sref->parent) {
     if (const auto* loop = sref->StmtAs<ForNode>()) {
       if (loop->body->size() > 1) {
@@ -318,11 +318,11 @@ ffi::Optional<LoopRV> TileWithTensorIntrin(const s_tir::Schedule& sch,
       GetTensorizeLoopMapping(sch->state(), sch->GetSRef(block_rv),
                               TensorIntrin::Get(intrin_name).value()->desc, allow_padding);
   if (!opt_tensorize_info) return std::nullopt;
-  const TensorizeInfoNode* info = opt_tensorize_info.value().get();
+  const TensorizeInfoObj* info = opt_tensorize_info.value().get();
   if (info->block_iter_paddings.has_value()) {
     // We have to track whether each producer or consumer is padded.
     // To do so, we first record all the Block's.
-    std::unordered_set<const StmtSRefNode*> original_producers, original_consumers;
+    std::unordered_set<const StmtSRefObj*> original_producers, original_consumers;
     {
       for (const auto& p : GetProducers(sch->state(), sch->GetSRef(block_rv)))
         original_producers.insert(p.get());
@@ -388,7 +388,7 @@ ffi::Optional<LoopRV> TileWithTensorIntrin(const s_tir::Schedule& sch,
   }
   // Split the loops
   sym::Analyzer analyzer;
-  std::unordered_set<const tirx::StmtSRefNode*> inner_loops;
+  std::unordered_set<const tirx::StmtSRefObj*> inner_loops;
   std::vector<LoopRV> reorder_suffix;
   reorder_suffix.resize(info->loop_map.size());
   for (const auto& kv : info->loop_map) {

@@ -39,10 +39,10 @@
 namespace tvm {
 namespace sym {
 
-TVM_FFI_STATIC_INIT_BLOCK() { ConstIntBoundNode::RegisterReflection(); }
+TVM_FFI_STATIC_INIT_BLOCK() { ConstIntBoundObj::RegisterReflection(); }
 
 ConstIntBound::ConstIntBound(int64_t min_value, int64_t max_value) {
-  auto node = ffi::make_object<ConstIntBoundNode>();
+  auto node = ffi::make_object<ConstIntBoundObj>();
   node->min_value = min_value;
   node->max_value = max_value;
   data_ = std::move(node);

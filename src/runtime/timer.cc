@@ -38,7 +38,7 @@
 namespace tvm {
 namespace runtime {
 
-class DefaultTimerNode : public TimerNode {
+class DefaultTimerObj : public TimerObj {
  public:
   virtual void Start() {
     DeviceAPI::Get(device_)->StreamSync(device_, nullptr);
@@ -49,10 +49,10 @@ class DefaultTimerNode : public TimerNode {
     duration_ = std::chrono::high_resolution_clock::now() - start_;
   }
   virtual int64_t SyncAndGetElapsedNanos() { return duration_.count(); }
-  virtual ~DefaultTimerNode() {}
+  virtual ~DefaultTimerObj() {}
 
-  explicit DefaultTimerNode(Device dev) : device_(dev) {}
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("runtime.DefaultTimerNode", DefaultTimerNode, TimerNode);
+  explicit DefaultTimerObj(Device dev) : device_(dev) {}
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("runtime.DefaultTimerNode", DefaultTimerObj, TimerObj);
 
  private:
   std::chrono::high_resolution_clock::time_point start_;
@@ -61,16 +61,16 @@ class DefaultTimerNode : public TimerNode {
 };
 
 static Timer DefaultTimer(Device dev) {
-  return Timer(ffi::UnsafeInit{}, ffi::make_object<DefaultTimerNode>(dev));
+  return Timer(ffi::UnsafeInit{}, ffi::make_object<DefaultTimerObj>(dev));
 }
 
-class CPUTimerNode : public TimerNode {
+class CPUTimerObj : public TimerObj {
  public:
   virtual void Start() { start_ = std::chrono::high_resolution_clock::now(); }
   virtual void Stop() { duration_ = std::chrono::high_resolution_clock::now() - start_; }
   virtual int64_t SyncAndGetElapsedNanos() { return duration_.count(); }
-  virtual ~CPUTimerNode() {}
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("runtime.CPUTimerNode", CPUTimerNode, TimerNode);
+  virtual ~CPUTimerObj() {}
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("runtime.CPUTimerNode", CPUTimerObj, TimerObj);
 
  private:
   std::chrono::high_resolution_clock::time_point start_;
@@ -80,7 +80,7 @@ class CPUTimerNode : public TimerNode {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("runtime.timer.cpu", [](Device dev) {
-    return Timer(ffi::UnsafeInit{}, ffi::make_object<CPUTimerNode>());
+    return Timer(ffi::UnsafeInit{}, ffi::make_object<CPUTimerObj>());
   });
 }
 

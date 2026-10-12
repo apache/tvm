@@ -86,7 +86,7 @@ class NotInSameScopeError : public ScheduleErrorContextObj {
   static void CheckAndBindLoopDomain(const ScheduleState& self, const StmtSRef& block_sref,
                                      const StmtSRef& loop_sref, const StmtSRef& scope_root_sref,
                                      sym::AnalyzerObj* analyzer) {
-    for (const StmtSRefNode* p = loop_sref.get();; p = p->parent) {
+    for (const StmtSRefObj* p = loop_sref.get();; p = p->parent) {
       if (const ForNode* loop = p->StmtAs<ForNode>()) {
         analyzer->Bind(loop->loop_var, Range::FromMinExtent(loop->min, loop->extent));
       } else if (p != scope_root_sref.get()) {
@@ -95,7 +95,7 @@ class NotInSameScopeError : public ScheduleErrorContextObj {
         break;
       }
     }
-    for (const StmtSRefNode* p = block_sref->parent; p != scope_root_sref.get(); p = p->parent) {
+    for (const StmtSRefObj* p = block_sref->parent; p != scope_root_sref.get(); p = p->parent) {
       if (p == loop_sref.get()) {
         throw MakeScheduleError<NotInSameScopeError>(self->mod, block_sref, loop_sref);
       }

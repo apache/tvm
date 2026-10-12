@@ -270,7 +270,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       });
 }
 
-class ROCMTimerNode : public TimerNode {
+class ROCMTimerObj : public TimerObj {
  public:
   virtual void Start() {
     int device_id;
@@ -289,15 +289,15 @@ class ROCMTimerNode : public TimerNode {
     ROCM_CALL(hipEventElapsedTime(&milliseconds, start_, stop_));
     return milliseconds * 1e6;
   }
-  virtual ~ROCMTimerNode() {
+  virtual ~ROCMTimerObj() {
     ROCM_CALL(hipEventDestroy(start_));
     ROCM_CALL(hipEventDestroy(stop_));
   }
-  ROCMTimerNode() {
+  ROCMTimerObj() {
     ROCM_CALL(hipEventCreate(&start_));
     ROCM_CALL(hipEventCreate(&stop_));
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("runtime.rocm.ROCMTimerNode", ROCMTimerNode, TimerNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("runtime.rocm.ROCMTimerNode", ROCMTimerObj, TimerObj);
 
  private:
   hipEvent_t start_;
@@ -309,7 +309,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("runtime.timer.rocm",
-           [](Device dev) { return Timer(ffi::UnsafeInit{}, ffi::make_object<ROCMTimerNode>()); })
+           [](Device dev) { return Timer(ffi::UnsafeInit{}, ffi::make_object<ROCMTimerObj>()); })
       .def("runtime.get_rocm_stream", []() {
         int device_id;
         ROCM_CALL(hipGetDevice(&device_id));

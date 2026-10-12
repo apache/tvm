@@ -588,34 +588,34 @@ bool OpSupportsInplace(const Op& op) { return SUPPORTED_OPS.count(op->name); }
 /*! \brief Corresponds to a binding where at least one argument meets the conditions to be
  *  made in-place. Contains the binding index and indices of the applicable arguments
  */
-class InplaceOpportunityNode : public ffi::Object {
+class InplaceOpportunityObj : public ffi::Object {
  public:
   int64_t binding_idx;
   ffi::Array<int64_t> arg_idxs;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<InplaceOpportunityNode>()
-        .def_ro("binding_idx", &InplaceOpportunityNode::binding_idx)
-        .def_ro("arg_idxs", &InplaceOpportunityNode::arg_idxs);
+    refl::ObjectDef<InplaceOpportunityObj>()
+        .def_ro("binding_idx", &InplaceOpportunityObj::binding_idx)
+        .def_ro("arg_idxs", &InplaceOpportunityObj::arg_idxs);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO("relax.transform.InplaceOpportunity", InplaceOpportunityNode,
+  TVM_FFI_DECLARE_OBJECT_INFO("relax.transform.InplaceOpportunity", InplaceOpportunityObj,
                               ffi::Object);
 };
 
-TVM_FFI_STATIC_INIT_BLOCK() { InplaceOpportunityNode::RegisterReflection(); }
+TVM_FFI_STATIC_INIT_BLOCK() { InplaceOpportunityObj::RegisterReflection(); }
 
 class InplaceOpportunity : public ffi::ObjectRef {
  public:
   TVM_DLL InplaceOpportunity(int64_t binding_idx, const ffi::Array<int64_t>& arg_idxs) {
-    auto node = ffi::make_object<InplaceOpportunityNode>();
+    auto node = ffi::make_object<InplaceOpportunityObj>();
     node->binding_idx = binding_idx;
     node->arg_idxs = arg_idxs;
     data_ = std::move(node);
   }
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(InplaceOpportunity, ffi::ObjectRef,
-                                                InplaceOpportunityNode);
+                                                InplaceOpportunityObj);
 };
 
 // Check for in-place eligibility:

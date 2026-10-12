@@ -539,7 +539,7 @@ StmtSRef DecomposePaddingImpl(ScheduleState self, const StmtSRef& block_sref,
   bool preserve_stage_pipeline = true;
   for (const StmtSRef& consumer_sref : GetConsumers(self, block_sref)) {
     StmtSRef lca = GetSRefLowestCommonAncestor({consumer_sref, block_sref});
-    const StmtSRefNode* parent = new_block_sref->parent;
+    const StmtSRefObj* parent = new_block_sref->parent;
     bool is_under_lca = false;
     while (parent) {
       if (parent == lca.get()) {

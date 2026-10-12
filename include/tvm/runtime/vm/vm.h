@@ -101,15 +101,15 @@ class VMClosure : public ffi::ObjectRef {
  *
  * This is the base class for all VM extensions and should not be used directly.
  */
-class VMExtensionNode : public ffi::Object {
+class VMExtensionObj : public ffi::Object {
  protected:
-  TVM_FFI_DECLARE_OBJECT_INFO("runtime.VMExtension", VMExtensionNode, ffi::Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("runtime.VMExtension", VMExtensionObj, ffi::Object);
 };
 
 /*! \brief Managed reference to VM extension. */
 class VMExtension : public ffi::ObjectRef {
  public:
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(VMExtension, ffi::ObjectRef, VMExtensionNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(VMExtension, ffi::ObjectRef, VMExtensionObj);
 };
 
 /*!
