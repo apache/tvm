@@ -72,7 +72,6 @@
 #include "../../../runtime/file_utils.h"
 #include "../../../runtime/metadata.h"
 #include "../../../runtime/pack_args.h"
-#include "../../../runtime/thread_storage_scope.h"
 #include "../../../runtime/workspace_pool.h"
 #include "texture.h"
 
