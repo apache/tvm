@@ -39,6 +39,7 @@
 #include <tvm/tirx/tile/exec_scope.h>
 #include <tvm/tirx/transform.h>
 
+#include <algorithm>
 #include <limits>
 #include <optional>
 #include <unordered_map>
@@ -282,7 +283,9 @@ struct ExecAnalysis::Impl {
       LOG(WARNING) << "ExecContext tracking disabled: missing/symbolic threadIdx extents";
       return false;
     }
-    int64_t warp_ext = thread_ext / 32;
+    // A sub-warp block still has one warp, with only its leading lanes active.
+    int64_t lane_ext = std::min<int64_t>(thread_ext, 32);
+    int64_t warp_ext = std::max<int64_t>(thread_ext / 32, 1);
     auto cluster_cta_axes = collect_extents(
         {{"clusterCtaIdx.x", "cbx"}, {"clusterCtaIdx.y", "cby"}, {"clusterCtaIdx.z", "cbz"}});
     if (!cluster_bounds_.empty() && cluster_cta_axes.empty()) return false;
@@ -305,7 +308,7 @@ struct ExecAnalysis::Impl {
     // Preserve the old flattened cta_id split for 0-D/1-D declarations. Multi-dimensional
     // CTA ids keep their concrete factor axes (bx/by/bz or cbx/cby/cbz).
     if (cta_axes.size() <= 1) cta_axes.clear();
-    ctx_stack_.push_back(ExecContext::AtKernelEntry(/*lane_ext=*/32, warp_ext, cta_ext, cta_axes));
+    ctx_stack_.push_back(ExecContext::AtKernelEntry(lane_ext, warp_ext, cta_ext, cta_axes));
     return true;
   }
 

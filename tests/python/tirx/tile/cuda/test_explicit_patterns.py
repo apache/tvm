@@ -57,13 +57,13 @@ def global_kernel(gapped=False):
     return kernel
 
 
-def matrix_kernel(partial=False):
+def matrix_kernel(partial=False, block=32):
     shared = TileLayout(S[(16, 4, 2) : (8, 1, 128)])
     registers = TileLayout(S[(2, 2, 8, 4) : (8, 2, 4 @ laneid, 1 @ laneid)])
 
     @T.function
     def kernel(A: T.Tensor((16, 4, 2), "uint32"), Out: T.Tensor((32, 12), "uint32")):
-        T.device_entry(launch=T.cuda.LaunchConfig(grid=1, block=32))
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=1, block=block))
         lane = T.cuda.lane_id()
         SM = T.alloc_tensor(
             ty_args=[T.Tensor((16, 4, 2), "uint32", scope="shared", layout=shared, align=16)]
@@ -216,10 +216,13 @@ def test_matrix_gpu():
     np.testing.assert_array_equal(out.numpy(), expected)
 
 
-def test_partial_warp_rejected_in_pipeline():
+@pytest.mark.parametrize("block,partial", [(32, True), (1, False), (16, False), (31, False)])
+def test_partial_warp_rejected_in_pipeline(block, partial):
     target = tvm.target.Target({"kind": "cuda", "arch": "sm_100a"})
     with target, pytest.raises((RuntimeError, ValueError), match="all 32 lanes"):
-        tvm.tirx.transform.TileDispatch()(tvm.IRModule({"main": matrix_kernel(partial=True)}))
+        tvm.tirx.transform.TileDispatch()(
+            tvm.IRModule({"main": matrix_kernel(partial=partial, block=block)})
+        )
 
 
 @pytest.mark.gpu

@@ -52,6 +52,25 @@ Migration rules
   and columns. The upper halves written by unpack are outside its defined
   16-bit payload and are not used as numerical evidence.
 
+* ``copy/test_reg.py`` preserves all 69 original parameter cases and adds a
+  second explicit-width variant. The former solver-layout checks now compare
+  every physical register/shared address after the caller's view, including
+  the warpgroup slice ``[:, 8:40]`` and the tcgen05 epilogue layout. The former
+  hoisted-base/loop-variable checks assert eight 128-bit stores and sixteen
+  64-bit epilogue stores, respectively. Shared readback and scalar-region mov
+  cases now also run their numerical checks on the GPU.
+* ``copy/test_gmem_smem.py`` retains the original synchronous copy loops and
+  all 88 parameter cases. Former width-selection helper tests now run the
+  explicitly selected legal width and reject a larger, misaligned width.
+  The K-tiled shared regression additionally reads every value back with
+  scalar indexing, independently of the vector stores.
+* The old negative test for non-thread forced copy scope now rejects a
+  missing group axis. A correctly shaped vector copy is legal at warp,
+  warpgroup and CTA scope; the round-trip cases cover these scopes. Blocks
+  smaller than 32 threads now have one partially active warp instead of zero
+  warps. Their scalar/vector memory instructions work, while full-warp
+  matrix instructions still reject them.
+
 Original case inventory
 -----------------------
 
@@ -64,25 +83,25 @@ Original case inventory
      - Migration
    * - ``copy/test_gmem_smem.py``
      - ``test_gmem_smem_roundtrip``
-     - Pending
+     - Restored
    * - ``copy/test_gmem_smem.py``
      - ``test_copy_g2s_s2g``
-     - Pending
+     - Restored
    * - ``copy/test_gmem_smem.py``
      - ``test_swizzled_smem_vec_len_must_fit_chunk``
-     - Pending
+     - Replaced by ``test_swizzled_smem_requires_width_within_chunk``
    * - ``copy/test_gmem_smem.py``
      - ``test_unaligned_strides_must_clamp_vec_len``
-     - Pending
+     - Replaced by ``test_strided_rows_reject_unaligned_vector``
    * - ``copy/test_gmem_smem.py``
      - ``test_unaligned_region_offset_must_clamp_vec_len``
-     - Pending
+     - Replaced by ``test_region_offset_requires_scalar_instruction``
    * - ``copy/test_gmem_smem.py``
      - ``test_swizzled_smem_emit_must_be_swizzle_aware``
-     - Pending
+     - Restored
    * - ``copy/test_gmem_smem.py``
      - ``test_layout_permute_copy_preserves_smem_strides``
-     - Pending
+     - Restored
    * - ``copy/test_ld_stmatrix.py``
      - ``test_ldstmatrix``
      - Restored
@@ -100,58 +119,58 @@ Original case inventory
      - Restored
    * - ``copy/test_reg.py``
      - ``test_reg_roundtrip``
-     - Pending
+     - Restored
    * - ``copy/test_reg.py``
      - ``test_reg_roundtrip_gapped_permuted_storage``
-     - Pending
+     - Restored
    * - ``copy/test_reg.py``
      - ``test_copy_g2l_l2g_vec_load``
-     - Pending
+     - Restored
    * - ``copy/test_reg.py``
      - ``test_vec_auto_reg_honors_cache_nc``
-     - Pending
+     - Replaced by ``test_reg_explicit_cache_nc``
    * - ``copy/test_reg.py``
      - ``test_reg_copy_linear_shared_hoists_thread_base``
-     - Pending
+     - Replaced by ``test_reg_copy_linear_shared_explicit_repeats``
    * - ``copy/test_reg.py``
      - ``test_reg_copy_wg_local_to_swizzled_shared_uses_structured_compose_apply``
-     - Pending
+     - Restored
    * - ``copy/test_reg.py``
      - ``test_ptx_st_from_src_f32_vector_preserves_values``
-     - Pending
+     - Restored
    * - ``copy/test_reg.py``
      - ``test_mov_handles_scalar_regions``
-     - Pending
+     - Restored
    * - ``copy/test_reg.py``
      - ``test_copy_forced_vec_width_codegen``
-     - Pending
+     - Restored
    * - ``copy/test_reg.py``
      - ``test_copy_forced_vec_dynamic_swizzled_shared_uses_vector_ptx``
-     - Pending
+     - Restored
    * - ``copy/test_reg.py``
      - ``test_copy_explicit_vec_auto_uses_auto_family``
-     - Pending
+     - Replaced by ``test_copy_explicit_vector_instructions``
    * - ``copy/test_reg.py``
      - ``test_copy_forced_vec_rejects_size_mismatch``
-     - Pending
+     - Restored
    * - ``copy/test_reg.py``
      - ``test_copy_forced_vec_rejects_non_thread_scope``
-     - Pending
+     - Replaced by ``test_copy_vector_rejects_missing_thread_axis``
    * - ``copy/test_reg.py``
      - ``test_reg_swizzle_chunk_caps_vector_width``
-     - Pending
+     - Replaced by ``test_reg_explicit_vector_width``
    * - ``copy/test_reg.py``
      - ``test_reg_synthetic_tile_matches_thread_base_plus_outer_delta``
-     - Pending
+     - Replaced by ``test_reg_view_preserves_shared_and_register_addresses``
    * - ``copy/test_reg.py``
      - ``test_reg_copy_tcgen05_d_epilogue_deposit_layout_pairing``
-     - Pending
+     - Restored
    * - ``copy/test_reg.py``
      - ``test_reg_copy_tcgen05_d_epilogue_deposit_codegen``
-     - Pending
+     - Restored
    * - ``copy/test_reg.py``
      - ``test_reg_copy_tcgen05_d_epilogue_deposit_gpu``
-     - Pending
+     - Restored
    * - ``copy/test_vec_forced_cache.py``
      - ``test_copy_vec_256b_plain``
      - Restored
