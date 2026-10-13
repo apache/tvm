@@ -37,7 +37,9 @@ namespace {
 
 ffi::Optional<ExprDoc> MemoryScopeDocTranslate(DocTranslatorObj*, ffi::AnyView input,
                                                const ffi::Object*) {
-  return LiteralDoc::Str(input.cast<runtime::MemoryScope>().name(), std::nullopt);
+  return NamespaceDoc("tirx")
+      ->Attr("MemoryScope")
+      ->Call({LiteralDoc::Str(input.cast<runtime::MemoryScope>().name(), std::nullopt)});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

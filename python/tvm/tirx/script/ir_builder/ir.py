@@ -1133,6 +1133,7 @@ __all__ = [
     "Lambda",
     "Layout",
     "LetAnnotation",
+    "MemoryScope",
     "Ptr",
     "R",
     "Range",

@@ -429,7 +429,7 @@ a
     _assert_print(
         a,
         """
-a = T.Var("a", T.Ptr(T.void, storage_scope="shared"))
+a = T.Var("a", T.Ptr(T.void, storage_scope=T.MemoryScope("shared")))
 a
 """,
     )
@@ -680,7 +680,7 @@ def test_pointer_type():
     _assert_print(obj, "T.Ptr(T.void)")
 
     obj = ir.PtrType(ir.PrimType("void"), "shared")
-    _assert_print(obj, 'T.Ptr(T.void, storage_scope="shared")')
+    _assert_print(obj, 'T.Ptr(T.void, storage_scope=T.MemoryScope("shared"))')
 
 
 def test_tuple_type():
