@@ -105,7 +105,7 @@ class FunctionSpecializer : public StmtExprMutator {
           } else {
             specializer->constrained_tensor_params_.insert(param.get());
             specializer->tensor_storage_scopes_.emplace(tensor.value(),
-                                                        replacement_tensor.value()->storage_scope);
+                                                        replacement_tensor.value()->scope);
           }
         }
       }
@@ -290,8 +290,8 @@ class FunctionSpecializer : public StmtExprMutator {
       }
     }
 
-    bool storage_scope_changed = specialized_storage_scope.has_value() &&
-                                 specialized_storage_scope.value() != tensor->storage_scope;
+    bool storage_scope_changed =
+        specialized_storage_scope.has_value() && specialized_storage_scope.value() != tensor->scope;
     if (tensor->elem_offset.same_as(elem_offset) && tensor->shape.same_as(shape) &&
         tensor->strides.same_as(strides) && !layout_changed && !storage_scope_changed) {
       return tensor;
@@ -304,7 +304,7 @@ class FunctionSpecializer : public StmtExprMutator {
         n->layout = std::move(layout);
       }
       if (storage_scope_changed) {
-        n->storage_scope = specialized_storage_scope.value();
+        n->scope = specialized_storage_scope.value();
       }
       return RebuildTensorVar(tensor, std::move(n));
     }

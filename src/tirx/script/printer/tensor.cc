@@ -50,10 +50,10 @@ ffi::Optional<ExprDoc> TensorTypeDocTranslate(DocTranslatorObj* d, ffi::AnyView 
         ->Call({LiteralDoc::Str("tirx.TensorType", std::nullopt)},
                {"dtype", "scope", "shape", "strides", "elem_offset", "data_alignment",
                 "offset_factor", "layout"},
-               {d->Translate(tensor->dtype).value(), d->Translate(tensor->storage_scope).value(),
+               {d->Translate(tensor->dtype).value(), d->Translate(tensor->scope).value(),
                 d->Translate(tensor->shape).value(), d->Translate(tensor->strides).value(),
                 d->WithExtraStateScope<bool>(
-                    "ir.explicit_scalar_dtype", true,
+                    "ir.explicit_value_type", true,
                     [&] { return d->Translate(tensor->elem_offset).value(); }),
                 LiteralDoc::Int(tensor->data_alignment, std::nullopt),
                 LiteralDoc::Int(tensor->offset_factor, std::nullopt),
@@ -69,10 +69,10 @@ ffi::Optional<ExprDoc> TensorTypeDocTranslate(DocTranslatorObj* d, ffi::AnyView 
       d->RecordOrigin(literal, dim);
       shape.push_back(literal);
     } else if (dim.as<IntImmNode>()) {
-      shape.push_back(d->WithExtraStateScope<bool>("ir.explicit_scalar_dtype", true,
+      shape.push_back(d->WithExtraStateScope<bool>("ir.explicit_value_type", true,
                                                    [&] { return d->Translate(dim).value(); }));
     } else {
-      d->WithExtraStateScope<bool>("ir.explicit_scalar_dtype", false,
+      d->WithExtraStateScope<bool>("ir.explicit_value_type", false,
                                    [&] { shape.push_back(d->Translate(dim).value()); });
     }
   }
@@ -83,12 +83,12 @@ ffi::Optional<ExprDoc> TensorTypeDocTranslate(DocTranslatorObj* d, ffi::AnyView 
     keys.push_back(key);
     values.push_back(value);
   };
-  if (tensor->storage_scope != runtime::MemoryScope::Global()) {
-    optional("scope", LiteralDoc::Str(tensor->storage_scope.name(), std::nullopt));
+  if (tensor->scope != runtime::MemoryScope::Global()) {
+    optional("scope", LiteralDoc::Str(tensor->scope.name(), std::nullopt));
   }
   if (!tensor->strides.empty()) optional("strides", d->Translate(tensor->strides).value());
   if (!ffi::StructuralEqual()(tensor->elem_offset, IntImm(tirx::DefaultIndexPrimType(), 0))) {
-    optional("elem_offset", d->WithExtraStateScope<bool>("ir.explicit_scalar_dtype", true, [&] {
+    optional("elem_offset", d->WithExtraStateScope<bool>("ir.explicit_value_type", true, [&] {
       return d->Translate(tensor->elem_offset).value();
     }));
   }

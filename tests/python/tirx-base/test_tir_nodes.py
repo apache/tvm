@@ -331,7 +331,7 @@ def test_scoped_storage_vars():
     ptype = tvm.ir.PtrType(tvm.ir.PrimType(dtype), storage_scope)
     x = tvm.tirx.Var("xyz", ptype)
     assert x.ty == ptype
-    assert x.ty.storage_scope == tvm.runtime.MemoryScope(storage_scope)
+    assert x.ty.scope == tvm.runtime.MemoryScope(storage_scope)
     assert isinstance(ptype.element_type, tvm.ir.PrimType)
 
 

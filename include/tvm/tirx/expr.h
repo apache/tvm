@@ -74,7 +74,7 @@ class TensorVar : public Var {
   Expr data() const { return Call(type()->DataPtrType(), tensor_data_ptr_op(), {var()}); }
 
   /*! \brief Return the storage scope associated with this tensor. */
-  runtime::MemoryScope scope() const { return (*this)->storage_scope; }
+  runtime::MemoryScope scope() const { return (*this)->scope; }
 
   /*!
    * \brief Return a new tensor with the allocated address.

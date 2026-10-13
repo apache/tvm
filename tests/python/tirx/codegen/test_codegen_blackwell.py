@@ -71,10 +71,10 @@ def _assert_remote_mbarrier_ir(func, arrive_op_name, n_arrives=1):
     assert len(mapa_calls) == 1
     assert arrive_calls
     assert isinstance(bindings[0].var.ty, tvm.ir.PtrType)
-    assert bindings[0].var.ty.storage_scope == tvm.runtime.MemoryScope("shared")
-    assert bindings[0].value.ty.storage_scope == tvm.runtime.MemoryScope("shared")
+    assert bindings[0].var.ty.scope == tvm.runtime.MemoryScope("shared")
+    assert bindings[0].value.ty.scope == tvm.runtime.MemoryScope("shared")
     assert tensors[0].value.args[0].same_as(bindings[0].var)
-    assert tensors[0].value.args[0].ty.storage_scope == tvm.runtime.MemoryScope("shared")
+    assert tensors[0].value.args[0].ty.scope == tvm.runtime.MemoryScope("shared")
     assert tensors[0].var.scope() == tvm.runtime.MemoryScope("shared")
     # ptx operand order is the PTX operand order: mapa writes its result into
     # a destination the caller declared, so args are (d, a, b) and the arrive

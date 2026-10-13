@@ -648,8 +648,8 @@ class StorageLegalizer : public StmtExprMutator {
       }
       Call call = ret.as_or_throw<Call>();
       Type new_element_type = GetStorageUIntDType(ffi::GetRef<PrimType>(element_type));
-      return Call(PtrType(new_element_type, pointer_type->storage_scope), call->op, call->args,
-                  call->attrs, call->ty_args, call->loc);
+      return Call(PtrType(new_element_type, pointer_type->scope), call->op, call->args, call->attrs,
+                  call->ty_args, call->loc);
     }
     if (!op->ty.as<PrimTypeNode>()) {
       return StmtExprMutator::Mutate_(op, inplace_mode);
@@ -703,7 +703,7 @@ class StorageLegalizer : public StmtExprMutator {
         PrimType elem_prim_type = ffi::GetRef<PrimType>(elem_type);
         if (MatchType(elem_prim_type)) {
           Var new_var =
-              Var(var->name, PtrType(GetStorageUIntDType(elem_prim_type), ptr_type->storage_scope));
+              Var(var->name, PtrType(GetStorageUIntDType(elem_prim_type), ptr_type->scope));
           VarRemapSet(var, new_var);
           return new_var;
         }

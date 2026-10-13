@@ -59,7 +59,7 @@ ffi::Optional<ExprDoc> IRModuleDocTranslate(DocTranslatorObj* d, ffi::AnyView in
                   for (const auto& [key, value] : attrs) {
                     keys.push_back(LiteralDoc::Str(key, std::nullopt));
                     values.push_back(
-                        d->WithExtraStateScope<bool>("ir.explicit_scalar_dtype", true,
+                        d->WithExtraStateScope<bool>("ir.explicit_value_type", true,
                                                      [&] { return d->Translate(value).value(); }));
                   }
                   d->Emit(
@@ -78,7 +78,7 @@ ffi::Optional<ExprDoc> IRModuleDocTranslate(DocTranslatorObj* d, ffi::AnyView in
                     ffi::Array<ExprDoc> items;
                     for (const GlobalInfo& entry : entries) {
                       items.push_back(d->WithExtraStateScope<bool>(
-                          "ir.explicit_scalar_dtype", true,
+                          "ir.explicit_value_type", true,
                           [&] { return d->Translate(entry).value(); }));
                     }
                     keys.push_back(LiteralDoc::Str(key, std::nullopt));

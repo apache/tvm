@@ -169,7 +169,7 @@ def lower(opcode, entry, modifiers, args, params, sctx):
         raise ValueError("tcgen05.mma D requires M/N repeat axes before the atom")
     batch, mr, nr = d_shape[:-4], d_shape[-4], d_shape[-3]
     nb = len(batch)
-    a_tmem = args[1].source.ty.storage_scope == MemoryScope("tmem")
+    a_tmem = args[1].source.ty.scope == MemoryScope("tmem")
     a_atom = (2, M // cta_group, K) if a_tmem and ws and M == 64 else (M // cta_group, K)
     a_shape = tuple(int(r.extent) for r in args[1].region)[ng:]
     kr = a_shape[-len(a_atom) - 1]

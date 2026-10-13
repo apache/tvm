@@ -55,8 +55,7 @@ Type InferTypeDeclTmem(const CallNode* call) {
   TVM_FFI_CHECK_EQ(call->ty_args.size(), 1U, ValueError)
       << "decl_tmem expects exactly one TensorType argument";
   auto type = call->ty_args[0].as_or_throw<TensorType>();
-  TVM_FFI_CHECK(type->storage_scope == scope_tmem, ValueError)
-      << "decl_tmem requires a tmem tensor type";
+  TVM_FFI_CHECK(type->scope == scope_tmem, ValueError) << "decl_tmem requires a tmem tensor type";
   auto addr_type = call->args[0]->ty.as_or_throw<PrimType>();
   TVM_FFI_CHECK(addr_type.IsScalar() &&
                     addr_type.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt) &&
