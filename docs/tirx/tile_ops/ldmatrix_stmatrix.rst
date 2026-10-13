@@ -55,8 +55,7 @@ Example: interleaved shared rows and register slots 0, 2, 8, 10
 Here the original shared tensor is ``(16,4,2):(8,1,128)``. The first matrix
 uses even original rows, the second uses odd rows, and the final original
 axis selects the second instruction. The factory below includes shared
-initialization, synchronization, and readback; call it with its default
-``partial=False, block=32`` arguments.
+initialization, synchronization, and readback for one warp.
 
 .. code-block:: python
 
@@ -66,9 +65,34 @@ initialization, synchronization, and readback; call it with its default
 
     LDMATRIX = "ldmatrix.sync.aligned.m8n8.x2.shared.b16"
 
-.. literalinclude:: ../../../tests/python/tirx/tile/cuda/test_explicit_patterns.py
-   :pyobject: matrix_kernel
-   :language: python
+    def matrix_kernel():
+        shared = TileLayout(S[(16, 4, 2) : (8, 1, 128)])
+        registers = TileLayout(S[(2, 2, 8, 4) : (8, 2, 4 @ laneid, 1 @ laneid)])
+
+        @T.function
+        def kernel(A: T.Tensor((16, 4, 2), "uint32"), Out: T.Tensor((32, 12), "uint32")):
+            T.device_entry(launch=T.cuda.LaunchConfig(grid=1, block=32))
+            lane = T.cuda.lane_id()
+            SM = T.alloc_tensor(
+                ty_args=[T.Tensor((16, 4, 2), "uint32", scope="shared", layout=shared, align=16)]
+            )
+            for q in range(4):
+                n = lane + 32 * q
+                SM[n // 8, (n // 2) % 4, n % 2] = A[n // 8, (n // 2) % 4, n % 2]
+            T.cuda.cta_sync()
+            raw = T.alloc_tensor(ty_args=[T.Tensor((12,), "uint32", scope="local", layout="default")])
+            for i in T.unroll(12):
+                raw[i] = T.uint32(4294966519)  # bit pattern of int32(-777)
+            R = T.decl_tensor(
+                raw.ptr_to([0]),
+                ty_args=[T.Tensor((2, 2, 8, 4), "uint32", scope="local", layout=registers)],
+            )
+            S_std = SM.rearrange("(r m) w k -> k m r w", r=8, m=2)
+            T.cuda.tile.apply(T.ptx[LDMATRIX], R, S_std, scope="warp")
+            for i in T.unroll(12):
+                Out[lane, i] = raw[i]
+
+        return kernel
 
 ``S_std[k,m,r,w]`` is ``SM[2*r+m,w,k]`` and has strides ``(128,8,16,1)``.
 Both operands have shape ``(2,2,8,4)``: one repeat axis of length two,
