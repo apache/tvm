@@ -28,6 +28,8 @@ import tvm.testing
 from tvm.backend.cuda.axis import TCol, TLane
 from tvm.backend.cuda.axis import tid_in_wg as axis_tid_in_wg
 from tvm.backend.cuda.layout import (
+    mma_atom_layout,
+    mma_atom_shape,
     mma_shared_layout,
     sf_tmem_layout,
     tcgen05_atom_layout,
@@ -2837,3 +2839,924 @@ def test_gemm_block_scaled_fp8_sf_id():
             assert not np.allclose(A_scale[:, 0], A_scale[:, i], atol=1e-6), (
                 f"Test requires A blocks 0 and {i} to have different scales"
             )
+
+
+def _mid_stage_layout(dtype, swizzle_mode, shape):
+    """Build SMEM layout for shape (D0, stages, D1) where the middle dim
+    (stages) has the highest stride and the [D0, D1] subspace uses the
+    standard swizzle atom.  E.g. shape=(128, 3, 64) → stages stride 8192."""
+    base_2d = mma_shared_layout(dtype, swizzle_mode, (shape[0], shape[-1]))
+    return base_2d.tile_to(shape, [shape[0], 1, shape[-1]])
+
+
+def _mn_major_layout(dtype, swizzle_mode, shape):
+    """Construct MN-major (column-major) SMEM layout: penultimate dim contiguous within atom.
+
+    For shape (..., M, K), the standard K-major atom is [8, T*s] with K contiguous.
+    MN-major swaps this: atom becomes [T*s, 8] with M contiguous.
+    This is achieved by composing the swizzle with a stride-reversed TileLayout.
+    """
+    from tvm.tirx.layout import ComposeLayout
+
+    swizzle_atom = mma_atom_layout(dtype, swizzle_mode)
+    base_shape = mma_atom_shape(dtype, swizzle_mode)  # 2D: [8, T*s]
+    swapped = [base_shape[1], base_shape[0]]  # [T*s, 8]
+    # Stride-reversed tile: first dim (T*s) contiguous, second dim (8) has stride T*s
+    mn_tile = TileLayout(S[tuple(swapped) : (1, swapped[0])])
+    mn_atom = ComposeLayout(
+        swizzle_atom.per_element,
+        swizzle_atom.swizzle_len,
+        swizzle_atom.atom_len,
+        mn_tile,
+        swizzle_atom.swizzle_inner,
+    )
+    # Tile up: first expand penultimate dim, then full shape
+    tile_step = [1] * (len(shape) - 2) + [shape[-2], swapped[1]]
+    atom_nd = [1] * (len(shape) - 2) + swapped
+    return mn_atom.tile_to(tile_step, atom_nd).tile_to(shape, tile_step).canonicalize()
+
+
+def _col_major_layout(shape):
+    """Simple column-major layout: penultimate dim contiguous, last dim strided.
+
+    For shape (..., M, K): physical order has M stride=1, K stride=M.
+    Leading dims cover the full inner block.
+    """
+    strides = [0] * len(shape)
+    strides[-2] = 1  # M contiguous
+    strides[-1] = shape[-2]  # K stride = M
+    inner_size = shape[-2] * shape[-1]
+    for i in range(len(shape) - 3, -1, -1):
+        strides[i] = inner_size
+        inner_size *= shape[i]
+    return TileLayout(S[tuple(shape) : tuple(strides)])
+
+
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(10), reason="need cuda compute >= 10.0")
+@pytest.mark.parametrize(
+    "task,copy_perm,a_major,b_major,a_descriptor",
+    [
+        (task, *recipe)
+        for task, recipe in zip(
+            [
+                # B00005 fix: fp16 K=128 (K > swizzle atom width 64), K_iters=8
+                (
+                    ((128, 128), "float32", [(0, 128), (0, 128)]),  # C
+                    ((3, 128, 128), "float16", [(1, 2), (0, 128), (0, 128)], 3),  # A
+                    ((3, 128, 128), "float16", [(2, 3), (0, 128), (0, 128)], 3),  # B
+                    False,  # transA
+                    False,  # transB
+                    1,  # cta_group
+                ),
+                # B00005 fix: fp16 K=128 with N=64 (different output width), K_iters=8
+                (
+                    ((128, 64), "float32", [(0, 128), (0, 64)]),  # C
+                    ((3, 128, 128), "float16", [(1, 2), (0, 128), (0, 128)], 3),  # A
+                    ((3, 64, 128), "float16", [(2, 3), (0, 64), (0, 128)], 3),  # B
+                    False,  # transA
+                    False,  # transB
+                    1,  # cta_group
+                ),
+                # Transposed B: B stored as [K, N] instead of [N, K]
+                (
+                    ((128, 128), "float32", [(0, 128), (0, 128)]),  # C
+                    ((3, 128, 64), "float16", [(1, 2), (0, 128), (0, 64)], 3),  # A: [stages, M, K]
+                    ((3, 64, 128), "float16", [(2, 3), (0, 64), (0, 128)], 3),  # B: [stages, K, N]
+                    False,  # transA
+                    True,  # transB
+                    1,  # cta_group
+                ),
+                # Transposed A: A stored as [K, M] instead of [M, K]
+                (
+                    ((128, 128), "float32", [(0, 128), (0, 128)]),  # C
+                    ((3, 64, 128), "float16", [(1, 2), (0, 64), (0, 128)], 3),  # A: [stages, K, M]
+                    ((3, 128, 64), "float16", [(2, 3), (0, 128), (0, 64)], 3),  # B: [stages, N, K]
+                    True,  # transA
+                    False,  # transB
+                    1,  # cta_group
+                ),
+                # Both transposed + K=128 (combines B00005 fix with transpose)
+                (
+                    ((128, 128), "float32", [(0, 128), (0, 128)]),  # C
+                    (
+                        (3, 128, 128),
+                        "float16",
+                        [(1, 2), (0, 128), (0, 128)],
+                        3,
+                    ),  # A: [stages, K=128, M=128]
+                    (
+                        (3, 128, 128),
+                        "float16",
+                        [(2, 3), (0, 128), (0, 128)],
+                        3,
+                    ),  # B: [stages, K=128, N=128]
+                    True,  # transA
+                    True,  # transB
+                    1,  # cta_group
+                ),
+                # Unit dim in middle: A stored as [M, stages, K] with stages as middle dim
+                (
+                    ((128, 128), "float32", [(0, 128), (0, 128)]),  # C
+                    (
+                        (128, 3, 64),
+                        "float16",
+                        [(0, 128), (1, 2), (0, 64)],  # A: [M, stages, K], stage 1
+                        _mid_stage_layout("float16", 3, (128, 3, 64)),
+                    ),  # custom layout
+                    ((3, 128, 64), "float16", [(2, 3), (0, 128), (0, 64)], 3),  # B: [stages, N, K]
+                    False,  # transA
+                    False,  # transB
+                    1,  # cta_group
+                ),
+                # MN-major A: both global and SMEM use MN-major (M contiguous).
+                # Square inner dims (M=K=128) so column-major reinterpretation = clean transpose.
+                (
+                    ((128, 128), "float32", [(0, 128), (0, 128)]),  # C: [M=128, N=128]
+                    (
+                        (3, 128, 128),
+                        "float16",
+                        [(1, 2), (0, 128), (0, 128)],  # A: [stages, M=128, K=128]
+                        _mn_major_layout("float16", 3, (3, 128, 128)),  # SMEM: swizzled MN-major
+                        _col_major_layout((3, 128, 128)),  # global: column-major
+                        (0, 2, 1),
+                    ),  # ref_perm: transpose inner dims for reference
+                    (
+                        (3, 128, 128),
+                        "float16",
+                        [(2, 3), (0, 128), (0, 128)],
+                        3,
+                    ),  # B: [stages, N=128, K=128]
+                    False,  # transA
+                    False,  # transB
+                    1,  # cta_group
+                ),
+                # transA + K-major SMEM: A is [K, M] with K (penultimate) contiguous in SMEM.
+                # Exercises transposed K-major ldo/sdo swap (is_mn_major=F, is_transposed=T).
+                (
+                    ((128, 128), "float32", [(0, 128), (0, 128)]),  # C: [M=128, N=128]
+                    (
+                        (3, 128, 128),
+                        "float16",
+                        [(1, 2), (0, 128), (0, 128)],  # A: [stages, K=128, M=128]
+                        _mn_major_layout(
+                            "float16", 3, (3, 128, 128)
+                        ),  # SMEM: K (penultimate) contiguous
+                        _col_major_layout((3, 128, 128)),  # global: column-major (K contiguous)
+                        (0, 2, 1),
+                    ),  # ref_perm: transpose inner dims for reference
+                    (
+                        (3, 128, 128),
+                        "float16",
+                        [(2, 3), (0, 128), (0, 128)],
+                        3,
+                    ),  # B: [stages, N=128, K=128]
+                    True,  # transA
+                    False,  # transB
+                    1,  # cta_group
+                ),
+            ],
+            [
+                ((0, 1, 2), "k", "k", (16, 1024, 3)),
+                ((0, 1, 2), "k", "k", (16, 1024, 3)),
+                ((0, 1, 2), "k", "mn", (16, 1024, 3)),
+                ((0, 1, 2), "mn", "k", (8192, 1024, 3)),
+                ((0, 1, 2), "mn", "mn", (16384, 1024, 3)),
+                ((1, 0, 2), "k", "k", (16, 1024, 3)),
+                ((0, 2, 1), "mn", "k", (1024, 2048, 3)),
+                ((0, 2, 1), "k", "k", (1024, 2048, 3)),
+            ],
+        )
+    ],
+    ids=[
+        "fp16_K128",
+        "fp16_K128_N64",
+        "transB",
+        "transA",
+        "transAB_K128",
+        "unit_dim_middle",
+        "mn_major",
+        "transA_kmajor_smem",
+    ],
+)
+def test_gemm_tcgen05_arbitrary_tiles(task, copy_perm, a_major, b_major, a_descriptor):
+    """Preserve the original arbitrary tiles through fixed caller views.
+
+    Validates B00005 fix (K > atom width) and M/N decomposition.
+
+    A/B spec tuples: (shape, dtype, region, smem_layout_or_swizzle[, gmem_layout[, ref_perm]]).
+    gmem_layout: optional global memory layout (default: row-major).
+    ref_perm: optional numpy axis permutation for reference data. When the global
+      layout is column-major, row-major numpy bytes are reinterpreted by the kernel,
+      so the reference must transpose accordingly (e.g. (0, 2, 1) for inner transpose).
+    """
+    ((C_shape, C_dtype, C_region), A_spec, B_spec, transA, transB, cta_group) = task
+    A_shape, A_dtype, A_region, A_swizzle_mode = A_spec[:4]
+    A_gmem_layout = A_spec[4] if len(A_spec) > 4 else None
+    A_ref_perm = A_spec[5] if len(A_spec) > 5 else None
+    B_shape, B_dtype, B_region, B_swizzle_mode = B_spec[:4]
+    B_gmem_layout = B_spec[4] if len(B_spec) > 4 else None
+    B_ref_perm = B_spec[5] if len(B_spec) > 5 else None
+    M = C_region[0][1] - C_region[0][0]
+    N = C_region[1][1] - C_region[1][0]
+    C_elem_bytes = tvm.runtime.DataType(C_dtype).bits // 8
+    C_elem_32b = 4 // C_elem_bytes
+    cols_alloc = max(32, next_power_of_2(C_shape[1] // C_elem_32b))
+    A_elem_bytes = tvm.runtime.DataType(A_dtype).bits // 8
+    B_elem_bytes = tvm.runtime.DataType(B_dtype).bits // 8
+    # Accept either swizzle mode (int) or pre-built layout
+    A_layout = (
+        A_swizzle_mode
+        if not isinstance(A_swizzle_mode, int)
+        else mma_shared_layout(A_dtype, A_swizzle_mode, A_shape)
+    )
+    B_layout = (
+        B_swizzle_mode
+        if not isinstance(B_swizzle_mode, int)
+        else mma_shared_layout(B_dtype, B_swizzle_mode, B_shape)
+    )
+
+    r_gmem_A = list(slice(0, A_shape[i]) for i in range(len(A_shape)))
+    r_gmem_B = list(slice(0, B_shape[i]) for i in range(len(B_shape)))
+    total_bytes = (
+        functools.reduce(operator.mul, A_shape, 1) * A_elem_bytes
+        + functools.reduce(operator.mul, B_shape, 1) * B_elem_bytes
+    )
+
+    r_tmem_C = list(slice(C_region[i][0], C_region[i][1]) for i in range(len(C_shape)))
+    r_smem_A = list(slice(A_region[i][0], A_region[i][1]) for i in range(len(A_shape)))
+    r_smem_B = list(slice(B_region[i][0], B_region[i][1]) for i in range(len(B_shape)))
+
+    a_active = tuple(hi - lo for lo, hi in A_region if hi - lo != 1)
+    K = a_active[0] if transA else a_active[1]
+    copy_a_shape = tuple(A_shape[i] for i in copy_perm)
+    copy_b_shape = B_shape
+
+    A_gmem_kw = {"layout": A_gmem_layout} if A_gmem_layout is not None else {}
+    B_gmem_kw = {"layout": B_gmem_layout} if B_gmem_layout is not None else {}
+
+    @T.function
+    def gemm_async(
+        A: T.Tensor(A_shape, A_dtype, **A_gmem_kw),
+        B: T.Tensor(B_shape, B_dtype, **B_gmem_kw),
+        C: T.Tensor(C_shape, C_dtype),
+    ) -> None:
+        ag = A.permute(*copy_perm)
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=1 * 4 * 32))
+        warp_id = T.cuda.warp_id()
+        cta_id = T.cuda.block_idx("x")
+        wg_id = T.cuda.warpgroup_id()
+        tid_in_wg = T.cuda.thread_in_warpgroup()
+
+        A_smem = T.alloc_tensor(
+            ty_args=[
+                T.Tensor(
+                    A_shape,
+                    A_dtype,
+                    scope="shared",
+                    layout=A_layout,
+                    align=1024,
+                )
+            ],
+        )
+        B_smem = T.alloc_tensor(
+            ty_args=[
+                T.Tensor(
+                    B_shape,
+                    B_dtype,
+                    scope="shared",
+                    layout=B_layout,
+                    align=1024,
+                )
+            ],
+        )
+        tmem_addr = T.alloc_shared([1], "uint32", layout="default")
+        tma_mbar = T.alloc_shared([1], "uint64", layout="default")
+        mma_mbar = T.alloc_shared([1], "uint64", layout="default")
+
+        if tid_in_wg == 0:
+            T.ptx.mbarrier.init.shared.b64(tma_mbar.ptr_to([0]), T.uint32(1))
+            T.ptx.mbarrier.init.shared.b64(mma_mbar.ptr_to([0]), T.uint32(1))
+        T.ptx.fence.proxy.async_.shared__cta()
+        T.cuda.cta_sync()
+
+        if warp_id == 0:
+            T.ptx[f"tcgen05.alloc.cta_group::{cta_group}.sync.aligned.shared::cta.b32"](
+                T.address_of(tmem_addr), T.uint32(cols_alloc)
+            )
+        T.cuda.cta_sync()
+        tmem = T.cuda.decl_tmem(
+            tmem_addr[0],
+            ty_args=[
+                T.Tensor(
+                    (M, C_shape[1]),
+                    C_dtype,
+                    scope="tmem",
+                    layout=TileLayout(S[(M, C_shape[1]) : (1 @ TLane, 1 @ TCol)]),
+                )
+            ],
+        )
+
+        ash = A_smem.permute(*copy_perm)
+        # Each issue is one physical swizzle atom. The outer coordinates
+        # explicitly tile the original stage, row and column dimensions.
+        acopy = ash.rearrange("stage (rg r) (cg c) -> stage rg cg r c", r=8, c=64).view(
+            copy_a_shape[0], copy_a_shape[1] // 8, copy_a_shape[2] // 64, 1, 8, 64
+        )
+        bcopy = B_smem.rearrange("stage (rg r) (cg c) -> stage rg cg r c", r=8, c=64).view(
+            copy_b_shape[0], copy_b_shape[1] // 8, copy_b_shape[2] // 64, 1, 8, 64
+        )
+        if tid_in_wg == 0:
+            T.cuda.tile.apply(
+                T.ptx[
+                    "cp.async.bulk.tensor.3d.shared::cta.global.tile.mbarrier::complete_tx::bytes"
+                ],
+                acopy,
+                ag,
+                box=(1, 8, 64),
+                coords=(0, 0, 0),
+                coord_steps=((1, 0, 0), (0, 8, 0), (0, 0, 64)),
+                swizzle=3,
+                mbar=tma_mbar.ptr_to([0]),
+            )
+            T.cuda.tile.apply(
+                T.ptx[
+                    "cp.async.bulk.tensor.3d.shared::cta.global.tile.mbarrier::complete_tx::bytes"
+                ],
+                bcopy,
+                B,
+                box=(1, 8, 64),
+                coords=(0, 0, 0),
+                coord_steps=((1, 0, 0), (0, 8, 0), (0, 0, 64)),
+                swizzle=3,
+                mbar=tma_mbar.ptr_to([0]),
+            )
+            T.ptx.mbarrier.arrive.expect_tx.shared.b64(tma_mbar.ptr_to([0]), T.uint32(total_bytes))
+        T.cuda.mbarrier_wait(tma_mbar.ptr_to([0]), 0)
+        T.cuda.cta_sync()
+
+        if T.constexpr(transA):
+            amatrix = A_smem.sub[tuple(r_smem_A)].view(K, M).permute(1, 0)
+        else:
+            amatrix = A_smem.sub[tuple(r_smem_A)].view(M, K)
+        if T.constexpr(transB):
+            bmatrix = B_smem.sub[tuple(r_smem_B)].view(K, N).permute(1, 0)
+        else:
+            bmatrix = B_smem.sub[tuple(r_smem_B)].view(N, K)
+        av = amatrix.rearrange("(mr m) (kr k) -> mr kr m k", m=128, k=16)
+        bv = bmatrix.rearrange("(nr n) (kr k) -> nr kr n k", n=64, k=16)
+        dv = tmem.sub[tuple(r_tmem_C)].rearrange("(mr m) (nr n) -> mr nr m n", m=128, n=64)
+        if tid_in_wg == 0:
+            # The second call must overwrite the first product. Its internal
+            # K repeats still accumulate after the first instruction.
+            T.cuda.tile.apply(
+                T.ptx["tcgen05.mma.cta_group::1.kind::f16"],
+                dv,
+                av,
+                bv,
+                instruction_shape=(128, 64, 16),
+                a_major=a_major,
+                b_major=b_major,
+                a_descriptor=a_descriptor,
+                b_descriptor=(16, 1024, 3),
+                accum=False,
+            )
+            T.cuda.tile.apply(
+                T.ptx["tcgen05.mma.cta_group::1.kind::f16"],
+                dv,
+                av,
+                bv,
+                instruction_shape=(128, 64, 16),
+                a_major=a_major,
+                b_major=b_major,
+                a_descriptor=a_descriptor,
+                b_descriptor=(16, 1024, 3),
+            )
+            T.ptx[
+                f"tcgen05.commit.cta_group::{cta_group}.mbarrier::arrive::one.shared::cluster.b64"
+            ](mma_mbar.ptr_to([0]))
+        T.cuda.mbarrier_wait(mma_mbar.ptr_to([0]), 0)
+        T.cuda.cta_sync()
+
+        T.ptx.tcgen05.fence__after_thread_sync()
+        C_reg = T.alloc_local(N, dtype=C_dtype, layout="default")
+        C_view = C_reg.view(M, N, layout=TileLayout(S[(M, N) : (1 @ axis_tid_in_wg, 1)]))
+        if wg_id == 0:
+            T.cuda.tile.apply(
+                T.ptx[f"tcgen05.ld.sync.aligned.32x32b.x{N}.b32"],
+                C_view.view(4, 32, N),
+                tmem.sub[tuple(r_tmem_C)].view(4, 32, N),
+                scope="warpgroup",
+            )
+            T.ptx.tcgen05.wait__ld.sync.aligned()
+        T.cuda.cta_sync()
+        for col in T.serial(N):
+            C[tid_in_wg, C_region[1][0] + col] = C_reg[col]
+
+        if warp_id == 0:
+            T.ptx[f"tcgen05.relinquish_alloc_permit.cta_group::{cta_group}.sync.aligned"]()
+            T.ptx[f"tcgen05.dealloc.cta_group::{cta_group}.sync.aligned.b32"](
+                tmem_addr[0], T.uint32(cols_alloc)
+            )
+
+    np.random.seed(0)
+
+    target = tvm.target.Target({"kind": "cuda", "arch": "sm_100a"})
+    with target:
+        mod = tvm.IRModule({"main": gemm_async})
+        mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
+
+        A_np = np.random.randn(*A_shape).astype(A_dtype)
+        B_np = np.random.randn(*B_shape).astype(B_dtype)
+        C_np = np.zeros(C_shape, dtype=C_dtype)
+        C_ref = np.zeros(C_shape, dtype=C_dtype)
+        # Apply ref_perm: when global layout differs from row-major, the kernel
+        # reinterprets the flat bytes, so the reference must transpose accordingly.
+        # Permute both the numpy array and the region indices.
+        if A_ref_perm is not None:
+            A_np_ref = A_np.transpose(A_ref_perm)
+            r_smem_A_ref = [r_smem_A[i] for i in A_ref_perm]
+        else:
+            A_np_ref, r_smem_A_ref = A_np, r_smem_A
+        if B_ref_perm is not None:
+            B_np_ref = B_np.transpose(B_ref_perm)
+            r_smem_B_ref = [r_smem_B[i] for i in B_ref_perm]
+        else:
+            B_np_ref, r_smem_B_ref = B_np, r_smem_B
+        A_ref = np.squeeze(
+            A_np_ref[tuple(r_smem_A_ref)] if not transA else A_np_ref[tuple(r_smem_A_ref)].T
+        )
+        B_ref = np.squeeze(
+            B_np_ref[tuple(r_smem_B_ref)] if transB else B_np_ref[tuple(r_smem_B_ref)].T
+        )
+        C_ref[tuple(r_tmem_C)] = A_ref @ B_ref
+
+        def run_and_check():
+            dev = tvm.cuda(0)
+            A_tvm = tvm.runtime.tensor(A_np, dev)
+            B_tvm = tvm.runtime.tensor(B_np, dev)
+            C_tvm = tvm.runtime.tensor(C_np, dev)
+            mod["main"](A_tvm, B_tvm, C_tvm)
+            np.testing.assert_allclose(C_tvm.numpy(), C_ref, atol=1e-3, rtol=1e-3)
+
+        tvm.testing.run_with_gpu_lock(run_and_check)
+
+
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(10), reason="need cuda compute >= 10.0")
+@pytest.mark.parametrize("k_lo,k_hi", [(0, 16), (0, 32), (16, 32), (16, 48), (32, 64)])
+def test_gemm_tcgen05_contiguous_kslice_partial_k(k_lo, k_hi):
+    """A slice on the *contiguous* (K) axis of a swizzled gemm_async operand must
+    compute the correct partial-K product, not silently use full K.
+
+    The operand tensor is 128B-swizzled (contiguous atom = 64 elems for fp16) and
+    the gemm operand is sliced to K=[lo:hi] on that axis. The descriptor is
+    anchored on the tensor's physical swizzle while K_iters covers only the slice,
+    so the MMA accumulates exactly k in [lo, hi) -- enabling fine K-major split-K.
+    Any MMA_K(16)-aligned [lo:hi] is supported.
+    """
+    M, N, K_alloc = 128, 128, 64
+    dtype = "float16"
+    A_shape, B_shape, C_shape = (M, K_alloc), (N, K_alloc), (M, N)
+    A_layout = mma_shared_layout(dtype, 3, A_shape)
+    B_layout = mma_shared_layout(dtype, 3, B_shape)
+    total_bytes = (M * K_alloc + N * K_alloc) * 2
+
+    @T.function
+    def gemm_async(
+        A: T.Tensor(A_shape, dtype), B: T.Tensor(B_shape, dtype), C: T.Tensor(C_shape, "float32")
+    ) -> None:
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=1, block=4 * 32))
+        warp_id = T.cuda.warp_id()
+        wg_id = T.cuda.warpgroup_id()
+        tid_in_wg = T.cuda.thread_in_warpgroup()
+        A_smem = T.alloc_tensor(
+            ty_args=[T.Tensor(A_shape, dtype, scope="shared", layout=A_layout, align=1024)]
+        )
+        B_smem = T.alloc_tensor(
+            ty_args=[T.Tensor(B_shape, dtype, scope="shared", layout=B_layout, align=1024)]
+        )
+        tmem_addr = T.alloc_shared([1], "uint32", layout="default")
+        tma_mbar = T.alloc_shared([1], "uint64", layout="default")
+        mma_mbar = T.alloc_shared([1], "uint64", layout="default")
+        if tid_in_wg == 0:
+            T.ptx.mbarrier.init.shared.b64(tma_mbar.ptr_to([0]), T.uint32(1))
+            T.ptx.mbarrier.init.shared.b64(mma_mbar.ptr_to([0]), T.uint32(1))
+        T.ptx.fence.proxy.async_.shared__cta()
+        T.cuda.cta_sync()
+        if warp_id == 0:
+            T.ptx.tcgen05.alloc.cta_group__1.sync.aligned.shared__cta.b32(
+                T.address_of(tmem_addr), T.uint32(128)
+            )
+        T.cuda.cta_sync()
+        tmem = T.cuda.decl_tmem(
+            tmem_addr[0],
+            ty_args=[
+                T.Tensor(
+                    (128, N),
+                    "float32",
+                    scope="tmem",
+                    layout=TileLayout(S[(128, N) : (1 @ TLane, 1 @ TCol)]),
+                )
+            ],
+        )
+        if tid_in_wg == 0:
+            T.cuda.tile.apply(
+                T.ptx[
+                    "cp.async.bulk.tensor.2d.shared::cta.global.tile.mbarrier::complete_tx::bytes"
+                ],
+                A_smem,
+                A,
+                box=(M, K_alloc),
+                coords=(0, 0),
+                swizzle=3,
+                mbar=tma_mbar.ptr_to([0]),
+            )
+            T.cuda.tile.apply(
+                T.ptx[
+                    "cp.async.bulk.tensor.2d.shared::cta.global.tile.mbarrier::complete_tx::bytes"
+                ],
+                B_smem,
+                B,
+                box=(N, K_alloc),
+                coords=(0, 0),
+                swizzle=3,
+                mbar=tma_mbar.ptr_to([0]),
+            )
+            T.ptx.mbarrier.arrive.expect_tx.shared.b64(tma_mbar.ptr_to([0]), T.uint32(total_bytes))
+        T.cuda.mbarrier_wait(tma_mbar.ptr_to([0]), 0)
+        T.cuda.cta_sync()
+        if tid_in_wg == 0:
+            # Contiguous-axis K slice [k_lo:k_hi] -> must accumulate only that K range.
+            av = A_smem.sub[:, k_lo:k_hi].rearrange("(mr m) (kr k) -> mr kr m k", m=M, k=16)
+            bv = B_smem.sub[:, k_lo:k_hi].rearrange("(nr n) (kr k) -> nr kr n k", n=N, k=16)
+            T.cuda.tile.apply(
+                T.ptx["tcgen05.mma.cta_group::1.kind::f16"],
+                tmem.view(1, 1, M, N),
+                av,
+                bv,
+                instruction_shape=(128, 128, 16),
+                a_descriptor=(16, 1024, 3),
+                b_descriptor=(16, 1024, 3),
+            )
+            T.ptx.tcgen05.commit.cta_group__1.mbarrier__arrive__one.shared__cluster.b64(
+                mma_mbar.ptr_to([0])
+            )
+        T.cuda.mbarrier_wait(mma_mbar.ptr_to([0]), 0)
+        T.cuda.cta_sync()
+        T.ptx.tcgen05.fence__after_thread_sync()
+        C_reg = T.alloc_local(N, dtype="float32", layout="default")
+        C_view = C_reg.view(128, N, layout=TileLayout(S[(128, N) : (1 @ axis_tid_in_wg, 1)]))
+        if wg_id == 0:
+            T.cuda.tile.apply(
+                T.ptx["tcgen05.ld.sync.aligned.32x32b.x128.b32"],
+                C_view.view(4, 32, N),
+                tmem.view(4, 32, N),
+                scope="warpgroup",
+            )
+            T.ptx.tcgen05.wait__ld.sync.aligned()
+        T.cuda.cta_sync()
+        for col in T.serial(N):
+            C[tid_in_wg, col] = C_reg[col]
+        if warp_id == 0:
+            T.ptx.tcgen05.relinquish_alloc_permit.cta_group__1.sync.aligned()
+            T.ptx.tcgen05.dealloc.cta_group__1.sync.aligned.b32(tmem_addr[0], T.uint32(128))
+
+    np.random.seed(0)
+    with tvm.target.Target({"kind": "cuda", "arch": "sm_100a"}):
+        mod = tvm.tirx.compile(
+            tvm.IRModule({"main": gemm_async}),
+            target={"kind": "cuda", "arch": "sm_100a"},
+            pipeline="tirx",
+        )
+    A_np = np.random.randn(*A_shape).astype(dtype)
+    B_np = np.random.randn(*B_shape).astype(dtype)
+    C_np = np.zeros(C_shape, "float32")
+    # Reference: accumulate only k in [k_lo, k_hi).
+    C_ref = A_np[:, k_lo:k_hi].astype("float32") @ B_np[:, k_lo:k_hi].astype("float32").T
+
+    def run_and_check():
+        dev = tvm.cuda(0)
+        A_t, B_t, C_t = (tvm.runtime.tensor(x, dev) for x in (A_np, B_np, C_np))
+        mod["main"](A_t, B_t, C_t)
+        np.testing.assert_allclose(C_t.numpy(), C_ref, atol=1e-2, rtol=1e-2)
+
+    tvm.testing.run_with_gpu_lock(run_and_check)
+
+
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(10), reason="need cuda compute >= 10.0")
+@pytest.mark.skipif(ml_dtypes is None, reason="Requires ml_dtypes for fp8")
+def test_gemm_dense_fp8():
+    _run_dense_gemm("float8_e4m3fn", "float8_e4m3fn", "float32", 128, atol=2.0, rtol=0.15)
+
+
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(10), reason="need cuda compute >= 10.0")
+def test_gemm_tf32_with_tfloat32_tma():
+    _run_dense_gemm(
+        "float32",
+        "float32",
+        "float32",
+        64,
+        is_AB_tf32=True,
+        tma_dtype_B="tf32",
+        atol=2e-2,
+        rtol=2e-2,
+    )
+
+
+def _run_dense_gemm(
+    A_dtype, B_dtype, C_dtype, K, *, is_AB_tf32=False, tma_dtype_B=None, atol=1e-3, rtol=1e-3
+):
+    M, N = 128, 128
+    A_shape = (M, K)
+    B_shape = (N, K)
+    C_shape = (M, N)
+    A_swizzle, B_swizzle = 3, 3
+    A_layout = mma_shared_layout(A_dtype, A_swizzle, A_shape)
+    B_layout = mma_shared_layout(B_dtype, B_swizzle, B_shape)
+    C_elem_32b = 4 // (tvm.runtime.DataType(C_dtype).bits // 8)
+    cols_alloc = max(32, next_power_of_2(N // C_elem_32b))
+    total_bytes = functools.reduce(operator.mul, A_shape, 1) * (
+        tvm.runtime.DataType(A_dtype).bits // 8
+    ) + functools.reduce(operator.mul, B_shape, 1) * (tvm.runtime.DataType(B_dtype).bits // 8)
+    instruction_k = 8 if is_AB_tf32 else 32
+    kind = "tf32" if is_AB_tf32 else "f8f6f4"
+    atom_width = 32 if is_AB_tf32 else 128
+    b_format = tma_dtype_B if tma_dtype_B is not None else B_dtype
+    a_format = "tf32" if is_AB_tf32 else A_dtype
+    mma_b_format = "tf32" if is_AB_tf32 else B_dtype
+
+    @T.function
+    def gemm_async(
+        A: T.Tensor(A_shape, A_dtype), B: T.Tensor(B_shape, B_dtype), C: T.Tensor(C_shape, C_dtype)
+    ) -> None:
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=4 * 32))
+        warp_id = T.cuda.warp_id()
+        wg_id = T.cuda.warpgroup_id()
+        tid_in_wg = T.cuda.thread_in_warpgroup()
+        A_smem = T.alloc_tensor(
+            ty_args=[T.Tensor(A_shape, A_dtype, scope="shared", layout=A_layout, align=1024)]
+        )
+        B_smem = T.alloc_tensor(
+            ty_args=[T.Tensor(B_shape, B_dtype, scope="shared", layout=B_layout, align=1024)]
+        )
+        tmem_addr = T.alloc_shared([1], "uint32", layout="default")
+        tma_mbar = T.alloc_shared([1], "uint64", layout="default")
+        mma_mbar = T.alloc_shared([1], "uint64", layout="default")
+        if tid_in_wg == 0:
+            T.ptx.mbarrier.init.shared.b64(tma_mbar.ptr_to([0]), T.uint32(1))
+            T.ptx.mbarrier.init.shared.b64(mma_mbar.ptr_to([0]), T.uint32(1))
+        T.ptx.fence.proxy.async_.shared__cta()
+        T.cuda.cta_sync()
+        if warp_id == 0:
+            T.ptx.tcgen05.alloc.cta_group__1.sync.aligned.shared__cta.b32(
+                T.address_of(tmem_addr), T.uint32(cols_alloc)
+            )
+        T.cuda.cta_sync()
+        tmem = T.cuda.decl_tmem(
+            tmem_addr[0],
+            ty_args=[
+                T.Tensor(
+                    (128, N),
+                    C_dtype,
+                    scope="tmem",
+                    layout=TileLayout(S[(128, N) : (1 @ TLane, 1 @ TCol)]),
+                )
+            ],
+        )
+        if tid_in_wg == 0:
+            acopy = A_smem.rearrange("m (kr k) -> kr m k", k=atom_width)
+            bcopy = B_smem.rearrange("n (kr k) -> kr n k", k=atom_width)
+            T.cuda.tile.apply(
+                T.ptx[
+                    "cp.async.bulk.tensor.2d.shared::cta.global.tile.mbarrier::complete_tx::bytes"
+                ],
+                acopy,
+                A,
+                box=(M, atom_width),
+                coords=(0, 0),
+                coord_steps=((0, atom_width),),
+                swizzle=3,
+                mbar=tma_mbar.ptr_to([0]),
+            )
+            T.cuda.tile.apply(
+                T.ptx[
+                    "cp.async.bulk.tensor.2d.shared::cta.global.tile.mbarrier::complete_tx::bytes"
+                ],
+                bcopy,
+                B,
+                box=(N, atom_width),
+                coords=(0, 0),
+                coord_steps=((0, atom_width),),
+                swizzle=3,
+                format=b_format,
+                mbar=tma_mbar.ptr_to([0]),
+            )
+            T.ptx.mbarrier.arrive.expect_tx.shared.b64(tma_mbar.ptr_to([0]), T.uint32(total_bytes))
+        T.cuda.mbarrier_wait(tma_mbar.ptr_to([0]), 0)
+        T.cuda.cta_sync()
+        if tid_in_wg == 0:
+            av = A_smem.rearrange("(mr m) (kr k) -> mr kr m k", m=M, k=instruction_k)
+            bv = B_smem.rearrange("(nr n) (kr k) -> nr kr n k", n=N, k=instruction_k)
+            T.cuda.tile.apply(
+                T.ptx[f"tcgen05.mma.cta_group::1.kind::{kind}"],
+                tmem.view(1, 1, M, N),
+                av,
+                bv,
+                instruction_shape=(M, N, instruction_k),
+                a_format=a_format,
+                b_format=mma_b_format,
+                a_descriptor=(16, 1024, 3),
+                b_descriptor=(16, 1024, 3),
+            )
+            T.ptx.tcgen05.commit.cta_group__1.mbarrier__arrive__one.shared__cluster.b64(
+                mma_mbar.ptr_to([0])
+            )
+        T.cuda.mbarrier_wait(mma_mbar.ptr_to([0]), 0)
+        T.cuda.cta_sync()
+        T.ptx.tcgen05.fence__after_thread_sync()
+        C_reg = T.alloc_local(N, dtype=C_dtype, layout="default")
+        C_view = C_reg.view(128, N, layout=TileLayout(S[(128, N) : (1 @ axis_tid_in_wg, 1)]))
+        if wg_id == 0:
+            T.cuda.tile.apply(
+                T.ptx["tcgen05.ld.sync.aligned.32x32b.x128.b32"],
+                C_view.view(4, 32, N),
+                tmem.view(4, 32, N),
+                scope="warpgroup",
+            )
+            T.ptx.tcgen05.wait__ld.sync.aligned()
+        T.cuda.cta_sync()
+        for col in T.serial(N):
+            C[tid_in_wg, col] = C_reg[col]
+        if warp_id == 0:
+            T.ptx.tcgen05.relinquish_alloc_permit.cta_group__1.sync.aligned()
+            T.ptx.tcgen05.dealloc.cta_group__1.sync.aligned.b32(tmem_addr[0], T.uint32(cols_alloc))
+
+    dev = tvm.cuda(0)
+    np.random.seed(0)
+    target = tvm.target.Target({"kind": "cuda", "arch": "sm_100a"})
+    with target:
+        mod = tvm.tirx.compile(tvm.IRModule({"main": gemm_async}), target=target, pipeline="tirx")
+
+    def _rand(shape, dtype):
+        f = np.random.randn(*shape).astype("float32")
+        return f.astype(dtype) if ml_dtypes is not None or "float8" not in dtype else f
+
+    A_np = _rand(A_shape, A_dtype)
+    B_np = _rand(B_shape, B_dtype)
+    C_np = np.zeros(C_shape, dtype=C_dtype)
+    A_t, B_t, C_t = (tvm.runtime.tensor(x, dev) for x in (A_np, B_np, C_np))
+    mod["main"](A_t, B_t, C_t)
+    C_ref = A_np.astype("float32") @ B_np.astype("float32").T
+    np.testing.assert_allclose(C_t.numpy().astype("float32"), C_ref, atol=atol, rtol=rtol)
+
+
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(10), reason="need cuda compute >= 10.0")
+@pytest.mark.skipif(ml_dtypes is None, reason="Requires ml_dtypes")
+def test_gemm_tcgen05_no_swizzle_col_major_a_ws_local_idesc():
+    """Keep the FlashMLA packed bytes and make their operand view explicit.
+
+    The original column-major declaration is an alias over packed K-major
+    storage. A no-copy view exposes that storage to the fixed PTX pattern.
+    The expected instruction descriptor and GPU result remain unchanged.
+    """
+    M, K, N = 64, 64, 256
+    dtype = "bfloat16"
+    A_layout = TileLayout(S[(M, K) : (1, M)])  # column-major, unswizzled
+    B_layout = mma_shared_layout(dtype, 3, (K, N))
+
+    @T.function
+    def gemm_ws(
+        A: T.Tensor((M, K), dtype),
+        B: T.Tensor((K, N), dtype),
+        C: T.Tensor((128, N // 2), "float32"),
+    ) -> None:
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=1, block=4 * 32))
+        warp_id = T.cuda.warp_id()
+        wg_id = T.cuda.warpgroup_id()
+        tid_in_wg = T.cuda.thread_in_warpgroup()
+        A_smem = T.alloc_tensor(
+            ty_args=[T.Tensor((M, K), dtype, scope="shared", layout=A_layout, align=1024)]
+        )
+        B_smem = T.alloc_tensor(
+            ty_args=[T.Tensor((K, N), dtype, scope="shared", layout=B_layout, align=1024)]
+        )
+        tmem_addr = T.alloc_shared([1], "uint32", layout="default")
+        mma_mbar = T.alloc_shared([1], "uint64", layout="default")
+        if tid_in_wg == 0:
+            T.ptx.mbarrier.init.shared.b64(mma_mbar.ptr_to([0]), T.uint32(1))
+        T.cuda.cta_sync()
+        if warp_id == 0:
+            T.ptx.tcgen05.alloc.cta_group__1.sync.aligned.shared__cta.b32(
+                T.address_of(tmem_addr), T.uint32(128)
+            )
+        T.cuda.cta_sync()
+        # M=64 .ws accumulates via datapath E (FlashMLA head64's tmem_o layout):
+        # lane = m + 64*(n >= N/2), col = n % (N/2).
+        tmem = T.cuda.decl_tmem(
+            tmem_addr[0],
+            ty_args=[
+                T.Tensor(
+                    (M, N),
+                    "float32",
+                    scope="tmem",
+                    layout=TileLayout(S[(M, 2, N // 2) : (1 @ TLane, 64 @ TLane, 1 @ TCol)]),
+                )
+            ],
+        )
+        # Identity overlay of the physical 128x128 TMEM footprint for readback.
+        tmem_ldst = T.cuda.decl_tmem(
+            tmem_addr[0],
+            ty_args=[
+                T.Tensor(
+                    (128, N // 2),
+                    "float32",
+                    scope="tmem",
+                    layout=TileLayout(S[(128, N // 2) : (1 @ TLane, 1 @ TCol)]),
+                )
+            ],
+        )
+        # Plain generic-proxy stores; A's bytes follow the FlashMLA S-tile ABI
+        # (phys = 8*m + 8*M*(k//8) + k%8), col-major A_smem is descriptor fiction.
+        for i in range(M * K // 128):
+            a_idx = i * 128 + tid_in_wg
+            a_m = a_idx % M
+            a_k = a_idx // M
+            a_phys = 8 * a_m + 8 * M * (a_k // 8) + (a_k % 8)
+            A_smem[a_phys % M, a_phys // M] = A[a_m, a_k]
+        for i in range(K * N // 128):
+            b_idx = i * 128 + tid_in_wg
+            B_smem[b_idx // N, b_idx % N] = B[b_idx // N, b_idx % N]
+        T.ptx.fence.proxy.async_.shared__cta()
+        T.cuda.cta_sync()
+        if tid_in_wg == 0:
+            apacked = A_smem.permute(1, 0).view(K // 8, M, 8).permute(1, 0, 2).view(M, K)
+            av = apacked.rearrange("(mr m) (kr k) -> mr kr m k", m=M, k=16)
+            bv = B_smem.permute(1, 0).rearrange("(nr n) (kr k) -> nr kr n k", n=N, k=16)
+            T.cuda.tile.apply(
+                T.ptx["tcgen05.mma.ws.cta_group::1.kind::f16"],
+                tmem.view(1, 1, M, N),
+                av,
+                bv,
+                instruction_shape=(M, N, 16),
+                a_major="k",
+                b_major="mn",
+                a_descriptor=(1024, 128, 0),
+                b_descriptor=(8192, 1024, 3),
+            )
+            T.ptx.tcgen05.commit.cta_group__1.mbarrier__arrive__one.shared__cluster.b64(
+                mma_mbar.ptr_to([0])
+            )
+        T.cuda.mbarrier_wait(mma_mbar.ptr_to([0]), 0)
+        T.cuda.cta_sync()
+        T.ptx.tcgen05.fence__after_thread_sync()
+        C_reg = T.alloc_local(N // 2, dtype="float32", layout="default")
+        C_view = C_reg.view(
+            128, N // 2, layout=TileLayout(S[(128, N // 2) : (1 @ axis_tid_in_wg, 1)])
+        )
+        if wg_id == 0:
+            T.cuda.tile.apply(
+                T.ptx["tcgen05.ld.sync.aligned.32x32b.x128.b32"],
+                C_view.view(4, 32, N // 2),
+                tmem_ldst.view(4, 32, N // 2),
+                scope="warpgroup",
+            )
+            T.ptx.tcgen05.wait__ld.sync.aligned()
+        T.cuda.cta_sync()
+        for col in T.serial(N // 2):
+            C[tid_in_wg, col] = C_reg[col]
+        if warp_id == 0:
+            T.ptx.tcgen05.relinquish_alloc_permit.cta_group__1.sync.aligned()
+            T.ptx.tcgen05.dealloc.cta_group__1.sync.aligned.b32(tmem_addr[0], T.uint32(128))
+
+    with tvm.target.Target({"kind": "cuda", "arch": "sm_100a"}):
+        mod = tvm.tirx.compile(
+            tvm.IRModule({"main": gemm_ws}),
+            target={"kind": "cuda", "arch": "sm_100a"},
+            pipeline="tirx",
+        )
+
+    src = mod.mod.imports[0].inspect_source()
+    # Descriptor construction: no-swizzle col-major A -> (ldo=64, sdo=8, swizzle=0).
+    assert "encode_instr_descriptor" not in src
+    assert "tcgen05.mma.ws.cta_group::1.kind::f16" in src
+    # idesc literal: M=64, N=256, f32 <- bf16 x bf16, a_major=0 (K-major, bit15
+    # clear), b_major=1 — hand-encoded value FlashMLA head64 validated bit-exactly.
+    assert str(0x04410490) in src, "expected K-major (bit15=0) idesc literal"
+    assert str(0x04418490) not in src, "MN-major idesc (bit15=1) mis-pairs the K-major descA"
+
+    dev = tvm.cuda(0)
+    np.random.seed(0)
+    A_np = np.random.randn(M, K).astype(ml_dtypes.bfloat16)
+    B_np = np.random.randn(K, N).astype(ml_dtypes.bfloat16)
+    C_np = np.zeros((128, N // 2), "float32")
+    A_t, B_t, C_t = (tvm.runtime.tensor(x, dev) for x in (A_np, B_np, C_np))
+    mod["main"](A_t, B_t, C_t)
+    C_ref = A_np.astype("float32") @ B_np.astype("float32")
+    C_out = C_t.numpy()
+    # Datapath E: lanes 0-63 hold columns [0, N/2), lanes 64-127 hold [N/2, N).
+    np.testing.assert_allclose(C_out[:M], C_ref[:, : N // 2], atol=1e-2, rtol=1e-2)
+    np.testing.assert_allclose(C_out[M:], C_ref[:, N // 2 :], atol=1e-2, rtol=1e-2)

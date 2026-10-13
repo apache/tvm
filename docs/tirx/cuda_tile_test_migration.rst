@@ -168,6 +168,17 @@ Migration rules
 Original case inventory
 -----------------------
 
+* The arbitrary tcgen05 MMA cases keep all eight original arrays, stage axes,
+  transpose combinations and custom MN-major layouts. The caller uses one
+  8x64 TMA box per physical swizzle atom and spells the shared descriptor
+  strides for each fixture. Five original partial-K regions, dense FP8 and
+  TF32/TMA cases retain their numerical references.
+* FlashMLA's unswizzled column-major declaration historically overlaid packed
+  K-major bytes. The caller now exposes those bytes through a permute/view
+  sequence. The original instruction-descriptor literal and GPU result are
+  both checked; dispatch no longer interprets a column-major tensor as a
+  different physical matrix implicitly.
+
 .. list-table::
    :header-rows: 1
    :widths: 30 55 15
@@ -798,7 +809,7 @@ Original case inventory
      - Restored
    * - ``gemm_async/test_gemm_async.py``
      - ``test_gemm_tcgen05_arbitrary_tiles``
-     - Pending
+     - Restored
    * - ``gemm_async/test_gemm_async.py``
      - ``test_gemm_tcgen05_no_swizzle_smem_descriptor_codegen``
      - Pending
@@ -810,16 +821,16 @@ Original case inventory
      - Pending
    * - ``gemm_async/test_gemm_async.py``
      - ``test_gemm_tcgen05_no_swizzle_col_major_a_ws_local_idesc``
-     - Pending
+     - Restored
    * - ``gemm_async/test_gemm_async.py``
      - ``test_gemm_tcgen05_contiguous_kslice_partial_k``
-     - Pending
+     - Restored
    * - ``gemm_async/test_gemm_async.py``
      - ``test_gemm_dense_fp8``
-     - Pending
+     - Restored
    * - ``gemm_async/test_gemm_async.py``
      - ``test_gemm_tf32_with_tfloat32_tma``
-     - Pending
+     - Restored
    * - ``gemm_async/test_gemm_async.py``
      - ``test_gemm_tcgen05_explicit_mma_tile_changes_physical_instructions``
      - Pending
