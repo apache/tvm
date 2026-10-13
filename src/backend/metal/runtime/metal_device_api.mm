@@ -440,8 +440,9 @@ class MetalTimerObj : public TimerObj {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("runtime.timer.metal",
-                        [](Device dev) { return Timer(ffi::make_object<MetalTimerObj>(dev)); });
+  refl::GlobalDef().def("runtime.timer.metal", [](Device dev) {
+    return Timer(ffi::UnsafeInit{}, ffi::make_object<MetalTimerObj>(dev));
+  });
 }
 
 }  // namespace metal
