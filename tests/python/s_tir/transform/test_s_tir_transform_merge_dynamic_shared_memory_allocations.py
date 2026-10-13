@@ -294,11 +294,11 @@ def test_async_copy():
     )
     assert (
         "T.s_tir.cp_async_raw(A_sh.data, threadIdx_x, "
-        'A.data, threadIdx_x, 512, ty="float32")' in script
+        'A.data, threadIdx_x, 512, ty=T.float32)' in script
     )
     assert (
         "T.s_tir.cp_async_raw(B_sh.data, threadIdx_x, "
-        'B.data, threadIdx_x, 512, ty="float32")' in script
+        'B.data, threadIdx_x, 512, ty=T.float32)' in script
     )
 
 
