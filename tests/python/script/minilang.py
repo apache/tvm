@@ -135,7 +135,7 @@ class RecordingLocationEntry:
 
 
 class Language:
-    """One recording source namespace M and shared infrastructure namespace I."""
+    """One recording source namespace M and shared infrastructure namespace T."""
 
     def __init__(self):
         self.stack, self.functions = [], Module()

@@ -348,13 +348,13 @@ def test_symbolic_var_parameter():
     @I.ir_module
     class Module:
         @T.function
-        def main(A: T.Tensor((m,)), B: T.Tensor((m,))):
+        def main(A: T.Tensor((m,), "float32"), B: T.Tensor((m,), "float32")):
             T.func_attr({"target": T.target("cuda")})
 
             T.region("tirx.device_scope", [], attrs={"target": T.target("cuda")})
             blockIdx_x = T.launch_thread("blockIdx.x", m)
-            B_1 = T.decl_tensor(B.data, ty_args=[T.Tensor((m,), data=B.data)])
-            A_1 = T.decl_tensor(A.data, ty_args=[T.Tensor((m,), data=A.data)])
+            B_1 = T.decl_tensor(B.data, ty_args=[T.Tensor((m,), "float32", data=B.data)])
+            A_1 = T.decl_tensor(A.data, ty_args=[T.Tensor((m,), "float32", data=A.data)])
             B_1[blockIdx_x] = A_1[blockIdx_x]
 
     after = tvm.tirx.transform.SplitHostDevice()(Module)

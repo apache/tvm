@@ -26,6 +26,7 @@
 
 #include <tvm/ir/expr.h>
 #include <tvm/ir/type.h>
+#include <tvm/runtime/device_api.h>
 #include <tvm/tirx/layout.h>
 
 #include <optional>
@@ -98,15 +99,18 @@ class TensorTypeNode : public TypeNode {
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<TensorTypeNode>()
-        .def_ro("dtype", &TensorTypeNode::dtype)
-        .def_ro("storage_scope", &TensorTypeNode::storage_scope)
         .def_ro("shape", &TensorTypeNode::shape, refl::AttachFieldFlag::SEqHashDefSimple())
-        .def_ro("strides", &TensorTypeNode::strides, refl::AttachFieldFlag::SEqHashDefSimple())
+        .def_ro("dtype", &TensorTypeNode::dtype)
+        .def_ro("scope", &TensorTypeNode::storage_scope, refl::DefaultValue("global"))
+        .def_ro("strides", &TensorTypeNode::strides, refl::AttachFieldFlag::SEqHashDefSimple(),
+                refl::DefaultValue(ffi::Array<PrimExpr>()))
         .def_ro("elem_offset", &TensorTypeNode::elem_offset,
-                refl::AttachFieldFlag::SEqHashDefSimple())
-        .def_ro("data_alignment", &TensorTypeNode::data_alignment)
-        .def_ro("offset_factor", &TensorTypeNode::offset_factor)
-        .def_ro("layout", &TensorTypeNode::layout);
+                refl::AttachFieldFlag::SEqHashDefSimple(),
+                refl::DefaultValue(IntImm(DefaultIndexPrimType(), 0)))
+        .def_ro("data_alignment", &TensorTypeNode::data_alignment,
+                refl::DefaultValue(static_cast<int>(runtime::kAllocAlignment)))
+        .def_ro("offset_factor", &TensorTypeNode::offset_factor, refl::DefaultValue(1))
+        .def_ro("layout", &TensorTypeNode::layout, refl::DefaultValue(nullptr));
   }
 
   /*! \return preferred index type for this tensor node */

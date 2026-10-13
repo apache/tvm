@@ -32,17 +32,6 @@ namespace details {
 
 namespace {
 
-ffi::Optional<ExprDoc> TensorMapTypeDocTranslate(DocTranslatorObj* d, ffi::AnyView,
-                                                 const ffi::Object*) {
-  ExprDoc doc = NamespaceDoc("tirx")->Attr("TensorMap");
-  return d->GetOrCreateExtraState<bool>("ir.type_value") ? doc->Call({}) : doc;
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  ffi::reflection::TypeAttrDef<tirx::TensorMapTypeNode>().attr(
-      type_attr::kDocTranslate, FDocTranslate::FromNative<&TensorMapTypeDocTranslate>());
-}
-
 ffi::Optional<ExprDoc> TargetDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
                                           const ffi::Object*) {
   const auto* target =

@@ -40,7 +40,7 @@ def test_rewrite_to_shuffle_0():
     class Before:
         @T.function
         def main(A: T.Tensor((16,), "float32"), B: T.Tensor((4,), "float32")):
-            A_local = T.alloc_tensor(ty_args=[T.Tensor((16,), scope="local")])
+            A_local = T.alloc_tensor(ty_args=[T.Tensor((16,), "float32", scope="local")])
             for i in range(4):
                 A_local[T.ramp(i * 4, 1, 4)] = A[T.ramp(i * 4, 1, 4)]
             for i in range(4):
@@ -74,7 +74,7 @@ def test_rewrite_to_shuffle_1():
     class Before:
         @T.function
         def main(A: T.Tensor((8,), "float32"), B: T.Tensor((1,), "float32")):
-            A_local = T.alloc_tensor(ty_args=[T.Tensor((8,), scope="local")])
+            A_local = T.alloc_tensor(ty_args=[T.Tensor((8,), "float32", scope="local")])
             A_local[T.ramp(0, 1, 4)] = A[T.ramp(0, 1, 4)]
             A_local[T.ramp(4, 1, 4)] = A[T.ramp(4, 1, 4)]
             B[0] = (

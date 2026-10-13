@@ -42,6 +42,8 @@ def _initialize() -> None:
         )
         globals().update(
             bind=builder.bind,
+            ir_module=entry.ir_module,
+            pyfunc=entry.pyfunc,
             function=entry.make_decorator(builder, namespace_path="tirx.function"),
             inline=entry.make_macro_decorator(
                 builder, namespace_path="tirx.inline", preserve_return=True, late_binding=True

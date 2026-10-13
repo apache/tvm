@@ -162,10 +162,9 @@ def test_underline_func_in_irmodule():
     )
     assert result == format_script(
         """
-        # from tvm.script import ir as I
         # from tvm.script import tirx as T
 
-        @I.ir_module
+        @T.ir_module
         class Module:
             @T.function
             ^^^^^^^^^^^
@@ -192,10 +191,9 @@ def test_underline_irmodule():
     )
     assert result == format_script(
         """
-        # from tvm.script import ir as I
         # from tvm.script import tirx as T
 
-        @I.ir_module
+        @T.ir_module
         ^^^^^^^^^^^^
         class Module:
         ^^^^^^^^^^^^^

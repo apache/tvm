@@ -574,12 +574,12 @@ def test_ir_branch_incoming_read_and_rebinding_obeys_python_scope(language):
 def test_datatype_value_roundtrip(language):
     # A DataType value needs only shared IR: the minimal language parses its shared spelling
     # into a root-typed constant, and the shared printer reproduces that spelling.
-    spelling = 'I.dtype("float32")'
+    spelling = 'T.dtype("float32")'
     source = f"@M.function\ndef main():\n    M.record({spelling})\n"
-    value = entry.parse(source, extra_vars={"M": language.M, "I": I}).body[0][1]
+    value = entry.parse(source, extra_vars={"M": language.M, "T": tvm.script.tirx}).body[0][1]
     ir.assert_structural_equal(value, ir.DataTypeImm(DataType("float32")))
     printed = ir.IRModule(attrs={"dtype": value}).script()
-    assert f'I.module_attrs({{"dtype": {spelling}}})' in printed
+    assert f'T.module_attrs({{"dtype": {spelling}}})' in printed
 
 
 def test_mutating_stores_and_loop_control_keep_effect_order(language):

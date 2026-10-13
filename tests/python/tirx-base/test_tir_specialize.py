@@ -34,7 +34,12 @@ def assert_structural_equal_ignore_global_symbol(lhs, rhs):
 
 
 @T.function
-def matmul(A: T.Tensor([m, n]), B: T.Tensor([m, n]), C: T.Tensor([m, m]), n: T.int32) -> None:
+def matmul(
+    A: T.Tensor([m, n], "float32"),
+    B: T.Tensor([m, n], "float32"),
+    C: T.Tensor([m, m], "float32"),
+    n: T.int32,
+) -> None:
     for i, j, k in T.grid(m, m, n):
         if k == 0:
             C[i, j] = 0.0
@@ -42,7 +47,11 @@ def matmul(A: T.Tensor([m, n]), B: T.Tensor([m, n]), C: T.Tensor([m, m]), n: T.i
 
 
 @T.function
-def matmul_128(A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 128])) -> None:
+def matmul_128(
+    A: T.Tensor([128, 128], "float32"),
+    B: T.Tensor([128, 128], "float32"),
+    C: T.Tensor([128, 128], "float32"),
+) -> None:
     for i, j, k in T.grid(128, 128, 128):
         if k == 0:
             C[i, j] = 0.0
@@ -53,7 +62,11 @@ m = T.dynamic("m", "int32")
 
 
 @T.function
-def matmul_m_128(A: T.Tensor([m, 128]), B: T.Tensor([m, 128]), C: T.Tensor([m, m])) -> None:
+def matmul_m_128(
+    A: T.Tensor([m, 128], "float32"),
+    B: T.Tensor([m, 128], "float32"),
+    C: T.Tensor([m, m], "float32"),
+) -> None:
     for i, j, k in T.grid(m, m, 128):
         if k == 0:
             C[i, j] = 0.0
@@ -67,7 +80,11 @@ m = T.dynamic("m", "int32")
 
 
 @T.function(check_well_formed=False)
-def matmul_m_8x(A: T.Tensor([m, x * 8]), B: T.Tensor([m, x * 8]), C: T.Tensor([m, m])) -> None:
+def matmul_m_8x(
+    A: T.Tensor([m, x * 8], "float32"),
+    B: T.Tensor([m, x * 8], "float32"),
+    C: T.Tensor([m, m], "float32"),
+) -> None:
     for i, j, k in T.grid(m, m, x * 8):
         if k == 0:
             C[i, j] = 0.0
@@ -136,8 +153,8 @@ def mem_copy(
 
 @T.function
 def mem_copy_16_16_8_4(
-    A: T.Tensor((16, 16), "float32", strides=[8, 1], elem_offset=4),
-    B: T.Tensor((16, 16), "float32", strides=[8, 1], elem_offset=4),
+    A: T.Tensor((16, 16), "float32", strides=[8, 1], elem_offset=T.int32(4)),
+    B: T.Tensor((16, 16), "float32", strides=[8, 1], elem_offset=T.int32(4)),
 ) -> None:
     for i, j in T.grid(16, 16):
         B[i, j] = A[i, j]
@@ -202,7 +219,9 @@ def test_specialize_elemwise():
 def test_specialize_mem_copy():
     a, _, m, n, p, q = mem_copy.params
     # fully specialized
-    func = mem_copy.specialize({a: tvm.tirx.decl_tensor((16, 16), strides=[8, 1], elem_offset=4)})
+    func = mem_copy.specialize(
+        {a: tvm.tirx.decl_tensor((16, 16), strides=[8, 1], elem_offset=T.int32(4))}
+    )
     assert_structural_equal_ignore_global_symbol(func, mem_copy_16_16_8_4)
     func = mem_copy.specialize({n: 16, m: 16, p: 8, q: 4})
     assert_structural_equal_ignore_global_symbol(func, mem_copy_16_16_8_4)
