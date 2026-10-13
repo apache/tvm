@@ -57,6 +57,10 @@ class ScopeStack {
   /*! \brief Construct with one initial scope level. */
   ScopeStack() { stack_.emplace_back(); }
 
+  /*! \brief Iterate active scopes from innermost to outermost. */
+  auto rbegin() const { return stack_.rbegin(); }
+  auto rend() const { return stack_.rend(); }
+
   /*! \brief Return the number of active scopes. */
   size_t size() const { return stack_.size(); }
 
