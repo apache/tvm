@@ -197,43 +197,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   });
 }
 
-bool TileLayoutNode::CompatibleWithShape(const Array<PrimExpr>& shape) const { return true; }
-
-bool VerifyCompactness(const std::vector<Iter>& iters) {
-  sym::Analyzer analyzer;
-  PrimExpr stride_to_find = 1;
-  for (size_t i = 0; i < iters.size(); ++i) {
-    auto iter = std::find_if(iters.begin(), iters.end(), [&](const Iter& iter) {
-      return analyzer->CanProveEqual(iter->stride, stride_to_find);
-    });
-    if (iter == iters.end()) return false;
-    stride_to_find *= (*iter)->extent;
-  }
-  return true;
-}
-
 bool TileLayoutNode::VerifyWellFormed() const {
-  // // 1. For thread axes, verify its compactness
-  // std::unordered_map<String, std::vector<Iter>> thread_axes;
-  // auto collect_thread_axis = [&thread_axes](const Iter& iter) {
-  //   if (iter->axis->IsThreadAxis()) {
-  //     thread_axes[iter->axis.name()].push_back(iter);
-  //   }
-  // };
-  // for (const auto& iter : shard) {
-  //   collect_thread_axis(iter);
-  // }
-  // for (const auto& iter : replica) {
-  //   collect_thread_axis(iter);
-  // }
-  // for (const auto& [axis, off] : offset) {
-  //   collect_thread_axis(Iter(1, off, axis));
-  // }
-  // for (const auto& [axis, iters] : thread_axes) {
-  //   if (!VerifyCompactness(iters)) {
-  //     return false;
-  //   }
-  // }
   // 1. Check if the scope is connected
   if (!GetScope().has_value() && HasThreadAxis()) {
     return false;
@@ -357,11 +321,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("tirx.TileLayoutIsTrivial", [](const TileLayout& layout) {
     return layout->Canonicalize().as<TileLayout>().value()->IsTrivial();
   });
-}
-
-bool TileLayoutNode::HasMemoryAxis() const {
-  return std::any_of(shard.begin(), shard.end(),
-                     [](const Iter& iter) { return iter->axis->IsMemoryAxis(); });
 }
 
 bool TileLayoutNode::HasThreadAxis() const {

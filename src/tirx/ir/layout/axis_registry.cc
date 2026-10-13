@@ -18,7 +18,7 @@
  */
 
 /*
- * Axis definitions, attributes, fusers/splitters, and registrations.
+ * Axis definitions, attributes, fusers, and registrations.
  */
 #include <tvm/ffi/reflection/enum_def.h>
 
@@ -74,10 +74,6 @@ ffi::Optional<ExecScope> AxisNode::GetSubscope() const {
 }
 
 ffi::Optional<FAxisFuser> AxisNode::GetFuser() const { return AxisAttr<FAxisFuser>(this, "fuser"); }
-
-ffi::Optional<FAxisSplitter> AxisNode::GetSplitter() const {
-  return AxisAttr<FAxisSplitter>(this, "splitter");
-}
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   refl::ObjectDef<AxisNode>(refl::init(false));

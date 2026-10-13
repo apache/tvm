@@ -638,7 +638,17 @@ def test_copy_with_guard_2():
 
 def test_copy_with_specified_max_inst_size():
     src_shape = [128, 512]
-    src_layout = T.trn.layout.trainium_layout("PF", src_shape)
+    src_layout = TileLayout(
+        S[
+            (
+                128,
+                512,
+            ) : (
+                1 @ P,
+                1 @ F,
+            )
+        ]
+    )
     dst_shape = src_shape
     dst_layout = src_layout
 
