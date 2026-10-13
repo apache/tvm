@@ -768,34 +768,34 @@ Original case inventory
      - Migrated
    * - ``gemm_async/test_gemm_async.py``
      - ``test_gemm_tcgen05_cta_group_1``
-     - Pending
+     - Restored
    * - ``gemm_async/test_gemm_async.py``
      - ``test_gemm_tcgen05_cta_group_1_layout_f_m64``
-     - Pending
+     - Restored
    * - ``gemm_async/test_gemm_async.py``
      - ``test_gemm_tcgen05_cta_group_2``
-     - Pending
+     - Restored
    * - ``gemm_async/test_gemm_async.py``
      - ``test_gemm_tcgen05_cta_group_2_layout_b``
-     - Pending
+     - Restored
    * - ``gemm_async/test_gemm_async.py``
      - ``test_gemm_tcgen05_cta_group_2_datapath_b_readback``
-     - Pending
+     - Restored
    * - ``gemm_async/test_gemm_async.py``
      - ``test_gemm_block_scaled_fp8_cta_group_1``
-     - Pending
+     - Restored
    * - ``gemm_async/test_gemm_async.py``
      - ``test_gemm_block_scaled_fp8_cta_group_2``
-     - Pending
+     - Restored
    * - ``gemm_async/test_gemm_async.py``
      - ``test_gemm_block_scaled_nvfp4_cta_group_1``
-     - Pending
+     - Restored
    * - ``gemm_async/test_gemm_async.py``
      - ``test_gemm_block_scaled_nvfp4_cta_group_2``
-     - Pending
+     - Restored
    * - ``gemm_async/test_gemm_async.py``
      - ``test_gemm_block_scaled_fp8_sf_id``
-     - Pending
+     - Restored
    * - ``gemm_async/test_gemm_async.py``
      - ``test_gemm_tcgen05_arbitrary_tiles``
      - Pending
