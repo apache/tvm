@@ -299,12 +299,6 @@ TVM_DLL Pass RemoveWeightLayoutRewriteBlock(bool skip_tensor_rewrite = false);
 TVM_DLL Pass RemoveStoreUndef();
 
 /*!
- * \brief Decorate all the function's body as device function.
- * \return The pass.
- */
-TVM_DLL Pass DecorateDeviceScope();
-
-/*!
  * \brief Eliminate branches by leveraging tensor assumptions (T.assume).
  * \return The pass.
  */

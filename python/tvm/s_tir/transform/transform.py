@@ -401,17 +401,6 @@ def RemoveStoreUndef():
     return _ffi_api.RemoveStoreUndef()  # type: ignore
 
 
-def DecorateDeviceScope():
-    """Decorate all the function's body as device function.
-
-    Returns
-    -------
-    fpass : tvm.transform.Pass
-        The result pass
-    """
-    return _ffi_api.DecorateDeviceScope()  # type: ignore
-
-
 def UseAssumeToReduceBranches():
     """Eliminate layout specific pad branch by overcomputing values for padded region.
 
