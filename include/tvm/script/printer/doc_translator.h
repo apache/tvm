@@ -27,7 +27,6 @@
 #include <tvm/ir/expr.h>
 #include <tvm/script/printer/doc.h>
 
-#include <exception>
 #include <optional>
 #include <utility>
 
@@ -240,21 +239,16 @@ class DocTranslatorObj : public ffi::Object {
    * \tparam Callback The callable type.
    * \param callback The callback run inside the scope.
    * \return The callback result, preserving void, value and reference results.
-   * \note Cleanup is attempted on exceptions without replacing the callback's error.
-   *       On normal return, a scope-close error is propagated.
+   * \note Automatic cleanup on return or exception discards scope-close errors.
+   *       Explicit EndVarScope calls remain checked.
    */
   template <typename Callback>
   decltype(auto) WithVarScope(Callback&& callback) {
     struct Scope {
       DocTranslatorObj* translator;
-      int exception_count = std::uncaught_exceptions();
-      ~Scope() noexcept(false) {
-        try {
-          translator->EndVarScope();
-        } catch (...) {
-          // Propagate a normal close error, but preserve an unwinding callback error.
-          if (std::uncaught_exceptions() == exception_count) throw;
-        }
+      ~Scope() {
+        ffi::details::ExpectedUnsafe::MoveFromTVMFFIAny<void>(
+            translator->vtable_->end_var_scope(translator));
       }
     };
     BeginVarScope();
@@ -270,8 +264,7 @@ class DocTranslatorObj : public ffi::Object {
    * \param value The temporary state value.
    * \param callback The callback run with the temporary state.
    * \return The callback result, preserving void, value and reference results.
-   * \note Restore the saved value on return or exception without replacing a
-   *       callback error with a restoration error. This does not collect Docs.
+   * \note Restore the saved value on return or exception. This does not collect Docs.
    */
   template <typename T, typename Callback>
   decltype(auto) WithExtraStateScope(const ffi::String& name, T value, Callback&& callback) {
@@ -279,15 +272,7 @@ class DocTranslatorObj : public ffi::Object {
       DocTranslatorObj* translator;
       ffi::String key;
       T saved;
-      int exception_count = std::uncaught_exceptions();
-      ~Scope() noexcept(false) {
-        try {
-          translator->SetExtraState(key, std::move(saved));
-        } catch (...) {
-          // Propagate a normal restore error, but preserve an unwinding callback error.
-          if (std::uncaught_exceptions() == exception_count) throw;
-        }
-      }
+      ~Scope() { translator->SetExtraState(key, std::move(saved)); }
     };
     Scope scope{this, name, GetOrCreateExtraState<T>(name)};
     SetExtraState(scope.key, std::move(value));
