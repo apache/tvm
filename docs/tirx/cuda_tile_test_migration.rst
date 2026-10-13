@@ -127,6 +127,16 @@ Migration rules
   stores by every launched thread. Neither change alters the input/output
   tensor shapes or layout mapping being tested.
 
+* ``gemm/test_gemm_mma_m16n8k_.py`` restores all 78 parameter cases. The
+  original f16/bf16 fragments, M/N/K tilings, k8/k16 modes and four transpose
+  combinations use fixed caller view recipes; the opcode is visible at each
+  call. Instruction counts remain exactly M-tiles times N-tiles times K-tiles.
+* The old alpha/beta rejections become GPU checks of explicit preparation and
+  post-scaling around the same native MMA. Initial C/zero and later K-tile
+  accumulation are checked independently in lowered IR. The old invalid
+  dtype tuples remain instruction/layout compatibility checks, without an
+  automatic fallback to another instruction.
+
 Original case inventory
 -----------------------
 
@@ -691,43 +701,43 @@ Original case inventory
      - Migrated
    * - ``gemm/test_gemm_mma_m16n8k_.py``
      - ``test_cuda_mma_sync_is_a_registered_instruction``
-     - Pending
+     - Migrated
    * - ``gemm/test_gemm_mma_m16n8k_.py``
      - ``test_cuda_gemm_mma_lowers_to_mma_sync``
-     - Pending
+     - Migrated
    * - ``gemm/test_gemm_mma_m16n8k_.py``
      - ``test_cuda_gemm_mma_accumulates_c_when_beta_one``
-     - Pending
+     - Migrated
    * - ``gemm/test_gemm_mma_m16n8k_.py``
      - ``test_cuda_gemm_mma_rejects_nonunit_alpha``
-     - Pending
+     - Migrated
    * - ``gemm/test_gemm_mma_m16n8k_.py``
      - ``test_cuda_gemm_mma_rejects_fractional_beta``
-     - Pending
+     - Migrated
    * - ``gemm/test_gemm_mma_m16n8k_.py``
      - ``test_cuda_gemm_mma_numerical``
-     - Pending
+     - Migrated
    * - ``gemm/test_gemm_mma_m16n8k_.py``
      - ``test_cuda_gemm_mma_numerical_tiled``
-     - Pending
+     - Migrated
    * - ``gemm/test_gemm_mma_m16n8k_.py``
      - ``test_cuda_gemm_mma_numerical_transpose``
-     - Pending
+     - Migrated
    * - ``gemm/test_gemm_mma_m16n8k_.py``
      - ``test_cuda_gemm_mma_lowers_tiled``
-     - Pending
+     - Migrated
    * - ``gemm/test_gemm_mma_m16n8k_.py``
      - ``test_cuda_gemm_mma_codegen_issue_count``
-     - Pending
+     - Migrated
    * - ``gemm/test_gemm_mma_m16n8k_.py``
      - ``test_cuda_gemm_mma_lowers_transpose``
-     - Pending
+     - Migrated
    * - ``gemm/test_gemm_mma_m16n8k_.py``
      - ``test_cuda_gemm_mma_codegen_transpose``
-     - Pending
+     - Migrated
    * - ``gemm/test_gemm_mma_m16n8k_.py``
      - ``test_cuda_gemm_mma_rejects_unsupported_dtype``
-     - Pending
+     - Migrated
    * - ``gemm_async/test_gemm_async.py``
      - ``test_gemm_tcgen05_cta_group_1``
      - Pending
