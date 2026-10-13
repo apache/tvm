@@ -1196,7 +1196,6 @@ class PipelineInjector : public StmtExprMutator {
                                   : nullptr) {
       const auto& block = realize->block;
       for (const auto& tensor : block->alloc_tensors) {
-        TVM_FFI_ICHECK(tensor->IsInstance<TensorTypeNode>());
         tensor_data_to_tensor_.Set(tensor, tensor);
       }
       pipeline_body = block->body;
