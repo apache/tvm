@@ -17,11 +17,12 @@
 
 """TMA with an explicit descriptor box and explicit coordinate steps.
 
-The global operand is the descriptor's tensor view (rank equals opcode rank).
-The shared operand is (*group, *repeat, *box). ``box`` and ``coords`` use
-outer-to-inner tensor order; ``coord_steps`` has one such coordinate increment
-per group/repeat axis. Hardware descriptor fields are encoded verbatim. No
-rank promotion, dimension folding, source selection, or prefetch is inserted.
+The global operand is the descriptor's tensor view. Non-interleaved views have
+the opcode rank. Interleaved views have axes (N, C_slices, *spatial, Ci), with
+one implicit 16B/32B Ci slice. ``box`` and ``coords`` omit that implicit axis.
+The shared operand is (*group, *repeat, *box_image). ``coord_steps`` has one
+coordinate increment per group/repeat axis. Hardware fields are encoded
+verbatim. No rank promotion, folding, source selection, or prefetch is inserted.
 """
 
 from itertools import product
@@ -40,21 +41,86 @@ def sequence(value):
     return tuple(value.fields if isinstance(value, Tuple) else value)
 
 
-def _tensor_map(ctx, region, rank, box, fields):
+def _encode_requirement(ctx, condition, message):
+    # cuTensorMapEncodeTiled validates runtime descriptor parameters. Reject
+    # statically invalid values here, but keep symbolic strides/dimensions for
+    # that API rather than imposing a compile-time proof on runtime arguments.
+    if ctx.analyzer.can_prove(T.Not(condition)):
+        raise ValueError(message)
+
+
+def _descriptor_fields(fields, rank, box, default_dtype):
+    dtype = fields.pop("format", default_dtype)
+    dtype = str(scalar(dtype))
+    force = 11 if dtype == "tf32" else -1
+    if force == 11:
+        dtype = "float32"
+    bits = DataType(dtype).bits
+    element_strides = tuple(
+        int(scalar(x)) for x in sequence(fields.pop("element_strides", (1,) * rank))
+    )
+    if len(element_strides) != rank or any(x < 1 or x > 8 for x in element_strides):
+        raise ValueError("TMA element_strides must have rank entries in 1..8")
+    swizzle = int(scalar(fields.pop("swizzle", 0)))
+    interleave = int(scalar(fields.pop("interleave", 0)))
+    l2 = int(scalar(fields.pop("l2_promotion", 0)))
+    oob = int(scalar(fields.pop("oob_fill", 0)))
+    if interleave not in (0, 1, 2):
+        raise ValueError("TMA interleave must be 0, 1, or 2")
+    if interleave and rank < 3:
+        raise ValueError("TMA interleave requires rank 3..5")
+    if interleave == 2 and swizzle != 1:
+        raise ValueError("TMA interleave=2 requires swizzle=1")
+    if not interleave and element_strides[-1] != 1:
+        raise ValueError("TMA innermost element stride must be one without interleaving")
+    if swizzle not in range(4) or l2 not in range(4) or oob not in range(2):
+        raise ValueError("TMA requires swizzle/l2_promotion in 0..3 and oob_fill in 0..1")
+    if not interleave and box[-1] * bits % 128:
+        raise ValueError("TMA innermost box width must be a multiple of 16 bytes")
+    if not interleave and swizzle and box[-1] * bits // 8 > 16 << swizzle:
+        raise ValueError("TMA innermost box width must not exceed its swizzle span")
+    if oob and dtype not in ("float16", "float32", "float64", "bfloat16"):
+        raise ValueError("TMA NaN OOB fill requires a floating-point descriptor format")
+    if dtype == "float4_e2m1fn" and (box[-1] != 128 or swizzle not in (0, 3)):
+        raise ValueError("TMA packed FP4 requires inner box 128 and swizzle 0 or 3")
+    return dtype, force, element_strides, swizzle, interleave, l2, oob
+
+
+def _tensor_map(ctx, region, rank, box, encoding):
     if not isinstance(region, TensorRegion) or region.source.ty.storage_scope != "global":
         raise ValueError("TMA descriptor requires a global tensor region")
     tensor = region.source
     ty = tensor.ty
-    if len(region.region) != rank:
-        raise ValueError("TMA global tensor rank must equal the instruction rank")
     bits = DataType(ty.dtype.dtype).bits
-    dims = tuple(r.extent for r in region.region)
+    packed = encoding[0] == "float4_e2m1fn"
+    interleave = encoding[4]
+    channels = (16 * interleave * 8 // bits) if interleave else 1
+    tensor_rank = rank + bool(interleave)
+    if len(region.region) != tensor_rank:
+        raise ValueError("TMA global rank must equal instruction rank plus its implicit Ci axis")
+    view_dims = tuple(r.extent for r in region.region)
+    dims = view_dims[:rank]
+    for size in dims:
+        wide = T.cast(size, "int64")
+        _encode_requirement(
+            ctx, T.And(wide > 0, wide <= 2**32), "TMA dimensions must be in 1..2^32"
+        )
+    if packed:
+        _encode_requirement(
+            ctx, dims[-1] % 128 == 0, "TMA packed FP4 inner dimension must be a multiple of 128"
+        )
     starts = tuple(r.min for r in region.region)
+    if interleave:
+        ctx.require(view_dims[-1] == channels, "TMA Ci extent must equal one interleave slice")
     # Tensor strides already specify a rectangular descriptor. A layout is
     # checked at the same coordinates, without folding or permuting its axes.
     layout = ty.layout
     if layout is None:
-        strides = list(ty.strides) if ty.strides else [prod(ty.shape[i + 1 :]) for i in range(rank)]
+        strides = (
+            list(ty.strides)
+            if ty.strides
+            else [prod(ty.shape[i + 1 :]) for i in range(tensor_rank)]
+        )
         base = {"m": sum(i * s for i, s in zip(starts, strides))}
     else:
         base = layout.apply(*starts, shape=ty.shape)
@@ -63,7 +129,7 @@ def _tensor_map(ctx, region, rank, box, fields):
     if layout is not None:
         strides = []
     coordinates = []
-    for i, size in enumerate(dims):
+    for i, size in enumerate(view_dims):
         unit = list(starts)
         unit[i] += 1
         if layout is not None:
@@ -71,7 +137,7 @@ def _tensor_map(ctx, region, rank, box, fields):
             # A unit dimension has no address movement; choose the smallest
             # legal descriptor stride for this unobserved coordinate.
             if ctx.analyzer.can_prove(size == 1):
-                stride = 1 if i == rank - 1 else max(1, 128 // bits)
+                stride = 1 if i == tensor_rank - 1 else max(channels, 128 // bits)
             strides.append(stride)
         var = Var(f"descriptor_dim_{i}", "int32")
         ctx.analyzer.bind(var, Range(0, size))
@@ -84,32 +150,27 @@ def _tensor_map(ctx, region, rank, box, fields):
             "reorganize its axes explicitly",
         )
     ctx.require(strides[-1] == 1, "TMA innermost global stride must be one")
+    if interleave:
+        strides = strides[:-1]
+        ctx.require(strides[-1] == channels, "TMA W stride must equal one interleave slice")
+    alignment = 32 if packed or interleave == 2 else 16
     ctx.require(
-        (base["m"] + ty.elem_offset) * bits % 128 == 0,
-        "TMA global origin requires 16-byte alignment",
+        (base["m"] + ty.elem_offset) * bits % (8 * alignment) == 0,
+        f"TMA global origin requires {alignment}-byte alignment",
     )
     for stride in strides[:-1]:
-        ctx.require(stride * bits % 128 == 0, "TMA global byte strides must be multiples of 16")
-    dtype = fields.pop("format", str(ty.dtype.dtype))
-    dtype = str(scalar(dtype))
-    force = 11 if dtype == "tf32" else -1
-    if force == 11:
-        dtype = "float32"
-    if DataType(dtype).bits != bits:
-        raise ValueError("TMA descriptor format must match the global storage element width")
-    element_strides = tuple(
-        int(scalar(x)) for x in sequence(fields.pop("element_strides", (1,) * rank))
-    )
-    if len(element_strides) != rank or any(x < 1 or x > 8 for x in element_strides):
-        raise ValueError("TMA element_strides must have rank entries in 1..8")
-    if element_strides != (1,) * rank:
-        raise ValueError("the dense TMA tile pattern requires unit element_strides")
-    swizzle = int(scalar(fields.pop("swizzle", 0)))
-    interleave = int(scalar(fields.pop("interleave", 0)))
-    l2 = int(scalar(fields.pop("l2_promotion", 0)))
-    oob = int(scalar(fields.pop("oob_fill", 0)))
-    if interleave != 0:
-        raise ValueError("the dense TMA pattern requires interleave=0")
+        byte_stride = T.cast(stride, "int64") * bits // 8
+        _encode_requirement(
+            ctx,
+            byte_stride % alignment == 0,
+            f"TMA global byte strides must be multiples of {alignment}",
+        )
+        _encode_requirement(
+            ctx,
+            T.And(byte_stride > 0, byte_stride < 2**40),
+            "TMA byte strides must be in 1..2^40-1",
+        )
+    dtype, force, element_strides, swizzle, interleave, l2, oob = encoding
     key = "explicit_tma:" + ":".join(
         map(
             str,
@@ -131,7 +192,7 @@ def _tensor_map(ctx, region, rank, box, fields):
     )
     cached = ctx.sctx.cache_get(key)
     if cached is not None:
-        return cached, swizzle, element_strides
+        return cached
     tensor_map = T.Var("tile_tensormap", ty=T.handle("tensormap").ty)
 
     @T.function(check_well_formed=False)
@@ -156,7 +217,7 @@ def _tensor_map(ctx, region, rank, box, fields):
 
     ctx.sctx.add_init_stmt(encode.body, host=True)
     ctx.sctx.cache_set(key, tensor_map)
-    return tensor_map, swizzle, element_strides
+    return tensor_map
 
 
 def lower(opcode, entry, modifiers, args, params, sctx):
@@ -183,21 +244,69 @@ def lower(opcode, entry, modifiers, args, params, sctx):
     if gather and (rank != 2 or box[0] != 1):
         raise ValueError("gather4/scatter4 requires a 2D descriptor box with one row")
     ctx = Context(sctx)
-    tensor_map, swizzle, element_strides = _tensor_map(ctx, global_, rank, box, params)
-    shared_shape = (4, box[1]) if gather else box
+    if not isinstance(shared, TensorRegion):
+        raise ValueError("TMA shared operand requires a tensor region")
+    default_dtype = str(
+        (global_ if isinstance(global_, TensorRegion) else shared).source.ty.dtype.dtype
+    )
+    encoding = _descriptor_fields(params, rank, box, default_dtype)
+    dtype, _, element_strides, swizzle, interleave, _, _ = encoding
+    bits = DataType(dtype).bits
+    packed = dtype == "float4_e2m1fn"
+    if packed and not load:
+        raise ValueError("TMA 16U4_ALIGN16B supports global-to-shared loads only")
+    if isinstance(global_, TensorRegion):
+        if bits != DataType(global_.source.ty.dtype.dtype).bits:
+            raise ValueError("TMA descriptor format must match the global storage element width")
+        tensor_map = _tensor_map(ctx, global_, rank, box, encoding)
+        tmap = T.address_of(tensor_map)
+    else:
+        # A caller-encoded descriptor is an ordinary instruction operand. The
+        # caller may select/prefetch it explicitly; its fields must agree with
+        # the box, format and swizzle supplied to this pattern.
+        tmap = global_
+    shared_shape = (
+        (4, box[1]) if gather else tuple((b + s - 1) // s for b, s in zip(box, element_strides))
+    )
+    if interleave:
+        channels = 16 * interleave * 8 // bits
+        # Interleaved tiled accesses transfer one channel slice per issue.
+        # C box/element-stride fields do not iterate slices. The caller uses
+        # a repeat axis and coord_steps to visit multiple C coordinates.
+        shared_shape = (shared_shape[0], 1, *shared_shape[2:], channels)
     smem = ctx.region("shared", shared, shared_shape, ("shared", "shared.dyn"))
-    if smem.bits != DataType(global_.source.ty.dtype.dtype).bits:
+    if smem.bits != bits:
         raise ValueError("TMA global and shared storage widths must agree")
     if swizzle not in range(4):
         raise ValueError("TMA swizzle must be 0, 1, 2, or 3")
-    origin = (0,) * rank
-    smem.aligned(origin, 128)
-    base = smem.memory(origin)
+    origin = (0,) * len(shared_shape)
+    physical_bits = smem.memory(origin) * smem.bits
+    base_bits = physical_bits
+    pointer = smem.pointer(origin)
+    if swizzle:
+        period = 128 << swizzle
+        if int(smem.ty.data_alignment) % period:
+            raise ValueError("TMA swizzled base requires alignment to the full swizzle period")
+        # A slice's first element can be displaced by the swizzle phase.
+        # The instruction takes its unswizzled origin and applies that phase.
+        base_bits = swizzle_bytes(physical_bits // 8, swizzle) * 8 + physical_bits % 8
+        ctx.require(base_bits % 1024 == 0, "TMA atom origin must be 128-byte aligned")
+        pointer = (
+            T.cuda.cvta_generic_to_shared(pointer)
+            - T.cast(physical_bits // 8, "uint32")
+            + T.cast(base_bits // 8, "uint32")
+        )
+    else:
+        smem.aligned(origin, 128)
     # Check the documented packed box image directly. Element strides select
     # global samples; the shared destination remains compact.
     for indices in product(*(range(size) for size in shared_shape)):
         flat = sum(var * prod(shared_shape[i + 1 :]) for i, var in enumerate(indices))
-        absolute_bits = (base + flat) * smem.bits
+        # 16U4_ALIGN16B expands each sixteen packed nibbles into a 16-byte
+        # shared block: eight payload bytes followed by eight undefined bytes.
+        # The mbarrier transaction count is the payload bytes, excluding padding.
+        relative_bits = (flat // 16 * 128 + flat % 16 * 4) if packed else flat * smem.bits
+        absolute_bits = base_bits + relative_bits
         expected_bits = (
             (swizzle_bytes(absolute_bits // 8, swizzle) * 8 + absolute_bits % 8)
             if swizzle
@@ -226,8 +335,6 @@ def lower(opcode, entry, modifiers, args, params, sctx):
             raise ValueError("gather4 requires four explicit row coordinates")
         native_coords = [coords[-1], *rows]
     native_coords = [T.cast(c, "int32") for c in native_coords]
-    tmap = T.address_of(tensor_map)
-    pointer = smem.pointer(origin)
     if load:
         native = [pointer, tmap, *native_coords, params.pop("mbar")]
         if modifiers.get("multicast"):

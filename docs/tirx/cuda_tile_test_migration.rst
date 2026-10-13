@@ -137,6 +137,34 @@ Migration rules
   dtype tuples remain instruction/layout compatibility checks, without an
   automatic fallback to another instruction.
 
+* ``copy_async/test_tma.py`` accounts for all 46 original functions and all
+  52 original case-matrix entries. Caller recipes preserve each old pair of
+  global/shared byte addresses, including dtype views, split dimensions,
+  mixed-radix issue axes and dynamic stages. The dispatcher performs no
+  promotion, permutation, rank folding or source selection.
+* Former automatic-planner failures that admit explicit preparation are
+  positive numerical tests: the 4096-byte copy uses sixteen 256-byte issues;
+  nested shared layouts use thirty-two fixed issues; incomplete chains use
+  an aligned staging box and caller scalar stores. Unaligned shared subregions
+  likewise retain their original destination through explicit staging.
+* Descriptor selectors and prefetches are ordinary caller expressions. Both
+  selector branches and nested first-true precedence are checked numerically,
+  including the original subview's base pointer. Opaque descriptor compatibility
+  is now the caller's contract, not an inferred property of a selector object.
+* Runtime dimensions and strides pass to ``cuTensorMapEncodeTiled``; known
+  invalid native fields still reject. Target-architecture requirements are
+  checked by the PTX compiler instead of a second tile architecture registry.
+  The deleted promotion helper's safety guards are replaced by checks that
+  descriptor dtype and coordinates/strides are never implicitly promoted.
+* Native TMA FP4 tests check only defined payload bytes, including gather4 and
+  swizzle 0/3. Padding occupies shared space but is not counted by mbarrier.
+  Interleave tests preserve the original native descriptor fields and cover
+  rank 3/4/5, non-unit spatial traversal and explicit channel repeats. On B200,
+  16B interleave with swizzle 1/2/3 also traps in a raw-PTX reproducer; those
+  three new combinations are compiled but their GPU checks are skipped.
+  They are not counted as restored numerical coverage. Original 32B interleave
+  with swizzle 1 and the additional 16B/no-swizzle cases run on the GPU.
+
 Original case inventory
 -----------------------
 
@@ -425,142 +453,142 @@ Original case inventory
      - Restored
    * - ``copy_async/test_tma.py``
      - ``test_tma_case_matrix_is_complete``
-     - Pending
+     - Restored
    * - ``copy_async/test_tma.py``
      - ``test_tma_codegen``
-     - Pending
+     - Restored
    * - ``copy_async/test_tma.py``
      - ``test_auto_canonicalization_does_not_create_an_oversized_box``
-     - Pending
+     - Caller bounded-box recipe
    * - ``copy_async/test_tma.py``
      - ``test_auto_sw128_gt_grouping_and_cuda_order``
-     - Pending
+     - Caller descriptor-view recipes
    * - ``copy_async/test_tma.py``
      - ``test_auto_retains_coordinate_only_global_dimension``
-     - Pending
+     - Caller coordinate-only recipe
    * - ``copy_async/test_tma.py``
      - ``test_auto_retains_unit_copy_dimensions_with_coordinates_and_strides``
-     - Pending
+     - Caller unit-copy-dimensions recipe
    * - ``copy_async/test_tma.py``
      - ``test_auto_canonicalizes_dynamic_stage_slice_before_global_grouping``
-     - Pending
+     - Caller dynamic-stage view and coordinates
    * - ``copy_async/test_tma.py``
      - ``test_auto_shared_pointer_counts_each_offset_once``
-     - Pending
+     - Explicit aligned staging; original destination preserved
    * - ``copy_async/test_tma.py``
      - ``test_auto_defers_dynamic_global_dimension_bounds_to_runtime``
-     - Pending
+     - Explicit runtime dimensions and coordinates
    * - ``copy_async/test_tma.py``
      - ``test_dispatch_propagates_flat_bind_to_auto_coordinate_proof``
-     - Pending
+     - Flat Bind propagated to explicit coordinates
    * - ``copy_async/test_tma.py``
      - ``test_auto_recovers_stride_from_split_coordinate_only_dimension``
-     - Pending
+     - Caller split-coordinate-only recipe
    * - ``copy_async/test_tma.py``
      - ``test_auto_preserves_coordinate_stride_for_interleaved_tensor_dimensions``
-     - Pending
+     - Caller interleaved-logical-dimensions recipe
    * - ``copy_async/test_tma.py``
      - ``test_auto_recovers_leading_unit_dimension_stride``
-     - Pending
+     - Caller leading-unit-dimension recipe
    * - ``copy_async/test_tma.py``
      - ``test_auto_maximum_prefix_and_mixed_radix_issue_pointer``
-     - Pending
+     - Explicit issue coordinates and pointers
    * - ``copy_async/test_tma.py``
      - ``test_copy_tma_host_init_dtype_is_attribute``
-     - Pending
+     - Descriptor dtype checked in every codegen golden
    * - ``copy_async/test_tma.py``
      - ``test_auto_requires_complete_chain_and_exact_division``
-     - Pending
+     - Explicit outer issues / caller staging
    * - ``copy_async/test_tma.py``
      - ``test_auto_canonicalization_repairs_rank_and_unaligned_stride``
-     - Pending
+     - Caller rank-fold and short-stride-fold recipes
    * - ``copy_async/test_tma.py``
      - ``test_auto_promotion_preserves_payload_and_shared_pointer``
-     - Pending
+     - Caller dtype view; every byte pair checked
    * - ``copy_async/test_tma.py``
      - ``test_auto_promotes_before_crossing_box_blocked_inner_chain_boundary``
-     - Pending
+     - Caller promoted-inner-chain recipe
    * - ``copy_async/test_tma.py``
      - ``test_auto_promotion_rejects_unsafe_modes``
-     - Pending
+     - Promotion removed; explicit dtype/field preservation checked
    * - ``copy_async/test_tma.py``
      - ``test_auto_odd_partial_and_unrepairable_box_fail_loudly``
-     - Pending
+     - Odd partial rejects; oversized box explicitly tiled on GPU
    * - ``copy_async/test_tma.py``
      - ``test_auto_descriptor_cache_key_includes_promoted_dtype``
-     - Pending
+     - Cache distinguishes explicit dtype views
    * - ``copy_async/test_tma.py``
      - ``test_explicit_direct_rank_1_through_5``
-     - Pending
+     - Restored
    * - ``copy_async/test_tma.py``
      - ``test_explicit_retains_symbolic_outer_stride_for_runtime_encode``
-     - Pending
+     - Restored
    * - ``copy_async/test_tma.py``
      - ``test_explicit_rejects_unknown_or_nonunit_implicit_inner_stride``
-     - Pending
+     - Restored
    * - ``copy_async/test_tma.py``
      - ``test_explicit_view_base_offset_is_encoded_without_coordinate_rewrite``
-     - Pending
+     - Restored
    * - ``copy_async/test_tma.py``
      - ``test_explicit_oob_reduce_and_tf32_configs``
-     - Pending
+     - Restored
    * - ``copy_async/test_tma.py``
      - ``test_explicit_never_repairs_rank_or_descriptor_units``
-     - Pending
+     - Restored
    * - ``copy_async/test_tma.py``
      - ``test_explicit_requires_box_linear_shared_slice``
-     - Pending
+     - Restored
    * - ``copy_async/test_tma.py``
      - ``test_explicit_gather_uses_extracted_swizzled_slice_pointer``
-     - Pending
+     - Restored
    * - ``copy_async/test_tma.py``
      - ``test_explicit_shared_pointer_counts_each_offset_once``
-     - Pending
+     - Explicit aligned staging; original destination preserved
    * - ``copy_async/test_tma.py``
      - ``test_explicit_allows_different_operand_ranks_with_equal_payload_bytes``
-     - Pending
+     - Restored
    * - ``copy_async/test_tma.py``
      - ``test_explicit_gather_selector_encodes_each_map_selects_address_and_issues_once``
-     - Pending
+     - Restored
    * - ``copy_async/test_tma.py``
      - ``test_explicit_selector_uses_first_true_and_requires_static_compatibility``
-     - Pending
+     - First-true GPU selection; opaque map compatibility is caller-owned
    * - ``copy_async/test_tma.py``
      - ``test_explicit_gather_validates_target_source_and_destination_layouts``
-     - Pending
+     - Explicit source/destination checks and native compiler target rejection
    * - ``copy_async/test_tma.py``
      - ``test_nested_selector_parser_printer_roundtrip_and_lowering_remap``
-     - Pending
+     - Restored
    * - ``copy_async/test_tma.py``
      - ``test_prefetch_only_main_selector_descriptor``
-     - Pending
+     - Restored
    * - ``copy_async/test_tma.py``
      - ``test_sparse_decode_runtime_stride_q_tail_o_counts_and_descriptor_dedup``
-     - Pending
+     - Restored
    * - ``copy_async/test_tma.py``
      - ``test_sparse_decode_nope_rope_descriptor_dtypes_and_swizzles``
-     - Pending
+     - Restored
    * - ``copy_async/test_tma.py``
      - ``test_sparse_decode_kv_descriptor_uses_tma_row_stride``
-     - Pending
+     - Restored
    * - ``copy_async/test_tma.py``
      - ``test_sparse_decode_absent_extra_map_has_no_dummy_descriptor_or_select``
-     - Pending
+     - Restored
    * - ``copy_async/test_tma.py``
      - ``test_shared_validator_static_boundary_matrix``
-     - Pending
+     - Native descriptor contract / PTX compiler checks
    * - ``copy_async/test_tma.py``
      - ``test_shared_validator_unknown_policy_differs_for_auto_and_explicit``
-     - Pending
+     - Symbolic descriptor parameters checked by runtime encode
    * - ``copy_async/test_tma.py``
      - ``test_auto_defers_only_unknown_global_dimension_bounds_to_runtime``
-     - Pending
+     - Static invalid dimensions reject; runtime dimensions pass through
    * - ``copy_async/test_tma.py``
      - ``test_shared_validator_packed_and_interleave_rules``
-     - Pending
+     - Native FP4 and interleave contracts plus GPU transfers
    * - ``copy_async/test_tma.py``
      - ``test_explicit_gather_selector_gpu_roundtrip``
-     - Pending
+     - Restored
    * - ``elementwise/test_binary.py``
      - ``test_binary_op_shared``
      - Migrated

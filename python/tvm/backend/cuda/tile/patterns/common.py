@@ -44,7 +44,7 @@ from tvm.ir.prim import Let
 from tvm.runtime import DataType
 from tvm.script import tirx as T
 from tvm.sym import Analyzer
-from tvm.tirx import Function
+from tvm.tirx import Function, IntImm
 from tvm.tirx.layout import TileLayout
 
 
@@ -59,12 +59,16 @@ class Context:
     def __init__(self, sctx, atom_scope="thread"):
         self.sctx = sctx
         self.analyzer = Analyzer()
+        self.static_ranges = {}
         for var, extent in sctx.launch_params.values():
             self.analyzer.bind(var, Range(0, extent))
         for var, bound in sctx.var_range_map.items():
             self.analyzer.bind(
                 var, Range.from_min_extent(self.index_coordinates(bound.min), bound.extent)
             )
+            low, extent = (self.analyzer.simplify(x) for x in (bound.min, bound.extent))
+            if isinstance(low, IntImm) and isinstance(extent, IntImm):
+                self.static_ranges[var] = range(int(low), int(low) + int(extent))
         self.bindings = []
         self.group = []
         self.group_shape = []
@@ -165,8 +169,8 @@ class Context:
         if self.analyzer.can_prove(condition):
             return
         # Bitwise swizzles are not fully covered by the arithmetic analyzer.
-        # Check the already fixed group/repeat coordinates directly. This does
-        # not search for another layout, atom, or instruction.
+        # Check the already fixed group/repeat and enclosing-loop coordinates
+        # directly. This does not search for another layout, atom, or instruction.
         variables = []
 
         def collect(var):
@@ -175,16 +179,20 @@ class Context:
             return var
 
         tvm_ffi.structural_map(condition, (Var, collect))
-        domain = dict(
+        domain = dict(self.static_ranges)
+        domain.update(
             zip(
-                [*self.group, *(self.repeat or ())], [*self.group_shape, *(self.repeat_shape or ())]
+                [*self.group, *(self.repeat or ())],
+                (range(n) for n in [*self.group_shape, *(self.repeat_shape or ())]),
             )
         )
         if variables and all(var in domain for var in variables):
-            for values in product(*(range(domain[var]) for var in variables)):
+            for values in product(*(domain[var] for var in variables)):
                 replacements = dict(zip(variables, values))
                 expr = tvm_ffi.structural_map(
-                    condition, (Var, lambda var: T.int32(replacements[var])), order="pre"
+                    condition,
+                    (Var, lambda var: IntImm(var.ty.dtype, replacements[var])),
+                    order="pre",
                 )
                 if not self.analyzer.can_prove(expr):
                     break

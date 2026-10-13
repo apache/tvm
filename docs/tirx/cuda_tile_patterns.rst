@@ -202,28 +202,61 @@ TMA
 
 Select the rank, direction, tile/gather4/scatter4 mode, reduction operator,
 multicast and cache qualifiers in the PTX opcode. The global operand is the
-rectangular tensor view described by the TensorMap. Its rank is exactly the
-instruction rank; shape, strides, starting region and dtype define the map.
+rectangular tensor view described by the TensorMap. Without interleave its
+rank is exactly the instruction rank; shape, strides, starting region and
+dtype define the map. Alternatively, pass an ordinary address expression for
+a descriptor encoded by the caller. Its fields must agree with the pattern's
+box, format and swizzle; the dispatcher does not inspect opaque descriptors.
 
 Required keyword operands are ``box`` and ``coords``, both in outer-to-inner
-logical axis order. The shared operand is ``(*group,*repeat,*box)``; every
-shared atom starts at a 128-byte-aligned address, including unswizzled boxes.
+logical axis order. The shared operand is ``(*group,*repeat,*box_image)``.
+Every atom's unswizzled origin is 128-byte aligned, including unswizzled boxes.
+Swizzled allocation bases are aligned to the full swizzle period; a subregion
+uses its unswizzled origin so that the instruction applies its phase once.
 ``coord_steps`` has one coordinate vector per group/repeat axis. Lowering adds
 these explicit steps to ``coords``, encodes the descriptor on the host, and
 issues one instruction at each repeat. It does not fold dimensions, promote
 dtypes, infer a box, prefetch a descriptor, select a source, or elect a thread.
-Use ordinary control flow and separate calls to choose between sources.
+Use ordinary control flow, or select explicitly encoded descriptor addresses,
+to choose between sources. Prefetch is an explicit ``T.ptx.prefetch.tensormap``.
 
 Descriptor operands are ``format`` (storage dtype by default, or ``tf32``),
-``swizzle=0/1/2/3``, ``l2_promotion=0`` and ``oob_fill=0``. The current dense
-pattern requires ``interleave=0`` and unit ``element_strides``. Shared storage
-must match the compact box with the explicitly selected swizzle. A load requires
+``swizzle=0/1/2/3``, ``l2_promotion=0`` and ``oob_fill=0``. ``element_strides``
+has one entry in 1..8 per descriptor dimension; without interleave the inner
+entry is one. The non-interleaved shared image has extents
+``ceil(box[i]/element_strides[i])`` and compact storage before swizzling.
+Symbolic global dimensions and outer strides pass to runtime descriptor
+encoding; statically invalid values are rejected when lowering. A load requires
 ``mbar``; a multicast also requires ``cta_mask``; a cache-hint form requires
 ``cache_policy``. All are Call arguments and participate in substitution.
 
 Gather4/scatter4 use a 2D descriptor, ``box=(1,width)``, a shared atom of
 ``(4,width)``, and four explicit row coordinates in ``gather4``. Dynamic row
 coordinates are allowed. No row-selection algorithm is hidden in lowering.
+
+``format="float4_e2m1fn"`` selects CUDA's ``16U4_ALIGN16B`` representation.
+Its inner global dimension is a multiple of 128, its inner box is 128, and
+the global base and outer byte strides are 32-byte aligned. Each sixteen
+nibbles occupy the low eight bytes of a sixteen-byte shared block. The other
+eight bytes are undefined padding. The mbarrier counts **payload bytes**,
+not padding. This representation supports loads with swizzle 0 or 3; gather4
+uses the same packed shared image.
+
+For ``interleave=1`` (16B) or ``2`` (32B), an opcode of rank 3..5 takes a
+global view ``(N,C_slices,*spatial,Ci)``. ``Ci`` is the number of scalar
+elements in one 16B/32B slice. The descriptor omits this last, implicit axis;
+``box``, ``coords`` and ``coord_steps`` have the opcode rank. The W stride
+is exactly one slice; Ci is contiguous. Other strides are explicit and can
+include padding. Mode 2 requires swizzle 1 and 32-byte global alignment.
+
+One interleaved tiled issue visits **one C slice**, selected by ``coords[1]``.
+The C box and traversal-stride fields do not iterate additional slices. Its
+shared image is ``(ceil(boxN/stepN),1,*ceil(boxSpatial/stepSpatial),Ci)``
+before swizzling. To visit several channel slices, add a repeat axis and a
+coordinate step in C. For example, rank-3 uint16 with interleave 2 uses
+``Ci=16``; ``box=(1,1,8)`` copies a ``(1,1,8,16)`` shared atom. A shared
+operand of shape ``(3,1,1,8,16)`` and ``coord_steps=((0,1,0),)`` issues three
+copies for three successive channel slices. Gather4/scatter4 do not interleave.
 
 TMEM transfers
 --------------------------------------------------------------------------------
