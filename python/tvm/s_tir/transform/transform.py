@@ -399,14 +399,3 @@ def RemoveStoreUndef():
         The result pass
     """
     return _ffi_api.RemoveStoreUndef()  # type: ignore
-
-
-def UseAssumeToReduceBranches():
-    """Eliminate layout specific pad branch by overcomputing values for padded region.
-
-    Returns
-    -------
-    fpass : tvm.transform.Pass
-        The result pass
-    """
-    return _ffi_api.UseAssumeToReduceBranches()  # type: ignore
