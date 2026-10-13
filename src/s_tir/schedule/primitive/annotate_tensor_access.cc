@@ -130,11 +130,10 @@ struct AnnotateTensorAccessTraits : public UnpackedInstTraits<AnnotateTensorAcce
   static constexpr size_t kNumAttrs = 0;
   static constexpr size_t kNumDecisions = 0;
 
-  static void UnpackedApplyToSchedule(Schedule sch, SBlockRV block, IntImm tensor_index,
-                                      IntImm tensor_index_type, IndexMap index_map) {
-    return sch->AnnotateTensorAccess(
-        block, tensor_index->value.as<int>().value(),
-        static_cast<TensorIndexType>(tensor_index_type->value.as<int>().value()), index_map);
+  static void UnpackedApplyToSchedule(Schedule sch, SBlockRV block, int tensor_index,
+                                      int tensor_index_type, IndexMap index_map) {
+    return sch->AnnotateTensorAccess(block, tensor_index,
+                                     static_cast<TensorIndexType>(tensor_index_type), index_map);
   }
 
   static ffi::String IndexMap2GenNewRangesLambda(const IndexMap& index_map) {
@@ -169,17 +168,13 @@ struct AnnotateTensorAccessTraits : public UnpackedInstTraits<AnnotateTensorAcce
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String block,
-                                      IntImm tensor_index, IntImm tensor_index_type,
-                                      IndexMap index_map) {
+                                      int tensor_index, int tensor_index_type, IndexMap index_map) {
     PythonAPICall py("annotate_tensor_access");
     py.Input("block", block);
-    py.Input("tensor_index", tensor_index->value.as<int>().value());
+    py.Input("tensor_index", tensor_index);
 
     std::ostringstream os;
-    os << "\""
-       << TensorIndexType2Str(
-              static_cast<TensorIndexType>(tensor_index_type->value.as<int>().value()))
-       << "\"";
+    os << "\"" << TensorIndexType2Str(static_cast<TensorIndexType>(tensor_index_type)) << "\"";
     py.Input("tensor_type", ffi::String(os.str()));
 
     py.Input("gen_new_ranges", IndexMap2GenNewRangesLambda(index_map));

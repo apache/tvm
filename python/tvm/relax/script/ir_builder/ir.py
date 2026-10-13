@@ -374,11 +374,7 @@ def Shape(values=None, ndim=-1, *, loc: _LocationEntry | Location = UNKNOWN_LOC)
 def _type(value):
     if value is None:
         return _ir.TupleType([])
-    if (
-        isinstance(value, _ir.Type)
-        or (isinstance(value, type) and issubclass(value, _ir.Type))
-        or isinstance(getattr(value, "_dtype_str", None), _python.str)
-    ):
+    if isinstance(value, _ir.Type) or (isinstance(value, type) and issubclass(value, _ir.Type)):
         return _normalize_type(value)
     if callable(value):
         value = value()

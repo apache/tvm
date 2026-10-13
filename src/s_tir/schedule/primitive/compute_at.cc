@@ -849,18 +849,16 @@ struct ComputeAtTraits : public UnpackedInstTraits<ComputeAtTraits> {
   static constexpr size_t kNumDecisions = 0;
 
   static void UnpackedApplyToSchedule(Schedule sch, SBlockRV block_rv, LoopRV loop_rv,
-                                      IntImm preserve_unit_loops, IntImm index) {
-    return sch->ComputeAt(block_rv, loop_rv, preserve_unit_loops->value != 0,
-                          index->value.as<int>().value());
+                                      bool preserve_unit_loops, int index) {
+    return sch->ComputeAt(block_rv, loop_rv, preserve_unit_loops, index);
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String block_rv,
-                                      ffi::String loop_rv, IntImm preserve_unit_loops,
-                                      IntImm index) {
+                                      ffi::String loop_rv, bool preserve_unit_loops, int index) {
     PythonAPICall py("compute_at");
     py.Input("block", block_rv);
     py.Input("loop", loop_rv);
-    py.Input("preserve_unit_loops", preserve_unit_loops->value != 0);
+    py.Input("preserve_unit_loops", preserve_unit_loops);
     py.Input("index", index);
     return py.Str();
   }
@@ -879,18 +877,16 @@ struct ReverseComputeAtTraits : public UnpackedInstTraits<ReverseComputeAtTraits
   static constexpr size_t kNumDecisions = 0;
 
   static void UnpackedApplyToSchedule(Schedule sch, SBlockRV block_rv, LoopRV loop_rv,
-                                      IntImm preserve_unit_loops, IntImm index) {
-    return sch->ReverseComputeAt(block_rv, loop_rv, preserve_unit_loops->value != 0,
-                                 index->value.as<int>().value());
+                                      bool preserve_unit_loops, int index) {
+    return sch->ReverseComputeAt(block_rv, loop_rv, preserve_unit_loops, index);
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String block_rv,
-                                      ffi::String loop_rv, IntImm preserve_unit_loops,
-                                      IntImm index) {
+                                      ffi::String loop_rv, bool preserve_unit_loops, int index) {
     PythonAPICall py("reverse_compute_at");
     py.Input("block", block_rv);
     py.Input("loop", loop_rv);
-    py.Input("preserve_unit_loops", preserve_unit_loops->value != 0);
+    py.Input("preserve_unit_loops", preserve_unit_loops);
     py.Input("index", index);
     return py.Str();
   }

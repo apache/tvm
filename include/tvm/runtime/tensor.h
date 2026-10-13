@@ -277,13 +277,6 @@ class TensorMemoryPool : public ffi::Object {
   virtual ffi::Tensor CreateView(ffi::Tensor backing, ffi::Shape shape, DLDataType dtype,
                                  uint64_t byte_offset = 0,
                                  ffi::Optional<MemoryScope> mem_scope = std::nullopt) {
-    static const auto vtcm = MemoryScope::Get("global.vtcm");
-    static const auto ddr = MemoryScope::Get("global.ddr");
-    TVM_FFI_CHECK(!mem_scope.has_value() || *mem_scope == MemoryScope::Global() ||
-                      (backing.device().device_type == kDLHexagon &&
-                       (*mem_scope == vtcm || *mem_scope == ddr)),
-                  ValueError)
-        << "Unsupported tensor view memory scope";
     auto view = runtime::CreateView(std::move(backing), std::move(shape), dtype, byte_offset);
     if (view.device().device_type == kDLHexagon &&
         (!mem_scope.has_value() || *mem_scope == MemoryScope::Global())) {

@@ -193,7 +193,7 @@ class ConcreteScheduleObj : public ScheduleObj {
   /******** Schedule: Misc ********/
   void EnterPostproc() override {}
   void UnsafeHideTensorAccess(const SBlockRV& block_rv, const ffi::String& tensor_type,
-                              const ffi::Array<IntImm>& tensor_index_array) override;
+                              const ffi::Array<int64_t>& tensor_index_array) override;
   void AnnotateTensorAccess(const SBlockRV& block_rv, int tensor_index,
                             TensorIndexType tensor_index_type, const IndexMap& index_map) override;
 

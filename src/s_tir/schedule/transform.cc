@@ -26,7 +26,6 @@
 #include <tvm/s_tir/tensor_intrin.h>
 #include <tvm/tirx/op/memory.h>
 
-#include "../../tirx/transform/ir_utils.h"
 #include "./utils.h"
 
 namespace tvm {

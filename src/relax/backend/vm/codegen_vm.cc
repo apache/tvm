@@ -37,7 +37,6 @@
 #include <vector>
 
 #include "../../../runtime/vm/const_loader_module.h"
-#include "../../../target/source/codegen_source_base.h"
 #include "../../transform/utils.h"
 
 namespace tvm {
@@ -340,9 +339,12 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
       ffi::String sym = op->global_symbol;
       ffi::String fmt = op->attrs.GetAttr<ffi::String>(tvm::relax::attr::kCSourceFmt).value_or("c");
       ffi::String code = opt_code.value();
+      // Grep hint: grep -rn 'runtime.CSourceModuleCreate' src/
+      static const auto create_source =
+          ffi::Function::GetGlobalRequired("runtime.CSourceModuleCreate");
       ffi::Module c_source_module =
-          codegen::CSourceModuleCreate(/*code=*/code, /*fmt=*/fmt, /*func_names=*/{sym},
-                                       /*const_vars=*/{});
+          create_source(code, fmt, ffi::Array<ffi::String>{sym}, ffi::Array<ffi::String>{})
+              .cast<ffi::Module>();
       builder_->exec()->ImportModule(c_source_module);
     }
     builder_->DeclareFunction(op->global_symbol, VMFuncInfo::FuncKind::kPackedFunc);
@@ -519,7 +521,11 @@ ffi::Module VMLink(ExecBuilder builder, ffi::Optional<Target> target,
                    ffi::Map<ffi::String, ffi::Tensor> params) {
   ffi::ObjectPtr<VMExecutable> executable = builder->Get();
   if (!lib.has_value()) {
-    lib = codegen::CSourceModuleCreate(";", "c", ffi::Array<ffi::String>{});
+    // Grep hint: grep -rn 'runtime.CSourceModuleCreate' src/
+    static const auto create_source =
+        ffi::Function::GetGlobalRequired("runtime.CSourceModuleCreate");
+    lib = create_source(";", "c", ffi::Array<ffi::String>{}, ffi::Array<ffi::String>{})
+              .cast<ffi::Module>();
   }
   LinkModules(executable, params, lib.value(), ext_libs);
   return ffi::Module(executable);

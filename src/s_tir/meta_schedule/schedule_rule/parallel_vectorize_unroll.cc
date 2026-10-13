@@ -63,13 +63,11 @@ class ParallelizeVectorizeUnrollObj : public ScheduleRuleObj {
 
     // Parallelization
     if (max_jobs_per_core != -1) {
-      sch->Annotate(root_rv, tvm::s_tir::attr::kMetaScheduleParallel,
-                    IntImm::Int32(this->max_parallel_extent_));
+      sch->Annotate(root_rv, tvm::s_tir::attr::kMetaScheduleParallel, this->max_parallel_extent_);
     }
     // Vectorization
     if (max_vectorize_extent != -1) {
-      sch->Annotate(root_rv, tvm::s_tir::attr::kMetaScheduleVectorize,
-                    IntImm::Int32(max_vectorize_extent));
+      sch->Annotate(root_rv, tvm::s_tir::attr::kMetaScheduleVectorize, max_vectorize_extent);
     }
     // Unroll
     if (!unroll_max_steps.empty() && !s_tir::CheckSpatialFunction(sch, root_rv)) {

@@ -313,7 +313,13 @@ def call_packed(
         ty_args = [ty_args]
 
     ty_args = [
-        (ty() if callable(ty) else ty.asobject() if isinstance(ty, ObjectConvertible) else ty)
+        (
+            ty()
+            if callable(ty) and not isinstance(ty, _ir.Type)
+            else ty.asobject()
+            if isinstance(ty, ObjectConvertible)
+            else ty
+        )
         for ty in ty_args
     ]
 

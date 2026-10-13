@@ -355,7 +355,7 @@ def call_builtin_with_ctx(
     if ty_args is not None:
         ty_args = [
             value()
-            if callable(value)
+            if callable(value) and not isinstance(value, Type)
             else value.asobject()
             if isinstance(value, ObjectConvertible)
             else value
@@ -776,7 +776,13 @@ def call_pure_packed(
         ty_args = [ty_args]
 
     ty_args = [
-        (ty() if callable(ty) else ty.asobject() if isinstance(ty, ObjectConvertible) else ty)
+        (
+            ty()
+            if callable(ty) and not isinstance(ty, Type)
+            else ty.asobject()
+            if isinstance(ty, ObjectConvertible)
+            else ty
+        )
         for ty in ty_args
     ]
 

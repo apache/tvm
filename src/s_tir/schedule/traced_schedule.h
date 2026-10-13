@@ -149,7 +149,7 @@ class TracedScheduleObj : public ConcreteScheduleObj {
   /******** Schedule: Misc ********/
   void EnterPostproc() final;
   void UnsafeHideTensorAccess(const SBlockRV& block_rv, const ffi::String& tensor_type,
-                              const ffi::Array<IntImm>& tensor_index_array) final;
+                              const ffi::Array<int64_t>& tensor_index_array) final;
   void AnnotateTensorAccess(const SBlockRV& block_rv, int tensor_index,
                             TensorIndexType tensor_index_type, const IndexMap& index_map) final;
 };

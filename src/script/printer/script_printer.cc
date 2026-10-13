@@ -26,6 +26,7 @@
 #include <tvm/ir/prim/vector_expr.h>
 #include <tvm/ir/stmt.h>
 #include <tvm/script/printer/printer.h>
+#include <tvm/script/printer/support.h>
 
 #include <utility>
 
@@ -35,7 +36,7 @@ namespace tvm {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = ffi::reflection;
-  using script::printer::details::RegisterScriptRepr;
+  using script::printer::RegisterScriptRepr;
   refl::GlobalDef()
       .def("node.TVMScriptPrinterScript", tvm::Script)
       .def("script.printer.Script", tvm::Script);

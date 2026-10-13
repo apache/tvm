@@ -20,9 +20,7 @@
 #include <tvm/runtime/memory_scope.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/script/printer/doc_translator.h>
-
-#include "../../../script/printer/utils.h"
-#include "../../../tirx/script/printer/utils.h"
+#include <tvm/script/printer/support.h>
 
 namespace tvm {
 namespace script {
@@ -47,8 +45,9 @@ CallDoc TensorHelperCall(DocTranslatorObj* d, const Type& type, const ffi::Strin
   // Supply the fixed zero explicitly when the type printer omitted it.
   if (has_factor && !has_offset) {
     rhs->kwargs_keys.push_back("elem_offset");
-    rhs->kwargs_values.push_back(
-        ReflectedValue(d, type.as_or_throw<tirx::TensorType>()->elem_offset));
+    rhs->kwargs_values.push_back(d->WithExtraStateScope<bool>(
+        "ir.explicit_scalar_dtype", true,
+        [&] { return d->Translate(type.as_or_throw<tirx::TensorType>()->elem_offset).value(); }));
   }
   rhs->callee = NamespaceDoc("s_tir")->Attr(helper);
   return rhs;
@@ -61,7 +60,7 @@ void PrintMatchTensor(DocTranslatorObj* d, const s_tir::MatchTensorRegionNode* m
   rhs->args.insert(rhs->args.begin(), source);
   if (!allocated_addr.empty()) {
     rhs->kwargs_keys.push_back("allocated_addr");
-    rhs->kwargs_values.push_back(AnyValue(d, allocated_addr));
+    rhs->kwargs_values.push_back(d->Translate(allocated_addr).value());
   }
   IdDoc lhs = VarDoc(d, match->tensor);
   d->Emit(AssignDoc(lhs, rhs, std::nullopt), ffi::GetRef<ffi::ObjectRef>(match));
@@ -139,9 +138,10 @@ ffi::Array<StmtDoc> SBlockBody(DocTranslatorObj* d, const s_tir::SBlockNode* blo
       annotations.erase(s_tir::attr::kTensorAllocatedAddr);
     }
     if (!annotations.empty()) {
-      d->Emit(
-          ExprStmtDoc(NamespaceDoc("s_tir")->Attr("sblock_attr")->Call({AnyValue(d, annotations)})),
-          block->annotations);
+      d->Emit(ExprStmtDoc(NamespaceDoc("s_tir")
+                              ->Attr("sblock_attr")
+                              ->Call({d->Translate(annotations).value()})),
+              block->annotations);
     }
     for (const tirx::TensorVar& tensor : block->alloc_tensors) {
       CallDoc rhs = TensorHelperCall(d, tensor.var()->ty, "sblock_alloc_tensor");
@@ -157,7 +157,7 @@ ffi::Array<StmtDoc> SBlockBody(DocTranslatorObj* d, const s_tir::SBlockNode* blo
           << tensor_type->storage_scope;
       if (!allocated_addr.empty()) {
         rhs->kwargs_keys.push_back("allocated_addr");
-        rhs->kwargs_values.push_back(AnyValue(d, allocated_addr));
+        rhs->kwargs_values.push_back(d->Translate(allocated_addr).value());
       }
       IdDoc lhs = VarDoc(d, tensor);
       d->Emit(AssignDoc(lhs, rhs, std::nullopt), ffi::GetRef<ffi::ObjectRef>(tensor.get()));
@@ -167,9 +167,10 @@ ffi::Array<StmtDoc> SBlockBody(DocTranslatorObj* d, const s_tir::SBlockNode* blo
                        addresses.Get(match->tensor.var()).value_or(ffi::Array<PrimExpr>{}));
     }
     if (block->init.has_value()) {
-      d->Emit(ScopeDoc(std::nullopt, NamespaceDoc("s_tir")->Attr("init")->Call({}),
-                       Body(block->init.value(), d)),
-              block->init.value());
+      d->Emit(
+          ScopeDoc(std::nullopt, NamespaceDoc("s_tir")->Attr("init")->Call({}),
+                   ToStmtDocArray(d->WithDocScope([&]() { d->Translate(block->init.value()); }))),
+          block->init.value());
     }
     d->Translate(block->body);
   });

@@ -34,7 +34,6 @@
 #include <unordered_map>
 #include <unordered_set>
 
-#include "../../tirx/transform/ir_utils.h"
 #include "../transform/ir_utils.h"
 #include "conditional_bounds.h"
 

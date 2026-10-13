@@ -34,7 +34,6 @@
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/op/memory.h>
 
-#include "../../tirx/transform/ir_utils.h"
 #include "../transform/ir_utils.h"
 
 namespace tvm {

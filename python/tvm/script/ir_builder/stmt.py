@@ -99,7 +99,7 @@ def bind(  # pylint: disable=invalid-name
     if type_annotation is not None:
         # Canonical Vars are callable when they denote functions.  Here a Var is
         # already a resolved type annotation, rather than a deferred annotation factory.
-        if callable(type_annotation) and not isinstance(type_annotation, Expr):
+        if callable(type_annotation) and not isinstance(type_annotation, Expr | _ir.Type):
             type_annotation = type_annotation()
         if isinstance(type_annotation, _ir.Var):
             type_annotation = type_annotation.ty

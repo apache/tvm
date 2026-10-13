@@ -1081,6 +1081,13 @@ class TensorRegion : public Expr {
   TVM_TIRX_DLL TensorRegion(Expr source, ffi::Array<Range> region, Type ty,
                             Location loc = UnknownLoc());
 
+  /*!
+   * \brief Convert a tensor load to a region with unit extent at each index.
+   * \param value The tensor load whose source, indices and location are retained.
+   * \return The region, requiring the source to be a TIRx TensorVar.
+   */
+  TVM_TIRX_DLL static TensorRegion FromTensorLoad(TensorLoad value);
+
   explicit TensorRegion(ffi::ObjectPtr<TensorRegionNode> node) : Expr(std::move(node)) {}
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TensorRegion, Expr, TensorRegionNode);

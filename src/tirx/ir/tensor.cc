@@ -40,13 +40,17 @@
 
 namespace tvm {
 
-TensorRegion ffi::TypeTraits<TensorRegion>::ConvertFallbackValue(TensorLoad value) {
+TensorRegion TensorRegion::FromTensorLoad(TensorLoad value) {
   ffi::Array<Range> ranges;
   for (const PrimExpr& index : value->indices) {
     ranges.push_back(Range::FromMinExtent(index, IntImm(index.ty(), 1)));
   }
   return TensorRegion(value->source.as_or_throw<tirx::TensorVar>(), ranges, TensorRegionType(),
                       value->loc);
+}
+
+TensorRegion ffi::TypeTraits<TensorRegion>::ConvertFallbackValue(TensorLoad value) {
+  return TensorRegion::FromTensorLoad(std::move(value));
 }
 
 namespace tirx {

@@ -17,11 +17,11 @@
  * under the License.
  */
 
-#ifndef TVM_TIRX_ANALYSIS_VERIFY_WELL_FORMED_H_
-#define TVM_TIRX_ANALYSIS_VERIFY_WELL_FORMED_H_
+/*! \brief Check if TIRx is well-formed. */
 
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/extra/visit_error_context.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/function.h>
 #include <tvm/ir/module.h>
 #include <tvm/ir/scope_stack.h>
@@ -38,11 +38,11 @@
 
 namespace tvm {
 namespace tirx {
+namespace {
 
 // This state and traversal belong to well-formedness checking. In particular,
 // ordinary visitors do not impose a definition/use or lexical-scope policy.
-template <typename Visitor>
-class WellFormednessVerifier : public Visitor {
+class WellFormednessVerifier : public StmtExprVisitor {
   friend class tvm::ObjectVisitor;
 
  public:
@@ -91,21 +91,21 @@ class WellFormednessVerifier : public Visitor {
   }
 
  protected:
-  using VTable = typename Visitor::VTable;
-  using Visitor::Visit_;
+  using VTable = StmtExprVisitor::VTable;
+  using StmtExprVisitor::Visit_;
   explicit WellFormednessVerifier(const VTable* table, Check check, bool assert_mode)
-      : Visitor(table), check_(check), table_(table), assert_mode_(assert_mode) {}
+      : StmtExprVisitor(table), check_(check), table_(table), assert_mode_(assert_mode) {}
 
   static void InitVTable(VTable* table) {
-    Visitor::InitVTable(table);
-    Visitor::template SetDispatch<WellFormednessVerifier, IRModuleNode>(table);
-    Visitor::template SetDispatch<WellFormednessVerifier, FunctionNode>(table);
-    Visitor::template SetDispatch<WellFormednessVerifier, LambdaExprNode>(table);
+    StmtExprVisitor::InitVTable(table);
+    StmtExprVisitor::SetDispatch<WellFormednessVerifier, IRModuleNode>(table);
+    StmtExprVisitor::SetDispatch<WellFormednessVerifier, FunctionNode>(table);
+    StmtExprVisitor::SetDispatch<WellFormednessVerifier, LambdaExprNode>(table);
   }
 
   Result Visit(ffi::AnyView value) override {
     auto object = value.as<ffi::ObjectRef>();
-    if (!object) return Visitor::Visit(value);
+    if (!object) return StmtExprVisitor::Visit(value);
     visit_stack_.push_back(object.value());
     struct Pop {
       std::vector<ffi::ObjectRef>* stack;
@@ -135,7 +135,7 @@ class WellFormednessVerifier : public Visitor {
       TVM_FFI_VISIT_THROW(TypeError, object.value())
           << "Unsupported non-primitive TIR expression " << object.value()->GetTypeKey();
     }
-    return Visitor::Visit(value);
+    return StmtExprVisitor::Visit(value);
   }
 
   class VerifyStream {
@@ -256,11 +256,11 @@ class WellFormednessVerifier : public Visitor {
       ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(tensor->shape[i], walk);
     }
     for (size_t i = 0; i < tensor->strides.size(); ++i) {
-      if (auto var = tensor->strides[i].template as<Var>()) {
+      if (auto var = tensor->strides[i].as<Var>()) {
         define_if_needed(var.value(), field->Attr("strides")->ArrayItem(i));
       }
     }
-    if (auto var = tensor->elem_offset.template as<Var>()) {
+    if (auto var = tensor->elem_offset.as<Var>()) {
       define_if_needed(var.value(), field->Attr("elem_offset"));
     }
   }
@@ -269,15 +269,12 @@ class WellFormednessVerifier : public Visitor {
     std::vector<GlobalVar> globals;
     for (const auto& [global, function] : op->functions) globals.push_back(global);
     std::sort(globals.begin(), globals.end(), [&](const GlobalVar& a, const GlobalVar& b) {
-      bool a_public =
-          op->functions[a]->template GetAttr<ffi::String>(tvm::attr::kGlobalSymbol).has_value();
-      bool b_public =
-          op->functions[b]->template GetAttr<ffi::String>(tvm::attr::kGlobalSymbol).has_value();
+      bool a_public = op->functions[a]->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol).has_value();
+      bool b_public = op->functions[b]->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol).has_value();
       return a_public != b_public ? a_public > b_public : a->name_hint < b->name_hint;
     });
     for (const auto& global : globals) {
-      if (auto function = op->functions[global].template as<Function>())
-        this->Visit(function.value());
+      if (auto function = op->functions[global].as<Function>()) this->Visit(function.value());
     }
     return std::nullopt;
   }
@@ -288,16 +285,15 @@ class WellFormednessVerifier : public Visitor {
     WithScope([&]() -> Result {
       auto params = AccessPath::Root()->Attr("params");
       for (size_t i = 0; i < op->params.size(); ++i) {
-        if (!op->params[i]->ty.template as<TensorTypeNode>())
-          Define(op->params[i], params->ArrayItem(i));
+        if (!op->params[i]->ty.as<TensorTypeNode>()) Define(op->params[i], params->ArrayItem(i));
       }
       for (size_t i = 0; i < op->params.size(); ++i) {
-        if (auto tensor = op->params[i].template as<TensorVar>()) {
+        if (auto tensor = op->params[i].as<TensorVar>()) {
           MatchTensorDefinitions(tensor.value(), params->ArrayItem(i)->Attr("ty"));
         }
       }
       for (size_t i = 0; i < op->params.size(); ++i) {
-        if (op->params[i].template as<TensorVar>()) Define(op->params[i], params->ArrayItem(i));
+        if (op->params[i].as<TensorVar>()) Define(op->params[i], params->ArrayItem(i));
       }
       return WithScope([&]() { return this->Visit(op->body); });
     });
@@ -408,19 +404,18 @@ class WellFormednessVerifier : public Visitor {
   }
 
   Result Visit_(const CallNode* op) override {
-    if (op->op.template as<GlobalVar>() || op->op.template as<OpaqueExprNode>())
-      this->Visit(op->op);
+    if (op->op.as<GlobalVar>() || op->op.as<OpaqueExprNode>()) this->Visit(op->op);
     return this->Visit(op->args);
   }
 
   Result Visit_(const TensorStoreNode* op) override {
     this->Visit(op->value);
-    TensorUse(op->dest.template as_or_throw<TensorVar>());
+    TensorUse(op->dest.as_or_throw<TensorVar>());
     return this->Visit(op->indices);
   }
 
   Result Visit_(const TensorRegionNode* op) override {
-    if (auto tensor = op->source.template as<TensorVar>()) {
+    if (auto tensor = op->source.as<TensorVar>()) {
       TensorUse(tensor.value());
     } else {
       this->Visit(op->source);
@@ -489,10 +484,9 @@ class WellFormednessVerifier : public Visitor {
   std::unordered_map<Var, DefinitionSite> previous_;
 };
 
-template <typename Visitor>
-auto WellFormednessVerifier<Visitor>::Visit_(const TensorLoadNode* op) -> Result {
+auto WellFormednessVerifier::Visit_(const TensorLoadNode* op) -> Result {
   if (check_ != Check::kTensorLoadType) {
-    TensorUse(op->source.template as_or_throw<TensorVar>());
+    TensorUse(op->source.as_or_throw<TensorVar>());
     return this->Visit(op->indices);
   }
   auto tensor = op->source.as<TensorVar>();
@@ -560,16 +554,40 @@ auto WellFormednessVerifier<Visitor>::Visit_(const TensorLoadNode* op) -> Result
   return this->Visit(op->indices);
 }
 
-template <typename Checker, typename NodeRef>
-bool VerifyWellFormedCommon(const NodeRef& node, bool assert_mode) {
-  using Check = typename Checker::Check;
+bool VerifyWellFormedCommon(const ffi::ObjectRef& node, bool assert_mode) {
+  using Check = WellFormednessVerifier::Check;
   for (Check check :
        {Check::kVariables, Check::kTensors, Check::kTensorLoadType, Check::kLoopControl}) {
-    if (!ffi::make_object<Checker>(check, assert_mode)->Run(node)) return false;
+    if (!ffi::make_object<WellFormednessVerifier>(check, assert_mode)->Run(node)) return false;
   }
   return true;
 }
 
+}  // namespace
+
+bool VerifyWellFormed(const Function& func, bool assert_mode) {
+  return VerifyWellFormedCommon(func, assert_mode);
+}
+
+bool VerifyWellFormed(const IRModule& mod, bool assert_mode) {
+  return VerifyWellFormedCommon(mod, assert_mode);
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def(
+      "tirx.analysis.VerifyWellFormed", [](const ffi::ObjectRef& obj, bool assert_mode) {
+        if (auto opt = obj.as<Function>()) {
+          return VerifyWellFormed(opt.value(), assert_mode);
+        } else if (auto opt = obj.as<IRModule>()) {
+          return VerifyWellFormed(opt.value(), assert_mode);
+        } else {
+          TVM_FFI_THROW(InternalError)
+              << "Expected VerifyWellFormed argument to be a Function or IRModule, but found "
+              << obj->GetTypeKey();
+        }
+      });
+}
+
 }  // namespace tirx
 }  // namespace tvm
-#endif  // TVM_TIRX_ANALYSIS_VERIFY_WELL_FORMED_H_

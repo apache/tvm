@@ -23,14 +23,13 @@
 #include <tvm/runtime/tensor.h>
 #include <tvm/script/printer/doc_translator.h>
 #include <tvm/script/printer/printer.h>
+#include <tvm/script/printer/support.h>
 
 #include <cmath>
 #include <cstring>
 #include <limits>
 #include <optional>
 
-#include "../../../script/printer/ir/utils.h"
-#include "../../../script/printer/utils.h"
 #include "utils.h"
 
 namespace tvm {
@@ -138,7 +137,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }  // namespace script
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  using script::printer::details::RegisterScriptRepr;
+  using script::printer::RegisterScriptRepr;
   ffi::reflection::GlobalDef().def("script.printer.ReprPrintRelax",
                                    [](const ffi::ObjectRef& obj, const PrinterConfig& config) {
                                      return tvm::Script(obj, config);

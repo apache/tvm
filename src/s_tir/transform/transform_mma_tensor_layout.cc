@@ -28,7 +28,6 @@
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/index_map.h>
 
-#include "../../tirx/transform/ir_utils.h"
 #include "../memory_scope.h"
 
 namespace tvm {

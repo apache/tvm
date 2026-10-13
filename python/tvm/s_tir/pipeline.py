@@ -108,7 +108,7 @@ def _lower_s_tir_tail(*, adreno=False):
                 s_tir.transform.ThreadSync("shared.dyn"),
                 s_tir.transform.ThreadSync("warp"),
                 s_tir.transform.InferFragment(),
-                s_tir.transform.LowerThreadAllreduce(),
+                tirx.transform.LowerThreadAllreduce(),
             ]
         )
         if bool(config.get("tirx.use_async_copy", False)):

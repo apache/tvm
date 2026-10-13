@@ -23,13 +23,14 @@
 
 #include <algorithm>
 #include <cassert>
+#include <cstdint>
 #include <cstdlib>
+#include <cstring>
 #include <fstream>
 #include <sstream>
 #include <string>
 
 #include "../../../../../runtime/rpc/minrpc/minrpc_server.h"
-#include "../../hexagon_common.h"
 #include "hexagon_sim_proto.h"
 #include "tvm/ffi/function.h"
 

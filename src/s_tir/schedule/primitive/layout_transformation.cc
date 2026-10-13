@@ -1597,31 +1597,28 @@ struct TransformLayoutTraits : public UnpackedInstTraits<TransformLayoutTraits> 
   static constexpr size_t kNumDecisions = 0;
 
   static void UnpackedApplyToSchedule(Schedule sch, SBlockRV block_rv, IndexMap index_map,
-                                      IntImm tensor_index, IntImm tensor_index_type,
+                                      int tensor_index, int tensor_index_type,
                                       ffi::Optional<IndexMap> pad_value,
-                                      IntImm assume_injective_transform) {
-    return sch->TransformLayout(
-        block_rv, tensor_index->value.as<int>().value(),
-        static_cast<TensorIndexType>(tensor_index_type->value.as<int>().value()), index_map,
-        pad_value, assume_injective_transform->value != 0);
+                                      bool assume_injective_transform) {
+    return sch->TransformLayout(block_rv, tensor_index,
+                                static_cast<TensorIndexType>(tensor_index_type), index_map,
+                                pad_value, assume_injective_transform);
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String block_rv,
-                                      IndexMap index_map, IntImm tensor_index,
-                                      IntImm tensor_index_type, ffi::Optional<IndexMap> pad_value,
-                                      IntImm assume_injective_transform) {
+                                      IndexMap index_map, int tensor_index, int tensor_index_type,
+                                      ffi::Optional<IndexMap> pad_value,
+                                      bool assume_injective_transform) {
     PythonAPICall py("transform_layout");
     py.Input("block", block_rv);
 
     std::ostringstream os;
-    os << "(\""
-       << TensorIndexType2Str(
-              static_cast<TensorIndexType>(tensor_index_type->value.as<int>().value()))
-       << "\", " << tensor_index << ")";
+    os << "(\"" << TensorIndexType2Str(static_cast<TensorIndexType>(tensor_index_type)) << "\", "
+       << tensor_index << ")";
     py.Input("tensor", os.str());
     py.Input("index_map", index_map->ToPythonString());
     py.Input("pad_value", pad_value ? pad_value.value()->ToPythonString() : "None");
-    py.Input("assume_injective_transform", assume_injective_transform->value != 0);
+    py.Input("assume_injective_transform", assume_injective_transform);
 
     return py.Str();
   }

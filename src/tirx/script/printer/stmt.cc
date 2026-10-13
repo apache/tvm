@@ -99,23 +99,23 @@ ffi::Optional<ExprDoc> RegionStmtDocTranslate(DocTranslatorObj* d, ffi::AnyView 
   ffi::Array<ExprDoc> values;
   if (!stmt->attrs->dict.empty()) {
     keys.push_back("attrs");
-    values.push_back(AnyValue(d, stmt->attrs));
+    values.push_back(d->Translate(stmt->attrs).value());
   }
   ExprDoc rhs = NamedCallCallee(stmt->op->name)->Call(args, keys, values);
 
-  VarScope vars(d);
-  ffi::Optional<ExprDoc> lhs = std::nullopt;
-  ffi::Array<ExprDoc> params;
-  for (const Var& param : stmt->body_params) params.push_back(VarDoc(d, param));
-  if (params.size() == 1) {
-    lhs = params[0];
-  } else if (!params.empty()) {
-    lhs = TupleDoc(params);
-  }
-  auto body = Body(stmt->body, d);
-  vars.Close();
-  d->Emit(ScopeDoc(lhs, rhs, body, /*allow_concise_scoping=*/false),
-          ffi::GetRef<ffi::ObjectRef>(stmt));
+  auto doc = d->WithVarScope([&]() {
+    ffi::Optional<ExprDoc> lhs = std::nullopt;
+    ffi::Array<ExprDoc> params;
+    for (const Var& param : stmt->body_params) params.push_back(VarDoc(d, param));
+    if (params.size() == 1) {
+      lhs = params[0];
+    } else if (!params.empty()) {
+      lhs = TupleDoc(params);
+    }
+    auto body = ToStmtDocArray(d->WithDocScope([&]() { d->Translate(stmt->body); }));
+    return ScopeDoc(lhs, rhs, body, /*allow_concise_scoping=*/false);
+  });
+  d->Emit(doc, ffi::GetRef<ffi::ObjectRef>(stmt));
   return std::nullopt;
 }
 

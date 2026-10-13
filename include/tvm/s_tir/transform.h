@@ -263,12 +263,6 @@ TVM_DLL Pass LowerSynchronization();
 TVM_DLL Pass InferFragment();
 
 /*!
- * \brief Lower cross thread allreduce.
- * \return The pass.
- */
-TVM_DLL Pass LowerThreadAllreduce();
-
-/*!
  * \brief Rewrite global to shared memory copy on CUDA with asynchronous copy.
  * \return The pass.
  */

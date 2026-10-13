@@ -23,8 +23,8 @@
 #include <tvm/relax/script/ir_builder/ir.h>
 #include <tvm/relax/type.h>
 #include <tvm/runtime/logging.h>
+#include <tvm/script/ir_builder/frame.h>
 
-#include "../../../script/ir_builder/utils.h"
 #include "./utils.h"
 
 namespace tvm {
