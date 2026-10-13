@@ -45,8 +45,6 @@
 #include <string>
 #include <vector>
 
-#include "../../support/utils.h"
-
 namespace tvm {
 namespace runtime {
 namespace vm {

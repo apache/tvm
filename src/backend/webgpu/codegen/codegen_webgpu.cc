@@ -27,6 +27,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/function.h>
 #include <tvm/ir/prim/op.h>
+#include <tvm/support/bytes_io.h>
 #include <tvm/support/gpu_thread_tag.h>
 #include <tvm/support/io.h>
 #include <tvm/tirx/analysis.h>
@@ -47,7 +48,6 @@
 
 #include "../../../runtime/metadata.h"
 #include "../../../runtime/thread_storage_scope.h"
-#include "../../../support/bytes_io.h"
 #include "../../../sym/pattern_match.h"
 #include "../../../target/build_common.h"
 #include "webgpu_fallback_module.h"

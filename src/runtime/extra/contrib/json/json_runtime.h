@@ -29,6 +29,7 @@
 #include <tvm/ffi/extra/json.h>
 #include <tvm/ffi/extra/module.h>
 #include <tvm/runtime/tensor.h>
+#include <tvm/support/bytes_io.h>
 #include <tvm/support/io.h>
 
 #include <cstddef>
@@ -40,7 +41,6 @@
 #include <utility>
 #include <vector>
 
-#include "../../../../support/bytes_io.h"
 #include "json_node.h"
 
 namespace tvm {

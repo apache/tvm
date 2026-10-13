@@ -30,6 +30,7 @@
 #include <tvm/ffi/extra/c_env_api.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/support/bytes_io.h>
 
 #include <array>
 #include <mutex>
@@ -39,7 +40,6 @@
 #include "../../../runtime/launch_param.h"
 #include "../../../runtime/metadata.h"
 #include "../../../runtime/pack_args.h"
-#include "../../../support/bytes_io.h"
 #include "rocm_common.h"
 
 namespace tvm {

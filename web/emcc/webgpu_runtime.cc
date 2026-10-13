@@ -31,6 +31,7 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/device_api.h>
+#include <tvm/support/bytes_io.h>
 
 #include <algorithm>
 #include <iostream>
@@ -38,7 +39,6 @@
 #include <string>
 
 #include "../../src/runtime/metadata.h"
-#include "../../src/support/bytes_io.h"
 
 namespace tvm {
 namespace runtime {

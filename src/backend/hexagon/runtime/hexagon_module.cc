@@ -36,13 +36,13 @@
 #include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/support/bytes_io.h>
 
 #include <string>
 #include <utility>
 #include <vector>
 
 #include "../../../runtime/metadata.h"
-#include "../../../support/bytes_io.h"
 
 namespace tvm {
 namespace runtime {

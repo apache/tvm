@@ -26,11 +26,10 @@
 #include <tvm/ffi/container/tensor.h>
 #include <tvm/ffi/extra/json.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/support/bytes_io.h>
 #include <tvm/support/io.h>
 
 #include <unordered_map>
-
-#include "../../../../support/bytes_io.h"
 
 #ifdef TVM_GRAPH_EXECUTOR_CLML
 #include "clml_memory_planner.h"

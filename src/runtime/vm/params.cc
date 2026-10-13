@@ -25,6 +25,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
 #include <tvm/runtime/tensor.h>
+#include <tvm/support/bytes_io.h>
 #include <tvm/support/io.h>
 
 #include <cstdio>
@@ -32,8 +33,6 @@
 #include <string>
 #include <utility>
 #include <vector>
-
-#include "../../support/bytes_io.h"
 
 namespace tvm {
 namespace runtime {

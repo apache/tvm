@@ -31,13 +31,12 @@
 #include <tvm/ir/expr_functor.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/stmt_functor.h>  // For the class s_tir::StmtExprVisitor
+#include <tvm/support/ordered_map.h>
 #include <tvm/tirx/stmt.h>
 
 #include <unordered_map>
 #include <utility>  // For pairs datatype
 #include <vector>
-
-#include "../../../support/ordered_map.h"
 
 namespace tvm {
 namespace tirx {

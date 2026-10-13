@@ -24,7 +24,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/logging.h>
 
-#include "../../../../support/bytes_io.h"
+#include <tvm/support/bytes_io.h>
 #include "coreml_runtime.h"
 
 namespace tvm {

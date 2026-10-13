@@ -27,6 +27,7 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/tensor.h>
+#include <tvm/support/bytes_io.h>
 #include <tvm/support/file_utils.h>
 #include <tvm/support/io.h>
 
@@ -36,7 +37,6 @@
 #include <unordered_set>
 #include <vector>
 
-#include "../../support/bytes_io.h"
 #include "codegen_source_base.h"
 
 namespace tvm {

@@ -26,13 +26,13 @@
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/vm/executable.h>
 #include <tvm/runtime/vm/vm.h>
+#include <tvm/support/bytes_io.h>
 #include <tvm/support/file_utils.h>
 #include <tvm/support/io.h>
 
 #include <functional>
 #include <sstream>
 
-#include "../../support/bytes_io.h"
 #include "./module_utils.h"
 
 namespace tvm {

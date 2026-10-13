@@ -42,7 +42,6 @@
 
 #include "../../support/arena.h"
 #include "../../support/ring_buffer.h"
-#include "../../support/utils.h"
 #include "rpc_local_session.h"
 
 namespace tvm {
@@ -474,7 +473,7 @@ class RPCEndpoint::EventHandler : public support::Stream {
       // switch to the state before sending exception.
       this->SwitchToState(kRecvPacketNumBytes);
       ffi::String msg = args[0].cast<ffi::String>();
-      if (support::StartsWith(msg, "RPCSessionTimeoutError: ")) {
+      if (msg.starts_with("RPCSessionTimeoutError: ")) {
         TVM_FFI_THROW(RPCSessionTimeoutError) << msg;
       } else {
         msg = "RPCError: Error caught from RPC call:\n" + msg;

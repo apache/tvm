@@ -29,6 +29,7 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/support/bytes_io.h>
 #include <tvm/support/io.h>
 
 #include <string>
@@ -36,7 +37,6 @@
 #include <vector>
 
 #include "../../../runtime/launch_param.h"
-#include "../../../support/bytes_io.h"
 #include "opencl_common.h"
 #include "source_utils.h"
 

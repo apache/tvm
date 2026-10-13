@@ -779,7 +779,7 @@ if (INSTALL_DEV)
   )
 else(INSTALL_DEV)
   install(
-    DIRECTORY "include/tvm/runtime/" DESTINATION "include/tvm/runtime"
+    DIRECTORY "include/tvm/runtime" "include/tvm/support" DESTINATION "include/tvm"
     FILES_MATCHING
     PATTERN "*.h"
     )

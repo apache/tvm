@@ -23,6 +23,8 @@
 #include <tvm/ffi/extra/serialization.h>
 #include <tvm/runtime/base.h>
 #include <tvm/runtime/disco/session.h>
+#include <tvm/support/base64.h>
+#include <tvm/support/bytes_io.h>
 #include <tvm/support/io.h>
 #include <tvm/support/serializer.h>
 
@@ -33,8 +35,6 @@
 #include <vector>
 
 #include "../../../support/arena.h"
-#include "../../../support/base64.h"
-#include "../../../support/bytes_io.h"
 #include "../../rpc/minrpc/rpc_reference.h"
 
 namespace tvm {

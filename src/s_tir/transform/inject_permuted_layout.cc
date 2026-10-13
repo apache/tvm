@@ -33,7 +33,6 @@
 #include <tvm/tirx/op/memory.h>
 
 #include "../../runtime/thread_storage_scope.h"
-#include "../../support/utils.h"
 #include "../../tirx/transform/ir_utils.h"
 
 namespace tvm {

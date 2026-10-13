@@ -24,6 +24,7 @@
 #include <tvm/s_tir/tensor_intrin.h>
 
 #include <algorithm>
+#include <array>
 #include <utility>
 #include <vector>
 
@@ -126,7 +127,7 @@ TensorCoreState::TensorCoreState(TensorCoreIntrinGroup intrin_group,
   node->mapping_info = mapping_info;
   node->block_rv = std::move(block_rv);
   node->tiles = std::move(tiles);
-  node->is_mma = support::StartsWith(intrin_group.compute_intrin, "mma_sync");
+  node->is_mma = intrin_group.compute_intrin.starts_with("mma_sync");
   node->use_async = use_async;
   data_ = std::move(node);
 }
@@ -949,7 +950,7 @@ ScheduleRule ScheduleRule::MultiLevelTilingTensorCore(
   node->intrin_groups.reserve(intrin_groups.size());
   for (const auto& intrin_group_config : intrin_groups) {
     TensorCoreIntrinGroup group = TensorCoreIntrinGroup::FromConfig(intrin_group_config);
-    if (support::StartsWith(group.compute_intrin, "wmma")) {
+    if (group.compute_intrin.starts_with("wmma")) {
       have_wmma_intrin_group = true;
     }
     node->intrin_groups.emplace_back(group);

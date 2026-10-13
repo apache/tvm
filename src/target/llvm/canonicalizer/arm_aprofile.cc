@@ -29,7 +29,6 @@
 #include <memory>
 #include <string>
 
-#include "../../../support/utils.h"
 #include "../llvm_instance.h"
 
 namespace tvm {
@@ -59,15 +58,15 @@ double GetArchVersion(ffi::Optional<ffi::Array<ffi::String>> attr) {
 
 bool IsAArch32(ffi::Optional<ffi::String> mtriple, ffi::Optional<ffi::String> mcpu) {
   if (mtriple) {
-    bool is_mprofile = mcpu && support::StartsWith(mcpu.value(), "cortex-m");
-    return support::StartsWith(mtriple.value(), "arm") && !is_mprofile;
+    bool is_mprofile = mcpu && mcpu.value().starts_with("cortex-m");
+    return mtriple.value().starts_with("arm") && !is_mprofile;
   }
   return false;
 }
 
 bool IsAArch64(ffi::Optional<ffi::String> mtriple) {
   if (mtriple) {
-    return support::StartsWith(mtriple.value(), "aarch64");
+    return mtriple.value().starts_with("aarch64");
   }
   return false;
 }

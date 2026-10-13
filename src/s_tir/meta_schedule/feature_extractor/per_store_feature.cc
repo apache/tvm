@@ -316,7 +316,7 @@ Pass SimplifyForFeatureExtraction(bool normalize_thread_bindings = false) {
       }
       if (normalize_thread_bindings_ && tvm::s_tir::GetThreadBinding(loop).has_value()) {
         const auto tag = tvm::s_tir::GetThreadBinding(loop).value();
-        if (support::StartsWith(tag, "vthread")) {
+        if (tag.starts_with("vthread")) {
           // Virtual axes are independent iterations and isolate hardware aliases.
           thread_bindings_.push_back(nullptr);
           auto result = mutate_retained_loop();
@@ -469,7 +469,7 @@ struct LoopNest {
         ref_loops = &threadIdx_y;
       } else if (thread_tag == "threadIdx.z") {
         ref_loops = &threadIdx_z;
-      } else if (support::StartsWith(thread_tag, "vthread")) {
+      } else if (thread_tag.starts_with("vthread")) {
         ref_loops = &vthread;
       } else {
         TVM_FFI_THROW(ValueError) << "Unable to recognize thread tag: " << thread_tag;

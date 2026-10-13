@@ -63,7 +63,7 @@ ffi::String GetRuleKindFromTarget(const Target& target) {
   if (target->kind->name == "cuda") {
     if (ffi::Optional<ffi::String> opt_sm = target->GetAttr<ffi::String>("arch")) {
       std::string sm = opt_sm.value();
-      if (support::StartsWith(sm, "sm_")) {
+      if (sm.starts_with("sm_")) {
         sm = sm.substr(3);
         try {
           if (std::stoi(sm) >= 75) {

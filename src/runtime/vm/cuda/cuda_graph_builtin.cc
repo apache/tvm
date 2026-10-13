@@ -22,6 +22,7 @@
  * \brief The CUDA graph related builtin functions for Relax virtual machine.
  */
 
+#include <tvm/ffi/base_details.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/extra/c_env_api.h>
@@ -30,7 +31,6 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/vm/vm.h>
 
-#include "../../../support/utils.h"
 namespace tvm {
 namespace runtime {
 namespace vm {
@@ -57,7 +57,7 @@ struct CUDAGraphCaptureKeyHash {
     std::hash<int64_t> hash_fn;
     size_t hash = hash_fn(key.index);
     for (const auto& shape : key.shape_expr) {
-      support::HashCombine(hash, hash_fn(shape));
+      ffi::details::StableHashCombine(hash, hash_fn(shape));
     }
     return hash;
   }

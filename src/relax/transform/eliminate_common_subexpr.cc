@@ -24,6 +24,7 @@
  *
  * Currently it removes common subexpressions within a Function.
  */
+#include <tvm/ffi/base_details.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_equal.h>
 #include <tvm/ffi/extra/structural_hash.h>
@@ -34,8 +35,6 @@
 #include <tvm/relax/transform.h>
 #include <tvm/relax/utils.h>
 #include <tvm/runtime/logging.h>
-
-#include "../../support/utils.h"
 
 namespace tvm {
 namespace relax {
@@ -82,7 +81,7 @@ template <>
 struct std::hash<tvm::relax::ReplacementKey> {
   std::size_t operator()(const tvm::relax::ReplacementKey& key) const {
     tvm::ffi::StructuralHash hasher;
-    return tvm::support::HashCombine(hasher(key.bound_value), hasher(key.match_cast));
+    return tvm::ffi::details::StableHashCombine(hasher(key.bound_value), hasher(key.match_cast));
   }
 };
 

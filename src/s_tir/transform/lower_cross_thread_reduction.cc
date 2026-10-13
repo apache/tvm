@@ -37,7 +37,6 @@
 #include <tvm/tirx/op/gpu.h>
 #include <tvm/tirx/stmt.h>
 
-#include "../../support/utils.h"
 #include "../../tirx/transform/ir_utils.h"
 #include "../schedule/analysis.h"
 #include "../schedule/utils.h"
@@ -48,7 +47,6 @@ using namespace tvm::prim;
 
 using namespace tvm::tirx;
 using support::GPUThreadTag;
-using support::StartsWith;
 
 // Implement a hash and equality function for GPUThreadTag so that
 // GPUThreadTag can serve as map key class

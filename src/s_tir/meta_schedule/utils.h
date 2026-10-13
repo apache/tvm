@@ -41,6 +41,8 @@
 #include <tvm/s_tir/meta_schedule/tune_context.h>
 #include <tvm/s_tir/schedule/schedule.h>
 #include <tvm/s_tir/stmt.h>
+#include <tvm/support/base64.h>
+#include <tvm/support/bytes_io.h>
 #include <tvm/support/io.h>
 #include <tvm/support/serializer.h>
 #include <tvm/sym/analyzer.h>
@@ -53,9 +55,6 @@
 #include <utility>
 #include <vector>
 
-#include "../../support/base64.h"
-#include "../../support/bytes_io.h"
-#include "../../support/utils.h"
 #include "../schedule/primitive.h"
 #include "../schedule/utils.h"
 #include "../support/array_utils.h"
