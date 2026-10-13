@@ -26,10 +26,13 @@ import tvm_ffi
 import tvm
 import tvm.script
 import tvm.testing
+from tirx.layout_fixtures import tcgen05_register_layout
 from tvm.backend.cuda.axis import TCol, TLane, laneid, warpid
 from tvm.ir import TensorRegion, assert_structural_equal
 from tvm.script import ir as I
 from tvm.script import tirx as T
+from tvm.script.ir_builder import IRBuilder
+from tvm.tirx.script import ir_builder as Tx_builder
 
 
 def test_roundtrip_layout():
@@ -133,7 +136,7 @@ def test_roundtrip_tensor_view_get1():
         A_layout = T.TileLayout(T.S[(1, 2) : (2, 1)])
         A_warp_layout = A_layout.tile(L_LANE, (8, 4), (1, 2))
         A_warp = A.view(8, 8, layout=A_warp_layout)
-        A_local = A_warp.local(2)
+        A_local = A_warp.view(2, layout="default")
         A_local[0] = T.float16(0)
 
         # fmt: on
@@ -159,7 +162,7 @@ def test_roundtrip_tensor_view_get2():
         A_layout = T.TileLayout(T.S[(1, 2) : (2, 1)])
         B_layout = A_layout.tile(L_LANE, (8, 4), (1, 2))
         B = A.view(8, 8, layout=B_layout)
-        D = B.local(2)
+        D = B.view(2, layout="default")
         out[0] = A[0] + B[0, 0] + D[0]
         # fmt: on
     code = test.script()
@@ -436,7 +439,7 @@ def test_roundtrip_tensor_permute():
     assert_structural_equal(test, from_source(code))
 
 
-def test_roundtrip_tensor_local_auto():
+def test_roundtrip_physical_register_view():
     # fmt: off
     @T.function
     def test() -> None:
@@ -444,7 +447,7 @@ def test_roundtrip_tensor_local_auto():
         A = T.alloc_tensor(ty_args=[T.Tensor([2], "float16", scope="local")])
         A_layout = T.TileLayout(T.S[(1, 2) : (2, 1)])
         B = A.view(8, 8, layout=A_layout.tile(L_LANE, (8, 4), (1, 2)))
-        B_local = B.local()
+        B_local = B.view(2, layout="default")
         B_local[0] = T.float16(0)
         # fmt: on
     code = test.script()
@@ -452,8 +455,8 @@ def test_roundtrip_tensor_local_auto():
     assert_structural_equal(test, from_source(code))
 
 
-def test_tensor_local_ir():
-    """Verify .local() infers the physical span and uses an identity layout."""
+def test_tensor_physical_view_ir():
+    """Verify an explicit physical view aliases the same register storage."""
 
     # fmt: off
     @T.function
@@ -462,7 +465,7 @@ def test_tensor_local_ir():
         A = T.alloc_tensor(ty_args=[T.Tensor([2], "float16", scope="local")])
         A_layout = T.TileLayout(T.S[(1, 2) : (2, 1)])
         B = A.view(8, 8, layout=A_layout.tile(L_LANE, (8, 4), (1, 2)))
-        B_local = B.local()
+        B_local = B.view(2, layout="default")
         B_local[0] = T.float16(0)
         # fmt: on
 
@@ -472,9 +475,9 @@ def test_tensor_local_ir():
     assert_structural_equal(_tensor_source(func, b_local), b_buf.data)
     # Shape: single dim matching the raw physical storage span
     assert len(b_local.ty.shape) == 1
-    storage = b_buf.ty.layout.storage()
+    storage = T.TileLayout(T.S[2])
     assert int(b_local.ty.shape[0]) == int(storage.span())
-    # The inferred view uses physical storage order, not storage-iterator order.
+    # The compact view uses physical storage order, not storage-iterator order.
     assert b_local.ty.layout.is_trivial()
 
     # Round-trip
@@ -522,18 +525,17 @@ def _tensor_source(func, tensor):
     return sources[0]
 
 
-def test_tensor_local_physical_order():
-    """Both inferred and explicit shapes map a non-trivial fragment physically."""
-    from tvm.backend.cuda.layout import tcgen05_atom_layout
+def test_tensor_physical_view_physical_order():
+    """Explicit flat and multidimensional views access the same physical registers."""
 
     # fmt: off
     @T.function
     def func() -> None:
         T.device_entry()
         A = T.alloc_tensor(ty_args=[T.Tensor([32], "float32", scope="local")])
-        B = A.view(64, 64, layout=tcgen05_atom_layout("16x256b", (64, 64), "float32"))
-        B_flat = B.local()
-        B_2d = B.local(4, 8)
+        B = A.view(64, 64, layout=tcgen05_register_layout("16x256b", (64, 64), "float32"))
+        B_flat = B.view(32, layout="default")
+        B_2d = B.view(4, 8, layout="default")
         B_flat[2] = T.float32(1)
         B_2d[0, 2] = T.float32(2)
         # fmt: on
@@ -542,7 +544,7 @@ def test_tensor_local_physical_order():
 
     # The parent storage view enumerates storage iters in a different order
     # from their physical strides, so inheriting it would permute registers.
-    assert not b_buf.ty.layout.storage().is_trivial()
+    assert not T.TileLayout(T.S[(2, 8, 2) : (2, 4, 1)]).is_trivial()
 
     for local in [b_flat, b_2d]:
         assert_structural_equal(_tensor_source(func, local), b_buf.data)
@@ -570,26 +572,25 @@ def test_tensor_local_physical_order():
     assert_structural_equal(func, from_source(code))
 
 
-def test_tensor_local_layout_overrides_roundtrip():
+def test_tensor_physical_view_layout_overrides_roundtrip():
     """Storage and arbitrary mediated layouts remain explicit overrides."""
-    from tvm.backend.cuda.layout import tcgen05_atom_layout
 
     # fmt: off
     @T.function
     def func() -> None:
         T.device_entry()
         A = T.alloc_tensor(ty_args=[T.Tensor([32], "float32", scope="local")])
-        B = A.view(64, 64, layout=tcgen05_atom_layout("16x256b", (64, 64), "float32"))
-        B_storage = B.local(layout=B.layout.storage())
+        B = A.view(64, 64, layout=tcgen05_register_layout("16x256b", (64, 64), "float32"))
+        B_storage = B.view(32, layout=T.TileLayout(T.S[(2, 8, 2) : (2, 4, 1)]))
         # An explicit layout is an escape hatch and may describe a smaller
         # mediated view than the parent's full per-thread storage.
-        B_custom = B.local(2, 4, layout=T.TileLayout(T.S[(2, 4) : (1, 2)]))
+        B_custom = B.view(2, 4, layout=T.TileLayout(T.S[(2, 4):(1, 2)]))
         B_storage[0] = T.float32(1)
         B_custom[0, 0] = T.float32(2)
         # fmt: on
 
     _, b_buf, b_storage, b_custom = _collect_tensors(func)
-    assert_structural_equal(b_storage.ty.layout, b_buf.ty.layout.storage())
+    assert_structural_equal(b_storage.ty.layout, T.TileLayout(T.S[(2, 8, 2) : (2, 4, 1)]))
     assert not b_storage.ty.layout.is_trivial()
     assert not b_custom.ty.layout.is_trivial()
 
@@ -606,7 +607,7 @@ def test_tensor_local_layout_overrides_roundtrip():
     assert from_source(code).script() == code
 
 
-def test_tensor_local_explicit_layout_without_parent_layout():
+def test_tensor_physical_view_explicit_layout_without_parent_layout():
     """An explicit shape and layout do not inspect the parent's absent layout."""
 
     # fmt: off
@@ -614,7 +615,7 @@ def test_tensor_local_explicit_layout_without_parent_layout():
     def func() -> None:
         T.device_entry()
         A = T.alloc_tensor(ty_args=[T.Tensor((4,), "float32", scope="local", layout=None)])
-        B = A.local(4, layout=T.TileLayout(T.S[4]))
+        B = A.view(4, layout=T.TileLayout(T.S[4]))
         B[0] = T.float32(1)
         # fmt: on
 
@@ -627,7 +628,7 @@ def test_tensor_local_explicit_layout_without_parent_layout():
     assert parsed.script() == code
 
 
-def test_tensor_local_compose_layout_printer_roundtrip():
+def test_tensor_physical_view_compose_layout_printer_roundtrip():
     """Generic view sugar keeps a physical local view's identity layout."""
 
     # fmt: off
@@ -644,7 +645,7 @@ def test_tensor_local_compose_layout_printer_roundtrip():
                 )
             ]
         )
-        B = A.local()
+        B = A.view(64, layout="default")
         B[0] = T.float32(1)
         # fmt: on
 
@@ -662,20 +663,7 @@ def test_tensor_local_compose_layout_printer_roundtrip():
     assert parsed.script() == code
 
 
-def test_tensor_local_inference_without_parent_layout_has_clear_diagnostic():
-    """Shape inference requires a parent storage layout."""
-
-    with pytest.raises(ValueError, match="parent tensor has layout=None"):
-        # fmt: off
-        @T.function
-        def func() -> None:
-            T.device_entry()
-            A = T.alloc_tensor(ty_args=[T.Tensor((4,), "float32", scope="local", layout=None)])
-            B = A.local(layout=T.TileLayout(T.S[4]))
-            B[0] = T.float32(1)
-
-
-def test_tensor_local_physical_span_includes_gaps_and_offset():
+def test_tensor_physical_view_physical_span_includes_gaps_and_offset():
     """The raw local view includes every slot up to the storage span."""
 
     # fmt: off
@@ -684,17 +672,17 @@ def test_tensor_local_physical_span_includes_gaps_and_offset():
         T.device_entry()
         A = T.alloc_tensor(ty_args=[T.Tensor([6], "float32", scope="local")])
         B = A.view(32, 2, layout=T.TileLayout(T.S[(32, 2) : (1 @ laneid, 2)] + 3))
-        B_flat = B.local()
-        B_2d = B.local(2, 3)
-        B_storage = B.local(2, layout=B.layout.storage())
+        B_flat = B.view(6, layout="default")
+        B_2d = B.view(2, 3, layout="default")
+        B_storage = B.view(2, layout=T.TileLayout(T.S[2 : 2] + 3))
         B_flat[5] = T.float32(1)
         B_2d[1, 2] = T.float32(2)
         B_storage[1] = T.float32(3)
         # fmt: on
 
     _, b_buf, b_flat, b_2d, b_storage = _collect_tensors(func)
-    assert int(b_buf.ty.layout.storage().span()) == 6
-    assert int(b_buf.ty.layout.storage().size()) == 2
+    assert int(b_buf.ty.layout.span("m")) == 6
+    assert int(b_buf.ty.layout.size("m")) == 2
     assert [int(dim) for dim in b_flat.ty.shape] == [6]
     assert [int(dim) for dim in b_2d.ty.shape] == [2, 3]
     assert [int(dim) for dim in b_storage.ty.shape] == [2]
@@ -703,7 +691,7 @@ def test_tensor_local_physical_span_includes_gaps_and_offset():
     for i in range(6):
         assert int(b_flat.ty.layout.apply(i, shape=list(b_flat.ty.shape))["m"]) == i
     assert int(b_2d.ty.layout.apply(1, 2, shape=list(b_2d.ty.shape))["m"]) == 5
-    assert_structural_equal(b_storage.ty.layout, b_buf.ty.layout.storage())
+    assert_structural_equal(b_storage.ty.layout, T.TileLayout(T.S[2 : 2] + 3))
     assert int(b_storage.ty.layout.apply(0, shape=list(b_storage.ty.shape))["m"]) == 3
     assert int(b_storage.ty.layout.apply(1, shape=list(b_storage.ty.shape))["m"]) == 5
 
@@ -717,19 +705,18 @@ def test_tensor_local_physical_span_includes_gaps_and_offset():
     assert from_source(code).script() == code
 
 
-def test_tensor_local_printer_is_stable_with_multiple_aliases():
+def test_tensor_physical_view_printer_is_stable_with_multiple_aliases():
     """Thread-layout parents win deterministically over sibling aliases."""
-    from tvm.backend.cuda.layout import tcgen05_atom_layout
 
     # fmt: off
     @T.function
     def func() -> None:
         T.device_entry()
         A = T.alloc_tensor(ty_args=[T.Tensor([32], "float32", scope="local")])
-        B = A.view(64, 64, layout=tcgen05_atom_layout("16x256b", (64, 64), "float32"))
-        B_flat = B.local()
-        B_2d = B.local(4, 8)
-        B_storage = B.local(layout=B.layout.storage())
+        B = A.view(64, 64, layout=tcgen05_register_layout("16x256b", (64, 64), "float32"))
+        B_flat = B.view(32, layout="default")
+        B_2d = B.view(4, 8, layout="default")
+        B_storage = B.view(32, layout=T.TileLayout(T.S[(2, 8, 2) : (2, 4, 1)]))
         B_flat[0] = B_2d[0, 0] + B_storage[0]
         # fmt: on
 
@@ -754,8 +741,8 @@ def test_tensor_local_printer_is_stable_with_multiple_aliases():
         assert_structural_equal(func, parsed)
 
 
-def test_tensor_local_printer_preserves_inherited_metadata():
-    """Local sugar falls back when it would discard Tensor metadata."""
+def test_tensor_physical_view_printer_preserves_inherited_metadata():
+    """Physical aliases retain alignment, offsets and tensor metadata when printed."""
 
     # fmt: off
     @T.function
@@ -787,25 +774,9 @@ def test_tensor_local_printer_preserves_inherited_metadata():
     factor_line = next(line for line in code.splitlines() if "B_factor =" in line)
     assert "T.decl_tensor" in align_line and 'data_alignment=128' in align_line
     assert "T.decl_tensor" in factor_line and "offset_factor=8" in factor_line
-    assert ".local(" not in align_line
-    assert ".local(" not in factor_line
     parsed = from_source(code)
     assert_structural_equal(func, parsed)
     assert parsed.script() == code
-
-
-def test_tensor_local_rejects_shape_that_does_not_match_physical_span():
-    """An explicit local shape product must preserve the physical span."""
-
-    with pytest.raises(ValueError, match="physical storage span 6 per thread"):
-        # fmt: off
-        @T.function
-        def func() -> None:
-            T.device_entry()
-            A = T.alloc_tensor(ty_args=[T.Tensor([6], "float32", scope="local")])
-            B = A.view(32, 2, layout=T.TileLayout(T.S[(32, 2) : (1 @ laneid, 2)] + 3))
-            B_local = B.local(2)
-            B_local[0] = T.float32(0)
 
 
 def test_tensor_permute_ir():
@@ -1208,167 +1179,72 @@ def test_tensor_sub_swizzle_commutation():
         assert addr(a3, a3.elem_offset, 8 + j) == addr(b3, a3.elem_offset, j) == 8 + j
 
 
-def test_tensor_tile_ir():
-    """buf.tile((dim, factors))[picks] splits dims into factors and picks
-    chunks in one call: int/Expr picks a factor, ':' keeps it, kept
-    factors merge back. Equivalent to the view (reshape) + sub chain."""
-
-    # fmt: off
-    @T.function
-    def func() -> None:
-        T.device_entry()
-        A = T.alloc_tensor(
-            ty_args=[
-                T.Tensor(
-                    [3, 64, 512],
-                    "float16",
-                    scope="shared",
-                    layout=T.TileLayout(T.S[(3, 64, 512) : (64 * 512, 512, 1)]),
+def test_tensor_factored_views():
+    """Splitting and selecting logical factors preserves the physical mapping."""
+    with IRBuilder():
+        with Tx_builder.function():
+            A = Tx_builder.bind(
+                Tx_builder.alloc_tensor(
+                    ty_args=[T.Tensor((3, 64, 512), "float16", scope="shared", layout="default")]
                 )
-            ]
-        )
-        for w in T.serial(4):
-            B = A.tile((1, (-1, 4, 4)))[:, w, :]
-            B[0, 0, 0] = T.float16(0)
-            C = A.view(3, 4, 4, 4, 512).sub[:, :, w].view(3, 16, 512)
-            C[0, 0, 0] = T.float16(0)
-        D = A.tile((1, (-1, 4)))[:, 2]
-        D[0, 0, 0] = T.float16(0)
-        E = A.sub[:, 2::4]
-        E[0, 0, 0] = T.float16(0)
-        F = A.tile((1, (4, -1)))[2, :]
-        F[0, 0, 0] = T.float16(0)
-        G = A.sub[:, 32:48]
-        G[0, 0, 0] = T.float16(0)
-
-    @T.function
-    def func_multi() -> None:
-        T.device_entry()
-        A = T.alloc_tensor(
-            ty_args=[
-                T.Tensor(
-                    [64, 128],
-                    "float16",
-                    scope="shared",
-                    layout=T.TileLayout(T.S[(64, 128) : (128, 1)]),
+            )
+            w = tvm.tirx.Var("w", "int32")
+            B = A.view(3, 4, 4, 4, 512).sub[:, :, w].view(3, 16, 512)
+            D = A.sub[:, 2::4]
+            F = A.sub[:, 32:48]
+            assert list(map(int, B.shape)) == [3, 16, 512]
+            analyzer = tvm.sym.Analyzer()
+            for row in range(16):
+                address = B.layout.apply(1, row, 7, shape=B.shape)["m"] + B.elem_offset
+                expected = (64 + row // 4 * 16 + w * 4 + row % 4) * 512 + 7
+                assert analyzer.can_prove_equal(address, expected)
+                assert (
+                    int(D.layout.apply(1, row, 7, shape=D.shape)["m"] + D.elem_offset)
+                    == (64 + row * 4 + 2) * 512 + 7
                 )
-            ]
-        )
-        for wx in T.serial(4):
-            for wy in T.serial(2):
-                H = A.tile((0, (-1, 4, 2)), (1, (-1, 2, 8)))[:, wx, :, :, wy, :]
-                H[0, 0] = T.float16(0)
-                J = (A.view(8, 4, 2, 128).sub[:, wx].view(16, 128)
-                      .view(16, 8, 2, 8).sub[:, :, wy].view(16, 64))
-                J[0, 0] = T.float16(0)
-
-    @T.function
-    def func_multipick() -> None:
-        T.device_entry()
-        A = T.alloc_tensor(
-            ty_args=[
-                T.Tensor(
-                    [128, 16],
-                    "float16",
-                    scope="shared",
-                    layout=T.TileLayout(T.S[(128, 16) : (16, 1)]),
+                assert (
+                    int(F.layout.apply(1, row, 7, shape=F.shape)["m"] + F.elem_offset)
+                    == (64 + 32 + row) * 512 + 7
                 )
-            ]
-        )
-        for a in T.serial(2):
-            for b in T.serial(4):
-                K = A.tile((0, (2, 4, -1)))[a, b, :]
-                K[0, 0] = T.float16(0)
-                L = A.view(2, 4, 16, 16).sub[a, b]
-                L[0, 0] = T.float16(0)
-    # fmt: on
-
-    # Tile/view chains also declare intermediate reshaped and selected tensors.
-    _, _, _, b, _, _, c, _, d, _, e, _, f, g = _collect_tensors(func)
-    assert [int(s) for s in b.shape] == [3, 16, 512]
-    assert_structural_equal(b.layout, c.layout)
-    assert_structural_equal(d.layout, e.layout)
-    assert_structural_equal(f.layout, g.layout)
-    _, _, _, _, _, _, h, _, _, _, _, _, j = _collect_tensors(func_multi)
-    assert [int(s) for s in h.shape] == [16, 64]
-    assert_structural_equal(h.layout, j.layout)
-    _, _, _, k, _, _, l_buf = _collect_tensors(func_multipick)
-    assert [int(s) for s in k.shape] == [16, 16]
-    assert_structural_equal(k.layout, l_buf.layout)
-
-    code = func_multipick.script()
-    assert from_source(code).script() == code
+            M = A.view(192, 512, layout="default")
+            multi = (
+                M.view(24, 4, 2, 512)
+                .sub[:, w]
+                .view(48, 512)
+                .view(48, 32, 2, 8)
+                .sub[:, :, 1]
+                .view(48, 256)
+            )
+            assert list(map(int, multi.shape)) == [48, 256]
+            for row, col in [(0, 0), (13, 19), (47, 255)]:
+                actual = multi.layout.apply(row, col, shape=multi.shape)["m"] + multi.elem_offset
+                expected = (row // 2 * 8 + w * 2 + row % 2) * 512 + col // 8 * 16 + 8 + col % 8
+                assert analyzer.can_prove_equal(actual, expected)
+            a = tvm.tirx.Var("a", "int32")
+            b = tvm.tirx.Var("b", "int32")
+            selected = M.view(2, 4, 24, 512).sub[a, b]
+            actual = selected.layout.apply(7, 11, shape=selected.shape)["m"] + selected.elem_offset
+            assert analyzer.can_prove_equal(actual, (a * 96 + b * 24 + 7) * 512 + 11)
 
 
-def test_tensor_tile_rejected():
-    buf = tvm.tirx.decl_tensor(
-        (3, 64, 512),
-        "float16",
-        layout=tvm.tirx.layout.TileLayout(T.S[(3, 64, 512) : (64 * 512, 512, 1)]),
+def test_tensor_contiguous_regions():
+    """Explicit contiguous regions preserve rank, offsets and dynamic starts."""
+    A = tvm.tirx.decl_tensor((4, 8, 16), "float16", layout="default")
+    C = tvm.tirx.decl_tensor(
+        (4, 512), "bfloat16", layout=T.ComposeLayout(3, 3, 3, T.TileLayout(T.S[(4, 512)]))
     )
-    with pytest.raises(ValueError, match="takes a dim and a factors"):
-        buf.tile(1, 4, 4)  # positional single-dim form takes exactly (dim, factors)
-    with pytest.raises(ValueError, match="picks no factor"):
-        buf.tile(1, (-1, 4))[:, :]  # a chunk must pick at least one factor
-    with pytest.raises(ValueError, match="non-empty tuple"):
-        buf.tile((1, 4))  # factors must be a tuple
-    with pytest.raises(ValueError, match="non-empty tuple"):
-        buf.tile((1, ()))
-    with pytest.raises(ValueError, match="tiled more than once"):
-        buf.tile((1, (4, -1)), (1, (2, -1)))
-    with pytest.raises(ValueError, match="index"):
-        buf.tile((1, (-1, 4)))[2]  # 2 factors, 1 index
-    with pytest.raises(ValueError, match="must be ':'"):
-        buf.tile((1, (-1, 4)))[:, 1:3]  # sub-slice on a factor
-
-
-def test_tensor_chunk_ir():
-    """buf.chunk(spec)[picks] narrows each chunked dim to its picked chunk's
-    contiguous [c*k : (c+1)*k) range (k = E // n), rank-preserving: a per-dim
-    tuple where None passes the pick straight through and n divides that dim
-    into n equal chunks. chunk(spec)[picks] is the exact same TensorRegion as
-    the hand-written a*k:(a+1)*k slice — no reshape, no extra dim."""
-
-    compose = T.ComposeLayout(3, 3, 3, T.TileLayout(T.S[(4, 512) : (512, 1)]))
-    A = tvm.tirx.decl_tensor(
-        (4, 8, 16), "float16", layout=tvm.tirx.layout.TileLayout(T.S[(4, 8, 16) : (128, 16, 1)])
-    )
-    C = tvm.tirx.decl_tensor((4, 512), "bfloat16", layout=compose)
-
-    # chunk((None, None, 2))[:, :, 1] narrows dim 2 (extent 16) to chunk 1 of 2
-    # → [8:16] (k = 16 // 2 = 8); rank preserved, dims 0/1 pass through as ':'.
-    reg = A.chunk((None, None, 2))[:, :, 1]
+    reg = A[:, :, 8:16]
     assert isinstance(reg, TensorRegion)
-    assert len(reg.region) == 3  # rank-preserving: no extra extent-1 chunk dim
+    assert len(reg.region) == 3
     assert (int(reg.region[2].min), int(reg.region[2].extent)) == (8, 8)
-    assert_structural_equal(reg, A[:, :, 8:16])
-
-    # a None dim passes an int pick straight through (int → extent-1 region),
-    # while the chunked dim still narrows to its picked chunk.
-    reg2 = A.chunk((None, None, 2))[3, :, 0]
-    assert_structural_equal(reg2, A[3, :, 0:8])
-
-    # chunk((None, 4))[:, 2] on the swizzle-carrying compose layout: dim 1
-    # (extent 512) → chunk 2 of 4 → [256:384] (k = 128), byte-identical slice.
-    reg_c = C.chunk((None, 4))[:, 2]
+    reg2 = A[3, :, 0:8]
+    assert (int(reg2.region[0].min), int(reg2.region[0].extent)) == (3, 1)
+    reg_c = C[:, 256:384]
     assert (int(reg_c.region[1].min), int(reg_c.region[1].extent)) == (256, 128)
-    assert_structural_equal(reg_c, C[:, 256:384])
-
-    # a symbolic (Expr) chunk index translates to c*k : (c+1)*k as well.
     c = T.Var(name="c", ty="int32")
-    assert_structural_equal(A.chunk((None, None, 2))[:, :, c], A[:, :, c * 8 : c * 8 + 8])
-
-    # validation
-    with pytest.raises(ValueError, match="per-dim tuple"):
-        A.chunk(2)  # spec must be a per-dim tuple, not a bare int
-    with pytest.raises(ValueError, match="spec length"):
-        A.chunk((None, 2))  # length 2 != rank 3
-    with pytest.raises(ValueError, match="None or a positive int"):
-        A.chunk((None, None, 0))  # 0 is not a positive chunk count
-    with pytest.raises(ValueError, match="chunk index, not a slice"):
-        A.chunk((None, None, 2))[:, :, 0:1]  # a chunked dim takes a chunk index
-    with pytest.raises(ValueError, match="rank-3 spec"):
-        A.chunk((None, None, 2))[0, 0, 0, 0]  # too many indices
+    dynamic = A[:, :, c * 8 : c * 8 + 8]
+    assert_structural_equal(dynamic.region[2].min, c * 8)
+    assert tvm.sym.Analyzer().can_prove_equal(dynamic.region[2].extent, 8)
 
 
 def test_tensor_view_dtype_ir():

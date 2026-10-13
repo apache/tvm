@@ -20,7 +20,6 @@
 #ifndef TVM_TIRX_IR_LAYOUT_UTILS_H_
 #define TVM_TIRX_IR_LAYOUT_UTILS_H_
 
-#include <tvm/ffi/extra/structural_equal.h>
 #include <tvm/ffi/extra/structural_hash.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/prim/op.h>
@@ -34,7 +33,6 @@
 namespace tvm {
 namespace tirx {
 
-using ffi::StructuralEqual;
 using ffi::StructuralHash;
 
 /*!
@@ -81,7 +79,7 @@ bool AxisMatchesFilter(const Axis& axis, const ffi::Optional<ffi::String>& axis_
  * \brief Build a 1D identity TileLayout whose single shard covers the product of
  *        `shape` (contiguous, stride 1, memory axis "m"). Used to represent the
  *        "tile" of a bare swizzle (a ComposeLayout carrying a trivial tile) when
- *        delegating tile-relationship queries to TileLayoutNode.
+ *        tiling the full logical domain.
  */
 TileLayout IdentityTileLayout(const ffi::Array<PrimExpr>& shape);
 

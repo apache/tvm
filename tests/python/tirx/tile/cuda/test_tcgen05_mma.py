@@ -25,14 +25,13 @@ import pytest
 
 import tvm
 import tvm.testing
+from tirx.layout_fixtures import scale_factor_tmem_layout, tcgen05_register_layout
 from tvm.backend.cuda.axis import TCol, TLane
 from tvm.backend.cuda.axis import tid_in_wg as axis_tid_in_wg
 from tvm.backend.cuda.layout import (
     mma_atom_layout,
     mma_atom_shape,
     mma_shared_layout,
-    sf_tmem_layout,
-    tcgen05_atom_layout,
     tmem_datapath_layout,
 )
 from tvm.ir import PrimType, PtrType
@@ -382,7 +381,7 @@ def test_gemm_tcgen05_cta_group_1_layout_f_m64():
 
         # Read back via .16x256b M=64 (the canonical pairing).
         reg = T.alloc_local(32, dtype="float32", layout="default")
-        reg_view = reg.view(64, N, layout=tcgen05_atom_layout("16x256b", (64, N), "float32"))
+        reg_view = reg.view(64, N, layout=tcgen05_register_layout("16x256b", (64, N), "float32"))
         if wg_id == 0:
             T.cuda.tile.apply(
                 T.ptx["tcgen05.ld.sync.aligned.16x256b.x8.b32"],
@@ -1028,7 +1027,11 @@ def test_gemm_tcgen05_cta_group_2_datapath_b_readback():
         T.ptx.tcgen05.fence__after_thread_sync()
         T.cuda.cta_sync()
 
-        frag = T.alloc_tcgen05_ldst_frag("32x32b", (m_per_cta, n_logical), c_dtype)
+        frag = T.alloc_local(((m_per_cta) * (n_logical) // 128,), c_dtype).view(
+            m_per_cta,
+            n_logical,
+            layout=tcgen05_register_layout("32x32b", (m_per_cta, n_logical), c_dtype),
+        )
         if wg_id == 0:
             rv = frag.rearrange("(wh r) (wl c) -> (wl wh) r c", wh=2, r=32, wl=2)
             tv = tmem.rearrange("(wh r) (wl c) -> (wl wh) r c", wh=2, r=32, wl=2)
@@ -1038,7 +1041,7 @@ def test_gemm_tcgen05_cta_group_2_datapath_b_readback():
             T.ptx.tcgen05.wait__ld.sync.aligned()
         T.cuda.cta_sync()
 
-        frag_local = frag.local()
+        frag_local = frag.view(n_per_cta, layout="default")
         for i in range(n_per_cta):
             C[
                 cbx * m_per_cta + tid % m_per_cta,
@@ -1150,8 +1153,8 @@ def test_gemm_block_scaled_fp8_cta_group_1(task):
     r_smem_B = list(slice(B_region[i][0], B_region[i][1]) for i in range(len(B_shape)))
 
     sf_mma_k = 1  # fp8: 1 scale factor per MMA iteration
-    sfa_layout = sf_tmem_layout(M, SF_K=sf_mma_k * 1, sf_per_mma=sf_mma_k)
-    sfb_layout = sf_tmem_layout(N, SF_K=sf_mma_k * 1, sf_per_mma=sf_mma_k)
+    sfa_layout = scale_factor_tmem_layout(M, SF_K=sf_mma_k * 1, sf_per_mma=sf_mma_k)
+    sfb_layout = scale_factor_tmem_layout(N, SF_K=sf_mma_k * 1, sf_per_mma=sf_mma_k)
     sf_epc = 32 // tvm.runtime.DataType(SF_dtype).bits
     SFA_TMEM_SPACING = (int(sfa_layout.span("TCol")) + sf_epc - 1) // sf_epc
     SFA_TMEM_START = width
@@ -1475,7 +1478,7 @@ def test_gemm_block_scaled_fp8_cta_group_2(task):
     r_smem_B = list(slice(B_region[i][0], B_region[i][1]) for i in range(len(B_shape)))
 
     sf_mma_k = 1  # fp8: 1 scale factor per MMA iteration
-    sf_layout = sf_tmem_layout(128, SF_K=sf_mma_k * 1, sf_per_mma=sf_mma_k)
+    sf_layout = scale_factor_tmem_layout(128, SF_K=sf_mma_k * 1, sf_per_mma=sf_mma_k)
     sf_epc = 32 // tvm.runtime.DataType(SF_dtype).bits
     SF_TMEM_SPACING = (int(sf_layout.span("TCol")) + sf_epc - 1) // sf_epc
     N_cols = C_region[1][1] - C_region[1][0]
@@ -1850,8 +1853,8 @@ def test_gemm_block_scaled_nvfp4_cta_group_1():
     total_bytes = M * (K // 2) + N * (K // 2)
 
     sf_mma_k = 4  # nvfp4: 4 scale factors per MMA iteration (MMA_K=64, SF_VEC=16)
-    sfa_layout = sf_tmem_layout(M, SF_K=sf_mma_k * 1, sf_per_mma=sf_mma_k)
-    sfb_layout = sf_tmem_layout(N, SF_K=sf_mma_k * 1, sf_per_mma=sf_mma_k)
+    sfa_layout = scale_factor_tmem_layout(M, SF_K=sf_mma_k * 1, sf_per_mma=sf_mma_k)
+    sfb_layout = scale_factor_tmem_layout(N, SF_K=sf_mma_k * 1, sf_per_mma=sf_mma_k)
     sf_epc = 32 // tvm.runtime.DataType(SF_dtype).bits
     SFA_TMEM_SPACING = (int(sfa_layout.span("TCol")) + sf_epc - 1) // sf_epc
     SFA_TMEM_START = width
@@ -2175,8 +2178,8 @@ def test_gemm_block_scaled_nvfp4_cta_group_2():
     total_bytes = M_total * (K // 2) + N_total * (K // 2)
 
     sf_mma_k = 4  # nvfp4: 4 scale factors per MMA iteration
-    sfa_layout = sf_tmem_layout(M_per_cta, SF_K=sf_mma_k * 1, sf_per_mma=sf_mma_k)
-    sfb_layout = sf_tmem_layout(N_total, SF_K=sf_mma_k * 1, sf_per_mma=sf_mma_k)
+    sfa_layout = scale_factor_tmem_layout(M_per_cta, SF_K=sf_mma_k * 1, sf_per_mma=sf_mma_k)
+    sfb_layout = scale_factor_tmem_layout(N_total, SF_K=sf_mma_k * 1, sf_per_mma=sf_mma_k)
     sf_epc = 32 // tvm.runtime.DataType(SF_dtype).bits
     SFA_TMEM_SPACING = (int(sfa_layout.span("TCol")) + sf_epc - 1) // sf_epc
     (int(sfb_layout.span("TCol")) + sf_epc - 1) // sf_epc
@@ -2546,8 +2549,8 @@ def test_gemm_block_scaled_fp8_sf_id():
 
     sf_mma_k = 1  # fp8: 1 scale factor per MMA iteration
     num_ki = K // MMA_K  # 4: distinct SF positions per call
-    sfa_layout = sf_tmem_layout(M, SF_K=sf_mma_k * num_ki, sf_per_mma=sf_mma_k)
-    sfb_layout = sf_tmem_layout(N, SF_K=sf_mma_k * num_ki, sf_per_mma=sf_mma_k)
+    sfa_layout = scale_factor_tmem_layout(M, SF_K=sf_mma_k * num_ki, sf_per_mma=sf_mma_k)
+    sfb_layout = scale_factor_tmem_layout(N, SF_K=sf_mma_k * num_ki, sf_per_mma=sf_mma_k)
     sf_epc = 32 // tvm.runtime.DataType(SF_dtype).bits
     SFA_TMEM_SPACING = (int(sfa_layout.span("TCol")) + sf_epc - 1) // sf_epc
     SFA_TMEM_START = N

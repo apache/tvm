@@ -247,7 +247,7 @@ def _explicit_staging_kernel(g_shape, s_shape, g_layout, s_layout, start, word_d
     suffix = f"v{words}.b{bits}" if words > 1 else f"b{bits}"
     load, store = "ld.global." + suffix, "st.shared." + suffix
     # The raw argument includes gaps in the original global layout.
-    storage_size = int(g_layout.storage().span())
+    storage_size = int(g_layout.span())
 
     @T.function
     def kernel(A: T.Tensor((storage_size,), "float16"), B: T.Tensor(s_shape, "float16")):
@@ -279,7 +279,7 @@ def _check_explicit_staging(g_shape, s_shape, g_layout, s_layout, start, word_dt
     target = tvm.target.Target("cuda")
     with target:
         ex = tvm.tirx.compile(kernel, target=target)
-    size = int(g_layout.storage().span())
+    size = int(g_layout.span())
     source = (np.arange(size, dtype="float32") % 113 + 0.5).astype("float16")
     expected = np.empty(s_shape, "float16")
     for row in range(s_shape[0]):

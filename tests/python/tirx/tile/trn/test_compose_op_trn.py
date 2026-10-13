@@ -20,7 +20,6 @@ import tvm_ffi
 import tvm
 import tvm.testing
 from tvm.backend.trn.axis import F, P
-from tvm.backend.trn.layout import trainium_layout
 from tvm.ir import assert_structural_equal as _assert_structural_equal
 from tvm.script import tirx as T
 from tvm.tirx.layout import S, TileLayout
@@ -876,7 +875,7 @@ def test_unary_reduce_complex():
                     (128, 8192),
                     "float16",
                     scope="trn.sbuf",
-                    layout=trainium_layout("PF", (128, 8192)),
+                    layout=TileLayout(S[(128, 8192,) : (1 @ P, 1 @ F,)]),
                 )
             ],
         )
@@ -886,7 +885,7 @@ def test_unary_reduce_complex():
                     (2, 128, 1),
                     "float32",
                     scope="trn.sbuf",
-                    layout=trainium_layout("FPF", (2, 128, 1)),
+                    layout=TileLayout(S[(2, 128, 1,) : (1 @ F, 1 @ P, 1 @ F,)]),
                 )
             ],
         )
@@ -896,7 +895,7 @@ def test_unary_reduce_complex():
                     (2, 128, 8192),
                     "float32",
                     scope="trn.sbuf",
-                    layout=trainium_layout("FPF", (2, 128, 8192)),
+                    layout=TileLayout(S[(2, 128, 8192,) : (8192 @ F, 1 @ P, 1 @ F,)]),
                 )
             ],
         )
@@ -906,7 +905,7 @@ def test_unary_reduce_complex():
                     (16384, 1),
                     "float32",
                     scope="trn.sbuf",
-                    layout=trainium_layout("PF", (16384, 1)),
+                    layout=TileLayout(S[(128, 128, 1,) : (1 @ F, 1 @ P, 1 @ F,)]),
                 )
             ],
         )

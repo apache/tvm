@@ -18,31 +18,13 @@
  */
 
 #include <tvm/ffi/reflection/enum_def.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/tirx/layout.h>
 
 #include "../../../tirx/ir/layout/axis_registry.h"
-#include "../../../tirx/ir/layout/utils.h"
 namespace tvm::backend::cuda {
 using namespace tvm::tirx;
 namespace refl = tvm::ffi::reflection;
-// register thread axis split/fuse helpers
-ffi::Array<Iter> SplitterGen(const Iter& iter, const Axis& axis_outer, const Axis& axis_inner,
-                             const PrimExpr& e_inner) {
-  sym::Analyzer analyzer;
-  if (analyzer->CanProve(iter->extent * iter->stride < e_inner)) {
-    return {Iter(iter->extent, iter->stride, axis_inner)};
-  } else if (analyzer->CanProveEqual(floormod(e_inner, iter->stride), 0) &&
-             analyzer->CanProveEqual(floormod(iter->extent * iter->stride, e_inner), 0)) {
-    const auto& d = analyzer->Simplify(floordiv(e_inner, iter->stride));
-    const auto& c = analyzer->Simplify(floordiv(iter->extent, d));
-    return {Iter(c, IntImm(e_inner.ty(), 1), axis_outer), Iter(d, iter->stride, axis_inner)};
-  } else if (analyzer->CanProveEqual(floormod(iter->stride, e_inner), 0)) {
-    const auto& d = analyzer->Simplify(floordiv(iter->stride, e_inner));
-    return {Iter(iter->extent, d, axis_outer)};
-  }
-  return {};
-}
-
 void RegisterLayoutAxes() {
   // Register thread axes in declaration order.
   AxisDef("bx")
@@ -92,21 +74,6 @@ void RegisterLayoutAxes() {
                     return std::nullopt;
                   }
                   return std::nullopt;
-                }))
-      .set_attr("splitter",
-                FAxisSplitter([](Target target, ffi::String scope, Iter iter) -> ffi::Array<Iter> {
-                  sym::Analyzer analyzer;
-                  if (target->kind->default_device_type == kDLCUDA) {
-                    if (scope == "warp") {
-                      // tx -> warpid, laneid
-                      return SplitterGen(iter, Axis::Get("warpid"), Axis::Get("laneid"), 32);
-                    } else if (scope == "warpgroup") {
-                      // tx -> wgid, tid_in_wg
-                      return SplitterGen(iter, Axis::Get("wgid"), Axis::Get("tid_in_wg"), 128);
-                    }
-                    LOG(FATAL) << "Cannot split cta->thread axis into cta->" << scope << "->thread";
-                  }
-                  return {};
                 }));
 
   AxisDef("warpid")
@@ -124,18 +91,6 @@ void RegisterLayoutAxes() {
                     return std::nullopt;
                   }
                   return std::nullopt;
-                }))
-      .set_attr("splitter",
-                FAxisSplitter([](Target target, ffi::String scope, Iter iter) -> ffi::Array<Iter> {
-                  sym::Analyzer analyzer;
-                  if (target->kind->default_device_type == kDLCUDA) {
-                    if (scope == "warp") {
-                      // warpid -> wgid, wid_in_wg
-                      return SplitterGen(iter, Axis::Get("wgid"), Axis::Get("wid_in_wg"), 4);
-                    }
-                    LOG(FATAL) << "Cannot split cta->warp axis into cta->" << scope << "->warp";
-                  }
-                  return {};
                 }));
 
   AxisDef("laneid")
@@ -156,14 +111,6 @@ void RegisterLayoutAxes() {
                     return std::nullopt;
                   }
                   return std::nullopt;
-                }))
-      .set_attr("splitter",
-                FAxisSplitter([](Target target, ffi::String scope, Iter iter) -> ffi::Array<Iter> {
-                  sym::Analyzer analyzer;
-                  if (target->kind->default_device_type == kDLCUDA) {
-                    LOG(FATAL) << "laneid can not be split any more";
-                  }
-                  return {};
                 }));
 
   AxisDef("wgid")
@@ -183,14 +130,6 @@ void RegisterLayoutAxes() {
                     }
                   }
                   return std::nullopt;
-                }))
-      .set_attr("splitter",
-                FAxisSplitter([](Target target, ffi::String scope, Iter iter) -> ffi::Array<Iter> {
-                  sym::Analyzer analyzer;
-                  if (target->kind->default_device_type == kDLCUDA) {
-                    LOG(FATAL) << "wgid can not be split any more";
-                  }
-                  return {};
                 }));
 
   AxisDef("tid_in_wg")
@@ -208,19 +147,6 @@ void RegisterLayoutAxes() {
                     return std::nullopt;
                   }
                   return std::nullopt;
-                }))
-      .set_attr("splitter",
-                FAxisSplitter([](Target target, ffi::String scope, Iter iter) -> ffi::Array<Iter> {
-                  sym::Analyzer analyzer;
-                  if (target->kind->default_device_type == kDLCUDA) {
-                    if (scope == "warp") {
-                      // tid_in_wg -> wid_in_wg, laneid
-                      return SplitterGen(iter, Axis::Get("wid_in_wg"), Axis::Get("laneid"), 32);
-                    }
-                    LOG(FATAL) << "Cannot split warpgroup->thread axis into warpgroup->" << scope
-                               << "->thread";
-                  }
-                  return {};
                 }));
 
   AxisDef("wid_in_wg")
@@ -244,14 +170,6 @@ void RegisterLayoutAxes() {
                     return std::nullopt;
                   }
                   return std::nullopt;
-                }))
-      .set_attr("splitter",
-                FAxisSplitter([](Target target, ffi::String scope, Iter iter) -> ffi::Array<Iter> {
-                  sym::Analyzer analyzer;
-                  if (target->kind->default_device_type == kDLCUDA) {
-                    LOG(FATAL) << "wid_in_wg can not be split any more";
-                  }
-                  return {};
                 }));
 
   for (const char* name : {"TCol", "TLane"}) {

@@ -19,8 +19,7 @@ import tvm_ffi
 
 import tvm
 import tvm.testing
-from tvm.backend.trn.axis import F, P
-from tvm.backend.trn.layout import to_psum_layout
+from tvm.backend.trn.axis import Bank, F, P
 from tvm.backend.trn.transform import TrnPrivateTensorAlloc
 from tvm.ir import assert_structural_equal as _assert_structural_equal
 from tvm.script import tirx as T
@@ -54,7 +53,7 @@ def test_simple_gemm():
     A_layout = TileLayout(S[(128, 128) : (1 @ F, 1 @ P)])
     B_layout = TileLayout(S[(128, 128) : (1 @ P, 1 @ F)])
 
-    C_layout = to_psum_layout(TileLayout(S[(128, 128) : (1 @ P, 1 @ F)]))
+    C_layout = TileLayout(S[(128, 128) : (1 @ P, 1 @ F)])
 
     # fmt: off
     @T.function
@@ -94,7 +93,7 @@ def test_larger_gemm():
     A_layout = TileLayout(S[(2, 128, 4, 128) : (512 @ F, 1 @ F, 128 @ F, 1 @ P)])
     B_layout = TileLayout(S[(4, 128, 2, 128) : (256 @ F, 1 @ P, 128 @ F, 1 @ F)])
 
-    C_layout = to_psum_layout(TileLayout(S[(2, 128, 2, 128) : (256 @ F, 1 @ P, 128 @ F, 1 @ F)]))
+    C_layout = TileLayout(S[(1, 2, 128, 2, 128) : (1 @ Bank, 256 @ F, 1 @ P, 128 @ F, 1 @ F)])
 
     # fmt: off
     @T.function
@@ -134,7 +133,7 @@ def test_gemm_in_a_loop():
     A_layout = TileLayout(S[(4, 128, 8, 128) : (1024 @ F, 1 @ F, 128 @ F, 1 @ P)])
     B_layout = TileLayout(S[(8, 128, 2, 128) : (256 @ F, 1 @ P, 128 @ F, 1 @ F)])
 
-    C_layout = to_psum_layout(TileLayout(S[(4, 128, 2, 128) : (256 @ F, 1 @ P, 128 @ F, 1 @ F)]))
+    C_layout = TileLayout(S[(2, 2, 128, 2, 128) : (1 @ Bank, 256 @ F, 1 @ P, 128 @ F, 1 @ F)])
 
     # fmt: off
     @T.function
@@ -181,7 +180,7 @@ def test_gemm_with_stride():
     A_layout = TileLayout(S[(4, 128, 128, 8) : (1024 @ F, 1 @ F, 1 @ P, 128 @ F)])
     B_layout = TileLayout(S[(128, 8, 2, 128) : (1 @ P, 512 @ F, 256 @ F, 2 @ F)])
 
-    C_layout = to_psum_layout(TileLayout(S[(4, 128, 2, 128) : (256 @ F, 1 @ P, 128 @ F, 1 @ F)]))
+    C_layout = TileLayout(S[(2, 2, 128, 2, 128) : (1 @ Bank, 256 @ F, 1 @ P, 128 @ F, 1 @ F)])
 
     # fmt: off
     @T.function
@@ -229,7 +228,7 @@ def test_gemm_swap_lhs_rhs():
     A_layout = TileLayout(S[(4, 128, 8, 128) : (1024 @ F, 1 @ F, 128 @ F, 1 @ P)])
     B_layout = TileLayout(S[(8, 128, 2, 128) : (256 @ F, 1 @ P, 128 @ F, 1 @ F)])
 
-    C_layout = to_psum_layout(TileLayout(S[(4, 128, 2, 128) : (256 @ F, 1 @ F, 128 @ F, 1 @ P)]))
+    C_layout = TileLayout(S[(2, 2, 128, 2, 128) : (1 @ Bank, 256 @ F, 1 @ F, 128 @ F, 1 @ P)])
 
     # fmt: off
     @T.function
@@ -333,7 +332,7 @@ def test_gemm_different_shape():
     A_layout = TileLayout(S[(2, 4, 128, 8, 128) : (4096 @ F, 1024 @ F, 1 @ F, 128 @ F, 1 @ P)])
     B_layout = TileLayout(S[(8, 128, 2, 128) : (256 @ F, 1 @ P, 128 @ F, 1 @ F)])
 
-    C_layout = to_psum_layout(TileLayout(S[(4, 128, 2, 128) : (256 @ F, 1 @ F, 128 @ F, 1 @ P)]))
+    C_layout = TileLayout(S[(2, 2, 128, 2, 128) : (1 @ Bank, 256 @ F, 1 @ F, 128 @ F, 1 @ P)])
 
     # fmt: off
     @T.function
@@ -380,7 +379,7 @@ def test_gemm_too_large_f_size():
     A_layout = TileLayout(S[(256, 128) : (1 @ F, 1 @ P)])
     B_layout = TileLayout(S[(128, 1024) : (1 @ P, 1 @ F)])
 
-    C_layout = to_psum_layout(TileLayout(S[(2, 128, 1024) : (1024 @ F, 1 @ P, 1 @ F)]))
+    C_layout = TileLayout(S[(2, 128, 2, 512) : (2 @ Bank, 1 @ P, 1 @ Bank, 1 @ F)])
 
     # fmt: off
     @T.function
@@ -480,7 +479,7 @@ def test_gemm_pf_mismatch_fail():
     A_layout = TileLayout(S[(4, 128, 8, 128) : (1024 @ F, 1 @ F, 128 @ F, 1 @ P)])
     B_layout = TileLayout(S[(2, 128, 8, 128) : (128 @ F, 1 @ F, 256 @ F, 1 @ P)])
 
-    C_layout = to_psum_layout(TileLayout(S[(4, 128, 2, 128) : (256 @ F, 1 @ P, 128 @ F, 1 @ F)]))
+    C_layout = TileLayout(S[(2, 2, 128, 2, 128) : (1 @ Bank, 256 @ F, 1 @ P, 128 @ F, 1 @ F)])
 
     # fmt: off
     @T.function
@@ -514,7 +513,7 @@ def test_gemm_transpose_AB():
     A_layout = TileLayout(S[(8, 128, 4, 128) : (128 @ F, 1 @ P, 1024 @ F, 1 @ F)])
     B_layout = TileLayout(S[(2, 128, 8, 128) : (128 @ F, 1 @ F, 256 @ F, 1 @ P)])
 
-    C_layout = to_psum_layout(TileLayout(S[(4, 128, 2, 128) : (256 @ F, 1 @ P, 128 @ F, 1 @ F)]))
+    C_layout = TileLayout(S[(2, 2, 128, 2, 128) : (1 @ Bank, 256 @ F, 1 @ P, 128 @ F, 1 @ F)])
 
     # fmt: off
     @T.function
@@ -624,7 +623,7 @@ def test_gemm_guard2():
     A_layout = TileLayout(S[(4, 128, 8, 128) : (1024 @ F, 1 @ F, 128 @ F, 1 @ P)])
     B_layout = TileLayout(S[(8, 128, 2, 128) : (256 @ F, 1 @ P, 128 @ F, 1 @ F)])
 
-    C_layout = to_psum_layout(TileLayout(S[(4, 128, 2, 128) : (256 @ F, 1 @ P, 128 @ F, 1 @ F)]))
+    C_layout = TileLayout(S[(2, 2, 128, 2, 128) : (1 @ Bank, 256 @ F, 1 @ P, 128 @ F, 1 @ F)])
 
     # fmt: off
     @T.function

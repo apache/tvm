@@ -24,7 +24,7 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm.backend.cuda.layout import wg_local_layout
+from tvm.backend.cuda.axis import Axis as CUDAAxis
 from tvm.script import tirx as T
 from tvm.testing import env
 from tvm.tirx.layout import S, TileLayout
@@ -197,7 +197,7 @@ def test_fma_no_layout(layout):
 
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
-def test_fma_warpgroup_wg_local_layout():
+def test_fma_warpgroup_thread_row_layout():
     rows, cols = 128, 8
     dtype = "float32"
     scale_val = 1.5
@@ -215,9 +215,16 @@ def test_fma_warpgroup_wg_local_layout():
         tid = T.cuda.thread_in_warpgroup()
 
         reg = T.alloc_tensor(
-            ty_args=[T.Tensor((rows, cols), dtype, scope="local", layout=wg_local_layout(cols))]
+            ty_args=[
+                T.Tensor(
+                    (rows, cols),
+                    dtype,
+                    scope="local",
+                    layout=TileLayout(S[(128, cols) : (1 @ CUDAAxis.tid_in_wg, 1)]),
+                )
+            ]
         )
-        reg_row = reg.local(cols)
+        reg_row = reg.view(cols, layout="default")
         for i in T.serial(cols):
             reg_row[i] = A[tid, i]
         pairs = reg.view("uint64").view(4, 32, cols // 2, 1)
@@ -229,7 +236,7 @@ def test_fma_warpgroup_wg_local_layout():
             _splat_f32(T.float32(bias_val)),
             scope="warpgroup",
         )
-        reg_row_1 = reg.local(cols)
+        reg_row_1 = reg.view(cols, layout="default")
         for i in T.serial(cols):
             B[tid, i] = reg_row_1[i]
 

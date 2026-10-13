@@ -37,6 +37,7 @@ import pytest
 
 import tvm
 import tvm.testing
+from tirx.layout_fixtures import tcgen05_register_layout
 from tvm.backend.cuda.axis import laneid, tid_in_wg, tx
 from tvm.script import tirx as T
 from tvm.testing import env
@@ -140,7 +141,7 @@ def _build_warp_kernel(num, direction, trans, swizzle=False):
                 S_atom,
                 scope="warp",
             )
-            r_view = R_local.local()
+            r_view = R_local.view(num * 2, layout="default")
             for t in range(num):
                 for w in range(2):
                     gr, gc = _coord(row, cp, t, w)
@@ -160,7 +161,7 @@ def _build_warp_kernel(num, direction, trans, swizzle=False):
             R_local = T.alloc_tensor(
                 ty_args=[T.Tensor(s_shape, "float16", scope="local", layout=r_layout)]
             )
-            r_view = R_local.local()
+            r_view = R_local.view(num * 2, layout="default")
             for t in range(num):
                 for w in range(2):
                     gr, gc = _coord(row, cp, t, w)
@@ -231,7 +232,7 @@ def _build_warpgroup_kernel(num, direction, trans, swizzle=False):
                 S_atom,
                 scope="warpgroup",
             )
-            r_view = R_local.local()
+            r_view = R_local.view(num * 2, layout="default")
             for t in range(num):
                 for w in range(2):
                     gr, gc = _coord(wid, row, cp, t, w)
@@ -253,7 +254,7 @@ def _build_warpgroup_kernel(num, direction, trans, swizzle=False):
             R_local = T.alloc_tensor(
                 ty_args=[T.Tensor(s_shape, "float16", scope="local", layout=r_layout)]
             )
-            r_view = R_local.local()
+            r_view = R_local.view(num * 2, layout="default")
             for t in range(num):
                 for w in range(2):
                     gr, gc = _coord(wid, row, cp, t, w)
@@ -324,7 +325,7 @@ def _build_cta_kernel(num, direction, trans, swizzle=False):
                 S_atom,
                 scope="cta",
             )
-            r_view = R_local.local()
+            r_view = R_local.view(num * 2, layout="default")
             for t in range(num):
                 for w in range(2):
                     gr, gc = _coord(wid, row, cp, t, w)
@@ -346,7 +347,7 @@ def _build_cta_kernel(num, direction, trans, swizzle=False):
             R_local = T.alloc_tensor(
                 ty_args=[T.Tensor(s_shape, "float16", scope="local", layout=r_layout)]
             )
-            r_view = R_local.local()
+            r_view = R_local.view(num * 2, layout="default")
             for t in range(num):
                 for w in range(2):
                     gr, gc = _coord(wid, row, cp, t, w)
@@ -475,7 +476,7 @@ def _build_multi_iter_kernel(outer_ext: int):
         T.cuda.tile.apply(
             T.ptx["ldmatrix.sync.aligned.m8n8.x4.shared.b16"], R_atom, S_atom, scope="warp"
         )
-        r_view = R_local.local()
+        r_view = R_local.view(outer_ext * 16, layout="default")
         for a in range(outer_ext):
             for c in range(2):
                 for d in range(4):
@@ -520,12 +521,12 @@ def test_ldstmatrix_tcgen05_warpgroup_atom_emits_ldmatrix():
     Preserve the original split lane and warp ownership through both the
     logical rearrangement and the bf16-to-b32 view.
     """
-    from tvm.backend.cuda.layout import mma_shared_layout, tcgen05_atom_layout
+    from tvm.backend.cuda.layout import mma_shared_layout
 
     m, k = 64, 64
     # bf16 payload carrying the *fp32* atom layout (mirrors the tf32-prenorm
     # cast warp's ``a_bf16``: one element per 32-bit slot).
-    reg_layout = tcgen05_atom_layout("16x256b", (m, k), "float32")
+    reg_layout = tcgen05_register_layout("16x256b", (m, k), "float32")
     smem_layout = mma_shared_layout("bfloat16", 3, (m, k))
 
     @T.function

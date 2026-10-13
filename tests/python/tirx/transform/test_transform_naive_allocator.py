@@ -18,7 +18,6 @@
 import tvm
 import tvm.testing
 from tvm.backend.trn.axis import F, P
-from tvm.backend.trn.layout import trainium_layout
 from tvm.backend.trn.transform import TrnNaiveAllocator
 from tvm.ir import assert_structural_equal
 from tvm.script import tirx as T
@@ -66,7 +65,7 @@ def test_two_alloc():
                     [256, 512],
                     "float32",
                     scope="trn.sbuf",
-                    layout=trainium_layout("PF", [256, 512]),
+                    layout=TileLayout(S[(2, 128, 512):(512 @ F, 1 @ P, 1 @ F)]),
                 )
             ],
         )
@@ -76,7 +75,7 @@ def test_two_alloc():
                     [512, 512],
                     "float32",
                     scope="trn.sbuf",
-                    layout=trainium_layout("PF", [512, 512]),
+                    layout=TileLayout(S[(4, 128, 512):(512 @ F, 1 @ P, 1 @ F)]),
                 )
             ],
         )
@@ -86,8 +85,8 @@ def test_two_alloc():
     def expected(A_ptr: T.handle) -> None:
         T.func_attr({"global_symbol": "copy"})
         T.device_entry()
-        A_sbuf = T.alloc_tensor([0], ty_args=[T.Tensor([256, 512], "float32", scope="trn.sbuf", layout=trainium_layout('PF', [256, 512]))])  # noqa: E501
-        B_sbuf = T.alloc_tensor([2*512*4], ty_args=[T.Tensor([512, 512], "float32", scope="trn.sbuf", layout=trainium_layout('PF', [512, 512]))])  # noqa: E501
+        A_sbuf = T.alloc_tensor([0], ty_args=[T.Tensor([256, 512], "float32", scope="trn.sbuf", layout=TileLayout(S[(2, 128, 512):(512 @ F, 1 @ P, 1 @ F)]))])  # noqa: E501
+        B_sbuf = T.alloc_tensor([2*512*4], ty_args=[T.Tensor([512, 512], "float32", scope="trn.sbuf", layout=TileLayout(S[(4, 128, 512):(512 @ F, 1 @ P, 1 @ F)]))])  # noqa: E501
         T.trn.tile.tensor_copy(B_sbuf[0:256, :], A_sbuf)
         # fmt: on
 
@@ -107,19 +106,19 @@ def test_existing_alloc():
                     [256, 512],
                     "float32",
                     scope="trn.sbuf",
-                    layout=trainium_layout("PF", [256, 512]),
+                    layout=TileLayout(S[(2, 128, 512):(512 @ F, 1 @ P, 1 @ F)]),
                 )
             ],
         )
-        B_sbuf = T.alloc_tensor([1], ty_args=[T.Tensor([512, 512], "float32", scope="trn.sbuf", layout=trainium_layout('PF', [512, 512]))])  # noqa: E501
+        B_sbuf = T.alloc_tensor([1], ty_args=[T.Tensor([512, 512], "float32", scope="trn.sbuf", layout=TileLayout(S[(4, 128, 512):(512 @ F, 1 @ P, 1 @ F)]))])  # noqa: E501
         T.trn.tile.tensor_copy(B_sbuf[0:256, :], A_sbuf)
 
     @T.function
     def expected(A_ptr: T.handle) -> None:
         T.func_attr({"global_symbol": "copy"})
         T.device_entry()
-        A_sbuf = T.alloc_tensor([4*512*4+1], ty_args=[T.Tensor([256, 512], "float32", scope="trn.sbuf", layout=trainium_layout('PF', [256, 512]))])  # noqa: E501
-        B_sbuf = T.alloc_tensor([1], ty_args=[T.Tensor([512, 512], "float32", scope="trn.sbuf", layout=trainium_layout('PF', [512, 512]))])  # noqa: E501
+        A_sbuf = T.alloc_tensor([4*512*4+1], ty_args=[T.Tensor([256, 512], "float32", scope="trn.sbuf", layout=TileLayout(S[(2, 128, 512):(512 @ F, 1 @ P, 1 @ F)]))])  # noqa: E501
+        B_sbuf = T.alloc_tensor([1], ty_args=[T.Tensor([512, 512], "float32", scope="trn.sbuf", layout=TileLayout(S[(4, 128, 512):(512 @ F, 1 @ P, 1 @ F)]))])  # noqa: E501
         T.trn.tile.tensor_copy(B_sbuf[0:256, :], A_sbuf)
         # fmt: on
 
@@ -139,7 +138,7 @@ def test_workspace():
                     [256, 512],
                     "float32",
                     scope="trn.sbuf",
-                    layout=trainium_layout("PF", [256, 512]),
+                    layout=TileLayout(S[(2, 128, 512):(512 @ F, 1 @ P, 1 @ F)]),
                 )
             ],
         )
@@ -149,7 +148,7 @@ def test_workspace():
                     [512, 512],
                     "float32",
                     scope="trn.sbuf",
-                    layout=trainium_layout("PF", [512, 512]),
+                    layout=TileLayout(S[(4, 128, 512):(512 @ F, 1 @ P, 1 @ F)]),
                 )
             ],
         )
@@ -160,8 +159,8 @@ def test_workspace():
     def expected(A_ptr: T.handle) -> None:
         T.func_attr({"global_symbol": "copy"})
         T.device_entry()
-        A_sbuf = T.alloc_tensor([0], ty_args=[T.Tensor([256, 512], "float32", scope="trn.sbuf", layout=trainium_layout('PF', [256, 512]))])  # noqa: E501
-        B_sbuf = T.alloc_tensor([2*512*4], ty_args=[T.Tensor([512, 512], "float32", scope="trn.sbuf", layout=trainium_layout('PF', [512, 512]))])  # noqa: E501
+        A_sbuf = T.alloc_tensor([0], ty_args=[T.Tensor([256, 512], "float32", scope="trn.sbuf", layout=TileLayout(S[(2, 128, 512):(512 @ F, 1 @ P, 1 @ F)]))])  # noqa: E501
+        B_sbuf = T.alloc_tensor([2*512*4], ty_args=[T.Tensor([512, 512], "float32", scope="trn.sbuf", layout=TileLayout(S[(4, 128, 512):(512 @ F, 1 @ P, 1 @ F)]))])  # noqa: E501
         C_sbuf = T.alloc_tensor([2*512*4+4*512*4], ty_args=[T.Tensor([128, 1024], "float32", scope="trn.sbuf")])  # noqa: E501
         T.trn.tile.activation(B_sbuf[0:256, :], A_sbuf, const_bias=C_sbuf)
         # fmt: on
@@ -182,7 +181,7 @@ def test_other_scope_alloc():
                     [256, 512],
                     "float32",
                     scope="trn.sbuf",
-                    layout=trainium_layout("PF", [256, 512]),
+                    layout=TileLayout(S[(2, 128, 512):(512 @ F, 1 @ P, 1 @ F)]),
                 )
             ],
         )
@@ -192,7 +191,7 @@ def test_other_scope_alloc():
                     [512, 512],
                     "float32",
                     scope="trn.sbuf",
-                    layout=trainium_layout("PF", [512, 512]),
+                    layout=TileLayout(S[(4, 128, 512):(512 @ F, 1 @ P, 1 @ F)]),
                 )
             ],
         )
@@ -203,8 +202,8 @@ def test_other_scope_alloc():
     def expected(A_ptr: T.handle) -> None:
         T.func_attr({"global_symbol": "copy"})
         T.device_entry()
-        A_sbuf = T.alloc_tensor([0], ty_args=[T.Tensor([256, 512], "float32", scope="trn.sbuf", layout=trainium_layout('PF', [256, 512]))])  # noqa: E501
-        B_sbuf = T.alloc_tensor([2*512*4], ty_args=[T.Tensor([512, 512], "float32", scope="trn.sbuf", layout=trainium_layout('PF', [512, 512]))])  # noqa: E501
+        A_sbuf = T.alloc_tensor([0], ty_args=[T.Tensor([256, 512], "float32", scope="trn.sbuf", layout=TileLayout(S[(2, 128, 512):(512 @ F, 1 @ P, 1 @ F)]))])  # noqa: E501
+        B_sbuf = T.alloc_tensor([2*512*4], ty_args=[T.Tensor([512, 512], "float32", scope="trn.sbuf", layout=TileLayout(S[(4, 128, 512):(512 @ F, 1 @ P, 1 @ F)]))])  # noqa: E501
         C_sbuf = T.alloc_tensor(ty_args=[T.Tensor([8, 128, 512], "float32", scope="global")])
         T.trn.tile.activation(B_sbuf[0:256, :], A_sbuf, const_bias=C_sbuf)
         # fmt: on
@@ -225,7 +224,7 @@ def test_tensor_views():
                     [256, 512],
                     "float32",
                     scope="trn.sbuf",
-                    layout=trainium_layout("PF", [256, 512]),
+                    layout=TileLayout(S[(2, 128, 512):(512 @ F, 1 @ P, 1 @ F)]),
                 )
             ],
         )
@@ -235,7 +234,7 @@ def test_tensor_views():
                     [512, 512],
                     "float32",
                     scope="trn.sbuf",
-                    layout=trainium_layout("PF", [512, 512]),
+                    layout=TileLayout(S[(4, 128, 512):(512 @ F, 1 @ P, 1 @ F)]),
                 )
             ],
         )
@@ -246,8 +245,8 @@ def test_tensor_views():
     def expected(A_ptr: T.handle) -> None:
         T.func_attr({"global_symbol": "copy"})
         T.device_entry()
-        A_sbuf = T.alloc_tensor([0], ty_args=[T.Tensor([256, 512], "float32", scope="trn.sbuf", layout=trainium_layout('PF', [256, 512]))])  # noqa: E501
-        B_sbuf = T.alloc_tensor([2*512*4], ty_args=[T.Tensor([512, 512], "float32", scope="trn.sbuf", layout=trainium_layout('PF', [512, 512]))])  # noqa: E501
+        A_sbuf = T.alloc_tensor([0], ty_args=[T.Tensor([256, 512], "float32", scope="trn.sbuf", layout=TileLayout(S[(2, 128, 512):(512 @ F, 1 @ P, 1 @ F)]))])  # noqa: E501
+        B_sbuf = T.alloc_tensor([2*512*4], ty_args=[T.Tensor([512, 512], "float32", scope="trn.sbuf", layout=TileLayout(S[(4, 128, 512):(512 @ F, 1 @ P, 1 @ F)]))])  # noqa: E501
         B_view = B_sbuf.view(2, 256, 512)
         T.trn.tile.tensor_copy(B_view[0], A_sbuf)
         # fmt: on

@@ -71,9 +71,12 @@ it uses one CTA and writes/reads this layout with explicit st/ld instructions.
 .. code-block:: python
 
     from tvm.script import tirx as T
+    from tvm.backend.cuda.axis import tid_in_wg
     from tvm.backend.cuda.layout import tmem_datapath_layout
+    from tvm.tirx.layout import TileLayout, S
 
     layout_b = tmem_datapath_layout("B", 64, 128)
+    register_layout = TileLayout(S[(64, 2, 64) : (1 @ tid_in_wg, 64 @ tid_in_wg, 1)])
 
 
     @T.function
@@ -90,9 +93,13 @@ it uses one CTA and writes/reads this layout with explicit st/ld instructions.
         mem = T.cuda.decl_tmem(
             address[0], ty_args=[T.Tensor((64, 128), "float32", scope="tmem", layout=layout_b)]
         )
-        src = T.alloc_tcgen05_ldst_frag("32x32b", (64, 128), "float32")
-        dst = T.alloc_tcgen05_ldst_frag("32x32b", (64, 128), "float32")
-        local_src = src.local()
+        src = T.alloc_tensor(ty_args=[
+            T.Tensor((64, 128), "float32", scope="local", layout=register_layout)
+        ])
+        dst = T.alloc_tensor(ty_args=[
+            T.Tensor((64, 128), "float32", scope="local", layout=register_layout)
+        ])
+        local_src = src.view(64, layout="default")
         for j in range(64):
             local_src[j] = A[tid, j]
         mv = mem.rearrange("(wh r) (wl c) -> (wl wh) r c", wh=2, r=32, wl=2)
@@ -103,7 +110,7 @@ it uses one CTA and writes/reads this layout with explicit st/ld instructions.
         T.cuda.cta_sync()
         T.cuda.tile.apply(T.ptx["tcgen05.ld.sync.aligned.32x32b.x64.b32"], dv, mv, scope="warpgroup")
         T.ptx.tcgen05.wait__ld.sync.aligned()
-        local_dst = dst.local()
+        local_dst = dst.view(64, layout="default")
         for j in range(64):
             Out[tid, j] = local_dst[j]
         T.cuda.cta_sync()
@@ -113,8 +120,9 @@ it uses one CTA and writes/reads this layout with explicit st/ld instructions.
 
 The views have shape ``(4,32,64)`` with ``warp=2*wl+wh``. There are no repeat
 axes: each of the four warps issues one x64 store and one x64 load. No
-physical rearrangement or fragment copy is inserted. The helper allocates
-the register image; it does not select the opcode.
+physical rearrangement or fragment copy is inserted. The explicit register
+layout maps logical ``[i,j]`` to thread ``i+64*(j//64)`` and local slot
+``j%64``. The physical views expose each thread's 64 contiguous registers.
 
 .. code-block:: python
 
