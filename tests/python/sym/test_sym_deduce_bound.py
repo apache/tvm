@@ -38,30 +38,30 @@ def test_deduce():
     e0 = (-b) * a + c - d
     res0 = tvm.sym.deduce_bound(a, e0 >= 0, {b: b_s, c: c_s, d: d_s}, {})
     ans0 = fdiv(d - c, b * -1)
-    tvm.testing.assert_prim_expr_equal(res0.max_value, ans0)
+    assert tvm.sym.Analyzer().can_prove_equal(res0.max_value, ans0)
 
     # expression containing variable a is on rhs
     res0 = tvm.sym.deduce_bound(a, zero <= e0, {b: b_s, c: c_s, d: d_s}, {})
-    tvm.testing.assert_prim_expr_equal(res0.max_value, ans0)
+    assert tvm.sym.Analyzer().can_prove_equal(res0.max_value, ans0)
 
     e0 = d * a + c - d
     res0 = tvm.sym.deduce_bound(a, e0 >= 0, {b: b_s, c: c_s, d: d_s}, {})
     ans0 = fdiv(d - c, d)
-    tvm.testing.assert_prim_expr_equal(res0.max_value, ans0)
+    assert tvm.sym.Analyzer().can_prove_equal(res0.max_value, ans0)
 
     # expression containing variable a is on rhs
     res0 = tvm.sym.deduce_bound(a, zero <= e0, {b: b_s, c: c_s, d: d_s}, {})
-    tvm.testing.assert_prim_expr_equal(res0.max_value, ans0)
+    assert tvm.sym.Analyzer().can_prove_equal(res0.max_value, ans0)
 
     e1 = a * 4 + b < c
     res1 = tvm.sym.deduce_bound(a, e1, {b: b_s, c: c_s, d: d_s}, {})
     ans1 = fdiv(c - 1 - b, 4)
-    tvm.testing.assert_prim_expr_equal(res1.max_value, ans1)
+    assert tvm.sym.Analyzer().can_prove_equal(res1.max_value, ans1)
 
     # expression containing variable a is on rhs
     e1 = c > a * 4 + b
     res1 = tvm.sym.deduce_bound(a, e1, {b: b_s, c: c_s, d: d_s}, {})
-    tvm.testing.assert_prim_expr_equal(res1.max_value, ans1)
+    assert tvm.sym.Analyzer().can_prove_equal(res1.max_value, ans1)
 
     e2 = tvm.tirx.max(5, a * 4) < 0
     res2 = tvm.sym.deduce_bound(a, e2, {b: b_s, c: c_s, d: d_s}, {})
@@ -77,15 +77,15 @@ def test_deduce():
     e3 = (-b) + a * c - d
     res3 = tvm.sym.deduce_bound(a, e3 >= 0, {b: b_s, c: c_s, d: d_s}, {b: b_s, d: d_s})
     ans3 = fdiv(2, c) + 1
-    tvm.testing.assert_prim_expr_equal(res3.min_value, ans3)
+    assert tvm.sym.Analyzer().can_prove_equal(res3.min_value, ans3)
 
     res3 = tvm.sym.deduce_bound(a, zero <= e3, {b: b_s, c: c_s, d: d_s}, {b: b_s, d: d_s})
-    tvm.testing.assert_prim_expr_equal(res3.min_value, ans3)
+    assert tvm.sym.Analyzer().can_prove_equal(res3.min_value, ans3)
 
     # tests for `EQ` op
     res4 = tvm.sym.deduce_bound(a, a == b, {}, {})
-    tvm.testing.assert_prim_expr_equal(res4.max_value, b)
-    tvm.testing.assert_prim_expr_equal(res4.min_value, b)
+    assert tvm.sym.Analyzer().can_prove_equal(res4.max_value, b)
+    assert tvm.sym.Analyzer().can_prove_equal(res4.min_value, b)
 
     # Unsatisfiable `EQ`, variable as one of the Operand
     res5 = tvm.sym.deduce_bound(a, (a == b), {b: b_s}, {b: b_s})
@@ -94,20 +94,20 @@ def test_deduce():
 
     # variable `a` on the RHS side
     res6 = tvm.sym.deduce_bound(a, 10 == a, {}, {})
-    tvm.testing.assert_prim_expr_equal(res6.max_value, 10)
-    tvm.testing.assert_prim_expr_equal(res6.min_value, 10)
+    assert tvm.sym.Analyzer().can_prove_equal(res6.max_value, 10)
+    assert tvm.sym.Analyzer().can_prove_equal(res6.min_value, 10)
 
     # Add, Sub in `EQ`
     e4 = (a - c) == (b + d)
     ans4 = b + d + c
     res7 = tvm.sym.deduce_bound(a, e4, {b: b_s, c: c_s, d: d_s}, {})
-    tvm.testing.assert_prim_expr_equal(res7.max_value, ans4)
-    tvm.testing.assert_prim_expr_equal(res7.min_value, ans4)
+    assert tvm.sym.Analyzer().can_prove_equal(res7.max_value, ans4)
+    assert tvm.sym.Analyzer().can_prove_equal(res7.min_value, ans4)
 
     # Satisfiable Mul in `EQ` with negative sign
     res8 = tvm.sym.deduce_bound(a, (5 * a == -10), {}, {})
-    tvm.testing.assert_prim_expr_equal(res8.max_value, -2)
-    tvm.testing.assert_prim_expr_equal(res8.min_value, -2)
+    assert tvm.sym.Analyzer().can_prove_equal(res8.max_value, -2)
+    assert tvm.sym.Analyzer().can_prove_equal(res8.min_value, -2)
 
     # Unsatisfiable Mul in `EQ`
     e5 = 4 * a == b
@@ -117,8 +117,8 @@ def test_deduce():
 
     res10 = tvm.sym.deduce_bound(a, (b * a == b), {b: b_s}, {})
     # simplifier is now able to prove symbolic relation (b * a % b == 0)
-    tvm.testing.assert_prim_expr_equal(res10.max_value, 1)
-    tvm.testing.assert_prim_expr_equal(res10.min_value, 1)
+    assert tvm.sym.Analyzer().can_prove_equal(res10.max_value, 1)
+    assert tvm.sym.Analyzer().can_prove_equal(res10.min_value, 1)
 
 
 def test_check():
@@ -153,22 +153,22 @@ def test_deduce_basic():
 
         res1 = tvm.sym.deduce_bound(a, e0 < 17, {b: b_s}, {b: b_s})
         [x, y] = [res1.max_value, b_s.max_value] if coff > 0 else [res1.min_value, b_s.min_value]
-        tvm.testing.assert_prim_expr_equal((x * coff + 3 + y) < 17, True)
+        assert tvm.sym.Analyzer().can_prove_equal((x * coff + 3 + y) < 17, True)
 
         # expression containing variable a is on rhs
         res1 = tvm.sym.deduce_bound(a, tvm.tirx.const(17, "int32") < e0, {b: b_s}, {b: b_s})
         [x, y] = [res1.max_value, b_s.max_value] if coff < 0 else [res1.min_value, b_s.min_value]
-        tvm.testing.assert_prim_expr_equal((x * coff + 3 + y) > 17, True)
+        assert tvm.sym.Analyzer().can_prove_equal((x * coff + 3 + y) > 17, True)
 
         # expression containing variable a is on rhs
         res1 = tvm.sym.deduce_bound(a, tvm.tirx.const(17, "int32") >= e0, {b: b_s}, {b: b_s})
         [x, y] = [res1.max_value, b_s.max_value] if coff > 0 else [res1.min_value, b_s.min_value]
 
-        tvm.testing.assert_prim_expr_equal((x * coff + 3 + y) <= 17, True)
+        assert tvm.sym.Analyzer().can_prove_equal((x * coff + 3 + y) <= 17, True)
 
         res1 = tvm.sym.deduce_bound(a, e0 >= 17, {b: b_s}, {b: b_s})
         [x, y] = [res1.max_value, b_s.max_value] if coff < 0 else [res1.min_value, b_s.min_value]
-        tvm.testing.assert_prim_expr_equal((x * coff + 3 + y) >= 17, True)
+        assert tvm.sym.Analyzer().can_prove_equal((x * coff + 3 + y) >= 17, True)
 
     test_basic(0, 4, 4)
     test_basic(1, 5, 4)
@@ -187,21 +187,21 @@ def test_deduce_complex():
 
         res1 = tvm.sym.deduce_bound(a, e0 < 63, {b: b_s}, {b: b_s})
         [t, x] = [res1.max_value, b_s.max_value] if coff > 0 else [res1.min_value, b_s.min_value]
-        tvm.testing.assert_prim_expr_equal(((x * 3 + t * coff) * 4) < 63, True)
+        assert tvm.sym.Analyzer().can_prove_equal(((x * 3 + t * coff) * 4) < 63, True)
 
         # expression containing variable a is on rhs
         res1 = tvm.sym.deduce_bound(a, tvm.tirx.const(63, "int32") >= e0, {b: b_s}, {b: b_s})
         [t, x] = [res1.max_value, b_s.max_value] if coff > 0 else [res1.min_value, b_s.min_value]
-        tvm.testing.assert_prim_expr_equal(((x * 3 + t * coff) * 4) <= 63, True)
+        assert tvm.sym.Analyzer().can_prove_equal(((x * 3 + t * coff) * 4) <= 63, True)
 
         res1 = tvm.sym.deduce_bound(a, e0 > 63, {b: b_s}, {b: b_s})
         [t, x] = [res1.max_value, b_s.max_value] if coff < 0 else [res1.min_value, b_s.min_value]
-        tvm.testing.assert_prim_expr_equal(((x * 3 + t * coff) * 4) > 63, True)
+        assert tvm.sym.Analyzer().can_prove_equal(((x * 3 + t * coff) * 4) > 63, True)
 
         # expression containing variable a is on rhs
         res1 = tvm.sym.deduce_bound(a, tvm.tirx.const(63, "int32") <= e0, {b: b_s}, {b: b_s})
         [t, x] = [res1.max_value, b_s.max_value] if coff < 0 else [res1.min_value, b_s.min_value]
-        tvm.testing.assert_prim_expr_equal(((x * 3 + t * coff) * 4) >= 63, True)
+        assert tvm.sym.Analyzer().can_prove_equal(((x * 3 + t * coff) * 4) >= 63, True)
 
     test_complex(0, 4, 4)
     test_complex(0, 4, -4)
@@ -239,11 +239,11 @@ def test_deduce_floordiv():
         if isinstance(expect_min, str):
             assert res.min_value.name == expect_min
         else:
-            tvm.testing.assert_prim_expr_equal(res.min_value, expect_min)
+            assert tvm.sym.Analyzer().can_prove_equal(res.min_value, expect_min)
         if isinstance(expect_max, str):
             assert res.max_value.name == expect_max
         else:
-            tvm.testing.assert_prim_expr_equal(res.max_value, expect_max)
+            assert tvm.sym.Analyzer().can_prove_equal(res.max_value, expect_max)
 
     # test basic cases
     do_test(lambda a: a // 8 > 3, {}, 32, "pos_inf")

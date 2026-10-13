@@ -15,7 +15,10 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import platform
+
 import numpy as np
+import pytest
 
 import tvm
 import tvm.testing
@@ -86,7 +89,7 @@ def test_compile_relax():
     tvm.testing.assert_allclose(z.numpy(), x_np + y_np)
 
 
-@tvm.testing.skip_if_32bit(reason="skipping test for i386.")
+@pytest.mark.skipif("32bit" in platform.architecture()[0], reason="skipping test for i386.")
 def test_compile_mixed_module():
     @tvm.script.ir_module
     class MyModule:

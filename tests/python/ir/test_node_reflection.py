@@ -287,7 +287,7 @@ def test_string():
 
 
 def test_pass_config():
-    cfg = tvm.transform.PassContext(
+    cfg = tvm.ir.transform.PassContext(
         opt_level=1,
         config={
             "tirx.UnrollLoop": {
@@ -303,15 +303,15 @@ def test_pass_config():
 
     # schema checking for specific config key
     with pytest.raises(TypeError):
-        cfg = tvm.transform.PassContext(config={"tirx.UnrollLoop": {"invalid": 1}})
+        cfg = tvm.ir.transform.PassContext(config={"tirx.UnrollLoop": {"invalid": 1}})
 
     # schema check for un-registered config
     with pytest.raises(AttributeError):
-        cfg = tvm.transform.PassContext(config={"inavlid-opt": True})
+        cfg = tvm.ir.transform.PassContext(config={"inavlid-opt": True})
 
     # schema check for wrong type
     with pytest.raises(AttributeError):
-        cfg = tvm.transform.PassContext(config={"tirx.UnrollLoop": 1})
+        cfg = tvm.ir.transform.PassContext(config={"tirx.UnrollLoop": 1})
 
 
 def test_dict():

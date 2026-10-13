@@ -22,6 +22,7 @@ import pytest
 
 import tvm
 import tvm.s_tir.tensor_intrin.cuda
+import tvm.s_tir.testing
 import tvm.testing
 from tvm import te, tirx
 from tvm.s_tir.meta_schedule.testing import te_workload
@@ -33,10 +34,10 @@ from tvm.s_tir.tensor_intrin.cuda import (
     MMA_store_16x16_f32_global_INTRIN,
     shared_16x16_to_ldmatrix_32x8_layout,
 )
+from tvm.s_tir.testing.tir import mma_schedule
 from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.testing import env
-from tvm.testing.tir import mma_schedule
 
 
 def _check(original, transformed):
@@ -1514,8 +1515,8 @@ def get_mma_schedule():
 
 
 def build_and_run(sch):
-    if tvm.testing.is_ampere_or_newer():
-        with tvm.transform.PassContext(config={"tirx.use_async_copy": 1}):
+    if tvm.s_tir.testing.is_ampere_or_newer():
+        with tvm.ir.transform.PassContext(config={"tirx.use_async_copy": 1}):
             f = tvm.compile(sch.mod["main"], target="cuda")
 
         a_np = np.random.uniform(size=(N, K)).astype("float16")
@@ -1544,7 +1545,7 @@ def test_async_pipelined_mma_gemm_simple():
     sch.annotate(k0, ann_key="software_pipeline_order", ann_val=[0, 1, 2])
     sch.annotate(k0, ann_key="software_pipeline_async_stages", ann_val=[0])
 
-    seq = tvm.transform.Sequential(
+    seq = tvm.ir.transform.Sequential(
         [
             tvm.s_tir.transform.PlanAndUpdateTensorAllocationLocation(),
             tvm.s_tir.transform.ConvertBlocksToOpaque(),
@@ -1596,7 +1597,7 @@ def test_async_nested_pipeline_mma_gemm_ideal_annotation():
     sch.annotate(k1, ann_key="software_pipeline_stage", ann_val=[0, 0, 1])
     sch.annotate(k1, ann_key="software_pipeline_order", ann_val=[0, 1, 2])
 
-    seq = tvm.transform.Sequential(
+    seq = tvm.ir.transform.Sequential(
         [
             tvm.s_tir.transform.PlanAndUpdateTensorAllocationLocation(),
             tvm.s_tir.transform.ConvertBlocksToOpaque(),

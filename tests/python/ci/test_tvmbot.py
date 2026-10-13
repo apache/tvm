@@ -20,8 +20,11 @@ Test the @tvm-bot merge code
 """
 
 import json
+import os
 from pathlib import Path
 from typing import Any
+
+import pytest
 
 import tvm
 
@@ -47,7 +50,10 @@ class _TvmBotTest:
         """
         return data
 
-    @tvm.testing.skip_if_wheel_test
+    @pytest.mark.skipif(
+        os.getenv("WHEEL_TEST", "").lower() in {"true", "1", "yes"},
+        reason="Test not supported in wheel.",
+    )
     def test(self, tmpdir_factory):
         """
         Run the tvm-bot script using the data from preprocess_data

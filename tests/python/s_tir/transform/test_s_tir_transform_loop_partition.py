@@ -93,7 +93,9 @@ def test_condition_EQ():
             T.evaluate(T.Select(T.likely(i == 5), m, n))
 
     mod = tvm.IRModule.from_expr(func.with_attr("global_symbol", "main"))
-    with tvm.transform.PassContext(config={"s_tir.LoopPartition": {"partition_const_loop": True}}):
+    with tvm.ir.transform.PassContext(
+        config={"s_tir.LoopPartition": {"partition_const_loop": True}}
+    ):
         mod = tvm.s_tir.transform.LoopPartition()(mod)
         stmt = tvm.tirx.transform.StmtSimplify()(mod)["main"].body
 
@@ -139,7 +141,9 @@ def test_oneD_pool():
 
     mod = tvm.IRModule.from_expr(func.with_attr("global_symbol", "main"))
 
-    with tvm.transform.PassContext(config={"s_tir.LoopPartition": {"partition_const_loop": True}}):
+    with tvm.ir.transform.PassContext(
+        config={"s_tir.LoopPartition": {"partition_const_loop": True}}
+    ):
         mod = tvm.s_tir.transform.LoopPartition()(mod)
         stmt = tvm.tirx.transform.StmtSimplify()(mod)["main"].body
 
@@ -160,7 +164,9 @@ def test_cce_loop_1():
                     )
 
     mod = tvm.IRModule.from_expr(func.with_attr("global_symbol", "main"))
-    with tvm.transform.PassContext(config={"s_tir.LoopPartition": {"partition_const_loop": True}}):
+    with tvm.ir.transform.PassContext(
+        config={"s_tir.LoopPartition": {"partition_const_loop": True}}
+    ):
         mod = tvm.s_tir.transform.LoopPartition()(mod)
         stmt = tvm.tirx.transform.StmtSimplify()(mod)["main"].body
 
@@ -181,7 +187,9 @@ def test_cce_loop_2():
                 T.evaluate(T.call_extern("cce_intrisic", i * tile, i * tile + tile, ty="float32"))
 
     mod = tvm.IRModule.from_expr(func.with_attr("global_symbol", "main"))
-    with tvm.transform.PassContext(config={"s_tir.LoopPartition": {"partition_const_loop": True}}):
+    with tvm.ir.transform.PassContext(
+        config={"s_tir.LoopPartition": {"partition_const_loop": True}}
+    ):
         mod = tvm.s_tir.transform.LoopPartition()(mod)
         stmt = tvm.tirx.transform.StmtSimplify()(mod)["main"].body
 
@@ -202,7 +210,9 @@ def test_cce_loop_3():
 
     mod = tvm.IRModule.from_expr(func.with_attr("global_symbol", "main"))
 
-    with tvm.transform.PassContext(config={"s_tir.LoopPartition": {"partition_const_loop": True}}):
+    with tvm.ir.transform.PassContext(
+        config={"s_tir.LoopPartition": {"partition_const_loop": True}}
+    ):
         mod = tvm.s_tir.transform.LoopPartition()(mod)
         stmt = tvm.tirx.transform.StmtSimplify()(mod)["main"].body
 
@@ -221,7 +231,7 @@ def partitioned_concat(
 
 
 def partition_from_scheduled_tir(function, pass_cfg, do_flatten=True):
-    with tvm.transform.PassContext(config=pass_cfg):
+    with tvm.ir.transform.PassContext(config=pass_cfg):
         mod = IRModule.from_expr(function.with_attr("global_symbol", "main"))
         mod = tvm.s_tir.transform.LoopPartition()(mod)
         mod = tvm.s_tir.transform.LowerOpaqueBlock()(mod)

@@ -259,7 +259,7 @@ def test_llvm_madd_pipeline():
     check_llvm(64, 0, 2)
     check_llvm(4, 0, 1)
 
-    with tvm.transform.PassContext(config={"tirx.noalias": False}):
+    with tvm.ir.transform.PassContext(config={"tirx.noalias": False}):
         check_llvm(4, 0, 3)
 
 
@@ -863,7 +863,7 @@ def test_llvm_scalar_concat():
 
     # This will crash in LLVM codegen if CodeGenLLVM::CreateVecConcat doesn't convert
     # scalars to single-lane LLVM vectors.
-    with tvm.transform.PassContext(config={"tirx.disable_assert": True}):
+    with tvm.ir.transform.PassContext(config={"tirx.disable_assert": True}):
         m = tvm.tirx.compile(Module, target="llvm")
 
 

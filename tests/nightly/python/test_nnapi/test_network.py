@@ -35,7 +35,7 @@ def _build_and_run_network(remote_obj, tracker, mod, input_data):
     """Helper function to build and run a network."""
 
     def execute_on_host(mod, inputs):
-        with tvm.transform.PassContext(opt_level=3):
+        with tvm.ir.transform.PassContext(opt_level=3):
             ex = tvm.compile(mod, target="llvm")
         dev = tvm.cpu(0)
         vm = tvm.relax.VirtualMachine(ex, device=dev)

@@ -25,7 +25,7 @@ from tvm.relax.expr import Expr, Var
 from tvm.relax.expr_functor import PyExprMutator, PyExprVisitor, mutator, visitor
 
 
-@tvm.transform.module_pass(opt_level=0, name="IPCAllReduceRewrite")
+@tvm.ir.transform.module_pass(opt_level=0, name="IPCAllReduceRewrite")
 class IPCAllReduceRewrite:
     """Rewrite all-reduce operation to customized all-reduce impl with IPC memory."""
 
@@ -40,7 +40,7 @@ class IPCAllReduceRewrite:
         """
         self.allreduce_strategy = allreduce_strategy
 
-    def transform_module(self, mod: IRModule, _ctx: tvm.transform.PassContext) -> IRModule:
+    def transform_module(self, mod: IRModule, _ctx: tvm.ir.transform.PassContext) -> IRModule:
         """IRModule-level transformation"""
         fcustom_allreduce = tvm.get_global_func(
             "runtime.disco.cuda_ipc.custom_allreduce", allow_missing=True

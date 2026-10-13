@@ -14,8 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""FFI APIs for tvm.transform"""
 
-import tvm_ffi
+# pylint: disable=invalid-name,unnecessary-comprehension,redefined-outer-name
+"""Testing helpers for schedulable TensorIR."""
 
-tvm_ffi.init_ffi_api("transform", __name__)
+from .utils import is_ampere_or_newer, strtobool

@@ -21,10 +21,10 @@ import pytest
 import tvm
 import tvm.testing
 from tvm import relax
+from tvm.relax.testing.gradient import check_numerical_grads
 from tvm.script.parser import ir as I
 from tvm.script.parser import relax as R
 from tvm.testing import assert_allclose
-from tvm.testing.utils import check_numerical_grads
 
 
 def rand(dtype, *shape):

@@ -22,7 +22,7 @@ from collections.abc import Callable
 from contextlib import contextmanager
 
 import tvm
-from tvm.ir.utils import derived_object
+from tvm.s_tir.utils import derived_object
 from tvm.support.popen_pool import PopenPoolExecutor
 
 from ....runtime import Device, Module

@@ -31,7 +31,7 @@ from tvm.script import tirx as T
 @pytest.fixture(autouse=True)
 def enable_cuda_graph():
     """Enable cuda graph transform for all tests in this file"""
-    with tvm.transform.PassContext(config={"relax.backend.use_cuda_graph": True}):
+    with tvm.ir.transform.PassContext(config={"relax.backend.use_cuda_graph": True}):
         yield
 
 
@@ -657,7 +657,7 @@ def test_capture_fixed_inputs():
             _4: R.Tuple = R.memory.kill_storage(storage1)
             return gv_1
 
-    mod = tvm.transform.Sequential(
+    mod = tvm.ir.transform.Sequential(
         [
             relax.pipeline.get_pipeline(),
             relax.transform.LiftTransformParams(),
@@ -698,9 +698,9 @@ def test_transform_is_no_op_when_disabled():
             alloc3 = R.memory.alloc_tensor(storage, 0, R.shape([8]), "float32")
             return ()
 
-    with tvm.transform.PassContext(config={"relax.backend.use_cuda_graph": True}):
+    with tvm.ir.transform.PassContext(config={"relax.backend.use_cuda_graph": True}):
         AfterWhenEnabled = relax.transform.RewriteCUDAGraph()(Before)
-    with tvm.transform.PassContext(config={"relax.backend.use_cuda_graph": False}):
+    with tvm.ir.transform.PassContext(config={"relax.backend.use_cuda_graph": False}):
         AfterWhenDisabled = relax.transform.RewriteCUDAGraph()(Before)
 
     assert not tvm_ffi.structural_equal(Before, AfterWhenEnabled)

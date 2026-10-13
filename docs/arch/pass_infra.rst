@@ -228,7 +228,7 @@ creating a sequence. For example:
 
 .. code:: python
 
-    pipeline = tvm.transform.Sequential([
+    pipeline = tvm.ir.transform.Sequential([
         relax.transform.Normalize(),
         relax.transform.FoldConstant(),
     ])
@@ -329,7 +329,7 @@ of the ``PassContext`` instance.
 
 ``InstrumentExitPassContext`` is called when leaving the scope of ``PassContext``,
 or exceptions occur during the execution of passes.
-This method is also called when instruments is being overridden by ``override_instruments`` in :py:class:`tvm.transform.PassContext`.
+This method is also called when instruments is being overridden by ``override_instruments`` in :py:class:`tvm.ir.transform.PassContext`.
 See :ref:`pass_instrument_overriden`.
 
 ``InstrumentBeforePass`` is called before execution.
@@ -438,19 +438,19 @@ There are several built-in instruments.
 
   * Profile the execution time of passes.
 
-- PrintBeforeAll (see `python/tvm/transform/instrument.py`_)
+- PrintBeforeAll (see `python/tvm/ir/transform/instrument.py`_)
 
   * Print the IR module and pass info before each pass executes.
 
-- PrintAfterAll (see `python/tvm/transform/instrument.py`_)
+- PrintAfterAll (see `python/tvm/ir/transform/instrument.py`_)
 
   * Print the IR module and pass info after each pass executes.
 
-- PassPrintingInstrument (see `python/tvm/transform/instrument.py`_)
+- PassPrintingInstrument (see `python/tvm/ir/transform/instrument.py`_)
 
   * Selectively print the IR module before or after specific named passes.
 
-- DumpIR (see `python/tvm/transform/instrument.py`_)
+- DumpIR (see `python/tvm/ir/transform/instrument.py`_)
 
   * Dump the IR module to files after each pass executes.
 
@@ -460,7 +460,7 @@ Python Frontend
 Only some simple APIs are needed for the frontend side. For example, we can
 provide users the following APIs to create and execute a pass (full
 implementation is provided in `python/tvm/relax/transform/transform.py`_ and
-`python/tvm/transform/core.py`_). The backend
+`python/tvm/ir/transform/core.py`_). The backend
 receives the information and decides which function it should use to create
 a Pass object.
 
@@ -519,8 +519,8 @@ Pass Instrument
 ^^^^^^^^^^^^^^^
 
 One can implement a ``PassInstrument`` by using the ``pass_instrument``
-decorator (`python/tvm/transform/core.py`_) or by subclassing
-``tvm.transform.PassInstrument``. Implement any of the following callbacks:
+decorator (`python/tvm/ir/transform/core.py`_) or by subclassing
+``tvm.ir.transform.PassInstrument``. Implement any of the following callbacks:
 
 - ``enter_pass_ctx``
 
@@ -544,11 +544,11 @@ decorator (`python/tvm/transform/core.py`_) or by subclassing
   * This method is run right after a pass has been executed.
 
 ``PassInstrument`` instances can be registered through ``instruments`` argument in
-:py:class:`tvm.transform.PassContext`.
+:py:class:`tvm.ir.transform.PassContext`.
 
-Core interfaces are exported from ``tvm.transform``. Concrete tools, including
-``PassTimingInstrument`` and ``DumpIR``, live in ``tvm.transform.instrument``;
-see `python/tvm/transform/instrument.py`_ for examples.
+Core interfaces are exported from ``tvm.ir.transform``. Concrete tools, including
+``PassTimingInstrument`` and ``DumpIR``, live in ``tvm.ir.transform.instrument``;
+see `python/tvm/ir/transform/instrument.py`_ for examples.
 
 .. _pass_instrument_overriden:
 
@@ -561,7 +561,7 @@ one can still register ``PassInstrument`` into the global ``PassContext`` by:
 
 .. code:: python
 
-    cur_pass_ctx = tvm.transform.PassContext.current()
+    cur_pass_ctx = tvm.ir.transform.PassContext.current()
     # override PassInstrument instances
     cur_pass_ctx.override_instruments([pass_inst])
     mod = pass_seq(mod)
@@ -587,9 +587,9 @@ new ``PassInstrument`` are called.
 
 .. _include/tvm/relax/transform.h: https://github.com/apache/tvm/blob/main/include/tvm/relax/transform.h
 
-.. _python/tvm/transform/core.py: https://github.com/apache/tvm/blob/main/python/tvm/transform/core.py
+.. _python/tvm/ir/transform/core.py: https://github.com/apache/tvm/blob/main/python/tvm/ir/transform/core.py
 
-.. _python/tvm/transform/instrument.py: https://github.com/apache/tvm/blob/main/python/tvm/transform/instrument.py
+.. _python/tvm/ir/transform/instrument.py: https://github.com/apache/tvm/blob/main/python/tvm/ir/transform/instrument.py
 
 .. _src/tirx/transform/unroll_loop.cc: https://github.com/apache/tvm/blob/main/src/tirx/transform/unroll_loop.cc
 

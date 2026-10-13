@@ -35,15 +35,15 @@ def test_unroll_loop():
 
     assert isinstance(stmt, tvm.ir.For)
 
-    with tvm.transform.PassContext(config={"tirx.UnrollLoop": {"auto_max_step": 16}}):
+    with tvm.ir.transform.PassContext(config={"tirx.UnrollLoop": {"auto_max_step": 16}}):
         ret = tvm.tirx.transform.UnrollLoop()(mod)["main"].body
         assert not any(isinstance(stmt, tvm.ir.For) for stmt in ret)
 
-    with tvm.transform.PassContext(config={"tirx.UnrollLoop": {"auto_max_step": 15}}):
+    with tvm.ir.transform.PassContext(config={"tirx.UnrollLoop": {"auto_max_step": 15}}):
         ret = tvm.tirx.transform.UnrollLoop()(mod)["main"].body
         assert isinstance(ret[0], tvm.ir.For)
 
-    with tvm.transform.PassContext(
+    with tvm.ir.transform.PassContext(
         config={"tirx.UnrollLoop": {"auto_max_step": 16, "explicit_unroll": False}}
     ):
         ret = tvm.tirx.transform.UnrollLoop()(mod)["main"].body
@@ -61,7 +61,7 @@ def test_unroll_loop():
                 for j in T.unroll(8):
                     Ab[j + 1] = Ab[i] + T.int64(1)
 
-    with tvm.transform.PassContext(
+    with tvm.ir.transform.PassContext(
         config={"tirx.UnrollLoop": {"auto_max_depth": 8, "explicit_unroll": False}}
     ):
         ret = tvm.tirx.transform.UnrollLoop()(ModuleWithPolicy)["main"].body
@@ -81,7 +81,7 @@ def test_unroll_fake_loop():
                 for j in T.serial(10):
                     Ab[j + 1] = Ab[i] + 1
 
-    with tvm.transform.PassContext(
+    with tvm.ir.transform.PassContext(
         config={
             "tirx.UnrollLoop": {"auto_max_depth": 8, "auto_max_extent": 1, "explicit_unroll": False}
         }
@@ -136,7 +136,7 @@ def test_unroll_local_access():
                     A_local[2] = T.float32(2)
                     A_local[3] = T.float32(3)
 
-    with tvm.transform.PassContext(
+    with tvm.ir.transform.PassContext(
         config={
             "tirx.UnrollLoop": {
                 "auto_max_depth": 0,

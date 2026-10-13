@@ -87,7 +87,7 @@ def gen_ground_truth(mod, target):
     # Lower and run tuning
     # Since there is no default schedule for GPU in MS yet, this is necessary
     with target:
-        seq = tvm.transform.Sequential(
+        seq = tvm.ir.transform.Sequential(
             [relax.transform.LegalizeOps(), s_tir.transform.DefaultGPUSchedule()]
         )
         new_mod = seq(mod)
@@ -148,7 +148,7 @@ def test_tensorrt_only(entry_func_name):
         ("tensorrt.add", is_op("relax.add")(wildcard(), wildcard())),
     ]
 
-    new_mod = tvm.transform.Sequential(
+    new_mod = tvm.ir.transform.Sequential(
         [
             relax.transform.FuseOpsByPattern(patterns),
             relax.transform.MergeCompositeFunctions(),
@@ -176,8 +176,8 @@ def test_mix_use_tensorrt_and_tvm():
 
     # Run Codegen pass
     with tempfile.TemporaryDirectory() as work_dir:
-        with target, tvm.transform.PassContext(opt_level=0):
-            new_mod = tvm.transform.Sequential(
+        with target, tvm.ir.transform.PassContext(opt_level=0):
+            new_mod = tvm.ir.transform.Sequential(
                 [
                     relax.transform.FuseOpsByPattern(patterns),
                     relax.transform.MergeCompositeFunctions(),

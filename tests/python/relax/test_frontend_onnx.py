@@ -155,7 +155,7 @@ def check_correctness(
     # Separate model from parameters.
     tvm_model, params = relax.frontend.detach_params(tvm_model)
     # Compile the relax graph into a VM then run.
-    with tvm.transform.PassContext(opt_level=3):
+    with tvm.ir.transform.PassContext(opt_level=3):
         ex = tvm.compile(tvm_model, target="llvm")
         vm = relax.VirtualMachine(ex, tvm.cpu())
     # Prepare inputs.
@@ -235,7 +235,7 @@ def run_in_tvm(
     tvm_model = relax.transform.LegalizeOps()(tvm_model)
     tvm_model, params = relax.frontend.detach_params(tvm_model)
 
-    with tvm.transform.PassContext(opt_level=3):
+    with tvm.ir.transform.PassContext(opt_level=3):
         ex = tvm.compile(tvm_model, target="llvm")
         vm = relax.VirtualMachine(ex, tvm.cpu())
 
@@ -2452,7 +2452,7 @@ def test_scatter_dynamic_shape():
     tvm_model = from_onnx(model, shape_dict=shape_dict, opset=9)
     tvm_model = relax.transform.DecomposeOpsForInference()(tvm_model)
     tvm_model = relax.transform.LegalizeOps()(tvm_model)
-    with tvm.transform.PassContext(opt_level=3):
+    with tvm.ir.transform.PassContext(opt_level=3):
         ex = tvm.compile(tvm_model, target="llvm")
         vm = relax.VirtualMachine(ex, tvm.cpu())
     vm.set_input("main", data, indices, updates)
@@ -4013,7 +4013,7 @@ def test_where_shape_expr_broadcast(cond_vals, y_vals, expected):
     model = _make_where_shape_expr_model(t1_shape, cond_vals, y_vals)
     feeds = {"__t": np.ones(t1_shape, dtype="float32")}
     mod = from_onnx(model, shape_dict={"__t": list(t1_shape)})
-    with tvm.transform.PassContext(opt_level=3):
+    with tvm.ir.transform.PassContext(opt_level=3):
         ex = tvm.compile(mod, target="llvm")
     vm = relax.VirtualMachine(ex, tvm.cpu())
     out = vm["main"](feeds["__t"])
@@ -4769,7 +4769,7 @@ def test_softplus_float64_accuracy():
     tvm_model = relax.transform.LegalizeOps()(tvm_model)
     tvm_model, params = relax.frontend.detach_params(tvm_model)
 
-    with tvm.transform.PassContext(opt_level=3):
+    with tvm.ir.transform.PassContext(opt_level=3):
         ex = tvm.compile(tvm_model, target="llvm")
         vm = relax.VirtualMachine(ex, tvm.cpu())
 

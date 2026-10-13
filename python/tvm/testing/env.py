@@ -113,6 +113,56 @@ def build_flag_enabled(flag: str) -> bool:
         return False
 
 
+DEFAULT_TEST_TARGETS = [
+    "llvm",
+    "cuda",
+    "nvptx",
+    {"kind": "vulkan", "from_device": 0},
+    "opencl",
+    {"kind": "opencl", "device": "mali"},
+    {"kind": "opencl", "device": "intel_graphics"},
+    "metal",
+    "rocm",
+    "hexagon",
+]
+
+
+def _parse_target_entry(entry):
+    """Parse a target entry from TVM_TEST_TARGETS env var.
+
+    Entries can be plain kind names (e.g. "llvm") or JSON dicts
+    (e.g. '{"kind": "opencl", "device": "mali"}').
+    """
+    entry = entry.strip()
+    if entry.startswith("{"):
+        import json  # pylint: disable=import-outside-toplevel
+
+        return json.loads(entry)
+    return entry
+
+
+def _tvm_test_targets():
+    target_str = os.environ.get("TVM_TEST_TARGETS", "").strip()
+    if target_str:
+        # De-duplicate while preserving order. dict items can't be hashed
+        # directly, so use their str() form as the dedup key.
+        targets = []
+        seen = set()
+        for t in target_str.split(";"):
+            t = t.strip()
+            if not t:
+                continue
+            parsed = _parse_target_entry(t)
+            key = str(parsed)
+            if key in seen:
+                continue
+            seen.add(key)
+            targets.append(parsed)
+        return targets
+
+    return DEFAULT_TEST_TARGETS
+
+
 @functools.cache
 def _target_enabled(kind: str) -> bool:
     """True if ``kind`` is selected by ``TVM_TEST_TARGETS`` (or the default set).
@@ -122,8 +172,6 @@ def _target_enabled(kind: str) -> bool:
     even when a device is physically present.
     """
     try:
-        from tvm.testing.utils import _tvm_test_targets  # pylint: disable=import-outside-toplevel
-
         for target in _tvm_test_targets():
             k = target["kind"] if isinstance(target, dict) else str(target).split()[0]
             if k == kind:
@@ -396,11 +444,11 @@ def has_cudagraph() -> bool:
 def has_hexagon_toolchain() -> bool:
     """True if the Hexagon toolchain is available for compilation."""
     try:
-        from tvm.contrib.hexagon import (  # pylint: disable=import-outside-toplevel
-            _ci_env_check,
+        return (
+            build_flag_enabled("USE_HEXAGON")
+            and (not _runtime_enabled("llvm") or _llvm_version_major() >= 7)
+            and "HEXAGON_TOOLCHAIN" in os.environ
         )
-
-        return build_flag_enabled("USE_HEXAGON") and _ci_env_check._compile_time_check() is True
     except Exception:  # pylint: disable=broad-except
         return False
 
@@ -409,11 +457,7 @@ def has_hexagon_toolchain() -> bool:
 def has_hexagon() -> bool:
     """True if Hexagon can both compile and run (toolchain + attached device)."""
     try:
-        from tvm.contrib.hexagon import (  # pylint: disable=import-outside-toplevel
-            _ci_env_check,
-        )
-
-        return has_hexagon_toolchain() and _ci_env_check._run_time_check() is True
+        return has_hexagon_toolchain() and "ANDROID_SERIAL_NUMBER" in os.environ
     except Exception:  # pylint: disable=broad-except
         return False
 

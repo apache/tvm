@@ -226,7 +226,7 @@ def test_basic(consume_params):
 
     mod = Before
     expected = Expected if not consume_params else ExpectedConsumeParams
-    with tvm.transform.PassContext(
+    with tvm.ir.transform.PassContext(
         config={"relax.lift_transform_params.consume_params": consume_params}
     ):
         after = relax.transform.LiftTransformParams()(mod)

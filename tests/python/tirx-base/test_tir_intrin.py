@@ -332,7 +332,7 @@ class Module:
 
 
 def test_fma():
-    opt = tvm.transform.Sequential(
+    opt = tvm.ir.transform.Sequential(
         [
             tvm.tirx.transform.Apply(lambda f: f.with_attr("target", tvm.target.Target("llvm"))),
             tvm.tirx.transform.LowerIntrin(),

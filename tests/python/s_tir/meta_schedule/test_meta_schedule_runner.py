@@ -18,6 +18,7 @@
 """Test Meta Schedule Runner"""
 
 import itertools
+import platform
 import sys
 import time
 from typing import Any
@@ -30,7 +31,6 @@ pytest.importorskip("tornado")  # tvm.rpc.tracker (LocalRPC) requires tornado
 
 import tvm
 import tvm.testing
-from tvm.ir.utils import derived_object
 from tvm.rpc import RPCSession
 from tvm.runtime import Device, Module
 from tvm.s_tir.meta_schedule.arg_info import TensorInfo
@@ -58,6 +58,7 @@ from tvm.s_tir.meta_schedule.testing.local_rpc import LocalRPC
 from tvm.s_tir.meta_schedule.utils import (
     get_global_func_with_default_on_worker,
 )
+from tvm.s_tir.utils import derived_object
 from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.target import Target
@@ -409,7 +410,7 @@ def test_meta_schedule_py_runner():
 
 
 @pytest.mark.skip("Tuning test - launches runner")
-@tvm.testing.skip_if_32bit(reason="skipping test for i386.")
+@pytest.mark.skipif("32bit" in platform.architecture()[0], reason="skipping test for i386.")
 def test_meta_schedule_rpc_runner_time_out():
     """Test meta schedule RPC Runner time out by using a super large workload"""
 

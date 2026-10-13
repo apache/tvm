@@ -19,7 +19,7 @@
 import numpy as np  # type: ignore
 
 import tvm.runtime
-from tvm.ir.utils import derived_object
+from tvm.s_tir.utils import derived_object
 
 from ..feature_extractor import PyFeatureExtractor
 from ..search_strategy import MeasureCandidate

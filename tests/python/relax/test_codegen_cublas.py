@@ -50,7 +50,7 @@ pytestmark = [
 
 
 def build_and_run(mod, inputs_np, target, legalize=False, cuda_graph=False):
-    with tvm.transform.PassContext(
+    with tvm.ir.transform.PassContext(
         config={
             "relax.backend.use_cuda_graph": cuda_graph,
             "relax.transform.apply_legalize_ops": legalize,

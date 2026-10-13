@@ -25,8 +25,8 @@ import tvm_ffi
 from tvm import te as _te
 from tvm import tirx as _tirx
 from tvm.ir import Call, DataTypeImm, GenericConst, Op, StringImm, TensorLoad, is_prim_expr
-from tvm.ir.utils import derived_object
 from tvm.runtime import Object
+from tvm.s_tir.utils import derived_object
 
 from ..ir.module import IRModule
 from . import _ffi_api

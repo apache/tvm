@@ -25,7 +25,7 @@ import numpy as np
 import tvm
 from tvm import te
 from tvm.s_tir.meta_schedule.runner import EvaluatorConfig, RPCConfig
-from tvm.testing import local_run, rpc_run
+from tvm.s_tir.testing.runner import local_run, rpc_run
 
 
 def _parse_args() -> argparse.Namespace:

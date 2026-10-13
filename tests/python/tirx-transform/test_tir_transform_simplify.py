@@ -122,7 +122,7 @@ def _apply_simplify(
         }
     }
     mod = tvm.IRModule.from_expr(func)
-    with tvm.transform.PassContext(config=config):
+    with tvm.ir.transform.PassContext(config=config):
         mod = tvm.tirx.transform.StmtSimplify()(mod)
     return mod["main"]
 

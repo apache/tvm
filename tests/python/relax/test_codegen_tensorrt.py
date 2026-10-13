@@ -66,7 +66,7 @@ pytestmark = [
 
 
 def build_and_run(mod, inputs_np, target, legalize=False):
-    with tvm.transform.PassContext(config={"relax.transform.apply_legalize_ops": legalize}):
+    with tvm.ir.transform.PassContext(config={"relax.transform.apply_legalize_ops": legalize}):
         ex = tvm.compile(mod, target)
 
     def run_and_check():
@@ -107,7 +107,7 @@ def test_tensorrt_offload():
 
     params_np = {"weight1": inputs[1], "weight2": inputs[2]}
 
-    mod = tvm.transform.Sequential(
+    mod = tvm.ir.transform.Sequential(
         [
             relax.transform.BindParams("main", params_np),
             relax.transform.FuseOpsByPattern(patterns),
@@ -133,7 +133,7 @@ def _offload_and_compare(mod, params_np, patterns, data_np, rtol=1e-2, atol=1e-2
     if patterns is None:
         partitioned = partition_for_tensorrt(mod)
     else:
-        partitioned = tvm.transform.Sequential(
+        partitioned = tvm.ir.transform.Sequential(
             [relax.transform.FuseOpsByPattern(patterns), relax.transform.MergeCompositeFunctions()]
         )(mod)
     # Guard against a silent false pass: if no pattern matched, nothing is offloaded and the
@@ -323,7 +323,7 @@ def test_tensorrt_int8_calibration(monkeypatch):
     ref = build_and_run(Conv2dInt8, [data, weight], "llvm", legalize=True)
 
     patterns = [("tensorrt.nn.conv2d", is_op("relax.nn.conv2d")(wildcard(), wildcard()))]
-    offloaded = tvm.transform.Sequential(
+    offloaded = tvm.ir.transform.Sequential(
         [
             relax.transform.BindParams("main", {"weight": weight}),
             relax.transform.FuseOpsByPattern(patterns),

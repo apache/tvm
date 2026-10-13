@@ -23,7 +23,7 @@ from tvm.script import tirx as T
 
 
 def _transform():
-    return tvm.transform.Sequential(
+    return tvm.ir.transform.Sequential(
         [
             tvm.tirx.transform.FlattenTensor(),
             tvm.tirx.transform.StmtSimplify(),

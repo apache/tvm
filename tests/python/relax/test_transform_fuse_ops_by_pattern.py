@@ -511,7 +511,7 @@ def test_cyclic_dependency():
 
 def test_bind_params():
     weight_np = np.random.randn(64, 64, 3, 3).astype("float32")
-    mod = tvm.transform.Sequential(
+    mod = tvm.ir.transform.Sequential(
         [
             relax.transform.BindParams("main", {"weight1": weight_np}),
             relax.transform.FuseOpsByPattern(

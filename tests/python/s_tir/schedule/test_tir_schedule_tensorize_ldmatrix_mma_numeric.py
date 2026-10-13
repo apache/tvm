@@ -50,8 +50,8 @@ from tvm.s_tir.tensor_intrin.cuda import (
     shared_16x32_to_ldmatrix_32x16_layout,
     shared_32x16_to_ldmatrix_32x16_layout,
 )
+from tvm.s_tir.testing.tir import mma_schedule
 from tvm.testing import env
-from tvm.testing.tir import mma_schedule
 
 M = 4096
 N = 4096

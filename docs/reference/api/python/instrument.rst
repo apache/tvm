@@ -15,7 +15,7 @@
     specific language governing permissions and limitations
     under the License.
 
-tvm.transform.instrument
-========================
-.. automodule:: tvm.transform.instrument
+tvm.ir.transform.instrument
+===========================
+.. automodule:: tvm.ir.transform.instrument
    :members:
