@@ -199,38 +199,33 @@ ExprDoc DocTranslatorObj::DefaultTypeTranslate(const Type& type) {
     name.resize(name.size() - 4);
   }
   ExprDoc callee = NamespaceDoc(type_key.substr(0, separator))->Attr(name);
-  bool explicit_value = GetOrCreateExtraState<bool>("ir.type_value");
   // A constructor's fields are values, including nested Types and container elements.
-  details::ExtraStateScope<bool> type_values(this, "ir.type_value", true);
-  ffi::Array<ExprDoc> args;
-  ffi::Array<ffi::String> keys;
-  ffi::Array<ExprDoc> values;
-  size_t constructor_fields = 0;
-  ffi::reflection::ForEachFieldInfo(
-      TVMFFIGetTypeInfo(type->type_index()), [&](const TVMFFIFieldInfo* field) {
-        if (field->flags & kTVMFFIFieldFlagBitMaskInitOff) return;
-        ++constructor_fields;
-        ffi::Any value = ffi::reflection::FieldGetter(field)(type);
-        bool optional = field->flags & kTVMFFIFieldFlagBitMaskHasDefault;
-        // Factories are construction behavior, never printer behavior. Only a fixed
-        // default is evidence that omission will preserve the field's value.
-        if (optional && !(field->flags & kTVMFFIFieldFlagBitMaskDefaultFromFactory) &&
-            ffi::StructuralEqual()(
-                value, ffi::AnyView::CopyFromTVMFFIAny(field->default_value_or_factory))) {
-          return;
-        }
-        ExprDoc doc = details::ReflectedValue(this, value);
-        if (optional || (field->flags & kTVMFFIFieldFlagBitMaskKwOnly)) {
-          keys.push_back(ffi::String(field->name));
-          values.push_back(doc);
-        } else {
-          args.push_back(doc);
-        }
-      });
-  // Only genuinely nullary Types admit the bare annotation spelling. A constructor
-  // whose optional fields were omitted still needs a call to supply its defaults.
-  if (constructor_fields == 0 && !explicit_value) return callee;
-  return callee->Call(args, keys, values);
+  return WithExtraStateScope<bool>("ir.explicit_scalar_dtype", true, [&]() -> ExprDoc {
+    ffi::Array<ExprDoc> args;
+    ffi::Array<ffi::String> keys;
+    ffi::Array<ExprDoc> values;
+    ffi::reflection::ForEachFieldInfo(
+        TVMFFIGetTypeInfo(type->type_index()), [&](const TVMFFIFieldInfo* field) {
+          if (field->flags & kTVMFFIFieldFlagBitMaskInitOff) return;
+          ffi::Any value = ffi::reflection::FieldGetter(field)(type);
+          bool optional = field->flags & kTVMFFIFieldFlagBitMaskHasDefault;
+          // Factories are construction behavior, never printer behavior. Only a fixed
+          // default is evidence that omission will preserve the field's value.
+          if (optional && !(field->flags & kTVMFFIFieldFlagBitMaskDefaultFromFactory) &&
+              ffi::StructuralEqual()(
+                  value, ffi::AnyView::CopyFromTVMFFIAny(field->default_value_or_factory))) {
+            return;
+          }
+          ExprDoc doc = Translate(value).value();
+          if (optional || (field->flags & kTVMFFIFieldFlagBitMaskKwOnly)) {
+            keys.push_back(ffi::String(field->name));
+            values.push_back(doc);
+          } else {
+            args.push_back(doc);
+          }
+        });
+    return callee->Call(args, keys, values);
+  });
 }
 
 Doc DocTranslate(ffi::AnyView ir, ffi::Dict<Doc, ffi::ObjectRef>* doc_origins,

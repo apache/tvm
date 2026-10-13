@@ -53,10 +53,6 @@ ffi::Optional<ExprDoc> BindDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
       call && call->ty_args.size() == 1 && ffi::StructuralEqual()(stmt->var->ty, call->ty_args[0]);
   if (!existing && !explicit_type) {
     ExprDoc type = d->Translate(stmt->var->ty).value();
-    if (auto primitive = stmt->var->ty.as<PrimType>();
-        primitive && primitive.value().IsScalableVector()) {
-      type = TypeValue(d, stmt->var->ty);
-    }
     annotation = NamespaceDoc("tirx")->Attr("let")[{type}];
   }
   d->Emit(AssignDoc(lhs, rhs.value(), annotation), ffi::GetRef<ffi::ObjectRef>(stmt));

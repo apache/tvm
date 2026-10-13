@@ -107,24 +107,10 @@ def test_loop_body_knows_dynamic_extent_is_positive():
     tvm.ir.assert_structural_equal(after, expected)
 
 
-def _apply_simplify(
-    func,
-    transitively_prove_inequalities=False,
-    convert_boolean_to_and_of_ors=False,
-    apply_constraints_to_boolean_branches=False,
-):
-    """Helper to apply simplify transform with config options."""
-    config = {
-        "tirx.StmtSimplify": {
-            "transitively_prove_inequalities": transitively_prove_inequalities,
-            "convert_boolean_to_and_of_ors": convert_boolean_to_and_of_ors,
-            "apply_constraints_to_boolean_branches": apply_constraints_to_boolean_branches,
-        }
-    }
+def _apply_simplify(func):
+    """Helper to apply the default statement simplification."""
     mod = tvm.IRModule.from_expr(func)
-    with tvm.ir.transform.PassContext(config=config):
-        mod = tvm.tirx.transform.StmtSimplify()(mod)
-    return mod["main"]
+    return tvm.tirx.transform.StmtSimplify()(mod)["main"]
 
 
 def test_load_store_noop():
@@ -628,112 +614,6 @@ def test_left_shift_by_negative_value():
     tvm.ir.assert_structural_equal(after, expected)
 
 
-def test_remove_transitively_provable_condition():
-    """Remove comparisons that may be proven using multiple others
-
-    For example, the `0 < i` and `i <= j` conditions can be used to prove
-    that `0 < j`.
-    """
-    i, j, k = [tvm.tirx.Var(name, "int32") for name in "ijk"]
-    zero = tvm.tirx.IntImm("int32", 0)
-
-    test_cases = [
-        (tvm.tirx.all(zero < i, i <= j), zero < j, True),
-        # Transitive comparisons from LT
-        (tvm.tirx.all(i < j, j < k), i < k, True),
-        (tvm.tirx.all(i < j, j == k), i < k, True),
-        (tvm.tirx.all(i < j, j <= k), i < k, True),
-        (tvm.tirx.all(i < j, j > k), i < k, False),
-        (tvm.tirx.all(i < j, j >= k), i < k, False),
-        (tvm.tirx.all(i < j, j != k), i < k, False),
-        # Transitive comparisons from LE
-        (tvm.tirx.all(i <= j, j < k), i < k, True),
-        (tvm.tirx.all(i <= j, j == k), i == k, False),
-        (tvm.tirx.all(i <= j, j == k), i <= k, True),
-        (tvm.tirx.all(i <= j, j <= k), i <= k, True),
-        (tvm.tirx.all(i <= j, j <= k), i < k, False),
-        (tvm.tirx.all(i <= j, j > k), i < k, False),
-        (tvm.tirx.all(i <= j, j >= k), i < k, False),
-        (tvm.tirx.all(i <= j, j != k), i < k, False),
-        # Transitive comparisons from GT
-        (tvm.tirx.all(i > j, j > k), i > k, True),
-        (tvm.tirx.all(i > j, j == k), i > k, True),
-        (tvm.tirx.all(i > j, j >= k), i > k, True),
-        (tvm.tirx.all(i > j, j < k), i > k, False),
-        (tvm.tirx.all(i > j, j <= k), i > k, False),
-        (tvm.tirx.all(i > j, j != k), i > k, False),
-        # Transitive comparisons from GE
-        (tvm.tirx.all(i >= j, j > k), i > k, True),
-        (tvm.tirx.all(i >= j, j == k), i == k, False),
-        (tvm.tirx.all(i >= j, j == k), i >= k, True),
-        (tvm.tirx.all(i >= j, j >= k), i >= k, True),
-        (tvm.tirx.all(i >= j, j >= k), i > k, False),
-        (tvm.tirx.all(i >= j, j < k), i > k, False),
-        (tvm.tirx.all(i >= j, j <= k), i > k, False),
-        (tvm.tirx.all(i >= j, j != k), i > k, False),
-        # GT or LT may be used to prove NE
-        (tvm.tirx.all(i == j, j != k), i != k, True),
-        (tvm.tirx.all(i == j, j < k), i != k, True),
-        (tvm.tirx.all(i == j, j > k), i != k, True),
-        (tvm.tirx.all(i == j, j != k), i < k, False),
-        (tvm.tirx.all(i == j, j != k), i > k, False),
-        # Because these are integers, x<y is equivalent to x <= y-1,
-        # and may be used in equivalent simplifications.
-        (tvm.tirx.all(i <= j - 1, j < k), i < k, True),
-        (tvm.tirx.all(i <= j - 1, j == k), i < k, True),
-        (tvm.tirx.all(i <= j - 1, j <= k), i < k, True),
-        (tvm.tirx.all(i <= j - 1, j > k), i < k, False),
-        (tvm.tirx.all(i <= j - 1, j >= k), i < k, False),
-        (tvm.tirx.all(i <= j - 1, j != k), i < k, False),
-        # Either or both inequalities may have an additive offset.
-        (tvm.tirx.all(i <= j + 5, j <= k + 7), i <= k + 12, True),
-        (tvm.tirx.all(i <= j + 5, j <= k + 7), i <= k + 11, False),
-        # For floats, x < y + c1 and y < z + c2 implies that x < z + (c1 + c2).
-        # Because this simplification applies to integers, transitive
-        # application of LT or GT can give a tighter constraint.
-        #
-        # i < j + c1, j < k + c2
-        # i <= j + c1 - 1, j <= k + c2 - 1
-        # i + 1 - c1 <= j, j <= k + c2 - 1
-        # i + 1 - c1 <= k + c2 - 1
-        # i <= k + c1 + c2 - 2
-        # i < k + (c1 + c2 - 1)
-        #
-        (tvm.tirx.all(i < j + 5, j < k + 7), i < k + 11, True),
-        (tvm.tirx.all(i < j + 5, j < k + 7), i < k + 10, False),
-    ]
-
-    analyzer = tvm.sym.Analyzer()
-
-    for priors, postulate, provable in test_cases:
-        # well formed checker complains of undefined variables in condition
-        @T.function(private=True, check_well_formed=False)
-        def before_func(A: T.Tensor(1, "bool")):
-            if priors:
-                A[0] = postulate
-
-        priors_simplified = analyzer.canonical_simplify(priors)
-
-        if provable:
-            # well formed checker complains of undefined variables in condition
-            @T.function(private=True, check_well_formed=False)
-            def expected_func(A: T.Tensor(1, "bool")):
-                if priors_simplified:
-                    A[0] = True
-
-        else:
-            postulate_simplified = analyzer.canonical_simplify(postulate)
-
-            # well formed checker complains of undefined variables in condition
-            @T.function(private=True, check_well_formed=False)
-            def expected_func(A: T.Tensor(1, "bool")):
-                if priors_simplified:
-                    A[0] = postulate_simplified
-
-        after = _apply_simplify(before_func, transitively_prove_inequalities=True)
-        tvm.ir.assert_structural_equal(after, expected_func)
-
-
 def test_suppress_transitively_provable_condition():
     @T.function(private=True)
     def before(A: T.Tensor(1, "bool"), i: T.int32, j: T.int32, k: T.int32):
@@ -742,22 +622,7 @@ def test_suppress_transitively_provable_condition():
 
     expected = before
 
-    after = _apply_simplify(before, transitively_prove_inequalities=False)
-    tvm.ir.assert_structural_equal(after, expected)
-
-
-def test_rewrite_as_and_of_ors():
-    """If enabled, rewrite boolean expressions into AND of OR"""
-
-    @T.function(private=True)
-    def before(A: T.Tensor(3, "bool")):
-        T.evaluate(A[0] or (A[1] and A[2]))
-
-    @T.function(private=True)
-    def expected(A: T.Tensor(3, "bool")):
-        T.evaluate((A[0] or A[1]) and (A[0] or A[2]))
-
-    after = _apply_simplify(before, convert_boolean_to_and_of_ors=True)
+    after = _apply_simplify(before)
     tvm.ir.assert_structural_equal(after, expected)
 
 
@@ -770,127 +635,7 @@ def test_suppress_rewrite_as_and_of_ors():
 
     expected = before
 
-    after = _apply_simplify(before, convert_boolean_to_and_of_ors=False)
-    tvm.ir.assert_structural_equal(after, expected)
-
-
-def test_rewrite_as_and_of_ors_with_top_level_and():
-    """The expression being rewritten may start with an AND
-
-    Like test_rewrite_as_and_of_ors, but with an AndNode as the outermost
-    booelan operator.  Even though it is primarily OR nodes that are
-    being rewritten, the call to SimplifyAsAndOfOrs should apply to
-    the outermost AndNode or OrNode in order to enable better
-    simplification.
-    """
-
-    @T.function(private=True)
-    def before(A: T.Tensor(4, "bool")):
-        T.evaluate((A[0] or A[1]) and (A[1] or (A[0] and A[2] and A[3])))
-
-    @T.function(private=True)
-    def expected(A: T.Tensor(4, "bool")):
-        # If the simplification is applied to the OrNode, then a
-        # redundant `(A[1] or A[0])` would't be canceled out.  When
-        # applying SimplifyAsAndOfOrs to the top-level AndNode, the
-        # internal representation is `[[0,1], [1,0], [1,2], [1,3]]`, and
-        # the redundant `[1,0]` can be removed.
-        #
-        # If the simplification were only applied when encountering an
-        # OrNode, the internal representation would be `[[0,1]]` during
-        # the first call and `[[1,0], [1,2], [1,3]]` during the second
-        # call.  As a result, the `[0,1]` and `[1,0]` representations
-        # wouldn't occur within the same call, and the redundant `[1,0]`
-        # wouldn't be removed.
-        T.evaluate((A[0] or A[1]) and (A[1] or A[2]) and (A[1] or A[3]))
-
-    after = _apply_simplify(before, convert_boolean_to_and_of_ors=True)
-    tvm.ir.assert_structural_equal(after, expected)
-
-
-def test_rewrite_as_and_of_ors_with_simplification_between_groups():
-    """Apply rewrite rules between OR groups that differ by a single element
-
-    The expression `(k==20 and k!=30)` could be rewritten into `(k==20)`.
-    However, by default these two terms must appear as part of an explicit part
-    of the simplified expression.  The AndOfOr simplification checks for
-    rewrite patterns of the form `(A or B) and (A or C)`, where `(B and C)` can
-    simplify to a single expression `D`.  These can be rewritten to `(A or D)`.
-    """
-
-    @T.function(private=True)
-    def before(A: T.Tensor(1, "bool"), i: T.int32, j: T.int32, k: T.int32):
-        A[0] = (i == 0 or j == 10 or k == 20) and (i == 0 or j == 10 or k != 30)
-
-    @T.function(private=True)
-    def expected(A: T.Tensor(1, "bool"), i: T.int32, j: T.int32, k: T.int32):
-        A[0] = i == 0 or j == 10 or k == 20
-
-    after = _apply_simplify(before, convert_boolean_to_and_of_ors=True)
-    tvm.ir.assert_structural_equal(after, expected)
-
-
-def test_rewrite_as_and_of_ors_with_simplification_between_reordered_groups():
-    """Rewrite rules between OR groups do not depend on order
-
-    Like test_rewrite_as_and_of_ors_with_simplification_between_groups, but the groups
-    are ordered differently.  If this removes a group entirely, the result is
-    ordered according to the first group in the expression.
-    """
-
-    @T.function(private=True)
-    def before(A: T.Tensor(1, "bool"), i: T.int32, j: T.int32, k: T.int32):
-        A[0] = (i == 0 or j == 10 or k == 20) and (j == 10 or k != 30 or i == 0)
-
-    @T.function(private=True)
-    def expected(A: T.Tensor(1, "bool"), i: T.int32, j: T.int32, k: T.int32):
-        A[0] = j == 10 or k == 20 or i == 0
-
-    after = _apply_simplify(before, convert_boolean_to_and_of_ors=True)
-    tvm.ir.assert_structural_equal(after, expected)
-
-
-def test_rewrite_as_and_of_or_using_simplification_across_and():
-    """Apply AndNode rewrites to non-adjacent expressions
-
-    The RewriteSimplifier rules only check for simplifications between
-    left/right branches of an And/Or node.  Simplifications that would require
-    rearranging components in a chain of And/Or nodes are not performed.
-    """
-
-    @T.function(private=True)
-    def before(A: T.Tensor(1, "bool"), i: T.int32, j: T.int32, k: T.int32):
-        A[0] = (k == 20) and ((i == 0 or j == 10) and (k != 30))
-
-    @T.function(private=True)
-    def expected(A: T.Tensor(1, "bool"), i: T.int32, j: T.int32, k: T.int32):
-        A[0] = (i == 0 or j == 10) and (k == 20)
-
-    after = _apply_simplify(before, convert_boolean_to_and_of_ors=True)
-    tvm.ir.assert_structural_equal(after, expected)
-
-
-def test_rewrite_as_and_of_or_using_simplification_within_or():
-    """Rewrite rules between OR groups do not depend on order
-
-    The RewriteSimplifier rules only check for simplifications between
-    left/right branches of an And/Or node.  Simplifications that would require
-    rearranging components in a chain of And/Or nodes are not performed.
-
-    This test validates that `(i == 20) or (i != 30)` can be rewritten to
-    `(i != 30)`, even when there's an intervening clause between the
-    clauses being simplified.
-    """
-
-    @T.function(private=True)
-    def before(A: T.Tensor(1, "bool"), i: T.int32, j: T.int32, k: T.int32):
-        A[0] = (i == 20) or (j == 0) or (i != 30)
-
-    @T.function(private=True)
-    def expected(A: T.Tensor(1, "bool"), i: T.int32, j: T.int32, k: T.int32):
-        A[0] = (j == 0) or (i != 30)
-
-    after = _apply_simplify(before, convert_boolean_to_and_of_ors=True)
+    after = _apply_simplify(before)
     tvm.ir.assert_structural_equal(after, expected)
 
 
@@ -928,176 +673,6 @@ def test_conditional_floor_mod():
     tvm.ir.assert_structural_equal(after, expected)
 
 
-def test_simplify_rhs_of_boolean_and_using_lhs():
-    """Boolean expressions can introduce contexts.
-
-    In `A and B`, the result of `B` only matters when `A` is
-    true, and can be simplified under that context.  This test
-    simplifies `n < 10` under the assumption that `n < 5`.
-    """
-
-    @T.function(private=True)
-    def before(A: T.Tensor(1, "bool"), n: T.int32):
-        A[0] = n < 5 and n < 10
-
-    @T.function(private=True)
-    def expected(A: T.Tensor(1, "bool"), n: T.int32):
-        A[0] = n < 5
-
-    after = _apply_simplify(before, apply_constraints_to_boolean_branches=True)
-    tvm.ir.assert_structural_equal(after, expected)
-
-
-def test_simplify_lhs_of_boolean_and_using_rhs():
-    """Boolean expressions can introduce contexts for their arguments.
-
-    Like test_simplify_rhs_of_boolean_and_using_lhs, but using the RHS to
-    simplify the LHS.
-    """
-
-    @T.function(private=True)
-    def before(A: T.Tensor(1, "bool"), n: T.int32):
-        A[0] = n < 10 and n < 5
-
-    @T.function(private=True)
-    def expected(A: T.Tensor(1, "bool"), n: T.int32):
-        A[0] = n < 5
-
-    after = _apply_simplify(before, apply_constraints_to_boolean_branches=True)
-    tvm.ir.assert_structural_equal(after, expected)
-
-
-def test_simplify_rhs_of_boolean_or_using_lhs():
-    """Boolean expressions can introduce contexts.
-
-    In `A or B`, the result of `B` only matters when `A` is false, so
-    `B` can be simplified under the assumption that `A` is false.
-    This test simplifies `n < 5` under the assumption that `!(n < 10)`
-    """
-
-    @T.function(private=True)
-    def before(A: T.Tensor(1, "bool"), n: T.int32):
-        A[0] = n < 10 or n < 5
-
-    @T.function(private=True)
-    def expected(A: T.Tensor(1, "bool"), n: T.int32):
-        A[0] = n < 10
-
-    after = _apply_simplify(before, apply_constraints_to_boolean_branches=True)
-    tvm.ir.assert_structural_equal(after, expected)
-
-
-def test_simplify_lhs_of_boolean_or_using_rhs():
-    """Boolean expressions can introduce contexts for their arguments.
-
-    Like test_simplify_rhs_of_boolean_or_using_lhs, but using the RHS to
-    simplify the LHS.
-    """
-
-    @T.function(private=True)
-    def before(A: T.Tensor(1, "bool"), n: T.int32):
-        A[0] = n < 5 or n < 10
-
-    @T.function(private=True)
-    def expected(A: T.Tensor(1, "bool"), n: T.int32):
-        A[0] = n < 10
-
-    after = _apply_simplify(before, apply_constraints_to_boolean_branches=True)
-    tvm.ir.assert_structural_equal(after, expected)
-
-
-def test_simplify_rhs_of_boolean_and_using_lhs_without_const():
-    """Boolean expressions can introduce contexts.
-
-    Like test_simplify_rhs_of_boolean_and_using_lhs, but with variables in
-    the conditions, preventing ConstIntBoundAnalyzer from handling it.
-    This proof requires the extension to transitively prove
-    inequalities.
-    """
-
-    @T.function(private=True)
-    def before(A: T.Tensor(1, "bool"), n: T.int32, m: T.int32):
-        A[0] = n < m + 5 and n < m + 10
-
-    @T.function(private=True)
-    def expected(A: T.Tensor(1, "bool"), n: T.int32, m: T.int32):
-        A[0] = n < m + 5
-
-    after = _apply_simplify(
-        before, apply_constraints_to_boolean_branches=True, transitively_prove_inequalities=True
-    )
-    tvm.ir.assert_structural_equal(after, expected)
-
-
-def test_simplify_lhs_of_boolean_and_using_rhs_without_const():
-    """Boolean expressions can introduce contexts for their arguments.
-
-    Like test_simplify_lhs_of_boolean_and_using_rhs, but with variables in
-    the conditions, preventing ConstIntBoundAnalyzer from handling it.
-    This proof requires the extension to transitively prove
-    inequalities.
-    """
-
-    @T.function(private=True)
-    def before(A: T.Tensor(1, "bool"), n: T.int32, m: T.int32):
-        A[0] = n < m + 10 and n < m + 5
-
-    @T.function(private=True)
-    def expected(A: T.Tensor(1, "bool"), n: T.int32, m: T.int32):
-        A[0] = n < m + 5
-
-    after = _apply_simplify(
-        before, apply_constraints_to_boolean_branches=True, transitively_prove_inequalities=True
-    )
-    tvm.ir.assert_structural_equal(after, expected)
-
-
-def test_simplify_rhs_of_boolean_or_using_lhs_without_const():
-    """Boolean expressions can introduce contexts.
-
-    Like test_simplify_rhs_of_boolean_or_using_lhs, but with variables in the
-    conditions, preventing ConstIntBoundAnalyzer from handling it.
-    This proof requires the extension to transitively prove
-    inequalities.
-    """
-
-    @T.function(private=True)
-    def before(A: T.Tensor(1, "bool"), n: T.int32, m: T.int32):
-        A[0] = n < m + 10 or n < m + 5
-
-    @T.function(private=True)
-    def expected(A: T.Tensor(1, "bool"), n: T.int32, m: T.int32):
-        A[0] = n < m + 10
-
-    after = _apply_simplify(
-        before, apply_constraints_to_boolean_branches=True, transitively_prove_inequalities=True
-    )
-    tvm.ir.assert_structural_equal(after, expected)
-
-
-def test_simplify_lhs_of_boolean_or_using_rhs_without_const():
-    """Boolean expressions can introduce contexts for their arguments.
-
-    Like test_simplify_lhs_of_boolean_or_using_rhs, but with variables in the
-    conditions, preventing ConstIntBoundAnalyzer from handling it.
-    This proof requires the extension to transitively prove
-    inequalities.
-    """
-
-    @T.function(private=True)
-    def before(A: T.Tensor(1, "bool"), n: T.int32, m: T.int32):
-        A[0] = n < m + 5 or n < m + 10
-
-    @T.function(private=True)
-    def expected(A: T.Tensor(1, "bool"), n: T.int32, m: T.int32):
-        A[0] = n < m + 10
-
-    after = _apply_simplify(
-        before, apply_constraints_to_boolean_branches=True, transitively_prove_inequalities=True
-    )
-    tvm.ir.assert_structural_equal(after, expected)
-
-
 def test_provable_condition_with_offset():
     """Use scoped-constraint to prove inequalities"""
 
@@ -1111,7 +686,7 @@ def test_provable_condition_with_offset():
         if i < j:
             A[0] = True
 
-    after = _apply_simplify(before, transitively_prove_inequalities=False)
+    after = _apply_simplify(before)
     tvm.ir.assert_structural_equal(after, expected)
 
 
