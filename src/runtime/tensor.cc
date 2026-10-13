@@ -28,12 +28,12 @@
 #include <tvm/runtime/base.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/tensor.h>
+#include <tvm/support/base64.h>
+#include <tvm/support/bytes_io.h>
 
 #include <algorithm>
 #include <limits>
 
-#include "../support/base64.h"
-#include "../support/bytes_io.h"
 #include "tvm/ffi/dtype.h"
 
 namespace tvm {

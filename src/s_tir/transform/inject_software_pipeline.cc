@@ -36,7 +36,6 @@
 #include <map>
 #include <unordered_set>
 
-#include "../../support/utils.h"
 #include "../schedule/utils.h"
 #include "ir_utils.h"
 

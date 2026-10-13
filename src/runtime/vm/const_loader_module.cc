@@ -34,14 +34,13 @@
 #include <tvm/ffi/string.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/tensor.h>
+#include <tvm/support/bytes_io.h>
 #include <tvm/support/io.h>
 
 #include <cstdint>
 #include <string>
 #include <unordered_map>
 #include <vector>
-
-#include "../../support/bytes_io.h"
 
 namespace tvm {
 namespace runtime {

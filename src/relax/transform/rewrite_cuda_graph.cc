@@ -66,7 +66,6 @@
 
 #include "../../support/arena.h"
 #include "../../support/ordered_set.h"
-#include "../../support/utils.h"
 namespace tvm {
 namespace relax {
 
@@ -384,7 +383,7 @@ class CUDAGraphRewritePlanner : public ExprVisitor {
         return false;
       }
       if (const auto* extern_func = call->op.as<ExternFuncNode>();
-          extern_func != nullptr && support::StartsWith(extern_func->global_symbol, "vm.builtin")) {
+          extern_func != nullptr && extern_func->global_symbol.starts_with("vm.builtin")) {
         return false;
       }
       return true;
@@ -401,9 +400,8 @@ class CUDAGraphRewritePlanner : public ExprVisitor {
           return true;
         }
         if (const auto* op = call->op.as<OpNode>()) {
-          return !support::StartsWith(op->name, "relax.memory") &&
-                 !support::StartsWith(op->name, "relax.builtin") && op->name != "relax.reshape" &&
-                 !ffi::GetRef<Op>(op).same_as(null_value_op) &&
+          return !op->name.starts_with("relax.memory") && !op->name.starts_with("relax.builtin") &&
+                 op->name != "relax.reshape" && !ffi::GetRef<Op>(op).same_as(null_value_op) &&
                  !ffi::GetRef<Op>(op).same_as(call_builtin_with_ctx_op);
         }
         return false;

@@ -90,7 +90,7 @@ void MultiLevelTilingObj::InitializeWithTuneContext(const TuneContext& context) 
   }
   if (ffi::Optional<ffi::String> opt_sm = context->target.value()->GetAttr<ffi::String>("arch")) {
     std::string sm = opt_sm.value();
-    if (support::StartsWith(sm, "sm_")) {
+    if (sm.starts_with("sm_")) {
       sm = sm.substr(3);
       try {
         // only sm_80 or higher supports async memcopy

@@ -27,6 +27,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/tensor.h>
+#include <tvm/support/env.h>
 #include <tvm/support/file_utils.h>
 
 #include <cstdint>
@@ -38,7 +39,6 @@
 #include <utility>
 #include <vector>
 
-#include "../../../../support/env.h"
 #include "../json/json_node.h"
 #include "../json/json_runtime.h"
 

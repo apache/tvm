@@ -33,6 +33,7 @@
 #include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/support/bytes_io.h>
 
 #include <array>
 #include <memory>
@@ -43,7 +44,6 @@
 
 #include "../../../runtime/metadata.h"
 #include "../../../runtime/pack_args.h"
-#include "../../../support/bytes_io.h"
 #include "../launch/launch_config.h"
 #include "../launch/launch_plan.h"
 

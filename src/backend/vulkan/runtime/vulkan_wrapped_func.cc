@@ -20,11 +20,11 @@
 #include "vulkan_wrapped_func.h"
 
 #include <tvm/ffi/cast.h>
+#include <tvm/support/bytes_io.h>
 #include <tvm/support/io.h>
 
 #include <utility>
 
-#include "../../../support/bytes_io.h"
 #include "vulkan_device_api.h"
 
 namespace tvm {

@@ -20,11 +20,11 @@
 #include "vulkan_instance.h"
 
 #include <tvm/runtime/logging.h>
+#include <tvm/support/env.h>
 
 #include <cstdlib>
 #include <utility>
 
-#include "../../../support/utils.h"
 #include "vulkan_common.h"
 
 namespace tvm {
@@ -35,7 +35,7 @@ VulkanInstance::VulkanInstance() {
   const auto layers = []() {
     std::vector<const char*> layers;
 
-    if (support::BoolEnvironmentVar("TVM_VULKAN_ENABLE_VALIDATION_LAYERS")) {
+    if (support::GetEnv<bool>("TVM_VULKAN_ENABLE_VALIDATION_LAYERS", false)) {
       uint32_t inst_layer_prop_count;
       VULKAN_CALL(vkEnumerateInstanceLayerProperties(&inst_layer_prop_count, nullptr));
       std::vector<VkLayerProperties> inst_layer_prop(inst_layer_prop_count);
@@ -63,7 +63,7 @@ VulkanInstance::VulkanInstance() {
 
     // Check if RGP support is needed. If needed, enable VK_EXT_debug_utils extension for
     // inserting debug labels into the queue.
-    if (support::BoolEnvironmentVar("TVM_USE_AMD_RGP")) {
+    if (support::GetEnv<bool>("TVM_USE_AMD_RGP", false)) {
       LOG(INFO) << "Push VK_EXT_debug_utils";
       required_extensions.push_back("VK_EXT_debug_utils");
     }

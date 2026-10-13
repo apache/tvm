@@ -39,7 +39,6 @@
 #include <stack>
 
 #include "../../support/arena.h"
-#include "../../support/utils.h"
 #include "../analysis/conditional_bounds.h"
 #include "../schedule/utils.h"
 #include "../support/nd_int_set.h"

@@ -785,6 +785,13 @@ else(INSTALL_DEV)
     )
 endif(INSTALL_DEV)
 
+# Shared support headers are also needed by runtime and Python package consumers.
+install(
+  DIRECTORY "include/tvm/support/" DESTINATION "include/tvm/support"
+  FILES_MATCHING
+  PATTERN "*.h"
+)
+
 include(CMakePackageConfigHelpers)
 set(PROJECT_CONFIG_CONTENT "@PACKAGE_INIT@\n")
 string(APPEND PROJECT_CONFIG_CONTENT "include(CMakeFindDependencyMacro)\n")
