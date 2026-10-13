@@ -159,10 +159,10 @@ def test_pad_matmul_2():
 
     @Ts.function
     def before(
-        A: T.Tensor((1, n, 4096)),
-        B: T.Tensor((11008, 4096)),
-        M: T.Tensor((1, n, 11008)),
-        D: T.Tensor((1, n, 11008)),
+        A: T.Tensor((1, n, 4096), "float32"),
+        B: T.Tensor((11008, 4096), "float32"),
+        M: T.Tensor((1, n, 11008), "float32"),
+        D: T.Tensor((1, n, 11008), "float32"),
     ):
         T.func_attr({"tirx.noalias": True})
 
@@ -184,10 +184,10 @@ def test_pad_matmul_2():
 
     @Ts.function
     def after(
-        A: T.Tensor((1, n, 4096)),
-        B: T.Tensor((11008, 4096)),
-        M: T.Tensor((1, n, 11008)),
-        D: T.Tensor((1, n, 11008)),
+        A: T.Tensor((1, n, 4096), "float32"),
+        B: T.Tensor((11008, 4096), "float32"),
+        M: T.Tensor((1, n, 11008), "float32"),
+        D: T.Tensor((1, n, 11008), "float32"),
     ):
         T.func_attr({"tirx.noalias": True})
 
@@ -230,7 +230,7 @@ def test_pad_rms():
 
     @Ts.function
     def before(
-        A: T.Tensor((1, n, 4096)),
+        A: T.Tensor((1, n, 4096), "float32"),
         W: T.Tensor((4096,), "float32"),
         Result: T.Tensor((1, n, 4096), "float32"),
     ):
@@ -257,7 +257,9 @@ def test_pad_rms():
 
     @Ts.function
     def after(
-        A: T.Tensor((1, n, 4096)), W: T.Tensor((4096,), "float32"), Result: T.Tensor((1, n, 4096))
+        A: T.Tensor((1, n, 4096), "float32"),
+        W: T.Tensor((4096,), "float32"),
+        Result: T.Tensor((1, n, 4096), "float32"),
     ):
         T.func_attr({"tirx.noalias": True})
 

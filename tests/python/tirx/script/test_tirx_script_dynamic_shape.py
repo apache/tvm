@@ -126,8 +126,8 @@ def test_tir_return_annotation_does_not_define_symbolic_var():
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="PEP 695 requires Python 3.12")
 def test_type_vars_roundtrip():
-    M = I.dynamic("M")
-    UNUSED = I.dynamic("UNUSED")
+    M = T.dynamic("M")
+    UNUSED = T.dynamic("UNUSED")
 
     @T.function(private=True)
     def func(A: T.Tensor((M, M * 2), "float32")):
@@ -136,23 +136,23 @@ def test_type_vars_roundtrip():
     script = func.script()
     assert script.startswith("from __future__ import annotations\n\n")
     assert "def main[M](" in script
-    assert "T.Tensor([M, M * T.int64(2)])" in script
+    assert "T.Tensor((M, M * T.int64(2)), T.float32)" in script
     assert "M = T.int64()" not in script
     typed = tvm.script.from_source(
         """
 @T.function(private=True)
-def func[M: int](A: T.Tensor((M, M * 2), "float32")):
+def func[M: int](A: T.Tensor((M, M * 2), T.float32)):
     A[0, 0] = T.float32(1)
 """,
         extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx},
     )
     tvm.ir.assert_structural_equal(func, typed)
-    assert 'M = I.dynamic("M", dtype="int64")' not in script
+    assert 'M = T.dynamic("M", dtype="int64")' not in script
 
     repeated = func.script()
     assert "from __future__ import annotations" in repeated
     assert "def main[M](" in repeated
-    assert "T.Tensor([M, M * T.int64(2)])" in repeated
+    assert "T.Tensor((M, M * T.int64(2)), T.float32)" in repeated
     assert "UNUSED" not in script
     assert "M = T.int64()" not in repeated
     assert len(func.params) == 1
@@ -169,7 +169,7 @@ def func[M: int](A: T.Tensor((M, M * 2), "float32")):
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="PEP 695 requires Python 3.12")
 def test_dynamic_int32_roundtrip():
-    n = I.dynamic("n", "int32")
+    n = T.dynamic("n", "int32")
 
     @T.function(private=True)
     def func(A: T.Tensor((n,), "float32")):
@@ -177,7 +177,7 @@ def test_dynamic_int32_roundtrip():
 
     source = func.script()
     assert "def main[n: T.int32](" in source
-    assert 'n = I.dynamic("n", dtype="int32")' not in source
+    assert 'n = T.dynamic("n", dtype="int32")' not in source
     repeated = func.script()
     assert "def main[n: T.int32](" in repeated
     tvm.ir.assert_structural_equal(
@@ -190,8 +190,8 @@ def test_dynamic_int32_roundtrip():
 
 
 def test_dynamic_module_body_identity():
-    n = I.dynamic("n", "int32")
-    m = I.dynamic("n", "int32")
+    n = T.dynamic("n", "int32")
+    m = T.dynamic("n", "int32")
 
     @I.ir_module(check_well_formed=False)
     class mod:
@@ -204,7 +204,7 @@ def test_dynamic_module_body_identity():
             T.evaluate(n + m)
 
     source = mod.script()
-    assert source.count('I.dynamic("n", dtype="int32")') == 2
+    assert source.count('T.dynamic("n", dtype="int32")') == 2
     restored = tvm.script.from_source(
         source, check_well_formed=False, extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx}
     )
@@ -234,8 +234,8 @@ def test_captured_shape_requires_concrete_symbols():
 def test_dynamic_symbols_are_fresh_and_scope_independent():
     assert T.dynamic is I.dynamic
     n = T.dynamic("n")
-    same_name = I.dynamic("n")
-    k = I.dynamic("k", "int32")
+    same_name = T.dynamic("n")
+    k = T.dynamic("k", "int32")
     assert n.ty.dtype == "int64"
     assert k.ty.dtype == "int32"
     assert not n.same_as(same_name)

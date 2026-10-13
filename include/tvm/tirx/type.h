@@ -100,8 +100,8 @@ class TensorTypeNode : public TypeNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<TensorTypeNode>()
         .def_ro("shape", &TensorTypeNode::shape, refl::AttachFieldFlag::SEqHashDefSimple())
-        .def_ro("dtype", &TensorTypeNode::dtype, refl::DefaultValue(PrimType::Float(32)))
-        .def_ro("storage_scope", &TensorTypeNode::storage_scope, refl::DefaultValue("global"))
+        .def_ro("dtype", &TensorTypeNode::dtype)
+        .def_ro("scope", &TensorTypeNode::storage_scope, refl::DefaultValue("global"))
         .def_ro("strides", &TensorTypeNode::strides, refl::AttachFieldFlag::SEqHashDefSimple(),
                 refl::DefaultValue(ffi::Array<PrimExpr>()))
         .def_ro("elem_offset", &TensorTypeNode::elem_offset,

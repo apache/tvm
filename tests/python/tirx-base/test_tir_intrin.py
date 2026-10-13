@@ -318,10 +318,10 @@ stride_3 = T.dynamic("stride_3", "int32")
 class Module:
     @T.function
     def test_tir_fma(
-        A_1: T.Tensor([n], strides=[stride], elem_offset=0, align=64, offset_factor=1),
-        B_1: T.Tensor([n], strides=[stride_1], elem_offset=0, align=64, offset_factor=1),
-        C_1: T.Tensor([n], strides=[stride_2], elem_offset=0, align=64, offset_factor=1),
-        d_1: T.Tensor([n], strides=[stride_3], elem_offset=0, align=64, offset_factor=1),
+        A_1: T.Tensor([n], "float32", strides=[stride], elem_offset=0, align=64, offset_factor=1),
+        B_1: T.Tensor([n], "float32", strides=[stride_1], elem_offset=0, align=64, offset_factor=1),
+        C_1: T.Tensor([n], "float32", strides=[stride_2], elem_offset=0, align=64, offset_factor=1),
+        d_1: T.Tensor([n], "float32", strides=[stride_3], elem_offset=0, align=64, offset_factor=1),
     ) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "test_fma", "tirx.noalias": True})

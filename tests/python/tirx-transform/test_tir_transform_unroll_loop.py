@@ -120,7 +120,7 @@ def test_unroll_local_access():
         def main(B: T.Tensor((64,), "float32")):
             with T.launch_thread("blockIdx.x", 4) as bx:  # noqa: F841
                 with T.launch_thread("threadIdx.x", 4) as tx:  # noqa: F841
-                    A_local = T.alloc_tensor(ty_args=[T.Tensor((4,), scope="local")])
+                    A_local = T.alloc_tensor(ty_args=[T.Tensor((4,), "float32", scope="local")])
                     for i in T.serial(4):
                         A_local[i] = T.float32(i)
 
@@ -130,7 +130,7 @@ def test_unroll_local_access():
         def main(B: T.Tensor((64,), "float32")):
             with T.launch_thread("blockIdx.x", 4) as bx:  # noqa: F841
                 with T.launch_thread("threadIdx.x", 4) as tx:  # noqa: F841
-                    A_local = T.alloc_tensor(ty_args=[T.Tensor((4,), scope="local")])
+                    A_local = T.alloc_tensor(ty_args=[T.Tensor((4,), "float32", scope="local")])
                     A_local[0] = T.float32(0)
                     A_local[1] = T.float32(1)
                     A_local[2] = T.float32(2)

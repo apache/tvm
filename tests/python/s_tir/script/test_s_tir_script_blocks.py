@@ -29,11 +29,15 @@ from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 # Expected completed types use the configured fixed index dtype, not shape dtype.
-_DEFAULT_ELEM_OFFSET = T.IntImm(T.Tensor(()).elem_offset.ty.dtype, 0)
+_DEFAULT_ELEM_OFFSET = T.IntImm(T.Tensor((), "float32").elem_offset.ty.dtype, 0)
 
 
 @Ts.function
-def matmul(A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 128])) -> None:
+def matmul(
+    A: T.Tensor([128, 128], "float32"),
+    B: T.Tensor([128, 128], "float32"),
+    C: T.Tensor([128, 128], "float32"),
+) -> None:
     for i, j, k in T.grid(128, 128, 128):
         with Ts.sblock("update"):
             vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
@@ -44,7 +48,9 @@ def matmul(A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 1
 
 @Ts.function
 def matmul_original(
-    A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 128])
+    A: T.Tensor([128, 128], "float32"),
+    B: T.Tensor([128, 128], "float32"),
+    C: T.Tensor([128, 128], "float32"),
 ) -> None:
     for i, j in T.grid(32, 32):
         with Ts.sblock("init"):
@@ -64,7 +70,9 @@ def matmul_original(
 
 @Ts.function
 def elementwise_with_root(
-    A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 128])
+    A: T.Tensor([128, 128], "float32"),
+    B: T.Tensor([128, 128], "float32"),
+    C: T.Tensor([128, 128], "float32"),
 ) -> None:
     with Ts.sblock():
         for i, j in T.grid(128, 128):
@@ -79,7 +87,9 @@ def elementwise_with_root(
 
 @Ts.function
 def func_with_part_access_region(
-    A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 128])
+    A: T.Tensor([128, 128], "float32"),
+    B: T.Tensor([128, 128], "float32"),
+    C: T.Tensor([128, 128], "float32"),
 ) -> None:
     with Ts.sblock():
         for i, j in T.grid(128, 128):
@@ -231,7 +241,9 @@ def func_with_tensorslice_indices(
 
 @Ts.function
 def expected_tensorslice_indices(
-    data_buf: T.Tensor([16, 16], elem_offset=_DEFAULT_ELEM_OFFSET, align=64, offset_factor=1),
+    data_buf: T.Tensor(
+        [16, 16], "float32", elem_offset=_DEFAULT_ELEM_OFFSET, align=64, offset_factor=1
+    ),
     index_buf: T.Tensor(
         [1], dtype="int32", elem_offset=_DEFAULT_ELEM_OFFSET, align=64, offset_factor=1
     ),
@@ -264,7 +276,9 @@ def func_with_recursive_tensorslice_indices(
 
 @Ts.function
 def expected_recursive_tensorslice_indices(
-    data_buf: T.Tensor([16, 16], elem_offset=_DEFAULT_ELEM_OFFSET, align=64, offset_factor=1),
+    data_buf: T.Tensor(
+        [16, 16], "float32", elem_offset=_DEFAULT_ELEM_OFFSET, align=64, offset_factor=1
+    ),
     index_buf: T.Tensor(
         [1], dtype="int32", elem_offset=_DEFAULT_ELEM_OFFSET, align=64, offset_factor=1
     ),
@@ -306,7 +320,7 @@ def test_complete_tensor_indices():
 
 
 @Ts.function
-def match_tensor_func(A: T.Tensor((16, 16))) -> None:
+def match_tensor_func(A: T.Tensor((16, 16), "float32")) -> None:
     for i in range(0, 16):
         with Ts.sblock():
             A0 = Ts.match_tensor(A[i, 0:16], (16))
@@ -318,7 +332,7 @@ def match_tensor_func(A: T.Tensor((16, 16))) -> None:
 
 
 @Ts.function
-def expected_match_tensor_func(A: T.Tensor((16, 16))) -> None:
+def expected_match_tensor_func(A: T.Tensor((16, 16), "float32")) -> None:
     for i in range(0, 16):
         with Ts.sblock():
             Ts.reads([])
@@ -543,7 +557,9 @@ def test_different_dtype_assignment_to_var():
 def roundtrip_matmul():
     @Ts.function
     def roundtrip_matmul(
-        A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 128])
+        A: T.Tensor([128, 128], "float32"),
+        B: T.Tensor([128, 128], "float32"),
+        C: T.Tensor([128, 128], "float32"),
     ) -> None:
         for i, j, k in T.grid(128, 128, 128):
             with Ts.sblock("update"):
@@ -558,7 +574,9 @@ def roundtrip_matmul():
 def roundtrip_matmul_original():
     @Ts.function
     def roundtrip_matmul_original(
-        A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 128])
+        A: T.Tensor([128, 128], "float32"),
+        B: T.Tensor([128, 128], "float32"),
+        C: T.Tensor([128, 128], "float32"),
     ) -> None:
         for i, j in T.grid(128, 128):
             with Ts.sblock("init"):
@@ -928,7 +946,9 @@ def func_attr_with_list():
 
 @Ts.function
 def transformed_matmul_no_syntax_sugar(
-    A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 128])
+    A: T.Tensor([128, 128], "float32"),
+    B: T.Tensor([128, 128], "float32"),
+    C: T.Tensor([128, 128], "float32"),
 ) -> None:
     for i0, i1, i2_outer, i2_inner_outer, i2_inner_inner in T.grid(128, 128, 4, 8, 4):
         with Ts.sblock("update"):
@@ -944,7 +964,9 @@ def transformed_matmul_no_syntax_sugar(
 
 @Ts.function
 def transformed_matmul_syntax_sugar(
-    A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 128])
+    A: T.Tensor([128, 128], "float32"),
+    B: T.Tensor([128, 128], "float32"),
+    C: T.Tensor([128, 128], "float32"),
 ) -> None:
     for i0, i1, i2_outer, i2_inner_outer, i2_inner_inner in T.grid(128, 128, 4, 8, 4):
         with Ts.sblock("update"):
@@ -1013,8 +1035,8 @@ def test_roundtrip_blocks(ir_generator):
 # Import-time construction also checks the annotated S-TIR API.
 @Ts.function
 def element_wise_storage_align(
-    A: T.Tensor([128, 128], elem_offset=0, align=64, offset_factor=1),
-    C: T.Tensor([128, 128], elem_offset=0, align=64, offset_factor=1),
+    A: T.Tensor([128, 128], "float32", elem_offset=0, align=64, offset_factor=1),
+    C: T.Tensor([128, 128], "float32", elem_offset=0, align=64, offset_factor=1),
 ) -> None:
     # body
     with Ts.sblock("root"):

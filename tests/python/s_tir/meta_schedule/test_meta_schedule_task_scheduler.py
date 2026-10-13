@@ -79,9 +79,9 @@ class MatmulReluModule:
 class BatchMatmulModule:
     @Ts.function
     def main(  # type: ignore
-        A: T.Tensor([16, 128, 128]),
-        B: T.Tensor([16, 128, 128]),
-        C: T.Tensor([16, 128, 128]),
+        A: T.Tensor([16, 128, 128], "float32"),
+        B: T.Tensor([16, 128, 128], "float32"),
+        C: T.Tensor([16, 128, 128], "float32"),
     ) -> None:  # pylint: disable=no-self-argument
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
 

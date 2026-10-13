@@ -199,10 +199,16 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def(
       "tirx.TensorType",
       [](ffi::String storage_scope, PrimType dtype, ffi::Array<PrimExpr> shape,
-         ffi::Array<PrimExpr> strides, ffi::Optional<PrimExpr> elem_offset, int data_alignment,
+         ffi::Array<PrimExpr> strides, ffi::AnyView elem_offset, int data_alignment,
          int offset_factor, ffi::Optional<Layout> layout, Location loc) {
+        ffi::Optional<PrimExpr> offset;
+        if (auto integer = elem_offset.as<int64_t>()) {
+          offset = IntImm(DefaultIndexPrimType(), integer.value());
+        } else {
+          offset = elem_offset.cast<ffi::Optional<PrimExpr>>();
+        }
         return TensorType(std::move(storage_scope), std::move(dtype), std::move(shape),
-                          std::move(strides), std::move(elem_offset), data_alignment, offset_factor,
+                          std::move(strides), std::move(offset), data_alignment, offset_factor,
                           std::move(layout), std::move(loc));
       });
 }

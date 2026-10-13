@@ -262,7 +262,7 @@ def test_reduction_symbolic_var():
     kv_seq_len = T.dynamic("kv_seq_len")
 
     @Ts.function(private=True)
-    def before(A: T.Tensor((T.int64(1), T.int64(32), T.int64(1), kv_seq_len)), B: T.Tensor((T.int64(1), T.int64(32), kv_seq_len, T.int64(128))), matmul: T.Tensor((T.int64(1), T.int64(32), T.int64(1), T.int64(128)), "float32")):
+    def before(A: T.Tensor((T.int64(1), T.int64(32), T.int64(1), kv_seq_len), "float32"), B: T.Tensor((T.int64(1), T.int64(32), kv_seq_len, T.int64(128)), "float32"), matmul: T.Tensor((T.int64(1), T.int64(32), T.int64(1), T.int64(128)), "float32")):
         T.func_attr({"tirx.noalias": True})
 
         # with Ts.sblock("root"):

@@ -125,7 +125,7 @@ def test_image_affine_grid():
             return gv
 
         @Ts.function(private=True)
-        def affine_grid(theta: T.Tensor((T.int64(2), T.int64(2), T.int64(3))), compute: T.Tensor((T.int64(2), T.int64(2), T.int64(16), T.int64(16)))):
+        def affine_grid(theta: T.Tensor((T.int64(2), T.int64(2), T.int64(3)), "float32"), compute: T.Tensor((T.int64(2), T.int64(2), T.int64(16), T.int64(16)), "float32")):
             T.func_attr({"tirx.noalias": True})
 
             with Ts.sblock("root"):

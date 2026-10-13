@@ -219,7 +219,7 @@ ExprDoc DocTranslatorObj::DefaultTypeTranslate(const Type& type) {
                 value, ffi::AnyView::CopyFromTVMFFIAny(field->default_value_or_factory))) {
           return;
         }
-        ExprDoc doc = details::AnyValue(this, value);
+        ExprDoc doc = details::ReflectedValue(this, value);
         if (optional || (field->flags & kTVMFFIFieldFlagBitMaskKwOnly)) {
           keys.push_back(ffi::String(field->name));
           values.push_back(doc);

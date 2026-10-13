@@ -1175,7 +1175,7 @@ def test_gemv_dyn_shape_epilogue():
         def main(
             A: T.Tensor((T.int64(4096), vocab_size), "float16"),
             B: T.Tensor((T.int64(1), T.int64(1), T.int64(4096)), "float16"),
-            C: T.Tensor((T.int64(1), T.int64(1), vocab_size)),
+            C: T.Tensor((T.int64(1), T.int64(1), vocab_size), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
 
@@ -1203,7 +1203,7 @@ def test_gemv_dyn_shape_epilogue():
     @I.ir_module
     class Expected:
         @Ts.function(private=True)
-        def main(A: T.Tensor((T.int64(4096), vocab_size), 'float16'), B: T.Tensor((T.int64(1), T.int64(1), T.int64(4096)), "float16"), C: T.Tensor((T.int64(1), T.int64(1), vocab_size))):
+        def main(A: T.Tensor((T.int64(4096), vocab_size), 'float16'), B: T.Tensor((T.int64(1), T.int64(1), T.int64(4096)), "float16"), C: T.Tensor((T.int64(1), T.int64(1), vocab_size), "float32")):
             T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
 
             # with Ts.sblock("root"):

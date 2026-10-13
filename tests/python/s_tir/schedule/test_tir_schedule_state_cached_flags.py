@@ -45,7 +45,7 @@ def elementwise(A: T.Tensor((128, 128), 'float32'), C: T.Tensor((128, 128), 'flo
             C[vi, vj] = B[vi, vj] + 1.0
 
 @Ts.function
-def matmul(A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 128])) -> None:
+def matmul(A: T.Tensor([128, 128], "float32"), B: T.Tensor([128, 128], "float32"), C: T.Tensor([128, 128], "float32")) -> None:
 
     for i, j in T.grid(128, 128):
         with Ts.sblock("init"):
@@ -83,7 +83,7 @@ def block_in_opaque_block(A: T.Tensor((128, 128), 'float32'), B: T.Tensor((128, 
                             B[vi, vj] = A[vi, vj] * 2.0
 
 @Ts.function
-def write_after_read(A: T.Tensor((128, 128)), B: T.Tensor((128, 128)), C: T.Tensor((128, 128))) -> None:
+def write_after_read(A: T.Tensor((128, 128), "float32"), B: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "float32")) -> None:
 
     for i, j in T.grid(128, 128):
         with Ts.sblock("C"):
@@ -95,7 +95,7 @@ def write_after_read(A: T.Tensor((128, 128)), B: T.Tensor((128, 128)), C: T.Tens
             B[vi, vj] = A[vi, vj] * 2.0
 
 @Ts.function
-def loop_carried_dependency(A: T.Tensor((128,)), B: T.Tensor((128,)), C: T.Tensor((128,))) -> None:
+def loop_carried_dependency(A: T.Tensor((128,), "float32"), B: T.Tensor((128,), "float32"), C: T.Tensor((128,), "float32")) -> None:
 
     for i in range(0, 128):
         with Ts.sblock("B"):
@@ -106,7 +106,7 @@ def loop_carried_dependency(A: T.Tensor((128,)), B: T.Tensor((128,)), C: T.Tenso
             C[vi] = T.if_then_else(vi >= 1, B[vi - 1] + 1.0, 0.0)
 
 @Ts.function
-def concatenate_multi_producer(A: T.Tensor((128,)), B: T.Tensor((128,))) -> None:
+def concatenate_multi_producer(A: T.Tensor((128,), "float32"), B: T.Tensor((128,), "float32")) -> None:
 
     for i in range(0, 64):
         with Ts.sblock("A_0"):
@@ -122,7 +122,7 @@ def concatenate_multi_producer(A: T.Tensor((128,)), B: T.Tensor((128,))) -> None
             B[vi] = A[vi] * 2.0
 
 @Ts.function
-def concatenate_multi_producer_uncovered(A: T.Tensor((128,)), B: T.Tensor((128,))) -> None:
+def concatenate_multi_producer_uncovered(A: T.Tensor((128,), "float32"), B: T.Tensor((128,), "float32")) -> None:
 
     for i in range(0, 63):
         with Ts.sblock("A_0"):
@@ -138,7 +138,7 @@ def concatenate_multi_producer_uncovered(A: T.Tensor((128,)), B: T.Tensor((128,)
             B[vi] = A[vi] * 2.0
 
 @Ts.function
-def lca_at_loop(A: T.Tensor((128,)), B: T.Tensor((128,)), C: T.Tensor((128,))) -> None:
+def lca_at_loop(A: T.Tensor((128,), "float32"), B: T.Tensor((128,), "float32"), C: T.Tensor((128,), "float32")) -> None:
 
     for i in range(0, 128):
         with Ts.sblock("B"):
@@ -149,7 +149,7 @@ def lca_at_loop(A: T.Tensor((128,)), B: T.Tensor((128,)), C: T.Tensor((128,))) -
             C[vi] = B[vi] + 1.0
 
 @Ts.function
-def multi_producer_consumer(A: T.Tensor((128,)), B: T.Tensor((128,))) -> None:
+def multi_producer_consumer(A: T.Tensor((128,), "float32"), B: T.Tensor((128,), "float32")) -> None:
 
     for i in range(0, 64):
         with Ts.sblock("A_0"):
@@ -219,7 +219,7 @@ def elementwise_subblock_uncovered(A: T.Tensor((128, 128), 'float32'), C: T.Tens
             C[vi, vj] = B[vi, vj] + 1.0
 
 @Ts.function
-def bound_to_thread(A: T.Tensor([128, 128]), C: T.Tensor([128, 128])) -> None:
+def bound_to_thread(A: T.Tensor([128, 128], "float32"), C: T.Tensor([128, 128], "float32")) -> None:
 
     B = Ts.sblock_alloc_tensor([128, 128], scope="shared")
     for i in T.parallel(0, 128, annotations={"thread_binding": "threadIdx.x"}):
@@ -233,7 +233,7 @@ def bound_to_thread(A: T.Tensor([128, 128]), C: T.Tensor([128, 128])) -> None:
                 C[vj, vi] = B[vj, vi] + 1.0
 
 @Ts.function
-def equal_ranked_threads(A: T.Tensor([128, 128]), C: T.Tensor([128, 128])) -> None:
+def equal_ranked_threads(A: T.Tensor([128, 128], "float32"), C: T.Tensor([128, 128], "float32")) -> None:
 
     B = Ts.sblock_alloc_tensor([128, 128], scope="shared")
     for i_o in T.parallel(0, 16, annotations={"thread_binding": "threadIdx.x"}):
@@ -250,7 +250,7 @@ def equal_ranked_threads(A: T.Tensor([128, 128]), C: T.Tensor([128, 128])) -> No
                     C[vj, vi] = B[vj, vi] + 1.0
 
 @Ts.function
-def warp_memory(A: T.Tensor([128, 128]), C: T.Tensor([128, 128])) -> None:
+def warp_memory(A: T.Tensor([128, 128], "float32"), C: T.Tensor([128, 128], "float32")) -> None:
 
     B = Ts.sblock_alloc_tensor([128, 4, 32], scope="warp")
     for i_o in T.parallel(0, 4, annotations={"thread_binding": "threadIdx.y"}):
@@ -265,7 +265,7 @@ def warp_memory(A: T.Tensor([128, 128]), C: T.Tensor([128, 128])) -> None:
                     C[warp_id * 32 + lane_id, vj] = B[vj, warp_id, lane_id] + 1.0
 
 @Ts.function
-def warp_memory_negative(A: T.Tensor([128, 128]), C: T.Tensor([128, 128])) -> None:
+def warp_memory_negative(A: T.Tensor([128, 128], "float32"), C: T.Tensor([128, 128], "float32")) -> None:
 
     B = Ts.sblock_alloc_tensor([128, 4, 32], scope="warp")
     for i_o in T.parallel(0, 4, annotations={"thread_binding": "threadIdx.y"}):

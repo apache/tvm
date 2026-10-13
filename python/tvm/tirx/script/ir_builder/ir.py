@@ -32,7 +32,7 @@ from typing import Literal
 
 from tvm import DataType, ir
 from tvm import tirx as tir
-from tvm.ir import Range, Type
+from tvm.ir import Range, TensorRegion, Type
 from tvm.ir.location import UNKNOWN_LOC, Location
 from tvm.ir.type import _init_type_api, _normalize_type
 from tvm.script.ir_builder.base import MISSING
@@ -1054,6 +1054,9 @@ def boolean(expr: Expr | None = None) -> Expr:
     return _ffi_api.Boolean(expr)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
+boolean._dtype_str = "bool"
+
+
 def handle(
     dtype: str | None = None,
     storage_scope: str = "global",
@@ -1233,6 +1236,7 @@ __all__ = [
     "Tensor",
     "TensorLoad",
     "TensorMap",
+    "TensorRegion",
     "TileLayout",
     "Tuple",
     "Var",

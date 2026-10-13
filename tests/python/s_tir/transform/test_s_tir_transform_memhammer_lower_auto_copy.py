@@ -39,7 +39,7 @@ def _is_tensor_binding(node, *op_names):
 @tvm.script.ir_module
 class Transpose:
     @Ts.function
-    def main(A: T.Tensor([1024, 1024]), B: T.Tensor([1024, 1024])) -> None:
+    def main(A: T.Tensor([1024, 1024], "float32"), B: T.Tensor([1024, 1024], "float32")) -> None:
         with Ts.sblock("root"):
             Ts.sblock_attr({"warp_execution": True})
             for ty in T.parallel(8, annotations={"thread_binding": "threadIdx.y"}):
@@ -60,7 +60,7 @@ class Transpose:
 @tvm.script.ir_module
 class GlobalToShared:
     @Ts.function
-    def main(A: T.Tensor([1024, 1024]), B: T.Tensor([1024, 1024])) -> None:
+    def main(A: T.Tensor([1024, 1024], "float32"), B: T.Tensor([1024, 1024], "float32")) -> None:
         with Ts.sblock("root"):
             Ts.sblock_attr({"warp_execution": True})
             for bx in T.parallel(8, annotations={"thread_binding": "blockIdx.x"}):
@@ -82,7 +82,7 @@ class GlobalToShared:
 @tvm.script.ir_module
 class SharedToGlobal:
     @Ts.function
-    def main(A: T.Tensor([1024, 1024]), B: T.Tensor([1024, 1024])) -> None:
+    def main(A: T.Tensor([1024, 1024], "float32"), B: T.Tensor([1024, 1024], "float32")) -> None:
         with Ts.sblock("root"):
             Ts.sblock_attr({"warp_execution": True})
             for bx in T.parallel(8, annotations={"thread_binding": "blockIdx.x"}):
@@ -104,7 +104,7 @@ class SharedToGlobal:
 @tvm.script.ir_module
 class GlobalToSharedWithLocalStage:
     @Ts.function
-    def main(A: T.Tensor([1024, 1024]), B: T.Tensor([1024, 1024])) -> None:
+    def main(A: T.Tensor([1024, 1024], "float32"), B: T.Tensor([1024, 1024], "float32")) -> None:
         with Ts.sblock("root"):
             Ts.sblock_attr({"warp_execution": True})
             for bx in T.parallel(8, annotations={"thread_binding": "blockIdx.x"}):
@@ -172,7 +172,7 @@ class WmmaToShared:
 @tvm.script.ir_module
 class WmmaToGlobal:
     @Ts.function
-    def main(C: T.Tensor([1024, 1024])) -> None:
+    def main(C: T.Tensor([1024, 1024], "float32")) -> None:
         with Ts.sblock("root"):
             Ts.sblock_attr({"warp_execution": True})
             for bx in T.parallel(8, annotations={"thread_binding": "blockIdx.x"}):
@@ -191,7 +191,7 @@ class WmmaToGlobal:
 @tvm.script.ir_module
 class WmmaToGlobalWithFusion:
     @Ts.function
-    def main(A: T.Tensor([1024]), C: T.Tensor([1024, 1024])) -> None:
+    def main(A: T.Tensor([1024], "float32"), C: T.Tensor([1024, 1024], "float32")) -> None:
         with Ts.sblock("root"):
             Ts.sblock_attr({"warp_execution": True})
             for bx in T.parallel(8, annotations={"thread_binding": "blockIdx.x"}):
@@ -212,7 +212,7 @@ class WmmaToGlobalWithFusion:
 @tvm.script.ir_module
 class MmaToGlobal:
     @Ts.function
-    def main(C: T.Tensor([1024, 1024])) -> None:
+    def main(C: T.Tensor([1024, 1024], "float32")) -> None:
         with Ts.sblock("root"):
             Ts.sblock_attr({"warp_execution": True})
             for bx in T.parallel(8, annotations={"thread_binding": "blockIdx.x"}):
@@ -231,7 +231,7 @@ class MmaToGlobal:
 @tvm.script.ir_module
 class TransformedGlobalToShared:
     @Ts.function
-    def main(A: T.Tensor([1024, 1024]), B: T.Tensor([1024, 1024])) -> None:
+    def main(A: T.Tensor([1024, 1024], "float32"), B: T.Tensor([1024, 1024], "float32")) -> None:
         with Ts.sblock("root"):
             Ts.sblock_attr({"warp_execution": True})
             for bx in T.parallel(8, annotations={"thread_binding": "blockIdx.x"}):
@@ -274,7 +274,7 @@ class TransformedGlobalToShared:
 @tvm.script.ir_module
 class TransformedSharedToGlobal:
     @Ts.function
-    def main(A: T.Tensor([1024, 1024]), B: T.Tensor([1024, 1024])) -> None:
+    def main(A: T.Tensor([1024, 1024], "float32"), B: T.Tensor([1024, 1024], "float32")) -> None:
         with Ts.sblock("root"):
             Ts.sblock_attr({"warp_execution": True})
             for bx in T.parallel(8, annotations={"thread_binding": "blockIdx.x"}):
@@ -319,7 +319,7 @@ class TransformedSharedToGlobal:
 @tvm.script.ir_module
 class TransformedGlobalToSharedWithLocalStage:
     @Ts.function
-    def main(A: T.Tensor((1024, 1024)), B: T.Tensor((1024, 1024))):
+    def main(A: T.Tensor((1024, 1024), "float32"), B: T.Tensor((1024, 1024), "float32")):
         with Ts.sblock("root"):
             Ts.sblock_attr({"warp_execution": True})
             for bx in T.parallel(8, annotations={"thread_binding": "blockIdx.x"}):

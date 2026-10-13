@@ -682,7 +682,9 @@ def test_call_tir_with_grad():
     @I.ir_module
     class Module:
         @Ts.function
-        def identity_tir(A: T.Tensor([54, 96]), B: T.Tensor([54, 96])) -> None:
+        def identity_tir(
+            A: T.Tensor([54, 96], "float32"), B: T.Tensor([54, 96], "float32")
+        ) -> None:
             for i, j in T.grid(54, 96):
                 with Ts.sblock("compute"):
                     vi, vj = Ts.axis.remap("SS", [i, j])

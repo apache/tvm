@@ -34,7 +34,7 @@ def test_broadcast_to_symbolic():
         @Ts.function
         def broadcast_to(
             rxplaceholder: T.Tensor((T.int64(3), T.int64(1)), "float32"),
-            T_broadcast_to: T.Tensor((x_0, x_1)),
+            T_broadcast_to: T.Tensor((x_0, x_1), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
 
@@ -52,7 +52,7 @@ def test_broadcast_to_symbolic():
     @tvm.script.ir_module
     class Expected:
         @Ts.function
-        def broadcast_to(rxplaceholder: T.Tensor((T.int64(3), T.int64(1)), "float32"), T_broadcast_to: T.Tensor((x_0, x_1))):
+        def broadcast_to(rxplaceholder: T.Tensor((T.int64(3), T.int64(1)), "float32"), T_broadcast_to: T.Tensor((x_0, x_1), "float32")):
             T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
 
             for ax0_ax1_fused_1 in T.parallel(T.int64(256), annotations={"thread_binding": "blockIdx.x"}):

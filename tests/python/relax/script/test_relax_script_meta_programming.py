@@ -173,7 +173,9 @@ def test_inline_function():
             def f(x: R.Tensor((128, 128), "float32"), y: R.Tensor((128, 128), "float32")):
                 @Ts.function
                 def my_matmul(
-                    A: T.Tensor((128, 128)), B: T.Tensor((128, 128)), C: T.Tensor((128, 128))
+                    A: T.Tensor((128, 128), "float32"),
+                    B: T.Tensor((128, 128), "float32"),
+                    C: T.Tensor((128, 128), "float32"),
                 ) -> None:
                     for i, j, k in T.grid(128, 128, 128):
                         with Ts.sblock():

@@ -450,7 +450,9 @@ def _tensor_region_offset(region):
             offset += bounds.min * tensor.strides[axis]
         else:
             offset = offset * tensor.shape[axis] + bounds.min
-    return tvm.sym.Analyzer().simplify(offset + tensor.elem_offset)
+    if not (isinstance(tensor.elem_offset, tirx.IntImm) and tensor.elem_offset.value == 0):
+        offset += tensor.elem_offset
+    return tvm.sym.Analyzer().simplify(offset)
 
 
 def is_broadcast_epilogue(

@@ -25,6 +25,7 @@ from tvm import ir
 from tvm import tirx as tir
 from tvm.ir import TensorLoad, TensorRegion, is_prim_expr
 from tvm.ir.location import UNKNOWN_LOC, Location
+from tvm.ir.type import _normalize_type
 from tvm.s_tir.iter_var import IterVar
 from tvm.s_tir.op import comm_reducer
 from tvm.script.ir_builder.base import MISSING
@@ -123,7 +124,7 @@ def match_tensor(
     result = _ffi_api.MatchTensor(  # type: ignore[attr-defined] # pylint: disable=no-member
         param,
         shape,
-        dtype,
+        _normalize_type(dtype),
         data,
         strides,
         elem_offset,
@@ -289,7 +290,7 @@ def sblock_alloc_tensor(
         allocated_addr = [allocated_addr]
     tensor = _ffi_api.SBlockAllocTensor(  # type: ignore[attr-defined] # pylint: disable=no-member
         shape,
-        dtype,
+        _normalize_type(dtype),
         data,
         strides,
         elem_offset,

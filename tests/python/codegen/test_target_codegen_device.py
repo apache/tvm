@@ -65,10 +65,12 @@ def test_add_pipeline():
     @I.ir_module
     class Module:
         @T.function
-        def main(A: T.Tensor((n,)), B: T.Tensor((), "float32"), D: T.Tensor((n,))):
+        def main(
+            A: T.Tensor((n,), "float32"), B: T.Tensor((), "float32"), D: T.Tensor((n,), "float32")
+        ):
             T.func_attr({"tirx.noalias": True})
 
-            C = T.alloc_tensor(ty_args=[T.Tensor((n,))])
+            C = T.alloc_tensor(ty_args=[T.Tensor((n,), "float32")])
             with T.launch_thread("blockIdx.x", (n + 255) // 256) as i0_0:
                 with T.launch_thread("threadIdx.x", 256) as i0_1:
                     if i0_0 * 256 + i0_1 < n:

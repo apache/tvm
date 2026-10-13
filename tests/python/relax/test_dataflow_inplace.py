@@ -572,7 +572,8 @@ def test_dynamic():
     class Expected:
         @Ts.function(private=True)
         def add_inplace(
-            A: T.Tensor((a_add_inplace, b_add_inplace)), B: T.Tensor((a_add_inplace, b_add_inplace))
+            A: T.Tensor((a_add_inplace, b_add_inplace), "float32"),
+            B: T.Tensor((a_add_inplace, b_add_inplace), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
 
@@ -585,8 +586,8 @@ def test_dynamic():
 
         @Ts.function(private=True)
         def subtract_inplace(
-            A: T.Tensor((a_subtract_inplace, b_subtract_inplace)),
-            B: T.Tensor((a_subtract_inplace, b_subtract_inplace)),
+            A: T.Tensor((a_subtract_inplace, b_subtract_inplace), "float32"),
+            B: T.Tensor((a_subtract_inplace, b_subtract_inplace), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
 

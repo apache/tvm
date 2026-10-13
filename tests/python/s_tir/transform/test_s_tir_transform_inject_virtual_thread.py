@@ -48,7 +48,7 @@ def test_vthread():
             for i in range(n):
                 vt_x = T.launch_thread("vthread", nthread)
                 vt_y = T.launch_thread("vthread", nthread)
-                B = T.alloc_tensor(ty_args=[T.Tensor((m,), scope="shared")])
+                B = T.alloc_tensor(ty_args=[T.Tensor((m,), "float32", scope="shared")])
                 B[i] = A_buf[i * nthread + vt_x]
                 T.evaluate(T.call_extern("Run", B.ptr_to([0] * len(B.shape)), vt_x, ty="int32"))
                 C_buf[i * nthread + vt_x] = B[i] + T.float32(1)
@@ -84,9 +84,9 @@ def test_vthread_extern():
             for i in range(n):
                 vt_x = T.launch_thread("vthread", nthread)
                 vt_y = T.launch_thread("vthread", nthread)
-                A = T.alloc_tensor(ty_args=[T.Tensor((m,), scope="shared")])
-                B = T.alloc_tensor(ty_args=[T.Tensor((m,), scope="shared")])
-                C = T.alloc_tensor(ty_args=[T.Tensor((m,), scope="shared")])
+                A = T.alloc_tensor(ty_args=[T.Tensor((m,), "float32", scope="shared")])
+                B = T.alloc_tensor(ty_args=[T.Tensor((m,), "float32", scope="shared")])
+                C = T.alloc_tensor(ty_args=[T.Tensor((m,), "float32", scope="shared")])
                 A[vt_x] = T.Cast("float32", vt_x) + T.float32(1)
                 B[vt_y] = T.Cast("float32", vt_y) + T.float32(1)
                 T.evaluate(
@@ -131,7 +131,7 @@ def test_vthread_if_then_else():
             A_buf = T.decl_tensor(A, ty_args=[T.Tensor((100 * nthread,), "float32", data=A)])
             for i in range(100):
                 vt = T.launch_thread("vthread", nthread)
-                B = T.alloc_tensor(ty_args=[T.Tensor((128,), scope="shared")])
+                B = T.alloc_tensor(ty_args=[T.Tensor((128,), "float32", scope="shared")])
                 if i == 0:
                     B[i] = A_buf[i * nthread + vt]
                 else:

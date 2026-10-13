@@ -54,6 +54,12 @@ TensorVar MatchTensor(ffi::ObjectRef param, ffi::Array<PrimExpr> shape, PrimType
   if (data.has_value()) {
     storage_scope = data.value()->ty.as_or_throw<PtrType>()->storage_scope;
   }
+  // Matching/allocation builders retain their binding contract; TensorType itself
+  // has a fixed zero offset and never invents a symbolic variable.
+  if (!elem_offset.has_value() && offset_factor) {
+    PrimType shape_dtype = shape.empty() ? PrimType::Int(32) : shape[0].ty();
+    elem_offset = tvm::PrimVar("elem_offset", shape_dtype);
+  }
   TensorVar tensor("", tvm::tirx::TensorType(storage_scope, dtype, shape, strides, elem_offset,
                                              align, offset_factor, layout));
   tvm::TensorRegion region{ffi::UnsafeInit{}};
@@ -197,6 +203,12 @@ TensorVar SBlockAllocTensor(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::Opt
     TVM_FFI_ICHECK(allocated_addr.empty())
         << "ValueError: For `" << scope
         << "` scope, Ts.alloc_tensor does not accept `allocated_addr`";
+  }
+  // Matching/allocation builders retain their binding contract; TensorType itself
+  // has a fixed zero offset and never invents a symbolic variable.
+  if (!elem_offset.has_value() && offset_factor) {
+    PrimType shape_dtype = shape.empty() ? PrimType::Int(32) : shape[0].ty();
+    elem_offset = tvm::PrimVar("elem_offset", shape_dtype);
   }
   TensorVar tensor("", tvm::tirx::TensorType(storage_scope, dtype, shape, strides, elem_offset,
                                              align, offset_factor, layout));

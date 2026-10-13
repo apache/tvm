@@ -50,7 +50,7 @@ class TensorType(Type):
     """
 
     dtype: PrimType
-    storage_scope: str
+    scope: str
     shape: list
     strides: list
     elem_offset: tvm.ir.Expr
@@ -61,7 +61,7 @@ class TensorType(Type):
     def __init__(
         self,
         shape,
-        dtype="float32",
+        dtype,
         data=None,
         strides=None,
         elem_offset=None,
@@ -78,9 +78,10 @@ class TensorType(Type):
         """Construct a tensor access contract.
 
         An omitted element offset is zero in the configured index dtype,
-        independent of shape and offset_factor. Pass a symbolic offset explicitly
-        when the contract permits a variable starting position. ``scope`` and
-        ``align`` remain accepted spellings for ``storage_scope`` and
+        independent of shape and offset_factor. Integer offsets use that dtype;
+        explicitly typed expressions retain theirs. Pass a symbolic offset explicitly
+        when the contract permits a variable starting position. ``storage_scope``
+        and ``align`` remain compatibility spellings for ``scope`` and
         ``data_alignment``.
         """
         from tvm.ir.type import _normalize_type
@@ -130,7 +131,6 @@ class TensorType(Type):
         at(loc, self)
 
     __expr_methods__ = (
-        "scope",
         "is_scalar",
         "ptr_to",
         "view",
@@ -142,6 +142,7 @@ class TensorType(Type):
     )
 
     __expr_properties__: ClassVar[dict[str, Callable]] = {
+        "scope": lambda ty, expr: lambda: ty._scope(expr),
         "shape": _tensor_type_field("shape"),
         "strides": _tensor_type_field("strides"),
         "elem_offset": _tensor_type_field("elem_offset"),
@@ -181,7 +182,12 @@ class TensorType(Type):
                 expected = analyzer.simplify(expected * extent)
         return TileLayout(S[tuple(self.shape)])
 
-    def scope(self, expr):
+    @property
+    def storage_scope(self):
+        """Compatibility alias for the canonical scope field."""
+        return self.scope
+
+    def _scope(self, expr):
         """Return the storage scope associated with this tensor.
         Returns
         -------

@@ -59,7 +59,7 @@ def test_raw_call_preserves_provisional_fields(ty):
     # Invalid arguments and type arguments must survive the raw representation.
     call = ir.Call("prim.exp", [], attrs={"tag": 7}, ty_args=[ir.StringType()], ty=ty)
     source = call.script()
-    assert "I.Call(" in source
+    assert "T.Call(" in source
     restored = eval(source, {"I": I, "R": R, "T": T})
     ir.assert_structural_equal(call, restored)
 
@@ -67,7 +67,7 @@ def test_raw_call_preserves_provisional_fields(ty):
 def test_raw_call_preserves_checked_fields():
     call = ir.Call("prim.exp", [tirx.FloatImm("float32", 0)], attrs={"tag": 7}, ty="float32")
     source = call.script()
-    assert "I.Call(" in source
+    assert "T.Call(" in source
     ir.assert_structural_equal(call, eval(source, {"I": I, "R": R, "T": T}))
 
 

@@ -30,7 +30,9 @@ from tvm.transform.instrument import PrintAfterAll, PrintBeforeAll
 
 def test_tir_print_all_passes(capsys):
     @Ts.function
-    def func(A: T.Tensor((128, 128, 128, 128)), B: T.Tensor((128, 128, 128, 128))) -> None:
+    def func(
+        A: T.Tensor((128, 128, 128, 128), "float32"), B: T.Tensor((128, 128, 128, 128), "float32")
+    ) -> None:
         for i, j, k, l in T.grid(128, 128, 128, 128):
             with Ts.sblock("B"):
                 vi, vj, vk, vl = Ts.axis.remap("SSSS", [i, j, k, l])

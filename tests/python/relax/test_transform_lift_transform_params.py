@@ -1444,7 +1444,7 @@ def test_symbolic_var_2():
     @I.ir_module
     class Before:
         @Ts.function
-        def zeros(T_full: T.Tensor((n_zeros, n_zeros))):
+        def zeros(T_full: T.Tensor((n_zeros, n_zeros), "float32")):
             T.func_attr({"tirx.noalias": True})
 
             for ax0, ax1 in T.grid(n_zeros, n_zeros):
@@ -1471,7 +1471,7 @@ def test_symbolic_var_2():
     @I.ir_module
     class Expected:
         @Ts.function
-        def zeros(T_full: T.Tensor((n_zeros, n_zeros))):
+        def zeros(T_full: T.Tensor((n_zeros, n_zeros), "float32")):
             T.func_attr({"tirx.noalias": True})
 
             # with Ts.sblock("root"):

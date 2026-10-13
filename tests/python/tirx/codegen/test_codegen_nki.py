@@ -39,7 +39,7 @@ def compare_strings_ignore_whitespace(s1, s2):
 def test_nki_add_1():
     # fmt: off
     @T.function
-    def func(A: T.Tensor((128, 512)), B: T.Tensor((128, 512))):
+    def func(A: T.Tensor((128, 512), "float32"), B: T.Tensor((128, 512), "float32")):
         T.func_attr({"num_inputs": 1})
         T.device_entry()
         A_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 512), "float32", scope="trn.sbuf")])
@@ -93,7 +93,7 @@ def func_kernel(A_ptr, B_ptr: nt.mutable_tensor, ):
 def test_nki_add_2():
     # fmt: off
     @T.function
-    def func(A: T.Tensor((128, 2048)), B: T.Tensor((128, 2048))):
+    def func(A: T.Tensor((128, 2048), "float32"), B: T.Tensor((128, 2048), "float32")):
         T.func_attr({"num_inputs": 1})
         T.device_entry()
         A_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 512), "float32", scope="trn.sbuf")])

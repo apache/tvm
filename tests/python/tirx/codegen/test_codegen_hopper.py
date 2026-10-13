@@ -64,7 +64,7 @@ def _run_tensormap_encode(shape, dtype, encode_args):
 def test_ptx_setmaxnreg(inc):
     # fmt: off
     @T.function
-    def func(A: T.Tensor(1)):
+    def func(A: T.Tensor(1, "float32")):
         T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(128,)))
         cta_id = T.cuda.block_idx('x')
         tid = T.cuda.thread_idx('x')
@@ -294,7 +294,7 @@ def test_ptx_stmatrix_noncontiguous(trans, num):
 def test_bar_arrive():
     # fmt: off
     @T.function
-    def func(A: T.Tensor(1)):
+    def func(A: T.Tensor(1, "float32")):
         T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(128,)))
         cta_id = T.cuda.block_idx('x')
         tid = T.cuda.thread_idx('x')
@@ -311,7 +311,7 @@ def test_bar_arrive():
 def test_bar_sync():
     # fmt: off
     @T.function
-    def func(A: T.Tensor(1)):
+    def func(A: T.Tensor(1, "float32")):
         T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(128,)))
         cta_id = T.cuda.block_idx('x')
         tid = T.cuda.thread_idx('x')
@@ -328,7 +328,7 @@ def test_bar_sync():
 def test_barrier_sync_unaligned():
     # fmt: off
     @T.function
-    def func(A: T.Tensor(1)):
+    def func(A: T.Tensor(1, "float32")):
         T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(128,)))
         cta_id = T.cuda.block_idx('x')
         tid = T.cuda.thread_idx('x')
@@ -345,7 +345,7 @@ def test_barrier_sync_unaligned():
 def test_fence_mbarrier_init_release_clsuter():
     # fmt: off
     @T.function
-    def func(A: T.Tensor(1)):
+    def func(A: T.Tensor(1, "float32")):
         T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(128,)))
         cta_id = T.cuda.block_idx('x')
         tid = T.cuda.thread_idx('x')
@@ -361,7 +361,7 @@ def test_fence_mbarrier_init_release_clsuter():
 def test_ptx_elect_sync():
     # fmt: off
     @T.function
-    def func(A: T.Tensor(1)):
+    def func(A: T.Tensor(1, "float32")):
         T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(128,)))
         cta_id = T.cuda.block_idx('x')
         tx = T.cuda.thread_idx('x')
@@ -382,7 +382,7 @@ def test_ptx_elect_sync():
 def test_ptx_fence(sem, scope):
     # fmt: off
     @T.function
-    def func(A: T.Tensor(1)):
+    def func(A: T.Tensor(1, "float32")):
         T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(128,)))
         cta_id = T.cuda.block_idx('x')
         tid = T.cuda.thread_idx('x')
@@ -398,7 +398,7 @@ def test_ptx_fence(sem, scope):
 def test_fence_proxy_async():
     # fmt: off
     @T.function
-    def func(A: T.Tensor(1)):
+    def func(A: T.Tensor(1, "float32")):
         T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(128,)))
         cta_id = T.cuda.block_idx('x')
         tid = T.cuda.thread_idx('x')
@@ -1399,7 +1399,7 @@ def test_wgmma_rs_nt():
 @pytest.mark.skipif(not env.has_cuda_compute(9), reason="need cuda compute >= 9.0")
 def test_mapa():
     @T.function
-    def func(A: T.Tensor(1)):
+    def func(A: T.Tensor(1, "float32")):
         T.device_entry(launch=T.cuda.LaunchConfig(grid=(2,), block=(128,), cluster=(2,)))
         cbx = T.cuda.cluster_cta_id("x")
         cta_id = T.cuda.block_idx("x")

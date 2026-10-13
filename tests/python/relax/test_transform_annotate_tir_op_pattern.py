@@ -46,7 +46,11 @@ def test_annotate_opkind_outewisefusable():
     @tvm.script.ir_module
     class InputModule:
         @Ts.function
-        def tir_matmul(A: T.Tensor((m, n)), B: T.Tensor((n, k)), C: T.Tensor((m, k))) -> None:
+        def tir_matmul(
+            A: T.Tensor((m, n), "float32"),
+            B: T.Tensor((n, k), "float32"),
+            C: T.Tensor((m, k), "float32"),
+        ) -> None:
             T.func_attr({"global_symbol": "tir_matmul"})
 
             for i, j, k_index in T.grid(m, k, n):
@@ -101,9 +105,9 @@ def test_annotate_opkind_outewisefusable_int_var_signature():
     class InputModule:
         @Ts.function
         def tir_matmul(
-            A: T.Tensor((m, n)),  # noqa: F821
-            B: T.Tensor((n, k)),  # noqa: F821
-            C: T.Tensor((m, k)),  # noqa: F821
+            A: T.Tensor((m, n), "float32"),  # noqa: F821
+            B: T.Tensor((n, k), "float32"),  # noqa: F821
+            C: T.Tensor((m, k), "float32"),  # noqa: F821
             m: T.int64,
             n: T.int64,
             k: T.int64,
@@ -126,7 +130,7 @@ def test_annotate_opkind_reduce():
     @tvm.script.ir_module
     class InputModule:
         @Ts.function
-        def sum(A: T.Tensor((16, 16)), B: T.Tensor((16,))) -> None:
+        def sum(A: T.Tensor((16, 16), "float32"), B: T.Tensor((16,), "float32")) -> None:
             T.func_attr({"global_symbol": "elemwise"})
 
             for i, j in T.grid(16, 16):
@@ -145,7 +149,7 @@ def test_annotate_opkind_ewise():
     @tvm.script.ir_module
     class InputModule:
         @Ts.function
-        def elemwise(A: T.Tensor((16, 16)), B: T.Tensor((16, 16))) -> None:
+        def elemwise(A: T.Tensor((16, 16), "float32"), B: T.Tensor((16, 16), "float32")) -> None:
             T.func_attr({"global_symbol": "elemwise"})
 
             for i, j in T.grid(16, 16):
@@ -162,7 +166,9 @@ def test_annotate_opkind_broadcast():
     @tvm.script.ir_module
     class InputModule:
         @Ts.function
-        def broadcast(A: T.Tensor((16, 16)), B: T.Tensor((16, 16, 16, 16))) -> None:
+        def broadcast(
+            A: T.Tensor((16, 16), "float32"), B: T.Tensor((16, 16, 16, 16), "float32")
+        ) -> None:
             T.func_attr({"global_symbol": "elemwise"})
 
             for i0, j0, i1, j1 in T.grid(16, 16, 16, 16):
@@ -179,7 +185,9 @@ def test_annotate_opkind_injective():
     @tvm.script.ir_module
     class InputModule:
         @Ts.function
-        def injective(A: T.Tensor((4, 4, 4, 4)), B: T.Tensor((16, 16))) -> None:
+        def injective(
+            A: T.Tensor((4, 4, 4, 4), "float32"), B: T.Tensor((16, 16), "float32")
+        ) -> None:
             T.func_attr({"global_symbol": "elemwise"})
 
             for i, j in T.grid(16, 16):
@@ -367,7 +375,9 @@ def test_multiple_bufer_stores_fallback():
     class CumsumModule:
         @Ts.function
         def cumsum(
-            rxplaceholder: T.Tensor([10, 16], dtype="float32", offset_factor=1),
+            rxplaceholder: T.Tensor(
+                [10, 16], dtype="float32", offset_factor=1, elem_offset=T.int32()
+            ),
             out_buf: T.Tensor(160, "float32"),
         ):
             with Ts.sblock("cumsum_generic"):

@@ -35,7 +35,11 @@ from tvm.script import tirx as T
 
 
 @Ts.function
-def matmul(A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 128])) -> None:
+def matmul(
+    A: T.Tensor([128, 128], "float32"),
+    B: T.Tensor([128, 128], "float32"),
+    C: T.Tensor([128, 128], "float32"),
+) -> None:
     for i, j in T.grid(128, 128):
         with Ts.sblock("init"):
             vi, vj = Ts.axis.remap("SS", [i, j])
@@ -48,7 +52,9 @@ def matmul(A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 1
 
 @Ts.function
 def matmul_relu(
-    A: T.Tensor((1024, 1024)), B: T.Tensor((1024, 1024)), D: T.Tensor((1024, 1024))
+    A: T.Tensor((1024, 1024), "float32"),
+    B: T.Tensor((1024, 1024), "float32"),
+    D: T.Tensor((1024, 1024), "float32"),
 ) -> None:
     C = Ts.sblock_alloc_tensor((1024, 1024))
 
@@ -66,7 +72,9 @@ def matmul_relu(
 
 @Ts.function
 def matmul_relu_ann1(
-    A: T.Tensor((1024, 1024)), B: T.Tensor((1024, 1024)), D: T.Tensor((1024, 1024))
+    A: T.Tensor((1024, 1024), "float32"),
+    B: T.Tensor((1024, 1024), "float32"),
+    D: T.Tensor((1024, 1024), "float32"),
 ) -> None:
     C = Ts.sblock_alloc_tensor((1024, 1024))
 
@@ -86,7 +94,9 @@ def matmul_relu_ann1(
 
 @Ts.function
 def matmul_relu_ann2(
-    A: T.Tensor((1024, 1024)), B: T.Tensor((1024, 1024)), D: T.Tensor((1024, 1024))
+    A: T.Tensor((1024, 1024), "float32"),
+    B: T.Tensor((1024, 1024), "float32"),
+    D: T.Tensor((1024, 1024), "float32"),
 ) -> None:
     C = Ts.sblock_alloc_tensor((1024, 1024))
 

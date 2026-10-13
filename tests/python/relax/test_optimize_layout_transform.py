@@ -289,7 +289,7 @@ def test_tranform_layout_tir_remove_pad_transform_layout():
                     output[v_ax0] = T.max(arg0[v_ax0], T.float32(0))
 
         @Ts.function(private=True)
-        def remove_pad(input: T.Tensor((p0,)), output: T.Tensor((i0,))):
+        def remove_pad(input: T.Tensor((p0,), "float32"), output: T.Tensor((i0,), "float32")):
             T.func_attr({"operator_name": "remove_pad", "tirx.noalias": True})
 
             # with Ts.sblock("root"):
@@ -362,7 +362,7 @@ def test_tranform_layout_tir_remove_pad_transform_layout():
                     output[v_ax0] = T.max(arg0[v_ax0], T.float32(0))
 
         @Ts.function(private=True)
-        def remove_pad(input: T.Tensor((p0,)), output: T.Tensor((i0,))):
+        def remove_pad(input: T.Tensor((p0,), "float32"), output: T.Tensor((i0,), "float32")):
             T.func_attr({"operator_name": "remove_pad", "tirx.noalias": True})
 
             # with Ts.sblock("root"):

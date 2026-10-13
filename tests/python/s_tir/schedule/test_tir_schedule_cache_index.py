@@ -33,7 +33,7 @@ from tvm.script import tirx as T
 
 
 @Ts.function
-def resize(A: T.Tensor((1, 3, 40, 40)), B: T.Tensor((1, 3, 80, 80))) -> None:
+def resize(A: T.Tensor((1, 3, 40, 40), "float32"), B: T.Tensor((1, 3, 80, 80), "float32")) -> None:
     for i0, i1, i2, i3 in T.grid(1, 3, 80, 80):
         with Ts.sblock("A"):
             n, c, vi, vj = Ts.axis.remap("SSSS", [i0, i1, i2, i3])

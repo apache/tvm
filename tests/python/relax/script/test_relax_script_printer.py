@@ -51,7 +51,7 @@ def test_constant():
     )
     assert (
         constant.__str__()
-        == """R.dist.const(1.0, R.DTensor((), "float32", R.device_mesh((2, 2), I.Range(0, 4)), "R, R"))"""
+        == """R.dist.const(1.0, R.DTensor((), "float32", R.device_mesh((2, 2), T.Range(0, 4)), "R, R"))"""
     )
 
 
@@ -61,13 +61,13 @@ def test_dtensor_type():
     obj0 = DTensorType(tensor_ty1, DeviceMesh((2, 2), Range(0, 4)), Placement.from_text("S[1], R"))
     assert (
         obj0.__str__()
-        == """R.DTensor((32, 32), "float32", R.device_mesh((2, 2), I.Range(0, 4)), "S[1], R")"""
+        == """R.DTensor((32, 32), "float32", R.device_mesh((2, 2), T.Range(0, 4)), "S[1], R")"""
     )
 
     obj1 = DTensorType(tensor_ty2, DeviceMesh((2, 2), Range(0, 4)), Placement.from_text("S[1], R"))
     assert (
         obj1.__str__()
-        == """R.DTensor((32, 32), device_mesh=R.device_mesh((2, 2), I.Range(0, 4)), placement="S[1], R")"""
+        == """R.DTensor((32, 32), device_mesh=R.device_mesh((2, 2), T.Range(0, 4)), placement="S[1], R")"""
     )
 
     obj2 = DTensorType(tensor_ty2, DeviceMesh((2, 2), [0, 1, 2, 3]), Placement.from_text("S[1], R"))
@@ -108,12 +108,14 @@ def test_vdevice_selector_preserves_registry_identity(memory_scope):
 
 def test_device_mesh_range_namespace_roundtrip():
     mesh = DeviceMesh((2, 2), Range(0, 4))
-    assert str(mesh) == "R.device_mesh((2, 2), I.Range(0, 4))"
+    assert str(mesh) == "R.device_mesh((2, 2), T.Range(0, 4))"
     mod = IRModule({})
     mod.update_global_info("mesh", [mesh])
     script = mod.script()
-    assert "R.device_mesh((2, 2), I.Range(0, 4))" in script
-    tvm.ir.assert_structural_equal(mod, tvm.script.from_source(script, extra_vars={"I": I, "R": R}))
+    assert "R.device_mesh((2, 2), T.Range(0, 4))" in script
+    tvm.ir.assert_structural_equal(
+        mod, tvm.script.from_source(script, extra_vars={"I": I, "R": R, "T": T})
+    )
 
 
 @I.ir_module
@@ -161,12 +163,12 @@ def test_func():
         """
 from __future__ import annotations
 
-# from tvm.script import ir as I
 # from tvm.script import relax as R
+# from tvm.script import tirx as T
 
 @R.function
-def foo(x: R.DTensor((128, 128), "float32", R.device_mesh((2, 2), I.Range(0, 4)), "S[0], R")) -> R.DTensor((128, 128), "float32", R.device_mesh((2, 2), I.Range(0, 4)), "S[0], R"):
-    gv0 = R.call_tir(Module.tir_func, (x,), ty_args=[R.DTensor((128, 128), "float32", R.device_mesh((2, 2), I.Range(0, 4)), "S[0], R")])
+def foo(x: R.DTensor((128, 128), "float32", R.device_mesh((2, 2), T.Range(0, 4)), "S[0], R")) -> R.DTensor((128, 128), "float32", R.device_mesh((2, 2), T.Range(0, 4)), "S[0], R"):
+    gv0 = R.call_tir(Module.tir_func, (x,), ty_args=[R.DTensor((128, 128), "float32", R.device_mesh((2, 2), T.Range(0, 4)), "S[0], R")])
     return gv0
 """,
     )
@@ -178,17 +180,16 @@ def test_module():
         """
 from __future__ import annotations
 
-# from tvm.script import ir as I
 # from tvm.script import relax as R
 # from tvm.script import s_tir as Ts
 # from tvm.script import tirx as T
 
-@I.ir_module
+@T.ir_module
 class Module:
-    I.module_attrs({"device_num": 10})
-    I.module_global_infos({"mesh": [R.device_mesh((2, 2), I.Range(0, 4)), R.device_mesh((1,), I.Range(4, 5))]})
+    T.module_attrs({"device_num": 10})
+    T.module_global_infos({"mesh": [R.device_mesh((2, 2), T.Range(0, 4)), R.device_mesh((1,), T.Range(4, 5))]})
     @Ts.function
-    def tir_func(x: T.Tensor([T.IntImm("int64", 128), T.IntImm("int64", 128)]), y: T.Tensor([T.IntImm("int64", 128), T.IntImm("int64", 128)])):
+    def tir_func(x: T.Tensor((T.int64(128), T.int64(128)), T.float32), y: T.Tensor((T.int64(128), T.int64(128)), T.float32)):
         T.func_attr({"s_tir": True, "script.namespace": "s_tir", "tirx.noalias": True})
         with Ts.sblock("root"):
             Ts.reads()
@@ -336,10 +337,10 @@ def test_extern_func():
         """
 from __future__ import annotations
 
-# from tvm.script import ir as I
 # from tvm.script import relax as R
+# from tvm.script import tirx as T
 
-@I.ir_module
+@T.ir_module
 class Module:
     @R.function
     def func(a: R.Tensor((10, 10))) -> R.Tensor((10, 10)):
@@ -362,10 +363,10 @@ def test_extern_func_with_ty():
     _assert_print_lines(
         obj,
         """
-# from tvm.script import ir as I
 # from tvm.script import relax as R
+# from tvm.script import tirx as T
 
-@I.ir_module
+@T.ir_module
 class Module:
     my_ext = R.ExternFunc("my_ext", R.Callable((), R.Tensor(dtype="float32", ndim=2), True))
 """,
@@ -416,10 +417,10 @@ def test_nested_function(relax_prefix, comment_imports):
         """
 from __future__ import annotations
 
-# from tvm.script import ir as I
 # from tvm.script import relax as R
+# from tvm.script import tirx as T
 
-@I.ir_module
+@T.ir_module
 class Module:
     @R.function
     def main(x: R.Tensor((), dtype="int32")) -> R.Tensor((), dtype="int32"):
@@ -427,14 +428,14 @@ class Module:
         def nested(y: R.Tensor((), dtype="int32")) -> R.Tensor((), dtype="int32"):
             return y
 
-        z: R.Tensor((), dtype="int32") = I.Call(nested, [x], ty=R.Tensor((), dtype="int32"))
+        z: R.Tensor((), dtype="int32") = T.Call(nested, [x], ty=R.Tensor((), dtype="int32"))
         return z
 """.replace("R.", f"{relax_prefix}.")
         .replace("relax as R", f"relax as {relax_prefix}")
         .replace("# from", "# from" if comment_imports else "from"),
     )
     tvm.ir.assert_structural_equal(
-        NestedFunction, tvm.script.from_source(script, extra_vars={"I": I, relax_prefix: R})
+        NestedFunction, tvm.script.from_source(script, extra_vars={"I": I, "T": T, relax_prefix: R})
     )
 
 
@@ -442,7 +443,7 @@ def test_object_ty():
     obj = relax.AnyType()
     _assert_print_lines(
         obj,
-        "I.Any",
+        "T.Any",
     )
 
 
@@ -461,7 +462,7 @@ def test_shape_ty_2():
     _assert_print_lines(
         obj,
         """
-a = I.dynamic("a", dtype="int64")
+a = T.dynamic("a", dtype="int64")
 R.Shape([1, a, 3])""",
     )
 
@@ -474,7 +475,7 @@ def test_tensor_ty():
     _assert_print_lines(
         obj,
         """
-a = I.dynamic("a", dtype="int64")
+a = T.dynamic("a", dtype="int64")
 R.Tensor((1, a, 3), dtype="float32")
 """,
     )
@@ -482,7 +483,7 @@ R.Tensor((1, a, 3), dtype="float32")
 
 def test_tuple_ty_empty():
     obj = relax.TupleType([])
-    _assert_print_lines(obj._relax_script(), "R.Tuple")  # pylint: disable=protected-access
+    _assert_print_lines(obj._relax_script(), "T.Tuple")  # pylint: disable=protected-access
 
 
 def test_tuple_ty():
@@ -496,7 +497,7 @@ def test_tuple_ty():
     _assert_print_lines(
         obj._relax_script(),  # pylint: disable=protected-access
         """
-R.Tuple(T.float32, I.Any, R.Shape([1, a, 3]))
+T.Tuple(T.float32, T.Any, R.Shape([1, a, 3]))
 """,
     )
 
@@ -516,8 +517,8 @@ def test_func_ty():
     )
     _assert_print_lines(
         obj,
-        'a = I.dynamic("a", dtype="int64")\n'
-        "R.Callable((T.float32, I.Any, R.Shape([1, a, 3]), T.int64), "
+        'a = T.dynamic("a", dtype="int64")\n'
+        "R.Callable((T.float32, T.Any, R.Shape([1, a, 3]), T.int64), "
         'R.Tensor((1, 2, 3), dtype="float32"), True)',
     )
 
@@ -529,7 +530,7 @@ def test_shape_type():
 
 def test_object_type():
     obj = relax.AnyType()
-    _assert_print_lines(obj, "I.Any")
+    _assert_print_lines(obj, "T.Any")
 
 
 def test_dyn_tensor_type():
@@ -546,7 +547,7 @@ def test_tuple_type():
     obj = relax.TupleType([relax.ShapeType(ndim=3), relax.AnyType()])
     _assert_print_lines(
         obj._relax_script(),  # pylint: disable=protected-access
-        "R.Tuple(R.Shape(ndim=3), I.Any)",
+        "T.Tuple(R.Shape(ndim=3), T.Any)",
     )
 
 
@@ -563,7 +564,7 @@ def test_func_type():
     )
     _assert_print_lines(
         obj._relax_script(),  # pylint: disable=protected-access
-        'R.Callable((I.Any, R.Shape(ndim=3)), R.Tensor(dtype="float32", ndim=3), True)',
+        'R.Callable((T.Any, R.Shape(ndim=3)), R.Tensor(dtype="float32", ndim=3), True)',
     )
 
 
@@ -642,8 +643,8 @@ def test_var():
     _assert_print_lines(
         obj,
         """
-x = I.dynamic("x", dtype="int64")
-a = I.Var("a", R.Tensor((1, x, 3), dtype="float32"))
+x = T.dynamic("x", dtype="int64")
+a = T.Var("a", R.Tensor((1, x, 3), dtype="float32"))
 a
 """,
     )
@@ -654,8 +655,8 @@ def test_dataflow_var():
     _assert_print_lines(
         obj,
         """
-x = I.dynamic("x", dtype="int64")
-a = I.Var("a", R.Tensor((1, x, 3), dtype="float32"))
+x = T.dynamic("x", dtype="int64")
+a = T.Var("a", R.Tensor((1, x, 3), dtype="float32"))
 a
 """,
     )
@@ -672,12 +673,12 @@ def test_tuple():
     _assert_print_lines(
         obj,
         """
-x = I.dynamic("x", dtype="int64")
-a = I.Var("a", R.Tensor((1, x, 3), dtype="float32"))
-y = I.dynamic("y", dtype="int64")
-b = I.Var("b", R.Tensor((1, y, 3), dtype="float32"))
-z = I.dynamic("z", dtype="int64")
-c = I.Var("c", R.Tensor((1, z, 3), dtype="float32"))
+x = T.dynamic("x", dtype="int64")
+a = T.Var("a", R.Tensor((1, x, 3), dtype="float32"))
+y = T.dynamic("y", dtype="int64")
+b = T.Var("b", R.Tensor((1, y, 3), dtype="float32"))
+z = T.dynamic("z", dtype="int64")
+c = T.Var("c", R.Tensor((1, z, 3), dtype="float32"))
 (a, b, c)
 """,
     )
@@ -697,12 +698,12 @@ def test_tuple_get_item():
     _assert_print_lines(
         obj,
         """
-x = I.dynamic("x", dtype="int64")
-a = I.Var("a", R.Tensor((1, x, 3), dtype="float32"))
-y = I.dynamic("y", dtype="int64")
-b = I.Var("b", R.Tensor((1, y, 3), dtype="float32"))
-z = I.dynamic("z", dtype="int64")
-c = I.Var("c", R.Tensor((1, z, 3), dtype="float32"))
+x = T.dynamic("x", dtype="int64")
+a = T.Var("a", R.Tensor((1, x, 3), dtype="float32"))
+y = T.dynamic("y", dtype="int64")
+b = T.Var("b", R.Tensor((1, y, 3), dtype="float32"))
+z = T.dynamic("z", dtype="int64")
+c = T.Var("c", R.Tensor((1, z, 3), dtype="float32"))
 (a, b, c)[0]
 """,
     )
@@ -721,16 +722,16 @@ def test_call():
     _assert_print_lines(
         o0,
         """
-x = I.dynamic("x", dtype="int64")
-a = I.Var("a", R.Tensor((1, x, 3), dtype="float32"))
+x = T.dynamic("x", dtype="int64")
+a = T.Var("a", R.Tensor((1, x, 3), dtype="float32"))
 R.call_tir(Module.tir_func, (a, x), ty_args=[R.Tensor((1, x, 3), dtype="float32")])
 """,
     )
     _assert_print_lines(
         o1,
         """
-x = I.dynamic("x", dtype="int64")
-a = I.Var("a", R.Tensor((1, x, 3), dtype="float32"))
+x = T.dynamic("x", dtype="int64")
+a = T.Var("a", R.Tensor((1, x, 3), dtype="float32"))
 R.call_dps_packed("my_dps_func", (a,), ty_args=[R.Tensor((1, x, 3), dtype="float32")])
 """,
     )
@@ -750,8 +751,8 @@ def test_call_tir_with_grad():
     _assert_print_lines(
         v1,
         """
-v0 = I.Var("v0", R.Tensor((54, 96), dtype="float32"))
-x = I.dynamic("x", dtype="int64")
+v0 = T.Var("v0", R.Tensor((54, 96), dtype="float32"))
+x = T.dynamic("x", dtype="int64")
 R.call_tir_with_grad(Module.tir_func, (v0,), ty_args=[R.Tensor((54, 96), dtype="float32")], te_grad_kwargs={"k": 1.0, "x": x}, te_grad_name="grad_func")
 """,
     )
@@ -776,10 +777,10 @@ def test_call_tir_inplace():
     _assert_print_lines(
         call,
         """
-x = I.Var("x", R.Tensor((32, 32), dtype="int32"))
-y = I.Var("y", R.Tensor((32, 32), dtype="int32"))
-t = I.dynamic("t", dtype="int64")
-R.call_tir_inplace(Module.tir_func, (x, y, t), ty_args=[R.Tuple(R.Tensor((32, 32), dtype="int32"), R.Tensor((32, 32), dtype="int32"))], inplace_indices=[-1, 0])
+x = T.Var("x", R.Tensor((32, 32), dtype="int32"))
+y = T.Var("y", R.Tensor((32, 32), dtype="int32"))
+t = T.dynamic("t", dtype="int64")
+R.call_tir_inplace(Module.tir_func, (x, y, t), ty_args=[T.Tuple(R.Tensor((32, 32), dtype="int32"), R.Tensor((32, 32), dtype="int32"))], inplace_indices=[-1, 0])
 """,
     )
 
@@ -804,8 +805,8 @@ def test_seq_expr():
     _assert_print_lines(
         obj,
         """
-x = I.dynamic("x", dtype="int64")
-a = I.Var("a", R.Tensor((1, x, 3), dtype="float32"))
+x = T.dynamic("x", dtype="int64")
+a = T.Var("a", R.Tensor((1, x, 3), dtype="float32"))
 with R.dataflow():
     b: R.Tensor((1, x, 3), dtype="float32") = R.sin(a)
     c: R.Tensor((1, x, 3), dtype="float32") = R.sin(b)
@@ -829,8 +830,8 @@ def test_binding_block():
     _assert_print_lines(
         obj,
         """
-x = I.dynamic("x", dtype="int64")
-a = I.Var("a", R.Tensor((1, x, 3), dtype="float32"))
+x = T.dynamic("x", dtype="int64")
+a = T.Var("a", R.Tensor((1, x, 3), dtype="float32"))
 b: R.Tensor((1, x, 3), dtype="float32") = R.sin(a)
 c: R.Tensor((1, x, 3), dtype="float32") = R.sin(b)
 """,
@@ -851,8 +852,8 @@ def test_dataflow_block():
     _assert_print_lines(
         obj,
         """
-x = I.dynamic("x", dtype="int64")
-a = I.Var("a", R.Tensor((1, x, 3), dtype="float32"))
+x = T.dynamic("x", dtype="int64")
+a = T.Var("a", R.Tensor((1, x, 3), dtype="float32"))
 with R.dataflow():
     b: R.Tensor((1, x, 3), dtype="float32") = R.sin(a)
     c: R.Tensor((1, x, 3), dtype="float32") = R.sin(b)
@@ -873,8 +874,8 @@ def test_match_cast():
     _assert_print_lines(
         obj,
         """
-x = I.dynamic("x", dtype="int64")
-a = I.Var("a", R.Tensor((1, x, 3), dtype="float32"))
+x = T.dynamic("x", dtype="int64")
+a = T.Var("a", R.Tensor((1, x, 3), dtype="float32"))
 b: R.Tensor((1, 5, 3), dtype="float32") = R.match_cast(a, R.Tensor((1, 5, 3), dtype="float32"))
 """,
     )
@@ -888,8 +889,8 @@ def test_var_binding():
     _assert_print_lines(
         obj,
         """
-x = I.dynamic("x", dtype="int64")
-a = I.Var("a", R.Tensor((1, x, 3), dtype="float32"))
+x = T.dynamic("x", dtype="int64")
+a = T.Var("a", R.Tensor((1, x, 3), dtype="float32"))
 b: R.Tensor((1, x, 3), dtype="float32") = R.sin(a)
 """,
     )
@@ -907,7 +908,7 @@ def test_if():
     _assert_print_lines(
         obj,
         """
-a = I.Var("a", R.Tensor((), dtype="bool"))
+a = T.Var("a", R.Tensor((), dtype="bool"))
 if a:
     b: R.Tensor((1, 2, 3), dtype="float32")
     if_result = b
@@ -927,8 +928,8 @@ def test_builtin_keywords():
     _assert_print_lines(
         obj,
         """
-x = I.dynamic("x", dtype="int64")
-R_1 = I.Var("R", R.Tensor((1, x, 3), dtype="float32"))
+x = T.dynamic("x", dtype="int64")
+R_1 = T.Var("R", R.Tensor((1, x, 3), dtype="float32"))
 T_1: R.Tensor((1, x, 3), dtype="float32") = R.sin(R_1)
 """,
     )
@@ -955,15 +956,14 @@ def test_module_cross_func_call():
         """
 from __future__ import annotations
 
-# from tvm.script import ir as I
 # from tvm.script import relax as R
 # from tvm.script import s_tir as Ts
 # from tvm.script import tirx as T
 
-@I.ir_module
+@T.ir_module
 class Module:
     @Ts.function
-    def tir_func(x: T.Tensor([T.IntImm("int64", 128)]), y: T.Tensor([T.IntImm("int64", 128)])):
+    def tir_func(x: T.Tensor((T.int64(128),), T.float32), y: T.Tensor((T.int64(128),), T.float32)):
         T.func_attr({"s_tir": True, "script.namespace": "s_tir"})
 
     @R.function
@@ -980,15 +980,14 @@ class Module:
         """
 from __future__ import annotations
 
-# from tvm.script import ir as I
 # from tvm.script import relax as R
 # from tvm.script import s_tir as Ts
 # from tvm.script import tirx as T
 
-@I.ir_module
+@T.ir_module
 class Module:
     @Ts.function
-    def tir_func(x: T.Tensor([T.IntImm("int64", 128)]), y: T.Tensor([T.IntImm("int64", 128)])):
+    def tir_func(x: T.Tensor((T.int64(128),), T.float32), y: T.Tensor((T.int64(128),), T.float32)):
         T.func_attr({"s_tir": True, "script.namespace": "s_tir"})
 
     @R.function
@@ -1012,10 +1011,10 @@ def test_assert_op():
         """
 from __future__ import annotations
 
-# from tvm.script import ir as I
 # from tvm.script import relax as R
+# from tvm.script import tirx as T
 
-@I.ir_module
+@T.ir_module
 class Module:
     @R.function(pure=False)
     def main(x: R.Tensor((), dtype="int32")) -> R.Tensor((), dtype="int32"):
@@ -1038,10 +1037,10 @@ def test_print():
         """
 from __future__ import annotations
 
-# from tvm.script import ir as I
 # from tvm.script import relax as R
+# from tvm.script import tirx as T
 
-@I.ir_module
+@T.ir_module
 class Module:
     @R.function(pure=False)
     def main(x: R.Tensor((), dtype="int32")) -> R.Tensor((), dtype="int32"):
@@ -1064,10 +1063,10 @@ def test_private_function():
         """
 from __future__ import annotations
 
-# from tvm.script import ir as I
 # from tvm.script import relax as R
+# from tvm.script import tirx as T
 
-@I.ir_module
+@T.ir_module
 class Module:
     @R.function(private=True)
     def main(x: R.Tensor((), dtype="int32")) -> R.Tensor((), dtype="int32"):
@@ -1119,10 +1118,10 @@ def test_directly_construct_private_funcs():
         """
 from __future__ import annotations
 
-# from tvm.script import ir as I
 # from tvm.script import relax as R
+# from tvm.script import tirx as T
 
-@I.ir_module
+@T.ir_module
 class Module:
     @R.function
     def foo(x: R.Tensor((), dtype="int32")) -> R.Tensor((), dtype="int32"):
@@ -1304,7 +1303,7 @@ def test_typed_add_binding_without_context_free_inference():
         'lv: R.Tensor((2, 3), dtype="float32") = R.add(x, y, ty=R.Tensor((2, 3), dtype="float32"))'
         in source
     )
-    restored = tvm.script.from_source(source, extra_vars={"I": I, "R": R})
+    restored = tvm.script.from_source(source, extra_vars={"I": I, "R": R, "T": T})
     binding = restored.body.blocks[0].bindings[0]
     assert binding.value.op.same_as(tvm.ir.Op.get("relax.add"))
     tvm.ir.assert_structural_equal(binding.var.ty, binding.value.ty)

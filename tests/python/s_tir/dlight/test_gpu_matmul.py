@@ -29,7 +29,7 @@ def test_matmul():
     m = T.dynamic("m")
 
     @Ts.function(private=True)
-    def before(inp0: T.Tensor((T.int64(1), m, T.int64(4096))), inp1: T.Tensor((T.int64(4096), T.int64(4096)), "float32"), matmul: T.Tensor((T.int64(1), m, T.int64(4096)))):
+    def before(inp0: T.Tensor((T.int64(1), m, T.int64(4096)), "float32"), inp1: T.Tensor((T.int64(4096), T.int64(4096)), "float32"), matmul: T.Tensor((T.int64(1), m, T.int64(4096)), "float32")):
 
         for i0, i1, i2, k in T.grid(T.int64(1), m, T.int64(4096), T.int64(4096)):
             with Ts.sblock("matmul"):
@@ -41,7 +41,7 @@ def test_matmul():
     m = T.dynamic("m")
 
     @Ts.function(private=True)
-    def expected(inp0: T.Tensor((T.int64(1), m, T.int64(4096))), inp1: T.Tensor((T.int64(4096), T.int64(4096)), "float32"), matmul: T.Tensor((T.int64(1), m, T.int64(4096)))):
+    def expected(inp0: T.Tensor((T.int64(1), m, T.int64(4096)), "float32"), inp1: T.Tensor((T.int64(4096), T.int64(4096)), "float32"), matmul: T.Tensor((T.int64(1), m, T.int64(4096)), "float32")):
         T.func_attr({"tirx.is_scheduled": True})
 
         # with Ts.sblock("root"):
@@ -121,7 +121,7 @@ def test_matmul_int32():
     m = T.dynamic("m", "int32")
 
     @Ts.function(private=True)
-    def func(inp0: T.Tensor((1, m, 4096)), inp1: T.Tensor((4096, 4096), "float32"), matmul: T.Tensor((1, m, 4096))):
+    def func(inp0: T.Tensor((1, m, 4096), "float32"), inp1: T.Tensor((4096, 4096), "float32"), matmul: T.Tensor((1, m, 4096), "float32")):
 
         for i0, i1, i2, k in T.grid(1, m, 4096, 4096):
             with Ts.sblock("matmul"):
@@ -133,7 +133,7 @@ def test_matmul_int32():
     m = T.dynamic("m", "int32")
 
     @Ts.function(private=True)
-    def expected(inp0: T.Tensor((1, m, 4096)), inp1: T.Tensor((4096, 4096), "float32"), matmul: T.Tensor((1, m, 4096))):
+    def expected(inp0: T.Tensor((1, m, 4096), "float32"), inp1: T.Tensor((4096, 4096), "float32"), matmul: T.Tensor((1, m, 4096), "float32")):
         T.func_attr({"tirx.is_scheduled": True})
 
         # with Ts.sblock("root"):
@@ -485,7 +485,7 @@ def test_inline_consumer_chain():
     n = T.dynamic("n")
 
     @Ts.function(private=True)
-    def before(lv26: T.Tensor((n, T.int64(2048)), 'float16'), lv9: T.Tensor((T.int64(2048), T.int64(2048)), "float16"), lv52: T.Tensor((T.int64(1), n, T.int64(2048))), var_T_multiply_intermediate: T.Tensor((n, T.int64(2048)), 'float16')):
+    def before(lv26: T.Tensor((n, T.int64(2048)), 'float16'), lv9: T.Tensor((T.int64(2048), T.int64(2048)), "float16"), lv52: T.Tensor((T.int64(1), n, T.int64(2048)), "float32"), var_T_multiply_intermediate: T.Tensor((n, T.int64(2048)), 'float16')):
         T.func_attr({"tirx.noalias": True})
 
         # with Ts.sblock("root"):
@@ -536,7 +536,7 @@ def test_inline_consumer_chain():
     n = T.dynamic("n")
 
     @Ts.function(private=True)
-    def expected(lv26: T.Tensor((n, T.int64(2048)), 'float16'), lv9: T.Tensor((T.int64(2048), T.int64(2048)), "float16"), lv52: T.Tensor((T.int64(1), n, T.int64(2048))), var_T_multiply_intermediate: T.Tensor((n, T.int64(2048)), 'float16')):
+    def expected(lv26: T.Tensor((n, T.int64(2048)), 'float16'), lv9: T.Tensor((T.int64(2048), T.int64(2048)), "float16"), lv52: T.Tensor((T.int64(1), n, T.int64(2048)), "float32"), var_T_multiply_intermediate: T.Tensor((n, T.int64(2048)), 'float16')):
         T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
 
         # with Ts.sblock("root"):
@@ -617,7 +617,7 @@ def test_matmul_android():
     m = T.dynamic("m")
 
     @Ts.function(private=True)
-    def before(inp0: T.Tensor((T.int64(1), m, T.int64(4096))), inp1: T.Tensor((T.int64(4096), T.int64(4096)), "float32"), matmul: T.Tensor((T.int64(1), m, T.int64(4096)))):
+    def before(inp0: T.Tensor((T.int64(1), m, T.int64(4096)), "float32"), inp1: T.Tensor((T.int64(4096), T.int64(4096)), "float32"), matmul: T.Tensor((T.int64(1), m, T.int64(4096)), "float32")):
 
         for i0, i1, i2, k in T.grid(T.int64(1), m, T.int64(4096), T.int64(4096)):
             with Ts.sblock("matmul"):
@@ -629,7 +629,7 @@ def test_matmul_android():
     m = T.dynamic("m")
 
     @Ts.function(private=True)
-    def expected(inp0: T.Tensor((T.int64(1), m, T.int64(4096))), inp1: T.Tensor((T.int64(4096), T.int64(4096)), "float32"), matmul: T.Tensor((T.int64(1), m, T.int64(4096)))):
+    def expected(inp0: T.Tensor((T.int64(1), m, T.int64(4096)), "float32"), inp1: T.Tensor((T.int64(4096), T.int64(4096)), "float32"), matmul: T.Tensor((T.int64(1), m, T.int64(4096)), "float32")):
         T.func_attr({"tirx.is_scheduled": True})
 
         # with Ts.sblock("root"):

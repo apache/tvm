@@ -35,7 +35,9 @@ from tvm.tirx.expr import IntImm
 
 
 @Ts.function
-def elementwise(A: T.Tensor((128, 128, 128)), B: T.Tensor((128, 128, 128))) -> None:
+def elementwise(
+    A: T.Tensor((128, 128, 128), "float32"), B: T.Tensor((128, 128, 128), "float32")
+) -> None:
     for i, j, k in T.grid(128, 128, 128):
         with Ts.sblock("B"):
             vi, vj, vk = Ts.axis.remap("SSS", [i, j, k])
@@ -44,8 +46,8 @@ def elementwise(A: T.Tensor((128, 128, 128)), B: T.Tensor((128, 128, 128))) -> N
 
 @Ts.function
 def elementwise_symbolic(
-    A: T.Tensor((128, 128, n)),  # noqa: F821
-    B: T.Tensor((128, 128, n)),  # noqa: F821
+    A: T.Tensor((128, 128, n), "float32"),  # noqa: F821
+    B: T.Tensor((128, 128, n), "float32"),  # noqa: F821
     n: T.int32,
 ) -> None:
     for i, j, k in T.grid(128, 128, n):
@@ -55,7 +57,9 @@ def elementwise_symbolic(
 
 
 @Ts.function
-def elementwise_with_anno(A: T.Tensor((128, 128, 128)), B: T.Tensor((128, 128, 128))) -> None:
+def elementwise_with_anno(
+    A: T.Tensor((128, 128, 128), "float32"), B: T.Tensor((128, 128, 128), "float32")
+) -> None:
     for i, j in T.grid(128, 128):
         for k in T.serial(0, 128, annotations={"useless_annotation": True}):
             with Ts.sblock("B"):
@@ -67,7 +71,7 @@ def elementwise_with_anno(A: T.Tensor((128, 128, 128)), B: T.Tensor((128, 128, 1
 
 @Ts.function
 def elementwise_with_thread_binding(
-    A: T.Tensor((128, 128, 128)), B: T.Tensor((128, 128, 128))
+    A: T.Tensor((128, 128, 128), "float32"), B: T.Tensor((128, 128, 128), "float32")
 ) -> None:
     for i, j in T.grid(128, 128):
         for k in T.parallel(0, 128, annotations={"thread_binding": "threadIdx.x"}):
@@ -80,7 +84,7 @@ def elementwise_with_thread_binding(
 
 @Ts.function
 def elementwise_with_opaque_block(
-    A: T.Tensor((128, 128, 128)), B: T.Tensor((128, 128, 128))
+    A: T.Tensor((128, 128, 128), "float32"), B: T.Tensor((128, 128, 128), "float32")
 ) -> None:
     for i, j, k in T.grid(128, 128, 128):
         with Ts.sblock("opaque"):
@@ -95,7 +99,7 @@ def elementwise_with_opaque_block(
 
 @Ts.function
 def elementwise_partition_with_opaque_block(
-    A: T.Tensor([128, 128, 128]), B: T.Tensor([128, 128, 128])
+    A: T.Tensor([128, 128, 128], "float32"), B: T.Tensor([128, 128, 128], "float32")
 ) -> None:
     with Ts.sblock("root"):
         Ts.reads()
@@ -132,7 +136,7 @@ def elementwise_partition_with_opaque_block(
 
 @Ts.function
 def elementwise_loop_partition_case0(
-    A: T.Tensor([128, 128, 128]), B: T.Tensor([128, 128, 128])
+    A: T.Tensor([128, 128, 128], "float32"), B: T.Tensor([128, 128, 128], "float32")
 ) -> None:
     with Ts.sblock("root"):
         Ts.reads()
@@ -210,7 +214,7 @@ def elementwise_loop_partition_case0(
 
 @Ts.function
 def elementwise_loop_partition_case1(
-    A: T.Tensor([128, 128, 128]), B: T.Tensor([128, 128, 128])
+    A: T.Tensor([128, 128, 128], "float32"), B: T.Tensor([128, 128, 128], "float32")
 ) -> None:
     with Ts.sblock("root"):
         Ts.reads()
@@ -291,7 +295,9 @@ def opaque_access(A: T.Tensor([16, 16], "float32"), B: T.Tensor([16, 16], "float
 
 
 @Ts.function
-def opaque_access_loop_partition(A: T.Tensor((16, 16)), B: T.Tensor((16, 16))) -> None:
+def opaque_access_loop_partition(
+    A: T.Tensor((16, 16), "float32"), B: T.Tensor((16, 16), "float32")
+) -> None:
     for i in range(16):
         with Ts.sblock("A_j_common"):
             Ts.reads()

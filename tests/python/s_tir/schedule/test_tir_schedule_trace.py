@@ -33,7 +33,7 @@ from tvm.script import tirx as T
 
 
 @Ts.function
-def elementwise(A: T.Tensor((128, 128)), C: T.Tensor((128, 128))) -> None:
+def elementwise(A: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "float32")) -> None:
     B = Ts.sblock_alloc_tensor((128, 128))
 
     for i, j in T.grid(128, 128):
@@ -47,7 +47,9 @@ def elementwise(A: T.Tensor((128, 128)), C: T.Tensor((128, 128))) -> None:
 
 
 @Ts.function
-def elementwise_inlined(A: T.Tensor((128, 128)), C: T.Tensor((128, 128))) -> None:
+def elementwise_inlined(
+    A: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "float32")
+) -> None:
     for i, j in T.grid(128, 128):
         with Ts.sblock("C"):
             vi, vj = Ts.axis.remap("SS", [i, j])
@@ -362,7 +364,9 @@ def _test_apply_annotation_trace_from_json(annotation: str):
     Trace.apply_json_to_schedule(json_obj, sch)
 
     @Ts.function
-    def elementwise_expected(A: T.Tensor((128, 128)), C: T.Tensor((128, 128))) -> None:
+    def elementwise_expected(
+        A: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "float32")
+    ) -> None:
         B = Ts.sblock_alloc_tensor((128, 128))
 
         for i, j in T.grid(128, 128):

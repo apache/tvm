@@ -30,7 +30,7 @@ def test_matmul_tensorize_too_small():
     m = T.dynamic("m", "int32")
 
     @Ts.function(private=True)
-    def before(X: T.Tensor((m, 256), 'float16'), W: T.Tensor((15, 256), "float16"), compute: T.Tensor((m, 15))):
+    def before(X: T.Tensor((m, 256), 'float16'), W: T.Tensor((15, 256), "float16"), compute: T.Tensor((m, 15), "float32")):
         T.func_attr({"tirx.noalias": True})
 
         # with Ts.sblock("root"):
@@ -46,7 +46,7 @@ def test_matmul_tensorize_too_small():
     m = T.dynamic("m", "int32")
 
     @Ts.function(private=True)
-    def expected(X: T.Tensor((m, 256), 'float16'), W: T.Tensor((15, 256), "float16"), compute: T.Tensor((m, 15))):
+    def expected(X: T.Tensor((m, 256), 'float16'), W: T.Tensor((15, 256), "float16"), compute: T.Tensor((m, 15), "float32")):
         T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
 
         # with Ts.sblock("root"):

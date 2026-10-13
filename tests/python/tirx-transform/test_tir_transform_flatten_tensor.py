@@ -403,7 +403,7 @@ def test_flatten_inside_block():
     class Before:
         @T.function
         def main():
-            A = T.alloc_tensor(ty_args=[T.Tensor([32, 32])])
+            A = T.alloc_tensor(ty_args=[T.Tensor([32, 32], "float32")])
             for i, j in T.grid(32, 32):
                 T.evaluate(A[i, j])
 
@@ -411,7 +411,7 @@ def test_flatten_inside_block():
     class Expected:
         @T.function
         def main():
-            A = T.alloc_tensor(ty_args=[T.Tensor([1024], layout=None)])
+            A = T.alloc_tensor(ty_args=[T.Tensor([1024], "float32", layout=None)])
             for i, j in T.grid(32, 32):
                 T.evaluate(A[i * 32 + j])
 

@@ -105,7 +105,7 @@ class Module:
 m = T.dynamic("m")
 
 @Ts.function
-def cuda_workload(inp0: T.Tensor((T.int64(1), m, T.int64(4096))), inp1: T.Tensor((T.int64(4096), T.int64(4096)), "float32"), matmul: T.Tensor((T.int64(1), m, T.int64(4096)))):
+def cuda_workload(inp0: T.Tensor((T.int64(1), m, T.int64(4096)), "float32"), inp1: T.Tensor((T.int64(4096), T.int64(4096)), "float32"), matmul: T.Tensor((T.int64(1), m, T.int64(4096)), "float32")):
     T.func_attr({"tirx.is_scheduled": True})
 
     # with Ts.sblock("root"):

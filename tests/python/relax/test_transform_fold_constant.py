@@ -194,7 +194,10 @@ def test_fold_mixed_case():
     class Module:
         # TIR function can handle different cases.
         @Ts.function
-        def addone(A: T.Tensor((n_addone, m_addone)), B: T.Tensor((n_addone, m_addone))) -> None:
+        def addone(
+            A: T.Tensor((n_addone, m_addone), "float32"),
+            B: T.Tensor((n_addone, m_addone), "float32"),
+        ) -> None:
             for i, j in T.grid(n_addone, m_addone):
                 with Ts.sblock("addone"):
                     vi, vj = Ts.axis.remap("SS", [i, j])

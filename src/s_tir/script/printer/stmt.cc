@@ -35,9 +35,19 @@ CallDoc TensorHelperCall(DocTranslatorObj* d, const Type& type, const ffi::Strin
       << "Ts." << helper << " cannot reconstruct this nonrepresentable TensorType";
   // S-TIR's allocation and matching helpers retain their public scope/align names.
   // Translate the canonical Type fields at this sugar boundary only.
+  bool has_offset = false;
+  bool has_factor = false;
   for (size_t i = 0; i < rhs->kwargs_keys.size(); ++i) {
-    if (rhs->kwargs_keys[i] == "storage_scope") rhs->kwargs_keys.Set(i, "scope");
+    has_offset |= rhs->kwargs_keys[i] == "elem_offset";
+    has_factor |= rhs->kwargs_keys[i] == "offset_factor";
     if (rhs->kwargs_keys[i] == "data_alignment") rhs->kwargs_keys.Set(i, "align");
+  }
+  // An explicit factor makes these helpers synthesize a symbolic offset.
+  // Supply the fixed zero explicitly when the type printer omitted it.
+  if (has_factor && !has_offset) {
+    rhs->kwargs_keys.push_back("elem_offset");
+    rhs->kwargs_values.push_back(
+        ReflectedValue(d, type.as_or_throw<tirx::TensorType>()->elem_offset));
   }
   rhs->callee = NamespaceDoc("s_tir")->Attr(helper);
   return rhs;

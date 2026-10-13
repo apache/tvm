@@ -40,7 +40,8 @@ ffi::Optional<ExprDoc> IntImmDocTranslate(DocTranslatorObj* d, ffi::AnyView inpu
   ExprDoc value = LiteralDoc::Int(ffi::GetRef<IntImm>(imm), std::nullopt);
   DLDataType default_dtype =
       ffi::StringToDLDataType(d->GetExtraConfig<ffi::String>("ir.int_dtype", "int32"));
-  if (dtype == default_dtype) return value;
+  if (dtype == default_dtype && !d->GetOrCreateExtraState<bool>("ir.explicit_scalar_dtype"))
+    return value;
   return NamespaceDoc("tirx")->Attr(ffi::DLDataTypeToString(dtype))->Call({value});
 }
 
@@ -57,7 +58,8 @@ ffi::Optional<ExprDoc> FloatImmDocTranslate(DocTranslatorObj* d, ffi::AnyView in
   DLDataType default_dtype =
       ffi::StringToDLDataType(d->GetExtraConfig<ffi::String>("ir.float_dtype", "void"));
   ExprDoc value = LiteralDoc::Float(imm->value, std::nullopt);
-  if (dtype == default_dtype) return value;
+  if (dtype == default_dtype && !d->GetOrCreateExtraState<bool>("ir.explicit_scalar_dtype"))
+    return value;
   return NamespaceDoc("tirx")->Attr(ffi::DLDataTypeToString(dtype))->Call({value});
 }
 
@@ -122,23 +124,14 @@ ffi::Optional<ExprDoc> TupleTypeDocTranslate(DocTranslatorObj* d, ffi::AnyView i
                                              const ffi::Object*) {
   const auto* ty =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const TupleTypeNode>(input);
+  ExprDoc callee = NamespaceDoc("ir")->Attr("Tuple");
   if (ty->fields.empty()) {
-    ExprDoc doc = NamespaceDoc("relax")->Attr("Tuple");
-    return d->GetOrCreateExtraState<bool>("ir.type_value") ? doc->Call({}) : doc;
+    return d->GetOrCreateExtraState<bool>("ir.type_value") ? callee->Call({}) : callee;
   }
   ExtraStateScope<bool> annotations(d, "ir.type_value", false);
   ffi::Array<ExprDoc> fields;
   for (const Type& field : ty->fields) fields.push_back(d->Translate(field).value());
-  std::function<bool(const Type&)> is_primitive = [&](const Type& field) {
-    if (field.as<PrimType>() || field.as<PtrType>()) return true;
-    if (const auto* tuple = field.as<TupleTypeNode>()) {
-      return std::all_of(tuple->fields.begin(), tuple->fields.end(), is_primitive);
-    }
-    return false;
-  };
-  bool primitive = std::all_of(ty->fields.begin(), ty->fields.end(), is_primitive);
-  return (primitive ? NamespaceDoc("tirx")->Attr("Tuple") : NamespaceDoc("relax")->Attr("Tuple"))
-      ->Call(fields);
+  return callee->Call(fields);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

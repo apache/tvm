@@ -734,7 +734,7 @@ def test_power_symbolic():
     @tvm.script.ir_module
     class Expected:
         @Ts.function(private=True)
-        def power(rxplaceholder: T.Tensor((T.int64(1), c_power, d_power)), rxplaceholder_1: T.Tensor((a_power, b_power, c_power, T.int64(1))), T_power: T.Tensor((a_power, b_power, c_power, d_power))):
+        def power(rxplaceholder: T.Tensor((T.int64(1), c_power, d_power), "float32"), rxplaceholder_1: T.Tensor((a_power, b_power, c_power, T.int64(1)), "float32"), T_power: T.Tensor((a_power, b_power, c_power, d_power), "float32")):
             T.func_attr({"tirx.noalias": True})
 
             # with Ts.sblock("root"):
@@ -852,7 +852,7 @@ def test_atan2_symbolic():
     @tvm.script.ir_module
     class Expected:
         @Ts.function(private=True)
-        def atan2(rxplaceholder: T.Tensor((T.int64(1), c_atan2, d_atan2)), rxplaceholder_1: T.Tensor((a_atan2, b_atan2, c_atan2, T.int64(1))), T_atan2: T.Tensor((a_atan2, b_atan2, c_atan2, d_atan2))):
+        def atan2(rxplaceholder: T.Tensor((T.int64(1), c_atan2, d_atan2), "float32"), rxplaceholder_1: T.Tensor((a_atan2, b_atan2, c_atan2, T.int64(1)), "float32"), T_atan2: T.Tensor((a_atan2, b_atan2, c_atan2, d_atan2), "float32")):
             T.func_attr({"tirx.noalias": True})
 
             for ax0, ax1, ax2, ax3 in T.grid(a_atan2, b_atan2, c_atan2, d_atan2):

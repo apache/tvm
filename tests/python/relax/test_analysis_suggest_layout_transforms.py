@@ -264,7 +264,7 @@ def test_op_elemwise_symbolic():
     W = T.dynamic("W")
 
     @Ts.function(private=True)
-    def before(Arg: T.Tensor((N, C, H, W)), Relu: T.Tensor((N, C, H, W))):
+    def before(Arg: T.Tensor((N, C, H, W), "float32"), Relu: T.Tensor((N, C, H, W), "float32")):
         for i0, i1, i2, i3 in T.grid(N, C, H, W):
             with Ts.sblock("compute"):
                 v_i0, v_i1, v_i2, v_i3 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
@@ -278,7 +278,7 @@ def test_op_elemwise_symbolic():
     W = T.dynamic("W")
 
     @Ts.function(private=True)
-    def expected(Arg: T.Tensor((N, H, W, C)), Relu: T.Tensor((N, H, W, C))):
+    def expected(Arg: T.Tensor((N, H, W, C), "float32"), Relu: T.Tensor((N, H, W, C), "float32")):
         # with Ts.sblock("root"):
         for ax0, ax1, ax2, ax3 in T.grid(N, H, W, C):
             with Ts.sblock("compute"):

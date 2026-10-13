@@ -186,7 +186,7 @@ def test_conv1d_symbolic():
             return gv
 
         @Ts.function(private=True)
-        def conv1d(rxplaceholder: T.Tensor((n_conv1d, c_conv1d, w_conv1d)), rxplaceholder_1: T.Tensor((f_conv1d, c_conv1d, kw_conv1d)), conv1d_ncw: T.Tensor((n_conv1d, f_conv1d, w_conv1d + T.int64(1) - kw_conv1d))):
+        def conv1d(rxplaceholder: T.Tensor((n_conv1d, c_conv1d, w_conv1d), "float32"), rxplaceholder_1: T.Tensor((f_conv1d, c_conv1d, kw_conv1d), "float32"), conv1d_ncw: T.Tensor((n_conv1d, f_conv1d, w_conv1d + T.int64(1) - kw_conv1d), "float32")):
             T.func_attr({"tirx.noalias": True})
 
             # with Ts.sblock("root"):
@@ -473,7 +473,7 @@ def test_conv2d_symbolic_group():
             return gv
 
         @Ts.function(private=True)
-        def conv2d(x: T.Tensor((n_conv2d, c_conv2d, T.int64(28), T.int64(28))), w: T.Tensor((f_conv2d, c_div_8_conv2d, T.int64(3), T.int64(3))), group_conv2d_nchw: T.Tensor((n_conv2d, f_conv2d, T.int64(26), T.int64(26)))):
+        def conv2d(x: T.Tensor((n_conv2d, c_conv2d, T.int64(28), T.int64(28)), "float32"), w: T.Tensor((f_conv2d, c_div_8_conv2d, T.int64(3), T.int64(3)), "float32"), group_conv2d_nchw: T.Tensor((n_conv2d, f_conv2d, T.int64(26), T.int64(26)), "float32")):
             T.func_attr({"tirx.noalias": True})
 
             pad_temp = Ts.sblock_alloc_tensor((n_conv2d, c_conv2d, T.int64(28), T.int64(28)))
@@ -755,7 +755,7 @@ def test_conv2d_transpose_symbolic():
             return gv
 
         @Ts.function(private=True)
-        def conv2d_transpose(rxplaceholder: T.Tensor((n_conv2d_transpose, c_conv2d_transpose, h_conv2d_transpose, w_conv2d_transpose)), rxplaceholder_1: T.Tensor((f_conv2d_transpose, c_conv2d_transpose, kh_conv2d_transpose, kw_conv2d_transpose)), compute: T.Tensor((n_conv2d_transpose, c_conv2d_transpose, h_conv2d_transpose * T.int64(3) + kh_conv2d_transpose - T.int64(3), w_conv2d_transpose * T.int64(3) + kw_conv2d_transpose - T.int64(3)))):
+        def conv2d_transpose(rxplaceholder: T.Tensor((n_conv2d_transpose, c_conv2d_transpose, h_conv2d_transpose, w_conv2d_transpose), "float32"), rxplaceholder_1: T.Tensor((f_conv2d_transpose, c_conv2d_transpose, kh_conv2d_transpose, kw_conv2d_transpose), "float32"), compute: T.Tensor((n_conv2d_transpose, c_conv2d_transpose, h_conv2d_transpose * T.int64(3) + kh_conv2d_transpose - T.int64(3), w_conv2d_transpose * T.int64(3) + kw_conv2d_transpose - T.int64(3)), "float32")):
             T.func_attr({"tirx.noalias": True})
 
             # with Ts.sblock("root"):
@@ -1379,7 +1379,7 @@ def test_leakyrelu_symbolic():
             return gv
 
         @Ts.function(private=True)
-        def leaky_relu(x: T.Tensor((m_leaky_relu, n_leaky_relu)), compute: T.Tensor((m_leaky_relu, n_leaky_relu))):
+        def leaky_relu(x: T.Tensor((m_leaky_relu, n_leaky_relu), "float32"), compute: T.Tensor((m_leaky_relu, n_leaky_relu), "float32")):
             T.func_attr({"tirx.noalias": True})
 
             for i0, i1 in T.grid(m_leaky_relu, n_leaky_relu):
@@ -1455,7 +1455,7 @@ def test_prelu_symbolic():
             return gv
 
         @Ts.function(private=True)
-        def prelu(x: T.Tensor((m_prelu, T.int64(7))), y: T.Tensor((T.int64(1),), "float32"), compute: T.Tensor((m_prelu, T.int64(7)))):
+        def prelu(x: T.Tensor((m_prelu, T.int64(7)), "float32"), y: T.Tensor((T.int64(1),), "float32"), compute: T.Tensor((m_prelu, T.int64(7)), "float32")):
             T.func_attr({"tirx.noalias": True})
 
             # with Ts.sblock("root"):
@@ -1562,7 +1562,7 @@ def test_gelu_symbolic():
             return gv
 
         @Ts.function(private=True)
-        def gelu(x: T.Tensor((m_gelu, n_gelu)), T_multiply: T.Tensor((m_gelu, n_gelu))):
+        def gelu(x: T.Tensor((m_gelu, n_gelu), "float32"), T_multiply: T.Tensor((m_gelu, n_gelu), "float32")):
             T.func_attr({"tirx.noalias": True})
 
             T_multiply_1 = Ts.sblock_alloc_tensor((m_gelu, n_gelu))
@@ -1716,7 +1716,7 @@ def test_gelu_tanh_symbolic():
             return gv
 
         @Ts.function(private=True)
-        def gelu_tanh(A: T.Tensor((m_gelu_tanh, n_gelu_tanh)), T_multiply: T.Tensor((m_gelu_tanh, n_gelu_tanh))):
+        def gelu_tanh(A: T.Tensor((m_gelu_tanh, n_gelu_tanh), "float32"), T_multiply: T.Tensor((m_gelu_tanh, n_gelu_tanh), "float32")):
             T.func_attr({"tirx.noalias": True})
 
             # with Ts.sblock("root"):
@@ -2234,7 +2234,7 @@ def test_cross_entropy_with_logits_batch_symbolic():
             return gv
 
         @Ts.function(private=True)
-        def cross_entropy_with_logits(x: T.Tensor((n_cross_entropy_with_logits, m_cross_entropy_with_logits)), y: T.Tensor((n_cross_entropy_with_logits, m_cross_entropy_with_logits)), T_divide: T.Tensor((), "float32")):
+        def cross_entropy_with_logits(x: T.Tensor((n_cross_entropy_with_logits, m_cross_entropy_with_logits), "float32"), y: T.Tensor((n_cross_entropy_with_logits, m_cross_entropy_with_logits), "float32"), T_divide: T.Tensor((), "float32")):
             T.func_attr({"tirx.noalias": True})
 
             T_multiply = Ts.sblock_alloc_tensor((n_cross_entropy_with_logits, m_cross_entropy_with_logits))
@@ -2282,7 +2282,7 @@ def test_batch_norm():
     @tvm.script.ir_module
     class Expected:
         @Ts.function(private=True)
-        def batch_norm(x: T.Tensor((T.int64(2), T.int64(3), T.int64(28), T.int64(28))), gamma: T.Tensor((T.int64(3),)), beta: T.Tensor((T.int64(3),)), moving_mean: T.Tensor((T.int64(3),)), moving_var: T.Tensor((T.int64(3),)), T_add: T.Tensor((T.int64(2), T.int64(3), T.int64(28), T.int64(28))), T_add_1: T.Tensor((T.int64(3),)), T_add_2: T.Tensor((T.int64(3),))):
+        def batch_norm(x: T.Tensor((T.int64(2), T.int64(3), T.int64(28), T.int64(28)), "float32"), gamma: T.Tensor((T.int64(3),), "float32"), beta: T.Tensor((T.int64(3),), "float32"), moving_mean: T.Tensor((T.int64(3),), "float32"), moving_var: T.Tensor((T.int64(3),), "float32"), T_add: T.Tensor((T.int64(2), T.int64(3), T.int64(28), T.int64(28)), "float32"), T_add_1: T.Tensor((T.int64(3),), "float32"), T_add_2: T.Tensor((T.int64(3),), "float32")):
             T.func_attr({"tirx.noalias": True})
 
             with Ts.sblock("root"):
@@ -2578,7 +2578,7 @@ def test_batch_norm_symbolic():
     @tvm.script.ir_module
     class Expected:
         @Ts.function(private=True)
-        def batch_norm(x: T.Tensor((n_batch_norm, h_batch_norm, w_batch_norm, c_batch_norm)), gamma: T.Tensor((c_batch_norm,)), beta: T.Tensor((c_batch_norm,)), moving_mean: T.Tensor((c_batch_norm,)), moving_var: T.Tensor((c_batch_norm,)), T_add: T.Tensor((n_batch_norm, h_batch_norm, w_batch_norm, c_batch_norm)), T_add_1: T.Tensor((T.max(c_batch_norm, h_batch_norm),)), T_add_2: T.Tensor((T.max(c_batch_norm, h_batch_norm),))):
+        def batch_norm(x: T.Tensor((n_batch_norm, h_batch_norm, w_batch_norm, c_batch_norm), "float32"), gamma: T.Tensor((c_batch_norm,), "float32"), beta: T.Tensor((c_batch_norm,), "float32"), moving_mean: T.Tensor((c_batch_norm,), "float32"), moving_var: T.Tensor((c_batch_norm,), "float32"), T_add: T.Tensor((n_batch_norm, h_batch_norm, w_batch_norm, c_batch_norm), "float32"), T_add_1: T.Tensor((T.max(c_batch_norm, h_batch_norm),), "float32"), T_add_2: T.Tensor((T.max(c_batch_norm, h_batch_norm),), "float32")):
             T.func_attr({"tirx.noalias": True})
 
             with Ts.sblock("root"):
@@ -3056,7 +3056,7 @@ def test_layer_norm_symbolic():
             return gv
 
         @Ts.function(private=True)
-        def layer_norm(x: T.Tensor((n_layer_norm, s_layer_norm, f_layer_norm)), gamma: T.Tensor((s_layer_norm, f_layer_norm)), beta: T.Tensor((s_layer_norm, f_layer_norm)), T_layer_norm: T.Tensor((n_layer_norm, s_layer_norm, f_layer_norm))):
+        def layer_norm(x: T.Tensor((n_layer_norm, s_layer_norm, f_layer_norm), "float32"), gamma: T.Tensor((s_layer_norm, f_layer_norm), "float32"), beta: T.Tensor((s_layer_norm, f_layer_norm), "float32"), T_layer_norm: T.Tensor((n_layer_norm, s_layer_norm, f_layer_norm), "float32")):
             T.func_attr({"tirx.noalias": True})
 
             # with Ts.sblock("root"):
@@ -3276,7 +3276,7 @@ def test_group_norm_symbolic():
         group_norm_c = T.int64()
 
         @Ts.function(private=True)
-        def group_norm(rxplaceholder: T.Tensor((n_group_norm, T.int64(4) * group_norm_c, h_group_norm, w_group_norm)), rxplaceholder_1: T.Tensor((T.int64(4) * group_norm_c,)), rxplaceholder_2: T.Tensor((T.int64(4) * group_norm_c,)), c: group_norm_c, T_reshape: T.Tensor((n_group_norm, T.int64(4) * group_norm_c, h_group_norm, w_group_norm))):
+        def group_norm(rxplaceholder: T.Tensor((n_group_norm, T.int64(4) * group_norm_c, h_group_norm, w_group_norm), "float32"), rxplaceholder_1: T.Tensor((T.int64(4) * group_norm_c,), "float32"), rxplaceholder_2: T.Tensor((T.int64(4) * group_norm_c,), "float32"), c: group_norm_c, T_reshape: T.Tensor((n_group_norm, T.int64(4) * group_norm_c, h_group_norm, w_group_norm), "float32")):
             T.func_attr({"tirx.noalias": True})
 
             # with Ts.sblock("root"):
@@ -3513,7 +3513,7 @@ def test_rms_norm_symbolic():
     @tvm.script.ir_module
     class Expected:
         @Ts.function(private=True)
-        def rms_norm(A: T.Tensor((n_rms_norm, s_rms_norm, f_rms_norm)), B: T.Tensor((s_rms_norm, f_rms_norm)), T_cast: T.Tensor((n_rms_norm, s_rms_norm, f_rms_norm))):
+        def rms_norm(A: T.Tensor((n_rms_norm, s_rms_norm, f_rms_norm), "float32"), B: T.Tensor((s_rms_norm, f_rms_norm), "float32"), T_cast: T.Tensor((n_rms_norm, s_rms_norm, f_rms_norm), "float32")):
             T.func_attr({"tirx.noalias": True})
 
             # with Ts.sblock("root"):
@@ -4076,7 +4076,7 @@ def test_nll_no_batch():
             return gv
 
         @Ts.function(private=True)
-        def nll_loss(rxplaceholder_1: T.Tensor((C_nll_loss,)), rxplaceholder: T.Tensor((), "int64"), rxplaceholder_2: T.Tensor((C_nll_loss,)), T_divide: T.Tensor((), "float32")):
+        def nll_loss(rxplaceholder_1: T.Tensor((C_nll_loss,), "float32"), rxplaceholder: T.Tensor((), "int64"), rxplaceholder_2: T.Tensor((C_nll_loss,), "float32"), T_divide: T.Tensor((), "float32")):
             T.func_attr({"tirx.noalias": True})
 
             # with Ts.sblock("root"):

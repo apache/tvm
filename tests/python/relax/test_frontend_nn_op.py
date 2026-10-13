@@ -1029,7 +1029,7 @@ def test_sample_top_p_top_k_from_sorted_prob():
     @I.ir_module
     class Expected:
         @Ts.function(private=True)
-        def get_index_from_sorted(cumsum_sorted: T.Tensor((batch_get_index_from_sorted, vocab_size_get_index_from_sorted)), indices: T.Tensor((batch_get_index_from_sorted, vocab_size_get_index_from_sorted), 'int64'), renorm_prob: T.Tensor((batch_get_index_from_sorted, 1)), usample: T.Tensor((out_batch, 1)), sample_indices: T.Tensor((out_batch, 1), 'int64'), output_index: T.Tensor((out_batch, 1), 'int64')):
+        def get_index_from_sorted(cumsum_sorted: T.Tensor((batch_get_index_from_sorted, vocab_size_get_index_from_sorted), "float32"), indices: T.Tensor((batch_get_index_from_sorted, vocab_size_get_index_from_sorted), 'int64'), renorm_prob: T.Tensor((batch_get_index_from_sorted, 1), "float32"), usample: T.Tensor((out_batch, 1), "float32"), sample_indices: T.Tensor((out_batch, 1), 'int64'), output_index: T.Tensor((out_batch, 1), 'int64')):
 
             # with Ts.sblock("root"):
             for ax0, ax1 in T.grid(out_batch, vocab_size_get_index_from_sorted):
@@ -1045,7 +1045,7 @@ def test_sample_top_p_top_k_from_sorted_prob():
                                 output_index[v_ax0, 0] = indices[sample_indices[v_ax0, T.int64(0)], v_ax1]
 
         @Ts.function(private=True)
-        def get_renorm_prob(cumsum_sorted: T.Tensor((batch_get_renorm_prob, vocab_size_get_renorm_prob)), top_p: T.Tensor((batch_get_renorm_prob, 1)), top_k: T.Tensor((batch_get_renorm_prob, 1), 'int64'), renorm_prob: T.Tensor((batch_get_renorm_prob, 1))):
+        def get_renorm_prob(cumsum_sorted: T.Tensor((batch_get_renorm_prob, vocab_size_get_renorm_prob), "float32"), top_p: T.Tensor((batch_get_renorm_prob, 1), "float32"), top_k: T.Tensor((batch_get_renorm_prob, 1), 'int64'), renorm_prob: T.Tensor((batch_get_renorm_prob, 1), "float32")):
 
             # with Ts.sblock("root"):
             for ax0, ax1 in T.grid(batch_get_renorm_prob, vocab_size_get_renorm_prob):
@@ -1162,7 +1162,7 @@ def test_renormalize_top_p_top_k_prob():
                     filter_with_top_p_top_k[v_i, v_j] = T.Select(B[v_i, T.int64(0)] <= A[v_i, v_j], A[v_i, v_j], T.float32(0))
 
         @Ts.function(private=True)
-        def get_renorm_cutoff(sorted_prob: T.Tensor((batch, vocab_size)), cumsum_sorted: T.Tensor((batch, vocab_size)), top_p: T.Tensor((batch, 1)), top_k: T.Tensor((batch, 1), 'int64'), cutoff: T.Tensor((batch, 1))):
+        def get_renorm_cutoff(sorted_prob: T.Tensor((batch, vocab_size), "float32"), cumsum_sorted: T.Tensor((batch, vocab_size), "float32"), top_p: T.Tensor((batch, 1), "float32"), top_k: T.Tensor((batch, 1), 'int64'), cutoff: T.Tensor((batch, 1), "float32")):
 
             # with Ts.sblock("root"):
             for ax0, ax1 in T.grid(batch, vocab_size):

@@ -32,7 +32,7 @@ def test_gemv_basic():
     n = T.dynamic("n", "int32")
 
     @Ts.function(private=True)
-    def before(lv1637: T.Tensor((1, 32, 1, 128), "float16"), lv1638: T.Tensor((1, 32, n, 128), 'float16'), lv1614: T.Tensor((1, 1, 1, n), 'float16'), var_compute_intermediate: T.Tensor((1, 32, 1, n))):
+    def before(lv1637: T.Tensor((1, 32, 1, 128), "float16"), lv1638: T.Tensor((1, 32, n, 128), 'float16'), lv1614: T.Tensor((1, 1, 1, n), 'float16'), var_compute_intermediate: T.Tensor((1, 32, 1, n), "float32")):
         T.func_attr({"tirx.noalias": True})
 
         # with Ts.sblock("root"):
@@ -76,7 +76,7 @@ def test_gemv_basic():
     n = T.dynamic("n", "int32")
 
     @Ts.function(private=True)
-    def expected(lv1637: T.Tensor((1, 32, 1, 128), "float16"), lv1638: T.Tensor((1, 32, n, 128), 'float16'), lv1614: T.Tensor((1, 1, 1, n), 'float16'), var_compute_intermediate: T.Tensor((1, 32, 1, n))):
+    def expected(lv1637: T.Tensor((1, 32, 1, 128), "float16"), lv1638: T.Tensor((1, 32, n, 128), 'float16'), lv1614: T.Tensor((1, 1, 1, n), 'float16'), var_compute_intermediate: T.Tensor((1, 32, 1, n), "float32")):
         T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
 
         # with Ts.sblock("root"):
@@ -436,7 +436,7 @@ def test_outer_reduction_adreno_dynamic():
     v = T.dynamic("v")
 
     @Ts.function(private=True)
-    def before(lv612: T.Tensor((T.int64(512), v), 'uint32'), lv613: T.Tensor((T.int64(128), v), 'float16'), lv1607: T.Tensor((T.int64(1), T.int64(1), T.int64(4096)), "float16"), p_output0_intermediate: T.Tensor((T.int64(1), T.int64(1), v))):
+    def before(lv612: T.Tensor((T.int64(512), v), 'uint32'), lv613: T.Tensor((T.int64(128), v), 'float16'), lv1607: T.Tensor((T.int64(1), T.int64(1), T.int64(4096)), "float16"), p_output0_intermediate: T.Tensor((T.int64(1), T.int64(1), v), "float32")):
         T.func_attr({"tirx.noalias": True})
 
         # with Ts.sblock("root"):
@@ -466,7 +466,7 @@ def test_outer_reduction_adreno_dynamic():
     v = T.dynamic("v")
 
     @Ts.function(private=True)
-    def expected(lv612: T.Tensor((T.int64(512), v), 'uint32'), lv613: T.Tensor((T.int64(128), v), 'float16'), lv1607: T.Tensor((T.int64(1), T.int64(1), T.int64(4096)), "float16"), p_output0_intermediate: T.Tensor((T.int64(1), T.int64(1), v))):
+    def expected(lv612: T.Tensor((T.int64(512), v), 'uint32'), lv613: T.Tensor((T.int64(128), v), 'float16'), lv1607: T.Tensor((T.int64(1), T.int64(1), T.int64(4096)), "float16"), p_output0_intermediate: T.Tensor((T.int64(1), T.int64(1), v), "float32")):
         T.func_attr({"tirx.noalias": True})
 
         # with Ts.sblock("root"):

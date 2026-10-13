@@ -48,17 +48,54 @@ ffi::Optional<ExprDoc> TensorTypeDocTranslate(DocTranslatorObj* d, ffi::AnyView 
     return NamespaceDoc("ir")
         ->Attr("make_node")
         ->Call({LiteralDoc::Str("tirx.TensorType", std::nullopt)},
-               {"dtype", "storage_scope", "shape", "strides", "elem_offset", "data_alignment",
+               {"dtype", "scope", "shape", "strides", "elem_offset", "data_alignment",
                 "offset_factor", "layout"},
                {TypeValue(d, tensor->dtype, false),
                 LiteralDoc::Str(tensor->storage_scope, std::nullopt), AnyValue(d, tensor->shape),
-                AnyValue(d, tensor->strides), d->Translate(tensor->elem_offset).value(),
+                AnyValue(d, tensor->strides), ReflectedValue(d, tensor->elem_offset),
                 LiteralDoc::Int(tensor->data_alignment, std::nullopt),
                 LiteralDoc::Int(tensor->offset_factor, std::nullopt),
                 tensor->layout.has_value() ? d->Translate(tensor->layout.value()).value()
                                            : LiteralDoc::None(std::nullopt)});
   }
-  return d->DefaultTypeTranslate(ffi::GetRef<tirx::TensorType>(tensor));
+  ffi::Array<ExprDoc> shape;
+  for (const PrimExpr& dim : tensor->shape) {
+    // Python integer shape inputs use the shared PrimExpr conversion (int32).
+    if (const auto* imm = dim.as<IntImmNode>();
+        imm && imm->ty.as_or_throw<PrimType>()->dtype == PrimType::Int(32)->dtype) {
+      ExprDoc literal = LiteralDoc::Int(ffi::GetRef<IntImm>(imm), std::nullopt);
+      d->RecordOrigin(literal, dim);
+      shape.push_back(literal);
+    } else if (dim.as<IntImmNode>()) {
+      shape.push_back(ReflectedValue(d, dim));
+    } else {
+      ExtraStateScope<bool> scalar_context(d, "ir.explicit_scalar_dtype", false);
+      shape.push_back(d->Translate(dim).value());
+    }
+  }
+  ExtraStateScope<bool> annotation(d, "ir.type_value", false);
+  ffi::Array<ExprDoc> args{TupleDoc(shape), d->Translate(tensor->dtype).value()};
+  ffi::Array<ffi::String> keys;
+  ffi::Array<ExprDoc> values;
+  auto optional = [&](const char* key, ExprDoc value) {
+    keys.push_back(key);
+    values.push_back(value);
+  };
+  if (tensor->storage_scope != "global") {
+    optional("scope", LiteralDoc::Str(tensor->storage_scope, std::nullopt));
+  }
+  if (!tensor->strides.empty()) optional("strides", ReflectedValue(d, tensor->strides));
+  if (!ffi::StructuralEqual()(tensor->elem_offset, IntImm(tirx::DefaultIndexPrimType(), 0))) {
+    optional("elem_offset", ReflectedValue(d, tensor->elem_offset));
+  }
+  if (tensor->data_alignment != static_cast<int>(runtime::kAllocAlignment)) {
+    optional("data_alignment", LiteralDoc::Int(tensor->data_alignment, std::nullopt));
+  }
+  if (tensor->offset_factor != 1) {
+    optional("offset_factor", LiteralDoc::Int(tensor->offset_factor, std::nullopt));
+  }
+  if (tensor->layout.has_value()) optional("layout", d->Translate(tensor->layout.value()).value());
+  return NamespaceDoc("tirx")->Attr("Tensor")->Call(args, keys, values);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

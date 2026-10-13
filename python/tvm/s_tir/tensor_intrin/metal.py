@@ -43,7 +43,11 @@ def get_make_filled_simdgroup_matrix_intrin(
     dtype: str, col: int = 8, row: int = 8
 ) -> tuple[Function, Function]:
     @Ts.function
-    def desc(A: T.Tensor((col, row), dtype, scope="metal.simdgroup", offset_factor=1)) -> None:
+    def desc(
+        A: T.Tensor(
+            (col, row), dtype, scope="metal.simdgroup", offset_factor=1, elem_offset=T.int32()
+        ),
+    ) -> None:
         with Ts.sblock("root"):
             Ts.reads()
             Ts.writes(A[0:col, 0:row])
@@ -57,7 +61,14 @@ def get_make_filled_simdgroup_matrix_intrin(
 
     @Ts.function
     def impl(
-        A: T.Tensor((col, row), dtype, scope="metal.simdgroup", strides=[d1, d0], offset_factor=1),
+        A: T.Tensor(
+            (col, row),
+            dtype,
+            scope="metal.simdgroup",
+            strides=[d1, d0],
+            offset_factor=1,
+            elem_offset=T.int32(),
+        ),
     ) -> None:
         with Ts.sblock("root"):
             Ts.reads()
@@ -84,8 +95,17 @@ def get_simdgroup_load_intrin(
 
     @Ts.function
     def desc(
-        A: T.Tensor((col, row), dtype, align=align, scope=scope, offset_factor=1),
-        C: T.Tensor((col, row), dtype, align=align, scope="metal.simdgroup", offset_factor=1),
+        A: T.Tensor(
+            (col, row), dtype, align=align, scope=scope, offset_factor=1, elem_offset=T.int32()
+        ),
+        C: T.Tensor(
+            (col, row),
+            dtype,
+            align=align,
+            scope="metal.simdgroup",
+            offset_factor=1,
+            elem_offset=T.int32(),
+        ),
     ) -> None:
         with Ts.sblock("root"):
             Ts.reads(A[0:col, 0:row])
@@ -106,7 +126,15 @@ def get_simdgroup_load_intrin(
 
     @Ts.function
     def impl(
-        A: T.Tensor((col, row), dtype, align=align, scope=scope, strides=[s1, s0], offset_factor=1),
+        A: T.Tensor(
+            (col, row),
+            dtype,
+            align=align,
+            scope=scope,
+            strides=[s1, s0],
+            offset_factor=1,
+            elem_offset=T.int32(),
+        ),
         C: T.Tensor(
             (col, row),
             dtype,
@@ -114,6 +142,7 @@ def get_simdgroup_load_intrin(
             scope="metal.simdgroup",
             strides=[d1, d0],
             offset_factor=1,
+            elem_offset=T.int32(),
         ),
     ) -> None:
         with Ts.sblock("root"):
@@ -143,8 +172,17 @@ def get_simdgroup_store_intrin(
 
     @Ts.function
     def desc(
-        A: T.Tensor((col, row), dtype, align=align, scope="metal.simdgroup", offset_factor=1),
-        C: T.Tensor((col, row), dtype, align=align, scope=scope, offset_factor=1),
+        A: T.Tensor(
+            (col, row),
+            dtype,
+            align=align,
+            scope="metal.simdgroup",
+            offset_factor=1,
+            elem_offset=T.int32(),
+        ),
+        C: T.Tensor(
+            (col, row), dtype, align=align, scope=scope, offset_factor=1, elem_offset=T.int32()
+        ),
     ) -> None:
         with Ts.sblock("root"):
             Ts.reads(A[0:col, 0:row])
@@ -171,8 +209,17 @@ def get_simdgroup_store_intrin(
             scope="metal.simdgroup",
             strides=[s1, s0],
             offset_factor=1,
+            elem_offset=T.int32(),
         ),
-        C: T.Tensor((col, row), dtype, align=align, scope=scope, strides=[d1, d0], offset_factor=1),
+        C: T.Tensor(
+            (col, row),
+            dtype,
+            align=align,
+            scope=scope,
+            strides=[d1, d0],
+            offset_factor=1,
+            elem_offset=T.int32(),
+        ),
     ) -> None:
         with Ts.sblock("root"):
             Ts.reads(A[0:col, 0:row])
@@ -195,9 +242,15 @@ def get_simdgroup_multiply_accumulate_intrin(
 ) -> tuple[Function, Function]:
     @Ts.function
     def desc(
-        A: T.Tensor((m_dim, k_dim), dtype, scope="metal.simdgroup", offset_factor=1),
-        B: T.Tensor((k_dim, n_dim), dtype, scope="metal.simdgroup", offset_factor=1),
-        C: T.Tensor((m_dim, n_dim), dtype, scope="metal.simdgroup", offset_factor=1),
+        A: T.Tensor(
+            (m_dim, k_dim), dtype, scope="metal.simdgroup", offset_factor=1, elem_offset=T.int32()
+        ),
+        B: T.Tensor(
+            (k_dim, n_dim), dtype, scope="metal.simdgroup", offset_factor=1, elem_offset=T.int32()
+        ),
+        C: T.Tensor(
+            (m_dim, n_dim), dtype, scope="metal.simdgroup", offset_factor=1, elem_offset=T.int32()
+        ),
     ) -> None:
         with Ts.sblock("root"):
             Ts.reads(C[0:m_dim, 0:n_dim], A[0:m_dim, 0:k_dim], B[0:k_dim, 0:n_dim])
@@ -217,13 +270,28 @@ def get_simdgroup_multiply_accumulate_intrin(
     @Ts.function
     def impl(
         A: T.Tensor(
-            (m_dim, k_dim), dtype, scope="metal.simdgroup", strides=[a1, a0], offset_factor=1
+            (m_dim, k_dim),
+            dtype,
+            scope="metal.simdgroup",
+            strides=[a1, a0],
+            offset_factor=1,
+            elem_offset=T.int32(),
         ),
         B: T.Tensor(
-            (k_dim, n_dim), dtype, scope="metal.simdgroup", strides=[b1, b0], offset_factor=1
+            (k_dim, n_dim),
+            dtype,
+            scope="metal.simdgroup",
+            strides=[b1, b0],
+            offset_factor=1,
+            elem_offset=T.int32(),
         ),
         C: T.Tensor(
-            (m_dim, n_dim), dtype, scope="metal.simdgroup", strides=[c1, c0], offset_factor=1
+            (m_dim, n_dim),
+            dtype,
+            scope="metal.simdgroup",
+            strides=[c1, c0],
+            offset_factor=1,
+            elem_offset=T.int32(),
         ),
     ) -> None:
         with Ts.sblock("root"):
