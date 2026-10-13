@@ -21,6 +21,11 @@ The instruction spells the shape and multicast. Shared ldo/sdo/swizzle are
 explicit descriptor fields. Destination replicas describe the hardware's
 multicast copies; no shape selection, layout permutation, or synchronization
 is performed here.
+
+The optional b8x16.b4x16_p64 / b8x16.b6x16_p32 qualifiers keep this b32
+footprint: each 16-byte source block contains sixteen packed values followed
+by padding, and the destination contains sixteen expanded bytes. Hardware
+performs the conversion; the pattern does not insert scalar unpacking code.
 """
 
 from tvm.backend.cuda.op import _tmem_address
@@ -41,8 +46,8 @@ def lower(opcode, entry, modifiers, args, params, sctx):
     sdo = int(scalar(params.pop("sdo_bytes")))
     swizzle = int(scalar(params.pop("swizzle", 0)))
     pred = params.pop("pred", None)
-    if params or modifiers.get("dst_fmt") or modifiers.get("src_fmt"):
-        raise ValueError("tcgen05.cp dense b32 pattern does not take extra fields or decompression")
+    if params:
+        raise ValueError(f"{opcode}: unknown operands {tuple(params)}")
     ctx = Context(sctx)
     dst = ctx.region("dst", args[0], (rows, words), ("tmem",))
     src = ctx.region("src", args[1], (rows, words), ("shared", "shared.dyn"))
@@ -67,6 +72,15 @@ def lower(opcode, entry, modifiers, args, params, sctx):
         raise ValueError("tcgen05.cp destination requires TLane/TCol coordinates")
     row_base, col_base = base.get("TLane", 0), base.get("TCol", 0)
     ctx.require(col_base % 4 == 0, "tcgen05.cp column start must be 128-bit aligned")
+    last_row = 96 if rows == 4 else 95 if multicast == "warpx2::01_23" else rows - 1
+    replica_offset = sum((extent - 1) * stride for extent, stride in expected_replica)
+    ctx.require(row_base >= 0, "tcgen05.cp row start must be nonnegative")
+    ctx.require(
+        row_base + last_row + replica_offset < 128,
+        "tcgen05.cp footprint exceeds the 128-lane TMEM space",
+    )
+    ctx.require(col_base >= 0, "tcgen05.cp column start must be nonnegative")
+    ctx.require(col_base + words <= 512, "tcgen05.cp footprint exceeds 512 TMEM columns")
     for row in range(rows):
         lane = row * 32 if rows == 4 else row
         if multicast == "warpx2::01_23":

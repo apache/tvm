@@ -43,21 +43,28 @@ def matrix_descriptor(ctx, smem, ldo, sdo, swizzle, atom_origin):
             raise ValueError(
                 "swizzled matrix descriptor requires a base aligned to its full swizzle period"
             )
-        ctx.require(
-            smem.memory(atom_origin) * smem.bits // 8 % period < (16 << swizzle),
-            "matrix descriptor origin must be in the first row of a swizzle atom",
-        )
     encoded = encode_smem_descriptor_base_uint64(ldo // 16, sdo // 16, swizzle)
     descriptor = T.uint64(encoded & 0xFFFFFFFF) | (T.uint64(encoded >> 32) << T.uint64(32))
-    address = T.cast(
-        T.cuda.cvta_generic_to_shared(smem.pointer(atom_origin)) // T.uint32(16), "uint64"
-    )
+    address = T.cuda.cvta_generic_to_shared(smem.pointer(atom_origin))
+    if swizzle:
+        # The descriptor starts at an unswizzled byte address. The native
+        # instruction applies the permutation, including the origin's phase.
+        # XOR swizzling is its own inverse; the backing base is period-aligned.
+        physical = smem.memory(atom_origin) * smem.bits // 8
+        address = (
+            address
+            - T.cast(physical, "uint32")
+            + T.cast(swizzle_bytes(physical, swizzle), "uint32")
+        )
+    address = T.cast(address // T.uint32(16), "uint64")
     return T.bitwise_or(descriptor, T.bitwise_and(address, T.uint64(0x3FFF)))
 
 
 def check_matrix_rows(ctx, smem, rows, words, ldo, sdo, swizzle):
     """Check b32 rows in groups of eight; 256b rows comprise two 16B units."""
     base = smem.memory((0, 0)) * 4
+    if swizzle:
+        base = swizzle_bytes(base, swizzle)
     for row in range(rows):
         for word in range(words):
             # Swizzled K-major words are contiguous; hardware ignores LDO.

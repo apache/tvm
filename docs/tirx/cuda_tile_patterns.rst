@@ -285,7 +285,16 @@ Wait, fence, allocation and deallocation instructions remain at the call site.
 replicas must exactly match the written qualifier: warpx4 adds four replicas
 32 lanes apart, 02_13 adds two 64 lanes apart, 01_23 adds two 32 lanes apart.
 4x256b maps its four rows to TLanes 0/32/64/96; the other shapes follow their
-named contiguous slabs (01_23 uses slabs 0 and 2). Decompression is not implicit.
+named contiguous slabs (01_23 uses slabs 0 and 2).
+
+Native decompression uses the same b32-word footprint and explicit qualifiers:
+``.b8x16.b4x16_p64`` or ``.b8x16.b6x16_p32``. Each 16-byte source block holds
+sixteen packed 4-bit or 6-bit values followed by eight or four bytes of padding,
+respectively. The destination holds sixteen bytes: the 4-bit values gain two
+low zero bits, while the 6-bit values gain two high zero bits. A 256-bit row
+contains two such blocks. These are raw packed-word views, not sixteen
+ordinary byte elements on the source side. Each repeat still emits one cp;
+there is no software unpacking or implicit dtype conversion.
 
 Shared matrix descriptors
 --------------------------------------------------------------------------------
@@ -325,10 +334,14 @@ group and each subsequent contiguous chunk are:
 This distinction follows PTX's canonical shared layouts; in particular,
 unswizzled MN-major exchanges the descriptor fields' roles. The selected
 swizzle permutes the resulting physical address. Patterns check this walk
-against the supplied view, including its start and element offset. Descriptor origins must be 16B aligned; a swizzled backing allocation
-must align to its full period (256/512/1024 bytes) and the origin must be in
-the first row of that period. Descriptor base-offset and absolute-LDO modes
-are not inferred. Allocate a complete descriptor storage block even for a
+against the supplied view, including its start and element offset.
+Descriptor origins must be 16B aligned; a swizzled backing allocation must
+align to its full period (256/512/1024 bytes). The descriptor encodes the
+unswizzled start address; hardware applies the permutation to that start and
+the subsequent accesses. In particular, cp may start in the middle of a
+swizzle atom if its entire address walk matches the requested region.
+Descriptor base-offset and absolute-LDO modes are not inferred.
+Allocate a complete descriptor storage block even for a
 partial logical atom; in particular, a 4x256b copy still needs an 8-row shared
 backing block. The logical region may contain only the four copied rows.
 

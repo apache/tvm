@@ -71,6 +71,23 @@ Migration rules
   warps. Their scalar/vector memory instructions work, while full-warp
   matrix instructions still reject them.
 
+* ``copy_async/test_tcgen05_cp.py`` accounts for all 118 original parameter
+  cases. The old decompression rejection becomes 96 native GPU checks:
+  six shape/multicast combinations, four swizzles, two formats, and both
+  CTA groups. Padding bytes are randomized, and unused TMEM lanes are zeroed
+  and checked. These cases do not use software decompression on the device.
+* The former shape-inference checks now pin the explicitly requested shape
+  and its instruction count on the same original arrays. Descriptor helper
+  name/temporary-buffer checks become native call-count and address-field
+  checks; GPU references independently check the data placement.
+* Two old cp negative cases (SW128 row ``[4:36]`` and SW64 columns ``[32:48]``)
+  are legal with explicit descriptor fields. They now run bit-exact GPU
+  checks using random input. The original unswizzled 64-byte row-stride
+  case still fails because it disagrees with the instruction's address walk.
+* The lane-tiled ``4x256b`` cases retain the original allocation and partial
+  window, including checking untouched lanes. Their descriptor starts use
+  the inverse swizzle to avoid applying the origin's phase twice.
+
 Original case inventory
 -----------------------
 
@@ -200,85 +217,85 @@ Original case inventory
      - Restored
    * - ``copy_async/test_tcgen05_cp.py``
      - ``test_cp_shape_roundtrip_swizzled``
-     - Pending
+     - Restored
    * - ``copy_async/test_tcgen05_cp.py``
      - ``test_cp_shape_roundtrip_nonswizzled``
-     - Pending
+     - Restored
    * - ``copy_async/test_tcgen05_cp.py``
      - ``test_cp_shape_roundtrip_offsets``
-     - Pending
+     - Restored
    * - ``copy_async/test_tcgen05_cp.py``
      - ``test_cp_4x256b_compile_emits_shape_and_count``
-     - Pending
+     - Restored
    * - ``copy_async/test_tcgen05_cp.py``
      - ``test_cp_shape_config_routes_to_generic_planner``
-     - Pending
+     - Replaced by ``test_cp_explicit_shape_and_descriptor``
    * - ``copy_async/test_tcgen05_cp.py``
      - ``test_cp_shape_inferred_from_layouts_matches_explicit``
-     - Pending
+     - Replaced by ``test_cp_requested_shape_is_preserved``
    * - ``copy_async/test_tcgen05_cp.py``
      - ``test_cp_128x128b_layout_infers_wider_256b_atom``
-     - Pending
+     - Replaced by ``test_cp_128x128b_layout_accepts_explicit_256b_atom``
    * - ``copy_async/test_tcgen05_cp.py``
      - ``test_cp_4x256b_lane_tiled_partial_window``
-     - Pending
+     - Restored
    * - ``copy_async/test_tcgen05_cp.py``
      - ``test_cp_cta_group_2_128x256b_pair_collective``
-     - Pending
+     - Restored
    * - ``copy_async/test_tcgen05_cp.py``
      - ``test_cp_cta_group_2_64x128b_warpx2_pair_collective``
-     - Pending
+     - Restored
    * - ``copy_async/test_tcgen05_cp.py``
      - ``test_cp_4x256b_lane_tiled_layout_f_scatter``
-     - Pending
+     - Restored
    * - ``copy_async/test_tcgen05_cp.py``
      - ``test_cp_default_32x128b_instruction_sequence_unchanged``
-     - Pending
+     - Replaced by ``test_cp_explicit_32x128b_instruction_sequence``
    * - ``copy_async/test_tcgen05_cp.py``
      - ``test_cp_rejects_wrong_replica_for_multicast``
-     - Pending
+     - Restored
    * - ``copy_async/test_tcgen05_cp.py``
      - ``test_cp_rejects_illegal_shape_multicast_combo``
-     - Pending
+     - Restored
    * - ``copy_async/test_tcgen05_cp.py``
      - ``test_cp_rejects_missing_multicast_for_64x128b``
-     - Pending
+     - Restored
    * - ``copy_async/test_tcgen05_cp.py``
      - ``test_cp_rejects_non_128b_tcol_offset``
-     - Pending
+     - Restored
    * - ``copy_async/test_tcgen05_cp.py``
      - ``test_cp_rejects_unknown_shape``
-     - Pending
+     - Restored
    * - ``copy_async/test_tcgen05_cp.py``
      - ``test_cp_rejects_nonzero_tmem_lane_offset``
-     - Pending
+     - Restored
    * - ``copy_async/test_tcgen05_cp.py``
      - ``test_cp_rejects_decompress_on_generic_path``
-     - Pending
+     - Replaced by ``test_cp_native_decompression``
    * - ``copy_async/test_tcgen05_cp.py``
      - ``test_cp_rejects_non_16b_aligned_row_group_stride``
-     - Pending
+     - Restored
    * - ``copy_async/test_tcgen05_cp.py``
      - ``test_cp_rejects_non_canonical_swizzle_family``
-     - Pending
+     - Restored
    * - ``copy_async/test_tcgen05_cp.py``
      - ``test_cp_rejects_flipped_swizzle_inner``
-     - Pending
+     - Restored
    * - ``copy_async/test_tcgen05_cp.py``
      - ``test_single_cp``
-     - Pending
+     - Restored
    * - ``copy_async/test_tcgen05_cp.py``
      - ``test_multi_cp_sw0_4tiles``
-     - Pending
+     - Restored
    * - ``copy_async/test_tcgen05_cp.py``
      - ``test_align_middle_2_to_1_nvfp4_sfb``
-     - Pending
+     - Restored
    * - ``copy_async/test_tcgen05_cp.py``
      - ``test_dispatch_rejects_bad_inputs``
-     - Pending
+     - Replaced by ``test_cp_subregion_descriptor_contract``
    * - ``copy_async/test_tcgen05_cp.py``
      - ``test_multi_cp_encodes_descriptor_once_and_patches_addr``
-     - Pending
+     - Replaced by ``test_multi_cp_reuses_explicit_descriptor_fields``
    * - ``copy_async/test_tcgen05_ldst.py``
      - ``test_tcgen05_ld_16xnb_load_fp32``
      - Restored
