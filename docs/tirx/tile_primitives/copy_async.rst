@@ -15,31 +15,10 @@
     specific language governing permissions and limitations
     under the License.
 
-Asynchronous tensor transfers
-=============================
+Asynchronous transfers
+======================
 
-The instruction name fixes the transfer mechanism. Every interface issues the
-transfer; its caller supplies the corresponding completion protocol.
-
-* :doc:`copy_async/ldgsts`: ``Tx.cuda.tile.cp_async`` copies global to shared.
-  The caller commits and waits with the ``cp.async`` group operations.
-* :doc:`copy_async/tma`: ``cp_async_bulk_tensor_load``,
-  ``cp_async_bulk_tensor_store``, and ``cp_reduce_async_bulk_tensor`` use TMA.
-  Loads signal an mbarrier; stores and reductions use bulk async groups.
-* :doc:`copy_async/dsmem`: ``cp_async_bulk`` copies between CTAs' shared memory
-  and signals the destination CTA's mbarrier.
-* :doc:`copy_async/tcgen05_cp`: ``tcgen05.cp`` copies shared memory to TMEM.
-* :doc:`copy_async/tcgen05_ldst`: ``tcgen05.ld`` and ``tcgen05.st`` transfer
-  between TMEM and registers at warpgroup scope.
-
-All names above are in ``Tx.cuda.tile``. Tensor-memory transfers require the
-matching ``tcgen05`` completion operations.
-
-.. toctree::
-   :maxdepth: 1
-
-   copy_async/ldgsts
-   copy_async/tma
-   copy_async/dsmem
-   copy_async/tcgen05_cp
-   copy_async/tcgen05_ldst
+See :doc:`../cuda_tile_patterns` for the explicit instruction contract and canonical
+operand coordinates. Use ``T.cuda.tile.apply(T.ptx[opcode], ...)`` to select
+the instruction. Prepare views, temporary storage and synchronization at the
+call site. Scalar compositions use ``T.cuda.tile.ewise`` over registers.

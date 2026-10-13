@@ -15,29 +15,10 @@
     specific language governing permissions and limitations
     under the License.
 
-Elementwise tensor instructions
-===============================
+Scalar compositions
+===================
 
-``Tx.cuda.tile`` provides ``mov``, ``cvt``, ``add``, ``sub``, ``mul``, ``div``,
-``max``, ``fma``, ``sqrt``, ``ex2``, and ``lg2``. The instruction's tensor layout
-and execution scope determine how its scalar operation is repeated across the tile.
-``mov(dst, 0)`` initializes a tile, and ``div(dst, 1.0, src)`` computes a reciprocal.
-
-The mathematical compositions ``exp``, ``silu``, and the four
-``*_with_scale_bias`` functions live in ``Tx.cuda.tile.compose`` and remain opaque
-Calls until lowering. Their opcode category is ``tile_composite``.
-
-All tensor operands of an elementwise instruction must be local or all shared.
-The corresponding lowerer expands the same operation over the selected storage:
-
-* :doc:`elementwise/reg` uses the register layout's per-thread ownership.
-* :doc:`elementwise/smem` constructs a cooperative partition in shared memory.
-
-CUDA reduction algorithms and layout permutation are caller-owned; they have no
-replacement in ``compose``.
-
-.. toctree::
-   :maxdepth: 1
-
-   elementwise/reg
-   elementwise/smem
+See :doc:`../cuda_tile_patterns` for the explicit instruction contract and canonical
+operand coordinates. Use ``T.cuda.tile.apply(T.ptx[opcode], ...)`` to select
+the instruction. Prepare views, temporary storage and synchronization at the
+call site. Scalar compositions use ``T.cuda.tile.ewise`` over registers.

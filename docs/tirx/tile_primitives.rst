@@ -18,82 +18,26 @@
 Tensor Instructions
 ===================
 
-Tensor instructions expose a backend instruction over tensors with layouts::
+CUDA tile operations apply an explicit PTX instruction or a scalar function to
+canonical tensor views::
 
-    from tvm.script import tirx as T
+    T.cuda.tile.apply(T.ptx["ld.global.v4.b32"], registers, global_words)
+    T.cuda.tile.apply(T.ptx["st.shared.v4.b32"], shared_words, registers)
 
-    T.cuda.tile.ld(registers, global_tile, scope="warpgroup")
-    T.cuda.tile.st(shared_tile, registers, scope="warpgroup")
-    T.cuda.tile.tcgen05.mma(accumulator, shared_a, shared_b)
+See :doc:`cuda_tile_patterns` for every operand pattern, descriptor contract,
+execution-group axis, and migration example. ``T.cuda.tile.ewise`` applies a
+caller-defined scalar TIRx function to registers. No CUDA tile call selects a
+vector width, matrix shape, transpose mode, or staging algorithm from layouts.
 
-They construct ordinary, opaque, void ``tvm.ir.Call`` expressions. A statement
-in TVMScript becomes one ``Evaluate(Call(...))``. ``T.ptx`` and ``T.nki``
-continue to expose raw instructions over scalar registers and addresses.
-
-Each tensor instruction has a fixed operand list and typed static attributes.
-Tensors, regions, pointers, predicates, coordinates, runtime cache policies,
-accumulation controls, and optional workspace tensors are **Call arguments**.
-They participate in normal free-variable analysis, substitution, serialization,
-and traversal. Static qualifiers such as instruction shape, cache hint, and
-execution scope live in reflected attribute types.
-
-``scope="thread"`` is the default. Use ``"warp"``, ``"warpgroup"``, ``"cta"``,
-or ``"cluster"`` only where the selected instruction supports that scope.
-Layouts and the active thread set must satisfy the instruction's contract.
-There is no generic ``copy``/``gemm`` operation or priority dispatch, and no
-``config``, ``workspace``, or ``dispatch`` keyword bag.
-
-The :doc:`explicit CUDA tile pattern prototype <cuda_tile_patterns>` adds an
-instruction-first ``T.cuda.tile.apply`` path for reviewing two fixed contracts.
+Both backends use ordinary opaque void Calls. Tensor regions, pointers,
+predicates, coordinates and descriptor parameters are normal IR arguments.
+The shared ``FTileOpDispatch`` boundary remains unchanged. ``T.ptx`` and
+``T.nki`` expose raw scalar/address instructions.
 
 .. toctree::
    :hidden:
 
    cuda_tile_patterns
-
-CUDA instructions
------------------
-
-* ``ld`` and ``st`` transfer between local registers and global/shared memory.
-  Their register layout determines the participating threads. ``vec_bits``
-  selects an explicit 16-, 32-, 64-, 128-, or 256-bit thread transfer.
-  Fixed-width global loads accept ``cache``, ``l1_evict``, ``l2_evict``, and
-  ``prefetch_size`` qualifiers.
-* ``mov`` copies registers or fills a destination with a scalar. ``ldmatrix``
-  and ``stmatrix`` explicitly request matrix memory instructions.
-* ``cp_async(dst, src, predicate=-1)`` requests global-to-shared asynchronous
-  copying. ``direct=True`` requests one thread-level instruction.
-  ``fill_mode="zero"`` uses the instruction's source-size operand for zero
-  filling; it must not become a predicate that skips the instruction.
-* ``cp_async_bulk(dst, src, mbar, remote_cta_id)`` requests DSMEM copying.
-  ``dst`` and ``mbar`` refer to the executing CTA's local shared addresses;
-  lowering maps both addresses to the remote CTA before issuing the copy.
-* ``cp_async_bulk_tensor_load(dst, src, mbar, cta_mask=0,
-  mbarrier_addr=False, gather4=None, src_selector=None, cache_policy=None)``
-  requests a TMA load. ``cp_async_bulk_tensor_store(dst, src,
-  cache_policy=None)`` and ``cp_reduce_async_bulk_tensor(dst, src,
-  cache_policy=None, reduce_op=...)`` request TMA stores and reductions.
-* TMA ``descriptor_mode="auto"`` derives a legal descriptor and issue loops
-  from layouts. ``descriptor_mode="explicit"`` follows the declared global
-  tensor descriptor and issues once. Gather4 row coordinates and source
-  selectors are explicit-mode operands. ``cache_hint`` is a static string;
-  ``cache_policy`` is a separate runtime operand. They are mutually exclusive.
-* ``tcgen05.cp`` copies shared memory to TMEM. ``tcgen05.ld/st`` transfer
-  between TMEM and registers at ``scope="warpgroup"``; each warp issues its
-  own instruction. The caller supplies waits, fences, and barriers.
-* ``mma_sync`` performs register MMA. ``tcgen05.mma`` and
-  ``tcgen05.mma_block_scale`` perform asynchronous TMEM accumulation. The
-  latter requires both scale-factor tensor operands. Matrix descriptor and
-  pointer preparation remain inside lowering.
-* ``add/sub/mul/div/max``, ``cvt``, ``fma``, ``sqrt``, ``ex2``, and ``lg2``
-  expose tensor arithmetic. Reciprocal is ``div(dst, 1, src)``. Packed
-  arithmetic remains available when the operand layouts permit it.
-
-The mathematical compositions ``compose.silu``, ``compose.exp``,
-``compose.exp_with_scale_bias``, ``compose.exp2_with_scale_bias``,
-``compose.log2_with_scale_bias``, and ``compose.sqrt_with_scale_bias`` are
-also ordinary Calls. They expand during lowering and have the distinct
-``tile_composite`` category.
 
 Trainium instructions
 ---------------------

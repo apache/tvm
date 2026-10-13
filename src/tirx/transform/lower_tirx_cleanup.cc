@@ -213,6 +213,25 @@ class LayoutApplier : public StmtExprMutatorWithAnalyzer {
         type = CopyTensorType(flattened);
         type->shape = {ana->Simplify(mem_span)};
         type->strides = {};
+      } else if (auto compose = buf->layout.as<ComposeLayoutNode>()) {
+        // A swizzle permutes addresses, so the logical element count is not
+        // the allocation footprint of a strided view. Round the underlying
+        // memory span to a block whose upper bits the swizzle cannot change.
+        // A bare swizzle applies to the full tensor, not just its atom period.
+        PrimExpr mem_span = compose->tile_layout->GetSpan(ffi::String("m"));
+        if (compose->tile_layout->IsTrivial()) {
+          mem_span = IntImm::Int32(1);
+          for (const auto& extent : buf->shape) mem_span = mem_span * extent;
+        }
+        if (compose->swizzle_len != 0) {
+          int changed_bits = compose->per_element + compose->swizzle_len;
+          if (!compose->swizzle_inner) changed_bits += compose->atom_len;
+          PrimExpr block = IntImm(mem_span.ty(), int64_t{1} << changed_bits);
+          mem_span = floordiv(mem_span + block - 1, block) * block;
+        }
+        type = CopyTensorType(buf);
+        type->shape = {analyzer_->Simplify(mem_span)};
+        type->strides = {};
       } else {
         flattened = FlattenedTensor(buf);
         type = CopyTensorType(flattened);

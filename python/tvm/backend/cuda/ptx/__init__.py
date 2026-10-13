@@ -23,10 +23,17 @@ registers every table entry as a TVM Op with a generic codegen; the
 ``register_backend()`` via ``script_namespaces()``.
 """
 
-from .engine import PTXNamespace, instruction_name, register_addr, register_table
+from .engine import PTXNamespace, instruction_forms, instruction_name, register_addr, register_table
 from .table import TABLE
 
 register_addr()
 register_table(TABLE)
 
-__all__ = ["TABLE", "PTXNamespace", "instruction_name", "register_addr", "register_table"]
+__all__ = [
+    "TABLE",
+    "PTXNamespace",
+    "instruction_forms",
+    "instruction_name",
+    "register_addr",
+    "register_table",
+]

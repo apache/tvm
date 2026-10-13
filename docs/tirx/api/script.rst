@@ -67,4 +67,5 @@ thread-placement and tensor alias policies remain in the TIRx/S-TIR builders.
       C = tmem_pool.alloc_tcgen05_mma_D(
           (64, 128), "float32", M=128, cta_group=2)
       frag = Tx.alloc_tcgen05_ldst_frag("32x32b", (64, 128), "float32")
-      Tx.cuda.tile.tcgen05.ld(frag[:, :], C[:, :], scope="warpgroup")
+      # Reorganize C and frag to the explicit (warp,row,column) pattern before
+      # applying the selected instruction; see ../cuda_tile_patterns.

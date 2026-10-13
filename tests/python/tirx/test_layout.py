@@ -25,7 +25,12 @@ import tvm
 from tvm.backend.cuda.axis import Axis as CUDAAxis
 from tvm.backend.cuda.axis import TCol, TLane, laneid, tid_in_wg, tx, warpid, wgid, wid_in_wg
 from tvm.backend.cuda.lang import SMEMPool
-from tvm.backend.cuda.layout import tmem_mma_operand_layout, wg_local_layout
+from tvm.backend.cuda.layout import (
+    SwizzleMode,
+    mma_shared_layout,
+    tmem_mma_operand_layout,
+    wg_local_layout,
+)
 from tvm.backend.trn.axis import Axis as TRNAxis
 from tvm.backend.trn.axis import F, P
 from tvm.backend.trn.layout import to_psum_layout, trainium_layout
@@ -34,10 +39,6 @@ from tvm.ir.type import PrimType, PtrType
 from tvm.script.ir_builder import IRBuilder
 from tvm.sym import Analyzer
 from tvm.tirx import Var
-from tvm.tirx.cuda.tile.tma_utils import (
-    SwizzleMode,
-    mma_shared_layout,
-)
 from tvm.tirx.layout import Axis, ComposeLayout, Iter, R, S, TileLayout, m
 from tvm.tirx.script import ir_builder as Tx_builder
 
@@ -1731,17 +1732,6 @@ def test_slice():
         verify_slice(compose, shape, region, sliced)
 
     case_compose_slice_2d()
-
-
-def test_cuda_copy_extract_swizzle_tile_simplifies_constant_region_extents():
-    from tvm.tirx.cuda.tile.copy._common import _extract_tile
-
-    zero = tvm.tirx.Mul(tvm.tirx.IntImm("int32", 0), tvm.tirx.IntImm("int32", 64))
-    end = tvm.tirx.Add(zero, tvm.tirx.IntImm("int32", 64))
-
-    tile = _extract_tile(ComposeLayout(3, 3, 3, TileLayout(S[(512,)])), [(zero, end)])
-
-    assert [int(it.extent) for it in tile.shard] == [64]
 
 
 def _compose_swizzle(value, per_element, swizzle_len, atom_len, swizzle_inner=True):

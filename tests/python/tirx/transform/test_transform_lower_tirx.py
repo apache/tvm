@@ -936,11 +936,18 @@ def test_lower_opcall_fail():
                 )
             ]
         )
-        T.cuda.tile.ld(transfer_reg_710, transfer_src_710, scope="cta")
-        T.cuda.tile.st(transfer_dst_710, transfer_reg_710, scope="cta")
+        T.cuda.tile.apply(T.ptx["ld.global.b32"], transfer_reg_710, transfer_src_710, scope="cta")
+        T.cuda.tile.apply(T.ptx["st.global.b32"], transfer_dst_710, transfer_reg_710, scope="cta")
         for i in range(10):
-            T.cuda.tile.mov(A_smem[0:64], T.float32(0), scope="cta")
-            T.cuda.tile.mma_sync(A_smem, A_smem, A_smem, A_smem, scope="cta")
+            T.cuda.tile.apply(T.ptx["mov.b32"], A_smem[0:64], T.float32(0), scope="cta")
+            T.cuda.tile.apply(
+                T.ptx["mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32"],
+                A_smem,
+                A_smem,
+                A_smem,
+                A_smem,
+                scope="cta",
+            )
         transfer_src_714 = T.meta_var(A[0:64])
         transfer_dst_714 = T.meta_var(A_smem[0:64])
         transfer_reg_714 = T.alloc_tensor(
@@ -952,8 +959,8 @@ def test_lower_opcall_fail():
                 )
             ]
         )
-        T.cuda.tile.ld(transfer_reg_714, transfer_src_714, scope="cta")
-        T.cuda.tile.st(transfer_dst_714, transfer_reg_714, scope="cta")
+        T.cuda.tile.apply(T.ptx["ld.global.b32"], transfer_reg_714, transfer_src_714, scope="cta")
+        T.cuda.tile.apply(T.ptx["st.global.b32"], transfer_dst_714, transfer_reg_714, scope="cta")
 
     with pytest.raises(Exception):
         LowerTIRx()(tvm.IRModule({"main": test}))
@@ -2063,4 +2070,30 @@ def test_alloc_tensor_layout_span_without_threads(scope):
     tvm_ffi.structural_walk(lowered["main"].body, collect)
     assert len(allocations) == 1
     assert tuple(int(x) for x in allocations[0].shape) == (39,)
+    assert allocations[0].layout is None
+
+
+@pytest.mark.parametrize("scope", ["local", "shared"])
+def test_alloc_tensor_swizzle_storage_span(scope):
+    """Swizzling a gapped physical view must not underallocate its memory."""
+    layout = T.ComposeLayout(2, 1, 3, T.TileLayout(T.S[(128, 4) : (8, 1)]))
+
+    @T.function(private=True)
+    def before():
+        A = T.alloc_tensor(ty_args=[T.Tensor((128, 4), "uint32", scope=scope, layout=layout)])
+        A[127, 3] = T.uint32(7)
+
+    target = tvm.target.Target({"kind": "cuda", "arch": "sm_100a"})
+    with target:
+        lowered = LowerTIRx()(tvm.IRModule({"main": before}))
+    allocations = []
+
+    def collect(node):
+        if isinstance(node, tvm.ir.Bind) and isinstance(node.value, tvm.ir.Call):
+            if node.value.op.name == "tirx.alloc_tensor":
+                allocations.append(node.var.ty)
+
+    tvm_ffi.structural_walk(lowered["main"].body, collect)
+    assert len(allocations) == 1
+    assert tuple(int(x) for x in allocations[0].shape) == (1024,)
     assert allocations[0].layout is None

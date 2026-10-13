@@ -22,7 +22,17 @@ import pytest
 import tvm
 from tvm.script import tirx as T
 from tvm.testing import env
-from tvm.tirx.cuda.tile.copy._common import copy_ptx_form
+
+
+def copy_ptx_form(num_bytes):
+    return {
+        16: ("v4.u32", 4, "uint32"),
+        8: ("v2.u32", 2, "uint32"),
+        4: ("u32", 1, "uint32"),
+        2: ("u16", 1, "uint16"),
+        1: ("u8", 1, "uint8"),
+    }[num_bytes]
+
 
 TARGET = tvm.target.Target({"kind": "cuda", "arch": env.cuda_arch() or "sm_90"})
 
@@ -119,7 +129,7 @@ def test_ptx_ld_st_codegen_emits_shared_asm():
         T.cuda.cta_sync()
         if tid_in_wg == 0:
             T.ptx.ld.shared.v4.u32(reg[0], reg[1], reg[2], reg[3], smem.ptr_to([0]))
-        T.cuda.tile.st(D[0:4], reg[:])
+        T.cuda.tile.apply(T.ptx["st.global.v4.u32"],D[0:4],reg[:])
     # fmt: on
 
     target = TARGET

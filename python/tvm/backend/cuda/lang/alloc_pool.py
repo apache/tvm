@@ -52,7 +52,7 @@ def _shape_product(shape):
 
 def _auto_swizzle_mode(dtype):
     """Select the default MMA swizzle mode for a shared-memory allocation."""
-    from tvm.backend.cuda.tile.tma_utils import SwizzleMode
+    from tvm.backend.cuda.layout import SwizzleMode
 
     del dtype
     return SwizzleMode.SWIZZLE_128B_ATOM
@@ -60,7 +60,7 @@ def _auto_swizzle_mode(dtype):
 
 def _swizzle_atom_bytes(swizzle_mode):
     """Return the row width (in bytes) of one swizzle atom for *swizzle_mode*."""
-    from tvm.backend.cuda.tile.tma_utils import SwizzleMode
+    from tvm.backend.cuda.layout import SwizzleMode
 
     return {
         SwizzleMode.SWIZZLE_NONE: 0,
@@ -95,7 +95,7 @@ def _validate_mma_alloc_shape(shape, dtype, swizzle_mode):
 
     Validation skipped when *swizzle_mode* is ``SWIZZLE_NONE`` (no atom).
     """
-    from tvm.backend.cuda.tile.tma_utils import SwizzleMode
+    from tvm.backend.cuda.layout import SwizzleMode
 
     if swizzle_mode == SwizzleMode.SWIZZLE_NONE:
         return
@@ -146,7 +146,7 @@ def _validate_mma_alloc_shape(shape, dtype, swizzle_mode):
                 f"to a multiple of {min_cols} elements (>= {atom_bytes}B at {dtype})."
             )
 
-    # Atom rows is always 8 (see ``mma_atom_shape`` in tma_utils.py).
+    # Atom rows is always 8 (see ``mma_atom_shape`` in backend/cuda/layout.py).
     atom_rows = 8
     if rows < atom_rows or rows % atom_rows != 0:
         raise ValueError(
@@ -234,7 +234,7 @@ class SMEMPool:
 
     def alloc_tcgen05_mma_AB(self, shape, dtype="float16", swizzle_mode="auto", align=1024):
         """Allocate MMA-compatible shared memory with an inferred swizzle layout."""
-        from tvm.backend.cuda.tile.tma_utils import (
+        from tvm.backend.cuda.layout import (
             SwizzleMode,
             mma_shared_layout,
         )

@@ -15,45 +15,46 @@
 # specific language governing permissions and limitations
 # under the License.
 
-"""Warp atom: two m8n8 b16 matrices, carried as b32 pairs of columns.
+"""m8n8 ldmatrix/stmatrix: (*group, *repeat, matrix, row, word).
 
-Canonical coordinates: (*repeat, matrix=2, row=8, word=4).
-Source: each (matrix, row) names a 16B-aligned contiguous row of four b32
-words. Different rows may have arbitrary offsets expressible by TileLayout.
-Destination: owner lane = 4*row + word; two matrix words per lane, placed
-directly in the caller's register slots. A word holds two adjacent b16 values.
+Each matrix has eight independent 16B-aligned shared rows of four b32 words.
+Registers belong to lane 4*row+word; each lane supplies/receives x1/x2/x4
+independent b32 registers. For .trans, the register image is the transpose of
+the shared b16 matrix (each word packs two adjacent values of that image).
 
-Address providers differ from result owners: lanes 0..7 provide matrix 0
-rows, lanes 8..15 matrix 1 rows. Lanes 16..31 repeat these valid addresses.
+Address providers are lanes matrix*8+row. For x1/x2, unused providers repeat
+valid row addresses. Address providers and result owners are separate maps.
 """
 
+from tvm.backend.cuda.ptx import PTXNamespace
 from tvm.script import tirx as T
 
-SHAPE = (2, 8, 4)
-SCOPE = "warp"
-SRC_SCOPE = ("shared", "shared.dyn")
+from .common import Context
 
 
-def check(operands, sctx):
-    active = sctx.intra.get("laneid")
-    if active is None or int(active[0]) != 32 or int(active[1]) != 0:
-        raise ValueError("ldmatrix requires all 32 lanes of a warp to be active")
-    for matrix in range(2):
+def lower(opcode, entry, modifiers, args, params, sctx):
+    if len(args) != 2 or params:
+        raise ValueError("ldmatrix/stmatrix requires dst and src without extra operands")
+    if modifiers["shape"] != "m8n8" or modifiers["type"] != "b16":
+        raise ValueError("matrix tile pattern requires m8n8.b16")
+    count = int(modifiers["num"][1:])
+    load = entry.ptx_name == "ldmatrix"
+    ctx = Context(sctx, "warp")
+    shape = (count, 8, 4)
+    dst = ctx.region("dst", args[0], shape, ("local",) if load else ("shared", "shared.dyn"))
+    src = ctx.region("src", args[1], shape, ("shared", "shared.dyn") if load else ("local",))
+    smem, regs = (src, dst) if load else (dst, src)
+    smem.require_bits(32)
+    regs.require_bits(32)
+    for matrix in range(count):
         for row in range(8):
-            base = operands.aligned_row((matrix, row, 0))
+            smem.contiguous(((matrix, row, word) for word in range(4)), 16)
             for word in range(4):
-                coord = (matrix, row, word)
-                operands.require(
-                    operands.memory("src", coord) == base + word,
-                    "src: ldmatrix row needs four consecutive b32 words in canonical order",
-                )
-                operands.memory("dst", coord, lane=4 * row + word)
-
-
-def emit(operands, instruction):
+                regs.owner((matrix, row, word), lane=4 * row + word)
+    if load:
+        regs.nonoverlapping()
     lane = T.cuda.lane_id()
-    return instruction(
-        operands.value("dst", (0, lane // 4, lane % 4)),
-        operands.value("dst", (1, lane // 4, lane % 4)),
-        operands.pointer("src", ((lane // 8) % 2, lane % 8, 0)),
-    )
+    words = [regs.value((matrix, lane // 4, lane % 4)) for matrix in range(count)]
+    ptr = smem.pointer(((lane // 8) % count, lane % 8, 0))
+    native_args = [*words, ptr] if load else [ptr, *words]
+    return ctx.finish([PTXNamespace()[opcode](*native_args)])

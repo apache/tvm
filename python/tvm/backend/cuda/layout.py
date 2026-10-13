@@ -16,9 +16,12 @@
 # under the License.
 """CUDA-specific memory and instruction layout factories."""
 
+import copy
+from enum import Enum
+
 import tvm
 from tvm.backend.cuda.axis import Axis as CUDAAxis
-from tvm.tirx.layout import Axis, Iter, R, S, TileLayout
+from tvm.tirx.layout import Axis, ComposeLayout, Iter, Layout, R, S, TileLayout
 
 # ============================================================================
 # TMEM datapath layouts (PTX ISA §9.7.16.10.5)
@@ -174,7 +177,7 @@ def _mma_datapath_letter(M, cta_group, ws=False, sparse=False):
     """Map (instruction ``M``, ``cta_group``, ``ws``, ``sparse``) to the PTX
     tcgen05 datapath letter. Raises for families rejected in the v1 semantic
     allocator API (sparse Layout C, M=32 Layout G). See
-    ``localdoc/claude_plan.txt`` S3a."""
+    the documented PTX TMEM datapaths."""
     if sparse:
         raise ValueError(
             f"alloc_tcgen05_mma_AB: sparse A (Layout C) not supported in v1 "
@@ -212,8 +215,7 @@ def tmem_mma_operand_layout(
     per-CTA buffer rows; ``per_cta_rows = M // cta_group``. Physical 32-bit
     column count is left to the pool's ``_resolve_cols`` (layout-aware).
 
-    Reproduces the hand-written layouts the three FlashMLA kernels use; the
-    supported/reject domain is spec'd in ``localdoc/claude_plan.txt`` S3a.
+    Selects the documented PTX datapath from explicit instruction parameters.
     """
     tlane = Axis.get("TLane")
     tcol = Axis.get("TCol")
@@ -231,7 +233,7 @@ def tmem_mma_operand_layout(
     if operand == "D":
         if group is not None:
             # flat buffer (m, N) + explicit grouping -> (m, s, 2, n) layout
-            # (codex plan option b): keeps kernel O buffer 2D, layout 4-axis.
+            # Keep the kernel output tensor 2D and its physical layout 4-axis.
             if len(ext) != 2:
                 raise ValueError(f"alloc_tcgen05_mma_D group= requires 2D (m,N), got {ext}")
             m, N = ext
@@ -310,6 +312,18 @@ def tmem_mma_operand_layout(
             layout = TileLayout(S[(m, K) : (1 @ tlane, 1 @ tcol)])
     else:
         raise ValueError(f"tmem_mma_operand_layout: operand must be 'A' or 'D', got {operand!r}")
+    # PTX matrix D keeps sub-word accumulators in the low bits of a b32 cell.
+    # A remains packed. TCol strides are expressed in tensor element units.
+    from tvm.runtime import DataType
+
+    if operand == "D" and DataType(dtype).bits == 16:
+        layout = TileLayout.from_iters(
+            shard=[
+                Iter(i.extent, i.stride * (2 if i.axis.name == "TCol" else 1), i.axis)
+                for i in layout.shard
+            ],
+            replica=layout.replica,
+        )
     return layout.canonicalize()
 
 
@@ -588,3 +602,200 @@ def tcgen05_atom_layout(instr_shape: str, tensor_shape: tuple[int, int], dtype) 
 
     iters = [Iter(ext, stride, axis) for ext, stride, axis in row_iters + col_iters]
     return TileLayout.from_iters(iters, [], {})
+
+
+class SwizzleMode(Enum):
+    """The swizzle mode of the TMA."""
+
+    SWIZZLE_NONE = 0
+    SWIZZLE_32B_ATOM = 1
+    SWIZZLE_64B_ATOM = 2
+    SWIZZLE_128B_ATOM = 3
+
+
+def mma_atom_layout(dtype: str, swizzle_mode: SwizzleMode | int) -> ComposeLayout:
+    """Generate the MMA-compatible shared-memory atom layout."""
+    bits = tvm.DataType(dtype).bits
+    if isinstance(swizzle_mode, int):
+        swizzle_mode = SwizzleMode(swizzle_mode)
+    per_element = (128 // bits).bit_length() - 1
+    swizzle_len = swizzle_mode.value
+    atom_len = 3
+    period = 1 << (per_element + swizzle_len + atom_len)
+    return ComposeLayout(per_element, swizzle_len, atom_len, TileLayout(S[(period,)]))
+
+
+def mma_atom_shape(dtype: str, swizzle_mode: SwizzleMode | int, shape: list[int] | None = None):
+    """Generate the MMA-compatible shared-memory atom shape."""
+    bits = tvm.DataType(dtype).bits
+    if isinstance(swizzle_mode, int):
+        swizzle_mode = SwizzleMode(swizzle_mode)
+    atom_shape = {
+        SwizzleMode.SWIZZLE_32B_ATOM: [8, 256],
+        SwizzleMode.SWIZZLE_64B_ATOM: [8, 512],
+        SwizzleMode.SWIZZLE_128B_ATOM: [8, 1024],
+    }[swizzle_mode]
+    atom_shape[-1] //= bits
+    if shape is None:
+        return atom_shape
+    atom_shape = [1] * (len(shape) - len(atom_shape)) + atom_shape
+    return atom_shape
+
+
+def mma_shared_layout(dtype: str, swizzle_mode: SwizzleMode | int, shape) -> Layout:
+    """Generate the MMA-compatible shared-memory layout for shape and dtype.
+
+    It uses a default tiling strategy to tile the TMA atom layout into the shared memory.
+    """
+    if isinstance(swizzle_mode, int):
+        swizzle_mode = SwizzleMode(swizzle_mode)
+    if swizzle_mode == SwizzleMode.SWIZZLE_NONE:
+        # No-swizzle MMA smem is the packed-16B atom: offset e16*m +
+        # M*e16*(k//e16) + k%e16 (e16=128/bits); plain tile if K % e16 != 0.
+        bits = tvm.DataType(dtype).bits
+        e16 = 128 // bits
+        m, k = int(shape[-2]), int(shape[-1])
+        if k % e16 == 0:
+            lead = [int(s) for s in shape[:-2]]
+            extents = [*lead, m, k // e16, e16]
+            strides = []
+            stride = m * k
+            for e in reversed(lead):
+                strides.insert(0, stride)
+                stride *= e
+            strides += [e16, m * e16, 1]
+            return TileLayout(S[tuple(extents) : tuple(strides)]).canonicalize()
+        return TileLayout(S[tuple(shape)]).canonicalize()
+    atom_shape = mma_atom_shape(dtype, swizzle_mode, shape)
+    layout = mma_atom_layout(dtype, swizzle_mode)
+    tile_to_shape = copy.copy(atom_shape)
+    tile_to_shape[-2] = shape[-2]
+    return layout.tile_to(tile_to_shape, atom_shape).tile_to(shape, tile_to_shape).canonicalize()
+
+
+def sf_smem_layout(rows, SF_K, sf_per_mma, sf_reuse=1, pipe_depth=None):
+    """SMEM-side layout for SF in tcgen05.cp scale-factor copy.
+
+    The hardware reads SFs in 128-row super-blocks: 32 lanes x 16 bytes/lane.
+    The 16 bytes per lane row decompose as
+    ``M_SF_INNER (=4) x sf_per_mma x in_lane_K`` where
+    ``in_lane_K = epc / sf_per_mma`` and ``epc = 4`` (32-bit TMEM cell / 8-bit
+    SF). The remaining ``K_outer = SF_K / epc`` super-blocks march along K
+    with stride 512. ``sf_reuse > 1`` appends a stride-0 broadcast dim.
+
+    Buffer shape: ``(rows, SF_K * sf_reuse)`` (or ``(pipe_depth, rows,
+    SF_K * sf_reuse)``). Mirrors :func:`sf_tmem_layout` parameterization.
+
+    Args:
+        rows:        Multiple of 128; M-direction rows.
+        SF_K:        Number of unique SFs along K per row (multiple of 4).
+        sf_per_mma:  Atom inner SFs per MMA-K step (must divide 4).
+                     nvfp4=4, mxfp4=2, fp8=1.
+        sf_reuse:    Broadcast factor (stride-0 dim). 1 = no broadcast.
+        pipe_depth:  Optional pipeline depth as outermost dim.
+    """
+    epc = 4
+    M_SUPER_ROWS = 128
+    LANE = 32
+    M_SF_INNER = M_SUPER_ROWS // LANE
+    if rows % M_SUPER_ROWS != 0:
+        raise ValueError(f"rows={rows} must be a multiple of {M_SUPER_ROWS}")
+    if epc % sf_per_mma != 0:
+        raise ValueError(f"sf_per_mma={sf_per_mma} must divide epc={epc}")
+    if SF_K % epc != 0:
+        raise ValueError(f"SF_K={SF_K} must be a multiple of epc={epc}")
+
+    in_lane_K = epc // sf_per_mma
+    K_outer = SF_K // epc
+    M_super = rows // M_SUPER_ROWS
+    LANE_BYTES = epc * M_SF_INNER  # 16
+    SUPER_BYTES = LANE_BYTES * LANE  # 512
+    K_TOTAL_BYTES = SUPER_BYTES * K_outer
+    STAGE_BYTES = K_TOTAL_BYTES * M_super
+
+    raw_shape = [M_super, M_SF_INNER, LANE, K_outer, sf_per_mma, in_lane_K]
+    raw_strides = [K_TOTAL_BYTES, epc, LANE_BYTES, SUPER_BYTES, in_lane_K, 1]
+    if sf_reuse > 1:
+        raw_shape.append(sf_reuse)
+        raw_strides.append(0)
+    # Drop unit (extent-1) dims for cleaner canonical form.
+    shape = [s for s in raw_shape if s != 1]
+    strides = [st for s, st in zip(raw_shape, raw_strides) if s != 1]
+    if pipe_depth is not None:
+        shape = [pipe_depth, *shape]
+        strides = [STAGE_BYTES, *strides]
+    return TileLayout(S[tuple(shape) : tuple(strides)])
+
+
+def sf_tmem_layout(rows, SF_K, sf_per_mma, sf_reuse=1, pipe_depth=None):
+    """Create a TileLayout for SFA/SFB TMEM via atom direct_sum outer (+ optional reuse dim).
+
+    Args:
+        rows:        CTA M-direction row count (multiple of 32).
+        SF_K:        Number of *unique* SFs along K per row (loaded from gmem).
+        sf_per_mma:  Atom inner SFs — number of SFs one MMA reads in K.
+                     Equals ``mma_k // sf_vec``: nvfp4=4 (mma_k=64,sf_vec=16),
+                     mxfp4=2 (64,32), fp8=1 (32,32).
+        sf_reuse:    Number of MMAs that reuse one physical SF group via a
+                     stride-0 broadcast dim. Equals ``quant_size // mma_k``;
+                     default 1 (no reuse). fp8 blockwise with quant=128 and
+                     mma_k=32 → ``sf_reuse=4``.
+        pipe_depth:  Optional outer pipe-depth dim for double-buffered TMEM SF
+                     allocations. Stride is ``M*epc @ CUDAAxis.TCol`` (one stage spans
+                     ``M*epc`` cols). When ``None`` no pipe dim is added.
+
+    Buffer shape: ``(rows, SF_K * sf_reuse)`` (or ``(pipe_depth, rows,
+    SF_K * sf_reuse)``). Gemm dispatch iterates the last dim
+    ``SF_K * sf_reuse`` MMA times; only ``SF_K`` distinct SFs are physically
+    stored due to broadcast. Scale factor dtype is assumed 8-bit (epc=4);
+    all current SF formats (e8m0fnu, e4m3fn) fit.
+    """
+    if SF_K % sf_per_mma != 0:
+        raise ValueError(f"SF_K={SF_K} must be a multiple of sf_per_mma={sf_per_mma}")
+    K = SF_K // sf_per_mma  # outer K iterations of unique SFs
+
+    M = rows // 32
+    epc = 4  # 32-bit TMEM column / 8-bit SF
+
+    # Atom: one 32-row chunk, one MMA's worth of SF.
+    atom = TileLayout(
+        S[(32, sf_per_mma) : (1 @ CUDAAxis.TLane, 1 @ CUDAAxis.TCol)] + R[4 : 32 @ CUDAAxis.TLane]
+    )
+
+    if K == 1:
+        outer = TileLayout(S[M : epc @ CUDAAxis.TCol])
+    else:
+        # Pack consecutive ki's within one uint32 TMEM column when possible.
+        pack_factor = epc // sf_per_mma
+        while pack_factor > 1 and K % pack_factor != 0:
+            pack_factor //= 2
+        if pack_factor > 1:
+            K_outer = K // pack_factor
+            if K_outer == 1:
+                outer = TileLayout(
+                    S[(M, pack_factor) : (epc @ CUDAAxis.TCol, sf_per_mma @ CUDAAxis.TCol)]
+                )
+            else:
+                outer = TileLayout(
+                    S[
+                        (M, K_outer, pack_factor) : (
+                            epc @ CUDAAxis.TCol,
+                            M * epc @ CUDAAxis.TCol,
+                            sf_per_mma @ CUDAAxis.TCol,
+                        )
+                    ]
+                )
+        else:
+            outer = TileLayout(S[(M, K) : (epc @ CUDAAxis.TCol, M * epc @ CUDAAxis.TCol)])
+
+    base = atom.direct_sum(outer, left_shape=[M, K], right_shape=[32, sf_per_mma])
+    if sf_reuse == 1 and pipe_depth is None:
+        return base
+    shard = list(base.shard)
+    if sf_reuse > 1:
+        # Append a stride-0 reuse dim on CUDAAxis.TCol for fp8 blockwise (vec_NX) mode.
+        shard.append(Iter(sf_reuse, 0, shard[0].axis))
+    if pipe_depth is not None:
+        # Prepend a pipe-depth dim that strides one stage (M*epc CUDAAxis.TCols).
+        shard.insert(0, Iter(pipe_depth, M * epc, shard[0].axis))
+    return TileLayout.from_iters(shard, list(base.replica), dict(base.offset))

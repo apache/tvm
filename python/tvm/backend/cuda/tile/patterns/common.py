@@ -15,128 +15,284 @@
 # specific language governing permissions and limitations
 # under the License.
 
-"""Shared region addressing and repeat loops for explicit instruction patterns.
+"""Canonical coordinates, physical operands, and explicit group/repeat loops.
 
-No layout is reordered here. Pattern checks evaluate the caller's layout at
-canonical coordinates; emitters use those same coordinates in TensorLoads.
+Pattern modules describe hardware formulas. This module only evaluates the
+caller's view at those coordinates: it never factors, permutes, or searches a
+layout, and never chooses an instruction width or a data representation.
 """
 
-from tvm.backend.cuda.ptx import PTXNamespace
-from tvm.ir import Bind, Evaluate, For, ForKind, PrimType, Range, Var
+from itertools import product
+from math import prod
+
+import tvm_ffi
+
+from tvm.ir import Bind, Evaluate, For, ForKind, PrimType, Range, SeqStmt, TensorRegion, Var
+from tvm.ir.prim import Let
+from tvm.runtime import DataType
 from tvm.script import tirx as T
 from tvm.sym import Analyzer
 from tvm.tirx import Function
 from tvm.tirx.layout import TileLayout
 
 
-class Operands:
-    """Two equally shaped regions: repeat prefix followed by a fixed atom suffix."""
+def scalar(value):
+    """Read a constant field stored as an ordinary IR operand."""
+    return value.value if hasattr(value, "value") else value
 
-    def __init__(self, dst, src, atom_shape, src_scope, sctx):
-        self.dst, self.src = dst, src
+
+class Context:
+    """One explicit instruction repeated independently by each execution group."""
+
+    def __init__(self, sctx, atom_scope="thread"):
+        self.sctx = sctx
         self.analyzer = Analyzer()
         for var, bound in sctx.var_range_map.items():
             self.analyzer.bind(var, bound)
-        shapes = []
-        self.layouts = {}
-        for name, region in (("dst", dst), ("src", src)):
-            ty = region.source.ty
-            if str(ty.dtype.dtype) not in ("float32", "int32", "uint32"):
-                raise ValueError(f"{name}: pattern requires scalar 32-bit elements")
-            if ty.storage_scope not in (("local",) if name == "dst" else src_scope):
-                raise ValueError(f"{name}: incompatible storage scope {ty.storage_scope}")
-            shape = tuple(int(self.analyzer.simplify(r.extent)) for r in region.region)
-            if any(n <= 0 for n in shape):
-                raise ValueError(f"{name}: pattern requires positive static region extents")
-            if len(shape) < len(atom_shape) or shape[-len(atom_shape) :] != atom_shape:
-                raise ValueError(f"{name}: expected trailing atom shape {atom_shape}, got {shape}")
-            for r, size in zip(region.region, ty.shape):
-                self.require(r.min >= 0, f"{name}: cannot prove region start is in bounds")
-                self.require(r.min + r.extent <= size, f"{name}: region exceeds tensor shape")
-            layout = ty.effective_layout()
-            if not isinstance(layout, TileLayout) or layout.replica:
-                raise ValueError(f"{name}: prototype requires a TileLayout without replicas")
-            self.layouts[name] = layout
-            shapes.append(shape)
-        if shapes[0] != shapes[1]:
-            raise ValueError(f"Repeat shapes must agree: dst={shapes[0]}, src={shapes[1]}")
-        self.repeat_shape = shapes[0][: -len(atom_shape)]
-        self.repeat = [Var(f"repeat_{i}", "int32") for i in range(len(self.repeat_shape))]
-        for var, size in zip(self.repeat, self.repeat_shape):
-            self.analyzer.bind(var, Range(0, size))
-        alignment = int(src.source.ty.data_alignment)
-        if alignment < 16 or alignment % 16:
-            raise ValueError("src: pattern requires a known 16-byte-aligned base (Tensor align=16)")
-        # Registers may have gaps/permuted strides, but must name distinct slots.
-        # This sufficient mixed-radix test is deliberately not an alias solver.
-        span = 1
-        storage = sorted(
-            (int(it.stride), int(it.extent))
-            for it in self.layouts["dst"].shard
-            if it.axis.name == "m" and int(it.extent) > 1
+        self.bindings = []
+        self.group = []
+        self.group_shape = []
+        self.owners = {}
+        intra = sctx.intra
+        if atom_scope == "warp":
+            active = intra.get("laneid")
+            if (
+                sctx.scope_kind == "thread"
+                or active is None
+                or int(active[0]) != 32
+                or int(active[1]) != 0
+            ):
+                raise ValueError("instruction requires all 32 lanes of a warp to be active")
+        if sctx.scope_kind == "cluster" and "clusterCtaIdx.x" not in sctx.launch_params:
+            raise ValueError("cluster tile scope requires an explicit LaunchConfig.cluster")
+        axes = (
+            ("cta_id", lambda: T.cuda.cluster_cta_id("x")),
+            ("cbz", lambda: T.cuda.cluster_cta_id("z")),
+            ("cby", lambda: T.cuda.cluster_cta_id("y")),
+            ("cbx", lambda: T.cuda.cluster_cta_id("x")),
+            ("warpid", T.cuda.warp_id),
+            ("wid_in_wg", T.cuda.warp_in_warpgroup),
+            ("laneid", T.cuda.lane_id),
         )
-        for stride, extent in storage:
-            if stride < span:
-                raise ValueError("dst: register layout must have nonoverlapping storage strides")
-            span += (extent - 1) * stride
-        # Ownership has been checked against the pattern before this view is
-        # used. Bind the same physical storage, so PTX outputs can address
-        # nonadjacent registers without a temporary tensor or a remap copy.
-        dst_ty = dst.source.ty
-        raw_span = self.layouts["dst"].span("m") + dst_ty.elem_offset
-        self.dst_raw = Var(
-            "tile_dst",
-            T.Tensor((raw_span,), str(dst_ty.dtype.dtype), scope="local", layout="default"),
-        )
+        if set(intra) - {name for name, _ in axes}:
+            raise ValueError("tile groups require block/cluster CTA coordinates and warp/lane axes")
+        for name, index in axes:
+            if name not in intra or (name == "laneid" and atom_scope == "warp"):
+                continue
+            extent, offset = (int(x) for x in intra[name])
+            var = Var("group_" + name, "int32")
+            self.analyzer.bind(var, Range(0, extent))
+            self.group.append(var)
+            self.group_shape.append(int(extent))
+            self.owners["cbx" if name == "cta_id" else name] = var + offset
+            self.bindings.append(Bind(var, T.cast(index(), "int32") - offset))
+        self.repeat = None
+        self.repeat_shape = None
 
     def require(self, condition, message):
-        if not self.analyzer.can_prove(condition):
-            raise ValueError(message)
-
-    def indices(self, name, atom, repeat=None):
-        region = getattr(self, name)
-        coord = [*(self.repeat if repeat is None else repeat), *atom]
-        return tuple(self.analyzer.simplify(r.min + i) for r, i in zip(region.region, coord))
-
-    def physical(self, name, atom):
-        region = getattr(self, name)
-        result = dict(
-            self.layouts[name].apply(*self.indices(name, atom), shape=region.source.ty.shape)
+        # Layout.apply uses expression-local lets to share its address terms.
+        # Inline these pure terms before collecting free pattern coordinates.
+        condition = tvm_ffi.structural_map(
+            condition,
+            (
+                Let,
+                lambda expr: tvm_ffi.structural_map(
+                    expr.body,
+                    (Var, lambda var: expr.value if var.same_as(expr.var) else var),
+                    order="post",
+                ),
+            ),
+            order="post",
         )
-        result["m"] = result.get("m", 0) + region.source.ty.elem_offset
-        return {key: self.analyzer.simplify(value) for key, value in result.items()}
+        if self.analyzer.can_prove(condition):
+            return
+        # Bitwise swizzles are not fully covered by the arithmetic analyzer.
+        # Check the already fixed group/repeat coordinates directly. This does
+        # not search for another layout, atom, or instruction.
+        variables = []
 
-    def memory(self, name, atom, *, lane=None):
-        physical = self.physical(name, atom)
-        allowed = {"m"} if lane is None else {"m", "laneid"}
-        if set(physical) - allowed:
-            raise ValueError(
-                f"{name}: pattern expects only axes {sorted(allowed)}, got {tuple(physical)}"
+        def collect(var):
+            if var not in variables:
+                variables.append(var)
+            return var
+
+        tvm_ffi.structural_map(condition, (Var, collect))
+        domain = dict(
+            zip(
+                [*self.group, *(self.repeat or ())], [*self.group_shape, *(self.repeat_shape or ())]
             )
+        )
+        if variables and all(var in domain for var in variables):
+            for values in product(*(range(domain[var]) for var in variables)):
+                replacements = dict(zip(variables, values))
+                expr = tvm_ffi.structural_map(
+                    condition, (Var, lambda var: T.int32(replacements[var])), order="pre"
+                )
+                if not self.analyzer.can_prove(expr):
+                    break
+            else:
+                return
+        raise ValueError(f"{message}: cannot prove {self.analyzer.simplify(condition)}")
+
+    def loops(self, shape):
+        self.repeat_shape = tuple(shape)
+        self.repeat = [Var(f"repeat_{i}", "int32") for i in range(len(shape))]
+        for var, size in zip(self.repeat, shape):
+            self.analyzer.bind(var, Range(0, size))
+        return self.repeat
+
+    def region(self, name, region, atom_shape, scopes, *, repeat_axes=None, bounds=True):
+        return Region(self, name, region, atom_shape, scopes, repeat_axes, bounds)
+
+    def finish(self, statements):
+        body = SeqStmt(
+            [
+                Evaluate(s) if not isinstance(s, Bind | SeqStmt) and hasattr(s, "ty") else s
+                for s in statements
+            ]
+        )
+        for var, extent in reversed(list(zip(self.repeat or (), self.repeat_shape or ()))):
+            body = For(var, 0, extent, ForKind.UNROLLED, body)
+        return Function([], [*self.bindings, body], ret_type=PrimType("void"))
+
+
+class Region:
+    """An operand's group prefix, repeat axes, and its own fixed atom suffix."""
+
+    def __init__(self, ctx, name, region, atom_shape, scopes, repeat_axes, bounds):
+        if not isinstance(region, TensorRegion):
+            raise TypeError(f"{name}: expected a tensor region")
+        self.ctx, self.name, self.region = ctx, name, region
+        self.tensor, self.ty = region.source, region.source.ty
+        self.dtype = DataType(self.ty.dtype.dtype)
+        self.bits = self.dtype.bits
+        self.layout = self.ty.effective_layout()
+        if self.layout is None:
+            raise ValueError(f"{name}: operand requires a physical layout")
+        if self.ty.storage_scope not in scopes:
+            raise ValueError(
+                f"{name}: expected storage scope {scopes}, got {self.ty.storage_scope}"
+            )
+        shape = tuple(int(ctx.analyzer.simplify(r.extent)) for r in region.region)
+        if any(n <= 0 for n in shape):
+            raise ValueError(f"{name}: pattern requires positive static region extents")
+        ng, na = len(ctx.group_shape), len(atom_shape)
+        if shape[:ng] != tuple(ctx.group_shape):
+            raise ValueError(
+                f"{name}: expected leading group shape {tuple(ctx.group_shape)}, got {shape}"
+            )
+        if len(shape) < ng + na or (na and shape[-na:] != tuple(atom_shape)):
+            raise ValueError(
+                f"{name}: expected trailing atom shape {tuple(atom_shape)}, got {shape}"
+            )
+        self.atom_shape = tuple(atom_shape)
+        repeats = shape[ng : len(shape) - na if na else len(shape)]
+        if ctx.repeat is None:
+            ctx.loops(repeats)
+        self.repeat_axes = (
+            tuple(range(len(ctx.repeat))) if repeat_axes is None else tuple(repeat_axes)
+        )
+        expected = tuple(ctx.repeat_shape[i] for i in self.repeat_axes)
+        if repeats != expected:
+            raise ValueError(f"Repeat shapes must agree: {name}={repeats}, expected {expected}")
+        if bounds:
+            for r, size in zip(region.region, self.ty.shape):
+                ctx.require(r.min >= 0, f"{name}: cannot prove region start is in bounds")
+                ctx.require(r.min + r.extent <= size, f"{name}: region exceeds tensor shape")
+        self.raw = None
+
+    def indices(self, atom, repeat=None):
+        repeats = [self.ctx.repeat[i] for i in self.repeat_axes] if repeat is None else repeat
+        coords = [*self.ctx.group, *repeats, *atom]
+        if len(coords) != len(self.region.region):
+            raise ValueError(f"{self.name}: incorrect canonical coordinate rank")
+        return tuple(
+            self.ctx.analyzer.simplify(r.min + i) for r, i in zip(self.region.region, coords)
+        )
+
+    def physical(self, atom, repeat=None):
+        result = dict(self.layout.apply(*self.indices(atom, repeat), shape=self.ty.shape))
+        if self.ty.storage_scope != "tmem":
+            result["m"] = result.get("m", 0) + self.ty.elem_offset
+        return {key: self.ctx.analyzer.simplify(value) for key, value in result.items()}
+
+    def memory(self, atom):
+        physical = self.physical(atom)
+        if set(physical) - {"m"}:
+            raise ValueError(f"{self.name}: memory operand has thread or TMEM axes")
+        return physical["m"]
+
+    def owner(self, atom, *, lane=None):
+        physical = self.physical(atom)
+        owners = dict(self.ctx.owners)
         if lane is not None:
-            self.require(
-                physical.get("laneid", 0) == lane,
-                "dst: ldmatrix requires owner lane = 4 * row + word",
+            owners["laneid"] = lane
+        if set(physical) - {"m", *owners}:
+            raise ValueError(f"{self.name}: unexpected ownership axes {tuple(physical)}")
+        for axis, owner in owners.items():
+            self.ctx.require(
+                physical.get(axis, 0) == owner,
+                f"{self.name}: incorrect {axis} owner; expected {owner}",
             )
         return physical["m"]
 
-    def aligned_row(self, atom):
-        base = self.memory("src", atom)
-        self.require(base % 4 == 0, "src: every instruction row must start at a 16-byte boundary")
-        return base
-
-    def value(self, name, atom):
-        assert name == "dst"
-        return self.dst_raw[self.physical(name, atom)["m"]]
-
-    def pointer(self, name, atom):
-        return getattr(self, name).source.ptr_to(self.indices(name, atom))
-
-    def lower(self, opcode, emit):
-        body = Evaluate(emit(self, PTXNamespace()[opcode]))
-        for var, extent in reversed(list(zip(self.repeat, self.repeat_shape))):
-            body = For(var, 0, extent, ForKind.UNROLLED, body)
-        declaration = Bind(
-            self.dst_raw, T.decl_tensor(self.dst.source.data, ty_args=[self.dst_raw.ty])
+    def aligned(self, atom, byte_alignment):
+        alignment = int(self.ty.data_alignment)
+        if alignment < byte_alignment or alignment % byte_alignment:
+            raise ValueError(f"{self.name}: requires a known {byte_alignment}-byte-aligned base")
+        self.ctx.require(
+            (self.memory(atom) * self.bits) % (8 * byte_alignment) == 0,
+            f"{self.name}: atom address must be {byte_alignment}-byte aligned",
         )
-        return Function([], [declaration, body], ret_type=PrimType("void"))
+
+    def contiguous(self, coordinates, byte_alignment):
+        coordinates = list(coordinates)
+        self.aligned(coordinates[0], byte_alignment)
+        base = self.memory(coordinates[0])
+        for offset, coord in enumerate(coordinates):
+            self.ctx.require(
+                self.memory(coord) == base + offset,
+                f"{self.name}: atom needs consecutive elements in canonical order",
+            )
+
+    def nonoverlapping(self):
+        if isinstance(self.layout, TileLayout):
+            span = 1
+            storage = sorted(
+                (int(i.stride), int(i.extent))
+                for i in self.layout.shard
+                if i.axis.name == "m" and int(i.extent) > 1
+            )
+            for stride, extent in storage:
+                if stride < span:
+                    raise ValueError(
+                        f"{self.name}: register layout must have nonoverlapping storage strides"
+                    )
+                span += (extent - 1) * stride
+
+    def value(self, atom):
+        if self.ty.storage_scope != "local":
+            raise ValueError(f"{self.name}: scalar values must be in registers")
+        if self.raw is None:
+            span = self.layout.span("m") + self.ty.elem_offset
+            self.raw = Var(
+                "tile_" + self.name,
+                T.Tensor((span,), str(self.dtype), scope="local", layout="default"),
+            )
+            self.ctx.bindings.append(
+                Bind(self.raw, T.decl_tensor(self.tensor.data, ty_args=[self.raw.ty]))
+            )
+        return self.raw[self.physical(atom)["m"]]
+
+    def pointer(self, atom):
+        return self.tensor.ptr_to(self.indices(atom))
+
+    def require_bits(self, bits):
+        if self.bits != bits or self.dtype.lanes != 1:
+            raise ValueError(
+                f"{self.name}: expected scalar {bits}-bit elements; use an explicit dtype view"
+            )
+
+    @property
+    def atom_size(self):
+        return prod(self.atom_shape)

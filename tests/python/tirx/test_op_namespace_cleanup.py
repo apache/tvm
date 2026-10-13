@@ -378,7 +378,17 @@ def test_tile_helpers_are_separate_from_backend_instructions():
     assert not hasattr(tvm.tirx, "TilePrimitiveCall")
     assert not hasattr(tvm.tirx, "TileOpCall")
     assert not any(name.startswith("tirx.tile.") for name in Op.list_op_names())
-    for name in ("copy", "copy_async", "sum", "min", "permute_layout"):
+    for name in (
+        "copy",
+        "copy_async",
+        "sum",
+        "min",
+        "permute_layout",
+        "ld",
+        "st",
+        "compose",
+        "tcgen05",
+    ):
         assert not hasattr(T.cuda.tile, name)
-    for name in ("reduce_sum", "reduce_max", "reduce_min", "permute_layout", "copy_scalar"):
-        assert not hasattr(T.cuda.tile.compose, name)
+    assert T.cuda.tile.apply
+    assert T.cuda.tile.ewise

@@ -15,22 +15,10 @@
     specific language governing permissions and limitations
     under the License.
 
-CUDA Tensor Loads, Stores, and Moves
-====================================
+Explicit memory instructions
+============================
 
-``T.cuda.tile.ld(dst_registers, src_memory, scope=...)`` and
-``T.cuda.tile.st(dst_memory, src_registers, scope=...)`` expand the register
-layout into memory instructions. ``vec_bits`` requests a fixed-width
-thread-level instruction. ``ldmatrix`` and ``stmatrix`` explicitly select
-matrix load/store instructions. ``mov`` copies registers or fills a tensor.
-
-Synchronous global/shared copying requires explicit local storage and separate
-load and store operations, or caller-written scalar loops. There is no scalar
-fallback dispatcher. See :doc:`../tile_primitives` for scope and cache
-qualifiers.
-
-.. toctree::
-   :maxdepth: 1
-
-   copy/reg
-   copy/ldstmatrix
+See :doc:`../cuda_tile_patterns` for the explicit instruction contract and canonical
+operand coordinates. Use ``T.cuda.tile.apply(T.ptx[opcode], ...)`` to select
+the instruction. Prepare views, temporary storage and synchronization at the
+call site. Scalar compositions use ``T.cuda.tile.ewise`` over registers.

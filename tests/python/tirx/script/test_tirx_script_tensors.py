@@ -192,7 +192,7 @@ def test_roundtrip_allocated_addr():
         T.device_entry()
         A = T.alloc_tensor(1024, ty_args=[T.Tensor([10], "float32", scope="trn.sbuf")])
         for i in T.serial(2):
-            T.cuda.tile.mov(A[i*5:i*5+5], T.float32(0.0))
+            T.cuda.tile.apply(T.ptx['mov.b32'], A[i*5:i*5+5], T.float32(0.0))
 
         # fmt: on
     code = test.script()
@@ -206,7 +206,7 @@ def test_roundtrip_implicit_tensor_region():
     def test(A: T.Tensor((10, 10, 10), 'float32', layout=T.TileLayout(T.S[10, 10, 10]))):
 
         T.device_entry()
-        T.cuda.tile.mov(A[0], T.float32(0.0))
+        T.cuda.tile.apply(T.ptx['mov.b32'], A[0], T.float32(0.0))
 
         # fmt: on
     code = test.script()
@@ -221,7 +221,7 @@ def test_roundtrip_alloc_under_any_scope():
         T.device_entry()
         for i in T.serial(10):
             A = T.alloc_tensor(1024, ty_args=[T.Tensor([100], "float32", scope="trn.sbuf")])
-            T.cuda.tile.mov(A[i*10:i*10+10], T.float32(0.0))
+            T.cuda.tile.apply(T.ptx['mov.b32'], A[i*10:i*10+10], T.float32(0.0))
 
         # fmt: on
     code = test.script()

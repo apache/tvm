@@ -15,54 +15,84 @@
 # specific language governing permissions and limitations
 # under the License.
 
-"""Explicit instruction patterns, independent of adaptive CUDA tile lowering."""
+"""Explicit CUDA instruction patterns over ordinary IR Calls."""
 
-from tvm.backend.cuda.ptx import instruction_name
-from tvm.ir import StringImm
+from tvm.backend.cuda.ptx import instruction_forms, instruction_name
+from tvm.ir import StringImm, Tuple
 from tvm.tirx.tile.instruction import Instruction, Operand
 
-from . import ld_global, ldmatrix
-from .common import Operands
-
-_PATTERNS = {
-    "ld.global.v4.b32": ld_global,
-    "ldmatrix.sync.aligned.m8n8.x2.shared.b16": ldmatrix,
-}
+from . import async_copy, ldmatrix, memory, mma, register, tcgen05_mma, tma, tmem, tmem_copy
+from .ewise import ewise
 
 
 def _lower(view, sctx):
-    opcode, dst, src = view.args
-    name = opcode.value
-    if name not in _PATTERNS:
-        raise ValueError(f"No explicit tile pattern for {name}; supported: {tuple(_PATTERNS)}")
-    pattern = _PATTERNS[name]
-    if sctx.scope_kind != pattern.SCOPE:
-        raise ValueError(f"{name} requires scope={pattern.SCOPE!r}")
-    operands = Operands(dst, src, pattern.SHAPE, pattern.SRC_SCOPE, sctx)
-    pattern.check(operands, sctx)
-    return operands.lower(name, pattern.emit)
+    opcode, packed_args, packed_params = view.args
+    args = list(packed_args.fields)
+    params = {
+        pair.fields[0].value: pair.fields[1]
+        for pair in (packed_params.fields if packed_params is not None else ())
+    }
+    forms = instruction_forms(opcode.value)
+    entry, modifiers = forms[0]
+    if entry.ptx_name in ("ld", "st"):
+        lower = memory.lower
+    elif entry.name in ("ldmatrix", "stmatrix"):
+        lower = ldmatrix.lower
+    elif entry.ptx_name == "mma":
+        lower = mma.lower
+    elif entry.name.startswith(("cp_async_bulk_tensor_", "cp_reduce_async_bulk_tensor")):
+        lower = tma.lower
+    elif entry.name.startswith("tcgen05_mma"):
+        lower = tcgen05_mma.lower
+    elif entry.name == "tcgen05_cp":
+        lower = tmem_copy.lower
+    elif entry.name in ("tcgen05_ld", "tcgen05_st"):
+        lower = tmem.lower
+    elif entry.name.startswith(("cp_async_ca", "cp_async_cg")) or entry.name == "cp_async_bulk_s2c":
+        lower = async_copy.lower
+    elif entry.ptx_name in register.MNEMONICS:
+        return register.lower(opcode.value, forms, args, params, sctx)
+    else:
+        raise ValueError(f"No explicit tile pattern for {opcode.value}")
+    return lower(opcode.value, entry, modifiers, args, params, sctx)
 
 
 _construct = Instruction(
     "tirx.cuda.tile.apply",
     "ptx_pattern",
-    (Operand("instruction"), Operand("dst", "region"), Operand("src", "region")),
-    ("thread", "warp"),
+    (Operand("instruction"), Operand("operands"), Operand("parameters", default=None)),
+    ("thread", "warp", "warpgroup", "cta", "cluster"),
     lower=_lower,
 ).register()
 
 
-def apply(instruction, dst, src, *, scope="thread", **kwargs):
-    """Apply one explicitly selected PTX instruction over canonical atom tiles.
+def apply(instruction, *operands, scope="thread", **parameters):
+    """Repeat the explicitly named PTX instruction over its canonical operands.
 
-    Leading dimensions are repeat axes; trailing dimensions must match the
-    instruction's documented operand pattern. No instruction selection, axis
-    search, implicit data rearrangement, or scalar fallback is performed.
-
-    The prototype supports ``ld.global.v4.b32`` at thread scope and
-    ``ldmatrix.sync.aligned.m8n8.x2.shared.b16`` at warp scope. See
-    ``docs/tirx/cuda_tile_patterns.rst`` for both complete contracts.
+    Operand axes are group, repeat, then instruction-specific atom coordinates.
+    Group axes bind execution IDs; repeat axes generate unrolled loops. Static
+    descriptor fields and runtime instruction operands are serialized as normal
+    Call arguments. See ``docs/tirx/cuda_tile_patterns.rst`` for the contracts.
     """
     if isinstance(instruction, StringImm):
         instruction = instruction.value
-    return _construct(instruction_name(instruction), dst, src, scope=scope, **kwargs)
+    # The generic IR printer spells the registered three-argument Call. Accept
+    # that spelling as well as the user-facing variadic operand syntax.
+    if len(operands) == 2 and all(isinstance(x, Tuple | tuple | list) for x in operands):
+        operands, encoded = operands
+        pairs = encoded.fields if isinstance(encoded, Tuple) else encoded
+        decoded = {}
+        for pair in pairs:
+            pair = pair.fields if isinstance(pair, Tuple) else pair
+            key = pair[0].value if isinstance(pair[0], StringImm) else pair[0]
+            decoded[key] = pair[1]
+        decoded.update(parameters)
+        parameters = decoded
+        operands = tuple(operands.fields if isinstance(operands, Tuple) else operands)
+    constructor_keys = {
+        key: parameters.pop(key) for key in ("attrs", "ty", "ty_args", "loc") if key in parameters
+    }
+    packed = tuple((name, value) for name, value in sorted(parameters.items()))
+    return _construct(
+        instruction_name(instruction), operands, packed, scope=scope, **constructor_keys
+    )

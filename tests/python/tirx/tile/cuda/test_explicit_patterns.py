@@ -152,16 +152,16 @@ def _dispatch(
 
 
 def test_contract_rejections():
-    with pytest.raises(RuntimeError, match="consecutive words"):
+    with pytest.raises(RuntimeError, match="consecutive elements"):
         _dispatch(src_layout=TileLayout(S[(2, 4) : (8, 2)]))
-    with pytest.raises(RuntimeError, match="16-byte boundary"):
+    with pytest.raises(RuntimeError, match="16-byte aligned"):
         _dispatch(elem_offset=1)
     with pytest.raises(RuntimeError, match="known 16-byte-aligned base"):
         _dispatch(align=4)
     with pytest.raises(RuntimeError, match="Repeat shapes must agree"):
         _dispatch(dst_shape=(3, 4))
     with pytest.raises(RuntimeError, match="No explicit tile pattern"):
-        _dispatch(opcode="ld.global.v2.b32")
+        _dispatch(opcode="barrier.sync.aligned")
     with pytest.raises(RuntimeError, match="nonoverlapping storage strides"):
         _dispatch(dst_layout=TileLayout(S[(2, 4) : (4, 0)]))
 
@@ -173,15 +173,15 @@ def test_matrix_contract_rejections():
     kw = dict(src_shape=shape, src_layout=shared, dst_layout=reg, opcode=LDMATRIX, scope="warp")
     _dispatch(**kw)
     # Last word axis becomes offsets 0,2,1,3 after splitting into two bits.
-    with pytest.raises(RuntimeError, match="consecutive b32 words"):
+    with pytest.raises(RuntimeError, match="consecutive elements"):
         _dispatch(**{**kw, "src_layout": TileLayout(S[(2, 2, 8, 2, 2) : (128, 8, 16, 1, 2)])})
-    with pytest.raises(RuntimeError, match="owner lane"):
+    with pytest.raises(RuntimeError, match="laneid owner"):
         _dispatch(**{**kw, "dst_layout": TileLayout(S[shape : (8, 2, 1 @ laneid, 8 @ laneid)])})
-    with pytest.raises(RuntimeError, match="16-byte boundary"):
+    with pytest.raises(RuntimeError, match="16-byte aligned"):
         _dispatch(**{**kw, "src_layout": TileLayout(S[shape : (128, 8, 17, 1)])})
     with pytest.raises(RuntimeError, match="all 32 lanes"):
         _dispatch(**{**kw, "active": 16})
-    with pytest.raises(RuntimeError, match="requires scope='warp'"):
+    with pytest.raises(RuntimeError, match="all 32 lanes"):
         _dispatch(**{**kw, "scope": "thread"})
 
 
@@ -250,3 +250,112 @@ def test_region_starts_and_element_offsets_gpu():
     out = tvm.runtime.tensor(np.zeros_like(expected), tvm.cuda())
     compiled(tvm.runtime.tensor(a, tvm.cuda()), out)
     np.testing.assert_array_equal(out.numpy(), expected)
+
+
+@pytest.mark.skipif(not env.has_cuda_compute(9), reason="Hopper required for stmatrix")
+@pytest.mark.parametrize("count", [1, 2, 4])
+@pytest.mark.parametrize("transpose", [False, True])
+@pytest.mark.parametrize("store", [False, True])
+def test_matrix_modes(count, transpose, store):
+    shared_layout = TileLayout(S[(count, 8, 4) : (128, 8, 1)])
+    register_layout = TileLayout(S[(count, 8, 4) : (3, 4 @ laneid, 1 @ laneid)])
+    op = (
+        ("stmatrix" if store else "ldmatrix")
+        + f".sync.aligned.m8n8.x{count}"
+        + (".trans" if transpose else "")
+        + ".shared.b16"
+    )
+
+    @T.function
+    def kernel(A: T.Tensor((count, 8, 4), "uint32"), Output: T.Tensor((count, 8, 4), "uint32")):
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=1, block=32))
+        lane = T.cuda.lane_id()
+        shared = T.alloc_tensor(
+            ty_args=[T.Tensor((count, 8, 4), "uint32", scope="shared", layout=shared_layout)]
+        )
+        raw = T.alloc_local((count * 3,), "uint32", layout="default")
+        regs = raw.view(count, 8, 4, layout=register_layout)
+        if T.constexpr(store):
+            for m in range(count):
+                raw[m * 3] = A[m, lane // 4, lane % 4]
+            T.cuda.tile.apply(T.ptx[op], shared, regs, scope="warp")
+            T.cuda.cta_sync()
+            for m in range(count):
+                Output[m, lane // 4, lane % 4] = shared[m, lane // 4, lane % 4]
+        else:
+            for m in range(count):
+                shared[m, lane // 4, lane % 4] = A[m, lane // 4, lane % 4]
+            T.cuda.cta_sync()
+            T.cuda.tile.apply(T.ptx[op], regs, shared, scope="warp")
+            for m in range(count):
+                Output[m, lane // 4, lane % 4] = raw[m * 3]
+
+    f = compile_kernel(kernel)
+    x = np.arange(count * 64, dtype="uint16").reshape(count, 8, 8)
+    words = x.view("uint32")
+    out = tvm.runtime.tensor(np.zeros_like(words), tvm.cuda())
+    f(tvm.runtime.tensor(words, tvm.cuda()), out)
+    expected = x.transpose(0, 2, 1) if transpose else x
+    np.testing.assert_array_equal(out.numpy().view("uint16"), expected)
+
+
+def test_tma_rejects_under_aligned_shared_atom():
+    @T.function
+    def kernel(A: T.Tensor((16,), "uint32")):
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=1, block=1))
+        shared = T.alloc_shared((16,), "uint32", layout="default", align=64)
+        barrier = T.alloc_shared((1,), "uint64", layout="default")
+        T.cuda.tile.apply(
+            T.ptx["cp.async.bulk.tensor.1d.shared::cta.global.tile.mbarrier::complete_tx::bytes"],
+            shared,
+            A,
+            box=(16,),
+            coords=(0,),
+            mbar=barrier.ptr_to([0]),
+        )
+
+    with tvm.target.Target({"kind": "cuda", "arch": "sm_100a"}):
+        with pytest.raises(RuntimeError, match="known 128-byte-aligned base"):
+            tvm.tirx.transform.TileDispatch()(tvm.IRModule({"main": kernel}))
+
+
+def test_cluster_pattern_requires_launch_cluster():
+    @T.function
+    def kernel(A: T.Tensor((2, 1, 32, 4), "uint32")):
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=2, block=32))
+        r = T.alloc_local((2, 1, 32, 4), "uint32", layout="default")
+        T.cuda.tile.apply(T.ptx[LD], r, A, scope="cluster")
+
+    with tvm.target.Target({"kind": "cuda", "arch": "sm_100a"}):
+        with pytest.raises(RuntimeError, match="explicit LaunchConfig.cluster"):
+            tvm.tirx.transform.TileDispatch()(tvm.IRModule({"main": kernel}))
+
+
+def test_swizzled_tmem_copy_rejects_gapped_words():
+    from tvm.backend.cuda.axis import TCol, TLane
+    from tvm.tirx.layout import ComposeLayout
+
+    shared_layout = ComposeLayout(2, 3, 3, TileLayout(S[(128, 2, 4) : (32, 8, 1)]))
+    tmem_layout = TileLayout(S[(128, 8) : (1 @ TLane, 1 @ TCol)])
+
+    @T.function
+    def kernel():
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=1, block=1))
+        src = T.alloc_tensor(
+            ty_args=[T.Tensor((128, 8), "uint32", scope="shared", layout=shared_layout, align=1024)]
+        )
+        dst = T.cuda.decl_tmem(
+            T.uint32(0), ty_args=[T.Tensor((128, 8), "uint32", scope="tmem", layout=tmem_layout)]
+        )
+        T.cuda.tile.apply(
+            T.ptx["tcgen05.cp.cta_group::1.128x256b"],
+            dst,
+            src,
+            ldo_bytes=32,
+            sdo_bytes=1024,
+            swizzle=3,
+        )
+
+    with tvm.target.Target({"kind": "cuda", "arch": "sm_100a"}):
+        with pytest.raises(RuntimeError, match="explicit matrix descriptor address walk"):
+            tvm.tirx.transform.TileDispatch()(tvm.IRModule({"main": kernel}))

@@ -155,7 +155,7 @@ def test_parser_attaches_loc_to_tile_primitive_call():
     @_capture_source(sources)
     def tile_call():
         A = T.alloc_tensor(ty_args=[T.Tensor((16,), "float32")])
-        T.cuda.tile.mov(A[0:16], T.float32(0))
+        T.cuda.tile.apply(T.ptx["mov.b32"], A[0:16], T.float32(0))
 
     source = sources[0]
     call_ast = source.as_ast().body[0].body[-1].value
@@ -164,7 +164,7 @@ def test_parser_attaches_loc_to_tile_primitive_call():
         func,
         lambda node: isinstance(node, tvm.ir.Call)
         and isinstance(node.op, tvm.ir.Op)
-        and node.op.name == "tirx.cuda.tile.mov",
+        and node.op.name == "tirx.cuda.tile.apply",
     )
 
     assert _loc_range(call.loc) == _loc_range(source.to_loc(call_ast))

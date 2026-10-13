@@ -211,7 +211,9 @@ def view(buf: Var, *args, **kwargs) -> Var:
     )
     if layout is None:
         shape = _infer_shape(shape)
-    strides = _reshape_strides(buf, shape) if buf.layout is None and layout is None else None
+    strides = (
+        [] if layout is not None else _reshape_strides(buf, shape) if buf.layout is None else None
+    )
     return _redecl(buf, shape, buf.layout if layout is None else layout, strides=strides)
 
 
