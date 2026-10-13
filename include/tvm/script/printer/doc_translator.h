@@ -235,6 +235,51 @@ class DocTranslatorObj : public ffi::Object {
     ffi::details::ExpectedUnsafe::MoveFromTVMFFIAny<void>(vtable_->end_var_scope(this)).value();
   }
   /*!
+   * \brief Run a callback in a balanced lexical variable scope without collecting Docs.
+   * \tparam Callback The callable type.
+   * \param callback The callback run inside the scope.
+   * \return The callback result, preserving void, value and reference results.
+   * \note Automatic cleanup on return or exception discards scope-close errors.
+   *       Explicit EndVarScope calls remain checked.
+   */
+  template <typename Callback>
+  decltype(auto) WithVarScope(Callback&& callback) {
+    struct Scope {
+      DocTranslatorObj* translator;
+      ~Scope() {
+        ffi::details::ExpectedUnsafe::MoveFromTVMFFIAny<void>(
+            translator->vtable_->end_var_scope(translator));
+      }
+    };
+    BeginVarScope();
+    Scope scope{this};
+    return std::forward<Callback>(callback)();
+  }
+
+  /*!
+   * \brief Run a callback with temporarily replaced typed extension state.
+   * \tparam T The state type, default constructed when absent.
+   * \tparam Callback The callable type.
+   * \param name The state name, checked for an existing incompatible type.
+   * \param value The temporary state value.
+   * \param callback The callback run with the temporary state.
+   * \return The callback result, preserving void, value and reference results.
+   * \note Restore the saved value on return or exception. This does not collect Docs.
+   */
+  template <typename T, typename Callback>
+  decltype(auto) WithExtraStateScope(const ffi::String& name, T value, Callback&& callback) {
+    struct Scope {
+      DocTranslatorObj* translator;
+      ffi::String key;
+      T saved;
+      ~Scope() { translator->SetExtraState(key, std::move(saved)); }
+    };
+    Scope scope{this, name, GetOrCreateExtraState<T>(name)};
+    SetExtraState(scope.key, std::move(value));
+    return std::forward<Callback>(callback)();
+  }
+
+  /*!
    * \brief Push an empty Doc collection.
    */
   void BeginDocScope() { doc_scopes_.push_back(ffi::List<Doc>()); }
@@ -413,6 +458,14 @@ inline ffi::Optional<ExprDoc> DocTranslatorObj::DefaultTranslate(ffi::AnyView va
         .value();
   }
   if (attr.type_index() == ffi::TypeIndex::kTVMFFINone) {
+    if (value == nullptr) return LiteralDoc::None(std::nullopt);
+    if (auto string = value.as<ffi::String>()) return LiteralDoc::Str(string.value(), std::nullopt);
+    if (auto boolean = value.as<bool>()) return LiteralDoc::Boolean(boolean.value(), std::nullopt);
+    if (auto integer = value.as<int64_t>()) return LiteralDoc::Int(integer.value(), std::nullopt);
+    if (auto floating = value.as<double>())
+      return LiteralDoc::Float(floating.value(), std::nullopt);
+    if (auto dtype = value.as<DLDataType>())
+      return LiteralDoc::DataType(dtype.value(), std::nullopt);
     if (auto type = value.as<Type>()) return DefaultTypeTranslate(type.value());
   }
   TVM_FFI_THROW(TypeError) << (attr.type_index() == ffi::TypeIndex::kTVMFFINone

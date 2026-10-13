@@ -19,6 +19,7 @@
 #include <tvm/ir/prim/op.h>
 #include <tvm/script/printer/doc_translator.h>
 #include <tvm/sym/analyzer.h>
+#include <tvm/tirx/function.h>
 #include <tvm/tirx/stmt.h>
 
 #include <algorithm>
@@ -27,7 +28,6 @@
 #include <vector>
 
 #include "../../../script/printer/ir/utils.h"
-#include "utils.h"
 
 namespace tvm {
 namespace script {
@@ -83,7 +83,8 @@ ffi::Optional<ExprDoc> ForDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
     } else if (key == tvm::tirx::attr::kPragmaUnroll &&
                (boolean.value_or(false) || (integer.has_value() && integer.value() > 0))) {
       keys.push_back("unroll");
-      values.push_back(AnyValue(d, value));
+      values.push_back(d->WithExtraStateScope<bool>("ir.explicit_scalar_dtype", true,
+                                                    [&] { return d->Translate(value).value(); }));
       unroll_option = true;
     }
   }
@@ -96,7 +97,8 @@ ffi::Optional<ExprDoc> ForDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
     ffi::Array<ExprDoc> annotation_values;
     for (const auto& [key, value] : sorted) {
       annotation_keys.push_back(LiteralDoc::Str(key, std::nullopt));
-      annotation_values.push_back(AnyValue(d, value));
+      annotation_values.push_back(d->WithExtraStateScope<bool>(
+          "ir.explicit_scalar_dtype", true, [&] { return d->Translate(value).value(); }));
     }
     keys.push_back("annotations");
     values.push_back(DictDoc(annotation_keys, annotation_values));
@@ -124,7 +126,8 @@ ffi::Optional<ExprDoc> ForDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
         bounds.erase(bounds.begin());
       }
     }
-    doc = ForDoc(var, callee->Call(bounds, keys, values), Body(loop->body, d));
+    doc = ForDoc(var, callee->Call(bounds, keys, values),
+                 ToStmtDocArray(d->WithDocScope([&]() { d->Translate(loop->body); })));
   }
   d->Emit(doc, ffi::GetRef<ffi::ObjectRef>(loop));
   return std::nullopt;

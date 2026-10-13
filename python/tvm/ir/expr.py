@@ -712,9 +712,6 @@ def _lambda_type(annotation):
         return Var("", annotation).ty
     if isinstance(annotation, tvm.DataType):
         return tvm.ir.PrimType(annotation)
-    dtype = getattr(annotation, "_dtype_str", None)
-    if dtype is not None:
-        return tvm.ir.PrimType(dtype)
     if callable(annotation):
         value = annotation()
         if isinstance(value, Expr):

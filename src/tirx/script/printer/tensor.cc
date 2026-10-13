@@ -50,9 +50,11 @@ ffi::Optional<ExprDoc> TensorTypeDocTranslate(DocTranslatorObj* d, ffi::AnyView 
         ->Call({LiteralDoc::Str("tirx.TensorType", std::nullopt)},
                {"dtype", "scope", "shape", "strides", "elem_offset", "data_alignment",
                 "offset_factor", "layout"},
-               {TypeValue(d, tensor->dtype, false), d->Translate(tensor->storage_scope).value(),
-                AnyValue(d, tensor->shape), AnyValue(d, tensor->strides),
-                ReflectedValue(d, tensor->elem_offset),
+               {d->Translate(tensor->dtype).value(), d->Translate(tensor->storage_scope).value(),
+                d->Translate(tensor->shape).value(), d->Translate(tensor->strides).value(),
+                d->WithExtraStateScope<bool>(
+                    "ir.explicit_scalar_dtype", true,
+                    [&] { return d->Translate(tensor->elem_offset).value(); }),
                 LiteralDoc::Int(tensor->data_alignment, std::nullopt),
                 LiteralDoc::Int(tensor->offset_factor, std::nullopt),
                 tensor->layout.has_value() ? d->Translate(tensor->layout.value()).value()
@@ -67,13 +69,13 @@ ffi::Optional<ExprDoc> TensorTypeDocTranslate(DocTranslatorObj* d, ffi::AnyView 
       d->RecordOrigin(literal, dim);
       shape.push_back(literal);
     } else if (dim.as<IntImmNode>()) {
-      shape.push_back(ReflectedValue(d, dim));
+      shape.push_back(d->WithExtraStateScope<bool>("ir.explicit_scalar_dtype", true,
+                                                   [&] { return d->Translate(dim).value(); }));
     } else {
-      ExtraStateScope<bool> scalar_context(d, "ir.explicit_scalar_dtype", false);
-      shape.push_back(d->Translate(dim).value());
+      d->WithExtraStateScope<bool>("ir.explicit_scalar_dtype", false,
+                                   [&] { shape.push_back(d->Translate(dim).value()); });
     }
   }
-  ExtraStateScope<bool> annotation(d, "ir.type_value", false);
   ffi::Array<ExprDoc> args{TupleDoc(shape), d->Translate(tensor->dtype).value()};
   ffi::Array<ffi::String> keys;
   ffi::Array<ExprDoc> values;
@@ -82,11 +84,13 @@ ffi::Optional<ExprDoc> TensorTypeDocTranslate(DocTranslatorObj* d, ffi::AnyView 
     values.push_back(value);
   };
   if (tensor->storage_scope != runtime::MemoryScope::Global()) {
-    optional("scope", d->Translate(tensor->storage_scope).value());
+    optional("scope", LiteralDoc::Str(tensor->storage_scope.name(), std::nullopt));
   }
-  if (!tensor->strides.empty()) optional("strides", ReflectedValue(d, tensor->strides));
+  if (!tensor->strides.empty()) optional("strides", d->Translate(tensor->strides).value());
   if (!ffi::StructuralEqual()(tensor->elem_offset, IntImm(tirx::DefaultIndexPrimType(), 0))) {
-    optional("elem_offset", ReflectedValue(d, tensor->elem_offset));
+    optional("elem_offset", d->WithExtraStateScope<bool>("ir.explicit_scalar_dtype", true, [&] {
+      return d->Translate(tensor->elem_offset).value();
+    }));
   }
   if (tensor->data_alignment != static_cast<int>(runtime::kAllocAlignment)) {
     optional("data_alignment", LiteralDoc::Int(tensor->data_alignment, std::nullopt));

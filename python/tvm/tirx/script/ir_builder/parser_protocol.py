@@ -35,6 +35,7 @@ import tvm
 from tvm import ir as _ir
 from tvm import tirx as _tir
 from tvm.ir import is_prim_expr
+from tvm.ir.type import _PrimTypeArrayAnnotation
 from tvm.script.ir_builder import base as _base
 from tvm.script.ir_builder.base import AlreadyEmitted
 from tvm.script.ir_builder.base import IRBuilder as _IRBuilder
@@ -160,7 +161,7 @@ def arg_(name: str, annotation: Any, *, loc: _Loc = None) -> _ir.Var:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.arg_`."""
     if getattr(annotation, "__tvm_optional_annotation__", None) is not None:
         raise TypeError("T.Optional is only supported by @T.jit")
-    if callable(annotation) and not isinstance(annotation, _ir.Expr):
+    if callable(annotation) and not isinstance(annotation, _ir.Expr | _ir.Type):
         annotation = annotation()
     if isinstance(annotation, _ir.Type):
         annotation = _ir.Var(name, annotation)
@@ -285,7 +286,7 @@ def bind_(
         _base.with_at_group_(loc, lambda: bind(value, var=variable))
         return variable
     if ty is not None:
-        annotation = ty() if callable(ty) and not isinstance(ty, _ir.Expr) else ty
+        annotation = ty() if callable(ty) and not isinstance(ty, _ir.Expr | _ir.Type) else ty
         annotation = annotation.ty if isinstance(annotation, _ir.Expr) else annotation
         value = _op._as_expr(value)
         if not isinstance(value, _ir.Var):
@@ -325,7 +326,7 @@ def decl_mutable_cell_(
     allocate their declared shape. Var declaration producers retain their own effects.
     """
     name_loc = loc if name_loc is None else name_loc
-    if isinstance(ty, _native.LocalVectorAnnotation):
+    if isinstance(ty, _PrimTypeArrayAnnotation):
         if value is not _base.MISSING:
             raise ValueError("Vector annotation does not support an initializer")
         return _name(
@@ -334,7 +335,7 @@ def decl_mutable_cell_(
             name_loc,
         )
     if ty is not None:
-        annotation = ty() if callable(ty) and not isinstance(ty, _ir.Expr) else ty
+        annotation = ty() if callable(ty) and not isinstance(ty, _ir.Expr | _ir.Type) else ty
         annotation = annotation.ty if isinstance(annotation, _ir.Expr) else annotation
         if not isinstance(annotation, _ir.PrimType) or str(annotation) == "handle":
             raise TypeError("Mutable scalar annotations require a primitive scalar type")

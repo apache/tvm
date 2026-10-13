@@ -103,7 +103,7 @@ class TensorType(Type):
             elem_offset = byte_offset * 8 // tvm.DataType(dtype.dtype).bits
         if storage_scope is None:
             storage_scope = scope
-        elif scope not in ("global", _SCOPE_GLOBAL) and MemoryScope(scope) != MemoryScope(
+        elif MemoryScope(scope) != _SCOPE_GLOBAL and MemoryScope(scope) != MemoryScope(
             storage_scope
         ):
             raise ValueError("scope and storage_scope must agree")
@@ -445,7 +445,7 @@ def decl_tensor(
         if not isinstance(data.ty.element_type, PrimType):
             raise TypeError("Tensor data must point to a primitive type")
         storage_scope = data.ty.storage_scope
-    tensor_type = TensorType(
+    tensor_type = _ffi_api.TensorType(  # type: ignore
         shape,
         dtype,
         storage_scope,
@@ -454,7 +454,7 @@ def decl_tensor(
         data_alignment,
         offset_factor,
         layout,
-        loc=loc,
+        loc,
     )
     return _ffi_api.TensorVar(name, tensor_type, loc)  # type: ignore
 

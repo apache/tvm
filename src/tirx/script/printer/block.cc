@@ -18,12 +18,13 @@
  */
 #include <tvm/ir/prim/op.h>
 #include <tvm/script/printer/doc_translator.h>
+#include <tvm/tirx/function.h>
+#include <tvm/tirx/stmt.h>
 #include <tvm/tirx/tile/exec_scope.h>
 
 #include <optional>
 
 #include "../../../script/printer/ir/utils.h"
-#include "utils.h"
 
 namespace tvm {
 namespace script {

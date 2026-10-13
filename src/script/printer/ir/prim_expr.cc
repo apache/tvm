@@ -47,31 +47,6 @@ void EmitVarDefinition(DocTranslatorObj* d, const Var& var, ExprDoc rhs) {
   d->Emit(AssignDoc(VarDoc(d, var), rhs, std::nullopt), var);
 }
 
-ffi::Optional<ExprDoc> VarDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
-                                       const ffi::Object* destination) {
-  const auto* node =
-      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const VarNode>(input);
-  Var var = ffi::GetRef<Var>(node);
-  IdDoc id = d->VarGetOrAllocId(var, false);
-  if (destination == node && d->GetImplicitDefs().count(var)) {
-    // Promote before translating the type, which may refer back to this Var.
-    VarDoc(d, var);
-    ExprDoc rhs(ffi::UnsafeInit{});
-    if (auto primitive = var->ty.as<PrimType>()) {
-      rhs = NamespaceDoc("ir")->Attr("dynamic")->Call(
-          {LiteralDoc::Str(var->name, std::nullopt)}, {"dtype"},
-          {LiteralDoc::DataType(primitive.value()->dtype, std::nullopt)});
-    } else {
-      // A type expression or annotation alone does not construct a free Var.
-      rhs = NamespaceDoc("ir")->Attr("Var")->Call(
-          {LiteralDoc::Str(var->name, std::nullopt), TypeValue(d, var->ty, false)});
-    }
-    EmitVarDefinition(d, var, rhs);
-    return std::nullopt;
-  }
-  return IdDoc(id->name);
-}
-
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<VarNode>().attr(tvm::script::printer::type_attr::kDocTranslate,
                                                FDocTranslate::FromNative<&VarDocTranslate>());
@@ -81,15 +56,16 @@ ffi::Optional<ExprDoc> LambdaExprDocTranslate(DocTranslatorObj* d, ffi::AnyView 
                                               const ffi::Object*) {
   const auto* lambda =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const LambdaExprNode>(input);
-  VarScope scope(d);
-  ffi::Array<IdDoc> args;
-  ffi::Array<ExprDoc> types;
-  for (const Var& var : lambda->vars) {
-    args.push_back(VarDoc(d, var));
-    types.push_back(TypeValue(d, var->ty, false));
-  }
-  ExprDoc body = d->Translate(lambda->body).value();
-  return NamespaceDoc("ir")->Attr("Lambda")->Call({ListDoc(types), LambdaDoc(args, body)});
+  return d->WithVarScope([&]() {
+    ffi::Array<IdDoc> args;
+    ffi::Array<ExprDoc> types;
+    for (const Var& var : lambda->vars) {
+      args.push_back(VarDoc(d, var));
+      types.push_back(d->Translate(var->ty).value());
+    }
+    ExprDoc body = d->Translate(lambda->body).value();
+    return NamespaceDoc("ir")->Attr("Lambda")->Call({ListDoc(types), LambdaDoc(args, body)});
+  });
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -190,7 +166,7 @@ ffi::Optional<ExprDoc> TensorRegionDocTranslate(DocTranslatorObj* d, ffi::AnyVie
   return NamespaceDoc("ir")
       ->Attr("TensorRegion")
       ->Call({d->Translate(region->source).value(), ListDoc(ranges)}, {"ty"},
-             {TypeValue(d, region->ty, false)});
+             {d->Translate(region->ty).value()});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -321,11 +297,15 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                                                      FDocTranslate::FromNative<&NotDocTranslate>());
 }
 
-ffi::Optional<ExprDoc> StringImmDocTranslate(DocTranslatorObj*, ffi::AnyView input,
+ffi::Optional<ExprDoc> StringImmDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
                                              const ffi::Object*) {
   const auto* imm =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const StringImmNode>(input);
-  return LiteralDoc::Str(imm->value, std::nullopt);
+  ExprDoc literal = LiteralDoc::Str(imm->value, std::nullopt);
+  if (d->GetOrCreateExtraState<bool>("ir.explicit_scalar_dtype")) {
+    return NamespaceDoc("ir")->Attr("StringImm")->Call({literal});
+  }
+  return literal;
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -398,8 +378,8 @@ ffi::Optional<ExprDoc> ShuffleDocTranslate(DocTranslatorObj* d, ffi::AnyView inp
                                            const ffi::Object*) {
   const auto* node =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const prim::ShuffleNode>(input);
-  ExprDoc vectors = AnyValue(d, node->vectors);
-  ExprDoc indices = AnyValue(d, node->indices);
+  ExprDoc vectors = d->Translate(node->vectors).value();
+  ExprDoc indices = d->Translate(node->indices).value();
   d->RecordOrigin(vectors, node->vectors);
   d->RecordOrigin(indices, node->indices);
   return NamespaceDoc("tirx")->Attr("Shuffle")->Call({vectors, indices});
@@ -563,6 +543,31 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }  // namespace
 
 }  // namespace details
+
+ffi::Optional<ExprDoc> VarDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                       const ffi::Object* destination) {
+  Var var = input.cast<Var>();
+  const VarNode* node = var.get();
+  IdDoc id = d->VarGetOrAllocId(var, false);
+  if (destination == node && d->GetImplicitDefs().count(var)) {
+    // Promote before translating the type, which may refer back to this Var.
+    VarDoc(d, var);
+    ExprDoc rhs(ffi::UnsafeInit{});
+    if (auto primitive = var->ty.as<PrimType>()) {
+      rhs = NamespaceDoc("ir")->Attr("dynamic")->Call(
+          {LiteralDoc::Str(var->name, std::nullopt)}, {"dtype"},
+          {LiteralDoc::DataType(primitive.value()->dtype, std::nullopt)});
+    } else {
+      // A type expression or annotation alone does not construct a free Var.
+      rhs = NamespaceDoc("ir")->Attr("Var")->Call(
+          {LiteralDoc::Str(var->name, std::nullopt), d->Translate(var->ty).value()});
+    }
+    details::EmitVarDefinition(d, var, rhs);
+    return std::nullopt;
+  }
+  return IdDoc(id->name);
+}
+
 }  // namespace printer
 }  // namespace script
 }  // namespace tvm
