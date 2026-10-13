@@ -19,6 +19,7 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/container/tuple.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/runtime/memory_scope.h>
 #include <tvm/s_tir/stmt.h>
 
 #include "../../transform/ir_utils.h"
@@ -202,7 +203,7 @@ class StorageScopeMutator : public ReplaceTensorMutator {
   static SBlock Mutate(const SBlock& allocate_site, const TensorVar& old_tensor,
                        const ffi::String& storage_scope,
                        ffi::Map<SBlock, SBlock>* block_sref_reuse) {
-    TensorVar new_tensor = WithScope(old_tensor, storage_scope);
+    TensorVar new_tensor = WithScope(old_tensor, runtime::MemoryScope::Get(storage_scope));
     auto mutator = ffi::make_object<StorageScopeMutator>(old_tensor, new_tensor, storage_scope,
                                                          block_sref_reuse);
     Stmt new_block = mutator->Mutate(allocate_site).ValueOrUnchanged(allocate_site);
@@ -270,13 +271,13 @@ void SetScope(ScheduleState self, const StmtSRef& block_sref, int tensor_index,
   TensorVar tensor =
       GetNthAccessTensor(self, ffi::GetRef<SBlock>(block), tensor_index, TensorIndexType::kWrite);
 
-  // Step 1. If `storage_scope` equals the original storage scope of the tensor, just return.
-  if (tensor.scope() == storage_scope) {
+  // Step 1. Validate before enum lookup to preserve the scheduling error diagnostic.
+  CheckStorageScope(self, storage_scope);
+
+  // Step 2. If `storage_scope` equals the original storage scope of the tensor, just return.
+  if (tensor.scope() == runtime::MemoryScope::Get(storage_scope)) {
     return;
   }
-
-  // Step 2. Throw an error if the input storage scope is invalid.
-  CheckStorageScope(self, storage_scope);
 
   // Step 3. Get the allocation site of the target tensor.
   StmtSRef alloc_site_sref =

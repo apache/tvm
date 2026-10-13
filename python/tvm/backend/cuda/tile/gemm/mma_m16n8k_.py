@@ -19,12 +19,15 @@
 
 from dataclasses import dataclass
 
+from tvm.runtime import MemoryScope
 from tvm.script import tirx as T
 from tvm.sym.analyzer import Analyzer
 from tvm.tirx import Function
 from tvm.tirx.layout import TileLayout
 from tvm.tirx.tile import DispatchContext, fail
 from tvm.tirx.tile.instruction import TensorCall
+
+_SCOPE_LOCAL = MemoryScope("local")
 
 
 @dataclass(frozen=True)
@@ -270,7 +273,7 @@ def gemm_cuda_mma_dispatch(op: TensorCall, sctx: DispatchContext) -> Function:
     # registers ("local"). The caller is responsible for staging A/B into
     # registers (e.g. via ldmatrix) beforehand.
     for buf, name in ((D, "D"), (A, "A"), (B, "B"), (C, "C")):
-        if buf.scope() != "local":
+        if buf.scope() != _SCOPE_LOCAL:
             fail(f"gemm mma requires {name} in register (local) scope, got {buf.scope()}")
 
     # transpose_A/transpose_B only describe the input's logical orientation; we

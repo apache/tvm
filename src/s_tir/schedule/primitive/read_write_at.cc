@@ -20,6 +20,7 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/extra/structural_visit.h>
+#include <tvm/runtime/memory_scope.h>
 #include <tvm/s_tir/stmt.h>
 
 #include <string>
@@ -163,7 +164,7 @@ struct ReadWriteAtImpl {
     const SBlockNode* block = TVM_SREF_TO_SBLOCK(block_sref);
     TensorVar src = GetNthAccessTensor(self, ffi::GetRef<SBlock>(block), tensor_index,
                                        is_read ? TensorIndexType::kRead : TensorIndexType::kWrite);
-    TensorVar dst = WithScope(src, storage_scope);
+    TensorVar dst = WithScope(src, runtime::MemoryScope::Get(storage_scope));
     ReadWriteAtImpl impl(self, loop_sref, src, dst, annotations);
     std::pair<For, SBlockRealize> new_loop_block =
         impl.MakeLoopAndBlock<is_read>(src.name() + "_" + storage_scope);
@@ -204,7 +205,7 @@ struct ReadWriteAtImpl {
   std::pair<For, SBlockRealize> MakeLoopAndBlock(const ffi::String& new_block_name_hint) {
     ffi::Array<Stmt> subtrees = AsArray(loop_->body);
     int n_subtrees = subtrees.size();
-    runtime::StorageScope scope = runtime::StorageScope::Create(dst_.scope());
+    runtime::MemoryScope scope = dst_.scope();
     std::vector<NDIntSet> relaxed_regions;
     std::vector<int> r_pos;
     std::vector<int> w_pos;

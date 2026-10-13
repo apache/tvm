@@ -28,6 +28,7 @@
 #include <tvm/ir/function.h>
 #include <tvm/ir/op.h>
 #include <tvm/ir/prim/op.h>
+#include <tvm/runtime/memory_scope.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/target/target.h>
@@ -36,6 +37,7 @@
 #include <map>
 #include <unordered_set>
 
+#include "../memory_scope.h"
 #include "../schedule/utils.h"
 #include "ir_utils.h"
 
@@ -188,6 +190,9 @@ class PipelineOpaqueAccessRewriter {
   }
 
   Expr RewriteTensorAccess(const Call& call, const std::vector<int> arg_indices) {
+    const auto scope_mma_matrixA = GetRegisteredMemoryScope("mma.matrixA");
+    const auto scope_mma_matrixB = GetRegisteredMemoryScope("mma.matrixB");
+
     auto product = [](const ffi::Array<PrimExpr>& input) {
       return foldl([](PrimExpr a, PrimExpr b, Location loc) { return mul(a, b, loc); },
                    IntImm::Int32(1), input);
@@ -202,7 +207,8 @@ class PipelineOpaqueAccessRewriter {
         PrimExpr old_index = call->args[i + 1].as_or_throw<PrimExpr>();
         PrimExpr offset =
             new_tensor->strides.empty() ? product(tensor->shape) : new_tensor->strides[0];
-        if (tensor.scope() == "m16n8k8.matrixA" || tensor.scope() == "m16n8k8.matrixB") {
+        if ((scope_mma_matrixA && tensor.scope() == *scope_mma_matrixA) ||
+            (scope_mma_matrixB && tensor.scope() == *scope_mma_matrixB)) {
           // mma scope size will shrink by warp size
           // @see transform_mma_tensor_layout
           TVM_FFI_ICHECK_EQ(floormod(offset, 32).as_or_throw<IntImm>()->value, 0)
@@ -330,6 +336,9 @@ class PipelineBodyRewriter : public StmtExprMutator {
   }
 
   UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) final {
+    const auto scope_mma_matrixA = GetRegisteredMemoryScope("mma.matrixA");
+    const auto scope_mma_matrixB = GetRegisteredMemoryScope("mma.matrixB");
+
     if (op->op.same_as(tirx::tensor_data_ptr_op())) {
       TensorVar tensor = op->args[0].as_or_throw<TensorVar>();
       if (auto replacement = VarRemapGet(tensor).as<TensorVar>()) {
@@ -338,7 +347,8 @@ class PipelineBodyRewriter : public StmtExprMutator {
         if (new_tensor->strides.empty()) {
           for (const PrimExpr& extent : tensor->shape) stride = stride * extent;
         }
-        if (tensor.scope() == "m16n8k8.matrixA" || tensor.scope() == "m16n8k8.matrixB") {
+        if ((scope_mma_matrixA && tensor.scope() == *scope_mma_matrixA) ||
+            (scope_mma_matrixB && tensor.scope() == *scope_mma_matrixB)) {
           // These logical matrix allocations are distributed over a warp.
           TVM_FFI_ICHECK_EQ(floormod(stride, 32).as_or_throw<IntImm>()->value, 0);
           stride = floordiv(stride, 32);

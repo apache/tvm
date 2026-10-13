@@ -22,6 +22,7 @@
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ir/op.h>
 #include <tvm/ir/prim/op.h>
+#include <tvm/runtime/memory_scope.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/tirx/op/memory.h>
 #include <tvm/tirx/op/region.h>
@@ -121,6 +122,8 @@ ffi::Array<Range> RelaxIndices(const ffi::Array<PrimExpr>& indices,
  * \return The stmt after rewrite
  */
 Stmt RewriteWmmaLoad(Stmt stmt) {
+  static const auto scope_wmma_matrix_a = runtime::MemoryScope::Get("wmma.matrix_a");
+
   using sym::IntSet;
   const PrimType dtype_ty = PrimType::Float(16);
   const PrimType& dtype = dtype_ty;
@@ -144,23 +147,18 @@ Stmt RewriteWmmaLoad(Stmt stmt) {
 
   TensorVar src_tensor = tensor_load->source.as_or_throw<tvm::tirx::TensorVar>();
   TensorVar tgt_tensor = tensor_store->dest.as_or_throw<TensorVar>();
-  std::string layout = tgt_tensor.scope() == "wmma.matrix_a" ? "row_major" : "col_major";
+  std::string layout = tgt_tensor.scope() == scope_wmma_matrix_a ? "row_major" : "col_major";
   TensorVar new_src_tensor(
-      /*name=*/"src", TensorType(/*storage_scope=*/src_tensor.scope(),
-                                 /*dtype=*/dtype,
-                                 /*shape=*/{IntImm::Int32(16), IntImm::Int32(16)},
+      /*name=*/"src", TensorType(/*shape=*/{IntImm::Int32(16), IntImm::Int32(16)}, /*dtype=*/dtype,
+                                 /*storage_scope=*/src_tensor.scope(),
                                  /*strides=*/{PrimVar("s1", int32_ty), PrimVar("s0", int32_ty)},
                                  /*elem_offset=*/PrimVar("src_elem_offset", int32_ty),
-                                 /*data_alignment=*/64,
-                                 /*offset_factor=*/16));
+                                 /*data_alignment=*/64, /*offset_factor=*/16));
   TensorVar new_tgt_tensor(
-      /*name=*/"tgt", TensorType(/*storage_scope=*/tgt_tensor.scope(),
-                                 /*dtype=*/dtype,
-                                 /*shape=*/{IntImm::Int32(16), IntImm::Int32(16)},
-                                 /*strides=*/{},
+      /*name=*/"tgt", TensorType(/*shape=*/{IntImm::Int32(16), IntImm::Int32(16)}, /*dtype=*/dtype,
+                                 /*storage_scope=*/tgt_tensor.scope(), /*strides=*/{},
                                  /*elem_offset=*/PrimVar("tgt_elem_offset", int32_ty),
-                                 /*data_alignment=*/64,
-                                 /*offset_factor=*/16));
+                                 /*data_alignment=*/64, /*offset_factor=*/16));
   ffi::Array<Range> read_region = RelaxIndices(tensor_load->indices, src_tensor->shape, var_dom);
   ffi::Array<Range> write_region = RelaxIndices(tensor_store->indices, tgt_tensor->shape, var_dom);
   static const Op gpu_load_matrix_sync_op = Op::Get("tirx.gpu_load_matrix_sync");
@@ -214,6 +212,8 @@ Stmt RewriteWmmaLoad(Stmt stmt) {
  * \return The stmt after rewrite
  */
 Stmt RewriteWmmaStore(Stmt stmt) {
+  static const auto scope_wmma_accumulator = runtime::MemoryScope::Get("wmma.accumulator");
+
   using sym::IntSet;
   const PrimType int32_ty = PrimType::Int(32);
 
@@ -233,7 +233,7 @@ Stmt RewriteWmmaStore(Stmt stmt) {
   const TensorStoreNode* tensor_store = TVM_TYPE_AS(body, TensorStoreNode);
   const TensorLoadNode* tensor_load = nullptr;
   auto walk_fn = [&](const TensorLoad& load) -> ffi::Expected<ffi::WalkResult> {
-    if (load->source.as_or_throw<tvm::tirx::TensorVar>().scope() == "wmma.accumulator") {
+    if (load->source.as_or_throw<tvm::tirx::TensorVar>().scope() == scope_wmma_accumulator) {
       TVM_FFI_ICHECK(tensor_load == nullptr ||
                      tensor_load->source.as_or_throw<tvm::tirx::TensorVar>().same_as(
                          load->source.as_or_throw<tvm::tirx::TensorVar>()))
@@ -250,10 +250,10 @@ Stmt RewriteWmmaStore(Stmt stmt) {
   const PrimType& dtype = dtype_ty;
 
   TensorVar new_src_tensor(
-      "src", TensorType(src_tensor.scope(), dtype, {IntImm::Int32(16), IntImm::Int32(16)}, {},
+      "src", TensorType({IntImm::Int32(16), IntImm::Int32(16)}, dtype, src_tensor.scope(), {},
                         PrimVar("src_elem_offset", int32_ty), 64, 16));
   TensorVar new_tgt_tensor(
-      "tgt", TensorType(tgt_tensor.scope(), dtype, {IntImm::Int32(16), IntImm::Int32(16)},
+      "tgt", TensorType({IntImm::Int32(16), IntImm::Int32(16)}, dtype, tgt_tensor.scope(),
                         {PrimVar("s1", int32_ty), PrimVar("s0", int32_ty)},
                         PrimVar("tgt_elem_offset", int32_ty), 64, 16));
 
@@ -424,6 +424,8 @@ std::pair<Stmt, ffi::Optional<For>> TileMmaToGlobalBlock(Stmt stmt) {
  * \return The stmt after rewrite
  */
 Stmt RewriteMmaStore(Stmt stmt) {
+  static const auto scope_mma_matrixC = runtime::MemoryScope::Get("mma.matrixC");
+
   using sym::IntSet;
   const PrimType int32_ty = PrimType::Int(32);
 
@@ -445,7 +447,7 @@ Stmt RewriteMmaStore(Stmt stmt) {
   const TensorStoreNode* tensor_store = TVM_TYPE_AS(body, TensorStoreNode);
   const TensorLoadNode* tensor_load = nullptr;
   auto walk_fn = [&](const TensorLoad& load) -> ffi::Expected<ffi::WalkResult> {
-    if (load->source.as_or_throw<tvm::tirx::TensorVar>().scope() == "m16n8k8.matrixC") {
+    if (load->source.as_or_throw<tvm::tirx::TensorVar>().scope() == scope_mma_matrixC) {
       TVM_FFI_ICHECK(tensor_load == nullptr ||
                      tensor_load->source.as_or_throw<tvm::tirx::TensorVar>().same_as(
                          load->source.as_or_throw<tvm::tirx::TensorVar>()))
@@ -470,10 +472,10 @@ Stmt RewriteMmaStore(Stmt stmt) {
   PrimType dtype_ty = src_tensor->dtype;
   const PrimType& dtype = dtype_ty;
   TensorVar new_src_tensor(
-      "src", TensorType(src_tensor.scope(), dtype, {IntImm::Int32(8), IntImm::Int32(8)}, {},
+      "src", TensorType({IntImm::Int32(8), IntImm::Int32(8)}, dtype, src_tensor.scope(), {},
                         PrimVar("src_elem_offset", int32_ty), 64, 8));
   TensorVar new_tgt_tensor(
-      "tgt", TensorType(tgt_tensor.scope(), dtype, {IntImm::Int32(8), IntImm::Int32(8)},
+      "tgt", TensorType({IntImm::Int32(8), IntImm::Int32(8)}, dtype, tgt_tensor.scope(),
                         {PrimVar("s1", int32_ty), PrimVar("s0", int32_ty)},
                         PrimVar("tgt_elem_offset", int32_ty), 64, 8));
 

@@ -26,6 +26,7 @@
 #include <tvm/ir/function.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/runtime/device_api.h>
+#include <tvm/runtime/memory_scope.h>
 #include <tvm/s_tir/analysis.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
@@ -43,7 +44,7 @@ namespace tvm {
 namespace s_tir {
 using namespace tvm::tirx;
 
-std::string GetStorageScope(const Var& var) {
+runtime::MemoryScope GetStorageScope(const Var& var) {
   auto* ptr = var->ty.as<PtrTypeNode>();
   TVM_FFI_ICHECK(ptr) << "Buffer Var's type annotation must be of PtrType";
   return ptr->storage_scope;
@@ -60,7 +61,7 @@ class AllocTensorCalculator : public StmtExprVisitor {
     this->Visit(func->body);
     tvm::ffi::Map<ffi::String, int64_t> res;
     for (auto [k, v] : _max_size) {
-      res.Set(ffi::String(k), v);
+      res.Set(k.name(), v);
     }
     return res;
   }
@@ -77,7 +78,7 @@ class AllocTensorCalculator : public StmtExprVisitor {
   ffi::Optional<VisitInterrupt> DispatchAllocTensor(const BindNode* op, const CallNode* call) {
     tvm::Tuple shape = tvm::Tuple(call->ty_args[0].as_or_throw<TensorType>()->shape);
     DLDataType dtype = call->ty_args[0].as_or_throw<TensorType>()->dtype->dtype;
-    ffi::String scope = call->ty_args[0].as_or_throw<TensorType>()->storage_scope;
+    runtime::MemoryScope scope = call->ty_args[0].as_or_throw<TensorType>()->storage_scope;
     auto search = _current_size.find(scope);
     if (search == _current_size.end()) {
       _current_size[scope] = 0;
@@ -115,8 +116,10 @@ class AllocTensorCalculator : public StmtExprVisitor {
     _current_size = snapshot;
     return std::nullopt;
   }
-  std::unordered_map<std::string, int64_t> _max_size;
-  std::unordered_map<std::string, int64_t> _current_size;
+  std::unordered_map<runtime::MemoryScope, int64_t, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
+      _max_size;
+  std::unordered_map<runtime::MemoryScope, int64_t, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
+      _current_size;
 };
 
 tvm::ffi::Map<ffi::String, tvm::ffi::Map<ffi::String, int64_t> > CalculateAllocatedBytes(

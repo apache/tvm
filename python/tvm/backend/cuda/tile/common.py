@@ -23,12 +23,17 @@ import re
 from enum import Enum
 
 from tvm.ir import TensorRegion
-from tvm.runtime import DataType
+from tvm.runtime import DataType, MemoryScope
 from tvm.script import tirx as T
 from tvm.sym.analyzer import Analyzer
 from tvm.tirx import Function, Var
 from tvm.tirx.tile import DispatchContext, fail
 from tvm.tirx.tile.instruction import TensorCall
+
+_SCOPE_GLOBAL = MemoryScope("global")
+_SCOPE_LOCAL = MemoryScope("local")
+_SCOPE_SHARED = MemoryScope("shared")
+_SCOPE_SHARED_DYN = MemoryScope("shared.dyn")
 
 
 def next_power_of_2(x: int) -> int:
@@ -162,12 +167,12 @@ def copy_vec_load_impl(
     src: Var = src_buffer_region.source
     dst: Var = dst_buffer_region.source
     if not (
-        (src.scope() == "global" and dst.scope().startswith("shared"))
-        or (src.scope().startswith("shared") and dst.scope() == "global")
-        or (src.scope() == "global" and dst.scope() == "local")
-        or (src.scope() == "local" and dst.scope() == "global")
-        or (src.scope().startswith("shared") and dst.scope() == "local")
-        or (dst.scope().startswith("shared") and src.scope() == "local")
+        (src.scope() == _SCOPE_GLOBAL and (dst.scope() in (_SCOPE_SHARED, _SCOPE_SHARED_DYN)))
+        or ((src.scope() in (_SCOPE_SHARED, _SCOPE_SHARED_DYN)) and dst.scope() == _SCOPE_GLOBAL)
+        or (src.scope() == _SCOPE_GLOBAL and dst.scope() == _SCOPE_LOCAL)
+        or (src.scope() == _SCOPE_LOCAL and dst.scope() == _SCOPE_GLOBAL)
+        or ((src.scope() in (_SCOPE_SHARED, _SCOPE_SHARED_DYN)) and dst.scope() == _SCOPE_LOCAL)
+        or ((dst.scope() in (_SCOPE_SHARED, _SCOPE_SHARED_DYN)) and src.scope() == _SCOPE_LOCAL)
     ):
         fail(f"unsupported memory scopes src={src.scope()} dst={dst.scope()}")
 
@@ -220,7 +225,10 @@ def copy_vec_load_impl(
                         dst_indices = T.meta_var(get_indices(fused, dst_st, dst_extent))
                         src_indices = T.meta_var(get_indices(fused, src_st, src_extent))
                         T.evaluate(T.ptx[f"cp.async.{'cg' if T.constexpr(cp_size == 16) else 'ca'}.shared.global"](dst.ptr_to(dst_indices), src.ptr_to(src_indices), cp_size))  # noqa: E501
-            if T.constexpr(dst.scope().startswith("shared") and inst_type == CopyInstType.NORMAL):
+            if T.constexpr(
+                dst.scope() in (_SCOPE_SHARED, _SCOPE_SHARED_DYN)
+                and inst_type == CopyInstType.NORMAL
+            ):
                 T.gpu_storage_sync("shared")
         # fmt: on
     elif sctx.is_thread:
@@ -243,18 +251,6 @@ def copy_vec_load_impl(
     else:
         fail(f"unsupported exec_scope {sctx.scope_kind}")
     return impl
-
-
-def match_scope(scope: str | None, pattern: str) -> bool:
-    """Glob-lite scope matching: 'shared*' => prefix match; otherwise exact.
-
-    Returns True when scope is None (meaning "any scope is fine").
-    """
-    if scope is None:
-        return True
-    if pattern.endswith("*"):
-        return scope.startswith(pattern[:-1])
-    return scope == pattern
 
 
 def get_thread_cnt(sctx: DispatchContext) -> int | None:

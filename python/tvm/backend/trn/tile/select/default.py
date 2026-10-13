@@ -17,8 +17,11 @@
 
 """Implementation of select schedules."""
 
+from functools import cache
+
 from tvm.backend.trn.layout import is_trainium_layout
 from tvm.ir import TensorRegion
+from tvm.runtime import MemoryScope
 from tvm.script import tirx as T
 from tvm.tirx import FloatImm, Function
 from tvm.tirx.tile import DispatchContext, fail
@@ -28,6 +31,11 @@ from tvm.tirx.tile.views import Select
 from ..common import init_analyzer, nki_dim
 from ..dim_utils import get_ewise_dim_map
 from ..instruction_generator import InstructionGenerator
+
+
+@cache
+def _scope_trn_sbuf():
+    return MemoryScope("trn.sbuf")
 
 
 def select_trn(op: TensorCall, sctx: DispatchContext) -> Function | None:
@@ -60,7 +68,7 @@ def select_trn(op: TensorCall, sctx: DispatchContext) -> Function | None:
     # Validate tensor layout and scope
     tensor_conditions = [
         dst.source.ty.effective_layout() and true_value.source.ty.effective_layout(),
-        dst.source.scope() == "trn.sbuf" and true_value.source.scope() == "trn.sbuf",
+        dst.source.scope() == _scope_trn_sbuf() and true_value.source.scope() == _scope_trn_sbuf(),
         is_trainium_layout(true_value.source.ty.effective_layout()),
         is_trainium_layout(dst.source.ty.effective_layout()),
     ]

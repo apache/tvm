@@ -34,6 +34,7 @@ from __future__ import annotations
 import functools
 import operator
 
+from tvm.runtime import MemoryScope
 from tvm.script import tirx as T
 from tvm.sym import Analyzer
 from tvm.tirx import Function
@@ -57,6 +58,8 @@ from ._common import (
     shape_broadcast_compat,
 )
 from .vec_emit import _emit_vec
+
+_SCOPE_LOCAL = MemoryScope("local")
 
 
 # -----------------------------------------------------------------------------
@@ -192,7 +195,7 @@ def is_reg_ewise(spec):
         if msg is not None or plan is None:
             return False, msg
         for br in buffer_regions(plan):
-            if br.source.scope() != "local":
+            if br.source.scope() != _SCOPE_LOCAL:
                 return False, f"operand scope {br.source.scope()} != local"
             if br.source.ty.effective_layout() is None:
                 return False, f"operand {br} has no layout"

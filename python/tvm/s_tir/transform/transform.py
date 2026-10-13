@@ -19,6 +19,8 @@
 
 import tvm_ffi as _ffi
 
+from tvm.runtime import MemoryScope
+
 from . import _ffi_api
 
 
@@ -297,12 +299,12 @@ def LowerVtcmAlloc():
     return _ffi_api.LowerVtcmAlloc()  # type: ignore
 
 
-def ThreadSync(storage_scope):
+def ThreadSync(storage_scope: str | MemoryScope):
     """Insert sync between parallel read/write of shared tensors.
 
     Parameters
     ----------
-    storage_scope: str
+    storage_scope: str or MemoryScope
         The target storage scope.
 
     Returns

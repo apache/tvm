@@ -26,6 +26,7 @@
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/op.h>
+#include <tvm/runtime/memory_scope.h>
 #include <tvm/s_tir/analysis.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/stmt_functor.h>
@@ -33,8 +34,8 @@
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/op/region.h>
 
-#include "../../runtime/thread_storage_scope.h"
 #include "../../support/arena.h"
+#include "../memory_scope.h"
 
 namespace tvm {
 namespace tirx {
@@ -329,9 +330,9 @@ class LCADetector : public s_tir::StmtExprVisitor {
 
   void UpdateWithBlockidx() {
     for (const auto& it : tensor_lca_) {
-      const runtime::StorageScope& scope = runtime::StorageScope::Create(
-          ffi::GetRef<Var>(it.first).as_or_throw<TensorVar>().scope());
-      if (scope.rank == runtime::StorageRank::kGlobal) {
+      const runtime::MemoryScope& scope =
+          ffi::GetRef<Var>(it.first).as_or_throw<TensorVar>().scope();
+      if (s_tir::IsGlobalMemoryScope(scope)) {
         const ScopeInfo*& lca = tensor_lca_[it.first];
         for (const ScopeInfo* blockidx_scope : blockidx_scopes_) {
           lca = LowestCommonAncestor(lca, blockidx_scope);

@@ -28,6 +28,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/function.h>
 #include <tvm/ir/prim/op.h>
+#include <tvm/runtime/memory_scope.h>
 #include <tvm/support/gpu_thread_tag.h>
 #include <tvm/sym/analyzer.h>
 #include <tvm/tirx/index_map.h>
@@ -909,13 +910,16 @@ void CodeGenCUDA::PrintStorageSync(const CallNode* op) {
   }
 }
 
-void CodeGenCUDA::PrintStorageScope(const std::string& scope, std::ostream& os) {  // NOLINT(*)
-  TVM_FFI_ICHECK_NE(scope, "global")
+void CodeGenCUDA::PrintStorageScope(const runtime::MemoryScope& scope,
+                                    std::ostream& os) {  // NOLINT(*)
+  static const auto scope_shared = runtime::MemoryScope::Get("shared");
+  static const auto scope_shared_dyn = runtime::MemoryScope::Get("shared.dyn");
+  TVM_FFI_ICHECK(scope != runtime::MemoryScope::Global())
       << "Cannot allocate global memory when targeting CUDA. You must pass "
          "all global arrays as input instead";
-  if (scope == "shared") {
+  if (scope == scope_shared) {
     os << "__shared__ ";
-  } else if (scope == "shared.dyn") {
+  } else if (scope == scope_shared_dyn) {
     os << "extern __shared__ ";
   }
 }
@@ -1371,9 +1375,12 @@ void CodeGenCUDA::Dispatch_(const BindNode* op) {
 }
 
 void CodeGenCUDA::DispatchAllocTensor(const BindNode* op, const CallNode* buffer_call) {
+  static const auto scope_shared_dyn = runtime::MemoryScope::Get("shared.dyn");
+  static const auto scope_shared = runtime::MemoryScope::Get("shared");
   tvm::Tuple shape = tvm::Tuple(buffer_call->ty_args[0].as_or_throw<tirx::TensorType>()->shape);
   DLDataType dtype = buffer_call->ty_args[0].as_or_throw<tirx::TensorType>()->dtype->dtype;
-  ffi::String scope = buffer_call->ty_args[0].as_or_throw<tirx::TensorType>()->storage_scope;
+  runtime::MemoryScope scope =
+      buffer_call->ty_args[0].as_or_throw<tirx::TensorType>()->storage_scope;
   TensorVar buffer = op->var.as_or_throw<TensorVar>();
   DictAttrs annotations = buffer_call->attrs.value().as_or_throw<DictAttrs>();
   TVM_FFI_ICHECK(buffer.defined());
@@ -1388,14 +1395,14 @@ void CodeGenCUDA::DispatchAllocTensor(const BindNode* op, const CallNode* buffer
       align = n->value.as<int>().value();
     }
   }
-  if (align > 0 && scope == "shared.dyn") {
+  if (align > 0 && scope == scope_shared_dyn) {
     stream << "__align__(" << align << ") ";
   } else if (align > 0) {
     stream << "alignas(" << align << ") ";
   }
   PrintType(PrimType(dtype), stream);
 
-  if (scope == "shared.dyn") {
+  if (scope == scope_shared_dyn) {
     stream << ' ' << vid << "[];\n";
   } else {
     // Compute constant_size from buffer shape
@@ -1410,7 +1417,7 @@ void CodeGenCUDA::DispatchAllocTensor(const BindNode* op, const CallNode* buffer
     bool is_packed_integer_dtype = PrimType(dtype) == PrimType::Int(4) ||
                                    PrimType(dtype) == PrimType::UInt(4) ||
                                    PrimType(dtype) == PrimType::Int(1);
-    if (is_packed_integer_dtype && scope == "shared") {
+    if (is_packed_integer_dtype && scope == scope_shared) {
       constant_size = constant_size / (32 / dtype.bits);
     }
     stream << ' ' << vid << '[' << constant_size << "];\n";

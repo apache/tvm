@@ -21,6 +21,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/analysis.h>
 #include <tvm/ir/op.h>
+#include <tvm/runtime/memory_scope.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/support/gpu_thread_tag.h>
 
@@ -693,7 +694,7 @@ void CheckBlockHasTrivialBinding(const ScheduleState& self, const StmtSRef& bloc
 
 ffi::Map<Var, Range> LoopDomainOfSRefTreePath(const StmtSRef& low_inclusive,
                                               const ffi::Optional<StmtSRef>& high_exclusive,
-                                              const runtime::StorageScope& extra_relax_scope) {
+                                              const runtime::MemoryScope& extra_relax_scope) {
   ffi::Map<Var, Range> result;
   const StmtSRefObj* p = low_inclusive.get();
   const StmtSRefObj* limit = high_exclusive.has_value() ? high_exclusive.value().get() : nullptr;
@@ -704,7 +705,7 @@ ffi::Map<Var, Range> LoopDomainOfSRefTreePath(const StmtSRef& low_inclusive,
     }
     result.Set(loop->loop_var, Range::FromMinExtent(loop->min, loop->extent));
   }
-  if (extra_relax_scope.rank != runtime::StorageRank::kGlobal) {
+  if (!IsGlobalMemoryScope(extra_relax_scope)) {
     for (; p; p = p->parent) {
       if (const ForNode* loop = p->StmtAs<ForNode>()) {
         if (tvm::s_tir::GetThreadBinding(loop).has_value()) {
@@ -1521,7 +1522,7 @@ void CheckStorageScope(const ScheduleState& self, ffi::String storage_scope) {
   };
 
   try {
-    runtime::StorageScope::Create(std::string(storage_scope));
+    runtime::MemoryScope::Get(std::string(storage_scope));
   } catch (...) {
     throw MakeScheduleError<InvalidStorageScopeError>(self->mod, std::move(storage_scope));
   }

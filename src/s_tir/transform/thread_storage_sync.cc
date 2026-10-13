@@ -26,6 +26,7 @@
 #include <tvm/ir/function.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/prim/op.h>
+#include <tvm/runtime/memory_scope.h>
 #include <tvm/s_tir/analysis.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/stmt_functor.h>
@@ -35,7 +36,6 @@
 
 #include <unordered_set>
 
-#include "../../runtime/thread_storage_scope.h"
 #include "storage_access.h"
 
 namespace tvm {
@@ -45,24 +45,25 @@ using namespace tvm::tirx;
 class ThreadSyncPlanner : public StorageAccessVisitor {
  public:
   using StorageAccessVisitor::Visit_;
-  explicit ThreadSyncPlanner(StorageScope sync_scope) : sync_scope_(sync_scope) {}
+  explicit ThreadSyncPlanner(MemoryScope sync_scope) : sync_scope_(sync_scope) {}
 
   // The syncs inserted before each statement
   std::unordered_set<const ffi::Object*> syncs_inserted_;
 
  protected:
-  bool Enabled(const VarNode* buf, const StorageScope& scope) const final {
+  bool Enabled(const VarNode* buf, const MemoryScope& scope) const final {
     return in_device_env() && scope == sync_scope_;
   }
   // Plan the sync
   std::vector<AccessEntry> Summarize(std::vector<StmtEntry> seq, const ForNode* loop) final {
+    static const auto scope_shared_dyn = runtime::MemoryScope::Get("shared.dyn");
+
     // Redirect all "shared.dyn" buffer access to the same buffer var
     // so that the accesses can be planned together.
     ffi::Optional<Var> shared_dyn_buf;
     for (StmtEntry& entry : seq) {
       for (AccessEntry& access : entry.access) {
-        if (access.scope.rank == StorageRank::kShared && access.scope.tag == ".dyn" &&
-            access.buffer.defined()) {
+        if (access.scope == scope_shared_dyn && access.buffer.defined()) {
           if (!shared_dyn_buf.has_value()) {
             shared_dyn_buf = access.buffer;
           } else {
@@ -268,7 +269,7 @@ class ThreadSyncPlanner : public StorageAccessVisitor {
 
  private:
   // synchronization scope
-  StorageScope sync_scope_;
+  MemoryScope sync_scope_;
 };
 
 // There are cases where necessary syncthreads is not inserted by ThreadSyncInserter.
@@ -296,20 +297,20 @@ class ThreadSyncAfterWaitQueueInserter : public StmtExprMutator {
   using StmtExprMutator::Mutate;
   using StmtExprMutator::Mutate_;
 
-  explicit ThreadSyncAfterWaitQueueInserter(StorageScope sync_scope) : sync_scope_(sync_scope) {}
+  explicit ThreadSyncAfterWaitQueueInserter(MemoryScope sync_scope) : sync_scope_(sync_scope) {}
 
   UnchangedOr<Stmt> Mutate_(const EvaluateNode* op, InplaceMode inplace_mode) final {
     if (const auto* call = op->value.as<CallNode>();
         call && call->op.same_as(s_tir::async_wait())) {
-      auto sync = Evaluate(Call(PrimType::Int(32), tirx::gpu_storage_sync_op(),
-                                {StringImm(sync_scope_.to_string())}));
+      auto sync = Evaluate(
+          Call(PrimType::Int(32), tirx::gpu_storage_sync_op(), {StringImm(sync_scope_.name())}));
       return SeqStmt({ffi::GetRef<Stmt>(op), sync});
     }
     return StmtExprMutator::Mutate_(op, inplace_mode);
   }
 
  private:
-  StorageScope sync_scope_;
+  MemoryScope sync_scope_;
 };
 
 class ThreadSyncInserter : public StmtExprMutator {
@@ -317,7 +318,7 @@ class ThreadSyncInserter : public StmtExprMutator {
   using StmtExprMutator::Mutate;
   using StmtExprMutator::Mutate_;
 
-  ThreadSyncInserter(StorageScope sync_scope, const std::unordered_set<const ffi::Object*>& syncs)
+  ThreadSyncInserter(MemoryScope sync_scope, const std::unordered_set<const ffi::Object*>& syncs)
       : sync_scope_(sync_scope), syncs_(syncs) {}
 
   UnchangedOr<ffi::Any> Mutate(ffi::AnyView value, InplaceMode inplace_mode) final {
@@ -326,7 +327,7 @@ class ThreadSyncInserter : public StmtExprMutator {
     if (syncs_.empty()) return ffi::Unchanged();
     if (!syncs_.count(stmt)) return StmtExprMutator::Mutate(value, inplace_mode);
     Stmt barrier = Evaluate(
-        Call(PrimType::Int(32), tirx::gpu_storage_sync_op(), {StringImm(sync_scope_.to_string())})
+        Call(PrimType::Int(32), tirx::gpu_storage_sync_op(), {StringImm(sync_scope_.name())})
             .as_or_throw<PrimExpr>());
     // Mutate after query, to avoid stmt change.
     auto result = StmtExprMutator::Mutate(value, inplace_mode);
@@ -336,13 +337,14 @@ class ThreadSyncInserter : public StmtExprMutator {
 
  private:
   // data structure.
-  StorageScope sync_scope_;
+  MemoryScope sync_scope_;
   const std::unordered_set<const ffi::Object*>& syncs_;
 };
 
-Stmt ThreadSync(Stmt stmt, std::string storage_scope) {
-  StorageScope sync_scope = StorageScope::Create(storage_scope);
-  if (sync_scope.rank == StorageRank::kShared && sync_scope.tag == "") {
+Stmt ThreadSync(Stmt stmt, MemoryScope sync_scope) {
+  static const auto scope_shared = runtime::MemoryScope::Get("shared");
+
+  if (sync_scope == scope_shared) {
     stmt = ffi::make_object<ThreadSyncAfterWaitQueueInserter>(sync_scope)
                ->Mutate(stmt)
                .ValueOrUnchanged(stmt);
@@ -396,7 +398,7 @@ class SynchronizationLowerer : public StmtExprMutator {
 
 namespace transform {
 
-Pass ThreadSync(ffi::String storage_scope) {
+Pass ThreadSync(runtime::MemoryScope storage_scope) {
   auto pass_func = [storage_scope](Function f, IRModule m, PassContext ctx) {
     if (!f->body.has_value()) return f;
     auto* n = f.CopyOnWrite();
@@ -423,7 +425,7 @@ Pass LowerSynchronization() {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("s_tir.transform.ThreadSync", static_cast<Pass (*)(ffi::String)>(ThreadSync))
+      .def("s_tir.transform.ThreadSync", static_cast<Pass (*)(runtime::MemoryScope)>(ThreadSync))
       .def("s_tir.transform.LowerSynchronization", LowerSynchronization);
 }
 

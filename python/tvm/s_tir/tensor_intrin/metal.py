@@ -19,10 +19,14 @@
 
 from typing import Literal
 
+from tvm.runtime import MemoryScope
 from tvm.s_tir import TensorIntrin
 from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.tirx import Expr, Function, Var
+
+_SCOPE_GLOBAL = MemoryScope("global")
+_SCOPE_SHARED = MemoryScope("shared")
 
 ######## simdgroup matrix intrinsics ########
 
@@ -396,8 +400,10 @@ def get_simdgroup_intrin_group(
     ret : Dict[str, str]
         A group of tensor intrinsics.
     """
-    assert load_scope in ["shared"]
-    assert store_scope in ["global", "shared"]
+    load_scope = MemoryScope(load_scope)
+    store_scope = MemoryScope(store_scope)
+    assert load_scope in [_SCOPE_SHARED]
+    assert store_scope in [_SCOPE_GLOBAL, _SCOPE_SHARED]
     assert dtype in ["float16", "bfloat16", "float32"]
 
     shape = "8x8x8"
@@ -406,15 +412,15 @@ def get_simdgroup_intrin_group(
     trans_b = "_trans" if trans_b else ""
 
     # e.g. simdgroup_load_8x8x8_f16_shared
-    load_a_intrin = f"simdgroup_load_{shape}_{dtype}_{load_scope}{trans_a}"
+    load_a_intrin = f"simdgroup_load_{shape}_{dtype}_{load_scope.name}{trans_a}"
     # e.g. simdgroup_load_8x8x8_f16_shared_trans
-    load_b_intrin = f"simdgroup_load_{shape}_{dtype}_{load_scope}{trans_b}"
+    load_b_intrin = f"simdgroup_load_{shape}_{dtype}_{load_scope.name}{trans_b}"
     # e.g. simdgroup_multiply_accumulate_8x8x8_f16
     compute_intrin = f"simdgroup_multiply_accumulate_{shape}_{dtype}"
     # e.g. simdgroup_make_filled_8x8x8_f16
     init_intrin = f"simdgroup_make_filled_{shape}_{dtype}"
     # e.g. simdgroup_store_8x8x8_f16_global
-    store_intrin = f"simdgroup_store_{shape}_{dtype}_{store_scope}"
+    store_intrin = f"simdgroup_store_{shape}_{dtype}_{store_scope.name}"
 
     return {
         "init": init_intrin,

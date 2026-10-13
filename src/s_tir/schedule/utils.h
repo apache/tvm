@@ -24,6 +24,7 @@
 #include <tvm/ffi/extra/serialization.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/prim/op.h>
+#include <tvm/runtime/memory_scope.h>
 #include <tvm/s_tir/analysis.h>
 #include <tvm/s_tir/schedule/instruction.h>
 #include <tvm/s_tir/schedule/schedule.h>
@@ -44,7 +45,7 @@
 #include <unordered_set>
 #include <utility>
 
-#include "../../runtime/thread_storage_scope.h"
+#include "../memory_scope.h"
 #include "../support/array_utils.h"
 #include "../support/nd_int_set.h"
 #include "./analysis.h"
@@ -97,13 +98,22 @@ inline ffi::Array<StmtSRef> SBlockRVs2StmtSRefs(const Schedule& sch,
  * \param thread_scope The thread scope to be relaxed
  * \return A boolean indicating the result
  */
-inline bool CanRelaxStorageUnderThread(const runtime::StorageScope& storage_scope,
+inline bool CanRelaxStorageUnderThread(const runtime::MemoryScope& storage_scope,
                                        const support::GPUThreadTag& thread_scope) {
-  if (storage_scope.rank == runtime::StorageRank::kWarp) {
+  static const auto scope_warp = runtime::MemoryScope::Get("warp");
+  static const auto scope_shared = runtime::MemoryScope::Get("shared");
+  static const auto scope_shared_dyn = runtime::MemoryScope::Get("shared.dyn");
+
+  if (storage_scope == scope_warp) {
     // for warp memory, we only relax threadIdx.x
     return thread_scope.rank == 1 && thread_scope.dim_index == 0;
   }
-  return static_cast<int>(storage_scope.rank) <= static_cast<int>(thread_scope.rank);
+  // Global spaces are visible across blocks; shared spaces only across threads.
+  if (IsGlobalMemoryScope(storage_scope)) {
+    return thread_scope.rank >= 0;
+  }
+  return (storage_scope == scope_shared || storage_scope == scope_shared_dyn) &&
+         thread_scope.rank == 1;
 }
 
 /******** SeqStmt ********/

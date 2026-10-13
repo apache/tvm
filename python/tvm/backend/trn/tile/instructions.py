@@ -17,7 +17,10 @@
 """Trainium tensor instructions with explicit NKI instruction identity."""
 
 from tvm.ir import Expr, LambdaExpr, PrimType, Tuple, const
+from tvm.runtime import MemoryScope
 from tvm.tirx.tile.instruction import Instruction, Operand, namespace
+
+_SCOPE_GLOBAL = MemoryScope("global")
 
 
 def _copy(view, sctx):
@@ -27,9 +30,9 @@ def _copy(view, sctx):
     name = view.op.name.rsplit(".", 1)[-1]
     expected = (
         "load"
-        if src.source.scope() == "global"
+        if src.source.scope() == _SCOPE_GLOBAL
         else "store"
-        if dst.source.scope() == "global"
+        if dst.source.scope() == _SCOPE_GLOBAL
         else "tensor_copy"
     )
     if name != expected:

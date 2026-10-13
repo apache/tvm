@@ -354,6 +354,21 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 // Native TIRx signatures are translated only at explicit Relax call boundaries.
 namespace {
+bool IsGlobalMemoryScope(runtime::MemoryScope scope) {
+  if (scope == runtime::MemoryScope::Global()) return true;
+  static const ffi::String names[] = {
+      "global.ddr",        "global.vtcm",         "global.workspace",    "global.texture",
+      "global.texture-1d", "global.texture-nchw", "global.texture-nhwc", "global.texture-weight"};
+  static ffi::reflection::TypeAttrColumn enum_state(ffi::reflection::type_attr::kEnumState);
+  auto state = enum_state[runtime::MemoryScopeObj::RuntimeTypeIndex()].cast<ffi::EnumState>();
+  for (const auto& name : names) {
+    if (auto registered = state->indexes.Get(name)) {
+      if (registered->same_as(scope)) return true;
+    }
+  }
+  return false;
+}
+
 Type TIRxPackedValueType(const Type& type, bool is_result) {
   if (is_result && IsVoidType(type)) return VoidType();
   if (const auto* scalar = type.as<PrimTypeNode>()) {
@@ -377,9 +392,7 @@ Type TIRxPackedValueType(const Type& type, bool is_result) {
       TVM_FFI_CHECK(default_layout, TypeError)
           << "A Relax-to-TIRx call cannot implicitly convert tensor layout or allocated address: "
           << type;
-      TVM_FFI_CHECK(tensor->storage_scope.empty() || tensor->storage_scope == "global" ||
-                        std::string(tensor->storage_scope).rfind("global.", 0) == 0,
-                    TypeError)
+      TVM_FFI_CHECK(IsGlobalMemoryScope(tensor->storage_scope), TypeError)
           << "A Relax-to-TIRx call cannot implicitly convert tensor storage scope: " << type;
       ShapeExpr shape(
           tensor->shape.Map([](PrimExpr dim) { return prim::cast(PrimType::Int(64), dim); }));
@@ -463,16 +476,17 @@ void CheckTIRxCarrier(const Type& native, const Type& actual,
         << actual;
   }
   if (const auto* tensor = native.as<tirx::TensorTypeNode>()) {
-    ffi::String native_scope = tensor->storage_scope.empty() ? "global" : tensor->storage_scope;
+    auto native_scope = tensor->storage_scope;
     const auto* argument = actual.as<TensorTypeNode>();
-    ffi::Optional<ffi::String> actual_scope;
+    ffi::Optional<runtime::MemoryScope> actual_scope;
     if (argument && argument->vdevice.has_value()) {
       const auto& scope = argument->vdevice.value()->memory_scope;
-      actual_scope = scope.empty() ? ffi::String("global") : scope;
+      actual_scope = scope;
     }
     // High-level DPS calls may precede SpecializeFunctionBasedOnCallSite.
     // The packed bridge is after that phase and requires matching carriers.
-    if (native_scope != "global" || (actual_scope && !allow_storage_specialization)) {
+    if (native_scope != runtime::MemoryScope::Global() ||
+        (actual_scope && !allow_storage_specialization)) {
       TVM_FFI_CHECK(actual_scope && actual_scope.value() == native_scope, TypeError)
           << "A Relax-to-TIRx call requires matching native and VDevice memory scopes; native "
           << native_scope << ", Relax " << actual;
@@ -1908,7 +1922,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
 }
 
-Expr MakeHintOnDevice(Expr data, Device device, ffi::String memory_scope = "global") {
+Expr MakeHintOnDevice(Expr data, Device device, runtime::MemoryScope memory_scope = {}) {
   static const Op op = Op::Get("relax.hint_on_device");
   ffi::ObjectPtr<HintOnDeviceAttrs> attrs = ffi::make_object<HintOnDeviceAttrs>();
   attrs->device_type = static_cast<int32_t>(device.device_type);
@@ -1922,7 +1936,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def_packed("relax.op.hint_on_device", [](ffi::PackedArgs args, ffi::Any* ret) {
     if (args.size() == 3) {
       *ret = MakeHintOnDevice(args[0].cast<Expr>(), args[1].cast<Device>(),
-                              args[2].cast<ffi::String>());
+                              args[2].cast<runtime::MemoryScope>());
     } else {
       *ret = MakeHintOnDevice(args[0].cast<Expr>(), args[1].cast<Device>());
     }

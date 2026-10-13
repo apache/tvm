@@ -33,11 +33,29 @@
 # under the License.
 """Dlight Adreno Fallback Schedules"""
 
+from functools import cache
+
 from tvm import s_tir, tirx
+from tvm.runtime import MemoryScope
 from tvm.target import Target
 
 from .. import analysis
 from .base import AdrenoScheduleRule
+
+
+@cache
+def _texture_scopes():
+    return tuple(
+        MemoryScope(name)
+        for name in (
+            "texture",
+            "global.texture",
+            "global.texture-1d",
+            "global.texture-nchw",
+            "global.texture-nhwc",
+            "global.texture-weight",
+        )
+    )
 
 
 def _assert_gpu_target(target: Target):
@@ -185,7 +203,9 @@ class Fallback(AdrenoScheduleRule):
             return None
 
         block_infos = [analysis.get_sblock_info(sch, block) for block in blocks]
-        if not any("texture" in block.write_tensors(sch)[0].get_scope() for block in block_infos):
+        if not any(
+            block.write_tensors(sch)[0].get_scope() in _texture_scopes() for block in block_infos
+        ):
             return None
 
         Fallback.schedule_fallback(sch)

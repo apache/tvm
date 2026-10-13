@@ -42,6 +42,7 @@
 #include <llvm/Support/raw_ostream.h>
 #include <llvm/Target/TargetMachine.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/runtime/memory_scope.h>
 #include <tvm/support/gpu_thread_tag.h>
 #include <tvm/tirx/op/gpu.h>
 #include <tvm/tirx/op/memory.h>
@@ -91,9 +92,13 @@ class CodeGenNVPTX : public CodeGenLLVM {
   }
 
   void DispatchAllocTensor(const BindNode* op, const CallNode* buffer_call) {
+    static const auto scope_shared_dyn = runtime::MemoryScope::Get("shared.dyn");
+    static const auto scope_local = runtime::MemoryScope::Get("local");
+    static const auto scope_shared = runtime::MemoryScope::Get("shared");
     tvm::Tuple shape = tvm::Tuple(buffer_call->ty_args[0].as_or_throw<tirx::TensorType>()->shape);
     DLDataType dtype = buffer_call->ty_args[0].as_or_throw<tirx::TensorType>()->dtype->dtype;
-    ffi::String scope = buffer_call->ty_args[0].as_or_throw<tirx::TensorType>()->storage_scope;
+    runtime::MemoryScope scope =
+        buffer_call->ty_args[0].as_or_throw<tirx::TensorType>()->storage_scope;
     TensorVar buffer = op->var.as_or_throw<TensorVar>();
     DictAttrs annotations = buffer_call->attrs.value().as_or_throw<DictAttrs>();
     llvm::Value* buf = nullptr;
@@ -103,9 +108,7 @@ class CodeGenNVPTX : public CodeGenLLVM {
       info.alignment = 16;
     }
 
-    auto storage_scope = runtime::StorageScope::Create(scope);
-
-    if (storage_scope.rank == runtime::StorageRank::kShared && storage_scope.tag == ".dyn") {
+    if (scope == scope_shared_dyn) {
       // Shared memory: address space == 3
       buf = AllocateSharedMemory(PrimType(dtype), 0, 3, info.alignment,
                                  llvm::GlobalValue::ExternalLinkage);
@@ -120,7 +123,7 @@ class CodeGenNVPTX : public CodeGenLLVM {
       if (constant_size % 4 == 0 && info.alignment == 0) {
         info.alignment = GetTempAllocaAlignment(PrimType(dtype), constant_size);
       }
-      if (storage_scope.rank == runtime::StorageRank::kLocal) {
+      if (scope == scope_local) {
         llvm::AllocaInst* alloca = WithFunctionEntry([&]() {
           return builder_->CreateAlloca(DTypeToLLVMType(PrimType(dtype)),
                                         ConstInt32(constant_size));
@@ -131,7 +134,7 @@ class CodeGenNVPTX : public CodeGenLLVM {
         }
         buf = alloca;
       } else {
-        TVM_FFI_ICHECK(storage_scope.rank == runtime::StorageRank::kShared)
+        TVM_FFI_ICHECK(scope == scope_shared)
             << "Can only allocate shared or local memory inside kernel";
         buf = AllocateSharedMemory(PrimType(dtype), constant_size, 3, info.alignment,
                                    llvm::GlobalValue::ExternalLinkage);

@@ -28,6 +28,7 @@
 #include <tvm/ir/op.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/runtime/base.h>
+#include <tvm/runtime/memory_scope.h>
 #include <tvm/tirx/op_attr_types.h>
 #include <tvm/tirx/type.h>
 
@@ -49,11 +50,12 @@ Type InferTypeMovSreg(const CallNode* call) {
 }
 
 Type InferTypeDeclTmem(const CallNode* call) {
+  static const auto scope_tmem = runtime::MemoryScope::Get("tmem");
   TVM_FFI_CHECK_EQ(call->args.size(), 1U, ValueError) << "decl_tmem expects one address operand";
   TVM_FFI_CHECK_EQ(call->ty_args.size(), 1U, ValueError)
       << "decl_tmem expects exactly one TensorType argument";
   auto type = call->ty_args[0].as_or_throw<TensorType>();
-  TVM_FFI_CHECK_EQ(type->storage_scope, "tmem", ValueError)
+  TVM_FFI_CHECK(type->storage_scope == scope_tmem, ValueError)
       << "decl_tmem requires a tmem tensor type";
   auto addr_type = call->args[0]->ty.as_or_throw<PrimType>();
   TVM_FFI_CHECK(addr_type.IsScalar() &&

@@ -90,7 +90,7 @@ class SpecializeTIRCallArgs : ExprMutator {
           << "Expected Tensor struct Info for call :" << call->op;
       auto tensor_ty = ty.as_or_throw<TensorType>();
       TVM_FFI_ICHECK(tensor_ty->shape.has_value()) << "Shape undefined for call:" << call->args[0];
-      ffi::String scope = "global";
+      runtime::MemoryScope scope;
       if (tensor_ty->vdevice.has_value()) {
         scope = tensor_ty->vdevice.value()->memory_scope;
       }
@@ -105,7 +105,7 @@ class SpecializeTIRCallArgs : ExprMutator {
                                                   tensor_ty->dtype.value(), name, scope);
       param_map.Set(pfunc->params[i], tensor);
     }
-    ffi::String scope = "global";
+    runtime::MemoryScope scope;
     auto out_ty = call->ty_args[0];
     if (out_ty->IsInstance<TensorTypeNode>()) {
       auto ty = out_ty.as_or_throw<TensorType>();

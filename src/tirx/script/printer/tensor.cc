@@ -44,15 +44,15 @@ ffi::Optional<ExprDoc> TensorTypeDocTranslate(DocTranslatorObj* d, ffi::AnyView 
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const tirx::TensorTypeNode>(input);
   // The tensor type constructor normalizes these fields.
   // Keep the explicit type constructor when that normalization would change the IR.
-  if (tensor->storage_scope.empty() || tensor->data_alignment <= 0 || tensor->offset_factor == 0) {
+  if (tensor->data_alignment <= 0 || tensor->offset_factor == 0) {
     return NamespaceDoc("ir")
         ->Attr("make_node")
         ->Call({LiteralDoc::Str("tirx.TensorType", std::nullopt)},
                {"dtype", "scope", "shape", "strides", "elem_offset", "data_alignment",
                 "offset_factor", "layout"},
-               {TypeValue(d, tensor->dtype, false),
-                LiteralDoc::Str(tensor->storage_scope, std::nullopt), AnyValue(d, tensor->shape),
-                AnyValue(d, tensor->strides), ReflectedValue(d, tensor->elem_offset),
+               {TypeValue(d, tensor->dtype, false), d->Translate(tensor->storage_scope).value(),
+                AnyValue(d, tensor->shape), AnyValue(d, tensor->strides),
+                ReflectedValue(d, tensor->elem_offset),
                 LiteralDoc::Int(tensor->data_alignment, std::nullopt),
                 LiteralDoc::Int(tensor->offset_factor, std::nullopt),
                 tensor->layout.has_value() ? d->Translate(tensor->layout.value()).value()
@@ -81,8 +81,8 @@ ffi::Optional<ExprDoc> TensorTypeDocTranslate(DocTranslatorObj* d, ffi::AnyView 
     keys.push_back(key);
     values.push_back(value);
   };
-  if (tensor->storage_scope != "global") {
-    optional("scope", LiteralDoc::Str(tensor->storage_scope, std::nullopt));
+  if (tensor->storage_scope != runtime::MemoryScope::Global()) {
+    optional("scope", d->Translate(tensor->storage_scope).value());
   }
   if (!tensor->strides.empty()) optional("strides", ReflectedValue(d, tensor->strides));
   if (!ffi::StructuralEqual()(tensor->elem_offset, IntImm(tirx::DefaultIndexPrimType(), 0))) {

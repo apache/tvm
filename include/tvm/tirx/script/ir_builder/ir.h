@@ -119,7 +119,7 @@ tvm::Stmt TensorStore(Expr dest, ffi::Array<PrimExpr> indices, PrimExpr value);
  * \return The pointer.
  */
 inline Var Handle(ffi::Optional<PrimType> dtype = std::nullopt,
-                  ffi::String storage_scope = "global") {
+                  runtime::MemoryScope storage_scope = {}) {
   Type type_annotation = dtype.has_value() ? Type(PtrType(dtype.value(), storage_scope))
                                            : Type(PtrType::VoidPtrType(storage_scope));
   return tvm::Var("", type_annotation);

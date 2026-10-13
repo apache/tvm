@@ -17,7 +17,16 @@
 
 """Workspace tensor utilities for TRN operator scheduling."""
 
+from functools import cache
+
+from tvm.runtime import MemoryScope
 from tvm.tirx import Var
+
+
+@cache
+def _scope_trn_psum():
+    return MemoryScope("trn.psum")
+
 
 largest_psum_per_bank = 512
 max_psum_banks = 8
@@ -40,9 +49,10 @@ def check_workspace_tensor(tensor: Var, shape: tuple[int], scope: str):
     AssertionError :
         If the tensor is invalid
     """
+    scope = MemoryScope(scope)
     assert tensor.scope() == scope, f"workspace tensor must be a {scope} tensor"
     assert tensor.ty.layout is None, "workspace tensor must not have a layout"
-    if scope == "trn.psum":
+    if scope == _scope_trn_psum():
         # the number of psum banks used is inferred from the shape
         # only check p and f dims
         assert all(x >= y for x, y in zip(tensor.ty.shape[1:], shape)), (

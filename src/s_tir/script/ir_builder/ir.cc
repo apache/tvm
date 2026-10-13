@@ -18,6 +18,7 @@
  */
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/runtime/memory_scope.h>
 #include <tvm/s_tir/script/ir_builder/ir.h>
 #include <tvm/sym/analyzer.h>
 
@@ -48,8 +49,8 @@ FunctionFrame DeclFunction(bool is_private, bool persistent) {
 
 TensorVar MatchTensor(ffi::ObjectRef param, ffi::Array<PrimExpr> shape, PrimType dtype,
                       ffi::Optional<Expr> data, ffi::Array<PrimExpr> strides,
-                      ffi::Optional<PrimExpr> elem_offset, ffi::String storage_scope, int align,
-                      int offset_factor, ffi::Optional<Layout> layout,
+                      ffi::Optional<PrimExpr> elem_offset, runtime::MemoryScope storage_scope,
+                      int align, int offset_factor, ffi::Optional<Layout> layout,
                       ffi::Array<PrimExpr> allocated_addr) {
   if (data.has_value()) {
     storage_scope = data.value()->ty.as_or_throw<PtrType>()->storage_scope;
@@ -60,7 +61,7 @@ TensorVar MatchTensor(ffi::ObjectRef param, ffi::Array<PrimExpr> shape, PrimType
     PrimType shape_dtype = shape.empty() ? PrimType::Int(32) : shape[0].ty();
     elem_offset = tvm::PrimVar("elem_offset", shape_dtype);
   }
-  TensorVar tensor("", tvm::tirx::TensorType(storage_scope, dtype, shape, strides, elem_offset,
+  TensorVar tensor("", tvm::tirx::TensorType(shape, dtype, storage_scope, strides, elem_offset,
                                              align, offset_factor, layout));
   tvm::TensorRegion region{ffi::UnsafeInit{}};
   if (auto load = param.as<TensorLoad>()) {
@@ -193,13 +194,15 @@ void BlockAttrs(ffi::Map<ffi::String, Any> attrs) {
 
 TensorVar SBlockAllocTensor(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::Optional<Expr> data,
                             ffi::Array<PrimExpr> strides, ffi::Optional<PrimExpr> elem_offset,
-                            ffi::String storage_scope, int align, int offset_factor,
+                            runtime::MemoryScope storage_scope, int align, int offset_factor,
                             ffi::Optional<Layout> layout, ffi::Array<PrimExpr> allocated_addr) {
-  std::string scope = static_cast<std::string>(storage_scope);
-  if (scope.empty()) {
-    scope = "global";
-  }
-  if (scope == "global" || scope == "shared" || scope == "shared.dyn" || scope == "local") {
+  static const auto scope_shared = runtime::MemoryScope::Get("shared");
+  static const auto scope_shared_dyn = runtime::MemoryScope::Get("shared.dyn");
+  static const auto scope_local = runtime::MemoryScope::Get("local");
+
+  auto scope = storage_scope;
+  if (scope == runtime::MemoryScope::Global() || scope == scope_shared ||
+      scope == scope_shared_dyn || scope == scope_local) {
     TVM_FFI_ICHECK(allocated_addr.empty())
         << "ValueError: For `" << scope
         << "` scope, Ts.alloc_tensor does not accept `allocated_addr`";
@@ -210,7 +213,7 @@ TensorVar SBlockAllocTensor(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::Opt
     PrimType shape_dtype = shape.empty() ? PrimType::Int(32) : shape[0].ty();
     elem_offset = tvm::PrimVar("elem_offset", shape_dtype);
   }
-  TensorVar tensor("", tvm::tirx::TensorType(storage_scope, dtype, shape, strides, elem_offset,
+  TensorVar tensor("", tvm::tirx::TensorType(shape, dtype, storage_scope, strides, elem_offset,
                                              align, offset_factor, layout));
   IRBuilder builder = IRBuilder::Current();
   auto opt_func_frame = builder->FindFrame<tirx::FunctionFrame>();

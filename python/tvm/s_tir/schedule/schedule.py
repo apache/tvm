@@ -24,7 +24,7 @@ from tvm_ffi import register_object as _register_object
 
 from tvm.error import register_error
 from tvm.ir import Expr, For, GlobalVar, IRModule, is_prim_expr
-from tvm.runtime import DataTypeCode, Object
+from tvm.runtime import DataTypeCode, MemoryScope, Object
 from tvm.s_tir import SBlock
 from tvm.tirx import FloatImm, Function, IntImm, Var, is_tensor_var
 from tvm.tirx.function import IndexMap
@@ -1361,7 +1361,7 @@ class Schedule(Object):
         self,
         block: SBlockRV | str,
         read_tensor_index: int | str | Var,
-        storage_scope: str,
+        storage_scope: str | MemoryScope,
         consumer_blocks: list[SBlockRV | str] | None = None,
     ) -> SBlockRV:
         """Create a block that reads a tensor region into a read cache. It requires:
@@ -1381,7 +1381,7 @@ class Schedule(Object):
             name of a read tensor in the block, or a Var object
             that is within the blocks read region.
 
-        storage_scope: str
+        storage_scope: str | MemoryScope
             The target storage scope.
 
         consumer_blocks: Optional[List[SBlockRV | str]]
@@ -1436,6 +1436,8 @@ class Schedule(Object):
                         B[vi, vj] = A_local[vi, vj] * 2.0
 
         """
+        if isinstance(storage_scope, MemoryScope):
+            storage_scope = storage_scope.name
         if consumer_blocks is None:
             consumer_blocks = []
 
@@ -1456,7 +1458,7 @@ class Schedule(Object):
         self,
         block: SBlockRV | str,
         write_tensor_index: int | str | Var,
-        storage_scope: str,
+        storage_scope: str | MemoryScope,
         consumer_blocks: list[SBlockRV | str] | None = None,
     ) -> SBlockRV:
         """Create a block that reads a tensor region into a write cache. It requires:
@@ -1476,7 +1478,7 @@ class Schedule(Object):
             name of a write tensor in the block, or a Var object
             that is within the blocks write region.
 
-        storage_scope: str
+        storage_scope: str | MemoryScope
             The target storage scope.
 
         consumer_blocks: Optional[List[SBlockRV | str]]
@@ -1531,6 +1533,8 @@ class Schedule(Object):
                         B[vi, vj] = B_local[vi, vj]
 
         """
+        if isinstance(storage_scope, MemoryScope):
+            storage_scope = storage_scope.name
         if consumer_blocks is None:
             consumer_blocks = []
 
@@ -1551,7 +1555,7 @@ class Schedule(Object):
         self,
         block: SBlockRV | str,
         read_tensor_index: int,
-        storage_scope: str,
+        storage_scope: str | MemoryScope,
         index_map: IndexMap | Callable,
     ) -> SBlockRV:
         """Create a block that reads a tensor region into a read cache using customized
@@ -1571,7 +1575,7 @@ class Schedule(Object):
             The consumer block of the target tensor.
         read_tensor_index: int
             The index of the tensor in block's read region.
-        storage_scope: str
+        storage_scope: str | MemoryScope
             The target storage scope.
         index_map: IndexMap | Callable
             User defined indices to access allocated cache tensor, maps from block iter vars.
@@ -1631,6 +1635,8 @@ class Schedule(Object):
         cache_read
         reindex
         """
+        if isinstance(storage_scope, MemoryScope):
+            storage_scope = storage_scope.name
         # Convert any string SBlock names into SBlock RVs.
         block = self._normalize_block_arg(block)
 
@@ -1648,7 +1654,7 @@ class Schedule(Object):
         self,
         block: SBlockRV | str,
         write_tensor_index: int,
-        storage_scope: str,
+        storage_scope: str | MemoryScope,
         index_map: Callable | IndexMap,
     ) -> SBlockRV:
         r"""Create a block that reads a tensor region into a write cache using customized
@@ -1668,7 +1674,7 @@ class Schedule(Object):
             The consumer block of the target tensor.
         write_tensor_index: int
             The index of the tensor in block's write region.
-        storage_scope: str
+        storage_scope: str | MemoryScope
             The target storage scope.
         index_map: Callable | IndexMap
             User defined indices to access allocated cache tensor, maps from block iter vars.
@@ -1732,6 +1738,8 @@ class Schedule(Object):
         cache_write
         reindex
         """
+        if isinstance(storage_scope, MemoryScope):
+            storage_scope = storage_scope.name
         # Convert any string SBlock names into SBlock RVs.
         block = self._normalize_block_arg(block)
 
@@ -1749,7 +1757,7 @@ class Schedule(Object):
         self,
         block: SBlockRV | str,
         read_tensor_index: int | str | Var,
-        storage_scope: str,
+        storage_scope: str | MemoryScope,
     ) -> list[SBlockRV]:
         """Create blocks that reads & write a tensor region into a cache block.
         It requires the target block both read & write the target tensor.
@@ -1765,7 +1773,7 @@ class Schedule(Object):
             name of a read tensor in the block, or a Var object
             that is within the blocks read region.
 
-        storage_scope: str
+        storage_scope: str | MemoryScope
             The target storage scope.
 
 
@@ -1823,6 +1831,8 @@ class Schedule(Object):
                             data_io[v0] = data_io_local[v0]
 
         """
+        if isinstance(storage_scope, MemoryScope):
+            storage_scope = storage_scope.name
         block = self._normalize_block_arg(block)
 
         if not isinstance(read_tensor_index, int):
@@ -1835,7 +1845,7 @@ class Schedule(Object):
 
     @type_checked
     def cache_index(
-        self, block: SBlockRV | str, storage_scope: str, cse_thresh: int = 0
+        self, block: SBlockRV | str, storage_scope: str | MemoryScope, cse_thresh: int = 0
     ) -> list[SBlockRV]:
         """Create a block to cache precomputed index for later use.
         if there is no index computation, keep unchanged.
@@ -1845,7 +1855,7 @@ class Schedule(Object):
         block : SBlockRV | str
             The target block operates on the target tensor.
 
-        storage_scope: str
+        storage_scope: str | MemoryScope
             The storage scope of cached block.
 
         cse_thresh: int
@@ -1913,6 +1923,8 @@ class Schedule(Object):
                         B[n, c, vi, vj] = A[n, c, index_var_0[vi, vj], index_var_1[vj]]
 
         """
+        if isinstance(storage_scope, MemoryScope):
+            storage_scope = storage_scope.name
         block = self._normalize_block_arg(block)
 
         return _ffi_api.ScheduleCacheIndex(  # type: ignore # pylint: disable=no-member
@@ -2013,15 +2025,27 @@ class Schedule(Object):
     ########## Schedule: Data movement ##########
 
     def read_at(
-        self, loop: LoopRV, block: SBlockRV, read_tensor_index: int, storage_scope: str
+        self,
+        loop: LoopRV,
+        block: SBlockRV,
+        read_tensor_index: int,
+        storage_scope: str | MemoryScope,
     ) -> SBlockRV:
+        if isinstance(storage_scope, MemoryScope):
+            storage_scope = storage_scope.name
         return _ffi_api.ScheduleReadAt(  # type: ignore # pylint: disable=no-member
             self, loop, block, read_tensor_index, storage_scope
         )
 
     def write_at(
-        self, loop: LoopRV, block: SBlockRV, write_tensor_index: int, storage_scope: str
+        self,
+        loop: LoopRV,
+        block: SBlockRV,
+        write_tensor_index: int,
+        storage_scope: str | MemoryScope,
     ) -> SBlockRV:
+        if isinstance(storage_scope, MemoryScope):
+            storage_scope = storage_scope.name
         return _ffi_api.ScheduleWriteAt(  # type: ignore # pylint: disable=no-member
             self, loop, block, write_tensor_index, storage_scope
         )
@@ -2737,7 +2761,7 @@ class Schedule(Object):
 
     @type_checked
     def set_scope(
-        self, block: SBlockRV | str, tensor_index: int | str | Var, storage_scope: str
+        self, block: SBlockRV | str, tensor_index: int | str | Var, storage_scope: str | MemoryScope
     ) -> None:
         """Set the storage scope of a tensor, where the tensor is
         specified by the a block and a write-index.
@@ -2748,7 +2772,7 @@ class Schedule(Object):
             The producer block of the tensor
         tensor_index : int
             The index of the tensor in block's write region
-        storage_scope : str
+        storage_scope : str or MemoryScope
             The storage scope to be set
 
         Examples
@@ -2804,6 +2828,8 @@ class Schedule(Object):
         ----
         `set_scope` requires the tensor to be an intermediate tensor defined via `alloc_tensor`.
         """
+        if isinstance(storage_scope, MemoryScope):
+            storage_scope = storage_scope.name
         block = self._normalize_block_arg(block)
         if not isinstance(tensor_index, int):
             _, tensor_index, _ = self._normalize_tensor_arg(

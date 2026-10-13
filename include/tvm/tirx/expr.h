@@ -74,7 +74,7 @@ class TensorVar : public Var {
   Expr data() const { return Call(type()->DataPtrType(), tensor_data_ptr_op(), {var()}); }
 
   /*! \brief Return the storage scope associated with this tensor. */
-  ffi::String scope() const { return (*this)->storage_scope; }
+  runtime::MemoryScope scope() const { return (*this)->storage_scope; }
 
   /*!
    * \brief Return a new tensor with the allocated address.
@@ -139,7 +139,8 @@ inline TensorVar RebuildTensorVar(const TensorVar& var, ffi::ObjectPtr<TensorTyp
  * \sa TensorVar for complete constructor.
  */
 TVM_TIRX_DLL TensorVar decl_tensor(ffi::Array<PrimExpr> shape, PrimType dtype = PrimType::Float(32),
-                                   ffi::String name = "tensor", ffi::String storage_scope = "",
+                                   ffi::String name = "tensor",
+                                   runtime::MemoryScope storage_scope = {},
                                    Location loc = UnknownLoc());
 
 /*!
@@ -157,7 +158,7 @@ TVM_TIRX_DLL TensorVar decl_tensor(ffi::Array<PrimExpr> shape, PrimType dtype = 
 TVM_TIRX_DLL tirx::TensorVar TensorWithOffsetAlignment(ffi::Array<PrimExpr> shape, PrimType dtype,
                                                        std::string name, int data_alignment,
                                                        int offset_factor,
-                                                       std::string memory_scope = "");
+                                                       runtime::MemoryScope memory_scope = {});
 
 /*!
  * \brief Construct a TensorLoad from a TensorVar.

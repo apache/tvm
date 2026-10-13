@@ -26,6 +26,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/analysis.h>
 #include <tvm/ir/expr.h>
+#include <tvm/runtime/memory_scope.h>
 #include <tvm/s_tir/analysis.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/stmt_functor.h>
@@ -148,18 +149,16 @@ bool IsReductionBlock(const SBlockRealize& realize, const ffi::Map<Var, Range>& 
  */
 ffi::Array<TensorVar> MakeScratchpads(const ffi::Array<TensorVar>& reduction_tensors,
                                       bool is_cross_thread_tensor) {
+  static const auto scope_local = runtime::MemoryScope::Get("local");
   ffi::Array<TensorVar> new_tensors;
   new_tensors.reserve(reduction_tensors.size());
   for (const TensorVar& tensor : reduction_tensors) {
     ffi::String name = is_cross_thread_tensor ? "cross" : "in";
     name = name + "_thread_" + tensor.name();
-    new_tensors.push_back(TensorVar(name, TensorType(/*storage_scope=*/"local",
-                                                     /*dtype=*/tensor->dtype,
-                                                     /*shape=*/{IntImm::Int32(1)},
-                                                     /*strides=*/{IntImm::Int32(1)},
-                                                     /*elem_offset=*/std::nullopt,
-                                                     /*data_alignment=*/0,
-                                                     /*offset_factor=*/0)));
+    new_tensors.push_back(TensorVar(
+        name, TensorType(/*shape=*/{IntImm::Int32(1)}, /*dtype=*/tensor->dtype, scope_local,
+                         /*strides=*/{IntImm::Int32(1)}, /*elem_offset=*/std::nullopt,
+                         /*data_alignment=*/0, /*offset_factor=*/0)));
   }
   return new_tensors;
 }
@@ -346,6 +345,8 @@ Stmt TransformReductionBlock(const SBlockRealizeNode* realize,                  
                              const te::CommReducer& reducer,                          //
                              const ffi::Array<PrimExpr>& combiner_rhs,                //
                              const std::vector<const ForNode*>& reduction_loops) {
+  static const auto scope_local = runtime::MemoryScope::Get("local");
+
   int n_tensors = wb_tensors.size();
   const SBlockNode* block = realize->block.get();
 
@@ -559,7 +560,7 @@ Stmt TransformReductionBlock(const SBlockRealizeNode* realize,                  
       return ffi::WalkResult::Advance();
     };
     ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(realize->predicate, walk_fn);
-    if (wb_tensors[0].scope() != "local") {
+    if (wb_tensors[0].scope() != scope_local) {
       for (const ForNode* loop : reduction_loops) {
         if (tvm::s_tir::GetThreadBinding(loop).has_value()) {
           wb_predicate = wb_predicate &&
@@ -646,11 +647,13 @@ class CrossThreadReductionTransformer : public StmtExprMutator {
   // is free to this block (i.e., not bound to the block).
   std::vector<std::pair<GPUThreadTag, Range>> NeedCrossThreadBroadcast(
       const SBlockRealizeNode* realize) {
+    static const auto scope_local = runtime::MemoryScope::Get("local");
+
     SBlock block = realize->block;
 
     // If the block writes to local memory, no rewrite is needed.
     for (TensorRegion write_region : block->writes) {
-      if (write_region->source.as_or_throw<tvm::tirx::TensorVar>().scope() == "local") {
+      if (write_region->source.as_or_throw<tvm::tirx::TensorVar>().scope() == scope_local) {
         return {};
       }
     }
@@ -700,6 +703,8 @@ class CrossThreadReductionTransformer : public StmtExprMutator {
              ffi::Array<PrimExpr>>
   CheckCanApplyCrossThreadReduction(const SBlockNode* block,
                                     const std::vector<const ForNode*>& reduction_loops) const {
+    static const auto scope_local = runtime::MemoryScope::Get("local");
+
     // Condition 1. All the reduction-related loops should be the deepest among all statements
     // outside the block (ignoring SeqStmt here).
     int n_deepest_reduction_loops = 0;
@@ -754,7 +759,7 @@ class CrossThreadReductionTransformer : public StmtExprMutator {
     reduction_tensors.reserve(updates.size());
     for (const TensorStore& tensor_store : updates) {
       reduction_tensors.push_back(tensor_store->dest.as_or_throw<TensorVar>());
-      if (tensor_store->dest.as_or_throw<TensorVar>().scope() == "local") {
+      if (tensor_store->dest.as_or_throw<TensorVar>().scope() == scope_local) {
         TVM_FFI_CHECK_NE(is_local_tensor, 0, ValueError)
             << "Cross-thread reduction requires all reduction tensors to be all "
                "local or all non-local. However, here some tensor is local while some tensor is "

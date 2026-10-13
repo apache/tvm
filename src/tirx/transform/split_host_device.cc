@@ -33,6 +33,7 @@
 #include <tvm/ir/stmt.h>
 #include <tvm/ir/transform.h>
 #include <tvm/ir/unique_name_supply.h>
+#include <tvm/runtime/memory_scope.h>
 #include <tvm/sym/analyzer.h>
 #include <tvm/target/target.h>
 #include <tvm/tirx/analysis.h>
@@ -47,7 +48,6 @@
 #include <optional>
 
 #include "../../runtime/metadata.h"
-#include "../../runtime/thread_storage_scope.h"
 #include "ir_utils.h"
 
 namespace tvm {
@@ -488,9 +488,11 @@ class DeviceInfoCollector : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> DispatchAllocTensor(const BindNode* op, const CallNode* call) {
-    ffi::String scope = call->ty_args[0].as_or_throw<TensorType>()->storage_scope;
-    auto storage_scope = runtime::StorageScope::Create(scope);
-    if (storage_scope.rank == runtime::StorageRank::kShared && storage_scope.tag == ".dyn") {
+    static const auto scope_shared_dyn = runtime::MemoryScope::Get("shared.dyn");
+
+    runtime::MemoryScope scope = call->ty_args[0].as_or_throw<TensorType>()->storage_scope;
+    auto storage_scope = scope;
+    if (storage_scope == scope_shared_dyn) {
       TVM_FFI_ICHECK(!saw_dyn_shared_alloc_)
           << "Only one dynamic shared memory allocation is allowed.";
       saw_dyn_shared_alloc_ = true;

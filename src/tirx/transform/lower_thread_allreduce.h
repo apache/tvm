@@ -133,7 +133,8 @@ class ThreadAllreduceBuilder final : public DialectMutator {
   Stmt RemapAllocTensor(Bind node, const TensorVar& replacement) {
     const CallNode* call = node->value.template as<CallNode>();
     DictAttrs annotations = call->attrs.value().as_or_throw<DictAttrs>();
-    if (replacement.scope() == "shared") {
+    static const auto shared = runtime::MemoryScope::Get("shared");
+    if (replacement.scope() == shared) {
       annotations.CopyOnWrite()->dict.Set(tvm::tirx::attr::kVolatile, true);
     }
     ffi::Array<Expr> args = call->args;
@@ -230,6 +231,7 @@ class ThreadAllreduceBuilder final : public DialectMutator {
 
   // make allreduce.
   Stmt MakeAllreduce(const CallNode* call) {
+    static const auto shared_scope = runtime::MemoryScope::Get("shared");
     LambdaExpr combiner = call->args[0].as_or_throw<LambdaExpr>();
     const auto* inits_tuple = call->args[1].as<tvm::TupleNode>();
     ffi::Array<Expr> inits = inits_tuple ? inits_tuple->fields : ffi::Array<Expr>{call->args[1]};
@@ -415,7 +417,8 @@ class ThreadAllreduceBuilder final : public DialectMutator {
         for (size_t i = 0; i < size; ++i) {
           TensorVar staging_shared_buf = decl_tensor(
               /*shape=*/{IntImm(reduce_index.ty(), n_warps * group_extent)},
-              /*dtype=*/tensors[i]->dtype, /*name=*/"red_buf_staging", /*storage_scope=*/"shared");
+              /*dtype=*/tensors[i]->dtype, /*name=*/"red_buf_staging",
+              /*storage_scope=*/shared_scope);
           staging_shared_bufs.push_back(staging_shared_buf);
           new_alloc_bufs.push_back(staging_shared_buf);
         }
@@ -463,7 +466,7 @@ class ThreadAllreduceBuilder final : public DialectMutator {
                                        ->source.as_or_throw<tvm::tirx::TensorVar>());
           TensorVar broadcast_shared_buf = decl_tensor(
               /*shape=*/{IntImm(reduce_index.ty(), group_extent)},
-              /*dtype=*/tensors[i]->dtype, /*name=*/"red_result", /*storage_scope=*/"shared");
+              /*dtype=*/tensors[i]->dtype, /*name=*/"red_result", /*storage_scope=*/shared_scope);
           write_result.push_back(
               TensorStore(broadcast_shared_buf, {group_index}, reduce_results[i]));
           // Update `reduce_results`, pointing to the value loaded from the shared memory tensor.
@@ -504,7 +507,8 @@ class ThreadAllreduceBuilder final : public DialectMutator {
       seq.emplace_back(SyncThread("shared"));
       for (size_t idx = 0; idx < size; ++idx) {
         shared_bufs.push_back(decl_tensor({IntImm(group_index.ty(), group_extent * reduce_extent)},
-                                          dtypes[idx], "red_buf" + std::to_string(idx), "shared"));
+                                          dtypes[idx], "red_buf" + std::to_string(idx),
+                                          shared_scope));
         seq.emplace_back(TensorStore(
             shared_bufs[idx], {BufIndex(reduce_index, group_index, reduce_extent)}, values[idx]));
       }
@@ -549,6 +553,7 @@ class ThreadAllreduceBuilder final : public DialectMutator {
       PrimExpr group_index,                              //
       PrimExpr mask, ffi::Optional<PrimExpr> predicate,  //
       std::vector<Stmt>* seq) {
+    static const auto local_scope = runtime::MemoryScope::Get("local");
     int n_tensors = src_values.size();
 
     std::vector<TensorVar> shared_bufs;
@@ -565,12 +570,12 @@ class ThreadAllreduceBuilder final : public DialectMutator {
     load_values.reserve(n_tensors);
     for (int idx = 0; idx < n_tensors; ++idx) {
       shared_bufs.push_back(
-          decl_tensor(shape, dtypes[idx], "red_buf" + std::to_string(idx), "local"));
+          decl_tensor(shape, dtypes[idx], "red_buf" + std::to_string(idx), local_scope));
       load_values.push_back(TensorStore(shared_bufs[idx], zero_indices, src_values[idx]));
 
       // Uses a local variable to store the shuffled data.  Later
       // on, an allocation will be built for this local variable.
-      local_bufs.push_back(decl_tensor(shape, dtypes[idx], "t" + std::to_string(idx), "local"));
+      local_bufs.push_back(decl_tensor(shape, dtypes[idx], "t" + std::to_string(idx), local_scope));
     }
 
     if (predicate.has_value()) {
@@ -584,7 +589,7 @@ class ThreadAllreduceBuilder final : public DialectMutator {
     // active channels.
     ffi::Optional<TensorVar> mask_tensor;
     if (need_warp_shuffle_mask_) {
-      mask_tensor = decl_tensor(shape, mask.ty(), "mask", "local");
+      mask_tensor = decl_tensor(shape, mask.ty(), "mask", local_scope);
       seq->emplace_back(TensorStore(mask_tensor.value(), zero_indices, mask));
       // Push the tensor description.  Later this will have an
       // allocation built for it.
@@ -986,7 +991,8 @@ class DeferredRemapper : public DialectMutator {
         const TensorVar& replacement = it->second;
         const CallNode* call = node->value.template as<CallNode>();
         DictAttrs annotations = call->attrs.value().as_or_throw<DictAttrs>();
-        if (replacement.scope() == "shared") {
+        static const auto shared = runtime::MemoryScope::Get("shared");
+        if (replacement.scope() == shared) {
           annotations.CopyOnWrite()->dict.Set(tvm::tirx::attr::kVolatile, true);
         }
         ffi::Array<Expr> args = call->args;

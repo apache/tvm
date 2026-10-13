@@ -21,6 +21,7 @@
 #define TVM_RUNTIME_HEXAGON_HEXAGON_DEVICE_API_H_
 
 #include <tvm/runtime/device_api.h>
+#include <tvm/runtime/memory_scope.h>
 
 #include <condition_variable>
 #include <map>
@@ -109,7 +110,7 @@ class HexagonDeviceAPI final : public DeviceAPI {
   ffi::Any GetAttr(Device dev, const ffi::String& name) final;
 
   ffi::Tensor Empty(ffi::ShapeView shape, DLDataType dtype, DLDevice device,
-                    ffi::Optional<ffi::String> mem_scope = std::nullopt) final;
+                    ffi::Optional<runtime::MemoryScope> mem_scope = std::nullopt) final;
 
   //! \brief Currently unimplemented interface to synchronize a device stream.
   void StreamSync(Device dev, TVMStreamHandle stream) final {}
@@ -146,7 +147,7 @@ class HexagonDeviceAPI final : public DeviceAPI {
    * \return The allocated HexagonBuffer pointer.
    */
   void* AllocDataSpace(Device dev, int ndim, const int64_t* shape, DLDataType dtype,
-                       ffi::Optional<ffi::String> mem_scope);
+                       ffi::Optional<runtime::MemoryScope> mem_scope);
 
   /*!
    * \brief Copy data from one storage to another.

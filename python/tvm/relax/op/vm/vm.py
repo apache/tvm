@@ -18,6 +18,7 @@
 from tvm.ir import Call, DataTypeImm, GenericConst, StringImm
 from tvm.ir import Call as _Call
 from tvm.ir.location import UNKNOWN_LOC, Location
+from tvm.runtime import MemoryScope
 
 from ...expr import Expr, Tuple, prim_value
 from ...utils import convert_to_expr
@@ -27,7 +28,7 @@ def alloc_storage(
     shape: Expr,
     runtime_device_index: int | Expr,
     dtype: str | Expr,
-    storage_scope: str | StringImm = "global",
+    storage_scope: str | MemoryScope | StringImm = "global",
     *,
     ty=None,
     loc: Location = UNKNOWN_LOC,
@@ -47,7 +48,7 @@ def alloc_storage(
     dtype : Union[str, Expr]
         The datatype of the storage to be allocated.
 
-    storage_scope : Union[str, StringImm]
+    storage_scope : Union[str, MemoryScope, StringImm]
         The storage scope of the storage to allocate. Default is global.
 
     Returns
@@ -58,6 +59,8 @@ def alloc_storage(
     shape = convert_to_expr(shape)
     if isinstance(dtype, str | GenericConst):
         dtype = DataTypeImm(dtype.value if isinstance(dtype, GenericConst) else dtype)
+    if isinstance(storage_scope, MemoryScope):
+        storage_scope = storage_scope.name
     if isinstance(storage_scope, str):
         storage_scope = StringImm(storage_scope)
     if isinstance(runtime_device_index, int):

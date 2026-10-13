@@ -131,5 +131,24 @@ def test_set_scope_subregion():
     assert_structural_equal_ignore_global_symbol(element_wise_subregion_match_set_scope, s.mod["main"])
     verify_trace_roundtrip(sch=s, mod=func)
 
+@pytest.mark.parametrize("scope_name", ["shared", "local"])
+@pytest.mark.parametrize("method", ["set_scope", "cache_read", "cache_write"])
+def test_memory_scope_enum_and_trace(scope_name, method):
+    enum_schedule = tvm.s_tir.Schedule(element_wise, debug_mask="all")
+    string_schedule = tvm.s_tir.Schedule(element_wise, debug_mask="all")
+    getattr(enum_schedule, method)("B", 0, tvm.runtime.MemoryScope(scope_name))
+    getattr(string_schedule, method)("B", 0, scope_name)
+    tvm.ir.assert_structural_equal(enum_schedule.mod, string_schedule.mod)
+    assert enum_schedule.trace.as_python() == string_schedule.trace.as_python()
+    verify_trace_roundtrip(sch=enum_schedule, mod=element_wise)
+
+
+def test_thread_sync_accepts_memory_scope():
+    mod = tvm.IRModule({"main": element_wise})
+    enum_result = tvm.s_tir.transform.ThreadSync(tvm.runtime.MemoryScope("shared"))(mod)
+    string_result = tvm.s_tir.transform.ThreadSync("shared")(mod)
+    tvm.ir.assert_structural_equal(enum_result, string_result)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

@@ -405,6 +405,7 @@ void conv_layer_fp16_hvx(DLTensor& cr_out, const DLTensor& cr_act,  // NOLINT(*)
 }  // namespace tvm
 
 int conv2d_packed_fp16(void*, TVMFFIAny* args, int num_args, TVMFFIAny* out_val) {
+  static const auto scope_global_vtcm = runtime::MemoryScope::Get("global.vtcm");
   namespace conv_utils = tvm::runtime::hexagon::conv_utils;
   TVM_FFI_ICHECK_EQ(num_args, 7) << "Unexpected number of arguments";
   TVM_FFI_ICHECK_EQ(args[0].type_index, kTVMFFIDLTensorPtr)
@@ -445,7 +446,7 @@ int conv2d_packed_fp16(void*, TVMFFIAny* args, int num_args, TVMFFIAny* out_val)
 
   auto* device_api = tvm::runtime::DeviceAPI::Get(conv_utils::hexagon_device, false);
   TVM_FFI_ICHECK(device_api != nullptr);
-  tvm::ffi::String vtcm_scope = "global.vtcm";
+  const auto vtcm_scope = scope_global_vtcm;
 
   auto act_vtcm =
       conv_utils::prepare_nhwc<uint16_t, 8, 4, 32>(device_api, act_flat, /*copy_data=*/true);

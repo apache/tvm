@@ -33,7 +33,7 @@ Example::
 """
 
 from tvm.ir import TensorRegion
-from tvm.runtime import DataType
+from tvm.runtime import DataType, MemoryScope
 from tvm.script import tirx as T
 from tvm.sym.analyzer import Analyzer
 from tvm.tirx import Var
@@ -42,6 +42,11 @@ from tvm.tirx.tile.instruction import TensorCall
 
 from ._common import copy_ptx_form, copy_ptx_ld_chain
 from .utils import _scope_allowed
+
+_SCOPE_GLOBAL = MemoryScope("global")
+_SCOPE_LOCAL = MemoryScope("local")
+_SCOPE_SHARED = MemoryScope("shared")
+_SCOPE_SHARED_DYN = MemoryScope("shared.dyn")
 
 
 def _region_start(buffer_region: TensorRegion):
@@ -61,10 +66,10 @@ def _can_prove_equal(lhs, rhs) -> bool:
     return Analyzer().can_prove_equal(lhs, rhs)
 
 
-def _ptx_space(scope: str) -> str:
-    if scope.startswith("shared"):
+def _ptx_space(scope: MemoryScope) -> str:
+    if scope in (_SCOPE_SHARED, _SCOPE_SHARED_DYN):
         return "shared"
-    return scope
+    return scope.name
 
 
 _LD_CACHE_HINT_KEYS = ("l1_evict", "l2_evict", "prefetch_size")
@@ -124,7 +129,7 @@ def _is_forced_vec_copy(
     cache, hints = _ld_cache_config(op_call)
     if cache not in (None, "nc"):
         return False, f"unsupported cache config {cache!r}; expected None or 'nc'"
-    if (cache is not None or hints) and src.scope() != "global":
+    if (cache is not None or hints) and src.scope() != _SCOPE_GLOBAL:
         return False, (
             "cache/L1/L2 hint config applies to global loads; "
             f"requires src scope 'global', got {src.scope()!r}"
@@ -138,8 +143,8 @@ def _emit_forced_vec_copy(op_call: TensorCall, _sctx: DispatchContext, num_bytes
     dst: Var = op_call.dst.source
     src_scope = src.scope()
     dst_scope = dst.scope()
-    src_is_local = src_scope == "local"
-    dst_is_local = dst_scope == "local"
+    src_is_local = src_scope == _SCOPE_LOCAL
+    dst_is_local = dst_scope == _SCOPE_LOCAL
     src_space = _ptx_space(src_scope)
     dst_space = _ptx_space(dst_scope)
     src_ptr = src.ptr_to(_region_start(op_call.src))

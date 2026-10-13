@@ -19,6 +19,7 @@
 #ifndef TVM_S_TIR_SCRIPT_IR_BUILDER_IR_H_
 #define TVM_S_TIR_SCRIPT_IR_BUILDER_IR_H_
 
+#include <tvm/runtime/memory_scope.h>
 #include <tvm/s_tir/script/ir_builder/frame.h>
 #include <tvm/tirx/script/ir_builder/ir.h>
 
@@ -53,7 +54,8 @@ TensorVar MatchTensor(ffi::ObjectRef param, ffi::Array<PrimExpr> shape,
                       PrimType dtype = PrimType::Float(32), ffi::Optional<Expr> data = std::nullopt,
                       ffi::Array<PrimExpr> strides = {},
                       ffi::Optional<PrimExpr> elem_offset = std::nullopt,
-                      ffi::String storage_scope = "global", int align = -1, int offset_factor = 0,
+                      runtime::MemoryScope storage_scope = runtime::MemoryScope::Global(),
+                      int align = -1, int offset_factor = 0,
                       ffi::Optional<Layout> layout = std::nullopt,
                       ffi::Array<PrimExpr> allocated_addr = {});
 
@@ -113,7 +115,8 @@ TensorVar SBlockAllocTensor(ffi::Array<PrimExpr> shape, PrimType dtype = PrimTyp
                             ffi::Optional<Expr> data = std::nullopt,
                             ffi::Array<PrimExpr> strides = {},
                             ffi::Optional<PrimExpr> elem_offset = std::nullopt,
-                            ffi::String storage_scope = "", int align = -1, int offset_factor = 0,
+                            runtime::MemoryScope storage_scope = runtime::MemoryScope::Global(),
+                            int align = -1, int offset_factor = 0,
                             ffi::Optional<Layout> layout = std::nullopt,
                             ffi::Array<PrimExpr> allocated_addr = {});
 

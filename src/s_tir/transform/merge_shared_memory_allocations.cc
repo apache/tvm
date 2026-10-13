@@ -31,6 +31,7 @@
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/runtime/logging.h>
+#include <tvm/runtime/memory_scope.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
@@ -44,15 +45,13 @@
 #include <unordered_map>
 #include <unordered_set>
 
-#include "../../runtime/thread_storage_scope.h"
 #include "../../support/arena.h"
 
 namespace tvm {
 namespace s_tir {
 using namespace tvm::tirx;
 
-using runtime::StorageRank;
-using runtime::StorageScope;
+using runtime::MemoryScope;
 
 namespace {
 
@@ -83,27 +82,35 @@ ffi::Optional<Var> GetBufferDataVar(const ffi::Any& data) {
 }  // namespace
 
 bool IsDynamicSharedMemory(Var buffer_var) {
-  StorageScope storage_scope = runtime::StorageScope::Create(
+  static const auto scope_shared_dyn = runtime::MemoryScope::Get("shared.dyn");
+
+  MemoryScope storage_scope =
       (buffer_var->ty.as<TensorTypeNode>() ? buffer_var->ty.as<TensorTypeNode>()->storage_scope
-                                           : buffer_var->ty.as_or_throw<PtrType>()->storage_scope));
-  return storage_scope.rank == runtime::StorageRank::kShared && storage_scope.tag == ".dyn";
+                                           : buffer_var->ty.as_or_throw<PtrType>()->storage_scope);
+  return storage_scope == scope_shared_dyn;
 }
 
 bool IsStaticSharedMemory(Var buffer_var) {
-  StorageScope storage_scope = runtime::StorageScope::Create(
+  static const auto scope_shared = runtime::MemoryScope::Get("shared");
+
+  MemoryScope storage_scope =
       (buffer_var->ty.as<TensorTypeNode>() ? buffer_var->ty.as<TensorTypeNode>()->storage_scope
-                                           : buffer_var->ty.as_or_throw<PtrType>()->storage_scope));
-  return storage_scope.rank == runtime::StorageRank::kShared && storage_scope.tag == "";
+                                           : buffer_var->ty.as_or_throw<PtrType>()->storage_scope);
+  return storage_scope == scope_shared;
 }
 
 bool IsDynamicSharedMemory(const TensorVar& tensor) {
-  StorageScope storage_scope = runtime::StorageScope::Create(tensor.scope());
-  return storage_scope.rank == runtime::StorageRank::kShared && storage_scope.tag == ".dyn";
+  static const auto scope_shared_dyn = runtime::MemoryScope::Get("shared.dyn");
+
+  MemoryScope storage_scope = tensor.scope();
+  return storage_scope == scope_shared_dyn;
 }
 
 bool IsStaticSharedMemory(const TensorVar& tensor) {
-  StorageScope storage_scope = runtime::StorageScope::Create(tensor.scope());
-  return storage_scope.rank == runtime::StorageRank::kShared && storage_scope.tag == "";
+  static const auto scope_shared = runtime::MemoryScope::Get("shared");
+
+  MemoryScope storage_scope = tensor.scope();
+  return storage_scope == scope_shared;
 }
 
 /*!
@@ -141,14 +148,15 @@ class AllocateCollector : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> DispatchAllocTensor(const BindNode* op, const CallNode* call) {
-    ffi::String scope = call->ty_args[0].as_or_throw<TensorType>()->storage_scope;
-    StorageScope storage_scope = StorageScope::Create(scope);
-    if (is_dynamic_ && storage_scope.rank == runtime::StorageRank::kShared &&
-        storage_scope.tag == ".dyn") {
+    static const auto scope_shared_dyn = runtime::MemoryScope::Get("shared.dyn");
+    static const auto scope_shared = runtime::MemoryScope::Get("shared");
+
+    runtime::MemoryScope scope = call->ty_args[0].as_or_throw<TensorType>()->storage_scope;
+    MemoryScope storage_scope = scope;
+    if (is_dynamic_ && storage_scope == scope_shared_dyn) {
       shmem_allocs_.insert_or_assign(op->var.as_or_throw<TensorVar>().get(),
                                      op->var.as_or_throw<TensorVar>());
-    } else if (!is_dynamic_ && storage_scope.rank == runtime::StorageRank::kShared &&
-               storage_scope.tag == "") {
+    } else if (!is_dynamic_ && storage_scope == scope_shared) {
       shmem_allocs_.insert_or_assign(op->var.as_or_throw<TensorVar>().get(),
                                      op->var.as_or_throw<TensorVar>());
     }
@@ -465,9 +473,11 @@ class SharedMemoryRewriter : public StmtExprMutator {
    *        Same name string is fine — Var identity is by pointer, not name.
    */
   TensorVar MakeMergedTensor(PrimExpr size) {
+    static const auto scope_shared = runtime::MemoryScope::Get("shared");
+    static const auto scope_shared_dyn = runtime::MemoryScope::Get("shared.dyn");
     return decl_tensor({std::move(size)}, PrimType::UInt(8),
                        is_dynamic_ ? "buf_dyn_shmem" : "buf_shmem",
-                       is_dynamic_ ? "shared.dyn" : "shared");
+                       is_dynamic_ ? scope_shared_dyn : scope_shared);
   }
 
   UnchangedOr<Stmt> Mutate_(const RegionStmtNode* op, InplaceMode inplace_mode) final {
@@ -547,10 +557,12 @@ class SharedMemoryRewriter : public StmtExprMutator {
 
   UnchangedOr<Stmt> Mutate_AllocTensor(const BindNode* op, const CallNode* call,
                                        InplaceMode inplace_mode) {
-    ffi::String scope = call->ty_args[0].as_or_throw<TensorType>()->storage_scope;
-    StorageScope storage_scope = StorageScope::Create(scope);
-    if (storage_scope.rank == runtime::StorageRank::kShared &&
-        storage_scope.tag == (is_dynamic_ ? ".dyn" : "")) {
+    static const auto scope_shared_dyn = runtime::MemoryScope::Get("shared.dyn");
+    static const auto scope_shared = runtime::MemoryScope::Get("shared");
+
+    runtime::MemoryScope scope = call->ty_args[0].as_or_throw<TensorType>()->storage_scope;
+    MemoryScope storage_scope = scope;
+    if (storage_scope == (is_dynamic_ ? scope_shared_dyn : scope_shared)) {
       if (!scope_stack_.empty()) {
         KernelScope& scope = scope_stack_.back();
         if (scope.shmem_allocs.count(op->var.as_or_throw<TensorVar>().get())) {

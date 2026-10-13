@@ -26,6 +26,7 @@ from tvm import tirx as tir
 from tvm.ir import TensorLoad, TensorRegion, is_prim_expr
 from tvm.ir.location import UNKNOWN_LOC, Location
 from tvm.ir.type import _normalize_type
+from tvm.runtime import MemoryScope
 from tvm.s_tir.iter_var import IterVar
 from tvm.s_tir.op import comm_reducer
 from tvm.script.ir_builder.base import MISSING
@@ -93,7 +94,7 @@ def match_tensor(
     data: Var = None,
     strides: list[Expr] | None = None,
     elem_offset: Expr = None,
-    scope: str = "global",
+    scope: str | MemoryScope = MemoryScope("global"),
     align: int = -1,
     offset_factor: int = 0,
     layout: str | Layout | None = MISSING,
@@ -241,7 +242,7 @@ def sblock_alloc_tensor(
     data: Var = None,
     strides: list[Expr] | None = None,
     elem_offset: Expr = None,
-    scope: str = "global",
+    scope: str | MemoryScope = MemoryScope("global"),
     align: int = -1,
     offset_factor: int = 0,
     layout: str | Layout | None = MISSING,

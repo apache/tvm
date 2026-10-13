@@ -44,7 +44,7 @@ static uint64_t RemoteTensorBytes(const ffi::Shape& shape, DLDataType dtype) {
 }
 
 static RemoteTensor RemoteEmpty(ffi::Shape shape, DLDataType dtype, RemoteDevice dev,
-                                ffi::Optional<ffi::String> scope) {
+                                ffi::Optional<MemoryScope> scope) {
   RemoteTensorBytes(shape, dtype);
   auto n = ffi::make_object<RemoteTensorObj>();
   n->device = dev;

@@ -69,7 +69,8 @@ class Int32DTypeNarrower : public IndexDataTypeNormalizer {
     // Scalar assignments in TVMScript use local scalar storage.  Keep its explicit
     // dtype (e.g. an int64 opaque call result) and cast at narrowed index uses.
     // IsScalar checks the scalar layout contract, not merely the allocation size.
-    bool is_local_scalar = buf.scope() == "local" && buf.IsScalar();
+    static const auto local = runtime::MemoryScope::Get("local");
+    bool is_local_scalar = buf.scope() == local && buf.IsScalar();
     if (!is_local_scalar && buf->dtype.MatchesCode(DLDataTypeCode::kDLInt) &&
         buf->dtype.bits() > 32) {
       TVM_FFI_THROW(InternalError)

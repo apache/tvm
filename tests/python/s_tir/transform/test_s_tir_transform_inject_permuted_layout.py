@@ -62,9 +62,9 @@ def test_backward_compatibility_shared_a():
                                     with Ts.sblock(""):
                                         Ts.reads(X_reindex_shared_dyn[threadIdx_y // 2 * 64:threadIdx_y // 2 * 64 + 64, ax2_0_1 * 8:ax2_0_1 * 8 + 8])
                                         Ts.writes()
-                                        X_reindex_shared_dyn_m16n8k8_matrixA = Ts.sblock_alloc_tensor((64, 8), "float16", scope="m16n8k8.matrixA")
+                                        X_reindex_shared_dyn_m16n8k8_matrixA = Ts.sblock_alloc_tensor((64, 8), "float16", scope="mma.matrixA")
                                         for ax0_0, ax1_0 in T.grid(2, 1):
-                                            with Ts.sblock("X_reindex_shared.dyn_m16n8k8.matrixA_o"):
+                                            with Ts.sblock("X_reindex_shared.dyn_mma.matrixA_o"):
                                                 Ts.reads(X_reindex_shared_dyn[threadIdx_y // 2 * 64 + ax0_0 * 32:threadIdx_y // 2 * 64 + ax0_0 * 32 + 32, ax2_0_1 * 8:ax2_0_1 * 8 + 8])
                                                 Ts.writes(X_reindex_shared_dyn_m16n8k8_matrixA[ax0_0 * 32:ax0_0 * 32 + 32, 0:8])
                                                 Ts.sblock_attr({"permuted_layout": "s2l_A"})
@@ -88,9 +88,9 @@ def test_backward_compatibility_shared_a():
                                             X_reindex_shared_dyn[ax0_ax1_fused_0 * 32 + threadIdx_y * 8 + threadIdx_x // 4, T.bitwise_xor(threadIdx_x % 4, threadIdx_x // 8) * 8 + ax0_ax1_fused_3] = X[blockIdx_y // 8 * 128 + ax0_ax1_fused_0 * 32 + threadIdx_y * 8 + threadIdx_x // 4, ax2_0_0 * 32 + threadIdx_x % 4 * 8 + ax0_ax1_fused_3]
                                 for ax2_0_1 in T.serial(4):
                                     with Ts.sblock(""):
-                                        X_reindex_shared_dyn_m16n8k8_matrixA = Ts.sblock_alloc_tensor((64, 8), "float16", scope="m16n8k8.matrixA")
+                                        X_reindex_shared_dyn_m16n8k8_matrixA = Ts.sblock_alloc_tensor((64, 8), "float16", scope="mma.matrixA")
                                         for ax0_0, ax1_0 in T.grid(2, 1):
-                                            with Ts.sblock("X_reindex_shared.dyn_m16n8k8.matrixA_o"):
+                                            with Ts.sblock("X_reindex_shared.dyn_mma.matrixA_o"):
                                                 Ts.reads(X_reindex_shared_dyn[threadIdx_y // 2 * 64 + ax0_0 * 32:threadIdx_y // 2 * 64 + ax0_0 * 32 + 32, ax2_0_1 * 8:ax2_0_1 * 8 + 8])
                                                 Ts.writes(X_reindex_shared_dyn_m16n8k8_matrixA[ax0_0 * 32:ax0_0 * 32 + 32, 0:8])
                                                 T.ptx_legacy.ldmatrix(T.bool(False), 4, ".b16", X_reindex_shared_dyn_m16n8k8_matrixA.data, ax0_0 * 8, T.ptr_byte_offset(X_reindex_shared_dyn.data, (threadIdx_y // 2 * 2048 + ax0_0 * 1024 + threadIdx_x * 32 + T.bitwise_xor(ax2_0_1, threadIdx_x % 8 // 2) * 8) * 2, ty=X_reindex_shared_dyn.data.ty), 0, ty="float16")
@@ -123,16 +123,16 @@ def test_backward_compatibility_shared_a_and_b():
                                                 Y_reindex_shared_dyn[ax0_ax1_fused_0 * 8 + threadIdx_y * 2 + threadIdx_x // 16, threadIdx_x % 16 * 8 + ax0_ax1_fused_3] = Y[ax2_0_0 * 32 + ax0_ax1_fused_0 * 8 + threadIdx_y * 2 + threadIdx_x // 16, blockIdx_x * 1024 + blockIdx_y % 8 * 128 + threadIdx_x % 16 * 8 + ax0_ax1_fused_3]
                                     for ax2_0_1 in T.serial(4):
                                         with Ts.sblock(""):
-                                            X_reindex_shared_dyn_m16n8k8_matrixA = Ts.sblock_alloc_tensor((64, 8), "float16", scope="m16n8k8.matrixA")
-                                            Y_reindex_shared_dyn_m16n8k8_matrixB = Ts.sblock_alloc_tensor((8, 64), "float16", scope="m16n8k8.matrixB")
+                                            X_reindex_shared_dyn_m16n8k8_matrixA = Ts.sblock_alloc_tensor((64, 8), "float16", scope="mma.matrixA")
+                                            Y_reindex_shared_dyn_m16n8k8_matrixB = Ts.sblock_alloc_tensor((8, 64), "float16", scope="mma.matrixB")
                                             for ax0_0, ax1_0 in T.grid(2, 1):
-                                                with Ts.sblock("X_reindex_shared.dyn_m16n8k8.matrixA_o"):
+                                                with Ts.sblock("X_reindex_shared.dyn_mma.matrixA_o"):
                                                     Ts.reads(X_reindex_shared_dyn[threadIdx_y // 2 * 64 + ax0_0 * 32:threadIdx_y // 2 * 64 + ax0_0 * 32 + 32, ax2_0_1 * 8:ax2_0_1 * 8 + 8])
                                                     Ts.writes(X_reindex_shared_dyn_m16n8k8_matrixA[ax0_0 * 32:ax0_0 * 32 + 32, 0:8])
                                                     Ts.sblock_attr({"permuted_layout": "s2l_A"})
                                                     T.ptx_legacy.ldmatrix(T.bool(False), 4, ".b16", X_reindex_shared_dyn_m16n8k8_matrixA.data, ax0_0 * 8, T.ptr_byte_offset(X_reindex_shared_dyn.data, (threadIdx_y // 2 * 2048 + ax0_0 * 1024 + ax2_0_1 * 8) * 2, ty=X_reindex_shared_dyn.data.ty), threadIdx_x * 32, ty="float16")
                                             for ax0_0, ax1_0 in T.grid(1, 2):
-                                                with Ts.sblock("Y_reindex_shared.dyn_m16n8k8.matrixB_o"):
+                                                with Ts.sblock("Y_reindex_shared.dyn_mma.matrixB_o"):
                                                     Ts.reads(Y_reindex_shared_dyn[ax2_0_1 * 8:ax2_0_1 * 8 + 8, threadIdx_y % 2 * 64 + ax1_0 * 32:threadIdx_y % 2 * 64 + ax1_0 * 32 + 32])
                                                     Ts.writes(Y_reindex_shared_dyn_m16n8k8_matrixB[0:8, ax1_0 * 32:ax1_0 * 32 + 32])
                                                     Ts.sblock_attr({"permuted_layout": "s2l_B"})
@@ -167,15 +167,15 @@ def test_backward_compatibility_shared_a_and_b():
                                                 Y_reindex_shared_dyn[ax0_ax1_fused_0 * 8 + threadIdx_y * 2 + threadIdx_x // 16, T.bitwise_xor(threadIdx_x % 16, threadIdx_y * 2 + threadIdx_x // 16) * 8 + ax0_ax1_fused_3]   = Y[ax2_0_0 * 32 + ax0_ax1_fused_0 * 8 + threadIdx_y * 2 + threadIdx_x // 16, blockIdx_x * 1024 + blockIdx_y % 8 * 128 + threadIdx_x % 16 * 8 + ax0_ax1_fused_3]
                                     for ax2_0_1 in T.serial(4):
                                         with Ts.sblock(""):
-                                            X_reindex_shared_dyn_m16n8k8_matrixA = Ts.sblock_alloc_tensor((64, 8), "float16", scope="m16n8k8.matrixA")
-                                            Y_reindex_shared_dyn_m16n8k8_matrixB = Ts.sblock_alloc_tensor((8, 64), "float16", scope="m16n8k8.matrixB")
+                                            X_reindex_shared_dyn_m16n8k8_matrixA = Ts.sblock_alloc_tensor((64, 8), "float16", scope="mma.matrixA")
+                                            Y_reindex_shared_dyn_m16n8k8_matrixB = Ts.sblock_alloc_tensor((8, 64), "float16", scope="mma.matrixB")
                                             for ax0_0, ax1_0 in T.grid(2, 1):
-                                                with Ts.sblock("X_reindex_shared.dyn_m16n8k8.matrixA_o"):
+                                                with Ts.sblock("X_reindex_shared.dyn_mma.matrixA_o"):
                                                     Ts.reads(X_reindex_shared_dyn[threadIdx_y // 2 * 64 + ax0_0 * 32:threadIdx_y // 2 * 64 + ax0_0 * 32 + 32, ax2_0_1 * 8:ax2_0_1 * 8 + 8])
                                                     Ts.writes(X_reindex_shared_dyn_m16n8k8_matrixA[ax0_0 * 32:ax0_0 * 32 + 32, 0:8])
                                                     T.ptx_legacy.ldmatrix(T.bool(False), 4, ".b16", X_reindex_shared_dyn_m16n8k8_matrixA.data, ax0_0 * 8, T.ptr_byte_offset(X_reindex_shared_dyn.data, (threadIdx_y // 2 * 2048 + ax0_0 * 1024 + threadIdx_x * 32 + T.bitwise_xor(ax2_0_1, threadIdx_x % 8 // 2) * 8) * 2, ty=X_reindex_shared_dyn.data.ty), 0, ty="float16")
                                             for ax0_0, ax1_0 in T.grid(1, 2):
-                                                with Ts.sblock("Y_reindex_shared.dyn_m16n8k8.matrixB_o"):
+                                                with Ts.sblock("Y_reindex_shared.dyn_mma.matrixB_o"):
                                                     Ts.reads(Y_reindex_shared_dyn[ax2_0_1 * 8:ax2_0_1 * 8 + 8, threadIdx_y % 2 * 64 + ax1_0 * 32:threadIdx_y % 2 * 64 + ax1_0 * 32 + 32])
                                                     Ts.writes(Y_reindex_shared_dyn_m16n8k8_matrixB[0:8, ax1_0 * 32:ax1_0 * 32 + 32])
                                                     T.ptx_legacy.ldmatrix(T.bool(True), 4, ".b16", Y_reindex_shared_dyn_m16n8k8_matrixB.data, ax1_0 * 8, T.ptr_byte_offset(Y_reindex_shared_dyn.data, (ax2_0_1 * 1024 + threadIdx_x % 8 * 128 + T.bitwise_xor(threadIdx_y % 2 * 8 + ax1_0 * 4 + threadIdx_x // 8, threadIdx_x % 8) * 8) * 2, ty=Y_reindex_shared_dyn.data.ty), 0, ty="float16")

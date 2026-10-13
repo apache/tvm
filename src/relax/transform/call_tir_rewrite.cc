@@ -175,7 +175,7 @@ class CallTIRMutator : public ExprMutator {
         << "call_tir expects all TensorType has shape, but got " << tensor_ty;
 
     int dev_index = 0;
-    ffi::String scope = "global";
+    runtime::MemoryScope scope;
     if (tensor_ty->vdevice.has_value()) {
       dev_index = GetDeviceIndex(mod_, tensor_ty->vdevice.value());
       scope = tensor_ty->vdevice.value()->memory_scope;
@@ -186,7 +186,7 @@ class CallTIRMutator : public ExprMutator {
     return builder_->Emit(Call(Type::Missing(), alloc_tensor_op,
                                {tensor_ty->shape.value().as_or_throw<ShapeExpr>(),
                                 DataTypeImm(tensor_ty->dtype.value()->dtype),
-                                IntImm::Int64(dev_index), StringImm(scope)},
+                                IntImm::Int64(dev_index), StringImm(scope.name())},
                                std::nullopt, {tensor_ty}),
                           "alloc");
   }

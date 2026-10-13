@@ -18,10 +18,16 @@
 
 from collections.abc import Iterable
 
+from tvm.runtime import MemoryScope
 from tvm.tirx.tile.dispatch import DispatchContext
 from tvm.tirx.tile.instruction import TensorCall
 
-from ..common import match_scope, validate_copy_op
+from ..common import validate_copy_op
+
+_SCOPE_GLOBAL = MemoryScope("global")
+_SCOPE_LOCAL = MemoryScope("local")
+_SCOPE_SHARED = MemoryScope("shared")
+_SCOPE_SHARED_DYN = MemoryScope("shared.dyn")
 
 
 def _single_thread_exec(op_call: TensorCall, sctx: DispatchContext):
@@ -31,33 +37,32 @@ def _single_thread_exec(op_call: TensorCall, sctx: DispatchContext):
     return (ok, None if ok else f"expected thread exec_scope, got {exec_scope}")
 
 
-DEFAULT_ALLOWED_PAIRS: tuple[tuple[str, str], ...] = (
-    ("global", "shared*"),
-    ("shared*", "global"),
-    ("global", "local"),
-    ("local", "global"),
-    ("shared*", "local"),
-    ("local", "shared*"),
+DEFAULT_ALLOWED_PAIRS = (
+    (_SCOPE_GLOBAL, _SCOPE_SHARED),
+    (_SCOPE_GLOBAL, _SCOPE_SHARED_DYN),
+    (_SCOPE_SHARED, _SCOPE_GLOBAL),
+    (_SCOPE_SHARED_DYN, _SCOPE_GLOBAL),
+    (_SCOPE_GLOBAL, _SCOPE_LOCAL),
+    (_SCOPE_LOCAL, _SCOPE_GLOBAL),
+    (_SCOPE_SHARED, _SCOPE_LOCAL),
+    (_SCOPE_SHARED_DYN, _SCOPE_LOCAL),
+    (_SCOPE_LOCAL, _SCOPE_SHARED),
+    (_SCOPE_LOCAL, _SCOPE_SHARED_DYN),
 )
 
 
 def _scope_allowed(
     op_call: TensorCall,
     sctx: DispatchContext,
-    allowed_pairs: Iterable[tuple[str, str]] = DEFAULT_ALLOWED_PAIRS,
+    allowed_pairs: Iterable[tuple[MemoryScope, MemoryScope]] = DEFAULT_ALLOWED_PAIRS,
 ):
     op_call = TensorCall.decode(op_call)
     dst_buffer_region, src_buffer_region = (op_call.dst, op_call.src)
     src_scope = src_buffer_region.source.scope()
     dst_scope = dst_buffer_region.source.scope()
-    ok = any(
-        (
-            match_scope(src_scope, src_pat) and match_scope(dst_scope, dst_pat)
-            for src_pat, dst_pat in allowed_pairs
-        )
-    )
+    ok = (src_scope, dst_scope) in allowed_pairs
     if not ok:
-        allowed_str = ", ".join((f"{a}->{b}" for a, b in allowed_pairs))
+        allowed_str = ", ".join((f"{a.name}->{b.name}" for a, b in allowed_pairs))
         return (
             False,
             f"unsupported memory scopes src={src_scope} dst={dst_scope}; allowed: {allowed_str}",

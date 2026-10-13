@@ -19,9 +19,11 @@
 
 import functools
 import operator
+from functools import cache
 
 from tvm.backend.trn.layout import is_trainium_layout
 from tvm.ir import TensorRegion, assert_structural_equal
+from tvm.runtime import MemoryScope
 from tvm.script import tirx as T
 from tvm.sym.analyzer import Analyzer
 from tvm.tirx import Function
@@ -32,6 +34,16 @@ from ..common import init_analyzer
 from ..dim_utils import normalize_and_group
 from ..instruction_generator import InstructionGenerator
 from ..workspace_utils import check_workspace_tensor, largest_psum_per_bank, max_psum_banks
+
+
+@cache
+def _scope_trn_psum():
+    return MemoryScope("trn.psum")
+
+
+@cache
+def _scope_trn_sbuf():
+    return MemoryScope("trn.sbuf")
 
 
 class OperatorKind:
@@ -143,8 +155,8 @@ def matmul_trn(op: TensorCall, sctx: DispatchContext) -> Function | None:
         [
             A.ty.effective_layout() and B.ty.effective_layout() and C.ty.effective_layout(),
             A.ty.dtype == B.ty.dtype,
-            A.scope() == "trn.sbuf" and B.scope() == "trn.sbuf",
-            C.scope() == "trn.psum" or C.scope() == "trn.sbuf",
+            A.scope() == _scope_trn_sbuf() and B.scope() == _scope_trn_sbuf(),
+            C.scope() == _scope_trn_psum() or C.scope() == _scope_trn_sbuf(),
             is_trainium_layout(A.ty.effective_layout()),
             is_trainium_layout(B.ty.effective_layout()),
             is_trainium_layout(C.ty.effective_layout()),
@@ -236,7 +248,7 @@ def matmul_trn(op: TensorCall, sctx: DispatchContext) -> Function | None:
                             else:
                                 T.evaluate(T.nki.matmul(acc[(lhs_b_loop * rhs_b_extent + rhs_b_loop) % max_psum_slots, lhs_f_loop, rhs_f_loop], A[lhs_indices], B[rhs_indices]))  # noqa: E501
 
-    if C.scope() == "trn.psum":
+    if C.scope() == _scope_trn_psum():
         # This fragment captures tensors and indices from its insertion scope.
         @T.function(check_well_formed=False)
         def impl_C_psum():

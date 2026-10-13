@@ -1529,6 +1529,6 @@ def test_roundtrip_tmem_decl_tensor():
     )
     # The shared alias has an explicit definition before the tensor-memory use.
     assert len(decls) == 2
-    tmem_decl = next(decl for decl in decls if decl.var.scope() == "tmem")
+    tmem_decl = next(decl for decl in decls if decl.var.scope() == tvm.runtime.MemoryScope("tmem"))
     assert isinstance(tmem_decl.value.args[0], tvm.ir.TensorLoad)
     assert len(tmem_decl.value.ty_args) == 1

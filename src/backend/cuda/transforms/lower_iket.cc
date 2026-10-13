@@ -28,6 +28,7 @@
 #include <tvm/ir/prim/op.h>
 #include <tvm/ir/type.h>
 #include <tvm/runtime/logging.h>
+#include <tvm/runtime/memory_scope.h>
 #include <tvm/target/target.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/op/memory.h>
@@ -494,6 +495,7 @@ class TokenVerifier : public StmtExprVisitor {
 
  private:
   ffi::Optional<VisitInterrupt> Visit_(const TensorStoreNode* store) final {
+    static const auto scope_local = runtime::MemoryScope::Get("local");
     if (!token_tensors_.count(store->dest.as_or_throw<TensorVar>().get())) {
       return StmtExprVisitor::Visit_(store);
     }
@@ -502,7 +504,7 @@ class TokenVerifier : public StmtExprVisitor {
                       store->dest.as_or_throw<TensorVar>()->dtype->dtype.lanes == 1,
                   TypeError)
         << "IKET RangeToken storage must have dtype uint32";
-    TVM_FFI_CHECK(store->dest.as_or_throw<TensorVar>().scope() == "local" &&
+    TVM_FFI_CHECK(store->dest.as_or_throw<TensorVar>().scope() == scope_local &&
                       IsScalarTensorAccess(store->dest.as_or_throw<TensorVar>(), store->indices),
                   ValueError)
         << "IKET RangeToken must use element zero of a local uint32[1] tensor";

@@ -114,7 +114,7 @@ class StorageTokenObj : public ffi::Object {
   /*! \brief The dtype of this token. */
   DLDataType dtype;
   /*! \brief The memory scope of the token. */
-  std::string storage_scope;
+  runtime::MemoryScope storage_scope;
   /*! \brief The VDevice information. */
   ffi::Optional<VDevice> vdevice;
   /*! \brief The storage id, reserved for debug and demo use. */
@@ -142,7 +142,8 @@ class StorageTokenObj : public ffi::Object {
  */
 class StorageToken : public ffi::ObjectRef {
  public:
-  explicit StorageToken(ffi::Array<PrimExpr> shape, DLDataType dtype, std::string storage_scope,
+  explicit StorageToken(ffi::Array<PrimExpr> shape, DLDataType dtype,
+                        runtime::MemoryScope storage_scope,
                         ffi::Optional<VDevice> vdevice = std::nullopt) {
     // Compute the tensor size from the shape.
     PrimType dtype_ty(dtype);
@@ -156,7 +157,7 @@ class StorageToken : public ffi::ObjectRef {
       VDevice vdev = vdevice.value();
       std::string dev_kind = vdev->target.value()->kind->name;
 
-      if (vdev->memory_scope != "global") {
+      if (vdev->memory_scope != runtime::MemoryScope::Global()) {
         auto device_size_handler =
             tvm::ffi::Function::GetGlobal(std::string("DeviceGetMemSize." + dev_kind));
         if (device_size_handler.has_value()) {
@@ -166,9 +167,9 @@ class StorageToken : public ffi::ObjectRef {
         auto device_scope_handler =
             tvm::ffi::Function::GetGlobal(std::string("DeviceScopeCompatibility." + dev_kind));
         if (device_scope_handler.has_value()) {
-          ffi::String dev_scope = (*device_scope_handler)(vdevice.value()->target.value(),
-                                                          vdevice.value()->memory_scope)
-                                      .cast<ffi::String>();
+          runtime::MemoryScope dev_scope = (*device_scope_handler)(vdevice.value()->target.value(),
+                                                                   vdevice.value()->memory_scope)
+                                               .cast<runtime::MemoryScope>();
           storage_scope = dev_scope;
         }
       }
@@ -312,12 +313,12 @@ class TokenAllocatorMixed {
   }
 
  private:
-  using PoolKey = std::pair<std::string, DLDataType>;
+  using PoolKey = std::pair<runtime::MemoryScope, DLDataType>;
 
   /*! \brief The hash class to enable storage scope and raw dtype as map key class. */
   struct PoolKeyHash {
     std::size_t operator()(const PoolKey& p) const {
-      std::size_t h = std::hash<std::string>{}(p.first);
+      std::size_t h = ffi::ObjectPtrHash{}(p.first);
       h ^= static_cast<std::size_t>(p.second.code) + 0x9e3779b9 + (h << 6) + (h >> 2);
       h ^= static_cast<std::size_t>(p.second.bits) + 0x9e3779b9 + (h << 6) + (h >> 2);
       h ^= static_cast<std::size_t>(p.second.lanes) + 0x9e3779b9 + (h << 6) + (h >> 2);
@@ -680,8 +681,8 @@ class StorageAllocatorInit : public StorageAllocatorBaseVisitor {
     }
     ffi::Optional<VDevice> vdevice = GetGlobalVDevice(ctx_mod_, vdevice_index);
 
-    StorageToken token(upper_bounded_shape, ty->dtype.value()->dtype, storage_scope->value,
-                       vdevice);
+    StorageToken token(upper_bounded_shape, ty->dtype.value()->dtype,
+                       runtime::MemoryScope::Get(storage_scope->value), vdevice);
 
     Tokens tokens(token);
     SetTokens(call, tokens);
@@ -980,7 +981,7 @@ class StorageAllocationRewriter : public ExprMutator {
           DLDataType dtype = token->dtype;
           Call alloc_storage(Type::Missing(), mem_alloc_storage,
                              {std::move(size), virtual_device_index,
-                              StringImm(token->storage_scope), DataTypeImm(dtype)},
+                              StringImm(token->storage_scope.name()), DataTypeImm(dtype)},
                              std::nullopt);
           Var storage_var = builder_->Emit(alloc_storage, "storage");
           token2storage_var_.insert_or_assign(token.get(), storage_var);

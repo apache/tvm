@@ -24,6 +24,7 @@
 
 #include <tvm/ffi/cast.h>
 #include <tvm/ir/prim/op.h>
+#include <tvm/runtime/memory_scope.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/tirx/op/gpu.h>
 #include <tvm/tirx/op/memory.h>
@@ -64,9 +65,9 @@ ffi::Optional<Var> GetBufferDataVar(const ffi::Any& data) {
 
 ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const TensorLoadNode* op) {
   Var buf = ResolveBuffer(op->source.as_or_throw<tvm::tirx::TensorVar>().var());
-  StorageScope scope = StorageScope::Create(op->source.as_or_throw<tvm::tirx::TensorVar>().scope());
+  MemoryScope scope = op->source.as_or_throw<tvm::tirx::TensorVar>().scope();
   if (Enabled(buf.get(), scope)) {
-    TVM_FFI_ICHECK(allow_append_) << op << " " << scope.to_string();
+    TVM_FFI_ICHECK(allow_append_) << op << " " << scope.name();
     AccessEntry e;
     e.threads = env_threads();
     e.buffer = buf;
@@ -89,7 +90,7 @@ ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const TensorStoreNode
   curr_stmt_.stmt = op;
 
   Var buf = ResolveBuffer(op->dest.as_or_throw<TensorVar>().var());
-  StorageScope scope = StorageScope::Create(op->dest.as_or_throw<TensorVar>().scope());
+  MemoryScope scope = op->dest.as_or_throw<TensorVar>().scope();
   if (Enabled(buf.get(), scope)) {
     AccessEntry e;
     e.threads = env_threads();
@@ -296,7 +297,7 @@ bool StorageAccessVisitor::HasOffsetPointer(const Expr& value) const {
 
 void StorageAccessVisitor::RecordOpaqueAccess(Var source) {
   Var root = ResolveBuffer(source);
-  StorageScope scope = GetScope(root);
+  MemoryScope scope = GetScope(root);
   if (!Enabled(root.get(), scope)) return;
   AccessEntry entry;
   entry.threads = env_threads();
@@ -332,6 +333,8 @@ ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const VarNode* op) {
 }
 
 ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const CallNode* op) {
+  static const auto scope_warp = runtime::MemoryScope::Get("warp");
+
   Call call = ffi::GetRef<Call>(op);
   if (allow_append_ && in_opaque_call_) {
     ffi::Optional<TensorVar> tensor;
@@ -352,9 +355,9 @@ ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const CallNode* op) {
     PrimType value_dtype =
         is_load ? op->ty.as_or_throw<PrimType>() : op->args[1].as_or_throw<PrimExpr>().ty();
     Var buf = ResolveBuffer(tensor.var());
-    StorageScope scope = StorageScope::Create(tensor.scope());
+    MemoryScope scope = tensor.scope();
     if (Enabled(buf.get(), scope)) {
-      TVM_FFI_ICHECK(allow_append_) << call << " " << scope.to_string();
+      TVM_FFI_ICHECK(allow_append_) << call << " " << scope.name();
       AccessEntry e;
       e.threads = env_threads();
       e.buffer = buf;
@@ -381,12 +384,12 @@ ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const CallNode* op) {
   } else if (op->op.same_as(tirx::gpu_storage_sync_op())) {
     TVM_FFI_ICHECK(allow_append_);
     const std::string& s = op->args[0].as<StringImmNode>()->value;
-    if (s != "warp") {
-      StorageScope scope = StorageScope::Create(s);
+    MemoryScope scope = runtime::MemoryScope::Get(s);
+    if (scope != scope_warp) {
       AccessEntry e;
       e.threads = env_threads();
       e.type = kSync;
-      e.scope = StorageScope::Create(s);
+      e.scope = scope;
       curr_stmt_.access.emplace_back(std::move(e));
     }
   } else {
@@ -404,14 +407,14 @@ ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const CallNode* op) {
   return std::nullopt;
 }
 
-StorageScope StorageAccessVisitor::GetScope(Var buffer_var) const {
+MemoryScope StorageAccessVisitor::GetScope(Var buffer_var) const {
   if (auto tensor_type = buffer_var->ty.as<TensorType>()) {
-    return StorageScope::Create(tensor_type.value()->storage_scope);
+    return tensor_type.value()->storage_scope;
   }
   if (const auto* pointer_type = buffer_var->ty.as<PtrTypeNode>()) {
-    return StorageScope::Create(pointer_type->storage_scope);
+    return pointer_type->storage_scope;
   }
-  return StorageScope();  // global by default
+  return MemoryScope();  // global by default
 }
 
 Var StorageAccessVisitor::ResolveBuffer(Var buffer_var) const {

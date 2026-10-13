@@ -31,6 +31,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/prim/op.h>
+#include <tvm/runtime/memory_scope.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
@@ -38,7 +39,6 @@
 
 #include <unordered_set>
 
-#include "../../runtime/thread_storage_scope.h"
 #include "../schedule/transform.h"
 #include "tvm/tirx/stmt.h"
 
@@ -55,12 +55,14 @@ class IntermediateStageRewriter {
       : ancestor_loop_or_blocks_(ancestor_loop_or_blocks) {}
 
   std::tuple<TensorVar, TensorVar, SBlock, Stmt> Rewrite(const SBlockNode* block) {
+    static const auto scope_shared = runtime::MemoryScope::Get("shared");
+    static const auto scope_shared_dyn = runtime::MemoryScope::Get("shared.dyn");
+
     const TensorStoreNode* store =
         block->body->size() == 1 ? block->body->seq[0].as<TensorStoreNode>() : nullptr;
     TVM_FFI_CHECK(
-        store != nullptr &&
-            runtime::StorageScope::Create(store->dest.as_or_throw<TensorVar>().scope()).rank ==
-                runtime::StorageRank::kShared,
+        store != nullptr && (store->dest.as_or_throw<TensorVar>().scope() == scope_shared ||
+                             store->dest.as_or_throw<TensorVar>().scope() == scope_shared_dyn),
         ValueError)
         << "Expect the body of the block to be TensorStore to shared memory.";
 
@@ -176,7 +178,8 @@ class IntermediateStageRewriter {
       tensor_indices.push_back(relaxed_loop->min + relaxed_loop->loop_var);
       new_tensor_shape.push_back(relaxed_loop->extent);
     }
-    TensorVar new_tensor = WithScope(tensor, "local");
+    static const auto scope_local = runtime::MemoryScope::Get("local");
+    TensorVar new_tensor = WithScope(tensor, scope_local);
     ffi::ObjectPtr<TensorTypeNode> type = CopyTensorType(new_tensor);
     type->shape = new_tensor_shape;
     new_tensor = RebuildTensorVar(new_tensor, std::move(type));
