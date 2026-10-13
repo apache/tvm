@@ -65,5 +65,3 @@ values. Group arity and carrier dtype must agree with the selected native
 form; the pattern does not guess a packing arrangement.
 
 Implementation: ``python/tvm/backend/cuda/tile/patterns/register.py``.
-Scalar-region mov and vector moves are covered by
-``tests/python/tirx/tile/cuda/copy/test_reg.py``.

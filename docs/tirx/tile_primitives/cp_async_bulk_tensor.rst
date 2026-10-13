@@ -171,10 +171,8 @@ field is supplied; channel iteration requires an explicit repeat and C step.
 For example, uint16/interleave-2 with ``box=(1,1,8)`` has shared atom
 ``(1,1,8,16)``. Add a leading repeat of three and
 ``coord_steps=((0,1,0),)`` to issue three successive channel slices.
-Gather4/scatter4 do not use interleave. Three 16B-interleave/nonzero-swizzle
-GPU combinations currently trap on the tested B200 even in a raw-PTX
-reproducer; their compilation checks and execution limitation are recorded
-in :doc:`../cuda_tile_test_migration`.
+Gather4/scatter4 do not use interleave. On B200, 16B interleave with
+swizzle 1/2/3 can trap, including when issued through raw PTX.
 
 ``format="float4_e2m1fn"`` selects the load-only ``16U4_ALIGN16B`` format.
 The inner global dimension is a multiple of 128, the inner box is 128, and
@@ -184,5 +182,3 @@ eight bytes are undefined padding; barrier accounting counts payload bytes,
 not this padding. Swizzle 0/3 and gather4 use this explicit packed image.
 
 Implementation: ``python/tvm/backend/cuda/tile/patterns/tma.py``.
-``tests/python/tirx/tile/cuda/copy_async/test_tma.py`` retains the original
-layout/region, runtime descriptor, selector, interleave and FP4 cases.

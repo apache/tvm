@@ -441,24 +441,22 @@ caller-owned. Layouts never select .ws or a different M/N/K instruction shape.
 
 Splitting an M64 .ws N128 operation into two N64 instructions changes the
 bank boundary inside each instruction from 64 columns to 32. The caller must
-account for this: ``gemm_async/test_gemm_ws_split_n.py`` preserves the original
+account for this: ``test_tcgen05_mma_ws_split_n.py`` preserves the original
 banked A and packed C, explicitly stages B in each instruction's column order,
 and permutes the C view. Simply cutting B and C into consecutive N64 logical
 slices does not preserve that operation.
 
-Migrating callers
+Choosing instructions
 --------------------------------------------------------------------------------
 
-The old CUDA tile names are removed rather than redirected to another
-instruction-selection layer. Choose each instruction and its canonical view
-at the call site:
+Choose each instruction and its canonical view at the call site:
 
-.. list-table:: Migration choices
+.. list-table:: Instruction choices
    :header-rows: 1
    :widths: 25 75
 
-   * - Previous operation
-     - Explicit replacement
+   * - Operation
+     - Instruction or composition
    * - ld/st, register copy
      - ``apply`` with a written ld/st width or mov opcode.
    * - ldmatrix/stmatrix
@@ -514,10 +512,3 @@ Region extents are positive static integers. Starts may be symbolic when their
 bounds and alignment can be proved. General physical-equivalence discovery is
 outside the contract. Gapped allocation covers the layout's physical span,
 including the address range introduced by a composed swizzle.
-
-Validation is in ``tests/python/tirx/tile/cuda/test_*patterns.py`` and
-``test_pattern_*.py``. The retired tests of automatic vector-width selection,
-axis factoring, TMA dimension promotion/source selection, and MMA mode inference
-are replaced by explicit contract tests. Hardware transfer, arithmetic and
-MMA coverage is organized by selected opcode and mode, with independent host
-references and caller-owned setup.

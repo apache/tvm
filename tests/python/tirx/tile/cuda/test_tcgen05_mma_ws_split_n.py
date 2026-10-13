@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-"""Preserve the original M64 banked-A/packed-C tensors when splitting native N."""
+"""Split native N while preserving M64 banked-A and packed-C layouts."""
 
 import numpy as np
 import pytest

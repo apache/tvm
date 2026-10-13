@@ -111,5 +111,3 @@ the register instruction contract described in :doc:`mov`.
 For exp/SiLU plus scale/bias, define the scalar expression in :doc:`ewise`.
 Shared-memory inputs require explicit loads and stores around the arithmetic.
 Implementation: ``patterns/register.py`` under ``python/tvm/backend/cuda/tile``.
-Numerical packed and broadcast cases are in ``test_pattern_math.py`` and
-``elementwise/test_binary.py`` under ``tests/python/tirx/tile/cuda``.

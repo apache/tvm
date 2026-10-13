@@ -14,21 +14,18 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Tests for the CUDA synchronous ``gemm`` (mma.sync) tensor-core dispatch.
+"""Tests for native mma.sync instructions over register fragments.
 
 The dispatch lowers ``tirx.cuda.tile.apply`` over pure-register fragments to warp-level
 ``mma.sync.aligned.m16n8k16/k8`` for bf16/f16 inputs with f32 accumulation.
 
-The fragment layouts below are the standard m16n8 register maps (PTX ISA
-§9.7.13; see ``tests/python/tirx-base/test_tir_ptx_mma.py``):
+The fragment layouts below use the native m16n8 register maps:
 
     lane = 4*g + t        (g = lane >> 2 in [0, 8),  t = lane & 3 in [0, 4))
     D/C[M, N]: M = g + 8*rM,  N = 2*t + rN,          c_id = 2*rM + rN
     A[M, K]:   M = g + 8*rM,  K = 2*t + p + 8*kHi,   ma   = p + 2*rM + 4*kHi
     B[K, N]:   N = g,         K = 2*t + p + 8*kHi,   mb   = p + 2*kHi
 
-Most assertions run the CPU-only ``LowerTIRx`` transform; the numerical check
-is guarded by ``requires_cuda`` since it needs a real device.
 """
 
 import numpy as np

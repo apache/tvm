@@ -172,6 +172,3 @@ issuing a TMEM load; ``wait::ld`` does not complete a preceding MMA.
 Allocation, deallocation, fences and synchronization remain explicit.
 
 Implementation: ``python/tvm/backend/cuda/tile/patterns/tmem.py``.
-``copy_async/test_tcgen05_ldst.py`` and ``test_pattern_transfers.py`` under
-``tests/python/tirx/tile/cuda`` cover original layouts/subregions and native
-pack/unpack/split accesses with independent physical references.

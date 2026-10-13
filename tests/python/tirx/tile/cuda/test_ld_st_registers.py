@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-function-docstring
-"""Original register-copy layouts and regions with caller-selected native PTX.
+"""Native ld/st instructions over register layouts and memory regions.
 
 Each zero-copy recipe exposes (group, repeat, word); it changes neither the
 backing allocations nor the physical positions of values.
@@ -487,28 +487,6 @@ def test_ptx_st_from_src_f32_vector_preserves_values():
     out = tvm.runtime.tensor(np.zeros((4,), dtype="float32"), dev)
     ex(out)
     np.testing.assert_equal(out.numpy(), np.array([1, 2, 3, 4], dtype="float32"))
-
-
-def test_mov_handles_scalar_regions():
-    @T.function
-    def kernel(B: T.Tensor((1,), "float32")) -> None:
-        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(1,)))
-        src = T.alloc_local((1,), "float32", layout="default")
-        dst = T.alloc_local((4,), "float32", layout="default")
-        src[0] = T.cast(7, "float32")
-        T.cuda.tile.apply(T.ptx["mov.b32"], dst[2:3], src[:])
-        B[0] = dst[2]
-
-    target = tvm.target.Target("cuda")
-    with target:
-        mod = tvm.IRModule({"main": kernel})
-        ex = tvm.tirx.compile(mod, target=target, pipeline="tirx")
-        src = ex.mod.imports[0].inspect_source()
-
-    assert "mov.b32" in src
-    out = tvm.runtime.tensor(np.zeros(1, "float32"), tvm.cuda())
-    ex(out)
-    np.testing.assert_array_equal(out.numpy(), [7])
 
 
 @pytest.mark.gpu

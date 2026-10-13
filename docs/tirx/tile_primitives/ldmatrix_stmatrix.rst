@@ -121,5 +121,3 @@ registers, or a partially active warp is rejected. Gaps **between** rows or
 register slots are legal; gaps **within** a shared 16-byte row are not.
 
 Implementation: ``python/tvm/backend/cuda/tile/patterns/ldmatrix.py``.
-The 75 migrated cases in ``copy/test_ld_stmatrix.py`` additionally cover
-x1/x2/x4, transpose, repeated atoms, and store/readback behavior.

@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-"""Original tcgen05 descriptor/datapath contracts with explicit caller recipes."""
+"""Native tcgen05.mma descriptor and datapath contracts."""
 
 import re
 

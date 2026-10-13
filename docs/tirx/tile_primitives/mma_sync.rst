@@ -157,6 +157,3 @@ shared/register image matches your operands. Sparse and other MMA shapes
 require their own explicit pattern; this page does not claim those forms.
 
 Implementation: ``python/tvm/backend/cuda/tile/patterns/mma.py``.
-``tests/python/tirx/tile/cuda/gemm/test_gemm_mma_m16n8k_.py`` retains all
-78 original parameter cases, including transpose combinations and instruction
-counts. The numerical reference above follows ``test_pattern_mma.py``.

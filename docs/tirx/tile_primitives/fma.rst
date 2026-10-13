@@ -56,6 +56,3 @@ and supported by the selected type. Predication and destination preservation
 follow :doc:`mov`. Memory loads/stores and synchronization remain caller code.
 
 Implementation: ``python/tvm/backend/cuda/tile/patterns/register.py``.
-``tests/python/tirx/tile/cuda/elementwise/test_fma.py`` retains the original
-layout cases and includes an exact directed-rounding result. Native packed
-FMA is also exercised by ``test_pattern_math.py``.

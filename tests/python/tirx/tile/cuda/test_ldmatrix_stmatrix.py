@@ -15,18 +15,18 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-function-docstring
-"""Round-trip tests for the ``ldstmatrix`` copy dispatch.
+"""Round-trip tests for native ldmatrix and stmatrix instructions.
 
 Pipeline:
-  ld direction: A_gmem → A_smem (per-thread init) → R_local (T.copy dispatch
+  ld direction: A_gmem → A_smem (per-thread init) → R_local (ldmatrix
                 under test) → B_gmem (per-thread write).
-  st direction: A_gmem → R_local (per-thread init) → A_smem (T.copy dispatch
+  st direction: A_gmem → R_local (per-thread init) → A_smem (stmatrix
                 under test) → B_gmem (per-thread write).
 
 Both directions must round-trip ``A == B``. Layout strides are constructed
 so that:
-  - trans=False S layout matches step-9's row-major spec (8→p, 4→2, num→q, 2→1).
-  - trans=True  S layout matches step-9's col-major spec (8→1, 4→2p, num→q, 2→p).
+  - trans=False S layout is row-major (8→p, 4→2, num→q, 2→1).
+  - trans=True  S layout is column-major (8→1, 4→2p, num→q, 2→p).
 
 Uniform shape ``(*scope_outer, 8, 4, num, 2)`` is used for every num (including
 num=1, which gets an extent-1 placeholder for the num atom).

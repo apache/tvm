@@ -131,6 +131,3 @@ Compile and verify both examples:
         np.testing.assert_allclose(out.numpy(), ref, rtol=2e-5, atol=2e-5)
 
 Implementation: ``python/tvm/backend/cuda/tile/patterns/ewise.py``.
-Migrated scalar compositions and shared staging are covered by
-``elementwise/test_unary.py`` and ``elementwise/test_binary.py`` under
-``tests/python/tirx/tile/cuda``.

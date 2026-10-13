@@ -54,5 +54,3 @@ combination, write that scalar expression through :doc:`ewise`. The scalar
 compiler then owns its expansion; the call is not documented as one ex2.
 
 Implementation: ``python/tvm/backend/cuda/tile/patterns/register.py``.
-``test_pattern_math.py`` and ``elementwise/test_unary.py`` retain numerical
-checks of the related scalar compositions.

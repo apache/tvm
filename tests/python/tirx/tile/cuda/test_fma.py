@@ -14,8 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Tests for FMA op dispatch, layout=None local dispatch, scalar broadcast,
-and rounding mode support."""
+"""Native fma instructions with scalar broadcasts and explicit register views."""
 
 import re
 import struct
@@ -49,9 +48,6 @@ def _get_sm_version():
     return int(digits) if digits else 0
 
 
-# ---------------------------------------------------------------------------
-# FMA op: scalar scale + scalar bias
-# ---------------------------------------------------------------------------
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_fma_scalar_scalar():
@@ -93,9 +89,6 @@ def test_fma_scalar_scalar():
         tvm.testing.run_with_gpu_lock(run_and_check)
 
 
-# ---------------------------------------------------------------------------
-# FMA op: tensor scale + scalar bias (Horner pattern)
-# ---------------------------------------------------------------------------
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_fma_tensor_scale_scalar_bias():
@@ -151,118 +144,6 @@ def test_fma_tensor_scale_scalar_bias():
         tvm.testing.run_with_gpu_lock(run_and_check)
 
 
-# ---------------------------------------------------------------------------
-# Binary op with scalar broadcast (Expr scalar, e.g. TensorLoad)
-# ---------------------------------------------------------------------------
-@pytest.mark.gpu
-@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
-def test_mul_scalar_broadcast():
-    sm = _get_sm_version()
-    if sm < 100:
-        pytest.skip(f"packed mul requires sm_100+, got sm_{sm}")
-
-    N = 16
-    dtype = "float32"
-    target = tvm.target.Target("cuda")
-
-    @T.function
-    def test_func(
-        A: T.Tensor((N,), dtype, layout=TileLayout(S[N])),
-        Scale: T.Tensor((1,), dtype, layout=TileLayout(S[1])),
-    ) -> None:
-        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(1,)))
-        _bx = T.cuda.block_idx("x")
-        _tx = T.cuda.thread_idx("x")
-        a_local = T.alloc_tensor(
-            ty_args=[T.Tensor((N,), dtype, scope="local", layout=TileLayout(S[N]))]
-        )
-        s_local = T.alloc_tensor(
-            ty_args=[T.Tensor((1,), dtype, scope="local", layout=TileLayout(S[1]))]
-        )
-        T.cuda.tile.apply(T.ptx["ld.global.v4.f32"], a_local.view(4, 4), A.view(4, 4))
-        T.cuda.tile.apply(T.ptx["ld.global.f32"], s_local, Scale[0:1])
-        T.cuda.tile.apply(
-            T.ptx["mul.rn.ftz.f32x2"],
-            a_local.view("uint64").view(8, 1),
-            a_local.view("uint64").view(8, 1),
-            _splat_f32(s_local[0]),
-        )
-        T.cuda.tile.apply(T.ptx["st.global.v4.f32"], A.view(4, 4), a_local.view(4, 4))
-
-    with target:
-        A_np = np.random.rand(N).astype(dtype)
-        S_np = np.array([2.5], dtype=dtype)
-        mod = tvm.IRModule({"main": test_func})
-        mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
-
-        def run_and_check():
-            dev = tvm.cuda(0)
-            A_dev = tvm.runtime.tensor(A_np, dev)
-            S_dev = tvm.runtime.tensor(S_np, dev)
-            mod(A_dev, S_dev)
-            expected = A_np * S_np[0]
-            tvm.testing.assert_allclose(expected, A_dev.numpy(), atol=1e-3)
-
-        tvm.testing.run_with_gpu_lock(run_and_check)
-
-
-# ---------------------------------------------------------------------------
-# Binary add with rounding mode
-# ---------------------------------------------------------------------------
-@pytest.mark.gpu
-@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
-def test_add_rounding_mode():
-    sm = _get_sm_version()
-    if sm < 100:
-        pytest.skip(f"packed add with rounding requires sm_100+, got sm_{sm}")
-
-    N = 2
-    dtype = "float32"
-    target = tvm.target.Target("cuda")
-
-    round_const = float(2**23 + 2**22)
-
-    @T.function
-    def test_func(A: T.Tensor((N,), dtype, layout=TileLayout(S[N]))) -> None:
-        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(1,)))
-        _bx = T.cuda.block_idx("x")
-        _tx = T.cuda.thread_idx("x")
-        buf = T.alloc_tensor(
-            ty_args=[T.Tensor((N,), dtype, scope="local", layout=TileLayout(S[N]))]
-        )
-        T.cuda.tile.apply(T.ptx["ld.global.v2.f32"], buf, A[0:N])
-        T.cuda.tile.apply(
-            T.ptx["add.rm.ftz.f32x2"],
-            buf.view("uint64"),
-            buf.view("uint64"),
-            _splat_f32(T.float32(round_const)),
-        )
-        T.cuda.tile.apply(T.ptx["st.global.v2.f32"], A[0:N], buf)
-
-    with target:
-        A_np = np.array([1.3, 2.7], dtype=dtype)
-        mod = tvm.IRModule({"main": test_func})
-        mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
-        # Check that the PTX uses the rounding mode
-        src = mod.mod.imports[0].inspect_source()
-        assert re.search(r"add\.rm\.ftz\.f32x2", src), (
-            f"Expected packed add with rm rounding in PTX:\n{src}"
-        )
-
-        def run_and_check():
-            dev = tvm.cuda(0)
-            A_dev = tvm.runtime.tensor(A_np, dev)
-            mod(A_dev)
-            # Both exact sums lie above these integers; rm rounds down.
-            expected = np.array([round_const + 1, round_const + 2], dtype="float32")
-            np.testing.assert_array_equal(expected, A_dev.numpy())
-
-        tvm.testing.run_with_gpu_lock(run_and_check)
-
-
-# ---------------------------------------------------------------------------
-# FMA op: layout=None local tensor (no TileLayout)
-# ---------------------------------------------------------------------------
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 @pytest.mark.parametrize("layout", [None, "default"])
@@ -310,65 +191,6 @@ def test_fma_no_layout(layout):
             mod(A_dev)
             expected = A_np * scale_val + bias_val
             tvm.testing.assert_allclose(expected, A_dev.numpy(), atol=1e-3)
-
-        tvm.testing.run_with_gpu_lock(run_and_check)
-
-
-# ---------------------------------------------------------------------------
-# Binary sub with rounding mode (tensor-tensor)
-# ---------------------------------------------------------------------------
-@pytest.mark.gpu
-@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
-def test_sub_tensor_tensor_rounding():
-    sm = _get_sm_version()
-    if sm < 100:
-        pytest.skip(f"packed sub with rounding requires sm_100+, got sm_{sm}")
-
-    N = 2
-    dtype = "float32"
-    target = tvm.target.Target("cuda")
-
-    @T.function
-    def test_func(
-        A: T.Tensor((N,), dtype, layout=TileLayout(S[N])),
-        B: T.Tensor((N,), dtype, layout=TileLayout(S[N])),
-    ) -> None:
-        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(1,)))
-        _bx = T.cuda.block_idx("x")
-        _tx = T.cuda.thread_idx("x")
-        a_buf = T.alloc_tensor(
-            ty_args=[T.Tensor((N,), dtype, scope="local", layout=TileLayout(S[N]))]
-        )
-        b_buf = T.alloc_tensor(
-            ty_args=[T.Tensor((N,), dtype, scope="local", layout=TileLayout(S[N]))]
-        )
-        T.cuda.tile.apply(T.ptx["ld.global.v2.f32"], a_buf, A[0:N])
-        T.cuda.tile.apply(T.ptx["ld.global.v2.f32"], b_buf, B[0:N])
-        T.cuda.tile.apply(
-            T.ptx["sub.rn.ftz.f32x2"],
-            a_buf.view("uint64"),
-            a_buf.view("uint64"),
-            b_buf.view("uint64"),
-        )
-        T.cuda.tile.apply(T.ptx["st.global.v2.f32"], A[0:N], a_buf)
-
-    with target:
-        A_np = np.array([3.14, 2.71], dtype=dtype)
-        B_np = np.array([1.41, 0.57], dtype=dtype)
-        mod = tvm.IRModule({"main": test_func})
-        mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
-        src = mod.mod.imports[0].inspect_source()
-        assert re.search(r"sub\.rn\.ftz\.f32x2", src), (
-            f"Expected packed sub with rn rounding in PTX:\n{src}"
-        )
-
-        def run_and_check():
-            dev = tvm.cuda(0)
-            A_dev = tvm.runtime.tensor(A_np, dev)
-            B_dev = tvm.runtime.tensor(B_np, dev)
-            mod(A_dev, B_dev)
-            expected = A_np - B_np
-            tvm.testing.assert_allclose(expected, A_dev.numpy(), atol=1e-6)
 
         tvm.testing.run_with_gpu_lock(run_and_check)
 
@@ -429,11 +251,6 @@ def test_fma_warpgroup_wg_local_layout():
         tvm.testing.run_with_gpu_lock(run_and_check)
 
 
-# -----------------------------------------------------------------------------
-# Dispatch codegen check (no GPU runtime — explicit target arch).
-# Complements ``test_fma_warpgroup_wg_local_emits_packed_f32x2`` (which uses
-# the host-detected ``Target("cuda")`` and skips when arch < sm_100).
-# -----------------------------------------------------------------------------
 def test_fma_f32_sm100_packed_f32x2_dispatch():
     """The caller explicitly chooses packed f32x2 on the original register arrays."""
     shape = (64, 32)

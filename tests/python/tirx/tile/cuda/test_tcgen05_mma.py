@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-"""Original tcgen05 MMA cases with explicit instruction and operand views."""
+"""Native tcgen05.mma instructions with explicit operand views."""
 
 import functools
 import operator

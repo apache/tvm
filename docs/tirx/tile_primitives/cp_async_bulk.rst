@@ -122,5 +122,3 @@ progression and storage lifetime are caller responsibilities. Ordinary
 ``cp.async.commit_group``/``wait_group`` is not this completion mechanism.
 
 Implementation: ``python/tvm/backend/cuda/tile/patterns/async_copy.py``.
-The original contiguous, gapped and unequal-stride cases are exercised by
-``tests/python/tirx/tile/cuda/copy_async/test_dsmem.py``.

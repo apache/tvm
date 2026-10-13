@@ -75,5 +75,3 @@ registered native form expresses exactly the requested operation.
 All tensor storage is local to the executing thread. Views may select gapped
 registers, but cannot move values between lanes. No memory staging or barrier
 is inserted. Implementation: ``python/tvm/backend/cuda/tile/patterns/register.py``.
-The migrated ``elementwise/test_unary.py`` and ``test_binary.py`` cover
-reciprocal and caller-composed division over the original layouts.

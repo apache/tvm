@@ -15,10 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-function-docstring
-"""Original synchronous global/shared copies and explicit native-width contracts.
+"""Synchronous global/shared copies with explicit ld/st widths.
 
-The former multi-instruction copy operations remain ordinary loops at their
-call sites. Width/stride/swizzle regressions exercise explicit PTX tile calls.
+Global/shared transfers use explicit load/store loops at the call site.
+Width/stride/swizzle regressions exercise explicit PTX tile calls.
 """
 
 import math
@@ -97,8 +97,7 @@ def test_gmem_smem_roundtrip(scope, n_threads, shape, dtype):
 
 
 # ----------------------------------------------------------------------------
-# Migrated from test_copy_sync.py: sync G↔S copy via the user-facing
-# Tx.copy() (which dispatches to the vec_auto global ↔ shared path).
+# Synchronous global/shared transfers through explicit ld/st instructions.
 # ----------------------------------------------------------------------------
 
 

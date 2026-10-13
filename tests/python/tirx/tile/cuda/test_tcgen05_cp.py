@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name, missing-function-docstring
-"""Original tcgen05.cp layouts, regions, multicast and CTA-pair readbacks.
+"""Native tcgen05.cp layouts, regions, multicast and CTA-pair readbacks.
 
 Instruction shape and descriptor fields are explicitly selected by each case.
 The host references reconstruct the original physical TMEM cells and replicas,

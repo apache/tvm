@@ -50,7 +50,7 @@ are part of the opcode. A form with a cache-policy operand takes
 ``preserve_dst=True`` to keep an already initialized destination when the
 predicate is false. Lowering does not reduce the width when alignment fails.
 
-Example: the original strided tensor and gapped registers
+Example: a strided tensor and gapped registers
 ---------------------------------------------------------
 
 The following kernel reads a float32 tensor whose logical axes are not in
@@ -125,6 +125,4 @@ shared stores, synchronize at that dependency. To change ownership or
 reorder shared data in place, finish the old reads before overwriting bytes.
 
 Implementation: ``python/tvm/backend/cuda/tile/patterns/memory.py``.
-Executable regressions include ``test_explicit_patterns.py`` and
-``copy/test_reg.py`` under ``tests/python/tirx/tile/cuda``.
 See :doc:`../cuda_tile_patterns` for group, repeat, and bounds rules.

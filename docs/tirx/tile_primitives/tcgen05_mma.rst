@@ -211,7 +211,7 @@ The current pattern requires CTA group 1 and N=64/128/256 for .ws. Splitting
 an M64 N128 operation into two N64 issues changes each instruction's bank
 boundary from 64 to 32 columns. Preserve the intended result with explicit
 B preparation and a matching C view; cutting two consecutive logical N
-slices is insufficient. ``gemm_async/test_gemm_ws_split_n.py`` gives the
+slices is insufficient. ``test_tcgen05_mma_ws_split_n.py`` gives the
 complete numerical example with distinct data in the two A banks.
 
 Block-scaled opcodes specify ``.kind`` and ``.scale_vec::1X/2X/4X``. Prepare
@@ -227,6 +227,4 @@ TMA, prepare scale factors, commit or wait. Keep the shared/TMEM allocations
 alive until their consumers complete.
 
 Implementation: ``patterns/tcgen05_mma.py`` and ``patterns/descriptors.py``
-under ``python/tvm/backend/cuda/tile``. All 41 original MMA test functions
-are accounted for in :doc:`../cuda_tile_test_migration`, with the detailed
-numerical and code-generation cases in ``tests/python/tirx/tile/cuda/gemm_async``.
+under ``python/tvm/backend/cuda/tile``.

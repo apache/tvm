@@ -169,5 +169,3 @@ Allocation, shared proxy fencing, election, commit, wait and deallocation
 are caller code. ``pred`` gates the cp but does not adjust a surrounding
 completion protocol. Implementation: ``patterns/tmem_copy.py`` and
 ``patterns/descriptors.py`` under ``python/tvm/backend/cuda/tile``.
-The original 118 cases and native decompression combinations are covered by
-``tests/python/tirx/tile/cuda/copy_async/test_tcgen05_cp.py``.

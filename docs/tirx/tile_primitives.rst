@@ -25,7 +25,7 @@ canonical tensor views::
     T.cuda.tile.apply(T.ptx["st.shared.v4.b32"], shared_words, registers)
 
 See :doc:`cuda_tile_patterns` for every operand pattern, descriptor contract,
-execution-group axis, and migration example. ``T.cuda.tile.ewise`` applies a
+execution-group axis, and caller view. ``T.cuda.tile.ewise`` applies a
 caller-defined scalar TIRx function to registers. No CUDA tile call selects a
 vector width, matrix shape, transpose mode, or staging algorithm from layouts.
 
@@ -38,7 +38,6 @@ The shared ``FTileOpDispatch`` boundary remains unchanged. ``T.ptx`` and
    :hidden:
 
    cuda_tile_patterns
-   cuda_tile_test_migration
 
 Trainium instructions
 ---------------------

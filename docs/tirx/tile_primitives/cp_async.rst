@@ -60,7 +60,7 @@ contiguous bytes. This is a bit copy, not a conversion.
 Example: four 16-byte copies per thread
 ---------------------------------------
 
-This complete kernel preserves the original ``(128,32)`` float16 global and
+This complete kernel uses ``(128,32)`` float16 global and
 shared tensors. It explicitly assigns four eight-element chunks to each of
 128 threads:
 
@@ -150,5 +150,4 @@ base, or a missing group axis fails its contract; lowering never substitutes
 a synchronous copy or a narrower instruction.
 
 Implementation: ``python/tvm/backend/cuda/tile/patterns/async_copy.py``.
-Regression examples: ``tests/python/tirx/tile/cuda/copy_async/test_ldgsts.py``.
 See :doc:`../cuda_tile_patterns` for the shared group/repeat rules.

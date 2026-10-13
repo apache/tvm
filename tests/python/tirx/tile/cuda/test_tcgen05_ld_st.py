@@ -1617,7 +1617,7 @@ def test_tcgen05_ld_16x256b_sliced_matches_full_M128(full_rep, n_chunks):
     _run_sliced_vs_full_load("16x256b", full_rep, n_chunks)
 
 
-# .32x32b tmem<->reg and smem<->tmem copy_async (migrated from test_tmem.py).
+# Native .32x32b TMEM/register transfers and shared/TMEM copies.
 
 
 @pytest.mark.gpu
@@ -1743,7 +1743,7 @@ def test_copy_tmem2reg_async(dtype, width_32b):
         np.testing.assert_allclose(B.numpy(), A_np)
 
 
-# tmem<->reg round-trip via T.copy_async (migrated from test_copy_sync.py):
+# TMEM/register round-trip through native tcgen05.ld/st instructions:
 # the kernels are the real async tmem dispatch tests; G<->L copies just stage.
 
 

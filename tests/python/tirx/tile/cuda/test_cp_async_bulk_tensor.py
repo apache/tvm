@@ -14,10 +14,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Explicit TMA views, original copy regions, descriptor encoding and GPU results.
+"""Explicit TMA views, transfer regions, and descriptor encoding.
 
-The caller recipes below are fixed test data, not a layout planner. Each recipe
-is checked against every source/destination physical address of the old case.
+Caller views specify the source and destination physical addresses explicitly.
 """
 
 import math

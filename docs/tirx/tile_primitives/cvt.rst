@@ -73,5 +73,3 @@ differ. A wrong carrier width, missing group axis, or overlapping destination
 is rejected. There is no implicit staging through shared memory.
 
 Implementation: ``python/tvm/backend/cuda/tile/patterns/register.py``.
-``tests/python/tirx/tile/cuda/elementwise/test_unary.py`` covers strided,
-warpgroup, subregion, tcgen05-layout, and packed conversion cases.
