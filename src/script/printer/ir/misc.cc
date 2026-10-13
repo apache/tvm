@@ -58,7 +58,7 @@ namespace {
 ffi::Optional<ExprDoc> ArrayDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
                                          const ffi::Object*) {
   return d->WithExtraStateScope<bool>(
-      "ir.explicit_scalar_dtype", true, [&]() -> ffi::Optional<ExprDoc> {
+      "ir.explicit_value_type", true, [&]() -> ffi::Optional<ExprDoc> {
         ffi::Array<ExprDoc> elements;
         for (const auto& element : input.cast<ffi::Array<ffi::Any>>()) {
           elements.push_back(d->Translate(element).value());
@@ -70,7 +70,7 @@ ffi::Optional<ExprDoc> ArrayDocTranslate(DocTranslatorObj* d, ffi::AnyView input
 ffi::Optional<ExprDoc> MapDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
                                        const ffi::Object*) {
   return d->WithExtraStateScope<bool>(
-      "ir.explicit_scalar_dtype", true, [&]() -> ffi::Optional<ExprDoc> {
+      "ir.explicit_value_type", true, [&]() -> ffi::Optional<ExprDoc> {
         auto map = input.cast<ffi::Map<ffi::Any, ffi::Any>>();
         std::vector<std::pair<ffi::Any, ffi::Any>> entries(map.begin(), map.end());
         if (std::all_of(entries.begin(), entries.end(), [](const auto& entry) {

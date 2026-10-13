@@ -30,7 +30,7 @@ TEST(MemoryScope, CanonicalDefaultAndTypedBoundaries) {
   MemoryScope global;
   EXPECT_TRUE(global.same_as(MemoryScope::Global()));
   EXPECT_TRUE(global.same_as(MemoryScope::Get("global")));
-  EXPECT_EQ(PtrType(PrimType::Int(32))->storage_scope, global);
+  EXPECT_EQ(PtrType(PrimType::Int(32))->scope, global);
   EXPECT_THROW(ffi::Any(ffi::String("")).cast<MemoryScope>(), ffi::Error);
   EXPECT_EQ(&MemoryScope::Global(), &MemoryScope::Global());
   EXPECT_EQ(ffi::Any(ffi::String("shared")).cast<MemoryScope>(), MemoryScope::Get("shared"));
@@ -47,7 +47,7 @@ TEST(MemoryScope, ExtensionRegistrationAndAttributes) {
   EXPECT_EQ(scope.name(), "memory_scope_test.scratch");
   EXPECT_EQ(scope.alloc_property(), MemoryAllocProperty::kNormal);
   EXPECT_EQ(scope, ffi::Any(scope).cast<MemoryScope>());
-  EXPECT_EQ(scope, PtrType(PrimType::Float(32), scope)->storage_scope);
+  EXPECT_EQ(scope, PtrType(PrimType::Float(32), scope)->scope);
   EXPECT_THROW(MemoryScope::Register(scope.name()), ffi::Error);
   auto registered = MemoryScope::Register("memory_scope_test.registered");
   EXPECT_EQ(registered, MemoryScope::Get(registered.name()));

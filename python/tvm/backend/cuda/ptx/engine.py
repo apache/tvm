@@ -587,7 +587,7 @@ def _coerce_address(entry, slot, value, mod_map):
             f"or a uint32 shared address"
         )
     if isinstance(ty, PtrType):
-        if ty.storage_scope in (_SCOPE_SHARED, _SCOPE_SHARED_DYN):
+        if ty.scope in (_SCOPE_SHARED, _SCOPE_SHARED_DYN):
             raise ValueError(
                 f"{entry.name}: operand '{slot.name}' is a {space or 'generic'} address "
                 f"but got a shared-scope pointer"

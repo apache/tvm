@@ -372,7 +372,7 @@ class WarpAccessRewriter : public StmtExprMutator {
 
     auto type = CopyTensorType(op->var.as_or_throw<TensorVar>());
     static const auto local = runtime::MemoryScope::Get("local");
-    type->storage_scope = local;
+    type->scope = local;
     type->shape = {IntImm::Int32(alloc_size / width_)};
     type->strides = {};
     type->elem_offset = IntImm(op->var.as_or_throw<TensorVar>()->elem_offset.ty(), 0);
@@ -674,7 +674,7 @@ class WarpMemoryRewriter : public StmtExprMutator {
       static const auto local = runtime::MemoryScope::Get("local");
       if (const auto* call = alloc ? alloc->value.as<CallNode>() : nullptr;
           call && call->op.same_as(alloc_tensor_op()) &&
-          call->ty_args[0].as_or_throw<TensorType>()->storage_scope == warp) {
+          call->ty_args[0].as_or_throw<TensorType>()->scope == warp) {
         new_storage_scopes_[alloc->var] = local;
         // Gather remaining siblings as the "body" for rewriting.
         ffi::Array<Stmt> remaining;

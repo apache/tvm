@@ -52,9 +52,8 @@ TensorVar WithScope(const TensorVar& tensor, runtime::MemoryScope scope) {
 }
 
 TensorVar WithDType(const TensorVar& tensor, PrimType dtype) {
-  TensorType new_type(tensor->shape, dtype, tensor->storage_scope, tensor->strides,
-                      tensor->elem_offset, tensor->data_alignment, tensor->offset_factor,
-                      tensor->layout);
+  TensorType new_type(tensor->shape, dtype, tensor->scope, tensor->strides, tensor->elem_offset,
+                      tensor->data_alignment, tensor->offset_factor, tensor->layout);
   return TensorVar(tensor.name(), new_type, tensor.loc());
 }
 

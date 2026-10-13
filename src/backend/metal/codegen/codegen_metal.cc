@@ -361,7 +361,7 @@ void CodeGenMetal::Dispatch_(const BindNode* op) {
     return CodeGenC::Dispatch_(op);
   }
 
-  const runtime::MemoryScope& storage_scope = pointer_type->storage_scope;
+  const runtime::MemoryScope& storage_scope = pointer_type->scope;
   alloc_storage_scope_[op->var.get()] = storage_scope;
   RegisterHandleTypeFromPointer(op->var, &op->value);
   std::string value = PrintExpr(op->value);
@@ -384,8 +384,7 @@ void CodeGenMetal::DispatchAllocTensor(const BindNode* op, const CallNode* buffe
   static const auto scope_metal_simdgroup = runtime::MemoryScope::Get("metal.simdgroup");
   tvm::Tuple shape = tvm::Tuple(buffer_call->ty_args[0].as_or_throw<tirx::TensorType>()->shape);
   DLDataType dtype = buffer_call->ty_args[0].as_or_throw<tirx::TensorType>()->dtype->dtype;
-  runtime::MemoryScope scope =
-      buffer_call->ty_args[0].as_or_throw<tirx::TensorType>()->storage_scope;
+  runtime::MemoryScope scope = buffer_call->ty_args[0].as_or_throw<tirx::TensorType>()->scope;
   TensorVar buffer = op->var.as_or_throw<TensorVar>();
   DictAttrs annotations = buffer_call->attrs.value().as_or_throw<DictAttrs>();
   TVM_FFI_ICHECK(buffer.defined());
@@ -530,10 +529,10 @@ void CodeGenMetal::Dispatch_(const CallNode* op, std::ostream& os) {  // NOLINT(
         << "Metal pointer byte offsets must have a pointer result type, but got " << op->ty;
 
     os << "((";
-    PrintStorageScope(pointer_type->storage_scope, os);
+    PrintStorageScope(pointer_type->scope, os);
     PrintType(pointer_type->element_type, os);
     os << "*)(((";
-    PrintStorageScope(pointer_type->storage_scope, os);
+    PrintStorageScope(pointer_type->scope, os);
     os << "char*)";
     PrintExpr(op->args[0], os);
     os << ") + ";

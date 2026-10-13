@@ -76,7 +76,7 @@ class TextureLoweringBase : public StmtExprMutator {
   }
 
  protected:
-  runtime::MemoryScope GetStorageScope(const TensorVar& tensor) { return tensor->storage_scope; }
+  runtime::MemoryScope GetStorageScope(const TensorVar& tensor) { return tensor->scope; }
 
   // Set of all external input and output tensors
   std::unordered_set<TensorVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> extern_tensor_;

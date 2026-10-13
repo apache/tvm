@@ -41,8 +41,7 @@ Type InferTypePointerOffset(const CallNode* call) {
     if (element_type.as<MissingType>()) return Type::Missing();
   }
   auto pointer = call->args[DataIndex]->ty.as<PtrType>();
-  return PtrType(element_type,
-                 pointer ? pointer.value()->storage_scope : runtime::MemoryScope::Global());
+  return PtrType(element_type, pointer ? pointer.value()->scope : runtime::MemoryScope::Global());
 }
 
 Type InferTypeAddressOf(const CallNode* call) {

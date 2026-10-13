@@ -132,7 +132,7 @@ ffi::Optional<ExprDoc> CallDPSPackedDocTranslate(DocTranslatorObj* d, ffi::AnyVi
     callee = LiteralDoc::Str(packed->global_symbol, std::nullopt);
   } else if (call->args[0].as<StringImmNode>()) {
     // A bare Python string now constructs ExternFunc, so retain this explicit IR value.
-    callee = d->WithExtraStateScope<bool>("ir.explicit_scalar_dtype", true,
+    callee = d->WithExtraStateScope<bool>("ir.explicit_value_type", true,
                                           [&] { return d->Translate(call->args[0]).value(); });
   }
   d->RecordOrigin(callee, call->args[0]);

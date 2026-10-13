@@ -51,7 +51,7 @@ tvm::tirx::TensorType TensorTypeDecl(ffi::Array<PrimExpr> shape, PrimType dtype,
                                      int offset_factor, ffi::Optional<Layout> layout,
                                      ffi::Optional<Expr> data) {
   if (data.has_value()) {
-    storage_scope = data.value()->ty.as_or_throw<PtrType>()->storage_scope;
+    storage_scope = data.value()->ty.as_or_throw<PtrType>()->scope;
   }
   return tvm::tirx::TensorType(shape, dtype, storage_scope,
                                strides.value_or(ffi::Array<PrimExpr>()), elem_offset, align,

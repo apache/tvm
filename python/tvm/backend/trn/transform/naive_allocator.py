@@ -74,7 +74,7 @@ def _get_alloc_pool_start(stmt) -> int:
         tensor_type = op.value.ty_args[0]
         shape = tensor_type.shape
         dtype = tensor_type.dtype.dtype
-        scope = tensor_type.storage_scope
+        scope = tensor_type.scope
         tensor_size = get_tensor_size(tensor, shape, dtype, scope)
         if tensor_size is None:
             return
@@ -95,7 +95,7 @@ def _allocate_missing_tensors(stmt, alloc_pool_start: int):
         tensor_type = op.value.ty_args[0]
         shape = tensor_type.shape
         dtype = tensor_type.dtype.dtype
-        scope = tensor_type.storage_scope
+        scope = tensor_type.scope
         tensor_size = get_tensor_size(tensor, shape, dtype, scope)
         allocated_addr = op.value.args[0].fields if op.value.args else []
         if len(allocated_addr) == 0 and tensor_size is not None:

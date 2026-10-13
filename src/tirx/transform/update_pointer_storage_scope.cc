@@ -53,7 +53,7 @@ UpdatePointerStorageScope::UpdatePointerStorageScope(
     if (kv.first->ty.as<TensorTypeNode>()) {
       TensorVar tensor = GetTensorVar(kv.first.get());
       auto type = CopyTensorType(tensor);
-      type->storage_scope = kv.second;
+      type->scope = kv.second;
       TensorVar replacement = RebuildTensorVar(tensor, std::move(type));
       VarRemapSet(kv.first, replacement);
     } else {
@@ -82,9 +82,9 @@ UnchangedOr<Expr> UpdatePointerStorageScope::Mutate_(const CallNode* op, Inplace
     Expr value = std::move(result).ValueOrUnchanged(ffi::GetRef<Expr>(op));
     auto call = value.as_or_throw<Call>();
     auto type = call->ty_args[0].as_or_throw<TensorType>();
-    if (type->storage_scope != it->second) {
+    if (type->scope != it->second) {
       auto updated = ffi::make_object<TensorTypeNode>(*type.get());
-      updated->storage_scope = it->second;
+      updated->scope = it->second;
       auto copy = ffi::make_object<CallNode>(*call.get());
       copy->ty_args.Set(0, TensorType(std::move(updated)));
       return ReinferMutatedCallType(Expr(std::move(copy)), op, inplace_mode);

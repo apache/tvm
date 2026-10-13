@@ -75,7 +75,7 @@ ffi::Optional<ExprDoc> IntImmDocTranslate(DocTranslatorObj* d, ffi::AnyView inpu
   ExprDoc value = LiteralDoc::Int(ffi::GetRef<IntImm>(imm), std::nullopt);
   DLDataType default_dtype =
       ffi::StringToDLDataType(d->GetExtraConfig<ffi::String>("ir.int_dtype", "int32"));
-  if (dtype == default_dtype && !d->GetOrCreateExtraState<bool>("ir.explicit_scalar_dtype"))
+  if (dtype == default_dtype && !d->GetOrCreateExtraState<bool>("ir.explicit_value_type"))
     return value;
   if (!HasPrimTypeShorthand(imm->ty.as_or_throw<PrimType>()) ||
       imm->value < std::numeric_limits<int64_t>::min() ||
@@ -99,7 +99,7 @@ ffi::Optional<ExprDoc> FloatImmDocTranslate(DocTranslatorObj* d, ffi::AnyView in
   DLDataType default_dtype =
       ffi::StringToDLDataType(d->GetExtraConfig<ffi::String>("ir.float_dtype", "void"));
   ExprDoc value = LiteralDoc::Float(imm->value, std::nullopt);
-  if (dtype == default_dtype && !d->GetOrCreateExtraState<bool>("ir.explicit_scalar_dtype"))
+  if (dtype == default_dtype && !d->GetOrCreateExtraState<bool>("ir.explicit_value_type"))
     return value;
   if (!HasPrimTypeShorthand(imm->ty.as_or_throw<PrimType>())) {
     if (!std::isfinite(imm->value)) {
@@ -137,6 +137,25 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<PrimTypeNode>().attr(
       tvm::script::printer::type_attr::kDocTranslate,
       FDocTranslate::FromNative<&PrimTypeDocTranslate>());
+}
+
+ffi::Optional<ExprDoc> PtrTypeDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                           const ffi::Object*) {
+  const auto* ty =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const PtrTypeNode>(input);
+  return d->WithExtraStateScope<bool>("ir.explicit_value_type", true, [&]() -> ExprDoc {
+    ffi::Array<ExprDoc> args{d->Translate(ty->element_type).value()};
+    if (ty->scope != runtime::MemoryScope::Global()) {
+      args.push_back(LiteralDoc::Str(ty->scope.name(), std::nullopt));
+    }
+    return NamespaceDoc("ir")->Attr("Ptr")->Call(args);
+  });
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  ffi::reflection::TypeAttrDef<PtrTypeNode>().attr(
+      tvm::script::printer::type_attr::kDocTranslate,
+      FDocTranslate::FromNative<&PtrTypeDocTranslate>());
 }
 
 // The short builder name is already the TensorRegion expression constructor.

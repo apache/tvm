@@ -736,8 +736,8 @@ def test_reg_view_preserves_shared_and_register_addresses(case):
             tensors.append(node.var)
 
     tvm_ffi.structural_walk(views.body, visit)
-    r_view = next(t for t in reversed(tensors) if t.ty.storage_scope == MemoryScope("local"))
-    s_view = next(t for t in reversed(tensors) if t.ty.storage_scope == MemoryScope("shared"))
+    r_view = next(t for t in reversed(tensors) if t.ty.scope == MemoryScope("local"))
+    s_view = next(t for t in reversed(tensors) if t.ty.scope == MemoryScope("shared"))
     analyzer = tvm.sym.Analyzer()
     # Check all scalar coordinates, including the fp16 elements inside a word.
     for tid in range(128):

@@ -97,7 +97,7 @@ ffi::Optional<ExprDoc> FunctionDocTranslate(DocTranslatorObj* d, ffi::AnyView in
           for (const auto& [key, value] : attrs) {
             keys.push_back(LiteralDoc::Str(key, std::nullopt));
             values.push_back(d->WithExtraStateScope<bool>(
-                "ir.explicit_scalar_dtype", true, [&] { return d->Translate(value).value(); }));
+                "ir.explicit_value_type", true, [&] { return d->Translate(value).value(); }));
           }
           d->Emit(
               ExprStmtDoc(NamespaceDoc("relax")->Attr("func_attr")->Call({DictDoc(keys, values)})),

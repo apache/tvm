@@ -45,9 +45,9 @@ CallDoc TensorHelperCall(DocTranslatorObj* d, const Type& type, const ffi::Strin
   // Supply the fixed zero explicitly when the type printer omitted it.
   if (has_factor && !has_offset) {
     rhs->kwargs_keys.push_back("elem_offset");
-    rhs->kwargs_values.push_back(d->WithExtraStateScope<bool>(
-        "ir.explicit_scalar_dtype", true,
-        [&] { return d->Translate(type.as_or_throw<tirx::TensorType>()->elem_offset).value(); }));
+    rhs->kwargs_values.push_back(d->WithExtraStateScope<bool>("ir.explicit_value_type", true, [&] {
+      return d->Translate(type.as_or_throw<tirx::TensorType>()->elem_offset).value();
+    }));
   }
   rhs->callee = NamespaceDoc("s_tir")->Attr(helper);
   return rhs;
@@ -148,13 +148,12 @@ ffi::Array<StmtDoc> SBlockBody(DocTranslatorObj* d, const s_tir::SBlockNode* blo
       const auto* tensor_type = tensor.var()->ty.as<tirx::TensorTypeNode>();
       auto allocated_addr = addresses.Get(tensor.var()).value_or(ffi::Array<PrimExpr>{});
       TVM_FFI_CHECK(
-          allocated_addr.empty() || (tensor_type->storage_scope != runtime::MemoryScope::Global() &&
-                                     tensor_type->storage_scope != scope_shared &&
-                                     tensor_type->storage_scope != scope_shared_dyn &&
-                                     tensor_type->storage_scope != scope_local),
+          allocated_addr.empty() ||
+              (tensor_type->scope != runtime::MemoryScope::Global() &&
+               tensor_type->scope != scope_shared && tensor_type->scope != scope_shared_dyn &&
+               tensor_type->scope != scope_local),
           TypeError)
-          << "Ts.sblock_alloc_tensor does not accept allocated_addr in "
-          << tensor_type->storage_scope;
+          << "Ts.sblock_alloc_tensor does not accept allocated_addr in " << tensor_type->scope;
       if (!allocated_addr.empty()) {
         rhs->kwargs_keys.push_back("allocated_addr");
         rhs->kwargs_values.push_back(d->Translate(allocated_addr).value());

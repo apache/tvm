@@ -25,7 +25,7 @@ from tvm.script import tirx as T
 
 
 def test_tensor_region_bounds_are_visited():
-    data = tvm.tirx.Var("data", tvm.ir.PtrType(tvm.ir.PrimType("int32"), storage_scope="global"))
+    data = tvm.tirx.Var("data", tvm.ir.PtrType(tvm.ir.PrimType("int32"), scope="global"))
     tensor = tvm.tirx.decl_tensor([4], "int32", data=data)
     undefined = tvm.tirx.Var("undefined", "int32")
     region = TensorRegion(

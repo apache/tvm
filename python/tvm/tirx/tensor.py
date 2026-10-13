@@ -75,7 +75,6 @@ class TensorType(Type):
         data=None,
         byte_offset=None,
         loc: Location = UNKNOWN_LOC,
-        storage_scope=None,
         data_alignment=None,
     ):
         """Construct a tensor access contract.
@@ -83,9 +82,8 @@ class TensorType(Type):
         An omitted element offset is zero in the configured index dtype,
         independent of shape and offset_factor. Integer offsets use that dtype;
         explicitly typed expressions retain theirs. Pass a symbolic offset explicitly
-        when the contract permits a variable starting position. ``storage_scope``
-        and ``align`` remain compatibility spellings for ``scope`` and
-        ``data_alignment``.
+        when the contract permits a variable starting position. ``align`` remains a
+        compatibility spelling for ``data_alignment``.
         """
         from tvm.ir.type import _normalize_type
         from tvm.script.ir_builder.base import MISSING, at
@@ -101,12 +99,6 @@ class TensorType(Type):
             raise ValueError("elem_offset and byte_offset cannot be set at the same time")
         if byte_offset is not None:
             elem_offset = byte_offset * 8 // tvm.DataType(dtype.dtype).bits
-        if storage_scope is None:
-            storage_scope = scope
-        elif MemoryScope(scope) != _SCOPE_GLOBAL and MemoryScope(scope) != MemoryScope(
-            storage_scope
-        ):
-            raise ValueError("scope and storage_scope must agree")
         if data_alignment is None:
             data_alignment = align
         elif align not in (0, data_alignment):
@@ -114,7 +106,7 @@ class TensorType(Type):
         if data is not None:
             if not isinstance(data, tvm.ir.Expr) or not isinstance(data.ty, PtrType):
                 raise TypeError("Tensor data must be an Expr with PtrType")
-            storage_scope = data.ty.storage_scope
+            scope = data.ty.scope
         if layout is MISSING:
             layout = None
         if layout == "default":
@@ -125,7 +117,7 @@ class TensorType(Type):
             _ffi_api.TensorType,
             shape,
             dtype,
-            storage_scope,
+            scope,
             () if strides is None else strides,
             elem_offset,
             data_alignment,
@@ -166,8 +158,8 @@ class TensorType(Type):
         """
         if self.layout is not None:
             return self.layout
-        if self.storage_scope != _SCOPE_GLOBAL:
-            raise ValueError(f"An explicit layout is required for {self.storage_scope} tensors")
+        if self.scope != _SCOPE_GLOBAL:
+            raise ValueError(f"An explicit layout is required for {self.scope} tensors")
 
         from tvm.sym import Analyzer
 
@@ -183,11 +175,6 @@ class TensorType(Type):
                     raise ValueError("An explicit layout is required for noncompact global tensors")
                 expected = analyzer.simplify(expected * extent)
         return TileLayout(S[tuple(self.shape)])
-
-    @property
-    def storage_scope(self):
-        """Compatibility alias for the canonical scope field."""
-        return self.scope
 
     def _scope(self, expr):
         """Return the storage scope associated with this tensor.
@@ -348,17 +335,16 @@ def decl_tensor(
     if layout == "default":
         layout = TileLayout(S[tuple(shape)]) if shape else None
 
-    storage_scope = scope
     if data is not None:
         if not isinstance(data, tvm.ir.Expr) or not isinstance(data.ty, PtrType):
             raise TypeError("Tensor data must be an Expr with PtrType")
         if not isinstance(data.ty.element_type, PrimType):
             raise TypeError("Tensor data must point to a primitive type")
-        storage_scope = data.ty.storage_scope
+        scope = data.ty.scope
     tensor_type = _ffi_api.TensorType(  # type: ignore
         shape,
         dtype,
-        storage_scope,
+        scope,
         strides,
         elem_offset,
         data_alignment,

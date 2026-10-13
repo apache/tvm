@@ -97,8 +97,7 @@ class CodeGenNVPTX : public CodeGenLLVM {
     static const auto scope_shared = runtime::MemoryScope::Get("shared");
     tvm::Tuple shape = tvm::Tuple(buffer_call->ty_args[0].as_or_throw<tirx::TensorType>()->shape);
     DLDataType dtype = buffer_call->ty_args[0].as_or_throw<tirx::TensorType>()->dtype->dtype;
-    runtime::MemoryScope scope =
-        buffer_call->ty_args[0].as_or_throw<tirx::TensorType>()->storage_scope;
+    runtime::MemoryScope scope = buffer_call->ty_args[0].as_or_throw<tirx::TensorType>()->scope;
     TensorVar buffer = op->var.as_or_throw<TensorVar>();
     DictAttrs annotations = buffer_call->attrs.value().as_or_throw<DictAttrs>();
     llvm::Value* buf = nullptr;

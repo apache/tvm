@@ -53,7 +53,7 @@ TensorVar MatchTensor(ffi::ObjectRef param, ffi::Array<PrimExpr> shape, PrimType
                       int align, int offset_factor, ffi::Optional<Layout> layout,
                       ffi::Array<PrimExpr> allocated_addr) {
   if (data.has_value()) {
-    storage_scope = data.value()->ty.as_or_throw<PtrType>()->storage_scope;
+    storage_scope = data.value()->ty.as_or_throw<PtrType>()->scope;
   }
   // Matching/allocation builders retain their binding contract; TensorType itself
   // has a fixed zero offset and never invents a symbolic variable.

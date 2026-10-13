@@ -845,10 +845,10 @@ void CodeGenC::Dispatch_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
       TVM_FFI_ICHECK_EQ(op->args.size(), 2U);
       const auto& pointer_type = op->ty.as_or_throw<PtrType>();
       os << "((";
-      if (IsScopePartOfType()) PrintStorageScope(pointer_type->storage_scope, os);
+      if (IsScopePartOfType()) PrintStorageScope(pointer_type->scope, os);
       PrintType(pointer_type->element_type, os);
       os << "*)(((";
-      if (IsScopePartOfType()) PrintStorageScope(pointer_type->storage_scope, os);
+      if (IsScopePartOfType()) PrintStorageScope(pointer_type->scope, os);
       os << "char*)";
       this->PrintExpr(op->args[0], os);
       os << ") + ";
@@ -865,7 +865,7 @@ void CodeGenC::Dispatch_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
       if (const auto* pointer_type = op->ty.as<PtrTypeNode>()) {
         os << "((";
         if (IsScopePartOfType()) {
-          PrintStorageScope(pointer_type->storage_scope, os);
+          PrintStorageScope(pointer_type->scope, os);
         }
         if (const auto* element_type = pointer_type->element_type.as<PrimTypeNode>()) {
           this->PrintType(ffi::GetRef<PrimType>(element_type), os);
@@ -945,8 +945,7 @@ void CodeGenC::PrintVecBinaryOp(const std::string& op, const PrimType& t, PrimEx
 void CodeGenC::DispatchDeclTensor(const BindNode* op, const CallNode* buffer_call) {
   Expr data = buffer_call->args[0];
   DLDataType dtype = buffer_call->ty_args[0].as_or_throw<tirx::TensorType>()->dtype->dtype;
-  runtime::MemoryScope scope =
-      buffer_call->ty_args[0].as_or_throw<tirx::TensorType>()->storage_scope;
+  runtime::MemoryScope scope = buffer_call->ty_args[0].as_or_throw<tirx::TensorType>()->scope;
   TensorVar buffer = op->var.as_or_throw<TensorVar>();
   const VarNode* source = data.as<VarNode>();
   if (const auto* call = data.as<CallNode>();
@@ -1286,8 +1285,7 @@ void CodeGenC::Dispatch_(const BindNode* op) {
 void CodeGenC::DispatchAllocTensor(const BindNode* op, const CallNode* buffer_call) {
   tvm::Tuple shape = tvm::Tuple(buffer_call->ty_args[0].as_or_throw<tirx::TensorType>()->shape);
   DLDataType dtype = buffer_call->ty_args[0].as_or_throw<tirx::TensorType>()->dtype->dtype;
-  runtime::MemoryScope scope =
-      buffer_call->ty_args[0].as_or_throw<tirx::TensorType>()->storage_scope;
+  runtime::MemoryScope scope = buffer_call->ty_args[0].as_or_throw<tirx::TensorType>()->scope;
   TensorVar buffer = op->var.as_or_throw<TensorVar>();
   DictAttrs annotations = buffer_call->attrs.as_or_throw<DictAttrs>();
   TVM_FFI_ICHECK(buffer.defined());

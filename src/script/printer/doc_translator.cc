@@ -200,7 +200,7 @@ ExprDoc DocTranslatorObj::DefaultTypeTranslate(const Type& type) {
   }
   ExprDoc callee = NamespaceDoc(type_key.substr(0, separator))->Attr(name);
   // A constructor's fields are values, including nested Types and container elements.
-  return WithExtraStateScope<bool>("ir.explicit_scalar_dtype", true, [&]() -> ExprDoc {
+  return WithExtraStateScope<bool>("ir.explicit_value_type", true, [&]() -> ExprDoc {
     ffi::Array<ExprDoc> args;
     ffi::Array<ffi::String> keys;
     ffi::Array<ExprDoc> values;

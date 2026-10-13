@@ -77,11 +77,11 @@ def test_shared_cpp_python_registry_and_typed_conversion():
         ptr_ty = tvm.ir.PtrType(tvm.ir.PrimType("float32"), scope)
         tensor = tvm.tirx.decl_tensor((4,), "float32", scope=scope)
         tensor_ty = tvm.tirx.TensorType((4,), "float32", scope)
-        assert tensor_ty.storage_scope.same_as(custom)
-        assert ptr_ty.storage_scope.same_as(custom)
-        assert tensor.ty.storage_scope.same_as(custom)
+        assert tensor_ty.scope.same_as(custom)
+        assert ptr_ty.scope.same_as(custom)
+        assert tensor.ty.scope.same_as(custom)
         assert tensor.scope().same_as(custom)
-        assert tensor.data.ty.storage_scope.same_as(custom)
+        assert tensor.data.ty.scope.same_as(custom)
 
     unknown = "test.memory_scope.unknown." + uuid.uuid4().hex
     for construct in (
@@ -97,12 +97,12 @@ def test_shared_cpp_python_registry_and_typed_conversion():
 
 def test_global_defaults():
     global_scope = MemoryScope("global")
-    assert tvm.ir.PtrType(tvm.ir.PrimType("float32")).storage_scope.same_as(global_scope)
+    assert tvm.ir.PtrType(tvm.ir.PrimType("float32")).scope.same_as(global_scope)
     assert tvm.tirx.decl_tensor((4,), "float32").scope().same_as(global_scope)
     for scope in ("global", global_scope):
-        assert tvm.ir.PtrType(tvm.ir.PrimType("float32"), scope).storage_scope.same_as(global_scope)
+        assert tvm.ir.PtrType(tvm.ir.PrimType("float32"), scope).scope.same_as(global_scope)
         assert tvm.tirx.decl_tensor((4,), "float32", scope=scope).scope().same_as(global_scope)
-        assert T.Tensor((4,), "float32", scope=scope).storage_scope.same_as(global_scope)
+        assert T.Tensor((4,), "float32", scope=scope).scope.same_as(global_scope)
         assert tvm.relax.VDevice("llvm", memory_scope=scope).memory_scope.same_as(global_scope)
     for construct in (
         lambda: MemoryScope(""),
@@ -122,7 +122,7 @@ def test_json_and_script_roundtrip():
         assert tvm.ir.load_json(tvm.ir.save_json(scope)).same_as(scope)
         ty = T.Tensor((4,), "float32", scope=scope)
         restored = tvm.ir.load_json(tvm.ir.save_json(ty))
-        assert restored.storage_scope.same_as(scope)
+        assert restored.scope.same_as(scope)
         tvm.ir.assert_structural_equal(ty, restored)
 
         @T.function
@@ -144,21 +144,24 @@ def test_canonical_constructor_aliases_and_reflected_scopes():
     for scope in (MemoryScope("global"), custom):
         pointer = T.Ptr(T.float32, scope)
         source = pointer.script()
-        assert ("storage_scope=" in source) == (scope != MemoryScope("global"))
+        expected = (
+            "T.Ptr(T.float32)"
+            if scope == MemoryScope("global")
+            else f'T.Ptr(T.float32, "{scope.name}")'
+        )
+        assert source == expected
         restored = eval(source, {"T": T, "I": I})
         tvm.ir.assert_structural_equal(pointer, restored)
-        assert restored.storage_scope.same_as(scope)
+        assert restored.scope.same_as(scope)
         tensor = T.Tensor((4,), T.float32, scope, byte_offset=8, align=128, layout="default")
         assert tensor.scope.same_as(scope)
         assert tensor.elem_offset.value == 2
         assert tensor.data_alignment == 128
         restored_tensor = eval(tensor.script(), {"T": T, "I": I})
         tvm.ir.assert_structural_equal(tensor, restored_tensor)
-    for scope, alias in ((custom, custom.name), (custom.name, custom)):
-        tensor = T.Tensor((4,), T.float32, scope, storage_scope=alias)
+    for scope in (custom, custom.name):
+        tensor = T.Tensor((4,), T.float32, scope=scope)
         assert tensor.scope.same_as(custom)
-    with pytest.raises(ValueError, match="scope and storage_scope must agree"):
-        T.Tensor((4,), T.float32, custom, storage_scope="shared")
     with pytest.raises(ValueError):
         T.Ptr(T.float32, "")
 

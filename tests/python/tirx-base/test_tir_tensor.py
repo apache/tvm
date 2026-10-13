@@ -78,7 +78,7 @@ def test_tensor_pointer_type_derived_from_dtype_and_scope():
     tensor = tvm.tirx.decl_tensor((8,), "float16", data=data)
 
     assert tensor.ty.dtype == tvm.ir.PrimType("float16")
-    assert tensor.ty.storage_scope == tvm.runtime.MemoryScope("local")
+    assert tensor.ty.scope == tvm.runtime.MemoryScope("local")
     assert tensor.data.ty == tvm.ir.PtrType(tvm.ir.PrimType("float16"), "local")
 
 
@@ -97,7 +97,7 @@ def test_tensor_type_constructor_scope_order(scope):
     )
     tvm.ir.assert_structural_equal(direct, scripted)
     tvm.ir.assert_structural_equal(direct, declared.ty)
-    assert direct.storage_scope.same_as(tvm.runtime.MemoryScope(scope))
+    assert direct.scope.same_as(tvm.runtime.MemoryScope(scope))
 
 
 @pytest.mark.parametrize("scope", ["", "tensor_type.unregistered"])
