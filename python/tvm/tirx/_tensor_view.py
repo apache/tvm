@@ -165,7 +165,7 @@ def view(buf: Var, *args, **kwargs) -> Var:
     if len(args) == 1 and isinstance(args[0], str | tvm.DataType) and not kwargs:
         cast_dtype = tvm.DataType(args[0])
         cur_dtype = tvm.DataType(buf.dtype)
-        storage_axis = "TCol" if buf.scope() == "tmem" else "m"
+        storage_axis = "TCol" if _is_tmem_scope(buf.scope()) else "m"
         if cast_dtype.bits > cur_dtype.bits:
             assert cast_dtype.bits % cur_dtype.bits == 0
             ratio = cast_dtype.bits // cur_dtype.bits

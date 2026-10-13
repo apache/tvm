@@ -28,6 +28,7 @@ import tvm_ffi
 import tvm
 import tvm.testing
 from tvm.backend.cuda.axis import laneid, tid_in_wg, tx
+from tvm.runtime import MemoryScope
 from tvm.script import tirx as T
 from tvm.testing import env
 from tvm.tirx.layout import S, TileLayout
@@ -722,8 +723,8 @@ def test_reg_view_preserves_shared_and_register_addresses(case):
             tensors.append(node.var)
 
     tvm_ffi.structural_walk(views.body, visit)
-    r_view = next(t for t in reversed(tensors) if t.ty.storage_scope == "local")
-    s_view = next(t for t in reversed(tensors) if t.ty.storage_scope == "shared")
+    r_view = next(t for t in reversed(tensors) if t.ty.storage_scope == MemoryScope("local"))
+    s_view = next(t for t in reversed(tensors) if t.ty.storage_scope == MemoryScope("shared"))
     analyzer = tvm.sym.Analyzer()
     # Check all scalar coordinates, including the fp16 elements inside a word.
     for tid in range(128):

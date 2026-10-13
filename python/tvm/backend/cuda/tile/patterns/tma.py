@@ -30,7 +30,7 @@ from math import prod
 
 from tvm.backend.cuda.ptx import PTXNamespace
 from tvm.ir import Range, TensorRegion, Tuple, Var
-from tvm.runtime import DataType
+from tvm.runtime import DataType, MemoryScope
 from tvm.script import tirx as T
 
 from .common import Context, scalar
@@ -87,7 +87,9 @@ def _descriptor_fields(fields, rank, box, default_dtype):
 
 
 def _tensor_map(ctx, region, rank, box, encoding):
-    if not isinstance(region, TensorRegion) or region.source.ty.storage_scope != "global":
+    if not isinstance(region, TensorRegion) or region.source.ty.storage_scope != MemoryScope(
+        "global"
+    ):
         raise ValueError("TMA descriptor requires a global tensor region")
     tensor = region.source
     ty = tensor.ty
