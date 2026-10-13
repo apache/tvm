@@ -1187,7 +1187,7 @@ TensorIntrin.register(
 )
 
 
-@register_global_func("tirx.index_map_mma.matrixC")
+@register_global_func("tirx.index_map_m16n8k8.matrixC")
 def index_map_m16n8k8_matrixC(ind):
     i, j = ind[0], ind[1]
     return convert([(i // 8) // 2, j // 8, (i // 8) % 2, (j % 8) % 2])

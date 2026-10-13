@@ -50,9 +50,9 @@ ffi::Optional<ExprDoc> TensorTypeDocTranslate(DocTranslatorObj* d, ffi::AnyView 
         ->Call({LiteralDoc::Str("tirx.TensorType", std::nullopt)},
                {"dtype", "scope", "shape", "strides", "elem_offset", "data_alignment",
                 "offset_factor", "layout"},
-               {TypeValue(d, tensor->dtype, false),
-                d->Translate(tensor->storage_scope).value(), AnyValue(d, tensor->shape),
-                AnyValue(d, tensor->strides), ReflectedValue(d, tensor->elem_offset),
+               {TypeValue(d, tensor->dtype, false), d->Translate(tensor->storage_scope).value(),
+                AnyValue(d, tensor->shape), AnyValue(d, tensor->strides),
+                ReflectedValue(d, tensor->elem_offset),
                 LiteralDoc::Int(tensor->data_alignment, std::nullopt),
                 LiteralDoc::Int(tensor->offset_factor, std::nullopt),
                 tensor->layout.has_value() ? d->Translate(tensor->layout.value()).value()

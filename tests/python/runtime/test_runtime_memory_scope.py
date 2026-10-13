@@ -29,6 +29,7 @@ import tvm_ffi
 
 import tvm
 from tvm.runtime import MemoryScope
+from tvm.script import ir as I
 from tvm.script import tirx as T
 
 
@@ -134,6 +135,32 @@ def test_json_and_script_roundtrip():
         restored_func = tvm.script.from_source(script, extra_vars={"T": T})
         tvm.ir.assert_structural_equal(func, restored_func)
         assert restored_func.params[0].scope().same_as(scope)
+
+
+def test_canonical_constructor_aliases_and_reflected_scopes():
+    assert T.Ptr is tvm.ir.PtrType
+    assert T.Tensor is tvm.tirx.TensorType
+    custom = new_scope()
+    for scope in (MemoryScope("global"), custom):
+        pointer = T.Ptr(T.float32, scope)
+        source = pointer.script()
+        assert ("storage_scope=" in source) == (scope != MemoryScope("global"))
+        restored = eval(source, {"T": T, "I": I})
+        tvm.ir.assert_structural_equal(pointer, restored)
+        assert restored.storage_scope.same_as(scope)
+        tensor = T.Tensor((4,), T.float32, scope, byte_offset=8, align=128, layout="default")
+        assert tensor.scope.same_as(scope)
+        assert tensor.elem_offset.value == 2
+        assert tensor.data_alignment == 128
+        restored_tensor = eval(tensor.script(), {"T": T, "I": I})
+        tvm.ir.assert_structural_equal(tensor, restored_tensor)
+    for scope, alias in ((custom, custom.name), (custom.name, custom)):
+        tensor = T.Tensor((4,), T.float32, scope, storage_scope=alias)
+        assert tensor.scope.same_as(custom)
+    with pytest.raises(ValueError, match="scope and storage_scope must agree"):
+        T.Tensor((4,), T.float32, custom, storage_scope="shared")
+    with pytest.raises(ValueError):
+        T.Ptr(T.float32, "")
 
 
 def test_runtime_tensor_allocation():

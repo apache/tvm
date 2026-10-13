@@ -454,8 +454,12 @@ def test_alloc_seq_type(alignment, expected_size):
     def func(n: T.int32):
         for i in T.serial(n):
             for j in range(10):
-                A = T.alloc_tensor(ty_args=[T.Tensor((200,), "float32", scope="local.L0A", align=alignment)])
-                A1 = T.alloc_tensor(ty_args=[T.Tensor((200,), "float32", scope="local.L0A", align=alignment)])
+                A = T.alloc_tensor(
+                    ty_args=[T.Tensor((200,), "float32", scope="local.L0A", align=alignment)]
+                )
+                A1 = T.alloc_tensor(
+                    ty_args=[T.Tensor((200,), "float32", scope="local.L0A", align=alignment)]
+                )
                 A[j] = T.float32(1.2)
                 A1[j] = T.float32(1.3)
                 B = T.alloc_tensor(
@@ -470,7 +474,9 @@ def test_alloc_seq_type(alignment, expected_size):
                     ty_args=[T.Tensor((200,), "int16", scope="local.L0A", align=alignment)]
                 )
                 D[j] = B[j] + C[j]
-                A2 = T.alloc_tensor(ty_args=[T.Tensor((200,), "float32", scope="local.L0A", align=alignment)])
+                A2 = T.alloc_tensor(
+                    ty_args=[T.Tensor((200,), "float32", scope="local.L0A", align=alignment)]
+                )
                 A2[j] = A[j]
 
     mod = tvm.IRModule.from_expr(func)

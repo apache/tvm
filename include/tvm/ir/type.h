@@ -116,7 +116,8 @@ class PtrTypeNode : public TypeNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<PtrTypeNode>()
         .def_ro("element_type", &PtrTypeNode::element_type)
-        .def_ro("storage_scope", &PtrTypeNode::storage_scope, refl::DefaultValue("global"));
+        .def_ro("storage_scope", &PtrTypeNode::storage_scope,
+                refl::DefaultValue(runtime::MemoryScope::Global()));
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.PtrType", PtrTypeNode, TypeNode);
 };
