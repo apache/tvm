@@ -90,7 +90,7 @@ def _make_split(inputs, outputs):  # pylint: disable=redefined-builtin
     return Instruction(
         kind=InstructionKind.get("Split"),
         inputs=inputs,
-        attrs=[T.bool(True), T.bool(False)],
+        attrs=[True, False],
         outputs=outputs,
     )
 

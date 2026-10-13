@@ -1097,7 +1097,7 @@ void ConcreteScheduleObj::RollingBuffer(const SBlockRV& block_rv, int write_tens
 
 void ConcreteScheduleObj::UnsafeHideTensorAccess(const SBlockRV& block_rv,
                                                  const ffi::String& tensor_type,
-                                                 const ffi::Array<IntImm>& tensor_index_array) {
+                                                 const ffi::Array<int64_t>& tensor_index_array) {
   TVM_TIR_SCHEDULE_BEGIN();
   s_tir::UnsafeHideTensorAccess(state_, this->GetSRef(block_rv), tensor_type, tensor_index_array);
   TVM_TIR_SCHEDULE_END("hide-tensor-access", this->error_render_level_);

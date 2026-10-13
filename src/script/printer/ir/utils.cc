@@ -46,6 +46,62 @@ ffi::Optional<ExprDoc> InvokeDocHook(ffi::AnyView hook, DocTranslatorObj* d, ffi
   return hook.cast<ffi::Function>().CallExpected<ffi::Optional<ExprDoc>>(d, input, binder).value();
 }
 
+ExprDoc NamedCallCallee(const ffi::String& canonical_name) {
+  std::string name = canonical_name;
+  size_t end = name.find('.');
+  ExprDoc callee = NamespaceDoc(name.substr(0, end) == "prim" ? "tirx" : name.substr(0, end));
+  while (end != std::string::npos) {
+    size_t start = end + 1;
+    end = name.find('.', start);
+    callee = callee->Attr(name.substr(start, end - start));
+  }
+  return callee;
+}
+
+ExprDoc GlobalReference(DocTranslatorObj* d, const ffi::String& name) {
+  auto module = d->GetOrCreateExtraState<ffi::Optional<IdDoc>>("ir.module_id");
+  if (!module.has_value()) {
+    module = IdDoc(d->GetExtraConfig<ffi::String>("ir.module_name", "Module"));
+    d->SetExtraState("ir.module_id", module);
+  }
+  return module.value()->Attr(name);
+}
+
+namespace {
+
+ExprDoc CallAttrsValue(DocTranslatorObj* d, const Attrs& attrs) {
+  if (attrs.as<DictAttrsNode>()) return d->Translate(attrs).value();
+  std::vector<std::pair<ffi::String, ffi::Any>> fields;
+  ffi::reflection::ForEachFieldInfo(
+      TVMFFIGetTypeInfo(attrs->type_index()), [&](const TVMFFIFieldInfo* field) {
+        fields.emplace_back(ffi::String(field->name), ffi::reflection::FieldGetter(field)(attrs));
+      });
+  std::sort(fields.begin(), fields.end(),
+            [](const auto& a, const auto& b) { return a.first < b.first; });
+  ffi::Array<ffi::String> keys;
+  ffi::Array<ExprDoc> values;
+  for (const auto& [key, value] : fields) {
+    if (key == "type_key") return AddMetadata(d, attrs);
+    keys.push_back(key);
+    values.push_back(d->WithExtraStateScope<bool>("ir.explicit_scalar_dtype", true,
+                                                  [&] { return d->Translate(value).value(); }));
+  }
+  ExprDoc inline_doc =
+      NamespaceDoc("ir")
+          ->Attr("make_node")
+          ->Call({LiteralDoc::Str(attrs->GetTypeKey(), std::nullopt)}, keys, values);
+  d->RecordOrigin(inline_doc, attrs);
+  // These reflected fields have a complete inline representation. Keep them
+  // visible in diagnostics and usable when no metadata table is requested.
+  return inline_doc;
+}
+
+}  // namespace
+
+// The explicit fallback retains every field, including typed attribute objects.
+
+}  // namespace details
+
 ExprDoc AddMetadata(DocTranslatorObj* d, ffi::Any value) {
   TVM_FFI_CHECK(value != nullptr, TypeError) << "Metadata cannot contain None";
   using MetadataMap = ffi::Dict<ffi::String, ffi::List<ffi::Any>>;
@@ -74,78 +130,8 @@ IdDoc VarDoc(DocTranslatorObj* d, const Var& var, bool explicit_def) {
   return doc;
 }
 
-ExprDoc NamedCallCallee(const ffi::String& canonical_name) {
-  std::string name = canonical_name;
-  size_t end = name.find('.');
-  ExprDoc callee = NamespaceDoc(name.substr(0, end) == "prim" ? "tirx" : name.substr(0, end));
-  while (end != std::string::npos) {
-    size_t start = end + 1;
-    end = name.find('.', start);
-    callee = callee->Attr(name.substr(start, end - start));
-  }
-  return callee;
-}
-
-ExprDoc GlobalReference(DocTranslatorObj* d, const ffi::String& name) {
-  auto module = d->GetOrCreateExtraState<ffi::Optional<IdDoc>>("ir.module_id");
-  if (!module.has_value()) {
-    module = IdDoc(d->GetExtraConfig<ffi::String>("ir.module_name", "Module"));
-    d->SetExtraState("ir.module_id", module);
-  }
-  return module.value()->Attr(name);
-}
-
-namespace {
-
-ExprDoc TypeValueImpl(DocTranslatorObj* d, const Type& type, bool dtype_literal) {
-  if (auto primitive = type.as<PrimType>(); dtype_literal && primitive.has_value()) {
-    return LiteralDoc::DataType(primitive.value()->dtype, std::nullopt);
-  }
-  ExtraStateScope<bool> type_value(d, "ir.type_value", true);
-  return d->Translate(type).value();
-}
-
-}  // namespace
-
-ExprDoc TypeValue(DocTranslatorObj* d, const Type& type, bool dtype_literal) {
-  ExprDoc doc = TypeValueImpl(d, type, dtype_literal);
-  d->RecordOrigin(doc, type);
-  return doc;
-}
-
-namespace {
-
-ExprDoc CallAttrsValue(DocTranslatorObj* d, const Attrs& attrs) {
-  if (attrs.as<DictAttrsNode>()) return d->Translate(attrs).value();
-  std::vector<std::pair<ffi::String, ffi::Any>> fields;
-  ffi::reflection::ForEachFieldInfo(
-      TVMFFIGetTypeInfo(attrs->type_index()), [&](const TVMFFIFieldInfo* field) {
-        fields.emplace_back(ffi::String(field->name), ffi::reflection::FieldGetter(field)(attrs));
-      });
-  std::sort(fields.begin(), fields.end(),
-            [](const auto& a, const auto& b) { return a.first < b.first; });
-  ffi::Array<ffi::String> keys;
-  ffi::Array<ExprDoc> values;
-  for (const auto& [key, value] : fields) {
-    if (key == "type_key") return AddMetadata(d, attrs);
-    keys.push_back(key);
-    values.push_back(AnyValue(d, value));
-  }
-  ExprDoc inline_doc =
-      NamespaceDoc("ir")
-          ->Attr("make_node")
-          ->Call({LiteralDoc::Str(attrs->GetTypeKey(), std::nullopt)}, keys, values);
-  d->RecordOrigin(inline_doc, attrs);
-  // These reflected fields have a complete inline representation. Keep them
-  // visible in diagnostics and usable when no metadata table is requested.
-  return inline_doc;
-}
-
-}  // namespace
-
-// The explicit fallback retains every field, including typed attribute objects.
-ExprDoc RawCall(DocTranslatorObj* d, const CallNode* call,
-                ffi::Optional<ffi::Array<ExprDoc>> translated_args) {
+ExprDoc RawCallDocTranslate(DocTranslatorObj* d, const CallNode* call,
+                            ffi::Optional<ffi::Array<ExprDoc>> translated_args) {
   ffi::Optional<Op> op = call->op.as<Op>();
   ffi::Array<ExprDoc> args;
   if (translated_args.has_value()) {
@@ -153,51 +139,29 @@ ExprDoc RawCall(DocTranslatorObj* d, const CallNode* call,
   } else {
     for (const Expr& arg : call->args) args.push_back(d->Translate(arg).value());
   }
-  ExprDoc callee = op.has_value()                 ? LiteralDoc::Str(op.value()->name, std::nullopt)
-                   : call->op.as<StringImmNode>() ? AnyValue(d, call->op)
-                                                  : d->Translate(call->op).value();
+  ExprDoc callee =
+      op.has_value() ? LiteralDoc::Str(op.value()->name, std::nullopt)
+      : call->op.as<StringImmNode>()
+          ? d->WithExtraStateScope<bool>("ir.explicit_scalar_dtype", true,
+                                         [&] { return d->Translate(call->op).value(); })
+          : d->Translate(call->op).value();
   ffi::Array<ffi::String> keys;
   ffi::Array<ExprDoc> values;
   if (call->attrs.has_value()) {
     keys.push_back("attrs");
-    values.push_back(CallAttrsValue(d, call->attrs.value()));
+    values.push_back(details::CallAttrsValue(d, call->attrs.value()));
   }
   if (!call->ty_args.empty()) {
     ffi::Array<ExprDoc> types;
-    for (const Type& type : call->ty_args) types.push_back(TypeValue(d, type, false));
+    for (const Type& type : call->ty_args) types.push_back(d->Translate(type).value());
     keys.push_back("ty_args");
     values.push_back(ListDoc(types));
   }
   keys.push_back("ty");
-  values.push_back(TypeValue(d, call->ty));
+  values.push_back(d->Translate(call->ty).value());
   return NamespaceDoc("ir")->Attr("Call")->Call({callee, ListDoc(args)}, keys, values);
 }
 
-// The query aliases the active frame; candidate classification must own a copy.
-ffi::Map<Var, IdDoc> CopyImplicitDefs(DocTranslatorObj* d) {
-  ffi::Map<Var, IdDoc> candidates;
-  for (const auto& [var, id] : d->GetImplicitDefs()) candidates.Set(var, id);
-  return candidates;
-}
-
-void FinalizeFunctionDefinitions(DocTranslatorObj* d, const ffi::Map<Var, IdDoc>& signature,
-                                 const FunctionDoc& function) {
-  auto module = d->GetOrCreateExtraState<ffi::Optional<IRModule>>("ir.module");
-  auto pending = d->GetImplicitDefs();
-  if (!module.has_value()) {
-    for (const auto& [var, signature_id] : signature) {
-      if (!pending.count(var) || !var->ty.as<PrimTypeNode>()) continue;
-      IdDoc id = VarDoc(d, var);
-      if (var->ty.as_or_throw<PrimType>()->dtype == (DLDataType{kDLInt, 64, 1})) {
-        function->type_params.push_back(id);
-      } else {
-        function->type_params.push_back(AssignDoc(id, std::nullopt, d->Translate(var->ty).value()));
-      }
-    }
-  }
-}
-
-}  // namespace details
 }  // namespace printer
 }  // namespace script
 }  // namespace tvm

@@ -28,6 +28,7 @@
 #include <tvm/script/printer/doc.h>
 
 #include <optional>
+#include <type_traits>
 #include <utility>
 
 namespace tvm {
@@ -235,6 +236,86 @@ class DocTranslatorObj : public ffi::Object {
     ffi::details::ExpectedUnsafe::MoveFromTVMFFIAny<void>(vtable_->end_var_scope(this)).value();
   }
   /*!
+   * \brief Run a callback in a balanced lexical variable scope without collecting Docs.
+   * \tparam Callback The callable type.
+   * \param callback The callback run inside the scope.
+   * \return The callback result, preserving void, value and reference results.
+   * \note Cleanup is attempted on exceptions without replacing the callback's error.
+   *       On normal return, a scope-close error is propagated.
+   */
+  template <typename Callback>
+  std::invoke_result_t<Callback> WithVarScope(Callback&& callback) {
+    using Result = std::invoke_result_t<Callback>;
+    BeginVarScope();
+    bool active = true;
+    auto close = [&]() {
+      active = false;
+      EndVarScope();
+    };
+    try {
+      if constexpr (std::is_void_v<Result>) {
+        std::forward<Callback>(callback)();
+        close();
+      } else {
+        Result result = std::forward<Callback>(callback)();
+        close();
+        return std::forward<Result>(result);
+      }
+    } catch (...) {
+      if (active) {
+        try {
+          close();
+        } catch (...) {  // Preserve the callback's exception.
+        }
+      }
+      throw;
+    }
+  }
+
+  /*!
+   * \brief Run a callback with temporarily replaced typed extension state.
+   * \tparam T The state type, default constructed when absent.
+   * \tparam Callback The callable type.
+   * \param name The state name, checked for an existing incompatible type.
+   * \param value The temporary state value.
+   * \param callback The callback run with the temporary state.
+   * \return The callback result, preserving void, value and reference results.
+   * \note Restore the saved value on return or exception without replacing a
+   *       callback error with a restoration error. This does not collect Docs.
+   */
+  template <typename T, typename Callback>
+  std::invoke_result_t<Callback> WithExtraStateScope(const ffi::String& name, T value,
+                                                     Callback&& callback) {
+    using Result = std::invoke_result_t<Callback>;
+    ffi::String key = name;
+    T saved = GetOrCreateExtraState<T>(key);
+    SetExtraState(key, std::move(value));
+    bool active = true;
+    auto restore = [&]() {
+      active = false;
+      SetExtraState(key, std::move(saved));
+    };
+    try {
+      if constexpr (std::is_void_v<Result>) {
+        std::forward<Callback>(callback)();
+        restore();
+      } else {
+        Result result = std::forward<Callback>(callback)();
+        restore();
+        return std::forward<Result>(result);
+      }
+    } catch (...) {
+      if (active) {
+        try {
+          restore();
+        } catch (...) {  // Preserve the callback's exception.
+        }
+      }
+      throw;
+    }
+  }
+
+  /*!
    * \brief Push an empty Doc collection.
    */
   void BeginDocScope() { doc_scopes_.push_back(ffi::List<Doc>()); }
@@ -413,6 +494,14 @@ inline ffi::Optional<ExprDoc> DocTranslatorObj::DefaultTranslate(ffi::AnyView va
         .value();
   }
   if (attr.type_index() == ffi::TypeIndex::kTVMFFINone) {
+    if (value == nullptr) return LiteralDoc::None(std::nullopt);
+    if (auto string = value.as<ffi::String>()) return LiteralDoc::Str(string.value(), std::nullopt);
+    if (auto boolean = value.as<bool>()) return LiteralDoc::Boolean(boolean.value(), std::nullopt);
+    if (auto integer = value.as<int64_t>()) return LiteralDoc::Int(integer.value(), std::nullopt);
+    if (auto floating = value.as<double>())
+      return LiteralDoc::Float(floating.value(), std::nullopt);
+    if (auto dtype = value.as<DLDataType>())
+      return LiteralDoc::DataType(dtype.value(), std::nullopt);
     if (auto type = value.as<Type>()) return DefaultTypeTranslate(type.value());
   }
   TVM_FFI_THROW(TypeError) << (attr.type_index() == ffi::TypeIndex::kTVMFFINone

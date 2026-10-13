@@ -19,7 +19,6 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/logging.h>
 
-#include "../../../target/llvm/canonicalizer/arm_aprofile.h"
 #include "../utils.h"
 
 namespace tvm {
@@ -46,13 +45,10 @@ ffi::String GetRuleKindFromTarget(const Target& target) {
       return "rvv";
     }
 
-    ffi::Map<ffi::String, ffi::Any> target_json =
-        target::canonicalizer::llvm::aprofile::Canonicalize(target->ToConfig());
-
-    if (target_json.at("feature.has_dotprod").cast<bool>()) {
+    if (target_has_feature_fn_ptr("dotprod", target).cast<bool>()) {
       return "dotprod";
     }
-    if (target_json.at("feature.has_asimd").cast<bool>()) {
+    if (target_has_feature_fn_ptr("neon", target).cast<bool>()) {
       return "asimd";
     }
     return "llvm";

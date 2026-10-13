@@ -18,11 +18,11 @@
  */
 
 #include <tvm/script/printer/doc_translator.h>
+#include <tvm/script/printer/support.h>
 #include <tvm/tirx/type.h>
 
 #include <optional>
 
-#include "../../../script/printer/ir/utils.h"
 #include "utils.h"
 
 namespace tvm {
@@ -81,12 +81,8 @@ ffi::Optional<ExprDoc> TensorTypeDocTranslate(DocTranslatorObj* d, ffi::AnyView 
     if (auto selector = GlobalInfoSelector(d, ty->vdevice.value())) {
       values.push_back(LiteralDoc::Str(selector.value(), std::nullopt));
     } else {
-      values.push_back(AnyValue(d, ty->vdevice.value()));
+      values.push_back(d->Translate(ty->vdevice.value()).value());
     }
-  }
-  if (args.empty() && keys.empty()) {
-    ExprDoc doc = NamespaceDoc("relax")->Attr("Tensor");
-    return d->GetOrCreateExtraState<bool>("ir.type_value") ? doc->Call({}) : doc;
   }
   return NamespaceDoc("relax")->Attr("Tensor")->Call(args, keys, values);
 }
@@ -101,8 +97,6 @@ ffi::Optional<ExprDoc> RelaxFuncTypeDocTranslate(DocTranslatorObj* d, ffi::AnyVi
                                                  const ffi::Object*) {
   const auto* ty =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const relax::FuncTypeNode>(input);
-  bool type_value = d->GetOrCreateExtraState<bool>("ir.type_value");
-  ExtraStateScope<bool> annotations(d, "ir.type_value", false);
   if (!ty->params.has_value()) {
     ffi::Array<ffi::String> keys;
     ffi::Array<ExprDoc> values;
@@ -119,7 +113,7 @@ ffi::Optional<ExprDoc> RelaxFuncTypeDocTranslate(DocTranslatorObj* d, ffi::AnyVi
       values.push_back(LiteralDoc::Str(ty->derive_func.value()->name, std::nullopt));
     }
     ExprDoc doc = NamespaceDoc("relax")->Attr("Callable");
-    return keys.empty() && !type_value ? doc : doc->Call({}, keys, values);
+    return doc->Call({}, keys, values);
   }
   ffi::Array<ExprDoc> params;
   for (const Type& param : ty->params.value()) params.push_back(d->Translate(param).value());

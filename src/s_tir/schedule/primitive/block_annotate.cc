@@ -399,16 +399,13 @@ struct StorageAlignTraits : public UnpackedInstTraits<StorageAlignTraits> {
   static constexpr size_t kNumAttrs = 4;
   static constexpr size_t kNumDecisions = 0;
 
-  static void UnpackedApplyToSchedule(Schedule sch, SBlockRV block_rv, IntImm tensor_index,
-                                      IntImm axis, IntImm factor, IntImm offset) {
-    return sch->StorageAlign(block_rv, tensor_index->value.as<int>().value(),
-                             axis->value.as<int>().value(), factor->value.as<int>().value(),
-                             offset->value.as<int>().value());
+  static void UnpackedApplyToSchedule(Schedule sch, SBlockRV block_rv, int tensor_index, int axis,
+                                      int factor, int offset) {
+    return sch->StorageAlign(block_rv, tensor_index, axis, factor, offset);
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String block_rv,
-                                      IntImm tensor_index, IntImm axis, IntImm factor,
-                                      IntImm offset) {
+                                      int tensor_index, int axis, int factor, int offset) {
     PythonAPICall py("storage_align");
     py.Input("block", block_rv);
     py.Input("tensor_index", tensor_index);
@@ -431,13 +428,13 @@ struct SetScopeTraits : public UnpackedInstTraits<SetScopeTraits> {
   static constexpr size_t kNumAttrs = 2;
   static constexpr size_t kNumDecisions = 0;
 
-  static void UnpackedApplyToSchedule(Schedule sch, SBlockRV block_rv, IntImm tensor_index,
+  static void UnpackedApplyToSchedule(Schedule sch, SBlockRV block_rv, int tensor_index,
                                       ffi::String storage_scope) {
-    return sch->SetScope(block_rv, tensor_index->value.as<int>().value(), storage_scope);
+    return sch->SetScope(block_rv, tensor_index, storage_scope);
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String block_rv,
-                                      IntImm tensor_index, ffi::String storage_scope) {
+                                      int tensor_index, ffi::String storage_scope) {
     PythonAPICall py("set_scope");
     py.Input("block", block_rv);
     py.Input("tensor_index", tensor_index);
@@ -458,13 +455,13 @@ struct UnsafeSetDTypeTraits : public UnpackedInstTraits<UnsafeSetDTypeTraits> {
   static constexpr size_t kNumAttrs = 2;
   static constexpr size_t kNumDecisions = 0;
 
-  static void UnpackedApplyToSchedule(Schedule sch, SBlockRV block_rv, IntImm tensor_index,
+  static void UnpackedApplyToSchedule(Schedule sch, SBlockRV block_rv, int tensor_index,
                                       ffi::String dtype) {
-    return sch->UnsafeSetDType(block_rv, tensor_index->value.as<int>().value(), dtype);
+    return sch->UnsafeSetDType(block_rv, tensor_index, dtype);
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String block_rv,
-                                      IntImm tensor_index, ffi::String dtype) {
+                                      int tensor_index, ffi::String dtype) {
     PythonAPICall py("unsafe_set_dtype");
     py.Input("block", block_rv);
     py.Input("tensor_index", tensor_index);

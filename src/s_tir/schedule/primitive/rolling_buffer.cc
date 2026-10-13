@@ -505,12 +505,12 @@ struct RollingBufferTraits : public UnpackedInstTraits<RollingBufferTraits> {
   static constexpr size_t kNumAttrs = 1;
   static constexpr size_t kNumDecisions = 0;
 
-  static void UnpackedApplyToSchedule(Schedule sch, SBlockRV block, IntImm write_tensor_index) {
-    return sch->RollingBuffer(block, write_tensor_index->value.as<int>().value());
+  static void UnpackedApplyToSchedule(Schedule sch, SBlockRV block, int write_tensor_index) {
+    return sch->RollingBuffer(block, write_tensor_index);
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String block,
-                                      IntImm write_tensor_index) {
+                                      int write_tensor_index) {
     PythonAPICall py("rolling_buffer");
     py.Input("block", block);
     py.Input("write_tensor_index", write_tensor_index);

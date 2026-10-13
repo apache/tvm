@@ -48,7 +48,13 @@ def _has_volatile_alloc_tensor(mod):
 
 
 def test_basic():
-    transform = tvm.s_tir.transform.LowerThreadAllreduce()
+    transform = tvm.transform.Sequential(
+        [
+            tvm.s_tir.transform.LowerOpaqueBlock(),
+            tvm.s_tir.transform.LowerThreadBinding(),
+            tvm.tirx.transform.LowerThreadAllreduce(),
+        ]
+    )
 
     @I.ir_module
     class Before:
@@ -86,7 +92,13 @@ def test_basic():
 
 
 def test_basic_with_decl_tensor():
-    transform = tvm.s_tir.transform.LowerThreadAllreduce()
+    transform = tvm.transform.Sequential(
+        [
+            tvm.s_tir.transform.LowerOpaqueBlock(),
+            tvm.s_tir.transform.LowerThreadBinding(),
+            tvm.tirx.transform.LowerThreadAllreduce(),
+        ]
+    )
 
     @I.ir_module
     class Before:
@@ -119,7 +131,13 @@ def test_basic_with_decl_tensor():
 
 
 def test_reduce_summation():
-    transform = tvm.s_tir.transform.LowerThreadAllreduce()
+    transform = tvm.transform.Sequential(
+        [
+            tvm.s_tir.transform.LowerOpaqueBlock(),
+            tvm.s_tir.transform.LowerThreadBinding(),
+            tvm.tirx.transform.LowerThreadAllreduce(),
+        ]
+    )
 
     @I.ir_module
     class Before:
@@ -166,7 +184,13 @@ def test_reduce_summation():
 
 
 def test_multi_group_reduction():
-    transform = tvm.s_tir.transform.LowerThreadAllreduce()
+    transform = tvm.transform.Sequential(
+        [
+            tvm.s_tir.transform.LowerOpaqueBlock(),
+            tvm.s_tir.transform.LowerThreadBinding(),
+            tvm.tirx.transform.LowerThreadAllreduce(),
+        ]
+    )
 
     @I.ir_module
     class Before:
@@ -199,7 +223,13 @@ def test_multi_group_reduction():
 
 
 def test_multi_group_reduction_consumed_through_alias():
-    transform = tvm.s_tir.transform.LowerThreadAllreduce()
+    transform = tvm.transform.Sequential(
+        [
+            tvm.s_tir.transform.LowerOpaqueBlock(),
+            tvm.s_tir.transform.LowerThreadBinding(),
+            tvm.tirx.transform.LowerThreadAllreduce(),
+        ]
+    )
 
     @I.ir_module
     class Before:
@@ -237,7 +267,13 @@ def test_multi_group_reduction_consumed_through_alias():
 
 
 def test_multi_group_reduction_with_alias_declared_after_allreduce():
-    transform = tvm.s_tir.transform.LowerThreadAllreduce()
+    transform = tvm.transform.Sequential(
+        [
+            tvm.s_tir.transform.LowerOpaqueBlock(),
+            tvm.s_tir.transform.LowerThreadBinding(),
+            tvm.tirx.transform.LowerThreadAllreduce(),
+        ]
+    )
 
     @I.ir_module
     class Before:
@@ -275,7 +311,13 @@ def test_multi_group_reduction_with_alias_declared_after_allreduce():
 
 
 def test_multi_group_mask1():
-    transform = tvm.s_tir.transform.LowerThreadAllreduce()
+    transform = tvm.transform.Sequential(
+        [
+            tvm.s_tir.transform.LowerOpaqueBlock(),
+            tvm.s_tir.transform.LowerThreadBinding(),
+            tvm.tirx.transform.LowerThreadAllreduce(),
+        ]
+    )
 
     @I.ir_module
     class Before:
@@ -308,7 +350,13 @@ def test_multi_group_mask1():
 
 
 def test_multi_warp_reduce1():
-    transform = tvm.s_tir.transform.LowerThreadAllreduce()
+    transform = tvm.transform.Sequential(
+        [
+            tvm.s_tir.transform.LowerOpaqueBlock(),
+            tvm.s_tir.transform.LowerThreadBinding(),
+            tvm.tirx.transform.LowerThreadAllreduce(),
+        ]
+    )
 
     @I.ir_module
     class Before:
@@ -342,7 +390,13 @@ def test_multi_warp_reduce1():
 
 
 def test_multi_warp_reduce2():
-    transform = tvm.s_tir.transform.LowerThreadAllreduce()
+    transform = tvm.transform.Sequential(
+        [
+            tvm.s_tir.transform.LowerOpaqueBlock(),
+            tvm.s_tir.transform.LowerThreadBinding(),
+            tvm.tirx.transform.LowerThreadAllreduce(),
+        ]
+    )
 
     @I.ir_module
     class Before:
@@ -375,7 +429,13 @@ def test_multi_warp_reduce2():
 
 
 def test_multi_group_multi_warp_reduction():
-    transform = tvm.s_tir.transform.LowerThreadAllreduce()
+    transform = tvm.transform.Sequential(
+        [
+            tvm.s_tir.transform.LowerOpaqueBlock(),
+            tvm.s_tir.transform.LowerThreadBinding(),
+            tvm.tirx.transform.LowerThreadAllreduce(),
+        ]
+    )
 
     @I.ir_module
     class Before:
@@ -409,7 +469,13 @@ def test_multi_group_multi_warp_reduction():
 
 
 def test_multi_group_multi_warp_predicated_reduction():
-    transform = tvm.s_tir.transform.LowerThreadAllreduce()
+    transform = tvm.transform.Sequential(
+        [
+            tvm.s_tir.transform.LowerOpaqueBlock(),
+            tvm.s_tir.transform.LowerThreadBinding(),
+            tvm.tirx.transform.LowerThreadAllreduce(),
+        ]
+    )
 
     @I.ir_module
     class Before:
@@ -450,7 +516,13 @@ def test_multi_group_multi_warp_predicated_reduction():
 
 
 def test_metal_no_mask():
-    transform = tvm.s_tir.transform.LowerThreadAllreduce()
+    transform = tvm.transform.Sequential(
+        [
+            tvm.s_tir.transform.LowerOpaqueBlock(),
+            tvm.s_tir.transform.LowerThreadBinding(),
+            tvm.tirx.transform.LowerThreadAllreduce(),
+        ]
+    )
 
     @I.ir_module
     class Before:
@@ -498,7 +570,13 @@ def test_metal_no_mask():
 
 
 def test_webgpu_warp_reduce():
-    transform = tvm.s_tir.transform.LowerThreadAllreduce()
+    transform = tvm.transform.Sequential(
+        [
+            tvm.s_tir.transform.LowerOpaqueBlock(),
+            tvm.s_tir.transform.LowerThreadBinding(),
+            tvm.tirx.transform.LowerThreadAllreduce(),
+        ]
+    )
 
     @I.ir_module
     class Before:
@@ -550,7 +628,13 @@ def test_webgpu_warp_reduce():
 
 
 def test_webgpu_multi_warp_reduce():
-    transform = tvm.s_tir.transform.LowerThreadAllreduce()
+    transform = tvm.transform.Sequential(
+        [
+            tvm.s_tir.transform.LowerOpaqueBlock(),
+            tvm.s_tir.transform.LowerThreadBinding(),
+            tvm.tirx.transform.LowerThreadAllreduce(),
+        ]
+    )
 
     @I.ir_module
     class Before:

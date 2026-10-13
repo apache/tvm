@@ -231,11 +231,6 @@ def RenormalizeSplitPattern():
     return _ffi_api.RenormalizeSplitPattern()  # type: ignore
 
 
-@_ffi.register_object("tirx.transform.StmtSimplifyConfig")
-class StmtSimplifyConfig(_ffi.Object):
-    """Config for stmt simplify pass"""
-
-
 def StmtSimplify():
     """Run statement-level arithmetic simplifications on the TIR Function.
 

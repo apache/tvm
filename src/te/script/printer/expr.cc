@@ -18,10 +18,8 @@
  */
 
 #include <tvm/script/printer/doc_translator.h>
+#include <tvm/script/printer/support.h>
 #include <tvm/te/operation.h>
-
-#include "../../../script/printer/ir/utils.h"
-#include "../../../script/printer/utils.h"
 
 namespace tvm::script::printer::details {
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -73,12 +71,12 @@ ffi::Optional<ExprDoc> ReduceDocTranslate(DocTranslatorObj* d, ffi::AnyView inpu
       d->Emit(AssignDoc(id, value, std::nullopt), axis->var);
     }
   }
-  ExprDoc combiner = AnyValue(d, node->combiner);
-  ExprDoc source = AnyValue(d, node->source);
-  ExprDoc axis = AnyValue(d, node->axis);
+  ExprDoc combiner = d->Translate(node->combiner).value();
+  ExprDoc source = d->Translate(node->source).value();
+  ExprDoc axis = d->Translate(node->axis).value();
   ExprDoc condition = d->Translate(node->condition).value();
   ExprDoc value_index = LiteralDoc::Int(node->value_index, std::nullopt);
-  ExprDoc init = AnyValue(d, node->init);
+  ExprDoc init = d->Translate(node->init).value();
   d->RecordOrigin(source, node->source);
   d->RecordOrigin(axis, node->axis);
   d->RecordOrigin(init, node->init);

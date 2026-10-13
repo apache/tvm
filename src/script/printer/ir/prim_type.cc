@@ -17,10 +17,13 @@
  * under the License.
  */
 
+#include <tvm/runtime/memory_scope.h>
 #include <tvm/script/printer/doc_translator.h>
 
 #include <algorithm>
+#include <cmath>
 #include <functional>
+#include <limits>
 #include <optional>
 
 #include "utils.h"
@@ -43,6 +46,25 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       FDocTranslate::FromNative<&MemoryScopeDocTranslate>());
 }
 
+bool HasPrimTypeShorthand(const PrimType& type) {
+  bool supported_element =
+      (type.MatchesCode(kDLInt, kDLUInt) &&
+       (type.bits() == 8 || type.bits() == 16 || type.bits() == 32 || type.bits() == 64)) ||
+      (type.MatchesCode(kDLFloat) &&
+       (type.bits() == 16 || type.bits() == 32 || type.bits() == 64)) ||
+      type.MatchesCode(kDLFloat8_e3m4, kDLFloat8_e4m3, kDLFloat8_e4m3b11fnuz, kDLFloat8_e4m3fn,
+                       kDLFloat8_e4m3fnuz, kDLFloat8_e5m2, kDLFloat8_e5m2fnuz, kDLFloat8_e8m0fnu,
+                       kDLFloat6_e2m3fn, kDLFloat6_e3m2fn, kDLFloat4_e2m1fn);
+  bool supported_lanes = type->dtype.lanes == 1 || type->dtype.lanes == 2 ||
+                         type->dtype.lanes == 4 || type->dtype.lanes == 8 ||
+                         type->dtype.lanes == 16 || type->dtype.lanes == 32 ||
+                         type->dtype.lanes == 64;
+  bool supported_scalar =
+      type.IsVoid() || (type.IsScalar() && (type.MatchesElementType(kDLBool, 8) ||
+                                            type.MatchesElementType(kDLBfloat, 16)));
+  return (supported_element && supported_lanes) || supported_scalar;
+}
+
 ffi::Optional<ExprDoc> IntImmDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
                                           const ffi::Object*) {
   const auto* imm =
@@ -53,6 +75,12 @@ ffi::Optional<ExprDoc> IntImmDocTranslate(DocTranslatorObj* d, ffi::AnyView inpu
       ffi::StringToDLDataType(d->GetExtraConfig<ffi::String>("ir.int_dtype", "int32"));
   if (dtype == default_dtype && !d->GetOrCreateExtraState<bool>("ir.explicit_scalar_dtype"))
     return value;
+  if (!HasPrimTypeShorthand(imm->ty.as_or_throw<PrimType>()) ||
+      imm->value < std::numeric_limits<int64_t>::min() ||
+      imm->value > std::numeric_limits<int64_t>::max()) {
+    return NamespaceDoc("tirx")->Attr("IntImm")->Call(
+        {LiteralDoc::DataType(dtype, std::nullopt), value});
+  }
   return NamespaceDoc("tirx")->Attr(ffi::DLDataTypeToString(dtype))->Call({value});
 }
 
@@ -71,6 +99,15 @@ ffi::Optional<ExprDoc> FloatImmDocTranslate(DocTranslatorObj* d, ffi::AnyView in
   ExprDoc value = LiteralDoc::Float(imm->value, std::nullopt);
   if (dtype == default_dtype && !d->GetOrCreateExtraState<bool>("ir.explicit_scalar_dtype"))
     return value;
+  if (!HasPrimTypeShorthand(imm->ty.as_or_throw<PrimType>())) {
+    if (!std::isfinite(imm->value)) {
+      // Nonfinite literals render as strings; FloatImm requires a numeric value.
+      value = NamespaceDoc("tirx")->Attr("float64")->Call({value})->Attr("value");
+    }
+    return NamespaceDoc("tirx")
+        ->Attr("FloatImm")
+        ->Call({LiteralDoc::DataType(dtype, std::nullopt), value});
+  }
   return NamespaceDoc("tirx")->Attr(ffi::DLDataTypeToString(dtype))->Call({value});
 }
 
@@ -85,22 +122,8 @@ ffi::Optional<ExprDoc> PrimTypeDocTranslate(DocTranslatorObj*, ffi::AnyView inpu
   const auto* ty =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const PrimTypeNode>(input);
   PrimType type = ffi::GetRef<PrimType>(ty);
-  bool supported_element =
-      (type.MatchesCode(kDLInt, kDLUInt) &&
-       (type.bits() == 8 || type.bits() == 16 || type.bits() == 32 || type.bits() == 64)) ||
-      (type.MatchesCode(kDLFloat) &&
-       (type.bits() == 16 || type.bits() == 32 || type.bits() == 64)) ||
-      type.MatchesCode(kDLFloat8_e3m4, kDLFloat8_e4m3, kDLFloat8_e4m3b11fnuz, kDLFloat8_e4m3fn,
-                       kDLFloat8_e4m3fnuz, kDLFloat8_e5m2, kDLFloat8_e5m2fnuz, kDLFloat8_e8m0fnu,
-                       kDLFloat6_e2m3fn, kDLFloat6_e3m2fn, kDLFloat4_e2m1fn);
-  bool supported_lanes = ty->dtype.lanes == 1 || ty->dtype.lanes == 2 || ty->dtype.lanes == 4 ||
-                         ty->dtype.lanes == 8 || ty->dtype.lanes == 16 || ty->dtype.lanes == 32 ||
-                         ty->dtype.lanes == 64;
-  bool supported_scalar =
-      type.IsVoid() || (type.IsScalar() && (type.MatchesElementType(kDLBool, 8) ||
-                                            type.MatchesElementType(kDLBfloat, 16)));
   // Other widths and fixed or scalable vectors have no exported TIRx shorthand.
-  if ((supported_element && supported_lanes) || supported_scalar) {
+  if (HasPrimTypeShorthand(type)) {
     return NamespaceDoc("tirx")->Attr(type.IsVoid() ? "void" : ffi::DLDataTypeToString(ty->dtype));
   }
   return NamespaceDoc("ir")
@@ -132,10 +155,6 @@ ffi::Optional<ExprDoc> TupleTypeDocTranslate(DocTranslatorObj* d, ffi::AnyView i
   const auto* ty =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const TupleTypeNode>(input);
   ExprDoc callee = NamespaceDoc("ir")->Attr("Tuple");
-  if (ty->fields.empty()) {
-    return d->GetOrCreateExtraState<bool>("ir.type_value") ? callee->Call({}) : callee;
-  }
-  ExtraStateScope<bool> annotations(d, "ir.type_value", false);
   ffi::Array<ExprDoc> fields;
   for (const Type& field : ty->fields) fields.push_back(d->Translate(field).value());
   return callee->Call(fields);

@@ -80,6 +80,12 @@ class IRModuleFrame : public IRBuilderFrame {
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(IRModuleFrame, IRBuilderFrame, IRModuleFrameObj);
 };
 
+/*!
+ * \brief Find the enclosing IRModule frame, allowing intervening frames.
+ * \return The enclosing frame, or raise ValueError when there is none.
+ */
+TVM_TIRX_DLL IRModuleFrame FindModuleFrame();
+
 /*! \brief A shared frame containing a sequence of core IR statements. */
 class StmtFrameObj : public IRBuilderFrameObj {
  public:
@@ -101,6 +107,17 @@ class StmtFrame : public IRBuilderFrame {
   StmtFrame() = default;
   explicit StmtFrame(ffi::ObjectPtr<StmtFrameObj> data) : IRBuilderFrame(data) {}
 };
+
+/*!
+ * \brief Append a statement to the current statement frame or top-level builder result.
+ * \param stmt The statement to append, flattening top-level sequences with copy-on-write.
+ * \param loc The deferred source location, used only when the statement has UnknownLoc.
+ * Empty top-level sequences add no statements to an existing result. Existing
+ * statement locations and results retained by callers are preserved.
+ * \throws ffi::Error If an existing result is not a statement or the current
+ *         frame cannot contain statements.
+ */
+TVM_TIRX_DLL void AddToParent(tvm::Stmt stmt, Location loc);
 
 /*!
  * \brief A frame that represents the for loop.

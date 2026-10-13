@@ -612,8 +612,8 @@ from __future__ import annotations
 @Ts.function
 def func(A: T.Tensor((128, 128), T.float32), B: T.Tensor((256, 256), T.float32)):
     T.func_attr({"s_tir": True, "script.namespace": "s_tir"})
-    mask: T.let["uint1xvscalex4"] = T.get_active_lane_mask(0, 13, ty="uint1xvscalex4")
-    a_load: T.let["float32xvscalex4"] = T.masked_load(A, 0, T.Ramp(0, 4, T.vscale() * 4), mask)
+    mask: T.let[T.PrimType("uint1xvscalex4")] = T.get_active_lane_mask(0, 13, ty=T.PrimType("uint1xvscalex4"))
+    a_load: T.let[T.PrimType("float32xvscalex4")] = T.masked_load(A, 0, T.Ramp(0, 4, T.vscale() * 4), mask)
     T.masked_store(A, a_load, 0, T.Ramp(0, 2, T.vscale() * 4), mask)
 """
     _assert_print(main, expected_output)
@@ -677,7 +677,7 @@ from __future__ import annotations
 @Ts.function
 def main(A: T.Tensor((4,), T.float32), B: T.Tensor((4,), T.float32)):
     T.func_attr({"s_tir": True, "script.namespace": "s_tir"})
-    A[0:4] = T.call_llvm_pure_intrin("llvm.sqrt", B[T.Ramp(0, 1, 4)], ty="float32x4")
+    A[0:4] = T.call_llvm_pure_intrin("llvm.sqrt", B[T.Ramp(0, 1, 4)], ty=T.float32x4)
 """
     _assert_print(main, expected_output)
 

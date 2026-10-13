@@ -44,52 +44,67 @@ ffi::Optional<ExprDoc> IRModuleDocTranslate(DocTranslatorObj* d, ffi::AnyView in
       << "printer statement-only node cannot fulfill a destination";
   ffi::String module_name = d->GetExtraConfig<ffi::String>("ir.module_name", "Module");
   IdDoc module_id = d->AllocId(module_name);
-  ExtraStateScope<ffi::Optional<IdDoc>> module_scope(d, "ir.module_id", module_id);
-  ExtraStateScope<ffi::Optional<IRModule>> module(d, "ir.module", ffi::GetRef<IRModule>(mod));
-  auto body = d->WithDocScope([&]() {
-    if (!mod->attrs->dict.empty()) {
-      ffi::Array<ExprDoc> keys;
-      ffi::Array<ExprDoc> values;
-      std::vector<std::pair<ffi::String, ffi::Any>> attrs(mod->attrs->dict.begin(),
-                                                          mod->attrs->dict.end());
-      std::sort(attrs.begin(), attrs.end(),
-                [](const auto& a, const auto& b) { return a.first < b.first; });
-      for (const auto& [key, value] : attrs) {
-        keys.push_back(LiteralDoc::Str(key, std::nullopt));
-        values.push_back(AnyValue(d, value));
-      }
-      d->Emit(ExprStmtDoc(NamespaceDoc("ir")->Attr("module_attrs")->Call({DictDoc(keys, values)})),
-              ffi::GetRef<ffi::ObjectRef>(mod));
-    }
-    if (!mod->global_infos.empty()) {
-      ffi::Array<ExprDoc> keys;
-      ffi::Array<ExprDoc> values;
-      std::vector<std::pair<ffi::String, ffi::Array<GlobalInfo>>> infos(mod->global_infos.begin(),
-                                                                        mod->global_infos.end());
-      std::sort(infos.begin(), infos.end(),
-                [](const auto& a, const auto& b) { return a.first < b.first; });
-      for (const auto& [key, entries] : infos) {
-        ffi::Array<ExprDoc> items;
-        for (const GlobalInfo& entry : entries) {
-          items.push_back(AnyValue(d, entry));
-        }
-        keys.push_back(LiteralDoc::Str(key, std::nullopt));
-        values.push_back(ListDoc(items));
-      }
-      d->Emit(ExprStmtDoc(
-                  NamespaceDoc("ir")->Attr("module_global_infos")->Call({DictDoc(keys, values)})),
-              ffi::GetRef<ffi::ObjectRef>(mod));
-    }
-    for (const auto& [gv, func] : mod->functions) {
-      ExtraStateScope<ffi::Optional<ffi::String>> name(d, "ir.function_name", gv->name_hint);
-      if (auto value = d->Translate(func)) {
-        d->Emit(AssignDoc(IdDoc(gv->name_hint), value.value(), std::nullopt), func);
-      }
-    }
-  });
-  d->Emit(ClassDoc(module_id, {NamespaceDoc("ir")->Attr("ir_module")}, ToStmtDocArray(body)),
-          ffi::GetRef<ffi::ObjectRef>(mod));
-  return std::nullopt;
+  return d->WithExtraStateScope<ffi::Optional<IdDoc>>(
+      "ir.module_id", module_id, [&]() -> ffi::Optional<ExprDoc> {
+        return d->WithExtraStateScope<ffi::Optional<IRModule>>(
+            "ir.module", ffi::GetRef<IRModule>(mod), [&]() -> ffi::Optional<ExprDoc> {
+              auto body = d->WithDocScope([&]() {
+                if (!mod->attrs->dict.empty()) {
+                  ffi::Array<ExprDoc> keys;
+                  ffi::Array<ExprDoc> values;
+                  std::vector<std::pair<ffi::String, ffi::Any>> attrs(mod->attrs->dict.begin(),
+                                                                      mod->attrs->dict.end());
+                  std::sort(attrs.begin(), attrs.end(),
+                            [](const auto& a, const auto& b) { return a.first < b.first; });
+                  for (const auto& [key, value] : attrs) {
+                    keys.push_back(LiteralDoc::Str(key, std::nullopt));
+                    values.push_back(
+                        d->WithExtraStateScope<bool>("ir.explicit_scalar_dtype", true,
+                                                     [&] { return d->Translate(value).value(); }));
+                  }
+                  d->Emit(
+                      ExprStmtDoc(
+                          NamespaceDoc("ir")->Attr("module_attrs")->Call({DictDoc(keys, values)})),
+                      ffi::GetRef<ffi::ObjectRef>(mod));
+                }
+                if (!mod->global_infos.empty()) {
+                  ffi::Array<ExprDoc> keys;
+                  ffi::Array<ExprDoc> values;
+                  std::vector<std::pair<ffi::String, ffi::Array<GlobalInfo>>> infos(
+                      mod->global_infos.begin(), mod->global_infos.end());
+                  std::sort(infos.begin(), infos.end(),
+                            [](const auto& a, const auto& b) { return a.first < b.first; });
+                  for (const auto& [key, entries] : infos) {
+                    ffi::Array<ExprDoc> items;
+                    for (const GlobalInfo& entry : entries) {
+                      items.push_back(d->WithExtraStateScope<bool>(
+                          "ir.explicit_scalar_dtype", true,
+                          [&] { return d->Translate(entry).value(); }));
+                    }
+                    keys.push_back(LiteralDoc::Str(key, std::nullopt));
+                    values.push_back(ListDoc(items));
+                  }
+                  d->Emit(ExprStmtDoc(NamespaceDoc("ir")
+                                          ->Attr("module_global_infos")
+                                          ->Call({DictDoc(keys, values)})),
+                          ffi::GetRef<ffi::ObjectRef>(mod));
+                }
+                for (const auto& [gv, func] : mod->functions) {
+                  d->WithExtraStateScope<ffi::Optional<ffi::String>>(
+                      "ir.function_name", gv->name_hint, [&]() {
+                        if (auto value = d->Translate(func)) {
+                          d->Emit(AssignDoc(IdDoc(gv->name_hint), value.value(), std::nullopt),
+                                  func);
+                        }
+                      });
+                }
+              });
+              d->Emit(ClassDoc(module_id, {NamespaceDoc("ir")->Attr("ir_module")},
+                               ToStmtDocArray(body)),
+                      ffi::GetRef<ffi::ObjectRef>(mod));
+              return std::nullopt;
+            });
+      });
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -103,7 +118,7 @@ ffi::Optional<ExprDoc> DictAttrsDocTranslate(DocTranslatorObj* d, ffi::AnyView i
                                              const ffi::Object*) {
   const auto* attrs =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const DictAttrsNode>(input);
-  return AnyValue(d, attrs->dict);
+  return d->Translate(attrs->dict).value();
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

@@ -114,7 +114,7 @@ def test_device_mesh_range_namespace_roundtrip():
     mod = IRModule({})
     mod.update_global_info("mesh", [mesh])
     script = mod.script()
-    assert "R.device_mesh((2, 2), T.Range(0, 4))" in script
+    assert "R.device_mesh((2, 2), T.Range(T.int32(0), T.int32(4)))" in script
     tvm.ir.assert_structural_equal(
         mod, tvm.script.from_source(script, extra_vars={"I": I, "R": R, "T": T})
     )
@@ -189,7 +189,7 @@ from __future__ import annotations
 @T.ir_module
 class Module:
     T.module_attrs({"device_num": 10})
-    T.module_global_infos({"mesh": [R.device_mesh((2, 2), T.Range(0, 4)), R.device_mesh((1,), T.Range(4, 5))]})
+    T.module_global_infos({"mesh": [R.device_mesh((2, 2), T.Range(T.int32(0), T.int32(4))), R.device_mesh((1,), T.Range(T.int32(4), T.int32(5)))]})
     @Ts.function
     def tir_func(x: T.Tensor((T.int64(128), T.int64(128)), T.float32), y: T.Tensor((T.int64(128), T.int64(128)), T.float32)):
         T.func_attr({"s_tir": True, "script.namespace": "s_tir", "tirx.noalias": True})
@@ -445,7 +445,7 @@ def test_object_ty():
     obj = relax.AnyType()
     _assert_print_lines(
         obj,
-        "T.Any",
+        "T.Any()",
     )
 
 
@@ -485,7 +485,7 @@ R.Tensor((1, a, 3), dtype="float32")
 
 def test_tuple_ty_empty():
     obj = relax.TupleType([])
-    _assert_print_lines(obj._relax_script(), "T.Tuple")  # pylint: disable=protected-access
+    _assert_print_lines(obj._relax_script(), "T.Tuple()")  # pylint: disable=protected-access
 
 
 def test_tuple_ty():
@@ -499,7 +499,7 @@ def test_tuple_ty():
     _assert_print_lines(
         obj._relax_script(),  # pylint: disable=protected-access
         """
-T.Tuple(T.float32, T.Any, R.Shape([1, a, 3]))
+T.Tuple(T.float32, T.Any(), R.Shape([1, a, 3]))
 """,
     )
 
@@ -520,7 +520,7 @@ def test_func_ty():
     _assert_print_lines(
         obj,
         'a = T.dynamic("a", dtype="int64")\n'
-        "R.Callable((T.float32, T.Any, R.Shape([1, a, 3]), T.int64), "
+        "R.Callable((T.float32, T.Any(), R.Shape([1, a, 3]), T.int64), "
         'R.Tensor((1, 2, 3), dtype="float32"), True)',
     )
 
@@ -532,7 +532,7 @@ def test_shape_type():
 
 def test_object_type():
     obj = relax.AnyType()
-    _assert_print_lines(obj, "T.Any")
+    _assert_print_lines(obj, "T.Any()")
 
 
 def test_dyn_tensor_type():
@@ -542,14 +542,14 @@ def test_dyn_tensor_type():
 
 def test_packed_func_type():
     obj = relax.PackedFuncType()
-    _assert_print_lines(obj, "R.PackedFunc")
+    _assert_print_lines(obj, "R.PackedFunc()")
 
 
 def test_tuple_type():
     obj = relax.TupleType([relax.ShapeType(ndim=3), relax.AnyType()])
     _assert_print_lines(
         obj._relax_script(),  # pylint: disable=protected-access
-        "T.Tuple(R.Shape(ndim=3), T.Any)",
+        "T.Tuple(R.Shape(ndim=3), T.Any())",
     )
 
 
@@ -566,7 +566,7 @@ def test_func_type():
     )
     _assert_print_lines(
         obj._relax_script(),  # pylint: disable=protected-access
-        'R.Callable((T.Any, R.Shape(ndim=3)), R.Tensor(dtype="float32", ndim=3), True)',
+        'R.Callable((T.Any(), R.Shape(ndim=3)), R.Tensor(dtype="float32", ndim=3), True)',
     )
 
 

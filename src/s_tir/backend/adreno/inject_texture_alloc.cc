@@ -33,17 +33,16 @@
 #include <tvm/tirx/op/abi.h>
 #include <tvm/tirx/op/memory.h>
 
-#include "../../../backend/opencl/runtime/texture.h"
-#include "../../../tirx/transform/ir_utils.h"
+#include "../../../texture_utils.h"
 
 namespace tvm {
 namespace s_tir {
 namespace backend {
 namespace adreno {
 using namespace tvm::tirx;
-using runtime::ApplyTexture2DFlattening;
-using runtime::DefaultTextureLayoutSeparator;
-using runtime::IsTextureStorage;
+using texture::ApplyTexture2DFlattening;
+using texture::DefaultTextureLayoutSeparator;
+using texture::IsTextureStorage;
 
 /*!
  * \brief Inject Texture Alloc Intrinsic right after tensor allocations are realized.

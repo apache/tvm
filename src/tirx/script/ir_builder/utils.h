@@ -58,15 +58,6 @@ inline FunctionFrame FindFunctionFrame(const ffi::String& method) {
   throw;
 }
 
-/*!
- * \brief Convert TensorLoad to TensorRegion.
- * \param tensor_load The TensorLoad.
- * \return The converted TensorRegion.
- */
-inline tvm::TensorRegion TensorRegionFromLoad(tvm::TensorLoad tensor_load) {
-  return ffi::TypeTraits<tvm::TensorRegion>::ConvertFallbackValue(tensor_load);
-}
-
 }  // namespace tirx
 }  // namespace ir_builder
 }  // namespace script

@@ -18,12 +18,13 @@
  */
 #include <tvm/script/printer/doc_translator.h>
 #include <tvm/target/target.h>
+#include <tvm/tirx/function.h>
+#include <tvm/tirx/stmt.h>
 #include <tvm/tirx/type.h>
 
 #include <optional>
 
 #include "../../../script/printer/ir/utils.h"
-#include "utils.h"
 
 namespace tvm {
 namespace script {
@@ -36,7 +37,7 @@ ffi::Optional<ExprDoc> TargetDocTranslate(DocTranslatorObj* d, ffi::AnyView inpu
                                           const ffi::Object*) {
   const auto* target =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const TargetObj>(input);
-  return NamespaceDoc("tirx")->Attr("target")->Call({AnyValue(d, target->ToConfig())});
+  return NamespaceDoc("tirx")->Attr("target")->Call({d->Translate(target->ToConfig()).value()});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

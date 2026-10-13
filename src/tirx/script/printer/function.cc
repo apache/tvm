@@ -23,6 +23,7 @@
 #include <tvm/script/printer/doc_translator.h>
 #include <tvm/script/printer/printer.h>
 #include <tvm/tirx/function.h>
+#include <tvm/tirx/stmt.h>
 #include <tvm/tirx/stmt_functor.h>
 
 #include <algorithm>
@@ -32,7 +33,6 @@
 #include <vector>
 
 #include "../../../script/printer/ir/utils.h"
-#include "utils.h"
 
 namespace tvm {
 namespace script {
@@ -42,92 +42,113 @@ namespace details {
 namespace {
 
 void PrintFunction(DocTranslatorObj* d, const tirx::FunctionNode* func, ExprDoc decorator) {
-  VarScope vars(d);
-
   auto bound_name = d->GetOrCreateExtraState<ffi::Optional<ffi::String>>("ir.function_name");
   // A nested function must not inherit the enclosing module member's binding.
-  ExtraStateScope<ffi::Optional<ffi::String>> name_scope(d, "ir.function_name", std::nullopt);
-  auto global_symbol = func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol);
-  ffi::String name = bound_name.value_or(global_symbol.value_or("main"));
-  FunctionDoc doc(ffi::UnsafeInit{});
-  {
-    ffi::Array<AssignDoc> args;
-    std::unordered_set<const VarNode*> signature_symbols;
-    for (const Var& var : func->params) {
-      ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(
-          var->ty, [&](const Var& symbol) -> ffi::Expected<ffi::WalkResult> {
-            signature_symbols.insert(symbol.get());
-            return ffi::WalkResult::Skip();
-          });
-    }
-    ffi::Array<IdDoc> param_ids;
-    for (const Var& var : func->params) {
-      param_ids.push_back(VarDoc(d, var, !signature_symbols.count(var.get())));
-    }
-    size_t param_index = 0;
-    for (const Var& var : func->params) {
-      IdDoc lhs = param_ids[param_index++];
-      // Reuse the captured scalar in dependent annotations instead of creating
-      // a new parameter identity after an earlier annotation has read it.
-      bool shared_symbol = signature_symbols.count(var.get());
-      ExprDoc annotation =
-          shared_symbol ? d->Translate(var).value() : d->Translate(var->ty).value();
-      d->RecordOrigin(annotation, shared_symbol ? ffi::ObjectRef(var) : ffi::ObjectRef(var->ty));
-      AssignDoc argument(lhs, std::nullopt, annotation);
-      d->RecordOrigin(argument, var);
-      args.push_back(argument);
-    }
+  d->WithExtraStateScope<ffi::Optional<ffi::String>>("ir.function_name", std::nullopt, [&]() {
+    auto completed = d->WithVarScope([&]() {
+      auto global_symbol = func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol);
+      ffi::String name = bound_name.value_or(global_symbol.value_or("main"));
+      FunctionDoc doc(ffi::UnsafeInit{});
+      {
+        ffi::Array<AssignDoc> args;
+        std::unordered_set<const VarNode*> signature_symbols;
+        for (const Var& var : func->params) {
+          ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(
+              var->ty, [&](const Var& symbol) -> ffi::Expected<ffi::WalkResult> {
+                signature_symbols.insert(symbol.get());
+                return ffi::WalkResult::Skip();
+              });
+        }
+        ffi::Array<IdDoc> param_ids;
+        for (const Var& var : func->params) {
+          param_ids.push_back(VarDoc(d, var, !signature_symbols.count(var.get())));
+        }
+        size_t param_index = 0;
+        for (const Var& var : func->params) {
+          IdDoc lhs = param_ids[param_index++];
+          // Reuse the captured scalar in dependent annotations instead of creating
+          // a new parameter identity after an earlier annotation has read it.
+          bool shared_symbol = signature_symbols.count(var.get());
+          ExprDoc annotation =
+              shared_symbol ? d->Translate(var).value() : d->Translate(var->ty).value();
+          d->RecordOrigin(annotation,
+                          shared_symbol ? ffi::ObjectRef(var) : ffi::ObjectRef(var->ty));
+          AssignDoc argument(lhs, std::nullopt, annotation);
+          d->RecordOrigin(argument, var);
+          args.push_back(argument);
+        }
 
-    auto signature_candidates = CopyImplicitDefs(d);
-    for (const Var& var : func->params) signature_candidates.erase(var);
-    ffi::Array<ffi::String> decorator_keys;
-    ffi::Array<ExprDoc> decorator_values;
-    if (!func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol)) {
-      decorator_keys.push_back("private");
-      decorator_values.push_back(LiteralDoc::Boolean(true, std::nullopt));
-    }
-    if (func->attrs->dict.count(tvm::tirx::attr::kPersistentKernel)) {
-      decorator_keys.push_back("persistent");
-      decorator_values.push_back(LiteralDoc::Boolean(true, std::nullopt));
-    }
-    if (!decorator_keys.empty()) decorator = decorator->Call({}, decorator_keys, decorator_values);
-    ffi::Array<StmtDoc> body;
-    if (func->body.has_value()) body = Body(func->body.value(), d);
-    std::vector<std::pair<ffi::String, ffi::Any>> attrs;
-    for (const auto& [key, value] : func->attrs->dict) {
-      if (key != tvm::attr::kGlobalSymbol && key != tvm::tirx::attr::kPersistentKernel)
-        attrs.emplace_back(key, value);
-    }
-    if (!attrs.empty()) {
-      std::sort(attrs.begin(), attrs.end(),
-                [](const auto& a, const auto& b) { return a.first < b.first; });
-      ffi::Array<ExprDoc> keys;
-      ffi::Array<ExprDoc> values;
-      for (const auto& [key, value] : attrs) {
-        keys.push_back(LiteralDoc::Str(key, std::nullopt));
-        values.push_back(AnyValue(d, value));
-      }
-      body.insert(
-          body.begin(),
-          ExprStmtDoc(NamespaceDoc("tirx")->Attr("func_attr")->Call({DictDoc(keys, values)})));
-    }
-    if (bound_name && global_symbol && global_symbol.value() != bound_name.value()) {
-      body.insert(body.begin(),
-                  ExprStmtDoc(NamespaceDoc("tirx")
-                                  ->Attr("func_attr")
-                                  ->Call({DictDoc(
-                                      {LiteralDoc::Str(tvm::attr::kGlobalSymbol, std::nullopt)},
+        ffi::Map<Var, IdDoc> signature_candidates;
+        // GetImplicitDefs is live: keep an owning snapshot before translating the body.
+        for (const auto& [var, id] : d->GetImplicitDefs()) signature_candidates.Set(var, id);
+        for (const Var& var : func->params) signature_candidates.erase(var);
+        ffi::Array<ffi::String> decorator_keys;
+        ffi::Array<ExprDoc> decorator_values;
+        if (!func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol)) {
+          decorator_keys.push_back("private");
+          decorator_values.push_back(LiteralDoc::Boolean(true, std::nullopt));
+        }
+        if (func->attrs->dict.count(tvm::tirx::attr::kPersistentKernel)) {
+          decorator_keys.push_back("persistent");
+          decorator_values.push_back(LiteralDoc::Boolean(true, std::nullopt));
+        }
+        if (!decorator_keys.empty())
+          decorator = decorator->Call({}, decorator_keys, decorator_values);
+        ffi::Array<StmtDoc> body;
+        if (func->body.has_value())
+          body = ToStmtDocArray(d->WithDocScope([&]() { d->Translate(func->body.value()); }));
+        std::vector<std::pair<ffi::String, ffi::Any>> attrs;
+        for (const auto& [key, value] : func->attrs->dict) {
+          if (key != tvm::attr::kGlobalSymbol && key != tvm::tirx::attr::kPersistentKernel)
+            attrs.emplace_back(key, value);
+        }
+        if (!attrs.empty()) {
+          std::sort(attrs.begin(), attrs.end(),
+                    [](const auto& a, const auto& b) { return a.first < b.first; });
+          ffi::Array<ExprDoc> keys;
+          ffi::Array<ExprDoc> values;
+          for (const auto& [key, value] : attrs) {
+            keys.push_back(LiteralDoc::Str(key, std::nullopt));
+            values.push_back(d->WithExtraStateScope<bool>(
+                "ir.explicit_scalar_dtype", true, [&] { return d->Translate(value).value(); }));
+          }
+          body.insert(
+              body.begin(),
+              ExprStmtDoc(NamespaceDoc("tirx")->Attr("func_attr")->Call({DictDoc(keys, values)})));
+        }
+        if (bound_name && global_symbol && global_symbol.value() != bound_name.value()) {
+          body.insert(
+              body.begin(),
+              ExprStmtDoc(
+                  NamespaceDoc("tirx")
+                      ->Attr("func_attr")
+                      ->Call({DictDoc({LiteralDoc::Str(tvm::attr::kGlobalSymbol, std::nullopt)},
                                       {LiteralDoc::Str(global_symbol.value(), std::nullopt)})})));
-    }
-    ffi::Optional<ExprDoc> ret_type = std::nullopt;
-    if (!func->ret_type.as<MissingType>().has_value() && !IsVoidType(func->ret_type)) {
-      ret_type = d->Translate(func->ret_type).value();
-    }
-    doc = FunctionDoc(IdDoc(name), args, {decorator}, ret_type, body);
-    FinalizeFunctionDefinitions(d, signature_candidates, doc);
-  }
-  vars.Close();
-  d->Emit(doc, ffi::GetRef<ffi::ObjectRef>(func));
+        }
+        ffi::Optional<ExprDoc> ret_type = std::nullopt;
+        if (!func->ret_type.as<MissingType>().has_value() && !IsVoidType(func->ret_type)) {
+          ret_type = d->Translate(func->ret_type).value();
+        }
+        doc = FunctionDoc(IdDoc(name), args, {decorator}, ret_type, body);
+        auto module = d->GetOrCreateExtraState<ffi::Optional<IRModule>>("ir.module");
+        auto pending = d->GetImplicitDefs();
+        if (!module.has_value()) {
+          for (const auto& [var, signature_id] : signature_candidates) {
+            if (!pending.count(var) || !var->ty.as<PrimTypeNode>()) continue;
+            IdDoc id = VarDoc(d, var);
+            if (var->ty.as_or_throw<PrimType>()->dtype == (DLDataType{kDLInt, 64, 1})) {
+              doc->type_params.push_back(id);
+            } else {
+              doc->type_params.push_back(
+                  AssignDoc(id, std::nullopt, d->Translate(var->ty).value()));
+            }
+          }
+        }
+      }
+      return doc;
+    });
+    d->Emit(completed, ffi::GetRef<ffi::ObjectRef>(func));
+  });
 }
 
 ffi::Optional<ExprDoc> TirxFunctionDocTranslate(DocTranslatorObj* d, ffi::AnyView input,

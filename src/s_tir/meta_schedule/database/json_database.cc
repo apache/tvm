@@ -115,12 +115,11 @@ class JSONDatabaseObj : public DatabaseObj {
 
   void CommitTuningRecord(const TuningRecord& record) {
     this->tuning_records_.insert(record);
-    JSONFileAppendLine(
-        this->path_tuning_record,
-        JSONDumps(ffi::Array<Any>{
-            /*workload_index=*/IntImm::Int32(this->workloads2idx_.at(record->workload)),
-            /*tuning_record=*/record->AsJSON()  //
-        }));
+    JSONFileAppendLine(this->path_tuning_record,
+                       JSONDumps(ffi::Array<Any>{
+                           /*workload_index=*/this->workloads2idx_.at(record->workload),
+                           /*tuning_record=*/record->AsJSON()  //
+                       }));
   }
 
   ffi::Array<TuningRecord> GetTopK(const Workload& workload, int top_k) {
@@ -195,7 +194,7 @@ Database Database::JSONDatabase(ffi::String path_workload, ffi::String path_tuni
           try {
             const ffi::ArrayObj* arr = json_obj.as<ffi::ArrayObj>();
             TVM_FFI_ICHECK_EQ(arr->size(), 2);
-            int64_t workload_index = static_cast<int64_t>(arr->at(0).cast<IntImm>()->value);
+            int64_t workload_index = arr->at(0).cast<int64_t>();
             TVM_FFI_ICHECK(workload_index >= 0 &&
                            static_cast<size_t>(workload_index) < workloads.size());
             workload = workloads[workload_index];

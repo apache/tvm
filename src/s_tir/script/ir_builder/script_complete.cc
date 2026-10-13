@@ -98,7 +98,7 @@ class ScriptCompleter : public s_tir::StmtExprMutator {
     int mask = 0;
     auto it = op->annotations.find(tvm::s_tir::attr::kScriptParsingDetectAccess);
     if (it != op->annotations.end()) {
-      mask = (*it).second.as_or_throw<IntImm>()->value.as<int>().value();
+      mask = (*it).second.cast<int>();
     }
     // ignore root block or blocks which already has reads/writes regions
     if (mask != 0) {

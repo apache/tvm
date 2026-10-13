@@ -229,7 +229,7 @@ def test_assert_stmt():
         obj,
         """
 assert T.bool(True), ("RuntimeError", ["assertion"])
-T.call_extern("after_assert", ty="int32")
+T.call_extern("after_assert", ty=T.int32)
 """,
     )
 
@@ -464,9 +464,9 @@ T.Cast("float64", a)
 
 def test_llvm_intrin_imm():
     a = tirx.call_llvm_intrin("int32x4", "llvm.donothing")
-    _assert_print(a, 'T.call_llvm_intrin("llvm.donothing", ty="int32x4")')
+    _assert_print(a, 'T.call_llvm_intrin("llvm.donothing", ty=T.int32x4)')
     a = tirx.call_llvm_pure_intrin("int32x4", "llvm.donothing")
-    _assert_print(a, 'T.call_llvm_pure_intrin("llvm.donothing", ty="int32x4")')
+    _assert_print(a, 'T.call_llvm_pure_intrin("llvm.donothing", ty=T.int32x4)')
 
 
 def test_binary_arith():

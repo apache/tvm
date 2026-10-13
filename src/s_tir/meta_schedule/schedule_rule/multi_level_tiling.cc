@@ -285,10 +285,9 @@ std::vector<State> MultiLevelTilingObj::TileLoopNest(State state,
     if (spatial_loop_product > 2 * this->thread_warp_size_) {
       low_inclusive = this->thread_warp_size_;
     }
-    sch->Annotate(block_rv, tvm::s_tir::attr::kMetaScheduleThreadExtentLowInclusive,
-                  IntImm::Int32(low_inclusive));
+    sch->Annotate(block_rv, tvm::s_tir::attr::kMetaScheduleThreadExtentLowInclusive, low_inclusive);
     sch->Annotate(block_rv, tvm::s_tir::attr::kMetaScheduleThreadExtentHighInclusive,
-                  IntImm::Int32(high_inclusive));
+                  high_inclusive);
   }
   return {state};
 }

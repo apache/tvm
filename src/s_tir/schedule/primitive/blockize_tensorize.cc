@@ -939,21 +939,21 @@ struct BlockizeTraits : public UnpackedInstTraits<BlockizeTraits> {
   static constexpr size_t kNumDecisions = 0;
 
   static SBlockRV UnpackedApplyToSchedule(Schedule sch, ffi::ObjectRef target,
-                                          IntImm preserve_unit_iters) {
+                                          bool preserve_unit_iters) {
     if (auto loop = target.as<LoopRV>()) {
-      return sch->Blockize(loop.value(), preserve_unit_iters->value != 0);
+      return sch->Blockize(loop.value(), preserve_unit_iters);
     } else if (auto blocks = target.as<ffi::Array<SBlockRV>>()) {
-      return sch->Blockize(blocks.value(), preserve_unit_iters->value != 0);
+      return sch->Blockize(blocks.value(), preserve_unit_iters);
     }
     TVM_FFI_THROW(TypeError) << "expect Loop or list of SBlocks, but gets:" << target->GetTypeKey();
     TVM_FFI_UNREACHABLE();
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::ObjectRef target,
-                                      IntImm preserve_unit_iters) {
+                                      bool preserve_unit_iters) {
     PythonAPICall py("blockize");
     py.Input("target", target);
-    py.Input("preserve_unit_iters", preserve_unit_iters->value != 0);
+    py.Input("preserve_unit_iters", preserve_unit_iters);
     py.SingleOutput(outputs);
     return py.Str();
   }
@@ -972,11 +972,11 @@ struct TensorizeTraits : public UnpackedInstTraits<TensorizeTraits> {
   static constexpr size_t kNumDecisions = 0;
 
   static void UnpackedApplyToSchedule(Schedule sch, ffi::ObjectRef block_or_loop_rv,
-                                      ffi::String intrin, IntImm preserve_unit_iters) {
+                                      ffi::String intrin, bool preserve_unit_iters) {
     if (auto block = block_or_loop_rv.as<SBlockRV>()) {
-      sch->Tensorize(block.value(), intrin, preserve_unit_iters->value != 0);
+      sch->Tensorize(block.value(), intrin, preserve_unit_iters);
     } else if (auto loop = block_or_loop_rv.as<LoopRV>()) {
-      sch->Tensorize(loop.value(), intrin, preserve_unit_iters->value != 0);
+      sch->Tensorize(loop.value(), intrin, preserve_unit_iters);
     } else {
       TVM_FFI_THROW(TypeError) << "Expected SBlock or Loop, but gets: "
                                << block_or_loop_rv->GetTypeKey();
@@ -984,11 +984,11 @@ struct TensorizeTraits : public UnpackedInstTraits<TensorizeTraits> {
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String block_or_loop_rv,
-                                      ffi::String intrin, IntImm preserve_unit_iters) {
+                                      ffi::String intrin, bool preserve_unit_iters) {
     PythonAPICall py("tensorize");
     py.Input("block_or_loop", block_or_loop_rv);
     py.Input("tensor_intrin", intrin);
-    py.Input("preserve_unit_iters", preserve_unit_iters->value != 0);
+    py.Input("preserve_unit_iters", preserve_unit_iters);
     return py.Str();
   }
 

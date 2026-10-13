@@ -28,8 +28,6 @@
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
 
-#include "../../tirx/transform/ir_utils.h"
-
 namespace tvm {
 namespace s_tir {
 using namespace tvm::tirx;

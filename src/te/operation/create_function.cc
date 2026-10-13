@@ -426,7 +426,7 @@ ffi::Map<ffi::String, ffi::Any> GenerateBlockAnnotations(const te::ComputeOp& co
     }
   }
   // Set script_parsing_detect_access
-  annotations.Set(tvm::s_tir::attr::kScriptParsingDetectAccess, IntImm::Int32(3));
+  annotations.Set(tvm::s_tir::attr::kScriptParsingDetectAccess, 3);
   return annotations;
 }
 

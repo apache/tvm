@@ -80,7 +80,7 @@
 #include <set>
 #include <vector>
 
-#include "../../backend/opencl/runtime/texture.h"
+#include "../../texture_utils.h"
 #include "utils.h"
 
 namespace tvm {
@@ -1107,7 +1107,7 @@ PrimExpr GetTextureMemorySizeFromVDevice(ffi::Array<PrimExpr> pshape, DLDataType
 
   int lanes = static_cast<int16_t>(dtype.lanes);
   TVM_FFI_ICHECK_GE(lanes, 0) << "Can't fetch the bytes of a scalable vector at a compile time.";
-  size_t size = runtime::GetTextureMemorySize<Shape>(shape, dtype.bits, lanes,
+  size_t size = texture::GetTextureMemorySize<Shape>(shape, dtype.bits, lanes,
                                                      vdevice->memory_scope, image_row_align);
   return IntImm::Int64(size);
 }

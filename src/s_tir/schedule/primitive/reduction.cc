@@ -1509,15 +1509,15 @@ struct RFactorTraits : public UnpackedInstTraits<RFactorTraits> {
   static constexpr size_t kNumAttrs = 1;
   static constexpr size_t kNumDecisions = 0;
 
-  static SBlockRV UnpackedApplyToSchedule(Schedule sch, LoopRV loop_rv, IntImm factor_axis) {
-    return sch->RFactor(loop_rv, factor_axis->value.as<int>().value());
+  static SBlockRV UnpackedApplyToSchedule(Schedule sch, LoopRV loop_rv, int factor_axis) {
+    return sch->RFactor(loop_rv, factor_axis);
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String loop_rv,
-                                      IntImm factor_axis) {
+                                      int factor_axis) {
     PythonAPICall py("rfactor");
     py.Input("loop", loop_rv);
-    py.Input("factor_axis", factor_axis->value.as<int>().value());
+    py.Input("factor_axis", factor_axis);
     py.SingleOutput(outputs);
     return py.Str();
   }

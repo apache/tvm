@@ -34,7 +34,7 @@
 
 #include <tuple>
 
-#include "../../../backend/opencl/runtime/texture.h"
+#include "../../../texture_utils.h"
 #include "../../op/tensor/manipulate.h"
 #include "../../transform/infer_layout_utils.h"
 #include "../../transform/utils.h"
@@ -83,7 +83,7 @@ std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, ffi::Map<DFPattern, Expr>)>>
       }
     }
 
-    if (runtime::IsTextureStorage(tir_out_ty->vdevice.value()->memory_scope) &&
+    if (texture::IsTextureStorage(tir_out_ty->vdevice.value()->memory_scope) &&
         (vdev_attrs->dst_vdevice->memory_scope == runtime::MemoryScope::Global())) {
       auto shape_arr = tir_out_ty->GetShape().value();
       auto new_ty = TensorType(ShapeExpr(shape_arr), tir_out_ty->dtype, vdev_attrs->dst_vdevice);

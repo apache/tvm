@@ -23,7 +23,6 @@
 #include <optional>
 #include <string>
 
-#include "../../../script/printer/ir/utils.h"
 #include "utils.h"
 
 namespace tvm {

@@ -866,7 +866,7 @@ class ScheduleObj : public ffi::Object {
    * \param tensor_index_array The array of tensor indices we hide access.
    */
   virtual void UnsafeHideTensorAccess(const SBlockRV& block_rv, const ffi::String& tensor_type,
-                                      const ffi::Array<IntImm>& tensor_index_array) = 0;
+                                      const ffi::Array<int64_t>& tensor_index_array) = 0;
 };
 
 /*!

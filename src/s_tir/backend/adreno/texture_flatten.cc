@@ -36,16 +36,16 @@
 
 #include <unordered_map>
 
-#include "../../../backend/opencl/runtime/texture.h"
+#include "../../../texture_utils.h"
 
 namespace tvm {
 namespace s_tir {
 namespace backend {
 namespace adreno {
 using namespace tvm::tirx;
-using runtime::ApplyTexture2DFlattening;
-using runtime::DefaultTextureLayoutSeparator;
-using runtime::IsTextureStorage;
+using texture::ApplyTexture2DFlattening;
+using texture::DefaultTextureLayoutSeparator;
+using texture::IsTextureStorage;
 
 class TextureLoweringBase : public StmtExprMutator {
  public:

@@ -16,15 +16,17 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#ifndef SRC_TIRX_SCRIPT_PRINTER_UTILS_H_
-#define SRC_TIRX_SCRIPT_PRINTER_UTILS_H_
 
-#include <tvm/ir/expr.h>
-#include <tvm/tirx/function.h>
-#include <tvm/tirx/stmt.h>
+#ifndef TVM_RUNTIME_EXTRA_ROCM_UTILS_H_
+#define TVM_RUNTIME_EXTRA_ROCM_UTILS_H_
 
-#include <optional>
+#include <hip/hip_runtime_api.h>
+#include <tvm/ffi/error.h>
 
-#include "../../../script/printer/ir/utils.h"
+#define ROCM_CALL(func)                                                      \
+  {                                                                          \
+    hipError_t e = (func);                                                   \
+    TVM_FFI_ICHECK(e == hipSuccess) << "ROCM HIP: " << hipGetErrorString(e); \
+  }
 
-#endif  // SRC_TIRX_SCRIPT_PRINTER_UTILS_H_
+#endif  // TVM_RUNTIME_EXTRA_ROCM_UTILS_H_

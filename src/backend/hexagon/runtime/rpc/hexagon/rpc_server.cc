@@ -32,13 +32,14 @@ extern "C" {
 #include <tvm/runtime/logging.h>
 
 #include <algorithm>
+#include <cstdint>
+#include <cstring>
 #include <fstream>
 #include <memory>
+#include <sstream>
 #include <string>
 
 #include "../../../../../runtime/rpc/minrpc/minrpc_server.h"
-#include "../../hexagon_common.h"
-#include "../../hexagon_device_api.h"
 #include "hexagon_rpc.h"
 
 namespace tvm {

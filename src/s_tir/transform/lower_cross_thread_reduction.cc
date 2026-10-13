@@ -38,7 +38,6 @@
 #include <tvm/tirx/op/gpu.h>
 #include <tvm/tirx/stmt.h>
 
-#include "../../tirx/transform/ir_utils.h"
 #include "../schedule/analysis.h"
 #include "../schedule/utils.h"
 

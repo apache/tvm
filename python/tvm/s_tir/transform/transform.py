@@ -30,7 +30,7 @@ def ConvertSSA():
 
 
 def StmtSimplify():
-    """Simplify schedulable TIR with block constraints and tirx.StmtSimplify options."""
+    """Simplify schedulable TIR with block constraints."""
     return _ffi_api.StmtSimplify()
 
 
@@ -329,17 +329,6 @@ def InferFragment():
         The result pass
     """
     return _ffi_api.InferFragment()  # type: ignore
-
-
-def LowerThreadAllreduce():
-    """Lower cross thread allreduce.
-
-    Returns
-    -------
-    fpass : tvm.ir.transform.Pass
-        The result pass
-    """
-    return _ffi_api.LowerThreadAllreduce()  # type: ignore
 
 
 def InjectPTXAsyncCopy():

@@ -34,7 +34,6 @@
 #include <array>
 #include <stack>
 
-#include "../../tirx/transform/ir_utils.h"
 #include "../schedule/utils.h"
 #include "./memhammer_rewrite_rule.h"
 #include "tvm/tirx/stmt.h"

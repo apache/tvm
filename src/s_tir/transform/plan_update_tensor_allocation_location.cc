@@ -30,8 +30,6 @@
 #include <tvm/s_tir/transform.h>
 #include <tvm/tirx/analysis.h>
 
-#include "../../tirx/transform/ir_utils.h"
-
 namespace tvm {
 namespace s_tir {
 using namespace tvm::tirx;

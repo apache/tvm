@@ -403,17 +403,17 @@ struct ReadAtTraits : public UnpackedInstTraits<ReadAtTraits> {
   StmtSRef ReadAt(ScheduleState self, const StmtSRef& loop_sref, const StmtSRef& block_sref,
                   int tensor_index, const ffi::String& storage_scope);
   static SBlockRV UnpackedApplyToSchedule(Schedule sch, LoopRV loop, SBlockRV block,
-                                          IntImm read_tensor_index, ffi::String storage_scope) {
-    return sch->ReadAt(loop, block, read_tensor_index->value.as<int>().value(), storage_scope);
+                                          int read_tensor_index, ffi::String storage_scope) {
+    return sch->ReadAt(loop, block, read_tensor_index, storage_scope);
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String loop,
-                                      ffi::String block, IntImm read_tensor_index,
+                                      ffi::String block, int read_tensor_index,
                                       ffi::String storage_scope) {
     PythonAPICall py("read_at");
     py.Input("loop", loop);
     py.Input("block", block);
-    py.Input("read_tensor_index", read_tensor_index->value.as<int>().value());
+    py.Input("read_tensor_index", read_tensor_index);
     py.Input("storage_scope", storage_scope);
     py.SingleOutput(outputs);
     return py.Str();
@@ -433,17 +433,17 @@ struct WriteAtTraits : public UnpackedInstTraits<WriteAtTraits> {
   static constexpr size_t kNumDecisions = 0;
 
   static SBlockRV UnpackedApplyToSchedule(Schedule sch, LoopRV loop, SBlockRV block,
-                                          IntImm write_tensor_index, ffi::String storage_scope) {
-    return sch->WriteAt(loop, block, write_tensor_index->value.as<int>().value(), storage_scope);
+                                          int write_tensor_index, ffi::String storage_scope) {
+    return sch->WriteAt(loop, block, write_tensor_index, storage_scope);
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String loop,
-                                      ffi::String block, IntImm write_tensor_index,
+                                      ffi::String block, int write_tensor_index,
                                       ffi::String storage_scope) {
     PythonAPICall py("write_at");
     py.Input("loop", loop);
     py.Input("block", block);
-    py.Input("write_tensor_index", write_tensor_index->value.as<int>().value());
+    py.Input("write_tensor_index", write_tensor_index);
     py.Input("storage_scope", storage_scope);
     py.SingleOutput(outputs);
     return py.Str();

@@ -53,8 +53,8 @@ bool IsAnnotateWithParallel(const Instruction& inst) {
  */
 Instruction ReplaceAnnValue(Instruction inst, int64_t ann_val) {
   TVM_FFI_ICHECK_EQ(inst->inputs.size(), 2);
-  return Instruction(/*kind=*/inst->kind,                                   //
-                     /*inputs=*/{inst->inputs[0], IntImm::Int32(ann_val)},  //
+  return Instruction(/*kind=*/inst->kind,                    //
+                     /*inputs=*/{inst->inputs[0], ann_val},  //
                      /*attrs=*/inst->attrs,
                      /*outputs=*/inst->outputs);
 }
@@ -249,7 +249,7 @@ bool FindParallelDecision(const Trace& trace, TRandState* rand_state,
       get_sblock_insts.at(ann_inst->inputs[0].as_or_throw<s_tir::SBlockRV>().get());
   TVM_FFI_ICHECK_EQ(get_sblock_inst->attrs.size(), 2);
   candidate->inst = ffi::GetRef<Instruction>(ann_inst);
-  candidate->parallel_extent = static_cast<int64_t>(ann_inst->inputs[1].cast<IntImm>()->value);
+  candidate->parallel_extent = ann_inst->inputs[1].cast<int64_t>();
   candidate->block_name = get_sblock_inst->attrs[0].as_or_throw<ffi::String>();
   candidate->func_name = get_sblock_inst->attrs[1].as_or_throw<ffi::String>();
   return true;
