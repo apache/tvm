@@ -1187,8 +1187,8 @@ inline constexpr const char* kCallEffectKind = "TCallEffectKind";
 }  // namespace op_attr
 
 namespace type_attr {
-inline constexpr const char* kTensorLoadInferType = "FTensorLoadInferType";
-inline constexpr const char* kSubscriptExprRealize = "__subscript_expr_realize__";
+inline constexpr const char* kTensorLoadInferType = "__tvm_tensor_load_infer_type__";
+inline constexpr const char* kSubscriptExprRealize = "__tvm_subscript_expr_realize__";
 }  // namespace type_attr
 
 }  // namespace tvm
