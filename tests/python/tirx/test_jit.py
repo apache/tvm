@@ -234,16 +234,16 @@ def test_constexpr_specializes_nested_selector_condition():
         *,
         LIMIT: T.constexpr,
     ):
-        T.cuda.tile.cp_async_bulk_tensor_load(
-            C[:], A[:], mbar=C.data, src_selector=[(flag < LIMIT, B)], descriptor_mode="explicit"
+        T.cuda.tile.apply(
+            T.ptx["cp.async.cg.shared.global"], C[:], A[:], chunk_bytes=16, ignore_src=flag < LIMIT
         )
 
     specialized = k.specialize(LIMIT=4)
     op_call = specialized.body[0].value
-    condition, candidate = op_call.args[6][0]
+    parameters = {pair[0].value: pair[1] for pair in op_call.args[2]}
+    condition = parameters["ignore_src"]
     assert isinstance(condition, tvm.tirx.LT)
     assert int(condition.b) == 4
-    assert candidate.source.same_as(specialized.params[1])
 
 
 def test_optional_param_present_and_absent_ir():

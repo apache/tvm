@@ -15,45 +15,14 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name, missing-function-docstring
-"""End-to-end tests for the ``tcgen05.cp`` smem->tmem dispatch.
+"""Native tcgen05.cp layouts, regions, multicast and CTA-pair readbacks.
 
-The bulk is bit-exact GPU round-trips through the generic planner; the
-"legacy 32x128b.warpx4" section at the bottom keeps the original
-single-shape tests (uint8 sub-region copies, NVFP4 SFB middle alignment,
-shared-descriptor emission) that predate the generalization.
-
-For each ``(shape, multicast, swizzle, dtype, tile size)`` combination we:
-
-1. Fill a host tensor ``A`` with random values and stage it into shared
-   memory with an MMA-style (optionally swizzled) layout.
-2. Issue a generic ``Tx.copy_async(tmem_region, smem_region, shape=...,
-   multicast=...)`` — no ``desc_*`` fields, so the generic planner derives
-   the matrix descriptor and cp loop.
-3. Read every TMEM cell back via per-warp ``tcgen05.ld.32x32b`` (each of the
-   4 warps reads its own 32-lane slab at taddr lane 0) into a
-   ``(128, W32)`` uint32 dump.
-4. Rebuild the expected dump on the host purely from the *destination* TMEM
-   layout: logical element ``i`` of the copied region carries ``A``'s value
-   at the matching source coordinate, lands at the (TLane, TCol) position
-   the tmem layout assigns, and is replicated at the multicast lane offsets.
-   Only cells covered by the copy are compared.
-
-The multicast row→lane mappings this asserts (verified on B200 hardware,
-PTX ISA 8.8 §9.7.16.9.2 p675 + Layout E/B figures 213/207):
-
-=============  ==============================  ====================
-multicast      one copy (row → lane)           replica lane offsets
-=============  ==============================  ====================
-warpx4         rows 0-31 → lanes 0-31          +0 / +32 / +64 / +96
-warpx2::02_13  rows 0-63 → lanes 0-63          +0 / +64
-warpx2::01_23  rows 0-31 → lanes 0-31,         +0 / +32
-               rows 32-63 → lanes 64-95
-(4x256b)       rows 0-3 → lanes 0/32/64/96     (none)
-=============  ==============================  ====================
+Instruction shape and descriptor fields are explicitly selected by each case.
+The host references reconstruct the original physical TMEM cells and replicas,
+independently of the caller's zero-copy view and native cp lowering.
 """
 
 import itertools
-import math
 
 import numpy as np
 import pytest
@@ -61,7 +30,7 @@ import pytest
 import tvm
 import tvm.testing
 from tvm.backend.cuda.axis import TCol, TLane
-from tvm.backend.cuda.tile.tma_utils import SwizzleMode, mma_shared_layout
+from tvm.backend.cuda.layout import SwizzleMode, mma_shared_layout
 from tvm.script import tirx as T
 from tvm.testing import env
 from tvm.tirx.layout import ComposeLayout, R, S, TileLayout
@@ -75,7 +44,7 @@ _REPLICA_PATTERN = {
     "warpx2::01_23": [(2, 32)],
 }
 
-# The full (shape, multicast) matrix of the generic planner.
+# The original shape/multicast matrix, selected explicitly in the opcode.
 _SHAPE_MULTICAST = [
     ("128x256b", None),
     ("128x128b", None),
@@ -95,7 +64,7 @@ def _tmem_layout_for(shape, multicast, C):
     """Destination TMEM layout + logical tensor shape for one cp footprint.
 
     The layout encodes the hardware row→lane mapping of ONE copy; the
-    multicast replicas are declared via ``R[...]`` so the planner can verify
+    multicast replicas are declared via ``R[...]`` so the pattern can verify
     them (and the host expectation applies them explicitly).
     """
     if shape in ("128x256b", "128x128b"):
@@ -121,6 +90,51 @@ def _tmem_layout_for(shape, multicast, C):
     raise ValueError(shape)
 
 
+def _emit_cp(dst, src, t_region, s_region, shape, opcode, descriptor):
+    """Expose fixed b32 atom regions selected by the caller's shape and bounds.
+
+    These loops partition the original logical region without searching either
+    operand's physical layout. Each region retains its original row/column start.
+    """
+    atom_rows, atom_bits = _shape_dims(shape)
+    bits = tvm.DataType(src.dtype).bits
+    words = atom_bits // 32
+    s_row, s_col = s_region
+    t_row, t_col = t_region
+    source, destination = src.view("uint32"), dst.view("uint32")
+    for row in range(0, t_row[1] - t_row[0], atom_rows):
+        for col in range(0, (t_col[1] - t_col[0]) * bits // 32, words):
+            sc, tc = s_col[0] * bits // 32 + col, t_col[0] * bits // 32 + col
+            T.evaluate(
+                T.cuda.tile.apply(
+                    T.ptx[opcode],
+                    destination[t_row[0] + row : t_row[0] + row + atom_rows, tc : tc + words],
+                    source[s_row[0] + row : s_row[0] + row + atom_rows, sc : sc + words],
+                    ldo_bytes=descriptor[0],
+                    sdo_bytes=descriptor[1],
+                    swizzle=descriptor[2],
+                )
+            )
+
+
+def _cp_opcode(shape, multicast=None, cta_group=1, decompress=None):
+    opcode = f"tcgen05.cp.cta_group::{cta_group}.{shape}"
+    if multicast:
+        opcode += "." + multicast
+    if decompress:
+        opcode += "." + decompress
+    return opcode
+
+
+def _cp_call_lines(ex, shape, multicast=None, cta_group=1):
+    opcode = _cp_opcode(shape, multicast, cta_group)
+    source = ex.mod.imports[0].inspect_source()
+    name = "tvm_builtin_ptx_tcgen05_cp_cp_" + opcode.removeprefix("tcgen05.cp.").replace(
+        "::", "__"
+    ).replace(".", "_")
+    return [line for line in source.splitlines() if line.strip().startswith(name + "(")]
+
+
 def _next_pow2(x):
     return 1 if x <= 1 else 1 << (x - 1).bit_length()
 
@@ -138,17 +152,16 @@ def _make_cp_kernel(
     W32,
     n_tmem_cols,
     extra_cfg=None,
-    infer=False,
+    descriptor=(0, 1024, 3),
     pre_zero=False,
 ):
     s_sl = tuple(slice(a, b) for a, b in s_region)
     t_sl = tuple(slice(a, b) for a, b in t_region)
     s_full_sl = tuple(slice(0, e) for e in s_full_shape)
-    cfg = {"cta_group": 1} if infer else {"shape": shape, "cta_group": 1}
-    if not infer and multicast is not None:
-        cfg["multicast"] = multicast
+    cfg = {"shape": shape, "multicast": multicast}
     if extra_cfg:
         cfg.update(extra_cfg)
+    opcode = _cp_opcode(**cfg)
 
     @T.function(check_well_formed=False)
     def kernel(A: T.Tensor(s_full_shape, dtype), B: T.Tensor((128, W32), "uint32")):
@@ -171,38 +184,12 @@ def _make_cp_kernel(
                 T.ptx.mbarrier.init.shared.b64(cp_mbar.ptr_to([0]), T.uint32(1))
             T.ptx.fence.proxy.async_.shared__cta()
             T.cuda.cta_sync()
-            copy_src_2 = T.meta_var(A[s_full_sl])
-            copy_src_tensor_2 = T.meta_var(copy_src_2.source)
-            copy_dst_2 = T.meta_var(A_smem[s_full_sl])
-            copy_dst_tensor_2 = T.meta_var(copy_dst_2.source)
-            for copy_step_2 in T.serial(
-                T.ceildiv(math.prod([int(r.extent) for r in copy_src_2.region]), 128)
-            ):
-                copy_index_2 = copy_step_2 * (128) + (tid_in_wg)
-                if copy_index_2 < math.prod([int(r.extent) for r in copy_src_2.region]):
-                    copy_value_2 = copy_src_tensor_2[
-                        tuple(
-                            [
-                                copy_src_2.region[k].min
-                                + copy_index_2
-                                // math.prod([int(s.extent) for s in copy_src_2.region[k + 1 :]])
-                                % copy_src_2.region[k].extent
-                                for k in range(len(copy_src_2.region))
-                            ]
-                        )
-                    ]
-                    copy_dst_index_2 = T.meta_var(
-                        tuple(
-                            [
-                                copy_dst_2.region[k].min
-                                + copy_index_2
-                                // math.prod([int(s.extent) for s in copy_dst_2.region[k + 1 :]])
-                                % copy_dst_2.region[k].extent
-                                for k in range(len(copy_dst_2.region))
-                            ]
-                        )
-                    )
-                    copy_dst_tensor_2[copy_dst_index_2] = copy_value_2
+            stage_src = A.sub[s_full_sl].view(-1)
+            stage_dst = A_smem.sub[s_full_sl].view(-1)
+            for step in range(T.ceildiv(stage_dst.shape[0], 128)):
+                index = step * 128 + tid_in_wg
+                if index < stage_dst.shape[0]:
+                    stage_dst[index] = stage_src[index]
             T.cuda.cta_sync()
             tmem = T.cuda.decl_tmem(
                 tmem_addr[0], ty_args=[T.Tensor(t_full_shape, dtype, scope="tmem", layout=t_full)]
@@ -221,7 +208,7 @@ def _make_cp_kernel(
                 T.cuda.cta_sync()
                 T.ptx.tcgen05.fence__after_thread_sync()
             if tid_in_wg == 0:
-                T.cuda.tile.tcgen05.cp(tmem[t_sl], A_smem[s_sl], **cfg)
+                _emit_cp(tmem, A_smem, t_region, s_region, shape, opcode, descriptor)
                 T.ptx.tcgen05.commit.cta_group__1.mbarrier__arrive__one.shared__cluster.b64(
                     cp_mbar.ptr_to([0])
                 )
@@ -272,7 +259,15 @@ def _expected_readback(A_bits, s_region, t_full, t_full_shape, t_region, multica
 
 
 def _build_case(
-    shape, multicast, sw, dtype, n_mid, s_row_off=0, t_col_off_e=0, extra_cfg=None, infer=False
+    shape,
+    multicast,
+    sw,
+    dtype,
+    n_mid,
+    s_row_off=0,
+    t_col_off_e=0,
+    extra_cfg=None,
+    instruction_shape=None,
 ):
     """Assemble (kernel, host-check closure) for one cp configuration."""
     bits = tvm.runtime.DataType(dtype).bits
@@ -316,12 +311,16 @@ def _build_case(
         t_full_shape,
         t_region,
         dtype,
-        shape,
+        instruction_shape or shape,
         multicast,
         W32,
         n_tmem_cols,
         extra_cfg=extra_cfg,
-        infer=infer,
+        descriptor=(
+            128 if sw == 0 and atom_bits == 256 else 0,
+            256 if sw == 0 and atom_bits == 256 else 128 << sw,
+            sw,
+        ),
     )
 
     def check(mod):
@@ -363,7 +362,7 @@ def _run_case(shape, multicast, sw, dtype, n_mid, s_row_off=0, t_col_off_e=0):
 @pytest.mark.parametrize("dtype", ["bfloat16", "float32"])
 @pytest.mark.parametrize("n_mid", [1, 4], ids=["single_cp", "multi_cp"])
 def test_cp_shape_roundtrip_swizzled(shape, multicast, sw, dtype, n_mid):
-    """Bit-exact smem→tmem round-trip through the generic planner."""
+    """Bit-exact shared-to-TMEM transfer using the requested instruction."""
     _run_case(shape, multicast, sw, dtype, n_mid)
 
 
@@ -413,45 +412,33 @@ def test_cp_4x256b_compile_emits_shape_and_count():
     assert helper_refs - 1 == 2, f"expected 2 cp calls, got {helper_refs - 1}; src=\n{src}"
 
 
-def test_cp_shape_config_routes_to_generic_planner():
-    """``shape=`` without desc_* must use the generic planner, not the
-    explicit path: one hoisted descriptor encoded at SMEM base 0 with the
-    14-bit address patch per cp."""
+def test_cp_explicit_shape_and_descriptor():
     kernel, _ = _build_case("128x256b", None, 3, "bfloat16", 4)
-    mod = _compile(kernel)
-    src = mod.mod.imports[0].inspect_source()
-    assert "tcgen05.cp.cta_group::1.128x256b" in src
-    # Generic-planner signature: descriptor template encoded at address 0...
-    assert "reinterpret_cast<void*>((uint64_t)0ULL)" in src
-    # ...and patched per cp via the 0x3FFF address-field mask.
-    assert src.count("cp_desc_ptr[0] &") == 4, f"expected 4 patched cps; src=\n{src}"
+    ex = _compile(kernel)
+    assert len(_cp_call_lines(ex, "128x256b")) == 4
+    source = ex.mod.imports[0].inspect_source()
+    assert "16383" in source  # descriptor's 14-bit start-address field
 
 
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda_compute(10), reason="need cuda compute >= 10.0")
 @pytest.mark.parametrize("shape,multicast", [sm for sm in _SHAPE_MULTICAST if sm[0] != "128x128b"])
-def test_cp_shape_inferred_from_layouts_matches_explicit(shape, multicast):
-    """A bare copy_async infers (shape, multicast) from the tensor layouts and
-    must lower byte-identically to the explicitly configured call. (128x128b
-    is excluded: its layouts also fit the wider 128x256b atom, which inference
-    prefers — covered by the dedicated test below.)"""
-    explicit, _ = _build_case(shape, multicast, 2, "bfloat16", 2)
-    inferred, _ = _build_case(shape, multicast, 2, "bfloat16", 2, infer=True)
-    src_explicit = _compile(explicit).mod.imports[0].inspect_source()
-    src_inferred = _compile(inferred).mod.imports[0].inspect_source()
-    assert src_explicit == src_inferred
+def test_cp_requested_shape_is_preserved(shape, multicast):
+    # These layouts used to select a shape automatically. The caller now
+    # chooses it, and all original layouts still produce the same output.
+    kernel, check = _build_case(shape, multicast, 2, "bfloat16", 2)
+    ex = _compile(kernel)
+    assert len(_cp_call_lines(ex, shape, multicast)) == 2
+    check(ex)
 
 
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda_compute(10), reason="need cuda compute >= 10.0")
-def test_cp_128x128b_layout_infers_wider_256b_atom():
-    """A 128x128b-compatible source also fits the 128x256b atom at half the
-    instruction count; inference must pick the wider atom and stay bit-exact."""
-    inferred, check = _build_case("128x128b", None, 2, "bfloat16", 2, infer=True)
-    mod = _compile(inferred)
-    src = mod.mod.imports[0].inspect_source()
-    assert "tcgen05.cp.cta_group::1.128x256b" in src, f"expected wider atom; src=\n{src}"
-    check(mod)
+def test_cp_128x128b_layout_accepts_explicit_256b_atom():
+    kernel, check = _build_case("128x128b", None, 2, "bfloat16", 2, instruction_shape="128x256b")
+    ex = _compile(kernel)
+    assert len(_cp_call_lines(ex, "128x256b")) == 1
+    check(ex)
 
 
 @pytest.mark.gpu
@@ -477,11 +464,11 @@ def test_cp_4x256b_lane_tiled_partial_window():
         [64, C],
         [(lo * 4, hi * 4), (0, C)],
         dtype,
-        None,
+        "4x256b",
         None,
         W32,
         32,
-        infer=True,
+        descriptor=(0, 256, 1),
         pre_zero=True,
     )
     mod = _compile(kernel)
@@ -510,6 +497,12 @@ def _make_cp_kernel_cta2(s_full, s_shape, t_full, t_shape, dtype, cfg, W32, n_co
     s_sl = tuple(slice(0, e) for e in s_shape)
     t_sl = tuple(slice(0, e) for e in t_shape)
 
+    shape = cfg["shape"]
+    descriptor = cfg["descriptor"]
+    opcode = _cp_opcode(shape, cfg.get("multicast"), cfg["cta_group"], cfg.get("decompress"))
+    s_region = [(0, d) for d in s_shape]
+    t_region = [(0, d) for d in t_shape]
+
     @T.function(check_well_formed=False)
     def kernel(A: T.Tensor((2, *s_shape), dtype), B: T.Tensor((256, W32), "uint32")):
         T.device_entry(launch=T.cuda.LaunchConfig(grid=(2,), block=4 * 32, cluster=(2, 1)))
@@ -536,8 +529,7 @@ def _make_cp_kernel_cta2(s_full, s_shape, t_full, t_shape, dtype, cfg, W32, n_co
         tmem = T.cuda.decl_tmem(
             tmem_addr[0], ty_args=[T.Tensor(t_shape, dtype, scope="tmem", layout=t_full)]
         )
-        # Pre-zero both CTAs' tmem: alloc does not clear it, and the
-        # 128x256b test asserts the odd CTA stays untouched.
+        # Pre-zero both CTAs: decompression checks include untouched lanes.
         zero_reg = T.alloc_tensor(
             ty_args=[T.Tensor((W32,), "uint32", scope="local", layout="default")]
         )
@@ -548,43 +540,17 @@ def _make_cp_kernel_cta2(s_full, s_shape, t_full, t_shape, dtype, cfg, W32, n_co
                 T.cuda.get_tmem_addr(tmem_addr[0], 0, i), zero_reg[i]
             )
         T.ptx.tcgen05.wait__st.sync.aligned()
-        copy_src_1 = T.meta_var(A[(cbx, *s_sl)])
-        copy_src_tensor_1 = T.meta_var(copy_src_1.source)
-        copy_dst_1 = T.meta_var(A_smem[s_sl])
-        copy_dst_tensor_1 = T.meta_var(copy_dst_1.source)
-        for copy_step_1 in T.serial(
-            T.ceildiv(math.prod([int(r.extent) for r in copy_src_1.region]), 128)
-        ):
-            copy_index_1 = copy_step_1 * (128) + (tid_in_wg)
-            if copy_index_1 < math.prod([int(r.extent) for r in copy_src_1.region]):
-                copy_value_1 = copy_src_tensor_1[
-                    tuple(
-                        [
-                            copy_src_1.region[k].min
-                            + copy_index_1
-                            // math.prod([int(s.extent) for s in copy_src_1.region[k + 1 :]])
-                            % copy_src_1.region[k].extent
-                            for k in range(len(copy_src_1.region))
-                        ]
-                    )
-                ]
-                copy_dst_index_1 = T.meta_var(
-                    tuple(
-                        [
-                            copy_dst_1.region[k].min
-                            + copy_index_1
-                            // math.prod([int(s.extent) for s in copy_dst_1.region[k + 1 :]])
-                            % copy_dst_1.region[k].extent
-                            for k in range(len(copy_dst_1.region))
-                        ]
-                    )
-                )
-                copy_dst_tensor_1[copy_dst_index_1] = copy_value_1
+        stage_src = A.sub[(cbx, *s_sl)].view(-1)
+        stage_dst = A_smem.sub[s_sl].view(-1)
+        for step in range(T.ceildiv(stage_dst.shape[0], 128)):
+            index = step * 128 + tid_in_wg
+            if index < stage_dst.shape[0]:
+                stage_dst[index] = stage_src[index]
         T.cuda.cta_sync()
         T.cuda.cluster_sync()
         if cbx == 0:
             if tid_in_wg == 0:
-                T.cuda.tile.tcgen05.cp(tmem[t_sl], A_smem[s_sl], **cfg)
+                _emit_cp(tmem, A_smem, t_region, s_region, shape, opcode, descriptor)
                 T.ptx.tcgen05.commit.cta_group__2.mbarrier__arrive__one.shared__cluster.multicast__cluster.b64(
                     cp_mbar.ptr_to([0]), T.uint16(3)
                 )
@@ -630,7 +596,12 @@ def test_cp_cta_group_2_128x256b_pair_collective():
     s_full = mma_shared_layout("bfloat16", SwizzleMode.SWIZZLE_32B_ATOM, [128, C])
     t_full = TileLayout(S[(128, C) : (1 @ TLane, 1 @ TCol)])
     A, B = _run_cta2(
-        s_full, [128, C], t_full, [128, C], {"shape": "128x256b", "cta_group": 2}, C * 16 // 32
+        s_full,
+        [128, C],
+        t_full,
+        [128, C],
+        {"shape": "128x256b", "cta_group": 2, "descriptor": (0, 256, 1)},
+        C * 16 // 32,
     )
     for cta in range(2):
         for lane in range(128):
@@ -654,7 +625,12 @@ def test_cp_cta_group_2_64x128b_warpx2_pair_collective():
         [64, C],
         t_full,
         [64, C],
-        {"shape": "64x128b", "multicast": "warpx2::02_13", "cta_group": 2},
+        {
+            "shape": "64x128b",
+            "multicast": "warpx2::02_13",
+            "cta_group": 2,
+            "descriptor": (0, 128, 0),
+        },
         C * 16 // 32,
     )
     for cta in range(2):
@@ -681,11 +657,11 @@ def test_cp_4x256b_lane_tiled_layout_f_scatter():
         [64, C],
         [(0, 64), (0, C)],
         dtype,
-        None,
+        "4x256b",
         None,
         W32,
         32,
-        infer=True,
+        descriptor=(0, 256, 1),
     )
     mod = _compile(kernel)
     src = mod.mod.imports[0].inspect_source()
@@ -705,11 +681,12 @@ def test_cp_4x256b_lane_tiled_layout_f_scatter():
             np.testing.assert_array_equal(B_out[lane, :W32], exp, err_msg=f"lane {lane}")
 
 
-def test_cp_default_32x128b_instruction_sequence_unchanged():
-    """Back-compat pin: a config-less smem->tmem copy_async must emit the
-    exact legacy 32x128b.warpx4 sequence (hardcoded from the pre-generalization
-    planner output): one descriptor encode with (ldo=0, sdo=8, swizzle=0) and
-    four cps at tmem cols 0/4/8/12 reading smem bytes 0/512/1024/1536."""
+def test_cp_explicit_32x128b_instruction_sequence():
+    """The original four-tile input produces four explicit 32x128b.warpx4 calls.
+
+    The selected descriptor is (ldo=0, sdo=128B, swizzle=0); native operations
+    read shared bytes 0/512/1024/1536 into TMEM columns 0/4/8/12.
+    """
     s_full = TileLayout(S[(4, 32, 16) : (512, 16, 1)])
     t_full = TileLayout(S[(4, 32, 16) : (16 @ TCol, 1 @ TLane, 1 @ TCol)] + R[4 : 32 @ TLane])
 
@@ -730,81 +707,38 @@ def test_cp_default_32x128b_instruction_sequence_unchanged():
                     T.address_of(tmem_addr), T.uint32(32)
                 )
             T.cuda.cta_sync()
-            copy_src_3 = T.meta_var(A[:, :, :])
-            copy_src_tensor_3 = T.meta_var(copy_src_3.source)
-            copy_dst_3 = T.meta_var(A_smem[:, :, :])
-            copy_dst_tensor_3 = T.meta_var(copy_dst_3.source)
-            for copy_step_3 in T.serial(
-                T.ceildiv(math.prod([int(r.extent) for r in copy_src_3.region]), 128)
-            ):
-                copy_index_3 = copy_step_3 * (128) + (tid_in_wg)
-                if copy_index_3 < math.prod([int(r.extent) for r in copy_src_3.region]):
-                    copy_value_3 = copy_src_tensor_3[
-                        tuple(
-                            [
-                                copy_src_3.region[k].min
-                                + copy_index_3
-                                // math.prod([int(s.extent) for s in copy_src_3.region[k + 1 :]])
-                                % copy_src_3.region[k].extent
-                                for k in range(len(copy_src_3.region))
-                            ]
-                        )
-                    ]
-                    copy_dst_index_3 = T.meta_var(
-                        tuple(
-                            [
-                                copy_dst_3.region[k].min
-                                + copy_index_3
-                                // math.prod([int(s.extent) for s in copy_dst_3.region[k + 1 :]])
-                                % copy_dst_3.region[k].extent
-                                for k in range(len(copy_dst_3.region))
-                            ]
-                        )
-                    )
-                    copy_dst_tensor_3[copy_dst_index_3] = copy_value_3
+            stage_src = A.sub[:, :, :].view(-1)
+            stage_dst = A_smem.sub[:, :, :].view(-1)
+            for step in range(T.ceildiv(stage_dst.shape[0], 128)):
+                index = step * 128 + tid_in_wg
+                if index < stage_dst.shape[0]:
+                    stage_dst[index] = stage_src[index]
             T.cuda.cta_sync()
             tmem = T.cuda.decl_tmem(
                 tmem_addr[0], ty_args=[T.Tensor((4, 32, 16), "uint8", scope="tmem", layout=t_full)]
             )
             if tid_in_wg == 0:
-                # NOTE: no shape/multicast config — the legacy default route.
-                T.cuda.tile.tcgen05.cp(tmem[:, :, :], A_smem[:, :, :], cta_group=1)
+                # The original default shape is now written explicitly.
+                T.cuda.tile.apply(
+                    T.ptx["tcgen05.cp.cta_group::1.32x128b.warpx4"],
+                    tmem.view("uint32"),
+                    A_smem.view("uint32"),
+                    ldo_bytes=0,
+                    sdo_bytes=128,
+                )
             if warp_id == 0:
                 T.ptx.tcgen05.relinquish_alloc_permit.cta_group__1.sync.aligned()
                 T.ptx.tcgen05.dealloc.cta_group__1.sync.aligned.b32(tmem_addr[0], T.uint32(32))
 
     mod = _compile(kernel)
-    src = mod.mod.imports[0].inspect_source()
-
-    encode_lines = [
-        line
-        for line in src.splitlines()
-        if "tvm_builtin_ptx_tcgen05_encode_matrix_descriptor(" in line
-        and "__forceinline__" not in line
-    ]
-    assert len(encode_lines) == 1, encode_lines
-    # (ldo, sdo, swizzle) = (0, 8, 0), template encoded at smem address 0.
-    assert "reinterpret_cast<void*>((uint64_t)0ULL), 0, 8, 0);" in encode_lines[0], encode_lines[0]
-
-    cp_lines = [
-        line
-        for line in src.splitlines()
-        if "tvm_builtin_ptx_tcgen05_cp_cp_cta_group__1_32x128b_warpx4(" in line
-        and "__forceinline__" not in line
-    ]
-    assert len(cp_lines) == 4, f"expected 4 cp calls, got {len(cp_lines)}"
-    for i, (t_off, s_off) in enumerate([(0, 0), (4, 512), (8, 1024), (12, 1536)]):
-        # The declaration captures its base address once; each copy composes
-        # the same captured address with its physical column offset.
-        base = "reinterpret_cast<uint64_t>(tmem))"
-        t_tok = f"{base}, " if t_off == 0 else f"{base} + (uint){t_off}), "
-        assert t_tok in cp_lines[i], f"cp[{i}] tmem col: want {t_tok!r} in {cp_lines[i]!r}"
-        s_tok = f"+ {s_off}))"
-        assert s_tok in cp_lines[i], f"cp[{i}] smem byte off: want {s_tok!r} in {cp_lines[i]!r}"
-        assert "cp_desc_ptr[0] &" in cp_lines[i] and "16383" in cp_lines[i], cp_lines[i]
+    cp_lines = _cp_call_lines(mod, "32x128b", "warpx4")
+    assert len(cp_lines) == 4
+    # The host readback test checks the physical correspondence independently.
+    for line in cp_lines:
+        assert "16383" in line
 
 
-# Negative tests: readable ValueErrors from the planner
+# Invalid native opcode, ownership, alignment and descriptor contracts
 
 
 def _assert_compile_raises(kernel, fragment):
@@ -834,12 +768,12 @@ def test_cp_rejects_wrong_replica_for_multicast():
         C * bits // 32,
         32,
     )
-    _assert_compile_raises(kernel, "replica mismatch")
+    _assert_compile_raises(kernel, "replicas must match")
 
 
 def test_cp_rejects_illegal_shape_multicast_combo():
-    kernel, _ = _build_case("128x256b", None, 3, "bfloat16", 1, extra_cfg={"multicast": "warpx4"})
-    _assert_compile_raises(kernel, "illegal multicast")
+    with pytest.raises((ValueError, RuntimeError), match="takes no multicast|Invalid PTX"):
+        _build_case("128x256b", None, 3, "bfloat16", 1, extra_cfg={"multicast": "warpx4"})
 
 
 def test_cp_rejects_missing_multicast_for_64x128b():
@@ -847,20 +781,20 @@ def test_cp_rejects_missing_multicast_for_64x128b():
     C = 128 // bits
     t_full, t_full_shape = _tmem_layout_for("64x128b", "warpx2::02_13", C)
     s_full = mma_shared_layout("bfloat16", SwizzleMode(3), [64, 64])
-    kernel = _make_cp_kernel(
-        s_full,
-        [64, 64],
-        [(0, 64), (0, C)],
-        t_full,
-        t_full_shape,
-        [(0, 64), (0, C)],
-        "bfloat16",
-        "64x128b",
-        None,  # 64x128b has two legal multicasts: must be explicit
-        C * bits // 32,
-        32,
-    )
-    _assert_compile_raises(kernel, "requires an explicit multicast")
+    with pytest.raises((ValueError, RuntimeError), match="requires multicast|Invalid PTX"):
+        kernel = _make_cp_kernel(
+            s_full,
+            [64, 64],
+            [(0, 64), (0, C)],
+            t_full,
+            t_full_shape,
+            [(0, 64), (0, C)],
+            "bfloat16",
+            "64x128b",
+            None,  # 64x128b has two legal multicasts: must be explicit
+            C * bits // 32,
+            32,
+        )
 
 
 def test_cp_rejects_non_128b_tcol_offset():
@@ -884,13 +818,12 @@ def test_cp_rejects_non_128b_tcol_offset():
         t_C * bits // 32,
         32,
     )
-    _assert_compile_raises(kernel, "not provably 128b-aligned")
+    _assert_compile_raises(kernel, "128-bit aligned")
 
 
 def test_cp_rejects_unknown_shape():
-    # Valid 32x128b setup, but the shape string is overridden with a bogus one.
-    kernel, _ = _build_case("32x128b", None, 3, "bfloat16", 1, extra_cfg={"shape": "96x128b"})
-    _assert_compile_raises(kernel, "unknown tcgen05.cp shape")
+    with pytest.raises((KeyError, ValueError, RuntimeError), match="96x128b|Invalid PTX"):
+        _build_case("32x128b", "warpx4", 3, "bfloat16", 1, extra_cfg={"shape": "96x128b"})
 
 
 def test_cp_rejects_nonzero_tmem_lane_offset():
@@ -914,16 +847,96 @@ def test_cp_rejects_nonzero_tmem_lane_offset():
         C * bits // 32,
         32,
     )
-    _assert_compile_raises(kernel, "overflows the 128-lane space")
+    _assert_compile_raises(kernel, "128-lane")
 
 
-def test_cp_rejects_decompress_on_generic_path():
-    """decompress is a real PTX feature the planner cannot lower; it must be
-    rejected loudly instead of silently copying without decompression."""
-    kernel, _ = _build_case(
-        "128x256b", None, 3, "bfloat16", 1, extra_cfg={"decompress": "b8x16.b6x16_p32"}
-    )
-    _assert_compile_raises(kernel, "does not support decompress")
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(10), reason="need cuda compute >= 10.0")
+@pytest.mark.parametrize("shape,multicast", _SHAPE_MULTICAST)
+@pytest.mark.parametrize("sw", [0, 1, 2, 3])
+@pytest.mark.parametrize("bits", [4, 6])
+@pytest.mark.parametrize("cta_group", [1, 2])
+def test_cp_native_decompression(shape, multicast, sw, bits, cta_group):
+    """Native fp4/fp6 expansion, including padding, replicas and both CTAs.
+
+    ISA 9.7.18.9.1: b4x16_p64 inserts two low zero bits; b6x16_p32
+    inserts two high zero bits. Each source/destination block is 16 bytes.
+    """
+    rows, atom_bits = _shape_dims(shape)
+    cols = atom_bits // 8
+    s_rows = max(rows, 8)
+    if sw == 0:
+        if atom_bits == 128:
+            s_shape = [s_rows, cols]
+            s_layout = TileLayout(S[tuple(s_shape)])
+            descriptor = (0, 128, 0)
+        else:
+            s_shape = [s_rows, cols]
+            s_layout = TileLayout(S[(s_rows // 8, 8, 2, 16) : (256, 16, 128, 1)])
+            descriptor = (128, 256, 0)
+    else:
+        s_shape = [s_rows, max(cols, 16 << sw)]
+        s_layout = mma_shared_layout("uint8", sw, s_shape)
+        descriptor = (0, 128 << sw, sw)
+    t_layout, t_shape = _tmem_layout_for(shape, multicast, cols)
+    s_region, t_region = [(0, rows), (0, cols)], [(0, rows), (0, cols)]
+    fmt = "b8x16.b4x16_p64" if bits == 4 else "b8x16.b6x16_p32"
+    width32 = cols // 4
+    if cta_group == 1:
+        kernel = _make_cp_kernel(
+            s_layout,
+            s_shape,
+            s_region,
+            t_layout,
+            t_shape,
+            t_region,
+            "uint8",
+            shape,
+            multicast,
+            width32,
+            32,
+            extra_cfg={"decompress": fmt},
+            descriptor=descriptor,
+            pre_zero=True,
+        )
+    else:
+        kernel = _make_cp_kernel_cta2(
+            s_layout,
+            s_shape,
+            t_layout,
+            t_shape,
+            "uint8",
+            dict(
+                shape=shape, multicast=multicast, cta_group=2, descriptor=descriptor, decompress=fmt
+            ),
+            width32,
+            32,
+        )
+    ex = _compile(kernel)
+    assert _cp_opcode(shape, multicast, cta_group, fmt) in ex.mod.imports[0].inspect_source()
+    rng = np.random.default_rng(42)
+    inputs = rng.integers(0, 256, size=(cta_group, *s_shape), dtype=np.uint8)
+    expanded = np.zeros_like(inputs)
+    for cta in range(cta_group):
+        for row in range(rows):
+            for col in range(0, cols, 16):
+                values = rng.integers(0, 1 << bits, size=16, dtype=np.uint8)
+                packed = sum(int(value) << (bits * i) for i, value in enumerate(values))
+                # Leave the padding random; it must not enter the output payload.
+                inputs[cta, row, col : col + 2 * bits] = np.frombuffer(
+                    packed.to_bytes(2 * bits, "little"), dtype=np.uint8
+                )
+                expanded[cta, row, col : col + 16] = values << (2 if bits == 4 else 0)
+    expected = []
+    for cta in range(cta_group):
+        values, _ = _expected_readback(
+            expanded[cta], s_region, t_layout, t_shape, t_region, multicast, 8, width32
+        )
+        expected.append(values)
+    out = tvm.runtime.tensor(np.zeros((cta_group * 128, width32), np.uint32), tvm.cuda())
+    data = inputs[0] if cta_group == 1 else inputs
+    ex(tvm.runtime.tensor(data, tvm.cuda()), out)
+    np.testing.assert_array_equal(out.numpy(), np.concatenate(expected))
 
 
 def test_cp_rejects_non_16b_aligned_row_group_stride():
@@ -948,7 +961,7 @@ def test_cp_rejects_non_16b_aligned_row_group_stride():
         C * bits // 32,
         32,
     )
-    _assert_compile_raises(kernel, "not 16B-aligned")
+    _assert_compile_raises(kernel, "descriptor")
 
 
 def test_cp_rejects_non_canonical_swizzle_family():
@@ -973,7 +986,7 @@ def test_cp_rejects_non_canonical_swizzle_family():
         C * bits // 32,
         32,
     )
-    _assert_compile_raises(kernel, "swizzle family mismatch")
+    _assert_compile_raises(kernel, "descriptor address walk")
 
 
 def test_cp_rejects_flipped_swizzle_inner():
@@ -1003,10 +1016,10 @@ def test_cp_rejects_flipped_swizzle_inner():
         C * bits // 32,
         32,
     )
-    _assert_compile_raises(kernel, "swizzle_inner")
+    _assert_compile_raises(kernel, "descriptor address walk")
 
 
-# Legacy 32x128b.warpx4 tests (predate the generic planner)
+# Original 32x128b.warpx4 byte-layout and scale-factor cases
 
 # warpx4 requires the t tensor to declare the broadcast explicitly:
 # R[4 : 32@TLane] — t.shape[lane] = 32 with replica 4 → 128 physical lanes.
@@ -1028,6 +1041,7 @@ def _make_2d_kernel(
     t_c1,
     dtype,
     cta_group=1,
+    descriptor=(0, 128, 0),
 ):
     """2D variant: SMEM/TMEM are both 2D; copy a rectangular sub-region."""
     n_tmem_cols_total = max(32, t_full_shape[-1])
@@ -1055,45 +1069,25 @@ def _make_2d_kernel(
                 T.ptx.mbarrier.init.shared.b64(cp_mbar.ptr_to([0]), T.uint32(1))
             T.ptx.fence.proxy.async_.shared__cta()
             T.cuda.cta_sync()
-            copy_src_4 = T.meta_var(A[:, :])
-            copy_src_tensor_4 = T.meta_var(copy_src_4.source)
-            copy_dst_4 = T.meta_var(A_smem[:, :])
-            copy_dst_tensor_4 = T.meta_var(copy_dst_4.source)
-            for copy_step_4 in T.serial(
-                T.ceildiv(math.prod([int(r.extent) for r in copy_src_4.region]), 128)
-            ):
-                copy_index_4 = copy_step_4 * (128) + (tid_in_wg)
-                if copy_index_4 < math.prod([int(r.extent) for r in copy_src_4.region]):
-                    copy_value_4 = copy_src_tensor_4[
-                        tuple(
-                            [
-                                copy_src_4.region[k].min
-                                + copy_index_4
-                                // math.prod([int(s.extent) for s in copy_src_4.region[k + 1 :]])
-                                % copy_src_4.region[k].extent
-                                for k in range(len(copy_src_4.region))
-                            ]
-                        )
-                    ]
-                    copy_dst_index_4 = T.meta_var(
-                        tuple(
-                            [
-                                copy_dst_4.region[k].min
-                                + copy_index_4
-                                // math.prod([int(s.extent) for s in copy_dst_4.region[k + 1 :]])
-                                % copy_dst_4.region[k].extent
-                                for k in range(len(copy_dst_4.region))
-                            ]
-                        )
-                    )
-                    copy_dst_tensor_4[copy_dst_index_4] = copy_value_4
+            stage_src = A.sub[:, :].view(-1)
+            stage_dst = A_smem.sub[:, :].view(-1)
+            for step in range(T.ceildiv(stage_dst.shape[0], 128)):
+                index = step * 128 + tid_in_wg
+                if index < stage_dst.shape[0]:
+                    stage_dst[index] = stage_src[index]
             T.cuda.cta_sync()
             tmem = T.cuda.decl_tmem(
                 tmem_addr[0], ty_args=[T.Tensor(t_full_shape, dtype, scope="tmem", layout=t_full)]
             )
             if tid_in_wg == 0:
-                T.cuda.tile.tcgen05.cp(
-                    tmem[t_r0:t_r1, t_c0:t_c1], A_smem[s_r0:s_r1, s_c0:s_c1], cta_group=cta_group
+                _emit_cp(
+                    tmem,
+                    A_smem,
+                    [(t_r0, t_r1), (t_c0, t_c1)],
+                    [(s_r0, s_r1), (s_c0, s_c1)],
+                    "32x128b",
+                    _cp_opcode("32x128b", "warpx4", cta_group),
+                    descriptor,
                 )
                 T.ptx[
                     f"tcgen05.commit.cta_group::{cta_group}.mbarrier::arrive::one.shared::cluster.b64"
@@ -1150,44 +1144,24 @@ def _make_3d_4tile_kernel(s_full, t_full, s_full_shape, t_full_shape, dtype, cta
                 T.ptx.mbarrier.init.shared.b64(cp_mbar.ptr_to([0]), T.uint32(1))
             T.ptx.fence.proxy.async_.shared__cta()
             T.cuda.cta_sync()
-            copy_src_5 = T.meta_var(A[:, :, :])
-            copy_src_tensor_5 = T.meta_var(copy_src_5.source)
-            copy_dst_5 = T.meta_var(A_smem[:, :, :])
-            copy_dst_tensor_5 = T.meta_var(copy_dst_5.source)
-            for copy_step_5 in T.serial(
-                T.ceildiv(math.prod([int(r.extent) for r in copy_src_5.region]), 128)
-            ):
-                copy_index_5 = copy_step_5 * (128) + (tid_in_wg)
-                if copy_index_5 < math.prod([int(r.extent) for r in copy_src_5.region]):
-                    copy_value_5 = copy_src_tensor_5[
-                        tuple(
-                            [
-                                copy_src_5.region[k].min
-                                + copy_index_5
-                                // math.prod([int(s.extent) for s in copy_src_5.region[k + 1 :]])
-                                % copy_src_5.region[k].extent
-                                for k in range(len(copy_src_5.region))
-                            ]
-                        )
-                    ]
-                    copy_dst_index_5 = T.meta_var(
-                        tuple(
-                            [
-                                copy_dst_5.region[k].min
-                                + copy_index_5
-                                // math.prod([int(s.extent) for s in copy_dst_5.region[k + 1 :]])
-                                % copy_dst_5.region[k].extent
-                                for k in range(len(copy_dst_5.region))
-                            ]
-                        )
-                    )
-                    copy_dst_tensor_5[copy_dst_index_5] = copy_value_5
+            stage_src = A.sub[:, :, :].view(-1)
+            stage_dst = A_smem.sub[:, :, :].view(-1)
+            for step in range(T.ceildiv(stage_dst.shape[0], 128)):
+                index = step * 128 + tid_in_wg
+                if index < stage_dst.shape[0]:
+                    stage_dst[index] = stage_src[index]
             T.cuda.cta_sync()
             tmem = T.cuda.decl_tmem(
                 tmem_addr[0], ty_args=[T.Tensor(t_full_shape, dtype, scope="tmem", layout=t_full)]
             )
             if tid_in_wg == 0:
-                T.cuda.tile.tcgen05.cp(tmem[:, :, :], A_smem[:, :, :], cta_group=cta_group)
+                T.cuda.tile.apply(
+                    T.ptx[_cp_opcode("32x128b", "warpx4", cta_group)],
+                    tmem.view("uint32"),
+                    A_smem.view("uint32"),
+                    ldo_bytes=0,
+                    sdo_bytes=128,
+                )
                 T.ptx[
                     f"tcgen05.commit.cta_group::{cta_group}.mbarrier::arrive::one.shared::cluster.b64"
                 ](cp_mbar.ptr_to([0]))
@@ -1218,11 +1192,24 @@ def _make_3d_4tile_kernel(s_full, t_full, s_full_shape, t_full_shape, dtype, cta
     return kernel
 
 
-def _run_2d(s_full, t_full, s_full_shape, s_region, dtype, A_init, expected):
+def _run_2d(s_full, t_full, s_full_shape, s_region, dtype, A_init, expected, descriptor):
     s_r0, s_r1 = s_region[0]
     s_c0, s_c1 = s_region[1]
     kernel = _make_2d_kernel(
-        s_full, t_full, s_full_shape, [32, 16], s_r0, s_r1, s_c0, s_c1, 0, 32, 0, 16, dtype
+        s_full,
+        t_full,
+        s_full_shape,
+        [32, 16],
+        s_r0,
+        s_r1,
+        s_c0,
+        s_c1,
+        0,
+        32,
+        0,
+        16,
+        dtype,
+        descriptor=descriptor,
     )
     return _execute(kernel, A_init, expected)
 
@@ -1300,7 +1287,17 @@ def test_single_cp(name, s_full, s_full_shape, s_region):
     r0, r1 = s_region[0]
     c0, c1 = s_region[1]
     expected = A_np[r0:r1, c0:c1]
-    _run_2d(s_full, T_LAY_BASIC, s_full_shape, s_region, "uint8", A_np, expected)
+    descriptor = {
+        "sw0_plain_atom_aligned": (0, 128, 0),
+        "sw1_32B_atom": (0, 256, 1),
+        "sw2_64B_atom": (0, 512, 2),
+        "sw3_128B_atom": (0, 1024, 3),
+        "sw3_64x128_corner": (0, 1024, 3),
+        "sw3_64x128_atom_row_8": (0, 1024, 3),
+        "sw2_32x256_col_64": (0, 512, 2),
+        "sw0_M_atom_major_4_0": (0, 128, 0),
+    }[name]
+    _run_2d(s_full, T_LAY_BASIC, s_full_shape, s_region, "uint8", A_np, expected, descriptor)
 
 
 @pytest.mark.gpu
@@ -1316,13 +1313,10 @@ def test_multi_cp_sw0_4tiles():
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda_compute(10), reason="need cuda compute >= 10.0")
 def test_align_middle_2_to_1_nvfp4_sfb():
-    """SFB-style nvfp4 case: TMEM mid canonicalizes to single iter
-    (16@TCol + 4@TCol merge), but SMEM mid stays as 2 iters
-    (stride 512 + stride 2048 — outer/inner reversed so canon can't merge).
-    Exercises ``_align_middles`` union-cut algorithm.
+    """Keep the original SFB arrays and expose their common row/word atom.
 
-    Layout shapes mirror SFB nvfp4 with PIPE=1, SFB_n_chunks=2,
-    MMA_K_BLOCKS=4, sf_mma_k=4.
+    The caller permutes the two repeat axes explicitly. Their different shared
+    and TMEM strides remain intact; no middle-axis alignment solver is needed.
     """
     # SMEM: (2, 4, 32, 4, 4) extents, strides (2048, 4, 16, 512, 1).
     # Mid post-canon = [(4, 512), (2, 2048)] — non-mergeable in this order.
@@ -1358,44 +1352,26 @@ def test_align_middle_2_to_1_nvfp4_sfb():
                 T.ptx.mbarrier.init.shared.b64(cp_mbar.ptr_to([0]), T.uint32(1))
             T.ptx.fence.proxy.async_.shared__cta()
             T.cuda.cta_sync()
-            copy_src_6 = T.meta_var(A[:, :])
-            copy_src_tensor_6 = T.meta_var(copy_src_6.source)
-            copy_dst_6 = T.meta_var(A_smem[:, :])
-            copy_dst_tensor_6 = T.meta_var(copy_dst_6.source)
-            for copy_step_6 in T.serial(
-                T.ceildiv(math.prod([int(r.extent) for r in copy_src_6.region]), 128)
-            ):
-                copy_index_6 = copy_step_6 * (128) + (tid_in_wg)
-                if copy_index_6 < math.prod([int(r.extent) for r in copy_src_6.region]):
-                    copy_value_6 = copy_src_tensor_6[
-                        tuple(
-                            [
-                                copy_src_6.region[k].min
-                                + copy_index_6
-                                // math.prod([int(s.extent) for s in copy_src_6.region[k + 1 :]])
-                                % copy_src_6.region[k].extent
-                                for k in range(len(copy_src_6.region))
-                            ]
-                        )
-                    ]
-                    copy_dst_index_6 = T.meta_var(
-                        tuple(
-                            [
-                                copy_dst_6.region[k].min
-                                + copy_index_6
-                                // math.prod([int(s.extent) for s in copy_dst_6.region[k + 1 :]])
-                                % copy_dst_6.region[k].extent
-                                for k in range(len(copy_dst_6.region))
-                            ]
-                        )
-                    )
-                    copy_dst_tensor_6[copy_dst_index_6] = copy_value_6
+            stage_src = A.sub[:, :].view(-1)
+            stage_dst = A_smem.sub[:, :].view(-1)
+            for step in range(T.ceildiv(stage_dst.shape[0], 128)):
+                index = step * 128 + tid_in_wg
+                if index < stage_dst.shape[0]:
+                    stage_dst[index] = stage_src[index]
             T.cuda.cta_sync()
             tmem = T.cuda.decl_tmem(
                 tmem_addr[0], ty_args=[T.Tensor(t_full_shape, "uint8", scope="tmem", layout=t_full)]
             )
             if tid_in_wg == 0:
-                T.cuda.tile.tcgen05.cp(tmem[:, :], A_smem[:, :], cta_group=1)
+                T.cuda.tile.apply(
+                    T.ptx["tcgen05.cp.cta_group::1.32x128b.warpx4"],
+                    tmem.view(2, 4, 32, 4, 4).rearrange("a b r c v -> a c r (b v)").view("uint32"),
+                    A_smem.view(2, 4, 32, 4, 4)
+                    .rearrange("a b r c v -> a c r (b v)")
+                    .view("uint32"),
+                    ldo_bytes=0,
+                    sdo_bytes=128,
+                )
                 T.ptx.tcgen05.commit.cta_group__1.mbarrier__arrive__one.shared__cluster.b64(
                     cp_mbar.ptr_to([0])
                 )
@@ -1445,7 +1421,7 @@ def test_align_middle_2_to_1_nvfp4_sfb():
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda_compute(10), reason="need cuda compute >= 10.0")
 @pytest.mark.parametrize(
-    "bad",
+    "case",
     [
         pytest.param(
             (
@@ -1471,44 +1447,51 @@ def test_align_middle_2_to_1_nvfp4_sfb():
         ),
     ],
 )
-def test_dispatch_rejects_bad_inputs(bad):
-    """Configurations where cp 32x128b cannot read the user's intended sub-tile.
-    Compilation should fail with a clear ValueError from the dispatch."""
-    name, s_full, s_full_shape, s_region = bad
+def test_cp_subregion_descriptor_contract(case):
+    """Two former planner restrictions are legal explicit descriptor regions.
+
+    A 64-byte unswizzled row stride still disagrees with the native 16-byte
+    row step; the other two cases are checked against an independent readback.
+    """
+    name, s_full, s_full_shape, s_region = case
     s_r0, s_r1 = s_region[0]
     s_c0, s_c1 = s_region[1]
+    descriptor = {
+        "sw3_mid_atom_row": (0, 1024, 3),
+        "sw2_mid_atom_col": (0, 512, 2),
+        "sw0_row_stride_64": (0, 128, 0),
+    }[name]
     kernel = _make_2d_kernel(
-        s_full, T_LAY_BASIC, s_full_shape, [32, 16], s_r0, s_r1, s_c0, s_c1, 0, 32, 0, 16, "uint8"
+        s_full,
+        T_LAY_BASIC,
+        s_full_shape,
+        [32, 16],
+        s_r0,
+        s_r1,
+        s_c0,
+        s_c1,
+        0,
+        32,
+        0,
+        16,
+        "uint8",
+        descriptor=descriptor,
     )
-    with pytest.raises(Exception):
-        _compile(kernel)
+    if name == "sw0_row_stride_64":
+        _assert_compile_raises(kernel, "descriptor address walk")
+    else:
+        source = np.random.default_rng(16).integers(0, 256, s_full_shape, dtype=np.uint8)
+        _execute(kernel, source, source[s_r0:s_r1, s_c0:s_c1])
 
 
-def test_multi_cp_encodes_descriptor_once_and_patches_addr():
-    """Compile-only regression for the shared-descriptor cp path.
-
-    A multi-tile smem->tmem copy encodes ONE SMEM matrix descriptor template at
-    SMEM base 0 (so the cache key no longer depends on the tensor identity) and
-    patches its 14-bit address field per cp via ``cvta(addr) >> 4 & 0x3FFF``,
-    instead of re-encoding a descriptor per tile. Verifies the 4-tile copy emits
-    a single ``encode_matrix_descriptor`` reused across four
-    ``tcgen05.cp.32x128b.warpx4`` issues, each with the address-field patch.
-    """
+def test_multi_cp_reuses_explicit_descriptor_fields():
     s_full = TileLayout(S[(4, 32, 16) : (512, 16, 1)])
     t_full = TileLayout(S[(4, 32, 16) : (16 @ TCol, 1 @ TLane, 1 @ TCol)] + R[4 : 32 @ TLane])
     kernel = _make_3d_4tile_kernel(s_full, t_full, [4, 32, 16], [4, 32, 16], "uint8")
-
-    mod = _compile(kernel)
-    src = mod.mod.imports[0].inspect_source()
-
-    assert "tcgen05.cp.cta_group::1.32x128b.warpx4" in src, f"cp not emitted; src=\n{src}"
-    # Descriptor encoded once (single matrix-descriptor encode call), then
-    # reused with a per-cp 14-bit SMEM address patch (0x3FFF == 16383 mask).
-    assert "16383" in src, "expected 14-bit SMEM address-field patch (0x3FFF mask)"
-    assert src.count("cp_desc_ptr[0] &") == 4, (
-        f"expected 4 address-patched cp's reusing one cp_desc; got "
-        f"{src.count('cp_desc_ptr[0] &')}\nsrc=\n{src}"
-    )
+    ex = _compile(kernel)
+    calls = _cp_call_lines(ex, "32x128b", "warpx4")
+    assert len(calls) == 4
+    assert all("16383" in line for line in calls)
 
 
 if __name__ == "__main__":

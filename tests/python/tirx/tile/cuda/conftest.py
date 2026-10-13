@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Hardware requirements for CUDA tile-primitive tests."""
+"""Hardware requirements for CUDA tile-op tests."""
 
 from pathlib import Path
 

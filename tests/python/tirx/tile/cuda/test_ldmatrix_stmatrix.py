@@ -15,18 +15,18 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-function-docstring
-"""Round-trip tests for the ``ldstmatrix`` copy dispatch.
+"""Round-trip tests for native ldmatrix and stmatrix instructions.
 
 Pipeline:
-  ld direction: A_gmem → A_smem (per-thread init) → R_local (T.copy dispatch
+  ld direction: A_gmem → A_smem (per-thread init) → R_local (ldmatrix
                 under test) → B_gmem (per-thread write).
-  st direction: A_gmem → R_local (per-thread init) → A_smem (T.copy dispatch
+  st direction: A_gmem → R_local (per-thread init) → A_smem (stmatrix
                 under test) → B_gmem (per-thread write).
 
 Both directions must round-trip ``A == B``. Layout strides are constructed
 so that:
-  - trans=False S layout matches step-9's row-major spec (8→p, 4→2, num→q, 2→1).
-  - trans=True  S layout matches step-9's col-major spec (8→1, 4→2p, num→q, 2→p).
+  - trans=False S layout is row-major (8→p, 4→2, num→q, 2→1).
+  - trans=True  S layout is column-major (8→1, 4→2p, num→q, 2→p).
 
 Uniform shape ``(*scope_outer, 8, 4, num, 2)`` is used for every num (including
 num=1, which gets an extent-1 placeholder for the num atom).
@@ -110,14 +110,13 @@ def _build_warp_kernel(num, direction, trans, swizzle=False):
             return row, t * 8 + cp * 2 + w
         return cp * 2 + w, row + t * 8
 
-    # fmt: off
     if direction == "ld":
-        @T.function
-        def kernel(A: T.Tensor((M, N), 'float16'), B: T.Tensor((M, N), 'float16')) -> None:
 
+        @T.function
+        def kernel(A: T.Tensor((M, N), "float16"), B: T.Tensor((M, N), "float16")) -> None:
             T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(32,)))
             _lane = T.cuda.lane_id()
-            tid = T.cuda.thread_idx('x')
+            tid = T.cuda.thread_idx("x")
             A_smem = T.alloc_tensor(
                 ty_args=[T.Tensor(s_shape, "float16", scope="shared", layout=s_layout)]
             )
@@ -131,19 +130,28 @@ def _build_warp_kernel(num, direction, trans, swizzle=False):
             R_local = T.alloc_tensor(
                 ty_args=[T.Tensor(s_shape, "float16", scope="local", layout=r_layout)]
             )
-            T.cuda.tile.ldmatrix(R_local[full], A_smem[full], scope='warp')
+            S_atom = A_smem.rearrange(
+                "r c m h -> m (c h) r" if trans else "r c m h -> m r (c h)"
+            ).view("uint32")
+            R_atom = R_local.rearrange("r c m h -> m r (c h)").view("uint32")
+            T.cuda.tile.apply(
+                T.ptx[f"ldmatrix.sync.aligned.m8n8.x{num}{'.trans' if trans else ''}.shared.b16"],
+                R_atom,
+                S_atom,
+                scope="warp",
+            )
             r_view = R_local.local()
             for t in range(num):
                 for w in range(2):
                     gr, gc = _coord(row, cp, t, w)
                     B[gr, gc] = r_view[t * 2 + w]
     else:  # direction == "st"
-        @T.function
-        def kernel(A: T.Tensor((M, N), 'float16'), B: T.Tensor((M, N), 'float16')) -> None:
 
+        @T.function
+        def kernel(A: T.Tensor((M, N), "float16"), B: T.Tensor((M, N), "float16")) -> None:
             T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(32,)))
             _lane = T.cuda.lane_id()
-            tid = T.cuda.thread_idx('x')
+            tid = T.cuda.thread_idx("x")
             A_smem = T.alloc_tensor(
                 ty_args=[T.Tensor(s_shape, "float16", scope="shared", layout=s_layout)]
             )
@@ -157,13 +165,22 @@ def _build_warp_kernel(num, direction, trans, swizzle=False):
                 for w in range(2):
                     gr, gc = _coord(row, cp, t, w)
                     r_view[t * 2 + w] = A[gr, gc]
-            T.cuda.tile.stmatrix(A_smem[full], R_local[full], scope='warp')
+            S_atom = A_smem.rearrange(
+                "r c m h -> m (c h) r" if trans else "r c m h -> m r (c h)"
+            ).view("uint32")
+            R_atom = R_local.rearrange("r c m h -> m r (c h)").view("uint32")
+            T.cuda.tile.apply(
+                T.ptx[f"stmatrix.sync.aligned.m8n8.x{num}{'.trans' if trans else ''}.shared.b16"],
+                S_atom,
+                R_atom,
+                scope="warp",
+            )
             T.cuda.cta_sync()
             for t in range(num):
                 for w in range(2):
                     gr, gc = _coord(row, cp, t, w)
                     B[gr, gc] = A_smem[row, cp, t, w]
-    # fmt: on
+
     return kernel, (M, N)
 
 
@@ -182,14 +199,13 @@ def _build_warpgroup_kernel(num, direction, trans, swizzle=False):
             return wid * 8 + row, t * 8 + cp * 2 + w
         return wid * 8 + cp * 2 + w, row + t * 8
 
-    # fmt: off
     if direction == "ld":
-        @T.function
-        def kernel(A: T.Tensor((M, N), 'float16'), B: T.Tensor((M, N), 'float16')) -> None:
 
+        @T.function
+        def kernel(A: T.Tensor((M, N), "float16"), B: T.Tensor((M, N), "float16")) -> None:
             T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(128,)))
             _lane = T.cuda.lane_id()
-            tid = T.cuda.thread_idx('x')
+            tid = T.cuda.thread_idx("x")
             A_smem = T.alloc_tensor(
                 ty_args=[T.Tensor(s_shape, "float16", scope="shared", layout=s_layout)]
             )
@@ -205,19 +221,28 @@ def _build_warpgroup_kernel(num, direction, trans, swizzle=False):
             R_local = T.alloc_tensor(
                 ty_args=[T.Tensor(s_shape, "float16", scope="local", layout=r_layout)]
             )
-            T.cuda.tile.ldmatrix(R_local[full], A_smem[full], scope='warpgroup')
+            S_atom = A_smem.rearrange(
+                "w r c m h -> w m (c h) r" if trans else "w r c m h -> w m r (c h)"
+            ).view("uint32")
+            R_atom = R_local.rearrange("w r c m h -> w m r (c h)").view("uint32")
+            T.cuda.tile.apply(
+                T.ptx[f"ldmatrix.sync.aligned.m8n8.x{num}{'.trans' if trans else ''}.shared.b16"],
+                R_atom,
+                S_atom,
+                scope="warpgroup",
+            )
             r_view = R_local.local()
             for t in range(num):
                 for w in range(2):
                     gr, gc = _coord(wid, row, cp, t, w)
                     B[gr, gc] = r_view[t * 2 + w]
     else:
-        @T.function
-        def kernel(A: T.Tensor((M, N), 'float16'), B: T.Tensor((M, N), 'float16')) -> None:
 
+        @T.function
+        def kernel(A: T.Tensor((M, N), "float16"), B: T.Tensor((M, N), "float16")) -> None:
             T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(128,)))
             _lane = T.cuda.lane_id()
-            tid = T.cuda.thread_idx('x')
+            tid = T.cuda.thread_idx("x")
             A_smem = T.alloc_tensor(
                 ty_args=[T.Tensor(s_shape, "float16", scope="shared", layout=s_layout)]
             )
@@ -233,13 +258,22 @@ def _build_warpgroup_kernel(num, direction, trans, swizzle=False):
                 for w in range(2):
                     gr, gc = _coord(wid, row, cp, t, w)
                     r_view[t * 2 + w] = A[gr, gc]
-            T.cuda.tile.stmatrix(A_smem[full], R_local[full], scope='warpgroup')
+            S_atom = A_smem.rearrange(
+                "w r c m h -> w m (c h) r" if trans else "w r c m h -> w m r (c h)"
+            ).view("uint32")
+            R_atom = R_local.rearrange("w r c m h -> w m r (c h)").view("uint32")
+            T.cuda.tile.apply(
+                T.ptx[f"stmatrix.sync.aligned.m8n8.x{num}{'.trans' if trans else ''}.shared.b16"],
+                S_atom,
+                R_atom,
+                scope="warpgroup",
+            )
             T.cuda.cta_sync()
             for t in range(num):
                 for w in range(2):
                     gr, gc = _coord(wid, row, cp, t, w)
                     B[gr, gc] = A_smem[wid, row, cp, t, w]
-    # fmt: on
+
     return kernel, (M, N)
 
 
@@ -258,14 +292,13 @@ def _build_cta_kernel(num, direction, trans, swizzle=False):
             return wid * 8 + row, t * 8 + cp * 2 + w
         return wid * 8 + cp * 2 + w, row + t * 8
 
-    # fmt: off
     if direction == "ld":
-        @T.function
-        def kernel(A: T.Tensor((M, N), 'float16'), B: T.Tensor((M, N), 'float16')) -> None:
 
+        @T.function
+        def kernel(A: T.Tensor((M, N), "float16"), B: T.Tensor((M, N), "float16")) -> None:
             T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(128,)))
             _lane = T.cuda.lane_id()
-            tid = T.cuda.thread_idx('x')
+            tid = T.cuda.thread_idx("x")
             A_smem = T.alloc_tensor(
                 ty_args=[T.Tensor(s_shape, "float16", scope="shared", layout=s_layout)]
             )
@@ -281,19 +314,28 @@ def _build_cta_kernel(num, direction, trans, swizzle=False):
             R_local = T.alloc_tensor(
                 ty_args=[T.Tensor(s_shape, "float16", scope="local", layout=r_layout)]
             )
-            T.cuda.tile.ldmatrix(R_local[full], A_smem[full], scope='cta')
+            S_atom = A_smem.rearrange(
+                "w r c m h -> w m (c h) r" if trans else "w r c m h -> w m r (c h)"
+            ).view("uint32")
+            R_atom = R_local.rearrange("w r c m h -> w m r (c h)").view("uint32")
+            T.cuda.tile.apply(
+                T.ptx[f"ldmatrix.sync.aligned.m8n8.x{num}{'.trans' if trans else ''}.shared.b16"],
+                R_atom,
+                S_atom,
+                scope="cta",
+            )
             r_view = R_local.local()
             for t in range(num):
                 for w in range(2):
                     gr, gc = _coord(wid, row, cp, t, w)
                     B[gr, gc] = r_view[t * 2 + w]
     else:
-        @T.function
-        def kernel(A: T.Tensor((M, N), 'float16'), B: T.Tensor((M, N), 'float16')) -> None:
 
+        @T.function
+        def kernel(A: T.Tensor((M, N), "float16"), B: T.Tensor((M, N), "float16")) -> None:
             T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(128,)))
             _lane = T.cuda.lane_id()
-            tid = T.cuda.thread_idx('x')
+            tid = T.cuda.thread_idx("x")
             A_smem = T.alloc_tensor(
                 ty_args=[T.Tensor(s_shape, "float16", scope="shared", layout=s_layout)]
             )
@@ -309,13 +351,22 @@ def _build_cta_kernel(num, direction, trans, swizzle=False):
                 for w in range(2):
                     gr, gc = _coord(wid, row, cp, t, w)
                     r_view[t * 2 + w] = A[gr, gc]
-            T.cuda.tile.stmatrix(A_smem[full], R_local[full], scope='cta')
+            S_atom = A_smem.rearrange(
+                "w r c m h -> w m (c h) r" if trans else "w r c m h -> w m r (c h)"
+            ).view("uint32")
+            R_atom = R_local.rearrange("w r c m h -> w m r (c h)").view("uint32")
+            T.cuda.tile.apply(
+                T.ptx[f"stmatrix.sync.aligned.m8n8.x{num}{'.trans' if trans else ''}.shared.b16"],
+                S_atom,
+                R_atom,
+                scope="cta",
+            )
             T.cuda.cta_sync()
             for t in range(num):
                 for w in range(2):
                     gr, gc = _coord(wid, row, cp, t, w)
                     B[gr, gc] = A_smem[wid, row, cp, t, w]
-    # fmt: on
+
     return kernel, (M, N)
 
 
@@ -401,7 +452,6 @@ def _build_multi_iter_kernel(outer_ext: int):
     shape = (outer_ext, 8, 2, 4, 4, 2)
     r_layout = TileLayout(S[shape : (16, 4 @ laneid, 8, 2, 1 @ laneid, 1)])
     s_layout = ComposeLayout(3, 3, 3, TileLayout(S[(512,)]))
-    full = tuple(slice(0, e) for e in shape)
 
     @T.function
     def kernel(A: T.Tensor(shape, "float16"), B: T.Tensor(shape, "float16")) -> None:
@@ -420,7 +470,11 @@ def _build_multi_iter_kernel(outer_ext: int):
         R_local = T.alloc_tensor(
             ty_args=[T.Tensor(shape, "float16", scope="local", layout=r_layout)]
         )
-        T.cuda.tile.ldmatrix(R_local[full], A_smem[full], scope="warp")
+        S_atom = A_smem.rearrange("a r c d l h -> a c d r (l h)").view("uint32")
+        R_atom = R_local.rearrange("a r c d l h -> a c d r (l h)").view("uint32")
+        T.cuda.tile.apply(
+            T.ptx["ldmatrix.sync.aligned.m8n8.x4.shared.b16"], R_atom, S_atom, scope="warp"
+        )
         r_view = R_local.local()
         for a in range(outer_ext):
             for c in range(2):
@@ -440,14 +494,8 @@ def test_ldstmatrix_swizzle_multi_iter_pow2():
     compiled, src = _compile_src(kernel)
     assert "ldmatrix.sync.aligned.m8n8.x4.shared.b16" in src
 
-    address_lines = [
-        line
-        for line in src.splitlines()
-        if line.strip().startswith("int smem_off") and " = " in line
-    ]
-    assert len(address_lines) == 8
-    assert all("& 7) << 3" in line for line in address_lines)
-    assert all("& 56) >> 3" not in line for line in address_lines)
+    assert "^" in src, "shared row addresses must retain their swizzle"
+    assert src.count("\n  tvm_builtin_ptx_ldmatrix_sync_aligned_m8n8_x4_shared_b16(") == 8
 
     n_elem = 1
     for e in shape:
@@ -467,19 +515,12 @@ def test_ldstmatrix_swizzle_multi_iter_pow2():
 
 @pytest.mark.gpu
 def test_ldstmatrix_tcgen05_warpgroup_atom_emits_ldmatrix():
-    """Regression: a warpgroup ``.16x256b`` tcgen05 register atom loaded from a
-    128B-swizzled SMEM tile must dispatch to ``ldmatrix.x4``.
+    """The tcgen05 register image is explicitly tiled by four ldmatrix.x4 calls.
 
-    The atom's laneid is split across two shard iters (stride 4 and stride 1)
-    plus ``wid_in_wg`` — it only fuses to a single ``tid_in_wg`` thread axis
-    after the slice. With the redundant pre-slice ``canonicalize()`` removed,
-    Step 2 relies on ``TileLayout.Slice``'s built-in global pre-canonicalize, so
-    the slice no longer leaves an ill-formed split-laneid sub-layout that
-    ``GetScope`` would reject (which silently fell back to a scalar reg path).
-    Compile-only (no GPU): asserts the instruction appears in generated source.
+    Preserve the original split lane and warp ownership through both the
+    logical rearrangement and the bf16-to-b32 view.
     """
-    from tvm.backend.cuda.layout import tcgen05_atom_layout
-    from tvm.tirx.cuda.tile.tma_utils import mma_shared_layout
+    from tvm.backend.cuda.layout import mma_shared_layout, tcgen05_atom_layout
 
     m, k = 64, 64
     # bf16 payload carrying the *fp32* atom layout (mirrors the tf32-prenorm
@@ -494,7 +535,15 @@ def test_ldstmatrix_tcgen05_warpgroup_atom_emits_ldmatrix():
         a_reg = T.alloc_tensor(
             ty_args=[T.Tensor((m, k), "bfloat16", scope="local", layout=reg_layout)]
         )
-        T.cuda.tile.ldmatrix(a_reg, smem, scope="warpgroup")
+        S_atom = smem.rearrange(
+            "(w rh r) (k c l h) -> w k (rh c) r (l h)", w=4, rh=2, r=8, k=4, c=2, l=4, h=2
+        ).view("uint32")
+        R_atom = a_reg.rearrange(
+            "(w rh r) (k c l h) -> w k (rh c) r (l h)", w=4, rh=2, r=8, k=4, c=2, l=4, h=2
+        ).view("uint32")
+        T.cuda.tile.apply(
+            T.ptx["ldmatrix.sync.aligned.m8n8.x4.shared.b16"], R_atom, S_atom, scope="warpgroup"
+        )
 
     _, src = _compile_src(kernel)
     assert "ldmatrix.sync.aligned.m8n8.x4.shared.b16" in src, (
@@ -511,14 +560,8 @@ def test_ldstmatrix_swizzle_multi_iter_linear():
     compiled, src = _compile_src(kernel)
     assert "ldmatrix.sync.aligned.m8n8.x4.shared.b16" in src
 
-    address_lines = [
-        line
-        for line in src.splitlines()
-        if line.strip().startswith("int smem_off") and " = " in line
-    ]
-    assert len(address_lines) == 10
-    assert all("& 7) << 3" in line for line in address_lines)
-    assert all("& 56) >> 3" not in line for line in address_lines)
+    assert "^" in src, "shared row addresses must retain their swizzle"
+    assert src.count("\n  tvm_builtin_ptx_ldmatrix_sync_aligned_m8n8_x4_shared_b16(") == 10
 
     n_elem = 1
     for e in shape:

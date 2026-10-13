@@ -711,9 +711,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       TVM_FFI_ICHECK_EQ(swizzle_kind, CU_TENSOR_MAP_SWIZZLE_32B)
           << "CU_TENSOR_MAP_INTERLEAVE_32B requires CU_TENSOR_MAP_SWIZZLE_32B";
     }
-    TVM_FFI_ICHECK_EQ(element_strides[0], 1U)
-        << "elementStrides[0] must be one because tiled TMA does not support an "
-           "innermost element stride";
+    if (interleaved_kind == CU_TENSOR_MAP_INTERLEAVE_NONE) {
+      TVM_FFI_ICHECK_EQ(element_strides[0], 1U)
+          << "elementStrides[0] must be one for non-interleaved tiled TMA";
+    }
     if (interleaved_kind == CU_TENSOR_MAP_INTERLEAVE_32B || is_packed_align16) {
       TVM_FFI_ICHECK_EQ((reinterpret_cast<uint64_t>(tensor_ptr) & 0b11111), 0)
           << "globalAddress must be 32-byte aligned";

@@ -35,28 +35,26 @@ from tvm.ir import TensorRegion, TensorRegionType
 from tvm.script import tirx as T
 from tvm.testing import env
 from tvm.tirx import IntImm, Var
-from tvm.tirx.cuda.tile.copy_async.dsmem import copy_dsmem_impl
 from tvm.tirx.exec_scope import ExecScope
 from tvm.tirx.layout import S, TileLayout
-from tvm.tirx.tile.dispatch import DispatchContext, DispatchFail
+from tvm.tirx.tile.dispatch import DispatchContext, run_dispatch
+
+BULK = "cp.async.bulk.shared::cluster.shared::cta.mbarrier::complete_tx::bytes"
 
 
-def _make_dsmem_dispatch_call(shape, dtype, src_layout, dst_layout):
-    """Call copy_dsmem_impl directly. Returns impl or raises DispatchFail."""
-    from tvm.ir import Range
-
-    src_buf = tvm.tirx.decl_tensor(shape, dtype, "A", scope="shared.dyn", layout=src_layout)
-    dst_buf = tvm.tirx.decl_tensor(shape, dtype, "B", scope="shared.dyn", layout=dst_layout)
-    ranges = [Range.from_min_extent(0, s) for s in shape]
-    config = {"mbar": Var("mbar", "handle"), "remote_cta_id": IntImm("int32", 1)}
-    op_call = T.cuda.tile.cp_async_bulk(
-        TensorRegion(dst_buf, ranges, ty=TensorRegionType()),
-        TensorRegion(src_buf, ranges, ty=TensorRegionType()),
-        **config,
+def _make_dsmem_dispatch_call(shape, dtype, src_layout, dst_layout, chunks=1):
+    # Each test explicitly chooses its number of bulk chunks. Keep both
+    # original physical maps; flattening only changes the logical shape.
+    canonical = (math.prod(shape),) if chunks == 1 else shape
+    chunk_bytes = math.prod(shape) * tvm.DataType(dtype).bits // 8 // chunks
+    src = tvm.tirx.decl_tensor(canonical, dtype, "A", scope="shared.dyn", layout=src_layout)
+    dst = tvm.tirx.decl_tensor(canonical, dtype, "B", scope="shared.dyn", layout=dst_layout)
+    op_call = T.cuda.tile.apply(
+        T.ptx[BULK], dst, src, chunk_bytes=chunk_bytes, mbar=Var("mbar", "handle"), remote_cta_id=1
     )
     target = tvm.target.Target({"kind": "cuda", "arch": "sm_90a"})
     sctx = DispatchContext(target, ExecScope("cuda", "thread"), {}, {})
-    return copy_dsmem_impl(op_call, sctx)
+    return run_dispatch(op_call, sctx)
 
 
 def _count_s2c_ops(impl):
@@ -109,7 +107,7 @@ DSMEM_CONFIGS = [
         8,
         id="partial-contiguity-diff-stride",
     ),
-    # Incompatible: row-major vs column-major → DispatchFail
+    # Incompatible: row-major vs column-major does not admit a contiguous bulk chunk
     pytest.param(
         (4, 64), "float16", S[4, 64], S[(4, 64) : (1, 4)], "fail", id="incompatible-row-vs-col"
     ),
@@ -131,9 +129,9 @@ def _layout_physical_elements(layout):
 def test_dsmem(shape, dtype, src_spec, dst_spec, expected):
     """Dispatch assertion + GPU correctness for DSMEM copy.
 
-    Always tests dispatch (s2c op count or DispatchFail).
-    For non-fail cases: also runs a 2-CTA cluster kernel via T.copy_async
-    dispatch (using src_spec as layout for both CTAs) and verifies correctness.
+    Always checks the exact bulk instruction count or a physical-contiguity error.
+    Valid cases also run a two-CTA cluster kernel with the original source
+    and destination layouts and compare the copied payload on the host.
     """
     from tvm.backend.cuda.lang.pipeline import MBarrier
 
@@ -142,11 +140,11 @@ def test_dsmem(shape, dtype, src_spec, dst_spec, expected):
 
     # --- Dispatch assertion ---
     if expected == "fail":
-        with pytest.raises(DispatchFail):
+        with pytest.raises(RuntimeError, match="consecutive elements"):
             _make_dsmem_dispatch_call(shape, dtype, src_layout, dst_layout)
         return
 
-    impl = _make_dsmem_dispatch_call(shape, dtype, src_layout, dst_layout)
+    impl = _make_dsmem_dispatch_call(shape, dtype, src_layout, dst_layout, expected)
     assert _count_s2c_ops(impl) == expected
 
     # --- GPU correctness ---
@@ -157,21 +155,20 @@ def test_dsmem(shape, dtype, src_spec, dst_spec, expected):
     CLUSTER_N = 2
     n_elements = functools.reduce(lambda a, b: a * b, shape, 1)
     copy_bytes = n_elements * tvm.DataType(dtype).bits // 8
+    canonical = (n_elements,) if expected == 1 else shape
     src_phys = _layout_physical_elements(src_layout)
     dst_phys = _layout_physical_elements(dst_layout)
     r = tuple(slice(0, s) for s in shape)
 
-    # fmt: off
     @T.function
     def dsmem_copy(A: T.Tensor(shape, dtype), B: T.Tensor(shape, dtype)) -> None:
-
         T.device_entry(
             launch=T.cuda.LaunchConfig(grid=(CLUSTER_N,), block=(1,), cluster=(CLUSTER_N,))
         )
-        cbx = T.cuda.cluster_cta_id('x')
-        tid = T.cuda.thread_idx('x')
+        cbx = T.cuda.cluster_cta_id("x")
+        tid = T.cuda.thread_idx("x")
         pool = SMEMPool()
-                # src_smem: CTA 0 writes here, dispatch reads from here
+        # src_smem: CTA 0 writes here, dispatch reads from here
         src_raw = pool.alloc([src_phys], dtype, align=128)
         src_smem = T.decl_tensor(
             src_raw.data,
@@ -179,7 +176,7 @@ def test_dsmem(shape, dtype, src_spec, dst_spec, expected):
                 T.Tensor(list(shape), dtype, elem_offset=0, scope="shared.dyn", layout=src_layout)
             ],
         )
-                # dst_smem: dispatch writes here (on remote CTA), CTA 1 reads
+        # dst_smem: dispatch writes here (on remote CTA), CTA 1 reads
         dst_raw = pool.alloc([dst_phys], dtype, align=128)
         dst_smem = T.decl_tensor(
             dst_raw.data,
@@ -234,8 +231,13 @@ def test_dsmem(shape, dtype, src_spec, dst_spec, expected):
                         copy_dst_tensor_1[copy_dst_index_1] = copy_value_1
                 T.ptx.fence.proxy.async_.shared__cta()
 
-                T.cuda.tile.cp_async_bulk(
-                    dst_smem[r], src_smem[r], mbar=mbar.ptr_to([0]), remote_cta_id=T.int32(1)
+                T.cuda.tile.apply(
+                    T.ptx[BULK],
+                    dst_smem.view(*canonical),
+                    src_smem.view(*canonical),
+                    chunk_bytes=copy_bytes // expected,
+                    mbar=mbar.ptr_to([0]),
+                    remote_cta_id=T.int32(1),
                 )
             else:
                 T.ptx.mbarrier.arrive.expect_tx.shared.b64(mbar.ptr_to([0]), T.uint32(copy_bytes))
@@ -278,7 +280,6 @@ def test_dsmem(shape, dtype, src_spec, dst_spec, expected):
                             )
                         )
                         copy_dst_tensor_2[copy_dst_index_2] = copy_value_2
-        # fmt: on
 
     np_dtype = tvm.testing.np_dtype_from_str(dtype)
     target = tvm.target.Target("cuda")
@@ -313,10 +314,17 @@ def test_dsmem_dispatch_missing_config():
     target = tvm.target.Target({"kind": "cuda", "arch": "sm_90a"})
     sctx = DispatchContext(target, ExecScope("cuda", "thread"), {}, {})
 
-    with pytest.raises(TypeError, match="remote_cta_id"):
-        T.cuda.tile.cp_async_bulk(br, br, mbar=Var("m", "handle"))
-    with pytest.raises(TypeError, match="mbar"):
-        T.cuda.tile.cp_async_bulk(br, br, remote_cta_id=IntImm("int32", 1))
+    with pytest.raises(RuntimeError, match="remote_cta_id"):
+        run_dispatch(
+            T.cuda.tile.apply(T.ptx[BULK], br, br, chunk_bytes=128, mbar=Var("m", "handle")), sctx
+        )
+    with pytest.raises(RuntimeError, match="mbar"):
+        run_dispatch(
+            T.cuda.tile.apply(
+                T.ptx[BULK], br, br, chunk_bytes=128, remote_cta_id=IntImm("int32", 1)
+            ),
+            sctx,
+        )
 
 
 if __name__ == "__main__":

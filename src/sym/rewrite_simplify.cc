@@ -2413,6 +2413,39 @@ UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::SelectNode* o
   return ret;
 }
 
+UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::BitwiseAndNode* op,
+                                                       InplaceMode inplace_mode) {
+  PrimExpr ret =
+      SimplifierBase::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<PrimExpr>(op));
+  op = ret.as<prim::BitwiseAndNode>();
+  if (op && op->a.as<IntImmNode>() && op->b.as<IntImmNode>()) {
+    return op->a & op->b;
+  }
+  return ret;
+}
+
+UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::BitwiseOrNode* op,
+                                                       InplaceMode inplace_mode) {
+  PrimExpr ret =
+      SimplifierBase::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<PrimExpr>(op));
+  op = ret.as<prim::BitwiseOrNode>();
+  if (op && op->a.as<IntImmNode>() && op->b.as<IntImmNode>()) {
+    return op->a | op->b;
+  }
+  return ret;
+}
+
+UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::BitwiseXorNode* op,
+                                                       InplaceMode inplace_mode) {
+  PrimExpr ret =
+      SimplifierBase::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<PrimExpr>(op));
+  op = ret.as<prim::BitwiseXorNode>();
+  if (op && op->a.as<IntImmNode>() && op->b.as<IntImmNode>()) {
+    return op->a ^ op->b;
+  }
+  return ret;
+}
+
 UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::LShiftNode* op,
                                                        InplaceMode inplace_mode) {
   PrimExpr ret =
