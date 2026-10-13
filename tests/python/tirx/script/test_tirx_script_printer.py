@@ -137,10 +137,7 @@ def test_reflected_type_recursive_values(monkeypatch):
         tvm_ffi.convert([T.int32(128), {"nested": [T.float32(1.25), tvm.ir.PrimType("int32")]}])
     )
     source = value.script()
-    assert (
-        source
-        == 'T.PrinterValues([T.int32(128), {"nested": [T.float32(1.25), T.PrimType("int32")]}])'
-    )
+    assert source == 'T.PrinterValues([T.int32(128), {"nested": [T.float32(1.25), T.int32]}])'
     restored = eval(source, {"T": T})
     tvm.ir.assert_structural_equal(value, restored)
     assert restored.script() == source
@@ -268,7 +265,7 @@ def test_allocate(declare):
     _assert_print(
         obj.body,
         (
-            """v_1 = T.Var("", T.Ptr(T.PrimType("float32")))
+            """v_1 = T.Var("", T.Ptr(T.float32))
 v = T.decl_tensor(v_1, ty_args=[T.Tensor((128, 128), T.float32)])
 T.evaluate(1)
 """
@@ -359,7 +356,7 @@ def test_decl_tensor():
     _assert_print(
         obj.body,
         """
-v_1 = T.Var("", T.Ptr(T.PrimType("float32")))
+v_1 = T.Var("", T.Ptr(T.float32))
 v = T.decl_tensor(v_1, ty_args=[T.Tensor((10, 10), T.float32)])
 T.evaluate(1)
 """,
@@ -423,7 +420,7 @@ a""",
     _assert_print(
         a,
         """
-a = T.Var("a", T.Ptr(T.PrimType("void")))
+a = T.Var("a", T.Ptr(T.void))
 a
 """,
     )
@@ -432,7 +429,7 @@ a
     _assert_print(
         a,
         """
-a = T.Var("a", T.Ptr(T.PrimType("void"), storage_scope="shared"))
+a = T.Var("a", T.Ptr(T.void, storage_scope="shared"))
 a
 """,
     )
@@ -677,13 +674,13 @@ def test_prim_type():
 
 def test_pointer_type():
     obj = ir.PtrType(ir.PrimType("int32"), "global")
-    _assert_print(obj, 'T.Ptr(T.PrimType("int32"))')
+    _assert_print(obj, "T.Ptr(T.int32)")
 
     obj = ir.PtrType(ir.PrimType("void"))
-    _assert_print(obj, 'T.Ptr(T.PrimType("void"))')
+    _assert_print(obj, "T.Ptr(T.void)")
 
     obj = ir.PtrType(ir.PrimType("void"), "shared")
-    _assert_print(obj, 'T.Ptr(T.PrimType("void"), storage_scope="shared")')
+    _assert_print(obj, 'T.Ptr(T.void, storage_scope="shared")')
 
 
 def test_tuple_type():
@@ -799,8 +796,8 @@ def test_printer_ptx_more():
     _assert_namespace_print(
         cuda_op.cuda_tcgen05_encode_matrix_descriptor(d, a, 1, 2, 0),
         """
-d = T.Var("d", T.Ptr(T.PrimType("void")))
-a = T.Var("a", T.Ptr(T.PrimType("void")))
+d = T.Var("d", T.Ptr(T.void))
+a = T.Var("a", T.Ptr(T.void))
 T.cuda.tcgen05_encode_matrix_descriptor(d, a, 1, 2, 0)
 """,
     )
@@ -822,7 +819,7 @@ T.cuda.tcgen05_encode_matrix_descriptor(d, a, 1, 2, 0)
             is_sparse=False,
         ),
         """
-d = T.Var("d", T.Ptr(T.PrimType("void")))
+d = T.Var("d", T.Ptr(T.void))
 T.cuda.tcgen05_encode_instr_descriptor(d, K=16, M=16, N=16, a_dtype="f16", b_dtype="f16", d_dtype="f16", trans_a=True, trans_b=False)
 """,  # noqa: E501
     )
@@ -845,7 +842,7 @@ T.cuda.tcgen05_encode_instr_descriptor(d, K=16, M=16, N=16, a_dtype="f16", b_dty
             neg_b=False,
         ),
         """
-d = T.Var("d", T.Ptr(T.PrimType("void")))
+d = T.Var("d", T.Ptr(T.void))
 T.cuda.tcgen05_encode_instr_descriptor_block_scaled(d, K=16, M=16, N=16, a_dtype="f16", b_dtype="f16", d_dtype="f16", is_sparse=True, sfa_dtype="f16", sfb_dtype="f16", trans_a=True, trans_b=False)
 """,  # noqa: E501
     )
@@ -856,7 +853,7 @@ def test_printer_cuda_mbarrier_wait_var():
     _assert_namespace_print(
         cuda_op.cuda_mbarrier_wait(bar, 1),
         """
-bar = T.Var("bar", T.Ptr(T.PrimType("void")))
+bar = T.Var("bar", T.Ptr(T.void))
 T.cuda.mbarrier_wait(bar, 1)
 """,
     )
@@ -876,14 +873,14 @@ def test_printer_cuda_more():
     _assert_namespace_print(
         cuda_op.cuda_atomic_add(p, tir.IntImm("int32", 1)),
         """
-p = T.Var("p", T.Ptr(T.PrimType("void")))
+p = T.Var("p", T.Ptr(T.void))
 T.cuda.atomic_add(p, 1)
 """,
     )
     _assert_namespace_print(
         cuda_op.cuda_atomic_cas(p, 1, 2),
         """
-p = T.Var("p", T.Ptr(T.PrimType("void")))
+p = T.Var("p", T.Ptr(T.void))
 T.cuda.atomic_cas(p, 1, 2)
 """,
     )
@@ -937,14 +934,14 @@ def test_printer_nvshmem_more():
     _assert_namespace_print(
         cuda_op.nvshmem_signal_op(p, 1, "set", 0),
         """
-p = T.Var("p", T.Ptr(T.PrimType("void")))
+p = T.Var("p", T.Ptr(T.void))
 T.nvshmem.signal_op(p, 1, "set", 0)
 """,
     )
     _assert_namespace_print(
         cuda_op.nvshmem_wait_until(p, "eq", 0),
         """
-p = T.Var("p", T.Ptr(T.PrimType("void")))
+p = T.Var("p", T.Ptr(T.void))
 T.nvshmem.wait_until(p, "eq", 0, "uint64_t")
 """,
     )
@@ -953,56 +950,56 @@ T.nvshmem.wait_until(p, "eq", 0, "uint64_t")
     _assert_namespace_print(
         cuda_op.nvshmem_getmem_nbi(p, p, 16, 0),
         """
-p = T.Var("p", T.Ptr(T.PrimType("void")))
+p = T.Var("p", T.Ptr(T.void))
 T.nvshmem.getmem_nbi(p, p, 16, 0)
 """,
     )
     _assert_namespace_print(
         cuda_op.nvshmem_getmem_nbi_warp(p, p, 16, 0),
         """
-p = T.Var("p", T.Ptr(T.PrimType("void")))
+p = T.Var("p", T.Ptr(T.void))
 T.nvshmem.getmem_nbi_warp(p, p, 16, 0)
 """,
     )
     _assert_namespace_print(
         cuda_op.nvshmem_putmem_nbi_block(p, p, 16, 0),
         """
-p = T.Var("p", T.Ptr(T.PrimType("void")))
+p = T.Var("p", T.Ptr(T.void))
 T.nvshmem.putmem_nbi_block(p, p, 16, 0)
 """,
     )
     _assert_namespace_print(
         cuda_op.nvshmem_putmem_nbi(p, p, 16, 0),
         """
-p = T.Var("p", T.Ptr(T.PrimType("void")))
+p = T.Var("p", T.Ptr(T.void))
 T.nvshmem.putmem_nbi(p, p, 16, 0)
 """,
     )
     _assert_namespace_print(
         cuda_op.nvshmem_putmem_nbi_warp(p, p, 16, 0),
         """
-p = T.Var("p", T.Ptr(T.PrimType("void")))
+p = T.Var("p", T.Ptr(T.void))
 T.nvshmem.putmem_nbi_warp(p, p, 16, 0)
 """,
     )
     _assert_namespace_print(
         cuda_op.nvshmem_putmem_signal_nbi(p, p, 16, p, 1, "set", 0),
         """
-p = T.Var("p", T.Ptr(T.PrimType("void")))
+p = T.Var("p", T.Ptr(T.void))
 T.nvshmem.putmem_signal_nbi(p, p, 16, p, 1, "set", 0)
 """,
     )
     _assert_namespace_print(
         cuda_op.nvshmem_putmem_signal_nbi_warp(p, p, 16, p, 1, "set", 0),
         """
-p = T.Var("p", T.Ptr(T.PrimType("void")))
+p = T.Var("p", T.Ptr(T.void))
 T.nvshmem.putmem_signal_nbi_warp(p, p, 16, p, 1, "set", 0)
 """,
     )
     _assert_namespace_print(
         cuda_op.nvshmem_putmem_signal_nbi_block(p, p, 16, p, 1, "set", 0),
         """
-p = T.Var("p", T.Ptr(T.PrimType("void")))
+p = T.Var("p", T.Ptr(T.void))
 T.nvshmem.putmem_signal_nbi_block(p, p, 16, p, 1, "set", 0)
 """,
     )
@@ -1112,8 +1109,8 @@ def test_printer_ptx_mma_and_wgmma():
     _assert_namespace_print(
         cuda_op.cuda_wgmma_encode_matrix_descriptor(d, a, 1, 1, 0),
         """
-d = T.Var("d", T.Ptr(T.PrimType("void")))
-a = T.Var("a", T.Ptr(T.PrimType("void")))
+d = T.Var("d", T.Ptr(T.void))
+a = T.Var("a", T.Ptr(T.void))
 T.cuda.wgmma_encode_matrix_descriptor(d, a, 1, 1, 0)
 """,
     )

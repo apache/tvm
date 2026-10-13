@@ -1698,17 +1698,10 @@ class IRBuilderTranspiler(ast.NodeTransformer):
             dtype = (
                 "int64"
                 if bound is None or (isinstance(bound, ast.Name) and bound.id == "int")
-                else protocol_registry.SCALAR_ANNOTATION_DTYPE.get(
-                    self.module.prescan_ctx._match_special_func(bound)
-                )
+                else self.module.prescan_ctx.scalar_annotation_dtype(bound)
             )
             if bound is not None and not (isinstance(bound, ast.Name) and bound.id == "int"):
-                if (
-                    protocol_registry.SCALAR_ANNOTATION_DTYPE.get(
-                        self.module.prescan_ctx._match_special_func(bound)
-                    )
-                    is None
-                ):
+                if self.module.prescan_ctx.scalar_annotation_dtype(bound) is None:
                     self._raise_error(
                         parameter,
                         "A symbolic type parameter bound must be int or a registered scalar dtype",
@@ -1788,9 +1781,7 @@ class IRBuilderTranspiler(ast.NodeTransformer):
             self.function.capture_names.add(name)
             alias = self.module.make_fresh_name("_parameter")
             forward[name] = alias
-            dtype = protocol_registry.SCALAR_ANNOTATION_DTYPE[
-                self.module.prescan_ctx._match_special_func(annotation)
-            ]
+            dtype = self.module.prescan_ctx.scalar_annotation_dtype(annotation)
             created = self._call(
                 self.module.ir_prefix,
                 "dynamic",
@@ -1857,10 +1848,7 @@ class IRBuilderTranspiler(ast.NodeTransformer):
                     translated = ast.Name(forward[name], ast.Load())
                 elif (
                     name in symbols
-                    and protocol_registry.SCALAR_ANNOTATION_DTYPE.get(
-                        self.module.prescan_ctx._match_special_func(annotation)
-                    )
-                    is not None
+                    and self.module.prescan_ctx.scalar_annotation_dtype(annotation) is not None
                 ):
                     translated = ast.Name(name, ast.Load())
                 else:

@@ -69,15 +69,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       FDocTranslate::FromNative<&FloatImmDocTranslate>());
 }
 
-ffi::Optional<ExprDoc> PrimTypeDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+ffi::Optional<ExprDoc> PrimTypeDocTranslate(DocTranslatorObj*, ffi::AnyView input,
                                             const ffi::Object*) {
   const auto* ty =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const PrimTypeNode>(input);
-  if (d->GetOrCreateExtraState<bool>("ir.type_value")) {
-    return NamespaceDoc("ir")
-        ->Attr("PrimType")
-        ->Call({LiteralDoc::DataType(ty->dtype, std::nullopt)});
-  }
   PrimType type = ffi::GetRef<PrimType>(ty);
   bool supported_element =
       (type.MatchesCode(kDLInt, kDLUInt) &&
@@ -90,11 +85,12 @@ ffi::Optional<ExprDoc> PrimTypeDocTranslate(DocTranslatorObj* d, ffi::AnyView in
   bool supported_lanes = ty->dtype.lanes == 1 || ty->dtype.lanes == 2 || ty->dtype.lanes == 4 ||
                          ty->dtype.lanes == 8 || ty->dtype.lanes == 16 || ty->dtype.lanes == 32 ||
                          ty->dtype.lanes == 64;
-  bool supported_scalar = type.IsScalar() && (type.MatchesElementType(kDLBool, 8) ||
-                                              type.MatchesElementType(kDLBfloat, 16));
+  bool supported_scalar =
+      type.IsVoid() || (type.IsScalar() && (type.MatchesElementType(kDLBool, 8) ||
+                                            type.MatchesElementType(kDLBfloat, 16)));
   // Other widths and fixed or scalable vectors have no exported TIRx shorthand.
   if ((supported_element && supported_lanes) || supported_scalar) {
-    return NamespaceDoc("tirx")->Attr(ffi::DLDataTypeToString(ty->dtype));
+    return NamespaceDoc("tirx")->Attr(type.IsVoid() ? "void" : ffi::DLDataTypeToString(ty->dtype));
   }
   return NamespaceDoc("ir")
       ->Attr("PrimType")

@@ -98,9 +98,8 @@ ExprDoc GlobalReference(DocTranslatorObj* d, const ffi::String& name) {
 namespace {
 
 ExprDoc TypeValueImpl(DocTranslatorObj* d, const Type& type, bool dtype_literal) {
-  if (auto primitive = type.as<PrimType>()) {
-    ExprDoc dtype = LiteralDoc::DataType(primitive.value()->dtype, std::nullopt);
-    return dtype_literal ? dtype : NamespaceDoc("ir")->Attr("PrimType")->Call({dtype});
+  if (auto primitive = type.as<PrimType>(); dtype_literal && primitive.has_value()) {
+    return LiteralDoc::DataType(primitive.value()->dtype, std::nullopt);
   }
   ExtraStateScope<bool> type_value(d, "ir.type_value", true);
   return d->Translate(type).value();

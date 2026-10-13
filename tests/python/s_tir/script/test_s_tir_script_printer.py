@@ -1688,7 +1688,7 @@ def test_void_ptr_vs_handle():
 
     tvm.ir.assert_structural_equal(void_ptr.params[0].ty, handle.params[0].ty)
     script = void_ptr.script()
-    assert 'out_ret_value: T.Ptr(T.PrimType("void"))' in script
+    assert "out_ret_value: T.Ptr(T.void)" in script
     assert 'T.handle("void")' not in script
     tvm.ir.assert_structural_equal(
         void_ptr,
@@ -1708,7 +1708,7 @@ def test_void_ptr_vs_handle():
         T.evaluate(out_ret_value)
 
     scoped_script = scoped_void_ptr.script()
-    assert 'out_ret_value: T.Ptr(T.PrimType("void"), storage_scope="shared")' in scoped_script
+    assert 'out_ret_value: T.Ptr(T.void, storage_scope="shared")' in scoped_script
     assert 'T.handle("void"' not in scoped_script
     tvm.ir.assert_structural_equal(
         scoped_void_ptr,

@@ -116,6 +116,21 @@ class PrimType(Type):
     def __init__(self, dtype):
         self.__init_handle_by_constructor__(_ffi_api.PrimType, dtype)
 
+    def __call__(self, expr=None):
+        """Create a fresh variable, or convert a primitive expression to this type."""
+        from .expr import Var
+        from .prim import _ffi_api as prim_ffi_api
+
+        if expr is None:
+            return Var("", self)
+        if isinstance(expr, str) and str(self.dtype) not in ("bool", "void", ""):
+            expr = float(expr)
+        return prim_ffi_api._cast(self, expr, UNKNOWN_LOC)
+
+    def __getitem__(self, shape):
+        """Describe local storage with this element type and the given shape."""
+        return _PrimTypeArrayAnnotation(self, shape if isinstance(shape, tuple) else (shape,))
+
     def __eq__(self, other):
         if isinstance(other, str):
             return self.dtype == other
@@ -144,6 +159,16 @@ class PrimType(Type):
     def is_scalar(self) -> bool:
         """Return whether this type has exactly one fixed lane."""
         return self.dtype.lanes == 1
+
+
+class _PrimTypeArrayAnnotation:
+    """A shaped primitive annotation, interpreted by a dialect's declaration builder."""
+
+    __slots__ = ("dtype", "shape")
+
+    def __init__(self, dtype: PrimType, shape: tuple):
+        self.dtype = dtype
+        self.shape = shape
 
 
 @tvm_ffi.register_object("ir.StringType")
@@ -223,9 +248,9 @@ class FuncType(Type):
 def _normalize_type(value) -> Type:
     """Normalize supported explicit type arguments without invoking arbitrary factories.
 
-    Bare concrete Type classes denote their nullary instances. Scalar script
-    constructors expose their dtype through ``_dtype_str``; this path does not
-    construct a variable or require a builder frame.
+    Bare concrete Type classes denote their nullary instances. Primitive dtype
+    strings become PrimType values without constructing a variable or requiring
+    a builder frame.
     """
     if isinstance(value, Type):
         return value
@@ -233,9 +258,6 @@ def _normalize_type(value) -> Type:
         return value()
     if isinstance(value, str | tvm_ffi.dtype):
         return PrimType(value)
-    dtype = getattr(value, "_dtype_str", None)
-    if isinstance(dtype, str):
-        return PrimType(dtype)
     raise TypeError(f"Expected an IR type or primitive dtype, got {type(value).__name__}")
 
 
