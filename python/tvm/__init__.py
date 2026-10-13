@@ -40,7 +40,7 @@ from . import error
 
 # tvm.ir
 from .ir import IRModule
-from . import transform
+from .ir import transform
 from . import ir
 
 # tvm.script — must be imported before any dialect package so that

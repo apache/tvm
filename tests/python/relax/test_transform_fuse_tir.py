@@ -1222,10 +1222,10 @@ def test_tir_expression_in_shape():
         @Ts.function(private=True)
         def fused_transpose_matmul(
             x: T.Tensor((T.int64(3), T.int64(4)), "float32"),
-            y: T.Tensor((fused_transpose_matmul_n - T.int64(1), T.int64(4))),
+            y: T.Tensor((fused_transpose_matmul_n - T.int64(1), T.int64(4)), "float32"),
             n: fused_transpose_matmul_n,
             var_T_matmul_intermediate: T.Tensor(
-                (fused_transpose_matmul_n - T.int64(1), T.int64(3))
+                (fused_transpose_matmul_n - T.int64(1), T.int64(3)), "float32"
             ),
         ):
             T.func_attr({"tirx.noalias": True})
@@ -2377,15 +2377,15 @@ def test_block_name_numeric_suffix_deduplication():
     class Expected:
         @Ts.function(private=True)
         def fused_add_mul(
-            x: T.Tensor((T.int64(10),)),
-            y_intermediate_1: T.Tensor((T.int64(10),), elem_offset=T.int32(0)),
+            x: T.Tensor((T.int64(10),), "float32"),
+            y_intermediate_1: T.Tensor((T.int64(10),), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
 
             with Ts.sblock("root"):
                 Ts.reads()
                 Ts.writes()
-                y_intermediate = Ts.sblock_alloc_tensor((T.int64(10),), elem_offset=T.int32(0))
+                y_intermediate = Ts.sblock_alloc_tensor((T.int64(10),))
                 for i in range(10):
                     with Ts.sblock("compute1"):
                         vi = Ts.axis.spatial(10, i)

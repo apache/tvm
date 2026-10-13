@@ -47,7 +47,9 @@ def _check_fail(original):
 
 @Ts.function
 def element_wise_thread_x(
-    A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 128])
+    A: T.Tensor([128, 128], "float32"),
+    B: T.Tensor([128, 128], "float32"),
+    C: T.Tensor([128, 128], "float32"),
 ) -> None:
     for i in T.parallel(0, 128, annotations={"thread_binding": "blockIdx.x"}):
         for j0_0 in T.parallel(0, 4, annotations={"thread_binding": "threadIdx.x"}):
@@ -62,7 +64,9 @@ def element_wise_thread_x(
 
 @Ts.function
 def lowered_element_wise_thread_x(
-    A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 128])
+    A: T.Tensor([128, 128], "float32"),
+    B: T.Tensor([128, 128], "float32"),
+    C: T.Tensor([128, 128], "float32"),
 ) -> None:
     with T.launch_thread("blockIdx.x", 128) as i:
         with T.launch_thread("threadIdx.x", 4) as j0_0:
@@ -111,7 +115,9 @@ def lowered_element_wise_thread_x_different_dtype(
 
 @Ts.function
 def element_wise_launch_thread_x(
-    A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 128])
+    A: T.Tensor([128, 128], "float32"),
+    B: T.Tensor([128, 128], "float32"),
+    C: T.Tensor([128, 128], "float32"),
 ) -> None:
     i = T.launch_thread("blockIdx.x", 128)
     j0_0 = T.launch_thread("threadIdx.x", 4)
@@ -127,7 +133,9 @@ def element_wise_launch_thread_x(
 
 @Ts.function
 def lowered_element_wise_launch_thread_x(
-    A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 128])
+    A: T.Tensor([128, 128], "float32"),
+    B: T.Tensor([128, 128], "float32"),
+    C: T.Tensor([128, 128], "float32"),
 ) -> None:
     i = T.launch_thread("blockIdx.x", 128)
     j0_0 = T.launch_thread("threadIdx.x", 4)
@@ -142,7 +150,9 @@ def lowered_element_wise_launch_thread_x(
 
 
 @Ts.function
-def element_wise_vthread_x(A: T.Tensor([128, 128]), B: T.Tensor([128, 128])) -> None:
+def element_wise_vthread_x(
+    A: T.Tensor([128, 128], "float32"), B: T.Tensor([128, 128], "float32")
+) -> None:
     for i_0 in T.parallel(0, 2, annotations={"thread_binding": "vthread.x"}):
         for i_1 in T.parallel(0, 64, annotations={"thread_binding": "threadIdx.x"}):
             for j_0 in T.parallel(0, 2, annotations={"thread_binding": "vthread.x"}):
@@ -152,7 +162,9 @@ def element_wise_vthread_x(A: T.Tensor([128, 128]), B: T.Tensor([128, 128])) -> 
 
 
 @Ts.function
-def lowered_element_wise_vthread_x(A: T.Tensor([128, 128]), B: T.Tensor([128, 128])) -> None:
+def lowered_element_wise_vthread_x(
+    A: T.Tensor([128, 128], "float32"), B: T.Tensor([128, 128], "float32")
+) -> None:
     with T.launch_thread("vthread.x", 2) as i_0:
         with T.launch_thread("threadIdx.x", 64) as i_1:
             with T.launch_thread("vthread.x", 2) as j_0:
@@ -163,7 +175,9 @@ def lowered_element_wise_vthread_x(A: T.Tensor([128, 128]), B: T.Tensor([128, 12
 
 @Ts.function
 def element_wise_two_thread_x_in_same_kernel_not_equal(
-    A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 64])
+    A: T.Tensor([128, 128], "float32"),
+    B: T.Tensor([128, 128], "float32"),
+    C: T.Tensor([128, 64], "float32"),
 ) -> None:
     for i in T.parallel(0, 128, annotations={"thread_binding": "blockIdx.x"}):
         for j0 in T.parallel(0, 128, annotations={"thread_binding": "threadIdx.x"}):
@@ -174,10 +188,10 @@ def element_wise_two_thread_x_in_same_kernel_not_equal(
 
 @Ts.function
 def element_wise_kernels_with_different_size(
-    A: T.Tensor([128, 128]),
-    B: T.Tensor([128, 128]),
-    C: T.Tensor([256, 256]),
-    D: T.Tensor([256, 256]),
+    A: T.Tensor([128, 128], "float32"),
+    B: T.Tensor([128, 128], "float32"),
+    C: T.Tensor([256, 256], "float32"),
+    D: T.Tensor([256, 256], "float32"),
 ) -> None:
     for i0 in T.parallel(0, 128, annotations={"thread_binding": "blockIdx.x"}):
         for j0 in T.parallel(0, 128, annotations={"thread_binding": "threadIdx.x"}):
@@ -189,10 +203,10 @@ def element_wise_kernels_with_different_size(
 
 @Ts.function
 def lowered_element_wise_kernels_with_different_size(
-    A: T.Tensor([128, 128]),
-    B: T.Tensor([128, 128]),
-    C: T.Tensor([256, 256]),
-    D: T.Tensor([256, 256]),
+    A: T.Tensor([128, 128], "float32"),
+    B: T.Tensor([128, 128], "float32"),
+    C: T.Tensor([256, 256], "float32"),
+    D: T.Tensor([256, 256], "float32"),
 ) -> None:
     with T.launch_thread("blockIdx.x", 128) as i0:
         with T.launch_thread("threadIdx.x", 128) as j0:
@@ -204,7 +218,9 @@ def lowered_element_wise_kernels_with_different_size(
 
 @Ts.function
 def element_wise_implicit_block(
-    A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 128])
+    A: T.Tensor([128, 128], "float32"),
+    B: T.Tensor([128, 128], "float32"),
+    C: T.Tensor([128, 128], "float32"),
 ) -> None:
     for i in T.parallel(0, 128, annotations={"thread_binding": "threadIdx.y"}):
         for j0_0 in T.parallel(0, 4, annotations={"thread_binding": "threadIdx.x"}):
@@ -219,7 +235,9 @@ def element_wise_implicit_block(
 
 @Ts.function
 def lowered_element_wise_implicit_block(
-    A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 128])
+    A: T.Tensor([128, 128], "float32"),
+    B: T.Tensor([128, 128], "float32"),
+    C: T.Tensor([128, 128], "float32"),
 ) -> None:
     with T.launch_thread("threadIdx.y", 128) as i:
         with T.launch_thread("threadIdx.x", 4) as j0_0:

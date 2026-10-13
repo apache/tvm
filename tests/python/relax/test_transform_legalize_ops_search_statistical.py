@@ -178,7 +178,7 @@ def test_argmax_symbolic():
             return gv
 
         @Ts.function(private=True)
-        def argmax(rxplaceholder: T.Tensor((a_argmax, b_argmax, c_argmax, d_argmax)), rxplaceholder_red: T.Tensor((a_argmax, T.int64(1), c_argmax, d_argmax), 'int64')):
+        def argmax(rxplaceholder: T.Tensor((a_argmax, b_argmax, c_argmax, d_argmax), "float32"), rxplaceholder_red: T.Tensor((a_argmax, T.int64(1), c_argmax, d_argmax), 'int64')):
             T.func_attr({"tirx.noalias": True})
 
             # with Ts.sblock("root"):
@@ -278,7 +278,7 @@ def test_argmin_symbolic():
     @tvm.script.ir_module
     class Expected:
         @Ts.function(private=True)
-        def argmin(rxplaceholder: T.Tensor((a_argmin, b_argmin, c_argmin, d_argmin)), rxplaceholder_red: T.Tensor((T.int64(1), T.int64(1), T.int64(1), T.int64(1)), "int64")):
+        def argmin(rxplaceholder: T.Tensor((a_argmin, b_argmin, c_argmin, d_argmin), "float32"), rxplaceholder_red: T.Tensor((T.int64(1), T.int64(1), T.int64(1), T.int64(1)), "int64")):
             T.func_attr({"tirx.noalias": True})
 
             rxplaceholder_red_temp_v0 = Ts.sblock_alloc_tensor((T.int64(1), T.int64(1), T.int64(1), T.int64(1)), "int64")
@@ -848,7 +848,7 @@ def test_median():
             return gv
 
         @Ts.function(private=True)
-        def median(data_buf: T.Tensor((T.int64(2), T.int64(3), T.int64(4), T.int64(5)), align=8), T_squeeze: T.Tensor((T.int64(3), T.int64(4), T.int64(5)), "float32"), T_squeeze_1: T.Tensor((T.int64(3), T.int64(4), T.int64(5)), "int64")):
+        def median(data_buf: T.Tensor((T.int64(2), T.int64(3), T.int64(4), T.int64(5)), "float32", align=8), T_squeeze: T.Tensor((T.int64(3), T.int64(4), T.int64(5)), "float32"), T_squeeze_1: T.Tensor((T.int64(3), T.int64(4), T.int64(5)), "int64")):
             T.func_attr({"tirx.noalias": True})
 
             # with Ts.sblock("root"):
@@ -1012,7 +1012,7 @@ def test_std_symbolic():
     @I.ir_module
     class Expected:
         @Ts.function(private=True)
-        def std(rxplaceholder: T.Tensor((a_std, b_std, c_std, d_std)), compute: T.Tensor((), "float32")):
+        def std(rxplaceholder: T.Tensor((a_std, b_std, c_std, d_std), "float32"), compute: T.Tensor((), "float32")):
             T.func_attr({"tirx.noalias": True})
 
             # with Ts.sblock("root"):

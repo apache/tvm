@@ -207,7 +207,7 @@ def test_invalid_loop_var():
 
 
 def test_inconsistent_grid():
-    def inconsistent_grid(A: T.Tensor(16)) -> None:
+    def inconsistent_grid(A: T.Tensor(16, "float32")) -> None:
         for (i,) in T.grid(16, 16):  # error: one explicit target cannot unpack two variables
             T.evaluate(A[i])
 
@@ -356,7 +356,7 @@ def test_tvm_exception_catch_from_assigned_intrin():
 
 
 def test_match_tensor_shape_mismatch():
-    def tensor_shape_mismatch(A: T.Tensor((8, 8))) -> None:
+    def tensor_shape_mismatch(A: T.Tensor((8, 8), "float32")) -> None:
         for i, j in T.grid(8, 2):
             with Ts.sblock():
                 Ts.reads([])
@@ -418,7 +418,7 @@ def test_implicit_root_has_attrs():
 
 @Ts.function
 def elementwise_not_affine(
-    A: T.Tensor((128, 128, 128, 128)), B: T.Tensor((128, 128, 128, 128))
+    A: T.Tensor((128, 128, 128, 128), "float32"), B: T.Tensor((128, 128, 128, 128), "float32")
 ) -> None:
     for i, j, k, l in T.grid(128, 128, 128, 8):  # noqa: E741
         with Ts.sblock("B"):
@@ -429,7 +429,7 @@ def elementwise_not_affine(
 
 @Ts.function
 def elementwise_non_single_branch(
-    A: T.Tensor((128, 128, 128)), B: T.Tensor((128, 128, 128))
+    A: T.Tensor((128, 128, 128), "float32"), B: T.Tensor((128, 128, 128), "float32")
 ) -> None:
     C = Ts.sblock_alloc_tensor((128, 128, 128))
 
@@ -518,28 +518,28 @@ def test_store_var():
 
 
 def test_load_handle():
-    def load_handle(h: T.handle, h_: T.Tensor([1])) -> None:
+    def load_handle(h: T.handle, h_: T.Tensor([1], "float32")) -> None:
         h_[0] = h[0]  # error cannot load from handle
 
     check_error(load_handle, 2, TypeError)
 
 
 def test_store_handle():
-    def store_handle(h: T.handle, h_: T.Tensor([1])) -> None:
+    def store_handle(h: T.handle, h_: T.Tensor([1], "float32")) -> None:
         h[0] = h_[0]  # error cannot store to handle
 
     check_error(store_handle, 2, TypeError)
 
 
 def test_binop_bad_ast_type():
-    def binop_bad_ast_type(h: T.handle, h_: T.Tensor([1])):
+    def binop_bad_ast_type(h: T.handle, h_: T.Tensor([1], "float32")):
         h_[0] = h + [2]  # error rhs should be a primexpr  # noqa: RUF005
 
     check_error(binop_bad_ast_type, 2, TypeError)
 
 
 def test_binop_bad_type():
-    def binop_bad_type(h: T.handle, h_: T.Tensor([1])):
+    def binop_bad_type(h: T.handle, h_: T.Tensor([1], "float32")):
         h_[0] = h + 2  # error lhs and rhs should be the same type
 
     check_error(binop_bad_type, 2, TypeError)
@@ -579,7 +579,7 @@ def test_illegal_tensor_slice():
 
 
 def test_invalid_thread_binding_annotation():
-    def invalid_thread_binding_annotation(A: T.Tensor((128,))) -> None:
+    def invalid_thread_binding_annotation(A: T.Tensor((128,), "float32")) -> None:
         for i in T.parallel(128, annotations={"thread_binding": 128}):
             A[i] = A[i] * 2.0
 
@@ -631,7 +631,9 @@ def test_tir_func_private_manual_global_symbol_fail():
 
         @Ts.function(private=True)
         def matmul(
-            A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 128])
+            A: T.Tensor([128, 128], "float32"),
+            B: T.Tensor([128, 128], "float32"),
+            C: T.Tensor([128, 128], "float32"),
         ) -> None:
             T.func_attr({"global_symbol": "matmul"})
 

@@ -459,7 +459,8 @@ std::string Script(const ffi::ObjectRef& node, const ffi::Optional<PrinterConfig
   static ffi::reflection::TypeAttrColumn translate(tvm::script::printer::type_attr::kDocTranslate);
   // Builtin runtime roots keep their native repr; hooks still translate them within IR.
   if (!node.defined() || node->type_index() < ffi::TypeIndex::kTVMFFIDynObjectBegin ||
-      translate[node->type_index()].type_index() == ffi::TypeIndex::kTVMFFINone) {
+      (translate[node->type_index()].type_index() == ffi::TypeIndex::kTVMFFINone &&
+       !node.as<TypeNode>())) {
     return RenderFallbackWithInvisiblePathInfo(ffi::ReprPrint(ffi::Any(node)), config);
   }
   return std::string(script::printer::RenderScript(node, config));

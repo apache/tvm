@@ -236,9 +236,9 @@ def test_vm_compile_e2e_func_param_with_shape():
     class TestVMCompileE2E2:
         @Ts.function
         def tir_matmul(
-            A: T.Tensor((m_tir_matmul, n_tir_matmul)),
-            B: T.Tensor((n_tir_matmul, k_tir_matmul)),
-            C: T.Tensor((m_tir_matmul, k_tir_matmul)),
+            A: T.Tensor((m_tir_matmul, n_tir_matmul), "float32"),
+            B: T.Tensor((n_tir_matmul, k_tir_matmul), "float32"),
+            C: T.Tensor((m_tir_matmul, k_tir_matmul), "float32"),
         ) -> None:
             T.func_attr({"global_symbol": "tir_matmul"})
 
@@ -737,7 +737,11 @@ def test_sub_func_call():
     @tvm.script.ir_module
     class TestVMSubFunction:
         @Ts.function
-        def tir_matmul(A: T.Tensor((m, n)), B: T.Tensor((n, k)), C: T.Tensor((m, k))) -> None:
+        def tir_matmul(
+            A: T.Tensor((m, n), "float32"),
+            B: T.Tensor((n, k), "float32"),
+            C: T.Tensor((m, k), "float32"),
+        ) -> None:
             T.func_attr({"global_symbol": "tir_matmul"})
 
             for i, j, k_index in T.grid(m, k, n):
@@ -918,7 +922,11 @@ n = T.dynamic("n", "int32")
 @tvm.script.ir_module
 class TestVMSetInput:
     @Ts.function
-    def test_vm_mul(A: T.Tensor((m, n)), B: T.Tensor((m, n)), C: T.Tensor((m, n))):
+    def test_vm_mul(
+        A: T.Tensor((m, n), "float32"),
+        B: T.Tensor((m, n), "float32"),
+        C: T.Tensor((m, n), "float32"),
+    ):
         T.func_attr({"global_symbol": "test_vm_mul"})
 
         for i, j in T.grid(m, n):

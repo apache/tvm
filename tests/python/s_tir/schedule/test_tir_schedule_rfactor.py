@@ -98,7 +98,9 @@ def matmul_rfactor(
 
 @Ts.function
 def matmul_not_stage_pipeline(
-    A: T.Tensor([256, 256]), B: T.Tensor([256, 256]), D: T.Tensor([256, 256])
+    A: T.Tensor([256, 256], "float32"),
+    B: T.Tensor([256, 256], "float32"),
+    D: T.Tensor([256, 256], "float32"),
 ) -> None:
     C = Ts.sblock_alloc_tensor([256, 256])
 
@@ -117,7 +119,9 @@ def matmul_not_stage_pipeline(
 
 @Ts.function
 def matmul_not_same_tensor_access(
-    A: T.Tensor((128, 128)), B: T.Tensor((128, 128)), C: T.Tensor((128, 128))
+    A: T.Tensor((128, 128), "float32"),
+    B: T.Tensor((128, 128), "float32"),
+    C: T.Tensor((128, 128), "float32"),
 ) -> None:
     for i, j, k in T.grid(128, 128, 128):
         with Ts.sblock("C"):
@@ -129,10 +133,10 @@ def matmul_not_same_tensor_access(
 
 @Ts.function
 def matmul_loop_multiple_children(
-    A: T.Tensor([128, 128]),
-    B: T.Tensor([128, 128]),
-    C: T.Tensor([128, 128]),
-    D: T.Tensor([128, 128]),
+    A: T.Tensor([128, 128], "float32"),
+    B: T.Tensor([128, 128], "float32"),
+    C: T.Tensor([128, 128], "float32"),
+    D: T.Tensor([128, 128], "float32"),
 ) -> None:
     for k, i, j in T.grid(128, 128, 128):
         with Ts.sblock("C"):
@@ -148,7 +152,7 @@ def matmul_loop_multiple_children(
 
 
 @Ts.function
-def square_sum(A: T.Tensor([16, 256, 256]), C: T.Tensor([16])) -> None:
+def square_sum(A: T.Tensor([16, 256, 256], "float32"), C: T.Tensor([16], "float32")) -> None:
     for b0, i0, j0 in T.grid(16, 256, 256):
         with Ts.sblock("C"):
             b, i, j = Ts.axis.remap("SRR", [b0, i0, j0])
@@ -158,7 +162,9 @@ def square_sum(A: T.Tensor([16, 256, 256]), C: T.Tensor([16])) -> None:
 
 
 @Ts.function
-def square_sum_rfactor(A: T.Tensor([16, 256, 256]), C: T.Tensor([16])) -> None:
+def square_sum_rfactor(
+    A: T.Tensor([16, 256, 256], "float32"), C: T.Tensor([16], "float32")
+) -> None:
     C_rf = Ts.sblock_alloc_tensor([16, 256])
 
     for i0, i1, i2 in T.grid(16, 256, 256):
@@ -177,7 +183,9 @@ def square_sum_rfactor(A: T.Tensor([16, 256, 256]), C: T.Tensor([16])) -> None:
 
 
 @Ts.function
-def transformed_square_sum_square_root(A: T.Tensor([16, 256, 256]), D: T.Tensor([16])) -> None:
+def transformed_square_sum_square_root(
+    A: T.Tensor([16, 256, 256], "float32"), D: T.Tensor([16], "float32")
+) -> None:
     C = Ts.sblock_alloc_tensor([16])
 
     for i0, i1_i2_fused_outer, i1_i2_fused_inner in T.grid(16, 65536, 1):
@@ -199,7 +207,9 @@ def transformed_square_sum_square_root(A: T.Tensor([16, 256, 256]), D: T.Tensor(
 
 
 @Ts.function
-def square_sum_square_root_rfactor(A: T.Tensor([16, 256, 256]), D: T.Tensor([16])) -> None:
+def square_sum_square_root_rfactor(
+    A: T.Tensor([16, 256, 256], "float32"), D: T.Tensor([16], "float32")
+) -> None:
     C = Ts.sblock_alloc_tensor([16])
     C_rf = Ts.sblock_alloc_tensor([1, 16])
 
@@ -227,7 +237,7 @@ def square_sum_square_root_rfactor(A: T.Tensor([16, 256, 256]), D: T.Tensor([16]
 
 @Ts.function
 def transformed_square_sum_square_root_factor_one_1(
-    A: T.Tensor([16, 256, 256]), D: T.Tensor([16])
+    A: T.Tensor([16, 256, 256], "float32"), D: T.Tensor([16], "float32")
 ) -> None:
     C = Ts.sblock_alloc_tensor([16])
 
@@ -274,7 +284,7 @@ def square_sum_square_root_factor_one_1_rfactor(
 
 @Ts.function
 def transformed_square_sum_square_root_factor_one_2(
-    A: T.Tensor([16, 256, 256]), D: T.Tensor([16])
+    A: T.Tensor([16, 256, 256], "float32"), D: T.Tensor([16], "float32")
 ) -> None:
     C = Ts.sblock_alloc_tensor([16])
 
@@ -320,7 +330,9 @@ def square_sum_square_root_factor_one_2_rfactor(
 
 
 @Ts.function
-def square_sum_with_annotation(A: T.Tensor([16, 256, 256]), C: T.Tensor([16])) -> None:
+def square_sum_with_annotation(
+    A: T.Tensor([16, 256, 256], "float32"), C: T.Tensor([16], "float32")
+) -> None:
     for b0, i0, j0 in T.grid(16, 256, 256):
         with Ts.sblock("C"):
             Ts.sblock_attr({"test_annotation": 1})
@@ -331,7 +343,9 @@ def square_sum_with_annotation(A: T.Tensor([16, 256, 256]), C: T.Tensor([16])) -
 
 
 @Ts.function
-def square_sum_with_annotation_rfactor(A: T.Tensor([16, 256, 256]), C: T.Tensor([16])) -> None:
+def square_sum_with_annotation_rfactor(
+    A: T.Tensor([16, 256, 256], "float32"), C: T.Tensor([16], "float32")
+) -> None:
     C_rf = Ts.sblock_alloc_tensor([16, 256])
 
     for i0, i1, i2 in T.grid(16, 256, 256):
@@ -352,7 +366,7 @@ def square_sum_with_annotation_rfactor(A: T.Tensor([16, 256, 256]), C: T.Tensor(
 
 
 @Ts.function
-def element_wise(A: T.Tensor((128, 128)), B: T.Tensor((128, 128))) -> None:
+def element_wise(A: T.Tensor((128, 128), "float32"), B: T.Tensor((128, 128), "float32")) -> None:
     for i, j in T.grid(128, 128):
         with Ts.sblock("B"):
             vi, vj = Ts.axis.remap("SS", [i, j])
@@ -360,7 +374,7 @@ def element_wise(A: T.Tensor((128, 128)), B: T.Tensor((128, 128))) -> None:
 
 
 @Ts.function
-def rowsum(A: T.Tensor((128, 128)), B: T.Tensor((128,))) -> None:
+def rowsum(A: T.Tensor((128, 128), "float32"), B: T.Tensor((128,), "float32")) -> None:
     for i, k in T.grid(128, 128):
         with Ts.sblock("B"):
             vi, vk = Ts.axis.remap("SR", [i, k])
@@ -370,7 +384,9 @@ def rowsum(A: T.Tensor((128, 128)), B: T.Tensor((128,))) -> None:
 
 
 @Ts.function
-def rowsum_not_quasi_affine(A: T.Tensor((128, 128)), B: T.Tensor((128,))) -> None:
+def rowsum_not_quasi_affine(
+    A: T.Tensor((128, 128), "float32"), B: T.Tensor((128,), "float32")
+) -> None:
     for i, k in T.grid(128, 16):
         with Ts.sblock("B"):
             vi = Ts.axis.S(128, i)
@@ -381,7 +397,9 @@ def rowsum_not_quasi_affine(A: T.Tensor((128, 128)), B: T.Tensor((128,))) -> Non
 
 
 @Ts.function
-def rowsum_not_dominant(A: T.Tensor((128, 128)), B: T.Tensor((128, 128))) -> None:
+def rowsum_not_dominant(
+    A: T.Tensor((128, 128), "float32"), B: T.Tensor((128, 128), "float32")
+) -> None:
     for i, k in T.grid(128, 128):
         with Ts.sblock("B"):
             vi, vk = Ts.axis.remap("SR", [i, k])
@@ -391,7 +409,7 @@ def rowsum_not_dominant(A: T.Tensor((128, 128)), B: T.Tensor((128, 128))) -> Non
 
 
 @Ts.function
-def rowsum_not_serial(A: T.Tensor((128, 128)), B: T.Tensor((128,))) -> None:
+def rowsum_not_serial(A: T.Tensor((128, 128), "float32"), B: T.Tensor((128,), "float32")) -> None:
     for i in T.serial(0, 128):
         for k in T.parallel(0, 128):
             with Ts.sblock("B"):
@@ -402,7 +420,9 @@ def rowsum_not_serial(A: T.Tensor((128, 128)), B: T.Tensor((128,))) -> None:
 
 
 @Ts.function
-def rowsum_wrong_reduce_pattern1(A: T.Tensor((128, 128)), B: T.Tensor((128,))) -> None:
+def rowsum_wrong_reduce_pattern1(
+    A: T.Tensor((128, 128), "float32"), B: T.Tensor((128,), "float32")
+) -> None:
     for i, k in T.grid(128, 128):
         with Ts.sblock("B"):
             vi, vk = Ts.axis.remap("SR", [i, k])
@@ -412,7 +432,9 @@ def rowsum_wrong_reduce_pattern1(A: T.Tensor((128, 128)), B: T.Tensor((128,))) -
 
 
 @Ts.function
-def rowsum_wrong_reduce_pattern2(A: T.Tensor((128, 128)), B: T.Tensor((128,))) -> None:
+def rowsum_wrong_reduce_pattern2(
+    A: T.Tensor((128, 128), "float32"), B: T.Tensor((128,), "float32")
+) -> None:
     for i, k in T.grid(128, 128):
         with Ts.sblock("B"):
             vi, vk = Ts.axis.remap("SR", [i, k])
@@ -422,7 +444,9 @@ def rowsum_wrong_reduce_pattern2(A: T.Tensor((128, 128)), B: T.Tensor((128,))) -
 
 
 @Ts.function
-def rowsum_init_not_tensorstore(A: T.Tensor((128, 128)), B: T.Tensor((128,))) -> None:
+def rowsum_init_not_tensorstore(
+    A: T.Tensor((128, 128), "float32"), B: T.Tensor((128,), "float32")
+) -> None:
     for i, k in T.grid(128, 128):
         with Ts.sblock("B"):
             vi, vk = Ts.axis.remap("SR", [i, k])
@@ -433,7 +457,7 @@ def rowsum_init_not_tensorstore(A: T.Tensor((128, 128)), B: T.Tensor((128,))) ->
 
 
 @Ts.function
-def rowsum_transformed(A: T.Tensor((128, 128)), B: T.Tensor((128,))) -> None:
+def rowsum_transformed(A: T.Tensor((128, 128), "float32"), B: T.Tensor((128,), "float32")) -> None:
     for io, ii_ko_fused, ki in T.grid(32, 128, 4):
         with Ts.sblock("B"):
             vi = Ts.axis.S(128, io * 4 + T.floordiv(ii_ko_fused, 32))
@@ -444,7 +468,7 @@ def rowsum_transformed(A: T.Tensor((128, 128)), B: T.Tensor((128,))) -> None:
 
 
 @Ts.function
-def rowsum_zero_dim(A: T.Tensor([128]), B: T.Tensor([])) -> None:
+def rowsum_zero_dim(A: T.Tensor([128], "float32"), B: T.Tensor([], "float32")) -> None:
     for k0 in range(128):
         with Ts.sblock("B"):
             k = Ts.axis.R(128, k0)
@@ -454,7 +478,7 @@ def rowsum_zero_dim(A: T.Tensor([128]), B: T.Tensor([])) -> None:
 
 
 @Ts.function
-def rowsum_zero_dim_rfactor(A: T.Tensor([128]), B: T.Tensor([])) -> None:
+def rowsum_zero_dim_rfactor(A: T.Tensor([128], "float32"), B: T.Tensor([], "float32")) -> None:
     B_rf = Ts.sblock_alloc_tensor([128], elem_offset=T.int64(0))
 
     for i in range(128):
@@ -505,7 +529,9 @@ def rowsum_predicate_rfactor(
 
 
 @Ts.function
-def multiple_reduction_blocks(A: T.Tensor((16, 16, 16)), F: T.Tensor((16, 16))) -> None:
+def multiple_reduction_blocks(
+    A: T.Tensor((16, 16, 16), "float32"), F: T.Tensor((16, 16), "float32")
+) -> None:
     C = Ts.sblock_alloc_tensor((16, 16))
     D = Ts.sblock_alloc_tensor((16, 16))
     E = Ts.sblock_alloc_tensor((16, 16))
@@ -544,7 +570,9 @@ def multiple_reduction_blocks(A: T.Tensor((16, 16, 16)), F: T.Tensor((16, 16))) 
 
 
 @Ts.function
-def multiple_reduction_blocks_rfactor(A: T.Tensor([16, 16, 16]), F: T.Tensor([16, 16])) -> None:
+def multiple_reduction_blocks_rfactor(
+    A: T.Tensor([16, 16, 16], "float32"), F: T.Tensor([16, 16], "float32")
+) -> None:
     C = Ts.sblock_alloc_tensor([16, 16])
     D = Ts.sblock_alloc_tensor([16, 16])
     E = Ts.sblock_alloc_tensor([16, 16])

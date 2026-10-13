@@ -152,8 +152,8 @@ def test_quantize_fp32_to_int8_symbolic():
     class Expected:
         @Ts.function(private=True)
         def quantize(
-            A: T.Tensor((T.int64(4), n_quantize)),
-            B: T.Tensor((n_quantize,)),
+            A: T.Tensor((T.int64(4), n_quantize), "float32"),
+            B: T.Tensor((n_quantize,), "float32"),
             C: T.Tensor((n_quantize,), "int8"),
             quantized: T.Tensor((T.int64(4), n_quantize), "int8"),
         ):
@@ -442,9 +442,9 @@ def test_dequantize_int8_to_fp32_symbolic():
         @Ts.function(private=True)
         def dequantize(
             A: T.Tensor((T.int64(2), n_dequantize), "int8"),
-            B: T.Tensor((n_dequantize,)),
+            B: T.Tensor((n_dequantize,), "float32"),
             C: T.Tensor((n_dequantize,), "int8"),
-            dequantized: T.Tensor((T.int64(2), n_dequantize)),
+            dequantized: T.Tensor((T.int64(2), n_dequantize), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
 

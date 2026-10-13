@@ -23,6 +23,7 @@ from tvm_ffi import Array
 
 from tvm.ir import AnyType, EnvFunc, Location, PrimType, TupleType
 from tvm.ir.location import UNKNOWN_LOC, UnknownLoc
+from tvm.ir.type import _normalize_type
 from tvm.relax.global_info import VDevice
 
 from . import _ffi_api
@@ -95,9 +96,9 @@ class TensorType(Type):
 
     def __init__(
         self,
-        shape: Expr | None | list[Expr] = None,
+        shape: Expr | list[Expr] | None = None,
         dtype: str | PrimType | None = "float32",
-        vdevice: VDevice | None | str = None,
+        vdevice: VDevice | str | None = None,
         ndim: int = -1,
         loc: Location = UNKNOWN_LOC,
     ) -> None:
@@ -145,8 +146,8 @@ class FuncType(Type):
     ) -> None:
         self.__init_handle_by_constructor__(
             _ffi_api.FuncType,
-            params,
-            ret,
+            None if params is None else [_normalize_type(param) for param in params],
+            _normalize_type(ret),
             purity,
             loc,  # type: ignore
         )
@@ -191,4 +192,6 @@ class FuncType(Type):
 
         if isinstance(derive_func, str):
             derive_func = EnvFunc.get(derive_func)
-        return _ffi_api.FuncTypeOpaqueFunc(ret, derive_func, purity, loc)  # type: ignore
+        return _ffi_api.FuncTypeOpaqueFunc(
+            None if ret is None else _normalize_type(ret), derive_func, purity, loc
+        )

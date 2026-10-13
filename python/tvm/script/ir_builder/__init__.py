@@ -34,6 +34,7 @@ from tvm.ir import (
     Var,
     make_node,
 )
+from tvm.ir.type import _init_type_api
 
 from .base import (
     MISSING,
@@ -104,3 +105,6 @@ __all__ = [
     "resolve_global_info_args",
     "with_at_group_",
 ]
+
+
+_init_type_api("ir", __name__)

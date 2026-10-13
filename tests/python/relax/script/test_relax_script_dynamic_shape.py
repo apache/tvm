@@ -33,10 +33,10 @@ from tvm.script import relax as R
 from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
-M = I.dynamic("M")
+M = T.dynamic("M")
 
 
-UNUSED_GENERIC = I.dynamic("UNUSED_GENERIC")
+UNUSED_GENERIC = T.dynamic("UNUSED_GENERIC")
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="PEP 695 requires Python 3.12")
@@ -58,10 +58,10 @@ def test_type_vars_roundtrip():
 def func[M: int](x: R.Tensor((M, M * 2), "float32")):
     return x
 """,
-        extra_vars={"I": tvm.script.ir, "R": tvm.script.relax},
+        extra_vars={"I": tvm.script.ir, "R": tvm.script.relax, "T": tvm.script.tirx},
     )
     tvm.ir.assert_structural_equal(func, typed)
-    assert 'M = I.dynamic("M", dtype="int64")' not in script
+    assert 'M = T.dynamic("M", dtype="int64")' not in script
 
     repeated = func.script()
     assert "from __future__ import annotations" in repeated
@@ -73,17 +73,22 @@ def func[M: int](x: R.Tensor((M, M * 2), "float32")):
     assert not hasattr(func, "type_params")
     assert func.attrs.get("relax.type_vars") is None
     tvm.ir.assert_structural_equal(
-        func, tvm.script.from_source(script, extra_vars={"I": tvm.script.ir, "R": tvm.script.relax})
+        func,
+        tvm.script.from_source(
+            script, extra_vars={"I": tvm.script.ir, "R": tvm.script.relax, "T": tvm.script.tirx}
+        ),
     )
     tvm.ir.assert_structural_equal(
         func,
-        tvm.script.from_source(repeated, extra_vars={"I": tvm.script.ir, "R": tvm.script.relax}),
+        tvm.script.from_source(
+            repeated, extra_vars={"I": tvm.script.ir, "R": tvm.script.relax, "T": tvm.script.tirx}
+        ),
     )
 
 
 def test_dynamic_module_symbol_identity():
-    shared = I.dynamic("n")
-    independent = I.dynamic("n")
+    shared = T.dynamic("n")
+    independent = T.dynamic("n")
 
     @R.function(private=True)
     def first(x: R.Tensor((shared,), "float32")):
@@ -95,9 +100,11 @@ def test_dynamic_module_symbol_identity():
 
     mod = tvm.IRModule({"first": first, "second": second})
     source = mod.script()
-    assert source.count('I.dynamic("n", dtype="int64")') == 2
+    assert source.count('T.dynamic("n", dtype="int64")') == 2
     restored = tvm.script.from_source(
-        source, check_well_formed=False, extra_vars={"I": tvm.script.ir, "R": tvm.script.relax}
+        source,
+        check_well_formed=False,
+        extra_vars={"I": tvm.script.ir, "R": tvm.script.relax, "T": tvm.script.tirx},
     )
     first_n = restored["first"].params[0].ty.shape.values[0]
     second_shape = restored["second"].params[0].ty.shape.values

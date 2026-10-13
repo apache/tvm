@@ -315,7 +315,7 @@ def test_strided_slice_symbolic_sliced_axis():
     @I.ir_module
     class Expected:
         @Ts.function(private=True)
-        def strided_slice(A: T.Tensor((m_strided_slice, n_strided_slice)), T_dynamic_strided_slice_with_axes: T.Tensor((T.int64(3), n_strided_slice))):
+        def strided_slice(A: T.Tensor((m_strided_slice, n_strided_slice), "float32"), T_dynamic_strided_slice_with_axes: T.Tensor((T.int64(3), n_strided_slice), "float32")):
             T.func_attr({"tirx.noalias": True})
 
             # with Ts.sblock("root"):
@@ -467,7 +467,7 @@ def test_dynamic_strided_slice():
             rxplaceholder_1: T.Tensor((T.int64(4),), "int64"),
             rxplaceholder_2: T.Tensor((T.int64(4),), "int64"),
             rxplaceholder_3: T.Tensor((T.int64(4),), "int64"),
-            T_strided_slice_dynamic: T.Tensor((s_dynamic_strided_slice, s_1_dynamic_strided_slice, s_2_dynamic_strided_slice, s_3_dynamic_strided_slice)),
+            T_strided_slice_dynamic: T.Tensor((s_dynamic_strided_slice, s_1_dynamic_strided_slice, s_2_dynamic_strided_slice, s_3_dynamic_strided_slice), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
 
@@ -805,11 +805,11 @@ def test_dynamic_strided_slice_symbolic():
     class Expected:
         @Ts.function(private=True)
         def dynamic_strided_slice(
-            rxplaceholder_3: T.Tensor((T.int64(10), n_dynamic_strided_slice)),
+            rxplaceholder_3: T.Tensor((T.int64(10), n_dynamic_strided_slice), "float32"),
             rxplaceholder: T.Tensor((T.int64(2),), "int64"),
             rxplaceholder_1: T.Tensor((T.int64(2),), "int64"),
             rxplaceholder_2: T.Tensor((T.int64(2),), "int64"),
-            T_strided_slice_dynamic: T.Tensor((s_dynamic_strided_slice, s_1_dynamic_strided_slice)),
+            T_strided_slice_dynamic: T.Tensor((s_dynamic_strided_slice, s_1_dynamic_strided_slice), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
 
@@ -863,7 +863,7 @@ def test_dynamic_strided_slice_symbolic():
 
         @Ts.function(private=True)
         def shape_func(
-            rxplaceholder_3: T.Tensor((T.int64(10), n_shape_func)),
+            rxplaceholder_3: T.Tensor((T.int64(10), n_shape_func), "float32"),
             rxplaceholder: T.Tensor((T.int64(2),), "int64"),
             rxplaceholder_1: T.Tensor((T.int64(2),), "int64"),
             rxplaceholder_2: T.Tensor((T.int64(2),), "int64"),
@@ -1323,9 +1323,9 @@ def test_einsum_symbolic():
 
         @Ts.function(private=True)
         def einsum(
-            rxplaceholder: T.Tensor((a_einsum, b_einsum)),
-            rxplaceholder_1: T.Tensor((b_einsum, c_einsum)),
-            T_einsum: T.Tensor((a_einsum, c_einsum)),
+            rxplaceholder: T.Tensor((a_einsum, b_einsum), "float32"),
+            rxplaceholder_1: T.Tensor((b_einsum, c_einsum), "float32"),
+            T_einsum: T.Tensor((a_einsum, c_einsum), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
 

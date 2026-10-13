@@ -29,13 +29,34 @@ namespace printer {
 namespace details {
 namespace {
 
+CallDoc TensorHelperCall(DocTranslatorObj* d, const Type& type, const ffi::String& helper) {
+  CallDoc rhs = d->Translate(type).value().as_or_throw<CallDoc>();
+  TVM_FFI_CHECK(rhs->callee.as_or_throw<AttrAccessDoc>()->name == "Tensor", TypeError)
+      << "Ts." << helper << " cannot reconstruct this nonrepresentable TensorType";
+  // S-TIR's allocation and matching helpers retain their public scope/align names.
+  // Translate the canonical Type fields at this sugar boundary only.
+  bool has_offset = false;
+  bool has_factor = false;
+  for (size_t i = 0; i < rhs->kwargs_keys.size(); ++i) {
+    has_offset |= rhs->kwargs_keys[i] == "elem_offset";
+    has_factor |= rhs->kwargs_keys[i] == "offset_factor";
+    if (rhs->kwargs_keys[i] == "data_alignment") rhs->kwargs_keys.Set(i, "align");
+  }
+  // An explicit factor makes these helpers synthesize a symbolic offset.
+  // Supply the fixed zero explicitly when the type printer omitted it.
+  if (has_factor && !has_offset) {
+    rhs->kwargs_keys.push_back("elem_offset");
+    rhs->kwargs_values.push_back(
+        ReflectedValue(d, type.as_or_throw<tirx::TensorType>()->elem_offset));
+  }
+  rhs->callee = NamespaceDoc("s_tir")->Attr(helper);
+  return rhs;
+}
+
 void PrintMatchTensor(DocTranslatorObj* d, const s_tir::MatchTensorRegionNode* match,
                       const ffi::Array<PrimExpr>& allocated_addr = {}) {
   ExprDoc source = d->Translate(match->source).value();
-  CallDoc rhs = d->Translate(match->tensor.var()->ty).value().as_or_throw<CallDoc>();
-  TVM_FFI_CHECK(rhs->callee.as_or_throw<AttrAccessDoc>()->name == "Tensor", TypeError)
-      << "Ts.match_tensor cannot reconstruct this nonrepresentable TensorType";
-  rhs->callee = NamespaceDoc("s_tir")->Attr("match_tensor");
+  CallDoc rhs = TensorHelperCall(d, match->tensor.var()->ty, "match_tensor");
   rhs->args.insert(rhs->args.begin(), source);
   if (!allocated_addr.empty()) {
     rhs->kwargs_keys.push_back("allocated_addr");
@@ -118,9 +139,7 @@ ffi::Array<StmtDoc> SBlockBody(DocTranslatorObj* d, const s_tir::SBlockNode* blo
           block->annotations);
     }
     for (const tirx::TensorVar& tensor : block->alloc_tensors) {
-      CallDoc rhs = d->Translate(tensor.var()->ty).value().as_or_throw<CallDoc>();
-      TVM_FFI_CHECK(rhs->callee.as_or_throw<AttrAccessDoc>()->name == "Tensor", TypeError)
-          << "Ts.sblock_alloc_tensor cannot reconstruct this nonrepresentable TensorType";
+      CallDoc rhs = TensorHelperCall(d, tensor.var()->ty, "sblock_alloc_tensor");
       const auto* tensor_type = tensor.var()->ty.as<tirx::TensorTypeNode>();
       auto allocated_addr = addresses.Get(tensor.var()).value_or(ffi::Array<PrimExpr>{});
       TVM_FFI_CHECK(
@@ -130,7 +149,6 @@ ffi::Array<StmtDoc> SBlockBody(DocTranslatorObj* d, const s_tir::SBlockNode* blo
           TypeError)
           << "Ts.sblock_alloc_tensor does not accept allocated_addr in "
           << tensor_type->storage_scope;
-      rhs->callee = NamespaceDoc("s_tir")->Attr("sblock_alloc_tensor");
       if (!allocated_addr.empty()) {
         rhs->kwargs_keys.push_back("allocated_addr");
         rhs->kwargs_values.push_back(AnyValue(d, allocated_addr));

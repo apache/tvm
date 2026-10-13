@@ -130,10 +130,15 @@ def test_lower_view_get():
             out[lane_id * 2 + i] = T.float32(A_local_1[i])
 
     @T.function(private=True)
-    def after1(in_buf: T.Tensor((64,), layout=None), out: T.Tensor((64,), layout=None)):
-        out_1 = T.decl_tensor(out.data, ty_args=[T.Tensor((64,), layout=None, data=out.data)])
+    def after1(
+        in_buf: T.Tensor((64,), "float32", layout=None),
+        out: T.Tensor((64,), "float32", layout=None),
+    ):
+        out_1 = T.decl_tensor(
+            out.data, ty_args=[T.Tensor((64,), "float32", layout=None, data=out.data)]
+        )
         in_buf_1 = T.decl_tensor(
-            in_buf.data, ty_args=[T.Tensor((64,), layout=None, data=in_buf.data)]
+            in_buf.data, ty_args=[T.Tensor((64,), "float32", layout=None, data=in_buf.data)]
         )
         with T.region(
             "tirx.device_scope",
@@ -204,10 +209,15 @@ def test_lower_view_get():
             out[lane_id // 4 * 8 + i // 2 * 8 + lane_id % 4, lane_id % 4 * 2 + i % 2] = A_local_1[i]
 
     @T.function(private=True)
-    def after2(in_buf: T.Tensor((16, 16), layout=None), out: T.Tensor((16, 16), layout=None)):
-        out_1 = T.decl_tensor(out.data, ty_args=[T.Tensor((256,), layout=None, data=out.data)])
+    def after2(
+        in_buf: T.Tensor((16, 16), "float32", layout=None),
+        out: T.Tensor((16, 16), "float32", layout=None),
+    ):
+        out_1 = T.decl_tensor(
+            out.data, ty_args=[T.Tensor((256,), "float32", layout=None, data=out.data)]
+        )
         in_buf_1 = T.decl_tensor(
-            in_buf.data, ty_args=[T.Tensor((256,), layout=None, data=in_buf.data)]
+            in_buf.data, ty_args=[T.Tensor((256,), "float32", layout=None, data=in_buf.data)]
         )
         with T.region(
             "tirx.device_scope",
@@ -229,8 +239,12 @@ def test_lower_view_get():
             bz: T.let[T.int32] = 0
             lane_id: T.let[T.int32] = T.cuda.thread_idx("x") % 32
             A = T.alloc_local((8,), layout=None)
-            B = T.decl_tensor(A.data, ty_args=[T.Tensor((256,), scope="local", layout=None)])
-            A_local = T.decl_tensor(A.data, ty_args=[T.Tensor((8,), scope="local", layout=None)])
+            B = T.decl_tensor(
+                A.data, ty_args=[T.Tensor((256,), "float32", scope="local", layout=None)]
+            )
+            A_local = T.decl_tensor(
+                A.data, ty_args=[T.Tensor((8,), "float32", scope="local", layout=None)]
+            )
             for i in T.unroll(4):
                 for j in T.vectorized(2):
                     A_local[i * 2 + j] = in_buf_1[
@@ -240,8 +254,12 @@ def test_lower_view_get():
                         + j
                         + T.cuda.thread_idx("x") % 4
                     ]
-            B_1 = T.decl_tensor(A.data, ty_args=[T.Tensor((256,), scope="local", layout=None)])
-            A_local_1 = T.decl_tensor(A.data, ty_args=[T.Tensor((8,), scope="local", layout=None)])
+            B_1 = T.decl_tensor(
+                A.data, ty_args=[T.Tensor((256,), "float32", scope="local", layout=None)]
+            )
+            A_local_1 = T.decl_tensor(
+                A.data, ty_args=[T.Tensor((8,), "float32", scope="local", layout=None)]
+            )
             for i in T.vectorized(2):
                 out_1[T.cuda.thread_idx("x") // 4 * 128 + T.cuda.thread_idx("x") % 4 * 18 + i] = (
                     A_local_1[i]
@@ -293,11 +311,14 @@ def test_lower_view_get():
 
     @T.function(private=True)
     def after3_wgmma_layout(
-        in_buf: T.Tensor((128, 128), layout=None), out: T.Tensor((128, 128), layout=None)
+        in_buf: T.Tensor((128, 128), "float32", layout=None),
+        out: T.Tensor((128, 128), "float32", layout=None),
     ):
-        out_1 = T.decl_tensor(out.data, ty_args=[T.Tensor((16384,), layout=None, data=out.data)])
+        out_1 = T.decl_tensor(
+            out.data, ty_args=[T.Tensor((16384,), "float32", layout=None, data=out.data)]
+        )
         in_buf_1 = T.decl_tensor(
-            in_buf.data, ty_args=[T.Tensor((16384,), layout=None, data=in_buf.data)]
+            in_buf.data, ty_args=[T.Tensor((16384,), "float32", layout=None, data=in_buf.data)]
         )
         with T.region(
             "tirx.device_scope",
@@ -324,9 +345,11 @@ def test_lower_view_get():
             warp_id_in_wg: T.let[T.int32] = warp_id_in_cta % 4
             lane_id: T.let[T.int32] = T.cuda.thread_idx("x") % 32
             acc = T.alloc_local((64,), layout=None)
-            B = T.decl_tensor(acc.data, ty_args=[T.Tensor((16384,), scope="local", layout=None)])
+            B = T.decl_tensor(
+                acc.data, ty_args=[T.Tensor((16384,), "float32", scope="local", layout=None)]
+            )
             acc_local = T.decl_tensor(
-                acc.data, ty_args=[T.Tensor((64,), scope="local", layout=None)]
+                acc.data, ty_args=[T.Tensor((64,), "float32", scope="local", layout=None)]
             )
             for i in range(16):
                 for j in T.unroll(2):
@@ -339,9 +362,11 @@ def test_lower_view_get():
                             + T.cuda.thread_idx("x") % 4 * 2
                             + vec
                         ]
-            B_1 = T.decl_tensor(acc.data, ty_args=[T.Tensor((16384,), scope="local", layout=None)])
+            B_1 = T.decl_tensor(
+                acc.data, ty_args=[T.Tensor((16384,), "float32", scope="local", layout=None)]
+            )
             acc_local_1 = T.decl_tensor(
-                acc.data, ty_args=[T.Tensor((64,), scope="local", layout=None)]
+                acc.data, ty_args=[T.Tensor((64,), "float32", scope="local", layout=None)]
             )
             for i in range(16):
                 for j in T.unroll(2):
@@ -385,11 +410,14 @@ def test_lower_view_get():
 
     @T.function(private=True)
     def after4_multi_view_get(
-        in_buf: T.Tensor((64,), layout=None), out: T.Tensor((64,), layout=None)
+        in_buf: T.Tensor((64,), "float32", layout=None),
+        out: T.Tensor((64,), "float32", layout=None),
     ):
-        out_1 = T.decl_tensor(out.data, ty_args=[T.Tensor((64,), layout=None, data=out.data)])
+        out_1 = T.decl_tensor(
+            out.data, ty_args=[T.Tensor((64,), "float32", layout=None, data=out.data)]
+        )
         in_buf_1 = T.decl_tensor(
-            in_buf.data, ty_args=[T.Tensor((64,), layout=None, data=in_buf.data)]
+            in_buf.data, ty_args=[T.Tensor((64,), "float32", layout=None, data=in_buf.data)]
         )
         with T.region(
             "tirx.device_scope",
@@ -1903,8 +1931,10 @@ def test_alloc_tensor_with_thread_axis_layout():
             reg[i] = out[lane_id + warp_id * 32, i]
 
     @T.function(private=True)
-    def after(out: T.Tensor((128, 4), layout=None)):
-        out_1 = T.decl_tensor(out.data, ty_args=[T.Tensor((512,), layout=None, data=out.data)])
+    def after(out: T.Tensor((128, 4), "float32", layout=None)):
+        out_1 = T.decl_tensor(
+            out.data, ty_args=[T.Tensor((512,), "float32", layout=None, data=out.data)]
+        )
         with T.region(
             "tirx.device_scope",
             [1, 1, 1, 128, 1, 1],
@@ -1929,7 +1959,9 @@ def test_alloc_tensor_with_thread_axis_layout():
             warp_id: T.let[T.int32] = warp_id_in_cta % 4
             lane_id: T.let[T.int32] = T.cuda.thread_idx("x") % 32
             reg_wg = T.alloc_local((4,), layout=None)
-            reg = T.decl_tensor(reg_wg.data, ty_args=[T.Tensor((4,), scope="local", layout=None)])
+            reg = T.decl_tensor(
+                reg_wg.data, ty_args=[T.Tensor((4,), "float32", scope="local", layout=None)]
+            )
             for i in range(4):
                 reg[i] = out_1[warp_id_in_cta % 4 * 128 + T.cuda.thread_idx("x") % 32 * 4 + i]
 

@@ -289,13 +289,16 @@ class DocTranslatorObj : public ffi::Object {
    */
   void RecordOrigin(const Doc& doc, const ffi::ObjectRef& origin) { doc_origins_.Set(doc, origin); }
   /*!
-   * \brief Dispatch directly to the registered native or packed hook.
+   * \brief Dispatch to a registered hook, or reflect an unhandled Type constructor.
    * \param value The input value.
    * \param destination A borrowed Var, or nullptr when no binding is requested.
    * \return An expression for the caller, or None after completed emission.
    */
   ffi::Optional<ExprDoc> DefaultTranslate(ffi::AnyView value,
                                           const ffi::Object* destination = nullptr);
+
+  /*! \brief Translate a Type constructor from its reflected fields and fixed defaults. */
+  TVM_TIRX_DLL ExprDoc DefaultTypeTranslate(const Type& type);
 
   static constexpr bool _type_mutable = true;
   TVM_FFI_DECLARE_OBJECT_INFO("script.printer.DocTranslator", DocTranslatorObj, ffi::Object);
@@ -408,6 +411,9 @@ inline ffi::Optional<ExprDoc> DocTranslatorObj::DefaultTranslate(ffi::AnyView va
     return attr.cast<ffi::Function>()
         .CallExpected<ffi::Optional<ExprDoc>>(this, value, destination_arg)
         .value();
+  }
+  if (attr.type_index() == ffi::TypeIndex::kTVMFFINone) {
+    if (auto type = value.as<Type>()) return DefaultTypeTranslate(type.value());
   }
   TVM_FFI_THROW(TypeError) << (attr.type_index() == ffi::TypeIndex::kTVMFFINone
                                    ? std::string("printer has no Doc hook for ") +

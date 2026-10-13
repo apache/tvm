@@ -97,7 +97,7 @@ def test_softmax_1():
     @I.ir_module
     class Before:
         @Ts.function
-        def main(lv44: T.Tensor((T.int64(1), T.int64(32), n, m)), var_compute_intermediate: T.Tensor((T.int64(1), T.int64(32), n, m), 'float16')):
+        def main(lv44: T.Tensor((T.int64(1), T.int64(32), n, m), "float32"), var_compute_intermediate: T.Tensor((T.int64(1), T.int64(32), n, m), 'float16')):
             T.func_attr({"tirx.noalias": True})
 
             # with Ts.sblock("root"):
@@ -147,7 +147,7 @@ def test_softmax_1():
     @I.ir_module
     class After:
         @Ts.function
-        def main(lv44: T.Tensor((T.int64(1), T.int64(32), n, m)), var_compute_intermediate: T.Tensor((T.int64(1), T.int64(32), n, m), 'float16')):
+        def main(lv44: T.Tensor((T.int64(1), T.int64(32), n, m), "float32"), var_compute_intermediate: T.Tensor((T.int64(1), T.int64(32), n, m), 'float16')):
             T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
 
             # with Ts.sblock("root"):
@@ -376,7 +376,7 @@ def test_layer_norm():
     @I.ir_module
     class Before:
         @Ts.function
-        def main(lv6: T.Tensor((T.int64(1), n, T.int64(2560))), weight1: T.Tensor((T.int64(2560),), "float32"), bias: T.Tensor((T.int64(2560),), "float32"), var_compute_intermediate: T.Tensor((T.int64(1), n, T.int64(2560)), 'float16')):
+        def main(lv6: T.Tensor((T.int64(1), n, T.int64(2560)), "float32"), weight1: T.Tensor((T.int64(2560),), "float32"), bias: T.Tensor((T.int64(2560),), "float32"), var_compute_intermediate: T.Tensor((T.int64(1), n, T.int64(2560)), 'float16')):
             T.func_attr({"tirx.noalias": True})
 
             # with Ts.sblock("root"):
@@ -413,7 +413,7 @@ def test_layer_norm():
     @I.ir_module
     class After:
         @Ts.function
-        def main(lv6: T.Tensor((T.int64(1), n, T.int64(2560))), weight1: T.Tensor((T.int64(2560),), "float32"), bias: T.Tensor((T.int64(2560),), "float32"), var_compute_intermediate: T.Tensor((T.int64(1), n, T.int64(2560)), 'float16')):
+        def main(lv6: T.Tensor((T.int64(1), n, T.int64(2560)), "float32"), weight1: T.Tensor((T.int64(2560),), "float32"), bias: T.Tensor((T.int64(2560),), "float32"), var_compute_intermediate: T.Tensor((T.int64(1), n, T.int64(2560)), 'float16')):
             T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
 
             # with Ts.sblock("root"):
@@ -658,7 +658,8 @@ def test_logsumexp():
     class After:
         @Ts.function
         def compute_lse(
-            A: T.Tensor((batch_size, vocab_size)), blocked_lse: T.Tensor((batch_size, num_chunks))
+            A: T.Tensor((batch_size, vocab_size), "float32"),
+            blocked_lse: T.Tensor((batch_size, num_chunks), "float32"),
         ):
             T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
 

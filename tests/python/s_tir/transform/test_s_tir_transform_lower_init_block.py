@@ -26,7 +26,7 @@ from tvm.script import tirx as T
 @tvm.script.ir_module
 class WithInit:
     @Ts.function
-    def main(A: T.Tensor([64, 64, 64]), B: T.Tensor([64])) -> None:
+    def main(A: T.Tensor([64, 64, 64], "float32"), B: T.Tensor([64], "float32")) -> None:
         for i0, j0 in T.grid(64, 64):
             for k0 in T.serial(32, 64):
                 with Ts.sblock():
@@ -39,7 +39,7 @@ class WithInit:
 @tvm.script.ir_module
 class WithBranch:
     @Ts.function
-    def main(A: T.Tensor([64, 64, 64]), B: T.Tensor([64])) -> None:
+    def main(A: T.Tensor([64, 64, 64], "float32"), B: T.Tensor([64], "float32")) -> None:
         for i0, j0 in T.grid(64, 64):
             for k0 in T.serial(32, 64):
                 with Ts.sblock():
@@ -54,7 +54,7 @@ class WithBranch:
 @tvm.script.ir_module
 class InitWithMatchTensor:
     @Ts.function
-    def main(A: T.Tensor([64, 64, 64]), B: T.Tensor([64])) -> None:
+    def main(A: T.Tensor([64, 64, 64], "float32"), B: T.Tensor([64], "float32")) -> None:
         for i0, j0 in T.grid(64, 64):
             for k0 in T.serial(32, 64):
                 with Ts.sblock():
@@ -69,7 +69,7 @@ class InitWithMatchTensor:
 @tvm.script.ir_module
 class BranchWithMatchTensor:
     @Ts.function
-    def main(A: T.Tensor([64, 64, 64]), B: T.Tensor([64])) -> None:
+    def main(A: T.Tensor([64, 64, 64], "float32"), B: T.Tensor([64], "float32")) -> None:
         for i0, j0 in T.grid(64, 64):
             for k0 in T.serial(32, 64):
                 with Ts.sblock():

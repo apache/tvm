@@ -803,7 +803,7 @@ def test_dynamic_capture():
     @I.ir_module
     class Expected:
         @Ts.function
-        def add_one(x: T.Tensor((m_add_one,)), y: T.Tensor((m_add_one,))):
+        def add_one(x: T.Tensor((m_add_one,), "float32"), y: T.Tensor((m_add_one,), "float32")):
             # with Ts.sblock("root"):
             for i in T.serial(T.int64(0), m_add_one):
                 with Ts.sblock("add"):

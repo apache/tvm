@@ -39,7 +39,11 @@ from tvm.script import tirx as T
 @tvm.script.ir_module
 class Module:
     @Ts.function
-    def tir_matmul(A: T.Tensor((32, 32)), B: T.Tensor((32, 32)), C: T.Tensor((32, 32))) -> None:
+    def tir_matmul(
+        A: T.Tensor((32, 32), "float32"),
+        B: T.Tensor((32, 32), "float32"),
+        C: T.Tensor((32, 32), "float32"),
+    ) -> None:
         T.func_attr({"global_symbol": "tir_matmul"})
 
         for i0, j0, k0 in T.grid(32, 32, 32):
@@ -50,7 +54,7 @@ class Module:
                 C[i, j] += A[i, k] * B[j, k]
 
     @Ts.function
-    def tir_relu(A: T.Tensor((32, 32)), B: T.Tensor((32, 32))):
+    def tir_relu(A: T.Tensor((32, 32), "float32"), B: T.Tensor((32, 32), "float32")):
         T.func_attr({"global_symbol": "tir_relu"})
 
         for i, j in T.grid(32, 32):
@@ -59,7 +63,7 @@ class Module:
                 B[vi, vj] = T.max(A[vi, vj], 0.0)
 
     @Ts.function
-    def tir_zeros(n: T.int64, A: T.Tensor([n])):
+    def tir_zeros(n: T.int64, A: T.Tensor([n], "float32")):
         T.func_attr({"global_symbol": "tir_zeros"})
 
         for i in range(n):

@@ -53,9 +53,41 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 }  // namespace
 
+ExprDoc ReflectedValue(DocTranslatorObj* d, ffi::AnyView value) {
+  ExtraStateScope<bool> explicit_scalars(d, "ir.explicit_scalar_dtype", true);
+  if (auto array = value.as<ffi::Array<ffi::Any>>()) {
+    ffi::Array<ExprDoc> elements;
+    for (const auto& element : array.value()) elements.push_back(ReflectedValue(d, element));
+    return ListDoc(elements);
+  }
+  if (auto map = value.as<ffi::Map<ffi::Any, ffi::Any>>()) {
+    std::vector<std::pair<ffi::Any, ffi::Any>> entries(map->begin(), map->end());
+    if (std::all_of(entries.begin(), entries.end(), [](const auto& entry) {
+          return entry.first.template as<ffi::String>().has_value();
+        })) {
+      std::sort(entries.begin(), entries.end(), [](const auto& a, const auto& b) {
+        return a.first.template as_or_throw<ffi::String>() <
+               b.first.template as_or_throw<ffi::String>();
+      });
+    }
+    ffi::Array<ExprDoc> keys;
+    ffi::Array<ExprDoc> values;
+    for (const auto& [key, item] : entries) {
+      keys.push_back(ReflectedValue(d, key));
+      values.push_back(ReflectedValue(d, item));
+    }
+    return DictDoc(keys, values);
+  }
+  if (value.type_index() < ffi::TypeIndex::kTVMFFIStaticObjectBegin || value.as<ffi::String>()) {
+    return AnyValue(d, value);
+  }
+  return d->Translate(value).value();
+}
+
 ExprDoc AnyValue(DocTranslatorObj* d, ffi::AnyView value) {
   if (value.type_index() == ffi::TypeIndex::kTVMFFINone) return LiteralDoc::None(std::nullopt);
   if (value.as<ffi::Module>() || value.as<ffi::TensorObj>()) return AddMetadata(d, value);
+  if (auto type = value.as<Type>()) return TypeValue(d, type.value(), false);
   if (auto array = value.as<ffi::Array<ffi::Any>>()) {
     ffi::Array<ExprDoc> elements;
     for (const auto& element : array.value()) elements.push_back(AnyValue(d, element));

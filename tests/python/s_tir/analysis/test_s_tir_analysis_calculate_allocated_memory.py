@@ -71,9 +71,9 @@ def test_scale_by(function, size):
 
 @Ts.function
 def matmul_mix_scope(
-    A: T.Tensor([128, 128], scope="global"),
-    B: T.Tensor([128, 128], scope="global"),
-    C: T.Tensor([128, 128], scope="global"),
+    A: T.Tensor([128, 128], "float32", scope="global"),
+    B: T.Tensor([128, 128], "float32", scope="global"),
+    C: T.Tensor([128, 128], "float32", scope="global"),
 ) -> None:
     A_allocated = Ts.sblock_alloc_tensor([128, 128], dtype="float32", scope="global.texture")
     B_allocated = Ts.sblock_alloc_tensor([128, 128], dtype="float32", scope="global.texture")

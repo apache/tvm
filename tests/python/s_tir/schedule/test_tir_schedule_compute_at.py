@@ -927,7 +927,7 @@ def concat_two_elemwise_after_compute_at(x: T.Tensor((16,), "float32"),
             T_concat[ax] = T.if_then_else(16 <= ax, T_add_2[ax - 16], T_add_1[ax])
 
 @Ts.function
-def floordiv_and_floormod_indices(X: T.Tensor([16, 16]), Y: T.Tensor([256])) -> None:
+def floordiv_and_floormod_indices(X: T.Tensor([16, 16], "float32"), Y: T.Tensor([256], "float32")) -> None:
 
     temp = Ts.sblock_alloc_tensor([16, 16])
     for i, j in T.grid(16, 16):
@@ -1324,8 +1324,8 @@ def test_compute_at_simplify_symbolic_predicate():
     class After:
         @Ts.function
         def main(
-            X: T.Tensor((T.int64(8), n * T.int64(32))),  # noqa: F821
-            Y: T.Tensor((T.int64(8), n * T.int64(32))),  # noqa: F821
+            X: T.Tensor((T.int64(8), n * T.int64(32)), "float32"),  # noqa: F821
+            Y: T.Tensor((T.int64(8), n * T.int64(32)), "float32"),  # noqa: F821
             n: T.int64,
         ):
             X_global = Ts.sblock_alloc_tensor((T.int64(8), n * T.int64(32)))
@@ -1707,7 +1707,7 @@ def test_shape_var_as_bound():
     n = T.dynamic("n", "int32")
 
     @Ts.function
-    def before(A: T.Tensor((32, 1, 128)), B: T.Tensor((32, n, 128)), C: T.Tensor((32, 1, n))):
+    def before(A: T.Tensor((32, 1, 128), "float32"), B: T.Tensor((32, n, 128), "float32"), C: T.Tensor((32, 1, n), "float32")):
 
         # with Ts.sblock("root"):
         C_rf = Ts.sblock_alloc_tensor((128, 32, 1, n))
@@ -1736,7 +1736,7 @@ def test_shape_var_as_bound():
     n = T.dynamic("n", "int32")
 
     @Ts.function
-    def expected(A: T.Tensor((32, 1, 128), "float32"), B: T.Tensor((32, n, 128)), C: T.Tensor((32, 1, n))):
+    def expected(A: T.Tensor((32, 1, 128), "float32"), B: T.Tensor((32, n, 128), "float32"), C: T.Tensor((32, 1, n), "float32")):
 
         # with Ts.sblock("root"):
         C_rf = Ts.sblock_alloc_tensor((128, 32, 1, n))

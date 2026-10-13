@@ -21,12 +21,9 @@ import functools
 import inspect
 import threading
 from collections.abc import Callable
-from numbers import Integral
 from typing import TYPE_CHECKING, Any, TypeVar
 
 from tvm import ir as _ir
-from tvm.script.ir_builder.base import annotation_constructor as _annotation_constructor
-from tvm.script.ir_builder.base import at as _at
 
 # isort: off
 from typing import Literal
@@ -35,10 +32,10 @@ from typing import Literal
 
 from tvm import DataType, ir
 from tvm import tirx as tir
-from tvm.ir import Range, Type, is_prim_expr
+from tvm.ir import Range, TensorRegion, Type
 from tvm.ir.location import UNKNOWN_LOC, Location
+from tvm.ir.type import _init_type_api, _normalize_type
 from tvm.script.ir_builder.base import MISSING
-from tvm.script.ir_builder.base import LocationEntry as _LocationEntry
 from tvm.script.ir_builder.ir import Lambda, meta_var
 from tvm.script.parser.protocol_registry import (
     register_mutable_decl as _register_mutable_decl,
@@ -184,90 +181,24 @@ def _record_meta_resource(value: Any, skip_frames: int = 2) -> None:
         scope.record(value, frame_info)
 
 
-@_register_mutable_decl("tirx.Tensor", syntax="parameter")
-@_annotation_constructor
-def _tensor_type(
-    shape: list[Expr] | tuple[Expr] | Expr | Integral,
-    dtype: str = "float32",
-    data: Var = None,
-    strides: list[Expr] | None = None,
-    elem_offset: Expr = None,
-    byte_offset: Expr = None,
-    scope: str = "global",
-    align: int = 0,
-    offset_factor: int = 0,
-    layout: str | Layout | None = MISSING,
-    *,
-    loc: _LocationEntry | Location = UNKNOWN_LOC,
-) -> tir.TensorType:
-    """Construct a tensor type for annotations and explicit type-valued fields.
-
-    Parameters
-    ----------
-    shape : Union[List[Expr], Tuple[Expr], Expr, Integral]
-        The shape of the tensor prior to flattening.
-
-    dtype : str
-        The data type in the content of the tensor.
-
-    data : Var
-        An optional pointer whose storage scope determines the tensor type scope.
-
-    strides : List[Expr]
-        The strides of each dimension.
-
-    elem_offset : Expr
-        The offset in terms of number of dtype elements (including lanes).
-
-    byte_offset : Expr, optional
-        The offset in bytes, as an alternative to elem_offset.
-
-    scope : str
-        The optional storage scope of tensor data pointer.
-
-    align : int
-        The alignment requirement of data pointer in bytes.
-
-    offset_factor : int
-        The factor of elem_offset field.
-
-    layout : str or Layout, optional
-        The tensor layout. "default" constructs the shape's default TileLayout;
-        omission and None both omit a layout.
-
-    Returns
-    -------
-    res : TensorType
-        The tensor type. Function annotations introduce variables of this type;
-        allocation and declaration operations construct tensor variables.
-    """
-    shape = (shape,) if is_prim_expr(shape) or isinstance(shape, Integral) else shape
-    shape = tuple(shape)
-    if strides is None:
-        strides = []
-    result = _ffi_api.TensorType(  # type: ignore[attr-defined] # pylint: disable=no-member
-        shape,
-        dtype,
-        data,
-        strides,
-        _get_elem_offset(elem_offset, byte_offset, dtype),
-        scope,
-        align,
-        offset_factor,
-        _get_layout(layout, shape, scope),
-    )
-    return _at(loc, result)
+_tensor_type = _register_mutable_decl("tirx.Tensor", syntax="parameter")(tir.TensorType)
 
 
 def Tuple(*fields: Type) -> Type:  # pylint: disable=invalid-name
     """Construct a tuple type for a TIRx function or binding annotation."""
     normalized_fields = []
     for field in fields:
-        if callable(field) and not isinstance(field, Expr):
+        if (
+            isinstance(field, Type)
+            or (isinstance(field, type) and issubclass(field, Type))
+            or isinstance(getattr(field, "_dtype_str", None), str)
+        ):
+            field = _normalize_type(field)
+        elif callable(field) and not isinstance(field, Expr):
             field = field()
         if isinstance(field, Expr):
             field = field.ty
-        normalized_fields.append(field)
+        normalized_fields.append(_normalize_type(field))
     return ir.TupleType(normalized_fields)
 
 
@@ -1123,6 +1054,9 @@ def boolean(expr: Expr | None = None) -> Expr:
     return _ffi_api.Boolean(expr)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
+boolean._dtype_str = "bool"
+
+
 def handle(
     dtype: str | None = None,
     storage_scope: str = "global",
@@ -1279,24 +1213,9 @@ else:
         return _install_meta_class(cls)
 
 
-def Ptr(element_type, storage_scope="global", *, loc: _LocationEntry | Location = UNKNOWN_LOC):
-    """Construct a pointer type from an element type or its annotation constructor.
-
-    For example, ``Ptr(int32)`` and ``Ptr(TensorMap)`` construct pointers
-    in global scope; ``Ptr(int32, "shared")`` selects shared scope. Use ``I.Var(name, ty)``
-    to construct a variable of this type.
-    String element dtypes remain accepted, as in ``Ptr("float32", "shared")``.
-    """
-    if callable(element_type) and not isinstance(element_type, Type):
-        element_type = element_type()
-    if isinstance(element_type, Expr):
-        element_type = element_type.ty
-    if isinstance(element_type, str):
-        element_type = ir.PrimType(element_type)
-    return _at(loc, ir.PtrType(element_type, storage_scope))
-
-
-Tensor = _tensor_type
+# These are aliases of canonical bindings, including their constructor signatures.
+Ptr = ir.PtrType
+Tensor = tir.TensorType
 
 __all__ = [
     "Axis",
@@ -1317,6 +1236,7 @@ __all__ = [
     "Tensor",
     "TensorLoad",
     "TensorMap",
+    "TensorRegion",
     "TileLayout",
     "Tuple",
     "Var",
@@ -1512,3 +1432,6 @@ __all__ = [
     "void",
     "wg_reg_tile",
 ]
+
+
+_init_type_api("tirx", __name__)

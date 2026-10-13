@@ -96,9 +96,9 @@ def test_simple_binary(op_type, operands_type):
     @T.function
     def expected():
         T.func_attr({"global_symbol": "binary"})
-        A_sbuf = T.alloc_tensor(ty_args=[T.Tensor(src1_shape, scope="trn.sbuf")])
-        B_sbuf = T.alloc_tensor(ty_args=[T.Tensor(src2_shape, scope="trn.sbuf")])
-        C_sbuf = T.alloc_tensor(ty_args=[T.Tensor(dst_shape, scope="trn.sbuf")])
+        A_sbuf = T.alloc_tensor(ty_args=[T.Tensor(src1_shape, "float32", scope="trn.sbuf")])
+        B_sbuf = T.alloc_tensor(ty_args=[T.Tensor(src2_shape, "float32", scope="trn.sbuf")])
+        C_sbuf = T.alloc_tensor(ty_args=[T.Tensor(dst_shape, "float32", scope="trn.sbuf")])
         for b_loop in T.serial(0, 1):
             T.nki.tensorized_instruction()
             for p_loop in T.serial(0, 128, annotations={"nki_dim":"P"}):
@@ -205,13 +205,17 @@ def test_binary_complex(op_type, operands_type):
     @T.function
     def expected():
         T.func_attr({"global_symbol": "binary"})
-        A_sbuf = T.alloc_tensor(ty_args=[T.Tensor(src1_layout_data_iter, scope="trn.sbuf")])
-        B_sbuf = T.alloc_tensor(ty_args=[T.Tensor(src2_layout_data_iter, scope="trn.sbuf")])
-        C_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 2048), scope="trn.sbuf")])
-        A_sbuf_view = T.decl_tensor(A_sbuf.data, ty_args=[T.Tensor(src1_layout_data_iter, scope="trn.sbuf", layout=None)])  # noqa: E501
-        B_sbuf_view = T.decl_tensor(B_sbuf.data, ty_args=[T.Tensor(src2_layout_data_iter, scope="trn.sbuf", layout=None)])  # noqa: E501
+        A_sbuf = T.alloc_tensor(
+            ty_args=[T.Tensor(src1_layout_data_iter, "float32", scope="trn.sbuf")]
+        )
+        B_sbuf = T.alloc_tensor(
+            ty_args=[T.Tensor(src2_layout_data_iter, "float32", scope="trn.sbuf")]
+        )
+        C_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 2048), "float32", scope="trn.sbuf")])
+        A_sbuf_view = T.decl_tensor(A_sbuf.data, ty_args=[T.Tensor(src1_layout_data_iter, "float32", scope="trn.sbuf", layout=None)])  # noqa: E501
+        B_sbuf_view = T.decl_tensor(B_sbuf.data, ty_args=[T.Tensor(src2_layout_data_iter, "float32", scope="trn.sbuf", layout=None)])  # noqa: E501
         C_sbuf_view = T.decl_tensor(
-            C_sbuf.data, ty_args=[T.Tensor((128, 2048), scope="trn.sbuf", layout=None)]
+            C_sbuf.data, ty_args=[T.Tensor((128, 2048), "float32", scope="trn.sbuf", layout=None)]
         )
         for i, b_loop in T.grid(4, b_extent):
             T.nki.tensorized_instruction()
@@ -262,9 +266,9 @@ def test_binary_broadcast1():
     @T.function
     def expected():
         T.func_attr({"global_symbol": "binary"})
-        A_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 16384), scope="trn.sbuf")])
-        B_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 512), scope="trn.sbuf")])
-        C_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 16384), scope="trn.sbuf")])
+        A_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 16384), "float32", scope="trn.sbuf")])
+        B_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 512), "float32", scope="trn.sbuf")])
+        C_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 16384), "float32", scope="trn.sbuf")])
         for b_loop in T.serial(0, 512):
             T.nki.tensorized_instruction()
             for p_loop in T.serial(0, 128, annotations={"nki_dim":"P"}):
@@ -304,9 +308,9 @@ def test_binary_broadcast2():
     @T.function
     def expected():
         T.func_attr({"global_symbol": "binary"})
-        A_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 16384), scope="trn.sbuf")])
-        B_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 512), scope="trn.sbuf")])
-        C_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 16384), scope="trn.sbuf")])
+        A_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 16384), "float32", scope="trn.sbuf")])
+        B_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 512), "float32", scope="trn.sbuf")])
+        C_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 16384), "float32", scope="trn.sbuf")])
         for b_loop in T.serial(0, 128):
             T.nki.tensorized_instruction()
             for p_loop in T.serial(0, 128, annotations={"nki_dim":"P"}):
@@ -346,9 +350,9 @@ def test_binary_broadcast3():
     @T.function
     def expected():
         T.func_attr({"global_symbol": "binary"})
-        A_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 512), scope="trn.sbuf")])
-        B_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 16384), scope="trn.sbuf")])
-        C_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 512), scope="trn.sbuf")])
+        A_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 512), "float32", scope="trn.sbuf")])
+        B_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 16384), "float32", scope="trn.sbuf")])
+        C_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 512), "float32", scope="trn.sbuf")])
         for b_loop in T.serial(0, 4):
             T.nki.tensorized_instruction()
             for p_loop in T.serial(0, 128, annotations={"nki_dim":"P"}):
@@ -394,9 +398,9 @@ def test_binary_with_guard():
     @T.function
     def expected():
         T.func_attr({"global_symbol": "binary"})
-        A_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 16384), scope="trn.sbuf")])
-        B_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 512), scope="trn.sbuf")])
-        C_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 16384), scope="trn.sbuf")])
+        A_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 16384), "float32", scope="trn.sbuf")])
+        B_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 512), "float32", scope="trn.sbuf")])
+        C_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 16384), "float32", scope="trn.sbuf")])
         for j, b_loop in T.grid(4, 96):
             T.nki.tensorized_instruction()
             for p_loop in T.serial(0, 128, annotations={"nki_dim":"P"}):

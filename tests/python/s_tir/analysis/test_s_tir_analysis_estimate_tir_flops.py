@@ -80,7 +80,7 @@ def test_flops_with_if():
 
 
 @Ts.function
-def flops_with_forloop_as_expression(A: T.Tensor(1)):
+def flops_with_forloop_as_expression(A: T.Tensor(1, "float32")):
     for i in T.serial(0, 16):
         for k in T.serial(0, i):
             A[0] = A[0] + 1

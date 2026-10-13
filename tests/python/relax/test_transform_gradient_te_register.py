@@ -295,7 +295,7 @@ def get_expected_3():
     @I.ir_module
     class Expected:
         @Ts.function(private=True)
-        def f_mul(A: T.Tensor((n_f_mul, n_f_mul)), B: T.Tensor((n_f_mul, n_f_mul)), f_mul_1: T.Tensor((n_f_mul, n_f_mul))):
+        def f_mul(A: T.Tensor((n_f_mul, n_f_mul), "float32"), B: T.Tensor((n_f_mul, n_f_mul), "float32"), f_mul_1: T.Tensor((n_f_mul, n_f_mul), "float32")):
             T.func_attr({"tirx.noalias": True})
 
             # with Ts.sblock("root"):
@@ -307,7 +307,7 @@ def get_expected_3():
                     f_mul_1[v_i0, v_i1] = A[v_i0, v_i1] * B[v_i0, v_i1]
 
         @Ts.function(private=True)
-        def f_mul_grad(A: T.Tensor((n_f_mul_grad, n_f_mul_grad)), B: T.Tensor((n_f_mul_grad, n_f_mul_grad)), C: T.Tensor((n_f_mul_grad, n_f_mul_grad)), f_mul_grad_1: T.Tensor((n_f_mul_grad, n_f_mul_grad)), f_mul_grad_2: T.Tensor((n_f_mul_grad, n_f_mul_grad))):
+        def f_mul_grad(A: T.Tensor((n_f_mul_grad, n_f_mul_grad), "float32"), B: T.Tensor((n_f_mul_grad, n_f_mul_grad), "float32"), C: T.Tensor((n_f_mul_grad, n_f_mul_grad), "float32"), f_mul_grad_1: T.Tensor((n_f_mul_grad, n_f_mul_grad), "float32"), f_mul_grad_2: T.Tensor((n_f_mul_grad, n_f_mul_grad), "float32")):
             T.func_attr({"tirx.noalias": True})
 
             # with Ts.sblock("root"):

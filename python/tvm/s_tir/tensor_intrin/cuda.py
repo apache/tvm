@@ -153,13 +153,19 @@ def get_ldmatrix_intrin(
     @Ts.function
     def ldmatrix_desc(
         warp: T.Tensor(
-            (WARP_SIZE, local_size), dtype, align=64, offset_factor=offset_factor, scope="warp"
+            (WARP_SIZE, local_size),
+            dtype,
+            align=64,
+            offset_factor=offset_factor,
+            elem_offset=T.int32(),
+            scope="warp",
         ),
         shared: T.Tensor(
             (smem_tile_row, smem_tile_col),
             dtype,
             align=64,
             offset_factor=offset_factor,
+            elem_offset=T.int32(),
             scope=shared_scope,
         ),
     ) -> None:
@@ -182,13 +188,19 @@ def get_ldmatrix_intrin(
     @Ts.function
     def ldmatrix_impl(
         warp: T.Tensor(
-            (WARP_SIZE, local_size), dtype, align=64, offset_factor=offset_factor, scope="warp"
+            (WARP_SIZE, local_size),
+            dtype,
+            align=64,
+            offset_factor=offset_factor,
+            elem_offset=T.int32(),
+            scope="warp",
         ),
         shared: T.Tensor(
             (smem_tile_row, smem_tile_col),
             dtype,
             align=64,
             offset_factor=offset_factor,
+            elem_offset=T.int32(),
             scope=shared_scope,
             strides=[s0, s1],
         ),
@@ -331,16 +343,27 @@ def get_mma_intrin(
     @Ts.function
     def mma_sync_desc(
         A: T.Tensor(
-            (WARP_SIZE, local_size), a_dtype, align=64, offset_factor=A_offset_factor, scope="warp"
+            (WARP_SIZE, local_size),
+            a_dtype,
+            align=64,
+            offset_factor=A_offset_factor,
+            elem_offset=T.int32(),
+            scope="warp",
         ),
         B: T.Tensor(
-            (WARP_SIZE, local_size), b_dtype, align=64, offset_factor=B_offset_factor, scope="warp"
+            (WARP_SIZE, local_size),
+            b_dtype,
+            align=64,
+            offset_factor=B_offset_factor,
+            elem_offset=T.int32(),
+            scope="warp",
         ),
         C: T.Tensor(
             (WARP_SIZE, local_size_out),
             out_dtype,
             align=64,
             offset_factor=out_offset_factor,
+            elem_offset=T.int32(),
             scope="warp",
         ),
     ) -> None:
@@ -376,16 +399,27 @@ def get_mma_intrin(
     @Ts.function
     def mma_sync_impl(
         A: T.Tensor(
-            (WARP_SIZE, local_size), a_dtype, align=64, offset_factor=A_offset_factor, scope="warp"
+            (WARP_SIZE, local_size),
+            a_dtype,
+            align=64,
+            offset_factor=A_offset_factor,
+            elem_offset=T.int32(),
+            scope="warp",
         ),
         B: T.Tensor(
-            (WARP_SIZE, local_size), b_dtype, align=64, offset_factor=B_offset_factor, scope="warp"
+            (WARP_SIZE, local_size),
+            b_dtype,
+            align=64,
+            offset_factor=B_offset_factor,
+            elem_offset=T.int32(),
+            scope="warp",
         ),
         C: T.Tensor(
             (WARP_SIZE, local_size_out),
             out_dtype,
             align=64,
             offset_factor=out_offset_factor,
+            elem_offset=T.int32(),
             scope="warp",
         ),
     ) -> None:
@@ -537,7 +571,13 @@ def get_mma_fill_intrin(dtype, local_size):
 
     @Ts.function
     def mma_fill_impl(
-        C_warp: T.Tensor([WARP_SIZE, local_size], dtype=dtype, scope="warp", offset_factor=1),
+        C_warp: T.Tensor(
+            [WARP_SIZE, local_size],
+            dtype=dtype,
+            scope="warp",
+            offset_factor=1,
+            elem_offset=T.int32(),
+        ),
     ) -> None:
         with Ts.sblock("root"):
             Ts.reads()
@@ -586,9 +626,20 @@ def get_mma_store_intrin(dtype, local_size, scope="global", use_mma_store_intrin
 
         @Ts.function
         def mma_store_impl(
-            C_warp: T.Tensor([WARP_SIZE, local_size], dtype=dtype, scope="warp", offset_factor=1),
+            C_warp: T.Tensor(
+                [WARP_SIZE, local_size],
+                dtype=dtype,
+                scope="warp",
+                offset_factor=1,
+                elem_offset=T.int32(),
+            ),
             C: T.Tensor(
-                [M_DIM, N_DIM], dtype=dtype, scope=scope, offset_factor=1, strides=[s0, s1]
+                [M_DIM, N_DIM],
+                dtype=dtype,
+                scope=scope,
+                offset_factor=1,
+                elem_offset=T.int32(),
+                strides=[s0, s1],
             ),
         ) -> None:
             with Ts.sblock("root"):
@@ -614,9 +665,20 @@ def get_mma_store_intrin(dtype, local_size, scope="global", use_mma_store_intrin
 
         @Ts.function
         def mma_store_impl(
-            C_warp: T.Tensor([WARP_SIZE, local_size], dtype=dtype, scope="warp", offset_factor=1),
+            C_warp: T.Tensor(
+                [WARP_SIZE, local_size],
+                dtype=dtype,
+                scope="warp",
+                offset_factor=1,
+                elem_offset=T.int32(),
+            ),
             C: T.Tensor(
-                [M_DIM, N_DIM], dtype=dtype, scope=scope, offset_factor=1, strides=[s0, s1]
+                [M_DIM, N_DIM],
+                dtype=dtype,
+                scope=scope,
+                offset_factor=1,
+                elem_offset=T.int32(),
+                strides=[s0, s1],
             ),
         ) -> None:
             with Ts.sblock("root"):
@@ -805,7 +867,14 @@ def get_mma_init_intrin(
 
     @Ts.function
     def mma_init_desc(
-        dst: T.Tensor((m_dim, n_dim), dtype, align=64, offset_factor=1, scope="m16n8k8.matrixC"),
+        dst: T.Tensor(
+            (m_dim, n_dim),
+            dtype,
+            align=64,
+            offset_factor=1,
+            elem_offset=T.int32(),
+            scope="m16n8k8.matrixC",
+        ),
     ) -> None:
         with Ts.sblock("root"):
             Ts.reads()
@@ -817,7 +886,14 @@ def get_mma_init_intrin(
 
     @Ts.function
     def mma_init_impl(
-        dst: T.Tensor((m_dim, n_dim), dtype, align=64, offset_factor=1, scope="m16n8k8.matrixC"),
+        dst: T.Tensor(
+            (m_dim, n_dim),
+            dtype,
+            align=64,
+            offset_factor=1,
+            elem_offset=T.int32(),
+            scope="m16n8k8.matrixC",
+        ),
     ) -> None:
         with Ts.sblock("root"):
             Ts.reads()
@@ -853,8 +929,22 @@ def get_mma_load_intrin(
 
     @Ts.function
     def mma_load_desc(
-        src: T.Tensor((frag_m, frag_n), dtype, align=64, offset_factor=1, scope=shared_scope),
-        dst: T.Tensor((frag_m, frag_n), dtype, align=64, offset_factor=1, scope=mma_fragment_scope),
+        src: T.Tensor(
+            (frag_m, frag_n),
+            dtype,
+            align=64,
+            offset_factor=1,
+            elem_offset=T.int32(),
+            scope=shared_scope,
+        ),
+        dst: T.Tensor(
+            (frag_m, frag_n),
+            dtype,
+            align=64,
+            offset_factor=1,
+            elem_offset=T.int32(),
+            scope=mma_fragment_scope,
+        ),
     ) -> None:
         with Ts.sblock("root"):
             Ts.reads(src[0:frag_m, 0:frag_n])
@@ -872,13 +962,20 @@ def get_mma_load_intrin(
     @Ts.function
     def mma_load_impl(
         src: T.Tensor(
-            (frag_m, frag_n), dtype, align=64, offset_factor=1, scope=shared_scope, strides=[s0, s1]
+            (frag_m, frag_n),
+            dtype,
+            align=64,
+            offset_factor=1,
+            elem_offset=T.int32(),
+            scope=shared_scope,
+            strides=[s0, s1],
         ),
         dst: T.Tensor(
             (frag_m, frag_n),
             dtype,
             align=64,
             offset_factor=1,
+            elem_offset=T.int32(),
             scope=mma_fragment_scope,
             strides=[d0, d1],
         ),
@@ -923,11 +1020,30 @@ def get_mma_sync_intrin(
 
     @Ts.function
     def mma_sync_desc(
-        A: T.Tensor((m_dim, k_dim), in_dtype, align=64, offset_factor=1, scope="m16n8k8.matrixA"),
-        B: T.Tensor(
-            (B_shape_0, B_shape_1), in_dtype, align=64, offset_factor=1, scope="m16n8k8.matrixB"
+        A: T.Tensor(
+            (m_dim, k_dim),
+            in_dtype,
+            align=64,
+            offset_factor=1,
+            elem_offset=T.int32(),
+            scope="m16n8k8.matrixA",
         ),
-        C: T.Tensor((m_dim, n_dim), out_dtype, align=64, offset_factor=1, scope="m16n8k8.matrixC"),
+        B: T.Tensor(
+            (B_shape_0, B_shape_1),
+            in_dtype,
+            align=64,
+            offset_factor=1,
+            elem_offset=T.int32(),
+            scope="m16n8k8.matrixB",
+        ),
+        C: T.Tensor(
+            (m_dim, n_dim),
+            out_dtype,
+            align=64,
+            offset_factor=1,
+            elem_offset=T.int32(),
+            scope="m16n8k8.matrixC",
+        ),
     ) -> None:
         with Ts.sblock("root"):
             Ts.reads(C[0:m_dim, 0:n_dim], A[0:m_dim, 0:k_dim], B[0:B_shape_0, 0:B_shape_1])
@@ -954,6 +1070,7 @@ def get_mma_sync_intrin(
             in_dtype,
             align=64,
             offset_factor=1,
+            elem_offset=T.int32(),
             scope="m16n8k8.matrixA",
             strides=[a0, a1],
         ),
@@ -962,6 +1079,7 @@ def get_mma_sync_intrin(
             in_dtype,
             align=64,
             offset_factor=1,
+            elem_offset=T.int32(),
             scope="m16n8k8.matrixB",
             strides=[b0, b1],
         ),
@@ -970,6 +1088,7 @@ def get_mma_sync_intrin(
             out_dtype,
             align=64,
             offset_factor=1,
+            elem_offset=T.int32(),
             scope="m16n8k8.matrixC",
             strides=[c0, c1],
         ),
@@ -1007,8 +1126,22 @@ def get_mma_store_dummy_intrin(
 
     @Ts.function
     def mma_store_desc(
-        src: T.Tensor((m_dim, n_dim), dtype, align=64, offset_factor=1, scope="m16n8k8.matrixC"),
-        dst: T.Tensor((m_dim, n_dim), dtype, align=64, offset_factor=1, scope="shared.dyn"),
+        src: T.Tensor(
+            (m_dim, n_dim),
+            dtype,
+            align=64,
+            offset_factor=1,
+            elem_offset=T.int32(),
+            scope="m16n8k8.matrixC",
+        ),
+        dst: T.Tensor(
+            (m_dim, n_dim),
+            dtype,
+            align=64,
+            offset_factor=1,
+            elem_offset=T.int32(),
+            scope="shared.dyn",
+        ),
     ) -> None:
         with Ts.sblock("root"):
             Ts.reads(src[0:m_dim, 0:n_dim])

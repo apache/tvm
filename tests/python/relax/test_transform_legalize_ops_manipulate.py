@@ -672,8 +672,8 @@ def test_reshape_symbolic():
     class Expected3:
         @Ts.function(private=True)
         def reshape(
-            rxplaceholder: T.Tensor((T.int64(10), b_reshape)),
-            T_reshape: T.Tensor((T.int64(5), b_reshape * T.int64(2))),
+            rxplaceholder: T.Tensor((T.int64(10), b_reshape), "float32"),
+            T_reshape: T.Tensor((T.int64(5), b_reshape * T.int64(2)), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
 
@@ -1219,7 +1219,7 @@ def test_repeat_symbolic():
     @I.ir_module
     class Expected:
         @Ts.function(private=True)
-        def repeat(rxplaceholder: T.Tensor((a_repeat, b_repeat, c_repeat)), T_repeat: T.Tensor((T.int64(2) * a_repeat, b_repeat, c_repeat))):
+        def repeat(rxplaceholder: T.Tensor((a_repeat, b_repeat, c_repeat), "float32"), T_repeat: T.Tensor((T.int64(2) * a_repeat, b_repeat, c_repeat), "float32")):
             T.func_attr({"tirx.noalias": True})
 
             # with Ts.sblock("root"):
@@ -1295,7 +1295,7 @@ def test_tile_symbolic():
     @I.ir_module
     class Expected:
         @Ts.function(private=True)
-        def tile(rxplaceholder: T.Tensor((a_tile, b_tile, c_tile)), T_tile: T.Tensor((T.int64(2), a_tile, b_tile * T.int64(2), c_tile * T.int64(3)))):
+        def tile(rxplaceholder: T.Tensor((a_tile, b_tile, c_tile), "float32"), T_tile: T.Tensor((T.int64(2), a_tile, b_tile * T.int64(2), c_tile * T.int64(3)), "float32")):
             T.func_attr({"tirx.noalias": True})
 
             # with Ts.sblock("root"):
@@ -1381,7 +1381,7 @@ def test_flip_symbolic():
             return gv
 
         @Ts.function(private=True)
-        def flip(rxplaceholder: T.Tensor((a_flip, b_flip)), T_reverse_sequence: T.Tensor((a_flip, b_flip))):
+        def flip(rxplaceholder: T.Tensor((a_flip, b_flip), "float32"), T_reverse_sequence: T.Tensor((a_flip, b_flip), "float32")):
             T.func_attr({"tirx.noalias": True})
 
             for ax0, ax1 in T.grid(a_flip, b_flip):
@@ -1467,9 +1467,9 @@ def test_scatter_elements():
     class Expected:
         @Ts.function(private=True)
         def scatter_elements(
-            rxplaceholder: T.Tensor((T.int64(4), T.int64(4)), offset_factor=1),
-            rxplaceholder_1: T.Tensor((T.int64(2), T.int64(2)), 'int64', offset_factor=1),
-            rxplaceholder_2: T.Tensor((T.int64(2), T.int64(2)), offset_factor=1),
+            rxplaceholder: T.Tensor((T.int64(4), T.int64(4)), "float32", offset_factor=1, elem_offset=T.int64()),
+            rxplaceholder_1: T.Tensor((T.int64(2), T.int64(2)), 'int64', offset_factor=1, elem_offset=T.int64()),
+            rxplaceholder_2: T.Tensor((T.int64(2), T.int64(2)), "float32", offset_factor=1, elem_offset=T.int64()),
             out_buf: T.Tensor((T.int64(4), T.int64(4)), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
@@ -1569,10 +1569,10 @@ def test_scatter_elements_symbolic():
     class Expected:
         @Ts.function(private=True)
         def scatter_elements(
-            rxplaceholder: T.Tensor((a_scatter_elements, b_scatter_elements), offset_factor=1),
-            rxplaceholder_1: T.Tensor((m_scatter_elements, n_scatter_elements), 'int64', offset_factor=1),
-            rxplaceholder_2: T.Tensor((m_scatter_elements, n_scatter_elements), offset_factor=1),
-            out_buf: T.Tensor((a_scatter_elements, b_scatter_elements)),
+            rxplaceholder: T.Tensor((a_scatter_elements, b_scatter_elements), "float32", offset_factor=1, elem_offset=T.int64()),
+            rxplaceholder_1: T.Tensor((m_scatter_elements, n_scatter_elements), 'int64', offset_factor=1, elem_offset=T.int64()),
+            rxplaceholder_2: T.Tensor((m_scatter_elements, n_scatter_elements), "float32", offset_factor=1, elem_offset=T.int64()),
+            out_buf: T.Tensor((a_scatter_elements, b_scatter_elements), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
 
@@ -1765,7 +1765,7 @@ def test_layout_transform_symbolic():
     @I.ir_module
     class Expected:
         @Ts.function(private=True)
-        def te_layout_transform_with_pad(A: T.Tensor((a_te_layout_transform_with_pad, b_te_layout_transform_with_pad, c_te_layout_transform_with_pad)), te_layout_transform_with_pad_1: T.Tensor((a_te_layout_transform_with_pad, c_te_layout_transform_with_pad, (b_te_layout_transform_with_pad - b_te_layout_transform_with_pad % T.int64(-3)) // T.int64(3), T.int64(3)))):
+        def te_layout_transform_with_pad(A: T.Tensor((a_te_layout_transform_with_pad, b_te_layout_transform_with_pad, c_te_layout_transform_with_pad), "float32"), te_layout_transform_with_pad_1: T.Tensor((a_te_layout_transform_with_pad, c_te_layout_transform_with_pad, (b_te_layout_transform_with_pad - b_te_layout_transform_with_pad % T.int64(-3)) // T.int64(3), T.int64(3)), "float32")):
             T.func_attr({"tirx.noalias": True})
 
             # with Ts.sblock("root"):
@@ -1882,7 +1882,7 @@ def test_scatter_nd():
             return gv
 
         @Ts.function(private=True)
-        def scatter_nd(data: T.Tensor((T.int64(8),), offset_factor=1), indices: T.Tensor((T.int64(4), T.int64(1)), 'int64'), updates: T.Tensor((T.int64(4),), offset_factor=1), out_buf: T.Tensor((T.int64(8),))):
+        def scatter_nd(data: T.Tensor((T.int64(8),), "float32", offset_factor=1, elem_offset=T.int64()), indices: T.Tensor((T.int64(4), T.int64(1)), 'int64'), updates: T.Tensor((T.int64(4),), "float32", offset_factor=1, elem_offset=T.int64()), out_buf: T.Tensor((T.int64(8),), "float32")):
             T.func_attr({"tirx.noalias": True})
 
             with Ts.sblock("root"):

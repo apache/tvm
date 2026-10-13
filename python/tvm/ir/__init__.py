@@ -85,3 +85,6 @@ from .stmt import (
 )
 
 from tvm_ffi import Array, Map
+
+# Shared transformation infrastructure is available through the IR namespace.
+from .. import transform as transform

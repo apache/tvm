@@ -33,7 +33,7 @@ from tvm.script import tirx as T
 
 
 @Ts.function
-def elementwise(A: T.Tensor((128, 128)), C: T.Tensor((128, 128))) -> None:
+def elementwise(A: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "float32")) -> None:
     B = Ts.sblock_alloc_tensor((128, 128))
 
     for i, j in T.grid(128, 128):
@@ -48,7 +48,9 @@ def elementwise(A: T.Tensor((128, 128)), C: T.Tensor((128, 128))) -> None:
 
 @Ts.function
 def elementwise_multi_producer_consumer(
-    A: T.Tensor((128, 128)), C: T.Tensor((128, 128)), D: T.Tensor((128, 128))
+    A: T.Tensor((128, 128), "float32"),
+    C: T.Tensor((128, 128), "float32"),
+    D: T.Tensor((128, 128), "float32"),
 ) -> None:
     B = Ts.sblock_alloc_tensor((128, 128))
 
@@ -68,7 +70,9 @@ def elementwise_multi_producer_consumer(
 
 @Ts.function
 def elementwise_multi_consumer_inlined(
-    A: T.Tensor((128, 128)), C: T.Tensor((128, 128)), D: T.Tensor((128, 128))
+    A: T.Tensor((128, 128), "float32"),
+    C: T.Tensor((128, 128), "float32"),
+    D: T.Tensor((128, 128), "float32"),
 ) -> None:
     for i, j in T.grid(128, 128):
         with Ts.sblock("C"):
@@ -81,7 +85,9 @@ def elementwise_multi_consumer_inlined(
 
 
 @Ts.function
-def elementwise_standalone(A: T.Tensor((128, 128)), C: T.Tensor((128, 128))) -> None:
+def elementwise_standalone(
+    A: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "float32")
+) -> None:
     B = Ts.sblock_alloc_tensor((128, 128))
 
     for i, j in T.grid(128, 128):
@@ -95,7 +101,9 @@ def elementwise_standalone(A: T.Tensor((128, 128)), C: T.Tensor((128, 128))) -> 
 
 
 @Ts.function
-def elementwise_standalone_dce(A: T.Tensor((128, 128)), C: T.Tensor((128, 128))) -> None:
+def elementwise_standalone_dce(
+    A: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "float32")
+) -> None:
     for i, j in T.grid(128, 128):
         with Ts.sblock("C"):
             vi, vj = Ts.axis.remap("SS", [i, j])
@@ -103,7 +111,9 @@ def elementwise_standalone_dce(A: T.Tensor((128, 128)), C: T.Tensor((128, 128)))
 
 
 @Ts.function
-def elementwise_under_loop(A: T.Tensor((128, 128)), C: T.Tensor((128, 128))) -> None:
+def elementwise_under_loop(
+    A: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "float32")
+) -> None:
     B = Ts.sblock_alloc_tensor((128, 128))
     for i in T.serial(0, 128):
         for j in T.serial(0, 128):
@@ -117,7 +127,9 @@ def elementwise_under_loop(A: T.Tensor((128, 128)), C: T.Tensor((128, 128))) -> 
 
 
 @Ts.function
-def elementwise_inlined(A: T.Tensor((128, 128)), C: T.Tensor((128, 128))) -> None:
+def elementwise_inlined(
+    A: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "float32")
+) -> None:
     for i, j in T.grid(128, 128):
         with Ts.sblock("C"):
             vi, vj = Ts.axis.remap("SS", [i, j])
@@ -125,7 +137,9 @@ def elementwise_inlined(A: T.Tensor((128, 128)), C: T.Tensor((128, 128))) -> Non
 
 
 @Ts.function
-def fail_multi_reader_writer(A: T.Tensor((128, 128)), D: T.Tensor((128, 128))) -> None:
+def fail_multi_reader_writer(
+    A: T.Tensor((128, 128), "float32"), D: T.Tensor((128, 128), "float32")
+) -> None:
     B = Ts.sblock_alloc_tensor((128, 128))
     C = Ts.sblock_alloc_tensor((128, 128))
 
@@ -141,7 +155,9 @@ def fail_multi_reader_writer(A: T.Tensor((128, 128)), D: T.Tensor((128, 128))) -
 
 
 @Ts.function
-def elementwise_multi_reverse_loads(A: T.Tensor((128, 128)), C: T.Tensor((128, 128))) -> None:
+def elementwise_multi_reverse_loads(
+    A: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "float32")
+) -> None:
     B = Ts.sblock_alloc_tensor((128, 128))
 
     for i, j in T.grid(128, 128):
@@ -156,7 +172,7 @@ def elementwise_multi_reverse_loads(A: T.Tensor((128, 128)), C: T.Tensor((128, 1
 
 @Ts.function
 def elementwise_multi_reverse_loads_inlined(
-    A: T.Tensor((128, 128)), C: T.Tensor((128, 128))
+    A: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "float32")
 ) -> None:
     for i, j in T.grid(128, 128):
         with Ts.sblock("B"):
@@ -328,7 +344,9 @@ def elementwise_reverse_non_affine_load(
 
 
 @Ts.function
-def opaque_access_load(A: T.Tensor((128, 128)), C: T.Tensor((128, 128))) -> None:
+def opaque_access_load(
+    A: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "float32")
+) -> None:
     B = Ts.sblock_alloc_tensor((128, 128))
 
     for i, j in T.grid(128, 128):
@@ -345,7 +363,9 @@ def opaque_access_load(A: T.Tensor((128, 128)), C: T.Tensor((128, 128))) -> None
 
 
 @Ts.function
-def opaque_access_store(A: T.Tensor((128, 128)), C: T.Tensor((128, 128))) -> None:
+def opaque_access_store(
+    A: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "float32")
+) -> None:
     B = Ts.sblock_alloc_tensor((128, 128))
 
     for i, j in T.grid(128, 128):
@@ -363,7 +383,7 @@ def opaque_access_store(A: T.Tensor((128, 128)), C: T.Tensor((128, 128))) -> Non
 
 
 @Ts.function
-def tensor_matched(A: T.Tensor((128, 128)), C: T.Tensor((128, 128))) -> None:
+def tensor_matched(A: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "float32")) -> None:
     B = Ts.sblock_alloc_tensor((128, 128))
 
     for i, j in T.grid(128, 128):
@@ -378,7 +398,9 @@ def tensor_matched(A: T.Tensor((128, 128)), C: T.Tensor((128, 128))) -> None:
 
 
 @Ts.function
-def elementwise_predicate(A: T.Tensor((128, 128)), C: T.Tensor((128, 128))) -> None:
+def elementwise_predicate(
+    A: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "float32")
+) -> None:
     B = Ts.sblock_alloc_tensor((128, 128))
 
     for i, j in T.grid(128, 128):
@@ -393,7 +415,9 @@ def elementwise_predicate(A: T.Tensor((128, 128)), C: T.Tensor((128, 128))) -> N
 
 
 @Ts.function
-def elementwise_predicate_inlined(A: T.Tensor((128, 128)), C: T.Tensor((128, 128))) -> None:
+def elementwise_predicate_inlined(
+    A: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "float32")
+) -> None:
     for i, j in T.grid(128, 128):
         with Ts.sblock("C"):
             vi, vj = Ts.axis.remap("SS", [i, j])
@@ -402,7 +426,9 @@ def elementwise_predicate_inlined(A: T.Tensor((128, 128)), C: T.Tensor((128, 128
 
 
 @Ts.function
-def elementwise_multi_loads(A: T.Tensor((128, 128)), C: T.Tensor((128, 128))) -> None:
+def elementwise_multi_loads(
+    A: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "float32")
+) -> None:
     B = Ts.sblock_alloc_tensor((128, 128))
 
     for i, j in T.grid(128, 128):
@@ -416,7 +442,9 @@ def elementwise_multi_loads(A: T.Tensor((128, 128)), C: T.Tensor((128, 128))) ->
 
 
 @Ts.function
-def elementwise_multi_loads_inlined(A: T.Tensor((128, 128)), C: T.Tensor((128, 128))) -> None:
+def elementwise_multi_loads_inlined(
+    A: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "float32")
+) -> None:
     for i, j in T.grid(128, 128):
         with Ts.sblock("C"):
             vi, vj = Ts.axis.remap("SS", [i, j])
@@ -424,7 +452,9 @@ def elementwise_multi_loads_inlined(A: T.Tensor((128, 128)), C: T.Tensor((128, 1
 
 
 @Ts.function
-def access_opaque_ptr_then_elemwise(A: T.Tensor([1024]), B: T.Tensor([1024])) -> None:
+def access_opaque_ptr_then_elemwise(
+    A: T.Tensor([1024], "float32"), B: T.Tensor([1024], "float32")
+) -> None:
     A_cache = Ts.sblock_alloc_tensor([1024])
     BB = Ts.sblock_alloc_tensor([1024])
     with Ts.sblock("opaque"):
@@ -487,7 +517,9 @@ def matmul_relu(
 
 @Ts.function
 def elementwise_output(
-    A: T.Tensor((128, 128)), B: T.Tensor((128, 128)), C: T.Tensor((128, 128))
+    A: T.Tensor((128, 128), "float32"),
+    B: T.Tensor((128, 128), "float32"),
+    C: T.Tensor((128, 128), "float32"),
 ) -> None:
     for i, j in T.grid(128, 128):
         with Ts.sblock("B"):
@@ -692,7 +724,9 @@ def elementwise_producer_is_reduction(
 
 
 @Ts.function
-def elementwise_predicate_producer(A: T.Tensor((128, 128)), C: T.Tensor((127, 128))) -> None:
+def elementwise_predicate_producer(
+    A: T.Tensor((128, 128), "float32"), C: T.Tensor((127, 128), "float32")
+) -> None:
     B = Ts.sblock_alloc_tensor((127, 128))
 
     for i, j in T.grid(128, 128):
@@ -708,7 +742,7 @@ def elementwise_predicate_producer(A: T.Tensor((128, 128)), C: T.Tensor((127, 12
 
 @Ts.function
 def elementwise_predicate_producer_inlined(
-    A: T.Tensor((128, 128)), C: T.Tensor((127, 128))
+    A: T.Tensor((128, 128), "float32"), C: T.Tensor((127, 128), "float32")
 ) -> None:
     for i, j in T.grid(128, 128):
         with Ts.sblock("B"):
@@ -1289,7 +1323,7 @@ def test_compute_inline_softmax():
     m = T.dynamic("m")
 
     @Ts.function
-    def before(lv44: T.Tensor((T.int64(1), T.int64(32), n, m)), var_compute_intermediate: T.Tensor((T.int64(1), T.int64(32), n, m), 'float16')):
+    def before(lv44: T.Tensor((T.int64(1), T.int64(32), n, m), "float32"), var_compute_intermediate: T.Tensor((T.int64(1), T.int64(32), n, m), 'float16')):
         T.func_attr({"tirx.noalias": True})
 
         T_softmax_maxelem = Ts.sblock_alloc_tensor((T.int64(1), T.int64(32), n))
@@ -1336,7 +1370,7 @@ def test_compute_inline_softmax():
     m = T.dynamic("m")
 
     @Ts.function
-    def after(lv44: T.Tensor((T.int64(1), T.int64(32), n, m)), var_compute_intermediate: T.Tensor((T.int64(1), T.int64(32), n, m), 'float16')):
+    def after(lv44: T.Tensor((T.int64(1), T.int64(32), n, m), "float32"), var_compute_intermediate: T.Tensor((T.int64(1), T.int64(32), n, m), 'float16')):
         T.func_attr({"tirx.noalias": True})
 
         # with Ts.sblock("root"):
@@ -1384,7 +1418,7 @@ def test_reverse_compute_inline_layer_norm():
     n = T.dynamic("n")
 
     @Ts.function
-    def before(lv6: T.Tensor((T.int64(1), n, T.int64(2560))), weight1: T.Tensor((T.int64(2560),), "float32"), bias: T.Tensor((T.int64(2560),), "float32"), var_compute_intermediate: T.Tensor((T.int64(1), n, T.int64(2560)), 'float16')):
+    def before(lv6: T.Tensor((T.int64(1), n, T.int64(2560)), "float32"), weight1: T.Tensor((T.int64(2560),), "float32"), bias: T.Tensor((T.int64(2560),), "float32"), var_compute_intermediate: T.Tensor((T.int64(1), n, T.int64(2560)), 'float16')):
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
 
         A_red_temp_v0_shared = Ts.sblock_alloc_tensor((T.int64(1), n), scope="shared")
@@ -1425,7 +1459,7 @@ def test_reverse_compute_inline_layer_norm():
     n = T.dynamic("n")
 
     @Ts.function
-    def after(lv6: T.Tensor((T.int64(1), n, T.int64(2560))), weight1: T.Tensor((T.int64(2560),), "float32"), bias: T.Tensor((T.int64(2560),), "float32"), var_compute_intermediate: T.Tensor((T.int64(1), n, T.int64(2560)), 'float16')):
+    def after(lv6: T.Tensor((T.int64(1), n, T.int64(2560)), "float32"), weight1: T.Tensor((T.int64(2560),), "float32"), bias: T.Tensor((T.int64(2560),), "float32"), var_compute_intermediate: T.Tensor((T.int64(1), n, T.int64(2560)), 'float16')):
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
 
         # with Ts.sblock("root"):

@@ -31,7 +31,10 @@ def test_thread_axis1():
         ] + T.float32(1)
 
     @T.function(private=True)
-    def expected(A: T.Tensor((64,), "float32"), B: T.Tensor((64,), "float32")):
+    def expected(
+        A: T.Tensor((64,), "float32", elem_offset=T.int32(0)),
+        B: T.Tensor((64,), "float32", elem_offset=T.int32(0)),
+    ):
         blockIdx_x = T.launch_thread("blockIdx.x", 2)
         threadIdx_x = T.launch_thread("threadIdx.x", 32)
         B[blockIdx_x * 32 + threadIdx_x] = A[blockIdx_x * 32 + threadIdx_x] + T.float32(1)
@@ -145,9 +148,9 @@ def test_thread_axis2():
 
     @T.function
     def expected(
-        T_reshape: T.Tensor((1, 12, 384, 384), "float32"),
-        placeholder_1: T.Tensor((1, 12, 384, 384), "bool"),
-        T_where: T.Tensor((1, 12, 384, 384), "float32"),
+        T_reshape: T.Tensor((1, 12, 384, 384), "float32", elem_offset=T.int32(0)),
+        placeholder_1: T.Tensor((1, 12, 384, 384), "bool", elem_offset=T.int32(0)),
+        T_where: T.Tensor((1, 12, 384, 384), "float32", elem_offset=T.int32(0)),
     ):
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         with T.launch_thread("blockIdx.x", 256) as i0_i1_i2_i3_fused_1:
@@ -236,7 +239,10 @@ def test_block():
                 B[i * T.int64(8) + j] = A[i * T.int64(8) + j] + T.float32(1)
 
     @T.function(private=True)
-    def expected(A: T.Tensor((128,), "float32"), B: T.Tensor((128,), "float32")):
+    def expected(
+        A: T.Tensor((128,), "float32", elem_offset=T.int32(0)),
+        B: T.Tensor((128,), "float32", elem_offset=T.int32(0)),
+    ):
         for i in T.serial(0, T.int32(16)):
             for j in T.serial(0, T.int32(8)):
                 B[i * T.int32(8) + j] = A[i * T.int32(8) + j] + T.float32(1)
@@ -254,7 +260,10 @@ def test_i16_tensor():
                 B[i * 8 + j] = A[i * 8 + j] + T.int16(1)
 
     @T.function(private=True)
-    def expected(A: T.Tensor((128,), "int16"), B: T.Tensor((128,), "int16")):
+    def expected(
+        A: T.Tensor((128,), "int16", elem_offset=T.int32(0)),
+        B: T.Tensor((128,), "int16", elem_offset=T.int32(0)),
+    ):
         for i in T.serial(0, 16):
             for j in T.serial(0, 16):
                 B[i * 8 + j] = A[i * 8 + j] + T.int16(1)
@@ -305,7 +314,11 @@ def test_pod_params_and_select():
     @tvm.script.ir_module
     class Expected:
         @T.function
-        def main(A: T.Tensor((4,), "float32"), B: T.Tensor((4,), "float32"), n: T.int32):
+        def main(
+            A: T.Tensor((4,), "float32", elem_offset=T.int32(0)),
+            B: T.Tensor((4,), "float32", elem_offset=T.int32(0)),
+            n: T.int32,
+        ):
             for i in range(4):
                 B[i] = T.Select(1 <= i, A[i + n], T.Cast("float32", i))
 
@@ -323,7 +336,11 @@ def test_if_then_else_index():
     @tvm.script.ir_module
     class Expected:
         @T.function
-        def main(A: T.Tensor((4,), "float32"), B: T.Tensor((1,), "float32"), n: T.int32):
+        def main(
+            A: T.Tensor((4,), "float32", elem_offset=T.int32(0)),
+            B: T.Tensor((1,), "float32", elem_offset=T.int32(0)),
+            n: T.int32,
+        ):
             B[0] = A[T.if_then_else(n < 0, n + 1, n)]
 
     after = tvm.tirx.transform.ForceNarrowIndexToInt32()(Before)
@@ -344,12 +361,19 @@ def test_conditional_index_mixed_width_branches():
     @tvm.script.ir_module
     class Expected:
         @T.function
-        def main(A: T.Tensor((4,), "float32"), B: T.Tensor((4,), "float32"), n: T.int32):
-            opaque_index: T.int64 = T.call_extern("opaque_index", n, ty="int64")
-            B[0] = A[T.if_then_else(n < 0, opaque_index, T.Cast("int64", n))]
-            B[1] = A[T.if_then_else(n < 0, T.Cast("int64", n), opaque_index)]
-            B[2] = A[T.Select(n < 0, opaque_index, T.Cast("int64", n))]
-            B[3] = A[T.Select(n < 0, T.Cast("int64", n), opaque_index)]
+        def main(
+            A: T.Tensor((4,), "float32", elem_offset=T.int32(0)),
+            B: T.Tensor((4,), "float32", elem_offset=T.int32(0)),
+            n: T.int32,
+        ):
+            opaque_index = T.alloc_tensor(
+                ty_args=[T.Tensor((1,), "int64", scope="local", elem_offset=T.int32(0))]
+            )
+            opaque_index[0] = T.call_extern("opaque_index", n, ty="int64")
+            B[0] = A[T.if_then_else(n < 0, opaque_index[0], T.Cast("int64", n))]
+            B[1] = A[T.if_then_else(n < 0, T.Cast("int64", n), opaque_index[0])]
+            B[2] = A[T.Select(n < 0, opaque_index[0], T.Cast("int64", n))]
+            B[3] = A[T.Select(n < 0, T.Cast("int64", n), opaque_index[0])]
 
     after = tvm.tirx.transform.ForceNarrowIndexToInt32()(Before)
     tvm.ir.assert_structural_equal(Expected, after)
@@ -366,7 +390,7 @@ def test_clz():
     @tvm.script.ir_module
     class Expected:
         @T.function
-        def main(B: T.Tensor((4,), "int32")):
+        def main(B: T.Tensor((4,), "int32", elem_offset=T.int32(0))):
             for i in range(4):
                 B[i] = T.clz(i) - 32 + 64
 
@@ -384,7 +408,11 @@ def test_right_shift_preserves_sign_extension_after_narrowing():
     @tvm.script.ir_module
     class Expected:
         @T.function
-        def main(A: T.Tensor((6,), "float32"), B: T.Tensor((1,), "float32"), n: T.int32):
+        def main(
+            A: T.Tensor((6,), "float32", elem_offset=T.int32(0)),
+            B: T.Tensor((1,), "float32", elem_offset=T.int32(0)),
+            n: T.int32,
+        ):
             B[0] = A[T.shift_right(T.truncmod(n - 8, 6), 31)]
 
     # ForceNarrowIndexToInt32 assumes that index values fit in int32.  Under
@@ -416,8 +444,8 @@ def test_right_shift_dynamic_and_vector_amounts():
     class Expected:
         @T.function
         def main(
-            A: T.Tensor((6,), "float32"),
-            B: T.Tensor((5,), "float32"),
+            A: T.Tensor((6,), "float32", elem_offset=T.int32(0)),
+            B: T.Tensor((5,), "float32", elem_offset=T.int32(0)),
             n: T.int32,
             shift: T.int32,
         ):
@@ -455,8 +483,8 @@ def test_left_shift_dynamic_and_vector_amounts_remain_valid():
     class Expected:
         @T.function
         def main(
-            A: T.Tensor((1,), "float32"),
-            B: T.Tensor((5,), "float32"),
+            A: T.Tensor((1,), "float32", elem_offset=T.int32(0)),
+            B: T.Tensor((5,), "float32", elem_offset=T.int32(0)),
             n: T.int32,
             shift: T.int32,
         ):
@@ -488,12 +516,15 @@ def test_let_binding():
     @tvm.script.ir_module
     class Expected:
         @T.function
-        def main(Buf: T.Tensor([n], "int32")):
+        def main(Buf: T.Tensor([n], "int32", elem_offset=T.int32(0))):
             # The pass narrows indexing variables (n, the For extent) but leaves
             # an explicitly-typed `T.Cast("int64", ...)` storage alone; a Cast to
             # int32 is inserted at the use site (the For iter) instead.
-            ceil_log2: T.int64 = T.Cast("int64", T.ceil(T.log2(T.Cast("float32", n))))
-            for i in range(T.Cast("int32", ceil_log2)):
+            ceil_log2 = T.alloc_tensor(
+                ty_args=[T.Tensor((1,), "int64", scope="local", elem_offset=T.int32(0))]
+            )
+            ceil_log2[0] = T.Cast("int64", T.ceil(T.log2(T.Cast("float32", n))))
+            for i in range(T.Cast("int32", ceil_log2[0])):
                 T.evaluate(0)
 
     after = tvm.tirx.transform.ForceNarrowIndexToInt32()(Before)

@@ -251,7 +251,7 @@ n = T.dynamic("n", "int32")
 
 
 @Ts.function
-def compacted_symbolic_strided_tensor_func(A: T.Tensor((1, n, 10240))) -> None:
+def compacted_symbolic_strided_tensor_func(A: T.Tensor((1, n, 10240), "float32")) -> None:
     padded_size = T.meta_var(T.min((n + 63) // 64 * 64, 96))
     # with Ts.sblock("root"):
     for i, j, k in T.grid(((n + 63) // 64 * 4 + 7) // 8, 2, 160):
@@ -273,13 +273,16 @@ n = T.dynamic("n", "int32")
 
 
 @Ts.function
-def transformed_symbolic_strided_tensor_func(A: T.Tensor((1, n, 10240))):
+def transformed_symbolic_strided_tensor_func(A: T.Tensor((1, n, 10240), "float32")):
     padded_size = T.min((n + 63) // 64 * 64, 96)
     for i, j, k in T.grid(((n + 63) // 64 * 4 + 7) // 8, 2, 160):
         A_pad_shared_dyn = T.alloc_tensor(
             ty_args=[
                 T.Tensor(
-                    (1, padded_size, 64), strides=(72 * padded_size, 72, 1), scope="shared.dyn"
+                    (1, padded_size, 64),
+                    "float32",
+                    strides=(72 * padded_size, 72, 1),
+                    scope="shared.dyn",
                 )
             ],
             annotations={"tensor_data_alignment": 64},

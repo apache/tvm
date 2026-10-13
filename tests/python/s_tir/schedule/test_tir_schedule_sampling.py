@@ -31,7 +31,9 @@ from tvm.script import tirx as T
 
 
 @Ts.function
-def elementwise(A: T.Tensor((128, 257, 1470)), B: T.Tensor((128, 257, 1470))) -> None:
+def elementwise(
+    A: T.Tensor((128, 257, 1470), "float32"), B: T.Tensor((128, 257, 1470), "float32")
+) -> None:
     for i, j, k in T.grid(128, 257, 1470):
         with Ts.sblock("B"):
             vi, vj, vk = Ts.axis.remap("SSS", [i, j, k])
@@ -216,7 +218,7 @@ def test_sample_perfect_tile_on_dynamic_loops():
     n = T.dynamic("n", "int32")
 
     @Ts.function
-    def workload(A: T.Tensor((n, 1024))) -> None:
+    def workload(A: T.Tensor((n, 1024), "float32")) -> None:
         for i, j in T.grid(n, 1024):
             with Ts.sblock("B"):
                 vi, vj = Ts.axis.remap("SS", [i, j])

@@ -526,7 +526,7 @@ def test_call_dps_packed_raw_roundtrip(exception):
     if attrs is not None:
         assert call.attrs.same_as(attrs)
     printed = call.script()
-    assert printed.startswith('I.Call("relax.call_dps_packed",')
+    assert printed.startswith('T.Call("relax.call_dps_packed",')
     reconstructed = eval(printed, {"I": I, "R": R, "T": T, "x": x, "args": args})
     tvm.ir.assert_structural_equal(call, reconstructed)
 

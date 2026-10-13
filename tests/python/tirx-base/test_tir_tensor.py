@@ -132,7 +132,7 @@ def test_tensor_load():
 def test_tensor_flatten_offset():
     m = tvm.tirx.Var("m", "int32")
     n = tvm.tirx.Var("n", "int32")
-    Ab = tvm.tirx.decl_tensor((m, n), "float32", elem_offset=100)
+    Ab = tvm.tirx.decl_tensor((m, n), "float32", elem_offset=tvm.tirx.IntImm("int32", 100))
     offset = _flattened_indices(Ab, [2, 3])
     tvm.ir.assert_structural_equal(offset, [n * 2 + 103])
 
