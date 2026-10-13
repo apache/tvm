@@ -29,7 +29,6 @@ _PRIM_TYPE_KEY_RENAMES = {
     "arith.IterSplitExpr": "sym.IterSplitExpr",
     "arith.IterSumExpr": "sym.IterSumExpr",
     "arith.ModularSet": "sym.ModularSet",
-    "arith.PresburgerSet": "sym.PresburgerSet",
     "arith.RewriteSimplifierStats": "sym.RewriteSimplifierStats",
     "arith.SplitExpr": "sym.SplitExpr",
     "arith.SumExpr": "sym.SumExpr",

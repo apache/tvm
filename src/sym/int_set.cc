@@ -1012,6 +1012,10 @@ ffi::Array<IntSet> UnionRegionLowerBound(const ffi::Array<ffi::Array<IntSet>>& n
   return result;
 }
 
+IntSet Intersect(const IntSet& lhs, const IntSet& rhs, const Analyzer& analyzer) {
+  return Intersect(analyzer.get(), ToIntervalSet(lhs), ToIntervalSet(rhs));
+}
+
 IntSet Intersect(const ffi::Array<IntSet>& sets) {
   if (sets.size() == 0) return IntSet::Nothing();
   if (sets.size() == 1) return sets[0];

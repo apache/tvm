@@ -263,6 +263,15 @@ ffi::Array<IntSet> UnionRegionLowerBound(const ffi::Array<ffi::Array<IntSet>>& n
 IntSet Intersect(const ffi::Array<IntSet>& sets);
 
 /*!
+ * \brief Intersect two integer sets using the analyzer's bindings and constraints.
+ * \param lhs The first set.
+ * \param rhs The second set.
+ * \param analyzer The analyzer used to prove whether the intersection is empty.
+ * \return Nothing if emptiness is proved, or the intersected bounds otherwise.
+ */
+TVM_TIRX_DLL IntSet Intersect(const IntSet& lhs, const IntSet& rhs, const Analyzer& analyzer);
+
+/*!
  * \brief Converts the Ranges to IntSets
  * \param var_dom The ranges of variables
  * \return The integer sets of the variables
