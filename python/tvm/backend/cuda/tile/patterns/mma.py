@@ -25,6 +25,9 @@ M/N/K are instruction-repeat axes, not matrix element axes. The innermost K
 loop feeds C to the first instruction and D to each subsequent instruction.
 Scalar C is an explicit broadcast (e.g. f32(0)); alpha/beta preparation belongs
 to the caller. PTX ISA 9.7.16.5.6 defines each lane's fragment coordinates.
+
+Parameters: D, A, B, C, scope; no instruction keywords. C may be a scalar.
+Each batch/M/N/K repeat emits one selected instruction, accumulating through K.
 """
 
 from tvm.backend.cuda.ptx import PTXNamespace

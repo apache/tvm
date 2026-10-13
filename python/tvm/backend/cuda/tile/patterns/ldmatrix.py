@@ -24,6 +24,9 @@ the shared b16 matrix (each word packs two adjacent values of that image).
 
 Address providers are lanes matrix*8+row. For x1/x2, unused providers repeat
 valid row addresses. Address providers and result owners are separate maps.
+
+Parameters: dst, src, scope; no instruction keywords. x1/x2/x4 and trans
+are opcode qualifiers. Storage strides count b32 words, not b16 halves.
 """
 
 from tvm.backend.cuda.ptx import PTXNamespace

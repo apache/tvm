@@ -21,6 +21,11 @@ Coordinates: (*group, *repeat, element), with the last axis exactly chunk_bytes
 of storage. Each repeat issues one requested copy. No commit, wait, transaction
 accounting, or thread election is inserted. Bulk DSMEM takes local shared
 addresses and maps destination and completion barrier to remote_cta_id once.
+
+Parameters: dst, src, scope, chunk_bytes (required), pred=None. cp.async
+also accepts mutually exclusive src_size/ignore_src and an opcode-required
+cache_policy. DSMEM instead requires mbar and remote_cta_id, both interpreted
+before mapa. Layout strides are elements; chunk_bytes and src_size are bytes.
 """
 
 from tvm.backend.cuda.ptx import PTXNamespace
