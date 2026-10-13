@@ -27,8 +27,8 @@
 #include <tvm/ir/expr.h>
 #include <tvm/script/printer/doc.h>
 
+#include <exception>
 #include <optional>
-#include <type_traits>
 #include <utility>
 
 namespace tvm {
@@ -244,32 +244,22 @@ class DocTranslatorObj : public ffi::Object {
    *       On normal return, a scope-close error is propagated.
    */
   template <typename Callback>
-  std::invoke_result_t<Callback> WithVarScope(Callback&& callback) {
-    using Result = std::invoke_result_t<Callback>;
-    BeginVarScope();
-    bool active = true;
-    auto close = [&]() {
-      active = false;
-      EndVarScope();
-    };
-    try {
-      if constexpr (std::is_void_v<Result>) {
-        std::forward<Callback>(callback)();
-        close();
-      } else {
-        Result result = std::forward<Callback>(callback)();
-        close();
-        return std::forward<Result>(result);
-      }
-    } catch (...) {
-      if (active) {
+  decltype(auto) WithVarScope(Callback&& callback) {
+    struct Scope {
+      DocTranslatorObj* translator;
+      int exception_count = std::uncaught_exceptions();
+      ~Scope() noexcept(false) {
         try {
-          close();
-        } catch (...) {  // Preserve the callback's exception.
+          translator->EndVarScope();
+        } catch (...) {
+          // Propagate a normal close error, but preserve an unwinding callback error.
+          if (std::uncaught_exceptions() == exception_count) throw;
         }
       }
-      throw;
-    }
+    };
+    BeginVarScope();
+    Scope scope{this};
+    return std::forward<Callback>(callback)();
   }
 
   /*!
@@ -284,35 +274,24 @@ class DocTranslatorObj : public ffi::Object {
    *       callback error with a restoration error. This does not collect Docs.
    */
   template <typename T, typename Callback>
-  std::invoke_result_t<Callback> WithExtraStateScope(const ffi::String& name, T value,
-                                                     Callback&& callback) {
-    using Result = std::invoke_result_t<Callback>;
-    ffi::String key = name;
-    T saved = GetOrCreateExtraState<T>(key);
-    SetExtraState(key, std::move(value));
-    bool active = true;
-    auto restore = [&]() {
-      active = false;
-      SetExtraState(key, std::move(saved));
-    };
-    try {
-      if constexpr (std::is_void_v<Result>) {
-        std::forward<Callback>(callback)();
-        restore();
-      } else {
-        Result result = std::forward<Callback>(callback)();
-        restore();
-        return std::forward<Result>(result);
-      }
-    } catch (...) {
-      if (active) {
+  decltype(auto) WithExtraStateScope(const ffi::String& name, T value, Callback&& callback) {
+    struct Scope {
+      DocTranslatorObj* translator;
+      ffi::String key;
+      T saved;
+      int exception_count = std::uncaught_exceptions();
+      ~Scope() noexcept(false) {
         try {
-          restore();
-        } catch (...) {  // Preserve the callback's exception.
+          translator->SetExtraState(key, std::move(saved));
+        } catch (...) {
+          // Propagate a normal restore error, but preserve an unwinding callback error.
+          if (std::uncaught_exceptions() == exception_count) throw;
         }
       }
-      throw;
-    }
+    };
+    Scope scope{this, name, GetOrCreateExtraState<T>(name)};
+    SetExtraState(scope.key, std::move(value));
+    return std::forward<Callback>(callback)();
   }
 
   /*!
