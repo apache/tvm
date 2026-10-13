@@ -29,11 +29,7 @@
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr.h>
 
-#include <map>
-#include <set>
-#include <type_traits>
 #include <utility>
-#include <vector>
 
 namespace tvm {
 namespace relax {

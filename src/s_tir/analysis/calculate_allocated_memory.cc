@@ -37,7 +37,7 @@
 #include <tvm/tirx/transform.h>
 
 #include <algorithm>
-#include <map>
+#include <optional>
 #include <unordered_map>
 
 namespace tvm {

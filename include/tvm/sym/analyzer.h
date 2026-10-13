@@ -32,6 +32,7 @@
 #include <tvm/ir/with_context.h>
 #include <tvm/sym/int_set.h>
 
+#include <functional>
 #include <limits>
 #include <memory>
 #include <unordered_map>
@@ -921,6 +922,27 @@ class Analyzer : public ffi::ObjectRef {
     TVM_FFI_ICHECK(this->get() != nullptr);
   }
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Analyzer, ffi::ObjectRef, AnalyzerObj);
+};
+
+/*!
+ * \brief Scoped no-overflow assumption for unsigned index arithmetic.
+ *
+ * Unsigned arithmetic normally wraps modulo 2^bits. Use
+ * With<AllowUIntAsIndex> only when unsigned values are guaranteed not to
+ * overflow, enabling the analyzer's index rewrites within that scope.
+ * The assumption is off by default, thread-local, and supports nested scopes.
+ * Constructing this context alone does not enable the assumption.
+ */
+class AllowUIntAsIndex {
+ public:
+  /*! \brief Whether unsigned index analysis is enabled in the current thread. */
+  TVM_TIRX_DLL static bool Enabled();
+
+ private:
+  friend class With<AllowUIntAsIndex>;
+  TVM_TIRX_DLL void EnterWithScope();
+  TVM_TIRX_DLL void ExitWithScope();
+  static thread_local int depth_;
 };
 
 /*!

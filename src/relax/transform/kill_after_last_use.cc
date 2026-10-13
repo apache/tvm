@@ -29,8 +29,9 @@
 #include <tvm/sym/analyzer.h>
 #include <tvm/tirx/stmt_functor.h>
 
-#include <map>
-#include <set>
+#include <unordered_map>
+#include <unordered_set>
+#include <utility>
 #include <vector>
 
 #include "utils.h"

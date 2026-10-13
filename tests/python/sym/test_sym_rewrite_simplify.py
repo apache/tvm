@@ -17,6 +17,7 @@
 # ruff: noqa: RUF012
 
 import inspect
+from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 import tvm_ffi
@@ -1391,3 +1392,32 @@ def test_allow_uint_as_index():
         assert analyzer.can_prove_equal(check, 0)
     # the mode is scoped: disabled again afterwards
     assert not analyzer.can_prove_equal(check, 0)
+
+
+def test_allow_uint_as_index_exception_and_thread_isolation():
+    enabled = tvm.get_global_func("sym.GetAllowUintAsIndex")
+    assert not enabled()
+    context = tvm.sym.allow_uint_as_index()
+    assert not enabled()
+
+    def check_thread():
+        assert not enabled()
+        with tvm.sym.allow_uint_as_index():
+            assert enabled()
+        assert not enabled()
+
+    with context:
+        assert enabled()
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            executor.submit(check_thread).result()
+        assert enabled()
+        with pytest.raises(RuntimeError, match="leave inner scope"):
+            with tvm.sym.allow_uint_as_index():
+                raise RuntimeError("leave inner scope")
+        assert enabled()
+    assert not enabled()
+
+    with pytest.raises(RuntimeError, match="leave outer scope"):
+        with tvm.sym.allow_uint_as_index():
+            raise RuntimeError("leave outer scope")
+    assert not enabled()
