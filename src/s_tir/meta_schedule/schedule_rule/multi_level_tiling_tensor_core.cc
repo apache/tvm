@@ -24,6 +24,7 @@
 #include <tvm/s_tir/tensor_intrin.h>
 
 #include <algorithm>
+#include <array>
 #include <utility>
 #include <vector>
 
