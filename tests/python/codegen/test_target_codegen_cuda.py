@@ -322,7 +322,7 @@ def test_cuda_bf16_vectorize_add(*, backend_config):
                     with T.launch_thread("threadIdx.x", num_thread) as i_1:
                         B[i_0 * num_thread + i_1] = A[i_0 * num_thread + i_1] + one
 
-        with tvm.transform.PassContext(
+        with tvm.ir.transform.PassContext(
             disabled_pass=["tirx.BF16Promote", "tirx.BF16CastElimination", "tirx.BF16TypeLowering"]
         ):
             fun = tvm.tirx.compile(

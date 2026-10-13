@@ -199,7 +199,7 @@ inline bool IsVoidType(const Type& type) {
  * We support polymorphic function type.
  * This can be roughly viewed as template function in C++.
  *
- * \sa FuncType, TypeConstraint
+ * \sa FuncType
  */
 class FuncTypeNode : public TypeNode {
  public:

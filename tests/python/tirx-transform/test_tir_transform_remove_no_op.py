@@ -91,7 +91,7 @@ def _apply_remove_no_op(mod, max_simplification_steps=0):
             "max_simplification_steps": max_simplification_steps,
         }
     }
-    with tvm.transform.PassContext(config=config):
+    with tvm.ir.transform.PassContext(config=config):
         mod = tvm.tirx.transform.RemoveNoOp()(mod)
     return mod
 

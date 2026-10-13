@@ -464,7 +464,7 @@ def test_device_helpers_are_cloned_per_configuration():
     assert set(groups[("sm_90a", False)]).isdisjoint(groups[("sm_100a", True)])
     dispatched = set()
 
-    @tvm.transform.pass_instrument
+    @tvm.ir.transform.pass_instrument
     class CheckHelperTargets:
         def run_before_pass(self, lowered, info):
             if info.name == "tirx.TileDispatch":
@@ -473,7 +473,7 @@ def test_device_helpers_are_cloned_per_configuration():
                         dispatched.add(fn.attrs["target"].arch)
                         assert gv.name_hint not in ("helper", "leaf")
 
-    with tvm.transform.PassContext(instruments=[CheckHelperTargets()]):
+    with tvm.ir.transform.PassContext(instruments=[CheckHelperTargets()]):
         built = tvm.tirx.compile(Module)
     assert dispatched == {"sm_90a", "sm_100a"}
     assert len(built.mod.imports) == 2
@@ -727,12 +727,12 @@ def test_build_snapshots_config_before_passes(monkeypatch):
         T.device_entry(launch=T.cuda.LaunchConfig(grid=1, block=32))
         A[T.cuda.thread_idx("x")] = T.float32(1)
 
-    @tvm.transform.pass_instrument
+    @tvm.ir.transform.pass_instrument
     class ChangeCallerConfig:
         def run_before_pass(self, mod, info):
             config["cuda"]["nvrtc"] = ["--ftz=true"]
 
-    with tvm.transform.PassContext(instruments=[ChangeCallerConfig()]):
+    with tvm.ir.transform.PassContext(instruments=[ChangeCallerConfig()]):
         module = tvm.tirx.compile(main, target={"kind": "cuda", "backend_config": config})
     resolved = parse_backend_config(module.mod.imports[0].inspect_source("backend_config"))
     assert config["cuda"]["nvrtc"] == ["--ftz=true"]

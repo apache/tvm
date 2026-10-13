@@ -32,7 +32,7 @@ def LowerIket():
 
     Returns
     -------
-    fpass : tvm.transform.Pass
+    fpass : tvm.ir.transform.Pass
         The result pass.
     """
     return get_global_func("tirx.backend.cuda.transforms.LowerIket")()

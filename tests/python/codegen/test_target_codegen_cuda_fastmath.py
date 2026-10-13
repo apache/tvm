@@ -228,7 +228,7 @@ def check_lowered_ir(
 ) -> tuple[tvm.target.Target, IRModule]:
     """Check the lowered IR for the given dtype and case."""
     target, mod = make_mod(dtype, case, enable_fast_math)
-    with tvm.transform.PassContext(config={"tirx.enable_fast_math": enable_fast_math}):
+    with tvm.ir.transform.PassContext(config={"tirx.enable_fast_math": enable_fast_math}):
         lowered_mod = tvm.tirx.transform.LowerIntrin()(mod)
     script = lowered_mod.script(show_meta=False)
     expected = expected_intrinsic(dtype, case, enable_fast_math)
@@ -244,7 +244,7 @@ def check_cuda_source(
     enable_fast_math: bool,
 ) -> Executable:
     """Check the CUDA source for the given dtype and case."""
-    with tvm.transform.PassContext(config={"tirx.enable_fast_math": enable_fast_math}):
+    with tvm.ir.transform.PassContext(config={"tirx.enable_fast_math": enable_fast_math}):
         executable = tvm.tirx.compile(mod, target=target)
     source = executable.mod.imports[0].inspect_source()
     expected = expected_intrinsic(dtype, case, enable_fast_math)

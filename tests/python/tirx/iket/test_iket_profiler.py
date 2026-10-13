@@ -487,7 +487,7 @@ def test_tirx_pipelines_immediately_lower_iket(module_name, factory_name):
     factory = getattr(importlib.import_module(module_name), factory_name)
     visited = []
 
-    @tvm.transform.pass_instrument
+    @tvm.ir.transform.pass_instrument
     class RecordPasses:
         def run_before_pass(self, mod, info):
             visited.append(("before", info.name))
@@ -496,7 +496,7 @@ def test_tirx_pipelines_immediately_lower_iket(module_name, factory_name):
             visited.append(("after", info.name))
 
     pipeline, _, _ = factory()
-    with tvm.transform.PassContext(instruments=[RecordPasses()]):
+    with tvm.ir.transform.PassContext(instruments=[RecordPasses()]):
         pipeline(tvm.IRModule())
 
     split = visited.index(("after", tvm.tirx.transform.SplitHostDevice().info.name))

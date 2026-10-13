@@ -16,6 +16,11 @@
 # under the License.
 """Tests for the thin ``tvm.testing.env`` capability probes."""
 
+import subprocess
+import sys
+import textwrap
+from types import SimpleNamespace
+
 import pytest
 
 import tvm
@@ -164,6 +169,146 @@ def test_probes_are_memoized():
     env.has_cuda()
     info = env._device_exists.cache_info()  # pylint: disable=protected-access
     assert info.hits + info.misses >= 1
+
+
+@pytest.fixture
+def clear_env_cache():
+    probes = (
+        env._target_enabled,
+        env._runtime_enabled,
+        env._device_exists,
+        env.build_flag_enabled,
+        env._llvm_version_major,
+        env.has_hexagon_toolchain,
+        env.has_hexagon,
+    )
+    for probe in probes:
+        probe.cache_clear()
+    yield
+    for probe in probes:
+        probe.cache_clear()
+
+
+def test_unavailable_selected_target_does_not_enable_llvm(monkeypatch, clear_env_cache):
+    monkeypatch.setenv("TVM_TEST_TARGETS", "cuda")
+    monkeypatch.setattr(tvm.runtime, "enabled", lambda kind: kind == "llvm")
+
+    def unexpected_device_lookup(target):
+        pytest.fail(f"Excluded or unavailable target was probed: {target}")
+
+    monkeypatch.setattr(tvm, "device_from_target", unexpected_device_lookup)
+    assert not tvm.testing.device_enabled("cuda")
+    assert not tvm.testing.device_enabled("llvm")
+
+
+@pytest.mark.parametrize("target_form", ["string", "dict", "target"])
+def test_device_enabled_accepts_target_forms(monkeypatch, clear_env_cache, target_form):
+    monkeypatch.setenv("TVM_TEST_TARGETS", '{"kind": "llvm"};cuda')
+    monkeypatch.setattr(tvm.runtime, "enabled", lambda kind: kind == "llvm")
+    monkeypatch.setattr(tvm, "device_from_target", lambda target: SimpleNamespace(exist=True))
+    target = {
+        "string": "llvm -num-cores=2",
+        "dict": {"kind": "llvm", "num-cores": 2},
+        "target": tvm.target.Target({"kind": "llvm", "num-cores": 2}),
+    }[target_form]
+    assert tvm.testing.device_enabled(target)
+
+
+@pytest.mark.parametrize("kind", ["llvm", "cuda"])
+@pytest.mark.parametrize(
+    ("runtime_enabled", "device_exists", "expected"),
+    [(False, True, False), (True, False, False), (True, True, True)],
+)
+def test_device_enabled_requires_runtime_and_device(
+    monkeypatch, clear_env_cache, kind, runtime_enabled, device_exists, expected
+):
+    # In particular, the CPU can exist even when LLVM was not built.
+    monkeypatch.setenv("TVM_TEST_TARGETS", kind)
+    monkeypatch.setattr(tvm.runtime, "enabled", lambda target: runtime_enabled)
+    monkeypatch.setattr(
+        tvm, "device_from_target", lambda target: SimpleNamespace(exist=device_exists)
+    )
+    assert tvm.testing.device_enabled(kind) is expected
+
+
+@pytest.mark.parametrize("cudnn_available", [None, False, True])
+def test_device_enabled_cudnn_runtime_probe(monkeypatch, clear_env_cache, cudnn_available):
+    monkeypatch.setenv("TVM_TEST_TARGETS", '{"kind": "cuda", "libs": ["cudnn"]}')
+    monkeypatch.setattr(tvm.runtime, "enabled", lambda kind: True)
+    monkeypatch.setattr(tvm, "device", lambda *args: SimpleNamespace(exist=True))
+    monkeypatch.setattr(tvm.support, "libinfo", lambda: {"USE_CUDNN": "ON"})
+    exists = None if cudnn_available is None else lambda: cudnn_available
+    monkeypatch.setattr(tvm, "get_global_func", lambda name, allow_missing: exists)
+    assert tvm.testing.device_enabled("cuda") is (cudnn_available is True)
+
+
+@pytest.mark.parametrize(
+    ("built", "toolchain", "llvm_version", "serial", "can_compile", "can_run"),
+    [
+        (False, True, 7, True, False, False),
+        (True, False, 7, True, False, False),
+        (True, True, 6, True, False, False),
+        (True, True, 7, False, True, False),
+        (True, True, 7, True, True, True),
+        (True, True, None, True, True, True),
+    ],
+)
+def test_hexagon_environment_requirements(
+    monkeypatch, clear_env_cache, built, toolchain, llvm_version, serial, can_compile, can_run
+):
+    # LLVM selection for tests is independent of whether its codegen can support Hexagon.
+    monkeypatch.setenv("TVM_TEST_TARGETS", "hexagon")
+    for variable, present in (
+        ("HEXAGON_TOOLCHAIN", toolchain),
+        ("ANDROID_SERIAL_NUMBER", serial),
+    ):
+        if present:
+            monkeypatch.setenv(variable, "test-value")
+        else:
+            monkeypatch.delenv(variable, raising=False)
+    monkeypatch.setattr(tvm.support, "libinfo", lambda: {"USE_HEXAGON": "ON" if built else "OFF"})
+    monkeypatch.setattr(tvm.runtime, "enabled", lambda kind: llvm_version is not None)
+    monkeypatch.setattr(tvm.target.codegen, "llvm_version_major", lambda: llvm_version)
+    assert env.has_hexagon_toolchain() is can_compile
+    assert env.has_hexagon() is can_run
+
+
+def test_core_testing_imports_without_domain_modules():
+    # Let TVM finish its own startup, then make the domain modules unavailable to testing.
+    code = textwrap.dedent(
+        """
+        import os
+        import sys
+        import tvm
+
+        for module in list(sys.modules):
+            if module == "tvm.testing" or module.startswith("tvm.testing."):
+                del sys.modules[module]
+        if hasattr(tvm, "testing"):
+            del tvm.testing
+
+        for name in ("te", "contrib", "s_tir"):
+            prefix = "tvm." + name
+            for module in list(sys.modules):
+                if module == prefix or module.startswith(prefix + "."):
+                    sys.modules[module] = None
+            sys.modules[prefix] = None
+            if hasattr(tvm, name):
+                delattr(tvm, name)
+
+        import tvm.testing
+        from tvm.testing import env
+
+        tvm.testing.assert_allclose([1], [1])
+        tvm.support.libinfo = lambda: {"USE_HEXAGON": "ON"}
+        tvm.runtime.enabled = lambda kind: False
+        os.environ["HEXAGON_TOOLCHAIN"] = "test-toolchain"
+        os.environ["ANDROID_SERIAL_NUMBER"] = "test-device"
+        assert env.has_hexagon_toolchain()
+        assert env.has_hexagon()
+        """
+    )
+    subprocess.run([sys.executable, "-c", code], check=True, capture_output=True, text=True)
 
 
 # --- demonstration of the target idiom -------------------------------------
