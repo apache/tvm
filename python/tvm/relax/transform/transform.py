@@ -1450,23 +1450,6 @@ def UpdateParamType(ty_func: Callable[[Var], Type | None]):
     return _ffi_api.UpdateParamType(ty_func)  # type: ignore
 
 
-def AdjustMatmulOrder():
-    """Reorder `x*(A*B)` to `(x*A)*B`
-
-    Useful for optimizing LoRA computations, where `matmul(x,
-    LoraA*LoraB)` may be computed as `matmul(matmul(x, LoraA),
-    LoraB)`, reducing the total memory usage.
-
-
-    Returns
-    -------
-    ret : tvm.ir.transform.Pass
-        The corresponding pass.
-    """
-
-    return _ffi_api.AdjustMatmulOrder()  # type: ignore
-
-
 def ExpandMatmulOfSum():
     """Expand `matmul(x, A+B)` to `matmul(x,A) + matmul(x,B)`
 

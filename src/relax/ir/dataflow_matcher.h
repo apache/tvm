@@ -42,11 +42,7 @@ class DFPatternMatcher : public DFPatternFunctor<bool(const DFPattern&, const Ex
   using var2val_t = ffi::Map<Var, Expr>;
 
   explicit DFPatternMatcher() : DFPatternMatcher(var2val_t{}) {}
-  explicit DFPatternMatcher(var2val_t var2val) : var2val_(std::move(var2val)) {
-    // Propagate shape constraints across conjunctions regardless of operand order.
-    analyzer_->rewrite_simplify.SetEnabledExtensions(
-        sym::RewriteSimplifier::kApplyConstraintsToBooleanBranches);
-  }
+  explicit DFPatternMatcher(var2val_t var2val) : var2val_(std::move(var2val)) {}
   bool Match(const DFPattern& pattern, const Expr& expr);
   ffi::Map<DFPattern, Expr> GetMemo() { return memo_; }
 
