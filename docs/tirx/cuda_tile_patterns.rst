@@ -253,8 +253,32 @@ supported shapes and register images (lane ``l``, register ``r``) are:
 
 TMEM coordinates are consecutive rows/columns in the executing warp's 32-lane
 slab. Explicit group axes distribute atoms across warps. Register storage can
-be strided. ``.pack::16b`` / ``.unpack::16b`` and .16x32bx2 are not part of this
-pattern; native ``T.ptx`` remains available for those instruction modes.
+be strided.
+
+``.pack::16b`` / ``.unpack::16b`` keep the same b32 register image. Their TMEM
+operand instead has suffix ``(row,column,half)`` with ``half=2`` and a 16-bit
+dtype. The two halves of register word ``(row,column)`` correspond to the low
+16 bits of TMEM cells ``(row,2*column)`` and ``(row,2*column+1)``. In 16-bit
+layout units this means TCol strides four for ``column`` and two for ``half``.
+This is different from reinterpreting two adjacent 16-bit elements in one
+dense b32 cell. The hardware performs the packing; lowering adds no conversion.
+
+``.16x32bx2`` has register suffix ``(access,row,column)=(2,16,N)``. Lane ``l``
+owns ``(l//16,l%16,r)`` for register ``r``. Its two TMEM access regions are
+explicit operands, each with suffix ``(16,N)`` (or ``(16,N,2)`` for packing)::
+
+    T.cuda.tile.apply(
+        T.ptx["tcgen05.ld.sync.aligned.16x32bx2.x4.b32"],
+        registers, memory[:, :16, :4], memory[:, 16:32, 8:12],
+        imm_half_splitoff=(16 << 16) + 8, scope="warpgroup",
+    )
+
+For a store the operand order is ``memory_low, memory_high, registers``.
+Both regions share the same backing TMEM tensor. The second region's encoded
+base address must equal the first plus ``imm_half_splitoff``. There is no
+implicit sixteen-row offset for the second access. The immediate can select
+different rows, columns, or both, within the executing warp's TMEM partition.
+Each repeat emits exactly one instruction, including both half-accesses.
 Wait, fence, allocation and deallocation instructions remain at the call site.
 
 ``tcgen05.cp`` uses ``(row,b32_word)`` according to its explicit shape. Multicast

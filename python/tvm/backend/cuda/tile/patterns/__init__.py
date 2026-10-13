@@ -46,7 +46,7 @@ def _lower(view, sctx):
         lower = tcgen05_mma.lower
     elif entry.name == "tcgen05_cp":
         lower = tmem_copy.lower
-    elif entry.name in ("tcgen05_ld", "tcgen05_st"):
+    elif entry.name in ("tcgen05_ld", "tcgen05_st", "tcgen05_ld_split", "tcgen05_st_split"):
         lower = tmem.lower
     elif entry.name.startswith(("cp_async_ca", "cp_async_cg")) or entry.name == "cp_async_bulk_s2c":
         lower = async_copy.lower

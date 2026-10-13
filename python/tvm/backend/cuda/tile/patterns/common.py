@@ -227,6 +227,25 @@ class Region:
         owners = dict(self.ctx.owners)
         if lane is not None:
             owners["laneid"] = lane
+        # These are equivalent CUDA ownership coordinates, not alternative
+        # operand layouts. Evaluate their fixed radix relation at the caller's
+        # coordinates; never rearrange the tile to find a matching owner.
+        for linear, warp_axis in (("tx", "warpid"), ("tid_in_wg", "wid_in_wg")):
+            if linear in physical:
+                value = physical.pop(linear)
+                physical[warp_axis] = physical.get(warp_axis, 0) + value // 32
+                physical["laneid"] = physical.get("laneid", 0) + value % 32
+        if "warpid" in owners and "wid_in_wg" in physical:
+            physical["warpid"] = (
+                physical.get("warpid", 0) + physical.pop("wid_in_wg") + 4 * physical.pop("wgid", 0)
+            )
+        elif "wid_in_wg" in owners and "warpid" in physical:
+            warp = physical.pop("warpid")
+            physical["wid_in_wg"] = physical.get("wid_in_wg", 0) + warp % 4
+            physical["wgid"] = physical.get("wgid", 0) + warp // 4
+        for axis in tuple(set(physical) - {"m", *owners}):
+            if self.ctx.analyzer.can_prove(physical[axis] == 0):
+                del physical[axis]
         if set(physical) - {"m", *owners}:
             raise ValueError(f"{self.name}: unexpected ownership axes {tuple(physical)}")
         for axis, owner in owners.items():

@@ -38,6 +38,7 @@ The shared ``FTileOpDispatch`` boundary remains unchanged. ``T.ptx`` and
    :hidden:
 
    cuda_tile_patterns
+   cuda_tile_test_migration
 
 Trainium instructions
 ---------------------

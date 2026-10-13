@@ -840,6 +840,33 @@ def test_tensor_permute_ir():
     assert from_source(code).script() == code
 
 
+@pytest.mark.parametrize("outer", [4, 5])
+def test_tensor_rearrange_bare_swizzle_preserves_addresses(outer):
+    @T.function
+    def func() -> None:
+        T.device_entry()
+        A = T.alloc_shared(
+            (outer, 8, 2, 4, 4, 2),
+            "float16",
+            layout=T.ComposeLayout(3, 3, 3, T.TileLayout(T.S[(512,)])),
+        )
+        B = A.rearrange("a r c d l h -> a c d r (l h)")
+        B[0, 0, 0, 0, 0] = T.float16(0)
+
+    tensors = _collect_tensors(func)
+    a, b = tensors[0], tensors[-1]
+    for linear in range(outer * 512):
+        h = linear % 2
+        lane_word = linear // 2 % 4
+        d = linear // 8 % 4
+        c = linear // 32 % 2
+        r = linear // 64 % 8
+        block = linear // 512
+        before = a.layout.apply(linear)["m"]
+        after = b.layout.apply(block, c, d, r, lane_word * 2 + h, shape=b.shape)["m"]
+        assert int(after) == int(before)
+
+
 def test_tensor_rearrange_allows_arbitrary_axis_names():
     @T.function
     def ordinary_axis() -> None:

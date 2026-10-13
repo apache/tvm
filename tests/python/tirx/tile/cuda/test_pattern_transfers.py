@@ -32,11 +32,30 @@ def _build(f):
 
 
 @pytest.mark.skipif(not env.has_cuda_compute(10), reason="Blackwell required")
-@pytest.mark.parametrize("shape", ["32x32b", "16x64b", "16x128b", "16x256b"])
-@pytest.mark.parametrize("count", [1, 4, 32])
+@pytest.mark.parametrize(
+    "shape,count,split_offset",
+    [
+        (shape, count, offset)
+        for shape, max_count in [
+            ("32x32b", 128),
+            ("16x64b", 128),
+            ("16x128b", 64),
+            ("16x256b", 32),
+            ("16x32bx2", 128),
+        ]
+        for count in (1, 2, 4, 8, 16, 32, 64, 128)
+        if count <= max_count
+        for offset in ((16 << 16, (16 << 16) + 8) if shape == "16x32bx2" else (0,))
+    ],
+)
+@pytest.mark.parametrize("packed", [False, True])
 @pytest.mark.parametrize("store", [False, True])
-def test_tmem(shape, count, store):
-    if shape == "32x32b":
+def test_tmem(shape, split_offset, count, store, packed):
+    split = shape == "16x32bx2"
+    if split:
+        rows, cols, nregs = 16, count, count
+        reg_layout = TileLayout(S[(4, 2, 16, count) : (1 @ wid_in_wg, 16 @ laneid, 1 @ laneid, 1)])
+    elif shape == "32x32b":
         rows, cols, nregs = 32, count, count
         reg_layout = TileLayout(S[(4, 32, count) : (1 @ wid_in_wg, 1 @ laneid, 1)])
     elif shape == "16x64b":
@@ -54,13 +73,29 @@ def test_tmem(shape, count, store):
         reg_layout = TileLayout(
             S[(4, 2, 8, count, 4, 2) : (1 @ wid_in_wg, 2, 4 @ laneid, 4, 1 @ laneid, 1)]
         )
-    tmem_layout = TileLayout(S[(4, rows, cols) : (32 @ TLane, 1 @ TLane, 1 @ TCol)])
-    ld = f"tcgen05.ld.sync.aligned.{shape}.x{count}.b32"
-    st = f"tcgen05.st.sync.aligned.{shape}.x{count}.b32"
-    width = max(32, cols)
+    reg_shape = (4, 2, rows, cols) if split else (4, rows, cols)
+    cell_stride = 2 if packed else 1
+    cell_stride = 2 if packed else 1
+    ld = f"tcgen05.ld.sync.aligned.{shape}.x{count}" + (".pack::16b" if packed else "") + ".b32"
+    st = f"tcgen05.st.sync.aligned.{shape}.x{count}" + (".unpack::16b" if packed else "") + ".b32"
+    width_used = cell_stride * cols + (split_offset & 0xFFFF)
+    width = max(32, 1 << (width_used - 1).bit_length())
+    mem_shape = (4, 32, width // cell_stride)
+    shard_shape = (*mem_shape, 2) if packed else mem_shape
+    shard_strides = [32 @ TLane, 1 @ TLane, (cell_stride * cell_stride) @ TCol]
+    if packed:
+        shard_strides.append(2 @ TCol)
+    tmem_layout = TileLayout(S[shard_shape : tuple(shard_strides)])
+    tmem_dtype = "uint16" if packed else "uint32"
+    params = {"imm_half_splitoff": split_offset} if split else {}
+
+    def access(mem, part):
+        row, col = (split_offset >> 16) * part, (split_offset & 0xFFFF) * part // cell_stride
+        indices = (slice(None), slice(row, row + rows), slice(col, col + cols))
+        return mem[(*indices, slice(None)) if packed else indices]
 
     @T.function
-    def kernel(A: T.Tensor((128, cols), "uint32"), Output: T.Tensor((128, cols), "uint32")):
+    def kernel(A: T.Tensor((128, width), "uint32"), Output: T.Tensor((128, width), "uint32")):
         T.device_entry(launch=T.cuda.LaunchConfig(grid=1, block=128))
         tid = T.cuda.thread_idx("x")
         warp = T.cuda.warp_id()
@@ -72,26 +107,37 @@ def test_tmem(shape, count, store):
         T.cuda.cta_sync()
         mem = T.cuda.decl_tmem(
             address[0],
-            ty_args=[T.Tensor((4, rows, cols), "uint32", scope="tmem", layout=tmem_layout)],
+            ty_args=[T.Tensor(shard_shape, tmem_dtype, scope="tmem", layout=tmem_layout)],
         )
         raw = T.alloc_local((nregs,), "uint32", layout="default")
-        frag = raw.view(4, rows, cols, layout=reg_layout)
+        frag = raw.view(*reg_shape, layout=reg_layout)
         word = T.alloc_local((1,), "uint32", layout="default")
+        # Initialize every cell independently, including the gaps and inactive rows.
+        for i in range(width):
+            word[0] = A[tid, i]
+            T.ptx["tcgen05.st.sync.aligned.32x32b.x1.b32"](address[0] + T.uint32(i), word[0])
+        T.ptx.tcgen05.wait__st.sync.aligned()
         if T.constexpr(store):
             for i in range(nregs):
                 raw[i] = A[tid, i]
-            T.cuda.tile.apply(T.ptx[st], mem, frag, scope="warpgroup")
+            if T.constexpr(split):
+                T.cuda.tile.apply(
+                    T.ptx[st], access(mem, 0), access(mem, 1), frag, scope="warpgroup", **params
+                )
+            else:
+                T.cuda.tile.apply(T.ptx[st], access(mem, 0), frag, scope="warpgroup")
             T.ptx.tcgen05.wait__st.sync.aligned()
-            for i in range(cols):
+            for i in range(width):
                 T.ptx["tcgen05.ld.sync.aligned.32x32b.x1.b32"](word[0], address[0] + T.uint32(i))
                 T.ptx.tcgen05.wait__ld.sync.aligned()
                 Output[tid, i] = word[0]
         else:
-            for i in range(cols):
-                word[0] = A[tid, i]
-                T.ptx["tcgen05.st.sync.aligned.32x32b.x1.b32"](address[0] + T.uint32(i), word[0])
-            T.ptx.tcgen05.wait__st.sync.aligned()
-            T.cuda.tile.apply(T.ptx[ld], frag, mem, scope="warpgroup")
+            if T.constexpr(split):
+                T.cuda.tile.apply(
+                    T.ptx[ld], frag, access(mem, 0), access(mem, 1), scope="warpgroup", **params
+                )
+            else:
+                T.cuda.tile.apply(T.ptx[ld], frag, access(mem, 0), scope="warpgroup")
             T.ptx.tcgen05.wait__ld.sync.aligned()
             for i in range(nregs):
                 Output[tid, i] = raw[i]
@@ -101,15 +147,19 @@ def test_tmem(shape, count, store):
             T.ptx.tcgen05.dealloc.cta_group__1.sync.aligned.b32(address[0], T.uint32(width))
 
     f = _build(kernel)
-    x = np.arange(128 * cols, dtype="uint32").reshape(128, cols)
+    x = (np.arange(128 * width, dtype="uint32") * 65539 + 0x12340000).reshape(128, width)
     out = tvm.runtime.tensor(np.zeros_like(x), tvm.cuda())
     f(tvm.runtime.tensor(x, tvm.cuda()), out)
     actual = out.numpy()
+    expected = x.copy() if store else np.zeros_like(x)
+    mask = np.full_like(x, 0xFFFFFFFF)
     for t in range(128):
         lane, warp = t % 32, t // 32
         for reg in range(nregs):
             # Independent host reconstruction of the documented PTX diagram.
-            if shape == "32x32b":
+            if split:
+                row, col = lane % 16 + ((split_offset >> 16) if lane >= 16 else 0), reg
+            elif shape == "32x32b":
                 row, col = lane, reg
             elif shape == "16x64b":
                 row, col = lane // 4 + 8 * (lane % 2), lane // 2 % 2 + 2 * reg
@@ -117,10 +167,81 @@ def test_tmem(shape, count, store):
                 row, col = lane // 4 + 8 * (reg % 2), lane % 4 + 4 * (reg // 2)
             else:
                 row, col = lane // 4 + 8 * (reg // 2 % 2), reg % 2 + 2 * (lane % 4) + 8 * (reg // 4)
+            physical_row = 32 * warp + row
+            physical_col = cell_stride * col + (
+                (split_offset & 0xFFFF) if split and lane >= 16 else 0
+            )
             if store:
-                assert actual[32 * warp + row, col] == x[t, reg]
+                if packed:
+                    expected[physical_row, physical_col] = x[t, reg] & 0xFFFF
+                    expected[physical_row, physical_col + 1] = x[t, reg] >> 16
+                    # PTX defines only the low halves written by unpack::16b.
+                    mask[physical_row, physical_col : physical_col + 2] = 0xFFFF
+                else:
+                    expected[physical_row, physical_col] = x[t, reg]
+            elif packed:
+                expected[t, reg] = (x[physical_row, physical_col] & 0xFFFF) | (
+                    (x[physical_row, physical_col + 1] & 0xFFFF) << 16
+                )
             else:
-                assert actual[t, reg] == x[32 * warp + row, col]
+                expected[t, reg] = x[physical_row, physical_col]
+    np.testing.assert_array_equal(actual & mask, expected & mask)
+    source = f.mod.imports[0].inspect_source()
+    assert (st if store else ld) in source
+
+
+@pytest.mark.parametrize("packed", [False, True])
+def test_tmem_rejects_incorrect_cell_or_half_access(packed):
+    dtype = "uint16" if packed else "uint32"
+    shape = (4, 32, 4, 2) if packed else (4, 32, 32)
+    # A dense pair of halfwords is not a pair of low halves in adjacent cells.
+    layout = TileLayout(
+        S[
+            shape : (
+                (32 @ TLane, 1 @ TLane, 2 @ TCol, 1 @ TCol)
+                if packed
+                else (32 @ TLane, 1 @ TLane, 1 @ TCol)
+            )
+        ]
+    )
+    reg_shape = (4, 32, 4) if packed else (4, 2, 16, 4)
+    reg_layout = TileLayout(
+        S[
+            reg_shape : (
+                (1 @ wid_in_wg, 1 @ laneid, 1)
+                if packed
+                else (1 @ wid_in_wg, 16 @ laneid, 1 @ laneid, 1)
+            )
+        ]
+    )
+
+    @T.function
+    def kernel():
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=1, block=128))
+        mem = T.cuda.decl_tmem(0, ty_args=[T.Tensor(shape, dtype, scope="tmem", layout=layout)])
+        reg = T.alloc_tensor(
+            ty_args=[T.Tensor(reg_shape, "uint32", scope="local", layout=reg_layout)]
+        )
+        if T.constexpr(packed):
+            T.cuda.tile.apply(
+                T.ptx["tcgen05.ld.sync.aligned.32x32b.x4.pack::16b.b32"],
+                reg,
+                mem,
+                scope="warpgroup",
+            )
+        else:
+            T.cuda.tile.apply(
+                T.ptx["tcgen05.ld.sync.aligned.16x32bx2.x4.b32"],
+                reg,
+                mem[:, :16, :4],
+                mem[:, 16:32, 8:12],
+                imm_half_splitoff=(16 << 16) + 4,
+                scope="warpgroup",
+            )
+
+    message = "cell mapping" if packed else "half-access address"
+    with pytest.raises(RuntimeError, match=message):
+        _build(kernel)
 
 
 @pytest.mark.skipif(not env.has_cuda_compute(8), reason="Ampere required")

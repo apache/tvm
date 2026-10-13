@@ -1619,6 +1619,25 @@ def test_pack():
     case3()
 
 
+@pytest.mark.parametrize("storage_axis, owner_axis", [(m, laneid), (TCol, TLane)])
+def test_pack_preserves_ownership_and_storage_offsets(storage_axis, owner_axis):
+    layout = TileLayout.from_iters(
+        [Iter(8, 1, owner_axis), Iter(4, 2, storage_axis), Iter(2, 1, storage_axis)],
+        [Iter(2, 16, storage_axis)],
+        {owner_axis: 8, storage_axis: 4},
+    )
+    packed = layout.pack(2, storage_axis.name)
+    for owner, word in itertools.product(range(8), range(4)):
+        before = layout.apply(owner, word, 0)
+        after = packed.apply(owner, word, 0)
+        assert int(after[owner_axis.name]) == int(before[owner_axis.name])
+        assert int(after[storage_axis.name]) * 2 == int(before[storage_axis.name])
+    assert int(packed.replica[0].stride) == 8
+    assert_structural_equal(
+        packed.unpack(2, storage_axis.name).canonicalize(), layout.canonicalize()
+    )
+
+
 def test_slice():
     def verify_slice(layout, shape, region, sliced):
         r_shape = [r[1] - r[0] for r in region]
