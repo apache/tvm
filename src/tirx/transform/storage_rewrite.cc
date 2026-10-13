@@ -31,6 +31,7 @@
 #include <tvm/ir/prim/op.h>
 #include <tvm/ir/type.h>
 #include <tvm/runtime/logging.h>
+#include <tvm/runtime/memory_scope.h>
 #include <tvm/sym/analyzer.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/layout.h>
@@ -42,10 +43,10 @@
 
 #include <list>
 #include <map>
+#include <numeric>
 #include <unordered_map>
 #include <unordered_set>
 
-#include "../../runtime/thread_storage_scope.h"
 #include "../../sym/int_operator.h"
 #include "ir_utils.h"
 
@@ -53,8 +54,8 @@ namespace tvm {
 namespace tirx {
 using namespace tvm::prim;
 
-using runtime::StorageRank;
-using runtime::StorageScope;
+using runtime::MemoryAllocProperty;
+using runtime::MemoryScope;
 
 namespace {
 
@@ -762,7 +763,7 @@ class StoragePlanRewriter : public StmtExprMutator {
     // The constant size of the buffer in bits, only used if it is constant
     uint64_t const_nbits{0};
     // The storage scope.
-    StorageScope scope;
+    MemoryScope scope;
     // The physical dimensionality of the allocations.  Since
     // StorageRewrite is applied after FlattenTensor,
     // this is the number of extent dimensions.
@@ -793,9 +794,21 @@ class StoragePlanRewriter : public StmtExprMutator {
     // This allows effective sharing among different types as long as their alignment
     // requirement fits into the max_simd_bits.
     uint64_t bits_offset{0};
+    uint64_t packing_alignment_bits{32};
   };
 
   static bool RequiresExactAllocation(const CallNode* call) {
+    auto type = call->ty_args[0].as_or_throw<TensorType>();
+    if (type->storage_scope.alloc_property() == MemoryAllocProperty::kSeparateAllocations) {
+      return true;
+    }
+    // Flat packing and lifetime reuse cannot reconstruct arbitrary physical views.
+    // Preserve their original allocation before either planning step can combine it.
+    if (type->shape.size() != 1 || type->layout.has_value() || !IsConstInt(type->elem_offset, 0) ||
+        (!type->strides.empty() &&
+         (type->strides.size() != 1 || !IsConstInt(type->strides[0], 1)))) {
+      return true;
+    }
     if (!call->args.empty()) return true;
     const auto& annotations = call->attrs.value().as_or_throw<DictAttrs>()->dict;
     // Rebuilt allocations only preserve volatile metadata.  Other owners may attach
@@ -806,11 +819,68 @@ class StoragePlanRewriter : public StmtExprMutator {
     return false;
   }
 
-  // Checks whether the storage_scope is especially tagged for a specific memory.
-  // Special memory is all combined into a single allocation.
-  bool IsSpecialTaggedMemory(const StorageScope& scope) {
-    return scope.tag.length() != 0 && scope.tag != ".dyn" && scope.tag != ".workspace" &&
-           scope.tag != ".vtcm";
+  // Lifetime reuse retains the first allocation's alignment contract.  Different
+  // contracts need distinct entries so packing can compute their common alignment.
+  static bool HasCompatibleAlignment(const StorageEntry* entry, const CallNode* call) {
+    auto first = entry->allocs[0]->value.as<CallNode>()->ty_args[0].as_or_throw<TensorType>();
+    auto type = call->ty_args[0].as_or_throw<TensorType>();
+    return first->data_alignment == type->data_alignment &&
+           first->offset_factor == type->offset_factor;
+  }
+
+  // The owning lowering handles single-allocation layouts that cannot be packed
+  // with constant flat offsets here, including symbolic and explicitly placed
+  // storage.  Preserve the whole same-scope group when any member needs that path.
+  static bool CanPackAllocation(const StorageEntry* entry) {
+    if (entry->requires_exact_allocation || entry->const_nbits == 0 ||
+        entry->const_nbits > static_cast<uint64_t>(std::numeric_limits<int64_t>::max()))
+      return false;
+    for (const auto* allocation : entry->allocs) {
+      const auto* call = allocation->value.as<CallNode>();
+      auto type = call->ty_args[0].as_or_throw<TensorType>();
+      if (type->shape.size() != 1 || type->dtype.IsScalableVector() || type->layout.has_value() ||
+          !IsConstInt(type->elem_offset, 0) ||
+          (!type->strides.empty() &&
+           (type->strides.size() != 1 || !IsConstInt(type->strides[0], 1))))
+        return false;
+    }
+    return true;
+  }
+
+  static ffi::Optional<uint64_t> PackingAlignment(const std::vector<StorageEntry*>& entries,
+                                                  const MemoryScope& scope) {
+    uint64_t alignment = 32;
+    auto include_alignment = [&](uint64_t value) {
+      uint64_t factor = value / std::gcd(alignment, value);
+      // TensorType records alignment in bytes as an int.
+      constexpr uint64_t limit = static_cast<uint64_t>(std::numeric_limits<int>::max()) * 8;
+      if (factor > limit / alignment) return false;
+      alignment *= factor;
+      return true;
+    };
+    for (const auto* entry : entries) {
+      if (entry->scope != scope) continue;
+      if (!CanPackAllocation(entry)) return std::nullopt;
+      for (const auto* allocation : entry->allocs) {
+        auto type = allocation->value.as<CallNode>()->ty_args[0].as_or_throw<TensorType>();
+        uint64_t element_bits = type->dtype.bits() * type->dtype.lanes();
+        if (!include_alignment(element_bits) ||
+            !include_alignment(element_bits * std::max(type->offset_factor, 1)) ||
+            !include_alignment(static_cast<uint64_t>(std::max(type->data_alignment, 1)) * 8)) {
+          return std::nullopt;
+        }
+      }
+    }
+    uint64_t total_bits = 0;
+    constexpr uint64_t limit = std::numeric_limits<int64_t>::max();
+    for (const auto* entry : entries) {
+      if (entry->scope != scope) continue;
+      uint64_t padding = (alignment - entry->const_nbits % alignment) % alignment;
+      if (entry->const_nbits > limit - padding || total_bits > limit - entry->const_nbits - padding)
+        return std::nullopt;
+      total_bits += entry->const_nbits + padding;
+    }
+    return alignment;
   }
 
   // Alllocate entry of node.
@@ -849,16 +919,16 @@ class StoragePlanRewriter : public StmtExprMutator {
     for (auto& kv : attach_map_) {
       // find the element with the most amount of bytes.
       std::vector<StorageEntry*>& vec = kv.second;
-      // try to find merge, for tagged memory
       for (size_t i = 0; i < vec.size(); ++i) {
         StorageEntry* e = vec[i];
-        if (!e->requires_exact_allocation && IsSpecialTaggedMemory(e->scope)) {
-          TVM_FFI_ICHECK_NE(e->const_nbits, 0U) << "Special tagged memory must be const size";
-          for (size_t j = 0; j < i; ++j) {
-            if (!vec[j]->requires_exact_allocation && e->scope == vec[j]->scope) {
-              vec[j]->merged_children.push_back(e);
-              break;
-            }
+        if (e->scope.alloc_property() != MemoryAllocProperty::kSingleAllocation) continue;
+        auto alignment = PackingAlignment(vec, e->scope);
+        if (!alignment) continue;
+        e->packing_alignment_bits = *alignment;
+        for (size_t j = 0; j < i; ++j) {
+          if (e->scope == vec[j]->scope) {
+            vec[j]->merged_children.push_back(e);
+            break;
           }
         }
       }
@@ -875,7 +945,7 @@ class StoragePlanRewriter : public StmtExprMutator {
         // already merged
         if (e->bits_offset != 0) continue;
         if (e->merged_children.size() != 0) {
-          NewAllocTagMerged(e);
+          NewAllocMerged(e);
           continue;
         }
         const auto* first_call = e->allocs[0]->value.as<CallNode>();
@@ -981,8 +1051,11 @@ class StoragePlanRewriter : public StmtExprMutator {
             combo_size = combo_size + IntImm::Int32(1);
           }
           combo_size = analyzer_->Simplify(combo_size);
-          TensorVar buf(e->alloc_var->name, TensorType(e->scope.to_string(), alloc_type,
-                                                       {combo_size}, {}, std::nullopt, 0, 0));
+          TensorVar buf(
+              e->alloc_var->name,
+              TensorType({combo_size}, alloc_type, e->scope, {}, std::nullopt,
+                         first_call->ty_args[0].as_or_throw<TensorType>()->data_alignment,
+                         first_call->ty_args[0].as_or_throw<TensorType>()->offset_factor));
           e->alloc_var = buf.var();
           ffi::Map<ffi::String, ffi::Any> annotations;
           if (e->is_volatile) {
@@ -995,15 +1068,13 @@ class StoragePlanRewriter : public StmtExprMutator {
     }
   }
   // New allocation for merged data
-  void NewAllocTagMerged(StorageEntry* e) {
-    TVM_FFI_ICHECK_NE(e->scope.tag.length(), 0U);
+  void NewAllocMerged(StorageEntry* e) {
+    TVM_FFI_ICHECK(e->scope.alloc_property() == MemoryAllocProperty::kSingleAllocation);
     // allocate with element type.
     TVM_FFI_ICHECK_NE(e->const_nbits, 0U);
     uint64_t total_bits = e->const_nbits;
-    // By default, align to 32 bits.
-    size_t align = 32;
-    // Always align to max_simd_bits
-    // so we can remap types by keeping this property
+    // Every alias retains its declared alignment and element-offset factor.
+    uint64_t align = e->packing_alignment_bits;
     if (total_bits % align != 0) {
       total_bits += align - (total_bits % align);
     }
@@ -1021,10 +1092,14 @@ class StoragePlanRewriter : public StmtExprMutator {
     uint64_t type_bits = e->elem_type.bits() * e->elem_type.lanes();
     const auto* call = e->allocs[0]->value.as<CallNode>();
     tvm::Tuple shape = tvm::Tuple(call->ty_args[0].as_or_throw<TensorType>()->shape);
-    PrimExpr alloc_size = MakeConst(shape->fields[0].as_or_throw<PrimExpr>().ty(),
-                                    (total_bits + type_bits - 1) / type_bits);
-    TensorVar buf(e->alloc_var->name, TensorType(e->scope.to_string(), e->elem_type, {alloc_size},
-                                                 {}, std::nullopt, 0, 0));
+    uint64_t alloc_elements = total_bits / type_bits;
+    PrimType shape_type = shape->fields[0].as_or_throw<PrimExpr>().ty();
+    if (shape_type.bits() < 64 && alloc_elements > std::numeric_limits<int32_t>::max()) {
+      shape_type = PrimType::Int(64);
+    }
+    PrimExpr alloc_size = MakeConst(shape_type, alloc_elements);
+    TensorVar buf(e->alloc_var->name, TensorType({alloc_size}, e->elem_type, e->scope, {},
+                                                 std::nullopt, static_cast<int>(align / 8), 0));
     e->alloc_var = buf.var();
     for (StorageEntry* child : e->merged_children) {
       child->alloc_var = e->alloc_var;
@@ -1117,11 +1192,14 @@ class StoragePlanRewriter : public StmtExprMutator {
           const AllocEntry& entry = alloc_info.at(var);
           const BindNode* alloc = entry.alloc;
           const auto* call = alloc->value.as<CallNode>();
-          ffi::String scope = call->ty_args[0].as_or_throw<TensorType>()->storage_scope;
-          auto storage_scope = StorageScope::Create(scope);
+          runtime::MemoryScope scope = call->ty_args[0].as_or_throw<TensorType>()->storage_scope;
+          auto storage_scope = scope;
           StorageEntry* dst_entry = nullptr;
           // inplace detection
-          if (detect_inplace && !RequiresExactAllocation(call)) {
+          if (detect_inplace && !RequiresExactAllocation(call) &&
+              (scope.alloc_property() != MemoryAllocProperty::kSingleAllocation ||
+               alloc->var->ty.as_or_throw<TensorType>()->ConstantAllocationSize().value_or(0) >
+                   0)) {
             DLDataType dtype = call->ty_args[0].as_or_throw<TensorType>()->dtype->dtype;
             PrimType element_type(dtype);
             // only one inplace var for s.stmt
@@ -1130,7 +1208,8 @@ class StoragePlanRewriter : public StmtExprMutator {
               if (!inplace_flag.count(src) && alloc_map_.count(src)) {
                 auto visitor = ffi::make_object<InplaceOpVerifier>();
                 StorageEntry* src_entry = alloc_map_.at(src);
-                if (!src_entry->requires_exact_allocation && src_entry->scope == storage_scope &&
+                if (!src_entry->requires_exact_allocation &&
+                    HasCompatibleAlignment(src_entry, call) && src_entry->scope == storage_scope &&
                     src_entry->attach_scope_ == thread_scope_ && !element_type.IsScalableVector() &&
                     src_entry->elem_type == element_type.WithLanes(1) &&
                     visitor->Check(s.stmt, var, src)) {
@@ -1189,7 +1268,7 @@ class StoragePlanRewriter : public StmtExprMutator {
   }
   // Allocate new storage entry.
   StorageEntry* NewAlloc(const BindNode* op, const ffi::Object* attach_scope,
-                         const StorageScope& scope, size_t const_nbits) {
+                         const MemoryScope& scope, size_t const_nbits) {
     TVM_FFI_ICHECK(op != nullptr);
     const auto* call = op->value.as<CallNode>();
     DLDataType dtype = call->ty_args[0].as_or_throw<TensorType>()->dtype->dtype;
@@ -1207,7 +1286,7 @@ class StoragePlanRewriter : public StmtExprMutator {
   }
 
   StorageEntry* FindAlloc(const BindNode* op, const ffi::Object* attach_scope,
-                          const StorageScope& scope, size_t num_physical_dimensions,
+                          const MemoryScope& scope, size_t num_physical_dimensions,
                           bool enable_reuse, bool reuse_require_exact_matched_dtype) {
     TVM_FFI_ICHECK(op != nullptr);
     const auto* call = op->value.as<CallNode>();
@@ -1234,11 +1313,12 @@ class StoragePlanRewriter : public StmtExprMutator {
 
     // disable reuse of small arrays, they will be lowered to registers in LLVM
     // This rules only apply if we are using non special memory
-    bool is_small_array = (scope.tag.length() == 0) && (scope.rank >= StorageRank::kWarp ||
-                                                        (is_known_size && const_nbits <= 32));
+    bool is_small_array = scope.alloc_property() == MemoryAllocProperty::kNormal && is_known_size &&
+                          const_nbits <= 32;
 
     if (RequiresExactAllocation(call) || is_scalable_vector || !enable_reuse || is_small_array ||
-        !is_flat_memory_space) {
+        !is_flat_memory_space ||
+        (scope.alloc_property() == MemoryAllocProperty::kSingleAllocation && !is_known_size)) {
       return NewAlloc(op, attach_scope, scope, const_nbits);
     }
 
@@ -1251,7 +1331,7 @@ class StoragePlanRewriter : public StmtExprMutator {
       for (auto it = mid; it != end; ++it) {
         StorageEntry* e = it->second;
         if (e->attach_scope_ != attach_scope) continue;
-        if (e->scope != scope) continue;
+        if (e->scope != scope || !HasCompatibleAlignment(e, call)) continue;
         // when not divided, no reuse, eg, float4 vs float3
         if (e->bits_offset % op_elem_bits != 0) continue;
         if (reuse_require_exact_matched_dtype && e->elem_type != element_type) {
@@ -1266,7 +1346,7 @@ class StoragePlanRewriter : public StmtExprMutator {
         --it;
         StorageEntry* e = it->second;
         if (e->attach_scope_ != attach_scope) continue;
-        if (e->scope != scope) continue;
+        if (e->scope != scope || !HasCompatibleAlignment(e, call)) continue;
         if (e->elem_type != element_type.WithLanes(1)) continue;
         if (reuse_require_exact_matched_dtype && e->elem_type != element_type) {
           continue;
@@ -1280,7 +1360,7 @@ class StoragePlanRewriter : public StmtExprMutator {
       for (auto it = sym_free_list_.begin(); it != sym_free_list_.end(); ++it) {
         StorageEntry* e = *it;
         if (e->attach_scope_ != attach_scope) continue;
-        if (e->scope != scope) continue;
+        if (e->scope != scope || !HasCompatibleAlignment(e, call)) continue;
         if (e->elem_type != element_type.WithLanes(1)) continue;
         sym_free_list_.erase(it);
         return e;
@@ -1296,19 +1376,14 @@ class StoragePlanRewriter : public StmtExprMutator {
     TVM_FFI_ICHECK_NE(e->allocs.size(), 0U);
     if (e->requires_exact_allocation) return;
 
-    // disable reuse of small arrays, they will be lowered to registers in LLVM
-    // This rules only apply if we are using non special memory
-    if (e->scope.tag.length() == 0) {
-      const auto* call = e->allocs[0]->value.as<CallNode>();
-      DLDataType dtype = call->ty_args[0].as_or_throw<TensorType>()->dtype->dtype;
-      PrimType element_type(dtype);
-      // Disable sharing of local memory.
-      if (e->scope.rank >= StorageRank::kWarp || element_type.IsScalableVector()) {
-        return;
-      }
-      // disable reuse of small arrays
-      if (e->const_nbits > 0 && e->const_nbits <= 32) return;
-    }
+    const auto* call = e->allocs[0]->value.as<CallNode>();
+    PrimType element_type(call->ty_args[0].as_or_throw<TensorType>()->dtype->dtype);
+    if (element_type.IsScalableVector()) return;
+    if (e->scope.alloc_property() == MemoryAllocProperty::kNormal && e->const_nbits > 0 &&
+        e->const_nbits <= 32)
+      return;
+    if (e->scope.alloc_property() == MemoryAllocProperty::kSingleAllocation && e->const_nbits == 0)
+      return;
     // normal free.
     if (e->const_nbits != 0) {
       const_free_map_.insert({e->const_nbits, e});

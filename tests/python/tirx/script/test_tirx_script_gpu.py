@@ -323,7 +323,7 @@ def test_roundtrip_tensormap():
 def test_roundtrip_tensormap_kernel_param():
     # fmt: off
     @T.function
-    def func1(A_map: T.Ptr(T.TensorMap, "")):
+    def func1(A_map: T.Ptr(T.TensorMap)):
         T.func_attr({"global_symbol": "func"})
         T.evaluate(T.address_of(A_map))
     # fmt: on

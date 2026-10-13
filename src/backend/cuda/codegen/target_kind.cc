@@ -32,6 +32,8 @@
 
 #include <string>
 
+#include "../../memory_scope.h"
+
 namespace tvm {
 
 namespace backend {
@@ -115,6 +117,11 @@ ffi::Map<ffi::String, ffi::Any> UpdateNVPTXAttrs(ffi::Map<ffi::String, ffi::Any>
 }  // namespace tvm
 
 TVM_FFI_STATIC_INIT_BLOCK() {
+  for (const char* name : {"tmem", "wmma.matrix_a", "wmma.matrix_b", "wmma.accumulator",
+                           "mma.matrixA", "mma.matrixB", "mma.matrixC"}) {
+    tvm::backend::RegisterBackendMemoryScope(
+        name, tvm::runtime::MemoryAllocProperty::kSeparateAllocations);
+  }
   using namespace tvm;
   using namespace tvm::backend::cuda;
   namespace refl = tvm::ffi::reflection;

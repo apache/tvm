@@ -21,6 +21,7 @@
 #define TVM_RUNTIME_VULKAN_VULKAN_DEVICE_API_H_
 
 #include <tvm/runtime/device_api.h>
+#include <tvm/runtime/memory_scope.h>
 #include <vulkan/vulkan_core.h>
 
 #include <string>
@@ -46,7 +47,7 @@ class VulkanDeviceAPI final : public DeviceAPI {
   void SetDevice(Device dev) final;
   ffi::Any GetAttr(Device dev, const ffi::String& name) final;
   ffi::Tensor Empty(ffi::ShapeView shape, DLDataType dtype, DLDevice device,
-                    ffi::Optional<ffi::String> mem_scope = std::nullopt) final;
+                    ffi::Optional<runtime::MemoryScope> mem_scope = std::nullopt) final;
 
   void* AllocWorkspace(Device dev, size_t size, DLDataType type_hint) final;
   void FreeWorkspace(Device dev, void* data) final;

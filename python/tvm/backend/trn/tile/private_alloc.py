@@ -15,10 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 
+from functools import cache
 from typing import Any
 
 from tvm.backend.trn.tile.common import nki_dim
 from tvm.ir import Bind, Call, DictAttrs, Stmt, Tuple
+from tvm.runtime import MemoryScope
 from tvm.script import tirx as T
 from tvm.tirx import FloatImm, IntImm, Var
 from tvm.tirx.tile import DispatchContext
@@ -33,6 +35,11 @@ from tvm.tirx.tile.views import (
     UnaryOpWithScaleBias,
     UnaryReduce,
 )
+
+
+@cache
+def _scope_trn_psum():
+    return MemoryScope("trn.psum")
 
 
 def _allocation(tensor: Var, allocated_addr=None) -> Bind:
@@ -123,7 +130,7 @@ def alloc_partial_reduce_trn(
 def alloc_acc_psum_trn(
     op: TensorCall, tensor_dict: dict[Any, tuple[Bind, Stmt | None]], sctx: DispatchContext
 ) -> dict[str, Any]:
-    if "acc_psum" in op.workspaces or op.dsts[0].source.scope() == "trn.psum":
+    if "acc_psum" in op.workspaces or op.dsts[0].source.scope() == _scope_trn_psum():
         return {}
     par_size = op.dsts[0].source.ty.effective_layout().size("P")
     acc_psum = T.Var("acc_psum", T.Tensor((8, par_size, 512), "float32", scope="trn.psum"))

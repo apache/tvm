@@ -26,6 +26,7 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/function.h>
+#include <tvm/runtime/memory_scope.h>
 #include <tvm/support/gpu_thread_tag.h>
 #include <tvm/tirx/op/memory.h>
 
@@ -68,7 +69,7 @@ TextureArgument UnwrapTextureArgument(const Expr& texture) {
       << "Texture arguments must be a pointer Var or a tensor_data_ptr(TensorVar) projection";
   const auto* pointer_type = texture->ty.as<PtrTypeNode>();
   TVM_FFI_ICHECK(pointer_type) << "Texture arguments must have PtrType";
-  TVM_FFI_ICHECK(runtime::IsTextureStorage(std::string(pointer_type->storage_scope)))
+  TVM_FFI_ICHECK(runtime::IsTextureStorage(pointer_type->storage_scope))
       << "Texture intrinsics only support texture buffers";
   return {var, pointer_type};
 }
@@ -130,18 +131,19 @@ CodeGenOpenCL::CodeGenOpenCL() {
 
 void CodeGenOpenCL::InitFuncState(const Function& f) {
   CodeGenC::InitFuncState(f);
+  texture_access_qualifiers_.clear();
   if (f->body.has_value()) {
     this->SetTextureScope(ffi::make_object<InferTextureAccess>()->Infer(f->body.value()));
   }
   for (Var arg : f->params) {
     auto ptr_type = arg->ty.as<PtrTypeNode>();
-    if (ptr_type && runtime::IsTextureStorage(std::string(ptr_type->storage_scope))) {
+    if (ptr_type && runtime::IsTextureStorage(ptr_type->storage_scope)) {
       // Storage scope qualifiers for textures are inferred
       // and set prior to function codegen.
       continue;
     }
     if (ptr_type) {
-      alloc_storage_scope_[arg.get()] = "global";
+      alloc_storage_scope_[arg.get()] = runtime::MemoryScope::Global();
     }
   }
 }
@@ -151,7 +153,7 @@ void CodeGenOpenCL::PrintFuncPrefix(std::ostream& os) { os << "__kernel "; }
 void CodeGenOpenCL::PreFunctionBody(const Function& f) {
   for (Var arg : f->params) {
     auto ptr_type = arg->ty.as<PtrTypeNode>();
-    if (ptr_type && runtime::IsTextureStorage(std::string(ptr_type->storage_scope))) {
+    if (ptr_type && runtime::IsTextureStorage(ptr_type->storage_scope)) {
       this->stream << "  const sampler_t image_sampler = "
                       "CLK_NORMALIZED_COORDS_FALSE | CLK_ADDRESS_CLAMP | CLK_FILTER_NEAREST;\n";
       return;
@@ -328,7 +330,7 @@ void CodeGenOpenCL::PrintType(const Type& type, std::ostream& os) {  // NOLINT(*
   if (auto* ptr = type.as<PrimTypeNode>()) {
     return PrintType(ffi::GetRef<PrimType>(ptr), os);
   } else if (auto* ptr = type.as<PtrTypeNode>()) {
-    if (runtime::IsTextureStorage(std::string(ptr->storage_scope))) {
+    if (runtime::IsTextureStorage(ptr->storage_scope)) {
       os << "image2d_array_t";
     } else {
       PrintType(ptr->element_type, os);
@@ -412,22 +414,29 @@ void CodeGenOpenCL::PrintStorageSync(const CallNode* op) {
   }
 }
 
-void CodeGenOpenCL::PrintStorageScope(const std::string& scope, std::ostream& os) {  // NOLINT(*)
-  if (scope == "global") {
+void CodeGenOpenCL::PrintStorageQualifier(const VarNode* var, std::ostream& os) {
+  if (auto it = texture_access_qualifiers_.find(var); it != texture_access_qualifiers_.end()) {
+    if (it->second == "texture_read") os << "__read_only ";
+    if (it->second == "texture_write") os << "__write_only ";
+    return;
+  }
+  CodeGenC::PrintStorageQualifier(var, os);
+}
+
+void CodeGenOpenCL::PrintStorageScope(const runtime::MemoryScope& scope,
+                                      std::ostream& os) {  // NOLINT(*)
+  static const auto scope_shared = runtime::MemoryScope::Get("shared");
+  if (scope == runtime::MemoryScope::Global()) {
     os << "__global ";
-  } else if (scope == "shared") {
+  } else if (scope == scope_shared) {
     os << "__local ";
-  } else if (scope == "texture_read") {
-    os << "__read_only ";
-  } else if (scope == "texture_write") {
-    os << "__write_only ";
   }
 }
 
 void CodeGenOpenCL::PrintRestrict(const Var& v, std::ostream& os) {
   // Apply restrict qualifer for non-texture types only
   if (auto* ptr = v->ty.as<PtrTypeNode>()) {
-    if (!runtime::IsTextureStorage(std::string(ptr->storage_scope))) {
+    if (!runtime::IsTextureStorage(ptr->storage_scope)) {
       os << ' ' << restrict_keyword_;
     }
   }
@@ -752,7 +761,7 @@ void CodeGenOpenCL::Dispatch_(const prim::SelectNode* op, std::ostream& os) {
 void CodeGenOpenCL::SetTextureScope(
     const std::unordered_map<const VarNode*, std::string>& scope) {  // NOLINT(*)
   for (auto& texture : scope) {
-    alloc_storage_scope_.insert(texture);
+    texture_access_qualifiers_.insert(texture);
   }
 }
 
@@ -809,10 +818,11 @@ void RegisterOpenCLCodegen() {
   refl::GlobalDef().def("target.build.opencl", BuildOpenCL);
 }
 
-ffi::String DeviceScopeCompatibilityFromTarget(Target target, ffi::String memory_scope) {
+runtime::MemoryScope DeviceScopeCompatibilityFromTarget(Target target,
+                                                        runtime::MemoryScope memory_scope) {
   bool is_adreno = target->HasKey("adreno");
   if (is_adreno) {
-    return ffi::String("global");
+    return runtime::MemoryScope::Global();
   }
   return memory_scope;
 }

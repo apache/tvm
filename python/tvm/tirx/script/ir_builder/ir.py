@@ -35,6 +35,7 @@ from tvm import tirx as tir
 from tvm.ir import Range, TensorRegion, Type
 from tvm.ir.location import UNKNOWN_LOC, Location
 from tvm.ir.type import _init_type_api, _normalize_type
+from tvm.runtime import MemoryScope
 from tvm.script.ir_builder.base import MISSING
 from tvm.script.ir_builder.ir import Lambda, meta_var
 from tvm.script.parser.protocol_registry import (
@@ -58,6 +59,11 @@ from tvm.tirx.expr import (
 from tvm.tirx.layout import Axis, ComposeLayout, Iter, Layout, R, S, TileLayout
 
 from . import _ffi_api
+
+_SCOPE_GLOBAL = MemoryScope("global")
+_SCOPE_LOCAL = MemoryScope("local")
+_SCOPE_SHARED = MemoryScope("shared")
+_SCOPE_SHARED_DYN = MemoryScope("shared.dyn")
 
 # pylint: enable=unused-import
 
@@ -274,7 +280,7 @@ def _alloc_tensor(
     strides=None,
     elem_offset=None,
     byte_offset=None,
-    scope="global",
+    scope=_SCOPE_GLOBAL,
     align=-1,
     offset_factor=0,
     layout=MISSING,
@@ -282,15 +288,25 @@ def _alloc_tensor(
     annotations=None,
 ):
     """Implement separately named allocation conveniences using the canonical Op."""
+    scope = MemoryScope(scope)
     if allocated_addr is not None:
-        if scope in ("", "global", "shared", "shared.dyn", "local"):
+        if scope in (_SCOPE_GLOBAL, _SCOPE_SHARED, _SCOPE_SHARED_DYN, _SCOPE_LOCAL):
             raise ValueError(f"{scope} does not support allocation placement")
         if data is not None or elem_offset is not None or byte_offset is not None or offset_factor:
             raise ValueError(
                 "Allocation placement cannot be combined with pointer or offset metadata"
             )
     tensor_type = _tensor_type(
-        shape, dtype, data, strides, elem_offset, byte_offset, scope, align, offset_factor, layout
+        shape,
+        dtype,
+        scope,
+        strides,
+        elem_offset,
+        align,
+        offset_factor,
+        layout,
+        data=data,
+        byte_offset=byte_offset,
     )
     return _bind_tensor(
         alloc_tensor(allocated_addr, ty_args=[tensor_type], annotations=annotations)
@@ -524,7 +540,7 @@ def alloc_cast_frag(src, dtype):
 @_register_mutable_decl("tirx.alloc_scalar")
 def alloc_scalar(
     dtype: str = "float32",
-    scope: str = "global",
+    scope: str | MemoryScope = _SCOPE_GLOBAL,
     *,
     annotations: dict[str, Any] | None = None,
 ) -> _ir.TensorLoad:
@@ -1059,7 +1075,7 @@ boolean._dtype_str = "bool"
 
 def handle(
     dtype: str | None = None,
-    storage_scope: str = "global",
+    storage_scope: str | MemoryScope = _SCOPE_GLOBAL,
 ) -> Var:
     """Create a TIR var that represents a pointer.
 
@@ -1104,7 +1120,7 @@ def void(expr: Expr | None = None) -> Expr:
     return _ffi_api.Void(expr)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-def ptr(dtype: str, storage_scope: str = "global") -> Var:
+def ptr(dtype: str, storage_scope: str | MemoryScope = _SCOPE_GLOBAL) -> Var:
     """The pointer declaration function.
 
     Parameters

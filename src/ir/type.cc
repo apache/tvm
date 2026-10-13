@@ -125,7 +125,7 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> PrimTypeMaybeInplaceMut
 
 TVM_FFI_INLINE ffi::Expected<ffi::Optional<ffi::VisitInterrupt>> PtrTypeVisit(
     ffi::StructuralVisitorObj* visitor, ffi::AnyView value) noexcept {
-  // skips: storage_scope (scalar)
+  // skips: storage_scope (canonical enum identity)
   const PtrTypeNode* self =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const PtrTypeNode>(value);
   TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->element_type));
@@ -134,7 +134,7 @@ TVM_FFI_INLINE ffi::Expected<ffi::Optional<ffi::VisitInterrupt>> PtrTypeVisit(
 
 TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> PtrTypeMutate(
     ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
-  // skips: storage_scope (scalar)
+  // skips: storage_scope (canonical enum identity)
   const PtrTypeNode* self =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const PtrTypeNode>(value);
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Type>, mapped_element_type_u,
@@ -150,7 +150,7 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> PtrTypeMutate(
 
 TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> PtrTypeMaybeInplaceMutate(
     ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
-  // skips: storage_scope (scalar)
+  // skips: storage_scope (canonical enum identity)
   PtrTypeNode* self = const_cast<PtrTypeNode*>(
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const PtrTypeNode>(value));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
@@ -414,15 +414,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // PtrType
-PtrType::PtrType(Type element_type, ffi::String storage_scope) : Type(ffi::UnsafeInit{}) {
+PtrType::PtrType(Type element_type, runtime::MemoryScope storage_scope) : Type(ffi::UnsafeInit{}) {
   TVM_FFI_ICHECK(!element_type.as<MissingType>().has_value())
       << "PtrType element_type cannot be Type::Missing()";
   ffi::ObjectPtr<PtrTypeNode> n = ffi::make_object<PtrTypeNode>();
-  if (storage_scope.empty()) {
-    n->storage_scope = "global";
-  } else {
-    n->storage_scope = std::move(storage_scope);
-  }
+  n->storage_scope = std::move(storage_scope);
   n->element_type = std::move(element_type);
   data_ = std::move(n);
 }
@@ -437,12 +433,13 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&PtrTypeMaybeInplaceMutate>());
 
-  refl::GlobalDef().def("ir.PtrType", [](Type element_type, ffi::String storage_scope = "") {
-    return PtrType(element_type, storage_scope);
-  });
+  refl::GlobalDef().def("ir.PtrType",
+                        [](Type element_type, runtime::MemoryScope storage_scope = {}) {
+                          return PtrType(element_type, storage_scope);
+                        });
 }
 
-PtrType PtrType::VoidPtrType(ffi::String storage_scope) {
+PtrType PtrType::VoidPtrType(runtime::MemoryScope storage_scope) {
   return PtrType(PrimType::Void(), std::move(storage_scope));
 }
 

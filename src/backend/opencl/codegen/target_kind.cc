@@ -27,6 +27,8 @@
 #include <tvm/target/target.h>
 #include <tvm/target/target_kind.h>
 
+#include "../memory_scope.h"
+
 namespace tvm {
 
 namespace codegen {
@@ -39,6 +41,7 @@ void RegisterOpenCLIntrinRules();
 }  // namespace tvm
 
 TVM_FFI_STATIC_INIT_BLOCK() {
+  tvm::backend::opencl::RegisterMemoryScopes();
   using namespace tvm;
   namespace refl = tvm::ffi::reflection;
 

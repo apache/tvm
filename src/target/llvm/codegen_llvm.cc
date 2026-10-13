@@ -31,6 +31,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/function.h>
 #include <tvm/ir/prim/op.h>
+#include <tvm/runtime/memory_scope.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/op/gpu.h>
 #include <tvm/tirx/op/memory.h>
@@ -548,7 +549,7 @@ void CodeGenLLVM::Optimize() {
 }
 #endif  // TVM_LLVM_VERSION
 
-int CodeGenLLVM::NativeVectorBits(const runtime::StorageScope& storage_scope) const {
+int CodeGenLLVM::NativeVectorBits(const runtime::MemoryScope& storage_scope) const {
   return native_vector_bits_;
 }
 
@@ -712,9 +713,9 @@ void CodeGenLLVM::GetAlignment(PrimType t, const VarNode* buf_var, const PrimExp
   auto it = alloc_storage_info_.find(buf_var);
   if (it != alloc_storage_info_.end()) {
     const StorageInfo& info = it->second;
-    *p_native_bits = NativeVectorBits(runtime::StorageScope::Create(
-        (buf_var->ty.as<TensorTypeNode>() ? buf_var->ty.as<TensorTypeNode>()->storage_scope
-                                          : buf_var->ty.as_or_throw<PtrType>()->storage_scope)));
+    *p_native_bits = NativeVectorBits(buf_var->ty.as<TensorTypeNode>()
+                                          ? buf_var->ty.as<TensorTypeNode>()->storage_scope
+                                          : buf_var->ty.as_or_throw<PtrType>()->storage_scope);
     max_align_bits = info.alignment * 8;
   } else {
     *p_native_bits = native_vector_bits_;
@@ -2334,7 +2335,8 @@ void CodeGenLLVM::Dispatch_(const SeqStmtNode* op) {
 void CodeGenLLVM::DispatchDeclTensor(const BindNode* op, const CallNode* buffer_call) {
   Expr data = buffer_call->args[0];
   DLDataType dtype = buffer_call->ty_args[0].as_or_throw<tirx::TensorType>()->dtype->dtype;
-  ffi::String scope = buffer_call->ty_args[0].as_or_throw<tirx::TensorType>()->storage_scope;
+  runtime::MemoryScope scope =
+      buffer_call->ty_args[0].as_or_throw<tirx::TensorType>()->storage_scope;
   TensorVar buffer = op->var.as_or_throw<TensorVar>();
   EmitDebugLocation(op);
   const VarNode* buffer_var = buffer.get();

@@ -94,7 +94,7 @@ def test_runtime_operands_are_seen_and_replaced():
 def test_workspace_is_an_optional_call_operand():
     tvm.backend.load("trn")
     a = decl_tensor((16, 16), "float32", scope="shared")
-    acc = decl_tensor((16, 16), "float32", scope="psum")
+    acc = decl_tensor((16, 16), "float32", scope="trn.psum")
     call = T.trn.tile.matmul(a, a, a, acc_psum=acc)
     assert call.args[-1].same_as(acc)
     assert any(v.same_as(acc) for v in undefined_vars(Evaluate(call)))

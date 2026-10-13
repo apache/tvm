@@ -279,7 +279,7 @@ class BuiltinLower : public StmtExprMutator {
     tvm::Tuple shape = tvm::Tuple(tensor_call->ty_args[0].as_or_throw<TensorType>()->shape);
     DLDataType dtype = tensor_call->ty_args[0].as_or_throw<TensorType>()->dtype->dtype;
     PrimType element_type(dtype);
-    ffi::String scope = tensor_call->ty_args[0].as_or_throw<TensorType>()->storage_scope;
+    auto scope = tensor_call->ty_args[0].as_or_throw<TensorType>()->storage_scope;
     DictAttrs annotations = tensor_call->attrs.value().as_or_throw<DictAttrs>();
     if (annotations->dict.count(transform::kDisableLowerTVMBuiltin)) {
       if (annotations->dict[transform::kDisableLowerTVMBuiltin].as_or_throw<IntImm>()->value) {
@@ -292,7 +292,7 @@ class BuiltinLower : public StmtExprMutator {
     int64_t nbytes = GetVectorBytes(element_type);
     if (const auto* dev_type = device_type_.as<IntImmNode>();
         dev_type && dev_type->value == kDLCPU) {
-      if (scope == "global") {
+      if (scope == runtime::MemoryScope::Global()) {
         auto constant_size = op->var->ty.as_or_throw<TensorType>()->ConstantAllocationSize();
         if (constant_size.has_value() && constant_size.value() > 0 &&
             static_cast<size_t>(constant_size.value()) * nbytes < runtime::kMaxStackAlloca) {
