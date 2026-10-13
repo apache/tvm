@@ -364,11 +364,15 @@ def gen_call_tir_inputs(
     if len(custom_out_ty) == 1:
         output_ty = custom_out_ty[0]
     else:
+        # Tensors may be passed as keyword arguments, e.g. `data=` and `kernel=`.
+        vdevice = _get_vdevice(args)
+        if vdevice is None:
+            vdevice = _get_vdevice(kwargs)
         output_ty = [
             TensorType(
                 _shape_with_old_tir_var(out.shape, tir_var_inverse_map),
                 out.dtype,
-                _get_vdevice(args),
+                vdevice,
             )
             for out in outs
         ]

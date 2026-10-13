@@ -122,3 +122,23 @@ def test_symbolic_shape_in_prim_value():
             return gv
 
     tvm.ir.assert_structural_equal(from_builder(), Expected)
+
+
+def test_call_te_vdevice_from_keyword_args():
+    """The output vdevice is inferred from tensors passed as keyword arguments."""
+
+    def te_add(lhs, rhs):
+        return te.compute(lhs.shape, lambda i: lhs[i] + rhs[i], name="add")
+
+    vdevice = rx.VDevice("llvm")
+    x = rx.Var("x", rx.TensorType([16], "float32", vdevice=vdevice))
+    y = rx.Var("y", rx.TensorType([16], "float32", vdevice=vdevice))
+
+    bb = rx.BlockBuilder()
+    positional = bb.call_te(te_add, x, y)
+    keyword = bb.call_te(te_add, lhs=x, rhs=y)
+    mixed = bb.call_te(te_add, x, rhs=y)
+
+    assert_structural_equal(positional.ty_args[0].vdevice, vdevice)
+    assert_structural_equal(keyword.ty_args[0].vdevice, vdevice)
+    assert_structural_equal(mixed.ty_args[0].vdevice, vdevice)
