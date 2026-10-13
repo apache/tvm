@@ -88,6 +88,26 @@ Migration rules
   window, including checking untouched lanes. Their descriptor starts use
   the inverse swizzle to avoid applying the origin's phase twice.
 
+* ``elementwise/test_fma.py`` preserves all eight original cases, adds actual
+  ``layout=None`` allocation coverage, and verifies the ``rm`` rounding result
+  exactly. A caller view states the compact local layout before applying a
+  native packed instruction. Constants are explicitly encoded as two f32
+  fields in a b64 operand; runtime scalar broadcasts retain their bit patterns.
+* ``elementwise/test_binary.py`` preserves all 123 parameter cases, including
+  the original shared offset/broadcast regions, nonzero warp/warpgroup
+  selection, per-thread broadcast arrays, and split tcgen05 register layout.
+  Shared staging and synchronization are caller code. Half division is a
+  caller-supplied scalar composite; native half and packed f32 arithmetic
+  specify their instruction and raw register representation explicitly.
+* The old const-left subtraction rejection becomes a positive GPU check.
+  Six shared const-left sub/div combinations that previously returned without
+  executing now validate their ordered numerical results. Former packed
+  auto-selection tests retain their arrays and code-generation assertions with
+  an explicit opcode. The tcgen05 multiplication also gains a GPU reference.
+* CUDA index calls are related to launch variables for bounds proofs, without
+  changing their emitted code. Tests check all nine thread/block index forms
+  at both valid boundaries and one element beyond each boundary.
+
 Original case inventory
 -----------------------
 
@@ -514,67 +534,67 @@ Original case inventory
      - Pending
    * - ``elementwise/test_binary.py``
      - ``test_binary_op_shared``
-     - Pending
+     - Migrated
    * - ``elementwise/test_binary.py``
      - ``test_binary_non_commutative_const_lhs_rejected``
-     - Pending
+     - Migrated
    * - ``elementwise/test_binary.py``
      - ``test_binary_op_shared_subcta_scope``
-     - Pending
+     - Migrated
    * - ``elementwise/test_binary.py``
      - ``test_binary_op_local_subcta_trivial``
-     - Pending
+     - Migrated
    * - ``elementwise/test_binary.py``
      - ``test_binary_op_vectorized``
-     - Pending
+     - Migrated
    * - ``elementwise/test_binary.py``
      - ``test_binary_op_packed_f32x2_auto_dispatch``
-     - Pending
+     - Migrated
    * - ``elementwise/test_binary.py``
      - ``test_binary_op_warpgroup_wg_local_layout``
-     - Pending
+     - Migrated
    * - ``elementwise/test_binary.py``
      - ``test_binary_op_warpgroup_wg_local_emits_packed_f32x2``
-     - Pending
+     - Migrated
    * - ``elementwise/test_binary.py``
      - ``test_fma_warpgroup_wg_local_emits_packed_f32x2``
-     - Pending
+     - Migrated
    * - ``elementwise/test_binary.py``
      - ``test_binary_add_f32_sm100_packed_f32x2_dispatch``
-     - Pending
+     - Migrated
    * - ``elementwise/test_binary.py``
      - ``test_binary_maximum_reg``
-     - Pending
+     - Migrated
    * - ``elementwise/test_binary.py``
      - ``test_binary_add_f16_scalar_fallback_dispatch``
-     - Pending
+     - Migrated
    * - ``elementwise/test_binary.py``
      - ``test_mul_tcgen05_16x256b_atom_warpgroup_dispatch``
-     - Pending
+     - Migrated
    * - ``elementwise/test_fma.py``
      - ``test_fma_scalar_scalar``
-     - Pending
+     - Migrated
    * - ``elementwise/test_fma.py``
      - ``test_fma_tensor_scale_scalar_bias``
-     - Pending
+     - Migrated
    * - ``elementwise/test_fma.py``
      - ``test_mul_scalar_broadcast``
-     - Pending
+     - Migrated
    * - ``elementwise/test_fma.py``
      - ``test_add_rounding_mode``
-     - Pending
+     - Migrated
    * - ``elementwise/test_fma.py``
      - ``test_fma_no_layout``
-     - Pending
+     - Migrated
    * - ``elementwise/test_fma.py``
      - ``test_sub_tensor_tensor_rounding``
-     - Pending
+     - Migrated
    * - ``elementwise/test_fma.py``
      - ``test_fma_warpgroup_wg_local_layout``
-     - Pending
+     - Migrated
    * - ``elementwise/test_fma.py``
      - ``test_fma_f32_sm100_packed_f32x2_dispatch``
-     - Pending
+     - Migrated
    * - ``elementwise/test_unary.py``
      - ``test_unary_op_shared``
      - Pending

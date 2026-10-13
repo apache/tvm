@@ -27,7 +27,19 @@ from math import prod
 
 import tvm_ffi
 
-from tvm.ir import Bind, Evaluate, For, ForKind, PrimType, Range, SeqStmt, TensorRegion, Var
+from tvm.ir import (
+    Bind,
+    Call,
+    Evaluate,
+    For,
+    ForKind,
+    Op,
+    PrimType,
+    Range,
+    SeqStmt,
+    TensorRegion,
+    Var,
+)
 from tvm.ir.prim import Let
 from tvm.runtime import DataType
 from tvm.script import tirx as T
@@ -47,8 +59,12 @@ class Context:
     def __init__(self, sctx, atom_scope="thread"):
         self.sctx = sctx
         self.analyzer = Analyzer()
+        for var, extent in sctx.launch_params.values():
+            self.analyzer.bind(var, Range(0, extent))
         for var, bound in sctx.var_range_map.items():
-            self.analyzer.bind(var, bound)
+            self.analyzer.bind(
+                var, Range.from_min_extent(self.index_coordinates(bound.min), bound.extent)
+            )
         self.bindings = []
         self.group = []
         self.group_shape = []
@@ -92,7 +108,46 @@ class Context:
         self.repeat = None
         self.repeat_shape = None
 
+    def index_coordinates(self, expr):
+        """Express CUDA index calls in the launch variables used by the prover."""
+
+        def axis(prefix, dim, extent=False):
+            binding = self.sctx.launch_params.get(prefix + dim)
+            return binding[int(extent)] if binding is not None else T.int32(int(extent))
+
+        def replace(call):
+            if not isinstance(call.op, Op):
+                return call
+            name = call.op.name
+            for operation, prefix in (("thread_idx", "threadIdx."), ("block_idx", "blockIdx.")):
+                if name == "tirx.cuda." + operation:
+                    return axis(prefix, str(call.args[0].value))
+            if name in (
+                "tirx.cuda.linear_thread_id",
+                "tirx.cuda.lane_id",
+                "tirx.cuda.warp_id",
+                "tirx.cuda.thread_in_warpgroup",
+                "tirx.cuda.warp_in_warpgroup",
+                "tirx.cuda.warpgroup_id",
+            ):
+                thread = axis("threadIdx.", "x") + axis("threadIdx.", "x", True) * (
+                    axis("threadIdx.", "y")
+                    + axis("threadIdx.", "y", True) * axis("threadIdx.", "z")
+                )
+                return {
+                    "tirx.cuda.linear_thread_id": thread,
+                    "tirx.cuda.lane_id": thread % 32,
+                    "tirx.cuda.warp_id": thread // 32,
+                    "tirx.cuda.thread_in_warpgroup": thread % 128,
+                    "tirx.cuda.warp_in_warpgroup": thread // 32 % 4,
+                    "tirx.cuda.warpgroup_id": thread // 128,
+                }[name]
+            return call
+
+        return tvm_ffi.structural_map(expr, (Call, replace), order="post")
+
     def require(self, condition, message):
+        condition = self.index_coordinates(condition)
         # Layout.apply uses expression-local lets to share its address terms.
         # Inline these pure terms before collecting free pattern coordinates.
         condition = tvm_ffi.structural_map(

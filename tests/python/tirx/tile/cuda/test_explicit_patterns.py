@@ -145,6 +145,7 @@ def _dispatch(
     ctx = SimpleNamespace(
         target=tvm.target.Target({"kind": "cuda", "arch": "sm_100a"}),
         scope_kind=scope,
+        launch_params={},
         var_range_map={},
         intra={"laneid": (active, 0)} if matrix else {},
     )
@@ -362,3 +363,34 @@ def test_swizzled_tmem_copy_rejects_gapped_words():
     with tvm.target.Target({"kind": "cuda", "arch": "sm_100a"}):
         with pytest.raises(RuntimeError, match="explicit matrix descriptor address walk"):
             tvm.tirx.transform.TileDispatch()(tvm.IRModule({"main": kernel}))
+
+
+@pytest.mark.parametrize(
+    "index,block,size",
+    [
+        (lambda: T.cuda.thread_idx("x"), (32, 2), 32),
+        (lambda: T.cuda.thread_idx("y"), (32, 2), 2),
+        (lambda: T.cuda.block_idx("x"), 32, 3),
+        (T.cuda.linear_thread_id, (32, 2), 64),
+        (T.cuda.lane_id, 64, 32),
+        (T.cuda.warp_id, 64, 2),
+        (T.cuda.thread_in_warpgroup, 256, 128),
+        (T.cuda.warp_in_warpgroup, 256, 4),
+        (T.cuda.warpgroup_id, 256, 2),
+    ],
+)
+@pytest.mark.parametrize("offset", [-1, 0, 1])
+def test_cuda_index_region_bounds(index, block, size, offset):
+    @T.function
+    def kernel(A: T.Tensor((size,), "float32")):
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=3, block=block))
+        r = T.alloc_local((1,), "float32", layout="default")
+        start = index() + offset
+        T.cuda.tile.apply(T.ptx["ld.global.f32"], r, A[start : start + 1])
+
+    with tvm.target.Target({"kind": "cuda", "arch": "sm_100a"}):
+        if offset == 0:
+            tvm.tirx.transform.TileDispatch()(tvm.IRModule({"main": kernel}))
+        else:
+            with pytest.raises(RuntimeError, match="in bounds|exceeds tensor shape"):
+                tvm.tirx.transform.TileDispatch()(tvm.IRModule({"main": kernel}))
