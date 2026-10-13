@@ -137,13 +137,6 @@ def test_tcgen05_mma(m, ws, dtype, k, kind, acc_dtype, major, swizzle=3):
                 ]
             ),
         )
-        descriptor_a = descriptor_b = (
-            nk * k * row_bytes,
-            (4 if swizzle == 4 else 8) * row_bytes,
-            swizzle,
-        )
-        if swizzle == 0:
-            descriptor_a = descriptor_b = (descriptor_a[1], descriptor_a[0], 0)
     else:
         inner = min(k, row_elems)
         al = ComposeLayout(
@@ -178,8 +171,6 @@ def test_tcgen05_mma(m, ws, dtype, k, kind, acc_dtype, major, swizzle=3):
                 ]
             ),
         )
-        descriptor_a = (m * row_bytes, 8 * row_bytes, swizzle)
-        descriptor_b = (n * row_bytes, 8 * row_bytes, swizzle)
     dl = tmem_mma_operand_layout("D", (m, n), acc_dtype, M=m, cta_group=1, ws=ws)
     data_format = "tf32" if kind == "tf32" else dtype
     instruction = f"tcgen05.mma{'.ws' if ws else ''}.cta_group::1.kind::{kind}"
@@ -223,8 +214,6 @@ def test_tcgen05_mma(m, ws, dtype, k, kind, acc_dtype, major, swizzle=3):
                 a,
                 b,
                 instruction_shape=(m, n, k),
-                a_descriptor=descriptor_a,
-                b_descriptor=descriptor_b,
                 accum=False,
                 a_major=major,
                 b_major=major,
@@ -344,8 +333,6 @@ def test_tcgen05_block_scale_repeated_k():
                 sfa,
                 sfb,
                 instruction_shape=(m, n, k),
-                a_descriptor=(0, 1024, 3),
-                b_descriptor=(0, 1024, 3),
                 accum=False,
             )
             T.ptx.tcgen05.commit.cta_group__1.mbarrier__arrive__one.shared__cluster.b64(
@@ -428,8 +415,6 @@ def test_tcgen05_mma_cta_pair(m):
                     a,
                     b,
                     instruction_shape=(m, n, k),
-                    a_descriptor=(0, 1024, 3),
-                    b_descriptor=(0, 1024, 3),
                 )
                 T.ptx[
                     "tcgen05.commit.cta_group::2.mbarrier::arrive::one.shared::cluster.multicast::cluster.b64"
@@ -514,7 +499,6 @@ def test_tcgen05_tmem_a_repeated_mnk():
                 a,
                 b,
                 instruction_shape=(m, n, k),
-                b_descriptor=(0, 1024, 3),
             )
             T.ptx.tcgen05.commit.cta_group__1.mbarrier__arrive__one.shared__cluster.b64(
                 barrier.ptr_to([0])
@@ -659,8 +643,6 @@ def test_tcgen05_fp4_scale_vectors(cta_group, scale_format, vec, kind):
                     sfa,
                     sfb,
                     instruction_shape=(m, n, k),
-                    a_descriptor=(0, 1024, 3),
-                    b_descriptor=(0, 1024, 3),
                 )
                 if T.constexpr(cta_group == 2):
                     T.ptx[
@@ -733,8 +715,8 @@ def test_tcgen05_fp8_no_swizzle(major):
 @pytest.mark.parametrize(
     "dtype,k,kind,major,message",
     [
-        ("float32", 8, "tf32", "k", "32B atomicity requires MN-major"),
-        ("float16", 16, "f16", "mn", "requires 32-bit MN-major elements"),
+        ("float32", 8, "tf32", "k", "no matching shared matrix descriptor"),
+        ("float16", 16, "f16", "mn", "no matching shared matrix descriptor"),
     ],
 )
 def test_tcgen05_32b_atomicity_rejects_incompatible_operand(dtype, k, kind, major, message):

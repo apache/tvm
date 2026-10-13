@@ -23,8 +23,14 @@ B: (*group, *batch, N_repeat, K_repeat, per_CTA_N, instruction_K)
 
 For weight-stationary A-in-TMEM the atom includes its explicit leading bank
 axis. Every call spells instruction_shape=(M,N,K), formats, major order, and
-shared descriptor fields. The instruction's CTA group and .ws select the
+shared operand layouts. The instruction's CTA group and .ws select the
 hardware datapath; the operand's layout never selects an instruction mode.
+
+Parameters: D/A/B (plus SFA/SFB for block scale), scope, instruction_shape;
+a_major/b_major="k", a_format/b_format=operand dtype, neg_a/neg_b=False,
+accum=False, pred=None. Dense forms accept sat_d=False and either .ws
+zero_column_mask=0 or disable_output_lane=(0,)*(4*cta_group). Shared matrix
+descriptors are extracted; their byte strides are not call parameters.
 """
 
 from tvm.backend.cuda.cpp.descriptors import (
@@ -42,7 +48,7 @@ from tvm.runtime import MemoryScope
 from tvm.script import tirx as T
 
 from .common import Context, scalar
-from .descriptors import matrix_descriptor, swizzle_bytes
+from .descriptors import matrix_descriptor
 from .tma import sequence
 
 
@@ -75,44 +81,6 @@ def _tmem_operand(ctx, operand, expected, atom_shape):
         base.get("TLane", 0),
         base.get("TCol", 0) * operand.bits // 32,
     )
-
-
-def _shared_operand(ctx, operand, atom_shape, descriptor, major):
-    fields = tuple(int(scalar(x)) for x in sequence(descriptor))
-    if len(fields) != 3:
-        raise ValueError("shared descriptor is (ldo_bytes, sdo_bytes, swizzle)")
-    ldo, sdo, swizzle = fields
-    if major == "mn" and operand.bits == 32 and swizzle != 4:
-        raise ValueError("32-bit MN-major requires 128B swizzling with 32B atomicity")
-    if swizzle == 4 and major != "mn":
-        raise ValueError("128B swizzling with 32B atomicity requires MN-major")
-    if major == "mn" and operand.bits != 32 and swizzle == 4:
-        raise ValueError("128B swizzling with 32B atomicity requires 32-bit MN-major elements")
-    row_bytes = 128 if swizzle == 4 else 16 << swizzle
-    mn, k = atom_shape
-    # PTX's unswizzled MN-major atom exchanges leading and stride offsets.
-    row_group, column_group = (ldo, sdo) if major == "mn" and swizzle == 0 else (sdo, ldo)
-    base = operand.memory((0, 0)) * operand.bits
-    if swizzle:
-        base = swizzle_bytes(base // 8, swizzle) * 8 + base % 8
-    # Atom coordinates are fixed matrix coordinates. Major order changes
-    # the descriptor walk, not the logical matrix multiplication.
-    rows_per_group = 4 if swizzle == 4 else 8
-    for i in range(mn):
-        for j in range(k):
-            row, contiguous = (j, i) if major == "mn" else (i, j)
-            offset = row // rows_per_group * row_group * 8 + row % rows_per_group * row_bytes * 8
-            offset += contiguous * operand.bits // (
-                row_bytes * 8
-            ) * column_group * 8 + contiguous * operand.bits % (row_bytes * 8)
-            expected_bits = base + offset
-            if swizzle:
-                expected_bits = swizzle_bytes(expected_bits // 8, swizzle) * 8 + expected_bits % 8
-            ctx.require(
-                operand.memory((i, j)) * operand.bits == expected_bits,
-                f"{operand.name}: view disagrees with explicit shared descriptor/major order",
-            )
-    return matrix_descriptor(ctx, operand, ldo, sdo, swizzle, (0, 0))
 
 
 def _scale_operand(ctx, region, name, rows, sf_per_mma, repeat_axes):
@@ -206,8 +174,8 @@ def lower(opcode, entry, modifiers, args, params, sctx):
             a_atom,
         )
     else:
-        aa = _shared_operand(ctx, a, a_atom, params.pop("a_descriptor"), am)
-    ba = _shared_operand(ctx, b, (N // cta_group, K), params.pop("b_descriptor"), bm)
+        aa = matrix_descriptor(ctx, a, a_atom, major=am)
+    ba = matrix_descriptor(ctx, b, (N // cta_group, K), major=bm)
     neg_a, neg_b = (
         bool(scalar(params.pop("neg_a", False))),
         bool(scalar(params.pop("neg_b", False))),

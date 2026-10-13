@@ -23,6 +23,13 @@ one implicit 16B/32B Ci slice. ``box`` and ``coords`` omit that implicit axis.
 The shared operand is (*group, *repeat, *box_image). ``coord_steps`` has one
 coordinate increment per group/repeat axis. Hardware fields are encoded
 verbatim. No rank promotion, folding, source selection, or prefetch is inserted.
+
+Parameters: box, coords (required); coord_steps=(), format=operand dtype,
+element_strides=(1,)*rank, swizzle=0, interleave=0, l2_promotion=0,
+oob_fill=0, pred=None. Loads require mbar, multicast requires cta_mask,
+cache-hint forms require cache_policy, gather4/scatter4 requires gather4.
+Coordinates and box use outer-to-inner order. See the instruction guide for
+opaque TensorMap and packed/interleaved representations.
 """
 
 from itertools import product

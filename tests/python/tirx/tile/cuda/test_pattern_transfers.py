@@ -279,13 +279,11 @@ def test_cp_async(ignore):
     ],
 )
 @pytest.mark.parametrize("swizzle", [0, 1, 2, 3])
-def test_tmem_copy(shape, multicast, swizzle, ldo_override=None):
+def test_tmem_copy(shape, multicast, swizzle):
     rows, bits = shape.split("x")
     rows, cols = int(rows), int(bits[:-1]) // 32
     row_words = 4 << swizzle
     ldo = 128 if swizzle == 0 and cols == 8 else 16
-    if ldo_override is not None:
-        ldo = ldo_override
     sdo = 256 if swizzle == 0 and cols == 8 else 8 * row_words * 4
     if swizzle == 0:
         sl = TileLayout(
@@ -349,9 +347,6 @@ def test_tmem_copy(shape, multicast, swizzle, ldo_override=None):
                 T.ptx[opcode],
                 mem,
                 shared,
-                ldo_bytes=ldo,
-                sdo_bytes=(0 if rows == 4 else sdo),
-                swizzle=swizzle,
             )
             T.ptx.tcgen05.commit.cta_group__1.mbarrier__arrive__one.shared__cluster.b64(
                 mbar.ptr_to([0])
@@ -579,8 +574,3 @@ def test_tma_rank_and_distinct_descriptors(rank):
     out = tvm.runtime.tensor(np.zeros(count, "uint32"), tvm.cuda())
     f(tvm.runtime.tensor(a, tvm.cuda()), tvm.runtime.tensor(b, tvm.cuda()), out)
     np.testing.assert_array_equal(out.numpy(), (a + b).reshape(-1))
-
-
-@pytest.mark.skipif(not env.has_cuda_compute(10), reason="Blackwell required")
-def test_swizzled_tmem_copy_ignores_ldo():
-    test_tmem_copy("128x256b", "", 3, ldo_override=32)

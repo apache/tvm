@@ -17,15 +17,18 @@
 
 """Mechanical matrix-descriptor encoding and its documented address walk.
 
-Descriptor fields are explicit byte strides, never recovered by reorganizing
-an operand layout. A pattern evaluates the caller's view and checks it against
-this address walk. PTX ISA 9.7.18.3.1 and 9.7.18.10.2.
+Canonical coordinates determine the descriptor's byte strides. Only the finite
+hardware swizzle modes are checked; no coordinate permutation or instruction
+selection is performed. PTX ISA 9.7.18.3.1 and 9.7.18.4.1.
 """
 
-from tvm.backend.cuda.cpp.descriptors import encode_smem_descriptor_base_uint64
-from tvm.script import tirx as T
+import tvm_ffi
 
-from .common import scalar
+from tvm.backend.cuda.cpp.descriptors import encode_smem_descriptor_base_uint64
+from tvm.ir import Var
+from tvm.script import tirx as T
+from tvm.tirx import IntImm
+from tvm.tirx.layout import ComposeLayout
 
 
 def swizzle_bytes(offset, swizzle):
@@ -35,8 +38,7 @@ def swizzle_bytes(offset, swizzle):
     return T.bitwise_xor(offset, T.bitwise_and(offset // 8, (2**swizzle - 1) * 16))
 
 
-def matrix_descriptor(ctx, smem, ldo, sdo, swizzle, atom_origin):
-    ldo, sdo, swizzle = int(scalar(ldo)), int(scalar(sdo)), int(scalar(swizzle))
+def _encode_matrix_descriptor(ctx, smem, ldo, sdo, swizzle, atom_origin):
     if swizzle not in range(5) or any(x < 0 or x % 16 or x >= 2**18 for x in (ldo, sdo)):
         raise ValueError("matrix descriptor requires swizzle 0..4 and 16-byte strides below 2^18")
     smem.aligned(atom_origin, 16)
@@ -63,20 +65,98 @@ def matrix_descriptor(ctx, smem, ldo, sdo, swizzle, atom_origin):
     return T.bitwise_or(descriptor, T.bitwise_and(address, T.uint64(0x3FFF)))
 
 
-def check_matrix_rows(ctx, smem, rows, words, ldo, sdo, swizzle):
-    """Check b32 rows in groups of eight; 256b rows comprise two 16B units."""
-    if swizzle not in range(4):
-        raise ValueError("tcgen05.cp row pattern requires swizzle 0..3")
-    base = smem.memory((0, 0)) * 4
-    if swizzle:
-        base = swizzle_bytes(base, swizzle)
-    for row in range(rows):
-        for word in range(words):
-            # Swizzled K-major words are contiguous; hardware ignores LDO.
-            column = word * 4 if swizzle else word // 4 * ldo + word % 4 * 4
-            offset = row // 8 * sdo + row % 8 * (16 << swizzle) + column
-            expected = swizzle_bytes(base + offset, swizzle) if swizzle else base + offset
-            ctx.require(
-                smem.memory((row, word)) * 4 == expected,
-                "shared view does not match the explicit matrix descriptor address walk",
-            )
+def _constant_stride(ctx, difference):
+    """Extract a candidate at one valid origin; the full walk is checked later."""
+    value = ctx.analyzer.simplify(difference)
+    if not isinstance(value, IntImm):
+        origins = {var: bounds.start for var, bounds in ctx.static_ranges.items()}
+        origins.update(dict.fromkeys([*ctx.group, *(ctx.repeat or ())], 0))
+        value = tvm_ffi.structural_map(
+            ctx.index_coordinates(value),
+            (Var, lambda var: IntImm(var.ty.dtype, origins[var]) if var in origins else var),
+            order="post",
+        )
+        value = ctx.analyzer.simplify(value)
+    if not isinstance(value, IntImm):
+        raise ValueError("descriptor strides must be compile-time constants")
+    bits = int(value)
+    if bits < 0 or bits % 128 or bits >= 8 * 2**18:
+        raise ValueError("descriptor strides must be 16-byte multiples below 2^18")
+    return bits // 8
+
+
+def _layout_swizzle(smem):
+    layout = smem.layout
+    if isinstance(layout, ComposeLayout) and layout.swizzle_inner:
+        atomic_bits = (1 << int(layout.per_element)) * smem.bits
+        if atomic_bits == 128 and int(layout.atom_len) == 3:
+            return int(layout.swizzle_len)
+        if atomic_bits == 256 and int(layout.atom_len) == 2 and int(layout.swizzle_len) == 2:
+            return 4
+    return 0
+
+
+def matrix_descriptor(ctx, smem, atom_shape, *, major="k", copy=False):
+    """Extract, validate and encode a shared matrix's canonical address walk.
+
+    cp coordinates are (row, b32_word); MMA coordinates are (MN, K).
+    The major order fixes which coordinate enumerates hardware rows. Row-group
+    and column-chunk boundaries determine the two strides. An unobserved LDO
+    is 16B, an unobserved SDO is zero. Every element, including its region
+    origin and group/repeat coordinates, must match the resulting descriptor.
+    """
+    modes = [4] if not copy and major == "mn" and smem.bits == 32 else list(range(4))
+    preferred = _layout_swizzle(smem)
+    if preferred in modes:
+        modes.remove(preferred)
+        modes.insert(0, preferred)
+    rows, columns = atom_shape if major == "k" else atom_shape[::-1]
+
+    def physical(row, column):
+        coord = (row, column) if major == "k" else (column, row)
+        return smem.memory(coord) * smem.bits
+
+    failures = []
+    for mode in modes:
+        row_bits = (128 if mode == 4 else 16 << mode) * 8
+        group_rows = 4 if mode == 4 else 8
+
+        def permute(bits):
+            return swizzle_bytes(bits // 8, mode) * 8 + bits % 8 if mode else bits
+
+        base = permute(physical(0, 0))
+        swapped = major == "mn" and mode == 0
+        ldo, sdo = 16, 0
+        try:
+            if rows > group_rows:
+                stride = _constant_stride(ctx, permute(physical(group_rows, 0)) - base)
+                if swapped:
+                    ldo = stride
+                else:
+                    sdo = stride
+            chunk = (row_bits + smem.bits - 1) // smem.bits
+            if chunk < columns and not (copy and mode):
+                stride = _constant_stride(
+                    ctx, permute(physical(0, chunk)) - base - (chunk * smem.bits % row_bits)
+                )
+                if swapped:
+                    sdo = stride
+                else:
+                    ldo = stride
+            row_stride, column_stride = (ldo, sdo) if swapped else (sdo, ldo)
+            for row in range(rows):
+                for column in range(columns):
+                    column_bits = column * smem.bits
+                    if not (copy and mode):
+                        column_bits = (
+                            column_bits // row_bits * column_stride * 8 + column_bits % row_bits
+                        )
+                    offset = row // group_rows * row_stride * 8 + row % group_rows * row_bits
+                    ctx.require(
+                        physical(row, column) == permute(base + offset + column_bits),
+                        f"{smem.name}: descriptor address walk at row={row}, column={column}",
+                    )
+            return _encode_matrix_descriptor(ctx, smem, ldo, sdo, mode, (0, 0))
+        except ValueError as error:
+            failures.append(f"swizzle {mode}: {error}")
+    raise ValueError(f"{smem.name}: no matching shared matrix descriptor; " + "; ".join(failures))

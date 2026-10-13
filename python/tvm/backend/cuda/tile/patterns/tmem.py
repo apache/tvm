@@ -23,6 +23,9 @@ fix the final two extents. Groups select warps; a repeat may select a second
 Pack/unpack adds a halfword axis on the TMEM side. Split loads/stores take
 separate regions for the two half-accesses and an explicit address immediate.
 See PTX ISA 9.7.18.8 and the register images in 9.7.18.2.3.1.
+
+Parameters: registers and TMEM regions in PTX destination/source order,
+scope; only split 16x32bx2 accepts and requires imm_half_splitoff. No pred.
 """
 
 from tvm_ffi import structural_equal
