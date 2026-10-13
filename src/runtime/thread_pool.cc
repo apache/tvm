@@ -43,13 +43,14 @@
 #include <thread>
 #include <vector>
 
-#include "../support/utils.h"
 const constexpr int kL1CacheBytes = 64;
 
 namespace tvm {
 namespace runtime {
 namespace {
-using support::IsNumber;
+bool IsNumber(const std::string& str) {
+  return !str.empty() && str.find_first_not_of("0123456789") == std::string::npos;
+}
 constexpr uint32_t kDefaultSpinCount = 300000;
 
 uint32_t GetSpinCount() {

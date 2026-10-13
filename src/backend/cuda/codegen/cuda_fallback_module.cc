@@ -31,11 +31,10 @@
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/function.h>
+#include <tvm/support/bytes_io.h>
 
 #include <string>
 #include <utility>
-
-#include "../../../support/bytes_io.h"
 
 namespace tvm {
 namespace target {

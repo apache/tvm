@@ -30,13 +30,12 @@
 #include <tvm/ffi/memory.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/logging.h>
+#include <tvm/support/bytes_io.h>
 #include <tvm/support/file_utils.h>
 #include <tvm/support/io.h>
 #include <tvm/support/serializer.h>
 
 #include <iostream>
-
-#include "../support/bytes_io.h"
 
 namespace tvm {
 namespace runtime {

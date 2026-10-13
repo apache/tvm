@@ -19,7 +19,8 @@
 
 #include "vulkan_stream.h"
 
-#include "../../../support/utils.h"
+#include <tvm/support/env.h>
+
 #include "vulkan_device.h"
 
 namespace tvm {
@@ -57,7 +58,7 @@ VulkanStream::VulkanStream(const VulkanDevice* device)
   cb_begin.pInheritanceInfo = nullptr;
   VULKAN_CALL(vkBeginCommandBuffer(state_->cmd_buffer_, &cb_begin));
 
-  if (support::BoolEnvironmentVar("TVM_USE_AMD_RGP")) {
+  if (support::GetEnv<bool>("TVM_USE_AMD_RGP", false)) {
     profiler_ = new AmdRgpProfiler(device_);
   }
 }
