@@ -71,11 +71,6 @@ inline size_t DefaultTextureLayoutSeparator(size_t shape_rank, runtime::MemorySc
   return separator;
 }
 
-inline size_t DefaultTextureLayoutSeparator(size_t shape_rank) {
-  static const auto texture = runtime::MemoryScope::Get("global.texture");
-  return ::tvm::texture::DefaultTextureLayoutSeparator(shape_rank, texture);
-}
-
 /*!
  * \param shape Nd shape
  * \param rank Number of dimensions N of the Nd shape

@@ -43,7 +43,6 @@ namespace s_tir {
 namespace backend {
 namespace adreno {
 using namespace tvm::tirx;
-using texture::ApplyTexture2DFlattening;
 using texture::DefaultTextureLayoutSeparator;
 using texture::IsTextureStorage;
 
