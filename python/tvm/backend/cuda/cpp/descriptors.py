@@ -23,7 +23,7 @@ asm, and nothing that maps to a PTX instruction.
 
 The tcgen05 MMA validation tables live here too: they decide the dtype
 *kind* and legal (M, N, K) shape that the instruction descriptor encodes,
-and ``tile/gemm_async/tcgen05.py`` reuses them when it folds the
+and ``tile/patterns/tcgen05_mma.py`` reuses them when it folds the
 same constraints into its dispatch.
 """
 
@@ -526,7 +526,7 @@ def _get_tcgen05_mma_scale_vec_size(kind, scale_dtype):
 
 # =============================================================================
 # tcgen05 address / descriptor patch helpers — used by the dispatch wrappers
-# in ``tile/gemm_async/tcgen05.py``. They are tcgen05-specific rather
+# in ``tile/patterns/tcgen05_mma.py``. They are tcgen05-specific rather
 # than generic address arithmetic:
 #   - get_tmem_addr packs a TMEM (taddr, row, col) tuple into the uint32 the
 #     PTX asm slots expect.

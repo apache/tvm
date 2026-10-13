@@ -73,5 +73,5 @@ names, tensor regions, nested tuple operands, and static qualifiers. Parsing
 reconstructs the fixed signature. Private Trainium workspace allocation
 rewrites Call argument slots before instruction lowering.
 
-See :doc:`../tile_primitives` for instruction contracts and caller-owned
+See :doc:`../tile_ops` for instruction contracts and caller-owned
 algorithms, and :doc:`../api/tile_dispatch` for registration.

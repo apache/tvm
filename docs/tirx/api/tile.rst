@@ -20,79 +20,27 @@ Tensor Instruction Authoring API
 
 Use ``T.cuda.tile`` or ``T.trn.tile`` after ``from tvm.script import tirx as T``.
 The signatures below list runtime operands first and static keyword qualifiers
-after ``*``. Tensor variables are expanded to full regions. An omitted unary
-source defaults to its destination. Named workspace arguments are optional.
+after ``*``. Tensor variables are expanded to full regions. Trainium unary sources
+may default to the destination; its named workspace arguments are optional.
 
-See :doc:`../tile_primitives` for memory, scope, descriptor, and synchronization
+See :doc:`../tile_ops` for memory, scope, descriptor, and synchronization
 contracts. These calls produce ordinary IR Calls; the raw scalar instruction
 namespaces remain ``T.ptx`` and ``T.nki``.
 
 CUDA
 ----
 
-.. py:function:: T.cuda.tile.ld(dst, src, *, scope='thread', vec_bits=0, cache=None, l1_evict=None, l2_evict=None, prefetch_size=None)
+.. py:function:: T.cuda.tile.apply(instruction, *operands, scope='thread', **parameters)
 
-.. py:function:: T.cuda.tile.st(dst, src, *, scope='thread', vec_bits=0, cache=None, l1_evict=None, l2_evict=None, prefetch_size=None)
+   Apply an exact ``T.ptx[opcode]`` to canonical ``group × repeat × atom``
+   tensor views. Keyword parameters are serialized Call arguments. See
+   :doc:`../cuda_tile_patterns` for each family's required fields.
 
-.. py:function:: T.cuda.tile.ldmatrix(dst, src, *, scope='thread')
+.. py:function:: T.cuda.tile.ewise(function, dst, *inputs, scope='thread')
 
-.. py:function:: T.cuda.tile.stmatrix(dst, src, *, scope='thread')
-
-.. py:function:: T.cuda.tile.mov(dst, src, *, scope='thread')
-
-.. py:function:: T.cuda.tile.cp_async(dst, src, predicate=-1, *, scope='thread', direct=False, fill_mode='', prefetch_size=-1)
-
-.. py:function:: T.cuda.tile.cp_async_bulk(dst, src, mbar, remote_cta_id, *, scope='thread')
-
-.. py:function:: T.cuda.tile.cp_async_bulk_tensor_load(dst, src, mbar, cta_mask=0, mbarrier_addr=False, gather4=None, src_selector=None, cache_policy=None, *, scope='thread', descriptor_mode='auto', cta_group=1, cache_hint='', tma_dtype=None, oob=None, prefetch_tensormap=False, tensormap_l2_promotion=None, reduce_op=None)
-
-.. py:function:: T.cuda.tile.cp_async_bulk_tensor_store(dst, src, cache_policy=None, *, scope='thread', descriptor_mode='auto', cta_group=1, cache_hint='', tma_dtype=None, oob=None, prefetch_tensormap=False, tensormap_l2_promotion=None, reduce_op=None)
-
-.. py:function:: T.cuda.tile.cp_reduce_async_bulk_tensor(dst, src, cache_policy=None, *, scope='thread', descriptor_mode='auto', cta_group=1, cache_hint='', tma_dtype=None, oob=None, prefetch_tensormap=False, tensormap_l2_promotion=None, reduce_op=None)
-
-.. py:function:: T.cuda.tile.tcgen05.cp(dst, src, *, scope='thread', shape=None, multicast=None, cta_group=1, decompress=None)
-
-.. py:function:: T.cuda.tile.tcgen05.ld(dst, src, *, scope='thread')
-
-.. py:function:: T.cuda.tile.tcgen05.st(dst, src, *, scope='thread')
-
-.. py:function:: T.cuda.tile.mma_sync(D, A, B, C, transpose_A=False, transpose_B=False, alpha=1.0, beta=0.0, *, scope='thread')
-
-.. py:function:: T.cuda.tile.tcgen05.mma(C, A, B, transA=False, transB=False, accum=False, descI=None, *, scope='thread', cta_group=1, mma_m=None, mma_n=None, smem_desc='hoist', is_AB_tf32=False, weight_stationary=None)
-
-.. py:function:: T.cuda.tile.tcgen05.mma_block_scale(C, A, B, SFA, SFB, transA=False, transB=False, accum=False, descI=None, *, scope='thread', cta_group=1, mma_m=None, mma_n=None, smem_desc='hoist', is_AB_tf32=False, weight_stationary=None)
-
-.. py:function:: T.cuda.tile.add(dst, lhs, rhs, *, scope='thread', rounding_mode=None)
-
-.. py:function:: T.cuda.tile.sub(dst, lhs, rhs, *, scope='thread', rounding_mode=None)
-
-.. py:function:: T.cuda.tile.mul(dst, lhs, rhs, *, scope='thread', rounding_mode=None)
-
-.. py:function:: T.cuda.tile.div(dst, lhs, rhs, *, scope='thread', rounding_mode=None)
-
-.. py:function:: T.cuda.tile.max(dst, lhs, rhs, *, scope='thread', rounding_mode=None)
-
-.. py:function:: T.cuda.tile.cvt(dst, src=None, *, scope='thread')
-
-.. py:function:: T.cuda.tile.sqrt(dst, src=None, *, scope='thread')
-
-.. py:function:: T.cuda.tile.ex2(dst, src=None, *, scope='thread')
-
-.. py:function:: T.cuda.tile.lg2(dst, src=None, *, scope='thread')
-
-.. py:function:: T.cuda.tile.compose.exp(dst, src=None, *, scope='thread')
-
-.. py:function:: T.cuda.tile.compose.silu(dst, src=None, *, scope='thread')
-
-.. py:function:: T.cuda.tile.fma(dst, src, scale, bias, *, scope='thread')
-
-.. py:function:: T.cuda.tile.compose.exp_with_scale_bias(dst, src, scale, bias, *, scope='thread')
-
-.. py:function:: T.cuda.tile.compose.exp2_with_scale_bias(dst, src, scale, bias, *, scope='thread')
-
-.. py:function:: T.cuda.tile.compose.log2_with_scale_bias(dst, src, scale, bias, *, scope='thread')
-
-.. py:function:: T.cuda.tile.compose.sqrt_with_scale_bias(dst, src, scale, bias, *, scope='thread')
+   Inline a typed scalar TIRx function at every register coordinate. Tensor
+   inputs have the destination shape; scalar inputs broadcast. There is no
+   implicit memory staging or packed arithmetic selection.
 
 TRN
 ---

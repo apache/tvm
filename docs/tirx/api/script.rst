@@ -24,7 +24,7 @@ TIRx kernels use ``tvm.script.tirx`` for the parser and core IR builders::
 
    Tx.alloc_tensor(...)
 
-Tile primitives and backend-specific namespaces are documented separately in
+Tile ops and backend-specific namespaces are documented separately in
 :doc:`tile`, :doc:`cuda`, and :doc:`ptx`.  For the relationship between these
 authoring layers and TIRx IR, see :ref:`tirx-programming-model`.
 
@@ -62,9 +62,41 @@ thread-placement and tensor alias policies remain in the TIRx/S-TIR builders.
    Allocate a local register fragment whose layout matches a
    ``tcgen05.{ld,st}`` atom. ``instr_shape`` accepts ``"32x32b"``,
    ``"16x64b"``, ``"16x128b"``, or ``"16x256b"``. For example, a
-   two-CTA Layout-B accumulator and its readback fragment can be allocated as::
+   two-CTA Layout-B accumulator uses this layout, defined outside the kernel::
 
-      C = tmem_pool.alloc_tcgen05_mma_D(
-          (64, 128), "float32", M=128, cta_group=2)
+      from tvm.backend.cuda.layout import tmem_mma_operand_layout
+
+      layout_b = tmem_mma_operand_layout(
+          "D", (64, 128), "float32", M=128, cta_group=2)
+
+   Inside the kernel, declare the accumulator over its allocated TMEM address,
+   allocate the register fragment, and prepare matching instruction views::
+
+      C = Tx.cuda.decl_tmem(tmem_address, ty_args=[
+          Tx.Tensor((64, 128), "float32", scope="tmem", layout=layout_b)
+      ])
       frag = Tx.alloc_tcgen05_ldst_frag("32x32b", (64, 128), "float32")
-      Tx.cuda.tile.tcgen05.ld(frag[:, :], C[:, :], scope="warpgroup")
+      C_words = C.rearrange("(wh r) (wl c) -> (wl wh) r c",
+                            wh=2, r=32, wl=2)
+      frag_words = frag.rearrange("(wh r) (wl c) -> (wl wh) r c",
+                                  wh=2, r=32, wl=2)
+      Tx.cuda.tile.apply(
+          Tx.ptx["tcgen05.ld.sync.aligned.32x32b.x64.b32"],
+          frag_words, C_words, scope="warpgroup")
+      Tx.ptx.tcgen05.wait__ld.sync.aligned()
+
+   ``tmem_address`` must name a live allocation with at least 64 columns.
+   The readback requires a full active warpgroup.
+   Complete the producing MMA's commit/mbarrier wait and
+   the required ``tcgen05.fence::after_thread_sync`` before the load.
+
+   Layout B stores logical ``C[i,j]`` in TMEM lane
+   ``i + 64*(j//64)`` and column ``j%64``. The views above both have shape
+   ``(4,32,64)``: ``warp=2*wl+wh`` chooses the physical 32-lane slab,
+   ``r`` selects its row, and ``c`` selects its 64 columns. Each warp issues
+   one ``.32x32b.x64`` instruction and each lane receives 64 registers.
+   No temporary copy is needed. ``wait::ld`` makes the loaded registers
+   available to subsequent instructions; it does not wait for an earlier MMA.
+
+   See :doc:`../tile_ops/tcgen05_ld_st` for other native shapes,
+   pack/unpack, and a complete store/load example.

@@ -390,7 +390,7 @@ tensor as a view at a column offset, and one warp frees it at the end:
 You add any column offsets to ``addr[0]`` and manage the ``tmem_layout`` (the
 matching datapath A–G layout) yourself.
 
-See the :doc:`../../tile_primitives` walkthroughs for full examples.
+See the :doc:`../../tile_ops` walkthroughs for full examples.
 
 Tensor variable APIs
 --------------------
@@ -482,7 +482,7 @@ sees the 256-element tensor as ``64×4``; ``A.permute(1, 0)`` transposes the axe
     At_ptr[(j * 4) + i]                       // permute: swapped strides
 
 **Per-thread view — ``local``.** Decomposes a thread-axis ``local`` layout into the
-calling thread's storage bundle (used pervasively by the tile primitives).
+calling thread's storage bundle (used pervasively by the tile ops).
 Both forms expose the raw physical storage span by default, including layout
 gaps and offsets: ``R.local()`` infers a flat 1-D span, while
 ``R.local(d0, d1, ...)`` is a row-major reshape whose product must equal that

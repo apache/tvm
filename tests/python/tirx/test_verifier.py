@@ -158,12 +158,12 @@ def test_device_func():
     @T.function(check_well_formed=False)
     def test1(A: T.Tensor((128,), "float32")):
         T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(128,)))
-        T.cuda.tile.mov(A, 0., scope='cta')
+        T.cuda.tile.apply(T.ptx['mov.b32'], A, 0., scope='cta')
 
     @T.function(check_well_formed=False)
     def test2(A: T.Tensor((128,), "float32")):
         T.device_entry(launch=T.cuda.LaunchConfig(grid=(128,), block=(128,)))
-        T.cuda.tile.mov(A, 0.)
+        T.cuda.tile.apply(T.ptx['mov.b32'], A, 0.)
     # fmt: on
     verify(test1)
     verify(test2)

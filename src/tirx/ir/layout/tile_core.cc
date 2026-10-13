@@ -379,22 +379,22 @@ ffi::Optional<ffi::Tuple<ExecScope, ExecScope>> TileLayoutNode::GetScope() const
   auto check_axis = [&](const Axis& axis) {
     if (!axis->IsThreadAxis()) return;
 
-    auto subtile_primitivet = axis->GetSubscope();
-    auto tile_primitivet = axis->GetScope();
-    TVM_FFI_ICHECK(subtile_primitivet.has_value() && tile_primitivet.has_value())
+    auto subscope_opt = axis->GetSubscope();
+    auto scope_opt = axis->GetScope();
+    TVM_FFI_ICHECK(subscope_opt.has_value() && scope_opt.has_value())
         << "Thread axis " << axis.name() << " has no subscope or scope";
 
     if (backend.has_value()) {
-      TVM_FFI_CHECK(backend.value() == subtile_primitivet.value()->backend, ValueError)
+      TVM_FFI_CHECK(backend.value() == subscope_opt.value()->backend, ValueError)
           << "Layout contains thread axes from different backends";
     } else {
-      backend = subtile_primitivet.value()->backend;
+      backend = subscope_opt.value()->backend;
     }
-    ffi::String subscope = subtile_primitivet.value()->name();
-    ffi::String scope = tile_primitivet.value()->name();
+    ffi::String subscope = subscope_opt.value()->name();
+    ffi::String scope = scope_opt.value()->name();
 
     if (!inner_most.has_value() ||
-        ScopeHigher(ExecScope(backend.value(), inner_most.value()), subtile_primitivet.value()))
+        ScopeHigher(ExecScope(backend.value(), inner_most.value()), subscope_opt.value()))
       inner_most = subscope;
 
     auto it = scope_map.find(subscope);

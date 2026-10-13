@@ -26,8 +26,10 @@ Trainium's ``tile/instructions.py`` files contain the concrete contracts.
 Registration installs the fixed argument count, void return type, opaque
 side effects, ``FTileOpDispatch``, printer name, and native Call validator on the Op.
 The validator also runs for directly constructed Calls and printer entry.
-Runtime expressions must be operands. New static qualifiers require a typed
-attribute field rather than an arbitrary dictionary.
+Runtime expressions must be operands. CUDA encodes the opcode and named
+instruction/descriptor parameters as normal Call arguments; only execution
+scope uses a reflected attribute. See :doc:`../cuda_tile_patterns` for the
+CUDA pattern extension workflow.
 
 Lowerers receive a semantic view and ``DispatchContext`` and return a
 ``tvm.tirx.Function`` body. They can prepare pointers/descriptors and expand

@@ -165,16 +165,17 @@ def view(buf: Var, *args, **kwargs) -> Var:
     if len(args) == 1 and isinstance(args[0], str | tvm.DataType) and not kwargs:
         cast_dtype = tvm.DataType(args[0])
         cur_dtype = tvm.DataType(buf.dtype)
+        storage_axis = "TCol" if _is_tmem_scope(buf.scope()) else "m"
         if cast_dtype.bits > cur_dtype.bits:
             assert cast_dtype.bits % cur_dtype.bits == 0
             ratio = cast_dtype.bits // cur_dtype.bits
-            layout = None if buf.layout is None else buf.layout.pack(ratio)
+            layout = None if buf.layout is None else buf.layout.pack(ratio, storage_axis)
             shape = [s for s in buf.shape[:-1]] + [buf.shape[-1] // ratio]
             new_elem_offset = buf.elem_offset // ratio
         else:
             assert cur_dtype.bits % cast_dtype.bits == 0
             ratio = cur_dtype.bits // cast_dtype.bits
-            layout = None if buf.layout is None else buf.layout.unpack(ratio)
+            layout = None if buf.layout is None else buf.layout.unpack(ratio, storage_axis)
             shape = [s for s in buf.shape[:-1]] + [buf.shape[-1] * ratio]
             new_elem_offset = buf.elem_offset * ratio
         strides = None
@@ -211,7 +212,9 @@ def view(buf: Var, *args, **kwargs) -> Var:
     )
     if layout is None:
         shape = _infer_shape(shape)
-    strides = _reshape_strides(buf, shape) if buf.layout is None and layout is None else None
+    strides = (
+        [] if layout is not None else _reshape_strides(buf, shape) if buf.layout is None else None
+    )
     return _redecl(buf, shape, buf.layout if layout is None else layout, strides=strides)
 
 
@@ -277,8 +280,9 @@ def rearrange(buf: Var, pattern: str, /, **sizes) -> Var:
             f"{len(buf.shape)} dims (pattern {pattern!r}, shape {list(buf.shape)})"
         )
     axis_size: dict = {}
+    analyzer = tvm.sym.Analyzer()
     for group, dim in zip(lhs_groups, buf.shape):
-        dim_c = int(dim)
+        dim_c = int(analyzer.simplify(dim))
         known = {axis: int(sizes[axis]) for axis in group if axis in sizes}
         unknown = [axis for axis in group if axis not in sizes]
         product = 1
@@ -387,6 +391,10 @@ def _surgery_parts(buf: Var):
             layout.swizzle_inner,
         )
         layout = layout.tile_layout
+        # A bare swizzle describes its period, rather than the tensor extent.
+        # Match ComposeLayout::Slice/Tile before manipulating logical axes.
+        if layout.is_trivial():
+            layout = tvm.tirx.layout.TileLayout(tvm.tirx.layout.S[tuple(buf.shape)])
     return layout, swizzle
 
 
@@ -544,8 +552,12 @@ def _view_drop(buf: Var, dim, index):
 def _view_narrow(buf: Var, dim, start, length):
     """Narrow one logical dimension while preserving its storage offset."""
     dim = _normalized_dim(buf, dim, "index")
+    analyzer = tvm.sym.Analyzer()
+    start, length = analyzer.simplify(start), analyzer.simplify(length)
     start_c = _concrete_int(start)
     length_c = _concrete_int(length)
+    start = start if start_c is None else start_c
+    length = length if length_c is None else length_c
     extent_c = _concrete_int(buf.shape[dim])
     if start_c is not None and start_c < 0:
         raise ValueError(f"sub: start {start_c} must be non-negative")
@@ -587,12 +599,10 @@ def _view_narrow(buf: Var, dim, start, length):
                     "sub: dim with multiple layout iters requires concrete iter extents"
                 )
             inner *= int(extent)
-        if not (isinstance(start, Integral) and isinstance(length, Integral)):
-            raise ValueError(
-                f"sub: dim {dim} is made of {len(group)} layout iters; "
-                f"start/length must be concrete multiples of {inner}"
-            )
-        if start % inner != 0 or length % inner != 0:
+        if not (
+            analyzer.can_prove_equal(start % inner, 0)
+            and analyzer.can_prove_equal(length % inner, 0)
+        ):
             raise ValueError(
                 f"sub: dim {dim} start/length must be multiples of the "
                 f"inner iter block {inner}; got start={start} length={length}"

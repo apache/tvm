@@ -666,7 +666,7 @@ def _coerce_pred(entry, pred):
     raise ValueError(f"{entry.name}: pred must be a bool/uint32/int32 expression")
 
 
-def _emit(entry, filled, operands, pred=None, preserve_dst=False):
+def _resolve_modifiers(entry, filled):
     # Modifiers resolve before the operands are looked at: the attribute chain
     # is parsed before the call happens, and a register group's length may be a
     # function of the modifiers, so the expected arity needs the modifier map.
@@ -680,6 +680,49 @@ def _emit(entry, filled, operands, pred=None, preserve_dst=False):
         error = entry.check(mod_map)
         if error:
             raise ValueError(f"{entry.name}: {error}")
+    return mod_map
+
+
+def instruction_forms(instruction):
+    """Return table entries and resolved modifiers for a fully spelled opcode.
+
+    Operand overloads remain separate entries. Consumers select an operand form,
+    never inspect frontend candidate chains or infer missing opcode qualifiers.
+    """
+    if isinstance(instruction, str):
+        instruction = PTXNamespace()[instruction]
+    if not isinstance(instruction, _InstrChain):
+        raise TypeError("Expected a T.ptx instruction or PTX instruction string")
+    forms, errors = [], []
+    for entry, filled in instruction._cands:
+        try:
+            modifiers = _resolve_modifiers(entry, filled)
+        except ValueError as error:
+            errors.append(str(error))
+        else:
+            forms.append((entry, modifiers))
+    names = {
+        ".".join([entry.ptx_name, *(v for v in modifiers.values() if v)])
+        for entry, modifiers in forms
+    }
+    if len(names) != 1:
+        raise ValueError("PTX instruction is not fully specified: " + "; ".join(errors))
+    return tuple(forms)
+
+
+def instruction_name(instruction):
+    """Return validated PTX text in table slot order, without binding operands.
+
+    Accept a ``T.ptx`` chain or its string spelling. Operand overloads remain
+    unresolved: this identifies the opcode and modifiers, not an operand form.
+    Tile patterns can use it without inspecting the frontend's candidates.
+    """
+    entry, modifiers = instruction_forms(instruction)[0]
+    return ".".join([entry.ptx_name, *(v for v in modifiers.values() if v)])
+
+
+def _emit(entry, filled, operands, pred=None, preserve_dst=False):
+    mod_map = _resolve_modifiers(entry, filled)
     layout = operand_layout(entry, mod_map)
     n_args = sum(n for _, _, n in layout)
     if len(operands) != n_args:

@@ -1,0 +1,331 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+"""Tests for the DSMEM (shared::cta → shared::cluster) copy_async variant.
+
+Split out from ``test_copy_async.py`` so the TMA-focused file stays focused
+on the g2s/s2g TMA family. Any cross-cutting copy_async helper that both
+files need should live in a shared module, not be duplicated.
+"""
+
+import functools
+import math
+
+import numpy as np
+import pytest
+import tvm_ffi
+
+import tvm
+import tvm.testing
+from tvm.backend.cuda.lang import SMEMPool
+from tvm.ir import TensorRegion, TensorRegionType
+from tvm.script import tirx as T
+from tvm.testing import env
+from tvm.tirx import IntImm, Var
+from tvm.tirx.exec_scope import ExecScope
+from tvm.tirx.layout import S, TileLayout
+from tvm.tirx.tile.dispatch import DispatchContext, run_dispatch
+
+BULK = "cp.async.bulk.shared::cluster.shared::cta.mbarrier::complete_tx::bytes"
+
+
+def _make_dsmem_dispatch_call(shape, dtype, src_layout, dst_layout, chunks=1):
+    # Each test explicitly chooses its number of bulk chunks. Keep both
+    # original physical maps; flattening only changes the logical shape.
+    canonical = (math.prod(shape),) if chunks == 1 else shape
+    chunk_bytes = math.prod(shape) * tvm.DataType(dtype).bits // 8 // chunks
+    src = tvm.tirx.decl_tensor(canonical, dtype, "A", scope="shared.dyn", layout=src_layout)
+    dst = tvm.tirx.decl_tensor(canonical, dtype, "B", scope="shared.dyn", layout=dst_layout)
+    op_call = T.cuda.tile.apply(
+        T.ptx[BULK], dst, src, chunk_bytes=chunk_bytes, mbar=Var("mbar", "handle"), remote_cta_id=1
+    )
+    target = tvm.target.Target({"kind": "cuda", "arch": "sm_90a"})
+    sctx = DispatchContext(target, ExecScope("cuda", "thread"), {}, {})
+    return run_dispatch(op_call, sctx)
+
+
+def _count_s2c_ops(impl):
+    """Count cp.async.bulk.shared_to_cluster calls including loop iterations."""
+    loop_extents = []
+    total = 0
+
+    def visit_for(op, visitor):
+        loop_extents.append(op.extent)
+        visitor.default_visit(op)
+        loop_extents.pop()
+
+    def visit_evaluate(op, visitor):
+        nonlocal total
+        if isinstance(op.value, tvm.ir.Call):
+            if op.value.op.name == "tirx.ptx.cp_async_bulk_s2c":
+                n = 1
+                for e in loop_extents:
+                    n *= e
+                total += n
+        visitor.default_visit(op)
+
+    tvm_ffi.structural_visit(
+        impl.body,
+        [(tvm.ir.For, visit_for), (tvm.ir.Evaluate, visit_evaluate)],
+    )
+    return total
+
+
+# ---------------------------------------------------------------------------
+# Parametrized DSMEM test: dispatch assertion + GPU correctness
+# ---------------------------------------------------------------------------
+
+# (shape, dtype, src_spec, dst_spec, expected_s2c_ops | "fail")
+# Dispatch assertion uses src_spec/dst_spec as given.
+# GPU correctness (all non-fail cases) uses src_spec as the layout for both CTAs.
+DSMEM_CONFIGS = [
+    pytest.param((128, 64), "float16", S[128, 64], S[128, 64], 1, id="contiguous-2d"),
+    pytest.param((256,), "float16", S[256], S[256], 1, id="contiguous-1d"),
+    # Stride gap: inner 128 contiguous, outer stride=256 (gap) → 8 bulk copies
+    pytest.param(
+        (8, 128), "float16", S[(8, 128) : (256, 1)], S[(8, 128) : (256, 1)], 8, id="stride-gap"
+    ),
+    # Different outer strides → 8 bulk copies in dispatch
+    pytest.param(
+        (8, 128),
+        "float16",
+        S[(8, 128) : (256, 1)],
+        S[(8, 128) : (512, 1)],
+        8,
+        id="partial-contiguity-diff-stride",
+    ),
+    # Incompatible: row-major vs column-major does not admit a contiguous bulk chunk
+    pytest.param(
+        (4, 64), "float16", S[4, 64], S[(4, 64) : (1, 4)], "fail", id="incompatible-row-vs-col"
+    ),
+]
+
+
+def _layout_physical_elements(layout):
+    """Compute number of physical elements needed for a TileLayout."""
+    max_offset = 0
+    for shard in layout.shard:
+        if shard.axis.is_memory():
+            max_offset += int(shard.stride) * (int(shard.extent) - 1)
+    return max_offset + 1
+
+
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(9), reason="need cuda compute >= 9.0")
+@pytest.mark.parametrize("shape,dtype,src_spec,dst_spec,expected", DSMEM_CONFIGS)
+def test_dsmem(shape, dtype, src_spec, dst_spec, expected):
+    """Dispatch assertion + GPU correctness for DSMEM copy.
+
+    Always checks the exact bulk instruction count or a physical-contiguity error.
+    Valid cases also run a two-CTA cluster kernel with the original source
+    and destination layouts and compare the copied payload on the host.
+    """
+    from tvm.backend.cuda.lang.pipeline import MBarrier
+
+    src_layout = TileLayout(src_spec)
+    dst_layout = TileLayout(dst_spec)
+
+    # --- Dispatch assertion ---
+    if expected == "fail":
+        with pytest.raises(RuntimeError, match="consecutive elements"):
+            _make_dsmem_dispatch_call(shape, dtype, src_layout, dst_layout)
+        return
+
+    impl = _make_dsmem_dispatch_call(shape, dtype, src_layout, dst_layout, expected)
+    assert _count_s2c_ops(impl) == expected
+
+    # --- GPU correctness ---
+    # Allocate two separate smem tensors: src_smem (src_layout) and dst_smem
+    # (dst_layout). CTA 0 loads global→src_smem, copy_async copies src_smem→
+    # dst_smem on CTA 1. CTA 1 reads dst_smem and writes to global output.
+
+    CLUSTER_N = 2
+    n_elements = functools.reduce(lambda a, b: a * b, shape, 1)
+    copy_bytes = n_elements * tvm.DataType(dtype).bits // 8
+    canonical = (n_elements,) if expected == 1 else shape
+    src_phys = _layout_physical_elements(src_layout)
+    dst_phys = _layout_physical_elements(dst_layout)
+    r = tuple(slice(0, s) for s in shape)
+
+    @T.function
+    def dsmem_copy(A: T.Tensor(shape, dtype), B: T.Tensor(shape, dtype)) -> None:
+        T.device_entry(
+            launch=T.cuda.LaunchConfig(grid=(CLUSTER_N,), block=(1,), cluster=(CLUSTER_N,))
+        )
+        cbx = T.cuda.cluster_cta_id("x")
+        tid = T.cuda.thread_idx("x")
+        pool = SMEMPool()
+        # src_smem: CTA 0 writes here, dispatch reads from here
+        src_raw = pool.alloc([src_phys], dtype, align=128)
+        src_smem = T.decl_tensor(
+            src_raw.data,
+            ty_args=[
+                T.Tensor(list(shape), dtype, elem_offset=0, scope="shared.dyn", layout=src_layout)
+            ],
+        )
+        # dst_smem: dispatch writes here (on remote CTA), CTA 1 reads
+        dst_raw = pool.alloc([dst_phys], dtype, align=128)
+        dst_smem = T.decl_tensor(
+            dst_raw.data,
+            ty_args=[
+                T.Tensor(list(shape), dtype, elem_offset=0, scope="shared.dyn", layout=dst_layout)
+            ],
+        )
+        mbar = MBarrier(pool, 1)
+        pool.commit()
+
+        mbar.init(1)
+        T.ptx.fence.mbarrier_init.release.cluster()
+        T.cuda.cluster_sync()
+
+        if tid == 0:
+            if cbx == 0:
+                copy_src_1 = T.meta_var(A[r])
+                copy_src_tensor_1 = T.meta_var(copy_src_1.source)
+                copy_dst_1 = T.meta_var(src_smem[r])
+                copy_dst_tensor_1 = T.meta_var(copy_dst_1.source)
+                for copy_step_1 in T.serial(
+                    T.ceildiv(math.prod([int(r.extent) for r in copy_src_1.region]), 1)
+                ):
+                    copy_index_1 = copy_step_1 * (1) + (0)
+                    if copy_index_1 < math.prod([int(r.extent) for r in copy_src_1.region]):
+                        copy_value_1 = copy_src_tensor_1[
+                            tuple(
+                                [
+                                    copy_src_1.region[k].min
+                                    + copy_index_1
+                                    // math.prod(
+                                        [int(s.extent) for s in copy_src_1.region[k + 1 :]]
+                                    )
+                                    % copy_src_1.region[k].extent
+                                    for k in range(len(copy_src_1.region))
+                                ]
+                            )
+                        ]
+                        copy_dst_index_1 = T.meta_var(
+                            tuple(
+                                [
+                                    copy_dst_1.region[k].min
+                                    + copy_index_1
+                                    // math.prod(
+                                        [int(s.extent) for s in copy_dst_1.region[k + 1 :]]
+                                    )
+                                    % copy_dst_1.region[k].extent
+                                    for k in range(len(copy_dst_1.region))
+                                ]
+                            )
+                        )
+                        copy_dst_tensor_1[copy_dst_index_1] = copy_value_1
+                T.ptx.fence.proxy.async_.shared__cta()
+
+                T.cuda.tile.apply(
+                    T.ptx[BULK],
+                    dst_smem.view(*canonical),
+                    src_smem.view(*canonical),
+                    chunk_bytes=copy_bytes // expected,
+                    mbar=mbar.ptr_to([0]),
+                    remote_cta_id=T.int32(1),
+                )
+            else:
+                T.ptx.mbarrier.arrive.expect_tx.shared.b64(mbar.ptr_to([0]), T.uint32(copy_bytes))
+                mbar.wait(0, 0)
+
+                copy_src_2 = T.meta_var(dst_smem[r])
+
+                copy_src_tensor_2 = T.meta_var(copy_src_2.source)
+                copy_dst_2 = T.meta_var(B[r])
+                copy_dst_tensor_2 = T.meta_var(copy_dst_2.source)
+                for copy_step_2 in T.serial(
+                    T.ceildiv(math.prod([int(r.extent) for r in copy_src_2.region]), 1)
+                ):
+                    copy_index_2 = copy_step_2 * (1) + (0)
+                    if copy_index_2 < math.prod([int(r.extent) for r in copy_src_2.region]):
+                        copy_value_2 = copy_src_tensor_2[
+                            tuple(
+                                [
+                                    copy_src_2.region[k].min
+                                    + copy_index_2
+                                    // math.prod(
+                                        [int(s.extent) for s in copy_src_2.region[k + 1 :]]
+                                    )
+                                    % copy_src_2.region[k].extent
+                                    for k in range(len(copy_src_2.region))
+                                ]
+                            )
+                        ]
+                        copy_dst_index_2 = T.meta_var(
+                            tuple(
+                                [
+                                    copy_dst_2.region[k].min
+                                    + copy_index_2
+                                    // math.prod(
+                                        [int(s.extent) for s in copy_dst_2.region[k + 1 :]]
+                                    )
+                                    % copy_dst_2.region[k].extent
+                                    for k in range(len(copy_dst_2.region))
+                                ]
+                            )
+                        )
+                        copy_dst_tensor_2[copy_dst_index_2] = copy_value_2
+
+    np_dtype = tvm.testing.np_dtype_from_str(dtype)
+    target = tvm.target.Target("cuda")
+    with target:
+        mod = tvm.IRModule({"main": dsmem_copy})
+        mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
+
+        cuda_src = mod.mod.imports[0].inspect_source()
+        assert "cp.async.bulk.shared::cluster.shared::cta" in cuda_src
+
+        np.random.seed(0)
+        A_np = tvm.testing.generate_random_array(dtype, shape)
+        B_np = np.zeros(shape, dtype=np_dtype)
+
+    def run_and_check():
+        dev = tvm.cuda(0)
+        A_tvm = tvm.runtime.tensor(A_np, dev)
+        B_tvm = tvm.runtime.tensor(B_np, dev)
+        mod(A_tvm, B_tvm)
+        np.testing.assert_allclose(A_np, B_tvm.numpy())
+
+    tvm.testing.run_with_gpu_lock(run_and_check)
+
+
+def test_dsmem_dispatch_missing_config():
+    """Dispatch fails when required config keys are missing."""
+    from tvm.ir import Range
+
+    layout = TileLayout(S[64])
+    buf = tvm.tirx.decl_tensor((64,), "float16", "A", scope="shared.dyn", layout=layout)
+    br = TensorRegion(buf, [Range.from_min_extent(0, 64)], ty=TensorRegionType())
+    target = tvm.target.Target({"kind": "cuda", "arch": "sm_90a"})
+    sctx = DispatchContext(target, ExecScope("cuda", "thread"), {}, {})
+
+    with pytest.raises(RuntimeError, match="remote_cta_id"):
+        run_dispatch(
+            T.cuda.tile.apply(T.ptx[BULK], br, br, chunk_bytes=128, mbar=Var("m", "handle")), sctx
+        )
+    with pytest.raises(RuntimeError, match="mbar"):
+        run_dispatch(
+            T.cuda.tile.apply(
+                T.ptx[BULK], br, br, chunk_bytes=128, remote_cta_id=IntImm("int32", 1)
+            ),
+            sctx,
+        )
+
+
+if __name__ == "__main__":
+    tvm.testing.main()

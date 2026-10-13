@@ -148,23 +148,6 @@ class Instruction:
         attrs_values = {name: _static(value) for name, value in kw.items()}
         if isinstance(attrs_values.get("axes"), int):
             attrs_values["axes"] = [attrs_values["axes"]]
-        if self.schema == "TcMmaAttrs":
-            for name in ("mma_m", "mma_n"):
-                value = attrs_values.get(name)
-                if value is not None and (type(value) is not int or value <= 0):
-                    raise ValueError(f"{name} must be a positive integer")
-        if self.schema == "TMAAttrs":
-            if isinstance(attrs_values.get("oob"), str):
-                oob = attrs_values["oob"]
-                if oob not in {"zero", "nan"}:
-                    raise ValueError(f"unsupported TensorMap oob={oob!r}")
-                attrs_values["oob"] = {"zero": 0, "nan": 1}[oob]
-            if isinstance(attrs_values.get("tensormap_l2_promotion"), str):
-                promotion = attrs_values["tensormap_l2_promotion"]
-                choices = {"none": 0, "L2::none": 0, "L2::64B": 1, "L2::128B": 2, "L2::256B": 3}
-                if promotion not in choices:
-                    raise ValueError(f"invalid TensorMap L2 promotion {promotion!r}")
-                attrs_values["tensormap_l2_promotion"] = choices[promotion]
         for name, default in allowed.items():
             attrs_values.setdefault(name, default)
         if explicit_attrs is not None:
@@ -206,29 +189,8 @@ class Instruction:
 
                 if not is_prim_expr(value):
                     raise TypeError(f"{arg.name} must be a scalar expression")
-            elif arg.role == "coordinates":
-                if not isinstance(value, Tuple) or len(value.fields) != 4:
-                    raise ValueError("gather4 must contain exactly four row coordinates")
-            elif arg.role == "selectors":
-                if not isinstance(value, Tuple):
-                    raise TypeError("src_selector must contain (condition, region) pairs")
-                for pair in value.fields:
-                    if not isinstance(pair, Tuple) or len(pair.fields) != 2:
-                        raise TypeError("src_selector must contain (condition, region) pairs")
-                    candidate = _region(pair.fields[1])
-                    from tvm.sym.analyzer import Analyzer
 
-                    analyzer = Analyzer()
-                    if not all(
-                        analyzer.can_prove_equal(r.min, 0)
-                        and analyzer.can_prove_equal(r.extent, dim)
-                        for r, dim in zip(candidate.region, candidate.source.ty.shape)
-                    ):
-                        raise ValueError(
-                            "src_selector candidates must cover their full tensor view"
-                        )
-
-        # Validate nested regions too, including selector candidates.
+        # Validate tensor regions nested inside argument tuples.
         def check_region(region):
             _region(region)
 
@@ -284,10 +246,6 @@ def _operand(value, role="expr"):
         if isinstance(value, TensorLoad):
             value = tvm_ffi.get_global_func("tirx.AsTensorRegion")(value)
         return _region(value)
-    if role == "selectors":
-        return Tuple(
-            [Tuple([_expr(cond), _operand(candidate, "region")]) for cond, candidate in value]
-        )
     if role == "tensor":
         return value
     if is_tensor_var(value):
@@ -366,12 +324,6 @@ class TensorCall:
 
 for _name in (
     "ScopeAttrs",
-    "MemoryAttrs",
-    "AsyncAttrs",
-    "TMAAttrs",
-    "TcCopyAttrs",
-    "TcMmaAttrs",
-    "MathAttrs",
     "TrnAttrs",
 ):
     tvm_ffi.register_object("tirx.tensor." + _name)(type(_name, (Attrs,), {}))

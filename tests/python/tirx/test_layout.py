@@ -25,7 +25,13 @@ import tvm
 from tvm.backend.cuda.axis import Axis as CUDAAxis
 from tvm.backend.cuda.axis import TCol, TLane, laneid, tid_in_wg, tx, warpid, wgid, wid_in_wg
 from tvm.backend.cuda.lang import SMEMPool
-from tvm.backend.cuda.layout import tmem_mma_operand_layout, wg_local_layout
+from tvm.backend.cuda.layout import (
+    SwizzleMode,
+    mma_shared_layout,
+    tmem_datapath_layout,
+    tmem_mma_operand_layout,
+    wg_local_layout,
+)
 from tvm.backend.trn.axis import Axis as TRNAxis
 from tvm.backend.trn.axis import F, P
 from tvm.backend.trn.layout import to_psum_layout, trainium_layout
@@ -34,10 +40,6 @@ from tvm.ir.type import PrimType, PtrType
 from tvm.script.ir_builder import IRBuilder
 from tvm.sym import Analyzer
 from tvm.tirx import Var
-from tvm.tirx.cuda.tile.tma_utils import (
-    SwizzleMode,
-    mma_shared_layout,
-)
 from tvm.tirx.layout import Axis, ComposeLayout, Iter, R, S, TileLayout, m
 from tvm.tirx.script import ir_builder as Tx_builder
 
@@ -1518,8 +1520,11 @@ def test_tmem_mma_operand_layout_grouped_d():
     )
     assert_structural_equal(head128_o, expected_head64_o)
 
-    with pytest.raises(ValueError, match="ws=True only valid"):
-        tmem_mma_operand_layout("D", (128, 256), "float32", M=128, cta_group=1, ws=True)
+    wide_ws = tmem_mma_operand_layout("D", (128, 256), "float32", M=128, cta_group=1, ws=True)
+    assert_structural_equal(wide_ws, tmem_datapath_layout("D", 128, 256))
+
+    with pytest.raises(ValueError, match="ws=True requires cta_group=1"):
+        tmem_mma_operand_layout("D", (64, 256), "float32", M=128, cta_group=2, ws=True)
 
     with pytest.raises(ValueError, match="group must be"):
         tmem_mma_operand_layout(
@@ -1616,6 +1621,25 @@ def test_pack():
         assert_structural_equal(layout.pack(2).canonicalize(), layout_expected.canonicalize())
 
     case3()
+
+
+@pytest.mark.parametrize("storage_axis, owner_axis", [(m, laneid), (TCol, TLane)])
+def test_pack_preserves_ownership_and_storage_offsets(storage_axis, owner_axis):
+    layout = TileLayout.from_iters(
+        [Iter(8, 1, owner_axis), Iter(4, 2, storage_axis), Iter(2, 1, storage_axis)],
+        [Iter(2, 16, storage_axis)],
+        {owner_axis: 8, storage_axis: 4},
+    )
+    packed = layout.pack(2, storage_axis.name)
+    for owner, word in itertools.product(range(8), range(4)):
+        before = layout.apply(owner, word, 0)
+        after = packed.apply(owner, word, 0)
+        assert int(after[owner_axis.name]) == int(before[owner_axis.name])
+        assert int(after[storage_axis.name]) * 2 == int(before[storage_axis.name])
+    assert int(packed.replica[0].stride) == 8
+    assert_structural_equal(
+        packed.unpack(2, storage_axis.name).canonicalize(), layout.canonicalize()
+    )
 
 
 def test_slice():
@@ -1731,17 +1755,6 @@ def test_slice():
         verify_slice(compose, shape, region, sliced)
 
     case_compose_slice_2d()
-
-
-def test_cuda_copy_extract_swizzle_tile_simplifies_constant_region_extents():
-    from tvm.tirx.cuda.tile.copy._common import _extract_tile
-
-    zero = tvm.tirx.Mul(tvm.tirx.IntImm("int32", 0), tvm.tirx.IntImm("int32", 64))
-    end = tvm.tirx.Add(zero, tvm.tirx.IntImm("int32", 64))
-
-    tile = _extract_tile(ComposeLayout(3, 3, 3, TileLayout(S[(512,)])), [(zero, end)])
-
-    assert [int(it.extent) for it in tile.shard] == [64]
 
 
 def _compose_swizzle(value, per_element, swizzle_len, atom_len, swizzle_inner=True):

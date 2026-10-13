@@ -32,7 +32,7 @@ modifier combination, operand count, and operand types while constructing one
 when it needs a new representation, its code-generation support.
 
 This layer is below the layout-aware ``Tx.cuda.tile.*`` / ``Tx.trn.tile.*`` primitives and does not run
-tile-primitive dispatch.
+tile-op dispatch.
 
 Supported instruction families
 ------------------------------
