@@ -133,9 +133,14 @@ def test_reflected_type_recursive_values(monkeypatch):
         values: tvm_ffi.Array
 
     monkeypatch.setattr(T, "PrinterValues", PrinterValuesType, raising=False)
-    value = PrinterValuesType(tvm_ffi.convert([T.int32(128), {"nested": [T.float32(1.25)]}]))
+    value = PrinterValuesType(
+        tvm_ffi.convert([T.int32(128), {"nested": [T.float32(1.25), tvm.ir.PrimType("int32")]}])
+    )
     source = value.script()
-    assert source == 'T.PrinterValues([T.int32(128), {"nested": [T.float32(1.25)]}])'
+    assert (
+        source
+        == 'T.PrinterValues([T.int32(128), {"nested": [T.float32(1.25), T.PrimType("int32")]}])'
+    )
     restored = eval(source, {"T": T})
     tvm.ir.assert_structural_equal(value, restored)
     assert restored.script() == source
@@ -263,7 +268,7 @@ def test_allocate(declare):
     _assert_print(
         obj.body,
         (
-            """v_1 = T.Var("", T.Ptr(T.float32))
+            """v_1 = T.Var("", T.Ptr(T.PrimType("float32")))
 v = T.decl_tensor(v_1, ty_args=[T.Tensor((128, 128), T.float32)])
 T.evaluate(1)
 """
@@ -354,7 +359,7 @@ def test_decl_tensor():
     _assert_print(
         obj.body,
         """
-v_1 = T.Var("", T.Ptr(T.float32))
+v_1 = T.Var("", T.Ptr(T.PrimType("float32")))
 v = T.decl_tensor(v_1, ty_args=[T.Tensor((10, 10), T.float32)])
 T.evaluate(1)
 """,
@@ -672,7 +677,7 @@ def test_prim_type():
 
 def test_pointer_type():
     obj = ir.PtrType(ir.PrimType("int32"), "global")
-    _assert_print(obj, "T.Ptr(T.int32)")
+    _assert_print(obj, 'T.Ptr(T.PrimType("int32"))')
 
     obj = ir.PtrType(ir.PrimType("void"))
     _assert_print(obj, 'T.Ptr(T.PrimType("void"))')

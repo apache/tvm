@@ -55,10 +55,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 ExprDoc ReflectedValue(DocTranslatorObj* d, ffi::AnyView value) {
   ExtraStateScope<bool> explicit_scalars(d, "ir.explicit_scalar_dtype", true);
-  if (value.as<PrimType>()) {
-    ExtraStateScope<bool> primitive_annotation(d, "ir.type_value", false);
-    return d->Translate(value).value();
-  }
   if (auto array = value.as<ffi::Array<ffi::Any>>()) {
     ffi::Array<ExprDoc> elements;
     for (const auto& element : array.value()) elements.push_back(ReflectedValue(d, element));
