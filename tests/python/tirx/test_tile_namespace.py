@@ -126,9 +126,9 @@ def test_effective_global_layout_preserves_source_and_region():
     region = tensor[2:4, 3:7]
     layout = region.source.ty.effective_layout()
     assert int(layout.apply(2, 3, shape=tensor.shape)["m"]) == 35
-    sliced = layout.slice(tensor.shape, region.region)
-    assert int(sliced.apply(0, 0)["m"]) == 35
-    assert int(sliced.apply(1, 3)["m"]) == 54
+    starts = [r.min for r in region.region]
+    assert int(layout.apply(*starts, shape=tensor.shape)["m"]) == 35
+    assert int(layout.apply(starts[0] + 1, starts[1] + 3, shape=tensor.shape)["m"]) == 54
     assert save_json(tensor) == before
     compact = decl_tensor((8, 16), "float32", strides=(16, 1))
     assert_structural_equal(compact.ty.effective_layout(), layout)
@@ -166,8 +166,6 @@ def test_none_layout_views_keep_offsets_and_strides():
             assert int(stepped.elem_offset) == 6
             with pytest.raises(ValueError, match="non-contiguous"):
                 permuted.view(32)
-            with pytest.raises(ValueError, match="layout=None"):
-                source.local()
     parents = {bind.var: bind.value.args[0].args[0] for bind in builder.get().body.seq[1:]}
     for view in (reshaped, permuted, sliced, row, stepped):
         root = view

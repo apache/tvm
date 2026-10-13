@@ -22,8 +22,9 @@ import re
 import pytest
 
 import tvm
+from tirx.layout_fixtures import scale_factor_tmem_layout
 from tvm.backend.cuda.axis import TCol, TLane
-from tvm.backend.cuda.layout import mma_shared_layout, sf_tmem_layout, tmem_datapath_layout
+from tvm.backend.cuda.layout import mma_shared_layout, tmem_datapath_layout
 from tvm.script import tirx as T
 from tvm.tirx.layout import ComposeLayout, R, S, TileLayout
 
@@ -489,8 +490,8 @@ def _scale_fixture(split_n=False, lane_offsets=False):
     sf_dtype = "float8_e8m0fnu" if split_n else "float8_e4m3fn"
     a_layout = mma_shared_layout(dtype, 1, (M, K))
     b_layout = mma_shared_layout(dtype, 1, (N // cta, K))
-    sa = sf_tmem_layout(M, SF_K=vec, sf_per_mma=vec)
-    sb = sf_tmem_layout(N, SF_K=vec, sf_per_mma=vec)
+    sa = scale_factor_tmem_layout(M, SF_K=vec, sf_per_mma=vec)
+    sb = scale_factor_tmem_layout(N, SF_K=vec, sf_per_mma=vec)
     if lane_offsets:
         sa = TileLayout.from_iters(sa.shard, sa.replica, {TLane: 1})
         sb = TileLayout.from_iters(sb.shard, sb.replica, {TLane: 2})
