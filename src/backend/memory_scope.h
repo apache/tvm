@@ -36,8 +36,15 @@ inline void RegisterBackendMemoryScope(
     std::initializer_list<std::pair<const char*, ffi::Any>> attributes = {}) {
   runtime::MemoryScope::Global();
   static ffi::reflection::TypeAttrColumn state_column(ffi::reflection::type_attr::kEnumState);
-  auto state =
-      state_column[runtime::MemoryScopeObj::_GetOrAllocRuntimeTypeIndex()].cast<ffi::EnumState>();
+  ffi::AnyView state_value = state_column[runtime::MemoryScopeObj::_GetOrAllocRuntimeTypeIndex()];
+  TVM_FFI_CHECK(state_value.type_index() == ffi::EnumStateObj::_GetOrAllocRuntimeTypeIndex(),
+                TypeError)
+      << "Expected enum state for memory scopes, but got " << state_value.GetTypeKey();
+  // Backend registration runs before GCC initializes this DSO's inline type
+  // indices.  As in EnumDef, avoid a cast that reads the deferred EnumState index.
+  auto state = ffi::details::ObjectUnsafe::ObjectRefFromObjectPtr<ffi::EnumState>(
+      ffi::details::ObjectUnsafe::ObjectPtrFromUnowned<ffi::Object>(
+          state_value.CopyToTVMFFIAny().v_obj));
   if (auto existing = state->indexes.Get(ffi::String(name))) {
     auto check_attribute = [&](const char* key, ffi::Any expected) {
       auto column = state->attrs.Get(key);

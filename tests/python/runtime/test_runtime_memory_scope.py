@@ -21,6 +21,7 @@ import os
 import subprocess
 import sys
 import uuid
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -176,6 +177,75 @@ assert custom.same_as(MemoryScope(custom.name))
         ],
         env=env,
         check=True,
+    )
+
+
+@pytest.mark.parametrize("load_order", ["runtime_only", "runtime_first", "compiler_first"])
+def test_opencl_memory_scope_registration_load_order(load_order):
+    runtime_path = Path(tvm.base._LOADED_LIBS["tvm_runtime"]._name).resolve()
+    opencl_path = runtime_path.with_name(
+        runtime_path.name.replace("tvm_runtime", "tvm_runtime_opencl")
+    )
+    if not opencl_path.is_file():
+        pytest.skip("OpenCL runtime sidecar is not built")
+    compiler = tvm.base._LOADED_LIBS.get("tvm_compiler")
+    if compiler is None and load_order != "runtime_only":
+        pytest.skip("Compiler library is not available")
+    env = {
+        **os.environ,
+        "TVM_USE_RUNTIME_LIB": "1" if load_order == "runtime_only" else "0",
+        "TVM_DEVICE_BACKEND_AUTOLOAD": "0",
+    }
+    subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            """
+import ctypes
+import sys
+import tvm_ffi
+
+runtime_path, opencl_path, load_order = sys.argv[1:]
+handles = []
+if load_order == "runtime_first":
+    # Load the sidecar before the compiler, without creating compiler-only
+    # Python type placeholders through a runtime-only import first.
+    handles.append(ctypes.CDLL(runtime_path, mode=ctypes.RTLD_GLOBAL))
+    handles.append(ctypes.CDLL(opencl_path, mode=ctypes.RTLD_LOCAL))
+
+import tvm
+from tvm.runtime import MemoryScope
+
+assert tvm.base._RUNTIME_ONLY == (load_order == "runtime_only")
+names = ("texture", "global.texture", "global.texture-1d", "global.texture-nchw",
+         "global.texture-nhwc", "global.texture-weight")
+identities = None
+if load_order == "runtime_only":
+    for name in names:
+        try:
+            MemoryScope(name)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("OpenCL scope registered without an owning library: " + name)
+else:
+    identities = [MemoryScope(name) for name in names]
+handles.append(ctypes.CDLL(opencl_path, mode=ctypes.RTLD_LOCAL))
+scopes = [MemoryScope(name) for name in names]
+if identities is not None:
+    assert all(before.same_as(after) for before, after in zip(identities, scopes))
+for scope in scopes:
+    assert MemoryScope.attr_dict["opencl.texture_storage"][scope] is True
+    expected = 2 if scope.name == "texture" else 1
+    assert MemoryScope.attr_dict["runtime.memory_alloc_property"][scope] == expected
+""",
+            str(runtime_path),
+            str(opencl_path),
+            load_order,
+        ],
+        env=env,
+        check=True,
+        timeout=60,
     )
 
 
