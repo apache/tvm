@@ -779,18 +779,11 @@ if (INSTALL_DEV)
   )
 else(INSTALL_DEV)
   install(
-    DIRECTORY "include/tvm/runtime/" DESTINATION "include/tvm/runtime"
+    DIRECTORY "include/tvm/runtime" "include/tvm/support" DESTINATION "include/tvm"
     FILES_MATCHING
     PATTERN "*.h"
     )
 endif(INSTALL_DEV)
-
-# Shared support headers are also needed by runtime and Python package consumers.
-install(
-  DIRECTORY "include/tvm/support/" DESTINATION "include/tvm/support"
-  FILES_MATCHING
-  PATTERN "*.h"
-)
 
 include(CMakePackageConfigHelpers)
 set(PROJECT_CONFIG_CONTENT "@PACKAGE_INIT@\n")
