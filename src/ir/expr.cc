@@ -167,16 +167,20 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> TensorLoadMutate(
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const TensorLoadNode>(value);
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Type>, mapped_ty_u,
                                     mutator->MutateExpected(self->ty));
+  Type result_ty = std::move(mapped_ty_u).ValueOrUnchanged(self->ty);
+  if (!result_ty.as<PrimTypeNode>()) {
+    return ffi::Unexpected(ffi::Error("TypeError", "TensorLoad requires a concrete PrimType", ""));
+  }
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Expr>, mapped_source_u,
                                     mutator->MutateExpected(self->source));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Array<PrimExpr>>, mapped_indices_u,
                                     mutator->MutateExpected(self->indices));
-  if (mapped_ty_u.UnchangedOrSameAs(self->ty) && mapped_source_u.UnchangedOrSameAs(self->source) &&
+  if (result_ty.same_as(self->ty) && mapped_source_u.UnchangedOrSameAs(self->source) &&
       mapped_indices_u.UnchangedOrSameAs(self->indices)) {
     return ffi::Unchanged();
   }
   ffi::ObjectPtr<TensorLoadNode> copy = ffi::make_object<TensorLoadNode>(*self);
-  if (!mapped_ty_u.IsUnchanged()) copy->ty = std::move(mapped_ty_u).ValueUnchecked();
+  copy->ty = std::move(result_ty);
   if (!mapped_source_u.IsUnchanged()) copy->source = std::move(mapped_source_u).ValueUnchecked();
   if (!mapped_indices_u.IsUnchanged()) copy->indices = std::move(mapped_indices_u).ValueUnchecked();
   return ffi::Any(std::move(copy));
@@ -188,17 +192,21 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> TensorLoadMaybeInplaceM
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const TensorLoadNode>(value));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Type>, mapped_ty_u,
                                     mutator->MutateExpected(self->ty, ffi::InplaceMode::kAllow));
+  Type result_ty = std::move(mapped_ty_u).ValueOrUnchanged(self->ty);
+  if (!result_ty.as<PrimTypeNode>()) {
+    return ffi::Unexpected(ffi::Error("TypeError", "TensorLoad requires a concrete PrimType", ""));
+  }
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
       ffi::UnchangedOr<Expr>, mapped_source_u,
       mutator->MutateExpected(self->source, ffi::InplaceMode::kAllow));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
       ffi::UnchangedOr<ffi::Array<PrimExpr>>, mapped_indices_u,
       mutator->MutateExpected(self->indices, ffi::InplaceMode::kAllow));
-  if (mapped_ty_u.UnchangedOrSameAs(self->ty) && mapped_source_u.UnchangedOrSameAs(self->source) &&
+  if (result_ty.same_as(self->ty) && mapped_source_u.UnchangedOrSameAs(self->source) &&
       mapped_indices_u.UnchangedOrSameAs(self->indices)) {
     return ffi::Unchanged();
   }
-  if (!mapped_ty_u.IsUnchanged()) self->ty = std::move(mapped_ty_u).ValueUnchecked();
+  self->ty = std::move(result_ty);
   if (!mapped_source_u.IsUnchanged()) self->source = std::move(mapped_source_u).ValueUnchecked();
   if (!mapped_indices_u.IsUnchanged()) self->indices = std::move(mapped_indices_u).ValueUnchecked();
   return ffi::Unchanged();
@@ -683,8 +691,49 @@ TVM_FFI_STATIC_INIT_BLOCK() {
             ffi::FStructuralMutate::FromNative<&OpaqueExprMaybeInplaceMutate>());
 }
 
+TensorLoad::TensorLoad(ffi::ObjectPtr<TensorLoadNode> node) : PrimExpr(ffi::UnsafeInit{}) {
+  TVM_FFI_CHECK(node != nullptr && node->ty.defined() && node->ty.as<PrimTypeNode>(), TypeError)
+      << "TensorLoad requires a concrete PrimType";
+  data_ = std::move(node);
+}
+
+TensorLoad::TensorLoad(Expr source, ffi::Array<PrimExpr> indices, Location loc)
+    : PrimExpr(ffi::UnsafeInit{}) {
+  TVM_FFI_CHECK(source.defined() && source->ty.defined(), TypeError)
+      << "TensorLoad requires a source with a defined type";
+  namespace refl = ffi::reflection;
+  static const refl::TypeAttrColumn infer_column(type_attr::kTensorLoadInferType);
+  auto infer = infer_column[source->ty->type_index()];
+  TVM_FFI_CHECK(infer != nullptr, TypeError)
+      << "Type " << source->ty->GetTypeKey() << " does not support TensorLoad";
+  auto node = ffi::make_object<TensorLoadNode>(std::move(source));
+  node->indices = std::move(indices);
+  node->loc = loc;
+  PrimType ty = infer.cast<FTensorLoadInferType>().CallExpected(node.get()).value();
+  TVM_FFI_CHECK(ty.defined() && ty.as<PrimTypeNode>(), TypeError)
+      << "TensorLoad inference requires a concrete PrimType";
+  node->ty = std::move(ty);
+  data_ = std::move(node);
+}
+
+TensorLoad TensorLoad::Unchecked(PrimType ty, Expr source, ffi::Array<PrimExpr> indices,
+                                 Location loc) {
+  TVM_FFI_CHECK(ty.defined() && ty.as<PrimTypeNode>(), TypeError) << "TensorLoad requires a concrete PrimType";
+  TVM_FFI_CHECK(source.defined(), TypeError) << "TensorLoad requires a defined source";
+  auto node = ffi::make_object<TensorLoadNode>(std::move(source));
+  node->ty = std::move(ty);
+  node->indices = std::move(indices);
+  node->loc = loc;
+  return TensorLoad(std::move(node));
+}
+
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
+  refl::EnsureTypeAttrColumn(type_attr::kTensorLoadInferType);
+  refl::GlobalDef().def("ir.TensorLoad",
+                        [](Expr source, ffi::Array<PrimExpr> indices, Location loc) {
+                          return TensorLoad(source, indices, loc);
+                        });
   TensorLoadNode::RegisterReflection();
   refl::TypeAttrDef<TensorLoadNode>()
       .attr(refl::type_attr::kStructuralVisit,

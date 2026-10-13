@@ -370,13 +370,15 @@ class WarpAccessRewriter : public StmtExprMutator {
     warp_group_ = (alloc_size + (factor - 1)) / factor;
     alloc_size = warp_group_ * factor;
 
-    auto type = CopyTensorType(op->var.as_or_throw<TensorVar>());
+    auto type = ffi::make_object<TensorTypeNode>(*op->var.as_or_throw<TensorVar>().ty().get());
     static const auto local = runtime::MemoryScope::Get("local");
     type->scope = local;
     type->shape = {IntImm::Int32(alloc_size / width_)};
     type->strides = {};
-    type->elem_offset = IntImm(op->var.as_or_throw<TensorVar>()->elem_offset.ty(), 0);
-    TensorVar new_buf = RebuildTensorVar(op->var.as_or_throw<TensorVar>(), std::move(type));
+    type->elem_offset = IntImm(op->var.as_or_throw<TensorVar>().elem_offset().ty(), 0);
+    TensorVar new_buf =
+        TensorVar(op->var.as_or_throw<TensorVar>()->name, TensorType(std::move(type)),
+                  op->var.as_or_throw<TensorVar>()->loc);
     new_tensor_ = new_buf;
     Stmt rewritten_body = this->Mutate(body, InplaceMode::kDisallow).ValueOrUnchanged(body);
     ffi::Array<Expr> args = tensor_call->args;
@@ -384,9 +386,9 @@ class WarpAccessRewriter : public StmtExprMutator {
       args.Set(0, Mutate(args[0], InplaceMode::kDisallow).ValueOrUnchanged(args[0]));
     }
 
-    return SeqStmt({Bind(new_buf.var(),
-                         Call(new_buf.type(), tirx::alloc_tensor_op(), args, tensor_call->attrs,
-                              {new_buf.type()}, tensor_call->loc),
+    return SeqStmt({Bind(new_buf,
+                         Call(new_buf.ty(), tirx::alloc_tensor_op(), args, tensor_call->attrs,
+                              {new_buf.ty()}, tensor_call->loc),
                          op->loc),
                     rewritten_body});
   }
@@ -510,7 +512,7 @@ class WarpAccessRewriter : public StmtExprMutator {
         << "LowerWarpMemory failed to rewrite load to shuffle for index " << op->indices[0]
         << " local_index=" << local_index;
 
-    load = MakeTensorLoad(new_tensor_, {local_index}, load->loc);
+    load = TensorLoad(new_tensor_, {local_index}, load->loc);
 
     if (analyzer_->CanProveEqual(group, warp_index_.as_or_throw<PrimExpr>())) {
       return load;

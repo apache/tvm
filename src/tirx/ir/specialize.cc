@@ -105,7 +105,7 @@ class FunctionSpecializer : public StmtExprMutator {
           } else {
             specializer->constrained_tensor_params_.insert(param.get());
             specializer->tensor_storage_scopes_.emplace(tensor.value(),
-                                                        replacement_tensor.value()->scope);
+                                                        replacement_tensor.value().scope());
           }
         }
       }
@@ -118,7 +118,7 @@ class FunctionSpecializer : public StmtExprMutator {
       Var new_var = var;
       if (auto tensor = var.as<TensorVar>()) {
         TensorVar new_tensor = specializer->MutateTensor(tensor.value());
-        new_var = new_tensor.var();
+        new_var = new_tensor;
         if (!new_tensor.same_as(tensor.value())) {
           param_updated = true;
           specializer->VarRemapSet(tensor.value(), new_tensor);
@@ -160,10 +160,10 @@ class FunctionSpecializer : public StmtExprMutator {
     ffi::Optional<VisitInterrupt> Visit_(const VarNode* op) final {
       if (op->ty.as<TensorTypeNode>()) {
         if (def_region_kind() == kTVMFFIDefRegionKindSimple) {
-          const TensorVar tensor = GetTensorVar(op);
+          const TensorVar tensor = ffi::GetRef<Var>(op).as_or_throw<TensorVar>();
           specializer_->MutateAllocTensor(tensor);
         } else {
-          specializer_->ValidateTensorUse(GetTensorVar(op));
+          specializer_->ValidateTensorUse(ffi::GetRef<Var>(op).as_or_throw<TensorVar>());
         }
       }
       return StmtExprVisitor::Visit_(op);
@@ -192,7 +192,7 @@ class FunctionSpecializer : public StmtExprMutator {
       if (!op->unique()) inplace_mode = InplaceMode::kDisallow;
     }
     if (!op->op.same_as(tirx::tensor_data_ptr_op()) || op->args.size() != 1) return result;
-    PtrType type = op->args[0].as_or_throw<TensorVar>().type()->DataPtrType();
+    PtrType type = op->args[0].as_or_throw<TensorVar>().ty()->DataPtrType();
     if (ffi::StructuralEqual()(op->ty, type)) return result;
     if (inplace_mode == InplaceMode::kAllow) {
       const_cast<CallNode*>(op)->ty = std::move(type);
@@ -208,7 +208,7 @@ class FunctionSpecializer : public StmtExprMutator {
     if (result.UnchangedOrSameAs(ffi::GetRef<PrimExpr>(op))) return ffi::Unchanged();
     auto load = std::move(result).ValueUnchecked().as_or_throw<TensorLoad>();
     if (auto tensor = load->source.as<TensorVar>()) {
-      return MakeTensorLoad(tensor.value(), load->indices, load->loc);
+      return TensorLoad(tensor.value(), load->indices, load->loc);
     }
     return load;
   }
@@ -259,20 +259,20 @@ class FunctionSpecializer : public StmtExprMutator {
     }
 
     ffi::Array<PrimExpr> shape =
-        tensor->shape.Map([this](const PrimExpr& e) { return Mutate(e).ValueOrUnchanged(e); });
+        tensor.shape().Map([this](const PrimExpr& e) { return Mutate(e).ValueOrUnchanged(e); });
     ffi::Array<PrimExpr> strides =
-        tensor->strides.Map([this](const PrimExpr& e) { return Mutate(e).ValueOrUnchanged(e); });
+        tensor.strides().Map([this](const PrimExpr& e) { return Mutate(e).ValueOrUnchanged(e); });
 
     PrimExpr elem_offset =
-        Mutate(tensor->elem_offset, InplaceMode::kDisallow).ValueOrUnchanged(tensor->elem_offset);
+        Mutate(tensor.elem_offset(), InplaceMode::kDisallow).ValueOrUnchanged(tensor.elem_offset());
 
     // Layout iter extents/strides may reference the same shape vars; remap
     // them in lock-step with shape (otherwise the specialized tensor keeps
     // stale layout extents from before specialization).
-    ffi::Optional<Layout> layout = tensor->layout;
+    ffi::Optional<Layout> layout = tensor.ty()->layout;
     bool layout_changed = false;
-    if (tensor->layout.has_value()) {
-      if (auto opt_tile = tensor->layout.value().as<TileLayoutNode>()) {
+    if (tensor.ty()->layout.has_value()) {
+      if (auto opt_tile = tensor.ty()->layout.value().as<TileLayoutNode>()) {
         auto remap_iter = [this](const Iter& it) -> Iter {
           PrimExpr new_extent = Mutate(it->extent).ValueOrUnchanged(it->extent);
           PrimExpr new_stride = Mutate(it->stride).ValueOrUnchanged(it->stride);
@@ -290,13 +290,13 @@ class FunctionSpecializer : public StmtExprMutator {
       }
     }
 
-    bool storage_scope_changed =
-        specialized_storage_scope.has_value() && specialized_storage_scope.value() != tensor->scope;
-    if (tensor->elem_offset.same_as(elem_offset) && tensor->shape.same_as(shape) &&
-        tensor->strides.same_as(strides) && !layout_changed && !storage_scope_changed) {
+    bool storage_scope_changed = specialized_storage_scope.has_value() &&
+                                 specialized_storage_scope.value() != tensor.scope();
+    if (tensor.elem_offset().same_as(elem_offset) && tensor.shape().same_as(shape) &&
+        tensor.strides().same_as(strides) && !layout_changed && !storage_scope_changed) {
       return tensor;
     } else {
-      auto n = CopyTensorType(tensor);
+      auto n = ffi::make_object<TensorTypeNode>(*tensor.ty().get());
       n->elem_offset = std::move(elem_offset);
       n->shape = std::move(shape);
       n->strides = std::move(strides);
@@ -306,7 +306,7 @@ class FunctionSpecializer : public StmtExprMutator {
       if (storage_scope_changed) {
         n->scope = specialized_storage_scope.value();
       }
-      return RebuildTensorVar(tensor, std::move(n));
+      return TensorVar(tensor->name, TensorType(std::move(n)), tensor->loc);
     }
   }
 
@@ -321,9 +321,9 @@ class FunctionSpecializer : public StmtExprMutator {
 
     auto mutated = MutateTensor(old_tensor);
     TVM_FFI_ICHECK(mutated.same_as(old_tensor))
-        << "TensorVar " << old_tensor << " (shape = " << old_tensor->shape << ")"
+        << "TensorVar " << old_tensor << " (shape = " << old_tensor.shape() << ")"
         << " was used without a declaration, "
-        << "and would be specialized into " << mutated << " (shape = " << mutated->shape << ").  "
+        << "and would be specialized into " << mutated << " (shape = " << mutated.shape() << ").  "
         << "While usage of an undeclared tensor is currently allowed in TIR, "
         << "mutation must occur at the tensor's point of definition "
         << "(see discussion on https://github.com/apache/tvm/pull/14565 for more details).  "
@@ -396,35 +396,37 @@ void UpdateSpecializeVarMap(const Function& func, const Var& param, const Tensor
   };
 
   // Check tensor dimensions
-  TVM_FFI_CHECK(specific_buf->shape.size() == buf_to_specialize->shape.size(), ValueError)
-      << "The tensor dimensions mismatched" << buf_to_specialize->shape.size() << " vs. "
-      << specific_buf->shape.size() << ".";
+  TVM_FFI_CHECK(specific_buf.shape().size() == buf_to_specialize.shape().size(), ValueError)
+      << "The tensor dimensions mismatched" << buf_to_specialize.shape().size() << " vs. "
+      << specific_buf.shape().size() << ".";
 
-  TVM_FFI_CHECK(specific_buf->strides.size() == buf_to_specialize->strides.size(), ValueError)
-      << "The tensor strides dimensions mismatched" << buf_to_specialize->strides.size() << " vs. "
-      << specific_buf->strides.size() << ".";
+  TVM_FFI_CHECK(specific_buf.strides().size() == buf_to_specialize.strides().size(), ValueError)
+      << "The tensor strides dimensions mismatched" << buf_to_specialize.strides().size() << " vs. "
+      << specific_buf.strides().size() << ".";
 
   // Updating var mapping using specific_expr
-  for (size_t i = 0; i < specific_buf->shape.size(); ++i) {
-    build_var_mapping(specific_buf->shape[i], buf_to_specialize->shape[i]);
+  for (size_t i = 0; i < specific_buf.shape().size(); ++i) {
+    build_var_mapping(specific_buf.shape()[i], buf_to_specialize.shape()[i]);
   }
-  for (size_t i = 0; i < specific_buf->strides.size(); ++i) {
-    build_var_mapping(specific_buf->strides[i], buf_to_specialize->strides[i]);
+  for (size_t i = 0; i < specific_buf.strides().size(); ++i) {
+    build_var_mapping(specific_buf.strides()[i], buf_to_specialize.strides()[i]);
   }
-  build_var_mapping(specific_buf->elem_offset, buf_to_specialize->elem_offset);
+  build_var_mapping(specific_buf.elem_offset(), buf_to_specialize.elem_offset());
   // The specializer distinguishes a concrete tensor constraint (which keeps
   // the parameter) from another function parameter (which aliases it).
-  build_var_mapping(specific_buf.var(), buf_to_specialize.var());
+  build_var_mapping(specific_buf, buf_to_specialize);
 
   // Check data_alignment and offset_factor.
   // These two signatures are int, so we do not need map them.
-  TVM_FFI_CHECK_EQ(specific_buf->data_alignment, buf_to_specialize->data_alignment, ValueError)
-      << "The tensor data_alignment mismatched" << buf_to_specialize->data_alignment << " vs. "
-      << specific_buf->data_alignment << ".";
+  TVM_FFI_CHECK_EQ(specific_buf.ty()->data_alignment, buf_to_specialize.ty()->data_alignment,
+                   ValueError)
+      << "The tensor data_alignment mismatched" << buf_to_specialize.ty()->data_alignment << " vs. "
+      << specific_buf.ty()->data_alignment << ".";
 
-  TVM_FFI_CHECK_EQ(specific_buf->offset_factor, buf_to_specialize->offset_factor, ValueError)
-      << "The tensor offset_factor mismatched" << buf_to_specialize->offset_factor << " vs. "
-      << specific_buf->offset_factor << ".";
+  TVM_FFI_CHECK_EQ(specific_buf.ty()->offset_factor, buf_to_specialize.ty()->offset_factor,
+                   ValueError)
+      << "The tensor offset_factor mismatched" << buf_to_specialize.ty()->offset_factor << " vs. "
+      << specific_buf.ty()->offset_factor << ".";
 }
 
 /*!

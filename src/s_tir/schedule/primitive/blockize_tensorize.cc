@@ -460,12 +460,12 @@ ffi::Array<TensorRegion> EvalSetRegions(const ffi::Array<TensorRegion>& regions,
   for (const TensorRegion& tensor_region : regions) {
     const TensorVar& tensor = tensor_region->source.as_or_throw<tvm::tirx::TensorVar>();
     ffi::Array<sym::IntSet> relaxed = sym::EvalSet(tensor_region->region, dom_map);
-    TVM_FFI_ICHECK_EQ(relaxed.size(), tensor->shape.size());
-    int ndim = tensor->shape.size();
+    TVM_FFI_ICHECK_EQ(relaxed.size(), tensor.shape().size());
+    int ndim = tensor.shape().size();
     ffi::Array<Range> new_region;
     new_region.reserve(ndim);
     for (int i = 0; i < ndim; ++i) {
-      new_region.push_back(relaxed[i].CoverRange(RangeFromExtent(tensor->shape[i])).value());
+      new_region.push_back(relaxed[i].CoverRange(RangeFromExtent(tensor.shape()[i])).value());
     }
     results.push_back(TensorRegion(tensor, new_region, TensorRegionType()));
   }
@@ -483,10 +483,11 @@ ffi::Array<TensorRegion> UnionRegions(const ffi::Array<TensorRegion>& regions) {
   for (const TensorRegion& tensor_region : regions) {
     const TensorVar& tensor = tensor_region->source.as_or_throw<tvm::tirx::TensorVar>();
     if (intset_map.find(tensor) == intset_map.end()) {
-      intset_map[tensor] = {tensor->shape.size(), ffi::Array<sym::IntSet>()};
+      intset_map[tensor] = {tensor.shape().size(), ffi::Array<sym::IntSet>()};
     }
-    std::vector<ffi::Array<sym::IntSet>> dim_range(tensor->shape.size(), ffi::Array<sym::IntSet>());
-    for (size_t dim = 0; dim < tensor->shape.size(); ++dim) {
+    std::vector<ffi::Array<sym::IntSet>> dim_range(tensor.shape().size(),
+                                                   ffi::Array<sym::IntSet>());
+    for (size_t dim = 0; dim < tensor.shape().size(); ++dim) {
       intset_map[tensor][dim].push_back(sym::IntSet::FromRange(tensor_region->region[dim]));
     }
   }
@@ -494,7 +495,7 @@ ffi::Array<TensorRegion> UnionRegions(const ffi::Array<TensorRegion>& regions) {
   for (const auto& it : intset_map) {
     const TensorVar& tensor = it.first;
     ffi::Array<Range> regions;
-    for (size_t dim = 0; dim < tensor->shape.size(); ++dim) {
+    for (size_t dim = 0; dim < tensor.shape().size(); ++dim) {
       const sym::IntSet intset = sym::Union(it.second[dim]);
       regions.push_back({intset.min(), intset.max() + 1});
     }
@@ -887,7 +888,7 @@ void Tensorize(ScheduleState self, const StmtSRef& sref, const TensorIntrin& int
     int offset = static_cast<int>(indices_base.size()) - static_cast<int>(old_region.size());
     TVM_FFI_ICHECK(offset >= 0);
     ffi::Array<Range> new_region;
-    new_region.reserve(cur->shape.size());
+    new_region.reserve(cur.shape().size());
     for (int i = 0; i < offset; i++) {
       PrimExpr min = indices_base[i];
       PrimExpr extent = IntImm(min.ty(), 1);

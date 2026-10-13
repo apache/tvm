@@ -41,7 +41,7 @@ std::vector<size_t> GetUsedTensorArgIndices(const tirx::Function& fn, size_t num
   std::vector<size_t> indices;
   for (size_t i = 0; i < num_args; ++i) {
     if (auto tensor = fn->params[i].as<tirx::TensorVar>()) {
-      auto tensor_var = tensor.value().var();
+      tvm::Var tensor_var = tensor.value();
       auto walkfn = [=](const tvm::Var& var) -> ffi::Expected<ffi::WalkResult> {
         return var.get() == tensor_var.get() ? ffi::WalkResult::Interrupt(ffi::VisitInterrupt(var))
                                              : ffi::WalkResult::Advance();

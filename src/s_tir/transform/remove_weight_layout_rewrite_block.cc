@@ -117,7 +117,7 @@ class RemoveLayoutRewriteBlock : public StmtExprMutator {
         IndexMap(load_indices, store->indices));
 
     tensor_var_to_rewritten_shape_[load->source.as_or_throw<tvm::tirx::TensorVar>().get()] =
-        store->dest.as_or_throw<TensorVar>()->shape;
+        store->dest.as_or_throw<TensorVar>().shape();
 
     return block;
   }
@@ -158,7 +158,7 @@ class WeightLayoutRewriteBlockRemover : public StmtExprMutator {
       TensorVar tensor = opt_tensor.value();
       auto it = tensor_map.find(tensor);
       if (it != tensor_map.end()) {
-        params.push_back((*it).second.var());
+        params.push_back((*it).second);
       } else {
         params.push_back(param);
       }

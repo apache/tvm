@@ -171,7 +171,7 @@ TensorType::TensorType(ffi::Array<PrimExpr> shape, PrimType dtype, runtime::Memo
                        int data_alignment, int offset_factor, ffi::Optional<Layout> layout,
                        Location loc)
     : Type(ffi::UnsafeInit{}) {
-  PrimExpr offset = elem_offset.value_or(IntImm(DefaultIndexPrimType(), 0));
+  PrimExpr offset = elem_offset.value_or(IntImm(DefaultIndexType(), 0));
   auto n = ffi::make_object<TensorTypeNode>(std::move(offset));
   n->dtype = std::move(dtype);
   n->scope = std::move(scope);
@@ -203,7 +203,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
          int offset_factor, ffi::Optional<Layout> layout, Location loc) {
         ffi::Optional<PrimExpr> offset;
         if (auto integer = elem_offset.as<int64_t>()) {
-          offset = IntImm(DefaultIndexPrimType(), integer.value());
+          offset = IntImm(DefaultIndexType(), integer.value());
         } else {
           offset = elem_offset.cast<ffi::Optional<PrimExpr>>();
         }

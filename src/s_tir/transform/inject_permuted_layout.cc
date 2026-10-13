@@ -75,7 +75,7 @@ class PermutedLayoutInjector : public StmtExprMutatorWithAnalyzer {
       : StmtExprMutatorWithAnalyzer(analyzer) {
     for (const Var& param : func->params) {
       if (auto tensor = param.as<TensorVar>()) {
-        tensor_map_.insert({tensor.value().var(), tensor.value()});
+        tensor_map_.insert({tensor.value(), tensor.value()});
       }
     }
   }
@@ -141,10 +141,10 @@ class PermutedLayoutInjector : public StmtExprMutatorWithAnalyzer {
   UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) final {
     // Record the mapping from tensor identity to tensor for later lookup.
     for (auto tensor : op->alloc_tensors) {
-      tensor_map_.insert({tensor.var(), tensor});
+      tensor_map_.insert({tensor, tensor});
     }
     for (auto match_tensor : op->match_tensors) {
-      tensor_map_.insert({match_tensor->tensor.var(), match_tensor->tensor});
+      tensor_map_.insert({match_tensor->tensor, match_tensor->tensor});
     }
 
     if (op->annotations.count(tvm::s_tir::attr::kPermutedLayout) == 0 ||
@@ -168,21 +168,22 @@ class PermutedLayoutInjector : public StmtExprMutatorWithAnalyzer {
   }
 
   int CheckAndGetTensorRowSize(TensorVar tensor) {
-    TVM_FFI_ICHECK(tensor->shape.size() >= 2)
-        << "The dimension of TensorVar \"" << tensor.name() << "\" with shape " << tensor->shape
+    TVM_FFI_ICHECK(tensor.shape().size() >= 2)
+        << "The dimension of TensorVar \"" << tensor->name << "\" with shape " << tensor.shape()
         << " should be at least 2";
 
-    auto dim = tensor->shape.size();
-    auto tensor_row_size = tensor->shape[dim - 1].as<IntImmNode>()->value;
-    auto tensor_col_size = tensor->shape[dim - 2].as<IntImmNode>()->value;
+    auto dim = tensor.shape().size();
+    auto tensor_row_size = tensor.shape()[dim - 1].as<IntImmNode>()->value;
+    auto tensor_col_size = tensor.shape()[dim - 2].as<IntImmNode>()->value;
 
     if (tensor_row_size % 64 != 0) {
       TVM_FFI_ICHECK(tensor_row_size % 32 == 0)
-          << "Permuted SLayout for TensorVar \"" << tensor.name() << "\" with shape "
-          << tensor->shape << " is not supported since its second dimension is not divisible by 32";
+          << "Permuted SLayout for TensorVar \"" << tensor->name << "\" with shape "
+          << tensor.shape()
+          << " is not supported since its second dimension is not divisible by 32";
       TVM_FFI_ICHECK(tensor_col_size % 2 == 0)
-          << "Permuted SLayout for TensorVar \"" << tensor.name() << "\" with shape "
-          << tensor->shape
+          << "Permuted SLayout for TensorVar \"" << tensor->name << "\" with shape "
+          << tensor.shape()
           << " is not supported since its first dimension is not divisible by 2 and second "
              "dimension is not divisible by 64";
     }
@@ -214,7 +215,7 @@ class PermutedLayoutInjector : public StmtExprMutatorWithAnalyzer {
                      .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
                      .as_or_throw<TensorStore>();
 
-    if (!permute_ || store->dest.as_or_throw<TensorVar>()->shape.size() < 2) {
+    if (!permute_ || store->dest.as_or_throw<TensorVar>().shape().size() < 2) {
       return store;
     }
 
@@ -238,7 +239,7 @@ class PermutedLayoutInjector : public StmtExprMutatorWithAnalyzer {
                     .ValueOrUnchanged(ffi::GetRef<PrimExpr>(op))
                     .as_or_throw<TensorLoad>();
 
-    if (!permute_ || load->source.as_or_throw<tvm::tirx::TensorVar>()->shape.size() < 2) {
+    if (!permute_ || load->source.as_or_throw<tvm::tirx::TensorVar>().shape().size() < 2) {
       return load;
     }
 
@@ -247,7 +248,7 @@ class PermutedLayoutInjector : public StmtExprMutatorWithAnalyzer {
       return load;
     }
 
-    return MakeTensorLoad(
+    return TensorLoad(
         load->source.as_or_throw<tvm::tirx::TensorVar>(),
         HandleTensorIndices(load->source.as_or_throw<tvm::tirx::TensorVar>(), load->indices),
         load->loc);
@@ -274,11 +275,11 @@ class PermutedLayoutInjector : public StmtExprMutatorWithAnalyzer {
         auto indices = Mutate(load->indices)
                            .ValueOrUnchanged(load->indices)
                            .as_or_throw<ffi::Array<PrimExpr>>();
-        auto flat_indices = tensor->ElemOffset(indices);
+        auto flat_indices = tensor.ty()->ElemOffset(indices);
         // S-TIR flattening uses ElemOffset, including explicit strides and the
         // element offset, even when the tensor carries a default layout.
         TVM_FFI_ICHECK_EQ(flat_indices.size(), 1U);
-        PrimType dtype = tensor->dtype;
+        PrimType dtype = tensor.dtype();
         int bytes = (dtype.bits() * dtype.lanes() + 7) / 8;
         *byte_offset = *byte_offset + flat_indices[0] * bytes;
         return tensor;
@@ -294,7 +295,7 @@ class PermutedLayoutInjector : public StmtExprMutatorWithAnalyzer {
   Expr PermutePointer(Expr pointer, ffi::Optional<PrimExpr> offset = std::nullopt) {
     PrimExpr byte_offset = PrimExpr(0);
     TensorVar tensor = DecodePointer(pointer, &byte_offset);
-    PrimType dtype = tensor->dtype;
+    PrimType dtype = tensor.dtype();
     int bytes = (dtype.bits() * dtype.lanes() + 7) / 8;
     int row_size = CheckAndGetTensorRowSize(tensor);
     PrimExpr smem_offset = floordiv(byte_offset, bytes) + offset.value_or(PrimExpr(0));

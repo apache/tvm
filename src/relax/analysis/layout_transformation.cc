@@ -584,7 +584,7 @@ class FunctionAnalyzer : public s_tir::StmtExprVisitor {
       auto param = func->params[first_write_index + i];
       ffi::Optional<TensorVar> param_buf = param.as<TensorVar>();
       TVM_FFI_ICHECK(param_buf.has_value());
-      TVM_FFI_ICHECK_EQ(param_buf.value()->shape.size(),
+      TVM_FFI_ICHECK_EQ(param_buf.value().shape().size(),
                         write_transformations[i]->initial_indices.size())
           << "Mismatch between output tensor shape and index map";
       tensor_transformation_cache_.Set(param_buf.value(), write_transformations[i]);

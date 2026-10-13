@@ -42,8 +42,8 @@ class StorageAlignAxisOutOfRangeError : public ScheduleErrorContextObj {
 
   ffi::String DetailRenderTemplate() const final {
     std::ostringstream os;
-    int ndim = static_cast<int>(tensor_->shape.size());
-    os << "The tensor to set storage alignment of, " << tensor_.name() << ", has " << ndim
+    int ndim = static_cast<int>(tensor_.shape().size());
+    os << "The tensor to set storage alignment of, " << tensor_->name << ", has " << ndim
        << " dimension(s), so `axis` is required to be in [" << -(ndim) << ", " << ndim
        << ") for storage_align. However, the input `axis` is " << axis_
        << ", which is out of the expected range.";
@@ -54,7 +54,7 @@ class StorageAlignAxisOutOfRangeError : public ScheduleErrorContextObj {
   ffi::Array<ffi::ObjectRef> LocationsOfInterest() const final { return {}; }
 
   static int CheckAndUpdate(const IRModule& mod, const TensorVar& tensor, int axis) {
-    int ndim = static_cast<int>(tensor->shape.size());
+    int ndim = static_cast<int>(tensor.shape().size());
     if (axis < -ndim || axis >= ndim) {
       throw MakeScheduleError<StorageAlignAxisOutOfRangeError>(mod, tensor, axis);
     }
@@ -82,7 +82,7 @@ class NonAllocatedTensorError : public ScheduleErrorContextObj {
 
   ffi::String DetailRenderTemplate() const final {
     std::ostringstream os;
-    os << "The input tensor " << tensor_.name()
+    os << "The input tensor " << tensor_->name
        << " is not allocated by a block. This means the tensor is either a function parameter or "
           "defined in `match_tensor` of a block.";
     return os.str();
@@ -319,7 +319,7 @@ class DTypeMutator : public ReplaceTensorMutator {
   DTypeMutator(const TensorVar& old_tensor, TensorVar new_tensor, PrimType dtype,
                ffi::Map<SBlock, SBlock>* block_sref_reuse)
       : ReplaceTensorMutator(old_tensor, std::move(new_tensor), block_sref_reuse),
-        src_dtype_(old_tensor->dtype),
+        src_dtype_(old_tensor.dtype()),
         tgt_dtype_(dtype) {}
 
  private:
@@ -327,7 +327,7 @@ class DTypeMutator : public ReplaceTensorMutator {
     if (auto replacement =
             VarRemapGet(match_tensor->source->source.as_or_throw<tvm::tirx::TensorVar>())
                 .as<TensorVar>()) {
-      TensorVar new_target_tensor = WithDType(match_tensor->tensor, replacement.value()->dtype);
+      TensorVar new_target_tensor = WithDType(match_tensor->tensor, replacement.value().dtype());
       VarRemapSet(match_tensor->tensor, new_target_tensor);
       return MatchTensorRegion(
           new_target_tensor,
@@ -355,7 +355,7 @@ class DTypeMutator : public ReplaceTensorMutator {
                           .ValueOrUnchanged(ffi::GetRef<PrimExpr>(op))
                           .as_or_throw<TensorLoad>();
     if (auto replacement = VarRemapGet(original_tensor).as<TensorVar>()) {
-      return Cast(src_dtype_, MakeTensorLoad(replacement.value(), node->indices));
+      return Cast(src_dtype_, TensorLoad(replacement.value(), node->indices));
     }
     return node;
   }
@@ -371,7 +371,7 @@ void UnsafeSetDType(ScheduleState self, const StmtSRef& block_sref, int tensor_i
   PrimType target_dtype(ffi::StringToDLDataType(dtype));
 
   // Step 1. If `dtype` equals the original data type, just return.
-  if (tensor->dtype == target_dtype) {
+  if (tensor.dtype() == target_dtype) {
     return;
   }
 

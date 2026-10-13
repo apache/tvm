@@ -64,7 +64,7 @@ ffi::Optional<Var> GetBufferDataVar(const ffi::Any& data) {
 }  // namespace
 
 ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const TensorLoadNode* op) {
-  Var buf = ResolveBuffer(op->source.as_or_throw<tvm::tirx::TensorVar>().var());
+  Var buf = ResolveBuffer(op->source.as_or_throw<tvm::tirx::TensorVar>());
   MemoryScope scope = op->source.as_or_throw<tvm::tirx::TensorVar>().scope();
   if (Enabled(buf.get(), scope)) {
     TVM_FFI_ICHECK(allow_append_) << op << " " << scope.name();
@@ -89,7 +89,7 @@ ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const TensorStoreNode
   TVM_FFI_ICHECK_EQ(curr_stmt_.access.size(), 0U);
   curr_stmt_.stmt = op;
 
-  Var buf = ResolveBuffer(op->dest.as_or_throw<TensorVar>().var());
+  Var buf = ResolveBuffer(op->dest.as_or_throw<TensorVar>());
   MemoryScope scope = op->dest.as_or_throw<TensorVar>().scope();
   if (Enabled(buf.get(), scope)) {
     AccessEntry e;
@@ -306,8 +306,8 @@ void StorageAccessVisitor::RecordOpaqueAccess(Var source) {
   auto tensor = root.as<TensorVar>();
   if (!tensor.has_value()) tensor = source.as<TensorVar>();
   if (tensor.has_value()) {
-    entry.dtype = tensor.value()->dtype;
-    for (const PrimExpr& extent : tensor.value()->shape) {
+    entry.dtype = tensor.value().dtype();
+    for (const PrimExpr& extent : tensor.value().shape()) {
       entry.touched.push_back(sym::IntSet::FromRange(Range::FromMinExtent(0, extent)));
     }
   } else {
@@ -354,7 +354,7 @@ ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const CallNode* op) {
     TensorVar tensor = op->args[0].as_or_throw<TensorVar>();
     PrimType value_dtype =
         is_load ? op->ty.as_or_throw<PrimType>() : op->args[1].as_or_throw<PrimExpr>().ty();
-    Var buf = ResolveBuffer(tensor.var());
+    Var buf = ResolveBuffer(tensor);
     MemoryScope scope = tensor.scope();
     if (Enabled(buf.get(), scope)) {
       TVM_FFI_ICHECK(allow_append_) << call << " " << scope.name();

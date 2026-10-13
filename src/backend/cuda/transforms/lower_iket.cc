@@ -236,8 +236,8 @@ bool Is64BitPayload(PayloadType type) {
 }
 
 bool IsScalarTensorAccess(const TensorVar& tensor, const ffi::Array<PrimExpr>& indices) {
-  if (tensor->shape.size() != 1 || indices.size() != 1) return false;
-  const auto* extent = tensor->shape[0].as<IntImmNode>();
+  if (tensor.shape().size() != 1 || indices.size() != 1) return false;
+  const auto* extent = tensor.shape()[0].as<IntImmNode>();
   const auto* index = indices[0].as<IntImmNode>();
   return extent && extent->value == 1 && index && index->value == 0;
 }
@@ -499,9 +499,9 @@ class TokenVerifier : public StmtExprVisitor {
     if (!token_tensors_.count(store->dest.as_or_throw<TensorVar>().get())) {
       return StmtExprVisitor::Visit_(store);
     }
-    TVM_FFI_CHECK(store->dest.as_or_throw<TensorVar>()->dtype->dtype.code == kDLUInt &&
-                      store->dest.as_or_throw<TensorVar>()->dtype->dtype.bits == 32 &&
-                      store->dest.as_or_throw<TensorVar>()->dtype->dtype.lanes == 1,
+    TVM_FFI_CHECK(store->dest.as_or_throw<TensorVar>().dtype()->dtype.code == kDLUInt &&
+                      store->dest.as_or_throw<TensorVar>().dtype()->dtype.bits == 32 &&
+                      store->dest.as_or_throw<TensorVar>().dtype()->dtype.lanes == 1,
                   TypeError)
         << "IKET RangeToken storage must have dtype uint32";
     TVM_FFI_CHECK(store->dest.as_or_throw<TensorVar>().scope() == scope_local &&

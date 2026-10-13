@@ -54,6 +54,7 @@ UnchangedOr<Expr> SimplifierBase::Mutate_(const TupleGetItemNode* op, InplaceMod
 }
 
 UnchangedOr<PrimExpr> SimplifierBase::Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) {
+  TVM_FFI_CHECK(op->ty.as<PrimTypeNode>(), TypeError) << "TensorLoad requires a concrete PrimType";
   auto source_u = Mutate(op->source, inplace_mode);
   auto indices_u =
       Mutate(op->indices, inplace_mode).as_or_throw<UnchangedOr<ffi::Array<PrimExpr>>>();

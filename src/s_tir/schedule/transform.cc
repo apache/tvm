@@ -46,15 +46,15 @@ SBlock WithAnnotation(const SBlockNode* block, const ffi::String& attr_key,
 
 /******** Tensor Related ********/
 TensorVar WithScope(const TensorVar& tensor, runtime::MemoryScope scope) {
-  TensorType new_type(tensor->shape, tensor->dtype, scope, tensor->strides, tensor->elem_offset,
-                      tensor->data_alignment, tensor->offset_factor, tensor->layout);
-  return TensorVar(tensor.name() + "_" + scope.name(), new_type, tensor.loc());
+  TensorType new_type(tensor.shape(), tensor.dtype(), scope, tensor.strides(), tensor.elem_offset(),
+                      tensor.ty()->data_alignment, tensor.ty()->offset_factor, tensor.ty()->layout);
+  return TensorVar(tensor->name + "_" + scope.name(), new_type, tensor->loc);
 }
 
 TensorVar WithDType(const TensorVar& tensor, PrimType dtype) {
-  TensorType new_type(tensor->shape, dtype, tensor->scope, tensor->strides, tensor->elem_offset,
-                      tensor->data_alignment, tensor->offset_factor, tensor->layout);
-  return TensorVar(tensor.name(), new_type, tensor.loc());
+  TensorType new_type(tensor.shape(), dtype, tensor.scope(), tensor.strides(), tensor.elem_offset(),
+                      tensor.ty()->data_alignment, tensor.ty()->offset_factor, tensor.ty()->layout);
+  return TensorVar(tensor->name, new_type, tensor->loc);
 }
 
 ffi::Array<TensorRegion> ReplaceTensor(ffi::Array<TensorRegion> regions, const TensorVar& source,
@@ -148,7 +148,7 @@ UnchangedOr<Expr> ReplaceTensorMutator::Mutate_(const CallNode* op, InplaceMode 
     if (!op->unique()) inplace_mode = InplaceMode::kDisallow;
   }
   if (!op->op.same_as(tirx::tensor_data_ptr_op()) || op->args.size() != 1) return result;
-  PtrType type = op->args[0].as_or_throw<TensorVar>().type()->DataPtrType();
+  PtrType type = op->args[0].as_or_throw<TensorVar>().ty()->DataPtrType();
   if (ffi::StructuralEqual()(op->ty, type)) return result;
   if (inplace_mode == InplaceMode::kAllow) {
     const_cast<CallNode*>(op)->ty = std::move(type);

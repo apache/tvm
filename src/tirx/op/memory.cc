@@ -47,7 +47,7 @@ Type InferTypePointerOffset(const CallNode* call) {
 Type InferTypeAddressOf(const CallNode* call) {
   TVM_FFI_CHECK_GE(call->args.size(), 1U, ValueError) << "Address type requires an object";
   if (const auto* load = call->args[0].as<TensorLoadNode>()) {
-    return load->source.as_or_throw<TensorVar>().type()->DataPtrType();
+    return load->source.as_or_throw<TensorVar>().ty()->DataPtrType();
   }
   Var variable = call->args[0].as_or_throw<Var>();
   if (auto pointer = variable->ty.as<PtrType>();
@@ -66,13 +66,13 @@ Type InferTypeMaskedLoad(const CallNode* call) {
     indices.push_back(call->args[i].as_or_throw<PrimExpr>());
   }
   // Ordinary load typing computes vector elements and scalable index lanes.
-  return MakeTensorLoad(tensor, indices).ty();
+  return TensorLoad(tensor, indices).ty();
 }
 
 ffi::Expected<Type> InferTypeTensorDataPtr(const CallNode* call) noexcept try {
   TVM_FFI_CHECK_EQ(call->args.size(), 1U, ValueError)
       << "tirx.tensor_data_ptr expects one TensorVar argument";
-  Type inferred = call->args[0].as_or_throw<TensorVar>().type()->DataPtrType();
+  Type inferred = call->args[0].as_or_throw<TensorVar>().ty()->DataPtrType();
   if (call->ty.same_as(inferred) || ffi::StructuralEqual()(call->ty, inferred)) return call->ty;
   return inferred;
 } catch (const ffi::Error& error) {

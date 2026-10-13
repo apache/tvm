@@ -315,14 +315,14 @@ class VTInjector : public s_tir::StmtExprMutatorWithAnalyzer {
                                .ValueOrUnchanged(op->args[op->args.size() - 1])
                                .as_or_throw<PrimExpr>();
       if (is_load) {
-        TensorLoad access = VisitTensorAccess(MakeTensorLoad(tensor, indices, op->loc));
-        ffi::Array<Expr> args{access->source.as_or_throw<tvm::tirx::TensorVar>().var()};
+        TensorLoad access = VisitTensorAccess(TensorLoad(tensor, indices, op->loc));
+        ffi::Array<Expr> args{access->source.as_or_throw<tvm::tirx::TensorVar>()};
         for (const PrimExpr& index : access->indices) args.push_back(index);
         args.push_back(predicate);
         return Call(op->ty, op->op, args, op->attrs, op->ty_args, op->loc);
       }
       TensorStore access = VisitTensorAccess(TensorStore(tensor, indices, value.value(), op->loc));
-      ffi::Array<Expr> args{access->dest.as_or_throw<TensorVar>().var(), access->value};
+      ffi::Array<Expr> args{access->dest.as_or_throw<TensorVar>(), access->value};
       for (const PrimExpr& index : access->indices) args.push_back(index);
       args.push_back(predicate);
       return Call(op->ty, op->op, args, op->attrs, op->ty_args, op->loc);
@@ -334,7 +334,7 @@ class VTInjector : public s_tir::StmtExprMutatorWithAnalyzer {
       }
       visit_touched_var_ = true;
       TensorVar tensor = tensor_var.as_or_throw<TensorVar>();
-      PrimType dtype = tensor->dtype;
+      PrimType dtype = tensor.dtype();
       int bytes = (dtype.bits() * dtype.lanes() + 7) / 8;
       return Call(op->ty, tirx::ptr_byte_offset_op(),
                   {GetRemappedTensor(tensor, it->second).data(),
@@ -408,11 +408,11 @@ class VTInjector : public s_tir::StmtExprMutatorWithAnalyzer {
     if (auto replacement = VarRemapGet(tensor).as<TensorVar>()) return replacement.value();
     TensorVar original = tensor;
 
-    TVM_FFI_ICHECK_EQ(tensor->shape.size(), 1)
+    TVM_FFI_ICHECK_EQ(tensor.shape().size(), 1)
         << "Expected tensors being rewritten to already be flattened.";
-    auto writer = CopyTensorType(tensor);
-    writer->shape = {tensor->shape[0] * alloc_extent};
-    tensor = RebuildTensorVar(tensor, std::move(writer));
+    auto writer = ffi::make_object<TensorTypeNode>(*tensor.ty().get());
+    writer->shape = {tensor.shape()[0] * alloc_extent};
+    tensor = TensorVar(tensor->name, TensorType(std::move(writer)), tensor->loc);
 
     VarRemapSet(original, tensor);
     return tensor;
@@ -611,14 +611,16 @@ class VTInjector : public s_tir::StmtExprMutatorWithAnalyzer {
     if (new_shape.same_as(original_shape) && args.same_as(call->args)) {
       return ffi::Unchanged();
     } else {
-      auto type = CopyTensorType(op->var.as_or_throw<TensorVar>());
+      auto type = ffi::make_object<TensorTypeNode>(*op->var.as_or_throw<TensorVar>().ty().get());
       type->shape = new_shape;
-      TensorVar new_tensor = RebuildTensorVar(op->var.as_or_throw<TensorVar>(), std::move(type));
+      TensorVar new_tensor =
+          TensorVar(op->var.as_or_throw<TensorVar>()->name, TensorType(std::move(type)),
+                    op->var.as_or_throw<TensorVar>()->loc);
       VarRemapSet(op->var.as_or_throw<TensorVar>(), new_tensor);
 
-      return Bind(new_tensor.var(),
-                  Call(new_tensor.type(), tirx::alloc_tensor_op(), args, call->attrs,
-                       {new_tensor.type()}, call->loc),
+      return Bind(new_tensor,
+                  Call(new_tensor.ty(), tirx::alloc_tensor_op(), args, call->attrs,
+                       {new_tensor.ty()}, call->loc),
                   op->loc);
     }
   }

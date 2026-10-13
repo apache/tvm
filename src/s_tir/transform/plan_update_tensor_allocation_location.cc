@@ -125,7 +125,7 @@ class TensorAllocationLocator : public StmtExprMutator {
     for (const Var& param : func->params) {
       if (auto tensor = param.as<TensorVar>()) {
         arg_tensor_vars.emplace(tensor.value().get());
-        tensor_data_to_tensor_.Set(tensor.value().var(), tensor.value());
+        tensor_data_to_tensor_.Set(tensor.value(), tensor.value());
       }
     }
     // create tensors to be allocated at each stmts
@@ -139,7 +139,7 @@ class TensorAllocationLocator : public StmtExprMutator {
         if (managed_allocations_.count(tensor.get())) {
           alloc_tensors_[stmt].push_back(tensor);
         }
-        tensor_data_to_tensor_.Set(tensor.var(), tensor);
+        tensor_data_to_tensor_.Set(tensor, tensor);
       }
     }
   }
@@ -151,7 +151,7 @@ class TensorAllocationLocator : public StmtExprMutator {
       return StmtExprMutator::Mutate_(op, inplace_mode);
     }
     for (const TensorVar& tensor : it->second) {
-      tensor_data_to_tensor_.Set(tensor.var(), tensor);
+      tensor_data_to_tensor_.Set(tensor, tensor);
     }
     auto node = StmtExprMutator::Mutate_(op, inplace_mode)
                     .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
@@ -160,7 +160,7 @@ class TensorAllocationLocator : public StmtExprMutator {
     ffi::Array<TensorVar> new_block_alloc_tensors;
     for (const TensorVar& tensor : it->second) {
       if (managed_allocations_.count(tensor.get())) {
-        tensor_data_to_tensor_.erase(tensor.var());
+        tensor_data_to_tensor_.erase(tensor);
         new_block_alloc_tensors.push_back(tensor);
       }
     }
@@ -178,7 +178,7 @@ class TensorAllocationLocator : public StmtExprMutator {
       return StmtExprMutator::Mutate_(op, inplace_mode);
     }
     for (const TensorVar& tensor : it->second) {
-      tensor_data_to_tensor_.Set(tensor.var(), tensor);
+      tensor_data_to_tensor_.Set(tensor, tensor);
     }
     auto node = StmtExprMutator::Mutate_(op, inplace_mode)
                     .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
@@ -187,7 +187,7 @@ class TensorAllocationLocator : public StmtExprMutator {
     ffi::Array<TensorVar> new_block_alloc_tensors;
     for (const TensorVar& tensor : it->second) {
       if (managed_allocations_.count(tensor.get())) {
-        tensor_data_to_tensor_.erase(tensor.var());
+        tensor_data_to_tensor_.erase(tensor);
         new_block_alloc_tensors.push_back(tensor);
       }
     }
@@ -206,12 +206,12 @@ class TensorAllocationLocator : public StmtExprMutator {
     if (it != alloc_tensors_.end()) {
       alloc_tensors = it->second;
       for (const TensorVar& tensor : it->second) {
-        tensor_data_to_tensor_.Set(tensor.var(), tensor);
+        tensor_data_to_tensor_.Set(tensor, tensor);
       }
     }
     for (const MatchTensorRegion match_tensor : op->match_tensors) {
-      const Var target_var = match_tensor->tensor.var();
-      const Var source_var = match_tensor->source->source.as_or_throw<tvm::tirx::TensorVar>().var();
+      const Var target_var = match_tensor->tensor;
+      const Var source_var = match_tensor->source->source.as_or_throw<tvm::tirx::TensorVar>();
       TVM_FFI_ICHECK(tensor_data_to_tensor_.count(source_var));
       tensor_data_to_tensor_.Set(target_var, match_tensor->tensor);
     }
@@ -224,13 +224,13 @@ class TensorAllocationLocator : public StmtExprMutator {
     // No longer consider tensors created by match_tensor inside the block when updating access
     // region.
     for (const MatchTensorRegion match_tensor : op->match_tensors) {
-      const Var target_var = match_tensor->tensor.var();
+      const Var target_var = match_tensor->tensor;
       tensor_data_to_tensor_.erase(target_var);
     }
     // No longer consider tensors allocated inside the block when updating access region.
     if (it != alloc_tensors_.end()) {
       for (const TensorVar& tensor : it->second) {
-        tensor_data_to_tensor_.erase(tensor.var());
+        tensor_data_to_tensor_.erase(tensor);
       }
     }
 
@@ -264,8 +264,7 @@ class TensorAllocationLocator : public StmtExprMutator {
       const ffi::Array<TensorRegion>& region) const {
     ffi::Array<TensorRegion> result;
     for (const TensorRegion& tensor_region : region) {
-      if (tensor_data_to_tensor_.count(
-              tensor_region->source.as_or_throw<tvm::tirx::TensorVar>().var())) {
+      if (tensor_data_to_tensor_.count(tensor_region->source.as_or_throw<tvm::tirx::TensorVar>())) {
         result.push_back(tensor_region);
       }
     }

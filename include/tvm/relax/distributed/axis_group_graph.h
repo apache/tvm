@@ -85,7 +85,7 @@ class TensorAxisGraphExtractor : public s_tir::StmtExprVisitor {
         continue;
       }
       TensorVar tensor = param.as_or_throw<TensorVar>();
-      for (int i = 0; i < static_cast<int>(tensor->shape.size()); i++) {
+      for (int i = 0; i < static_cast<int>(tensor.shape().size()); i++) {
         if (extractor->tensor_axis_graph_.count({tensor, i})) {
           std::vector<TensorAxis> tensor_axis_group;
           extractor->DFSGraph({tensor, i}, &visited, &tensor_axis_group);
@@ -182,7 +182,7 @@ class TensorAxisGraphExtractor : public s_tir::StmtExprVisitor {
           TensorVar another_tensor = another_access_pr.first;
           ffi::Array<PrimExpr> another_indices = another_access_pr.second;
           for (int j = 0; j < static_cast<int>(another_indices.size()); j++) {
-            if (Match(indices[i], tensor->shape[i], another_indices[j], another_tensor->shape[j],
+            if (Match(indices[i], tensor.shape()[i], another_indices[j], another_tensor.shape()[j],
                       analyzer)) {
               JoinTensorAxis({tensor, i}, {another_tensor, j});
             }

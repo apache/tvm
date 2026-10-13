@@ -1365,7 +1365,7 @@ void AddShapeVarBounds(const ScheduleState& state, const StmtSRefObj* sref,
   const FunctionNode* f = GetRootFunction(state->mod, sref->stmt, nullptr);
   for (const Var& param : f->params) {
     if (auto tensor = param.as<TensorVar>()) {
-      for (const PrimExpr& e : tensor.value()->shape) {
+      for (const PrimExpr& e : tensor.value().shape()) {
         analyzer->MarkGlobalNonNegValue(e);
       }
     }
@@ -1425,7 +1425,7 @@ AnalyzeReadWritePattern(const TensorRegion& read_region, const TensorRegion& wri
   static constexpr const std::tuple<bool, bool, bool, bool, bool, bool> kNotExist =
       std::make_tuple(false, false, false, false, false, false);
   // Step 1. Extract the write indices
-  int w_dim = write_region->source.as_or_throw<tvm::tirx::TensorVar>()->shape.size();
+  int w_dim = write_region->source.as_or_throw<tvm::tirx::TensorVar>().shape().size();
   std::unordered_map<const VarNode*, int> var2idx;
   var2idx.reserve(w_dim);
   for (int i = 0; i < w_dim; ++i) {
@@ -1442,7 +1442,7 @@ AnalyzeReadWritePattern(const TensorRegion& read_region, const TensorRegion& wri
   // Step 2. Map each read index to a write index
   bool no_const_read = true;
   bool no_shift_read = true;
-  int r_dim = read_region->source.as_or_throw<tvm::tirx::TensorVar>()->shape.size();
+  int r_dim = read_region->source.as_or_throw<tvm::tirx::TensorVar>().shape().size();
   std::vector<int> mapped(r_dim, -1);
   for (int i = 0; i < r_dim; ++i) {
     const Range& dom = read_region->region[i];

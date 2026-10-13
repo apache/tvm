@@ -73,11 +73,11 @@ class PTXAsyncCopyInjector : public StmtExprMutator {
       const int indices_lanes = load->indices[0].ty().lanes();
       const int bytes =
           indices_lanes *
-          static_cast<int>(load->source.as_or_throw<tvm::tirx::TensorVar>()->dtype.StorageBytes());
+          static_cast<int>(load->source.as_or_throw<tvm::tirx::TensorVar>().dtype().StorageBytes());
 
       if (bytes == 4 || bytes == 8 || bytes == 16) {
-        PrimType dst_elem_type = store->dest.as_or_throw<TensorVar>()->dtype;
-        PrimType src_elem_type = load->source.as_or_throw<TensorVar>()->dtype;
+        PrimType dst_elem_type = store->dest.as_or_throw<TensorVar>().dtype();
+        PrimType src_elem_type = load->source.as_or_throw<TensorVar>().dtype();
 
         int index_factor = 1;
         if (dst_elem_type != src_elem_type) {
@@ -104,7 +104,7 @@ class PTXAsyncCopyInjector : public StmtExprMutator {
             args.push_back(predicate_value.value());
           }
           static const Op ptx_cp_async_op = Op::Get("tirx.s_tir.cp_async_raw");
-          return Evaluate(Call(store->dest.as_or_throw<TensorVar>()->dtype, ptx_cp_async_op, args)
+          return Evaluate(Call(store->dest.as_or_throw<TensorVar>().dtype(), ptx_cp_async_op, args)
                               .as_or_throw<PrimExpr>());
         }
 
@@ -135,7 +135,7 @@ class PTXAsyncCopyInjector : public StmtExprMutator {
           }();
           if (src_offset.has_value() && dst_offset.has_value()) {
             static const Op ptx_cp_async_op = Op::Get("tirx.s_tir.cp_async_raw");
-            return Evaluate(Call(store->dest.as_or_throw<TensorVar>()->dtype, ptx_cp_async_op,
+            return Evaluate(Call(store->dest.as_or_throw<TensorVar>().dtype(), ptx_cp_async_op,
                                  {store->dest.as_or_throw<TensorVar>().data(),
                                   mul(dst_offset.value(), PrimExpr(index_factor)),
                                   load->source.as_or_throw<tvm::tirx::TensorVar>().data(),
@@ -169,7 +169,7 @@ class PTXAsyncCopyInjector : public StmtExprMutator {
 
           if (src_offset.has_value() && dst_offset.has_value()) {
             static const Op ptx_cp_async_op = Op::Get("tirx.s_tir.cp_async_raw");
-            return Evaluate(Call(store->dest.as_or_throw<TensorVar>()->dtype, ptx_cp_async_op,
+            return Evaluate(Call(store->dest.as_or_throw<TensorVar>().dtype(), ptx_cp_async_op,
                                  {store->dest.as_or_throw<TensorVar>().data(),
                                   mul(dst_offset.value(), PrimExpr(index_factor)),
                                   load->source.as_or_throw<tvm::tirx::TensorVar>().data(),

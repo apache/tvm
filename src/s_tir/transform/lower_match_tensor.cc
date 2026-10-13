@@ -95,7 +95,7 @@ class MatchTensorLower : public StmtExprMutator {
         for (const auto& entry : value.value().cast<TensorAllocatedAddresses>()) {
           bool is_alias = false;
           for (const auto& match : n->match_tensors) {
-            is_alias |= entry.get<0>().same_as(match->tensor.var());
+            is_alias |= entry.get<0>().same_as(match->tensor);
           }
           if (!is_alias) addresses.push_back(entry);
         }
@@ -177,7 +177,7 @@ class MatchTensorLower : public StmtExprMutator {
       const TensorVar& tensor = (*it).first;
       const TensorRegion& source = (*it).second;
       ffi::Array<PrimExpr> indices = ConvertIndices(MatchTensorRegion(tensor, source), op->indices);
-      return MakeTensorLoad(source->source.as_or_throw<tvm::tirx::TensorVar>(), indices);
+      return TensorLoad(source->source.as_or_throw<tvm::tirx::TensorVar>(), indices);
     }
   }
 
@@ -205,21 +205,21 @@ class MatchTensorLower : public StmtExprMutator {
     TVM_FFI_ICHECK_EQ(tensor.scope(), source_tensor.scope())
         << "MatchTensor " << tensor << " scope mismatch:" << tensor.scope() << "vs."
         << source_tensor.scope();
-    TVM_FFI_ICHECK_EQ(tensor->dtype, source_tensor->dtype)
-        << "MatchTensor " << tensor << " data type mismatch:" << tensor->dtype << "vs."
-        << source_tensor->dtype;
+    TVM_FFI_ICHECK_EQ(tensor.dtype(), source_tensor.dtype())
+        << "MatchTensor " << tensor << " data type mismatch:" << tensor.dtype() << "vs."
+        << source_tensor.dtype();
 
     // Step.1.2. Check data alignment
-    if (source_tensor->data_alignment % tensor->data_alignment != 0) {
+    if (source_tensor.ty()->data_alignment % tensor.ty()->data_alignment != 0) {
       LOG(WARNING) << "Trying to bind tensor to another one with lower alignment requirement "
-                   << " required alignment=" << tensor->data_alignment
-                   << ", provided alignment=" << source_tensor->data_alignment;
+                   << " required alignment=" << tensor.ty()->data_alignment
+                   << ", provided alignment=" << source_tensor.ty()->data_alignment;
     }
-    if (IsZero(tensor->elem_offset)) {
-      TVM_FFI_ICHECK(IsZero(source_tensor->elem_offset))
+    if (IsZero(tensor.elem_offset())) {
+      TVM_FFI_ICHECK(IsZero(source_tensor.elem_offset()))
           << "Trying to bind a TensorVar with offset into one without offset "
-          << " required elem_offset=" << tensor->elem_offset
-          << ", provided elem_offset=" << source_tensor->elem_offset;
+          << " required elem_offset=" << tensor.elem_offset()
+          << ", provided elem_offset=" << source_tensor.elem_offset();
     }
 
     // Step.2. Update
@@ -233,47 +233,47 @@ class MatchTensorLower : public StmtExprMutator {
         indices.push_back(range->min);
       }
 
-      ffi::Array<PrimExpr> tensor_start_indices = source_tensor->ElemOffset(indices);
+      ffi::Array<PrimExpr> tensor_start_indices = source_tensor.ty()->ElemOffset(indices);
       if (tensor_start_indices.size() == 1) {
-        Bind(tensor->elem_offset, tensor_start_indices[0], tensor.name() + ".elem_offset");
+        Bind(tensor.elem_offset(), tensor_start_indices[0], tensor->name + ".elem_offset");
         TVM_FFI_ICHECK(
-            analyzer_->CanProve(truncmod(tensor->elem_offset, tensor->offset_factor) == 0))
+            analyzer_->CanProve(truncmod(tensor.elem_offset(), tensor.ty()->offset_factor) == 0))
             << "The source elem_offset " << tensor_start_indices[0]
-            << " does not satisfy the offset_factor " << tensor->offset_factor << ".";
+            << " does not satisfy the offset_factor " << tensor.ty()->offset_factor << ".";
       } else {
         // Non-zero elem_offset is ill-defined for non-flat memory.
         // If needed in the future, will require `ffi::Array<PrimExpr>
         // elem_offsets`, with one offset for each flattened index.
-        Bind(tensor->elem_offset, IntImm(tensor->elem_offset.ty(), 0));
+        Bind(tensor.elem_offset(), IntImm(tensor.elem_offset().ty(), 0));
       }
     }
 
     // Step 2.3. Check and update strides
     // Check if target tensor strides are defined
-    TVM_FFI_ICHECK(source->region.size() >= tensor->shape.size());
-    int offset = source->region.size() - tensor->shape.size();
-    if (!tensor->strides.empty()) {
-      TVM_FFI_ICHECK_EQ(tensor->strides.size(), tensor->shape.size());
-      if (source_tensor->strides.empty()) {
-        PrimExpr stride = prim::MakeConst(tensor->strides.back().ty(), 1);
-        for (size_t i = tensor->shape.size(); i > 0; --i) {
-          const PrimExpr& shape = source_tensor->shape[i - 1 + offset];
-          Bind(tensor->strides[i - 1], stride, tensor.name() + ".strides_" + std::to_string(i - 1));
+    TVM_FFI_ICHECK(source->region.size() >= tensor.shape().size());
+    int offset = source->region.size() - tensor.shape().size();
+    if (!tensor.strides().empty()) {
+      TVM_FFI_ICHECK_EQ(tensor.strides().size(), tensor.shape().size());
+      if (source_tensor.strides().empty()) {
+        PrimExpr stride = prim::MakeConst(tensor.strides().back().ty(), 1);
+        for (size_t i = tensor.shape().size(); i > 0; --i) {
+          const PrimExpr& shape = source_tensor.shape()[i - 1 + offset];
+          Bind(tensor.strides()[i - 1], stride, tensor->name + ".strides_" + std::to_string(i - 1));
           stride *= shape;
         }
       } else {
-        TVM_FFI_ICHECK_EQ(tensor->shape.size() + offset, source_tensor->strides.size());
-        for (size_t i = tensor->shape.size(); i > 0; --i) {
-          const PrimExpr& stride = source_tensor->strides[i - 1 + offset];
-          Bind(tensor->strides[i - 1], stride, tensor.name() + ".strides_" + std::to_string(i - 1));
+        TVM_FFI_ICHECK_EQ(tensor.shape().size() + offset, source_tensor.strides().size());
+        for (size_t i = tensor.shape().size(); i > 0; --i) {
+          const PrimExpr& stride = source_tensor.strides()[i - 1 + offset];
+          Bind(tensor.strides()[i - 1], stride, tensor->name + ".strides_" + std::to_string(i - 1));
         }
       }
     }
 
     // Step 2.4. Check and update shape
-    for (size_t i = 0; i < tensor->shape.size(); ++i) {
+    for (size_t i = 0; i < tensor.shape().size(); ++i) {
       const Range& range = source->region[i + offset];
-      Bind(tensor->shape[i], range->extent, tensor.name() + ".shape_" + std::to_string(i));
+      Bind(tensor.shape()[i], range->extent, tensor->name + ".shape_" + std::to_string(i));
     }
   }
 

@@ -90,7 +90,7 @@ ffi::Array<sym::IntSet> AnalyzeRegionLowerBound(
           /*predicate=*/predicate, /*analyzer=*/analyzer_ref)) {
     return result.value();
   }
-  return ffi::Array<sym::IntSet>(region->source.as_or_throw<tvm::tirx::TensorVar>()->shape.size(),
+  return ffi::Array<sym::IntSet>(region->source.as_or_throw<tvm::tirx::TensorVar>().shape().size(),
                                  sym::IntSet::Nothing());
 }
 
@@ -356,7 +356,7 @@ class SBlockInfoCollector : public StmtExprVisitor {
                   /*dom_low_inclusive=*/parent_sref,
                   /*dom_high_exclusive=*/lca,
                   /*analyzer=*/analyzer_.get());
-              if (!ProducerCoversConsumer(tensor->shape, produced_region, consumed_region,
+              if (!ProducerCoversConsumer(tensor.shape(), produced_region, consumed_region,
                                           analyzer_.get())) {
                 region_cover = false;
                 self_->block_info.at(consumer_block_sref).region_cover = region_cover;

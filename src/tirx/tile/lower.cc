@@ -435,7 +435,7 @@ class TileDispatcher : public StmtExprMutator {
     Stmt stmt = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     op = stmt.as<BindNode>();
     TVM_FFI_ICHECK(op);
-    RegisterStorageRoot(old_tensor.var(), op->var, std::nullopt);
+    RegisterStorageRoot(old_tensor, op->var, std::nullopt);
 
     std::vector<Stmt> seq{stmt};
     AppendPostTensorDefStmts(&seq, old_tensor, op->var.as_or_throw<TensorVar>());
@@ -448,7 +448,7 @@ class TileDispatcher : public StmtExprMutator {
     op = stmt.as<BindNode>();
     TVM_FFI_ICHECK(op);
     const auto* tensor_call = op->value.as<CallNode>();
-    RegisterStorageRoot(old_tensor.var(), op->var, tensor_call->args[0]);
+    RegisterStorageRoot(old_tensor, op->var, tensor_call->args[0]);
 
     std::vector<Stmt> seq{stmt};
     AppendPostTensorDefStmts(&seq, old_tensor, op->var.as_or_throw<TensorVar>());

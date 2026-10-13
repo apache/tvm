@@ -103,10 +103,10 @@ class TextureAllocInjector : public s_tir::StmtExprMutatorWithAnalyzer {
                           {texture.width, texture.height, texture.depth}));
       args.push_back(IntImm::Int64(channel_size));
       stmt = Bind(op->var.as_or_throw<TensorVar>(),
-                  Call(op->var.as_or_throw<TensorVar>().type(), tirx::decl_tensor_op(),
-                       {Call(op->var.as_or_throw<TensorVar>().type()->DataPtrType(),
+                  Call(op->var.as_or_throw<TensorVar>().ty(), tirx::decl_tensor_op(),
+                       {Call(op->var.as_or_throw<TensorVar>().ty()->DataPtrType(),
                              tvm::backend::opencl::nd_mem_alloc_with_scope_op(), args)},
-                       {}, {op->var.as_or_throw<TensorVar>().type()}, allocation->loc),
+                       {}, {op->var.as_or_throw<TensorVar>().ty()}, allocation->loc),
                   op->loc);
     }
     return stmt;

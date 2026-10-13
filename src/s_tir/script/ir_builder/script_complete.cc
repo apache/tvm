@@ -71,11 +71,11 @@ class ScriptCompleter : public s_tir::StmtExprMutator {
   UnchangedOr<Stmt> Mutate_(const s_tir::SBlockNode* op, InplaceMode inplace_mode) final {
     // Tensors allocated in the block can be accessed by its body.
     for (const auto& alloc_tensor : op->alloc_tensors) {
-      tensor_var_map_->Set(alloc_tensor.var(), alloc_tensor);
+      tensor_var_map_->Set(alloc_tensor, alloc_tensor);
     }
     for (const auto& match_tensor : op->match_tensors) {
       const TensorVar& target_tensor = match_tensor->tensor;
-      tensor_var_map_->Set(target_tensor.var(), target_tensor);
+      tensor_var_map_->Set(target_tensor, target_tensor);
     }
 
     bool is_root_block = this->is_root_block_;
@@ -87,11 +87,11 @@ class ScriptCompleter : public s_tir::StmtExprMutator {
 
     // Remove tensors allocated inside block to detect its access region
     for (const auto& alloc_tensor : op->alloc_tensors) {
-      tensor_var_map_->erase(alloc_tensor.var());
+      tensor_var_map_->erase(alloc_tensor);
     }
     for (const auto& match_tensor : op->match_tensors) {
       const TensorVar& target_tensor = match_tensor->tensor;
-      tensor_var_map_->erase(target_tensor.var());
+      tensor_var_map_->erase(target_tensor);
     }
     // Get access detection mask
     // 0 for provided region, 1 and 3 for need detect read, 2 and 3 for need detect write
@@ -143,11 +143,11 @@ Function ScriptComplete(Function func, const ffi::Array<TensorVar>& root_allocat
   ffi::Map<Var, TensorVar> tensor_var_map;
   for (const Var& param : func->params) {
     if (auto tensor = param.as<TensorVar>()) {
-      tensor_var_map.Set(tensor.value().var(), tensor.value());
+      tensor_var_map.Set(tensor.value(), tensor.value());
     }
   }
   for (const auto& alloc : root_allocates) {
-    tensor_var_map.Set(alloc.var(), alloc);
+    tensor_var_map.Set(alloc, alloc);
   }
 
   Stmt res = func->body.value();

@@ -85,7 +85,7 @@ class PurityChecker : public StmtExprVisitor {
     this->Visit(op->value);
     this->Visit(op->indices);
 
-    if (!internal_allocations_.count(op->dest.as_or_throw<TensorVar>().var())) {
+    if (!internal_allocations_.count(op->dest.as_or_throw<TensorVar>())) {
       is_pure_ = false;
       if (assert_on_error_) {
         TVM_FFI_THROW(AssertionError)
@@ -193,10 +193,10 @@ class PurityChecker : public StmtExprVisitor {
       this->Visit(axis->dom);
       this->Visit(axis->var.as_or_throw<Var>()->ty);
     }
-    for (const auto& tensor : op->alloc_tensors) this->Visit(tensor.var()->ty);
+    for (const auto& tensor : op->alloc_tensors) this->Visit(tensor->ty);
     for (const auto& match : op->match_tensors) {
       this->Visit(match->source);
-      this->Visit(match->tensor.var()->ty);
+      this->Visit(match->tensor->ty);
     }
     this->Visit(op->reads);
     this->Visit(op->writes);

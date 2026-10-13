@@ -67,64 +67,64 @@ class MmaTensorLayoutTransformer : public StmtExprMutator {
       if ((scope_mma_matrixC && tensor.scope() == *scope_mma_matrixC)) {
         // mma.matrixC
         // bi = 16, bj = 8
-        size_t size = tensor->shape.size();
+        size_t size = tensor.shape().size();
         TVM_FFI_ICHECK_GE(size, 2);
-        const IntImmNode* dim0 = tensor->shape[size - 2].as<IntImmNode>();
-        const IntImmNode* dim1 = tensor->shape[size - 1].as<IntImmNode>();
+        const IntImmNode* dim0 = tensor.shape()[size - 2].as<IntImmNode>();
+        const IntImmNode* dim1 = tensor.shape()[size - 1].as<IntImmNode>();
         TVM_FFI_ICHECK(dim0 != nullptr && dim1 != nullptr);
         TVM_FFI_ICHECK(dim0->value % 16 == 0 && dim1->value % 8 == 0);
 
         std::vector<PrimExpr> new_shape;
         for (size_t i = 0; i < size - 2; ++i) {
-          new_shape.push_back(tensor->shape[i]);
+          new_shape.push_back(tensor.shape()[i]);
         }
         new_shape.insert(new_shape.end(),
                          {IntImm::Int32(dim0->value / 16), IntImm::Int32(dim1->value / 8), 2, 2});
 
         TensorVar new_tensor =
-            decl_tensor(std::move(new_shape), tensor->dtype, tensor.name(), scope_local);
+            TensorVar(tensor->name, TensorType(std::move(new_shape), tensor.dtype(), scope_local));
         VarRemapSet(tensor, new_tensor);
         return new_tensor;
 
       } else if ((scope_mma_matrixA && tensor.scope() == *scope_mma_matrixA)) {
         // mma.matrixA
         // bi = 32, bj = 8
-        size_t size = tensor->shape.size();
+        size_t size = tensor.shape().size();
         TVM_FFI_ICHECK_GE(size, 2);
-        const IntImmNode* dim0 = tensor->shape[size - 2].as<IntImmNode>();
-        const IntImmNode* dim1 = tensor->shape[size - 1].as<IntImmNode>();
+        const IntImmNode* dim0 = tensor.shape()[size - 2].as<IntImmNode>();
+        const IntImmNode* dim1 = tensor.shape()[size - 1].as<IntImmNode>();
         TVM_FFI_ICHECK(dim0 != nullptr && dim1 != nullptr);
         TVM_FFI_ICHECK(dim0->value % 32 == 0 && dim1->value % 8 == 0);
         std::vector<PrimExpr> new_shape;
         for (size_t i = 0; i < size - 2; ++i) {
-          new_shape.push_back(tensor->shape[i]);
+          new_shape.push_back(tensor.shape()[i]);
         }
         new_shape.insert(new_shape.end(),
                          {IntImm::Int32(dim0->value / 32), IntImm::Int32(dim1->value / 8), 4, 2});
 
         TensorVar new_tensor =
-            decl_tensor(std::move(new_shape), tensor->dtype, tensor.name(), scope_local);
+            TensorVar(tensor->name, TensorType(std::move(new_shape), tensor.dtype(), scope_local));
         VarRemapSet(tensor, new_tensor);
         return new_tensor;
 
       } else if ((scope_mma_matrixB && tensor.scope() == *scope_mma_matrixB)) {
         // mma.matrixB
         // bj = 8, bj = 32
-        size_t size = tensor->shape.size();
+        size_t size = tensor.shape().size();
         TVM_FFI_ICHECK_GE(size, 2);
-        const IntImmNode* dim0 = tensor->shape[size - 2].as<IntImmNode>();
-        const IntImmNode* dim1 = tensor->shape[size - 1].as<IntImmNode>();
+        const IntImmNode* dim0 = tensor.shape()[size - 2].as<IntImmNode>();
+        const IntImmNode* dim1 = tensor.shape()[size - 1].as<IntImmNode>();
         TVM_FFI_ICHECK(dim0 != nullptr && dim1 != nullptr);
         TVM_FFI_ICHECK(dim0->value % 8 == 0 && dim1->value % 32 == 0);
         std::vector<PrimExpr> new_shape;
         for (size_t i = 0; i < size - 2; ++i) {
-          new_shape.push_back(tensor->shape[i]);
+          new_shape.push_back(tensor.shape()[i]);
         }
         new_shape.insert(new_shape.end(),
                          {IntImm::Int32(dim0->value / 8), IntImm::Int32(dim1->value / 32), 1, 8});
 
         TensorVar new_tensor =
-            decl_tensor(std::move(new_shape), tensor->dtype, tensor.name(), scope_local);
+            TensorVar(tensor->name, TensorType(std::move(new_shape), tensor.dtype(), scope_local));
         VarRemapSet(tensor, new_tensor);
         return new_tensor;
       }
@@ -194,7 +194,7 @@ class MmaTensorLayoutTransformer : public StmtExprMutator {
             << " tensors to be accessed through opaque ldmatrix/mma_sync operations, but found "
                "an explicit TensorLoad.";
       }
-      return MakeTensorLoad(replacement.value(), indices, load->loc);
+      return TensorLoad(replacement.value(), indices, load->loc);
     }
     return load;
   }

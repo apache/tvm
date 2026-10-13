@@ -72,11 +72,13 @@ inline ffi::Array<Tensor> make_extern(const ffi::Array<ffi::Array<PrimExpr>>& ou
 
   ffi::Array<TensorVar> input_placeholders;
   for (auto t : inputs) {
-    input_placeholders.push_back(tvm::tirx::decl_tensor(t->shape, t->dtype, t->op.value()->name));
+    input_placeholders.push_back(
+        tvm::tirx::TensorVar(t->op.value()->name, tvm::tirx::TensorType(t->shape, t->dtype)));
   }
   ffi::Array<TensorVar> output_placeholders;
   for (size_t i = 0; i < out_shapes.size(); ++i) {
-    output_placeholders.push_back(tvm::tirx::decl_tensor(out_shapes[i], out_types[i], name));
+    output_placeholders.push_back(
+        tvm::tirx::TensorVar(name, tvm::tirx::TensorType(out_shapes[i], out_types[i])));
   }
 
   auto body = fextern(input_placeholders, output_placeholders);

@@ -43,6 +43,7 @@
 #include "../analysis/conditional_bounds.h"
 #include "../schedule/utils.h"
 #include "../support/nd_int_set.h"
+#include "../tensor_region.h"
 #include "ir_utils.h"
 
 namespace tvm {
@@ -82,23 +83,23 @@ class Var2TensorCollector : public StmtExprVisitor {
 
  private:
   ffi::Optional<VisitInterrupt> Visit_(const TensorStoreNode* op) final {
-    var2tensor_[op->dest.as_or_throw<TensorVar>().var()].insert(op->dest.as_or_throw<TensorVar>());
+    var2tensor_[op->dest.as_or_throw<TensorVar>()].insert(op->dest.as_or_throw<TensorVar>());
     return StmtExprVisitor::Visit_(op);
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* op) final {
     TensorVar tensor = op->source.as_or_throw<tvm::tirx::TensorVar>();
-    var2tensor_[tensor.var()].insert(tensor);
+    var2tensor_[tensor].insert(tensor);
     return StmtExprVisitor::Visit_(op);
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const SBlockNode* op) final {
     for (const TensorVar& tensor : op->alloc_tensors) {
-      var2tensor_[tensor.var()].insert(tensor);
+      var2tensor_[tensor].insert(tensor);
     }
     for (const MatchTensorRegion& region : op->match_tensors) {
-      var2tensor_[region->tensor.var()].insert(region->tensor);
-      var2tensor_[region->source->source.as_or_throw<tvm::tirx::TensorVar>().var()].insert(
+      var2tensor_[region->tensor].insert(region->tensor);
+      var2tensor_[region->source->source.as_or_throw<tvm::tirx::TensorVar>()].insert(
           region->source->source.as_or_throw<tvm::tirx::TensorVar>());
     }
     return StmtExprVisitor::Visit_(op);
@@ -168,7 +169,7 @@ class TensorAccessRegionCollector : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const TensorStoreNode* op) final {
-    VisitTensorAccess(TensorRegionFromPoint(op->dest.as_or_throw<TensorVar>(), op->indices));
+    VisitTensorAccess(s_tir::TensorRegionFromPoint(op->dest.as_or_throw<TensorVar>(), op->indices));
     return Visit(op->value);
   }
 
@@ -178,7 +179,7 @@ class TensorAccessRegionCollector : public StmtExprVisitor {
     if (explicit_it != explicit_access_annotations_.end()) {
       VisitTensorAccess(explicit_it->second);
     } else {
-      VisitTensorAccess(TensorRegionFromPoint(tensor, op->indices));
+      VisitTensorAccess(s_tir::TensorRegionFromPoint(tensor, op->indices));
     }
     for (const auto& index : op->indices) {
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(index));
@@ -321,7 +322,7 @@ class TensorAccessRegionCollector : public StmtExprVisitor {
 
     // Step 3. Record relax position of ancestor_loops_
     for (const TensorVar& tensor : op->alloc_tensors) {
-      RecordTensorDefinition(tensor.var());
+      RecordTensorDefinition(tensor);
     }
     // Step 4. Visit match tensors
     for (const MatchTensorRegion& region : op->match_tensors) {
@@ -342,7 +343,7 @@ class TensorAccessRegionCollector : public StmtExprVisitor {
     explicit_access_annotations_.clear();
     // Step 8. Update tensor_access_region_ from relaxed_accesses_ for inner tensors.
     for (const TensorVar& tensor : op->alloc_tensors) {
-      TVM_FFI_ICHECK_EQ(var2tensor_[tensor.var()].size(), 1)
+      TVM_FFI_ICHECK_EQ(var2tensor_[tensor].size(), 1)
           << "Block allocation tensor shoud not be alised";
       SimplifyAndNarrowTensorRegionFromNDIntSet(tensor);
     }
@@ -356,7 +357,7 @@ class TensorAccessRegionCollector : public StmtExprVisitor {
 
   ffi::Optional<VisitInterrupt> DispatchAllocTensor(const BindNode* op) {
     // AllocTensor is flat: register the tensor def and track for post-scope compaction.
-    RecordTensorDefinition(op->var.as_or_throw<TensorVar>().var());
+    RecordTensorDefinition(op->var.as_or_throw<TensorVar>());
     pending_flat_alloc_tensors_.push_back(op->var.as_or_throw<TensorVar>());
     return StmtExprVisitor::Visit_(op);
   }
@@ -394,7 +395,7 @@ class TensorAccessRegionCollector : public StmtExprVisitor {
 
   void VisitTensorAccess(const TensorRegion& tensor_region) {
     const TensorVar& tensor = tensor_region->source.as_or_throw<tvm::tirx::TensorVar>();
-    auto it = tensor_scope_depth_.find(tensor.var());
+    auto it = tensor_scope_depth_.find(tensor);
     if (it != tensor_scope_depth_.end()) {
       size_t n_ancestor_loops = it->second;
       // Step 1. Stop ancestor loop vars out of the allocation block from
@@ -454,7 +455,7 @@ class TensorAccessRegionCollector : public StmtExprVisitor {
           VisitTensorAccess(region);
         }
       } else {
-        VisitTensorAccess(FullTensorRegion(tensor));
+        VisitTensorAccess(s_tir::FullTensorRegion(tensor));
       }
     }
   }
@@ -479,7 +480,7 @@ class TensorAccessRegionCollector : public StmtExprVisitor {
     TVM_FFI_ICHECK(it != relaxed_accesses_.end())
         << tensor << " is allocated but not accessed within block scope";
 
-    const ffi::Array<PrimExpr>& original_shape = tensor->shape;
+    const ffi::Array<PrimExpr>& original_shape = tensor.shape();
     const NDIntSet& nd_int_set = it->second;
     ffi::Array<Range>& result_region = tensor_access_region_[tensor];
     result_region.resize(nd_int_set.size());
@@ -646,7 +647,7 @@ class TensorCompactor : public StmtExprMutator {
     TensorVar tensor = load->source.as_or_throw<tvm::tirx::TensorVar>();
     ffi::Array<PrimExpr> indices = load->indices;
     RewriteTensorAccess(original_tensor, &tensor, &indices);
-    return MakeTensorLoad(tensor, indices, load->loc);
+    return TensorLoad(tensor, indices, load->loc);
   }
 
   UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) final {
@@ -676,7 +677,7 @@ class TensorCompactor : public StmtExprMutator {
     TensorVar new_tensor = RewriteAllocTensor(tensor);
     bool is_alloc = call->op.same_as(tirx::alloc_tensor_op());
     if (new_tensor.same_as(tensor) ||
-        (is_alloc && call->ty_args[0].as_or_throw<TensorType>()->dtype != new_tensor->dtype)) {
+        (is_alloc && call->ty_args[0].as_or_throw<TensorType>()->dtype != new_tensor.dtype())) {
       return StmtExprMutator::Mutate_(op, inplace_mode);
     }
 
@@ -684,13 +685,13 @@ class TensorCompactor : public StmtExprMutator {
     ffi::Array<Expr> args = call->args;
     auto rewritten = ffi::make_object<BindNode>(*op);
     rewritten->value =
-        Call(new_tensor.type(), call->op, args, call->attrs, {new_tensor.type()}, call->loc);
+        Call(new_tensor.ty(), call->op, args, call->attrs, {new_tensor.ty()}, call->loc);
     tvm::Bind binding(std::move(rewritten));
     return StmtExprMutator::Mutate_(binding.get(), inplace_mode).ValueOrUnchanged(binding);
   }
 
   TensorVar RewriteAllocTensor(const TensorVar& tensor) {
-    auto it = tensor_info_.find(tensor.var());
+    auto it = tensor_info_.find(tensor);
     if (it != tensor_info_.end()) {
       const TensorVar& new_tensor = it->second.new_tensor;
       if (!new_tensor.same_as(tensor)) {
@@ -703,7 +704,7 @@ class TensorCompactor : public StmtExprMutator {
 
   void RewriteTensorAccess(const TensorVar& original_tensor, TensorVar* tensor,
                            ffi::Array<PrimExpr>* indices) const {
-    auto it = tensor_info_.find(original_tensor.var());
+    auto it = tensor_info_.find(original_tensor);
     if (it == tensor_info_.end()) {
       return;
     }
@@ -720,7 +721,7 @@ class TensorCompactor : public StmtExprMutator {
   }
 
   void RewriteTensorRegion(TensorVar* tensor, ffi::Array<Range>* region) const {
-    auto it = tensor_info_.find((*tensor).var());
+    auto it = tensor_info_.find((*tensor));
     if (it == tensor_info_.end()) {
       // Skip if the tensor is parameter
       return;
@@ -806,9 +807,9 @@ Stmt TensorCompactorCompact(
     // set dim alignment info
     ffi::Array<Range> region = kv.second;
     TensorAllocInfo alloc_info;
-    auto it = storage_align.find(tensor.var());
+    auto it = storage_align.find(tensor);
     if (it != storage_align.end()) {
-      std::vector<DimAlignInfo> dim_aligns(tensor->shape.size());
+      std::vector<DimAlignInfo> dim_aligns(tensor.shape().size());
       for (const StorageAlignTuple& dim_align : (*it).second) {
         int dim = dim_align.get<1>();
         int factor = dim_align.get<2>();
@@ -821,12 +822,12 @@ Stmt TensorCompactorCompact(
     // prepare new tensor
     ffi::Array<PrimExpr> shape = region.Map([](const Range& range) { return range->extent; });
     ffi::Array<PrimExpr> strides = CalcStrides(alloc_info, shape);
-    ffi::ObjectPtr<TensorTypeNode> n = CopyTensorType(tensor);
+    ffi::ObjectPtr<TensorTypeNode> n = ffi::make_object<TensorTypeNode>(*tensor.ty().get());
     n->shape = std::move(shape);
     n->strides = std::move(strides);
-    alloc_info.new_tensor = RebuildTensorVar(tensor, std::move(n));
+    alloc_info.new_tensor = TensorVar(tensor->name, TensorType(std::move(n)), tensor->loc);
     alloc_info.region = region;
-    tensor_info.emplace(tensor.var(), std::move(alloc_info));
+    tensor_info.emplace(tensor, std::move(alloc_info));
   }
   auto compactor = ffi::make_object<TensorCompactor>(std::move(tensor_info));
   Stmt stmt = compactor->Mutate(f->body.value()).ValueOrUnchanged(f->body.value());

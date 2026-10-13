@@ -716,13 +716,14 @@ class VMShapeLowerMutator
     TVM_FFI_ICHECK_GT(heap_size_->value, 0);
     // construct a tirx::Function that compute the shape.
     ffi::Array<PrimExpr> buffer_shape{heap_size_};
-    tirx::TensorVar buffer = tirx::decl_tensor(buffer_shape, PrimType(ShapeDType()), "H");
+    tirx::TensorVar buffer =
+        tirx::TensorVar("H", tirx::TensorType(buffer_shape, PrimType(ShapeDType())));
 
     ffi::Map<tvm::Var, PrimExpr> var_map;
     for (const auto& [expr, slot] : slot_map_) {
       if (auto var = expr.as<tvm::Var>()) {
-        var_map.Set(var.value(), tirx::MakeTensorLoad(
-                                     buffer, {IntImm(tvm::PrimType(ShapeDType()), slot->index)}));
+        var_map.Set(var.value(),
+                    TensorLoad(buffer, {IntImm(tvm::PrimType(ShapeDType()), slot->index)}));
       }
     }
     auto f_substitute =
@@ -742,7 +743,7 @@ class VMShapeLowerMutator
     }
 
     tvm::SeqStmt body(seq);
-    ffi::Array<tvm::Var> params{buffer.var()};
+    ffi::Array<tvm::Var> params{buffer};
     Type ret_type = VoidType();
 
     // TODO(relax-team): Consider attach the target attribute to
