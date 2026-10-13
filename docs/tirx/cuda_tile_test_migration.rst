@@ -26,7 +26,7 @@ numerical references remain part of each migration; the notes below explain
 where an old implicit physical interpretation needs explicit caller code.
 
 Migration rules
---------------
+---------------
 
 * Instruction selection belongs to each call site. Test helpers may spell out
   a fixed view recipe, but may not search layouts or choose an opcode.

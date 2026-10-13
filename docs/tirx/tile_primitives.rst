@@ -79,15 +79,40 @@ allocate an identity or select a matrix multiplication algorithm.
 See :doc:`api/tile` for the constructor signatures and
 :doc:`arch/tile_dispatch` for the lowering boundary.
 
-Instruction guides
-------------------
+CUDA instruction guides
+-----------------------
+
+Pages follow PTX instruction families. Each page specifies the operand image,
+an explicit caller view, and the resulting instruction count. Asynchronous
+completion belongs to the selected instruction family, not to a generic
+``copy_async`` or ``gemm_async`` operation.
 
 .. toctree::
    :maxdepth: 1
 
-   tile_primitives/copy
-   tile_primitives/copy_async
-   tile_primitives/elementwise
-   tile_primitives/gemm
-   tile_primitives/gemm_async
+   tile_primitives/ld_st
+   tile_primitives/ldmatrix_stmatrix
+   tile_primitives/mov
+   tile_primitives/add_sub_mul
+   tile_primitives/div_rcp_sqrt
+   tile_primitives/min_max
+   tile_primitives/fma
+   tile_primitives/cvt
+   tile_primitives/ex2_lg2
+   tile_primitives/abs_neg
+   tile_primitives/cp_async
+   tile_primitives/cp_async_bulk
+   tile_primitives/cp_async_bulk_tensor
+   tile_primitives/tcgen05_ld_st
+   tile_primitives/tcgen05_cp
+   tile_primitives/mma_sync
+   tile_primitives/tcgen05_mma
+   tile_primitives/ewise
+
+Trainium reductions
+-------------------
+
+.. toctree::
+   :maxdepth: 1
+
    tile_primitives/reduction
