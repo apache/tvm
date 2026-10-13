@@ -19,10 +19,11 @@ CUDA tile test migration
 ========================
 
 Baseline: ``701a4b07eb85dd5b1f1355a5b910cdfd7050b803``. The inventory below
-tracks each original test function, not the number of newly collected tests.
-Parameter products, storage layouts, regions and numerical references remain
-part of each migration. ``Pending`` means the original coverage has not yet
-been restored and must not be counted as complete.
+accounts for all 246 original test functions across 15 files, not just the
+number of newly collected tests. Each row identifies restored coverage or an
+explicit contract change. Parameter products, storage layouts, regions and
+numerical references remain part of each migration; the notes below explain
+where an old implicit physical interpretation needs explicit caller code.
 
 Migration rules
 --------------
