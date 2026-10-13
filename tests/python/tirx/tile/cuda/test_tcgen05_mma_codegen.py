@@ -91,8 +91,6 @@ def _stage_fixture(n=128, ws=False, instruction_shape=None, **params):
                 av,
                 bv,
                 instruction_shape=instruction_shape,
-                a_descriptor=(16, 1024, 3),
-                b_descriptor=(16, 1024, 3),
                 **params,
             )
 
@@ -107,8 +105,6 @@ def _shared_fixture(
     A_layout,
     B_layout,
     *,
-    a_descriptor,
-    b_descriptor,
     a_major="k",
     b_major="mn",
     cta=1,
@@ -161,8 +157,6 @@ def _shared_fixture(
                 instruction_shape=(M * cta, N, instruction_k),
                 a_major=a_major,
                 b_major=b_major,
-                a_descriptor=a_descriptor,
-                b_descriptor=b_descriptor,
                 **formats,
                 **params,
             )
@@ -216,7 +210,6 @@ def _tmem_fixture(*, cta=1, ws=True, c_form="packed", a_form="banked", n=128, sp
                 av,
                 bv,
                 instruction_shape=(M * cta, split_n, 16),
-                b_descriptor=(16, 256 if cta == 1 else 1024, 1 if cta == 1 else 3),
             )
 
     return kernel
@@ -315,8 +308,6 @@ def test_gemm_tcgen05_instr_desc_fold_mirrors_runtime_shape_rules(n):
         "bfloat16",
         mma_shared_layout("bfloat16", 3, (128, 64)),
         mma_shared_layout("bfloat16", 3, (n, 64)),
-        a_descriptor=(16, 1024, 3),
-        b_descriptor=(16, 1024, 3),
         b_major="k",
         trans_b=False,
     )
@@ -336,11 +327,9 @@ def test_gemm_tcgen05_rejects_non_uniform_atom_grid(gap):
         "bfloat16",
         ComposeLayout(3, 3, 3, TileLayout(S[(2, 4, 8, 64) : (gap, 512, 64, 1)])),
         mma_shared_layout("bfloat16", 3, (64, 256)),
-        a_descriptor=(16, 1024, 3),
-        b_descriptor=(8192, 1024, 3),
     )
     if gap == 4096:
-        with pytest.raises(Exception, match="A: view disagrees"):
+        with pytest.raises(Exception, match="A: no matching shared matrix descriptor"):
             _lower(fixture)
     else:
         assert "tcgen05.mma" in _compile(fixture)
@@ -354,14 +343,12 @@ def test_gemm_tcgen05_rejects_tf32_mn_major():
         "float32",
         mma_shared_layout("float32", 3, (64, 32)),
         mma_shared_layout("float32", 3, (32, 256)),
-        a_descriptor=(16, 1024, 3),
-        b_descriptor=(4096, 1024, 3),
         a_format="tf32",
         b_format="tf32",
         kind="tf32",
         instruction_k=8,
     )
-    with pytest.raises(Exception, match="32-bit MN-major requires"):
+    with pytest.raises(Exception, match="swizzle 4:"):
         _lower(fixture)
     positive = _shared_fixture(
         64,
@@ -370,8 +357,6 @@ def test_gemm_tcgen05_rejects_tf32_mn_major():
         "bfloat16",
         mma_shared_layout("bfloat16", 3, (64, 64)),
         mma_shared_layout("bfloat16", 3, (64, 256)),
-        a_descriptor=(16, 1024, 3),
-        b_descriptor=(8192, 1024, 3),
     )
     assert "tcgen05.mma" in _compile(positive)
 
@@ -386,8 +371,6 @@ def test_gemm_tcgen05_explicit_mma_m_is_cluster_total_for_cta_group_2(rows, inst
         "float16",
         mma_shared_layout("float16", 0, (rows, 16)),
         mma_shared_layout("float16", 0, (32, 16)),
-        a_descriptor=(rows * 16, 128, 0),
-        b_descriptor=(512, 128, 0),
         C_layout=layout,
         b_major="k",
         trans_b=False,
@@ -412,7 +395,6 @@ def _packed_fixture(a_form="packed", dtype="bfloat16", M=64, cta=2):
     if cta == 1:
         b_layout = mma_shared_layout(dtype, 3, (K, N))
     b_major = "mn" if cta == 1 else "k"
-    b_descriptor = (8192 if cta == 1 else 16, 1024, 3)
     c_layout = tmem_datapath_layout("B" if cta == 2 else "F", M, N)
     k = 16 if dtype == "bfloat16" else 32
     kind = "f16" if dtype == "bfloat16" else "f8f6f4"
@@ -441,9 +423,7 @@ def _packed_fixture(a_form="packed", dtype="bfloat16", M=64, cta=2):
                 av,
                 bv,
                 instruction_shape=(M * cta, N, k),
-                a_descriptor=(M * 16, 128, 0),
                 b_major=b_major,
-                b_descriptor=b_descriptor,
             )
 
     return kernel
@@ -467,10 +447,8 @@ def test_gemm_tcgen05_no_swizzle_col_major_requires_explicit_packed_view():
             "bfloat16",
             TileLayout(S[(rows, 64) : (1, rows)]),
             mma_shared_layout("bfloat16", 3, (64, 256)),
-            a_descriptor=(rows * 16, 128, 0),
-            b_descriptor=(8192, 1024, 3),
         )
-        with pytest.raises(Exception, match="A: view disagrees"):
+        with pytest.raises(Exception, match="A: no matching shared matrix descriptor"):
             _lower(fixture)
     # Preserve the original in-domain alias by making its byte interpretation explicit.
     assert len(_calls(_compile(_packed_fixture("column_major")), cta=2)) == 4
@@ -533,8 +511,6 @@ def _scale_fixture(split_n=False, lane_offsets=False):
                 SA.view(1, 1, M, vec),
                 sv,
                 instruction_shape=(M * cta, n, K),
-                a_descriptor=(16, 256, 1),
-                b_descriptor=(16, 256, 1),
             )
 
     return kernel
@@ -595,8 +571,6 @@ def test_gemm_tcgen05_hoisted_descriptor_uniformization(scope_kind):
         "bfloat16",
         mma_shared_layout("bfloat16", 3, (64, 64)),
         mma_shared_layout("bfloat16", 3, (64, 256)),
-        a_descriptor=(16, 1024, 3),
-        b_descriptor=(8192, 1024, 3),
         issue_elect=scope_kind == "warp",
     )
     src = _compile(fixture)
@@ -616,8 +590,6 @@ def test_gemm_tcgen05_preserves_explicit_tmem_lane_bases():
         "bfloat16",
         mma_shared_layout("bfloat16", 1, (64, 16)),
         mma_shared_layout("bfloat16", 1, (16, 64)),
-        a_descriptor=(16, 256, 1),
-        b_descriptor=(512, 256, 1),
         C_layout=dl,
     )
     src = _compile(fixture)
@@ -644,7 +616,6 @@ def test_gemm_tcgen05_preserves_explicit_tmem_lane_bases():
                 B.permute(1, 0).view(1, 1, 64, 16),
                 instruction_shape=(64, 64, 16),
                 b_major="mn",
-                b_descriptor=(512, 256, 1),
             )
 
     src = _compile(kernel)

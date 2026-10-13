@@ -20,6 +20,10 @@
 The memory words are contiguous and naturally vector-aligned. Register words
 can occupy arbitrary distinct slots of the issuing thread. Width, memory space,
 and cache policy are selected by the written PTX, never by the tensor layout.
+
+Parameters: dst, src, scope; pred=None, preserve_dst=False, and cache_policy
+(required only when the opcode has a cache-hint operand). Atom strides count
+scalar storage elements; vector alignment counts bytes.
 """
 
 from tvm.backend.cuda.ptx import PTXNamespace
