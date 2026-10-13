@@ -26,8 +26,9 @@ import pytest
 
 import tvm
 import tvm.testing
+from tirx.layout_fixtures import tcgen05_register_layout
+from tvm.backend.cuda.axis import Axis as CUDAAxis
 from tvm.backend.cuda.axis import laneid, warpid, wid_in_wg
-from tvm.backend.cuda.layout import tcgen05_atom_layout, wg_local_layout
 from tvm.script import tirx as T
 from tvm.testing import env
 from tvm.tirx.layout import S, TileLayout
@@ -619,7 +620,7 @@ def test_binary_op_packed_f32x2_explicit(op_type):
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 @pytest.mark.parametrize("op_name", ["add", "sub", "mul"])
-def test_binary_op_warpgroup_wg_local_layout(op_name):
+def test_binary_op_warpgroup_thread_row_layout(op_name):
     dtype = "float32"
     rows, cols = 128, 16
     target = tvm.target.Target("cuda")
@@ -636,17 +637,38 @@ def test_binary_op_warpgroup_wg_local_layout(op_name):
         tid = T.cuda.thread_in_warpgroup()
 
         lhs = T.alloc_tensor(
-            ty_args=[T.Tensor((rows, cols), dtype, scope="local", layout=wg_local_layout(cols))]
+            ty_args=[
+                T.Tensor(
+                    (rows, cols),
+                    dtype,
+                    scope="local",
+                    layout=TileLayout(S[(128, cols) : (1 @ CUDAAxis.tid_in_wg, 1)]),
+                )
+            ]
         )
         rhs = T.alloc_tensor(
-            ty_args=[T.Tensor((rows, cols), dtype, scope="local", layout=wg_local_layout(cols))]
+            ty_args=[
+                T.Tensor(
+                    (rows, cols),
+                    dtype,
+                    scope="local",
+                    layout=TileLayout(S[(128, cols) : (1 @ CUDAAxis.tid_in_wg, 1)]),
+                )
+            ]
         )
         out = T.alloc_tensor(
-            ty_args=[T.Tensor((rows, cols), dtype, scope="local", layout=wg_local_layout(cols))]
+            ty_args=[
+                T.Tensor(
+                    (rows, cols),
+                    dtype,
+                    scope="local",
+                    layout=TileLayout(S[(128, cols) : (1 @ CUDAAxis.tid_in_wg, 1)]),
+                )
+            ]
         )
-        lhs_row = lhs.local(cols)
-        rhs_row = rhs.local(cols)
-        out_row = out.local(cols)
+        lhs_row = lhs.view(cols, layout="default")
+        rhs_row = rhs.view(cols, layout="default")
+        out_row = out.view(cols, layout="default")
         for i in T.serial(cols):
             lhs_row[i] = A[tid, i]
             rhs_row[i] = B[tid, i]
@@ -675,7 +697,7 @@ def test_binary_op_warpgroup_wg_local_layout(op_name):
                 rhs.view("uint64").view(4, 32, cols // 2, 1),
                 scope="warpgroup",
             )
-        out_row_1 = out.local(cols)
+        out_row_1 = out.view(cols, layout="default")
         for i in T.serial(cols):
             C[tid, i] = out_row_1[i]
 
@@ -731,17 +753,38 @@ def test_binary_op_warpgroup_wg_local_emits_packed_f32x2(op_name, ptx_op):
         tid = T.cuda.thread_in_warpgroup()
 
         lhs = T.alloc_tensor(
-            ty_args=[T.Tensor((rows, cols), dtype, scope="local", layout=wg_local_layout(cols))]
+            ty_args=[
+                T.Tensor(
+                    (rows, cols),
+                    dtype,
+                    scope="local",
+                    layout=TileLayout(S[(128, cols) : (1 @ CUDAAxis.tid_in_wg, 1)]),
+                )
+            ]
         )
         rhs = T.alloc_tensor(
-            ty_args=[T.Tensor((rows, cols), dtype, scope="local", layout=wg_local_layout(cols))]
+            ty_args=[
+                T.Tensor(
+                    (rows, cols),
+                    dtype,
+                    scope="local",
+                    layout=TileLayout(S[(128, cols) : (1 @ CUDAAxis.tid_in_wg, 1)]),
+                )
+            ]
         )
         out = T.alloc_tensor(
-            ty_args=[T.Tensor((rows, cols), dtype, scope="local", layout=wg_local_layout(cols))]
+            ty_args=[
+                T.Tensor(
+                    (rows, cols),
+                    dtype,
+                    scope="local",
+                    layout=TileLayout(S[(128, cols) : (1 @ CUDAAxis.tid_in_wg, 1)]),
+                )
+            ]
         )
-        lhs_row = lhs.local(cols)
-        rhs_row = rhs.local(cols)
-        out_row = out.local(cols)
+        lhs_row = lhs.view(cols, layout="default")
+        rhs_row = rhs.view(cols, layout="default")
+        out_row = out.view(cols, layout="default")
         for i in T.serial(cols):
             lhs_row[i] = A[tid, i]
             rhs_row[i] = B[tid, i]
@@ -770,7 +813,7 @@ def test_binary_op_warpgroup_wg_local_emits_packed_f32x2(op_name, ptx_op):
                 rhs.view("uint64").view(4, 32, cols // 2, 1),
                 scope="warpgroup",
             )
-        out_row_1 = out.local(cols)
+        out_row_1 = out.view(cols, layout="default")
         for i in T.serial(cols):
             C[tid, i] = out_row_1[i]
 
@@ -809,9 +852,16 @@ def test_fma_warpgroup_wg_local_emits_packed_f32x2():
         tid = T.cuda.thread_in_warpgroup()
 
         buf = T.alloc_tensor(
-            ty_args=[T.Tensor((rows, cols), dtype, scope="local", layout=wg_local_layout(cols))]
+            ty_args=[
+                T.Tensor(
+                    (rows, cols),
+                    dtype,
+                    scope="local",
+                    layout=TileLayout(S[(128, cols) : (1 @ CUDAAxis.tid_in_wg, 1)]),
+                )
+            ]
         )
-        buf_row = buf.local(cols)
+        buf_row = buf.view(cols, layout="default")
         for i in T.serial(cols):
             buf_row[i] = A[tid, i]
         T.cuda.tile.apply(
@@ -822,7 +872,7 @@ def test_fma_warpgroup_wg_local_emits_packed_f32x2():
             T.uint64(0x3F0000003F000000),
             scope="warpgroup",
         )
-        buf_row_1 = buf.local(cols)
+        buf_row_1 = buf.view(cols, layout="default")
         for i in T.serial(cols):
             C[tid, i] = buf_row_1[i]
 
@@ -976,7 +1026,7 @@ def test_mul_tcgen05_16x256b_atom_warpgroup_dispatch():
     """Caller views expose the split lane/warp register atom as packed pairs."""
     rows, cols = 64, 64
     regs_per_thread = 32
-    atom_layout = tcgen05_atom_layout("16x256b", (rows, cols), "float32")
+    atom_layout = tcgen05_register_layout("16x256b", (rows, cols), "float32")
 
     @T.function
     def kernel(
@@ -992,8 +1042,8 @@ def test_mul_tcgen05_16x256b_atom_warpgroup_dispatch():
         dst = T.alloc_tensor(
             ty_args=[T.Tensor((rows, cols), "float32", scope="local", layout=atom_layout)]
         )
-        src_local = src.local(regs_per_thread)
-        dst_local = dst.local(regs_per_thread)
+        src_local = src.view(regs_per_thread, layout="default")
+        dst_local = dst.view(regs_per_thread, layout="default")
         for i in T.serial(regs_per_thread):
             src_local[i] = A[tid, i]
         src_pairs = src.rearrange(

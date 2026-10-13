@@ -110,9 +110,9 @@ axis ``a_t`` — yielding the set ``L(x)``:
 
 When a shape's total size equals ``∏_k e_k``, flattening and splitting covers
 the complete shard coordinate space exactly once; the same layout can therefore
-be reshaped to any dimensions with that total size. ``CompatibleWithShape``
-does not currently enforce this equality, so authors must avoid combinations
-whose logical extent would run beyond the intended shard coordinate space.
+be reshaped to any dimensions with that total size. Choose the tensor shape
+and layout together so logical indices stay within the intended shard
+coordinate space.
 
 Case study: NVIDIA tensor-core tile
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

@@ -48,7 +48,7 @@ thread-placement and tensor alias policies remain in the TIRx/S-TIR builders.
 .. automodule:: tvm.tirx.script.ir_builder.ir
    :members:
    :no-index:
-   :exclude-members: LetAnnotation, alloc_tcgen05_ldst_frag
+   :exclude-members: LetAnnotation
 
 .. currentmodule:: tvm.tirx.script.ir_builder.ir
 
@@ -57,46 +57,53 @@ thread-placement and tensor alias policies remain in the TIRx/S-TIR builders.
    Marker used by ``Tx.let`` and ``Tx.let[dtype]`` annotations to construct an
    explicit ``LetStmt``.
 
-.. py:function:: alloc_tcgen05_ldst_frag(instr_shape, tensor_shape, dtype)
+Explicit register fragments
+---------------------------
 
-   Allocate a local register fragment whose layout matches a
-   ``tcgen05.{ld,st}`` atom. ``instr_shape`` accepts ``"32x32b"``,
-   ``"16x64b"``, ``"16x128b"``, or ``"16x256b"``. For example, a
-   two-CTA Layout-B accumulator uses this layout, defined outside the kernel::
+A register fragment is an ordinary local tensor with an explicit layout.
+For a two-CTA Layout-B accumulator, define the TMEM and register layouts
+outside the kernel::
 
-      from tvm.backend.cuda.layout import tmem_mma_operand_layout
+   from tvm.backend.cuda.axis import tid_in_wg
+   from tvm.backend.cuda.layout import tmem_mma_operand_layout
+   from tvm.tirx.layout import TileLayout, S
 
-      layout_b = tmem_mma_operand_layout(
-          "D", (64, 128), "float32", M=128, cta_group=2)
+   layout_b = tmem_mma_operand_layout(
+       "D", (64, 128), "float32", M=128, cta_group=2)
+   register_layout = TileLayout(S[(64, 2, 64) : (1 @ tid_in_wg, 64 @ tid_in_wg, 1)])
 
-   Inside the kernel, declare the accumulator over its allocated TMEM address,
-   allocate the register fragment, and prepare matching instruction views::
+Inside the kernel, declare the accumulator over its allocated TMEM address,
+allocate the register fragment, and prepare matching instruction views::
 
-      C = Tx.cuda.decl_tmem(tmem_address, ty_args=[
-          Tx.Tensor((64, 128), "float32", scope="tmem", layout=layout_b)
-      ])
-      frag = Tx.alloc_tcgen05_ldst_frag("32x32b", (64, 128), "float32")
-      C_words = C.rearrange("(wh r) (wl c) -> (wl wh) r c",
-                            wh=2, r=32, wl=2)
-      frag_words = frag.rearrange("(wh r) (wl c) -> (wl wh) r c",
-                                  wh=2, r=32, wl=2)
-      Tx.cuda.tile.apply(
-          Tx.ptx["tcgen05.ld.sync.aligned.32x32b.x64.b32"],
-          frag_words, C_words, scope="warpgroup")
-      Tx.ptx.tcgen05.wait__ld.sync.aligned()
+   C = Tx.cuda.decl_tmem(tmem_address, ty_args=[
+       Tx.Tensor((64, 128), "float32", scope="tmem", layout=layout_b)
+   ])
+   frag = Tx.alloc_tensor(ty_args=[
+       Tx.Tensor((64, 128), "float32", scope="local", layout=register_layout)
+   ])
+   C_words = C.rearrange("(wh r) (wl c) -> (wl wh) r c",
+                         wh=2, r=32, wl=2)
+   frag_words = frag.rearrange("(wh r) (wl c) -> (wl wh) r c",
+                               wh=2, r=32, wl=2)
+   Tx.cuda.tile.apply(
+       Tx.ptx["tcgen05.ld.sync.aligned.32x32b.x64.b32"],
+       frag_words, C_words, scope="warpgroup")
+   Tx.ptx.tcgen05.wait__ld.sync.aligned()
 
-   ``tmem_address`` must name a live allocation with at least 64 columns.
-   The readback requires a full active warpgroup.
-   Complete the producing MMA's commit/mbarrier wait and
-   the required ``tcgen05.fence::after_thread_sync`` before the load.
+``tmem_address`` must name a live allocation with at least 64 columns.
+The readback requires a full active warpgroup.
+Complete the producing MMA's commit/mbarrier wait and
+the required ``tcgen05.fence::after_thread_sync`` before the load.
 
-   Layout B stores logical ``C[i,j]`` in TMEM lane
-   ``i + 64*(j//64)`` and column ``j%64``. The views above both have shape
-   ``(4,32,64)``: ``warp=2*wl+wh`` chooses the physical 32-lane slab,
-   ``r`` selects its row, and ``c`` selects its 64 columns. Each warp issues
-   one ``.32x32b.x64`` instruction and each lane receives 64 registers.
-   No temporary copy is needed. ``wait::ld`` makes the loaded registers
-   available to subsequent instructions; it does not wait for an earlier MMA.
+Layout B stores logical ``C[i,j]`` in TMEM lane
+``i + 64*(j//64)`` and column ``j%64``. The register layout assigns that
+same element to thread ``i + 64*(j//64)`` and local slot ``j%64``.
+The views above both have shape ``(4,32,64)``: ``warp=2*wl+wh`` chooses
+the physical 32-lane slab, ``r`` selects its row, and ``c`` selects its
+64 columns. Each warp issues one ``.32x32b.x64`` instruction and each
+lane receives 64 registers. No temporary copy is needed.
+``wait::ld`` makes the loaded registers available to subsequent
+instructions; it does not wait for an earlier MMA.
 
-   See :doc:`../tile_ops/tcgen05_ld_st` for other native shapes,
-   pack/unpack, and a complete store/load example.
+See :doc:`../tile_ops/tcgen05_ld_st` for other native shapes,
+pack/unpack, and a complete store/load example.

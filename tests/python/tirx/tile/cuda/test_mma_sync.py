@@ -181,7 +181,7 @@ def _build_tiled(Mt, Nt, Kt, kinst, *, beta=0.0, dtype="float16", store=False):
         )
         # Decode D's per-thread registers (c = ((mt*Nt + nt)*2 + rM)*2 + rN)
         # back to logical (M, N) and store, exercising the whole tiling.
-        D_reg = D.local(Mt * Nt * 4)
+        D_reg = D.view(Mt * Nt * 4, layout="default")
         for c in T.unroll(Mt * Nt * 4):
             rN = c % 2
             rM = (c // 2) % 2
@@ -277,7 +277,7 @@ def _build_transpose(transpose_A, transpose_B, *, store=False):
             ),
             scope="warp",
         )
-        D_reg = D.local(4)
+        D_reg = D.view(4, layout="default")
         for c in T.unroll(4):
             D_g[lane // 4 + (c // 2) * 8, (lane % 4) * 2 + c % 2] = D_reg[c]
 
@@ -311,7 +311,7 @@ def _build_tiled_numeric(Mt, Nt, Kt, kinst, beta, dtype):
     """End-to-end ``T.cuda.tile.apply`` over an Mt x Nt x Kt tiling, with the A/B inputs
     loaded and the D output stored register-by-register.
 
-    Fragments are indexed through per-register multi-dim ``.local()`` views.
+    Fragments are indexed through per-register multi-dim explicit physical-register views views.
     Their axes follow physical register order (stride-descending):
     A = [Mt, Kt, kHi, rM(2), kp], B = [Kt, Nt, kHi, kp], and
     D/C = [Mt, Nt, rM(2), rN(2)]. The lane owns g = lane>>2 and
@@ -338,20 +338,20 @@ def _build_tiled_numeric(Mt, Nt, Kt, kinst, beta, dtype):
         B_f = T.alloc_tensor(ty_args=[T.Tensor((K, N), dtype, scope="local", layout=Bl)])
         C_f = T.alloc_tensor(ty_args=[T.Tensor((M, N), "float32", scope="local", layout=Dl)])
         D_f = T.alloc_tensor(ty_args=[T.Tensor((M, N), "float32", scope="local", layout=Dl)])
-        A_reg = A_f.local(Mt, Kt, kHi_n, 2, KP)
+        A_reg = A_f.view(Mt, Kt, kHi_n, 2, KP, layout="default")
         for mt, kt, kHi, rM, kp in T.grid(Mt, Kt, kHi_n, 2, KP):
             A_reg[mt, kt, kHi, rM, kp] = A_g[
                 mt * 16 + lane // 4 + 8 * rM,
                 kt * kinst + kHi * 8 + 2 * (lane % 4) + kp,
             ]
-        B_reg = B_f.local(Kt, Nt, kHi_n, KP)
+        B_reg = B_f.view(Kt, Nt, kHi_n, KP, layout="default")
         for kt, nt, kHi, kp in T.grid(Kt, Nt, kHi_n, KP):
             B_reg[kt, nt, kHi, kp] = B_g[
                 kt * kinst + kHi * 8 + 2 * (lane % 4) + kp,
                 nt * 8 + lane // 4,
             ]
         if T.constexpr(beta == 1.0):
-            C_reg = C_f.local(Mt, Nt, 2, 2)
+            C_reg = C_f.view(Mt, Nt, 2, 2, layout="default")
             for mt, nt, rM, rN in T.grid(Mt, Nt, 2, 2):
                 C_reg[mt, nt, rM, rN] = C_g[
                     mt * 16 + lane // 4 + 8 * rM, nt * 8 + 2 * (lane % 4) + rN
@@ -371,7 +371,7 @@ def _build_tiled_numeric(Mt, Nt, Kt, kinst, beta, dtype):
             ),
             scope="warp",
         )
-        D_reg = D_f.local(Mt, Nt, 2, 2)
+        D_reg = D_f.view(Mt, Nt, 2, 2, layout="default")
         for mt, nt, rM, rN in T.grid(Mt, Nt, 2, 2):
             D_g[mt * 16 + lane // 4 + 8 * rM, nt * 8 + 2 * (lane % 4) + rN] = D_reg[mt, nt, rM, rN]
 
@@ -403,7 +403,7 @@ def _build_transpose_numeric(transpose_A, transpose_B, dtype="float16"):
         A_f = T.alloc_tensor(ty_args=[T.Tensor(A_shape, dtype, scope="local", layout=Al)])
         B_f = T.alloc_tensor(ty_args=[T.Tensor(B_shape, dtype, scope="local", layout=Bl)])
         D_f = T.alloc_tensor(ty_args=[T.Tensor((16, 8), "float32", scope="local", layout=D_FRAG)])
-        A_reg = A_f.local(2, 2, 2)
+        A_reg = A_f.view(2, 2, 2, layout="default")
         if T.constexpr(transpose_A):
             # A_KM_FRAG: tensor is [K, M].
             for kHi, rM, kp in T.grid(2, 2, 2):
@@ -412,7 +412,7 @@ def _build_transpose_numeric(transpose_A, transpose_B, dtype="float16"):
             # A_FRAG: tensor is [M, K].
             for kHi, rM, kp in T.grid(2, 2, 2):
                 A_reg[kHi, rM, kp] = A_g[lane // 4 + 8 * rM, 2 * (lane % 4) + kp + 8 * kHi]
-        B_reg = B_f.local(2, 2)
+        B_reg = B_f.view(2, 2, layout="default")
         if T.constexpr(transpose_B):
             # B_NK_FRAG tensor is [N, K].
             for kHi, kp in T.grid(2, 2):
@@ -435,7 +435,7 @@ def _build_transpose_numeric(transpose_A, transpose_B, dtype="float16"):
             ),
             scope="warp",
         )
-        D_reg = D_f.local(2, 2)
+        D_reg = D_f.view(2, 2, layout="default")
         for rM, rN in T.grid(2, 2):
             D_g[lane // 4 + 8 * rM, 2 * (lane % 4) + rN] = D_reg[rM, rN]
 
@@ -543,14 +543,14 @@ def test_cuda_gemm_mma_numerical(dtype):
         A_f = T.alloc_tensor(ty_args=[T.Tensor((16, 16), dtype, scope="local", layout=A_FRAG)])
         B_f = T.alloc_tensor(ty_args=[T.Tensor((16, 8), dtype, scope="local", layout=B_FRAG)])
         D_f = T.alloc_tensor(ty_args=[T.Tensor((16, 8), "float32", scope="local", layout=D_FRAG)])
-        A_reg = A_f.local(8)
+        A_reg = A_f.view(8, layout="default")
         for s in T.unroll(8):
             # Physical register order: s = 4*kHi + 2*rM + kp.
             kp = s % 2
             rM = (s // 2) % 2
             kHi = s // 4
             A_reg[s] = A_g[lane // 4 + 8 * rM, 2 * (lane % 4) + kp + 8 * kHi]
-        B_reg = B_f.local(4)
+        B_reg = B_f.view(4, layout="default")
         for s in T.unroll(4):
             kp = s % 2
             kHi = s // 2
@@ -570,7 +570,7 @@ def test_cuda_gemm_mma_numerical(dtype):
             ),
             scope="warp",
         )
-        D_reg = D_f.local(4)
+        D_reg = D_f.view(4, layout="default")
         for s in T.unroll(4):
             rN = s % 2
             rM = s // 2
@@ -823,7 +823,12 @@ def _check_scaled_mma(alpha, beta):
         B = T.alloc_local((16, 8), "float16", layout=B_FRAG)
         C = T.alloc_local((16, 8), "float32", layout=D_FRAG)
         D = T.alloc_local((16, 8), "float32", layout=D_FRAG)
-        a, b, c, d = A.local(8), B.local(4), C.local(4), D.local(4)
+        a, b, c, d = (
+            A.view(8, layout="default"),
+            B.view(4, layout="default"),
+            C.view(4, layout="default"),
+            D.view(4, layout="default"),
+        )
         for r in T.unroll(8):
             a[r] = AG[lane // 4 + 8 * (r // 2 % 2), 2 * (lane % 4) + r % 2 + 8 * (r // 4)]
         for r in T.unroll(4):

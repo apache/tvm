@@ -166,7 +166,10 @@ at the call site.
             )
         T.cuda.mbarrier_wait(mbar.ptr_to([0]), 0)
         T.ptx.tcgen05.fence__after_thread_sync()
-        frag = T.alloc_tcgen05_ldst_frag("32x32b", (128, 64), "float32")
+        frag = T.alloc_tensor(ty_args=[
+            T.Tensor((128, 64), "float32", scope="local",
+                     layout=T.TileLayout(T.S[(128, 64) : (1 @ T.cuda.Axis.tid_in_wg, 1)]))
+        ])
         T.cuda.tile.apply(
             T.ptx["tcgen05.ld.sync.aligned.32x32b.x64.b32"],
             frag.view(4, 32, 64),
@@ -174,7 +177,7 @@ at the call site.
             scope="warpgroup",
         )
         T.ptx.tcgen05.wait__ld.sync.aligned()
-        local = frag.local()
+        local = frag.view(64, layout="default")
         for j in range(64):
             Out[tid, j] = local[j]
         T.cuda.cta_sync()

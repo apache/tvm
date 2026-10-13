@@ -300,29 +300,6 @@ def _alloc_tensor(
     )
 
 
-def wg_reg_tile(elem_per_thread: int, dtype: str = "float32") -> Var:
-    """Warpgroup-wide ``(128, elem_per_thread)`` register tile in local scope.
-
-    Sugar for the recurring pattern::
-
-        T.alloc_tensor(ty_args=[T.Tensor(
-            (128, elem_per_thread), dtype,
-            layout=wg_local_layout(elem_per_thread), scope="local",
-        )])
-
-    Used to stage a tcgen05 load: each of the 128 threads in a warpgroup
-    owns one row of ``elem_per_thread`` contiguous elements.
-    """
-    from tvm.backend.cuda.layout import wg_local_layout
-
-    return _alloc_tensor(
-        (128, elem_per_thread),
-        dtype,
-        layout=wg_local_layout(elem_per_thread),
-        scope="local",
-    )
-
-
 class LetAnnotation:
     """Marker for an immutable Bind, created by ``T.let`` or ``T.let[type]``.
 
@@ -385,95 +362,6 @@ _register_mutable_decl("tirx.alloc_local")(alloc_local)
 smem = _register_mutable_decl("tirx.smem")(alloc_shared)
 
 tmem = functools.partial(_alloc_tensor, scope="tmem")
-
-
-def alloc_tcgen05_ldst_frag(instr_shape, tensor_shape, dtype):
-    """Allocate a register fragment for ``tcgen05.{ld,st}`` atoms.
-
-    Sizes the per-thread storage, allocates ``local`` scope memory, and returns
-    a 2-D view of shape ``tensor_shape`` with a matching ``tcgen05_atom_layout``.
-    Pass the result to ``Tx.wg.copy_async`` (with a matching TMEM
-    tensor) to trigger the corresponding dispatch path.
-
-    Parameters
-    ----------
-    instr_shape : str
-        ``"32x32b"`` (M=128 fragment, 128 row warpgroup tile, layout
-        ``(128, K):(1@tid_in_wg, 1)``); or ``"16x64b"`` / ``"16x128b"`` /
-        ``"16x256b"`` (M=64 fragments, 64 row warpgroup tile with the
-        per-shape per-lane register decomposition).
-    tensor_shape : tuple[int, int]
-        Logical fragment shape ``(frag_rows, K)`` in element units. ``frag_rows``
-        is ``128`` for ``.32x32b`` and ``64`` for the ``.16x*b`` shapes. The
-        fp32 Layout B readback image also uses ``("32x32b", (64, N))``.
-    dtype : str
-        ``"float32"``, ``"float16"``, or ``"bfloat16"``.
-
-    Returns
-    -------
-    Var
-        2-D view of shape ``tensor_shape`` whose layout matches
-        ``tcgen05_atom_layout(instr_shape, tensor_shape, dtype)``.
-
-    Examples
-    --------
-    M=128 readback (existing dispatch):
-        ``frag = T.alloc_tcgen05_ldst_frag("32x32b", (128, 64), "float32")``
-        ``Tx.wg.copy_async(frag[:, :], tmem[:, 0:64])``
-
-    M=64 readback (.16x64b dispatch):
-        ``frag = T.alloc_tcgen05_ldst_frag("16x64b", (64, 64), "float32")``
-        ``Tx.wg.copy_async(frag[:, :], tmem[0:64, 0:64])``
-
-    Datapath B readback (cta_group=2, per-CTA M=64):
-        ``C = tmem_pool.alloc((64, 128), "float32", datapath="B")``
-        ``frag = T.alloc_tcgen05_ldst_frag("32x32b", (64, 128), "float32")``
-        ``Tx.wg.copy_async(frag[:, :], C[:, :])``
-    """
-    from tvm.backend.cuda.layout import tcgen05_atom_layout  # local import to avoid cycle
-
-    rows, cols = tensor_shape
-    bits = DataType(dtype).bits
-    # Per-warpgroup total bits = 64 rows x K cols x bits. Divided across 128
-    # threads gives per-thread bits; convert to element count.
-    per_thread_bits = (rows * cols * bits) // 128
-    if per_thread_bits % bits != 0:
-        raise ValueError(
-            f"alloc_tcgen05_ldst_frag tensor_shape={tensor_shape} dtype={dtype!r} "
-            f"does not evenly divide across 128 threads"
-        )
-    per_thread_elems = per_thread_bits // bits
-
-    layout = tcgen05_atom_layout(instr_shape, tensor_shape, dtype)
-    flat = alloc_local((per_thread_elems,), dtype)
-    return flat.view(rows, cols, layout=layout)
-
-
-def alloc_cast_frag(src, dtype):
-    """Allocate a register frag holding ``src`` value-cast to ``dtype``.
-
-    Inherits ``src``'s logical shape and its ``(lane, register)`` layout — only
-    the element dtype changes — so ``Tx.cast(dst, src)`` is a per-thread
-    element-wise cast with no cross-lane movement. ``.permute(...)`` the result
-    to the axis order a downstream consumer (e.g. ``stmatrix`` via
-    ``Tx.copy(dispatch="ldstmatrix")``) expects.
-
-    Parameters
-    ----------
-    src : Var
-        Source register frag (e.g. from ``alloc_tcgen05_ldst_frag``).
-    dtype : str
-        Destination element dtype.
-
-    Returns
-    -------
-    Var
-        Fresh ``local`` frag, ``src.shape`` shaped, ``src.layout``, dtype-cast.
-    """
-    rows, cols = src.ty.shape
-    per_thread_elems = (rows * cols) // 128
-    flat = alloc_local((per_thread_elems,), dtype)
-    return flat.view(rows, cols, layout=src.ty.layout)
 
 
 @_register_mutable_decl("tirx.alloc_scalar")
@@ -1145,11 +1033,9 @@ __all__ = [
     "TileLayout",
     "Tuple",
     "Var",
-    "alloc_cast_frag",
     "alloc_local",
     "alloc_scalar",
     "alloc_shared",
-    "alloc_tcgen05_ldst_frag",
     "alloc_tensor",
     "bf16",
     "bfloat16",
@@ -1335,7 +1221,6 @@ __all__ = [
     "uint64x32",
     "uint64x64",
     "void",
-    "wg_reg_tile",
 ]
 
 

@@ -22,12 +22,13 @@ import tvm_ffi
 
 import tvm
 import tvm.testing
+from tvm.backend.cuda.axis import Axis as CUDAAxis
 from tvm.backend.cuda.axis import laneid, warpid
-from tvm.backend.cuda.layout import wg_local_layout
 from tvm.script import tirx as T
 from tvm.script.parser import register_namespace
 from tvm.script.parser.protocol_registry import register_mutable_decl
 from tvm.tirx.function import Function
+from tvm.tirx.layout import S, TileLayout
 from tvm.tirx.transform import LowerTIRx, StmtSimplify
 
 
@@ -121,11 +122,11 @@ def test_lower_view_get():
         )
         B_layout = A.layout.tile(L_LANE, (32,), (2,))
         B = A.view(64, layout=B_layout)
-        A_local = B.local(2)
+        A_local = B.view(2, layout="default")
         for i in T.vectorized(2):
             A_local[i] = T.float32(in_buf[lane_id * 2 + i])
         B_1 = A.view(64, layout=B_layout)
-        A_local_1 = B_1.local(2)
+        A_local_1 = B_1.view(2, layout="default")
         for i in T.vectorized(2):
             out[lane_id * 2 + i] = T.float32(A_local_1[i])
 
@@ -197,14 +198,14 @@ def test_lower_view_get():
         )
         B_layout = warp_atom.tile(tile, (2, 2), (8, 8))
         B = A.view(16, 16, layout=B_layout)
-        A_local = B.local(2, 2, 2)
+        A_local = B.view(2, 2, 2, layout="default")
         for i in T.unroll(4):
             for j in T.vectorized(2):
                 A_local[i // 2, i % 2, j] = in_buf[
                     i // 2 * 8 + lane_id // 4, i % 2 * 8 + lane_id % 4 + j
                 ]
         B_1 = A.view(16, 16, layout=B_layout)
-        A_local_1 = B_1.local(8)
+        A_local_1 = B_1.view(8, layout="default")
         for i in T.vectorized(2):
             out[lane_id // 4 * 8 + i // 2 * 8 + lane_id % 4, lane_id % 4 * 2 + i % 2] = A_local_1[i]
 
@@ -291,7 +292,7 @@ def test_lower_view_get():
             ]
         )
         A = acc.view(128, 128, layout=layout)
-        acc_local = A.local(16, 2, 2, layout=atom.tile(tile, (2, 128 // 8), (1, 2)))
+        acc_local = A.view(16, 2, 2, layout=atom.tile(tile, (2, 128 // 8), (1, 2)))
         for i in T.serial(128 // 8):
             for j in T.unroll(2):
                 for vec in T.vectorized(2):
@@ -300,7 +301,7 @@ def test_lower_view_get():
                         i * 8 + lane_id % 4 * 2 + vec,
                     ]
         A_1 = acc.view(128, 128, layout=layout)
-        acc_local_1 = A_1.local(64, layout=atom.tile(tile, (2, 128 // 8), (1, 2)))
+        acc_local_1 = A_1.view(64, layout=atom.tile(tile, (2, 128 // 8), (1, 2)))
         for i in T.serial(128 // 8):
             for j in T.unroll(2):
                 for vec in T.vectorized(2):
@@ -396,16 +397,16 @@ def test_lower_view_get():
         B_layout = A.layout.tile(L_LANE, (32,), (2,))
         B = A.view(64, layout=B_layout)
         B_1 = A.view(64, layout=B_layout)
-        A_local = B.local(2)
+        A_local = B.view(2, layout="default")
         A_local[0] = T.float32(in_buf[lane_id * 2])
-        A_local_1 = B_1.local(2)
+        A_local_1 = B_1.view(2, layout="default")
         A_local_1[1] = T.float32(in_buf[lane_id * 2 + 1])
         "\n                write A into out\n                "
         B_2 = A.view(64, layout=B_layout)
         B_3 = A.view(64, layout=B_layout)
-        A_local_2 = B_2.local(2)
+        A_local_2 = B_2.view(2, layout="default")
         out[lane_id * 2] = T.float32(A_local_2[0])
-        A_local_3 = B_3.local(2)
+        A_local_3 = B_3.view(2, layout="default")
         out[lane_id * 2 + 1] = T.float32(A_local_3[1])
 
     @T.function(private=True)
@@ -1933,9 +1934,16 @@ def test_alloc_tensor_with_thread_axis_layout():
         warp_id = T.cuda.warp_in_warpgroup()
         lane_id = T.cuda.lane_id()
         reg_wg = T.alloc_tensor(
-            ty_args=[T.Tensor((128, 4), "float32", scope="local", layout=wg_local_layout(4))]
+            ty_args=[
+                T.Tensor(
+                    (128, 4),
+                    "float32",
+                    scope="local",
+                    layout=TileLayout(S[(128, 4) : (1 @ CUDAAxis.tid_in_wg, 1)]),
+                )
+            ]
         )
-        reg = reg_wg.local(4)
+        reg = reg_wg.view(4, layout="default")
         for i in T.serial(4):
             reg[i] = out[lane_id + warp_id * 32, i]
 

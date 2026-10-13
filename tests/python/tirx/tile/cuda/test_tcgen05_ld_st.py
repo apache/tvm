@@ -24,7 +24,7 @@ direction)`` in the ``.16x*`` sweeps we:
 1. Fill a (128, FULL_W) host tensor ``A`` with random values.
 2. Stage ``A`` into TMEM via the existing ``.32x32b`` ld/st round-trip.
 3. Issue the selected ``.16x*b`` atom via ``T.cuda.tile.apply`` to read a (64, K_cols)
-   fragment from TMEM into a register tile shaped by ``tcgen05_atom_layout``.
+   fragment from TMEM into a register tile shaped by ``tcgen05_register_layout``.
 4. Dump the register tile to a ``(128, regs_per_thread)`` global tensor indexed
    ``B[tid_in_wg, r]``.
 5. Reconstruct the expected ``B[t, r]`` on the host from the per-(lane, reg) →
@@ -43,9 +43,10 @@ import pytest
 
 import tvm
 import tvm.testing
+from tirx.layout_fixtures import tcgen05_register_layout
 from tvm.backend.cuda.axis import TCol, TLane
 from tvm.backend.cuda.axis import tid_in_wg as axis_tid_in_wg
-from tvm.backend.cuda.layout import tcgen05_atom_layout, tmem_datapath_layout
+from tvm.backend.cuda.layout import tmem_datapath_layout
 from tvm.script import tirx as T
 from tvm.testing import env
 from tvm.tirx.layout import S, TileLayout
@@ -292,7 +293,7 @@ def _run_roundtrip_16b(
     # .32x32b staging constraint applies here.
     tmem_col_width_32b = max(32, _next_pow2(K_cols_fp32))
     stage_width_elem = tmem_col_width_32b * elem_per_32b
-    atom_view = tcgen05_atom_layout(shape, (frag_rows, K_cols_elem), dtype)
+    atom_view = tcgen05_register_layout(shape, (frag_rows, K_cols_elem), dtype)
     tmem_layout = tmem_datapath_layout(tmem_datapath, tmem_rows, stage_width_elem)
 
     @T.function
@@ -433,23 +434,17 @@ def test_tmem_datapath_layout_rejects_invalid_sub_slab():
 
 @pytest.mark.parametrize("shape", ["16x64b", "16x128b", "16x256b"])
 @pytest.mark.parametrize("rep", [1, 2, 4])
-def test_tcgen05_atom_layout_apply_matches_decompose_fp32(shape, rep):
-    """``tcgen05_atom_layout`` is supposed to be the inverse of
+def test_tcgen05_register_layout_apply_matches_decompose_fp32(shape, rep):
+    """``tcgen05_register_layout`` is supposed to be the inverse of
     ``_decompose_fp32`` — i.e. for every (row, col) in the M=64 fragment,
     ``layout.apply(row, col)`` must return the (laneid, wid_in_wg, m)
     tuple that PTX puts at frag element ``(row, col)``.
 
-    The factory's per-shape iter lists are written low-to-high (natural
-    decomposition); the reversal added below is what aligns the resulting
-    TileLayout with ``SplitCoord`` (high-to-low). Without the reversal the
-    factory used to silently produce a layout that disagreed with PTX —
-    the round-trip tests didn't catch it because the dispatch ignores the
-    layout label and emits raw PTX. This sweep is the structural fence.
     """
     if rep not in _SHAPE_REPS[shape]:
         pytest.skip(f"rep {rep} not valid for {shape}")
     cols = _COL_FACTOR_FP32[shape] * rep  # K_cols_fp32
-    layout = tcgen05_atom_layout(shape, (64, cols), "float32")
+    layout = tcgen05_register_layout(shape, (64, cols), "float32")
     for thread in range(128):
         laneid = thread & 31
         wid_in_wg = thread >> 5
@@ -495,11 +490,11 @@ def test_tmem_datapath_layout_B_col_split_mapping():
             assert int(axis_values["TCol"]) == col % n_half
 
 
-def test_tcgen05_atom_layout_32x32b_datapath_B_mapping():
+def test_tcgen05_register_layout_32x32b_datapath_B_mapping():
     """The Layout B register image mirrors TLane/TCol as tid_in_wg/m."""
     n_cols = 128
     n_half = n_cols // 2
-    layout = tcgen05_atom_layout("32x32b", (64, n_cols), "float32")
+    layout = tcgen05_register_layout("32x32b", (64, n_cols), "float32")
 
     for row in [0, 1, 31, 63]:
         for col in [0, 1, n_half - 1, n_half, n_half + 1, n_cols - 1]:
@@ -508,19 +503,13 @@ def test_tcgen05_atom_layout_32x32b_datapath_B_mapping():
             assert int(axis_values["m"]) == col % n_half
 
 
-def test_datapath_B_layout_factories_reject_invalid_inputs():
+def test_datapath_B_layout_rejects_invalid_inputs():
     with pytest.raises(ValueError, match="expects rows=64"):
         tmem_datapath_layout("B", 128, 32)
     with pytest.raises(ValueError, match="expects even cols"):
         tmem_datapath_layout("B", 64, 31)
     with pytest.raises(ValueError, match="sub_slab must be 0"):
         tmem_datapath_layout("B", 64, 32, sub_slab=1)
-    with pytest.raises(ValueError, match="fp32-only"):
-        tcgen05_atom_layout("32x32b", (64, 32), "float16")
-    with pytest.raises(ValueError, match="expects even N"):
-        tcgen05_atom_layout("32x32b", (64, 31), "float32")
-    with pytest.raises(ValueError, match="PTX Table 49"):
-        tcgen05_atom_layout("32x32b", (64, 6), "float32")
 
 
 @pytest.mark.gpu
@@ -533,8 +522,8 @@ def test_tcgen05_16xnb_sub_slab_view_read(shape, rep):
     regs128 = _REGS_FACTOR[shape] * rep * 2
     regs64 = _REGS_FACTOR[shape] * rep
     tmem_cols = max(32, _next_pow2(cols))
-    atom128 = tcgen05_atom_layout(shape, (128, cols), dtype)
-    atom64 = tcgen05_atom_layout(shape, (64, cols), dtype)
+    atom128 = tcgen05_register_layout(shape, (128, cols), dtype)
+    atom64 = tcgen05_register_layout(shape, (64, cols), dtype)
     layout_d = tmem_datapath_layout("D", 128, tmem_cols)
     layout_f0 = tmem_datapath_layout("F", 64, tmem_cols, sub_slab=0)
     layout_f1 = tmem_datapath_layout("F", 64, tmem_cols, sub_slab=1)
@@ -657,7 +646,7 @@ def test_layout_F_rejects_incompatible_atoms(atom_kind, frag_rows):
         shape = "16x256b"
         rep = 1
         # Local fragment shape for M=128 .16x256b rep=1 = (128, 8) fp32.
-        atom_view = tcgen05_atom_layout(shape, (128, 8), "float32")
+        atom_view = tcgen05_register_layout(shape, (128, 8), "float32")
         local_extent_rows = 128
         local_cols = 8
     else:  # .32x32b path: local (128, 32) fp32
@@ -711,7 +700,7 @@ def test_layout_B_rejects_16xnb_fragment():
     """Layout B must not silently take the ordinary M=64 .16x*b path."""
     n_cols = 128
     tmem_layout = tmem_datapath_layout("B", 64, n_cols)
-    wrong_layout = tcgen05_atom_layout("16x256b", (64, n_cols), "float32")
+    wrong_layout = tcgen05_register_layout("16x256b", (64, n_cols), "float32")
 
     @T.function
     def kernel() -> None:
@@ -761,7 +750,9 @@ def test_layout_B_partial_column_copy():
                 )
             ],
         )
-        frag = T.alloc_tcgen05_ldst_frag("32x32b", (64, n_cols), "float32")
+        frag = T.alloc_local(((64) * (n_cols) // 128,), "float32").view(
+            64, n_cols, layout=tcgen05_register_layout("32x32b", (64, n_cols), "float32")
+        )
         src = _words(tmem[:, : n_cols // 2]).rearrange("(w r) c -> w r c", w=2, r=32)
         dst = _words(frag[:, : n_cols // 2]).rearrange("(w r) c -> w r c", w=2, r=32)
         if warp < 2:
@@ -794,7 +785,9 @@ def test_datapath_B_codegen(direction):
                 )
             ],
         )
-        frag = T.alloc_tcgen05_ldst_frag("32x32b", (64, n_cols), "float32")
+        frag = T.alloc_local(((64) * (n_cols) // 128,), "float32").view(
+            64, n_cols, layout=tcgen05_register_layout("32x32b", (64, n_cols), "float32")
+        )
         if T.constexpr(direction == "ld"):
             T.cuda.tile.apply(
                 T.ptx[f"tcgen05.ld.sync.aligned.32x32b.x{n_cols // 2}.b32"],
@@ -856,8 +849,10 @@ def test_datapath_B_ld_st_roundtrip(n_cols, col_offset):
                 ],
             )
 
-            frag_in = T.alloc_tcgen05_ldst_frag("32x32b", (64, n_cols), "float32")
-            frag_in_local = frag_in.local()
+            frag_in = T.alloc_local(((64) * (n_cols) // 128,), "float32").view(
+                64, n_cols, layout=tcgen05_register_layout("32x32b", (64, n_cols), "float32")
+            )
+            frag_in_local = frag_in.view(n_half, layout="default")
             for i in range(n_half):
                 frag_in_local[i] = A[tid, i]
             T.cuda.cta_sync()
@@ -870,7 +865,9 @@ def test_datapath_B_ld_st_roundtrip(n_cols, col_offset):
             T.ptx.tcgen05.wait__st.sync.aligned()
             T.cuda.cta_sync()
 
-            frag_out = T.alloc_tcgen05_ldst_frag("32x32b", (64, n_cols), "float32")
+            frag_out = T.alloc_local(((64) * (n_cols) // 128,), "float32").view(
+                64, n_cols, layout=tcgen05_register_layout("32x32b", (64, n_cols), "float32")
+            )
             T.cuda.tile.apply(
                 T.ptx[f"tcgen05.ld.sync.aligned.32x32b.x{n_half}.b32"],
                 _datapath_b_words(frag_out[:, :]),
@@ -879,7 +876,7 @@ def test_datapath_B_ld_st_roundtrip(n_cols, col_offset):
             )
             T.ptx.tcgen05.wait__ld.sync.aligned()
             T.cuda.cta_sync()
-            frag_out_local = frag_out.local()
+            frag_out_local = frag_out.view(n_half, layout="default")
             for i in range(n_half):
                 B[tid, i] = frag_out_local[i]
 
@@ -906,7 +903,7 @@ def test_datapath_B_ld_st_roundtrip(n_cols, col_offset):
 
 def _run_load_test(shape: str, rep: int, dtype: str):
     """Stage A into TMEM via .32x32b, then read it back as the fragment via
-    .<shape>.x<rep> (through ``T.alloc_tcgen05_ldst_frag``), and compare each
+    .<shape>.x<rep> with an explicit register layout, and compare each
     thread's registers against the expected layout-derived value."""
     bits = tvm.runtime.DataType(dtype).bits
     elem_per_32b = 32 // bits
@@ -942,7 +939,7 @@ def _run_load_test(shape: str, rep: int, dtype: str):
     chunk_view = TileLayout(S[(128, chunk_width_elem) : (1 @ axis_tid_in_wg, 1)])
     # Preserve the original register allocation; _atom_words only reorganizes
     # its logical axes for the instruction explicitly selected below.
-    atom_view = tcgen05_atom_layout(shape, (frag_rows, K_cols_elem), dtype)
+    atom_view = tcgen05_register_layout(shape, (frag_rows, K_cols_elem), dtype)
 
     @T.function
     def kernel(
@@ -1013,7 +1010,7 @@ def _run_load_test(shape: str, rep: int, dtype: str):
             T.cuda.cta_sync()
 
             # TMEM[0:frag_rows, 0:K_cols] -> frag_local via .<shape>.x<rep>.ld.
-            # Keep the original tcgen05_atom_layout and the flat per-thread
+            # Keep the original tcgen05_register_layout and the flat per-thread
             # register dump; the call selects the opcode and its xN explicitly.
             frag_reg = T.alloc_local((per_thread_elems,), dtype, layout="default")
             frag_local = frag_reg.view(frag_rows, K_cols_elem, layout=atom_view)
@@ -1122,7 +1119,7 @@ def test_tcgen05_st_16xnb_store(shape, rep, dtype):
         S[(128, stage_width_elem // VEC_LEN, VEC_LEN) : (stage_width_elem, VEC_LEN, 1)]
     )
     stage_view = TileLayout(S[(128, stage_width_elem) : (1 @ axis_tid_in_wg, 1)])
-    atom_view = tcgen05_atom_layout(shape, (frag_rows, K_cols_elem), dtype)
+    atom_view = tcgen05_register_layout(shape, (frag_rows, K_cols_elem), dtype)
 
     @T.function
     def kernel(
@@ -1256,7 +1253,7 @@ def test_tcgen05_st_16xnb_store(shape, rep, dtype):
 
 
 # --------------------------------------------------------------------------
-# Wrapper test: exercise T.alloc_tcgen05_ldst_frag directly (compile-only smoke).
+# Compile explicit register views for each native TMEM load shape.
 # --------------------------------------------------------------------------
 
 
@@ -1271,8 +1268,8 @@ def test_tcgen05_st_16xnb_store(shape, rep, dtype):
     ],
 )
 @pytest.mark.gpu
-def test_alloc_tcgen05_frag_wrapper_compiles(shape, frag_rows, K_cols):
-    """The fragment wrapper admits an explicit view for each selected PTX shape."""
+def test_tcgen05_register_view_compiles(shape, frag_rows, K_cols):
+    """An explicit register view matches each selected PTX shape."""
 
     @T.function
     def kernel(A: T.Tensor((128, K_cols), "float32")) -> None:
@@ -1299,8 +1296,12 @@ def test_alloc_tcgen05_frag_wrapper_compiles(shape, frag_rows, K_cols):
                     )
                 ],
             )
-            # One-liner: wrapper handles per-thread storage + layout.
-            frag = T.alloc_tcgen05_ldst_frag(shape, (frag_rows, K_cols), "float32")
+            # Allocate per-thread storage, then declare the logical fragment layout.
+            frag = T.alloc_local(((frag_rows) * (K_cols) // 128,), "float32").view(
+                frag_rows,
+                K_cols,
+                layout=tcgen05_register_layout(shape, (frag_rows, K_cols), "float32"),
+            )
             T.cuda.tile.apply(
                 T.ptx[f"tcgen05.ld.sync.aligned.{shape}.x{K_cols // _COL_FACTOR_FP32[shape]}.b32"],
                 _atom_words(frag[:, :], shape, frag_rows),
@@ -1360,7 +1361,9 @@ def test_tcgen05_32x32b_float32_keeps_typed_register_operands():
                     )
                 ],
             )
-            frag = T.alloc_tcgen05_ldst_frag("32x32b", (128, K_cols), "float32")
+            frag = T.alloc_local(((128) * (K_cols) // 128,), "float32").view(
+                128, K_cols, layout=tcgen05_register_layout("32x32b", (128, K_cols), "float32")
+            )
             T.cuda.tile.apply(
                 T.ptx[f"tcgen05.ld.sync.aligned.32x32b.x{K_cols}.b32"],
                 _atom_words(frag[:, :], "32x32b", 128),
@@ -1415,7 +1418,9 @@ def test_tcgen05_ldst_constant_tmem_address_is_uint32():
                     )
                 ],
             )
-            frag = T.alloc_tcgen05_ldst_frag("32x32b", (128, K_cols), "float32")
+            frag = T.alloc_local(((128) * (K_cols) // 128,), "float32").view(
+                128, K_cols, layout=tcgen05_register_layout("32x32b", (128, K_cols), "float32")
+            )
             T.cuda.tile.apply(
                 T.ptx[f"tcgen05.ld.sync.aligned.32x32b.x{K_cols}.b32"],
                 _atom_words(frag[:, :], "32x32b", 128),
@@ -1483,7 +1488,7 @@ def _run_sliced_vs_full_load(shape, full_rep, n_chunks):
     stage_w = tmem_col_width_32b if n_stage == 1 else CHUNK_FP32
     VEC_LEN = 4  # 128-bit / fp32
 
-    atom_view = tcgen05_atom_layout(shape, (frag_rows, K_cols_fp32), dtype)
+    atom_view = tcgen05_register_layout(shape, (frag_rows, K_cols_fp32), dtype)
     stage_view = TileLayout(S[(128, stage_w) : (1 @ axis_tid_in_wg, 1)])
 
     @T.function

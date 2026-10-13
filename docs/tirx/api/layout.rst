@@ -51,10 +51,18 @@ import axes from ``tvm.backend.cuda.axis``. Trainium's ``P``, ``F``, and
 ``Bank`` belong to ``T.trn.Axis``. The generic memory axis remains ``T.Axis.m``.
 
 CUDA memory/instruction layout factories are defined in
-``tvm.backend.cuda.layout`` and exposed as ``T.cuda.layout``. Trainium PF
-annotations are explicit factories, for example
-``T.trn.layout.trainium_layout("PF", shape)``; annotation strings are not
-accepted by generic tensor constructors.
+``tvm.backend.cuda.layout`` and exposed as ``T.cuda.layout``. Trainium
+layouts use explicit partition, free and bank axes. For example::
+
+   from tvm.backend.trn.axis import P, F, Bank
+   from tvm.tirx.layout import TileLayout, S
+
+   # A (128, 512) SBUF tile: partition p, free element f.
+   sbuf_layout = TileLayout(S[(128, 512) : (1 @ P, 1 @ F)])
+   # Two (128, 512) PSUM tiles, one per bank.
+   psum_layout = TileLayout(S[(2, 128, 512) : (1 @ Bank, 1 @ P, 1 @ F)])
+
+Annotation strings are not accepted by generic tensor constructors.
 
 Omitting ``layout`` or passing ``layout=None`` leaves every storage scope
 without a layout. ``layout="default"`` explicitly requests a compact

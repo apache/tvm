@@ -27,6 +27,8 @@ import tvm_ffi
 
 import tvm
 import tvm.testing
+from tirx.layout_fixtures import tcgen05_register_layout
+from tvm.backend.cuda.axis import Axis as CUDAAxis
 from tvm.backend.cuda.axis import laneid, tid_in_wg, tx
 from tvm.runtime import MemoryScope
 from tvm.script import tirx as T
@@ -202,7 +204,7 @@ def test_reg_roundtrip_gapped_permuted_storage():
     """Forced reg dispatch addresses sparse register layouts by physical offset."""
     shape = (32, 2, 2)
     r_layout = TileLayout(S[shape : (1 @ laneid, 2, 4)])
-    storage = r_layout.storage()
+    storage = TileLayout(S[(2, 2) : (2, 4)])
     assert int(storage.size()) == 4
     assert int(storage.span()) == 7
     assert [int(storage.apply(i, shape=[4])["m"]) for i in range(4)] == [0, 4, 2, 6]
@@ -369,7 +371,6 @@ def test_reg_explicit_cache_nc():
 @pytest.mark.gpu
 def test_reg_copy_linear_shared_explicit_repeats():
     """The original 64 fp16 values per thread require eight 128-bit stores."""
-    from tvm.backend.cuda.layout import wg_local_layout
 
     n_threads, width = 128, 64
     shape = (n_threads, width)
@@ -380,13 +381,20 @@ def test_reg_copy_linear_shared_explicit_repeats():
         T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(n_threads,)))
         tid = T.cuda.thread_in_warpgroup()
         reg = T.alloc_tensor(
-            ty_args=[T.Tensor(shape, "float16", scope="local", layout=wg_local_layout(width))]
+            ty_args=[
+                T.Tensor(
+                    shape,
+                    "float16",
+                    scope="local",
+                    layout=TileLayout(S[(128, width) : (1 @ CUDAAxis.tid_in_wg, 1)]),
+                )
+            ]
         )
         smem = T.alloc_tensor(
             ty_args=[T.Tensor(shape, "float16", scope="shared", layout=linear_layout)]
         )
 
-        reg_local = reg.local(width)
+        reg_local = reg.view(width, layout="default")
         for i in T.serial(width):
             reg_local[i] = A[tid, i]
         T.cuda.tile.apply(
@@ -404,7 +412,6 @@ def test_reg_copy_linear_shared_explicit_repeats():
 @pytest.mark.gpu
 def test_reg_copy_wg_local_to_swizzled_shared_uses_structured_compose_apply():
     """The original swizzled allocation accepts explicit 128-bit stores."""
-    from tvm.backend.cuda.layout import wg_local_layout
     from tvm.tirx.layout import ComposeLayout
 
     N_THREADS, EPI_N = 128, 64
@@ -421,15 +428,22 @@ def test_reg_copy_wg_local_to_swizzled_shared_uses_structured_compose_apply():
         T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(N_THREADS,)))
         tid = T.cuda.thread_in_warpgroup()
         reg = T.alloc_tensor(
-            ty_args=[T.Tensor(g_shape, "float16", scope="local", layout=wg_local_layout(EPI_N))]
+            ty_args=[
+                T.Tensor(
+                    g_shape,
+                    "float16",
+                    scope="local",
+                    layout=TileLayout(S[(128, EPI_N) : (1 @ CUDAAxis.tid_in_wg, 1)]),
+                )
+            ]
         )
         smem = T.alloc_tensor(
             ty_args=[T.Tensor(g_shape, "float16", scope="shared", layout=smem_layout)]
         )
 
-        # Populate the per-thread slice via .local() (decomposes the wg
+        # Populate the per-thread slice via physical-register (decomposes the wg
         # thread-axis layout into a per-thread 1D view).
-        reg_local = reg.local(EPI_N)
+        reg_local = reg.view(EPI_N, layout="default")
         for i in T.serial(EPI_N):
             reg_local[i] = A[tid, i]
         T.cuda.tile.apply(
@@ -690,7 +704,6 @@ def test_reg_explicit_vector_width(words):
 
 @pytest.mark.parametrize("case", ["wg", "wg_slice", "tcgen05"])
 def test_reg_view_preserves_shared_and_register_addresses(case):
-    from tvm.backend.cuda.layout import wg_local_layout
     from tvm.tirx.layout import ComposeLayout
 
     if case == "tcgen05":
@@ -701,7 +714,7 @@ def test_reg_view_preserves_shared_and_register_addresses(case):
     else:
         shape, dtype = (128, 64), "float16"
         start, width = (8, 32) if case == "wg_slice" else (0, 64)
-        r_layout = wg_local_layout(64)
+        r_layout = TileLayout(S[(128, 64) : (1 @ CUDAAxis.tid_in_wg, 1)])
         s_layout = ComposeLayout(3, 3, 3, TileLayout(S[(512,)]))
         recipe = "(w t) (r v) -> w t r v"
         factors = dict(t=32, v=8)
@@ -757,21 +770,21 @@ _TCGEN05_D_SLICE = (slice(0, 64), slice(0, 64))
 
 
 def _tcgen05_d_epilogue_layouts():
-    from tvm.backend.cuda.layout import mma_shared_layout, tcgen05_atom_layout
+    from tvm.backend.cuda.layout import mma_shared_layout
 
     m, n = _TCGEN05_D_SHAPE
-    reg_layout = tcgen05_atom_layout(_TCGEN05_D_ATOM, (m, n), _TCGEN05_D_DTYPE)
+    reg_layout = tcgen05_register_layout(_TCGEN05_D_ATOM, (m, n), _TCGEN05_D_DTYPE)
     smem_layout = mma_shared_layout(_TCGEN05_D_DTYPE, _TCGEN05_D_SWIZZLE, (m, n))
     return m, n, reg_layout, smem_layout
 
 
 def _build_tcgen05_d_epilogue_deposit():
     """Explicit 64-bit stores: R (tcgen05 atom) → S (128B swizzle)."""
-    from tvm.backend.cuda.layout import mma_shared_layout, tcgen05_atom_layout
+    from tvm.backend.cuda.layout import mma_shared_layout
 
     m, n = _TCGEN05_D_SHAPE
     smem_layout = mma_shared_layout(_TCGEN05_D_DTYPE, _TCGEN05_D_SWIZZLE, (m, n))
-    reg_layout = tcgen05_atom_layout(_TCGEN05_D_ATOM, (m, n), _TCGEN05_D_DTYPE)
+    reg_layout = tcgen05_register_layout(_TCGEN05_D_ATOM, (m, n), _TCGEN05_D_DTYPE)
     sl_m, sl_n = _TCGEN05_D_SLICE
 
     @T.function
@@ -828,13 +841,13 @@ def _tcgen05_16x256b_row_col(tid_wg: T.int32, lane: T.int32, reg_idx: T.int32):
 
 
 def _build_tcgen05_d_epilogue_deposit_roundtrip():
-    """Fill ``d_reg``, R→S deposit, S→R reload, dump via ``.local()`` to gmem."""
-    from tvm.backend.cuda.layout import mma_shared_layout, tcgen05_atom_layout
+    """Round-trip ``d_reg`` through shared memory and dump each thread's registers."""
+    from tvm.backend.cuda.layout import mma_shared_layout
 
     m, n = _TCGEN05_D_SHAPE
     regs_per_thread = 32  # ``.16x256b.x8`` fp32: 4 regs/slot x rep=8
     smem_layout = mma_shared_layout(_TCGEN05_D_DTYPE, _TCGEN05_D_SWIZZLE, (m, n))
-    reg_layout = tcgen05_atom_layout(_TCGEN05_D_ATOM, (m, n), _TCGEN05_D_DTYPE)
+    reg_layout = tcgen05_register_layout(_TCGEN05_D_ATOM, (m, n), _TCGEN05_D_DTYPE)
     sl_m, sl_n = _TCGEN05_D_SLICE
 
     @T.function
@@ -854,8 +867,8 @@ def _build_tcgen05_d_epilogue_deposit_roundtrip():
         smem_cd_mma = T.alloc_tensor(
             ty_args=[T.Tensor((m, n), _TCGEN05_D_DTYPE, scope="shared", layout=smem_layout)]
         )
-        reg_in = d_reg.local(regs_per_thread)
-        reg_out = d_reg_out.local(regs_per_thread)
+        reg_in = d_reg.view(regs_per_thread, layout="default")
+        reg_out = d_reg_out.view(regs_per_thread, layout="default")
         for r in T.serial(regs_per_thread):
             row, col = _tcgen05_16x256b_row_col(tid_wg, lane, T.cast(r, "int32"))
             reg_in[r] = A[row, col]
@@ -887,7 +900,7 @@ def test_reg_copy_tcgen05_d_epilogue_deposit_gpu():
     Host fills gmem ``A[row,col]=row*100+col``; each thread scatters into ``d_reg``
     via the ``.16x256b`` (tid,reg)→(row,col) map, runs production
     explicit 64-bit shared stores then the corresponding loads, and dumps ``d_reg_out`` back to gmem
-    ``B`` through ``.local()``. Pre-fix pairing dropped 2/3 of the S groups —
+    ``B`` through explicit physical-register views. Pre-fix pairing dropped 2/3 of the S groups —
     ``max|B-A|`` was hundreds, not 0.
     """
     m, n = _TCGEN05_D_SHAPE

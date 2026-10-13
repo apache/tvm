@@ -431,9 +431,6 @@ The common methods and properties:
      - a vectorized load / store; prints as ``*(float4*)(B_ptr + …)``
    * - ``B.view(*shape, layout=…)``
      - reinterpret the same storage under a new shape/layout (no copy)
-   * - ``B.local(*shape, layout=…)``
-     - the calling thread's private storage slice of a ``local`` tensor,
-       in physical storage order by default
    * - ``B.permute(*dims)``
      - a view with axes permuted (a transposed layout)
    * - ``T.ptr_byte_offset(B.data, byte_offset, ty=B.data.ty)``
@@ -481,19 +478,10 @@ sees the 256-element tensor as ``64×4``; ``A.permute(1, 0)`` transposes the axe
     A2_ptr[tx * 4]  /* +3 */                 // view: row-major 64x4 index
     At_ptr[(j * 4) + i]                       // permute: swapped strides
 
-**Per-thread view — ``local``.** Decomposes a thread-axis ``local`` layout into the
-calling thread's storage bundle (used pervasively by the tile ops).
-Both forms expose the raw physical storage span by default, including layout
-gaps and offsets: ``R.local()`` infers a flat 1-D span, while
-``R.local(d0, d1, ...)`` is a row-major reshape whose product must equal that
-span.  Pass an explicit ``layout=`` only when storage-iterator coordinates are
-required.  This mediated form is an escape hatch: the supplied layout
-interprets the requested shape, so that shape is not constrained to the raw
-span.  Without ``layout=``, omitting the shape always infers a one-dimensional
-physical storage span.  Only the explicit-``layout=`` compatibility form with
-no shape infers a one-dimensional shape from the logical storage size:
-
-.. code-block:: python
+**Per-thread storage — explicit ``view``.** A thread-distributed register
+layout describes both the owning thread and its local slot. To index only
+the calling thread's slots, provide a memory-only layout and the physical
+shape explicitly. For a tensor with eight contiguous slots per lane::
 
     R = Tx.alloc_tensor(
         ty_args=[
@@ -502,9 +490,12 @@ no shape infers a one-dimensional shape from the logical storage size:
             )
         ]
     )
-    R_flat = R.local()       # this lane's 8 local elements, physical order
-    R_2d = R.local(2, 4)     # the same elements, row-major 2x4 reshape
+    R_flat = R.view(8, layout="default")   # this lane's eight physical slots
+    R_2d = R.view(2, 4, layout="default")  # the same slots as a compact 2x4 tensor
 
-.. code-block:: c++
-
-    alignas(64) float R_flat_ptr[8];          // the lane's private local elements
+The explicit layout replaces the thread distribution in the view; it does
+not infer a storage shape or move data. If a register layout contains gaps,
+choose a shape covering its physical span to expose those gaps, or supply
+a strided memory layout to address only its occupied slots. Offsets must
+also be represented explicitly. A reshape without ``layout=`` preserves
+the existing logical mapping, including thread axes.

@@ -25,6 +25,8 @@ import tvm_ffi
 
 import tvm
 import tvm.testing
+from tirx.layout_fixtures import tcgen05_register_layout
+from tvm.backend.cuda.axis import Axis as CUDAAxis
 from tvm.backend.cuda.axis import laneid, tid_in_wg, tx, warpid
 from tvm.script import tirx as T
 from tvm.testing import env
@@ -267,11 +269,10 @@ def test_cast_cta_local_view(A_dtype, B_dtype):
 def test_cast_warpgroup_src_layout_to_flat_uses_vec2_intrinsic(A_dtype, B_dtype):
     """Regression: GEMM-epilogue cast pattern must emit the packed vec2 cuda intrinsic.
 
-    Pattern: both sides have ``wg_local_layout`` (per-thread 1xK row). dst is
+    Pattern: both sides have a per-thread 1xK row layout. dst is
     allocated per-chunk to keep both operands wg-distributed — the dispatch
     requires layout-symmetric operands (no flat-vs-wg asymmetry).
     """
-    from tvm.backend.cuda.layout import wg_local_layout
 
     N_THREADS, LOCAL_LEN, N_CHUNKS = 128, 8, 4
     g_shape = (N_THREADS, LOCAL_LEN * N_CHUNKS)
@@ -315,9 +316,15 @@ def test_cast_warpgroup_src_layout_to_flat_uses_vec2_intrinsic(A_dtype, B_dtype)
             )
             for i in T.serial(LOCAL_LEN):
                 reg_src[i] = A[tid, no * LOCAL_LEN + i]
-            reg_src_view = reg_src.view(N_THREADS, LOCAL_LEN, layout=wg_local_layout(LOCAL_LEN))
+            reg_src_view = reg_src.view(
+                N_THREADS,
+                LOCAL_LEN,
+                layout=TileLayout(S[(128, LOCAL_LEN) : (1 @ CUDAAxis.tid_in_wg, 1)]),
+            )
             Dreg_chunk_view = Dreg_chunk.view(
-                N_THREADS, LOCAL_LEN, layout=wg_local_layout(LOCAL_LEN)
+                N_THREADS,
+                LOCAL_LEN,
+                layout=TileLayout(S[(128, LOCAL_LEN) : (1 @ CUDAAxis.tid_in_wg, 1)]),
             )
             pairs = reg_src_view.view(4, 32, LOCAL_LEN // 2, 2)
             # PTX writes its first f32 input into the high halfword.
@@ -634,7 +641,7 @@ def _sl_compile(fn):
 
 
 def test_cast_wg_rejects_thread_local_view():
-    """warpgroup conversion on a .local() (thread-axis-stripped) view is rejected."""
+    """warpgroup conversion on a physical-register (thread-axis-stripped) view is rejected."""
 
     @T.function
     def kernel(
@@ -665,16 +672,16 @@ def test_cast_wg_rejects_thread_local_view():
                 )
             ]
         )
-        src_row = src.local(_SL_COLS)
+        src_row = src.view(_SL_COLS, layout="default")
         for i in T.serial(_SL_COLS):
             src_row[i] = A[tid, i]
         T.cuda.tile.apply(
             T.ptx["cvt.rn.f16.f32"],
-            dst.local().view("uint16").view(8, 1),
-            src.local().view(8, 1),
+            dst.view(_SL_COLS, layout="default").view("uint16").view(8, 1),
+            src.view(_SL_COLS, layout="default").view(8, 1),
             scope="warpgroup",
         )
-        dst_row = dst.local(_SL_COLS)
+        dst_row = dst.view(_SL_COLS, layout="default")
         for i in T.serial(_SL_COLS):
             B[tid, i] = dst_row[i]
 
@@ -683,7 +690,7 @@ def test_cast_wg_rejects_thread_local_view():
 
 
 def test_cast_cta_rejects_thread_local_view():
-    """CTA conversion on a .local() view is rejected (cta -> tx)."""
+    """CTA conversion on a physical-register view is rejected (cta -> tx)."""
 
     @T.function
     def kernel(
@@ -713,16 +720,16 @@ def test_cast_cta_rejects_thread_local_view():
                 )
             ]
         )
-        src_row = src.local(_SL_COLS)
+        src_row = src.view(_SL_COLS, layout="default")
         for i in T.serial(_SL_COLS):
             src_row[i] = A[tx_var, i]
         T.cuda.tile.apply(
             T.ptx["cvt.rn.f16.f32"],
-            dst.local().view("uint16").view(8, 1),
-            src.local().view(8, 1),
+            dst.view(_SL_COLS, layout="default").view("uint16").view(8, 1),
+            src.view(_SL_COLS, layout="default").view(8, 1),
             scope="cta",
         )
-        dst_row = dst.local(_SL_COLS)
+        dst_row = dst.view(_SL_COLS, layout="default")
         for i in T.serial(_SL_COLS):
             B[tx_var, i] = dst_row[i]
 
@@ -763,7 +770,7 @@ def test_cast_wg_rejects_partial_thread_coverage():
                 )
             ]
         )
-        src_row = src.local(_SL_COLS)
+        src_row = src.view(_SL_COLS, layout="default")
         for i in T.serial(_SL_COLS):
             src_row[i] = A[tid, i]
         T.cuda.tile.apply(
@@ -772,7 +779,7 @@ def test_cast_wg_rejects_partial_thread_coverage():
             src.view(-1, 32, _SL_COLS, 1),
             scope="warpgroup",
         )
-        dst_row = dst.local(_SL_COLS)
+        dst_row = dst.view(_SL_COLS, layout="default")
         for i in T.serial(_SL_COLS):
             B[tid, i] = dst_row[i]
 
@@ -812,7 +819,7 @@ def test_cast_wg_accepts_wg_level_layout():
                 )
             ]
         )
-        src_row = src.local(_SL_COLS)
+        src_row = src.view(_SL_COLS, layout="default")
         for i in T.serial(_SL_COLS):
             src_row[i] = A[tid, i]
         T.cuda.tile.apply(
@@ -821,7 +828,7 @@ def test_cast_wg_accepts_wg_level_layout():
             src.view(-1, 32, _SL_COLS, 1),
             scope="warpgroup",
         )
-        dst_row = dst.local(_SL_COLS)
+        dst_row = dst.view(_SL_COLS, layout="default")
         for i in T.serial(_SL_COLS):
             B[tid, i] = dst_row[i]
 
@@ -880,10 +887,8 @@ def _tcgen05_16x256b_row_col(tid_wg: T.int32, lane: T.int32, reg_idx: T.int32):
 
 
 def _tcgen05_cast_atom_layout():
-    from tvm.backend.cuda.layout import tcgen05_atom_layout
-
     # Production tf32_hc_prenorm_gemm pattern: bf16 payload in fp32 atom slots.
-    return tcgen05_atom_layout("16x256b", (_TCGEN05_M, _TCGEN05_K), "float32")
+    return tcgen05_register_layout("16x256b", (_TCGEN05_M, _TCGEN05_K), "float32")
 
 
 def _tcgen05_cast_warpgroup_kernel():
@@ -903,8 +908,8 @@ def _tcgen05_cast_warpgroup_kernel():
         a_fp32 = T.alloc_tensor(
             ty_args=[T.Tensor((m, k), "float32", scope="local", layout=atom_layout)]
         )
-        reg_in = a_bf16.local(_TCGEN05_REGS_PER_THREAD)
-        reg_out = a_fp32.local(_TCGEN05_REGS_PER_THREAD)
+        reg_in = a_bf16.view(_TCGEN05_REGS_PER_THREAD, layout="default")
+        reg_out = a_fp32.view(_TCGEN05_REGS_PER_THREAD, layout="default")
         for r in T.serial(_TCGEN05_REGS_PER_THREAD):
             row, col = _tcgen05_16x256b_row_col(tid_wg, lane, T.cast(r, "int32"))
             reg_in[r] = A[row, col]
