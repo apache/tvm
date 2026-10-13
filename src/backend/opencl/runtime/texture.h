@@ -31,6 +31,8 @@
 #include <string>
 #include <vector>
 
+#include "../memory_scope.h"
+
 #define ALIGN_UP(num, align) (((num) + ((align) - 1)) & ~((align) - 1))
 
 namespace tvm {
@@ -102,14 +104,12 @@ Texture2DShape<T> ApplyTexture2DFlattening(const S& shape, size_t rank, size_t a
 }
 
 inline bool IsTextureStorage(MemoryScope scope) {
-  static const auto texture = MemoryScope::Get("texture");
-  static const auto global_texture = MemoryScope::Get("global.texture");
-  static const auto texture_1d = MemoryScope::Get("global.texture-1d");
-  static const auto texture_nchw = MemoryScope::Get("global.texture-nchw");
-  static const auto texture_nhwc = MemoryScope::Get("global.texture-nhwc");
-  static const auto texture_weight = MemoryScope::Get("global.texture-weight");
-  return scope == texture || scope == global_texture || scope == texture_1d ||
-         scope == texture_nchw || scope == texture_nhwc || scope == texture_weight;
+  static ffi::reflection::TypeAttrColumn state_column(ffi::reflection::type_attr::kEnumState);
+  auto state = state_column[MemoryScopeObj::_GetOrAllocRuntimeTypeIndex()].cast<ffi::EnumState>();
+  if (auto column = state->attrs.Get(backend::opencl::kTextureStorage)) {
+    if (auto value = column->Get(scope)) return value->cast<bool>();
+  }
+  return false;
 }
 
 /*!

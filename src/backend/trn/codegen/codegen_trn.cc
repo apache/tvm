@@ -38,7 +38,6 @@
 #include <unordered_map>
 #include <utility>
 
-#include <tvm/runtime/memory_scope.h>
 #include "../../../target/build_common.h"
 
 namespace tvm {

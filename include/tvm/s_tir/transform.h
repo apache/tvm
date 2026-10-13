@@ -143,7 +143,7 @@ TVM_DLL Pass LowerMatchTensor();
 TVM_DLL Pass InjectPermutedLayout();
 
 /*!
- * \brief Transform Mma scope (m16n8k8.matrixA/B/C) to local scope with layout transformation.
+ * \brief Transform Mma scope (mma.matrixA/B/C) to local scope with layout transformation.
  * \return The pass.
  */
 TVM_DLL Pass TransformMmaTensorLayout();

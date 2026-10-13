@@ -22,6 +22,8 @@ leaves completion (``tcgen05.wait.ld`` / ``tcgen05.wait.st``) to the caller.
 Callers that want sync semantics should issue the matching wait after the copy.
 """
 
+from functools import cache
+
 import tvm
 from tvm.backend.cuda.axis import TCol, TLane
 from tvm.backend.cuda.layout import tcgen05_atom_layout, tmem_datapath_layout
@@ -37,7 +39,12 @@ from tvm.tirx.tile.instruction import TensorCall
 from ..common import get_st_extent
 
 _SCOPE_LOCAL = MemoryScope("local")
-_SCOPE_TMEM = MemoryScope("tmem")
+
+
+@cache
+def _scope_tmem():
+    return MemoryScope("tmem")
+
 
 # Per-warp fp32-column factor for each instr_shape (mirrors
 # ``_TCGEN05_COL_FACTOR_FP32`` in ``tvm.tirx.layout``; .16x64b → 2,
@@ -223,10 +230,10 @@ def copy_tmem_local_impl(op_call: TensorCall, sctx: DispatchContext) -> Function
     dst: Var = dst_buffer_region.source
     src: Var = src_buffer_region.source
 
-    if src.scope() == _SCOPE_TMEM and dst.scope() == _SCOPE_LOCAL:
+    if src.scope() == _scope_tmem() and dst.scope() == _SCOPE_LOCAL:
         direction = "tmem2local"
         tmem_region, local_region = src_buffer_region, dst_buffer_region
-    elif src.scope() == _SCOPE_LOCAL and dst.scope() == _SCOPE_TMEM:
+    elif src.scope() == _SCOPE_LOCAL and dst.scope() == _scope_tmem():
         direction = "local2tmem"
         local_region, tmem_region = src_buffer_region, dst_buffer_region
     else:

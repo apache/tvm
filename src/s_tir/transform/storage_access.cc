@@ -384,7 +384,7 @@ ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const CallNode* op) {
   } else if (op->op.same_as(tirx::gpu_storage_sync_op())) {
     TVM_FFI_ICHECK(allow_append_);
     const std::string& s = op->args[0].as<StringImmNode>()->value;
-    MemoryScope scope = runtime::MemoryScope::FromString(s);
+    MemoryScope scope = runtime::MemoryScope::Get(s);
     if (scope != scope_warp) {
       AccessEntry e;
       e.threads = env_threads();

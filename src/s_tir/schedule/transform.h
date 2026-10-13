@@ -55,9 +55,6 @@ SBlock WithAnnotation(const SBlockNode* block, const ffi::String& attr_key,
  * \return The new tensor with target storage scope.
  */
 TensorVar WithScope(const TensorVar& tensor, runtime::MemoryScope scope);
-inline TensorVar WithScope(const TensorVar& tensor, const ffi::String& scope) {
-  return WithScope(tensor, runtime::MemoryScope::FromString(scope));
-}
 
 /*!
  * \brief Create a new tensor by changint the data type.

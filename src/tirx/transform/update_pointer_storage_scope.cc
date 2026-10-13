@@ -27,6 +27,7 @@
 #include <tvm/ffi/extra/structural_equal.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/prim/op.h>
+#include <tvm/runtime/memory_scope.h>
 #include <tvm/tirx/op/memory.h>
 #include <tvm/tirx/stmt_functor.h>
 #include <tvm/tirx/transform.h>
@@ -34,7 +35,6 @@
 #include <unordered_map>
 #include <utility>
 
-#include <tvm/runtime/memory_scope.h>
 #include "ir_utils.h"
 
 namespace tvm {

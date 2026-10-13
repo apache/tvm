@@ -203,7 +203,7 @@ class StorageScopeMutator : public ReplaceTensorMutator {
   static SBlock Mutate(const SBlock& allocate_site, const TensorVar& old_tensor,
                        const ffi::String& storage_scope,
                        ffi::Map<SBlock, SBlock>* block_sref_reuse) {
-    TensorVar new_tensor = WithScope(old_tensor, storage_scope);
+    TensorVar new_tensor = WithScope(old_tensor, runtime::MemoryScope::Get(storage_scope));
     auto mutator = ffi::make_object<StorageScopeMutator>(old_tensor, new_tensor, storage_scope,
                                                          block_sref_reuse);
     Stmt new_block = mutator->Mutate(allocate_site).ValueOrUnchanged(allocate_site);
@@ -275,7 +275,7 @@ void SetScope(ScheduleState self, const StmtSRef& block_sref, int tensor_index,
   CheckStorageScope(self, storage_scope);
 
   // Step 2. If `storage_scope` equals the original storage scope of the tensor, just return.
-  if (tensor.scope() == runtime::MemoryScope::FromString(storage_scope)) {
+  if (tensor.scope() == runtime::MemoryScope::Get(storage_scope)) {
     return;
   }
 

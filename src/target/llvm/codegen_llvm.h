@@ -62,7 +62,6 @@
 #include <utility>
 #include <vector>
 
-#include <tvm/runtime/memory_scope.h>
 #include "../../tirx/transform/ir_utils.h"
 #include "codegen_params.h"
 #include "llvm_instance.h"

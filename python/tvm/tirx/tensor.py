@@ -65,15 +65,15 @@ class TensorType(Type):
         self,
         shape,
         dtype,
-        data=None,
+        scope=_SCOPE_GLOBAL,
         strides=None,
         elem_offset=None,
-        byte_offset=None,
-        scope="global",
         align=0,
         offset_factor=0,
         layout=None,
         *,
+        data=None,
+        byte_offset=None,
         loc: Location = UNKNOWN_LOC,
         storage_scope=None,
         data_alignment=None,
@@ -103,7 +103,7 @@ class TensorType(Type):
             elem_offset = byte_offset * 8 // tvm.DataType(dtype.dtype).bits
         if storage_scope is None:
             storage_scope = scope
-        elif scope != "global" and scope != storage_scope:
+        elif scope not in ("global", _SCOPE_GLOBAL) and scope != storage_scope:
             raise ValueError("scope and storage_scope must agree")
         if data_alignment is None:
             data_alignment = align
@@ -121,9 +121,9 @@ class TensorType(Type):
             raise TypeError("layout must be a Layout, None, or 'default'")
         self.__init_handle_by_constructor__(
             _ffi_api.TensorType,
-            storage_scope,
-            dtype,
             shape,
+            dtype,
+            storage_scope,
             () if strides is None else strides,
             elem_offset,
             data_alignment,
@@ -157,6 +157,32 @@ class TensorType(Type):
         "byte_offset": lambda ty, expr: ty._byte_offset(expr),
         "sub": lambda ty, expr: ty._sub(expr),
     }
+
+    def __init__(
+        self,
+        shape,
+        dtype="float32",
+        scope=_SCOPE_GLOBAL,
+        strides=None,
+        elem_offset=None,
+        data_alignment=-1,
+        offset_factor=0,
+        layout=None,
+        loc: Location = UNKNOWN_LOC,
+    ):
+        shape = (shape,) if tvm.ir.is_prim_expr(shape) or isinstance(shape, Integral) else shape
+        self.__init_handle_by_constructor__(
+            _ffi_api.TensorType,
+            shape,
+            dtype,
+            scope,
+            () if strides is None else strides,
+            elem_offset,
+            data_alignment,
+            offset_factor,
+            layout,
+            loc,
+        )
 
     def effective_layout(self):
         """Return the explicit layout or infer a compact global layout.
@@ -420,7 +446,7 @@ def decl_tensor(
     data=None,
     strides=None,
     elem_offset=None,
-    scope="",
+    scope=_SCOPE_GLOBAL,
     data_alignment=-1,
     offset_factor=0,
     loc: Location = UNKNOWN_LOC,
@@ -443,10 +469,10 @@ def decl_tensor(
         if not isinstance(data.ty.element_type, PrimType):
             raise TypeError("Tensor data must point to a primitive type")
         storage_scope = data.ty.storage_scope
-    tensor_type = _ffi_api.TensorType(  # type: ignore
-        storage_scope,
-        dtype,
+    tensor_type = TensorType(
         shape,
+        dtype,
+        storage_scope,
         strides,
         elem_offset,
         data_alignment,

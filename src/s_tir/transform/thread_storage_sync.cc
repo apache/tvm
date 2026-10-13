@@ -36,7 +36,6 @@
 
 #include <unordered_set>
 
-#include <tvm/runtime/memory_scope.h>
 #include "storage_access.h"
 
 namespace tvm {

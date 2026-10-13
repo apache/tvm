@@ -260,7 +260,7 @@ class DistributedTensorCompactor : public s_tir::StmtExprMutator {
         shape.push_back(tensor->shape[i]);
       }
     }
-    TensorType new_type(tensor->storage_scope, tensor->dtype, std::move(shape), tensor->strides,
+    TensorType new_type(std::move(shape), tensor->dtype, tensor->storage_scope, tensor->strides,
                         tensor->elem_offset, tensor->data_alignment, tensor->offset_factor,
                         tensor->layout);
     return TensorVar(tensor.name(), std::move(new_type), tensor.loc());

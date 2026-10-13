@@ -543,7 +543,7 @@ std::vector<State> MultiLevelTilingTensorCoreObj::TransformIntermediateOutputLay
 std::vector<State> MultiLevelTilingTensorCoreObj::AddWriteReuseTensorCore(
     TensorCoreState state) const {
   if (state->is_mma) {
-    state->sch->WriteAt(state->tiles[2].back(), state->block_rv, 0, "m16n8k8.matrixC");
+    state->sch->WriteAt(state->tiles[2].back(), state->block_rv, 0, "mma.matrixC");
     state->sch->ReverseComputeInline(state->tensor_core_reindex_store);
     return {state};
   }
@@ -627,9 +627,9 @@ std::vector<State> MultiLevelTilingTensorCoreObj::AddReadReuseTensorCore(
         state->is_mma ? std::string("s2l_") + std::string(read_index == 0 ? "A" : "B") : "";
     TileAndAnnotateTensorize(&sch, cache_read, intrin_name, permuted_layout_annotate_value);
   };
-  f_tensorize_load(0, state->is_mma ? "m16n8k8.matrixA" : "wmma.matrix_a",
+  f_tensorize_load(0, state->is_mma ? "mma.matrixA" : "wmma.matrix_a",
                    state->intrin_group.load_a_intrin);
-  f_tensorize_load(1, state->is_mma ? "m16n8k8.matrixB" : "wmma.matrix_b",
+  f_tensorize_load(1, state->is_mma ? "mma.matrixB" : "wmma.matrix_b",
                    state->intrin_group.load_b_intrin);
 
   for (int i = 0; i < 2; ++i) {
@@ -961,7 +961,7 @@ ScheduleRule ScheduleRule::MultiLevelTilingTensorCore(
   }
 
   if (have_wmma_intrin_group) {
-    auto reuse_scope = runtime::MemoryScope::FromString(node->reuse_write_.scope);
+    auto reuse_scope = runtime::MemoryScope::Get(node->reuse_write_.scope);
     TVM_FFI_CHECK(node->reuse_write_.req == ReuseType::kMustReuse &&
                       (reuse_scope == scope_shared || reuse_scope == scope_shared_dyn),
                   ValueError)

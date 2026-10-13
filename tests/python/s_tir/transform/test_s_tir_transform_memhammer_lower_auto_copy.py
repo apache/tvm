@@ -220,7 +220,7 @@ class MmaToGlobal:
                     for ty in T.parallel(8, annotations={"thread_binding": "threadIdx.y"}):
                         with Ts.sblock():
                             C_accum = Ts.sblock_alloc_tensor(
-                                [128, 128], dtype="float32", scope="m16n8k8.matrixC"
+                                [128, 128], dtype="float32", scope="mma.matrixC"
                             )
                             with Ts.sblock("C_global"):
                                 Ts.sblock_attr({"auto_copy": True, "vector_bytes": 16})
@@ -1010,7 +1010,7 @@ class TransformedMmaToGlobal:
                         with Ts.sblock(""):
                             Ts.reads()
                             Ts.writes(C[bx * 128 : bx * 128 + 128, by * 128 : by * 128 + 128])
-                            C_accum = Ts.sblock_alloc_tensor((128, 128), scope="m16n8k8.matrixC")
+                            C_accum = Ts.sblock_alloc_tensor((128, 128), scope="mma.matrixC")
                             with Ts.sblock("C_global"):
                                 Ts.reads(C_accum[0:128, 0:128])
                                 Ts.writes(C[bx * 128 : bx * 128 + 128, by * 128 : by * 128 + 128])
@@ -1034,7 +1034,7 @@ class TransformedMmaToGlobal:
                                                     ax1_0 * 8 : ax1_0 * 8 + 8,
                                                 ],
                                                 (8, 8),
-                                                scope="m16n8k8.matrixC",
+                                                scope="mma.matrixC",
                                                 offset_factor=8,
                                             )
                                             tgt = Ts.match_tensor(

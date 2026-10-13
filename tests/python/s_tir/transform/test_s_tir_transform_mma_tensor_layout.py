@@ -22,9 +22,7 @@ import tvm.testing
 from tvm import s_tir, tirx
 
 
-@pytest.mark.parametrize(
-    "scope,shape", [("m16n8k8.matrixA", (32, 8)), ("m16n8k8.matrixB", (8, 32))]
-)
+@pytest.mark.parametrize("scope,shape", [("mma.matrixA", (32, 8)), ("mma.matrixB", (8, 32))])
 @pytest.mark.parametrize("access_kind", ["load", "store"])
 def test_explicit_matrix_ab_access_is_rejected(scope, shape, access_kind):
     tensor = tirx.decl_tensor(shape, "float32", scope=scope)

@@ -32,35 +32,16 @@ void RegisterBuiltinScopes() {
   // Lookups and defaults can run in other translation units' static initializers.
   // Initialize the complete set once, before any lookup, without relying on order.
   static const bool initialized = [] {
-    refl::ObjectDef<MemoryScopeNode>(refl::init(false));
-    for (const char* name : {"global",
-                             "nvshmem",
-                             "ipc_memory",
-                             "tmem",
-                             "shared",
-                             "shared.dyn",
-                             "warp",
-                             "local",
-                             "wmma.matrix_a",
-                             "wmma.matrix_b",
-                             "wmma.accumulator",
-                             "m16n8k8.matrixA",
-                             "m16n8k8.matrixB",
-                             "m16n8k8.matrixC",
-                             "texture",
-                             "amx.tmm",
-                             "metal.simdgroup",
-                             "metal.cooperative_tensor",
-                             "trn.sbuf",
-                             "trn.psum",
-                             "global.vtcm",
-                             "global.workspace"}) {
-      refl::EnumDef<MemoryScopeNode>{name};
+    refl::ObjectDef<MemoryScopeObj>(refl::init(false));
+    for (const char* name : {"global", "shared"}) {
+      refl::EnumDef<MemoryScopeObj>{name}.set_attr(attr::kMemoryAllocProperty,
+                                                   static_cast<int>(MemoryAllocProperty::kNormal));
     }
-    for (const char* name :
-         {"global.ddr", "global.texture", "global.texture-1d", "global.texture-nchw",
-          "global.texture-nhwc", "global.texture-weight"}) {
-      refl::EnumDef<MemoryScopeNode>{name}.set_attr("tirx.storage_rewrite_merge", true);
+    refl::EnumDef<MemoryScopeObj>{"shared.dyn"}.set_attr(
+        attr::kMemoryAllocProperty, static_cast<int>(MemoryAllocProperty::kSingleAllocation));
+    for (const char* name : {"warp", "local"}) {
+      refl::EnumDef<MemoryScopeObj>{name}.set_attr(
+          attr::kMemoryAllocProperty, static_cast<int>(MemoryAllocProperty::kSeparateAllocations));
     }
     return true;
   }();
@@ -68,9 +49,25 @@ void RegisterBuiltinScopes() {
 }
 }  // namespace
 
+MemoryAllocProperty MemoryScope::alloc_property() const {
+  static ffi::reflection::TypeAttrColumn state_column(ffi::reflection::type_attr::kEnumState);
+  auto state = state_column[MemoryScopeObj::RuntimeTypeIndex()].cast<ffi::EnumState>();
+  if (auto column = state->attrs.Get(attr::kMemoryAllocProperty)) {
+    if (auto value = column->Get(*this)) {
+      int property = value->cast<int>();
+      TVM_FFI_CHECK(property >= static_cast<int>(MemoryAllocProperty::kNormal) &&
+                        property <= static_cast<int>(MemoryAllocProperty::kSeparateAllocations),
+                    ValueError)
+          << "Invalid memory allocation property for " << name();
+      return static_cast<MemoryAllocProperty>(property);
+    }
+  }
+  return MemoryAllocProperty::kNormal;
+}
+
 MemoryScope MemoryScope::Get(const ffi::String& name) {
   RegisterBuiltinScopes();
-  return ffi::EnumObj::_GetByStrIndex<MemoryScopeNode>(name).as_or_throw<MemoryScope>();
+  return ffi::EnumObj::_GetByStrIndex<MemoryScopeObj>(name).as_or_throw<MemoryScope>();
 }
 
 MemoryScope MemoryScope::Register(const ffi::String& name) {
@@ -79,20 +76,20 @@ MemoryScope MemoryScope::Register(const ffi::String& name) {
   TVM_FFI_CHECK(std::string_view(name.data(), name.size()).find('\0') == std::string_view::npos,
                 ValueError)
       << "Memory scope name must not contain a null character";
-  refl::EnumDef<MemoryScopeNode>(name.c_str());
+  refl::EnumDef<MemoryScopeObj>(name.c_str());
   return Get(name);
 }
 
-MemoryScope MemoryScope::Global() {
+const MemoryScope& MemoryScope::Global() {
   static const MemoryScope scope = Get("global");
   return scope;
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   RegisterBuiltinScopes();
-  refl::TypeAttrDef<MemoryScopeNode>()
+  refl::TypeAttrDef<MemoryScopeObj>()
       .def(refl::type_attr::kDataToJson,
-           [](const MemoryScopeNode* node) -> ffi::String { return node->_str_index; })
+           [](const MemoryScopeObj* node) -> ffi::String { return node->_str_index; })
       .def(refl::type_attr::kDataFromJson,
            [](const ffi::String& name) { return MemoryScope::Get(name); });
   refl::GlobalDef().def("runtime.MemoryScopeRegister", &MemoryScope::Register);

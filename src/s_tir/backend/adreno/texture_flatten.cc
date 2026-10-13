@@ -37,7 +37,6 @@
 #include <unordered_map>
 
 #include "../../../backend/opencl/runtime/texture.h"
-#include <tvm/runtime/memory_scope.h>
 
 namespace tvm {
 namespace s_tir {

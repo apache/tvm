@@ -317,7 +317,6 @@ def empty(shape, dtype="float32", device=None, mem_scope=None):
     if not isinstance(shape, tvm_ffi.Shape):
         shape = tvm_ffi.Shape([int(dim) for dim in shape])
     dtype = tvm_ffi.dtype(dtype)
-    mem_scope = "global" if mem_scope == "" else mem_scope
     arr = _ffi_api.TVMTensorAllocWithScope(shape, dtype, device, mem_scope)
     return arr
 

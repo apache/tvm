@@ -34,7 +34,6 @@
 #include <array>
 #include <stack>
 
-#include <tvm/runtime/memory_scope.h>
 #include "../../tirx/transform/ir_utils.h"
 #include "../schedule/utils.h"
 #include "./memhammer_rewrite_rule.h"

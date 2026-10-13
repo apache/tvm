@@ -695,16 +695,6 @@ void CheckBlockHasTrivialBinding(const ScheduleState& self, const StmtSRef& bloc
 ffi::Map<Var, Range> LoopDomainOfSRefTreePath(const StmtSRef& low_inclusive,
                                               const ffi::Optional<StmtSRef>& high_exclusive,
                                               const runtime::MemoryScope& extra_relax_scope) {
-  static const auto scope_global_ddr = runtime::MemoryScope::Get("global.ddr");
-  static const auto scope_global_vtcm = runtime::MemoryScope::Get("global.vtcm");
-  static const auto scope_global_workspace = runtime::MemoryScope::Get("global.workspace");
-  static const auto scope_global_texture = runtime::MemoryScope::Get("global.texture");
-  static const auto scope_global_texture_1d = runtime::MemoryScope::Get("global.texture-1d");
-  static const auto scope_global_texture_nchw = runtime::MemoryScope::Get("global.texture-nchw");
-  static const auto scope_global_texture_nhwc = runtime::MemoryScope::Get("global.texture-nhwc");
-  static const auto scope_global_texture_weight =
-      runtime::MemoryScope::Get("global.texture-weight");
-
   ffi::Map<Var, Range> result;
   const StmtSRefObj* p = low_inclusive.get();
   const StmtSRefObj* limit = high_exclusive.has_value() ? high_exclusive.value().get() : nullptr;
@@ -715,13 +705,7 @@ ffi::Map<Var, Range> LoopDomainOfSRefTreePath(const StmtSRef& low_inclusive,
     }
     result.Set(loop->loop_var, Range::FromMinExtent(loop->min, loop->extent));
   }
-  if ((extra_relax_scope != runtime::MemoryScope::Global() &&
-       extra_relax_scope != scope_global_ddr && extra_relax_scope != scope_global_vtcm &&
-       extra_relax_scope != scope_global_workspace && extra_relax_scope != scope_global_texture &&
-       extra_relax_scope != scope_global_texture_1d &&
-       extra_relax_scope != scope_global_texture_nchw &&
-       extra_relax_scope != scope_global_texture_nhwc &&
-       extra_relax_scope != scope_global_texture_weight)) {
+  if (!IsGlobalMemoryScope(extra_relax_scope)) {
     for (; p; p = p->parent) {
       if (const ForNode* loop = p->StmtAs<ForNode>()) {
         if (tvm::s_tir::GetThreadBinding(loop).has_value()) {
@@ -1538,7 +1522,7 @@ void CheckStorageScope(const ScheduleState& self, ffi::String storage_scope) {
   };
 
   try {
-    runtime::MemoryScope::FromString(std::string(storage_scope));
+    runtime::MemoryScope::Get(std::string(storage_scope));
   } catch (...) {
     throw MakeScheduleError<InvalidStorageScopeError>(self->mod, std::move(storage_scope));
   }

@@ -29,6 +29,7 @@
 
 #include <sstream>
 
+#include "../memory_scope.h"
 #include "opencl_common.h"
 
 #ifdef OPENCL_ENABLE_HOST_PTR
@@ -865,6 +866,7 @@ void OpenCLWorkspace::Init(const std::string& type_key, const std::string& devic
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
+  tvm::backend::opencl::RegisterMemoryScopes();
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def_packed("device_api.opencl.alloc_nd",

@@ -682,7 +682,7 @@ class StorageAllocatorInit : public StorageAllocatorBaseVisitor {
     ffi::Optional<VDevice> vdevice = GetGlobalVDevice(ctx_mod_, vdevice_index);
 
     StorageToken token(upper_bounded_shape, ty->dtype.value()->dtype,
-                       runtime::MemoryScope::FromString(storage_scope->value), vdevice);
+                       runtime::MemoryScope::Get(storage_scope->value), vdevice);
 
     Tokens tokens(token);
     SetTokens(call, tokens);

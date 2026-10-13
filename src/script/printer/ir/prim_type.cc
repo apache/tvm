@@ -38,7 +38,7 @@ ffi::Optional<ExprDoc> MemoryScopeDocTranslate(DocTranslatorObj*, ffi::AnyView i
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  ffi::reflection::TypeAttrDef<runtime::MemoryScopeNode>().attr(
+  ffi::reflection::TypeAttrDef<runtime::MemoryScopeObj>().attr(
       tvm::script::printer::type_attr::kDocTranslate,
       FDocTranslate::FromNative<&MemoryScopeDocTranslate>());
 }

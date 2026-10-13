@@ -120,15 +120,6 @@ class RewriteRule {
 inline bool IsScope(const TensorVar& tensor, runtime::MemoryScope expected) {
   static const auto scope_shared = runtime::MemoryScope::Get("shared");
   static const auto scope_shared_dyn = runtime::MemoryScope::Get("shared.dyn");
-  static const auto scope_global_ddr = runtime::MemoryScope::Get("global.ddr");
-  static const auto scope_global_vtcm = runtime::MemoryScope::Get("global.vtcm");
-  static const auto scope_global_workspace = runtime::MemoryScope::Get("global.workspace");
-  static const auto scope_global_texture = runtime::MemoryScope::Get("global.texture");
-  static const auto scope_global_texture_1d = runtime::MemoryScope::Get("global.texture-1d");
-  static const auto scope_global_texture_nchw = runtime::MemoryScope::Get("global.texture-nchw");
-  static const auto scope_global_texture_nhwc = runtime::MemoryScope::Get("global.texture-nhwc");
-  static const auto scope_global_texture_weight =
-      runtime::MemoryScope::Get("global.texture-weight");
 
   auto scope = tensor.scope();
   if (scope == expected) return true;
@@ -136,10 +127,7 @@ inline bool IsScope(const TensorVar& tensor, runtime::MemoryScope expected) {
     return scope == scope_shared_dyn;
   }
   if (expected == runtime::MemoryScope::Global()) {
-    return scope == scope_global_ddr || scope == scope_global_vtcm ||
-           scope == scope_global_workspace || scope == scope_global_texture ||
-           scope == scope_global_texture_1d || scope == scope_global_texture_nchw ||
-           scope == scope_global_texture_nhwc || scope == scope_global_texture_weight;
+    return IsGlobalMemoryScope(scope);
   }
   return false;
 }
@@ -228,11 +216,11 @@ class MmaToGlobal : public RewriteRule {
   MmaToGlobal() = default;
   Stmt Rewrite(const Stmt& stmt, const ConstraintSet& constraints, OutputSet* output) const final;
   bool CanApply(const Stmt& stmt, const ConstraintSet& constraints) const final {
-    static const auto scope_m16n8k8_matrixC = runtime::MemoryScope::Get("m16n8k8.matrixC");
+    static const auto scope_mma_matrixC = runtime::MemoryScope::Get("mma.matrixC");
 
     TensorVar src_tensor = constraints.read_region->source.as_or_throw<tvm::tirx::TensorVar>();
     TensorVar tgt_tensor = constraints.write_region->source.as_or_throw<tvm::tirx::TensorVar>();
-    return IsCopyBetweenScope(src_tensor, tgt_tensor, scope_m16n8k8_matrixC,
+    return IsCopyBetweenScope(src_tensor, tgt_tensor, scope_mma_matrixC,
                               runtime::MemoryScope::Global());
   }
 };

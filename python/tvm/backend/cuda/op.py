@@ -20,6 +20,7 @@
 from __future__ import annotations
 
 from enum import Enum
+from functools import cache
 
 import tvm_ffi
 
@@ -31,14 +32,18 @@ from tvm.ir.type import PrimType, PtrType
 from tvm.runtime import MemoryScope
 from tvm.tirx.op import bitwise_and, call_intrin, ptr_byte_offset
 
-_SCOPE_TMEM = MemoryScope("tmem")
+
+@cache
+def _scope_tmem():
+    return MemoryScope("tmem")
+
 
 tir = tirx
 
 
 def _tmem_address(tensor):
     """Recover the encoded 32-bit address from an explicit TMEM backing pointer."""
-    if tensor.scope() != _SCOPE_TMEM:
+    if tensor.scope() != _scope_tmem():
         raise ValueError("Expected a TMEM tensor")
     return tirx.Cast("uint32", tirx.reinterpret("uint64", tensor.data))
 

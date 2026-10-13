@@ -39,7 +39,6 @@
 
 #include <unordered_set>
 
-#include <tvm/runtime/memory_scope.h>
 #include "../schedule/transform.h"
 #include "tvm/tirx/stmt.h"
 
@@ -179,7 +178,8 @@ class IntermediateStageRewriter {
       tensor_indices.push_back(relaxed_loop->min + relaxed_loop->loop_var);
       new_tensor_shape.push_back(relaxed_loop->extent);
     }
-    TensorVar new_tensor = WithScope(tensor, "local");
+    static const auto scope_local = runtime::MemoryScope::Get("local");
+    TensorVar new_tensor = WithScope(tensor, scope_local);
     ffi::ObjectPtr<TensorTypeNode> type = CopyTensorType(new_tensor);
     type->shape = new_tensor_shape;
     new_tensor = RebuildTensorVar(new_tensor, std::move(type));

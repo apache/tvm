@@ -164,7 +164,7 @@ struct ReadWriteAtImpl {
     const SBlockNode* block = TVM_SREF_TO_SBLOCK(block_sref);
     TensorVar src = GetNthAccessTensor(self, ffi::GetRef<SBlock>(block), tensor_index,
                                        is_read ? TensorIndexType::kRead : TensorIndexType::kWrite);
-    TensorVar dst = WithScope(src, storage_scope);
+    TensorVar dst = WithScope(src, runtime::MemoryScope::Get(storage_scope));
     ReadWriteAtImpl impl(self, loop_sref, src, dst, annotations);
     std::pair<For, SBlockRealize> new_loop_block =
         impl.MakeLoopAndBlock<is_read>(src.name() + "_" + storage_scope);

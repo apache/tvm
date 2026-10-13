@@ -19,6 +19,7 @@
 
 import functools
 import operator
+from functools import cache
 
 import tvm
 from tvm.backend.cuda.axis import TCol, TLane
@@ -59,7 +60,11 @@ from ..tma_utils import (
 
 _SCOPE_SHARED = MemoryScope("shared")
 _SCOPE_SHARED_DYN = MemoryScope("shared.dyn")
-_SCOPE_TMEM = MemoryScope("tmem")
+
+
+@cache
+def _scope_tmem():
+    return MemoryScope("tmem")
 
 
 def sf_smem_layout(rows, SF_K, sf_per_mma, sf_reuse=1, pipe_depth=None):
@@ -399,15 +404,15 @@ def gemm_async_tcgen05_impl(op_call: TensorCall, sctx: DispatchContext) -> Funct
     )
 
     C_scope, A_scope, B_scope = C_buffer.scope(), A_buffer.scope(), B_buffer.scope()
-    a_is_tmem = A_scope == _SCOPE_TMEM
+    a_is_tmem = A_scope == _scope_tmem()
     if a_is_tmem:
-        if not (C_scope == _SCOPE_TMEM and (B_scope in (_SCOPE_SHARED, _SCOPE_SHARED_DYN))):
+        if not (C_scope == _scope_tmem() and (B_scope in (_SCOPE_SHARED, _SCOPE_SHARED_DYN))):
             raise ValueError(
                 f"tcgen05 schedule expected C_scope=tmem, B_scope=shared when A is tmem, "
                 f"got C_scope={C_scope}, B_scope={B_scope}"
             )
     elif not (
-        C_scope == _SCOPE_TMEM
+        C_scope == _scope_tmem()
         and (A_scope in (_SCOPE_SHARED, _SCOPE_SHARED_DYN))
         and (B_scope in (_SCOPE_SHARED, _SCOPE_SHARED_DYN))
     ):
@@ -472,7 +477,7 @@ def gemm_async_tcgen05_impl(op_call: TensorCall, sctx: DispatchContext) -> Funct
         SFA_buffer: tvm.ir.Var = SFA_buffer_region.source
         SFB_buffer: tvm.ir.Var = SFB_buffer_region.source
         SFA_scope, SFB_scope = SFA_buffer.scope(), SFB_buffer.scope()
-        if not (SFA_scope == _SCOPE_TMEM and SFB_scope == _SCOPE_TMEM):
+        if not (SFA_scope == _scope_tmem() and SFB_scope == _scope_tmem()):
             raise ValueError(
                 f"tcgen05 block-scaled schedule expected SFA_scope=tmem, SFB_scope=tmem, "
                 f"got SFA_scope={SFA_scope}, SFB_scope={SFB_scope}"

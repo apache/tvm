@@ -20,6 +20,7 @@
 #include <nvshmemx.h>
 #include <tvm/ffi/extra/cuda/base.h>
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/enum_def.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/tensor.h>
 
@@ -78,6 +79,9 @@ ffi::Tensor NVSHMEMEmpty(ffi::Shape shape, DLDataType dtype, ffi::Optional<Devic
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
+  MemoryScope::Global();
+  refl::EnumDef<MemoryScopeObj>("nvshmem").set_attr(
+      attr::kMemoryAllocProperty, static_cast<int>(MemoryAllocProperty::kSeparateAllocations));
   refl::GlobalDef().def("runtime.disco.nvshmem.empty", NVSHMEMEmpty);
 }
 

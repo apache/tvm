@@ -384,10 +384,11 @@ ffi::Array<TensorVar> GenerateOutputTensors(const te::ComputeOp& compute_op, Cre
   //  - Add the non-argument tensors to `alloc_tensor` of the root block
   ffi::Array<TensorVar> tir_tensors;
   for (const te::Tensor& tensor : tensors) {
-    TensorVar tir_tensor = decl_tensor(info->transformer->Mutate(tensor->shape)
-                                           .ValueOrUnchanged(tensor->shape)
-                                           .cast<ffi::Array<PrimExpr>>(),
-                                       tensor->dtype, tensor->GetNameHint(), "global");
+    TensorVar tir_tensor =
+        decl_tensor(info->transformer->Mutate(tensor->shape)
+                        .ValueOrUnchanged(tensor->shape)
+                        .cast<ffi::Array<PrimExpr>>(),
+                    tensor->dtype, tensor->GetNameHint(), runtime::MemoryScope::Global());
     info->tensor2tensors.insert_or_assign(tensor, tir_tensor);
     tir_tensors.push_back(tir_tensor);
     if (!info->IsArg(tensor)) {
@@ -871,10 +872,11 @@ void RewriteStageToBlock(const te::Operation& op, CreateFuncInfo* info,
     // Declare a tensor for any argument tensors without a pre-existing
     // tensor declaration recorded in the tensor2tensor binds map
     if (info->tensor2tensors.count(tensor) == 0) {
-      const TensorVar& tir_tensor = decl_tensor(info->transformer->Mutate(placeholder->shape)
-                                                    .ValueOrUnchanged(placeholder->shape)
-                                                    .cast<ffi::Array<PrimExpr>>(),
-                                                placeholder->dtype, placeholder->name, "global");
+      const TensorVar& tir_tensor =
+          decl_tensor(info->transformer->Mutate(placeholder->shape)
+                          .ValueOrUnchanged(placeholder->shape)
+                          .cast<ffi::Array<PrimExpr>>(),
+                      placeholder->dtype, placeholder->name, runtime::MemoryScope::Global());
       info->tensor2tensors.insert_or_assign(tensor, tir_tensor);
     }
   } else if (auto compute_op = op.as<te::ComputeOp>()) {

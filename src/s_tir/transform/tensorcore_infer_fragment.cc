@@ -59,16 +59,16 @@ class FragmentGetter : public s_tir::StmtExprVisitor {
  public:
   using s_tir::StmtExprVisitor::Visit_;
   ffi::Optional<VisitInterrupt> Visit_(const CallNode* op) final {
-    static const auto scope_wmma_matrix_a = runtime::MemoryScope::Get("wmma.matrix_a");
-    static const auto scope_wmma_matrix_b = runtime::MemoryScope::Get("wmma.matrix_b");
-    static const auto scope_wmma_accumulator = runtime::MemoryScope::Get("wmma.accumulator");
-
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(s_tir::StmtExprVisitor::Visit_(op));
 
     static const Op gpu_load_matrix_sync_op = Op::Get("tirx.gpu_load_matrix_sync");
     static const Op gpu_store_matrix_sync_op = Op::Get("tirx.gpu_store_matrix_sync");
     static const Op gpu_fill_fragment_op = Op::Get("tirx.gpu_fill_fragment");
     if (op->op.same_as(gpu_load_matrix_sync_op) || op->op.same_as(gpu_store_matrix_sync_op)) {
+      static const auto scope_wmma_matrix_a = runtime::MemoryScope::Get("wmma.matrix_a");
+      static const auto scope_wmma_matrix_b = runtime::MemoryScope::Get("wmma.matrix_b");
+      static const auto scope_wmma_accumulator = runtime::MemoryScope::Get("wmma.accumulator");
+
       // Get shape and layout information from load and store intrinsic
       TVM_FFI_ICHECK_EQ(op->args.size(), 8U);
       const VarNode* buffer_var = GetBufferVarFromData(op->args[0]);

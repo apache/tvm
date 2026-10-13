@@ -226,7 +226,7 @@ ffi::Array<PrimExpr> SimplifyArray(sym::AnalyzerObj* ana, ffi::Array<PrimExpr> a
 
 TensorVar decl_tensor(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String name,
                       runtime::MemoryScope storage_scope, Location loc) {
-  return TensorVar(name, TensorType(storage_scope, dtype, shape, {}, std::nullopt, 0, 0), loc);
+  return TensorVar(name, TensorType(shape, dtype, storage_scope, {}, std::nullopt, 0, 0), loc);
 }
 
 // Split the given expression w.r.t the add operator
@@ -465,14 +465,14 @@ TensorVar::TensorVar(ffi::String name, TensorType type, Location loc)
 
 tirx::TensorVar TensorWithOffsetAlignment(ffi::Array<PrimExpr> shape, PrimType dtype,
                                           std::string name, int data_alignment, int offset_factor,
-                                          std::string memory_scope) {
+                                          runtime::MemoryScope memory_scope) {
   ffi::Optional<PrimExpr> elem_offset;
   if (offset_factor != 0) {
     elem_offset = PrimVar(name + "_elem_offset", shape[0].ty());
   }
 
   return tirx::TensorVar(
-      name, TensorType(memory_scope, dtype, shape, {}, elem_offset, data_alignment, offset_factor));
+      name, TensorType(shape, dtype, memory_scope, {}, elem_offset, data_alignment, offset_factor));
 }
 
 bool TensorVar::IsScalar(bool alloc_or_decl) const { return type()->IsScalar(alloc_or_decl); }

@@ -149,18 +149,16 @@ bool IsReductionBlock(const SBlockRealize& realize, const ffi::Map<Var, Range>& 
  */
 ffi::Array<TensorVar> MakeScratchpads(const ffi::Array<TensorVar>& reduction_tensors,
                                       bool is_cross_thread_tensor) {
+  static const auto scope_local = runtime::MemoryScope::Get("local");
   ffi::Array<TensorVar> new_tensors;
   new_tensors.reserve(reduction_tensors.size());
   for (const TensorVar& tensor : reduction_tensors) {
     ffi::String name = is_cross_thread_tensor ? "cross" : "in";
     name = name + "_thread_" + tensor.name();
-    new_tensors.push_back(TensorVar(name, TensorType(/*storage_scope=*/"local",
-                                                     /*dtype=*/tensor->dtype,
-                                                     /*shape=*/{IntImm::Int32(1)},
-                                                     /*strides=*/{IntImm::Int32(1)},
-                                                     /*elem_offset=*/std::nullopt,
-                                                     /*data_alignment=*/0,
-                                                     /*offset_factor=*/0)));
+    new_tensors.push_back(TensorVar(
+        name, TensorType(/*shape=*/{IntImm::Int32(1)}, /*dtype=*/tensor->dtype, scope_local,
+                         /*strides=*/{IntImm::Int32(1)}, /*elem_offset=*/std::nullopt,
+                         /*data_alignment=*/0, /*offset_factor=*/0)));
   }
   return new_tensors;
 }

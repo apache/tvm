@@ -17,6 +17,8 @@
 
 """Shared helpers for reduction schedules."""
 
+from functools import cache
+
 from tvm.backend.trn.layout import is_trainium_layout
 from tvm.runtime import MemoryScope
 from tvm.script import tirx as T
@@ -30,8 +32,16 @@ from ..dim_utils import get_reduction_dim_map
 from ..instruction_generator import InstructionGenerator
 from ..workspace_utils import check_workspace_tensor
 
-_SCOPE_TRN_PSUM = MemoryScope("trn.psum")
-_SCOPE_TRN_SBUF = MemoryScope("trn.sbuf")
+
+@cache
+def _scope_trn_psum():
+    return MemoryScope("trn.psum")
+
+
+@cache
+def _scope_trn_sbuf():
+    return MemoryScope("trn.sbuf")
+
 
 reduce_ops = {ReduceOpType.SUM: "add", ReduceOpType.MAX: "max", ReduceOpType.MIN: "min"}
 
@@ -96,8 +106,8 @@ def reduction_trn(
     assert all(
         [
             src.ty.effective_layout() and dst.ty.effective_layout(),
-            src.scope() == _SCOPE_TRN_SBUF or src.scope() == _SCOPE_TRN_PSUM,
-            dst.scope() == _SCOPE_TRN_SBUF,
+            src.scope() == _scope_trn_sbuf() or src.scope() == _scope_trn_psum(),
+            dst.scope() == _scope_trn_sbuf(),
             is_trainium_layout(src.ty.effective_layout()),
             is_trainium_layout(dst.ty.effective_layout()),
             src.ty.effective_layout().size("P") == dst.ty.effective_layout().size("P"),

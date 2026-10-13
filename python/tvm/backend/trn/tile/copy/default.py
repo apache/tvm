@@ -17,6 +17,8 @@
 
 """Implementation of copy operator dispatchs."""
 
+from functools import cache
+
 from tvm.backend.trn.layout import is_trainium_layout
 from tvm.runtime import MemoryScope
 from tvm.script import tirx as T
@@ -29,8 +31,16 @@ from ..dim_utils import get_ewise_dim_map
 from ..instruction_generator import InstructionGenerator
 
 _SCOPE_GLOBAL = MemoryScope("global")
-_SCOPE_TRN_PSUM = MemoryScope("trn.psum")
-_SCOPE_TRN_SBUF = MemoryScope("trn.sbuf")
+
+
+@cache
+def _scope_trn_psum():
+    return MemoryScope("trn.psum")
+
+
+@cache
+def _scope_trn_sbuf():
+    return MemoryScope("trn.sbuf")
 
 
 def copy_trn(op: TensorCall, sctx: DispatchContext) -> Function | None:
@@ -46,17 +56,17 @@ def copy_trn(op: TensorCall, sctx: DispatchContext) -> Function | None:
     valid_config = all(
         [
             src.ty.effective_layout() and dst.ty.effective_layout(),
-            src.scope() in [_SCOPE_GLOBAL, _SCOPE_TRN_SBUF, _SCOPE_TRN_PSUM],
-            dst.scope() in [_SCOPE_GLOBAL, _SCOPE_TRN_SBUF, _SCOPE_TRN_PSUM],
+            src.scope() in [_SCOPE_GLOBAL, _scope_trn_sbuf(), _scope_trn_psum()],
+            dst.scope() in [_SCOPE_GLOBAL, _scope_trn_sbuf(), _scope_trn_psum()],
             src.scope() != _SCOPE_GLOBAL or dst.scope() != _SCOPE_GLOBAL,
             (src.scope() == _SCOPE_GLOBAL and isinstance(src.ty.effective_layout(), T.TileLayout))
             or (
-                src.scope() in [_SCOPE_TRN_SBUF, _SCOPE_TRN_PSUM]
+                src.scope() in [_scope_trn_sbuf(), _scope_trn_psum()]
                 and is_trainium_layout(src.ty.effective_layout())
             ),
             (dst.scope() == _SCOPE_GLOBAL and isinstance(dst.ty.effective_layout(), T.TileLayout))
             or (
-                dst.scope() in [_SCOPE_TRN_SBUF, _SCOPE_TRN_PSUM]
+                dst.scope() in [_scope_trn_sbuf(), _scope_trn_psum()]
                 and is_trainium_layout(dst.ty.effective_layout())
             ),
         ]

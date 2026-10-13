@@ -61,7 +61,7 @@ TensorVar MatchTensor(ffi::ObjectRef param, ffi::Array<PrimExpr> shape, PrimType
     PrimType shape_dtype = shape.empty() ? PrimType::Int(32) : shape[0].ty();
     elem_offset = tvm::PrimVar("elem_offset", shape_dtype);
   }
-  TensorVar tensor("", tvm::tirx::TensorType(storage_scope, dtype, shape, strides, elem_offset,
+  TensorVar tensor("", tvm::tirx::TensorType(shape, dtype, storage_scope, strides, elem_offset,
                                              align, offset_factor, layout));
   tvm::TensorRegion region{ffi::UnsafeInit{}};
   if (auto load = param.as<TensorLoad>()) {
@@ -213,7 +213,7 @@ TensorVar SBlockAllocTensor(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::Opt
     PrimType shape_dtype = shape.empty() ? PrimType::Int(32) : shape[0].ty();
     elem_offset = tvm::PrimVar("elem_offset", shape_dtype);
   }
-  TensorVar tensor("", tvm::tirx::TensorType(storage_scope, dtype, shape, strides, elem_offset,
+  TensorVar tensor("", tvm::tirx::TensorType(shape, dtype, storage_scope, strides, elem_offset,
                                              align, offset_factor, layout));
   IRBuilder builder = IRBuilder::Current();
   auto opt_func_frame = builder->FindFrame<tirx::FunctionFrame>();

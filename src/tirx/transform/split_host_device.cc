@@ -48,7 +48,6 @@
 #include <optional>
 
 #include "../../runtime/metadata.h"
-#include <tvm/runtime/memory_scope.h>
 #include "ir_utils.h"
 
 namespace tvm {

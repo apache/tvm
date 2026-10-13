@@ -67,8 +67,6 @@ class VDeviceNode : public GlobalInfoNode {
 class VDevice : public GlobalInfo {
  public:
   TVM_DLL explicit VDevice(ffi::Optional<Target> tgt, int dev_id, MemoryScope mem_scope);
-  explicit VDevice(ffi::Optional<Target> tgt, int dev_id, ffi::String mem_scope)
-      : VDevice(std::move(tgt), dev_id, MemoryScope::FromString(mem_scope)) {}
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(VDevice, GlobalInfo, VDeviceNode);
 };
 

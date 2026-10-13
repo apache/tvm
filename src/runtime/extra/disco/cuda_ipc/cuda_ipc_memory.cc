@@ -20,6 +20,7 @@
 #include <cuda_runtime.h>
 #include <tvm/ffi/extra/cuda/device_guard.h>
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/enum_def.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/disco/cuda_ipc_memory.h>
 #include <tvm/runtime/tensor.h>
@@ -213,12 +214,16 @@ class CUDAIPCMemoryPool final : public TensorMemoryPool {
 ffi::Tensor IPCAllocTensor(ffi::Shape buffer_shape, DLDataType dtype_hint) {
   nccl::CCLThreadLocalContext* nccl_ctx = nccl::CCLThreadLocalContext::Get();
   Device device{DLDeviceType::kDLCUDA, nccl_ctx->device_id};
-  return CUDAIPCMemoryPool::Global()->Empty(buffer_shape, dtype_hint, device,
-                                            ffi::String("ipc_memory"));
+  static const auto scope = MemoryScope::Get("ipc_memory");
+  return CUDAIPCMemoryPool::Global()->Empty(buffer_shape, dtype_hint, device, scope);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
+  MemoryScope::Global();
+  refl::EnumDef<MemoryScopeObj>("ipc_memory")
+      .set_attr(attr::kMemoryAllocProperty,
+                static_cast<int>(MemoryAllocProperty::kSeparateAllocations));
   refl::GlobalDef()
       .def("runtime.disco.cuda_ipc.empty", IPCAllocTensor)
       .def("runtime.disco.cuda_ipc.alloc_storage", IPCAllocTensor)

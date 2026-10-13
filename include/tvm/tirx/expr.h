@@ -142,11 +142,6 @@ TVM_TIRX_DLL TensorVar decl_tensor(ffi::Array<PrimExpr> shape, PrimType dtype = 
                                    ffi::String name = "tensor",
                                    runtime::MemoryScope storage_scope = {},
                                    Location loc = UnknownLoc());
-inline TensorVar decl_tensor(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String name,
-                             ffi::String storage_scope, Location loc = UnknownLoc()) {
-  return decl_tensor(std::move(shape), std::move(dtype), std::move(name),
-                     runtime::MemoryScope::FromString(storage_scope), std::move(loc));
-}
 
 /*!
  * \brief Creates a TIR tensor for the provided parameters.
@@ -163,7 +158,7 @@ inline TensorVar decl_tensor(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::St
 TVM_TIRX_DLL tirx::TensorVar TensorWithOffsetAlignment(ffi::Array<PrimExpr> shape, PrimType dtype,
                                                        std::string name, int data_alignment,
                                                        int offset_factor,
-                                                       std::string memory_scope = "");
+                                                       runtime::MemoryScope memory_scope = {});
 
 /*!
  * \brief Construct a TensorLoad from a TensorVar.

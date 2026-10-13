@@ -16,6 +16,7 @@
 # under the License.
 # ruff: noqa: F401, F841
 import sys
+import uuid
 
 import pytest
 import tvm_ffi
@@ -27,7 +28,7 @@ from tvm.script import tirx as T
 
 for _scope_name in ("local.L0A", "local.L0A2"):
     _scope = tvm.runtime.MemoryScope.register(_scope_name)
-    tvm.runtime.MemoryScope.def_attr("tirx.storage_rewrite_merge")[_scope] = True
+    tvm.runtime.MemoryScope.def_attr("runtime.memory_alloc_property")[_scope] = 1
 
 
 def _is_tensor_binding(node, *op_names):
@@ -37,6 +38,184 @@ def _is_tensor_binding(node, *op_names):
         and isinstance(node.value.op, tvm.ir.Op)
         and node.value.op.name in op_names
     )
+
+
+def _scope_with_property(value):
+    scope = tvm.runtime.MemoryScope.register("test.storage_rewrite." + uuid.uuid4().hex)
+    tvm.runtime.MemoryScope.def_attr("runtime.memory_alloc_property")[scope] = value
+    return scope
+
+
+def _rewritten_allocations(func):
+    result = tvm.tirx.transform.StorageRewrite()(tvm.IRModule.from_expr(func))
+    allocations = []
+
+    def collect(node):
+        if _is_tensor_binding(node, "tirx.alloc_tensor"):
+            allocations.append(node)
+
+    tvm_ffi.structural_walk(result["func"].body, collect)
+    return allocations
+
+
+@pytest.mark.parametrize("property_value,expected_allocations", [(0, 1), (1, 1), (2, 2)])
+def test_allocation_property_controls_reuse(property_value, expected_allocations):
+    scope = _scope_with_property(property_value)
+
+    @T.function
+    def func(output: T.Tensor((2,), "float32")):
+        A = T.alloc_tensor(ty_args=[T.Tensor((128,), "float32", scope)])
+        for i in T.serial(128):
+            A[i] = T.float32(i)
+        output[0] = A[127]
+        B = T.alloc_tensor(ty_args=[T.Tensor((128,), "float32", scope)])
+        for i in T.serial(128):
+            B[i] = T.float32(i + 1)
+        output[1] = B[127]
+
+    assert len(_rewritten_allocations(func)) == expected_allocations
+
+
+@pytest.mark.parametrize("property_value,expected_allocations", [(0, 2), (1, 1), (2, 2)])
+def test_allocation_property_controls_packing(property_value, expected_allocations):
+    scope = _scope_with_property(property_value)
+
+    @T.function
+    def func(output: T.Tensor((1,), "float32")):
+        A = T.alloc_tensor(ty_args=[T.Tensor((128,), "float32", scope)])
+        B = T.alloc_tensor(ty_args=[T.Tensor((128,), "float32", scope)])
+        for i in T.serial(128):
+            A[i] = T.float32(i)
+            B[i] = T.float32(i + 1)
+        output[0] = A[127] + B[127]
+
+    assert len(_rewritten_allocations(func)) == expected_allocations
+
+
+@pytest.mark.parametrize("scope_name", [None, "shared.dyn"])
+def test_single_allocation_symbolic_layout_is_deferred(scope_name):
+    scope = tvm.runtime.MemoryScope(scope_name) if scope_name else _scope_with_property(1)
+
+    @T.function
+    def func(n: T.int32, output: T.Tensor((1,), "float32")):
+        A = T.alloc_tensor(ty_args=[T.Tensor((n,), "float32", scope)])
+        B = T.alloc_tensor(ty_args=[T.Tensor((n,), "float32", scope)])
+        for i in T.serial(n):
+            A[i] = T.float32(i)
+            B[i] = T.float32(i + 1)
+        output[0] = A[n - 1] + B[n - 1]
+
+    allocations = _rewritten_allocations(func)
+    assert len(allocations) == 2
+    for allocation in allocations:
+        tvm.ir.assert_structural_equal(allocation.var.shape[0], func.params[0])
+        assert allocation.var.scope().same_as(scope)
+
+
+def test_single_allocation_preserves_exact_metadata():
+    scope = _scope_with_property(1)
+
+    @T.function
+    def func(output: T.Tensor((1,), "float32")):
+        A = T.alloc_tensor(
+            ty_args=[T.Tensor((128,), "float32", scope)], annotations={"test.constraint": 7}
+        )
+        B = T.alloc_tensor(ty_args=[T.Tensor((128,), "float32", scope)])
+        for i in T.serial(128):
+            A[i] = T.float32(i)
+            B[i] = T.float32(i + 1)
+        output[0] = A[127] + B[127]
+
+    allocations = _rewritten_allocations(func)
+    assert len(allocations) == 2
+    constrained = [alloc for alloc in allocations if "test.constraint" in alloc.value.attrs]
+    assert len(constrained) == 1
+    assert int(constrained[0].value.attrs["test.constraint"]) == 7
+    assert int(constrained[0].var.shape[0]) == 128
+
+
+@pytest.mark.parametrize("property_value", [0, 1])
+@pytest.mark.parametrize("stride,offset", [(2, 0), (1, 4)])
+def test_allocation_constraints_prevent_lifetime_reuse(property_value, stride, offset):
+    scope = _scope_with_property(property_value)
+
+    @T.function
+    def func(output: T.Tensor((2,), "float32")):
+        A = T.alloc_tensor(
+            ty_args=[T.Tensor((128,), "float32", scope, strides=[stride], elem_offset=offset)]
+        )
+        for i in T.serial(128):
+            A[i] = T.float32(i)
+        output[0] = A[127]
+        B = T.alloc_tensor(ty_args=[T.Tensor((128,), "float32", scope)])
+        for i in T.serial(128):
+            B[i] = T.float32(i + 1)
+        output[1] = B[127]
+
+    allocations = _rewritten_allocations(func)
+    assert len(allocations) == 2
+    constrained = next(alloc for alloc in allocations if alloc.var.name == "A")
+    assert int(constrained.var.ty.strides[0]) == stride
+    assert int(constrained.var.ty.elem_offset) == offset
+
+
+@pytest.mark.parametrize("property_value", [0, 1])
+def test_lifetime_reuse_preserves_alignment(property_value):
+    scope = _scope_with_property(property_value)
+
+    @T.function
+    def func(output: T.Tensor((2,), "float32")):
+        A = T.alloc_tensor(ty_args=[T.Tensor((128,), "float32", scope, align=256)])
+        for i in T.serial(128):
+            A[i] = T.float32(i)
+        output[0] = A[127]
+        B = T.alloc_tensor(ty_args=[T.Tensor((256,), "float32", scope, align=256)])
+        for i in T.serial(256):
+            B[i] = T.float32(i + 1)
+        output[1] = B[255]
+
+    allocations = _rewritten_allocations(func)
+    assert len(allocations) == 1
+    assert allocations[0].var.ty.data_alignment == 256
+
+
+def test_packing_preserves_different_alignment_contracts():
+    scope = _scope_with_property(1)
+
+    @T.function
+    def func(output: T.Tensor((2,), "float32")):
+        A = T.alloc_tensor(ty_args=[T.Tensor((17,), "float32", scope, align=64)])
+        for i in T.serial(17):
+            A[i] = T.float32(i)
+        output[0] = A[16]
+        B = T.alloc_tensor(
+            ty_args=[T.Tensor((17,), "float32", scope, elem_offset=0, align=256, offset_factor=128)]
+        )
+        for i in T.serial(17):
+            B[i] = T.float32(i + 1)
+        output[1] = B[16]
+
+    allocations = _rewritten_allocations(func)
+    assert len(allocations) == 1
+    assert allocations[0].var.ty.data_alignment == 512
+    assert int(allocations[0].var.shape[0]) == 256
+
+
+def test_packing_widens_large_combined_extent():
+    scope = _scope_with_property(1)
+
+    @T.function
+    def func(output: T.Tensor((1,), "float32")):
+        A = T.alloc_tensor(ty_args=[T.Tensor((1073741824,), "float32", scope)])
+        B = T.alloc_tensor(ty_args=[T.Tensor((1073741824,), "float32", scope)])
+        A[0] = T.float32(1)
+        B[0] = T.float32(2)
+        output[0] = A[0] + B[0]
+
+    allocations = _rewritten_allocations(func)
+    assert len(allocations) == 1
+    assert int(allocations[0].var.shape[0]) == 2147483648
+    assert allocations[0].var.shape[0].ty == tvm.ir.PrimType("int64")
 
 
 def test_alloc_seq():
@@ -269,22 +448,29 @@ def test_while_alloc():
     assert num_alloc[0] == 2  # j and A allocations
 
 
-def test_alloc_seq_type():
+@pytest.mark.parametrize("alignment,expected_size", [(4, 500), (64, 528)])
+def test_alloc_seq_type(alignment, expected_size):
     @T.function
     def func(n: T.int32):
         for i in T.serial(n):
             for j in range(10):
-                A = T.alloc_tensor(ty_args=[T.Tensor((200,), "float32", scope="local.L0A")])
-                A1 = T.alloc_tensor(ty_args=[T.Tensor((200,), "float32", scope="local.L0A")])
+                A = T.alloc_tensor(ty_args=[T.Tensor((200,), "float32", scope="local.L0A", align=alignment)])
+                A1 = T.alloc_tensor(ty_args=[T.Tensor((200,), "float32", scope="local.L0A", align=alignment)])
                 A[j] = T.float32(1.2)
                 A1[j] = T.float32(1.3)
-                B = T.alloc_tensor(ty_args=[T.Tensor((200,), "int16", scope="local.L0A")])
+                B = T.alloc_tensor(
+                    ty_args=[T.Tensor((200,), "int16", scope="local.L0A", align=alignment)]
+                )
                 B[j] = T.int16(1)
-                C = T.alloc_tensor(ty_args=[T.Tensor((200,), "int16", scope="local.L0A")])
+                C = T.alloc_tensor(
+                    ty_args=[T.Tensor((200,), "int16", scope="local.L0A", align=alignment)]
+                )
                 C[j] = T.int16(1)
-                D = T.alloc_tensor(ty_args=[T.Tensor((200,), "int16", scope="local.L0A")])
+                D = T.alloc_tensor(
+                    ty_args=[T.Tensor((200,), "int16", scope="local.L0A", align=alignment)]
+                )
                 D[j] = B[j] + C[j]
-                A2 = T.alloc_tensor(ty_args=[T.Tensor((200,), "float32", scope="local.L0A")])
+                A2 = T.alloc_tensor(ty_args=[T.Tensor((200,), "float32", scope="local.L0A", align=alignment)])
                 A2[j] = A[j]
 
     mod = tvm.IRModule.from_expr(func)
@@ -295,7 +481,9 @@ def test_alloc_seq_type():
     def verify(n):
         if _is_tensor_binding(n, "tirx.alloc_tensor"):
             num_alloc[0] += 1
-            assert n.var.ty.shape[0].value == 500
+            # Each packed region starts at a multiple of its declared byte alignment.
+            assert n.var.ty.shape[0].value == expected_size
+            assert n.var.ty.data_alignment == alignment
 
     tvm_ffi.structural_walk(body, verify)
     assert num_alloc[0] == 1
@@ -331,22 +519,35 @@ def test_alloc_seq_type2():
     assert num_alloc[0] == 1
 
 
-def test_reuse_small_tensor():
+@pytest.mark.parametrize("alignment,expected_size", [(4, 800), (64, 832)])
+def test_reuse_small_tensor(alignment, expected_size):
     @T.function
     def func(n: T.int32):
         for i in T.serial(n):
             for j in range(10):
-                A = T.alloc_tensor(ty_args=[T.Tensor((200,), "int16", scope="local.L0A")])
+                A = T.alloc_tensor(
+                    ty_args=[T.Tensor((200,), "int16", scope="local.L0A", align=alignment)]
+                )
                 A[j] = T.int16(1)
-                B = T.alloc_tensor(ty_args=[T.Tensor((200,), "int16", scope="local.L0A")])
+                B = T.alloc_tensor(
+                    ty_args=[T.Tensor((200,), "int16", scope="local.L0A", align=alignment)]
+                )
                 B[j] = T.int16(1)
-                B1 = T.alloc_tensor(ty_args=[T.Tensor((200,), "int16", scope="local.L0A")])
+                B1 = T.alloc_tensor(
+                    ty_args=[T.Tensor((200,), "int16", scope="local.L0A", align=alignment)]
+                )
                 B1[j] = A[j] + B[j]
-                C = T.alloc_tensor(ty_args=[T.Tensor((400,), "int16", scope="local.L0A")])
+                C = T.alloc_tensor(
+                    ty_args=[T.Tensor((400,), "int16", scope="local.L0A", align=alignment)]
+                )
                 C[j] = T.int16(1)
-                D = T.alloc_tensor(ty_args=[T.Tensor((400,), "int16", scope="local.L0A")])
+                D = T.alloc_tensor(
+                    ty_args=[T.Tensor((400,), "int16", scope="local.L0A", align=alignment)]
+                )
                 D[j] = T.int16(1)
-                E = T.alloc_tensor(ty_args=[T.Tensor((400,), "int16", scope="local.L0A")])
+                E = T.alloc_tensor(
+                    ty_args=[T.Tensor((400,), "int16", scope="local.L0A", align=alignment)]
+                )
                 E[j] = C[j]
 
     mod = tvm.IRModule.from_expr(func)
@@ -357,7 +558,9 @@ def test_reuse_small_tensor():
     def verify(n):
         if _is_tensor_binding(n, "tirx.alloc_tensor"):
             num_alloc[0] += 1
-            assert n.var.ty.shape[0].value == 800
+            # Reused entries hold 400 int16 values each, padded to their alignment.
+            assert n.var.ty.shape[0].value == expected_size
+            assert n.var.ty.data_alignment == alignment
 
     tvm_ffi.structural_walk(body, verify)
     assert num_alloc[0] == 1

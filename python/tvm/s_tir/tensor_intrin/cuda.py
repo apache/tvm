@@ -879,7 +879,7 @@ def get_mma_init_intrin(
             align=64,
             offset_factor=1,
             elem_offset=T.int32(),
-            scope="m16n8k8.matrixC",
+            scope="mma.matrixC",
         ),
     ) -> None:
         with Ts.sblock("root"):
@@ -898,7 +898,7 @@ def get_mma_init_intrin(
             align=64,
             offset_factor=1,
             elem_offset=T.int32(),
-            scope="m16n8k8.matrixC",
+            scope="mma.matrixC",
         ),
     ) -> None:
         with Ts.sblock("root"):
@@ -923,7 +923,7 @@ def get_mma_load_intrin(
     is_col_major: bool,
 ) -> tuple[Function, Function]:
     """Generator of mma ldmatrix intrins"""
-    mma_fragment_scope = f"m16n8k8.matrix{'B' if is_b else 'A'}"
+    mma_fragment_scope = f"mma.matrix{'B' if is_b else 'A'}"
     frag_m, frag_n = (k_dim, n_dim) if is_b else (m_dim, k_dim)
     trans = (not is_col_major) if is_b else is_col_major
     if is_col_major:
@@ -1032,7 +1032,7 @@ def get_mma_sync_intrin(
             align=64,
             offset_factor=1,
             elem_offset=T.int32(),
-            scope="m16n8k8.matrixA",
+            scope="mma.matrixA",
         ),
         B: T.Tensor(
             (B_shape_0, B_shape_1),
@@ -1040,7 +1040,7 @@ def get_mma_sync_intrin(
             align=64,
             offset_factor=1,
             elem_offset=T.int32(),
-            scope="m16n8k8.matrixB",
+            scope="mma.matrixB",
         ),
         C: T.Tensor(
             (m_dim, n_dim),
@@ -1048,7 +1048,7 @@ def get_mma_sync_intrin(
             align=64,
             offset_factor=1,
             elem_offset=T.int32(),
-            scope="m16n8k8.matrixC",
+            scope="mma.matrixC",
         ),
     ) -> None:
         with Ts.sblock("root"):
@@ -1077,7 +1077,7 @@ def get_mma_sync_intrin(
             align=64,
             offset_factor=1,
             elem_offset=T.int32(),
-            scope="m16n8k8.matrixA",
+            scope="mma.matrixA",
             strides=[a0, a1],
         ),
         B: T.Tensor(
@@ -1086,7 +1086,7 @@ def get_mma_sync_intrin(
             align=64,
             offset_factor=1,
             elem_offset=T.int32(),
-            scope="m16n8k8.matrixB",
+            scope="mma.matrixB",
             strides=[b0, b1],
         ),
         C: T.Tensor(
@@ -1095,7 +1095,7 @@ def get_mma_sync_intrin(
             align=64,
             offset_factor=1,
             elem_offset=T.int32(),
-            scope="m16n8k8.matrixC",
+            scope="mma.matrixC",
             strides=[c0, c1],
         ),
     ) -> None:
@@ -1138,7 +1138,7 @@ def get_mma_store_dummy_intrin(
             align=64,
             offset_factor=1,
             elem_offset=T.int32(),
-            scope="m16n8k8.matrixC",
+            scope="mma.matrixC",
         ),
         dst: T.Tensor(
             (m_dim, n_dim),
@@ -1187,7 +1187,7 @@ TensorIntrin.register(
 )
 
 
-@register_global_func("tirx.index_map_m16n8k8.matrixC")
+@register_global_func("tirx.index_map_mma.matrixC")
 def index_map_m16n8k8_matrixC(ind):
     i, j = ind[0], ind[1]
     return convert([(i // 8) // 2, j // 8, (i // 8) % 2, (j % 8) % 2])

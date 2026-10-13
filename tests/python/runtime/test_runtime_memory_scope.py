@@ -74,6 +74,8 @@ def test_shared_cpp_python_registry_and_typed_conversion():
     for scope in (custom, custom.name):
         ptr_ty = tvm.ir.PtrType(tvm.ir.PrimType("float32"), scope)
         tensor = tvm.tirx.decl_tensor((4,), "float32", scope=scope)
+        tensor_ty = tvm.tirx.TensorType((4,), "float32", scope)
+        assert tensor_ty.storage_scope.same_as(custom)
         assert ptr_ty.storage_scope.same_as(custom)
         assert tensor.ty.storage_scope.same_as(custom)
         assert tensor.scope().same_as(custom)
@@ -95,13 +97,21 @@ def test_global_defaults():
     global_scope = MemoryScope("global")
     assert tvm.ir.PtrType(tvm.ir.PrimType("float32")).storage_scope.same_as(global_scope)
     assert tvm.tirx.decl_tensor((4,), "float32").scope().same_as(global_scope)
-    for scope in ("", "global", global_scope):
+    for scope in ("global", global_scope):
         assert tvm.ir.PtrType(tvm.ir.PrimType("float32"), scope).storage_scope.same_as(global_scope)
         assert tvm.tirx.decl_tensor((4,), "float32", scope=scope).scope().same_as(global_scope)
         assert T.Tensor((4,), "float32", scope=scope).storage_scope.same_as(global_scope)
         assert tvm.relax.VDevice("llvm", memory_scope=scope).memory_scope.same_as(global_scope)
-    with pytest.raises(ValueError):
-        MemoryScope("")
+    for construct in (
+        lambda: MemoryScope(""),
+        lambda: tvm.ir.PtrType(tvm.ir.PrimType("float32"), ""),
+        lambda: tvm.tirx.decl_tensor((4,), "float32", scope=""),
+        lambda: T.Tensor((4,), "float32", scope=""),
+        lambda: tvm.relax.VDevice("llvm", memory_scope=""),
+        lambda: tvm.runtime.empty((4,), mem_scope=""),
+    ):
+        with pytest.raises(ValueError):
+            construct()
 
 
 def test_json_and_script_roundtrip():
@@ -127,7 +137,7 @@ def test_json_and_script_roundtrip():
 
 def test_runtime_tensor_allocation():
     expected = np.arange(4, dtype="float32")
-    for scope in (None, "", "global", MemoryScope("global")):
+    for scope in (None, "global", MemoryScope("global")):
         tensor = tvm.runtime.tensor(expected, tvm.cpu(), mem_scope=scope)
         np.testing.assert_array_equal(tensor.numpy(), expected)
         np.testing.assert_array_equal(tensor.copyto(tvm.cpu(), mem_scope=scope).numpy(), expected)
@@ -147,8 +157,19 @@ def test_runtime_only_registration():
 import tvm
 from tvm.runtime import MemoryScope
 assert tvm.base._RUNTIME_ONLY
-for name in ("global", "nvshmem", "ipc_memory"):
+for name in ("global", "shared", "shared.dyn", "warp", "local"):
     assert MemoryScope(name).name == name
+for name, allocator in (("nvshmem", "runtime.disco.nvshmem.empty"),
+                        ("ipc_memory", "runtime.disco.cuda_ipc.empty")):
+    if tvm.get_global_func(allocator, allow_missing=True) is not None:
+        assert MemoryScope(name).name == name
+    else:
+        try:
+            MemoryScope(name)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("Scope registered without its owning runtime: " + name)
 custom = MemoryScope.register("test.runtime_only")
 assert custom.same_as(MemoryScope(custom.name))
 """,

@@ -47,13 +47,13 @@ SBlock WithAnnotation(const SBlockNode* block, const ffi::String& attr_key,
 
 /******** Tensor Related ********/
 TensorVar WithScope(const TensorVar& tensor, runtime::MemoryScope scope) {
-  TensorType new_type(scope, tensor->dtype, tensor->shape, tensor->strides, tensor->elem_offset,
+  TensorType new_type(tensor->shape, tensor->dtype, scope, tensor->strides, tensor->elem_offset,
                       tensor->data_alignment, tensor->offset_factor, tensor->layout);
   return TensorVar(tensor.name() + "_" + scope.name(), new_type, tensor.loc());
 }
 
 TensorVar WithDType(const TensorVar& tensor, PrimType dtype) {
-  TensorType new_type(tensor->storage_scope, dtype, tensor->shape, tensor->strides,
+  TensorType new_type(tensor->shape, dtype, tensor->storage_scope, tensor->strides,
                       tensor->elem_offset, tensor->data_alignment, tensor->offset_factor,
                       tensor->layout);
   return TensorVar(tensor.name(), new_type, tensor.loc());

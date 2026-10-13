@@ -79,7 +79,7 @@ def test_dtensor_type():
     )
 
 
-@pytest.mark.parametrize("memory_scope", ["", "global", "global:workspace"])
+@pytest.mark.parametrize("memory_scope", ["global", "global:workspace"])
 def test_vdevice_selector_preserves_registry_identity(memory_scope):
     @I.ir_module
     class Module:
@@ -102,7 +102,7 @@ def test_vdevice_selector_preserves_registry_identity(memory_scope):
     restored = tvm.script.from_source(script, extra_vars={"I": I, "R": R, "T": T})
     tvm.ir.assert_structural_equal(Module, restored)
     selected = restored.global_infos["vdevice"][2]
-    assert selected.memory_scope == tvm.runtime.MemoryScope(memory_scope or "global")
+    assert selected.memory_scope == tvm.runtime.MemoryScope(memory_scope)
     assert restored["main"].params[0].ty.vdevice.is_(selected)
     assert restored["main"].ret_ty.vdevice.is_(selected)
     assert not selected.is_(restored.global_infos["vdevice"][1])

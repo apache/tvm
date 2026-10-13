@@ -166,16 +166,8 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> TensorTypeMaybeInplaceM
 
 }  // namespace
 
-TensorType::TensorType(ffi::String storage_scope, PrimType dtype, ffi::Array<PrimExpr> shape,
-                       ffi::Array<PrimExpr> strides, ffi::Optional<PrimExpr> elem_offset,
-                       int data_alignment, int offset_factor, ffi::Optional<Layout> layout,
-                       Location loc)
-    : TensorType(runtime::MemoryScope::FromString(storage_scope), std::move(dtype),
-                 std::move(shape), std::move(strides), std::move(elem_offset), data_alignment,
-                 offset_factor, std::move(layout), std::move(loc)) {}
-
-TensorType::TensorType(runtime::MemoryScope storage_scope, PrimType dtype,
-                       ffi::Array<PrimExpr> shape, ffi::Array<PrimExpr> strides,
+TensorType::TensorType(ffi::Array<PrimExpr> shape, PrimType dtype,
+                       runtime::MemoryScope storage_scope, ffi::Array<PrimExpr> strides,
                        ffi::Optional<PrimExpr> elem_offset, int data_alignment, int offset_factor,
                        ffi::Optional<Layout> layout, Location loc)
     : Type(ffi::UnsafeInit{}) {
@@ -206,7 +198,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
   refl::GlobalDef().def(
       "tirx.TensorType",
-      [](runtime::MemoryScope storage_scope, PrimType dtype, ffi::Array<PrimExpr> shape,
+      [](ffi::Array<PrimExpr> shape, PrimType dtype, runtime::MemoryScope storage_scope,
          ffi::Array<PrimExpr> strides, ffi::AnyView elem_offset, int data_alignment,
          int offset_factor, ffi::Optional<Layout> layout, Location loc) {
         ffi::Optional<PrimExpr> offset;
@@ -215,7 +207,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
         } else {
           offset = elem_offset.cast<ffi::Optional<PrimExpr>>();
         }
-        return TensorType(std::move(storage_scope), std::move(dtype), std::move(shape),
+        return TensorType(std::move(shape), std::move(dtype), std::move(storage_scope),
                           std::move(strides), std::move(offset), data_alignment, offset_factor,
                           std::move(layout), std::move(loc));
       });

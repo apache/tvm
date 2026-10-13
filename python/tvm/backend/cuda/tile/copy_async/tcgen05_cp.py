@@ -107,6 +107,7 @@ I. Emit:
 
 import functools
 import operator
+from functools import cache
 
 import tvm
 from tvm.backend.cuda.axis import TCol, TLane
@@ -123,7 +124,12 @@ from tvm.tirx.tile.instruction import TensorCall
 
 _SCOPE_SHARED = MemoryScope("shared")
 _SCOPE_SHARED_DYN = MemoryScope("shared.dyn")
-_SCOPE_TMEM = MemoryScope("tmem")
+
+
+@cache
+def _scope_tmem():
+    return MemoryScope("tmem")
+
 
 # Allowed .multicast qualifiers per shape (PTX ISA 8.8 §9.7.16.9.2): "" = none,
 # 64x128b needs an explicit warpx2 pick.
@@ -727,7 +733,7 @@ def _validate_smem_tmem_copy(op_call: TensorCall, sctx: DispatchContext):
     dst: Var = dst_region.source
     return (
         (src.scope() in (_SCOPE_SHARED, _SCOPE_SHARED_DYN))
-        and dst.scope() == _SCOPE_TMEM
+        and dst.scope() == _scope_tmem()
         and src.ty.effective_layout() is not None
         and dst.ty.effective_layout() is not None
         # Byte reinterpret is legal (nvfp4 stages sf as uint8, reads fp8); a

@@ -133,14 +133,9 @@ class PtrType : public Type {
    * \param storage_scope The storage scope into which the pointer addresses
    */
   TVM_TIRX_DLL explicit PtrType(Type element_type, runtime::MemoryScope storage_scope = {});
-  explicit PtrType(Type element_type, ffi::String storage_scope)
-      : PtrType(std::move(element_type), runtime::MemoryScope::FromString(storage_scope)) {}
 
   /*! \brief Construct an opaque pointer with void element type. */
   TVM_TIRX_DLL static PtrType VoidPtrType(runtime::MemoryScope storage_scope = {});
-  static PtrType VoidPtrType(ffi::String storage_scope) {
-    return VoidPtrType(runtime::MemoryScope::FromString(storage_scope));
-  }
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(PtrType, Type, PtrTypeNode);
 };

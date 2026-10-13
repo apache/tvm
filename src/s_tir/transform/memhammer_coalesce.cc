@@ -17,9 +17,9 @@
  * under the License.
  */
 #include <tvm/ffi/extra/structural_mutate.h>
+#include <tvm/runtime/memory_scope.h>
 #include <tvm/tirx/stmt.h>
 
-#include <tvm/runtime/memory_scope.h>
 #include "./memhammer_rewrite_rule.h"
 
 namespace tvm {

@@ -716,7 +716,7 @@ class VMShapeLowerMutator
     TVM_FFI_ICHECK_GT(heap_size_->value, 0);
     // construct a tirx::Function that compute the shape.
     ffi::Array<PrimExpr> buffer_shape{heap_size_};
-    tirx::TensorVar buffer = tirx::decl_tensor(buffer_shape, PrimType(ShapeDType()), "H", "global");
+    tirx::TensorVar buffer = tirx::decl_tensor(buffer_shape, PrimType(ShapeDType()), "H");
 
     ffi::Map<tvm::Var, PrimExpr> var_map;
     for (const auto& [expr, slot] : slot_map_) {

@@ -280,7 +280,7 @@ def _alloc_tensor(
     strides=None,
     elem_offset=None,
     byte_offset=None,
-    scope="global",
+    scope=_SCOPE_GLOBAL,
     align=-1,
     offset_factor=0,
     layout=MISSING,
@@ -288,7 +288,7 @@ def _alloc_tensor(
     annotations=None,
 ):
     """Implement separately named allocation conveniences using the canonical Op."""
-    scope = MemoryScope("global" if scope == "" else scope)
+    scope = MemoryScope(scope)
     if allocated_addr is not None:
         if scope in (_SCOPE_GLOBAL, _SCOPE_SHARED, _SCOPE_SHARED_DYN, _SCOPE_LOCAL):
             raise ValueError(f"{scope} does not support allocation placement")
@@ -297,7 +297,16 @@ def _alloc_tensor(
                 "Allocation placement cannot be combined with pointer or offset metadata"
             )
     tensor_type = _tensor_type(
-        shape, dtype, data, strides, elem_offset, byte_offset, scope, align, offset_factor, layout
+        shape,
+        dtype,
+        scope,
+        strides,
+        elem_offset,
+        align,
+        offset_factor,
+        layout,
+        data=data,
+        byte_offset=byte_offset,
     )
     return _bind_tensor(
         alloc_tensor(allocated_addr, ty_args=[tensor_type], annotations=annotations)
@@ -531,7 +540,7 @@ def alloc_cast_frag(src, dtype):
 @_register_mutable_decl("tirx.alloc_scalar")
 def alloc_scalar(
     dtype: str = "float32",
-    scope: str = "global",
+    scope: str | MemoryScope = _SCOPE_GLOBAL,
     *,
     annotations: dict[str, Any] | None = None,
 ) -> _ir.TensorLoad:
@@ -1066,7 +1075,7 @@ boolean._dtype_str = "bool"
 
 def handle(
     dtype: str | None = None,
-    storage_scope: str = "global",
+    storage_scope: str | MemoryScope = _SCOPE_GLOBAL,
 ) -> Var:
     """Create a TIR var that represents a pointer.
 
@@ -1087,7 +1096,7 @@ def handle(
         return _ffi_api.TensorMap()  # type: ignore[attr-defined] # pylint: disable=no-member
     return _ffi_api.Handle(  # type: ignore[attr-defined] # pylint: disable=no-member
         dtype,
-        "global" if storage_scope == "" else storage_scope,
+        storage_scope,
     )
 
 
@@ -1111,7 +1120,7 @@ def void(expr: Expr | None = None) -> Expr:
     return _ffi_api.Void(expr)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-def ptr(dtype: str, storage_scope: str = "global") -> Var:
+def ptr(dtype: str, storage_scope: str | MemoryScope = _SCOPE_GLOBAL) -> Var:
     """The pointer declaration function.
 
     Parameters
@@ -1127,7 +1136,7 @@ def ptr(dtype: str, storage_scope: str = "global") -> Var:
     res : Var
         The pointer.
     """
-    return _ffi_api.Ptr(dtype, "global" if storage_scope == "" else storage_scope)  # type: ignore[attr-defined] # pylint: disable=no-member
+    return _ffi_api.Ptr(dtype, storage_scope)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
 def index_map(

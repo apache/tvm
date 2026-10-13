@@ -35,8 +35,6 @@
 #include <utility>
 #include <vector>
 
-#include <tvm/runtime/memory_scope.h>
-
 namespace tvm {
 namespace s_tir {
 using namespace tvm::tirx;

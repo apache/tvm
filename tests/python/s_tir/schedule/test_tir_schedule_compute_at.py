@@ -1356,7 +1356,7 @@ def test_compute_at_non_perfect_channel_group(use_block_name):
     def grouped_channel_bias(
         X: T.Tensor((720, 8, 8), "float32"), Y: T.Tensor((720, 8, 8), "float32")
     ):
-        B = Ts.sblock_alloc_tensor([45], dtype="float32", scope="")
+        B = Ts.sblock_alloc_tensor([45], dtype="float32", scope="global")
         for i in T.grid(45):
             with Ts.sblock("init"):
                 vi = Ts.axis.remap("S", [i])

@@ -34,8 +34,8 @@
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/op/region.h>
 
-#include <tvm/runtime/memory_scope.h>
 #include "../../support/arena.h"
+#include "../memory_scope.h"
 
 namespace tvm {
 namespace tirx {
@@ -329,24 +329,10 @@ class LCADetector : public s_tir::StmtExprVisitor {
   }
 
   void UpdateWithBlockidx() {
-    static const auto scope_global_ddr = runtime::MemoryScope::Get("global.ddr");
-    static const auto scope_global_vtcm = runtime::MemoryScope::Get("global.vtcm");
-    static const auto scope_global_workspace = runtime::MemoryScope::Get("global.workspace");
-    static const auto scope_global_texture = runtime::MemoryScope::Get("global.texture");
-    static const auto scope_global_texture_1d = runtime::MemoryScope::Get("global.texture-1d");
-    static const auto scope_global_texture_nchw = runtime::MemoryScope::Get("global.texture-nchw");
-    static const auto scope_global_texture_nhwc = runtime::MemoryScope::Get("global.texture-nhwc");
-    static const auto scope_global_texture_weight =
-        runtime::MemoryScope::Get("global.texture-weight");
-
     for (const auto& it : tensor_lca_) {
       const runtime::MemoryScope& scope =
           ffi::GetRef<Var>(it.first).as_or_throw<TensorVar>().scope();
-      if ((scope == runtime::MemoryScope::Global() || scope == scope_global_ddr ||
-           scope == scope_global_vtcm || scope == scope_global_workspace ||
-           scope == scope_global_texture || scope == scope_global_texture_1d ||
-           scope == scope_global_texture_nchw || scope == scope_global_texture_nhwc ||
-           scope == scope_global_texture_weight)) {
+      if (s_tir::IsGlobalMemoryScope(scope)) {
         const ScopeInfo*& lca = tensor_lca_[it.first];
         for (const ScopeInfo* blockidx_scope : blockidx_scopes_) {
           lca = LowestCommonAncestor(lca, blockidx_scope);

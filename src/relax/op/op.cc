@@ -355,16 +355,18 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 // Native TIRx signatures are translated only at explicit Relax call boundaries.
 namespace {
 bool IsGlobalMemoryScope(runtime::MemoryScope scope) {
-  static const std::array scopes = {runtime::MemoryScope::Global(),
-                                    runtime::MemoryScope::Get("global.ddr"),
-                                    runtime::MemoryScope::Get("global.vtcm"),
-                                    runtime::MemoryScope::Get("global.workspace"),
-                                    runtime::MemoryScope::Get("global.texture"),
-                                    runtime::MemoryScope::Get("global.texture-1d"),
-                                    runtime::MemoryScope::Get("global.texture-nchw"),
-                                    runtime::MemoryScope::Get("global.texture-nhwc"),
-                                    runtime::MemoryScope::Get("global.texture-weight")};
-  return std::find(scopes.begin(), scopes.end(), scope) != scopes.end();
+  if (scope == runtime::MemoryScope::Global()) return true;
+  static const ffi::String names[] = {
+      "global.ddr",        "global.vtcm",         "global.workspace",    "global.texture",
+      "global.texture-1d", "global.texture-nchw", "global.texture-nhwc", "global.texture-weight"};
+  static ffi::reflection::TypeAttrColumn enum_state(ffi::reflection::type_attr::kEnumState);
+  auto state = enum_state[runtime::MemoryScopeObj::RuntimeTypeIndex()].cast<ffi::EnumState>();
+  for (const auto& name : names) {
+    if (auto registered = state->indexes.Get(name)) {
+      if (registered->same_as(scope)) return true;
+    }
+  }
+  return false;
 }
 
 Type TIRxPackedValueType(const Type& type, bool is_result) {

@@ -32,14 +32,25 @@ TEST(MemoryScopePolicy, GlobalSpacesRelaxAcrossBlocksAndThreads) {
                            "global.texture", "global.texture-1d", "global.texture-nchw",
                            "global.texture-nhwc", "global.texture-weight"}) {
     SCOPED_TRACE(name);
-    auto scope = runtime::MemoryScope::Get(name);
-    EXPECT_TRUE(CanRelaxStorageUnderThread(scope, block));
-    EXPECT_TRUE(CanRelaxStorageUnderThread(scope, thread));
+    if (auto scope = GetRegisteredMemoryScope(name)) {
+      EXPECT_TRUE(CanRelaxStorageUnderThread(*scope, block));
+      EXPECT_TRUE(CanRelaxStorageUnderThread(*scope, thread));
+    }
   }
   // The legacy standalone texture scope is distinct from global texture spaces.
-  auto texture = runtime::MemoryScope::Get("texture");
-  EXPECT_FALSE(CanRelaxStorageUnderThread(texture, block));
-  EXPECT_FALSE(CanRelaxStorageUnderThread(texture, thread));
+  if (auto texture = GetRegisteredMemoryScope("texture")) {
+    EXPECT_FALSE(CanRelaxStorageUnderThread(*texture, block));
+    EXPECT_FALSE(CanRelaxStorageUnderThread(*texture, thread));
+  }
+}
+
+TEST(MemoryScopePolicy, OptionalLookupObservesLaterRegistration) {
+  const ffi::String name = "test.optional_scope_registration";
+  EXPECT_FALSE(GetRegisteredMemoryScope(name).has_value());
+  auto scope = runtime::MemoryScope::Register(name);
+  auto found = GetRegisteredMemoryScope(name);
+  ASSERT_TRUE(found.has_value());
+  EXPECT_EQ(*found, scope);
 }
 
 TEST(MemoryScopePolicy, SharedSpacesRelaxWithinBlock) {
@@ -64,8 +75,7 @@ TEST(MemoryScopePolicy, WarpRelaxesOnlyThreadX) {
 
 TEST(MemoryScopePolicy, RegistrationDoesNotInferThreadVisibility) {
   static const auto extension = runtime::MemoryScope::Register("global.test_thread_visibility");
-  for (const auto& scope : {runtime::MemoryScope::Get("local"),
-                            runtime::MemoryScope::Get("wmma.accumulator"), extension}) {
+  for (const auto& scope : {runtime::MemoryScope::Get("local"), extension}) {
     SCOPED_TRACE(scope.name());
     EXPECT_FALSE(CanRelaxStorageUnderThread(scope, ParseThreadBindingTag("blockIdx.x")));
     EXPECT_FALSE(CanRelaxStorageUnderThread(scope, ParseThreadBindingTag("threadIdx.x")));

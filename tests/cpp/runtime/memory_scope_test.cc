@@ -31,7 +31,8 @@ TEST(MemoryScope, CanonicalDefaultAndTypedBoundaries) {
   EXPECT_TRUE(global.same_as(MemoryScope::Global()));
   EXPECT_TRUE(global.same_as(MemoryScope::Get("global")));
   EXPECT_EQ(PtrType(PrimType::Int(32))->storage_scope, global);
-  EXPECT_EQ(PtrType(PrimType::Int(32), "")->storage_scope, global);
+  EXPECT_THROW(ffi::Any(ffi::String("")).cast<MemoryScope>(), ffi::Error);
+  EXPECT_EQ(&MemoryScope::Global(), &MemoryScope::Global());
   EXPECT_EQ(ffi::Any(ffi::String("shared")).cast<MemoryScope>(), MemoryScope::Get("shared"));
   EXPECT_THROW(MemoryScope::Get("memory_scope_test.missing"), ffi::Error);
   EXPECT_THROW(ffi::Any(ffi::String("memory_scope_test.missing")).cast<MemoryScope>(), ffi::Error);
@@ -40,15 +41,32 @@ TEST(MemoryScope, CanonicalDefaultAndTypedBoundaries) {
 }
 
 TEST(MemoryScope, ExtensionRegistrationAndAttributes) {
-  ffi::reflection::EnumDef<MemoryScopeNode>("memory_scope_test.scratch")
+  ffi::reflection::EnumDef<MemoryScopeObj>("memory_scope_test.scratch")
       .set_attr("memory_scope_test.capacity", 1024);
   auto scope = MemoryScope::Get("memory_scope_test.scratch");
   EXPECT_EQ(scope.name(), "memory_scope_test.scratch");
+  EXPECT_EQ(scope.alloc_property(), MemoryAllocProperty::kNormal);
   EXPECT_EQ(scope, ffi::Any(scope).cast<MemoryScope>());
   EXPECT_EQ(scope, PtrType(PrimType::Float(32), scope)->storage_scope);
   EXPECT_THROW(MemoryScope::Register(scope.name()), ffi::Error);
   auto registered = MemoryScope::Register("memory_scope_test.registered");
   EXPECT_EQ(registered, MemoryScope::Get(registered.name()));
+}
+
+TEST(MemoryScope, AllocationProperties) {
+  EXPECT_EQ(MemoryScope::Global().alloc_property(), MemoryAllocProperty::kNormal);
+  EXPECT_EQ(MemoryScope::Get("shared").alloc_property(), MemoryAllocProperty::kNormal);
+  EXPECT_EQ(MemoryScope::Get("shared.dyn").alloc_property(),
+            MemoryAllocProperty::kSingleAllocation);
+  EXPECT_EQ(MemoryScope::Get("local").alloc_property(), MemoryAllocProperty::kSeparateAllocations);
+  ffi::reflection::EnumDef<MemoryScopeObj>("memory_scope_test.single")
+      .set_attr(attr::kMemoryAllocProperty,
+                static_cast<int>(MemoryAllocProperty::kSingleAllocation));
+  EXPECT_EQ(MemoryScope::Get("memory_scope_test.single").alloc_property(),
+            MemoryAllocProperty::kSingleAllocation);
+  ffi::reflection::EnumDef<MemoryScopeObj>("memory_scope_test.invalid_property")
+      .set_attr(attr::kMemoryAllocProperty, 99);
+  EXPECT_THROW(MemoryScope::Get("memory_scope_test.invalid_property").alloc_property(), ffi::Error);
 }
 
 TEST(MemoryScope, GlobalTensorAllocation) {

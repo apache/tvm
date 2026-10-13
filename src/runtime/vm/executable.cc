@@ -337,7 +337,7 @@ void VMExecutable::LoadMemoryScopeSection(support::Stream* strm) {
     STREAM_CHECK(strm->Read(&const_idx), "memory scopes");
     STREAM_CHECK(strm->Read(&scope), "memory scopes");
     LOG(WARNING) << "Scope Loaded:" << scope;
-    this->memory_scopes[const_idx] = MemoryScope::FromString(scope);
+    this->memory_scopes[const_idx] = MemoryScope::Get(scope);
   }
 }
 

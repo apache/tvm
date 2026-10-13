@@ -16,6 +16,8 @@
 # under the License.
 """CUDA tensor instruction interfaces and their fixed lowering contracts."""
 
+from functools import cache
+
 from tvm.ir import TensorRegion
 from tvm.runtime import MemoryScope
 from tvm.tirx.tile.instruction import Instruction, Operand, namespace
@@ -24,7 +26,11 @@ _SCOPE_GLOBAL = MemoryScope("global")
 _SCOPE_LOCAL = MemoryScope("local")
 _SCOPE_SHARED = MemoryScope("shared")
 _SCOPE_SHARED_DYN = MemoryScope("shared.dyn")
-_SCOPE_TMEM = MemoryScope("tmem")
+
+
+@cache
+def _scope_tmem():
+    return MemoryScope("tmem")
 
 
 def _check(result):
@@ -180,7 +186,7 @@ def _tc_ldst(view, sctx):
     dst, src = view.args
     load = view.op.name.endswith(".ld")
     if (dst.source.scope(), src.source.scope()) != (
-        (_SCOPE_LOCAL, _SCOPE_TMEM) if load else (_SCOPE_TMEM, _SCOPE_LOCAL)
+        (_SCOPE_LOCAL, _scope_tmem()) if load else (_scope_tmem(), _SCOPE_LOCAL)
     ):
         raise ValueError("tcgen05.ld/st requires the named TMEM transfer direction")
     return copy_tmem_local_impl(view, sctx)

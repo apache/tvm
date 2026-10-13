@@ -2042,7 +2042,7 @@ StmtSRef CacheRead(ScheduleState self, const StmtSRef& block_sref, int read_tens
       info.loc_sref.value()->StmtAs<SBlockNode>() == nullptr ||
       !AllConsumersUnderStmt(self, read_tensor, scope_sref, info.loc_sref.value());
   info.cache_region = cache_region;
-  info.write_tensor = WithScope(read_tensor, storage_scope);
+  info.write_tensor = WithScope(read_tensor, runtime::MemoryScope::Get(storage_scope));
   if (!cache_full_region) {
     auto write_tensor = CopyTensorType(info.write_tensor);
     std::vector<PrimExpr> shape;
@@ -2133,7 +2133,7 @@ StmtSRef CacheWrite(ScheduleState self, const StmtSRef& block_sref, int write_te
       info.loc_sref.value()->StmtAs<SBlockNode>() == nullptr ||
       !AllConsumersUnderStmt(self, write_tensor, scope_sref, info.loc_sref.value());
   info.cache_region = cache_region;
-  info.read_tensor = WithScope(write_tensor, storage_scope);
+  info.read_tensor = WithScope(write_tensor, runtime::MemoryScope::Get(storage_scope));
   if (!cache_full_region) {
     auto read_tensor_type = CopyTensorType(info.read_tensor);
     std::vector<PrimExpr> shape;
@@ -2281,7 +2281,7 @@ void CollectReindexCacheStageInfoAndCreateTensor(
 
   // Create new tensor
   ffi::ObjectPtr<TensorTypeNode> new_tensor = CopyTensorType(old_tensor);
-  new_tensor->storage_scope = runtime::MemoryScope::FromString(storage_scope);
+  new_tensor->storage_scope = runtime::MemoryScope::Get(storage_scope);
   new_tensor->shape = new_shape;
   TensorVar rebuilt =
       RebuildTensorVar(old_tensor, std::move(new_tensor), old_tensor.name() + "_" + storage_scope);
@@ -2496,7 +2496,7 @@ ffi::Array<StmtSRef> CacheInplace(ScheduleState self, const StmtSRef& block_sref
   }
 
   ffi::Array<StmtSRef> results_block_sref;
-  TensorVar new_tensor = WithScope(tensor, storage_scope);
+  TensorVar new_tensor = WithScope(tensor, runtime::MemoryScope::Get(storage_scope));
 
   // Do cache read
   // Cache read step 0. Create CacheStageInfo

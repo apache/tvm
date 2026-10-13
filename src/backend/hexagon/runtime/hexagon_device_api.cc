@@ -34,6 +34,7 @@
 #include <cstring>
 
 #include "../../../runtime/workspace_pool.h"
+#include "../memory_scope.h"
 #include "hexagon_common.h"
 
 namespace tvm {
@@ -221,6 +222,7 @@ void HexagonDeviceAPI::CopyDataFromTo(const void* from, size_t from_offset, void
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
+  tvm::backend::hexagon::RegisterMemoryScopes();
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def_packed("device_api.hexagon.dma_copy_dltensor",

@@ -43,12 +43,10 @@ class VDevice(GlobalInfo):
         self,
         target=None,
         vdevice_id: int = 0,
-        memory_scope: str | MemoryScope = "global",
+        memory_scope: str | MemoryScope = MemoryScope("global"),
     ) -> None:
         if isinstance(target, dict | str):
             target = Target(convert(target))
         if isinstance(target, Device):
             target = Target.from_device(target)
-        self.__init_handle_by_constructor__(
-            _ffi_api.VDevice, target, vdevice_id, "global" if memory_scope == "" else memory_scope
-        )
+        self.__init_handle_by_constructor__(_ffi_api.VDevice, target, vdevice_id, memory_scope)

@@ -124,9 +124,6 @@ inline Var Handle(ffi::Optional<PrimType> dtype = std::nullopt,
                                            : Type(PtrType::VoidPtrType(storage_scope));
   return tvm::Var("", type_annotation);
 }
-inline Var Handle(ffi::Optional<PrimType> dtype, ffi::String storage_scope) {
-  return Handle(dtype, runtime::MemoryScope::FromString(storage_scope));
-}
 
 inline Var TensorMap() { return tvm::Var("", PtrType(tvm::tirx::TensorMapType())); }
 
