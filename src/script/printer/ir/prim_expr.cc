@@ -302,7 +302,7 @@ ffi::Optional<ExprDoc> StringImmDocTranslate(DocTranslatorObj* d, ffi::AnyView i
   const auto* imm =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const StringImmNode>(input);
   ExprDoc literal = LiteralDoc::Str(imm->value, std::nullopt);
-  if (d->GetOrCreateExtraState<bool>("ir.explicit_scalar_dtype")) {
+  if (d->GetOrCreateExtraState<bool>("ir.explicit_value_type")) {
     return NamespaceDoc("ir")->Attr("StringImm")->Call({literal});
   }
   return literal;

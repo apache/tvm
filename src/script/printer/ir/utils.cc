@@ -83,7 +83,7 @@ ExprDoc CallAttrsValue(DocTranslatorObj* d, const Attrs& attrs) {
   for (const auto& [key, value] : fields) {
     if (key == "type_key") return AddMetadata(d, attrs);
     keys.push_back(key);
-    values.push_back(d->WithExtraStateScope<bool>("ir.explicit_scalar_dtype", true,
+    values.push_back(d->WithExtraStateScope<bool>("ir.explicit_value_type", true,
                                                   [&] { return d->Translate(value).value(); }));
   }
   ExprDoc inline_doc =
@@ -142,7 +142,7 @@ ExprDoc RawCallDocTranslate(DocTranslatorObj* d, const CallNode* call,
   ExprDoc callee =
       op.has_value() ? LiteralDoc::Str(op.value()->name, std::nullopt)
       : call->op.as<StringImmNode>()
-          ? d->WithExtraStateScope<bool>("ir.explicit_scalar_dtype", true,
+          ? d->WithExtraStateScope<bool>("ir.explicit_value_type", true,
                                          [&] { return d->Translate(call->op).value(); })
           : d->Translate(call->op).value();
   ffi::Array<ffi::String> keys;

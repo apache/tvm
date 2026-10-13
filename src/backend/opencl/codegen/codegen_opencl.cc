@@ -69,7 +69,7 @@ TextureArgument UnwrapTextureArgument(const Expr& texture) {
       << "Texture arguments must be a pointer Var or a tensor_data_ptr(TensorVar) projection";
   const auto* pointer_type = texture->ty.as<PtrTypeNode>();
   TVM_FFI_ICHECK(pointer_type) << "Texture arguments must have PtrType";
-  TVM_FFI_ICHECK(runtime::IsTextureStorage(pointer_type->storage_scope))
+  TVM_FFI_ICHECK(runtime::IsTextureStorage(pointer_type->scope))
       << "Texture intrinsics only support texture buffers";
   return {var, pointer_type};
 }
@@ -137,7 +137,7 @@ void CodeGenOpenCL::InitFuncState(const Function& f) {
   }
   for (Var arg : f->params) {
     auto ptr_type = arg->ty.as<PtrTypeNode>();
-    if (ptr_type && runtime::IsTextureStorage(ptr_type->storage_scope)) {
+    if (ptr_type && runtime::IsTextureStorage(ptr_type->scope)) {
       // Storage scope qualifiers for textures are inferred
       // and set prior to function codegen.
       continue;
@@ -153,7 +153,7 @@ void CodeGenOpenCL::PrintFuncPrefix(std::ostream& os) { os << "__kernel "; }
 void CodeGenOpenCL::PreFunctionBody(const Function& f) {
   for (Var arg : f->params) {
     auto ptr_type = arg->ty.as<PtrTypeNode>();
-    if (ptr_type && runtime::IsTextureStorage(ptr_type->storage_scope)) {
+    if (ptr_type && runtime::IsTextureStorage(ptr_type->scope)) {
       this->stream << "  const sampler_t image_sampler = "
                       "CLK_NORMALIZED_COORDS_FALSE | CLK_ADDRESS_CLAMP | CLK_FILTER_NEAREST;\n";
       return;
@@ -330,7 +330,7 @@ void CodeGenOpenCL::PrintType(const Type& type, std::ostream& os) {  // NOLINT(*
   if (auto* ptr = type.as<PrimTypeNode>()) {
     return PrintType(ffi::GetRef<PrimType>(ptr), os);
   } else if (auto* ptr = type.as<PtrTypeNode>()) {
-    if (runtime::IsTextureStorage(ptr->storage_scope)) {
+    if (runtime::IsTextureStorage(ptr->scope)) {
       os << "image2d_array_t";
     } else {
       PrintType(ptr->element_type, os);
@@ -436,7 +436,7 @@ void CodeGenOpenCL::PrintStorageScope(const runtime::MemoryScope& scope,
 void CodeGenOpenCL::PrintRestrict(const Var& v, std::ostream& os) {
   // Apply restrict qualifer for non-texture types only
   if (auto* ptr = v->ty.as<PtrTypeNode>()) {
-    if (!runtime::IsTextureStorage(ptr->storage_scope)) {
+    if (!runtime::IsTextureStorage(ptr->scope)) {
       os << ' ' << restrict_keyword_;
     }
   }

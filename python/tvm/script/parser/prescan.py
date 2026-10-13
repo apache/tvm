@@ -26,8 +26,6 @@ from enum import IntEnum, auto
 from types import ModuleType
 from typing import NamedTuple, NoReturn
 
-from tvm.ir.type import PrimType, _PrimTypeArrayAnnotation
-
 from . import protocol_registry
 
 
@@ -135,32 +133,6 @@ def resolve_namespace_value(node: ast.AST | None, environment: Mapping[str, obje
     return value
 
 
-def _fixed_annotation_value(node: ast.AST | None, environment: Mapping[str, object]):
-    """Read captured values and module dictionaries without running user expressions."""
-    if isinstance(node, ast.Name):
-        return environment.get(node.id)
-    if isinstance(node, ast.Attribute):
-        owner = _fixed_annotation_value(node.value, environment)
-        if type(owner) is ModuleType:
-            return vars(owner).get(node.attr)
-    return None
-
-
-def _primitive_annotation(node: ast.AST | None, environment: Mapping[str, object]):
-    """Recognize primitive annotations without calling constructors or indexing shapes."""
-    value = _fixed_annotation_value(node, environment)
-    if type(value) in (PrimType, _PrimTypeArrayAnnotation):
-        return value
-    if isinstance(node, ast.Call) and _fixed_annotation_value(node.func, environment) is PrimType:
-        return PrimType
-    if (
-        isinstance(node, ast.Subscript)
-        and _primitive_annotation(node.value, environment) is not None
-    ):
-        return _PrimTypeArrayAnnotation
-    return None
-
-
 # Design principle: Once builtin names and language namespaces are selected
 # for script syntax, they cannot be shadowed. Prescan enforces this rule and
 # reports clear errors at the offending bindings. This lets the transpiler
@@ -222,7 +194,6 @@ class PrescanContext:
         namespaces: dict[str, str],
         with_outputs: dict[ast.With, list[str]],
         recursive_functions: set[ast.FunctionDef | ast.AsyncFunctionDef],
-        primitive_dtypes: dict[ast.AST, str],
     ) -> None:
         # Collected source/entry names seed the allocator; this set stays read-only.
         self.reserved_names = reserved_names
@@ -251,13 +222,6 @@ class PrescanContext:
         # Collected self-reference facts select standalone declaration-before-body
         # lowering; rewriting does not add or remove functions from this set.
         self.recursive_functions = recursive_functions
-        self.primitive_dtypes = primitive_dtypes
-
-    def scalar_annotation_dtype(self, node: ast.AST | None):
-        """Return the fixed dtype of an annotation without evaluating its source."""
-        return self.primitive_dtypes.get(
-            node, protocol_registry.SCALAR_ANNOTATION_DTYPE.get(self._match_special_func(node))
-        )
 
     def _match_special_func(self, node: ast.AST | None) -> str | None:
         """Match direct source syntax against the roots fixed by this prescan."""
@@ -287,7 +251,6 @@ class PrescanCollector(ast.NodeVisitor):
         # Lexical scope and language variant restore on function/class exit.
         self.scope: ast.Module | ast.ClassDef | ast.FunctionDef | ast.AsyncFunctionDef | None = None
         self.builder: object = None
-        self.mutable_scopes: set[ast.AST] = set()
 
     def collect(self, tree: ast.Module) -> PrescanContext:
         """Collect reserved names, scoped declarations and region-result syntax.
@@ -327,8 +290,6 @@ class PrescanCollector(ast.NodeVisitor):
         self.scope = tree
         self.bindings[tree] = []
         self.visit(tree)
-        primitive_dtypes = {}
-        self._resolve_primitive_annotations(tree, tree, self.environment, primitive_dtypes)
         # Transfer the completed collections directly. Consumers keep the facts, not
         # this collector, and do not mutate the collections during AST rewriting.
         return PrescanContext(
@@ -339,68 +300,7 @@ class PrescanCollector(ast.NodeVisitor):
             self.namespaces,
             self.exports,
             self.recursive,
-            primitive_dtypes,
         )
-
-    def _replace_binding(self, scope, target, kind):
-        previous = self.sites[target]
-        replacement = Binding(previous.name, target, kind)
-        self.sites[target] = replacement
-        bindings = self.bindings[scope]
-        bindings[bindings.index(previous)] = replacement
-
-    @staticmethod
-    def _record_primitive_dtype(annotation, environment, dtypes):
-        value = _fixed_annotation_value(annotation, environment)
-        if type(value) is PrimType:
-            dtypes[annotation] = str(value.dtype)
-        elif (
-            isinstance(annotation, ast.Call)
-            and _fixed_annotation_value(annotation.func, environment) is PrimType
-            and len(annotation.args) == 1
-            and not annotation.keywords
-            and isinstance(annotation.args[0], ast.Constant)
-            and isinstance(annotation.args[0].value, str)
-        ):
-            dtypes[annotation] = annotation.args[0].value
-
-    def _resolve_primitive_annotations(self, node, scope, environment, dtypes):
-        """Refine annotation facts after all lexical bindings, including later writes, exist."""
-        if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):
-            parameters = [*node.args.posonlyargs, *node.args.args, *node.args.kwonlyargs]
-            header_names = {parameter.name for parameter in getattr(node, "type_params", ())}
-            for parameter in getattr(node, "type_params", ()):
-                self._record_primitive_dtype(getattr(parameter, "bound", None), environment, dtypes)
-            earlier_reads = set()
-            for parameter in parameters:
-                annotation = parameter.annotation
-                self._record_primitive_dtype(annotation, environment, dtypes)
-                if (
-                    self.sites[parameter].kind == BindingKind.PARAMETER
-                    and parameter.arg in earlier_reads
-                    and parameter.arg not in header_names
-                    and annotation in dtypes
-                ):
-                    self._replace_binding(node, parameter, BindingKind.FORWARD_PARAMETER)
-                if annotation is not None:
-                    earlier_reads.update(
-                        read.id for read in collect_annotation_free_reads(annotation)
-                    )
-        # Header annotations capture their definition scope; body bindings only
-        # shadow captures when descending into the function's body.
-        if node in self.bindings:
-            scope = node
-            shadowed = {item.name for item in self.bindings[node]}
-            environment = {key: value for key, value in environment.items() if key not in shadowed}
-        if (
-            isinstance(node, ast.AnnAssign)
-            and isinstance(node.target, ast.Name)
-            and scope in self.mutable_scopes
-            and _primitive_annotation(node.annotation, environment) is not None
-        ):
-            self._replace_binding(scope, node.target, BindingKind.MUTABLE)
-        for child in ast.iter_child_nodes(node):
-            self._resolve_primitive_annotations(child, scope, environment, dtypes)
 
     def _raise_error(self, node: ast.AST, message: str) -> NoReturn:
         raise SyntaxError(
@@ -598,8 +498,6 @@ class PrescanCollector(ast.NodeVisitor):
                 if namespace is not None:
                     self.builder = namespace
                     break
-        if getattr(self.builder, "supports_mutable_declarations", True):
-            self.mutable_scopes.add(node)
         for parameter in getattr(node, "type_params", ()):
             # -------------------- Pattern --------------------
             # Python source:

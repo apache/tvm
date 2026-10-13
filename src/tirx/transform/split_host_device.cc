@@ -490,7 +490,7 @@ class DeviceInfoCollector : public StmtExprVisitor {
   ffi::Optional<VisitInterrupt> DispatchAllocTensor(const BindNode* op, const CallNode* call) {
     static const auto scope_shared_dyn = runtime::MemoryScope::Get("shared.dyn");
 
-    runtime::MemoryScope scope = call->ty_args[0].as_or_throw<TensorType>()->storage_scope;
+    runtime::MemoryScope scope = call->ty_args[0].as_or_throw<TensorType>()->scope;
     auto storage_scope = scope;
     if (storage_scope == scope_shared_dyn) {
       TVM_FFI_ICHECK(!saw_dyn_shared_alloc_)

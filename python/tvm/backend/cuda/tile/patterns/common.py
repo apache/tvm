@@ -235,10 +235,8 @@ class Region:
         self.layout = self.ty.effective_layout()
         if self.layout is None:
             raise ValueError(f"{name}: operand requires a physical layout")
-        if self.ty.storage_scope not in tuple(MemoryScope(scope) for scope in scopes):
-            raise ValueError(
-                f"{name}: expected storage scope {scopes}, got {self.ty.storage_scope}"
-            )
+        if self.ty.scope not in tuple(MemoryScope(scope) for scope in scopes):
+            raise ValueError(f"{name}: expected storage scope {scopes}, got {self.ty.scope}")
         shape = tuple(int(ctx.analyzer.simplify(r.extent)) for r in region.region)
         if any(n <= 0 for n in shape):
             raise ValueError(f"{name}: pattern requires positive static region extents")
@@ -278,7 +276,7 @@ class Region:
 
     def physical(self, atom, repeat=None):
         result = dict(self.layout.apply(*self.indices(atom, repeat), shape=self.ty.shape))
-        if self.ty.storage_scope != MemoryScope("tmem"):
+        if self.ty.scope != MemoryScope("tmem"):
             result["m"] = result.get("m", 0) + self.ty.elem_offset
         return {key: self.ctx.analyzer.simplify(value) for key, value in result.items()}
 
@@ -356,7 +354,7 @@ class Region:
                 span += (extent - 1) * stride
 
     def value(self, atom):
-        if self.ty.storage_scope != MemoryScope("local"):
+        if self.ty.scope != MemoryScope("local"):
             raise ValueError(f"{self.name}: scalar values must be in registers")
         if self.raw is None:
             span = self.layout.span("m") + self.ty.elem_offset

@@ -714,8 +714,8 @@ void CodeGenLLVM::GetAlignment(PrimType t, const VarNode* buf_var, const PrimExp
   if (it != alloc_storage_info_.end()) {
     const StorageInfo& info = it->second;
     *p_native_bits = NativeVectorBits(buf_var->ty.as<TensorTypeNode>()
-                                          ? buf_var->ty.as<TensorTypeNode>()->storage_scope
-                                          : buf_var->ty.as_or_throw<PtrType>()->storage_scope);
+                                          ? buf_var->ty.as<TensorTypeNode>()->scope
+                                          : buf_var->ty.as_or_throw<PtrType>()->scope);
     max_align_bits = info.alignment * 8;
   } else {
     *p_native_bits = native_vector_bits_;
@@ -2335,8 +2335,7 @@ void CodeGenLLVM::Dispatch_(const SeqStmtNode* op) {
 void CodeGenLLVM::DispatchDeclTensor(const BindNode* op, const CallNode* buffer_call) {
   Expr data = buffer_call->args[0];
   DLDataType dtype = buffer_call->ty_args[0].as_or_throw<tirx::TensorType>()->dtype->dtype;
-  runtime::MemoryScope scope =
-      buffer_call->ty_args[0].as_or_throw<tirx::TensorType>()->storage_scope;
+  runtime::MemoryScope scope = buffer_call->ty_args[0].as_or_throw<tirx::TensorType>()->scope;
   TensorVar buffer = op->var.as_or_throw<TensorVar>();
   EmitDebugLocation(op);
   const VarNode* buffer_var = buffer.get();

@@ -189,14 +189,12 @@ class PtrType(Type):
     element_type : tvm.ir.Type
         The type of pointer's element.
 
-    storage_scope : str or tvm.runtime.MemoryScope
+    scope : str or tvm.runtime.MemoryScope
         The storage scope into which the pointer addresses.
     """
 
-    def __init__(self, element_type, storage_scope=MemoryScope("global"), *, loc=UNKNOWN_LOC):
-        self.__init_handle_by_constructor__(
-            _ffi_api.PtrType, _normalize_type(element_type), storage_scope
-        )
+    def __init__(self, element_type, scope=MemoryScope("global"), *, loc=UNKNOWN_LOC):
+        self.__init_handle_by_constructor__(_ffi_api.PtrType, _normalize_type(element_type), scope)
         if loc is not UNKNOWN_LOC:
             # Keep the script constructor's source-context behavior on the class alias.
             from tvm.script.ir_builder.base import at  # pylint: disable=import-outside-toplevel

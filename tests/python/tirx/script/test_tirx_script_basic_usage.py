@@ -75,7 +75,7 @@ def test_tir_ptr_proxy():
         isinstance(ptr_0, tirx.Var)
         and isinstance(ptr_0.ty, ir.PtrType)
         and ptr_0.ty.element_type == ir.PrimType("int32")
-        and ptr_0.ty.storage_scope == tvm.runtime.MemoryScope("global")
+        and ptr_0.ty.scope == tvm.runtime.MemoryScope("global")
     )
 
     ptr_1 = T.handle("float32", "shared")
@@ -83,7 +83,7 @@ def test_tir_ptr_proxy():
         isinstance(ptr_1, tirx.Var)
         and isinstance(ptr_1.ty, ir.PtrType)
         and ptr_1.ty.element_type == ir.PrimType("float32")
-        and ptr_1.ty.storage_scope == tvm.runtime.MemoryScope("shared")
+        and ptr_1.ty.scope == tvm.runtime.MemoryScope("shared")
     )
 
 

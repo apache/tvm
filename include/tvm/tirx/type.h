@@ -71,7 +71,7 @@ class TensorTypeNode : public TypeNode {
   /*! \brief dtype in the content of the tensor */
   PrimType dtype = PrimType::Void();
   /*! \brief Storage scope/address space of the tensor. */
-  runtime::MemoryScope storage_scope;
+  runtime::MemoryScope scope;
   /*! \brief The type of the tensor prior to flattening
    *
    * This contains the shape as it is accessed by
@@ -101,8 +101,7 @@ class TensorTypeNode : public TypeNode {
     refl::ObjectDef<TensorTypeNode>()
         .def_ro("shape", &TensorTypeNode::shape, refl::AttachFieldFlag::SEqHashDefSimple())
         .def_ro("dtype", &TensorTypeNode::dtype)
-        .def_ro("scope", &TensorTypeNode::storage_scope,
-                refl::DefaultValue(runtime::MemoryScope::Global()))
+        .def_ro("scope", &TensorTypeNode::scope, refl::DefaultValue(runtime::MemoryScope::Global()))
         .def_ro("strides", &TensorTypeNode::strides, refl::AttachFieldFlag::SEqHashDefSimple(),
                 refl::DefaultValue(ffi::Array<PrimExpr>()))
         .def_ro("elem_offset", &TensorTypeNode::elem_offset,
@@ -123,7 +122,7 @@ class TensorTypeNode : public TypeNode {
   PrimType ElementType() const { return dtype; }
 
   /*! \return type of the physical pointer projected by tensor_data_ptr. */
-  PtrType DataPtrType() const { return PtrType(dtype, storage_scope); }
+  PtrType DataPtrType() const { return PtrType(dtype, scope); }
 
   /*! \brief Whether this type supports scalar tensor syntax. */
   TVM_TIRX_DLL bool IsScalar(bool alloc_or_decl = true) const;
@@ -150,11 +149,10 @@ class TensorTypeNode : public TypeNode {
  */
 class TensorType : public Type {
  public:
-  TVM_TIRX_DLL TensorType(ffi::Array<PrimExpr> shape, PrimType dtype,
-                          runtime::MemoryScope storage_scope, ffi::Array<PrimExpr> strides,
-                          ffi::Optional<PrimExpr> elem_offset, int data_alignment,
-                          int offset_factor, ffi::Optional<Layout> layout = std::nullopt,
-                          Location loc = UnknownLoc());
+  TVM_TIRX_DLL TensorType(ffi::Array<PrimExpr> shape, PrimType dtype, runtime::MemoryScope scope,
+                          ffi::Array<PrimExpr> strides, ffi::Optional<PrimExpr> elem_offset,
+                          int data_alignment, int offset_factor,
+                          ffi::Optional<Layout> layout = std::nullopt, Location loc = UnknownLoc());
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TensorType, Type, TensorTypeNode);
 
