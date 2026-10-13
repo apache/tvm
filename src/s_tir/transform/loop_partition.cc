@@ -44,7 +44,6 @@
 #include <unordered_map>
 #include <unordered_set>
 
-#include "../../sym/interval_set.h"
 #include "ir_utils.h"
 
 namespace tvm {
@@ -586,7 +585,7 @@ class LoopPartitioner : public StmtExprMutator {
                                    bool partition_thread_scope);
 
   std::pair<IntSet, ExpressionSet> GetIntervalAndCondset(const Partition& partitions,
-                                                         const sym::IntervalSet& for_interval,
+                                                         const IntSet& for_interval,
                                                          bool cond_value, bool has_partition_hint);
 
   inline Stmt MakeFor(const ffi::Object* op, PrimExpr extent, Stmt body);
@@ -602,18 +601,19 @@ class LoopPartitioner : public StmtExprMutator {
 
 // Returns an interval (in the first component) in which all the conditions
 // given in the second component provably have value given by cond_value
-std::pair<IntSet, ExpressionSet> LoopPartitioner::GetIntervalAndCondset(
-    const Partition& partitions, const sym::IntervalSet& for_interval, bool cond_value,
-    bool has_partition_hint) {
+std::pair<IntSet, ExpressionSet> LoopPartitioner::GetIntervalAndCondset(const Partition& partitions,
+                                                                        const IntSet& for_interval,
+                                                                        bool cond_value,
+                                                                        bool has_partition_hint) {
   ffi::Array<IntSet> sets;
   ExpressionSet cond_set;
 
   for (const auto& kv : partitions) {
     if (kv.first.second == cond_value) {
-      sym::IntervalSet interval = kv.second.as_or_throw<sym::IntervalSet>();
-      sym::IntervalSet intersection = sym::Intersect(analyzer_.get(), interval, for_interval);
+      const IntSet& interval = kv.second;
+      IntSet intersection = sym::Intersect(interval, for_interval, analyzer_);
 
-      if (!intersection->IsEmpty()) {
+      if (!intersection.IsNothing()) {
         sets.push_back(kv.second);
         cond_set.insert(kv.first.first);
       }
@@ -624,21 +624,20 @@ std::pair<IntSet, ExpressionSet> LoopPartitioner::GetIntervalAndCondset(
   // Try to find the intersection of the cond_intervals until the intersection
   // is nothing when has_partition_hint is true.
   if (interval.IsNothing() && has_partition_hint) {
-    sym::IntervalSet cond_intersection = sym::IntervalSet::Everything();
+    IntSet cond_intersection = IntSet::Everything();
     cond_set.clear();
 
     for (const auto& kv : partitions) {
       if (kv.first.second == cond_value) {
-        sym::IntervalSet cond_interval = kv.second.as_or_throw<sym::IntervalSet>();
-        sym::IntervalSet intersection =
-            sym::Intersect(analyzer_.get(), cond_interval, for_interval);
-        if (!intersection->IsEmpty()) {
-          cond_intersection = sym::Intersect(analyzer_.get(), cond_intersection, cond_interval);
+        const IntSet& cond_interval = kv.second;
+        IntSet intersection = sym::Intersect(cond_interval, for_interval, analyzer_);
+        if (!intersection.IsNothing()) {
+          cond_intersection = sym::Intersect(cond_intersection, cond_interval, analyzer_);
           // Return the latest interval and cond_set if the cond_intersection is nothing.
-          if (!cond_intersection->IsEmpty()) {
+          if (!cond_intersection.IsNothing()) {
             cond_set.insert(kv.first.first);
-            interval = sym::IntervalSet(analyzer_->Simplify(cond_intersection->min_value),
-                                        analyzer_->Simplify(cond_intersection->max_value));
+            interval = IntSet::Interval(analyzer_->Simplify(cond_intersection.min()),
+                                        analyzer_->Simplify(cond_intersection.max()));
           } else {
             break;
           }
@@ -711,7 +710,7 @@ ffi::Optional<Stmt> LoopPartitioner::TryPartition(const Stmt& stmt, Var var, Pri
   hint_map_.erase(var.get());
   if (finder->partitions.empty()) return std::nullopt;
 
-  sym::IntervalSet for_interval(min, max);
+  IntSet for_interval = IntSet::Interval(min, max);
 
   auto [middle_interval, cond_set, opt_cond_value] =
       [&]() -> std::tuple<ffi::Optional<IntSet>, ExpressionSet, std::optional<bool>> {
@@ -788,7 +787,6 @@ ffi::Optional<Stmt> LoopPartitioner::TryPartition(const Stmt& stmt, Var var, Pri
   }
   bool cond_value = opt_cond_value.value();
 
-  IntervalSet middle_interval_i = middle_interval.value().as_or_throw<IntervalSet>();
   // middle_interval is the subrange of the loop variable range for which a
   // set of conditions are true (or false resp.)
   // The part of the loop variable range that is before (after resp.) that
@@ -799,7 +797,7 @@ ffi::Optional<Stmt> LoopPartitioner::TryPartition(const Stmt& stmt, Var var, Pri
   PrimExpr body_begin = min;
   ffi::Optional<Stmt> pre_stmt;
   bool pre_stmt_recurse = true;
-  if (middle_interval_i->HasLowerBound()) {
+  if (middle_interval.value().HasLowerBound()) {
     body_begin = analyzer_->Simplify(middle_interval.value().min());
     if (!analyzer_->CanProve(body_begin == min)) {
       PrimExpr extent = analyzer_->Simplify(body_begin - min);
@@ -832,7 +830,7 @@ ffi::Optional<Stmt> LoopPartitioner::TryPartition(const Stmt& stmt, Var var, Pri
   PrimExpr post_doubt_begin = max + 1;
   ffi::Optional<Stmt> post_stmt;
   bool post_stmt_recurse = true;
-  if (middle_interval_i->HasUpperBound()) {
+  if (middle_interval.value().HasUpperBound()) {
     post_doubt_begin = analyzer_->Simplify(middle_interval.value().max() + 1);
     if (!analyzer_->CanProve(middle_interval.value().max() == max)) {
       // require the extent to be non-negative

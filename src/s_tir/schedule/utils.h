@@ -45,7 +45,6 @@
 #include <utility>
 
 #include "../../runtime/thread_storage_scope.h"
-#include "../../sym/pattern_match.h"
 #include "../support/array_utils.h"
 #include "../support/nd_int_set.h"
 #include "./analysis.h"
@@ -212,18 +211,29 @@ inline ffi::Optional<Var> AnalyzeVarWithShift(const PrimExpr& expr,
     *constant = std::nullopt;
     return static_cast<Var>(var.value());
   }
-  sym::PVar<Var> var;
-  sym::PVar<IntImm> shift;
   // match: "var + shift"
-  if ((var + shift).Match(expr) || (shift + var).Match(expr)) {
-    *constant = shift.Eval();
-    return var.Eval();
+  if (const auto* add = expr.as<prim::AddNode>()) {
+    if (auto var = add->a.as<Var>()) {
+      if (auto shift = add->b.as<IntImm>()) {
+        *constant = shift;
+        return var;
+      }
+    }
+    if (auto shift = add->a.as<IntImm>()) {
+      if (auto var = add->b.as<Var>()) {
+        *constant = shift;
+        return var;
+      }
+    }
   }
   // match: "var - shift"
-  if ((var - shift).Match(expr)) {
-    IntImm result = shift.Eval();
-    *constant = IntImm(result.ty(), -result->value);
-    return var.Eval();
+  if (const auto* sub = expr.as<prim::SubNode>()) {
+    if (auto var = sub->a.as<Var>()) {
+      if (auto shift = sub->b.as<IntImm>()) {
+        *constant = IntImm(shift.value().ty(), -shift.value()->value);
+        return var;
+      }
+    }
   }
   return std::nullopt;
 }

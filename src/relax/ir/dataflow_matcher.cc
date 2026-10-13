@@ -48,7 +48,6 @@
 #include <utility>
 #include <vector>
 
-#include "../../sym/constraint_extract.h"
 #include "../transform/utils.h"
 
 namespace tvm {
@@ -442,43 +441,13 @@ bool DFPatternMatcher::VisitDFPattern_(const TypePatternNode* op, const Expr& ex
     return static_cast<bool>(as_int->value);
   }
 
-  symbolic_expr_condition_ = SimplifyCondition(symbolic_expr_condition_ && new_constraint);
+  symbolic_expr_condition_ = analyzer_->Simplify(symbolic_expr_condition_ && new_constraint);
 
   if (auto* as_int = symbolic_expr_condition_.as<IntImmNode>()) {
     return static_cast<bool>(as_int->value);
   } else {
     return true;
   }
-}
-
-PrimExpr DFPatternMatcher::SimplifyCondition(PrimExpr condition) {
-  if (condition->IsInstance<IntImmNode>()) {
-    return condition;
-  }
-
-  std::vector<PrimExpr> constraints = sym::ExtractConstraints(condition, false);
-  if (constraints.size() == 1) {
-    return condition;
-  }
-
-  auto sort_key = [](PrimExpr expr) -> ffi::String {
-    if (const auto* equal = expr.as<prim::EQNode>()) {
-      if (auto var = equal->a.as<PrimVar>()) {
-        return var.value()->name;
-      }
-    }
-    return "";
-  };
-  std::stable_sort(
-      constraints.begin(), constraints.end(),
-      [&sort_key](const PrimExpr& a, const PrimExpr& b) { return sort_key(a) < sort_key(b); });
-
-  PrimExpr sorted_condition = IntImm::Bool(true);
-  for (const PrimExpr& constraint : constraints) {
-    sorted_condition = sorted_condition && constraint;
-  }
-
-  return analyzer_->Simplify(sorted_condition);
 }
 
 static bool ShapeEqual(AnalyzerObj* analyzer, const ffi::Array<PrimExpr>& lhs,

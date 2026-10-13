@@ -298,12 +298,6 @@ TVM_DLL Pass RemoveWeightLayoutRewriteBlock(bool skip_tensor_rewrite = false);
  */
 TVM_DLL Pass RemoveStoreUndef();
 
-/*!
- * \brief Eliminate branches by leveraging tensor assumptions (T.assume).
- * \return The pass.
- */
-TVM_DLL Pass UseAssumeToReduceBranches();
-
 }  // namespace transform
 }  // namespace s_tir
 }  // namespace tvm

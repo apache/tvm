@@ -30,6 +30,7 @@
 #include <tvm/sym/analyzer.h>
 
 #include <algorithm>
+#include <numeric>
 #include <optional>
 
 #include "constraint_extract.h"
@@ -308,7 +309,7 @@ class ConstIntBoundAnalyzer::Impl
       if (parent_ && b.min_value == b.max_value) {
         ModularSet mod_a = parent_->modular_set(op->a);
         int64_t modulus = b.min_value;
-        int64_t gcd_coeff_mod = ZeroAwareGCD(mod_a->coeff, modulus);
+        int64_t gcd_coeff_mod = std::gcd(mod_a->coeff, modulus);
 
         // If gcd_coeff_mod > 1, we can get tighter bounds.
         // Since gcd_coeff_mod divides both mod_a->coeff and modulus, we know
@@ -409,7 +410,7 @@ class ConstIntBoundAnalyzer::Impl
       if (parent_ && b.min_value == b.max_value) {
         ModularSet mod_a = parent_->modular_set(op->a);
         int64_t modulus = b.min_value;
-        int64_t gcd_coeff_mod = ZeroAwareGCD(mod_a->coeff, modulus);
+        int64_t gcd_coeff_mod = std::gcd(mod_a->coeff, modulus);
 
         // If gcd_coeff_mod > 1, we can get tighter bounds.
         // Since gcd_coeff_mod divides both mod_a->coeff and modulus, we know
