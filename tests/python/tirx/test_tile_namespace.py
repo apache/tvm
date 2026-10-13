@@ -213,7 +213,9 @@ def test_none_layout_dtype_view_accepts_symbolic_extent():
 def test_tile_call_rejects_cross_backend_scope():
     tensor = decl_tensor((8,), "float32", scope="local", layout="default")
     with pytest.raises(ValueError, match="scope belongs to trn"):
-        T.cuda.tile.add(tensor[:], tensor[:], tensor[:], scope=T.trn.ExecScope("thread"))
+        T.cuda.tile.apply(
+            T.ptx["add.f32"], tensor[:], tensor[:], tensor[:], scope=T.trn.ExecScope("thread")
+        )
 
 
 def test_none_layout_script_roundtrip():
@@ -267,8 +269,13 @@ def test_tile_load_infers_full_global_layout_with_offset():
         T.device_entry(launch=T.cuda.LaunchConfig(grid=1, block=1))
         source = T.decl_tensor(A.data, ty_args=[T.Tensor((8, 16), "float32", elem_offset=7)])
         registers = T.alloc_local((2, 4), "float32", layout="default")
-        T.cuda.tile.ld(registers[:, :], source[2:4, 3:7])
-        T.cuda.tile.st(D[:, :], registers[:, :])
+        source_words = source.sub[2:4, 3:7].view(
+            2, 2, 2, layout=TileLayout(S[(2, 2, 2) : (16, 2, 1)])
+        )
+        register_words = registers.view(2, 2, 2)
+        output_words = D.view(2, 2, 2)
+        T.cuda.tile.apply(T.ptx["ld.global.v2.b32"], register_words, source_words)
+        T.cuda.tile.apply(T.ptx["st.global.v2.b32"], output_words, register_words)
 
     assert kernel.params[0].ty.layout is None
     target = tvm.target.Target({"kind": "cuda", "arch": env.cuda_arch()})

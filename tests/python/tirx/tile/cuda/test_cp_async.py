@@ -78,18 +78,30 @@ def test_copy_g2s_s2g_cta_vec_load(task, dtype):
     r_smem = list(slice(None) for i in range(len(s_shape)))
     r_gmem = list(slice(g_st[i], g_st[i] + g_extent[i]) for i in range(len(g_shape)))
 
-    # fmt: off
     @T.function
     def copy_async(
         A: T.Tensor(g_shape, dtype, layout=layoutA), B: T.Tensor(g_shape, dtype, layout=layoutB)
     ) -> None:
-
         T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(thread_cnt,)))
-        cta_id = T.cuda.block_idx('x')
-        tid = T.cuda.thread_idx('x')
+        cta_id = T.cuda.block_idx("x")
+        tid = T.cuda.thread_idx("x")
         A_smem = T.alloc_tensor(ty_args=[T.Tensor(s_shape, dtype, scope="shared", layout=layoutS)])
 
-        T.cuda.tile.cp_async(A_smem[tuple(r_smem)], A[tuple(r_gmem)], scope='cta')
+        S_atom = (
+            A_smem.sub[tuple(r_smem)]
+            .view(-1)
+            .view("uint32")
+            .rearrange("(r w t v) -> w t r v", w=1, t=32, v=4)
+        )
+        G_atom = (
+            A.sub[tuple(r_gmem)]
+            .view(-1)
+            .view("uint32")
+            .rearrange("(r w t v) -> w t r v", w=1, t=32, v=4)
+        )
+        T.cuda.tile.apply(
+            T.ptx["cp.async.cg.shared.global"], S_atom, G_atom, chunk_bytes=16, scope="cta"
+        )
         T.ptx.cp.async_.commit_group()
         T.ptx.cp.async_.wait_group(0)
         T.cuda.cta_sync()
@@ -125,7 +137,6 @@ def test_copy_g2s_s2g_cta_vec_load(task, dtype):
                     )
                 )
                 copy_dst_tensor_1[copy_dst_index_1] = copy_value_1
-        # fmt: on
 
     np_dtype = tvm.testing.np_dtype_from_str(dtype)
     target = tvm.target.Target("cuda")
@@ -162,13 +173,12 @@ def test_copy_ldgsts_predicate_zero_fill_codegen():
             ty_args=[T.Tensor((32, 16), "uint8", scope="shared", layout=TileLayout(S[32, 16]))]
         )
 
-        T.cuda.tile.cp_async(
-            A_smem[tid, :],
-            A[tid, :],
-            direct=True,
-            prefetch_size=128,
-            predicate=tid < 16,
-            fill_mode="zero",
+        T.cuda.tile.apply(
+            T.ptx["cp.async.cg.shared.global.L2::128B"],
+            A_smem.sub[tid, :],
+            A.sub[tid, :],
+            chunk_bytes=16,
+            src_size=T.if_then_else(tid < 16, T.uint32(16), T.uint32(0)),
         )
 
     target = tvm.target.Target({"kind": "cuda", "arch": "sm_100a"})

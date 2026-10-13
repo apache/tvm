@@ -526,8 +526,7 @@ class TileDispatcher : public StmtExprMutator {
     }
     // Propagate shared_state changes back (Map uses COW semantics)
     shared_state_ = sctx->shared_state;
-    TVM_FFI_CHECK(res->body.has_value(), ValueError)
-        << "A tile primitive implementation must have a body";
+    TVM_FFI_CHECK(res->body.has_value(), ValueError) << "A tile op implementation must have a body";
     return Mutate(res->body.value(), inplace_mode).ValueOrUnchanged(res->body.value());
   }
 

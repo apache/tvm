@@ -468,7 +468,7 @@ def Filter(fcond: Callable):
 
 
 def TileDispatch():
-    """Lower TIRx tile primitive calls through the active backend dispatch table.
+    """Lower TIRx tile op calls through the active backend dispatch table.
 
     Returns
     -------

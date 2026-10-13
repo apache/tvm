@@ -366,13 +366,16 @@ class Layout(Object):
         else:
             raise ValueError(f"Unsupported layout type: {type(self)}")
 
-    def unpack(self, num: int) -> "Layout":
+    def unpack(self, num: int, axis: str = "m") -> "Layout":
         """Unpack the layout, where a single element in the layout is unpacked into num contiguous elements.
 
         Parameters
         ----------
         num : int
             The number of elements to unpack into
+        axis : str
+            Storage coordinate whose element size changes. Ownership coordinates
+            are preserved. Tensor-memory dtype views use ``TCol``.
 
         Returns
         -------
@@ -380,16 +383,25 @@ class Layout(Object):
             The unpacked layout
         """  # noqa: E501
         if isinstance(self, TileLayout):
-            shard = [Iter(iter.extent, iter.stride * num, iter.axis) for iter in self.shard]
-            shard.append(Iter(num, 1, Axis.get("m")))
-            return TileLayout.from_iters(shard, self.replica, self.offset)
+
+            def scale(iter):
+                return Iter(
+                    iter.extent,
+                    iter.stride * num if iter.axis.name == axis else iter.stride,
+                    iter.axis,
+                )
+
+            shard = [scale(iter) for iter in self.shard]
+            shard.append(Iter(num, 1, Axis.get(axis)))
+            offset = {a: v * num if a.name == axis else v for a, v in self.offset.items()}
+            return TileLayout.from_iters(shard, [scale(i) for i in self.replica], offset)
         elif isinstance(self, ComposeLayout):
             assert num & (num - 1) == 0, "num must be a power of 2"
             return ComposeLayout(
                 self.per_element + (num.bit_length() - 1),
                 self.swizzle_len,
                 self.atom_len,
-                self.tile_layout.unpack(num),
+                self.tile_layout.unpack(num, axis),
                 self.swizzle_inner,
             )
         else:
@@ -425,13 +437,16 @@ class Layout(Object):
         else:
             raise ValueError(f"broadcast not supported for {type(self)}")
 
-    def pack(self, num: int) -> "Layout":
+    def pack(self, num: int, axis: str = "m") -> "Layout":
         """Pack the layout, where num contiguous elements in the layout are packed into a single element.
 
         Parameters
         ----------
         num : int
             The number of elements to pack into
+        axis : str
+            Storage coordinate whose element size changes. Ownership coordinates
+            are preserved. Tensor-memory dtype views use ``TCol``.
 
         Returns
         -------
@@ -443,11 +458,30 @@ class Layout(Object):
             assert (
                 inner_iter.stride == 1
                 and inner_iter.extent % num == 0
-                and inner_iter.axis.is_memory()
+                and inner_iter.axis.name == axis
             ), f"Layout {self} can not be packed into {num} elements"
-            shard = [Iter(iter.extent, iter.stride // num, iter.axis) for iter in self.shard[:-1]]
+            analyzer = tvm.sym.Analyzer()
+
+            def scale(iter):
+                stride = iter.stride
+                if iter.axis.name == axis:
+                    if not analyzer.can_prove(stride % num == 0):
+                        raise ValueError(
+                            f"Layout storage stride {stride} is not divisible by {num}"
+                        )
+                    stride = stride // num
+                return Iter(iter.extent, stride, iter.axis)
+
+            offset = {}
+            for a, value in self.offset.items():
+                if a.name == axis:
+                    if not analyzer.can_prove(value % num == 0):
+                        raise ValueError(f"Layout storage offset {value} is not divisible by {num}")
+                    value = value // num
+                offset[a] = value
+            shard = [scale(iter) for iter in self.shard[:-1]]
             shard.append(Iter(inner_iter.extent // num, 1, inner_iter.axis))
-            return TileLayout.from_iters(shard, self.replica, self.offset)
+            return TileLayout.from_iters(shard, [scale(i) for i in self.replica], offset)
         elif isinstance(self, ComposeLayout):
             assert num & (num - 1) == 0, "num must be a power of 2"
             assert self.per_element >= num.bit_length() - 1, (
@@ -457,7 +491,7 @@ class Layout(Object):
                 self.per_element - (num.bit_length() - 1),
                 self.swizzle_len,
                 self.atom_len,
-                self.tile_layout.pack(num),
+                self.tile_layout.pack(num, axis),
                 self.swizzle_inner,
             )
         else:
