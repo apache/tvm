@@ -43,7 +43,7 @@ def test_emit_te_with_symbolic_arg():
 
     after = bb.get()
 
-    m = T.dynamic("m")
+    m = T.dynamic("m", "int64")
 
     @I.ir_module
     class Expected:

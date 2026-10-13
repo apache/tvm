@@ -493,10 +493,10 @@ def test_match_cast():
 
 
 def test_match_cast_with_symbolic_vars():
-    n = T.dynamic("n")
-    m = T.dynamic("m")
-    p = T.dynamic("p")
-    q = T.dynamic("q")
+    n = T.dynamic("n", "int64")
+    m = T.dynamic("m", "int64")
+    p = T.dynamic("p", "int64")
+    q = T.dynamic("q", "int64")
 
     @I.ir_module
     class Before:
@@ -514,10 +514,10 @@ def test_match_cast_with_symbolic_vars():
                 R.output(gv)
             return gv
 
-    n = T.dynamic("n")
-    m = T.dynamic("m")
-    p = T.dynamic("p")
-    q = T.dynamic("q")
+    n = T.dynamic("n", "int64")
+    m = T.dynamic("m", "int64")
+    p = T.dynamic("p", "int64")
+    q = T.dynamic("q", "int64")
 
     @I.ir_module
     class Expected:

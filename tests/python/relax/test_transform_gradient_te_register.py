@@ -287,10 +287,10 @@ def test_call_tir_kwargs(register_te_grads):
 
 def get_expected_3():
     # fmt: off
-    n_f_mul = T.dynamic("n")
-    n_f_mul_grad = T.dynamic("n")
-    n_main_adjoint = T.dynamic("n")
-    n_main = T.dynamic("n")
+    n_f_mul = T.dynamic("n", "int64")
+    n_f_mul_grad = T.dynamic("n", "int64")
+    n_main_adjoint = T.dynamic("n", "int64")
+    n_main = T.dynamic("n", "int64")
 
     @I.ir_module
     class Expected:

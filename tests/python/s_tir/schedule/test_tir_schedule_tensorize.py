@@ -717,9 +717,9 @@ def test_tensorize_matmul_mixed_dtype():
                     vk = Ts.axis.reduce(T.int64(128), k_0 * T.int64(16) + k_1)
                     C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
-    A_elem_offset = T.dynamic("A_elem_offset")
-    B_elem_offset = T.dynamic("B_elem_offset")
-    C_elem_offset = T.dynamic("C_elem_offset")
+    A_elem_offset = T.dynamic("A_elem_offset", "int64")
+    B_elem_offset = T.dynamic("B_elem_offset", "int64")
+    C_elem_offset = T.dynamic("C_elem_offset", "int64")
 
     @Ts.function
     def tensorized_matmul_int64_shape(

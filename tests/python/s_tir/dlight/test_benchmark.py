@@ -43,10 +43,10 @@ from tvm.script import tirx as T
 # In principle, this should be attached to an argument.
 # pylint: disable=no-self-argument,invalid-name,line-too-long,no-method-argument
 # fmt: off
-full1_n = T.dynamic("n")
-full2_n = T.dynamic("n")
-matmul1_n = T.dynamic("n")
-_test_n = T.dynamic("n")
+full1_n = T.dynamic("n", "int64")
+full2_n = T.dynamic("n", "int64")
+matmul1_n = T.dynamic("n", "int64")
+_test_n = T.dynamic("n", "int64")
 
 @I.ir_module(check_well_formed=False)
 class Module:
@@ -102,7 +102,7 @@ class Module:
             R.output(lv3)
         return lv3
 
-m = T.dynamic("m")
+m = T.dynamic("m", "int64")
 
 @Ts.function
 def cuda_workload(inp0: T.Tensor((T.int64(1), m, T.int64(4096)), "float32"), inp1: T.Tensor((T.int64(4096), T.int64(4096)), "float32"), matmul: T.Tensor((T.int64(1), m, T.int64(4096)), "float32")):

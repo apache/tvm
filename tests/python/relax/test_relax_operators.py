@@ -33,8 +33,8 @@ from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import tirx as T
 
-m = T.dynamic("m")
-n = T.dynamic("n")
+m = T.dynamic("m", "int64")
+n = T.dynamic("n", "int64")
 
 
 @tvm.script.ir_module
@@ -190,7 +190,7 @@ def test_assert_on_argument_fails():
 
 
 def test_assert_on_symbolic_var_passes():
-    N = T.dynamic("N")
+    N = T.dynamic("N", "int64")
 
     @R.function(pure=False)
     def func(x: R.Tensor([N], "int32")):
@@ -202,7 +202,7 @@ def test_assert_on_symbolic_var_passes():
 
 
 def test_assert_on_symbolic_var_fails():
-    N = T.dynamic("N")
+    N = T.dynamic("N", "int64")
 
     @R.function(pure=False)
     def func(x: R.Tensor([N], "int32")):
@@ -267,8 +267,8 @@ def test_op_shape_of():
     assert constrained_shape == tvm_ffi.Shape([1])
 
 
-m = T.dynamic("m")
-n = T.dynamic("n")
+m = T.dynamic("m", "int64")
+n = T.dynamic("n", "int64")
 
 
 @tvm.script.ir_module
@@ -788,7 +788,7 @@ def test_prim_value_as_branch_condition():
 def test_computed_prim_value_as_branch_condition():
     """The primitive scalar condition may be computed within the function"""
 
-    N = T.dynamic("N")
+    N = T.dynamic("N", "int64")
 
     @R.function
     def func(x: R.Tensor([N], "int64")):

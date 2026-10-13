@@ -1821,7 +1821,7 @@ def test_conv2d_cuda_graph():
 
 
 def test_fp16A_int8B_gemm_batched():
-    b = T.dynamic("b")
+    b = T.dynamic("b", "int64")
 
     @I.ir_module
     class Module:
@@ -1962,7 +1962,7 @@ def test_fp16A_int8B_gemm_batched():
 
 
 def test_fp16A_int8B_gemm_batched_finegrained():
-    b = T.dynamic("b")
+    b = T.dynamic("b", "int64")
 
     @I.ir_module
     class Module:
@@ -2245,8 +2245,8 @@ def _test_batched_var_len_attention(
 
 
 def test_batched_var_len_attention():
-    num_tokens = T.dynamic("num_tokens")
-    num_seq = T.dynamic("num_seq")
+    num_tokens = T.dynamic("num_tokens", "int64")
+    num_seq = T.dynamic("num_seq", "int64")
 
     @I.ir_module
     class Module:
@@ -2299,8 +2299,8 @@ def test_batched_var_len_attention():
 
 
 def test_batched_var_len_multi_query_attention():
-    num_tokens = T.dynamic("num_tokens")
-    num_seq = T.dynamic("num_seq")
+    num_tokens = T.dynamic("num_tokens", "int64")
+    num_seq = T.dynamic("num_seq", "int64")
 
     @I.ir_module
     class Module:
@@ -2395,8 +2395,8 @@ def test_sliding_window():
 
 
 def test_batched_var_len_sliding_window():
-    num_tokens = T.dynamic("num_tokens")
-    num_seq = T.dynamic("num_seq")
+    num_tokens = T.dynamic("num_tokens", "int64")
+    num_seq = T.dynamic("num_seq", "int64")
 
     @I.ir_module
     class Module:

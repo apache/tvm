@@ -256,8 +256,8 @@ def test_supported_implicit_padding():
                     Ts.writes(output[v_ax0])
                     output[v_ax0] = T.max(arg0[v_ax0], T.float32(0))
 
-    p0 = T.dynamic("p0")
-    i0 = T.dynamic("i0")
+    p0 = T.dynamic("p0", "int64")
+    i0 = T.dynamic("i0", "int64")
 
     @I.ir_module
     class Expected:

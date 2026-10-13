@@ -727,7 +727,7 @@ def get_global_maxpool_expected_codegen(input_shape, pool_size, stride, padding,
 
 
 def get_dequant_matmul_module(K, N):
-    seq_len = T.dynamic("seq_len")
+    seq_len = T.dynamic("seq_len", "int64")
 
     @I.ir_module
     class DequantMatmul:
@@ -788,8 +788,8 @@ def get_dequant_matmul_module(K, N):
 
 
 def get_dequant_vec_matmul_module(K, N):
-    vocab_size_main = T.dynamic("vocab_size")
-    vocab_size_dequantize = T.dynamic("vocab_size")
+    vocab_size_main = T.dynamic("vocab_size", "int64")
+    vocab_size_dequantize = T.dynamic("vocab_size", "int64")
 
     @I.ir_module
     class DequantVecMatmul:

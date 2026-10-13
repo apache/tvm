@@ -24,8 +24,8 @@ from tvm.script import tirx as T
 
 
 def test_alloc_storage():
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
     @I.ir_module
     class Module:
@@ -39,8 +39,8 @@ def test_alloc_storage():
             )
             return alloc
 
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
     @I.ir_module
     class Expected:
@@ -62,8 +62,8 @@ def test_alloc_storage():
 
 
 def test_builtin_alloc_tensor():
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
     @I.ir_module
     class Module:
@@ -74,8 +74,8 @@ def test_builtin_alloc_tensor():
             )
             return tensor
 
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
     @I.ir_module
     class Expected:

@@ -29,12 +29,12 @@ from tvm.script import tirx as T
 
 
 def test_basic():
-    m_tir_matmul = T.dynamic("m")
-    n_tir_matmul = T.dynamic("n")
-    k_tir_matmul = T.dynamic("k")
-    m_main = T.dynamic("m")
-    n_main = T.dynamic("n")
-    k_main = T.dynamic("k")
+    m_tir_matmul = T.dynamic("m", "int64")
+    n_tir_matmul = T.dynamic("n", "int64")
+    k_tir_matmul = T.dynamic("k", "int64")
+    m_main = T.dynamic("m", "int64")
+    n_main = T.dynamic("n", "int64")
+    k_main = T.dynamic("k", "int64")
 
     @tvm.script.ir_module
     class Before:
@@ -60,12 +60,12 @@ def test_basic():
             )
             return gv0
 
-    m_tir_matmul = T.dynamic("m")
-    n_tir_matmul = T.dynamic("n")
-    k_tir_matmul = T.dynamic("k")
-    m_main = T.dynamic("m")
-    n_main = T.dynamic("n")
-    k_main = T.dynamic("k")
+    m_tir_matmul = T.dynamic("m", "int64")
+    n_tir_matmul = T.dynamic("n", "int64")
+    k_tir_matmul = T.dynamic("k", "int64")
+    m_main = T.dynamic("m", "int64")
+    n_main = T.dynamic("n", "int64")
+    k_main = T.dynamic("k", "int64")
 
     @tvm.script.ir_module
     class Expected:

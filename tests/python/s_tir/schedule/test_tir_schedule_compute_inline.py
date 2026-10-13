@@ -1319,8 +1319,8 @@ def test_reverse_compute_inline_producer_is_reduction():
 
 def test_compute_inline_softmax():
     # fmt: off
-    n = T.dynamic("n")
-    m = T.dynamic("m")
+    n = T.dynamic("n", "int64")
+    m = T.dynamic("m", "int64")
 
     @Ts.function
     def before(lv44: T.Tensor((T.int64(1), T.int64(32), n, m), "float32"), var_compute_intermediate: T.Tensor((T.int64(1), T.int64(32), n, m), 'float16')):
@@ -1366,8 +1366,8 @@ def test_compute_inline_softmax():
                 Ts.writes(var_compute_intermediate[v_i0, v_i1, v_i2, v_i3])
                 var_compute_intermediate[v_i0, v_i1, v_i2, v_i3] = T.Cast("float16", var_T_softmax_norm_intermediate[v_i0, v_i1, v_i2, v_i3])
 
-    n = T.dynamic("n")
-    m = T.dynamic("m")
+    n = T.dynamic("n", "int64")
+    m = T.dynamic("m", "int64")
 
     @Ts.function
     def after(lv44: T.Tensor((T.int64(1), T.int64(32), n, m), "float32"), var_compute_intermediate: T.Tensor((T.int64(1), T.int64(32), n, m), 'float16')):
@@ -1415,7 +1415,7 @@ def test_compute_inline_softmax():
 
 def test_reverse_compute_inline_layer_norm():
     # fmt: off
-    n = T.dynamic("n")
+    n = T.dynamic("n", "int64")
 
     @Ts.function
     def before(lv6: T.Tensor((T.int64(1), n, T.int64(2560)), "float32"), weight1: T.Tensor((T.int64(2560),), "float32"), bias: T.Tensor((T.int64(2560),), "float32"), var_compute_intermediate: T.Tensor((T.int64(1), n, T.int64(2560)), 'float16')):
@@ -1456,7 +1456,7 @@ def test_reverse_compute_inline_layer_norm():
                 Ts.writes(var_compute_intermediate[v_i0, v_i1, v_i2])
                 var_compute_intermediate[v_i0, v_i1, v_i2] = T.Cast("float16", var_T_layer_norm_intermediate[v_i0, v_i1, v_i2])
 
-    n = T.dynamic("n")
+    n = T.dynamic("n", "int64")
 
     @Ts.function
     def after(lv6: T.Tensor((T.int64(1), n, T.int64(2560)), "float32"), weight1: T.Tensor((T.int64(2560),), "float32"), bias: T.Tensor((T.int64(2560),), "float32"), var_compute_intermediate: T.Tensor((T.int64(1), n, T.int64(2560)), 'float16')):

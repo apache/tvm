@@ -38,8 +38,8 @@ class Base:
             tvm.ir.assert_structural_equal(self.Expected, after)
 
 
-weight_table_size_before = T.dynamic("weight_table_size")
-weight_table_size_expected = T.dynamic("weight_table_size")
+weight_table_size_before = T.dynamic("weight_table_size", "int64")
+weight_table_size_expected = T.dynamic("weight_table_size", "int64")
 
 
 class TestSimple(Base):
@@ -74,10 +74,10 @@ class TestSimple(Base):
             return out
 
 
-batch_size_before = T.dynamic("batch_size")
-weight_table_size_before = T.dynamic("weight_table_size")
-batch_size_expected = T.dynamic("batch_size")
-weight_table_size_expected = T.dynamic("weight_table_size")
+batch_size_before = T.dynamic("batch_size", "int64")
+weight_table_size_before = T.dynamic("weight_table_size", "int64")
+batch_size_expected = T.dynamic("batch_size", "int64")
+weight_table_size_expected = T.dynamic("weight_table_size", "int64")
 
 
 class TestBatchedActivations(Base):
@@ -114,10 +114,10 @@ class TestBatchedActivations(Base):
             return out
 
 
-batch_size_before = T.dynamic("batch_size")
-routing_table_size_before = T.dynamic("routing_table_size")
-batch_size_expected = T.dynamic("batch_size")
-routing_table_size_expected = T.dynamic("routing_table_size")
+batch_size_before = T.dynamic("batch_size", "int64")
+routing_table_size_before = T.dynamic("routing_table_size", "int64")
+batch_size_expected = T.dynamic("batch_size", "int64")
+routing_table_size_expected = T.dynamic("routing_table_size", "int64")
 
 
 class TestStaticBatchedActivationsAndWeights(Base):
@@ -156,10 +156,10 @@ class TestStaticBatchedActivationsAndWeights(Base):
             return out
 
 
-batch_size_before = T.dynamic("batch_size")
-routing_table_size_before = T.dynamic("routing_table_size")
-batch_size_expected = T.dynamic("batch_size")
-routing_table_size_expected = T.dynamic("routing_table_size")
+batch_size_before = T.dynamic("batch_size", "int64")
+routing_table_size_before = T.dynamic("routing_table_size", "int64")
+batch_size_expected = T.dynamic("batch_size", "int64")
+routing_table_size_expected = T.dynamic("routing_table_size", "int64")
 
 
 class TestDynamicBatchedActivationsAndWeights(Base):

@@ -33,10 +33,10 @@ from tvm.script import relax as R
 from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
-M = T.dynamic("M")
+M = T.dynamic("M", "int64")
 
 
-UNUSED_GENERIC = T.dynamic("UNUSED_GENERIC")
+UNUSED_GENERIC = T.dynamic("UNUSED_GENERIC", "int64")
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="PEP 695 requires Python 3.12")
@@ -49,13 +49,13 @@ def test_type_vars_roundtrip():
 
     script = func.script()
     assert script.startswith("from __future__ import annotations\n\n")
-    assert "def main[M](" in script
+    assert "def main[M: T.int64](" in script
     assert 'R.Tensor((M, M * 2), dtype="float32")' in script
     assert "M = T.int64()" not in script
     typed = tvm.script.from_source(
         """
 @R.function(private=True)
-def func[M: int](x: R.Tensor((M, M * 2), "float32")):
+def func[M: T.int64](x: R.Tensor((M, M * 2), "float32")):
     return x
 """,
         extra_vars={"I": tvm.script.ir, "R": tvm.script.relax, "T": tvm.script.tirx},
@@ -65,7 +65,7 @@ def func[M: int](x: R.Tensor((M, M * 2), "float32")):
 
     repeated = func.script()
     assert "from __future__ import annotations" in repeated
-    assert "def main[M](" in repeated
+    assert "def main[M: T.int64](" in repeated
     assert 'R.Tensor((M, M * 2), dtype="float32")' in repeated
     assert "M = T.int64()" not in repeated
     assert "UNUSED_GENERIC" not in script
@@ -87,8 +87,8 @@ def func[M: int](x: R.Tensor((M, M * 2), "float32")):
 
 
 def test_dynamic_module_symbol_identity():
-    shared = T.dynamic("n")
-    independent = T.dynamic("n")
+    shared = T.dynamic("n", "int64")
+    independent = T.dynamic("n", "int64")
 
     @R.function(private=True)
     def first(x: R.Tensor((shared,), "float32")):
@@ -379,7 +379,7 @@ def test_erase_to_well_defined_infers_from_shape_expr():
 def test_symbolic_vars_in_tensor_shape_with_usage_first():
     """A captured symbol can first appear inside a compound dimension."""
 
-    m = T.dynamic("m")
+    m = T.dynamic("m", "int64")
 
     @R.function
     def foo(x: R.Tensor((m + 1,), "float32"), y: R.Tensor((m, 1), "float32")):
@@ -564,7 +564,7 @@ def test_function_symbolic_variables_are_annotated():
 def test_non_declaration_prim_expr_emits_binding():
     """Dtype casts emit ordinary bindings without replacing shape symbols."""
 
-    symbol = T.dynamic("extent")
+    symbol = T.dynamic("extent", "int64")
 
     @R.function(private=True)
     def func(A: R.Tensor([symbol], "float32")):

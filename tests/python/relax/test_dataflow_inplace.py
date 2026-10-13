@@ -540,8 +540,8 @@ def test_insert_inplace_calls():
 
 
 def test_dynamic():
-    a_dim = T.dynamic("a")
-    b = T.dynamic("b")
+    a_dim = T.dynamic("a", "int64")
+    b = T.dynamic("b", "int64")
 
     @I.ir_module
     class DynamicTestCase:
@@ -561,12 +561,12 @@ def test_dynamic():
     transform_pass = DataflowUseInplaceCalls()
     new_mod = transform_pass(DynamicTestCase)
 
-    a_add_inplace = T.dynamic("a")
-    b_add_inplace = T.dynamic("b")
-    a_subtract_inplace = T.dynamic("a")
-    b_subtract_inplace = T.dynamic("b")
-    a_main = T.dynamic("a")
-    b_main = T.dynamic("b")
+    a_add_inplace = T.dynamic("a", "int64")
+    b_add_inplace = T.dynamic("b", "int64")
+    a_subtract_inplace = T.dynamic("a", "int64")
+    b_subtract_inplace = T.dynamic("b", "int64")
+    a_main = T.dynamic("a", "int64")
+    b_main = T.dynamic("b", "int64")
 
     @I.ir_module
     class Expected:
@@ -635,10 +635,10 @@ def test_dynamic():
 
 def test_dynamic_mismatch():
     # cannot statically prove the shapes to be equal so the module should be unchanged
-    a_dim = T.dynamic("a")
-    b = T.dynamic("b")
-    c = T.dynamic("c")
-    d = T.dynamic("d")
+    a_dim = T.dynamic("a", "int64")
+    b = T.dynamic("b", "int64")
+    c = T.dynamic("c", "int64")
+    d = T.dynamic("d", "int64")
 
     @I.ir_module
     class DynamicMistmatchTestCase:

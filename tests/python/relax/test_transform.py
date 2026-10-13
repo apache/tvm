@@ -79,8 +79,8 @@ def test_dataflowblock_pass_rejects_rewriting_match_cast_role_of_binding_var():
 
 
 def test_to_non_dataflow():
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class TestToNonDataflow:
@@ -144,10 +144,10 @@ def test_to_non_dataflow():
 
 
 def test_call_tir_rewrite():
-    m_exp = T.dynamic("m")
-    n_exp = T.dynamic("n")
-    m_foo = T.dynamic("m")
-    n_foo = T.dynamic("n")
+    m_exp = T.dynamic("m", "int64")
+    n_exp = T.dynamic("n", "int64")
+    m_foo = T.dynamic("m", "int64")
+    n_foo = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class TestCallTIRRewrite:
@@ -336,8 +336,8 @@ def test_transform_remove_purity_checking():
 
 
 def test_call_dps_packed_rewrite():
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class TestCallDPSPackedRewrite:

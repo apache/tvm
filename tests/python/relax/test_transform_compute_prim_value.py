@@ -24,7 +24,7 @@ from tvm.script import tirx as T
 
 
 def test_prim_value_in_assert_condition():
-    N = T.dynamic("N")
+    N = T.dynamic("N", "int64")
 
     @I.ir_module
     class Before:
@@ -33,7 +33,7 @@ def test_prim_value_in_assert_condition():
             _ = R.assert_op(N % 16 == 0)
             return A
 
-    N = T.dynamic("N")
+    N = T.dynamic("N", "int64")
 
     @I.ir_module
     class Expected:
@@ -57,7 +57,7 @@ def test_prim_value_in_assert_condition():
 
 
 def test_prim_value_in_branch_condition():
-    N = T.dynamic("N")
+    N = T.dynamic("N", "int64")
 
     @I.ir_module
     class Before:
@@ -69,7 +69,7 @@ def test_prim_value_in_branch_condition():
                 out = R.call_packed("slow_non_vectorized_impl", A, ty_args=[A.ty])
             return out
 
-    N = T.dynamic("N")
+    N = T.dynamic("N", "int64")
 
     @I.ir_module
     class Expected:

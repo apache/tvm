@@ -85,8 +85,8 @@ def test_dynamic_strided_slice(begin, end, strides):
 )
 def test_dynamic_strided_slice_symbolic(begin, end, strides):
     # fmt: off
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class DynamicStridedSlice:

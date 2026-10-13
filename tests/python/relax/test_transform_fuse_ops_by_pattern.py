@@ -1138,8 +1138,8 @@ def test_error_on_repeated_variable_definitions():
 
 
 def test_matmul_symbolic_var():
-    batch_size = T.dynamic("batch_size")
-    M = T.dynamic("M")
+    batch_size = T.dynamic("batch_size", "int64")
+    M = T.dynamic("M", "int64")
 
     @I.ir_module
     class Before:
@@ -1156,11 +1156,11 @@ def test_matmul_symbolic_var():
                 R.output(out)
             return out
 
-    batch_size_main = T.dynamic("batch_size")
-    M_main = T.dynamic("M")
-    batch_size_fused_relax_matmul_cublas = T.dynamic("batch_size")
-    batch_size_fused_relax_matmul1_cublas = T.dynamic("batch_size")
-    M_fused_relax_matmul1_cublas = T.dynamic("M")
+    batch_size_main = T.dynamic("batch_size", "int64")
+    M_main = T.dynamic("M", "int64")
+    batch_size_fused_relax_matmul_cublas = T.dynamic("batch_size", "int64")
+    batch_size_fused_relax_matmul1_cublas = T.dynamic("batch_size", "int64")
+    M_fused_relax_matmul1_cublas = T.dynamic("M", "int64")
 
     @I.ir_module
     class Expected:

@@ -125,7 +125,7 @@ def test_dynamic_shape():
         debug=False,
     )
 
-    batch_size = T.dynamic("batch_size")
+    batch_size = T.dynamic("batch_size", "int64")
 
     @I.ir_module
     class Expected:
@@ -160,8 +160,8 @@ def test_dynamic_shape_in_multiple_functions():
         debug=False,
     )
 
-    batch_size_forward_relu = T.dynamic("batch_size")
-    batch_size_forward_silu = T.dynamic("batch_size")
+    batch_size_forward_relu = T.dynamic("batch_size", "int64")
+    batch_size_forward_silu = T.dynamic("batch_size", "int64")
 
     @I.ir_module
     class Expected:
@@ -232,7 +232,7 @@ def test_export_nested_module():
         debug=False,
     )
 
-    batch_size = T.dynamic("batch_size")
+    batch_size = T.dynamic("batch_size", "int64")
 
     @I.ir_module
     class Expected:
@@ -357,7 +357,7 @@ def test_generate_parameters():
         debug=False,
     )
 
-    batch_size = T.dynamic("batch_size")
+    batch_size = T.dynamic("batch_size", "int64")
 
     @I.ir_module
     class Expected:
@@ -396,7 +396,7 @@ def test_generate_parameters():
 
     assert_structural_equal(exported_mod, Expected)
 
-    batch_size = T.dynamic("batch_size")
+    batch_size = T.dynamic("batch_size", "int64")
 
     @I.ir_module
     class ExpectedAfterLift:
@@ -467,7 +467,7 @@ def test_linear_dynamic_shape():
     Even if dynamic, the weight/bias must be the same value.
     """
 
-    n = T.dynamic("n")
+    n = T.dynamic("n", "int64")
 
     @R.function
     def forward(
@@ -572,9 +572,9 @@ def test_duplicate_names(dynamic_type):
     )
 
     def get_expected_with_intermediate_size():
-        batch_size = T.dynamic("batch_size")
-        hidden_size = T.dynamic("hidden_size")
-        intermediate_size = T.dynamic("intermediate_size")
+        batch_size = T.dynamic("batch_size", "int64")
+        hidden_size = T.dynamic("hidden_size", "int64")
+        intermediate_size = T.dynamic("intermediate_size", "int64")
 
         @I.ir_module
         class Expected:
@@ -604,8 +604,8 @@ def test_duplicate_names(dynamic_type):
         return Expected
 
     def get_expected_without_intermediate_size():
-        batch_size = T.dynamic("batch_size")
-        hidden_size = T.dynamic("hidden_size")
+        batch_size = T.dynamic("batch_size", "int64")
+        hidden_size = T.dynamic("hidden_size", "int64")
 
         @I.ir_module
         class Expected:

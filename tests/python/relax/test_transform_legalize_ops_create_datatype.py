@@ -121,8 +121,8 @@ def test_full_different_dtype():
 
 def test_full_symbolic():
     # fmt: off
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class Full:
@@ -131,10 +131,10 @@ def test_full_symbolic():
             gv: R.Tensor((m, n), "int32") = R.full((m, n), v, dtype="int32")
             return gv
 
-    m_main = T.dynamic("m")
-    n_main = T.dynamic("n")
-    m_full = T.dynamic("m")
-    n_full = T.dynamic("n")
+    m_main = T.dynamic("m", "int64")
+    n_main = T.dynamic("n", "int64")
+    m_full = T.dynamic("m", "int64")
+    n_full = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class Expected:
@@ -254,8 +254,8 @@ def test_full_like_different_dtype():
 
 def test_full_like_symbolic():
     # fmt: off
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class FullLike:
@@ -264,10 +264,10 @@ def test_full_like_symbolic():
             gv: R.Tensor((m, n), "int32") = R.full_like(x, v)
             return gv
 
-    m_main = T.dynamic("m")
-    n_main = T.dynamic("n")
-    m_full = T.dynamic("m")
-    n_full = T.dynamic("n")
+    m_main = T.dynamic("m", "int64")
+    n_main = T.dynamic("n", "int64")
+    m_full = T.dynamic("m", "int64")
+    n_full = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class Expected:
@@ -325,8 +325,8 @@ def test_ones():
 
 def test_ones_symbolic():
     # fmt: off
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class Ones:
@@ -335,10 +335,10 @@ def test_ones_symbolic():
             gv: R.Tensor((m, n), "float32") = R.ones((m, n), "float32")
             return gv
 
-    m_main = T.dynamic("m")
-    n_main = T.dynamic("n")
-    m_ones = T.dynamic("m")
-    n_ones = T.dynamic("n")
+    m_main = T.dynamic("m", "int64")
+    n_main = T.dynamic("n", "int64")
+    m_ones = T.dynamic("m", "int64")
+    n_ones = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class Expected:
@@ -396,8 +396,8 @@ def test_ones_like():
 
 def test_ones_like_symbolic():
     # fmt: off
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class OnesLike:
@@ -406,10 +406,10 @@ def test_ones_like_symbolic():
             gv: R.Tensor((m, n), "float32") = R.ones_like(x)
             return gv
 
-    m_main = T.dynamic("m")
-    n_main = T.dynamic("n")
-    m_ones = T.dynamic("m")
-    n_ones = T.dynamic("n")
+    m_main = T.dynamic("m", "int64")
+    n_main = T.dynamic("n", "int64")
+    m_ones = T.dynamic("m", "int64")
+    n_ones = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class Expected:
@@ -467,8 +467,8 @@ def test_zeros():
 
 def test_zeros_symbolic():
     # fmt: off
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class Zeros:
@@ -477,10 +477,10 @@ def test_zeros_symbolic():
             gv: R.Tensor((m, n), "float32") = R.zeros((m, n), "float32")
             return gv
 
-    m_main = T.dynamic("m")
-    n_main = T.dynamic("n")
-    m_zeros = T.dynamic("m")
-    n_zeros = T.dynamic("n")
+    m_main = T.dynamic("m", "int64")
+    n_main = T.dynamic("n", "int64")
+    m_zeros = T.dynamic("m", "int64")
+    n_zeros = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class Expected:
@@ -538,8 +538,8 @@ def test_zeros_like():
 
 def test_zeros_like_symbolic():
     # fmt: off
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class ZerosLike:
@@ -548,10 +548,10 @@ def test_zeros_like_symbolic():
             gv: R.Tensor((m, n), "float32") = R.zeros_like(x)
             return gv
 
-    m_main = T.dynamic("m")
-    n_main = T.dynamic("n")
-    m_zeros = T.dynamic("m")
-    n_zeros = T.dynamic("n")
+    m_main = T.dynamic("m", "int64")
+    n_main = T.dynamic("n", "int64")
+    m_zeros = T.dynamic("m", "int64")
+    n_zeros = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class Expected:
@@ -599,7 +599,7 @@ def test_arange_const():
 
 def test_arange_symbolic():
     # fmt: off
-    n = T.dynamic("n")
+    n = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class Arange:
@@ -608,7 +608,7 @@ def test_arange_symbolic():
             gv = R.arange(1, R.prim_value(n), 2)
             return gv
 
-    n = T.dynamic("n")
+    n = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class Expected:
@@ -667,8 +667,8 @@ def test_shape_to_tensor():
 
 def test_shape_to_tensor_symbolic():
     # fmt: off
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class ShapeToTensor:
@@ -677,8 +677,8 @@ def test_shape_to_tensor_symbolic():
             gv = R.shape_to_tensor(R.shape_of(x))
             return gv
 
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class Expected:
@@ -704,7 +704,7 @@ def test_shape_to_tensor_symbolic():
 
 def test_shape_to_tensor_mixed():
     # fmt: off
-    m = T.dynamic("m")
+    m = T.dynamic("m", "int64")
 
     @tvm.script.ir_module
     class ShapeToTensor:
@@ -713,7 +713,7 @@ def test_shape_to_tensor_mixed():
             gv = R.shape_to_tensor(R.shape_of(x))
             return gv
 
-    m = T.dynamic("m")
+    m = T.dynamic("m", "int64")
 
     @tvm.script.ir_module
     class Expected:
@@ -791,9 +791,9 @@ def test_tril():
 
 def test_tril_symbolic():
     # fmt: off
-    m = T.dynamic("m")
-    n = T.dynamic("n")
-    k = T.dynamic("k")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
+    k = T.dynamic("k", "int64")
 
     @tvm.script.ir_module
     class Tril:
@@ -802,12 +802,12 @@ def test_tril_symbolic():
             gv: R.Tensor((m, n, k), "int8") = R.tril(x, k=-2)
             return gv
 
-    m_main = T.dynamic("m")
-    n_main = T.dynamic("n")
-    k_main = T.dynamic("k")
-    k_tril = T.dynamic("k")
-    m_tril = T.dynamic("m")
-    n_tril = T.dynamic("n")
+    m_main = T.dynamic("m", "int64")
+    n_main = T.dynamic("n", "int64")
+    k_main = T.dynamic("k", "int64")
+    k_tril = T.dynamic("k", "int64")
+    m_tril = T.dynamic("m", "int64")
+    n_tril = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class Expected:
@@ -865,9 +865,9 @@ def test_triu():
 
 def test_triu_symbolic():
     # fmt: off
-    m = T.dynamic("m")
-    n = T.dynamic("n")
-    k = T.dynamic("k")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
+    k = T.dynamic("k", "int64")
 
     @tvm.script.ir_module
     class Triu:
@@ -876,12 +876,12 @@ def test_triu_symbolic():
             gv: R.Tensor((m, n, k), "int8") = R.triu(x, k=-2)
             return gv
 
-    m_main = T.dynamic("m")
-    n_main = T.dynamic("n")
-    k_main = T.dynamic("k")
-    k_triu = T.dynamic("k")
-    m_triu = T.dynamic("m")
-    n_triu = T.dynamic("n")
+    m_main = T.dynamic("m", "int64")
+    n_main = T.dynamic("n", "int64")
+    k_main = T.dynamic("k", "int64")
+    k_triu = T.dynamic("k", "int64")
+    m_triu = T.dynamic("m", "int64")
+    n_triu = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class Expected:
@@ -963,8 +963,8 @@ def test_astype_input_constant_scalar():
 
 def test_astype_symbolic():
     # fmt: off
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class Astype:
@@ -973,10 +973,10 @@ def test_astype_symbolic():
             gv: R.Tensor((m, n), "int32") = R.astype(x, "int32")
             return gv
 
-    m_main = T.dynamic("m")
-    n_main = T.dynamic("n")
-    m_cast = T.dynamic("m")
-    n_cast = T.dynamic("n")
+    m_main = T.dynamic("m", "int64")
+    n_main = T.dynamic("n", "int64")
+    m_cast = T.dynamic("m", "int64")
+    n_cast = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class Expected:

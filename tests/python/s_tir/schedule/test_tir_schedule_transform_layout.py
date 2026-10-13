@@ -1154,7 +1154,7 @@ def test_index_map_dtype_legalize_with_constant():
 def test_transform_layout_with_symbolic_bound():
     # fmt: off
     # pylint: disable=invalid-name,line-too-long,too-many-locals
-    n = T.dynamic("n")
+    n = T.dynamic("n", "int64")
 
     @Ts.function
     def before(A: T.Tensor((T.int64(1), T.int64(32), T.int64(1), T.int64(128)), 'float16'), B: T.Tensor((T.int64(1), T.int64(32), n, T.int64(128)), 'float16'), C: T.Tensor((T.int64(1), T.int64(32), T.int64(1), n), 'float16')):
@@ -1169,7 +1169,7 @@ def test_transform_layout_with_symbolic_bound():
                     C[v_i0, v_i1, v_i2, v_i3] = T.float16(0)
                 C[v_i0, v_i1, v_i2, v_i3] = C[v_i0, v_i1, v_i2, v_i3] + A[v_i0, v_i1, v_i2, v_k] * B[v_i0, v_i1, v_i3, v_k]
 
-    n = T.dynamic("n")
+    n = T.dynamic("n", "int64")
 
     @Ts.function
     def after(A: T.Tensor((T.int64(1), T.int64(32), T.int64(1), T.int64(128)), 'float16'), B: T.Tensor((T.int64(1), T.int64(32), n, T.int64(128)), 'float16'), C: T.Tensor((n * T.int64(32),), 'float16')):
@@ -1202,7 +1202,7 @@ def test_transform_layout_with_symbolic_bound():
 def test_transform_block_layout_with_symbolic_bound():
     # fmt: off
     # pylint: disable=invalid-name,line-too-long,too-many-locals
-    n = T.dynamic("n")
+    n = T.dynamic("n", "int64")
 
     @Ts.function
     def before(A: T.Tensor((T.int64(1), T.int64(32), T.int64(1), T.int64(128)), 'float16'), B: T.Tensor((T.int64(1), T.int64(32), n, T.int64(128)), 'float16'), C: T.Tensor((n * T.int64(32),), 'float16')):
@@ -1217,7 +1217,7 @@ def test_transform_block_layout_with_symbolic_bound():
                     C[v_i1 * n + v_i3] = T.float16(0)
                 C[v_i1 * n + v_i3] = C[v_i1 * n + v_i3] + A[v_i0, v_i1, v_i2, v_k] * B[v_i0, v_i1, v_i3, v_k]
 
-    n = T.dynamic("n")
+    n = T.dynamic("n", "int64")
 
     @Ts.function
     def after(A: T.Tensor((T.int64(1), T.int64(32), T.int64(1), T.int64(128)), 'float16'), B: T.Tensor((T.int64(1), T.int64(32), n, T.int64(128)), 'float16'), C: T.Tensor((n * T.int64(32),), 'float16')):

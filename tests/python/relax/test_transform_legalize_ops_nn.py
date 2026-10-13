@@ -154,11 +154,11 @@ def test_conv1d_nwc():
 
 def test_conv1d_symbolic():
     # fmt: off
-    n = T.dynamic("n")
-    w = T.dynamic("w")
-    f = T.dynamic("f")
-    kw = T.dynamic("kw")
-    c = T.dynamic("c")
+    n = T.dynamic("n", "int64")
+    w = T.dynamic("w", "int64")
+    f = T.dynamic("f", "int64")
+    kw = T.dynamic("kw", "int64")
+    c = T.dynamic("c", "int64")
 
     @tvm.script.ir_module
     class Conv1d:
@@ -167,16 +167,16 @@ def test_conv1d_symbolic():
             gv: R.Tensor((n, f, w - kw + 1), "float32") = R.nn.conv1d(x, kernel)
             return gv
 
-    n_main = T.dynamic("n")
-    f_main = T.dynamic("f")
-    w_main = T.dynamic("w")
-    kw_main = T.dynamic("kw")
-    c_main = T.dynamic("c")
-    n_conv1d = T.dynamic("n")
-    c_conv1d = T.dynamic("c")
-    w_conv1d = T.dynamic("w")
-    f_conv1d = T.dynamic("f")
-    kw_conv1d = T.dynamic("kw")
+    n_main = T.dynamic("n", "int64")
+    f_main = T.dynamic("f", "int64")
+    w_main = T.dynamic("w", "int64")
+    kw_main = T.dynamic("kw", "int64")
+    c_main = T.dynamic("c", "int64")
+    n_conv1d = T.dynamic("n", "int64")
+    c_conv1d = T.dynamic("c", "int64")
+    w_conv1d = T.dynamic("w", "int64")
+    f_conv1d = T.dynamic("f", "int64")
+    kw_conv1d = T.dynamic("kw", "int64")
 
     @tvm.script.ir_module
     class Expected:
@@ -380,13 +380,13 @@ def test_conv2d_nhwc():
 
 def test_conv2d_symbolic():
     # fmt: off
-    n = T.dynamic("n")
-    h = T.dynamic("h")
-    w = T.dynamic("w")
-    f = T.dynamic("f")
-    kh = T.dynamic("kh")
-    kw = T.dynamic("kw")
-    c = T.dynamic("c")
+    n = T.dynamic("n", "int64")
+    h = T.dynamic("h", "int64")
+    w = T.dynamic("w", "int64")
+    f = T.dynamic("f", "int64")
+    kh = T.dynamic("kh", "int64")
+    kw = T.dynamic("kw", "int64")
+    c = T.dynamic("c", "int64")
 
     @tvm.script.ir_module
     class Conv2d:
@@ -395,20 +395,20 @@ def test_conv2d_symbolic():
             gv: R.Tensor((n, f, h - kh + 1, w - kw + 1), "float32") = R.nn.conv2d(x, kernel)
             return gv
 
-    n_main = T.dynamic("n")
-    f_main = T.dynamic("f")
-    h_main = T.dynamic("h")
-    kh_main = T.dynamic("kh")
-    w_main = T.dynamic("w")
-    kw_main = T.dynamic("kw")
-    c_main = T.dynamic("c")
-    c_conv2d = T.dynamic("c")
-    f_conv2d = T.dynamic("f")
-    h_conv2d = T.dynamic("h")
-    kh_conv2d = T.dynamic("kh")
-    kw_conv2d = T.dynamic("kw")
-    n_conv2d = T.dynamic("n")
-    w_conv2d = T.dynamic("w")
+    n_main = T.dynamic("n", "int64")
+    f_main = T.dynamic("f", "int64")
+    h_main = T.dynamic("h", "int64")
+    kh_main = T.dynamic("kh", "int64")
+    w_main = T.dynamic("w", "int64")
+    kw_main = T.dynamic("kw", "int64")
+    c_main = T.dynamic("c", "int64")
+    c_conv2d = T.dynamic("c", "int64")
+    f_conv2d = T.dynamic("f", "int64")
+    h_conv2d = T.dynamic("h", "int64")
+    kh_conv2d = T.dynamic("kh", "int64")
+    kw_conv2d = T.dynamic("kw", "int64")
+    n_conv2d = T.dynamic("n", "int64")
+    w_conv2d = T.dynamic("w", "int64")
 
     @tvm.script.ir_module
     class Expected:
@@ -444,10 +444,10 @@ def test_conv2d_symbolic():
 
 def test_conv2d_symbolic_group():
     # fmt: off
-    n = T.dynamic("n")
-    f = T.dynamic("f")
-    c = T.dynamic("c")
-    c_div_8 = T.dynamic("c_div_8")
+    n = T.dynamic("n", "int64")
+    f = T.dynamic("f", "int64")
+    c = T.dynamic("c", "int64")
+    c_div_8 = T.dynamic("c_div_8", "int64")
 
     @tvm.script.ir_module
     class Conv2d:
@@ -456,14 +456,14 @@ def test_conv2d_symbolic_group():
             gv: R.Tensor((n, f, 26, 26), "float32") = R.nn.conv2d(x, w, groups=8)
             return gv
 
-    n_main = T.dynamic("n")
-    f_main = T.dynamic("f")
-    c_main = T.dynamic("c")
-    c_div_8_main = T.dynamic("c_div_8")
-    n_conv2d = T.dynamic("n")
-    c_conv2d = T.dynamic("c")
-    f_conv2d = T.dynamic("f")
-    c_div_8_conv2d = T.dynamic("c_div_8")
+    n_main = T.dynamic("n", "int64")
+    f_main = T.dynamic("f", "int64")
+    c_main = T.dynamic("c", "int64")
+    c_div_8_main = T.dynamic("c_div_8", "int64")
+    n_conv2d = T.dynamic("n", "int64")
+    c_conv2d = T.dynamic("c", "int64")
+    f_conv2d = T.dynamic("f", "int64")
+    c_div_8_conv2d = T.dynamic("c_div_8", "int64")
 
     @tvm.script.ir_module
     class Expected:
@@ -717,13 +717,13 @@ def test_conv2d_transpose_with_out_dtype():
 
 def test_conv2d_transpose_symbolic():
     # fmt: off
-    n = T.dynamic("n")
-    c = T.dynamic("c")
-    h = T.dynamic("h")
-    w = T.dynamic("w")
-    f = T.dynamic("f")
-    kh = T.dynamic("kh")
-    kw = T.dynamic("kw")
+    n = T.dynamic("n", "int64")
+    c = T.dynamic("c", "int64")
+    h = T.dynamic("h", "int64")
+    w = T.dynamic("w", "int64")
+    f = T.dynamic("f", "int64")
+    kh = T.dynamic("kh", "int64")
+    kw = T.dynamic("kw", "int64")
 
     @tvm.script.ir_module
     class Conv2dTranspose:
@@ -732,20 +732,20 @@ def test_conv2d_transpose_symbolic():
             gv = R.nn.conv2d_transpose(x, kernel, strides=(3, 3))
             return gv
 
-    n_main = T.dynamic("n")
-    c_main = T.dynamic("c")
-    h_main = T.dynamic("h")
-    kh_main = T.dynamic("kh")
-    w_main = T.dynamic("w")
-    kw_main = T.dynamic("kw")
-    f_main = T.dynamic("f")
-    n_conv2d_transpose = T.dynamic("n")
-    c_conv2d_transpose = T.dynamic("c")
-    h_conv2d_transpose = T.dynamic("h")
-    w_conv2d_transpose = T.dynamic("w")
-    f_conv2d_transpose = T.dynamic("f")
-    kh_conv2d_transpose = T.dynamic("kh")
-    kw_conv2d_transpose = T.dynamic("kw")
+    n_main = T.dynamic("n", "int64")
+    c_main = T.dynamic("c", "int64")
+    h_main = T.dynamic("h", "int64")
+    kh_main = T.dynamic("kh", "int64")
+    w_main = T.dynamic("w", "int64")
+    kw_main = T.dynamic("kw", "int64")
+    f_main = T.dynamic("f", "int64")
+    n_conv2d_transpose = T.dynamic("n", "int64")
+    c_conv2d_transpose = T.dynamic("c", "int64")
+    h_conv2d_transpose = T.dynamic("h", "int64")
+    w_conv2d_transpose = T.dynamic("w", "int64")
+    f_conv2d_transpose = T.dynamic("f", "int64")
+    kh_conv2d_transpose = T.dynamic("kh", "int64")
+    kw_conv2d_transpose = T.dynamic("kw", "int64")
 
     @I.ir_module
     class Expected:
@@ -965,12 +965,12 @@ def test_max_pool2d_ceil_mode():
 @pytest.mark.skip("TOPI pooling casts every shape value to i32.")
 def test_max_pool2d_symbolic():
     # fmt: off
-    n = T.dynamic("n")
-    c = T.dynamic("c")
-    h = T.dynamic("h")
-    w = T.dynamic("w")
-    kh = T.dynamic("kh")
-    kw = T.dynamic("kw")
+    n = T.dynamic("n", "int64")
+    c = T.dynamic("c", "int64")
+    h = T.dynamic("h", "int64")
+    w = T.dynamic("w", "int64")
+    kh = T.dynamic("kh", "int64")
+    kw = T.dynamic("kw", "int64")
 
     @tvm.script.ir_module
     class MaxPool2D:
@@ -1128,12 +1128,12 @@ def test_avg_pool2d_ceil_mode():
 @pytest.mark.skip("TOPI pooling casts every shape value to i32.")
 def test_avg_pool2d_symbolic():
     # fmt: off
-    n = T.dynamic("n")
-    c = T.dynamic("c")
-    h = T.dynamic("h")
-    w = T.dynamic("w")
-    kh = T.dynamic("kh")
-    kw = T.dynamic("kw")
+    n = T.dynamic("n", "int64")
+    c = T.dynamic("c", "int64")
+    h = T.dynamic("h", "int64")
+    w = T.dynamic("w", "int64")
+    kh = T.dynamic("kh", "int64")
+    kw = T.dynamic("kw", "int64")
 
     @tvm.script.ir_module
     class AvgPool2D:
@@ -1233,12 +1233,12 @@ def test_adaptive_avg_pool2d_without_output_size():
 @pytest.mark.skip("TOPI pooling casts every shape value to i32.")
 def test_adaptive_avg_pool2d_symbolic():
     # fmt: off
-    n = T.dynamic("n")
-    c = T.dynamic("c")
-    oh = T.dynamic("oh")
-    ow = T.dynamic("ow")
-    h = T.dynamic("h")
-    w = T.dynamic("w")
+    n = T.dynamic("n", "int64")
+    c = T.dynamic("c", "int64")
+    oh = T.dynamic("oh", "int64")
+    ow = T.dynamic("ow", "int64")
+    h = T.dynamic("h", "int64")
+    w = T.dynamic("w", "int64")
 
     @tvm.script.ir_module
     class AdaptiveAvgPool2D:
@@ -1285,8 +1285,8 @@ def test_relu():
 
 def test_relu_symbolic():
     # fmt: off
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class Relu:
@@ -1295,10 +1295,10 @@ def test_relu_symbolic():
             gv: R.Tensor((m, n), "float32") = R.nn.relu(x)
             return gv
 
-    m_main = T.dynamic("m")
-    n_main = T.dynamic("n")
-    m_relu = T.dynamic("m")
-    n_relu = T.dynamic("n")
+    m_main = T.dynamic("m", "int64")
+    n_main = T.dynamic("n", "int64")
+    m_relu = T.dynamic("m", "int64")
+    n_relu = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class Expected:
@@ -1356,8 +1356,8 @@ def test_leakyrelu():
 
 def test_leakyrelu_symbolic():
     # fmt: off
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class LeakyRelu:
@@ -1366,10 +1366,10 @@ def test_leakyrelu_symbolic():
             gv: R.Tensor((m, n), "float32") = R.nn.leakyrelu(x, 0.03)
             return gv
 
-    m_main = T.dynamic("m")
-    n_main = T.dynamic("n")
-    m_leaky_relu = T.dynamic("m")
-    n_leaky_relu = T.dynamic("n")
+    m_main = T.dynamic("m", "int64")
+    n_main = T.dynamic("n", "int64")
+    m_leaky_relu = T.dynamic("m", "int64")
+    n_leaky_relu = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class Expected:
@@ -1435,7 +1435,7 @@ def test_prelu():
 
 def test_prelu_symbolic():
     # fmt: off
-    m = T.dynamic("m")
+    m = T.dynamic("m", "int64")
 
     @tvm.script.ir_module
     class PRelu:
@@ -1444,8 +1444,8 @@ def test_prelu_symbolic():
             gv: R.Tensor((m, 7), "float32") = R.nn.prelu(x, y)
             return gv
 
-    m_main = T.dynamic("m")
-    m_prelu = T.dynamic("m")
+    m_main = T.dynamic("m", "int64")
+    m_prelu = T.dynamic("m", "int64")
 
     @tvm.script.ir_module
     class Expected:
@@ -1539,8 +1539,8 @@ def test_gelu():
 
 def test_gelu_symbolic():
     # fmt: off
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class Gelu:
@@ -1549,10 +1549,10 @@ def test_gelu_symbolic():
             gv: R.Tensor((m, n), "float32") = R.nn.gelu(x)
             return gv
 
-    m_main = T.dynamic("m")
-    n_main = T.dynamic("n")
-    m_gelu = T.dynamic("m")
-    n_gelu = T.dynamic("n")
+    m_main = T.dynamic("m", "int64")
+    n_main = T.dynamic("n", "int64")
+    m_gelu = T.dynamic("m", "int64")
+    n_gelu = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class Expected:
@@ -1693,8 +1693,8 @@ def test_gelu_tanh():
 
 def test_gelu_tanh_symbolic():
     # fmt: off
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class GeluTanh:
@@ -1703,10 +1703,10 @@ def test_gelu_tanh_symbolic():
             gv: R.Tensor((m, n), "float32") = R.nn.gelu_tanh(x)
             return gv
 
-    m_main = T.dynamic("m")
-    n_main = T.dynamic("n")
-    m_gelu_tanh = T.dynamic("m")
-    n_gelu_tanh = T.dynamic("n")
+    m_main = T.dynamic("m", "int64")
+    n_main = T.dynamic("n", "int64")
+    m_gelu_tanh = T.dynamic("m", "int64")
+    n_gelu_tanh = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class Expected:
@@ -1827,8 +1827,8 @@ def test_silu():
 
 def test_silu_symbolic():
     # fmt: off
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class Silu:
@@ -1837,10 +1837,10 @@ def test_silu_symbolic():
             gv: R.Tensor((m, n), "float32") = R.nn.silu(x)
             return gv
 
-    m_main = T.dynamic("m")
-    n_main = T.dynamic("n")
-    m_silu = T.dynamic("m")
-    n_silu = T.dynamic("n")
+    m_main = T.dynamic("m", "int64")
+    n_main = T.dynamic("n", "int64")
+    m_silu = T.dynamic("m", "int64")
+    n_silu = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class Expected:
@@ -1931,9 +1931,9 @@ def test_softmax():
 
 def test_softmax_symbolic():
     # fmt: off
-    a = T.dynamic("a")
-    b = T.dynamic("b")
-    c = T.dynamic("c")
+    a = T.dynamic("a", "int64")
+    b = T.dynamic("b", "int64")
+    c = T.dynamic("c", "int64")
 
     @tvm.script.ir_module
     class Softmax:
@@ -1942,12 +1942,12 @@ def test_softmax_symbolic():
             gv: R.Tensor((a, b, c), "float32") = R.nn.softmax(x)
             return gv
 
-    a_main = T.dynamic("a")
-    b_main = T.dynamic("b")
-    c_main = T.dynamic("c")
-    a_softmax = T.dynamic("a")
-    b_softmax = T.dynamic("b")
-    c_softmax = T.dynamic("c")
+    a_main = T.dynamic("a", "int64")
+    b_main = T.dynamic("b", "int64")
+    c_main = T.dynamic("c", "int64")
+    a_softmax = T.dynamic("a", "int64")
+    b_softmax = T.dynamic("b", "int64")
+    c_softmax = T.dynamic("c", "int64")
 
     @tvm.script.ir_module
     class Expected:
@@ -2050,9 +2050,9 @@ def test_log_softmax():
 
 def test_log_softmax_symbolic():
     # fmt: off
-    a = T.dynamic("a")
-    b = T.dynamic("b")
-    c = T.dynamic("c")
+    a = T.dynamic("a", "int64")
+    b = T.dynamic("b", "int64")
+    c = T.dynamic("c", "int64")
 
     @tvm.script.ir_module
     class LogSoftmax:
@@ -2061,12 +2061,12 @@ def test_log_softmax_symbolic():
             gv: R.Tensor((a, b, c), "float32") = R.nn.log_softmax(x)
             return gv
 
-    a_main = T.dynamic("a")
-    b_main = T.dynamic("b")
-    c_main = T.dynamic("c")
-    a_log_softmax = T.dynamic("a")
-    b_log_softmax = T.dynamic("b")
-    c_log_softmax = T.dynamic("c")
+    a_main = T.dynamic("a", "int64")
+    b_main = T.dynamic("b", "int64")
+    c_main = T.dynamic("c", "int64")
+    a_log_softmax = T.dynamic("a", "int64")
+    b_log_softmax = T.dynamic("b", "int64")
+    c_log_softmax = T.dynamic("c", "int64")
 
     @tvm.script.ir_module
     class Expected:
@@ -2211,8 +2211,8 @@ def test_cross_entropy_with_logits_batch():
 
 def test_cross_entropy_with_logits_batch_symbolic():
     # fmt: off
-    n = T.dynamic("n")
-    m = T.dynamic("m")
+    n = T.dynamic("n", "int64")
+    m = T.dynamic("m", "int64")
 
     @tvm.script.ir_module
     class CrossEntropyWithLogits:
@@ -2221,10 +2221,10 @@ def test_cross_entropy_with_logits_batch_symbolic():
             gv: R.Tensor((), "float32") = R.nn.cross_entropy_with_logits(x, y)
             return gv
 
-    n_main = T.dynamic("n")
-    m_main = T.dynamic("m")
-    m_cross_entropy_with_logits = T.dynamic("m")
-    n_cross_entropy_with_logits = T.dynamic("n")
+    n_main = T.dynamic("n", "int64")
+    m_main = T.dynamic("m", "int64")
+    m_cross_entropy_with_logits = T.dynamic("m", "int64")
+    n_cross_entropy_with_logits = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class Expected:
@@ -2554,10 +2554,10 @@ def test_batch_norm():
 
 def test_batch_norm_symbolic():
     # fmt: off
-    n = T.dynamic("n")
-    h = T.dynamic("h")
-    w = T.dynamic("w")
-    c = T.dynamic("c")
+    n = T.dynamic("n", "int64")
+    h = T.dynamic("h", "int64")
+    w = T.dynamic("w", "int64")
+    c = T.dynamic("c", "int64")
 
     @tvm.script.ir_module
     class BatchNorm:
@@ -2566,14 +2566,14 @@ def test_batch_norm_symbolic():
             gv: R.Tuple(R.Tensor((n, h, w, c), "float32"), R.Tensor((c,), "float32"), R.Tensor((c,), "float32")) = R.nn.batch_norm(x, gamma, beta, moving_mean, moving_var, axis=1)
             return gv
 
-    n_batch_norm = T.dynamic("n")
-    h_batch_norm = T.dynamic("h")
-    w_batch_norm = T.dynamic("w")
-    c_batch_norm = T.dynamic("c")
-    n_main = T.dynamic("n")
-    h_main = T.dynamic("h")
-    w_main = T.dynamic("w")
-    c_main = T.dynamic("c")
+    n_batch_norm = T.dynamic("n", "int64")
+    h_batch_norm = T.dynamic("h", "int64")
+    w_batch_norm = T.dynamic("w", "int64")
+    c_batch_norm = T.dynamic("c", "int64")
+    n_main = T.dynamic("n", "int64")
+    h_main = T.dynamic("h", "int64")
+    w_main = T.dynamic("w", "int64")
+    c_main = T.dynamic("c", "int64")
 
     @tvm.script.ir_module
     class Expected:
@@ -3030,9 +3030,9 @@ def test_layer_norm_fp16():
 
 def test_layer_norm_symbolic():
     # fmt: off
-    n = T.dynamic("n")
-    s = T.dynamic("s")
-    f = T.dynamic("f")
+    n = T.dynamic("n", "int64")
+    s = T.dynamic("s", "int64")
+    f = T.dynamic("f", "int64")
 
     @tvm.script.ir_module
     class LayerNorm:
@@ -3041,12 +3041,12 @@ def test_layer_norm_symbolic():
             gv: R.Tensor((n, s, f), "float32") = R.nn.layer_norm(x, gamma, beta, axes=[1, 2])
             return gv
 
-    n_main = T.dynamic("n")
-    s_main = T.dynamic("s")
-    f_main = T.dynamic("f")
-    n_layer_norm = T.dynamic("n")
-    s_layer_norm = T.dynamic("s")
-    f_layer_norm = T.dynamic("f")
+    n_main = T.dynamic("n", "int64")
+    s_main = T.dynamic("s", "int64")
+    f_main = T.dynamic("f", "int64")
+    n_layer_norm = T.dynamic("n", "int64")
+    s_layer_norm = T.dynamic("s", "int64")
+    f_layer_norm = T.dynamic("f", "int64")
 
     @tvm.script.ir_module
     class Expected:
@@ -3251,10 +3251,10 @@ def test_group_norm_fp16():
 
 def test_group_norm_symbolic():
     # fmt: off
-    n = T.dynamic("n")
-    c = T.dynamic("c")
-    h = T.dynamic("h")
-    w = T.dynamic("w")
+    n = T.dynamic("n", "int64")
+    c = T.dynamic("c", "int64")
+    h = T.dynamic("h", "int64")
+    w = T.dynamic("w", "int64")
 
     @tvm.script.ir_module
     class GroupNorm:
@@ -3263,13 +3263,13 @@ def test_group_norm_symbolic():
             gv: R.Tensor((n, 4 * c, h, w), "float32") = R.nn.group_norm(x, gamma, beta, num_groups=4, channel_axis=1, axes=[2, 3])
             return gv
 
-    n_group_norm = T.dynamic("n")
-    h_group_norm = T.dynamic("h")
-    w_group_norm = T.dynamic("w")
-    n_main = T.dynamic("n")
-    c = T.dynamic("c")
-    h_main = T.dynamic("h")
-    w_main = T.dynamic("w")
+    n_group_norm = T.dynamic("n", "int64")
+    h_group_norm = T.dynamic("h", "int64")
+    w_group_norm = T.dynamic("w", "int64")
+    n_main = T.dynamic("n", "int64")
+    c = T.dynamic("c", "int64")
+    h_main = T.dynamic("h", "int64")
+    w_main = T.dynamic("w", "int64")
 
     @tvm.script.ir_module
     class Expected:
@@ -3492,9 +3492,9 @@ def test_rms_norm_fp16():
 
 def test_rms_norm_symbolic():
     # fmt: off
-    n = T.dynamic("n")
-    s = T.dynamic("s")
-    f = T.dynamic("f")
+    n = T.dynamic("n", "int64")
+    s = T.dynamic("s", "int64")
+    f = T.dynamic("f", "int64")
 
     @tvm.script.ir_module
     class RMSNorm:
@@ -3503,12 +3503,12 @@ def test_rms_norm_symbolic():
             gv: R.Tensor((n, s, f), "float32") = R.nn.rms_norm(x, weight, axes=[1, 2])
             return gv
 
-    n_rms_norm = T.dynamic("n")
-    s_rms_norm = T.dynamic("s")
-    f_rms_norm = T.dynamic("f")
-    n_main = T.dynamic("n")
-    s_main = T.dynamic("s")
-    f_main = T.dynamic("f")
+    n_rms_norm = T.dynamic("n", "int64")
+    s_rms_norm = T.dynamic("s", "int64")
+    f_rms_norm = T.dynamic("f", "int64")
+    n_main = T.dynamic("n", "int64")
+    s_main = T.dynamic("s", "int64")
+    f_main = T.dynamic("f", "int64")
 
     @tvm.script.ir_module
     class Expected:
@@ -3844,8 +3844,8 @@ def test_dynamic_attention():
     legalization.
     """
 
-    seq_len = T.dynamic("seq_len")
-    seq_len_kv = T.dynamic("seq_len_kv")
+    seq_len = T.dynamic("seq_len", "int64")
+    seq_len_kv = T.dynamic("seq_len_kv", "int64")
 
     @tvm.script.ir_module
     class Attention:
@@ -3870,7 +3870,7 @@ def test_dynamic_batch_attention():
     fix https://github.com/apache/tvm/issues/19696
     """
 
-    batch_size = T.dynamic("batch_size")
+    batch_size = T.dynamic("batch_size", "int64")
 
     @tvm.script.ir_module
     class Attention:
@@ -3885,7 +3885,7 @@ def test_dynamic_batch_attention():
 
     LegalizeOps()(Attention)
 
-    batch_size = T.dynamic("batch_size")
+    batch_size = T.dynamic("batch_size", "int64")
 
     @tvm.script.ir_module
     class AttentionBias:
@@ -4056,7 +4056,7 @@ def test_nll_no_weight():
 
 def test_nll_no_batch():
     # fmt: off
-    C = T.dynamic("C")
+    C = T.dynamic("C", "int64")
 
     @tvm.script.ir_module
     class NLLLoss:
@@ -4065,8 +4065,8 @@ def test_nll_no_batch():
             gv = R.nn.nll_loss(predictions, targets, weights, reduction="mean", ignore_index=1)
             return gv
 
-    C_main = T.dynamic("C")
-    C_nll_loss = T.dynamic("C")
+    C_main = T.dynamic("C", "int64")
+    C_nll_loss = T.dynamic("C", "int64")
 
     @tvm.script.ir_module
     class Expected:
@@ -4105,10 +4105,10 @@ def test_nll_no_batch():
 
 def test_nll_loss_symbolic():
     # fmt: off
-    N = T.dynamic("N")
-    C = T.dynamic("C")
-    d1 = T.dynamic("d1")
-    d2 = T.dynamic("d2")
+    N = T.dynamic("N", "int64")
+    C = T.dynamic("C", "int64")
+    d1 = T.dynamic("d1", "int64")
+    d2 = T.dynamic("d2", "int64")
 
     @tvm.script.ir_module
     class NLLLoss:
@@ -4117,14 +4117,14 @@ def test_nll_loss_symbolic():
             gv: R.Tensor((), "float32") = R.nn.nll_loss(predictions, targets, weights, reduction="mean", ignore_index=-1)
             return gv
 
-    N_main = T.dynamic("N")
-    C_main = T.dynamic("C")
-    d1_main = T.dynamic("d1")
-    d2_main = T.dynamic("d2")
-    C_nll_loss = T.dynamic("C")
-    N_nll_loss = T.dynamic("N")
-    d1_nll_loss = T.dynamic("d1")
-    d2_nll_loss = T.dynamic("d2")
+    N_main = T.dynamic("N", "int64")
+    C_main = T.dynamic("C", "int64")
+    d1_main = T.dynamic("d1", "int64")
+    d2_main = T.dynamic("d2", "int64")
+    C_nll_loss = T.dynamic("C", "int64")
+    N_nll_loss = T.dynamic("N", "int64")
+    d1_nll_loss = T.dynamic("d1", "int64")
+    d2_nll_loss = T.dynamic("d2", "int64")
 
     @tvm.script.ir_module
     class Expected:

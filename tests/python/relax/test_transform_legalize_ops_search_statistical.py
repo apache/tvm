@@ -61,9 +61,9 @@ def test_where():
 
 def test_where_symbolic():
     # fmt: off
-    a = T.dynamic("a")
-    b = T.dynamic("b")
-    c = T.dynamic("c")
+    a = T.dynamic("a", "int64")
+    b = T.dynamic("b", "int64")
+    c = T.dynamic("c", "int64")
 
     @tvm.script.ir_module
     class Where:
@@ -72,12 +72,12 @@ def test_where_symbolic():
             gv: R.Tensor((a, b, c), "float32") = R.where(condition, x, y)
             return gv
 
-    a_main = T.dynamic("a")
-    b_main = T.dynamic("b")
-    c_main = T.dynamic("c")
-    a_where = T.dynamic("a")
-    b_where = T.dynamic("b")
-    c_where = T.dynamic("c")
+    a_main = T.dynamic("a", "int64")
+    b_main = T.dynamic("b", "int64")
+    c_main = T.dynamic("c", "int64")
+    a_where = T.dynamic("a", "int64")
+    b_where = T.dynamic("b", "int64")
+    c_where = T.dynamic("c", "int64")
 
     @tvm.script.ir_module
     class Expected:
@@ -149,10 +149,10 @@ def test_argmax():
 
 def test_argmax_symbolic():
     # fmt: off
-    a = T.dynamic("a")
-    c = T.dynamic("c")
-    d = T.dynamic("d")
-    b = T.dynamic("b")
+    a = T.dynamic("a", "int64")
+    c = T.dynamic("c", "int64")
+    d = T.dynamic("d", "int64")
+    b = T.dynamic("b", "int64")
 
     @tvm.script.ir_module
     class Argmax:
@@ -161,14 +161,14 @@ def test_argmax_symbolic():
             gv: R.Tensor((a, 1, c, d), "int64") = R.argmax(x, axis=1, keepdims=True)
             return gv
 
-    a_main = T.dynamic("a")
-    c_main = T.dynamic("c")
-    d_main = T.dynamic("d")
-    b_main = T.dynamic("b")
-    a_argmax = T.dynamic("a")
-    b_argmax = T.dynamic("b")
-    c_argmax = T.dynamic("c")
-    d_argmax = T.dynamic("d")
+    a_main = T.dynamic("a", "int64")
+    c_main = T.dynamic("c", "int64")
+    d_main = T.dynamic("d", "int64")
+    b_main = T.dynamic("b", "int64")
+    a_argmax = T.dynamic("a", "int64")
+    b_argmax = T.dynamic("b", "int64")
+    c_argmax = T.dynamic("c", "int64")
+    d_argmax = T.dynamic("d", "int64")
 
     @tvm.script.ir_module
     class Expected:
@@ -254,10 +254,10 @@ def test_argmin():
 
 def test_argmin_symbolic():
     # fmt: off
-    a = T.dynamic("a")
-    b = T.dynamic("b")
-    c = T.dynamic("c")
-    d = T.dynamic("d")
+    a = T.dynamic("a", "int64")
+    b = T.dynamic("b", "int64")
+    c = T.dynamic("c", "int64")
+    d = T.dynamic("d", "int64")
 
     @tvm.script.ir_module
     class Argmin:
@@ -266,14 +266,14 @@ def test_argmin_symbolic():
             gv: R.Tensor((1, 1, 1, 1), "int64") = R.argmin(x, keepdims=True)
             return gv
 
-    a_argmin = T.dynamic("a")
-    b_argmin = T.dynamic("b")
-    c_argmin = T.dynamic("c")
-    d_argmin = T.dynamic("d")
-    a_main = T.dynamic("a")
-    b_main = T.dynamic("b")
-    c_main = T.dynamic("c")
-    d_main = T.dynamic("d")
+    a_argmin = T.dynamic("a", "int64")
+    b_argmin = T.dynamic("b", "int64")
+    c_argmin = T.dynamic("c", "int64")
+    d_argmin = T.dynamic("d", "int64")
+    a_main = T.dynamic("a", "int64")
+    b_main = T.dynamic("b", "int64")
+    c_main = T.dynamic("c", "int64")
+    d_main = T.dynamic("d", "int64")
 
     @tvm.script.ir_module
     class Expected:
@@ -350,10 +350,10 @@ def test_max():
 
 def test_max_symbolic():
     # fmt: off
-    a = T.dynamic("a")
-    d = T.dynamic("d")
-    b = T.dynamic("b")
-    c = T.dynamic("c")
+    a = T.dynamic("a", "int64")
+    d = T.dynamic("d", "int64")
+    b = T.dynamic("b", "int64")
+    c = T.dynamic("c", "int64")
 
     @tvm.script.ir_module
     class Max:
@@ -362,14 +362,14 @@ def test_max_symbolic():
             gv: R.Tensor((a, d), "float32") = R.max(x, axis=[1, 2])
             return gv
 
-    a_main = T.dynamic("a")
-    d_main = T.dynamic("d")
-    b_main = T.dynamic("b")
-    c_main = T.dynamic("c")
-    a_max = T.dynamic("a")
-    b_max = T.dynamic("b")
-    c_max = T.dynamic("c")
-    d_max = T.dynamic("d")
+    a_main = T.dynamic("a", "int64")
+    d_main = T.dynamic("d", "int64")
+    b_main = T.dynamic("b", "int64")
+    c_main = T.dynamic("c", "int64")
+    a_max = T.dynamic("a", "int64")
+    b_max = T.dynamic("b", "int64")
+    c_max = T.dynamic("c", "int64")
+    d_max = T.dynamic("d", "int64")
 
     @tvm.script.ir_module
     class Expected:
@@ -431,10 +431,10 @@ def test_min():
 
 def test_min_symbolic():
     # fmt: off
-    a = T.dynamic("a")
-    d = T.dynamic("d")
-    b = T.dynamic("b")
-    c = T.dynamic("c")
+    a = T.dynamic("a", "int64")
+    d = T.dynamic("d", "int64")
+    b = T.dynamic("b", "int64")
+    c = T.dynamic("c", "int64")
 
     @tvm.script.ir_module
     class Min:
@@ -443,14 +443,14 @@ def test_min_symbolic():
             gv: R.Tensor((a, 1, 1, d), "float32") = R.min(x, axis=[1, 2], keepdims=True)
             return gv
 
-    a_main = T.dynamic("a")
-    d_main = T.dynamic("d")
-    b_main = T.dynamic("b")
-    c_main = T.dynamic("c")
-    a_min = T.dynamic("a")
-    b_min = T.dynamic("b")
-    c_min = T.dynamic("c")
-    d_min = T.dynamic("d")
+    a_main = T.dynamic("a", "int64")
+    d_main = T.dynamic("d", "int64")
+    b_main = T.dynamic("b", "int64")
+    c_main = T.dynamic("c", "int64")
+    a_min = T.dynamic("a", "int64")
+    b_min = T.dynamic("b", "int64")
+    c_min = T.dynamic("c", "int64")
+    d_min = T.dynamic("d", "int64")
 
     @tvm.script.ir_module
     class Expected:
@@ -512,10 +512,10 @@ def test_sum():
 
 def test_sum_symbolic():
     # fmt: off
-    a = T.dynamic("a")
-    b = T.dynamic("b")
-    c = T.dynamic("c")
-    d = T.dynamic("d")
+    a = T.dynamic("a", "int64")
+    b = T.dynamic("b", "int64")
+    c = T.dynamic("c", "int64")
+    d = T.dynamic("d", "int64")
 
     @tvm.script.ir_module
     class Sum:
@@ -524,14 +524,14 @@ def test_sum_symbolic():
             gv: R.Tensor((), "float32") = R.sum(x)
             return gv
 
-    a_main = T.dynamic("a")
-    b_main = T.dynamic("b")
-    c_main = T.dynamic("c")
-    d_main = T.dynamic("d")
-    a_sum = T.dynamic("a")
-    b_sum = T.dynamic("b")
-    c_sum = T.dynamic("c")
-    d_sum = T.dynamic("d")
+    a_main = T.dynamic("a", "int64")
+    b_main = T.dynamic("b", "int64")
+    c_main = T.dynamic("c", "int64")
+    d_main = T.dynamic("d", "int64")
+    a_sum = T.dynamic("a", "int64")
+    b_sum = T.dynamic("b", "int64")
+    c_sum = T.dynamic("c", "int64")
+    d_sum = T.dynamic("d", "int64")
 
     @tvm.script.ir_module
     class Expected:
@@ -626,10 +626,10 @@ def test_prod_bool():
 
 def test_prod_symbolic():
     # fmt: off
-    a = T.dynamic("a")
-    b = T.dynamic("b")
-    c = T.dynamic("c")
-    d = T.dynamic("d")
+    a = T.dynamic("a", "int64")
+    b = T.dynamic("b", "int64")
+    c = T.dynamic("c", "int64")
+    d = T.dynamic("d", "int64")
 
     @tvm.script.ir_module
     class Prod:
@@ -638,14 +638,14 @@ def test_prod_symbolic():
             gv: R.Tensor((1, 1, 1, 1), "float32") = R.prod(x, keepdims=True)
             return gv
 
-    a_main = T.dynamic("a")
-    b_main = T.dynamic("b")
-    c_main = T.dynamic("c")
-    d_main = T.dynamic("d")
-    a_prod = T.dynamic("a")
-    b_prod = T.dynamic("b")
-    c_prod = T.dynamic("c")
-    d_prod = T.dynamic("d")
+    a_main = T.dynamic("a", "int64")
+    b_main = T.dynamic("b", "int64")
+    c_main = T.dynamic("c", "int64")
+    d_main = T.dynamic("d", "int64")
+    a_prod = T.dynamic("a", "int64")
+    b_prod = T.dynamic("b", "int64")
+    c_prod = T.dynamic("c", "int64")
+    d_prod = T.dynamic("d", "int64")
 
     @tvm.script.ir_module
     class Expected:
@@ -778,10 +778,10 @@ def test_mean():
 
 def test_mean_symbolic():
     # fmt: off
-    b = T.dynamic("b")
-    c = T.dynamic("c")
-    a = T.dynamic("a")
-    d = T.dynamic("d")
+    b = T.dynamic("b", "int64")
+    c = T.dynamic("c", "int64")
+    a = T.dynamic("a", "int64")
+    d = T.dynamic("d", "int64")
 
     @tvm.script.ir_module
     class Mean:
@@ -790,14 +790,14 @@ def test_mean_symbolic():
             gv: R.Tensor((b, c), "float32") = R.mean(x, [0, 3])
             return gv
 
-    b_main = T.dynamic("b")
-    c_main = T.dynamic("c")
-    a_main = T.dynamic("a")
-    d_main = T.dynamic("d")
-    a_mean = T.dynamic("a")
-    b_mean = T.dynamic("b")
-    c_mean = T.dynamic("c")
-    d_mean = T.dynamic("d")
+    b_main = T.dynamic("b", "int64")
+    c_main = T.dynamic("c", "int64")
+    a_main = T.dynamic("a", "int64")
+    d_main = T.dynamic("d", "int64")
+    a_mean = T.dynamic("a", "int64")
+    b_mean = T.dynamic("b", "int64")
+    c_mean = T.dynamic("c", "int64")
+    d_mean = T.dynamic("d", "int64")
 
     @tvm.script.ir_module
     class Expected:
@@ -988,10 +988,10 @@ def test_std():
 
 def test_std_symbolic():
     # fmt: off
-    a = T.dynamic("a")
-    b = T.dynamic("b")
-    c = T.dynamic("c")
-    d = T.dynamic("d")
+    a = T.dynamic("a", "int64")
+    b = T.dynamic("b", "int64")
+    c = T.dynamic("c", "int64")
+    d = T.dynamic("d", "int64")
 
     @tvm.script.ir_module
     class Std:
@@ -1000,14 +1000,14 @@ def test_std_symbolic():
             gv: R.Tensor((), "float32") = R.std(x)
             return gv
 
-    a_std = T.dynamic("a")
-    b_std = T.dynamic("b")
-    c_std = T.dynamic("c")
-    d_std = T.dynamic("d")
-    a_main = T.dynamic("a")
-    b_main = T.dynamic("b")
-    c_main = T.dynamic("c")
-    d_main = T.dynamic("d")
+    a_std = T.dynamic("a", "int64")
+    b_std = T.dynamic("b", "int64")
+    c_std = T.dynamic("c", "int64")
+    d_std = T.dynamic("d", "int64")
+    a_main = T.dynamic("a", "int64")
+    b_main = T.dynamic("b", "int64")
+    c_main = T.dynamic("c", "int64")
+    d_main = T.dynamic("d", "int64")
 
     @I.ir_module
     class Expected:
@@ -1150,10 +1150,10 @@ def test_variance():
 
 def test_variance_symbolic():
     # fmt: off
-    b = T.dynamic("b")
-    c = T.dynamic("c")
-    a = T.dynamic("a")
-    d = T.dynamic("d")
+    b = T.dynamic("b", "int64")
+    c = T.dynamic("c", "int64")
+    a = T.dynamic("a", "int64")
+    d = T.dynamic("d", "int64")
 
     @tvm.script.ir_module
     class Variance:
@@ -1162,14 +1162,14 @@ def test_variance_symbolic():
             gv: R.Tensor((1, b, c, 1), "float32") = R.variance(x, [0, 3], keepdims=True)
             return gv
 
-    b_main = T.dynamic("b")
-    c_main = T.dynamic("c")
-    a_main = T.dynamic("a")
-    d_main = T.dynamic("d")
-    a_variance = T.dynamic("a")
-    b_variance = T.dynamic("b")
-    c_variance = T.dynamic("c")
-    d_variance = T.dynamic("d")
+    b_main = T.dynamic("b", "int64")
+    c_main = T.dynamic("c", "int64")
+    a_main = T.dynamic("a", "int64")
+    d_main = T.dynamic("d", "int64")
+    a_variance = T.dynamic("a", "int64")
+    b_variance = T.dynamic("b", "int64")
+    c_variance = T.dynamic("c", "int64")
+    d_variance = T.dynamic("d", "int64")
 
     @tvm.script.ir_module
     class Expected:

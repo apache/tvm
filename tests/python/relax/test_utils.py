@@ -42,7 +42,7 @@ def test_copy_with_new_vars():
 
 
 def test_copy_with_new_vars_copied_symbolic_vars():
-    m = T.dynamic("m")
+    m = T.dynamic("m", "int64")
 
     @R.function
     def before(x: R.Tensor((m,), "float32"), y: R.Tensor((m,), "float32")):

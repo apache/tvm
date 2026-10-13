@@ -203,14 +203,14 @@ def test_conv2d_NHWC_sub_indexed():
 
 
 def _test_conv2d_symbolic_sub_indexed():
-    N, H, W = T.dynamic("N"), T.dynamic("H"), T.dynamic("W")
-    Hw, Ww = T.dynamic("Hw"), T.dynamic("Ww")
+    N, H, W = T.dynamic("N", "int64"), T.dynamic("H", "int64"), T.dynamic("W", "int64")
+    Hw, Ww = T.dynamic("Hw", "int64"), T.dynamic("Ww", "int64")
 
-    N = T.dynamic("N")
-    H = T.dynamic("H")
-    W = T.dynamic("W")
-    Hw = T.dynamic("Hw")
-    Ww = T.dynamic("Ww")
+    N = T.dynamic("N", "int64")
+    H = T.dynamic("H", "int64")
+    W = T.dynamic("W", "int64")
+    Hw = T.dynamic("Hw", "int64")
+    Ww = T.dynamic("Ww", "int64")
 
     @I.ir_module
     class Input:

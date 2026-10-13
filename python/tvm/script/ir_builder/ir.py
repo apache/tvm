@@ -40,7 +40,7 @@ def dtype(value: str | DataType) -> DataTypeImm:
     return DataTypeImm(value)
 
 
-def dynamic(name: str, dtype: str = "int64", *, loc: LocationEntry | Location = UNKNOWN_LOC) -> Var:
+def dynamic(name: str, dtype: str = "int32", *, loc: LocationEntry | Location = UNKNOWN_LOC) -> Var:
     """Create a fresh primitive symbolic variable, independently of builder scope.
 
     Parameters
@@ -48,7 +48,7 @@ def dynamic(name: str, dtype: str = "int64", *, loc: LocationEntry | Location = 
     name : str
         The symbol's display name. Repeated names do not share identity.
     dtype : str
-        Primitive dtype, defaulting to int64.
+        Primitive dtype, defaulting to int32.
     loc : LocationEntry or Location, optional
         Source location of the symbol.
 

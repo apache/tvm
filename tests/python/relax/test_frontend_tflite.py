@@ -1090,8 +1090,8 @@ def test_fill_dynamic_dims():
         def func(self, dims, value):
             return tf.fill(dims, value)
 
-    fill_dim_0 = T.dynamic("fill_dim_0")
-    fill_dim_1 = T.dynamic("fill_dim_1")
+    fill_dim_0 = T.dynamic("fill_dim_0", "int64")
+    fill_dim_1 = T.dynamic("fill_dim_1", "int64")
 
     @I.ir_module
     class Expected:
@@ -1126,8 +1126,8 @@ def test_random_uniform_dynamic_shape():
         def func(self, shape):
             return tf.raw_ops.RandomUniform(shape=shape, dtype=tf.float32, seed=7, seed2=11)
 
-    random_uniform_dim_0 = T.dynamic("random_uniform_dim_0")
-    random_uniform_dim_1 = T.dynamic("random_uniform_dim_1")
+    random_uniform_dim_0 = T.dynamic("random_uniform_dim_0", "int64")
+    random_uniform_dim_1 = T.dynamic("random_uniform_dim_1", "int64")
 
     @I.ir_module
     class Expected:
@@ -1173,8 +1173,8 @@ def test_random_standard_normal_dynamic_shape():
         def func(self, shape):
             return tf.raw_ops.RandomStandardNormal(shape=shape, dtype=tf.float32, seed=3, seed2=5)
 
-    random_standard_normal_dim_0 = T.dynamic("random_standard_normal_dim_0")
-    random_standard_normal_dim_1 = T.dynamic("random_standard_normal_dim_1")
+    random_standard_normal_dim_0 = T.dynamic("random_standard_normal_dim_0", "int64")
+    random_standard_normal_dim_1 = T.dynamic("random_standard_normal_dim_1", "int64")
 
     @I.ir_module
     class Expected:
@@ -1236,7 +1236,7 @@ def test_multinomial_dynamic_num_samples():
                 seed2=17,
             )
 
-    multinomial_num_samples = T.dynamic("multinomial_num_samples")
+    multinomial_num_samples = T.dynamic("multinomial_num_samples", "int64")
 
     @I.ir_module
     class Expected:
@@ -13316,8 +13316,8 @@ def test_dilate_dynamic_dilations():
     mod = from_tflite(tflite_model)
     mod["main"] = mod["main"].without_attr("params")
 
-    dilate_stride_0 = T.dynamic("dilate_stride_0")
-    dilate_stride_1 = T.dynamic("dilate_stride_1")
+    dilate_stride_0 = T.dynamic("dilate_stride_0", "int64")
+    dilate_stride_1 = T.dynamic("dilate_stride_1", "int64")
 
     @I.ir_module
     class Expected:

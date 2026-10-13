@@ -153,15 +153,15 @@ def test_nested_scope_does_not_reassign_outer_symbol(language):
 def test_mixed_generic_symbol_dtypes_and_identity(language):
     source = """
 @M.function
-def main[n, k: M.int32](x: M.Tensor((n, k))) -> M.Tensor((n, k)):
+def main[n, k: M.int64](x: M.Tensor((n, k))) -> M.Tensor((n, k)):
     M.record(n)
     M.record(k)
     return x
 """
     main = entry.parse(source, extra_vars={"M": language.M})
     n, k = main.params[0].args[0].args[0]
-    assert n.args == ("int64",)
-    assert k.args == ("int32",)
+    assert n.args == ("int32",)
+    assert k.args == ("int64",)
     assert main.ret_type.args[0][0] is n
     assert main.ret_type.args[0][1] is k
     assert main.body[0][1] is n

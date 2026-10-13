@@ -107,8 +107,8 @@ def test_vm_compile_unlowered_operator_error():
 
 
 def test_match_check():
-    n = T.dynamic("n")
-    m = T.dynamic("m")
+    n = T.dynamic("n", "int64")
+    m = T.dynamic("m", "int64")
 
     @tvm.script.ir_module
     class TestMatchCheck:
@@ -135,8 +135,8 @@ def test_match_check():
 
 
 def test_vm_compile_stage2():
-    n = T.dynamic("n")
-    m = T.dynamic("m")
+    n = T.dynamic("n", "int64")
+    m = T.dynamic("m", "int64")
 
     @tvm.script.ir_module
     class TestVMCompileStage2:
@@ -195,8 +195,8 @@ def test_vm_compile_stage3():
 
 
 def test_vm_compile_e2e():
-    n = T.dynamic("n")
-    m = T.dynamic("m")
+    n = T.dynamic("n", "int64")
+    m = T.dynamic("m", "int64")
 
     @tvm.script.ir_module
     class TestVMCompileE2E:
@@ -228,9 +228,9 @@ def test_vm_compile_e2e_func_param_with_shape():
     m_tir_matmul = T.dynamic("m", "int32")
     n_tir_matmul = T.dynamic("n", "int32")
     k_tir_matmul = T.dynamic("k", "int32")
-    m_func = T.dynamic("m")
-    k_func = T.dynamic("k")
-    n_func = T.dynamic("n")
+    m_func = T.dynamic("m", "int64")
+    k_func = T.dynamic("k", "int64")
+    n_func = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class TestVMCompileE2E2:
@@ -590,8 +590,8 @@ def test_vm_relax_symbolic_shape():
 
 
 def test_vm_relax_symbolic_shape_tuple():
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
     @I.ir_module
     class mod:
@@ -967,8 +967,8 @@ class TestVMSetInput:
 def test_multi_systemlib():
     pytest.importorskip("cloudpickle")  # needed by popen_pool.PopenWorker
 
-    N = T.dynamic("N")
-    m = T.dynamic("m")
+    N = T.dynamic("N", "int64")
+    m = T.dynamic("m", "int64")
 
     @tvm.script.ir_module
     class ModA:
@@ -984,8 +984,8 @@ def test_multi_systemlib():
             gv0 = R.call_tir(ModA.tir_init, (), ty_args=[R.Tensor((m + 1,), dtype="float32")])
             return gv0
 
-    N = T.dynamic("N")
-    m = T.dynamic("m")
+    N = T.dynamic("N", "int64")
+    m = T.dynamic("m", "int64")
 
     @tvm.script.ir_module
     class ModB:
