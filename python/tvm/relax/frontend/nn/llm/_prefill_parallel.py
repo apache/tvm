@@ -16,7 +16,7 @@
 # under the License.
 """Parallel dot-product prefill for wide FP32 WebGPU attention heads."""
 
-from tvm.script import s_tir as S
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 from ._kernel_common import _get_kv_chunk_len, _get_seq_offset, _length_info_buffer, _rope
@@ -91,19 +91,19 @@ def _parallel_prefill_body(
         for row in T.parallel(q.shape[0], annotations={"thread_binding": "blockIdx.x"}):
             for head in T.parallel(h_q, annotations={"thread_binding": "blockIdx.y"}):
                 for lane in T.parallel(128, annotations={"thread_binding": "threadIdx.x"}):
-                    with S.sblock("attention"):
-                        S.reads()
-                        S.writes()
-                        partial = S.sblock_alloc_tensor((128,), "float32", scope="shared")
-                        probabilities = S.sblock_alloc_tensor((4,), "float32", scope="shared")
-                        state = S.sblock_alloc_tensor((3,), "float32", scope="shared")
-                        query = S.sblock_alloc_tensor((16,), "float32", scope="local")
-                        accum = S.sblock_alloc_tensor((4,), "float32", scope="local")
-                        score = S.sblock_alloc_tensor((1,), "float32", scope="local")
-                        weights = S.sblock_alloc_tensor((4,), "float32", scope="local")
-                        denominator = S.sblock_alloc_tensor((1,), "float32", scope="local")
-                        rescale = S.sblock_alloc_tensor((1,), "float32", scope="local")
-                        b = S.sblock_alloc_tensor((1,), "int32", scope="local")
+                    with Ts.sblock("attention"):
+                        Ts.reads()
+                        Ts.writes()
+                        partial = Ts.sblock_alloc_tensor((128,), "float32", scope="shared")
+                        probabilities = Ts.sblock_alloc_tensor((4,), "float32", scope="shared")
+                        state = Ts.sblock_alloc_tensor((3,), "float32", scope="shared")
+                        query = Ts.sblock_alloc_tensor((16,), "float32", scope="local")
+                        accum = Ts.sblock_alloc_tensor((4,), "float32", scope="local")
+                        score = Ts.sblock_alloc_tensor((1,), "float32", scope="local")
+                        weights = Ts.sblock_alloc_tensor((4,), "float32", scope="local")
+                        denominator = Ts.sblock_alloc_tensor((1,), "float32", scope="local")
+                        rescale = Ts.sblock_alloc_tensor((1,), "float32", scope="local")
+                        b = Ts.sblock_alloc_tensor((1,), "int32", scope="local")
                         b[0] = 0
                         while row >= q_indptr[b[0] + 1]:
                             b[0] += 1
@@ -256,7 +256,7 @@ def _attention_prefill_ragged_parallel(h_kv, h_q, rope_scaling):
     ]
     body = _parallel_prefill_body(h_kv, h_q, rope_scaling)
 
-    @S.function
+    @Ts.function
     def batch_prefill_ragged_kv(
         q: T.Tensor((qlen, h_q, 512), "float32"),
         q_indptr: T.Tensor((batch + 1,), "int32", elem_offset=qi),
@@ -322,7 +322,7 @@ def _attention_prefill_paged_parallel(
     )
     symbol = "batch_prefill_paged_kv_sliding_window" if sliding_window else "batch_prefill_paged_kv"
 
-    @S.function
+    @Ts.function
     def batch_prefill_paged_kv(
         q: T.Tensor((qlen, h_q, 512), "float32"),
         q_indptr: T.Tensor((batch + 1,), "int32", elem_offset=qi),
@@ -386,7 +386,7 @@ def _attention_prefill_paged_split(
     )
     symbol = "batch_prefill_paged_kv_sliding_window" if sliding_window else "batch_prefill_paged_kv"
 
-    @S.function
+    @Ts.function
     def batch_prefill_paged_kv(
         q: T.Tensor((qlen, h_q, 512), "float32"),
         q_indptr: T.Tensor((batch + 1,), "int32", elem_offset=qi),
@@ -407,18 +407,18 @@ def _attention_prefill_paged_split(
         T.func_attr({"global_symbol": symbol})
         # Launch each KV partition separately so long contexts do not produce
         # one long-running dispatch. Merge their softmax-weighted outputs below.
-        temporary = S.sblock_alloc_tensor(
+        temporary = Ts.sblock_alloc_tensor(
             (T.int64(4), T.Cast("int64", qlen), T.int64(h_q), T.int64(512)), "float32"
         )
-        temporary_lse = S.sblock_alloc_tensor(
+        temporary_lse = Ts.sblock_alloc_tensor(
             (T.int64(4), T.Cast("int64", qlen), T.int64(h_q)), "float32"
         )
         for part_idx in T.serial(4):
-            with S.sblock("part_idx"):
-                part_output = S.match_tensor(
+            with Ts.sblock("part_idx"):
+                part_output = Ts.match_tensor(
                     temporary[part_idx, 0:qlen, 0:h_q, 0:512], (qlen, h_q, 512), offset_factor=1
                 )
-                part_lse = S.match_tensor(
+                part_lse = Ts.match_tensor(
                     temporary_lse[part_idx, 0:qlen, 0:h_q], (qlen, h_q), offset_factor=1
                 )
                 body(
@@ -443,14 +443,14 @@ def _attention_prefill_paged_split(
         for row in T.parallel(qlen, annotations={"thread_binding": "blockIdx.x"}):
             for head in T.parallel(h_q, annotations={"thread_binding": "blockIdx.y"}):
                 for lane in T.parallel(128, annotations={"thread_binding": "threadIdx.x"}):
-                    with S.sblock("merge"):
-                        S.reads()
-                        S.writes()
-                        weights = S.sblock_alloc_tensor((4,), "float32", scope="shared")
-                        local_weights = S.sblock_alloc_tensor((4,), "float32", scope="local")
-                        maximum = S.sblock_alloc_tensor((1,), "float32", scope="local")
-                        denominator = S.sblock_alloc_tensor((1,), "float32", scope="local")
-                        value = S.sblock_alloc_tensor((1,), "float32", scope="local")
+                    with Ts.sblock("merge"):
+                        Ts.reads()
+                        Ts.writes()
+                        weights = Ts.sblock_alloc_tensor((4,), "float32", scope="shared")
+                        local_weights = Ts.sblock_alloc_tensor((4,), "float32", scope="local")
+                        maximum = Ts.sblock_alloc_tensor((1,), "float32", scope="local")
+                        denominator = Ts.sblock_alloc_tensor((1,), "float32", scope="local")
+                        value = Ts.sblock_alloc_tensor((1,), "float32", scope="local")
                         if lane == 0:
                             maximum[0] = T.float32(-50000)
                             for part in T.unroll(4):
