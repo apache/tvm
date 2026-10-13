@@ -53,6 +53,8 @@ ExprDoc TypeValue(DocTranslatorObj* d, const Type& type, bool dtype_literal = tr
 ffi::Optional<ExprDoc> StandardCallDocTranslate(DocTranslatorObj* d, const CallNode* call);
 ExprDoc RawCall(DocTranslatorObj* d, const CallNode* call,
                 ffi::Optional<ffi::Array<ExprDoc>> translated_args = std::nullopt);
+ExprDoc ReflectedValue(DocTranslatorObj* d, ffi::AnyView value);
+
 ExprDoc AnyValue(DocTranslatorObj* d, ffi::AnyView value);
 ffi::Map<Var, IdDoc> CopyImplicitDefs(DocTranslatorObj* d);
 void FinalizeFunctionDefinitions(DocTranslatorObj* d, const ffi::Map<Var, IdDoc>& signature,

@@ -16,7 +16,9 @@
 # under the License.
 """Unified type system in the project."""
 
+import sys
 from collections.abc import Callable
+from types import ModuleType
 from typing import ClassVar
 
 import tvm_ffi
@@ -165,8 +167,15 @@ class PtrType(Type):
         The storage scope into which the pointer addresses.
     """
 
-    def __init__(self, element_type, storage_scope=""):
-        self.__init_handle_by_constructor__(_ffi_api.PtrType, element_type, storage_scope)
+    def __init__(self, element_type, storage_scope="global", *, loc=UNKNOWN_LOC):
+        self.__init_handle_by_constructor__(
+            _ffi_api.PtrType, _normalize_type(element_type), storage_scope
+        )
+        if loc is not UNKNOWN_LOC:
+            # Keep the script constructor's source-context behavior on the class alias.
+            from tvm.script.ir_builder.base import at  # pylint: disable=import-outside-toplevel
+
+            at(loc, self)
 
 
 @tvm_ffi.register_object("ir.TupleType")
@@ -180,7 +189,9 @@ class TupleType(Type):
     """
 
     def __init__(self, fields, loc: Location = UNKNOWN_LOC):
-        self.__init_handle_by_constructor__(_ffi_api.TupleType, fields, loc)
+        self.__init_handle_by_constructor__(
+            _ffi_api.TupleType, [_normalize_type(field) for field in fields], loc
+        )
 
 
 @tvm_ffi.register_object("ir.FuncType")
@@ -204,6 +215,68 @@ class FuncType(Type):
     def __init__(self, arg_types, ret_type):
         self.__init_handle_by_constructor__(
             _ffi_api.FuncType,
-            arg_types,
-            ret_type,
+            [_normalize_type(arg) for arg in arg_types],
+            _normalize_type(ret_type),
         )
+
+
+def _normalize_type(value) -> Type:
+    """Normalize supported explicit type arguments without invoking arbitrary factories.
+
+    Bare concrete Type classes denote their nullary instances. Scalar script
+    constructors expose their dtype through ``_dtype_str``; this path does not
+    construct a variable or require a builder frame.
+    """
+    if isinstance(value, Type):
+        return value
+    if isinstance(value, type) and issubclass(value, Type) and value is not Type:
+        return value()
+    if isinstance(value, str | tvm_ffi.dtype):
+        return PrimType(value)
+    dtype = getattr(value, "_dtype_str", None)
+    if isinstance(dtype, str):
+        return PrimType(dtype)
+    raise TypeError(f"Expected an IR type or primitive dtype, got {type(value).__name__}")
+
+
+def _init_type_api(namespace: str, target_module: str | ModuleType) -> None:
+    """Expose loaded Type bindings as short aliases in a builder namespace.
+
+    Dialect bindings precede root ``ir`` bindings. Explicit exports always win.
+    This only aliases registered classes: it never imports bindings, constructs
+    instances, or generates constructors. Call it again after loading additional
+    bindings to fill missing names or replace generated root aliases with dialect
+    aliases. Module-local provenance distinguishes generated aliases from exports.
+    """
+    module = sys.modules[target_module] if isinstance(target_module, str) else target_module
+    exports = vars(module)
+    generated = exports.setdefault("_generated_type_aliases", {})
+    root_index = Type.__tvm_ffi_type_info__.type_index
+    type_keys = [str(key) for key in tvm_ffi.registry.get_registered_type_keys()]
+    dialect_aliases = set()
+    for prefix in dict.fromkeys((namespace, "ir")):
+        for type_key in type_keys:
+            owner, _, name = type_key.rpartition(".")
+            if owner != prefix or type_key == "ir.Type":
+                continue
+            info = tvm_ffi.core._lookup_or_register_type_info_from_type_key(type_key)
+            if root_index not in info.type_ancestors:
+                continue
+            alias = name[:-4] if name.endswith("Type") else name
+            if prefix == namespace:
+                # Reserve unbound dialect names so a later repeat can fill them.
+                dialect_aliases.add(alias)
+            elif alias in dialect_aliases:
+                continue
+            if info.type_cls is None or not alias:
+                continue
+            if alias in exports:
+                previous = generated.get(alias)
+                if previous is None or exports[alias] is not previous[1]:
+                    continue
+                if prefix != namespace or previous[0] != "ir" or namespace == "ir":
+                    continue
+            exports[alias] = info.type_cls
+            generated[alias] = (prefix, info.type_cls)
+            if "__all__" in exports and alias not in exports["__all__"]:
+                exports["__all__"] = [*exports["__all__"], alias]

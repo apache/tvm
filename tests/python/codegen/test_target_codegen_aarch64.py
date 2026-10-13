@@ -601,7 +601,7 @@ def test_vscale_range_function_attribute(mattr, expect_attr):
     @I.ir_module
     class Module:
         @T.function
-        def main(A: T.Tensor((m,)), C: T.Tensor((m,))):
+        def main(A: T.Tensor((m,), "float32"), C: T.Tensor((m,), "float32")):
             T.func_attr({"tirx.noalias": True})
 
             for i in range(m):

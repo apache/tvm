@@ -504,7 +504,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 NamespaceDoc::NamespaceDoc(ffi::String canonical_name) {
   auto node = ffi::make_object<NamespaceDocNode>();
-  node->canonical_name = std::move(canonical_name);
+  node->canonical_name = (canonical_name == "ir" || canonical_name == "prim")
+                             ? ffi::String("tirx")
+                             : std::move(canonical_name);
   data_ = std::move(node);
 }
 

@@ -32,7 +32,7 @@ from tvm.script.printer.scriptable import PrinterConfig, _script
 )
 def test_script_entry_points(entry):
     render = tvm_ffi.get_global_func(entry)
-    config = PrinterConfig(extra_config={"ir.prefix": "IR"})
+    config = PrinterConfig(extra_config={"tirx.prefix": "IR"})
     assert render(tvm.ir.Range(0, 4), config) == "IR.Range(0, 4)"
     fallback_config = PrinterConfig(path_to_underline=[AccessPath.root().attr("missing")])
     assert render(tvm.runtime.ShapeTuple([1, 2]), fallback_config) == (
@@ -61,14 +61,14 @@ def test_diagnostics_without_invisible_path_info(diagnostic):
 
 def test_plain_render_without_path_mapping():
     mod = tvm.IRModule(attrs={"constant": tvm.runtime.tensor([1, 2, 3])})
-    options = {"ir.prefix": "IR", "ir.module_name": "Example"}
+    options = {"tirx.prefix": "IR", "ir.module_name": "Example"}
     expected = mod.script(show_meta=True, extra_config=options)
     actual = mod.script(
         show_meta=True, extra_config={**options, "render_invisible_path_info": False}
     )
     assert actual == expected
     assert "load_json" in actual
-    assert "from tvm.script import ir as IR" in actual
+    assert "from tvm.script import tirx as IR" in actual
 
 
 def test_redirected_repr_translation_failure():

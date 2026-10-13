@@ -76,14 +76,14 @@ def test_simple_activation_reduce():
     @T.function
     def expected():
         T.func_attr({"global_symbol": "activation_reduce"})
-        const_bias = T.alloc_tensor(ty_args=[T.Tensor((128, 512), scope="trn.sbuf")])
+        const_bias = T.alloc_tensor(ty_args=[T.Tensor((128, 512), "float32", scope="trn.sbuf")])
         with T.nki.tensorized_instruction():
             for p_loop in T.serial(128, annotations={"nki_dim": "P"}):
                 for f_loop in T.serial(512, annotations={"nki_dim": "F"}):
                     T.nki.memset(const_bias[p_loop, f_loop], T.float32(0.0))
-        A = T.alloc_tensor(ty_args=[T.Tensor((128, 512), scope="trn.sbuf")])
-        B = T.alloc_tensor(ty_args=[T.Tensor((128, 512), scope="trn.sbuf")])
-        C = T.alloc_tensor(ty_args=[T.Tensor((128, 1), scope="trn.sbuf")])
+        A = T.alloc_tensor(ty_args=[T.Tensor((128, 512), "float32", scope="trn.sbuf")])
+        B = T.alloc_tensor(ty_args=[T.Tensor((128, 512), "float32", scope="trn.sbuf")])
+        C = T.alloc_tensor(ty_args=[T.Tensor((128, 1), "float32", scope="trn.sbuf")])
         for b_loop in range(1):
             T.nki.tensorized_instruction()
             for p_loop in T.serial(0, 128, annotations={"nki_dim":"P"}):
@@ -126,14 +126,14 @@ def test_activation_reduce_in_loop():
     @T.function
     def expected():
         T.func_attr({"global_symbol": "activation_reduce"})
-        const_bias = T.alloc_tensor(ty_args=[T.Tensor((128, 512), scope="trn.sbuf")])
+        const_bias = T.alloc_tensor(ty_args=[T.Tensor((128, 512), "float32", scope="trn.sbuf")])
         with T.nki.tensorized_instruction():
             for p_loop in T.serial(128, annotations={"nki_dim": "P"}):
                 for f_loop in T.serial(512, annotations={"nki_dim": "F"}):
                     T.nki.memset(const_bias[p_loop, f_loop], T.float32(0.0))
-        A = T.alloc_tensor(ty_args=[T.Tensor((128, 16384), scope="trn.sbuf")])
-        B = T.alloc_tensor(ty_args=[T.Tensor((128, 8192), scope="trn.sbuf")])
-        C = T.alloc_tensor(ty_args=[T.Tensor((128, 16), scope="trn.sbuf")])
+        A = T.alloc_tensor(ty_args=[T.Tensor((128, 16384), "float32", scope="trn.sbuf")])
+        B = T.alloc_tensor(ty_args=[T.Tensor((128, 8192), "float32", scope="trn.sbuf")])
+        C = T.alloc_tensor(ty_args=[T.Tensor((128, 16), "float32", scope="trn.sbuf")])
         for i, b_loop in T.grid(2, 16):
             T.nki.tensorized_instruction()
             for p_loop in T.serial(0, 128, annotations={"nki_dim":"P"}):
@@ -176,14 +176,14 @@ def test_activation_reduce_in_loop2():
     @T.function
     def expected():
         T.func_attr({"global_symbol": "activation_reduce"})
-        const_bias = T.alloc_tensor(ty_args=[T.Tensor((128, 512), scope="trn.sbuf")])
+        const_bias = T.alloc_tensor(ty_args=[T.Tensor((128, 512), "float32", scope="trn.sbuf")])
         with T.nki.tensorized_instruction():
             for p_loop in T.serial(128, annotations={"nki_dim": "P"}):
                 for f_loop in T.serial(512, annotations={"nki_dim": "F"}):
                     T.nki.memset(const_bias[p_loop, f_loop], T.float32(0.0))
-        A = T.alloc_tensor(ty_args=[T.Tensor((128, 16384), scope="trn.sbuf")])
-        B = T.alloc_tensor(ty_args=[T.Tensor((128, 8192), scope="trn.sbuf")])
-        C = T.alloc_tensor(ty_args=[T.Tensor((128, 16), scope="trn.sbuf")])
+        A = T.alloc_tensor(ty_args=[T.Tensor((128, 16384), "float32", scope="trn.sbuf")])
+        B = T.alloc_tensor(ty_args=[T.Tensor((128, 8192), "float32", scope="trn.sbuf")])
+        C = T.alloc_tensor(ty_args=[T.Tensor((128, 16), "float32", scope="trn.sbuf")])
         for i, b_loop in T.grid(2, 16):
             T.nki.tensorized_instruction()
             for p_loop in T.serial(0, 128, annotations={"nki_dim":"P"}):
@@ -226,15 +226,15 @@ def test_activation_reduce_two_stage():
     @T.function
     def expected():
         T.func_attr({"global_symbol": "activation_reduce"})
-        partial_reduce = T.alloc_tensor(ty_args=[T.Tensor((128, 8), scope="trn.sbuf")])
-        const_bias = T.alloc_tensor(ty_args=[T.Tensor((128, 1024), scope="trn.sbuf")])
+        partial_reduce = T.alloc_tensor(ty_args=[T.Tensor((128, 8), "float32", scope="trn.sbuf")])
+        const_bias = T.alloc_tensor(ty_args=[T.Tensor((128, 1024), "float32", scope="trn.sbuf")])
         with T.nki.tensorized_instruction():
             for p_loop in T.serial(128, annotations={"nki_dim": "P"}):
                 for f_loop in T.serial(1024, annotations={"nki_dim": "F"}):
                     T.nki.memset(const_bias[p_loop, f_loop], T.float32(0.0))
-        A = T.alloc_tensor(ty_args=[T.Tensor((128, 16384), scope="trn.sbuf")])
-        B = T.alloc_tensor(ty_args=[T.Tensor((128, 8192), scope="trn.sbuf")])
-        C = T.alloc_tensor(ty_args=[T.Tensor((128, 1), scope="trn.sbuf")])
+        A = T.alloc_tensor(ty_args=[T.Tensor((128, 16384), "float32", scope="trn.sbuf")])
+        B = T.alloc_tensor(ty_args=[T.Tensor((128, 8192), "float32", scope="trn.sbuf")])
+        C = T.alloc_tensor(ty_args=[T.Tensor((128, 1), "float32", scope="trn.sbuf")])
         for i, b_loop in T.grid(2, 1):
             for reduction_b_loop in range(8):
                 T.nki.tensorized_instruction()
@@ -285,10 +285,10 @@ def test_activation_reduce_with_bias_scale():
     @T.function
     def expected():
         T.func_attr({"global_symbol": "activation_reduce"})
-        A = T.alloc_tensor(ty_args=[T.Tensor((128, 16384), scope="trn.sbuf")])
-        B = T.alloc_tensor(ty_args=[T.Tensor((128, 8192), scope="trn.sbuf")])
-        C = T.alloc_tensor(ty_args=[T.Tensor((128, 16), scope="trn.sbuf")])
-        bias = T.alloc_tensor(ty_args=[T.Tensor((128, 1), scope="trn.sbuf")])
+        A = T.alloc_tensor(ty_args=[T.Tensor((128, 16384), "float32", scope="trn.sbuf")])
+        B = T.alloc_tensor(ty_args=[T.Tensor((128, 8192), "float32", scope="trn.sbuf")])
+        C = T.alloc_tensor(ty_args=[T.Tensor((128, 16), "float32", scope="trn.sbuf")])
+        bias = T.alloc_tensor(ty_args=[T.Tensor((128, 1), "float32", scope="trn.sbuf")])
         for i, b_loop in T.grid(2, 16):
             T.nki.tensorized_instruction()
             for p_loop in T.serial(0, 128, annotations={"nki_dim":"P"}):
@@ -327,9 +327,9 @@ def test_simple_tensor_scalar_reduce():
     @T.function
     def expected():
         T.func_attr({"global_symbol": "tensor_scalar_reduce"})
-        A = T.alloc_tensor(ty_args=[T.Tensor((128, 512), scope="trn.sbuf")])
-        B = T.alloc_tensor(ty_args=[T.Tensor((128, 512), scope="trn.sbuf")])
-        C = T.alloc_tensor(ty_args=[T.Tensor((128, 1), scope="trn.sbuf")])
+        A = T.alloc_tensor(ty_args=[T.Tensor((128, 512), "float32", scope="trn.sbuf")])
+        B = T.alloc_tensor(ty_args=[T.Tensor((128, 512), "float32", scope="trn.sbuf")])
+        C = T.alloc_tensor(ty_args=[T.Tensor((128, 1), "float32", scope="trn.sbuf")])
         for b_loop in range(1):
             T.nki.tensorized_instruction()
             for p_loop in T.serial(0, 128, annotations={"nki_dim":"P"}):
@@ -408,10 +408,10 @@ def test_tensor_scalar_reduce_complex():
     @T.function
     def expected():
         T.func_attr({"global_symbol": "tensor_scalar_reduce"})
-        A_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 16384), scope="trn.sbuf")])
-        B_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 512), scope="trn.sbuf")])
-        C_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 16384), scope="trn.sbuf")])
-        D_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 512), scope="trn.sbuf")])
+        A_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 16384), "float32", scope="trn.sbuf")])
+        B_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 512), "float32", scope="trn.sbuf")])
+        C_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 16384), "float32", scope="trn.sbuf")])
+        D_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 512), "float32", scope="trn.sbuf")])
         for b_loop in range(512):
             T.nki.tensorized_instruction()
             for p_loop in T.serial(0, 128, annotations={"nki_dim":"P"}):
@@ -450,10 +450,10 @@ def test_tensor_scalar_reduce_two_stage():
     @T.function
     def expected():
         T.func_attr({"global_symbol": "tensor_scalar_reduce"})
-        partial_reduce = T.alloc_tensor(ty_args=[T.Tensor((128, 4), scope="trn.sbuf")])
-        A_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 16384), scope="trn.sbuf")])
-        B_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 16384), scope="trn.sbuf")])
-        C_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 4), scope="trn.sbuf")])
+        partial_reduce = T.alloc_tensor(ty_args=[T.Tensor((128, 4), "float32", scope="trn.sbuf")])
+        A_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 16384), "float32", scope="trn.sbuf")])
+        B_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 16384), "float32", scope="trn.sbuf")])
+        C_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 4), "float32", scope="trn.sbuf")])
         for b_loop in range(4):
             for reduction_b_loop in range(4):
                 T.nki.tensorized_instruction()
@@ -508,11 +508,11 @@ def test_vector_chain():
     @T.function
     def expected():
         T.func_attr({"global_symbol": "binary"})
-        A_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 16384), scope="trn.sbuf")])
-        B_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 512), scope="trn.sbuf")])
-        _C_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 16384), scope="trn.sbuf")])
-        D_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 4), scope="trn.sbuf")])
-        E_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 16384), scope="trn.sbuf")])
+        A_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 16384), "float32", scope="trn.sbuf")])
+        B_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 512), "float32", scope="trn.sbuf")])
+        _C_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 16384), "float32", scope="trn.sbuf")])
+        D_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 4), "float32", scope="trn.sbuf")])
+        E_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 16384), "float32", scope="trn.sbuf")])
         for b_loop in T.serial(0, 512):
             T.nki.tensorized_instruction()
             for p_loop in T.serial(0, 128, annotations={"nki_dim":"P"}):
@@ -562,11 +562,11 @@ def test_vector_chain_2():
     @T.function
     def expected():
         T.func_attr({"global_symbol": "binary"})
-        A_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 16384), scope="trn.sbuf")])
-        B_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 512), scope="trn.sbuf")])
-        _C_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 16384), scope="trn.sbuf")])
-        D_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 16384), scope="trn.sbuf")])
-        E_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 16384), scope="trn.sbuf")])
+        A_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 16384), "float32", scope="trn.sbuf")])
+        B_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 512), "float32", scope="trn.sbuf")])
+        _C_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 16384), "float32", scope="trn.sbuf")])
+        D_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 16384), "float32", scope="trn.sbuf")])
+        E_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 16384), "float32", scope="trn.sbuf")])
         for b_loop in T.serial(0, 512):
             T.nki.tensorized_instruction()
             for p_loop in T.serial(0, 128, annotations={"nki_dim":"P"}):
@@ -604,8 +604,8 @@ def test_reduce_negate():
     @T.function
     def expected():
         T.func_attr({"global_symbol": "reduction"})
-        A_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 2048), scope="trn.sbuf")])
-        B_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 4), scope="trn.sbuf")])
+        A_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 2048), "float32", scope="trn.sbuf")])
+        B_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 4), "float32", scope="trn.sbuf")])
         for i, b_loop in T.grid(4, 1):
             T.nki.tensorized_instruction()
             for p_loop in T.serial(0, 128, annotations={"nki_dim":"P"}):
@@ -644,9 +644,9 @@ def test_binary_reduce_guard():
     @T.function
     def expected():
         T.func_attr({"global_symbol": "binary_reduce"})
-        A_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 2048), scope="trn.sbuf")])
-        B_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 2048), scope="trn.sbuf")])
-        C_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 4), scope="trn.sbuf")])
+        A_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 2048), "float32", scope="trn.sbuf")])
+        B_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 2048), "float32", scope="trn.sbuf")])
+        C_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 4), "float32", scope="trn.sbuf")])
         for j, i, b_loop in T.grid(4, 4, 4):
             T.nki.tensorized_instruction()
             for p_loop in T.serial(0, 128, annotations={"nki_dim":"P"}):
@@ -687,14 +687,14 @@ def test_unary_reduce_guard():
     @T.function
     def expected():
         T.func_attr({"global_symbol": "unary_reduce"})
-        const_bias = T.alloc_tensor(ty_args=[T.Tensor((128, 512), scope="trn.sbuf")])
+        const_bias = T.alloc_tensor(ty_args=[T.Tensor((128, 512), "float32", scope="trn.sbuf")])
         with T.nki.tensorized_instruction():
             for p_loop in T.serial(128, annotations={"nki_dim": "P"}):
                 for f_loop in T.serial(512, annotations={"nki_dim": "F"}):
                     T.nki.memset(const_bias[p_loop, f_loop], T.float32(0.0))
-        A_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 2048), scope="trn.sbuf")])
-        B_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 2048), scope="trn.sbuf")])
-        C_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 4), scope="trn.sbuf")])
+        A_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 2048), "float32", scope="trn.sbuf")])
+        B_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 2048), "float32", scope="trn.sbuf")])
+        C_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 4), "float32", scope="trn.sbuf")])
         for j, i, b_loop in T.grid(4, 4, 4):
             T.nki.tensorized_instruction()
             for p_loop in T.serial(128, annotations={"nki_dim": "P"}):
@@ -738,9 +738,9 @@ def test_binary_chain_guard():
     @T.function
     def expected():
         T.func_attr({"global_symbol": "binary_chain"})
-        A_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 2048), scope="trn.sbuf")])
-        B_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 4), scope="trn.sbuf")])
-        C_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 2048), scope="trn.sbuf")])
+        A_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 2048), "float32", scope="trn.sbuf")])
+        B_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 4), "float32", scope="trn.sbuf")])
+        C_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 2048), "float32", scope="trn.sbuf")])
         for j, i, b_loop in T.grid(4, 4, 4):
             T.nki.tensorized_instruction()
             for p_loop in T.serial(0, 128, annotations={"nki_dim":"P"}):
@@ -767,7 +767,9 @@ def test_activation_reduce_two_stage_workspace():
     @T.function
     def activation_reduce():
         T.device_entry()
-        intermediate_tensor = T.alloc_tensor(ty_args=[T.Tensor((128, 16), scope="trn.sbuf")])
+        intermediate_tensor = T.alloc_tensor(
+            ty_args=[T.Tensor((128, 16), "float32", scope="trn.sbuf")]
+        )
         A = T.alloc_tensor(
             ty_args=[T.Tensor(A_shape, "float32", scope="trn.sbuf", layout=A_layout)]
         )
@@ -783,15 +785,17 @@ def test_activation_reduce_two_stage_workspace():
     @T.function
     def expected():
         T.func_attr({"global_symbol": "activation_reduce"})
-        const_bias = T.alloc_tensor(ty_args=[T.Tensor((128, 1024), scope="trn.sbuf")])
+        const_bias = T.alloc_tensor(ty_args=[T.Tensor((128, 1024), "float32", scope="trn.sbuf")])
         with T.nki.tensorized_instruction():
             for p_loop in T.serial(128, annotations={"nki_dim": "P"}):
                 for f_loop in T.serial(1024, annotations={"nki_dim": "F"}):
                     T.nki.memset(const_bias[p_loop, f_loop], T.float32(0.0))
-        intermediate_tensor = T.alloc_tensor(ty_args=[T.Tensor((128, 16), scope="trn.sbuf")])
-        A = T.alloc_tensor(ty_args=[T.Tensor((128, 16384), scope="trn.sbuf")])
-        B = T.alloc_tensor(ty_args=[T.Tensor((128, 8192), scope="trn.sbuf")])
-        C = T.alloc_tensor(ty_args=[T.Tensor((128, 1), scope="trn.sbuf")])
+        intermediate_tensor = T.alloc_tensor(
+            ty_args=[T.Tensor((128, 16), "float32", scope="trn.sbuf")]
+        )
+        A = T.alloc_tensor(ty_args=[T.Tensor((128, 16384), "float32", scope="trn.sbuf")])
+        B = T.alloc_tensor(ty_args=[T.Tensor((128, 8192), "float32", scope="trn.sbuf")])
+        C = T.alloc_tensor(ty_args=[T.Tensor((128, 1), "float32", scope="trn.sbuf")])
         for i, b_loop in T.grid(2, 1):
             for reduction_b_loop in range(8):
                 T.nki.tensorized_instruction()
@@ -823,7 +827,9 @@ def test_tensor_scalar_reduce_two_stage_workspace():
     @T.function
     def tensor_scalar_reduce() -> None:
         T.device_entry()
-        intermediate_tensor = T.alloc_tensor(ty_args=[T.Tensor((128, 8), scope="trn.sbuf")])
+        intermediate_tensor = T.alloc_tensor(
+            ty_args=[T.Tensor((128, 8), "float32", scope="trn.sbuf")]
+        )
         A_sbuf = T.alloc_tensor(
             ty_args=[T.Tensor(src1_shape, "float32", scope="trn.sbuf", layout=src1_layout)]
         )
@@ -836,10 +842,12 @@ def test_tensor_scalar_reduce_two_stage_workspace():
     @T.function
     def expected():
         T.func_attr({"global_symbol": "tensor_scalar_reduce"})
-        intermediate_tensor = T.alloc_tensor(ty_args=[T.Tensor((128, 8), scope="trn.sbuf")])
-        A_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 16384), scope="trn.sbuf")])
-        B_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 16384), scope="trn.sbuf")])
-        C_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 4), scope="trn.sbuf")])
+        intermediate_tensor = T.alloc_tensor(
+            ty_args=[T.Tensor((128, 8), "float32", scope="trn.sbuf")]
+        )
+        A_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 16384), "float32", scope="trn.sbuf")])
+        B_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 16384), "float32", scope="trn.sbuf")])
+        C_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 4), "float32", scope="trn.sbuf")])
         for b_loop in range(4):
             for reduction_b_loop in range(4):
                 T.nki.tensorized_instruction()
@@ -909,9 +917,9 @@ def test_unary_reduce_complex():
     def expected():
         T.func_attr({"global_symbol": "unary_reduce"})
         p = T.alloc_tensor(ty_args=[T.Tensor((128, 8192), "float16", scope="trn.sbuf")])
-        rowsum_p = T.alloc_tensor(ty_args=[T.Tensor((128, 2), scope="trn.sbuf")])
-        qk = T.alloc_tensor(ty_args=[T.Tensor((128, 16384), scope="trn.sbuf")])
-        running_max = T.alloc_tensor(ty_args=[T.Tensor((128, 128), scope="trn.sbuf")])
+        rowsum_p = T.alloc_tensor(ty_args=[T.Tensor((128, 2), "float32", scope="trn.sbuf")])
+        qk = T.alloc_tensor(ty_args=[T.Tensor((128, 16384), "float32", scope="trn.sbuf")])
+        running_max = T.alloc_tensor(ty_args=[T.Tensor((128, 128), "float32", scope="trn.sbuf")])
         for i, b_loop in T.grid(4, 1):
             T.nki.tensorized_instruction()
             for p_loop in T.serial(128, annotations={"nki_dim": "P"}):

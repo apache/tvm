@@ -102,16 +102,6 @@ ExprDoc TypeValueImpl(DocTranslatorObj* d, const Type& type, bool dtype_literal)
     ExprDoc dtype = LiteralDoc::DataType(primitive.value()->dtype, std::nullopt);
     return dtype_literal ? dtype : NamespaceDoc("ir")->Attr("PrimType")->Call({dtype});
   }
-  if (auto function = type.as<FuncTypeNode>()) {
-    ffi::Array<ExprDoc> args;
-    for (const Type& arg : function->arg_types) args.push_back(TypeValue(d, arg, false));
-    return NamespaceDoc("ir")
-        ->Attr("FuncType")
-        ->Call({ListDoc(args), TypeValue(d, function->ret_type, false)});
-  }
-  if (type.as<MissingType>().has_value()) {
-    return NamespaceDoc("ir")->Attr("MissingType")->Call({});
-  }
   ExtraStateScope<bool> type_value(d, "ir.type_value", true);
   return d->Translate(type).value();
 }

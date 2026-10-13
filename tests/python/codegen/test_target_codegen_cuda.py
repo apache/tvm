@@ -527,7 +527,7 @@ def test_crossthread_reduction1(target, *, backend_config):
         @I.ir_module
         class Module:
             @T.function
-            def main(A: T.Tensor((n, m)), B: T.Tensor((n,))):
+            def main(A: T.Tensor((n, m), "float32"), B: T.Tensor((n,), "float32")):
                 T.func_attr({"tirx.noalias": True})
 
                 with T.launch_thread("blockIdx.x", n) as i:
@@ -598,7 +598,7 @@ def test_crossthread_reduction2(target, *, backend_config):
         @I.ir_module
         class Module:
             @T.function
-            def main(A: T.Tensor((n, k0, k1)), B: T.Tensor((n,))):
+            def main(A: T.Tensor((n, k0, k1), "float32"), B: T.Tensor((n,), "float32")):
                 T.func_attr({"tirx.noalias": True})
 
                 with T.launch_thread("blockIdx.x", n) as i:

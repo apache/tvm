@@ -134,7 +134,9 @@ def test_tir_macro_signature():
 
     @Ts.function(private=True)
     def matmul_w_macro(
-        A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 128])
+        A: T.Tensor([128, 128], "float32"),
+        B: T.Tensor([128, 128], "float32"),
+        C: T.Tensor([128, 128], "float32"),
     ) -> None:
         for i, j, k in T.grid(128, 128, 128):
             with Ts.sblock("update"):
@@ -142,7 +144,9 @@ def test_tir_macro_signature():
 
     @Ts.function(private=True)
     def matmul_no_macro(
-        A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 128])
+        A: T.Tensor([128, 128], "float32"),
+        B: T.Tensor([128, 128], "float32"),
+        C: T.Tensor([128, 128], "float32"),
     ) -> None:
         for i, j, k in T.grid(128, 128, 128):
             with Ts.sblock("update"):
@@ -208,14 +212,14 @@ def test_tir_macro_in_class():
                     self.local_x[vi, vj] = x[vi, vj]
 
     @Ts.function(private=True)
-    def func_w_macro(A: T.Tensor([128, 128])):
+    def func_w_macro(A: T.Tensor([128, 128], "float32")):
         o1 = T.meta_var(Object(A))
         o1.load(A)
         o2 = T.meta_var(Object(A))
         o2.load(o1.local_x)
 
     @Ts.function(private=True)
-    def func_no_macro(A: T.Tensor([128, 128])):
+    def func_no_macro(A: T.Tensor([128, 128], "float32")):
         local_a = Ts.sblock_alloc_tensor([128, 128])
         N, M = local_a.shape
         for i, j in T.grid(N, M):
@@ -334,14 +338,14 @@ def test_tir_macro_block_name_suffix():
             A[v] = A[v] * T.float32(2)
 
     @Ts.function(private=True)
-    def func_w_macro(A: T.Tensor([10])) -> None:
+    def func_w_macro(A: T.Tensor([10], "float32")) -> None:
         for i in T.serial(0, 10):
             operation(A, i)
             operation(A, i)
             operation(A, i)
 
     @Ts.function(private=True)
-    def expected(A: T.Tensor([10])) -> None:
+    def expected(A: T.Tensor([10], "float32")) -> None:
         for i in T.serial(0, 10):
             with Ts.sblock("op"):
                 v = Ts.axis.remap("S", [i])
@@ -437,7 +441,7 @@ def test_function_nested_closure():
 
 
 def test_ir_module_closure():
-    """Closure variable in @I.ir_module class method."""
+    """Closure variable in @T.ir_module class method."""
 
     def f(M=16):
         @I.ir_module
@@ -486,7 +490,11 @@ np_array = numpy.array([0, 1, 2, 3])
 
 
 @Ts.function
-def matmul(A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 128])) -> None:
+def matmul(
+    A: T.Tensor([128, 128], "float32"),
+    B: T.Tensor([128, 128], "float32"),
+    C: T.Tensor([128, 128], "float32"),
+) -> None:
     for i, j, k in T.grid(128, 128, 128):
         with Ts.sblock("update"):
             vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
@@ -543,9 +551,15 @@ def test_func_call():
 
     @Ts.function
     def mma_sync_m16n16k16_desc(
-        A: T.Tensor((32, 8), "float16", align=64, offset_factor=16, scope="warp"),
-        B: T.Tensor((32, 8), "float16", align=64, offset_factor=16, scope="warp"),
-        C: T.Tensor((32, 8), "float16", align=64, offset_factor=16, scope="warp"),
+        A: T.Tensor(
+            (32, 8), "float16", align=64, offset_factor=16, elem_offset=T.int32(), scope="warp"
+        ),
+        B: T.Tensor(
+            (32, 8), "float16", align=64, offset_factor=16, elem_offset=T.int32(), scope="warp"
+        ),
+        C: T.Tensor(
+            (32, 8), "float16", align=64, offset_factor=16, elem_offset=T.int32(), scope="warp"
+        ),
     ) -> None:
         with Ts.sblock("root"):
             Ts.reads(C[0:32, 0:8], A[0:32, 0:8], B[0:32, 0:8])
@@ -570,9 +584,15 @@ def test_func_call():
 
     @Ts.function
     def mma_sync_m16n16k16_desc_manual(
-        A: T.Tensor((32, 8), "float16", align=64, offset_factor=16, scope="warp"),
-        B: T.Tensor((32, 8), "float16", align=64, offset_factor=16, scope="warp"),
-        C: T.Tensor((32, 8), "float16", align=64, offset_factor=16, scope="warp"),
+        A: T.Tensor(
+            (32, 8), "float16", align=64, offset_factor=16, elem_offset=T.int32(), scope="warp"
+        ),
+        B: T.Tensor(
+            (32, 8), "float16", align=64, offset_factor=16, elem_offset=T.int32(), scope="warp"
+        ),
+        C: T.Tensor(
+            (32, 8), "float16", align=64, offset_factor=16, elem_offset=T.int32(), scope="warp"
+        ),
     ) -> None:
         with Ts.sblock("root"):
             Ts.reads(C[0:32, 0:8], A[0:32, 0:8], B[0:32, 0:8])

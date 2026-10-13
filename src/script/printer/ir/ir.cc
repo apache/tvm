@@ -136,19 +136,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                                               FDocTranslate::FromNative<&OpDocTranslate>());
 }
 
-ffi::Optional<ExprDoc> FuncTypeDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
-                                            const ffi::Object*) {
-  const auto* ty =
-      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const FuncTypeNode>(input);
-  return TypeValue(d, ffi::GetRef<FuncType>(ty), false);
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  ffi::reflection::TypeAttrDef<FuncTypeNode>().attr(
-      tvm::script::printer::type_attr::kDocTranslate,
-      FDocTranslate::FromNative<&FuncTypeDocTranslate>());
-}
-
 ffi::Optional<ExprDoc> RangeDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
                                          const ffi::Object*) {
   const auto* range =

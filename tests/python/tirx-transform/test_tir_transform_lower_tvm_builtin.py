@@ -195,13 +195,16 @@ def test_lower_overflow_int32():
         rxplaceholder_red = T.alloc_tensor(ty_args=[T.Tensor((32,), "float32")])
         T_subtract = T.alloc_tensor(ty_args=[T.Tensor((822083584,), "float32")])
         rxplaceholder_red_1 = T.decl_tensor(
-            rxplaceholder_red.data, ty_args=[T.Tensor((T.int64(32),), data=rxplaceholder_red.data)]
+            rxplaceholder_red.data,
+            ty_args=[T.Tensor((T.int64(32),), "float32", data=rxplaceholder_red.data)],
         )
         rxplaceholder_1 = T.decl_tensor(
-            rxplaceholder.data, ty_args=[T.Tensor((T.int64(822083584),), data=rxplaceholder.data)]
+            rxplaceholder.data,
+            ty_args=[T.Tensor((T.int64(822083584),), "float32", data=rxplaceholder.data)],
         )
         T_subtract_1 = T.decl_tensor(
-            T_subtract.data, ty_args=[T.Tensor((T.int64(822083584),), data=T_subtract.data)]
+            T_subtract.data,
+            ty_args=[T.Tensor((T.int64(822083584),), "float32", data=T_subtract.data)],
         )
         for ax1, ax2 in T.grid(32, 25690112):
             cse_v1: T.let[T.int32] = ax1 * 25690112 + ax2

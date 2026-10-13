@@ -328,7 +328,7 @@ def test_roundtrip_tensormap_kernel_param():
         T.evaluate(T.address_of(A_map))
     # fmt: on
     code = func1.script()
-    assert "T.Ptr(T.TensorMap)" in code
+    assert "T.Ptr(T.TensorMap())" in code
     assert from_source(code).script() == code
     assert_structural_equal(func1, from_source(code))
 
