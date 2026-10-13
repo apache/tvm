@@ -36,7 +36,7 @@ The raw ``T.ptx`` namespace remains available for scalar/address operands.
 There is no automatic instruction selection or fallback to the retired CUDA
 dispatch algorithms. Trainium's API and lowering are unchanged.
 
-This page is the contract reference. The :doc:`tile_primitives` instruction
+This page is the contract reference. The :doc:`tile_ops` instruction
 guides provide complete kernels, caller views, synchronization, and numerical
 checks, organized by PTX instruction family.
 

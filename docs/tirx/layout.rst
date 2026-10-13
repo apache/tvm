@@ -483,5 +483,5 @@ Design rationale
   itself, so an expression is unambiguous without external context. For instance
   ``1@tid`` (block-wide thread id) and ``1@tid_in_wg`` (thread id within a
   warpgroup) are distinct rather than a generic ``t`` whose meaning depends on the
-  definition site. Legality and feasibility checks are left to tile primitive
+  definition site. Legality and feasibility checks are left to tile op
   dispatch.

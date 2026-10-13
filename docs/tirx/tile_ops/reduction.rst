@@ -27,4 +27,4 @@ fused ``tensorscalar_reduce`` and ``activation_reduce`` instructions. Their
 axes and opcode are static qualifiers; tensors and optional reduction
 workspace are ordinary Call arguments.
 
-See :doc:`../tile_primitives` for the complete contract.
+See :doc:`../tile_ops` for the complete contract.

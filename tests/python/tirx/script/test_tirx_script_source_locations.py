@@ -148,7 +148,7 @@ def test_parser_retains_inline_call_site_and_definition_locs():
     ]
 
 
-def test_parser_attaches_loc_to_tile_primitive_call():
+def test_parser_attaches_loc_to_tile_op_call():
     sources = []
 
     @T.function

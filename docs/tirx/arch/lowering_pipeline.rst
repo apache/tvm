@@ -20,7 +20,7 @@ TIRx lowering pipeline
 
 ``tvm.compile(mod, target, tir_pipeline="tirx")`` runs an authored TIRx module
 through the **tirx pipeline** — an ordered sequence of IR passes that turns the
-high-level constructs you write (tile primitives, ``TileLayout``-typed tensors,
+high-level constructs you write (tile ops, ``TileLayout``-typed tensors,
 CUDA index calls) into split **host** + **device** functions, which the CUDA
 backend then renders to source. The pipeline is defined in
 ``python/tvm/tirx/compilation_pipeline.py`` (``tirx_pipeline``); this page walks the
@@ -144,7 +144,7 @@ Inside LowerTIRx
   and removes tensor offsets that have been folded into the resulting views.
 
 After ``LowerTIRx`` the module remains a ``tvm.tirx.Function``, but contains no
-tile primitives or ``TileLayout`` indirection, and CUDA indices read hardware coordinates.  Later TIRx passes lower the remaining opaque constructs and
+tile ops or ``TileLayout`` indirection, and CUDA indices read hardware coordinates.  Later TIRx passes lower the remaining opaque constructs and
 the target code generators consume ``tirx::Function`` directly; there is no
 conversion to the separate ``tvm.tir`` object model.
 
@@ -203,7 +203,7 @@ IR snippets across these docs were produced:
 
     target = tvm.target.Target("cuda")
     mod = TT.BindTarget(target.with_host("llvm"))(tvm.IRModule({"main": scale}))
-    mod = TT.LowerTIRx()(mod)         # tile primitives dispatched, layouts applied
+    mod = TT.LowerTIRx()(mod)         # tile ops dispatched, layouts applied
     print(mod.script())               # inspect the lowered TIRx IR
 
 Or compile the whole module and read the generated CUDA:

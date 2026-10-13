@@ -68,7 +68,7 @@ def _has_path(root, path):
     return True
 
 
-def test_builtin_expression_ops_are_not_tile_primitives():
+def test_builtin_expression_ops_are_not_tile_ops():
     x = tvm.tirx.Var("x", "int32")
     y = tvm.tirx.Var("y", "float32")
 
@@ -113,7 +113,7 @@ def test_tensormap_encoding_accepts_attribute_keywords_and_defaults():
     assert_structural_equal(encode, reparsed)
 
 
-def test_kernel_replace_point_is_builtin_marker_not_tile_primitive():
+def test_kernel_replace_point_is_builtin_marker_not_tile_op():
     assert _op_attr("tirx.kernel_replace_point", "FTileOpDispatch") is None
     assert "tirx.tile.kernel_replace_point" not in Op.list_op_names()
     assert hasattr(T, "kernel_replace_point")

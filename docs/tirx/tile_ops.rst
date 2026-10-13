@@ -15,8 +15,8 @@
     specific language governing permissions and limitations
     under the License.
 
-Tensor Instructions
-===================
+Tile Operations
+===============
 
 CUDA tile operations apply an explicit PTX instruction or a scalar function to
 canonical tensor views::
@@ -63,7 +63,7 @@ Algorithms owned by the caller
 ------------------------------
 
 CUDA reductions, layout permutation, synchronous global/shared copying, and
-scalar fallback copying are no longer tensor primitives or compositions.
+scalar fallback copying are implemented directly by the caller.
 Write the loops, temporary registers, and synchronization at the call site.
 For an in-place shared-memory permutation, finish all reads into registers,
 synchronize the warp, write using the destination layout, and synchronize
@@ -89,24 +89,24 @@ completion belongs to the selected instruction family, not to a generic
 .. toctree::
    :maxdepth: 1
 
-   tile_primitives/ld_st
-   tile_primitives/ldmatrix_stmatrix
-   tile_primitives/mov
-   tile_primitives/add_sub_mul
-   tile_primitives/div_rcp_sqrt
-   tile_primitives/min_max
-   tile_primitives/fma
-   tile_primitives/cvt
-   tile_primitives/ex2_lg2
-   tile_primitives/abs_neg
-   tile_primitives/cp_async
-   tile_primitives/cp_async_bulk
-   tile_primitives/cp_async_bulk_tensor
-   tile_primitives/tcgen05_ld_st
-   tile_primitives/tcgen05_cp
-   tile_primitives/mma_sync
-   tile_primitives/tcgen05_mma
-   tile_primitives/ewise
+   tile_ops/ld_st
+   tile_ops/ldmatrix_stmatrix
+   tile_ops/mov
+   tile_ops/add_sub_mul
+   tile_ops/div_rcp_sqrt
+   tile_ops/min_max
+   tile_ops/fma
+   tile_ops/cvt
+   tile_ops/ex2_lg2
+   tile_ops/abs_neg
+   tile_ops/cp_async
+   tile_ops/cp_async_bulk
+   tile_ops/cp_async_bulk_tensor
+   tile_ops/tcgen05_ld_st
+   tile_ops/tcgen05_cp
+   tile_ops/mma_sync
+   tile_ops/tcgen05_mma
+   tile_ops/ewise
 
 Trainium reductions
 -------------------
@@ -114,4 +114,4 @@ Trainium reductions
 .. toctree::
    :maxdepth: 1
 
-   tile_primitives/reduction
+   tile_ops/reduction

@@ -24,7 +24,7 @@ TIRx kernels use ``tvm.script.tirx`` for the parser and core IR builders::
 
    Tx.alloc_tensor(...)
 
-Tile primitives and backend-specific namespaces are documented separately in
+Tile ops and backend-specific namespaces are documented separately in
 :doc:`tile`, :doc:`cuda`, and :doc:`ptx`.  For the relationship between these
 authoring layers and TIRx IR, see :ref:`tirx-programming-model`.
 
@@ -98,5 +98,5 @@ thread-placement and tensor alias policies remain in the TIRx/S-TIR builders.
    No temporary copy is needed. ``wait::ld`` makes the loaded registers
    available to subsequent instructions; it does not wait for an earlier MMA.
 
-   See :doc:`../tile_primitives/tcgen05_ld_st` for other native shapes,
+   See :doc:`../tile_ops/tcgen05_ld_st` for other native shapes,
    pack/unpack, and a complete store/load example.

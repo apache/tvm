@@ -23,7 +23,7 @@ The signatures below list runtime operands first and static keyword qualifiers
 after ``*``. Tensor variables are expanded to full regions. Trainium unary sources
 may default to the destination; its named workspace arguments are optional.
 
-See :doc:`../tile_primitives` for memory, scope, descriptor, and synchronization
+See :doc:`../tile_ops` for memory, scope, descriptor, and synchronization
 contracts. These calls produce ordinary IR Calls; the raw scalar instruction
 namespaces remain ``T.ptx`` and ``T.nki``.
 
