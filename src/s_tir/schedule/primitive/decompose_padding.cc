@@ -153,10 +153,9 @@ class PaddingInfoAnalyzer {
   PrimExpr RewritePredicate(const PrimExpr& predicate) {
     PrimExpr res = IntImm::Bool(true);
     std::function<void(PrimExpr)> update = [&res, &update](PrimExpr e) {
-      sym::PVar<PrimExpr> a, b;
-      if ((a && b).Match(e)) {
-        update(a.Eval());
-        update(b.Eval());
+      if (const auto* and_node = e.as<prim::AndNode>()) {
+        update(and_node->a);
+        update(and_node->b);
       } else {
         if (const CallNode* call = e.as<CallNode>()) {
           if (call->op.same_as(prim::likely_op())) {

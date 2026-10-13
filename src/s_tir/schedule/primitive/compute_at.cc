@@ -438,23 +438,29 @@ std::pair<Var, BlockVarDomainInfo> SolveBlockVarDomain(const sym::IntSet& provid
   PrimExpr required_max = analyzer->Simplify(required.max());
   sym::IntSet var_dom{ffi::UnsafeInit{}}, var_bound{ffi::UnsafeInit{}};
   ffi::Optional<Var> var;
-  sym::PVar<Var> p_v;
-  sym::PVar<PrimExpr> p_e;
-  if ((p_v * p_e).Match(provided_min) || (p_e * p_v).Match(provided_min)) {
-    PrimExpr e = p_e.Eval();
-    var = p_v.Eval();
+  ffi::Optional<PrimExpr> factor;
+  if (const auto* mul = provided_min.as<prim::MulNode>()) {
+    if (auto lhs = mul->a.as<Var>()) {
+      var = lhs;
+      factor = mul->b;
+    } else if (auto rhs = mul->b.as<Var>()) {
+      var = rhs;
+      factor = mul->a;
+    }
+  }
+  if (factor.has_value()) {
+    PrimExpr e = factor.value();
     var_dom = sym::IntSet::Interval(floordiv(required_min, e), floordiv(required_max, e));
     var_bound = sym::IntSet::Interval(0, floordiv(dim_max, e));
   } else if (analyzer->CanProveEqual(provided_min, provided_max)) {
-    if (p_v.Match(provided_min)) {
-      var = p_v.Eval();
+    if (auto single_var = provided_min.as<Var>()) {
+      var = single_var;
       var_dom = sym::IntSet::Interval(required_min, required_max);
       var_bound = sym::IntSet::Interval(0, dim_max);
     } else {
-      sym::PVar<PrimExpr> p_f1, p_f2;
-      if ((floordiv(p_f1, p_f2).Match(provided_min))) {
-        PrimExpr var_expr = p_f1.Eval();
-        PrimExpr fac = p_f2.Eval();
+      if (const auto* div = provided_min.as<prim::FloorDivNode>()) {
+        PrimExpr var_expr = div->a;
+        PrimExpr fac = div->b;
         if (analyzer->CanProveGreaterEqual(fac, 1)) {
           if (var_expr.as<PrimVar>()) {
             // a <= (x // factor) <= b, fac > 0 ==> (a * fac) <= x <= (b * fac + fac - 1)
@@ -463,27 +469,27 @@ std::pair<Var, BlockVarDomainInfo> SolveBlockVarDomain(const sym::IntSet& provid
                                             analyzer->Simplify(required_max * fac + fac - 1));
             var_bound = sym::IntSet::Interval(0, analyzer->Simplify(dim_max * fac + fac - 1));
           } else {
-            const sym::IntSet new_provided = sym::IntSet::SinglePoint(p_f1.Eval());
+            const sym::IntSet new_provided = sym::IntSet::SinglePoint(div->a);
             const sym::IntSet new_required = sym::IntSet::Interval(
                 required_min * fac, analyzer->Simplify(required_max * fac + fac - 1));
             return SolveBlockVarDomain(new_provided, new_required, dim_max, analyzer);
           }
         }
-      } else if ((floormod(p_f1, p_f2).Match(provided_min))) {
-        PrimExpr var_expr = p_f1.Eval();
+      } else if (const auto* mod = provided_min.as<prim::FloorModNode>()) {
+        PrimExpr var_expr = mod->a;
         if (var_expr.as<PrimVar>()) {
           // generally domain of (x % fac) enforce no constraints to domain of x
           Var var_mod = var_expr.as_or_throw<Var>();
           return {var_mod, BlockVarDomainInfo()};
         } else {
-          PrimExpr mod_1 = p_f1.Eval();
-          PrimExpr mod_2 = p_f2.Eval();
+          PrimExpr mod_1 = mod->a;
+          PrimExpr mod_2 = mod->b;
           if (analyzer->CanProveGreaterEqual(mod_1, 1) &&
               analyzer->CanProveGreaterEqual(mod_2, 1)) {
-            const sym::IntSet new_provided = sym::IntSet::SinglePoint(p_f1.Eval());
+            const sym::IntSet new_provided = sym::IntSet::SinglePoint(mod->a);
             if (analyzer->CanProveGreaterEqual(required_min, 0)) {
               const sym::IntSet new_required =
-                  sym::IntSet::Interval(required_min, sym::SymbolicLimits::pos_inf_);
+                  sym::IntSet::Interval(required_min, sym::IntSet::Everything().max());
               return SolveBlockVarDomain(new_provided, new_required, dim_max, analyzer);
             }
           }

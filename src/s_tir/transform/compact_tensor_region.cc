@@ -135,6 +135,12 @@ class TensorAccessRegionCollector : public StmtExprVisitor {
   }
 
  private:
+  static bool IsIndexTypedExpr(const PrimExpr& expr) {
+    PrimType type = expr.ty();
+    return type.IsScalar() && type.MatchesCode(DLDataTypeCode::kDLInt) &&
+           (type.bits() == 32 || type.bits() == 64);
+  }
+
   struct TensorAccessInfo {
     /*! \brief The tensor. */
     TensorVar tensor;
@@ -213,7 +219,7 @@ class TensorAccessRegionCollector : public StmtExprVisitor {
         call && call->op.same_as(tirx::decl_tensor_op()))
       return StmtExprVisitor::Visit_(op);
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit(op->value));
-    if (auto value = op->value.as<PrimExpr>(); value && sym::IsIndexTypedExpr(value.value())) {
+    if (auto value = op->value.as<PrimExpr>(); value && IsIndexTypedExpr(value.value())) {
       dom_analyzer_->Bind(op->var, value.value());
       dom_map_.emplace(op->var.get(), sym::IntSet::SinglePoint(value.value()));
     }
@@ -222,12 +228,12 @@ class TensorAccessRegionCollector : public StmtExprVisitor {
 
   ffi::Optional<VisitInterrupt> Visit_(const LetNode* op) final {
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit(op->value));
-    if (sym::IsIndexTypedExpr(op->value)) {
+    if (IsIndexTypedExpr(op->value)) {
       dom_analyzer_->Bind(op->var, op->value);
       dom_map_.emplace(op->var.get(), sym::IntSet::SinglePoint(op->value));
     }
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit(op->body));
-    if (sym::IsIndexTypedExpr(op->value)) {
+    if (IsIndexTypedExpr(op->value)) {
       dom_map_.erase(op->var.get());
     }
     return std::nullopt;

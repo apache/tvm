@@ -78,19 +78,6 @@ class DFPatternMatcher : public DFPatternFunctor<bool(const DFPattern&, const Ex
                          const tvm::ffi::Array<Expr> fields, std::vector<int8_t>& match_cache,
                          std::vector<bool>& matched);
 
-  /* \brief Simplify a boolean condition using the analyzer
-   *
-   * Matching type can often produce conditions that do not
-   * simplify cleanly.  For example, while the rewrite simplifier can
-   * recognize that `m==0 && m==1` can be simplifies to `false`, it
-   * cannot recognize that `m==0 && n==0 && m==1` can be simplified to
-   * false.
-   *
-   * This function applies additional simplification steps to handle
-   * these cases, before delgating to `analyzer_.Simplify`.
-   */
-  PrimExpr SimplifyCondition(PrimExpr condition);
-
   std::unordered_map<DFPattern, Expr, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> memo_;
   var2val_t var2val_;
   std::vector<DFPattern> matched_nodes_;

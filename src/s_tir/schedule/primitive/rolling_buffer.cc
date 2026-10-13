@@ -191,32 +191,39 @@ class RollingBufferInfoCollector {
     std::vector<ffi::Optional<Var>> bound_iter_vars;
     std::vector<int> bound_overlaps;
 
-    sym::PVar<Var> p_var;
-    sym::PVar<IntImm> p_stride, p_divisor;
     for (auto bound : region) {
       auto stride = 0;
       auto divisor = 1;
 
       ffi::Optional<Var> iter_var;
-      if (floordiv((p_var * p_stride), p_divisor).Match(bound->min)) {
+      if (const auto* div = bound->min.as<prim::FloorDivNode>()) {
+        const auto* mul = div->a.as<prim::MulNode>();
+        if (!mul) return false;
+        iter_var = mul->a.as<Var>();
+        auto stride_imm = mul->b.as<IntImm>();
+        auto divisor_imm = div->b.as<IntImm>();
+        if (!iter_var.has_value() || !stride_imm.has_value() || !divisor_imm.has_value()) {
+          return false;
+        }
         // Handle the case of fractional strides
-        // They take this form: floordiv(hh.outer, 2)
+        // They take this form: floordiv(hh.outer * stride, divisor)
         // Strip the floordiv and keep track of the divisor
-        iter_var = p_var.Eval();
-        auto divisor_value = p_divisor.Eval()->value.as<int>();
-        auto stride_value = p_stride.Eval()->value.as<int>();
+        auto divisor_value = divisor_imm.value()->value.as<int>();
+        auto stride_value = stride_imm.value()->value.as<int>();
         if (!divisor_value.has_value() || !stride_value.has_value()) return false;
         divisor = *divisor_value;
         stride = std::ceil(static_cast<float>(*stride_value) / divisor);
-      } else if ((p_var * p_stride).Match(bound->min)) {
+      } else if (const auto* mul = bound->min.as<prim::MulNode>()) {
         // The bound is the iter var multiplied by the stride
-        iter_var = p_var.Eval();
-        auto stride_value = p_stride.Eval()->value.as<int>();
+        iter_var = mul->a.as<Var>();
+        auto stride_imm = mul->b.as<IntImm>();
+        if (!iter_var.has_value() || !stride_imm.has_value()) return false;
+        auto stride_value = stride_imm.value()->value.as<int>();
         if (!stride_value.has_value()) return false;
         stride = *stride_value;
-      } else if (p_var.Match(bound->min)) {
+      } else if (auto var = bound->min.as<Var>()) {
         // If the bound is just a Var, that implies the stride is 1
-        iter_var = p_var.Eval();
+        iter_var = var;
         stride = 1;
       } else if (IsConstInt(bound->min)) {
         // If the bound is an int, we can't roll over it
