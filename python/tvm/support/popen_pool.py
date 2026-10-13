@@ -166,7 +166,7 @@ class PopenWorker:
         main_read, worker_write = os.pipe()
         worker_read, main_write = os.pipe()
 
-        cmd = [sys.executable, "-m", "tvm.exec.popen_worker"]
+        cmd = [sys.executable, "-m", "tvm.support.popen_worker"]
         if sys.platform == "win32":
             # pylint: disable=import-outside-toplevel
             import msvcrt

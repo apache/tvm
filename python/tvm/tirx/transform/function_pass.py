@@ -22,7 +22,7 @@ from collections.abc import Callable
 
 import tvm_ffi
 
-from tvm.transform import Pass, PassInfo
+from tvm.ir.transform import Pass, PassInfo
 
 from . import _ffi_api
 

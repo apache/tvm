@@ -568,7 +568,7 @@ def test_vectorize_and_predicate_all_tensor_loads_stores():
             )
 
     mod = tvm.IRModule.from_expr(before)
-    with tvm.transform.PassContext(config={"tirx.enable_tensor_level_predication": True}):
+    with tvm.ir.transform.PassContext(config={"tirx.enable_tensor_level_predication": True}):
         after = tvm.tirx.transform.VectorizeLoop()(mod)["main"]
     tvm.ir.assert_structural_equal(after, expected)
 
@@ -592,7 +592,7 @@ def test_vectorize_and_predicate_some_tensor_loads_stores():
                 B[i_0 * 4 + i_1_s] = A[i_0] + T.float32(1)
 
     mod = tvm.IRModule.from_expr(before)
-    with tvm.transform.PassContext(config={"tirx.enable_tensor_level_predication": True}):
+    with tvm.ir.transform.PassContext(config={"tirx.enable_tensor_level_predication": True}):
         after = tvm.tirx.transform.VectorizeLoop()(mod)["main"]
     tvm.ir.assert_structural_equal(after, expected)
 
@@ -633,7 +633,7 @@ def test_vectorize_and_predicate_multiple_access_statements():
             )
 
     before_mod = tvm.IRModule.from_expr(before)
-    with tvm.transform.PassContext(config={"tirx.enable_tensor_level_predication": True}):
+    with tvm.ir.transform.PassContext(config={"tirx.enable_tensor_level_predication": True}):
         after = tvm.tirx.transform.VectorizeLoop()(before_mod)["main"]
     tvm.ir.assert_structural_equal(after, expected)
 
@@ -694,7 +694,7 @@ def test_vectorize_and_predicate_invalid_conditions():
                     A[i_0 * 4 + i_1_s] = T.float32(2)
 
     before_mod = tvm.IRModule.from_expr(before)
-    with tvm.transform.PassContext(config={"tirx.enable_tensor_level_predication": True}):
+    with tvm.ir.transform.PassContext(config={"tirx.enable_tensor_level_predication": True}):
         after = tvm.tirx.transform.VectorizeLoop()(before_mod)["main"]
     tvm.ir.assert_structural_equal(after, expected)
 
@@ -719,7 +719,7 @@ def test_vectorize_with_explicitly_disabled_tensor_level_predication():
                 B[i_0 * 4 + i_1_s] = A[i_0 * 4 + i_1_s] + T.float32(1)
 
     mod = tvm.IRModule.from_expr(before)
-    with tvm.transform.PassContext(config={"tirx.enable_tensor_level_predication": False}):
+    with tvm.ir.transform.PassContext(config={"tirx.enable_tensor_level_predication": False}):
         after = tvm.tirx.transform.VectorizeLoop()(mod)["main"]
     tvm.ir.assert_structural_equal(after, expected)
 

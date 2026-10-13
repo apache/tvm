@@ -114,7 +114,7 @@ class PassInstrument(tvm.runtime.Object):
 
             The module on which an optimization pass is being run.
 
-        info : tvm.transform.PassInfo
+        info : tvm.ir.transform.PassInfo
 
             The pass information.
 
@@ -137,7 +137,7 @@ class PassInstrument(tvm.runtime.Object):
 
             The module on which an optimization pass is being run.
 
-        info : tvm.transform.PassInfo
+        info : tvm.ir.transform.PassInfo
 
             The pass information.
 
@@ -158,7 +158,7 @@ class PassInstrument(tvm.runtime.Object):
 
             The module on which an optimization pass is being run.
 
-        info : tvm.transform.PassInfo
+        info : tvm.ir.transform.PassInfo
 
             The pass information.
 
@@ -204,7 +204,7 @@ def pass_instrument(pi_cls=None):
 
     .. code-block:: python
 
-        @tvm.transform.pass_instrument
+        @tvm.ir.transform.pass_instrument
         class SkipPass:
             def __init__(self, skip_pass_name):
                 self.skip_pass_name = skip_pass_name
@@ -232,7 +232,7 @@ def pass_instrument(pi_cls=None):
             #    pass
 
         skip_annotate = SkipPass("AnnotateSpans")
-        with tvm.transform.PassContext(instruments=[skip_annotate]):
+        with tvm.ir.transform.PassContext(instruments=[skip_annotate]):
             tvm.compile(mod, "llvm")
     """
 
@@ -474,7 +474,7 @@ def module_pass(pass_func=None, opt_level=None, name=None):
 
     .. code-block:: python
 
-        @tvm.transform.module_pass
+        @tvm.ir.transform.module_pass
         class CustomPipeline:
             def __init__(self, enable_fold):
                 self.enable_fold = enable_fold
@@ -496,7 +496,7 @@ def module_pass(pass_func=None, opt_level=None, name=None):
 
     .. code-block:: python
 
-        @tvm.transform.module_pass(opt_level=2)
+        @tvm.ir.transform.module_pass(opt_level=2)
         def transform(mod, ctx):
             return relax.transform.FoldConstant(mod)
 
