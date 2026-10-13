@@ -21,12 +21,11 @@
 #define TVM_S_TIR_TRANSFORM_IR_UTILS_H_
 
 #include <tvm/ffi/container/tuple.h>
+#include <tvm/ir/module.h>
 #include <tvm/s_tir/stmt.h>
 
 #include <string>
 #include <unordered_map>
-
-#include "../../tirx/transform/ir_utils.h"
 
 namespace tvm {
 namespace s_tir {

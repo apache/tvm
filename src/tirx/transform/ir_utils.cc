@@ -43,83 +43,86 @@ namespace tvm {
 namespace tirx {
 using namespace tvm::prim;
 
+namespace {
+class IRConvertSSA final : public StmtExprMutator {
+ public:
+  TVM_DEFINE_OBJECT_FUNCTOR_DEFAULT_CONSTRUCTOR(IRConvertSSA, StmtExprMutator)
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
+  Function VisitFunction(Function func);
+  IRModule VisitIRModule(IRModule mod);
+
+ private:
+  UnchangedOr<Expr> Mutate_(const VarNode* op, InplaceMode inplace_mode) final;
+  Var DefineVar(Var var);
+  ffi::Optional<Var> GetVarRemap(const Var& var);
+  UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final;
+  UnchangedOr<Stmt> Mutate_(const IfNode* op, InplaceMode inplace_mode) final;
+  UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final;
+  UnchangedOr<Stmt> Mutate_(const WhileNode* op, InplaceMode inplace_mode) final;
+  UnchangedOr<Stmt> Mutate_(const RegionStmtNode* op, InplaceMode inplace_mode) final;
+  UnchangedOr<PrimExpr> Mutate_(const prim::LetNode* op, InplaceMode inplace_mode) final;
+  static Var MakeNewVar(const Var& old_var);
+  void SetVarRemap(const Var& old_var, const Var& new_var);
+
+  // Lexical visibility ends with each scope, but definitions stay unique across the module.
+  ScopeStack<std::unordered_map<const VarNode*, Var>> scope_;
+  std::unordered_set<const VarNode*> defined_;
+};
+
 Function IRConvertSSA::VisitFunction(Function func) {
-  std::unordered_set<const VarNode*> parameter_symbols;
-  // Define explicit parameters before the symbolic values in their types.
-  for (const Var& param : func->params) {
-    DefineVar(param);
-    parameter_symbols.insert(param.get());
-  }
-  for (const Var& param : func->params) {
-    ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(
-        param->ty, [&](const Var& var) -> ffi::Expected<ffi::WalkResult> {
-          if (!parameter_symbols.count(var.get())) {
-            parameter_symbols.insert(var.get());
-            DefineVar(var);
-          }
-          return ffi::WalkResult::Advance();
-        });
-  }
-  auto params = func->params.Map([&](const Var& var) {
-    Var mapped = GetRemappedVar(var);
-    Type type = Mutate(var->ty, InplaceMode::kDisallow)
-                    .as_or_throw<UnchangedOr<Type>>()
-                    .ValueOrUnchanged(var->ty);
-    if (!type.same_as(mapped->ty)) {
-      mapped = mapped.CopyWithType(type);
-      PushVarRemap(var, mapped);
+  return scope_.WithNewScope([&]() -> Function {
+    std::unordered_set<const VarNode*> parameter_symbols;
+    // Define explicit parameters before the symbolic values in their types.
+    for (const Var& param : func->params) {
+      DefineVar(param);
+      parameter_symbols.insert(param.get());
     }
-    return mapped;
-  });
-
-  auto attrs = [&]() -> DictAttrs {
-    ffi::Map<ffi::String, ffi::Any> dict;
-    bool made_change = false;
-
-    for (const auto& [key, old_value] : func->attrs->dict) {
-      auto value = old_value;
-      if (auto expr = value.as<PrimExpr>()) {
-        value = Mutate(expr.value(), InplaceMode::kDisallow).ValueOrUnchanged(expr.value());
-      } else if (auto* stmt = value.as<StmtNode>()) {
-        value = Mutate(ffi::GetRef<Stmt>(stmt), InplaceMode::kDisallow)
-                    .ValueOrUnchanged(ffi::GetRef<Stmt>(stmt));
+    for (const Var& param : func->params) {
+      ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(
+          param->ty, [&](const Var& var) -> ffi::Expected<ffi::WalkResult> {
+            if (!parameter_symbols.count(var.get())) {
+              parameter_symbols.insert(var.get());
+              DefineVar(var);
+            }
+            return ffi::WalkResult::Advance();
+          });
+    }
+    auto params = func->params.Map([&](const Var& var) {
+      Var mapped = GetVarRemap(var).value_or(var);
+      Type type = Mutate(var->ty, InplaceMode::kDisallow)
+                      .as_or_throw<UnchangedOr<Type>>()
+                      .ValueOrUnchanged(var->ty);
+      if (!type.same_as(mapped->ty)) {
+        mapped = mapped.CopyWithType(type);
+        SetVarRemap(var, mapped);
       }
+      return mapped;
+    });
 
-      made_change = made_change || !value.same_as(old_value);
-      dict.Set(key, value);
+    auto body_result = Mutate(func->body, InplaceMode::kDisallow);
+    bool body_unchanged = body_result.UnchangedOrSameAs(func->body);
+    auto body = std::move(body_result).ValueOrUnchanged(func->body);
+
+    if (!params.same_as(func->params) || !body_unchanged) {
+      auto* node = func.CopyOnWrite();
+      node->params = std::move(params);
+      node->body = std::move(body);
+      node->ty = node->func_type_annotation();
     }
-
-    if (made_change) {
-      return DictAttrs(dict);
-    } else {
-      return func->attrs;
-    }
-  }();
-
-  auto body_result = Mutate(func->body, InplaceMode::kDisallow);
-  bool body_unchanged = body_result.UnchangedOrSameAs(func->body);
-  auto body = std::move(body_result).ValueOrUnchanged(func->body);
-
-  // If anything changed, update the returned function
-  if (!params.same_as(func->params) || !attrs.same_as(func->attrs) || !body_unchanged) {
-    func = Function(params, body, func->ret_type, attrs);
-  }
-
-  // Pop function-scope remaps in reverse order
-  PopAllRemapsInCurrentScope();
-  return func;
+    return func;
+  });
 }
 
 UnchangedOr<Expr> IRConvertSSA::Mutate_(const VarNode* op, InplaceMode inplace_mode) {
   Var var = ffi::GetRef<Var>(op);
   if (def_region_kind() != kTVMFFIDefRegionKindNone) {
     if (def_region_kind() == kTVMFFIDefRegionKindPattern) {
-      Var mapped = GetRemappedVar(var);
-      if (!mapped.same_as(var) || defined_.count(var.get())) return mapped;
+      if (auto mapped = GetVarRemap(var)) return mapped.value();
     }
     return DefineVar(var);
   }
-  Var mapped = GetRemappedVar(var);
+  Var mapped = GetVarRemap(var).value_or(var);
   if (!mapped.same_as(var)) return mapped;
   return ffi::Unchanged();
 }
@@ -133,10 +136,6 @@ UnchangedOr<PrimExpr> IRConvertSSA::Mutate_(const prim::LetNode* op, InplaceMode
   return result;
 }
 
-Stmt IRConvertSSA::WithScope(const std::function<Stmt()>& body) {
-  return scope_.WithNewScope(body);
-}
-
 Var IRConvertSSA::DefineVar(Var var) {
   Type type = WithDefRegionKind(kTVMFFIDefRegionKindNone, [&] {
     return Mutate(var->ty, InplaceMode::kDisallow)
@@ -146,17 +145,15 @@ Var IRConvertSSA::DefineVar(Var var) {
   Var result = defined_.count(var.get()) ? MakeNewVar(var) : var;
   defined_.insert(var.get());
   if (!type.same_as(result->ty)) result = result.CopyWithType(type);
-  if (!result.same_as(var)) PushVarRemap(var, result);
+  SetVarRemap(var, result);
   return result;
 }
 
-Var IRConvertSSA::GetRemappedVar(Var var) {
-  if (auto it = scoped_var_remap_.find(var.get());
-      it != scoped_var_remap_.end() && it->second.size()) {
-    return it->second.back();
-  } else {
-    return var;
+ffi::Optional<Var> IRConvertSSA::GetVarRemap(const Var& var) {
+  for (auto it = scope_.rbegin(); it != scope_.rend(); ++it) {
+    if (auto found = it->find(var.get()); found != it->end()) return found->second;
   }
+  return std::nullopt;
 }
 
 UnchangedOr<Stmt> IRConvertSSA::Mutate_(const BindNode* op, InplaceMode inplace_mode) {
@@ -165,7 +162,7 @@ UnchangedOr<Stmt> IRConvertSSA::Mutate_(const BindNode* op, InplaceMode inplace_
   // The ordinary Bind path rewrites the RHS before defining the Var and propagates its type.
   Stmt stmt = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
   Var bound_var = stmt.as<BindNode>()->var;
-  if (!bound_var.same_as(GetRemappedVar(var))) PushVarRemap(var, bound_var);
+  if (!bound_var.same_as(GetVarRemap(var).value_or(var))) SetVarRemap(var, bound_var);
   VarRemapSet(var, previous_remap);
   return stmt;
 }
@@ -196,7 +193,7 @@ UnchangedOr<Stmt> IRConvertSSA::Mutate_(const ForNode* op, InplaceMode inplace_m
   if (defined_.count(v.get())) {
     return scope_.WithNewScope([&]() -> Stmt {
       Var new_var = MakeNewVar(v);
-      PushVarRemap(v, new_var);
+      SetVarRemap(v, new_var);
       Stmt stmt =
           StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
       auto n = ffi::make_object<ForNode>(*stmt.as<ForNode>());
@@ -206,6 +203,7 @@ UnchangedOr<Stmt> IRConvertSSA::Mutate_(const ForNode* op, InplaceMode inplace_m
   } else {
     defined_.insert(v.get());
     return scope_.WithNewScope([&]() -> Stmt {
+      SetVarRemap(v, v);
       return StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     });
   }
@@ -239,24 +237,8 @@ Var IRConvertSSA::MakeNewVar(const Var& old_var) {
   return Var(old_var->name, old_var->ty, old_var->loc);
 }
 
-void IRConvertSSA::PushVarRemap(const Var& old_var, const Var& new_var) {
-  scoped_var_remap_[old_var.get()].push_back(new_var);
-  auto& level = scope_.Current();
-  level.parent = this;
-  level.push_back({old_var, new_var});
-}
-
-void IRConvertSSA::PopAllRemapsInCurrentScope() {
-  auto& current = scope_.Current();
-  while (current.size()) {
-    auto& remap = current.back();
-    scoped_var_remap_[remap.old_var.get()].pop_back();
-    current.pop_back();
-  }
-}
-
-Stmt ConvertSSA(Stmt stmt) {
-  return ffi::make_object<IRConvertSSA>()->Mutate(stmt, InplaceMode::kAllow).ValueOrUnchanged(stmt);
+void IRConvertSSA::SetVarRemap(const Var& old_var, const Var& new_var) {
+  scope_.Current().insert_or_assign(old_var.get(), new_var);
 }
 
 IRModule IRConvertSSA::VisitIRModule(IRModule mod) {
@@ -276,6 +258,11 @@ IRModule IRConvertSSA::VisitIRModule(IRModule mod) {
     mod.CopyOnWrite()->functions = std::move(functions);
   }
   return mod;
+}
+}  // namespace
+
+Stmt ConvertSSA(Stmt stmt) {
+  return ffi::make_object<IRConvertSSA>()->Mutate(stmt, InplaceMode::kAllow).ValueOrUnchanged(stmt);
 }
 
 namespace transform {
