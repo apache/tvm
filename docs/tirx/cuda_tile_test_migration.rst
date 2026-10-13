@@ -108,6 +108,25 @@ Migration rules
   changing their emitted code. Tests check all nine thread/block index forms
   at both valid boundaries and one element beyond each boundary.
 
+* ``elementwise/test_unary.py`` restores all 25 original test functions and
+  all 174 parameter cases. Caller-defined scalar functions spell out exp,
+  SiLU, reciprocal, scale/bias and dtype conversion. Native mov and cvt calls
+  specify raw register carriers and their group/repeat coordinates.
+* Casts retain the original warpgroup-local, mixed-axis, tcgen05 and sliced
+  layouts. Sliced outputs now initialize and check untouched elements too.
+  Packed f32 narrowing explicitly supplies the high and low halfword sources;
+  the old half2-to-float2 C++ intrinsic becomes its two scalar PTX conversions.
+* The old layout partition/decomposition helper tests become address-map
+  checks against independent formulas for all original layout samples.
+  Missing group axes, partial thread coverage and incorrect owners still have
+  instruction-level rejection tests. Previously inactive same-dtype cast and
+  CTA-local fill combinations now run GPU checks.
+* The one-warp WGMMA-layout unary case retains its original full-warpgroup
+  launch but guards the three warps outside its input. Thread-local cast
+  cases similarly give the full array to one thread, avoiding duplicate
+  stores by every launched thread. Neither change alters the input/output
+  tensor shapes or layout mapping being tested.
+
 Original case inventory
 -----------------------
 
@@ -597,79 +616,79 @@ Original case inventory
      - Migrated
    * - ``elementwise/test_unary.py``
      - ``test_unary_op_shared``
-     - Pending
+     - Migrated
    * - ``elementwise/test_unary.py``
      - ``test_unary_op_shared_subcta_scope``
-     - Pending
+     - Migrated
    * - ``elementwise/test_unary.py``
      - ``test_unary_op_shared_with_bias_scale``
-     - Pending
+     - Migrated
    * - ``elementwise/test_unary.py``
      - ``test_unary_op_local``
-     - Pending
+     - Migrated
    * - ``elementwise/test_unary.py``
      - ``test_unary_op_local_with_bias_scale``
-     - Pending
+     - Migrated
    * - ``elementwise/test_unary.py``
      - ``test_unary_op_vectorized``
-     - Pending
+     - Migrated
    * - ``elementwise/test_unary.py``
      - ``test_unary_op_local_thread_wise``
-     - Pending
+     - Migrated
    * - ``elementwise/test_unary.py``
      - ``test_cast_thread_local``
-     - Pending
+     - Migrated
    * - ``elementwise/test_unary.py``
      - ``test_cast_warpgroup_local_view``
-     - Pending
+     - Migrated
    * - ``elementwise/test_unary.py``
      - ``test_cast_warpgroup_src_layout_to_flat_uses_vec2_intrinsic``
-     - Pending
+     - Migrated
    * - ``elementwise/test_unary.py``
      - ``test_cast_cta_local_view``
-     - Pending
+     - Migrated
    * - ``elementwise/test_unary.py``
      - ``test_cast_local_view_sliced``
-     - Pending
+     - Migrated
    * - ``elementwise/test_unary.py``
      - ``test_cast_layout_partition_and_validation``
-     - Pending
+     - Migrated
    * - ``elementwise/test_unary.py``
      - ``test_cast_mixed_axes_and_subregion``
-     - Pending
+     - Migrated
    * - ``elementwise/test_unary.py``
      - ``test_cast_joint_decomposition_extents_order``
-     - Pending
+     - Migrated
    * - ``elementwise/test_unary.py``
      - ``test_cast_validate_extent_mismatch_rejected``
-     - Pending
+     - Migrated
    * - ``elementwise/test_unary.py``
      - ``test_unary_exp_f16_shared_scalar_fallback_dispatch``
-     - Pending
+     - Migrated
    * - ``elementwise/test_unary.py``
      - ``test_cast_vec2_packed_dispatch``
-     - Pending
+     - Migrated
    * - ``elementwise/test_unary.py``
      - ``test_cast_wg_rejects_thread_local_view``
-     - Pending
+     - Migrated
    * - ``elementwise/test_unary.py``
      - ``test_cast_cta_rejects_thread_local_view``
-     - Pending
+     - Migrated
    * - ``elementwise/test_unary.py``
      - ``test_cast_wg_rejects_partial_thread_coverage``
-     - Pending
+     - Migrated
    * - ``elementwise/test_unary.py``
      - ``test_cast_wg_accepts_wg_level_layout``
-     - Pending
+     - Migrated
    * - ``elementwise/test_unary.py``
      - ``test_cast_thread_accepts_local_view``
-     - Pending
+     - Migrated
    * - ``elementwise/test_unary.py``
      - ``test_cast_tcgen05_atom_warpgroup_reg_dispatch_compiles``
-     - Pending
+     - Migrated
    * - ``elementwise/test_unary.py``
      - ``test_cast_tcgen05_atom_warpgroup_gpu``
-     - Pending
+     - Migrated
    * - ``gemm/test_gemm_mma_m16n8k_.py``
      - ``test_cuda_mma_sync_is_a_registered_instruction``
      - Pending
