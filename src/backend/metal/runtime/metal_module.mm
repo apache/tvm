@@ -30,6 +30,7 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/logging.h>
+#include <tvm/support/bytes_io.h>
 #include <tvm/support/io.h>
 #include <array>
 #include <mutex>
@@ -40,7 +41,6 @@
 #include "../../../runtime/launch_param.h"
 #include "../../../runtime/metadata.h"
 #include "../../../runtime/pack_args.h"
-#include "../../../support/bytes_io.h"
 #include "metal_common.h"
 
 #if (defined(__MAC_OS_X_VERSION_MAX_ALLOWED) && __MAC_OS_X_VERSION_MAX_ALLOWED >= 260000) || \

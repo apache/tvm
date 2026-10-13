@@ -24,10 +24,10 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/timer.h>
+#include <tvm/support/env.h>
 
 #include <sstream>
 
-#include "../../../support/env.h"
 #include "opencl_common.h"
 
 #ifdef OPENCL_ENABLE_HOST_PTR

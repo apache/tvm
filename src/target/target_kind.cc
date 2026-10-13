@@ -32,7 +32,6 @@
 
 #include <algorithm>
 
-#include "../support/utils.h"
 #include "./llvm/canonicalizer/canonicalize.h"
 
 namespace tvm {

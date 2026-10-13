@@ -27,12 +27,12 @@
  */
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/support/bytes_io.h>
 #include <tvm/support/io.h>
 
 #include <string>
 #include <utility>
 
-#include "../../../support/bytes_io.h"
 #include "spirv_shader.h"
 #include "vulkan_wrapped_func.h"
 

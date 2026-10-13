@@ -35,12 +35,11 @@
 #include <tvm/ffi/extra/json.h>
 #include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/function.h>
+#include <tvm/support/bytes_io.h>
 
 #include <sstream>
 #include <string>
 #include <utility>
-
-#include "../../../support/bytes_io.h"
 
 namespace tvm {
 namespace target {
