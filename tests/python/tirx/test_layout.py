@@ -28,6 +28,7 @@ from tvm.backend.cuda.lang import SMEMPool
 from tvm.backend.cuda.layout import (
     SwizzleMode,
     mma_shared_layout,
+    tmem_datapath_layout,
     tmem_mma_operand_layout,
     wg_local_layout,
 )
@@ -1519,8 +1520,11 @@ def test_tmem_mma_operand_layout_grouped_d():
     )
     assert_structural_equal(head128_o, expected_head64_o)
 
-    with pytest.raises(ValueError, match="ws=True only valid"):
-        tmem_mma_operand_layout("D", (128, 256), "float32", M=128, cta_group=1, ws=True)
+    wide_ws = tmem_mma_operand_layout("D", (128, 256), "float32", M=128, cta_group=1, ws=True)
+    assert_structural_equal(wide_ws, tmem_datapath_layout("D", 128, 256))
+
+    with pytest.raises(ValueError, match="ws=True requires cta_group=1"):
+        tmem_mma_operand_layout("D", (64, 256), "float32", M=128, cta_group=2, ws=True)
 
     with pytest.raises(ValueError, match="group must be"):
         tmem_mma_operand_layout(

@@ -80,7 +80,7 @@ def test_mma(k, dtype, initial):
 
 
 @pytest.mark.skipif(not env.has_cuda_compute(10), reason="Blackwell required")
-@pytest.mark.parametrize("m,ws", [(128, False), (64, False), (64, True)])
+@pytest.mark.parametrize("m,ws", [(128, False), (128, True), (64, False), (64, True)])
 @pytest.mark.parametrize(
     "dtype,k,kind,acc_dtype",
     [
@@ -94,20 +94,21 @@ def test_mma(k, dtype, initial):
 )
 @pytest.mark.parametrize("major", ["k", "mn"])
 def test_tcgen05_mma(m, ws, dtype, k, kind, acc_dtype, major, swizzle=3):
-    if major == "mn" and kind == "tf32":
-        pytest.skip("PTX requires K-major for these formats")
-    if kind == "i8" and ws:
-        pytest.skip("PTX has no weight-stationary i8 form")
+    if major == "mn" and kind == "tf32" and swizzle != 4:
+        pytest.skip("TF32 MN-major uses the separately tested 32B-atomicity descriptor")
     n, nk = 64, 3
     packed = 32 // tvm.DataType(acc_dtype).bits
     bits = tvm.DataType(dtype).bits
-    row_elems = (128 << swizzle) // bits
-    per_element = (128 // bits).bit_length() - 1
+    row_bytes = 128 if swizzle == 4 else 16 << swizzle
+    swizzle_len = 2 if swizzle == 4 else swizzle
+    atom_len = 2 if swizzle == 4 else 3
+    row_elems = row_bytes * 8 // bits
+    per_element = ((256 if swizzle == 4 else 128) // bits).bit_length() - 1
     if major == "mn":
         al = ComposeLayout(
             per_element,
-            swizzle,
-            3,
+            swizzle_len,
+            atom_len,
             TileLayout(
                 S[
                     (1, nk, m // min(m, row_elems), min(m, row_elems), k) : (
@@ -122,8 +123,8 @@ def test_tcgen05_mma(m, ws, dtype, k, kind, acc_dtype, major, swizzle=3):
         )
         bl = ComposeLayout(
             per_element,
-            swizzle,
-            3,
+            swizzle_len,
+            atom_len,
             TileLayout(
                 S[
                     (1, nk, n // min(n, row_elems), min(n, row_elems), k) : (
@@ -136,15 +137,19 @@ def test_tcgen05_mma(m, ws, dtype, k, kind, acc_dtype, major, swizzle=3):
                 ]
             ),
         )
-        descriptor_a = descriptor_b = (nk * k * (16 << swizzle), 8 * (16 << swizzle), swizzle)
+        descriptor_a = descriptor_b = (
+            nk * k * row_bytes,
+            (4 if swizzle == 4 else 8) * row_bytes,
+            swizzle,
+        )
         if swizzle == 0:
             descriptor_a = descriptor_b = (descriptor_a[1], descriptor_a[0], 0)
     else:
         inner = min(k, row_elems)
         al = ComposeLayout(
             per_element,
-            swizzle,
-            3,
+            swizzle_len,
+            atom_len,
             TileLayout(
                 S[
                     (1, nk, m, k // inner, inner) : (
@@ -159,8 +164,8 @@ def test_tcgen05_mma(m, ws, dtype, k, kind, acc_dtype, major, swizzle=3):
         )
         bl = ComposeLayout(
             per_element,
-            swizzle,
-            3,
+            swizzle_len,
+            atom_len,
             TileLayout(
                 S[
                     (1, nk, n, k // inner, inner) : (
@@ -173,8 +178,8 @@ def test_tcgen05_mma(m, ws, dtype, k, kind, acc_dtype, major, swizzle=3):
                 ]
             ),
         )
-        descriptor_a = (m * (16 << swizzle), 8 * (16 << swizzle), swizzle)
-        descriptor_b = (n * (16 << swizzle), 8 * (16 << swizzle), swizzle)
+        descriptor_a = (m * row_bytes, 8 * row_bytes, swizzle)
+        descriptor_b = (n * row_bytes, 8 * row_bytes, swizzle)
     dl = tmem_mma_operand_layout("D", (m, n), acc_dtype, M=m, cta_group=1, ws=ws)
     data_format = "tf32" if kind == "tf32" else dtype
     instruction = f"tcgen05.mma{'.ws' if ws else ''}.cta_group::1.kind::{kind}"
@@ -710,3 +715,28 @@ def test_tcgen05_fp4_scale_vectors(cta_group, scale_format, vec, kind):
 @pytest.mark.parametrize("major", ["k", "mn"])
 def test_tcgen05_descriptor_modes(swizzle, major):
     test_tcgen05_mma(128, False, "float16", 16, "f16", "float32", major, swizzle)
+
+
+@pytest.mark.skipif(not env.has_cuda_compute(10), reason="Blackwell required")
+@pytest.mark.parametrize("m,ws", [(64, False), (64, True), (128, False), (128, True)])
+def test_tcgen05_tf32_32b_atomicity(m, ws):
+    test_tcgen05_mma(m, ws, "float32", 8, "tf32", "float32", "mn", swizzle=4)
+
+
+@pytest.mark.skipif(not env.has_cuda_compute(10), reason="Blackwell required")
+@pytest.mark.parametrize("major", ["k", "mn"])
+def test_tcgen05_fp8_no_swizzle(major):
+    test_tcgen05_mma(64, False, "float8_e4m3fn", 32, "f8f6f4", "float32", major, swizzle=0)
+
+
+@pytest.mark.skipif(not env.has_cuda_compute(10), reason="Blackwell required")
+@pytest.mark.parametrize(
+    "dtype,k,kind,major,message",
+    [
+        ("float32", 8, "tf32", "k", "32B atomicity requires MN-major"),
+        ("float16", 16, "f16", "mn", "requires 32-bit MN-major elements"),
+    ],
+)
+def test_tcgen05_32b_atomicity_rejects_incompatible_operand(dtype, k, kind, major, message):
+    with pytest.raises(Exception, match=message):
+        test_tcgen05_mma(128, False, dtype, k, kind, "float32", major, swizzle=4)

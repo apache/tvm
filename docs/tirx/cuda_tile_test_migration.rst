@@ -179,6 +179,18 @@ Original case inventory
   both checked; dispatch no longer interprets a column-major tensor as a
   different physical matrix implicitly.
 
+* ``gemm_async`` accounts for all 41 original functions. The four descriptor
+  construction policies become one explicit descriptor address walk, and
+  thread election belongs to the caller. The packed/banked C aliases have
+  matching instruction calls. TMEM A/D/SFA/SFB lane origins are checked at
+  the native call operands, rather than in unused descriptor temporaries.
+* Splitting M64 .ws N128 into N64 issues preserves the original TMEM banks
+  through explicit B staging and a C view. This former compile-only case
+  now checks the GPU result with distinct A-bank data. M128 .ws is restored
+  and numerically tested. FP8 no-swizzle and TF32 MN-major with 32B atomicity
+  also have native numerical checks; illegal format/swizzle pairings fail
+  their explicit contract.
+
 .. list-table::
    :header-rows: 1
    :widths: 30 55 15
@@ -812,13 +824,13 @@ Original case inventory
      - Restored
    * - ``gemm_async/test_gemm_async.py``
      - ``test_gemm_tcgen05_no_swizzle_smem_descriptor_codegen``
-     - Pending
+     - Restored in ``gemm_async/test_gemm_async_codegen.py``
    * - ``gemm_async/test_gemm_async.py``
      - ``test_gemm_tcgen05_cta_group_2_accepts_replicated_tmem_a_codegen``
-     - Pending
+     - Restored in ``gemm_async/test_gemm_async_codegen.py``
    * - ``gemm_async/test_gemm_async.py``
      - ``test_gemm_tcgen05_cta_group_2_rejects_flat_tmem_a_codegen``
-     - Pending
+     - Restored in ``gemm_async/test_gemm_async_codegen.py``
    * - ``gemm_async/test_gemm_async.py``
      - ``test_gemm_tcgen05_no_swizzle_col_major_a_ws_local_idesc``
      - Restored
@@ -833,73 +845,73 @@ Original case inventory
      - Restored
    * - ``gemm_async/test_gemm_async.py``
      - ``test_gemm_tcgen05_explicit_mma_tile_changes_physical_instructions``
-     - Pending
+     - Restored in ``gemm_async/test_gemm_async_codegen.py``
    * - ``gemm_async/test_gemm_async.py``
      - ``test_gemm_tcgen05_explicit_mma_m_is_cluster_total_for_cta_group_2``
-     - Pending
+     - Restored in ``gemm_async/test_gemm_async_codegen.py``
    * - ``gemm_async/test_gemm_async.py``
      - ``test_gemm_tcgen05_block_scaled_explicit_mma_tile_splits_n``
-     - Pending
+     - Restored in ``gemm_async/test_gemm_async_codegen.py``
    * - ``gemm_async/test_gemm_async.py``
      - ``test_gemm_tcgen05_explicit_mma_tile_rejects_invalid_config``
-     - Pending
+     - Restored in ``gemm_async/test_gemm_async_codegen.py``
    * - ``gemm_async/test_gemm_async.py``
      - ``test_gemm_smem_desc_modes_codegen``
-     - Pending
+     - Contract updated: one explicit descriptor walk replaces four policies
    * - ``gemm_async/test_gemm_async.py``
      - ``test_gemm_tcgen05_weight_stationary_codegen``
-     - Pending
+     - Restored in ``gemm_async/test_gemm_async_codegen.py``
    * - ``gemm_async/test_gemm_async.py``
      - ``test_gemm_tcgen05_dense_descI_rejected``
-     - Pending
+     - Restored in ``gemm_async/test_gemm_async_codegen.py``
    * - ``gemm_async/test_gemm_async.py``
      - ``test_gemm_tcgen05_cta1_m64_accepts_packed_c_layout_ws``
-     - Pending
+     - Restored in ``gemm_async/test_gemm_async_codegen.py``
    * - ``gemm_async/test_gemm_async.py``
      - ``test_gemm_tcgen05_explicit_mma_tile_preserves_inferred_ws_datapath``
-     - Pending
+     - Explicit B staging and C view; two N64 issues plus GPU result in ``gemm_async/test_gemm_ws_split_n.py``
    * - ``gemm_async/test_gemm_async.py``
      - ``test_gemm_tcgen05_cta1_m64_ws_requires_layout_e_c``
-     - Pending
+     - Restored in ``gemm_async/test_gemm_async_codegen.py``
    * - ``gemm_async/test_gemm_async.py``
      - ``test_gemm_tcgen05_cta1_m64_ws_requires_batched_a``
-     - Pending
+     - Restored in ``gemm_async/test_gemm_async_codegen.py``
    * - ``gemm_async/test_gemm_async.py``
      - ``test_gemm_tcgen05_batched_a_rejects_unproven_datapath``
-     - Pending
+     - Restored in ``gemm_async/test_gemm_async_codegen.py``
    * - ``gemm_async/test_gemm_async.py``
      - ``test_gemm_tcgen05_cta1_m64_accepts_batched_c_layout_ws``
-     - Pending
+     - Restored in ``gemm_async/test_gemm_async_codegen.py``
    * - ``gemm_async/test_gemm_async.py``
      - ``test_gemm_tcgen05_cta1_m64_packed_c_infers_weight_stationary``
-     - Pending
+     - Explicit .ws selection; plain MMA still rejected for Layout E
    * - ``gemm_async/test_gemm_async.py``
      - ``test_gemm_tcgen05_preserves_explicit_tmem_lane_bases``
-     - Pending
+     - Restored in ``gemm_async/test_gemm_async_codegen.py``
    * - ``gemm_async/test_gemm_async.py``
      - ``test_gemm_tcgen05_preserves_block_scale_tmem_lane_bases``
-     - Pending
+     - Restored in ``gemm_async/test_gemm_async_codegen.py``
    * - ``gemm_async/test_gemm_async.py``
      - ``test_gemm_tcgen05_hoisted_descriptor_uniformization``
-     - Pending
+     - Contract updated: caller selects issuer; no implicit descriptor shuffle
    * - ``gemm_async/test_gemm_async.py``
      - ``test_gemm_tcgen05_no_swizzle_col_major_rejects_non_128B_contiguous``
-     - Pending
+     - Explicit packed view required; original unadapted aliases rejected
    * - ``gemm_async/test_gemm_async.py``
      - ``test_gemm_tcgen05_no_swizzle_packed_16b_rejects_non_16bit_dtype``
-     - Pending
+     - Explicit byte strides accept the original FP8 layout; native FP8 no-swizzle GPU checks added
    * - ``gemm_async/test_gemm_async.py``
      - ``test_gemm_tcgen05_instr_desc_fold_mirrors_runtime_shape_rules``
-     - Pending
+     - Restored in ``gemm_async/test_gemm_async_codegen.py``
    * - ``gemm_async/test_gemm_async.py``
      - ``test_gemm_tcgen05_rejects_tf32_mn_major``
-     - Pending
+     - Restored in ``gemm_async/test_gemm_async_codegen.py``
    * - ``gemm_async/test_gemm_async.py``
      - ``test_gemm_tcgen05_rejects_non_uniform_atom_grid``
-     - Pending
+     - Restored in ``gemm_async/test_gemm_async_codegen.py``
    * - ``gemm_async/test_gemm_async.py``
      - ``test_gemm_tcgen05_dense_descI_rejected_at_dispatch``
-     - Pending
+     - Restored in ``gemm_async/test_gemm_async_codegen.py``
    * - ``test_explicit_patterns.py``
      - ``test_roundtrip``
      - Retained unchanged

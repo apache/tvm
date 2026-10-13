@@ -81,17 +81,26 @@ def _shared_operand(ctx, operand, atom_shape, descriptor, major):
     if len(fields) != 3:
         raise ValueError("shared descriptor is (ldo_bytes, sdo_bytes, swizzle)")
     ldo, sdo, swizzle = fields
-    row_bytes = 16 << swizzle
+    if major == "mn" and operand.bits == 32 and swizzle != 4:
+        raise ValueError("32-bit MN-major requires 128B swizzling with 32B atomicity")
+    if swizzle == 4 and major != "mn":
+        raise ValueError("128B swizzling with 32B atomicity requires MN-major")
+    if major == "mn" and operand.bits != 32 and swizzle == 4:
+        raise ValueError("128B swizzling with 32B atomicity requires 32-bit MN-major elements")
+    row_bytes = 128 if swizzle == 4 else 16 << swizzle
     mn, k = atom_shape
     # PTX's unswizzled MN-major atom exchanges leading and stride offsets.
     row_group, column_group = (ldo, sdo) if major == "mn" and swizzle == 0 else (sdo, ldo)
     base = operand.memory((0, 0)) * operand.bits
+    if swizzle:
+        base = swizzle_bytes(base // 8, swizzle) * 8 + base % 8
     # Atom coordinates are fixed matrix coordinates. Major order changes
     # the descriptor walk, not the logical matrix multiplication.
+    rows_per_group = 4 if swizzle == 4 else 8
     for i in range(mn):
         for j in range(k):
             row, contiguous = (j, i) if major == "mn" else (i, j)
-            offset = row // 8 * row_group * 8 + row % 8 * row_bytes * 8
+            offset = row // rows_per_group * row_group * 8 + row % rows_per_group * row_bytes * 8
             offset += contiguous * operand.bits // (
                 row_bytes * 8
             ) * column_group * 8 + contiguous * operand.bits % (row_bytes * 8)
@@ -141,7 +150,12 @@ def lower(opcode, entry, modifiers, args, params, sctx):
     if len(args) != (5 if block_scale else 3):
         raise ValueError("tcgen05.mma requires D/A/B, plus SFA/SFB for block_scale")
     cta_group = int(modifiers["cta_group"].split("::")[1])
-    M, N, K = (int(scalar(x)) for x in sequence(params.pop("instruction_shape")))
+    shape = tuple(scalar(x) for x in sequence(params.pop("instruction_shape")))
+    if len(shape) != 3 or any(not isinstance(x, int) or x <= 0 for x in shape):
+        raise ValueError("instruction_shape requires three positive integers (M, N, K)")
+    M, N, K = shape
+    if ws and (cta_group != 1 or N not in (64, 128, 256)):
+        raise ValueError("weight-stationary MMA requires CTA group 1 and N=64,128,256")
     am = str(scalar(params.pop("a_major", "k")))
     bm = str(scalar(params.pop("b_major", "k")))
     if am not in ("k", "mn") or bm not in ("k", "mn"):

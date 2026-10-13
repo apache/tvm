@@ -183,9 +183,9 @@ def _mma_datapath_letter(M, cta_group, ws=False, sparse=False):
             f"alloc_tcgen05_mma_AB: sparse A (Layout C) not supported in v1 "
             f"(M={M}, cta_group={cta_group})"
         )
-    if ws and not (cta_group == 1 and M == 64):
+    if ws and not (cta_group == 1 and M in (64, 128)):
         raise ValueError(
-            f"alloc_tcgen05_mma_AB: ws=True only valid for cta_group=1, M=64 (Layout E); "
+            f"alloc_tcgen05_mma_AB: ws=True requires cta_group=1, M=64 or M=128; "
             f"got M={M}, cta_group={cta_group}"
         )
     if cta_group == 1:

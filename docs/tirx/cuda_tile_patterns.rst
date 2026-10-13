@@ -345,7 +345,7 @@ that field does not make gapped words legal.
 
 For MMA, ``row`` means M/N in K-major order and K in MN-major order. The
 contiguous coordinate advances in units of the operand dtype. Its low bits
-occupy a ``16 << swizzle`` byte row. The offsets for each subsequent 8-row
+occupy a ``16 << swizzle`` byte row for modes 0..3. The offsets for each subsequent 8-row
 group and each subsequent contiguous chunk are:
 
 .. list-table:: MMA descriptor strides in bytes
@@ -363,6 +363,14 @@ group and each subsequent contiguous chunk are:
    * - MN-major, unswizzled
      - LDO
      - SDO
+
+MMA mode ``swizzle=4`` is the distinct 128B span / 32B atomicity format
+for 32-bit MN-major operands. It has 128-byte rows and groups **four** K rows
+per SDO step. Consecutive 128-byte M/N chunks use LDO. Its byte permutation
+is ``offset ^ ((offset >> 2) & 96)`` with a 512-byte period, unlike mode 3's
+``offset ^ ((offset >> 3) & 112)``. The mode is explicit in the descriptor;
+it is never selected from a tensor layout. The same TF32 format in K-major
+order uses modes 0..3.
 
 This distinction follows PTX's canonical shared layouts; in particular,
 unswizzled MN-major exchanges the descriptor fields' roles. The selected
@@ -420,11 +428,19 @@ masks, .ws zero-column mask, and ``pred`` are explicit operands.
 
 The MMA TMEM datapath follows ``tmem_mma_operand_layout`` in
 ``tvm.backend.cuda.layout`` for the chosen instruction shape and mode.
+Weight-stationary M=128 uses Layout D, like non-.ws M=128.
 Weight-stationary M=64 A-in-TMEM includes an explicit leading bank axis of
 size two. Scale rows use lane ``row%32``, byte-column ``4*(row//32)+sf`` and
 four 32-lane replicas. The scale ID is encoded from each scale tensor's own
 byte-column origin. Preparation, CTA election, fences, commit and wait remain
 caller-owned. Layouts never select .ws or a different M/N/K instruction shape.
+
+Splitting an M64 .ws N128 operation into two N64 instructions changes the
+bank boundary inside each instruction from 64 columns to 32. The caller must
+account for this: ``gemm_async/test_gemm_ws_split_n.py`` preserves the original
+banked A and packed C, explicitly stages B in each instruction's column order,
+and permutes the C view. Simply cutting B and C into consecutive N64 logical
+slices does not preserve that operation.
 
 Migrating callers
 --------------------------------------------------------------------------------

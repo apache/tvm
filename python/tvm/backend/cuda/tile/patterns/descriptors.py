@@ -29,16 +29,19 @@ from .common import scalar
 
 
 def swizzle_bytes(offset, swizzle):
+    if swizzle == 4:
+        # 128B span, 32B atomicity: XOR address bits [8:7] into [6:5].
+        return T.bitwise_xor(offset, T.bitwise_and(offset // 4, 96))
     return T.bitwise_xor(offset, T.bitwise_and(offset // 8, (2**swizzle - 1) * 16))
 
 
 def matrix_descriptor(ctx, smem, ldo, sdo, swizzle, atom_origin):
     ldo, sdo, swizzle = int(scalar(ldo)), int(scalar(sdo)), int(scalar(swizzle))
-    if swizzle not in range(4) or any(x < 0 or x % 16 or x >= 2**18 for x in (ldo, sdo)):
-        raise ValueError("matrix descriptor requires swizzle 0..3 and 16-byte strides below 2^18")
+    if swizzle not in range(5) or any(x < 0 or x % 16 or x >= 2**18 for x in (ldo, sdo)):
+        raise ValueError("matrix descriptor requires swizzle 0..4 and 16-byte strides below 2^18")
     smem.aligned(atom_origin, 16)
     if swizzle:
-        period = 128 << swizzle
+        period = 512 if swizzle == 4 else 128 << swizzle
         if int(smem.ty.data_alignment) % period:
             raise ValueError(
                 "swizzled matrix descriptor requires a base aligned to its full swizzle period"
@@ -62,6 +65,8 @@ def matrix_descriptor(ctx, smem, ldo, sdo, swizzle, atom_origin):
 
 def check_matrix_rows(ctx, smem, rows, words, ldo, sdo, swizzle):
     """Check b32 rows in groups of eight; 256b rows comprise two 16B units."""
+    if swizzle not in range(4):
+        raise ValueError("tcgen05.cp row pattern requires swizzle 0..3")
     base = smem.memory((0, 0)) * 4
     if swizzle:
         base = swizzle_bytes(base, swizzle)
